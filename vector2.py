@@ -1,7 +1,7 @@
 
 import math
 from operator import neg
-from typing import Callable, Iterable, Iterator, Self, overload
+from typing import Callable, Iterable, Iterator, Literal, Self, overload
 
 
 class Vector2:
@@ -228,6 +228,24 @@ class Vector2:
 		theta = math.atan2(self.y, self.x)
 		
 		return type(self)(r, theta)
+	
+	def quadrant(self) -> Literal[0, 1, 2, 3]:
+		"""
+		Returns the quadrant of the vector in the Cartesian plane.
+		0: First quadrant (x >= 0, y >= 0)
+		1: Second quadrant (x < 0, y >= 0)
+		2: Third quadrant (x < 0, y < 0)
+		3: Fourth quadrant (x >= 0, y < 0)
+		"""
+		
+		if self.x >= 0 and self.y >= 0:
+			return 0
+		elif self.x < 0 and self.y >= 0:
+			return 1
+		elif self.x < 0 and self.y < 0:
+			return 2
+		else:
+			return 3
 
 	def project(self, other: Self) -> Self:
 		"""Returns the projection of `this` onto `other`."""
