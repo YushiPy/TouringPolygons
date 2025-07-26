@@ -43,58 +43,10 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 	diff1 = end1 - start1
 	diff2 = end2 - start2
 
-	det = diff1.cross(diff2)
+	rates = intersection_rates(start1, diff1, start2, diff2)
 
-	if abs(det) < 1e-8:
-		return None
-
-	sdiff = start2 - start1
-
-	t = sdiff.cross(diff2) / det
-	u = sdiff.cross(diff1) / det
-
-	if 0 <= t <= 1 and 0 <= u <= 1:
-		return start1 + diff1 * t
-
-def ray_ray_intersection(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> Vector2 | None:
-	"""
-	Returns the intersection point of two rays if they intersect, otherwise returns None.
-
-	:param Vector2 start1: The start point of the first ray as a Vector2.
-	:param Vector2 direction1: The direction vector of the first ray as a Vector2.
-	:param Vector2 start2: The start point of the second ray as a Vector2.
-	:param Vector2 direction2: The direction vector of the second ray as a Vector2.
-
-	:return: The intersection point as a Vector2 if the rays intersect, otherwise None.
-	"""
-
-	rates = intersection_rates(start1, direction1, start2, direction2)
-
-	if rates is None:
-		return None
-
-	if rates[0] >= 0 and rates[1] >= 0:
-		return start1 + direction1 * rates[0]
-
-def line_line_intersection(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> Vector2:
-	"""
-	Returns the intersection point of two rays.
-	If the rays are parallel, returns infinity vector.
-
-	:param Vector2 start1: The start point of the first ray as a Vector2.
-	:param Vector2 direction1: The direction vector of the first ray as a Vector2.
-	:param Vector2 start2: The start point of the second ray as a Vector2.
-	:param Vector2 direction2: The direction vector of the second ray as a Vector2.
-
-	:return: The intersection point as a Vector2 if the rays intersect, otherwise infinity vector.
-	"""
-
-	rates = intersection_rates(start1, direction1, start2, direction2)
-
-	if rates is None:
-		return Vector2(inf, inf)
-
-	return start1 + direction1 * rates[0]
+	if rates is not None and 0 <= rates[0] <= 1 and 0 <= rates[1] <= 1:
+		return start1 + diff1 * rates[0]
 
 
 def locate_ray(start: Vector2, direction: Vector2, bbox: tuple[float, float, float, float]) -> Vector2:
@@ -129,16 +81,17 @@ def locate_ray(start: Vector2, direction: Vector2, bbox: tuple[float, float, flo
 	# Should be unreachable if the ray is inside the bounding box.
 	return Vector2(inf, inf)
 
-def locate_cone(start: Vector2, direction1: Vector2, direction2: Vector2, bbox: tuple[float, float, float, float]) -> list[Vector2]:
+def locate_edge(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2, bbox: tuple[float, float, float, float]) -> list[Vector2]:
 	"""
-	Locate the cone defined by two directions starting from `start` within the bounding box `bbox`.
+	Locate the edge defined by two directions starting from `start1` and `start2` within the bounding box `bbox`.
 
-	:param Vector2 start: The starting point of the cone.
-	:param Vector2 direction1: The first direction vector of the cone.
-	:param Vector2 direction2: The second direction vector of the cone.
+	:param Vector2 start1: The starting point of the first edge.
+	:param Vector2 direction1: The direction vector of the first edge.
+	:param Vector2 start2: The starting point of the second edge.
+	:param Vector2 direction2: The direction vector of the second edge.
 	:param tuple bbox: The bounding box defined as (minx, miny, maxx, maxy).
 
-	:return: A Polygon2 object representing the cone's vertices.
+	:return: A list of Vector2 points representing the edge's vertices.
 	"""
 
 	def get_wall(point: Vector2) -> int:
@@ -162,8 +115,8 @@ def locate_cone(start: Vector2, direction1: Vector2, direction2: Vector2, bbox: 
 
 	minx, miny, maxx, maxy = bbox
 
-	p1 = locate_ray(start, direction1, bbox)
-	p2 = locate_ray(start, direction2, bbox)
+	p1 = locate_ray(start1, direction1, bbox)
+	p2 = locate_ray(start2, direction2, bbox)
 
 	w1 = get_wall(p1)
 	w2 = get_wall(p2)
@@ -175,16 +128,31 @@ def locate_cone(start: Vector2, direction1: Vector2, direction2: Vector2, bbox: 
 		Vector2(minx, miny)
 	]
 	
-	result = [start, p1]
+	result = [start1, p1]
 
 	while w1 != w2:
 		result.append(corners[w1])
 		w1 = (w1 + 1) % 4
 	
 	result.append(p2)
-	result.append(start)
+	result.append(start2)
+	result.append(start1)
 
 	return result
+
+def locate_cone(start: Vector2, direction1: Vector2, direction2: Vector2, bbox: tuple[float, float, float, float]) -> list[Vector2]:
+	"""
+	Locate the cone defined by two directions starting from `start` within the bounding box `bbox`.
+
+	:param Vector2 start: The starting point of the cone.
+	:param Vector2 direction1: The first direction vector of the cone.
+	:param Vector2 direction2: The second direction vector of the cone.
+	:param tuple bbox: The bounding box defined as (minx, miny, maxx, maxy).
+
+	:return: A Polygon2 object representing the cone's vertices.
+	"""
+
+	return locate_edge(start, direction1, start, direction2, bbox)
 
 
 class Solution:
@@ -236,7 +204,7 @@ class Solution:
 
 		return minx, miny, maxx, maxy
 
-	def draw(self) -> None:
+	def draw(self, index: int = 0) -> None:
 
 		fig, ax = plt.subplots(1, 1, figsize=(10, 10))
 
@@ -247,54 +215,62 @@ class Solution:
 		ax.set_ylim(miny, maxy)
 		ax.set_aspect('equal', adjustable='box')
 
-		polygon = self.polygons[0]
+		ax.fill([minx, minx, maxx, maxx], [miny, maxy, maxy, miny], color="#6abdbe", alpha=0.7)
 
-		xpoints = [v.x for v in polygon] + [polygon[0].x]
-		ypoints = [v.y for v in polygon] + [polygon[0].y]
+		polygon = self.polygons[index]
+
+		ax.plot(*zip(*polygon, polygon[0]), color='white', linewidth=4)
 
 		ax.fill(*zip(*polygon), alpha=0.5, color='blue', label='Polygon')
-		ax.plot(xpoints, ypoints, color='blue', linewidth=2)
+		ax.plot(*zip(*polygon, polygon[0]), color='blue', linewidth=2)
 
-		ax.plot(self.start.x, self.start.y, 'ro', label='Start')
-		ax.plot(self.end.x, self.end.y, 'go', label='End')
+		ax.plot(*zip(self.start), 'ro', label='Start')
+		ax.plot(*zip(self.end), 'go', label='End')
 
 		for i in range(len(polygon)):
 
 			vertex = polygon[i]
 
-			ray1, ray2 = self.cones[0][i]
+			ray1, ray2 = self.cones[index][i]
 
 			if ray1 == ray2:
 				continue
 
 			points = locate_cone(vertex, ray1, ray2, bbox)
 
-			xpoints = [p.x for p in points]
-			ypoints = [p.y for p in points]
-
-			ax.fill(xpoints, ypoints, alpha=0.45, color="red")
+			ax.fill(*zip(*points), alpha=1, color="white")
+			ax.fill(*zip(*points), alpha=0.45, color="red")
 			
 			p1 = locate_ray(vertex, ray1, bbox)
 			p2 = locate_ray(vertex, ray2, bbox)
 
+			ax.plot(*zip(vertex, p1), color="white", linewidth=4)
 			ax.plot(*zip(vertex, p1), color="red", linewidth=2, linestyle='--')
+
+			ax.plot(*zip(vertex, p2), color="white", linewidth=4)
 			ax.plot(*zip(vertex, p2), color="red", linewidth=2, linestyle='--')
 
 		for i in range(len(polygon)):
 
+			if self.blocked[index][i]:
+				continue
+
 			v1 = polygon[i]
 			v2 = polygon[i + 1]
 
-			ray1 = self.cones[0][i][1]
-			ray2 = self.cones[0][i][0]
-			mid = ray1 + ray2
+			ray1 = self.cones[index][i][1]
+			ray2 = self.cones[index][(i + 1) % len(self.cones[index])][0]
 
-			ray1.scale_to_length_ip(2 * (maxx - minx))
-			ray2.scale_to_length_ip(2 * (maxx - minx))
-			mid.scale_to_length_ip(4 * (maxx - minx))
+			points = locate_edge(v1, ray1, v2, ray2, bbox)
 
-			xpoints = [v1.x, v1.x + ray1.x, v1.x + mid.x, v2.x + ray2.x, v2.x]
-			ypoints = [v1.y, v1.y + ray1.y, v1.y + mid.y, v2.y + ray2.y, v2.y]
+			ax.fill(*zip(*points), alpha=1, color="white")
+			ax.fill(*zip(*points), alpha=0.45, color="green")
+
+			#p1 = locate_ray(v1, ray1, bbox)
+			#p2 = locate_ray(vertex, ray2, bbox)
+
+			#ax.plot(*zip(vertex, p1), color="red", linewidth=2, linestyle='--')
+			#ax.plot(*zip(vertex, p2), color="red", linewidth=2, linestyle='--')
 
 			# ax.fill(xpoints, ypoints, alpha=0.45, color="red")
 
@@ -368,6 +344,6 @@ sol = Solution(Vector2(-3, 0), Vector2(3, 0), [
 	Polygon2([Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)])
 ])
 
-sol2 = Solution(Vector2(-3, 0), Vector2(3, 0), [regular(4, 1, angle=tau / 2)])
+sol2 = Solution(Vector2(-3, 0), Vector2(3, 0), [regular(10, 1, start=Vector2(-1, 0), angle=tau / 2)])
 
 path = sol2.shortest_path()
