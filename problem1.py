@@ -8,8 +8,10 @@ We will consider that:
 - The problem is in 2D.
 """
 
-from math import inf, isclose, pi, tau
+from math import inf, isclose, isqrt, pi, tau
 from typing import Any
+
+from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
 
 from vector2 import Vector2
@@ -260,7 +262,42 @@ class Solution:
 
 		return minx, miny, maxx, maxy
 
-	def draw(self, index: int = 0) -> None:
+	def draw(self, scenes: list[int] | None = None) -> None:
+
+		if not self.final_path:
+			self.shortest_path()
+
+		n: int = len(self.polygons)
+
+		if scenes is None:
+			scenes = list(range(n))
+
+		count = len(scenes) + 1
+
+		height = isqrt(count)
+		width = (count + height - 1) // height
+
+		fig, axs = plt.subplots(height, width, figsize=(width * 5, height * 5), constrained_layout=True) # type: ignore
+		flat = axs.flatten() if count > 1 else [axs]
+
+		for i, a in enumerate(scenes):
+			self.draw_scene(flat[i + 1], a)
+			flat[i + 1].set_title(f"Regions for polygon {a + 1}", fontsize=14)
+
+		for i in range(count, len(flat)):
+			flat[i].set_axis_off()
+		
+		self.draw_scene(flat[0], -1)
+
+		# Set title for the whole figure
+		fig.suptitle("Shortest path from Start to End passing touching every polygon", fontsize=16) # type: ignore
+
+		flat[0].set_title("Final Path", fontsize=14)
+		flat[0].legend()
+
+		plt.show() # type: ignore
+
+	def draw_scene(self, ax: Axes, index: int = 0) -> None:
 
 		def fill(*args: Any, **kwargs: Any) -> None:
 
@@ -283,12 +320,49 @@ class Solution:
 			kwargs["color"] = "white"
 			kwargs["linewidth"] = 4
 			kwargs["linestyle"] = "solid"
+			kwargs["markersize"] = 7
 			kwargs.pop("label", None)
 
 			ax.plot(*args, **kwargs) # type: ignore
 			ax.plot(*args, **original) # type: ignore
 
-		_, ax = plt.subplots(1, 1, figsize=(10, 10)) # type: ignore
+		def draw_cones() -> None:
+
+			for i in range(len(polygon)):
+
+				vertex = polygon[i]
+
+				ray1, ray2 = self.cones[index][i]
+
+				if ray1 == ray2:
+					continue
+
+				points = locate_cone(vertex, ray1, ray2, bbox)
+
+				fill(*zip(*points), alpha=0.45, color="red")
+				
+				p1 = locate_ray(vertex, ray1, bbox)
+				p2 = locate_ray(vertex, ray2, bbox)
+
+				plot(*zip(vertex, p1), color="red", linewidth=2, linestyle='--')
+				plot(*zip(vertex, p2), color="red", linewidth=2, linestyle='--')
+
+		def draw_edges() -> None:
+
+			for i in range(len(polygon)):
+
+				if self.blocked[index][i]:
+					continue
+
+				v1 = polygon[i]
+				v2 = polygon[(i + 1) % len(polygon)]
+
+				ray1 = self.cones[index][i][1]
+				ray2 = self.cones[index][(i + 1) % len(self.cones[index])][0]
+
+				points = locate_edge(v1, ray1, v2, ray2, bbox)
+
+				fill(*zip(*points), alpha=0.45, color="green")
 
 		bbox = self.get_bbox()
 		minx, miny, maxx, maxy = bbox
@@ -300,41 +374,10 @@ class Solution:
 		# Fill the background with a cyan color
 		fill([minx, minx, maxx, maxx], [miny, maxy, maxy, miny], color="#6abdbe", alpha=0.7)
 
-		polygon = self.polygons[index]
-
-		for i in range(len(polygon)):
-
-			vertex = polygon[i]
-
-			ray1, ray2 = self.cones[index][i]
-
-			if ray1 == ray2:
-				continue
-
-			points = locate_cone(vertex, ray1, ray2, bbox)
-
-			fill(*zip(*points), alpha=0.45, color="red")
-			
-			p1 = locate_ray(vertex, ray1, bbox)
-			p2 = locate_ray(vertex, ray2, bbox)
-
-			plot(*zip(vertex, p1), color="red", linewidth=2, linestyle='--')
-			plot(*zip(vertex, p2), color="red", linewidth=2, linestyle='--')
-
-		for i in range(len(polygon)):
-
-			if self.blocked[index][i]:
-				continue
-
-			v1 = polygon[i]
-			v2 = polygon[i + 1]
-
-			ray1 = self.cones[index][i][1]
-			ray2 = self.cones[index][(i + 1) % len(self.cones[index])][0]
-
-			points = locate_edge(v1, ray1, v2, ray2, bbox)
-
-			fill(*zip(*points), alpha=0.45, color="green")
+		if 0 <= index < len(self.polygons):
+			polygon = self.polygons[index]
+			draw_cones()
+			draw_edges()
 
 		for i, polygon in enumerate(self.polygons):
 			fill(*zip(*polygon), alpha=0.8, label=f'Polygon {i + 1}')
@@ -344,13 +387,11 @@ class Solution:
 		plot(*zip(*self.final_path), color="purple")
 
 		# Plot the start and end points
-		plot(*zip(self.start), "o", color="green", label='Start')
-		plot(*zip(self.end), "o", color="red", label='End')
+		plot(*zip(self.start), "o", color="green", label='Start', markersize=4)
+		plot(*zip(self.end), "o", color="red", label='End', markersize=4)
 
-		ax.legend() # type: ignore
+		# ax.legend() # type: ignore
 		ax.grid() # type: ignore
-
-		plt.show() # type: ignore
 
 	def query(self, point: Vector2, index: int) -> Vector2:
 		"""
@@ -535,4 +576,4 @@ test3 = Solution(
 # sol2 = Solution(Vector2(-3, 0), Vector2(3, 0), [regular(10, 1, start=Vector2(-1, 0), angle=tau / 2)])
 
 path = test4.shortest_path()
-test4.draw(1)
+test4.draw()
