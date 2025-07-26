@@ -9,8 +9,6 @@ We will consider that:
 """
 
 from math import inf, isclose, tau
-from random import randint, randrange
-import random
 from typing import Any
 import matplotlib.pyplot as plt
 
@@ -159,6 +157,64 @@ def locate_cone(start: Vector2, direction1: Vector2, direction2: Vector2, bbox: 
 	return locate_edge(start, direction1, start, direction2, bbox)
 
 
+def point_in_cone(point: Vector2, start: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
+	"""
+	Check if a point is inside the cone defined by two rays starting from `start`.
+	The rays are in clockwise order.
+
+	:param Vector2 point: The point to check.
+	:param Vector2 start: The starting point of the cone.
+	:param Vector2 ray1: The first ray direction.
+	:param Vector2 ray2: The second ray direction.
+
+	:return: True if the point is inside the cone, False otherwise.
+	"""
+
+	vector = point - start
+
+	cross1 = ray1.cross(vector)
+	cross2 = ray2.cross(vector)
+
+	cross_directions = ray1.cross(ray2)
+
+	# Is to the counter-clockwise side of the first ray and 
+	# clockwise side of the second ray.
+	# If area covered by rays is more than 180 degrees, 
+	# invert the result.
+	return (cross1 >= 0 and cross2 <= 0) ^ (cross_directions < 0)
+
+def point_in_edge(point: Vector2, start1: Vector2, ray1: Vector2, start2: Vector2, ray2: Vector2) -> bool:
+	"""
+	Check if a point is inside the edge defined by two rays starting from `start1` and `start2`.
+
+	:param Vector2 point: The point to check.
+	:param Vector2 start1: The starting point of the first ray.
+	:param Vector2 ray1: The direction vector of the first ray.
+	:param Vector2 start2: The starting point of the second ray.
+	:param Vector2 ray2: The direction vector of the second ray.
+
+	:return: True if the point is inside the edge, False otherwise.
+	"""
+
+	vector1 = point - start1
+	vector2 = point - start2
+
+	ray3 = start2 - start1
+
+	cross1 = ray1.cross(vector1)
+	cross2 = ray2.cross(vector2)
+	cross3 = ray3.cross(vector1)
+
+	cross_directions = ray1.cross(ray2)
+
+	# Is to the counter-clockwise side of the first ray and 
+	# clockwise side of the second ray.
+	# Also checks if the point is clockwise to the segment from `start1` to `start2`.
+	# If area covered by rays is more than 180 degrees, 
+	# invert the result.
+	return (cross1 >= 0 and cross2 <= 0 and cross3 <= 0) ^ (cross_directions < 0)
+
+
 class Solution:
 
 	start: Vector2
@@ -218,8 +274,8 @@ class Solution:
 			kwargs["color"] = "white"
 			kwargs["alpha"] = 1
 
-			ax.fill(*args, **kwargs)
-			ax.fill(*args, **original)
+			ax.fill(*args, **kwargs) # type: ignore
+			ax.fill(*args, **original) # type: ignore
 		
 		def plot(*args: Any, **kwargs: Any) -> None:
 			"""
@@ -233,10 +289,10 @@ class Solution:
 			kwargs["linestyle"] = "solid"
 			kwargs.pop("label", None)
 
-			ax.plot(*args, **kwargs)
-			ax.plot(*args, **original)
+			ax.plot(*args, **kwargs) # type: ignore
+			ax.plot(*args, **original) # type: ignore
 
-		fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+		_, ax = plt.subplots(1, 1, figsize=(10, 10)) # type: ignore
 
 		bbox = self.get_bbox()
 		minx, miny, maxx, maxy = bbox
@@ -292,10 +348,10 @@ class Solution:
 		plot(*zip(self.start), "o", color="green", label='Start')
 		plot(*zip(self.end), "o", color="red", label='End')
 
-		plt.legend()
-		# plt.grid()
+		ax.legend() # type: ignore
+		ax.grid() # type: ignore
 
-		plt.show()
+		plt.show() # type: ignore
 
 	def query(self, point: Vector2, index: int) -> Vector2:
 		"""
@@ -305,6 +361,14 @@ class Solution:
 
 		if index == -1:
 			return self.start
+
+		for vertex, (ray1, ray2) in zip(self.polygons[index], self.cones[index]):
+
+			if ray1 == ray2:
+				continue
+			
+			if point_in_cone(point, vertex, ray1, ray2):
+				return vertex
 
 	def shortest_path(self) -> list[Vector2]:
 		
@@ -321,7 +385,6 @@ class Solution:
 
 			# Check if the segment from `last` to `middle` intersects with 
 			# any edge of the polygon that is not the segment from `v1` to `v2`.
-
 			is_blocked = any((a, b) != (v1, v2) and segment_segment_intersection(last, middle, a, b) is not None for a, b in self.polygons[0].edges())
 			self.blocked[0].append(is_blocked)
 			
@@ -350,6 +413,8 @@ class Solution:
 
 		self.draw()
 
+		print(point_in_edge(Vector2(-1, 0), self.polygons[0][3], self.cones[0][3][1], self.polygons[0][4], self.cones[0][4][0]))
+
 def regular(n: int, r: float, start: Vector2 = Vector2(), angle: float = 0) -> Polygon2:
 	"""
 	Create a regular polygon with `n` vertices and radius `r`.
@@ -362,8 +427,8 @@ def regular(n: int, r: float, start: Vector2 = Vector2(), angle: float = 0) -> P
 	return Polygon2(start + Vector2.from_spherical(r, i * tau / n + angle) for i in range(n))
 
 sol = Solution(Vector2(-3, 0), Vector2(3, 0), [
+	regular(5, 1, start=Vector2(-1, 3), angle=0.1),
 	Polygon2([Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]),
-	regular(10, 1, start=Vector2(-1, 3), angle=tau / 2)
 ])
 
 # sol2 = Solution(Vector2(-3, 0), Vector2(3, 0), [regular(10, 1, start=Vector2(-1, 0), angle=tau / 2)])
