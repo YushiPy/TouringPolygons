@@ -228,6 +228,8 @@ class Solution:
 	# They are stored in counter-clockwise order.
 	cones: list[list[tuple[Vector2, Vector2]]]
 
+	final_path: list[Vector2]
+
 	def __init__(self, start: Vector2, end: Vector2, polygons: list[Polygon2]) -> None:
 
 		self.start = start
@@ -236,6 +238,8 @@ class Solution:
 
 		self.blocked = []
 		self.cones = []
+
+		self.final_path = []
 
 	def get_bbox(self) -> tuple[float, float, float, float]:
 
@@ -461,11 +465,24 @@ class Solution:
 					ray2 = diff.normalize()
 
 				cones.append((ray1, ray2))
-		
-		for i in range(len(self.polygons)):
-			self.draw(i)
 
-		return []
+		result: list[Vector2] = [self.end]
+		current: Vector2 = self.end
+
+		for i in range(len(self.polygons) - 1, -1, -1):
+
+			current = self.query(current, i)
+
+			# If the new point is not the same as the last
+			if (current - result[-1]).magnitude() > 1e-8:
+				result.append(current)
+
+		result.append(self.start)
+		result.reverse()
+
+		self.final_path = result
+
+		return result
 
 def regular(n: int, r: float, start: Vector2 = Vector2(), angle: float = 0) -> Polygon2:
 	"""
@@ -489,6 +506,7 @@ test1 = Solution(
 	[
 		Polygon2([Vector2(3, 0), Vector2(2, 4), Vector2(1, 4), Vector2(-1, 1)]),
 		Polygon2([Vector2(3, 3), Vector2(4, 3), Vector2(4, 4), Vector2(3, 4)]),
+		Polygon2([Vector2(5, 5), Vector2(6, 5), Vector2(6, 6), Vector2(5, 6)]),
 	]
 )
 
@@ -506,4 +524,4 @@ test4 = Solution(
 
 # sol2 = Solution(Vector2(-3, 0), Vector2(3, 0), [regular(10, 1, start=Vector2(-1, 0), angle=tau / 2)])
 
-path = test4.shortest_path()
+path = test1.shortest_path()
