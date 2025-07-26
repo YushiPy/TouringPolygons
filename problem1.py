@@ -8,6 +8,7 @@ We will consider that:
 - The problem is in 2D.
 """
 
+from math import inf, tau
 import matplotlib.pyplot as plt
 
 from vector2 import Vector2
@@ -41,6 +42,29 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 
 	if 0 <= t <= 1 and 0 <= u <= 1:
 		return start1 + diff1 * t
+
+def line_line_intersection(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> Vector2:
+	"""
+	Returns the intersection point of two rays.
+	If the rays are parallel, returns infinity vector.
+
+	:param Vector2 start1: The start point of the first ray as a Vector2.
+	:param Vector2 direction1: The direction vector of the first ray as a Vector2.
+	:param Vector2 start2: The start point of the second ray as a Vector2.
+	:param Vector2 direction2: The direction vector of the second ray as a Vector2.
+
+	:return: The intersection point as a Vector2 if the rays intersect, otherwise None.	
+	"""
+
+	cross = direction1.cross(direction2)
+
+	if abs(cross) < 1e-8:
+		return Vector2(inf, inf)
+
+	rate = (start2 - start1).cross(direction1) / cross
+
+	return start1 + direction1 * rate
+
 
 class Solution:
 
@@ -103,18 +127,55 @@ class Solution:
 
 		polygon = self.polygons[0]
 
+		xpoints = [v.x for v in polygon] + [polygon[0].x]
+		ypoints = [v.y for v in polygon] + [polygon[0].y]
+
 		ax.fill(*zip(*polygon), alpha=0.5, color='blue', label='Polygon')
-		ax.plot(*zip(*polygon.edges()), color='blue', linewidth=2)
+		ax.plot(xpoints, ypoints, color='blue', linewidth=2)
+
 		ax.plot(self.start.x, self.start.y, 'ro', label='Start')
 		ax.plot(self.end.x, self.end.y, 'go', label='End')
 
 		for i in range(len(polygon)):
 
 			vertex = polygon[i]
+
 			ray1, ray2 = self.cones[0][i]
 
-			ax.arrow(vertex.x, vertex.y, ray1.x * 0.5, ray1.y * 0.5, head_width=0.1, head_length=0.2, fc='orange', ec='orange', label='Cone' if i == 0 else "")
-			ax.arrow(vertex.x, vertex.y, ray2.x * 0.5, ray2.y * 0.5, head_width=0.1, head_length=0.2, fc='orange', ec='orange')
+			if ray1 == ray2:
+				continue
+
+			mid = ray1 + ray2
+
+			ray1.scale_to_length_ip(2 * (maxx - minx))
+			ray2.scale_to_length_ip(4 * (maxx - minx))
+			mid.scale_to_length_ip(2 * (maxx - minx))
+
+
+			xpoints = [vertex.x, vertex.x + ray1.x, vertex.x + mid.x, vertex.x + ray2.x]
+			ypoints = [vertex.y, vertex.y + ray1.y, vertex.y + mid.y, vertex.y + ray2.y]
+
+			ax.fill(xpoints, ypoints, alpha=0.45, color="red")
+			ax.plot(*zip(vertex, vertex + ray1), color="red", linewidth=2, linestyle='--')
+			ax.plot(*zip(vertex, vertex + ray2), color="red", linewidth=2, linestyle='--')
+
+		for i in range(len(polygon)):
+
+			v1 = polygon[i]
+			v2 = polygon[i + 1]
+
+			ray1 = self.cones[0][i][1]
+			ray2 = self.cones[0][i][0]
+			mid = ray1 + ray2
+
+			ray1.scale_to_length_ip(2 * (maxx - minx))
+			ray2.scale_to_length_ip(2 * (maxx - minx))
+			mid.scale_to_length_ip(4 * (maxx - minx))
+
+			xpoints = [v1.x, v1.x + ray1.x, v1.x + mid.x, v2.x + ray2.x, v2.x]
+			ypoints = [v1.y, v1.y + ray1.y, v1.y + mid.y, v2.y + ray2.y, v2.y]
+
+			# ax.fill(xpoints, ypoints, alpha=0.45, color="red")
 
 		plt.show()
 
@@ -143,9 +204,9 @@ class Solution:
 			# Check if the segment from `last` to `middle` intersects with 
 			# any edge of the polygon that is not the segment from `v1` to `v2`.
 
-			is_blocked = any((a, b) != (v1, v2) and segment_segment_intersection(last, middle, v1, v2) is not None for a, b in self.polygons[0].edges())
+			is_blocked = any((a, b) != (v1, v2) and segment_segment_intersection(last, middle, a, b) is not None for a, b in self.polygons[0].edges())
 			self.blocked[0].append(is_blocked)
-
+			
 		self.cones.append([])
 
 		# Determining the cones of visibility for each vertex.
@@ -171,8 +232,21 @@ class Solution:
 
 		self.draw()
 
+def regular(n: int, r: float, start: Vector2 = Vector2(), angle: float = 0) -> Polygon2:
+	"""
+	Create a regular polygon with `n` vertices and radius `r`.
+
+	:param int n: The number of vertices.
+	:param float r: The radius of the polygon.
+
+	:return: A Polygon2 object representing the regular polygon.
+	"""
+	return Polygon2(start + Vector2.from_spherical(r, i * tau / n + angle) for i in range(n))
+
 sol = Solution(Vector2(-3, 0), Vector2(3, 0), [
 	Polygon2([Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)])
 ])
 
-path = sol.shortest_path()
+sol2 = Solution(Vector2(-3, 0), Vector2(3, 0), [regular(6, 1, angle=tau / 2)])
+
+path = sol2.shortest_path()
