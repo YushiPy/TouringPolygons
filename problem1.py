@@ -175,13 +175,9 @@ def point_in_cone(point: Vector2, start: Vector2, ray1: Vector2, ray2: Vector2) 
 	cross1 = ray1.cross(vector)
 	cross2 = ray2.cross(vector)
 
-	cross_directions = ray1.cross(ray2)
-
 	# Is to the counter-clockwise side of the first ray and 
 	# clockwise side of the second ray.
-	# If area covered by rays is more than 180 degrees, 
-	# invert the result.
-	return (cross1 >= 0 and cross2 <= 0) ^ (cross_directions < 0)
+	return (cross1 >= 0 and cross2 <= 0)
 
 def point_in_edge(point: Vector2, start1: Vector2, ray1: Vector2, start2: Vector2, ray2: Vector2) -> bool:
 	"""
@@ -205,14 +201,10 @@ def point_in_edge(point: Vector2, start1: Vector2, ray1: Vector2, start2: Vector
 	cross2 = ray2.cross(vector2)
 	cross3 = ray3.cross(vector1)
 
-	cross_directions = ray1.cross(ray2)
-
 	# Is to the counter-clockwise side of the first ray and 
 	# clockwise side of the second ray.
 	# Also checks if the point is clockwise to the segment from `start1` to `start2`.
-	# If area covered by rays is more than 180 degrees, 
-	# invert the result.
-	return (cross1 >= 0 and cross2 <= 0 and cross3 <= 0) ^ (cross_directions < 0)
+	return (cross1 >= 0 and cross2 <= 0 and cross3 <= 0)
 
 
 class Solution:
@@ -348,6 +340,9 @@ class Solution:
 			fill(*zip(*polygon), alpha=0.8, label=f'Polygon {i + 1}')
 			plot(*zip(*polygon, polygon[0]), linewidth=2)
 
+		# Plot the final path
+		plot(*zip(*self.final_path), color="purple")
+
 		# Plot the start and end points
 		plot(*zip(self.start), "o", color="green", label='Start')
 		plot(*zip(self.end), "o", color="red", label='End')
@@ -454,6 +449,7 @@ class Solution:
 				after = polygon[j + 1]
 
 				last = self.query(vertex, i - 1)
+
 				diff = vertex - last
 
 				ray1 = diff.reflect((vertex - before).perpendicular()).normalize()
@@ -481,6 +477,10 @@ class Solution:
 		result.reverse()
 
 		self.final_path = result
+
+		#print("\n\n".join(
+		#	"\n".join(str(x) for x in cones) for cones in self.cones
+		#))
 
 		return result
 
@@ -522,6 +522,17 @@ test4 = Solution(
 	]
 )
 
+test3 = Solution(
+	Vector2(4, 1), 
+	Vector2(7, 3),
+	[
+		Polygon2([Vector2(3, 0), Vector2(1, 4), Vector2(-1, 1)]),
+		Polygon2([Vector2(2.5, 5.), Vector2(4.7, 5), Vector2(4, 6), Vector2(3, 6)]),
+		Polygon2([Vector2(5, 5), Vector2(6, 5), Vector2(6, 6), Vector2(5, 6)])
+	]
+)
+
 # sol2 = Solution(Vector2(-3, 0), Vector2(3, 0), [regular(10, 1, start=Vector2(-1, 0), angle=tau / 2)])
 
-path = test1.shortest_path()
+path = test4.shortest_path()
+test4.draw(1)
