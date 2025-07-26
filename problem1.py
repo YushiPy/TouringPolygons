@@ -8,7 +8,7 @@ We will consider that:
 - The problem is in 2D.
 """
 
-from math import inf, isclose, tau
+from math import inf, isclose, pi, tau
 from typing import Any
 import matplotlib.pyplot as plt
 
@@ -362,7 +362,12 @@ class Solution:
 		if index == -1:
 			return self.start
 
-		for vertex, (ray1, ray2) in zip(self.polygons[index], self.cones[index]):
+		polygon = self.polygons[index]
+		cones = self.cones[index]
+		blocked = self.blocked[index]
+
+		# Check if the point is inside a cone region.
+		for vertex, (ray1, ray2) in zip(polygon, cones):
 
 			if ray1 == ray2:
 				continue
@@ -370,50 +375,97 @@ class Solution:
 			if point_in_cone(point, vertex, ray1, ray2):
 				return vertex
 
+		m: int = len(polygon)
+
+		# Check if the point is inside an edge region.
+		for i in range(m):
+
+			if blocked[i]:
+				continue
+
+			v1 = polygon[i]
+			v2 = polygon[(i + 1) % m]
+
+			ray1 = cones[i][1]
+			ray2 = cones[(i + 1) % len(cones)][0]
+
+			if not point_in_edge(point, v1, ray1, v2, ray2):
+				continue
+
+			# If the point is inside the edge, we reflect the 
+			# point across the segment and recursively repeat 
+			# the process with the previous polygon
+
+			reflected = point.reflect_segment(v1, v2)
+			
+			# Path comes from `last`, reflects on segment
+			# and reaches `point`.
+			last = self.query(reflected, index - 1)
+
+			# We must find the point on the segment where the 
+			# path reflects.
+
+			result = segment_segment_intersection(last, reflected, v1, v2)
+
+			if result is None:
+				# This should not happen, but if it does, we raise an error.
+				raise ValueError(f"Unexpected result: {result} for point {point} in polygon {index} at edge {i}")
+
+			return result
+
+		# The point must be inside a pass through region
+		return self.query(point, index - 1)
+
 	def shortest_path(self) -> list[Vector2]:
 		
 		if len(self.polygons) == 0:
 			return [self.start, self.end]
 
-		self.blocked.append([])
+		for i in range(len(self.polygons)):
 
-		# Determining which edges are blocked.
-		for v1, v2 in self.polygons[0].edges():
+			polygon = self.polygons[i]
+			blocked: list[bool] = []
+			cones: list[tuple[Vector2, Vector2]] = []
 
-			middle = v1.lerp(v2, 0.5)
-			last = self.query(middle, -1)
+			self.blocked.append(blocked)
+			self.cones.append(cones)
 
-			# Check if the segment from `last` to `middle` intersects with 
-			# any edge of the polygon that is not the segment from `v1` to `v2`.
-			is_blocked = any((a, b) != (v1, v2) and segment_segment_intersection(last, middle, a, b) is not None for a, b in self.polygons[0].edges())
-			self.blocked[0].append(is_blocked)
-			
-		self.cones.append([])
+			# Determining which edges are blocked.
+			for v1, v2 in polygon.edges():
 
-		# Determining the cones of visibility for each vertex.
-		for i in range(len(self.polygons[0])):
+				middle = v1.lerp(v2, 0.5)
+				last = self.query(middle, i - 1)
 
-			vertex = self.polygons[0][i]
+				# Check if the segment from `last` to `middle` intersects with 
+				# any edge of the polygon that is not the segment from `v1` to `v2`.
+				is_blocked = any((a, b) != (v1, v2) and segment_segment_intersection(last, middle, a, b) is not None for a, b in polygon.edges())
+				blocked.append(is_blocked)
 
-			before = self.polygons[0][i - 1]
-			after = self.polygons[0][i + 1]
+			# Determining the cones of visibility for each vertex.
+			for j in range(len(polygon)):
 
-			last = self.query(vertex, -1)
-			diff = vertex - last
+				vertex = polygon[j]
 
-			ray1 = diff.reflect((before - vertex).perpendicular()).normalize()
-			ray2 = diff.reflect((after - vertex).perpendicular()).normalize()
+				before = polygon[j - 1]
+				after = polygon[j + 1]
 
-			if self.blocked[0][i - 1]:
-				ray1 = diff.normalize()
-			if self.blocked[0][i]:
-				ray2 = diff.normalize()
+				last = self.query(vertex, i - 1)
+				diff = vertex - last
 
-			self.cones[0].append((ray1, ray2))
+				ray1 = diff.reflect((vertex - before).perpendicular()).normalize()
+				ray2 = diff.reflect((vertex - after).perpendicular()).normalize()
 
-		self.draw()
+				if blocked[j - 1]:
+					ray1 = diff.normalize()
+				if blocked[j]:
+					ray2 = diff.normalize()
 
-		print(point_in_edge(Vector2(-1, 0), self.polygons[0][3], self.cones[0][3][1], self.polygons[0][4], self.cones[0][4][0]))
+				cones.append((ray1, ray2))
+		
+		for i in range(len(self.polygons)):
+			self.draw(i)
+
+		return []
 
 def regular(n: int, r: float, start: Vector2 = Vector2(), angle: float = 0) -> Polygon2:
 	"""
@@ -431,6 +483,27 @@ sol = Solution(Vector2(-3, 0), Vector2(3, 0), [
 	Polygon2([Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]),
 ])
 
+test1 = Solution(
+	Vector2(5, 1), 
+	Vector2(7, 3),
+	[
+		Polygon2([Vector2(3, 0), Vector2(2, 4), Vector2(1, 4), Vector2(-1, 1)]),
+		Polygon2([Vector2(3, 3), Vector2(4, 3), Vector2(4, 4), Vector2(3, 4)]),
+	]
+)
+
+test4 = Solution(
+	Vector2(-1, -1),
+	Vector2(1, -1),
+	[
+		Polygon2([Vector2.from_spherical(2, i * tau / 6 + pi * 0.35) + Vector2(4, 5) for i in range(6)]),
+		Polygon2([Vector2.from_spherical(2, i * tau / 3 + pi /4) + Vector2(-3, 4) for i in range(3)]),
+		Polygon2([Vector2.from_spherical(2, i * tau / 10) + Vector2(5, -4) for i in range(10)]),
+		Polygon2([Vector2.from_spherical(2, i * tau / 4 + pi / 4) + Vector2(-4, -2) for i in range(4)]),
+		Polygon2([Vector2.from_spherical(2, i * tau / 30 + pi / 4) + Vector2(0, -8) for i in range(30)]),
+	]
+)
+
 # sol2 = Solution(Vector2(-3, 0), Vector2(3, 0), [regular(10, 1, start=Vector2(-1, 0), angle=tau / 2)])
 
-path = sol.shortest_path()
+path = test4.shortest_path()
