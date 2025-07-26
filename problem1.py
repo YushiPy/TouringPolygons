@@ -9,10 +9,14 @@ We will consider that:
 """
 
 from math import inf, isclose, tau
+from random import randint, randrange
+import random
+from typing import Any
 import matplotlib.pyplot as plt
 
 from vector2 import Vector2
 from polygon2 import Polygon2
+
 
 def intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> tuple[float, float] | None:
 
@@ -206,6 +210,32 @@ class Solution:
 
 	def draw(self, index: int = 0) -> None:
 
+		def fill(*args: Any, **kwargs: Any) -> None:
+
+			original = kwargs.copy()
+
+			kwargs.pop("label", None)
+			kwargs["color"] = "white"
+			kwargs["alpha"] = 1
+
+			ax.fill(*args, **kwargs)
+			ax.fill(*args, **original)
+		
+		def plot(*args: Any, **kwargs: Any) -> None:
+			"""
+			Plot a line with the given arguments.
+			"""
+
+			original = kwargs.copy()
+
+			kwargs["color"] = "white"
+			kwargs["linewidth"] = 4
+			kwargs["linestyle"] = "solid"
+			kwargs.pop("label", None)
+
+			ax.plot(*args, **kwargs)
+			ax.plot(*args, **original)
+
 		fig, ax = plt.subplots(1, 1, figsize=(10, 10))
 
 		bbox = self.get_bbox()
@@ -215,17 +245,10 @@ class Solution:
 		ax.set_ylim(miny, maxy)
 		ax.set_aspect('equal', adjustable='box')
 
-		ax.fill([minx, minx, maxx, maxx], [miny, maxy, maxy, miny], color="#6abdbe", alpha=0.7)
+		# Fill the background with a cyan color
+		fill([minx, minx, maxx, maxx], [miny, maxy, maxy, miny], color="#6abdbe", alpha=0.7)
 
 		polygon = self.polygons[index]
-
-		ax.plot(*zip(*polygon, polygon[0]), color='white', linewidth=4)
-
-		ax.fill(*zip(*polygon), alpha=0.5, color='blue', label='Polygon')
-		ax.plot(*zip(*polygon, polygon[0]), color='blue', linewidth=2)
-
-		ax.plot(*zip(self.start), 'ro', label='Start')
-		ax.plot(*zip(self.end), 'go', label='End')
 
 		for i in range(len(polygon)):
 
@@ -238,17 +261,13 @@ class Solution:
 
 			points = locate_cone(vertex, ray1, ray2, bbox)
 
-			ax.fill(*zip(*points), alpha=1, color="white")
-			ax.fill(*zip(*points), alpha=0.45, color="red")
+			fill(*zip(*points), alpha=0.45, color="red")
 			
 			p1 = locate_ray(vertex, ray1, bbox)
 			p2 = locate_ray(vertex, ray2, bbox)
 
-			ax.plot(*zip(vertex, p1), color="white", linewidth=4)
-			ax.plot(*zip(vertex, p1), color="red", linewidth=2, linestyle='--')
-
-			ax.plot(*zip(vertex, p2), color="white", linewidth=4)
-			ax.plot(*zip(vertex, p2), color="red", linewidth=2, linestyle='--')
+			plot(*zip(vertex, p1), color="red", linewidth=2, linestyle='--')
+			plot(*zip(vertex, p2), color="red", linewidth=2, linestyle='--')
 
 		for i in range(len(polygon)):
 
@@ -263,16 +282,18 @@ class Solution:
 
 			points = locate_edge(v1, ray1, v2, ray2, bbox)
 
-			ax.fill(*zip(*points), alpha=1, color="white")
-			ax.fill(*zip(*points), alpha=0.45, color="green")
+			fill(*zip(*points), alpha=0.45, color="green")
 
-			#p1 = locate_ray(v1, ray1, bbox)
-			#p2 = locate_ray(vertex, ray2, bbox)
+		for i, polygon in enumerate(self.polygons):
+			fill(*zip(*polygon), alpha=0.8, label=f'Polygon {i + 1}')
+			plot(*zip(*polygon, polygon[0]), linewidth=2)
 
-			#ax.plot(*zip(vertex, p1), color="red", linewidth=2, linestyle='--')
-			#ax.plot(*zip(vertex, p2), color="red", linewidth=2, linestyle='--')
+		# Plot the start and end points
+		plot(*zip(self.start), "o", color="green", label='Start')
+		plot(*zip(self.end), "o", color="red", label='End')
 
-			# ax.fill(xpoints, ypoints, alpha=0.45, color="red")
+		plt.legend()
+		# plt.grid()
 
 		plt.show()
 
@@ -341,9 +362,10 @@ def regular(n: int, r: float, start: Vector2 = Vector2(), angle: float = 0) -> P
 	return Polygon2(start + Vector2.from_spherical(r, i * tau / n + angle) for i in range(n))
 
 sol = Solution(Vector2(-3, 0), Vector2(3, 0), [
-	Polygon2([Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)])
+	Polygon2([Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]),
+	regular(10, 1, start=Vector2(-1, 3), angle=tau / 2)
 ])
 
-sol2 = Solution(Vector2(-3, 0), Vector2(3, 0), [regular(10, 1, start=Vector2(-1, 0), angle=tau / 2)])
+# sol2 = Solution(Vector2(-3, 0), Vector2(3, 0), [regular(10, 1, start=Vector2(-1, 0), angle=tau / 2)])
 
-path = sol2.shortest_path()
+path = sol.shortest_path()
