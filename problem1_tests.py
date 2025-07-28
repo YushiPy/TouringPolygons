@@ -57,12 +57,12 @@ test4 = Drawing(
 	Vector2(4, 1), 
 	Vector2(7, 3),
 	[
-		Polygon2([Vector2(-1, 1), Vector2(1, 4), Vector2(3, 0)]),
+		Polygon2([Vector2(-1, 1), Vector2(1, 4), Vector2(3, 0), Vector2(-1, 0)]),
 	]
 )
 
 
-test1.draw()
-test2.draw([])
-test3.draw([1])
+#test1.draw()
+#test2.draw([])
+#test3.draw([1])
 test4.draw()
