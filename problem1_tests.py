@@ -1,7 +1,7 @@
 
 from math import pi, tau
 
-from problem1 import Solution
+from problem1_draw import Drawing
 from vector2 import Vector2
 from polygon2 import Polygon2
 
@@ -16,12 +16,12 @@ def regular(n: int, r: float, start: Vector2 = Vector2(), angle: float = 0) -> P
 	"""
 	return Polygon2(start + Vector2.from_spherical(r, i * tau / n + angle) for i in range(n))
 
-sol = Solution(Vector2(-3, 0), Vector2(3, 0), [
+sol = Drawing(Vector2(-3, 0), Vector2(3, 0), [
 	regular(5, 1, start=Vector2(-1, 3), angle=0.1),
 	Polygon2([Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]),
 ])
 
-test1 = Solution(
+test1 = Drawing(
 	Vector2(5, 1), 
 	Vector2(7, 3),
 	[
@@ -31,7 +31,7 @@ test1 = Solution(
 	]
 )
 
-test2 = Solution(
+test2 = Drawing(
 	Vector2(-1, -1),
 	Vector2(1, -1),
 	[
@@ -43,7 +43,7 @@ test2 = Solution(
 	]
 )
 
-test3 = Solution(
+test3 = Drawing(
 	Vector2(4, 1), 
 	Vector2(7, 3),
 	[
@@ -53,6 +53,16 @@ test3 = Solution(
 	]
 )
 
+test4 = Drawing(
+	Vector2(4, 1), 
+	Vector2(7, 3),
+	[
+		Polygon2([Vector2(-1, 1), Vector2(1, 4), Vector2(3, 0)]),
+	]
+)
+
+
 test1.draw()
 test2.draw([])
 test3.draw([1])
+test4.draw()

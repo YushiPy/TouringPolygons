@@ -8,6 +8,7 @@ We will consider that:
 - The problem is in 2D.
 """
 
+from typing import Iterable
 from vector2 import Vector2
 from polygon2 import Polygon2
 
@@ -112,11 +113,21 @@ class Solution:
 
 	final_path: list[Vector2]
 
-	def __init__(self, start: Vector2, end: Vector2, polygons: list[Polygon2]) -> None:
+	def __init__(self, start: Vector2, end: Vector2, polygons: list[Polygon2] | Iterable[Iterable[Iterable[float]]]) -> None:
+
+		self.polygons = []
+
+		for polygon in polygons:
+
+			polygon = Polygon2(polygon)
+
+			if not polygon.is_convex():
+				raise ValueError("All polygons must be convex.")
+
+			self.polygons.append(polygon)
 
 		self.start = start
 		self.end = end
-		self.polygons = polygons
 
 		self.blocked = []
 		self.cones = []
