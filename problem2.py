@@ -192,6 +192,56 @@ def get_outline(poly1: Polygon2, poly2: Polygon2) -> list[Vector2]:
 	return result
 
 
+def point_in_cone(point: Vector2, start: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
+	"""
+	Check if a point is inside the cone defined by two rays starting from `start`.
+	The rays are in clockwise order.
+
+	:param Vector2 point: The point to check.
+	:param Vector2 start: The starting point of the cone.
+	:param Vector2 ray1: The first ray direction.
+	:param Vector2 ray2: The second ray direction.
+
+	:return: True if the point is inside the cone, False otherwise.
+	"""
+
+	vector = point - start
+
+	cross1 = ray1.cross(vector)
+	cross2 = ray2.cross(vector)
+
+	# Is to the counter-clockwise side of the first ray and 
+	# clockwise side of the second ray.
+	return (cross1 >= 0 and cross2 <= 0)
+
+def point_in_edge(point: Vector2, start1: Vector2, ray1: Vector2, start2: Vector2, ray2: Vector2) -> bool:
+	"""
+	Check if a point is inside the edge defined by two rays starting from `start1` and `start2`.
+
+	:param Vector2 point: The point to check.
+	:param Vector2 start1: The starting point of the first ray.
+	:param Vector2 ray1: The direction vector of the first ray.
+	:param Vector2 start2: The starting point of the second ray.
+	:param Vector2 ray2: The direction vector of the second ray.
+
+	:return: True if the point is inside the edge, False otherwise.
+	"""
+
+	vector1 = point - start1
+	vector2 = point - start2
+
+	ray3 = start2 - start1
+
+	cross1 = ray1.cross(vector1)
+	cross2 = ray2.cross(vector2)
+	cross3 = ray3.cross(vector1)
+
+	# Is to the counter-clockwise side of the first ray and 
+	# clockwise side of the second ray.
+	# Also checks if the point is clockwise to the segment from `start1` to `start2`.
+	return (cross1 >= 0 and cross2 <= 0 and cross3 <= 0)
+
+
 class Solution:
 
 	start: Vector2
@@ -215,10 +265,10 @@ class Solution:
 		self.blocked = []
 		self.cones = []
 
-	def query_f(self, point: Vector2, index: int) -> Vector2:
+	def query_a(self, point: Vector2, index: int) -> Vector2:
 
 		if index == 0:
-			return shortest_path_in_polygon(self.start, point, self.fences[0])[-2]
+			return self.start
 
 	def shortest_path(self) -> list[Vector2]:
 
@@ -237,7 +287,9 @@ class Solution:
 		for v1, v2 in polygon.edges():
 
 			middle = v1.lerp(v2, 0.5)
-			last = self.query_f(middle, 0)
+
+			last = self.query_a(middle, 0)
+			last = shortest_path_in_polygon(last, middle, self.fences[0])[-2]
 
 			# Check if the segment from `last` to `middle` intersects with 
 			# any edge of the polygon that is not the segment from `v1` to `v2`.
@@ -252,7 +304,8 @@ class Solution:
 			before = polygon[j - 1]
 			after = polygon[j + 1]
 
-			last = self.query_f(vertex, 0)
+			last = self.query_a(vertex, 0)
+			last = shortest_path_in_polygon(last, vertex, self.fences[0])[-2]
 
 			diff = vertex - last
 
@@ -265,8 +318,6 @@ class Solution:
 				ray2 = diff.normalize()
 
 			cones.append((ray1, ray2))
-
-		print(self.query_f(Vector2(-4, 3), 0))
 
 		return []
 
@@ -307,7 +358,7 @@ fences = [
 
 solution = Solution(start, end, polygons, fences)
 
-print(solution.shortest_path())
+# print(solution.shortest_path())
 
-draw(start, end, polygons, fences)
+# draw(start, end, polygons, fences)
 
