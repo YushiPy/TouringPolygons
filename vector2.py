@@ -3,6 +3,7 @@ import math
 from operator import neg
 from typing import Callable, Iterable, Iterator, Literal, Self, overload
 
+from itertools import islice
 
 class Vector2:
 
@@ -143,16 +144,51 @@ class Vector2:
 
 		self += diff.scale_to_length(step)
 
-	def lerp(self, other: Self, rate: float) -> Self:
-		"""Returns the linear interpolation of `this` vector with `other`."""
+	@overload
+	def lerp(self, other: Self, rate: float) -> Self: ...
+	@overload
+	def lerp(self, other: Self, rate: Iterable[float]) -> Self: ...
+
+	def lerp(self, other: Self, rate: float | Iterable[float]) -> Self:
+		"""
+		Returns the linear interpolation of `this` vector with `other`.
+		
+		If `rate` is a float, uses it for both components.
+		If `rate` is an iterable, uses the first value for x and the second for y.
+		"""
 		result = self.copy()
 		result.lerp_ip(other, rate)
 
 		return result
 
-	def lerp_ip(self, other: Self, rate: float) -> None:
-		"""Linearly interpolates `this` with `other` in place."""
-		self += (other - self) * rate
+	@overload
+	def lerp_ip(self, other: Self, rate: float) -> Self: ...
+	@overload
+	def lerp_ip(self, other: Self, rate: Iterable[float]) -> Self: ...
+
+	def lerp_ip(self, other: Self, rate: float | Iterable[float]) -> Self:
+		"""
+		Linearly interpolates `this` vector with `other`.
+		
+		If `rate` is a float, uses it for both components.
+		If `rate` is an iterable, uses the first value for x and the second for y.
+		"""
+
+		if isinstance(rate, Iterable):
+
+			values = list(islice(rate, 2))
+
+			if len(values) != 2:
+				raise ValueError("Rate must be an iterable with two values (x, y).")
+			
+			rate_x, rate_y = values
+		else:
+			rate_x = rate_y = rate
+
+		self.x += (other.x - self.x) * rate_x
+		self.y += (other.y - self.y) * rate_y
+
+		return self
 
 	def slerp(self, other: Self, rate: float) -> Self: 
 		"""Returns the spherical interpolation of `this` vector with `other`."""
@@ -246,6 +282,15 @@ class Vector2:
 			return 2
 		else:
 			return 3
+	
+	def bbox(self, other: Self) -> tuple[Self, Self]:
+		"""Returns the bounding box of this vector and the other vector as two corners."""
+		min_x = min(self.x, other.x)
+		max_x = max(self.x, other.x)
+		min_y = min(self.y, other.y)
+		max_y = max(self.y, other.y)
+
+		return (type(self)(min_x, min_y), type(self)(max_x, max_y))
 
 	def project(self, other: Self) -> Self:
 		"""Returns the projection of `this` onto `other`."""

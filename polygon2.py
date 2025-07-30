@@ -1,6 +1,14 @@
 
-from typing import Iterable, SupportsIndex
+from typing import Iterable, Literal, SupportsIndex
 from vector2 import Vector2
+
+
+def _orient(a: Vector2, b: Vector2, c: Vector2) -> float:
+	return (b - a).cross(c - a)
+
+def _on_segment(a: Vector2, b: Vector2, p: Vector2, eps: float = 1e-12) -> bool:
+	return min(a.x, b.x) - eps <= p.x <= max(a.x, b.x) + eps and \
+			min(a.y, b.y) - eps <= p.y <= max(a.y, b.y) + eps
 
 class Polygon2(tuple[Vector2, ...]):
 
@@ -59,6 +67,52 @@ class Polygon2(tuple[Vector2, ...]):
 		Each edge is represented as a tuple of two Vector2 points.
 		"""
 		return [(self[i], self[(i + 1) % len(self)]) for i in range(len(self))]
+
+	def contains_point(self, point: Vector2, eps: float = 1e-12) -> Literal[-1, 0, 1]:
+		"""
+		Check if the polygon contains a point.
+		Returns 1 if the point is inside, 0 if on the boundary, and -1 if outside.
+		"""
+		
+		inside = False
+
+		for a, b in self.edges():
+
+			# Boundary: collinear with edge and within its box
+			if abs(_orient(a, b, point)) <= eps and _on_segment(a, b, point, eps):
+				return 0
+
+			# Half-open rule to avoid double counting at vertices
+			if (a.y > point.y) != (b.y > point.y):
+
+				x_int = a.x + (b.x - a.x) * (point.y - a.y) / (b.y - a.y)
+
+				if x_int > point.x + eps:
+					inside = not inside
+
+		return 1 if inside else -1
+
+	def bbox(self, extra: float = 0, square: bool = False) -> tuple[Vector2, Vector2]:
+
+		xmin = min(vertex.x for vertex in self)
+		xmax = max(vertex.x for vertex in self)
+		ymin = min(vertex.y for vertex in self)
+		ymax = max(vertex.y for vertex in self)
+
+		center = Vector2((xmin + xmax) / 2, (ymin + ymax) / 2)
+
+		dx = (xmax - xmin) * (1 + extra)
+		dy = (ymax - ymin) * (1 + extra)
+
+		if square:
+			dx, dy = max(dx, dy), max(dx, dy)
+
+		xmin = center.x - dx / 2
+		xmax = center.x + dx / 2
+		ymin = center.y - dy / 2
+		ymax = center.y + dy / 2
+
+		return Vector2(xmin, ymin), Vector2(xmax, ymax)
 
 	def __getitem__(self, index: SupportsIndex) -> Vector2: # type: ignore
 		"""
