@@ -192,7 +192,7 @@ def get_outline(poly1: Polygon2, poly2: Polygon2) -> list[Vector2]:
 	return result
 
 
-def point_in_cone(point: Vector2, start: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
+def point_in_cone(point: Vector2, start: Vector2, ray1: Vector2, ray2: Vector2, eps: float = 1e-10) -> bool:
 	"""
 	Check if a point is inside the cone defined by two rays starting from `start`.
 	The rays are in clockwise order.
@@ -212,9 +212,9 @@ def point_in_cone(point: Vector2, start: Vector2, ray1: Vector2, ray2: Vector2) 
 
 	# Is to the counter-clockwise side of the first ray and 
 	# clockwise side of the second ray.
-	return (cross1 >= 0 and cross2 <= 0)
+	return (cross1 >= -eps and cross2 <= eps)
 
-def point_in_edge(point: Vector2, start1: Vector2, ray1: Vector2, start2: Vector2, ray2: Vector2) -> bool:
+def point_in_edge(point: Vector2, start1: Vector2, ray1: Vector2, start2: Vector2, ray2: Vector2, eps: float = 1e-10) -> bool:
 	"""
 	Check if a point is inside the edge defined by two rays starting from `start1` and `start2`.
 
@@ -239,8 +239,7 @@ def point_in_edge(point: Vector2, start1: Vector2, ray1: Vector2, start2: Vector
 	# Is to the counter-clockwise side of the first ray and 
 	# clockwise side of the second ray.
 	# Also checks if the point is clockwise to the segment from `start1` to `start2`.
-	return (cross1 >= 0 and cross2 <= 0 and cross3 <= 0)
-
+	return (cross1 >= -eps and cross2 <= eps and cross3 <= eps)
 
 class Solution:
 
@@ -265,95 +264,144 @@ class Solution:
 		self.blocked = []
 		self.cones = []
 
+	def point_in_cone(self, point: Vector2, index: int) -> Vector2 | None:
+		"""
+		Check if a point is inside the cone defined by the polygon's visibility cones.
+
+		:param Vector2 point: The point to check.
+		:param int index: The index of the polygon.
+
+		:return: The vertex of the polygon if the point is inside the cone, otherwise None.
+		"""
+
+		polygon = self.polygons[index]
+		cones = self.cones[index]
+
+		for vertex, (ray1, ray2) in zip(polygon, cones):
+
+			if ray1 == ray2:
+				continue
+
+			if point_in_cone(point, vertex, ray1, ray2):
+				return vertex
+
+	def point_in_edge(self, point: Vector2, index: int) -> Vector2 | None:
+		"""
+		Check if a point is inside the edge defined by the polygon's visibility edges.
+
+		:param Vector2 point: The point to check.
+		:param int index: The index of the polygon.
+
+		:return: The vertex of the polygon if the point is inside the edge, otherwise None.
+		"""
+
+		polygon = self.polygons[index]
+		cones = self.cones[index]
+		blocked = self.blocked[index]
+
+		for i, ((v1, v2), (ray1, ray2)) in enumerate(zip(polygon.edges(), cones)):
+
+			if blocked[i]:
+				continue
+
+			if not point_in_edge(point, v1, ray1, v2, ray2):
+				continue
+
+			reflected = point.reflect_segment(v1, v2)
+
+			last = self.query_a(reflected, index - 1)
+			print(f"Reflected: {reflected}, Last: {last}")
+			result = segment_segment_intersection(v1, v2, reflected, last)
+
+			if result is None:
+				raise ValueError("No intersection found between the reflected ray and the edge.")
+
+			return result
+
 	def query_a(self, point: Vector2, index: int) -> Vector2:
 
-		if index == 0:
+		if index == -1:
 			return self.start
+		
+		if (result := self.point_in_cone(point, index)) is not None:
+			return result
+		
+		if (result := self.point_in_edge(point, index)) is not None:
+			return result
+		
+		return self.query_a(point, index - 1)
 
 	def shortest_path(self) -> list[Vector2]:
 
 		if len(self.polygons) == 0:
 			return [self.start, self.end]
+		
+		for i in range(len(self.polygons)):
 
-		polygon = self.polygons[0]
+			polygon = self.polygons[i]
+			fence = self.fences[i]
 
-		blocked: list[bool] = []
-		cones: list[tuple[Vector2, Vector2]] = []
+			blocked: list[bool] = []
+			cones: list[tuple[Vector2, Vector2]] = []
 
-		self.blocked.append(blocked)
-		self.cones.append(cones)
+			self.blocked.append(blocked)
+			self.cones.append(cones)
 
-		# Determining which edges are blocked.
-		for v1, v2 in polygon.edges():
+			# Determining which edges are blocked.
+			for v1, v2 in polygon.edges():
 
-			middle = v1.lerp(v2, 0.5)
+				middle = v1.lerp(v2, 0.5)
 
-			last = self.query_a(middle, 0)
-			last = shortest_path_in_polygon(last, middle, self.fences[0])[-2]
+				last = self.query_a(middle, i - 1)
 
-			# Check if the segment from `last` to `middle` intersects with 
-			# any edge of the polygon that is not the segment from `v1` to `v2`.
-			is_blocked = any((a, b) != (v1, v2) and segment_segment_intersection(last, middle, a, b) is not None for a, b in polygon.edges())
-			blocked.append(is_blocked)
+				print(v1, v2, middle, last)
 
-		# Determining the cones of visibility for each vertex.
-		for j in range(len(polygon)):
+				last = shortest_path_in_polygon(last, middle, fence)[-2]
 
-			vertex = polygon[j]
+				# Check if the segment from `last` to `middle` intersects with 
+				# any edge of the polygon that is not the segment from `v1` to `v2`.
+				is_blocked = any((a, b) != (v1, v2) and segment_segment_intersection(last, middle, a, b) is not None for a, b in polygon.edges())
+				blocked.append(is_blocked)
 
-			before = polygon[j - 1]
-			after = polygon[j + 1]
+			# Determining the cones of visibility for each vertex.
+			for j in range(len(polygon)):
 
-			last = self.query_a(vertex, 0)
-			last = shortest_path_in_polygon(last, vertex, self.fences[0])[-2]
+				vertex = polygon[j]
 
-			diff = vertex - last
+				before = polygon[j - 1]
+				after = polygon[j + 1]
 
-			ray1 = diff.reflect((vertex - before).perpendicular()).normalize()
-			ray2 = diff.reflect((vertex - after).perpendicular()).normalize()
+				last = self.query_a(vertex, i - 1)
+				last = shortest_path_in_polygon(last, vertex, fence)[-2]
 
-			if blocked[j - 1]:
-				ray1 = diff.normalize()
-			if blocked[j]:
-				ray2 = diff.normalize()
+				diff = vertex - last
 
-			cones.append((ray1, ray2))
+				ray1 = diff.reflect((vertex - before).perpendicular()).normalize()
+				ray2 = diff.reflect((vertex - after).perpendicular()).normalize()
+
+				if blocked[j - 1]:
+					ray1 = diff.normalize()
+				if blocked[j]:
+					ray2 = diff.normalize()
+
+				cones.append((ray1, ray2))
+
+		print(self.cones)
 
 		return []
-
-
-def draw(start: Vector2, end: Vector2, polygons: list[Polygon2], fences: list[Polygon2]) -> None:
-	"""
-	Draw the polygons and fences along with the start and end points.
-	"""
-	import matplotlib.pyplot as plt
-
-	plt.figure(figsize=(8, 8))
-
-	for polygon in polygons:
-		plt.fill(*zip(*polygon), alpha=0.5)
-
-	for i, fence in enumerate(fences):
-		plt.plot(*zip(*(list(fence) + [fence[0]])), label=f'Fence {i}')
-
-	plt.plot(start.x, start.y, 'go', label='Start')
-	plt.plot(end.x, end.y, 'ro', label='End')
-
-	plt.legend()
-	plt.grid()
-	plt.axis('equal')
-	plt.show()
 
 start = Vector2(-3, 0)
 end = Vector2(3, 0)
 
 polygons = [
 	Polygon2([Vector2(-1, 1), Vector2(1, 1), Vector2(0, 2)]),
+	Polygon2([Vector2(-1, 3), Vector2(1, 4), Vector2(1, 6), Vector2(-1, 5)]),
 ]
 
 fences = [
 	Polygon2([Vector2(-4, 3), Vector2(-3, -1), Vector2(-2, 2), Vector2(-1, -1), Vector2(2, 0), Vector2(2, 2)]),
-	Polygon2([Vector2(-2, 3), Vector2(2, 2), Vector2(3, 2), Vector2(4, 0), Vector2(3, -1), Vector2(2, 1), Vector2(-1, -1)]),
+	Polygon2([Vector2(-2, 6), Vector2(2, 8), Vector2(2, 4), Vector2(0, 3), Vector2(3, -1), Vector2(2, -1), Vector2(-1, -1)]),
+	Polygon2([Vector2(-2, 7), Vector2(2, 7), Vector2(0, 0), Vector2(4, 2), Vector2(3, -1), Vector2(2, 1), Vector2(-1, -1)]),
 ]
 
 solution = Solution(start, end, polygons, fences)
