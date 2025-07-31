@@ -134,31 +134,24 @@ class Solution:
 
 		self.final_path = []
 
-	def query(self, point: Vector2, index: int) -> Vector2:
-		"""
-		Query the point using the subregions up to `index`.
-		Returns the point that comes before `point`.
-		"""
+	def point_in_cone(self, point: Vector2, index: int) -> Vector2 | None:
 
-		if index == -1:
-			return self.start
-
-		polygon = self.polygons[index]
-		cones = self.cones[index]
-		blocked = self.blocked[index]
-
-		# Check if the point is inside a cone region.
-		for vertex, (ray1, ray2) in zip(polygon, cones):
+		for vertex, (ray1, ray2) in zip(self.polygons[index], self.cones[index]):
 
 			if ray1 == ray2:
 				continue
 			
 			if point_in_cone(point, vertex, ray1, ray2):
 				return vertex
+	
+	def point_in_edge(self, point: Vector2, index: int) -> Vector2 | None:
 
-		m: int = len(polygon)
+		polygon = self.polygons[index]
+		cones = self.cones[index]
+		blocked = self.blocked[index]
 
-		# Check if the point is inside an edge region.
+		m = len(polygon)
+
 		for i in range(m):
 
 			if blocked[i]:
@@ -176,7 +169,6 @@ class Solution:
 			# If the point is inside the edge, we reflect the 
 			# point across the segment and recursively repeat 
 			# the process with the previous polygon
-
 			reflected = point.reflect_segment(v1, v2)
 			
 			# Path comes from `last`, reflects on segment
@@ -192,6 +184,23 @@ class Solution:
 				# This should not happen, but if it does, we raise an error.
 				raise ValueError(f"Unexpected result: {result} for point {point} in polygon {index} at edge {i}")
 
+			return result
+
+	def query(self, point: Vector2, index: int) -> Vector2:
+		"""
+		Query the point using the subregions up to `index`.
+		Returns the point that comes before `point`.
+		"""
+
+		if index == -1:
+			return self.start
+
+		# If the point is inside a cone, we return the vertex of the cone.
+		if (result := self.point_in_cone(point, index)) is not None:
+			return result
+
+		# If the point is inside an edge, we return the point that comes before it.
+		if (result := self.point_in_edge(point, index)) is not None:
 			return result
 
 		# The point must be inside a pass through region
