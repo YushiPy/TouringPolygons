@@ -61,8 +61,28 @@ test4 = Drawing(
 	]
 )
 
+test5 = Drawing(
+	Vector2(-1, -1),
+	Vector2(1, -1),
+	[
+		Polygon2([Vector2.from_spherical(2, i * tau / 6 + pi * 0.35) + Vector2(4, 5) for i in range(6)]),
+		Polygon2([Vector2.from_spherical(2, i * tau / 3) + Vector2(5, -4) for i in range(3)]),
+		Polygon2([Vector2.from_spherical(2, i * tau / 4 + pi / 4) + Vector2(-4, -2) for i in range(4)]),
+	]
+)
 
-#test1.draw()
-#test2.draw([])
-#test3.draw([1])
-test4.draw()
+test6 = Drawing(
+	Vector2(-3, 0),
+	Vector2(0, 2),
+	[
+		Polygon2(regular(3, 1, Vector2(0, 0), pi / 3))
+	]
+)
+
+# test1.draw()
+test2.draw()
+# test3.draw([1])
+# test4.draw()
+#test5.draw()
+
+#test6.draw()

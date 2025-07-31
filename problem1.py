@@ -48,7 +48,7 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 		return start1 + diff1 * rates[0]
 
 
-def point_in_cone(point: Vector2, start: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
+def point_in_cone(point: Vector2, start: Vector2, ray1: Vector2, ray2: Vector2, eps: float = 1e-10) -> bool:
 	"""
 	Check if a point is inside the cone defined by two rays starting from `start`.
 	The rays are in clockwise order.
@@ -61,6 +61,9 @@ def point_in_cone(point: Vector2, start: Vector2, ray1: Vector2, ray2: Vector2) 
 	:return: True if the point is inside the cone, False otherwise.
 	"""
 
+	if ray1.cross(ray2) < 0:
+		return not point_in_cone(point, start, ray2, ray1, eps)
+
 	vector = point - start
 
 	cross1 = ray1.cross(vector)
@@ -68,7 +71,7 @@ def point_in_cone(point: Vector2, start: Vector2, ray1: Vector2, ray2: Vector2) 
 
 	# Is to the counter-clockwise side of the first ray and 
 	# clockwise side of the second ray.
-	return (cross1 >= 0 and cross2 <= 0)
+	return (cross1 >= -eps and cross2 <= eps)
 
 def point_in_edge(point: Vector2, start1: Vector2, ray1: Vector2, start2: Vector2, ray2: Vector2) -> bool:
 	"""
