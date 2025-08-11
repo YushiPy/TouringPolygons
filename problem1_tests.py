@@ -83,8 +83,8 @@ test7 = Drawing(
 	Vector2(5, 1), 
 	Vector2(7, 3),
 	[
-		Polygon2([Vector2(3, 0), Vector2(2, 4), Vector2(1, 4), Vector2(-1, 1)]),
-		Polygon2([Vector2(3, 3), Vector2(5, 3), Vector2(4, 4), Vector2(3, 4)]),
+		Polygon2([Vector2(3, 0), Vector2(2, 4), Vector2(1, 2)]),
+		Polygon2([Vector2(3, 3), Vector2(5, 3), Vector2(4.5, 4), Vector2(3.5, 4)]),
 		regular(5, 1.3, Vector2(5, 6), 0.1),
 	]
 )
