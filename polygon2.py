@@ -25,7 +25,6 @@ def _intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, d
 	return rate1, rate2
 
 def _segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2) -> Vector2 | None:
-
 	"""
 	Returns the intersection point of two line segments if they intersect, otherwise returns None.
 
@@ -152,6 +151,12 @@ class Polygon2(tuple[Vector2, ...]):
 		return self.contains_point((start + end) / 2, eps) >= 0
 
 	def bbox(self, extra: float = 0, square: bool = False) -> tuple[Vector2, Vector2]:
+		"""
+		Calculate the bounding box of the polygon.
+		The bounding box is defined by two points: the bottom-left and top-right corners.
+		An optional `extra` parameter can be provided to expand the bounding box by a certain factor.
+		If `square` is True, the bounding box will be square, expanding the smaller side to match the larger one.
+		"""
 
 		xmin = min(vertex.x for vertex in self)
 		xmax = max(vertex.x for vertex in self)
