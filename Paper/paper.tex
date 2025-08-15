@@ -1,65 +1,14 @@
 
+\author{.}
 \documentclass[a4paper]{article}
 
-% Language
 \usepackage[english]{babel}
-
-% Math and symbols
-\usepackage{amsmath, amssymb, mathtools}
-
-% Algorithms
-\usepackage[linesnumbered,ruled,vlined]{algorithm2e}
-
-\SetKwIF{If}{ElseIf}{Else}{if}{:}{else if}{else}{end}
-\SetKwFor{For}{for}{:}{end}
-\SetKwRepeat{Do}{do}{while}
-\SetKwProg{Function}{def}{:}{}
-
-% Graphics and figures
-\usepackage{graphicx}
-\usepackage{subcaption}
-\usepackage{caption}
-\usepackage{float}
-\usepackage{adjustbox}
-\usepackage{tikz}
-
-% Text formatting and layout
-\usepackage{indentfirst}
+\usepackage{amsmath, amssymb} % for \( ... \) math and \mathbb
+\usepackage{graphicx} % in case figures are used later
+\usepackage{hyperref} % for clickable references/links
+\usepackage[top=2cm, bottom=2cm, left=2cm, right=2cm]{geometry} % margins
 \usepackage{fancyhdr}
-\usepackage{quoting}
-\usepackage{xcolor} % no need for [dvipsnames] unless you need extended colors
 
-% URLs and hyperlinks
-\usepackage{hyperref}
-\usepackage{url}
-
-% Code listings (optional, if you actually use it)
-\usepackage{listings}
-
-% Framed boxes (optional, if you use them)
-\usepackage{tcolorbox}
-\usepackage{mdframed}
-
-% Citations
-\usepackage{amsrefs} % or biblatex if preferred
-\usepackage{cite}
-
-\usepackage{multirow} % Permite criar tabelas com uma célula ocupando várias linhas
-
-\usepackage{setspace}     % Para definir espaçamento entre linhas. (\onehalfspacing, \singlespacing, \doublespacing)
-
-\usepackage{breakcites}   % Para permitir quebra de linha no meio de citações.
-
-\usepackage[top=2cm, bottom=2cm, left=2cm, right=2cm]{geometry}
-
-\usepackage{array}
-
-% Comando para marcar o texto para revisão.
-\newcommand{\rev}[1]{\textcolor{red}{#1}}
-
-% Permite escrever aspas normais "text" em vez de ``text''
-\usepackage[autostyle]{csquotes}
-\MakeOuterQuote{"}
 
 
 % Page style setup
