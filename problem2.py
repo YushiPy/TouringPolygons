@@ -205,6 +205,9 @@ def point_in_cone(point: Vector2, start: Vector2, ray1: Vector2, ray2: Vector2, 
 	:return: True if the point is inside the cone, False otherwise.
 	"""
 
+	if ray1.cross(ray2) < 0:
+		return not point_in_cone(point, start, ray2, ray1, eps)
+
 	vector = point - start
 
 	cross1 = ray1.cross(vector)
@@ -310,7 +313,8 @@ class Solution:
 			reflected = point.reflect_segment(v1, v2)
 
 			last = self.query_a(reflected, index - 1)
-			print(f"Reflected: {reflected}, Last: {last}")
+			last = shortest_path_in_polygon(last, reflected, self.fences[index])[-2]
+
 			result = segment_segment_intersection(v1, v2, reflected, last)
 
 			if result is None:
@@ -330,6 +334,14 @@ class Solution:
 			return result
 		
 		return self.query_a(point, index - 1)
+	
+	def query(self, point: Vector2, index: int) -> Vector2:
+
+		if index == 0:
+			return shortest_path_in_polygon(self.start, point, self.fences[0])[-2]
+		
+		if (result := self.point_in_cone(point, index)) is not None:
+			return shortest_path_in_polygon(result, point, self.fences[index])[-2]
 
 	def shortest_path(self) -> list[Vector2]:
 
