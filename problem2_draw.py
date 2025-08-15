@@ -292,6 +292,10 @@ class Drawing(Solution):
 			fence = self.fences[index]
 			plot(*zip(*(list(fence) + [fence[0]])), label=f'Fence', color="orange", linewidth=2, linestyle='--')
 
+		if index == -1:
+			for i, fence in enumerate(self.fences):
+				plot(*zip(*(list(fence) + [fence[0]])), label=f"Fence {i + 1}", linewidth=2, linestyle='--')
+
 		# Plot the start and end points
 		plot(*zip(self.start), "o", color="green", label='Start', markersize=4)
 		plot(*zip(self.end), "o", color="red", label='End', markersize=4)
