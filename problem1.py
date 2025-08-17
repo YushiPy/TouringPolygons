@@ -138,6 +138,14 @@ class Solution:
 		self.final_path = []
 
 	def point_in_cone(self, point: Vector2, index: int) -> Vector2 | None:
+		"""
+		Check if a point is inside the cone defined by the visibility cones of polygon `index`.
+		
+		:param Vector2 point: The point to check.
+		:param int index: The index of the polygon to check.
+
+		:return: The vertex of the cone if the point is inside, None otherwise.
+		"""
 
 		for vertex, (ray1, ray2) in zip(self.polygons[index], self.cones[index]):
 
@@ -148,6 +156,14 @@ class Solution:
 				return vertex
 	
 	def point_in_edge(self, point: Vector2, index: int) -> Vector2 | None:
+		"""
+		Check if a point is inside the edge defined by the visibility cones of polygon `index`.
+
+		:param Vector2 point: The point to check.
+		:param int index: The index of the polygon to check.
+
+		:return: The point on the edge where the path reflects, or None if the point is not inside any edge.
+		"""
 
 		polygon = self.polygons[index]
 		cones = self.cones[index]
@@ -271,9 +287,5 @@ class Solution:
 		result.reverse()
 
 		self.final_path = result
-
-		#print("\n\n".join(
-		#	"\n".join(str(x) for x in cones) for cones in self.cones
-		#))
 
 		return result
