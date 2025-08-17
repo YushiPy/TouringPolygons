@@ -8,6 +8,7 @@ We will consider that:
 - The problem is in 2D.
 """
 
+from itertools import chain
 from math import inf, isclose, isqrt
 from typing import Any
 
@@ -15,6 +16,7 @@ from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
 
 from vector2 import Vector2
+from polygon2 import bbox
 from problem1 import Solution
 
 
@@ -140,32 +142,26 @@ def locate_cone(start: Vector2, direction1: Vector2, direction2: Vector2, bbox: 
 
 class Drawing(Solution):
 
-	def get_bbox(self) -> tuple[float, float, float, float]:
+	def get_bbox(self, extra: float = 0.1) -> tuple[float, float, float, float]:
+		"""
+		Returns the bounding box of the drawing, which is the smallest rectangle
+		that contains the start and end points, as well as all polygons.
+		
+		:param float extra: An optional parameter to expand the bounding box by a certain factor.
+		:param bool square: If True, the bounding box will be square, expanding the smaller 
+		side to match the larger one.
+		
+		:return: A tuple (minx, miny, maxx, maxy) representing the bounding box.
+		"""
 
-		minx = min(self.start.x, self.end.x, min(v.x for p in self.polygons for v in p))
-		maxx = max(self.start.x, self.end.x, max(v.x for p in self.polygons for v in p))
+		points = list(chain([self.start, self.end], *self.polygons))
+		bleft, tright = bbox(points, extra, True)
 
-		miny = min(self.start.y, self.end.y, min(v.y for p in self.polygons for v in p))
-		maxy = max(self.start.y, self.end.y, max(v.y for p in self.polygons for v in p))
-
-		dx = maxx - minx
-		dy = maxy - miny
-
-		if dx > dy:
-			miny -= (dx - dy) / 2
-			maxy += (dx - dy) / 2
-		else:
-			minx -= (dy - dx) / 2
-			maxx += (dy - dx) / 2
-
-		d = max(dx, dy) * 0.1
-
-		minx -= d
-		miny -= d
-		maxx += d
-		maxy += d
+		minx, miny = bleft.x, bleft.y
+		maxx, maxy = tright.x, tright.y
 
 		return minx, miny, maxx, maxy
+
 
 	def draw(self, scenes: list[int] | None = None) -> None:
 

@@ -44,6 +44,35 @@ def _segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector
 	if rates is not None and 0 <= rates[0] <= 1 and 0 <= rates[1] <= 1:
 		return start1 + diff1 * rates[0]
 
+def bbox(points: Iterable[Vector2], extra: float = 0.1, square: bool = True) -> tuple[Vector2, Vector2]:
+	"""
+	Calculate the bounding box of a set of points.
+	The bounding box is defined by two points: the bottom-left and top-right corners.
+
+	:param Iterable[Vector2] points: An iterable of Vector2 points.
+
+	:return: A tuple (minx, miny, maxx, maxy) representing the bounding box.
+	"""
+
+	xmin = min(point.x for point in points)
+	xmax = max(point.x for point in points)
+	ymin = min(point.y for point in points)
+	ymax = max(point.y for point in points)
+
+	center = Vector2((xmin + xmax) / 2, (ymin + ymax) / 2)
+
+	dx = (xmax - xmin) * (1 + extra)
+	dy = (ymax - ymin) * (1 + extra)
+
+	if square:
+		dx, dy = max(dx, dy), max(dx, dy)
+
+	xmin = center.x - dx / 2
+	xmax = center.x + dx / 2
+	ymin = center.y - dy / 2
+	ymax = center.y + dy / 2
+
+	return Vector2(xmin, ymin), Vector2(xmax, ymax)
 
 class Polygon2(tuple[Vector2, ...]):
 
@@ -154,29 +183,8 @@ class Polygon2(tuple[Vector2, ...]):
 		"""
 		Calculate the bounding box of the polygon.
 		The bounding box is defined by two points: the bottom-left and top-right corners.
-		An optional `extra` parameter can be provided to expand the bounding box by a certain factor.
-		If `square` is True, the bounding box will be square, expanding the smaller side to match the larger one.
 		"""
-
-		xmin = min(vertex.x for vertex in self)
-		xmax = max(vertex.x for vertex in self)
-		ymin = min(vertex.y for vertex in self)
-		ymax = max(vertex.y for vertex in self)
-
-		center = Vector2((xmin + xmax) / 2, (ymin + ymax) / 2)
-
-		dx = (xmax - xmin) * (1 + extra)
-		dy = (ymax - ymin) * (1 + extra)
-
-		if square:
-			dx, dy = max(dx, dy), max(dx, dy)
-
-		xmin = center.x - dx / 2
-		xmax = center.x + dx / 2
-		ymin = center.y - dy / 2
-		ymax = center.y + dy / 2
-
-		return Vector2(xmin, ymin), Vector2(xmax, ymax)
+		return _bbox(self, extra, square)
 
 	def __getitem__(self, index: SupportsIndex) -> Vector2: # type: ignore
 		"""
