@@ -89,11 +89,35 @@ test7 = Drawing(
 	]
 )
 
-test1.draw()
-test2.draw()
-test3.draw([1])
-test4.draw()
-test5.draw()
-test6.draw()
+test8 = Drawing(
+	Vector2(0, -5), Vector2(0, 2),
+	[
+		Polygon2([
+			(0, 0), (-0.5, 1), (-1, 1), (-1.5, 0), (-1.5, -1), 
+			(-0.25, -3), (0.25, -3), (1.5, -1), (1.5, 0), (1, 1), (0.5, 1),
+		]),
+	]
 
-test7.draw()
+)
+
+test9 = Drawing(
+	Vector2(-3, -0.5), Vector2(3, -0.5),
+	[
+		Polygon2([
+			(0, 0), (-0.5, 1), (-1, 1), (-1.5, 0), (-1.5, -1), 
+			(-0.25, -3), (0.25, -3), (1.5, -1), (1.5, 0), (1, 1), (0.5, 1),
+		]),
+	]
+
+)
+
+#test1.draw()
+#test2.draw()
+#test3.draw([1])
+#test4.draw()
+#test5.draw()
+#test6.draw()
+#test7.draw()
+
+test8.draw()
+test9.draw()
