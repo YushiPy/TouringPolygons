@@ -45,38 +45,41 @@ def _segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector
 	if rates is not None and 0 <= rates[0] <= 1 and 0 <= rates[1] <= 1:
 		return start1 + diff1 * rates[0]
 
-def bbox(points: Iterable[Vector2], extra: float = 0.1, square: bool = True) -> tuple[Vector2, Vector2]:
-	"""
-	Calculate the bounding box of a set of points.
-	The bounding box is defined by two points: the bottom-left and top-right corners.
-
-	:param Iterable[Vector2] points: An iterable of Vector2 points.
-
-	:return: A tuple (minx, miny, maxx, maxy) representing the bounding box.
-	"""
-
-	xmin = min(point.x for point in points)
-	xmax = max(point.x for point in points)
-	ymin = min(point.y for point in points)
-	ymax = max(point.y for point in points)
-
-	center = Vector2((xmin + xmax) / 2, (ymin + ymax) / 2)
-
-	dx = (xmax - xmin) * (1 + extra)
-	dy = (ymax - ymin) * (1 + extra)
-
-	if square:
-		dx, dy = max(dx, dy), max(dx, dy)
-
-	xmin = center.x - dx / 2
-	xmax = center.x + dx / 2
-	ymin = center.y - dy / 2
-	ymax = center.y + dy / 2
-
-	return Vector2(xmin, ymin), Vector2(xmax, ymax)
-
 class Polygon2(tuple[Vector2, ...]):
 
+	@staticmethod
+	def bbox(points: Iterable[Vector2], extra: float = 0.1, square: bool = True) -> tuple[Vector2, Vector2]:
+		"""
+		Calculate the bounding box of a set of points.
+		The bounding box is defined by two points: the bottom-left and top-right corners.
+
+		:param Iterable[Vector2] points: An iterable of Vector2 points.
+
+		:return: A tuple (minx, miny, maxx, maxy) representing the bounding box.
+		"""
+
+		points = list(points)
+
+		xmin = min(point.x for point in points)
+		xmax = max(point.x for point in points)
+		ymin = min(point.y for point in points)
+		ymax = max(point.y for point in points)
+
+		center = Vector2((xmin + xmax) / 2, (ymin + ymax) / 2)
+
+		dx = (xmax - xmin) * (1 + extra)
+		dy = (ymax - ymin) * (1 + extra)
+
+		if square:
+			dx, dy = max(dx, dy), max(dx, dy)
+
+		xmin = center.x - dx / 2
+		xmax = center.x + dx / 2
+		ymin = center.y - dy / 2
+		ymax = center.y + dy / 2
+
+		return Vector2(xmin, ymin), Vector2(xmax, ymax)
+	
 	def __new__(cls, points: Iterable[Iterable[float]]) -> 'Polygon2':
 		"""
 		Create a new Polygon2 instance from a list of Vector2 points.
@@ -211,17 +214,10 @@ class Polygon2(tuple[Vector2, ...]):
 		"""
 
 		if self.intersects_segment(start, end, eps):
-			return True
+			return False
 
 		# Also check if the midpoint is inside the polygon for robustness
 		return self.contains_point((start + end) / 2, eps) >= 0
-
-	def bbox(self, extra: float = 0, square: bool = False) -> tuple[Vector2, Vector2]:
-		"""
-		Calculate the bounding box of the polygon.
-		The bounding box is defined by two points: the bottom-left and top-right corners.
-		"""
-		return bbox(self, extra, square)
 
 	def __getitem__(self, index: SupportsIndex) -> Vector2: # type: ignore
 		"""

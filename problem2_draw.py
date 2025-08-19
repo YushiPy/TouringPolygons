@@ -1,13 +1,5 @@
-"""
-Implementation of the first variation of the problem. 
 
-We will consider that:
-- The polygons are convex
-- There is no "fence"
-- The polygons are non intersecting
-- The problem is in 2D.
-"""
-
+from itertools import chain
 from math import inf, isclose, isqrt
 from typing import Any
 
@@ -15,6 +7,7 @@ from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
 
 from vector2 import Vector2
+from polygon2 import Polygon2
 from problem2 import Solution
 
 
@@ -101,8 +94,8 @@ def locate_edge(start1: Vector2, direction1: Vector2, start2: Vector2, direction
 	p1 = locate_ray(start1, direction1, bbox)
 	p2 = locate_ray(start2, direction2, bbox)
 
-	w1 = get_wall(p1)
-	w2 = get_wall(p2)
+	w1 = get_wall(p1) % 4
+	w2 = get_wall(p2) % 4
 
 	corners = [
 		Vector2(maxx, miny),
@@ -140,33 +133,27 @@ def locate_cone(start: Vector2, direction1: Vector2, direction2: Vector2, bbox: 
 
 class Drawing(Solution):
 
-	def get_bbox(self, extra: float = 0.1, square: bool = False) -> tuple[float, float, float, float]:
+	def get_bbox(self, extra: float = 0.1) -> tuple[float, float, float, float]:
+		"""
+		Returns the bounding box of the drawing, which is the smallest rectangle
+		that contains the start and end points, as well as all polygons.
+		
+		:param float extra: An optional parameter to expand the bounding box by a certain factor.
+		:param bool square: If True, the bounding box will be square, expanding the smaller 
+		side to match the larger one.
+		
+		:return: A tuple (minx, miny, maxx, maxy) representing the bounding box.
+		"""
 
-		minx = min(self.start.x, self.end.x, min(v.x for p in self.polygons for v in p), min(v.x for p in self.fences for v in p))
-		maxx = max(self.start.x, self.end.x, max(v.x for p in self.polygons for v in p), max(v.x for p in self.fences for v in p))
-		miny = min(self.start.y, self.end.y, min(v.y for p in self.polygons for v in p), min(v.y for p in self.fences for v in p))
-		maxy = max(self.start.y, self.end.y, max(v.y for p in self.polygons for v in p), max(v.y for p in self.fences for v in p))
+		points = list(chain([self.start, self.end], *self.polygons))
+		bleft, tright = Polygon2.bbox(points, extra, True)
 
-		center = Vector2((minx + maxx) / 2, (miny + maxy) / 2)
+		minx, miny = bleft.x, bleft.y
+		maxx, maxy = tright.x, tright.y
 
-		dx = maxx - minx
-		dy = maxy - miny
-
-		if square:
-			if dx > dy:
-				dy = dx
-			else:
-				dx = dy
-
-		dx *= 1 + extra
-		dy *= 1 + extra
-
-		return center.x - dx / 2, center.y - dy / 2, center.x + dx / 2, center.y + dy / 2
+		return minx, miny, maxx, maxy
 
 	def draw(self, scenes: list[int] | None = None) -> None:
-
-		#if not self.final_path:
-		#	self.shortest_path()
 
 		n: int = len(self.polygons)
 
@@ -191,10 +178,13 @@ class Drawing(Solution):
 		self.draw_scene(flat[0], -1)
 
 		# Set title for the whole figure
-		fig.suptitle("Shortest path from Start to End passing touching every polygon", fontsize=16) # type: ignore
+		fig.suptitle("Shortest path from Start to End touching every polygon", fontsize=16) # type: ignore
 
 		flat[0].set_title("Final Path", fontsize=14)
 		flat[0].legend()
+
+		#for i in range(1, len(scenes) + 1):
+		#	flat[i].legend()
 
 		plt.show() # type: ignore
 
@@ -248,6 +238,8 @@ class Drawing(Solution):
 				plot(*zip(vertex, p1), color="red", linewidth=2, linestyle='--')
 				plot(*zip(vertex, p2), color="red", linewidth=2, linestyle='--')
 
+			fill([minx], [miny], alpha=0.45, color="red", label="Cone Region")
+
 		def draw_edges() -> None:
 
 			for i in range(len(polygon)):
@@ -264,8 +256,15 @@ class Drawing(Solution):
 				points = locate_edge(v1, ray1, v2, ray2, bbox)
 
 				fill(*zip(*points), alpha=0.45, color="green")
+			
+			fill([minx], [miny], alpha=0.45, color="green", label="Edge Region")
 
-		bbox = self.get_bbox(0.1, True)
+		if index < 0 or index >= len(self.polygons):
+			bbox = self.get_bbox()
+		else:
+			_bbox = Polygon2.bbox(chain(self.polygons[index], self.fences[index], [self.start, self.end]), 0.1, True)
+			bbox = _bbox[0].x, _bbox[0].y, _bbox[1].x, _bbox[1].y
+
 		minx, miny, maxx, maxy = bbox
 
 		ax.set_xlim(minx, maxx)
@@ -274,6 +273,8 @@ class Drawing(Solution):
 
 		# Fill the background with a cyan color
 		fill([minx, minx, maxx, maxx], [miny, maxy, maxy, miny], color="#6abdbe", alpha=0.7)
+		
+		fill([minx], [miny], color="#6abdbe", alpha=0.7, label="Pass Through Region" * (index != -1))
 
 		if 0 <= index < len(self.polygons):
 			polygon = self.polygons[index]
@@ -281,24 +282,15 @@ class Drawing(Solution):
 			draw_edges()
 
 		for i, polygon in enumerate(self.polygons):
-			fill(*zip(*polygon), alpha=0.8, label=f'Polygon {i + 1}')
+			fill(*zip(*polygon), alpha=0.8, label=f'Polygon {i + 1}' * (index == -1 or index == i))
 			plot(*zip(*polygon, polygon[0]), linewidth=2)
 
-		# Plot the final path
-		# plot(*zip(*self.final_path), color="purple")
-
-		# Plot the fences
-		if index >= 0:
-			fence = self.fences[index]
-			plot(*zip(*(list(fence) + [fence[0]])), label=f'Fence', color="orange", linewidth=2, linestyle='--')
-
-		if index == -1:
-			for i, fence in enumerate(self.fences):
-				plot(*zip(*(list(fence) + [fence[0]])), label=f"Fence {i + 1}", linewidth=2, linestyle='--')
+		for i, fence in enumerate(self.fences):
+			plot(*zip(*fence, fence[0]), linewidth=2)
 
 		# Plot the start and end points
-		plot(*zip(self.start), "o", color="green", label='Start', markersize=4)
-		plot(*zip(self.end), "o", color="red", label='End', markersize=4)
+		plot(*zip(self.start), "o", color="green", label='Start' * (index == -1), markersize=4)
+		plot(*zip(self.end), "o", color="red", label='End' * (index == -1), markersize=4)
 
 		# ax.legend() # type: ignore
 		ax.grid() # type: ignore
