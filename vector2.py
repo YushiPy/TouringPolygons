@@ -377,6 +377,10 @@ class Vector2:
 		"""Returns a vector with both components equal to y."""
 		return type(self)(self.y, self.y)
 
+	def is_close(self, other: Self, eps: float = 1e-8) -> bool:
+		"""Checks if this vector is close to the other vector within a given epsilon."""
+		return (self - other).magnitude_squared() < eps * eps
+
 	def __add__(self, other: Self) -> Self:
 		"""Returns a new vector that is the sum of this vector and the other vector."""
 		return type(self)(self.x + other.x, self.y + other.y)
