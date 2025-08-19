@@ -191,7 +191,7 @@ class Polygon2(tuple[Vector2, ...]):
 		"""
 
 		if self.intersects_segment(start, end, eps):
-			return False
+			return True
 
 		# Also check if the midpoint is inside the polygon for robustness
 		return self.contains_point((start + end) / 2, eps) >= 0
