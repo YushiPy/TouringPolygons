@@ -15,6 +15,7 @@ We will also consider that:
 - The problem is in 2D.
 """
 
+import math
 from typing import Iterable
 import heapq
 
@@ -34,7 +35,7 @@ def shortest_path_in_polygon(start: Vector2, end: Vector2, polygon: Polygon2) ->
 	:return: A list of Vector2 points representing the shortest path.
 	"""
 
-	vertices: list[Vector2] = [start, end] + list(polygon)
+	vertices: list[Vector2] = [start, end] + polygon.reflex_vertices
 	edges: list[list[tuple[int, float]]] = [[] for _ in range(len(vertices))]
 
 	for i in range(len(vertices)):
@@ -54,7 +55,7 @@ def shortest_path_in_polygon(start: Vector2, end: Vector2, polygon: Polygon2) ->
 			edges[j].append((i, cost))
 	
 	# A star algorithm
-	gscore = [inf] * len(vertices)
+	gscore = [math.inf] * len(vertices)
 	gscore[0] = 0
 
 	visited = [False] * len(vertices)
@@ -114,9 +115,15 @@ class Solution:
 	polygons: list[Polygon2]
 	fences: list[Polygon2]
 
-	# For each vertex j in the polygon P_i, we store the last vertex of the 
-	# i-path that reaches j.
-	vertex_last: list[list[Vector2]]
+	# For each vertex j in the polygon P_i, we store 
+	# two vectors that represent the the start and end of the cone
+	# of the vertex. The vectors are in counter-clockwise order.
+	# If the vectors are the same, it means that the vertex
+	# is not part of T_i.
+	cones: list[list[tuple[Vector2, Vector2]]]
+
+	# Indicates whether the vertex j of P_i is blocked by P_i.
+	blocked: list[list[bool]]
 
 	def __init__(self, start: Vector2, end: Vector2, polygons: Iterable[Polygon2], fences: Iterable[Polygon2]) -> None:
 		"""
@@ -136,11 +143,14 @@ class Solution:
 		self.polygons = [Polygon2(polygon) for polygon in polygons]
 		self.fences = [Polygon2(fence) for fence in fences]
 
+		self.cones = [[] for _ in range(len(self.polygons))]
+		self.blocked = [[] for _ in range(len(self.polygons))]
+
 		if not all(polygon.is_convex() for polygon in self.polygons):
 			raise ValueError("All polygons must be convex.")
 	
 	def shortest_fenced_path(self, start: Vector2, end: Vector2, index: int) -> Vector2:
-		return shortest_path_in_polygon(start, end, self.fences[index])[-1]
+		return shortest_path_in_polygon(start, end, self.fences[index])[-2]
 
 	def query(self, index: int, end: Vector2) -> Vector2:
 		"""
@@ -151,28 +161,71 @@ class Solution:
 		if index == 0:
 			return self.shortest_fenced_path(self.start, end, 0)
 	
+		return Vector2(0, 0) # TODO: implement
+
 	def shortest_path(self) -> list[Vector2]:
 
+		index = 0
 
+		polygon = self.polygons[index]
+		cones = self.cones[index]
+		blocked = self.blocked[index]
+
+		last_vertex: list[Vector2] = []
+
+		for j in range(len(polygon)):
+			
+			vertex = polygon[j]
+			last = self.query(index, vertex)
+
+			last_vertex.append(last)
+
+			blocked.append(polygon.contains_segment(last, vertex))
+
+		for j in range(len(polygon)):
+
+			if blocked[j]:
+				cones.append((Vector2(), Vector2()))
+				continue
+
+			vertex = polygon[j]
+			last = last_vertex[j]
+
+			diff = vertex - last
+
+			v_before = polygon[j - 1]
+			v_after = polygon[j + 1]
+
+			if blocked[j - 1]:
+				dir1 = diff.normalize()
+			else:
+				dir1 = diff.reflect((vertex - v_before).perpendicular()).normalize()
+
+			if blocked[(j + 1) % len(polygon)]:
+				dir2 = diff.normalize()
+			else:
+				dir2 = diff.reflect((vertex - v_after).perpendicular()).normalize()
+
+			cones.append((dir1, dir2))
 
 		return []
 
-start = Vector2(0, 3)
-end = Vector2(0, -3)
+start = Vector2(0, 1)
+end = Vector2(0, -3.5)
 
 polygons = [
 	Polygon2([
-		Vector2(-2, 0), Vector2(2, 0), Vector2(0, 1)
+		Vector2(-2, -1), Vector2(2, -1), Vector2(0, -2)
 	])
 ]
 
 fences = [
 	Polygon2([
-		Vector2(-4, 4), Vector2(-4, 1), Vector2(-1, 1), Vector2(-4, 0), Vector2(-4, -4),
-		Vector2(4, -4), Vector2(4, 0), Vector2(1, 1), Vector2(4, 1), Vector2(4, 4),
+		Vector2(-4, 2), Vector2(-4, 1), Vector2(-0.5, 0), Vector2(-4, 0), Vector2(-4, -3),
+		Vector2(4, -3), Vector2(4, 0), Vector2(0.5, 0), Vector2(4, 1), Vector2(4, 2),
 	]),
 	Polygon2([
-		Vector2(-3, 2), Vector2(-3, -4), Vector2(3, -4), Vector2(3, 2) 
+		Vector2(-3, -1.5), Vector2(-3, -4), Vector2(3, -4), Vector2(3, -1.5) 
 	])
 ]
 
