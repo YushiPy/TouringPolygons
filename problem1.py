@@ -1,9 +1,13 @@
 """
 Implementation of the first variation of the problem. 
+The unconstrained TPP problem.
 
-We will consider that:
-- The polygons are convex
-- There is no "fence"
+We are given:
+- A starting point `s`.
+- A target point `t`.
+- Convex polygons P_1, ..., P_k.
+
+We will also consider that:
 - The polygons are non intersecting
 - The problem is in 2D.
 """
