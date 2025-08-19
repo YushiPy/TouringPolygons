@@ -132,6 +132,18 @@ class Polygon2(tuple[Vector2, ...]):
 		"""
 		return [(self[i], self[(i + 1) % len(self)]) for i in range(len(self))]
 
+	def _far_edges(self, *avoid: Vector2, eps: float = 1e-12) -> list[tuple[Vector2, Vector2]]:
+		"""
+		Iterate over the edges of the polygon that aren't included 
+		in the avoid list.
+		Each edge is represented as a tuple of two Vector2 points.
+		"""
+
+		def is_far(v: Vector2) -> bool:
+			return all((v - a).length() > eps for a in avoid)
+
+		return [(a, b) for a, b in self.edges() if is_far(a) and is_far(b)]
+
 	def contains_point(self, point: Vector2, eps: float = 1e-12) -> Literal[-1, 0, 1]:
 		"""
 		Check if the polygon contains a point.
@@ -156,6 +168,21 @@ class Polygon2(tuple[Vector2, ...]):
 
 		return 1 if inside else -1
 
+	def intersects_segment(self, start: Vector2, end: Vector2, eps: float = 1e-12) -> bool:
+		"""
+		Check if the polygon intersects a line segment.
+		The segment is considered intersecting if it crosses any edge of the polygon.
+		"""
+
+		for a, b in self._far_edges(start, end, eps=eps):
+
+			intersection = _segment_segment_intersection(start, end, a, b)
+
+			if intersection is not None and not intersection.is_close(start, eps) and not intersection.is_close(end, eps):
+				return True
+
+		return False
+
 	def contains_segment(self, start: Vector2, end: Vector2, eps: float = 1e-12) -> bool:
 		"""
 		Check if the polygon contains a line segment.
@@ -163,18 +190,8 @@ class Polygon2(tuple[Vector2, ...]):
 		except at its endpoints.
 		"""
 
-		def is_near(v1: Vector2, v2: Vector2) -> bool:
-			return (v1 - v2).length() < eps
-
-		for a, b in self.edges():
-
-			if is_near(start, a) or is_near(start, b) or is_near(end, a) or is_near(end, b):
-				continue
-
-			intersection = _segment_segment_intersection(start, end, a, b)
-
-			if intersection is not None and not is_near(intersection, start) and not is_near(intersection, end):
-				return False
+		if self.intersects_segment(start, end, eps):
+			return False
 
 		# Also check if the midpoint is inside the polygon for robustness
 		return self.contains_point((start + end) / 2, eps) >= 0
@@ -184,7 +201,7 @@ class Polygon2(tuple[Vector2, ...]):
 		Calculate the bounding box of the polygon.
 		The bounding box is defined by two points: the bottom-left and top-right corners.
 		"""
-		return _bbox(self, extra, square)
+		return bbox(self, extra, square)
 
 	def __getitem__(self, index: SupportsIndex) -> Vector2: # type: ignore
 		"""
