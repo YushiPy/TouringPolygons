@@ -16,7 +16,7 @@ from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
 
 from vector2 import Vector2
-from polygon2 import bbox
+from polygon2 import Polygon2
 from problem1 import Solution
 
 
@@ -155,7 +155,7 @@ class Drawing(Solution):
 		"""
 
 		points = list(chain([self.start, self.end], *self.polygons))
-		bleft, tright = bbox(points, extra, True)
+		bleft, tright = Polygon2.bbox(points, extra, True)
 
 		minx, miny = bleft.x, bleft.y
 		maxx, maxy = tright.x, tright.y

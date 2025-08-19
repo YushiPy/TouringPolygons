@@ -106,6 +106,31 @@ def shortest_path_in_polygon(start: Vector2, end: Vector2, polygon: Polygon2) ->
 
 	return path
 
+def point_in_cone(point: Vector2, start: Vector2, ray1: Vector2, ray2: Vector2, eps: float = 1e-10) -> bool:
+	"""
+	Check if a point is inside the cone defined by two rays starting from `start`.
+	The rays are in clockwise order.
+
+	:param Vector2 point: The point to check.
+	:param Vector2 start: The starting point of the cone.
+	:param Vector2 ray1: The first ray direction.
+	:param Vector2 ray2: The second ray direction.
+
+	:return: True if the point is inside the cone, False otherwise.
+	"""
+
+	if ray1.cross(ray2) < 0:
+		return not point_in_cone(point, start, ray2, ray1, eps)
+
+	vector = point - start
+
+	cross1 = ray1.cross(vector)
+	cross2 = ray2.cross(vector)
+
+	# Is to the counter-clockwise side of the first ray and 
+	# clockwise side of the second ray.
+	return (cross1 >= -eps and cross2 <= eps)
+
 
 class Solution:
 
@@ -152,15 +177,28 @@ class Solution:
 	def shortest_fenced_path(self, start: Vector2, end: Vector2, index: int) -> Vector2:
 		return shortest_path_in_polygon(start, end, self.fences[index])[-2]
 
-	def query(self, index: int, end: Vector2) -> Vector2:
+	def query(self, index: int, point: Vector2) -> Vector2:
 		"""
 		Returns the start of the last segment of the shortest 
-		`index`-path that reaches `end`.
+		`index`-path that reaches `point`.
 		"""
 
 		if index == 0:
-			return self.shortest_fenced_path(self.start, end, 0)
+			return self.shortest_fenced_path(self.start, point, 0)
 	
+
+		for j in range(len(self.polygons[index])):
+
+			vertex = self.polygons[index][j]
+
+			if not self.blocked[index][j]:
+				continue
+
+			first, second = self.cones[index][j]
+
+			if point_in_cone(point, vertex, first, second):
+				return vertex
+
 		return Vector2(0, 0) # TODO: implement
 
 	def shortest_path(self) -> list[Vector2]:
