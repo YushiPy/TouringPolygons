@@ -1,4 +1,5 @@
 
+from functools import cached_property
 from typing import Iterable, Literal, SupportsIndex
 from vector2 import Vector2
 
@@ -144,6 +145,7 @@ class Polygon2(tuple[Vector2, ...]):
 
 		return [(a, b) for a, b in self.edges() if is_far(a) and is_far(b)]
 
+	@cached_property
 	def reflex_vertices(self) -> list[Vector2]:
 		"""
 		Find the indices of reflex vertices in the polygon.
