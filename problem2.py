@@ -145,7 +145,7 @@ def intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, di
 
 	return rate1, rate2
 
-def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2) -> Vector2 | None:
+def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2, eps: float = 1e-10) -> Vector2 | None:
 	"""
 	Returns the intersection point of two line segments if they intersect, otherwise returns None.
 
@@ -162,7 +162,7 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 
 	rates = intersection_rates(start1, diff1, start2, diff2)
 
-	if rates is not None and 0 <= rates[0] <= 1 and 0 <= rates[1] <= 1:
+	if rates is not None and -eps <= rates[0] <= 1 + eps and -eps <= rates[1] <= 1 + eps:
 		return start1 + diff1 * rates[0]
 
 
@@ -255,17 +255,20 @@ class Solution:
 		# If any path from T_{index - 1} to the target is valid, return it.
 		# Otherwise, find the reflex vertex of F_{index} that is and use the path that reaches it.
 
-		for i, j in enumerate(self.fences[index - 1].reflex_vertices_indices):
+		for i, j in enumerate(self.fences[index - 1].reflex_vertices_indices + [-1]):
 
-			vertex = self.fences[index - 1][j]
-			before = self.fences[index - 1][j - 1]
-			last = self.last_fence_vertex[index - 1][i]
+			if j == -1:
+				vertex = self.start
+			else:
+				vertex = self.fences[index - 1][j]
+				before = self.fences[index - 1][j - 1]
+				last = self.last_fence_vertex[index - 1][i]
 
-			rates = intersection_rates(vertex, before - vertex, last, point - last)
+				rates = intersection_rates(vertex, before - vertex, last, point - last)
 
-			# If the intersection is not valid, then the path is not optimal.
-			if rates is None or rates[0] < 0:
-				continue
+				# If the intersection is not valid, then the path is not optimal.
+				if rates is None or rates[0] < 0:
+					continue
 
 			# Path is optimal, need to calculate intersection point with polygon P_{index - 1}
 			poligon_point = min(
@@ -283,7 +286,11 @@ class Solution:
 				continue
 
 			# We only need to check if the path leaves the fence F_{index} now
-			if any(segment_segment_intersection(poligon_point, point, a, b) is not None for a, b in self.fences[index].edges()):
+			# Negative eps avoids matching the vertex itself, if point if a vertex of the new fence.
+			if any(
+				segment_segment_intersection(poligon_point, point, a, b, -1e-10) is not None 
+				for a, b in self.fences[index].edges()
+			):
 				continue
 
 			return vertex
@@ -346,8 +353,8 @@ class Solution:
 
 			cones.append((dir1, dir2))
 
-		#print(self.query(1, Vector2(-2.9, -3.1)))
-		print(self.query(1, Vector2(-2, -2.9)))
+		# print(self.query(1, Vector2(-2.9, -3.1)))
+		print(self.query(1, Vector2(0, -2.5)))
 
 		return []
 
