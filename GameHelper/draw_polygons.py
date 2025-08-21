@@ -1,4 +1,5 @@
 
+from itertools import chain
 from math import ceil
 from pygame import Vector2
 import pygame as pg
@@ -14,7 +15,7 @@ COLORS = [
 def dashed_line(surface: pg.Surface, color: pg.Color, start: Vector2, end: Vector2, dash_length: int = 5) -> None:
 
 	dash_count = ceil(start.distance_to(end) / dash_length)
-	dash_count += dash_count % 2
+	dash_count += not dash_count % 2
 
 	dash_vector = (end - start) / dash_count
 
@@ -30,23 +31,51 @@ class Gameplay(Game):
 		self.current_polygon: int = 0
 
 		self.last_mouse_keys = pg.mouse.get_pressed()
+		self.held_vertex: tuple[int, int] | None = None
+
+	@property
+	def shifting(self) -> bool:
+		return pg.K_LSHIFT in self.held_keys or pg.K_RSHIFT in self.held_keys
+
+	def point_indices(self) -> list[tuple[int, int]]:
+		"""Get a list of indices for all points in all polygons."""
+		return [(i, j) for i, polygon in enumerate(self.polygons) for j in range(len(polygon))]
 
 	def mouse_released(self) -> list[bool]:
 		return [a and not b for a, b in zip(pg.mouse.get_pressed(), self.last_mouse_keys)]
 
 	def remove_point(self, mouse_pos: tuple[int, int]) -> None:
 
-		polygon = self.polygons[self.current_polygon]
+		indeces = min(self.point_indices(), key=lambda v: self.polygons[v[0]][v[1]].distance_to(mouse_pos), default=None)
 
-		if not polygon:
+		if indeces is None:
 			return
 		
-		vertex = min(polygon, key=lambda v: v.distance_to(mouse_pos))
+		vertex = self.polygons[indeces[0]][indeces[1]]
 
 		if vertex.distance_to(mouse_pos) > 30:
 			return
 		
-		polygon.remove(vertex)
+		self.polygons[indeces[0]].pop(indeces[1])
+
+	def move_point(self, mouse_pos: tuple[int, int]) -> None:
+
+		if self.held_vertex is None:
+
+			def key(x: tuple[int, int]) -> float:
+				return self.polygons[x[0]][x[1]].distance_to(mouse_pos) / (1 + (x[0] == self.current_polygon))
+			
+			self.held_vertex = min(self.point_indices(), key=key, default=None)
+
+			if self.held_vertex is not None and self.polygons[self.held_vertex[0]][self.held_vertex[1]].distance_to(mouse_pos) > 30:
+				self.held_vertex = None
+				return
+			
+
+		if self.held_vertex is None:
+			return
+
+		self.polygons[self.held_vertex[0]][self.held_vertex[1]] = Vector2(mouse_pos)
 
 	def draw(self, surface: pg.Surface) -> None:
 
@@ -61,8 +90,10 @@ class Gameplay(Game):
 				pg.draw.aalines(surface, color, False, polygon)
 				dashed_line(surface, light_color.lerp("white", 0.5), polygon[0], polygon[-1], 10)
 
-			for vertex in polygon:
-				pg.draw.circle(surface, light_color, (int(vertex.x), int(vertex.y)), 5)
+			for i, vertex in enumerate(polygon):
+				v_color = light_color.lerp("white", 0.5 * i / len(polygon))
+				size = 5 + 5 * (i / len(polygon))
+				pg.draw.circle(surface, v_color, vertex, size)
 
 			if len(polygon) < 3:
 				continue
@@ -75,11 +106,17 @@ class Gameplay(Game):
 
 	def fixed_update(self, down_keys: set[int], up_keys: set[int], held_keys: set[int], events: set[int]) -> None | bool:
 
+		mouse_held = pg.mouse.get_pressed()
 		mouse_released = self.mouse_released()
 		mouse_pos = pg.mouse.get_pos()
 
-		if mouse_released[0]:
+		if mouse_released[0] and not self.shifting:
 			self.polygons[self.current_polygon].append(Vector2(mouse_pos))
+
+		if mouse_held[0] and self.shifting:
+			self.move_point(mouse_pos)
+		else:
+			self.held_vertex = None
 
 		if mouse_released[2]:
 			self.remove_point(mouse_pos)
@@ -87,18 +124,25 @@ class Gameplay(Game):
 		if pg.K_RETURN in up_keys:
 			self.polygons.append([])
 			self.current_polygon = len(self.polygons) - 1
-		
-		if pg.K_RIGHT in down_keys:
-			self.current_polygon = (self.current_polygon + 1) % len(self.polygons)
-		if pg.K_LEFT in down_keys:
-			self.current_polygon = (self.current_polygon - 1) % len(self.polygons)
+
+		if pg.K_TAB in up_keys:
+
+			if self.shifting:
+				self.current_polygon = (self.current_polygon - 1) % len(self.polygons)
+			elif self.current_polygon == len(self.polygons) - 1:
+				self.polygons.append([])
+				self.current_polygon += 1
+			else:
+				self.current_polygon = (self.current_polygon + 1) % len(self.polygons)
+
+		self.current_polygon = (self.current_polygon + (pg.K_RIGHT in down_keys) - (pg.K_LEFT in down_keys)) % len(self.polygons)
 
 		if pg.K_BACKSPACE in down_keys:
 			
 			if self.polygons[self.current_polygon]:
 				self.polygons[self.current_polygon].pop()
 
-		self.last_mouse_keys = pg.mouse.get_pressed()
+		self.last_mouse_keys = mouse_held
 
 
 print(Gameplay().run().get_info())
