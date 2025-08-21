@@ -151,21 +151,19 @@ class Polygon2(tuple[Vector2, ...]):
 	@cached_property
 	def reflex_vertices(self) -> list[Vector2]:
 		"""
-		Find the indices of reflex vertices in the polygon.
+		Find the reflex vertices in the polygon.
+		A reflex vertex is one where the internal angle is greater than 180 degrees.
+		"""
+		return [self[i] for i in self.reflex_vertices_indices]
+
+	@cached_property
+	def reflex_vertices_indices(self) -> list[int]:
+		"""
+		Get the indices of the reflex vertices in the polygon.
 		A reflex vertex is one where the internal angle is greater than 180 degrees.
 		"""
 
-		reflex_indices: list[Vector2] = []
-
-		for i in range(len(self)):
-			a = self[i - 1]
-			b = self[i]
-			c = self[(i + 1) % len(self)]
-
-			if _orient(a, b, c) < 0:
-				reflex_indices.append(self[i])
-
-		return reflex_indices
+		return [i for i in range(len(self)) if _orient(self[i - 1], self[i], self[(i + 1) % len(self)]) < 0]
 
 	def contains_point(self, point: Vector2, eps: float = 1e-12) -> Literal[-1, 0, 1]:
 		"""
