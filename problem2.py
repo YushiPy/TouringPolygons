@@ -249,12 +249,7 @@ class Solution:
 
 		# Point is in pass-through region
 
-		# Current NOT WORKING
-		# TODO: Implement new idea:
-		# Compute shortest path to all vertices of fence F_{index - 1} and F_{index}
-		# If any path from T_{index - 1} to the target is valid, return it.
-		# Otherwise, find the reflex vertex of F_{index} that is and use the path that reaches it.
-
+		# Check if a straight segment from any point in T_{index - 1} to point is optimal.
 		for i, j in enumerate(self.fences[index - 1].reflex_vertices_indices + [-1]):
 
 			if j == -1:
@@ -295,7 +290,7 @@ class Solution:
 
 			return vertex
 
-		# Path can't be directly reaches, so we need to find the last reflex vertex of the fence F_{index}
+		# Path can't be directly reached, so we need to find the last reflex vertex of the fence F_{index}
 		# TODO: Implement this.
 
 		return Vector2(0, 0) # TODO: implement
