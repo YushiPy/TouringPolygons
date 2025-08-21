@@ -255,42 +255,41 @@ class Solution:
 		# If any path from T_{index - 1} to the target is valid, return it.
 		# Otherwise, find the reflex vertex of F_{index} that is and use the path that reaches it.
 
-		fence = self.fences[index - 1]
-		last_fence_vertex = self.last_fence_vertex[index - 1]
+		for i, j in enumerate(self.fences[index - 1].reflex_vertices_indices):
 
-		for i, j in enumerate(fence.reflex_vertices_indices):
-
-			vertex = fence[j]
-			before = fence[j - 1]
-
-			last = last_fence_vertex[i]
+			vertex = self.fences[index - 1][j]
+			before = self.fences[index - 1][j - 1]
+			last = self.last_fence_vertex[index - 1][i]
 
 			rates = intersection_rates(vertex, before - vertex, last, point - last)
 
+			# If the intersection is not valid, then the path is not optimal.
 			if rates is None or rates[0] < 0:
 				continue
 
-			# Path is reflex, so is optimal. Still need to check if it is blocked.
-			if not fence.contains_segment(vertex, point):
+			# Path is optimal, need to calculate intersection point with polygon P_{index - 1}
+			poligon_point = min(
+				(s for a, b in self.polygons[index - 1].edges() if (s := segment_segment_intersection(vertex, point, a, b)) is not None), 
+				key=vertex.distance_squared_to
+			)
+
+			# Path is optimal, but need to check if it stays inside the fence F_{index - 1}
+			# while is doesn't reach the polygon P_{index - 1}.
+			if any(
+				(p := segment_segment_intersection(vertex, point, a, b)) is not None and 
+				p.distance_to(vertex) < poligon_point.distance_to(vertex)
+				for a, b in self.fences[index - 1].edges()
+			):
 				continue
 			
-			points: list[Vector2] = []
+			# We only need to check if the path leaves the fence F_{index} now
+			if any(segment_segment_intersection(vertex, point, a, b) is not None for a, b in self.fences[index].edges()):
+				continue
 
-			# Need to find point where ray enters new fence
-			for a, b in self.fences[index].edges():
+			return vertex
 
-				intersection_point = segment_segment_intersection(vertex, point, a, b)
-
-				if intersection_point is not None:
-					points.append(intersection_point)
-		
-			if not points:
-				raise ValueError("No intersection found with the fence.")
-			
-			first_hit = min(points, key=lambda p: (p - vertex).magnitude())
-
-			return self.shortest_fenced_path(first_hit, point, index)
-
+		# Path can't be directly reaches, so we need to find the last reflex vertex of the fence F_{index}
+		# TODO: Implement this.
 
 		return Vector2(0, 0) # TODO: implement
 
