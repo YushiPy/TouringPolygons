@@ -145,6 +145,27 @@ def intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, di
 
 	return rate1, rate2
 
+def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2) -> Vector2 | None:
+	"""
+	Returns the intersection point of two line segments if they intersect, otherwise returns None.
+
+	:param Vector2 start1: The start point of the first segment as a Vector2.
+	:param Vector2 end1: The end point of the first segment as a Vector2.
+	:param Vector2 start2: The start point of the second segment as a Vector2.
+	:param Vector2 end2: The end point of the second segment as a Vector2.
+
+	:return: The intersection point as a Vector2 if the segments intersect, otherwise None.	
+	"""
+
+	diff1 = end1 - start1
+	diff2 = end2 - start2
+
+	rates = intersection_rates(start1, diff1, start2, diff2)
+
+	if rates is not None and 0 <= rates[0] <= 1 and 0 <= rates[1] <= 1:
+		return start1 + diff1 * rates[0]
+
+
 
 class Solution:
 
@@ -227,6 +248,13 @@ class Solution:
 		# TODO: Check if point is inside edge region
 
 		# Point is in pass-through region
+
+		# Current NOT WORKING
+		# TODO: Implement new idea:
+		# Compute shortest path to all vertices of fence F_{index - 1} and F_{index}
+		# If any path from T_{index - 1} to the target is valid, return it.
+		# Otherwise, find the reflex vertex of F_{index} that is and use the path that reaches it.
+
 		fence = self.fences[index - 1]
 		last_fence_vertex = self.last_fence_vertex[index - 1]
 
@@ -242,7 +270,27 @@ class Solution:
 			if rates is None or rates[0] < 0:
 				continue
 
-			print(vertex, before, last, point, rates)
+			# Path is reflex, so is optimal. Still need to check if it is blocked.
+			if not fence.contains_segment(vertex, point):
+				continue
+			
+			points: list[Vector2] = []
+
+			# Need to find point where ray enters new fence
+			for a, b in self.fences[index].edges():
+
+				intersection_point = segment_segment_intersection(vertex, point, a, b)
+
+				if intersection_point is not None:
+					points.append(intersection_point)
+		
+			if not points:
+				raise ValueError("No intersection found with the fence.")
+			
+			first_hit = min(points, key=lambda p: (p - vertex).magnitude())
+
+			return self.shortest_fenced_path(first_hit, point, index)
+
 
 		return Vector2(0, 0) # TODO: implement
 
@@ -299,7 +347,7 @@ class Solution:
 
 			cones.append((dir1, dir2))
 
-		print(self.query(1, Vector2(2, -2)))
+		print(self.query(1, Vector2(2, -3)))
 
 		return []
 
