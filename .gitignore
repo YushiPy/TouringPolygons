@@ -26,3 +26,7 @@ cronograma.md
 
 # MacOS
 .DS_Store
+
+# Polygon Helper
+PolygonsOut/
+PolygonsOut/*

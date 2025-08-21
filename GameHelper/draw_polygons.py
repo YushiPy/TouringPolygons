@@ -1,5 +1,7 @@
 
+from itertools import count
 from math import ceil
+import os
 from pygame import Vector2
 import pygame as pg
 
@@ -34,6 +36,29 @@ class Gameplay(Game):
 
 		self.snap_to_grid = False
 		self.grid_size = 50
+
+	def export(self) -> None:
+
+		string = "[\n"
+
+		for polygon in self.polygons:
+
+			string += "\t["
+
+			for vertex in polygon:
+				string += f"Vector2({vertex.x}, {vertex.y}), "
+
+			string = string[:-2] + "],\n"
+
+		string += "]"
+
+		if not os.path.exists("PolygonsOut"):
+			os.makedirs("PolygonsOut")
+		
+		index = next(i for i in count(1) if not os.path.exists(f"PolygonsOut/polygons{i}.txt"))
+
+		with open(f"PolygonsOut/polygons{index}.txt", "w") as file:
+			file.write(string)
 
 	@property
 	def shifting(self) -> bool:
@@ -134,7 +159,11 @@ class Gameplay(Game):
 			Text(f"{i + 1}", center_of_mass, light_color).draw(surface)
 
 		color = pg.color.Color(COLORS[self.current_polygon % len(COLORS)]).lerp("white", 0.3)
-		Text(f"Selected Polygon: {self.current_polygon + 1}", (200, 100), color).draw(surface)
+		Text(f"Selected Polygon: {self.current_polygon + 1}", (160, 50), color).draw(surface)
+
+		Text("Press 'S' to toggle grid snapping", (250, 100), "white").draw(surface)
+		Text(f"Grid Size: {self.grid_size}", (120, 150), "white").draw(surface)
+		Text("Press 'E' to export polygons", (220, 200), "white").draw(surface)
 
 	def fixed_update(self, down_keys: set[int], up_keys: set[int], held_keys: set[int], events: set[int]) -> None | bool:
 
@@ -152,6 +181,9 @@ class Gameplay(Game):
 
 		if mouse_released[2]:
 			self.remove_point(mouse_pos)
+
+		if pg.K_e in up_keys:
+			self.export()
 
 		if pg.K_s in up_keys:
 			self.snap_to_grid = not self.snap_to_grid
