@@ -131,6 +131,20 @@ def point_in_cone(point: Vector2, start: Vector2, ray1: Vector2, ray2: Vector2, 
 	# clockwise side of the second ray.
 	return (cross1 >= -eps and cross2 <= eps)
 
+def intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> tuple[float, float] | None:
+
+	cross = direction1.cross(direction2)
+
+	if abs(cross) < 1e-8:
+		return None
+	
+	sdiff = start2 - start1
+
+	rate1 = sdiff.cross(direction2) / cross
+	rate2 = sdiff.cross(direction1) / cross
+
+	return rate1, rate2
+
 
 class Solution:
 
@@ -149,6 +163,11 @@ class Solution:
 
 	# Indicates whether the vertex j of P_i is blocked by P_i.
 	blocked: list[list[bool]]
+
+	# For each polygon P_i, we store the direction of the 
+	# last segment that reaches the vertex.
+	# These vertices are the reflex vertices of the fences.
+	last_fence_vertex: list[list[Vector2]]
 
 	def __init__(self, start: Vector2, end: Vector2, polygons: Iterable[Polygon2], fences: Iterable[Polygon2]) -> None:
 		"""
@@ -171,6 +190,8 @@ class Solution:
 		self.cones = [[] for _ in range(len(self.polygons))]
 		self.blocked = [[] for _ in range(len(self.polygons))]
 
+		self.last_fence_vertex = [[] for _ in range(len(self.polygons))]
+
 		if not all(polygon.is_convex() for polygon in self.polygons):
 			raise ValueError("All polygons must be convex.")
 	
@@ -185,19 +206,43 @@ class Solution:
 
 		if index == 0:
 			return self.shortest_fenced_path(self.start, point, 0)
-	
 
-		for j in range(len(self.polygons[index])):
+		polygon = self.polygons[index - 1]
+		cones = self.cones[index - 1]
+		blocked = self.blocked[index - 1]
 
-			vertex = self.polygons[index][j]
+		# Check if point is inside a cone region
+		for j in range(len(polygon)):
 
-			if not self.blocked[index][j]:
+			vertex = polygon[j]
+
+			if blocked[j]:
 				continue
 
-			first, second = self.cones[index][j]
+			first, second = cones[j]
 
 			if point_in_cone(point, vertex, first, second):
 				return vertex
+
+		# TODO: Check if point is inside edge region
+
+		# Point is in pass-through region
+		fence = self.fences[index - 1]
+		last_fence_vertex = self.last_fence_vertex[index - 1]
+
+		for i, j in enumerate(fence.reflex_vertices_indices):
+
+			vertex = fence[j]
+			before = fence[j - 1]
+
+			last = last_fence_vertex[i]
+
+			rates = intersection_rates(vertex, before - vertex, last, point - last)
+
+			if rates is None or rates[0] < 0:
+				continue
+
+			print(vertex, before, last, point, rates)
 
 		return Vector2(0, 0) # TODO: implement
 
@@ -208,9 +253,17 @@ class Solution:
 		polygon = self.polygons[index]
 		cones = self.cones[index]
 		blocked = self.blocked[index]
+		fence = self.fences[index]
 
 		last_vertex: list[Vector2] = []
 
+		last_fence_vertex: list[Vector2] = []
+		self.last_fence_vertex[index] = last_fence_vertex
+
+		for vertex in fence.reflex_vertices:
+			last = self.query(index, vertex)
+			last_fence_vertex.append(last)
+		
 		for j in range(len(polygon)):
 			
 			vertex = polygon[j]
@@ -245,6 +298,8 @@ class Solution:
 				dir2 = diff.reflect((vertex - v_after).perpendicular()).normalize()
 
 			cones.append((dir1, dir2))
+
+		print(self.query(1, Vector2(2, -2)))
 
 		return []
 
