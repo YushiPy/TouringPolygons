@@ -2,7 +2,7 @@
 from itertools import count
 from math import ceil
 import os
-from random import choice
+
 from pygame import Vector2
 import pygame as pg
 
