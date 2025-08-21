@@ -348,9 +348,6 @@ class Solution:
 
 			cones.append((dir1, dir2))
 
-		# print(self.query(1, Vector2(-2.9, -3.1)))
-		print(self.query(1, Vector2(0, -2.5)))
-
 		return []
 
 start = Vector2(0, 1)

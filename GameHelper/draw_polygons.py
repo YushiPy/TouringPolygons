@@ -46,7 +46,18 @@ class Gameplay(Game):
 			data = file.read()
 		
 		center = Vector2(self.surface.get_size()) / 2
-		self.polygons = [[Vector2(p) * self.grid_size + center for p in polygon] for polygon in eval(data)]
+
+		result: list[list[Vector2]] = []
+
+		for polygon in eval(data):
+			result.append([])
+			for p in polygon:
+				v = Vector2(p) * self.grid_size
+				v.y *= -1
+				v += center
+				result[-1].append(v)
+
+		self.polygons = result
 
 	def export(self) -> None:
 
@@ -60,6 +71,7 @@ class Gameplay(Game):
 
 			for vertex in polygon:
 				vertex = round((vertex - Vector2(self.surface.get_size()) / 2) * scale, 3)
+				vertex.y *= -1
 				string += f"({vertex.x}, {vertex.y}), "
 
 			string = string[:-2] + "],\n"
