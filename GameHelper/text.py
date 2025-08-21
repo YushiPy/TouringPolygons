@@ -3,7 +3,6 @@
 from typing import Callable, Hashable, Iterable, Any
 
 from pygame.font import Font
-from pygame import Vector2
 import pygame as pg
 
 pg.font.init()
@@ -55,20 +54,21 @@ def cache[T, **P](function: Callable[P, T]) -> Callable[P, T]:
 
 class Text:
 
-	def __init__(self, value: Any, position: Iterable[float], color: Any) -> None:
+	def __init__(self, value: Any, center: Iterable[float], color: Any, size: int = 30, bold: Hashable = False) -> None:
 
 		self.value = value
 		self.string = str(value)
 
-		self.position = Vector2(list(position))
 		self.color = pg.color.Color(color)
 
-		self.font = get_font(*default_font)
+		self.font = get_font(default_font[0], size, bold, default_font[3])
 		self.surface = self.font.render(self.string, True, self.color)
+
+		self.rect = self.surface.get_rect(center=center)
 
 	def draw(self, surface: pg.Surface) -> None:
 		"""Draw the text on the given surface."""
-		surface.blit(self.surface, self.position)
+		surface.blit(self.surface, self.rect)
 
 
 def get_font(name: str | bytes, size: int = 30, bold: Hashable = False, italic: Hashable = False) -> Font:
