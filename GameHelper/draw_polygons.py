@@ -2,6 +2,7 @@
 from itertools import count
 from math import ceil
 import os
+from random import choice
 from pygame import Vector2
 import pygame as pg
 
@@ -37,7 +38,7 @@ class Gameplay(Game):
 		self.snap_to_grid = False
 		self.grid_size = 50
 
-		self.load("PolygonsOut/polygons1.txt")
+		self.last_loaded: str | None = None
 
 	def load(self, filename: str) -> None:
 
@@ -177,6 +178,7 @@ class Gameplay(Game):
 		Text("Press 'S' to toggle grid snapping", (250, 100), "white").draw(surface)
 		Text(f"Grid Size: {self.grid_size}", (120, 150), "white").draw(surface)
 		Text("Press 'E' to export polygons", (220, 200), "white").draw(surface)
+		Text("Press 'L' to load polygons", (205, 250), "white").draw(surface)
 
 	def fixed_update(self, down_keys: set[int], up_keys: set[int], held_keys: set[int], events: set[int]) -> None | bool:
 
@@ -194,6 +196,20 @@ class Gameplay(Game):
 
 		if mouse_released[2]:
 			self.remove_point(mouse_pos)
+
+		if pg.K_l in up_keys:
+
+			options = os.listdir("PolygonsOut")
+			options = [f for f in options if f.startswith("polygons") and f.endswith(".txt")]
+
+			if self.last_loaded in options:
+				filename = options[(options.index(self.last_loaded) + 1) % len(options)]
+			else:
+				filename = options[0] if options else None
+
+			if filename:
+				self.load(os.path.join("PolygonsOut", filename))
+				self.last_loaded = filename
 
 		if pg.K_e in up_keys:
 			self.export()
