@@ -17,10 +17,12 @@ class Game(ABC):
 		self.events: set[int] = set()
 		self.held_keys: set[int] = set()
 
+		self.all_events: list[pg.event.Event] = []
+
 		self.__all_events: list[set[int]] = [self.down_keys, self.up_keys, self.held_keys, self.events]
 
 		self.__base_surface: pg.Surface | None = None
-		self.__display = pg.display.set_mode((WIDTH, HEIGHT), pg.FULLSCREEN)
+		self.__display = pg.display.set_mode((WIDTH, HEIGHT), pg.FULLSCREEN | pg.SRCALPHA)
 		self.surface = self.__display
 
 		self.TIME_STEP = 1000 / __fps
@@ -118,13 +120,13 @@ class Game(ABC):
 
 	def __manage_events(self) -> tuple[set[int], set[int], set[int], set[int]]:
 
-		game_events = pg.event.get()
+		self.all_events = pg.event.get()
 
 		self.down_keys.clear()
 		self.up_keys.clear()
 		self.events.clear()
 
-		for i in game_events:
+		for i in self.all_events:
 			if i.type == pg.KEYDOWN: self.down_keys.add(i.key)
 			elif i.type == pg.KEYUP: self.up_keys.add(i.key)
 			else: self.events.add(i.type)

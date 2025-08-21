@@ -1,5 +1,4 @@
 
-from itertools import chain
 from math import ceil
 from pygame import Vector2
 import pygame as pg
@@ -33,6 +32,9 @@ class Gameplay(Game):
 		self.last_mouse_keys = pg.mouse.get_pressed()
 		self.held_vertex: tuple[int, int] | None = None
 
+		self.snap_to_grid = False
+		self.grid_size = 50
+
 	@property
 	def shifting(self) -> bool:
 		return pg.K_LSHIFT in self.held_keys or pg.K_RSHIFT in self.held_keys
@@ -58,6 +60,17 @@ class Gameplay(Game):
 		
 		self.polygons[indeces[0]].pop(indeces[1])
 
+	def snap_point(self, point: Vector2 | tuple[int, int]) -> Vector2:
+
+		point = Vector2(point)
+
+		if not self.snap_to_grid:
+			return point
+
+		center = Vector2(self.surface.get_size()) / 2
+
+		return round((point - center) / self.grid_size) * self.grid_size + center # type: ignore
+
 	def move_point(self, mouse_pos: tuple[int, int]) -> None:
 
 		if self.held_vertex is None:
@@ -75,11 +88,30 @@ class Gameplay(Game):
 		if self.held_vertex is None:
 			return
 
-		self.polygons[self.held_vertex[0]][self.held_vertex[1]] = Vector2(mouse_pos)
+		self.polygons[self.held_vertex[0]][self.held_vertex[1]] = self.snap_point(mouse_pos)
+
+	def draw_grid(self, surface: pg.Surface, grid_size: int) -> None:
+
+		width, height = surface.get_size()
+		color = (50, 50, 50)
+
+		center = Vector2(width, height) / 2
+
+		xstart = round(center.x % grid_size)
+		ystart = round(center.y % grid_size)
+
+		for x in range(xstart, width, grid_size):
+			pg.draw.line(surface, color, (x, 0), (x, height), 1)
+
+		for y in range(ystart, height, grid_size):
+			pg.draw.line(surface, color, (0, y), (width, y), 1)
 
 	def draw(self, surface: pg.Surface) -> None:
 
 		surface.fill("#001418")
+
+		if self.snap_to_grid:
+			self.draw_grid(surface, self.grid_size)
 
 		for i, polygon in enumerate(self.polygons):
 
@@ -90,9 +122,9 @@ class Gameplay(Game):
 				pg.draw.aalines(surface, color, False, polygon)
 				dashed_line(surface, light_color.lerp("white", 0.5), polygon[0], polygon[-1], 10)
 
-			for i, vertex in enumerate(polygon):
-				v_color = light_color.lerp("white", 0.5 * i / len(polygon))
-				size = 5 + 5 * (i / len(polygon))
+			for j, vertex in enumerate(polygon):
+				v_color = light_color.lerp("white", 0.5 * j / len(polygon))
+				size = 5 + 5 * (j / len(polygon))
 				pg.draw.circle(surface, v_color, vertex, size)
 
 			if len(polygon) < 3:
@@ -111,7 +143,7 @@ class Gameplay(Game):
 		mouse_pos = pg.mouse.get_pos()
 
 		if mouse_released[0] and not self.shifting:
-			self.polygons[self.current_polygon].append(Vector2(mouse_pos))
+			self.polygons[self.current_polygon].append(self.snap_point(mouse_pos))
 
 		if mouse_held[0] and self.shifting:
 			self.move_point(mouse_pos)
@@ -120,6 +152,16 @@ class Gameplay(Game):
 
 		if mouse_released[2]:
 			self.remove_point(mouse_pos)
+
+		if pg.K_s in up_keys:
+			self.snap_to_grid = not self.snap_to_grid
+
+		for event in self.all_events:
+			if event.type == pg.MOUSEWHEEL:
+
+				diff = round(event.y * self.grid_size / 30)
+
+				self.grid_size = min(300, max(10, self.grid_size + diff))
 
 		if pg.K_RETURN in up_keys:
 			self.polygons.append([])
@@ -146,4 +188,3 @@ class Gameplay(Game):
 
 
 print(Gameplay().run().get_info())
-
