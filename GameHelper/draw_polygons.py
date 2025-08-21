@@ -37,7 +37,19 @@ class Gameplay(Game):
 		self.snap_to_grid = False
 		self.grid_size = 50
 
+		self.load("PolygonsOut/polygons1.txt")
+
+	def load(self, filename: str) -> None:
+
+		with open(filename, "r") as file:
+			data = file.read()
+		
+		center = Vector2(self.surface.get_size()) / 2
+		self.polygons = [[Vector2(p) * self.grid_size + center for p in polygon] for polygon in eval(data)]
+
 	def export(self) -> None:
+
+		scale = 1 / self.grid_size
 
 		string = "[\n"
 
@@ -46,7 +58,8 @@ class Gameplay(Game):
 			string += "\t["
 
 			for vertex in polygon:
-				string += f"Vector2({vertex.x}, {vertex.y}), "
+				vertex = round((vertex - Vector2(self.surface.get_size()) / 2) * scale, 3)
+				string += f"({vertex.x}, {vertex.y}), "
 
 			string = string[:-2] + "],\n"
 
