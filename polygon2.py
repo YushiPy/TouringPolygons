@@ -136,7 +136,7 @@ class Polygon2(tuple[Vector2, ...]):
 		"""
 		return [(self[i], self[(i + 1) % len(self)]) for i in range(len(self))]
 
-	def _far_edges(self, *avoid: Vector2, eps: float = 1e-12) -> list[tuple[Vector2, Vector2]]:
+	def far_edges(self, *avoid: Vector2, eps: float = 1e-12) -> list[tuple[Vector2, Vector2]]:
 		"""
 		Iterate over the edges of the polygon that aren't included 
 		in the avoid list.
@@ -195,7 +195,7 @@ class Polygon2(tuple[Vector2, ...]):
 		The segment is considered intersecting if it crosses any edge of the polygon.
 		"""
 
-		for a, b in self._far_edges(start, end, eps=eps):
+		for a, b in self.far_edges(start, end, eps=eps):
 
 			intersection = _segment_segment_intersection(start, end, a, b)
 

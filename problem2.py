@@ -255,6 +255,8 @@ class Solution:
 		# If any path from T_{index - 1} to the target is valid, return it.
 		# Otherwise, find the reflex vertex of F_{index} that is and use the path that reaches it.
 
+		print("Querying index:", index, "for point:", point)
+
 		for i, j in enumerate(self.fences[index - 1].reflex_vertices_indices):
 
 			vertex = self.fences[index - 1][j]
@@ -272,16 +274,17 @@ class Solution:
 				(s for a, b in self.polygons[index - 1].edges() if (s := segment_segment_intersection(vertex, point, a, b)) is not None), 
 				key=vertex.distance_squared_to
 			)
-
+			print(poligon_point)
+			print([p for a, b in self.fences[index - 1].far_edges(vertex) if (p := segment_segment_intersection(vertex, point, a, b)) is not None])
 			# Path is optimal, but need to check if it stays inside the fence F_{index - 1}
 			# while is doesn't reach the polygon P_{index - 1}.
 			if any(
 				(p := segment_segment_intersection(vertex, point, a, b)) is not None and 
 				p.distance_to(vertex) < poligon_point.distance_to(vertex)
-				for a, b in self.fences[index - 1].edges()
+				for a, b in self.fences[index - 1].far_edges()
 			):
 				continue
-			
+
 			# We only need to check if the path leaves the fence F_{index} now
 			if any(segment_segment_intersection(vertex, point, a, b) is not None for a, b in self.fences[index].edges()):
 				continue
@@ -346,7 +349,7 @@ class Solution:
 
 			cones.append((dir1, dir2))
 
-		print(self.query(1, Vector2(2, -3)))
+		print(self.query(1, Vector2(-2, -2)))
 
 		return []
 
