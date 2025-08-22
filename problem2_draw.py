@@ -262,7 +262,7 @@ class Drawing(Solution):
 		if index < 0 or index >= len(self.polygons):
 			bbox = self.get_bbox()
 		else:
-			_bbox = Polygon2.bbox(chain(self.polygons[index], self.fences[index], [self.start, self.end]), 0.1, True)
+			_bbox = Polygon2.bbox(chain(self.polygons[index], self.fences[index], self.fences[index + 1], [self.start, self.end]), 0.1, True)
 			bbox = _bbox[0].x, _bbox[0].y, _bbox[1].x, _bbox[1].y
 
 		minx, miny, maxx, maxy = bbox

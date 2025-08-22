@@ -119,8 +119,9 @@ class Gameplay(Game):
 			return point
 
 		center = Vector2(self.surface.get_size()) / 2
+		gs = round(self.grid_size)
 
-		return round((point - center) / self.grid_size) * self.grid_size + center # type: ignore
+		return round((point - center) / gs) * gs + center # type: ignore
 
 	def move_point(self, mouse_pos: tuple[int, int]) -> None:
 
@@ -162,7 +163,7 @@ class Gameplay(Game):
 		surface.fill("#001418")
 
 		if self.snap_to_grid:
-			self.draw_grid(surface, self.grid_size)
+			self.draw_grid(surface, round(self.grid_size))
 
 		for i, polygon in enumerate(self.polygons):
 
@@ -188,7 +189,7 @@ class Gameplay(Game):
 		Text(f"Selected Polygon: {self.current_polygon + 1}", (160, 50), color).draw(surface)
 
 		Text("Press 'S' to toggle grid snapping", (250, 100), "white").draw(surface)
-		Text(f"Grid Size: {self.grid_size}", (120, 150), "white").draw(surface)
+		Text(f"Grid Size: {round(self.grid_size)}", (120, 150), "white").draw(surface)
 		Text("Press 'E' to export polygons", (220, 200), "white").draw(surface)
 		Text("Press 'L' to load polygons", (205, 250), "white").draw(surface)
 
@@ -232,7 +233,7 @@ class Gameplay(Game):
 		for event in self.all_events:
 			if event.type == pg.MOUSEWHEEL:
 
-				diff = round(event.y * self.grid_size / 30)
+				diff: float = (event.y * self.grid_size / 30)
 
 				self.grid_size = min(300, max(10, self.grid_size + diff))
 
@@ -256,6 +257,8 @@ class Gameplay(Game):
 			
 			if self.polygons[self.current_polygon]:
 				self.polygons[self.current_polygon].pop()
+			else:
+				self.polygons.pop(self.current_polygon)
 
 		self.last_mouse_keys = mouse_held
 
