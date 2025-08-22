@@ -80,7 +80,7 @@ class Polygon2(tuple[Vector2, ...]):
 
 		return Vector2(xmin, ymin), Vector2(xmax, ymax)
 	
-	def __new__(cls, points: Iterable[Iterable[float]]) -> 'Polygon2':
+	def __new__(cls, points: Iterable[Iterable[float]]) -> "Polygon2":
 		"""
 		Create a new Polygon2 instance from a list of Vector2 points.
 		The points should be in order (either clockwise or counter-clockwise).
@@ -99,12 +99,16 @@ class Polygon2(tuple[Vector2, ...]):
 
 		if len(result) < 3:
 			raise ValueError("A polygon must have at least 3 points.")
-		
-		seg1 = result[1] - result[0]
-		seg2 = result[2] - result[1]
 
-		# Ensure the points are in counter-clockwise order
-		if seg1.cross(seg2) < 0:
+		signed_area = 0
+
+		for i in range(len(result)):
+			a = result[i]
+			b = result[(i + 1) % len(result)]
+			signed_area += a.cross(b)
+
+		# Reverse the order of points to ensure counter-clockwise orientation
+		if signed_area < 0:
 			result.reverse()
 
 		return super().__new__(cls, result)
