@@ -16,13 +16,19 @@ We will also consider that:
 """
 
 import math
-from typing import Iterable
+from typing import Callable, Iterable
 import heapq
 
 
 from vector2 import Vector2
 from polygon2 import Polygon2
 
+
+def cache[T, **P](func: Callable[P, T]) -> Callable[P, T]:
+
+	from functools import lru_cache
+
+	return lru_cache(maxsize=None)(func) # type: ignore
 
 def shortest_path_in_polygon(start: Vector2, end: Vector2, polygon: Polygon2) -> list[Vector2]:
 	"""
@@ -165,8 +171,6 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 	if rates is not None and -eps <= rates[0] <= 1 + eps and -eps <= rates[1] <= 1 + eps:
 		return start1 + diff1 * rates[0]
 
-
-
 class Solution:
 
 	start: Vector2
@@ -219,6 +223,7 @@ class Solution:
 	def shortest_fenced_path(self, start: Vector2, end: Vector2, index: int) -> Vector2:
 		return shortest_path_in_polygon(start, end, self.fences[index])[-2]
 
+	@cache
 	def query(self, index: int, point: Vector2) -> Vector2:
 		"""
 		Returns the start of the last segment of the shortest 
@@ -264,12 +269,15 @@ class Solution:
 				# If the intersection is not valid, then the path is not optimal.
 				if rates is None or rates[0] < 0:
 					continue
-
+			
 			# Path is optimal, need to calculate intersection point with polygon P_{index - 1}
 			poligon_point = min(
 				(s for a, b in self.polygons[index - 1].edges() if (s := segment_segment_intersection(vertex, point, a, b)) is not None), 
-				key=vertex.distance_squared_to
+				key=vertex.distance_squared_to, default=None
 			)
+
+			if poligon_point is None:
+				continue
 
 			# Path is optimal, but need to check if it stays inside the fence F_{index - 1}
 			# while is doesn't reach the polygon P_{index - 1}.
@@ -348,26 +356,9 @@ class Solution:
 
 			cones.append((dir1, dir2))
 
+		for vertex in self.fences[1].reflex_vertices:
+			# print(f"Querying fence vertex {vertex}")
+			last = self.query(1, vertex)
+			print(f"{last} -> {vertex}")
+
 		return []
-
-start = Vector2(0, 1)
-end = Vector2(0, -3.5)
-
-polygons = [
-	Polygon2([
-		Vector2(-2, -1), Vector2(2, -1), Vector2(0, -2)
-	])
-]
-
-fences = [
-	Polygon2([
-		Vector2(-4, 2), Vector2(-4, 1), Vector2(-0.5, 0), Vector2(-4, 0), Vector2(-4, -3),
-		Vector2(4, -3), Vector2(4, 0), Vector2(0.5, 0), Vector2(4, 1), Vector2(4, 2),
-	]),
-	Polygon2([
-		Vector2(-3, -1.5), Vector2(-3, -4), Vector2(3, -4), Vector2(3, -1.5) 
-	])
-]
-
-#solution = Solution(start, end, polygons, fences)
-#path = solution.shortest_path()
