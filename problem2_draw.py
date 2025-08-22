@@ -145,7 +145,7 @@ class Drawing(Solution):
 		:return: A tuple (minx, miny, maxx, maxy) representing the bounding box.
 		"""
 
-		points = list(chain([self.start, self.end], *self.polygons))
+		points = list(chain([self.start, self.end], *self.polygons, *self.fences))
 		bleft, tright = Polygon2.bbox(points, extra, True)
 
 		minx, miny = bleft.x, bleft.y
