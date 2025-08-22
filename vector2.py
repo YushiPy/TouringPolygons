@@ -10,6 +10,8 @@ class Vector2:
 	x: float
 	y: float
 
+	INF: Self
+
 	@overload
 	def __init__(self) -> None: ...
 	@overload
@@ -24,7 +26,7 @@ class Vector2:
 
 		self.x = x
 		self.y = y
-	
+
 	@overload
 	@staticmethod
 	def from_spherical(r: float, theta: float) -> "Vector2": ...
@@ -543,3 +545,5 @@ class Vector2:
 
 	def __sizeof__(self) -> int:
 		return super().__sizeof__() + self.x.__sizeof__() + self.y.__sizeof__()
+
+Vector2.INF = Vector2(math.inf, math.inf)

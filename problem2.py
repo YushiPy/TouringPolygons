@@ -215,7 +215,7 @@ class Solution:
 		self.cones = [[] for _ in range(len(self.polygons))]
 		self.blocked = [[] for _ in range(len(self.polygons))]
 
-		self.last_fence_vertex = [[] for _ in range(len(self.polygons))]
+		self.last_fence_vertex = [[] for _ in range(len(self.fences))]
 
 		if not all(polygon.is_convex() for polygon in self.polygons):
 			raise ValueError("All polygons must be convex.")
@@ -223,15 +223,7 @@ class Solution:
 	def shortest_fenced_path(self, start: Vector2, end: Vector2, index: int) -> Vector2:
 		return shortest_path_in_polygon(start, end, self.fences[index])[-2]
 
-	@cache
-	def query(self, index: int, point: Vector2) -> Vector2:
-		"""
-		Returns the start of the last segment of the shortest 
-		`index`-path that reaches `point`.
-		"""
-
-		if index == 0:
-			return self.shortest_fenced_path(self.start, point, 0)
+	def check_cones(self, index: int, point: Vector2) -> Vector2 | None:
 
 		polygon = self.polygons[index - 1]
 		cones = self.cones[index - 1]
@@ -250,9 +242,11 @@ class Solution:
 			if point_in_cone(point, vertex, first, second):
 				return vertex
 
-		# TODO: Check if point is inside edge region
-
-		# Point is in pass-through region
+	def check_straight(self, index: int, point: Vector2) -> Vector2 | None:
+		"""
+		Check if the point is inside the pass-through region of the polygon P_{index - 1}.
+		If it is, return the vertex of the polygon P_{index - 1} that is closest to the point.
+		"""
 
 		# Check if a straight segment from any point in T_{index - 1} to point is optimal.
 		for i, j in enumerate(self.fences[index - 1].reflex_vertices_indices + [-1]):
@@ -298,10 +292,69 @@ class Solution:
 
 			return vertex
 
+	def query(self, index: int, point: Vector2, recurse: bool = False) -> Vector2:
+		"""
+		Returns the start of the last segment of the shortest 
+		`index`-path that reaches `point`.
+		"""
+
+		if index == 0:
+			return self.shortest_fenced_path(self.start, point, 0)
+
+		i = next((i for i, a in enumerate(self.fences[index].reflex_vertices) if a == point), -1)
+
+		if i != -1 and self.last_fence_vertex[index][i] != Vector2.INF:
+			return self.last_fence_vertex[index][i]
+
+		# Point is inside a cone region, so we can return the vertex.
+		if (v := self.check_cones(index, point)) is not None:
+			return v
+
+		# TODO: Check if point is inside edge region
+
+		# Point is in pass-through region
+
+		# Check if a straight segment from any point in T_{index - 1} to point is optimal.
+		if (v := self.check_straight(index, point)) is not None:
+			return v
+
 		# Path can't be directly reached, so we need to find the last reflex vertex of the fence F_{index}
 		# TODO: Implement this.
 
-		return Vector2(0, 0) # TODO: implement
+		if not recurse:
+			return Vector2.INF
+		
+		for i in self.fences[index].reflex_vertices_indices:
+
+			vertex = self.fences[index][i]
+
+			if vertex == point:
+				continue
+
+			last = self.query(index, vertex, False)
+
+			if last == Vector2.INF:
+				continue
+		
+			before = self.fences[index][i - 1]
+			after = self.fences[index][(i + 1) % len(self.fences[index].reflex_vertices)]
+
+			condition = (vertex - last).cross(point - vertex) * (vertex - last).cross(after - vertex) >= 0
+
+			if not condition:
+				continue
+			
+			# Path is optimal, need ensure it's not blocked by other edges
+			if any(
+				segment_segment_intersection(vertex, point, a, b) is not None
+				for a, b in self.fences[index].far_edges(vertex, point)
+			):
+				continue
+			
+
+			return vertex
+		
+		return Vector2.INF			
 
 	def shortest_path(self) -> list[Vector2]:
 
@@ -355,10 +408,27 @@ class Solution:
 				dir2 = diff.reflect((vertex - v_after).perpendicular()).normalize()
 
 			cones.append((dir1, dir2))
+		
+		self.last_fence_vertex[1] = [Vector2.INF for _ in self.fences[1].reflex_vertices]
 
-		for vertex in self.fences[1].reflex_vertices:
-			# print(f"Querying fence vertex {vertex}")
-			last = self.query(1, vertex)
-			print(f"{last} -> {vertex}")
+		while True:
+
+			found = 0
+	
+			for i, j in enumerate(self.fences[1].reflex_vertices_indices):
+
+				vertex = self.fences[1][j]
+				last = self.query(1, vertex, True)
+
+				if last == Vector2.INF:
+					continue
+		
+				found += self.last_fence_vertex[1][i] != last
+				self.last_fence_vertex[1][i] = last
+			
+			if found == 0:
+				break
+		
+		print(list(zip(self.fences[1].reflex_vertices, self.last_fence_vertex[1])))
 
 		return []
