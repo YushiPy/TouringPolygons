@@ -193,7 +193,7 @@ class Gameplay(Game):
 		Text("Press 'E' to export polygons", (220, 200), "white").draw(surface)
 		Text("Press 'L' to load polygons", (205, 250), "white").draw(surface)
 
-	def fixed_update(self, down_keys: set[int], up_keys: set[int], held_keys: set[int], events: set[int]) -> None | bool:
+	def fixed_update(self, down_keys: set[int], up_keys: set[int], events: set[int]) -> None | bool:
 
 		mouse_held = pg.mouse.get_pressed()
 		mouse_released = self.mouse_released()

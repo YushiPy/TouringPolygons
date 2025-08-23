@@ -1,25 +1,34 @@
 
 from abc import ABC
-from typing import Self
+from typing import Self, Sequence
 import pygame as pg
 
 pg.init()
 
+# Default screen size for my personal computer
+# TODO: Make it adaptable to any screen size
 SIZE = WIDTH, HEIGHT = 1512, 945
 CENTER = CENTERX, CENTERY = WIDTH // 2, HEIGHT // 2
 
 class Game(ABC):
-	
+
+	all_events: list[pg.event.Event]
+
+	down_keys: set[int]
+	up_keys: set[int]
+	events: set[int]
+
+	held_keys: Sequence[bool]
+
 	def __init__(self, __fps: int | float = 125) -> None:
 
-		self.down_keys: set[int] = set()
-		self.up_keys: set[int] = set()
-		self.events: set[int] = set()
-		self.held_keys: set[int] = set()
+		self.down_keys = set()
+		self.up_keys = set()
+		self.events = set()
 
 		self.all_events: list[pg.event.Event] = []
 
-		self.__all_events: list[set[int]] = [self.down_keys, self.up_keys, self.held_keys, self.events]
+		self.__all_events: list[set[int]] = [self.down_keys, self.up_keys, self.events]
 
 		self.__base_surface: pg.Surface | None = None
 		self.__display = pg.display.set_mode((WIDTH, HEIGHT), pg.FULLSCREEN | pg.SRCALPHA)
@@ -52,10 +61,10 @@ class Game(ABC):
 	def draw(self, surface: pg.Surface) -> None:
 		...
 
-	def fixed_update(self, down_keys: set[int], up_keys: set[int], held_keys: set[int], events: set[int]) -> None | bool:
+	def fixed_update(self, down_keys: set[int], up_keys: set[int], events: set[int]) -> None | bool:
 		...
 
-	def update(self, down_keys: set[int], up_keys: set[int], held_keys: set[int], events: set[int]) -> None | bool:
+	def update(self, down_keys: set[int], up_keys: set[int], events: set[int]) -> None | bool:
 		...
 
 	def rendering_update(self) -> None:
@@ -102,6 +111,7 @@ class Game(ABC):
 			self.__accumulator -= self.TIME_STEP
 		
 			self.__manage_events()
+			self.held_keys = pg.key.get_pressed()
 			
 			if self.fixed_update(*self.__all_events) is not None: 
 				self.__run_game = False
@@ -118,7 +128,7 @@ class Game(ABC):
 
 		return __end
 
-	def __manage_events(self) -> tuple[set[int], set[int], set[int], set[int]]:
+	def __manage_events(self) -> None:
 
 		self.all_events = pg.event.get()
 
@@ -133,11 +143,6 @@ class Game(ABC):
 
 		if pg.QUIT in self.events: self.__run_game = False
 		if pg.K_ESCAPE in self.down_keys: self.__run_game = False
-
-		self.held_keys.update(self.down_keys)
-		self.held_keys.difference_update(self.up_keys)
-
-		return self.down_keys, self.up_keys, self.held_keys, self.events
 
 	def get_info(self, stringify: bool = True, precision: int = 3) -> str | tuple[float, float]:
 
