@@ -24,6 +24,7 @@ from vector2 import Vector2
 from polygon2 import Polygon2
 
 
+# This is the same as functools.cache, but it does not remove the type hints.
 def cache[T, **P](func: Callable[P, T]) -> Callable[P, T]:
 
 	from functools import lru_cache
@@ -429,6 +430,4 @@ class Solution:
 			if found == 0:
 				break
 		
-		print(list(zip(self.fences[1].reflex_vertices, self.last_fence_vertex[1])))
-
 		return []
