@@ -2,6 +2,7 @@
 from itertools import count
 from math import ceil
 import os
+import random
 
 from pygame import Vector2
 import pygame as pg
@@ -9,10 +10,45 @@ import pygame as pg
 from game_template import Game
 from text import Text
 
-COLORS = [
-	"green", "blue", "yellow", "cyan", "magenta", "orange", "purple",
-	"pink", "brown", "gray", "black", "white", "lightblue", "lightgreen", "lightyellow"
-]
+def hsv_to_rgb(h: float, s: float, v: float) -> tuple[int, int, int]:
+	"""
+	Convert HSV color to RGB color.
+
+	:param h: Hue value (0.0 to 1.0)
+	:param s: Saturation value (0.0 to 1.0)
+	:param v: Value (brightness) value (0.0 to 1.0)
+
+	:return: Tuple of (R, G, B) values (0 to 255)
+	"""
+
+	c = v * s
+	x = c * (1 - abs((h * 6) % 2 - 1))
+	m = v - c
+
+	match int(h * 6):
+		case 0: r, g, b = c, x, 0
+		case 1: r, g, b = x, c, 0
+		case 2: r, g, b = 0, c, x
+		case 3: r, g, b = 0, x, c
+		case 4: r, g, b = x, 0, c
+		case 5: r, g, b = c, 0, x
+		case _: r, g, b = 0, 0, 0
+	
+	r = round((r + m) * 255)
+	g = round((g + m) * 255)
+	b = round((b + m) * 255)
+
+	return r, g, b
+
+def random_color(seed: int | None = None) -> tuple[int, int, int]:
+
+	rand = random.Random(seed).random
+
+	h = rand()
+	s = 0.8 + rand() / 5
+	v = 0.8 + rand() / 5
+
+	return hsv_to_rgb(h, s, v)
 
 def dashed_line(surface: pg.Surface, color: pg.Color, start: Vector2, end: Vector2, dash_length: int = 5) -> None:
 
@@ -167,7 +203,7 @@ class Gameplay(Game):
 
 		for i, polygon in enumerate(self.polygons):
 
-			color = pg.color.Color(COLORS[i % len(COLORS)])
+			color = pg.color.Color(random_color(i))
 			light_color = color.lerp("white", 0.3)
 
 			if len(polygon) >= 3:
@@ -185,7 +221,7 @@ class Gameplay(Game):
 			center_of_mass = sum(polygon, Vector2()) / len(polygon)
 			Text(f"{i + 1}", center_of_mass, light_color).draw(surface)
 
-		color = pg.color.Color(COLORS[self.current_polygon % len(COLORS)]).lerp("white", 0.3)
+		color = pg.color.Color(random_color(self.current_polygon)).lerp("white", 0.3)
 		Text(f"Selected Polygon: {self.current_polygon + 1}", (160, 50), color).draw(surface)
 
 		Text("Press 'S' to toggle grid snapping", (250, 100), "white").draw(surface)
