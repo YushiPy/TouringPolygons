@@ -8,7 +8,7 @@ from pygame import Vector2
 import pygame as pg
 
 from game_template import Game
-from text import Text
+from text import MultiLineText, Text
 
 def hsv_to_rgb(h: float, s: float, v: float) -> tuple[int, int, int]:
 	"""
@@ -228,6 +228,8 @@ class Gameplay(Game):
 		Text(f"Grid Size: {round(self.grid_size)}", (120, 150), "white").draw(surface)
 		Text("Press 'E' to export polygons", (220, 200), "white").draw(surface)
 		Text("Press 'L' to load polygons", (205, 250), "white").draw(surface)
+
+		MultiLineText("Controls:\n- Left Click: Add Point\n- Right Click: Remove Point\n- Hold Shift + Left Click: Move Point\n- Enter: New Polygon\n- Tab: Next Polygon\n- Shift + Tab: Previous Polygon\n- Left/Right Arrow: Change Polygon", (100, 300), "white").draw(surface)
 
 	def fixed_update(self, down_keys: set[int], up_keys: set[int], events: set[int]) -> None | bool:
 

@@ -1,5 +1,6 @@
 
 
+import enum
 from typing import Callable, Hashable, Iterable, Any
 
 from pygame.font import Font
@@ -10,11 +11,7 @@ pg.font.init()
 type FontInfo = tuple[str, int, bool, bool]
 type FontInput = tuple[str, int, bool, bool] | tuple[str, int, bool] | tuple[str, int] | tuple[str] | str
 
-fonts: dict[FontInfo, Font] = {}
-
 default_font = 'ヒラキノ角コシックw0', 30, False, False
-
-vertical_spacing = 1.5
 
 writable_keys: set[int | str] = {
 	32, 39, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 
@@ -69,6 +66,82 @@ class Text:
 	def draw(self, surface: pg.Surface) -> None:
 		"""Draw the text on the given surface."""
 		surface.blit(self.surface, self.rect)
+
+class MultiLineText:
+
+	class Alignment(enum.Enum):
+		LEFT = enum.auto()
+		RIGHT = enum.auto()
+		CENTER = enum.auto()
+
+	value: Any
+	string: str
+
+	color: pg.Color
+	font: Font
+
+	position: tuple[int, int]
+	alignment: Alignment
+	vertical_spacing: int
+
+	surfaces: list[pg.Surface]
+	rects: list[pg.Rect]
+
+	def __init__(
+		self, value: Any, position: Iterable[float], color: Any, 
+		size: int = 30, 
+		alignnment: Alignment = Alignment.LEFT,
+		vertical_spacing: int = 5
+		) -> None:
+
+		self.value = value
+		self.string = str(value)
+
+		self.color = pg.color.Color(color)
+		self.font = get_font(default_font[0], size, default_font[2], default_font[3])
+
+		self.position = tuple(map(int, position)) # type: ignore
+		self.alignment = alignnment
+		self.vertical_spacing = vertical_spacing
+
+		if len(self.position) != 2:
+			raise ValueError("Position must be a tuple of (x, y)")
+
+		lines = self.string.split('\n')
+		self.surfaces = [self.font.render(line, True, self.color) for line in lines]
+		self.rects = self._make_rects(alignnment)
+
+	def _make_rects(self, alignnment: Alignment) -> list[pg.Rect]:
+
+		if not self.surfaces:
+			return []
+
+		rects: list[pg.Rect] = []
+
+		current_y = self.position[1]
+
+		for surface in self.surfaces:
+
+			rect = surface.get_rect()
+
+			if alignnment == self.Alignment.LEFT:
+				rect.left = self.position[0]
+			elif alignnment == self.Alignment.RIGHT:
+				rect.right = self.position[0]
+			elif alignnment == self.Alignment.CENTER:
+				rect.centerx = self.position[0]
+			
+			rect.top = current_y
+			current_y += rect.height + self.vertical_spacing
+
+			rects.append(rect)
+		
+		return rects
+
+	def draw(self, surface: pg.Surface) -> None:
+		"""Draw the text on the given surface."""
+		for surf, rect in zip(self.surfaces, self.rects):
+			surface.blit(surf, rect)
 
 
 def get_font(name: str | bytes, size: int = 30, bold: Hashable = False, italic: Hashable = False) -> Font:
