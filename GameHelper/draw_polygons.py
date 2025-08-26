@@ -124,7 +124,7 @@ class Gameplay(Game):
 
 	@property
 	def shifting(self) -> bool:
-		return pg.K_LSHIFT in self.held_keys or pg.K_RSHIFT in self.held_keys
+		return self.held_keys[pg.K_LSHIFT] or self.held_keys[pg.K_RSHIFT]
 
 	def point_indices(self) -> list[tuple[int, int]]:
 		"""Get a list of indices for all points in all polygons."""
