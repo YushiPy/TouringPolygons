@@ -243,7 +243,7 @@ class Gameplay(Game):
 - L: Load Polygons
 - E: Export Polygons"""
 
-		MultiLineText(string, (50, 200), "white", 24).draw(surface)
+		MultiLineText(string, (500, 200), "white", 24).draw(surface)
 
 	def fixed_update(self, down_keys: set[int], up_keys: set[int], events: set[int]) -> None | bool:
 
