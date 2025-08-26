@@ -106,7 +106,7 @@ class Text:
 		colors: list[pg.Color] = []
 
 		for c in listed_colors:
-
+			print(c)
 			try: colors.append(pg.Color(c)); continue
 			except ValueError: pass
 
@@ -208,7 +208,7 @@ class PlainText:
 		if len(self.position) != 2:
 			raise ValueError("Position must be a tuple of (x, y)")
 
-		self.surface = self.font.render(self.string, True, "white", None)
+		self.surface = self.font.render(self.string, True, color, None)
 
 		self.rect = self.surface.get_rect()
 		self.rect.topleft = self.position

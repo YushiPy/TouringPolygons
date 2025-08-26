@@ -1,6 +1,7 @@
 
 from itertools import count
 from math import ceil
+
 import os
 import random
 
@@ -8,7 +9,7 @@ from pygame import Vector2
 import pygame as pg
 
 from game_template import Game
-from text import MultiLineText, Text
+from text import PlainText, Text
 
 def hsv_to_rgb(h: float, s: float, v: float) -> tuple[int, int, int]:
 	"""
@@ -40,7 +41,10 @@ def hsv_to_rgb(h: float, s: float, v: float) -> tuple[int, int, int]:
 
 	return r, g, b
 
-def random_color(seed: int | None = None) -> tuple[int, int, int]:
+def random_color(seed: int | None = None, offset: int = random.randrange(0, 2 ** 63)) -> tuple[int, int, int]:
+
+	if seed is not None:
+		seed += offset
 
 	rand = random.Random(seed).random
 
@@ -219,15 +223,15 @@ class Gameplay(Game):
 				continue
 
 			center_of_mass = sum(polygon, Vector2()) / len(polygon)
-			Text(f"{i + 1}", center_of_mass, light_color).draw(surface)
+			PlainText(f"{i + 1}", center_of_mass, light_color).draw(surface)
 
 		color = pg.color.Color(random_color(self.current_polygon)).lerp("white", 0.3)
-		Text(f"Selected Polygon: {self.current_polygon + 1}", (160, 50), color).draw(surface)
 
-		Text("Press 'S' to toggle grid snapping", (250, 100), "white").draw(surface)
-		Text(f"Grid Size: {round(self.grid_size)}", (120, 150), "white").draw(surface)
+		string = f"""\\color({list(color)})Current Polygon: {self.current_polygon + 1}\\color(white)
+Grid Snapping: {'On' if self.snap_to_grid else 'Off'}
+Grid Size: {round(self.grid_size)}
 
-		string = """Controls:
+Controls:
 - Left Click: Add Point
 - Right Click: Remove Point
 - Hold Shift + Left Click: Move Point
@@ -243,7 +247,7 @@ class Gameplay(Game):
 - L: Load Polygons
 - E: Export Polygons"""
 
-		MultiLineText(string, (500, 200), "white", 24).draw(surface)
+		Text(string, (50, 50), 25, Text.Alignment.LEFT).draw(surface)
 
 	def fixed_update(self, down_keys: set[int], up_keys: set[int], events: set[int]) -> None | bool:
 
