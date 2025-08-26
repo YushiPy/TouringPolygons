@@ -55,101 +55,11 @@ def cache[T, **P](function: Callable[P, T]) -> Callable[P, T]:
 	return wrapper
 
 class Text:
-
-	def __init__(self, value: Any, center: Iterable[float], color: Any, size: int = 30, bold: Hashable = False) -> None:
-
-		self.value = value
-		self.string = str(value)
-
-		self.color = pg.color.Color(color)
-
-		self.font = get_font(default_font[0], size, bold, default_font[3])
-		self.surface = self.font.render(self.string, True, self.color)
-
-		self.rect = self.surface.get_rect(center=center)
-
-	def draw(self, surface: pg.Surface) -> None:
-		"""Draw the text on the given surface."""
-		surface.blit(self.surface, self.rect)
-
-class MultiLineText:
-
-	class Alignment(enum.Enum):
-		LEFT = enum.auto()
-		RIGHT = enum.auto()
-		CENTER = enum.auto()
-
-	value: Any
-	string: str
-
-	color: pg.Color
-	font: Font
-
-	position: tuple[int, int]
-	alignment: Alignment
-	vertical_spacing: int
-
-	surfaces: list[pg.Surface]
-	rects: list[pg.Rect]
-
-	def __init__(
-		self, value: Any, position: Iterable[float], color: Any, 
-		size: int = 30, 
-		alignnment: Alignment = Alignment.LEFT,
-		vertical_spacing: int = 5
-		) -> None:
-
-		self.value = value
-		self.string = str(value)
-
-		self.color = pg.color.Color(color)
-		self.font = get_font(default_font[0], size, default_font[2], default_font[3])
-
-		self.position = tuple(map(int, position)) # type: ignore
-		self.alignment = alignnment
-		self.vertical_spacing = vertical_spacing
-
-		if len(self.position) != 2:
-			raise ValueError("Position must be a tuple of (x, y)")
-
-		lines = self.string.split('\n')
-		self.surfaces = [self.font.render(line, True, self.color) for line in lines]
-		self.rects = self._make_rects(alignnment)
-
-	def _make_rects(self, alignnment: Alignment) -> list[pg.Rect]:
-
-		if not self.surfaces:
-			return []
-
-		rects: list[pg.Rect] = []
-
-		current_y = self.position[1]
-
-		for surface in self.surfaces:
-
-			rect = surface.get_rect()
-
-			if alignnment == self.Alignment.LEFT:
-				rect.left = self.position[0]
-			elif alignnment == self.Alignment.RIGHT:
-				rect.right = self.position[0]
-			elif alignnment == self.Alignment.CENTER:
-				rect.centerx = self.position[0]
-			
-			rect.top = current_y
-			current_y += rect.height + self.vertical_spacing
-
-			rects.append(rect)
-		
-		return rects
-
-	def draw(self, surface: pg.Surface) -> None:
-		"""Draw the text on the given surface."""
-		for surf, rect in zip(self.surfaces, self.rects):
-			surface.blit(surf, rect)
-
-class MultiLineText2:
-
+	"""
+	Text class that supports multiple colors, lines and alignments.
+	Use \\color(color) to change the color of the text.
+	Use \\n to create a new line.
+	"""
 
 	class Alignment(enum.Enum):
 		LEFT = enum.auto()
@@ -237,7 +147,7 @@ class MultiLineText2:
 		current_y = self.position[1]
 
 		surfaces = [
-			[self.font.render(string, False, color, None) for color, string in line] for line in parsed
+			[self.font.render(string, True, color, None) for color, string in line] for line in parsed
 		]
 
 		for line in surfaces:
@@ -269,15 +179,45 @@ class MultiLineText2:
 		for surf, rect in zip(self.surfaces, self.rects):
 			surface.blit(surf, rect)
 
+class PlainText:
+	"""
+	Simple text class with lower overhead than Text class.
+	Does not support multiple colors, lines or alignments.
+	Use this class when you only need to display a single line of text in a single color.
+	"""
+
+	value: Any
+	string: str
+
+	font: Font
+
+	position: tuple[int, int]
+
+	surface: pg.Surface
+	rect: pg.Rect
+
+	def __init__(self, value: Any, position: Iterable[float], color: ColorValue = "white", size: int = 30) -> None:
+
+		self.value = value
+		self.string = str(value)
+
+		self.font = get_font(default_font[0], size, default_font[2], default_font[3])
+
+		self.position = tuple(map(int, position)) # type: ignore
+
+		if len(self.position) != 2:
+			raise ValueError("Position must be a tuple of (x, y)")
+
+		self.surface = self.font.render(self.string, True, "white", None)
+
+		self.rect = self.surface.get_rect()
+		self.rect.topleft = self.position
+
+	def draw(self, surface: pg.Surface) -> None:
+		"""Draw the text on the given surface."""
+		surface.blit(self.surface, self.rect)
+
 def get_font(name: str | bytes, size: int = 30, bold: Hashable = False, italic: Hashable = False) -> Font:
 	return _get_sys_font(str(name), int(size), hash(bold), hash(italic))
 
 _get_sys_font = cache(pg.font.SysFont)
-
-string = """This is a test string.
-We are \\color(red)testing color changes\\color(white) in the middle of a \\color(pink)string.
-This is the third line. Whihc is pink.
-\\color(0, 255, 0)This is green text.
-This is the last line."""
-
-m = MultiLineText2(string, (400, 50), size=30, alignnment=MultiLineText2.Alignment.LEFT)
