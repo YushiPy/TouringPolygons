@@ -226,10 +226,24 @@ class Gameplay(Game):
 
 		Text("Press 'S' to toggle grid snapping", (250, 100), "white").draw(surface)
 		Text(f"Grid Size: {round(self.grid_size)}", (120, 150), "white").draw(surface)
-		Text("Press 'E' to export polygons", (220, 200), "white").draw(surface)
-		Text("Press 'L' to load polygons", (205, 250), "white").draw(surface)
 
-		MultiLineText("Controls:\n- Left Click: Add Point\n- Right Click: Remove Point\n- Hold Shift + Left Click: Move Point\n- Enter: New Polygon\n- Tab: Next Polygon\n- Shift + Tab: Previous Polygon\n- Left/Right Arrow: Change Polygon", (100, 300), "white").draw(surface)
+		string = """Controls:
+- Left Click: Add Point
+- Right Click: Remove Point
+- Hold Shift + Left Click: Move Point
+
+- Enter: New Polygon
+- Tab: Next Polygon
+- Shift + Tab: Previous Polygon
+- Left/Right Arrow: Change Polygon
+- Backspace: Remove Last Point / Polygon
+
+- S: Toggle Grid Snapping
+- Mouse Wheel: Change Grid Size
+- L: Load Polygons
+- E: Export Polygons"""
+
+		MultiLineText(string, (50, 200), "white", 24).draw(surface)
 
 	def fixed_update(self, down_keys: set[int], up_keys: set[int], events: set[int]) -> None | bool:
 
