@@ -5,13 +5,19 @@ from vector2 import Vector2
 
 
 def _orient(a: Vector2, b: Vector2, c: Vector2) -> float:
+	"""2D orientation test: returns a positive value if c is to the left of the line ab"""
 	return (b - a).cross(c - a)
 
 def _on_segment(a: Vector2, b: Vector2, p: Vector2, eps: float = 1e-12) -> bool:
+	"""Check if point p is on the line segment ab, within a tolerance eps."""
 	return min(a.x, b.x) - eps <= p.x <= max(a.x, b.x) + eps and \
 			min(a.y, b.y) - eps <= p.y <= max(a.y, b.y) + eps
 
 def _intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> tuple[float, float] | None:
+	"""
+	Calculate the intersection rates of two lines defined by a point and a direction vector.
+	Returns None if the lines are parallel.
+	"""
 
 	cross = direction1.cross(direction2)
 
