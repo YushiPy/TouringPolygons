@@ -247,7 +247,7 @@ Controls:
 - L: Load Polygons
 - E: Export Polygons"""
 
-		Text(string, (50, 50), 25, Text.Alignment.LEFT).draw(surface)
+		Text(string, (50, 50), 20, Text.Alignment.LEFT).draw(surface)
 
 	def fixed_update(self, down_keys: set[int], up_keys: set[int], events: set[int]) -> None | bool:
 
