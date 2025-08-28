@@ -172,6 +172,21 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 	if rates is not None and -eps <= rates[0] <= 1 + eps and -eps <= rates[1] <= 1 + eps:
 		return start1 + diff1 * rates[0]
 
+def path_is_optimal(vertex: Vector2, before: Vector2, after: Vector2, start: Vector2, end: Vector2) -> bool:
+
+	rate1 = intersection_rates(start, end - start, vertex, before - vertex)
+
+	if rate1 is None or rate1[0] < 0:
+		return False
+	
+	rate2 = intersection_rates(start, end - start, vertex, after - vertex)
+
+	if rate2 is None or rate2[0] < 0:
+		return False
+	if end.is_close(Vector2(-10/3, -20/3)):
+		print(vertex, before, after, start, end, rate1, rate2)
+	return True
+
 class Solution:
 
 	start: Vector2
@@ -255,14 +270,16 @@ class Solution:
 			if j == -1:
 				vertex = self.start
 			else:
+
 				vertex = self.fences[index - 1][j]
 				before = self.fences[index - 1][j - 1]
+				after = self.fences[index - 1][(j + 1) % len(self.fences[index - 1])]
 				last = self.last_fence_vertex[index - 1][i]
 
-				rates = intersection_rates(vertex, before - vertex, last, point - last)
+				if point == self.fences[1].reflex_vertices[0]:
+					print(point, vertex, before, after, last)
 
-				# If the intersection is not valid, then the path is not optimal.
-				if rates is None or rates[0] < 0:
+				if not path_is_optimal(vertex, before, after, last, point):
 					continue
 			
 			# Path is optimal, need to calculate intersection point with polygon P_{index - 1}
@@ -270,7 +287,8 @@ class Solution:
 				(s for a, b in self.polygons[index - 1].edges() if (s := segment_segment_intersection(vertex, point, a, b)) is not None), 
 				key=vertex.distance_squared_to, default=None
 			)
-
+			if point == self.fences[1].reflex_vertices[0]:
+				print(point, vertex, poligon_point)
 			if poligon_point is None:
 				continue
 
@@ -340,9 +358,7 @@ class Solution:
 			before = self.fences[index][i - 1]
 			after = self.fences[index][(i + 1) % len(self.fences[index].reflex_vertices)]
 
-			condition = (vertex - last).cross(point - vertex) * (vertex - last).cross(after - vertex) >= 0
-
-			if not condition:
+			if not path_is_optimal(vertex, before, after, last, point):
 				continue
 			
 			# Path is optimal, need ensure it's not blocked by other edges
@@ -429,5 +445,7 @@ class Solution:
 			
 			if found == 0:
 				break
+		
+		print(list(zip(self.fences[1].reflex_vertices, self.last_fence_vertex[1])))
 		
 		return []

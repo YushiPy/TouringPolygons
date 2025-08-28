@@ -289,7 +289,7 @@ class Drawing(Solution):
 			plot(*zip(*fence, fence[0]), linewidth=2)
 
 		# Plot the start and end points
-		plot(*zip(self.start), "o", color="green", label='Start' * (index == -1), markersize=4)
+		plot(*zip(self.start), "o", color="yellow", label='Start' * (index == -1), markersize=4)
 		plot(*zip(self.end), "o", color="red", label='End' * (index == -1), markersize=4)
 
 		# ax.legend() # type: ignore
