@@ -11,6 +11,8 @@ import pygame as pg
 from game_template import Game
 from text import PlainText, Text
 
+EXPORTS_FOLDER: str = "PolygonsOut"
+
 def hsv_to_rgb(h: float, s: float, v: float) -> tuple[int, int, int]:
 	"""
 	Convert HSV color to RGB color.
@@ -118,12 +120,12 @@ class Gameplay(Game):
 
 		string += "]"
 
-		if not os.path.exists("PolygonsOut"):
-			os.makedirs("PolygonsOut")
+		if not os.path.exists(EXPORTS_FOLDER):
+			os.makedirs(EXPORTS_FOLDER)
 		
-		index = next(i for i in count(1) if not os.path.exists(f"PolygonsOut/polygons{i}.txt"))
+		index = next(i for i in count(1) if not os.path.exists(os.path.join(EXPORTS_FOLDER, "polygons{i}.txt")))
 
-		with open(f"PolygonsOut/polygons{index}.txt", "w") as file:
+		with open(os.path.join(EXPORTS_FOLDER, f"polygons{index}.txt"), "w") as file:
 			file.write(string)
 
 	@property
@@ -268,7 +270,7 @@ Controls:
 
 		if pg.K_l in up_keys:
 
-			options = os.listdir("PolygonsOut")
+			options = os.listdir(EXPORTS_FOLDER)
 			options = [f for f in options if f.startswith("polygons") and f.endswith(".txt")]
 
 			if self.last_loaded in options:
@@ -277,7 +279,7 @@ Controls:
 				filename = options[0] if options else None
 
 			if filename:
-				self.load(os.path.join("PolygonsOut", filename))
+				self.load(os.path.join(EXPORTS_FOLDER, filename))
 				self.last_loaded = filename
 
 		if pg.K_e in up_keys:
