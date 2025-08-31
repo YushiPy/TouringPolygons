@@ -245,6 +245,7 @@ Controls:
 - Backspace: Remove Last Point / Polygon
 
 - S: Toggle Grid Snapping
+- Shift + S: Snap All Points to Grid
 - Mouse Wheel: Change Grid Size
 - L: Load Polygons
 - E: Export Polygons"""
@@ -286,7 +287,12 @@ Controls:
 			self.export()
 
 		if pg.K_s in up_keys:
-			self.snap_to_grid = not self.snap_to_grid
+			if self.shifting:
+				for i in range(len(self.polygons)):
+					for j in range(len(self.polygons[i])):
+						self.polygons[i][j] = self.snap_point(self.polygons[i][j])
+			else:
+				self.snap_to_grid = not self.snap_to_grid
 
 		for event in self.all_events:
 			if event.type == pg.MOUSEWHEEL:
