@@ -5,9 +5,9 @@ import pygame as pg
 
 pg.init()
 
-# Default screen size for my personal computer
-# TODO: Make it adaptable to any screen size
-SIZE = WIDTH, HEIGHT = 1512, 945
+_INFO = pg.display.Info()
+
+SIZE = WIDTH, HEIGHT = _INFO.current_w, _INFO.current_h
 CENTER = CENTERX, CENTERY = WIDTH // 2, HEIGHT // 2
 
 class Game(ABC):
