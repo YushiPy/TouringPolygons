@@ -62,7 +62,7 @@ def hsv_to_rgb(h: float, s: float, v: float) -> tuple[int, int, int]:
 
 	return r, g, b
 
-def random_color(seed: int | None = None, offset: int = random.randrange(0, 2 ** 63)) -> tuple[int, int, int]:
+def random_color(seed: int | None = None, offset: int = 0) -> tuple[int, int, int]:
 
 	if seed is not None:
 		seed += offset
@@ -100,6 +100,8 @@ class Gameplay(Game):
 		self.grid_size = 50
 
 		self.last_loaded: str | None = None
+
+		self.color_offset = random.randrange(0, 2 ** 63)
 
 	def _load(self, filename: str) -> list[list[Vector2]]:
 
@@ -262,7 +264,7 @@ class Gameplay(Game):
 
 		for i, polygon in enumerate(self.polygons):
 
-			color = pg.color.Color(random_color(i))
+			color = pg.color.Color(random_color(i, self.color_offset))
 			light_color = color.lerp("white", 0.3)
 
 			if len(polygon) >= 3:
@@ -280,7 +282,7 @@ class Gameplay(Game):
 			center_of_mass = sum(polygon, Vector2()) / len(polygon)
 			PlainText(f"{i + 1}", center_of_mass, light_color).draw(surface)
 
-		color = pg.color.Color(random_color(self.current_polygon)).lerp("white", 0.3)
+		color = pg.color.Color(random_color(self.current_polygon, self.color_offset)).lerp("white", 0.3)
 
 		string = f"""\\color({list(color)})Current Polygon: {self.current_polygon + 1}\\color(white)
 Grid Snapping: {'On' if self.snap_to_grid else 'Off'}
@@ -301,7 +303,8 @@ Controls:
 - Shift + S: Snap All Points to Grid
 - Mouse Wheel: Change Grid Size
 - L: Load Polygons
-- E: Export Polygons"""
+- E: Export Polygons
+- C: Change Colors"""
 
 		Text(string, (50, 50), 20, Text.Alignment.LEFT).draw(surface)
 
@@ -368,5 +371,7 @@ Controls:
 
 		self.last_mouse_keys = mouse_held
 
+		if pg.K_c in up_keys:
+			self.color_offset = random.randrange(0, 2 ** 63)
 
 Gameplay().run()
