@@ -106,7 +106,7 @@ class Text:
 		colors: list[pg.Color] = []
 
 		for c in listed_colors:
-			print(c)
+
 			try: colors.append(pg.Color(c)); continue
 			except ValueError: pass
 
