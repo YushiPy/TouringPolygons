@@ -1,4 +1,19 @@
 
+def load_pygame() -> None:
+	"""Load pygame with no support prompt."""
+
+	import sys
+	from io import StringIO
+
+	old_stdout = sys.stdout
+	sys.stdout = StringIO()
+
+	import pygame # type: ignore
+
+	sys.stdout = old_stdout
+
+load_pygame()
+
 from itertools import count
 from math import ceil
 
@@ -11,7 +26,11 @@ import pygame as pg
 from game_template import Game
 from text import PlainText, Text
 
-EXPORTS_FOLDER: str = "PolygonsOut"
+EXPORTS_FOLDER = "PolygonsOut"
+EXPORTS_EXT = ".txt"
+
+def make_export_name(index: int) -> str:
+	return os.path.join(EXPORTS_FOLDER, f"polygons{index}{EXPORTS_EXT}")
 
 def hsv_to_rgb(h: float, s: float, v: float) -> tuple[int, int, int]:
 	"""
@@ -82,26 +101,63 @@ class Gameplay(Game):
 
 		self.last_loaded: str | None = None
 
-	def load(self, filename: str) -> None:
+	def _load(self, filename: str) -> list[list[Vector2]]:
 
 		with open(filename, "r") as file:
 			data = file.read()
-		
-		center = Vector2(self.surface.get_size()) / 2
 
-		result: list[list[Vector2]] = []
+		raw = [[Vector2(p) for p in lst] for lst in eval(data)]
 
-		for polygon in eval(data):
-			result.append([])
-			for p in polygon:
-				v = Vector2(p) * self.grid_size
-				v.y *= -1
-				v += center
-				result[-1].append(v)
+		minx = min((p.x for polygon in raw for p in polygon), default=0.0)
+		maxx = max((p.x for polygon in raw for p in polygon), default=0.0)
+		miny = min((p.y for polygon in raw for p in polygon), default=0.0)
+		maxy = max((p.y for polygon in raw for p in polygon), default=0.0)
 
-		self.polygons = result
+		dx = maxx - minx
+		dy = maxy - miny
 
-	def export(self) -> None:
+		rect = self.surface.get_rect()
+
+		if dx == 0 or dy == 0:
+			scale = 1.0
+		else:
+			scale = min(rect.w / dx, rect.h / dy) * 0.7
+
+		result: list[list[Vector2]] = [[v.reflect((0, 1)) * scale + rect.center for v in lst] for lst in raw]
+
+		return result
+
+	def load(self) -> None:
+
+		options = os.listdir(EXPORTS_FOLDER)
+
+		if self.last_loaded is not None and self.last_loaded in options:
+			index = options.index(self.last_loaded)
+			options = options[index + 1:] + options[:index + 1] # Rotate list to start after last loaded
+
+		polygons: list[list[Vector2]] = []
+
+		for file in options:
+
+			path = os.path.join(EXPORTS_FOLDER, file)
+
+			if not file.endswith(EXPORTS_EXT) or not os.path.isfile(path):
+				continue
+
+			try: 
+				polygons = self._load(path)
+				self.last_loaded = file
+				break
+			except: 
+				print(f"Failed to load {file}\nConsider renaming it to a non {EXPORTS_EXT} extension.")
+				
+		if polygons:
+			self.polygons = polygons
+
+	def export(self, filename: str | None = None) -> None:
+
+		if filename is None:
+			filename = next(name for i in count(1) if not os.path.exists(name := make_export_name(i)))
 
 		scale = 1 / self.grid_size
 
@@ -123,9 +179,7 @@ class Gameplay(Game):
 		if not os.path.exists(EXPORTS_FOLDER):
 			os.makedirs(EXPORTS_FOLDER)
 		
-		index = next(i for i in count(1) if not os.path.exists(os.path.join(EXPORTS_FOLDER, "polygons{i}.txt")))
-
-		with open(os.path.join(EXPORTS_FOLDER, f"polygons{index}.txt"), "w") as file:
+		with open(filename, "w") as file:
 			file.write(string)
 
 	@property
@@ -178,7 +232,6 @@ class Gameplay(Game):
 				self.held_vertex = None
 				return
 			
-
 		if self.held_vertex is None:
 			return
 
@@ -270,18 +323,7 @@ Controls:
 			self.remove_point(mouse_pos)
 
 		if pg.K_l in up_keys:
-
-			options = os.listdir(EXPORTS_FOLDER)
-			options = [f for f in options if f.startswith("polygons") and f.endswith(".txt")]
-
-			if self.last_loaded in options:
-				filename = options[(options.index(self.last_loaded) + 1) % len(options)]
-			else:
-				filename = options[0] if options else None
-
-			if filename:
-				self.load(os.path.join(EXPORTS_FOLDER, filename))
-				self.last_loaded = filename
+			self.load()
 
 		if pg.K_e in up_keys:
 			self.export()
@@ -327,4 +369,4 @@ Controls:
 		self.last_mouse_keys = mouse_held
 
 
-print(Gameplay().run().get_info())
+Gameplay().run()
