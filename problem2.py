@@ -187,6 +187,32 @@ def path_is_optimal(vertex: Vector2, before: Vector2, after: Vector2, start: Vec
 		print(vertex, before, after, start, end, rate1, rate2)
 	return True
 
+
+def convex_hull(points: list[Vector2]) -> list[Vector2]:
+
+	sorted_points = sorted(points)
+
+	return half_hull(sorted_points) + half_hull(reversed(sorted_points))
+
+def half_hull(sorted_points: Iterable[Vector2]) -> list[Vector2]:
+
+	hull: list[Vector2] = []
+
+	for p in sorted_points:
+
+		while len(hull) > 1 and not is_ccw_turn(hull[-2], hull[-1], p):
+			hull.pop()
+
+		hull.append(p)
+
+	hull.pop()
+
+	return hull
+
+def is_ccw_turn(p0: Vector2, p1: Vector2, p2: Vector2) -> bool:
+	return (p1 - p0).cross(p2 - p0) > 0
+
+
 class Solution:
 
 	start: Vector2
