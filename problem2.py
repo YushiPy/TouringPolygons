@@ -213,6 +213,48 @@ def is_ccw_turn(p0: Vector2, p1: Vector2, p2: Vector2) -> bool:
 	return (p1 - p0).cross(p2 - p0) > 0
 
 
+def astar(start: int, end: int, edges: list[list[tuple[int, float]]], heuristic: list[float]) -> list[int]:
+
+	gscore = [math.inf] * len(edges)
+	gscore[start] = 0
+
+	visited = [False] * len(edges)
+	previous = [-1] * len(edges)
+
+	queue: list[tuple[float, int]] = [(heuristic[start], start)] # (gcost + heuristic, index)
+
+	while queue:
+
+		_, vertex = heapq.heappop(queue)
+
+		if vertex == end: # Reached the end
+			break
+
+		if visited[vertex]:
+			continue
+
+		visited[vertex] = True
+		gcost = gscore[vertex]
+
+		for target, edge_cost in edges[vertex]:
+
+			if visited[target]:
+				continue
+
+			new_cost = gcost + edge_cost
+
+			if new_cost >= gscore[target]:
+				continue
+
+			gscore[target] = new_cost
+			previous[target] = vertex
+			h = heuristic[target]
+			heapq.heappush(queue, (new_cost + h, target))
+
+	if previous[end] == -1:
+		raise ValueError("No path found from start to end.")
+
+
 class Solution:
 
 	start: Vector2
@@ -261,7 +303,20 @@ class Solution:
 
 		if not all(polygon.is_convex() for polygon in self.polygons):
 			raise ValueError("All polygons must be convex.")
-	
+
+	def make_graph(self, index: int, start: Vector2, end: Vector2) -> tuple[list[list[tuple[int, float]]], list[float]]:
+		"""
+		Make a graph for the A* algorithm.
+
+		:param int index: The index of the polygon and fence to use.
+		:param Vector2 start: The starting point of the path.
+		:param Vector2 end: The end point of the path.
+
+		:return: A tuple containing the graph as an adjacency list and the heuristic values for each vertex.
+		"""
+
+
+
 	def shortest_fenced_path(self, start: Vector2, end: Vector2, index: int) -> Vector2:
 		return shortest_path_in_polygon(start, end, self.fences[index])[-2]
 

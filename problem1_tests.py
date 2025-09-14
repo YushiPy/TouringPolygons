@@ -88,7 +88,7 @@ test7 = Drawing(
 		regular(5, 1.3, Vector2(5, 6), 0.1),
 	]
 )
-
+"""
 test8 = Drawing(
 	Vector2(0, -5), Vector2(0, 2),
 	[
@@ -110,6 +110,7 @@ test9 = Drawing(
 	]
 
 )
+"""
 
 #test1.draw()
 #test2.draw()
@@ -117,7 +118,4 @@ test9 = Drawing(
 #test4.draw()
 #test5.draw()
 #test6.draw()
-#test7.draw()
-
-test8.draw()
-test9.draw()
+test7.draw()
