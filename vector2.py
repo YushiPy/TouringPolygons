@@ -351,7 +351,7 @@ class Vector2:
 	def update(self, x: float | Self = 0.0, y: float = 0.0) -> None:
 
 		if isinstance(x, Vector2):
-			x, y = x.x, x.y
+			x, y = x.x, x.y # type: ignore
 
 		self.x = x
 		self.y = y

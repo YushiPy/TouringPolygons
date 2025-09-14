@@ -1,4 +1,5 @@
 
+from operator import le
 from typing import Callable, Iterable
 
 import heapq
@@ -56,6 +57,61 @@ def astar(start: int, target: int, edges: list[list[tuple[int, float]]], heurist
 				heapq.heappush(queue, (priority, neighbor))
 
 	return []
+
+
+def point_in_cone(point: Vector2, start: Vector2, ray1: Vector2, ray2: Vector2, eps: float = 1e-10) -> bool:
+	"""
+	Check if a point is inside the cone defined by two rays starting from `start`.
+	The rays are in clockwise order.
+
+	:param Vector2 point: The point to check.
+	:param Vector2 start: The starting point of the cone.
+	:param Vector2 ray1: The first ray direction.
+	:param Vector2 ray2: The second ray direction.
+
+	:return: True if the point is inside the cone, False otherwise.
+	"""
+
+	if ray1.cross(ray2) < 0:
+		return not point_in_cone(point, start, ray2, ray1, eps)
+
+	vector = point - start
+
+	cross1 = ray1.cross(vector)
+	cross2 = ray2.cross(vector)
+
+	# Is to the counter-clockwise side of the first ray and 
+	# clockwise side of the second ray.
+	return (cross1 >= -eps and cross2 <= eps)
+
+def point_in_edge(point: Vector2, start1: Vector2, ray1: Vector2, start2: Vector2, ray2: Vector2) -> bool:
+	"""
+	Check if a point is inside the edge defined by two rays starting from `start1` and `start2`.
+
+	:param Vector2 point: The point to check.
+	:param Vector2 start1: The starting point of the first ray.
+	:param Vector2 ray1: The direction vector of the first ray.
+	:param Vector2 start2: The starting point of the second ray.
+	:param Vector2 ray2: The direction vector of the second ray.
+
+	:return: True if the point is inside the edge, False otherwise.
+	"""
+
+	vector1 = point - start1
+	vector2 = point - start2
+
+	ray3 = start2 - start1
+
+	cross1 = ray1.cross(vector1)
+	cross2 = ray2.cross(vector2)
+	cross3 = ray3.cross(vector1)
+
+	# Is to the counter-clockwise side of the first ray and 
+	# clockwise side of the second ray.
+	# Also checks if the point is clockwise to the segment from `start1` to `start2`.
+	return (cross1 >= 0 and cross2 <= 0 and cross3 <= 0)
+
+
 
 class Solution:
 
@@ -121,6 +177,52 @@ class Solution:
 
 		return []
 
+	def point_in_cone(self, point: Vector2, index: int, vertex_index: int) -> bool:
+		"""
+		Returns whether the `point` is inside the cone of the vertex `vertex_index` of polygon `index`.
+		"""
+
+		ray1, ray2 = self.cones[index][vertex_index]
+		vertex = self.polygons[index][vertex_index]
+
+		return point_in_cone(point, vertex, ray1, ray2)
+
+	def point_in_edge(self, point: Vector2, index: int, edge_index: int) -> bool:
+		"""
+		Returns whether the `point` is inside the edge defined by the edge `edge_index` of polygon `index`.
+		"""
+
+		polygon = self.polygons[index]
+		ray1 = self.cones[index][edge_index][1]
+		ray2 = self.cones[index][(edge_index + 1) % len(polygon)][0]
+
+		return point_in_edge(point, polygon[edge_index], ray1, polygon[(edge_index + 1) % len(polygon)], ray2)
+
+	def point_in_pass_through(self, point: Vector2, index: int) -> bool:
+		"""
+		Returns whether the `point` is inside the pass through region of polygon `index`.
+		"""
+
+		polygon = self.polygons[index]
+		blocked = self.blocked[index]
+		cones = self.cones[index]
+
+		first = next(i for i in range(len(blocked)) if blocked[i] and not blocked[i - 1])
+		last = next(i for i in range(len(blocked)) if blocked[i] and not blocked[(i + 1) % len(blocked)])
+
+		ray1 = cones[first][1]
+		ray2 = cones[(last + 1) % len(blocked)][0]
+
+		vertex1 = polygon[first]
+		vertex2 = polygon[(last + 1) % len(blocked)]
+
+		# Check if the point is inside the big edge
+		if point_in_edge(point, vertex1, ray1, vertex2, ray2):
+			return True
+
+		# Check if the point is inside the polygon
+		return polygon.contains_point(point) >= 0
+
 	def query(self, point: Vector2, index: int) -> Vector2:
 		"""
 		Returns the last point on a `index`-path to `point`.
@@ -129,12 +231,31 @@ class Solution:
 		if index == 0:
 			return self.path_in_fence(self.start, point, 0)[-2]
 
+		polygon = self.polygons[index]
+		blocked = self.blocked[index]
+		cones = self.cones[index]
+
+		# Check for cone region
+		for i in range(len(polygon)):
+			if self.point_in_cone(point, index, i):
+				return polygon[i]
+		
+		# Check for edge region
+		for i in range(len(polygon)):
+
+			if not self.point_in_edge(point, index, i):
+				continue
+
+			raise NotImplementedError("Reflecting on edges is not implemented yet")
+
+		if not self.point_in_pass_through(point, index):
+			raise ValueError("WTF, the point is not in any region??????")
+
 		return point.inf()
 
 	def solve0(self) -> None:
 
 		polygon = self.polygons[0]
-		fence = self.fences[0]
 
 		# Compute the blocked edges for polygon 0 by checking if the
 		# last segment from start to the midpoint of each edge intersects the polygon.		
@@ -142,7 +263,7 @@ class Solution:
 
 			mid = (a + b) / 2
 			last = self.query(a, 0)
-
+			
 			self.blocked[0].append(polygon.intersects_segment(last, mid))
 
 		# Compute the cones for polygon 0
@@ -158,20 +279,18 @@ class Solution:
 			dir1 = diff.normalize()
 			dir2 = diff.normalize()
 
-			if not self.blocked[0][i]:
+			if not self.blocked[0][i - 1]:
 				dir1 = dir1.reflect((before - v).perpendicular())
-			
-			if not self.blocked[0][(i + 1) % len(polygon)]:
-				dir2 = dir2.reflect((after - v).perpendicular())
-			
-			self.cones[0].append((dir1, dir2))
 
-		print(self.cones)
+
+			if not self.blocked[0][i]:
+				dir2 = dir2.reflect((after - v).perpendicular())
+
+			self.cones[0].append((dir1, dir2))
 
 	def solve(self) -> list[Vector2]:
 
 		self.solve0()
-
 
 		return []
 
