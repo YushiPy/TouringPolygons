@@ -111,6 +111,43 @@ def point_in_edge(point: Vector2, start1: Vector2, ray1: Vector2, start2: Vector
 	return (cross1 >= 0 and cross2 <= 0 and cross3 <= 0)
 
 
+def intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> tuple[float, float] | None:
+
+	cross = direction1.cross(direction2)
+
+	if abs(cross) < 1e-8:
+		return None
+	
+	sdiff = start2 - start1
+
+	rate1 = sdiff.cross(direction2) / cross
+	rate2 = sdiff.cross(direction1) / cross
+
+	return rate1, rate2
+
+def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2, eps: float = 1e-10) -> Vector2 | None:
+	"""
+	Returns the intersection point of two line segments if they intersect, otherwise returns None.
+
+	:param Vector2 start1: The start point of the first segment as a Vector2.
+	:param Vector2 end1: The end point of the first segment as a Vector2.
+	:param Vector2 start2: The start point of the second segment as a Vector2.
+	:param Vector2 end2: The end point of the second segment as a Vector2.
+
+	:return: The intersection point as a Vector2 if the segments intersect, otherwise None.	
+	"""
+
+	diff1 = end1 - start1
+	diff2 = end2 - start2
+
+	rates = intersection_rates(start1, diff1, start2, diff2)
+
+	if rates is not None and -eps <= rates[0] <= 1 + eps and -eps <= rates[1] <= 1 + eps:
+		return start1 + diff1 * rates[0]
+
+	return None
+
+
 class Solution:
 
 	start: Vector2
@@ -213,39 +250,6 @@ class Solution:
 						
 						self.mapping[(j, vj)].append((i, vi))
 
-	def _path_in_fence0(self, start: Vector2, target: Vector2) -> list[Vector2]:
-		"""
-		Returns the smallest path from `start` to `target` that is inside the first fence (index 0).
-		"""
-
-		fence = self.fences[0]
-		vertices = [start] + [target] + fence.reflex_vertices
-		edges: list[list[tuple[int, float]]] = [[] for _ in range(len(vertices))]
-
-		for i in range(len(vertices)):
-			for j in range(i + 1, len(vertices)):
-
-				edge = (vertices[i], vertices[j])
-
-				if not fence.intersects_segment(edge[0], edge[1]):
-					edges[i].append((j, edge[0].distance_to(edge[1])))
-					edges[j].append((i, edge[0].distance_to(edge[1])))
-		
-		path_indices = astar(0, 1, edges, lambda a, b: vertices[a].distance_to(vertices[b]))
-		path = [vertices[i] for i in path_indices]
-
-		return path
-
-	def path_in_fence(self, start: Vector2, target: Vector2, index: int) -> list[Vector2]:
-		"""
-		Returns the smallest path from `start` to `target` that is inside the fence `index` and `index + 1`.
-		"""
-
-		if index == 0:
-			return self._path_in_fence0(start, target)
-
-		return []
-
 	def fenced_path(self, start: Vector2, target: Vector2, start_index: int, end_index: int) -> list[Vector2]:
 		"""
 		Returns the smallest path from `start` to `target` that is inside all fences from `start_index` to `end_index`.
@@ -253,9 +257,6 @@ class Solution:
 
 		if self.respects_fences(start, target, start_index, end_index):
 			return [start, target] # Direct path is valid.
-
-		if start_index == end_index:
-			return self.path_in_fence(start, target, start_index)
 
 		vertices = [start, target]
 
@@ -278,6 +279,10 @@ class Solution:
 				edges.append(v_edges)
 
 				for fence_index2, vj in self.mapping[(fence_index, vi)]:
+
+					if fence_index2 < start_index or fence_index2 > end_index:
+						continue
+
 					v2 = self.fences[fence_index2][vj]
 					ind = v_index[tuple(v2)]
 					v_edges.append((ind, v.distance_to(v2)))
@@ -315,6 +320,9 @@ class Solution:
 		"""
 		Returns whether the `point` is inside the edge defined by the edge `edge_index` of polygon `index`.
 		"""
+
+		if self.blocked[index][edge_index]:
+			return False
 
 		polygon = self.polygons[index]
 		ray1 = self.cones[index][edge_index][1]
@@ -364,16 +372,37 @@ class Solution:
 
 		# Check for cone region
 		for i in range(len(polygon)):
-			if self.point_in_cone(point, start_index - 1, i):
-				return [polygon[i]]
-		
+			if not self.point_in_cone(point, start_index - 1, i):
+				continue
+
+			last = polygon[i]
+			path = self.query(last, start_index - 1, start_index - 1)
+			return path + self.fenced_path(last, point, start_index, end_index)
+
 		# Check for edge region
 		for i in range(len(polygon)):
 
 			if self.blocked[start_index - 1][i] or not self.point_in_edge(point, start_index - 1, i):
 				continue
 
-			raise NotImplementedError("Reflecting on edges is not implemented yet")
+			v1 = polygon[i]
+			v2 = polygon[(i + 1) % len(polygon)]
+
+			reflected = point.reflect_segment(v1, v2)
+			path = self.query(reflected, start_index - 1, end_index - 1)
+			
+			last = path[-2]
+
+			intersection = segment_segment_intersection(last, reflected, v1, v2)
+
+			if intersection is None:
+				raise ValueError("WTF! The reflection did not work?!?")
+			
+			path.pop() # Remove the reflected point
+			
+			return path + self.fenced_path(intersection, point, start_index, end_index)
+
+			# raise NotImplementedError("Reflecting on edges is not implemented yet")
 
 		if not self.point_in_pass_through(point, start_index - 1):
 			raise ValueError("WTF! The point is not in any region?!?")
@@ -420,6 +449,33 @@ class Solution:
 
 		self.solve0()
 
+		import matplotlib.pyplot as plt
+
+		#target = Vector2(9.9, -1.4)
+		target = Vector2(-7, -6)
+		path = self.query(target, 1, 1)
+
+		# path = self.fenced_path(self.start, Vector2(-5, 0), 0, 0)
+
+
+		for polygon in self.polygons:
+			plt.fill(*zip(*polygon), alpha=0.7)
+
+		for fence in self.fences:
+			plt.plot(*zip(*(fence + (fence[0],))), alpha=0.7)
+
+		plt.plot(*zip(*path), color='blue', marker='o')
+
+		plt.scatter(*self.start, color='green')
+		plt.scatter(*self.target, color='red')
+
+		plt.scatter(*target, color='orange')
+
+		plt.axis('equal')
+		plt.grid()
+		plt.show()
+
+		# print(self.query(Vector2(-3, 3), 1, 1))
 
 		return []
 
