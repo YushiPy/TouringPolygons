@@ -329,7 +329,7 @@ class Solution:
 
 				ind = v_index[tuple(v)]
 
-				if self.respects_fences(start, v, start_index, fence_index):					
+				if self.respects_fences(start, v, start_index, fence_index):
 					edges[0].append((ind, start.distance_to(v)))
 					edges[ind].append((0, start.distance_to(v)))
 
@@ -453,18 +453,18 @@ class Solution:
 
 		# Point cannot be directly reached, 
 		# must stop by a reflex first
-
 		for index in self.fences[start_index].reflex_vertices_indices:
 			
 			vertex = self.fences[start_index][index]
 			before = self.fences[start_index][index - 1]
 			after = self.fences[start_index][(index + 1) % len(self.fences[start_index])]
 
-			if point == Vector2(-5.5, 4): print(1)
+			# if point == Vector2(-5.5, 4): print(1)
 			# Sometimes we query a reflex vertex.
 			# Whithout this check, we may fall on an infinite loop.
 			if vertex == point:
 				continue
+
 
 			path = self.query(vertex, start_index, start_index, clause)
 			# print(point, start_index, end_index, vertex, path)
@@ -475,9 +475,17 @@ class Solution:
 
 			if not bend_is_optimal(last, point, vertex, before, after):
 				continue
+
+			#if point == Vector2(-7.062, -2.934):
+			#	print(vertex, path, last)
+
 			# Fence must contain this new path.
-			if not self.fences[start_index].contains_segment(vertex, point):
-				continue
+			if not clause:
+				if not self.fences[start_index].contains_segment(vertex, point):
+					continue
+			else:
+				if sum(segment_segment_intersection(vertex, point, a, b) is not None for a, b in self.fences[start_index].far_edges(vertex, point)) > 1:
+					continue
 
 			# Remove the vertex so it is not duplicated in output
 			path = path[:-1]
@@ -485,41 +493,6 @@ class Solution:
 			return path + self.fenced_path(vertex, point, start_index, end_index, clause)
 
 		raise ValueError(f"Point {point} cannot be reached at {start_index=} and {end_index=}.")
-
-	def solve0(self) -> None:
-
-		polygon = self.polygons[0]
-
-		# Compute the blocked edges for polygon 0 by checking if the
-		# last segment from start to the midpoint of each edge intersects the polygon.		
-		for a, b in polygon.edges():
-
-			mid = (a + b) / 2
-			last = self.query(a, 0, 0)[-2]
-			
-			self.blocked[0].append(polygon.intersects_segment(last, mid))
-
-		# Compute the cones for polygon 0
-		for i in range(len(polygon)):
-
-			v = polygon[i]
-			last = self.query(v, 0, 0)[-2]
-			diff = (v - last).normalize()
-
-			before = polygon[i - 1]
-			after = polygon[(i + 1) % len(polygon)]
-
-			dir1 = diff.normalize()
-			dir2 = diff.normalize()
-
-			if not self.blocked[0][i - 1]:
-				dir1 = dir1.reflect((before - v).perpendicular())
-
-
-			if not self.blocked[0][i]:
-				dir2 = dir2.reflect((after - v).perpendicular())
-
-			self.cones[0].append((dir1, dir2))
 
 	def solve(self) -> list[Vector2]:
 
@@ -565,8 +538,10 @@ class Solution:
 				cones.append((dir1, dir2))
 		
 		for v in self.fences[-1].reflex_vertices:
-			pass
-			#self.query(v, n, n)
+			print(v)
+			self.query(v, n, n)
+
+		# print(self.query(Vector2(-7.062, -2.934), 1, 1, True))
 
 		import matplotlib.pyplot as plt
 
@@ -581,9 +556,9 @@ class Solution:
 
 		target = self.polygons[1][3]
 
-		# path = self.query(self.target, n, n)
+		path = self.query(self.target, n, n)
 		# print(path, n - 1, n - 2)
-		path = []
+		# path = []
 
 		for polygon in self.polygons:
 			plt.fill(*zip(*polygon), alpha=0.7)
