@@ -11,6 +11,14 @@ type _Vector2 = Iterable[float]
 type _Polygon2 = Iterable[_Vector2]
 
 
+# This is the same as functools.cache, but it does not remove the type hints.
+def cache[T, **P](func: Callable[P, T]) -> Callable[P, T]:
+
+	from functools import lru_cache
+
+	return lru_cache(maxsize=None)(func) # type: ignore
+
+
 def astar(start: int, target: int, edges: list[list[tuple[int, float]]], heuristic: Callable[[int, int], float]) -> list[int]:
 	"""
 	Perform A* search to find the shortest path from `start` to `target`.
@@ -146,6 +154,28 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 		return start1 + diff1 * rates[0]
 
 	return None
+
+
+def bend_is_optimal(start: Vector2, end: Vector2, vertex: Vector2, before: Vector2, after: Vector2) -> bool:
+	"""
+	Returns whether a bend at `vertex` that 
+	comes from `before` and goes to `after` is 
+	optimal on a path from `start` to `end`.
+	"""
+
+	if point_in_cone(end, vertex, before - vertex, after - vertex):
+		return False
+
+	rates1 = intersection_rates(start, end - start, vertex, before - vertex)
+	rates2 = intersection_rates(start, end - start, vertex, after - vertex)
+
+	if rates1 is not None and 0 <= rates1[0] <= 1 and rates1[1] >= 0:
+		return True
+	
+	if rates2 is not None and 0 <= rates2[0] <= 1 and rates2[1] >= 0:
+		return True
+
+	return False
 
 
 class Solution:
@@ -355,6 +385,7 @@ class Solution:
 		# Check if the point is inside the polygon
 		return polygon.contains_point(point) >= 0
 
+	@cache
 	def query(self, point: Vector2, start_index: int, end_index: int) -> list[Vector2]:
 		"""
 		Returns the shortest path from `self.start` to `point` that
@@ -412,6 +443,10 @@ class Solution:
 
 		# Point cannot be directly reached, 
 		# must stop by a reflex first
+
+		for vertex in self.fences[start_index].reflex_vertices:
+
+			pass
 
 		return []
 
@@ -479,8 +514,6 @@ class Solution:
 		plt.axis('equal')
 		plt.grid()
 		plt.show()
-
-		# print(self.query(Vector2(-3, 3), 1, 1))
 
 		return []
 
