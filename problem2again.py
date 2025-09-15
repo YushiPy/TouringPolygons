@@ -372,12 +372,14 @@ class Solution:
 
 		# Check for cone region
 		for i in range(len(polygon)):
+
 			if not self.point_in_cone(point, start_index - 1, i):
 				continue
 
-			last = polygon[i]
-			path = self.query(last, start_index - 1, start_index - 1)
-			return path + self.fenced_path(last, point, start_index, end_index)
+			vertex = polygon[i]
+
+			if self.fences[start_index].contains_segment(vertex, point):
+				return self.query(vertex, start_index - 1, start_index - 1) + self.fenced_path(vertex, point, start_index, end_index)
 
 		# Check for edge region
 		for i in range(len(polygon)):
@@ -398,17 +400,20 @@ class Solution:
 			if intersection is None:
 				raise ValueError("WTF! The reflection did not work?!?")
 			
+			if not self.fences[start_index].contains_segment(intersection, point):
+				continue
+
 			path.pop() # Remove the reflected point
 			
 			return path + self.fenced_path(intersection, point, start_index, end_index)
 
-			# raise NotImplementedError("Reflecting on edges is not implemented yet")
+		if self.point_in_pass_through(point, start_index - 1):
+			return self.query(point, start_index - 1, end_index)
 
-		if not self.point_in_pass_through(point, start_index - 1):
-			raise ValueError("WTF! The point is not in any region?!?")
+		# Point cannot be directly reached, 
+		# must stop by a reflex first
 
-		# Point is in the pass-through region
-		return self.query(point, start_index - 1, end_index)
+		return []
 
 	def solve0(self) -> None:
 
@@ -452,7 +457,7 @@ class Solution:
 		import matplotlib.pyplot as plt
 
 		#target = Vector2(9.9, -1.4)
-		target = Vector2(-7, -6)
+		target = Vector2(5, 3)
 		path = self.query(target, 1, 1)
 
 		# path = self.fenced_path(self.start, Vector2(-5, 0), 0, 0)
