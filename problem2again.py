@@ -189,28 +189,29 @@ class Solution:
 
 		for i in range(len(self.fences)):
 			for j in range(i, len(self.fences)):
-				print(i, j)
+
 				fence1 = self.fences[i]
 				fence2 = self.fences[j]
 
 				for vi, v1 in fence1.reflex_vertices_pairs:
 					for vj, v2 in fence2.reflex_vertices_pairs:
 
-						# Skip if they are the same vertex in the same polygon
-						# this is a valid path, but we don't want to store it in the mapping.
-						if i == j and vi == vj:
+						# Avoid mapping the same vertex to itself.
+						if i == j and vi >= vj:
 							continue
 
 						if not self.respects_fences(v1, v2, i, j):
 							continue
-
-						print(f"Mapping ({i}, {vi}) to ({j}, {vj}); {v1} -> {v2}")
 						
 						if (i, vi) not in self.mapping:
 							self.mapping[(i, vi)] = []
 						
 						self.mapping[(i, vi)].append((j, vj))
 
+						if (j, vj) not in self.mapping:
+							self.mapping[(j, vj)] = []
+						
+						self.mapping[(j, vj)].append((i, vi))
 
 	def _path_in_fence0(self, start: Vector2, target: Vector2) -> list[Vector2]:
 		"""
@@ -250,15 +251,55 @@ class Solution:
 		Returns the smallest path from `start` to `target` that is inside all fences from `start_index` to `end_index`.
 		"""
 
+		if self.respects_fences(start, target, start_index, end_index):
+			return [start, target] # Direct path is valid.
+
 		if start_index == end_index:
 			return self.path_in_fence(start, target, start_index)
 
 		vertices = [start, target]
-		edges: list[list[tuple[int, float]]] = []
 
+		for fence in self.fences[start_index:end_index + 1]:
+			vertices.extend(fence.reflex_vertices)
+		
+		# print(vertices)
 
+		v_index = {tuple(v): i for i, v in enumerate(vertices)}
 
-		return []
+		edges: list[list[tuple[int, float]]] = [[], []]
+
+		# Add all reflex vertices from fences from start_index to end_index.
+		# These are the only vertices that can be used in the path.
+		for fence_index in range(start_index, end_index + 1):
+			for vi, v in self.fences[fence_index].reflex_vertices_pairs:
+
+				vertices.append(v)
+				v_edges: list[tuple[int, float]] = []
+				edges.append(v_edges)
+
+				for fence_index2, vj in self.mapping[(fence_index, vi)]:
+					v2 = self.fences[fence_index2][vj]
+					ind = v_index[tuple(v2)]
+					v_edges.append((ind, v.distance_to(v2)))
+
+		# We know that the direct path from start to target does not respect the fences.
+		for fence_index in range(start_index, end_index + 1):
+			for v in self.fences[fence_index].reflex_vertices:
+
+				ind = v_index[tuple(v)]
+
+				if self.respects_fences(start, v, start_index, fence_index):					
+					edges[0].append((ind, start.distance_to(v)))
+					edges[ind].append((0, start.distance_to(v)))
+
+				if self.respects_fences(v, target, fence_index, end_index):
+					edges[1].append((ind, target.distance_to(v)))
+					edges[ind].append((1, target.distance_to(v)))		
+
+		path_indices = astar(0, 1, edges, lambda a, b: vertices[a].distance_to(vertices[b]))
+		path = [vertices[i] for i in path_indices]
+
+		return path
 
 	def point_in_cone(self, point: Vector2, index: int, vertex_index: int) -> bool:
 		"""
@@ -373,7 +414,9 @@ class Solution:
 
 		self.solve0()
 
-		print(self.query(self.target, 1))
+		# print(self.query(self.target, 1))
+
+		print(self.fenced_path(self.start, self.target, 0, 1))
 
 		return []
 
