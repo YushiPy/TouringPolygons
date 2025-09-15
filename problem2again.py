@@ -347,33 +347,39 @@ class Solution:
 		# Check if the point is inside the polygon
 		return polygon.contains_point(point) >= 0
 
-	def query(self, point: Vector2, index: int) -> Vector2:
+	def query(self, point: Vector2, start_index: int, end_index: int) -> list[Vector2]:
 		"""
-		Returns the last point on a `index`-path to `point`.
+		Returns the shortest path from `self.start` to `point` that
+		touches all polygons up to `start_index` and respects 
+		all fences up to `end_index`.
 		"""
 
-		if index == 0:
-			return self.path_in_fence(self.start, point, 0)[-2]
+		if end_index < start_index:
+			raise ValueError("end_index must be greater than or equal to start_index")
 
-		polygon = self.polygons[index - 1]
+		if start_index == 0:
+			return self.fenced_path(self.start, point, 0, end_index)
+
+		polygon = self.polygons[start_index - 1]
 
 		# Check for cone region
 		for i in range(len(polygon)):
-			if self.point_in_cone(point, index - 1, i):
-				return polygon[i]
+			if self.point_in_cone(point, start_index - 1, i):
+				return [polygon[i]]
 		
 		# Check for edge region
 		for i in range(len(polygon)):
 
-			if self.blocked[index - 1][i] or not self.point_in_edge(point, index - 1, i):
+			if self.blocked[start_index - 1][i] or not self.point_in_edge(point, start_index - 1, i):
 				continue
 
 			raise NotImplementedError("Reflecting on edges is not implemented yet")
 
-		if not self.point_in_pass_through(point, index - 1):
+		if not self.point_in_pass_through(point, start_index - 1):
 			raise ValueError("WTF! The point is not in any region?!?")
 
-		return point.inf()
+		# Point is in the pass-through region
+		return self.query(point, start_index - 1, end_index)
 
 	def solve0(self) -> None:
 
@@ -384,7 +390,7 @@ class Solution:
 		for a, b in polygon.edges():
 
 			mid = (a + b) / 2
-			last = self.query(a, 0)
+			last = self.query(a, 0, 0)[-2]
 			
 			self.blocked[0].append(polygon.intersects_segment(last, mid))
 
@@ -392,7 +398,7 @@ class Solution:
 		for i in range(len(polygon)):
 
 			v = polygon[i]
-			last = self.query(v, 0)
+			last = self.query(v, 0, 0)[-2]
 			diff = (v - last).normalize()
 
 			before = polygon[i - 1]
@@ -414,9 +420,6 @@ class Solution:
 
 		self.solve0()
 
-		# print(self.query(self.target, 1))
-
-		print(self.fenced_path(self.start, self.target, 0, 1))
 
 		return []
 
