@@ -415,7 +415,7 @@ class Solution:
 			vertex = polygon[i]
 
 			if self.fences[start_index].contains_segment(vertex, point):
-				print(point, start_index, end_index, vertex)
+				# print(point, start_index, end_index, vertex)
 				return self.query(vertex, start_index - 1, start_index - 1) + self.fenced_path(vertex, point, start_index, end_index)
 
 		# Check for edge region
@@ -457,11 +457,12 @@ class Solution:
 		# must stop by a reflex first
 
 		for index in self.fences[start_index].reflex_vertices_indices:
-
+			
 			vertex = self.fences[start_index][index]
 			before = self.fences[start_index][index - 1]
 			after = self.fences[start_index][(index + 1) % len(self.fences[start_index])]
 
+			if point == Vector2(-5.5, 4): print(1)
 			# Sometimes we query a reflex vertex.
 			# Whithout this check, we may fall on an infinite loop.
 			if vertex == point:
@@ -470,9 +471,7 @@ class Solution:
 			if tuple(vertex) in seen:
 				continue
 
-			seen = seen.union([(vertex.x, vertex.y)])
-
-			path = self.query(vertex, start_index, start_index, seen)
+			path = self.query(vertex, start_index, start_index)
 			# print(point, start_index, end_index, vertex, path)
 			if not path:
 				raise ValueError("Path not found on reflex vertex check.")
@@ -481,7 +480,6 @@ class Solution:
 
 			if not bend_is_optimal(last, point, vertex, before, after):
 				continue
-
 			# Fence must contain this new path.
 			if not self.fences[start_index].contains_segment(vertex, point):
 				continue
@@ -491,7 +489,7 @@ class Solution:
 
 			return path + self.fenced_path(vertex, point, start_index, end_index)
 
-		# print(point, start_index, end_index)
+		print(point, start_index, end_index)
 		raise ValueError("At this point, just give up...")
 		return []
 
@@ -538,21 +536,19 @@ class Solution:
 		self.solve0()
 
 		for v in self.fences[1].reflex_vertices:
-			print(self.query(v, 1, 1))
+			self.query(v, 1, 1)
 		
 		import matplotlib.pyplot as plt
 
 		target = Vector2(9.9, -1.4)
 		target = Vector2(5, 3)
 		target = Vector2(-9, -5)
-		target = Vector2(-5.1, 4)
-		# target = Vector2(2.499, 2.499)
-		# target = Vector2(-4.998, 2.499)
-		# target = Vector2(2, 7)
-		# path = self.query(target, 1, 1)
-		path = []
-
-		# path = self.fenced_path(self.start, Vector2(-5, 0), 0, 0)
+		target = Vector2(-5.5, 4)
+		target = Vector2(2.499, 2.499)
+		target = Vector2(-4.998, 2.499)
+		target = Vector2(2, 7)
+		path = self.query(target, 1, 1)
+		# path = []
 
 		for polygon in self.polygons:
 			plt.fill(*zip(*polygon), alpha=0.7)
