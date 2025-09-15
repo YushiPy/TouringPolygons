@@ -51,6 +51,8 @@ def _segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector
 	if rates is not None and 0 <= rates[0] <= 1 and 0 <= rates[1] <= 1:
 		return start1 + diff1 * rates[0]
 
+	return None
+
 class Polygon2(tuple[Vector2, ...]):
 
 	@staticmethod
@@ -106,7 +108,7 @@ class Polygon2(tuple[Vector2, ...]):
 		if len(result) < 3:
 			raise ValueError("A polygon must have at least 3 points.")
 
-		signed_area = 0
+		signed_area = 0.0
 
 		for i in range(len(result)):
 			a = result[i]
