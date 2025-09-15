@@ -199,6 +199,27 @@ class Polygon2(tuple[Vector2, ...]):
 
 		return 1 if inside else -1
 
+	def segment_intersection(self, start: Vector2, end: Vector2, eps: float = 1e-12) -> Vector2 | None:
+		"""
+		Get the intersection point of a line segment with the polygon.
+		Returns None if there is no intersection.
+
+		:param Vector2 start: The start point of the segment.
+		:param Vector2 end: The end point of the segment.
+		:param float eps: A small epsilon value for numerical stability.
+
+		:return: The intersection point as a Vector2 if it exists, otherwise None.
+		"""
+
+		for a, b in self.far_edges(start, end, eps=eps):
+
+			intersection = _segment_segment_intersection(start, end, a, b)
+
+			if intersection is not None and not intersection.is_close(start, eps) and not intersection.is_close(end, eps):
+				return intersection
+
+		return None
+
 	def intersects_segment(self, start: Vector2, end: Vector2, eps: float = 1e-12) -> bool:
 		"""
 		Check if the polygon intersects a line segment.
