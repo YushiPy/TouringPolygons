@@ -523,14 +523,51 @@ class Solution:
 
 	def solve(self) -> list[Vector2]:
 
-		for v in self.fences[0].reflex_vertices:
-			self.query(v, 0, 0)
-		
-		self.solve0()
+		n = len(self.polygons)
 
-		for v in self.fences[1].reflex_vertices:
-			self.query(v, 1, 1)
+		for i in range(n):
+
+			for v in self.fences[i].reflex_vertices:
+				self.query(v, i, i)
+
+			polygon = self.polygons[i]
+			blocked = self.blocked[i]
+			cones = self.cones[i]
+
+			# Compute the blocked edges for polygon 0 by checking if the
+			# last segment from start to the midpoint of each edge intersects the polygon.		
+			for a, b in polygon.edges():
+
+				mid = (a + b) / 2
+				last = self.query(a, i, i)[-2]
+				
+				blocked.append(polygon.intersects_segment(last, mid))
+
+			# Compute the cones for polygon 0
+			for j in range(len(polygon)):
+
+				v = polygon[j]
+				last = self.query(v, i, i)[-2]
+				diff = (v - last).normalize()
+
+				before = polygon[j - 1]
+				after = polygon[(j + 1) % len(polygon)]
+
+				dir1 = diff.normalize()
+				dir2 = diff.normalize()
+
+				if not blocked[j - 1]:
+					dir1 = dir1.reflect((before - v).perpendicular())
+
+				if not blocked[j]:
+					dir2 = dir2.reflect((after - v).perpendicular())
+
+				cones.append((dir1, dir2))
 		
+		for v in self.fences[-1].reflex_vertices:
+			pass
+			#self.query(v, n, n)
+
 		import matplotlib.pyplot as plt
 
 		target = Vector2(9.9, -1.4)
@@ -544,8 +581,9 @@ class Solution:
 
 		target = self.polygons[1][3]
 
-		path = self.query(target, 1, 1)
-		# path = []
+		# path = self.query(self.target, n, n)
+		# print(path, n - 1, n - 2)
+		path = []
 
 		for polygon in self.polygons:
 			plt.fill(*zip(*polygon), alpha=0.7)
@@ -564,13 +602,13 @@ class Solution:
 		plt.grid()
 		plt.show()
 
-		# path = self.query(target, 1, 1)
+		# path = self.query(target, n, n - 1)
 
-		return []
+		return path
 
 test1 = (
 	(0.0, 4.009), 
-	(-2.499, -6.247), 
+	(-1.599, -6.447), 
 	[
 		[(-2.499, -0.0), (1.249, -1.249), (4.998, -0.0)], 
 		[(-7.497, -4.998), (-6.247, -3.748), (-4.998, -3.748), (-6.247, -4.998)]
