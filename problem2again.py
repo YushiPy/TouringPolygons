@@ -1,5 +1,4 @@
 
-from operator import le
 from typing import Callable, Iterable
 
 import heapq
@@ -112,7 +111,6 @@ def point_in_edge(point: Vector2, start1: Vector2, ray1: Vector2, start2: Vector
 	return (cross1 >= 0 and cross2 <= 0 and cross3 <= 0)
 
 
-
 class Solution:
 
 	start: Vector2
@@ -131,6 +129,11 @@ class Solution:
 	# Indicates whether the vertex j of P_i is blocked by P_i.
 	blocked: list[list[bool]]
 
+	# A mapping from (fence_index, reflex_vertex_index) to (fence_index, reflex_vertex_index)
+	# This mapping tells us which vertices can be reached from which other vertices.
+	# Note that the mapping is only for reflex vertices.
+	mapping: dict[tuple[int, int], list[tuple[int, int]]]
+
 	def __init__(self, start: _Vector2, target: _Vector2, polygons: Iterable[_Polygon2], fences: Iterable[_Polygon2]) -> None:
 		
 		self.start = Vector2(start)
@@ -143,6 +146,71 @@ class Solution:
 		
 		self.cones = [[] for _ in range(len(self.polygons))]
 		self.blocked = [[] for _ in range(len(self.polygons))]
+
+		self.make_mapping()
+
+	def respects_fences(self, start: Vector2, target: Vector2, start_index: int, end_index: int) -> bool:
+		"""
+		Returns whether the segment from `start` to `target` respects the fences from `start_index` to `end_index`.
+		"""
+
+		# Check whether the segment respects all fences from start_index to end_index - 1.
+		# That is, it must intersect all polygons from start_index to end_index - 1.
+		# Finally, it must not intersect the fence at end_index.
+		for i in range(start_index, end_index):
+
+			# We must first determine whether the segment intersects the current polygon.
+			# If it does not, then it does not respect the next fence, as it never reaches the current polygon.
+			polygon = self.polygons[i]
+			intersection = polygon.segment_intersection(start, target)
+
+			# Q: is this correct?
+			# A: I think so...
+			if intersection is None:
+				return False
+
+			# We need to check if the segment from start to intersection intersects the fence.
+			# If it does, then the segment does not respect the fences.
+			if self.fences[i].intersects_segment(start, intersection):
+				return False
+
+			start = intersection
+
+		# Finally, we need to check if the segment intersects the fence at end_index.
+		# If it does, then the segment does not respect the fences.
+		return not self.fences[end_index].intersects_segment(start, target)
+
+	def make_mapping(self) -> None:
+
+		self.mapping = {}
+
+		# For each reflex vertex in each polygon, check which reflex vertices in other polygons
+		# can be reached from it.
+
+		for i in range(len(self.fences)):
+			for j in range(i, len(self.fences)):
+				print(i, j)
+				fence1 = self.fences[i]
+				fence2 = self.fences[j]
+
+				for vi, v1 in fence1.reflex_vertices_pairs:
+					for vj, v2 in fence2.reflex_vertices_pairs:
+
+						# Skip if they are the same vertex in the same polygon
+						# this is a valid path, but we don't want to store it in the mapping.
+						if i == j and vi == vj:
+							continue
+
+						if not self.respects_fences(v1, v2, i, j):
+							continue
+
+						print(f"Mapping ({i}, {vi}) to ({j}, {vj}); {v1} -> {v2}")
+						
+						if (i, vi) not in self.mapping:
+							self.mapping[(i, vi)] = []
+						
+						self.mapping[(i, vi)].append((j, vj))
+
 
 	def _path_in_fence0(self, start: Vector2, target: Vector2) -> list[Vector2]:
 		"""
@@ -174,6 +242,21 @@ class Solution:
 
 		if index == 0:
 			return self._path_in_fence0(start, target)
+
+		return []
+
+	def fenced_path(self, start: Vector2, target: Vector2, start_index: int, end_index: int) -> list[Vector2]:
+		"""
+		Returns the smallest path from `start` to `target` that is inside all fences from `start_index` to `end_index`.
+		"""
+
+		if start_index == end_index:
+			return self.path_in_fence(start, target, start_index)
+
+		vertices = [start, target]
+		edges: list[list[tuple[int, float]]] = []
+
+
 
 		return []
 
@@ -231,25 +314,23 @@ class Solution:
 		if index == 0:
 			return self.path_in_fence(self.start, point, 0)[-2]
 
-		polygon = self.polygons[index]
-		blocked = self.blocked[index]
-		cones = self.cones[index]
+		polygon = self.polygons[index - 1]
 
 		# Check for cone region
 		for i in range(len(polygon)):
-			if self.point_in_cone(point, index, i):
+			if self.point_in_cone(point, index - 1, i):
 				return polygon[i]
 		
 		# Check for edge region
 		for i in range(len(polygon)):
 
-			if not self.point_in_edge(point, index, i):
+			if self.blocked[index - 1][i] or not self.point_in_edge(point, index - 1, i):
 				continue
 
 			raise NotImplementedError("Reflecting on edges is not implemented yet")
 
-		if not self.point_in_pass_through(point, index):
-			raise ValueError("WTF, the point is not in any region??????")
+		if not self.point_in_pass_through(point, index - 1):
+			raise ValueError("WTF! The point is not in any region?!?")
 
 		return point.inf()
 
@@ -292,18 +373,21 @@ class Solution:
 
 		self.solve0()
 
+		print(self.query(self.target, 1))
+
 		return []
 
 test1 = (
-	(0.0, 4.009), (-1.837, -4.593), 
+	(0.0, 4.009), 
+	(-2.499, -6.247), 
 	[
-		[(-1.837, -0.0), (0.919, -0.919), (3.674, -0.0), (2.185, 0.381), (0.401, 0.521), (-1.102, 0.241)], 
-		[(-5.511, -3.674), (-4.593, -2.756), (-3.674, -2.756), (-4.593, -3.674)]
+		[(-2.499, -0.0), (1.249, -1.249), (4.998, -0.0)], 
+		[(-7.497, -4.998), (-6.247, -3.748), (-4.998, -3.748), (-6.247, -4.998)]
 	], 
 	[
-		[(-4.593, 4.593), (-4.593, 0.919), (-0.919, 0.919), (-4.593, -0.0), (-4.593, -3.674), (6.43, -3.674), (6.43, -0.0), (1.837, 0.919), (6.43, 0.919), (6.43, 3.674), (1.837, 2.756), (4.593, 4.593)], 
-		[(-6.43, 2.756), (-5.511, 1.837), (-3.674, 5.511), (-3.674, 1.837), (-2.756, 7.349), (0.0, 6.43), (-0.919, 3.674), (1.837, 5.511), (2.756, 7.349), (2.756, 3.674), (4.593, 6.43), (6.43, 5.511), (4.593, 3.674), (7.349, 1.837), (1.837, 1.837), (7.349, 0.919), (4.593, -0.919), (0.0, -1.837), (7.349, -0.919), (7.349, -2.756), (1.002, -3.007), (6.43, -4.593), (-6.43, -5.511), (-7.349, -3.674), (-2.756, -1.837), (-4.593, -4.593), (-0.919, -1.837), (-7.349, 0.919)], 
-		[(-5.511, -1.837), (-8.267, -4.593), (-3.674, -6.43), (0.919, -2.756), (-3.674, -5.511), (-5.511, -4.593)]
+		[(-6.247, 6.247), (-6.247, 1.249), (-1.249, 1.249), (-6.247, -0.0), (-6.247, -4.998), (8.746, -4.998), (8.746, -0.0), (2.499, 1.249), (8.746, 1.249), (8.746, 4.998), (2.499, 3.748), (6.247, 6.247)], 
+		[(-8.746, 3.748), (-7.497, 2.499), (-4.998, 7.497), (-4.998, 2.499), (-3.748, 9.996), (0.0, 8.746), (-1.249, 4.998), (2.499, 7.497), (3.748, 9.996), (3.748, 4.998), (6.247, 8.746), (8.746, 7.497), (6.247, 4.998), (9.996, 2.499), (2.499, 2.499), (9.996, 1.249), (6.247, -1.249), (0.0, -2.499), (9.996, -1.249), (9.996, -3.748), (1.249, -3.748), (8.746, -6.247), (-8.746, -7.497), (-9.996, -4.998), (-3.748, -2.499), (-6.247, -6.247), (-1.249, -2.499), (-9.996, 1.249)], 
+		[(-9.079, -10.088), (-7.062, -7.062), (-5.044, -11.097), (1.249, -3.748), (-5.044, -9.079), (-4.035, -2.018), (-7.062, -3.026), (-9.079, -7.062)]
 	]
 )
 
