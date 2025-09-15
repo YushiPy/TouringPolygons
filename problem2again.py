@@ -291,8 +291,6 @@ class Solution:
 		if end_index < start_index:
 			return [start, target]
 		
-		clause = True
-
 		if self.respects_fences(start, target, start_index, end_index, clause):
 			return [start, target] # Direct path is valid.
 
@@ -394,7 +392,7 @@ class Solution:
 		return polygon.contains_point(point) >= 0
 
 	@cache
-	def query(self, point: Vector2, start_index: int, end_index: int, seen: frozenset[tuple[float, float]] = frozenset()) -> list[Vector2]:
+	def query(self, point: Vector2, start_index: int, end_index: int, clause: bool = False) -> list[Vector2]:
 		"""
 		Returns the shortest path from `self.start` to `point` that
 		touches all polygons up to `start_index` and respects 
@@ -402,7 +400,7 @@ class Solution:
 		"""
 
 		if start_index == 0:
-			return self.fenced_path(self.start, point, 0, end_index)
+			return self.fenced_path(self.start, point, 0, end_index, clause)
 
 		polygon = self.polygons[start_index - 1]
 
@@ -416,7 +414,7 @@ class Solution:
 
 			if self.fences[start_index].contains_segment(vertex, point):
 				# print(point, start_index, end_index, vertex)
-				return self.query(vertex, start_index - 1, start_index - 1) + self.fenced_path(vertex, point, start_index, end_index)
+				return self.query(vertex, start_index - 1, start_index - 1, False) + self.fenced_path(vertex, point, start_index, end_index, clause)
 
 		# Check for edge region
 		for i in range(len(polygon)):
@@ -429,7 +427,7 @@ class Solution:
 
 			reflected = point.reflect_segment(v1, v2)
 
-			path = self.query(reflected, start_index - 1, start_index - 1)
+			path = self.query(reflected, start_index - 1, start_index - 1, True)
 
 			# print(point, start_index, end_index, path)
 
@@ -448,10 +446,10 @@ class Solution:
 
 			path = path[:-1] # Remove the reflected point
 			
-			return path + self.fenced_path(intersection, point, start_index, end_index)
+			return path + self.fenced_path(intersection, point, start_index, end_index, clause)
 
 		if self.point_in_pass_through(point, start_index - 1):
-			return self.query(point, start_index - 1, end_index)
+			return self.query(point, start_index - 1, end_index, False)
 
 		# Point cannot be directly reached, 
 		# must stop by a reflex first
@@ -468,10 +466,7 @@ class Solution:
 			if vertex == point:
 				continue
 
-			if tuple(vertex) in seen:
-				continue
-
-			path = self.query(vertex, start_index, start_index)
+			path = self.query(vertex, start_index, start_index, clause)
 			# print(point, start_index, end_index, vertex, path)
 			if not path:
 				raise ValueError("Path not found on reflex vertex check.")
@@ -487,11 +482,9 @@ class Solution:
 			# Remove the vertex so it is not duplicated in output
 			path = path[:-1]
 
-			return path + self.fenced_path(vertex, point, start_index, end_index)
+			return path + self.fenced_path(vertex, point, start_index, end_index, clause)
 
-		print(point, start_index, end_index)
-		raise ValueError("At this point, just give up...")
-		return []
+		raise ValueError(f"Point {point} cannot be reached at {start_index=} and {end_index=}.")
 
 	def solve0(self) -> None:
 
@@ -547,6 +540,10 @@ class Solution:
 		target = Vector2(2.499, 2.499)
 		target = Vector2(-4.998, 2.499)
 		target = Vector2(2, 7)
+		target = Vector2(-2, 9)
+
+		target = self.polygons[1][3]
+
 		path = self.query(target, 1, 1)
 		# path = []
 
