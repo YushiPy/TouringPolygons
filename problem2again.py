@@ -444,10 +444,28 @@ class Solution:
 		# Point cannot be directly reached, 
 		# must stop by a reflex first
 
-		for vertex in self.fences[start_index].reflex_vertices:
+		for index in self.fences[start_index].reflex_vertices_indices:
 
-			pass
+			vertex = self.fences[start_index][index]
+			before = self.fences[start_index][index - 1]
+			after = self.fences[start_index][(index + 1) % len(self.fences[start_index])]
 
+			path = self.query(vertex, start_index, start_index)
+			last = path[-2]
+
+			if not bend_is_optimal(last, point, vertex, before, after):
+				continue
+
+			# Fence must contain this new path.
+			if not self.fences[start_index].contains_segment(vertex, point):
+				continue
+
+			# Remove the vertex so it is not duplicated in output
+			path.pop()
+
+			return path + self.fenced_path(vertex, point, start_index, end_index)
+
+		raise ValueError("At this point, just give up...")
 		return []
 
 	def solve0(self) -> None:
