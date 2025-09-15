@@ -216,7 +216,7 @@ class Solution:
 
 		self.make_mapping()
 
-	def respects_fences(self, start: Vector2, target: Vector2, start_index: int, end_index: int) -> bool:
+	def respects_fences(self, start: Vector2, target: Vector2, start_index: int, end_index: int, clause: bool = False) -> bool:
 		"""
 		Returns whether the segment from `start` to `target` respects the fences from `start_index` to `end_index`.
 		"""
@@ -245,7 +245,10 @@ class Solution:
 
 		# Finally, we need to check if the segment intersects the fence at end_index.
 		# If it does, then the segment does not respect the fences.
-		return not self.fences[end_index].intersects_segment(start, target)
+		if not clause:
+			return not self.fences[end_index].intersects_segment(start, target)
+		else:
+			return sum(segment_segment_intersection(start, target, a, b) is not None for a, b in self.fences[end_index].far_edges(start, target)) <= 1
 
 	def make_mapping(self) -> None:
 
@@ -280,12 +283,17 @@ class Solution:
 						
 						self.mapping[(j, vj)].append((i, vi))
 
-	def fenced_path(self, start: Vector2, target: Vector2, start_index: int, end_index: int) -> list[Vector2]:
+	def fenced_path(self, start: Vector2, target: Vector2, start_index: int, end_index: int, clause: bool = False) -> list[Vector2]:
 		"""
 		Returns the smallest path from `start` to `target` that is inside all fences from `start_index` to `end_index`.
 		"""
 
-		if self.respects_fences(start, target, start_index, end_index):
+		if end_index < start_index:
+			return [start, target]
+		
+		clause = True
+
+		if self.respects_fences(start, target, start_index, end_index, clause):
 			return [start, target] # Direct path is valid.
 
 		vertices = [start, target]
@@ -327,9 +335,9 @@ class Solution:
 					edges[0].append((ind, start.distance_to(v)))
 					edges[ind].append((0, start.distance_to(v)))
 
-				if self.respects_fences(v, target, fence_index, end_index):
+				if self.respects_fences(v, target, fence_index, end_index, clause):
 					edges[1].append((ind, target.distance_to(v)))
-					edges[ind].append((1, target.distance_to(v)))		
+					edges[ind].append((1, target.distance_to(v)))
 
 		path_indices = astar(0, 1, edges, lambda a, b: vertices[a].distance_to(vertices[b]))
 		path = [vertices[i] for i in path_indices]
@@ -386,15 +394,12 @@ class Solution:
 		return polygon.contains_point(point) >= 0
 
 	@cache
-	def query(self, point: Vector2, start_index: int, end_index: int) -> list[Vector2]:
+	def query(self, point: Vector2, start_index: int, end_index: int, seen: frozenset[tuple[float, float]] = frozenset()) -> list[Vector2]:
 		"""
 		Returns the shortest path from `self.start` to `point` that
 		touches all polygons up to `start_index` and respects 
 		all fences up to `end_index`.
 		"""
-
-		if end_index < start_index:
-			raise ValueError("end_index must be greater than or equal to start_index")
 
 		if start_index == 0:
 			return self.fenced_path(self.start, point, 0, end_index)
@@ -410,6 +415,7 @@ class Solution:
 			vertex = polygon[i]
 
 			if self.fences[start_index].contains_segment(vertex, point):
+				print(point, start_index, end_index, vertex)
 				return self.query(vertex, start_index - 1, start_index - 1) + self.fenced_path(vertex, point, start_index, end_index)
 
 		# Check for edge region
@@ -422,9 +428,15 @@ class Solution:
 			v2 = polygon[(i + 1) % len(polygon)]
 
 			reflected = point.reflect_segment(v1, v2)
-			path = self.query(reflected, start_index - 1, end_index - 1)
-			
-			last = path[-2]
+
+			path = self.query(reflected, start_index - 1, start_index - 1)
+
+			# print(point, start_index, end_index, path)
+
+			if not path:
+				raise ValueError("Path not found on edge check.")
+	
+			last = path[-2] if len(path) > 1 else path[0]
 
 			intersection = segment_segment_intersection(last, reflected, v1, v2)
 
@@ -434,7 +446,7 @@ class Solution:
 			if not self.fences[start_index].contains_segment(intersection, point):
 				continue
 
-			path.pop() # Remove the reflected point
+			path = path[:-1] # Remove the reflected point
 			
 			return path + self.fenced_path(intersection, point, start_index, end_index)
 
@@ -450,8 +462,22 @@ class Solution:
 			before = self.fences[start_index][index - 1]
 			after = self.fences[start_index][(index + 1) % len(self.fences[start_index])]
 
-			path = self.query(vertex, start_index, start_index)
-			last = path[-2]
+			# Sometimes we query a reflex vertex.
+			# Whithout this check, we may fall on an infinite loop.
+			if vertex == point:
+				continue
+
+			if tuple(vertex) in seen:
+				continue
+
+			seen = seen.union([(vertex.x, vertex.y)])
+
+			path = self.query(vertex, start_index, start_index, seen)
+			# print(point, start_index, end_index, vertex, path)
+			if not path:
+				raise ValueError("Path not found on reflex vertex check.")
+
+			last = path[-2] if len(path) > 1 else path[0]
 
 			if not bend_is_optimal(last, point, vertex, before, after):
 				continue
@@ -461,10 +487,11 @@ class Solution:
 				continue
 
 			# Remove the vertex so it is not duplicated in output
-			path.pop()
+			path = path[:-1]
 
 			return path + self.fenced_path(vertex, point, start_index, end_index)
 
+		# print(point, start_index, end_index)
 		raise ValueError("At this point, just give up...")
 		return []
 
@@ -505,16 +532,27 @@ class Solution:
 
 	def solve(self) -> list[Vector2]:
 
+		for v in self.fences[0].reflex_vertices:
+			self.query(v, 0, 0)
+		
 		self.solve0()
 
+		for v in self.fences[1].reflex_vertices:
+			print(self.query(v, 1, 1))
+		
 		import matplotlib.pyplot as plt
 
-		#target = Vector2(9.9, -1.4)
+		target = Vector2(9.9, -1.4)
 		target = Vector2(5, 3)
-		path = self.query(target, 1, 1)
+		target = Vector2(-9, -5)
+		target = Vector2(-5.1, 4)
+		# target = Vector2(2.499, 2.499)
+		# target = Vector2(-4.998, 2.499)
+		# target = Vector2(2, 7)
+		# path = self.query(target, 1, 1)
+		path = []
 
 		# path = self.fenced_path(self.start, Vector2(-5, 0), 0, 0)
-
 
 		for polygon in self.polygons:
 			plt.fill(*zip(*polygon), alpha=0.7)
@@ -533,6 +571,8 @@ class Solution:
 		plt.grid()
 		plt.show()
 
+		# path = self.query(target, 1, 1)
+
 		return []
 
 test1 = (
@@ -543,7 +583,7 @@ test1 = (
 		[(-7.497, -4.998), (-6.247, -3.748), (-4.998, -3.748), (-6.247, -4.998)]
 	], 
 	[
-		[(-6.247, 6.247), (-6.247, 1.249), (-1.249, 1.249), (-6.247, -0.0), (-6.247, -4.998), (8.746, -4.998), (8.746, -0.0), (2.499, 1.249), (8.746, 1.249), (8.746, 4.998), (2.499, 3.748), (6.247, 6.247)], 
+		[(-6.247, 6.247), (-6.247, 1.249), (-1.249, 1.249), (-6.247, -0.0), (-6.247, -3), (8.746, -3), (8.746, -0.0), (2.499, 1.249), (8.746, 1.249), (8.746, 4.998), (2.499, 3.748), (6.247, 6.247)], 
 		[(-8.746, 3.748), (-7.497, 2.499), (-4.998, 7.497), (-4.998, 2.499), (-3.748, 9.996), (0.0, 8.746), (-1.249, 4.998), (2.499, 7.497), (3.748, 9.996), (3.748, 4.998), (6.247, 8.746), (8.746, 7.497), (6.247, 4.998), (9.996, 2.499), (2.499, 2.499), (9.996, 1.249), (6.247, -1.249), (0.0, -2.499), (9.996, -1.249), (9.996, -3.748), (1.249, -3.748), (8.746, -6.247), (-8.746, -7.497), (-9.996, -4.998), (-3.748, -2.499), (-6.247, -6.247), (-1.249, -2.499), (-9.996, 1.249)], 
 		[(-9.079, -10.088), (-7.062, -7.062), (-5.044, -11.097), (1.249, -3.748), (-5.044, -9.079), (-4.035, -2.018), (-7.062, -3.026), (-9.079, -7.062)]
 	]
