@@ -97,7 +97,7 @@ class Gameplay(Game):
 		self.held_vertex: tuple[int, int] | None = None
 
 		self.snap_to_grid = False
-		self.grid_size = 50
+		self.grid_size = 50.0
 
 		self.last_loaded: str | None = None
 
@@ -344,7 +344,7 @@ Controls:
 
 				diff: float = (event.y * self.grid_size / 30)
 
-				self.grid_size = min(300, max(10, self.grid_size + diff))
+				self.grid_size = min(300.0, max(10.0, self.grid_size + diff))
 
 		if pg.K_RETURN in up_keys:
 			self.polygons.append([])
@@ -364,14 +364,16 @@ Controls:
 
 		if pg.K_BACKSPACE in down_keys:
 			
-			if self.polygons[self.current_polygon]:
-				self.polygons[self.current_polygon].pop()
-			else:
+			if self.shifting or not self.polygons[self.current_polygon]:
 				self.polygons.pop(self.current_polygon)
+			else:
+				self.polygons[self.current_polygon].pop()
 
 		self.last_mouse_keys = mouse_held
 
 		if pg.K_c in up_keys:
 			self.color_offset = random.randrange(0, 2 ** 63)
+
+		return None
 
 Gameplay().run()
