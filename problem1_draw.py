@@ -174,6 +174,7 @@ class Drawing(Solution):
 			scenes = list(range(n))
 
 		count = len(scenes) + 1
+		#count = 1
 
 		height = isqrt(count)
 		width = (count + height - 1) // height
@@ -182,6 +183,7 @@ class Drawing(Solution):
 		flat = axs.flatten() if count > 1 else [axs]
 
 		for i, a in enumerate(scenes):
+			#break
 			self.draw_scene(flat[i + 1], a)
 			flat[i + 1].set_title(f"Regions for polygon {a + 1}", fontsize=14)
 
@@ -197,7 +199,10 @@ class Drawing(Solution):
 		flat[0].legend()
 
 		for i in range(1, len(scenes) + 1):
+			#break
 			flat[i].legend()
+
+		# plt.savefig("img2.png", dpi=300)
 
 		plt.show() # type: ignore
 
@@ -279,6 +284,10 @@ class Drawing(Solution):
 		ax.set_ylim(miny, maxy)
 		ax.set_aspect('equal', adjustable='box')
 
+		# Setting labels
+		plot(*zip(self.start), "o", color="green", label='Start' * (index == -1), markersize=4)
+		plot(*zip(self.end), "o", color="red", label='End' * (index == -1), markersize=4)
+
 		# Fill the background with a cyan color
 		fill([minx, minx, maxx, maxx], [miny, maxy, maxy, miny], color="#6abdbe", alpha=0.7)
 		
@@ -297,8 +306,8 @@ class Drawing(Solution):
 		plot(*zip(*self.final_path), color="purple")
 
 		# Plot the start and end points
-		plot(*zip(self.start), "o", color="green", label='Start' * (index == -1), markersize=4)
-		plot(*zip(self.end), "o", color="red", label='End' * (index == -1), markersize=4)
+		plot(*zip(self.start), "o", color="green", markersize=4)
+		plot(*zip(self.end), "o", color="red", markersize=4)
 
 		# ax.legend() # type: ignore
 		ax.grid() # type: ignore
