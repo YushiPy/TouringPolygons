@@ -18,7 +18,6 @@ def cache[T, **P](func: Callable[P, T]) -> Callable[P, T]:
 
 	return lru_cache(maxsize=None)(func) # type: ignore
 
-
 def astar(start: int, target: int, edges: list[list[tuple[int, float]]], heuristic: Callable[[int, int], float]) -> list[int]:
 	"""
 	Perform A* search to find the shortest path from `start` to `target`.
@@ -64,7 +63,6 @@ def astar(start: int, target: int, edges: list[list[tuple[int, float]]], heurist
 				heapq.heappush(queue, (priority, neighbor))
 
 	return []
-
 
 def point_in_cone(point: Vector2, start: Vector2, ray1: Vector2, ray2: Vector2, eps: float = 1e-10) -> bool:
 	"""
@@ -118,7 +116,6 @@ def point_in_edge(point: Vector2, start1: Vector2, ray1: Vector2, start2: Vector
 	# Also checks if the point is clockwise to the segment from `start1` to `start2`.
 	return (cross1 >= 0 and cross2 <= 0 and cross3 <= 0)
 
-
 def intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> tuple[float, float] | None:
 
 	cross = direction1.cross(direction2)
@@ -154,7 +151,6 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 		return start1 + diff1 * rates[0]
 
 	return None
-
 
 def bend_is_optimal(start: Vector2, end: Vector2, vertex: Vector2, before: Vector2, after: Vector2) -> bool:
 	"""
@@ -216,6 +212,27 @@ class Solution:
 
 		self.make_mapping()
 
+	def respects_clause(self, start: Vector2, target: Vector2, end_index: int, clause: bool) -> bool:
+
+		fence = self.fences[end_index]
+
+		if fence.contains_segment(start, target):
+			return True
+		
+		if not clause:
+			return False
+
+		hits = sum(segment_segment_intersection(start, target, a, b) is not None for a, b in self.fences[end_index].far_edges(start, target))
+
+		if hits > 1:
+			return False
+
+		polygon = self.polygons[end_index]
+		intersection = polygon.segment_intersection(start, target)
+		# print(start, target, intersection, start_index, end_index)
+		
+		return intersection is not None
+
 	def respects_fences(self, start: Vector2, target: Vector2, start_index: int, end_index: int, clause: bool = False) -> bool:
 		"""
 		Returns whether the segment from `start` to `target` respects the fences from `start_index` to `end_index`.
@@ -243,12 +260,7 @@ class Solution:
 
 			start = intersection
 
-		# Finally, we need to check if the segment intersects the fence at end_index.
-		# If it does, then the segment does not respect the fences.
-		if not clause:
-			return not self.fences[end_index].intersects_segment(start, target)
-		else:
-			return sum(segment_segment_intersection(start, target, a, b) is not None for a, b in self.fences[end_index].far_edges(start, target)) <= 1
+		return self.respects_clause(start, target, end_index, clause)
 
 	def make_mapping(self) -> None:
 
@@ -391,14 +403,34 @@ class Solution:
 		# Check if the point is inside the polygon
 		return polygon.contains_point(point) >= 0
 
+	def query_cone(self, point: Vector2, start_index: int, end_index: int, clause: bool = False) -> list[Vector2]:
+
+		polygon = self.polygons[start_index - 1]
+
+		# Check for cone region
+		for i in range(len(polygon)):
+
+			if not self.point_in_cone(point, start_index - 1, i):
+				continue
+
+			vertex = polygon[i]
+
+			if self.respects_clause(vertex, point, start_index, clause):
+			# if self.fences[start_index].contains_segment(vertex, point):
+				print(point, start_index, end_index, vertex)
+				return self.query(vertex, start_index - 1, start_index - 1, False) + self.fenced_path(vertex, point, start_index, end_index, clause)
+
 	@cache
-	def query(self, point: Vector2, start_index: int, end_index: int, clause: bool = False) -> list[Vector2]:
+	def query(self, point: Vector2, start_index: int, end_index: int, clause: bool = False, max_recursion: int = -1, seen: frozenset[Vector2] = frozenset()) -> list[Vector2]:
 		"""
 		Returns the shortest path from `self.start` to `point` that
 		touches all polygons up to `start_index` and respects 
 		all fences up to `end_index`.
 		"""
-
+		print(point, start_index, end_index, clause, max_recursion, seen)
+		if max_recursion == 0:
+			return []
+		
 		if start_index == 0:
 			return self.fenced_path(self.start, point, 0, end_index, clause)
 
@@ -412,9 +444,10 @@ class Solution:
 
 			vertex = polygon[i]
 
-			if self.fences[start_index].contains_segment(vertex, point):
-				# print(point, start_index, end_index, vertex)
-				return self.query(vertex, start_index - 1, start_index - 1, False) + self.fenced_path(vertex, point, start_index, end_index, clause)
+			if self.respects_clause(vertex, point, start_index, clause):
+			# if self.fences[start_index].contains_segment(vertex, point):
+				print(point, start_index, end_index, vertex)
+				return self.query(vertex, start_index - 1, start_index - 1, False, max_recursion) + self.fenced_path(vertex, point, start_index, end_index, clause)
 
 		# Check for edge region
 		for i in range(len(polygon)):
@@ -427,15 +460,15 @@ class Solution:
 
 			reflected = point.reflect_segment(v1, v2)
 
-			path = self.query(reflected, start_index - 1, start_index - 1, True)
-
-			# print(point, start_index, end_index, path)
+			print(point, v1, v2, reflected, start_index, end_index)
+			path = self.query(reflected, start_index - 1, start_index - 1, True, max_recursion)
 
 			if not path:
-				raise ValueError("Path not found on edge check.")
-	
+				return []
+			
 			last = path[-2] if len(path) > 1 else path[0]
 
+			# print(point, reflected, path, last)
 			intersection = segment_segment_intersection(last, reflected, v1, v2)
 
 			if intersection is None:
@@ -449,7 +482,7 @@ class Solution:
 			return path + self.fenced_path(intersection, point, start_index, end_index, clause)
 
 		if self.point_in_pass_through(point, start_index - 1):
-			return self.query(point, start_index - 1, end_index, False)
+			return self.query(point, start_index - 1, end_index, clause, max_recursion)
 
 		# Point cannot be directly reached, 
 		# must stop by a reflex first
@@ -462,13 +495,18 @@ class Solution:
 			# if point == Vector2(-5.5, 4): print(1)
 			# Sometimes we query a reflex vertex.
 			# Whithout this check, we may fall on an infinite loop.
-			if vertex == point:
+			if vertex.is_close(point):
+				continue
+			
+			if vertex in seen:
 				continue
 
-			path = self.query(vertex, start_index, start_index, clause)
+			seen = seen | {vertex}
+
+			path = self.query(vertex, start_index, start_index, clause, max_recursion - 1, seen)
 			# print(point, start_index, end_index, vertex, path)
 			if not path:
-				raise ValueError("Path not found on reflex vertex check.")
+				return []
 
 			last = path[-2] if len(path) > 1 else path[0]
 
@@ -495,12 +533,31 @@ class Solution:
 
 	def _solve(self) -> None:
 
+		def query_reflex(index: int) -> None:
+
+			vertices = self.fences[index].reflex_vertices.copy()
+
+			counter: int = 1
+
+			while vertices:
+
+				queue: list[Vector2] = []
+
+				for v in vertices:
+
+					path = self.query(v, index, index, False, counter)
+
+					if not path:
+						queue.append(v)
+
+				vertices = queue
+				counter += 1
+
 		n = len(self.polygons)
 
 		for i in range(n):
 
-			for v in self.fences[i].reflex_vertices:
-				self.query(v, i, i)
+			query_reflex(i)
 
 			polygon = self.polygons[i]
 			blocked = self.blocked[i]
@@ -511,14 +568,15 @@ class Solution:
 			for a, b in polygon.edges():
 
 				mid = (a + b) / 2
-				last = self.query(a, i, i)[-2]
+				last = self.query(mid, i, i)[-2]
 				
 				blocked.append(polygon.intersects_segment(last, mid))
 
-			# Compute the cones for polygon 0
+			# Compute the cones for polygon
 			for j in range(len(polygon)):
 
 				v = polygon[j]
+
 				last = self.query(v, i, i)[-2]
 				diff = (v - last).normalize()
 
@@ -535,13 +593,12 @@ class Solution:
 					dir2 = dir2.reflect((after - v).perpendicular())
 
 				cones.append((dir1, dir2))
-		
-		for v in self.fences[-1].reflex_vertices:
-			self.query(v, n, n)
+
+		query_reflex(n)
 
 	def solve(self) -> list[Vector2]:
 
-		self._solve()
+		#self._solve()
 
 		import matplotlib.pyplot as plt
 
@@ -551,20 +608,28 @@ class Solution:
 		for fence in self.fences:
 			plt.plot(*zip(*(fence + (fence[0],))), alpha=0.7)
 
-		p = self.query(self.target, len(self.polygons), len(self.fences) - 1, False)
-
-		plt.plot(*zip(*p), color='blue')
-
 		plt.scatter(*self.start, color='green')
 		plt.scatter(*self.target, color='red')
 
 		plt.axis('equal')
 		plt.grid()
+
+		#x = [Vector2(2.013, 8.054), Vector2(-5.033, 6.04), Vector2(2.013, 4.027), Vector2(3.02, 2.013), Vector2(-3.02, 2.013), Vector2(-4.027, 1.007), Vector2(12.283159570709353, -4.426119380176692)]
+		#plt.plot(*zip(*x))
+
+		self._solve()
+
+		p = self.query(self.target, len(self.polygons), len(self.fences) - 1, False)
+		#p = []
+		plt.plot(*zip(*p), color='blue')
+
 		plt.show()
+
 
 		# print(self.query(Vector2(-7.062, -2.934), 1, 1, True))
 
-		path = self.query(self.target, len(self.polygons), len(self.fences) - 1, False)
+		# path = self.query(self.target, len(self.polygons), len(self.fences) - 1, False, -1)
+		path: list[Vector2] = []
 
 		return path
 
@@ -585,39 +650,49 @@ test1 = (
 """
 
 test1 = (
+	(0.0, 4.009), 
+	(-1.599, -6.447), 
+	[
+		[(-2.499, -0.0), (1.249, -1.249), (4.998, -0.0)], 
+		[(-7.497, -4.998), (-6.247, -3.748), (-4.998, -3.748), (-6.247, -4.998)]
+	], 
+	[
+		[(-6.247, 6.247), (-6.247, 1.249), (-1.249, 1.249), (-6.247, -0.0), (-6.247, -3), (8.746, -3), (8.746, -0.0), (2.499, 1.249), (8.746, 1.249), (8.746, 4.998), (2.499, 3.748), (6.247, 6.247)], 
+		[(-8.746, 3.748), (-7.497, 2.499), (-4.998, 7.497), (-4.998, 2.499), (-3.748, 9.996), (0.0, 8.746), (-1.249, 4.998), (2.499, 7.497), (3.748, 9.996), (3.748, 4.998), (6.247, 8.746), (8.746, 7.497), (6.247, 4.998), (9.996, 2.499), (2.499, 2.499), (9.996, 1.249), (6.247, -1.249), (0.0, -2.499), (9.996, -1.249), (9.996, -3.748), (1.249, -3.748), (8.746, -6.247), (-8.746, -7.497), (-9.996, -4.998), (-3.748, -2.499), (-6.247, -6.247), (-1.249, -2.499), (-9.996, 1.249)], 
+		[(-9.079, -10.088), (-7.062, -7.062), (-5.044, -11.097), (1.249, -3.748), (-5.044, -9.079), (-4.035, -2.018), (-7.062, -3.026), (-9.079, -7.062)]
+	]
+)
+test2 = (
 	(-1.007, 10.067), 
-	(1.007, -7.047), 
+	(-5.007, 2.047), 
 	[
 		[(1.007, -1.007), (0.0, -2.013), (1.007, -4.027), (3.02, -5.033), (5.033, -4.027), (6.04, -2.013), (5.033, -1.007), (3.02, -0.0)], 
 		[(5.033, 10.067), (2.013, 7.047), (5.033, 3.02), (8.054, 3.02), (10.067, 4.027), (11.074, 6.04)], 
-		[(-13.087, 8.054), (-13.087, 5.033), (-10.067, 5.033), (-10.067, 9.06)]
 	], 
 	[
 		[(-2.013, 12.08), (-7.047, 8.054), (2.013, 8.054), (-6.04, 7.047), (-7.047, 5.033), (2.013, 4.027), (3.02, 2.013), (-6.04, 3.02), (-6.04, 1.007), (2.013, -6.04), (11.074, -4.027), (6.04, -0.0), (-4.027, 1.007), (-3.02, 2.013), (4.027, 1.007), (3.02, 5.033), (-5.033, 6.04), (3.02, 7.047), (3.02, 9.06), (-3.02, 9.06), (1.007, 10.067)], 
 		[(-4.027, -3.02), (4.027, 12.08), (19.127, 6.04), (5.033, 1.007), (14.094, -3.02), (5.033, -8.054)], 
 		[(2.013, 14.094), (-2.013, 7.047), (3.02, 10.067), (-3.02, 4.027), (5.033, 11.074), (13.087, 10.067), (13.087, 1.007), (-1.007, -4.027), (-8.054, -3.02), (-4.027, 8.054), (-7.047, 5.033), (-3.02, 13.087), (-9.06, 7.047), (-9.06, 1.007), (-14.094, 2.013), (-15.1, 12.08), (-5.033, 16.107)], 
-		[(-13.087, 10.067), (-17.114, 5.033), (-2.013, -17.114), (8.054, -13.087), (0.0, -0.0), (0.0, -8.054), (-4.027, -0.0), (-7.047, -6.04), (-8.054, 10.067)]
 	]
 )
 
-test2 = (
-	(-4.007, 2.067), 
-	(8, -3), 
-	#(0, -3), 
+test3 = (
+	(-3.0, 3.0), 
+	(1.0, 4.0), 
 	[
-		[(0.0, -2.013), (1.007, -4.027), (3.02, -5.033), (5.033, -4.027), (6.04, -2.013), (5.033, -1.007), (3.02, -0.0)], 
+		[(-3.0, -1.0), (3.0, -1.0), (0.0, -2.0)]
 	], 
 	[
-		[(3.02, 2.013), (-6.04, 3.02), (-6.04, 1.007), (2.013, -6.04), (11.074, -4.027), (6.04, -0.0), (-4.027, 1.007), (-3.02, 2.013)], 
-		[(-10, -10), (10, -10), (10, 10), (-10, 10)]
+		[(-4.0, 5.0), (-3.0, -3.0), (5.0, -2.0)], 
+		[(0.0, 4.0), (2.0, 2.0), (-4.0, -1.0), (-4.0, -2.0), (4.0, -3.0), (2.0, 5.0)]
 	]
 )
 
-test3 = ((-0.417, 4.166), (1.32, 5.1), [[(-0.24, -0.52), (-0.68, -1.3), (-0.66, -2.22), (0.9, -2.76), (2.14, -2.56), (2.76, -1.78), (2.14, -0.38), (1.14, -0.32)]], [[(-0.833, 4.999), (-2.916, 3.333), (0.833, 3.333), (-2.5, 2.916), (-2.916, 2.083), (0.833, 1.667), (1.25, 0.833), (-2.5, 1.25), (-4.38, -1.54), (0.58, -3.66), (3.46, -3.24), (4.08, 0.26), (-1.82, -0.24), (-1.25, 0.833), (1.667, 0.417), (1.25, 2.083), (-2.083, 2.5), (1.25, 2.916), (1.25, 3.749), (-1.25, 3.749), (0.417, 4.166)], [(3.78, 1.66), (3.1, -5.8), (-4.98, -3.72), (0.04, 0.32), (-4.68, -0.68), (-0.8, 2.08), (-4.4, 3.3), (3.12, 6.04), (-0.3, 3.12)]])
 
 # TODO: Check test1 and test3 for problem with edges.
 # Also swap target to (0, -3) in test2 and investigate why
 # it fails. Probably an edge case with edges.
 
-s = Solution(*test2)
+s = Solution(*test3)
 s.solve()
+

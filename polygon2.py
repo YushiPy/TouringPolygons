@@ -1,6 +1,6 @@
 
 from functools import cached_property
-from typing import Iterable, Literal, SupportsIndex
+from typing import Iterable, Literal, Self, SupportsIndex
 from vector2 import Vector2
 
 
@@ -52,6 +52,20 @@ def _segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector
 		return start1 + diff1 * rates[0]
 
 	return None
+
+def _point_in_segment(point: Vector2, start: Vector2, end: Vector2, eps: float = 1e-12) -> bool:
+	"""
+	Check if a point is on a line segment defined by two endpoints.
+
+	:param Vector2 point: The point to check.
+	:param Vector2 start: The start point of the segment.
+	:param Vector2 end: The end point of the segment.
+	:param float eps: A small epsilon value for numerical stability.
+
+	:return: True if the point is on the segment, otherwise False.
+	"""
+
+	return abs(_orient(start, end, point)) <= eps and _on_segment(start, end, point, eps)
 
 class Polygon2(tuple[Vector2, ...]):
 
@@ -222,6 +236,10 @@ class Polygon2(tuple[Vector2, ...]):
 		:return: The intersection point as a Vector2 if an intersection exists, otherwise None.
 		"""
 
+		for a, b in self.edges():
+			if _point_in_segment(start, a, b, eps):
+				return start
+
 		possibles: list[Vector2] = []
 
 		for a, b in self.far_edges(start, end, eps=eps):
@@ -260,6 +278,21 @@ class Polygon2(tuple[Vector2, ...]):
 
 		# Also check if the midpoint is inside the polygon for robustness
 		return self.contains_point((start + end) / 2, eps) >= 0
+
+	def contains_polygon(self, other: Iterable[Iterable[float]], eps: float = 1e-12) -> bool:
+		"""
+		Check if the polygon completely contains another polygon.
+		The other polygon is considered contained if all its vertices are inside or on the boundary
+		of this polygon, and if none of its edges intersect with this polygon's edges.
+		"""
+
+		points = [Vector2(p) for p in other]
+
+		for i in range(len(points)):
+			if self.intersects_segment(points[i], points[(i + 1) % len(points)], eps):
+				return False
+
+		return True
 
 	def __getitem__(self, index: SupportsIndex) -> Vector2: # type: ignore
 		"""
