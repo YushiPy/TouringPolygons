@@ -1,11 +1,54 @@
 
-from typing import Iterable
+from typing import Iterable, Sequence
+
 
 
 type _Vector2 = Iterable[float]
 type _Polygon2 = Iterable[_Vector2]
 
-type Test = tuple[_Vector2, _Vector2, list[_Polygon2], list[_Polygon2]]
+type Test = tuple[_Vector2, _Vector2, Sequence[_Polygon2], Sequence[_Polygon2]]
+
+import traceback
+from vector2 import Vector2
+from polygon2 import Polygon2
+
+from problem2_draw import Drawing
+
+def do_test(start: _Vector2, end: _Vector2, polygons: Iterable[_Polygon2], fences: Iterable[_Polygon2]) -> None:
+	"""
+	Test the drawing functionality with given start and end points, polygons, and expected output.
+	"""
+
+	_start = Vector2(*start)
+	_end = Vector2(*end)
+
+	_polygons = [Polygon2(polygon) for polygon in polygons]
+	_fences = [Polygon2(fence) for fence in fences]
+
+	drawing = Drawing(_start, _end, _polygons, _fences)
+	
+	try: 
+		drawing.draw()
+	except ValueError:
+		traceback.print_exc()
+
+	drawing.draw()
+
+def parse_test(values: list[list[tuple[float, float]]]) -> Test:
+	"""
+	Parse a list of values into a Test tuple.
+	"""
+
+	ones = [i for i in values if len(i) == 1]
+	values = [i for i in values if len(i) > 1]
+
+	start = ones[0][0]
+	end = ones[1][0]
+	
+	polygons = values[1::2]
+	fences = values[::2]
+
+	return start, end, polygons, fences
 
 test1 = (
 	(-3.0, 3.0), 

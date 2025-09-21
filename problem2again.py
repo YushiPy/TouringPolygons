@@ -603,16 +603,16 @@ class Solution:
 		import matplotlib.pyplot as plt
 
 		for polygon in self.polygons:
-			plt.fill(*zip(*polygon), alpha=0.7)
+			plt.fill(*zip(*polygon), alpha=0.7) # type: ignore
 
 		for fence in self.fences:
-			plt.plot(*zip(*(fence + (fence[0],))), alpha=0.7)
+			plt.plot(*zip(*(fence + (fence[0],))), alpha=0.7) # type: ignore
 
-		plt.scatter(*self.start, color='green')
-		plt.scatter(*self.target, color='red')
+		plt.scatter(*self.start, color='green') # type: ignore
+		plt.scatter(*self.target, color='red') # type: ignore
 
-		plt.axis('equal')
-		plt.grid()
+		plt.axis('equal') # type: ignore
+		plt.grid() # type: ignore
 
 		#x = [Vector2(2.013, 8.054), Vector2(-5.033, 6.04), Vector2(2.013, 4.027), Vector2(3.02, 2.013), Vector2(-3.02, 2.013), Vector2(-4.027, 1.007), Vector2(12.283159570709353, -4.426119380176692)]
 		#plt.plot(*zip(*x))
@@ -621,9 +621,9 @@ class Solution:
 
 		p = self.query(self.target, len(self.polygons), len(self.fences) - 1, False)
 		#p = []
-		plt.plot(*zip(*p), color='blue')
+		plt.plot(*zip(*p), color='blue') # type: ignore
 
-		plt.show()
+		plt.show() # type: ignore
 
 		print(self.fenced_path(self.start, Vector2(0, 0), 0, 0))
 
