@@ -1,6 +1,6 @@
 
 import heapq
-from itertools import accumulate, chain, cycle, islice
+from itertools import accumulate, chain
 from typing import Callable, Iterable, Iterator, Sequence
 
 import matplotlib.pyplot as plt
@@ -307,51 +307,52 @@ class Solution:
 
 				self.reflex_mapping[(i, j)] = reachable
 
+
+	def valid_last_step(self, start: Vector2, end: Vector2, start_index: int, end_index: int) -> bool:
+		"""
+		Checks if a path from `start` to `end` is valid.
+		This means a standard valid path or a path that 
+		goes outside the last fence only once and intersects
+		the polygon from the previous fence.
+
+		For example, a path from a start point inside fence 0
+		to a target point that respects all fences from 0 to 1.
+		The path will be valid if it respects fence 0 and
+		intersects polygon 1 and then goes outside fence 1 to reach end.
+		"""
+
+		# If there are previous fences, it must respect them.
+		if 0 < start_index < end_index and not self.respects_fences(start, end, start_index, end_index - 1):
+			return False
+
+		fence = self.fences[end_index]
+		
+		# Standard case
+		if fence.contains_segment(start, end):
+			return True
+
+		if fence.contains_point(end) >= 0:
+			return False
+
+		# This query can't be from an edge query, because
+		# edge querys reduce the problem to the previous polygon.
+		if end_index == len(self.polygons):
+			return False
+
+		# Check if the path goes outside the last fence only once
+		if sum(segment_segment_intersection(a, b, start, end) is not None for a, b in fence.far_edges(start, end)) > 1:
+			return False
+
+		polygon = self.polygons[end_index]
+		intersection = polygon.segment_intersection(start, end)
+		
+		return intersection is not None
+
 	def make_graph(self, start: Vector2, end: Vector2, start_index: int, end_index: int) -> Graph:
 
 		@cache
 		def vertex_index(fence_index: int, vertex_index: int) -> int:
 			return accum_reflex_counts[fence_index] + self.fences[fence_index].reflex_vertices_indices.index(vertex_index)
-
-		def valid_last_step(v: Vector2, from_index: int) -> bool:
-			"""
-			Checks if a path from `v` to `end` is valid.
-			This means a standard valid path or a path that 
-			goes outside the last fence only once and intersects
-			the polygon from the previous fence.
-
-			For example, a path from a start point inside fence 0
-			to a target point that respects all fences from 0 to 1.
-			The path will be valid if it respects fence 0 and
-			then goes outside fence 1 and intersects polygon 1.
-			"""
-
-			# If there are previous fences, it must respect them.
-			if 0 < from_index < end_index and not self.respects_fences(v, end, from_index, end_index - 1):
-				return False
-
-			fence = self.fences[end_index]
-			
-			# Standard case
-			if fence.contains_segment(v, end):
-				return True
-
-			if fence.contains_point(end) >= 0:
-				return False
-
-			# This query can't be from an edge query, because
-			# edge querys reduce the problem to the previous polygon.
-			if end_index == len(self.polygons):
-				return False
-
-			# Check if the path goes outside the last fence only once
-			if sum(segment_segment_intersection(a, b, v, end) is not None for a, b in fence.far_edges(v, end)) > 1:
-				return False
-
-			polygon = self.polygons[end_index]
-			intersection = polygon.segment_intersection(v, end)
-			
-			return intersection is not None
 
 		vertices = [start, end]
 
@@ -397,10 +398,10 @@ class Solution:
 
 				#if self.respects_fences(v, end, fence_index, end_index) and valid_last_step(v, fence_index):
 				#	edges[index].append((1, (end - v).length()))
-				if valid_last_step(v, fence_index):
+				if self.valid_last_step(v, end, fence_index, end_index):
 					edges[index].append(1)
 
-		if valid_last_step(start, start_index):
+		if self.valid_last_step(start, end, start_index, end_index):
 			edges[0].append(1)
 
 		return Graph(vertices, edges)
@@ -511,9 +512,11 @@ class Solution:
 
 			if not self.point_in_cone(point, index - 1, i):
 				continue
-			
-			if not self.fences[index].contains_segment(v, point):
+
+			if not (self.fences[index].contains_segment(v, point) or self.valid_last_step(v, point, index - 1, end_index)):
 				continue
+			#if not self.fences[index].contains_segment(v, point):
+			#	continue
 
 			path = self.query(v, index - 1, index - 1)
 
@@ -629,13 +632,13 @@ class Solution:
 
 		if (path := self.query_cone(point, index, end_index)):
 			return path
-		
+
 		if (path := self.query_edge(point, index, end_index)):
 			return path
-		
+
 		if (path := self.query_pass_through(point, index, end_index)):
 			return path
-		
+
 		# All cases failed, there is no direct path to the point.
 		# We must go through a reflex vertex.
 
@@ -718,33 +721,19 @@ class Solution:
 	
 		return path
 
-
 test1 = (
-	(-6.247, 6.247), 
-	(-1.599, -6.447), 
+	(-1.007, 10.067), 
+	(1.007, -7.047), 
 	[
-		[(-2.499, -0.0), (1.249, -1.249), (4.998, -0.0)], 
-		[(-7.497, -4.998), (-6.247, -3.748), (-4.998, -3.748), (-6.247, -4.998)]
+		[(1.007, -1.007), (0.0, -2.013), (1.007, -4.027), (3.02, -5.033), (5.033, -4.027), (6.04, -2.013), (5.033, -1.007), (3.02, -0.0)], 
+		[(5.033, 10.067), (2.013, 7.047), (5.033, 3.02), (8.054, 3.02), (10.067, 4.027), (11.074, 6.04)], 
+		[(-13.087, 8.054), (-13.087, 5.033), (-10.067, 5.033), (-10.067, 9.06)]
 	], 
 	[
-		[(-6.247, 6.247), (-6.247, 1.249), (-1.249, 1.249), (-6.247, -0.0), (-6.247, -3.0), (8.746, -3.0), (8.746, -0.0), (2.499, 1.249), (8.746, 1.249), (8.746, 4.998), (2.499, 3.748), (6.247, 6.247)], 
-		[(-8.746, 3.748), (-7.497, 2.499), (-4.998, 7.497), (-4.998, 2.499), (-3.748, 9.996), (0.0, 8.746), (-1.249, 4.998), (2.499, 7.497), (3.748, 9.996), (3.748, 4.998), (6.247, 8.746), (8.746, 7.497), (6.247, 4.998), (9.996, 2.499), (2.499, 2.499), (9.996, 1.249), (6.247, -1.249), (0.0, -2.499), (9.996, -1.249), (9.996, -3.748), (1.249, -3.748), (8.746, -6.247), (-8.746, -7.497), (-9.996, -4.998), (-3.748, -2.499), (-6.247, -6.247), (-1.249, -2.499), (-9.996, 1.249)], 
-		[(-9.079, -10.088), (-7.062, -7.062), (-5.044, -11.097), (1.249, -3.748), (-5.044, -9.079), (-4.035, -2.018), (-7.062, -3.026), (-9.079, -7.062)]
-	]
-)
-
-test2 = (
-	(-3.0, 5.0), 
-	(-2.0, 1.0), 
-	[
-		[(-1.0, -4.0), (3.0, -4.0), (5.0, -3.0), (4.0, -2.0), (1.0, -1.0), (-2.0, -2.0), (-3.0, -3.0)], 
-		[(0.0, 6.0), (3.0, 2.0), (5.0, 5.0), (2.0, 7.0)], 
-	], 
-	[
-		[(-4.0, 5.0), (-3.0, 2.0), (0.0, 2.0), (2.0, 1.0), (-1.0, -0.0), (1.0, -0.0), (-3.0, -2.0), (-4.0, -4.0), (0.0, -6.0), (6.0, -3.0), (5.0, -0.0), (3.0, -1.0), (3.0, 4.0), (-1.0, 3.0), (-2.0, 6.0)], 
-		[(-1.0, 7.0), (-2.0, 3.0), (1.0, 2.0), (0.0, 1.0), (1.0, -0.0), (-6.0, -0.5), (-6.0, -4.0), 
-		(8.0, -4.5), (-6.0, -4.5), (-6.0, -5.0), (0.0, -6.0), (8.0, -6.0), (9.0, -4.0), (9.0, 2.0), (4.0, 3.0), (7.0, 4.0), (3.0, 8.0)],
-		[(1.0, 2.0), (-1.0, 5.0), (-3.0, -0.0), (7.0, 1.0), (6.0, 7.0), (-1.0, 8.0)],
+		[(-2.013, 12.08), (-7.047, 8.054), (2.013, 8.054), (-6.04, 7.047), (-7.047, 5.033), (2.013, 4.027), (3.02, 2.013), (-6.04, 3.02), (-6.04, 1.007), (2.013, -6.04), (11.074, -4.027), (6.04, -0.0), (-4.027, 1.007), (-3.02, 2.013), (4.027, 1.007), (3.02, 5.033), (-5.033, 6.04), (3.02, 7.047), (3.02, 9.06), (-3.02, 9.06), (1.007, 10.067)], 
+		[(-4.027, -3.02), (4.027, 12.08), (19.127, 6.04), (5.033, 1.007), (14.094, -3.02), (5.033, -8.054)], 
+		[(2.013, 14.094), (-2.013, 7.047), (3.02, 10.067), (-3.02, 4.027), (5.033, 11.074), (13.087, 10.067), (13.087, 1.007), (-1.007, -4.027), (-8.054, -3.02), (-4.027, 8.054), (-7.047, 5.033), (-3.02, 13.087), (-9.06, 7.047), (-9.06, 1.007), (-14.094, 2.013), (-15.1, 12.08), (-5.033, 16.107)], 
+		[(-13.087, 10.067), (-17.114, 5.033), (-2.013, -17.114), (8.054, -13.087), (0.0, -0.0), (0.0, -8.054), (-4.027, -0.0), (-7.047, -6.04), (-8.054, 10.067)]
 	]
 )
 
@@ -752,7 +741,9 @@ test2 = (
 sol = Solution(*test1)
 
 sol.basic_draw(False)
-
 path = sol.solve()
+
 sol.ax.plot(*zip(*[(v.x, v.y) for v in path]), '-', color="purple") # type: ignore
+
+sol.basic_cones(0)
 
