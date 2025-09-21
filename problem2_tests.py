@@ -110,9 +110,9 @@ def do_test(test: Test) -> None:
 
 	path = solution.solve()
 
-	solution.ax.plot(*zip(*path), color="red", linewidth=2, linestyle="dashed", marker="o", markersize=3, label="Path")
+	solution.ax.plot(*zip(*path), color="red", linewidth=2, linestyle="dashed", marker="o", markersize=3, label="Path") # type: ignore
 
-	plt.show()
+	plt.show() # type: ignore
 
 do_test(test1)
 do_test(test2)

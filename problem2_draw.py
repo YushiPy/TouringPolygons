@@ -196,7 +196,7 @@ class Drawing(Solution):
 			flat[i].axis("off")
 
 		plt.tight_layout()
-		plt.show()
+		plt.show() # type: ignore
 
 	def draw_cones(self, ax: Axes, index: int) -> None:
 
@@ -265,12 +265,12 @@ class Drawing(Solution):
 		ax.set_ylim(miny, maxy)
 		ax.set_aspect('equal', adjustable='box')
 
-		ax.grid()
+		ax.grid() # type: ignore
 
 		fill(ax, [minx, minx, maxx, maxx], [miny, maxy, maxy, miny], color="#6abdbe", alpha=0.7)
 
-		ax.fill(*zip(*(fence1 + (fence1[0],))), color="#ffffff", alpha=1)
-		ax.fill(*zip(*(fence2 + (fence2[0],))), color="#ffffff", alpha=1)
+		ax.fill(*zip(*(fence1 + (fence1[0],))), color="#ffffff", alpha=1) # type: ignore
+		ax.fill(*zip(*(fence2 + (fence2[0],))), color="#ffffff", alpha=1) # type: ignore
 
 
 		if len(self.cones) > index and self.cones[index]:
@@ -278,14 +278,14 @@ class Drawing(Solution):
 			self.draw_edges(ax, index)
 
 
-		ax.fill(*zip(*(fence1 + (fence1[0],))), color="#8c00ff", alpha=0.2)
-		ax.fill(*zip(*(fence2 + (fence2[0],))), color="#00a6ff", alpha=0.2)
+		ax.fill(*zip(*(fence1 + (fence1[0],))), color="#8c00ff", alpha=0.2) # type: ignore
+		ax.fill(*zip(*(fence2 + (fence2[0],))), color="#00a6ff", alpha=0.2) # type: ignore
 
-		ax.plot(*zip(*(fence1 + (fence1[0],))), color="#ffffff", alpha=0.8, linewidth=4)
-		ax.plot(*zip(*(fence2 + (fence2[0],))), color="#ffffff", alpha=0.8, linewidth=4)
+		ax.plot(*zip(*(fence1 + (fence1[0],))), color="#ffffff", alpha=0.8, linewidth=4) # type: ignore
+		ax.plot(*zip(*(fence2 + (fence2[0],))), color="#ffffff", alpha=0.8, linewidth=4) # type: ignore
 
-		ax.plot(*zip(*(fence1 + (fence1[0],))), color="#8c00ff", alpha=0.8)
-		ax.plot(*zip(*(fence2 + (fence2[0],))), color="#00a6ff", alpha=0.8)
+		ax.plot(*zip(*(fence1 + (fence1[0],))), color="#8c00ff", alpha=0.8) # type: ignore
+		ax.plot(*zip(*(fence2 + (fence2[0],))), color="#00a6ff", alpha=0.8) # type: ignore
 
 		# draw_polygon(ax, polygon, color="#ffcc00", alpha=0.7, label="Polygon")
 
