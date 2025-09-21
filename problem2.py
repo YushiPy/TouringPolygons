@@ -27,7 +27,7 @@ def debug_func(skip_count: int = 0) -> None:
 	func_name = frame.f_code.co_name # type: ignore
 	
 	# Get local variables in the caller (arguments are part of locals)
-	args, _, _, values = inspect.getargvalues(frame)
+	args, _, _, values = inspect.getargvalues(frame) # type: ignore
 	args = args[skip_count:]
 
 	# Format the arguments nicely
@@ -342,6 +342,9 @@ class Solution:
 		intersects polygon 1 and then goes outside fence 1 to reach end.
 		"""
 
+		if self.respects_fences(start, end, start_index, end_index):
+			return True
+
 		# If there are previous fences, it must respect them.
 		if 0 < start_index < end_index and not self.respects_fences(start, end, start_index, end_index - 1):
 			return False
@@ -417,8 +420,6 @@ class Solution:
 				if self.respects_fences(start, v, start_index, fence_index):
 					edges[0].append(index)
 
-				#if self.respects_fences(v, end, fence_index, end_index) and valid_last_step(v, fence_index):
-				#	edges[index].append((1, (end - v).length()))
 				if self.valid_last_step(v, end, fence_index, end_index):
 					edges[index].append(1)
 
@@ -533,7 +534,7 @@ class Solution:
 			if not self.point_in_cone(point, index - 1, i):
 				continue
 
-			if not (self.fences[index].contains_segment(v, point) or self.valid_last_step(v, point, index - 1, end_index)):
+			if not self.valid_last_step(v, point, index - 1, end_index):
 				continue
 			#if not self.fences[index].contains_segment(v, point):
 			#	continue
@@ -611,6 +612,9 @@ class Solution:
 
 		fence = self.fences[index]
 
+		if not fence.reflex_vertices:
+			return []
+
 		start = next((i for i, v in enumerate(fence.reflex_vertices) if point.is_close(v)), - 1)
 		start = (start + 1) % len(fence.reflex_vertices)
 
@@ -619,7 +623,7 @@ class Solution:
 			vertex = fence[v_index]
 
 			# The path from the vertex to the point must be direct.
-			if not (fence.contains_segment(vertex, point) or self.valid_last_step(vertex, point, index, end_index)):
+			if not self.valid_last_step(vertex, point, index, end_index):
 				continue
 
 			path = self.query(vertex, index, index)
@@ -734,7 +738,7 @@ class Solution:
 		for i in range(n):
 			self.compute_blocked(i)
 			self.compute_cones(i)
-		# return []
+		
 		path = self.query(self.target, n, n)
 
 		if len(path) < 2:

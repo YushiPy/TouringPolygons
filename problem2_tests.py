@@ -8,31 +8,6 @@ type _Polygon2 = Iterable[_Vector2]
 
 type Test = tuple[_Vector2, _Vector2, Sequence[_Polygon2], Sequence[_Polygon2]]
 
-import traceback
-from vector2 import Vector2
-from polygon2 import Polygon2
-
-from problem2_draw import Drawing
-
-def do_test(start: _Vector2, end: _Vector2, polygons: Iterable[_Polygon2], fences: Iterable[_Polygon2]) -> None:
-	"""
-	Test the drawing functionality with given start and end points, polygons, and expected output.
-	"""
-
-	_start = Vector2(*start)
-	_end = Vector2(*end)
-
-	_polygons = [Polygon2(polygon) for polygon in polygons]
-	_fences = [Polygon2(fence) for fence in fences]
-
-	drawing = Drawing(_start, _end, _polygons, _fences)
-	
-	try: 
-		drawing.draw()
-	except ValueError:
-		traceback.print_exc()
-
-	drawing.draw()
 
 def parse_test(values: list[list[tuple[float, float]]]) -> Test:
 	"""
@@ -58,7 +33,7 @@ test1 = (
 	], 
 	[
 		[(-4.0, 5.0), (-3.0, -3.0), (5.0, -2.0)], 
-		[(0.0, 4.0), (2.0, 2.0), (-4.0, -1.0), (-4.0, -5.0), (4.0, -4.0), (4.0, -3.0), (-3.01, -3.0), (4.0, -2.0), (2.0, 5.0)]
+		[(0.0, 4.0), (2.0, 2.0), (-4.0, -1.0), (-4.0, -5.0), (4.0, -4.0), (4.0, -3.0), (-3.5, -3.0), (4.0, -2.0), (2.0, 5.0)]
 	]
 )
 
@@ -76,7 +51,7 @@ test2 = (
 	]
 )
 
-test3: Test = (
+test3 = (
 	(0.0, 4.009), 
 	(-1.599, -6.447), 
 	[
@@ -108,6 +83,42 @@ test4 = (
 
 test5 = ((0.0, 4.0), (4.0, -3.5), [[(-3.0, -0.0), (3.0, -0.0), (0.0, -1.0)]], [[(-6.0, 5.0), (-6.0, 1.0), (-1.0, 1.0), (-6.0, -0.0), (-6.0, -3.0), (6.0, -3.0), (6.0, -0.0), (1.0, 1.0), (6.0, 1.0), (6.0, 5.0)], [(-7.0, 2.0), (7.0, 2.0), (7.0, -4.0), (-7.0, -4.0)]])
 
-test6 = ((0.0, 4.0), (4.0, -3.5), [[(-3.0, -0.0), (3.0, -0.0), (0.0, -1.0)]], [[(-0.0, 4.0), (-1.0, 1.0), (-3.0, -0.0), (-0.0, -1.0), (3.0, -0.0), (1.0, 1.0)], [(-3.0, 0.0), (4.0, -3.5), (3.0, 0.0)]])
+test6 = (
+	(0.0, 4.0), 
+	(4.0, -3.5), 
+	[
+		[(-3.0, -0.0), (3.0, -0.0), (0.0, -1.0)]
+	], 
+	[
+		[(-0.0, 4.0), (-1.0, 1.0), (-3.0, -0.0), (-0.0, -1.0), (3.0, -0.0), (1.0, 1.0)], 
+		[(-3.0, 0.0), (4.0, -3.5), (3.0, 0.0)]
+	]
+)
 
 test7 = ((0.0, 13.333), (-20.0, -14.804), [[(-6.667, -0.0), (3.333, -3.333), (13.333, -0.0)]], [[(-16.667, 16.667), (-16.667, 3.333), (-3.333, 3.333), (-16.667, -0.0), (-16.667, -13.333), (23.333, -13.333), (23.333, -0.0), (6.667, 3.333), (23.333, 3.333), (23.333, 13.333), (7.133, 9.767), (16.667, 16.667)], [(-23.333, 10.0), (-20.0, 6.667), (-13.333, 20.0), (-13.333, 6.667), (-10.0, 26.667), (0.0, 23.333), (-3.333, 13.333), (6.667, 20.0), (10.0, 26.667), (10.0, 13.333), (16.667, 23.333), (23.333, 20.0), (16.667, 13.333), (26.667, 6.667), (6.667, 6.667), (26.667, 3.333), (16.667, -3.333), (0.0, -6.667), (26.667, -3.333), (26.667, -10.0), (3.333, -10.0), (23.333, -16.667), (-23.333, -20.0), (-26.667, -13.333), (-10.0, -6.667), (-16.667, -16.667), (-3.333, -6.667), (-26.667, 3.333)]])
+
+from problem2 import Solution
+
+import matplotlib.pyplot as plt
+
+def do_test(test: Test) -> None:
+
+	start, end, polygons, fences = test
+
+	solution = Solution(start, end, polygons, fences)
+	solution.basic_draw(False)
+
+	path = solution.solve()
+
+	solution.ax.plot(*zip(*path), color="red", linewidth=2, linestyle="dashed", marker="o", markersize=3, label="Path")
+
+	plt.show()
+
+do_test(test1)
+do_test(test2)
+do_test(test3)
+do_test(test4)
+do_test(test5)
+do_test(test6)
+do_test(test7)
+

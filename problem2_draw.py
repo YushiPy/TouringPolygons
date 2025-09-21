@@ -8,7 +8,7 @@ from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
 
 from polygon2 import Polygon2
-from problem2again import Solution
+from problem2 import Solution
 from vector2 import Vector2
 
 
