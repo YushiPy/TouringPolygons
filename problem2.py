@@ -1,28 +1,100 @@
 
-"""
-Implementation of the second variation of the problem. 
-
-We are given:
-- A starting point `s`.
-- A target point `t`.
-- Convex polygons P_1, ..., P_k.
-- Simple poligons called "fences" F_0, ..., F_k such that
-for all 0 <= i <= k the polygons P_i and P_{i + 1} are inside the fence F_i.
-We will conside that P_0 = s and P_{k + 1} = t.
-
-We will also consider that:
-- The polygons are non intersecting
-- The problem is in 2D.
-"""
-
-import math
-from typing import Callable, Iterable
 import heapq
+from itertools import accumulate, chain
+from typing import Callable, Iterable, Iterator, Sequence
+
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.axes import Axes
 
 
 from vector2 import Vector2
 from polygon2 import Polygon2
 
+
+type _Vector2 = Iterable[float]
+type _Polygon2 = Iterable[_Vector2]
+
+
+def debug_func(skip_count: int = 0) -> None:
+	"""
+	Prints the name and arguments of the caller function.
+	"""
+	import inspect
+
+	# Get the caller's frame
+	frame = inspect.currentframe().f_back # type: ignore
+	func_name = frame.f_code.co_name # type: ignore
+	
+	# Get local variables in the caller (arguments are part of locals)
+	args, _, _, values = inspect.getargvalues(frame)
+	args = args[skip_count:]
+
+	# Format the arguments nicely
+	arg_str = ", ".join(f"{arg}={values[arg]!r}" for arg in args)
+	
+	print(f"{func_name}({arg_str})")
+
+
+class InputError(ValueError):
+	pass
+
+class RuntimeError(Exception):
+	pass
+
+class Graph:
+
+	vertices: list[Vector2]
+	edges: list[list[int]]
+
+	def __init__(self, vertices: Iterable[Vector2] = [], edges: Iterable[Iterable[int]] = []) -> None:
+		self.vertices = list(vertices)
+		self.edges = list(map(list, edges))
+
+	def astar(self, start: int = 0, end: int = 1) -> list[Vector2]:
+
+		n = len(self.vertices)
+		v_end = self.vertices[end]
+
+		previous = [-1] * n
+		costs = [float('inf')] * n
+		costs[start] = 0
+
+		# The priority queue stores tuples of (estimated total cost, vertex index).
+		queue: list[tuple[float, int]] = [(-1, start)] # The -1 doesn't matter, will become _.
+
+		while queue:
+			
+			_, current = queue.pop(0)
+
+			if current == end:
+				break
+
+
+			for neighbor in self.edges[current]:
+
+				v1 = self.vertices[current]
+				v2 = self.vertices[neighbor]
+				new_cost = costs[current] + v1.distance_to(v2)
+
+				if new_cost < costs[neighbor]:
+					costs[neighbor] = new_cost
+					previous[neighbor] = current
+					heapq.heappush(queue, (new_cost + v2.distance_to(v_end), neighbor))
+
+		if previous[end] == -1:
+			return []
+		
+		path: list[Vector2] = []
+		current = end
+
+		while current != -1:
+			path.append(self.vertices[current])
+			current = previous[current]
+		
+		path.reverse()
+
+		return path
 
 # This is the same as functools.cache, but it does not remove the type hints.
 def cache[T, **P](func: Callable[P, T]) -> Callable[P, T]:
@@ -30,88 +102,6 @@ def cache[T, **P](func: Callable[P, T]) -> Callable[P, T]:
 	from functools import lru_cache
 
 	return lru_cache(maxsize=None)(func) # type: ignore
-
-def shortest_path_in_polygon(start: Vector2, end: Vector2, polygon: Polygon2) -> list[Vector2]:
-	"""
-	Calculate the shortest path from start to end, while staying inside the polygon.
-
-	:param Vector2 start: The starting point.
-	:param Vector2 end: The ending point.
-	:param Polygon2 polygon: The polygon to stay within.
-
-	:return: A list of Vector2 points representing the shortest path.
-	"""
-
-	vertices: list[Vector2] = [start, end] + polygon.reflex_vertices
-	edges: list[list[tuple[int, float]]] = [[] for _ in range(len(vertices))]
-
-	for i in range(len(vertices)):
-		for j in range(i + 1, len(vertices)):
-
-			# If segments intersect, do not add an edge
-
-			first = vertices[i]
-			second = vertices[j]
-
-			if not polygon.contains_segment(first, second, 1e-6):
-				continue
-
-			cost: float = (vertices[i] - vertices[j]).magnitude()
-
-			edges[i].append((j, cost))
-			edges[j].append((i, cost))
-	
-	# A star algorithm
-	gscore = [math.inf] * len(vertices)
-	gscore[0] = 0
-
-	visited = [False] * len(vertices)
-	previous = [-1] * len(vertices)
-
-	queue: list[tuple[float, int]] = [(0, 0)] # (cost, index)
-
-	while queue:
-
-		_, vertex = heapq.heappop(queue)
-
-		if vertex == 1: # Reached the end
-			break
-
-		if visited[vertex]:
-			continue
-
-		visited[vertex] = True
-		gcost = gscore[vertex]
-
-		for target, edge_cost in edges[vertex]:
-
-			if visited[target]:
-				continue
-
-			new_cost = gcost + edge_cost
-
-			if new_cost >= gscore[target]:
-				continue
-
-			gscore[target] = new_cost
-			previous[target] = vertex
-			heuristic = (vertices[target] - end).magnitude()
-			heapq.heappush(queue, (new_cost + heuristic, target))
-
-	if previous[1] == -1:
-		raise ValueError("No path found from start to end.")
-	
-	path: list[Vector2] = []
-	current = 1
-
-	while current != 0:
-		path.append(vertices[current])
-		current = previous[current]
-
-	path.append(start)
-	path.reverse()
-
-	return path
 
 def point_in_cone(point: Vector2, start: Vector2, ray1: Vector2, ray2: Vector2, eps: float = 1e-10) -> bool:
 	"""
@@ -138,6 +128,34 @@ def point_in_cone(point: Vector2, start: Vector2, ray1: Vector2, ray2: Vector2, 
 	# clockwise side of the second ray.
 	return (cross1 >= -eps and cross2 <= eps)
 
+def point_in_edge(point: Vector2, start1: Vector2, ray1: Vector2, start2: Vector2, ray2: Vector2) -> bool:
+	"""
+	Check if a point is inside the edge defined by two rays starting from `start1` and `start2`.
+
+	:param Vector2 point: The point to check.
+	:param Vector2 start1: The starting point of the first ray.
+	:param Vector2 ray1: The direction vector of the first ray.
+	:param Vector2 start2: The starting point of the second ray.
+	:param Vector2 ray2: The direction vector of the second ray.
+
+	:return: True if the point is inside the edge, False otherwise.
+	"""
+
+	vector1 = point - start1
+	vector2 = point - start2
+
+	ray3 = start2 - start1
+
+	cross1 = ray1.cross(vector1)
+	cross2 = ray2.cross(vector2)
+	cross3 = ray3.cross(vector1)
+
+	# Is to the counter-clockwise side of the first ray and 
+	# clockwise side of the second ray.
+	# Also checks if the point is clockwise to the segment from `start1` to `start2`.
+	return (cross1 >= 0 and cross2 <= 0 and cross3 <= 0)
+
+
 def intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> tuple[float, float] | None:
 
 	cross = direction1.cross(direction2)
@@ -152,7 +170,7 @@ def intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, di
 
 	return rate1, rate2
 
-def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2, eps: float = 1e-10) -> Vector2 | None:
+def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2) -> Vector2 | None:
 	"""
 	Returns the intersection point of two line segments if they intersect, otherwise returns None.
 
@@ -169,96 +187,35 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 
 	rates = intersection_rates(start1, diff1, start2, diff2)
 
-	if rates is not None and -eps <= rates[0] <= 1 + eps and -eps <= rates[1] <= 1 + eps:
+	if rates is not None and 0 <= rates[0] <= 1 and 0 <= rates[1] <= 1:
 		return start1 + diff1 * rates[0]
 
-def path_is_optimal(vertex: Vector2, before: Vector2, after: Vector2, start: Vector2, end: Vector2) -> bool:
+def bend_is_optimal(start: Vector2, end: Vector2, vertex: Vector2, before: Vector2, after: Vector2) -> bool:
+	"""
+	Returns whether a bend at `vertex` that 
+	comes from `before` and goes to `after` is 
+	optimal on a path from `start` to `end`.
+	"""
 
-	rate1 = intersection_rates(start, end - start, vertex, before - vertex)
-
-	if rate1 is None or rate1[0] < 0:
+	if point_in_cone(end, vertex, before - vertex, after - vertex):
 		return False
+
+	rates1 = intersection_rates(start, end - start, vertex, before - vertex)
+	rates2 = intersection_rates(start, end - start, vertex, after - vertex)
+
+	if rates1 is not None and 0 <= rates1[0] <= 1 and rates1[1] >= 0:
+		return True
 	
-	rate2 = intersection_rates(start, end - start, vertex, after - vertex)
+	if rates2 is not None and 0 <= rates2[0] <= 1 and rates2[1] >= 0:
+		return True
 
-	if rate2 is None or rate2[0] < 0:
-		return False
-	if end.is_close(Vector2(-10/3, -20/3)):
-		print(vertex, before, after, start, end, rate1, rate2)
-	return True
-
-
-def convex_hull(points: list[Vector2]) -> list[Vector2]:
-
-	sorted_points = sorted(points)
-
-	return half_hull(sorted_points) + half_hull(reversed(sorted_points))
-
-def half_hull(sorted_points: Iterable[Vector2]) -> list[Vector2]:
-
-	hull: list[Vector2] = []
-
-	for p in sorted_points:
-
-		while len(hull) > 1 and not is_ccw_turn(hull[-2], hull[-1], p):
-			hull.pop()
-
-		hull.append(p)
-
-	hull.pop()
-
-	return hull
-
-def is_ccw_turn(p0: Vector2, p1: Vector2, p2: Vector2) -> bool:
-	return (p1 - p0).cross(p2 - p0) > 0
-
-
-def astar(start: int, end: int, edges: list[list[tuple[int, float]]], heuristic: list[float]) -> list[int]:
-
-	gscore = [math.inf] * len(edges)
-	gscore[start] = 0
-
-	visited = [False] * len(edges)
-	previous = [-1] * len(edges)
-
-	queue: list[tuple[float, int]] = [(heuristic[start], start)] # (gcost + heuristic, index)
-
-	while queue:
-
-		_, vertex = heapq.heappop(queue)
-
-		if vertex == end: # Reached the end
-			break
-
-		if visited[vertex]:
-			continue
-
-		visited[vertex] = True
-		gcost = gscore[vertex]
-
-		for target, edge_cost in edges[vertex]:
-
-			if visited[target]:
-				continue
-
-			new_cost = gcost + edge_cost
-
-			if new_cost >= gscore[target]:
-				continue
-
-			gscore[target] = new_cost
-			previous[target] = vertex
-			h = heuristic[target]
-			heapq.heappush(queue, (new_cost + h, target))
-
-	if previous[end] == -1:
-		raise ValueError("No path found from start to end.")
+	return False
 
 
 class Solution:
 
 	start: Vector2
-	end: Vector2
+	target: Vector2
 
 	polygons: list[Polygon2]
 	fences: list[Polygon2]
@@ -273,260 +230,514 @@ class Solution:
 	# Indicates whether the vertex j of P_i is blocked by P_i.
 	blocked: list[list[bool]]
 
-	# For each polygon P_i, we store the direction of the 
-	# last segment that reaches the vertex.
-	# These vertices are the reflex vertices of the fences.
-	last_fence_vertex: list[list[Vector2]]
+	# A mapping from (fence_index, reflex_vertex_index) to (fence_index, reflex_vertex_index)
+	# This mapping tells us which vertices can be reached from which other vertices.
+	# Note that the mapping is only for reflex vertices.
+	reflex_mapping: dict[tuple[int, int], list[tuple[int, int]]]
 
-	def __init__(self, start: Vector2, end: Vector2, polygons: Iterable[Polygon2], fences: Iterable[Polygon2]) -> None:
-		"""
-		Initialize the solution with the starting point, end point, polygons, and fences.
+	fig: Figure
+	ax: Axes
 
-		:param Vector2 start: The starting point of the path.
-		:param Vector2 end: The end point of the path.
-		:param Iterable[Polygon2] polygons: An iterable of convex polygons representing the obstacles.
-		:param Iterable[Polygon2] fences: An iterable of simple polygons representing the fences.
+	def __init__(self, start: _Vector2, target: _Vector2, polygons: Iterable[_Polygon2], fences: Iterable[_Polygon2]) -> None:
 
-		:raises ValueError: If any of the polygons are not convex.
-		"""
+		self.start = Vector2(*start)
+		self.target = Vector2(*target)
 
-		self.start = start
-		self.end = end
+		self.polygons = list(map(Polygon2, polygons))
+		self.fences = list(map(Polygon2, fences))
 
-		self.polygons = [Polygon2(polygon) for polygon in polygons]
-		self.fences = [Polygon2(fence) for fence in fences]
+		self.cones = [[] for _ in self.polygons]
+		self.blocked = [[] for _ in self.polygons]
 
-		self.cones = [[] for _ in range(len(self.polygons))]
-		self.blocked = [[] for _ in range(len(self.polygons))]
-
-		self.last_fence_vertex = [[] for _ in range(len(self.fences))]
-
-		if not all(polygon.is_convex() for polygon in self.polygons):
-			raise ValueError("All polygons must be convex.")
-
-	def make_graph(self, index: int, start: Vector2, end: Vector2) -> tuple[list[list[tuple[int, float]]], list[float]]:
-		"""
-		Make a graph for the A* algorithm.
-
-		:param int index: The index of the polygon and fence to use.
-		:param Vector2 start: The starting point of the path.
-		:param Vector2 end: The end point of the path.
-
-		:return: A tuple containing the graph as an adjacency list and the heuristic values for each vertex.
-		"""
-
-
-
-	def shortest_fenced_path(self, start: Vector2, end: Vector2, index: int) -> Vector2:
-		return shortest_path_in_polygon(start, end, self.fences[index])[-2]
-
-	def check_cones(self, index: int, point: Vector2) -> Vector2 | None:
-
-		polygon = self.polygons[index - 1]
-		cones = self.cones[index - 1]
-		blocked = self.blocked[index - 1]
-
-		# Check if point is inside a cone region
-		for j in range(len(polygon)):
-
-			vertex = polygon[j]
-
-			if blocked[j]:
-				continue
-
-			first, second = cones[j]
-
-			if point_in_cone(point, vertex, first, second):
-				return vertex
-
-	def check_straight(self, index: int, point: Vector2) -> Vector2 | None:
-		"""
-		Check if the point is inside the pass-through region of the polygon P_{index - 1}.
-		If it is, return the vertex of the polygon P_{index - 1} that is closest to the point.
-		"""
-
-		# Check if a straight segment from any point in T_{index - 1} to point is optimal.
-		for i, j in enumerate(self.fences[index - 1].reflex_vertices_indices + [-1]):
-
-			if j == -1:
-				vertex = self.start
-			else:
-
-				vertex = self.fences[index - 1][j]
-				before = self.fences[index - 1][j - 1]
-				after = self.fences[index - 1][(j + 1) % len(self.fences[index - 1])]
-				last = self.last_fence_vertex[index - 1][i]
-
-				if point == self.fences[1].reflex_vertices[0]:
-					print(point, vertex, before, after, last)
-
-				if not path_is_optimal(vertex, before, after, last, point):
-					continue
-			
-			# Path is optimal, need to calculate intersection point with polygon P_{index - 1}
-			poligon_point = min(
-				(s for a, b in self.polygons[index - 1].edges() if (s := segment_segment_intersection(vertex, point, a, b)) is not None), 
-				key=vertex.distance_squared_to, default=None
-			)
-			if point == self.fences[1].reflex_vertices[0]:
-				print(point, vertex, poligon_point)
-			if poligon_point is None:
-				continue
-
-			# Path is optimal, but need to check if it stays inside the fence F_{index - 1}
-			# while is doesn't reach the polygon P_{index - 1}.
-			if any(
-				(p := segment_segment_intersection(vertex, point, a, b)) is not None and 
-				p.distance_to(vertex) < poligon_point.distance_to(vertex)
-				for a, b in self.fences[index - 1].far_edges(vertex)
-			):
-				continue
-
-			# We only need to check if the path leaves the fence F_{index} now
-			# Negative eps avoids matching the vertex itself, if point if a vertex of the new fence.
-			if any(
-				segment_segment_intersection(poligon_point, point, a, b, -1e-10) is not None 
-				for a, b in self.fences[index].edges()
-			):
-				continue
-
-			return vertex
-
-	def query(self, index: int, point: Vector2, recurse: bool = False) -> Vector2:
-		"""
-		Returns the start of the last segment of the shortest 
-		`index`-path that reaches `point`.
-		"""
-
-		if index == 0:
-			return self.shortest_fenced_path(self.start, point, 0)
-
-		i = next((i for i, a in enumerate(self.fences[index].reflex_vertices) if a == point), -1)
-
-		if i != -1 and self.last_fence_vertex[index][i] != Vector2.INF:
-			return self.last_fence_vertex[index][i]
-
-		# Point is inside a cone region, so we can return the vertex.
-		if (v := self.check_cones(index, point)) is not None:
-			return v
-
-		# TODO: Check if point is inside edge region
-
-		# Point is in pass-through region
-
-		# Check if a straight segment from any point in T_{index - 1} to point is optimal.
-		if (v := self.check_straight(index, point)) is not None:
-			return v
-
-		# Path can't be directly reached, so we need to find the last reflex vertex of the fence F_{index}
-		# TODO: Implement this.
-
-		if not recurse:
-			return Vector2.INF
+		if len(self.fences) != len(self.polygons) + 1:
+			raise InputError("Number of fences must be one more than number of polygons.")
 		
-		for i in self.fences[index].reflex_vertices_indices:
+		if not self.fences[0].contains_point(self.start) >= 0:
+			raise InputError("Start point must be inside the first fence.")
+	
+		if not self.fences[-1].contains_point(self.target) >= 0:
+			raise InputError("Target point must be inside the last fence.")
+	
+		if any(not p.is_convex() for p in self.polygons):
+			raise InputError("All polygons must be convex.")
 
-			vertex = self.fences[index][i]
+		polys = [[self.start]] + self.polygons + [[self.target]]
 
-			if vertex == point:
-				continue
+		for i in range(len(self.polygons)):
 
-			last = self.query(index, vertex, False)
-
-			if last == Vector2.INF:
-				continue
-		
-			before = self.fences[index][i - 1]
-			after = self.fences[index][(i + 1) % len(self.fences[index].reflex_vertices)]
-
-			if not path_is_optimal(vertex, before, after, last, point):
-				continue
+			if not self.fences[i].contains_polygon(polys[i]) >= 0:
+				raise InputError(f"Polygon {i} must be inside fence {i}.")
 			
-			# Path is optimal, need ensure it's not blocked by other edges
-			if any(
-				segment_segment_intersection(vertex, point, a, b) is not None
-				for a, b in self.fences[index].far_edges(vertex, point)
-			):
-				continue
-			
+			if not self.fences[i].contains_polygon(polys[i + 1]) >= 0:
+				raise InputError(f"Polygon {i + 1} must be inside fence {i}.")
 
-			return vertex
+		self.fig, self.ax = plt.subplots() # type: ignore
+
+	def basic_draw(self, show: bool = True) -> None:
 		
-		return Vector2.INF			
+		self.ax.set_aspect('equal', 'box')
 
-	def shortest_path(self) -> list[Vector2]:
+		self.ax.plot(self.start.x, self.start.y, 'go') # type: ignore
+		self.ax.plot(self.target.x, self.target.y, 'ro') # type: ignore
 
-		index = 0
+		for p in self.polygons:
+			xs, ys = zip(*[(v.x, v.y) for v in p] + [(p[0].x, p[0].y)])
+			self.ax.fill(xs, ys) # type: ignore
+
+		for f in self.fences:
+			xs, ys = zip(*[(v.x, v.y) for v in f] + [(f[0].x, f[0].y)])
+			self.ax.plot(xs, ys, alpha=0.7) # type: ignore
+
+		self.ax.grid() # type: ignore
+
+		if show:
+			plt.show() # type: ignore
+
+	def basic_cones(self, index: int) -> None:
+
+		options = ["red", "purple", "blue", "orange", "green", "purple", "brown", "pink", "gray", "olive", "cyan"]
+		color = options[index % len(options)]
+
+		for v, (ray1, ray2) in zip(self.polygons[index], self.cones[index]):
+
+			if ray1 == ray2:
+				continue
+
+			ray1 = ray1.scale_to_length(7)
+			ray2 = ray2.scale_to_length(7)
+
+			self.ax.plot([v.x, v.x + ray1.x], [v.y, v.y + ray1.y], '-', color=color, alpha=0.7) # type: ignore
+			self.ax.plot([v.x, v.x + ray2.x], [v.y, v.y + ray2.y], '-', color=color, alpha=0.7) # type: ignore
+
+	def make_mapping(self) -> None:
+
+		self.reflex_mapping = {}
+
+		for i, fence in enumerate(self.fences):
+			for j, v in fence.reflex_vertices_pairs:
+
+				reachable: list[tuple[int, int]] = []
+
+				for k in range(i, len(self.fences)):
+
+					other_fence = self.fences[k]
+
+					for l, u in other_fence.reflex_vertices_pairs:
+						if self.respects_fences(v, u, i, k):
+							reachable.append((k, l))
+
+				self.reflex_mapping[(i, j)] = reachable
+
+
+	def valid_last_step(self, start: Vector2, end: Vector2, start_index: int, end_index: int) -> bool:
+		"""
+		Checks if a path from `start` to `end` is valid.
+		This means a standard valid path or a path that 
+		goes outside the last fence only once and intersects
+		the polygon from the previous fence.
+
+		For example, a path from a start point inside fence 0
+		to a target point that respects all fences from 0 to 1.
+		The path will be valid if it respects fence 0 and
+		intersects polygon 1 and then goes outside fence 1 to reach end.
+		"""
+
+		# If there are previous fences, it must respect them.
+		if 0 < start_index < end_index and not self.respects_fences(start, end, start_index, end_index - 1):
+			return False
+
+		fence = self.fences[end_index]
+		
+		# Standard case
+		if fence.contains_segment(start, end):
+			return True
+
+		if fence.contains_point(end) >= 0:
+			return False
+
+		# This query can't be from an edge query, because
+		# edge querys reduce the problem to the previous polygon.
+		if end_index == len(self.polygons):
+			return False
+
+		# Check if the path goes outside the last fence only once
+		if sum(segment_segment_intersection(a, b, start, end) is not None for a, b in fence.far_edges(start, end)) > 1:
+			return False
+
+		polygon = self.polygons[end_index]
+		intersection = polygon.segment_intersection(start, end)
+		
+		return intersection is not None
+
+	def make_graph(self, start: Vector2, end: Vector2, start_index: int, end_index: int) -> Graph:
+
+		@cache
+		def vertex_index(fence_index: int, vertex_index: int) -> int:
+			return accum_reflex_counts[fence_index] + self.fences[fence_index].reflex_vertices_indices.index(vertex_index)
+
+		vertices = [start, end]
+
+		for fence in self.fences:
+			vertices.extend(fence.reflex_vertices)
+
+		reflex_counts = [len(fence.reflex_vertices) for fence in self.fences]
+		accum_reflex_counts = list(accumulate(reflex_counts, initial=2)) # +2 for start and target
+
+		total_vertices = accum_reflex_counts[-1]
+		edges: list[list[int]] = [[] for _ in range(total_vertices)]
+
+		for fence_index in range(start_index, end_index + 1):
+
+			fence = self.fences[fence_index]
+
+			for j, v in fence.reflex_vertices_pairs:
+
+				from_index = vertex_index(fence_index, j)
+
+				for k, l in self.reflex_mapping[(fence_index, j)]:
+
+					if not (start_index <= k <= end_index):
+						continue
+
+					to_index = vertex_index(k, l)
+
+					if from_index == to_index:
+						continue
+
+					edges[from_index].append(to_index)
+
+		for fence_index in range(start_index, end_index + 1):
+
+			fence = self.fences[fence_index]
+
+			for j, v in fence.reflex_vertices_pairs:
+
+				index = vertex_index(fence_index, j)
+
+				if self.respects_fences(start, v, start_index, fence_index):
+					edges[0].append(index)
+
+				#if self.respects_fences(v, end, fence_index, end_index) and valid_last_step(v, fence_index):
+				#	edges[index].append((1, (end - v).length()))
+				if self.valid_last_step(v, end, fence_index, end_index):
+					edges[index].append(1)
+
+		if self.valid_last_step(start, end, start_index, end_index):
+			edges[0].append(1)
+
+		return Graph(vertices, edges)
+
+	def respects_fences(self, start: Vector2, end: Vector2, start_index: int, end_index: int, eps: float = 1e-12) -> bool:
+		"""
+		Check if the line segment from `start` to `end` respects all fences from `start_index` to `end_index`.
+		"""
+
+		if start_index > end_index:
+			raise RuntimeError(f"{start_index=} must be less than or equal to {end_index=}.")
+
+		for i in range(start_index, end_index):
+	
+			fence = self.fences[i]
+			polygon = self.polygons[i]
+
+			intersection = polygon.segment_intersection(start, end, eps)
+
+			# Path does not reach the polygon.
+			if intersection is None:
+				return False
+			
+			# Path goes outside the fence.
+			if not fence.contains_segment(start, intersection, eps):
+				return False
+
+			# Update start with least distant point that touches polygon
+			start = intersection
+
+		return self.fences[end_index].contains_segment(start, end, eps)
+
+	def fenced_path(self, start: Vector2, end: Vector2, start_index: int, end_index: int) -> list[Vector2]:
+		"""
+		Computes the shortest path from `start` to `end` that respects all fences from `start_index` to `end_index`.
+		"""
+
+		if start_index > end_index:
+			raise RuntimeError(f"{start_index=} must be less than or equal to {end_index=}.")
+
+		if self.respects_fences(start, end, start_index, end_index):
+			return [start, end]
+		
+		graph = self.make_graph(start, end, start_index, end_index)
+		path = graph.astar(0, 1)
+
+		return path
+
+	def point_in_cone(self, point: Vector2, index: int, vertex_index: int) -> bool:
+		"""
+		Returns whether the `point` is inside the cone of the vertex `vertex_index` of polygon `index`.
+		"""
+
+		ray1, ray2 = self.cones[index][vertex_index]
+		vertex = self.polygons[index][vertex_index]
+
+		if ray1 == ray2:
+			return False
+
+		return point_in_cone(point, vertex, ray1, ray2)
+
+	def point_in_edge(self, point: Vector2, index: int, edge_index: int) -> bool:
+		"""
+		Returns whether the `point` is inside the edge defined by the edge `edge_index` of polygon `index`.
+		"""
+
+		if self.blocked[index][edge_index]:
+			return False
 
 		polygon = self.polygons[index]
-		cones = self.cones[index]
+		ray1 = self.cones[index][edge_index][1]
+		ray2 = self.cones[index][(edge_index + 1) % len(polygon)][0]
+
+		return point_in_edge(point, polygon[edge_index], ray1, polygon[(edge_index + 1) % len(polygon)], ray2)
+
+	def point_in_pass_through(self, point: Vector2, index: int) -> bool:
+		"""
+		Returns whether the `point` is inside the pass through region of polygon `index`.
+		"""
+
+		polygon = self.polygons[index]
 		blocked = self.blocked[index]
-		fence = self.fences[index]
+		cones = self.cones[index]
 
-		last_vertex: list[Vector2] = []
+		first = next(i for i in range(len(blocked)) if blocked[i] and not blocked[i - 1])
+		last = next(i for i in range(len(blocked)) if blocked[i] and not blocked[(i + 1) % len(blocked)])
 
-		last_fence_vertex: list[Vector2] = []
-		self.last_fence_vertex[index] = last_fence_vertex
+		ray1 = cones[first][1]
+		ray2 = cones[(last + 1) % len(blocked)][0]
 
-		for vertex in fence.reflex_vertices:
-			last = self.query(index, vertex)
-			last_fence_vertex.append(last)
-		
-		for j in range(len(polygon)):
-			
-			vertex = polygon[j]
-			last = self.query(index, vertex)
+		vertex1 = polygon[first]
+		vertex2 = polygon[(last + 1) % len(blocked)]
 
-			last_vertex.append(last)
+		# Check if the point is inside the big edge
+		if point_in_edge(point, vertex1, ray1, vertex2, ray2):
+			return True
 
-			blocked.append(polygon.intersects_segment(last, vertex))
+		# Check if the point is inside the polygon
+		return polygon.contains_point(point) >= 0
 
-		for j in range(len(polygon)):
+	def query_cone(self, point: Vector2, index: int, end_index: int) -> list[Vector2]:
+		"""
+		Checks if the point is inside any cone of polygon `index`.
+		Returns the path to the point if it is, otherwise returns an empty list.
+		"""
+		for i, v in enumerate(self.polygons[index - 1]):
 
-			if blocked[j]:
-				cones.append((Vector2(), Vector2()))
+			if not self.point_in_cone(point, index - 1, i):
 				continue
 
-			vertex = polygon[j]
-			last = last_vertex[j]
+			if not (self.fences[index].contains_segment(v, point) or self.valid_last_step(v, point, index - 1, end_index)):
+				continue
+			#if not self.fences[index].contains_segment(v, point):
+			#	continue
 
-			diff = vertex - last
+			path = self.query(v, index - 1, index - 1)
 
-			v_before = polygon[j - 1]
-			v_after = polygon[j + 1]
+			# TODO: Check if we can just return path + [point] here,
+			# instead of calling fenced_path again.
+			return path[:-1] + self.fenced_path(path[-1], point, index - 1, end_index)
 
-			if blocked[j - 1]:
-				dir1 = diff.normalize()
-			else:
-				dir1 = diff.reflect((vertex - v_before).perpendicular()).normalize()
-
-			if blocked[(j + 1) % len(polygon)]:
-				dir2 = diff.normalize()
-			else:
-				dir2 = diff.reflect((vertex - v_after).perpendicular()).normalize()
-
-			cones.append((dir1, dir2))
-		
-		self.last_fence_vertex[1] = [Vector2.INF for _ in self.fences[1].reflex_vertices]
-
-		while True:
-
-			found = 0
-	
-			for i, j in enumerate(self.fences[1].reflex_vertices_indices):
-
-				vertex = self.fences[1][j]
-				last = self.query(1, vertex, True)
-
-				if last == Vector2.INF:
-					continue
-		
-				found += self.last_fence_vertex[1][i] != last
-				self.last_fence_vertex[1][i] = last
-			
-			if found == 0:
-				break
-		
-		print(list(zip(self.fences[1].reflex_vertices, self.last_fence_vertex[1])))
-		
 		return []
+	
+	def query_edge(self, point: Vector2, index: int, end_index: int) -> list[Vector2]:
+		"""
+		Checks if the point is inside any edge of polygon `index`.
+		Returns the path to the point if it is, otherwise returns an empty list.
+		"""
+
+		polygon = self.polygons[index - 1]
+		blocked = self.blocked[index - 1]
+
+		for i in range(len(polygon)):
+
+			if blocked[i]:
+				continue
+
+			if not self.point_in_edge(point, index - 1, i):
+				continue
+
+			v1 = polygon[i]
+			v2 = polygon[(i + 1) % len(polygon)]
+
+			reflected = point.reflect_segment(v1, v2)
+			
+			path = self.query(reflected, index - 1, index - 1)
+
+			if len(path) < 2:
+				raise RuntimeError(f"query_edge({point}, {index}, {end_index}) -> path={path} must have at least two points.")
+
+			last = path[-2]
+			intersection = polygon.segment_intersection(last, reflected)
+
+			if intersection is None:
+				raise RuntimeError(f"query_edge({point}, {index}, {end_index}) -> last={tuple(round(last, 3))} to reflected={tuple(round(reflected, 3))} does not intersect polygon {index - 1}.")
+			
+			# TODO: Check if we can just return path + [point] here,
+			# instead of calling fenced_path again.
+			return path[:-1] + self.fenced_path(intersection, point, index - 1, end_index)
+
+		return []
+
+	def query_pass_through(self, point: Vector2, index: int, end_index: int) -> list[Vector2]:
+		"""
+		Checks if the point is inside the pass through region of polygon `index`.
+		Returns the path to the point if it is, otherwise returns an empty list.
+		"""
+
+		if not self.point_in_pass_through(point, index - 1):
+			return []
+
+		# This may not work if the path would be blocked by a fence.
+		# This will cause the query to fail and return an empty list.
+		# However, this will just pass the problem to the
+		# reflex vertex queries, which will handle it correctly.
+		return self.query(point, index - 1, end_index)
+
+	def query_reflex_vertex(self, point: Vector2, index: int, end_index: int) -> list[Vector2]:
+		"""
+		Checks if the point is reachable from a reflex vertex of polygon `index`.
+		Returns the path to the point if it is, otherwise returns an empty list.
+		"""
+
+		def rotate[T](values: Sequence[T], start: int) -> Iterator[T]:
+			return map(values.__getitem__, chain(range(start, len(values)), range(0, start)))
+
+		fence = self.fences[index]
+
+		start = next((i for i, v in enumerate(fence.reflex_vertices) if point.is_close(v)), - 1)
+		start = (start + 1) % len(fence.reflex_vertices)
+
+		for v_index in rotate(fence.reflex_vertices_indices, start):
+			
+			vertex = fence[v_index]
+
+			# The path from the vertex to the point must be direct.
+			if not (fence.contains_segment(vertex, point) or self.valid_last_step(vertex, point, index, end_index)):
+				continue
+
+			path = self.query(vertex, index, index)
+
+			if len(path) < 2:
+				raise RuntimeError(f"query_reflex_vertex({point}, {index}, {end_index}) -> path={path} must have at least two points.")
+
+			before = fence[v_index - 1]
+			after = fence[(v_index + 1) % len(fence)]
+			last = path[-2]
+
+			# The bend at the vertex must be optimal.
+			if not bend_is_optimal(last, point, vertex, before, after):
+				continue
+			
+			# TODO: Check if we can just return path + [point] here,
+			# instead of calling fenced_path again.
+			return path[:-1] + self.fenced_path(vertex, point, index, end_index)
+
+		return []
+
+	def query(self, point: Vector2, index: int, end_index: int) -> list[Vector2]:
+		"""
+		Computes the shortest `index`-path to `point` that respects all fences up to `end_index`.
+		"""
+
+		# Base case, just go straight to the point, 
+		# while respecting all fences.
+		if index == 0:
+			return self.fenced_path(self.start, point, 0, end_index)
+		
+		if (path := self.query_cone(point, index, end_index)):
+			return path
+
+		if (path := self.query_edge(point, index, end_index)):
+			return path
+
+		if (path := self.query_pass_through(point, index, end_index)):
+			return path
+
+		# All cases failed, there is no direct path to the point.
+		# We must go through a reflex vertex.
+
+		if (path := self.query_reflex_vertex(point, index, end_index)):
+			return path
+
+		raise RuntimeError(f"query({point}, {index}, {end_index}) -> No path found.")
+
+	def query2(self, point: Vector2, index: int, end_index: int) -> Vector2:
+		"""
+		Same as `query`, but only returns the last point before `point`.
+		"""
+
+		path = self.query(point, index, end_index)
+
+		if len(path) < 2:
+			raise RuntimeError(f"{path=} must have at least two points.")
+
+		return path[-2]
+
+	def compute_blocked(self, index: int) -> None:
+
+		polygon = self.polygons[index]
+		block: list[bool] = []
+
+		for a, b in polygon.edges():
+
+			mid = (a + b) / 2
+			last = self.query2(mid, index, index)
+
+			blocked = polygon.intersects_segment(last, mid)
+			block.append(blocked)
+
+		self.blocked[index] = block
+
+	def compute_cones(self, index: int) -> None:
+
+		polygon = self.polygons[index]
+		blocked = self.blocked[index]
+		cones: list[tuple[Vector2, Vector2]] = []
+
+		for i, v in enumerate(polygon):
+
+			last = self.query2(v, index, index)
+			diff = (v - last).normalize()
+
+			before = polygon[i - 1]
+			after = polygon[(i + 1) % len(polygon)]
+
+			dir1 = diff.reflect((before - v).perpendicular())
+			dir2 = diff.reflect((after - v).perpendicular())
+
+			if blocked[i - 1]:
+				dir1 = diff
+
+			if blocked[i]:
+				dir2 = diff
+
+			if dir1 == dir2:
+				cones.append((Vector2(), Vector2()))
+			else:
+				cones.append((dir1, dir2))
+
+		self.cones[index] = cones
+
+	def solve(self) -> list[Vector2]:
+
+		self.make_mapping()
+
+		n = len(self.polygons)
+
+		for i in range(n):
+			self.compute_blocked(i)
+			self.compute_cones(i)
+		# return []
+		path = self.query(self.target, n, n)
+
+		if len(path) < 2:
+			raise RuntimeError(f"{path=} must have at least two points.")
+	
+		return path
