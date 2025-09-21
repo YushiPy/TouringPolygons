@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 
+
 from vector2 import Vector2
 from polygon2 import Polygon2
 
@@ -132,6 +133,41 @@ def point_in_edge(point: Vector2, start1: Vector2, ray1: Vector2, start2: Vector
 	return (cross1 >= 0 and cross2 <= 0 and cross3 <= 0)
 
 
+def intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> tuple[float, float] | None:
+
+	cross = direction1.cross(direction2)
+
+	if abs(cross) < 1e-8:
+		return None
+	
+	sdiff = start2 - start1
+
+	rate1 = sdiff.cross(direction2) / cross
+	rate2 = sdiff.cross(direction1) / cross
+
+	return rate1, rate2
+
+def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2) -> Vector2 | None:
+	"""
+	Returns the intersection point of two line segments if they intersect, otherwise returns None.
+
+	:param Vector2 start1: The start point of the first segment as a Vector2.
+	:param Vector2 end1: The end point of the first segment as a Vector2.
+	:param Vector2 start2: The start point of the second segment as a Vector2.
+	:param Vector2 end2: The end point of the second segment as a Vector2.
+
+	:return: The intersection point as a Vector2 if the segments intersect, otherwise None.	
+	"""
+
+	diff1 = end1 - start1
+	diff2 = end2 - start2
+
+	rates = intersection_rates(start1, diff1, start2, diff2)
+
+	if rates is not None and 0 <= rates[0] <= 1 and 0 <= rates[1] <= 1:
+		return start1 + diff1 * rates[0]
+
+
 class Solution:
 
 	start: Vector2
@@ -251,7 +287,45 @@ class Solution:
 		def vertex_index(fence_index: int, vertex_index: int) -> int:
 			return accum_reflex_counts[fence_index] + self.fences[fence_index].reflex_vertices_indices.index(vertex_index)
 
-		def valid_path(point: Vector2, start_index: int)
+		def valid_last_step(v: Vector2, from_index: int) -> bool:
+			"""
+			Checks if a path from `v` to `end` is valid.
+			This means a standard valid path or a path that 
+			goes outside the last fence only once and intersects
+			the polygon from the previous fence.
+
+			For example, a path from a start point inside fence 0
+			to a target point that respects all fences from 0 to 1.
+			The path will be valid if it respects fence 0 and
+			then goes outside fence 1 and intersects polygon 1.
+			"""
+
+			# If there are previous fences, it must respect them.
+			if 0 < from_index < end_index and not self.respects_fences(v, end, from_index, end_index - 1):
+				return False
+
+			fence = self.fences[end_index]
+			
+			# Standard case
+			if fence.contains_segment(v, end):
+				return True
+
+			if fence.contains_point(end) >= 0:
+				return False
+
+			# This query can't be from an edge query, because
+			# edge querys reduce the problem to the previous polygon.
+			if end_index == len(self.polygons):
+				return False
+
+			# Check if the path goes outside the last fence only once
+			if sum(segment_segment_intersection(a, b, v, end) is not None for a, b in fence.far_edges(v, end)) > 1:
+				return False
+
+			polygon = self.polygons[end_index]
+			intersection = polygon.segment_intersection(v, end)
+			
+			return intersection is not None
 
 		vertices = [start, end]
 
@@ -278,6 +352,10 @@ class Solution:
 						continue
 
 					to_index = vertex_index(k, l)
+
+					if from_index == to_index:
+						continue
+
 					edges[from_index].append((to_index, (fence[l] - v).length()))
 
 		for fence_index in range(start_index, end_index + 1):
@@ -291,21 +369,13 @@ class Solution:
 				if self.respects_fences(start, v, start_index, fence_index):
 					edges[0].append((index, (v - start).length()))
 
-				if self.respects_fences(v, end, fence_index, end_index):
+				#if self.respects_fences(v, end, fence_index, end_index) and valid_last_step(v, fence_index):
+				#	edges[index].append((1, (end - v).length()))
+				if valid_last_step(v, fence_index):
 					edges[index].append((1, (end - v).length()))
 
-		for i, fence in enumerate(self.fences):
-			for j, v in fence.reflex_vertices_pairs:
-
-				index = vertex_index(i, j)
-
-				if self.respects_fences(start, v, 0, i):
-					edges[0].append((index, (v - start).length()))
-
-				# TODO:
-				# Add case where the path goes outside of last fence only one.
-				if self.respects_fences(v, end, i, end_index-):
-					edges[index].append((1, (end - v).length()))
+		if valid_last_step(start, start_index):
+			edges[0].append((1, (end - start).length()))
 
 		return Graph(vertices, edges)
 
@@ -350,6 +420,10 @@ class Solution:
 		
 		graph = self.make_graph(start, end, start_index, end_index)
 		path = graph.astar(0, 1)
+
+		if end == Vector2(-5, -4.8):
+			print(graph.vertices)
+			print("\n".join(f"{tuple(round(graph.vertices[i], 3))}: " + " ".join(f"{tuple(round(graph.vertices[v], 3))}" for v, cost in line) for i, line in enumerate(graph.edges)))
 
 		return path
 
@@ -446,10 +520,19 @@ class Solution:
 			v2 = polygon[(i + 1) % len(polygon)]
 
 			reflected = point.reflect_segment(v1, v2)
+			
+			path = self.query(reflected, index - 1, index - 1)
 
-			path = self.query(mid, index - 1, index - 1)
+			if len(path) < 2:
+				raise RuntimeError(f"query_edge({point}, {index}, {end_index}) -> path={path} must have at least two points.")
 
-			return path[:-1] + self.fenced_path(path[-1], point, index - 1, end_index)
+			last = path[-2]
+			intersection = polygon.segment_intersection(last, reflected)
+
+			if intersection is None:
+				raise RuntimeError(f"query_edge({point}, {index}, {end_index}) -> last={tuple(round(last, 3))} to reflected={tuple(round(reflected, 3))} does not intersect polygon {index - 1}.")
+			
+			return path[:-1] + self.fenced_path(intersection, point, index - 1, end_index)
 
 		return []
 
@@ -462,13 +545,16 @@ class Solution:
 		if not self.point_in_pass_through(point, index - 1):
 			return []
 
+		# TODO: 
+		# Check if the segment respects the next fence.
+
 		return self.query(point, index - 1, end_index)
 
 	def query(self, point: Vector2, index: int, end_index: int) -> list[Vector2]:
 		"""
 		Computes the shortest `index`-path to `point` that respects all fences up to `end_index`.
 		"""
-		
+
 		# Base case, just go straight to the point, 
 		# while respecting all fences.
 		if index == 0:
@@ -572,7 +658,8 @@ test2 = (
 	], 
 	[
 		[(-4.0, 5.0), (-3.0, 2.0), (0.0, 2.0), (2.0, 1.0), (-1.0, -0.0), (1.0, -0.0), (-3.0, -2.0), (-4.0, -4.0), (0.0, -6.0), (6.0, -3.0), (5.0, -0.0), (3.0, -1.0), (3.0, 4.0), (-1.0, 3.0), (-2.0, 6.0)], 
-		[(-1.0, 7.0), (-2.0, 3.0), (1.0, 2.0), (0.0, 1.0), (1.0, -0.0), (-4.0, -2.0), (0.0, -6.0), (9.0, -4.0), (9.0, 2.0), (4.0, 3.0), (7.0, 4.0), (3.0, 8.0)],
+		[(-1.0, 7.0), (-2.0, 3.0), (1.0, 2.0), (0.0, 1.0), (1.0, -0.0), 
+		(-6.0, -0.5), (-6.0, -4.0), (5.0, -4.5), (-6.0, -4.5), (-6.0, -5.0), (0.0, -6.0), (8.0, -6.0), (9.0, -4.0), (9.0, 2.0), (4.0, 3.0), (7.0, 4.0), (3.0, 8.0)],
 		[(1.0, 2.0), (-1.0, 5.0), (-3.0, -0.0), (7.0, 1.0), (6.0, 7.0), (-1.0, 8.0)],
 	]
 )
@@ -585,10 +672,11 @@ sol.solve()
 
 sol.basic_cones(0)
 
-pp = Vector2(2.5, 2)
-p = sol.query(pp, 1, 1)
-
+pp = Vector2(-5, -4.8)
+# pp = Vector2(-2.5, -1.8)
+#pp = Vector2(-5.5, -0.8)
 sol.ax.plot(pp.x, pp.y, 'mo') # type: ignore
-sol.ax.plot(*zip(*p), color='blue')
 
+p = sol.query(pp, 1, 1)
+sol.ax.plot(*zip(*p), color='blue')
 
