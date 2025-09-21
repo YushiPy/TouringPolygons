@@ -274,6 +274,9 @@ class Solution:
 
 	def basic_cones(self, index: int) -> None:
 
+		options = ["red", "purple", "blue", "orange", "green", "purple", "brown", "pink", "gray", "olive", "cyan"]
+		color = options[index % len(options)]
+
 		for v, (ray1, ray2) in zip(self.polygons[index], self.cones[index]):
 
 			if ray1 == ray2:
@@ -282,8 +285,8 @@ class Solution:
 			ray1 = ray1.scale_to_length(7)
 			ray2 = ray2.scale_to_length(7)
 
-			self.ax.plot([v.x, v.x + ray1.x], [v.y, v.y + ray1.y], 'r-', alpha=0.7) # type: ignore
-			self.ax.plot([v.x, v.x + ray2.x], [v.y, v.y + ray2.y], 'r-', alpha=0.7) # type: ignore
+			self.ax.plot([v.x, v.x + ray1.x], [v.y, v.y + ray1.y], '-', color=color, alpha=0.7) # type: ignore
+			self.ax.plot([v.x, v.x + ray2.x], [v.y, v.y + ray2.y], '-', color=color, alpha=0.7) # type: ignore
 
 	def make_mapping(self) -> None:
 
@@ -514,6 +517,8 @@ class Solution:
 
 			path = self.query(v, index - 1, index - 1)
 
+			# TODO: Check if we can just return path + [point] here,
+			# instead of calling fenced_path again.
 			return path[:-1] + self.fenced_path(path[-1], point, index - 1, end_index)
 
 		return []
@@ -551,6 +556,8 @@ class Solution:
 			if intersection is None:
 				raise RuntimeError(f"query_edge({point}, {index}, {end_index}) -> last={tuple(round(last, 3))} to reflected={tuple(round(reflected, 3))} does not intersect polygon {index - 1}.")
 			
+			# TODO: Check if we can just return path + [point] here,
+			# instead of calling fenced_path again.
 			return path[:-1] + self.fenced_path(intersection, point, index - 1, end_index)
 
 		return []
@@ -694,12 +701,23 @@ class Solution:
 
 		self.cones[index] = cones
 
-	def solve(self) -> None:
+	def solve(self) -> list[Vector2]:
 
 		self.make_mapping()
 
-		self.compute_blocked(0)
-		self.compute_cones(0)
+		n = len(self.polygons)
+
+		for i in range(n):
+			self.compute_blocked(i)
+			self.compute_cones(i)
+
+		path = self.query(self.target, n, n)
+
+		if len(path) < 2:
+			raise RuntimeError(f"{path=} must have at least two points.")
+	
+		return path
+
 
 test1 = (
 	(-6.247, 6.247), 
@@ -731,18 +749,10 @@ test2 = (
 )
 
 
-sol = Solution(*test2)
+sol = Solution(*test1)
+
 sol.basic_draw(False)
 
-sol.solve()
-
-sol.basic_cones(0)
-
-pp = Vector2(8, -5)
-# pp = Vector2(-2.5, -1.8)
-#pp = Vector2(-5.5, -0.8)
-sol.ax.plot(pp.x, pp.y, 'mo') # type: ignore
-
-p = sol.query(pp, 1, 1)
-sol.ax.plot(*zip(*p), color='blue')
+path = sol.solve()
+sol.ax.plot(*zip(*[(v.x, v.y) for v in path]), '-', color="purple") # type: ignore
 
