@@ -24,24 +24,23 @@ class RuntimeError(Exception):
 class Graph:
 
 	vertices: list[Vector2]
-	edges: list[list[tuple[int, float]]]
+	edges: list[list[int]]
 
-	def __init__(self, vertices: Iterable[Vector2] = [], edges: Iterable[Iterable[tuple[int, float]]] = []) -> None:
+	def __init__(self, vertices: Iterable[Vector2] = [], edges: Iterable[Iterable[int]] = []) -> None:
 		self.vertices = list(vertices)
 		self.edges = list(map(list, edges))
 
 	def astar(self, start: int = 0, end: int = 1) -> list[Vector2]:
 
-		def heuristic(v: int) -> float:
-			return (self.vertices[v] - self.vertices[end]).length()
-
 		n = len(self.vertices)
+		v_end = self.vertices[end]
 
 		previous = [-1] * n
 		costs = [float('inf')] * n
 		costs[start] = 0
 
-		queue: list[tuple[float, int]] = [(heuristic(start), start)]
+		# The priority queue stores tuples of (estimated total cost, vertex index).
+		queue: list[tuple[float, int]] = [(-1, start)] # The -1 doesn't matter, will become _.
 
 		while queue:
 			
@@ -50,14 +49,17 @@ class Graph:
 			if current == end:
 				break
 
-			for neighbor, weight in self.edges[current]:
 
-				new_cost = costs[current] + weight
+			for neighbor in self.edges[current]:
+
+				v1 = self.vertices[current]
+				v2 = self.vertices[neighbor]
+				new_cost = costs[current] + v1.distance_to(v2)
 
 				if new_cost < costs[neighbor]:
 					costs[neighbor] = new_cost
 					previous[neighbor] = current
-					heapq.heappush(queue, (new_cost + heuristic(neighbor), neighbor))
+					heapq.heappush(queue, (new_cost + v2.distance_to(v_end), neighbor))
 
 		if previous[end] == -1:
 			return []
@@ -336,7 +338,7 @@ class Solution:
 		accum_reflex_counts = list(accumulate(reflex_counts, initial=2)) # +2 for start and target
 
 		total_vertices = accum_reflex_counts[-1]
-		edges: list[list[tuple[int, float]]] = [[] for _ in range(total_vertices)]
+		edges: list[list[int]] = [[] for _ in range(total_vertices)]
 
 		for fence_index in range(start_index, end_index + 1):
 
@@ -356,7 +358,7 @@ class Solution:
 					if from_index == to_index:
 						continue
 
-					edges[from_index].append((to_index, (fence[l] - v).length()))
+					edges[from_index].append(to_index)
 
 		for fence_index in range(start_index, end_index + 1):
 
@@ -367,15 +369,15 @@ class Solution:
 				index = vertex_index(fence_index, j)
 
 				if self.respects_fences(start, v, start_index, fence_index):
-					edges[0].append((index, (v - start).length()))
+					edges[0].append(index)
 
 				#if self.respects_fences(v, end, fence_index, end_index) and valid_last_step(v, fence_index):
 				#	edges[index].append((1, (end - v).length()))
 				if valid_last_step(v, fence_index):
-					edges[index].append((1, (end - v).length()))
+					edges[index].append(1)
 
 		if valid_last_step(start, start_index):
-			edges[0].append((1, (end - start).length()))
+			edges[0].append(1)
 
 		return Graph(vertices, edges)
 
@@ -420,10 +422,6 @@ class Solution:
 		
 		graph = self.make_graph(start, end, start_index, end_index)
 		path = graph.astar(0, 1)
-
-		if end == Vector2(-5, -4.8):
-			print(graph.vertices)
-			print("\n".join(f"{tuple(round(graph.vertices[i], 3))}: " + " ".join(f"{tuple(round(graph.vertices[v], 3))}" for v, cost in line) for i, line in enumerate(graph.edges)))
 
 		return path
 
