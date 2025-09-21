@@ -532,10 +532,6 @@ class Vector2:
 		"""Returns a new vector with the components rounded to the given number of decimal places."""
 		return self.map(lambda x: round(x, ndigits))
 
-	def __hash__(self) -> int:
-		"""Returns a hash of the vector."""
-		return hash((self.x, self.y))
-
 	def __str__(self) -> str:
 		"""Returns a string representation of the vector."""
 		return f"({round(self.x, 6)}, {round(self.y, 6)})"
