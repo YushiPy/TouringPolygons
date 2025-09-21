@@ -15,6 +15,27 @@ from polygon2 import Polygon2
 type _Vector2 = Iterable[float]
 type _Polygon2 = Iterable[_Vector2]
 
+
+def debug_func(skip_count: int = 0) -> None:
+	"""
+	Prints the name and arguments of the caller function.
+	"""
+	import inspect
+
+	# Get the caller's frame
+	frame = inspect.currentframe().f_back # type: ignore
+	func_name = frame.f_code.co_name # type: ignore
+	
+	# Get local variables in the caller (arguments are part of locals)
+	args, _, _, values = inspect.getargvalues(frame)
+	args = args[skip_count:]
+
+	# Format the arguments nicely
+	arg_str = ", ".join(f"{arg}={values[arg]!r}" for arg in args)
+	
+	print(f"{func_name}({arg_str})")
+
+
 class InputError(ValueError):
 	pass
 
@@ -507,7 +528,6 @@ class Solution:
 		Checks if the point is inside any cone of polygon `index`.
 		Returns the path to the point if it is, otherwise returns an empty list.
 		"""
-
 		for i, v in enumerate(self.polygons[index - 1]):
 
 			if not self.point_in_cone(point, index - 1, i):
@@ -588,19 +608,20 @@ class Solution:
 
 		def rotate[T](values: Sequence[T], start: int) -> Iterator[T]:
 			return map(values.__getitem__, chain(range(start, len(values)), range(0, start)))
-		
+
 		fence = self.fences[index]
 
 		start = next((i for i, v in enumerate(fence.reflex_vertices) if point.is_close(v)), - 1)
 		start = (start + 1) % len(fence.reflex_vertices)
-		
+
 		for v_index in rotate(fence.reflex_vertices_indices, start):
 			
 			vertex = fence[v_index]
 
 			# The path from the vertex to the point must be direct.
-			if not fence.contains_segment(vertex, point):
+			if not (fence.contains_segment(vertex, point) or self.valid_last_step(vertex, point, index, end_index)):
 				continue
+
 			path = self.query(vertex, index, index)
 
 			if len(path) < 2:
@@ -629,7 +650,7 @@ class Solution:
 		# while respecting all fences.
 		if index == 0:
 			return self.fenced_path(self.start, point, 0, end_index)
-
+		
 		if (path := self.query_cone(point, index, end_index)):
 			return path
 
@@ -713,7 +734,7 @@ class Solution:
 		for i in range(n):
 			self.compute_blocked(i)
 			self.compute_cones(i)
-
+		# return []
 		path = self.query(self.target, n, n)
 
 		if len(path) < 2:
@@ -736,14 +757,32 @@ test1 = (
 		[(-13.087, 10.067), (-17.114, 5.033), (-2.013, -17.114), (8.054, -13.087), (0.0, -0.0), (0.0, -8.054), (-4.027, -0.0), (-7.047, -6.04), (-8.054, 10.067)]
 	]
 )
+test3 = (
+	(-3.0, 3.0), 
+	(2.0, -4.0), 
+	[
+		[(-3.0, -1.0), (3.0, -1.0), (0.0, -2.0)]
+	], 
+	[
+		[(-4.0, 5.0), (-3.0, -3.0), (5.0, -2.0)], 
+		[(0.0, 4.0), (2.0, 2.0), (-4.0, -1.0), (-4.0, -5.0), (4.0, -4.0), (4.0, -3.0), 
+   		(-3.01, -3.0), 
+		(4.0, -2.0), (2.0, 5.0)]
+	]
+)
 
-
-sol = Solution(*test1)
+sol = Solution(*test3)
 
 sol.basic_draw(False)
 path = sol.solve()
 
+# sol.basic_cones(0)
+# sol.basic_cones(1)
+
+#pp = Vector2(-20.134, -8.054)
+#sol.ax.plot(pp.x, pp.y, 'bo') # type: ignore
+#path = sol.query(pp, 2, 2)
+
 sol.ax.plot(*zip(*[(v.x, v.y) for v in path]), '-', color="purple") # type: ignore
 
-sol.basic_cones(0)
 
