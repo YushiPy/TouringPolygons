@@ -1,7 +1,7 @@
 
 import heapq
-from itertools import accumulate
-from typing import Callable, Iterable
+from itertools import accumulate, chain, cycle, islice
+from typing import Callable, Iterable, Iterator, Sequence
 
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
@@ -168,6 +168,27 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 
 	if rates is not None and 0 <= rates[0] <= 1 and 0 <= rates[1] <= 1:
 		return start1 + diff1 * rates[0]
+
+def bend_is_optimal(start: Vector2, end: Vector2, vertex: Vector2, before: Vector2, after: Vector2) -> bool:
+	"""
+	Returns whether a bend at `vertex` that 
+	comes from `before` and goes to `after` is 
+	optimal on a path from `start` to `end`.
+	"""
+
+	if point_in_cone(end, vertex, before - vertex, after - vertex):
+		return False
+
+	rates1 = intersection_rates(start, end - start, vertex, before - vertex)
+	rates2 = intersection_rates(start, end - start, vertex, after - vertex)
+
+	if rates1 is not None and 0 <= rates1[0] <= 1 and rates1[1] >= 0:
+		return True
+	
+	if rates2 is not None and 0 <= rates2[0] <= 1 and rates2[1] >= 0:
+		return True
+
+	return False
 
 
 class Solution:
@@ -543,10 +564,51 @@ class Solution:
 		if not self.point_in_pass_through(point, index - 1):
 			return []
 
-		# TODO: 
-		# Check if the segment respects the next fence.
-
+		# This may not work if the path would be blocked by a fence.
+		# This will cause the query to fail and return an empty list.
+		# However, this will just pass the problem to the
+		# reflex vertex queries, which will handle it correctly.
 		return self.query(point, index - 1, end_index)
+
+	def query_reflex_vertex(self, point: Vector2, index: int, end_index: int) -> list[Vector2]:
+		"""
+		Checks if the point is reachable from a reflex vertex of polygon `index`.
+		Returns the path to the point if it is, otherwise returns an empty list.
+		"""
+
+		def rotate[T](values: Sequence[T], start: int) -> Iterator[T]:
+			return map(values.__getitem__, chain(range(start, len(values)), range(0, start)))
+		
+		fence = self.fences[index]
+
+		start = next((i for i, v in enumerate(fence.reflex_vertices) if point.is_close(v)), - 1)
+		start = (start + 1) % len(fence.reflex_vertices)
+		
+		for v_index in rotate(fence.reflex_vertices_indices, start):
+			
+			vertex = fence[v_index]
+
+			# The path from the vertex to the point must be direct.
+			if not fence.contains_segment(vertex, point):
+				continue
+			path = self.query(vertex, index, index)
+
+			if len(path) < 2:
+				raise RuntimeError(f"query_reflex_vertex({point}, {index}, {end_index}) -> path={path} must have at least two points.")
+
+			before = fence[v_index - 1]
+			after = fence[(v_index + 1) % len(fence)]
+			last = path[-2]
+
+			# The bend at the vertex must be optimal.
+			if not bend_is_optimal(last, point, vertex, before, after):
+				continue
+			
+			# TODO: Check if we can just return path + [point] here,
+			# instead of calling fenced_path again.
+			return path[:-1] + self.fenced_path(vertex, point, index, end_index)
+
+		return []
 
 	def query(self, point: Vector2, index: int, end_index: int) -> list[Vector2]:
 		"""
@@ -566,8 +628,14 @@ class Solution:
 		
 		if (path := self.query_pass_through(point, index, end_index)):
 			return path
+		
+		# All cases failed, there is no direct path to the point.
+		# We must go through a reflex vertex.
 
-		return []
+		if (path := self.query_reflex_vertex(point, index, end_index)):
+			return path
+
+		raise RuntimeError(f"query({point}, {index}, {end_index}) -> No path found.")
 
 	def query2(self, point: Vector2, index: int, end_index: int) -> Vector2:
 		"""
@@ -656,8 +724,8 @@ test2 = (
 	], 
 	[
 		[(-4.0, 5.0), (-3.0, 2.0), (0.0, 2.0), (2.0, 1.0), (-1.0, -0.0), (1.0, -0.0), (-3.0, -2.0), (-4.0, -4.0), (0.0, -6.0), (6.0, -3.0), (5.0, -0.0), (3.0, -1.0), (3.0, 4.0), (-1.0, 3.0), (-2.0, 6.0)], 
-		[(-1.0, 7.0), (-2.0, 3.0), (1.0, 2.0), (0.0, 1.0), (1.0, -0.0), 
-		(-6.0, -0.5), (-6.0, -4.0), (5.0, -4.5), (-6.0, -4.5), (-6.0, -5.0), (0.0, -6.0), (8.0, -6.0), (9.0, -4.0), (9.0, 2.0), (4.0, 3.0), (7.0, 4.0), (3.0, 8.0)],
+		[(-1.0, 7.0), (-2.0, 3.0), (1.0, 2.0), (0.0, 1.0), (1.0, -0.0), (-6.0, -0.5), (-6.0, -4.0), 
+		(8.0, -4.5), (-6.0, -4.5), (-6.0, -5.0), (0.0, -6.0), (8.0, -6.0), (9.0, -4.0), (9.0, 2.0), (4.0, 3.0), (7.0, 4.0), (3.0, 8.0)],
 		[(1.0, 2.0), (-1.0, 5.0), (-3.0, -0.0), (7.0, 1.0), (6.0, 7.0), (-1.0, 8.0)],
 	]
 )
@@ -670,7 +738,7 @@ sol.solve()
 
 sol.basic_cones(0)
 
-pp = Vector2(-5, -4.8)
+pp = Vector2(8, -5)
 # pp = Vector2(-2.5, -1.8)
 #pp = Vector2(-5.5, -0.8)
 sol.ax.plot(pp.x, pp.y, 'mo') # type: ignore
