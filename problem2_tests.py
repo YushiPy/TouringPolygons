@@ -99,7 +99,7 @@ test7 = ((0.0, 13.333), (-20.0, -14.804), [[(-6.667, -0.0), (3.333, -3.333), (13
 
 test8 = ((5.0, -0.0), (-3.0, 6.0), [[(-1.0, 2.0), (-2.0, 1.0), (-1.0, 1.0), (1.0, 2.0), (1.0, 3.0)], [(2.0, -8.0), (9.0, -8.0), (9.0, -7.0)], [(-3.0, -2.0), (-4.0, -3.0), (-4.0, -4.0), (-2.0, -6.0), (0.0, -6.0), (2.0, -5.0), (3.0, -4.0), (1.0, -2.0), (-1.0, -2.0)]], [[(-5.0, 8.0), (-5.0, -3.0), (4.0, -5.0), (6.0, 2.0), (2.0, -1.0), (-2.0, -1.0), (2.0, 1.0), (3.0, 5.0), (-2.0, 2.0), (-2.0, 4.0), (-4.0, 3.0)], [(-1.0, 6.0), (-4.0, 1.0), (1.0, -0.0), (2.0, 3.0), (4.0, 4.0), (3.0, 1.0), (-2.0, -3.0), (3.0, -2.0), (9.0, -5.0), (5.0, -7.0), (-1.0, -7.0), (0.0, -9.0), (11.0, -8.0), (12.0, -4.0), (8.0, 6.0)], [(10.0, -9.0), (10.0, -6.0), (2.0, -6.0), (5.0, -4.0), (3.0, -1.0), (-6.0, -2.0), (-5.0, -8.0)], [(-2.0, 8.0), (-6.0, 5.0), (-5.0, 1.0), (0.0, 1.0), (-4.0, -1.0), (-5.0, -5.0), (-3.0, -6.0), (2.0, -7.0), (5.0, -3.0), (7.0, -1.0)]])
 
-tests = [test1, test2, test3, test4, test5, test6, test7]
+tests = [test1, test2, test3, test4, test5, test6, test7, test8]
 
 from problem2 import Solution
 
@@ -114,9 +114,17 @@ def do_test(test: Test) -> None:
 	
 	path = solution.solve()
 
-	solution.ax.plot(*zip(*path), color="red", linewidth=2, linestyle="dashed", marker="o", markersize=3, label="Path") # type: ignore
+	solution.ax.plot(*zip(*path), color="purple", linewidth=2, linestyle="dashed", marker="o", markersize=3, label="Path") # type: ignore
 
 	plt.show() # type: ignore
 
+from time import perf_counter
 
-do_test(test8)
+start = perf_counter()
+
+for test in tests:
+	do_test(test)
+
+end = perf_counter()
+
+print(f"Time: {end - start:.6f} seconds")

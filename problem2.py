@@ -1,4 +1,6 @@
 
+# TODO: Find a better way to do reflex vertex query without randomness.
+
 import heapq
 from itertools import accumulate, chain
 from random import randint
@@ -102,7 +104,8 @@ HASHABLE_MAPPING: dict[Type[Any], Type[Any]] = {Vector2: tuple}
 def identity[T](x: T) -> T:
 	return x
 
-# This is the same as functools.cache, but it does not remove the type hints.
+# This is a custom cache decorator that works with unhashable types
+# it uses a mapping from types to hashable types to convert the arguments.
 def cache[T, **P](func: Callable[P, T]) -> Callable[P, T]:
 
 	mapping: dict[tuple[Any, ...], T] = {}
@@ -765,30 +768,3 @@ class Solution:
 			raise RuntimeError(f"{path=} must have at least two points.")
 	
 		return path
-
-test8 = (
-	(5.0, -0.0), 
-	(-3.0, 6.0), 
-	[
-		[(-1.0, 2.0), (-2.0, 1.0), (-1.0, 1.0), (1.0, 2.0), (1.0, 3.0)], 
-		[(2.0, -8.0), (9.0, -8.0), (9.0, -7.0)], 
-		[(-3.0, -2.0), (-4.0, -3.0), (-4.0, -4.0), (-2.0, -6.0), (0.0, -6.0), (2.0, -5.0), (3.0, -4.0), (1.0, -2.0), (-1.0, -2.0)]
-	], 
-	[
-		[
-			(-5.0, 8.0), (-5.0, -3.0), (4.0, -5.0), (6.0, 2.0), (2.0, -1.0), (-2.0, -1.0), (2.0, 1.0), (3.0, 5.0), (-2.0, 2.0), (-2.0, 4.0), (-4.0, 3.0)], [
-			(-1.0, 6.0), (-4.0, 1.0), (1.0, -0.0), (2.0, 3.0), (4.0, 4.0), (3.0, 1.0), (-2.0, -3.0), (3.0, -2.0), (9.0, -5.0), (5.0, -7.0), (-1.0, -7.0), (0.0, -9.0), (11.0, -8.0), (12.0, -4.0), (8.0, 6.0)], [
-			(10.0, -9.0), (10.0, -6.0), (2.0, -6.0), (5.0, -4.0), (3.0, -1.0), (-6.0, -2.0), (-5.0, -8.0)], [
-			(-2.0, 8.0), (-6.0, 5.0), (-5.0, 1.0), (0.0, 1.0), (-4.0, -1.0), (-5.0, -5.0), (-3.0, -6.0), (2.0, -7.0), (5.0, -3.0), (7.0, -1.0)
-		]
-	]
-)
-
-start, target, polygons, fences = test8
-
-sol = Solution(start, target, polygons, fences)
-
-path = sol.solve()
-
-sol.basic_draw(show=False)
-sol.ax.plot([v.x for v in path], [v.y for v in path], '-', color="purple") # type: ignore
