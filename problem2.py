@@ -2,7 +2,7 @@
 import heapq
 from itertools import accumulate, chain
 from random import randint
-from typing import Callable, Iterable, Iterator, Sequence
+from typing import Any, Callable, Iterable, Iterator, Sequence, Type
 
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
@@ -97,12 +97,27 @@ class Graph:
 
 		return path
 
+HASHABLE_MAPPING: dict[Type[Any], Type[Any]] = {Vector2: tuple}
+
+def identity[T](x: T) -> T:
+	return x
+
 # This is the same as functools.cache, but it does not remove the type hints.
 def cache[T, **P](func: Callable[P, T]) -> Callable[P, T]:
 
-	from functools import lru_cache
+	mapping: dict[tuple[Any, ...], T] = {}
 
-	return lru_cache(maxsize=None)(func) # type: ignore
+	def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+
+		key: tuple[Any, ...] = args + tuple(sorted(kwargs.items()))
+		key = tuple(HASHABLE_MAPPING.get(type(k), identity)(k) for k in key) # type: ignore
+
+		if key not in mapping:
+			mapping[key] = func(*args, **kwargs)
+		
+		return mapping[key]
+
+	return wrapper
 
 def point_in_cone(point: Vector2, start: Vector2, ray1: Vector2, ray2: Vector2, eps: float = 1e-10) -> bool:
 	"""
@@ -649,6 +664,7 @@ class Solution:
 
 		return []
 
+	@cache
 	def query(self, point: Vector2, index: int, end_index: int) -> list[Vector2]:
 		"""
 		Computes the shortest `index`-path to `point` that respects all fences up to `end_index`.
