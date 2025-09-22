@@ -1,6 +1,7 @@
 
 import heapq
 from itertools import accumulate, chain
+from random import randint
 from typing import Callable, Iterable, Iterator, Sequence
 
 import matplotlib.pyplot as plt
@@ -197,7 +198,9 @@ def bend_is_optimal(start: Vector2, end: Vector2, vertex: Vector2, before: Vecto
 	optimal on a path from `start` to `end`.
 	"""
 
-	if point_in_cone(end, vertex, before - vertex, after - vertex):
+	# Using negative eps allows point on the edge of the cone
+	# to be considered outside the cone.
+	if point_in_cone(end, vertex, before - vertex, after - vertex, eps=-1e-10):
 		return False
 
 	rates1 = intersection_rates(start, end - start, vertex, before - vertex)
@@ -327,7 +330,6 @@ class Solution:
 							reachable.append((k, l))
 
 				self.reflex_mapping[(i, j)] = reachable
-
 
 	def valid_last_step(self, start: Vector2, end: Vector2, start_index: int, end_index: int) -> bool:
 		"""
@@ -616,7 +618,9 @@ class Solution:
 			return []
 
 		start = next((i for i, v in enumerate(fence.reflex_vertices) if point.is_close(v)), - 1)
-		start = (start + 1) % len(fence.reflex_vertices)
+
+		offset = randint(1, len(fence.reflex_vertices) - 1)
+		start = (start + offset) % len(fence.reflex_vertices)
 
 		for v_index in rotate(fence.reflex_vertices_indices, start):
 			
@@ -745,3 +749,30 @@ class Solution:
 			raise RuntimeError(f"{path=} must have at least two points.")
 	
 		return path
+
+test8 = (
+	(5.0, -0.0), 
+	(-3.0, 6.0), 
+	[
+		[(-1.0, 2.0), (-2.0, 1.0), (-1.0, 1.0), (1.0, 2.0), (1.0, 3.0)], 
+		[(2.0, -8.0), (9.0, -8.0), (9.0, -7.0)], 
+		[(-3.0, -2.0), (-4.0, -3.0), (-4.0, -4.0), (-2.0, -6.0), (0.0, -6.0), (2.0, -5.0), (3.0, -4.0), (1.0, -2.0), (-1.0, -2.0)]
+	], 
+	[
+		[
+			(-5.0, 8.0), (-5.0, -3.0), (4.0, -5.0), (6.0, 2.0), (2.0, -1.0), (-2.0, -1.0), (2.0, 1.0), (3.0, 5.0), (-2.0, 2.0), (-2.0, 4.0), (-4.0, 3.0)], [
+			(-1.0, 6.0), (-4.0, 1.0), (1.0, -0.0), (2.0, 3.0), (4.0, 4.0), (3.0, 1.0), (-2.0, -3.0), (3.0, -2.0), (9.0, -5.0), (5.0, -7.0), (-1.0, -7.0), (0.0, -9.0), (11.0, -8.0), (12.0, -4.0), (8.0, 6.0)], [
+			(10.0, -9.0), (10.0, -6.0), (2.0, -6.0), (5.0, -4.0), (3.0, -1.0), (-6.0, -2.0), (-5.0, -8.0)], [
+			(-2.0, 8.0), (-6.0, 5.0), (-5.0, 1.0), (0.0, 1.0), (-4.0, -1.0), (-5.0, -5.0), (-3.0, -6.0), (2.0, -7.0), (5.0, -3.0), (7.0, -1.0)
+		]
+	]
+)
+
+start, target, polygons, fences = test8
+
+sol = Solution(start, target, polygons, fences)
+
+path = sol.solve()
+
+sol.basic_draw(show=False)
+sol.ax.plot([v.x for v in path], [v.y for v in path], '-', color="purple") # type: ignore
