@@ -1,6 +1,6 @@
 
 from functools import cached_property
-from typing import Iterable, Literal, Self, SupportsIndex
+from typing import Iterable, Literal, SupportsIndex
 from vector2 import Vector2
 
 
@@ -155,6 +155,12 @@ class Polygon2(tuple[Vector2, ...]):
 
 		return True
 
+	def is_simple(self) -> bool:
+		"""
+		Check if the polygon is simple (i.e., does not intersect itself).
+		"""
+		return not any(any(_segment_segment_intersection(a, b, x, y) is not None for x, y in self.far_edges(a, b)) for a, b in self.edges())
+
 	def edges(self) -> list[tuple[Vector2, Vector2]]:
 		"""
 		Iterate over the edges of the polygon.
@@ -292,7 +298,7 @@ class Polygon2(tuple[Vector2, ...]):
 			if self.intersects_segment(points[i], points[(i + 1) % len(points)], eps):
 				return False
 
-		return True
+		return self.contains_point(points[0], eps) >= 0
 
 	def __getitem__(self, index: SupportsIndex) -> Vector2: # type: ignore
 		"""

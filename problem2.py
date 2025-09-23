@@ -284,13 +284,16 @@ class Solution:
 
 		polys = [[self.start]] + self.polygons + [[self.target]]
 
-		for i in range(len(self.polygons)):
+		for i in range(len(self.fences)):
 
-			if not self.fences[i].contains_polygon(polys[i]) >= 0:
+			if not self.fences[i].contains_polygon(polys[i]):
 				raise InputError(f"Polygon {i} must be inside fence {i}.")
 			
-			if not self.fences[i].contains_polygon(polys[i + 1]) >= 0:
+			if not self.fences[i].contains_polygon(polys[i + 1]):
 				raise InputError(f"Polygon {i + 1} must be inside fence {i}.")
+		
+		if not all(f.is_simple() for f in self.fences):
+			raise InputError("All fences must be simple polygons (not self-intersecting).")
 
 		self.fig, self.ax = plt.subplots() # type: ignore
 
