@@ -202,7 +202,7 @@ class Drawing(Solution):
 			#break
 			flat[i].legend()
 
-		# plt.savefig("img2.png", dpi=300)
+		#plt.savefig("img2.png", dpi=300)
 
 		plt.show() # type: ignore
 
@@ -290,6 +290,7 @@ class Drawing(Solution):
 
 		# Fill the background with a cyan color
 		fill([minx, minx, maxx, maxx], [miny, maxy, maxy, miny], color="#6abdbe", alpha=0.7)
+		#fill([minx, minx, maxx, maxx], [miny, maxy, maxy, miny], color="#b2c7c8", alpha=0.7)
 		
 		fill([minx], [miny], color="#6abdbe", alpha=0.7, label="Pass Through Region" * (index != -1))
 

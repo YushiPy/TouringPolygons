@@ -58,6 +58,8 @@
 \usepackage{setspace} % Para definir espaçamento entre linhas. (\onehalfspacing, \singlespacing, \doublespacing)
 \usepackage{enumitem} % Para customizar listas (itemize, enumerate, etc.)
 
+\usepackage{wrapfig}
+
 \definecolor{lightgray}{RGB}{240,240,240}
 
 \newenvironment{blockquote}[1][lightgray]{\begin{mdframed}[
@@ -161,7 +163,38 @@
 
 Este relatório descreve a implementação e os resultados obtidos na resolução do problema da visita de polígonos, usando como base o paper de Mitchell \cite{mitchell2003} que descreve algoritmos para o caso sem e com restrições. Buscamos apresentar uma abordagem mais prática e detalhada para o problema, sem um foco tão grande na análise teórica.
 
+\section{O Problema de Visita de Polígonos Irrestrito}
 
+Vamos tomar como base a implementação do algoritmo de Mitchell para o problema irrestrito que fizemos em \textit{Python}. O código pode ser encontrado no arquivo \texttt{TouringPolygons/problem1.py}.
+
+\subsection{Definições e Notação}
+
+\begin{wrapfigure}{r}{0.40\textwidth}
+    \centering
+	\vspace{-10pt}
+    \includegraphics[width=0.39\textwidth]{problem1-solution.png}
+    \caption{Caminho mínimo para um caso de 3 polígonos.}
+\end{wrapfigure}
+
+Considere o seguinte problema: dados dois pontos \(s, t \in \mathbb{R}^2\) e uma sequência de polígonos convexos disjuntos \(P_1, P_2, \ldots, P_k\), encontrar o caminho de menor comprimento que se inicia em \(s\), termina em \(t\) e toca cada polígono \(P_i\) em pelo menos um ponto, podendo atravessá-los.
+
+A figura ao lado ilustra um exemplo de entrada e a solução ótima para o problema para um caso com 3 polígonos. Temos \(s\) como o \textcolor[RGB]{0,128,0}{ponto verde}, \(t\) como o \textcolor[RGB]{255, 0, 0}{ponto vermelho} e os polígonos \(P_1, P_2\) e \(P_3\) como o \textcolor[RGB]{76, 146, 195}{triângulo azul}, o trapézio laranja e o pentágono verde, respectivamente. O caminho mínimo é representado pela \textcolor{purple}{linha roxa}.
+
+Retomando o paper, definimos um \(i\)-path até \(p\) como um caminho mínimo que começa em \(s\), encosta em cada um dos polígonos \(P_1, P_2, \ldots, P_i\) e termina em \(p\). Note que nosso objetivo é encontrar um \(k\)-path até \(t\). Enquanto não vamos entrar em detalhes, todo \(i\)-path é único.
+
+A função central desse algoritmo será a função \(\text{Query}(p, i)\), que recebe um ponto \(p\) e um índice \(i\) e retorna o penúltimo ponto \(q\) do \(i\)-path até \(p\) (ou seja, o ponto imediatamente anterior a \(p\) nesse caminho). Note que a resposta do problema pode ser obtida chamando \(\text{Query}(t, k)\).
+
+Primeiramente, vamos descrever procedimentos auxiliares que serão úteis para a implementação da função \(\text{Query}\). Finalmente, vamos descrever como respoder consultas usando esses procedimentos. Por enquanto, vamos assumir que sabemos como respoder as consultas.
+
+\subsection{Particionando o Plano}
+
+O primeiro passo do algoritmo é, para cada polígono \(P_i\), criar uma partição \(S_i\) do plano. Essa partição tem 3 tipos de regiões, Regiões de Vértice, Regiões de Aresta e Regiões de Atravessa. Essa partição é usada para responder consultas, uma vez que o comportamento da função \(\text{Query}(p, i)\) depende de qual região \(p\) pertence.
+
+\begin{itemize}[noitemsep]
+	\item Regiões de Vértice.
+	\item Regiões de Aresta.
+	\item Regiões de Atravessa.
+\end{itemize}
 
 \bibliography{referencias}
 
