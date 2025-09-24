@@ -118,4 +118,4 @@ test9 = Drawing(
 #test4.draw()
 #test5.draw()
 #test6.draw()
-test7.draw([])
+test7.draw()
