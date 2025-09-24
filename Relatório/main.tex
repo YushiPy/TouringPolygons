@@ -246,6 +246,14 @@ Para \(i > 0\), primeiramente determinamos a região \(R\) de \(S_i\) que conté
 
 Uma vez que sabemos como responder consultas, calcular o caminho final é muito simples. Basta calcular \(q_k = \text{Query}(t, k)\), então \(q_{k - 1} =\text{Query}(q_k, k - 1)\) e assim por diante, até \(q_0 = s\). Assim, o caminho mínimo é simplesmente a sequência \(s, q_1, \ldots, q_k, t\).
 
+\section{O Problema de Visita de Polígonos Geral}
+
+Vamos tomar como base a implementação do algoritmo de Mitchell para o problema restrito que fizemos em \textit{Python}. O código pode ser encontrado no arquivo \texttt{TouringPolygons/problem2.py}.
+
+\subsection{Definições e Notação}
+
+O problema segue de forma similar ao anterior, mas agora também recebemos como entrada `cercas' \(F_0, \dots, F_k\) tais que para todo \(0 \le i \le k\) vale que o polígono \(P_i\) e \(P_{i + 1}\) estão contidos em \(F_i\), para tal, consideramos \(P_0 = \{s\}\) e \(P_{k + 1} = \{t\}\). Nosso objetivo é encontrar o caminho de menor comprimento que se inicia em \(s\), termina em \(t\), toca cada polígono \(P_i\) em pelo menos um ponto e nunca sai da cerca \(F_i\) no seu caminho entre \(P_i\) e \(P_{i + 1}\).
+
 \bibliography{referencias}
 
 \end{document}
