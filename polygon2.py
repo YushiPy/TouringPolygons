@@ -124,14 +124,14 @@ class Polygon2(tuple[Vector2, ...]):
 
 		signed_area = 0.0
 
-		for i in range(len(result)):
-			a = result[i]
-			b = result[(i + 1) % len(result)]
+		for i in range(len(result) - 1):
+			a = result[(i + 1) % len(result)] - result[i]
+			b = result[(i + 2) % len(result)] - result[(i + 1) % len(result)]
 			signed_area += a.cross(b)
 
 		# Reverse the order of points to ensure counter-clockwise orientation
 		if signed_area < 0:
-			result.reverse()
+			result = [result[0]] + result[:0:-1]
 
 		return super().__new__(cls, result)
 
