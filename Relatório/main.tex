@@ -205,16 +205,16 @@ Finalmente, podemos dizer que as regiões de atravessa são todas as outras regi
 
 \subsubsection{Construindo as Partições}
 
-\begin{wrapfigure}{r}{0.60\textwidth}
+Primeiramente, a partir da figura, note que nem todo vértice e nem toda aresta de \(P_i\) geram uma região na partição \(S_i\). Dizemos que uma aresta que gera uma região é uma aresta visível, assim, nosso primeiro passo é encontrar todas as arestas visíveis de \(P_i\). 
 
-\vspace{-15pt}
+\begin{wrapfigure}{l}{0.60\textwidth}
+
+\vspace{-5pt}
 \centering
 \includegraphics[width=0.6\textwidth]{problem1-partitions-reduced.png}
 \caption{Partição do plano para cada poígono do exemplo anterior.}
 
 \end{wrapfigure}
-
-Primeiramente, a partir da figura, note que nem todo vértice e nem toda aresta de \(P_i\) geram uma região na partição \(S_i\). Dizemos que uma aresta que gera uma região é uma aresta visível, assim, nosso primeiro passo é encontrar todas as arestas visíveis de \(P_i\). 
 
 Para deteminar se uma aresta \(e\) é visível, simplesmente calculamos \(p = \text{Query}(m, i)\) onde \(m\) é o ponto médio de \(e\) e verificamos se \(\overline{pm}\) atravessa \(P_i\). Se o segmento atravessa \(P_i\), então \(e\) não é visível, caso contrário, \(e\) é visível.
 
@@ -253,6 +253,16 @@ Vamos tomar como base a implementação do algoritmo de Mitchell para o problema
 \subsection{Definições e Notação}
 
 O problema segue de forma similar ao anterior, mas agora também recebemos como entrada `cercas' \(F_0, \dots, F_k\) tais que para todo \(0 \le i \le k\) vale que o polígono \(P_i\) e \(P_{i + 1}\) estão contidos em \(F_i\), para tal, consideramos \(P_0 = \{s\}\) e \(P_{k + 1} = \{t\}\). Nosso objetivo é encontrar o caminho de menor comprimento que se inicia em \(s\), termina em \(t\), toca cada polígono \(P_i\) em pelo menos um ponto e nunca sai da cerca \(F_i\) no seu caminho entre \(P_i\) e \(P_{i + 1}\).
+
+Dizemos que um caminho \(\pi\) de \(a\) até \(b\) respeita as cercas \(F_i, \dots, F_j\) se \(\pi\) toca todos os polígonos \(P_{i + 1}, \dots, P_j\) e para cada \(i \le l < j\), o trecho de \(\pi\) entre \(P_l\) e \(P_{l + 1}\) está contido em \(F_l\). Ademais, definimos um \(i\)-path até \(p\) como um caminho mínimo de \(s\) até \(p\) que respeita as cercas \(F_0, \dots, F_i\). Note que nosso objetivo é encontrar um \(k\)-path até \(t\).
+
+A função central desse algoritmo continua sendo Query, no entanto, dessa vez vamos adicionar um novo parâmetro, assim, a função \(\text{Query}(p, i, j)\) recebe um ponto \(p\) e dois índices \(i\) e \(j\) e retorna o penúltimo ponto \(q\) do menor caminho até \(p\) que parte de \(s\), toca todos os polígonos \(P_1, \dots, P_i\) e respeita as cercas \(F_0, \dots, F_j\).
+
+Primeiramente, é essencial que \(i \le j\), ademais, se \(i = j\) então \(\text{Query}(p, i, j)\) é simplesmente o penúltimo ponto do \(i\)-path até \(p\). Adicionamos o parâmetro \(j\) para o caso em que queremos um \(i\)-path, mas \(p\) está fora da cerca \(F_i\) um caso que aparece naturalmente na recursão do algoritmo. Por enquanto, vamos assumir que sabemos como respoder as consultas.
+
+\subsection{Caminhos Restritos}
+
+Outra função extremamente importante para a implementação desse algoritmo é a função \(\text{Fenced}(p_1, p_2, i, j)\) que retorna o menor caminho de \(p_1\) até \(p_2\) que respeita as cercas \(F_i, \dots, F_j\). Note que se \(i = j\), então \(\text{Fenced}(p_1, p_2, i, j)\) é simplesmente o segmento \(\overline{p_1p_2}\) se ele estiver contido em \(F_i\) e não existe caso contrário. Assim, vamos assumir que \(i < j\).
 
 \bibliography{referencias}
 
