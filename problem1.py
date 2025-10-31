@@ -12,7 +12,7 @@ We will also consider that:
 - The problem is in 2D.
 """
 
-from typing import Iterable
+from collections.abc import Iterable
 from vector2 import Vector2
 from polygon2 import Polygon2
 
