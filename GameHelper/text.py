@@ -1,8 +1,8 @@
 
-
 import enum
 import re
-from typing import Callable, Hashable, Iterable, Any
+from collections.abc import Callable, Iterable
+from typing import Hashable, Any
 
 from pygame.font import Font
 import pygame as pg
