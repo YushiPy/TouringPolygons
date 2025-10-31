@@ -1,9 +1,12 @@
 
 import math
 from operator import neg
-from typing import Callable, Iterable, Iterator, Literal, Self, overload
 
 from itertools import islice
+
+from collections.abc import Callable, Iterable, Iterator
+from typing import Literal, Self, overload
+
 
 class Vector2:
 
