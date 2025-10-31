@@ -13,7 +13,7 @@ def _on_segment(a: Vector2, b: Vector2, p: Vector2, eps: float = 1e-12) -> bool:
 	return min(a.x, b.x) - eps <= p.x <= max(a.x, b.x) + eps and \
 			min(a.y, b.y) - eps <= p.y <= max(a.y, b.y) + eps
 
-def _intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> tuple[float, float] | None:
+def intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> tuple[float, float] | None:
 	"""
 	Calculate the intersection rates of two lines defined by a point and a direction vector.
 	Returns None if the lines are parallel.
@@ -31,7 +31,7 @@ def _intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, d
 
 	return rate1, rate2
 
-def _segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2) -> Vector2 | None:
+def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2) -> Vector2 | None:
 	"""
 	Returns the intersection point of two line segments if they intersect, otherwise returns None.
 
@@ -46,7 +46,7 @@ def _segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector
 	diff1 = end1 - start1
 	diff2 = end2 - start2
 
-	rates = _intersection_rates(start1, diff1, start2, diff2)
+	rates = intersection_rates(start1, diff1, start2, diff2)
 
 	if rates is not None and 0 <= rates[0] <= 1 and 0 <= rates[1] <= 1:
 		return start1 + diff1 * rates[0]
@@ -159,7 +159,7 @@ class Polygon2(tuple[Vector2, ...]):
 		"""
 		Check if the polygon is simple (i.e., does not intersect itself).
 		"""
-		return not any(any(_segment_segment_intersection(a, b, x, y) is not None for x, y in self.far_edges(a, b)) for a, b in self.edges())
+		return not any(any(segment_segment_intersection(a, b, x, y) is not None for x, y in self.far_edges(a, b)) for a, b in self.edges())
 
 	def edges(self) -> list[tuple[Vector2, Vector2]]:
 		"""
@@ -250,7 +250,7 @@ class Polygon2(tuple[Vector2, ...]):
 
 		for a, b in self.far_edges(start, end, eps=eps):
 
-			intersection = _segment_segment_intersection(start, end, a, b)
+			intersection = segment_segment_intersection(start, end, a, b)
 
 			if intersection is not None and not intersection.is_close(start, eps) and not intersection.is_close(end, eps):
 				possibles.append(intersection)				
@@ -265,7 +265,7 @@ class Polygon2(tuple[Vector2, ...]):
 
 		for a, b in self.far_edges(start, end, eps=eps):
 
-			intersection = _segment_segment_intersection(start, end, a, b)
+			intersection = segment_segment_intersection(start, end, a, b)
 
 			if intersection is not None and not intersection.is_close(start, eps) and not intersection.is_close(end, eps):
 				return True

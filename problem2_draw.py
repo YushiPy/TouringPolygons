@@ -169,6 +169,11 @@ def draw_polygon(ax: Axes, polygon: Polygon2, **kwargs: Any) -> None:
 	"""
 
 	fill(ax, *zip(*polygon), **kwargs)
+
+	if "label" in kwargs:
+		kwargs = kwargs.copy()
+		kwargs.pop("label")
+	
 	plot(ax, *zip(*(polygon + (polygon[0],))), **kwargs)
 
 
@@ -182,12 +187,15 @@ class Drawing(Solution):
 		self.bboxes = []
 
 		scenes = len(self.polygons) + 1
+		scenes = 1
 		height = isqrt(scenes - 1) + 1
 		width = (scenes + height - 1) // height
 
 		_, ax = plt.subplots(height, width, figsize=(6 * width, 6 * height)) # type: ignore
 
 		flat: list[Axes] = ax.flatten() if scenes > 1 else [ax]
+
+		self.draw0(flat[0])
 
 		for i in range(1, scenes):
 			self.draw_scene(flat[i], i - 1)
@@ -196,7 +204,45 @@ class Drawing(Solution):
 			flat[i].axis("off")
 
 		plt.tight_layout()
-		plt.show() # type: ignore
+		#plt.show() # type: ignore
+
+	def draw0(self, ax: Axes) -> None:
+
+		path = self.solve()
+
+		bbox = Polygon2.bbox(chain(*self.fences, *self.polygons, [self.start, self.target]))
+		minx, miny = bbox[0].x, bbox[0].y
+		maxx, maxy = bbox[1].x, bbox[1].y
+
+		ax.set_xlim(minx, maxx)
+		ax.set_ylim(miny, maxy)
+		ax.set_aspect('equal', adjustable='box')
+
+		ax.scatter(self.start.x, self.start.y, color="green", marker="o", label="Start") # type: ignore
+		ax.scatter(self.target.x, self.target.y, color="red", marker="o", label="Target") # type: ignore
+
+		plot(ax, *zip(*path), color="purple", linewidth=2, linestyle="dashed", marker="o", markersize=3, label="Path") # type: ignore
+		
+		fill(ax, [minx, minx, maxx, maxx], [miny, maxy, maxy, miny], color="#ccd7d8", alpha=0.7)
+
+		for i, p in enumerate(self.polygons, 1):
+			draw_polygon(ax, p, label=f"Polygon {i}")
+
+		plt.gca().set_prop_cycle(None) # type: ignore
+
+		for i, f in enumerate(self.fences, 1):
+			plot(ax, *zip(*(f + (f[0],))), alpha=0.8, label=f"Fence {i}")
+
+		plot(ax, *zip(*path), color="purple", linewidth=2, linestyle="dashed", marker="o", markersize=3) # type: ignore
+
+		plot(ax, self.start.x, self.start.y, color="green", marker="o", markersize=4)
+		plot(ax, self.target.x, self.target.y, color="red", marker="o", markersize=4)
+
+		ax.grid() # type: ignore
+		ax.legend() # type: ignore
+
+		plt.tight_layout()
+		plt.savefig("output.png", dpi=300) # type: ignore
 
 	def draw_cones(self, ax: Axes, index: int) -> None:
 
@@ -212,6 +258,8 @@ class Drawing(Solution):
 
 			if ray1 == ray2:
 				continue
+
+			print(ray1, ray2, index, i)
 
 			points = locate_cone(vertex, ray1, ray2, _bbox)
 
@@ -294,3 +342,26 @@ class Drawing(Solution):
 
 		plot(ax, self.start.x, self.start.y, color="#00ff00", marker="o", label="Start")
 		plot(ax, self.target.x, self.target.y, color="#ff00ff", marker="o", label="Target")
+
+x = [
+	[(-2.04, 5.06)],
+	[(-3.7, 5.14)],
+	[(-5.74, 2.0), (-4.5, -0.58), (1.94, -6.44), (5.86, -0.36), (0.0, -0.54), (-4.58, 1.74), (0.62, 3.88), (-2.02, 7.38), (-3.76, 7.02), (-2.08, 4.2)],
+	[(5.08, -0.74), (0.08, -3.1), (1.76, -5.34)],
+	[(-0.48, 6.8), (-1.78, 0.74), (-1.58, -5.62), (5.34, -6.52), (8.98, -0.38), (2.88, 0.3), (-0.84, 1.46), (7.38, 0.74), (7.84, 5.08)],
+	[(2.4, 3.22), (4.86, 1.46), (5.8, 2.94), (1.16, 6.0), (-0.16, 6.0)],
+	[(5.36, 7.12), (8.98, 0.68), (-6.54, -0.06), (0.06, 4.6), (-3.7, 6.34), (-3.18, 4.46), (-7.08, 5.52), (-4.54, 8.08)],
+]
+
+start = x[0]
+target = x[1]
+polygons = x[3:7:2]
+fences = x[2:7:2]
+
+print(fences)
+print(polygons)
+
+d = Drawing(Vector2(*start[0]), Vector2(*target[0]), [Polygon2([Vector2(*v) for v in p]) for p in polygons], [[Vector2(*v) for v in f] for f in fences])
+
+d.draw()
+
