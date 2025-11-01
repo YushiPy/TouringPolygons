@@ -184,12 +184,15 @@ def draw(polygon: Polygon2, cones: Cones, point: Vector2) -> None:
 	def extend_ray(vertex: Vector2, ray: Vector2) -> Vector2:
 		
 		match locate_ray(vertex, ray):
-			case 0: return vertex + ray * (max_x - vertex.x) / ray.x
-			case 1: return vertex + ray * (max_y - vertex.y) / ray.y
-			case 2: return vertex + ray * (vertex.x - min_x) / -ray.x
-			case 3: return vertex + ray * (vertex.y - min_y) / -ray.y
+			case 0: return ray * (max_x - vertex.x) / ray.x
+			case 1: return ray * (max_y - vertex.y) / ray.y
+			case 2: return ray * (vertex.x - min_x) / -ray.x
+			case 3: return ray * (vertex.y - min_y) / -ray.y
 
 	def get_points(vertex: Vector2, ray1: Vector2, ray2: Vector2) -> list[Vector2]:
+
+		ray1 = extend_ray(vertex, ray1)
+		ray2 = extend_ray(vertex, ray2)
 
 		side1: int = locate_ray(vertex, ray1)
 		side2 = locate_ray(vertex, ray2)
@@ -197,31 +200,64 @@ def draw(polygon: Polygon2, cones: Cones, point: Vector2) -> None:
 		rotated_corners = islice(cycle(corners), side1, side1 + 4)
 
 		if side1 == side2 and ray1.cross(ray2) < 0:
-			return [vertex, ray1] + list(rotated_corners) + [ray2]
+			return [vertex, vertex + ray1] + list(rotated_corners) + [vertex + ray2]
 
-		points = [vertex, extend_ray(vertex, ray1)]
+		points = [vertex, vertex + ray1]
 
 		while side1 != side2:
 			points.append(next(rotated_corners))
 			side1 = (side1 + 1) % 4
 
-		points.append(extend_ray(vertex, ray2))
+		points.append(vertex + ray2)
 	
+		return points
+
+	def get_points2(vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> list[Vector2]:
+
+		ray1 = extend_ray(vertex1, ray1)
+		ray2 = extend_ray(vertex2, ray2)
+
+		side1: int = locate_ray(vertex1, ray1)
+		side2 = locate_ray(vertex2, ray2)
+
+		rotated = islice(cycle(corners), side1, side1 + 4)
+		points = [vertex1, vertex1 + ray1]
+
+		if side1 == side2 and ray1.cross(ray2) < 0:
+			return points + list(rotated) + [vertex2 + ray2, vertex2]
+
+		while side1 != side2:
+			points.append(next(rotated))
+			side1 = (side1 + 1) % 4
+
+		points.append(vertex2 + ray2)
+		points.append(vertex2)
+
 		return points
 
 	def draw_cone(vertex: Vector2, ray1: Vector2, ray2: Vector2, *args: Any, **kwargs: Any) -> None:
 
 		points = get_points(vertex, ray1, ray2)
 
-		print(points)
-
 		fill(*zip(*points), *args, **kwargs)
 
-		p1 = vertex + ray1.scale_to_length(base_length)
-		p2 = vertex + ray2.scale_to_length(base_length)
+		p1 = vertex + extend_ray(vertex, ray1)
+		p2 = vertex + extend_ray(vertex, ray2)
 
 		plot([vertex.x, p1.x], [vertex.y, p1.y], color="black")
 		plot([vertex.x, p2.x], [vertex.y, p2.y], color="black")
+
+	def draw_edge(vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2, *args: Any, **kwargs: Any) -> None:
+
+		points = get_points2(vertex1, vertex2, ray1, ray2)
+
+		fill(*zip(*points), *args, **kwargs)
+
+		p1 = vertex1 + extend_ray(vertex1, ray1)
+		p2 = vertex2 + extend_ray(vertex2, ray2)
+
+		plot([vertex1.x, p1.x], [vertex1.y, p1.y], color="black")
+		plot([vertex2.x, p2.x], [vertex2.y, p2.y], color="black")
 
 	min_x, max_x, min_y, max_y = get_bbox(*polygon, point, square=True, scale=1.2)
 	base_length = max(max_x - min_x, max_y - min_y) * 2 ** 0.5
@@ -238,6 +274,16 @@ def draw(polygon: Polygon2, cones: Cones, point: Vector2) -> None:
 	for vertex, (ray1, ray2) in zip(polygon, cones):
 		draw_cone(vertex, ray1, ray2, alpha=0.5, color="blue")
 
+	for i in range(len(polygon)):
+
+		vertex1 = polygon[i]
+		vertex2 = polygon[(i + 1) % len(polygon)]
+
+		ray1 = cones[i][1]
+		ray2 = cones[(i + 1) % len(polygon)][0]
+
+		draw_edge(vertex1, vertex2, ray1, ray2, alpha=0.5, color="green")
+
 	fill(*zip(*polygon), color="red", alpha=0.3)
 	plot(*zip(*(polygon + (polygon[0],))), color="black", linewidth=1.2)
 
@@ -246,6 +292,7 @@ def draw(polygon: Polygon2, cones: Cones, point: Vector2) -> None:
 	ax.grid(True, which='both', linestyle='--', linewidth=1) # type: ignore
 	fig.tight_layout()
 
+	plt.show() # type: ignore
 
 def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
 
@@ -297,6 +344,7 @@ def find_point2(point: Vector2, polygon: Polygon2, cones: Cones) -> int:
 	left = 0
 	right = 2 * len(cones) - 1
 
+	return 0
 	while left + 1 != right:
 
 		mid = (left + right) // 2
@@ -333,39 +381,7 @@ def generate(center: Vector2, radius: float, num_sides: int, opening: float) -> 
 
 #draw(polygon, cones, point)
 
-#polygon, cones = generate(Vector2(), 5.0, 12, math.pi / 10)
-#point = Vector2(-10.0, 4.0)
+polygon, cones = generate(Vector2(), 5.0, 3, math.pi / 2)
+point = Vector2(-10.0, 4.0)
 
-#draw(polygon, cones, point)
-
-vertex1 = Vector2(1, 0.2)
-vertex2 = Vector2(-1, -1)
-#ray1 = Vector2.from_polar(theta=math.radians(-10))
-#ray2 = Vector2.from_polar(theta=math.radians(-120))
-
-import random
-ray1 = Vector2.from_polar(theta=random.uniform(0, math.tau))
-ray2 = Vector2.from_polar(theta=random.uniform(0, math.tau))
-
-left = min(vertex1.x, vertex2.x) - 1
-right = max(vertex1.x, vertex2.x) + 1
-bottom = min(vertex1.y, vertex2.y) - 1
-top = max(vertex1.y, vertex2.y) + 1
-
-import matplotlib.pyplot as plt
-import random
-
-points = [Vector2(random.uniform(left, right), random.uniform(bottom, top)) for _ in range(1000)]
-inside = [point_in_edge(point, vertex1, vertex2, ray1, ray2) for point in points]
-
-plt.fill([left, right, right, left], [bottom, bottom, top, top], color="#afbebe", alpha=1) # type: ignore
-plt.scatter([p.x for p in points], [p.y for p in points], c=["red" if inc else "blue" for inc in inside]) # type: ignore
-
-plt.plot(vertex1.x, vertex1.y, marker="o", color="white", markersize=8, markeredgecolor="black", zorder=5) # type: ignore
-plt.plot(vertex2.x, vertex2.y, marker="o", color="white", markersize=8, markeredgecolor="black", zorder=5) # type: ignore
-
-plt.plot([vertex1.x, vertex1.x + ray1.x * 1], [vertex1.y, vertex1.y + ray1.y * 1], color="black") # type: ignore
-plt.plot([vertex2.x, vertex2.x + ray2.x * 1], [vertex2.y, vertex2.y + ray2.y * 1], color="black") # type: ignore
-
-plt.axhline(0, color='black', linewidth=1, alpha=0.3)  # x-axis # type: ignore
-plt.axvline(0, color='black', linewidth=1, alpha=0.3)  # y-axis # type: ignore
+draw(polygon, cones, point)
