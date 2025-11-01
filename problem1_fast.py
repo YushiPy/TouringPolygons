@@ -198,11 +198,10 @@ def draw(polygon: Polygon2, cones: Cones, point: Vector2) -> None:
 		side2 = locate_ray(vertex, ray2)
 
 		rotated_corners = islice(cycle(corners), side1, side1 + 4)
+		points = [vertex, vertex + ray1]
 
 		if side1 == side2 and ray1.cross(ray2) < 0:
-			return [vertex, vertex + ray1] + list(rotated_corners) + [vertex + ray2]
-
-		points = [vertex, vertex + ray1]
+			return points + list(rotated_corners) + [vertex + ray2]
 
 		while side1 != side2:
 			points.append(next(rotated_corners))
@@ -260,8 +259,6 @@ def draw(polygon: Polygon2, cones: Cones, point: Vector2) -> None:
 		plot([vertex2.x, p2.x], [vertex2.y, p2.y], color="black")
 
 	min_x, max_x, min_y, max_y = get_bbox(*polygon, point, square=True, scale=1.2)
-	base_length = max(max_x - min_x, max_y - min_y) * 2 ** 0.5
-
 	corners = [Vector2(max_x, max_y), Vector2(min_x, max_y), Vector2(min_x, min_y), Vector2(max_x, min_y)]
 
 	fig, ax = plt.subplots() # type: ignore
@@ -283,6 +280,20 @@ def draw(polygon: Polygon2, cones: Cones, point: Vector2) -> None:
 		ray2 = cones[(i + 1) % len(polygon)][0]
 
 		draw_edge(vertex1, vertex2, ray1, ray2, alpha=0.5, color="green")
+
+	index = find_point2(point, polygon, cones)
+
+	if index % 2 == 0:
+		vertex = polygon[index // 2]
+		ray1, ray2 = cones[index // 2]
+		draw_cone(vertex, ray1, ray2, alpha=0.8, color="red")
+	else:
+		i = index // 2
+		vertex1 = polygon[i]
+		vertex2 = polygon[(i + 1) % len(polygon)]
+		ray1 = cones[i][1]
+		ray2 = cones[(i + 1) % len(polygon)][0]
+		draw_edge(vertex1, vertex2, ray1, ray2, alpha=0.8, color="red")
 
 	fill(*zip(*polygon), color="red", alpha=0.3)
 	plot(*zip(*(polygon + (polygon[0],))), color="black", linewidth=1.2)
@@ -335,21 +346,30 @@ def find_point2(point: Vector2, polygon: Polygon2, cones: Cones) -> int:
 	- `2n + 1` -> edge between vertex `n` and `n + 1`
 	"""
 
-	def in_cone(i: int) -> bool:
-		return point_in_cone(point, polygon[i], *cones[i])
+	def is_between(i: int, j: int) -> bool:
 
-	if in_cone(0):
+		ray1 = cones[i // 2][i % 2]
+		ray2 = cones[j // 2][j % 2]
+
+		v1 = polygon[i // 2]
+		v2 = polygon[j // 2]
+
+		return point_in_edge(point, v1, v2, ray1, ray2)
+
+	if is_between(0, 1):
 		return 0
 
 	left = 0
 	right = 2 * len(cones) - 1
 
-	return 0
 	while left + 1 != right:
 
 		mid = (left + right) // 2
 
-
+		if is_between(left, mid):
+			right = mid
+		else:
+			left = mid
 
 	return left
 
@@ -381,7 +401,7 @@ def generate(center: Vector2, radius: float, num_sides: int, opening: float) -> 
 
 #draw(polygon, cones, point)
 
-polygon, cones = generate(Vector2(), 5.0, 3, math.pi / 2)
-point = Vector2(-10.0, 4.0)
+polygon, cones = generate(Vector2(), 5.0, 100, math.pi / 100)
+point = Vector2(0.0, 15.0)
 
 draw(polygon, cones, point)
