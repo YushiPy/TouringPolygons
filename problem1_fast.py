@@ -9,6 +9,9 @@ from vector2 import Vector2
 from polygon2 import Polygon2
 
 
+type Cone = tuple[Vector2, Vector2]
+type Cones = list[Cone]
+
 def locate_point(point: Vector2, directions: list[Vector2]) -> int:
 
 	if len(directions) < 2:
@@ -155,7 +158,7 @@ def get_bbox(*points: Vector2, square: bool = False, scale: float = 1.0) -> tupl
 
 	return min_x, max_x, min_y, max_y
 
-def draw(polygon: Polygon2, cones: list[tuple[Vector2, Vector2]], point: Vector2) -> None:
+def draw(polygon: Polygon2, cones: Cones, point: Vector2) -> None:
 	
 	import matplotlib.pyplot as plt
 
@@ -219,7 +222,6 @@ def draw(polygon: Polygon2, cones: list[tuple[Vector2, Vector2]], point: Vector2
 
 		print(points)
 
-		# plt.fill(*zip(*points), color="white", alpha=1)
 		fill(*zip(*points), *args, **kwargs)
 
 		p1 = vertex + ray1.scale_to_length(base_length)
@@ -251,8 +253,37 @@ def draw(polygon: Polygon2, cones: list[tuple[Vector2, Vector2]], point: Vector2
 	ax.grid(True, which='both', linestyle='--', linewidth=1) # type: ignore
 	fig.tight_layout()
 
-polygon = Polygon2([Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)])
-cones = [(Vector2(-1, 0), Vector2(0, -1)), (Vector2(0, -1), Vector2(1, 0)), (Vector2(1, 0), Vector2(0, 1)), (Vector2(0, 1), Vector2(-1, 0))]
-point = Vector2(-3, 1.5)
+
+def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
+
+def find_point2(point: Vector2, polygon: Polygon2, cones: Cones) -> int:
+
+	pass
+
+def generate(center: Vector2, radius: float, num_sides: int, opening: float) -> tuple[Polygon2, Cones]:
+
+	vertices: list[Vector2] = []
+	cones: Cones = []
+
+	for i in range(num_sides):
+
+		angle = math.tau * i / num_sides
+
+		vertex = center + Vector2.from_spherical(radius, angle)
+		vertices.append(vertex)
+
+		ray1 = Vector2.from_spherical(1.0, angle - opening / 2)
+		ray2 = Vector2.from_spherical(1.0, angle + opening / 2)
+
+		cones.append((ray1, ray2))
+
+	return Polygon2(vertices), cones
+
+#polygon = Polygon2([Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)])
+#cones = [(Vector2(-1, 0), Vector2(0, -1)), (Vector2(0, -1), Vector2(1, 0)), (Vector2(1, 0), Vector2(0, 1)), (Vector2(0, 1), Vector2(-1, 0))]
+#point = Vector2(-3, 1.5)
+
+polygon, cones = generate(Vector2(), 5.0, 12, math.pi / 10)
+point = Vector2(-10.0, 4.0)
 
 draw(polygon, cones, point)
