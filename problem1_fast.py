@@ -256,6 +256,11 @@ def draw(polygon: Polygon2, cones: Cones, point: Vector2) -> None:
 
 def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
 
+	if ray1.cross(ray2) < 0:
+		return not point_in_edge(point, vertex2, vertex1, ray2, ray1)
+
+	return ray1.cross(point - vertex1) >= 0 and ray2.cross(point - vertex2) <= 0 and (vertex2 - vertex1).cross(point) <= 0
+
 def find_point2(point: Vector2, polygon: Polygon2, cones: Cones) -> int:
 
 	pass
@@ -283,7 +288,32 @@ def generate(center: Vector2, radius: float, num_sides: int, opening: float) -> 
 #cones = [(Vector2(-1, 0), Vector2(0, -1)), (Vector2(0, -1), Vector2(1, 0)), (Vector2(1, 0), Vector2(0, 1)), (Vector2(0, 1), Vector2(-1, 0))]
 #point = Vector2(-3, 1.5)
 
-polygon, cones = generate(Vector2(), 5.0, 12, math.pi / 10)
-point = Vector2(-10.0, 4.0)
+#polygon, cones = generate(Vector2(), 5.0, 12, math.pi / 10)
+#point = Vector2(-10.0, 4.0)
 
-draw(polygon, cones, point)
+#draw(polygon, cones, point)
+
+vertex1 = Vector2(1, 0)
+vertex2 = Vector2(-1, 0)
+ray1 = Vector2(1, 0).normalize()
+ray2 = Vector2(-1, 0).normalize()
+
+left = min(vertex1.x, vertex2.x) - 1
+right = max(vertex1.x, vertex2.x) + 1
+bottom = min(vertex1.y, vertex2.y) - 1
+top = max(vertex1.y, vertex2.y) + 1
+
+import matplotlib.pyplot as plt
+import random
+
+points = [Vector2(random.uniform(left, right), random.uniform(bottom, top)) for _ in range(1000)]
+inside = [point_in_edge(point, vertex1, vertex2, ray1, ray2) for point in points]
+
+plt.fill([left, right, right, left], [bottom, bottom, top, top], color="#afbebe", alpha=1)
+plt.scatter([p.x for p in points], [p.y for p in points], c=["red" if inc else "blue" for inc in inside])
+
+plt.plot(vertex1.x, vertex1.y, marker="o", color="white", markersize=8, markeredgecolor="black", zorder=5) # type: ignore
+plt.plot(vertex2.x, vertex2.y, marker="o", color="white", markersize=8, markeredgecolor="black", zorder=5) # type: ignore
+
+plt.plot([vertex1.x, vertex1.x + ray1.x * 1], [vertex1.y, vertex1.y + ray1.y * 1], color="black") # type: ignore
+plt.plot([vertex2.x, vertex2.x + ray2.x * 1], [vertex2.y, vertex2.y + ray2.y * 1], color="black") #
