@@ -249,13 +249,35 @@ def draw(polygon: Polygon2, cones: Cones, point: Vector2) -> None:
 
 def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
 
+	p1 = point - vertex1
+	p2 = point - vertex2
+	dv = vertex2 - vertex1
+
+	match (dv.cross(ray1) > 0, dv.cross(ray2) > 0):
+
+		case (True, True):
+			return ray2.cross(p2) < 0 or ray1.cross(p1) > 0 or dv.cross(p1) < 0
+
+		case (False, False):
+			return ray1.cross(p1) >= 0 and ray2.cross(p2) <= 0 and dv.cross(p1) <= 0
+
+		case (True, False):
+			return point_in_cone(point, vertex1, ray1, vertex1 - vertex2) or point_in_cone(point, vertex2, vertex1 - vertex2, ray2)
+
+		case (False, True):
+			return point_in_cone(point, vertex1, ray1, vertex2 - vertex1) or point_in_cone(point, vertex2, vertex2 - vertex1, ray2)
+
 	if ray1.cross(ray2) < 0:
 		return not point_in_edge(point, vertex2, vertex1, ray2, ray1)
 
 	return ray1.cross(point - vertex1) >= 0 and ray2.cross(point - vertex2) <= 0 and (vertex2 - vertex1).cross(point - vertex1) <= 0
 
 def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
-	return point_in_edge(point, vertex, vertex, ray1, ray2)
+
+	if ray1.cross(ray2) < 0:
+		return not point_in_cone(point, vertex, ray2, ray1)
+
+	return ray1.cross(point - vertex) >= 0 and ray2.cross(point - vertex) <= 0
 
 def find_point2(point: Vector2, polygon: Polygon2, cones: Cones) -> int:
 	"""
@@ -318,8 +340,12 @@ def generate(center: Vector2, radius: float, num_sides: int, opening: float) -> 
 
 vertex1 = Vector2(1, 0.2)
 vertex2 = Vector2(-1, -1)
-ray1 = Vector2.from_polar(math.radians(20))
-ray2 = Vector2(-1, 1).normalize()
+#ray1 = Vector2.from_polar(theta=math.radians(-10))
+#ray2 = Vector2.from_polar(theta=math.radians(-120))
+
+import random
+ray1 = Vector2.from_polar(theta=random.uniform(0, math.tau))
+ray2 = Vector2.from_polar(theta=random.uniform(0, math.tau))
 
 left = min(vertex1.x, vertex2.x) - 1
 right = max(vertex1.x, vertex2.x) + 1

@@ -37,22 +37,24 @@ class Vector2:
 
 	@overload
 	@staticmethod
-	def from_polar(theta: float) -> "Vector2": ...
-	@overload
-	@staticmethod
 	def from_polar(r: float, theta: float) -> "Vector2": ...
 	@overload
 	@staticmethod
 	def from_polar(r: Iterable[float]) -> "Vector2": ...
 
+	@overload
 	@staticmethod
-	def from_polar(r: float | Iterable[float], theta: float | None = None) -> "Vector2": # type: ignore
+	def from_polar(r: float = 1.0, *, theta: float) -> "Vector2": ...
+
+	@staticmethod
+	def from_polar(r: float | Iterable[float] = 1.0, theta: float | None = None) -> "Vector2":
 
 		if theta is None:
 			if isinstance(r, Iterable):
 				r, theta = r
 			else:
 				r, theta = 1.0, r
+
 		elif isinstance(r, Iterable):
 			raise ValueError("If theta is provided, r must be a float.")
 
