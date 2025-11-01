@@ -1,6 +1,7 @@
 
 from abc import ABC
-from typing import Self, Sequence
+from typing import Self
+from collections.abc import Sequence
 import pygame as pg
 
 pg.init()
@@ -36,7 +37,7 @@ class Game(ABC):
 
 		self.TIME_STEP = 1000 / __fps
 
-		self.__accumulator = 0
+		self.__accumulator = 0.0
 
 		self.fps_tracker = 0
 		self.game_loop_tracker = 0

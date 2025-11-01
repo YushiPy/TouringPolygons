@@ -35,7 +35,7 @@ def locate_point(point: Vector2, directions: list[Vector2]) -> int:
 		ray1 = extend_ray(ray1)
 		ray2 = extend_ray(ray2)
 
-		side1 = locate_ray(ray1)
+		side1: int = locate_ray(ray1)
 		side2 = locate_ray(ray2)
 
 		if side1 == side2 and ray1.cross(ray2) > 0:
@@ -46,7 +46,7 @@ def locate_point(point: Vector2, directions: list[Vector2]) -> int:
 
 		while flag or side1 != side2:
 			flag = False
-			points.append(Vector2.from_spherical(side_length * 2 ** .5, math.pi / 4 + side1 * math.pi / 2))
+			points.append(Vector2.from_polar(side_length * 2 ** .5, math.pi / 4 + side1 * math.pi / 2))
 			side1 = (side1 + 1) % 4
 
 		points.append(ray2)
@@ -101,17 +101,10 @@ def locate_point(point: Vector2, directions: list[Vector2]) -> int:
 
 	return cone
 
-def point_in_cone(ray1: Vector2, ray2: Vector2, point: Vector2) -> bool:
-
-	if ray1.cross(ray2) < 0:
-		return not point_in_cone(ray2, ray1, point)
-
-	return ray1.cross(point) >= 0 and ray2.cross(point) <= 0
-
 def find_point(point: Vector2, directions: list[Vector2]) -> int:
 
 	def found(i: int, j: int) -> bool:
-		return point_in_cone(directions[i], directions[j], point)
+		return point_in_cone(point, Vector2(), directions[i], directions[j])
 
 	if found(-1, 0):
 		return len(directions) - 1
@@ -198,7 +191,7 @@ def draw(polygon: Polygon2, cones: Cones, point: Vector2) -> None:
 
 	def get_points(vertex: Vector2, ray1: Vector2, ray2: Vector2) -> list[Vector2]:
 
-		side1 = locate_ray(vertex, ray1)
+		side1: int = locate_ray(vertex, ray1)
 		side2 = locate_ray(vertex, ray2)
 
 		rotated_corners = islice(cycle(corners), side1, side1 + 4)
@@ -259,11 +252,36 @@ def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vect
 	if ray1.cross(ray2) < 0:
 		return not point_in_edge(point, vertex2, vertex1, ray2, ray1)
 
-	return ray1.cross(point - vertex1) >= 0 and ray2.cross(point - vertex2) <= 0 and (vertex2 - vertex1).cross(point) <= 0
+	return ray1.cross(point - vertex1) >= 0 and ray2.cross(point - vertex2) <= 0 and (vertex2 - vertex1).cross(point - vertex1) <= 0
+
+def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
+	return point_in_edge(point, vertex, vertex, ray1, ray2)
 
 def find_point2(point: Vector2, polygon: Polygon2, cones: Cones) -> int:
+	"""
+	Locates point in cones or edges defined by polygon and cones.
+	Returns index as follows:
+	
+	- `2n` -> cone in vertex `n`
+	- `2n + 1` -> edge between vertex `n` and `n + 1`
+	"""
 
-	pass
+	def in_cone(i: int) -> bool:
+		return point_in_cone(point, polygon[i], *cones[i])
+
+	if in_cone(0):
+		return 0
+
+	left = 0
+	right = 2 * len(cones) - 1
+
+	while left + 1 != right:
+
+		mid = (left + right) // 2
+
+
+
+	return left
 
 def generate(center: Vector2, radius: float, num_sides: int, opening: float) -> tuple[Polygon2, Cones]:
 
@@ -274,11 +292,11 @@ def generate(center: Vector2, radius: float, num_sides: int, opening: float) -> 
 
 		angle = math.tau * i / num_sides
 
-		vertex = center + Vector2.from_spherical(radius, angle)
+		vertex = center + Vector2.from_polar(radius, angle)
 		vertices.append(vertex)
 
-		ray1 = Vector2.from_spherical(1.0, angle - opening / 2)
-		ray2 = Vector2.from_spherical(1.0, angle + opening / 2)
+		ray1 = Vector2.from_polar(1.0, angle - opening / 2)
+		ray2 = Vector2.from_polar(1.0, angle + opening / 2)
 
 		cones.append((ray1, ray2))
 
@@ -293,10 +311,15 @@ def generate(center: Vector2, radius: float, num_sides: int, opening: float) -> 
 
 #draw(polygon, cones, point)
 
-vertex1 = Vector2(1, 0)
-vertex2 = Vector2(-1, 0)
-ray1 = Vector2(1, 0).normalize()
-ray2 = Vector2(-1, 0).normalize()
+#polygon, cones = generate(Vector2(), 5.0, 12, math.pi / 10)
+#point = Vector2(-10.0, 4.0)
+
+#draw(polygon, cones, point)
+
+vertex1 = Vector2(1, 0.2)
+vertex2 = Vector2(-1, -1)
+ray1 = Vector2.from_polar(math.radians(20))
+ray2 = Vector2(-1, 1).normalize()
 
 left = min(vertex1.x, vertex2.x) - 1
 right = max(vertex1.x, vertex2.x) + 1
@@ -309,11 +332,14 @@ import random
 points = [Vector2(random.uniform(left, right), random.uniform(bottom, top)) for _ in range(1000)]
 inside = [point_in_edge(point, vertex1, vertex2, ray1, ray2) for point in points]
 
-plt.fill([left, right, right, left], [bottom, bottom, top, top], color="#afbebe", alpha=1)
-plt.scatter([p.x for p in points], [p.y for p in points], c=["red" if inc else "blue" for inc in inside])
+plt.fill([left, right, right, left], [bottom, bottom, top, top], color="#afbebe", alpha=1) # type: ignore
+plt.scatter([p.x for p in points], [p.y for p in points], c=["red" if inc else "blue" for inc in inside]) # type: ignore
 
 plt.plot(vertex1.x, vertex1.y, marker="o", color="white", markersize=8, markeredgecolor="black", zorder=5) # type: ignore
 plt.plot(vertex2.x, vertex2.y, marker="o", color="white", markersize=8, markeredgecolor="black", zorder=5) # type: ignore
 
 plt.plot([vertex1.x, vertex1.x + ray1.x * 1], [vertex1.y, vertex1.y + ray1.y * 1], color="black") # type: ignore
-plt.plot([vertex2.x, vertex2.x + ray2.x * 1], [vertex2.y, vertex2.y + ray2.y * 1], color="black") #
+plt.plot([vertex2.x, vertex2.x + ray2.x * 1], [vertex2.y, vertex2.y + ray2.y * 1], color="black") # type: ignore
+
+plt.axhline(0, color='black', linewidth=1, alpha=0.3)  # x-axis # type: ignore
+plt.axvline(0, color='black', linewidth=1, alpha=0.3)  # y-axis # type: ignore

@@ -4,7 +4,9 @@
 import heapq
 from itertools import accumulate, chain
 from random import randint
-from typing import Any, Callable, Iterable, Iterator, Sequence, Type
+
+from typing import Any
+from collections.abc import Callable, Iterable, Iterator, Sequence
 
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
@@ -99,7 +101,7 @@ class Graph:
 
 		return path
 
-HASHABLE_MAPPING: dict[Type[Any], Type[Any]] = {Vector2: tuple}
+HASHABLE_MAPPING: dict[type[Any], type[Any]] = {Vector2: tuple}
 
 def identity[T](x: T) -> T:
 	return x
@@ -208,6 +210,8 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 
 	if rates is not None and 0 <= rates[0] <= 1 and 0 <= rates[1] <= 1:
 		return start1 + diff1 * rates[0]
+	
+	return None
 
 def bend_is_optimal(start: Vector2, end: Vector2, vertex: Vector2, before: Vector2, after: Vector2) -> bool:
 	"""

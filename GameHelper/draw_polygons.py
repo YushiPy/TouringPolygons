@@ -47,6 +47,10 @@ def hsv_to_rgb(h: float, s: float, v: float) -> tuple[int, int, int]:
 	x = c * (1 - abs((h * 6) % 2 - 1))
 	m = v - c
 
+	r: float
+	g: float
+	b: float
+
 	match int(h * 6):
 		case 0: r, g, b = c, x, 0
 		case 1: r, g, b = x, c, 0

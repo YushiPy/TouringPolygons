@@ -1,6 +1,7 @@
 
 from functools import cached_property
-from typing import Iterable, Literal, SupportsIndex
+from typing import Literal, SupportsIndex
+from collections.abc import Iterable
 from vector2 import Vector2
 
 

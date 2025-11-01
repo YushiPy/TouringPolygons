@@ -7,8 +7,6 @@ from itertools import islice
 from collections.abc import Callable, Iterable, Iterator
 from typing import Literal, Self, overload
 
-from numpy import isin
-
 
 class Vector2:
 

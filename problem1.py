@@ -50,6 +50,8 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 
 	if rates is not None and 0 <= rates[0] <= 1 and 0 <= rates[1] <= 1:
 		return start1 + diff1 * rates[0]
+	
+	return None
 
 
 def point_in_cone(point: Vector2, start: Vector2, ray1: Vector2, ray2: Vector2, eps: float = 1e-10) -> bool:
@@ -158,6 +160,8 @@ class Solution:
 			
 			if point_in_cone(point, vertex, ray1, ray2):
 				return vertex
+			
+		return None
 	
 	def point_in_edge(self, point: Vector2, index: int) -> Vector2 | None:
 		"""
@@ -208,6 +212,8 @@ class Solution:
 				raise ValueError(f"Unexpected result: {result} for point {point} in polygon {index} at edge {i}")
 
 			return result
+
+		return None
 
 	def query(self, point: Vector2, index: int) -> Vector2:
 		"""
