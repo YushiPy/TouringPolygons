@@ -14,7 +14,7 @@ def regular(n: int, r: float, start: Vector2 = Vector2(), angle: float = 0) -> P
 
 	:return: A Polygon2 object representing the regular polygon.
 	"""
-	return Polygon2(start + Vector2.from_spherical(r, i * tau / n + angle) for i in range(n))
+	return Polygon2(start + Vector2.from_polar(r, i * tau / n + angle) for i in range(n))
 
 sol = Drawing(Vector2(-3, 0), Vector2(3, 0), [
 	regular(5, 1, start=Vector2(-1, 3), angle=0.1),
@@ -35,11 +35,11 @@ test2 = Drawing(
 	Vector2(-1, -1),
 	Vector2(1, -1),
 	[
-		Polygon2([Vector2.from_spherical(2, i * tau / 6 + pi * 0.35) + Vector2(4, 5) for i in range(6)]),
-		Polygon2([Vector2.from_spherical(2, i * tau / 3 + pi /4) + Vector2(-3, 4) for i in range(3)]),
-		Polygon2([Vector2.from_spherical(2, i * tau / 10) + Vector2(5, -4) for i in range(10)]),
-		Polygon2([Vector2.from_spherical(2, i * tau / 4 + pi / 4) + Vector2(-4, -2) for i in range(4)]),
-		Polygon2([Vector2.from_spherical(2, i * tau / 30 + pi / 4) + Vector2(0, -8) for i in range(30)]),
+		Polygon2([Vector2.from_polar(2, i * tau / 6 + pi * 0.35) + Vector2(4, 5) for i in range(6)]),
+		Polygon2([Vector2.from_polar(2, i * tau / 3 + pi /4) + Vector2(-3, 4) for i in range(3)]),
+		Polygon2([Vector2.from_polar(2, i * tau / 10) + Vector2(5, -4) for i in range(10)]),
+		Polygon2([Vector2.from_polar(2, i * tau / 4 + pi / 4) + Vector2(-4, -2) for i in range(4)]),
+		Polygon2([Vector2.from_polar(2, i * tau / 30 + pi / 4) + Vector2(0, -8) for i in range(30)]),
 	]
 )
 
@@ -65,9 +65,9 @@ test5 = Drawing(
 	Vector2(-1, -1),
 	Vector2(1, -1),
 	[
-		Polygon2([Vector2.from_spherical(2, i * tau / 6 + pi * 0.35) + Vector2(4, 5) for i in range(6)]),
-		Polygon2([Vector2.from_spherical(2, i * tau / 3) + Vector2(5, -4) for i in range(3)]),
-		Polygon2([Vector2.from_spherical(2, i * tau / 4 + pi / 4) + Vector2(-4, -2) for i in range(4)]),
+		Polygon2([Vector2.from_polar(2, i * tau / 6 + pi * 0.35) + Vector2(4, 5) for i in range(6)]),
+		Polygon2([Vector2.from_polar(2, i * tau / 3) + Vector2(5, -4) for i in range(3)]),
+		Polygon2([Vector2.from_polar(2, i * tau / 4 + pi / 4) + Vector2(-4, -2) for i in range(4)]),
 	]
 )
 

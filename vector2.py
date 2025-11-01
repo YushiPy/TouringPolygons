@@ -7,6 +7,8 @@ from itertools import islice
 from collections.abc import Callable, Iterable, Iterator
 from typing import Literal, Self, overload
 
+from numpy import isin
+
 
 class Vector2:
 
@@ -37,16 +39,24 @@ class Vector2:
 
 	@overload
 	@staticmethod
-	def from_spherical(r: float, theta: float) -> "Vector2": ...
+	def from_polar(theta: float) -> "Vector2": ...
 	@overload
 	@staticmethod
-	def from_spherical(r: Iterable[float]) -> "Vector2": ...
+	def from_polar(r: float, theta: float) -> "Vector2": ...
+	@overload
+	@staticmethod
+	def from_polar(r: Iterable[float]) -> "Vector2": ...
 
 	@staticmethod
-	def from_spherical(r: float | Iterable[float], theta: float = 0) -> "Vector2":
+	def from_polar(r: float | Iterable[float], theta: float | None = None) -> "Vector2": # type: ignore
 
-		if isinstance(r, Iterable):
-			r, theta = r
+		if theta is None:
+			if isinstance(r, Iterable):
+				r, theta = r
+			else:
+				r, theta = 1.0, r
+		elif isinstance(r, Iterable):
+			raise ValueError("If theta is provided, r must be a float.")
 
 		x = r * math.cos(theta)
 		y = r * math.sin(theta)
