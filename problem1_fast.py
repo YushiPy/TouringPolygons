@@ -18,7 +18,36 @@ type _Polygon2 = Iterable[_Vector2]
 def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
 	return ray1.cross(point - vertex1) >= 0 and ray2.cross(point - vertex2) <= 0 and (vertex2 - vertex1).cross(point - vertex1) <= 0
 
+def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
+
+	p1 = point - vertex1
+	p2 = point - vertex2
+	dv = vertex2 - vertex1
+
+	match (dv.cross(ray1) > 0, dv.cross(ray2) > 0):
+
+		case (True, True):
+			return ray2.cross(p2) < 0 or ray1.cross(p1) > 0 or dv.cross(p1) < 0
+
+		case (False, False):
+			return ray1.cross(p1) >= 0 and ray2.cross(p2) <= 0 and dv.cross(p1) <= 0
+
+		case (True, False):
+			return point_in_cone(point, vertex1, ray1, vertex1 - vertex2) or point_in_cone(point, vertex2, vertex1 - vertex2, ray2)
+
+		case (False, True):
+			return point_in_cone(point, vertex1, ray1, vertex2 - vertex1) or point_in_cone(point, vertex2, vertex2 - vertex1, ray2)
+
+	if ray1.cross(ray2) < 0:
+		return not point_in_edge(point, vertex2, vertex1, ray2, ray1)
+
+	return ray1.cross(point - vertex1) >= 0 and ray2.cross(point - vertex2) <= 0 and (vertex2 - vertex1).cross(point - vertex1) <= 0
+
+
 def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
+
+	if ray1.is_close(ray2):
+		return abs(ray1.cross(point - vertex)) < 1e-8
 
 	if ray1.cross(ray2) < 0:
 		return not point_in_cone(point, vertex, ray2, ray1)
@@ -42,13 +71,19 @@ def locate_point(point: Vector2, polygon: Polygon2, cones: Cones) -> int:
 		v1 = polygon[i // 2]
 		v2 = polygon[j // 2]
 
+		if v1 == v2:
+			return point_in_cone(point, v1, ray1, ray2)
+
 		return point_in_edge(point, v1, v2, ray1, ray2)
+
+	left = 0
+	right = 2 * len(cones) - 1
 
 	if is_between(0, 1):
 		return 0
 
-	left = 0
-	right = 2 * len(cones) - 1
+	if is_between(right, left):
+		return right
 
 	while left + 1 != right:
 
@@ -112,7 +147,7 @@ class Solution:
 
 		self.cones = [[] for _ in self.polygons]
 		self.blocked = [[] for _ in self.polygons]
-	
+
 	def query(self, point: Vector2, index: int) -> Vector2:
 		"""
 		Given a point and a polygon index, returns the last step of the smallest `index`-path from `start` to `point`.
@@ -186,199 +221,18 @@ class Solution:
 
 				if (vertex - before).cross(last - before) >= 0:
 					ray1 = diff
-					fails[j] += 1
+					fails[j] |= 1
 				
 				if (after - vertex).cross(last - vertex) >= 0:
 					ray2 = diff
-					fails[j] += 1
+					fails[j] |= 2
 
 				cones.append((ray1, ray2))
 
 			for j in range(m):
-				blocked.append(fails[j] == 2 or fails[(j + 1) % m] == 2)
+				blocked.append(fails[j] == 3 or fails[(j + 1) % m] == 3 or (fails[j] >= 2 and fails[(j + 1) % m] == 1))
 
 		return []
-
-def get_bbox(*points: Vector2, square: bool = False, scale: float = 1.0) -> tuple[float, float, float, float]:
-	"""
-	Given an iterable of Vector2 points, return the bounding box as (min_x, max_x, min_y, max_y).	
-	"""
-
-	min_x = min(point.x for point in points)
-	max_x = max(point.x for point in points)
-	min_y = min(point.y for point in points)
-	max_y = max(point.y for point in points)
-
-	center_x = (min_x + max_x) / 2
-	center_y = (min_y + max_y) / 2
-
-	if square:
-		half_size = max((max_x - min_x), (max_y - min_y)) / 2
-		min_x = center_x - half_size
-		max_x = center_x + half_size
-		min_y = center_y - half_size
-		max_y = center_y + half_size
-	
-	min_x = center_x + (min_x - center_x) * scale
-	max_x = center_x + (max_x - center_x) * scale
-	min_y = center_y + (min_y - center_y) * scale
-	max_y = center_y + (max_y - center_y) * scale
-
-	return min_x, max_x, min_y, max_y
-
-def draw(polygon: Polygon2, cones: Cones, point: Vector2) -> None:
-	
-	import matplotlib.pyplot as plt
-
-	def plot(*args: Any, **kwargs: Any) -> None:
-
-		kwargs2 = kwargs.copy()
-		kwargs2["color"] = "white"
-		kwargs2["alpha"] = 1
-
-		ax.plot(*args, **kwargs2) # type: ignore
-		ax.plot(*args, **kwargs) # type: ignore
-
-	def fill(*args: Any, **kwargs: Any) -> None:
-
-		kwargs2 = kwargs.copy()
-		kwargs2["color"] = "white"
-		kwargs2["alpha"] = 1
-
-		ax.fill(*args, **kwargs2) # type: ignore
-		ax.fill(*args, **kwargs) # type: ignore
-
-	def locate_ray(vertex: Vector2, ray: Vector2) -> Literal[0, 1, 2, 3]:
-
-		match ray.quadrant():
-			case 0: return 0 if (max_x - vertex.x) * ray.y <= (max_y - vertex.y) * ray.x else 1
-			case 1: return 2 if (vertex.x - min_x) * ray.y <= (max_y - vertex.y) * -ray.x else 1
-			case 2: return 2 if (vertex.x - min_x) * -ray.y <= (vertex.y - min_y) * -ray.x else 3
-			case 3: return 0 if (max_x - vertex.x) * -ray.y <= (vertex.y - min_y) * ray.x else 3
-		
-	def extend_ray(vertex: Vector2, ray: Vector2) -> Vector2:
-		
-		match locate_ray(vertex, ray):
-			case 0: return ray * (max_x - vertex.x) / ray.x
-			case 1: return ray * (max_y - vertex.y) / ray.y
-			case 2: return ray * (vertex.x - min_x) / -ray.x
-			case 3: return ray * (vertex.y - min_y) / -ray.y
-
-	def get_points(vertex: Vector2, ray1: Vector2, ray2: Vector2) -> list[Vector2]:
-
-		ray1 = extend_ray(vertex, ray1)
-		ray2 = extend_ray(vertex, ray2)
-
-		side1: int = locate_ray(vertex, ray1)
-		side2 = locate_ray(vertex, ray2)
-
-		rotated_corners = islice(cycle(corners), side1, side1 + 4)
-		points = [vertex, vertex + ray1]
-
-		if side1 == side2 and ray1.cross(ray2) < 0:
-			return points + list(rotated_corners) + [vertex + ray2]
-
-		while side1 != side2:
-			points.append(next(rotated_corners))
-			side1 = (side1 + 1) % 4
-
-		points.append(vertex + ray2)
-	
-		return points
-
-	def get_points2(vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> list[Vector2]:
-
-		ray1 = extend_ray(vertex1, ray1)
-		ray2 = extend_ray(vertex2, ray2)
-
-		side1: int = locate_ray(vertex1, ray1)
-		side2 = locate_ray(vertex2, ray2)
-
-		rotated = islice(cycle(corners), side1, side1 + 4)
-		points = [vertex1, vertex1 + ray1]
-
-		if side1 == side2 and ray1.cross(ray2) < 0:
-			return points + list(rotated) + [vertex2 + ray2, vertex2]
-
-		while side1 != side2:
-			points.append(next(rotated))
-			side1 = (side1 + 1) % 4
-
-		points.append(vertex2 + ray2)
-		points.append(vertex2)
-
-		return points
-
-	def draw_cone(vertex: Vector2, ray1: Vector2, ray2: Vector2, *args: Any, **kwargs: Any) -> None:
-
-		points = get_points(vertex, ray1, ray2)
-
-		fill(*zip(*points), *args, **kwargs)
-
-		p1 = vertex + extend_ray(vertex, ray1)
-		p2 = vertex + extend_ray(vertex, ray2)
-
-		plot([vertex.x, p1.x], [vertex.y, p1.y], color="black")
-		plot([vertex.x, p2.x], [vertex.y, p2.y], color="black")
-
-	def draw_edge(vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2, *args: Any, **kwargs: Any) -> None:
-
-		points = get_points2(vertex1, vertex2, ray1, ray2)
-
-		fill(*zip(*points), *args, **kwargs)
-
-		p1 = vertex1 + extend_ray(vertex1, ray1)
-		p2 = vertex2 + extend_ray(vertex2, ray2)
-
-		plot([vertex1.x, p1.x], [vertex1.y, p1.y], color="black")
-		plot([vertex2.x, p2.x], [vertex2.y, p2.y], color="black")
-
-	min_x, max_x, min_y, max_y = get_bbox(*polygon, point, square=True, scale=1.2)
-	corners = [Vector2(max_x, max_y), Vector2(min_x, max_y), Vector2(min_x, min_y), Vector2(max_x, min_y)]
-
-	fig, ax = plt.subplots() # type: ignore
-
-	ax.set_xlim(min_x, max_x)
-	ax.set_ylim(min_y, max_y)
-
-	fill(*zip(*corners), color="#afbebe", alpha=1)
-
-	for vertex, (ray1, ray2) in zip(polygon, cones):
-		draw_cone(vertex, ray1, ray2, alpha=0.5, color="blue")
-
-	for i in range(len(polygon)):
-
-		vertex1 = polygon[i]
-		vertex2 = polygon[(i + 1) % len(polygon)]
-
-		ray1 = cones[i][1]
-		ray2 = cones[(i + 1) % len(polygon)][0]
-
-		draw_edge(vertex1, vertex2, ray1, ray2, alpha=0.5, color="green")
-
-	index = locate_point(point, polygon, cones)
-
-	if index % 2 == 0:
-		vertex = polygon[index // 2]
-		ray1, ray2 = cones[index // 2]
-		draw_cone(vertex, ray1, ray2, alpha=0.8, color="red")
-	else:
-		i = index // 2
-		vertex1 = polygon[i]
-		vertex2 = polygon[(i + 1) % len(polygon)]
-		ray1 = cones[i][1]
-		ray2 = cones[(i + 1) % len(polygon)][0]
-		draw_edge(vertex1, vertex2, ray1, ray2, alpha=0.8, color="red")
-
-	fill(*zip(*polygon), color="red", alpha=0.3)
-	plot(*zip(*(polygon + (polygon[0],))), color="black", linewidth=1.2)
-
-	plot(*point, marker="o", color="white", markersize=8, markeredgecolor="black", zorder=5)
-
-	ax.grid(True, which='both', linestyle='--', linewidth=1) # type: ignore
-	fig.tight_layout()
-
-	plt.show() # type: ignore
 
 
 test1 = Solution(
@@ -399,7 +253,7 @@ test2 = (
 	[
 		Polygon2([Vector2.from_polar(2, i * tau / 6 + pi * 0.35) + Vector2(4, 5) for i in range(6)]),
 		Polygon2([Vector2.from_polar(2, i * tau / 3 + pi /4) + Vector2(-3, 4) for i in range(3)]),
-		Polygon2([Vector2.from_polar(2, i * tau / 10) + Vector2(5, -4) for i in range(10)]),
+		Polygon2([Vector2.from_polar(2, i * tau / 3) + Vector2(5, -4) for i in range(3)]),
 		Polygon2([Vector2.from_polar(2, i * tau / 4 + pi / 4) + Vector2(-4, -2) for i in range(4)]),
 		Polygon2([Vector2.from_polar(2, i * tau / 30 + pi / 4) + Vector2(0, -8) for i in range(30)]),
 	]
@@ -413,7 +267,27 @@ other = Drawing(*test2)
 other.shortest_path()
 sol.solve()
 
-other.draw()
+#print(sol.cones[0])
+#print(other.cones[0])
 
+
+if 1:
+	aaaa = next((i for i in range(len(sol.blocked)) if sol.blocked[i] != other.blocked[i]), -1)
+	transform = lambda x: "".join(str(int(v)) for v in x)
+
+	if aaaa != -1:
+		print(f"Blocked differs at polygon {aaaa}")
+		print(transform(sol.blocked[aaaa]), transform(other.blocked[aaaa]))
+
+if 1:
+	for c1, c2 in zip(sol.cones, other.cones):
+		print("Checking new polygon")
+		for (r11, r12), (r21, r22) in zip(c1, c2):
+			if not (r11.is_close(r21) and r12.is_close(r22)):
+				print(f"Expected: {r11}, {r12} | Got: {r21}, {r22}")
+
+other.draw()
 other.cones = sol.cones
 other.draw()
+
+
