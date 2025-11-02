@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 
 from vector2 import Vector2
 from polygon2 import Polygon2
-from problem1 import Solution
+from problem1_fast import Solution
 
 
 def intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> tuple[float, float] | None:
@@ -154,7 +154,7 @@ class Drawing(Solution):
 		:return: A tuple (minx, miny, maxx, maxy) representing the bounding box.
 		"""
 
-		points = list(chain([self.start, self.end], *self.polygons))
+		points = list(chain([self.start, self.target], *self.polygons))
 		bleft, tright = Polygon2.bbox(points, extra, True)
 
 		minx, miny = bleft.x, bleft.y
@@ -165,8 +165,10 @@ class Drawing(Solution):
 
 	def draw(self, scenes: list[int] | None = None) -> None:
 
-		if not self.final_path:
-			self.shortest_path()
+		#if not self.final_path:
+		#	self.shortest_path()
+
+		self.final_path = self.solve()
 
 		n: int = len(self.polygons)
 
@@ -286,7 +288,7 @@ class Drawing(Solution):
 
 		# Setting labels
 		plot(*zip(self.start), "o", color="green", label='Start' * (index == -1), markersize=4)
-		plot(*zip(self.end), "o", color="red", label='End' * (index == -1), markersize=4)
+		plot(*zip(self.target), "o", color="red", label='End' * (index == -1), markersize=4)
 
 		# Fill the background with a cyan color
 		fill([minx, minx, maxx, maxx], [miny, maxy, maxy, miny], color="#6abdbe", alpha=0.7)
@@ -307,7 +309,7 @@ class Drawing(Solution):
 
 		# Plot the start and end points
 		plot(*zip(self.start), "o", color="green", markersize=4)
-		plot(*zip(self.end), "o", color="red", markersize=4)
+		plot(*zip(self.target), "o", color="red", markersize=4)
 
 		# ax.legend() # type: ignore
 		ax.grid() # type: ignore

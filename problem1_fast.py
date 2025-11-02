@@ -1,10 +1,6 @@
 
 from collections.abc import Iterable
-from itertools import cycle, islice
-import math
-from typing import Literal
 
-from matplotlib import pyplot as plt
 from vector2 import Vector2
 from polygon2 import Polygon2
 
@@ -228,117 +224,16 @@ class Solution:
 			for j in range(m):
 				blocked.append(fails[j] == 3 or fails[(j + 1) % m] == 3 or (fails[j] >= 2 and fails[(j + 1) % m] == 1))
 
-		return []
+		result = [self.target]
+		current = self.target
 
-from math import pi, tau
+		for i in range(n, -1, -1):
 
+			current = self.query(current, i)
+	
+			if (current - result[-1]).magnitude() > 1e-8:
+				result.append(current)
 
-def regular(n: int, r: float, start: Vector2 = Vector2(), angle: float = 0) -> Polygon2:
-	"""
-	Create a regular polygon with `n` vertices and radius `r`.
+		result.reverse()
 
-	:param int n: The number of vertices.
-	:param float r: The radius of the polygon.
-
-	:return: A Polygon2 object representing the regular polygon.
-	"""
-	return Polygon2(start + Vector2.from_polar(r, i * tau / n + angle) for i in range(n))
-
-test1 = (
-	Vector2(5, 1), 
-	Vector2(7, 3),
-	[
-		Polygon2([Vector2(3, 0), Vector2(2, 4), Vector2(1, 4), Vector2(-1, 1)]),
-		Polygon2([Vector2(3, 3), Vector2(4, 3), Vector2(4, 4), Vector2(3, 4)]),
-		Polygon2([Vector2(5, 5), Vector2(6, 5), Vector2(6, 6), Vector2(5, 6)]),
-	]
-)
-
-test2 = (
-	Vector2(-1, -1),
-	Vector2(1, -1),
-	[
-		Polygon2([Vector2.from_polar(2, i * tau / 6 + pi * 0.35) + Vector2(4, 5) for i in range(6)]),
-		Polygon2([Vector2.from_polar(2, i * tau / 3 + pi /4) + Vector2(-3, 4) for i in range(3)]),
-		Polygon2([Vector2.from_polar(2, i * tau / 10) + Vector2(5, -4) for i in range(10)]),
-		Polygon2([Vector2.from_polar(2, i * tau / 4 + pi / 4) + Vector2(-4, -2) for i in range(4)]),
-		Polygon2([Vector2.from_polar(2, i * tau / 30 + pi / 4) + Vector2(0, -8) for i in range(30)]),
-	]
-)
-
-test3 = (
-	Vector2(4, 1), 
-	Vector2(7, 3),
-	[
-		Polygon2([Vector2(3, 0), Vector2(1, 4), Vector2(-1, 1)]),
-		Polygon2([Vector2(2.5, 5.), Vector2(4.7, 5), Vector2(4, 6), Vector2(3, 6)]),
-		Polygon2([Vector2(5, 5), Vector2(6, 5), Vector2(6, 6), Vector2(5, 6)])
-	]
-)
-
-test4 = (
-	Vector2(4, 1), 
-	Vector2(7, 3),
-	[
-		Polygon2([Vector2(-1, 1), Vector2(1, 4), Vector2(3, 0), Vector2(-1, 0)]),
-	]
-)
-
-test5 = (
-	Vector2(-1, -1),
-	Vector2(1, -1),
-	[
-		Polygon2([Vector2.from_polar(2, i * tau / 6 + pi * 0.35) + Vector2(4, 5) for i in range(6)]),
-		Polygon2([Vector2.from_polar(2, i * tau / 3) + Vector2(5, -4) for i in range(3)]),
-		Polygon2([Vector2.from_polar(2, i * tau / 4 + pi / 4) + Vector2(-4, -2) for i in range(4)]),
-	]
-)
-
-test6 = (
-	Vector2(-3, 0),
-	Vector2(0, 2),
-	[
-		Polygon2(regular(3, 1, Vector2(0, 0), pi / 3))
-	]
-)
-
-test7 = (
-	Vector2(5, 1), 
-	Vector2(7, 3),
-	[
-		Polygon2([Vector2(3, 0), Vector2(2, 4), Vector2(1, 2)]),
-		Polygon2([Vector2(3, 3), Vector2(5, 3), Vector2(4.5, 4), Vector2(3.5, 4)]),
-		regular(5, 1.3, Vector2(5, 6), 0.1),
-	]
-)
-
-from problem1_draw import Drawing
-
-sol = Solution(*test2)
-other = Drawing(*test2)
-
-other.shortest_path()
-sol.solve()
-
-#print(sol.cones[0])
-#print(other.cones[0])
-
-
-if 1:
-	aaaa = next((i for i in range(len(sol.blocked)) if sol.blocked[i] != other.blocked[i]), -1)
-	transform = lambda x: "".join(str(int(v)) for v in x)
-
-	if aaaa != -1:
-		print(f"Blocked differs at polygon {aaaa}")
-		print(transform(sol.blocked[aaaa]), transform(other.blocked[aaaa]))
-
-if 1:
-	for c1, c2 in zip(sol.cones, other.cones):
-		print("Checking new polygon")
-		for (r11, r12), (r21, r22) in zip(c1, c2):
-			if not (r11.is_close(r21) and r12.is_close(r22)):
-				print(f"Expected: {r11}, {r12} | Got: {r21}, {r22}")
-
-#other.draw()
-other.cones = sol.cones
-other.draw()
+		return result
