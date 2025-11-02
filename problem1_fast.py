@@ -15,16 +15,19 @@ type _Vector2 = Iterable[float]
 type _Polygon2 = Iterable[_Vector2]
 
 
-def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
-	return ray1.cross(point - vertex1) >= 0 and ray2.cross(point - vertex2) <= 0 and (vertex2 - vertex1).cross(point - vertex1) <= 0
+#def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
+#	return ray1.cross(point - vertex1) >= 0 and ray2.cross(point - vertex2) <= 0 and (vertex2 - vertex1).cross(point - vertex1) <= 0
 
 def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
+
+	if vertex1.is_close(vertex2):
+		return point_in_cone(point, vertex1, ray1, ray2)
 
 	p1 = point - vertex1
 	p2 = point - vertex2
 	dv = vertex2 - vertex1
 
-	match (dv.cross(ray1) > 0, dv.cross(ray2) > 0):
+	match (dv.cross(ray1) >= 0, dv.cross(ray2) >= 0):
 
 		case (True, True):
 			return ray2.cross(p2) < 0 or ray1.cross(p1) > 0 or dv.cross(p1) < 0
@@ -43,11 +46,7 @@ def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vect
 
 	return ray1.cross(point - vertex1) >= 0 and ray2.cross(point - vertex2) <= 0 and (vertex2 - vertex1).cross(point - vertex1) <= 0
 
-
 def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
-
-	if ray1.is_close(ray2):
-		return abs(ray1.cross(point - vertex)) < 1e-8
 
 	if ray1.cross(ray2) < 0:
 		return not point_in_cone(point, vertex, ray2, ray1)
@@ -71,9 +70,6 @@ def locate_point(point: Vector2, polygon: Polygon2, cones: Cones) -> int:
 		v1 = polygon[i // 2]
 		v2 = polygon[j // 2]
 
-		if v1 == v2:
-			return point_in_cone(point, v1, ray1, ray2)
-
 		return point_in_edge(point, v1, v2, ray1, ray2)
 
 	left = 0
@@ -81,8 +77,8 @@ def locate_point(point: Vector2, polygon: Polygon2, cones: Cones) -> int:
 
 	if is_between(0, 1):
 		return 0
-
-	if is_between(right, left):
+	
+	if is_between(right, 0):
 		return right
 
 	while left + 1 != right:
@@ -203,7 +199,7 @@ class Solution:
 
 			cones = self.cones[i]
 			blocked = self.blocked[i]
-			
+
 			fails: list[int] = [0] * m
 
 			for j in range(m):
@@ -234,8 +230,21 @@ class Solution:
 
 		return []
 
+from math import pi, tau
 
-test1 = Solution(
+
+def regular(n: int, r: float, start: Vector2 = Vector2(), angle: float = 0) -> Polygon2:
+	"""
+	Create a regular polygon with `n` vertices and radius `r`.
+
+	:param int n: The number of vertices.
+	:param float r: The radius of the polygon.
+
+	:return: A Polygon2 object representing the regular polygon.
+	"""
+	return Polygon2(start + Vector2.from_polar(r, i * tau / n + angle) for i in range(n))
+
+test1 = (
 	Vector2(5, 1), 
 	Vector2(7, 3),
 	[
@@ -245,17 +254,61 @@ test1 = Solution(
 	]
 )
 
-from math import pi, tau
-
 test2 = (
 	Vector2(-1, -1),
 	Vector2(1, -1),
 	[
 		Polygon2([Vector2.from_polar(2, i * tau / 6 + pi * 0.35) + Vector2(4, 5) for i in range(6)]),
 		Polygon2([Vector2.from_polar(2, i * tau / 3 + pi /4) + Vector2(-3, 4) for i in range(3)]),
-		Polygon2([Vector2.from_polar(2, i * tau / 3) + Vector2(5, -4) for i in range(3)]),
+		Polygon2([Vector2.from_polar(2, i * tau / 10) + Vector2(5, -4) for i in range(10)]),
 		Polygon2([Vector2.from_polar(2, i * tau / 4 + pi / 4) + Vector2(-4, -2) for i in range(4)]),
 		Polygon2([Vector2.from_polar(2, i * tau / 30 + pi / 4) + Vector2(0, -8) for i in range(30)]),
+	]
+)
+
+test3 = (
+	Vector2(4, 1), 
+	Vector2(7, 3),
+	[
+		Polygon2([Vector2(3, 0), Vector2(1, 4), Vector2(-1, 1)]),
+		Polygon2([Vector2(2.5, 5.), Vector2(4.7, 5), Vector2(4, 6), Vector2(3, 6)]),
+		Polygon2([Vector2(5, 5), Vector2(6, 5), Vector2(6, 6), Vector2(5, 6)])
+	]
+)
+
+test4 = (
+	Vector2(4, 1), 
+	Vector2(7, 3),
+	[
+		Polygon2([Vector2(-1, 1), Vector2(1, 4), Vector2(3, 0), Vector2(-1, 0)]),
+	]
+)
+
+test5 = (
+	Vector2(-1, -1),
+	Vector2(1, -1),
+	[
+		Polygon2([Vector2.from_polar(2, i * tau / 6 + pi * 0.35) + Vector2(4, 5) for i in range(6)]),
+		Polygon2([Vector2.from_polar(2, i * tau / 3) + Vector2(5, -4) for i in range(3)]),
+		Polygon2([Vector2.from_polar(2, i * tau / 4 + pi / 4) + Vector2(-4, -2) for i in range(4)]),
+	]
+)
+
+test6 = (
+	Vector2(-3, 0),
+	Vector2(0, 2),
+	[
+		Polygon2(regular(3, 1, Vector2(0, 0), pi / 3))
+	]
+)
+
+test7 = (
+	Vector2(5, 1), 
+	Vector2(7, 3),
+	[
+		Polygon2([Vector2(3, 0), Vector2(2, 4), Vector2(1, 2)]),
+		Polygon2([Vector2(3, 3), Vector2(5, 3), Vector2(4.5, 4), Vector2(3.5, 4)]),
+		regular(5, 1.3, Vector2(5, 6), 0.1),
 	]
 )
 
@@ -286,8 +339,6 @@ if 1:
 			if not (r11.is_close(r21) and r12.is_close(r22)):
 				print(f"Expected: {r11}, {r12} | Got: {r21}, {r22}")
 
-other.draw()
+#other.draw()
 other.cones = sol.cones
 other.draw()
-
-
