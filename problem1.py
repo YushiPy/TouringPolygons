@@ -110,7 +110,7 @@ def point_in_edge(point: Vector2, start1: Vector2, ray1: Vector2, start2: Vector
 class Solution:
 
 	start: Vector2
-	end: Vector2
+	target: Vector2
 	polygons: list[Polygon2]
 
 	# Indicates whether edge `j` of polygon `i` is blocked
@@ -120,9 +120,7 @@ class Solution:
 	# They are stored in counter-clockwise order.
 	cones: list[list[tuple[Vector2, Vector2]]]
 
-	final_path: list[Vector2]
-
-	def __init__(self, start: Vector2, end: Vector2, polygons: list[Polygon2] | Iterable[Iterable[Iterable[float]]]) -> None:
+	def __init__(self, start: Vector2, target: Vector2, polygons: list[Polygon2] | Iterable[Iterable[Iterable[float]]]) -> None:
 
 		self.polygons = []
 
@@ -136,12 +134,10 @@ class Solution:
 			self.polygons.append(polygon)
 
 		self.start = start
-		self.end = end
+		self.target = target
 
 		self.blocked = []
 		self.cones = []
-
-		self.final_path = []
 
 	def point_in_cone(self, point: Vector2, index: int) -> Vector2 | None:
 		"""
@@ -238,7 +234,7 @@ class Solution:
 	def shortest_path(self) -> list[Vector2]:
 		
 		if len(self.polygons) == 0:
-			return [self.start, self.end]
+			return [self.start, self.target]
 
 		for i in range(len(self.polygons)):
 
@@ -282,8 +278,8 @@ class Solution:
 
 				cones.append((ray1, ray2))
 
-		result: list[Vector2] = [self.end]
-		current: Vector2 = self.end
+		result: list[Vector2] = [self.target]
+		current: Vector2 = self.target
 
 		for i in range(len(self.polygons) - 1, -1, -1):
 
@@ -295,7 +291,5 @@ class Solution:
 
 		result.append(self.start)
 		result.reverse()
-
-		self.final_path = result
 
 		return result
