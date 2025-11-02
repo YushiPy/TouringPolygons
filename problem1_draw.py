@@ -169,6 +169,7 @@ class Drawing(Solution):
 		#	self.shortest_path()
 
 		self.final_path = self.solve()
+		#from problem1 import Solution as SlowSolution; self.final_path = SlowSolution(self.start, self.target, self.polygons).solve()
 
 		n: int = len(self.polygons)
 

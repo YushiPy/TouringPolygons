@@ -31,7 +31,7 @@ def intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, di
 
 	return rate1, rate2
 
-def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2) -> Vector2 | None:
+def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2, eps: float = 1e-12) -> Vector2 | None:
 	"""
 	Returns the intersection point of two line segments if they intersect, otherwise returns None.
 
@@ -48,7 +48,7 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 
 	rates = intersection_rates(start1, diff1, start2, diff2)
 
-	if rates is not None and 0 <= rates[0] <= 1 and 0 <= rates[1] <= 1:
+	if rates is not None and -eps <= rates[0] <= 1 + eps and -eps <= rates[1] <= 1 + eps:
 		return start1 + diff1 * rates[0]
 	
 	return None
@@ -216,22 +216,29 @@ class Solution:
 		Query the point using the subregions up to `index`.
 		Returns the point that comes before `point`.
 		"""
+		return self.query2(point, index)[0]
+	
+	def query2(self, point: Vector2, index: int) -> tuple[Vector2, int]:
+		"""
+		Query the point using the subregions up to `index`.
+		Returns the point that comes before `point` and the index of the polygon where it was found.
+		"""
 
 		if index == -1:
-			return self.start
+			return self.start, -1
 
 		# If the point is inside a cone, we return the vertex of the cone.
 		if (result := self.point_in_cone(point, index)) is not None:
-			return result
+			return result, index
 
 		# If the point is inside an edge, we return the point that comes before it.
 		if (result := self.point_in_edge(point, index)) is not None:
-			return result
+			return result, index
 
 		# The point must be inside a pass through region
-		return self.query(point, index - 1)
+		return self.query2(point, index - 1)
 
-	def shortest_path(self) -> list[Vector2]:
+	def solve(self) -> list[Vector2]:
 		
 		if len(self.polygons) == 0:
 			return [self.start, self.target]
@@ -280,16 +287,15 @@ class Solution:
 
 		result: list[Vector2] = [self.target]
 		current: Vector2 = self.target
+		index = len(self.polygons) - 1
 
-		for i in range(len(self.polygons) - 1, -1, -1):
+		while index >= -1:
 
-			current = self.query(current, i)
+			current, index = self.query2(current, index)
+			index -= 1
 
-			# If the new point is not the same as the last
-			if (current - result[-1]).magnitude() > 1e-8:
-				result.append(current)
+			result.append(current)
 
-		result.append(self.start)
 		result.reverse()
 
 		return result

@@ -88,7 +88,7 @@ def locate_point(point: Vector2, polygon: Polygon2, cones: Cones) -> int:
 
 	return left
 
-def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2) -> Vector2 | None:
+def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2, eps: float = 1e-8) -> Vector2 | None:
 	"""
 	Returns the intersection point of two line segments if they intersect, otherwise returns None.
 
@@ -105,7 +105,7 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 
 	cross = diff1.cross(diff2)
 
-	if abs(cross) < 1e-8:
+	if abs(cross) < eps:
 		return None
 	
 	sdiff = start2 - start1
@@ -113,7 +113,7 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 	rate1 = sdiff.cross(diff2) / cross
 	rate2 = sdiff.cross(diff1) / cross
 
-	if 0 <= rate1 <= 1 and 0 <= rate2 <= 1:
+	if -eps <= rate1 <= 1 + eps and -eps <= rate2 <= 1 + eps:
 		return start1 + diff1 * rate1
 	
 	return None
@@ -140,7 +140,7 @@ class Solution:
 		self.cones = [[] for _ in self.polygons]
 		self.blocked = [[] for _ in self.polygons]
 
-	def query(self, point: Vector2, index: int) -> Vector2:
+	def query2(self, point: Vector2, index: int) -> tuple[Vector2, int]:
 		"""
 		Given a point and a polygon index, returns the last step of the smallest `index`-path from `start` to `point`.
 
@@ -151,7 +151,7 @@ class Solution:
 		"""
 
 		if index == 0:
-			return self.start
+			return self.start, 0
 
 		polygon = self.polygons[index - 1]
 		cones = self.cones[index - 1]
@@ -160,23 +160,27 @@ class Solution:
 		location = locate_point(point, polygon, cones)
 
 		if location % 2 == 0:
-			return polygon[location // 2]
+			return polygon[location // 2], index
 
 		if blocked[location // 2]:
-			return self.query(point, index - 1)
+			return self.query2(point, index - 1)
 
 		v1 = polygon[location // 2]
 		v2 = polygon[(location // 2 + 1) % len(polygon)]
 
 		reflected = point.reflect_segment(v1, v2)
-		last = self.query(reflected, index - 1)
+		last, _index = self.query2(reflected, index - 1)
 
 		intersection = segment_segment_intersection(last, reflected, v1, v2)
 
 		if intersection is not None:
-			return intersection
+			return intersection, index
 		
+		# print(point, index, last, reflected, v1, v2)  # Debugging line
 		raise ValueError("No intersection found, this should not happen.")
+
+	def query(self, point: Vector2, index: int) -> Vector2:
+		return self.query2(point, index)[0]
 
 	def solve(self) -> list[Vector2]:
 		"""
@@ -226,10 +230,12 @@ class Solution:
 
 		result = [self.target]
 		current = self.target
+		index = n
 
-		for i in range(n, -1, -1):
+		while index >= 0:
 
-			current = self.query(current, i)
+			current, index = self.query2(current, index)
+			index -= 1
 	
 			if (current - result[-1]).magnitude() > 1e-8:
 				result.append(current)
