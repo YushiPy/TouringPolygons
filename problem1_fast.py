@@ -1,5 +1,7 @@
 
 from collections.abc import Iterable
+from itertools import cycle, islice
+import math
 from typing import Literal
 
 from matplotlib import pyplot as plt
@@ -159,26 +161,6 @@ class Solution:
 
 		n = len(self.polygons)
 
-		import matplotlib.pyplot as plt
-
-		fig, ax = plt.subplots(3, 3, figsize=(10, 10))
-
-		for i in range(n):
-
-			polygon = self.polygons[i]
-			m = len(polygon)
-
-			ax[0, 0].plot(
-				[v.x for v in polygon] + [polygon[0].x],
-				[v.y for v in polygon] + [polygon[0].y],
-			)
-
-			ax[0, 0].fill(
-				[v.x for v in polygon] + [polygon[0].x],
-				[v.y for v in polygon] + [polygon[0].y],
-				alpha=0.1
-			)
-
 		for i in range(n):
 
 			polygon = self.polygons[i]
@@ -215,40 +197,189 @@ class Solution:
 			for j in range(m):
 				blocked.append(fails[j] == 2 or fails[(j + 1) % m] == 2)
 
-			print(blocked)
-
-			axis = ax.flat[i + 1]
-
-			axis.scatter([self.start.x, self.target.x], [self.start.y, self.target.y])
-
-			# Draw polygon
-			xs = [v.x for v in polygon] + [polygon[0].x]
-			ys = [v.y for v in polygon] + [polygon[0].y]
-			axis.plot(xs, ys)
-			axis.fill(xs, ys, alpha=0.1)
-
-			# Draw cones
-			for j in range(m):
-				vertex = polygon[j]
-				ray1, ray2 = cones[j]
-
-				if ray1 == ray2:
-					continue
-
-				axis.plot(
-					[vertex.x, vertex.x + ray1.x * 2],
-					[vertex.y, vertex.y + ray1.y * 2],
-					'r--'
-				)
-
-				axis.plot(
-					[vertex.x, vertex.x + ray2.x * 2],
-					[vertex.y, vertex.y + ray2.y * 2],
-					'r--'
-				)
-
 		return []
+
+def get_bbox(*points: Vector2, square: bool = False, scale: float = 1.0) -> tuple[float, float, float, float]:
+	"""
+	Given an iterable of Vector2 points, return the bounding box as (min_x, max_x, min_y, max_y).	
+	"""
+
+	min_x = min(point.x for point in points)
+	max_x = max(point.x for point in points)
+	min_y = min(point.y for point in points)
+	max_y = max(point.y for point in points)
+
+	center_x = (min_x + max_x) / 2
+	center_y = (min_y + max_y) / 2
+
+	if square:
+		half_size = max((max_x - min_x), (max_y - min_y)) / 2
+		min_x = center_x - half_size
+		max_x = center_x + half_size
+		min_y = center_y - half_size
+		max_y = center_y + half_size
 	
+	min_x = center_x + (min_x - center_x) * scale
+	max_x = center_x + (max_x - center_x) * scale
+	min_y = center_y + (min_y - center_y) * scale
+	max_y = center_y + (max_y - center_y) * scale
+
+	return min_x, max_x, min_y, max_y
+
+def draw(polygon: Polygon2, cones: Cones, point: Vector2) -> None:
+	
+	import matplotlib.pyplot as plt
+
+	def plot(*args: Any, **kwargs: Any) -> None:
+
+		kwargs2 = kwargs.copy()
+		kwargs2["color"] = "white"
+		kwargs2["alpha"] = 1
+
+		ax.plot(*args, **kwargs2) # type: ignore
+		ax.plot(*args, **kwargs) # type: ignore
+
+	def fill(*args: Any, **kwargs: Any) -> None:
+
+		kwargs2 = kwargs.copy()
+		kwargs2["color"] = "white"
+		kwargs2["alpha"] = 1
+
+		ax.fill(*args, **kwargs2) # type: ignore
+		ax.fill(*args, **kwargs) # type: ignore
+
+	def locate_ray(vertex: Vector2, ray: Vector2) -> Literal[0, 1, 2, 3]:
+
+		match ray.quadrant():
+			case 0: return 0 if (max_x - vertex.x) * ray.y <= (max_y - vertex.y) * ray.x else 1
+			case 1: return 2 if (vertex.x - min_x) * ray.y <= (max_y - vertex.y) * -ray.x else 1
+			case 2: return 2 if (vertex.x - min_x) * -ray.y <= (vertex.y - min_y) * -ray.x else 3
+			case 3: return 0 if (max_x - vertex.x) * -ray.y <= (vertex.y - min_y) * ray.x else 3
+		
+	def extend_ray(vertex: Vector2, ray: Vector2) -> Vector2:
+		
+		match locate_ray(vertex, ray):
+			case 0: return ray * (max_x - vertex.x) / ray.x
+			case 1: return ray * (max_y - vertex.y) / ray.y
+			case 2: return ray * (vertex.x - min_x) / -ray.x
+			case 3: return ray * (vertex.y - min_y) / -ray.y
+
+	def get_points(vertex: Vector2, ray1: Vector2, ray2: Vector2) -> list[Vector2]:
+
+		ray1 = extend_ray(vertex, ray1)
+		ray2 = extend_ray(vertex, ray2)
+
+		side1: int = locate_ray(vertex, ray1)
+		side2 = locate_ray(vertex, ray2)
+
+		rotated_corners = islice(cycle(corners), side1, side1 + 4)
+		points = [vertex, vertex + ray1]
+
+		if side1 == side2 and ray1.cross(ray2) < 0:
+			return points + list(rotated_corners) + [vertex + ray2]
+
+		while side1 != side2:
+			points.append(next(rotated_corners))
+			side1 = (side1 + 1) % 4
+
+		points.append(vertex + ray2)
+	
+		return points
+
+	def get_points2(vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> list[Vector2]:
+
+		ray1 = extend_ray(vertex1, ray1)
+		ray2 = extend_ray(vertex2, ray2)
+
+		side1: int = locate_ray(vertex1, ray1)
+		side2 = locate_ray(vertex2, ray2)
+
+		rotated = islice(cycle(corners), side1, side1 + 4)
+		points = [vertex1, vertex1 + ray1]
+
+		if side1 == side2 and ray1.cross(ray2) < 0:
+			return points + list(rotated) + [vertex2 + ray2, vertex2]
+
+		while side1 != side2:
+			points.append(next(rotated))
+			side1 = (side1 + 1) % 4
+
+		points.append(vertex2 + ray2)
+		points.append(vertex2)
+
+		return points
+
+	def draw_cone(vertex: Vector2, ray1: Vector2, ray2: Vector2, *args: Any, **kwargs: Any) -> None:
+
+		points = get_points(vertex, ray1, ray2)
+
+		fill(*zip(*points), *args, **kwargs)
+
+		p1 = vertex + extend_ray(vertex, ray1)
+		p2 = vertex + extend_ray(vertex, ray2)
+
+		plot([vertex.x, p1.x], [vertex.y, p1.y], color="black")
+		plot([vertex.x, p2.x], [vertex.y, p2.y], color="black")
+
+	def draw_edge(vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2, *args: Any, **kwargs: Any) -> None:
+
+		points = get_points2(vertex1, vertex2, ray1, ray2)
+
+		fill(*zip(*points), *args, **kwargs)
+
+		p1 = vertex1 + extend_ray(vertex1, ray1)
+		p2 = vertex2 + extend_ray(vertex2, ray2)
+
+		plot([vertex1.x, p1.x], [vertex1.y, p1.y], color="black")
+		plot([vertex2.x, p2.x], [vertex2.y, p2.y], color="black")
+
+	min_x, max_x, min_y, max_y = get_bbox(*polygon, point, square=True, scale=1.2)
+	corners = [Vector2(max_x, max_y), Vector2(min_x, max_y), Vector2(min_x, min_y), Vector2(max_x, min_y)]
+
+	fig, ax = plt.subplots() # type: ignore
+
+	ax.set_xlim(min_x, max_x)
+	ax.set_ylim(min_y, max_y)
+
+	fill(*zip(*corners), color="#afbebe", alpha=1)
+
+	for vertex, (ray1, ray2) in zip(polygon, cones):
+		draw_cone(vertex, ray1, ray2, alpha=0.5, color="blue")
+
+	for i in range(len(polygon)):
+
+		vertex1 = polygon[i]
+		vertex2 = polygon[(i + 1) % len(polygon)]
+
+		ray1 = cones[i][1]
+		ray2 = cones[(i + 1) % len(polygon)][0]
+
+		draw_edge(vertex1, vertex2, ray1, ray2, alpha=0.5, color="green")
+
+	index = locate_point(point, polygon, cones)
+
+	if index % 2 == 0:
+		vertex = polygon[index // 2]
+		ray1, ray2 = cones[index // 2]
+		draw_cone(vertex, ray1, ray2, alpha=0.8, color="red")
+	else:
+		i = index // 2
+		vertex1 = polygon[i]
+		vertex2 = polygon[(i + 1) % len(polygon)]
+		ray1 = cones[i][1]
+		ray2 = cones[(i + 1) % len(polygon)][0]
+		draw_edge(vertex1, vertex2, ray1, ray2, alpha=0.8, color="red")
+
+	fill(*zip(*polygon), color="red", alpha=0.3)
+	plot(*zip(*(polygon + (polygon[0],))), color="black", linewidth=1.2)
+
+	plot(*point, marker="o", color="white", markersize=8, markeredgecolor="black", zorder=5)
+
+	ax.grid(True, which='both', linestyle='--', linewidth=1) # type: ignore
+	fig.tight_layout()
+
+	plt.show() # type: ignore
+
 
 test1 = Solution(
 	Vector2(5, 1), 
@@ -262,7 +393,7 @@ test1 = Solution(
 
 from math import pi, tau
 
-test2 = Solution(
+test2 = (
 	Vector2(-1, -1),
 	Vector2(1, -1),
 	[
@@ -274,4 +405,15 @@ test2 = Solution(
 	]
 )
 
-test2.solve()
+from problem1_draw import Drawing
+
+sol = Solution(*test2)
+other = Drawing(*test2)
+
+other.shortest_path()
+sol.solve()
+
+other.draw()
+
+other.cones = sol.cones
+other.draw()
