@@ -15,6 +15,7 @@ THRESHOLD_TIME = timedelta(hours=3)
 def get_git_history(repo_path: str | Path) -> str:
 
 	repo_path = Path(repo_path)
+
 	if not (repo_path / ".git").exists():
 		raise ValueError(f"{repo_path} is not a Git repository (no .git directory found)")
 	
@@ -25,6 +26,7 @@ def get_git_history(repo_path: str | Path) -> str:
 		text=True,
 		check=True
 	)
+	
 	return result.stdout
 
 history = get_git_history(".")
