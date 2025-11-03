@@ -5,8 +5,8 @@
 \usepackage[
 	a4paper,
 	bindingoffset=0.2in,
-	left=1in,
-	right=1in,
+	left=0.8in,
+	right=0.8in,
 	top=1in,
 	bottom=1in,
 	footskip=.25in
@@ -52,13 +52,18 @@
 \usepackage{mdframed}
 
 % Citations
-\usepackage{amsrefs} % or biblatex if preferred
-\usepackage{cite}
+\usepackage[backend=biber,style=ieee]{biblatex}
+\addbibresource{referencias.bib}
 
-\usepackage{setspace} % Para definir espaçamento entre linhas. (\onehalfspacing, \singlespacing, \doublespacing)
-\usepackage{enumitem} % Para customizar listas (itemize, enumerate, etc.)
+\usepackage{multirow} % Permite criar tabelas com uma célula ocupando várias linhas
 
+\usepackage{setspace}     % Para definir espaçamento entre linhas. (\onehalfspacing, \singlespacing, \doublespacing)
+
+\usepackage{breakcites}   % Para permitir quebra de linha no meio de citações.
+
+\usepackage{array}
 \usepackage{wrapfig}
+\usepackage{enumitem}
 
 \definecolor{lightgray}{RGB}{240,240,240}
 
@@ -184,7 +189,7 @@ como o \textcolor[RGB]{0,128,0}{ponto verde}, \(t\) como o \textcolor[RGB]{255, 
 
 Retomando o paper, definimos um \(i\)-path até \(p\) como um caminho mínimo que começa em \(s\), encosta em cada um dos polígonos \(P_1, P_2, \ldots, P_i\) e termina em \(p\). Note que nosso objetivo é encontrar um \(k\)-path até \(t\). Enquanto não vamos entrar em detalhes, todo \(i\)-path é único.
 
-A função central desse algoritmo será a função \(\text{Query}(p, i)\), que recebe um ponto \(p\) e um índice \(i\) e retorna o penúltimo ponto \(q\) do \(i\)-path até \(p\) (ou seja, o ponto imediatamente anterior a \(p\) nesse caminho). Note que a resposta do problema pode ser obtida chamando \(\text{Query}(t, k)\).
+A função central desse algoritmo será a função \(\text{Query}(p, i)\), que recebe um ponto \(p\) e um índice \(i\) e retorna o penúltimo ponto \(q\) do \(i\)-path até \(p\) (ou seja, o ponto imediatamente anterior à \(p\) nesse caminho). 
 
 Primeiramente, vamos descrever procedimentos auxiliares que serão úteis para a implementação da função \(\text{Query}\). Finalmente, vamos descrever como respoder consultas usando esses procedimentos. Por enquanto, vamos assumir que sabemos como respoder as consultas.
 
@@ -199,8 +204,6 @@ Antes de descrever os procedimentos auxiliares, é importante definir como repre
 	\item \textbf{Polígonos}: Representados por uma classe \texttt{Polygon2} que guarda uma lista ordenada de seus vértices (representados por \texttt{Vector2}) no sentido anti-horário. Um vértice arbitrário é escolhido para ser indexado como o primeiro.
 
 	\item \textbf{Caminho Final}: Representado como uma lista de pontos (representados por \texttt{Vector2}) na ordem em que aparecem no caminho.
-
-	\item \textbf{Regiões de Vértice}: Cada região é representadas por uma lista de pares de \texttt{Vector2}
 
 \end{itemize}
 
@@ -284,6 +287,6 @@ Primeiramente, é essencial que \(i \le j\), ademais, se \(i = j\) então \(\tex
 
 Outra função extremamente importante para a implementação desse algoritmo é a função \(\text{Fenced}(p_1, p_2, i, j)\) que retorna o menor caminho de \(p_1\) até \(p_2\) que respeita as cercas \(F_i, \dots, F_j\). Note que se \(i = j\), então \(\text{Fenced}(p_1, p_2, i, j)\) é simplesmente o segmento \(\overline{p_1p_2}\) se ele estiver contido em \(F_i\) e não existe caso contrário. Assim, vamos assumir que \(i < j\).
 
-\bibliography{referencias}
+\printbibliography
 
 \end{document}
