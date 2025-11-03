@@ -166,7 +166,7 @@
 
 \section{Introdução}
 
-Este relatório descreve a implementação e os resultados obtidos na resolução do problema da visita de polígonos, usando como base o paper de Mitchell \cite{mitchell2003} que descreve algoritmos para o caso sem e com restrições. Buscamos apresentar uma abordagem mais prática e detalhada para o problema, sem um foco tão grande na análise teórica.
+Este relatório descreve a implementação e os resultados obtidos na resolução do problema da visita de polígonos, usando como base o paper de Dror et al. (2003) \cite{tpp-dror2003} que descreve algoritmos para o caso sem e com restrições. Buscamos apresentar uma abordagem mais prática e detalhada para o problema, sem um foco tão grande na análise teórica.
 
 \section{O Problema de Visita de Polígonos Irrestrito}
 
@@ -179,11 +179,12 @@ Vamos tomar como base a implementação do algoritmo de Mitchell para o problema
 	\vspace{-10pt}
 	\includegraphics[width=0.39\textwidth]{problem1-solution.png}
 	\caption{Caminho mínimo para um caso de 3 polígonos.}
+	\label{problem1-solution}
 \end{wrapfigure}
 
 Considere o seguinte problema: dados dois pontos \(s, t \in \mathbb{R}^2\) e uma sequência de polígonos convexos disjuntos \(P_1, P_2, \ldots, P_k\), encontrar o caminho de menor comprimento que se inicia em \(s\), termina em \(t\) e toca cada polígono \(P_i\) em pelo menos um ponto, podendo atravessá-los.
 
-A figura ao lado ilustra um exemplo de entrada e a solução ótima para o problema para um caso com 3 polígonos. Temos \(s\) 
+A figura ao lado \ref{problem1-solution} ilustra um exemplo de entrada e a solução ótima para o problema para um caso com 3 polígonos. Temos \(s\) 
 como o \textcolor[RGB]{0,128,0}{ponto verde}, \(t\) como o \textcolor[RGB]{255, 0, 0}{ponto vermelho} e os polígonos \(P_1, P_2\) e \(P_3\) como o \textcolor[RGB]{76, 146, 195}{triângulo azul}, o \textcolor[RGB]{255, 152, 62}{trapézio laranja} e o \textcolor[RGB]{86, 179, 86}{pentágono verde}, respectivamente. O caminho mínimo é representado pela \textcolor[RGB]{145, 41, 145}{linha roxa}.
 % como o ponto verde, \(t\) como o ponto vermelho e os polígonos \(P_1, P_2\) e \(P_3\) como o triângulo azul, o trapézio laranja e o pentágono verde, respectivamente. O caminho mínimo é representado pela linha roxa.
 
@@ -209,26 +210,7 @@ Antes de descrever os procedimentos auxiliares, é importante definir como repre
 
 \subsection{Particionando o Plano}
 
-O primeiro passo do algoritmo é, para cada polígono \(P_i\), criar uma partição \(S_i\) do plano. Essa partição tem 3 tipos de regiões, 
-% \textcolor[RGB]{255, 140, 140}{Regiões de Vértice}, \textcolor[RGB]{140, 197, 140}{Regiões de Aresta} e \textcolor[RGB]{150, 208, 209}{Regiões de Atravessa}.
-\textcolor[RGB]{255, 70, 70}{Regiões de Vértice}, \textcolor[RGB]{86, 179, 86}{Regiões de Aresta} e \textcolor[RGB]{76, 146, 195}{Regiões de Atravessa}.
-Essa partição é usada para responder consultas, uma vez que o comportamento da função \(\text{Query}(p, i)\) depende de qual região \(p\) pertence.
-
-\subsubsection{Representado as Partições}
-
-Primeiramente, note que as regiões de vértice são todas diversos `cones' associados à vértices do polígono \(P_i\), mais formalmente, cada região de vértices é a região do plano delimitada por duas semi-retas que partem de um vértice \(v\) de \(P_i\). Por esse motivo, pensamos em cada região de vértice como uma tripla \((v, d_1, d_2)\) respresentando o vértice, a direção da primeira semi-reta e a direção da segunda semi-reta. Também é importante ressaltar que a ordem das retas importa, assim consideramos que a região é o conjunto atingido por um movimento anti-horário a partir de \(d_1\) até \(d_2\).
-
-Ademais, as regiões de aresta são todas diversas `faixas' associadas às arestas do polígono \(P_i\), mais formalmente, cada região de aresta é a região do plano delimitada por duas semi-retas que partem dos extremos de uma aresta \(e\) de \(P_i\) e a prórpia aresta \(e\). Por esse motivo, pensamos em cada região de aresta como uma quádrupla \((u, v, d_1, d_2)\) respresentando os dois extremos \(u\) e \(v\) da aresta, a direção da primeira semi-reta e a direção da segunda semi-reta. Aqui a ordem também importa, assim consideramos que a região é o conjunto atingido por um movimento anti-horário a partir de \(u\) e \(d_1\) até \(v\) e \(d_2\).
-
-Finalmente, podemos dizer que as regiões de atravessa são todas as outras regiões do plano, ou seja, o complemento das regiões de vértice e aresta. Note que há exatamente uma região de atravessa.
-
-Do ponto de vista da implementação, como a regiões de aresta são compostas por dois vértices do polígono e duas direções já definidas nas regiões de vértice, não precisamos armazenar as regiões de aresta explicitamente, uma vez que podemos recuperá-las a partir das regiões de vértice. Assim, para representar a partição \(S_i\), basta armazenar todas as regiões de vértice de \(P_i\).
-
-Para representar as regiões de vértice, 
-
-\subsubsection{Construindo as Partições}
-
-Primeiramente, a partir da figura, note que nem todo vértice e nem toda aresta de \(P_i\) geram uma região na partição \(S_i\). Dizemos que uma aresta que gera uma região é uma aresta visível, assim, nosso primeiro passo é encontrar todas as arestas visíveis de \(P_i\). 
+É possível mostrar \cite{tpp-dror2003} que para cada polígono \(P_i\) podemos criar uma partição \(S_i\) do plano tal que o comportamento da função \(\text{Query}(p, i)\) depende exclusivamente de qual região da partição \(S_i\) o ponto \(p\) pertence, sendo possível localizar cada ponto de maneira eficiente. Por falta de um nome melhor, chamamos cada parte de \(S_i\) de \textit{região}.
 
 \begin{wrapfigure}{l}{0.60\textwidth}
 
@@ -236,10 +218,37 @@ Primeiramente, a partir da figura, note que nem todo vértice e nem toda aresta 
 \centering
 \includegraphics[width=0.6\textwidth]{problem1-partitions-reduced.png}
 \caption{Partição do plano para cada poígono do exemplo anterior.}
+\label{problem1-partitions}
 
 \end{wrapfigure}
 
-Para deteminar se uma aresta \(e\) é visível, simplesmente calculamos \(p = \text{Query}(m, i)\) onde \(m\) é o ponto médio de \(e\) e verificamos se \(\overline{pm}\) atravessa \(P_i\). Se o segmento atravessa \(P_i\), então \(e\) não é visível, caso contrário, \(e\) é visível.
+Enquanto a quantidade de regiões de \(S_i\) pode ser numerosa a depender do número de vértices de \(P_i\), cada região pode ser de exatamente 3 tipos diferentes:, 
+% \textcolor[RGB]{255, 140, 140}{Regiões de Vértice}, \textcolor[RGB]{140, 197, 140}{Regiões de Aresta} e \textcolor[RGB]{150, 208, 209}{Regiões de Atravessa}.
+\textcolor[RGB]{255, 70, 70}{Regiões de Vértice}, \textcolor[RGB]{86, 179, 86}{Regiões de Aresta} e \textcolor[RGB]{76, 146, 195}{Regiões de Atravessar}.
+
+Nas seções a seguir vamos descrever como usar essas partições para responder consultas, mas por enquanto vamos descrever como representar e construir essas partições. Por enquanto, apenas mantenha em mente que se conseguirmos representar e construir essas partições, então podemos usá-las para responder consultas e resolver o problema de maneira eficiente.
+
+A partir da ilustração \ref{problem1-partitions}, note que cada região de vértice (\textit{Cone Region}) está associada a um vértice de \(P_i\), cada região de aresta (\textit{Edge Region}) está associada a uma aresta de \(P_i\) e há exatamente uma região de atravessar (\textit{Pass Through Region}). Ademais, essas regiões se complementam, ou seja, o conjunto de todas as regiões de vértice, aresta e atravessar é o plano todo e nenhuma região se sobrepõe a outra. Para que isso seja válido, devemos considerar pontos dentro dos polígonos \(P_i\) como pertencentes à região de atravessar.
+
+Ademais, note que cada região de vértice é delimitada por duas semi-retas que partem de um vértice de \(P_i\), incluindo todos os pontos que estão entre essas semi-retas. Similarmente, cada região de aresta é delimitada por duas semi-retas que partem dos extremos de uma aresta de \(P_i\) e a prórpia aresta, incluindo todos os pontos que estão entre essas semi-retas e a aresta. Finalmente, a região de atravessar é o complemento das regiões de vértice e aresta.
+
+\subsubsection{Representado as Partições}
+
+Como mencionado, as regiões se complementam, assim, do ponto de vista de implementação, decidimos armazenar apenas as regiões de vértice, uma vez que as regiões de aresta podem ser construídas a partir delas, simplesmente verificando se um ponto está entre as semi-retas de duas regiões de vértice adjacentes e a aresta que as separa. 
+
+Para representar as regiões de vértice, armazenamos uma lista de pares de direções \((d_1, d_2)\) para cada vértice \(v\) de \(P_i\), onde \(d_1\) e \(d_2\) são vetores unitários que representam as direções das semi-retas que delimitam a região de vértice associada a \(v\). Nem todo vértice de \(P_i\) gera uma região de vértice, assim, se um vértice \(v\) não gerar uma região, então armazenamos um par \((d, d)\) qualquer na posição correspondente da lista, representando uma região válida, mas vazia. Isso será mais relevante adiante.
+
+Essa representação já permite que verifiquemos se um ponto \(p\) pertence a uma região de vértice e qual. No entanto, não conseguimos distinguir entre regiões de aresta e a região de atravessar. Para resolver esse problema, armazenamos uma lista de booleanas que indica se uma aresta é visível ou não. Assim, para determinar se um ponto \(p\) pertence a uma região de aresta ou à região de atravessar, basta verificar se \(p\) está entre as semi-retas de duas regiões de vértice adjacentes e, em caso positivo, verificar se a aresta que as separa é visível ou não.
+
+\subsubsection{Construindo as Partições}
+
+Primeiramente, a partir da figura, note que nem todo vértice e nem toda aresta de \(P_i\) geram uma região na partição \(S_i\). Dizemos que uma aresta que gera uma região é uma aresta visível, assim, nosso primeiro passo é encontrar todas as arestas visíveis de \(P_i\). 
+
+Uma maneira intuitiva de se uma aresta \(e\) é visível é calcular \(p = \text{Query}(m, i - 1)\) onde \(m\) é o ponto médio de \(e\) e verificamos se \(\overline{pm}\) atravessa \(P_i\). Se o segmento atravessa \(P_i\), então \(e\) não é visível, caso contrário, \(e\) é visível. No entanto, essa abordagem é ineficiente, uma vez que determinar se \(\overline{pm}\) atravessa \(P_i\) custa \(O(\abs{P_i})\) com uma abordagem ingênua e uma abordagem mais eficiente seria complexa de implementar. Por esse motivo vamos calcular essas arestas posteriormente.
+
+Agora vamos calcular as regiões de vértice de um polígono \(P_i\). Vamos considerar o vértice \(v\) de \(P_i\) e calculamos \(p = \text{Query}(v, i - 1)\), a seguir explicamos como calcular \(p\), mas uma intuição inicial é pernsar que \(\text{Query}(q, 0) = s\) para qualquer \(q\), uma vez que um \(0\)-path não precisa tocar em nenhum polígono, assim, o menor caminho é uma linha reta de \(s\) até \(q\). 
+
+Agora consideramos a direção de \(d = v - p\) e a maneira que esse raio chega em \(v\). 
 
 Uma vez que temos todas as arestas visíveis, podemos construir as regiões de vértice e de aresta. Para cada vértice \(v\) de \(P_i\), calculamos \(p = \text{Query}(v, i)\) e consideramos a direção de \(d = v - p\).
 Se a aresta anterior a \(v\) (no sentido anti-horário) é visível, então \(d_1\) será a reflexão de \(d\) em relação à aresta anterior, caso contrário, \(d_1\) será a mesma direção de \(d\). Similarmente, se a aresta posterior a \(v\) é visível, então \(d_2\) será a reflexão de \(d\) em relação à aresta posterior, caso contrário, \(d_2\) será a mesma direção de \(d\). Assim, criamos a região de vértice \((v, d_1, d_2)\).
