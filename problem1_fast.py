@@ -11,9 +11,6 @@ type _Vector2 = Iterable[float]
 type _Polygon2 = Iterable[_Vector2]
 
 
-#def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
-#	return ray1.cross(point - vertex1) >= 0 and ray2.cross(point - vertex2) <= 0 and (vertex2 - vertex1).cross(point - vertex1) <= 0
-
 def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
 
 	if vertex1.is_close(vertex2):

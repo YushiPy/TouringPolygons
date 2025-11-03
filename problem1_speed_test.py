@@ -97,8 +97,6 @@ def test_suite(name: str, sides_list: list[list[int]], number: int = 10) -> None
 
 		print(f"\tSpeedup: {justified(round(slow / fast, 2))}x | Slow: {justified(slow)}s | Fast: {justified(fast)}s | Sides: {sides_string}", flush=True)
 
-		#print(f"\tSides: {sides} | Slow: {slow:.6f}s | Fast: {fast:.6f}s | Speedup: {slow / fast:.2f}x", flush=True)
-
 if __name__ == "__main__":
 
 	small_tests = [
@@ -125,6 +123,7 @@ if __name__ == "__main__":
 		[400],
 		[500, 400, 300, 200, 100],
 		[1000],
+		[2000] * 10
 	]
 
 	test_suite("Small", small_tests, number=100)
