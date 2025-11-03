@@ -25,8 +25,12 @@ This is the first variation of the problem we will consider, where there are no 
 
 ## The general TPP
 
-This is the general case of the problem, where there may be fences and the polygons may intersect.
+This is the general case of the problem, where there may be fences and the polygons may intersect. We still require the polygons to be convex.
 
-## Other Variations
+## Considering Non Convex Polygons
 
-Should time allow, we will explore other variations of the problem, such as non-convex polygons, 3D polygons, and more.
+It can be shown that when dealing with non convex polygons we get an NP-hard problem. One simple way to solve this problem would be to break each polygon into an union of finitely many convex polygons such as triangles, then we test every combination and pick the one that minimizes the length of the path.
+
+However, this approach is clearly very slow. While we cannot solve the problem in polynomial time, we can try to improve upon this approach by attempting to model the problem as an integer optimization problem with a quadratic target and linear constraints. 
+
+We believe that a Branch and Bound strategy mnay work nicely for this problem, as we can use the convex hull of the non convex polygons as an upper bound for the problem.
