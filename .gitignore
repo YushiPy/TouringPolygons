@@ -1,12 +1,16 @@
 
 # Latex
 *.aux
+*.bcf
+*.fdb_latexmk
+*.fls
 *.log
 *.out
+*.run.xml
 *.toc
 *.synctex.gz
-*.fls
-*.fdb_latexmk
+
+# Bibtex
 *.bbl
 *.blg
 
