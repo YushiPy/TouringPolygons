@@ -188,6 +188,22 @@ A função central desse algoritmo será a função \(\text{Query}(p, i)\), que 
 
 Primeiramente, vamos descrever procedimentos auxiliares que serão úteis para a implementação da função \(\text{Query}\). Finalmente, vamos descrever como respoder consultas usando esses procedimentos. Por enquanto, vamos assumir que sabemos como respoder as consultas.
 
+\subsection{Representação dos Objetos}
+
+Antes de descrever os procedimentos auxiliares, é importante definir como representamos os objetos geométricos envolvidos no problema. Utilizamos as seguintes representações:
+
+\begin{itemize}[leftmargin=*, label={--}]
+
+	\item \textbf{Pontos} e \textbf{Vetores}: Representados por uma classe \texttt{Vector2} que guarda um par de números reais \((x, y)\).
+	
+	\item \textbf{Polígonos}: Representados por uma classe \texttt{Polygon2} que guarda uma lista ordenada de seus vértices (representados por \texttt{Vector2}) no sentido anti-horário. Um vértice arbitrário é escolhido para ser indexado como o primeiro.
+
+	\item \textbf{Caminho Final}: Representado como uma lista de pontos (representados por \texttt{Vector2}) na ordem em que aparecem no caminho.
+
+	\item \textbf{Regiões de Vértice}: Cada região é representadas por uma lista de pares de \texttt{Vector2}
+
+\end{itemize}
+
 \subsection{Particionando o Plano}
 
 O primeiro passo do algoritmo é, para cada polígono \(P_i\), criar uma partição \(S_i\) do plano. Essa partição tem 3 tipos de regiões, 
@@ -199,9 +215,13 @@ Essa partição é usada para responder consultas, uma vez que o comportamento d
 
 Primeiramente, note que as regiões de vértice são todas diversos `cones' associados à vértices do polígono \(P_i\), mais formalmente, cada região de vértices é a região do plano delimitada por duas semi-retas que partem de um vértice \(v\) de \(P_i\). Por esse motivo, pensamos em cada região de vértice como uma tripla \((v, d_1, d_2)\) respresentando o vértice, a direção da primeira semi-reta e a direção da segunda semi-reta. Também é importante ressaltar que a ordem das retas importa, assim consideramos que a região é o conjunto atingido por um movimento anti-horário a partir de \(d_1\) até \(d_2\).
 
-A seguir, as regiões de aresta são todas diversas `faixas' associadas às arestas do polígono \(P_i\), mais formalmente, cada região de aresta é a região do plano delimitada por duas semi-retas que partem dos extremos de uma aresta \(e\) de \(P_i\) e a prórpia aresta \(e\). Por esse motivo, pensamos em cada região de aresta como uma quádrupla \((u, v, d_1, d_2)\) respresentando os dois extremos \(u\) e \(v\) da aresta, a direção da primeira semi-reta e a direção da segunda semi-reta. Aqui a ordem também importa, assim consideramos que a região é o conjunto atingido por um movimento anti-horário a partir de \(u\) e \(d_1\) até \(v\) e \(d_2\).
+Ademais, as regiões de aresta são todas diversas `faixas' associadas às arestas do polígono \(P_i\), mais formalmente, cada região de aresta é a região do plano delimitada por duas semi-retas que partem dos extremos de uma aresta \(e\) de \(P_i\) e a prórpia aresta \(e\). Por esse motivo, pensamos em cada região de aresta como uma quádrupla \((u, v, d_1, d_2)\) respresentando os dois extremos \(u\) e \(v\) da aresta, a direção da primeira semi-reta e a direção da segunda semi-reta. Aqui a ordem também importa, assim consideramos que a região é o conjunto atingido por um movimento anti-horário a partir de \(u\) e \(d_1\) até \(v\) e \(d_2\).
 
 Finalmente, podemos dizer que as regiões de atravessa são todas as outras regiões do plano, ou seja, o complemento das regiões de vértice e aresta. Note que há exatamente uma região de atravessa.
+
+Do ponto de vista da implementação, como a regiões de aresta são compostas por dois vértices do polígono e duas direções já definidas nas regiões de vértice, não precisamos armazenar as regiões de aresta explicitamente, uma vez que podemos recuperá-las a partir das regiões de vértice. Assim, para representar a partição \(S_i\), basta armazenar todas as regiões de vértice de \(P_i\).
+
+Para representar as regiões de vértice, 
 
 \subsubsection{Construindo as Partições}
 
