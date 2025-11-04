@@ -177,7 +177,7 @@ Vamos tomar como base a implementação do algoritmo de Mitchell para o problema
 \begin{wrapfigure}{r}{0.40\textwidth}
 	\centering
 	\vspace{-10pt}
-	\includegraphics[width=0.39\textwidth]{problem1-solution.png}
+	\includegraphics[width=0.39\textwidth]{Problem1Images/solution.png}
 	\caption{Caminho mínimo para um caso de 3 polígonos.}
 	\label{problem1-solution}
 \end{wrapfigure}
@@ -214,11 +214,11 @@ Antes de descrever os procedimentos auxiliares, é importante definir como repre
 
 \begin{wrapfigure}{l}{0.60\textwidth}
 
-\vspace{-5pt}
-\centering
-\includegraphics[width=0.6\textwidth]{problem1-partitions-reduced.png}
-\caption{Partição do plano para cada poígono do exemplo anterior.}
-\label{problem1-partitions}
+	\vspace{-5pt}
+	\centering
+	\includegraphics[width=0.6\textwidth]{Problem1Images/partitions.png}
+	\caption{Partição do plano para cada polígono do exemplo anterior.}
+	\label{problem1-partitions}
 
 \end{wrapfigure}
 
@@ -245,6 +245,18 @@ Essa representação já permite que verifiquemos se um ponto \(p\) pertence a u
 Primeiramente, a partir da figura, note que nem todo vértice e nem toda aresta de \(P_i\) geram uma região na partição \(S_i\). Dizemos que uma aresta que gera uma região é uma aresta visível, assim, nosso primeiro passo é encontrar todas as arestas visíveis de \(P_i\). 
 
 Uma maneira intuitiva de se uma aresta \(e\) é visível é calcular \(p = \text{Query}(m, i - 1)\) onde \(m\) é o ponto médio de \(e\) e verificamos se \(\overline{pm}\) atravessa \(P_i\). Se o segmento atravessa \(P_i\), então \(e\) não é visível, caso contrário, \(e\) é visível. No entanto, essa abordagem é ineficiente, uma vez que determinar se \(\overline{pm}\) atravessa \(P_i\) custa \(O(\abs{P_i})\) com uma abordagem ingênua e uma abordagem mais eficiente seria complexa de implementar. Por esse motivo vamos calcular essas arestas posteriormente.
+
+\begin{wrapfigure}{l}{0.40\textwidth}
+
+	\vspace{-5pt}
+	\centering
+	\includegraphics[width=0.4\textwidth]{Problem1Images/scene-general.png}
+	\label{problem1-scene-general}
+
+	\includegraphics[width=0.4\textwidth]{Problem1Images/scene-edge-case.png}
+	\label{problem1-scene-edge-case}
+
+\end{wrapfigure}
 
 Agora vamos calcular as regiões de vértice de um polígono \(P_i\). Vamos considerar o vértice \(v\) de \(P_i\) e calculamos \(p = \text{Query}(v, i - 1)\), a seguir explicamos como calcular \(p\), mas uma intuição inicial é pernsar que \(\text{Query}(q, 0) = s\) para qualquer \(q\), uma vez que um \(0\)-path não precisa tocar em nenhum polígono, assim, o menor caminho é uma linha reta de \(s\) até \(q\). 
 

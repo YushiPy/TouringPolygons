@@ -11,7 +11,7 @@
 *.synctex.gz
 
 # Bibtex
-*.bbl
+*.bbl*
 *.blg
 
 # Git
