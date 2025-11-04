@@ -259,14 +259,19 @@ Felizmente, não é necessário implementar um teste eficiente de interseção d
 \(n \leftarrow \abs{P_i}\) // Número de vértices de \(P_i\)
 
 \For {\(j \leftarrow 0\) até \(n - 1\)} {
-	\(u \leftarrow e[0]\) \\
-	\(v \leftarrow e[1]\) \\
-	\(m \leftarrow (u + v) / 2\) \\
-	\(q = \text{Query}(m, i)\) \\
+	\(u \leftarrow P_i[j]\) // j-ésimo vértice de \(P_i\) \\
+	\(v \leftarrow P_i[j + 1]\) // vértice que segue \(u\), considerando \(P_i[n] = P_i[0]\) \\
+	\(m \leftarrow (u + v) / 2\) // ponto médio \\
+	\(q \leftarrow \text{Query}(m, i - 1)\) // penúltimo ponto do \((i - 1)\)-path até \(m\) \\
 	
+	\ \\
+	// Marca a aresta \(j\) como visível se o produto vetorial for negativo \\
+	visível[\(j\)] \(\leftarrow (v - u) \times (q - u) < 0\) 
 }
 
 \end{algorithm}
+
+\subsubsection{Construindo Regiões de Vértice}
 
 \begin{wrapfigure}{r}{0.40\textwidth}
 
@@ -278,17 +283,7 @@ Felizmente, não é necessário implementar um teste eficiente de interseção d
 
 \end{wrapfigure}
 
-
-
-
-
-\subsubsection{Construindo Regiões de Vértice}
-
-Primeiramente, a partir da figura, note que nem todo vértice e nem toda aresta de \(P_i\) geram uma região na partição \(S_i\). Dizemos que uma aresta que gera uma região é uma aresta visível, assim, nosso primeiro passo é encontrar todas as arestas visíveis de \(P_i\). 
-
-Uma maneira intuitiva de se uma aresta \(e\) é visível é calcular \(p = \text{Query}(m, i - 1)\) onde \(m\) é o ponto médio de \(e\) e verificamos se \(\overline{pm}\) atravessa \(P_i\). Se o segmento atravessa \(P_i\), então \(e\) não é visível, caso contrário, \(e\) é visível. No entanto, essa abordagem é ineficiente, uma vez que determinar se \(\overline{pm}\) atravessa \(P_i\) custa \(O(\abs{P_i})\) com uma abordagem ingênua e uma abordagem mais eficiente seria complexa de implementar. Por esse motivo vamos calcular essas arestas posteriormente.
-
-Agora vamos calcular as regiões de vértice de um polígono \(P_i\). Vamos considerar o vértice \(v\) de \(P_i\) e calculamos \(p = \text{Query}(v, i - 1)\), a seguir explicamos como calcular \(p\), mas uma intuição inicial é pernsar que \(\text{Query}(q, 0) = s\) para qualquer \(q\), uma vez que um \(0\)-path não precisa tocar em nenhum polígono, assim, o menor caminho é uma linha reta de \(s\) até \(q\). 
+Uma vez que sabemos quais arestas são visíveis, podemos construir as regiões de vértice. Vamos considerar o vértice \(v\) de \(P_i\) e calculamos \(p = \text{Query}(v, i - 1)\), a seguir explicamos como calcular \(p\), mas uma intuição inicial é pernsar que \(\text{Query}(q, 0) = s\) para qualquer \(q\), uma vez que um \(0\)-path não precisa tocar em nenhum polígono, assim, o menor caminho é uma linha reta de \(s\) até \(q\). 
 
 Agora consideramos a direção de \(d = v - p\) e a maneira que esse raio chega em \(v\). Sejam \(v_1\) o vértice que precede e \(v_2\) o que segue \(v\) em \(P_i\) (no sentido anti-horário). Se a aresta \((v_1, v)\) é visível, então \(d_1\) será a reflexão de \(d\) em relação à aresta \((v_1, v)\), caso contrário, \(d_1\) será a mesma direção de \(d\). Similarmente, se a aresta \((v, v_2)\) é visível, então \(d_2\) será a reflexão de \(d\) em relação à aresta \((v, v_2)\), caso contrário, \(d_2\) será a mesma direção de \(d\). Assim, criamos a região de vértice \((d_1, d_2)\) associada à \(v\).
 
@@ -305,11 +300,9 @@ def reflect(d: Vector2, e: Edge2) -> Vector2:
 
 Usando essa função, definimos \(d_1 = \text{reflect}(d, (v_1, v))\) se a aresta \((v_1, v)\) for visível e \(d_1 = d\) caso contrário. A mesma lógica segue para \(d_2\).
 
-Encorajamos o leitor a verificar que essa lógica se aplica nas duas imagens ao lado \ref{problem1-scene-general} \ref{problem1-scene-edge-case}, usando o ponto inicial \(s\) como resposta de \(\text{Query}(v, 0)\) para qualquer vértice \(v\). Para vértices com ambas arestas visíveis, ambas as direções são reflexões, para vértices com uma aresta visível, uma direção é reflexão e a outra é a mesma direção do raio, e para vértices com ambas as arestas não visíveis, ambas as direções são iguais à direção do raio, assim não são desenhada.
+Encorajamos o leitor a verificar que essa lógica se aplica nas duas imagens ao lado \ref{problem1-scene-general}, usando o ponto inicial \(s\) como resposta de \(\text{Query}(v, 0)\) para qualquer vértice \(v\). Para vértices com ambas arestas visíveis, ambas as direções são reflexões, para vértices com uma aresta visível, uma direção é reflexão e a outra é a mesma direção do raio, e para vértices com ambas as arestas não visíveis, ambas as direções são iguais à direção do raio, assim não são desenhada.
 
 Isso completa a construção das regiões de vértice. No entanto, ainda não esclarecemos como determinar se uma aresta é visível ou não de maneira eficiente.
-
-
 
 \subsection{Respondendo Consultas}
 
