@@ -88,39 +88,70 @@ def do_test(test: TestCase) -> bool:
 
 def test_suite(name: str, sides_list: list[list[int]]) -> None:
 
-	print("Runnning", name, "tests...")
+	print("	Runnning", name, "tests...", flush=True)
 
-	for sides in sides_list:
+	for i, (sides) in enumerate(sides_list, 1):
+		
 		test = make_test(sides)
 		
 		if not do_test(test):
 			break
+
+		#if i % 10 == 0:
+		#	print(f"		Completed {i} tests...", flush=True)
 	else:
-		print("✅ All", name, "tests passed!")
+		print("	✅ All", name, "tests passed!", flush=True)
 
-test_suite("Small", [
-	[3],
-	[4],
-	[5],
-	[3, 4],
-	[4, 5],
-	[3, 4, 5],
-	[6, 7, 8],
-	[3, 5, 7, 9],
-	[3, 4, 5, 6, 7],
-	[3, 3, 3, 3, 3, 3],
-])
+def test_block(name: str, tests: list[tuple[str, list[list[int]]]]) -> None:
 
-test_suite("Medium", [
-	[10, 12],
-	[8, 10, 12],
-	[5, 6, 7, 8, 9, 10],
-	[4, 5, 6, 7, 8, 9, 10],
-	[3, 4, 5, 6, 7, 8, 9, 10],
-])
+	print(f"{name}:")
+	for subname, sides_list in tests:
+		test_suite(f"{subname}", sides_list)
 
-test_suite("Large", [
-	[15, 18, 20],
-	[10, 12, 14, 16, 18, 20],
-	[8, 9, 10, 11, 12, 13, 14, 15, 16],
-])
+if __name__ == "__main__":
+
+	tests1 = ("Small", [
+		[3], 
+		[4], 
+		[5], 
+		[3, 4], 
+		[4, 5], 
+		[3, 4, 5], 
+		[6, 7, 8], 
+		[3, 5, 7, 9], 
+		[3, 4, 5, 6, 7], 
+		[3, 3, 3, 3, 3, 3],	
+	])
+
+	tests2 = ("Medium", [
+		[10, 12],
+		[8, 10, 12],
+		[5, 6, 7, 8, 9, 10],
+		[4, 5, 6, 7, 8, 9, 10],
+		[3, 4, 5, 6, 7, 8, 9, 10],
+	])
+
+	tests3 = ("Large", [
+		[15, 18, 20],
+		[10, 12, 14, 16, 18, 20],
+		[8, 9, 10, 11, 12, 13, 14, 15, 16],
+	])
+
+	test_block("Fixed", [tests1, tests2, tests3])
+
+	small_random = ("Small", [
+		[random.randint(3, 10) for _ in range(random.randint(1, 5))]
+		for _ in range(20)
+	])
+
+	medium_random = ("Medium", [
+		[random.randint(3, 20) for _ in range(random.randint(1, 10))]
+		for _ in range(50)
+	])
+
+	large_random = ("Large", [
+		[random.randint(3, 50) for _ in range(random.randint(1, 20))]
+		for _ in range(50)
+	])
+
+	test_block("Random", [small_random, medium_random, large_random])
