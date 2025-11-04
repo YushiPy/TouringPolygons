@@ -211,7 +211,7 @@ class Solution:
 
 				ray1 = diff.reflect((vertex - before).perpendicular())
 				ray2 = diff.reflect((vertex - after).perpendicular())
-
+				
 				if (vertex - before).cross(last - before) >= 0:
 					ray1 = diff
 					fails[j] |= 1
@@ -224,6 +224,15 @@ class Solution:
 
 			for j in range(m):
 				blocked.append(fails[j] == 3 or fails[(j + 1) % m] == 3 or (fails[j] >= 2 and fails[(j + 1) % m] == 1))
+
+			"""
+			for j, (a, b) in enumerate(polygon.edges()):
+
+				mid = (a + b) / 2
+				last = self.query(mid, i)
+
+				blocked[j] = (b - a).cross(last - a) >= 0
+			"""
 
 		result = [self.target]
 		current = self.target
