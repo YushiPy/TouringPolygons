@@ -382,6 +382,22 @@ Verifica se o ponto \(p\) está na região de vértice associada ao vértice \(v
 
 \end{algorithm}
 
+Ademais, vamos implementar um procedimento que determina se um ponto \(p\) está em uma região de aresta associada à aresta \(e = (u, v)\). Basicamente, verificamos se \(p\) está entre as semi-retas que delimitam a região de vértice associada a \(u\) e a região de vértice associada a \(v\) e se \(p\) está do mesmo lado da aresta \(e\) que o interior do polígono \(P_i\). Para determinar esse lado, podemos usar o produto vetorial entre o vetor da aresta e o vetor do ponto médio da aresta até um ponto interno qualquer de \(P_i\).
+
+\begin{algorithm}
+\caption{PontoEmAresta(\(p\), \(u\), \(v\), \(d_1, d_2\), \(P_i\)) \\
+Verifica se o ponto \(p\) está na região de aresta associada à aresta \(e = (u, v)\) delimitada pelas direções \(d_1\) e \(d_2\)}
+
+// Se vértices são muito próximos, tratamos a região de aresta \\
+// como uma região de vértice. \\
+\If {\(\abs{u - v} < 10 ^ {-8}\)} {
+	\Return {} PontoEmAresta(\(p\), \(v\), \(v\), \(d_2\), \(d_1\), \(P_i\))
+}
+
+
+
+\end{algorithm}
+
 \subsection{Calculando o Caminho Mínimo}
 
 Uma vez que sabemos como responder consultas, calcular o caminho final é muito simples. Basta calcular \(q_k = \text{Query}(t, k)\), então \(q_{k - 1} =\text{Query}(q_k, k - 1)\) e assim por diante, até \(q_0 = s\). Assim, o caminho mínimo é simplesmente a sequência \(s, q_1, \ldots, q_k, t\).
