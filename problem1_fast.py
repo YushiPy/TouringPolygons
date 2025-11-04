@@ -178,36 +178,6 @@ class Solution:
 
 	def query(self, point: Vector2, index: int) -> Vector2:
 		return self.query2(point, index)[0]
-	
-	def compute_cone(self, polygon_index: int, vertex_index: int) -> tuple[Vector2, Vector2]:
-		"""
-		Computes the visibility cone at a given vertex of a polygon.
-
-		:param int polygon_index: The index of the polygon.
-		:param int vertex_index: The index of the vertex in the polygon.
-
-		:return tuple[Vector2, Vector2]: The visibility cone as two rays.
-		"""
-
-		polygon = self.polygons[polygon_index]
-		vertex = polygon[vertex_index]
-
-		before = polygon[vertex_index - 1]
-		after = polygon[(vertex_index + 1) % len(polygon)]
-
-		last = self.query(vertex, polygon_index)
-		diff = (vertex - last).normalize()
-
-		ray1 = diff.reflect((vertex - before).perpendicular())
-		ray2 = diff.reflect((after - vertex).perpendicular())
-
-		if (vertex - before).cross(last - before) >= 0:
-			ray1 = diff
-		
-		if (after - vertex).cross(last - vertex) >= 0:
-			ray2 = diff
-
-		return ray1, ray2
 
 	def solve(self) -> list[Vector2]:
 		"""
@@ -225,15 +195,35 @@ class Solution:
 			m = len(polygon)
 
 			cones = self.cones[i]
+			blocked = self.blocked[i]
+
+			fails: list[int] = [0] * m
 
 			for j in range(m):
-				cones.append(self.compute_cone(i, j))
 
-			self.blocked[i] = [cones[j][0] == cones[j][1] or cones[(j + 1) % m][0] == cones[(j + 1) % m][1] for j in range(m)]
+				vertex = polygon[j]
 
-			if not any(self.blocked[i]):
+				before = polygon[j - 1]
+				after = polygon[j + 1]
+
+				last = self.query(vertex, i)
+				diff = (vertex - last).normalize()
+
+				ray1 = diff.reflect((vertex - before).perpendicular())
+				ray2 = diff.reflect((vertex - after).perpendicular())
+
+				if (vertex - before).cross(last - before) >= 0:
+					ray1 = diff
+					fails[j] |= 1
 				
-				
+				if (after - vertex).cross(last - vertex) >= 0:
+					ray2 = diff
+					fails[j] |= 2
+
+				cones.append((ray1, ray2))
+
+			for j in range(m):
+				blocked.append(fails[j] == 3 or fails[(j + 1) % m] == 3 or (fails[j] >= 2 and fails[(j + 1) % m] == 1))
 
 		result = [self.target]
 		current = self.target

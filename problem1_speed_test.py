@@ -123,9 +123,31 @@ if __name__ == "__main__":
 		[400],
 		[500, 400, 300, 200, 100],
 		[1000],
-		[2000] * 10
 	]
 
 	test_suite("Small", small_tests, number=100)
 	test_suite("Numerous Small", numerous_small_tests, number=10)
-	test_suite("Large", large_tests, number=1)
+	test_suite("Large", large_tests, number=10)
+
+"""
+Small Tests:
+	Speedup:       0.94x | Slow:   0.017235s | Fast:   0.018328s | Sides: [3, 3, 3, 3]
+	Speedup:       1.08x | Slow:   0.028904s | Fast:   0.026814s | Sides: [3, 5, 4, 6]
+	Speedup:       1.01x | Slow:   0.019049s | Fast:   0.018871s | Sides: [5, 5, 5]
+	Speedup:       1.86x | Slow:   0.009437s | Fast:   0.005073s | Sides: [7]
+	Speedup:       2.54x | Slow:   0.056886s | Fast:   0.022369s | Sides: [10, 8]
+Numerous Small Tests:
+	Speedup:       1.15x | Slow:   0.004057s | Fast:   0.003521s | Sides: [3, 3, 3, 3, 3, ..., 3, 3, 3, 3, 3]
+	Speedup:       1.07x | Slow:   0.011139s | Fast:   0.010456s | Sides: [4, 4, 4, 4, 4, ..., 4, 4, 4, 4, 4]
+	Speedup:       1.09x | Slow:   0.023372s | Fast:   0.021489s | Sides: [5, 5, 5, 5, 5, ..., 5, 5, 5, 5, 5]
+	Speedup:       1.16x | Slow:   0.037994s | Fast:   0.032619s | Sides: [6, 6, 6, 6, 6, ..., 6, 6, 6, 6, 6]
+	Speedup:        1.1x | Slow:   0.061807s | Fast:   0.056424s | Sides: [7, 7, 7, 7, 7, ..., 7, 7, 7, 7, 7]
+	Speedup:       0.93x | Slow:   0.038155s | Fast:    0.04112s | Sides: [3, 3, 3, 3, 3, ..., 3, 3, 3, 3, 3]
+Large Tests:
+	Speedup:       8.14x | Slow:   0.475136s | Fast:   0.058399s | Sides: [100, 150, 90]
+	Speedup:       10.7x | Slow:   1.199237s | Fast:   0.112121s | Sides: [200, 100, 150, 120]
+	Speedup:      27.44x | Slow:   2.030551s | Fast:   0.073988s | Sides: [300, 250]
+	Speedup:      65.05x | Slow:   1.519299s | Fast:   0.023355s | Sides: [400]
+	Speedup:      19.14x | Slow:   5.469802s | Fast:   0.285727s | Sides: [500, 400, 300, 200, 100]
+	Speedup:     133.06x | Slow:   7.935566s | Fast:   0.059638s | Sides: [1000]
+"""
