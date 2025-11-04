@@ -353,7 +353,7 @@ Para \(i > 0\), primeiramente determinamos a região \(R\) de \(S_i\) que conté
 
 \begin{itemize}
 
-	\item Região de Vértice: Seja \(R = (v, d_1, d_2)\). Nesse caso, o \(i\)-path até \(p\) é deve passar pelo vértice \(v\), tocando o polígono \(P_i\). Assim, temos que \(\text{Query}(p, i) = v\).
+	\item Região de Vértice: Seja \(R = (v, d_1, d_2)\). Nesse caso, o \(i\)-path até \(p\) deve passar pelo vértice \(v\), tocando o polígono \(P_i\). Assim, temos que \(\text{Query}(p, i) = v\).
 	
 	\item Região de Aresta: Seja \(R = (u, v, d_1, d_2)\). Nesse caso, o \(i\)-path até \(p\) deve passar por algum ponto \(q\) da aresta \(e = (u, v)\), tocando o polígono \(P_i\). Para calcular \(q\), primeiro determinamos \(q' = \text{Query}(p', i - 1)\), onde \(p'\) é a reflexão de \(p\) em relação à aresta \(e\). 
 	Agora, dizemos que \(q\) é a interseção entre \(\overline{q'p'}\) e a aresta \(e\). Finalmente, respondemos \(\text{Query}(p, i) = q\).
@@ -361,6 +361,26 @@ Para \(i > 0\), primeiramente determinamos a região \(R\) de \(S_i\) que conté
 	\item Região de Atravessa: Seja \(R\) a região de atravessa. Nesse caso, o \(i\)-path até \(p\) automaticamente atravessa o polígono \(P_i\) em algum ponto. Portanto, podemos simplesmente responder \(\text{Query}(p, i) = \text{Query}(p, i - 1)\).
 
 \end{itemize}
+
+A maioria dessas operações é simples, no entanto, determinar qual região de \(S_i\) contém \(p\) requer atenção especial. Primeiramente, devemos saber como determinar se um ponto está em uma região de vértice ou em uma região de aresta. Não só, se simplesmente iterarmos sobre todas as regiões, o tempo de resposta seria \(O(\abs{P_i})\), o que é muito lento.
+
+Ainda assim, primeiro vamos implementar um procedimento auxiliar que verifica se um ponto \(p\) está em uma região de vértice associada a um vértice \(v\) delimitada por duas direções \(d_1\) e \(d_2\). Basicamente, se o ângulo entre \(d_1\) e \(d_2\) é menor ou igual a \(180 ^ \circ\), então verificamos se \(p\) está entre as semi-retas usando produtos vetoriais. Caso contrário, verificamos se \(p\) não está no complemento da região.
+
+\begin{algorithm}
+\caption{PontoEmVértice(\(p\), \(v\), \(d_1\), \(d_2\)) \\
+Verifica se o ponto \(p\) está na região de vértice associada ao vértice \(v\) delimitada pelas direções \(d_1\) e \(d_2\)}
+
+// Se o ângulo da região de vértice é maior que \(180 ^ \circ\)
+// verificamos se \(p\) não pertence ao complemento da região. \\
+\If {\(d_1 \times d_2 < 0\)} {
+	\Return{\(\lnot\)} PontoEmVértice(\(p\), \(v\), \(d_2\), \(d_1\)) // Troca as direções e inverte o resultado
+}
+
+// Se o ângulo da região de vértice é menor ou igual a \(180 ^ \circ\) \\
+// Verificamos se \(p\) está entre as semi-retas \\
+\Return{} \((d_1 \times (p - v) \ge 0) \land ((p - v) \times d_2 \ge 0)\)
+
+\end{algorithm}
 
 \subsection{Calculando o Caminho Mínimo}
 
