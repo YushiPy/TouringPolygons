@@ -170,38 +170,40 @@ class Drawing(Solution):
 		n: int = len(self.polygons)
 
 		if scenes is None:
-			scenes = list(range(n))
+			scenes = list(range(n + 1))
 
-		count = len(scenes) + 1
-		#count = 1
+		if scenes == []:
+			return
+
+		count = len(scenes)
 
 		height = isqrt(count)
 		width = (count + height - 1) // height
 
 		fig, axs = plt.subplots(height, width, figsize=(width * 5, height * 5), constrained_layout=True) # type: ignore
-		flat = axs.flatten() if count > 1 else [axs]
+		flat = list(axs.flatten()) if count > 1 else [axs]
 
 		for i, a in enumerate(scenes):
-			#break
-			self.draw_scene(flat[i + 1], a)
-			flat[i + 1].set_title(f"Regions for polygon {a + 1}", fontsize=14)
+
+			if not (0 <= a <= n):
+				continue
+			
+			self.draw_scene(flat[i], a - 1)
+			flat[i].set_title(f"Regions for polygon {a}", fontsize=14)
+
+		if 0 in scenes:
+			flat[0].set_title("Final Path", fontsize=14)
 
 		for i in range(count, len(flat)):
 			flat[i].set_axis_off()
 		
-		self.draw_scene(flat[0], -1)
-
 		# Set title for the whole figure
 		fig.suptitle("Shortest path from Start to End touching every polygon", fontsize=16) # type: ignore
 
-		flat[0].set_title("Final Path", fontsize=14)
-		flat[0].legend()
+		for axis in flat:
+			axis.legend()
 
-		for i in range(1, len(scenes) + 1):
-			#break
-			flat[i].legend()
-
-		# plt.savefig("img2.png", dpi=300)
+		#plt.savefig("img2.png", dpi=300)
 
 		plt.show() # type: ignore
 
