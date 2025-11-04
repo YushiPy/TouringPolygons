@@ -254,9 +254,10 @@ Assim, temos a intuição de pegar o ponto médio \(m\) de \(e\) ou qualquer out
 Felizmente, não é necessário implementar um teste eficiente de interseção de segmento e polígono, uma vez que temos a informação adicional que \(m\) pertence à borda de \(P_i\), mais especificamente na aresta \(e\). Por esse motivo, como \(P_i\) é convexo e suas arestas estão ordenadas em sentido antihorário, sabemos que se o produto interno de \(\overrightarrow{uv}\) com \(\overrightarrow{mq}\) for positivo, então \(\overrightarrow{mq}\) chega em \(m\) pela parte interna de \(P_i\).
 
 \begin{algorithm}
-\caption{Determina as arestas visíveis de \(P_i\)}
+\caption{ArestasVisíveis(\(P_i\), \(i\)) \\ Determina as arestas visíveis de \(P_i\)}
 
-\(n \leftarrow \abs{P_i}\) // Número de vértices de \(P_i\)
+\(n \leftarrow \abs{P_i}\) // Número de vértices de \(P_i\) \\
+visível \(\leftarrow\) [False] * \(n\) // Inicializa todas as arestas como não visíveis \\
 
 \For {\(j \leftarrow 0\) até \(n - 1\)} {
 	\(u \leftarrow P_i[j]\) // j-ésimo vértice de \(P_i\) \\
@@ -266,8 +267,10 @@ Felizmente, não é necessário implementar um teste eficiente de interseção d
 	
 	\ \\
 	// Marca a aresta \(j\) como visível se o produto vetorial for negativo \\
-	visível[\(j\)] \(\leftarrow (v - u) \times (q - u) < 0\) 
+	visível[\(j\)] \(\leftarrow ((v - u) \times (q - u) < 0)\) 
 }
+
+\Return{} visível % Evita math mode desnecessário
 
 \end{algorithm}
 
@@ -283,26 +286,64 @@ Felizmente, não é necessário implementar um teste eficiente de interseção d
 
 \end{wrapfigure}
 
-Uma vez que sabemos quais arestas são visíveis, podemos construir as regiões de vértice. Vamos considerar o vértice \(v\) de \(P_i\) e calculamos \(p = \text{Query}(v, i - 1)\), a seguir explicamos como calcular \(p\), mas uma intuição inicial é pernsar que \(\text{Query}(q, 0) = s\) para qualquer \(q\), uma vez que um \(0\)-path não precisa tocar em nenhum polígono, assim, o menor caminho é uma linha reta de \(s\) até \(q\). 
+Uma vez que sabemos quais arestas são visíveis, podemos construir as regiões de vértice. Vamos considerar o vértice \(v\) de \(P_i\) e calculamos \(p = \text{Query}(v, i - 1)\). Vamos explicar posteriormente como calcular \(p\), mas uma intuição inicial é pensar que \(\text{Query}(q, 0) = s\) para qualquer \(q\), uma vez que um \(0\)-path não precisa tocar em nenhum polígono, assim, o menor caminho é uma linha reta de \(s\) até \(q\). 
 
 Agora consideramos a direção de \(d = v - p\) e a maneira que esse raio chega em \(v\). Sejam \(v_1\) o vértice que precede e \(v_2\) o que segue \(v\) em \(P_i\) (no sentido anti-horário). Se a aresta \((v_1, v)\) é visível, então \(d_1\) será a reflexão de \(d\) em relação à aresta \((v_1, v)\), caso contrário, \(d_1\) será a mesma direção de \(d\). Similarmente, se a aresta \((v, v_2)\) é visível, então \(d_2\) será a reflexão de \(d\) em relação à aresta \((v, v_2)\), caso contrário, \(d_2\) será a mesma direção de \(d\). Assim, criamos a região de vértice \((d_1, d_2)\) associada à \(v\).
 
-O cálculo em si da raflexão um vetor \(d\) em relação à uma aresta \(e = (u, v)\), é uma simples conta com base em projeções de vetores e pode ser implementada como a função abaixo:
+Encorajamos o leitor a verificar que essa lógica se aplica na imagem ao lado \ref{problem1-scene-general}, usando o ponto inicial \(s\) como resposta de \(\text{Query}(v, 0)\) para qualquer vértice \(v\). Os vértices (-2, 0) e (0, 0) terão ambas as arestas visíveis, assim, suas regiões de vértice serão delimitadas pelas reflexões do raio que parte de \(s\). O vértice (-3, 1) terá apenas a aresta posterior visível, assim, sua região de vértice será delimitada pela reflexão do raio em relação à aresta posterior e a própria direção do raio. Similarmente, o vértice (2, 1) tem apenas a aresta anterior visível. Finalmente, os vértices (1, 1.25) e (-1, 1.5) não terão nenhuma aresta visível, assim, suas regiões de vértice serão simplesmente a direção do raio em ambas as semi-retas.
 
-\begin{verbatim}
-def reflect(d: Vector2, e: Edge2) -> Vector2:
-    dir = (e.v - e.u)
-    normal = Vector2(-dir.y, dir.x)
-    proj_len = d.dot(normal) / normal.dot(normal)
-    projection = normal * proj_len
-    return d - 2 * projection
-\end{verbatim}
+\begin{algorithm}
+\caption{RefleteDireção(\(d, v_1, v_2\)) \\ Reflete a direção \(d\) em relação à aresta \((v_1, v_2)\)}
 
-Usando essa função, definimos \(d_1 = \text{reflect}(d, (v_1, v))\) se a aresta \((v_1, v)\) for visível e \(d_1 = d\) caso contrário. A mesma lógica segue para \(d_2\).
+\(e \leftarrow v_2 - v_1\) \\
+\(N \leftarrow \text{Vector2}(-e.y, e.x) / \abs{e}\) // Vetor normal à aresta \\
+\Return{\(d - 2 \cdot (d ^ \intercal \cdot N) N\)} // Fórmula de reflexão
 
-Encorajamos o leitor a verificar que essa lógica se aplica nas duas imagens ao lado \ref{problem1-scene-general}, usando o ponto inicial \(s\) como resposta de \(\text{Query}(v, 0)\) para qualquer vértice \(v\). Para vértices com ambas arestas visíveis, ambas as direções são reflexões, para vértices com uma aresta visível, uma direção é reflexão e a outra é a mesma direção do raio, e para vértices com ambas as arestas não visíveis, ambas as direções são iguais à direção do raio, assim não são desenhada.
+\end{algorithm}
 
-Isso completa a construção das regiões de vértice. No entanto, ainda não esclarecemos como determinar se uma aresta é visível ou não de maneira eficiente.
+\begin{algorithm}
+\caption{Particiona(\(P_1, \dots, P_k\)) \\ Constroi as partições dos polígonos}
+
+regiõesDeVértice \(\leftarrow\) [] // Lista vazia \\
+
+\For{\(i \leftarrow 1\) até \(k\)} {
+
+	visível \(\leftarrow \text{ArestasVisíveis}(P_i, i)\) \\
+	regiõesDeVértice.\text{append}([]) // Adiciona uma nova lista para as regiões de vértice de \(P_i\) \\
+	
+	\For{\(j \leftarrow 0\) até \(\abs{P_i} - 1\)} {
+	
+		\(v \leftarrow P_i[j]\) // j-ésimo vértice de \(P_i\) \\
+		\(v_1 \leftarrow P_i[j - 1]\) // vértice que precede \(v\), considerando \(P_i[-1] = P_i[\abs{P_i} - 1]\) \\
+		\(v_2 \leftarrow P_i[j + 1]\) // vértice que segue \(v\), considerando \(P_i[\abs{P_i}] = P_i[0]\) \\
+		
+		\ \\
+		
+		\(p \leftarrow \text{Query}(v, i - 1)\) // penúltimo ponto do \((i - 1)\)-path até \(v\) \\
+		\(d \leftarrow v - p\) // direção do raio de \(p\) até \(v\) \\
+		
+		\ \\
+
+		\If{visível[\(j - 1\)]} {
+			\(d_1 \leftarrow \text{Reflete}(d, v_1, v)\) // reflexão de \(d\) em relação à aresta \((v_1, v)\)
+		}
+		\Else {
+			\(d_1 \leftarrow d\)
+		}
+		
+		\If{visível[\(j\)]} {
+			\(d_2 \leftarrow \text{Reflete}(d, v, v_2)\) // reflexão de \(d\) em relação à aresta \((v, v_2)\)
+		}
+		\Else {
+			\(d_2 \leftarrow d\)
+		}
+		
+		// Armazena a região de vértice associada a \(v\) como o par \((d_1, d_2)\) \\
+		regiõesDeVértice[i - 1].\text{append}(\((d_1, d_2)\)) \\
+	}
+}
+
+\end{algorithm}
 
 \subsection{Respondendo Consultas}
 
