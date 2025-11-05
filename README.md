@@ -7,7 +7,7 @@ We will store various algorithms that solve different variations of the TPP, as 
 
 ## Bibliography
 
-The main reference for this project is the paper "Touring a Sequence of Polygons" by Joseph S. B. Mitchell, which can be found [here](https://www.researchgate.net/publication/2836312_Touring_a_Sequence_of_Polygons).
+The main reference for this project is the paper "Touring a Sequence of Polygons" by Moshe Dror et al., which can be found [here](https://www.researchgate.net/publication/2836312_Touring_a_Sequence_of_Polygons).
 
 We will implement the algorithms described in this paper, as well as explore other variations of the problem, which were left as open problems in the paper.
 
@@ -21,7 +21,7 @@ Given these fences, the path between polygons $P_i$ and $P_{i + 1}$ must be cont
 
 ## The Unconstrained TPP
 
-This is the first variation of the problem we will consider, where there are no fences and the polygons will not intersect. 
+This is the first variation of the problem we will consider, where there are no fences and the polygons are convex and will not intersect. 
 
 ## The general TPP
 
@@ -33,4 +33,9 @@ It can be shown that when dealing with non convex polygons we get an NP-hard pro
 
 However, this approach is clearly very slow. While we cannot solve the problem in polynomial time, we can try to improve upon this approach by attempting to model the problem as an integer optimization problem with a quadratic target and linear constraints. 
 
-We believe that a Branch and Bound strategy mnay work nicely for this problem, as we can use the convex hull of the non convex polygons as an upper bound for the problem.
+We believe that a Branch and Bound strategy may work nicely for this problem, as we can use the convex hull of the non convex polygons as an upper bound for the problem.
+
+## Requirements
+
+- `Python 3.12+`
+    - `matplotlib`
