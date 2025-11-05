@@ -544,8 +544,39 @@ Vamos usar também uma função auxiliar \text{InterseçãoDeSegmento} que calcu
 
 \subsection{Calculando o Caminho Mínimo}
 
+Agora que sabemos como responder consultas do tipo \(\text{Query}(p, i)\), calcular o caminho mínimo de \(s\) até \(t\) que toca todos os polígonos \(P_1, \dots, P_k\) é trivial.
 
-Uma vez que sabemos como responder consultas, calcular o caminho final é muito simples. Basta calcular \(q_k = \text{Query}(t, k)\), então \(q_{k - 1} =\text{Query}(q_k, k - 1)\) e assim por diante, até \(q_0 = s\). Assim, o caminho mínimo é simplesmente a sequência \(s, q_1, \ldots, q_k, t\).
+Pela definição de Query, sabemos que o menor caminho que parte de \(s\), toca todos os polígonos \(P_1, \dots, P_k\) e termina em \(t\) deve ter como penúltimo ponto \(q_k = \text{Query}(t, k)\). Ademais, o caminho que toca os polígonos \(P_1, \dots, P_{k - 1}\) e termina em \(q_k\) deve ter como penúltimo ponto \(q_{k - 1} = \text{Query}(q_k, k - 1)\). Repetindo esse raciocínio, chegamos até o ponto inicial \(s\).
+
+Usando essa lógica e juntando as implementações anteriores em um algoritmo completo, temos:
+
+\begin{algorithm}
+\caption{CaminhoMínimo(\(s, t, P_1, \dots, P_k\)) \\ Calcula o caminho mínimo de \(s\) até \(t\) que toca todos os polígonos \(P_1, \dots, P_k\)}
+
+\If {\(k = 0\)} {
+	\Return{} [\(s, t\)] // Caso base: caminho direto de \(s\) até \(t\)
+}
+
+regiãoDeVértice \(\leftarrow\) Particiona(\(P_1, \dots, P_k\)) \\
+caminho \(\leftarrow []\) // Lista vazia para armazenar o caminho \\
+\(p \leftarrow t\) // Começamos do ponto final \(t\) \\
+
+\For {\(i \leftarrow k\) até \(1\)} {
+	\(q \leftarrow \text{Query}(p, k)\) // Penúltimo ponto do \(k\)-path até \(p\) \\
+	// Verificamos se os pontos \(p\) e \(q\) são distintos devido à regiões de atravessar \\
+	\If {\(\abs{q - p} > 10 ^ {-8}\)} {
+		caminho.\text{append}(\(p\)) // Adiciona \(p\) ao caminho \\
+	}
+	\(p \leftarrow q\) // Atualiza \(p\) para o próximo ponto \\
+	\(k \leftarrow k - 1\) // Decrementa \(k\)
+}
+
+caminho.\text{append}(\(s\)) // Adiciona o ponto inicial \(s\) \\
+caminho.\text{reverse}() // Inverte a lista para obter o caminho correto \\
+
+\Return{} caminho
+
+\end{algorithm}
 
 \section{O Problema de Visita de Polígonos Geral}
 
