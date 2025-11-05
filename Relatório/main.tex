@@ -584,21 +584,53 @@ Nessa seção, vamos analisar a complexidade do algoritmo completo. Primeirament
 
 \begin{itemize}
 	
-	\item RefleteDireção: \(O(1)\), pois faz um número constante de operações.
-	\item PontoEmVértice: \(O(1)\), pois faz um número constante de operações.
-	\item PontoEmAresta: \(O(1)\), pois faz um número constante de operações e chamadas para PontoEmVértice.
+	\item RefleteDireção(\(\dots\)): \(O(1)\), pois faz um número constante de operações.
+	\item PontoEmVértice(\(\dots\)): \(O(1)\), pois faz um número constante de operações.
+	\item PontoEmAresta(\(\dots\)): \(O(1)\), pois faz um número constante de operações e chamadas para PontoEmVértice.
 	
-	\item Query: \(O(\sum_{j = 1}^{i} \log(\abs{P_j}))\), pois faz no máximo \(i\) chamadas recursivas, cada uma levando \(O(\log(\abs{P_j}))\) para cada \(j\).
-
-	\item ArestasVisíveis: \(\abs{P_i} \sum_{j = 1}^{i} \log(\abs{P_j})\), pois calculamos \(\abs{P_i}\) visibilidades, cada uma levando \(O(\sum_{j = 1}^{i} \log(\abs{P_j}))\) para chamar Query.
-
-	\item LocalizaRegião: \(O(\log(\abs{P_i}))\), pois usa busca binária em \(2 \abs{P_i} - 1\) regiões.
+	\item LocalizaRegião(\(P_i\), \(\dots\)): \(O(\log \abs{P_i})\), pois usa busca binária em \(2 \abs{P_i} - 1\) regiões.
 	
-	\item Particiona: \(O\left(\sum_{i = 1}^{k} i \abs{P_i} \log(\abs{P_i})\right)\), pois para cada polígono \(P_i\) chamamos ArestasVisíveis e iteramos sobre seus vértices fazendo chamadas para Query. As chamadas para Query tem a mesma complexidade que ArestasVisíveis.
+	\item Query\((i, \dots)\): Fazemos no máximo \(i\) chamadas recursivas, cada uma chama LocalizaRegião \(p\) umas vez. Assim, temos a complexidade: 
+	
+	\[
+		O\parens[\bigg]{\sum_{j = 1}^{i} \log \abs{P_j}}
+	\]
 
-	\item CaminhoMínimo: \(O\left(\sum_{i = 1}^{k} i \abs{P_i} \log(\abs{P_i})\right)\), pois chamamos Particiona uma vez e depois fazemos \(k\) chamadas para Query, cada uma levando \(O(i \log(\abs{P_i}))\).
+	\item ArestasVisíveis(\(P_i\), \(\dots\)): Chamamos Query para os \(\abs{P_i}\) vértices de \(P_i\), assim, temos uma complexidade final de:
+	
+	\[
+		O\parens[\bigg]{\abs{P_i} \sum_{j = 1}^{i} \log \abs{P_j}}
+	\]
+	
+	\item Particiona(\(P_1, \dots, P_n\)): Chamamos ArestasVisíveis para cada polígono \(P_i\), assim, temos:
+	
+	\[
+		O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \log \abs{P_j}}
+	\]
+
+	\item CaminhoMínimo: Chamamos Particiona uma única vez e então calculamos o caminho final cuja complexidade é insignificante próximo de Particiona, então a complexidade final é a mesma:
+
+	\[
+		O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \log \abs{P_j}}
+	\]
 
 \end{itemize}
+
+Enquanto podemos dizer que determinamos a complexidade final do problema, gotaríamos de ter uma forma mais simples e de acordo com o artigo original. Assim, definimos \(n = \sum_{i = 1}^{k} \abs{P_i}\) e note que:
+
+\begin{align*}
+	O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \log \abs{P_j}} &= O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{k} \log \abs{P_j}} \\
+	&= O\parens[\bigg]{\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i}} \cdot \parens[\bigg]{\sum_{i = 1}^{k} \log{\abs{P_i}}}} \\
+	&= O\parens[\bigg]{n \sum_{i = 1}^{k} \log{\abs{P_i}}}
+\end{align*}
+
+Ademais, se fixarmos o valor de \(k\), temos que o valor de \(\sum_{i = 1}^{k} \log \abs{P_i}\) é máximo quando \(\abs{P_1} = \dots = \abs{P_k} = n / k\). Dessa forma, concluimos que em um pior caso a complexidade é:
+
+\[
+	O(n k \log(n / k))
+\]
+
+Dessa forma, nosso algoritmo está de acordo com o artigo original.
 
 \section{O Problema de Visita de Polígonos Geral}
 
