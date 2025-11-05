@@ -493,9 +493,9 @@ Localiza o ponto \(p\) na partição do polígono \(P\)}
 
 \subsection{Respondendo Consultas}
 
-Agora que sabemos como construir as partições \(S_i\), podemos descrever como usá-las para responder consultas \(\text{Query}(p, i)\). O procedimento utilizado é recursivo, assim, primeiro definimos o caso base, que é \(\text{Query}(p, 0) = s\), uma vez que um \(0\)-path não precisa tocar em nenhum polígono, assim, o menor caminho é uma linha reta de \(s\) até \(p\).
+Finalemnte, podemos descrever como responder consultas do tipo \(\text{Query}(p, i)\) usando as partições \(S_i\) que construímos anteriormente. O procedimento utilizado é recursivo, assim, primeiro definimos o caso base, que é \(\text{Query}(p, 0) = s\), uma vez que um \(0\)-path não precisa tocar em nenhum polígono, assim, o menor caminho é uma linha reta de \(s\) até \(p\).
 
-Para \(i > 0\), primeiramente determinamos a região \(R\) de \(S_i\) que contém \(p\). Descrevemos acima como representar cada região e a partir dela é fácil determinar à qual um ponto \(p\) pertence. Também é importante ressaltar que \(p\) sempre pertence a exatamente uma região. Agora vamos analisar os 3 casos possíveis para \(R\):
+Para \(i > 0\), primeiramente determinamos a região \(R\) de \(S_i\) que contém \(p\). Uma vez que sabemos qual região contém \(p\), podemos responder a consulta dependendo do tipo de região:
 
 \begin{itemize}
 
@@ -508,9 +508,42 @@ Para \(i > 0\), primeiramente determinamos a região \(R\) de \(S_i\) que conté
 
 \end{itemize}
 
-A maioria dessas operações é simples, no entanto, determinar qual região de \(S_i\) contém \(p\) requer atenção especial. Primeiramente, devemos saber como determinar se um ponto está em uma região de vértice ou em uma região de aresta. Não só, se simplesmente iterarmos sobre todas as regiões, o tempo de resposta seria \(O(\abs{P_i})\), o que é muito lento.
+Agora vamos implementar esse procedimento como um algoritmo, usando as contruções que fizemos anteriormente, uma vez que é um pouco mais complexo do que a descrição acima. 
+
+Vamos usar também uma função auxiliar \text{InterseçãoDeSegmento} que calcula a interseção entre dois segmentos dados seus extremos. Essa não é descrita aqui, mas é uma implementação padrão de geometria computacional.
+
+\begin{algorithm}
+\caption{Query(\(p, i\)) \\ Responde a consulta \(\text{Query}(p, i)\)}
+
+\If {\(i = 0\)} {
+	\Return{} \(s\) // Caso base
+}
+
+\(R \leftarrow\) LocalizaRegião(\(p\), \(P_i\), regiõesDeVértice[\(i - 1\)]) \\
+\(j \leftarrow \floor{R / 2}\)
+
+\If {\(R \pmod 2 = 0\)} {
+	\Return {} \(v \leftarrow P_i[j]\) // Vértice associado à região de vértice
+}
+
+\If {\(\lnot\) visível[\(j\)]} {
+	\Return{} Query(\(p, i - 1\)) // Região de atravessa
+}
+
+// Região de aresta \\
+\(u \leftarrow P_i[j]\) // Vértice inicial da aresta \\
+\(v \leftarrow P_i[j + 1]\) // Vértice final da aresta \\
+
+\(p' \leftarrow u + \text{RefleteDireção}((p - u), u, v)\) \\
+\(q' \leftarrow \text{Query}(p', i - 1)\) \\
+\(m \leftarrow \text{InterseçãoDeSegmento}(p', q', u, v)\) \\
+
+\Return{} \(m\) // Ponto de interseção
+
+\end{algorithm}
 
 \subsection{Calculando o Caminho Mínimo}
+
 
 Uma vez que sabemos como responder consultas, calcular o caminho final é muito simples. Basta calcular \(q_k = \text{Query}(t, k)\), então \(q_{k - 1} =\text{Query}(q_k, k - 1)\) e assim por diante, até \(q_0 = s\). Assim, o caminho mínimo é simplesmente a sequência \(s, q_1, \ldots, q_k, t\).
 
