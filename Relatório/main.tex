@@ -407,7 +407,7 @@ Verifica se o ponto \(p\) está na região de aresta associada à aresta \(e = (
 // Se vértices são muito próximos, tratamos a região de aresta \\
 // como uma região de vértice. \\
 \If {\(\abs{u - v} < 10 ^ {-8}\)} {
-	\Return {} PontoEmAresta(\(p\), \(v\), \(v\), \(d_2\), \(d_1\))
+	\Return {} PontoEmVértice(\(p\), \(v\), \(d_2\), \(d_1\))
 }
 
 \(e \leftarrow v - u\) \\
@@ -431,6 +431,65 @@ Verifica se o ponto \(p\) está na região de aresta associada à aresta \(e = (
 
 \subsubsection{Localização Eficiente de Pontos na Partição}
 
+Agora que sabemos como verificar se um ponto pertence a uma região de vértice ou de aresta, podemos usar essas funcionalidades para localizar um ponto \(p\) na partição \(S_i\). Uma abordagem ingênua seria iterar sobre todas as regiões de vértice e aresta, verificando se \(p\) pertence a alguma delas. Isso funcionaria, no entanto, essa abordagem tomaria tempo \(O(\abs{P_i})\), o que é muito lento.
+
+Por esse motivo, desejamos explorar a ideia de busca binária para resolver o problema. Primeiramente, vamos assumir que o ponto não pertence ao polígono \(P_i\), isso vale como suposição inicial dos polígonos serem disjuntos e os pontos \(s\) e \(t\) estarem fora dos polígonos. Ainda assim, se desejássemos evitar essa suposição, poderíamos simplesmente verificar se o ponto está dentro do polígono \(P_i\) usando um teste de ponto em polígono antes de localizar o ponto na partição, o é um problema clássico que leva tempo \(O(\log(\abs{P_i}))\).
+
+Uma questão que diferencia nosso problema de uma busca binária tradicional é que as regiões são circulares. Assim, o primeiro passo é verificar se o ponto pertence à região entre o último e o primeiro vértice de \(P_i\). Se sim, retornamos essa região. Caso contrário, reduzimos o problema para uma lista linear de regiões.
+
+Outra diferença que precisamos considerar é que nossa entrada contém dois tipos de regiões: regiões de vértice e regiões de aresta. Para lidar com isso, podemos tratar regiões de vértice como regiões de aresta degeneradas, onde a aresta tem comprimento zero. Dessa forma, podemos aplicar o mesmo raciocínio para ambos os tipos de regiões, lidando com uma lista de \(2 \abs{P_i} - 1\) regiões de aresta, uma vez que já eliminamos a última. Note que a implementação de PontoEmAresta já lida com esse caso especial.
+
+Finalmente, podemos implementar a busca binária propriamente dita. A ideia é manter dois índices \(l\) e \(r\) que representam o intervalo atual de regiões que estamos considerando. Inicialmente, definimos \(n = \abs{P_i}\), \(l = 0\) e \(r = 2n - 1\). Nos baseamos na ideia de que apenas as regiões após \(l\) e antes de \(r\) podem conter o ponto \(p\), ambos limites inclusivos. 
+
+Enquanto \(l + 1 \ne r\), calculamos o índice médio \(m = \floor{(l + r) / 2}\) e verificamos se o ponto \(p\) pertence à região de aresta entre \(l\) e \(m\). Se estiver, atualizamos \(r = m\), caso contrário, atualizamos \(l = m\), isso vale pois \(P_i\) é convexo e a região de aresta entre \(l\) e \(m\) cobre todas as regiões entre \(l\) e \(m\) e nenhuma região entre \(m\) e \(r\).
+
+Repetindo isso até que \(l + 1 = r\), sabemos que o ponto \(p\) pertence à região de aresta entre \(l\) e \(r\). Finalmente, retornamos essa região, vamos codificar essa região como um inteiro que representa o índice da região.
+
+Essa codificação segue a seguinte lógica: regiões de vértice são representadas por índices pares, onde o índice \(2j\) representa a região de vértice associada ao \(j\)-ésimo vértice de \(P_i\). Regiões de aresta são representadas por índices ímpares, onde o índice \(2j + 1\) representa a região de aresta entre o \(j\)-ésimo e o \((j + 1)\)-ésimo vértice de \(P_i\). Note que a região entre o último e o primeiro vértice é representada pelo índice \(2 \abs{P_i} - 1\).
+
+\begin{algorithm}
+\caption{LocalizaRegião(\(p\), \(P\), regiõesDeVértice) \\
+Localiza o ponto \(p\) na partição do polígono \(P\)}
+
+
+// Criamos uma função auxiliar usando fechamento \\
+// para facilitar a implementação da busca binária \\
+\Function{pertence(\(i\), \(j\))} {
+
+	\(v_1 \leftarrow P[\floor{i / 2}]\) // Vértice \(i\) do polígono \(P\) \\
+	\(v_2 \leftarrow P[\floor{j / 2}]\) // Vértice \(j\) do polígono \(P\) \\
+
+
+	// Vamos lembrar que \textit{regiõesDeVértice} é uma lista de pares \((d_1, d_2)\) \\
+	// Também vamos tratar \(i \pmod 2\) como uma operação tradicional de módulo \\
+	\(d_1 \leftarrow \text{regiõesDeVértice}[\floor{i / 2}][i \pmod 2]\) \\
+	\(d_2 \leftarrow \text{regiõesDeVértice}[\floor{j / 2}][j \pmod 2]\) \\
+
+	\Return{} PontoEmAresta(\(p\), \(v_1\), \(v_2\), \(d_1\), \(d_2\))
+}
+
+\(l \leftarrow 0\)
+\(r \leftarrow 2 \cdot \abs{P} - 1\) \\
+
+\If {pertence(\(r\), \(0\))} {
+	\Return{} \(r\) // Ponto pertence à região entre o último e o primeiro vértice
+}
+
+\While {\(l + 1 \ne r\)} {
+
+	\(m \leftarrow \floor{(l + r) / 2}\) \\
+	
+	\If {pertence(\(l\), \(m\))} {
+		\(r \leftarrow m\)
+	}
+	\Else {
+		\(l \leftarrow m\)
+	}
+}
+
+\Return{} \(l\) // Ponto pertence à região entre \(l\) e \(r\)
+
+\end{algorithm}
 
 \subsection{Respondendo Consultas}
 
