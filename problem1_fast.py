@@ -68,9 +68,6 @@ def locate_point(point: Vector2, polygon: Polygon2, cones: Cones) -> int:
 	left = 0
 	right = 2 * len(cones) - 1
 
-	if is_between(0, 1):
-		return 0
-	
 	if is_between(right, 0):
 		return right
 
