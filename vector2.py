@@ -524,6 +524,9 @@ class Vector2:
 	def __bool__(self) -> bool:
 		"""Returns True if the vector is not zero, False otherwise."""
 		return self.x != 0 or self.y != 0
+	
+	def __hash__(self) -> int:
+		return hash((self.x, self.y))
 
 	def __nonzero__(self) -> bool:
 		"""Returns True if the vector is not zero, False otherwise."""
