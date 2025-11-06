@@ -97,6 +97,25 @@ def test_suite(name: str, sides_list: list[list[int]], number: int = 10) -> None
 
 		print(f"\tSpeedup: {justified(round(slow / fast, 2))}x | Slow: {justified(slow)}s | Fast: {justified(fast)}s | Sides: {sides_string}", flush=True)
 
+def time_test(test: TestCase, number: int = 10) -> float:
+	return timeit(lambda: FastSolution(*test).solve(), number=number)
+
+def time_test_suite(name: str, sides_list: list[list[int]], number: int = 10) -> None:
+
+	def justified(value: float) -> str:
+		return str(round(value, 6)).rjust(10, " ")
+
+	print(f"{name} Timing Tests:")
+
+	for sides in sides_list:
+
+		test = make_test(sides)
+		fast = time_test(test, number=number)
+
+		sides_string = str(sides) if len(sides) < 10 else "[" + ", ".join(map(str, sides[:5])) + ", ..., " + ", ".join(map(str, sides[-5:])) + "]"
+
+		print(f"\tFast: {justified(fast)}s | Sides: {sides_string}", flush=True)
+
 if __name__ == "__main__":
 
 	small_tests = [
@@ -125,9 +144,13 @@ if __name__ == "__main__":
 		[1000],
 	]
 
-	test_suite("Small", small_tests, number=100)
-	test_suite("Numerous Small", numerous_small_tests, number=10)
-	test_suite("Large", large_tests, number=10)
+	#test_suite("Small", small_tests, number=100)
+	#test_suite("Numerous Small", numerous_small_tests, number=10)
+	#test_suite("Large", large_tests, number=10)
+
+	time_test_suite("Timing Small", small_tests, number=1000)
+	time_test_suite("Timing Numerous Small", numerous_small_tests, number=100)
+	time_test_suite("Timing Large", large_tests, number=100)
 
 """
 Small Tests:
@@ -150,4 +173,25 @@ Large Tests:
 	Speedup:      65.05x | Slow:   1.519299s | Fast:   0.023355s | Sides: [400]
 	Speedup:      19.14x | Slow:   5.469802s | Fast:   0.285727s | Sides: [500, 400, 300, 200, 100]
 	Speedup:     133.06x | Slow:   7.935566s | Fast:   0.059638s | Sides: [1000]
+
+Timing Small Timing Tests:
+	Fast:   0.145585s | Sides: [3, 3, 3, 3]
+	Fast:   0.270796s | Sides: [3, 5, 4, 6]
+	Fast:    0.22928s | Sides: [5, 5, 5]
+	Fast:   0.051113s | Sides: [7]
+	Fast:   0.206471s | Sides: [10, 8]
+Timing Numerous Small Timing Tests:
+	Fast:   0.038306s | Sides: [3, 3, 3, 3, 3, ..., 3, 3, 3, 3, 3]
+	Fast:   0.111474s | Sides: [4, 4, 4, 4, 4, ..., 4, 4, 4, 4, 4]
+	Fast:   0.233947s | Sides: [5, 5, 5, 5, 5, ..., 5, 5, 5, 5, 5]
+	Fast:    0.35686s | Sides: [6, 6, 6, 6, 6, ..., 6, 6, 6, 6, 6]
+	Fast:   0.536957s | Sides: [7, 7, 7, 7, 7, ..., 7, 7, 7, 7, 7]
+	Fast:   0.426815s | Sides: [3, 3, 3, 3, 3, ..., 3, 3, 3, 3, 3]
+Timing Large Timing Tests:
+	Fast:   0.600902s | Sides: [100, 150, 90]
+	Fast:   0.959572s | Sides: [200, 100, 150, 120]
+	Fast:   0.759498s | Sides: [300, 250]
+	Fast:    0.24136s | Sides: [400]
+	Fast:   3.194541s | Sides: [500, 400, 300, 200, 100]
+	Fast:   0.611497s | Sides: [1000]	
 """
