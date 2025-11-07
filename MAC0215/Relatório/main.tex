@@ -177,7 +177,7 @@ Esse projeto de pesquisa teve como objetivo explorar o Problema da Visita de Pol
 
 Nesse relatório, vamos apresentar o problema que estamos resolvendo, discutir a base bibliográfica que fundamenta nosso trabalho, detalhar as implementações realizadas, analisar os resultados obtidos e propor possíveis melhorias e trabalhos futuros. Também vamos dedicar uma seção para discutir como o tempo foi alocado ao longo do projeto, justificando o investimento de ao menos 100 horas de trabalho.
 
-Todo o código desenvolvido para esse projeto está disponível no repositório do GitHub: \url{https://github.com/YushiPy/TouringPolygons}, onde também é possível encontrar instruções para executar os algoritmos implementados, assim como acompanhar o desenvolvimento gradual do projeto, servindo como evidência do trabalho realizado.
+Todo o código desenvolvido para esse projeto está disponível no \hypertarget{repo}{\href{https://github.com/YushiPy/TouringPolygons}{repositório do GitHub}}, onde também é possível encontrar instruções para executar os algoritmos implementados, assim como acompanhar o desenvolvimento gradual do projeto, servindo como evidência do trabalho realizado.
 
 \section{Base Bibliográfica}
 
@@ -229,6 +229,8 @@ Essas regiões são de três tipos, chamdas de regiões de vértice (em vermelho
 
 A seguir vamos construir o caminho mínimo para o exemplo da figura \ref{problem1-solution}, usando as partições da figura \ref{problem1-partitions}. Começamos com \(q_3 = \text{Query}(t, 3)\), olhando na partição do pentágono, observamos que \(t\) está na região de vértice, assim, sabemos que \(q_3\) deve ser esse vértice de \(P_3\). Em seguida, calculamos \(q_2 = \text{Query}(q_3, 2)\), olhando na partição do trapézio, observamos que \(q_3\) está na região de sombra, assim, podemos essencialmente ignorar \(P_2\), pois qualquer ponto mínimo até \(q_3\) que toque \(P_2\) deve necessariamente atravessá-lo. Finalmente, calculamos \(q_1 = \text{Query}(q_3, 1)\), olhando na partição do triângulo, observamos que \(q_3\) está na região de aresta, assim, sabemos que \(q_1\) deve ser o ponto na aresta de \(P_1\) que minimiza a distância de \(s\) até \(q_2\). Com isso, conseguimos reconstruir o caminho mínimo completo.
 
+Tendo essa ideia geral em mente, resta apenas como desafio criar essas partições e localizar pontos nelas de forma eficiente. Essencialmente, para criar a partição de \(P_i\), devemos calcular um caminho mínimo que toca cada polígono \(P_1, \dots, P_{i - 1}\) até cada vértice de \(P_i\) e apartir da maneira que esse caminho chega nesses vértices, podemos determinar as regiões de vértice. Uma vez que temos as regiões de vértice, notamos que as regiões de aresta e sombra são as regiões restantes no plano, dessa forma, é apenas necessário saber diferenciar essas regiões. Para isso, podemos observar que se um caminho mínimo que chega em um ponto interno de uma aresta de \(P_i\) atravessa \(P_i\), essa aresta deve pertencer à região de sombra, caso contrário, pertence à região de aresta. Com isso, conseguimos construir todas as partições necessárias.
 
+É claro que essa explicação é bastante simplificada, e muitos detalhes de implementação foram omitidos para manter o foco na ideia geral. O artigo original \cite{tpp-dror2003} apresenta todas os lemas e teoremas necessários para garantir a corretude do algoritmo e a complexidade prometida, enquanto os detalhes de implementação e o código em si podem ser encontrados por completo no \hyperlink{repo}{repositório do GitHub} associado a esse projeto.
 
 \end{document}
