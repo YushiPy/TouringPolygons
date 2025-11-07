@@ -132,12 +132,15 @@
 
 	\vspace{2cm}
 
-	\rule{\linewidth}{2pt}
-	
-	\vspace{0.2em} % Ajuste ao seu gosto
+		\rule{\linewidth}{2pt}
+		
+		\vspace{0.2em} % Ajuste ao seu gosto
+		
 	{\Large \bfseries 
+		MAC0215: Relatório Final \\
 		O Problema da Visita de Polígonos \\
 	}
+
 	\vspace{0.2em} % Ajuste ao seu gosto
 	
 	\rule{\linewidth}{2pt} \\
@@ -169,5 +172,16 @@
 \newpage
 
 \section{Introdução}
+
+Esse relatório busca apresentar as descobertas e desenvolvimento de soluções e ferramentas para o Problema da Visita de Polígonos (Touring Polygons Problem - TPP). Vamos detalhar os resultados obtidos, dar uma visão geral das implementações realizadas, explicar como o tempo foi investido nesse projeto e discutir possíveis melhorias e trabalhos futuros.
+
+\section{O Problema}
+
+O Problema da Visita de Polígonos (TPP) consiste em encontrar o caminho mais curto que visita um conjunto de polígonos no plano. Esse problema é um caso específico do problema do caixeiro viajante com vizinhanças (TSPN), onde o objetivo é visitar regiões genéricas no plano, que é por sua vez uma generalização do problema do caixeiro viajante (TSP), onde o objetivo é visitar pontos específicos.
+
+O enunciado formal do TPP é o seguinte: dado um ponto inicial \(s\), um ponto final \(t\) e uma sequência de polígonos \(P_1, P_2, \ldots, P_k\) no plano, encontrar o menor caminho que começa em \(s\), termina em \(t\) e visita cada polígono \(P_i\) pelo menos uma vez. Consideramos que visitar um polígono significa que o caminho pode atravessar ou simplesmente tocar na borda de cada polígono.
+
+Para esse projeto, consideramos três variações do problema, o TPP Irrestrito, o TPP Restrito e o TPP com polígonos não convexos. Vamos discutir cada um deles nas próximas seções.
+
 
 \end{document}
