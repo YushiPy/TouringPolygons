@@ -175,13 +175,39 @@
 
 Esse relatório busca apresentar as descobertas e desenvolvimento de soluções e ferramentas para o Problema da Visita de Polígonos (Touring Polygons Problem - TPP). Vamos detalhar os resultados obtidos, dar uma visão geral das implementações realizadas, explicar como o tempo foi investido nesse projeto e discutir possíveis melhorias e trabalhos futuros.
 
+Todo o código desenvolvido para esse projeto está disponível no repositório do GitHub: \url{https://github.com/YushiPy/TouringPolygons}, onde também é possível encontrar instruções para executar os algoritmos implementados, assim como acompanhar o desenvolvimento gradual do projeto.
+
+\section{Base Bibliográfica}
+
+Esse problema não é original e foi apresentado pela primeira vez por Dror et al. (2003) \cite{tpp-dror2003}. No entanto, desde então não houve muitos avanços significativos na resolução do problema, e a maioria das soluções propostas ainda se baseia nas ideias apresentadas nesse artigo inicial.
+
+O artigo em si é bastante denso e complexo, e a implementação direta dos algoritmos propostos não é trivial, uma vez que os autores focam mais na análise teórica e demonstração matemática de corretudo do que na implementação prática, tanto que não incluem pseudocódigo ou detalhes de implementação.
+
+Por esse motivo, esse projeto propôs desbravar esse problema, buscando entender as ideias apresentadas no artigo e desenvolver implementações práticas dos algoritmos propostos, além de explorar variações do problema que não foram abordadas pelos autores. 
+
+
 \section{O Problema}
 
 O Problema da Visita de Polígonos (TPP) consiste em encontrar o caminho mais curto que visita um conjunto de polígonos no plano. Esse problema é um caso específico do problema do caixeiro viajante com vizinhanças (TSPN), onde o objetivo é visitar regiões genéricas no plano, que é por sua vez uma generalização do problema do caixeiro viajante (TSP), onde o objetivo é visitar pontos específicos.
 
-O enunciado formal do TPP é o seguinte: dado um ponto inicial \(s\), um ponto final \(t\) e uma sequência de polígonos \(P_1, P_2, \ldots, P_k\) no plano, encontrar o menor caminho que começa em \(s\), termina em \(t\) e visita cada polígono \(P_i\) pelo menos uma vez. Consideramos que visitar um polígono significa que o caminho pode atravessar ou simplesmente tocar na borda de cada polígono.
+O enunciado formal do TPP é o seguinte: dado um ponto inicial \(s\), um ponto final \(t\) e uma sequência de polígonos \(P_1, P_2, \ldots, P_k\) no plano, encontrar o menor caminho que começa em \(s\), termina em \(t\) e visita cada polígono \(P_i\) pelo menos uma vez, além disso os polígono devem ser tocados na ordem que são dados. Consideramos que visitar um polígono significa que o caminho pode atravessar ou simplesmente tocar na borda de cada polígono.
 
 Para esse projeto, consideramos três variações do problema, o TPP Irrestrito, o TPP Restrito e o TPP com polígonos não convexos. Vamos discutir cada um deles nas próximas seções.
 
+\subsection{TPP Irrestrito}
+
+Essa é a primeira variação do problema que abordamos, vamos considerar que recebemos um ponto inicial \(s\), um ponto final \(t\) e uma sequência de polígonos \(P_1, P_2, \ldots, P_k\) e buscamos um caminho mínimo que enconsta em cada polígono no plano, como no enunciado geral do problema. Além dessas suposições, vamos considerar que os polígonos são \textbf{convexos} e \textbf{são disjuntos}.
+
+\begin{wrapfigure}{r}{0.40\textwidth}
+	\centering
+	\vspace{-10pt}
+	\includegraphics[width=0.39\textwidth]{problem1-solution.png}
+	\caption{Caminho mínimo para um caso de 3 polígonos.}
+	\label{problem1-solution}
+\end{wrapfigure}
+
+A figura ao lado \ref{problem1-solution} ilustra um exemplo de entrada e solução para o problema. O caminho mínimo é representado pela linha roxa, que começa no ponto \(s\) (ponto verde), termina no ponto \(t\) (ponto vermelho) e toca o triângulo, trapézio e então pentágono.
+
+O algoritmo que implementamos 
 
 \end{document}
