@@ -220,7 +220,7 @@ Na figura abaixo \ref{problem1-partitions} é possível ver um exemplo dessas pa
 \begin{wrapfigure}{l}{0.60\textwidth}
 	\centering
 	\vspace{-10pt}
-	\includegraphics[width=0.59\textwidth]{problem1-partitions.png}
+	\includegraphics[width=0.59\textwidth]{problem1-partitions-small.png}
 	\caption{Caminho mínimo para um caso de 3 polígonos.}
 	\label{problem1-partitions}
 \end{wrapfigure}
@@ -231,6 +231,23 @@ A seguir vamos construir o caminho mínimo para o exemplo da figura \ref{problem
 
 Tendo essa ideia geral em mente, resta apenas como desafio criar essas partições e localizar pontos nelas de forma eficiente. Essencialmente, para criar a partição de \(P_i\), devemos calcular um caminho mínimo que toca cada polígono \(P_1, \dots, P_{i - 1}\) até cada vértice de \(P_i\) e apartir da maneira que esse caminho chega nesses vértices, podemos determinar as regiões de vértice. Uma vez que temos as regiões de vértice, notamos que as regiões de aresta e sombra são as regiões restantes no plano, dessa forma, é apenas necessário saber diferenciar essas regiões. Para isso, podemos observar que se um caminho mínimo que chega em um ponto interno de uma aresta de \(P_i\) atravessa \(P_i\), essa aresta deve pertencer à região de sombra, caso contrário, pertence à região de aresta. Com isso, conseguimos construir todas as partições necessárias.
 
-É claro que essa explicação é bastante simplificada, e muitos detalhes de implementação foram omitidos para manter o foco na ideia geral. O artigo original \cite{tpp-dror2003} apresenta todas os lemas e teoremas necessários para garantir a corretude do algoritmo e a complexidade prometida, enquanto os detalhes de implementação e o código em si podem ser encontrados por completo no \hyperlink{repo}{repositório do GitHub} associado a esse projeto.
+É claro que essa explicação é bastante simplificada, e muitos detalhes de implementação foram omitidos para manter o foco na ideia geral. O artigo original \cite{tpp-dror2003} apresenta todas os lemas e teoremas necessários para garantir a corretude do algoritmo e a complexidade prometida, enquanto temos uma relatório explicando os detalhes de implementação e o código em si por completo no \hyperlink{repo}{repositório do GitHub} associado a esse projeto.
+
+\subsection{TPP Restrito}
+
+Essa variação do problema faz as mesmas suposições do TPP Irrestrito, mas agora permitimos que os polígonos possam se intersectar. Além disso, introduzimos como entrada "cercas" \(F_0, \dots, F_k\) tais que \(F_i\) contém \(P_i\) e \(P_{i + 1}\) para todo \(0 \le i \le k\), considerando \(P_0 = s\) e \(P_{k + 1} = t\), e entre o caminhoo visitar \(P_i\) e \(P_{i + 1}\), ele deve permanecer dentro de \(F_i\).
+
+
+\begin{wrapfigure}{r}{0.60\textwidth}
+	\centering
+	\vspace{-10pt}
+	\includegraphics[width=0.59\textwidth]{problem2-solution.png}
+	\caption{Caminho mínimo para um caso de 3 polígonos.}
+	\label{problem2-solution}
+\end{wrapfigure}
+
+Essas cercas devem ser polígonos, mas não necessariamente convexos, na verdade, uma cerca convexa é equivalente a não ter cerca alguma, então faz sentido permitir que as cercas sejam não convexas. A figura ao lado \ref{problem2-solution} ilustra um exemplo de entrada e solução para esse problema, com dois polígons e três cercas. Note que o menor caminho (linha roxa) deve permanecer dentro das cercas (linhas coloridas) ao visitar os polígonos (polígonos preenchidos), criando um caminho diferente do TPP Irrestrito.
+
+
 
 \end{document}
