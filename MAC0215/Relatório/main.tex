@@ -272,4 +272,54 @@ No entanto, essa abordagem é extremamente ineficiente, uma vez que frequentemen
 
 Embora não tenhamos conseguido explorar essa variação muito profundamente ainda, a ideia central é tratar o problema como um problema deotimização inteira de uma função quadrática sujeita a restrições lineares. Dessa forma podemos usar técnicas de otimização matemática para otimizar a abordagem inicial, assim como utilizar solvers comerciais para comparar resultados e validar nossa implementação.
 
+\section{Resultados}
+
+Consideramos esse projeto como um sucesso, uma vez que conseguimos implementar soluções corretas para todas as variações do problema que propusemos, permitindo o aprendizado profundo sobre o problema e suas soluções. No entanto, na proposta inicial do projeto, fizemos diversas promessas amplas, assim, vamos discutir cada uma delas e analisar se conseguimos cumprir o que prometemos.
+
+\subsection{Mês 1}
+
+\begin{blockquote}
+	Implementar a variação sem cercas, com estudo do artigo e testes iniciais. Estima-se cerca de 30 horas, divididos entre uma compreensão dos conceitos fundamentais e criação de uma base sólida de código para as etapas seguintes, assim como a criação de testes unitários para garantir a corretude do algoritmo.
+\end{blockquote}
+
+Para o primeiro mês, prometemos que implementaríamos o TPP Irrestrito, estudando o artigo original e realizando testes iniciais. De fato, conseguimos cumprir essa promessa, implementando o algoritmo proposto no artigo \cite{tpp-dror2003} com a complexidade esperada, também realizamos diversos testes para garantir a corretude do algoritmo, criando uma base sólida de código que serviu como base para as variações seguintes do problema. 
+
+Embora tenhamos estimado que investiríamos cerca de 30 horas nesse mês, na prática, acabamos investindo muito mais tempo, cujos detalhes serão discutidos na seção de alocação de tempo. No entanto, acreditamos que esse investimento extra foi justificado, uma vez que nos permitiu compreender profundamente o problema e desenvolver uma implementação robusta e eficiente.
+
+\subsection{Mês 2}
+
+\begin{blockquote}
+	Implementar a variação com cercas, utilizando parte do código da primeira variação. Esta etapa, estimada em 30 horas, envolve o aprofundamento do artigo original, adaptação e extensão do código para lidar com a complexidade adicional desta variação e criação de testes para validar a nova implementação.
+\end{blockquote}
+
+Para o segundo mês, prometemos implementar o TPP Restrito, reutilizando parte do código desenvolvido para o TPP Irrestrito. De fato, conseguimos cumprir essa promessa, adaptando e estendendo nossa implementação anterior para lidar com as cercas do problema.
+
+Infelizmente, devido à dificuldade do problema, não conseguimos atingir a complexidade prometida no artigo original \cite{tpp-dror2003}, mas desenvolvemos uma implementação funcional que resolve o problema corretamente, embora com uma complexidade maior. Assim como na variação anterior, realizamos diversos testes para garantir a corretude do algoritmo.
+
+Novamente, embora tenhamos estimado um investimento de 30 horas para esse mês, na prática, acabamos investindo muito mais tempo do que o previsto, levando muito tempo para compreender o artigo, implementar o algoritmo e lentamente depurar a implementação. Os detalhes desse investimento extra serão discutidos na seção de alocação de tempo.
+
+\subsection{Mês 3}
+
+\begin{blockquote}
+	Explorar soluções para o caso de polígonos não convexos, mesmo que pouco eficientes. Prevê-se cerca de 30 horas, incluindo a idealização de uma abordagem, assim como a implementação dessa solução. Novamente, testes serão fundamentais para validar a solução proposta, mesmo que não seja a mais eficiente.
+\end{blockquote}
+
+Para o terceiro mês, prometemos explorar soluções para o TPP Irrestrito com polígonos não convexos, mesmo que essas soluções fossem pouco eficientes. De fato, conseguimos cumprir essa promessa, desenvolvendo uma abordagem que decompõe os polígonos não convexos em polígonos convexos e reutiliza a implementação do TPP Irrestrito para encontrar o caminho mínimo.
+
+Ao contrário dos meses anteriores, conseguimos cumprir a estimativa de 30 horas para esse mês, encontrando poucos contratempos durante a implementação e depuração do algoritmo. No entanto, reconhecemos que essa abordagem é extremamente ineficiente, e há muito espaço para melhorias e otimizações futuras.
+
+\subsection{Mês 4}
+
+\begin{blockquote}
+	Desenvolver um software de visualização que permita ao usuário interagir com polígonos, cercas e caminhos encontrados, mostrando também as etapas do algoritmo. Estima-se 20 horas, incluindo criação de interface básica e implementação das funcionalidades de visualização.
+\end{blockquote}
+
+Finalmente, para o último mês, prometemos desenvolver um software de visualização que permita ao usuário interagir com os polígonos, cercas e caminhos encontrados, mostrando também as etapas do algoritmo. 
+
+De fato, conseguimos cumprir essa promessa, desenvolvendo uma ferramenta de visualização que permite ao usuário carregar diferentes instâncias do problema, visualizar os polígonos e cercas, e observar o caminho mínimo encontrado pelo algoritmo. A ferramenta também permite visualizar as etapas do algoritmo, facilitando a compreensão do processo de resolução do problema.
+
+Além disso, adicionalmente, investimos tempo extra para melhorar a interface do usuário e adicionar um software extra de geração de instâncias do problema, facilitando a criação de novos casos de teste para o algoritmo, sem que o usuário tenha que digitar manualmente cada coordenada dos polígonos e cercas, podendo simplesmente desenhá-los e visualizar como isso afeta o caminho mínimo encontrado em tempo real.
+
+O tempo investido nessa etapa também acabou sendo consideravelmente maior do que o estimado, uma vez que decidimos adicionar funcionalidades extras e melhorar a experiência do usuário. A implementação também acabou sendo mais desafiadora do que o previsto inicialmente, levando mais tempo para depurar e garantir que tudo funcionasse corretamente. Novamente, os detalhes desse investimento extra serão discutidos na seção de alocação de tempo.
+
 \end{document}
