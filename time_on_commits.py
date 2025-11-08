@@ -5,6 +5,7 @@ a specified threshold (3 hours in this case).
 """
 
 from datetime import datetime, timedelta
+from itertools import accumulate
 import re
 
 import subprocess
@@ -34,11 +35,40 @@ times = re.findall(r'Date:\s+(.+)', history)
 
 ts = [datetime.strptime(t, '%a %b %d %H:%M:%S %Y %z') for t in times][::-1]
 
-diffs = [b - a for a, b in zip(ts, ts[1:])]
-diffs = [d for d in diffs if d <= THRESHOLD_TIME]
+diffs1 = [b - a for a, b in zip(ts, ts[1:])]
+diffs2 = [d for d in diffs1 if d <= THRESHOLD_TIME]
 
-d = sum(diffs, timedelta())
+d = sum(diffs2, timedelta())
 
 print("Total time spent on commits (considering only intervals <= 3 hours):")
 print(f"- Hours: {round(d.total_seconds() / 3600, 2)}h")
 print("- Datetime:", d)
+
+import matplotlib.pyplot as plt
+
+
+x = [i.timestamp() for i in ts]
+x = [int(i - x[0]) / (3600 * 24 * 30) for i in x]
+
+y = [0]
+
+for a, b in zip(ts, ts[1:]):
+	diff = b - a
+	if diff <= THRESHOLD_TIME:
+		y.append(y[-1] + diff.total_seconds() / 3600)
+	else:
+		y.append(y[-1])
+
+y.pop()
+
+print(x)
+print(y)
+
+plt.grid()
+plt.title("Tempo gasto em commits ao longo do tempo")
+plt.xlabel("Tempo (meses)")
+plt.ylabel("Horas gastas em commits")
+plt.plot(x[1:], y)
+plt.tight_layout()
+
+plt.savefig("time_on_commits.png")

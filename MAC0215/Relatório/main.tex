@@ -167,10 +167,6 @@
 
 \newpage
 
-\tableofcontents
-
-\newpage
-
 \section{Introdução}
 
 Esse projeto de pesquisa teve como objetivo explorar o Problema da Visita de Polígonos (Touring Polygons Problem - TPP), um problema de otimização geométrica que envolve encontrar o caminho mais curto que visita uma sequência de polígonos no plano. O projeto foi desenvolvido ao longo do semestre como parte da disciplina MAC0215 - Atividade Curricular em Pesquisa (2025), sendo supervisionado pelo Prof. Dr. Ernesto G. Birgin.
@@ -221,7 +217,7 @@ Na figura abaixo \ref{problem1-partitions} é possível ver um exemplo dessas pa
 	\centering
 	\vspace{-10pt}
 	\includegraphics[width=0.59\textwidth]{problem1-partitions-small.png}
-	\caption{Caminho mínimo para um caso de 3 polígonos.}
+	\caption{Partições para um caso de 3 polígonos.}
 	\label{problem1-partitions}
 \end{wrapfigure}
 
@@ -242,7 +238,7 @@ Essa variação do problema faz as mesmas suposições do TPP Irrestrito, mas ag
 	\centering
 	\vspace{-10pt}
 	\includegraphics[width=0.59\textwidth]{problem2-solution.png}
-	\caption{Caminho mínimo para um caso de 3 polígonos.}
+	\caption{Caminho mínimo para um caso de 2 polígonos e 3 cercas.}
 	\label{problem2-solution}
 \end{wrapfigure}
 
@@ -262,7 +258,7 @@ Ainda assim, decidimos explorar essa variação do problema, uma vez que ele nã
 	\centering
 	\vspace{-10pt}
 	\includegraphics[width=0.59\textwidth]{problem3-solution.png}
-	\caption{Caminho mínimo para um caso de 3 polígonos.}
+	\caption{Caminho mínimo para um caso de 2 polígnos não convexos.}
 	\label{problem3-solution}
 \end{wrapfigure}
 
@@ -316,7 +312,7 @@ Ao contrário dos meses anteriores, conseguimos cumprir a estimativa de 30 horas
 
 Finalmente, para o último mês, prometemos desenvolver um software de visualização que permita ao usuário interagir com os polígonos, cercas e caminhos encontrados, mostrando também as etapas do algoritmo. 
 
-De fato, conseguimos cumprir essa promessa, desenvolvendo uma ferramenta de visualização que permite ao usuário carregar diferentes instâncias do problema, visualizar os polígonos e cercas, e observar o caminho mínimo encontrado pelo algoritmo. A ferramenta também permite visualizar as etapas do algoritmo, facilitando a compreensão do processo de resolução do problema.
+De fato, conseguimos cumprir essa promessa, desenvolvendo uma ferramenta de visualização que permite ao usuário carregar diferentes instâncias do problema, visualizar os polígonos e cercas, e observar o caminho mínimo encontrado pelo algoritmo. A ferramenta também permite visualizar as etapas do algoritmo, facilitando a compreensão do processo de resolução do problema. Por exemplo, todas as figuras apresentadas nesse relatório foram geradas utilizando essa ferramenta de visualização.
 
 Além disso, adicionalmente, investimos tempo extra para melhorar a interface do usuário e adicionar um software extra de geração de instâncias do problema, facilitando a criação de novos casos de teste para o algoritmo, sem que o usuário tenha que digitar manualmente cada coordenada dos polígonos e cercas, podendo simplesmente desenhá-los e visualizar como isso afeta o caminho mínimo encontrado em tempo real.
 
@@ -339,5 +335,69 @@ Enquanto consideramos que esse projeto foi muito bem sucedido, ainda há muito e
 Quaisquer avanços podem ser acompanhados no mesmo \hyperlink{repo}{repositório} que estamos usando atualmente, onde também é possível encontrar o código desenvolvido até agora, assim como instruções para executar os algoritmos implementados.
 
 É extremamente provável que esses trabalhos futuros sejam explorados no próximo semestre, como parte de uma continuação desse projeto de pesquisa, e que a participação nessa matéria seja novamente registrada como parte da atividade curricular em pesquisa.
+
+\section{Alocação de Tempo}
+
+Como requisito para a aprovação na disciplina MAC0215 - Atividade Curricular em Pesquisa, é necessário comprovar um investimento de ao menos 100 horas de trabalho no projeto. A seguir, vamos detalhar como esse tempo foi alocado ao longo do semestre, justificando o investimento realizado.
+
+Primeiramente, seria possível que simplesmente disséssemos que uma certa quantia de horas foi investida em cada mês, mas essa métrica é muito vaga e não reflete o esforço real investido no projeto. Por esse motivo, desenvolvemos uma métrica objetiva para medir o tempo investido, baseada nos múltiplos \textit{commits} realizados no \hyperlink{repo}{repositório} ao longo do projeto.
+
+\subsection{Uma Heurística Para Medição de Tempo}
+
+Essencialmente, cada \textit{commit} representa uma unidade de trabalho realizada no projeto, seja implementando uma nova funcionalidade, corrigindo um bug ou escrevendo documentação. No entanto, nem todos os \textit{commits} são iguais, alguns representam um esforço maior do que outros, podendo variar desde pequenas correções feitas em poucos minutos até implementações complexas que levaram múltiplas horas para serem concluídas.
+
+Para não fazermos decisões arbitrárias sobre o esforço investido em cada \textit{commit}, decidimos aproveitar que cada \textit{commit} registra o tempo exato em que foi realizado, permitindo que calculemos o tempo entre cada \textit{commit} consecutivo. Dessa forma, podemos somar o tempo entre todos os \textit{commits} realizados ao longo do projeto, obtendo uma métrica objetiva do tempo investido.
+
+No entanto, é claro que essa métrica não é perfeita, uma vez que há momentos em que o trabalho no projeto é interrompido por longos períodos, como pausas para refeições, descanso ou outras atividades. Para mitigar esse problema, decidimos estabelecer um limite máximo de 3 horas entre \textit{commits} consecutivos, ou seja, se o tempo entre dois \textit{commits} for maior do que 3 horas, desconsideramos esse intervalo na soma total, assumindo que o trabalho foi interrompido nesse período.
+
+Essa abordagem é um tanto conservadora, uma vez que sempre ignora o tempo investido no primeiro \textit{commit} do dia, assim como qualquer intervalo maior do que 3 horas, mas acreditamos que é uma forma justa de medir o tempo investido no projeto, evitando inflar artificialmente a métrica com períodos de inatividade.
+
+\subsection{Tempo Investido em Commits}
+
+Uma vez que definimos nossa métrica para medir o tempo investido no projeto, podemos aplicar essa métrica aos mais de 200 \textit{commits} realizados ao longo do semestre, obtendo um total de aproximadamente 100 horas de trabalho investidas no projeto, o que excede o requisito mínimo de 100 horas para aprovação na disciplina.
+
+\begin{wrapfigure}{r}{0.60\textwidth}
+	\centering
+	\vspace{-10pt}
+	\includegraphics[width=0.59\textwidth]{time_on_commits.png}
+	\caption{Tempo investido ao longo do projeto, medido em horas ao longo do tempo.}
+	\label{time-on-commits}
+\end{wrapfigure}
+
+Ao lado, criamos um gráfico \ref{time-on-commits} que ilustra o tempo investido ao longo do projeto, medido em horas ao longo do tempo. Podemos observar que o tempo investido varia ao longo do semestre, com picos de atividade em determinados períodos, refletindo o esforço concentrado em diferentes etapas do projeto. 
+
+Esses picos de atividade geralmente coincidem com as etapas principais do projeto, assim como um período onde tivemos mais tempo livre para trabalhar no projeto, como durante a Semana Santa ou Semana de Break da computação. No entanto, também há períodos de menor atividade, refletindo períodos de provas, outras responsabilidades acadêmicas, pessoais ou simplesmente um período de descanso que limitaram o tempo disponível para o projeto.
+
+Além disso, um fator perceptível no gráfico é um período longo de mais de um mês sem nenhum \textit{commit}, que ocorreu entre o final de setembro e o início de novembro. O motivo para esse hiato é que no início do semestre submetemos uma proposta de projeto de pesquisa para a Fapesp a respeito desse trabalho, no entanto, no final de setembro, recebemos a notícia de que a proposta não foi aprovada, o que causou tanto uma desmotivação temporária quanto uma necessidade de reescrita da proposta e planejamento do projeto, o que acabou atrasando o progresso do projeto em cerca de um mês.
+
+Em compensação, notamos um grande pico de atividade logo após esse hiato, refletindo o esforço concentrado para recuperar o tempo perdido e avançar no projeto. Apesar desse contratempo, conseguimos retomar o ritmo do projeto e avançar significativamente nas etapas seguintes, conforme ilustrado no gráfico.
+
+\subsection{Outros Fatores Considerados}
+
+Na seção anterior, já observamos que mais de 100 horas foram investidas exclusivamente em \textit{commits} no \hyperlink{repo}{repositório}, mas é claro que esse não é o único fator que deve ser considerado na alocação de tempo do projeto. Além do tempo investido em \textit{commits}, também devemos considerar o tempo investido em outras atividades relacionadas ao projeto, como o estudo do tema, leitura de artigos, planejamento do projeto, reuniões com o orientador e outras atividades que contribuíram para o progresso do projeto.
+
+Dentre essas atividades, o estudo do tema e leitura de artigos foram particularmente importantes, uma vez que o problema abordado é complexo e requer um entendimento profundo dos conceitos envolvidos. Investimos tempo significativo na leitura do artigo original \cite{tpp-dror2003}, uma vez que ele é denso e teórico, exigindo uma análise cuidadosa para compreender as ideias apresentadas e como implementá-las na prática. Também muito tempo foi investido na busca por artigos relacionados, uma tarefa que se mostrou mais difícil do que o esperado, uma vez que há poucos artigos que tratam diretamente do TPP, e a maioria das soluções propostas ainda se baseia nas ideias apresentadas no artigo original.
+
+Além do estudo do tema, também investimos tempo em diversas reuniões com o orientador, Prof. Dr. Ernesto G. Birgin, que foram fundamentais para o progresso do projeto. Nessas reuniões, discutimos o andamento do projeto, esclarecemos dúvidas, recebemos feedback e orientações, e planejamos as próximas etapas do trabalho. Essas reuniões foram essenciais para garantir que o projeto estivesse no caminho certo e para superar os desafios encontrados ao longo do caminho. As reuniões ocorreram aproximadamente a cada duas semanas, com duração média de duas horas, totalizando cerca de 16 horas investidas em reuniões ao longo do semestre.
+
+Outro fator importante a ser considerado é o tempo investido nessa matéria, com a escrita do relatório final e vídeo de apresentação. Como o leitor pode perceber, o relatório final é bastante detalhado e extenso, exigindo um esforço significativo para redigir, revisar, formatar o documento e gerar as figuras apresentadas. 
+
+Também podemos indicar uma quantia significativa de tempo investida na confecção da proposta para a Fapesp, consumindo diversas horas de planejamento, redação e revisão do documento, além de reuniões com o orientador para discutir e aprimorar a proposta e o tempo para conseguir os documentos necessários para a submissão. Além disso, esse processo todo foi repetido para a reconsideração. É claro que esse tempo não contribuiu diretamente para o progresso do projeto, mas foi uma parte importante do processo de pesquisa e desenvolvimento do trabalho.
+
+Um último fator relevante a ser considerado é a participação no SIICUSP, um evento da USP onde apresentamos o projeto para tanto alunos quanto professores do instituto. Esse evento exigiu tempo significativo de preparação, incluindo a criação de um pôster, slides, preparação de uma apresentação oral e prática para garantir que estivéssemos prontos para apresentar o trabalho de forma clara e concisa, além das horas ativamente apresentando o trabalho para os interesados. A participação no SIICUSP foi uma oportunidade valiosa para compartilhar nosso trabalho com a comunidade acadêmica, receber feedback e estabelecer conexões com outros pesquisadores interessados no tema, embora tenha sido um tanto cansativa.
+
+Enquanto não conseguimos quantificar exatamente o tempo investido nessas atividades adicionais, acreditamos que o tempo total investido no projeto, considerando tanto os \textit{commits} quanto essas outras atividades, excede confortavelmente o requisito mínimo de 100 horas para aprovação na disciplina MAC0215 - Atividade Curricular em Pesquisa.
+
+\section{Conclusão}
+
+Nesse relatório, apresentamos o trabalho realizado ao longo do semestre como parte da disciplina MAC0215 - Atividade Curricular em Pesquisa, onde exploramos o Problema da Visita de Polígonos (TPP) e suas variações. Discutimos o problema em si, a base bibliográfica que fundamenta nosso trabalho, detalhamos as implementações realizadas, analisamos os resultados obtidos e propusemos possíveis melhorias e trabalhos futuros.
+
+A respeito dos resultados, consideramos o projeto como um sucesso, uma vez que conseguimos implementar soluções corretas para todas as variações do problema que propusemos, permitindo o aprendizado profundo sobre o problema e suas soluções. No entanto, reconhecemos que há espaço para melhorias e trabalhos futuros, que pretendemos explorar no próximo semestre.
+
+Além disso, detalhamos a alocação de tempo ao longo do semestre, justificando o investimento de muito mais de 100 horas de trabalho no projeto, cumprindo assim o requisito para aprovação na disciplina. 
+
+Agradecemos ao Prof. Dr. Ernesto G. Birgin pela orientação e suporte ao longo do projeto, assim como à comunidade acadêmica que contribuiu para o desenvolvimento desse trabalho.
+
+Finalmente, encorajamos o leitor a explorar o código desenvolvido para esse projeto, disponível no \hyperlink{repo}{repositório do GitHub}, assim como acompanhar desenvolvimentos futuros relacionados a esse trabalho.
 
 \end{document}
