@@ -248,6 +248,28 @@ Essa variação do problema faz as mesmas suposições do TPP Irrestrito, mas ag
 
 Essas cercas devem ser polígonos, mas não necessariamente convexos, na verdade, uma cerca convexa é equivalente a não ter cerca alguma, então faz sentido permitir que as cercas sejam não convexas. A figura ao lado \ref{problem2-solution} ilustra um exemplo de entrada e solução para esse problema, com dois polígons e três cercas. Note que o menor caminho (linha roxa) deve permanecer dentro das cercas (linhas coloridas) ao visitar os polígonos (polígonos preenchidos), criando um caminho diferente do TPP Irrestrito.
 
+O tratamento desse problema no artigo \cite{tpp-dror2003} é ainda mais sucinto do que o TPP Irrestrito, com pouco detalhes e nenhuma visualização do problema, sendo uma leitura extremamente densa e teórica, sem nenhum detalhe de implementação. No entanto, a ideia geral do algoritmo é semelhante ao TPP Irrestrito, onde criamos partições do plano para cada polígono \(P_i\) e usamos essas partições para reconstruir o caminho mínimo. A principal diferença é que, ao criar as partições, devemos considerar as cercas \(F_i\), garantindo que o caminho mínimo permaneça dentro dessas cercas ao visitar os polígonos.
 
+O artigo apresenta um algoritmo com complexidade \(O(n k ^ 2 \log n)\) onde \(n\) é o número total de vértices dos polígonos e cercas, e \(k\) é o número de polígonos. Infelizmente, devido à natureza densa e teórica do artigo, não conseguimos implementar esse algoritmo com a complexidade prometida, mas conseguimos desenvolver uma implementação funcional que resolve o problema corretamente, embora com uma complexidade maior de \(O(n^2 k^2)\).
+
+\subsection{TPP com Polígonos Não Convexos}
+
+Nas duas variações anteriores do problema, consideramos que os polígonos eram convexos, isso é essencial para garintir que os problemas possam ser resolvidos em tempo polinomial, uma vez que podemos mostrar que até o TPP Irrestrito com polígonos não convexos é NP-difícil \cite{tpp-dror2003}.
+
+Ainda assim, decidimos explorar essa variação do problema, uma vez que ele não é descrito no artigo original, implementando uma solução exata para o TPP Irrestrito com polígonos não convexos. A ideia geral do algoritmo é simples, basta decompor cada polígono não convexo em um conjunto de polígonos convexos, e então resolver o TPP Irrestrito normalmente, considerando que visitar o polígono não convexo significa visitar ao menos um dos polígonos convexos que o compõem. Dessa forma, reutilizamos a implementação do TPP Irrestrito que já havíamos desenvolvido.
+
+\begin{wrapfigure}{l}{0.60\textwidth}
+	\centering
+	\vspace{-10pt}
+	\includegraphics[width=0.59\textwidth]{problem3-solution.png}
+	\caption{Caminho mínimo para um caso de 3 polígonos.}
+	\label{problem3-solution}
+\end{wrapfigure}
+
+Utilizando essa abordagem, conseguimos resolver o problema corretamente, como ilustrado na figura ao lado \ref{problem3-solution}, onde o caminho mínimo (linha roxa) visita os polígonos não convexos (polígonos preenchidos) corretamente, após considerar todas as combinações possíveis de polígonos convexos que os compõem.
+
+No entanto, essa abordagem é extremamente ineficiente, uma vez que frequentemente vamos lidar com uma quantia exponencial de casos para testarmos. Enquanto não tivemos tempo de explorar otimizações para esse algoritmo, acreditamos que é possível usar técnicas de otimização inteira e combinatória para reduzir o número de casos que precisamos testar, tornando o algoritmo mais viável na prática. Esse tratamento seria feito no próximo semestre e muito provavelmente renderia um artigo científico.
+
+Embora não tenhamos conseguido explorar essa variação muito profundamente ainda, a ideia central é tratar o problema como um problema deotimização inteira de uma função quadrática sujeita a restrições lineares. Dessa forma podemos usar técnicas de otimização matemática para otimizar a abordagem inicial, assim como utilizar solvers comerciais para comparar resultados e validar nossa implementação.
 
 \end{document}
