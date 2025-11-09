@@ -71,4 +71,4 @@ plt.ylabel("Horas gastas em commits")
 plt.plot(x[1:], y)
 plt.tight_layout()
 
-plt.savefig("time_on_commits.png")
+plt.savefig("time_on_commits.png", dpi=250)
