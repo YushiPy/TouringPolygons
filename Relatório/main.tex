@@ -75,6 +75,8 @@
 \usepackage{wrapfig}
 \usepackage{enumitem}
 
+\usepackage{cleveref}
+
 \definecolor{lightgray}{RGB}{240,240,240}
 
 \newenvironment{blockquote}[1][lightgray]{\begin{mdframed}[
@@ -183,11 +185,17 @@
 
 Este relatório descreve a implementação e os resultados obtidos na resolução do problema da visita de polígonos, usando como base o paper de Dror et al. (2003) \cite{tpp-dror2003} que descreve algoritmos para o caso sem e com restrições. Buscamos apresentar uma abordagem mais prática e detalhada para o problema, sem um foco tão grande na análise teórica.
 
+Recomendamos a leitura do paper original para uma compreensão mais profunda dos conceitos e das provas por trás dos algoritmos apresentados aqui. Também é importante notar que este relatório não cobre todos os detalhes do paper, mas sim uma visão geral e a implementação prática dos algoritmos.
+
+O código implementado pode ser encontrado no \href{https://github.com/YushiPy/TouringPolygons}{repositório GitHub}, contendo scripts em \textit{Python} para resolver ambos os casos do problema.
+
+Finalmente, recomendamos a leitura do Apêndice \ref{sec:appendixA} para entender as notações usadas ao longo do relatório.
+
 \section{O Problema de Visita de Polígonos Irrestrito}
 
 Vamos tomar como base a implementação do algoritmo de Mitchell para o problema irrestrito que fizemos em \textit{Python}. O código pode ser encontrado no arquivo \texttt{TouringPolygons/problem1.py}.
 
-\subsection{Definições e Notação}
+\subsection{Definindo o Problema}
 
 \begin{wrapfigure}{r}{0.40\textwidth}
 	\centering
@@ -673,6 +681,7 @@ Outra função extremamente importante para a implementação desse algoritmo é
 \appendix
 
 \section{Notações}
+\label{sec:appendixA}
 
 \begin{enumerate}
 
