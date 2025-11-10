@@ -174,7 +174,7 @@ Este relatório descreve a implementação e os resultados obtidos na resoluçã
 
 \section{O Problema de Visita de Polígonos Irrestrito}
 
-Vamos implementar o algoritmo em \cite{tpp-dror2003} para o problema irrestrito de visita de polígonos.
+Vamos tomar como base a implementação do algoritmo de Mitchell para o problema irrestrito que fizemos em \textit{Python}. O código pode ser encontrado no arquivo \texttt{TouringPolygons/problem1.py}.
 
 \subsection{Definições e Notação}
 
@@ -192,7 +192,7 @@ A figura ao lado \ref{problem1-solution} ilustra um exemplo de entrada e a solu�
 como o \textcolor[RGB]{0,128,0}{ponto verde}, \(t\) como o \textcolor[RGB]{255, 0, 0}{ponto vermelho} e os polígonos \(P_1, P_2\) e \(P_3\) como o \textcolor[RGB]{76, 146, 195}{triângulo azul}, o \textcolor[RGB]{255, 152, 62}{trapézio laranja} e o \textcolor[RGB]{86, 179, 86}{pentágono verde}, respectivamente. O caminho mínimo é representado pela \textcolor[RGB]{145, 41, 145}{linha roxa}.
 % como o ponto verde, \(t\) como o ponto vermelho e os polígonos \(P_1, P_2\) e \(P_3\) como o triângulo azul, o trapézio laranja e o pentágono verde, respectivamente. O caminho mínimo é representado pela linha roxa.
 
-Retomando o artigo, definimos um \(i\)-path até \(p\) como um caminho mínimo que começa em \(s\), encosta em cada um dos polígonos \(P_1, P_2, \ldots, P_i\) e termina em \(p\). Note que nosso objetivo é encontrar um \(k\)-path até \(t\). Enquanto não vamos entrar em detalhes, todo \(i\)-path é único.
+Retomando o paper, definimos um \(i\)-path até \(p\) como um caminho mínimo que começa em \(s\), encosta em cada um dos polígonos \(P_1, P_2, \ldots, P_i\) e termina em \(p\). Note que nosso objetivo é encontrar um \(k\)-path até \(t\). Enquanto não vamos entrar em detalhes, todo \(i\)-path é único.
 
 A função central desse algoritmo será a função \(\text{Query}(p, i)\), que recebe um ponto \(p\) e um índice \(i\) e retorna o penúltimo ponto \(q\) do \(i\)-path até \(p\) (ou seja, o ponto imediatamente anterior à \(p\) nesse caminho). 
 
@@ -214,7 +214,7 @@ Antes de descrever os procedimentos auxiliares, é importante definir como repre
 
 \subsection{Particionando o Plano}
 
-É possível mostrar \cite{tpp-dror2003} que para cada polígono \(P_i\) podemos criar uma partição \(S_i\) do plano tal que o comportamento da função \(\text{Query}(p, i)\) depende exclusivamente de qual região da partição \(S_i\) o ponto \(p\) pertence, sendo possível localizar cada ponto de maneira eficiente. Por falta de um nome melhor, chamamos cada parte de \(S_i\) de \textit{região}.
+É possível mostrar \cite{tpp-dror2003} que para cada polígono \(P_i\) podemos criar uma partição \(S_i\) do plano tal que o comportamento da função \(\text{Query}(p, i)\) dependa exclusivamente de a qual região da partição \(S_i\) o ponto \(p\) pertence, sendo possível localizar cada ponto de maneira eficiente. Por falta de um nome melhor, chamamos cada parte de \(S_i\) de \textit{região}.
 
 \begin{wrapfigure}{l}{0.60\textwidth}
 
@@ -232,7 +232,7 @@ Enquanto a quantidade de regiões de \(S_i\) pode ser numerosa a depender do nú
 
 Nas seções a seguir vamos descrever como usar essas partições para responder consultas, mas por enquanto vamos descrever como representar e construir essas partições. Por enquanto, apenas mantenha em mente que se conseguirmos representar e construir essas partições, então podemos usá-las para responder consultas e resolver o problema de maneira eficiente.
 
-A partir da ilustração \ref{problem1-partitions}, note que cada região de vértice (\textit{Cone Region}) está associada a um vértice de \(P_i\), cada região de aresta (\textit{Edge Region}) está associada a uma aresta de \(P_i\) e há exatamente uma região de atravessar (\textit{Pass Through Region}). Ademais, essas regiões se complementam, ou seja, o conjunto de todas as regiões de vértice, aresta e atravessar é o plano todo e nenhuma região se sobrepõe a outra. Para que isso seja válido, devemos considerar pontos dentro dos polígonos \(P_i\) como pertencentes à região de atravessar.
+A partir da Figura~\ref{problem1-partitions}, note que cada região de vértice (\textit{Cone Region}) está associada a um vértice de \(P_i\), cada região de aresta (\textit{Edge Region}) está associada a uma aresta de \(P_i\) e há exatamente uma região de atravessar (\textit{Pass Through Region}). Ademais, essas regiões se complementam, ou seja, o conjunto de todas as regiões de vértice, aresta e atravessar é o plano todo e nenhuma região se sobrepõe a outra. Para que isso seja válido, devemos considerar pontos dentro dos polígonos \(P_i\) como pertencentes à região de atravessar.
 
 Ademais, note que cada região de vértice é delimitada por duas semi-retas que partem de um vértice de \(P_i\), incluindo todos os pontos que estão entre essas semi-retas. Similarmente, cada região de aresta é delimitada por duas semi-retas que partem dos extremos de uma aresta de \(P_i\) e a prórpia aresta, incluindo todos os pontos que estão entre essas semi-retas e a aresta. Finalmente, a região de atravessar é o complemento das regiões de vértice e aresta.
 
@@ -240,18 +240,25 @@ Ademais, note que cada região de vértice é delimitada por duas semi-retas que
 
 Como mencionado, as regiões se complementam, assim, do ponto de vista de implementação, decidimos armazenar apenas as regiões de vértice, uma vez que as regiões de aresta podem ser construídas a partir delas, simplesmente verificando se um ponto está entre as semi-retas de duas regiões de vértice adjacentes e a aresta que as separa. 
 
-Para representar as regiões de vértice, armazenamos uma lista de pares de direções \((d_1, d_2)\) para cada vértice \(v\) de \(P_i\), onde \(d_1\) e \(d_2\) são vetores unitários que representam as direções das semi-retas que delimitam a região de vértice associada a \(v\). Nem todo vértice de \(P_i\) gera uma região de vértice, assim, se um vértice \(v\) não gerar uma região, então armazenamos um par \((d, d)\) qualquer na posição correspondente da lista, representando uma região válida, mas vazia. Isso será mais relevante adiante.
+Para representar as regiões de vértice, associamos a cada vértice  \(v\) de \(P_i\) um par ordenado de direções \((d_1, d_2)\), onde \(d_1\) e \(d_2\) são vetores unitários que representam as direções das semi-retas que, em sentido anti-horário, delimitam a região de vértice associada a \(v\). Nem todo vértice de \(P_i\) gera uma região de vértice, assim, se um vértice \(v\) não gerar uma região, então armazenamos um par \((d, d)\) qualquer na posição correspondente da lista, representando uma região válida, mas vazia. Isso será mais relevante adiante.
 
-Essa representação já permite que verifiquemos se um ponto \(p\) pertence a uma região de vértice e qual. No entanto, não conseguimos distinguir entre regiões de aresta e a região de atravessar. Para resolver esse problema, armazenamos uma lista de booleanas que indica se uma aresta é visível ou não. Assim, para determinar se um ponto \(p\) pertence a uma região de aresta ou à região de atravessar, basta verificar se \(p\) está entre as semi-retas de duas regiões de vértice adjacentes e, em caso positivo, verificar se a aresta que as separa é visível ou não.
+
+\[
+v \times u = v_1 u_2 - v_2 u_1
+\]
+é tal que $v \times u \geq 0$ se partindo de $v$ e andando no sentido anti-horario, o angulo com $u$ é de no maximo 180 graus e $v \times u \leq 0$ se partindo de $v$ e andando no sentido horario, o angulo com $u$ é de no maximo 180 graus.
+
+
+Essa representação já permite que verifiquemos se um ponto \(p\) pertence a uma região de vértice e qual. \textcolor{red}{Deve aqui pelo menos dizer: Explicaremos isso mais adiante no Algoritmo~4.} No entanto, não conseguimos distinguir entre regiões de aresta e a região de atravessar. Para resolver esse problema, armazenamos uma lista de booleanas que indica se uma aresta é visível ou não. Assim, para determinar se um ponto \(p\) pertence a uma região de aresta ou à região de atravessar, basta verificar se \(p\) está entre as semi-retas de duas regiões de vértice adjacentes e, em caso positivo, verificar se a aresta que as separa é visível ou não.
 
 \subsubsection{Detectando Arestas Visíveis}
 
 Seja \(e\) um aresta de \(P_i\) e \(u, v\) seus vértices na ordem que aparecem em \(P_i\) (antihorário).
 Dizemos que \(e\) é visível se e somente se para todo ponto interno \(p\) de \(e\) o \(i\)-path até \(p\) não passa pela parte interna de \(P_i\). Como a borda de \(P_i\) e sua parte interna são contínuas, podemos fazer esse teste para um único ponto interno de \(e\) e teremos o mesmo resultado.
 
-Assim, temos a intuição de pegar o ponto médio \(m\) de \(e\) ou qualquer outro ponto interno de \(e\), calcular o último passo \(q\) do \(i\)-path até \(m\) e verificar se o segmento \(\overline{qm}\) passa por \(P_i\). No entanto, uma abordagem ingênua, testando cada aresta de \(P_i\) individualmente, seria muito lenta, tomando tempo \(O(\abs{P_i} ^ 2)\).
+Assim, temos a intuição de pegar o ponto médio \(m\) de \(e\) ou qualquer outro ponto interno de \(e\), calcular o último ponto \(q\) do \(i\)-path até \(m\) e verificar se o segmento \(\overline{qm}\) passa por \(P_i\). No entanto, uma abordagem ingênua para detectar todas as arestas visíveis de $P_i$, testando cada aresta de \(P_i\) individualmente, seria muito lenta, tomando tempo \(O(\abs{P_i} ^ 2)\).
 
-Felizmente, não é necessário implementar um teste eficiente de interseção de segmento e polígono, uma vez que temos a informação adicional que \(m\) pertence à borda de \(P_i\), mais especificamente na aresta \(e\). Por esse motivo, como \(P_i\) é convexo e suas arestas estão ordenadas em sentido antihorário, sabemos que se o produto interno de \(\overrightarrow{uv}\) com \(\overrightarrow{mq}\) for positivo, então \(\overrightarrow{mq}\) chega em \(m\) pela parte interna de \(P_i\).
+Felizmente, não é necessário implementar um teste eficiente de interseção de segmento e polígono, uma vez que temos a informação adicional de que \(m\) pertence à borda de \(P_i\), mais especificamente à aresta \(e\). Por esse motivo, como \(P_i\) é convexo e suas arestas estão ordenadas em sentido antihorário, sabemos que se o produto interno de \(\overrightarrow{uv}=(v-u)\) com \(\overrightarrow{mq}\) for positivo, então \(\overrightarrow{mq}\) chega em \(m\) pela parte interna de \(P_i\).
 
 \begin{algorithm}
 \caption{ArestasVisíveis(\(P_i\), \(i\)) \\ Determina as arestas visíveis de \(P_i\)}
@@ -290,7 +297,7 @@ Uma vez que sabemos quais arestas são visíveis, podemos construir as regiões 
 
 Agora consideramos a direção de \(d = v - p\) e a maneira que esse raio chega em \(v\). Sejam \(v_1\) o vértice que precede e \(v_2\) o que segue \(v\) em \(P_i\) (no sentido anti-horário). Se a aresta \((v_1, v)\) é visível, então \(d_1\) será a reflexão de \(d\) em relação à aresta \((v_1, v)\), caso contrário, \(d_1\) será a mesma direção de \(d\). Similarmente, se a aresta \((v, v_2)\) é visível, então \(d_2\) será a reflexão de \(d\) em relação à aresta \((v, v_2)\), caso contrário, \(d_2\) será a mesma direção de \(d\). Assim, criamos a região de vértice \((d_1, d_2)\) associada à \(v\).
 
-Encorajamos o leitor a verificar que essa lógica se aplica na imagem ao lado \ref{problem1-scene-general}, usando o ponto inicial \(s\) como resposta de \(\text{Query}(v, 0)\) para qualquer vértice \(v\). Os vértices (-2, 0) e (0, 0) terão ambas as arestas visíveis, assim, suas regiões de vértice serão delimitadas pelas reflexões do raio que parte de \(s\). O vértice (-3, 1) terá apenas a aresta posterior visível, assim, sua região de vértice será delimitada pela reflexão do raio em relação à aresta posterior e a própria direção do raio. Similarmente, o vértice (2, 1) tem apenas a aresta anterior visível. Finalmente, os vértices (1, 1.25) e (-1, 1.5) não terão nenhuma aresta visível, assim, suas regiões de vértice serão simplesmente a direção do raio em ambas as semi-retas.
+Encorajamos o leitor a verificar que essa lógica se aplica à Figura~\ref{problem1-scene-general}, usando o ponto inicial \(s\) como resposta de \(\text{Query}(v, 0)\) para qualquer vértice \(v\). Os vértices (-2, 0) e (0, 0) terão as suas duas arestas incidentes visíveis, assim, suas regiões de vértice serão delimitadas pelas reflexões do raio que parte de \(s\). O vértice (-3, 1) terá apenas a aresta posterior visível, assim, sua região de vértice será delimitada pela reflexão do raio em relação à aresta posterior e a própria direção do raio. Similarmente, o vértice (2, 1) tem apenas a aresta anterior visível. Finalmente, os vértices (1, 1.25) e (-1, 1.5) não terão nenhuma aresta visível, assim, suas regiões de vértice serão simplesmente a direção do raio em ambas as semi-retas. \textcolor{red}{Verificar se podemos aqui apenas dizer que estes vertices terao uma regiao de vertice vazia ou dizer que estes vertices nao pertencem à regiao de pimeiro contato e portanto não tem uma regiao de vertice associada a eles.}
 
 \begin{algorithm}
 \caption{RefleteDireção(\(d, v_1, v_2\)) \\ Reflete a direção \(d\) em relação à aresta \((v_1, v_2)\)}
@@ -367,7 +374,7 @@ Verifica se o ponto \(p\) está na região de vértice associada ao vértice \(v
 
 // Se o ângulo da região de vértice é menor ou igual a \(180 ^ \circ\) \\
 // Verificamos se \(p\) está entre as semi-retas \\
-\Return{} \((d_1 \times (p - v) \ge 0) \land ((p - v) \times d_2 \ge 0)\)
+\Return{} \((d_1 \times (p - v) \ge 0) \land (d_2 \times (p - v) \le 0)\)
 
 \end{algorithm}
 
