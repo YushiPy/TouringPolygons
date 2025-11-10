@@ -248,7 +248,10 @@ Essa região é importante, pois apenas as arestas visíveis de \(P_i\) que pert
 
 Como \(T_i\) é a união de arestas, para determinar quais arestas de \(P_i\) pertencem à \(T_i\), podemos simplesmente iterar sobre as arestas de \(P_i\) e verificar se o \((i - 1)\)-path até um ponto interno qualquer da aresta, por exemplo o ponto médio, chega em \(P_i\) pela primeira vez nesse ponto. Se isso for verdade, então a aresta pertence à \(T_i\), caso contrário, não pertence.
 
-No entanto, precisamos de uma maneira eficiente de fazer isso para todas as arestas de \(P_i\). Se simplesmente fizermos isso de maneira ingênua, verificando se o segmento entre o último ponto \(q\) do \((i - 1)\)-path até o ponto médio \(m\) da aresta intersecta \(P_i\), teríamos uma complexidade de \(O(\abs{P_i})\) por aresta, resultando em \(O(\abs{P_i} ^ 2)\) para todas as arestas de \(P_i\). Felizmente, podemos fazer isso de maneira mais eficiente, explorando o fato de que \(P_i\) é convexo e suas arestas estão ordenadas em sentido anti-horário. 
+No entanto, precisamos de uma maneira eficiente de fazer isso para todas as arestas de \(P_i\). Se simplesmente fizermos isso de maneira ingênua, verificando se o segmento entre o último ponto \(q\) do \((i - 1)\)-path até o ponto médio \(m\) da aresta intersecta \(P_i\), teríamos uma complexidade de \(O(\abs{P_i})\) por aresta, resultando em \(O(\abs{P_i} ^ 2)\) para todas as arestas de \(P_i\). 
+
+Felizmente, como \(P_i\) é convexo e suas arestas estão ordenadas em sentido anti-horário, sabemos que o segmento \(\overline{qm}\) toca \(P_i\) pela primeira vez em \(m\) se e somente se o produto vetorial de \(\overrightarrow{uv}=(v-u)\) com \(\overrightarrow{mq}\) for positivo. Usando essa ideia, podemos determinar todas as arestas visíveis de \(P_i\) em tempo \(O(\abs{P_i})\).
+
 
 
 
