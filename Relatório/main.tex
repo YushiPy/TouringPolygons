@@ -26,6 +26,16 @@
 \SetKwRepeat{Do}{do}{while}
 \SetKwProg{Function}{def}{:}{}
 
+\newcounter{algorithm}
+
+% Command for referencing algorithms
+\newcommand{\alglabel}[1]{%
+	\refstepcounter{algorithm}%
+	\label{alg:#1}%
+}
+
+\newcommand{\algref}[1]{Algoritmo~\ref{alg:#1}}
+
 % Graphics and figures
 \usepackage{graphicx}
 \usepackage{subcaption}
@@ -188,33 +198,26 @@ Vamos tomar como base a implementação do algoritmo de Mitchell para o problema
 
 Considere o seguinte problema: dados dois pontos \(s, t \in \mathbb{R}^2\) e uma sequência de polígonos convexos disjuntos \(P_1, P_2, \ldots, P_k\), encontrar o caminho de menor comprimento que se inicia em \(s\), termina em \(t\) e toca cada polígono \(P_i\) em pelo menos um ponto, podendo atravessá-los.
 
-A figura ao lado \ref{problem1-solution} ilustra um exemplo de entrada e a solução ótima para o problema para um caso com 3 polígonos. Temos \(s\) 
-como o \textcolor[RGB]{0,128,0}{ponto verde}, \(t\) como o \textcolor[RGB]{255, 0, 0}{ponto vermelho} e os polígonos \(P_1, P_2\) e \(P_3\) como o \textcolor[RGB]{76, 146, 195}{triângulo azul}, o \textcolor[RGB]{255, 152, 62}{trapézio laranja} e o \textcolor[RGB]{86, 179, 86}{pentágono verde}, respectivamente. O caminho mínimo é representado pela \textcolor[RGB]{145, 41, 145}{linha roxa}.
+A Figura~\ref{problem1-solution} ilustra um exemplo de entrada e a solução ótima para o problema para um caso com 3 polígonos. Temos \(s\) como o \textcolor[RGB]{0,128,0}{ponto verde}, \(t\) como o \textcolor[RGB]{255, 0, 0}{ponto vermelho} e os polígonos \(P_1, P_2\) e \(P_3\) como o \textcolor[RGB]{76, 146, 195}{triângulo azul}, o \textcolor[RGB]{255, 152, 62}{trapézio laranja} e o \textcolor[RGB]{86, 179, 86}{pentágono verde}, respectivamente. O caminho mínimo é representado pela \textcolor[RGB]{145, 41, 145}{linha roxa}.
 % como o ponto verde, \(t\) como o ponto vermelho e os polígonos \(P_1, P_2\) e \(P_3\) como o triângulo azul, o trapézio laranja e o pentágono verde, respectivamente. O caminho mínimo é representado pela linha roxa.
 
 Retomando o paper, definimos um \(i\)-path até \(p\) como um caminho mínimo que começa em \(s\), encosta em cada um dos polígonos \(P_1, P_2, \ldots, P_i\) e termina em \(p\). Note que nosso objetivo é encontrar um \(k\)-path até \(t\). Enquanto não vamos entrar em detalhes, todo \(i\)-path é único.
 
 A função central desse algoritmo será a função \(\text{Query}(p, i)\), que recebe um ponto \(p\) e um índice \(i\) e retorna o penúltimo ponto \(q\) do \(i\)-path até \(p\) (ou seja, o ponto imediatamente anterior à \(p\) nesse caminho). 
 
-Primeiramente, vamos descrever procedimentos auxiliares que serão úteis para a implementação da função \(\text{Query}\). Finalmente, vamos descrever como respoder consultas usando esses procedimentos. Por enquanto, vamos assumir que sabemos como respoder as consultas.
-
-\subsection{Representação dos Objetos}
-
-Antes de descrever os procedimentos auxiliares, é importante definir como representamos os objetos geométricos envolvidos no problema. Utilizamos as seguintes representações:
-
-\begin{itemize}[leftmargin=*, label={--}]
-
-	\item \textbf{Pontos} e \textbf{Vetores}: Representados por uma classe \texttt{Vector2} que guarda um par de números reais \((x, y)\).
-	
-	\item \textbf{Polígonos}: Representados por uma classe \texttt{Polygon2} que guarda uma lista ordenada de seus vértices (representados por \texttt{Vector2}) no sentido anti-horário. Um vértice arbitrário é escolhido para ser indexado como o primeiro.
-
-	\item \textbf{Caminho Final}: Representado como uma lista de pontos (representados por \texttt{Vector2}) na ordem em que aparecem no caminho.
-
-\end{itemize}
+Primeiramente, vamos descrever procedimentos auxiliares que serão úteis para a implementação da função \(\text{Query}\). Finalmente, vamos descrever como respoder consultas usando esses procedimentos. Por enquanto, vamos assumir que sabemos como respoder as consultas. Para as seções a seguir, vamos assumir que os polígnos \(P_1, \dots, P_k\) são representados por listas de vértices ordenados em sentido anti-horário, com um vértice abitrário como o primeiro.
 
 \subsection{Particionando o Plano}
 
 É possível mostrar \cite{tpp-dror2003} que para cada polígono \(P_i\) podemos criar uma partição \(S_i\) do plano tal que o comportamento da função \(\text{Query}(p, i)\) dependa exclusivamente de a qual região da partição \(S_i\) o ponto \(p\) pertence, sendo possível localizar cada ponto de maneira eficiente. Por falta de um nome melhor, chamamos cada parte de \(S_i\) de \textit{região}.
+
+Enquanto a quantidade de regiões de \(S_i\) pode ser numerosa a depender do número de vértices de \(P_i\), cada região pode ser de exatamente 3 tipos diferentes:, 
+% \textcolor[RGB]{255, 140, 140}{Regiões de Vértice}, \textcolor[RGB]{140, 197, 140}{Regiões de Aresta} e \textcolor[RGB]{150, 208, 209}{Regiões de Atravessa}.
+\textcolor[RGB]{255, 70, 70}{Regiões de Vértice}, \textcolor[RGB]{86, 179, 86}{Regiões de Aresta} e \textcolor[RGB]{76, 146, 195}{Regiões de Atravessar}.
+
+Nas seções a seguir vamos descrever como usar essas partições para responder consultas, mas por enquanto vamos descrever como representar e construir essas partições. Por enquanto, apenas mantenha em mente que se conseguirmos representar e construir essas partições, então podemos usá-las para responder consultas e resolver o problema de maneira eficiente.
+
+A partir da Figura~\ref{problem1-partitions}, note que cada região de vértice (\textit{Cone Region}) está associada a um vértice de \(P_i\), cada região de aresta (\textit{Edge Region}) está associada a uma aresta de \(P_i\) e há exatamente uma região de atravessar (\textit{Pass Through Region}). Ademais, essas regiões se complementam, ou seja, o conjunto de todas as regiões de vértice, aresta e atravessar é o plano todo e nenhuma região se sobrepõe a outra. Para que isso seja válido, devemos considerar pontos dentro dos polígonos \(P_i\) como pertencentes à região de atravessar. As fronteiras entre as regiões podem consideradas como pertencentes a qualquer uma das regiões que as delimitam, produzindo o mesmo resultado, mas para simplicidade, vamos considerar que pertencem às regiões de vértice.
 
 \begin{wrapfigure}{l}{0.60\textwidth}
 
@@ -226,30 +229,41 @@ Antes de descrever os procedimentos auxiliares, é importante definir como repre
 
 \end{wrapfigure}
 
-Enquanto a quantidade de regiões de \(S_i\) pode ser numerosa a depender do número de vértices de \(P_i\), cada região pode ser de exatamente 3 tipos diferentes:, 
-% \textcolor[RGB]{255, 140, 140}{Regiões de Vértice}, \textcolor[RGB]{140, 197, 140}{Regiões de Aresta} e \textcolor[RGB]{150, 208, 209}{Regiões de Atravessa}.
-\textcolor[RGB]{255, 70, 70}{Regiões de Vértice}, \textcolor[RGB]{86, 179, 86}{Regiões de Aresta} e \textcolor[RGB]{76, 146, 195}{Regiões de Atravessar}.
-
-Nas seções a seguir vamos descrever como usar essas partições para responder consultas, mas por enquanto vamos descrever como representar e construir essas partições. Por enquanto, apenas mantenha em mente que se conseguirmos representar e construir essas partições, então podemos usá-las para responder consultas e resolver o problema de maneira eficiente.
-
-A partir da Figura~\ref{problem1-partitions}, note que cada região de vértice (\textit{Cone Region}) está associada a um vértice de \(P_i\), cada região de aresta (\textit{Edge Region}) está associada a uma aresta de \(P_i\) e há exatamente uma região de atravessar (\textit{Pass Through Region}). Ademais, essas regiões se complementam, ou seja, o conjunto de todas as regiões de vértice, aresta e atravessar é o plano todo e nenhuma região se sobrepõe a outra. Para que isso seja válido, devemos considerar pontos dentro dos polígonos \(P_i\) como pertencentes à região de atravessar.
-
 Ademais, note que cada região de vértice é delimitada por duas semi-retas que partem de um vértice de \(P_i\), incluindo todos os pontos que estão entre essas semi-retas. Similarmente, cada região de aresta é delimitada por duas semi-retas que partem dos extremos de uma aresta de \(P_i\) e a prórpia aresta, incluindo todos os pontos que estão entre essas semi-retas e a aresta. Finalmente, a região de atravessar é o complemento das regiões de vértice e aresta.
 
 \subsubsection{Representado as Partições}
 
 Como mencionado, as regiões se complementam, assim, do ponto de vista de implementação, decidimos armazenar apenas as regiões de vértice, uma vez que as regiões de aresta podem ser construídas a partir delas, simplesmente verificando se um ponto está entre as semi-retas de duas regiões de vértice adjacentes e a aresta que as separa. 
 
-Para representar as regiões de vértice, associamos a cada vértice  \(v\) de \(P_i\) um par ordenado de direções \((d_1, d_2)\), onde \(d_1\) e \(d_2\) são vetores unitários que representam as direções das semi-retas que, em sentido anti-horário, delimitam a região de vértice associada a \(v\). Nem todo vértice de \(P_i\) gera uma região de vértice, assim, se um vértice \(v\) não gerar uma região, então armazenamos um par \((d, d)\) qualquer na posição correspondente da lista, representando uma região válida, mas vazia. Isso será mais relevante adiante.
+Para representar as regiões de vértice, associamos a cada vértice  \(v\) de \(P_i\) um par ordenado de direções \((d_1, d_2)\), onde \(d_1\) e \(d_2\) são vetores unitários que representam as direções das semi-retas que, em sentido anti-horário, delimitam a região de vértice associada a \(v\). Nem todo vértice de \(P_i\) gera uma região de vértice, assim, se um vértice \(v\) não gerar uma região, então marcamos essa entrada como \texttt{null}.
 
+A partir dessa representação, já é possível verificar se um ponto \(p\) pertence à região de vértice associada ao vértice \(v\) delimitada pelas direções \(d_1\) e \(d_2\), usando produtos vetoriais. Recordando que o produto vetorial entre dois vetores \(v = (v_1, v_2)\) e \(u = (u_1, u_2)\) em \(\mathbb{R}^2\) é definido como:
 
 \[
-v \times u = v_1 u_2 - v_2 u_1
+	v \times u = v_1 u_2 - v_2 u_1
 \]
-é tal que $v \times u \geq 0$ se partindo de $v$ e andando no sentido anti-horario, o angulo com $u$ é de no maximo 180 graus e $v \times u \leq 0$ se partindo de $v$ e andando no sentido horario, o angulo com $u$ é de no maximo 180 graus.
 
+E tem a propriedade de que \(v \times u \ge 0\) se partindo de \(v\) e andando no sentido anti-horario, o angulo com \(u\) é de no máximo \(180 ^ \circ\) e \(v \times u \le 0\) se partindo de \(v\) e andando no sentido horario, o angulo com \(u\) é de no maximo \(180 ^ \circ\). A partir dessa definição, dizemos que um ponto \(p\) está do \textbf{lado esquerdo} de um vetor \(d\) se \(d \times p \ge 0\) e do \textbf{lado direito} se \(d \times p \le 0\).
 
-Essa representação já permite que verifiquemos se um ponto \(p\) pertence a uma região de vértice e qual. \textcolor{red}{Deve aqui pelo menos dizer: Explicaremos isso mais adiante no Algoritmo~4.} No entanto, não conseguimos distinguir entre regiões de aresta e a região de atravessar. Para resolver esse problema, armazenamos uma lista de booleanas que indica se uma aresta é visível ou não. Assim, para determinar se um ponto \(p\) pertence a uma região de aresta ou à região de atravessar, basta verificar se \(p\) está entre as semi-retas de duas regiões de vértice adjacentes e, em caso positivo, verificar se a aresta que as separa é visível ou não.
+Dessa forma, se o ângulo entre \(d_1\) e \(d_2\) é menor ou igual à \(180 ^ \circ\) (ou seja, \(d_1 \times d_2 \ge 0\)), podemos simplesmente verificar se o vetor \(\overrightarrow{vp} = p - v\) está do lado esquerdo de \(d_1\) e do lado direito de \(d_2\). Caso o ângulo entre \(d_1\) e \(d_2\) é maior que \(180 ^ \circ\), então verificamos se \(p\) não pertence ao complemento da região de vértice. Usando essa ideia, implementamos o algoritmo~\algref{PontoEmVértice}.
+
+\begin{algorithm}
+\alglabel{PontoEmVértice}
+\caption{PontoEmVértice(\(p\), \(v\), \(d_1\), \(d_2\)) \\
+Verifica se o ponto \(p\) está na região de vértice associada ao vértice \(v\) delimitada pelas direções \(d_1\) e \(d_2\)}
+
+// Se o ângulo da região de vértice é maior que \(180 ^ \circ\)
+// verificamos se \(p\) não pertence ao complemento da região. \\
+\If {\(d_1 \times d_2 < 0\)} {
+	\Return{\(\lnot\)} PontoEmVértice(\(p\), \(v\), \(d_2\), \(d_1\)) // Troca as direções e inverte o resultado
+	}
+	
+	// Se o ângulo da região de vértice é menor ou igual a \(180 ^ \circ\) \\
+	// Verificamos se \(p\) está entre as semi-retas \\
+	\Return{} \((d_1 \times (p - v) \ge 0) \land (d_2 \times (p - v) \le 0)\)
+\end{algorithm}
+
+No entanto, não conseguimos distinguir entre regiões de aresta e a região de atravessar. Para resolver esse problema, armazenamos uma lista de booleanas que indica se uma aresta é visível ou não. Assim, para determinar se um ponto \(p\) pertence a uma região de aresta ou à região de atravessar, basta verificar se \(p\) está entre as semi-retas de duas regiões de vértice adjacentes e, em caso positivo, verificar se a aresta que as separa é visível ou não.
 
 \subsubsection{Detectando Arestas Visíveis}
 
@@ -361,22 +375,6 @@ Esse processo não é trivial, principalmente se desejamos fazer isso de maneira
 \subsubsection{Verificando Regiões de Vértice}
 
 Primeiramente vamos implementar um procedimento auxiliar que verifica se um ponto \(p\) está em uma região de vértice associada a um vértice \(v\) delimitada por duas direções \(d_1\) e \(d_2\). Basicamente, se o ângulo entre \(d_1\) e \(d_2\) é menor ou igual a \(180 ^ \circ\), então verificamos se \(p\) está entre as semi-retas usando produtos vetoriais. Caso contrário, verificamos se \(p\) não está no complemento da região.
-
-\begin{algorithm}
-\caption{PontoEmVértice(\(p\), \(v\), \(d_1\), \(d_2\)) \\
-Verifica se o ponto \(p\) está na região de vértice associada ao vértice \(v\) delimitada pelas direções \(d_1\) e \(d_2\)}
-
-// Se o ângulo da região de vértice é maior que \(180 ^ \circ\)
-// verificamos se \(p\) não pertence ao complemento da região. \\
-\If {\(d_1 \times d_2 < 0\)} {
-	\Return{\(\lnot\)} PontoEmVértice(\(p\), \(v\), \(d_2\), \(d_1\)) // Troca as direções e inverte o resultado
-}
-
-// Se o ângulo da região de vértice é menor ou igual a \(180 ^ \circ\) \\
-// Verificamos se \(p\) está entre as semi-retas \\
-\Return{} \((d_1 \times (p - v) \ge 0) \land (d_2 \times (p - v) \le 0)\)
-
-\end{algorithm}
 
 \subsubsection{Verificando Regiões de Aresta}
 
