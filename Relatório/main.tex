@@ -103,6 +103,7 @@
 \DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
 \DeclarePairedDelimiter{\parens}{(}{)}
 \DeclarePairedDelimiter{\curly}{\{}{\}}
+\DeclarePairedDelimiter{\anglebrackets}{\langle}{\rangle}
 
 % Box spacing tweaks
 \setlength{\fboxsep}{0pt}
@@ -211,13 +212,13 @@ Primeiramente, vamos descrever procedimentos auxiliares que serão úteis para a
 
 É possível mostrar \cite{tpp-dror2003} que para cada polígono \(P_i\) podemos criar uma partição \(S_i\) do plano tal que o comportamento da função \(\text{Query}(p, i)\) dependa exclusivamente de a qual região da partição \(S_i\) o ponto \(p\) pertence, sendo possível localizar cada ponto de maneira eficiente. Por falta de um nome melhor, chamamos cada parte de \(S_i\) de \textit{região}.
 
+Nas seções a seguir vamos descrever como usar essas partições para responder consultas, mas por enquanto vamos descrever como representar e construir essas partições. Por enquanto, apenas mantenha em mente que se conseguirmos representar e construir essas partições, então podemos usá-las para responder consultas e resolver o problema de maneira eficiente.
+
 Enquanto a quantidade de regiões de \(S_i\) pode ser numerosa a depender do número de vértices de \(P_i\), cada região pode ser de exatamente 3 tipos diferentes:, 
 % \textcolor[RGB]{255, 140, 140}{Regiões de Vértice}, \textcolor[RGB]{140, 197, 140}{Regiões de Aresta} e \textcolor[RGB]{150, 208, 209}{Regiões de Atravessa}.
 \textcolor[RGB]{255, 70, 70}{Regiões de Vértice}, \textcolor[RGB]{86, 179, 86}{Regiões de Aresta} e \textcolor[RGB]{76, 146, 195}{Regiões de Atravessar}.
 
-Nas seções a seguir vamos descrever como usar essas partições para responder consultas, mas por enquanto vamos descrever como representar e construir essas partições. Por enquanto, apenas mantenha em mente que se conseguirmos representar e construir essas partições, então podemos usá-las para responder consultas e resolver o problema de maneira eficiente.
-
-A partir da Figura~\ref{problem1-partitions}, note que cada região de vértice (\textit{Cone Region}) está associada a um vértice de \(P_i\), cada região de aresta (\textit{Edge Region}) está associada a uma aresta de \(P_i\) e há exatamente uma região de atravessar (\textit{Pass Through Region}). Ademais, essas regiões se complementam, ou seja, o conjunto de todas as regiões de vértice, aresta e atravessar é o plano todo e nenhuma região se sobrepõe a outra. Para que isso seja válido, devemos considerar pontos dentro dos polígonos \(P_i\) como pertencentes à região de atravessar. As fronteiras entre as regiões podem consideradas como pertencentes a qualquer uma das regiões que as delimitam, produzindo o mesmo resultado, mas para simplicidade, vamos considerar que pertencem às regiões de vértice.
+A partir da Figura~\ref{problem1-partitions}, note que cada região de vértice (\textit{Cone Region}) está associada a um vértice de \(P_i\), cada região de aresta (\textit{Edge Region}) está associada a uma aresta de \(P_i\) e há exatamente uma região de atravessar (\textit{Pass Through Region}). Ademais, essas regiões se complementam, ou seja, o conjunto de todas as regiões de vértice, aresta e atravessar é o plano todo e nenhuma região se sobrepõe a outra. Para que isso seja válido, devemos considerar pontos dentro dos polígonos \(P_i\) como pertencentes à região de atravessar. As fronteiras entre as regiões podem ser consideradas como pertencentes a qualquer uma das regiões que as delimitam, produzindo o mesmo resultado, mas para simplicidade, vamos considerar que pertencem às regiões de vértice.
 
 \begin{wrapfigure}{l}{0.60\textwidth}
 
@@ -230,6 +231,18 @@ A partir da Figura~\ref{problem1-partitions}, note que cada região de vértice 
 \end{wrapfigure}
 
 Ademais, note que cada região de vértice é delimitada por duas semi-retas que partem de um vértice de \(P_i\), incluindo todos os pontos que estão entre essas semi-retas. Similarmente, cada região de aresta é delimitada por duas semi-retas que partem dos extremos de uma aresta de \(P_i\) e a prórpia aresta, incluindo todos os pontos que estão entre essas semi-retas e a aresta. Finalmente, a região de atravessar é o complemento das regiões de vértice e aresta.
+
+\subsubsection{Região de Primeiro Contato}
+
+Para cada polígono \(P_i\), definimos \(T_i\) como a \textit{região de primeiro contato} de \(P_i\), ou seja, o conjunto de pontos \(p\) no perímetro de \(P_i\) tais que o \((i - 1)\)-path até \(p\) toca em \(P_i\) pela primeira vez em \(p\). Podemos provar \cite{tpp-dror2003} que \(T_i\) é uma região contínua do perímetro de \(P_i\) e que \(T_i\) é delimitada por vértices de \(P_i\), ou seja, \(T_i\) é a união de uma sequência de arestas consecutivas de \(P_i\). Por esse motivo, chamamos arestas de \(P_i\) que pertencem à \(T_i\) de \textbf{arestas visíveis} e as que não pertencem de \textbf{arestas bloqueadas}.
+
+Essa região é importante, pois apenas as arestas visíveis de \(P_i\) que pertencem à \(T_i\) geram regiões de aresta em \(S_i\), além disso, se um vértice está entre duas arestas bloqueadas, então ele não gera uma região de vértice em \(S_i\).
+
+Como \(T_i\) é a união de arestas, para determinar quais arestas de \(P_i\) pertencem à \(T_i\), podemos simplesmente iterar sobre as arestas de \(P_i\) e verificar se o \((i - 1)\)-path até um ponto interno qualquer da aresta, por exemplo o ponto médio, chega em \(P_i\) pela primeira vez nesse ponto. Se isso for verdade, então a aresta pertence à \(T_i\), caso contrário, não pertence.
+
+No entanto, precisamos de uma maneira eficiente de fazer isso para todas as arestas de \(P_i\). Se simplesmente fizermos isso de maneira ingênua, verificando se o segmento entre o último ponto \(q\) do \((i - 1)\)-path até o ponto médio \(m\) da aresta intersecta \(P_i\), teríamos uma complexidade de \(O(\abs{P_i})\) por aresta, resultando em \(O(\abs{P_i} ^ 2)\) para todas as arestas de \(P_i\). Felizmente, podemos fazer isso de maneira mais eficiente, explorando o fato de que \(P_i\) é convexo e suas arestas estão ordenadas em sentido anti-horário. 
+
+
 
 \subsubsection{Representado as Partições}
 
@@ -245,7 +258,7 @@ A partir dessa representação, já é possível verificar se um ponto \(p\) per
 
 E tem a propriedade de que \(v \times u \ge 0\) se partindo de \(v\) e andando no sentido anti-horario, o angulo com \(u\) é de no máximo \(180 ^ \circ\) e \(v \times u \le 0\) se partindo de \(v\) e andando no sentido horario, o angulo com \(u\) é de no maximo \(180 ^ \circ\). A partir dessa definição, dizemos que um ponto \(p\) está do \textbf{lado esquerdo} de um vetor \(d\) se \(d \times p \ge 0\) e do \textbf{lado direito} se \(d \times p \le 0\).
 
-Dessa forma, se o ângulo entre \(d_1\) e \(d_2\) é menor ou igual à \(180 ^ \circ\) (ou seja, \(d_1 \times d_2 \ge 0\)), podemos simplesmente verificar se o vetor \(\overrightarrow{vp} = p - v\) está do lado esquerdo de \(d_1\) e do lado direito de \(d_2\). Caso o ângulo entre \(d_1\) e \(d_2\) é maior que \(180 ^ \circ\), então verificamos se \(p\) não pertence ao complemento da região de vértice. Usando essa ideia, implementamos o algoritmo~\algref{PontoEmVértice}.
+Dessa forma, se o ângulo entre \(d_1\) e \(d_2\) é menor ou igual à \(180 ^ \circ\) (ou seja, \(d_1 \times d_2 \ge 0\)), podemos simplesmente verificar se o vetor \(\overrightarrow{vp} = p - v\) está do lado esquerdo de \(d_1\) e do lado direito de \(d_2\). Caso o ângulo entre \(d_1\) e \(d_2\) é maior que \(180 ^ \circ\), então verificamos se \(p\) não pertence ao complemento da região de vértice. Usando essa ideia, implementamos o algoritmo~\algref{PontoEmVértice}, que será usado futuramente.
 
 \begin{algorithm}
 \alglabel{PontoEmVértice}
@@ -263,7 +276,7 @@ Verifica se o ponto \(p\) está na região de vértice associada ao vértice \(v
 	\Return{} \((d_1 \times (p - v) \ge 0) \land (d_2 \times (p - v) \le 0)\)
 \end{algorithm}
 
-No entanto, não conseguimos distinguir entre regiões de aresta e a região de atravessar. Para resolver esse problema, armazenamos uma lista de booleanas que indica se uma aresta é visível ou não. Assim, para determinar se um ponto \(p\) pertence a uma região de aresta ou à região de atravessar, basta verificar se \(p\) está entre as semi-retas de duas regiões de vértice adjacentes e, em caso positivo, verificar se a aresta que as separa é visível ou não.
+No entanto, não ainda conseguimos distinguir entre regiões de aresta e a região de atravessar. Vamos resolver esse problema na seção seguinte.
 
 \subsubsection{Detectando Arestas Visíveis}
 
@@ -655,6 +668,38 @@ Primeiramente, é essencial que \(i \le j\), ademais, se \(i = j\) então \(\tex
 
 Outra função extremamente importante para a implementação desse algoritmo é a função \(\text{Fenced}(p_1, p_2, i, j)\) que retorna o menor caminho de \(p_1\) até \(p_2\) que respeita as cercas \(F_i, \dots, F_j\). Note que se \(i = j\), então \(\text{Fenced}(p_1, p_2, i, j)\) é simplesmente o segmento \(\overline{p_1p_2}\) se ele estiver contido em \(F_i\) e não existe caso contrário. Assim, vamos assumir que \(i < j\).
 
+
+\newpage
+\appendix
+
+\section{Notações}
+
+\begin{enumerate}
+
+	\item \(v \in \mathbb{R} ^ 2 \implies v = (v_1, v_2)\). Vetores são representados como tuplas de coordenadas.
+
+	\item \(\abs{v} = \sqrt{v_1 ^ 2 + v_2 ^ 2}\). Norma Euclidiana de um vetor.
+
+	\item \(\anglebrackets{u, v} = u_1 v_1 + u_2 v_2\). Produto interno definido como produto escalar de vetores.
+
+	\item \(u \times v = u_1 v_2 - u_2 v_1\). Produto vetorial definido como determinante 2D, retornando um escalar. Essa definição tem a seguinte propriedade:
+
+	\[
+		\text{sign}(u \times v) =
+		\begin{cases}
+			+1, & \text{se ângulo no sentido anti-horário entre } u \text{ e } v \text{ é menor que } 180 ^ \circ \\
+			-1, & \text{se ângulo no sentido horário entre } u \text{ e } v \text{ é menor que } 180 ^ \circ \\
+			0, & \text{se } u \text{ e } v \text{ são colineares} \\
+		\end{cases}
+	\]
+	
+	Pode-se interpretar \(u \times v\) como a área do paralelogramo formado por \(u\) e \(v\), onde o sinal indica a orientação.
+
+	\item Dizemos que um ponto \(p\) está do \textbf{lado esquerdo} de uma direção \(d\) se \(d \times p \ge 0\) e do \textbf{lado direito} se \(d \times p \le 0\).
+	
+\end{enumerate}
+
+\newpage
 \printbibliography
 
 \end{document}
