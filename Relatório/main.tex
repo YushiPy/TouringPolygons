@@ -21,6 +21,9 @@
 % Algorithms
 \usepackage[linesnumbered,ruled,vlined]{algorithm2e}
 
+% make conditions/keyword arguments use text mode
+\SetArgSty{textnormal}
+
 \SetKwIF{If}{ElseIf}{Else}{if}{:}{else if}{else}{end}
 \SetKwFor{For}{for}{:}{end}
 \SetKwRepeat{Do}{do}{while}
@@ -264,7 +267,7 @@ Felizmente, como \(P_i\) é convexo e suas arestas estão ordenadas em sentido a
 
 A Figura~\ref{problem1-visibility-test} ilustra essa ideia. Temos o polígono \(P_i\) em azul, os vértices \(u\) e \(v\) em azul, o ponto médio \(m\) da aresta em laranja e 4 pontos \(q_1, q_2, q_3\) e \(q_4\) representando possíveis últimos pontos do \((i - 1)\)-path até \(m\). Note que os segmentos \(\overline{q_1 m}\) e \(\overline{q_2 m}\) passam pela parte interna de \(P_i\), assim, o produto vetorial de \(\overrightarrow{uv}\) com \(\overrightarrow{m q_1}\) e \(\overrightarrow{m q_2}\) é positivo. Já os segmentos \(\overline{q_3 m}\) e \(\overline{q_4 m}\) não passam pela parte interna de \(P_i\), assim, o produto vetorial de \(\overrightarrow{uv}\) com \(\overrightarrow{m q_3}\) e \(\overrightarrow{m q_4}\) é negativo.
 
-Implementamos essa ideia no algoritmo \algref{ArestasVisíveis}, que recebe um polígono \(P_i\) e seu índice \(i\) e retorna uma lista booleana indicando quais arestas de \(P_i\) são visíveis.
+Implementamos essa ideia no algoritmo \algref{ArestasVisíveis}, que recebe um polígono \(P_i\) e seu índice \(i\) e retorna uma lista booleana indicando quais arestas de \(P_i\) são visíveis. Para os próximos algoritmos, vamos referenciar os objetos \(T_1, \dots, T_k\) como listas booleanas indicando quais arestas de cada polígono \(P_1, \dots, P_k\) são visíveis.
 
 \begin{algorithm}
 \alglabel{ArestasVisíveis}
@@ -284,7 +287,7 @@ visível \(\leftarrow\) [False] * \(n\) // Inicializa todas as arestas como não
 	visível[\(j\)] \(\leftarrow ((v - m) \times (q - m) < 0)\) 
 }
 
-\Return{} visível % Evita math mode desnecessário
+\Return{visível}
 
 \end{algorithm}
 
@@ -308,7 +311,7 @@ Vale notar que se ambas as arestas incidentes a \(v\) estão bloqueadas, então 
 
 Encorajamos o leitor a verificar que essa lógica se aplica à Figura~\ref{problem1-scene-general}, usando o ponto inicial \(s\) como resposta de \(\text{Query}(v, 0)\) para qualquer vértice \(v\). Os vértices (-2, 0) e (0, 0) terão as suas duas arestas incidentes visíveis, assim, suas regiões de vértice serão delimitadas pelas reflexões do raio que parte de \(s\). O vértice (-3, 1) terá apenas a aresta posterior visível, assim, sua região de vértice será delimitada pela reflexão do raio em relação à aresta posterior e a própria direção do raio. Similarmente, o vértice (2, 1) tem apenas a aresta anterior visível. Finalmente, os vértices (1, 1.25) e (-1, 1.5) não terão nenhuma aresta visível, assim, suas regiões de vértice serão vazias. 
 
-Implementamos essas ideias nos algoritmos \algref{RefleteDireção} e \algref{ConstróiRegiõesDeVértice}. O primeiro reflete uma direção em relação a uma aresta, enquanto o segundo a partição \(S_i\) de um polígono \(P_i\), retornando uma lista de pares ordenados de direções representando as regiões de vértice associadas a cada vértice de \(P_i\).
+Implementamos essas ideias nos algoritmos \algref{RefleteDireção} e \algref{ConstróiRegiõesDeVértice}. O primeiro reflete uma direção em relação a uma aresta, enquanto o segundo cria a partição \(S_i\) de um polígono \(P_i\), retornando uma lista de pares ordenados de direções representando as regiões de vértice associadas a cada vértice de \(P_i\). Para os próximos algoritmos, vamos referenciar os objetos \(S_1, \dots, S_k\) como listas de pares ordenados de direções representando as regiões de vértice de cada polígono \(P_1, \dots, P_k\).
 
 % \textcolor{red}{Verificar se podemos aqui apenas dizer que estes vertices terao uma regiao de vertice vazia ou dizer que estes vertices nao pertencem à regiao de pimeiro contato e portanto não tem uma regiao de vertice associada a eles.}
 
@@ -327,7 +330,7 @@ Implementamos essas ideias nos algoritmos \algref{RefleteDireção} e \algref{Co
 \caption{ConstróiRegiõesDeVértice(\(P_i\)) \\ Constroi as partições do polígono \(P_i\)}
 
 regiões \(\leftarrow\) [] // Lista vazia \\
-visível \(\leftarrow \text{ArestasVisíveis}(P_i)\) \\
+visível \(\leftarrow T_i\) \\
 
 \For{\(j \leftarrow 0\) até \(\abs{P_i} - 1\)} {
 
@@ -360,7 +363,7 @@ visível \(\leftarrow \text{ArestasVisíveis}(P_i)\) \\
 	regiões.\text{append}(\((d_{\text{prev}}, d_{\text{next}})\)) \\
 }
 
-\Return{} regiões % Evita math mode desnecessário
+\Return{regiões}
 
 \end{algorithm}
 
@@ -478,28 +481,30 @@ Repetindo isso até que \(l + 1 = r\), sabemos que o ponto \(p\) pertence à reg
 Essa codificação segue a seguinte lógica: regiões de vértice são representadas por índices pares, onde o índice \(2j\) representa a região de vértice associada ao \(j\)-ésimo vértice de \(P_i\). Regiões de aresta são representadas por índices ímpares, onde o índice \(2j + 1\) representa a região de aresta entre o \(j\)-ésimo e o \((j + 1)\)-ésimo vértice de \(P_i\). Note que a região entre o último e o primeiro vértice é representada pelo índice \(2 \abs{P_i} - 1\).
 
 \begin{algorithm}
-\caption{LocalizaRegião(\(p\), \(P\), regiõesDeVértice) \\
-Localiza o ponto \(p\) na partição do polígono \(P\)}
+\caption{LocalizaRegião(\(p\), \(P_i\)) \\
+Localiza o ponto \(p\) na partição do polígono \(P_i\)}
 
+\Function{getDireção(\(i\))} {
+	\If {\(i \pmod 2 = 0\)} {
+		\Return{} direção anterior associada ao vértice \(\floor{i / 2}\) de \(P_i\)
+	}
+	\Else {
+		\Return{} direção anterior associada ao vértice \(\floor{i / 2}\) de \(P_i\)
+	}
+}
 
-// Criamos uma função auxiliar usando fechamento \\
-// para facilitar a implementação da busca binária \\
 \Function{pertence(\(i\), \(j\))} {
 
-	\(v_1 \leftarrow P[\floor{i / 2}]\) // Vértice \(i\) do polígono \(P\) \\
-	\(v_2 \leftarrow P[\floor{j / 2}]\) // Vértice \(j\) do polígono \(P\) \\
-
-
-	// Vamos lembrar que \textit{regiõesDeVértice} é uma lista de pares \((d_{\text{prev}}, d_{\text{next}})\) \\
-	// Também vamos tratar \(i \pmod 2\) como uma operação tradicional de módulo \\
-	\(d_{\text{prev}} \leftarrow \text{regiõesDeVértice}[\floor{i / 2}][i \pmod 2]\) \\
-	\(d_{\text{next}} \leftarrow \text{regiõesDeVértice}[\floor{j / 2}][j \pmod 2]\) \\
+	\(v_1 \leftarrow \) Vértice \(\floor{i / 2}\) do polígono \(P_i\) \\
+	\(v_2 \leftarrow \) Vértice \(\floor{j / 2}\) do polígono \(P_i\) \\
+	\(d_{\text{prev}} \leftarrow\) getDireção(\(i\)) \\
+	\(d_{\text{next}} \leftarrow\) getDireção(\(j\)) \\
 
 	\Return{} PontoEmAresta(\(p\), \(v_1\), \(v_2\), \(d_{\text{prev}}\), \(d_{\text{next}}\))
 }
 
-\(l \leftarrow 0\)
-\(r \leftarrow 2 \cdot \abs{P} - 1\) \\
+\(l \leftarrow 0\) \\
+\(r \leftarrow 2 \abs{P} - 1\) \\
 
 \If {pertence(\(r\), \(0\))} {
 	\Return{} \(r\) // Ponto pertence à região entre o último e o primeiro vértice
@@ -538,9 +543,19 @@ Para \(i > 0\), primeiramente determinamos a região \(R\) de \(S_i\) que conté
 
 \end{itemize}
 
-Agora vamos implementar esse procedimento como um algoritmo, usando as contruções que fizemos anteriormente, uma vez que é um pouco mais complexo do que a descrição acima. 
+Para determinar o ponto de interseção entre o segmento \(\overline{q'p'}\) e a aresta \(e\), implementamos o procedimento \algref{InterseçãoRetas}, que calcula a interseção entre duas retas dadas por dois pontos e suas direções. A demonstração desse procedimento é simples e pode ser feita algebricamente, mas não é o foco desse relatório. Também estamos assumindo que as retas não são paralelas, o que é garantido pela construção do algoritmo.
 
-Vamos usar também uma função auxiliar \text{InterseçãoDeSegmento} que calcula a interseção entre dois segmentos dados seus extremos. Essa não é descrita aqui, mas é uma implementação padrão de geometria computacional.
+Agora podemos usar essas ideias para implementar o procedimento completo de resposta a consultas na forma do algoritmo \algref{Query}.
+
+\begin{algorithm}
+\caption{InterseçãoRetas(\(s, d, s', d'\)) \\ Calcula a interseção entre as retas definidas por pontos \(s + td\) e \(s' + t'd'\), onde \(t, t' \in \mathbb{R}\)}
+
+\(\Delta s \leftarrow s - s'\) \\
+\(r \leftarrow (\Delta s \times d') / (d \times d')\)
+
+\Return{} \(s + r d\) // Ponto de interseção
+
+\end{algorithm}
 
 \begin{algorithm}
 \caption{Query(\(p, i\)) \\ Responde a consulta \(\text{Query}(p, i)\)}
@@ -549,24 +564,27 @@ Vamos usar também uma função auxiliar \text{InterseçãoDeSegmento} que calcu
 	\Return{} \(s\) // Caso base
 }
 
-\(R \leftarrow\) LocalizaRegião(\(p\), \(P_i\), regiõesDeVértice[\(i - 1\)]) \\
+\(R \leftarrow\) LocalizaRegião(\(p\), \(P_i\)) \\
 \(j \leftarrow \floor{R / 2}\)
 
+\ \\
+// Região de vértice \\
 \If {\(R \pmod 2 = 0\)} {
-	\Return {} \(v \leftarrow P_i[j]\) // Vértice associado à região de vértice
+	\Return {} Vértice \(j\) do polígono \(P_i[j]\)
 }
-
+\ \\
+// Região de atravessa \\
 \If {\(\lnot\) visível[\(j\)]} {
 	\Return{} Query(\(p, i - 1\)) // Região de atravessa
 }
-
+\ \\
 // Região de aresta \\
-\(u \leftarrow P_i[j]\) // Vértice inicial da aresta \\
-\(v \leftarrow P_i[j + 1]\) // Vértice final da aresta \\
+\(u \leftarrow \) Vértice \(j\) de \(P_i\) \\
+\(v \leftarrow \) Vértice que segue \(u\) em \(P_i\) \\
 
 \(p' \leftarrow u + \text{RefleteDireção}((p - u), u, v)\) \\
 \(q' \leftarrow \text{Query}(p', i - 1)\) \\
-\(m \leftarrow \text{InterseçãoDeSegmento}(p', q', u, v)\) \\
+\(m \leftarrow \text{InterseçãoDeRetas}(p', q' - p', u, v - u)\) \\
 
 \Return{} \(m\) // Ponto de interseção
 
@@ -587,7 +605,11 @@ Usando essa lógica e juntando as implementações anteriores em um algoritmo co
 	\Return{} [\(s, t\)] // Caso base: caminho direto de \(s\) até \(t\)
 }
 
-regiãoDeVértice \(\leftarrow\) Particiona(\(P_1, \dots, P_k\)) \\
+\For {\(i \leftarrow 1\) até \(k\)} {
+	\(T_i \leftarrow\) ArestasVisíveis(\(P_i\)) \\
+	\(S_i\) \(\leftarrow\) ConstróiRegiõesDeVértice(\(P_i\)) \\
+}
+
 caminho \(\leftarrow []\) // Lista vazia para armazenar o caminho \\
 \(p \leftarrow t\) // Começamos do ponto final \(t\) \\
 
