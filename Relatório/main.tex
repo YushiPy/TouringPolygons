@@ -67,6 +67,7 @@
 % Citations
 \usepackage[backend=biber,style=ieee]{biblatex}
 \addbibresource{referencias.bib}
+\usepackage{csquotes}
 
 \usepackage{multirow} % Permite criar tabelas com uma célula ocupando várias linhas
 
@@ -82,7 +83,7 @@
 
 \definecolor{lightgray}{RGB}{240,240,240}
 
-\newenvironment{blockquote}[1][lightgray]{\begin{mdframed}[
+\newenvironment{blockQuote}[1][lightgray]{\begin{mdframed}[
 	leftline=true,
 	topline=false,
 	bottomline=false,
@@ -217,7 +218,7 @@ Retomando o paper, definimos um \(i\)-path até \(p\) como um caminho mínimo qu
 
 A função central desse algoritmo será a função \(\text{Query}(p, i)\), que recebe um ponto \(p\) e um índice \(i\) e retorna o penúltimo ponto \(q\) do \(i\)-path até \(p\) (ou seja, o ponto imediatamente anterior à \(p\) nesse caminho). 
 
-Primeiramente, vamos descrever procedimentos auxiliares que serão úteis para a implementação da função \(\text{Query}\). Finalmente, vamos descrever como respoder consultas usando esses procedimentos. Por enquanto, vamos assumir que sabemos como respoder as consultas. Para as seções a seguir, vamos assumir que os polígnos \(P_1, \dots, P_k\) são representados por listas de vértices ordenados em sentido anti-horário, com um vértice abitrário como o primeiro.
+Primeiramente, vamos descrever procedimentos auxiliares que serão úteis para a implementação da função \(\text{Query}\). Finalmente, vamos descrever como respoder consultas usando esses procedimentos. Por enquanto, vamos assumir que sabemos como respoder as consultas. Para as seções a seguir, vamos assumir que os polígonos \(P_1, \dots, P_k\) são representados por listas de vértices ordenados em sentido anti-horário, com um vértice abitrário como o primeiro.
 
 \subsection{Particionando o Plano}
 
@@ -431,9 +432,10 @@ Essencialmente existem 4 casos possíveis para uma região de aresta, dependendo
 	\item \(c_1 \le 0 \land c_2 \le 0\): Esse é o caso em que temos \textbf{ambas arestas no lado positivo}. Nesse caso, simplesmente verificamos se o ponto não pertence ao complemento da região, ou seja, verificamos se \(p\) não pertence à região de aresta definida por \((v, u, d_{\text{next}}, d_{\text{prev}})\).
 \end{itemize}
 
-Dessa forma, conseguimos verificar se um ponto pertence a uma região de aresta usando o procedimento de verificação de regiões de vértice. Agora podemos implementar o procedimento completo na forma de um algoritmo.
+Dessa forma, conseguimos verificar se um ponto pertence a uma região de aresta usando o procedimento de verificação de regiões de vértice. Agora podemos implementar o procedimento completo no algoritmo \algref{PontoEmAresta}.
 
 \begin{algorithm}
+\alglabel{PontoEmAresta}
 \caption{PontoEmAresta(\(p\), \(u\), \(v\), \(d_{\text{prev}}, d_{\text{next}}\)) \\
 Verifica se o ponto \(p\) está na região de aresta associada à aresta \(e = (u, v)\) delimitada pelas direções \(d_{\text{prev}}\) e \(d_{\text{next}}\)}
 
@@ -480,7 +482,10 @@ Repetindo isso até que \(l + 1 = r\), sabemos que o ponto \(p\) pertence à reg
 
 Essa codificação segue a seguinte lógica: regiões de vértice são representadas por índices pares, onde o índice \(2j\) representa a região de vértice associada ao \(j\)-ésimo vértice de \(P_i\). Regiões de aresta são representadas por índices ímpares, onde o índice \(2j + 1\) representa a região de aresta entre o \(j\)-ésimo e o \((j + 1)\)-ésimo vértice de \(P_i\). Note que a região entre o último e o primeiro vértice é representada pelo índice \(2 \abs{P_i} - 1\).
 
+Implementamos essa ideia no algoritmo \algref{LocalizaRegião}, que recebe um ponto \(p\) e um polígono \(P_i\) e retorna o índice da região de \(S_i\) que contém \(p\).
+
 \begin{algorithm}
+\alglabel{LocalizaRegião}
 \caption{LocalizaRegião(\(p\), \(P_i\)) \\
 Localiza o ponto \(p\) na partição do polígono \(P_i\)}
 
@@ -548,6 +553,7 @@ Para determinar o ponto de interseção entre o segmento \(\overline{q'p'}\) e a
 Agora podemos usar essas ideias para implementar o procedimento completo de resposta a consultas na forma do algoritmo \algref{Query}.
 
 \begin{algorithm}
+\alglabel{InterseçãoRetas}
 \caption{InterseçãoRetas(\(s, d, s', d'\)) \\ Calcula a interseção entre as retas definidas por pontos \(s + td\) e \(s' + t'd'\), onde \(t, t' \in \mathbb{R}\)}
 
 \(\Delta s \leftarrow s - s'\) \\
@@ -558,6 +564,7 @@ Agora podemos usar essas ideias para implementar o procedimento completo de resp
 \end{algorithm}
 
 \begin{algorithm}
+\alglabel{Query}
 \caption{Query(\(p, i\)) \\ Responde a consulta \(\text{Query}(p, i)\)}
 
 \If {\(i = 0\)} {
@@ -574,7 +581,7 @@ Agora podemos usar essas ideias para implementar o procedimento completo de resp
 }
 \ \\
 // Região de atravessa \\
-\If {\(\lnot\) visível[\(j\)]} {
+\If {Aresta \(j\) de \(P_i\) \(\notin T_i\)} {
 	\Return{} Query(\(p, i - 1\)) // Região de atravessa
 }
 \ \\
@@ -596,9 +603,10 @@ Agora que sabemos como responder consultas do tipo \(\text{Query}(p, i)\), calcu
 
 Pela definição de Query, sabemos que o menor caminho que parte de \(s\), toca todos os polígonos \(P_1, \dots, P_k\) e termina em \(t\) deve ter como penúltimo ponto \(q_k = \text{Query}(t, k)\). Ademais, o caminho que toca os polígonos \(P_1, \dots, P_{k - 1}\) e termina em \(q_k\) deve ter como penúltimo ponto \(q_{k - 1} = \text{Query}(q_k, k - 1)\). Repetindo esse raciocínio, chegamos até o ponto inicial \(s\).
 
-Usando essa lógica e juntando as implementações anteriores em um algoritmo completo, temos:
+Usando essa lógica e juntando as implementações anteriores no algoritmo \algref{CaminhoMínimo}, podemos calcular o caminho mínimo de \(s\) até \(t\) que toca todos os polígonos \(P_1, \dots, P_k\).
 
 \begin{algorithm}
+\alglabel{CaminhoMínimo}
 \caption{CaminhoMínimo(\(s, t, P_1, \dots, P_k\)) \\ Calcula o caminho mínimo de \(s\) até \(t\) que toca todos os polígonos \(P_1, \dots, P_k\)}
 
 \If {\(k = 0\)} {
@@ -642,7 +650,7 @@ Nessa seção, vamos analisar a complexidade do algoritmo completo. Primeirament
 	
 	\item LocalizaRegião(\(P_i\), \(\dots\)): \(O(\log \abs{P_i})\), pois usa busca binária em \(2 \abs{P_i} - 1\) regiões.
 	
-	\item Query\((i, \dots)\): Fazemos no máximo \(i\) chamadas recursivas, cada uma chama LocalizaRegião \(p\) umas vez. Assim, temos a complexidade: 
+	\item Query\((i, \dots)\): Fazemos no máximo \(i\) chamadas recursivas, cada uma chama LocalizaRegião(\(P_i\), \(\dots\)) uma vez. Assim, temos a complexidade: 
 	
 	\[
 		O\parens[\bigg]{\sum_{j = 1}^{i} \log \abs{P_j}}
@@ -653,14 +661,14 @@ Nessa seção, vamos analisar a complexidade do algoritmo completo. Primeirament
 	\[
 		O\parens[\bigg]{\abs{P_i} \sum_{j = 1}^{i} \log \abs{P_j}}
 	\]
-	
-	\item Particiona(\(P_1, \dots, P_n\)): Chamamos ArestasVisíveis para cada polígono \(P_i\), assim, temos:
+
+	\item ConstróiRegiõesDeVértice(\(P_i\), \(\dots\)): Chamamos Query para os \(\abs{P_i}\) vértices de \(P_i\), assim, temos uma complexidade final de:
 	
 	\[
-		O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \log \abs{P_j}}
+		O\parens[\bigg]{\abs{P_i} \sum_{j = 1}^{i} \log \abs{P_j}}
 	\]
 
-	\item CaminhoMínimo: Chamamos Particiona uma única vez e então calculamos o caminho final cuja complexidade é insignificante próximo de Particiona, então a complexidade final é a mesma:
+	\item CaminhoMínimo: Chamamos ArestasVisíveis e ConstróiRegiõesDeVértice para cada polígono \(P_1, \dots, P_k\)e então calculamos o caminho final cuja complexidade é insignificante próximo do primeiro passo, então a complexidade final é:
 
 	\[
 		O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \log \abs{P_j}}
