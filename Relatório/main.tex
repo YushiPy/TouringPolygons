@@ -449,7 +449,7 @@ Verifica se o ponto \(p\) está na região de aresta associada à aresta \(e = (
 \(c_2 \leftarrow w \times d_{\text{next}}\) \\
 
 \If {\(c_1 \le 0 \land c_2 \le 0\)} {
-	\Return{} \((d_{\text{prev}} \times (p - u) \ge 0) \land ((p - u) \times d_{\text{next}} \le 0) \land ((v - u) \times (p - u) \le 0)\)
+	\Return{} \((d_{\text{prev}} \times (p - u) \ge 0) \land (d_{\text{next}} \times (p - u) \le 0) \land ((v - u) \times (p - u) \le 0)\)
 }
 \ElseIf {\(c_1 \le 0 \land c_2 > 0\)} {
 	\Return{} PontoEmVértice(\(p\), \(u\), \(d_{\text{prev}}\), \(u - v\)) \(\lor\) PontoEmVértice(\(p\), \(v\), \(u - v\), \(d_{\text{next}}\))
