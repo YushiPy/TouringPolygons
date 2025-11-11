@@ -419,7 +419,7 @@ Essencialmente existem 4 casos possíveis para uma região de aresta, dependendo
 
 \begin{itemize}
 
-	\item \(c_1 \le 0 \land c_2 \le 0\): Esse é o caso em que temos \textbf{ambas arestas no lado negativo}, que é o caso tradicional que aparece na partição \(S_i\). Nesse caso, verificamos se \(p\) está entre as semi-retas e a aresta \(e\) usando produtos vetoriais.
+	\item \(c_1 \le 0 \land c_2 \le 0\): Esse é o caso em que temos \textbf{ambas arestas no lado negativo}, que é o caso tradicional que aparece na partição \(S_i\). Nesse caso, verificamos se \(p\) está entre as semi-retas e a aresta \((u, v)\) usando produtos vetoriais.
 	
 	\item \(c_1 \le 0 \land c_2 \le 0\): Esse é o caso em que temos \textbf{aresta anterior no lado negativo e aresta posterior no lado positivo}, o \textit{Caso 1} na figura. Nesse caso, dividimos a região de aresta em duas regiões de vértice, definidas por \((u, d_{\text{prev}}, u - v)\) e \((v, u - v, d_{\text{next}})\), então verificamos se o ponto está em qualquer uma das duas.
 	
@@ -440,12 +440,12 @@ Verifica se o ponto \(p\) está na região de aresta associada à aresta \(e = (
 	\Return {} PontoEmVértice(\(p\), \(v\), \(d_{\text{next}}\), \(d_{\text{prev}}\))
 }
 
-\(e \leftarrow v - u\) \\
-\(c_1 \leftarrow d_{\text{prev}} \times e\) \\
-\(c_2 \leftarrow e \times d_{\text{next}}\) \\
+\(w \leftarrow v - u\) \\
+\(c_1 \leftarrow d_{\text{prev}} \times w\) \\
+\(c_2 \leftarrow w \times d_{\text{next}}\) \\
 
 \If {\(c_1 \le 0 \land c_2 \le 0\)} {
-	\Return{} \((d_{\text{prev}} \times (p - u) \ge 0) \land ((p - u) \times d_{\text{next}} \le 0) \land ((v - u) \times (p - u)\)
+	\Return{} \((d_{\text{prev}} \times (p - u) \ge 0) \land ((p - u) \times d_{\text{next}} \le 0) \land ((v - u) \times (p - u) \le 0)\)
 }
 \ElseIf {\(c_1 \le 0 \land c_2 > 0\)} {
 	\Return{} PontoEmVértice(\(p\), \(u\), \(d_{\text{prev}}\), \(u - v\)) \(\lor\) PontoEmVértice(\(p\), \(v\), \(u - v\), \(d_{\text{next}}\))

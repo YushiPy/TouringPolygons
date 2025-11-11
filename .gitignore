@@ -9,6 +9,7 @@
 *.run.xml
 *.toc
 *.synctex.gz
+*.synctex*
 
 # Bibtex
 *.bbl*
