@@ -244,30 +244,49 @@ Ademais, note que cada região de vértice é delimitada por duas semi-retas que
 
 Para cada polígono \(P_i\), definimos \(T_i\) como a \textit{região de primeiro contato} de \(P_i\), ou seja, o conjunto de pontos \(p\) no perímetro de \(P_i\) tais que o \((i - 1)\)-path até \(p\) toca em \(P_i\) pela primeira vez em \(p\). Podemos provar \cite{tpp-dror2003} que \(T_i\) é uma região contínua do perímetro de \(P_i\) e que \(T_i\) é delimitada por vértices de \(P_i\), ou seja, \(T_i\) é a união de uma sequência de arestas consecutivas de \(P_i\). Por esse motivo, chamamos arestas de \(P_i\) que pertencem à \(T_i\) de \textbf{arestas visíveis} e as que não pertencem de \textbf{arestas bloqueadas}.
 
-Essa região é importante, pois apenas as arestas visíveis de \(P_i\) que pertencem à \(T_i\) geram regiões de aresta em \(S_i\), além disso, se um vértice está entre duas arestas bloqueadas, então ele não gera uma região de vértice em \(S_i\).
-
 \begin{wrapfigure}{r}{0.45\textwidth}
 
 	\vspace{-5pt}
 	\centering
-	%\includegraphics[width=0.45\textwidth]{Problem1Images/visibility-test.png}
-	\includegraphics[width=0.45\textwidth]{Problem1Images/out.png}
+	\includegraphics[width=0.45\textwidth]{Problem1Images/visibility-test.png}
 	\caption{Testando aresta para região de primeiro contato.}
 	\label{problem1-visibility-test}
 
 \end{wrapfigure}
 
+Essa região é importante, pois apenas as arestas visíveis de \(P_i\) que pertencem à \(T_i\) geram regiões de aresta em \(S_i\), além disso, se um vértice está entre duas arestas bloqueadas, então ele não gera uma região de vértice em \(S_i\).
+
 Como \(T_i\) é a união de arestas, para determinar quais arestas de \(P_i\) pertencem à \(T_i\), podemos simplesmente iterar sobre as arestas de \(P_i\) e verificar se o \((i - 1)\)-path até um ponto interno qualquer da aresta, por exemplo o ponto médio, chega em \(P_i\) pela primeira vez nesse ponto. Se isso for verdade, então a aresta pertence à \(T_i\), caso contrário, não pertence.
-
-
 
 No entanto, precisamos de uma maneira eficiente de fazer isso para todas as arestas de \(P_i\). Se simplesmente fizermos isso de maneira ingênua, verificando se o segmento entre o último ponto \(q\) do \((i - 1)\)-path até o ponto médio \(m\) da aresta intersecta \(P_i\), teríamos uma complexidade de \(O(\abs{P_i})\) por aresta, resultando em \(O(\abs{P_i} ^ 2)\) para todas as arestas de \(P_i\). 
 
-Felizmente, como \(P_i\) é convexo e suas arestas estão ordenadas em sentido anti-horário, sabemos que o segmento \(\overline{qm}\) toca \(P_i\) pela primeira vez em \(m\) se e somente se o produto vetorial de \(\overrightarrow{uv}=(v-u)\) com \(\overrightarrow{mq}\) for positivo. Usando essa ideia, podemos determinar todas as arestas visíveis de \(P_i\) em tempo \(O(\abs{P_i})\).
+Felizmente, como \(P_i\) é convexo e suas arestas estão ordenadas em sentido anti-horário, sabemos que o segmento \(\overline{qm}\) toca \(P_i\) pela primeira vez em \(m\) se e somente se o produto vetorial de \(\overrightarrow{mv}\) com \(\overrightarrow{mq}\) for positivo. Usando essa ideia, podemos determinar todas as arestas visíveis de \(P_i\) em tempo \(O(1)\) por aresta, totalizando \(O(\abs{P_i})\).
 
 A Figura~\ref{problem1-visibility-test} ilustra essa ideia. Temos o polígono \(P_i\) em azul, os vértices \(u\) e \(v\) em azul, o ponto médio \(m\) da aresta em laranja e 4 pontos \(q_1, q_2, q_3\) e \(q_4\) representando possíveis últimos pontos do \((i - 1)\)-path até \(m\). Note que os segmentos \(\overline{q_1 m}\) e \(\overline{q_2 m}\) passam pela parte interna de \(P_i\), assim, o produto vetorial de \(\overrightarrow{uv}\) com \(\overrightarrow{m q_1}\) e \(\overrightarrow{m q_2}\) é positivo. Já os segmentos \(\overline{q_3 m}\) e \(\overline{q_4 m}\) não passam pela parte interna de \(P_i\), assim, o produto vetorial de \(\overrightarrow{uv}\) com \(\overrightarrow{m q_3}\) e \(\overrightarrow{m q_4}\) é negativo.
 
+Implementamos essa ideia no algoritmo \algref{ArestasVisíveis}, que recebe um polígono \(P_i\) e seu índice \(i\) e retorna uma lista booleana indicando quais arestas de \(P_i\) são visíveis.
 
+\begin{algorithm}
+\alglabel{ArestasVisíveis}
+\caption{ArestasVisíveis(\(P_i\), \(i\)) \\ Determina as arestas visíveis de \(P_i\)}
+
+\(n \leftarrow \abs{P_i}\) // Número de vértices de \(P_i\) \\
+visível \(\leftarrow\) [False] * \(n\) // Inicializa todas as arestas como não visíveis \\
+
+\For {\(j \leftarrow 0\) até \(n - 1\)} {
+	\(u \leftarrow\) \(j\)-ésimo vértice de \(P_i\) \\
+	\(v \leftarrow\) vértice que segue \(u\) em \(P_i\) \\
+	\(m \leftarrow (u + v) / 2\) // ponto médio \\
+	\(q \leftarrow \text{Query}(m, i - 1)\) // penúltimo ponto do \((i - 1)\)-path até \(m\) \\
+	
+	\ \\
+	// Marca a aresta \(j\) como visível se o produto vetorial for negativo \\
+	visível[\(j\)] \(\leftarrow ((v - m) \times (q - m) < 0)\) 
+}
+
+\Return{} visível % Evita math mode desnecessário
+
+\end{algorithm}
 
 \subsubsection{Representado as Partições}
 
@@ -311,27 +330,6 @@ Dizemos que \(e\) é visível se e somente se para todo ponto interno \(p\) de \
 Assim, temos a intuição de pegar o ponto médio \(m\) de \(e\) ou qualquer outro ponto interno de \(e\), calcular o último ponto \(q\) do \(i\)-path até \(m\) e verificar se o segmento \(\overline{qm}\) passa por \(P_i\). No entanto, uma abordagem ingênua para detectar todas as arestas visíveis de $P_i$, testando cada aresta de \(P_i\) individualmente, seria muito lenta, tomando tempo \(O(\abs{P_i} ^ 2)\).
 
 Felizmente, não é necessário implementar um teste eficiente de interseção de segmento e polígono, uma vez que temos a informação adicional de que \(m\) pertence à borda de \(P_i\), mais especificamente à aresta \(e\). Por esse motivo, como \(P_i\) é convexo e suas arestas estão ordenadas em sentido antihorário, sabemos que se o produto interno de \(\overrightarrow{uv}=(v-u)\) com \(\overrightarrow{mq}\) for positivo, então \(\overrightarrow{mq}\) chega em \(m\) pela parte interna de \(P_i\).
-
-\begin{algorithm}
-\caption{ArestasVisíveis(\(P_i\), \(i\)) \\ Determina as arestas visíveis de \(P_i\)}
-
-\(n \leftarrow \abs{P_i}\) // Número de vértices de \(P_i\) \\
-visível \(\leftarrow\) [False] * \(n\) // Inicializa todas as arestas como não visíveis \\
-
-\For {\(j \leftarrow 0\) até \(n - 1\)} {
-	\(u \leftarrow P_i[j]\) // j-ésimo vértice de \(P_i\) \\
-	\(v \leftarrow P_i[j + 1]\) // vértice que segue \(u\), considerando \(P_i[n] = P_i[0]\) \\
-	\(m \leftarrow (u + v) / 2\) // ponto médio \\
-	\(q \leftarrow \text{Query}(m, i - 1)\) // penúltimo ponto do \((i - 1)\)-path até \(m\) \\
-	
-	\ \\
-	// Marca a aresta \(j\) como visível se o produto vetorial for negativo \\
-	visível[\(j\)] \(\leftarrow ((v - u) \times (q - u) < 0)\) 
-}
-
-\Return{} visível % Evita math mode desnecessário
-
-\end{algorithm}
 
 \subsubsection{Construindo Regiões de Vértice}
 
@@ -702,7 +700,7 @@ Outra função extremamente importante para a implementação desse algoritmo é
 
 \begin{enumerate}
 
-	\item \(v \in \mathbb{R} ^ 2 \implies v = (v_1, v_2)\). Vetores são representados como tuplas de coordenadas.
+	\item \(v = (v_1, v_2), v \in \mathbb{R} ^ 2\). Vetores são representados como tuplas de coordenadas.
 
 	\item \(\abs{v} = \sqrt{v_1 ^ 2 + v_2 ^ 2}\). Norma Euclidiana de um vetor.
 
@@ -723,6 +721,12 @@ Outra função extremamente importante para a implementação desse algoritmo é
 
 	\item Dizemos que um ponto \(p\) está do \textbf{lado esquerdo} de uma direção \(d\) se \(d \times p \ge 0\) e do \textbf{lado direito} se \(d \times p \le 0\).
 	
+	\item \(\overline{uv}\): Segmento de reta entre os pontos \(u\) e \(v\).
+	
+	\item \(\overrightarrow{uv} = v - u\). Vetor direcionado do ponto \(u\) até o ponto \(v\).
+	
+	\item \(\abs{P}\). Se \(P\) é um polígono, então \(\abs{P}\) é o número de vértices de \(P\).
+
 \end{enumerate}
 
 \newpage
