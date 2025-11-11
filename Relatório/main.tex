@@ -331,7 +331,6 @@ Implementamos essas ideias nos algoritmos \algref{RefleteDireção} e \algref{Co
 \caption{ConstróiRegiõesDeVértice(\(P_i\)) \\ Constroi as partições do polígono \(P_i\)}
 
 regiões \(\leftarrow\) [] // Lista vazia \\
-visível \(\leftarrow T_i\) \\
 
 \For{\(j \leftarrow 0\) até \(\abs{P_i} - 1\)} {
 
@@ -346,14 +345,14 @@ visível \(\leftarrow T_i\) \\
 	
 	\ \\
 
-	\If{visível[\(j - 1\)]} {
+	\If{Aresta \(j - 1\) de \(P_i\) pertence à \(T_i\)} {
 		\(d_{\text{prev}} \leftarrow \text{Reflete}(d, v_{\text{prev}}, v)\) // reflexão de \(d\) em relação à aresta \((v_{\text{prev}}, v)\)
 	}
 	\Else {
 		\(d_{\text{prev}} \leftarrow d\)
 	}
 	
-	\If{visível[\(j\)]} {
+	\If{Aresta \(j\) de \(P_i\) pertence à \(T_i\)} {
 		\(d_{\text{next}} \leftarrow \text{Reflete}(d, v, v_{\text{next}})\) // reflexão de \(d\) em relação à aresta \((v, v_{\text{next}})\)
 	}
 	\Else {
@@ -581,7 +580,7 @@ Agora podemos usar essas ideias para implementar o procedimento completo de resp
 }
 \ \\
 // Região de atravessa \\
-\If {Aresta \(j\) de \(P_i\) \(\notin T_i\)} {
+\If {Aresta \(j\) de \(P_i\) não pertence à \(T_i\)} {
 	\Return{} Query(\(p, i - 1\)) // Região de atravessa
 }
 \ \\
