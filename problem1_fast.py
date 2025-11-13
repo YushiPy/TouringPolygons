@@ -194,7 +194,7 @@ class Solution:
 			cones = self.cones[i]
 			blocked = self.blocked[i]
 
-			fails: list[int] = [0] * m
+			fails = [0] * m
 
 			for j in range(m):
 
