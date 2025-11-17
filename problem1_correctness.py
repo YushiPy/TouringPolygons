@@ -1,4 +1,5 @@
 
+from collections.abc import Iterable
 import random
 import math
 
@@ -9,7 +10,9 @@ from polygon2 import Polygon2
 from problem1 import Solution
 from problem1_fast import Solution as FastSolution
 
-type TestCase = tuple[Vector2, Vector2, list[Polygon2]]
+type _Vector2 = Iterable[float]
+type _Polygon2 = Iterable[_Vector2]
+type TestCase = tuple[_Vector2, _Vector2, list[_Polygon2]]
 
 def regular_polygon(n: int, r: float, center: Vector2 = Vector2(), angle: float = 0) -> Polygon2:
 	"""
@@ -71,10 +74,12 @@ def make_test(sides: list[int]) -> TestCase:
 	start = get_random_point(0, initial_range=1.0, tries=50)
 	target = get_random_point(0, initial_range=1.0, tries=50)
 
-	return start, target, polygons
+	return start, target, polygons # type: ignore
 
 
 def do_test(test: TestCase) -> bool:
+
+	test = (Vector2(*test[0]), Vector2(*test[1]), [Polygon2(Vector2(*v) for v in poly) for poly in test[2]])
 
 	expected = Solution(*test).solve()
 	actual = FastSolution(*test).solve()
@@ -86,29 +91,37 @@ def do_test(test: TestCase) -> bool:
 
 	return True
 
-def test_suite(name: str, sides_list: list[list[int]]) -> None:
+def test_suite(name: str, test_cases: Iterable[TestCase]) -> None:
 
 	print("	Runnning", name, "tests...", flush=True)
 
-	for i, (sides) in enumerate(sides_list, 1):
-		
-		test = make_test(sides)
-		
+	for test in test_cases:		
 		if not do_test(test):
 			break
-
-		#if i % 10 == 0:
-		#	print(f"		Completed {i} tests...", flush=True)
 	else:
 		print("	✅ All", name, "tests passed!", flush=True)
 
-def test_block(name: str, tests: list[tuple[str, list[list[int]]]]) -> None:
+def test_block(name: str, tests: Iterable[tuple[str, Iterable[TestCase]]]) -> None:
 
 	print(f"{name}:")
 	for subname, sides_list in tests:
 		test_suite(f"{subname}", sides_list)
 
+def random_test_suit(name: str, sides_list: list[list[int]]) -> None:
+	return test_suite(name, map(make_test, sides_list))
+
+def random_test_block(name: str, tests: Iterable[tuple[str, list[list[int]]]]) -> None:
+	return test_block(name, ((subname, map(make_test, sides_list)) for subname, sides_list in tests))
+
 if __name__ == "__main__":
+
+	fixed = [
+		((-2.0, 0.0), (2.0, 0.0), [[(-1.0, 1.0), (1.0, 1.0), (0.0, 2.0)]]),
+	]
+
+	test_block("Fixed", [
+		("Basic", fixed), # type: ignore
+	])
 
 	tests1 = ("Small", [
 		[3], 
@@ -137,7 +150,7 @@ if __name__ == "__main__":
 		[8, 9, 10, 11, 12, 13, 14, 15, 16],
 	])
 
-	test_block("Fixed", [tests1, tests2, tests3])
+	random_test_block("Random 1", [tests1, tests2, tests3])
 
 	small_random = ("Small", [
 		[random.randint(3, 10) for _ in range(random.randint(1, 5))]
@@ -154,4 +167,4 @@ if __name__ == "__main__":
 		for _ in range(50)
 	])
 
-	test_block("Random", [small_random, medium_random, large_random])
+	random_test_block("Random 2", [small_random, medium_random, large_random])

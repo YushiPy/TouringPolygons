@@ -272,9 +272,3 @@ In conclusion, the time complexity is O(n log n) for a fixed number of polygons.
 Furthermore, if we say that all polygons have the same number of vertices m, then the complexity becomes O(k^2 * m * log m), 
 which grows quadratically with the number of polygons.
 """
-
-sol = Solution((-2, 0), (2, 0), [
-	[(-1.0, 1), (1, 1), (0, 2)]
-])
-
-print(sol.solve())
