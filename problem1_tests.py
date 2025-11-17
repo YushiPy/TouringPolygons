@@ -112,10 +112,14 @@ test9 = Drawing(
 )
 """
 
-test1.draw()
-test2.draw()
-test3.draw([1])
-test4.draw()
-test5.draw()
-test6.draw()
-test7.draw()
+#test1.draw()
+#test2.draw()
+#test3.draw([1])
+#test4.draw()
+#test5.draw()
+#test6.draw()
+#test7.draw()
+
+Drawing((-2, 0), (2, 0), [
+	[(-0.9, 1), (1, 1), (0, 2)]
+]).draw()

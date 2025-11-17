@@ -11,7 +11,7 @@ type _Vector2 = Iterable[float]
 type _Polygon2 = Iterable[_Vector2]
 
 
-def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
+def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2, eps: float = 1e-8) -> bool:
 
 	if vertex1.is_close(vertex2):
 		return point_in_cone(point, vertex1, ray1, ray2)
@@ -20,31 +20,29 @@ def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vect
 	p2 = point - vertex2
 	dv = vertex2 - vertex1
 
-	match (dv.cross(ray1) >= 0, dv.cross(ray2) >= 0):
+	if ray1.is_close(ray2):
+		return dv.cross(p1) >= -eps and dv.cross(p2) <= eps
+
+	match (dv.cross(ray1) >= -eps, dv.cross(ray2) >= -eps):
 
 		case (True, True):
-			return ray2.cross(p2) < 0 or ray1.cross(p1) > 0 or dv.cross(p1) < 0
+			return ray2.cross(p2) < eps or ray1.cross(p1) > -eps or dv.cross(p1) < -eps
 
 		case (False, False):
-			return ray1.cross(p1) >= 0 and ray2.cross(p2) <= 0 and dv.cross(p1) <= 0
+			return ray1.cross(p1) >= -eps and ray2.cross(p2) <= eps and dv.cross(p1) <= eps
 
 		case (True, False):
-			return point_in_cone(point, vertex1, ray1, vertex1 - vertex2) or point_in_cone(point, vertex2, vertex1 - vertex2, ray2)
+			return point_in_cone(point, vertex1, ray1, vertex1 - vertex2) or point_in_cone(point, vertex2, vertex1 - vertex2, ray2, eps)
 
 		case (False, True):
-			return point_in_cone(point, vertex1, ray1, vertex2 - vertex1) or point_in_cone(point, vertex2, vertex2 - vertex1, ray2)
+			return point_in_cone(point, vertex1, ray1, vertex2 - vertex1) or point_in_cone(point, vertex2, vertex2 - vertex1, ray2, eps)
 
-	if ray1.cross(ray2) < 0:
-		return not point_in_edge(point, vertex2, vertex1, ray2, ray1)
+def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2, eps: float = 1e-8) -> bool:
 
-	return ray1.cross(point - vertex1) >= 0 and ray2.cross(point - vertex2) <= 0 and (vertex2 - vertex1).cross(point - vertex1) <= 0
+	if ray1.cross(ray2) < -eps:
+		return not point_in_cone(point, vertex, ray2, ray1, eps)
 
-def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
-
-	if ray1.cross(ray2) < 0:
-		return not point_in_cone(point, vertex, ray2, ray1)
-
-	return ray1.cross(point - vertex) >= 0 and ray2.cross(point - vertex) <= 0
+	return ray1.cross(point - vertex) >= -eps and ray2.cross(point - vertex) <= eps
 
 def locate_point(point: Vector2, polygon: Polygon2, cones: Cones) -> int:
 	"""
@@ -63,7 +61,7 @@ def locate_point(point: Vector2, polygon: Polygon2, cones: Cones) -> int:
 		v1 = polygon[i // 2]
 		v2 = polygon[j // 2]
 
-		return point_in_edge(point, v1, v2, ray1, ray2)
+		return point_in_edge(point, v1, v2, ray1, ray2, 0)
 
 	left = 0
 	right = 2 * len(cones) - 1
@@ -274,3 +272,9 @@ In conclusion, the time complexity is O(n log n) for a fixed number of polygons.
 Furthermore, if we say that all polygons have the same number of vertices m, then the complexity becomes O(k^2 * m * log m), 
 which grows quadratically with the number of polygons.
 """
+
+sol = Solution((-2, 0), (2, 0), [
+	[(-1.0, 1), (1, 1), (0, 2)]
+])
+
+print(sol.solve())
