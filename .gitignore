@@ -23,8 +23,11 @@
 *.pyc
 __pycache__
 
+# C++
+*.o
+
 # Test files
-test*.py
+test*
 
 # Special Files
 cronograma.md
