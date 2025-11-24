@@ -35,6 +35,11 @@ times = re.findall(r'Date:\s+(.+)', history)
 
 ts = [datetime.strptime(t, '%a %b %d %H:%M:%S %Y %z') for t in times][::-1]
 
+START_DATE = datetime(2025, 7, 1, tzinfo=ts[0].tzinfo)
+END_DATE = datetime(2025, 11, 20, tzinfo=ts[0].tzinfo)
+
+ts = [t for t in ts if START_DATE <= t <= END_DATE]
+
 diffs1 = [b - a for a, b in zip(ts, ts[1:])]
 diffs2 = [d for d in diffs1 if d <= THRESHOLD_TIME]
 

@@ -177,7 +177,7 @@
 Este relatório apresenta os resultados do projeto de pesquisa desenvolvido na disciplina MAC0215 - Atividade Curricular em Pesquisa (2025), sob a supervisão do Prof. Dr. Ernesto G. Birgin.
 O foco do projeto foi o Problema da Visita de Polígonos (Touring Polygons Problem - TPP), um problema de otimização geométrica que envolve encontrar o caminho mais curto que visita uma sequência de polígonos no plano. Foram exploradas três variações do problema: o TPP Irrestrito, o TPP Restrito com cercas e o TPP com polígonos não convexos.
 
-Foram implementadas soluções corretas para todas as variações propostas, com destaque para a implementação do algoritmo do artigo original de Dror et al. (2003) \cite{tpp-dror2003} para o TPP Irrestrito. Além disso, foi desenvolvida uma ferramenta de visualização que permite ao usuário interagir com os polígonos, cercas e caminhos encontrados, facilitando a compreensão do processo de resolução do problema.
+Nesse relatório, apresentamos uma descrição detalhada do problema, a base bibliográfica que fundamenta nosso trabalho, as implementações realizadas, os resultados obtidos e possíveis melhorias e trabalhos futuros. Também discutimos a alocação de tempo ao longo do projeto, justificando o investimento de ao menos 100 horas de trabalho. Finalmente, concluimos que o projeto foi bem sucedido, cumprindo todas as promessas feitas na proposta inicial e contribuindo para a literatura existente sobre o problema.
 
 \newpage
 
@@ -189,19 +189,17 @@ Foram implementadas soluções corretas para todas as variações propostas, com
 
 Esse projeto de pesquisa teve como objetivo explorar o Problema da Visita de Polígonos (Touring Polygons Problem - TPP), um problema de otimização geométrica que envolve encontrar o caminho mais curto que visita uma sequência de polígonos no plano. O projeto foi desenvolvido ao longo do semestre como parte da disciplina MAC0215 - Atividade Curricular em Pesquisa (2025), sendo supervisionado pelo Prof. Dr. Ernesto G. Birgin.
 
-Nesse relatório, vamos apresentar o problema que estamos resolvendo, discutir a base bibliográfica que fundamenta nosso trabalho, detalhar as implementações realizadas, analisar os resultados obtidos e propor possíveis melhorias e trabalhos futuros. Também vamos dedicar uma seção para discutir como o tempo foi alocado ao longo do projeto, justificando o investimento de ao menos 100 horas de trabalho.
+O trabalho feito envolveu a implementação de soluções para três variações do problema: o TPP Irrestrito, o TPP Restrito com cercas e o TPP com polígonos não convexos. Cada uma dessas variações apresenta desafios únicos e requer abordagens específicas para encontrar soluções eficientes. Além do trabalho de implementar os algoritmos, também desenvolvemos uma ferramenta de visualização para facilitar a compreensão do problema e das soluções encontradas. Toda a implementação foi feita em Python, utilizando apenas as estruturas básicas da linguagem e a biblioteca \textit{Matplotlib} para visualização.
 
-Todo o código desenvolvido para esse projeto está disponível no \hypertarget{repo}{\href{https://github.com/YushiPy/TouringPolygons}{repositório do GitHub}}, onde também é possível encontrar instruções para executar os algoritmos implementados, assim como acompanhar o desenvolvimento gradual do projeto, servindo como evidência do trabalho realizado.
+Todo o código desenvolvido para esse projeto está disponível no \hypertarget{repo}{\href{https://github.com/YushiPy/TouringPolygons}{repositório do GitHub}}, nele é possível encontrar as soluções para as três variações do problema, assim como visualizações do funcionamento das soluções e instruções para executar o código. Também é possível encontrar nossa ferramenta para geração de instâncias do problema e visualização dos resultados. Finalmente, também incluímos um relatório técnico detalhando os aspectos de implementação dos algoritmos, que pode ser útil para quem deseja entender melhor o funcionamento das soluções propostas.
 
-\section{Base Bibliográfica}
+\section{Materiais e Métodos}
 
-Esse problema não é original e foi apresentado pela primeira vez por Dror et al. (2003) \cite{tpp-dror2003}. No entanto, desde então não houve muitos avanços significativos na resolução do problema, e a maioria das soluções propostas ainda se baseia nas ideias apresentadas nesse artigo inicial.
+Primeiramente, tomamos o artigo de Dror et al. (2003) \cite{tpp-dror2003} como base para nosso estudo do Problema da Visita de Polígonos. Esse artigo apresenta os conceitos fundamentais do problema, assim como algoritmos para resolver suas variações. A partir desse artigo, desenvolvemos implementações práticas dos algoritmos propostos, adaptando-os conforme necessário para garantir a corretude e eficiência das soluções. Essa é a principal base teórica para esse problema, com pouca literatura adicional disponível.
 
-Enquanto a tarefa de implementar os algoritmos propostos no artigo de Dror et al. (2003) \cite{tpp-dror2003} pode parecer direta, na prática, a implementação desses algoritmos apresenta desafios significativos, uma vez que o artigo em si é bastante denso e complexo, focando mais na análise teórica e demonstração matemática de corretudo do que na implementação prática, tanto que não incluem pseudocódigo, visualizações ou detalhes de implementação. 
+Em geral, os materiais se resumem ao artigo de Dror et al. (2003) \cite{tpp-dror2003} e o código desenvolvido por nós, disponível no \hyperlink{repo}{repositório do GitHub} associado a esse projeto, que inclui todas as implementações, visualizações e documentação necessária para entender o trabalho realizado. O código foi escrito em Python, utilizando apenas as estruturas básicas da linguagem e a biblioteca \textit{Matplotlib} para visualização.
 
-Por esse motivo, esse projeto propôs desbravar esse problema e artigo, buscando entender as ideias apresentadas e desenvolver implementações práticas dos algoritmos propostos. Dessa forma, podemos reapresentar soluções concretas para o problema, contribuindo para a literatura existente e abrindo caminho para futuras pesquisas e melhorias na área. 
-
-Além disso, também propomos variações do problema original, não cobertas na literatura atual, explorando diferentes restrições e características dos polígonos envolvidos, o que nos permite ampliar o escopo do estudo e contribuir com novas perspectivas para o campo.
+Nossa metodologia foi baseada na implementação dos algoritmos propostos no artigo, traduzindo as ideias teóricas em código prático. Isso envolveu a leitura cuidadosa do artigo, a compreensão dos conceitos apresentados e a adaptação desses conceitos para uma implementação funcional, acompanhado de testes para garantir a corretude das soluções.
 
 \section{O Problema}
 
@@ -286,7 +284,7 @@ No entanto, essa abordagem é extremamente ineficiente, uma vez que frequentemen
 
 Embora não tenhamos conseguido explorar essa variação muito profundamente ainda, a ideia central é tratar o problema como um problema de otimização inteira de uma função quadrática sujeita a restrições lineares. Dessa forma podemos usar técnicas de otimização matemática para otimizar a abordagem inicial, assim como utilizar solvers comerciais para comparar resultados e validar nossa implementação.
 
-\section{Resultados}
+\section{Resultados e Discussões}
 
 Consideramos esse projeto como um sucesso, uma vez que conseguimos implementar soluções corretas para todas as variações do problema que propusemos, permitindo o aprendizado profundo sobre o problema e suas soluções. No entanto, na proposta inicial do projeto, fizemos diversas promessas amplas, assim, vamos discutir cada uma delas e analisar se conseguimos cumprir o que prometemos.
 
@@ -320,8 +318,6 @@ Novamente, embora tenhamos estimado um investimento de 30 horas para esse mês, 
 
 Para o terceiro mês, prometemos explorar soluções para o TPP Irrestrito com polígonos não convexos, mesmo que essas soluções fossem pouco eficientes. De fato, conseguimos cumprir essa promessa, desenvolvendo uma abordagem que decompõe os polígonos não convexos em polígonos convexos e reutiliza a implementação do TPP Irrestrito para encontrar o caminho mínimo.
 
-Ao contrário dos meses anteriores, conseguimos cumprir a estimativa de 30 horas para esse mês, encontrando poucos contratempos durante a implementação e depuração do algoritmo. No entanto, reconhecemos que essa abordagem é extremamente ineficiente, e há muito espaço para melhorias e otimizações futuras.
-
 \subsection{Mês 4}
 
 \begin{blockquote}
@@ -335,6 +331,10 @@ De fato, conseguimos cumprir essa promessa, desenvolvendo uma ferramenta de visu
 Além disso, adicionalmente, investimos tempo extra para melhorar a interface do usuário e adicionar um software extra de geração de instâncias do problema, facilitando a criação de novos casos de teste para o algoritmo, sem que o usuário tenha que digitar manualmente cada coordenada dos polígonos e cercas, podendo simplesmente desenhá-los e visualizar como isso afeta o caminho mínimo encontrado em tempo real.
 
 O tempo investido nessa etapa também acabou sendo consideravelmente maior do que o estimado, uma vez que decidimos adicionar funcionalidades extras e melhorar a experiência do usuário. A implementação também acabou sendo mais desafiadora do que o previsto inicialmente, levando mais tempo para depurar e garantir que tudo funcionasse corretamente. Novamente, os detalhes desse investimento extra serão discutidos na seção de alocação de tempo.
+
+\subsection{Considerações Finais}
+
+Consideramos que conseguimos cumprir todas as promessas feitas na proposta inicial do projeto, desenvolvendo soluções corretas para todas as variações do problema que propusemos, assim como uma ferramenta de visualização funcional e intuitiva. Embora o tempo investido em cada etapa tenha sido maior do que o previsto inicialmente, acreditamos que esse investimento extra foi justificado, permitindo-nos compreender profundamente o problema e desenvolver implementações robustas e eficientes.
 
 \section{Trabalhos Futuros}
 
@@ -356,7 +356,7 @@ Quaisquer avanços podem ser acompanhados no mesmo \hyperlink{repo}{repositório
 
 \section{Alocação de Tempo}
 
-Como requisito para a aprovação na disciplina MAC0215 - Atividade Curricular em Pesquisa, é necessário comprovar um investimento de ao menos 100 horas de trabalho no projeto. A seguir, vamos detalhar como esse tempo foi alocado ao longo do semestre, justificando o investimento realizado.
+Como requisito para a aprovação na disciplina MAC0215 - Atividade Curricular em Pesquisa, é necessário comprovar um investimento de ao menos 100 horas de trabalho no projeto. A seguir, vamos detalhar como esse tempo foi alocado ao longo do semestre, justificando o investimento realizado. Para a análise a seguir, vamos considerar que o projeto teve início em \textbf{1 de agosto} e terminou em \textbf{30 de novembro}, totalizando cerca de 4 meses de trabalho, ou seja, um semestre acadêmico típico.
 
 Primeiramente, seria possível que simplesmente disséssemos que uma certa quantia de horas foi investida em cada mês, mas essa métrica é muito vaga e não reflete o esforço real investido no projeto. Por esse motivo, desenvolvemos uma métrica objetiva para medir o tempo investido, baseada nos múltiplos \textit{commits} realizados no \hyperlink{repo}{repositório} ao longo do projeto.
 
@@ -372,13 +372,13 @@ Essa abordagem é um tanto conservadora, uma vez que sempre ignora o tempo inves
 
 \subsection{Tempo Investido em Commits}
 
-Uma vez que definimos nossa métrica para medir o tempo investido no projeto, podemos aplicar essa métrica aos mais de 200 \textit{commits} realizados ao longo do semestre, obtendo um total de aproximadamente 100 horas de trabalho investidas no projeto, o que excede o requisito mínimo de 100 horas para aprovação na disciplina.
+Uma vez que definimos nossa métrica para medir o tempo investido no projeto, podemos aplicar essa métrica aos mais de 250 \textit{commits} realizados ao longo do semestre, obtendo um total de aproximadamente 100 horas de trabalho investidas no projeto, o que excede o requisito mínimo de 100 horas para aprovação na disciplina.
 
 \begin{wrapfigure}{r}{0.60\textwidth}
 	\centering
 	\vspace{-10pt}
 	\includegraphics[width=0.59\textwidth]{time_on_commits.png}
-	\caption{Tempo investido ao longo do projeto, medido em horas ao longo do tempo.}
+	\caption{Tempo investido ao longo do projeto, medido em horas ao longo dos meses.}
 	\label{time-on-commits}
 \end{wrapfigure}
 
@@ -399,17 +399,35 @@ Na seção anterior, já observamos que mais de 100 horas foram investidas exclu
 	\item \textbf{Estudo}: Investimos tempo significativo estudando o tema do TPP, compreendendo os conceitos fundamentais, analisando o artigo original \cite{tpp-dror2003} e buscando artigos relacionados para aprofundar nosso entendimento do problema.
 	
 	\item \textbf{Reuniões com o Orientador}: Realizamos diversas reuniões com o Prof. Dr. Ernesto G. Birgin ao longo do semestre, discutindo o andamento do projeto, esclarecendo dúvidas, recebendo feedback e orientações, e planejando as próximas etapas do trabalho. Foram aproximadamente 8 reuniões, com duração média de 2 horas cada, totalizando cerca de 16 horas investidas em reuniões.
-
-	\item \textbf{Redação do Relatório Final e Vídeo de Apresentação}: Investimos tempo significativo na redação do relatório final desse projeto, assim como na criação do vídeo de apresentação, incluindo a revisão, formatação e geração das figuras apresentadas.
-	
-	\item \textbf{Proposta para a Fapesp}: Investimos tempo na criação e submissão da proposta de projeto para a Fapesp, incluindo planejamento, redação, revisão e reuniões com o orientador para discutir e aprimorar a proposta, além do tempo para conseguir os documentos necessários para a submissão. Esse processo foi repetido para a reconsideração.
-
 	
 	\item \textbf{Participação no SIICUSP}: Participamos do SIICUSP 34, um evento da USP onde apresentamos o projeto para tanto alunos quanto professores do instituto. Esse evento exigiu tempo significativo de preparação, incluindo a criação de um pôster, slides, preparação de uma apresentação oral e prática para garantir que estivéssemos prontos para apresentar o trabalho de forma clara e concisa, além das horas ativamente apresentando o trabalho para os interesados.
 
 \end{itemize}
 
 Enquanto não conseguimos quantificar exatamente o tempo investido nessas atividades adicionais, acreditamos que o tempo total investido no projeto, considerando tanto os \textit{commits} quanto essas outras atividades, excede confortavelmente o requisito mínimo de 100 horas para aprovação na disciplina MAC0215 - Atividade Curricular em Pesquisa.
+
+\subsection{Resumo da Alocação de Tempo}
+
+Levando em consideração tanto o tempo investido em \textit{commits} quanto o tempo investido em outras atividades relacionadas ao projeto, podemos resumir a alocação de tempo ao longo do semestre da seguinte forma:
+
+% Label: Mês 1, M6es 2
+\begin{itemize}
+
+	\item Mês 1: Aproximadamente 40 horas, considerando aproximadamente 30 horas em \textit{commits} e mais 10 horas entre estudo, planejamento e reuniões. Esse mês serviu principalmente para implementar o TPP Irrestrito e criar uma base sólida de código para as etapas seguintes.
+
+	\item Mês 2: Aproximadamente 30 horas, considerando aproximadamente 15 horas em \textit{commits} e mais 15 horas entre estudo, planejamento e reuniões. Esse mês foi focado na implementação do TPP Restrito, adaptando e estendendo o código desenvolvido anteriormente, uma quantidade consideravelmente maior de tempo foi investido em estudo e planejamento, devido à dificuldade dessa variação do problema, que não foi tão bem detalhada no artigo original.
+	
+	\item Mês 3: Aproximadamente 10 horas, considerando pouco tempo registrado em \textit{commits} e mais tempo investido na preparação para o SIICUSP, estudo e planejamento. Esse mês teve menor atividade em geral, devido ao hiato mencionado anteriormente.
+	
+	\item Mês 4: Aproximadamente 80 horas, considerando aproximadamente 70 horas em \textit{commits} e mais 10 horas entre estudo, planejamento, reuniões e preparação para o SIICUSP. Esse mês foi focado na exploração do TPP Irrestrito com polígonos não convexos, desenvolvimento da ferramenta de visualização e otimização da solução para o TPP Irrestrito. 
+	
+	Esse mês teve um investimento de tempo consideravelmente maior do que os meses anteriores, refletindo o esforço concentrado para concluir o projeto. No entanto, também obervamos que o tempo foi majoritariamente investido em \textit{commits}, uma vez que a base teórica do problema já havia sido compreendida nos meses anteriores, permitindo que o foco fosse na implementação e desenvolvimento prático do projeto.
+
+\end{itemize}
+
+Obervamos que a alocação de tempo final difere do esperado inicialmente, com um investimento de tempo consideravelmente maior do que o previsto, especialmente no último mês. No entanto, acreditamos que esse investimento extra foi justificado, permitindo-nos compreender profundamente o problema e desenvolver implementações robustas e eficientes.
+
+Levando em consideração todos esses fatores, acreditamos que o tempo total investido no projeto excede confortavelmente o requisito mínimo de 100 horas para aprovação na disciplina MAC0215 - Atividade Curricular em Pesquisa.
 
 \section{Conclusão}
 
