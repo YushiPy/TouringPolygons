@@ -4,23 +4,38 @@
 class Vector2 {
 
 	public:
-	double x, y;
+	/*The vector's X component. Also accessible by using the index position `[0]`.*/
+	double x = 0.0;
+	/*The vector's Y component. Also accessible by using the index position `[1]`.*/
+	double y = 0.0;
 
 	enum Axis {
+		/*Enumerated value for the X axis. Returned by `max_axis_index()` and `min_axis_index()`.*/
 		AXIS_X,
+		/*Enumerated value for the Y axis. Returned by `max_axis_index()` and `min_axis_index()`.*/
 		AXIS_Y,
 	};
 
+	/*Zero vector, a vector with all components set to `0`.*/
 	static const Vector2 ZERO;
+	/*One vector, a vector with all components set to `1`.*/
 	static const Vector2 ONE;
+	/*Infinity vector, a vector with all components set to `INFINITY`.*/
 	static const Vector2 INF;
+	/*Left unit vector. Represents the direction of left.*/
 	static const Vector2 LEFT;
+	/*Right unit vector. Represents the direction of right.*/
 	static const Vector2 RIGHT;
+	/*Up unit vector. Y is down in 2D, so this vector points -Y.*/
 	static const Vector2 UP;
+	/*Down unit vector. Y is down in 2D, so this vector points +Y.*/
 	static const Vector2 DOWN;
 
+	/*Constructs a default-initialized Vector2 with all components set to 0.*/
 	Vector2();
+	/*Constructs a Vector2 as a copy of the given Vector2.*/
 	Vector2(const Vector2& from);
+	/*Constructs a new Vector2 from the given `x` and `y`.*/
 	Vector2(double x, double y);
 
 	Vector2 abs() const;
