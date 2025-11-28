@@ -38,13 +38,27 @@ class Vector2 {
 	/*Constructs a new Vector2 from the given `x` and `y`.*/
 	Vector2(double x, double y);
 
+	/*Returns a new vector with all components in absolute values (i.e. positive).*/
 	Vector2 abs() const;
+	/*Returns this vector's angle with respect to the positive X axis, or `(1, 0)` vector, in radians. 
+	Equivalent to `atan2(y, x)`. 
+	[Illustration of returned angle](https://raw.githubusercontent.com/godotengine/godot-docs/master/img/vector2_angle.png).*/
 	double  angle() const;
+	/*Returns the signed angle to the given vector, in radians.
+	[Illustration of returned angle](https://raw.githubusercontent.com/godotengine/godot-docs/master/img/vector2_angle_to.png).*/
 	double  angle_to(const Vector2 &to) const;
+	/*Returns the angle between the line connecting the two points and the X axis, in radians. 
+	`a.angle_to_point(b)` is equivalent of doing `(b - a).angle()`.
+	[Illustration of returned angle](https://raw.githubusercontent.com/godotengine/godot-docs/master/img/vector2_angle_to_point.png).*/
 	double  angle_to_point(const Vector2 &point) const;
+	/*Returns the aspect ratio of this vector, the ratio of `x` to `y`.*/
 	double  aspect() const;
+	/*Returns the derivative at the given `t` on the [Bézier curve](https://en.wikipedia.org/wiki/Bézier_curve) defined by this vector and the given `control_1`, `control_2`, and `end` points.*/
 	Vector2 bezier_derivative(const Vector2 &control_1, const Vector2 &control_2, const Vector2 &end, double t) const;
+	/*Returns the point at the given t on the [Bézier curve](https://en.wikipedia.org/wiki/Bézier_curve) defined by this vector and the given control_1, control_2, and end points.*/
 	Vector2 bezier_interpolate(const Vector2 &control_1, const Vector2 &control_2, const Vector2 &end, double t) const;
+	/*Returns the vector "bounced off" from a line defined by the given `normal` perpendicular to the line.
+	Note: `bounce()` performs the operation that most engines and frameworks call `reflect()`.*/
 	Vector2 bounce(const Vector2 &normal) const;
 	Vector2 ceil() const;
 	Vector2 clamp(const Vector2 &min, const Vector2 &max) const;
