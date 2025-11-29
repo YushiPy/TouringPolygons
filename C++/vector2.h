@@ -194,17 +194,62 @@ class Vector2 {
 	/*Alias of `snapped(step)`*/
 	Vector2 snappedf(double step) const;
 
-	bool    operator!=(const Vector2& other) const;
-	bool    operator==(const Vector2& other) const;
-	bool    operator<(const Vector2& other) const;
-	bool    operator<=(const Vector2& other) const;
-	bool    operator>(const Vector2& other) const;
-	bool    operator>=(const Vector2& other) const;
+	/*
+	Returns `true` if the vectors are not equal.
+
+	Note: Due to floating-point precision errors, consider using `is_equal_approx()` instead, which is more reliable.
+
+	Note: Vectors with `NAN` elements don't behave the same as other vectors. Therefore, the results from this operator may not be accurate if NaNs are included.
+	*/
+	bool    operator!=(const Vector2& right) const;
+	/*
+	Returns `true` if the vectors are exactly equal.
+
+	Note: Due to floating-point precision errors, consider using `is_equal_approx()` instead, which is more reliable.
+
+	Note: Vectors with `NAN` elements don't behave the same as other vectors. Therefore, the results from this operator may not be accurate if NaNs are included.
+	*/
+	bool    operator==(const Vector2& right) const;
+	/*
+	Compares two Vector2 vectors by first checking if the X value of the left vector is less than the X value of the `right` vector. If the X values are exactly equal, then it repeats this check with the Y values of the two vectors. This operator is useful for sorting vectors.
+
+	Note: Vectors with @GDScript.NAN elements don't behave the same as other vectors. Therefore, the results from this operator may not be accurate if NaNs are included.
+	*/
+	bool    operator<(const Vector2& right) const;
+	/*
+	Compares two Vector2 vectors by first checking if the X value of the left vector is less than or equal to the X value of the `right` vector. If the X values are exactly equal, then it repeats this check with the Y values of the two vectors. This operator is useful for sorting vectors.
+
+	Note: Vectors with `NAN` elements don't behave the same as other vectors. Therefore, the results from this operator may not be accurate if NaNs are included.
+	*/
+	bool    operator<=(const Vector2& right) const;
+	/*
+	Compares two Vector2 vectors by first checking if the X value of the left vector is greater than the X value of the `right` vector. If the X values are exactly equal, then it repeats this check with the Y values of the two vectors. This operator is useful for sorting vectors.
+
+	Note: Vectors with `NAN` elements don't behave the same as other vectors. Therefore, the results from this operator may not be accurate if NaNs are included.
+	*/
+	bool    operator>(const Vector2& right) const;
+	/*
+	Compares two Vector2 vectors by first checking if the X value of the left vector is greater than or equal to the X value of the `right` vector. If the X values are exactly equal, then it repeats this check with the Y values of the two vectors. This operator is useful for sorting vectors.
+
+	Note: Vectors with `NAN` elements don't behave the same as other vectors. Therefore, the results from this operator may not be accurate if NaNs are included.
+	*/
+	bool    operator>=(const Vector2& right) const;
+	/*Access vector components using their index. `v[0]` is equivalent to `v.x`, and `v[1]` is equivalent to `v.y`.*/
 	double  operator[](int index) const;
-	Vector2 operator+(const Vector2& other) const;
-	Vector2 operator-(const Vector2& other) const;
+	/*Adds each component of the Vector2 by the components of `right`*/
+	Vector2 operator+(const Vector2& right) const;
+	/*Subtracts each component of the Vector2 by the components of `right`*/
+	Vector2 operator-(const Vector2& right) const;
+	/*Multiplies each component of the Vector2 by the components of the given Vector2.*/
+	Vector2 operator*(const Vector2& right) const;
+	/*Multiplies each component of the Vector2 by the given `scalar`*/
 	Vector2 operator*(double scalar) const;
+	/*Divides each component of the Vector2 by the components of the given Vector2.*/
+	Vector2 operator/(const Vector2& right) const;
+	/*Divides each component of the Vector2 by `scalar`.*/
 	Vector2 operator/(double scalar) const;
+	/*Returns the same value as if the `+` was not there. Unary `+` does nothing, but sometimes it can make your code more readable.*/
 	Vector2 operator+() const;
+	/*Returns the negative value of the Vector2. This is the same as writing `Vector2(-v.x, -v.y)`. This operation flips the direction of the vector while keeping the same magnitude. With floats, the number zero can be either positive or negative.*/
 	Vector2 operator-() const;
 };
