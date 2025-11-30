@@ -160,7 +160,7 @@ class Vector2 {
 	Vector2 limit_length(double length = 1.0) const;
 	/*Returns the component-wise maximum of `this` and `with`, equivalent to `Vector2(max(x, with.x), max(y, with.y))`.*/
 	Vector2 max(const Vector2 &with) const;
-	/*Returns the component-wise maximum of `this` and `with`, equivalent to `Vector2(maxf(x, with), maxf(y, with))`.*/
+	/*Returns the component-wise maximum of `this` and `with`, equivalent to `Vector2(max(x, with), max(y, with))`.*/
 	Vector2 max(double with) const;
 	/*Returns the axis of the vector's highest value. See `AXIS_*` constants. If all components are equal, this method returns `AXIS_X`.*/
 	Axis    max_axis_index() const;
@@ -176,8 +176,11 @@ class Vector2 {
 	Vector2 minf(double with) const;
 	/*Returns a new vector moved toward `to` by the fixed `delta` amount. Will not go past the final value.*/
 	Vector2 move_toward(const Vector2 &to, double delta) const;
-	/*Returns the result of scaling the vector to unit length. Equivalent to `v / v.length()`. Returns `(0, 0)` if `v.length() == 0`. See also `is_normalized()`.
 
+	/*Scales the vector to unit length. Equivalent to `v /= v.length()`. Returns `(0, 0)` if `v.length() == 0`. See also `is_normalized()`.*/
+	void normalize();
+	/*Returns the result of scaling the vector to unit length. Equivalent to `v / v.length()`. Returns `(0, 0)` if `v.length() == 0`. See also `is_normalized()`.
+	
 	Note: This function may return incorrect values if the input vector length is near zero.*/
 	Vector2 normalized() const;
 	/*Returns a perpendicular vector rotated 90 degrees counter-clockwise compared to the original, with the same length.*/
@@ -202,6 +205,8 @@ class Vector2 {
 	Vector2 rotated(double angle) const;
 	/*Returns a new vector with all components rounded to the nearest integer, with halfway cases rounded away from zero.*/
 	Vector2 round() const;
+	/*Returns a new vector with all components rounded to the given number of `decimals`.*/
+	Vector2 round(int decimals) const;
 	/*Returns a new vector with each component set to `1.0` if it's positive, `-1.0` if it's negative, and `0.0` if it's zero. The result is identical to calling `sign()` on each component.*/
 	Vector2 sign() const;
 	/*
@@ -281,4 +286,22 @@ class Vector2 {
 	Vector2 operator+() const;
 	/*Returns the negative value of the Vector2. This is the same as writing `Vector2(-v.x, -v.y)`. This operation flips the direction of the vector while keeping the same magnitude. With floats, the number zero can be either positive or negative.*/
 	Vector2 operator-() const;
+
+	/*Adds in place each component of the Vector2 by the components of `right`*/
+	void operator+=(const Vector2& right);
+	/*Subtracts in place each component of the Vector2 by the components of `right`*/
+	void operator-=(const Vector2& right);
+	/*Multiplies in place each component of the Vector2 by the components of the given Vector2.*/
+	void operator*=(const Vector2& right);
+	/*Multiplies in place each component of the Vector2 by the given `scalar`*/
+	void operator*=(double scalar);
+	/*Divides in place each component of the Vector2 by the components of the given Vector2.*/
+	void operator/=(const Vector2& right);
+	/*Divides in place each component of the Vector2 by `scalar`.*/
+	void operator/=(double scalar);
 };
+
+/*Multiplies each component of the Vector2 by the given `scalar`*/
+Vector2 operator*(double scalar, const Vector2 &vector);
+
+Vector2 operator/(double scalar, const Vector2 &vector);
