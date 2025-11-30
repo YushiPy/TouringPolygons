@@ -568,17 +568,9 @@ Vector2 operator/(double scalar, const Vector2 &vector) {
 	);
 }
 
-// Make Vector2 usable with std::print
-
-
-#include <print>
-
-int main() {
-
-	Vector2 v1(3.0, 4.0);
-	Vector2 v2(1.0, 2.0);
-
-	std::print("Distance from v1 to v2: {}\n", v1.distance_to(v2));
-	std::print("Normalized v1: ({}, {})\n", v1.normalized().x, v1.normalized().y);
-	return 0;
+std::ostream& operator<<(std::ostream& os, const Vector2& v) {
+	os << std::format("Vector2({}, {})", v.x, v.y);
+	return os;
 }
+
+#undef CMP_EPSILON

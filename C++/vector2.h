@@ -30,6 +30,10 @@
 
 #pragma once
 
+#include <ostream>
+#include <format>
+
+
 class Vector2 {
 
 	public:
@@ -305,3 +309,19 @@ class Vector2 {
 Vector2 operator*(double scalar, const Vector2 &vector);
 
 Vector2 operator/(double scalar, const Vector2 &vector);
+
+std::ostream& operator<<(std::ostream& os, const Vector2& v);
+
+template<>
+struct std::formatter<Vector2> : std::formatter<double> {
+	auto format(const Vector2& v, std::format_context& ctx) const {
+		// reusing the base formatter for doubles ensures format specifiers like
+		// {:.2f} or {:>10} work for each coordinate.
+		auto out = ctx.out();
+		out = std::format_to(out, "Vector2(");
+		out = std::formatter<double>::format(v.x, ctx);
+		out = std::format_to(out, ", ");
+		out = std::formatter<double>::format(v.y, ctx);
+		return std::format_to(out, ")");
+	}
+};
