@@ -84,6 +84,8 @@
 
 \definecolor{lightgray}{RGB}{240,240,240}
 
+\newenvironment{blank}{}{} % Blank enviroment for folding sections in editors
+
 \newenvironment{blockQuote}[1][lightgray]{\begin{mdframed}[
 	leftline=true,
 	topline=false,
@@ -196,13 +198,36 @@ Em diferentes contextos, como robótica, planejamento de rotas e gráficos compu
 
 \newpage
 
-\begin{description}[labelsep=1em, leftmargin=3em]
-	\item[$\mathbb{R}$] The set of real numbers.
-	\item[$n$] The size of the input.
-	\item[$f : \mathbb{R}^n \to \mathbb{R}$] A function mapping an $n$-dimensional vector to a real value.
-	\item[$\nabla f(x)$] The gradient of $f$ at the point $x$.
-	\item[$\|x\|$] The Euclidean norm of the vector $x$.
-\end{description}
+\section*{Notações}
+
+\vspace{0.5cm}
+
+% Increase spacing between rows
+
+\begin{blank}
+
+\setlength{\extrarowheight}{2pt}
+
+\begin{tabular}{>{$}l<{$} @{\hspace{1.5em}} p{0.7\linewidth} l}
+	v = (v_1, v_2) & Representação de vetores em \(\mathbb{R} ^ 2\) como tupla de coordenadas reais. \\
+	\|{v}\| = \sqrt{v_1 ^ 2 + v_2 ^ 2} & Norma Euclidiana de um vetor. \\
+	\anglebrackets{u, v} = u_1 v_1 + u_2 v_2 & Produto interno definido como produto escalar de vetores. \\
+	u \times v = u_1 v_2 - u_2 v_1 & Produto vetorial definido como determinante 2D, retornando um escalar. Essa definição tem a seguinte propriedade:
+	\[
+		\text{sign}(u \times v) =
+		\begin{cases}
+			+1, & \text{se o ângulo no sentido \textbf{anti-horário} entre } u \text{ e } v \text{ é menor que } 180 ^ \circ \\
+			-1, & \text{se o ângulo no sentido \textbf{horário} entre } u \text{ e } v \text{ é menor que } 180 ^ \circ \\
+			0, & u \text{ e } v \text{ colineares} \\
+		\end{cases}
+	\]\\
+	
+	\overline{uv} & Segmento de reta entre os pontos \(u\) e \(v\). \\
+	\overrightarrow{uv} = v - u & Vetor direcionado do ponto \(u\) até o ponto \(v\). \\
+	\abs{P} & Se \(P\) é um polígono, então \(\abs{P}\) é o número de vértices de \(P\). \\
+\end{tabular}
+
+\end{blank}
 
 \clearpage
 \pagenumbering{arabic}
@@ -214,8 +239,6 @@ Este relatório descreve a implementação e os resultados obtidos na resoluçã
 Recomendamos a leitura do paper original para uma compreensão mais profunda dos conceitos e das provas por trás dos algoritmos apresentados aqui. Também é importante notar que este relatório não cobre todos os detalhes do paper, mas sim uma visão geral e a implementação prática dos algoritmos.
 
 O código implementado pode ser encontrado no \href{https://github.com/YushiPy/TouringPolygons}{repositório GitHub}, contendo scripts em \textit{Python} para resolver ambos os casos do problema.
-
-Finalmente, recomendamos a leitura do Apêndice \ref{sec:appendixA} para entender as notações usadas ao longo do relatório.
 
 \section{O Problema de Visita de Polígonos Irrestrito}
 
@@ -737,40 +760,6 @@ Outra função extremamente importante para a implementação desse algoritmo é
 
 \newpage
 \appendix
-
-\section{Notações}
-\label{sec:appendixA}
-
-\begin{enumerate}
-
-	\item \(v = (v_1, v_2), v \in \mathbb{R} ^ 2\). Vetores são representados como tuplas de coordenadas.
-
-	\item \(\abs{v} = \sqrt{v_1 ^ 2 + v_2 ^ 2}\). Norma Euclidiana de um vetor.
-
-	\item \(\anglebrackets{u, v} = u_1 v_1 + u_2 v_2\). Produto interno definido como produto escalar de vetores.
-
-	\item \(u \times v = u_1 v_2 - u_2 v_1\). Produto vetorial definido como determinante 2D, retornando um escalar. Essa definição tem a seguinte propriedade:
-
-	\[
-		\text{sign}(u \times v) =
-		\begin{cases}
-			+1, & \text{se ângulo no sentido anti-horário entre } u \text{ e } v \text{ é menor que } 180 ^ \circ \\
-			-1, & \text{se ângulo no sentido horário entre } u \text{ e } v \text{ é menor que } 180 ^ \circ \\
-			0, & \text{se } u \text{ e } v \text{ são colineares} \\
-		\end{cases}
-	\]
-	
-	Pode-se interpretar \(u \times v\) como a área do paralelogramo formado por \(u\) e \(v\), onde o sinal indica a orientação.
-
-	\item Dizemos que um ponto \(p\) está do \textbf{lado esquerdo} de uma direção \(d\) se \(d \times p \ge 0\) e do \textbf{lado direito} se \(d \times p \le 0\).
-	
-	\item \(\overline{uv}\): Segmento de reta entre os pontos \(u\) e \(v\).
-	
-	\item \(\overrightarrow{uv} = v - u\). Vetor direcionado do ponto \(u\) até o ponto \(v\).
-	
-	\item \(\abs{P}\). Se \(P\) é um polígono, então \(\abs{P}\) é o número de vértices de \(P\).
-
-\end{enumerate}
 
 \newpage
 \printbibliography
