@@ -80,6 +80,7 @@
 \usepackage{enumitem}
 
 \usepackage{cleveref}
+\usepackage{desclist}
 
 \definecolor{lightgray}{RGB}{240,240,240}
 
@@ -132,6 +133,8 @@
 
 \begin{document}
 
+\pagenumbering{roman}
+
 \begin{titlepage}
 
 \begin{center}
@@ -181,9 +184,28 @@
 
 \newpage
 
+\begin{center}
+	\textbf{\LARGE Resumo}
+\end{center}
+
+Em diferentes contextos, como robótica, planejamento de rotas e gráficos computacionais, surge a necessidade de encontrar caminhos eficientes que visitem uma série de regiões ou objetos no espaço. O Problema da Visita de Polígonos (TPP) é um problema clássico de otimização geométrica que busca determinar o caminho mais curto que visita uma sequência de polígonos convexos disjuntos em um plano. No presente trabalho se apresentam algoritmos para resolver o TPP em dois cenários distintos: o TPP Irrestrito, onde o caminho pode atravessar os polígonos, e o TPP Restrito, onde o caminho deve contornar os polígonos sem atravessá-los. Baseando-se no trabalho seminal de Dror et al. (2003), este relatório detalha a implementação prática dos algoritmos propostos, destacando suas complexidades computacionais e estratégias de otimização. Além disso, são apresentados resultados experimentais que ilustram a eficácia dos algoritmos em diferentes configurações de entrada. O código-fonte desenvolvido está disponível em um repositório público, facilitando a reprodução dos resultados e a exploração adicional do problema.
+
+\newpage
+
 \tableofcontents
 
 \newpage
+
+\begin{description}[labelsep=1em, leftmargin=3em]
+	\item[$\mathbb{R}$] The set of real numbers.
+	\item[$n$] The size of the input.
+	\item[$f : \mathbb{R}^n \to \mathbb{R}$] A function mapping an $n$-dimensional vector to a real value.
+	\item[$\nabla f(x)$] The gradient of $f$ at the point $x$.
+	\item[$\|x\|$] The Euclidean norm of the vector $x$.
+\end{description}
+
+\clearpage
+\pagenumbering{arabic}
 
 \section{Introdução}
 
@@ -197,30 +219,30 @@ Finalmente, recomendamos a leitura do Apêndice \ref{sec:appendixA} para entende
 
 \section{O Problema de Visita de Polígonos Irrestrito}
 
-Vamos tomar como base a implementação do algoritmo de Mitchell para o problema irrestrito que fizemos em \textit{Python}. O código pode ser encontrado no arquivo \texttt{TouringPolygons/problem1.py}.
+Primeiramente vamos considerar o caso do Problema de Visita de Polígonos Irrestrito (TPP Irrestrito), onde não vamos impor restrições sobre o caminho que visita os polígonos. Esse problema foi originalmente descrito por Dror et al. (2003) \cite{tpp-dror2003}, que propuseram um algoritmo com complexidade \(O(n k \log(n / k))\) para resolver o problema, onde \(n\) é o número total de vértices dos polígonos e \(k\) é o número de polígonos. Buscamos apresentar uma versão prática desse algoritmo, focando no entendimento e implementação. O problema em si pode ser enunciado da seguinte maneira:
 
-\subsection{Definindo o Problema}
+\begin{blockQuote}
+	Dados dois pontos \(s, t \in \mathbb{R}^2\) e uma sequência de polígonos convexos disjuntos \(P_1, P_2, \ldots, P_k\), encontrar o caminho de menor comprimento que se inicia em \(s\), termina em \(t\) e toca cada polígono \(P_i\) em ordem em pelo menos um ponto, podendo atravessá-los.
+\end{blockQuote}
 
 \begin{wrapfigure}{r}{0.40\textwidth}
 	\centering
-	\vspace{-10pt}
 	\includegraphics[width=0.39\textwidth]{Problem1Images/solution.png}
 	\caption{Caminho mínimo para um caso de 3 polígonos.}
 	\label{problem1-solution}
 \end{wrapfigure}
 
-Considere o seguinte problema: dados dois pontos \(s, t \in \mathbb{R}^2\) e uma sequência de polígonos convexos disjuntos \(P_1, P_2, \ldots, P_k\), encontrar o caminho de menor comprimento que se inicia em \(s\), termina em \(t\) e toca cada polígono \(P_i\) em pelo menos um ponto, podendo atravessá-los.
-
 A Figura~\ref{problem1-solution} ilustra um exemplo de entrada e a solução ótima para o problema para um caso com 3 polígonos. Temos \(s\) como o \textcolor[RGB]{0,128,0}{ponto verde}, \(t\) como o \textcolor[RGB]{255, 0, 0}{ponto vermelho} e os polígonos \(P_1, P_2\) e \(P_3\) como o \textcolor[RGB]{76, 146, 195}{triângulo azul}, o \textcolor[RGB]{255, 152, 62}{trapézio laranja} e o \textcolor[RGB]{86, 179, 86}{pentágono verde}, respectivamente. O caminho mínimo é representado pela \textcolor[RGB]{145, 41, 145}{linha roxa}.
 % como o ponto verde, \(t\) como o ponto vermelho e os polígonos \(P_1, P_2\) e \(P_3\) como o triângulo azul, o trapézio laranja e o pentágono verde, respectivamente. O caminho mínimo é representado pela linha roxa.
 
-Retomando o paper, definimos um \(i\)-path até \(p\) como um caminho mínimo que começa em \(s\), encosta em cada um dos polígonos \(P_1, P_2, \ldots, P_i\) e termina em \(p\). Note que nosso objetivo é encontrar um \(k\)-path até \(t\). Enquanto não vamos entrar em detalhes, todo \(i\)-path é único.
 
-A função central desse algoritmo será a função \(\text{Query}(p, i)\), que recebe um ponto \(p\) e um índice \(i\) e retorna o penúltimo ponto \(q\) do \(i\)-path até \(p\) (ou seja, o ponto imediatamente anterior à \(p\) nesse caminho). 
+No contexto de otimização geométrica, muitos problemas similares podem ser resolvidos usando uma técnica geral de computar um \textit{mapa de caminho mínimo}, que particiona o plano em regiões onde o comportamento do caminho mínimo é o mesmo. Para o nosso problema, qualquer solução deve tocar cada polígono \(P_i\) pela primeira vez em algum vértice ou aresta, assim, poderíamos agrupar os pontos de acordo com a sequência de vértices e arestas onde o caminho mínimo toca os polígonos. De fato, se calculássemos esse mapa, poderíamos responder consultas em tempo \(O(k + \log(n))\) \cite[Theorem 5.]{tpp-dror2003}, no entanto, no pior caso, esse mapa tem complexidade \(\Theta((n - k) 2 ^ k)\), ou seja, exponencial no número de polígonos \(k\) \cite[Theorem 4.]{tpp-dror2003}, tornando essa abordagem inviável.
 
-Primeiramente, vamos descrever procedimentos auxiliares que serão úteis para a implementação da função \(\text{Query}\). Finalmente, vamos descrever como respoder consultas usando esses procedimentos. Por enquanto, vamos assumir que sabemos como respoder as consultas. Para as seções a seguir, vamos assumir que os polígonos \(P_1, \dots, P_k\) são representados por listas de vértices ordenados em sentido anti-horário, com um vértice abitrário como o primeiro.
+Por esse motivo, usamos uma nova técnica baseada em subdividir o plano de acordo com \textit{mapas de último passo mínimo}, que para cada polígono \(P_i\), agrupa pontos \(p\) tais que o ponto \(q\) que antecede \(p\) do caminho mínimo partindo de \(s\), tocando \(P_1, \dots, P_i\) e chegando em \(p\) é um mesmo vértice ou uma mesma aresta. O conjunto dessas partições pode ser contruído em tempo \(O(nk \log(n / k))\), permitindo responder consultas em tempo \(O(k \log(n / k))\) \cite[Theorem 1.]{tpp-dror2003}. Dessa forma, podemos encontrar o caminho mínimo que visita todos os polígonos em tempo Polinomial.
 
-\subsection{Particionando o Plano}
+\subsection{O Mapa de Último Passo Mínimo}
+
+Primeiramente, definimos um \(i\)-path até \(p\) como um caminho mínimo que se inicia em \(s\) e toca os polígonos \(P_1, \ldots, P_i\) em ordem, terminando em um ponto \(p\). Assim, podemos definir a função \(\text{Query}(p, i)\) que retorna o ponto \(q\) que antecede \(p\) no \(i\)-path até \(p\). Note que se \(i = 0\), então \(\text{Query}(p, 0) = s\) para qualquer ponto \(p\).
 
 É possível mostrar \cite{tpp-dror2003} que para cada polígono \(P_i\) podemos criar uma partição \(S_i\) do plano tal que o comportamento da função \(\text{Query}(p, i)\) dependa exclusivamente de a qual região da partição \(S_i\) o ponto \(p\) pertence, sendo possível localizar cada ponto de maneira eficiente. Por falta de um nome melhor, chamamos cada parte de \(S_i\) de \textit{região}.
 
@@ -246,7 +268,10 @@ Ademais, note que cada região de vértice é delimitada por duas semi-retas que
 
 \subsubsection{Região de Primeiro Contato}
 
-Para cada polígono \(P_i\), definimos \(T_i\) como a \textit{região de primeiro contato} de \(P_i\), ou seja, o conjunto de pontos \(p\) no perímetro de \(P_i\) tais que o \((i - 1)\)-path até \(p\) toca em \(P_i\) pela primeira vez em \(p\). Podemos provar \cite{tpp-dror2003} que \(T_i\) é uma região contínua do perímetro de \(P_i\) e que \(T_i\) é delimitada por vértices de \(P_i\), ou seja, \(T_i\) é a união de uma sequência de arestas consecutivas de \(P_i\). Por esse motivo, chamamos arestas de \(P_i\) que pertencem à \(T_i\) de \textbf{arestas visíveis} e as que não pertencem de \textbf{arestas bloqueadas}.
+Seja $p \in P_i$ tal que a interseção entre o último segmento do \((i - 1)\)-path até \(p\) e $P_i$ consiste apenas no ponto $p$. Em outras palavras, $p$ é tal que o \((i - 1)\)-path até \(p\) chega a $P_i$ por ``fora''. Denominamos região de primeiro contato de $P_i$, que denotamos por $T_i$, ao conjunto de todos os pontos $p \in P_i$ com essa propriedade. \textcolor{red}{Tentar provar que se o sinal do produto vetorial usando o ponto $m$ tem o sinal correto, o mesmo vale para qualquer outro ponto no segmento.}
+
+
+Para cada polígono \(P_i\), definimos \(T_i\) como a \textit{região de primeiro contato} de \(P_i\), ou seja, o conjunto de pontos \(p\) no perímetro de \(P_i\) tais que o \((i - 1)\)-path até \(p\) toca em \(P_i\) pela primeira vez em \(p\). Podemos provar \cite[Teorema~3.4, p. 243]{tpp-dror2003} que \(T_i\) é uma região contínua do perímetro de \(P_i\) e que \(T_i\) é delimitada por vértices de \(P_i\), ou seja, \(T_i\) é a união de uma sequência de arestas consecutivas de \(P_i\). Por esse motivo, chamamos arestas de \(P_i\) que pertencem à \(T_i\) de \textbf{arestas visíveis} e as que não pertencem de \textbf{arestas bloqueadas}.
 
 \begin{wrapfigure}{r}{0.45\textwidth}
 
@@ -264,11 +289,11 @@ Como \(T_i\) é a união de arestas, para determinar quais arestas de \(P_i\) pe
 
 No entanto, precisamos de uma maneira eficiente de fazer isso para todas as arestas de \(P_i\). Se simplesmente fizermos isso de maneira ingênua, verificando se o segmento entre o último ponto \(q\) do \((i - 1)\)-path até o ponto médio \(m\) da aresta intersecta \(P_i\), teríamos uma complexidade de \(O(\abs{P_i})\) por aresta, resultando em \(O(\abs{P_i} ^ 2)\) para todas as arestas de \(P_i\). 
 
-Felizmente, como \(P_i\) é convexo e suas arestas estão ordenadas em sentido anti-horário, sabemos que o segmento \(\overline{qm}\) toca \(P_i\) pela primeira vez em \(m\) se e somente se o produto vetorial de \(\overrightarrow{mv}\) com \(\overrightarrow{mq}\) for positivo. Usando essa ideia, podemos determinar todas as arestas visíveis de \(P_i\) em tempo \(O(1)\) por aresta, totalizando \(O(\abs{P_i})\).
+Felizmente, como~\(P_i\) é convexo e suas arestas estão ordenadas em sentido anti-horário, sabemos que o segmento \(\overline{qm}\) toca \(P_i\) pela primeira vez em \(m\) se e somente se o produto vetorial de \(\overrightarrow{mv}\) com \(\overrightarrow{mq}\) for positivo. Usando essa ideia, podemos determinar todas as arestas visíveis de \(P_i\) em tempo \(O(1)\) por aresta, totalizando \(O(\abs{P_i})\).
 
-A Figura~\ref{problem1-visibility-test} ilustra essa ideia. Temos o polígono \(P_i\) em azul, os vértices \(u\) e \(v\) em azul, o ponto médio \(m\) da aresta em laranja e 4 pontos \(q_1, q_2, q_3\) e \(q_4\) representando possíveis últimos pontos do \((i - 1)\)-path até \(m\). Note que os segmentos \(\overline{q_1 m}\) e \(\overline{q_2 m}\) passam pela parte interna de \(P_i\), assim, o produto vetorial de \(\overrightarrow{uv}\) com \(\overrightarrow{m q_1}\) e \(\overrightarrow{m q_2}\) é positivo. Já os segmentos \(\overline{q_3 m}\) e \(\overline{q_4 m}\) não passam pela parte interna de \(P_i\), assim, o produto vetorial de \(\overrightarrow{uv}\) com \(\overrightarrow{m q_3}\) e \(\overrightarrow{m q_4}\) é negativo.
+A Figura~\ref{problem1-visibility-test} ilustra essa ideia. Temos o polígono \(P_i\) em azul, os vértices \(u\) e \(v\) em azul, o ponto médio~\(m\) da aresta em laranja e 4 pontos \(q_1, q_2, q_3\) e \(q_4\) representando possíveis últimos pontos do \((i - 1)\)-path até~\(m\). Note que os segmentos \(\overline{q_1 m}\) e \(\overline{q_2 m}\) passam pela parte interna de \(P_i\), assim, o produto vetorial de \(\overrightarrow{uv}\) com \(\overrightarrow{m q_1}\) e \(\overrightarrow{m q_2}\) é positivo. Já os segmentos \(\overline{q_3 m}\) e \(\overline{q_4 m}\) não passam pela parte interna de \(P_i\), assim, o produto vetorial de \(\overrightarrow{uv}\) com \(\overrightarrow{m q_3}\) e \(\overrightarrow{m q_4}\) é negativo.
 
-Implementamos essa ideia no algoritmo \algref{ArestasVisíveis}, que recebe um polígono \(P_i\) e seu índice \(i\) e retorna uma lista booleana indicando quais arestas de \(P_i\) são visíveis. Para os próximos algoritmos, vamos referenciar os objetos \(T_1, \dots, T_k\) como listas booleanas indicando quais arestas de cada polígono \(P_1, \dots, P_k\) são visíveis.
+Implementamos essa ideia no Algoritmo \algref{ArestasVisíveis}, que recebe um polígono \(P_i\) e seu índice \(i\) e retorna uma lista booleana indicando quais arestas de \(P_i\) são visíveis. Para os próximos algoritmos, vamos referenciar os objetos \(T_1, \dots, T_k\) como listas booleanas indicando quais arestas de cada polígono \(P_1, \dots, P_k\) são visíveis.
 
 \begin{algorithm}
 \alglabel{ArestasVisíveis}
@@ -306,13 +331,13 @@ Uma vez que sabemos quais arestas são visíveis, podemos construir as regiões 
 
 \end{wrapfigure}
 
-Para calcular as direções da regiões de vértice de um vértice \(v\) de \(P_i\), devemos considerar o ponto \(p = \text{Query}(v, i - 1)\) e definimos \(d = v - p\). Sejam \(v_{\text{prev}}\) o vértice que precede e \(v_{\text{next}}\) o que segue \(v\) em \(P_i\) (no sentido anti-horário). Se a aresta \((v_{\text{prev}}, v)\) é visível, então \(d_{\text{prev}}\) será a reflexão de \(d\) em relação à aresta \((v_{\text{prev}}, v)\), caso contrário, \(d_{\text{prev}}\) será a mesma direção de \(d\). Similarmente, se a aresta \((v, v_{\text{next}})\) é visível, então \(d_{\text{next}}\) será a reflexão de \(d\) em relação à aresta \((v, v_{\text{next}})\), caso contrário, \(d_{\text{next}}\) será a mesma direção de \(d\). Assim, criamos a região de vértice \((d_{\text{next}}, d_{\text{next}})\) associada à \(v\).
+Para calcular as direções da regiões de vértice de um vértice \(v\) de \(P_i\), devemos considerar o ponto \(p = \text{Query}(v, i - 1)\) e definimos \(d = v - p\). Sejam \(v_{\text{prev}}\) o vértice que precede e \(v_{\text{next}}\) o que segue \(v\) em \(P_i\) (no sentido anti-horário). Se a aresta \((v_{\text{prev}}, v)\) é visível, então \(d_{\text{prev}}\) será a reflexão de \(d\) em relação à aresta \((v_{\text{prev}}, v)\), caso contrário, \(d_{\text{prev}}\) será a mesma direção de \(d\). Similarmente, se a aresta \((v, v_{\text{next}})\) é visível, então \(d_{\text{next}}\) será a reflexão de \(d\) em relação à \textcolor{red}{reta que contem a} aresta \((v, v_{\text{next}})\), caso contrário, \(d_{\text{next}}\) \textcolor{red}{pode ser definido como qualquer multiplo positivo de $d$} será a mesma direção de \(d\). Assim, criamos a região de vértice \((d_{\text{prev}}, d_{\text{next}})\) associada à \(v\).
 
-Vale notar que se ambas as arestas incidentes a \(v\) estão bloqueadas, então \(d_{\text{prev}} = d_{\text{next}} = d\), assim, a região de vértice associada a \(v\) é válida, mas vazia.
+Vale notar que se ambas as arestas incidentes a \(v\) estão bloqueadas, então \textcolor{red}{a regio de vertice $v$ é vazia e denotamos isso definindo} \(d_{\text{prev}} = d_{\text{next}} = d\). %, assim, a região de vértice associada a \(v\) é válida, mas vazia.
 
-Encorajamos o leitor a verificar que essa lógica se aplica à Figura~\ref{problem1-scene-general}, usando o ponto inicial \(s\) como resposta de \(\text{Query}(v, 0)\) para qualquer vértice \(v\). Os vértices (-2, 0) e (0, 0) terão as suas duas arestas incidentes visíveis, assim, suas regiões de vértice serão delimitadas pelas reflexões do raio que parte de \(s\). O vértice (-3, 1) terá apenas a aresta posterior visível, assim, sua região de vértice será delimitada pela reflexão do raio em relação à aresta posterior e a própria direção do raio. Similarmente, o vértice (2, 1) tem apenas a aresta anterior visível. Finalmente, os vértices (1, 1.25) e (-1, 1.5) não terão nenhuma aresta visível, assim, suas regiões de vértice serão vazias. 
+Encorajamos o leitor a verificar que essa lógica se aplica à Figura~\ref{problem1-scene-general} que ilustra um polígono $P_1$, observando que a resposta de \(\text{Query}(v, 0)\) é o ponto inicial \(s\) para qualquer vértice \(v\) de $P_1$. Os vértices (-2, 0) e (0, 0) terão as suas duas arestas incidentes visíveis, assim, suas regiões de vértice serão delimitadas pelas reflexões do raio que parte de \(s\). O vértice (-3, 1) terá apenas a aresta posterior visível, assim, sua região de vértice será delimitada pela reflexão do raio em relação à aresta posterior e a própria direção do raio. Similarmente, o vértice (2, 1) tem apenas a aresta anterior visível. Finalmente, os vértices (1, 1.25) e (-1, 1.5) não terão nenhuma aresta incidente visível, assim, suas regiões de vértice serão vazias. 
 
-Implementamos essas ideias nos algoritmos \algref{RefleteDireção} e \algref{ConstróiRegiõesDeVértice}. O primeiro reflete uma direção em relação a uma aresta, enquanto o segundo cria a partição \(S_i\) de um polígono \(P_i\), retornando uma lista de pares ordenados de direções representando as regiões de vértice associadas a cada vértice de \(P_i\). Para os próximos algoritmos, vamos referenciar os objetos \(S_1, \dots, S_k\) como listas de pares ordenados de direções representando as regiões de vértice de cada polígono \(P_1, \dots, P_k\).
+Implementamos essas ideias nos algoritmos \algref{RefleteDireção} e \algref{ConstróiRegiõesDeVértice}. O primeiro reflete uma direção em relação a uma reta que passa por dois pontos dados, enquanto o segundo cria a partição \(S_i\) de um polígono \(P_i\), retornando uma lista de pares ordenados de direções representando as regiões de vértice associadas a cada vértice de \(P_i\). \textcolor{red}{Cada elemento da lista corresponde a um vertice de $P_i$ e os elementos aparecem na mesma ordem em que os vertices de $P_i$ aparecem na descricao de $P_i$} Para os próximos algoritmos, vamos referenciar os objetos \(S_1, \dots, S_k\) como listas de pares ordenados de direções representando as regiões de vértice de cada polígono \(P_1, \dots, P_k\).
 
 % \textcolor{red}{Verificar se podemos aqui apenas dizer que estes vertices terao uma regiao de vertice vazia ou dizer que estes vertices nao pertencem à regiao de pimeiro contato e portanto não tem uma regiao de vertice associada a eles.}
 
@@ -321,7 +346,7 @@ Implementamos essas ideias nos algoritmos \algref{RefleteDireção} e \algref{Co
 \caption{RefleteDireção(\(d, v_{\text{prev}}, v_{\text{next}}\)) \\ Reflete a direção \(d\) em relação à aresta \((v_{\text{prev}}, v_{\text{next}})\)}
 
 \(u \leftarrow v_{\text{prev}} - v_{\text{next}}\) \\
-\(w \leftarrow \) Vetor normal à \(u\), tal que \(\abs{w} = 1\) \\
+\(w \leftarrow \) Vetor normal à \(u\), tal que \(\abs{w} = 1\) \textcolor{red}{Colocar a formula e deixar isso como comentario. Usar $\| \cdot \|_2$ para norma Euclidiana} \\ 
 \Return{\(d - 2 \anglebrackets{d, w} w\)} // Fórmula de reflexão
 
 \end{algorithm}
@@ -330,7 +355,7 @@ Implementamos essas ideias nos algoritmos \algref{RefleteDireção} e \algref{Co
 \alglabel{ConstróiRegiõesDeVértice}
 \caption{ConstróiRegiõesDeVértice(\(P_i\)) \\ Constroi as partições do polígono \(P_i\)}
 
-regiões \(\leftarrow\) [] // Lista vazia \\
+\(S_i \leftarrow \emptyset\) // Lista vazia \\
 
 \For{\(j \leftarrow 0\) até \(\abs{P_i} - 1\)} {
 
@@ -353,14 +378,14 @@ regiões \(\leftarrow\) [] // Lista vazia \\
 	}
 	
 	\If{Aresta \(j\) de \(P_i\) pertence à \(T_i\)} {
-		\(d_{\text{next}} \leftarrow \text{Reflete}(d, v, v_{\text{next}})\) // reflexão de \(d\) em relação à aresta \((v, v_{\text{next}})\)
+		\(d_{\text{next}} \leftarrow \text{Reflete}(d, v, v_{\text{next}})\) // reflexão de \(d\) em relação à \textcolor{red}{reta que contem a} aresta \((v, v_{\text{next}})\)
 	}
 	\Else {
 		\(d_{\text{next}} \leftarrow d\)
 	}
 	
 	// Armazena a região de vértice associada a \(v\) como o par \((d_{\text{prev}}, d_{\text{next}})\) \\
-	regiões.\text{append}(\((d_{\text{prev}}, d_{\text{next}})\)) \\
+	\(S_i \leftarrow S_i + (d_{\text{prev}}, d_{\text{next}})\) %regiões.\text{append}(\((d_{\text{prev}}, d_{\text{next}})\)) \\
 }
 
 \Return{regiões}
@@ -375,7 +400,7 @@ Esse processo não é trivial, principalmente se desejamos fazer isso de maneira
 
 \subsubsection{Verificando Regiões de Vértice}
 
-Primeiramente vamos implementar um procedimento auxiliar \algref{PontoEmVértice} que verifica se um ponto \(p\) está em uma região de vértice associada a um vértice \(v\) delimitada por duas direções \(d_{\text{prev}}\) e \(d_{\text{next}}\). Basicamente, temos dois casos, dependendo do ângulo entre as direções \(d_{\text{prev}}\) e \(d_{\text{next}}\) (considerando o sentido anti-horário):
+Primeiramente vamos implementar um procedimento auxiliar \algref{PontoEmVértice} que verifica se um ponto \(p\) está em uma região de vértice associada a um vértice \(v\) determinada pelo par \( (d_{\text{prev}},d_{\text{next}}) \). Basicamente, temos dois casos, dependendo do ângulo entre as direções \(d_{\text{prev}}\) e \(d_{\text{next}}\) (considerando o sentido anti-horário):
 
 \begin{itemize}
 
@@ -449,7 +474,7 @@ Verifica se o ponto \(p\) está na região de aresta associada à aresta \(e = (
 \(c_2 \leftarrow w \times d_{\text{next}}\) \\
 
 \If {\(c_1 \le 0 \land c_2 \le 0\)} {
-	\Return{} \((d_{\text{prev}} \times (p - u) \ge 0) \land (d_{\text{next}} \times (p - u) \le 0) \land ((v - u) \times (p - u) \le 0)\)
+	\Return{} \((d_{\text{prev}} \times (p - u) \ge 0) \land ((p - u) \times d_{\text{next}} \le 0) \land ((v - u) \times (p - u) \le 0)\)
 }
 \ElseIf {\(c_1 \le 0 \land c_2 > 0\)} {
 	\Return{} PontoEmVértice(\(p\), \(u\), \(d_{\text{prev}}\), \(u - v\)) \(\lor\) PontoEmVértice(\(p\), \(v\), \(u - v\), \(d_{\text{next}}\))
@@ -693,7 +718,7 @@ Dessa forma, nosso algoritmo está de acordo com o artigo original.
 
 \section{O Problema de Visita de Polígonos Geral}
 
-Vamos tomar como base a implementação do algoritmo de Dror et al. \cite{tpp-dror2003} para o problema restrito que fizemos em \textit{Python}. O código pode ser encontrado no arquivo \texttt{TouringPolygons/problem2.py}.
+Vamos tomar como base a implementação do algoritmo de Mitchell para o problema restrito que fizemos em \textit{Python}. O código pode ser encontrado no arquivo \texttt{TouringPolygons/problem2.py}.
 
 \subsection{Definições e Notação}
 
