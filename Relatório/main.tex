@@ -288,7 +288,28 @@ Primeiramente, definimos um \(i\)-path até \(p\) como um caminho mínimo que se
 
 Claramente, apenas precisamos considerar caminhos formados pela união de segmentos de reta entre \(s\) e \(t\). Ademais, tal caminho é \textit{localmente mínimo} se dobras ocorrem apenas no perímetro de cada polígono e, para cada dobra \(b \in \partial P_i\), mover \(b\) ligeiramente ao longo de qualquer direção na fronteira de \(P_i\) enquanto mantemos os outros pontos do caminho fixos aumenta o comprimento total do caminho. Isso implica que para pontos de dobra \(b\) no interior de uma aresta de \(P_i\), o ângulo de incidência do segmento que chega em \(b\) é igual ao ângulo de reflexão do segmento que sai de \(b\) (Lei da Reflexão). 
 
-Já para pontos de dobra que são vértices \(v = e^1 \cap e ^ 2\) de \(P_i\), as condições de otimalidade dizem que, assumindo que \(u\) é o ponto imediatamente antes de \(v\) no caminho, um segmento saindo de \(v\) deve estar contido no cone \(\gamma\) delimitado pelas reflexões \(r^1\) e \(r^2\) da direção \(\overrightarrow{uv}\) em relação às duas arestas \(e^1\) e \(e^2\). Intuitivamente, isso ocorre porque qualquer segmento saindo de \(v\) fora desse cone poderia ser substituído por um segmento refletido em uma das arestas, reduzindo o comprimento total do caminho. A Figura~\ref{problem1-local-optimality} ilustra essas condições de otimalidade local.
+\begin{wrapfigure}{r}{0.60\textwidth}
+	\centering
+
+	\begin{minipage}{0.45\linewidth}
+		\centering
+		\includegraphics[width=\linewidth]{Problem1Images/local-optimality-edge.png}
+		\caption{Condições de otimalidade em arestas.}
+		\label{fig:problem1-local-optimality-edge}
+	\end{minipage}
+	\hfill
+	\begin{minipage}{0.45\linewidth}
+		\centering
+		\includegraphics[width=\linewidth]{Problem1Images/local-optimality-vertex.png}
+		\caption{Condições de otimalidade em vértices.}
+		\label{fig:problem1-local-optimality-vertex}
+	\end{minipage}
+
+\end{wrapfigure}
+
+Já para pontos de dobra que são vértices \(v = e^1 \cap e ^ 2\) de \(P_i\), as condições de otimalidade dizem que, assumindo que \(u\) é o ponto imediatamente antes de \(v\) no caminho, um segmento saindo de \(v\) deve estar contido no cone \(\gamma\) delimitado pelas reflexões \(r^1\) e \(r^2\) da direção \(\overrightarrow{uv}\) em relação às duas arestas \(e^1\) e \(e^2\). Intuitivamente, isso ocorre porque qualquer segmento saindo de \(v\) fora desse cone poderia ser substituído por um segmento refletido em uma das arestas, reduzindo o comprimento total do caminho. 
+
+A Figura~\ref{fig:problem1-local-optimality-edge} ilustra a condição de otimalidade para dobras em arestas, na qual temos um caminho com os pontos \(a\), \(b\) e \(c\), onde \(b\) é um ponto de dobra em um parte interior da aresta \(e\). Observamos que o segmento \(\overline{ab}\) faz o mesmo ângulo com a aresta \(e\) que o segmento \(\overline{bc}\), assim, as condições de otimalidade estão satisfeitas. Já a Figura~\ref{fig:problem1-local-optimality-vertex} ilustra a condição de otimalidade para dobras em vértices, na qual temos um caminho partindo de \(s\) que chega em um vértice \(v\) de um polígono. Observamos que segmentos que saem de \(v\) devem estar dentro do cone \(\gamma\) delimitado pela reflexão do segmento \(\overline{sv}\) em relação às duas arestas \(e^1\) e \(e^2\) que se encontram em \(v\).
 
 \subsection{O Mapa de Último Passo Mínimo}
 
@@ -478,10 +499,10 @@ Verifica se o ponto \(p\) está na região de vértice associada ao vértice \(v
 Uma vez que conseguimos verificar se um ponto pertence a uma região de vértice, podemos usar essa funcionalidade para verificar se um ponto pertence a uma região de aresta. 
 
 \begin{wrapfigure}{l}{0.69\textwidth} % 'r' for right, 'l' for left
-    \centering
-    \vspace{-1em} % adjust vertical alignment if needed
+	\centering
+	\vspace{-1em} % adjust vertical alignment if needed
 	\includegraphics[width=0.68\textwidth]{Problem1Images/edge-regions.png}
-    \caption{Casos possíveis para região de aresta.}
+	\caption{Casos possíveis para região de aresta.}
 	\label{problem1-edge-regions}
 \end{wrapfigure}
 
