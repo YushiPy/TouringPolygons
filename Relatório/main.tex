@@ -231,6 +231,7 @@ Em diferentes contextos, como robótica, planejamento de rotas e gráficos compu
 	\overline{uv} & Segmento de reta entre os pontos \(u\) e \(v\). \\
 	\overrightarrow{uv} = v - u & Vetor direcionado do ponto \(u\) até o ponto \(v\). \\
 	\abs{P} & Se \(P\) é um polígono, então \(\abs{P}\) é o número de vértices de \(P\). \\
+	\partial P & Fronteira (perímetro) do polígono \(P\). \\
 \end{tabular}
 
 \end{blank}
@@ -281,17 +282,17 @@ No contexto de otimização geométrica, muitos problemas similares podem ser re
 
 Por esse motivo, usamos uma nova técnica baseada em subdividir o plano de acordo com \textit{mapas de último passo mínimo}, que para cada polígono \(P_i\), agrupa pontos \(p\) tais que o ponto \(q\) que antecede \(p\) do caminho mínimo partindo de \(s\), tocando \(P_1, \dots, P_i\) e chegando em \(p\) é um mesmo vértice ou uma mesma aresta. O conjunto dessas partições pode ser contruído em tempo \(O(nk \log(n / k))\), permitindo responder consultas em tempo \(O(k \log(n / k))\) \cite[Theorem 1.]{tpp-dror2003}. Dessa forma, podemos encontrar o caminho mínimo que visita todos os polígonos em tempo Polinomial.
 
+\subsection{Condições de Otimalidade Local}
+
+Primeiramente, definimos um \(i\)-path até \(p\) como um caminho mínimo que se inicia em \(s\) e toca os polígonos \(P_1, \ldots, P_i\) em ordem, terminando em um ponto \(p\), tal \(i\)-path é \textbf{único} \cite[Lemma 1.]{tpp-dror2003}. Note que um \(k\)-path até \(t\) é exatamente o caminho mínimo que buscamos.
+
+Claramente, apenas precisamos considerar caminhos formados pela união de segmentos de reta entre \(s\) e \(t\). Ademais, tal caminho é \textit{localmente mínimo} se dobras ocorrem apenas no perímetro de cada polígono e, para cada dobra \(b \in \partial P_i\), mover \(b\) ligeiramente ao longo de qualquer direção na fronteira de \(P_i\) enquanto mantemos os outros pontos do caminho fixos aumenta o comprimento total do caminho. Isso implica que para pontos de dobra \(b\) no interior de uma aresta de \(P_i\), o ângulo de incidência do segmento que chega em \(b\) é igual ao ângulo de reflexão do segmento que sai de \(b\) (Lei da Reflexão). 
+
+Já para pontos de dobra que são vértices \(v = e^1 \cap e ^ 2\) de \(P_i\), as condições de otimalidade dizem que, assumindo que \(u\) é o ponto imediatamente antes de \(v\) no caminho, um segmento saindo de \(v\) deve estar contido no cone \(\gamma\) delimitado pelas reflexões \(r^1\) e \(r^2\) da direção \(\overrightarrow{uv}\) em relação às duas arestas \(e^1\) e \(e^2\). Intuitivamente, isso ocorre porque qualquer segmento saindo de \(v\) fora desse cone poderia ser substituído por um segmento refletido em uma das arestas, reduzindo o comprimento total do caminho. A Figura~\ref{problem1-local-optimality} ilustra essas condições de otimalidade local.
+
 \subsection{O Mapa de Último Passo Mínimo}
 
-Primeiramente, definimos um \(i\)-path até \(p\) como um caminho mínimo que se inicia em \(s\) e toca os polígonos \(P_1, \ldots, P_i\) em ordem, terminando em um ponto \(p\). Assim, podemos definir a função \(\text{Query}(p, i)\) que retorna o ponto \(q\) que antecede \(p\) no \(i\)-path até \(p\). Note que se \(i = 0\), então \(\text{Query}(p, 0) = s\) para qualquer ponto \(p\).
-
-É possível mostrar \cite{tpp-dror2003} que para cada polígono \(P_i\) podemos criar uma partição \(S_i\) do plano tal que o comportamento da função \(\text{Query}(p, i)\) dependa exclusivamente de a qual região da partição \(S_i\) o ponto \(p\) pertence, sendo possível localizar cada ponto de maneira eficiente. Por falta de um nome melhor, chamamos cada parte de \(S_i\) de \textit{região}.
-
-Nas seções a seguir vamos descrever como usar essas partições para responder consultas, mas por enquanto vamos descrever como representar e construir essas partições. Por enquanto, apenas mantenha em mente que se conseguirmos representar e construir essas partições, então podemos usá-las para responder consultas e resolver o problema de maneira eficiente.
-
-Enquanto a quantidade de regiões de \(S_i\) pode ser numerosa a depender do número de vértices de \(P_i\), cada região pode ser de exatamente 3 tipos diferentes:, 
-% \textcolor[RGB]{255, 140, 140}{Regiões de Vértice}, \textcolor[RGB]{140, 197, 140}{Regiões de Aresta} e \textcolor[RGB]{150, 208, 209}{Regiões de Atravessa}.
-\textcolor[RGB]{255, 70, 70}{Regiões de Vértice}, \textcolor[RGB]{86, 179, 86}{Regiões de Aresta} e \textcolor[RGB]{76, 146, 195}{Regiões de Atravessar}.
+. A partir disso, podemos definir a função \(\text{Query}(p, i)\) que retorna o ponto \(q\) que antecede \(p\) no \(i\)-path até \(p\). Note que se \(i = 0\), então \(\text{Query}(p, 0) = s\) para qualquer ponto \(p \in \mathbb{R} ^ 2\).
 
 \begin{wrapfigure}{l}{0.60\textwidth}
 
@@ -303,9 +304,11 @@ Enquanto a quantidade de regiões de \(S_i\) pode ser numerosa a depender do nú
 
 \end{wrapfigure}
 
-A partir da Figura~\ref{problem1-partitions}, note que cada região de vértice (\textit{Cone Region}) está associada a um vértice de \(P_i\), cada região de aresta (\textit{Edge Region}) está associada a uma aresta de \(P_i\) e há exatamente uma região de atravessar (\textit{Pass Through Region}). Ademais, essas regiões se complementam, ou seja, o conjunto de todas as regiões de vértice, aresta e atravessar é o plano todo e nenhuma região se sobrepõe a outra. Para que isso seja válido, devemos considerar pontos dentro dos polígonos \(P_i\) como pertencentes à região de atravessar. As fronteiras entre as regiões podem ser consideradas como pertencentes a qualquer uma das regiões que as delimitam, produzindo o mesmo resultado, mas para simplicidade, vamos considerar que pertencem às regiões de vértice.
+Ademais, para cada polígono \(P_i\), criamos uma partição \(S_i\) do plano chamada de \textbf{mapa de último passo mínimo}, que agrupa pontos \(p\) com base no último passo \(q\) do \(i\)-path até \(p\). Essencialmente, temos três tipos de regiões em \(S_i\), \textcolor[RGB]{255, 70, 70}{Regiões de Vértice}, \textcolor[RGB]{86, 179, 86}{Regiões de Aresta} e uma \textcolor[RGB]{76, 146, 195}{Região de Sombra}. Regiões de vértice agrupam pontos cujo último passo do \(i\)-path até eles é um mesmo vértice de \(P_{i - 1}\), regiões de aresta agrupam pontos cujo último passo do \(i\)-path até eles é uma mesma aresta de \(P_{i - 1}\) e a região de sombra agrupa pontos cujo \(i\)-path até eles atravessa o interior de \(P_{i - 1}\) para chegar neles. A Figura~\ref{problem1-partitions} ilustra essas partições para o exemplo da Figura~\ref{problem1-solution}.
 
-Ademais, note que cada região de vértice é delimitada por duas semi-retas que partem de um vértice de \(P_i\), incluindo todos os pontos que estão entre essas semi-retas. Similarmente, cada região de aresta é delimitada por duas semi-retas que partem dos extremos de uma aresta de \(P_i\) e a prórpia aresta, incluindo todos os pontos que estão entre essas semi-retas e a aresta. Finalmente, a região de atravessar é o complemento das regiões de vértice e aresta.
+Se considerarmos que pontos dentro de \(P_i\) pertencem à região de sombra e que pontos na fronteira entre as regiões podem ser considerados como pertencentes a qualquer uma das regiões que as delimitam, concluimos que qualquer ponto do plano pertence a exatamente uma dessas regiões, ou seja, essas três regiões são complementares.
+
+Além disso, 
 
 \subsubsection{Região de Primeiro Contato}
 
