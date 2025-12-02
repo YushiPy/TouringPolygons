@@ -206,21 +206,27 @@ Em diferentes contextos, como robótica, planejamento de rotas e gráficos compu
 
 \begin{blank}
 
-\setlength{\extrarowheight}{2pt}
+\setlength{\extrarowheight}{10pt}
 
 \begin{tabular}{>{$}l<{$} @{\hspace{1.5em}} p{0.7\linewidth} l}
 	v = (v_1, v_2) & Representação de vetores em \(\mathbb{R} ^ 2\) como tupla de coordenadas reais. \\
 	\|{v}\| = \sqrt{v_1 ^ 2 + v_2 ^ 2} & Norma Euclidiana de um vetor. \\
 	\anglebrackets{u, v} = u_1 v_1 + u_2 v_2 & Produto interno definido como produto escalar de vetores. \\
 	u \times v = u_1 v_2 - u_2 v_1 & Produto vetorial definido como determinante 2D, retornando um escalar. Essa definição tem a seguinte propriedade:
-	\[
+
+	\begin{blank}
+	\setlength{\extrarowheight}{4pt}
+	\vspace{-10pt}
+	\begin{equation*}
 		\text{sign}(u \times v) =
 		\begin{cases}
 			+1, & \text{se o ângulo no sentido \textbf{anti-horário} entre } u \text{ e } v \text{ é menor que } 180 ^ \circ \\
 			-1, & \text{se o ângulo no sentido \textbf{horário} entre } u \text{ e } v \text{ é menor que } 180 ^ \circ \\
 			0, & u \text{ e } v \text{ colineares} \\
 		\end{cases}
-	\]\\
+	\end{equation*}
+	\vspace{-10pt}
+	\end{blank} \\
 	
 	\overline{uv} & Segmento de reta entre os pontos \(u\) e \(v\). \\
 	\overrightarrow{uv} = v - u & Vetor direcionado do ponto \(u\) até o ponto \(v\). \\
@@ -234,11 +240,24 @@ Em diferentes contextos, como robótica, planejamento de rotas e gráficos compu
 
 \section{Introdução}
 
-Este relatório descreve a implementação e os resultados obtidos na resolução do problema da visita de polígonos, usando como base o paper de Dror et al. (2003) \cite{tpp-dror2003} que descreve algoritmos para o caso sem e com restrições. Buscamos apresentar uma abordagem mais prática e detalhada para o problema, sem um foco tão grande na análise teórica.
+O Problema de Visita de Polígonos (TPP - \textit{Touring Polygons Problem}) é um problema clássico de otimização geométrica que envolve encontrar o caminho mais curto que visita em ordem uma sequência de polígonos em um plano. O problema é ilustrado pela Figura~\ref{problem-intro}.
 
-Recomendamos a leitura do paper original para uma compreensão mais profunda dos conceitos e das provas por trás dos algoritmos apresentados aqui. Também é importante notar que este relatório não cobre todos os detalhes do paper, mas sim uma visão geral e a implementação prática dos algoritmos.
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.6\textwidth]{exemplo.png}
+	\caption{Exemplo do Problema de Visita de Polígonos Irrestrito com 4 polígonos.}
+	\label{problem-intro}
+\end{figure}
 
-O código implementado pode ser encontrado no \href{https://github.com/YushiPy/TouringPolygons}{repositório GitHub}, contendo scripts em \textit{Python} para resolver ambos os casos do problema.
+Esse é um caso específico do problema do Caxeiro Viajante com Vizinhanças (TSPN - \textit{Traveling Salesman Problem with Neighborhoods}) \cite{tspn-iacopo-2011}, que é por sua vez uma generalização do famoso Problema do Caxeiro Viajante (TSP - \textit{Traveling Salesman Problem}) \cite{tsp-applegate2006}. Esse problema tem aplicações em diversas áreas, principalmente em robótica no contexto de planejamento de rotas, onde um robô precisa visitar uma série de regiões de interesse, representadas por polígonos, de maneira eficiente.
+
+Enquanto os problemas de TSP e TSPN são conhecidos por serem NP-difíceis \cite{tsp-applegate2006, tspn-iacopo-2011}, o TPP exige que a ordem de visita dos polígonos seja pré-definida, o que permite o desenvolvimento de algoritmos polinomiais para resolver o problema em certos casos. Em particular, Dror et al. (2003) \cite{tpp-dror2003} propuseram algoritmos eficientes para resolver o TPP em dois cenários distintos: o TPP Irrestrito, onde o caminho pode atravessar os polígonos, e o TPP Restrito, onde o caminho deve se manter dentro de "cercas" que delimitam os polígonos, como se a visita dos polígonos fosse feita por um robô que não pode sair de uma área segura que engloba os polígonos.
+
+Nesse relatório, buscamos discutir e implementar os algoritmos propostos por Dror et al. (2003) \cite{tpp-dror2003}, apresentando uma visão prática do problema e suas soluções. Enquanto o artigo original foca bastante na análise teórica dos algoritmos, nosso objetivo é fornecer uma abordagem mais acessível e detalhada, enfatizando a implementação e os resultados experimentais. Vamos introduzir os conceitos fundamentais lentamente, junto de diversas visualizações, com o objetivo de facilitar o entendimento do leitor. Para quem deseja uma compreensão mais profunda dos aspectos teóricos, recomendamos a leitura do artigo original.
+
+Além dessas duas variações, também buscamos explorar o caso onde os polígonos não são necessariamente convexos, o que adiciona uma camada extra de complexidade ao problema. Podemos mostrar que nesse caso, mesmo quando não temos "cercas", o problema é NP-difícil \cite{tpp-dror2003}, no entanto, exploramos diferentes estratégias para lidar com essa complexidade adicional, partindo de uma enumeração completa e então removendo diversas soluções inviáveis através de uma estratégia de Branch and Bound, usando os algoritmos para o TPP Irrestrito como cálculo de limites inferiores. Dessa forma, conseguimos resolver instâncias razoavelmente grandes do problema com polígonos não convexos em um tempo aceitável. Esse caso não foi abordado no artigo original, na verdade, essa variação não parece ter sido estudada na literatura no momento da escrita deste relatório, por esse motivo consideramos que essa é uma contribuição original deste trabalho.
+
+Uma parte central desse trabalho é a implementação prática dos algoritmos propostos, uma vez que isso distingue esse relatório do artigo original, que não inclui detalhes de implementação. Por esse motivo, disponibilizamos todo o código-fonte desenvolvido em um \href{https://github.com/YushiPy/TouringPolygons}{repositório público no GitHub}, permitindo que outros pesquisadores e entusiastas possam reproduzir os resultados apresentados aqui, bem como explorar e expandir o trabalho realizado. As implementações dos algoritmos foram realizadas tanto em \textit{Python} quanto em \textit{C++}, enquanto as visualizações utilizaram a biblioteca \textit{matplotlib} para \textit{Python} e a biblioteca \textit{Pygame} para criar um editor gráfico interativo. Além do código em si, também incluímos instruções detalhadas sobre como executar os algoritmos e reproduzir os experimentos apresentados neste relatório.
 
 \section{O Problema de Visita de Polígonos Irrestrito}
 
@@ -257,7 +276,6 @@ Primeiramente vamos considerar o caso do Problema de Visita de Polígonos Irrest
 
 A Figura~\ref{problem1-solution} ilustra um exemplo de entrada e a solução ótima para o problema para um caso com 3 polígonos. Temos \(s\) como o \textcolor[RGB]{0,128,0}{ponto verde}, \(t\) como o \textcolor[RGB]{255, 0, 0}{ponto vermelho} e os polígonos \(P_1, P_2\) e \(P_3\) como o \textcolor[RGB]{76, 146, 195}{triângulo azul}, o \textcolor[RGB]{255, 152, 62}{trapézio laranja} e o \textcolor[RGB]{86, 179, 86}{pentágono verde}, respectivamente. O caminho mínimo é representado pela \textcolor[RGB]{145, 41, 145}{linha roxa}.
 % como o ponto verde, \(t\) como o ponto vermelho e os polígonos \(P_1, P_2\) e \(P_3\) como o triângulo azul, o trapézio laranja e o pentágono verde, respectivamente. O caminho mínimo é representado pela linha roxa.
-
 
 No contexto de otimização geométrica, muitos problemas similares podem ser resolvidos usando uma técnica geral de computar um \textit{mapa de caminho mínimo}, que particiona o plano em regiões onde o comportamento do caminho mínimo é o mesmo. Para o nosso problema, qualquer solução deve tocar cada polígono \(P_i\) pela primeira vez em algum vértice ou aresta, assim, poderíamos agrupar os pontos de acordo com a sequência de vértices e arestas onde o caminho mínimo toca os polígonos. De fato, se calculássemos esse mapa, poderíamos responder consultas em tempo \(O(k + \log(n))\) \cite[Theorem 5.]{tpp-dror2003}, no entanto, no pior caso, esse mapa tem complexidade \(\Theta((n - k) 2 ^ k)\), ou seja, exponencial no número de polígonos \(k\) \cite[Theorem 4.]{tpp-dror2003}, tornando essa abordagem inviável.
 
