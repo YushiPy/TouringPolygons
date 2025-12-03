@@ -288,7 +288,7 @@ Primeiramente, definimos um \(i\)-path até \(p\) como um caminho mínimo que se
 
 Claramente, apenas precisamos considerar caminhos formados pela união de segmentos de reta entre \(s\) e \(t\). Ademais, tal caminho é \textit{localmente mínimo} se dobras ocorrem apenas no perímetro de cada polígono e, para cada dobra \(b \in \partial P_i\), mover \(b\) ligeiramente ao longo de qualquer direção na fronteira de \(P_i\) enquanto mantemos os outros pontos do caminho fixos aumenta o comprimento total do caminho. Isso implica que para pontos de dobra \(b\) no interior de uma aresta de \(P_i\), o ângulo de incidência do segmento que chega em \(b\) é igual ao ângulo de reflexão do segmento que sai de \(b\) (Lei da Reflexão). 
 
-\begin{wrapfigure}{r}{0.60\textwidth}
+\begin{wrapfigure}{l}{0.60\textwidth}
 	\centering
 
 	\begin{minipage}{0.45\linewidth}
@@ -313,7 +313,7 @@ A Figura~\ref{fig:problem1-local-optimality-edge} ilustra a condição de otimal
 
 \subsection{O Mapa de Último Passo Mínimo}
 
-. A partir disso, podemos definir a função \(\text{Query}(p, i)\) que retorna o ponto \(q\) que antecede \(p\) no \(i\)-path até \(p\). Note que se \(i = 0\), então \(\text{Query}(p, 0) = s\) para qualquer ponto \(p \in \mathbb{R} ^ 2\).
+Para cada \(i \in \{1, \dots, k\}\), definimos a região de primeiro contato \(T_i\) de \(P_i\) como o conjunto de pontos \(p \in \partial P_i\) tais que o \((i - 1)\)-path até \(p\) toca \(P_i\) pela primeira vez em \(p\) após visitar os polígonos \(P_1, \dots, P_{i - 1}\). Podemos mostrar que essa região é contínua e é delimitada por vértices de \(P_i\) \cite[Lemma 2.]{tpp-dror2003}.
 
 \begin{wrapfigure}{l}{0.60\textwidth}
 
@@ -324,6 +324,8 @@ A Figura~\ref{fig:problem1-local-optimality-edge} ilustra a condição de otimal
 	\label{problem1-partitions}
 
 \end{wrapfigure}
+
+Sabemos que \(i\)-paths localmente mínimos só podem sair de \(T_i\) de maneiras específicas, continuando em linha reta ou refletindo de maneira apropriada.
 
 Ademais, para cada polígono \(P_i\), criamos uma partição \(S_i\) do plano chamada de \textbf{mapa de último passo mínimo}, que agrupa pontos \(p\) com base no último passo \(q\) do \(i\)-path até \(p\). Essencialmente, temos três tipos de regiões em \(S_i\), \textcolor[RGB]{255, 70, 70}{Regiões de Vértice}, \textcolor[RGB]{86, 179, 86}{Regiões de Aresta} e uma \textcolor[RGB]{76, 146, 195}{Região de Sombra}. Regiões de vértice agrupam pontos cujo último passo do \(i\)-path até eles é um mesmo vértice de \(P_{i - 1}\), regiões de aresta agrupam pontos cujo último passo do \(i\)-path até eles é uma mesma aresta de \(P_{i - 1}\) e a região de sombra agrupa pontos cujo \(i\)-path até eles atravessa o interior de \(P_{i - 1}\) para chegar neles. A Figura~\ref{problem1-partitions} ilustra essas partições para o exemplo da Figura~\ref{problem1-solution}.
 
