@@ -1,6 +1,25 @@
 
+from typing import Callable
 from vector2 import Vector2
 from polygon2 import Polygon2
+
+
+def timer[T, **P](func: Callable[P, T]) -> Callable[P, T]:
+	
+	from time import perf_counter
+
+	def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+
+		start = perf_counter()
+		result = func(*args, **kwargs)
+		end = perf_counter()
+
+		wrapper.total_time += end - start
+		return result
+	
+	wrapper.total_time = 0.0
+
+	return wrapper
 
 
 def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2, eps: float = 1e-8) -> bool:
@@ -78,7 +97,6 @@ def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vect
 		case (False, True):
 			return point_in_cone(point, vertex1, ray1, vertex2 - vertex1) or point_in_cone(point, vertex2, vertex2 - vertex1, ray2, eps)
 
-
 def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2, eps: float = 1e-8) -> Vector2 | None:
 	"""
 	Returns the intersection point of two line segments if they intersect, otherwise returns None.
@@ -119,6 +137,15 @@ class Solution:
 	filtered: list[list[Vector2]]
 	cones: list[list[tuple[Vector2, Vector2]]]
 
+	@timer
+	def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2, eps: float = 1e-8) -> bool:
+		return point_in_cone(point, vertex, ray1, ray2, eps)
+	
+	@timer
+	def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2, eps: float = 1e-8) -> bool:
+		return point_in_edge(point, vertex1, vertex2, ray1, ray2, eps)
+
+	@timer
 	def __init__(self, start: Vector2, target: Vector2, polygons: list[Polygon2]) -> None:
 
 		self.start = start
@@ -128,6 +155,7 @@ class Solution:
 		self.cones = []
 		self.filtered = []
 
+	@timer
 	def locate_point(self, point: Vector2, index: int) -> int:
 		"""
 		Locates point in cones or edges defined by polygon and cones at the given index.
@@ -147,13 +175,13 @@ class Solution:
 		n = len(cones)
 
 		# Check if in the pass through region
-		if point_in_edge(point, filtered[-1], filtered[0], cones[-1][1], cones[0][0]):
+		if Solution.point_in_edge(point, filtered[-1], filtered[0], cones[-1][1], cones[0][0]):
 			return 2 * n - 1
 		
-		if point_in_cone(point, filtered[0], *cones[0]):
+		if Solution.point_in_cone(point, filtered[0], *cones[0]):
 			return 0
 		
-		if point_in_cone(point, filtered[-1], *cones[-1]):
+		if Solution.point_in_cone(point, filtered[-1], *cones[-1]):
 			return 2 * (n - 1)
 		
 		left = 0
@@ -163,19 +191,20 @@ class Solution:
 
 			mid = (left + right) // 2
 
-			if point_in_cone(point, filtered[mid], *cones[mid]):
+			if Solution.point_in_cone(point, filtered[mid], *cones[mid]):
 				return 2 * mid
 			
-			if point_in_edge(point, filtered[left], filtered[mid], cones[left][1], cones[mid][0]):
+			if Solution.point_in_edge(point, filtered[left], filtered[mid], cones[left][1], cones[mid][0]):
 				right = mid
 			else:
 				left = mid
 
-		if point_in_edge(point, filtered[left], filtered[right], cones[left][1], cones[right][0]):
+		if Solution.point_in_edge(point, filtered[left], filtered[right], cones[left][1], cones[right][0]):
 			return 2 * left + 1
 		else:
 			raise ValueError("Point not located in any cone or edge, this should not happen.")
 
+	@timer
 	def get_filtered(self, index: int) -> list[Vector2]:
 		"""
 		Filter the vertices of the polygon at the given index based on the last path segment.
@@ -213,6 +242,7 @@ class Solution:
 		else:
 			return polygon[start:] + polygon[:end + 1]
 
+	@timer
 	def get_cones(self, index: int) -> list[tuple[Vector2, Vector2]]:
 		"""
 		Compute the cones for each filtered vertex of the polygon at the given index.
@@ -241,6 +271,7 @@ class Solution:
 		
 		return cones
 
+	@timer
 	def query_full(self, point: Vector2, index: int) -> tuple[Vector2, int]:
 
 		if index == 0:
@@ -266,10 +297,12 @@ class Solution:
 			raise ValueError("No intersection found, this should not happen.")
 		
 		return intersection, index - 1
-
+	
+	@timer
 	def query(self, point: Vector2, index: int) -> Vector2:
 		return self.query_full(point, index)[0]
 
+	@timer
 	def solve(self) -> list[Vector2]:
 		"""
 		Solve the problem and return the path from start to target.
