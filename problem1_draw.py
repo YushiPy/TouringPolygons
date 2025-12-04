@@ -163,7 +163,7 @@ class Drawing(Solution):
 		return minx, miny, maxx, maxy
 
 
-	def draw(self, scenes: list[int] | None = None) -> None:
+	def draw(self, scenes: list[int] | None = None, /, text: bool = True) -> None:
 
 		self.final_path = self.solve()
 
@@ -189,21 +189,24 @@ class Drawing(Solution):
 				continue
 			
 			self.draw_scene(flat[i], a - 1)
-			flat[i].set_title(f"Regions for polygon {a}", fontsize=14)
+			
+			if text:
+				flat[i].set_title(f"Regions for polygon {a}", fontsize=14)
 
-		if 0 in scenes:
+		if 0 in scenes and text:
 			flat[0].set_title("Final Path", fontsize=14)
 
 		for i in range(count, len(flat)):
 			flat[i].set_axis_off()
 		
 		# Set title for the whole figure
-		fig.suptitle("Shortest path from Start to End touching every polygon", fontsize=16) # type: ignore
+		if text:
+			fig.suptitle("Shortest path from Start to End touching every polygon", fontsize=16) # type: ignore
 
 		for axis in flat:
 			axis.legend()
 
-		#plt.savefig("img2.png", dpi=300)
+		# plt.savefig(f"tmp/img{__import__("random").randint(0, 100)}.png", dpi=300)
 
 		plt.show() # type: ignore
 
