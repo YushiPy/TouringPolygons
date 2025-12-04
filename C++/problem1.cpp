@@ -1,6 +1,8 @@
 
 #include <print>
 
+#include "vector2.h"
+
 int main() {
-	std::print("{}", 23);
+	std::print("{}", "Hello, World!");
 }
