@@ -256,7 +256,7 @@ Enquanto os problemas de TSP e TSPN são conhecidos por serem NP-difíceis \cite
 
 Nesse relatório, buscamos discutir e implementar os algoritmos propostos por Dror et al. (2003) \cite{tpp-dror2003}, apresentando uma visão prática do problema e suas soluções. Enquanto o artigo original foca bastante na análise teórica dos algoritmos, nosso objetivo é fornecer uma abordagem mais acessível e detalhada, enfatizando a implementação e os resultados experimentais. Vamos introduzir os conceitos fundamentais lentamente, junto de diversas visualizações, com o objetivo de facilitar o entendimento do leitor. Para quem deseja uma compreensão mais profunda dos aspectos teóricos, recomendamos a leitura do artigo original.
 
-Além dessas duas variações, também buscamos explorar o caso onde os polígonos não são necessariamente convexos, o que adiciona uma camada extra de complexidade ao problema. Podemos mostrar que nesse caso, mesmo quando não temos "cercas", o problema é NP-difícil \cite{tpp-dror2003}, no entanto, exploramos diferentes estratégias para lidar com essa complexidade adicional, partindo de uma enumeração completa e então removendo diversas soluções inviáveis através de uma estratégia de Branch and Bound, usando os algoritmos para o TPP Irrestrito como cálculo de limites inferiores. Dessa forma, conseguimos resolver instâncias razoavelmente grandes do problema com polígonos não convexos em um tempo aceitável. Esse caso não foi abordado no artigo original, na verdade, essa variação não parece ter sido estudada na literatura no momento da escrita deste relatório, por esse motivo consideramos que essa é uma contribuição original deste trabalho.
+Além dessas duas variações, também buscamos explorar o caso onde os polígonos não são necessariamente convexos, o que adiciona uma camada extra de complexidade ao problema. Podemos mostrar que nesse caso, mesmo quando não temos "cercas", o problema é NP-difícil \cite[\textbf{Theorem 6.}]{tpp-dror2003}, no entanto, exploramos diferentes estratégias para lidar com essa complexidade adicional, partindo de uma enumeração completa e então removendo diversas soluções inviáveis através de uma estratégia de Branch and Bound, usando os algoritmos para o TPP Irrestrito como cálculo de limites inferiores. Dessa forma, conseguimos resolver instâncias razoavelmente grandes do problema com polígonos não convexos em um tempo aceitável. Esse caso não foi abordado no artigo original, na verdade, essa variação não parece ter sido estudada na literatura no momento da escrita deste relatório, por esse motivo consideramos que essa é uma contribuição original deste trabalho.
 
 Uma parte central desse trabalho é a implementação prática dos algoritmos propostos, uma vez que isso distingue esse relatório do artigo original, que não inclui detalhes de implementação. Por esse motivo, disponibilizamos todo o código-fonte desenvolvido em um \href{https://github.com/YushiPy/TouringPolygons}{repositório público no GitHub}, permitindo que outros pesquisadores e entusiastas possam reproduzir os resultados apresentados aqui, bem como explorar e expandir o trabalho realizado. As implementações dos algoritmos foram realizadas tanto em \textit{Python} quanto em \textit{C++}, enquanto as visualizações utilizaram a biblioteca \textit{matplotlib} para \textit{Python} e a biblioteca \textit{Pygame} para criar um editor gráfico interativo. Além do código em si, também incluímos instruções detalhadas sobre como executar os algoritmos e reproduzir os experimentos apresentados neste relatório.
 
@@ -278,13 +278,13 @@ Primeiramente vamos considerar o caso do Problema de Visita de Polígonos Irrest
 A Figura~\ref{problem1-solution} ilustra um exemplo de entrada e a solução ótima para o problema para um caso com 3 polígonos. Temos \(s\) como o \textcolor[RGB]{0,128,0}{ponto verde}, \(t\) como o \textcolor[RGB]{255, 0, 0}{ponto vermelho} e os polígonos \(P_1, P_2\) e \(P_3\) como o \textcolor[RGB]{76, 146, 195}{triângulo azul}, o \textcolor[RGB]{255, 152, 62}{trapézio laranja} e o \textcolor[RGB]{86, 179, 86}{pentágono verde}, respectivamente. O caminho mínimo é representado pela \textcolor[RGB]{145, 41, 145}{linha roxa}.
 % como o ponto verde, \(t\) como o ponto vermelho e os polígonos \(P_1, P_2\) e \(P_3\) como o triângulo azul, o trapézio laranja e o pentágono verde, respectivamente. O caminho mínimo é representado pela linha roxa.
 
-No contexto de otimização geométrica, muitos problemas similares podem ser resolvidos usando uma técnica geral de computar um \textit{mapa de caminho mínimo}, que particiona o plano em regiões onde o comportamento do caminho mínimo é o mesmo. Para o nosso problema, qualquer solução deve tocar cada polígono \(P_i\) pela primeira vez em algum vértice ou aresta, assim, poderíamos agrupar os pontos de acordo com a sequência de vértices e arestas onde o caminho mínimo toca os polígonos. De fato, se calculássemos esse mapa, poderíamos responder consultas em tempo \(O(k + \log(n))\) \cite[Theorem 5.]{tpp-dror2003}, no entanto, no pior caso, esse mapa tem complexidade \(\Theta((n - k) 2 ^ k)\), ou seja, exponencial no número de polígonos \(k\) \cite[Theorem 4.]{tpp-dror2003}, tornando essa abordagem inviável.
+No contexto de otimização geométrica, muitos problemas similares podem ser resolvidos usando uma técnica geral de computar um \textit{mapa de caminho mínimo}, que particiona o plano em regiões onde o comportamento do caminho mínimo é o mesmo. Para o nosso problema, qualquer solução deve tocar cada polígono \(P_i\) pela primeira vez em algum vértice ou aresta, assim, poderíamos agrupar os pontos de acordo com a sequência de vértices e arestas onde o caminho mínimo toca os polígonos. De fato, se calculássemos esse mapa, poderíamos responder consultas em tempo \(O(k + \log(n))\) \cite[\textbf{Theorem 5.}]{tpp-dror2003}, no entanto, no pior caso, esse mapa tem complexidade \(\Theta((n - k) 2 ^ k)\), ou seja, exponencial no número de polígonos \(k\) \cite[\textbf{Theorem 4.}]{tpp-dror2003}, tornando essa abordagem inviável.
 
-Por esse motivo, usamos uma nova técnica baseada em subdividir o plano de acordo com \textit{mapas de último passo mínimo}, que para cada polígono \(P_i\), agrupa pontos \(p\) tais que o ponto \(q\) que antecede \(p\) do caminho mínimo partindo de \(s\), tocando \(P_1, \dots, P_i\) e chegando em \(p\) é um mesmo vértice ou uma mesma aresta. O conjunto dessas partições pode ser contruído em tempo \(O(nk \log(n / k))\), permitindo responder consultas em tempo \(O(k \log(n / k))\) \cite[Theorem 1.]{tpp-dror2003}. Dessa forma, podemos encontrar o caminho mínimo que visita todos os polígonos em tempo Polinomial.
+Por esse motivo, usamos uma nova técnica baseada em subdividir o plano de acordo com \textit{mapas de último passo mínimo}, que para cada polígono \(P_i\), agrupa pontos \(p\) tais que o ponto \(q\) que antecede \(p\) do caminho mínimo partindo de \(s\), tocando \(P_1, \dots, P_i\) e chegando em \(p\) é um mesmo vértice ou uma mesma aresta. O conjunto dessas partições pode ser contruído em tempo \(O(nk \log(n / k))\), permitindo responder consultas em tempo \(O(k \log(n / k))\) \cite[\textbf{Theorem 1.}]{tpp-dror2003}. Dessa forma, podemos encontrar o caminho mínimo que visita todos os polígonos em tempo Polinomial.
 
 \subsection{Condições de Otimalidade Local}
 
-Primeiramente, definimos um \(i\)-path até \(p\) como um caminho mínimo que se inicia em \(s\) e toca os polígonos \(P_1, \ldots, P_i\) em ordem, terminando em um ponto \(p\), tal \(i\)-path é \textbf{único} \cite[Lemma 1.]{tpp-dror2003}. Note que um \(k\)-path até \(t\) é exatamente o caminho mínimo que buscamos.
+Primeiramente, definimos um \(i\)-path até \(p\) como um caminho mínimo que se inicia em \(s\) e toca os polígonos \(P_1, \ldots, P_i\) em ordem, terminando em um ponto \(p\). Podemos mostrar que tal \(i\)-path é \textbf{único} e assim otimalidade \textbf{local} implica otimalidade \textbf{global} \cite[\textbf{Lemma 1.}]{tpp-dror2003}. Note que um \(k\)-path até \(t\) é exatamente o caminho mínimo que buscamos.
 
 Claramente, apenas precisamos considerar caminhos formados pela união de segmentos de reta entre \(s\) e \(t\). Ademais, tal caminho é \textit{localmente mínimo} se dobras ocorrem apenas no perímetro de cada polígono e, para cada dobra \(b \in \partial P_i\), mover \(b\) ligeiramente ao longo de qualquer direção na fronteira de \(P_i\) enquanto mantemos os outros pontos do caminho fixos aumenta o comprimento total do caminho. Isso implica que para pontos de dobra \(b\) no interior de uma aresta de \(P_i\), o ângulo de incidência do segmento que chega em \(b\) é igual ao ângulo de reflexão do segmento que sai de \(b\) (Lei da Reflexão). 
 
@@ -311,9 +311,49 @@ Já para pontos de dobra que são vértices \(v = e^1 \cap e ^ 2\) de \(P_i\), a
 
 A Figura~\ref{fig:problem1-local-optimality-edge} ilustra a condição de otimalidade para dobras em arestas, na qual temos um caminho com os pontos \(a\), \(b\) e \(c\), onde \(b\) é um ponto de dobra em um parte interior da aresta \(e\). Observamos que o segmento \(\overline{ab}\) faz o mesmo ângulo com a aresta \(e\) que o segmento \(\overline{bc}\), assim, as condições de otimalidade estão satisfeitas. Já a Figura~\ref{fig:problem1-local-optimality-vertex} ilustra a condição de otimalidade para dobras em vértices, na qual temos um caminho partindo de \(s\) que chega em um vértice \(v\) de um polígono. Observamos que segmentos que saem de \(v\) devem estar dentro do cone \(\gamma\) delimitado pela reflexão do segmento \(\overline{sv}\) em relação às duas arestas \(e^1\) e \(e^2\) que se encontram em \(v\).
 
+Adicionalmente, vale mencionar que se um caminho chega em um ponto \(p\) atravessando o interior de um polígono \(P_i\), então o último segmento desse caminho é localmente mínimo, pois a menor distância entre dois pontos é uma linha reta.
+
+\subsection{Região de Primeiro Contato}
+
+Para cada \(i \in \{1, \dots, k\}\), definimos a região de primeiro contato \(T_i\) de \(P_i\) como o conjunto de pontos \(p \in \partial P_i\) tais que o \((i - 1)\)-path até \(p\) toca \(P_i\) pela primeira vez em \(p\) após visitar os polígonos \(P_1, \dots, P_{i - 1}\). Podemos mostrar que essa região é contínua e é delimitada por vértices de \(P_i\) \cite[\textbf{Lemma 2.}]{tpp-dror2003}.
+
+Sabemos que \(i\)-paths localmente mínimos só podem sair de \(T_i\) de maneiras específicas, continuando em linha reta ou refletindo de maneira apropriada, adicionalmente, como otimalidade local implica otimalidade global, se existe um caminho localmente ótimo até \(p\), então esse é o caminho mínimo até \(p\). 
+
+\begin{wrapfigure}{r}{0.60\textwidth}
+
+	\vspace{-5pt}
+	\centering
+	\includegraphics[width=0.60\textwidth]{Problem1Images/local-optimality-polygon.png}
+	\caption{Caminhos mínimos visitando um polígono.}
+	\label{problem1-local-optimality-polygon}
+
+\end{wrapfigure}
+
+Assim, seja \(p \in \mathbb{R} ^ 2\), \(v\) um vértice de \(P_i\) tal que \(v \in T_i\) e \(u\) o ponto que precede \(v\) no \((i - 1)\)-path até \(v\). Pelas condições de otimalidade local, sabemos que o segmento \(\overline{vp}\) só pode ser parte de um \(i\)-path até \(p\) se o o segmento \(\overline{vp}\) está contido dentro do cone \(\gamma\) formado pela reflexão do vetor \(\overrightarrow{uv}\) em relação às duas arestas que se encontram em \(v\). Como as condições de otimalidade são tanto necessárias quanto suficientes, podemos afirmar que se \(p\) pertence ao cone \(\gamma\), então o caminho formado pelo \((i - 1)\)-path até \(v\) seguido do segmento \(\overline{vp}\) é o \(i\)-path até \(p\).
+
+Ademais, seja \(p \in \mathbb{R} ^ 2\) e vamos assumir que o \(i\)-path até \(p\) tem uma dobra \(b\) na parte interior de uma aresta \(e\) de \(P_i\) limitada pelos vértices \(v^1\) e \(v^2\) tais que \(v^1, v^2 \in T_i\). Seja \(u\) o ponto que precede \(b\) no \((i - 1)\)-path até \(b\). Pelas condições de otimalidade local, sabemos que o segmento \(\overline{bp}\) só pode ser parte de um \(i\)-path até \(p\) se o ângulo de incidência do segmento \(\overline{ub}\) com a aresta \(e\) for igual ao ângulo de reflexão do segmento \(\overline{bp}\) com a aresta \(e\). Isso é possível se e somente se \(p\) está entre as reflexões dos raios que chegam em \(v^1\) e \(v^2\) em relação à aresta \(e\) e se \(p\) está do lado "externo" da aresta \(e\) (ou seja, o segmento \(\overline{bp}\) não atravessa o interior de \(P_i\)). Como as condições de otimalidade são tanto necessárias quanto suficientes, podemos afirmar que se \(p\) satisfaz essas condições, então o caminho formado pelo \((i - 1)\)-path até \(b\) seguido do segmento \(\overline{bp}\) é o \(i\)-path até \(p\).
+
+Finalmente, se \(p\) não satisfaz nenhuma das condições anteriores, então o \(i\)-path até \(p\) deve atravessar o interior de \(P_i\) para chegar em \(p\). Nesse caso, o \(i\)-path até \(p\) é exatamente o \((i - 1)\)-path \(p\), pois esse caminho automaticamente visita \(P_i\) ao atravessá-lo. A Figura~\ref{problem1-local-optimality-polygon}.
+
+A Figura~\ref{problem1-local-optimality-polygon} ilustra essas três possibilidades um caso de um único polígono. Temos que o ponto \(p^1\) está no cone do vértice \(v^1\), portanto, o \(1\)-path até \(p^1\) parte de \(s\), chega em \(v^1\) e segue em linha reta até \(p^1\). Já o ponto \(p^2\) está entre as reflexões dos raios que chegam em \(v^2\) e \(v^3\) em relação à aresta \(e^2\), assim, o \(1\)-path até \(p^2\) parte de \(s\), chega em um ponto \(b\) na aresta \(e^2\) e reflete até \(p^2\). Finalmente, o ponto \(p^3\) não satisfaz nenhuma das condições anteriores, portanto, o \(1\)-path até \(p^3\) parte de \(s\) e chega diretamente em \(p^3\), atravessando o interior do polígono.
+
 \subsection{O Mapa de Último Passo Mínimo}
 
-Para cada \(i \in \{1, \dots, k\}\), definimos a região de primeiro contato \(T_i\) de \(P_i\) como o conjunto de pontos \(p \in \partial P_i\) tais que o \((i - 1)\)-path até \(p\) toca \(P_i\) pela primeira vez em \(p\) após visitar os polígonos \(P_1, \dots, P_{i - 1}\). Podemos mostrar que essa região é contínua e é delimitada por vértices de \(P_i\) \cite[Lemma 2.]{tpp-dror2003}.
+As ideias das duas últimas seções sugerem uma maneira de particionar o plano de acordo com o último passo do \(i\)-path até cada ponto \(p\). Para cada polígono \(P_i\), podemos particionar o plano em regiões onde o último passo do \(i\)-path até qualquer ponto \(p\) dentro dessa região é um mesmo vértice de \(P_i\), uma mesma aresta de \(P_i\) ou atravessa o interior de \(P_i\). Denotamos essa partição por \(S_i\) e chamamos de \textbf{regiões de vértice}, \textbf{regiões de aresta} e \textbf{região de travessia} as regiões onde o último passo do \(i\)-path é um vértice, uma aresta ou atravessa o interior de \(P_i\), respectivamente.
+
+\begin{wrapfigure}{l}{0.60\textwidth}
+
+	\vspace{-5pt}
+	\centering
+	\includegraphics[width=0.6\textwidth]{Problem1Images/first-contact.png}
+	\caption{Mapa de último passo mínimo para um polígono.}
+	\label{problem1-last-step-map}
+
+\end{wrapfigure}
+
+Ilustramos essa ideia na Figura~\ref{problem1-last-step-map}, onde temos o polígono \(P_1\) em laranja, as regiões de vértice em vermelho, aresta em verde e travessia em ciano, também colorimos \(T_1\) em azul. Note que para cada vértice \(v \in T_1\) de \(P_1\), temos que sua região de vértice é o cone formado pelas reflexões do vetor \(\overrightarrow{sv}\) em relação às duas arestas que se encontram em \(v\). Já para cada aresta \(e \subseteq T_1\) de \(P_1\), temos que sua região de aresta é o conjunto de pontos entre as reflexões dos raios que chegam nos dois vértices que limitam \(e\) em relação à aresta \(e\) e do lado externo de \(e\). Finalmente, a região de travessia é o restante do plano.
+
+Uma vez que definimos a partição \(S_i\) do plano, conseguimos determinar o \(i\)-path até qualquer ponto \(p\) de maneira eficiente. Basta determinar em qual região de \(S_i\) o ponto \(p\) está e então aplicar as condições de otimalidade local para construir o \(i\)-path até \(p\) de acordo com o último passo do caminho. Ademais, vamos expor adiante como localizar um ponto \(p\) em \(S_i\) em tempo \(O(\log(n))\), permitindo responder consultas de \(i\)-paths em tempo \(O(i \log(n))\).
 
 \begin{wrapfigure}{l}{0.60\textwidth}
 
@@ -325,13 +365,7 @@ Para cada \(i \in \{1, \dots, k\}\), definimos a região de primeiro contato \(T
 
 \end{wrapfigure}
 
-Sabemos que \(i\)-paths localmente mínimos só podem sair de \(T_i\) de maneiras específicas, continuando em linha reta ou refletindo de maneira apropriada.
-
-Ademais, para cada polígono \(P_i\), criamos uma partição \(S_i\) do plano chamada de \textbf{mapa de último passo mínimo}, que agrupa pontos \(p\) com base no último passo \(q\) do \(i\)-path até \(p\). Essencialmente, temos três tipos de regiões em \(S_i\), \textcolor[RGB]{255, 70, 70}{Regiões de Vértice}, \textcolor[RGB]{86, 179, 86}{Regiões de Aresta} e uma \textcolor[RGB]{76, 146, 195}{Região de Sombra}. Regiões de vértice agrupam pontos cujo último passo do \(i\)-path até eles é um mesmo vértice de \(P_{i - 1}\), regiões de aresta agrupam pontos cujo último passo do \(i\)-path até eles é uma mesma aresta de \(P_{i - 1}\) e a região de sombra agrupa pontos cujo \(i\)-path até eles atravessa o interior de \(P_{i - 1}\) para chegar neles. A Figura~\ref{problem1-partitions} ilustra essas partições para o exemplo da Figura~\ref{problem1-solution}.
-
-Se considerarmos que pontos dentro de \(P_i\) pertencem à região de sombra e que pontos na fronteira entre as regiões podem ser considerados como pertencentes a qualquer uma das regiões que as delimitam, concluimos que qualquer ponto do plano pertence a exatamente uma dessas regiões, ou seja, essas três regiões são complementares.
-
-Além disso, 
+asdaas
 
 \subsubsection{Região de Primeiro Contato}
 
