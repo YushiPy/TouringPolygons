@@ -8,10 +8,17 @@ from polygon2 import Polygon2
 
 from problem1 import Solution
 from problem1_fast import Solution as FastSolution
+from problem1_new import Solution as NewSolution
 
 
 type TestCase = tuple[Vector2, Vector2, list[Polygon2]]
 
+def reference_solution(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
+	return FastSolution(start, target, polygons).solve()
+
+def test_solution(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
+	return NewSolution(start, target, polygons).solve()
+ 
 def regular_polygon(n: int, r: float, center: Vector2 = Vector2(), angle: float = 0) -> Polygon2:
 	"""
 	Create a regular polygon with `n` vertices and radius `r`.
@@ -76,8 +83,8 @@ def make_test(sides: list[int]) -> TestCase:
 
 def do_test(test: TestCase, number: int = 10) -> tuple[float, float]:
 
-	slow = timeit(lambda: Solution(*test).solve(), number=number)
-	fast = timeit(lambda: FastSolution(*test).solve(), number=number)
+	slow = timeit(lambda: reference_solution(*test), number=number)
+	fast = timeit(lambda: test_solution(*test), number=number)
 
 	return slow, fast
 
@@ -98,7 +105,7 @@ def test_suite(name: str, sides_list: list[list[int]], number: int = 10) -> None
 		print(f"\tSpeedup: {justified(round(slow / fast, 2))}x | Slow: {justified(slow)}s | Fast: {justified(fast)}s | Sides: {sides_string}", flush=True)
 
 def time_test(test: TestCase, number: int = 10) -> float:
-	return timeit(lambda: FastSolution(*test).solve(), number=number)
+	return timeit(lambda: test_solution(*test), number=number)
 
 def time_test_suite(name: str, sides_list: list[list[int]], number: int = 10) -> None:
 
@@ -144,13 +151,17 @@ if __name__ == "__main__":
 		[1000],
 	]
 
-	#test_suite("Small", small_tests, number=100)
-	#test_suite("Numerous Small", numerous_small_tests, number=10)
-	#test_suite("Large", large_tests, number=10)
+	test_suite("Small", small_tests, number=100)
+	test_suite("Numerous Small", numerous_small_tests, number=10)
+	test_suite("Large", large_tests, number=10)
 
-	time_test_suite("Timing Small", small_tests, number=1000)
-	time_test_suite("Timing Numerous Small", numerous_small_tests, number=100)
-	time_test_suite("Timing Large", large_tests, number=100)
+	for name, value in NewSolution.__dict__.items():
+		if callable(value) and hasattr(value, "total_time"):
+			print(f"{name}: {value.total_time:.6f}s")
+
+	#time_test_suite("Timing Small", small_tests, number=1000)
+	#time_test_suite("Timing Numerous Small", numerous_small_tests, number=100)
+	#time_test_suite("Timing Large", large_tests, number=100)
 
 """
 Small Tests:
