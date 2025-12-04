@@ -353,19 +353,20 @@ As ideias das duas últimas seções sugerem uma maneira de particionar o plano 
 
 Ilustramos essa ideia na Figura~\ref{problem1-last-step-map}, onde temos o polígono \(P_1\) em laranja, as regiões de vértice em vermelho, aresta em verde e travessia em ciano, também colorimos \(T_1\) em azul. Note que para cada vértice \(v \in T_1\) de \(P_1\), temos que sua região de vértice é o cone formado pelas reflexões do vetor \(\overrightarrow{sv}\) em relação às duas arestas que se encontram em \(v\). Já para cada aresta \(e \subseteq T_1\) de \(P_1\), temos que sua região de aresta é o conjunto de pontos entre as reflexões dos raios que chegam nos dois vértices que limitam \(e\) em relação à aresta \(e\) e do lado externo de \(e\). Finalmente, a região de travessia é o restante do plano.
 
+Para construir \(S_i\), começamos determinando \(T_i\), detalhamos mais a frente como fazer isso de maneira eficiente. Em seguida, para cada vértice \(v \in T_i\) de \(P_i\), construímos sua região de vértice calculando o ponto \(u\) que precede \(v\) no \((i - 1)\)-path até \(v\) e então calculando as reflexões do vetor \(\overrightarrow{uv}\) em relação às duas arestas que se encontram em \(v\). Uma vez que temos as regiões de vértice, não é necessário construir as regiões de aresta explicitamente, pois elas podem ser derivadas das regiões de vértice adjacentes e da aresta correspondente. Finalmente, a região de travessia é simplesmente o complemento das regiões de vértice e aresta.
+
 Uma vez que definimos a partição \(S_i\) do plano, conseguimos determinar o \(i\)-path até qualquer ponto \(p\) de maneira eficiente. Basta determinar em qual região de \(S_i\) o ponto \(p\) está e então aplicar as condições de otimalidade local para construir o \(i\)-path até \(p\) de acordo com o último passo do caminho. Ademais, vamos expor adiante como localizar um ponto \(p\) em \(S_i\) em tempo \(O(\log(n))\), permitindo responder consultas de \(i\)-paths em tempo \(O(i \log(n))\).
 
-\begin{wrapfigure}{l}{0.60\textwidth}
+A partir dessas ideias, note que primeiro contruímos a partição \(S_1\) usando apenas o ponto \(s\). Em seguida, podemos usar \(s\) e \(S_1\) para construir \(S_2\), depois usar \(s\), \(S_1\) e \(S_2\) para construir \(S_3\) e assim por diante, até construirmos \(S_k\). Finalmente, podemos usar \(s\), \(S_1, S_2, \ldots, S_k\) para determinar o \(k\)-path até o ponto \(t\), que é exatamente o caminho mínimo que buscamos. A Figura~\ref{problem1-partitions} ilustra as partições \(S_1, S_2\) e \(S_3\) para o exemplo da Figura~\ref{problem1-solution}.
 
-	\vspace{-5pt}
+\begin{figure}[H]
 	\centering
 	\includegraphics[width=0.6\textwidth]{Problem1Images/partitions.png}
 	\caption{Partição do plano para cada polígono do exemplo anterior.}
 	\label{problem1-partitions}
+\end{figure}
 
-\end{wrapfigure}
-
-asdaas
+Dessa forma, concluímos o embasamento teórico necessário para implementar o algoritmo proposto por Dror et al. (2003) \cite{tpp-dror2003} para resolver o TPP Irrestrito. Nas próximas seções, vamos discutir em detalhe como implementar cada parte do algoritmo e as subrotinas necessárias para construir as partições \(S_i\) de maneira eficiente.
 
 \subsubsection{Região de Primeiro Contato}
 
