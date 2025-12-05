@@ -368,6 +368,22 @@ A partir dessas ideias, note que primeiro contruímos a partição \(S_1\) usand
 
 Dessa forma, concluímos o embasamento teórico necessário para implementar o algoritmo proposto por Dror et al. (2003) \cite{tpp-dror2003} para resolver o TPP Irrestrito. Nas próximas seções, vamos discutir em detalhe como implementar cada parte do algoritmo e as subrotinas necessárias para construir as partições \(S_i\) de maneira eficiente.
 
+\subsection{Determinando a Região de Primeiro Contato}
+
+Como discutido acima, a região de primeiro contato \(T_i\) de um polígono \(P_i\) é o conjunto de pontos \(p \in \partial P_i\) tais que o \((i - 1)\)-path até \(p\) toca \(P_i\) pela primeira vez em \(p\). Adicionalmente, sabemoos que \(T_i\) é contínua, delimitada por vértices de \(P_i\) e sempre contém pelo menos uma aresta de \(P_i\) e nunca contém o polígono inteiro. \textcolor{red}{Tentar provar isso...}
+
+É importante ressaltar que apenas determinar quais vértices de \(P_i\) pertencem a \(T_i\) não é suficiente, pois \(T_i\) pode conter todos os vértices de \(P_i\) e ainda assim ter uma aresta que não pertence a \(T_i\). Por esse motivo, buscamos determinar o primeiro e o último vértice de \(P_i\) que pertencem a \(T_i\) e então considerar apenas as arestas entre esses dois vértices. 
+
+Primeiramente, sejam \(b, v, a\) vértices consecutivos de \(P_i\) em sentido anti-horário (\(b\) para \textit{before} e \(a\) para \textit{after}) e seja \(u\) o ponto que precede \(v\) no \((i - 1)\)-path até \(v\). Usando as condições de otimalidade de primeira ordem, podems concluir que se as direções \(\overrightarrow{b v}\) e \(\overrightarrow{v a}\) estão em lados opostos do vetor \(\overrightarrow{uv}\), então \(v\) é um dos extremos de \(T_i\), mais especificamente, se \(\overrightarrow{b v}\) está no lado anti-horário de \(\overrightarrow{uv}\), então \(v\) é o primeiro vértice de \(T_i\), caso contrário, é o último vértice de \(T_i\). Essas verificações podem ser feitas usando produtos vetoriais em tempo \(O(1)\), assim, podemos iterar sobre todos os vértices de \(P_i\) em tempo \(O(\abs{P_i})\) para encontrar os extremos de \(T_i\). Ilustramos essa ideia no Algoritmo~\algref{problem1-first-contact}.
+
+\begin{algorithm}
+\alglabel{problem1-first-contact}
+\caption{Região de Primeiro Contato}
+\textbf{Entrada:} Polígono convexo \(P_i\), partição \(S_{i - 1}\), ponto \(s\). \\
+\textbf{Saída:} Vértices \(v_{first}, v_{last}\) que delimitam \(T_i\).
+
+\end{algorithm}
+
 \subsubsection{Região de Primeiro Contato}
 
 Seja $p \in P_i$ tal que a interseção entre o último segmento do \((i - 1)\)-path até \(p\) e $P_i$ consiste apenas no ponto $p$. Em outras palavras, $p$ é tal que o \((i - 1)\)-path até \(p\) chega a $P_i$ por ``fora''. Denominamos região de primeiro contato de $P_i$, que denotamos por $T_i$, ao conjunto de todos os pontos $p \in P_i$ com essa propriedade. \textcolor{red}{Tentar provar que se o sinal do produto vetorial usando o ponto $m$ tem o sinal correto, o mesmo vale para qualquer outro ponto no segmento.}
