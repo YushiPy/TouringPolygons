@@ -297,10 +297,23 @@ class Solution:
 			raise ValueError("No intersection found, this should not happen.")
 		
 		return intersection, index - 1
-	
+
 	@timer
 	def query(self, point: Vector2, index: int) -> Vector2:
 		return self.query_full(point, index)[0]
+
+	@timer
+	def get_full_path(self, point: Vector2, index: int) -> list[Vector2]:
+
+		result = [point]
+
+		while index >= 0:
+			point, index = self.query_full(point, index)
+			result.append(point)
+		
+		result.reverse()
+
+		return result
 
 	@timer
 	def solve(self) -> list[Vector2]:
@@ -321,16 +334,5 @@ class Solution:
 		for i in range(1, k + 1):
 			self.filtered.append(self.get_filtered(i))
 			self.cones.append(self.get_cones(i))
-		
-		current = self.target
-		index = k
 
-		result = [current]
-
-		while index >= 0:
-			current, index = self.query_full(current, index)
-			result.append(current)
-		
-		result.reverse()
-
-		return result
+		return self.get_full_path(self.target, k)
