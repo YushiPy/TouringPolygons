@@ -421,6 +421,10 @@ Utilizando essa função e as ideias acima, implementamos o Algoritmo~\algref{pr
 
 \end{algorithm}
 
+\subsection{Regiões de Vértice}
+
+Uma vez que determinamos \(T_i\), o próximo passo é contruir a partição \(S_i\) do plano. Conforme discutido acima, para representar \(S_i\), precisamos apenas contruir as regiões de v;vértice, pois as regiões de aresta podem ser derivadas das regiões de vértice adjacentes e a região de travessia é simplesmente o complemento das regiões de vértice e aresta. As 
+
 \subsubsection{Construindo Regiões de Vértice}
 
 Uma vez que sabemos quais arestas são visíveis, podemos construir as regiões de vértice. Observamos anteriormente que essas são delimitadas por duas semi-retas que partem de um vértice de \(P_i\). Por esse motivo, nessa etapa, à cada vértice \(v\) vamos associar um par ordenado de direções \((d_{\text{prev}}, d_{\text{next}})\) tais que a região de vértice associada a \(v\) são os pontos entre as semi-retas que partem de \(v\) nas direções \(d_{\text{prev}}\) e \(d_{\text{next}}\), no sentido anti-horário.
