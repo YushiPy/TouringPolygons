@@ -22,8 +22,11 @@
 \usepackage[linesnumbered,ruled,vlined]{algorithm2e}
 
 % make conditions/keyword arguments use text mode
+\renewcommand{\algorithmcfname}{Algoritmo}
 \SetArgSty{textnormal}
 
+\SetKwInOut{Input}{Entrada}
+\SetKwInOut{Output}{Saída}
 \SetKwIF{If}{ElseIf}{Else}{if}{:}{else if}{else}{end}
 \SetKwFor{For}{for}{:}{end}
 \SetKwRepeat{Do}{do}{while}
@@ -374,64 +377,47 @@ Como discutido acima, a região de primeiro contato \(T_i\) de um polígono \(P_
 
 É importante ressaltar que apenas determinar quais vértices de \(P_i\) pertencem a \(T_i\) não é suficiente, pois \(T_i\) pode conter todos os vértices de \(P_i\) e ainda assim ter uma aresta que não pertence a \(T_i\). Por esse motivo, buscamos determinar o primeiro e o último vértice de \(P_i\) que pertencem a \(T_i\) e então considerar apenas as arestas entre esses dois vértices. 
 
-Primeiramente, sejam \(b, v, a\) vértices consecutivos de \(P_i\) em sentido anti-horário (\(b\) para \textit{before} e \(a\) para \textit{after}) e seja \(u\) o ponto que precede \(v\) no \((i - 1)\)-path até \(v\). Usando as condições de otimalidade de primeira ordem, podems concluir que se as direções \(\overrightarrow{b v}\) e \(\overrightarrow{v a}\) estão em lados opostos do vetor \(\overrightarrow{uv}\), então \(v\) é um dos extremos de \(T_i\), mais especificamente, se \(\overrightarrow{b v}\) está no lado anti-horário de \(\overrightarrow{uv}\), então \(v\) é o primeiro vértice de \(T_i\), caso contrário, é o último vértice de \(T_i\). Essas verificações podem ser feitas usando produtos vetoriais em tempo \(O(1)\), assim, podemos iterar sobre todos os vértices de \(P_i\) em tempo \(O(\abs{P_i})\) para encontrar os extremos de \(T_i\). Ilustramos essa ideia no Algoritmo~\algref{problem1-first-contact}.
+Primeiramente, sejam \(b, v, a\) vértices consecutivos de \(P_i\) em sentido anti-horário (\(b\) para \textit{before} e \(a\) para \textit{after}) e seja \(u\) o ponto que precede \(v\) no \((i - 1)\)-path até \(v\). Usando as condições de otimalidade de primeira ordem, podems concluir que se as direções \(\overrightarrow{b v}\) e \(\overrightarrow{v a}\) estão em lados opostos do vetor \(\overrightarrow{uv}\), então \(v\) é um dos extremos de \(T_i\), mais especificamente, se \(\overrightarrow{b v}\) está no lado anti-horário de \(\overrightarrow{uv}\), então \(v\) é o primeiro vértice de \(T_i\), caso contrário, é o último vértice de \(T_i\). 
+
+Enquanto a maioria dessas operações são simples verificações geométricas baseadas em produtos vetoriais, precisamos de uma maneira eficiente de determinar o ponto \(u\) que precede \(v\) no \((i - 1)\)-path até \(v\). No momento, só sabemos responder essa consulta para um \(0\)-path, que é simplesmente o ponto \(s\). No entanto, como discutimos acima, isso é suficiente para construir \(T_1\) e \(S_1\), os quais nos permitem responder consultas de \(1\)-paths. Assim, podemos usar \(s\), \(T_1\) e \(S_1\) para construir \(T_2\) e \(S_2\), os quais nos permitem responder consultas de \(2\)-paths. Repetindo esse processo, conseguimos construir \(T_i\) e \(S_i\) para qualquer \(i \in \{1, \ldots, k\}\).
+
+Por esse motivo, vamos criar uma função \(\text{Query}(p, s, (P_1, \dots, P_i), (T_1, \dots, T_i), (S_1, \dots, S_i))\) que dado um ponto \(p\), o ponto inicial \(s\), os polígonos \(P_1, \dots, P_i\), as regiões de primeiro contato \(T_1, \dots, T_i\) e as partições \(S_1, \dots, S_i\), retorna o \(i\)-path até \(p\). Usando essa função, podemos determinar o ponto \(u\) que precede um vértice \(v\) no \((i - 1)\)-path até \(v\) simplesmente chamando \(\text{Query}(v, s, P_1, \dots, P_{i - 1}, T_1, \dots, T_{i - 1}, S_1, \dots, S_{i - 1})\) e então retornando o penúltimo ponto do caminho retornado. Vamos detalhar a implementação dessa função mais adiante, mas por enquanto, assumimos que essa função está disponível e funciona corretamente.
+
+Utilizando essa função e as ideias acima, implementamos o Algoritmo~\algref{problem1-first-contact} para determinar a região de primeiro contato \(T_i\), que retorna uma lista de vértices consecutivos de \(P_i\) que pertencem a \(T_i\) e tais que o primero e o último vértice dessa lista são exatamente os extremos de \(T_i\).
 
 \begin{algorithm}
 \alglabel{problem1-first-contact}
 \caption{Região de Primeiro Contato}
-\textbf{Entrada:} Polígono convexo \(P_i\), partição \(S_{i - 1}\), ponto \(s\). \\
-\textbf{Saída:} Vértices \(v_{first}, v_{last}\) que delimitam \(T_i\).
+\Input{\(s\), \((P_1, \dots, P_i)\), \((S_1, \dots, S_{i - 1})\), \((T_1, \dots, T_{i - 1})\)}
+\Output{\(T_i\) na forma de uma lista de vértices consecutivos de \(P_i\).}
 
-\end{algorithm}
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
 
-\subsubsection{Região de Primeiro Contato}
+\(i \leftarrow -1\) // Índice do primeiro vértice de \(T_i\) \\
+\(j \leftarrow -1\) // Índice do último vértice de \(T_i\) \\
 
-Seja $p \in P_i$ tal que a interseção entre o último segmento do \((i - 1)\)-path até \(p\) e $P_i$ consiste apenas no ponto $p$. Em outras palavras, $p$ é tal que o \((i - 1)\)-path até \(p\) chega a $P_i$ por ``fora''. Denominamos região de primeiro contato de $P_i$, que denotamos por $T_i$, ao conjunto de todos os pontos $p \in P_i$ com essa propriedade. \textcolor{red}{Tentar provar que se o sinal do produto vetorial usando o ponto $m$ tem o sinal correto, o mesmo vale para qualquer outro ponto no segmento.}
+\For{\(v\) vértice de \(P_i\)} {
 
+	\(b \leftarrow\) vértice antes de \(v\) em \(P_i\) \\
+	\(a \leftarrow\) vértice depois de \(v\) em \(P_i\) \\
+	\(path \leftarrow \text{Query}(v, s, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
+	\(u \leftarrow\) penúltimo ponto de \(path\) \\
 
-Para cada polígono \(P_i\), definimos \(T_i\) como a \textit{região de primeiro contato} de \(P_i\), ou seja, o conjunto de pontos \(p\) no perímetro de \(P_i\) tais que o \((i - 1)\)-path até \(p\) toca em \(P_i\) pela primeira vez em \(p\). Podemos provar \cite[Teorema~3.4, p. 243]{tpp-dror2003} que \(T_i\) é uma região contínua do perímetro de \(P_i\) e que \(T_i\) é delimitada por vértices de \(P_i\), ou seja, \(T_i\) é a união de uma sequência de arestas consecutivas de \(P_i\). Por esse motivo, chamamos arestas de \(P_i\) que pertencem à \(T_i\) de \textbf{arestas visíveis} e as que não pertencem de \textbf{arestas bloqueadas}.
+	\(d^1 \leftarrow v - b\) \\
+	\(d^2 \leftarrow a - v\) \\
+	\(d^u \leftarrow u - v\) \\
 
-\begin{wrapfigure}{r}{0.45\textwidth}
-
-	\vspace{-5pt}
-	\centering
-	\includegraphics[width=0.45\textwidth]{Problem1Images/visibility-test.png}
-	\caption{Testando aresta para região de primeiro contato.}
-	\label{problem1-visibility-test}
-
-\end{wrapfigure}
-
-Essa região é importante, pois apenas as arestas visíveis de \(P_i\) que pertencem à \(T_i\) geram regiões de aresta em \(S_i\), além disso, se um vértice está entre duas arestas bloqueadas, então ele não gera uma região de vértice em \(S_i\).
-
-Como \(T_i\) é a união de arestas, para determinar quais arestas de \(P_i\) pertencem à \(T_i\), podemos simplesmente iterar sobre as arestas de \(P_i\) e verificar se o \((i - 1)\)-path até um ponto interno qualquer da aresta, por exemplo o ponto médio, chega em \(P_i\) pela primeira vez nesse ponto. Se isso for verdade, então a aresta pertence à \(T_i\), caso contrário, não pertence.
-
-No entanto, precisamos de uma maneira eficiente de fazer isso para todas as arestas de \(P_i\). Se simplesmente fizermos isso de maneira ingênua, verificando se o segmento entre o último ponto \(q\) do \((i - 1)\)-path até o ponto médio \(m\) da aresta intersecta \(P_i\), teríamos uma complexidade de \(O(\abs{P_i})\) por aresta, resultando em \(O(\abs{P_i} ^ 2)\) para todas as arestas de \(P_i\). 
-
-Felizmente, como~\(P_i\) é convexo e suas arestas estão ordenadas em sentido anti-horário, sabemos que o segmento \(\overline{qm}\) toca \(P_i\) pela primeira vez em \(m\) se e somente se o produto vetorial de \(\overrightarrow{mv}\) com \(\overrightarrow{mq}\) for positivo. Usando essa ideia, podemos determinar todas as arestas visíveis de \(P_i\) em tempo \(O(1)\) por aresta, totalizando \(O(\abs{P_i})\).
-
-A Figura~\ref{problem1-visibility-test} ilustra essa ideia. Temos o polígono \(P_i\) em azul, os vértices \(u\) e \(v\) em azul, o ponto médio~\(m\) da aresta em laranja e 4 pontos \(q_1, q_2, q_3\) e \(q_4\) representando possíveis últimos pontos do \((i - 1)\)-path até~\(m\). Note que os segmentos \(\overline{q_1 m}\) e \(\overline{q_2 m}\) passam pela parte interna de \(P_i\), assim, o produto vetorial de \(\overrightarrow{uv}\) com \(\overrightarrow{m q_1}\) e \(\overrightarrow{m q_2}\) é positivo. Já os segmentos \(\overline{q_3 m}\) e \(\overline{q_4 m}\) não passam pela parte interna de \(P_i\), assim, o produto vetorial de \(\overrightarrow{uv}\) com \(\overrightarrow{m q_3}\) e \(\overrightarrow{m q_4}\) é negativo.
-
-Implementamos essa ideia no Algoritmo \algref{ArestasVisíveis}, que recebe um polígono \(P_i\) e seu índice \(i\) e retorna uma lista booleana indicando quais arestas de \(P_i\) são visíveis. Para os próximos algoritmos, vamos referenciar os objetos \(T_1, \dots, T_k\) como listas booleanas indicando quais arestas de cada polígono \(P_1, \dots, P_k\) são visíveis.
-
-\begin{algorithm}
-\alglabel{ArestasVisíveis}
-\caption{ArestasVisíveis(\(P_i\)) \\ Determina as arestas visíveis de \(P_i\)}
-
-\(n \leftarrow \abs{P_i}\) // Número de vértices de \(P_i\) \\
-visível \(\leftarrow\) [False] * \(n\) // Inicializa todas as arestas como não visíveis \\
-
-\For {\(j \leftarrow 0\) até \(n - 1\)} {
-	\(u \leftarrow\) \(j\)-ésimo vértice de \(P_i\) \\
-	\(v \leftarrow\) vértice que segue \(u\) em \(P_i\) \\
-	\(m \leftarrow (u + v) / 2\) // ponto médio \\
-	\(q \leftarrow \text{Query}(m, i - 1)\) // penúltimo ponto do \((i - 1)\)-path até \(m\) \\
-	
-	\ \\
-	// Marca a aresta \(j\) como visível se o produto vetorial for negativo \\
-	visível[\(j\)] \(\leftarrow ((v - m) \times (q - m) < 0)\) 
+	\If {\(d ^ u \times d ^ 1 \ge 0 \land d ^ u \times d ^ 2 \le 0\)} {
+		\(i \leftarrow\) índice de \(v\) em \(P_i\) \\
+	}
+	\If {\(d ^ u \times d ^ 1 \le 0 \land d ^ u \times d ^ 2 \ge 0\)} {
+		\(j \leftarrow\) índice de \(v\) em \(P_i\) \\
+	}
 }
 
-\Return{visível}
+\Return {vértices de \(P_i\) entre os índices \(i\) e \(j\) (inclusive)}
 
 \end{algorithm}
 
