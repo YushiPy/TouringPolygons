@@ -537,7 +537,7 @@ Para ambas soluções, precisamos conseguir verificar se um ponto \(p\) pertence
 
 \end{algorithm}
 
-Ademais, também precisamos verificar se um ponto \(p\) pertence a uma região de aresta associada a uma aresta \((u, v)\) de \(T_i\) com direções \(d^1\) partindo de \(u\) e \(d^2\) partindo de \(v\). A princípio, temos apenas um único caso, pois pela maneira que determinamos as direções \(d^1\) e \(d^2\), é impossível que \(d ^ 1 \times d ^ 2 < 0\), dessa forma, temos um único caso para considerar, ilustrado na Figura~\ref{fig:problem1-edge-region-check}. Nesse caso, \(p\) pertence à região de aresta se e somente se \(p\) está entre as semi-retas definidas por \(d^1\) e \(d^2\) \textbf{e} \(p\) está do lado externo da aresta \((u, v)\). Usando essas ideias, implementamos o procedimento \algref{PontoEmAresta} para verificar se um ponto \(p\) pertence a uma região de aresta específica.
+Ademais, também precisamos verificar se um ponto \(p\) pertence a uma região de aresta associada a uma aresta \((u, v)\) de \(T_i\) com direções \(d^1\) partindo de \(u\) e \(d^2\) partindo de \(v\). A princípio, temos apenas um único caso, pois pela maneira que determinamos as direções \(d^1\) e \(d^2\), é impossível que \(d ^ 1 \times d ^ 2 < 0\), dessa forma, temos um único caso para considerar, no qual, \(p\) pertence à região de aresta se e somente se \(p\) está entre as semi-retas definidas por \(d^1\) e \(d^2\) \textbf{e} \(p\) está do lado externo da aresta \((u, v)\). Essencialmente, estamos lidando com o caso da Figura~\ref{fig:problem1-cone-check-small} com a restrição adicional de que o ponto deve estar do lado correto da aresta. Usando essas ideias, implementamos o Algoritmo~\algref{problem1-edge-region-check} para verificar se um ponto \(p\) pertence a uma região de aresta específica.
 
 \begin{algorithm}
 \alglabel{problem1-edge-region-check}
@@ -551,6 +551,46 @@ Ademais, também precisamos verificar se um ponto \(p\) pertence a uma região d
 
 \Return {\(d ^ 1 \times (p - u) \ge 0 \land d ^ 2 \times (p - v) \le 0 \land ((v - u) \times (p - u) \le 0)\)}
 \end{algorithm}
+
+Finalmente, podemos usar os Algoritmos \algref{problem1-vertex-region-check} e \algref{problem1-edge-region-check} para localizar um ponto \(p\) na partição \(S_i\) iterando sobre todas as regiões de vértice e aresta de \(S_i\) e verificando se \(p\) pertence a alguma dessas regiões. Se \(p\) pertencer a uma região de vértice associada a um vértice \(v\), retornamos esse vértice. Se \(p\) pertencer a uma região de aresta associada a uma aresta \((u, v)\), retornamos essa aresta. Caso contrário, retornamos que \(p\) pertence à região de travessia. Implementamos esse procedimento no Algoritmo~\algref{problem1-locate-point-linear}. Vale notar que não detalhamos o que é retornado exatamente, mas isso pode ser facilmente implementado retornando o índice do vértice ou da aresta na estrutura de dados que representa \(S_i\).
+
+
+\begin{algorithm}
+\alglabel{problem1-locate-point-linear}
+\caption{LocalizaPonto}
+\Input{\(p\), \(T_i\), \(S_i\)}
+\Output{Região de \(S_i\) que contém \(p\) (vértice, aresta ou travessia).}
+
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
+
+\For {\(v\) vértice de \(T_i\)} {
+
+	\((d^1, d^2) \leftarrow\) direções associadas a \(v\) em \(S_i\) \\
+
+	\If {\text{PontoEmVértice}(\(p\), \(v\), \(d^1\), \(d^2\))} {
+		\Return {\(v\)}
+	}
+}
+
+\For {\((u, v)\) aresta de \(T_i\)} {
+
+	\(d^1 \leftarrow\) segunda direção associada a \(u\) em \(S_i\) \\
+	\(d^2 \leftarrow\) primeira direção associada a \(v\) em \(S_i\) \\
+
+	\If {\text{PontoEmAresta}(\(p\), \(u\), \(v\), \(d^1\), \(d^2\))} {
+		\Return {\((u, v)\)}
+	}
+}
+
+\Return {Região de travessia}
+
+\end{algorithm}
+
+Enquanto essa solução funciona corretamente, sua complexidade é \(O(\abs{S_i})\), que pode ser tão grande quanto \(O(\abs{P_i})\) no pior caso. No entanto, podemos otimizar essa solução para tempo \(O(\log(\abs{P_i}))\) usando uma estratégia baseada em busca binária. Ilustramos essa solução mais lenta para ilustrar os conceitos básicos e motivar uma solução mais rápida que descrevemos a seguir.
+
+\subsection{Localizando Pontos na Partição Eficientemente}
 
 \subsubsection{Verificando Regiões de Vértice}
 
@@ -711,7 +751,7 @@ Localiza o ponto \(p\) na partição do polígono \(P_i\)}
 
 \subsection{Respondendo Consultas}
 
-Finalemnte, podemos descrever como responder consultas do tipo \(\text{Query}(p, i)\) usando as partições \(S_i\) que construímos anteriormente. O procedimento utilizado é recursivo, assim, primeiro definimos o caso base, que é \(\text{Query}(p, 0) = s\), uma vez que um \(0\)-path não precisa tocar em nenhum polígono, assim, o menor caminho é uma linha reta de \(s\) até \(p\).
+Finalmente, podemos descrever como responder consultas do tipo \(\text{Query}(p, i)\) usando as partições \(S_i\) que construímos anteriormente. O procedimento utilizado é recursivo, assim, primeiro definimos o caso base, que é \(\text{Query}(p, 0) = s\), uma vez que um \(0\)-path não precisa tocar em nenhum polígono, assim, o menor caminho é uma linha reta de \(s\) até \(p\).
 
 Para \(i > 0\), primeiramente determinamos a região \(R\) de \(S_i\) que contém \(p\). Uma vez que sabemos qual região contém \(p\), podemos responder a consulta dependendo do tipo de região:
 
