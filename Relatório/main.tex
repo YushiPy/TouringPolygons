@@ -332,7 +332,7 @@ Sabemos que \(i\)-paths localmente mínimos só podem sair de \(T_i\) de maneira
 
 \end{wrapfigure}
 
-Assim, seja \(p \in \mathbb{R} ^ 2\), \(v\) um vértice de \(P_i\) tal que \(v \in T_i\) e \(u\) o ponto que precede \(v\) no \((i - 1)\)-path até \(v\). Pelas condições de otimalidade local, sabemos que o segmento \(\overline{vp}\) só pode ser parte de um \(i\)-path até \(p\) se o o segmento \(\overline{vp}\) está contido dentro do cone \(\gamma\) formado pela reflexão do vetor \(\overrightarrow{uv}\) em relação às duas arestas que se encontram em \(v\). Como as condições de otimalidade são tanto necessárias quanto suficientes, podemos afirmar que se \(p\) pertence ao cone \(\gamma\), então o caminho formado pelo \((i - 1)\)-path até \(v\) seguido do segmento \(\overline{vp}\) é o \(i\)-path até \(p\).
+Assim, seja \(p \in \mathbb{R} ^ 2\), \(v\) um vértice de \(P_i\) tal que \(v \in T_i\) e \(u\) o ponto que precede \(v\) no \((i - 1)\)-path até \(v\). Pelas condições de otimalidade local, sabemos que o segmento \(\overline{vp}\) só pode ser parte de um \(i\)-path até \(p\) se o o segmento \(\overline{vp}\) está contido dentro do cone \(\gamma\) formado pela reflexão do vetor \(\overrightarrow{uv}\) em relação às duas retas que contém cada uma das duas arestas que se encontram em \(v\). Como as condições de otimalidade são tanto necessárias quanto suficientes, podemos afirmar que se \(p\) pertence ao cone \(\gamma\), então o caminho formado pelo \((i - 1)\)-path até \(v\) seguido do segmento \(\overline{vp}\) é o \(i\)-path até \(p\).
 
 Ademais, seja \(p \in \mathbb{R} ^ 2\) e vamos assumir que o \(i\)-path até \(p\) tem uma dobra \(b\) na parte interior de uma aresta \(e\) de \(P_i\) limitada pelos vértices \(v^1\) e \(v^2\) tais que \(v^1, v^2 \in T_i\). Seja \(u\) o ponto que precede \(b\) no \((i - 1)\)-path até \(b\). Pelas condições de otimalidade local, sabemos que o segmento \(\overline{bp}\) só pode ser parte de um \(i\)-path até \(p\) se o ângulo de incidência do segmento \(\overline{ub}\) com a aresta \(e\) for igual ao ângulo de reflexão do segmento \(\overline{bp}\) com a aresta \(e\). Isso é possível se e somente se \(p\) está entre as reflexões dos raios que chegam em \(v^1\) e \(v^2\) em relação à aresta \(e\) e se \(p\) está do lado "externo" da aresta \(e\) (ou seja, o segmento \(\overline{bp}\) não atravessa o interior de \(P_i\)). Como as condições de otimalidade são tanto necessárias quanto suficientes, podemos afirmar que se \(p\) satisfaz essas condições, então o caminho formado pelo \((i - 1)\)-path até \(b\) seguido do segmento \(\overline{bp}\) é o \(i\)-path até \(p\).
 
@@ -381,14 +381,14 @@ Primeiramente, sejam \(b, v, a\) vértices consecutivos de \(P_i\) em sentido an
 
 Enquanto a maioria dessas operações são simples verificações geométricas baseadas em produtos vetoriais, precisamos de uma maneira eficiente de determinar o ponto \(u\) que precede \(v\) no \((i - 1)\)-path até \(v\). No momento, só sabemos responder essa consulta para um \(0\)-path, que é simplesmente o ponto \(s\). No entanto, como discutimos acima, isso é suficiente para construir \(T_1\) e \(S_1\), os quais nos permitem responder consultas de \(1\)-paths. Assim, podemos usar \(s\), \(T_1\) e \(S_1\) para construir \(T_2\) e \(S_2\), os quais nos permitem responder consultas de \(2\)-paths. Repetindo esse processo, conseguimos construir \(T_i\) e \(S_i\) para qualquer \(i \in \{1, \ldots, k\}\).
 
-Por esse motivo, vamos criar uma função \(\text{Query}(p, s, (P_1, \dots, P_i), (T_1, \dots, T_i), (S_1, \dots, S_i))\) que dado um ponto \(p\), o ponto inicial \(s\), os polígonos \(P_1, \dots, P_i\), as regiões de primeiro contato \(T_1, \dots, T_i\) e as partições \(S_1, \dots, S_i\), retorna o \(i\)-path até \(p\). Usando essa função, podemos determinar o ponto \(u\) que precede um vértice \(v\) no \((i - 1)\)-path até \(v\) simplesmente chamando \(\text{Query}(v, s, P_1, \dots, P_{i - 1}, T_1, \dots, T_{i - 1}, S_1, \dots, S_{i - 1})\) e então retornando o penúltimo ponto do caminho retornado. Vamos detalhar a implementação dessa função mais adiante, mas por enquanto, assumimos que essa função está disponível e funciona corretamente.
+Por esse motivo, vamos criar uma função \(\text{Consulta}(p, s, (P_1, \dots, P_i), (T_1, \dots, T_i), (S_1, \dots, S_i))\) que dado um ponto \(p\), o ponto inicial \(s\), os polígonos \(P_1, \dots, P_i\), as regiões de primeiro contato \(T_1, \dots, T_i\) e as partições \(S_1, \dots, S_i\), retorna o \(i\)-path até \(p\). Usando essa função, podemos determinar o ponto \(u\) que precede um vértice \(v\) no \((i - 1)\)-path até \(v\) simplesmente chamando \(\text{Consulta}(v, s, P_1, \dots, P_{i - 1}, T_1, \dots, T_{i - 1}, S_1, \dots, S_{i - 1})\) e então retornando o penúltimo ponto do caminho retornado. Vamos detalhar a implementação dessa função mais adiante, mas por enquanto, assumimos que essa função está disponível e funciona corretamente.
 
 Utilizando essa função e as ideias acima, implementamos o Algoritmo~\algref{problem1-first-contact} para determinar a região de primeiro contato \(T_i\), que retorna uma lista de vértices consecutivos de \(P_i\) que pertencem a \(T_i\) e tais que o primero e o último vértice dessa lista são exatamente os extremos de \(T_i\).
 
 \begin{algorithm}
 \alglabel{problem1-first-contact}
 \caption{Região de Primeiro Contato}
-\Input{\(s\), \((P_1, \dots, P_i)\), \((S_1, \dots, S_{i - 1})\), \((T_1, \dots, T_{i - 1})\)}
+\Input{\(s\), \((P_1, \dots, P_i)\), \((T_1, \dots, T_{i - 1})\), \((S_1, \dots, S_{i - 1})\)}
 \Output{\(T_i\) na forma de uma lista de vértices consecutivos de \(P_i\).}
 
 \vspace{0.3em}
@@ -402,7 +402,7 @@ Utilizando essa função e as ideias acima, implementamos o Algoritmo~\algref{pr
 
 	\(b \leftarrow\) vértice antes de \(v\) em \(P_i\) \\
 	\(a \leftarrow\) vértice depois de \(v\) em \(P_i\) \\
-	\(path \leftarrow \text{Query}(v, s, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
+	\(path \leftarrow \text{Consulta}(v, s, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
 	\(u \leftarrow\) penúltimo ponto de \(path\) \\
 
 	\(d^1 \leftarrow v - b\) \\
@@ -421,82 +421,74 @@ Utilizando essa função e as ideias acima, implementamos o Algoritmo~\algref{pr
 
 \end{algorithm}
 
-\subsection{Regiões de Vértice}
+\subsection{Construindo as Partições}
 
-Uma vez que determinamos \(T_i\), o próximo passo é contruir a partição \(S_i\) do plano. Conforme discutido acima, para representar \(S_i\), precisamos apenas contruir as regiões de v;vértice, pois as regiões de aresta podem ser derivadas das regiões de vértice adjacentes e a região de travessia é simplesmente o complemento das regiões de vértice e aresta. As 
+Uma vez que determinamos \(T_i\), o próximo passo é contruir a partição \(S_i\) do plano. Conforme discutido acima, para representar \(S_i\), precisamos apenas contruir as regiões de vértice, pois as regiões de aresta podem ser derivadas das regiões de vértice adjacentes e a região de travessia é simplesmente o complemento das regiões de vértice e aresta. 
 
-\subsubsection{Construindo Regiões de Vértice}
+Pelas condições de otimalidade local, sabemos que um ponto \(p\) pertence à região de vértice associada a um vértice \(v\) de \(P_i\) se \(v \in T_i\) e se o segmento \(\overline{vp}\) está contido no cone formado pelas reflexões do vetor \(\overrightarrow{uv}\) em relação às retas contendo as cada uma das duas arestas que se encontram em \(v\), onde \(u\) é o ponto que precede \(v\) no \((i - 1)\)-path até \(v\). Assim, para construir as regiões de vértice, precisamos apenas calcular essas reflexões para cada vértice \(v \in T_i\). Também devemos notar que uma das arestas incidentes a \(v\) pode não estar na região de primeiro contato, nesse caso, seria impossível refletir o vetor em relação a reta que contem essa aresta, assim, consideramos o raio seguindo a direção original de \(\overrightarrow{uv}\).
 
-Uma vez que sabemos quais arestas são visíveis, podemos construir as regiões de vértice. Observamos anteriormente que essas são delimitadas por duas semi-retas que partem de um vértice de \(P_i\). Por esse motivo, nessa etapa, à cada vértice \(v\) vamos associar um par ordenado de direções \((d_{\text{prev}}, d_{\text{next}})\) tais que a região de vértice associada a \(v\) são os pontos entre as semi-retas que partem de \(v\) nas direções \(d_{\text{prev}}\) e \(d_{\text{next}}\), no sentido anti-horário.
+Para refletir um vetor \(d\) em relação a uma aresta \((v^1, v^2)\), podemos usar o Algoritmo~\algref{problem1-reflect-direction}, que calcula a direção refletida de \(d\) em relação à reta que contém a aresta \((v^1, v^2)\).
 
-\begin{wrapfigure}{r}{0.40\textwidth}
-
-	\vspace{-5pt}
-	\centering
-	\includegraphics[width=0.4\textwidth]{Problem1Images/scene-general.png}
-	\caption{Partição de um polígono com múltiplas arestas não visíveis.}
-	\label{problem1-scene-general}
-
-\end{wrapfigure}
-
-Para calcular as direções da regiões de vértice de um vértice \(v\) de \(P_i\), devemos considerar o ponto \(p = \text{Query}(v, i - 1)\) e definimos \(d = v - p\). Sejam \(v_{\text{prev}}\) o vértice que precede e \(v_{\text{next}}\) o que segue \(v\) em \(P_i\) (no sentido anti-horário). Se a aresta \((v_{\text{prev}}, v)\) é visível, então \(d_{\text{prev}}\) será a reflexão de \(d\) em relação à aresta \((v_{\text{prev}}, v)\), caso contrário, \(d_{\text{prev}}\) será a mesma direção de \(d\). Similarmente, se a aresta \((v, v_{\text{next}})\) é visível, então \(d_{\text{next}}\) será a reflexão de \(d\) em relação à \textcolor{red}{reta que contem a} aresta \((v, v_{\text{next}})\), caso contrário, \(d_{\text{next}}\) \textcolor{red}{pode ser definido como qualquer multiplo positivo de $d$} será a mesma direção de \(d\). Assim, criamos a região de vértice \((d_{\text{prev}}, d_{\text{next}})\) associada à \(v\).
-
-Vale notar que se ambas as arestas incidentes a \(v\) estão bloqueadas, então \textcolor{red}{a regio de vertice $v$ é vazia e denotamos isso definindo} \(d_{\text{prev}} = d_{\text{next}} = d\). %, assim, a região de vértice associada a \(v\) é válida, mas vazia.
-
-Encorajamos o leitor a verificar que essa lógica se aplica à Figura~\ref{problem1-scene-general} que ilustra um polígono $P_1$, observando que a resposta de \(\text{Query}(v, 0)\) é o ponto inicial \(s\) para qualquer vértice \(v\) de $P_1$. Os vértices (-2, 0) e (0, 0) terão as suas duas arestas incidentes visíveis, assim, suas regiões de vértice serão delimitadas pelas reflexões do raio que parte de \(s\). O vértice (-3, 1) terá apenas a aresta posterior visível, assim, sua região de vértice será delimitada pela reflexão do raio em relação à aresta posterior e a própria direção do raio. Similarmente, o vértice (2, 1) tem apenas a aresta anterior visível. Finalmente, os vértices (1, 1.25) e (-1, 1.5) não terão nenhuma aresta incidente visível, assim, suas regiões de vértice serão vazias. 
-
-Implementamos essas ideias nos algoritmos \algref{RefleteDireção} e \algref{ConstróiRegiõesDeVértice}. O primeiro reflete uma direção em relação a uma reta que passa por dois pontos dados, enquanto o segundo cria a partição \(S_i\) de um polígono \(P_i\), retornando uma lista de pares ordenados de direções representando as regiões de vértice associadas a cada vértice de \(P_i\). \textcolor{red}{Cada elemento da lista corresponde a um vertice de $P_i$ e os elementos aparecem na mesma ordem em que os vertices de $P_i$ aparecem na descricao de $P_i$} Para os próximos algoritmos, vamos referenciar os objetos \(S_1, \dots, S_k\) como listas de pares ordenados de direções representando as regiões de vértice de cada polígono \(P_1, \dots, P_k\).
-
-% \textcolor{red}{Verificar se podemos aqui apenas dizer que estes vertices terao uma regiao de vertice vazia ou dizer que estes vertices nao pertencem à regiao de pimeiro contato e portanto não tem uma regiao de vertice associada a eles.}
+Juntado as ideias acima, implementamos o Algoritmo~\algref{problem1-vertex-region} para construir as regiões de vértice \(S_i\) de \(P_i\), que retorna \(S_i\) como uma sequência de pares ordenados de direções associadas aos vértices de \(T_i\).
 
 \begin{algorithm}
-\alglabel{RefleteDireção}
-\caption{RefleteDireção(\(d, v_{\text{prev}}, v_{\text{next}}\)) \\ Reflete a direção \(d\) em relação à aresta \((v_{\text{prev}}, v_{\text{next}})\)}
+\alglabel{problem1-reflect-direction}
+\caption{RefleteDireção}
+\Input{\(d\), \(v^1\), \(v^2\)}
+\Output{Direção refletida de \(d\) em relação à reta que contém a aresta \((v^1, v^2)\).}
 
-\(u \leftarrow v_{\text{prev}} - v_{\text{next}}\) \\
-\(w \leftarrow \) Vetor normal à \(u\), tal que \(\abs{w} = 1\) \textcolor{red}{Colocar a formula e deixar isso como comentario. Usar $\| \cdot \|_2$ para norma Euclidiana} \\ 
-\Return{\(d - 2 \anglebrackets{d, w} w\)} // Fórmula de reflexão
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
+
+\(\omega \leftarrow v^2 - v^1\) \\
+\(\omega \leftarrow \omega / ||\omega||\) // Normalizar \(\omega\) \\
+\(d_{\perp} \leftarrow (-\omega_2, \omega_1)\) // Vetor perpendicular a \(\omega\) \\
+\(proj_{\perp} \leftarrow \anglebrackets{d, d_{\perp}}\) \\
+\Return {\(d - 2 \anglebrackets{proj_{\perp}, d_{\perp}}\)} // Refletir \(d\) em relação a reta
 
 \end{algorithm}
 
 \begin{algorithm}
-\alglabel{ConstróiRegiõesDeVértice}
-\caption{ConstróiRegiõesDeVértice(\(P_i\)) \\ Constroi as partições do polígono \(P_i\)}
+\alglabel{problem1-vertex-region}
+\caption{Região de Vértice}
+\Input{\(s\), \((P_1, \dots, P_i)\), \((T_1, \dots, T_i)\), \((S_1, \dots, S_{i - 1})\)}
+\Output{\(S_i\) como uma sequência de pares ordenados de direções associadas aos vértices de \(T_i\).}
 
-\(S_i \leftarrow \emptyset\) // Lista vazia \\
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
 
-\For{\(j \leftarrow 0\) até \(\abs{P_i} - 1\)} {
+\(S_i \leftarrow \emptyset\)
 
-	\(v \leftarrow\) \(j\)-ésimo vértice de \(P_i\) \\
-	\(v_{\text{prev}} \leftarrow\) vértice que precede \(v\) em \(P_i\) \\
-	\(v_{\text{next}} \leftarrow\) vértice que segue \(v\) em \(P_i\) \\
-	
-	\ \\
-	
-	\(p \leftarrow \text{Query}(v, i - 1)\) // penúltimo ponto do \((i - 1)\)-path até \(v\) \\
-	\(d \leftarrow v - p\) // direção do raio de \(p\) até \(v\) \\
-	
-	\ \\
+\For {\(v\) vértice de \(T_i\)} {
 
-	\If{Aresta \(j - 1\) de \(P_i\) pertence à \(T_i\)} {
-		\(d_{\text{prev}} \leftarrow \text{Reflete}(d, v_{\text{prev}}, v)\) // reflexão de \(d\) em relação à aresta \((v_{\text{prev}}, v)\)
+	\(\text{path} \leftarrow \text{Consulta}(v, s, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
+	\(u \leftarrow\) penúltimo ponto de \(\text{path}\) \\
+	\(d \leftarrow v - u\) \\
+
+	\(v^1 \leftarrow\) vértice antes de \(v\) em \(P_i\) \\
+	\(v^2 \leftarrow\) vértice depois de \(v\) em \(P_i\) \\
+
+	\If {\( (v^1, v) \in T_i\)} {
+		\(d^1 \leftarrow \text{RefleteDireção}(d, v^1, v)\) \\
 	}
 	\Else {
-		\(d_{\text{prev}} \leftarrow d\)
+		\(d^1 \leftarrow d\)
 	}
-	
-	\If{Aresta \(j\) de \(P_i\) pertence à \(T_i\)} {
-		\(d_{\text{next}} \leftarrow \text{Reflete}(d, v, v_{\text{next}})\) // reflexão de \(d\) em relação à \textcolor{red}{reta que contem a} aresta \((v, v_{\text{next}})\)
+
+	\If {\( (v, v^2) \in T_i\)} {
+		\(d^2 \leftarrow \text{RefleteDireção}(d, v, v^2)\)
 	}
 	\Else {
-		\(d_{\text{next}} \leftarrow d\)
+		\(d^2 \leftarrow d\)
 	}
-	
-	// Armazena a região de vértice associada a \(v\) como o par \((d_{\text{prev}}, d_{\text{next}})\) \\
-	\(S_i \leftarrow S_i + (d_{\text{prev}}, d_{\text{next}})\) %regiões.\text{append}(\((d_{\text{prev}}, d_{\text{next}})\)) \\
+
+	// Adicionar região de vértice associada a \(v\) em \(S_i\) \\
+	\(S_i \leftarrow S_i \oplus (d^1, d^2)\)
 }
 
-\Return{regiões}
+\Return {\(S_i\)}
 
 \end{algorithm}
 
