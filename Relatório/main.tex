@@ -494,9 +494,63 @@ Juntado as ideias acima, implementamos o Algoritmo~\algref{problem1-vertex-regio
 
 \subsection{Localizando Pontos na Partição}
 
-Gostariamos de responder consultas do tipo \(\text{Query}(p, i)\) de maneira eficiente. Para isso, precisamos ser capazes de localizar o ponto \(p\) na partição \(S_i\) de maneira eficiente, ou seja, determinar se \(p\) pertence a uma região de vértice, região de aresta ou região de atravessar e, em caso positivo, qual região.
+Uma vez que construímos \(T_i\) e \(S_i\), o próximo passo é implementar a função \(\text{Consulta}\) que retorna o \(i\)-path até um ponto \(p\). No entanto, isso requer localizar o ponto \(p\) na partição \(S_i\), ou seja, determinar qual vértice, aresta ou região de travessia contém o ponto \(p\). Primeiramente, vamos descrever uma solução em tempo \(O(\abs{S_i})\), que itera sobre todas as regiões de vértice e aresta de \(S_i\) e verifica se o ponto \(p\) pertence a alguma dessas regiões. Em seguida, vamos descrever como otimizar essa solução para tempo \(O(\log(\abs{P_i}))\) usando uma estratéfia apropriada baseada em busca binária.
 
-Esse processo não é trivial, principalmente se desejamos fazer isso de maneira eficiente. Para tal, primeiro vamos considerar dois problemas mais simples: determinar se \(p\) pertence a uma região de vértice e determinar se \(p\) pertence a uma região de aresta.
+Para ambas soluções, precisamos conseguir verificar se um ponto \(p\) pertence a uma região de vértice ou a uma região de aresta específicos. Para uma região de vértice associada a um vértice \(v\) de \(T_i\), precisamos apenas verificar se o segmento \(\overline{vp}\) está contido no cone formado pelos vetores \(d^1\) e \(d^2\), calculados no Algoritmo~\algref{problem1-vertex-region}. Para tal, devemos considerar dois casos, dependendo do ângulo entre \(d^1\) e \(d^2\). Se o ângulo for menor ou igual a \(180 ^ \circ\), então \(p\) pertence à região de vértice se e somente se \(p\) está à esquerda de \(d^1\) \textbf{e} à direita de \(d^2\). Caso contrário, \(p\) pertence à região de vértice se e somente se \(p\) está à esquerda de \(d^1\) \textbf{ou} à direita de \(d^2\), as Figuras~\ref{fig:problem1-cone-check-small} e \ref{fig:problem1-cone-check-large} ilustram esses dois casos. Usando essas ideias, implementamos o procedimento \algref{PontoEmVértice} para verificar se um ponto \(p\) pertence a uma região de vértice específica.
+
+\begin{figure}
+
+	\centering
+	
+	\begin{minipage}{0.48\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{Problem1Images/cone-check-small.png}
+		\caption{Região de vértice onde \(d ^ 1 \times d ^ 2 > 0\).}
+		\label{fig:problem1-cone-check-small}
+	\end{minipage}
+	\hfill
+	\begin{minipage}{0.48\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{Problem1Images/cone-check-large.png}
+		\caption{Região de vértice onde \(d ^ 1 \times d ^ 2 < 0\).}
+		\label{fig:problem1-cone-check-large}
+	\end{minipage}
+
+\end{figure}
+
+\begin{algorithm}
+\alglabel{problem1-vertex-region-check}
+\caption{PontoEmVértice}
+\Input{\(p\), \(v\), \(d^1\), \(d^2\)}
+\Output{\texttt{true} se \(p\) pertence à região de vértice associada a \(v\) delimitada por \(d^1\) e \(d^2\), \texttt{falso} caso contrário.}
+
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
+
+\If {\(d^1 \times d^2 \ge 0\)} {
+	\Return {\(d ^ 1 \times (p - v) \ge 0 \land d ^ 2 \times (p - v) \le 0\)}
+}
+\Else {
+	\Return {\(d ^ 1 \times (p - v) \ge 0 \lor d ^ 2 \times (p - v) \le 0\)}
+}
+
+\end{algorithm}
+
+Ademais, também precisamos verificar se um ponto \(p\) pertence a uma região de aresta associada a uma aresta \((u, v)\) de \(T_i\) com direções \(d^1\) partindo de \(u\) e \(d^2\) partindo de \(v\). A princípio, temos apenas um único caso, pois pela maneira que determinamos as direções \(d^1\) e \(d^2\), é impossível que \(d ^ 1 \times d ^ 2 < 0\), dessa forma, temos um único caso para considerar, ilustrado na Figura~\ref{fig:problem1-edge-region-check}. Nesse caso, \(p\) pertence à região de aresta se e somente se \(p\) está entre as semi-retas definidas por \(d^1\) e \(d^2\) \textbf{e} \(p\) está do lado externo da aresta \((u, v)\). Usando essas ideias, implementamos o procedimento \algref{PontoEmAresta} para verificar se um ponto \(p\) pertence a uma região de aresta específica.
+
+\begin{algorithm}
+\alglabel{problem1-edge-region-check}
+\caption{PontoEmAresta}
+\Input{\(p\), \(u\), \(v\), \(d^1\), \(d^2\)}
+\Output{\texttt{true} se \(p\) pertence à região de aresta associada a \((u, v)\) delimitada por \(d^1\) e \(d^2\), \texttt{falso} caso contrário.}
+
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
+
+\Return {\(d ^ 1 \times (p - u) \ge 0 \land d ^ 2 \times (p - v) \le 0 \land ((v - u) \times (p - u) \le 0)\)}
+\end{algorithm}
 
 \subsubsection{Verificando Regiões de Vértice}
 
