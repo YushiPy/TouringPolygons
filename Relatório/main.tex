@@ -588,40 +588,11 @@ Finalmente, podemos usar os Algoritmos \algref{problem1-vertex-region-check} e \
 
 \end{algorithm}
 
-Enquanto essa solução funciona corretamente, sua complexidade é \(O(\abs{S_i})\), que pode ser tão grande quanto \(O(\abs{P_i})\) no pior caso. No entanto, podemos otimizar essa solução para tempo \(O(\log(\abs{P_i}))\) usando uma estratégia baseada em busca binária. Ilustramos essa solução mais lenta para ilustrar os conceitos básicos e motivar uma solução mais rápida que descrevemos a seguir.
-
 \subsection{Localizando Pontos na Partição Eficientemente}
 
-\subsubsection{Verificando Regiões de Vértice}
+Na seção anterior, descrevemos uma maneira de localizar um ponto \(p\) na partição \(S_i\) em tempo \(O(\abs{S_i})\) iterando sobre todas as regiões de vértice e aresta de \(S_i\). No entanto, podemos otimizar essa solução para tempo \(O(\log(\abs{P_i}))\) usando uma estratégia baseada em busca binária. Para tal, não precisamos de nenhuma estrutura de dados adicional, apenas perceber que as regiões de vértice e aresta de \(S_i\) podem ser unidas em uma única região de aresta, permitindo que verifiquemos se \(p\) pertence à essa nova região em tempo \(O(1)\), permitindo assim o uso de busca binária.
 
-Primeiramente vamos implementar um procedimento auxiliar \algref{PontoEmVértice} que verifica se um ponto \(p\) está em uma região de vértice associada a um vértice \(v\) determinada pelo par \( (d_{\text{prev}},d_{\text{next}}) \). Basicamente, temos dois casos, dependendo do ângulo entre as direções \(d_{\text{prev}}\) e \(d_{\text{next}}\) (considerando o sentido anti-horário):
-
-\begin{itemize}
-
-	\item Ângulo \(\le 180 ^ \circ\): Nesse caso, \(p\) deve estar à esquerda de \(d_{\text{prev}}\) e à direita de \(d_{\text{next}}\).
-
-	\item Ângulo \(> 180 ^ \circ\): Nesse caso, \(p\) deve estar à direita de \(d_{\text{prev}}\) ou à esquerda de \(d_{\text{next}}\).
-
-\end{itemize}
-
-Podemos usar produtos vetoriais para determinar a posição relativa de \(p\) em relação às direções \(d_{\text{prev}}\) e \(d_{\text{next}}\), assim como o ângulo entre essas direções. Usando essas ideias, implementamos o procedimento no algoritmo \algref{PontoEmVértice}.
-
-\begin{algorithm}
-\alglabel{PontoEmVértice}
-\caption{PontoEmVértice(\(p\), \(v\), \(d_{\text{prev}}\), \(d_{\text{next}}\)) \\
-Verifica se o ponto \(p\) está na região de vértice associada ao vértice \(v\) delimitada pelas direções \(d_{\text{prev}}\) e \(d_{\text{next}}\)}
-
-\(c_1 \leftarrow (d_{\text{prev}} \times (p - v) \ge 0)\) \\
-\(c_2 \leftarrow (d_{\text{next}} \times (p - v) \le 0)\)
-
-\If {\(d_{\text{prev}} \times d_{\text{next}} \ge 0\)} {
-	\Return{} \(c_1 \land c_2\)
-	}
-\Else {
-	\Return{} \(c_1 \lor c_2\)
-}
-
-\end{algorithm}
+Essencialmente, sejam \(v^1, \dots, v^n\) vértices consecutivos de \(T_i\) em sentido anti-horário. Para determinar se um ponto \(p\) pertence à \textbf{alguma} região de vértice desses vértices ou à alguma região de aresta entre esses vértices, poderíamos verificar cada região de vértice e aresta individualmente, como fizemos na seção anterior. No entanto, também podemos considerar a região de aresta definida pela semi-reta partindo de \(v^1\) até \(v^n\), com raios \(d^1\) e \(d^2\) onde \(d^1\) é o primeiro raio de \(v^1\) e \(d^2\) é o segundo raio de \(v^n\). Note que essa região de aresta contém todas as regiões de vértice e aresta entre \(v^1\) e \(v^n\) e não contém nenhuma outra região de vértice ou aresta. Assim, podemos verificar se \(p\) pertence a alguma região de vértice ou aresta entre \(v^1\) e \(v^n\) simplesmente verificando se \(p\) pertence a essa nova região de aresta. Usando essa ideia, podemos implementar uma busca binária para localizar \(p\) na partição \(S_i\).
 
 \subsubsection{Verificando Regiões de Aresta}
 
