@@ -554,7 +554,6 @@ Ademais, também precisamos verificar se um ponto \(p\) pertence a uma região d
 
 Finalmente, podemos usar os Algoritmos \algref{problem1-vertex-region-check} e \algref{problem1-edge-region-check} para localizar um ponto \(p\) na partição \(S_i\) iterando sobre todas as regiões de vértice e aresta de \(S_i\) e verificando se \(p\) pertence a alguma dessas regiões. Se \(p\) pertencer a uma região de vértice associada a um vértice \(v\), retornamos esse vértice. Se \(p\) pertencer a uma região de aresta associada a uma aresta \((u, v)\), retornamos essa aresta. Caso contrário, retornamos que \(p\) pertence à região de travessia. Implementamos esse procedimento no Algoritmo~\algref{problem1-locate-point-linear}. Vale notar que não detalhamos o que é retornado exatamente, mas isso pode ser facilmente implementado retornando o índice do vértice ou da aresta na estrutura de dados que representa \(S_i\).
 
-
 \begin{algorithm}
 \alglabel{problem1-locate-point-linear}
 \caption{LocalizaPonto}
@@ -594,61 +593,69 @@ Na seção anterior, descrevemos uma maneira de localizar um ponto \(p\) na part
 
 Essencialmente, sejam \(v^1, \dots, v^n\) vértices consecutivos de \(T_i\) em sentido anti-horário. Para determinar se um ponto \(p\) pertence à \textbf{alguma} região de vértice desses vértices ou à alguma região de aresta entre esses vértices, poderíamos verificar cada região de vértice e aresta individualmente, como fizemos na seção anterior. No entanto, também podemos considerar a região de aresta definida pela semi-reta partindo de \(v^1\) até \(v^n\), com raios \(d^1\) e \(d^2\) onde \(d^1\) é o primeiro raio de \(v^1\) e \(d^2\) é o segundo raio de \(v^n\). Note que essa região de aresta contém todas as regiões de vértice e aresta entre \(v^1\) e \(v^n\) e não contém nenhuma outra região de vértice ou aresta. Assim, podemos verificar se \(p\) pertence a alguma região de vértice ou aresta entre \(v^1\) e \(v^n\) simplesmente verificando se \(p\) pertence a essa nova região de aresta. Usando essa ideia, podemos implementar uma busca binária para localizar \(p\) na partição \(S_i\).
 
-\subsubsection{Verificando Regiões de Aresta}
+\begin{wrapfigure}{r}{0.40\textwidth}
 
-Uma vez que conseguimos verificar se um ponto pertence a uma região de vértice, podemos usar essa funcionalidade para verificar se um ponto pertence a uma região de aresta. 
+	\vspace{-5pt}
+	\centering
+	\includegraphics[width=0.40\textwidth]{Problem1Images/joined-edge-regions.png}
+	\caption{União de regiões de vértice e aresta em uma única região de aresta.}
+	\label{problem1-edge-region-union}
 
-\begin{wrapfigure}{l}{0.69\textwidth} % 'r' for right, 'l' for left
+\end{wrapfigure}
+
+A Figura~\ref{problem1-edge-region-union} ilustra essa ideia, onde temos quatro regiões de vértice e três regiões de aresta unidas em uma única região de aresta maior. Note que essa nova região de aresta pode ser verificada usando o Algoritmo~\algref{problem1-edge-region-check}, permitindo assim a implementação da busca binária.
+
+Infelizmente, o Algoritmo~\algref{problem1-edge-region-check} não é suficiente para verificar se um ponto \(p\) pertence a uma região de aresta arbitrária, como a que acabamos de definir, pois a união de regiões de vértice e aresta pode gerar diferentes casos para a região de aresta resultante, dependendo do ângulo entre \(d^1\) e \(d^2\). Por esse motivo, precisamos primeiro estender o Algoritmo~\algref{problem1-edge-region-check} para lidar com esses casos adicionais antes de podermos implementar a busca binária. 
+
+\begin{figure}
 	\centering
 	\vspace{-1em} % adjust vertical alignment if needed
 	\includegraphics[width=0.68\textwidth]{Problem1Images/edge-regions.png}
 	\caption{Casos possíveis para região de aresta.}
 	\label{problem1-edge-regions}
-\end{wrapfigure}
+\end{figure}
 
-Esse problema é mais complexo, uma vez que existem diferentes casos possíveis para uma região de aresta, dependendo do ângulo entre as direções \(d_{\text{prev}}\) e \(d_{\text{next}}\). Esses casos não aparecem explicitamente na partição \(S_i\), na verdade apenas o primeiro caso aparece. No entanto, vamos usar esses outros casos adicionais para otimizar a localização de pontos na partição posteriormente, permitindo complexidade \(\log(\abs{P_i})\) para detecção.
-
-Essencialmente existem 4 casos possíveis para uma região de aresta, dependendo do ângulo entre as direções \(d_{\text{prev}}\) e \(d_{\text{next}}\). A Figura \ref{problem1-edge-regions} ilustra esses casos. Para sabermos com qual caso estamos lidando, definimos \(w = v - u\) e calculamos os produtos vetoriais \(c_1 = w \times d_{\text{prev}}\) e \(c_2 = w \times d_{\text{next}}\). Agora, temos os seguintes casos:
+Essencialmente existem 4 casos possíveis para uma região de aresta, dependendo do ângulo entre as direções \(d^1\) e \(d^2\). A Figura \ref{problem1-edge-regions} ilustra esses casos. Para sabermos com qual caso estamos lidando, definimos \(w = v - u\) e calculamos os produtos vetoriais \(c_1 = w \times d^1\) e \(c_2 = w \times d^2\). Agora, temos os seguintes casos:
 
 \begin{itemize}
 
 	\item \(c_1 \le 0 \land c_2 \le 0\): Esse é o caso em que temos \textbf{ambas arestas no lado negativo}, que é o caso tradicional que aparece na partição \(S_i\). Nesse caso, verificamos se \(p\) está entre as semi-retas e a aresta \((u, v)\) usando produtos vetoriais.
 	
-	\item \(c_1 \le 0 \land c_2 \le 0\): Esse é o caso em que temos \textbf{aresta anterior no lado negativo e aresta posterior no lado positivo}, o \textit{Caso 1} na figura. Nesse caso, dividimos a região de aresta em duas regiões de vértice, definidas por \((u, d_{\text{prev}}, u - v)\) e \((v, u - v, d_{\text{next}})\), então verificamos se o ponto está em qualquer uma das duas.
+	\item \(c_1 \le 0 \land c_2 \le 0\): Esse é o caso em que temos \textbf{aresta anterior no lado negativo e aresta posterior no lado positivo}, o \textit{Caso 1} na figura. Nesse caso, dividimos a região de aresta em duas regiões de vértice, definidas por \((u, d^1, u - v)\) e \((v, u - v, d^2)\), então verificamos se o ponto está em qualquer uma das duas.
 	
-	\item \(c_1 \le 0 \land c_2 \le 0\): Esse é o caso em que temos \textbf{aresta anterior no lado positivo e aresta posterior no lado negativo}, o \textit{Caso 2} na figura. Nesse caso, dividimos a região de aresta em duas regiões de vértice, definidas por \((u, d_{\text{prev}}, v - u)\) e \((v, v - u, d_{\text{next}})\), então verificamos se o ponto está em qualquer uma das duas.
+	\item \(c_1 \le 0 \land c_2 \le 0\): Esse é o caso em que temos \textbf{aresta anterior no lado positivo e aresta posterior no lado negativo}, o \textit{Caso 2} na figura. Nesse caso, dividimos a região de aresta em duas regiões de vértice, definidas por \((u, d^1, v - u)\) e \((v, v - u, d^2)\), então verificamos se o ponto está em qualquer uma das duas.
 	
-	\item \(c_1 \le 0 \land c_2 \le 0\): Esse é o caso em que temos \textbf{ambas arestas no lado positivo}. Nesse caso, simplesmente verificamos se o ponto não pertence ao complemento da região, ou seja, verificamos se \(p\) não pertence à região de aresta definida por \((v, u, d_{\text{next}}, d_{\text{prev}})\).
+	\item \(c_1 \le 0 \land c_2 \le 0\): Esse é o caso em que temos \textbf{ambas arestas no lado positivo}. Nesse caso, simplesmente verificamos se o ponto não pertence ao complemento da região, ou seja, verificamos se \(p\) não pertence à região de aresta definida por \((v, u, d^2, d^1)\).
 \end{itemize}
 
 Dessa forma, conseguimos verificar se um ponto pertence a uma região de aresta usando o procedimento de verificação de regiões de vértice. Agora podemos implementar o procedimento completo no algoritmo \algref{PontoEmAresta}.
 
 \begin{algorithm}
 \alglabel{PontoEmAresta}
-\caption{PontoEmAresta(\(p\), \(u\), \(v\), \(d_{\text{prev}}, d_{\text{next}}\)) \\
-Verifica se o ponto \(p\) está na região de aresta associada à aresta \(e = (u, v)\) delimitada pelas direções \(d_{\text{prev}}\) e \(d_{\text{next}}\)}
+\caption{PontoEmAresta(\(p\), \(u\), \(v\), \(d^1, d^2\)) \\
+Verifica se o ponto \(p\) está na região de aresta associada à aresta \(e = (u, v)\) delimitada pelas direções \(d^1\) e \(d^2\)}
 
 // Se vértices são muito próximos, tratamos a região de aresta \\
 // como uma região de vértice. \\
 \If {\(\abs{u - v} < 10 ^ {-8}\)} {
-	\Return {} PontoEmVértice(\(p\), \(v\), \(d_{\text{next}}\), \(d_{\text{prev}}\))
+	\Return {} PontoEmVértice(\(p\), \(v\), \(d^2\), \(d^1\))
 }
 
 \(w \leftarrow v - u\) \\
-\(c_1 \leftarrow d_{\text{prev}} \times w\) \\
-\(c_2 \leftarrow w \times d_{\text{next}}\) \\
+\(c_1 \leftarrow d^1 \times w\) \\
+\(c_2 \leftarrow w \times d^2\) \\
 
 \If {\(c_1 \le 0 \land c_2 \le 0\)} {
-	\Return{} \((d_{\text{prev}} \times (p - u) \ge 0) \land ((p - u) \times d_{\text{next}} \le 0) \land ((v - u) \times (p - u) \le 0)\)
+	\Return{} \((d^1 \times (p - u) \ge 0) \land ((p - u) \times d^2 \le 0) \land ((v - u) \times (p - u) \le 0)\)
 }
 \ElseIf {\(c_1 \le 0 \land c_2 > 0\)} {
-	\Return{} PontoEmVértice(\(p\), \(u\), \(d_{\text{prev}}\), \(u - v\)) \(\lor\) PontoEmVértice(\(p\), \(v\), \(u - v\), \(d_{\text{next}}\))
+	\Return{} PontoEmVértice(\(p\), \(u\), \(d^1\), \(u - v\)) \(\lor\) PontoEmVértice(\(p\), \(v\), \(u - v\), \(d^2\))
 }
 \ElseIf {\(c_1 > 0 \land c_2 \le 0\)} {
-	\Return{} PontoEmVértice(\(p\), \(u\), \(d_{\text{prev}}\), \(v - u\)) \(\lor\) PontoEmVértice(\(p\), \(v\), \(v - u\), \(d_{\text{next}}\))
+	\Return{} PontoEmVértice(\(p\), \(u\), \(d^1\), \(v - u\)) \(\lor\) PontoEmVértice(\(p\), \(v\), \(v - u\), \(d^2\))
 }
 \Else {
-	\Return{} \(\lnot\) PontoEmAresta(\(p\), \(v\), \(u\), \(d_{\text{next}}\), \(d_{\text{prev}}\))
+	\Return{} \(\lnot\) PontoEmAresta(\(p\), \(v\), \(u\), \(d^2\), \(d^1\))
 }
 
 \end{algorithm}
@@ -691,10 +698,10 @@ Localiza o ponto \(p\) na partição do polígono \(P_i\)}
 
 	\(v_1 \leftarrow \) Vértice \(\floor{i / 2}\) do polígono \(P_i\) \\
 	\(v_2 \leftarrow \) Vértice \(\floor{j / 2}\) do polígono \(P_i\) \\
-	\(d_{\text{prev}} \leftarrow\) getDireção(\(i\)) \\
-	\(d_{\text{next}} \leftarrow\) getDireção(\(j\)) \\
+	\(d^1 \leftarrow\) getDireção(\(i\)) \\
+	\(d^2 \leftarrow\) getDireção(\(j\)) \\
 
-	\Return{} PontoEmAresta(\(p\), \(v_1\), \(v_2\), \(d_{\text{prev}}\), \(d_{\text{next}}\))
+	\Return{} PontoEmAresta(\(p\), \(v_1\), \(v_2\), \(d^1\), \(d^2\))
 }
 
 \(l \leftarrow 0\) \\
@@ -728,9 +735,9 @@ Para \(i > 0\), primeiramente determinamos a região \(R\) de \(S_i\) que conté
 
 \begin{itemize}
 
-	\item Região de Vértice: Seja \(R = (v, d_{\text{prev}}, d_{\text{next}})\). Nesse caso, o \(i\)-path até \(p\) deve passar pelo vértice \(v\), tocando o polígono \(P_i\). Assim, temos que \(\text{Query}(p, i) = v\).
+	\item Região de Vértice: Seja \(R = (v, d^1, d^2)\). Nesse caso, o \(i\)-path até \(p\) deve passar pelo vértice \(v\), tocando o polígono \(P_i\). Assim, temos que \(\text{Query}(p, i) = v\).
 	
-	\item Região de Aresta: Seja \(R = (u, v, d_{\text{prev}}, d_{\text{next}})\). Nesse caso, o \(i\)-path até \(p\) deve passar por algum ponto \(q\) da aresta \(e = (u, v)\), tocando o polígono \(P_i\). Para calcular \(q\), primeiro determinamos \(q' = \text{Query}(p', i - 1)\), onde \(p'\) é a reflexão de \(p\) em relação à aresta \(e\). 
+	\item Região de Aresta: Seja \(R = (u, v, d^1, d^2)\). Nesse caso, o \(i\)-path até \(p\) deve passar por algum ponto \(q\) da aresta \(e = (u, v)\), tocando o polígono \(P_i\). Para calcular \(q\), primeiro determinamos \(q' = \text{Query}(p', i - 1)\), onde \(p'\) é a reflexão de \(p\) em relação à aresta \(e\). 
 	Agora, dizemos que \(q\) é a interseção entre \(\overline{q'p'}\) e a aresta \(e\). Finalmente, respondemos \(\text{Query}(p, i) = q\).
 
 	\item Região de Atravessa: Seja \(R\) a região de atravessa. Nesse caso, o \(i\)-path até \(p\) automaticamente atravessa o polígono \(P_i\) em algum ponto. Portanto, podemos simplesmente responder \(\text{Query}(p, i) = \text{Query}(p, i - 1)\).
