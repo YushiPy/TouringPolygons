@@ -593,19 +593,45 @@ Na seção anterior, descrevemos uma maneira de localizar um ponto \(p\) na part
 
 Essencialmente, sejam \(v^1, \dots, v^n\) vértices consecutivos de \(T_i\) em sentido anti-horário. Para determinar se um ponto \(p\) pertence à \textbf{alguma} região de vértice desses vértices ou à alguma região de aresta entre esses vértices, poderíamos verificar cada região de vértice e aresta individualmente, como fizemos na seção anterior. No entanto, também podemos considerar a região de aresta definida pela semi-reta partindo de \(v^1\) até \(v^n\), com raios \(d^1\) e \(d^2\) onde \(d^1\) é o primeiro raio de \(v^1\) e \(d^2\) é o segundo raio de \(v^n\). Note que essa região de aresta contém todas as regiões de vértice e aresta entre \(v^1\) e \(v^n\) e não contém nenhuma outra região de vértice ou aresta. Assim, podemos verificar se \(p\) pertence a alguma região de vértice ou aresta entre \(v^1\) e \(v^n\) simplesmente verificando se \(p\) pertence a essa nova região de aresta. Usando essa ideia, podemos implementar uma busca binária para localizar \(p\) na partição \(S_i\).
 
-\begin{wrapfigure}{r}{0.40\textwidth}
-
-	\vspace{-5pt}
-	\centering
-	\includegraphics[width=0.40\textwidth]{Problem1Images/joined-edge-regions.png}
-	\caption{União de regiões de vértice e aresta em uma única região de aresta.}
-	\label{problem1-edge-region-union}
-
-\end{wrapfigure}
 
 A Figura~\ref{problem1-edge-region-union} ilustra essa ideia, onde temos quatro regiões de vértice e três regiões de aresta unidas em uma única região de aresta maior. Note que essa nova região de aresta pode ser verificada usando o Algoritmo~\algref{problem1-edge-region-check}, permitindo assim a implementação da busca binária.
 
 Infelizmente, o Algoritmo~\algref{problem1-edge-region-check} não é suficiente para verificar se um ponto \(p\) pertence a uma região de aresta arbitrária, como a que acabamos de definir, pois a união de regiões de vértice e aresta pode gerar diferentes casos para a região de aresta resultante, dependendo do ângulo entre \(d^1\) e \(d^2\). Por esse motivo, precisamos primeiro estender o Algoritmo~\algref{problem1-edge-region-check} para lidar com esses casos adicionais antes de podermos implementar a busca binária. 
+
+\begin{figure}[h]
+
+    \centering
+	\begin{minipage}{0.7\linewidth}
+		\centering
+
+		\begin{subfigure}{0.45\textwidth}
+			\centering
+			\includegraphics[width=\linewidth]{Problem1Images/edge-neg-neg.png}
+			\caption{Caption 1}
+		\end{subfigure}
+		\hfill
+		\begin{subfigure}{0.45\textwidth}
+			\centering
+			\includegraphics[width=\linewidth]{Problem1Images/edge-neg-pos.png}
+			\caption{Caption 2}
+		\end{subfigure}
+
+		\begin{subfigure}{0.45\textwidth}
+			\centering
+			\includegraphics[width=\linewidth]{Problem1Images/edge-pos-neg.png}
+			\caption{Caption 3}
+		\end{subfigure}
+		\hfill
+		\begin{subfigure}{0.45\textwidth}
+			\centering
+			\includegraphics[width=\linewidth]{Problem1Images/edge-pos-pos.png}
+			\caption{Caption 4}
+		\end{subfigure}
+
+    \caption{Overall caption for the 2×2 grid.}
+	\end{minipage}
+
+\end{figure}
 
 \begin{figure}
 	\centering
