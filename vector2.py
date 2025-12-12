@@ -374,13 +374,13 @@ class Vector2:
 		return type(self)(func(self.x), func(self.y))
 
 	def perpendicular(self) -> Self:
-		"""Returns a vector that is perpendicular to this vector and normalized."""
-		return type(self)(-self.y, self.x).normalize()
+		"""Returns a vector that is perpendicular to this vector and has same length."""
+		return type(self)(-self.y, self.x)
 
 	def copy(self) -> Self:
 		"""Returns a copy of the vector."""
 		return type(self)(self.x, self.y)
-
+	
 	def xx(self) -> Self:
 		"""Returns a vector with both components equal to x."""
 		return type(self)(self.x, self.x)
