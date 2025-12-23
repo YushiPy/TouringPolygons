@@ -162,10 +162,10 @@ class Drawing(Solution):
 
 		return minx, miny, maxx, maxy
 
-
 	def draw(self, scenes: list[int] | None = None, /, text: bool = True) -> None:
 
-		self.final_path = self.solve()
+		if not hasattr(self, "final_path"):
+			self.final_path = self.solve()
 
 		n: int = len(self.polygons)
 
