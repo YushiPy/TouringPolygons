@@ -9,10 +9,19 @@ from polygon2 import Polygon2
 
 from problem1 import Solution
 from problem1_fast import Solution as FastSolution
+from problem1_new_timed import Solution as NewSolution
+from problem1_jit import Solution as JITSolution
 
 type _Vector2 = Iterable[float]
 type _Polygon2 = Iterable[_Vector2]
 type TestCase = tuple[_Vector2, _Vector2, list[_Polygon2]]
+
+def reference_solution(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
+	return Solution(start, target, polygons).solve()
+
+def test_solution(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
+	return JITSolution(start, target, polygons).solve()
+
 
 def regular_polygon(n: int, r: float, center: Vector2 = Vector2(), angle: float = 0) -> Polygon2:
 	"""
@@ -79,10 +88,10 @@ def make_test(sides: list[int]) -> TestCase:
 
 def do_test(test: TestCase) -> bool:
 
-	test = (Vector2(*test[0]), Vector2(*test[1]), [Polygon2(Vector2(*v) for v in poly) for poly in test[2]])
-
-	expected = Solution(*test).solve()
-	actual = FastSolution(*test).solve()
+	test = (Vector2(*test[0]), Vector2(*test[1]), list(map(Polygon2, test[2])))
+	
+	expected = reference_solution(*test) # type: ignore
+	actual = test_solution(*test) # type: ignore
 
 	if expected != actual:
 		print("❌ Test failed!")
@@ -112,6 +121,7 @@ def random_test_suit(name: str, sides_list: list[list[int]]) -> None:
 
 def random_test_block(name: str, tests: Iterable[tuple[str, list[list[int]]]]) -> None:
 	return test_block(name, ((subname, map(make_test, sides_list)) for subname, sides_list in tests))
+
 
 if __name__ == "__main__":
 

@@ -9,16 +9,24 @@ from polygon2 import Polygon2
 from problem1 import Solution
 from problem1_fast import Solution as FastSolution
 from problem1_new import Solution as NewSolution
+from problem1_jit import Solution as JITSolution
 
 
 type TestCase = tuple[Vector2, Vector2, list[Polygon2]]
 
+FIRST_SOLUTION = Solution
+SECOND_SOLUTION = JITSolution
+
+# Swap to change which solution is reference and which is test
+if 0: 
+	FIRST_SOLUTION, SECOND_SOLUTION = SECOND_SOLUTION, FIRST_SOLUTION
+
 def reference_solution(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
-	return FastSolution(start, target, polygons).solve()
+	return FIRST_SOLUTION(start, target, polygons).solve()
 
 def test_solution(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
-	return NewSolution(start, target, polygons).solve()
- 
+	return SECOND_SOLUTION(start, target, polygons).solve()
+
 def regular_polygon(n: int, r: float, center: Vector2 = Vector2(), angle: float = 0) -> Polygon2:
 	"""
 	Create a regular polygon with `n` vertices and radius `r`.
@@ -88,21 +96,28 @@ def do_test(test: TestCase, number: int = 10) -> tuple[float, float]:
 
 	return slow, fast
 
-def test_suite(name: str, sides_list: list[list[int]], number: int = 10) -> None:
+def test_suite(name: str, sides_list: list[list[int]], number: int = 10, warmup: int = 0) -> None:
 
 	def justified(value: float) -> str:
 		return str(round(value, 6)).rjust(10, " ")
 
+	tests = [make_test(sides) for sides in sides_list]
+
+	for _ in range(warmup):
+		for test in tests:
+			reference_solution(*test)
+			test_solution(*test)
+
 	print(f"{name} Tests:")
 
-	for sides in sides_list:
+	for test in tests:
 
-		test = make_test(sides)
+		sides = [len(polygon) for polygon in test[2]]
 		slow, fast = do_test(test, number=number)
 
 		sides_string = str(sides) if len(sides) < 10 else "[" + ", ".join(map(str, sides[:5])) + ", ..., " + ", ".join(map(str, sides[-5:])) + "]"
 
-		print(f"\tSpeedup: {justified(round(slow / fast, 2))}x | Slow: {justified(slow)}s | Fast: {justified(fast)}s | Sides: {sides_string}", flush=True)
+		print(f"\tSpeedup: {justified(round(slow / fast, 2))}x | {FIRST_SOLUTION.__module__}: {justified(slow)}s | {SECOND_SOLUTION.__module__}: {justified(fast)}s | Sides: {sides_string}", flush=True)
 
 def time_test(test: TestCase, number: int = 10) -> float:
 	return timeit(lambda: test_solution(*test), number=number)
@@ -123,7 +138,7 @@ def time_test_suite(name: str, sides_list: list[list[int]], number: int = 10) ->
 
 		print(f"\tFast: {justified(fast)}s | Sides: {sides_string}", flush=True)
 
-if __name__ == "__main__":
+def main() -> None:
 
 	small_tests = [
 		[3, 3, 3, 3],
@@ -148,21 +163,36 @@ if __name__ == "__main__":
 		[300, 250],
 		[400],
 		[500, 400, 300, 200, 100],
-		[1000],
+		[20000, 100, 100, 100, 100, 100, 100],
+		[10000],
+		[100, 100, 100, 100, 100, 100, 20000],
+		[20000, 20000],
 	]
 
-	test_suite("Small", small_tests, number=100)
-	test_suite("Numerous Small", numerous_small_tests, number=10)
-	test_suite("Large", large_tests, number=10)
-
-	for name, value in NewSolution.__dict__.items():
-		if callable(value) and hasattr(value, "total_time"):
-			print(f"{name}: {value.total_time:.6f}s")
+	test_suite("Small", small_tests, number=100, warmup=10)
+	test_suite("Numerous Small", numerous_small_tests, number=10, warmup=5)
+	test_suite("Large", large_tests, number=1, warmup=2)
 
 	#time_test_suite("Timing Small", small_tests, number=1000)
 	#time_test_suite("Timing Numerous Small", numerous_small_tests, number=100)
 	#time_test_suite("Timing Large", large_tests, number=100)
+	return
 
+	spent_time: dict[str, float] = {name: value.total_time for name, value in NewSolution.__dict__.items() if callable(value) and hasattr(value, "total_time")}
+
+	name_length = max(len(name) for name in spent_time.keys())
+	total_time = spent_time["solve"]
+
+	if total_time == 0:
+		return
+
+	print("\n\nTiming Details:")
+	print("----------------")
+	for name in sorted(spent_time.keys(), key=spent_time.__getitem__, reverse=True):
+		print(f"- {name.ljust(name_length + 1)}: {spent_time[name]:.6f}s : {spent_time[name] / total_time * 100:>5.2f}%")
+
+if __name__ == "__main__":
+	main()
 """
 Small Tests:
 	Speedup:       0.94x | Slow:   0.017235s | Fast:   0.018328s | Sides: [3, 3, 3, 3]
