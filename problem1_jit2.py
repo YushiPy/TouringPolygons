@@ -241,24 +241,9 @@ class Solution:
 		index = len(self.polygons)
 
 		while index >= 0:
-			print(index, current)
 			current, index = self.query_full(current, index)
 			result.append(current)
 
 		result.reverse()
 
 		return result
-	
-
-x = (
-	Vector2(5, 1), 
-	Vector2(7, 3),
-	[
-		Polygon2([Vector2(3, 0), Vector2(2, 4), Vector2(1, 4), Vector2(-1, 1)]),
-		Polygon2([Vector2(3, 3), Vector2(4, 3), Vector2(4, 4), Vector2(3, 4)]),
-		#Polygon2([Vector2(5, 5), Vector2(6, 5), Vector2(6, 6), Vector2(5, 6)]),
-	]
-)
-s = Solution(*x)
-
-print(s.solve())
