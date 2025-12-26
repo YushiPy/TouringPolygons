@@ -121,7 +121,7 @@ class Solution:
 		before = polygon[j - 1]
 		after = polygon[(j + 1) % len(polygon)]
 
-		last = self.query(vertex, i)
+		last, _ = self.query_full(vertex, i)
 		diff = (vertex - last).normalize()
 
 		if diff.cross(vertex - before) > 0:
@@ -231,9 +231,6 @@ class Solution:
 
 		return intersection, index - 1
 
-	def query(self, point: Vector2, index: int) -> Vector2:
-		return self.query_full(point, index)[0]
-	
 	def solve(self) -> list[Vector2]:
 		
 		result = [self.target]
