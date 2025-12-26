@@ -141,7 +141,7 @@ class Solution:
 	def is_blocked_edge(self, i: int, j: int) -> bool:
 
 		if self.blocked_edges[i][j] is not None:
-			return True
+			return self.blocked_edges[i][j] # type: ignore
 		
 		polygon = self.polygons[i]
 		v1 = polygon[j]
@@ -177,7 +177,7 @@ class Solution:
 		def check2(l: int, r: int) -> bool:
 			return point_in_edge(point, polygon[l // 2], polygon[r // 2], get(l // 2)[l % 2], get(r // 2)[r % 2])
 
-		polygon = self.polygons[index - 1]
+		polygon = self.polygons[index]
 		n = len(polygon)
 
 		if check2(0, 1):
@@ -204,7 +204,7 @@ class Solution:
 
 		if index == 0:
 			return self.start, -1
-		
+
 		polygon = self.polygons[index - 1]
 
 		location = self.locate_point(point, index - 1)
@@ -235,12 +235,13 @@ class Solution:
 		return self.query_full(point, index)[0]
 	
 	def solve(self) -> list[Vector2]:
-
+		
 		result = [self.target]
 		current = self.target
 		index = len(self.polygons)
 
 		while index >= 0:
+			print(index, current)
 			current, index = self.query_full(current, index)
 			result.append(current)
 
@@ -255,7 +256,7 @@ x = (
 	[
 		Polygon2([Vector2(3, 0), Vector2(2, 4), Vector2(1, 4), Vector2(-1, 1)]),
 		Polygon2([Vector2(3, 3), Vector2(4, 3), Vector2(4, 4), Vector2(3, 4)]),
-		Polygon2([Vector2(5, 5), Vector2(6, 5), Vector2(6, 6), Vector2(5, 6)]),
+		#Polygon2([Vector2(5, 5), Vector2(6, 5), Vector2(6, 6), Vector2(5, 6)]),
 	]
 )
 s = Solution(*x)
