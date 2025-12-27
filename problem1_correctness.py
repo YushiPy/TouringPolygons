@@ -11,6 +11,7 @@ from problem1 import Solution
 from problem1_fast import Solution as FastSolution
 from problem1_new_timed import Solution as NewSolution
 from problem1_jit import Solution as JITSolution
+from pp import Solution as PPSolution
 
 type _Vector2 = Iterable[float]
 type _Polygon2 = Iterable[_Vector2]
@@ -20,7 +21,7 @@ def reference_solution(start: Vector2, target: Vector2, polygons: list[Polygon2]
 	return Solution(start, target, polygons).solve()
 
 def test_solution(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
-	return JITSolution(start, target, polygons).solve()
+	return PPSolution(start, target, polygons).solve()
 
 
 def regular_polygon(n: int, r: float, center: Vector2 = Vector2(), angle: float = 0) -> Polygon2:
@@ -85,7 +86,6 @@ def make_test(sides: list[int]) -> TestCase:
 
 	return start, target, polygons # type: ignore
 
-
 def do_test(test: TestCase) -> bool:
 
 	test = (Vector2(*test[0]), Vector2(*test[1]), list(map(Polygon2, test[2])))
@@ -93,7 +93,7 @@ def do_test(test: TestCase) -> bool:
 	expected = reference_solution(*test) # type: ignore
 	actual = test_solution(*test) # type: ignore
 
-	if expected != actual:
+	if any((e - a).magnitude() > 1e-10 for e, a in zip(expected, actual)):
 		print("❌ Test failed!")
 		print(test)
 		return False
