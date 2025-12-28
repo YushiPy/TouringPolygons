@@ -1,4 +1,7 @@
 
+# VSCode
+.vscode/
+
 # Latex
 *.aux
 *.bcf
