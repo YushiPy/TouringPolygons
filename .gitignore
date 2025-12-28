@@ -30,7 +30,8 @@ __pycache__
 *.o
 
 # Test files
-test*
+test.*
+test[0-9].*
 
 # Special Files
 cronograma.md

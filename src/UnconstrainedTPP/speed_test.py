@@ -6,16 +6,13 @@ from timeit import timeit
 from vector2 import Vector2
 from polygon2 import Polygon2
 
-from problem1 import Solution
-from problem1_fast import Solution as FastSolution
-from problem1_new import Solution as NewSolution
-from problem1_jit import Solution as JITSolution
-
+from u_tpp_filtered import Solution as FilteredSolution
+from u_tpp_jit2 import Solution as JITSolution2
 
 type TestCase = tuple[Vector2, Vector2, list[Polygon2]]
 
-FIRST_SOLUTION = Solution
-SECOND_SOLUTION = JITSolution
+FIRST_SOLUTION = FilteredSolution
+SECOND_SOLUTION = JITSolution2
 
 # Swap to change which solution is reference and which is test
 if 0: 
@@ -62,7 +59,7 @@ def make_test(sides: list[int]) -> TestCase:
 		while True:
 
 			for _ in range(tries):
-
+	
 				point = random_point(range_size)
 
 				if all((point - c).magnitude() >= 1.5 + radius for c in centers):
@@ -108,7 +105,7 @@ def test_suite(name: str, sides_list: list[list[int]], number: int = 10, warmup:
 			reference_solution(*test)
 			test_solution(*test)
 
-	print(f"{name} Tests:")
+	print(f"{name} Tests:", flush=True)
 
 	for test in tests:
 
@@ -140,6 +137,10 @@ def time_test_suite(name: str, sides_list: list[list[int]], number: int = 10) ->
 
 def main() -> None:
 
+	from sys import setrecursionlimit
+
+	setrecursionlimit(10 ** 8)
+
 	small_tests = [
 		[3, 3, 3, 3],
 		[3, 5, 4, 6],
@@ -157,6 +158,15 @@ def main() -> None:
 		[3] * 100,
 	]
 
+	medium_tests = [
+		[10] * 10,
+		[20] * 20,
+		[30] * 30,
+		[40] * 40,
+		[50] * 50,
+		[100] * 10,
+	]
+
 	large_tests = [
 		[100, 150, 90],
 		[200, 100, 150, 120],
@@ -169,9 +179,16 @@ def main() -> None:
 		[20000, 20000],
 	]
 
-	test_suite("Small", small_tests, number=100, warmup=10)
-	test_suite("Numerous Small", numerous_small_tests, number=10, warmup=5)
-	test_suite("Large", large_tests, number=1, warmup=2)
+	larger_tests = [
+		[1000] * 1000,
+		[5000] * 200,
+	]
+
+	test_suite("Small", small_tests, number=20, warmup=10)
+	test_suite("Numerous Small", numerous_small_tests, number=20, warmup=5)
+	test_suite("Medium", medium_tests, number=20, warmup=2)
+	test_suite("Large", large_tests, number=5, warmup=2)
+	test_suite("Larger", larger_tests, number=5, warmup=0)
 
 	#time_test_suite("Timing Small", small_tests, number=1000)
 	#time_test_suite("Timing Numerous Small", numerous_small_tests, number=100)

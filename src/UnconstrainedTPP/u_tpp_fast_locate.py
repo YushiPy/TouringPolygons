@@ -199,7 +199,7 @@ class Solution:
 				vertex = polygon[j]
 
 				before = polygon[j - 1]
-				after = polygon[j + 1]
+				after = polygon[(j + 1) % len(polygon)]
 
 				last = self.query(vertex, i)
 				diff = (vertex - last).normalize()

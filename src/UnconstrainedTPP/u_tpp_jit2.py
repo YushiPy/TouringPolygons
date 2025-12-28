@@ -171,9 +171,6 @@ class Solution:
 		def get(i: int) -> tuple[Vector2, Vector2]:
 			return self.get_cone(index, i)
 		
-		def check(i: int) -> bool:
-			return point_in_edge(point, polygon[i // 2], polygon[(i + 1) // 2], get(i // 2)[i % 2], get((i + 1) // 2)[(i + 1) % 2])
-
 		def check2(l: int, r: int) -> bool:
 			return point_in_edge(point, polygon[l // 2], polygon[r // 2], get(l // 2)[l % 2], get(r // 2)[r % 2])
 
@@ -195,9 +192,6 @@ class Solution:
 			else:
 				left = mid
 
-		if not check(right):
-			raise ValueError("Point not located in any cone or edge.")
-		
 		return right
 
 	def query_full(self, point: Vector2, index: int) -> tuple[Vector2, int]:

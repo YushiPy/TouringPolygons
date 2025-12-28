@@ -17,8 +17,8 @@ import matplotlib.pyplot as plt
 
 from vector2 import Vector2
 from polygon2 import Polygon2
-from problem1_fast import Solution
 
+from u_tpp import Solution
 
 def intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> tuple[float, float] | None:
 
@@ -245,7 +245,7 @@ class Drawing(Solution):
 
 				vertex = polygon[i]
 
-				ray1, ray2 = self.cones[index][i]
+				ray1, ray2 = self.get_cone(index, i)
 
 				if ray1 == ray2:
 					continue
@@ -266,14 +266,14 @@ class Drawing(Solution):
 
 			for i in range(len(polygon)):
 
-				if self.blocked[index][i]:
+				if self.is_blocked_edge(index, i):
 					continue
 
 				v1 = polygon[i]
 				v2 = polygon[(i + 1) % len(polygon)]
 
-				ray1 = self.cones[index][i][1]
-				ray2 = self.cones[index][(i + 1) % len(self.cones[index])][0]
+				ray1 = self.get_cone(index, i)[1]
+				ray2 = self.get_cone(index, (i + 1) % len(polygon))[0]
 
 				points = locate_edge(v1, ray1, v2, ray2, bbox)
 

@@ -120,16 +120,12 @@ def do_test(test: Test) -> None:
 	solution.draw()
 	#solution.ax.plot(*zip(*path), color="purple", linewidth=2, linestyle="dashed", marker="o", markersize=3, label="Path") # type: ignore
 
-	plt.show() # type: ignore
 
 from time import perf_counter
 
 start = perf_counter()
 
-do_test(test7)
-
 for test in tests:
-	break
 	do_test(test)
 
 end = perf_counter()

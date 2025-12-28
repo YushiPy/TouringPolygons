@@ -14,6 +14,10 @@ def load_pygame() -> None:
 
 load_pygame()
 
+import sys
+
+sys.path.append("..")
+
 from itertools import count
 from math import ceil
 
@@ -25,6 +29,9 @@ import pygame as pg
 
 from game_template import Game
 from text import PlainText, Text
+
+from polygon2 import Polygon2
+from problem1_fast import Solution
 
 EXPORTS_FOLDER = "PolygonsOut"
 EXPORTS_EXT = ".txt"
@@ -106,6 +113,29 @@ class Gameplay(Game):
 		self.last_loaded: str | None = None
 
 		self.color_offset = random.randrange(0, 2 ** 63)
+	
+	def get_path(self) -> list[Vector2]:
+
+		start = next((p for p in self.polygons if len(p) == 1), None)
+		target = next((p for p in self.polygons if p != start and len(p) == 1), None)
+
+
+		if start is None or target is None:
+			return []
+		
+		try:
+			polygons = [Polygon2(p) for p in self.polygons if len(p) >= 3]
+		except ValueError:
+			return []
+		
+		solution = Solution(start, target, polygons)
+		
+		try:
+			path = solution.solve()
+		except Exception:
+			return []
+		
+		return list(map(Vector2, path))
 
 	def _load(self, filename: str) -> list[list[Vector2]]:
 
@@ -321,6 +351,8 @@ Controls:
 - C: Change Colors"""
 
 		Text(string, (50, 50), 20, Text.Alignment.LEFT).draw(surface)
+
+
 
 	def fixed_update(self, down_keys: set[int], up_keys: set[int], events: set[int]) -> None | bool:
 

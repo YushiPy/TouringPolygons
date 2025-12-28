@@ -7,21 +7,18 @@ import math
 from vector2 import Vector2
 from polygon2 import Polygon2
 
-from problem1 import Solution
-from problem1_fast import Solution as FastSolution
-from problem1_new_timed import Solution as NewSolution
-from problem1_jit import Solution as JITSolution
-from pp import Solution as PPSolution
+from u_tpp import Solution as ReferenceSolution
+from u_tpp_naive import Solution as TestedSolution
 
 type _Vector2 = Iterable[float]
 type _Polygon2 = Iterable[_Vector2]
 type TestCase = tuple[_Vector2, _Vector2, list[_Polygon2]]
 
 def reference_solution(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
-	return Solution(start, target, polygons).solve()
+	return ReferenceSolution(start, target, polygons).solve()
 
 def test_solution(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
-	return PPSolution(start, target, polygons).solve()
+	return TestedSolution(start, target, polygons).solve()
 
 
 def regular_polygon(n: int, r: float, center: Vector2 = Vector2(), angle: float = 0) -> Polygon2:

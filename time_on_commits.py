@@ -36,7 +36,7 @@ times = re.findall(r'Date:\s+(.+)', history)
 ts = [datetime.strptime(t, '%a %b %d %H:%M:%S %Y %z') for t in times][::-1]
 
 START_DATE = datetime(2025, 7, 1, tzinfo=ts[0].tzinfo)
-END_DATE = datetime(2025, 11, 20, tzinfo=ts[0].tzinfo)
+END_DATE = datetime(2026, 11, 20, tzinfo=ts[0].tzinfo)
 
 ts = [t for t in ts if START_DATE <= t <= END_DATE]
 
@@ -76,4 +76,4 @@ plt.ylabel("Horas gastas em commits")
 plt.plot(x[1:], y)
 plt.tight_layout()
 
-plt.savefig("time_on_commits.png", dpi=250)
+# plt.savefig("time_on_commits.png", dpi=250)
