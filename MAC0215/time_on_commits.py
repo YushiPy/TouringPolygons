@@ -30,7 +30,7 @@ def get_git_history(repo_path: str | Path) -> str:
 	
 	return result.stdout
 
-history = get_git_history(".")
+history = get_git_history("..")
 times = re.findall(r'Date:\s+(.+)', history)
 
 ts = [datetime.strptime(t, '%a %b %d %H:%M:%S %Y %z') for t in times][::-1]
@@ -66,9 +66,6 @@ for a, b in zip(ts, ts[1:]):
 
 y.pop()
 
-print(x)
-print(y)
-
 plt.grid()
 plt.title("Tempo gasto em commits ao longo do tempo")
 plt.xlabel("Tempo (meses)")
@@ -76,4 +73,4 @@ plt.ylabel("Horas gastas em commits")
 plt.plot(x[1:], y)
 plt.tight_layout()
 
-# plt.savefig("time_on_commits.png", dpi=250)
+plt.savefig("time_on_commits.png", dpi=250)
