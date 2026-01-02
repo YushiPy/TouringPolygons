@@ -1,6 +1,48 @@
 
-from vector2 import Vector2
-from polygon2 import Polygon2
+type Vector2 = tuple[float, float]
+type Polygon2 = list[Vector2]
+
+
+def vector_add(v1: Vector2, v2: Vector2) -> Vector2:
+	return (v1[0] + v2[0], v1[1] + v2[1])
+
+def vector_sub(v1: Vector2, v2: Vector2) -> Vector2:
+	return (v1[0] - v2[0], v1[1] - v2[1])
+
+def vector_mul(v: Vector2, scalar: float) -> Vector2:
+	return (v[0] * scalar, v[1] * scalar)
+
+def vector_cross(v1: Vector2, v2: Vector2) -> float:
+	return v1[0] * v2[1] - v1[1] * v2[0]
+
+def vector_is_close(v1: Vector2, v2: Vector2, eps: float = 1e-8) -> bool:
+	return abs(v1[0] - v2[0]) < eps and abs(v1[1] - v2[1]) < eps
+
+def vector_length(v: Vector2) -> float:
+	return (v[0] ** 2 + v[1] ** 2) ** 0.5
+
+def vector_normalize(v: Vector2) -> Vector2:
+
+	length = vector_length(v)
+
+	if length == 0:
+		return (0.0, 0.0)
+
+	return (v[0] / length, v[1] / length)
+
+def vector_reflect(v: Vector2, normal: Vector2) -> Vector2:
+	
+	normal = vector_normalize(normal)
+	dot = v[0] * normal[0] + v[1] * normal[1]
+
+	return vector_sub(v, vector_mul(normal, 2 * dot))
+
+def vector_perpendicular(v: Vector2) -> Vector2:
+	return (-v[1], v[0])
+
+def vector_reflect_segment(point: Vector2, start: Vector2, end: Vector2) -> Vector2:
+	#(point - start).reflect((end - start).perpendicular()) + start
+	return vector_add(start, vector_reflect(vector_sub(point, start), vector_perpendicular(vector_sub(end, start))))
 
 
 def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2, eps: float = 1e-8) -> bool:
@@ -16,38 +58,36 @@ def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2,
 	:return: True if the point is inside the cone, False otherwise.
 	"""
 
-	diff = point - vertex
+	diff = vector_sub(point, vertex)
 
-	if ray1.cross(ray2) >= 0:
-		return ray1.cross(diff) >= -eps and ray2.cross(diff) <= eps
+	if vector_cross(ray1, ray2) >= 0:
+		return vector_cross(ray1, diff) >= -eps and vector_cross(ray2, diff) <= eps
 	else:
-		return ray1.cross(diff) >= -eps or ray2.cross(diff) <= eps
+		return vector_cross(ray1, diff) >= -eps or vector_cross(ray2, diff) <= eps
 
 def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2, eps: float = 1e-8) -> bool:
 
-	if vertex1.is_close(vertex2):
+	if vector_is_close(vertex1, vertex2):
 		return point_in_cone(point, vertex1, ray1, ray2)
 
-	p1 = point - vertex1
-	p2 = point - vertex2
-	dv = vertex2 - vertex1
+	p1 = vector_sub(point, vertex1)
+	p2 = vector_sub(point, vertex2)
+	dv = vector_sub(vertex2, vertex1)
 
-	if ray1.is_close(ray2):
-		return dv.cross(p1) >= -eps and dv.cross(p2) <= eps
+	if vector_is_close(ray1, ray2):
+		return vector_cross(dv, p1) >= -eps and vector_cross(dv, p2) <= eps
 
-	match (dv.cross(ray1) >= -eps, dv.cross(ray2) >= -eps):
+	if vector_cross(dv, ray1) < eps:
+		if vector_cross(dv, ray2) < eps:
+			return vector_cross(ray1, p1) > -eps and vector_cross(ray2, p2) < eps and vector_cross(dv, p1) < eps
+		else:
+			return vector_cross(ray1, p1) > -eps if vector_cross(dv, p1) < eps else vector_cross(ray2, p2) < eps
+	else:
+		if vector_cross(dv, ray2) < eps:
+			return vector_cross(ray2, p2) < eps if vector_cross(dv, p2) < eps else vector_cross(ray1, p1) > -eps
+		else:
+			return vector_cross(ray1, p1) > -eps or vector_cross(ray2, p2) < eps or vector_cross(dv, p1) < eps
 
-		case (True, True):
-			return ray2.cross(p2) < eps or ray1.cross(p1) > -eps or dv.cross(p1) < -eps
-
-		case (False, False):
-			return ray1.cross(p1) >= -eps and ray2.cross(p2) <= eps and dv.cross(p1) <= eps
-
-		case (True, False):
-			return point_in_cone(point, vertex1, ray1, vertex1 - vertex2) or point_in_cone(point, vertex2, vertex1 - vertex2, ray2, eps)
-
-		case (False, True):
-			return point_in_cone(point, vertex1, ray1, vertex2 - vertex1) or point_in_cone(point, vertex2, vertex2 - vertex1, ray2, eps)
 
 def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2, eps: float = 1e-8) -> Vector2 | None:
 	"""
@@ -61,46 +101,31 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 	:return: The intersection point as a Vector2 if the segments intersect, otherwise None.	
 	"""
 
-	diff1 = end1 - start1
-	diff2 = end2 - start2
+	diff1 = vector_sub(end1, start1)
+	diff2 = vector_sub(end2, start2)
 
-	cross = diff1.cross(diff2)
+	cross = vector_cross(diff1, diff2)
 
 	if abs(cross) < eps:
 		return None
 	
-	sdiff = start2 - start1
+	sdiff = vector_sub(start2, start1)
 
-	rate1 = sdiff.cross(diff2) / cross
-	rate2 = sdiff.cross(diff1) / cross
+	rate1 = vector_cross(sdiff, diff2) / cross
+	rate2 = vector_cross(sdiff, diff1) / cross
 
 	if -eps <= rate1 <= 1 + eps and -eps <= rate2 <= 1 + eps:
-		return start1 + diff1 * rate1
+		return (start1[0] + rate1 * diff1[0], start1[1] + rate1 * diff1[1])
 	
 	return None
 
 
-class Solution:
+def tpp_solve(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
 
-	start: Vector2
-	target: Vector2
+	cones: list[list[tuple[Vector2, Vector2] | None]] = [[None] * len(polygon) for polygon in polygons]
+	blocked_edges: list[list[bool | None]] = [[None] * len(polygon) for polygon in polygons]
 
-	polygons: list[Polygon2]
-	cones: list[list[tuple[Vector2, Vector2] | None]]
-
-	blocked_edges: list[list[bool | None]]
-
-	def __init__(self, start: Vector2, target: Vector2, polygons: list[Polygon2]) -> None:
-
-		self.polygons = polygons
-
-		self.start = start
-		self.target = target
-
-		self.cones = [[None] * len(polygon) for polygon in polygons]
-		self.blocked_edges = [[None] * len(polygon) for polygon in polygons]
-
-	def get_cone(self, i: int, j: int) -> tuple[Vector2, Vector2]:
+	def get_cone(i: int, j: int) -> tuple[Vector2, Vector2]:
 		"""
 		Returns the visibility cone at vertex j of polygon at index i.
 
@@ -110,51 +135,52 @@ class Solution:
 		:return: A tuple containing the two ray directions defining the cone.
 		"""
 
-		j = j % len(self.polygons[i])
+		j = j % len(polygons[i])
 
-		if self.cones[i][j] is not None:
-			return self.cones[i][j] # type: ignore
+		if cones[i][j] is not None:
+			return cones[i][j] # type: ignore
 		
-		polygon = self.polygons[i]
+		polygon = polygons[i]
 
 		vertex = polygon[j]
 		before = polygon[j - 1]
 		after = polygon[(j + 1) % len(polygon)]
 
-		last = self.query(vertex, i)
-		diff = (vertex - last).normalize()
+		last = query(vertex, i)
+		diff = vector_normalize(vector_sub(vertex, last))
 
-		if diff.cross(vertex - before) > 0:
+		if vector_cross(diff, vector_sub(vertex, before)) > 0:
 			ray1 = diff
 		else:
-			ray1 = diff.reflect((before - vertex).perpendicular())
+			ray1 = vector_reflect(diff, vector_perpendicular(vector_sub(before, vertex)))
 		
-		if diff.cross(after - vertex) > 0:
+		if vector_cross(diff, vector_sub(after, vertex)) > 0:
 			ray2 = diff
 		else:
-			ray2 = diff.reflect((after - vertex).perpendicular())
+			ray2 = vector_reflect(diff, vector_perpendicular(vector_sub(after, vertex)))
 
-		self.cones[i][j] = (ray1, ray2)
+		cones[i][j] = (ray1, ray2)
 
 		return ray1, ray2
-
-	def is_blocked_edge(self, i: int, j: int) -> bool:
-
-		if self.blocked_edges[i][j] is not None:
-			return self.blocked_edges[i][j] # type: ignore
+	
+	def is_blocked_edge(i: int, j: int) -> bool:
 		
-		polygon = self.polygons[i]
+		if blocked_edges[i][j] is not None:
+			return blocked_edges[i][j] # type: ignore
+		
+		polygon = polygons[i]
 		v1 = polygon[j]
 		v2 = polygon[(j + 1) % len(polygon)]
 
-		mid = v1.lerp(v2, 0.5)
-		last = self.query(mid, i)
+		mid = ((v1[0] + v2[0]) / 2, (v1[1] + v2[1]) / 2)
+		last = query(mid, i)
 
-		self.blocked_edges[i][j] = (v2 - v1).cross(last - mid) >= 0
+		blocked_edges[i][j] = vector_cross(vector_sub(v2, v1), vector_sub(last, mid)) >= 0
 
-		return self.blocked_edges[i][j] # type: ignore
+		return blocked_edges[i][j] # type: ignore
+	
+	def locate_point(point: Vector2, index: int) -> int:
 
-	def locate_point(self, point: Vector2, index: int) -> int:
 		"""
 		Locates point in cones or edges defined by polygon and cones at the given index.
 		Returns index as follows:
@@ -168,12 +194,12 @@ class Solution:
 		"""
 
 		def get(i: int) -> tuple[Vector2, Vector2]:
-			return self.get_cone(index, i)
+			return get_cone(index, i)
 		
 		def check2(l: int, r: int) -> bool:
 			return point_in_edge(point, polygon[l // 2], polygon[r // 2], get(l // 2)[l % 2], get(r // 2)[r % 2])
 
-		polygon = self.polygons[index]
+		polygon = polygons[index]
 		n = len(polygon)
 
 		if check2(0, 1):
@@ -192,15 +218,15 @@ class Solution:
 				left = mid
 		
 		return right
-
-	def query(self, point: Vector2, index: int) -> Vector2:
-
+	
+	def query(point: Vector2, index: int) -> Vector2:
+		
 		if index == 0:
-			return self.start
+			return start
 
-		polygon = self.polygons[index - 1]
+		polygon = polygons[index - 1]
 
-		location = self.locate_point(point, index - 1)
+		location = locate_point(point, index - 1)
 		ind = location // 2
 
 		# Check for vertex region
@@ -211,11 +237,11 @@ class Solution:
 		v2 = polygon[(ind + 1) % len(polygon)]
 
 		# Check if point is in pass through region
-		if self.is_blocked_edge(index - 1, ind):
-			return self.query(point, index - 1)
+		if is_blocked_edge(index - 1, ind):
+			return query(point, index - 1)
 
-		reflected = point.reflect_segment(v1, v2)
-		last = self.query(reflected, index - 1)
+		reflected = vector_reflect_segment(point, v1, v2)
+		last = query(reflected, index - 1)
 
 		intersection = segment_segment_intersection(last, reflected, v1, v2)
 	
@@ -223,36 +249,34 @@ class Solution:
 			raise ValueError("No intersection found between segments.")
 
 		return intersection
-
-	def query_full(self, point: Vector2, index: int) -> list[Vector2]:
+	
+	def query_full(point: Vector2, index: int) -> list[Vector2]:
 
 		if index == 0:
-			return [self.start, point]
+			return [start, point]
 
-		polygon = self.polygons[index - 1]
-
-		location = self.locate_point(point, index - 1)
+		polygon = polygons[index - 1]
+		location = locate_point(point, index - 1)
 		ind = location // 2
 
 		# Check for vertex region
 		if location % 2 == 0:
-			x = self.query_full(polygon[ind], index - 1)
+			x = query_full(polygon[ind], index - 1)
 			x.append(point)
 			return x
 
 		# Check if point is in pass through region
-		if self.is_blocked_edge(index - 1, ind):
-			return self.query_full(point, index - 1)
+		if is_blocked_edge(index - 1, ind):
+			return query_full(point, index - 1)
 
 		v1 = polygon[ind]
 		v2 = polygon[(ind + 1) % len(polygon)]
 
-		reflected = point.reflect_segment(v1, v2)
-		other = self.query_full(reflected, index - 1)
+		reflected = vector_reflect_segment(point, v1, v2)
+		other = query_full(reflected, index - 1)
 		last = other[-2]
-
 		intersection = segment_segment_intersection(last, reflected, v1, v2)
-	
+
 		if intersection is None:
 			raise ValueError("No intersection found between segments.")
 
@@ -262,9 +286,5 @@ class Solution:
 		other.append(point)
 
 		return other
-
-	def solve(self) -> list[Vector2]:
-		return self.query_full(self.target, len(self.polygons))
-
-def tpp_solve(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
-	return Solution(start, target, polygons).solve()
+	
+	return query_full(target, len(polygons))
