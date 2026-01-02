@@ -272,3 +272,7 @@ class Solution:
 			self.cones.append(self.get_cones(i))
 
 		return self.get_full_path(self.target, k)
+
+
+def tpp_solve(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
+	return Solution(start, target, polygons).solve()

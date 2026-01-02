@@ -256,12 +256,15 @@ class Solution:
 		if intersection is None:
 			raise ValueError("No intersection found between segments.")
 
+		# return other[:-1] + [intersection, point]
 		other.pop()
 		other.append(intersection)
 		other.append(point)
 
 		return other
-		# return other[:-1] + [intersection, point]
 
 	def solve(self) -> list[Vector2]:
 		return self.query_full(self.target, len(self.polygons))
+
+def tpp_solve(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
+	return Solution(start, target, polygons).solve()

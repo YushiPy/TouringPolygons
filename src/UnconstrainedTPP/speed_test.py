@@ -6,23 +6,24 @@ from timeit import timeit
 from vector2 import Vector2
 from polygon2 import Polygon2
 
-from u_tpp_filtered import Solution as FilteredSolution
-from u_tpp_jit2 import Solution as JITSolution2
+from u_tpp_filtered import tpp_solve as filtered_tpp_solve # type: ignore
+from u_tpp_jit2 import tpp_solve as jit2_tpp_solve
+from u_tpp_final import tpp_solve as final_tpp_solve
 
 type TestCase = tuple[Vector2, Vector2, list[Polygon2]]
 
-FIRST_SOLUTION = FilteredSolution
-SECOND_SOLUTION = JITSolution2
+FIRST_SOLUTION = jit2_tpp_solve
+SECOND_SOLUTION = final_tpp_solve
 
 # Swap to change which solution is reference and which is test
 if 0: 
-	FIRST_SOLUTION, SECOND_SOLUTION = SECOND_SOLUTION, FIRST_SOLUTION
+	FIRST_SOLUTION, SECOND_SOLUTION = SECOND_SOLUTION, FIRST_SOLUTION # type: ignore
 
 def reference_solution(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
-	return FIRST_SOLUTION(start, target, polygons).solve()
+	return FIRST_SOLUTION(start, target, polygons) # type: ignore
 
 def test_solution(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
-	return SECOND_SOLUTION(start, target, polygons).solve()
+	return SECOND_SOLUTION(start, target, polygons) # type: ignore
 
 def regular_polygon(n: int, r: float, center: Vector2 = Vector2(), angle: float = 0) -> Polygon2:
 	"""

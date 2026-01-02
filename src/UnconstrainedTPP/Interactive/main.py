@@ -3,6 +3,7 @@ from math import ceil, floor, log
 import pygame as pg
 
 import sys
+import os
 
 sys.path.append("..")
 
@@ -144,6 +145,7 @@ class Main:
 		self.screen_rect = self.screen.get_rect()
 		self.render_area = self.screen.get_rect()
 		self.render_area.x = self.render_area.width // 4
+		self.render_area.top = self.render_area.height // 10
 
 	def visible_area(self) -> FRect:
 		"""Returns the visible area in world coordinates as (left, top, right, bottom)."""
@@ -457,6 +459,8 @@ class Main:
 
 		self.draw_table()
 
+		
+
 		pass
 
 	def run_frame(self) -> int:
@@ -488,11 +492,19 @@ class Main:
 		self.polygons.append(Polygon([self.points[-3], self.points[-2], self.points[-1]], (100, 150, 250)))
 
 		self.points.append(Point(pg.Vector2(4, 1), 13, POINTS_COLORS[3]))
-		self.points.append(Point(pg.Vector2(5, 1), 13, POINTS_COLORS[4]))
-		self.points.append(Point(pg.Vector2(4, 2), 13, POINTS_COLORS[5]))
-		self.points.append(Point(pg.Vector2(5, 2), 13, POINTS_COLORS[0]))
+		self.points.append(Point(pg.Vector2(5, 1), 13, POINTS_COLORS[3]))
+		self.points.append(Point(pg.Vector2(4, 2), 13, POINTS_COLORS[3]))
+		self.points.append(Point(pg.Vector2(5, 2), 13, POINTS_COLORS[3]))
 
-		self.polygons.append(Polygon([self.points[-4], self.points[-3], self.points[-1], self.points[-2]], (250, 150, 100)))
+		self.polygons.append(Polygon([self.points[-4], self.points[-3], self.points[-1], self.points[-2]], POINTS_COLORS[3]))
+
+		self.points.append(Point(pg.Vector2(3, 4), 13, POINTS_COLORS[4]))
+		self.points.append(Point(pg.Vector2(4, 4), 13, POINTS_COLORS[4]))
+		self.points.append(Point(pg.Vector2(3, 5), 13, POINTS_COLORS[4]))
+		self.points.append(Point(pg.Vector2(4, 5), 13, POINTS_COLORS[4]))
+		self.points.append(Point(pg.Vector2(3.5, 6), 13, POINTS_COLORS[4]))
+
+		self.polygons.append(Polygon([self.points[-5], self.points[-4], self.points[-3], self.points[-2], self.points[-1]], POINTS_COLORS[4]))
 
 		while not self.run_frame():
 			self.delta_time = self.clock.tick(FRAME_RATE) / 1000.0

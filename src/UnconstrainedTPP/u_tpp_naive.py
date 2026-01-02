@@ -299,3 +299,6 @@ class Solution:
 		result.reverse()
 
 		return result
+
+def tpp_solve(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
+	return Solution(start, target, polygons).solve()

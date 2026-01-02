@@ -245,6 +245,9 @@ class Solution:
 
 		return result
 
+def tpp_solve(start: _Vector2, target: _Vector2, polygons: Iterable[_Polygon2]) -> list[Vector2]:
+	return Solution(start, target, polygons).solve()
+
 """
 Complexity Analysis:
 
