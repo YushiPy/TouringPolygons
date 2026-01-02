@@ -242,7 +242,7 @@ class Drawing(Solution):
 		ax.legend() # type: ignore
 
 		plt.tight_layout()
-		plt.savefig(f"output{id(self) + id(Solution)}.png", dpi=300) # type: ignore
+		#plt.savefig(f"output{id(self) + id(Solution)}.png", dpi=300) # type: ignore
 
 	def draw_cones(self, ax: Axes, index: int) -> None:
 
