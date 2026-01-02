@@ -120,7 +120,49 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 	return None
 
 
-def tpp_solve(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
+def clean_polygon(polygon: Polygon2, eps: float = 1e-8) -> Polygon2:
+	"""
+	Cleans a polygon by removing collinear points and making the vertices counter-clockwise.
+
+	:param Polygon2 polygon: The polygon to clean.
+	:param float eps: A small epsilon value for numerical stability.
+
+	:return: The cleaned polygon.
+	"""
+
+	cleaned: Polygon2 = []
+
+	n = len(polygon)
+
+	for i in range(n):
+
+		prev = polygon[i - 1]
+		curr = polygon[i]
+		next = polygon[(i + 1) % n]
+
+		v1 = vector_sub(curr, prev)
+		v2 = vector_sub(next, curr)
+
+		if abs(vector_cross(v1, v2)) > eps:
+			cleaned.append(curr)
+	
+	# Ensure counter-clockwise order
+	area = 0.0
+
+	for i in range(len(cleaned)):
+		v1 = cleaned[i]
+		v2 = cleaned[(i + 1) % len(cleaned)]
+		area += (v1[0] * v2[1] - v2[0] * v1[1])
+
+	if area < 0:
+		cleaned.reverse()
+
+	return cleaned
+
+def tpp_solve(start: Vector2, target: Vector2, polygons: list[Polygon2], *, simplify: bool = False) -> list[Vector2]:
+
+	if simplify:
+		polygons = [clean_polygon(polygon) for polygon in polygons]
 
 	cones: list[list[tuple[Vector2, Vector2] | None]] = [[None] * len(polygon) for polygon in polygons]
 	blocked_edges: list[list[bool | None]] = [[None] * len(polygon) for polygon in polygons]

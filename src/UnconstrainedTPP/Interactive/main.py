@@ -453,7 +453,7 @@ class Main:
 		for polygon in self.polygons:
 			self.draw_polygon(polygon)
 
-		path = list(map(pg.Vector2, tpp_solve((self.start.position), (self.target.position), [[v.position for v in poly.vertices] for poly in self.polygons])))
+		path = list(map(pg.Vector2, tpp_solve((self.start.position), (self.target.position), [[v.position for v in poly.vertices] for poly in self.polygons], simplify=True)))
 
 		pg.draw.lines(self.screen, (255, 0, 255), False, [self.to_screen_pos(pg.Vector2(p.x, p.y)) for p in path], 3)
 
@@ -497,14 +497,6 @@ class Main:
 		self.points.append(Point(pg.Vector2(5, 2), 13, POINTS_COLORS[3]))
 
 		self.polygons.append(Polygon([self.points[-4], self.points[-3], self.points[-1], self.points[-2]], POINTS_COLORS[3]))
-
-		self.points.append(Point(pg.Vector2(3, 4), 13, POINTS_COLORS[4]))
-		self.points.append(Point(pg.Vector2(4, 4), 13, POINTS_COLORS[4]))
-		self.points.append(Point(pg.Vector2(3, 5), 13, POINTS_COLORS[4]))
-		self.points.append(Point(pg.Vector2(4, 5), 13, POINTS_COLORS[4]))
-		self.points.append(Point(pg.Vector2(3.5, 6), 13, POINTS_COLORS[4]))
-
-		self.polygons.append(Polygon([self.points[-5], self.points[-4], self.points[-3], self.points[-2], self.points[-1]], POINTS_COLORS[4]))
 
 		while not self.run_frame():
 			self.delta_time = self.clock.tick(FRAME_RATE) / 1000.0
