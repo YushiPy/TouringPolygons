@@ -1,4 +1,7 @@
 
+# Files starting with _
+_*
+
 # VSCode
 .vscode/
 
