@@ -5,9 +5,10 @@ import pygame as pg
 import sys
 import os
 
+os.chdir(os.path.dirname(__file__))
 sys.path.append("..")
 
-from u_tpp import Solution, Vector2, Polygon2
+from u_tpp import tpp_solve
 
 pg.init()
 
@@ -452,8 +453,7 @@ class Main:
 		for polygon in self.polygons:
 			self.draw_polygon(polygon)
 
-		sol = Solution(Vector2(self.start.position), Vector2(self.target.position), [Polygon2(v.position for v in poly.vertices) for poly in self.polygons])
-		path = sol.solve()
+		path = list(map(pg.Vector2, tpp_solve((self.start.position), (self.target.position), [[v.position for v in poly.vertices] for poly in self.polygons])))
 
 		pg.draw.lines(self.screen, (255, 0, 255), False, [self.to_screen_pos(pg.Vector2(p.x, p.y)) for p in path], 3)
 
