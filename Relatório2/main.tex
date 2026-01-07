@@ -255,12 +255,12 @@ Agora, para determinar se o segmento entre \(q\) e \(m\) intersecta \(P_i\) apen
 
 \begin{figure}[H]
 	\centering
-	\includegraphics[width=0.8\textwidth]{Images/uttp-first-contact.png}
-	\caption{Região de primeiro contato \(T_i\) de um polígono \(P_i\).}
+	\includegraphics[width=0.8\textwidth]{Images/utpp-first_contact.png}
+	\caption{Verificando se uma aresta pertence à região de primero contato de um polígono.}
 	\label{fig:first_contact_region}
 \end{figure}
 
-\begin{algorithm}
+\begin{algorithm}[H]
 \alglabel{alg:first_contact_region}
 \caption{Região de Primeiro Contato}
 \Input{\(s\), \(i\), \((P_1, \dots, P_i)\), \((T_1, \dots, T_{i - 1})\), \((S_1, \dots, S_{i - 1})\)}
@@ -289,6 +289,89 @@ Agora, para determinar se o segmento entre \(q\) e \(m\) intersecta \(P_i\) apen
 
 \end{algorithm}
 
+Ademais, uma vez que temos \(T_0, \dots, T_i\), podemos calcular o mapa de último passo \(S_i\) de \(P_i\). Para tal, notamos que \(S_i\) tem exatamente três tipos de regiões: regiões associadas a vértices de \(P_i\), regiões associadas a arestas de \(P_i\) uma única região de atravessar \(P_i\). Ademais, uma região associada à aresta \(e\) é delimitada pelas regiões associadas às pontas de \(e\) e pela aresta \(e\) em si. Além disso, a região de atravessar \(P_i\) é definida como o complemento das regiões associadas a vértices e arestas de \(P_i\). Assim, para construir \(S_i\), precisamos apenas determinar as regiões associadas a vértices de \(P_i\).
+
+Pelas condições de otimalidade discutidas em \cite[\textbf{Local Optimality Conditions.}]{tpp-dror2003}, sabemos que para cada vértice \(v\) de \(P_i\) que está em \(T_i\), a região associada a \(v\) em \(S_i\) é simplesmente um cone definido pelo ponto \(v\) e um par ordenado de raios que partem de \(v\). Podemos calcular esses raios a partir do último segmento do \((i - 1)\)-path até \(v\) e sua reflexão em relação às arestas de \(P_i\) que contêm \(v\). Entrando em mais detalhe, se \(e^1\) e \(e^2\) são as arestas de \(P_i\) em sentido anti-horário que contêm \(v\) e \(q\) é o ponto que precede \(v\) no \((i - 1)\)-path até \(v\), então o primeiro raio é a reflexão do vetor \(\overrightarrow{qv}\) em relação à reta que contém \(e^1\) caso \(e^1\) faça parte de \(T_i\), ou simplesmente o vetor \(\overrightarrow{qv}\) caso contrário. De forma análoga, o segundo raio é a reflexão do vetor \(\overrightarrow{qv}\) em relação à reta que contém \(e^2\) caso \(e^2\) faça parte de \(T_i\), ou simplesmente o vetor \(\overrightarrow{qv}\) caso contrário. Repetimos esse processo para todos os vértices de \(P_i\) que pertencem a \(T_i\) e assim obtemos todas as regiões associadas a vértices de \(P_i\) em \(S_i\). Implementamos essa ideia no Algoritmo~\algref{alg:last_step_map}.
+
+\begin{algorithm}[H]
+\alglabel{alg:last_step_map}
+\caption{Mapa de Último Passo}
+
+\Input{\(s\), \(i\), \((P_1, \dots, P_i)\), \((T_1, \dots, T_i)\), \((S_1, \dots, S_{i - 1})\)}
+\Output{Mapa de último passo \(S_i\) de \(P_i\) como uma associação de vértices de \(T_i\) a pares ordenados de raios.}
+
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
+
+\(S_i \leftarrow \emptyset\)
+
+\For{vértice \(v\) em \(T_i\)} {
+	
+	\(e^1 \leftarrow\) aresta anterior de \(v\) em \(P_i\) \\
+	\(e^2 \leftarrow\) aresta posterior de \(v\) em \(P_i\) \\
+
+	\(q \leftarrow \text{ConsultaÚltimoSegmento}(v, i - 1, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
+
+	\If {\(e^1\) pertence a \(T_i\)} {
+		\(r^1 \leftarrow\) reflexão de \(\overrightarrow{qv}\) em relação à reta que contém \(e^1\)
+	}
+	\Else {
+		\(r^1 \leftarrow \overrightarrow{qv}\)
+	}
+
+	\If {\(e^2\) pertence a \(T_i\)} {
+		\(r^2 \leftarrow\) reflexão de \(\overrightarrow{qv}\) em relação à reta que contém \(e^2\)
+	}
+	\Else {
+		\(r^2 \leftarrow \overrightarrow{qv}\)
+	}
+
+	Associa \(v\) a \((r^1, r^2)\) em \(S_i\)
+}
+
+\Return {} \(S_i\)
+
+\end{algorithm}
+
+Uma vez que temos \(T_i\) e \(S_i\), desejamos implementar o algoritmo \texttt{LocalizaPonto} que localiza um ponto \(p\) no mapa de último passo \(S_i\). Na primeira abordagem, implementamos esse procedimento de forma direta, verificando cada região de vértice, então cada região de aresta e caso o ponto não pertença à nenhuma dessas retornamos a região de atravessar \(P_i\). Para verificar se um ponto \(p\) pertence a uma região associada a um vértice \(v\) de \(P_i\) com raios \(r^1\) e \(r^2\), primeiro precisamos determinar se o ângulo de abertura entre \(r^1\) e \(r^2\) é menor ou maior que \(180^\circ\). Se o ângulo for menor que \(180^\circ\), então \(p\) pertence à região associada a \(v\) se o produto vetorial entre \(r^1\) e \(\overrightarrow{vp}\) for não positivo e o produto vetorial entre \(\overrightarrow{vp}\) e \(r^2\) for negativo. Caso contrário, \(p\) pertence à região associada a \(v\) se o produto vetorial entre \(r^1\) e \(\overrightarrow{vp}\) for positivo ou o produto vetorial entre \(\overrightarrow{vp}\) e \(r^2\) for negativo, essas ideias são ilustradas na Figura~\ref{fig:point_location_vertex} e implementadas no Algoritmo~\algref{alg:point_location}.
+
+\begin{figure}[H]
+	\centering
+	\begin{subfigure}{0.49\textwidth}
+		\centering
+		\includegraphics[width=0.8\textwidth]{Images/cone-check-small.png}
+		\caption{Ângulo de abertura menor que \(180^\circ\).}
+	\end{subfigure}
+	\begin{subfigure}{0.49\textwidth}
+		\centering
+		\includegraphics[width=0.8\textwidth]{Images/cone-check-large.png}
+		\caption{Ângulo de abertura maior que \(180^\circ\).}
+	\end{subfigure}
+	\caption{Verificando se um ponto pertence a uma região associada a um vértice em um mapa de último passo.}
+	\label{fig:point_location_vertex}
+\end{figure}
+
+\begin{algorithm}
+\alglabel{alg:point_location}
+\caption{Localiza Ponto no Mapa de Último Passo}
+\Input{\(p\), \(v\), \(r^1\), \(r^2\)}
+\Output{\texttt{true} se \(p\) pertence à região delimitada por \(v\), \(r^1\) e \(r^2\), \texttt{false} caso contrário.}
+
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
+
+\If {\(r^1 \times r^2 \geq 0\)} {
+	// Ângulo de abertura menor que \(180^\circ\) \\
+	\Return {} \((r^1 \times (p - v) > 0) \land (r^2 \times (p - v) < 0)\)
+}
+\Else {
+	// Ângulo de abertura maior que \(180^\circ\) \\
+	\Return {} \((r^1 \times (p - v) > 0) \lor (r^2 \times (p - v) < 0)\)
+}
+
+\end{algorithm}
 
 \newpage
 \printbibliography
