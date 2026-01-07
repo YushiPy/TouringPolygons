@@ -1,0 +1,296 @@
+
+\documentclass[11pt]{article}
+
+% Page layout and margins
+\usepackage[
+	a4paper,
+	bindingoffset=0.2in,
+	left=0.8in,
+	right=0.8in,
+	top=1in,
+	bottom=1in,
+	footskip=.25in
+]{geometry}
+
+% Language
+\usepackage[brazil]{babel}
+
+% Math and symbols
+\usepackage{amsmath, amssymb, mathtools}
+
+% Algorithms
+\usepackage[linesnumbered,ruled,vlined]{algorithm2e}
+
+% make conditions/keyword arguments use text mode
+\renewcommand{\algorithmcfname}{Algoritmo}
+\SetArgSty{textnormal}
+
+\SetKwInOut{Input}{Entrada}
+\SetKwInOut{Output}{Saída}
+\SetKwIF{If}{ElseIf}{Else}{if}{:}{else if}{else}{end}
+\SetKwFor{For}{for}{:}{end}
+\SetKwRepeat{Do}{do}{while}
+\SetKwProg{Function}{def}{:}{}
+
+\newcounter{algorithm}
+
+% Command for referencing algorithms
+\newcommand{\alglabel}[1]{%
+	\refstepcounter{algorithm}%
+	\label{alg:#1}%
+}
+
+\newcommand{\algref}[1]{\ref{alg:#1}}
+
+% Graphics and figures
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{adjustbox}
+\usepackage{tikz}
+
+% Text formatting and layout
+% \usepackage{indentfirst}
+\usepackage{fancyhdr}
+\usepackage{quoting}
+\usepackage{xcolor} % no need for [dvipsnames] unless you need extended colors
+
+% URLs and hyperlinks
+\usepackage{hyperref}
+\usepackage{url}
+
+% Code listings (optional, if you actually use it)
+\usepackage{listings}
+
+% Framed boxes (optional, if you use them)
+\usepackage{tcolorbox}
+\usepackage{mdframed}
+
+% Citations
+\usepackage[backend=biber,style=ieee]{biblatex}
+\addbibresource{referencias.bib}
+\usepackage{csquotes}
+
+\usepackage{multirow} % Permite criar tabelas com uma célula ocupando várias linhas
+
+\usepackage{setspace}     % Para definir espaçamento entre linhas. (\onehalfspacing, \singlespacing, \doublespacing)
+
+\usepackage{breakcites}   % Para permitir quebra de linha no meio de citações.
+
+\usepackage{array}
+\usepackage{wrapfig}
+\usepackage{enumitem}
+
+\usepackage{cleveref}
+\usepackage{desclist}
+
+\definecolor{lightgray}{RGB}{240,240,240}
+
+\newenvironment{blank}{}{} % Blank enviroment for folding sections in editors
+
+\newenvironment{blockQuote}[1][lightgray]{\begin{mdframed}[
+	leftline=true,
+	topline=false,
+	bottomline=false,
+	rightline=false,
+	linecolor=gray,
+	linewidth=2pt,
+	backgroundcolor=#1,
+	skipabove=\baselineskip,
+	skipbelow=\baselineskip,
+	innerleftmargin=10pt,
+	innerrightmargin=10pt,
+	innertopmargin=5pt,
+	innerbottommargin=5pt]
+}
+{\end{mdframed}}
+
+% Custom paired delimiters
+\DeclarePairedDelimiter{\floor}{\lfloor}{\rfloor}
+\DeclarePairedDelimiter{\ceil}{\lceil}{\rceil}
+\DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
+\DeclarePairedDelimiter{\parens}{(}{)}
+\DeclarePairedDelimiter{\curly}{\{}{\}}
+\DeclarePairedDelimiter{\anglebrackets}{\langle}{\rangle}
+
+% Box spacing tweaks
+\setlength{\fboxsep}{0pt}
+\setlength{\fboxrule}{1.4pt}
+
+% Paragraph indent
+\setlength{\parindent}{2em}
+
+% Page style setup
+\pagestyle{fancy}
+\lhead{\footnotesize {\sc }}
+\chead{}
+\rhead{\footnotesize {\sc mac-ime-usp}}
+\lfoot{}
+\cfoot{}
+\rfoot{\thepage}
+
+% Footnote spacing
+\setlength{\skip\footins}{0.5cm}
+
+\renewcommand{\headrulewidth}{0.5pt}
+\renewcommand{\footrulewidth}{0.5pt}
+
+
+\title{\textbf{O Problema de Visita de Polígonos}\thanks{Esse trabalho foi parcialmente apoiado pela agência FAPESP (processo 2025/13861-1).}}
+
+\author{
+	Gabriel F. Ushijima\thanks{Instituto de Matemática e Estatística, Universidade de São Paulo, Rua do Matão, 1010, Cidade Universitária,
+05508-090, São Paulo, SP, Brazil (e-mail: gabriel\_ushijima@ime.usp.br, egbirgin@ime.usp.br).\vspace{0.5cm}}
+	\and
+	\(\text{Ernesto G. Birgin}^\dagger\)
+}
+
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Esse artigo apresenta diversas implementações de algoritmos para o problema de visita de polígonos (Touring Polygons Problem - TPP), que consiste em encontrar o caminho mais curto que visita um conjunto de polígonos no plano. O problema em sua forma geral é NP-difícil, assim, primeiro consideramos uma versão simplificada onde os polígonos são convexos e não se sobrepõem, e apresentamos um algoritmo exato baseado em mapas de último passo. Em seguida, discutimos heurísticas para o caso geral, utilizando técnicas de programação inteira mista. Finalmente, realizamos experimentos computacionais para avaliar o desempenho dos algoritmos propostos em instâncias de diferentes tamanhos e características, comparando com solvers comerciais. Os resultados indicam que as abordagens desenvolvidas são eficazes para resolver o TPP em diversas situações práticas.
+
+\vspace{10pt}
+
+\noindent \textbf{Palavras-chave:} Problema de visita de polígonos, otimização geométrica, complexidade, experimentos numéricos.
+\end{abstract}
+
+\section{Introdução}
+
+O Problema de Visita de Polígonos (Touring Polygons Problem - TPP) é um problema de otimização geométrica que consiste em encontrar o caminho mais curto que visita um conjunto de polígonos no plano. Esse tipo de problema tem aplicações em diversas áreas, principalmente no contexto de roteirização e planejamento de trajetórias para veículos autônomos, onde é necessário garantir que certas regiões sejam visitadas de forma eficiente, como a inspeção automatizada de armazéns \cite{jianxian2023, karl2009}. Dentre as diversas variações do problema, vamos considerar inicialmente uma versão simplificada onde os polígonos são convexos e não se sobrepões, apresentando três abordagens distintas para sua resolução. A primeira abordagem é uma implementação intuitiva das ideias descritas por Dror et al. (2003) \cite{tpp-dror2003} baseada em mapas de último passo. A segunda abordagem melhora a eficiência da primeira ao uma estratégia de busca binária para localizar os pontos nos mapas de último passo. A terceira abordagem utiliza uma estratégia de memoização para evitar cálculos desnecessários.
+
+Em seguida, discutimos heurísticas para o caso geral do TPP, onde os polígonos podem ser côncavos. Nos baseamos principalmente na ideia de particionar os polígonos côncavos em subconjuntos convexos e aplicar as soluções desenvolvidas para o caso convexo. Além disso, exploramos técnicas de programação inteira mista para modelar o problema e utilizar solvers comerciais para encontrar soluções aproximadas, como o \href{https://www.gurobi.com}{Gurobi}, então comparamos os resultados obtidos com nossas implementações.
+
+\section{O Problema de Visita de Polígonos Convexos}
+
+Primeiramente, consideramos o TPP no caso de polígonos convexos e não sobrepostos. Seja \(s, t \in \mathbb{R} ^ 2\) pontos no plano e \(P_1, \dots, P_k\) uma sequência de polígonos convexos disjuntos, dados por uma sequência de vértices ordenados em sentido anti-horário. O objetivo é encontrar um caminho de comprimento mínimo que começa em \(s\), termina em \(t\) e visita cada polígono \(P_i\) em ordem pelo menos uma vez. Dizemos que o caminho visita os polígnos na ordem \(P_1, P_2, \dots, P_k\) se existem pontos no caminho \(p_1, p_2, \dots, p_k\) tais que \(p_i \in P_i\) para \(i = 1, 2, \dots, k\). Vamos implementar as ideias apresentadas por Dror et al. (2003) \cite{tpp-dror2003} para resolver esse problema de forma exata, assumindo que o leitor já leu o artigo mencionado, uma vez que fazemos uso direto de suas definições e resultados. O código completo está disponível no \href{https://github.com/YushiPy/TouringPolygons}{repositório GitHub}.
+
+Retomando as definições do artigo, dizemos que um \(i\)-path até \(p\) é um caminho de comprimento mínimo que começa em \(s\), termina em \(p\) e visita os polígonos \(P_1, P_2, \dots, P_i\) em ordem, consideramos que já sabemos que todo \(i\)-path é a união de segmentos de reta e é único. A região de primeiro contato \(T_i\) de um polígono \(P_i\) é o conjunto de pontos \(p \in \partial P_i\) tais que o segmento entre \(P_{i - 1}\) e \(P_i\) do \(i\)-path até \(p\) intersecta \(P_i\) apenas em \(p\). O mapa de último passo \(S_i\) de um polígono \(P_i\) é uma partição de \(\mathbb{R} ^ 2\) em regiões \(R\) tais que o último segmento do \(i\)-path até qualquer ponto \(p \in R\) parte de um mesmo vértice de \(P_i\) ou de uma mesma aresta de \(P_i\) ou atravessa \(P_i\). 
+
+Como discutido em \cite[\textbf{Lemma 3.}]{tpp-dror2003}, se tivermos \(T_0, \dots, T_i\), \(S_0, \dots, S_i\) e soubermos localizar um ponto \(p\) em \(S_i\), então podemos calcular o \(i\)-path até \(p\) de forma eficiente. Se \(p\) pertence à região \(R\) de \(S_i\) e essa região está associada a um vértice \(v\), então o último segmento do \(i\)-path até \(p\) é o segmento \(\overline{vp}\) e o restante do caminho é o \((i - 1)\)-path até \(v\). Se \(R\) está associada a uma aresta \(e\), então refletimos \(p\) em relação à reta que contém \(e\), chamando esse ponto de \(p'\), então calculamos o \((i - 1)\)-path até \(p'\), considerando-o apenas até o ponto que seu último segmento intersecta a aresta \(e\) e conectamos o final desse caminho com o ponto \(p\), sendo esse o \(i\)-path. Por fim, se \(R\) corresponde a atravessar \(P_i\), então o \(i\)-path até \(p\) é igual ao \((i - 1)\)-path até \(p\). Implementamos essa ideia no Algoritmo~\algref{alg:consulta-caminho}, assumindo que temos um algoritmo auxiliar chamado \texttt{LocalizaPonto} que localiza o ponto \(p\) no mapa de último passo \(S_i\), vamos discutir diferentes implementações para esse procedimento posteriormente.
+
+\begin{algorithm}[H]
+\alglabel{alg:consulta-caminho}
+\caption{Consulta Caminho}
+\Input{\(p\), \(i\), \((P_1, \dots, P_i)\), \((T_1, \dots, T_i)\), \((S_1, \dots, S_i)\)}
+\Output{\(i\)-path até \(p\) como uma sequência de pontos em \(\mathbb{R} ^ 2\).}
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
+
+\If {\(i = 0\)} {
+	\Return {} \([s, p]\)
+}
+
+\(R \leftarrow \text{LocalizaPonto}(p, S_i)\) // Localiza o ponto \(p\) no mapa de último passo \(S_i\) \\
+
+\If {\(R\) corresponde a um vértice \(v\) de \(P_i\)} {
+	// Adiciona \(v\) ao final do \((i - 1)\)-path até \(v\) \\
+	\Return {} \(\text{ConsultaCaminho}(v, i - 1, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1})) \oplus [p]\) 
+}
+
+\ElseIf {\(R\) corresponde a uma aresta \(e\) de \(P_i\)} {
+	\(p' \leftarrow\) reflexão de \(p\) em relação à reta que contém \(e\) \\
+	\(\text{path} \leftarrow \text{ConsultaCaminho}(p', i - 1, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
+	\(\text{path}' \leftarrow \) pontos de \(\text{path}\) que antecedem \(p\) \\
+	\(q' \leftarrow\) último ponto de \(\text{path}'\) \\
+	\(q \leftarrow\) ponto de interseção entre \(\overline{q' p'}\) e \(e\) \\
+	// Adiciona \(q\) e \(p\) ao final do \((i - 1)\)-path até \(p'\) que precede \(q'\) \\
+	\Return {} \(\text{path}' \oplus [q', p]\)
+}
+
+\Else {
+	// \(R\) corresponde a atravessar \(P_i\) \\
+	\Return {} \(\text{ConsultaCaminho}(p, i - 1, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\)
+}
+
+\end{algorithm}
+
+O Algoritmo~\algref{alg:consulta-caminho} permite que calculemos o \(i\)-path até qualquer ponto \(p\) de forma eficiente, podendo ser utilizado para calcular o \(k\)-path até \(t\), que é exatamente a solução do problema. No entanto, vamos utilizar esse algoritmo em muitos outros momentos, com a diferença de que estamos apenas interessados no último segmento do \(i\)-path até \(p\), ademais, o caso em que um ponto está em uma região associada a um vértice de \(P_i\) permite que determinemos o último segmento diretamente, sem precisar calcular o restante do caminho. Assim, implementamos o Algoritmo~\ref{alg:alg:consulta-ultimo-segmento}, que dado um ponto \(p\) e um índice \(i\), retorna o ponto inicial do último segmento do \(i\)-path até \(p\).
+
+\begin{algorithm}[H]
+\alglabel{alg:consulta-ultimo-passo}
+\caption{Consulta Último Passo}
+\Input{\(p\), \(i\), \((P_1, \dots, P_i)\), \((T_1, \dots, T_i)\), \((S_1, \dots, S_i)\)}
+\Output{Ponto que precede \(p\) no \(i\)-path até \(p\).}
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
+
+\If {\(i = 0\)} {
+	\Return {} \(s\)
+}
+
+\(R \leftarrow \text{LocalizaPonto}(p, S_i)\) \\
+
+\If {\(R\) corresponde a um vértice \(v\) de \(P_i\)} {
+	\Return {} \(v\)
+}
+\ElseIf {\(R\) corresponde a uma aresta \(e\) de \(P_i\)} {
+	\(p' \leftarrow\) reflexão de \(p\) em relação à reta que contém \(e\) \\
+	\(\text{path} \leftarrow \text{ConsultaCaminho}(p', i - 1, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
+	\(\text{path}' \leftarrow \) pontos de \(\text{path}\) que antecedem \(p\) \\
+	\(q' \leftarrow\) último ponto de \(\text{path}'\) \\
+	\(q \leftarrow\) ponto de interseção entre \(\overline{q' p'}\) e \(e\) \\
+	\Return {} \(q\)
+}
+\Else {
+	\Return {} \(\text{ConsultaÚltimoSegmento}(p, i - 1, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\)
+}
+
+\end{algorithm}
+
+Esses dois algoritmos serão utilizados em todas as implementações que discutiremos a seguir, a diferença entre elas estará na implementação do algoritmo \texttt{LocalizaPonto} e na forma como calculamos as regiões de primeiro contato \(T_i\) e os mapas de último passo \(S_i\) para cada polígono \(P_i\).
+
+\subsection{Primeira Abordagem}
+
+Primeiramente, vamos calcular a região de primeiro contato \(T_i\) de um polígono \(P_i\), sabemos que essa região é a união de arestas de \(P_i\), sendo delimitada por vértices de \(P_i\) \cite[\textbf{Lemma 2.}]{tpp-dror2003}, assim, apenas precisamos determinar quais arestas de \(P_i\) pertencem a \(T_i\). Para isso, para cada aresta de \(P_i\), definimos \(m\) como o ponto médio dessa aresta e então calculamos o \(i\)-path até \(m\), definindo \(q\) como o ponto que antecede \(m\) nesse caminho. Se o segmento entre \(q\) e \(m\) intersecta \(P_i\) apenas em \(m\), então, por definição, \(m\) pertence a \(T_i\) e como \(T_i\) é a união de arestas de \(P_i\), toda a aresta que contém \(m\) pertence a \(T_i\). Repetimos esse processo para todas as arestas de \(P_i\) e assim obtemos \(T_i\).
+
+Agora, para determinar se o segmento entre \(q\) e \(m\) intersecta \(P_i\) apenas em \(m\), simplesmente verificamos se o vetor \(\overrightarrow{qm}\) está do lado externo da aresta de \(P_i\) que contém \(m\), ou seja, se o produto escalar entre \(\overrightarrow{qm}\) e o vetor normal à aresta de \(P_i\) que contém \(m\) é positivo, isso é equivalente a dizer que o produto vetorial entre \(\overrightarrow{qm}\) e o vetor que conecta os dois vértices da aresta de \(P_i\) que contém \(m\) é negativo. Ilustramos essa ideia na Figura~\ref{fig:first_contact_region}. Também implementamos isso no Algoritmo~\algref{alg:first_contact_region}
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.8\textwidth]{Images/uttp-first-contact.png}
+	\caption{Região de primeiro contato \(T_i\) de um polígono \(P_i\).}
+	\label{fig:first_contact_region}
+\end{figure}
+
+\begin{algorithm}
+\alglabel{alg:first_contact_region}
+\caption{Região de Primeiro Contato}
+\Input{\(s\), \(i\), \((P_1, \dots, P_i)\), \((T_1, \dots, T_{i - 1})\), \((S_1, \dots, S_{i - 1})\)}
+\Output{Região de primeiro contato \(T_i\) de \(P_i\) como um conjunto de arestas de \(P_i\).}
+
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
+
+\(T_i \leftarrow \emptyset\)
+
+\For {cada aresta \(e\) de \(P_i\)} {
+
+	\(v^1 \leftarrow\) vértice anterior de \(e\) \\
+	\(v^2 \leftarrow\) vértice posterior de \(e\) \\
+	\(m \leftarrow (v^1 + v^2) / 2\) \\
+
+	\(q \leftarrow \text{ConsultaÚltimoSegmento}(m, i - 1, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
+
+	\If {\(\overrightarrow{qm} \times \overrightarrow{v^1 v^2} < 0\)} {
+		Adiciona \(e\) a \(T_i\)
+	}
+}
+
+\Return {} \(T_i\)
+
+\end{algorithm}
+
+
+\newpage
+\printbibliography
+
+\end{document}

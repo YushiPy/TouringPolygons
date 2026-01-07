@@ -1,4 +1,7 @@
 
+from collections.abc import Sequence
+
+
 type Vector2 = tuple[float, float]
 type Polygon2 = list[Vector2]
 
@@ -159,7 +162,10 @@ def clean_polygon(polygon: Polygon2, eps: float = 1e-8) -> Polygon2:
 
 	return cleaned
 
-def tpp_solve(start: Vector2, target: Vector2, polygons: list[Polygon2], *, simplify: bool = False) -> list[Vector2]:
+def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: list[Polygon2], *, simplify: bool = False) -> list[Vector2]:
+
+	start = (start[0], start[1])
+	target = (target[0], target[1])
 
 	if simplify:
 		polygons = [clean_polygon(polygon) for polygon in polygons]
@@ -222,7 +228,6 @@ def tpp_solve(start: Vector2, target: Vector2, polygons: list[Polygon2], *, simp
 		return blocked_edges[i][j] # type: ignore
 	
 	def locate_point(point: Vector2, index: int) -> int:
-
 		"""
 		Locates point in cones or edges defined by polygon and cones at the given index.
 		Returns index as follows:
