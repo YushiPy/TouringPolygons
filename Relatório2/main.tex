@@ -24,23 +24,25 @@
 % make conditions/keyword arguments use text mode
 \renewcommand{\algorithmcfname}{Algoritmo}
 \SetArgSty{textnormal}
+\SetFuncSty{textnormal}
 
 \SetKwInOut{Input}{Entrada}
 \SetKwInOut{Output}{Saída}
-\SetKwIF{If}{ElseIf}{Else}{if}{:}{else if}{else}{end}
-\SetKwFor{For}{for}{:}{end}
-\SetKwRepeat{Do}{do}{while}
-\SetKwProg{Function}{def}{:}{}
+\SetKwIF{If}{ElseIf}{Else}{se}{:}{senão se}{se}{end}
+\SetKwFor{For}{para cada}{:}{end}
+\SetKwRepeat{Do}{do}{enquanto}
+\SetKwProg{Function}{define}{:}{}
+\SetKw{Return}{retorna}
 
 \newcounter{algorithm}
 
 % Command for referencing algorithms
 \newcommand{\alglabel}[1]{%
 	\refstepcounter{algorithm}%
-	\label{alg:#1}%
+	\label{#1}%
 }
 
-\newcommand{\algref}[1]{\ref{alg:#1}}
+\newcommand{\algref}[1]{\ref{#1}}
 
 % Graphics and figures
 \usepackage{graphicx}
@@ -168,9 +170,9 @@ Em seguida, discutimos heurísticas para o caso geral do TPP, onde os polígonos
 
 \section{O Problema de Visita de Polígonos Convexos}
 
-Primeiramente, consideramos o TPP no caso de polígonos convexos e não sobrepostos. Seja \(s, t \in \mathbb{R} ^ 2\) pontos no plano e \(P_1, \dots, P_k\) uma sequência de polígonos convexos disjuntos, dados por uma sequência de vértices ordenados em sentido anti-horário. O objetivo é encontrar um caminho de comprimento mínimo que começa em \(s\), termina em \(t\) e visita cada polígono \(P_i\) em ordem pelo menos uma vez. Dizemos que o caminho visita os polígnos na ordem \(P_1, P_2, \dots, P_k\) se existem pontos no caminho \(p_1, p_2, \dots, p_k\) tais que \(p_i \in P_i\) para \(i = 1, 2, \dots, k\). Vamos implementar as ideias apresentadas por Dror et al. (2003) \cite{tpp-dror2003} para resolver esse problema de forma exata, assumindo que o leitor já leu o artigo mencionado, uma vez que fazemos uso direto de suas definições e resultados. O código completo está disponível no \href{https://github.com/YushiPy/TouringPolygons}{repositório GitHub}.
+Primeiramente, consideramos o TPP no caso de polígonos convexos e não sobrepostos. Seja \(s, t \in \mathbb{R} ^ 2\) pontos no plano e \(P_1, \dots, P_k\) uma sequência de polígonos convexos disjuntos, dados por uma sequência de vértices ordenados em sentido anti-horário. O objetivo é encontrar um caminho de comprimento mínimo que começa em \(s\), termina em \(t\) e visita cada polígono \(P_i\) em ordem pelo menos uma vez. Dizemos que o caminho visita os polígnos na ordem \(P_1, P_2, \dots, P_k\) se existem pontos \(p_1, p_2, \dots, p_k\) tais que \(p_i \in P_i\) para \(i = 1, 2, \dots, k\) e o caminho passa por esses pontos nessa ordem. Vamos implementar as ideias apresentadas por Dror et al. (2003) \cite{tpp-dror2003} para resolver esse problema de forma exata, assumindo que o leitor já leu o artigo mencionado, uma vez que fazemos uso direto de suas definições e resultados. O código completo está disponível no \href{https://github.com/YushiPy/TouringPolygons}{repositório GitHub}.
 
-Retomando as definições do artigo, dizemos que um \(i\)-path até \(p\) é um caminho de comprimento mínimo que começa em \(s\), termina em \(p\) e visita os polígonos \(P_1, P_2, \dots, P_i\) em ordem, consideramos que já sabemos que todo \(i\)-path é a união de segmentos de reta e é único. A região de primeiro contato \(T_i\) de um polígono \(P_i\) é o conjunto de pontos \(p \in \partial P_i\) tais que o segmento entre \(P_{i - 1}\) e \(P_i\) do \(i\)-path até \(p\) intersecta \(P_i\) apenas em \(p\). O mapa de último passo \(S_i\) de um polígono \(P_i\) é uma partição de \(\mathbb{R} ^ 2\) em regiões \(R\) tais que o último segmento do \(i\)-path até qualquer ponto \(p \in R\) parte de um mesmo vértice de \(P_i\) ou de uma mesma aresta de \(P_i\) ou atravessa \(P_i\). 
+Retomando as definições do artigo, dizemos que um \(i\)-path até \(p\) é um caminho de comprimento mínimo que começa em \(s\), termina em \(p\) e visita os polígonos \(P_1, P_2, \dots, P_i\) em ordem. Consideramos que já sabemos que todo \(i\)-path é a união de segmentos de reta e é único. A região de primeiro contato \(T_i\) de um polígono \(P_i\) é o conjunto de pontos \(p\) no perímetro de \(P_i\) tais que o segmento entre \(P_{i - 1}\) e \(P_i\) do \(i\)-path até \(p\) intersecta \(P_i\) apenas em \(p\). O mapa de último passo \(S_i\) de um polígono \(P_i\) é uma partição de \(\mathbb{R} ^ 2\) em regiões \(R\) tais que o último segmento do \(i\)-path até qualquer ponto \(p \in R\) parte de um mesmo vértice de \(P_i\) ou de uma mesma aresta de \(P_i\) ou atravessa \(P_i\). 
 
 Como discutido em \cite[\textbf{Lemma 3.}]{tpp-dror2003}, se tivermos \(T_0, \dots, T_i\), \(S_0, \dots, S_i\) e soubermos localizar um ponto \(p\) em \(S_i\), então podemos calcular o \(i\)-path até \(p\) de forma eficiente. Se \(p\) pertence à região \(R\) de \(S_i\) e essa região está associada a um vértice \(v\), então o último segmento do \(i\)-path até \(p\) é o segmento \(\overline{vp}\) e o restante do caminho é o \((i - 1)\)-path até \(v\). Se \(R\) está associada a uma aresta \(e\), então refletimos \(p\) em relação à reta que contém \(e\), chamando esse ponto de \(p'\), então calculamos o \((i - 1)\)-path até \(p'\), considerando-o apenas até o ponto que seu último segmento intersecta a aresta \(e\) e conectamos o final desse caminho com o ponto \(p\), sendo esse o \(i\)-path. Por fim, se \(R\) corresponde a atravessar \(P_i\), então o \(i\)-path até \(p\) é igual ao \((i - 1)\)-path até \(p\). Implementamos essa ideia no Algoritmo~\algref{alg:consulta-caminho}, assumindo que temos um algoritmo auxiliar chamado \texttt{LocalizaPonto} que localiza o ponto \(p\) no mapa de último passo \(S_i\), vamos discutir diferentes implementações para esse procedimento posteriormente.
 
@@ -201,7 +203,7 @@ Como discutido em \cite[\textbf{Lemma 3.}]{tpp-dror2003}, se tivermos \(T_0, \do
 	\(q' \leftarrow\) último ponto de \(\text{path}'\) \\
 	\(q \leftarrow\) ponto de interseção entre \(\overline{q' p'}\) e \(e\) \\
 	// Adiciona \(q\) e \(p\) ao final do \((i - 1)\)-path até \(p'\) que precede \(q'\) \\
-	\Return {} \(\text{path}' \oplus [q', p]\)
+	\Return {} \(\text{path}' \oplus [q, p]\)
 }
 
 \Else {
@@ -211,7 +213,7 @@ Como discutido em \cite[\textbf{Lemma 3.}]{tpp-dror2003}, se tivermos \(T_0, \do
 
 \end{algorithm}
 
-O Algoritmo~\algref{alg:consulta-caminho} permite que calculemos o \(i\)-path até qualquer ponto \(p\) de forma eficiente, podendo ser utilizado para calcular o \(k\)-path até \(t\), que é exatamente a solução do problema. No entanto, vamos utilizar esse algoritmo em muitos outros momentos, com a diferença de que estamos apenas interessados no último segmento do \(i\)-path até \(p\), ademais, o caso em que um ponto está em uma região associada a um vértice de \(P_i\) permite que determinemos o último segmento diretamente, sem precisar calcular o restante do caminho. Assim, implementamos o Algoritmo~\ref{alg:alg:consulta-ultimo-segmento}, que dado um ponto \(p\) e um índice \(i\), retorna o ponto inicial do último segmento do \(i\)-path até \(p\).
+O Algoritmo~\algref{alg:consulta-caminho} permite que calculemos o \(i\)-path até qualquer ponto \(p\) de forma eficiente, podendo ser utilizado para calcular o \(k\)-path até \(t\), que é exatamente a solução do problema. No entanto, frequentemente, nos interessamos apenas no último segmento do \(i\)-path até \(p\). Ademais, o caso em que um ponto está em uma região associada a um vértice de \(P_i\) permite que determinemos o último segmento diretamente, sem precisar calcular o restante do caminho. Assim, implementamos o Algoritmo~\algref{alg:consulta-ultimo-passo}, que dado um ponto \(p\) e um índice \(i\), retorna o ponto inicial do último segmento do \(i\)-path até \(p\).
 
 \begin{algorithm}[H]
 \alglabel{alg:consulta-ultimo-passo}
@@ -289,7 +291,7 @@ Agora, para determinar se o segmento entre \(q\) e \(m\) intersecta \(P_i\) apen
 
 \end{algorithm}
 
-Ademais, uma vez que temos \(T_0, \dots, T_i\), podemos calcular o mapa de último passo \(S_i\) de \(P_i\). Para tal, notamos que \(S_i\) tem exatamente três tipos de regiões: regiões associadas a vértices de \(P_i\), regiões associadas a arestas de \(P_i\) uma única região de atravessar \(P_i\). Ademais, uma região associada à aresta \(e\) é delimitada pelas regiões associadas às pontas de \(e\) e pela aresta \(e\) em si. Além disso, a região de atravessar \(P_i\) é definida como o complemento das regiões associadas a vértices e arestas de \(P_i\). Assim, para construir \(S_i\), precisamos apenas determinar as regiões associadas a vértices de \(P_i\).
+Ademais, uma vez que temos \(T_0, \dots, T_i\), podemos calcular o mapa de último passo \(S_i\) de \(P_i\). Para tal, notamos que \(S_i\) tem exatamente três tipos de regiões: regiões associadas a vértices de \(P_i\) em \(T_i\), regiões associadas a arestas de \(P_i\) em \(T_i\) e uma única região de atravessar \(P_i\), que coincide com as arestas que não estão em \(T_i\). Ademais, uma região associada à aresta \(e\) é delimitada pelas regiões associadas às pontas de \(e\) e pela aresta \(e\) em si. Além disso, a região de atravessar \(P_i\) é definida como o complemento das regiões associadas a vértices e arestas de \(P_i\). Assim, para construir \(S_i\), precisamos apenas determinar as regiões associadas a vértices de \(P_i\) em \(T_i\).
 
 Pelas condições de otimalidade discutidas em \cite[\textbf{Local Optimality Conditions.}]{tpp-dror2003}, sabemos que para cada vértice \(v\) de \(P_i\) que está em \(T_i\), a região associada a \(v\) em \(S_i\) é simplesmente um cone definido pelo ponto \(v\) e um par ordenado de raios que partem de \(v\). Podemos calcular esses raios a partir do último segmento do \((i - 1)\)-path até \(v\) e sua reflexão em relação às arestas de \(P_i\) que contêm \(v\). Entrando em mais detalhe, se \(e^1\) e \(e^2\) são as arestas de \(P_i\) em sentido anti-horário que contêm \(v\) e \(q\) é o ponto que precede \(v\) no \((i - 1)\)-path até \(v\), então o primeiro raio é a reflexão do vetor \(\overrightarrow{qv}\) em relação à reta que contém \(e^1\) caso \(e^1\) faça parte de \(T_i\), ou simplesmente o vetor \(\overrightarrow{qv}\) caso contrário. De forma análoga, o segundo raio é a reflexão do vetor \(\overrightarrow{qv}\) em relação à reta que contém \(e^2\) caso \(e^2\) faça parte de \(T_i\), ou simplesmente o vetor \(\overrightarrow{qv}\) caso contrário. Repetimos esse processo para todos os vértices de \(P_i\) e assim obtemos todas as regiões associadas a vértices de \(P_i\) em \(S_i\). Implementamos essa ideia no Algoritmo~\algref{alg:last_step_map}.
 
@@ -306,7 +308,7 @@ Pelas condições de otimalidade discutidas em \cite[\textbf{Local Optimality Co
 
 \(S_i \leftarrow \emptyset\)
 
-\For{vértice \(v\) em \(P_i\)} {
+\For{vértice \(v\) de \(P_i\) em \(T_i\)} {
 	
 	\(e^1 \leftarrow\) aresta anterior de \(v\) em \(P_i\) \\
 	\(e^2 \leftarrow\) aresta posterior de \(v\) em \(P_i\) \\
@@ -335,7 +337,7 @@ Pelas condições de otimalidade discutidas em \cite[\textbf{Local Optimality Co
 
 \end{algorithm}
 
-Uma vez que temos \(T_i\) e \(S_i\), desejamos implementar o algoritmo \texttt{LocalizaPonto} que localiza um ponto \(p\) no mapa de último passo \(S_i\). Na primeira abordagem, implementamos esse procedimento de forma direta, verificando cada região de vértice, então cada região de aresta e caso o ponto não pertença à nenhuma dessas retornamos a região de atravessar \(P_i\). Para verificar se um ponto \(p\) pertence a uma região associada a um vértice \(v\) de \(P_i\) com raios \(r^1\) e \(r^2\), primeiro precisamos determinar se o ângulo de abertura entre \(r^1\) e \(r^2\) é menor ou maior que \(180^\circ\). Se o ângulo for menor que \(180^\circ\), então \(p\) pertence à região associada a \(v\) se o produto vetorial entre \(r^1\) e \(\overrightarrow{vp}\) for não positivo e o produto vetorial entre \(\overrightarrow{vp}\) e \(r^2\) for negativo. Caso contrário, \(p\) pertence à região associada a \(v\) se o produto vetorial entre \(r^1\) e \(\overrightarrow{vp}\) for positivo ou o produto vetorial entre \(\overrightarrow{vp}\) e \(r^2\) for negativo, essas ideias são ilustradas na Figura~\ref{fig:point_in_cone} e implementadas no Algoritmo~\algref{alg:point_in_cone}.
+Uma vez que temos \(T_i\) e \(S_i\), desejamos implementar o algoritmo \texttt{LocalizaPonto} que localiza um ponto \(p\) no mapa de último passo \(S_i\). Na primeira abordagem, implementamos esse procedimento de forma direta, verificando cada região de vértice, então cada região de aresta e caso o ponto não pertença à nenhuma dessas retornamos a região de atravessar \(P_i\). Para verificar se um ponto \(p\) pertence a uma região associada a um vértice \(v\) de \(P_i\) com raios \(r^1\) e \(r^2\), primeiro precisamos determinar se o ângulo de abertura entre \(r^1\) e \(r^2\) é menor ou maior que \(180^\circ\). Se o ângulo for menor que \(180^\circ\), então \(p\) pertence à região associada a \(v\) se o produto vetorial entre \(r^1\) e \(\overrightarrow{vp}\) for positivo \textbf{e} o produto vetorial entre \(\overrightarrow{vp}\) e \(r^2\) for negativo. Caso contrário, \(p\) pertence à região associada a \(v\) se o produto vetorial entre \(r^1\) e \(\overrightarrow{vp}\) for positivo \textbf{ou} o produto vetorial entre \(\overrightarrow{vp}\) e \(r^2\) for negativo, essas ideias são ilustradas na Figura~\ref{fig:point_in_cone} e implementadas no Algoritmo~\algref{alg:point_in_cone}.
 
 \begin{figure}[H]
 	\centering
@@ -401,20 +403,20 @@ Uma vez que conseguimos verificar se um ponto pertence a uma região associada a
 \begin{algorithm}[H]
 \alglabel{alg:locate_point_first_approach}
 \caption{Localiza Ponto - Primeira Abordagem}
-\Input{\(p\), \(S_i\), \(P_i\)}
+\Input{\(p\), \(P_i\), \(T_i\), \(S_i\)}
 \Output{Região de \(S_i\) que contém \(p\).}
 \vspace{0.3em}
 \hrule
 \vspace{0.3em}
 
-\For {cada vértice \(v\) de \(P_i\)} {
+\For {cada vértice \(v\) de \(P_i\) em \(T_i\)} {
 	\((r^1, r^2) \leftarrow\) raios associados a \(v\) em \(S_i\) \\
 	\If {\(\text{PontoEmRegiãoDeVértice}(p, v, r^1, r^2)\)} {
 		\Return {} região associada a \(v\)
 	}
 }
 
-\For {cada aresta \(e = \overline{v^1 v^2}\) de \(P_i\)} {
+\For {cada aresta \(e = \overline{v^1 v^2}\) de \(P_i\) em \(T_i\)} {
 	\(r^1 \leftarrow\) segundo raio associado a \(v^1\) em \(S_i\) \\
 	\(r^2 \leftarrow\) primeiro raio associado a \(v^2\) em \(S_i\) \\
 	\If {\(\text{PontoEmRegiãoDeAresta}(p, v^1, v^2, r^1, r^2)\)} {
@@ -430,7 +432,79 @@ O Algoritmo~\algref{alg:locate_point_first_approach} verifica todas as regiões 
 
 \subsection{Segunda Abordagem}
 
-Na segunda abordagem, vamos alterar apenas a implementação do algoritmo \texttt{LocalizaPonto}, utilizando uma estratégia de busca binária para localizar o ponto \(p\) no mapa de último passo \(S_i\). O parte principal dessa abordagem é notar que se \(v^1\) e \(v^2\) são dois vértices de \(P_i\)
+Na segunda abordagem, vamos alterar apenas a implementação do algoritmo \texttt{LocalizaPonto}, utilizando uma estratégia de busca binária para localizar o ponto \(p\) no mapa de último passo \(S_i\). Definimos \(u^1, \dots, u^m\) como os vértices de \(P_i\) que pertencem a \(T_i\), ordenados em sentido anti-horário. A ideia central desse algoritmo é usar "arestas fictícias" que conectam dois vértices \(u^i\) e \(u^j\) formando uma nova região \(R\). Essa região tem a propriedade que podemos verificar se \(p\) está em \(R\) em tempo \(O(1)\) e \(p\) está em \(R\) se e somente se \(p\) está em alguma região de vértice ou de aresta entre \(u^i\) e \(u^j\). Assim, podemos usar uma estratégia de busca binária para localizar \(p\) em \(S_i\).
+
+Devemos mencionar que estamos assumindo que o ponto \(p\) não está no interior do polígono \(P_i\). Esse fato é garantido pela suposição de que os polígonos são disjuntos, incluindo \(s\) e \(t\). No entanto, caso desejemos lidar com o caso em que \(p\) pode estar no interior de \(P_i\), podemos iniciar o algoritmo verificando se \(p\) está no interior de \(P_i\) em tempo \(O(\log(\abs{P_i}))\), embora não discutiremos essa verificação aqui, pois não é o foco deste trabalho.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.65\textwidth]{Images/binary_search-1.png}
+	\caption{Estratégia de busca binária para localizar um ponto em um mapa de último passo.}
+	\label{fig:binary_search-1}
+\end{figure}
+
+Ilustramos a ideia anterior na Figura~\ref{fig:binary_search-1}. O primeiro quadro mostra um polígono \(P_i\) de 8 vértices, dos quais 5 pertencem a \(T_i\), marcados como \(u^1, \dots, u^5\), também desenhamos as regiões de vértices em vermelho, regiões de aresta em verde a região de travessia em azul. No segunda quadro, criamos uma aresta fictícia entre \(u^5\) e \(u^1\), gerando uma região \(R\) que contém exatamente a região de travessia e parte de \(P_i\). Podemos verificar se \(p\) está em \(R\) usando o Algoritmo~\algref{alg:point_in_edge_region}, considerando \(u^5\) e \(u^1\) como os vértices que definem a aresta fictícia e o segundo raio de \(u^5\) e o primeiro raio de \(u^1\) como os raios que delimitam \(R\). No terceiro quadro, verificamos se \(p\) está em alguma das regiões de vértice de \(u^1\) ou \(u^5\), usando o Algoritmo~\algref{alg:point_in_cone}, caso esteja, retornamos a região correspondente.
+
+No quarto quadro, selecionamos \(u^3\) como um vértice intermediário e criamos duas arestas fictícias, uma entre \(u^1\) e \(u^3\) e outra entre \(u^3\) e \(u^5\), gerando as regiões \(R_1\) (em roxo) e \(R_2\) (em laranja). Primeiramente verificamos se \(p\) está na região de vértice de \(u^3\), se sim, retornamos essa região. Caso contrário, verificamos se \(p\) está em \(R_1\), se sim, repetimos o processo recursivamente considerando apenas os vértices entre \(u^1\) e \(u^3\). Caso contrário, sabemos que \(p\) está em \(R_2\) e repetimos o processo recursivamente considerando apenas os vértices entre \(u^3\) e \(u^5\). Repetimos esse processo até que reste apenas dois vértices, a esse ponto, sabemos que \(p\) deve estar na região de aresta entre esses vértices. No entanto, repare que as regiões \(R^1\) e \(R^2\) não têm o formato tradicional de região de aresta que estamos acostumados como \(R\) tem, assim precisamos adaptar o Algoritmo~\algref{alg:point_in_edge_region} para lidar com esse caso.
+
+Por hora, assumimos que conseguimos adaptar o Algoritmo~\algref{alg:point_in_edge_region} para lidar com esse caso, então implementamos o Algoritmo~\algref{alg:locate_point_second_approach} que utiliza a estratégia de busca binária para localizar o ponto \(p\) no mapa de último passo \(S_i\). Nele, definimos duas funções auxiliares, \texttt{VerificaVértice} e \texttt{VerificaAresta}, que servem apenas para evitar repetição de código. A função \texttt{VerificaVértice} verifica se o ponto \(p\) pertence à região associada a um vértice \(v\) de \(P_i\) em \(T_i\), enquanto a função \texttt{VerificaAresta} verifica se o ponto \(p\) pertence à região associada a uma aresta fictícia entre dois vértices \(v^1\) e \(v^2\) de \(P_i\) em \(T_i\). O restante do algoritmo segue a estratégia de busca binária discutida anteriormente.
+
+\begin{algorithm}[H]
+\alglabel{alg:locate_point_second_approach}
+\caption{Localiza Ponto - Segunda Abordagem}
+\Input{\(p\), \(P_i\), \(T_i\), \(S_i\)}
+\Output{Região de \(S_i\) que contém \(p\).}
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
+
+\Function {VerificaVértice(\(v\))} {
+	\((r^1, r^2) \leftarrow\) raios associados a \(v\) em \(S_i\) \\
+	\Return {} \(\text{PontoEmRegiãoDeVértice}(p, v, r^1, r^2)\)
+}
+
+\Function {VerificaAresta(\(v^1, v^2\))} {
+	\(r^1 \leftarrow\) segundo raio associado a \(v^1\) em \(S_i\) \\
+	\(r^2 \leftarrow\) primeiro raio associado a \(v^2\) em \(S_i\) \\
+	\Return {} \(\text{PontoEmRegiãoDeAresta}(p, v^1, v^2, r^1, r^2)\)
+}
+
+\(u_1, \dots, u_m \leftarrow\) vértices de \(P_i\) em \(T_i\), ordenados em sentido anti-horário \\
+
+\If {VerificaAresta(\(u^m, u^1\))} {
+	\Return {} região de atravessar \(P_i\)
+}
+\If {VerificaVértice(\(u^1\))} {
+	\Return {} região associada a \(u^1\)
+}
+
+\If {VerificaVértice(\(u^m\))} {
+	\Return {} região associada a \(u^m\)
+}
+
+\(l \leftarrow 1\) \\
+\(r \leftarrow m\)
+
+\While {\(l + 1 \ne r\)} {
+
+	\(mid \leftarrow \floor{(l + r) / 2}\)
+
+	\If {VerificaVértice(\(u^{mid}\))} {
+		\Return {} região associada a \(u^{mid}\)
+	}
+
+	\If {VerificaAresta(\(u^{l}, u^{mid}\))} {
+		\(r \leftarrow mid\)
+	}
+	\Else {
+		\(l \leftarrow mid\)
+	}
+}
+
+\Return {} região associada a aresta \(\overline{u^{l} u^{r}}\)
+
+\end{algorithm}
+
 
 \
 \newpage
