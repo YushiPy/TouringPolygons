@@ -28,7 +28,7 @@
 
 \SetKwInOut{Input}{Entrada}
 \SetKwInOut{Output}{Saída}
-\SetKwIF{If}{ElseIf}{Else}{se}{:}{senão se}{se}{end}
+\SetKwIF{If}{ElseIf}{Else}{se}{:}{senão se}{senão}{end}
 \SetKwFor{For}{para cada}{:}{end}
 \SetKwRepeat{Do}{do}{enquanto}
 \SetKwProg{Function}{define}{:}{}
@@ -505,6 +505,154 @@ Por hora, assumimos que conseguimos adaptar o Algoritmo~\algref{alg:point_in_edg
 
 \end{algorithm}
 
+Agora que temos uma motivação, vamos resolver o problema que deixamos em aberto anteriormente, que é adaptar o Algoritmo~\algref{alg:point_in_edge_region} para lidar com o caso em que a região de aresta é definida por uma aresta fictícia entre dois vértices \(v^1\) e \(v^2\). Para isso, devemos considerar que quando criamos a região temos 4 casos possíveis, ilustrados na Figura~\ref{fig:binary_search-2}.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.7\textwidth]{Images/binary_search-2.png}
+	\caption{Quatro casos possíveis ao criar uma região de aresta fictícia.}
+	\label{fig:binary_search-2}
+\end{figure}
+
+Vamos dizer que queremos determinar se um ponto \(p\) pertence à região de aresta fictícia entre os vértices \(v^1\) e \(v^2\) delimitados pelos raios \(r^1\) partindo de \(v^1\) e \(r^2\) partindo de \(v^2\). Os casos são determinados pelo "lado" que \(r^1\) e \(r^2\) se encontram em relação à direção \(d = v^2 - v^1\), tratamos cada caso separadamente:
+
+\begin{itemize}
+
+	\item \(d \times r^1 < 0 \land d \times r^2 < 0\): Esse caso é o ilustrado no primeiro quadro da Figura~\ref{fig:binary_search-2} e é o caso que estamos acostumados a lidar. Nesse caso, simplesmente verificamos se \(p\) está entre os raios \(r^1\) e \(r^2\) e do lado externo da aresta \(\overline{v^1 v^2}\).
+
+	\item \(d \times r^1 > 0 \land d \times r^2 > 0\): Esse caso é o ilustrado no segundo quadro da Figura~\ref{fig:binary_search-2} e é o complemento do caso anterior. Nesse caso, verificamos se \(p\) não está entre os raios \(r^1\) e \(r^2\) \textbf{e} está do lado interno da aresta \(\overline{v^1 v^2}\).
+	
+	\item \(d \times r^1 < 0 \land d \times r^2 > 0\): Esse caso é o ilustrado no terceiro quadro da Figura~\ref{fig:binary_search-2}. Para esse caso, precisamos primeiro verificar de qual lado da reta que contém \(\overline{v^1 v^2}\) o ponto \(p\) está. Se \(p\) estiver do lado externo, então verificamos se \(p\) está do lado negativo de \(r^2\), caso contrário, verificamos se \(p\) está do lado positivo de \(r^1\).
+	
+	\item \(d \times r^1 > 0 \land d \times r^2 < 0\): Esse caso é o ilustrado no quarto quadro da Figura~\ref{fig:binary_search-2}. Para esse caso, precisamos primeiro verificar de qual lado da reta que contém \(\overline{v^1 v^2}\) o ponto \(p\) está. Se \(p\) estiver do lado externo, então verificamos se \(p\) está do lado positivo de \(r^1\), caso contrário, verificamos se \(p\) está do lado negativo de \(r^2\).
+
+\end{itemize}
+
+Implementamos essas ideias no Algoritmo~\algref{alg:point_in_edge_region_modified}.
+
+\begin{algorithm}[H]
+\alglabel{alg:point_in_edge_region_modified}
+\caption{Ponto em Região de Aresta - Adaptado}
+\Input{\(p, v^1, v^2, r^1, r^2\)}
+\Output{\texttt{true} se \(p\) pertence à região delimitada por aresta fictícia \(\overline{v^1 v^2}\), \(r^1\) e \(r^2\), \texttt{false} caso contrário.}
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
+
+\(d \leftarrow v^2 - v^1\) \\
+
+\If {\(d \times r^1 < 0 \land d \times r^2 < 0\)} {
+	// Caso 1 \\
+	\Return {} \(r^1 \times (p - v^1) > 0 \land r^2 \times (p - v^2) < 0 \land (p - v^1) \times (v^2 - v^1) < 0\)
+}
+\ElseIf {\(d \times r^1 > 0 \land d \times r^2 > 0\)} {
+	// Caso 2 \\
+	\Return {} \(r^1 \times (p - v^1) \leq 0 \land r^2 \times (p - v^2) \geq 0 \land (p - v^1) \times (v^2 - v^1) \geq 0\)
+}
+\ElseIf {\(d \times r^1 < 0 \land d \times r^2 > 0\)} {
+	// Caso 3 \\
+	\If {\((p - v^1) \times (v^2 - v^1) < 0\)} {
+		\Return {} \(r^2 \times (p - v^2) < 0\)
+	}
+	\Else {
+		\Return {} \(r^1 \times (p - v^1) > 0\)
+	}
+}
+\Else {
+	// Caso 4 \\
+	\If {\((p - v^1) \times (v^2 - v^1) < 0\)} {
+		\Return {} \(r^1 \times (p - v^1) > 0\)
+	}
+	\Else {
+		\Return {} \(r^2 \times (p - v^2) < 0\)
+	}
+}
+
+\end{algorithm}
+
+Dessa forma, conseguimos implementar o Algoritmo~\algref{alg:locate_point_second_approach} utilizando o Algoritmo~\algref{alg:point_in_edge_region_modified} para verificar se o ponto \(p\) pertence à região de aresta fictícia entre dois vértices \(v^1\) e \(v^2\). Essa implementação do algoritmo \texttt{LocalizaPonto} tem complexidade \(O(\log(\abs{T_i}))\), onde \(\abs{T_i}\) é o número de vértices de \(P_i\) que pertencem a \(T_i\). Como esse procedimento será chamado diversas vezes durante a execução dos Algoritmos~\algref{alg:consulta-caminho} e \algref{alg:consulta-ultimo-passo}, essa implementação é mais eficiente que a primeira abordagem para polígonos com muitos vértices em \(T_i\).
+
+Agora que concluimos a implementação de \texttt{LocalizaPonto}, podemos concluir o algoritmo para ambas as abordagens discutidas até agora. A implementação completa do algoritmo TPP usando essas abordagens é mostrada no Algoritmo~\algref{alg:tpp_complete-1-2}.
+
+\begin{algorithm}[H]
+\alglabel{alg:tpp_complete-1-2}
+\caption{TPP - Implementação Completa (Primeira e Segunda Abordagens)}
+\Input{Pontos \(s\) e \(t\), sequência de polígonos convexos disjuntos (\(P_1, \dots, P_k\))}
+
+\Output{\(k\)-path até \(t\).}
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
+
+\((T_1, \dots, T_k) \leftarrow \emptyset\) \\
+\((S_1, \dots, S_k) \leftarrow \emptyset\) \\
+
+\For {\(i \leftarrow 1\) até \(k\)} {
+	
+	\(T_i \leftarrow \text{RegiãoDePrimeiroContato}(s, i, (P_1, \dots, P_i), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
+	\(S_i \leftarrow \text{MapaDeÚltimoPasso}(s, i, (P_1, \dots, P_i), (T_1, \dots, T_i), (S_1, \dots, S_{i - 1}))\)
+}
+
+\Return {} \(\text{ConsultaCaminho}(t, k, (P_1, \dots, P_k), (T_1, \dots, T_k), (S_1, \dots, S_k))\)
+
+\end{algorithm}
+
+\subsection{Terceira Abordagem}
+
+Antes de discutirmos a terceira abordagem, buscamos trazer uma motivação para essa nova implementação do algoritmo \texttt{LocalizaPonto}. Considere o caso de um único polígono \(P_1\) com muitos vértices, um milhão, por exemplo, nossas abordagens anteriores calculam \(T_1\), então \(S_1\) e finalmente fazem uma única consulta ao mapa de último passo \(S_1\) para localizar o ponto \(t\). No entanto, essa consulta usa no máximo 20 regiões de vértice de \(P_1\) para localizar \(t\) em \(S_1\), assim, calculamos 999980 regiões de vértice de \(P_1\) que nunca são utilizadas. Portanto, na terceira abordagem, buscamos utilizar uma estratégia de memoização para calcular apenas as regiões de vértice de \(P_i\) que são necessárias para localizar os pontos consultados no mapa de último passo \(S_i\).
+
+...
+
+\subsection{Análise de Complexidade}
+
+Primeiramente, vamos analizar a complexidade das duas primeiras abordagens. Note que ambos os algoritmos seguem a mesma estrutura geral, como mostrado no Algoritmo~\algref{alg:tpp_complete-1-2}, portanto, a análise de complexidade será similar para ambos, a única diferença será a complexidade do algoritmo \texttt{LocalizaPonto}.
+
+\begin{itemize}
+
+	\item Algoritmos de verificação de regiões (Algoritmos~\algref{alg:point_in_cone}, \algref{alg:point_in_edge_region} e \algref{alg:point_in_edge_region_modified}): Todos esses algoritmos têm complexidade \(O(1)\), pois envolvem apenas algumas operações aritméticas e comparações.
+	
+	\item Algoritmo \texttt{LocalizaPonto} (Algoritmos~\algref{alg:locate_point_first_approach} e \algref{alg:locate_point_second_approach}): A primeira abordagem tem complexidade \(O(\abs{T_i})\), enquanto a segunda abordagem tem complexidade \(O(\log(\abs{T_i}))\).
+	
+	\item Algoritmos de consulta de último segmento e consulta de caminho (Algoritmos~\algref{alg:consulta-ultimo-passo} e \algref{alg:consulta-caminho}): Ambos os algoritmos começam fazendo uma chamada ao algoritmo \texttt{LocalizaPonto}, o pior caso ocorre quando o ponto \(p\) está na região de atravessar \(P_i\) ou em uma região de aresta, o que exige outra consulta ao mapa de último passo \(S_{i - 1}\). Portanto, a complexidade desses algoritmos é:
+	
+	\[
+		\begin{cases}
+			O(\sum_{j = 1}^{i} \abs{P_j}) & \text{para a primeira abordagem} \\
+			O(\sum_{j = 1}^{i} \log(\abs{T_j})) & \text{para a segunda abordagem}
+		\end{cases}
+	\]
+
+	\item Algoritmo para calcular \(T_i\) e \(S_i\) (Algoritmos~\algref{alg:first_contact_region} e \algref{alg:last_step_map}): Ambos os algoritmos fazem uma única passagem pelos vértices de \(P_i\), fazendo uma consulta para cada vértice. Portanto, a complexidade desses algoritmos é:
+
+	\[
+		\begin{cases}
+			O(\abs{P_i} \sum_{j = 1}^{i} \abs{T_j}) & \text{para a primeira abordagem} \\
+			O(\abs{P_i} \sum_{j = 1}^{i} \log(\abs{T_j})) & \text{para a segunda abordagem}
+		\end{cases}
+	\]
+
+	\item Algoritmo TPP completo (Algoritmo~\algref{alg:tpp_complete-1-2}): O algoritmo faz uma chamada para calcular \(T_i\) e \(S_i\) para cada \(i\) de 1 a \(k\), e finalmente faz uma chamada para consultar o caminho até \(t\). Portanto, a complexidade total do algoritmo TPP é:
+	
+	\[
+		\begin{cases}
+			O(\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \abs{P_j} + \sum_{j = 1}^{k} \abs{P_j}) & \text{para a primeira abordagem} \\
+			O(\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \log(\abs{T_j}) + \sum_{j = 1}^{k} \log(\abs{T_j})) & \text{para a segunda abordagem}
+		\end{cases}
+	\]
+
+\end{itemize}
+
+Podemos simplificar as expressões acima, considerando que \(n = \sum_{i = 1}^{k} \abs{P_i}\) é o número total de vértices em todos os polígonos, vamos fazer a simplificação para a segunda abordagem, que é mais eficiente, e deixamos a primeira abordagem como exercício para o leitor.
+
+\begin{align*}
+	O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \log(\abs{T_j}) + \sum_{j = 1}^{k} \log(\abs{T_j})} &= O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \log(\abs{T_j})} \\
+	&= O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \log(\abs{P_j})} \\
+	&= O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{k} \log(\abs{P_j})} \\
+	&= O\parens[\bigg]{\sum_{j=1}^{k}\log(\abs{P_j})\sum_{i=1}^{k}\abs{P_i}} \\
+	&= O\parens[\bigg]{n \sum_{j=1}^{k}\log(\abs{P_j})} \\
+\end{align*}
+
+Finalmente, não é difícil mostrar que fixando \(n\), temos que \(\sum_{j=1}^{k}\log(\abs{P_j})\) é maximizado quando todos os polígonos têm o mesmo número de vértices, ou seja, \(\abs{P_j} = n/k\) para todo \(j\). Portanto, temos que a complexidade final do algoritmo TPP usando a segunda abordagem é \(O(nk\log(n/k))\). Essa complexidade é exatamente a indicada por Dror et al. (2003) \cite{tpp-dror2003}, assim, concluímos que nossa implementação é tão eficiente quanto a proposta original.
 
 \
 \newpage
