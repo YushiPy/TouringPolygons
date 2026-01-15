@@ -212,21 +212,18 @@ def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: list[Po
 		return ray1, ray2
 	
 	def is_blocked_edge(i: int, j: int) -> bool:
-		
-		if blocked_edges[i][j] is not None:
-			return blocked_edges[i][j] # type: ignore
-		
-		polygon = polygons[i]
-		v1 = polygon[j]
-		v2 = polygon[(j + 1) % len(polygon)]
 
-		mid = ((v1[0] + v2[0]) / 2, (v1[1] + v2[1]) / 2)
-		last = query(mid, i)
+		if blocked_edges[i][j] is None:
 
-		blocked_edges[i][j] = vector_cross(vector_sub(v2, v1), vector_sub(last, mid)) >= 0
+			polygon = polygons[i]
+			v1 = polygon[j]
+			v2 = polygon[(j + 1) % len(polygon)]
+
+			last = query(v1, i)
+			blocked_edges[i][j] = vector_cross(vector_sub(v2, v1), vector_sub(last, v1)) >= 0
 
 		return blocked_edges[i][j] # type: ignore
-	
+
 	def locate_point(point: Vector2, index: int) -> int:
 		"""
 		Locates point in cones or edges defined by polygon and cones at the given index.
@@ -243,13 +240,13 @@ def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: list[Po
 		def get(i: int) -> tuple[Vector2, Vector2]:
 			return get_cone(index, i)
 		
-		def check2(l: int, r: int) -> bool:
+		def check(l: int, r: int) -> bool:
 			return point_in_edge(point, polygon[l // 2], polygon[r // 2], get(l // 2)[l % 2], get(r // 2)[r % 2])
 
 		polygon = polygons[index]
 		n = len(polygon)
 
-		if check2(0, 1):
+		if check(0, 1):
 			return 0
 		
 		left = 0
@@ -259,7 +256,7 @@ def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: list[Po
 
 			mid = (left + right) // 2
 
-			if check2(left, mid + 1):
+			if check(left, mid + 1):
 				right = mid
 			else:
 				left = mid
