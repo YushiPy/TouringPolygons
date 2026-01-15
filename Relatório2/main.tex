@@ -478,7 +478,7 @@ Finalmente, uma vez que sabemos como calcular \(T_i\), \(S_i\) e localizar um po
 		\(S_i \leftarrow \text{MapaDeÚltimoPasso}(i, s, (P_1, \dots, P_i), (T_1, \dots, T_i), (S_1, \dots, S_{i - 1}))\)
 	}
 
-	\Return {} \(\text{ConsultaCaminho}(t, k, (P_1, \dots, P_k), (T_1, \dots, T_k), (S_1, \dots, S_k))\)
+	\Return {} \(\text{ConsultaCaminho}(t, k, s, (P_1, \dots, P_k), (T_1, \dots, T_k), (S_1, \dots, S_k))\)
 
 }
 
@@ -665,54 +665,56 @@ Dessa forma, concluimos a descrição da terceira abordagem para implementar o a
 
 \subsection{Análise de Complexidade}
 
-Primeiramente, vamos analizar a complexidade das duas primeiras abordagens. Note que ambos os algoritmos seguem a mesma estrutura geral, como mostrado no Algoritmo~\algref{alg:tpp_complete-1-2}, portanto, a análise de complexidade será similar para ambos, a única diferença será a complexidade do algoritmo \texttt{LocalizaPonto}.
+Primeiramente, vamos analizar a complexidade da primeira abordagem. Vamos dizer que \(\abs{P_i}\) é o número de vértices do polígono \(P_i\) e \(\abs{T_i}\) é o número de arestas em \(T_i\). Também vamos dizer que \(k\) é o número total de polígonos na sequência \(P_1, \dots, P_k\) e \(n\) é o número total de vértices em todos os polígonos, ou seja, \(n = \sum_{i = 1}^{k} \abs{P_i}\).
 
 \begin{itemize}
 
-	\item Algoritmos de verificação de regiões (Algoritmos~\algref{alg:point_in_cone}, \algref{alg:point_in_edge_region} e \algref{alg:point_in_edge_region_modified}): Todos esses algoritmos têm complexidade \(O(1)\), pois envolvem apenas algumas operações aritméticas e comparações.
+	\item \(\text{LocalizaPonto}\) \algref{alg:locate_point_first_approach}: A complexidade desse algoritmo é \(O(\abs{T_i})\), pois no pior caso, precisamos verificar todas as regiões de vértice e de aresta em \(T_i\) para localizar o ponto \(p\).
 	
-	\item Algoritmo \texttt{LocalizaPonto} (Algoritmos~\algref{alg:locate_point_first_approach} e \algref{alg:locate_point_second_approach}): A primeira abordagem tem complexidade \(O(\abs{T_i})\), enquanto a segunda abordagem tem complexidade \(O(\log(\abs{T_i}))\).
-	
-	\item Algoritmos de consulta de último segmento e consulta de caminho (Algoritmos~\algref{alg:consulta-ultimo-passo} e \algref{alg:consulta-caminho}): Ambos os algoritmos começam fazendo uma chamada ao algoritmo \texttt{LocalizaPonto}, o pior caso ocorre quando o ponto \(p\) está na região de atravessar \(P_i\) ou em uma região de aresta, o que exige outra consulta ao mapa de último passo \(S_{i - 1}\). Portanto, a complexidade desses algoritmos é:
-	
-	\[
-		\begin{cases}
-			O(\sum_{j = 1}^{i} \abs{P_j}) & \text{para a primeira abordagem} \\
-			O(\sum_{j = 1}^{i} \log(\abs{T_j})) & \text{para a segunda abordagem}
-		\end{cases}
-	\]
+	\item ConsultaÚltimoPasso e ConsultaCaminho \algref{alg:consulta-ultimo-passo} e \algref{alg:consulta-caminho}: Ambos os algoritmos começam fazendo uma chamada ao algoritmo \texttt{LocalizaPonto}, o pior caso ocorre quando o ponto \(p\) está na região de atravessar \(P_i\) ou em uma região de aresta, o que exige outra consulta ao mapa de último passo \(S_{i - 1}\), resultando em um total de \(i\) chamadas ao algoritmo \texttt{LocalizaPonto}. Portanto, a complexidade desses algoritmos é \(O(\sum_{j = 1}^{i} \abs{T_j})\).
 
-	\item Algoritmo para calcular \(T_i\) e \(S_i\) (Algoritmos~\algref{alg:first_contact_region} e \algref{alg:last_step_map}): Ambos os algoritmos fazem uma única passagem pelos vértices de \(P_i\), fazendo uma consulta para cada vértice. Portanto, a complexidade desses algoritmos é:
-
-	\[
-		\begin{cases}
-			O(\abs{P_i} \sum_{j = 1}^{i} \abs{T_j}) & \text{para a primeira abordagem} \\
-			O(\abs{P_i} \sum_{j = 1}^{i} \log(\abs{T_j})) & \text{para a segunda abordagem}
-		\end{cases}
-	\]
-
-	\item Algoritmo TPP completo (Algoritmo~\algref{alg:tpp_complete-1-2}): O algoritmo faz uma chamada para calcular \(T_i\) e \(S_i\) para cada \(i\) de 1 a \(k\), e finalmente faz uma chamada para consultar o caminho até \(t\). Portanto, a complexidade total do algoritmo TPP é:
+	\item RegiãoDePrimeiroContato e MapaDeÚltimoPasso \algref{alg:first_contact_region} e \algref{alg:last_step_map}: Ambos os algoritmos fazem uma única passagem pelos vértices de \(P_i\), fazendo uma consulta para cada vértice. Portanto, a complexidade desses algoritmos é \(O(\abs{P_i} \sum_{j=1}^{i} \abs{T_j})\).
 	
-	\[
-		\begin{cases}
-			O(\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \abs{P_j} + \sum_{j = 1}^{k} \abs{P_j}) & \text{para a primeira abordagem} \\
-			O(\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \log(\abs{T_j}) + \sum_{j = 1}^{k} \log(\abs{T_j})) & \text{para a segunda abordagem}
-		\end{cases}
-	\]
+	\item TPP completo \algref{alg:tpp_complete-1-2}: O algoritmo faz uma chamada para calcular \(T_i\) e \(S_i\) para cada \(i\) de 1 a \(k\), e finalmente faz uma chamada para consultar o caminho até \(t\). Portanto, a complexidade total do algoritmo TPP:
+	
+	\begin{align*}
+		O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \abs{T_j} + \sum_{j = 1}^{k} \abs{T_j}} &= O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \abs{P_j} + \sum_{j = 1}^{k} \abs{P_j}} \\
+		&= O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \abs{P_j}} \\
+		&= O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{k} \abs{P_j}} \\
+		&= O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} n} \\
+		&= O(n^2)
+	\end{align*}
 
 \end{itemize}
 
-Podemos simplificar as expressões acima, considerando que \(n = \sum_{i = 1}^{k} \abs{P_i}\) é o número total de vértices em todos os polígonos, vamos fazer a simplificação para a segunda abordagem, que é mais eficiente, e deixamos a primeira abordagem como exercício para o leitor.
+Dessa forma, concluimos que a complexidade total do algoritmo TPP usando a primeira abordagem é \(O(n^2)\). A seguir, vamos analizar a complexidade da segunda abordagem.
 
-\begin{align*}
-	O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \log(\abs{T_j}) + \sum_{j = 1}^{k} \log(\abs{T_j})} &= O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \log(\abs{T_j})} \\
-	&= O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \log(\abs{P_j})} \\
-	&= O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{k} \log(\abs{P_j})} \\
-	&= O\parens[\bigg]{\sum_{j=1}^{k}\log(\abs{P_j})\sum_{i=1}^{k}\abs{P_i}} \\
-	&= O\parens[\bigg]{n \sum_{j=1}^{k}\log(\abs{P_j})} \\
-\end{align*}
+\begin{itemize}
 
-Finalmente, não é difícil mostrar que fixando \(n\), temos que \(\sum_{j=1}^{k}\log(\abs{P_j})\) é maximizado quando todos os polígonos têm o mesmo número de vértices, ou seja, \(\abs{P_j} = n/k\) para todo \(j\). Portanto, temos que a complexidade final do algoritmo TPP usando a segunda abordagem é \(O(nk\log(n/k))\). Essa complexidade é exatamente a indicada por Dror et al. (2003) \cite{tpp-dror2003}, assim, concluímos que nossa implementação é tão eficiente quanto a proposta original.
+	\item \(\text{LocalizaPonto}\) \algref{alg:locate_point_first_approach}: A complexidade desse algoritmo é \(O(\log(\abs{T_i}))\), que é o pior caso da busca binária que fazemos para localizar o ponto \(p\) em \(S_i\).
+	
+	\item ConsultaÚltimoPasso e ConsultaCaminho \algref{alg:consulta-ultimo-passo} e \algref{alg:consulta-caminho}: Ambos os algoritmos começam fazendo uma chamada ao algoritmo \texttt{LocalizaPonto}, o pior caso ocorre quando o ponto \(p\) está na região de atravessar \(P_i\) ou em uma região de aresta, o que exige outra consulta ao mapa de último passo \(S_{i - 1}\), resultando em um total de \(i\) chamadas ao algoritmo \texttt{LocalizaPonto}. Portanto, a complexidade desses algoritmos é \(O(\sum_{j = 1}^{i} \log(\abs{T_j}))\).
+
+	\item RegiãoDePrimeiroContato e MapaDeÚltimoPasso \algref{alg:first_contact_region} e \algref{alg:last_step_map}: Ambos os algoritmos fazem uma única passagem pelos vértices de \(P_i\), fazendo uma consulta para cada vértice. Portanto, a complexidade desses algoritmos é \(O(\abs{P_i} \sum_{j=1}^{i} \log(\abs{T_j}))\).
+	
+	\item TPP completo \algref{alg:tpp_complete-1-2}: O algoritmo faz uma chamada para calcular \(T_i\) e \(S_i\) para cada \(i\) de 1 a \(k\), e finalmente faz uma chamada para consultar o caminho até \(t\). Portanto, a complexidade total do algoritmo TPP:
+	
+	\begin{align*}
+		O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \log(\abs{T_j}) + \sum_{j = 1}^{k} \log(\abs{T_j})} &= O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \log(\abs{P_j}) + \sum_{j = 1}^{k} \log(\abs{P_j})} \\
+		&= O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \log(\abs{P_j})} \\
+		&= O\parens[\bigg]{\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{k} \log(\abs{P_j})} \\
+		&= O\parens[\bigg]{\sum_{i = 1}^{k} \log(\abs{P_j}) \sum_{j = 1}^{k} \abs{P_i}} \\
+		&= O\parens[\bigg]{\sum_{i = 1}^{k} \log(\abs{P_j}) n} \\
+		&= O\parens[\bigg]{n \sum_{i = 1}^{k} \log(\abs{P_j})}
+	\end{align*}
+
+	Considerando que a soma \(\sum_{i = 1}^{k} \log(\abs{P_j})\) é maximizada quando todos os polígonos têm o mesmo número de vértices, ou seja, \(\abs{P_j} = n/k\) para todo \(j\), temos que a complexidade final do algoritmo TPP usando a segunda abordagem é \(O(nk\log(n/k))\).
+
+\end{itemize}
+
+Dessa forma, temos que a complexidade final do algoritmo TPP usando a segunda abordagem é \(O(nk\log(n/k))\). Essa complexidade é exatamente a indicada por Dror et al. (2003) \cite{tpp-dror2003}, assim, concluímos que nossa implementação é tão eficiente quanto a proposta original.
+
+Finalmente, resta analizar a complexidade da terceira abordagem. No entanto, a análise dessa abordagem é mais complexa, uma vez que a complexidade do algoritmo \texttt{LocalizaPonto} depende muito da entrada específica, ou seja, da distribuição dos vértices nos polígonos e das consultas feitas ao mapa de último passo. No entanto, é fácil notar que a terceira abordagem nunca será pior do que a segunda abordagem, uma vez que no pior caso, ela calculará todas as regiões de vértice em \(T_i\), resultando em uma complexidade igual à da segunda abordagem. Portanto, podemos concluir que a complexidade da terceira abordagem é \(O(nk\log(n/k))\) no pior caso, mas pode ser melhor em casos específicos dependendo das consultas feitas.
 
 \
 \newpage
