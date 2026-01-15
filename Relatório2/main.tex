@@ -192,17 +192,17 @@ Como discutido em \cite[\textbf{Lemma 3.}]{tpp-dror2003}, se tivermos \(T_0, \do
 \(R \leftarrow \text{LocalizaPonto}(p, S_i)\) // Localiza o ponto \(p\) no mapa de último passo \(S_i\) \\
 
 \If {\(R\) corresponde a um vértice \(v\) de \(P_i\)} {
-	// Adiciona \(v\) ao final do \((i - 1)\)-path até \(v\) \\
+	// Adiciona \(p\) ao final do \((i - 1)\)-path até \(v\) \\
 	\Return {} \(\text{ConsultaCaminho}(v, i - 1, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1})) \oplus [p]\) 
 }
 
 \ElseIf {\(R\) corresponde a uma aresta \(e\) de \(P_i\)} {
 	\(p' \leftarrow\) reflexão de \(p\) em relação à reta que contém \(e\) \\
 	\(\text{path} \leftarrow \text{ConsultaCaminho}(p', i - 1, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
-	\(\text{path}' \leftarrow \) pontos de \(\text{path}\) que antecedem \(p\) \\
+	\(\text{path}' \leftarrow \) pontos de \(\text{path}\) que antecedem \(p'\) \\
 	\(q' \leftarrow\) último ponto de \(\text{path}'\) \\
 	\(q \leftarrow\) ponto de interseção entre \(\overline{q' p'}\) e \(e\) \\
-	// Adiciona \(q\) e \(p\) ao final do \((i - 1)\)-path até \(p'\) que precede \(q'\) \\
+	// Adiciona \(q\) e \(p\) ao final do \(\text{path}'\) \\
 	\Return {} \(\text{path}' \oplus [q, p]\)
 }
 
@@ -235,14 +235,12 @@ O Algoritmo~\algref{alg:consulta-caminho} permite que calculemos o \(i\)-path at
 }
 \ElseIf {\(R\) corresponde a uma aresta \(e\) de \(P_i\)} {
 	\(p' \leftarrow\) reflexão de \(p\) em relação à reta que contém \(e\) \\
-	\(\text{path} \leftarrow \text{ConsultaCaminho}(p', i - 1, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
-	\(\text{path}' \leftarrow \) pontos de \(\text{path}\) que antecedem \(p\) \\
-	\(q' \leftarrow\) último ponto de \(\text{path}'\) \\
+	\(q' \leftarrow \text{ConsultaÚltimoPasso}(p', i - 1, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
 	\(q \leftarrow\) ponto de interseção entre \(\overline{q' p'}\) e \(e\) \\
 	\Return {} \(q\)
 }
 \Else {
-	\Return {} \(\text{ConsultaÚltimoSegmento}(p, i - 1, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\)
+	\Return {} \(\text{ConsultaÚltimoPasso}(p, i - 1, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\)
 }
 
 \end{algorithm}
@@ -280,10 +278,10 @@ Agora, para determinar se o segmento entre \(q\) e \(m\) intersecta \(P_i\) apen
 	\(v^2 \leftarrow\) vértice posterior de \(e\) \\
 	\(m \leftarrow (v^1 + v^2) / 2\) \\
 
-	\(q \leftarrow \text{ConsultaÚltimoSegmento}(m, i - 1, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
+	\(q \leftarrow \text{ConsultaÚltimoPasso}(m, i - 1, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
 
 	\If {\((q - m) \times (v^2 - v^1) < 0\)} {
-		Adiciona \(e\) a \(T_i\)
+        \(T_i \leftarrow T_i \cup e\)
 	}
 }
 
@@ -300,7 +298,7 @@ Pelas condições de otimalidade discutidas em \cite[\textbf{Local Optimality Co
 \caption{Mapa de Último Passo}
 
 \Input{\(s\), \(i\), \((P_1, \dots, P_i)\), \((T_1, \dots, T_i)\), \((S_1, \dots, S_{i - 1})\)}
-\Output{Mapa de último passo \(S_i\) de \(P_i\) como uma associação de vértices de \(T_i\) a pares ordenados de raios.}
+\Output{Mapa de último passo \(S_i\) de \(P_i\) como uma associação de pares ordenados de raios aos vértices das arestas de \(T_i\).}
 
 \vspace{0.3em}
 \hrule
@@ -308,12 +306,12 @@ Pelas condições de otimalidade discutidas em \cite[\textbf{Local Optimality Co
 
 \(S_i \leftarrow \emptyset\)
 
-\For{vértice \(v\) de \(P_i\) em \(T_i\)} {
+\For{vértice \(v\) de \(P_i\) tal que existe \(e\) em \(T_i\) incidente a \(v\)} {
 	
 	\(e^1 \leftarrow\) aresta anterior de \(v\) em \(P_i\) \\
 	\(e^2 \leftarrow\) aresta posterior de \(v\) em \(P_i\) \\
 
-	\(q \leftarrow \text{ConsultaÚltimoSegmento}(v, i - 1, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
+	\(q \leftarrow \text{ConsultaÚltimoPasso}(v, i - 1, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
 	\(d \leftarrow v - q\)
 
 	\If {\(e^1\) pertence a \(T_i\)} {
@@ -330,7 +328,7 @@ Pelas condições de otimalidade discutidas em \cite[\textbf{Local Optimality Co
 		\(r^2 \leftarrow d\)
 	}
 
-	Associa \(v\) a \((r^1, r^2)\) em \(S_i\)
+	Associa \((r^1, r^2)\) a \(v\) e adiciona à \(S_i\)
 }
 
 \Return {} \(S_i\)
@@ -409,7 +407,7 @@ Uma vez que conseguimos verificar se um ponto pertence a uma região associada a
 \hrule
 \vspace{0.3em}
 
-\For {cada vértice \(v\) de \(P_i\) em \(T_i\)} {
+\For {vértice \(v\) de \(P_i\) tal que existe \(e\) em \(T_i\) incidente a \(v\)} {
 	\((r^1, r^2) \leftarrow\) raios associados a \(v\) em \(S_i\) \\
 	\If {\(\text{PontoEmRegiãoDeVértice}(p, v, r^1, r^2)\)} {
 		\Return {} região associada a \(v\)

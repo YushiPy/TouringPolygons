@@ -20,6 +20,7 @@ _*
 # Bibtex
 *.bbl*
 *.blg
+*.bcf-SAVE-ERROR
 
 # Git
 *.git
