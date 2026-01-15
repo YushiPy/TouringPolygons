@@ -297,14 +297,14 @@ Esses dois algoritmos serão utilizados em todas as implementações que discuti
 
 \subsection{Primeira Abordagem}
 
-Primeiramente, vamos calcular a região de primeiro contato \(T_i\) de um polígono \(P_i\), sabemos que essa região é a união de arestas de \(P_i\), sendo delimitada por vértices de \(P_i\) \cite[\textbf{Lemma 2.}]{tpp-dror2003}, assim, apenas precisamos determinar quais arestas de \(P_i\) pertencem a \(T_i\). Para isso, para cada aresta de \(P_i\), definimos \(m\) como o ponto médio dessa aresta e então calculamos o \((i - 1)\)-path até \(m\), definindo \(q\) como o ponto que antecede \(m\) nesse caminho. Se o segmento entre \(q\) e \(m\) intersecta \(P_i\) apenas em \(m\), então, por definição, \(m\) pertence a \(T_i\) e como \(T_i\) é a união de arestas de \(P_i\), toda a aresta que contém \(m\) pertence a \(T_i\). Repetimos esse processo para todas as arestas de \(P_i\) e assim obtemos \(T_i\).
+Primeiramente, vamos calcular a região de primeiro contato \(T_i\) de um polígono \(P_i\), sabemos que essa região é a união de arestas de \(P_i\), sendo delimitada por vértices de \(P_i\) \cite[\textbf{Lemma 2.}]{tpp-dror2003}, assim, apenas precisamos determinar quais arestas de \(P_i\) pertencem a \(T_i\). Seja \(e = \overline{v^1 v^2}\) uma aresta de \(P_i\), \(p\) um ponto qualquer nessa aresta e \(q\) o ponto que precede \(p\) no \((i - 1)\)-path até \(p\). Note que, \(e \in T_i\) se e somente se a direção \((q - p)\) está do lado externo de \(P_i\). Como isso vale para qualquer ponto \(p\) em \(e\).
 
-Agora, para determinar se o segmento entre \(q\) e \(m\) intersecta \(P_i\) apenas em \(m\), simplesmente verificamos se o vetor \(\overrightarrow{qm}\) está do lado externo da aresta de \(P_i\) que contém \(m\), ou seja, se o produto escalar entre \(\overrightarrow{qm}\) e o vetor normal à aresta de \(P_i\) que contém \(m\) é positivo, isso é equivalente a dizer que o produto vetorial entre \(\overrightarrow{qm}\) e o vetor que conecta os dois vértices da aresta de \(P_i\) que contém \(m\) é negativo. Ilustramos essa ideia na Figura~\ref{fig:first_contact_region}. Também implementamos isso no Algoritmo~\algref{alg:first_contact_region}
+A Figura~\ref{fig:first_contact_region} ilustra como podemos usar essa ideia para determinar a região de primeiro contato de um polígono, realizando o teste para ambos vértices de cada aresta do polígono. Implementamos essa ideia no Algoritmo~\algref{alg:first_contact_region}, usando o vértice \(v^1\) como o ponto \(p\) para determinar se a aresta \(e\) pertence a \(T_i\).
 
 \begin{figure}[!ht]
 	\centering
-	\includegraphics[width=0.8\textwidth]{Images/utpp-first_contact.png}
-	\caption{Verificando se uma aresta pertence à região de primero contato de um polígono.}
+	\includegraphics[width=0.6\textwidth]{Images/utpp-first_contact.png}
+	\caption{Determinando região de primeiro contato de um polígono.}
 	\label{fig:first_contact_region}
 \end{figure}
 
@@ -326,11 +326,10 @@ Agora, para determinar se o segmento entre \(q\) e \(m\) intersecta \(P_i\) apen
 	
 		\(v^1 \leftarrow\) vértice anterior de \(e\) \\
 		\(v^2 \leftarrow\) vértice posterior de \(e\) \\
-		\(m \leftarrow (v^1 + v^2) / 2\) \\
 	
-		\(q \leftarrow \text{ConsultaÚltimoPasso}(m, i - 1, s, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
+		\(q \leftarrow \text{ConsultaÚltimoPasso}(v^1, i - 1, s, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
 	
-		\If {\((q - m) \times (v^2 - v^1) < 0\)} {
+		\If {\((q - v^1) \times (v^2 - v^1) < 0\)} {
 			\(T_i \leftarrow T_i \cup e\)
 		}
 	}
@@ -630,7 +629,39 @@ A vantagem dessa abordagem é que a busca binária reduz o número de regiões d
 
 Antes de discutirmos a terceira abordagem, buscamos trazer uma motivação para essa nova implementação do algoritmo \texttt{LocalizaPonto}. Considere o caso de um único polígono \(P_1\) com muitos vértices, um milhão, por exemplo, nossa segunda abordagem calcula \(T_1\), então \(S_1\) e finalmente faz uma única consulta ao mapa de último passo \(S_1\) para localizar o ponto \(t\). No entanto, essa consulta usa no máximo 20 regiões de vértice de \(P_1\) para localizar \(t\) em \(S_1\), assim, calculamos 999980 regiões de vértice de \(P_1\) que nunca são utilizadas. Portanto, na terceira abordagem, buscamos utilizar uma estratégia de memoização para calcular apenas as regiões de vértice de \(P_i\) que são necessárias para localizar os pontos consultados no mapa de último passo \(S_i\).
 
-O elemento central dessa abordagem é 
+O primeiro problema que precisamos resolver é como determinar se uma dada aresta \(e = \overline{v^1 v^2}\) de \(P_i\) está \(T_i\) fazendo apenas uma única chamada ao algoritmo ConsultaÚltimoPasso. Para isso, podemos simplesmente reutilizar a ideia do Algoritmo~\algref{alg:first_contact_region} que calculava \(T_i\) por completo, mas agora, ao invés de verificar todas as arestas de \(P_i\), verificamos apenas a aresta \(e\). Assim, calculamos o último passo \(q\) do \(i\)-path até o ponto médio \(v^1\) da aresta \(e\) e verificamos se \((q - v^1) \times (v^2 - v^1)\) é negativo, se for, então \(e\) pertence a \(T_i\), caso contrário, não pertence.
+
+A seguir, precisamos calcular os raios associados a um vértice \(v\) de \(P_i\) em \(S_i\), novamente fazendo apenas uma única chamada ao algoritmo ConsultaÚltimoPasso. Para isso, reutilizamos a ideia do Algoritmo~\algref{alg:last_step_map} que calculava \(S_i\) por completo, mas agora, ao invés de calcular os raios para todos os vértices de \(P_i\), calculamos apenas os raios para o vértice \(v\). No entanto, esse algoritmo assumia que sabemos quais arestas de \(P_i\) pertencem a \(T_i\), então precisamos saber se as arestas incidentes em \(v\) pertencem a \(T_i\) ou não sem fazer chamadas adicionais ao algoritmo ConsultaÚltimoPasso. 
+
+Para isso, retomamos a ideia de se \(e\) é uma aresta de \(P_i\), \(p\) um ponto qualquer em \(e\) e \(q\) o último passo do \((i - 1)\)-path até \(p\), então \(e \in T_i\) se e somente se \((q - p)\) está do lado externo de \(e\). Assim, seja \(v\) um vértice de \(P_i\) e \(e^1\) e \(e^2\) as arestas incidentes em \(v\), podemos calcular o último passo \(q\) do \((i - 1)\)-path até \(v\) e então verificar se \((q - v)\) está do lado externo de \(e^1\) e \(e^2\) para determinar se essas arestas pertencem a \(T_i\). Com essa informação, podemos facilmente adaptar o Algoritmo~\algref{alg:last_step_map} para calcular apenas os raios associados a \(v\) em \(S_i\).
+
+Uma última observação importante é que como não sabemos \(T_i\), pode ser que tentemos calcular os raios associados a um vértice \(v\) de \(P_i\) em \(S_i\), mas nenhuma das arestas incidentes em \(v\) pertença a \(T_i\). Nesse caso, não precisamos alterar o algoritmo, uma vez que seu comportamente natural será retornar dois raios cuja direção é igual ao raio que chega em \(v\) no \((i - 1)\)-path, o que representa uma região vazia em \(S_i\), o que é condizente com um vértice que não pertence a \(T_i\).
+
+Finalmente, podemos descrever como implementamos o algoritmo \texttt{LocalizaPonto} usando essa estratégia de memoização. Vamos reutilizar a ideia de busca binária da segunda abordagem, mas agora nosso passos iniciais serão simplificados, uma vez que delegamos a parte de verificar a região de travessia para depois da busca binária. O algoritmo segue da seguinte forma:
+
+\begin{blockQuote}
+	
+	\textbf{Algoritmo para localizar um ponto \(p\) em \(S_i\):}
+
+	\vspace{1em}
+
+	\noindent \textbf{Passo 1.} Sejam \(v^1, \dots, v^m\) os vértices de \(P_i\) ordenados em sentido anti-horário. Calcule os raios associados a \(v^1\) em \(S_i\) e verifique se \(p\) está na região de vértice de \(v^1\), se sim, retorne essa região.
+
+	\vspace{1em}
+
+	\noindent \textbf{Passo 2.} Seja \(v' = v^{\floor{m / 2}}\), calcule os raios associados a \(v'\) em \(S_i\) e verifique se \(p\) está na região de vértice de \(v'\), se sim, retorne essa região. 
+	
+	Caso contrário, crie as arestas fictícias entre \(v^1\) e \(v'\) e entre \(v'\) e \(v^m\), gerando as regiões \(R_1\) e \(R_2\). Verifique se \(p\) está em \(R_1\) usando o mesmo procedimento do Algoritmo~\algref{alg:locate_point_second_approach}, se sim, repita esse passo considerando apenas os vértices entre \(v^1\) e \(v'\), caso contrário, repita esse passo considerando apenas os vértices entre \(v'\) e \(v^m\). 
+	
+	Esse passo é repetido até que encontremos um vértice \(v^k\) tal que \(p\) está na região de vértice de \(v^k\) ou restem apenas dois vértices \(v^l\) e \(v^r\), nesse ponto, sabemos que \(p\) deve estar na região de aresta entre esses vértices.
+
+	\vspace{1em}
+
+	\noindent \textbf{Passo 3.} Caso \(p\) não tenha sido localizado em uma região de vértice, concluimos que ele deve estar na região de aresta entre os dois últimos vértices \(v^l\) e \(v^r\) considerados. Para finalizar, usamos as ideia discutidas acima para determinar se essa aresta está em \(T_i\) fazendo apenas uma consulta e então retornamos a região de aresta correspondente, caso contrário, retornamos a região de travessia de \(P_i\).
+
+\end{blockQuote}
+
+Dessa forma, concluimos a descrição da terceira abordagem para implementar o algoritmo \texttt{LocalizaPonto} usando memoização. Decidimos não incluir o pseudocódigo completo dessa abordagem, uma vez que ele seria bastante semelhante ao Algoritmo~\algref{alg:locate_point_second_approach}, com as modificações discutidas acima.
 
 \subsection{Análise de Complexidade}
 
