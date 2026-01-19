@@ -326,7 +326,7 @@ A Figura~\ref{fig:first_contact_region} ilustra como podemos usar essa ideia par
 	
 		\(q \leftarrow \text{ConsultaÚltimoPasso}(v^1, i - 1, s, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
 	
-		\If {\((q - v^1) \times (v^2 - v^1) < 0\)} {
+		\If {\((q - v^1) \times (v^2 - v^1) < 0\)\footnotemark} {
 			\(T_i \leftarrow T_i \cup e\)
 		}
 	}
@@ -335,6 +335,7 @@ A Figura~\ref{fig:first_contact_region} ilustra como podemos usar essa ideia par
 }
 
 \end{algorithm}
+\footnotetext{Definimos o operador \(\times\) como o produto vetorial em \(\mathbb{R}^2\). Ou seja, para dois vetores \(a = (a_x, a_y)\) e \(b = (b_x, b_y)\), temos \(a \times b = a_x b_y - a_y b_x\).}
 
 Uma vez que temos \(T_0, \dots, T_i\), podemos calcular o mapa de último passo \(S_i\) de \(P_i\). Para isso, observamos que \(S_i\) possui exatamente três tipos de regiões: regiões associadas a vértices de \(P_i\) pertencentes a \(T_i\), regiões associadas a arestas de \(P_i\) pertencentes a \(T_i\) e uma única região de atravessar \(P_i\), que corresponde às arestas que não estão em \(T_i\). Além disso, uma região associada a uma aresta \(e\) é delimitada pelas regiões associadas aos vértices extremos de \(e\) e pela própria aresta \(e\). A região de atravessar \(P_i\) é definida como o complemento das regiões associadas a vértices e arestas de \(P_i\). Dessa forma, para construir \(S_i\), precisamos apenas determinar as regiões associadas aos vértices de \(P_i\) pertencentes a \(T_i\).
 
