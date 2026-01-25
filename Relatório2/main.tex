@@ -219,26 +219,26 @@ Como demonstrado em \cite[\textbf{Lemma 3}]{tpp-dror2003}, se dispomos de~\(S_1,
 A Figura~\ref{fig:casos_em_consulta} ilustra esses três casos. O caso~(a) mostra o ponto em uma região de vértice,~(b) ilustra o ponto em uma região de aresta, bem como o processo de reflexão e construção do caminho, e~(c) apresenta o ponto na região de travessia do polígono. 
 
 \begin{figure}[!ht]
-    \centering
-    \begin{subfigure}[b]{0.32\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{solução_vértice.png}
-        \caption{\(t\) em região de vértice}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[b]{0.32\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{solução_aresta.png}
-        \caption{\(t\) em região de aresta}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[b]{0.32\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{solução_atravessar.png}
-        \caption{\(t\) em região de travessia}
-    \end{subfigure}
+	\centering
+	\begin{subfigure}[b]{0.32\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{solução_vértice.png}
+		\caption{\(t\) em região de vértice}
+	\end{subfigure}
+	\hfill
+	\begin{subfigure}[b]{0.32\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{solução_aresta.png}
+		\caption{\(t\) em região de aresta}
+	\end{subfigure}
+	\hfill
+	\begin{subfigure}[b]{0.32\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{solução_atravessar.png}
+		\caption{\(t\) em região de travessia}
+	\end{subfigure}
 
-    \caption{Três casos possíveis no caminho mínimo do ponto \(s\) (em verde) até \(t\) (em vermelho) ao visitar um polígono. 
+	\caption{Três casos possíveis no caminho mínimo do ponto \(s\) (em verde) até \(t\) (em vermelho) ao visitar um polígono. 
 	Em vermelho, regiões de vértice; em verde, regiões de aresta; em azul, região de atravessar.}
 	\label{fig:casos_em_consulta}
 \end{figure}
@@ -519,12 +519,39 @@ Assumimos que o ponto~\(p\) não está no interior do polígono~\(P_i\). Esse fa
 
 \begin{figure}[!ht]
 	\centering
-	\includegraphics[width=0.65\textwidth]{binary_search-1.png}
-	\caption{Estratégia de busca binária para localizar um ponto em um mapa de último passo.}
-	\label{fig:binary_search-1}
+
+	\begin{subfigure}[b]{0.40\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{binary_search_idea-1.png}
+		\caption{Visão geral do polígono.}
+	\end{subfigure}
+	\hspace{0.5cm} %\hfill
+	\begin{subfigure}[b]{0.40\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{binary_search_idea-2.png}
+		\caption{Verificando região de travessia.}
+	\end{subfigure}
+
+	\medskip
+
+	\begin{subfigure}[b]{0.40\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{binary_search_idea-3.png}
+		\caption{Verificando regiões de vértice adjacentes à região de travessia.}
+	\end{subfigure}
+	\hspace{0.5cm} %\hfill
+	\begin{subfigure}[b]{0.40\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{binary_search_idea-4.png}
+		\caption{Particionando o restante do plano em duas regiões de aresta e uma de vértice.}
+	\end{subfigure}
+
+	\caption{Ilustração dos três passos do algoritmo de busca binária para localizar um ponto em um mapa de último passo.}
+	\label{fig:binary_search_idea}
+
 \end{figure}
 
-A Figura~\ref{fig:binary_search-1} será utilizada para descrever cada etapa do algoritmo. O primeiro quadro apresenta um polígono~\(P_i\) com 8 vértices, dos quais 5 pertencem a~\(T_i\), denotados por~\(u^1, \dots, u^5\). As regiões de vértice estão destacadas em vermelho, as regiões de aresta em verde e a região de travessia em azul. O objetivo é localizar um ponto nesse mapa de último passo. O algoritmo possui dois passos iniciais e, em seguida, inicia a busca binária, conforme descrito a seguir:
+A Figura~\ref{fig:binary_search_idea} será utilizada para descrever cada etapa do algoritmo. O primeiro quadro apresenta um polígono~\(P_i\) com 8 vértices, dos quais 5 pertencem a~\(T_i\), denotados por~\(u^1, \dots, u^5\). As regiões de vértice estão destacadas em vermelho, as regiões de aresta em verde e a região de travessia em azul. O objetivo é localizar um ponto nesse mapa de último passo. O algoritmo possui dois passos iniciais e, em seguida, inicia a busca binária, conforme descrito a seguir:
 
 \begin{blockQuote}
 
