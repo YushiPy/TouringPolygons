@@ -126,7 +126,7 @@
 \setlength{\parindent}{2em}
 
 % Page style setup
-\pagestyle{fancy}
+% \pagestyle{fancy}
 \lhead{\footnotesize {\sc }}
 \chead{}
 \rhead{\footnotesize {\sc mac-ime-usp}}
@@ -267,11 +267,11 @@ Com base nessas ideias, implementamos o Algoritmo~\algref{alg:consulta-caminho},
 		\Return {} \(\mathbb{P} \oplus [v]\) \tcp{Adiciona \(v\) ao final do caminho \(\mathbb{P}\)}
 	}
 	
-	\ElseIf {\(R\) corresponde a uma aresta \(e = \overline{v^1 v^2}\) de \(P_i\)} {
-		\(p' \leftarrow\) reflexão de \(p\) em relação à reta que contém \(e\) \\
+	\ElseIf {\(R\) corresponde a uma aresta \(e = \overrightarrow{v^1 v^2}\) de \(P_i\)} {
+		\(p' \leftarrow\) reflexão de \(p\) em relação à reta que contém \(e\) \ref{eq:reflection_on_edge} \\
 		\(\mathbb{P} \leftarrow \text{ConsultaCaminho}(p', i - 1, s, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
 		\(q' \leftarrow\) último ponto de \(\mathbb{P}\) \\
-		\(q \leftarrow\) ponto de interseção entre as retas que passam por \(\overline{q' p'}\) e \(e\) \\
+		\(q \leftarrow\) ponto de interseção entre as retas que passam por \(\overrightarrow{q' p'}\) e \(e\) \ref{eq:intersection_on_edge} \\
 		\Return {} \(\mathbb{P} \oplus [q]\) \tcp{Adiciona \(q\) ao final do caminho \(\mathbb{P}\)}
 	}
 	
@@ -305,9 +305,9 @@ O Algoritmo~\algref{alg:consulta-caminho} permite calcular o~\(i\)-path até qua
 		\Return {} \(v\)
 	}
 	\ElseIf {\(R\) corresponde a uma aresta \(e\) de \(P_i\)} {
-		\(p' \leftarrow\) reflexão de \(p\) em relação à reta que contém \(e\) \\
+		\(p' \leftarrow\) reflexão de \(p\) em relação à reta que contém \(e\) \ref{eq:reflection_on_edge} \\
 		\(q' \leftarrow \text{ConsultaÚltimoPasso}(p', i - 1, s, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
-		\(q \leftarrow\) ponto de interseção entre \(\overline{q' p'}\) e \(e\) \\
+		\(q \leftarrow\) ponto de interseção entre \(\overrightarrow{q' p'}\) e \(e\) \ref{eq:intersection_on_edge} \\
 		\Return {} \(q\)
 	}
 	\ElseIf {\(R\) corresponde a atravessar \(P_i\)} {
@@ -468,7 +468,7 @@ Uma vez que conseguimos verificar se um ponto pertence a uma região associada a
 		}
 	}
 
-	\For {aresta \(e = \overline{v^1 v^2}\) de \(P_i\) pertencente a \(T_i\)} {
+	\For {aresta \(e = \overrightarrow{v^1 v^2}\) de \(P_i\) pertencente a \(T_i\)} {
 		\(r^1 \leftarrow\) segundo raio associado a \(v^1\) em \(S_i\) \\
 		\(r^2 \leftarrow\) primeiro raio associado a \(v^2\) em \(S_i\) \\
 
@@ -510,11 +510,12 @@ Finalmente, uma vez que sabemos calcular~\(T_i\),~\(S_i\) e localizar um ponto~\
 }
 
 \end{algorithm}
+
 \subsection{Segunda Abordagem}
 
 Na segunda abordagem, alteramos apenas a implementação do algoritmo \texttt{LocalizaPonto}, utilizando uma estratégia de busca binária para localizar o ponto~\(p\) no mapa de último passo~\(S_i\). Definimos~\(u^1, \dots, u^m\) como os vértices de~\(P_i\) que pertencem a~\(T_i\), ordenados em sentido anti-horário. A ideia central do algoritmo é utilizar \emph{arestas fictícias} que conectam dois vértices~\(u^i\) e~\(u^j\), formando uma nova região~\(R\). Essa região possui a propriedade de que é possível verificar se~\(p\) pertence a~\(R\) em tempo~\(O(1)\), e~\(p\) está em~\(R\) se e somente se está em alguma região de vértice ou de aresta entre~\(u^i\) e~\(u^j\). Dessa forma, podemos empregar uma estratégia de busca binária para localizar~\(p\) em~\(S_i\).
 
-Assumimos que o ponto~\(p\) não está no interior do polígono~\(P_i\). Esse fato é garantido pela hipótese de que os polígonos são disjuntos, incluindo os pontos~\(s\) e~\(t\). Caso seja necessário lidar com situações em que~\(p\) possa estar no interior de~\(P_i\), o algoritmo pode ser iniciado com uma verificação de pertinência em tempo~\(O(\log(\lvert P_i \rvert))\). Essa verificação, no entanto, não será discutida aqui, pois não é o foco deste trabalho.
+Assumimos que o ponto~\(p\) não está no interior do polígono~\(P_i\). Esse fato é garantido pela hipótese de que os polígonos são disjuntos, incluindo os pontos~\(s\) e~\(t\). Caso seja necessário lidar com situações em que~\(p\) possa estar no interior de~\(P_i\), o algoritmo pode ser iniciado com uma verificação de pertinência em tempo~\(O(\log\abs{P_i})\). Essa verificação, no entanto, não será discutida aqui, pois não é o foco deste trabalho.
 
 \begin{figure}[!ht]
 	\centering
@@ -570,7 +571,7 @@ Desejamos determinar se um ponto~\(p\) pertence à região de aresta fictícia e
 
 Com essas verificações, podemos implementar o algoritmo \texttt{LocalizaPonto} utilizando a estratégia de busca binária, conforme apresentado no Algoritmo~\algref{alg:locate_point_second_approach}. Nesse algoritmo, implementamos a função auxiliar \texttt{VerificaAresta}, responsável por verificar se~\(p\) pertence à região de uma aresta fictícia entre dois vértices~\(v^1\) e~\(v^2\), de acordo com os casos discutidos anteriormente. A verificação se~\(p\) pertence à região de vértice de um dado vértice~\(u^{mid}\) é abstraída, pois é idêntica àquela utilizada no Algoritmo~\algref{alg:locate_point_first_approach}.
 
-A principal vantagem dessa abordagem é que a busca binária reduz o número de regiões de vértice verificadas para localizar~\(p\) em~\(S_i\) de~\(O(\lvert T_i \rvert)\) para~\(O(\log(\lvert T_i \rvert))\), o que pode representar uma melhoria significativa quando~\(P_i\) possui muitos vértices em~\(T_i\). Analisaremos o impacto dessa modificação com mais detalhes na análise de complexidade.
+A principal vantagem dessa abordagem é que a busca binária reduz o número de regiões de vértice verificadas para localizar~\(p\) em~\(S_i\) de~\(O\abs{T_i}\) para~\(O(\log\abs{T_i})\), o que pode representar uma melhoria significativa quando~\(P_i\) possui muitos vértices em~\(T_i\). Analisaremos o impacto dessa modificação com mais detalhes na análise de complexidade.
 
 \begin{algorithm}[!ht]
 \alglabel{alg:locate_point_second_approach}
@@ -645,7 +646,7 @@ A principal vantagem dessa abordagem é que a busca binária reduz o número de 
 		}
 	}
 
-	\Return {} região associada a aresta \(\overline{u^{l} u^{r}}\)
+	\Return {} região associada a aresta \(\overrightarrow{u^{l} u^{r}}\)
 }
 
 \end{algorithm}

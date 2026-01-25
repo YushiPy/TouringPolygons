@@ -1,6 +1,6 @@
-1. Adicionar referencia a equação na linha de reflexão
-2. Deixar cores na Figura 1 iguais
-3. Figura 1, debaixo de cada: Caso (a), Caso (b), Caso (c), então caption pra figura inteira explicando explicitamente
+1. - Adicionar referencia a equação na linha de reflexão
+2. - Deixar cores na Figura 1 iguais
+3. - Figura 1, debaixo de cada: Caso (a), Caso (b), Caso (c), então caption pra figura inteira explicando explicitamente
 4. Figura 2, adicionar label pro `s`, deixar mais explícito o que está sendo mostrado.
     - `s`
     - Falar o que as cores representam
