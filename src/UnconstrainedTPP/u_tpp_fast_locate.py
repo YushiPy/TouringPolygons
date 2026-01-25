@@ -132,6 +132,25 @@ class Solution:
 		self.cones = [[] for _ in self.polygons]
 		self.blocked = [[] for _ in self.polygons]
 
+	def locate_point(self, point: Vector2, index: int) -> int:
+		"""
+		Locates point in cones or edges defined by polygon and cones at given index.
+		Returns index as follows:
+		
+		- `2n` -> cone in vertex `n`
+		- `2n + 1` -> edge between vertex `n` and `n + 1`
+
+		:param Vector2 point: The point to locate.
+		:param int index: The index of the polygon to use.
+
+		:return int: The location index as described above.
+		"""
+
+		polygon = self.polygons[index - 1]
+		cones = self.cones[index - 1]
+
+		return locate_point(point, polygon, cones)
+
 	def query2(self, point: Vector2, index: int) -> tuple[Vector2, int]:
 		"""
 		Given a point and a polygon index, returns the last step of the smallest `index`-path from `start` to `point`.
