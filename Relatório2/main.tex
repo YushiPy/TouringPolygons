@@ -72,8 +72,8 @@
 \usepackage{mdframed}
 
 % Citations
-\usepackage[backend=biber,style=ieee]{biblatex}
-\addbibresource{referencias.bib}
+%\usepackage[backend=biber,style=ieee]{biblatex}
+%\addbibresource{referencias.bib}
 \usepackage{csquotes}
 
 \usepackage{multirow} % Permite criar tabelas com uma célula ocupando várias linhas
@@ -167,15 +167,15 @@ Este trabalho apresenta diferentes implementações de algoritmos para o Problem
 
 \section{Introdução}
 
-O Problema de Visita de Polígonos (Touring Polygons Problem - TPP), introduzido por Dror et al. (2003)~\cite{tpp-dror2003}, é um problema de otimização geométrica que consiste em determinar um caminho de comprimento mínimo que visite uma sequência de polígonos no plano. Esse tipo de problema surge naturalmente em aplicações de roteirização e planejamento de trajetórias, especialmente no contexto de veículos autônomos, nos quais é necessário garantir a visita eficiente a regiões específicas do espaço, como em tarefas de inspeção automatizada de armazéns~\cite{jianxian2023, karl2009}. Podemos interpretar esse problema como um caso específico do Problema do Caixeiro Viajante com Regiões (Traveling Salesman Problem with Neighborhoods - TSPN)~\cite{tspn-arkin2005}, no qual o objetivo é encontrar um caminho de comprimento mínimo que visite um conjunto de regiões arbitrárias no plano, sendo que, no TPP, essas regiões são representadas por polígonos e a ordem de visita é pré-definida.
+O Problema de Visita de Polígonos (Touring Polygons Problem - TPP), introduzido em~\cite{tpp-dror2003}, é um problema de otimização geométrica que consiste em determinar um caminho de comprimento mínimo que visite uma sequência de polígonos no plano. Esse tipo de problema surge naturalmente em aplicações de roteirização e planejamento de trajetórias, especialmente no contexto de veículos autônomos, nos quais é necessário garantir a visita eficiente a regiões específicas do espaço, como em tarefas de inspeção automatizada de armazéns~\cite{jianxian2023, karl2009}. Podemos interpretar esse problema como um caso específico do Problema do Caixeiro Viajante com Regiões (\textit{Traveling Salesman Problem with Neighborhoods} - TSPN)~\cite{tspn-arkin2005}, no qual o objetivo é encontrar um caminho de comprimento mínimo que visite um conjunto de regiões arbitrárias no plano, sendo que, no TPP, essas regiões são representadas por polígonos e a ordem de visita é pré-definida.
 
-Dentre as diversas variações do problema, consideramos inicialmente uma versão simplificada em que os polígonos são convexos e não se sobrepõem. Para esse caso, apresentamos três abordagens distintas. A primeira é uma implementação direta das ideias descritas por Dror et al. (2003)~\cite{tpp-dror2003}, baseada em mapas de último passo. A segunda abordagem melhora a eficiência da primeira ao empregar uma estratégia de busca binária para a localização de pontos nesses mapas. A terceira abordagem utiliza uma técnica de memoização, com o objetivo de evitar cálculos redundantes e reduzir o custo computacional. Por fim, mostramos que a primeira abordagem possui complexidade~\(O(n^2)\), enquanto as outras duas apresentam complexidade~\(O(n k \log (n / k))\), onde~\(n\) é o número total de vértices de todos os polígonos e~\(k\) é o número de polígonos.
+Dentre as diversas variações do problema, consideramos inicialmente uma versão simplificada em que os polígonos são convexos e não se sobrepõem. Consideramos ainda que a distância é medida na norma Euclidiana. Para esse caso, apresentamos três abordagens distintas. A primeira é uma implementação direta das ideias descritas em~\cite{tpp-dror2003}, baseadas em mapas de último passo. A segunda abordagem melhora a eficiência da primeira ao empregar uma estratégia de busca binária para a localização de pontos nesses mapas. A terceira abordagem utiliza uma técnica de memoização, com o objetivo de evitar cálculos redundantes e reduzir o custo computacional. Por fim, mostramos que a primeira abordagem possui complexidade~\(O(n^2)\), enquanto as outras duas apresentam complexidade~\(O(n k \log (n / k))\), onde~\(n\) é o número total de vértices de todos os polígonos e~\(k\) é o número de polígonos. \textcolor{blue}{Aqui falta uma frase explicando se as abordagens dois e três são mencionadas em~\cite{tpp-dror2003} ou não. Como está não fica claro se é algo novo que melhora o que foi apresentado em~\cite{tpp-dror2003} ou não. Eu entendo que a complexidade dessas duas abrdagens é sim a mencionada em~\cite{tpp-dror2003}. Logo, quiçá deva explicar alguma coisa.}
 
-Em seguida, discutimos heurísticas para o caso geral do TPP, no qual os polígonos podem ser côncavos. Baseamo-nos principalmente na ideia de particionar polígonos côncavos em subconjuntos convexos e aplicar, sobre eles, as soluções desenvolvidas para o caso convexo. Além disso, exploramos técnicas de programação inteira mista para modelar o problema e empregar solvers comerciais na obtenção de soluções aproximadas, como o~\href{https://www.gurobi.com}{Gurobi}. Por fim, comparamos os resultados obtidos por essas abordagens com aqueles produzidos pelas implementações propostas neste trabalho.
+Em seguida, discutimos heurísticas para o caso geral do TPP, no qual os polígonos podem ser não convexos. Baseamo-nos principalmente na ideia de particionar polígonos não convexos num conjunto de polígonos convexos e aplicar, sobre eles, as soluções desenvolvidas para o caso convexo. \textcolor{blue}{Na intro e na frase anterior, fala de heurísticas. Mas se considerar todas as combinacoes, isso que descreve seria um método exato.} Além disso, exploramos técnicas de programação inteira mista para modelar o problema e empregar solvers comerciais, como o~\href{https://www.gurobi.com}{Gurobi}, na obtenção de soluções aproximadas. \textcolor{blue}{Se faz um modelo MILP e resolve com Gurobi, a priori, deveria encontrar um minimizador global verdadeiro. A menos que pare por tempo. Por que fala ``aproximadas''?} Por fim, comparamos os resultados obtidos por essas abordagens com aqueles produzidos pelas implementações propostas neste trabalho.
 
 \section{O Problema de Visita de Polígonos Convexos}
 
-Inicialmente, consideramos o TPP em sua versão mais simples, na qual os polígonos são convexos e não se sobrepõem, denominada TPP Irrestrito. Utilizamos tanto a formulação quanto a solução apresentadas por Dror et al. (2003)~\cite{tpp-dror2003} como base para nossas implementações. Para nossos propósitos, definimos o problema da seguinte forma:
+Inicialmente, consideramos o TPP em sua versão mais simples, na qual os polígonos são convexos e não se sobrepõem, denominada TPP Irrestrito. Utilizamos tanto a formulação quanto a solução apresentadas em~\cite{tpp-dror2003} como base para nossas implementações. Para nossos propósitos, definimos o problema da seguinte forma:
 
 \begin{blockQuote}
 
@@ -185,38 +185,40 @@ Inicialmente, consideramos o TPP em sua versão mais simples, na qual os polígo
 
 \end{blockQuote}
 
-Todas as implementações a seguir têm como base as definições e propriedades apresentadas por Dror et al. (2003)~\cite{tpp-dror2003}. Assumimos que o leitor possui familiaridade com o conteúdo desse artigo. A seguir, retomamos as principais definições que serão utilizadas.
+Todas as implementações a seguir têm como base as definições e propriedades apresentadas em~\cite{tpp-dror2003}. \textcolor{red}{Assumimos que o leitor possui familiaridade com o conteúdo desse artigo.} A seguir, incluímos as principais definições que serão utilizadas.
+
+\begin{description}
+
+	\item[Caminho Ótimo] (\(i\)-path): Um~\(i\)-path até um ponto~\(p \in \mathbb{R}^2\) é um caminho de comprimento mínimo que se inicia em~\(s\), termina em~\(p\) e visita os polígonos~\(P_1, P_2, \dots, P_i\) em ordem. É fácil notar que qualquer~\(i\)-path deve ser a união de segmentos de reta; assim, tratamos caminhos como sequências ordenadas de pontos em~\(\mathbb{R}^2\).
+	
+	\item[Região de Primeiro Contato] (\(T_i\)): Denotamos por~\(T_i\) à região de primeiro contato de um polígono~\(P_i\), definida como o conjunto de pontos~\(p\) em seu perímetro tais que o último segmento do~\((i - 1)\)-path até~\(p\) intersecta~\(P_i\) exclusivamente nesse ponto. Em outras palavras,~\(T_i\) consiste dos pontos $p$ no perímetro de~\(P_i\) tais que o último segmento do~\((i - 1)\)-path até $p$ não atravessa o interior de~\(P_i\).
+	
+	\item[Mapa de Último Passo] (\(S_i\)): Denotamos por~\(S_i\) o mapa de último passo de um polígono~\(P_i\), que consiste em uma partição do plano em um número finito de regiões. Na partição podem existir duas ou mais regiões do tipo ``região de vértice'', uma ou mais regiões do tipo ``região de aresta'' e exatamente uma única região do tipo ``região de atravessar''. Cada região de vértice em $S_i$ está associada a um vértice $v$ de $P_i$ assim como cada região de aresta está associada a uma aresta $e$ de $P_i$. Isso não quer dizer que todo vértice e toda aresta de $P_i$ tenha uma região associada em $S_i$. Um ponto $p \in \mathbb{R}^2$ pertence a uma região de vértice associada ao vértice $v$ se e somente se o \(i\)-path até~\(p\) tem $\overline{vp}$ como último segmento. Analogamente,  um ponto $p \in \mathbb{R}^2$ pertence a uma região de aresta associada à aresta $e$ se e somente se o último segmento do \(i\)-path até~\(p\) inicia-se no interior de~$e$. Por último, um ponto $p \in \mathbb{R}^2$ pertence à região de atravessar se e somente se não pertence a nenhuma região de vértice ou aresta.
+
+\end{description}
+
+\textcolor{blue}{Cada uma definicoes acima poderia terminar com a Frase "Veja a Figura X.". E uma figura poderia ilustrar o conceito.}
+
+Como demonstrado em \cite[\textbf{Lemma 3}]{tpp-dror2003}, se dispomos de~\(S_1, \dots, S_i\), então é possível determinar o~\(i\)-path até qualquer ponto~\(p \in \mathbb{R}^2\) de maneira eficiente. Para tal, consideramos os três casos possíveis para o último segmento do~\(i\)-path até~\(p\), que dependem da região de~\(S_i\) à qual~\(p\) pertence:
 
 \begin{itemize}
 
-	\item \textbf{Caminho Ótimo} (\(i\)-path): Um~\(i\)-path até um ponto~\(p\) é um caminho de comprimento mínimo que se inicia em~\(s\), termina em~\(p\) e visita os polígonos~\(P_1, P_2, \dots, P_i\) em ordem. É fácil notar que qualquer~\(i\)-path deve ser a união de segmentos de reta; assim, tratamos caminhos como sequências ordenadas de pontos em~\(\mathbb{R}^2\).
+	\item \textbf{Região de Vértice}: Se~\(p\) pertence a uma região associada a um vértice~\(v\) de~\(P_i\), então o último segmento do~\(i\)-path até~\(p\) é o segmento~\(\overline{vp}\). Assim, o~\(i\)-path até~\(p\) é simplesmente o~\((i - 1)\)-path até~\(v\), seguido do segmento~\(\overline{vp}\). \textcolor{blue}{Aqui deve dizer: A Figura 1a ilustra esta situação.}
 	
-	\item \textbf{Região de Primeiro Contato} (\(T_i\)): Denotamos por~\(T_i\) a região de primeiro contato de um polígono~\(P_i\), definida como o conjunto de pontos~\(p\) em seu perímetro tais que o último segmento do~\((i - 1)\)-path até~\(p\) intersecta~\(P_i\) exclusivamente nesse ponto. Intuitivamente,~\(T_i\) representa os pontos no perímetro de~\(P_i\) onde o último segmento do~\((i - 1)\)-path não atravessa o interior de~\(P_i\).
-	
-	\item \textbf{Mapa de Último Passo} (\(S_i\)): Denotamos por~\(S_i\) o mapa de último passo de um polígono~\(P_i\), que consiste em uma partição do plano em um número finito de regiões tais que dois pontos em~\(\mathbb{R}^2\) pertencem à mesma região se, e somente se, o último segmento do~\(i\)-path até esses pontos possui a mesma origem: um vértice de~\(P_i\), uma aresta de~\(P_i\), ou atravessa o interior de~\(P_i\).
-
-\end{itemize}
-
-Como demonstrado em \cite[\textbf{Lemma 3}]{tpp-dror2003}, se dispomos de~\(S_1, \dots, S_i\), então é possível determinar o~\(i\)-path até qualquer ponto~\(p\) de maneira eficiente. Para tal, consideramos os três casos possíveis para o último segmento do~\(i\)-path até~\(p\), que dependem da região de~\(S_i\) à qual~\(p\) pertence:
-
-\begin{itemize}
-
-	\item \textbf{Região de Vértice}: Se~\(p\) pertence a uma região associada a um vértice~\(v\) de~\(P_i\), então o último segmento do~\(i\)-path até~\(p\) é o segmento~\(\overline{vp}\). Assim, o~\(i\)-path até~\(p\) é simplesmente o~\((i - 1)\)-path até~\(v\), seguido do segmento~\(\overline{vp}\).
-	
-	\item \textbf{Região de Aresta}: Se~\(p\) pertence a uma região associada a uma aresta~\(e = \overline{v^1 v^2}\) de~\(P_i\), então refletimos o ponto~\(p\) em relação à reta que contém~\(e\), obtendo um ponto refletido~\(p'\). Calculamos o ~\((i - 1)\)-path até~\(p'\) cujo último segmento parte de um ponto~\(q'\), então chamamos de~\(q\) a interseção do segmento~\(\overline{q'p'}\) com a aresta~\(e\). O~\(i\)-path até~\(p\) é então o~\((i - 1)\)-path até~\(p'\) até o ponto~\(p\), seguido do segmento~\(\overline{qp}\). 
+	\item \textbf{Região de Aresta}: Se~\(p\) pertence a uma região associada a uma aresta~\(e = \overline{v^1 v^2}\) de~\(P_i\), então refletimos o ponto~\(p\) em relação à reta que contém~\(e\), obtendo um ponto refletido~\(p'\). Calculamos o ~\((i - 1)\)-path até~\(p'\) cujo último segmento parte de um ponto~\(q'\), então chamamos de~\(q\) a interseção do segmento~\(\overline{q'p'}\) com a aresta~\(e\). O~\(i\)-path até~\(p\) é então formado pela parte do~\((i - 1)\)-path até~\(p'\) que vai desde o inicio (ponto $s$) até o ponto~\(q\), seguida do segmento~\(\overline{qp}\). \textcolor{blue}{Aqui deve dizer: A Figura 1b ilustra esta situação.}
 	
 	A seguir, apresentamos a fórmula para calcular o ponto refletido~\(p'\) e o ponto de interseção~\(q\), onde usamos o operador~\(\cdot\) para denotar o produto escalar, o operador~\(\|\cdot\|\) para denotar a norma euclidiana e o operador~\(\times\) para denotar o produto vetorial\footnote{Para dois vetores \(a = (a_x, a_y)\) e \(b = (b_x, b_y)\), temos \(a \times b = a_x b_y - a_y b_x\).}, todos em \(\mathbb{R}^2\):
 	
 	\begin{align}
-		&p' = p + 2 \frac{(v^1 - p) \cdot (v^2 - v^1)}{\|v^2 - v^1\|^2} (v^2 - v^1) \label{eq:reflection_on_edge} \\
-		&q = q' + \frac{(v^1 - q') \times (v^2 - v^1)}{(p' - q') \times (v^2 - v^1)} (p' - q') \label{eq:intersection_on_edge}
+		&p' = p + 2 \frac{(v^1 - p) \cdot (v^2 - v^1)}{\|v^2 - v^1\|^2} (v^2 - v^1), \label{eq:reflection_on_edge} \\
+		&q = q' + \frac{(v^1 - q') \times (v^2 - v^1)}{(p' - q') \times (v^2 - v^1)} (p' - q'). \label{eq:intersection_on_edge}
 	\end{align}
 	
-	\item \textbf{Região de Atravessar}: Se~\(p\) pertence à região de atravessar~\(P_i\), então o último segmento do~\(i\)-path até~\(p\) atravessa o interior de~\(P_i\). Nesse caso, o~\(i\)-path até~\(p\) é simplesmente o~\((i - 1)\)-path até~\(p\).
+	\item \textbf{Região de Atravessar}: Se~\(p\) pertence à região de atravessar~\(P_i\), então o último segmento do~\(i\)-path até~\(p\) atravessa o interior de~\(P_i\). Nesse caso, o~\(i\)-path até~\(p\) é simplesmente o~\((i - 1)\)-path até~\(p\). \textcolor{blue}{Aqui deve dizer: A Figura 1c ilustra esta situação.}
 
 \end{itemize}
 
-A Figura~\ref{fig:casos_em_consulta} ilustra esses três casos. O caso~(a) mostra o ponto em uma região de vértice,~(b) ilustra o ponto em uma região de aresta, bem como o processo de reflexão e construção do caminho, e~(c) apresenta o ponto na região de travessia do polígono. 
+A Figura~\ref{fig:casos_em_consulta} ilustra esses três casos. \textcolor{blue}{(Essa frase chegou tarde demais. Havia já muita coisa acumulada dificil de entender.} O caso~(a) mostra o ponto em uma região de vértice,~(b) ilustra o ponto em uma região de aresta, bem como o processo de reflexão e construção do caminho, e~(c) apresenta o ponto na região de travessia do polígono. 
 
 \begin{figure}[!ht]
 	\centering
@@ -243,7 +245,7 @@ A Figura~\ref{fig:casos_em_consulta} ilustra esses três casos. O caso~(a) mostr
 	\label{fig:casos_em_consulta}
 \end{figure}
 
-Com base nessas ideias, implementamos o Algoritmo~\algref{alg:consulta-caminho}, que, dado um ponto~\(p\) e um índice~\(i\), retorna o~\(i\)-path até~\(p\) como uma sequência de pontos em~\(\mathbb{R}^2\), desconsiderando o último ponto do caminho,~\(p\), que é conhecido. Assumimos também a existência de uma função \texttt{LocalizaPonto}, que localiza o ponto~\(p\) no mapa de último passo~\(S_i\) de~\(P_i\) e retorna a região~\(R\) à qual~\(p\) pertence. Essa região carrega informações suficientes para determinar seu tipo (vértice, aresta ou atravessar) e os dados necessários para reconstruir o caminho conforme descrito anteriormente.
+Com base nessas ideias, implementamos o Algoritmo~\algref{alg:consulta-caminho}, que, dado um ponto~\(p\) e um índice~\(i\), retorna o~\(i\)-path até~\(p\) como uma sequência de pontos em~\(\mathbb{R}^2\), desconsiderando o último ponto do caminho,~\(p\), que é conhecido. Assumimos também a existência de uma função \texttt{LocalizaPonto}, que, \textcolor{blue}{dado $p \in \mathbb{R}^2$ e $1 \leq i \leq k$}, localiza o ponto~\(p\) no mapa de último passo~\(S_i\) de~\(P_i\) e retorna a região~\(R\) à qual~\(p\) pertence. Essa região carrega informações suficientes para determinar seu tipo (vértice, aresta ou atravessar) e os dados necessários para reconstruir o caminho conforme descrito anteriormente. \textcolor{blue}{Quiçá possa dizer aqui que informacao é essa. ``Anteriormente'' é muito vago. Num texto científico voce deve fazer referencia a uma formula ou coisa parecida.}
 
 \begin{algorithm}[!ht]
 \alglabel{alg:consulta-caminho}
@@ -282,7 +284,7 @@ Com base nessas ideias, implementamos o Algoritmo~\algref{alg:consulta-caminho},
 
 \end{algorithm}
 
-O Algoritmo~\algref{alg:consulta-caminho} permite calcular o~\(i\)-path até qualquer ponto~\(p\) de forma eficiente, podendo ser utilizado para obter o~\(k\)-path até~\(t\), que corresponde exatamente à solução do problema. No entanto, frequentemente nos interessamos apenas no último segmento do~\(i\)-path até~\(p\). Além disso, no caso em que um ponto pertence a uma região associada a um vértice de~\(P_i\), é possível determinar o último segmento diretamente, sem a necessidade de calcular o restante do caminho. Dessa forma, implementamos o Algoritmo~\algref{alg:consulta-ultimo-passo}, que, dado um ponto~\(p\) e um índice~\(i\), retorna o ponto inicial do último segmento do~\(i\)-path até \(p\).
+O Algoritmo~\algref{alg:consulta-caminho} permite calcular o~\(i\)-path até qualquer ponto~\(p \in \mathbb{R}^2\) de forma eficiente, podendo ser utilizado para obter o~\(k\)-path até~\(t\), que corresponde exatamente à solução do problema. No entanto, frequentemente nos interessamos apenas no último segmento do~\(i\)-path até~\(p\). Além disso, no caso em que um ponto pertence a uma região associada a um vértice de~\(P_i\), é possível determinar o último segmento diretamente, sem a necessidade de calcular o restante do caminho. Dessa forma, implementamos o Algoritmo~\algref{alg:consulta-ultimo-passo}, que, dado um ponto~\(p \in \mathbb{R}^2\) e um índice~\(1 \leq i \leq k\), retorna o ponto inicial do último segmento do~\(i\)-path até \(p\).
 
 \begin{algorithm}[!ht]
 \alglabel{alg:consulta-ultimo-passo}
@@ -321,9 +323,7 @@ Esses dois algoritmos serão utilizados em todas as implementações discutidas 
 
 \subsection{Primeira Abordagem}
 
-Primeiramente, calculamos a região de primeiro contato~\(T_i\) de um polígono~\(P_i\). Sabemos que essa região é a união de arestas de~\(P_i\), sendo delimitada por vértices de~\(P_i\)~\cite[\textbf{Lemma 2.}]{tpp-dror2003}. Assim, precisamos apenas determinar quais arestas de~\(P_i\) pertencem a~\(T_i\). Seja~\(e = \overline{v^1 v^2}\) uma aresta de~\(P_i\), \(p\) um ponto qualquer dessa aresta e~\(q\) o ponto que precede~\(p\) no~\((i - 1)\)-path até~\(p\). Note que~\(e \in T_i\) se, e somente se, a direção~\((q - p)\) está do lado externo de~\(P_i\). Como isso vale para qualquer ponto~\(p\) em~\(e\), o critério pode ser testado nos vértices da aresta.
-
-A Figura~\ref{fig:first_contact_region} ilustra como podemos usar essa ideia para determinar a região de primeiro contato de um polígono, realizando o teste para ambos os vértices de cada aresta do polígono. Implementamos essa ideia no Algoritmo~\algref{alg:first_contact_region}, utilizando o vértice~\(v^1\) como o ponto~\(p\) para determinar se a aresta~\(e\) pertence a~\(T_i\).
+Primeiramente, calculamos a região de primeiro contato~\(T_i\) de um polígono~\(P_i\). \textcolor{blue}{Aqui poderiamos dizer que, para um poligono $P_i$, $T_i$ é a primeira coisa que se calcula, antes de $S_i$. E que o calculo de $T_i$ requer o calculo previo de $T_j$ e $S_j$ para $j<i$.} Sabemos que essa \textcolor{blue}{(Se for colocar o que falie, o ``essa'' vai ficar longe e deve ser trocado por $T_i$)} região é a união de arestas de~\(P_i\), sendo delimitada por vértices de~\(P_i\)~\cite[\textbf{Lemma 2.}]{tpp-dror2003}. Assim, precisamos apenas determinar quais arestas de~\(P_i\) pertencem a~\(T_i\). Seja~\(e = \overline{v^1 v^2}\) uma aresta de~\(P_i\), \(p\) um ponto qualquer dessa aresta e~\(q\) o ponto que precede~\(p\) no~\((i - 1)\)-path até~\(p\). Note que~\(e \in T_i\) se, e somente se, a direção~\((q - p)\) está do lado externo de~\(P_i\). \textcolor{blue}{Essa frase esta estranha. Um segmento é uma coisa no plano. Uma direcao é um vetor que sai da origem a vai até um ponto no plano. Voce se refere a um segmento aqui?} Como o teste para determinar se uma aresta $e$ de $P_i$ pertence ou não a $T_i$ pode ser feito com um ponto $p$ qualquer em $e$, implementamos o teste considerando um vértice de $e$. A Figura~\ref{fig:first_contact_region} ilustra como podemos usar essa ideia para determinar a região de primeiro contato de um polígono, realizando o teste para ambos os vértices de cada aresta do polígono. Implementamos essa ideia no Algoritmo~\algref{alg:first_contact_region}, utilizando o vértice~\(v^1\) como o ponto~\(p\) para determinar se a aresta~\(e\) pertence a~\(T_i\).
 
 \begin{figure}[!ht]
 	\centering
@@ -363,9 +363,9 @@ A Figura~\ref{fig:first_contact_region} ilustra como podemos usar essa ideia par
 
 \end{algorithm}
 
-Uma vez que temos \(T_0, \dots, T_i\), podemos calcular o mapa de último passo~\(S_i\) de~\(P_i\). Para isso, observamos que~\(S_i\) possui exatamente três tipos de regiões: regiões associadas a vértices de~\(P_i\) pertencentes a~\(T_i\), regiões associadas a arestas de~\(P_i\) pertencentes a~\(T_i\) e uma única região de atravessar \(P_i\), que corresponde às arestas que não estão em~\(T_i\). Além disso, uma região associada a uma aresta~\(e\) é delimitada pelas regiões associadas aos vértices extremos de~\(e\) e pela própria aresta~\(e\). A região de atravessar~\(P_i\) é definida como o complemento das regiões associadas a vértices e arestas de~\(P_i\). Dessa forma, para construir~\(S_i\), precisamos apenas determinar as regiões associadas aos vértices de~\(P_i\) pertencentes a~\(T_i\).
-
-Pelas condições de otimalidade discutidas em~\cite[\textbf{Local Optimality Conditions.}]{tpp-dror2003}, sabemos que, para cada vértice~\(v\) de~\(P_i\) que pertence a~\(T_i\), a região associada a~\(v\) em~\(S_i\) é um cone definido pelo ponto~\(v\) e por um par ordenado de raios que partem de~\(v\). Esses raios podem ser calculados a partir do último segmento do~\((i - 1)\)-path até~\(v\) e de sua reflexão em relação às arestas de~\(P_i\) incidentes em~\(v\). Mais especificamente, se~\(e^1\) e~\(e^2\) são as arestas de~\(P_i\), em sentido anti-horário, que contêm~\(v\), e~\(q\) é o ponto que precede~\(v\) no~\((i - 1)\)-path até~\(v\), então o primeiro raio é a reflexão do vetor~\(\overrightarrow{qv}\) em relação à reta que contém~\(e^1\), caso~\(e^1\) pertença a~\(T_i\), ou simplesmente o vetor~\(\overrightarrow{qv}\), caso contrário. De forma análoga, o segundo raio é a reflexão do vetor~\(\overrightarrow{qv}\) em relação à reta que contém~\(e^2\), caso~\(e^2\) pertença a~\(T_i\), ou simplesmente o vetor~\(\overrightarrow{qv}\), caso contrário. Repetimos esse processo para todos os vértices de~\(P_i\), obtendo assim todas as regiões associadas a vértices de~\(P_i\) em~\(S_i\). Essa ideia é implementada no Algoritmo~\algref{alg:last_step_map}.
+Uma vez que temos \(T_i\), podemos calcular o mapa de último passo~\(S_i\) de~\(P_i\). 
+%\textcolor{blue}{Tudo o que segue neste paragrafo deveria ter sido dito ao descrever $S_i$ acima. Com figura e tudo. E nao precisa ser repetido aqui.} Para isso, observamos que~\(S_i\) possui exatamente três tipos de regiões: regiões associadas a vértices de~\(P_i\) pertencentes a~\(T_i\), regiões associadas a arestas de~\(P_i\) pertencentes a~\(T_i\) e uma única região de atravessar \(P_i\), \textcolor{red}{que corresponde às arestas que não estão em~\(T_i\)}. Além disso, uma região associada a uma aresta~\(e\) é delimitada pelas regiões associadas aos vértices extremos de~\(e\) e pela própria aresta~\(e\). A região de atravessar~\(P_i\) é definida como o complemento das regiões associadas a vértices e arestas de~\(P_i\). Dessa forma, para construir~\(S_i\), precisamos apenas determinar as regiões associadas aos vértices de~\(P_i\) pertencentes a~\(T_i\). 
+Pelas condições de otimalidade discutidas em~\cite[\textbf{Local Optimality Conditions.}]{tpp-dror2003}, sabemos que, para cada vértice~\(v\) de~\(P_i\) que pertence a~\(T_i\), a região associada a~\(v\) em~\(S_i\) é um cone definido pelo ponto~\(v\) e por um par ordenado de raios que partem de~\(v\). Esses raios podem ser calculados a partir do último segmento do~\((i - 1)\)-path até~\(v\) e de sua reflexão em relação às arestas de~\(P_i\) incidentes em~\(v\). Mais especificamente, se~\(e^1\) e~\(e^2\) são as arestas de~\(P_i\), em sentido anti-horário, que contêm~\(v\), e~\(q\) é o ponto que precede~\(v\) no~\((i - 1)\)-path até~\(v\), então o primeiro raio é a reflexão do vetor~\(\overrightarrow{qv}\) em relação à reta que contém~\(e^1\), caso~\(e^1\) pertença a~\(T_i\), ou simplesmente o vetor~\(\overrightarrow{qv}\), caso contrário. De forma análoga, o segundo raio é a reflexão do vetor~\(\overrightarrow{qv}\) em relação à reta que contém~\(e^2\), caso~\(e^2\) pertença a~\(T_i\), ou simplesmente o vetor~\(\overrightarrow{qv}\), caso contrário. \textcolor{blue}{Fiquei confuso aqui. Os raios nao deveriam partir de $v$? Pergunto porque voce fala $qv$ com a seta acima, como se a coisa partisse de $q$.} Repetimos esse processo para todos os vértices de~\(P_i\), obtendo assim todas as regiões associadas a vértices de~\(P_i\) em~\(S_i\). Essa ideia é implementada no Algoritmo~\algref{alg:last_step_map}.
 
 \begin{algorithm}[!ht]
 \alglabel{alg:last_step_map}
@@ -813,11 +813,15 @@ Portanto, a complexidade final do algoritmo TPP utilizando a segunda abordagem �
 
 Por fim, resta analisar a complexidade da terceira abordagem. Essa análise é mais delicada, pois a complexidade do algoritmo \texttt{LocalizaPonto} passa a depender fortemente da instância específica, em particular da distribuição dos vértices nos polígonos e das consultas efetivamente realizadas ao mapa de último passo. Ainda assim, é imediato observar que a terceira abordagem nunca será pior do que a segunda, uma vez que, no pior caso, todas as regiões de vértice em~\(T_i\) serão calculadas, recuperando exatamente o comportamento da segunda abordagem. Assim, concluímos que a complexidade da terceira abordagem é~\(O(nk \log (n/k))\) no pior caso, podendo ser significativamente melhor em instâncias favoráveis, dependendo do padrão das consultas realizadas.
 
-\
-\newpage
+%\
+%\newpage
 
-\printbibliography
+%\printbibliography
 
-\newpage
+%\newpage
+
+\bibliographystyle{plain}
+
+\bibliography{referencias}
 
 \end{document}
