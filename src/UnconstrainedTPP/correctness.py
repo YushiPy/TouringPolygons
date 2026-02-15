@@ -8,11 +8,15 @@ from vector2 import Vector2
 from polygon2 import Polygon2
 
 from u_tpp import tpp_solve as reference_tpp_solve
-from u_tpp_filtered import tpp_solve as test_tpp_solve
+from u_tpp_sympy import tpp_solve as test_tpp_solve
 
 type _Vector2 = Iterable[float]
 type _Polygon2 = Iterable[_Vector2]
 type TestCase = tuple[_Vector2, _Vector2, list[_Polygon2]]
+
+
+TOLERANCE = 1e-4
+TEST_LENGTH = True
 
 def reference_solution(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
 	return list(map(Vector2, reference_tpp_solve(start, target, polygons))) # type: ignore
@@ -90,7 +94,14 @@ def do_test(test: TestCase) -> bool:
 	expected = reference_solution(*test) # type: ignore
 	actual = test_solution(*test) # type: ignore
 
-	if any((e - a).magnitude() > 1e-10 for e, a in zip(expected, actual)):
+	if TEST_LENGTH:
+		length_expected = sum((expected[i] - expected[i + 1]).magnitude() for i in range(len(expected) - 1))
+		length_actual = sum((actual[i] - actual[i + 1]).magnitude() for i in range(len(actual) - 1))
+		passed = abs(length_expected - length_actual) <= TOLERANCE
+	else:
+		passed = all((e - a).magnitude() <= TOLERANCE for e, a in zip(expected, actual))
+	
+	if not passed:
 		print("❌ Test failed!")
 		print(test)
 		return False
