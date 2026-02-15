@@ -15,7 +15,7 @@ type _Polygon2 = Iterable[_Vector2]
 type TestCase = tuple[_Vector2, _Vector2, list[_Polygon2]]
 
 
-TOLERANCE = 1e-4
+TOLERANCE = 1e-5
 TEST_LENGTH = True
 
 def reference_solution(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:

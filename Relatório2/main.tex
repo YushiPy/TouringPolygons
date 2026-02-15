@@ -158,7 +158,7 @@
 
 \begin{abstract}
 
-Este trabalho apresenta diferentes implementações de algoritmos para o Problema de Visita de Polígonos (Touring Polygons Problem - TPP), que consiste em encontrar um caminho de comprimento mínimo que visite uma sequência de polígonos no plano. Em sua forma geral, o problema é NP-difícil. Por esse motivo, inicialmente consideramos uma versão simplificada em que os polígonos são convexos e não se sobrepõem, para a qual apresentamos um algoritmo exato baseado em mapas de último passo. Em seguida, discutimos heurísticas para o caso geral, utilizando técnicas de programação inteira mista. Por fim, realizamos experimentos computacionais para avaliar o desempenho dos algoritmos propostos em instâncias de diferentes tamanhos e características, comparando-os com solvers comerciais. Os resultados indicam que as abordagens desenvolvidas são eficazes em uma ampla variedade de cenários práticos.
+Este trabalho apresenta diferentes implementações de algoritmos para o Problema de Visita de Polígonos (Touring Polygons Problem - TPP), que consiste em encontrar um caminho de comprimento mínimo que visite uma sequência de polígonos no plano. Em sua forma geral, o problema é NP-difícil. Por esse motivo, inicialmente consideramos uma versão simplificada em que os polígonos são convexos e não se sobrepõem, para a qual apresentamos um algoritmo exato baseado em mapas de último passo. Em seguida, para o caso não convexo, particionamos cada polígono não convexo em um conjunto de polígonos convexos e utilizamos nossa solução anterior para resolver cada combinação possível de polígonos convexos. Como essa solução é um tanto ineficiente, discutimos estratégias de otimização inteira mista para melhorar a performance dessa estratégia. Por fim, realizamos experimentos computacionais para avaliar o desempenho dos algoritmos propostos em instâncias de diferentes tamanhos e características, comparando-os com solvers comerciais. Os resultados indicam que as abordagens desenvolvidas são eficazes em uma ampla variedade de cenários práticos.
 
 \vspace{10pt}
 
@@ -169,9 +169,21 @@ Este trabalho apresenta diferentes implementações de algoritmos para o Problem
 
 O Problema de Visita de Polígonos (Touring Polygons Problem - TPP), introduzido em~\cite{tpp-dror2003}, é um problema de otimização geométrica que consiste em determinar um caminho de comprimento mínimo que visite uma sequência de polígonos no plano. Esse tipo de problema surge naturalmente em aplicações de roteirização e planejamento de trajetórias, especialmente no contexto de veículos autônomos, nos quais é necessário garantir a visita eficiente a regiões específicas do espaço, como em tarefas de inspeção automatizada de armazéns~\cite{jianxian2023, karl2009}. Podemos interpretar esse problema como um caso específico do Problema do Caixeiro Viajante com Regiões (\textit{Traveling Salesman Problem with Neighborhoods} - TSPN)~\cite{tspn-arkin2005}, no qual o objetivo é encontrar um caminho de comprimento mínimo que visite um conjunto de regiões arbitrárias no plano, sendo que, no TPP, essas regiões são representadas por polígonos e a ordem de visita é pré-definida.
 
-Dentre as diversas variações do problema, consideramos inicialmente uma versão simplificada em que os polígonos são convexos e não se sobrepõem. Consideramos ainda que a distância é medida na norma Euclidiana. Para esse caso, apresentamos três abordagens distintas. A primeira é uma implementação direta das ideias descritas em~\cite{tpp-dror2003}, baseadas em mapas de último passo. A segunda abordagem melhora a eficiência da primeira ao empregar uma estratégia de busca binária para a localização de pontos nesses mapas. A terceira abordagem utiliza uma técnica de memoização, com o objetivo de evitar cálculos redundantes e reduzir o custo computacional. Por fim, mostramos que a primeira abordagem possui complexidade~\(O(n^2)\), enquanto as outras duas apresentam complexidade~\(O(n k \log (n / k))\), onde~\(n\) é o número total de vértices de todos os polígonos e~\(k\) é o número de polígonos. \textcolor{blue}{Aqui falta uma frase explicando se as abordagens dois e três são mencionadas em~\cite{tpp-dror2003} ou não. Como está não fica claro se é algo novo que melhora o que foi apresentado em~\cite{tpp-dror2003} ou não. Eu entendo que a complexidade dessas duas abrdagens é sim a mencionada em~\cite{tpp-dror2003}. Logo, quiçá deva explicar alguma coisa.}
+Dentre as diversas variações do problema, consideramos inicialmente uma versão simplificada em que os polígonos são convexos e não se sobrepõem. Consideramos ainda que a distância é medida na norma Euclidiana. Para esse caso, apresentamos três abordagens distintas, as duas primeiras são baseadas em ideias descritas em~\cite{tpp-dror2003}, enquanto a terceira é uma extensão que utiliza técnicas de memoização para melhorar o desempenho no caso médio. Considerando que \(n\) é o número total de vértices de todos os polígonos e \(k\) é o número de polígonos, as abordagens propostas são as seguintes:
 
-Em seguida, discutimos heurísticas para o caso geral do TPP, no qual os polígonos podem ser não convexos. Baseamo-nos principalmente na ideia de particionar polígonos não convexos num conjunto de polígonos convexos e aplicar, sobre eles, as soluções desenvolvidas para o caso convexo. \textcolor{blue}{Na intro e na frase anterior, fala de heurísticas. Mas se considerar todas as combinacoes, isso que descreve seria um método exato.} Além disso, exploramos técnicas de programação inteira mista para modelar o problema e empregar solvers comerciais, como o~\href{https://www.gurobi.com}{Gurobi}, na obtenção de soluções aproximadas. \textcolor{blue}{Se faz um modelo MILP e resolve com Gurobi, a priori, deveria encontrar um minimizador global verdadeiro. A menos que pare por tempo. Por que fala ``aproximadas''?} Por fim, comparamos os resultados obtidos por essas abordagens com aqueles produzidos pelas implementações propostas neste trabalho.
+\begin{enumerate}
+
+	\item Implementação intuitiva das ideias descritas em~\cite{tpp-dror2003}, baseadas em mapas de último passo, resolvendo o problema em tempo \(O(n^2)\). Buscamos familiarizar o leitor com os conceitos e técnicas fundamentais para a resolução do TPP, como as regiões de primeiro contato e os mapas de último passo, que serão utilizados em todas as implementações subsequentes.
+
+	\item Implementação que melhora a eficiência da primeira ao empregar uma estratégia de busca binária para a localização de pontos nos mapas de último passo, resolvendo o problema em tempo \(O(n k \log (n / k))\), como descrito em~\cite{tpp-dror2003}.
+
+	\item Implementação que utiliza uma técnica de memoização, com o objetivo de evitar cálculos redundantes e reduzir o custo computacional. Mantemos a mesma complexidade de pior caso da abordagem anterior, \(O(n k \log (n / k))\), mas, a depender do tamanho dos polígonos, pode apresentar um desempenho significativamente melhor na prática.
+
+\end{enumerate}
+
+Em seguida, buscamos resolver o caso geral do TPP, no qual os polígonos podem ser não convexos. Para isso, vamos particionar cada polígono não convexo em um conjunto de polígonos convexos e aplicar as soluções desenvolvidas para o caso convexo sobre cada combinação possível de polígonos convexos resultantes. Essa abordagem é, a priori, ineficiente, assim buscamos otimizar o processo por meio de técnicas de otimização combinatória.
+
+Além disso, outra forma de resolver o caso geral do TPP é modelá-lo como um problema de programação inteira mista (Mixed Integer Linear Programming - MILP) e utilizar solvers comerciais, como o~\href{https://www.gurobi.com}{Gurobi}, para obter uma solução. Essa abordagem também resolve o problema de forma exata utilizando ferramentas bem conhecidas, assim, buscamos mostrar que nossa implementação é competitiva mesmo quando comparada a solvers comerciais de alto desempenho.
 
 \section{O Problema de Visita de Polígonos Convexos}
 
@@ -179,25 +191,61 @@ Inicialmente, consideramos o TPP em sua versão mais simples, na qual os polígo
 
 \begin{blockQuote}
 
-	{\large \textbf{Problema 1: TPP Irrestrito}}
+	{\large \textbf{Problema 1: TPP Convexo}}
 
 	\noindent Dado um ponto inicial~\(s \in \mathbb{R}^2\), um ponto final~\(t \in \mathbb{R}^2\) e uma sequência de polígonos convexos e disjuntos~\(P_1, \dots, P_k\), dados por sequências de vértices ordenados em sentido anti-horário, encontre um caminho~\(\pi\) de comprimento mínimo que se inicia em~\(s\), termina em~\(t\), e para o qual existem pontos~\(p_1, \dots, p_k\) tais que~\(p_i \in P_i\) para todo~\(i = 1, 2, \dots, k\), e o caminho~\(\pi\) passa por esses pontos nessa mesma ordem.
 
 \end{blockQuote}
 
-Todas as implementações a seguir têm como base as definições e propriedades apresentadas em~\cite{tpp-dror2003}. \textcolor{red}{Assumimos que o leitor possui familiaridade com o conteúdo desse artigo.} A seguir, incluímos as principais definições que serão utilizadas.
+Todas as implementações a seguir têm como base as definições e propriedades apresentadas em~\cite{tpp-dror2003}. A seguir, incluímos as principais definições que serão utilizadas.
 
 \begin{description}
 
-	\item[Caminho Ótimo] (\(i\)-path): Um~\(i\)-path até um ponto~\(p \in \mathbb{R}^2\) é um caminho de comprimento mínimo que se inicia em~\(s\), termina em~\(p\) e visita os polígonos~\(P_1, P_2, \dots, P_i\) em ordem. É fácil notar que qualquer~\(i\)-path deve ser a união de segmentos de reta; assim, tratamos caminhos como sequências ordenadas de pontos em~\(\mathbb{R}^2\).
+	\item[Caminho Ótimo] (\(i\)-path): Um~\(i\)-path até um ponto~\(p \in \mathbb{R}^2\) é um caminho de comprimento mínimo que se inicia em~\(s\), termina em~\(p\) e visita os polígonos~\(P_1, P_2, \dots, P_i\) em ordem. É fácil notar que qualquer~\(i\)-path deve ser a união de segmentos de reta; assim, tratamos caminhos como sequências ordenadas de pontos em~\(\mathbb{R}^2\). 
+	
+	Veja a Figura~\ref{fig:exemplos-definições}(a) para um exemplo de um caminho mínimo que visita dois polígonos. Note que a ordem deve ser respeitada, pois visitar \(P_2\) antes de \(P_1\) seria mais eficiente nesse caso.
 	
 	\item[Região de Primeiro Contato] (\(T_i\)): Denotamos por~\(T_i\) à região de primeiro contato de um polígono~\(P_i\), definida como o conjunto de pontos~\(p\) em seu perímetro tais que o último segmento do~\((i - 1)\)-path até~\(p\) intersecta~\(P_i\) exclusivamente nesse ponto. Em outras palavras,~\(T_i\) consiste dos pontos $p$ no perímetro de~\(P_i\) tais que o último segmento do~\((i - 1)\)-path até $p$ não atravessa o interior de~\(P_i\).
 	
+	Veja a Figura~\ref{fig:exemplos-definições}(b) para um exemplo de região de primeiro contato de dois polígonos \(P_1\) e \(P_2\). Note que uma região de primeiro contato é sempre composta por uma região contínua de arestas do polígono, como é o caso de \(T_1\) e \(T_2\) na figura.
+
 	\item[Mapa de Último Passo] (\(S_i\)): Denotamos por~\(S_i\) o mapa de último passo de um polígono~\(P_i\), que consiste em uma partição do plano em um número finito de regiões. Na partição podem existir duas ou mais regiões do tipo ``região de vértice'', uma ou mais regiões do tipo ``região de aresta'' e exatamente uma única região do tipo ``região de atravessar''. Cada região de vértice em $S_i$ está associada a um vértice $v$ de $P_i$ assim como cada região de aresta está associada a uma aresta $e$ de $P_i$. Isso não quer dizer que todo vértice e toda aresta de $P_i$ tenha uma região associada em $S_i$. Um ponto $p \in \mathbb{R}^2$ pertence a uma região de vértice associada ao vértice $v$ se e somente se o \(i\)-path até~\(p\) tem $\overline{vp}$ como último segmento. Analogamente,  um ponto $p \in \mathbb{R}^2$ pertence a uma região de aresta associada à aresta $e$ se e somente se o último segmento do \(i\)-path até~\(p\) inicia-se no interior de~$e$. Por último, um ponto $p \in \mathbb{R}^2$ pertence à região de atravessar se e somente se não pertence a nenhuma região de vértice ou aresta.
+	
+	Veja a Figura~\ref{fig:exemplos-definições}(c) para um exemplo de mapa de último passo de um polígono \(P_1\). As regiões de vértice são pintadas em vermelho, as regiões de aresta em verde e a região de atravessar em azul. Para cada região, incluimos um exmplo de ponto pertencente a ela, bem como o \(i\)-path até esse ponto, ilustrando a definição de cada tipo de região. Note que o mapa de último passo é uma partição do plano, ou seja, cada ponto do plano pertence a exatamente uma região do mapa, considerando que o polígono em si faz parte da região de atravessar.
 
 \end{description}
 
 \textcolor{blue}{Cada uma definicoes acima poderia terminar com a Frase "Veja a Figura X.". E uma figura poderia ilustrar o conceito.}
+
+\begin{figure}[!htb]
+	\centering
+
+	% Top row: figures 1 and 2
+	\begin{minipage}[t]{0.45\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{i_path.png}
+		\caption*{(a) Caminho mínimo de \(s\) até \(t\) visitando \(P_1\) e \(P_2\).}
+	\end{minipage}
+	%\hfill
+	\hspace{10pt}
+	\begin{minipage}[t]{0.45\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{first_contact.png}
+		\caption*{(b) Região de primeiro contato de \(P_1\) e \(P_2\).}
+	\end{minipage}
+
+	% Bottom figure (centered)
+	\vspace{1em}
+	\begin{minipage}[t]{0.45\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{last_step_map.png}
+		\caption*{(c) Mapa de último passo de \(P_1\).}
+	\end{minipage}
+
+	\caption{Exemplos de \(i\)-path (a), região de primeiro contato (b) e mapa de último passo (c).}
+	\label{fig:exemplos-definições}
+
+\end{figure}
 
 Como demonstrado em \cite[\textbf{Lemma 3}]{tpp-dror2003}, se dispomos de~\(S_1, \dots, S_i\), então é possível determinar o~\(i\)-path até qualquer ponto~\(p \in \mathbb{R}^2\) de maneira eficiente. Para tal, consideramos os três casos possíveis para o último segmento do~\(i\)-path até~\(p\), que dependem da região de~\(S_i\) à qual~\(p\) pertence:
 
@@ -821,7 +869,6 @@ Por fim, resta analisar a complexidade da terceira abordagem. Essa análise é m
 %\newpage
 
 \bibliographystyle{plain}
-
 \bibliography{referencias}
 
 \end{document}
