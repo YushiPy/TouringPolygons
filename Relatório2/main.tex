@@ -620,7 +620,7 @@ A Figura~\ref{fig:binary_search_idea} será utilizada para descrever cada etapa 
 
 \noindent \textbf{Passo 3.} Busca binária (Quadro 4): sabendo que~\(p\) não está nem na região de travessia nem nas regiões de vértice de~\(u^1\) ou~\(u^5\), iniciamos a busca binária entre os vértices~\(u^1\) e~\(u^5\). Selecionamos~\(u^3\) como vértice intermediário e verificamos se~\(p\) pertence à região de vértice de~\(u^3\). Em caso afirmativo, retornamos essa região.
 
-Caso contrário, criamos duas arestas fictícias, uma entre~\(u^1\) e~\(u^3\) e outra entre~\(u^3\) e~\(u^5\), gerando as regiões~\(R_1\) (em roxo) e~\(R_2\) (em laranja). Verificamos se~\(p\) pertence a~\(R_1\); se sim, repetimos o processo recursivamente considerando apenas os vértices entre~\(u^1\) e~\(u^3\). Caso contrário, sabemos que~\(p\) pertence a~\(R_2\) e repetimos o processo considerando apenas os vértices entre~\(u^3\) e~\(u^5\). Esse procedimento é repetido até que~\(p\) pertença a uma região de vértice ou restem apenas dois vértices. Nesse último caso, concluímos que~\(p\) está na região de aresta entre esses vértices.
+Caso contrário, criamos duas arestas fictícias, uma entre~\(u^1\) e~\(u^3\) e outra entre~\(u^3\) e~\(u^5\), gerando as regiões~\(R_1\) (em roxo) e~\(R_2\) (em laranja). Verificamos se~\(p\) pertence a~\(R_1\); se sim, repetimos esse passo recursivamente considerando apenas os vértices entre~\(u^1\) e~\(u^3\). Caso contrário, sabemos que~\(p\) pertence a~\(R_2\) e repetimos esse passo considerando apenas os vértices entre~\(u^3\) e~\(u^5\). Esse passo é repetido até que~\(p\) pertença a uma região de vértice ou restem apenas dois vértices em que concluímos que~\(p\) está na região de aresta entre esses dois vértices.
 
 \end{blockQuote}
 
