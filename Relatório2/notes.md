@@ -20,5 +20,3 @@
 15. Usar captions mais longos
 16. Usar `u` e `v` em vez de `v^1` e `v^2`
 17. Explicar as condições de otimalizade discutidas em [2]
-
-Dora Marta Birgin - 1944 - 976225153
