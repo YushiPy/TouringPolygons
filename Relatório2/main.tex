@@ -606,21 +606,19 @@ A Figura~\ref{fig:binary_search_idea} será utilizada para descrever cada etapa 
 
 \begin{blockQuote}
 
-\textbf{Algoritmo para localizar um ponto \(p\) em \(S_i\):}
+\textbf{\large Algoritmo para localizar um ponto \(p\) em \(S_i\):}
 
-\vspace{1em}
+\begin{description}
 
-\noindent \textbf{Passo 1.} Verificar se~\(p\) está na região de travessia de~\(P_i\) (Quadro 2): criamos uma aresta fictícia entre~\(u^5\) e~\(u^1\), gerando uma região~\(R\) que contém exatamente a região de travessia e parte de~\(P_i\). A verificação se~\(p\) pertence a~\(R\) é feita utilizando a mesma estratégia do Algoritmo~\algref{alg:locate_point_first_approach}, considerando~\(u^5\) e~\(u^1\) como os vértices que definem a aresta fictícia e o segundo raio de~\(u^5\) e o primeiro raio de~\(u^1\) como os raios que delimitam~\(R\). Caso~\(p\) pertença a~\(R\), retornamos a região de travessia.
+	\item[Passo 1.] Verificar se~\(p\) está na região de travessia de~\(P_i\) (Quadro 2): criamos uma aresta fictícia entre~\(u^5\) e~\(u^1\), gerando uma região~\(R\) que contém exatamente a região de travessia e parte de~\(P_i\). A verificação se~\(p\) pertence a~\(R\) é feita utilizando a mesma estratégia do Algoritmo~\algref{alg:locate_point_first_approach}, considerando~\(u^5\) e~\(u^1\) como os vértices que definem a aresta fictícia e o segundo raio de~\(u^5\) e o primeiro raio de~\(u^1\) como os raios que delimitam~\(R\). Caso~\(p\) pertença a~\(R\), retornamos a região de travessia.
+	
+	\item[Passo 2.] Verificar se~\(p\) está em alguma região de vértice de~\(u^1\) ou~\(u^5\) (Quadro 3): utilizamos a mesma verificação do Algoritmo~\algref{alg:locate_point_first_approach}. Se~\(p\) pertencer a alguma dessas regiões, retornamos a região correspondente.
+	
+	\item[Passo 3.] Busca binária (Quadro 4): sabendo que~\(p\) não está nem na região de travessia nem nas regiões de vértice de~\(u^1\) ou~\(u^5\), iniciamos a busca binária entre os vértices~\(u^1\) e~\(u^5\). Selecionamos~\(u^3\) como vértice intermediário e verificamos se~\(p\) pertence à região de vértice de~\(u^3\). Em caso afirmativo, retornamos essa região.
 
-\vspace{1em}
+	Caso contrário, criamos duas arestas fictícias, uma entre~\(u^1\) e~\(u^3\) e outra entre~\(u^3\) e~\(u^5\), gerando as regiões~\(R_1\) (em roxo) e~\(R_2\) (em laranja). Verificamos se~\(p\) pertence a~\(R_1\); se sim, repetimos esse passo recursivamente considerando apenas os vértices entre~\(u^1\) e~\(u^3\). Caso contrário, sabemos que~\(p\) pertence a~\(R_2\) e repetimos esse passo considerando apenas os vértices entre~\(u^3\) e~\(u^5\). Esse passo é repetido até que~\(p\) pertença a uma região de vértice ou restem apenas dois vértices em que concluímos que~\(p\) está na região de aresta entre esses dois vértices.
 
-\noindent \textbf{Passo 2.} Verificar se~\(p\) está em alguma região de vértice de~\(u^1\) ou~\(u^5\) (Quadro 3): utilizamos a mesma verificação do Algoritmo~\algref{alg:locate_point_first_approach}. Se~\(p\) pertencer a alguma dessas regiões, retornamos a região correspondente.
-
-\vspace{1em}
-
-\noindent \textbf{Passo 3.} Busca binária (Quadro 4): sabendo que~\(p\) não está nem na região de travessia nem nas regiões de vértice de~\(u^1\) ou~\(u^5\), iniciamos a busca binária entre os vértices~\(u^1\) e~\(u^5\). Selecionamos~\(u^3\) como vértice intermediário e verificamos se~\(p\) pertence à região de vértice de~\(u^3\). Em caso afirmativo, retornamos essa região.
-
-Caso contrário, criamos duas arestas fictícias, uma entre~\(u^1\) e~\(u^3\) e outra entre~\(u^3\) e~\(u^5\), gerando as regiões~\(R_1\) (em roxo) e~\(R_2\) (em laranja). Verificamos se~\(p\) pertence a~\(R_1\); se sim, repetimos esse passo recursivamente considerando apenas os vértices entre~\(u^1\) e~\(u^3\). Caso contrário, sabemos que~\(p\) pertence a~\(R_2\) e repetimos esse passo considerando apenas os vértices entre~\(u^3\) e~\(u^5\). Esse passo é repetido até que~\(p\) pertença a uma região de vértice ou restem apenas dois vértices em que concluímos que~\(p\) está na região de aresta entre esses dois vértices.
+\end{description}
 
 \end{blockQuote}
 
@@ -676,7 +674,7 @@ Desejamos determinar se um ponto~\(p\) pertence à região de aresta fictícia e
 
 Com essas verificações, podemos implementar o algoritmo \texttt{LocalizaPonto} utilizando a estratégia de busca binária, conforme apresentado no Algoritmo~\algref{alg:locate_point_second_approach}. Nesse algoritmo, implementamos a função auxiliar \texttt{VerificaAresta}, responsável por verificar se~\(p\) pertence à região de uma aresta fictícia entre dois vértices~\(u\) e~\(v\), de acordo com os casos discutidos anteriormente. A verificação se~\(p\) pertence à região de vértice de um dado vértice~\(u^{mid}\) é abstraída, pois é idêntica àquela utilizada no Algoritmo~\algref{alg:locate_point_first_approach}.
 
-A principal vantagem dessa abordagem é que a busca binária reduz o número de regiões de vértice verificadas para localizar~\(p\) em~\(S_i\) de~\(O\abs{T_i}\) para~\(O(\log\abs{T_i})\), o que pode representar uma melhoria significativa quando~\(P_i\) possui muitos vértices em~\(T_i\). Analisaremos o impacto dessa modificação com mais detalhes na análise de complexidade.
+A principal vantagem dessa abordagem é que a busca binária reduz o número de verificações para localizar~\(p\) em~\(S_i\) de~\(O\abs{T_i}\) para~\(O(\log\abs{T_i})\), o que pode representar uma melhoria significativa quando~\(P_i\) possui muitos vértices em~\(T_i\). Analisaremos o impacto dessa modificação com mais detalhes na análise de complexidade.
 
 \begin{algorithm}[!ht]
 \alglabel{alg:locate_point_second_approach}
@@ -719,7 +717,7 @@ A principal vantagem dessa abordagem é que a busca binária reduz o número de 
 		}
 	}
 
-	\(u_1, \dots, u_m \leftarrow\) vértices de \(P_i\) em \(T_i\), ordenados em sentido anti-horário \\
+	\(u^1, \dots, u^m \leftarrow\) vértices de \(P_i\) em \(T_i\), ordenados em sentido anti-horário \\
 
 	\If {VerificaAresta(\(u^m, u^1\))} {
 		\Return {} região de atravessar \(P_i\)
@@ -751,7 +749,7 @@ A principal vantagem dessa abordagem é que a busca binária reduz o número de 
 		}
 	}
 
-	\Return {} região associada a aresta \(\overrightarrow{u^{l} u^{r}}\)
+	\Return {} região associada a aresta \(\overline{u^{l} u^{r}}\)
 }
 
 \end{algorithm}
@@ -759,11 +757,11 @@ A principal vantagem dessa abordagem é que a busca binária reduz o número de 
 
 Antes de discutirmos a terceira abordagem, apresentamos a motivação para essa nova implementação do algoritmo \texttt{LocalizaPonto}. Considere o caso de um único polígono~\(P_1\) com um grande número de vértices, por exemplo, um milhão. Pela segunda abordagem, calculamos~\(T_1\), em seguida~\(S_1\) e, finalmente, realizamos uma única consulta ao mapa de último passo~\(S_1\) para localizar o ponto~\(t\). No entanto, essa consulta utiliza no máximo cerca de 20 regiões de vértice de~\(P_1\) para localizar~\(t\) em~\(S_1\). Assim, acabamos calculando aproximadamente 999\,980 regiões de vértice que nunca são utilizadas. Diante disso, na terceira abordagem buscamos empregar uma estratégia de memoização, de modo a calcular apenas as regiões de vértice de~\(P_i\) que são efetivamente necessárias para localizar os pontos consultados no mapa de último passo~\(S_i\).
 
-O primeiro problema a ser resolvido é determinar se uma dada aresta~\(e = \overline{u v}\) de~\(P_i\) pertence a~\(T_i\) realizando apenas uma única chamada ao algoritmo \texttt{ConsultaÚltimoPasso}. Para isso, reutilizamos a ideia do Algoritmo~\algref{alg:first_contact_region}, que originalmente calculava~\(T_i\) por completo. Agora, ao invés de verificar todas as arestas de~\(P_i\), verificamos apenas a aresta~\(e\). Calculamos o último passo~\(q\) do~\((i-1)\)-path até o vértice~\(u\) da aresta~\(e\) e verificamos o sinal de~\((q - u) \times (v - u)\). Se esse valor for negativo, então~\(e\) pertence a~\(T_i\); caso contrário, não pertence.
+O primeiro problema a ser resolvido é determinar se uma dada aresta~\(e = \overline{u v}\) de~\(P_i\) pertence a~\(T_i\) realizando apenas uma única chamada ao algoritmo \texttt{ConsultaÚltimoPasso}. Para isso, reutilizamos a ideia do Algoritmo~\algref{alg:first_contact_region}, que originalmente calculava~\(T_i\) por completo. Agora, ao invés de verificar todas as arestas de~\(P_i\), testamos apenas a aresta~\(e\), calculando o último passo~\(q\) do \((i - 1)\)-path até o vértice~\(u\) da aresta~\(e\) e afirmamos que~\(e\) está em~\(T_i\) se e somente se~\(q\) está do lado externo de~\(e\). 
 
 Em seguida, precisamos calcular os raios associados a um vértice~\(v\) de~\(P_i\) em~\(S_i\), novamente realizando apenas uma única chamada ao algoritmo \texttt{ConsultaÚltimoPasso}. Para isso, adaptamos a ideia do Algoritmo~\algref{alg:last_step_map}, que originalmente calculava~\(S_i\) por completo. Agora, em vez de calcular os raios para todos os vértices de~\(P_i\), calculamos apenas os raios associados ao vértice~\(v\). Contudo, esse algoritmo pressupõe que sabemos quais arestas de~\(P_i\) pertencem a~\(T_i\), de modo que precisamos determinar se as arestas incidentes em~\(v\) pertencem a~\(T_i\) sem realizar chamadas adicionais ao algoritmo \texttt{ConsultaÚltimoPasso}.
 
-Para resolver isso, retomamos a caracterização de que, dada uma aresta~\(e\) de~\(P_i\), um ponto~\(p\) em~\(e\) e o último passo~\(q\) do~\((i-1)\)-path até~\(p\), temos que~\(e \in T_i\) se e somente se~\((q - p)\) está do lado externo de~\(e\). Assim, seja~\(v\) um vértice de~\(P_i\) e sejam~\(e^1\) e~\(e^2\) as arestas incidentes em~\(v\). Calculamos o último passo~\(q\) do~\((i-1)\)-path até~\(v\) e verificamos se o vetor~\((q - v)\) está do lado externo de~\(e^1\) e de~\(e^2\), determinando, assim, se essas arestas pertencem a~\(T_i\). Com essa informação, podemos adaptar diretamente o Algoritmo~\algref{alg:last_step_map} para calcular apenas os raios associados a~\(v\) em~\(S_i\).
+Para resolver isso, retomamos a caracterização de que, dada uma aresta~\(e\) de~\(P_i\), um ponto~\(p\) em~\(e\) e o último passo~\(q\) do~\((i-1)\)-path até~\(p\), temos que~\(e \in T_i\) se e somente se~\(q\) está do lado externo de~\(e\). Assim, seja~\(v\) um vértice de~\(P_i\) e sejam~\(e^1\) e~\(e^2\) as arestas incidentes em~\(v\). Calculamos o último passo~\(q\) do~\((i-1)\)-path até~\(v\) e verificamos se o ponto~\(q\) está do lado externo de~\(e^1\) e de~\(e^2\), determinando, assim, se essas arestas pertencem a~\(T_i\) respectivamente. Com essa informação, podemos adaptar diretamente o Algoritmo~\algref{alg:last_step_map} para calcular apenas os raios associados a~\(v\) em~\(S_i\).
 
 Uma observação importante é que, como não conhecemos previamente~\(T_i\), pode ocorrer de tentarmos calcular os raios associados a um vértice~\(v\) de~\(P_i\) em~\(S_i\) sem que nenhuma das arestas incidentes em~\(v\) pertença a~\(T_i\). Nesse caso, o algoritmo não precisa de qualquer modificação, pois seu comportamento natural é retornar dois raios com a mesma direção do último segmento do~\((i-1)\)-path que chega a~\(v\). Isso corresponde a uma região vazia em~\(S_i\), o que é consistente com o fato de que~\(v\) não pertence a~\(T_i\).
 
@@ -771,23 +769,22 @@ Com essas ideias, podemos finalmente descrever a implementação do algoritmo \t
 
 \begin{blockQuote}
 
-\textbf{Algoritmo para localizar um ponto \(p\) em \(S_i\):}
+\textbf{\large Algoritmo para localizar um ponto \(p\) em \(S_i\):}
 
-\vspace{1em}
+\begin{description}
 
-\noindent \textbf{Passo 1.} Sejam~\(u, \dots, v^m\) os vértices de~\(P_i\) ordenados em sentido anti-horário. Calculamos os raios associados a~\(u\) em~\(S_i\) e verificamos se~\(p\) pertence à região de vértice de~\(u\). Em caso afirmativo, retornamos essa região.
+	\item[Passo 1.] Sejam~\(v^1, \dots, v^m\) os vértices de~\(P_i\) ordenados em sentido anti-horário. Calculamos os raios associados a~\(v^1\) em~\(S_i\) e verificamos se~\(p\) pertence à região de vértice de~\(v^1\). Em caso afirmativo, retornamos essa região.
+	
+	\item[Passo 2.] Seja~\(v' = v^{\lfloor m / 2 \rfloor}\). Calculamos os raios associados a~\(v'\) em~\(S_i\) e verificamos se~\(p\) pertence à sua região de vértice. Se isso ocorrer, retornamos essa região.
 
-\vspace{1em}
+	Caso contrário, criamos as arestas fictícias entre~\(u\) e~\(v'\) e entre~\(v'\) e~\(v^m\), gerando as regiões~\(R_1\) e~\(R_2\). Verificamos se~\(p\) pertence a~\(R_1\) utilizando o mesmo procedimento descrito no Algoritmo~\algref{alg:locate_point_second_approach}. Se sim, repetimos esse passo considerando apenas os vértices entre~\(u\) e~\(v'\); caso contrário, repetimos esse passo considerando apenas os vértices entre~\(v'\) e~\(v^m\).
 
-\noindent \textbf{Passo 2.} Seja~\(v' = v^{\lfloor m / 2 \rfloor}\). Calculamos os raios associados a~\(v'\) em~\(S_i\) e verificamos se~\(p\) pertence à sua região de vértice. Se isso ocorrer, retornamos essa região.
+	Assim seguimos até que encontremos um vértice~\(v^k\) tal que~\(p\) pertença à sua região de vértice ou restem apenas dois vértices~\(v^l\) e~\(v^r\). Nesse último caso, sabemos que~\(p\) deve estar na região de aresta entre esses vértices.
 
-Caso contrário, criamos as arestas fictícias entre~\(u\) e~\(v'\) e entre~\(v'\) e~\(v^m\), gerando as regiões~\(R_1\) e~\(R_2\). Verificamos se~\(p\) pertence a~\(R_1\) utilizando o mesmo procedimento descrito no Algoritmo~\algref{alg:locate_point_second_approach}. Se sim, repetimos esse passo considerando apenas os vértices entre~\(u\) e~\(v'\); caso contrário, repetimos o procedimento considerando apenas os vértices entre~\(v'\) e~\(v^m\).
+	\item[Passo 3.] Caso~\(p\) não tenha sido localizado em uma região de vértice, concluímos que ele está na região de aresta entre os dois últimos vértices~\(v^l\) e~\(v^r\). Para finalizar, com uma única consulta, determinamos se essa aresta pertence a~\(T_i\). Se pertencer, retornamos a região de aresta correspondente; caso contrário, retornamos a região de travessia de~\(P_i\).
 
-Esse passo é repetido até que encontremos um vértice~\(v^k\) tal que~\(p\) pertença à sua região de vértice ou restem apenas dois vértices~\(v^l\) e~\(v^r\). Nesse último caso, sabemos que~\(p\) deve estar na região de aresta entre esses vértices.
+\end{description}
 
-\vspace{1em}
-
-\noindent \textbf{Passo 3.} Caso~\(p\) não tenha sido localizado em uma região de vértice, concluímos que ele está na região de aresta entre os dois últimos vértices~\(v^l\) e~\(v^r\). Para finalizar, utilizamos as ideias discutidas anteriormente para determinar, com uma única consulta, se essa aresta pertence a~\(T_i\). Se pertencer, retornamos a região de aresta correspondente; caso contrário, retornamos a região de travessia de~\(P_i\).
 
 \end{blockQuote}
 
@@ -800,23 +797,23 @@ Começamos analisando a complexidade da primeira abordagem. Seja~\(\abs{P_i}\) o
 	n = \sum_{i = 1}^{k} \abs{P_i}.
 \]
 
-\begin{itemize}
+\begin{description}
 
-	\item \textbf{\texttt{LocalizaPonto}} (\algref{alg:locate_point_first_approach}): A complexidade desse algoritmo é~\(O(\abs{T_i})\), pois, no pior caso, é necessário verificar todas as regiões de vértice e de aresta associadas a~\(T_i\) para localizar o ponto~\(p\).
+	\item[LocalizaPonto \algref{alg:locate_point_first_approach}:] A complexidade desse algoritmo é~\(O(\abs{T_i})\), pois, no pior caso, é necessário verificar todas as regiões de vértice e de aresta associadas a~\(T_i\) para localizar o ponto~\(p\).
 
-	\item \textbf{ConsultaÚltimoPasso} e \textbf{ConsultaCaminho} (\algref{alg:consulta-ultimo-passo} e \algref{alg:consulta-caminho}): Ambos os algoritmos iniciam com uma chamada ao algoritmo \texttt{LocalizaPonto}. O pior caso ocorre quando o ponto~\(p\) pertence à região de travessia de~\(P_i\) ou a uma região de aresta, o que exige uma nova consulta ao mapa de último passo~\(S_{i-1}\). Assim, no pior caso, são feitas~\(i\) chamadas ao algoritmo \texttt{LocalizaPonto}, resultando em uma complexidade total de:
+	\item[ConsultaÚltimoPasso \algref{alg:consulta-ultimo-passo} e ConsultaCaminho \algref{alg:consulta-caminho}:] Ambos os algoritmos iniciam com uma chamada ao algoritmo \texttt{LocalizaPonto}. O pior caso ocorre quando o ponto~\(p\) pertence à região de travessia de~\(P_i\) ou a uma região de aresta, o que exige uma nova consulta ao mapa de último passo~\(S_{i-1}\). Assim, no pior caso, são feitas~\(i\) chamadas ao algoritmo \texttt{LocalizaPonto}, resultando em uma complexidade total de:
 	
 	\[
-	O\!\left(\sum_{j = 1}^{i} \abs{T_j}\right).
+		O\!\left(\sum_{j = 1}^{i} \abs{T_j}\right).
 	\]
 
-	\item \textbf{RegiãoDePrimeiroContato} e \textbf{MapaDeÚltimoPasso} (\algref{alg:first_contact_region} e \algref{alg:last_step_map}): Ambos os algoritmos realizam uma única passagem pelos vértices de~\(P_i\), fazendo uma consulta para cada vértice. Dessa forma, a complexidade desses algoritmos é:
+	\item[RegiãoDePrimeiroContato \algref{alg:first_contact_region} e MapaDeÚltimoPasso \algref{alg:last_step_map}:] Ambos os algoritmos realizam uma única passagem pelos vértices de~\(P_i\), fazendo uma consulta para cada vértice. Dessa forma, a complexidade desses algoritmos é:
 
 	\[
-	O\!\left(\abs{P_i} \sum_{j = 1}^{i} \abs{T_j}\right).
+		O\!\left(\abs{P_i} \sum_{j = 1}^{i} \abs{T_j}\right).
 	\]
 
-	\item \textbf{TPP completo} (\algref{alg:tpp_complete-1-2}): O algoritmo executa uma chamada para calcular~\(T_i\) e~\(S_i\) para cada~\(i = 1, \dots, k\), e ao final realiza uma chamada para consultar o caminho até o ponto~\(t\). Assim, a complexidade total do algoritmo TPP é dada por:
+	\item[TPP completo \algref{alg:tpp_complete-1-2}:] O algoritmo executa uma chamada para calcular~\(T_i\) e~\(S_i\) para cada~\(i = 1, \dots, k\), e ao final realiza uma chamada para consultar o caminho até o ponto~\(t\). Assim, a complexidade total do algoritmo TPP é dada por:
 
 	\begin{align*}
 		O\!\left(\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \abs{T_j} + \sum_{j = 1}^{k} \abs{T_j}\right)
@@ -827,25 +824,30 @@ Começamos analisando a complexidade da primeira abordagem. Seja~\(\abs{P_i}\) o
 		&= O(n^2).
 	\end{align*}
 
-\end{itemize}
+
+\end{description}
+
 
 Assim, concluímos que a complexidade total do algoritmo TPP utilizando a primeira abordagem é~\(O(n^2)\). A seguir, analisamos a complexidade da segunda abordagem.
 
-\begin{itemize}
+\begin{description}
 
-	\item \textbf{\texttt{LocalizaPonto}} (\algref{alg:locate_point_second_approach}): A complexidade desse algoritmo é~\(O(\log \abs{T_i})\), correspondente ao pior caso da busca binária utilizada para localizar o ponto~\(p\) em~\(S_i\).
-
-	\item \textbf{ConsultaÚltimoPasso} e \textbf{ConsultaCaminho}: De forma análoga ao caso anterior, o pior caso envolve~\(i\) chamadas ao algoritmo \texttt{LocalizaPonto}, resultando em uma complexidade
+	\item[LocalizaPonto \algref{alg:locate_point_second_approach}:] A complexidade desse algoritmo é~\(O(\log \abs{T_i})\), correspondente ao pior caso da busca binária utilizada para localizar o ponto~\(p\) em~\(S_i\).
+	
+	\item[ConsultaÚltimoPasso \algref{alg:consulta-ultimo-passo} e ConsultaCaminho \algref{alg:consulta-caminho}:] De forma análoga ao caso anterior, o pior caso envolve~\(i\) chamadas ao algoritmo \texttt{LocalizaPonto}, resultando na complexidade:
+	
 	\[
-	O\!\left(\sum_{j = 1}^{i} \log \abs{T_j}\right).
+		O\!\left(\sum_{j = 1}^{i} \log \abs{T_j}\right).
 	\]
 
-	\item \textbf{RegiãoDePrimeiroContato} e \textbf{MapaDeÚltimoPasso}: Cada um desses algoritmos percorre os vértices de~\(P_i\) e realiza uma consulta para cada vértice. Portanto, a complexidade é
+	\item[RegiãoDePrimeiroContato \algref{alg:first_contact_region} e MapaDeÚltimoPasso \algref{alg:last_step_map}:] Cada um desses algoritmos itera sobre os vértices de~\(P_i\) e realiza uma consulta para cada vértice. Portanto, a complexidade é:
+	
 	\[
-	O\!\left(\abs{P_i} \sum_{j = 1}^{i} \log \abs{T_j}\right).
+		O\!\left(\abs{P_i} \sum_{j = 1}^{i} \log \abs{T_j}\right).
 	\]
 
-	\item \textbf{TPP completo}: O custo total do algoritmo é
+	\item[TPP completo \algref{alg:tpp_complete-1-2}:] O custo total do algoritmo é:
+	
 	\begin{align*}
 		O\!\left(\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \log \abs{T_j} + \sum_{j = 1}^{k} \log \abs{T_j}\right)
 		&= O\!\left(\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \log \abs{P_j}\right) \\
@@ -853,14 +855,15 @@ Assim, concluímos que a complexidade total do algoritmo TPP utilizando a primei
 		&= O\!\left(n \sum_{j = 1}^{k} \log \abs{P_j}\right).
 	\end{align*}
 
-	Observando que a soma~\(\sum_{j = 1}^{k} \log \abs{P_j}\) é maximizada quando todos os polígonos possuem o mesmo número de vértices, isto é, quando~\(\abs{P_j} = n/k\) para todo~\(j\), obtemos que a complexidade final do algoritmo TPP usando a segunda abordagem é
+	Observando que a soma~\(\sum_{j = 1}^{k} \log \abs{P_j}\) é maximizada quando todos os polígonos possuem o mesmo número de vértices, isto é, quando~\(\abs{P_j} = n/k\) para todo~\(j\), obtemos que a complexidade final do algoritmo TPP usando a segunda abordagem é:
+
 	\[
-	O\!\left(nk \log (n/k)\right).
+		O\!\left(nk \log (n/k)\right).
 	\]
 
-\end{itemize}
+\end{description}
 
-Portanto, a complexidade final do algoritmo TPP utilizando a segunda abordagem é~\(O(nk \log (n/k))\). Essa complexidade coincide exatamente com a apresentada por Dror et al. (2003)~\cite{tpp-dror2003}, o que indica que nossa implementação atinge a mesma eficiência assintótica da proposta original.
+Dessa forma, concluimos que a complexidade final do algoritmo TPP utilizando a segunda abordagem é~\(O(nk \log (n/k))\). Essa complexidade coincide exatamente com a apresentada por Dror et al. (2003)~\cite{tpp-dror2003}, o que indica que nossa implementação atinge a mesma eficiência assintótica da proposta original.
 
 Por fim, resta analisar a complexidade da terceira abordagem. Essa análise é mais delicada, pois a complexidade do algoritmo \texttt{LocalizaPonto} passa a depender fortemente da instância específica, em particular da distribuição dos vértices nos polígonos e das consultas efetivamente realizadas ao mapa de último passo. Ainda assim, é imediato observar que a terceira abordagem nunca será pior do que a segunda, uma vez que, no pior caso, todas as regiões de vértice em~\(T_i\) serão calculadas, recuperando exatamente o comportamento da segunda abordagem. Assim, concluímos que a complexidade da terceira abordagem é~\(O(nk \log (n/k))\) no pior caso, podendo ser significativamente melhor em instâncias favoráveis, dependendo do padrão das consultas realizadas.
 
