@@ -409,11 +409,11 @@ Primeiramente, para calcular a região de primeiro contato~\(T_i\) de um polígo
 
 \end{algorithm}
 
-Uma vez que temos \(T_i\), podemos calcular o mapa de último passo~\(S_i\) de~\(P_i\), para tal, vamos primeiro retomar as consições de otimalidade local discutidas em~\cite[\textbf{Local Optimality Conditions.}]{tpp-dror2003}, que nos permitem determinar o mapa de último passo~\(S_i\) de um polígono~\(P_i\) a partir da região de primeiro contato~\(T_i\). Seja~\(v\) um vértice de um polígono qualquer~\(P\) com arestas incidentes~\(e^1\) e~\(e^2\) e suponha que desejamos visitar~\(P\) partindo de~\(q\) e terminando em~\(p\). Para que o caminho mínimo de~\(q\) até~\(p\) passe por~\(v\), é necessário que~\(p\) esteja dentro do cone definido por~\(v\) e por um par ordenado de raios que partem de~\(v\). 
+Uma vez que temos \(T_i\), podemos calcular o mapa de último passo~\(S_i\) de~\(P_i\), para tal, vamos primeiro retomar as condições de otimalidade local discutidas em~\cite[\textbf{Local Optimality Conditions.}]{tpp-dror2003}, que nos permitem determinar o mapa de último passo~\(S_i\) de um polígono~\(P_i\) a partir da região de primeiro contato~\(T_i\). Seja~\(v\) um vértice de um polígono qualquer~\(P\) com arestas incidentes~\(e^1\) e~\(e^2\) e suponha que desejamos visitar~\(P\) partindo de~\(q\) e terminando em~\(p\). Para que o caminho mínimo de~\(q\) até~\(p\) passe por~\(v\), é necessário que~\(p\) esteja dentro do cone definido por~\(v\) e por um par ordenado de raios que partem de~\(v\) determinados a partir de~\(e^1\) e~\(e^2\) nessa ordem. 
 
-Esses raios podem ser calculados a partir do vetor~\(\overrightarrow{qv}\) e de suas reflexões em relação às arestas incidentes em~\(v\). Mais especificamente, se~\(e^1\) e~\(e^2\) são as arestas de~\(P\), em sentido anti-horário, que contêm~\(v\), então o primeiro raio é a reflexão do vetor~\(\overrightarrow{qv}\) em relação à reta que contém~\(e^1\), caso~\(e^1\) pertença a~\(T_i\), ou simplesmente o vetor~\(\overrightarrow{qv}\), caso contrário. De forma análoga, o segundo raio é a reflexão do vetor~\(\overrightarrow{qv}\) em relação à reta que contém~\(e^2\), caso~\(e^2\) pertença a~\(T_i\), ou simplesmente o vetor~\(\overrightarrow{qv}\), caso contrário.
+O raio associado a uma aresta~\(e\) incidente a~\(v\) será \(v - q\) se \(q\) está do lado interno de~\(e\) ou~\(q' - v\) onde~\(q'\) é a reflexão de~\(q\) em relação à reta perpendicular a~\(e\) que passa por~\(v\) caso contrário. Assim, concluimos a condição de otimalidade local para um vértice~\(v\) de~\(P\), no entanto, como todo \(i\)-path é único, temos que otimalidade local implica otimalidade global. Assim, para determinar o mapa de último passo~\(S_i\) de~\(P_i\), basta calcular os pares ordenados de raios associados a cada vértice de~\(P_i\) que tem uma aresta incidente pertencente a~\(T_i\). Implementamos essa ideia no Algoritmo~\algref{alg:last_step_map}, onde, para cada vértice~\(v\) de~\(P_i\) que tem uma aresta incidente pertencente a~\(T_i\), calculamos os raios associados a~\(v\) e associamos o par ordenado desses raios a~\(v\) em~\(S_i\).
 
-\textcolor{blue}{Fiquei confuso aqui. Os raios nao deveriam partir de $v$? Pergunto porque voce fala $qv$ com a seta acima, como se a coisa partisse de $q$.} Repetimos esse processo para todos os vértices de~\(P_i\), obtendo assim todas as regiões associadas a vértices de~\(P_i\) em~\(S_i\). Essa ideia é implementada no Algoritmo~\algref{alg:last_step_map}.
+% \textcolor{blue}{Fiquei confuso aqui. Os raios nao deveriam partir de $v$? Pergunto porque voce fala $qv$ com a seta acima, como se a coisa partisse de $q$.} Repetimos esse processo para todos os vértices de~\(P_i\), obtendo assim todas as regiões associadas a vértices de~\(P_i\) em~\(S_i\). Essa ideia é implementada no Algoritmo~\algref{alg:last_step_map}.
 
 \begin{algorithm}[!ht]
 \alglabel{alg:last_step_map}
@@ -426,6 +426,19 @@ Esses raios podem ser calculados a partir do vetor~\(\overrightarrow{qv}\) e de 
 \hrule
 \vspace{0.3em}
 
+\tcp{Função auxiliar para calcular o raio refletido na aresta \(e = \overline{uv}\) incidente a \(v\) onde \(q\) é o ponto que precede \(v\) no \((i - 1)\)-path até \(v\).}
+
+\Function {Reflexão(\(q, v, e\))} {
+	\If {\((u - v) \times (q - v) \ge 0\)} {
+		\Return {} \(v - q\)
+	}
+	\Else {
+		\(e_\perp \leftarrow\) vetor perpendicular a \(e\) que passa por \(v\) \\
+		\(q' \leftarrow\) reflexão de \(q\) em relação à reta que contém \(e_\perp\) (Veja \ref{eq:reflection_on_edge})\\
+		\Return {} \(q' - v\)
+	}
+}
+
 \Function {MapaDeÚltimoPasso(\(i, s, (P_1, \dots, P_i), (T_1, \dots, T_i), (S_1, \dots, S_{i - 1})\))} {
 
 	\(S_i \leftarrow \emptyset\)
@@ -436,21 +449,9 @@ Esses raios podem ser calculados a partir do vetor~\(\overrightarrow{qv}\) e de 
 		\(e^2 \leftarrow\) aresta posterior de \(v\) em \(P_i\) \\
 
 		\(q \leftarrow \text{ConsultaÚltimoPasso}(v, i - 1, s, (P_1, \dots, P_{i - 1}), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1}))\) \\
-		\(d \leftarrow v - q\)
-
-		\If {\(e^1\) pertence a \(T_i\)} {
-			\(r^1 \leftarrow\) reflexão de \(d\) em relação à reta que contém \(e^1\)
-		}
-		\Else {
-			\(r^1 \leftarrow d\)
-		}
-
-		\If {\(e^2\) pertence a \(T_i\)} {
-			\(r^2 \leftarrow\) reflexão de \(d\) em relação à reta que contém \(e^2\)
-		}
-		\Else {
-			\(r^2 \leftarrow d\)
-		}
+		
+		\(r^1 \leftarrow \text{Reflexão}(q, v, e^1)\) \\
+		\(r^2 \leftarrow \text{Reflexão}(q, v, e^2)\) \\
 
 		Associa \((r^1, r^2)\) a \(v\) e adiciona à \(S_i\)
 	}
