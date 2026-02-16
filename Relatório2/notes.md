@@ -18,7 +18,7 @@
 13. Ser explicito e dizer ponto `p` em `R^2`
 14. Uma figura para cada definição da região de primeiro contato, mapa de ultimo passo, i path. Essas figuras devem ser diferentes da Figura 1
 15. Usar captions mais longos
-16. Usar `u` e `v` em vez de `v^1` e `v^2
+16. Usar `u` e `v` em vez de `v^1` e `v^2`
 17. Explicar as condições de otimalizade discutidas em [2]
 
 Dora Marta Birgin - 1944 - 976225153
