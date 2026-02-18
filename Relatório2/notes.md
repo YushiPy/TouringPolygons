@@ -20,3 +20,7 @@
 15. Usar captions mais longos
 16. Usar `u` e `v` em vez de `v^1` e `v^2`
 17. Explicar as condições de otimalizade discutidas em [2]
+
+18. Falar na introdução que temos um ponto inicial `s` e final `t`
+19. Linha cheia no desenho de mapa de último passo para mostrar que a fronteira da região de vértice pertence à região de vértice e a fronterira de região de aresta pertence à região de aresta
+20. Incluir `p`, `q`, `q'`, `p'` na figura da reflexão

@@ -192,6 +192,33 @@ class Solution:
 
 	def query(self, point: Vector2, index: int) -> Vector2:
 		return self.query2(point, index)[0]
+	
+	def full_query(self, point: Vector2, index: int) -> list[Vector2]:
+		"""
+		Given a point and a polygon index, returns the full path of the smallest `index`-path from `start` to `point`.
+
+		:param Vector2 point: The point to query.
+		:param int index: The index of the polygon to query.
+
+		:return list[Vector2]: The full path of the smallest `index`-path from `start` to `point`.
+		"""
+
+		path = [point]
+
+		current_point = point
+		current_index = index
+
+		while current_index >= 0:
+
+			current_point, current_index = self.query2(current_point, current_index)
+			current_index -= 1
+
+			if not current_point.is_close(path[-1]):
+				path.append(current_point)
+
+		path.reverse()
+
+		return path
 
 	def solve(self) -> list[Vector2]:
 		"""
