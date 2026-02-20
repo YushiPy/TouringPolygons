@@ -161,7 +161,7 @@ def clean_polygon(polygon: Polygon2, eps: float = 1e-8) -> Polygon2:
 
 	return cleaned
 
-def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: Sequence[Polygon2], *, simplify: bool = False) -> list[Vector2]:
+def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: Sequence[Polygon2], *, simplify: bool = True) -> list[Vector2]:
 
 	start = (start[0], start[1])
 	target = (target[0], target[1])
@@ -192,7 +192,7 @@ def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: Sequenc
 		vertex = polygon[j]
 		before = polygon[j - 1]
 		after = polygon[(j + 1) % len(polygon)]
-
+		
 		last = query(vertex, i)
 		diff = vector_normalize(vector_sub(vertex, last))
 
@@ -238,29 +238,39 @@ def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: Sequenc
 
 		def get(i: int) -> tuple[Vector2, Vector2]:
 			return get_cone(index, i)
-		
-		def check(l: int, r: int) -> bool:
-			return point_in_edge(point, polygon[l // 2], polygon[r // 2], get(l // 2)[l % 2], get(r // 2)[r % 2])
 
+		#def format_ray(ray: Vector2) -> str:
+		#	import math
+		#	a = math.atan2(*ray[::-1]) * 180 / math.pi
+		#	return f"{a:.2f}°"
+
+		def check(l: int, r: int) -> bool:
+			#print(l, r)
+			#print(point, polygon[l // 2], polygon[r // 2], format_ray(get(l // 2)[l % 2]), format_ray(get(r // 2)[r % 2]), point_in_edge(point, polygon[l // 2], polygon[r // 2], get(l // 2)[l % 2], get(r // 2)[r % 2]))
+			return point_in_edge(point, polygon[l // 2], polygon[r // 2], get(l // 2)[l % 2], get(r // 2)[r % 2])
+		
 		polygon = polygons[index]
 		n = len(polygon)
 
-		if check(0, 1):
-			return 0
-		
 		left = 0
 		right = 2 * n - 1
+
+		if check(right, left):
+			return right
 
 		while left + 1 != right:
 
 			mid = (left + right) // 2
 
-			if check(left, mid + 1):
+			if check(left, mid):
 				right = mid
 			else:
 				left = mid
+
+		if not check(left, right):
+			raise ValueError("Point is not located in any cone or edge.")
 		
-		return right
+		return left
 	
 	def query(point: Vector2, index: int) -> Vector2:
 		

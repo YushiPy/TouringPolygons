@@ -8,7 +8,7 @@ from vector2 import Vector2
 from polygon2 import Polygon2
 
 from u_tpp_naive import tpp_solve as reference_tpp_solve
-from u_tpp_fast_locate import tpp_solve as test_tpp_solve
+from u_tpp import tpp_solve as test_tpp_solve
 
 type _Vector2 = Iterable[float]
 type _Polygon2 = Iterable[_Vector2]
@@ -87,12 +87,28 @@ def make_test(sides: list[int]) -> TestCase:
 
 	return start, target, polygons # type: ignore
 
+def print_test(test: TestCase) -> None:
+	print((tuple(test[0]), tuple(test[1]), [list(map(tuple, polygon)) for polygon in test[2]]))
+
 def do_test(test: TestCase) -> bool:
 
 	test = (Vector2(*test[0]), Vector2(*test[1]), list(map(Polygon2, test[2])))
+
+	try:
+		expected = reference_solution(*test) # type: ignore
+	except Exception as e:
+		print("❌ Reference solution raised an exception:", e)
+		print_test(test)
+		exit(1)
+		return False
 	
-	expected = reference_solution(*test) # type: ignore
-	actual = test_solution(*test) # type: ignore
+	try:
+		actual = test_solution(*test) # type: ignore
+	except Exception as e:
+		print("❌ Test solution raised an exception:", e)
+		print_test(test)
+		exit(1)
+		return False
 
 	if TEST_LENGTH:
 		length_expected = sum((expected[i] - expected[i + 1]).magnitude() for i in range(len(expected) - 1))
@@ -103,7 +119,9 @@ def do_test(test: TestCase) -> bool:
 	
 	if not passed:
 		print("❌ Test failed!")
-		print(test)
+		print("Expected:", [tuple(p) for p in expected])
+		print("Actual:", [tuple(p) for p in actual])
+		print_test(test)
 		return False
 
 	return True
@@ -135,8 +153,9 @@ if __name__ == "__main__":
 
 	fixed = [
 		((-2.0, 0.0), (2.0, 0.0), [[(-1.0, 1.0), (1.0, 1.0), (0.0, 2.0)]]),
-		((-1, 5), (-0.5, 4.5), [[(2, 2), (0, 2), (0, 4)]]),
-
+		((-1.0, 5.0), (-0.5, 4.5), [[(2.0, 2.0), (0.0, 2.0), (0.0, 4.0)]]),
+		((-0.6, 5.2), (-0.6, 4.8), [[(2.8, 2.0), (0.0, 2.0), (0.0, 5.0)]]),
+		((4.5, 2.0), (3.5, 2.0), [[(2.8, 2.0), (0.0, 2.0), (0.0, 5.0)]]),
 	]
 
 	test_block("Fixed", [
