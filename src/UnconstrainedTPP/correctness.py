@@ -7,7 +7,7 @@ import math
 from vector2 import Vector2
 from polygon2 import Polygon2
 
-from u_tpp import tpp_solve as reference_tpp_solve
+from u_tpp_naive import tpp_solve as reference_tpp_solve
 from u_tpp_fast_locate import tpp_solve as test_tpp_solve
 
 type _Vector2 = Iterable[float]
@@ -135,6 +135,8 @@ if __name__ == "__main__":
 
 	fixed = [
 		((-2.0, 0.0), (2.0, 0.0), [[(-1.0, 1.0), (1.0, 1.0), (0.0, 2.0)]]),
+		((-1, 5), (-0.5, 4.5), [[(2, 2), (0, 2), (0, 4)]]),
+
 	]
 
 	test_block("Fixed", [

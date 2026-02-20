@@ -301,4 +301,4 @@ class Solution:
 		return result
 
 def tpp_solve(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
-	return Solution(start, target, polygons).solve()
+	return Solution(Vector2(start), Vector2(target), list(map(Polygon2, polygons))).solve()

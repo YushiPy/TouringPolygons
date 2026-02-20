@@ -61,12 +61,10 @@ def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2,
 	:return: True if the point is inside the cone, False otherwise.
 	"""
 
-	diff = vector_sub(point, vertex)
-
-	if vector_cross(ray1, ray2) >= 0:
-		return vector_cross(ray1, diff) >= -eps and vector_cross(ray2, diff) <= eps
+	if vector_cross(ray1, ray2) < -eps:
+		return vector_cross(ray1, vector_sub(point, vertex)) >= -eps or vector_cross(ray2, vector_sub(point, vertex)) <= eps
 	else:
-		return vector_cross(ray1, diff) >= -eps or vector_cross(ray2, diff) <= eps
+		return vector_cross(ray1, vector_sub(point, vertex)) >= -eps and vector_cross(ray2, vector_sub(point, vertex)) <= eps
 
 def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2, eps: float = 1e-8) -> bool:
 
@@ -78,6 +76,7 @@ def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vect
 	dv = vector_sub(vertex2, vertex1)
 
 	if vector_is_close(ray1, ray2):
+		return False
 		return vector_cross(dv, p1) >= -eps and vector_cross(dv, p2) <= eps
 
 	if vector_cross(dv, ray1) < eps:

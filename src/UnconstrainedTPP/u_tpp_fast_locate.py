@@ -21,6 +21,7 @@ def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vect
 	dv = vertex2 - vertex1
 
 	if ray1.is_close(ray2):
+		return False
 		return dv.cross(p1) >= -eps and dv.cross(p2) <= eps
 
 	match (dv.cross(ray1) >= -eps, dv.cross(ray2) >= -eps):
@@ -60,7 +61,7 @@ def locate_point(point: Vector2, polygon: Polygon2, cones: Cones) -> int:
 
 		v1 = polygon[i // 2]
 		v2 = polygon[j // 2]
-
+		#print(i, j, v1, v2, ray1, ray2)
 		return point_in_edge(point, v1, v2, ray1, ray2, 0)
 
 	left = 0
@@ -70,14 +71,14 @@ def locate_point(point: Vector2, polygon: Polygon2, cones: Cones) -> int:
 		return right
 
 	while left + 1 != right:
-
+		#print(left, right)
 		mid = (left + right) // 2
 
 		if is_between(left, mid):
 			right = mid
 		else:
 			left = mid
-
+	
 	return left
 
 def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2, eps: float = 1e-8) -> Vector2 | None:
@@ -293,31 +294,3 @@ class Solution:
 
 def tpp_solve(start: _Vector2, target: _Vector2, polygons: Iterable[_Polygon2]) -> list[Vector2]:
 	return Solution(start, target, polygons).solve()
-
-"""
-Complexity Analysis:
-
-Let each polygon in the input be `P_i` with `m_i` vertices for `i = 1, 2, ..., k`, where `k` is the number of polygons.
-
-- __init__:
-	- O(m_1 + m_2 + ... + m_k) = O(n). To initialize polygons, cones, and blocked lists. As well as checking convexity.
-- query(..., index):
-	Worst case, `index` calls to locate_point, each `O(log m_i)`, so `O(log(m_1) + log(m_2) + ... + log(m_index))`.
-	Other operations are O(1).
-- solve:
-	For each polygon `P_i`, we have `m_i` calls to query, each `O(log(m_1) + ... + log(m_{i-1}))`.
-	Thus, total complexity is:
-		O(Σ (m_i * Σ log(m_j) for j=1 to i-1) for i=1 to k)
-
-Total Complexity:
-	Since O(n) is dominated by the nested summation in solve, the overall complexity is:
-		O(Σ (m_i * Σ log(m_j) for j=1 to i-1) for i=1 to k).
-	This is maximum when all polygons have similar sizes, leading to
-	m_i = n/k for all i, therefore Σ log(m_j) for j=1 to i-1 becomes O(i * log(n/k)) <= O(k log(n/k)).
-	Thus, the overall complexity can be approximated as:
-		O(n * k * log(n/k)).
-	
-In conclusion, the time complexity is O(n log n) for a fixed number of polygons.
-Furthermore, if we say that all polygons have the same number of vertices m, then the complexity becomes O(k^2 * m * log m), 
-which grows quadratically with the number of polygons.
-"""

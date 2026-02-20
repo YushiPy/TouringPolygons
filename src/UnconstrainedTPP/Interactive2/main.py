@@ -12,7 +12,7 @@ os.chdir(os.path.dirname(__file__))
 sys.path.append("..")
 
 from polygon2 import Polygon2
-from u_tpp import tpp_solve
+from u_tpp_fast_locate import tpp_solve
 
 pg.init()
 
@@ -718,14 +718,19 @@ class Main:
 		if not self.polygons:
 			return
 
-		if any(not Polygon2((v.position for v in poly.vertices)).is_convex() for poly in self.polygons):
+		if any(len(poly.vertices) < 3 or not Polygon2((v.position for v in poly.vertices)).is_convex() for poly in self.polygons):
 			return
 		
 		start = tuple(self.start.position)
 		target = tuple(self.target.position)
 		polygons = [Polygon2(p.position for p in poly.vertices) for poly in self.polygons] # type: ignore
 
-		path = tpp_solve(start, target, polygons) # type: ignore
+		try:
+			path = tpp_solve(start, target, polygons) # type: ignore
+		except Exception as e:
+			print(f"Error solving TPP: {e}")
+			print(f"{start}\n{target}\n{polygons}")
+			return
 
 		pg.draw.lines(self.screen, (0, 0, 255), False, [self.to_screen_pos(pg.Vector2(p)) for p in path], 3)
 

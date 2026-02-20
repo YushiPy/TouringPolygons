@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 from vector2 import Vector2
 from polygon2 import Polygon2
 
-from u_tpp import Solution
+from u_tpp_fast_locate import Solution
 
 def intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> tuple[float, float] | None:
 
@@ -245,7 +245,8 @@ class Drawing(Solution):
 
 				vertex = polygon[i]
 
-				ray1, ray2 = self.get_cone(index, i)
+				#ray1, ray2 = self.get_cone(index, i)
+				ray1, ray2 = self.cones[index][i]
 
 				if ray1 == ray2:
 					continue
@@ -266,14 +267,17 @@ class Drawing(Solution):
 
 			for i in range(len(polygon)):
 
-				if self.is_blocked_edge(index, i):
-					continue
+				#if self.is_blocked_edge(index, i): continue
+				if self.blocked[index][i]: continue
 
 				v1 = polygon[i]
 				v2 = polygon[(i + 1) % len(polygon)]
 
-				ray1 = self.get_cone(index, i)[1]
-				ray2 = self.get_cone(index, (i + 1) % len(polygon))[0]
+				#ray1 = self.get_cone(index, i)[1]
+				#ray2 = self.get_cone(index, (i + 1) % len(polygon))[0]
+
+				ray1 = self.cones[index][i][1]
+				ray2 = self.cones[index][(i + 1) % len(polygon)][0]
 
 				points = locate_edge(v1, ray1, v2, ray2, bbox)
 
@@ -315,3 +319,5 @@ class Drawing(Solution):
 
 		# ax.legend() # type: ignore
 		ax.grid() # type: ignore
+
+Drawing((-0.471097, 0.596212), (-0.717339, -0.579604), [((0.6340224323676885, -0.3812568761622075), (0.6592491840801358, -1.5232541643497923), (1.6356344708472994, -0.930408512418058)), ((-3.1885419617267754, -4.036184099476407), (-4.185087434379117, -4.025447713146999), (-4.195823820708525, -5.02199318579934), (-3.1992783480561844, -5.032729572128749))]).draw()
