@@ -3,7 +3,7 @@ from collections.abc import Sequence
 
 
 type Vector2 = tuple[float, float]
-type Polygon2 = list[Vector2]
+type Polygon2 = Sequence[Vector2]
 
 
 def vector_add(v1: Vector2, v2: Vector2) -> Vector2:
@@ -162,7 +162,7 @@ def clean_polygon(polygon: Polygon2, eps: float = 1e-8) -> Polygon2:
 
 	return cleaned
 
-def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: list[Polygon2], *, simplify: bool = False) -> list[Vector2]:
+def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: Sequence[Polygon2], *, simplify: bool = False) -> list[Vector2]:
 
 	start = (start[0], start[1])
 	target = (target[0], target[1])

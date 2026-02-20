@@ -43,6 +43,22 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 
 	return None
 
+def hull_method(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    sorted_points = sorted(points)
+    return half_hull(sorted_points) + half_hull(reversed(sorted_points))
+
+def half_hull(sorted_points: Iterable[tuple[float, float]]) -> list[tuple[float, float]]:
+    hull: list[tuple[float, float]] = []
+    for p in sorted_points:
+        while len(hull) > 1 and not is_ccw_turn(hull[-2], hull[-1], p):
+            hull.pop()
+        hull.append(p)
+    hull.pop()
+    return hull
+
+def is_ccw_turn(p0: tuple[float, float], p1: tuple[float, float], p2: tuple[float, float]) -> bool:
+    return (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p2[0] - p0[0]) * (p1[1] - p0[1]) > 0
+
 class Polygon2(tuple[Vector2, ...]):
 
 	@staticmethod
@@ -137,3 +153,12 @@ class Polygon2(tuple[Vector2, ...]):
 		Each edge is represented as a tuple of two Vector2 points.
 		"""
 		return [(self[i], self[(i + 1) % len(self)]) for i in range(len(self))]
+
+	def convex_hull(self) -> "Polygon2":
+		"""
+		Calculate the convex hull of the polygon's points using Andrew's monotone chain algorithm.
+		Returns a new Polygon2 instance representing the convex hull.
+		"""
+		points = [(p.x, p.y) for p in self]
+		hull_points = hull_method(points)
+		return Polygon2(hull_points)
