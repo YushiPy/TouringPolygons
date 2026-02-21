@@ -44,7 +44,7 @@ class ButtonColors(enum.Enum):
 FRICTION = 0.9
 
 FONT = pg.font.SysFont("arial", 16)
-
+EXPORT_FILE = "export.txt"
 
 
 def create_display() -> pg.Surface:
@@ -230,7 +230,18 @@ class Main:
 
 		self.change_button = Button("Polygon 1", lambda x, y = 1, *_, **__: change_index(x, y))
 		self.buttons.append(self.change_button)
+
+		self.export_button = Button("Export", wrap_function(self.export))
+		self.buttons.append(self.export_button)
 	
+	def export(self) -> None:
+
+		with open(EXPORT_FILE, "a") as f:
+			start = tuple(self.start.position)
+			target = tuple(self.target.position)
+			polygons = [[tuple(vertex.position) for vertex in polygon.vertices] for polygon in self.polygons]
+			f.write(str((start, target, polygons)) + "\n")
+
 	def get_button_rects(self) -> list[pg.Rect]:
 
 		currentx = self.render_area.left + 20
@@ -357,6 +368,8 @@ class Main:
 					self.change_button.call(count=1)
 				elif event.key == pg.K_DOWN:
 					self.change_button.call(count=-1)
+				elif event.key == pg.K_e:
+					self.export_button.call()
 				
 
 			if event.type == pg.MOUSEWHEEL:
@@ -732,7 +745,11 @@ class Main:
 			print(f"{start}\n{target}\n{polygons}")
 			return
 
-		pg.draw.lines(self.screen, (0, 0, 255), False, [self.to_screen_pos(pg.Vector2(p)) for p in path], 3)
+		pg.draw.lines(self.screen, (0, 0, 255), False, [self.to_screen_pos(pg.Vector2(p)) for p in path], 3) # type: ignore
+
+		for point in path[1:-1]:
+			screen_pos = self.to_screen_pos(pg.Vector2(point)) # type: ignore
+			pg.draw.circle(self.screen, (0, 0, 255), screen_pos, 5)
 
 	def draw(self) -> None:
 
@@ -741,13 +758,6 @@ class Main:
 		self.screen.fill(BACKGROUND_COLOR)
 		
 		self.draw_grid()
-
-		for point in self.points:
-			self.draw_point(point)
-		
-		for polygon in self.polygons:
-			self.draw_polygon(polygon)
-
 
 		self.draw_ghost_polygon()
 
@@ -761,6 +771,13 @@ class Main:
 				self.draw_line(position, mouse_pos, color, 2)
 
 		self.draw_solution()
+
+		for point in self.points:
+			self.draw_point(point)
+		
+		for polygon in self.polygons:
+			self.draw_polygon(polygon)
+
 
 		self.draw_table()
 		self.draw_buttons()

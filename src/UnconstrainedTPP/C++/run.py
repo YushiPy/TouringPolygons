@@ -1,4 +1,5 @@
 
+import re
 import sys
 import os
 import subprocess
@@ -30,6 +31,7 @@ def has_modified(filename: str, object_file: bool) -> bool:
 def get_basename(filename: str) -> str:
 	return os.path.splitext(filename)[0]
 
+"""
 def get_dependencies(filename: str) -> list[str]:
 
 	command = f"{COMPILER} {FLAGS} -MMD -c {filename}"
@@ -43,8 +45,34 @@ def get_dependencies(filename: str) -> list[str]:
 	subprocess.run(f"rm {basename}.d", shell=True, check=True)
 
 	return [dep for dep in dependencies[1:] if dep != filename]
+"""
 
-def compile_file(filename: str, object_file: bool = False, report: Callable[..., None] = print) -> bool:
+def get_dependencies(filename: str) -> list[str]:
+
+	with open(filename, "r") as f:
+		lines = f.readlines()
+
+	dependencies = []
+
+	for line in lines:
+		m = re.match(r'#include\s+"(.+)"', line)
+		if m:
+			dependencies.append(m.group(1))
+
+	return dependencies
+
+def has_main(filename: str) -> bool:
+
+	with open(filename, "r") as f:
+		lines = f.readlines()
+
+	for line in lines:
+		if re.search(r'\bint\s+main\s*\(', line):
+			return True
+
+	return False
+
+def compile_file(filename: str, object_file: bool = False, report: Callable[..., None] = print, force: bool = False) -> bool:
 
 	basename = get_basename(filename)
 
@@ -77,11 +105,11 @@ def compile_file(filename: str, object_file: bool = False, report: Callable[...,
 		if dep.endswith(".h"):
 			dep = get_basename(dep) + ".cpp"
 
-		compiled_dependency |= compile_file(dep, object_file=True, report=report)
+		compiled_dependency |= compile_file(dep, object_file=True, report=report, force=force)
 
 		dependency_files.append(get_basename(dep) + ".o")
 
-	if not compiled_dependency and not file_has_modified:
+	if not compiled_dependency and not file_has_modified and not force:
 		report(f"✅ '{filename}' is up to date. Skipping compilation.")
 		return False 
 
@@ -104,12 +132,18 @@ def main(argv: list[str]) -> int:
 		print(ValueError("Usage: run.py <filename> [flags]"))
 		return 1
 
-	filename = argv[1]
-	object_file = "-c" in argv[2:]
-	silent = "-s" in argv[2:]
-	report = (lambda *args: None) if silent else print
+	flags = "".join(x[1:] for x in argv[2:] if x.startswith("-"))
 
-	compile_file(filename, object_file, report)
+	filename = argv[1]
+	object_file = not has_main(filename)
+	silent = "s" in flags
+	report = (lambda *args: None) if silent else print
+	force = "f" in flags
+
+	compile_file(filename, object_file, report, force)
+
+	if not object_file:
+		os.chmod(get_basename(filename), 0o755)
 
 	report("Compilation successful.\n")
 

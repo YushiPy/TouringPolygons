@@ -1,8 +1,15 @@
 
+getfilename () {
+	# Filter out the path and extension from the filename
+	filename=$(basename -- "$1")
+	filename="${filename%.*}"
+	echo "$filename"
+}
+
 build() {
-	python run.py "$@" -c
+	python run.py "$@"
 }
 
 run() {
-	python run.py "$@" && ./$1
+	python run.py "$@" && ./"$(getfilename "$1")"
 }
