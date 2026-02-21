@@ -1,3 +1,10 @@
+"""
+First approach to solve the unconstrained TPP. 
+This implementation is not optimized and may not be efficient for large inputs, 
+but it serves as a proof of concept and a baseline for further improvements.
+
+See report for details on the algorithm and its complexity analysis.
+"""
 
 from collections.abc import Iterable
 from vector2 import Vector2
@@ -6,14 +13,7 @@ from polygon2 import Polygon2
 
 def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2) -> Vector2 | None:
 	"""
-	Returns the intersection point of two line segments if they intersect, otherwise returns None.
-
-	:param Vector2 start1: The start point of the first segment as a Vector2.
-	:param Vector2 end1: The end point of the first segment as a Vector2.
-	:param Vector2 start2: The start point of the second segment as a Vector2.
-	:param Vector2 end2: The end point of the second segment as a Vector2.
-
-	:return: The intersection point as a Vector2 if the segments intersect, otherwise None.	
+	Returns the intersection point of segments (start1, end1) and (start2, end2) if they intersect, otherwise returns None.
 	"""
 
 	direction1 = end1 - start1
@@ -35,15 +35,8 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 
 def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
 	"""
-	Check if a point is inside the cone defined by two rays starting from `start`.
-	The rays are in clockwise order.
-
-	:param Vector2 point: The point to check.
-	:param Vector2 start: The starting point of the cone.
-	:param Vector2 ray1: The first ray direction.
-	:param Vector2 ray2: The second ray direction.
-
-	:return: True if the point is inside the cone, False otherwise.
+	Check if `point` is inside the cone defined by `vertex` and rays `ray1` and `ray2`. 
+	The rays are in counter-clockwise order.
 	"""
 
 	if ray1.cross(ray2) == 0 and ray1.dot(ray2) >= 0:
@@ -54,20 +47,13 @@ def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2)
 	else:
 		return ray1.cross(point - vertex) >= 0 or ray2.cross(point - vertex) <= 0
 
-def point_in_edge(point: Vector2, start1: Vector2, ray1: Vector2, start2: Vector2, ray2: Vector2) -> bool:
+def point_in_edge(point: Vector2, vertex1: Vector2, ray1: Vector2, vertex2: Vector2, ray2: Vector2) -> bool:
 	"""
-	Check if a point is inside the edge defined by two rays starting from `start1` and `start2`.
-
-	:param Vector2 point: The point to check.
-	:param Vector2 start1: The starting point of the first ray.
-	:param Vector2 ray1: The direction vector of the first ray.
-	:param Vector2 start2: The starting point of the second ray.
-	:param Vector2 ray2: The direction vector of the second ray.
-
-	:return: True if the point is inside the edge, False otherwise.
+	Check if `point` is inside the edge region defined by `ray1` coming from `vertex1` and `ray2` coming from `vertex2`.
+	The rays and edge are in counter-clockwise order.
 	"""
 
-	return ray1.cross(point - start1) > 0 and ray2.cross(point - start2) < 0 and (start2 - start1).cross(point - start1) <= 0
+	return ray1.cross(point - vertex1) > 0 and ray2.cross(point - vertex2) < 0 and (vertex2 - vertex1).cross(point - vertex1) <= 0
 
 
 class Solution:
@@ -76,37 +62,25 @@ class Solution:
 	target: Vector2
 	polygons: list[Polygon2]
 
-	# Indicates whether edge `j` of polygon `i` is blocked
-	blocked: list[list[bool]]
+	# `first_contact[i][j]` is True if the first contact region of polygon `i` contains edge `j`.
+	first_contact: list[list[bool]]
 
-	# For each polygon and vertex, we store two vectors that represent the cone of visibility.
-	# They are stored in counter-clockwise order.
+	# `cones[i][j]` is the cone of visibility of vertex `j` of polygon `i`.
+	# The rays are stored in counter-clockwise order.
 	cones: list[list[tuple[Vector2, Vector2]]]
 
 	def __init__(self, start: Vector2, target: Vector2, polygons: list[Polygon2] | Iterable[Iterable[Iterable[float]]]) -> None:
 
-		self.start = start
-		self.target = target
+		self.start = Vector2(start)
+		self.target = Vector2(target)
 
-		self.polygons = []
-
-		for polygon in polygons:
-
-			polygon = Polygon2(polygon)
-
-			if not polygon.is_convex():
-				raise ValueError("All polygons must be convex.")
-
-			self.polygons.append(polygon)
+		self.polygons = list(map(Polygon2, polygons))
 
 	def locate_point(self, point: Vector2, i: int) -> int:
 		"""
-		Locate `point` in the shortest last step map of `i`.
-
-		:param Vector2 point: The point to locate.
-		:param int index: The index of the polygon to check.
-
-		:return: `2n` if the point is in the region of vertex `n` or `2n + 1` if the point is between vertices `n` and `n + 1`.
+		Locates `point` in the shortest last step map of `i` and returns the index of the region as follows:
+		- `2n` if the point is in the region of vertex `n`
+		- `2n + 1` if the point is between vertices `n` and `n + 1`.
 		"""
 
 		polygon = self.polygons[i - 1]
@@ -242,7 +216,10 @@ class Solution:
 		return result
 
 	def solve(self) -> list[Vector2]:
-		
+		"""
+		Returns the shortest path from `start` to `target` that visits all polygons in order.
+		"""
+
 		self.first_contact = []
 		self.cones = []
 
@@ -253,4 +230,7 @@ class Solution:
 		return self.query_full(self.target, len(self.polygons))
 
 def tpp_solve(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
+	"""
+	Returns the shortest path from `start` to `target` that visits all polygons in order.
+	"""
 	return Solution(Vector2(start), Vector2(target), list(map(Polygon2, polygons))).solve()
