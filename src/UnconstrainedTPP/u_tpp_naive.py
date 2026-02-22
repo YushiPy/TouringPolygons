@@ -105,36 +105,6 @@ class Solution:
 
 		raise ValueError(f"Point {point} is not located in any region of polygon {i}.")
 
-	def query(self, point: Vector2, i: int) -> Vector2:
-		"""
-		Returns the last step of the `i`-path to `point`.
-		"""
-
-		if i == 0:
-			return self.start
-		
-		polygon = self.polygons[i - 1]
-		location = self.locate_point(point, i)
-		pos = location // 2
-
-		if location % 2 == 0:
-			return polygon[pos]
-
-		if not self.first_contact[i - 1][pos]:
-			return self.query(point, i - 1)
-
-		v1, v2 = polygon[pos], polygon[(pos + 1) % len(polygon)]
-
-		reflected = point.reflect_segment(v1, v2)
-		last = self.query(reflected, i - 1)
-
-		intersection = segment_segment_intersection(last, reflected, v1, v2)
-
-		if intersection is None:
-			raise ValueError(f"Intersection not found for point {point} in polygon {i} at edge {pos}")
-
-		return intersection
-	
 	def query_full(self, point: Vector2, i: int) -> list[Vector2]:
 		"""
 		Returns the `i`-path to `point`.
@@ -165,6 +135,36 @@ class Solution:
 			raise ValueError(f"Intersection not found for point {point} in polygon {i} at edge {pos}")
 
 		return path[:-1] + [intersection, point]
+
+	def query(self, point: Vector2, i: int) -> Vector2:
+		"""
+		Returns the last step of the `i`-path to `point`.
+		"""
+
+		if i == 0:
+			return self.start
+		
+		polygon = self.polygons[i - 1]
+		location = self.locate_point(point, i)
+		pos = location // 2
+
+		if location % 2 == 0:
+			return polygon[pos]
+
+		if not self.first_contact[i - 1][pos]:
+			return self.query(point, i - 1)
+
+		v1, v2 = polygon[pos], polygon[(pos + 1) % len(polygon)]
+
+		reflected = point.reflect_segment(v1, v2)
+		last = self.query(reflected, i - 1)
+
+		intersection = segment_segment_intersection(last, reflected, v1, v2)
+
+		if intersection is None:
+			raise ValueError(f"Intersection not found for point {point} in polygon {i} at edge {pos}")
+
+		return intersection
 
 	def get_first_contact_region(self, i: int) -> list[bool]:
 		"""
