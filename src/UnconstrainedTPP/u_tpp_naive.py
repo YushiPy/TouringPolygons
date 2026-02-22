@@ -81,18 +81,27 @@ class Solution:
 		Locates `point` in the shortest last step map of `i` and returns the index of the region as follows:
 		- `2n` if the point is in the region of vertex `n`
 		- `2n + 1` if the point is between vertices `n` and `n + 1`.
+		- `-1` if the point is in the pass through region.
 		"""
 
 		polygon = self.polygons[i - 1]
+		first_contact = self.first_contact[i - 1]
 		cones = self.cones[i - 1]
 
 		for j in range(len(polygon)):
+
+			if not first_contact[j] and not first_contact[j - 1]:
+				continue
+
 			v = polygon[j]
 			ray1, ray2 = cones[j]
 			if point_in_cone(point, v, ray1, ray2):
 				return 2 * j
 
 		for j in range(len(polygon)):
+
+			if not first_contact[j]:
+				continue
 
 			v1 = polygon[j]
 			v2 = polygon[(j + 1) % len(polygon)]
@@ -103,7 +112,7 @@ class Solution:
 			if point_in_edge(point, v1, ray1, v2, ray2):
 				return 2 * j + 1
 
-		raise ValueError(f"Point {point} is not located in any region of polygon {i}.")
+		return -1
 
 	def query_full(self, point: Vector2, i: int) -> list[Vector2]:
 		"""
@@ -115,13 +124,14 @@ class Solution:
 		
 		polygon = self.polygons[i - 1]
 		location = self.locate_point(point, i)
+
+		if location == -1:
+			return self.query_full(point, i - 1)
+
 		pos = location // 2
 
 		if location % 2 == 0:
 			return self.query_full(polygon[pos], i - 1) + [point]
-
-		if not self.first_contact[i - 1][pos]:
-			return self.query_full(point, i - 1)
 
 		v1, v2 = polygon[pos], polygon[(pos + 1) % len(polygon)]
 
@@ -146,13 +156,14 @@ class Solution:
 		
 		polygon = self.polygons[i - 1]
 		location = self.locate_point(point, i)
+
+		if location == -1:
+			return self.query(point, i - 1)
+
 		pos = location // 2
 
 		if location % 2 == 0:
 			return polygon[pos]
-
-		if not self.first_contact[i - 1][pos]:
-			return self.query(point, i - 1)
 
 		v1, v2 = polygon[pos], polygon[(pos + 1) % len(polygon)]
 
