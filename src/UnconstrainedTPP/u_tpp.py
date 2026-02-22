@@ -268,7 +268,7 @@ def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: Sequenc
 		return left
 	
 	def query(point: Vector2, index: int) -> Vector2:
-		
+
 		if index == 0:
 			return start
 
@@ -288,6 +288,7 @@ def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: Sequenc
 		if is_blocked_edge(index - 1, ind):
 			return query(point, index - 1)
 
+		# Point is in edge region, need to reflect and find intersection
 		reflected = vector_reflect_segment(point, v1, v2)
 		last = query(reflected, index - 1)
 
@@ -317,6 +318,7 @@ def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: Sequenc
 		if is_blocked_edge(index - 1, ind):
 			return query_full(point, index - 1)
 
+		# Point is in edge region, need to reflect and find intersection
 		v1 = polygon[ind]
 		v2 = polygon[(ind + 1) % len(polygon)]
 

@@ -13,11 +13,11 @@ from u_tpp_sympy import tpp_solve as sympy_tpp_solve
 
 type TestCase = tuple[Vector2, Vector2, list[Polygon2]]
 
-FIRST_SOLUTION = jit2_tpp_solve
+FIRST_SOLUTION = tpp_solve
 SECOND_SOLUTION = filtered_tpp_solve
 
 # Swap to change which solution is reference and which is test
-if 0: 
+if 1: 
 	FIRST_SOLUTION, SECOND_SOLUTION = SECOND_SOLUTION, FIRST_SOLUTION # type: ignore
 
 def reference_solution(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:

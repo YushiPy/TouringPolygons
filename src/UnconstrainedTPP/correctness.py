@@ -8,14 +8,14 @@ from vector2 import Vector2
 from polygon2 import Polygon2
 
 from u_tpp_naive import tpp_solve as reference_tpp_solve
-from u_tpp_fast_locate import tpp_solve as test_tpp_solve
+from u_tpp import tpp_solve as test_tpp_solve
 
 type _Vector2 = Iterable[float]
 type _Polygon2 = Iterable[_Vector2]
 type TestCase = tuple[_Vector2, _Vector2, list[_Polygon2]]
 
 
-TOLERANCE = 1e-5
+TOLERANCE = 1e-12
 TEST_LENGTH = True
 
 def reference_solution(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
