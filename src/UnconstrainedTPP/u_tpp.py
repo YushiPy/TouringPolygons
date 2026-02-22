@@ -6,6 +6,8 @@ type Vector2 = tuple[float, float]
 type Polygon2 = Sequence[Vector2]
 
 
+EPSILON = 1e-10
+
 def vector_add(v1: Vector2, v2: Vector2) -> Vector2:
 	return (v1[0] + v2[0], v1[1] + v2[1])
 
@@ -18,7 +20,7 @@ def vector_mul(v: Vector2, scalar: float) -> Vector2:
 def vector_cross(v1: Vector2, v2: Vector2) -> float:
 	return v1[0] * v2[1] - v1[1] * v2[0]
 
-def vector_is_close(v1: Vector2, v2: Vector2, eps: float = 1e-8) -> bool:
+def vector_is_close(v1: Vector2, v2: Vector2, eps: float = EPSILON) -> bool:
 	return abs(v1[0] - v2[0]) < eps and abs(v1[1] - v2[1]) < eps
 
 def vector_length(v: Vector2) -> float:
@@ -48,7 +50,7 @@ def vector_reflect_segment(point: Vector2, start: Vector2, end: Vector2) -> Vect
 	return vector_add(start, vector_reflect(vector_sub(point, start), vector_perpendicular(vector_sub(end, start))))
 
 
-def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2, eps: float = 1e-8) -> bool:
+def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2, eps: float = EPSILON) -> bool:
 	"""
 	Check if a point is inside the cone defined by two rays originating from a vertex.
 
@@ -66,7 +68,7 @@ def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2,
 	else:
 		return vector_cross(ray1, vector_sub(point, vertex)) >= -eps and vector_cross(ray2, vector_sub(point, vertex)) <= eps
 
-def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2, eps: float = 1e-8) -> bool:
+def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2, eps: float = EPSILON) -> bool:
 
 	if vector_is_close(vertex1, vertex2):
 		return point_in_cone(point, vertex1, ray1, ray2)
@@ -91,7 +93,7 @@ def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vect
 			return vector_cross(ray1, p1) > -eps or vector_cross(ray2, p2) < eps or vector_cross(dv, p1) < eps
 
 
-def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2, eps: float = 1e-8) -> Vector2 | None:
+def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2, eps: float = EPSILON) -> Vector2 | None:
 	"""
 	Returns the intersection point of two line segments if they intersect, otherwise returns None.
 
@@ -122,7 +124,7 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 	return None
 
 
-def clean_polygon(polygon: Polygon2, eps: float = 1e-8) -> Polygon2:
+def clean_polygon(polygon: Polygon2, eps: float = EPSILON) -> Polygon2:
 	"""
 	Cleans a polygon by removing collinear points and making the vertices counter-clockwise.
 
@@ -145,9 +147,9 @@ def clean_polygon(polygon: Polygon2, eps: float = 1e-8) -> Polygon2:
 		v1 = vector_sub(curr, prev)
 		v2 = vector_sub(next, curr)
 
-		if abs(vector_cross(v1, v2)) > eps:
+		if abs(vector_cross(v1, v2)) > eps ** 2:
 			cleaned.append(curr)
-	
+
 	# Ensure counter-clockwise order
 	area = 0.0
 
@@ -239,14 +241,7 @@ def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: Sequenc
 		def get(i: int) -> tuple[Vector2, Vector2]:
 			return get_cone(index, i)
 
-		#def format_ray(ray: Vector2) -> str:
-		#	import math
-		#	a = math.atan2(*ray[::-1]) * 180 / math.pi
-		#	return f"{a:.2f}°"
-
 		def check(l: int, r: int) -> bool:
-			#print(l, r)
-			#print(point, polygon[l // 2], polygon[r // 2], format_ray(get(l // 2)[l % 2]), format_ray(get(r // 2)[r % 2]), point_in_edge(point, polygon[l // 2], polygon[r // 2], get(l // 2)[l % 2], get(r // 2)[r % 2]))
 			return point_in_edge(point, polygon[l // 2], polygon[r // 2], get(l // 2)[l % 2], get(r // 2)[r % 2])
 		
 		polygon = polygons[index]
@@ -339,5 +334,5 @@ def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: Sequenc
 		other.append(point)
 
 		return other
-	
+
 	return query_full(target, len(polygons))
