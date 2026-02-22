@@ -12,4 +12,7 @@ build() {
 
 run() {
 	python run.py "$@" && ./"$(getfilename "$1")"
+	if [ $? -ne 0 ]; then
+		echo "Error: Failed to run the program."
+	fi
 }

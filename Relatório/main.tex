@@ -278,10 +278,10 @@ Sejam~\(p \in \mathbb{R}^2\) e~\(1 \le i \le k\), se dispomos de \(S_1, \dots, S
 	\end{figure}
 
 	\item[Região de Aresta:] Se~\(p\) pertence a uma região associada a uma aresta~\(e = \overline{u v}\) de~\(P_i\), então refletimos o ponto~\(p\) em relação à reta que contém~\(e\), obtendo um ponto refletido~\(p'\). Calculamos o~\((i - 1)\)-path até~\(p'\) cujo último segmento parte de um ponto~\(q'\) e chamamos de~\(q\) à interseção do segmento~\(\overline{q'p'}\) com a aresta~\(e\). O~\(i\)-path até~\(p\) é então formado pela parte do~\((i - 1)\)-path até~\(p'\) que vai desde o inicio (ponto~\(s\)) até o ponto~\(q\), seguida do segmento~\(\overline{qp}\). A Figura~\ref{fig:edge_region} ilustra essa situação, mostrando como o ponto deve ser refletido e então como usamos o~\((i - 1)\)-path até~\(p'\) para determinar o~\(i\)-path até~\(p\) % \textcolor{blue}{Aqui deve dizer: A Figura 1b ilustra esta situação.}
-	
+	% p - 2 ((p - u) - \frac{(p - u) \cdot (v - u)}{\|v - u\|^2})
 	A seguir, apresentamos a fórmula para calcular o ponto refletido~\(p'\) e o ponto de interseção~\(q\). Usamos o operador~\(\cdot\) para denotar o produto escalar, o operador~\(\|\cdot\|\) para denotar a norma euclidiana e o operador~\(\times\) para denotar o produto vetorial\footnote{Para dois vetores \(a = (a_x, a_y)\) e \(b = (b_x, b_y)\), temos \(a \times b = a_x b_y - a_y b_x\).}, todos em \(\mathbb{R}^2\):
 	\begin{align}
-		&p' = p + 2 \frac{(u - p) \cdot (v - u)}{\|v - u\|^2} (v - u), \label{eq:reflection_on_edge} \\
+		&p' = -p + 2u + 2\frac{(p - u) \cdot (v - u)}{\|v - u\|^2} (v - u), \label{eq:reflection_on_edge} \\
 		&q = q' + \frac{(u - q') \times (v - u)}{(p' - q') \times (v - u)} (p' - q'). \label{eq:intersection_on_edge}
 	\end{align}
 

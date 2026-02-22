@@ -1,7 +1,6 @@
 """
-First approach to solve the unconstrained TPP. 
-This implementation is not optimized and may not be efficient for large inputs, 
-but it serves as a proof of concept and a baseline for further improvements.
+Second approach to solve the unconstrained TPP. 
+This implementation uses binary search to locate points in the last step map, allowing for faster queries.
 
 See report for details on the algorithm and its complexity analysis.
 """
@@ -87,32 +86,33 @@ class Solution:
 		polygon = self.polygons[i - 1]
 		first_contact = self.first_contact[i - 1]
 		cones = self.cones[i - 1]
+		
+		def is_between(i: int, j: int) -> bool:
 
-		for j in range(len(polygon)):
+			ray1 = cones[i // 2][i % 2]
+			ray2 = cones[j // 2][j % 2]
 
-			if not first_contact[j] and not first_contact[j - 1]:
-				continue
+			v1 = polygon[i // 2]
+			v2 = polygon[j // 2]
 
-			v = polygon[j]
-			ray1, ray2 = cones[j]
-			if point_in_cone(point, v, ray1, ray2):
-				return 2 * j
+			return point_in_edge(point, v1, v2, ray1, ray2, 0)
 
-		for j in range(len(polygon)):
+		left = 0
+		right = 2 * len(cones) - 1
 
-			if not first_contact[j]:
-				continue
+		if is_between(right, 0):
+			return right
 
-			v1 = polygon[j]
-			v2 = polygon[(j + 1) % len(polygon)]
+		while left + 1 != right:
 
-			ray1 = cones[j][1]
-			ray2 = cones[(j + 1) % len(cones)][0]
+			mid = (left + right) // 2
 
-			if point_in_edge(point, v1, ray1, v2, ray2):
-				return 2 * j + 1
-
-		return -1
+			if is_between(left, mid):
+				right = mid
+			else:
+				left = mid
+		
+		return left
 
 	def query_full(self, point: Vector2, i: int) -> list[Vector2]:
 		"""
@@ -213,14 +213,14 @@ class Solution:
 			last = self.query(vertex, i - 1)
 			diff = vertex - last
 
-			ray1 = diff.reflect((vertex - before).perpendicular())
-			ray2 = diff.reflect((vertex - after).perpendicular())
+			ray1 = diff.reflect((vertex - before).perpendicular()).normalize()
+			ray2 = diff.reflect((vertex - after).perpendicular()).normalize()
 
 			if not first_contact[j - 1]:
-				ray1 = diff
+				ray1 = diff.normalize()
 
 			if not first_contact[j]:
-				ray2 = diff
+				ray2 = diff.normalize()
 
 			result.append((ray1, ray2))
 

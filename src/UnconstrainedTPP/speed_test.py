@@ -9,6 +9,7 @@ from polygon2 import Polygon2
 from u_tpp_filtered import tpp_solve as filtered_tpp_solve # type: ignore
 from u_tpp_jit2 import tpp_solve as jit2_tpp_solve
 from u_tpp import tpp_solve as tpp_solve
+from u_tpp_sympy import tpp_solve as sympy_tpp_solve
 
 type TestCase = tuple[Vector2, Vector2, list[Polygon2]]
 

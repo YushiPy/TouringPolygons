@@ -385,7 +385,7 @@ Vector2 Vector2::project(const Vector2 &b) const {
 }
 
 Vector2 Vector2::reflect(const Vector2 &line) const {
-	return 2.0f * line * dot(line) - *this;
+	return 2.0f * line * dot(line) / line.length_squared() - *this;
 }
 
 Vector2 Vector2::rotated(double angle) const {

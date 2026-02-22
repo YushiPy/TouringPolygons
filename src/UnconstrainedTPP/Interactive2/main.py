@@ -12,7 +12,7 @@ os.chdir(os.path.dirname(__file__))
 sys.path.append("..")
 
 from polygon2 import Polygon2
-from u_tpp_fast_locate import tpp_solve
+from u_tpp import tpp_solve
 
 pg.init()
 
