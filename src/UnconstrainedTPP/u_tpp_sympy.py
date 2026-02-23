@@ -1,4 +1,5 @@
 
+from collections.abc import Sequence
 import math
 import numpy as np
 from scipy.optimize import minimize
@@ -6,7 +7,7 @@ from scipy.optimize import minimize
 type Point = tuple[float, float]
 type Polygon = list[Point]
 
-def order_polygon(polygon: Polygon) -> Polygon:
+def order_polygon(polygon: Sequence[Point]) -> Polygon:
 	"""
 	Order the vertices of a polygon in counterclockwise order.
 
@@ -17,7 +18,7 @@ def order_polygon(polygon: Polygon) -> Polygon:
 	center = (sum(x for x, y in polygon) / len(polygon), sum(y for x, y in polygon) / len(polygon))
 	return sorted(polygon, key=lambda point: math.atan2(point[1] - center[1], point[0] - center[0]))
 
-def tpp_solve(start: Point, target: Point, polygons: list[Polygon]) -> list[Point]:
+def tpp_solve(start: Point, target: Point, polygons: Sequence[Sequence[Point]]) -> list[Point]:
 
 	polygons = [order_polygon(polygon) for polygon in polygons]
 
@@ -48,15 +49,3 @@ def tpp_solve(start: Point, target: Point, polygons: list[Polygon]) -> list[Poin
 
 	return [start] + [(float(solution.x[i]), float(solution.x[i + 1])) for i in range(0, len(solution.x), 2)] + [target]
 
-start, target, polygons = ((-2.0, 0.0), (2.0, 0.0), [((-1.0, 1.0), (1.0, 1.0), (0.0, 2.0))])
-solution = tpp_solve(start, target, polygons)
-
-import matplotlib.pyplot as plt
-
-plt.figure(figsize=(6, 6))
-plt.plot(*zip(*solution), marker='o', label='Path')
-plt.scatter(*zip(*[start]), color='red', label='Start/Target', zorder=5)
-plt.scatter(*zip(*[target]), color='red', zorder=5)
-
-for polygon in polygons:
-	plt.fill(*zip(*polygon), alpha=0.5, label='Polygon')

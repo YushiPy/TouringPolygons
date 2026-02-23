@@ -292,5 +292,8 @@ class Solution:
 
 		return result
 
-def tpp_solve(start: _Vector2, target: _Vector2, polygons: Iterable[_Polygon2]) -> list[Vector2]:
-	return Solution(start, target, polygons).solve()
+
+from collections.abc import Sequence
+
+def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]]) -> list[tuple[float, float]]:
+	return [(x, y) for x, y in Solution(start, target, polygons).solve()]

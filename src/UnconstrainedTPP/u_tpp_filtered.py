@@ -89,11 +89,11 @@ class Solution:
 	filtered: list[list[Vector2]]
 	cones: list[list[tuple[Vector2, Vector2]]]
 	
-	def __init__(self, start: Vector2, target: Vector2, polygons: list[Polygon2]) -> None:
+	def __init__(self, start: Vector2, target: Vector2, polygons: Sequence[Polygon2]) -> None:
 
 		self.start = start
 		self.target = target
-		self.polygons = polygons
+		self.polygons = list(polygons)
 	
 		self.cones = []
 		self.filtered = []
@@ -273,5 +273,13 @@ class Solution:
 
 		return self.get_full_path(self.target, k)
 
-def tpp_solve(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
-	return Solution(start, target, polygons).solve()
+
+from collections.abc import Sequence
+
+def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]]) -> list[tuple[float, float]]:
+
+	start_vec = Vector2(start)
+	target_vec = Vector2(target)
+	polygon_objs = [Polygon2([Vector2(vertex) for vertex in polygon]) for polygon in polygons]
+
+	return [(x, y) for x, y in Solution(start_vec, target_vec, polygon_objs).solve()]

@@ -240,8 +240,16 @@ class Solution:
 	
 		return self.query_full(self.target, len(self.polygons))
 
-def tpp_solve(start: Vector2, target: Vector2, polygons: list[Polygon2]) -> list[Vector2]:
+
+from collections.abc import Sequence
+
+def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]]) -> list[tuple[float, float]]:
 	"""
 	Returns the shortest path from `start` to `target` that visits all polygons in order.
 	"""
-	return Solution(Vector2(start), Vector2(target), list(map(Polygon2, polygons))).solve()
+
+	start_vec = Vector2(start)
+	target_vec = Vector2(target)
+	polygon_objs = [Polygon2([Vector2(vertex) for vertex in polygon]) for polygon in polygons]
+
+	return [(x, y) for x, y in Solution(start_vec, target_vec, polygon_objs).solve()]
