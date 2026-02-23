@@ -3,9 +3,7 @@
 
 #include <vector>
 #include <utility>
-#include <print>
 #include <format>
-#define print(...) std::println(__VA_ARGS__)
 
 
 using std::vector;
@@ -285,37 +283,9 @@ class Solution {
 	}
 };
 
-
-int main() {
-
+vector<Vector2> tpp_solve(const Vector2& start, const Vector2& target, const vector<vector<Vector2>>& polygons) {
 	/*
-	(
-	Vector2(5, 1), 
-	Vector2(7, 3),
-	[
-		Polygon2([Vector2(3, 0), Vector2(2, 4), Vector2(1, 4), Vector2(-1, 1)]),
-		Polygon2([Vector2(3, 3), Vector2(4, 3), Vector2(4, 4), Vector2(3, 4)]),
-		Polygon2([Vector2(5, 5), Vector2(6, 5), Vector2(6, 6), Vector2(5, 6)]),
-	]
-	)
+	Returns the shortest path from `start` to `target` that visits all polygons in order using the naive algorithm.
 	*/
-
-	Vector2 start(5, 1);
-	Vector2 target(7, 3);
-	vector<vector<Vector2>> polygons = {
-		{Vector2(3, 0), Vector2(2, 4), Vector2(1, 4), Vector2(-1, 1)},
-		{Vector2(3, 3), Vector2(4, 3), Vector2(4, 4), Vector2(3, 4)},
-		{Vector2(5, 5), Vector2(6, 5), Vector2(6, 6), Vector2(5, 6)},
-	};
-
-	Solution solution(start, target, polygons);
-
-	auto path = solution.solve();
-	print("Path:");
-	for (const auto& point : path) {
-		print("{}", point);
-	}
-	for (const auto& [ray1, ray2] : solution.cones[0]) {
-		// print("Cone: {} to {}", ray1, ray2);
-	}
+	return Solution(start, target, polygons).solve();
 }

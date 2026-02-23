@@ -62,6 +62,20 @@ class Vector2:
 		y = r * math.sin(theta)
 
 		return Vector2(x, y)
+	
+	@staticmethod
+	def from_bytes(data: bytes) -> "Vector2":
+		"""Creates a Vector2 from its IEE-754 representation as 16 bytes."""
+
+		import struct
+
+		if len(data) != 16:
+			raise ValueError("Data must be exactly 16 bytes long to convert to Vector2.")
+
+		x = struct.unpack('<d', data[:8])[0]
+		y = struct.unpack('<d', data[8:])[0]
+
+		return Vector2(x, y)
 
 	def dot(self, other: Self) -> float:
 		"""Returns the dot product with the other vector."""
@@ -343,6 +357,14 @@ class Vector2:
 			self.scale_to_length_ip(min_magnitude)
 		if mag > max_magnitude:
 			self.scale_to_length_ip(max_magnitude)
+
+	def to_bytes(self) -> bytes:
+		"""
+		Returns the IEE-754 representation of the vector as 16 bytes.
+		Uses little-endian format, with the x coordinate as the first 8 bytes and the y coordinate as the second 8 bytes.
+		"""
+		import struct
+		return struct.pack('<d', self.x) + struct.pack('<d', self.y)
 
 	@overload
 	def update(self) -> None: 
