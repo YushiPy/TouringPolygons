@@ -11,6 +11,7 @@
 #include <sstream>
 #include <string>
 
+
 typedef std::tuple<Vector2, Vector2, std::vector<std::vector<Vector2>>> TestCase;
 typedef std::tuple<double, std::vector<Vector2>> TestResult;
 
@@ -95,7 +96,7 @@ std::vector<TestResult> run_tests(const std::vector<TestCase>& test_cases) {
 	return results;
 }
 
-void export_reults(std::vector<TestResult>& results, const std::string& filename) {
+void export_results(std::vector<TestResult>& results, const std::string& filename) {
 	/*
 	Exports the results to a file in the following format for each test case:
 	
@@ -125,29 +126,20 @@ void export_reults(std::vector<TestResult>& results, const std::string& filename
 }
 
 
-std::string format_path(const std::vector<Vector2>& path, int precision = 6) {
+int main(int argc, char* argv[]) {
 
-	if (path.empty()) {
-		return "{}";
+	if (argc < 3) {
+		std::cerr << "Usage: " << argv[0] << " <input_file> <output_file>" << std::endl;
+		return 1;
 	}
 
-	std::ostringstream oss;
+	std::string filename = argv[1];
+	std::string output_filename = argv[2];
 
-	oss << "{";
-
-	for (size_t i = 0; i < path.size() - 1; i++) {
-		oss << path[i].round(precision) << ", ";
-	}
-
-	oss << path.back().round(precision) << "}";
-
-	return oss.str();
-}
-
-int main() {
-	std::string filename = "test_cases.bin";
 	auto test_cases = read_test_cases(filename);
 	auto test_results = run_tests(test_cases);
 
-	export_reults(test_results, "test_results.bin");
+	export_results(test_results, output_filename);
+
+	return 0;
 }

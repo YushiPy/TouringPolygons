@@ -366,6 +366,10 @@ class Vector2:
 		import struct
 		return struct.pack('<d', self.x) + struct.pack('<d', self.y)
 
+	def to_tuple(self) -> tuple[float, float]:
+		"""Returns the vector as a tuple of (x, y)."""
+		return (self.x, self.y)
+
 	@overload
 	def update(self) -> None: 
 		"""Sets coordinates of `this` to `0`."""

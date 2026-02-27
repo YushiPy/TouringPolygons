@@ -20,6 +20,16 @@ def vector_mul(v: Vector2, scalar: float) -> Vector2:
 def vector_cross(v1: Vector2, v2: Vector2) -> float:
 	return v1[0] * v2[1] - v1[1] * v2[0]
 
+def vector_dot(v1: Vector2, v2: Vector2) -> float:
+	return v1[0] * v2[0] + v1[1] * v2[1]
+
+def vector_is_same_direction(v1: Vector2, v2: Vector2, eps: float = EPSILON) -> bool:
+
+	cross = vector_cross(v1, v2)
+	dot = vector_dot(v1, v2)
+
+	return abs(cross) < eps ** 2 and dot > 0
+
 def vector_is_close(v1: Vector2, v2: Vector2, eps: float = EPSILON) -> bool:
 	return abs(v1[0] - v2[0]) < eps and abs(v1[1] - v2[1]) < eps
 
@@ -63,7 +73,11 @@ def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2,
 	:return: True if the point is inside the cone, False otherwise.
 	"""
 
-	if vector_cross(ray1, ray2) < -eps:
+	# Rays are almost parallel and in the same direction, treat as a single ray
+	if vector_is_same_direction(ray1, ray2, eps):
+		return vector_is_same_direction(vector_sub(point, vertex), ray1, eps)
+
+	if vector_cross(ray1, ray2) < -eps ** 2:
 		return vector_cross(ray1, vector_sub(point, vertex)) >= -eps or vector_cross(ray2, vector_sub(point, vertex)) <= eps
 	else:
 		return vector_cross(ray1, vector_sub(point, vertex)) >= -eps and vector_cross(ray2, vector_sub(point, vertex)) <= eps
@@ -77,9 +91,8 @@ def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vect
 	p2 = vector_sub(point, vertex2)
 	dv = vector_sub(vertex2, vertex1)
 
-	if vector_is_close(ray1, ray2):
+	if vector_is_same_direction(ray1, dv, eps) or vector_is_same_direction(vector_mul(ray2, -1), dv, eps):
 		return False
-		return vector_cross(dv, p1) >= -eps and vector_cross(dv, p2) <= eps
 
 	if vector_cross(dv, ray1) < eps:
 		if vector_cross(dv, ray2) < eps:
@@ -163,7 +176,7 @@ def clean_polygon(polygon: Polygon2, eps: float = EPSILON) -> Polygon2:
 
 	return cleaned
 
-def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: Sequence[Polygon2], *, simplify: bool = True) -> list[Vector2]:
+def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: Sequence[Polygon2], *, simplify: bool = False) -> list[Vector2]:
 
 	start = (start[0], start[1])
 	target = (target[0], target[1])
@@ -242,7 +255,13 @@ def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: Sequenc
 			return get_cone(index, i)
 
 		def check(l: int, r: int) -> bool:
-			return point_in_edge(point, polygon[l // 2], polygon[r // 2], get(l // 2)[l % 2], get(r // 2)[r % 2])
+
+			v1 = polygon[l // 2]
+			v2 = polygon[r // 2]
+			ray1 = get(l // 2)[l % 2]
+			ray2 = get(r // 2)[r % 2]
+			
+			return point_in_edge(point, v1, v2, ray1, ray2)
 		
 		polygon = polygons[index]
 		n = len(polygon)
