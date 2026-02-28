@@ -13,7 +13,7 @@ sys.path.append("..")
 
 from polygon2 import Polygon2
 from vector2 import Vector2
-from u_tpp_fast_locate import tpp_solve
+from u_tpp import tpp_solve
 from u_tpp_fast_locate import Solution
 
 pg.init()
@@ -233,8 +233,12 @@ class Main:
 		self.buttons.append(self.export_button)
 
 		self.buttons.append(Button("Clear Polygons", wrap_function(self.clear_polygons)))
-	
+
+		self.map_button = ToggleButton("Draw Map", "Draw Map", wrap_function(), is_active=True)
+		self.buttons.append(self.map_button)
+
 	def clear_polygons(self) -> None:
+
 		self.polygons.clear()
 		self.points.clear()
 		self.set_polygon_index(0)
@@ -780,6 +784,9 @@ class Main:
 
 	def draw_last_step_map(self) -> None:
 
+		if not self.map_button.is_active:
+			return
+
 		if not self.polygons:
 			return
 
@@ -945,7 +952,7 @@ class Main:
 			if blocked[i] and blocked[i - 1]:
 				ray = cones[i][0]
 				point = locate_ray(vertex, ray, bbox)
-				screen_points = [self.to_screen_pos(p) for p in [vertex, point]]
+				screen_points = [self.to_screen_pos(p) for p in [vertex, point]] # type: ignore
 				pg.draw.line(lines_surface, (0, 155, 155, 205), screen_points[0], screen_points[1], 3)
 				continue
 
