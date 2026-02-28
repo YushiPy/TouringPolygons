@@ -1,5 +1,5 @@
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 import enum
 from math import ceil, cos, floor, log, pi, sin
 from typing import Any, Self
@@ -12,7 +12,9 @@ os.chdir(os.path.dirname(__file__))
 sys.path.append("..")
 
 from polygon2 import Polygon2
-from u_tpp import tpp_solve
+from vector2 import Vector2
+from u_tpp_fast_locate import tpp_solve
+from u_tpp_fast_locate import Solution
 
 pg.init()
 
@@ -194,10 +196,10 @@ class Main:
 
 		self.new_zoom = self.units_to_pixels
 
-		self.start = Point(pg.Vector2(-1, 1), 10, (105, 0, 0))
-		self.target = Point(pg.Vector2(2, 1), 10, (0, 105, 0))
+		self.start = Point(pg.Vector2(), 0, (0, 0, 0))
+		self.target = Point(pg.Vector2(), 0, (0, 0, 0))
 
-		self.points = [self.start, self.target]
+		self.points = []
 		self.focused_point = None
 
 		self.polygons = []
@@ -224,16 +226,26 @@ class Main:
 
 		self.polygon_index = 0
 
-		def change_index(button: Button, count: int = 1) -> None:
-			self.polygon_index = (self.polygon_index + count) % len(self.polygons) if self.polygons else 0
-			button._text = f"Polygon {self.polygon_index + 1}"
-
-		self.change_button = Button("Polygon 1", lambda x, y = 1, *_, **__: change_index(x, y))
+		self.change_button = Button("Polygon 1", lambda x, y = 1, *_, **__: self.set_polygon_index(self.polygon_index + y))
 		self.buttons.append(self.change_button)
 
 		self.export_button = Button("Export", wrap_function(self.export))
 		self.buttons.append(self.export_button)
+
+		self.buttons.append(Button("Clear Polygons", wrap_function(self.clear_polygons)))
 	
+	def clear_polygons(self) -> None:
+		self.polygons.clear()
+		self.points.clear()
+		self.set_polygon_index(0)
+
+		self.points.append(self.start)
+		self.points.append(self.target)
+
+	def set_polygon_index(self, index: int) -> None:
+		self.polygon_index = index % len(self.polygons) if self.polygons else 0
+		self.change_button._text = f"Polygon {self.polygon_index + 1}"
+
 	def export(self) -> None:
 
 		with open(EXPORT_FILE, "a") as f:
@@ -269,6 +281,26 @@ class Main:
 
 		radius = min(self.render_area.width, self.render_area.height) / 6
 		self.ghost_polygon = [(radius * cos(2 * pi * i / sides), radius * sin(2 * pi * i / sides)) for i in range(sides)]
+
+	def place_ghost_polygon(self) -> None:
+
+		if self.ghost_polygon is None:
+			raise ValueError("No ghost polygon to place.")
+
+		mouse_pos = pg.Vector2(pg.mouse.get_pos())
+		color = POINTS_COLORS[len(self.polygons) % len(POINTS_COLORS)]
+		coords = [self.from_screen_pos(mouse_pos + pg.Vector2(p)) for p in self.ghost_polygon]
+		self.ghost_polygon = None
+
+		self.place_polygon(coords, color) # type: ignore
+
+	def place_polygon(self, points: Sequence[tuple[float, float]], color: tuple[int, int, int]) -> None:
+
+		coords = [pg.Vector2(p) for p in points]
+		polygon = Polygon([Point(p, 8, color) for p in coords], color)
+		self.polygons.append(polygon)
+		self.points.extend(polygon.vertices)
+		self.set_polygon_index(len(self.polygons) - 1)
 
 	def toggle_snapping(self) -> None:
 		self.snapping = not self.snapping
@@ -358,19 +390,18 @@ class Main:
 
 					for point in polygon.vertices:
 						self.points.append(point)
-				elif event.key == pg.K_s:
-					self.snap_button.call()
-				elif event.key == pg.K_d:
-					self.make_ghost_polygon()
-				elif event.key == pg.K_a:
-					self.show_line_button.call()
-				elif event.key == pg.K_UP:
-					self.change_button.call(count=1)
-				elif event.key == pg.K_DOWN:
-					self.change_button.call(count=-1)
-				elif event.key == pg.K_e:
-					self.export_button.call()
 				
+				elif event.key in [pg.K_0, pg.K_1, pg.K_2, pg.K_3, pg.K_4, pg.K_5, pg.K_6, pg.K_7, pg.K_8, pg.K_9]:
+
+					index = event.key - pg.K_1 if event.key != pg.K_0 else 9
+
+					if index < len(self.buttons):
+						button = self.buttons[index]
+						button.call()
+				elif event.key == pg.K_UP:
+					self.change_button.call()
+				elif event.key == pg.K_DOWN:
+					self.change_button.call(-1)
 
 			if event.type == pg.MOUSEWHEEL:
 				self.new_zoom = self.units_to_pixels * 1.15 ** event.y
@@ -400,7 +431,6 @@ class Main:
 										self.polygons.remove(polygon)
 									self.focused_point = None
 							elif self.polygons:
-								mouse_pos = mouse_pos
 								world_pos = self.from_screen_pos(mouse_pos)
 								polygon = self.polygons[self.polygon_index]
 								new_point = Point(world_pos, 8, polygon.color)
@@ -409,13 +439,7 @@ class Main:
 								self.focused_point = new_point
 						
 						else:
-							color = POINTS_COLORS[len(self.polygons) % len(POINTS_COLORS)]
-							coords = [self.from_screen_pos(mouse_pos + pg.Vector2(p)) for p in self.ghost_polygon]
-							polygon = Polygon([Point(p, 8, color) for p in coords], color)
-							self.polygons.append(polygon)
-							self.points.extend(polygon.vertices)
-							self.ghost_polygon = None
-							self.polygon_index = len(self.polygons) - 1
+							self.place_ghost_polygon()
 				else:
 					
 					for rect, button in zip(self.get_button_rects(), self.buttons):
@@ -465,7 +489,10 @@ class Main:
 		start_screen = self.to_screen_pos(start)
 		end_screen = self.to_screen_pos(end)
 
-		pg.draw.line(self.screen, color, start_screen, end_screen, width)
+		if width == 1:
+			pg.draw.aaline(self.screen, color, start_screen, end_screen)
+		else:
+			pg.draw.line(self.screen, color, start_screen, end_screen, width)
 
 	def get_spacing(self) -> tuple[float, float]:
 
@@ -751,6 +778,204 @@ class Main:
 			screen_pos = self.to_screen_pos(pg.Vector2(point)) # type: ignore
 			pg.draw.circle(self.screen, (0, 0, 255), screen_pos, 5)
 
+	def draw_last_step_map(self) -> None:
+
+		if not self.polygons:
+			return
+
+		index = self.polygon_index
+
+		start = tuple(self.start.position)
+		target = tuple(self.target.position)
+		polygons = [Polygon2(p.position for p in poly.vertices) for poly in self.polygons[:index + 1]]
+	
+		try:
+			solution = Solution(start, target, polygons)
+			solution.solve()
+		except Exception as e:
+			print(f"Error solving TPP: {e}")
+			print(f"{start}\n{target}\n{polygons}")
+			return
+
+
+		from vector2 import Vector2
+		from math import isclose, inf
+
+		def intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> tuple[float, float] | None:
+
+			cross = direction1.cross(direction2)
+
+			if abs(cross) < 1e-8:
+				return None
+			
+			sdiff = start2 - start1
+
+			rate1 = sdiff.cross(direction2) / cross
+			rate2 = sdiff.cross(direction1) / cross
+
+			return rate1, rate2
+
+		def locate_ray(start: Vector2, direction: Vector2, bbox: tuple[float, float, float, float]) -> Vector2:
+			"""
+			Locate the ray starting from `start` in the direction of `direction` within the bounding box `bbox`.
+			
+			:param Vector2 start: The starting point of the ray.
+			:param Vector2 direction: The direction vector of the ray.
+			:param tuple bbox: The bounding box defined as (minx, miny, maxx, maxy).
+
+			:return: The point where the ray intersects with the bounding box.
+			"""
+
+			minx, miny, maxx, maxy = bbox
+			dx = maxx - minx
+			dy = maxy - miny
+
+			walls = [
+				(Vector2(minx, miny), Vector2(dx, 0)),
+				(Vector2(maxx, miny), Vector2(0, dy)),
+				(Vector2(maxx, maxy), Vector2(-dx, 0)),
+				(Vector2(minx, maxy), Vector2(0, -dy))
+			]
+
+			for wall_start, wall_dir in walls:
+
+				rates = intersection_rates(start, direction, wall_start, wall_dir)
+
+				if rates is not None and rates[0] >= 0 and 0 <= rates[1] <= 1:
+					return start + direction * rates[0]
+
+			# Should be unreachable if the ray is inside the bounding box.
+			return Vector2(inf, inf)
+
+		def locate_edge(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2, bbox: tuple[float, float, float, float]) -> list[Vector2]:
+			"""
+			Locate the edge defined by two directions starting from `start1` and `start2` within the bounding box `bbox`.
+
+			:param Vector2 start1: The starting point of the first edge.
+			:param Vector2 direction1: The direction vector of the first edge.
+			:param Vector2 start2: The starting point of the second edge.
+			:param Vector2 direction2: The direction vector of the second edge.
+			:param tuple bbox: The bounding box defined as (minx, miny, maxx, maxy).
+
+			:return: A list of Vector2 points representing the edge's vertices.
+			"""
+
+			def get_wall(point: Vector2) -> int:
+				"""
+				Determine which wall of the bounding box the point is closest to.
+				Returns an index corresponding to the wall:
+				0: bottom, 1: right, 2: top, 3: left.
+				"""
+
+				if isclose(point.y, miny):
+					return 0
+				elif isclose(point.x, maxx):
+					return 1
+				elif isclose(point.y, maxy):
+					return 2
+				elif isclose(point.x, minx):
+					return 3
+
+				# Should not happen if the point is within the bounding box
+				return -1 
+
+			minx, miny, maxx, maxy = bbox
+
+			p1 = locate_ray(start1, direction1, bbox)
+			p2 = locate_ray(start2, direction2, bbox)
+
+			w1 = get_wall(p1)
+			w2 = get_wall(p2)
+
+			eps = 0
+
+			corners = [
+				Vector2(maxx + eps, miny -eps),
+				Vector2(maxx + eps, maxy + eps),
+				Vector2(minx - eps, maxy + eps),
+				Vector2(minx - eps, miny - eps)
+			]
+			
+			result = [start1, p1]
+
+			while w1 != w2:
+				result.append(corners[w1])
+				w1 = (w1 + 1) % 4
+			
+			result.append(p2)
+			result.append(start2)
+			result.append(start1)
+
+			return result
+
+		def locate_cone(start: Vector2, direction1: Vector2, direction2: Vector2, bbox: tuple[float, float, float, float]) -> list[Vector2]:
+			"""
+			Locate the cone defined by two directions starting from `start` within the bounding box `bbox`.
+
+			:param Vector2 start: The starting point of the cone.
+			:param Vector2 direction1: The first direction vector of the cone.
+			:param Vector2 direction2: The second direction vector of the cone.
+			:param tuple bbox: The bounding box defined as (minx, miny, maxx, maxy).
+
+			:return: A Polygon2 object representing the cone's vertices.
+			"""
+
+			return locate_edge(start, direction1, start, direction2, bbox)
+
+		visible_area = self.visible_area()
+
+		vertices = solution.polygons[index]
+		cones = solution.cones[index]
+		blocked = solution.blocked[index]
+
+		points = list(vertices) + [pg.Vector2(visible_area.left, visible_area.bottom), pg.Vector2(visible_area.right, visible_area.top)]
+
+		minx = min(point.x for point in points) - 1
+		maxx = max(point.x for point in points) + 1
+		miny = min(point.y for point in points) - 1
+		maxy = max(point.y for point in points) + 1
+
+		bbox = (minx, miny, maxx, maxy)
+
+		surface = pg.Surface(self.screen.get_size(), pg.SRCALPHA)
+		lines_surface = pg.Surface(self.screen.get_size(), pg.SRCALPHA)
+
+		for i, vertex in enumerate(vertices):
+
+			if blocked[i] and blocked[i - 1]:
+				ray = cones[i][0]
+				point = locate_ray(vertex, ray, bbox)
+				screen_points = [self.to_screen_pos(p) for p in [vertex, point]]
+				pg.draw.line(lines_surface, (0, 155, 155, 205), screen_points[0], screen_points[1], 3)
+				continue
+
+			ray1, ray2 = cones[i]
+			points = locate_cone(vertex, ray1, ray2, bbox)
+
+			screen_points = [self.to_screen_pos(p) for p in points] # type: ignore
+			
+			pg.draw.polygon(surface, (255, 0, 0, 80), screen_points)
+			pg.draw.polygon(surface, (255, 0, 0, 255), screen_points, 5)
+		
+		for i in range(len(vertices)):
+
+			v1 = vertices[i]
+			v2 = vertices[(i + 1) % len(vertices)]
+
+			ray1 = cones[i][1]
+			ray2 = cones[(i + 1) % len(vertices)][0]
+
+			points = locate_edge(v1, ray1, v2, ray2, bbox)
+			screen_points = [self.to_screen_pos(p) for p in points] # type: ignore
+
+			color = (0, 155, 0, 80) if not blocked[i] else (0, 155, 155, 80)
+			# cyan: (0, 155, 155, 80)
+			
+			pg.draw.polygon(surface, color, screen_points)
+
+		self.screen.blit(surface, (0, 0))
+		self.screen.blit(lines_surface, (0, 0))
+
 	def draw(self) -> None:
 
 		self.update_screen_size()
@@ -770,7 +995,6 @@ class Main:
 
 				self.draw_line(position, mouse_pos, color, 2)
 
-		self.draw_solution()
 
 		for point in self.points:
 			self.draw_point(point)
@@ -778,9 +1002,12 @@ class Main:
 		for polygon in self.polygons:
 			self.draw_polygon(polygon)
 
+		self.draw_last_step_map()
+		self.draw_solution()
 
 		self.draw_table()
 		self.draw_buttons()
+
 
 	def run_frame(self) -> int:
 
@@ -804,6 +1031,13 @@ class Main:
 
 	def run(self) -> None:
 
+		self.start = Point(pg.Vector2(-1, 1), 10, (105, 0, 0))
+		self.target = Point(pg.Vector2(2, 1), 10, (0, 105, 0))
+
+		self.points = [self.start, self.target]
+
+		self.place_polygon([(2, 3), (2, 2), (-1, 2), (-1, 3)], (100, 100, 100))
+		
 		while not self.run_frame():
 			self.delta_time = self.clock.tick(FRAME_RATE) / 1000.0
 

@@ -6,8 +6,8 @@ import random
 from vector2 import Vector2
 from polygon2 import Polygon2
 
-from u_tpp_filtered import tpp_solve as reference_solution
-from u_tpp_naive import tpp_solve as test_solution
+from u_tpp_fast_locate import tpp_solve as reference_solution
+from u_tpp import tpp_solve as test_solution
 #from u_tpp_naive import tpp_solve as test_solution
 
 from time import perf_counter
@@ -18,7 +18,7 @@ type Points = Sequence[Point]
 type TestCase = tuple[Point, Point, list[Points]]
 
 
-STRICT = True
+STRICT = False
 EPSILON = 1e-10
 
 # If True, tests will compare solution by total length rather than by matching individual points, 
@@ -111,7 +111,7 @@ def do_test(test: TestCase, number: int = 10) -> tuple[float, float]:
 		if STRICT:
 			raise ValueError("All polygons must be convex.")
 		else:
-			print("Warning: All polygons should be convex for accurate testing.")
+			print("⚠️​ Warning: All polygons should be convex for accurate testing.")
 			return (0.0, 0.0)
 
 	reference_time = 0.0
@@ -141,7 +141,7 @@ def do_test(test: TestCase, number: int = 10) -> tuple[float, float]:
 			if STRICT:
 				raise ValueError(f"Test failed for input={test}.\nReference solution: {reference_result}.\nTested solution: {tested_result}.")
 			else:
-				print(f"Warning: Test failed for input={test}.\nReference solution: {reference_result}.\nTested solution: {tested_result}.")
+				print(f"⚠️​ Warning: Test failed for input={test}.\nReference solution: {reference_result}.\nTested solution: {tested_result}.")
 
 	return reference_time, tested_time
 
@@ -252,7 +252,9 @@ if __name__ == "__main__":
 		((-0.6, 5.2), (-0.6, 4.8), [[(2.8, 2.0), (0.0, 2.0), (0.0, 5.0)]]),
 		((4.5, 2.0), (3.5, 2.0), [[(2.8, 2.0), (0.0, 2.0), (0.0, 5.0)]]),
 		((0.0, 4.0), (4.0, 0.0), [[(3.0, 1.0), (1.0, 1.0), (1.0, 3.0), (3.0, 3.0)]]),
-		((-1.7926052592116688, 2.0041878360341565), (-1.2727245469438635, -2.1926283895019223), [[(-2.8043080390114095, -3.654186702016027), (-1.7541858929206575, -5.033836318424196), (-1.0844353498351025, -3.4345790546288875)], [(2.0975681598044416, 2.0395046385241002), (3.094175815858267, 3.1866802982459888), (1.9470001561363786, 4.183287954299814), (0.950392500082553, 3.0361122945779258)]])
+		((-1.7926052592116688, 2.0041878360341565), (-1.2727245469438635, -2.1926283895019223), [[(-2.8043080390114095, -3.654186702016027), (-1.7541858929206575, -5.033836318424196), (-1.0844353498351025, -3.4345790546288875)], [(2.0975681598044416, 2.0395046385241002), (3.094175815858267, 3.1866802982459888), (1.9470001561363786, 4.183287954299814), (0.950392500082553, 3.0361122945779258)]]),
+		((-1.0, 0.0), (-1.0, 2.8000000000000003), [[(0.2, 3.0), (2.0, 2.0), (-1.0, 2.0), (-1.0, 3.0)]]),
+		((-1.0, 1.0), (-1.0, 2.6), [[(2.0, 3.0), (2.0, 2.0), (-1.0, 2.0), (-1.0, 3.0)]]),
 	]
 
 	random_tests = [
@@ -281,9 +283,10 @@ if __name__ == "__main__":
 			[200] * 2,
 			[300] * 3,
 			[400] * 4,
-			#[10 ** 5] * 2,
-			#[10 ** 6] * 1,
-		], 0.5, 2),
+			[10 ** 5] * 2,
+			[10 ** 6] * 1,
+			[10 ** 5] * 10,
+		], 0.5, 10),
 	]
 
 	test_suite("Fixed", fixed, number=100) # type: ignore
