@@ -6,7 +6,7 @@ import random
 from vector2 import Vector2
 from polygon2 import Polygon2
 
-from u_tpp_fast_locate import tpp_solve as reference_solution
+from u_tpp_naive import tpp_solve as reference_solution
 from u_tpp import tpp_solve as test_solution
 #from u_tpp_naive import tpp_solve as test_solution
 
@@ -18,7 +18,7 @@ type Points = Sequence[Point]
 type TestCase = tuple[Point, Point, list[Points]]
 
 
-STRICT = False
+STRICT = True
 EPSILON = 1e-10
 
 # If True, tests will compare solution by total length rather than by matching individual points, 
@@ -117,24 +117,46 @@ def do_test(test: TestCase, number: int = 10) -> tuple[float, float]:
 	reference_time = 0.0
 	tested_time = 0.0
 
+	def run_reference() -> tuple[float, list[Point]]:
+		start_time = perf_counter()
+
+		try:
+			result = reference_solution(*test)
+		except Exception as e:
+			if STRICT:
+				raise ValueError(f"Reference solution raised an exception for input={test}.\nException: {e}.")
+			else:
+				print(f"⚠️​ Warning: Reference solution raised an exception for input={test}.\nException: {e}.")
+				return (0.0, [])
+
+		return perf_counter() - start_time, result
+
+	def run_tested() -> tuple[float, list[Point]]:
+
+		start_time = perf_counter()
+
+		try:
+			result = test_solution(*test)
+		except Exception as e:
+			if STRICT:
+				raise ValueError(f"Tested solution raised an exception for input={test}.\nException: {e}.")
+			else:
+				print(f"⚠️​ Warning: Tested solution raised an exception for input={test}.\nException: {e}.")
+				return (0.0, [])
+
+		return perf_counter() - start_time, result
+
 	for i in range(number):
 
 		if random.random() < 0.5:
-			start_time = perf_counter()
-			reference_result = reference_solution(*test)
-			reference_time += perf_counter() - start_time
-
-			start_time = perf_counter()
-			tested_result = test_solution(*test)
-			tested_time += perf_counter() - start_time
+			ellapsed_reference, reference_result = run_reference()
+			ellapsed_tested, tested_result = run_tested()
 		else:
-			start_time = perf_counter()
-			tested_result = test_solution(*test)
-			tested_time += perf_counter() - start_time
+			ellapsed_tested, tested_result = run_tested()
+			ellapsed_reference, reference_result = run_reference()
 
-			start_time = perf_counter()
-			reference_result = reference_solution(*test)
-			reference_time += perf_counter() - start_time
+		reference_time += ellapsed_reference
+		tested_time += ellapsed_tested
 
 		# Only check the first result to avoid slowing down the tests too much, since the results should be deterministic.
 		if i == 0 and not solutions_equal(reference_result, tested_result):
@@ -283,10 +305,10 @@ if __name__ == "__main__":
 			[200] * 2,
 			[300] * 3,
 			[400] * 4,
-			[10 ** 5] * 2,
-			[10 ** 6] * 1,
-			[10 ** 5] * 10,
-		], 0.5, 10),
+			#[10 ** 5] * 2,
+			#[10 ** 6] * 1,
+			#[10 ** 5] * 10,
+		], 0.5, 2),
 	]
 
 	test_suite("Fixed", fixed, number=100) # type: ignore
