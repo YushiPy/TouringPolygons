@@ -64,7 +64,7 @@ def locate_ray(start: Vector2, direction: Vector2, bbox: tuple[float, float, flo
 			return start + direction * rates[0]
 
 	# Should be unreachable if the ray is inside the bounding box.
-	return Vector2(inf, inf)
+	raise ValueError("Ray does not intersect with bounding box.")
 
 def locate_edge(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2, bbox: tuple[float, float, float, float]) -> list[Vector2]:
 	"""
@@ -106,12 +106,16 @@ def locate_edge(start1: Vector2, direction1: Vector2, start2: Vector2, direction
 	w1 = get_wall(p1)
 	w2 = get_wall(p2)
 
+
 	corners = [
 		Vector2(maxx, miny),
 		Vector2(maxx, maxy),
 		Vector2(minx, maxy),
 		Vector2(minx, miny)
 	]
+
+	if w1 == w2 and direction1.cross(direction2) < 0:
+		return [start1, p1] + corners[w1:] + corners[:w1] + [p2, start2]
 	
 	result = [start1, p1]
 

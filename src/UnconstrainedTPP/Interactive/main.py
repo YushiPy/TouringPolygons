@@ -896,7 +896,7 @@ class Main:
 					return start + direction * rates[0]
 
 			# Should be unreachable if the ray is inside the bounding box.
-			return Vector2(inf, inf)
+			raise ValueError("Ray does not intersect with bounding box.")
 
 		def locate_edge(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2, bbox: tuple[float, float, float, float]) -> list[Vector2]:
 			"""
@@ -938,14 +938,16 @@ class Main:
 			w1 = get_wall(p1)
 			w2 = get_wall(p2)
 
-			eps = 0
 
 			corners = [
-				Vector2(maxx + eps, miny -eps),
-				Vector2(maxx + eps, maxy + eps),
-				Vector2(minx - eps, maxy + eps),
-				Vector2(minx - eps, miny - eps)
+				Vector2(maxx, miny),
+				Vector2(maxx, maxy),
+				Vector2(minx, maxy),
+				Vector2(minx, miny)
 			]
+
+			if w1 == w2 and direction1.cross(direction2) < 0:
+				return [start1, p1] + corners[w1:] + corners[:w1] + [p2, start2]
 			
 			result = [start1, p1]
 
@@ -991,6 +993,47 @@ class Main:
 		surface = pg.Surface(self.screen.get_size(), pg.SRCALPHA)
 		lines_surface = pg.Surface(self.screen.get_size(), pg.SRCALPHA)
 
+		def clean_polygon(polygon: list[Vector2], eps: float = 1e-10) -> list[Vector2]:
+			"""
+			Cleans a polygon by removing collinear points and making the vertices counter-clockwise.
+
+			:param Polygon2 polygon: The polygon to clean.
+			:param float eps: A small epsilon value for numerical stability.
+
+			:return: The cleaned polygon.
+			"""
+
+			if len(polygon) < 3:
+				return polygon
+
+			cleaned = polygon[:2]
+			n = len(polygon)
+
+			for i in range(2, n):
+
+				prev = polygon[i - 2]
+				curr = polygon[i - 1]
+				next_vertex = polygon[i]
+
+				v1 = curr - prev
+				v2 = next_vertex - curr
+
+				if abs(v1.cross(v2)) > eps ** 2:
+					cleaned.append(next_vertex)
+
+			# Ensure counter-clockwise order
+			area = 0.0
+
+			for i in range(len(cleaned)):
+				v1 = cleaned[i]
+				v2 = cleaned[(i + 1) % len(cleaned)]
+				area += (v1[0] * v2[1] - v2[0] * v1[1])
+
+			if area < 0:
+				cleaned.reverse()
+
+			return cleaned
+
 		for i, vertex in enumerate(vertices):
 
 			if blocked[i] and blocked[i - 1]:
@@ -1002,6 +1045,13 @@ class Main:
 
 			ray1, ray2 = cones[i]
 			points = locate_cone(vertex, ray1, ray2, bbox)
+			points = clean_polygon(points)
+
+			r1 = points[-2] - vertex
+			r2 = points[1] - vertex
+
+			if r1.cross(ray1) < 0 and r2.cross(ray2) > 0:
+				points.reverse()
 
 			screen_points = [self.to_screen_pos(p) for p in points] # type: ignore
 			
