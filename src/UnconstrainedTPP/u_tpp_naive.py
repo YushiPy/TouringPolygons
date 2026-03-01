@@ -6,32 +6,89 @@ but it serves as a proof of concept and a baseline for further improvements.
 See report for details on the algorithm and its complexity analysis.
 """
 
-from collections.abc import Iterable
-from vector2 import Vector2
-from polygon2 import Polygon2
 
+type Vector2 = tuple[float, float]
+type Polygon2 = Sequence[Vector2]
+
+
+EPSILON = 1e-8
+
+# Vector operations
+
+def vector_add(v1: Vector2, v2: Vector2) -> Vector2:
+	return (v1[0] + v2[0], v1[1] + v2[1])
+
+def vector_sub(v1: Vector2, v2: Vector2) -> Vector2:
+	return (v1[0] - v2[0], v1[1] - v2[1])
+
+def vector_mul(v: Vector2, scalar: float) -> Vector2:
+	return (v[0] * scalar, v[1] * scalar)
+
+def vector_cross(v1: Vector2, v2: Vector2) -> float:
+	return v1[0] * v2[1] - v1[1] * v2[0]
+
+def vector_dot(v1: Vector2, v2: Vector2) -> float:
+	return v1[0] * v2[0] + v1[1] * v2[1]
+
+def vector_is_same_direction(v1: Vector2, v2: Vector2, eps: float = EPSILON) -> bool:
+
+	cross = vector_cross(v1, v2)
+	dot = vector_dot(v1, v2)
+
+	return abs(cross) < eps ** 2 and dot > 0
+
+def vector_is_close(v1: Vector2, v2: Vector2, eps: float = EPSILON) -> bool:
+	return abs(v1[0] - v2[0]) < eps and abs(v1[1] - v2[1]) < eps
+
+def vector_length(v: Vector2) -> float:
+	return (v[0] ** 2 + v[1] ** 2) ** 0.5
+
+def vector_normalize(v: Vector2) -> Vector2:
+
+	length = vector_length(v)
+
+	if length == 0:
+		return (0.0, 0.0)
+
+	return (v[0] / length, v[1] / length)
+
+def vector_reflect(v: Vector2, normal: Vector2) -> Vector2:
+	
+	normal = vector_normalize(normal)
+	dot = v[0] * normal[0] + v[1] * normal[1]
+
+	return vector_sub(v, vector_mul(normal, 2 * dot))
+
+def vector_perpendicular(v: Vector2) -> Vector2:
+	return (-v[1], v[0])
+
+def vector_reflect_segment(point: Vector2, start: Vector2, end: Vector2) -> Vector2:
+	return vector_add(start, vector_reflect(vector_sub(point, start), vector_perpendicular(vector_sub(end, start))))
 
 def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2) -> Vector2 | None:
 	"""
 	Returns the intersection point of segments (start1, end1) and (start2, end2) if they intersect, otherwise returns None.
 	"""
 
-	direction1 = end1 - start1
-	direction2 = end2 - start2
+	direction1 = vector_sub(end1, start1)
+	direction2 = vector_sub(end2, start2)
 
-	cross = direction1.cross(direction2)
+	cross = vector_cross(direction1, direction2)
 
 	if cross == 0:
 		return None
 
-	sdiff = start2 - start1
-	rate1 = sdiff.cross(direction2) / cross
-	rate2 = sdiff.cross(direction1) / cross
+	sdiff = vector_sub(start2, start1)
+	rate1 = vector_cross(sdiff, direction2) / cross
+	rate2 = vector_cross(sdiff, direction1) / cross
 
 	if 0 <= rate1 <= 1 and 0 <= rate2 <= 1:
-		return start1 + direction1 * rate1
+		return vector_add(start1, vector_mul(direction1, rate1))
 	
 	return None
+
+
+# Point location functions
 
 def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
 	"""
@@ -39,104 +96,84 @@ def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2)
 	The rays are in counter-clockwise order.
 	"""
 
-	if ray1.cross(ray2) == 0 and ray1.dot(ray2) >= 0:
-		return ray1.cross(point - vertex) == 0 and ray1.dot(point - vertex) >= 0
-
-	if ray1.cross(ray2) >= 0:
-		return ray1.cross(point - vertex) >= 0 and ray2.cross(point - vertex) <= 0
+	if vector_cross(ray1, ray2) >= 0:
+		return vector_cross(ray1, vector_sub(point, vertex)) >= 0 and vector_cross(ray2, vector_sub(point, vertex)) <= 0
 	else:
-		return ray1.cross(point - vertex) >= 0 or ray2.cross(point - vertex) <= 0
+		return vector_cross(ray1, vector_sub(point, vertex)) >= 0 or vector_cross(ray2, vector_sub(point, vertex)) <= 0
 
 def point_in_edge(point: Vector2, vertex1: Vector2, ray1: Vector2, vertex2: Vector2, ray2: Vector2) -> bool:
 	"""
 	Check if `point` is inside the edge region defined by `ray1` coming from `vertex1` and `ray2` coming from `vertex2`.
 	The rays and edge are in counter-clockwise order.
 	"""
+	return vector_cross(ray1, vector_sub(point, vertex1)) > 0 and vector_cross(ray2, vector_sub(point, vertex2)) < 0 and vector_cross(vector_sub(vertex2, vertex1), vector_sub(point, vertex1)) <= 0
 
-	return ray1.cross(point - vertex1) > 0 and ray2.cross(point - vertex2) < 0 and (vertex2 - vertex1).cross(point - vertex1) <= 0
+def locate_point(point: Vector2, polygon: Polygon2, cones: list[tuple[Vector2, Vector2]], first_contact: list[bool]) -> int:
+	"""
+	Locate `point` in the shortest last step map of `polygon` and return the index of the region as follows:
+	- `2n` if the point is in the region of vertex `n`
+	- `2n + 1` if the point is between vertices `n` and `n + 1`.
+	- `-1` if the point is in the pass through region.
+	"""
+
+	for j in range(len(polygon)):
+
+		if not first_contact[j] and not first_contact[j - 1]:
+			continue
+
+		v = polygon[j]
+		ray1, ray2 = cones[j]
+
+		if point_in_cone(point, v, ray1, ray2):
+			return 2 * j
+
+	for j in range(len(polygon)):
+
+		if not first_contact[j]:
+			continue
+
+		v1 = polygon[j]
+		v2 = polygon[(j + 1) % len(polygon)]
+
+		ray1 = cones[j][1]
+		ray2 = cones[(j + 1) % len(cones)][0]
+
+		if point_in_edge(point, v1, ray1, v2, ray2):
+			return 2 * j + 1
+
+	return -1
 
 
-class Solution:
+from collections.abc import Sequence
 
-	start: Vector2
-	target: Vector2
-	polygons: list[Polygon2]
+def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]]) -> list[tuple[float, float]]:
 
-	# `first_contact[i][j]` is True if the first contact region of polygon `i` contains edge `j`.
-	first_contact: list[list[bool]]
+	cones: list[list[tuple[Vector2, Vector2]]] = []
+	first_contact: list[list[bool]] = []
 
-	# `cones[i][j]` is the cone of visibility of vertex `j` of polygon `i`.
-	# The rays are stored in counter-clockwise order.
-	cones: list[list[tuple[Vector2, Vector2]]]
-
-	def __init__(self, start: Vector2, target: Vector2, polygons: list[Polygon2] | Iterable[Iterable[Iterable[float]]]) -> None:
-
-		self.start = Vector2(start)
-		self.target = Vector2(target)
-
-		self.polygons = list(map(Polygon2, polygons))
-
-	def locate_point(self, point: Vector2, i: int) -> int:
-		"""
-		Locates `point` in the shortest last step map of `i` and returns the index of the region as follows:
-		- `2n` if the point is in the region of vertex `n`
-		- `2n + 1` if the point is between vertices `n` and `n + 1`.
-		- `-1` if the point is in the pass through region.
-		"""
-
-		polygon = self.polygons[i - 1]
-		first_contact = self.first_contact[i - 1]
-		cones = self.cones[i - 1]
-
-		for j in range(len(polygon)):
-
-			if not first_contact[j] and not first_contact[j - 1]:
-				continue
-
-			v = polygon[j]
-			ray1, ray2 = cones[j]
-			if point_in_cone(point, v, ray1, ray2):
-				return 2 * j
-
-		for j in range(len(polygon)):
-
-			if not first_contact[j]:
-				continue
-
-			v1 = polygon[j]
-			v2 = polygon[(j + 1) % len(polygon)]
-
-			ray1 = cones[j][1]
-			ray2 = cones[(j + 1) % len(cones)][0]
-
-			if point_in_edge(point, v1, ray1, v2, ray2):
-				return 2 * j + 1
-
-		return -1
-
-	def query_full(self, point: Vector2, i: int) -> list[Vector2]:
+	def query_full(point: Vector2, i: int) -> list[Vector2]:
 		"""
 		Returns the `i`-path to `point`.
 		"""
 
 		if i == 0:
-			return [self.start, point]
+			return [start, point]
 		
-		polygon = self.polygons[i - 1]
-		location = self.locate_point(point, i)
+		polygon = polygons[i - 1]
+		location = locate_point(point, polygon, cones[i - 1], first_contact[i - 1])
 
 		if location == -1:
-			return self.query_full(point, i - 1)
+			return query_full(point, i - 1)
 
 		pos = location // 2
 
 		if location % 2 == 0:
-			return self.query_full(polygon[pos], i - 1) + [point]
+			return query_full(polygon[pos], i - 1) + [point]
 
 		v1, v2 = polygon[pos], polygon[(pos + 1) % len(polygon)]
 
-		reflected = point.reflect_segment(v1, v2)
-		path = self.query_full(reflected, i - 1)
+		reflected = vector_reflect_segment(point, v1, v2)
+		path = query_full(reflected, i - 1)
 		last = path[-2]
 
 		intersection = segment_segment_intersection(last, reflected, v1, v2)
@@ -146,19 +183,19 @@ class Solution:
 
 		return path[:-1] + [intersection, point]
 
-	def query(self, point: Vector2, i: int) -> Vector2:
+	def query(point: Vector2, i: int) -> Vector2:
 		"""
 		Returns the last step of the `i`-path to `point`.
 		"""
 
 		if i == 0:
-			return self.start
+			return start
 		
-		polygon = self.polygons[i - 1]
-		location = self.locate_point(point, i)
+		polygon = polygons[i - 1]
+		location = locate_point(point, polygon, cones[i - 1], first_contact[i - 1])
 
 		if location == -1:
-			return self.query(point, i - 1)
+			return query(point, i - 1)
 
 		pos = location // 2
 
@@ -167,8 +204,8 @@ class Solution:
 
 		v1, v2 = polygon[pos], polygon[(pos + 1) % len(polygon)]
 
-		reflected = point.reflect_segment(v1, v2)
-		last = self.query(reflected, i - 1)
+		reflected = vector_reflect_segment(point, v1, v2)
+		last = query(reflected, i - 1)
 
 		intersection = segment_segment_intersection(last, reflected, v1, v2)
 
@@ -177,32 +214,32 @@ class Solution:
 
 		return intersection
 
-	def get_first_contact_region(self, i: int) -> list[bool]:
+	def get_first_contact_region(i: int) -> list[bool]:
 		"""
 		Returns the first contact region of polygon `i`.
 		"""
 
 		result = []
-		polygon = self.polygons[i - 1]
+		polygon = polygons[i - 1]
 
 		for j in range(len(polygon)):
 
 			v1 = polygon[j]
 			v2 = polygon[(j + 1) % len(polygon)]
-			last = self.query(v1, i - 1)
+			last = query(v1, i - 1)
 
-			result.append((v2 - v1).cross(last - v1) < 0)
+			result.append(vector_cross(vector_sub(v2, v1), vector_sub(last, v1)) < 0)
 
 		return result
 
-	def get_last_step_map(self, i: int) -> list[tuple[Vector2, Vector2]]:
+	def get_last_step_map(i: int) -> list[tuple[Vector2, Vector2]]:
 		"""
 		Returns the last step map of polygon `i`.
 		"""
 
 		result = []
-		polygon = self.polygons[i - 1]
-		first_contact = self.first_contact[i - 1]
+		polygon = polygons[i - 1]
+		_first_contact = first_contact[i - 1]
 
 		for j in range(len(polygon)):
 
@@ -210,46 +247,27 @@ class Solution:
 			vertex = polygon[j]
 			after = polygon[(j + 1) % len(polygon)]
 			
-			last = self.query(vertex, i - 1)
-			diff = vertex - last
+			last = query(vertex, i - 1)
+			diff = vector_sub(vertex, last)
 
-			ray1 = diff.reflect((vertex - before).perpendicular())
-			ray2 = diff.reflect((vertex - after).perpendicular())
+			ray1 = vector_reflect(diff, vector_perpendicular(vector_sub(vertex, before)))
+			ray2 = vector_reflect(diff, vector_perpendicular(vector_sub(vertex, after)))
 
-			if not first_contact[j - 1]:
+			if not _first_contact[j - 1]:
 				ray1 = diff
 
-			if not first_contact[j]:
+			if not _first_contact[j]:
 				ray2 = diff
 
 			result.append((ray1, ray2))
 
 		return result
 
-	def solve(self) -> list[Vector2]:
-		"""
-		Returns the shortest path from `start` to `target` that visits all polygons in order.
-		"""
+	first_contact = []
+	cones = []
 
-		self.first_contact = []
-		self.cones = []
+	for i in range(1, len(polygons) + 1):
+		first_contact.append(get_first_contact_region(i))
+		cones.append(get_last_step_map(i))
 
-		for i in range(1, len(self.polygons) + 1):
-			self.first_contact.append(self.get_first_contact_region(i))
-			self.cones.append(self.get_last_step_map(i))
-	
-		return self.query_full(self.target, len(self.polygons))
-
-
-from collections.abc import Sequence
-
-def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]]) -> list[tuple[float, float]]:
-	"""
-	Returns the shortest path from `start` to `target` that visits all polygons in order.
-	"""
-
-	start_vec = Vector2(start)
-	target_vec = Vector2(target)
-	polygon_objs = [Polygon2([Vector2(vertex) for vertex in polygon]) for polygon in polygons]
-
-	return [(x, y) for x, y in Solution(start_vec, target_vec, polygon_objs).solve()]
+	return query_full(target, len(polygons))

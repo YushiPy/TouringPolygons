@@ -427,6 +427,10 @@ class Vector2:
 		"""Checks if this vector is close to the other vector within a given epsilon."""
 		return (self - other).magnitude_squared() < eps * eps
 
+	def is_same_direction(self, other: Self, eps: float = 1e-8) -> bool:
+		"""Checks if this vector is parallel to the other vector within a given epsilon."""
+		return abs(self.cross(other)) < eps * eps and self.dot(other) >= 0
+
 	def __add__(self, other: Self) -> Self:
 		"""Returns a new vector that is the sum of this vector and the other vector."""
 		return type(self)(self.x + other.x, self.y + other.y)

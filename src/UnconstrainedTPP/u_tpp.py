@@ -6,7 +6,7 @@ type Vector2 = tuple[float, float]
 type Polygon2 = Sequence[Vector2]
 
 
-EPSILON = 1e-10
+EPSILON = 1e-8
 
 def vector_add(v1: Vector2, v2: Vector2) -> Vector2:
 	return (v1[0] + v2[0], v1[1] + v2[1])
@@ -77,10 +77,12 @@ def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2,
 	if vector_is_same_direction(ray1, ray2, eps):
 		return vector_is_same_direction(vector_sub(point, vertex), ray1, eps)
 
-	if vector_cross(ray1, ray2) < -eps ** 2:
-		return vector_cross(ray1, vector_sub(point, vertex)) >= -eps or vector_cross(ray2, vector_sub(point, vertex)) <= eps
+	eps_squared = eps * eps
+
+	if vector_cross(ray1, ray2) < -eps_squared:
+		return vector_cross(ray1, vector_sub(point, vertex)) >= -eps_squared or vector_cross(ray2, vector_sub(point, vertex)) <= eps_squared
 	else:
-		return vector_cross(ray1, vector_sub(point, vertex)) >= -eps and vector_cross(ray2, vector_sub(point, vertex)) <= eps
+		return vector_cross(ray1, vector_sub(point, vertex)) >= -eps_squared and vector_cross(ray2, vector_sub(point, vertex)) <= eps_squared
 
 def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2, eps: float = EPSILON) -> bool:
 
@@ -94,16 +96,18 @@ def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vect
 	if vector_is_same_direction(ray1, dv, eps) or vector_is_same_direction(vector_mul(ray2, -1), dv, eps):
 		return False
 
-	if vector_cross(dv, ray1) < eps:
-		if vector_cross(dv, ray2) < eps:
-			return vector_cross(ray1, p1) > -eps and vector_cross(ray2, p2) < eps and vector_cross(dv, p1) < eps
+	eps_squared = eps * eps
+
+	if vector_cross(dv, ray1) < eps_squared:
+		if vector_cross(dv, ray2) < eps_squared:
+			return vector_cross(ray1, p1) > -eps_squared and vector_cross(ray2, p2) < eps_squared and vector_cross(dv, p1) < eps_squared
 		else:
-			return vector_cross(ray1, p1) > -eps if vector_cross(dv, p1) < eps else vector_cross(ray2, p2) < eps
+			return vector_cross(ray1, p1) > -eps_squared if vector_cross(dv, p1) < eps_squared else vector_cross(ray2, p2) < eps_squared
 	else:
-		if vector_cross(dv, ray2) < eps:
-			return vector_cross(ray2, p2) < eps if vector_cross(dv, p2) < eps else vector_cross(ray1, p1) > -eps
+		if vector_cross(dv, ray2) < eps_squared:
+			return vector_cross(ray2, p2) < eps_squared if vector_cross(dv, p2) < eps_squared else vector_cross(ray1, p1) > -eps_squared
 		else:
-			return vector_cross(ray1, p1) > -eps or vector_cross(ray2, p2) < eps or vector_cross(dv, p1) < eps
+			return vector_cross(ray1, p1) > -eps_squared or vector_cross(ray2, p2) < eps_squared or vector_cross(dv, p1) < eps_squared
 
 
 def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2, eps: float = EPSILON) -> Vector2 | None:
