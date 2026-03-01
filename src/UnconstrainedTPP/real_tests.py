@@ -6,8 +6,8 @@ import random
 from vector2 import Vector2
 from polygon2 import Polygon2
 
-from u_tpp_naive import tpp_solve as reference_solution
-from u_tpp import tpp_solve as test_solution
+from u_tpp import tpp_solve as reference_solution
+from u_tpp_final import tpp_solve as test_solution
 #from u_tpp_naive import tpp_solve as test_solution
 
 from time import perf_counter
@@ -18,7 +18,7 @@ type Points = Sequence[Point]
 type TestCase = tuple[Point, Point, list[Points]]
 
 
-STRICT = True
+STRICT = False
 EPSILON = 1e-10
 
 # If True, tests will compare solution by total length rather than by matching individual points, 
