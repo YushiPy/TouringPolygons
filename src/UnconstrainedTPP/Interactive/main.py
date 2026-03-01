@@ -47,6 +47,7 @@ FRICTION = 0.9
 
 FONT = pg.font.SysFont("arial", 16)
 EXPORT_FILE = "export.txt"
+LOAD_FILE = "load.txt"
 
 
 def create_display() -> pg.Surface:
@@ -236,6 +237,49 @@ class Main:
 
 		self.map_button = ToggleButton("Draw Map", "Draw Map", wrap_function(), is_active=True)
 		self.buttons.append(self.map_button)
+
+		self.loaded_index = 0
+		self.load_button = Button("Load Next", wrap_function(self.load_next))
+		self.buttons.append(self.load_button)
+
+	def load_next(self) -> None:
+
+		if not os.path.exists(LOAD_FILE):
+			return
+
+		with open(LOAD_FILE, "r") as f:
+			lines = f.readlines()
+		
+		if not lines:
+			return
+
+		self.loaded_index = self.loaded_index % len(lines)
+		line = lines[self.loaded_index]
+
+		try:
+			data = eval(line)
+			start, target, polygons = data
+			self.load_polygons(start, target, polygons)
+		except Exception as e:
+			print(f"Failed to load data: {e}")
+
+		self.loaded_index += 1
+
+	def load_polygons(self, start: tuple[float, float], target: tuple[float, float], polygons: list[list[tuple[float, float]]]) -> None:
+
+		self.clear_polygons()
+
+		self.start.position = pg.Vector2(start)
+		self.target.position = pg.Vector2(target)
+
+		for i, polygon in enumerate(polygons):
+			color = POINTS_COLORS[i % len(POINTS_COLORS)]
+			self.place_polygon(polygon, color)
+
+		self.set_polygon_index(0)
+
+		self.points.append(self.start)
+		self.points.append(self.target)
 
 	def clear_polygons(self) -> None:
 
