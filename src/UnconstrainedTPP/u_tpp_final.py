@@ -137,7 +137,7 @@ def point_in_cone2(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2
 
 def point_in_edge2(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2, eps: float = EPSILON) -> bool:
 
-	if vertex1 == vertex2:
+	if vector_is_close(vertex1, vertex2):
 		return point_in_cone2(point, vertex1, ray1, ray2)
 
 	p1 = vector_sub(point, vertex1)
@@ -147,7 +147,7 @@ def point_in_edge2(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vec
 	if vector_is_same_direction(ray1, dv, eps) or vector_is_same_direction(vector_mul(ray2, -1), dv, eps):
 		return False
 
-	eps_squared = eps * eps
+	eps_squared = eps * eps * 1
 
 	if vector_cross(dv, ray1) < eps_squared:
 		if vector_cross(dv, ray2) < eps_squared:
@@ -252,13 +252,12 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 			return point_in_edge2(point, v1, v2, ray1, ray2)
 		
 		polygon = polygons[i]
-		n = len(polygon)
 
 		left = 0
-		right = 2 * n - 1
+		right = 2 * len(polygon) - 1
 		
 		if check(right, left):
-			return right if first_contact[i][right // 2] else -1
+			return right
 		
 		while left + 1 != right:
 
@@ -271,11 +270,8 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 
 		if not check(left, right):
 			raise ValueError("Point is not located in any cone or edge.")
-		
-		if first_contact[i][(left - 1) // 2] or first_contact[i][left // 2]:
-			return left
-		else:
-			return -1
+
+		return left
 
 	def locate_point(point: Vector2, i: int) -> int:
 		"""
@@ -299,9 +295,10 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 			return [start, point]
 		
 		polygon = polygons[i - 1]
+		visible = first_contact[i - 1]
 		location = locate_point(point, i - 1)
-
-		if location == -1:
+		
+		if not visible[location // 2] and not visible[(location - 1) // 2]:
 			return query_full(point, i - 1)
 
 		pos = location // 2
@@ -331,9 +328,10 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 			return start
 		
 		polygon = polygons[i - 1]
+		visible = first_contact[i - 1]
 		location = locate_point(point, i - 1)
 
-		if location == -1:
+		if not visible[location // 2] and not visible[(location - 1) // 2]:
 			return query(point, i - 1)
 
 		pos = location // 2
