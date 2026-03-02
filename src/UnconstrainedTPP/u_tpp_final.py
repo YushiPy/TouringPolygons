@@ -147,7 +147,7 @@ def point_in_edge2(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vec
 	if vector_is_same_direction(ray1, dv, eps) or vector_is_same_direction(vector_mul(ray2, -1), dv, eps):
 		return False
 
-	eps_squared = eps * eps * 1
+	eps_squared = eps * eps
 
 	if vector_cross(dv, ray1) < eps_squared:
 		if vector_cross(dv, ray2) < eps_squared:
@@ -285,7 +285,7 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 			return locate_point_naive(point, i)
 		
 		location = locate_point_binary_search(point, i)
-		visible = first_contact[i - 1]
+		visible = first_contact[i]
 
 		if visible[location // 2] or visible[(location - 1) // 2]:
 			return location
