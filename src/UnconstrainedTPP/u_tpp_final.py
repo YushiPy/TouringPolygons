@@ -283,8 +283,14 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 	
 		if len(polygons[i]) < BINARY_SEACH_THRESHOLD:
 			return locate_point_naive(point, i)
+		
+		location = locate_point_binary_search(point, i)
+		visible = first_contact[i - 1]
+
+		if visible[location // 2] or visible[(location - 1) // 2]:
+			return location
 		else:
-			return locate_point_binary_search(point, i)
+			return -1
 
 	def query_full(point: Vector2, i: int) -> list[Vector2]:
 		"""
@@ -295,10 +301,9 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 			return [start, point]
 		
 		polygon = polygons[i - 1]
-		visible = first_contact[i - 1]
 		location = locate_point(point, i - 1)
 		
-		if not visible[location // 2] and not visible[(location - 1) // 2]:
+		if location == -1:
 			return query_full(point, i - 1)
 
 		pos = location // 2
@@ -328,10 +333,9 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 			return start
 		
 		polygon = polygons[i - 1]
-		visible = first_contact[i - 1]
 		location = locate_point(point, i - 1)
 
-		if not visible[location // 2] and not visible[(location - 1) // 2]:
+		if location == -1:
 			return query(point, i - 1)
 
 		pos = location // 2
