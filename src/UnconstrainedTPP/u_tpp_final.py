@@ -11,7 +11,8 @@ type Vector2 = tuple[float, float]
 type Polygon2 = Sequence[Vector2]
 
 # Magic number to switch between binary search and linear search in point location.
-BINARY_SEACH_THRESHOLD = 0
+
+BINARY_SEACH_THRESHOLD = 25
 
 EPSILON = 1e-8
 
@@ -111,7 +112,7 @@ def point_in_edge(point: Vector2, vertex1: Vector2, ray1: Vector2, vertex2: Vect
 	return vector_cross(ray1, vector_sub(point, vertex1)) > 0 and vector_cross(ray2, vector_sub(point, vertex2)) < 0 and vector_cross(vector_sub(vertex2, vertex1), vector_sub(point, vertex1)) <= 0
 
 
-def point_in_cone2(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2, eps: float = EPSILON) -> bool:
+def point_in_cone2(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
 	"""
 	Check if a point is inside the cone defined by two rays originating from a vertex.
 
@@ -119,46 +120,46 @@ def point_in_cone2(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2
 	:param Vector2 vertex: The vertex of the cone.
 	:param Vector2 ray1: The first ray direction.
 	:param Vector2 ray2: The second ray direction.
-	:param float eps: A small epsilon value for numerical stability. Positive values expand the cone, negative values contract it.
 
 	:return: True if the point is inside the cone, False otherwise.
 	"""
 
 	# Rays are almost parallel and in the same direction, treat as a single ray
-	if vector_is_same_direction(ray1, ray2, eps):
-		return vector_is_same_direction(vector_sub(point, vertex), ray1, eps)
+	if vector_is_same_direction(ray1, ray2):
+		return vector_is_same_direction(vector_sub(point, vertex), ray1)
 
-	eps_squared = eps * eps
-
-	if vector_cross(ray1, ray2) < -eps_squared:
-		return vector_cross(ray1, vector_sub(point, vertex)) >= -eps_squared or vector_cross(ray2, vector_sub(point, vertex)) <= eps_squared
+	if vector_cross(ray1, ray2) < 0:
+		return vector_cross(ray1, vector_sub(point, vertex)) >= 0 or vector_cross(ray2, vector_sub(point, vertex)) <= 0
 	else:
-		return vector_cross(ray1, vector_sub(point, vertex)) >= -eps_squared and vector_cross(ray2, vector_sub(point, vertex)) <= eps_squared
+		return vector_cross(ray1, vector_sub(point, vertex)) >= 0 and vector_cross(ray2, vector_sub(point, vertex)) <= 0
 
-def point_in_edge2(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2, eps: float = EPSILON) -> bool:
+def point_in_edge2(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
 
-	if vector_is_close(vertex1, vertex2):
-		return point_in_cone2(point, vertex1, ray1, ray2)
+	dv = vector_sub(vertex2, vertex1)
+
+	if vector_is_same_direction(ray1, dv) or vector_is_same_direction(vector_mul(ray2, -1), dv):
+		return False
 
 	p1 = vector_sub(point, vertex1)
 	p2 = vector_sub(point, vertex2)
-	dv = vector_sub(vertex2, vertex1)
-
-	if vector_is_same_direction(ray1, dv, eps) or vector_is_same_direction(vector_mul(ray2, -1), dv, eps):
-		return False
-
-	eps_squared = eps * eps
-
-	if vector_cross(dv, ray1) < eps_squared:
-		if vector_cross(dv, ray2) < eps_squared:
-			return vector_cross(ray1, p1) > -eps_squared and vector_cross(ray2, p2) < eps_squared and vector_cross(dv, p1) < eps_squared
+	
+	if vector_cross(dv, ray1) < 0:
+		if vector_cross(dv, ray2) < 0:
+			return vector_cross(ray1, p1) >= 0 and vector_cross(ray2, p2) <= 0 and vector_cross(dv, p1) <= 0
 		else:
-			return vector_cross(ray1, p1) > -eps_squared if vector_cross(dv, p1) < eps_squared else vector_cross(ray2, p2) < eps_squared
+			if vector_cross(dv, p1) < 0:
+				return vector_cross(ray1, p1) >= 0
+			else:
+				return vector_cross(ray2, p2) <= 0
 	else:
-		if vector_cross(dv, ray2) < eps_squared:
-			return vector_cross(ray2, p2) < eps_squared if vector_cross(dv, p2) < eps_squared else vector_cross(ray1, p1) > -eps_squared
+		if vector_cross(dv, ray2) < 0:
+			if vector_cross(dv, p2) < 0:
+				return vector_cross(ray2, p2) <= 0
+			else:
+				return vector_cross(ray1, p1) >= 0
 		else:
-			return vector_cross(ray1, p1) > -eps_squared or vector_cross(ray2, p2) < eps_squared or vector_cross(dv, p1) < eps_squared
+			return vector_cross(ray1, p1) >= 0 or vector_cross(ray2, p2) <= 0 or vector_cross(dv, p1) <= 0
+
 
 
 from collections.abc import Sequence
@@ -244,12 +245,16 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 
 		def check(l: int, r: int) -> bool:
 
-			v1 = polygon[l // 2]
-			v2 = polygon[r // 2]
-			ray1 = get_cone(i, l // 2)[l % 2]
-			ray2 = get_cone(i, r // 2)[r % 2]
-			
-			return point_in_edge2(point, v1, v2, ray1, ray2)
+			if l ^ r == 1: # l // 2 == r // 2:
+				v = polygon[l // 2]
+				ray1, ray2 = get_cone(i, l // 2)
+				return point_in_cone2(point, v, ray1, ray2)
+			else:
+				v1 = polygon[l // 2]
+				v2 = polygon[r // 2]
+				ray1 = get_cone(i, l // 2)[l % 2]
+				ray2 = get_cone(i, r // 2)[r % 2]
+				return point_in_edge2(point, v1, v2, ray1, ray2)
 		
 		polygon = polygons[i]
 
