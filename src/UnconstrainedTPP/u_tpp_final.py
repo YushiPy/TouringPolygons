@@ -11,10 +11,7 @@ type Vector2 = tuple[float, float]
 type Polygon2 = Sequence[Vector2]
 
 # Magic number to switch between binary search and linear search in point location.
-
 BINARY_SEACH_THRESHOLD = 25
-
-EPSILON = 1e-8
 
 # Vector operations
 
@@ -33,15 +30,8 @@ def vector_cross(v1: Vector2, v2: Vector2) -> float:
 def vector_dot(v1: Vector2, v2: Vector2) -> float:
 	return v1[0] * v2[0] + v1[1] * v2[1]
 
-def vector_is_same_direction(v1: Vector2, v2: Vector2, eps: float = EPSILON) -> bool:
-
-	cross = vector_cross(v1, v2)
-	dot = vector_dot(v1, v2)
-
-	return abs(cross) < eps ** 2 and dot > 0
-
-def vector_is_close(v1: Vector2, v2: Vector2, eps: float = EPSILON) -> bool:
-	return abs(v1[0] - v2[0]) < eps and abs(v1[1] - v2[1]) < eps
+def vector_is_same_direction(v1: Vector2, v2: Vector2) -> bool:
+	return vector_cross(v1, v2) == 0 and vector_dot(v1, v2) > 0
 
 def vector_length(v: Vector2) -> float:
 	return (v[0] ** 2 + v[1] ** 2) ** 0.5
@@ -134,6 +124,9 @@ def point_in_cone2(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2
 		return vector_cross(ray1, vector_sub(point, vertex)) >= 0 and vector_cross(ray2, vector_sub(point, vertex)) <= 0
 
 def point_in_edge2(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
+
+	if vertex1 == vertex2:
+		return point_in_cone2(point, vertex1, ray1, ray2)
 
 	dv = vector_sub(vertex2, vertex1)
 
@@ -245,16 +238,12 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 
 		def check(l: int, r: int) -> bool:
 
-			if l ^ r == 1: # l // 2 == r // 2:
-				v = polygon[l // 2]
-				ray1, ray2 = get_cone(i, l // 2)
-				return point_in_cone2(point, v, ray1, ray2)
-			else:
-				v1 = polygon[l // 2]
-				v2 = polygon[r // 2]
-				ray1 = get_cone(i, l // 2)[l % 2]
-				ray2 = get_cone(i, r // 2)[r % 2]
-				return point_in_edge2(point, v1, v2, ray1, ray2)
+			v1 = polygon[l // 2]
+			v2 = polygon[r // 2]
+			ray1 = get_cone(i, l // 2)[l % 2]
+			ray2 = get_cone(i, r // 2)[r % 2]
+
+			return point_in_edge2(point, v1, v2, ray1, ray2)
 		
 		polygon = polygons[i]
 
