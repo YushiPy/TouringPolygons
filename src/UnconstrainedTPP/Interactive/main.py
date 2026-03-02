@@ -13,7 +13,7 @@ sys.path.append("..")
 
 from polygon2 import Polygon2
 from vector2 import Vector2
-from u_tpp import tpp_solve
+from UnconstrainedTPP.u_tpp_fast_jit import tpp_solve
 from u_tpp_fast_locate import Solution
 
 pg.init()

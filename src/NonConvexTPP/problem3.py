@@ -11,7 +11,7 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(os.path.abspath(os.path.join(dir_path, '..')))
 
 from vector2 import Vector2
-from UnconstrainedTPP.u_tpp import tpp_solve
+from UnconstrainedTPP.u_tpp_fast_jit import tpp_solve
 from polygon2 import Polygon2
 
 import matplotlib.pyplot as plt
