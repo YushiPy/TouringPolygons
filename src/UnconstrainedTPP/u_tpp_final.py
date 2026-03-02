@@ -104,14 +104,10 @@ def point_in_edge(point: Vector2, vertex1: Vector2, ray1: Vector2, vertex2: Vect
 
 def point_in_cone2(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
 	"""
-	Check if a point is inside the cone defined by two rays originating from a vertex.
+	Check if a `point` is inside the cone defined by `vertex` and rays `ray1` and `ray2`.
+	The rays are in counter-clockwise order. 
 
-	:param Vector2 point: The point to check.
-	:param Vector2 vertex: The vertex of the cone.
-	:param Vector2 ray1: The first ray direction.
-	:param Vector2 ray2: The second ray direction.
-
-	:return: True if the point is inside the cone, False otherwise.
+	This version is used for binary search and considers the case where `ray1` and `ray2` point in the same direction.
 	"""
 
 	# Rays are almost parallel and in the same direction, treat as a single ray
@@ -124,6 +120,12 @@ def point_in_cone2(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2
 		return vector_cross(ray1, vector_sub(point, vertex)) >= 0 and vector_cross(ray2, vector_sub(point, vertex)) <= 0
 
 def point_in_edge2(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
+	"""
+	Check if `point` is inside the edge region defined by `ray1` coming from `vertex1` and `ray2` coming from `vertex2`.
+	The rays and edge are in counter-clockwise order. 
+	
+	This version is used for binary search and considers all possible cases of ray directions.
+	"""
 
 	if vertex1 == vertex2:
 		return point_in_cone2(point, vertex1, ray1, ray2)
@@ -161,7 +163,8 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 
 	def get_cone(i: int, j: int) -> tuple[Vector2, Vector2]:
 		"""
-		Get the cone for vertex `j` of polygon `i`.
+		Get the cone of visibility for vertex `j` of polygon `i`.
+		Caches the result for future queries.
 		"""
 
 		if cones[i][j] is None:
@@ -189,12 +192,13 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 
 		return cones[i][j] # type: ignore
 
-	def locate_point_naive(point: Vector2, i: int) -> int:
+	def locate_point_linear_seach(point: Vector2, i: int) -> int:
 		"""
-		Locate `point` in the shortest last step map of `polygon[i]` and return the index of the region as follows:
-		- `2n` if the point is in the region of vertex `n`
-		- `2n + 1` if the point is between vertices `n` and `n + 1`.
-		- `-1` if the point is in the pass through region.
+		Uses linear search to locate `point` in the visibility map of `polygon[i]`.
+		Returns index as follows:
+		- `2n` -> cone in vertex `n`
+		- `2n + 1` -> edge between vertex `n` and `n + 1`
+		- `-1` -> pass through region
 		"""
 
 		polygon = polygons[i]
@@ -225,15 +229,13 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 	
 	def locate_point_binary_search(point: Vector2, i: int) -> int:
 		"""
-		Locates point in cones or edges defined by polygon and cones at the given index.
+		Uses binary search to locate `point` in the visibility map of `polygon[i]`.
 		Returns index as follows:
 		- `2n` -> cone in vertex `n`
 		- `2n + 1` -> edge between vertex `n` and `n + 1`
 
-		:param Vector2 point: The point to locate.
-		:param int index: The index of the polygon.
-
-		:return: The located index.
+		The returned vertex or edge may not be in the first contact region, 
+		so the caller should check for that and return -1 if it's not in the first contact region.
 		"""
 
 		def check(l: int, r: int) -> bool:
@@ -269,14 +271,16 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 
 	def locate_point(point: Vector2, i: int) -> int:
 		"""
-		Locate `point` in the shortest last step map of `polygon` and return the index of the region as follows:
+		Locate `point` in the shortest last step map of `polygon[i]` and return the index of the region as follows:
 		- `2n` if the point is in the region of vertex `n`
 		- `2n + 1` if the point is between vertices `n` and `n + 1`.
 		- `-1` if the point is in the pass through region.
+
+		Decides between linear search and binary search based on the number of vertices in the polygon.
 		"""
 	
 		if len(polygons[i]) < BINARY_SEACH_THRESHOLD:
-			return locate_point_naive(point, i)
+			return locate_point_linear_seach(point, i)
 		
 		location = locate_point_binary_search(point, i)
 		visible = first_contact[i]
