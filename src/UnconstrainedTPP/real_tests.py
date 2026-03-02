@@ -7,7 +7,7 @@ import sys
 sys.setrecursionlimit(10 ** 7)
 
 from u_tpp_final import tpp_solve as reference_solution
-from u_tpp_final import tpp_solve as test_solution
+from u_tpp_naive_jit import tpp_solve as test_solution
 #from u_tpp_fast_jit import tpp_solve as test_solution
 #from u_tpp_naive import tpp_solve as test_solution
 

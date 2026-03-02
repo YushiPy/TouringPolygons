@@ -6,16 +6,14 @@ but it serves as a proof of concept and a baseline for further improvements.
 See report for details on the algorithm and its complexity analysis.
 """
 
+from collections.abc import Sequence
 
 import common
 from common import vector_cross, vector_reflect_ray, vector_sub
 
 
 type Vector2 = tuple[float, float]
-type Polygon2 = Sequence[Vector2]
 
-
-from collections.abc import Sequence
 
 def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]]) -> list[tuple[float, float]]:
 

@@ -234,7 +234,9 @@ def locate_point(point: Vector2, polygon: Polygon2, cones: Callable[[int], tuple
 
 def query_full(point: Vector2, i: int, start: Vector2, polygons: Sequence[Polygon2], _locate_point: Callable[[Vector2, int], int]) -> list[Vector2]:
 	"""
-	Returns the `i`-path to `point`.
+	Returns the shortest path from `start` to `point` that visits polygons `P_1, ..., P_i`.
+	
+	Uses the `locate_point` function to find the last step of the path and then recursively queries for the rest of the path.
 	"""
 
 	if i == 0:
@@ -266,7 +268,9 @@ def query_full(point: Vector2, i: int, start: Vector2, polygons: Sequence[Polygo
 
 def query(point: Vector2, i: int, start: Vector2, polygons: Sequence[Polygon2], _locate_point: Callable[[Vector2, int], int]) -> Vector2:
 	"""
-	Returns the last step of the `i`-path to `point`.
+	Returns the last step of the shortest path from `start` to `point` that visits polygons `P_1, ..., P_i`.
+	
+	Uses the `locate_point` function to find the last step of the path and then recursively queries for the rest of the path.
 	"""
 
 	if i == 0:
