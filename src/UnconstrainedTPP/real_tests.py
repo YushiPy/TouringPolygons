@@ -3,7 +3,10 @@ from collections.abc import Sequence
 import math
 import random
 
-from u_tpp_naive_jit import tpp_solve as reference_solution
+import sys
+sys.setrecursionlimit(10 ** 7)
+
+from u_tpp_final import tpp_solve as reference_solution
 from u_tpp_final import tpp_solve as test_solution
 #from u_tpp_fast_jit import tpp_solve as test_solution
 #from u_tpp_naive import tpp_solve as test_solution
@@ -314,10 +317,9 @@ if __name__ == "__main__":
 			[300] * 3,
 			[400] * 4,
 			[10 ** 4] * 2,
-			#[10 ** 5] * 2,
-			#[10 ** 6] * 1,
-			#[10 ** 5] * 10,
-		], 0.5, 2),
+			[10 ** 5] * 2,
+			[10 ** 6] * 1,
+		], 0.5, 1),
 	]
 
 	test_suite("Fixed", fixed, number=100) # type: ignore

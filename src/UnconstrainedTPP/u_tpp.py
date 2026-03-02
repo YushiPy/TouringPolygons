@@ -1,189 +1,11 @@
 
 from collections.abc import Sequence
+from common import clean_polygon, point_in_edge_plus, segment_segment_intersection, vector_cross, vector_reflect_ray, vector_reflect_segment, vector_sub
 
 
 type Vector2 = tuple[float, float]
-type Polygon2 = Sequence[Vector2]
 
-
-EPSILON = 1e-8
-
-def vector_add(v1: Vector2, v2: Vector2) -> Vector2:
-	return (v1[0] + v2[0], v1[1] + v2[1])
-
-def vector_sub(v1: Vector2, v2: Vector2) -> Vector2:
-	return (v1[0] - v2[0], v1[1] - v2[1])
-
-def vector_mul(v: Vector2, scalar: float) -> Vector2:
-	return (v[0] * scalar, v[1] * scalar)
-
-def vector_cross(v1: Vector2, v2: Vector2) -> float:
-	return v1[0] * v2[1] - v1[1] * v2[0]
-
-def vector_dot(v1: Vector2, v2: Vector2) -> float:
-	return v1[0] * v2[0] + v1[1] * v2[1]
-
-def vector_is_same_direction(v1: Vector2, v2: Vector2, eps: float = EPSILON) -> bool:
-
-	cross = vector_cross(v1, v2)
-	dot = vector_dot(v1, v2)
-
-	return abs(cross) < eps ** 2 and dot > 0
-
-def vector_is_close(v1: Vector2, v2: Vector2, eps: float = EPSILON) -> bool:
-	return abs(v1[0] - v2[0]) < eps and abs(v1[1] - v2[1]) < eps
-
-def vector_length(v: Vector2) -> float:
-	return (v[0] ** 2 + v[1] ** 2) ** 0.5
-
-def vector_normalize(v: Vector2) -> Vector2:
-
-	length = vector_length(v)
-
-	if length == 0:
-		return (0.0, 0.0)
-
-	return (v[0] / length, v[1] / length)
-
-def vector_reflect(v: Vector2, normal: Vector2) -> Vector2:
-	
-	normal = vector_normalize(normal)
-	dot = v[0] * normal[0] + v[1] * normal[1]
-
-	return vector_sub(v, vector_mul(normal, 2 * dot))
-
-def vector_perpendicular(v: Vector2) -> Vector2:
-	return (-v[1], v[0])
-
-def vector_reflect_segment(point: Vector2, start: Vector2, end: Vector2) -> Vector2:
-	#(point - start).reflect((end - start).perpendicular()) + start
-	return vector_add(start, vector_reflect(vector_sub(point, start), vector_perpendicular(vector_sub(end, start))))
-
-
-def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2, eps: float = EPSILON) -> bool:
-	"""
-	Check if a point is inside the cone defined by two rays originating from a vertex.
-
-	:param Vector2 point: The point to check.
-	:param Vector2 vertex: The vertex of the cone.
-	:param Vector2 ray1: The first ray direction.
-	:param Vector2 ray2: The second ray direction.
-	:param float eps: A small epsilon value for numerical stability. Positive values expand the cone, negative values contract it.
-
-	:return: True if the point is inside the cone, False otherwise.
-	"""
-
-	# Rays are almost parallel and in the same direction, treat as a single ray
-	if vector_is_same_direction(ray1, ray2, eps):
-		return vector_is_same_direction(vector_sub(point, vertex), ray1, eps)
-
-	eps_squared = eps * eps
-
-	if vector_cross(ray1, ray2) < -eps_squared:
-		return vector_cross(ray1, vector_sub(point, vertex)) >= -eps_squared or vector_cross(ray2, vector_sub(point, vertex)) <= eps_squared
-	else:
-		return vector_cross(ray1, vector_sub(point, vertex)) >= -eps_squared and vector_cross(ray2, vector_sub(point, vertex)) <= eps_squared
-
-def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2, eps: float = EPSILON) -> bool:
-
-	if vector_is_close(vertex1, vertex2):
-		return point_in_cone(point, vertex1, ray1, ray2)
-
-	p1 = vector_sub(point, vertex1)
-	p2 = vector_sub(point, vertex2)
-	dv = vector_sub(vertex2, vertex1)
-
-	if vector_is_same_direction(ray1, dv, eps) or vector_is_same_direction(vector_mul(ray2, -1), dv, eps):
-		return False
-
-	eps_squared = eps * eps
-
-	if vector_cross(dv, ray1) < eps_squared:
-		if vector_cross(dv, ray2) < eps_squared:
-			return vector_cross(ray1, p1) > -eps_squared and vector_cross(ray2, p2) < eps_squared and vector_cross(dv, p1) < eps_squared
-		else:
-			return vector_cross(ray1, p1) > -eps_squared if vector_cross(dv, p1) < eps_squared else vector_cross(ray2, p2) < eps_squared
-	else:
-		if vector_cross(dv, ray2) < eps_squared:
-			return vector_cross(ray2, p2) < eps_squared if vector_cross(dv, p2) < eps_squared else vector_cross(ray1, p1) > -eps_squared
-		else:
-			return vector_cross(ray1, p1) > -eps_squared or vector_cross(ray2, p2) < eps_squared or vector_cross(dv, p1) < eps_squared
-
-
-def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2, eps: float = EPSILON) -> Vector2 | None:
-	"""
-	Returns the intersection point of two line segments if they intersect, otherwise returns None.
-
-	:param Vector2 start1: The start point of the first segment as a Vector2.
-	:param Vector2 end1: The end point of the first segment as a Vector2.
-	:param Vector2 start2: The start point of the second segment as a Vector2.
-	:param Vector2 end2: The end point of the second segment as a Vector2.
-
-	:return: The intersection point as a Vector2 if the segments intersect, otherwise None.	
-	"""
-
-	diff1 = vector_sub(end1, start1)
-	diff2 = vector_sub(end2, start2)
-
-	cross = vector_cross(diff1, diff2)
-
-	if abs(cross) < eps:
-		return None
-	
-	sdiff = vector_sub(start2, start1)
-
-	rate1 = vector_cross(sdiff, diff2) / cross
-	rate2 = vector_cross(sdiff, diff1) / cross
-
-	if -eps <= rate1 <= 1 + eps and -eps <= rate2 <= 1 + eps:
-		return (start1[0] + rate1 * diff1[0], start1[1] + rate1 * diff1[1])
-	
-	return None
-
-
-def clean_polygon(polygon: Polygon2, eps: float = EPSILON) -> Polygon2:
-	"""
-	Cleans a polygon by removing collinear points and making the vertices counter-clockwise.
-
-	:param Polygon2 polygon: The polygon to clean.
-	:param float eps: A small epsilon value for numerical stability.
-
-	:return: The cleaned polygon.
-	"""
-
-	cleaned: Polygon2 = []
-
-	n = len(polygon)
-
-	for i in range(n):
-
-		prev = polygon[i - 1]
-		curr = polygon[i]
-		next = polygon[(i + 1) % n]
-
-		v1 = vector_sub(curr, prev)
-		v2 = vector_sub(next, curr)
-
-		if abs(vector_cross(v1, v2)) > eps ** 2:
-			cleaned.append(curr)
-
-	# Ensure counter-clockwise order
-	area = 0.0
-
-	for i in range(len(cleaned)):
-		v1 = cleaned[i]
-		v2 = cleaned[(i + 1) % len(cleaned)]
-		area += (v1[0] * v2[1] - v2[0] * v1[1])
-
-	if area < 0:
-		cleaned.reverse()
-
-	return cleaned
-
-def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: Sequence[Polygon2], *, simplify: bool = False) -> list[Vector2]:
-
-	start = (start[0], start[1])
-	target = (target[0], target[1])
+def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]], *, simplify: bool = False) -> list[Vector2]:
 
 	if simplify:
 		polygons = [clean_polygon(polygon) for polygon in polygons]
@@ -213,17 +35,17 @@ def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: Sequenc
 		after = polygon[(j + 1) % len(polygon)]
 		
 		last = query(vertex, i)
-		diff = vector_normalize(vector_sub(vertex, last))
+		diff = vector_sub(vertex, last)
 
 		if vector_cross(diff, vector_sub(vertex, before)) > 0:
 			ray1 = diff
 		else:
-			ray1 = vector_reflect(diff, vector_perpendicular(vector_sub(before, vertex)))
+			ray1 = vector_reflect_ray(diff, vertex, before)
 		
 		if vector_cross(diff, vector_sub(after, vertex)) > 0:
 			ray2 = diff
 		else:
-			ray2 = vector_reflect(diff, vector_perpendicular(vector_sub(after, vertex)))
+			ray2 = vector_reflect_ray(diff, vertex, after)
 
 		cones[i][j] = (ray1, ray2)
 
@@ -265,7 +87,7 @@ def tpp_solve(start: Sequence[float], target: Sequence[float], polygons: Sequenc
 			ray1 = get(l // 2)[l % 2]
 			ray2 = get(r // 2)[r % 2]
 			
-			return point_in_edge(point, v1, v2, ray1, ray2)
+			return point_in_edge_plus(point, v1, v2, ray1, ray2)
 		
 		polygon = polygons[index]
 		n = len(polygon)
