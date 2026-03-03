@@ -34,7 +34,7 @@ def vector_dot(v1: Vector2, v2: Vector2) -> float:
 	return v1[0] * v2[0] + v1[1] * v2[1]
 
 def vector_is_same_direction(v1: Vector2, v2: Vector2) -> bool:
-	return vector_cross(v1, v2) == 0 and vector_dot(v1, v2) > 0
+	return vector_cross(v1, v2) == 0 and vector_dot(v1, v2) >= 0
 
 def vector_length(v: Vector2) -> float:
 	return (v[0] ** 2 + v[1] ** 2) ** 0.5
@@ -159,38 +159,40 @@ def point_in_edge2(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vec
 			return vector_cross(ray1, p1) >= 0 or vector_cross(ray2, p2) <= 0 or vector_cross(dv, p1) <= 0
 
 
-# Input cleanup function
+# Cleanup functions
 
-def clean_polygon(polygon: Polygon2) -> Polygon2:
+def remove_collinear_points(points: Sequence[Vector2]) -> list[Vector2]:
+	"""
+	Removes collinear points from a sequence of points.
+	"""
+
+	cleaned: list[Vector2] = [points[0], points[1]]
+
+	for i in range(2, len(points)):
+
+		a = cleaned[-2]
+		b = cleaned[-1]
+		candidate = points[i]
+
+		v1 = vector_sub(b, a)
+		v2 = vector_sub(candidate, b)
+
+		if vector_is_same_direction(v1, v2):
+			cleaned[-1] = candidate
+		else:
+			cleaned.append(candidate)
+
+	return cleaned
+
+def clean_polygon(polygon: Polygon2) -> list[Vector2]:
 	"""
 	Cleans a polygon by removing collinear points and making the vertices counter-clockwise.
 	"""
 
-	cleaned: Polygon2 = []
-
-	n = len(polygon)
-
-	for i in range(n):
-
-		prev = polygon[i - 1]
-		curr = polygon[i]
-		next = polygon[(i + 1) % n]
-
-		v1 = vector_sub(curr, prev)
-		v2 = vector_sub(next, curr)
-
-		if vector_cross(v1, v2) == 0:
-			cleaned.append(curr)
+	cleaned = remove_collinear_points(polygon)
 
 	# Ensure counter-clockwise order
-	area = 0.0
-
-	for i in range(len(cleaned)):
-		v1 = cleaned[i]
-		v2 = cleaned[(i + 1) % len(cleaned)]
-		area += (v1[0] * v2[1] - v2[0] * v1[1])
-
-	if area < 0:
+	if vector_cross(vector_sub(cleaned[1], cleaned[0]), vector_sub(cleaned[-1], cleaned[0])) < 0:
 		cleaned.reverse()
 
 	return cleaned
@@ -345,7 +347,7 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 		
 		polygon = polygons[i - 1]
 		location = locate_point(point, i - 1)
-		
+
 		if location == -1:
 			return query_full(point, i - 1)
 
@@ -401,4 +403,4 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 	cones: list[list[tuple[Vector2, Vector2] | None]] = [[None] * len(polygon) for polygon in polygons]
 	first_contact: list[list[bool]] = [[False] * len(polygon) for polygon in polygons]
 
-	return query_full(target, len(polygons))
+	return remove_collinear_points(query_full(target, len(polygons)))

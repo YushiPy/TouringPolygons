@@ -11,10 +11,11 @@ import os
 os.chdir(os.path.dirname(__file__))
 sys.path.append("..")
 
-from polygon2 import Polygon2
-from vector2 import Vector2
-from UnconstrainedTPP.u_tpp_fast_jit import tpp_solve
-from u_tpp_fast_locate import Solution
+
+from u_tpp import tpp_solve
+from common import Solution
+from LegacySolutions.polygon2 import Polygon2
+from LegacySolutions.vector2 import Vector2
 
 pg.init()
 
@@ -257,11 +258,17 @@ class Main:
 		line = lines[self.loaded_index]
 
 		try:
-			data = eval(line)
-			start, target, polygons = data
+			
+			data = eval(line.strip("\t\n ,"))
+
+			while isinstance(data, Sequence) and len(data) == 1:
+				data = data[0]
+
+			start, target, polygons = data[:3]
 			self.load_polygons(start, target, polygons)
+
 		except Exception as e:
-			print(f"Failed to load data: {e}")
+			print(f"Failed to load data: {e}", flush=True)
 
 		self.loaded_index += 1
 
@@ -299,8 +306,8 @@ class Main:
 		with open(EXPORT_FILE, "a") as f:
 			start = tuple(self.start.position)
 			target = tuple(self.target.position)
-			polygons = [[tuple(vertex.position) for vertex in polygon.vertices] for polygon in self.polygons]
-			f.write(str((start, target, polygons)) + "\n")
+			polygons = [[tuple(vertex) for vertex in Polygon2(p.position for p in polygon.vertices)] for polygon in self.polygons]
+			f.write(str((start, target, polygons)) + ",\n")
 
 	def get_button_rects(self) -> list[pg.Rect]:
 
@@ -841,16 +848,13 @@ class Main:
 		polygons = [Polygon2(p.position for p in poly.vertices) for poly in self.polygons[:index + 1]]
 	
 		try:
-			solution = Solution(start, target, polygons)
-			solution.solve()
+			solution = Solution(start, target, polygons) # type: ignore
 		except Exception as e:
 			print(f"Error solving TPP: {e}")
 			print(f"{start}\n{target}\n{polygons}")
 			return
 
-
-		from vector2 import Vector2
-		from math import isclose, inf
+		from math import isclose
 
 		def intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> tuple[float, float] | None:
 
@@ -977,9 +981,9 @@ class Main:
 
 		visible_area = self.visible_area()
 
-		vertices = solution.polygons[index]
-		cones = solution.cones[index]
-		blocked = solution.blocked[index]
+		vertices = list(map(Vector2, solution.polygons[index]))
+		cones = [(Vector2(r1), Vector2(r2)) for r1, r2 in solution.cones[index]]
+		first_contact = solution.first_contact[index]
 
 		points = list(vertices) + [pg.Vector2(visible_area.left, visible_area.bottom), pg.Vector2(visible_area.right, visible_area.top)]
 
@@ -1036,7 +1040,7 @@ class Main:
 
 		for i, vertex in enumerate(vertices):
 
-			if blocked[i] and blocked[i - 1]:
+			if not first_contact[i] and not first_contact[i - 1]:
 				ray = cones[i][0]
 				point = locate_ray(vertex, ray, bbox)
 				screen_points = [self.to_screen_pos(p) for p in [vertex, point]] # type: ignore
@@ -1069,7 +1073,7 @@ class Main:
 			points = locate_edge(v1, ray1, v2, ray2, bbox)
 			screen_points = [self.to_screen_pos(p) for p in points] # type: ignore
 
-			color = (0, 155, 0, 80) if not blocked[i] else (0, 155, 155, 80)
+			color = (0, 155, 0, 80) if first_contact[i] else (0, 155, 155, 80)
 			# cyan: (0, 155, 155, 80)
 			
 			pg.draw.polygon(surface, color, screen_points)

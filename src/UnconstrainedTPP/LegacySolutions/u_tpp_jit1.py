@@ -1,5 +1,11 @@
 
 from functools import cache
+
+import sys
+
+file_directory = __file__.rpartition("/")[0]
+sys.path.append(file_directory)
+
 from vector2 import Vector2
 from polygon2 import Polygon2
 

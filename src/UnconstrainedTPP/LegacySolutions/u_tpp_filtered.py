@@ -1,7 +1,11 @@
 
+import sys
+
+file_directory = __file__.rpartition("/")[0]
+sys.path.append(file_directory)
+
 from vector2 import Vector2
 from polygon2 import Polygon2
-
 
 def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2, eps: float = 1e-8) -> bool:
 	"""

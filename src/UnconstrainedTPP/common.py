@@ -43,7 +43,7 @@ def vector_dot(v1: Vector2, v2: Vector2) -> float:
 	return v1[0] * v2[0] + v1[1] * v2[1]
 
 def vector_is_same_direction(v1: Vector2, v2: Vector2) -> bool:
-	return vector_cross(v1, v2) == 0 and vector_dot(v1, v2) > 0
+	return vector_cross(v1, v2) == 0 and vector_dot(v1, v2) >= 0
 
 def vector_length(v: Vector2) -> float:
 	return (v[0] ** 2 + v[1] ** 2) ** 0.5
@@ -73,6 +73,36 @@ def vector_reflect_segment(point: Vector2, start: Vector2, end: Vector2) -> Vect
 def vector_reflect_ray(direction: Vector2, start: Vector2, end: Vector2) -> Vector2:
 	"""Bounces `direction` on the line defined by `start` and `end`."""
 	return vector_reflect(direction, vector_perpendicular(vector_sub(end, start)))
+
+def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2) -> Vector2 | None:
+	"""
+	Returns the intersection point of two line segments if they intersect, otherwise returns None.
+
+	:param Vector2 start1: The start point of the first segment as a Vector2.
+	:param Vector2 end1: The end point of the first segment as a Vector2.
+	:param Vector2 start2: The start point of the second segment as a Vector2.
+	:param Vector2 end2: The end point of the second segment as a Vector2.
+
+	:return: The intersection point as a Vector2 if the segments intersect, otherwise None.	
+	"""
+
+	diff1 = vector_sub(end1, start1)
+	diff2 = vector_sub(end2, start2)
+
+	cross = vector_cross(diff1, diff2)
+
+	if cross == 0:
+		return None
+	
+	sdiff = vector_sub(start2, start1)
+
+	rate1 = vector_cross(sdiff, diff2) / cross
+	rate2 = vector_cross(sdiff, diff1) / cross
+
+	if 0 <= rate1 <= 1 and 0 <= rate2 <= 1:
+		return (start1[0] + rate1 * diff1[0], start1[1] + rate1 * diff1[1])
+	
+	return None
 
 
 # Point location functions
@@ -398,7 +428,7 @@ def tpp_solve_normal(start: Vector2, target: Vector2, polygons: Sequence[Polygon
 		first_contact.append(get_first_contact_region(i))
 		cones.append(get_last_step_map(i))
 
-	return _query_full(target, len(polygons))
+	return remove_collinear_points(_query_full(target, len(polygons)))
 
 def tpp_solve_jit(start: Vector2, target: Vector2, polygons: Sequence[Polygon2], location_function: LocationFunction, *, simplify: bool = False) -> list[Vector2]:
 
@@ -448,7 +478,7 @@ def tpp_solve_jit(start: Vector2, target: Vector2, polygons: Sequence[Polygon2],
 	cones: list[list[tuple[Vector2, Vector2] | None]] = [[None] * len(polygon) for polygon in polygons]
 	first_contact: list[list[bool]] = [[False] * len(polygon) for polygon in polygons]
 
-	return _query_full(target, len(polygons))
+	return remove_collinear_points(_query_full(target, len(polygons)))
 
 
 def tpp_solve_linear(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]], *, simplify: bool = False) -> list[Vector2]: 
@@ -469,74 +499,43 @@ def tpp_solve_binary_jit(start: tuple[float, float], target: tuple[float, float]
 def tpp_solve_dynamic_jit(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]], *, simplify: bool = False) -> list[Vector2]:
 	return tpp_solve_jit(start, target, polygons, _locate_point_dynamic, simplify=simplify)
 
-#return tpp_solve_normal(start, target, polygons, locate_point_linear_search, simplify=simplify)
+# Cleaning functions
 
-# Geometry functions
-
-def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2) -> Vector2 | None:
+def remove_collinear_points(points: Sequence[Vector2]) -> list[Vector2]:
 	"""
-	Returns the intersection point of two line segments if they intersect, otherwise returns None.
-
-	:param Vector2 start1: The start point of the first segment as a Vector2.
-	:param Vector2 end1: The end point of the first segment as a Vector2.
-	:param Vector2 start2: The start point of the second segment as a Vector2.
-	:param Vector2 end2: The end point of the second segment as a Vector2.
-
-	:return: The intersection point as a Vector2 if the segments intersect, otherwise None.	
+	Removes collinear points from a sequence of points.
 	"""
 
-	diff1 = vector_sub(end1, start1)
-	diff2 = vector_sub(end2, start2)
+	cleaned: list[Vector2] = [points[0], points[1]]
 
-	cross = vector_cross(diff1, diff2)
+	for i in range(2, len(points)):
 
-	if cross == 0:
-		return None
-	
-	sdiff = vector_sub(start2, start1)
+		a = cleaned[-2]
+		b = cleaned[-1]
+		candidate = points[i]
 
-	rate1 = vector_cross(sdiff, diff2) / cross
-	rate2 = vector_cross(sdiff, diff1) / cross
+		v1 = vector_sub(b, a)
+		v2 = vector_sub(candidate, b)
 
-	if 0 <= rate1 <= 1 and 0 <= rate2 <= 1:
-		return (start1[0] + rate1 * diff1[0], start1[1] + rate1 * diff1[1])
-	
-	return None
+		if vector_is_same_direction(v1, v2):
+			cleaned[-1] = candidate
+		else:
+			cleaned.append(candidate)
 
-def clean_polygon(polygon: Polygon2) -> Polygon2:
+	return cleaned
+
+def clean_polygon(polygon: Polygon2) -> list[Vector2]:
 	"""
 	Cleans a polygon by removing collinear points and making the vertices counter-clockwise.
 	"""
 
-	cleaned: Polygon2 = []
-
-	n = len(polygon)
-
-	for i in range(n):
-
-		prev = polygon[i - 1]
-		curr = polygon[i]
-		next = polygon[(i + 1) % n]
-
-		v1 = vector_sub(curr, prev)
-		v2 = vector_sub(next, curr)
-
-		if vector_cross(v1, v2) == 0:
-			cleaned.append(curr)
+	cleaned = remove_collinear_points(polygon)
 
 	# Ensure counter-clockwise order
-	area = 0.0
-
-	for i in range(len(cleaned)):
-		v1 = cleaned[i]
-		v2 = cleaned[(i + 1) % len(cleaned)]
-		area += (v1[0] * v2[1] - v2[0] * v1[1])
-
-	if area < 0:
+	if vector_cross(vector_sub(cleaned[1], cleaned[0]), vector_sub(cleaned[-1], cleaned[0])) < 0:
 		cleaned.reverse()
 
 	return cleaned
-
 
 # Solution class
 class Solution:

@@ -5,7 +5,6 @@ This is used to test the C++ implementation against the python implementation.
 
 from collections.abc import Sequence
 
-from vector2 import Vector2
 
 
 def point_to_bytes(point: tuple[float, float]) -> bytes:
@@ -13,9 +12,10 @@ def point_to_bytes(point: tuple[float, float]) -> bytes:
 	Converts a point to a binary format that can be read by the C++ code. 
 	Each point is represented as two 64-bit floats (16 bytes).
 	"""
-	return Vector2(point).to_bytes()
+	import struct
+	return struct.pack('<d', point[0]) + struct.pack('<d', point[1])
 
-def test_case_to_binary(start: tuple[float, float], target: tuple[float, float], polygons: list[list[tuple[float, float]]]) -> bytes:
+def test_case_to_binary(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]]) -> bytes:
 	"""
 	Converts a test case to a binary format that can be read by the C++ code. 
 	Each point is represented as two 64-bit floats (16 bytes), and the number of polygons and vertices are represented as 64-bit integers (8 bytes).
@@ -66,7 +66,7 @@ def export_test_cases(test_cases: Sequence[tuple[tuple[float, float], tuple[floa
 		for start, target, polygons in test_cases:
 			f.write(test_case_to_binary(start, target, polygons))
 
-def read_test_results(filename: str) -> list[tuple[float, list[Vector2]]]:
+def read_test_results(filename: str) -> list[tuple[float, list[tuple[float, float]]]]:
 	"""
 	Reads the test results from a binary file. 
 	The format of the file is as follows:
@@ -92,7 +92,10 @@ def read_test_results(filename: str) -> list[tuple[float, list[Vector2]]]:
 			n = int.from_bytes(f.read(8), byteorder='little')
 			path = []
 			for _ in range(n):
-				point = Vector2.from_bytes(f.read(16))
+				data = f.read(16)
+				x = struct.unpack('<d', data[:8])[0]
+				y = struct.unpack('<d', data[8:])[0]
+				point = (x, y)
 				path.append(point)
 			results.append((time_taken, path))
 	

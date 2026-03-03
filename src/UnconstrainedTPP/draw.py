@@ -326,6 +326,9 @@ class Drawing:
 
 		# Plot the final path
 		plot(*zip(*self.path), color="purple")
+		
+		for p in self.path[1:-1]:
+			plot(*zip(p), "o", color="purple", markersize=4)
 
 		# Plot the start and end points
 		plot(*zip(self.start), "o", color="green", markersize=4)
@@ -334,8 +337,9 @@ class Drawing:
 		# ax.legend() # type: ignore
 		ax.grid() # type: ignore
 
-t = ((-1.0, 5.0), (-0.5, 4.5), [[(0.0, 4.0), (0.0, 2.0), (2.0, 2.0)]])
-
+t = ((-1.0, 0.0), (-1.0, 2.8000000000000003), [[(-1.0, 3.0), (-1.0, 2.0), (2.0, 2.0), (0.2, 3.0)]])
 
 d = Drawing(*t)
 d.draw()
+
+print(d.path)

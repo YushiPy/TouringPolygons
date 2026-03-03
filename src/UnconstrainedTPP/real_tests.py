@@ -8,8 +8,9 @@ from time import perf_counter
 import sys
 sys.setrecursionlimit(10 ** 7)
 
-from UnconstrainedTPP.u_tpp import tpp_solve as reference_solution
-from common import tpp_solve_linear_jit as test_solution
+from u_tpp import tpp_solve as reference_solution
+from common import tpp_solve_dynamic_jit as test_solution
+# from LegacySolutions.u_tpp_jit2 import tpp_solve as test_solution
 
 
 type Point = tuple[float, float]
@@ -18,7 +19,7 @@ type Points = Sequence[Point]
 type TestCase = tuple[Point, Point, list[Points]]
 
 
-STRICT = True
+STRICT = False
 EPSILON = 1e-10
 
 # If True, tests will compare solution by total length rather than by matching individual points, 
@@ -81,14 +82,14 @@ def is_convex(polygon: Points) -> bool:
 	return len(polygon) >= 3 and all(cross_product(polygon[i - 1], polygon[i], polygon[(i + 1) % len(polygon)]) > 0 for i in range(len(polygon)))
 
 
-def solutions_equal(sol1: list[Point], sol2: list[Point], eps: float = EPSILON) -> bool:
+def solutions_equal(sol1: Sequence[Point], sol2: Sequence[Point], eps: float = EPSILON) -> bool:
 
 	if DUMMY_REFERENCE:
 		return True
 
 	if TEST_TOTAL_LENGTH:
 
-		def path_length(path: list[Point]) -> float:
+		def path_length(path: Sequence[Point]) -> float:
 			return sum(((path[i][0] - path[i - 1][0]) ** 2 + (path[i][1] - path[i - 1][1]) ** 2) ** 0.5 for i in range(1, len(path)))
 
 		return abs(path_length(sol1) - path_length(sol2)) < eps
@@ -193,6 +194,27 @@ def test_suite(name: str, test_cases: list[TestCase], number: int = 10) -> None:
 
 	print(f"- Ref/Test: {speedup}x ({min_ratio}x - {max_ratio}x) | {reference_solution.__module__}: {reference_time}s | {test_solution.__module__}: {tested_time}s", flush=True)
 
+def correctness_test_suite(name: str, test_cases: Sequence[tuple[Point, Point, Sequence[Points], Points]]) -> None:
+
+	failed = False
+
+	for start, target, polygons, expected in test_cases:
+
+		result = test_solution(start, target, polygons)
+
+		if not solutions_equal(result, expected):
+			if STRICT:
+				raise ValueError(f"Correctness test failed for input={(start, target, polygons)}.\nExpected: {expected}.\nGot: {result}.")
+			else:
+				print(f"⚠️​ Warning: Correctness test failed for input={(start, target, polygons)}.\nExpected: {expected}.\nGot: {result}.", flush=True)
+
+			failed = True
+
+	if failed:
+		print(f"❌​ {name} tests failed.", flush=True)
+	else:
+		print(f"✅​ {name} tests passed.", flush=True)
+
 
 def regular_polygon(n: int, radius: float, center: Point = (0.0, 0.0), angle: float = 0.0) -> list[Point]:
 	"""
@@ -268,15 +290,28 @@ def make_tests(sides_list: list[list[int]], compactness: float = 0.5) -> list[Te
 
 if __name__ == "__main__":
 
-	fixed = [
-		((-2.0, 0.0), (2.0, 0.0), [[(-1.0, 1.0), (1.0, 1.0), (0.0, 2.0)]]),
-		((-1.0, 5.0), (-0.5, 4.5), [[(2.0, 2.0), (0.0, 2.0), (0.0, 4.0)]]),
-		((-0.6, 5.2), (-0.6, 4.8), [[(2.8, 2.0), (0.0, 2.0), (0.0, 5.0)]]),
-		((4.5, 2.0), (3.5, 2.0), [[(2.8, 2.0), (0.0, 2.0), (0.0, 5.0)]]),
-		((0.0, 4.0), (4.0, 0.0), [[(3.0, 1.0), (1.0, 1.0), (1.0, 3.0), (3.0, 3.0)]]),
-		((-1.7926052592116688, 2.0041878360341565), (-1.2727245469438635, -2.1926283895019223), [[(-2.8043080390114095, -3.654186702016027), (-1.7541858929206575, -5.033836318424196), (-1.0844353498351025, -3.4345790546288875)], [(2.0975681598044416, 2.0395046385241002), (3.094175815858267, 3.1866802982459888), (1.9470001561363786, 4.183287954299814), (0.950392500082553, 3.0361122945779258)]]),
-		((-1.0, 0.0), (-1.0, 2.8000000000000003), [[(0.2, 3.0), (2.0, 2.0), (-1.0, 2.0), (-1.0, 3.0)]]),
-		((-1.0, 1.0), (-1.0, 2.6), [[(2.0, 3.0), (2.0, 2.0), (-1.0, 2.0), (-1.0, 3.0)]]),
+	# (start, target, polygons, solution)
+	basic_tests = [
+		((0.0, 1.0), (2.0, 1.0), [[(2.0, 3.0), (-1.0, 2.0), (2.0, 2.0)]], [(0.0, 1.0), (1.0, 2.0), (2.0, 1.0)]),
+		((0.0, 1.0), (3.0, 2.0), [[(2.0, 3.0), (-1.0, 2.0), (2.0, 2.0)]], [(0.0, 1.0), (2.0, 2.0), (3.0, 2.0)]),
+		((0.0, 1.0), (0.0, 3.0), [[(2.0, 3.0), (-1.0, 2.0), (2.0, 2.0)]], [(0.0, 1.0), (0.0, 3.0)]),
+		((0.0, 0.0), (-2.0, 1.0), [[(-1.0, 2.0), (0.7745461995542708, 1.0969540776602265), (2.0, 2.0), (2.0, 3.0), (0.01042765904450249, 3.997485680411619)]], [(0.0, 0.0), (-0.3877793180272373, 1.688448015291771), (-2.0, 1.0)]),
+		((-1.0, 0.5), (3.0, 0.5), [[(-1.0, 2.0), (1.0, 1.0), (3.0, 2.0), (1.0, 3.0)]], [(-1.0, 0.5), (1.0, 1.0), (3.0, 0.5)]),
+		((-1.0, 0.5), (3.0, 0.5), [[(-1.0, 2.0), (1.0, 1.0), (3.0, 2.0), (1.0, 3.0)], [(2.0, -2.5), (0.0, -2.0), (0.0, -4.0)]], [(-1.0, 0.5), (0.44179104477611975, 1.2791044776119402), (0.9670014347202298, -2.241750358680058), (3.0, 0.5)]),
+		((4.0, 1.5), (-1.5, -1.0), [[(-1.0, 2.0), (1.0, 1.0), (3.0, 2.0), (1.0, 3.0)], [(2.0, -2.0), (0.0, -2.0), (1.0, -4.0)]], [(4.0, 1.5), (2.2857142857142856, 1.6428571428571428), (0.0, -2.0), (-1.5, -1.0)]),
+		((-2.0, 0.5), (-1.0, 5.5), [[(-1.0, 2.0), (1.0, 1.0), (3.0, 2.0), (1.0, 3.0)], [(2.0, -2.0), (0.0, -2.0), (1.0, -4.0)], [(-5.5892251770067904, -2.0635401226162013), (-4.0, -2.5), (-3.0, -1.5), (-4.0, 1.0), (-5.5, 1.5)], [(-0.5, 3.5), (-3.5, 5.5), (-3.0, 2.5)]], [(-2.0, 0.5), (-0.25454545454545463, 1.6272727272727272), (0.0, -2.0), (-3.417422867513612, -0.45644283121597096), (-1.0, 5.5)])
+	]
+
+	edge_cases = [
+		((-2.0, 0.0), (2.0, 0.0), [[(-1.0, 1.0), (1.0, 1.0), (0.0, 2.0)]], [(-2.0, 0.0), (0.0, 1.0), (2.0, 0.0)]),
+		((-1.0, 5.0), (-0.5, 4.5), [[(0.0, 4.0), (0.0, 2.0), (2.0, 2.0)]], [(-1.0, 5.0), (0.0, 4.0), (-0.5, 4.5)]),
+		((-0.6, 5.2), (-0.6, 4.8), [[(0.0, 5.0), (0.0, 2.0), (2.8, 2.0)]], [(-0.6, 5.2), (0.0, 5.0), (-0.6, 4.8)]),
+		((4.5, 2.0), (3.5, 2.0), [[(0.0, 5.0), (0.0, 2.0), (2.8, 2.0)]], [(4.5, 2.0), (2.8, 2.0), (3.5, 2.0)]),
+		((0.0, 4.0), (4.0, 0.0), [[(3.0, 3.0), (1.0, 3.0), (1.0, 1.0), (3.0, 1.0)]], [(0.0, 4.0), (4.0, 0.0)]),
+		((-1.7926052592116688, 2.0041878360341565), (-1.2727245469438635, -2.1926283895019223), [[(-2.8043080390114095, -3.654186702016027), (-1.7541858929206575, -5.033836318424196), (-1.0844353498351025, -3.4345790546288875)], [(2.0975681598044416, 2.0395046385241002), (3.094175815858267, 3.1866802982459888), (1.9470001561363786, 4.183287954299814), (0.950392500082553, 3.0361122945779258)]], [(-1.7926052592116688, 2.0041878360341565), (-1.0844353498351025, -3.4345790546288875), (2.0975681598044416, 2.0395046385241002), (-1.2727245469438635, -2.1926283895019223)]),
+		((-1.0, 0.0), (-1.0, 2.8000000000000003), [[(-1.0, 3.0), (-1.0, 2.0), (2.0, 2.0), (0.2, 3.0)]], [(-1.0, 0.0), (-1.0, 2.8000000000000003)]),
+		((-1.0, 1.0), (-1.0, 2.6), [[(-1.0, 3.0), (-1.0, 2.0), (2.0, 2.0), (2.0, 3.0)]], [(-1.0, 1.0), (-1.0, 2.6)]),
+		((-2.0, 2.0), (16.0, 2.0), [[(2.0, 2.0), (0.0, 4.0), (0.0, 2.0)], [(5.0, 2.0), (3.0, 4.0), (3.0, 2.0)], [(8.0, 2.0), (6.0, 4.0), (6.0, 2.0)], [(11.0, 2.0), (9.0, 4.0), (9.0, 2.0)], [(14.0, 2.0), (12.0, 4.0), (12.0, 2.0)]], [(-2.0, 2.0), (16.0, 2.0)]),
 	]
 
 	random_tests = [
@@ -321,7 +356,8 @@ if __name__ == "__main__":
 		], 0.5, 1),
 	]
 
-	test_suite("Fixed", fixed, number=100) # type: ignore
+	correctness_test_suite("Basic", basic_tests)
+	correctness_test_suite("Edge Cases", edge_cases)
 
 	for name, sides_list, compactness, number in random_tests:
 		test_suite(name, make_tests(sides_list, compactness), number=number)

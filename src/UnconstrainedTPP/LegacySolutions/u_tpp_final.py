@@ -8,6 +8,11 @@ See report for details on the algorithm and its complexity analysis.
 
 from collections.abc import Sequence
 
+import sys
+
+file_directory = __file__.rpartition("/")[0]
+sys.path.append(file_directory)
+
 import common
 from common import vector_cross, vector_reflect_ray, vector_sub
 

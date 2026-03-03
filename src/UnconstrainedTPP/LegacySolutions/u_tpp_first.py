@@ -13,9 +13,14 @@ We will also consider that:
 """
 
 from collections.abc import Iterable
+
+import sys
+
+file_directory = __file__.rpartition("/")[0]
+sys.path.append(file_directory)
+
 from vector2 import Vector2
 from polygon2 import Polygon2
-
 
 def intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> tuple[float, float] | None:
 
