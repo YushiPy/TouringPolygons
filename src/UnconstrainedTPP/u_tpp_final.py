@@ -15,7 +15,7 @@ from common import vector_cross, vector_reflect_ray, vector_sub
 type Vector2 = tuple[float, float]
 
 # Magic number to switch between binary search and linear search in point location.
-BINARY_SEACH_THRESHOLD = 25
+BINARY_SEARCH_THRESHOLD = 25
 
 def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]]) -> list[tuple[float, float]]:
 
@@ -51,7 +51,7 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 		return cones[i][j] # type: ignore
 
 	def locate_point(point: Vector2, index: int) -> int:
-		return common.locate_point(point, polygons[index], lambda j: get_cone(index, j), first_contact[index].__getitem__, binary_search=len(polygons[index]) >= BINARY_SEACH_THRESHOLD)
+		return common.locate_point(point, polygons[index], lambda j: get_cone(index, j), first_contact[index].__getitem__, binary_search=len(polygons[index]) >= BINARY_SEARCH_THRESHOLD)
 
 	def query_full(point: Vector2, i: int) -> list[Vector2]:
 		return common.query_full(point, i, start, polygons, locate_point)

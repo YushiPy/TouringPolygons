@@ -1,9 +1,13 @@
 
 from collections.abc import Callable, Sequence
+import enum
 
 
 type Vector2 = tuple[float, float]
 type Polygon2 = Sequence[Vector2]
+
+# Magic number to switch between binary search and linear search in point location.
+BINARY_SEARCH_THRESHOLD = 25
 
 
 # Vector operations
@@ -131,7 +135,7 @@ def point_in_edge_plus(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1:
 			return vector_cross(ray1, p1) >= 0 or vector_cross(ray2, p2) <= 0 or vector_cross(dv, p1) <= 0
 
 
-def locate_point_linear_seach(point: Vector2, polygon: Polygon2, cones: Callable[[int], tuple[Vector2, Vector2]], first_contact: Callable[[int], bool]) -> int:
+def locate_point_linear_search(point: Vector2, polygon: Polygon2, cones: Callable[[int], tuple[Vector2, Vector2]], first_contact: Callable[[int], bool]) -> int:
 	"""
 	Uses linear search to locate `point` in the visibility map of `polygon[i]` defined by `cones` and `first_contact`.
 	Returns index as follows:
@@ -222,7 +226,7 @@ def locate_point(point: Vector2, polygon: Polygon2, cones: Callable[[int], tuple
 	"""
 
 	if not binary_search:
-		return locate_point_linear_seach(point, polygon, cones, first_contact)
+		return locate_point_linear_search(point, polygon, cones, first_contact)
 	
 	result = locate_point_binary_search(point, polygon, cones)
 
@@ -230,6 +234,13 @@ def locate_point(point: Vector2, polygon: Polygon2, cones: Callable[[int], tuple
 		return result
 	else:
 		return -1
+
+
+def _locate_point_binary(point: Vector2, polygon: Polygon2, cones: Callable[[int], tuple[Vector2, Vector2]], first_contact: Callable[[int], bool]) -> int:
+	return locate_point(point, polygon, cones, first_contact, binary_search=True)
+
+def _locate_point_dynamic(point: Vector2, polygon: Polygon2, cones: Callable[[int], tuple[Vector2, Vector2]], first_contact: Callable[[int], bool], *, binary_search_threshold: int = BINARY_SEARCH_THRESHOLD) -> int:
+	return locate_point(point, polygon, cones, first_contact, binary_search=len(polygon) > binary_search_threshold)
 
 
 def query_full(point: Vector2, i: int, start: Vector2, polygons: Sequence[Polygon2], _locate_point: Callable[[Vector2, int], int]) -> list[Vector2]:
@@ -298,6 +309,152 @@ def query(point: Vector2, i: int, start: Vector2, polygons: Sequence[Polygon2], 
 		raise ValueError(f"Intersection not found for point {point} in polygon {i} at edge {pos}")
 
 	return intersection
+
+
+type LocationFunction = Callable[[Vector2, Polygon2, Callable[[int], tuple[Vector2, Vector2]], Callable[[int], bool]], int]
+
+def tpp_solve_normal(start: Vector2, target: Vector2, polygons: Sequence[Polygon2], location_function: LocationFunction, *, simplify: bool = False) -> list[Vector2]:
+
+	if simplify:
+		polygons = [clean_polygon(polygon) for polygon in polygons]
+
+	def _locate_point(point: Vector2, index: int) -> int:
+		return location_function(point, polygons[index], cones[index].__getitem__, first_contact[index].__getitem__)
+
+	def _query_full(point: Vector2, i: int) -> list[Vector2]:
+		return query_full(point, i, start, polygons, _locate_point)
+
+	def _query(point: Vector2, i: int) -> Vector2:
+		return query(point, i, start, polygons, _locate_point)
+
+	def get_first_contact_region(i: int) -> list[bool]:
+		"""
+		Returns the first contact region of polygon `i`.
+		"""
+
+		result = []
+		polygon = polygons[i - 1]
+
+		for j in range(len(polygon)):
+
+			v1 = polygon[j]
+			v2 = polygon[(j + 1) % len(polygon)]
+			last = _query(v1, i - 1)
+
+			result.append(vector_cross(vector_sub(v2, v1), vector_sub(last, v1)) < 0)
+
+		return result
+
+	def get_last_step_map(i: int) -> list[tuple[Vector2, Vector2]]:
+		"""
+		Returns the last step map of polygon `i`.
+		"""
+
+		result = []
+		polygon = polygons[i - 1]
+		_first_contact = first_contact[i - 1]
+
+		for j in range(len(polygon)):
+
+			before = polygon[j - 1]
+			vertex = polygon[j]
+			after = polygon[(j + 1) % len(polygon)]
+			
+			last = _query(vertex, i - 1)
+			diff = vector_sub(vertex, last)
+
+			ray1 = vector_reflect_ray(diff, vertex, before)
+			ray2 = vector_reflect_ray(diff, vertex, after)
+
+			if not _first_contact[j - 1]:
+				ray1 = diff
+
+			if not _first_contact[j]:
+				ray2 = diff
+
+			result.append((ray1, ray2))
+
+		return result
+
+	first_contact: list[list[bool]] = []
+	cones: list[list[tuple[Vector2, Vector2]]] = []
+
+	for i in range(1, len(polygons) + 1):
+		first_contact.append(get_first_contact_region(i))
+		cones.append(get_last_step_map(i))
+
+	return _query_full(target, len(polygons))
+
+def tpp_solve_jit(start: Vector2, target: Vector2, polygons: Sequence[Polygon2], location_function: LocationFunction, *, simplify: bool = False) -> list[Vector2]:
+
+	if simplify:
+		polygons = [clean_polygon(polygon) for polygon in polygons]
+
+	def get_cone(i: int, j: int) -> tuple[Vector2, Vector2]:
+		"""
+		Get the cone of visibility for vertex `j` of polygon `i`.
+		Caches the result for future queries.
+		"""
+
+		if cones[i][j] is None:
+
+			before = polygons[i][j - 1]
+			vertex = polygons[i][j]
+			after = polygons[i][(j + 1) % len(polygons[i])]
+
+			last = _query(vertex, i)
+			diff = vector_sub(vertex, last)
+
+			ray1 = vector_reflect_ray(diff, vertex, before)
+			ray2 = vector_reflect_ray(diff, vertex, after)
+
+			first_contact[i][j - 1] = vector_cross(diff, vector_sub(vertex, before)) < 0
+			first_contact[i][j] = vector_cross(diff, vector_sub(after, vertex)) < 0
+
+			if not first_contact[i][j - 1]:
+				ray1 = diff
+
+			if not first_contact[i][j]:
+				ray2 = diff
+
+			cones[i][j] = (ray1, ray2)
+
+		return cones[i][j] # type: ignore
+
+	def _locate_point(point: Vector2, index: int) -> int:
+		return location_function(point, polygons[index], lambda j: get_cone(index, j), first_contact[index].__getitem__)
+
+	def _query_full(point: Vector2, i: int) -> list[Vector2]:
+		return query_full(point, i, start, polygons, _locate_point)
+
+	def _query(point: Vector2, i: int) -> Vector2:
+		return query(point, i, start, polygons, _locate_point)
+
+	cones: list[list[tuple[Vector2, Vector2] | None]] = [[None] * len(polygon) for polygon in polygons]
+	first_contact: list[list[bool]] = [[False] * len(polygon) for polygon in polygons]
+
+	return _query_full(target, len(polygons))
+
+
+def tpp_solve_linear(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]], *, simplify: bool = False) -> list[Vector2]: 
+	return tpp_solve_normal(start, target, polygons, locate_point_linear_search, simplify=simplify)
+
+def tpp_solve_binary(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]], *, simplify: bool = False) -> list[Vector2]:
+	return tpp_solve_normal(start, target, polygons, _locate_point_binary, simplify=simplify)
+
+def tpp_solve_dynamic(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]], *, simplify: bool = False) -> list[Vector2]:
+	return tpp_solve_normal(start, target, polygons, _locate_point_dynamic, simplify=simplify)
+
+def tpp_solve_linear_jit(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]], *, simplify: bool = False) -> list[Vector2]: 
+	return tpp_solve_jit(start, target, polygons, locate_point_linear_search, simplify=simplify)
+
+def tpp_solve_binary_jit(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]], *, simplify: bool = False) -> list[Vector2]:
+	return tpp_solve_jit(start, target, polygons, _locate_point_binary, simplify=simplify)
+
+def tpp_solve_dynamic_jit(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]], *, simplify: bool = False) -> list[Vector2]:
+	return tpp_solve_jit(start, target, polygons, _locate_point_dynamic, simplify=simplify)
+
+#return tpp_solve_normal(start, target, polygons, locate_point_linear_search, simplify=simplify)
 
 # Geometry functions
 
