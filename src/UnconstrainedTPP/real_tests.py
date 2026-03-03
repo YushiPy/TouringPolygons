@@ -3,15 +3,14 @@ from collections.abc import Sequence
 import math
 import random
 
+from time import perf_counter
+
 import sys
 sys.setrecursionlimit(10 ** 7)
 
-from u_tpp_final import tpp_solve as reference_solution
-from u_tpp_naive_jit import tpp_solve as test_solution
-#from u_tpp_fast_jit import tpp_solve as test_solution
-#from u_tpp_naive import tpp_solve as test_solution
+from u_tpp_final_hard import tpp_solve as reference_solution
+from common import tpp_solve_linear_jit as test_solution
 
-from time import perf_counter
 
 type Point = tuple[float, float]
 type Points = Sequence[Point]
