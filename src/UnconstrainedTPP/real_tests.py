@@ -8,7 +8,7 @@ from time import perf_counter
 import sys
 sys.setrecursionlimit(10 ** 7)
 
-from u_tpp_final_hard import tpp_solve as reference_solution
+from UnconstrainedTPP.u_tpp import tpp_solve as reference_solution
 from common import tpp_solve_linear_jit as test_solution
 
 

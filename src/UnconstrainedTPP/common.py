@@ -1,6 +1,21 @@
+"""
+This file compiles all variations of solutions to the Unconstrained Polygons Problem into a single file.
+Here, we define all possible vector operations, point location functions, queries and final resolution.
+This allows for us to compactly create all six variations of solutions in a single file as such:
+
+`tpp_solve_linear`: Uses linear search and computes all last step maps.
+`tpp_solve_binary`: Uses binary search and computes all last step maps.
+`tpp_solve_dynamic`: Uses dynamic search and computes all last step maps.
+`tpp_solve_linear_jit`: Uses linear search and computes only cones of visibility that are needed.
+`tpp_solve_binary_jit`: Uses binary search and computes only cones of visibility that are needed.
+`tpp_solve_dynamic_jit`: Uses dynamic search and computes only cones of visibility that are needed.
+
+We also have a `Solution` class that encapsulates the entire solution process, allowing us 
+to easily inspect each part of the solution, such as the cones of visibility, first contact regions, and the final path.
+"""
+
 
 from collections.abc import Callable, Sequence
-import enum
 
 
 type Vector2 = tuple[float, float]
@@ -521,3 +536,90 @@ def clean_polygon(polygon: Polygon2) -> Polygon2:
 		cleaned.reverse()
 
 	return cleaned
+
+
+# Solution class
+class Solution:
+
+	start: tuple[float, float]
+	target: tuple[float, float]
+	polygons: Sequence[Sequence[tuple[float, float]]]
+
+	cones: list[list[tuple[Vector2, Vector2]]]
+	first_contact: list[list[bool]]
+	path: list[Vector2]
+
+	def __init__(self, start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]], *, simplify: bool = False) -> None:
+
+		self.start = start
+		self.target = target
+		self.polygons = polygons
+		self.cones = []
+		self.first_contact = []
+
+		if simplify:
+			polygons = [clean_polygon(polygon) for polygon in polygons]
+
+		def _locate_point(point: Vector2, index: int) -> int:
+			return locate_point(point, polygons[index], self.cones[index].__getitem__, self.first_contact[index].__getitem__, binary_search=True)
+
+		def _query_full(point: Vector2, i: int) -> list[Vector2]:
+			return query_full(point, i, start, polygons, _locate_point)
+
+		def _query(point: Vector2, i: int) -> Vector2:
+			return query(point, i, start, polygons, _locate_point)
+
+		def get_first_contact_region(i: int) -> list[bool]:
+			"""
+			Returns the first contact region of polygon `i`.
+			"""
+
+			result = []
+			polygon = polygons[i - 1]
+
+			for j in range(len(polygon)):
+
+				v1 = polygon[j]
+				v2 = polygon[(j + 1) % len(polygon)]
+				last = _query(v1, i - 1)
+
+				result.append(vector_cross(vector_sub(v2, v1), vector_sub(last, v1)) < 0)
+
+			return result
+
+		def get_last_step_map(i: int) -> list[tuple[Vector2, Vector2]]:
+			"""
+			Returns the last step map of polygon `i`.
+			"""
+
+			result = []
+			polygon = polygons[i - 1]
+			_first_contact = self.first_contact[i - 1]
+
+			for j in range(len(polygon)):
+
+				before = polygon[j - 1]
+				vertex = polygon[j]
+				after = polygon[(j + 1) % len(polygon)]
+				
+				last = _query(vertex, i - 1)
+				diff = vector_sub(vertex, last)
+
+				ray1 = vector_reflect_ray(diff, vertex, before)
+				ray2 = vector_reflect_ray(diff, vertex, after)
+
+				if not _first_contact[j - 1]:
+					ray1 = diff
+
+				if not _first_contact[j]:
+					ray2 = diff
+
+				result.append((ray1, ray2))
+
+			return result
+
+		for i in range(1, len(polygons) + 1):
+			self.first_contact.append(get_first_contact_region(i))
+			self.cones.append(get_last_step_map(i))
+
+		self.path = _query_full(target, len(polygons))

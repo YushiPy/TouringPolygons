@@ -1,9 +1,12 @@
 """
-First approach to solve the unconstrained TPP. 
-This implementation is not optimized and may not be efficient for large inputs, 
-but it serves as a proof of concept and a baseline for further improvements.
+Final solution to the Unconstrained Touring Polygons Problem (TPP).
+This implementation creates a last step map for each polygon and uses it to efficiently locate the last step of the path to any point in the plane.
+The point location is done using both a linear seach and a binary search, depending on the number of vertices in the polygon, to optimize performance.
+Only the cones of visibility of the last step map of that are needed are constructed and then cached for future queries.
 
-See report for details on the algorithm and its complexity analysis.
+This solution is the same as common.tpp_solve_dynamic_jit, but hardcoding all functions, 
+slightly improving performance by avoiding function call overhead 
+and making this solution a standalone implementation that does not depend on the common module.
 """
 
 
@@ -156,10 +159,52 @@ def point_in_edge2(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vec
 			return vector_cross(ray1, p1) >= 0 or vector_cross(ray2, p2) <= 0 or vector_cross(dv, p1) <= 0
 
 
+# Input cleanup function
+
+def clean_polygon(polygon: Polygon2) -> Polygon2:
+	"""
+	Cleans a polygon by removing collinear points and making the vertices counter-clockwise.
+	"""
+
+	cleaned: Polygon2 = []
+
+	n = len(polygon)
+
+	for i in range(n):
+
+		prev = polygon[i - 1]
+		curr = polygon[i]
+		next = polygon[(i + 1) % n]
+
+		v1 = vector_sub(curr, prev)
+		v2 = vector_sub(next, curr)
+
+		if vector_cross(v1, v2) == 0:
+			cleaned.append(curr)
+
+	# Ensure counter-clockwise order
+	area = 0.0
+
+	for i in range(len(cleaned)):
+		v1 = cleaned[i]
+		v2 = cleaned[(i + 1) % len(cleaned)]
+		area += (v1[0] * v2[1] - v2[0] * v1[1])
+
+	if area < 0:
+		cleaned.reverse()
+
+	return cleaned
+
 
 from collections.abc import Sequence
 
-def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]]) -> list[tuple[float, float]]:
+def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]], *, simplify: bool = False) -> list[tuple[float, float]]:
+	"""
+	Given a `start` point, a `target` point, and a list of **convex** polygons, returns the shortest path from `start` to `target` that visits each polygon at least once.
+	"""
+
+	if simplify:
+		polygons = [clean_polygon(polygon) for polygon in polygons]
 
 	def get_cone(i: int, j: int) -> tuple[Vector2, Vector2]:
 		"""

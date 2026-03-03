@@ -8,6 +8,7 @@ We will consider that:
 - The problem is in 2D.
 """
 
+from collections.abc import Sequence
 from itertools import chain
 from math import inf, isclose, isqrt
 from typing import Any
@@ -15,10 +16,10 @@ from typing import Any
 from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
 
-from vector2 import Vector2
-from polygon2 import Polygon2
+from LegacySolutions.vector2 import Vector2
+from LegacySolutions.polygon2 import Polygon2
 
-from u_tpp_fast_locate import Solution
+from common import Solution
 
 def intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> tuple[float, float] | None:
 
@@ -144,8 +145,19 @@ def locate_cone(start: Vector2, direction1: Vector2, direction2: Vector2, bbox: 
 	return locate_edge(start, direction1, start, direction2, bbox)
 
 
-class Drawing(Solution):
+class Drawing:
 
+	def __init__(self, start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]]) -> None:
+		self.start = Vector2(*start)
+		self.target = Vector2(*target)
+		self.polygons = [[Vector2(*vertex) for vertex in polygon] for polygon in polygons]
+
+		solution = Solution(start, target, polygons)
+
+		self.cones = [[(Vector2(r1), Vector2(r2)) for r1, r2 in cones] for cones in solution.cones]
+		self.first_contact = solution.first_contact
+		self.path = solution.path
+	
 	def get_bbox(self, extra: float = 0.1) -> tuple[float, float, float, float]:
 		"""
 		Returns the bounding box of the drawing, which is the smallest rectangle
@@ -167,9 +179,6 @@ class Drawing(Solution):
 		return minx, miny, maxx, maxy
 
 	def draw(self, scenes: list[int] | None = None, /, text: bool = True) -> None:
-
-		if not hasattr(self, "final_path"):
-			self.final_path = self.solve()
 
 		n: int = len(self.polygons)
 
@@ -272,7 +281,8 @@ class Drawing(Solution):
 			for i in range(len(polygon)):
 
 				#if self.is_blocked_edge(index, i): continue
-				if self.blocked[index][i]: continue
+				if not self.first_contact[index][i]: 
+					continue
 
 				v1 = polygon[i]
 				v2 = polygon[(i + 1) % len(polygon)]
@@ -315,7 +325,7 @@ class Drawing(Solution):
 			plot(*zip(*polygon, polygon[0]), linewidth=2)
 
 		# Plot the final path
-		plot(*zip(*self.final_path), color="purple")
+		plot(*zip(*self.path), color="purple")
 
 		# Plot the start and end points
 		plot(*zip(self.start), "o", color="green", markersize=4)

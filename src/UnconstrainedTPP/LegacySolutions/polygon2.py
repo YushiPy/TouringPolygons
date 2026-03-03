@@ -1,6 +1,6 @@
 
 from collections.abc import Iterable
-from vector2 import Vector2
+from .vector2 import Vector2
 
 
 def intersection_rates(start1: Vector2, direction1: Vector2, start2: Vector2, direction2: Vector2) -> tuple[float, float] | None:
