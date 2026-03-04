@@ -14,7 +14,7 @@ type Vector2 = tuple[float, float]
 type Polygon2 = Sequence[Vector2]
 
 # Magic number to switch between binary search and linear search in point location.
-BINARY_SEACH_THRESHOLD = 5
+BINARY_SEACH_THRESHOLD = 25
 
 # Vector operations
 

@@ -8,10 +8,8 @@ from time import perf_counter
 import sys
 sys.setrecursionlimit(10 ** 7)
 
-# from u_tpp import tpp_solve as reference_solution
-# from u_tpp_fast import tpp_solve as test_solution
-from common import tpp_solve_dynamic_jit as reference_solution
-from common import tpp_solve_binary2_jit as test_solution
+from u_tpp import tpp_solve as reference_solution
+from u_tpp_fast import tpp_solve as test_solution
 # from LegacySolutions.u_tpp_jit2 import tpp_solve as test_solution
 
 
@@ -322,6 +320,7 @@ if __name__ == "__main__":
 		((-1.0, 0.0), (-1.0, 2.8000000000000003), [[(-1.0, 3.0), (-1.0, 2.0), (2.0, 2.0), (0.2, 3.0)]], [(-1.0, 0.0), (-1.0, 2.8000000000000003)]),
 		((-1.0, 1.0), (-1.0, 2.6), [[(-1.0, 3.0), (-1.0, 2.0), (2.0, 2.0), (2.0, 3.0)]], [(-1.0, 1.0), (-1.0, 2.6)]),
 		((-2.0, 2.0), (16.0, 2.0), [[(2.0, 2.0), (0.0, 4.0), (0.0, 2.0)], [(5.0, 2.0), (3.0, 4.0), (3.0, 2.0)], [(8.0, 2.0), (6.0, 4.0), (6.0, 2.0)], [(11.0, 2.0), (9.0, 4.0), (9.0, 2.0)], [(14.0, 2.0), (12.0, 4.0), (12.0, 2.0)]], [(-2.0, 2.0), (16.0, 2.0)]),
+		((0.0, 0.0), (0.0, 1.2000000000000002), [[(0.0, 3.0), (-1.0, 2.0), (1.0, 2.0)]], [(0.0, 0.0), (0.0, 2.0), (0.0, 1.2000000000000002)]),
 	]
 
 	random_tests = [

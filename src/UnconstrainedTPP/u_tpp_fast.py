@@ -227,7 +227,14 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 
 		def check_vertex(j: int) -> bool:
 			"""Checks if `point` is in the cone of vertex `j` of polygon `i`."""
-			return point_in_cone(point, polygon[j], *get_cone(i, j))
+			
+			ray1, ray2 = get_cone(i, j)
+
+			if visible[j] or visible[j - 1]:
+				return point_in_cone(point, polygon[j], ray1, ray2)
+			else:
+				return False
+			
 
 		def check_edge(l: int, r: int) -> bool:
 			"""Checks if `point` is in any of the regions of edges `l` to `r`, inclusive."""			
