@@ -253,6 +253,56 @@ def locate_point_binary_search(point: Vector2, polygon: Polygon2, cones: Callabl
 
 	return left
 
+def locate_point_binary_search2(point: Vector2, polygon: Polygon2, cones: Callable[[int], tuple[Vector2, Vector2]]) -> int:
+	"""
+	Uses binary search to locate `point` in the visibility map of `polygon[i]` defined by `cones`.
+	Returns index as follows:
+	- `2n` -> cone in vertex `n`
+	- `2n + 1` -> edge between vertex `n` and `n + 1`
+
+	The returned vertex or edge may not be in the first contact region, 
+	so the caller should check for that and return -1 if it's not in the first contact region.
+	"""
+
+	def check_vertex(j: int) -> bool:
+		"""Checks if `point` is in the cone of vertex `j`."""
+		return point_in_cone_plus(point, polygon[j], *cones(j))
+
+	def check_edge(l: int, r: int) -> bool:
+		"""Checks if `point` is in any edge region between edges `l` and `r` (inclusive)"""
+		
+		r_index = (r + 1) % len(polygon)
+
+		v1 = polygon[l]
+		v2 = polygon[r_index]
+		ray1 = cones(l)[1]
+		ray2 = cones(r_index)[0]
+
+		return point_in_edge_plus(point, v1, v2, ray1, ray2)
+	
+	left = 0
+	right = len(polygon) - 1
+	
+	if check_vertex(0):
+		return 0
+	
+	while left != right:
+
+		mid = (left + right) // 2
+
+		if check_vertex(mid + 1):
+			return 2 * (mid + 1)
+
+		if check_edge(left, mid):
+			right = mid
+		else:
+			left = mid + 1
+
+	if not check_edge(left, right):
+		raise ValueError("Point is not located in any cone or edge.")
+
+	return 2 * left + 1
+
 def locate_point(point: Vector2, polygon: Polygon2, cones: Callable[[int], tuple[Vector2, Vector2]], first_contact: Callable[[int], bool], *, binary_search: bool = True) -> int:
 	"""
 	Locates `point` in the last step map of `polygon`, defined by `cones` and `first_contact`.
@@ -280,9 +330,17 @@ def locate_point(point: Vector2, polygon: Polygon2, cones: Callable[[int], tuple
 	else:
 		return -1
 
-
 def _locate_point_binary(point: Vector2, polygon: Polygon2, cones: Callable[[int], tuple[Vector2, Vector2]], first_contact: Callable[[int], bool]) -> int:
 	return locate_point(point, polygon, cones, first_contact, binary_search=True)
+
+def _locate_point_binary2(point: Vector2, polygon: Polygon2, cones: Callable[[int], tuple[Vector2, Vector2]], first_contact: Callable[[int], bool]) -> int:
+	
+	location = locate_point_binary_search2(point, polygon, cones)
+
+	if first_contact(location // 2) or first_contact((location - 1) // 2 % len(polygon)):
+		return location
+	else:
+		return -1
 
 def _locate_point_dynamic(point: Vector2, polygon: Polygon2, cones: Callable[[int], tuple[Vector2, Vector2]], first_contact: Callable[[int], bool], *, binary_search_threshold: int = BINARY_SEARCH_THRESHOLD) -> int:
 	return locate_point(point, polygon, cones, first_contact, binary_search=len(polygon) > binary_search_threshold)
@@ -487,6 +545,9 @@ def tpp_solve_linear(start: tuple[float, float], target: tuple[float, float], po
 def tpp_solve_binary(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]], *, simplify: bool = False) -> list[Vector2]:
 	return tpp_solve_normal(start, target, polygons, _locate_point_binary, simplify=simplify)
 
+def tpp_solve_binary2(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]], *, simplify: bool = False) -> list[Vector2]:
+	return tpp_solve_normal(start, target, polygons, _locate_point_binary2, simplify=simplify)
+
 def tpp_solve_dynamic(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]], *, simplify: bool = False) -> list[Vector2]:
 	return tpp_solve_normal(start, target, polygons, _locate_point_dynamic, simplify=simplify)
 
@@ -495,6 +556,9 @@ def tpp_solve_linear_jit(start: tuple[float, float], target: tuple[float, float]
 
 def tpp_solve_binary_jit(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]], *, simplify: bool = False) -> list[Vector2]:
 	return tpp_solve_jit(start, target, polygons, _locate_point_binary, simplify=simplify)
+
+def tpp_solve_binary2_jit(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]], *, simplify: bool = False) -> list[Vector2]:
+	return tpp_solve_jit(start, target, polygons, _locate_point_binary2, simplify=simplify)
 
 def tpp_solve_dynamic_jit(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]], *, simplify: bool = False) -> list[Vector2]:
 	return tpp_solve_jit(start, target, polygons, _locate_point_dynamic, simplify=simplify)

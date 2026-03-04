@@ -158,7 +158,7 @@ class Drawing:
 		self.first_contact = solution.first_contact
 		self.path = solution.path
 	
-	def get_bbox(self, extra: float = 0.1) -> tuple[float, float, float, float]:
+	def get_bbox(self, extra: float = 0.5) -> tuple[float, float, float, float]:
 		"""
 		Returns the bounding box of the drawing, which is the smallest rectangle
 		that contains the start and end points, as well as all polygons.
@@ -337,7 +337,7 @@ class Drawing:
 		# ax.legend() # type: ignore
 		ax.grid() # type: ignore
 
-t = ((-1.0, 0.0), (-1.0, 2.8000000000000003), [[(-1.0, 3.0), (-1.0, 2.0), (2.0, 2.0), (0.2, 3.0)]])
+t = ((0.0, 1.0), (3.0, 2.0), [[(2.0, 3.0), (-1.0, 2.0), (2.0, 2.0)]])
 
 d = Drawing(*t)
 d.draw()

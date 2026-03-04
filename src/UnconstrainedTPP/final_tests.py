@@ -8,8 +8,10 @@ from time import perf_counter
 import sys
 sys.setrecursionlimit(10 ** 7)
 
-from u_tpp import tpp_solve as reference_solution
-from common import tpp_solve_dynamic_jit as test_solution
+# from u_tpp import tpp_solve as reference_solution
+# from u_tpp_fast import tpp_solve as test_solution
+from common import tpp_solve_dynamic_jit as reference_solution
+from common import tpp_solve_binary2_jit as test_solution
 # from LegacySolutions.u_tpp_jit2 import tpp_solve as test_solution
 
 
@@ -19,7 +21,7 @@ type Points = Sequence[Point]
 type TestCase = tuple[Point, Point, list[Points]]
 
 
-STRICT = False
+STRICT = True
 EPSILON = 1e-10
 
 # If True, tests will compare solution by total length rather than by matching individual points, 
@@ -188,7 +190,7 @@ def test_suite(name: str, test_cases: list[TestCase], number: int = 10) -> None:
 	min_ratio = min(ratios)
 	max_ratio = max(ratios)
 
-	speedup = round(sum(ratios) / len(ratios), 2) if ratios else 1.0
+	speedup = round(sum(reference_times) / sum(tested_times), 2) if ratios else 1.0
 	reference_time = round(sum(reference_times), 6)
 	tested_time = round(sum(tested_times), 6)
 
@@ -200,7 +202,15 @@ def correctness_test_suite(name: str, test_cases: Sequence[tuple[Point, Point, S
 
 	for start, target, polygons, expected in test_cases:
 
-		result = test_solution(start, target, polygons)
+		try:
+			result = test_solution(start, target, polygons)
+		except Exception as e:
+			if STRICT:
+				raise ValueError(f"Tested solution raised an exception for input={(start, target, polygons)}.\nException: {e}.")
+			else:
+				print(f"⚠️​ Warning: Tested solution raised an exception for input={(start, target, polygons)}.\nException: {e}.", flush=True)
+				failed = True
+				continue
 
 		if not solutions_equal(result, expected):
 			if STRICT:
@@ -353,7 +363,7 @@ if __name__ == "__main__":
 			[10 ** 4] * 2,
 			[10 ** 5] * 2,
 			[10 ** 6] * 1,
-		], 0.5, 1),
+		] * 10, 0.5, 20),
 	]
 
 	correctness_test_suite("Basic", basic_tests)
