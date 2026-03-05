@@ -630,50 +630,46 @@ Primeiramente, vamos propor uma nova maneira de interpretar o mapa de último pa
 
 \begin{blockQuote}
 	
-	\textbf{Nova definição de Mapa de Último Passo:} O mapa de último passo~\(S_i\) de um polígono~\(P_i\) \(1 \le i \le k\) é uma partição do plano em regiões associadas a cada vértice de~\(P_i\) e regiões associadas a cada aresta de~\(P_i\).
+	\textbf{Nova definição de Mapa de Último Passo:} O mapa de último passo~\(S_i\) de um polígono~\(P_i\)~\(1 \le i \le k\) é uma partição do plano em regiões associadas a cada vértice de~\(P_i\) e regiões associadas a cada aresta de~\(P_i\).
 
-	A região associada a um vértice~\(v\) de~\(P_i\) é a mesma definida anteriormente se \(v \in T_i\) e é uma semireta que parte de \(v\) e tem a mesma direção de \(v - q\), onde \(q\) é o ponto que precede \(v\) no \((i - 1)\)-path até \(v\), caso contrário.
+	A região associada a um vértice~\(v\) de~\(P_i\) é a mesma definida anteriormente se~\(v \in T_i\) e é uma semireta que parte de~\(v\) e tem a mesma direção de~\(v - q\), onde~\(q\) é o ponto que precede~\(v\) no~\((i - 1)\)-path até~\(v\), caso contrário.
 
 	A região associada a uma aresta~\(e = \overline{uv}\) de~\(P_i\) é o conjunto de pontos que estão do lado externo de~\(e\) e entre o segundo raio associado a~\(u\) e o primeiro raio associado a~\(v\) em~\(S_i\). Os pontos na fronteira de uma região de vértice e aresta pertencem à região de vértice. Os pontos na parte interna da aresta pertencem à região de aresta.
 
-	Finalmente, dizemos que os pontos no interior de~\(P_i\) pertencem à região de atravessar~\(P_i\). Assim, \(S_i\) define uma partição de \(\mathbb{R}^2\).
+	Finalmente, dizemos que os pontos no interior de~\(P_i\) pertencem à região de atravessar~\(P_i\). Assim,~\(S_i\) define uma partição de~\(\mathbb{R}^2\).
 
 	Veja a Figura~\ref{fig:last_step_map-new} para uma ilustração dessa nova definição de mapa de último passo. Note que as regiões associadas a vértices e arestas na região de primeiro contato são as mesmas da definição anterior, enquanto as regiões associadas a vértices e arestas que não estão na região de primeiro contato particionam a região de atravessar~\(P_i\) em regiões associadas a vértices e arestas, respectivamente.
 
 \end{blockQuote}
+
+\begin{figure}[!ht]
+\centering
+	\includegraphics[width=0.5\linewidth]{last_step_map_new.png}
+	\caption{Nova interpretação do mapa de último passo \(S_1\) de um polígono \(P_1\). Representamos as regiões de vértice em vermelho e as de aresta em verde. Note que embora as arestas \(e^3, e^4, e^5\) e vértices \(v^4\) e \(v^5\) não estejam em \(T_1\), eles têm uma região associada.}
+	\label{fig:last_step_map-new}
+\end{figure}
 
 Note que as regiões são definidas da mesma forma para vértices e arestas na região de primeiro contato. Além disso, as regiões de vértice e aresta que não estão na região de primeiro contato cobrem exatamente a região de atravessar~\(P_i\), desconsiderando o interior de~\(P_i\), que não é relevante, uma vez que assumimos que os polígonos são disjuntos. Assim, para calcular o \(i\)-path até um ponto~\(p\), basta localizá-lo em~\(S_i\), se ele está na região de algum vértice ou aresta na região de primeiro contato, prosseguimos como anteriormente, caso contrário, sabemos que~\(p\) está na região de atravessar~\(P_i\) e, portanto, o \(i\)-path até~\(p\) é dado pelo~\((i - 1)\)-path até \(p\). Dessa forma, essa nova definição é equivalente à definição anterior.
 
 O motivo de utilizarmos essa nova definição é que ela garante a seguinte propriedade, que é essencial para a implementação do algoritmo \texttt{LocalizaPonto} utilizando uma estratégia de busca binária:
 
 \begin{blockQuote}
-	\textbf{Arestas Fictícias}: Seja~\(P_i\) um polígono de \(m\) vértices e~\(S_i\) seu mapa de último passo. Além disso, sejam \(v^l\) e \(v^r\) vértices de \(P_i\), com \(1 \le l \le r \le m + 1\), assumindo que os vértices de \(P_i\) estão ordenados em sentido anti-horário e \(v^{m + 1} = v^1\). Dado \(p \in \mathbb{R}^2\), desejamos determinar se existe algum \(l \le j < r - 1\) tal que \(p\) pertence à região associada à aresta \(\overline{v^j v^{j + 1}}\) de \(P_i\) ou existe algum \(l < j < r\) tal que \(p\) pertence à região associada ao vértice \(v^j\) de \(P_i\). 
+	\textbf{Arestas Fictícias}: Seja~\(P_i\) um polígono de \(m\) vértices e~\(S_i\) seu mapa de último passo. Além disso, sejam~\(v^l\) e~\(v^r\) vértices de~\(P_i\), com~\(1 \le l \le r \le m + 1\), assumindo que os vértices de~\(P_i\) estão ordenados em sentido anti-horário e~\(v^{m + 1} = v^1\). Dado~\(p \in \mathbb{R}^2\), desejamos determinar se existe algum~\(l \le j < r - 1\) tal que~\(p\) pertence à região associada ao vértice~\(v^j\) de~\(P_i\) ou à região associada à aresta~\(\overline{v^j v^{j + 1}}\) de~\(P_i\) . 
 	
-	Para tal, poderíamos verificar cada região individualmente, mas isso não é eficiente. No entanto, podemos criar uma \textit{aresta fictícia} entre \(v^l\) e \(v^r\), e usando o segundo raio associado a \(v^l\) e o primeiro raio associado a \(v^r\) em \(S_i\), definindo uma região \(R\) que contém exatamente as regiões associadas às arestas entre \(v^l\) e \(v^r\) e às vértices entre \(v^l\) e \(v^r\) e parte do interior de \(P_i\). Veremos a seguir que a região \(R\) é similar à região de aresta que tratamos anteriormente. Além disso, podemos verificar se \(p\) pertence a \(R\) em tempo \(O(1)\), e \(p\) pertence a \(R\) se e somente se pertence a alguma região de vértice ou de aresta entre \(v^l\) e \(v^r\), pois supomos que \(p\) não está no interior de \(P_i\).
+	Para tal, poderíamos verificar cada região individualmente, mas isso não é eficiente. No entanto, podemos criar uma \textit{aresta fictícia} entre~\(v^l\) e~\(v^r\), e usando o primeiro raio associado a~\(v^l\) e o primeiro raio associado a~\(v^r\) em~\(S_i\), definimos uma região~\(R\) que contém exatamente as regiões associadas às arestas entre~\(v^l\) e~\(v^r\) e aos vértices entre~\(v^l\) e~\(v^r\) e parte do interior de~\(P_i\). Veremos a seguir que a região~\(R\) é similar à região de aresta que tratamos anteriormente. Além disso, podemos verificar se~\(p\) pertence a~\(R\) em tempo~\(O(1)\), e~\(p\) pertence a~\(R\) se e somente se pertence a alguma região de vértice ou de aresta entre~\(v^l\) e~\(v^r\), pois supomos que~\(p\) não está no interior de~\(P_i\).
 
-	Veja a Figura~\ref{fig:fake_edge} para uma ilustração dessa ideia. Criamos uma aresta fictícia entre os vértices \(v^3\) e \(v^6 = v^1\) de \(P_1\) e definimos a região \(R\), que engloba todas as regiões entre eles. Assim, para verificar se existe algum \(3 \le j < 6\) tal que \(p\) pertence à região associada à aresta \(\overline{v^j v^{j + 1}}\) de \(P_1\) ou existe algum \(3 < j < 6\) tal que \(p\) pertence à região associada ao vértice \(v^j\) de \(P_1\), basta verificar se \(p\) pertence a \(R\). Além disso, \(R\) tem a forma de uma região de aresta tradicional, então podemos verificar se \(p\) pertence a \(R\) utilizando o mesmo procedimento do Algoritmo~\algref{alg:locate_point_first_approach}.
+	Veja a Figura~\ref{fig:fake_edge} para uma ilustração dessa ideia. Criamos uma aresta fictícia entre os vértices~\(v^3\) e~\(v^6 = v^1\) de~\(P_1\) e definimos a região~\(R\), que engloba todas as regiões entre eles. Assim, para verificar se existe algum~\(3 \le j < 6\) tal que~\(p\) pertence à região associada à aresta~\(\overline{v^j v^{j + 1}}\) de~\(P_1\) ou existe algum~\(3 < j < 6\) tal que~\(p\) pertence à região associada ao vértice~\(v^j\) de~\(P_1\), basta verificar se~\(p\) pertence a~\(R\). Além disso,~\(R\) tem a forma de uma região de aresta tradicional, então podemos verificar se~\(p\) pertence a~\(R\) utilizando o mesmo procedimento do Algoritmo~\algref{alg:locate_point_first_approach}.
 
 \end{blockQuote}
 
-
 \begin{figure}[!ht]
-\centering
-\begin{minipage}{0.44\textwidth}
 	\centering
-	\includegraphics[width=\linewidth]{last_step_map_new.png}
-	\caption{Nova interpretação do mapa de último passo \(S_1\) de um polígono \(P_1\). Representamos as regiões de vértice em vermelho e as de aresta em verde.}
-	\label{fig:last_step_map-new}
-\end{minipage}
-\hspace{10pt}
-\begin{minipage}{0.44\textwidth}
-	\centering
-	\includegraphics[width=\linewidth]{fake_edge.png}
-	\caption{Criamos uma aresta fictícia entre os vértices \(v^3\) e \(v^6 = v^1\) de \(P_1\) e definimos a região \(R\), que engloba todas as regiões entre eles.}
+	\includegraphics[width=0.5\linewidth]{fake_edge.png}
+	\caption{Criamos uma aresta fictícia entre os vértices \(v^3\) e \(v^6 = v^1\) de \(P_1\), definindo a região \(R\), que engloba todas as regiões dos vértices \(v^3, v^4\) e \(v^5\) e das arestas \(e^3, e^4\) e \(e^5\).}
 	\label{fig:fake_edge}
-\end{minipage}
 \end{figure}
 
-Antes de utilizar essa ideia propriamente, precisamos primeiro ser capazes de determinar se um ponto \(p \in \mathbb{R}^2\) pertence à região \(R\) formada pelo vértice \(u\) com raio associado \(r^1\) e \(v\) com raio associado \(r^2\). Para tal, definimos \(d = v - u\) e dizemos que um raio \(r\) está do \textbf{lado externo} da aresta \(\overline{uv}\) se \(d \times r < 0\) e do \textbf{lado interno} se \(d \times r \ge 0\). Além disso, calculamos as seguintes variáveis booleanas:
+Antes de utilizar essa ideia propriamente, precisamos primeiro ser capazes de determinar se um ponto~\(p \in \mathbb{R}^2\) pertence à região~\(R\) formada pelo vértice~\(u\) com raio associado~\(r^1\) e~\(v\) com raio associado~\(r^2\). Para tal, definimos~\(d = v - u\) e dizemos que um raio~\(r\) está do \textbf{lado externo} da aresta~\(\overline{uv}\) se~\(d \times r < 0\) e do \textbf{lado interno} se~\(d \times r \ge 0\). Além disso, calculamos as seguintes variáveis booleanas:
 
 \begin{enumerate}
 	\item \(c_1 \iff r^1 \times (p - u) \ge 0\)
@@ -681,19 +677,14 @@ Antes de utilizar essa ideia propriamente, precisamos primeiro ser capazes de de
 	\item \(c_3 \iff (v - u) \times (p - u) \le 0\)
 \end{enumerate}
 
-Note que, considerando os 4 casos possíveis para os lados de \(r^1\) e \(r^2\), podemos determinar se \(p\) pertence à \(R\) usando apenas \(c_1, c_2\) e \(c_3\):
+Note que, considerando os 4 casos possíveis para os lados de~\(r^1\) e~\(r^2\), podemos determinar se~\(p\) pertence à~\(R\) usando apenas~\(c_1, c_2\) e~\(c_3\):
 
-\begin{description}
-
-	\item[\(r^1\) e \(r^2\) externos:] \(c_1 \land c_2 \land c_3\). Veja a Figura~\ref{fig:binary_search_cases}(a).
-
-	\item[\(r^1\) e \(r^2\) internos:] \(c_1 \lor c_2 \lor c_3\). Veja a Figura~\ref{fig:binary_search_cases}(b).
-
-	\item[\(r^1\) externo e \(r^2\) interno:] \((c_1 \land c_3) \lor (c_2 \land \lnot c_3)\). Veja a Figura~\ref{fig:binary_search_cases}(c).
-	
-	\item[\(r^1\) interno e \(r^2\) externo:] \((c_1 \land \lnot c_3) \lor (c_2 \land c_3)\). Veja a Figura~\ref{fig:binary_search_cases}(d).
-
-\end{description}
+\begin{enumerate}[label=(\alph*)]
+	\item \textbf{\(r^1\) e \(r^2\) externos:} \(c_1 \land c_2 \land c_3\). Veja a Figura~\ref{fig:binary_search_cases}(a).
+	\item \textbf{\(r^1\) e \(r^2\) internos:} \(c_1 \lor c_2 \lor c_3\). Veja a Figura~\ref{fig:binary_search_cases}(b).
+	\item \textbf{\(r^1\) externo e \(r^2\) interno:} \((c_1 \land c_3) \lor (c_2 \land \lnot c_3)\). Veja a Figura~\ref{fig:binary_search_cases}(c).	
+	\item \textbf{\(r^1\) interno e \(r^2\) externo:} \((c_1 \land \lnot c_3) \lor (c_2 \land c_3)\). Veja a Figura~\ref{fig:binary_search_cases}(d).
+\end{enumerate}
 
 \begin{figure}[!ht]
 	\centering
@@ -729,9 +720,18 @@ Note que, considerando os 4 casos possíveis para os lados de \(r^1\) e \(r^2\),
 
 \end{figure}
 
-Com essas verificações, podemos implementar o algoritmo \texttt{LocalizaPonto} utilizando a estratégia de busca binária, conforme apresentado no Algoritmo~\algref{alg:locate_point_second_approach}. Nesse algoritmo, implementamos a função auxiliar \texttt{VerificaAresta}, responsável por verificar se~\(p\) pertence à região de uma aresta fictícia entre dois vértices~\(u\) e~\(v\), de acordo com os casos discutidos anteriormente. A verificação se~\(p\) pertence à região de vértice de um dado vértice~\(u^{mid}\) é abstraída, pois é idêntica àquela utilizada no Algoritmo~\algref{alg:locate_point_first_approach}.
+Agora que sabemos como verificar se um ponto~\(p \in \mathbb{R}^2\) está em uma região de aresta fictícia~\(R\), podemos usar isso para localizar~\(p\) no mapa de último passo~\(S_i\) de um polígono~\(P_i\). Definindo~\(m = |P_i|\) como o número de vértices de~\(P_i\), dizemos que~\(l_0 = 1\) e~\(r_0 = m + 1\). 
 
-A principal vantagem dessa abordagem é que a busca binária reduz o número de verificações para localizar~\(p\) em~\(S_i\) de~\(O\abs{T_i}\) para~\(O(\log\abs{T_i})\), o que pode representar uma melhoria significativa quando~\(P_i\) possui muitos vértices em~\(T_i\). Analisaremos o impacto dessa modificação com mais detalhes na análise de complexidade.
+\begin{blockQuote}
+	\textbf{Algoritmo de localização:} Dado~\(1 \le i \le k\) e~\(p \in \mathbb{R}^2\) tal que~\(p\) não está no interior de~\(P_i\), queremos encontrar a região de~\(S_i\) que contém~\(p\). 
+	
+	Definimos~\(l_0 = 1\) e~\(r_0 = m + 1\). Para todo~\(i \in \mathbb{N}\), se~\(l_i + 1 \ne r_i\), definimos~\(mid_i = \floor{(l_i + r_i) / 2}\) e verificamos se~\(p\) pertence à região de aresta fictícia entre os vértices~\(v^{l_i}\) e~\(v^{mid_i}\) de~\(P_i\). Se~\(p\) pertence a essa região, definimos~\(r_{i + 1} = mid_i\) e~\(l_{i + 1} = l_i\), caso contrário, definimos~\(l_{i + 1} = mid_i\) e~\(r_{i + 1} = r_i\). 
+	
+	Eventualmente, teremos~\(l_i + 1 = r_i\) para algum~\(i\), e nesse ponto, sabemos que~\(p\) pertence à região associada ao vértice~\(v^{l_i}\) ou à região associada à aresta~\(\overline{v^{l_i} v^{r_i}}\). Então, verificamos se~\(v^{l_i} \in T_i\) e se~\(p\) pertence à região associada ao vértice~\(v^{l_i}\). Se sim, retornamos a região associada a~\(v^{l_i}\). Caso contrário, verificamos se~\(\overline{v^{l_i} v^{r_i}} \in T_i\). Se sim, retornamos a região associada à aresta~\(\overline{v^{l_i} v^{r_i}}\). Caso contrário, retornamos a região de atravessar~\(P_i\).
+
+	Implementamos esse algoritmo de localização no Algoritmo~\algref{alg:locate_point_second_approach}. Note que, para implementar a função \texttt{VerificaAresta}, utilizamos o procedimento descrito anteriormente para verificar se um ponto pertence à região de uma aresta fictícia entre dois vértices.
+
+\end{blockQuote}
 
 \begin{algorithm}[!ht]
 \alglabel{alg:locate_point_second_approach}
@@ -742,63 +742,47 @@ A principal vantagem dessa abordagem é que a busca binária reduz o número de 
 \hrule
 \vspace{0.3em}
 
-\Function {LocalizaPonto(\(p, P_i, T_i, S_i\))} {
+\Function {VerificaAresta(\(u, v, S_i\))} {
 
-	\Function {VerificaAresta(\(u, v\))} {
-		\(r^1 \leftarrow\) segundo raio associado a \(u\) em \(S_i\) \\
-		\(r^2 \leftarrow\) primeiro raio associado a \(v\) em \(S_i\) \\
+	\(r^1 \leftarrow\) segundo raio associado a \(u\) em \(S_i\) \\
+	\(r^2 \leftarrow\) primeiro raio associado a \(v\) em \(S_i\) \\
 
-		\(d \leftarrow v - u\) \\
+	\(c_1 \leftarrow r^1 \times (p - u) \ge 0\) \\
+	\(c_2 \leftarrow r^2 \times (p - v) \le 0\) \\
+	\(c_3 \leftarrow (v - u) \times (p - u) \le 0\) \\
 
-		\If {\(d \times r^1 < 0 \land d \times r^2 < 0\)} {
-			\Return {} \(r^1 \times (p - u) > 0 \land r^2 \times (p - v) < 0 \land (p - u) \times (v - u) < 0\)
-		}
-		\ElseIf {\(d \times r^1 > 0 \land d \times r^2 > 0\)} {
-			\Return {} \(r^1 \times (p - u) \leq 0 \land r^2 \times (p - v) \geq 0 \land (p - u) \times (v - u) \geq 0\)
-		}
-		\ElseIf {\(d \times r^1 < 0 \land d \times r^2 > 0\)} {
-			\If {\((p - u) \times (v - u) < 0\)} {
-				\Return {} \(r^2 \times (p - v) < 0\)
-			}
-			\Else {
-				\Return {} \(r^1 \times (p - u) > 0\)
-			}
+	\(d \leftarrow v - u\) \\
+
+	\If {\((v - u) \times r^1 < 0\)} {
+		\If {\((v - u) \times r^2 < 0\)} {
+			\Return {} \(c_1 \land c_2 \land c_3\)
 		}
 		\Else {
-			\If {\((p - u) \times (v - u) < 0\)} {
-				\Return {} \(r^1 \times (p - u) > 0\)
-			}
-			\Else {
-				\Return {} \(r^2 \times (p - v) < 0\)
-			}
+			\Return {} \((c_1 \land c_3) \lor (c_2 \land \lnot c_3)\)
 		}
 	}
-
-	\(u^1, \dots, u^m \leftarrow\) vértices de \(P_i\) em \(T_i\), ordenados em sentido anti-horário \\
-
-	\If {VerificaAresta(\(u^m, u^1\))} {
-		\Return {} região de atravessar \(P_i\)
+	\Else {
+		\If {\((v - u) \times r^2 < 0\)} {
+			\Return {} \((c_1 \land \lnot c_3) \lor (c_2 \land c_3)\)
+		}
+		\Else {
+			\Return {} \(c_1 \lor c_2 \lor c_3\)
+		}
 	}
-	\If {\(p\) está na região de vértice de \(u^1\)} {
-		\Return {} região associada a \(u^1\)
-	}
+}
 
-	\If {\(p\) está na região de vértice de \(u^m\)} {
-		\Return {} região associada a \(u^m\)
-	}
+\Function {LocalizaPonto(\(p, P_i, T_i, S_i\))} {
+
+	\(v^1, \dots, v^m \leftarrow\) vértices de \(P_i\), ordenados em sentido anti-horário \\
 
 	\(l \leftarrow 1\) \\
-	\(r \leftarrow m\)
+	\(r \leftarrow m + 1\)
 
 	\While {\(l + 1 \ne r\)} {
 
 		\(mid \leftarrow \floor{(l + r) / 2}\)
 
-		\If {\(p\) está na região de vértice de \(u^{mid}\)} {
-			\Return {} região associada a \(u^{mid}\)
-		}
-
-		\If {VerificaAresta(\(u^{l}, u^{mid}\))} {
+		\If {VerificaAresta(\(v^l, v^{mid}, S_i\))} {
 			\(r \leftarrow mid\)
 		}
 		\Else {
@@ -806,10 +790,21 @@ A principal vantagem dessa abordagem é que a busca binária reduz o número de 
 		}
 	}
 
-	\Return {} região associada a aresta \(\overline{u^{l} u^{r}}\)
+	\If {\(v^l \in T_i\) e \(p\) está na região de vértice de \(v^l\)} {
+		\Return {} região associada a \(v^l\)
+	}
+	\ElseIf {\(\overline{v^l v^r} \in T_i\)} {
+		\Return {} região associada a \(\overline{v^l v^r}\)
+	}
+	\Else {
+		\Return {} região de atravessar \(P_i\)
+	}
 }
 
 \end{algorithm}
+
+A principal vantagem dessa abordagem é que a busca binária reduz o número de verificações para localizar~\(p\) em~\(S_i\) de~\(O\abs{T_i}\) para~\(O(\log\abs{P_i})\), o que pode representar uma melhoria significativa quando~\(P_i\) possui muitos vértices em~\(T_i\). Analisaremos o impacto dessa modificação com mais detalhes na análise de complexidade.
+
 \subsection{Terceira Abordagem}
 
 Antes de discutirmos a terceira abordagem, apresentamos a motivação para essa nova implementação do algoritmo \texttt{LocalizaPonto}. Considere o caso de um único polígono~\(P_1\) com um grande número de vértices, por exemplo, um milhão. Pela segunda abordagem, calculamos~\(T_1\), em seguida~\(S_1\) e, finalmente, realizamos uma única consulta ao mapa de último passo~\(S_1\) para localizar o ponto~\(t\). No entanto, essa consulta utiliza no máximo cerca de 20 regiões de vértice de~\(P_1\) para localizar~\(t\) em~\(S_1\). Assim, acabamos calculando aproximadamente 999\,980 regiões de vértice que nunca são utilizadas. Diante disso, na terceira abordagem buscamos empregar uma estratégia de memoização, de modo a calcular apenas as regiões de vértice de~\(P_i\) que são efetivamente necessárias para localizar os pontos consultados no mapa de último passo~\(S_i\).
