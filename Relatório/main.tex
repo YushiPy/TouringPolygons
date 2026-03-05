@@ -826,27 +826,28 @@ Assim, concluímos a implementação da terceira abordagem do algoritmo \texttt{
 
 \subsection{Análise de Complexidade}
 
-Analizaremos agora a complexidade de cada uma das três abordagens apresentadas para resolver o TPP. Para isso, utilizaremos as seguintes notações: seja~\(\abs{P_i}\) o número de vértices do polígono~\(P_i\) e~\(\abs{T_i}\) o número de arestas em~\(T_i\). Seja ainda~\(k\) o número total de polígonos na sequência~\(P_1, \dots, P_k\) e~\(n\) é a soma do número de vértices dos~\(k\) polígonos.
+Analisaremos a seguir a complexidade de cada uma das três abordagens apresentadas para a resolução do TPP. Para tanto, adotaremos as seguintes notações: seja~\(\abs{P_i}\) o número de vértices do polígono~\(P_i\) e~\(\abs{T_i}\) o número de arestas em~\(T_i\). Seja ainda~\(k\) o número total de polígonos na sequência~\(P_1, \dots, P_k\) e~\(n\) a soma do número de vértices dos~\(k\) polígonos.
 
 \subsubsection{Primeira Abordagem}
 
-A seguir, analizamos a complexidade da primeira abordagem, na qual o algoritmo \texttt{LocalizaPonto} é implementado de forma direta, verificando todas as regiões de vértice e de aresta associadas a~\(T_i\) para localizar o ponto~\(p\).
+Analisamos a complexidade da primeira abordagem, na qual o algoritmo \texttt{LocalizaPonto} é implementado de forma direta, verificando todas as regiões de vértice e de aresta associadas a~\(T_i\) para localizar o ponto~\(p\).
 
 \begin{description}
 
-	\item[LocalizaPonto \algref{alg:locate_point_first_approach}:] A complexidade desse algoritmo é~\(O(\abs{T_i})\), pois, no pior caso, é necessário verificar todas as regiões de vértice e de aresta associadas a~\(T_i\) para localizar o ponto~\(p\).
+	\item[LocalizaPonto \algref{alg:locate_point_first_approach}:] A complexidade deste algoritmo é~\(O(\abs{T_i})\), uma vez que, no pior caso, é necessário verificar todas as regiões de vértice e de aresta associadas a~\(T_i\) para localizar o ponto~\(p\).
 
-	\item[ConsultaCaminho \algref{alg:consulta-caminho} e ConsultaÚltimoPasso \algref{alg:consulta-ultimo-passo}:] Ambos os algoritmos iniciam com uma chamada ao algoritmo \texttt{LocalizaPonto}. O pior caso ocorre quando o ponto~\(p\) pertence à região de travessia de~\(P_i\) ou a uma região de aresta, o que exige uma nova consulta ao mapa de último passo~\(S_{i-1}\). Assim, no pior caso, são feitas~\(i\) chamadas ao algoritmo \texttt{LocalizaPonto}, resultando em uma complexidade total de: 
+	\item[ConsultaCaminho \algref{alg:consulta-caminho} e ConsultaÚltimoPasso \algref{alg:consulta-ultimo-passo}:] Ambos os algoritmos iniciam com uma chamada ao algoritmo \texttt{LocalizaPonto}. O pior caso ocorre quando o ponto~\(p\) pertence à região de travessia de~\(P_i\) ou a uma região de aresta, o que requer uma nova consulta ao mapa de último passo~\(S_{i-1}\). Dessa forma, no pior caso, são realizadas~\(i\) chamadas ao algoritmo \texttt{LocalizaPonto}, resultando em uma complexidade total de: 
 	\[
 		O\!\left(\sum_{j = 1}^{i} \abs{T_j}\right).
 	\]
 
-	\item[RegiãoDePrimeiroContato \algref{alg:first_contact_region} e MapaDeÚltimoPasso \algref{alg:last_step_map}:] Ambos os algoritmos realizam uma única passagem pelos vértices de~\(P_i\), fazendo uma consulta para cada vértice. Dessa forma, a complexidade desses algoritmos é:
+	\item[RegiãoDePrimeiroContato \algref{alg:first_contact_region} e MapaDeÚltimoPasso \algref{alg:last_step_map}:] Ambos realizam uma única passagem pelos vértices de~\(P_i\), efetuando uma consulta para cada vértice. Consequentemente, a complexidade destes algoritmos é:
 	\[
 		O\!\left(\abs{P_i} \sum_{j = 1}^{i} \abs{T_j}\right).
 	\]
 
-	\item[TPP completo \algref{alg:tpp_complete-1-2}:] O algoritmo executa uma chamada para calcular~\(T_i\) e~\(S_i\) para cada~\(i = 1, \dots, k\), e ao final realiza uma chamada para consultar o caminho até o ponto~\(t\). Assim, a complexidade total do algoritmo TPP é dada por:
+	\item[TPP completo \algref{alg:tpp_complete-1-2}:] O algoritmo executa uma chamada para calcular~\(T_i\) e~\(S_i\) para cada~\(i = 1, \dots, k\) e, ao final, realiza uma chamada para consultar o caminho até o ponto~\(t\). Assim, a complexidade total do algoritmo TPP é dada por:
+	\allowdisplaybreaks
 	\begin{align*}
 		O\!\left(\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \abs{T_j} + \sum_{j = 1}^{k} \abs{T_j}\right)
 		&= O\!\left(\sum_{i = 1}^{k} \abs{P_i} \sum_{j = 1}^{i} \abs{P_j} + \sum_{j = 1}^{k} \abs{P_j}\right) \\
@@ -858,22 +859,22 @@ A seguir, analizamos a complexidade da primeira abordagem, na qual o algoritmo \
 
 \end{description}
 
-Assim, concluímos que a complexidade total do algoritmo TPP utilizando a primeira abordagem é~\(O(n^2)\). 
+Conclui-se, portanto, que a complexidade total do algoritmo TPP utilizando a primeira abordagem é~\(O(n^2)\). 
 
 \subsubsection{Segunda Abordagem}
 
-A seguir, analizamos a complexidade da segunda abordagem, na qual o algoritmo \texttt{LocalizaPonto} é implementado utilizando uma estratégia de busca binária para localizar o ponto~\(p\) no mapa de último passo~\(S_i\).
+Analisamos a seguir a complexidade da segunda abordagem, na qual o algoritmo \texttt{LocalizaPonto} é implementado por meio de uma estratégia de busca binária para localizar o ponto~\(p\) no mapa de último passo~\(S_i\).
 
 \begin{description}
 
-	\item[LocalizaPonto \algref{alg:locate_point_second_approach}:] A complexidade desse algoritmo é~\(O(\log \abs{T_i})\), correspondente ao pior caso da busca binária utilizada para localizar o ponto~\(p\) em~\(S_i\).
+	\item[LocalizaPonto \algref{alg:locate_point_second_approach}:] A complexidade deste algoritmo é~\(O(\log \abs{T_i})\), correspondente ao pior caso da busca binária empregada para localizar o ponto~\(p\) em~\(S_i\).
 	
-	\item[ConsultaÚltimoPasso \algref{alg:consulta-ultimo-passo} e ConsultaCaminho \algref{alg:consulta-caminho}:] De forma análoga ao caso anterior, o pior caso envolve~\(i\) chamadas ao algoritmo \texttt{LocalizaPonto}, resultando na complexidade:
+	\item[ConsultaÚltimoPasso \algref{alg:consulta-ultimo-passo} e ConsultaCaminho \algref{alg:consulta-caminho}:] De maneira análoga ao caso anterior, o pior caso envolve~\(i\) chamadas ao algoritmo \texttt{LocalizaPonto}, resultando na complexidade:
 	\[
 		O\!\left(\sum_{j = 1}^{i} \log \abs{T_j}\right).
 	\]
 
-	\item[RegiãoDePrimeiroContato \algref{alg:first_contact_region} e MapaDeÚltimoPasso \algref{alg:last_step_map}:] Cada um desses algoritmos itera sobre os vértices de~\(P_i\) e realiza uma consulta para cada vértice. Portanto, a complexidade é:
+	\item[RegiãoDePrimeiroContato \algref{alg:first_contact_region} e MapaDeÚltimoPasso \algref{alg:last_step_map}:] Cada um destes algoritmos itera sobre os vértices de~\(P_i\) e realiza uma consulta para cada vértice. Portanto, a complexidade é:
 	\[
 		O\!\left(\abs{P_i} \sum_{j = 1}^{i} \log \abs{T_j}\right).
 	\]
@@ -886,20 +887,22 @@ A seguir, analizamos a complexidade da segunda abordagem, na qual o algoritmo \t
 		&= O\!\left(n \sum_{j = 1}^{k} \log \abs{P_j}\right).
 	\end{align*}
 
-	Observando que a soma~\(\sum_{j = 1}^{k} \log \abs{P_j}\) é maximizada quando todos os polígonos possuem o mesmo número de vértices, isto é, quando~\(\abs{P_j} = n/k\) para todo~\(j\), obtemos que a complexidade final do algoritmo TPP usando a segunda abordagem é:
+	Observando que a soma~\(\sum_{j = 1}^{k} \log \abs{P_j}\) é maximizada quando todos os polígonos possuem o mesmo número de vértices, isto é, quando~\(\abs{P_j} = n/k\) para todo~\(j\), obtém-se que a complexidade final do algoritmo TPP utilizando a segunda abordagem é:
 	\[
 		O\!\left(nk \log (n/k)\right).
 	\]
 
 \end{description}
 
-Dessa forma, concluimos que a complexidade final do algoritmo TPP utilizando a segunda abordagem é~\(O(nk \log (n/k))\). Essa complexidade coincide exatamente com a apresentada por Dror et al. (2003)~\cite{tpp-dror2003}, o que indica que nossa implementação atinge a mesma eficiência assintótica da proposta original.
+Conclui-se, assim, que a complexidade final do algoritmo TPP utilizando a segunda abordagem é~\(O(nk \log (n/k))\). Esta complexidade coincide exatamente com aquela apresentada por Dror et al. (2003)~\cite{tpp-dror2003}, o que indica que a implementação proposta atinge a mesma eficiência assintótica da solução original.
 
 \subsubsection{Terceira Abordagem}
 
-Por fim, resta analisar a complexidade da terceira abordagem. Essa análise é mais delicada, pois a complexidade do algoritmo \texttt{LocalizaPonto} passa a depender fortemente da instância específica, em particular da distribuição dos vértices nos polígonos e das consultas efetivamente realizadas ao mapa de último passo. 
+Resta, por fim, analisar a complexidade da terceira abordagem. Esta análise é mais delicada, uma vez que a complexidade do algoritmo \texttt{LocalizaPonto} passa a depender fortemente da instância específica, em particular da distribuição dos vértices nos polígonos e das consultas efetivamente realizadas ao mapa de último passo. 
 
-Ainda assim, é imediato observar que a terceira abordagem nunca será pior do que a segunda, uma vez que, no pior caso, todas as regiões de vértice em~\(T_i\) serão calculadas, recuperando exatamente o comportamento da segunda abordagem. Assim, concluímos que a complexidade da terceira abordagem é~\(O(nk \log (n/k))\) no pior caso, podendo ser significativamente melhor em instâncias favoráveis, dependendo do padrão das consultas realizadas.
+Não obstante, é imediato observar que a terceira abordagem não apresenta desempenho inferior ao da segunda, visto que, no pior caso, todas as regiões de vértice em~\(T_i\) são calculadas, recuperando exatamente o comportamento da segunda abordagem. Assim, conclui-se que a complexidade da terceira abordagem é~\(O(nk \log (n/k))\) no pior caso, podendo ser significativamente inferior em instâncias favoráveis, a depender do padrão das consultas realizadas.
+
+\subsection{Experimentos}
 
 \section{TPP Não Convexo}
 \label{sec:non-convex-tpp}
