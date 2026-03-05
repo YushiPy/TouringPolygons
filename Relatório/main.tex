@@ -35,7 +35,6 @@
 \SetProgSty{upshape} % tell it not to italicize
 \renewcommand{\ProgSty}[1]{\textnormal{#1}\unskip} % enforce upright text
 
-
 \newcounter{algorithm}
 
 % Command for referencing algorithms
@@ -45,6 +44,9 @@
 }
 
 \newcommand{\algref}[1]{\ref{#1}}
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
 
 % Graphics and figures
 \usepackage{graphicx}
@@ -158,59 +160,56 @@
 
 \begin{abstract}
 
-Este trabalho apresenta diferentes implementações de algoritmos para o Problema de Visita de Polígonos (Touring Polygons Problem - TPP), que consiste em encontrar um caminho de comprimento mínimo na norma Euclidiana que parte de um ponto inicial, visita uma sequência de polígonos e chega em um ponto final no plano. Em sua forma geral, o problema é NP-difícil. Por esse motivo, inicialmente consideramos uma versão simplificada em que os polígonos são convexos e não se sobrepõem, para a qual apresentamos um algoritmo exato baseado em mapas de último passo. Em seguida, para o caso não convexo, particionamos cada polígono não convexo em um conjunto de polígonos convexos e utilizamos nossa solução anterior para resolver cada combinação possível de polígonos convexos. Como essa solução é um tanto ineficiente, discutimos estratégias de otimização inteira mista para melhorar a performance dessa estratégia. Por fim, realizamos experimentos computacionais para avaliar o desempenho dos algoritmos propostos em instâncias de diferentes tamanhos e características, comparando-os com solvers comerciais. Os resultados indicam que as abordagens desenvolvidas são eficazes em uma ampla variedade de cenários.
+Este trabalho apresenta diferentes implementações de algoritmos para o Problema de Visita de Polígonos (\textit{Touring Polygons Problem} - TPP), que consiste em determinar um caminho de comprimento mínimo na norma Euclidiana entre um ponto inicial e um ponto final, visitando uma sequência ordenada de polígonos no plano. Em sua formulação geral, o problema é NP-difícil. Por esse motivo, inicialmente considera-se uma versão simplificada na qual os polígonos são convexos e disjuntos, para a qual se apresenta um algoritmo exato baseado em mapas de último passo. Posteriormente, para o caso não convexo, particiona-se cada polígono não convexo em um conjunto de polígonos convexos e aplica-se o algoritmo desenvolvido para o caso convexo a cada combinação possível de polígonos resultantes da partição. Dado que essa solução apresenta limitações de eficiência, discutem-se estratégias de otimização inteira mista para melhorar o desempenho dessa abordagem. Por fim, realizam-se experimentos computacionais para avaliar o desempenho dos algoritmos propostos em instâncias de diferentes tamanhos e características, comparando-os com \textit{solvers} comerciais. Os resultados demonstram a eficácia das abordagens desenvolvidas em uma ampla variedade de cenários.
 
 \vspace{10pt}
 
-\noindent \textbf{Palavras-chave:} problema de visita de polígonos, otimização geométrica, complexidade, experimentos numéricos.
+\noindent \textbf{Palavras-chave:} problema de visita de polígonos, otimização geométrica, complexidade computacional, experimentos numéricos.
 \end{abstract}
 
 
 \section{Introdução}
 
-O Problema de Visita de Polígonos (Touring Polygons Problem - TPP), introduzido em~\cite{tpp-dror2003}, é um problema de otimização geométrica que consiste em encontrar um caminho de comprimento mínimo na norma Euclidiana que parte de um ponto inicial, visita uma sequência de polígonos e chega em um ponto final no plano. Esse tipo de problema surge naturalmente em aplicações de roteirização e planejamento de trajetórias, especialmente no contexto de veículos autônomos, nos quais é necessário garantir a visita eficiente a regiões específicas do espaço, como em tarefas de inspeção automatizada de armazéns~\cite{jianxian2023, karl2009}. Podemos interpretar esse problema como um caso específico do Problema do Caixeiro Viajante com Regiões (\textit{Traveling Salesman Problem with Neighborhoods} - TSPN)~\cite{tspn-arkin2005}, no qual o objetivo é encontrar um caminho de comprimento mínimo que visite um conjunto de regiões arbitrárias no plano, sendo que, no TPP, essas regiões são representadas por polígonos e a ordem de visita é pré-definida.
+O Problema de Visita de Polígonos (\textit{Touring Polygons Problem} - TPP), introduzido em~\cite{tpp-dror2003}, constitui um problema de otimização geométrica que consiste em determinar um caminho de comprimento mínimo na norma Euclidiana que parte de um ponto inicial, visita uma sequência ordenada de polígonos e alcança um ponto final no plano. Esse tipo de problema surge naturalmente em aplicações de roteirização e planejamento de trajetórias, especialmente no contexto de veículos autônomos. Nesses cenários, torna-se necessário garantir a visita eficiente a regiões específicas do espaço, como em tarefas de inspeção automatizada de armazéns~\cite{jianxian2023, karl2009}. O problema pode ser interpretado como um caso específico do Problema do Caixeiro Viajante com Regiões (\textit{Traveling Salesman Problem with Neighborhoods} - TSPN)~\cite{tspn-arkin2005}. No TSPN, o objetivo consiste em encontrar um caminho de comprimento mínimo que visite um conjunto de regiões arbitrárias no plano; no TPP, especificamente, essas regiões são representadas por polígonos e a ordem de visita é pré-determinada.
 
-Dentre as diversas variações do problema, consideramos inicialmente uma versão simplificada em que os polígonos são convexos e não se sobrepõem. Consideramos ainda que a distância é medida na norma Euclidiana. Para esse caso, apresentamos três abordagens distintas para resolver o problema de forma exata. As duas primeiras são baseadas em ideias descritas em~\cite{tpp-dror2003}, enquanto a terceira é uma extensão que utiliza técnicas de memoização para melhorar o desempenho em diversos casos que exploraremos adiante. Considerando que \(k\) é o número de polígonos e \(n\) é a soma do número de vértices dos \(k\) polígonos, as abordagens propostas são as seguintes:
+Dentre as diversas variações do problema, considera-se inicialmente uma versão simplificada na qual os polígonos são convexos e disjuntos. Considera-se ainda que a distância é medida na norma Euclidiana. Para esse caso, apresentam-se três abordagens distintas para resolver o problema de forma exata. As duas primeiras baseiam-se em ideias descritas em~\cite{tpp-dror2003}, enquanto a terceira constitui uma extensão que utiliza técnicas de memoização para melhorar o desempenho em diversos casos explorados nas seções subsequentes.
 
-\begin{enumerate}
+A primeira abordagem consiste em uma implementação direta das ideias descritas em~\cite{tpp-dror2003}, baseada em mapas de último passo, que resolve o problema em tempo $O(n^2)$, onde $n$ representa a soma do número de vértices dos $k$ polígonos de entrada. Essa implementação tem como objetivo familiarizar o leitor com os conceitos e técnicas fundamentais para a resolução do TPP, tais como as regiões de primeiro contato e os mapas de último passo, que serão utilizados em todas as implementações subsequentes.
 
-	\item Implementação intuitiva das ideias descritas em~\cite{tpp-dror2003}, baseadas em mapas de último passo, resolvendo o problema em tempo \(O(n^2)\). Buscamos familiarizar o leitor com os conceitos e técnicas fundamentais para a resolução do TPP, como as regiões de primeiro contato e os mapas de último passo, que serão utilizados em todas as implementações subsequentes.
+A segunda abordagem aprimora a eficiência da primeira ao empregar uma estratégia de busca binária para a localização de pontos nos mapas de último passo, resolvendo o problema em tempo $O(n k \log (n / k))$, conforme descrito em~\cite{tpp-dror2003}.
 
-	\item Implementação que melhora a eficiência da primeira ao empregar uma estratégia de busca binária para a localização de pontos nos mapas de último passo, resolvendo o problema em tempo \(O(n k \log (n / k))\), como descrito em~\cite{tpp-dror2003}.
+A terceira abordagem utiliza uma técnica de memoização com o objetivo de evitar cálculos redundantes e reduzir o custo computacional. Embora a complexidade de pior caso permaneça $O(n k \log (n / k))$, essa abordagem pode apresentar desempenho significativamente superior na prática, dependendo da distribuição de vértices entre os polígonos. Essa estratégia é, ao que tudo indica, original, não tendo sido descrita no artigo de referência nem em outros trabalhos consultados.
 
-	\item Implementação que utiliza uma técnica de memoização, com o objetivo de evitar cálculos redundantes e reduzir o custo computacional. Mantemos a mesma complexidade de pior caso da abordagem anterior, \(O(n k \log (n / k))\), mas, a depender do tamanho dos polígonos, pode apresentar um desempenho significativamente melhor na prática. Acreditamos que essa ideia é original, não tendo sido descrita no artigo original nem em outros trabalhos.
+Em seguida, aborda-se o caso geral do TPP, no qual os polígonos podem ser não convexos. Para isso, particiona-se cada polígono não convexo em um conjunto de polígonos convexos e aplicam-se os algoritmos desenvolvidos para o caso convexo a cada combinação possível de polígonos convexos resultantes da partição. Essa abordagem apresenta, \textit{a priori}, limitações de eficiência; assim, busca-se otimizar o processo por meio de técnicas de otimização combinatória.
 
-\end{enumerate}
+Alternativamente, o caso geral do TPP pode ser resolvido modelando-o como um problema de programação inteira mista (\textit{Mixed Integer Linear Programming} - MILP) e utilizando \textit{solvers} comerciais, como o~\href{https://www.gurobi.com}{Gurobi}, para obter uma solução. Essa abordagem também resolve o problema de forma exata. Dessa forma, demonstra-se que a implementação proposta é competitiva mesmo quando comparada a \textit{solvers} comerciais de alto desempenho.
 
-Em seguida, buscamos resolver o caso geral do TPP, no qual os polígonos podem ser não convexos. Para isso, particionaremos cada polígono não convexo em um conjunto de polígonos convexos e aplicaremos as soluções desenvolvidas para o caso convexo sobre cada combinação possível de polígonos convexos resultantes. Essa abordagem é, a priori, ineficiente, assim buscamos otimizar o processo por meio de técnicas de otimização combinatória.
-
-Além disso, outra forma de resolver o caso geral do TPP é modelá-lo como um problema de programação inteira mista (Mixed Integer Linear Programming - MILP) e utilizar solvers comerciais, como o~\href{https://www.gurobi.com}{Gurobi}, para obter uma solução. Essa abordagem também resolve o problema de forma exata. Assim, buscamos mostrar que nossa implementação é competitiva mesmo quando comparada a solvers comerciais de alto desempenho.
+O restante deste trabalho está organizado da seguinte forma. As três abordagens para resolver o TPP no caso convexo são apresentadas na Seção~\ref{sec:convex_tpp}, juntamente com a análise de complexidade e experimentos numéricos. A Seção~\ref{sec:non-convex-tpp} aborda o caso geral do TPP com polígonos não convexos, apresentando a estratégia de particionamento e otimização combinatória, bem como a modelagem do problema como um MILP. Conclusões e perspectivas para trabalhos futuros são discutidas na seção final.
 
 \section{O Problema de Visita de Polígonos Convexos}
+\label{sec:convex_tpp}
 
-Inicialmente, consideramos o TPP em sua versão mais simples, na qual os polígonos são convexos e não se sobrepõem, denominada TPP Irrestrito. Utilizamos tanto a formulação quanto a solução apresentadas em~\cite{tpp-dror2003} como base para nossas implementações. Para nossos propósitos, definimos o problema da seguinte forma:
+Inicialmente, considera-se o TPP em sua versão mais simples, na qual os polígonos são convexos e disjuntos, denominada TPP Irrestrito. Utilizam-se tanto a formulação quanto a solução apresentadas em~\cite{tpp-dror2003} como base para as implementações desenvolvidas. Para os propósitos deste trabalho, define-se o problema da seguinte forma:
 
 \begin{blockQuote}
 
-	{\large \textbf{TPP Convexo:}} Dados pontos~\(s, t \in \mathbb{R}^2\) e polígonos convexos disjuntos~\(P_1, \dots, P_k\), encontre pontos~\(p_i \in P_i\) para \(i = 1, 2, \dots, k\) de forma tal que o caminho que sai de~\(s\), passa por~\(p_1, \dots, p_k\) e termina em~\(t\) tenha comprimento mínimo.
-	
-	%Dado um ponto inicial~\(s \in \mathbb{R}^2\), um ponto final~\(t \in \mathbb{R}^2\) e uma sequência de polígonos convexos e disjuntos~\(P_1, \dots, P_k\), dados por sequências de vértices ordenados em sentido anti-horário, encontre um caminho~\(\pi\) de comprimento mínimo que se inicia em~\(s\), termina em~\(t\), e para o qual existem pontos~\(p_1, \dots, p_k\) tais que~\(p_i \in P_i\) para todo~\(i = 1, 2, \dots, k\), e o caminho~\(\pi\) passa por esses pontos nessa mesma ordem.
+	{\large \textbf{TPP Convexo:}} Dados pontos~\(s, t \in \mathbb{R}^2\) e polígonos convexos disjuntos~\(P_1, \dots, P_k\), determinar pontos~\(p_i \in P_i\) para~\(i = 1, 2, \dots, k\) de forma que o caminho que parte de~\(s\), passa por~\(p_1, \dots, p_k\) e termina em~\(t\) possua comprimento mínimo.
 
 \end{blockQuote}
 
-Todas as implementações a seguir têm como base as definições e propriedades apresentadas em~\cite{tpp-dror2003}. A seguir, incluímos as principais definições que serão utilizadas. Daqui em diante supomos que um polígono é dado como uma sequência de vértices em sentido anti-horário. Supomos ainda que~\(P_0 = \{s\}\) e~\(P_{k+1}=\{t\}\).
+Todas as implementações subsequentes fundamentam-se nas definições e propriedades apresentadas em~\cite{tpp-dror2003}. A seguir, apresentam-se as principais definições que serão utilizadas. Deste ponto em diante, supõe-se que um polígono é representado por uma sequência de vértices em sentido anti-horário. Supõe-se ainda que~\(P_0 = \{s\}\) e~\(P_{k+1}=\{t\}\).
 
 \begin{description}
 
-	\item[Caminho Parcial Ótimo] (\(i\)-path): Um~\(i\)-path (\(0 \le i \le k\)) até um ponto~\(p \in \mathbb{R}^2\) é um caminho de comprimento mínimo que se inicia em~\(s\), termina em~\(p\) e visita os polígonos~\(P_1, P_2, \dots, P_i\) nessa ordem. Por estarmos considerando a distância Euclidiana, todo~\(i\)-path é formado pela união de segmentos de reta; assim, tratamos caminhos como sequências ordenadas de pontos em~\(\mathbb{R}^2\). Além disso, como estamos lidando com polígonos convexos, todo \(i\)-path é único, isso ficará claro a partir da definição de mapa de último passo e suas propriedades, que apresentamos adiante. Por esse motivo, vamos nos referir a um \(i\)-path como \textbf{o} \(i\)-path até um ponto~\(p\).
+	\item[Caminho Parcial Ótimo] (\(i\)-path): Um~\(i\)-path (\(0 \le i \le k\)) até um ponto~\(p \in \mathbb{R}^2\) é um caminho de comprimento mínimo que se inicia em~\(s\), termina em~\(p\) e visita os polígonos~\(P_1, P_2, \dots, P_i\) nessa ordem. Considerando-se a distância Euclidiana, todo~\(i\)-path é formado pela união de segmentos de reta; assim, tratam-se caminhos como sequências ordenadas de pontos em~\(\mathbb{R}^2\). Além disso, uma vez que se trabalha com polígonos convexos, todo \(i\)-path é único, o que se tornará evidente a partir da definição de mapa de último passo e de suas propriedades, apresentadas adiante. Por esse motivo, referir-se-á a um \(i\)-path como \textbf{o} \(i\)-path até um ponto~\(p\).
 	
-	Vale notar que o~0-path até~\(p\) é simplesmente o segmento de reta~\(\overline{sp}\) e o~\(k\)-path até~\(t\) é exatamente a solução do problema.
+	Cabe observar que o~0-path até~\(p\) consiste simplesmente no segmento de reta~\(\overline{sp}\) e o~\(k\)-path até~\(t\) corresponde exatamente à solução do problema.
 	
-	Veja a Figura~\ref{fig:i_path} para um exemplo de um 2-path até \(t\). Note que a ordem deve ser respeitada, pois visitar~\(P_2\) antes de~\(P_1\) seria mais eficiente nesse caso.
+	A Figura~\ref{fig:i_path} ilustra um exemplo de 2-path até \(t\). Note-se que a ordem deve ser respeitada, pois visitar~\(P_2\) antes de~\(P_1\) seria mais eficiente neste caso.
 	
-	\item[Região de Primeiro Contato] (\(T_i\)): Denotamos por~\(T_i\) (\(1 \leq i \leq k\)) à região de primeiro contato de um polígono~\(P_i\). Seja~\(p \in P_i\) e seja~\(q \in P_{i-1}\) o ponto anterior a~\(p\) no~\(i\)-path até~\(p\). Temos que~\(p \in T_i\) se e somente se~\(\overline{pq} \cap P_i = p\). Em outras palavras,~\(T_i\) consiste dos pontos~\(p\) no perímetro de~\(P_i\) tais que o último segmento do~\((i - 1)\)-path até \(p\) não atravessa o interior de~\(P_i\). É fácil ver que apenas pontos na fronteira de~\(P_i\) fazem parte de~\(T_i\). Note ainda que, como~\(P_i\) é convexo,~\(T_i\) é sempre composta por uma região contínua de arestas de~\(P_i\).
+	\item[Região de Primeiro Contato] (\(T_i\)): Denota-se por~\(T_i\) (\(1 \leq i \leq k\)) a região de primeiro contato de um polígono~\(P_i\). Seja~\(p \in P_i\) e seja~\(q\) o ponto anterior a~\(p\) no~\((i - 1)\)-path até~\(p\). Tem-se que~\(p \in T_i\) se e somente se~\(\overline{pq} \cap P_i = p\). Em outras palavras,~\(T_i\) consiste nos pontos~\(p\) pertencentes ao perímetro de~\(P_i\) tais que o último segmento do~\((i - 1)\)-path até \(p\) não atravessa o interior de~\(P_i\). É imediato verificar que apenas pontos na fronteira de~\(P_i\) pertencem a~\(T_i\). Observa-se ainda que, como~\(P_i\) é convexo,~\(T_i\) é sempre composta por uma região contínua de arestas de~\(P_i\).
 	
-	Veja a Figura~\ref{fig:first_contact} para um exemplo das regiões de primeiro contato~\(T_1\) e~\(T_2\) dos polígonos~\(P_1\) e~\(P_2\), respectivamente.
+	A Figura~\ref{fig:first_contact} ilustra um exemplo das regiões de primeiro contato~\(T_1\) e~\(T_2\) dos polígonos~\(P_1\) e~\(P_2\), respectivamente.
 
 	\begin{figure}[!ht]
 	\centering
@@ -230,14 +229,14 @@ Todas as implementações a seguir têm como base as definições e propriedades
 
 	\end{figure}
 
-	\item[Mapa de Último Passo] (\(S_i\)): Denotamos por~\(S_i\) \((1 \le i \le k)\) o mapa de último passo de um polígono~\(P_i\), que consiste em uma partição do plano em um número finito de regiões. Na partição podem existir duas ou mais regiões do tipo ``região de vértice'', uma ou mais regiões do tipo ``região de aresta'' e exatamente uma região do tipo ``região de atravessar''. Cada região de vértice em~\(S_i\) está associada a um vértice~\(v\) de~\(P_i\) assim como cada região de aresta está associada a uma aresta~\(e\) de~\(P_i\). Apenas vértices e arestas em~\(T_i\) têm uma região associada em~\(S_i\). \label{def:last_step_map-1}
+	\item[Mapa de Último Passo] (\(S_i\)): Denota-se por~\(S_i\) \((1 \le i \le k)\) o mapa de último passo de um polígono~\(P_i\), que consiste em uma partição do plano em um número finito de regiões. Na partição podem existir duas ou mais regiões do tipo ``região de vértice'', uma ou mais regiões do tipo ``região de aresta'' e exatamente uma região do tipo ``região de atravessar''. Cada região de vértice em~\(S_i\) está associada a um vértice~\(v\) de~\(P_i\), assim como cada região de aresta está associada a uma aresta~\(e\) de~\(P_i\). Apenas vértices e arestas em~\(T_i\) possuem uma região associada em~\(S_i\). \label{def:last_step_map-1}
 	
-	Um ponto~\(p \in \mathbb{R}^2\) pertence a uma região de vértice associada ao vértice~\(v\) de~\(P_i\) se e somente se o \(i\)-path até~\(p\) tem~\(\overline{vp}\) como último segmento. Analogamente,  um ponto~\(p \in \mathbb{R}^2\) pertence a uma região de aresta associada à aresta~\(e\) de~\(P_i\) se e somente se o último segmento do~\(i\)-path até~\(p\) inicia-se no interior de~\(e\). Por último, um ponto~\(p \in \mathbb{R}^2\) pertence à região de atravessar de~\(P_i\) se e somente se não pertence a nenhuma região de vértice ou aresta.
+	Um ponto~\(p \in \mathbb{R}^2\) pertence a uma região de vértice associada ao vértice~\(v\) de~\(P_i\) se e somente se o \(i\)-path até~\(p\) possui~\(\overline{vp}\) como último segmento. Analogamente, um ponto~\(p \in \mathbb{R}^2\) pertence a uma região de aresta associada à aresta~\(e\) de~\(P_i\) se e somente se o último segmento do~\(i\)-path até~\(p\) inicia-se no interior de~\(e\). Por último, um ponto~\(p \in \mathbb{R}^2\) pertence à região de atravessar de~\(P_i\) se e somente se não pertence a nenhuma região de vértice ou de aresta.
 	
-	Vale mencionar que a partir dessa definição, segue que os pontos na fronteira da região de vértice pertencem à ela, os pontos no interior de uma aresta de~\(P_i\) em \(T_i\) estão na região dessa aresta e os pontos no interior de~\(P_i\) e nas arestas de~\(P_i\) que não estão em \(T_i\) estão na região de atravessar.
-	Dessa forma,~\(S_i\) configura uma partição do plano, ou seja, cada ponto do plano pertence a exatamente uma região do mapa de último passo~\(S_i\) de~\(P_i\).
+	Cabe mencionar que, a partir desta definição, segue que os pontos na fronteira da região de vértice pertencem a ela, os pontos no interior de uma aresta de~\(P_i\) em \(T_i\) estão na região dessa aresta e os pontos no interior de~\(P_i\) e nas arestas de~\(P_i\) que não estão em \(T_i\) pertencem à região de atravessar.
+	Dessa forma,~\(S_i\) configura uma partição do plano, isto é, cada ponto do plano pertence a exatamente uma região do mapa de último passo~\(S_i\) de~\(P_i\).
 
-	Veja a Figura~\ref{fig:last_step_map} para um exemplo de mapa de último passo de um polígono~\(P_1\). As regiões de vértice são pintadas em vermelho, as regiões de aresta em verde e a região de atravessar em azul. Para cada região, incluimos um exemplo de ponto pertencente a ela, bem como o~\(1\)-path até esse ponto, ilustrando a definição de cada tipo de região.
+	A Figura~\ref{fig:last_step_map} apresenta um exemplo de mapa de último passo de um polígono~\(P_1\). As regiões de vértice são representadas em vermelho, as regiões de aresta em verde e a região de atravessar em azul. Para cada região, inclui-se um exemplo de ponto pertencente a ela, bem como o~\(1\)-path até esse ponto, ilustrando a definição de cada tipo de região.
 
 	\begin{figure}[!htb]
 		\vspace{1em}
@@ -245,21 +244,21 @@ Todas as implementações a seguir têm como base as definições e propriedades
 		\begin{minipage}[t]{0.55\textwidth}
 			\includegraphics[width=\textwidth]{last_step_map.png}
 		\end{minipage}
-		\caption{Exemplo do mapa de último passo~\(S_1\) de~\(P_1\). Os pontos em vermelho pertencem a regiões de vértice, os pontos em verde pertencem a regiões de aresta e os pontos em azul pertencem à região de atravessar, incluimos o \(1\)-path até cada um deles na figura.}
+		\caption{Exemplo do mapa de último passo~\(S_1\) de~\(P_1\). Os pontos em vermelho pertencem a regiões de vértice, os pontos em verde pertencem a regiões de aresta e os pontos em azul pertencem à região de atravessar. Inclui-se o \(1\)-path até cada um deles na figura.}
 		\label{fig:last_step_map}
 	\end{figure}
 
 \end{description} 
 
-Sejam~\(p \in \mathbb{R}^2\) e~\(1 \le i \le k\), se dispomos de \(S_1, \dots, S_i\), podemos determinar o~\(i\)-path até~\(p\) de forma eficiente, dependendo do tipo de região à qual~\(p\) pertence no mapa de último passo~\(S_i\), da seguinte forma:
+Sejam~\(p \in \mathbb{R}^2\) e~\(1 \le i \le k\). Dispondo-se de \(S_1, \dots, S_i\), pode-se determinar o~\(i\)-path até~\(p\) de forma eficiente, dependendo do tipo de região à qual~\(p\) pertence no mapa de último passo~\(S_i\), conforme descrito a seguir:
 
 \begin{description}
 
 	\item[Região de Vértice:] Se~\(p\) pertence a uma região associada a um vértice~\(v\) de~\(P_i\), então o último segmento do~\(i\)-path até~\(p\) é o segmento~\(\overline{vp}\). Assim, o~\(i\)-path até~\(p\) é simplesmente o~\((i - 1)\)-path até~\(v\), seguido do segmento~\(\overline{vp}\). 
 	
-	A Figura~\ref{fig:vertex_region} ilustra essa situação. Temos o ponto~\(p^1\) antecedido por~\(q^1\) e~\(p^2\) antecidido por~\(q^2\), tanto~\(q^1\) quanto~\(q^2\) são vértices de~\(P_2\). Fizemos questão de incluir tanto~\(p^1\) quanto~\(p^2\) para ilustrar que o mapa de último passo~\(S_2\) apenas nos informa sobre o \textbf{último segmento} do 2-path, não sobre o caminho completo, ou seja, não podemos afirmar nada sobre o último segmento do caminho até~\(q^1\) ou~\(q^2\). De fato, no exemplo escolhido, obeservamos que o último segmento até~\(q^1\) parte de um vértice de \(P_1\) enquanto o último segmento até~\(q^2\) parte do interior de uma aresta de~\(P_1\). Para saber o caminho completo até~\(p^1\) ou~\(p^2\), precisamos consultar \(S_1\) além de \(S_2\).
+	A Figura~\ref{fig:vertex_region} ilustra essa situação. Tem-se o ponto~\(p^1\) precedido por~\(q^1\) e~\(p^2\) precedido por~\(q^2\), sendo que tanto~\(q^1\) quanto~\(q^2\) são vértices de~\(P_2\). Optou-se por incluir tanto~\(p^1\) quanto~\(p^2\) para ilustrar que o mapa de último passo~\(S_2\) fornece informações apenas sobre o \textbf{último segmento} do 2-path, não sobre o caminho completo, ou seja, não é possível afirmar nada a respeito do último segmento do caminho até~\(q^1\) ou~\(q^2\). De fato, no exemplo escolhido, observa-se que o último segmento até~\(q^1\) parte de um vértice de \(P_1\), enquanto o último segmento até~\(q^2\) parte do interior de uma aresta de~\(P_1\). Para determinar o caminho completo até~\(p^1\) ou~\(p^2\), é necessário consultar \(S_1\) além de \(S_2\).
 
-	\item[Região de Atravessar:] Se~\(p\) pertence à região de atravessar de~\(P_i\), então o último segmento do~\(i\)-path até~\(p\) atravessa o interior de~\(P_i\). Nesse caso, o~\(i\)-path até~\(p\) é dado pelo \((i - 1)\)-path até~\(p\). A Figura~\ref{fig:pass_through} ilustra essa situação, em que o 2-path até \(p\) é o mesmo que o 1-path até \(p\) e atravessa \(P_2\). 
+	\item[Região de Atravessar:] Se~\(p\) pertence à região de atravessar de~\(P_i\), então o último segmento do~\(i\)-path até~\(p\) atravessa o interior de~\(P_i\). Nesse caso, o~\(i\)-path até~\(p\) é dado pelo \((i - 1)\)-path até~\(p\). A Figura~\ref{fig:pass_through} ilustra essa situação, na qual o 2-path até \(p\) coincide com o 1-path até \(p\) e atravessa \(P_2\). 
 	
 	\begin{figure}[!ht]
 	\centering
@@ -279,9 +278,9 @@ Sejam~\(p \in \mathbb{R}^2\) e~\(1 \le i \le k\), se dispomos de \(S_1, \dots, S
 
 	\end{figure}
 
-	\item[Região de Aresta:] Se~\(p\) pertence a uma região associada a uma aresta~\(e = \overline{u v}\) de~\(P_i\), então refletimos o ponto~\(p\) em relação à reta que contém~\(e\), obtendo um ponto refletido~\(p'\). Calculamos o~\((i - 1)\)-path até~\(p'\) cujo último segmento parte de um ponto~\(q'\) e chamamos de~\(q\) à interseção do segmento~\(\overline{q'p'}\) com a aresta~\(e\). O~\(i\)-path até~\(p\) é então formado pela parte do~\((i - 1)\)-path até~\(p'\) que vai desde o inicio (ponto~\(s\)) até o ponto~\(q\), seguida do segmento~\(\overline{qp}\). A Figura~\ref{fig:edge_region} ilustra essa situação, mostrando como o ponto deve ser refletido e então como usamos o~\((i - 1)\)-path até~\(p'\) para determinar o~\(i\)-path até~\(p\) % \textcolor{blue}{Aqui deve dizer: A Figura 1b ilustra esta situação.}
-	% p - 2 ((p - u) - \frac{(p - u) \cdot (v - u)}{\|v - u\|^2})
-	A seguir, apresentamos a fórmula para calcular o ponto refletido~\(p'\) e o ponto de interseção~\(q\). Usamos o operador~\(\cdot\) para denotar o produto escalar, o operador~\(\|\cdot\|\) para denotar a norma euclidiana e o operador~\(\times\) para denotar o produto vetorial\footnote{Para dois vetores \(a = (a_x, a_y)\) e \(b = (b_x, b_y)\), temos \(a \times b = a_x b_y - a_y b_x\).}, todos em \(\mathbb{R}^2\):
+	\item[Região de Aresta:] Se~\(p\) pertence a uma região associada a uma aresta~\(e = \overline{u v}\) de~\(P_i\), então reflete-se o ponto~\(p\) em relação à reta que contém~\(e\), obtendo-se um ponto refletido~\(p'\). Calcula-se o~\((i - 1)\)-path até~\(p'\), cujo último segmento parte de um ponto~\(q'\), e denota-se por~\(q\) a interseção do segmento~\(\overline{q'p'}\) com a aresta~\(e\). O~\(i\)-path até~\(p\) é então formado pela parte do~\((i - 1)\)-path até~\(p'\) que se estende desde o início (ponto~\(s\)) até o ponto~\(q\), seguida do segmento~\(\overline{qp}\). A Figura~\ref{fig:edge_region} ilustra essa situação, mostrando como o ponto deve ser refletido e como se utiliza o~\((i - 1)\)-path até~\(p'\) para determinar o~\(i\)-path até~\(p\).
+	
+	A seguir, apresentamos as fórmulas para o cálculo do ponto refletido~\(p'\) e do ponto de interseção~\(q\). Utilizamos o operador~\(\cdot\) para denotar o produto escalar, o operador~\(\|\cdot\|\) para denotar a norma euclidiana e o operador~\(\times\) para denotar o produto vetorial\footnote{Para dois vetores \(a = (a_x, a_y)\) e \(b = (b_x, b_y)\), temos \(a \times b = a_x b_y - a_y b_x\).}, todos definidos em \(\mathbb{R}^2\):
 	\begin{align}
 		&p' = -p + 2u + 2\frac{(p - u) \cdot (v - u)}{\|v - u\|^2} (v - u), \label{eq:reflection_on_edge} \\
 		&q = q' + \frac{(u - q') \times (v - u)}{(p' - q') \times (v - u)} (p' - q'). \label{eq:intersection_on_edge}
@@ -290,13 +289,13 @@ Sejam~\(p \in \mathbb{R}^2\) e~\(1 \le i \le k\), se dispomos de \(S_1, \dots, S
 	\begin{figure}[!ht]
 	\centering
 	\includegraphics[width=0.5\linewidth]{paths-edge.png}
-	\caption{2-path até~\(p\), que pertence a uma região de aresta associada à aresta~\(\overline{uv}\) de~\(P_2\). Ilustramos o ponto refletido \(p'\), o ponto que antecede \(p'\), \(q'\) e o ponto de interseção \(q\).}
+	\caption{2-path até~\(p\), que pertence a uma região de aresta associada à aresta~\(\overline{uv}\) de~\(P_2\). Ilustramos o ponto refletido \(p'\), o ponto que antecede \(p'\), \(q'\), e o ponto de interseção \(q\).}
 	\label{fig:edge_region}
 	\end{figure}
 	
 \end{description}
 
-Com base nessas ideias, implementamos o Algoritmo~\algref{alg:consulta-caminho}, que, dado um ponto~\(p \in \mathbb{R}^2\) e um índice~\(1 \le i \le k\), retorna o~\(i\)-path até~\(p\) como uma sequência de pontos em~\(\mathbb{R}^2\), desconsiderando o último ponto do caminho,~\(p\), que é conhecido. Assumimos também a existência de uma função \texttt{LocalizaPonto}, que, dado~\(p \in \mathbb{R}^2\) e~\(1 \leq i \leq k\), localiza o ponto~\(p\) no mapa de último passo~\(S_i\) de~\(P_i\) e retorna a região~\(R\) à qual~\(p\) pertence. Essa região carrega tanto o tipo de região à qual o ponto pertence assim como o vértice~\(v\) da região se for uma região de vértice ou a aresta~\(e\) se for uma região de aresta.
+Com base nessas construções, implementamos o Algoritmo~\algref{alg:consulta-caminho}, que, dados um ponto~\(p \in \mathbb{R}^2\) e um índice~\(1 \le i \le k\), retorna o~\(i\)-path até~\(p\) como uma sequência de pontos em~\(\mathbb{R}^2\), desconsiderando o último ponto do caminho,~\(p\), que é conhecido. Assumimos também a existência de uma função \texttt{LocalizaPonto}, que, dados~\(p \in \mathbb{R}^2\) e~\(1 \leq i \leq k\), localiza o ponto~\(p\) no mapa de último passo~\(S_i\) de~\(P_i\) e retorna a região~\(R\) à qual~\(p\) pertence. Essa região carrega tanto o tipo de região à qual o ponto pertence quanto o vértice~\(v\) da região, se for uma região de vértice, ou a aresta~\(e\), se for uma região de aresta.
 
 \begin{algorithm}[!ht]
 \alglabel{alg:consulta-caminho}
@@ -335,9 +334,9 @@ Com base nessas ideias, implementamos o Algoritmo~\algref{alg:consulta-caminho},
 
 \end{algorithm}
 
-O Algoritmo~\algref{alg:consulta-caminho} permite calcular o~\(i\)-path até qualquer ponto~\(p \in \mathbb{R}^2\) de forma eficiente, podendo ser utilizado para obter o~\(k\)-path até~\(t\), que corresponde exatamente à solução do problema. O algoritmo recebe como entrada o ponto~\(p\), o ponto inicial~\(s\), o índice~\(i\), os polígonos~\(P_{\ell}\) para~\(\ell=1,\dots,i\) e suas respectivas regiões de primeiro contato~\(T_i\) e mapas de último passo~\(S_i\) e devolve o caminho. O algoritmo é recursivo e faz apenas uso da função \texttt{LocalizaPonto} que definiremos em breve.
+O Algoritmo~\algref{alg:consulta-caminho} permite calcular o~\(i\)-path até qualquer ponto~\(p \in \mathbb{R}^2\) de forma eficiente, podendo ser utilizado para obter o~\(k\)-path até~\(t\), que corresponde exatamente à solução do problema. O algoritmo recebe como entrada o ponto~\(p\), o ponto inicial~\(s\), o índice~\(i\), os polígonos~\(P_{\ell}\) para~\(\ell=1,\dots,i\), e suas respectivas regiões de primeiro contato~\(T_i\) e mapas de último passo~\(S_i\), e devolve o caminho. O algoritmo é recursivo e faz uso exclusivamente da função \texttt{LocalizaPonto}, que definiremos em breve.
 
-Frequentemente nos interessamos apenas pelo último segmento do~\(i\)-path até~\(p\). Ainda, no caso em que um ponto pertence a uma região associada a um vértice de~\(P_i\), é possível determinar o último segmento diretamente, sem a necessidade de calcular o restante do caminho. Dessa forma, implementamos o Algoritmo~\algref{alg:consulta-ultimo-passo}, que, dado um ponto~\(p \in \mathbb{R}^2\) e um índice~\(1 \leq i \leq k\), retorna o ponto inicial do último segmento do~\(i\)-path até \(p\). O algoritmo recebe como dados de entrada os mesmos dados de entrada do Algoritmo~\algref{alg:consulta-caminho}.
+Frequentemente, interessa-nos apenas o último segmento do~\(i\)-path até~\(p\). Ainda, no caso em que um ponto pertence a uma região associada a um vértice de~\(P_i\), é possível determinar o último segmento diretamente, sem a necessidade de calcular o restante do caminho. Dessa forma, implementamos o Algoritmo~\algref{alg:consulta-ultimo-passo}, que, dados um ponto~\(p \in \mathbb{R}^2\) e um índice~\(1 \leq i \leq k\), retorna o ponto inicial do último segmento do~\(i\)-path até \(p\). O algoritmo recebe como entrada os mesmos dados do~Algoritmo~\algref{alg:consulta-caminho}.
 
 \begin{algorithm}[!ht]
 \alglabel{alg:consulta-ultimo-passo}
@@ -372,22 +371,24 @@ Frequentemente nos interessamos apenas pelo último segmento do~\(i\)-path até~
 
 \end{algorithm}
 
-Esses dois algoritmos serão utilizados em todas as implementações discutidas a seguir. A diferença entre elas estará na implementação do algoritmo \texttt{LocalizaPonto} e na forma como calculamos as regiões de primeiro contato~\(T_i\) e os mapas de último passo~\(S_i\) para cada polígono~\(P_i\).
+Esses dois algoritmos serão utilizados em todas as implementações discutidas a seguir. A distinção entre elas residirá na implementação do algoritmo \texttt{LocalizaPonto} e na forma como calculamos as regiões de primeiro contato~\(T_i\) e os mapas de último passo~\(S_i\) para cada polígono~\(P_i\).
 
 \subsection{Primeira Abordagem}
 
-
-A alto nível, o algoritmo para resolver o TPP Convexo é o seguinte: para cada \(1 \le i \le k\), calculamos a região de primeiro contato~\(T_i\) de~\(P_i\) utilizando \(T_1, \dots, T_{i - 1}\) e \(S_1, \dots, S_{i - 1}\) através do Algoritmo~\algref{alg:first_contact_region}, depois calculamos o mapa de último passo~\(S_i\) de~\(P_i\) utilizando \(T_1, \dots, T_i\) e \(S_1, \dots, S_{i - 1}\) através do Algoritmo~\algref{alg:last_step_map}. Por fim, calculamos o~\(k\)-path até~\(t\) utilizando o Algoritmo~\algref{alg:consulta-caminho}. A seguir, vamos detalhar as implementações de cada um desses passos.
+Em alto nível, o algoritmo proposto para resolver o TPP Convexo opera da seguinte maneira: para cada \(1 \le i \le k\), calcula-se a região de primeiro contato~\(T_i\) de~\(P_i\) utilizando \(T_1, \dots, T_{i - 1}\) e \(S_1, \dots, S_{i - 1}\) por meio do Algoritmo~\algref{alg:first_contact_region}; em seguida, computa-se o mapa de último passo~\(S_i\) de~\(P_i\) empregando \(T_1, \dots, T_i\) e \(S_1, \dots, S_{i - 1}\) através do Algoritmo~\algref{alg:last_step_map}. Ao final, determina-se o~\(k\)-path até~\(t\) mediante o Algoritmo~\algref{alg:consulta-caminho}. A seguir, detalham-se as implementações de cada uma dessas etapas.
 
 \subsubsection{Região de Primeiro Contato}
 
-Primeiramente, desejamos determinar a região de primeiro contato~\(T_i\) de um polígono~\(P_i\). É importante destacar que saber apenas quais \textbf{vértices} de~\(P_i\) pertencem a~\(T_i\) não é suficiente para determinar~\(T_i\), pois~\(T_i\) pode conter todos os vértices de~\(P_i\) e ainda assim ter uma única aresta que não pertence a~\(T_i\), a qual não temos informação sobre. Por esse motivo, focamos em determinar quais \textbf{arestas} de~\(P_i\) estão em~\(T_i\). Levando em consideração a definição de região de primeiro contato, note que vale a seguinte propriedade:
+Primeiramente, objetiva-se determinar a região de primeiro contato~\(T_i\) de um polígono~\(P_i\). Ressalta-se que conhecer apenas quais \textbf{vértices} de~\(P_i\) pertencem a~\(T_i\) não é suficiente para determinar~\(T_i\), uma vez que~\(T_i\) pode conter todos os vértices de~\(P_i\) e, ainda assim, possuir uma aresta que não pertence a~\(T_i\), sobre a qual não se dispõe de informação. Por esse motivo, concentra-se em determinar quais \textbf{arestas} de~\(P_i\) pertencem a~\(T_i\). Considerando-se a definição de região de primeiro contato, verifica-se que vale a seguinte propriedade:
 
 \begin{blockQuote}
-	\hypertarget{lemma:edge_in_first_contact}{\textbf{Aresta em Região de Primeiro Contato:}} Seja~\(e = \overline{uv}\) uma aresta de~\(P_i\)~\((1 \le i \le k)\),~\(p\) um ponto qualquer dessa aresta (incluindo as pontas) e~\(q\) o ponto que precede~\(p\) no~\((i - 1)\)-path até~\(p\). Temos que~\(e \in T_i\) se, e somente se,~\(q\) está do lado externo de~\(e\), ou seja,~\((v - u) \times (q - u) < 0\). Caso contrário,~\(e \notin T_i\).
+\begin{lemma}
+	Seja~\(e = \overline{uv}\) uma aresta de~\(P_i\)~\((1 \le i \le k)\),~\(p\) um ponto qualquer dessa aresta (incluindo as extremidades) e~\(q\) o ponto que precede~\(p\) no~\((i - 1)\)-path até~\(p\). Tem-se que~\(e \in T_i\) se, e somente se,~\(q\) está do lado externo de~\(e\), isto é,~\((v - u) \times (q - u) < 0\). Caso contrário,~\(e \notin T_i\). \label{lemma:2.1}
+\end{lemma}
+\vspace{-1em}
 \end{blockQuote}
 
-Assim, para determinar~\(T_i\), basta realizar o teste descrito acima para cada aresta de~\(P_i\). Essa ideia é ilustrada na Figura~\ref{fig:first_contact_region}, onde para cada aresta~\(e = \overline{uv}\) de~\(P_2\), calculamos o ponto~\(q\) que precede~\(u\) no~1-path até~\(u\) e verificamos se ele está do lado externo de~\(e\). Pintamos as arestas que pertencem a~\(T_2\) em verde e as que não pertencem em vermelho. Também implementamos essa ideia no Algoritmo~\algref{alg:first_contact_region}, que recebe como entrada o índice~\(i\), o ponto inicial~\(s\), os polígonos~\(P_1, \dots, P_i\) e suas respectivas regiões de primeiro contato~\(T_1, \dots, T_{i - 1}\) e mapas de último passo~\(S_1, \dots, S_{i - 1}\) e devolve a região de primeiro contato~\(T_i\) de~\(P_i\) como um conjunto de arestas de~\(P_i\).
+Assim, para determinar~\(T_i\), basta realizar o teste descrito acima para cada aresta de~\(P_i\). Essa abordagem é ilustrada na Figura~\ref{fig:first_contact_region}, na qual, para cada aresta~\(e = \overline{uv}\) de~\(P_2\), calcula-se o ponto~\(q\) que precede~\(u\) no~1-path até~\(u\) e verifica-se se ele se encontra do lado externo de~\(e\). Representam-se em verde as arestas que pertencem a~\(T_2\) e em vermelho aquelas que não pertencem. Essa mesma ideia é implementada no Algoritmo~\algref{alg:first_contact_region}, o qual recebe como entrada o índice~\(i\), o ponto inicial~\(s\), os polígonos~\(P_1, \dots, P_i\) e suas respectivas regiões de primeiro contato~\(T_1, \dots, T_{i - 1}\) e mapas de último passo~\(S_1, \dots, S_{i - 1}\), e retorna a região de primeiro contato~\(T_i\) de~\(P_i\) como um conjunto de arestas de~\(P_i\).
 
 \begin{figure}[!ht]
 	\centering
@@ -396,7 +397,7 @@ Assim, para determinar~\(T_i\), basta realizar o teste descrito acima para cada 
 	\begin{subfigure}[b]{0.45\textwidth}
 		\centering
 		\includegraphics[width=\textwidth]{aresta-0.png}
-		\caption{A aresta~\(e^1 = \overline{uv}\) está em~\(T_2\), pois~\(q\) está do lado externo de~\(e^1\).}
+		\caption{A aresta~\(e^1 = \overline{uv}\) pertence a~\(T_2\), pois~\(q\) está do lado externo de~\(e^1\).}
 		\label{fig:aresta0}
 	\end{subfigure}
 	\hspace{10pt}
@@ -404,7 +405,7 @@ Assim, para determinar~\(T_i\), basta realizar o teste descrito acima para cada 
 	\begin{subfigure}[b]{0.45\textwidth}
 		\centering
 		\includegraphics[width=\textwidth]{aresta-1.png}
-		\caption{A aresta~\(e^2 = \overline{wx}\) não está em~\(T_2\), pois~\(q\) está do lado interno de~\(e^2\).}
+		\caption{A aresta~\(e^2 = \overline{wx}\) não pertence a~\(T_2\), pois~\(q\) está do lado interno de~\(e^2\).}
 		\label{fig:aresta1}
 	\end{subfigure}
 	\vspace{1em}
@@ -412,7 +413,7 @@ Assim, para determinar~\(T_i\), basta realizar o teste descrito acima para cada 
 	\begin{subfigure}[b]{0.45\textwidth}
 		\centering
 		\includegraphics[width=\textwidth]{aresta-2.png}
-		\caption{A aresta~\(e^3 = \overline{yz}\) não está em~\(T_2\), pois~\(q\) está do lado interno de~\(e^3\).}
+		\caption{A aresta~\(e^3 = \overline{yz}\) não pertence a~\(T_2\), pois~\(q\) está do lado interno de~\(e^3\).}
 		\label{fig:aresta2}
 	\end{subfigure}
 	\hspace{10pt}
@@ -420,11 +421,11 @@ Assim, para determinar~\(T_i\), basta realizar o teste descrito acima para cada 
 	\begin{subfigure}[b]{0.45\textwidth}
 		\centering
 		\includegraphics[width=\textwidth]{arestas-resultado.png}
-		\caption{Resultado final, apenas as arestas~\(e^1\) e~\(e^2\) pertencem a~\(T_2\).}
+		\caption{Resultado final: apenas as arestas~\(e^1\) e~\(e^2\) pertencem a~\(T_2\).}
 		\label{fig:arestas-resultado}
 	\end{subfigure}
 
-	\caption{Usamos o Algoritmo~\ref{alg:first_contact_region} para determinar a região de primeiro contato de \(P_2\), realizando o teste para cada aresta do polígono. Pintamos em verde as arestas que pertencem a \(T_2\) e em vermelho as que não pertencem.}
+	\caption{Utilização do Algoritmo~\ref{alg:first_contact_region} para determinar a região de primeiro contato de \(P_2\), realizando o teste para cada aresta do polígono. Representam-se em verde as arestas que pertencem a \(T_2\) e em vermelho aquelas que não pertencem.}
 	\label{fig:first_contact_region}
 \end{figure}
 
@@ -432,7 +433,7 @@ Assim, para determinar~\(T_i\), basta realizar o teste descrito acima para cada 
 \alglabel{alg:first_contact_region}
 \caption{Região de Primeiro Contato}
 \Input{\(i, s, (P_1, \dots, P_i), (T_1, \dots, T_{i - 1}), (S_1, \dots, S_{i - 1})\)}
-\Output{Região de primeiro contato \(T_i\) de \(P_i\) como um conjunto de arestas de \(P_i\).}
+\Output{Região de primeiro contato \(T_i\) de \(P_i\) representada como um conjunto de arestas de \(P_i\).}
 
 \vspace{0.3em}
 \hrule
@@ -461,20 +462,22 @@ Assim, para determinar~\(T_i\), basta realizar o teste descrito acima para cada 
 
 \subsubsection{Mapa de Último Passo}
 
-Uma vez que temos~\(T_i\), podemos calcular o mapa de último passo~\(S_i\) de~\(P_i\), para tal, vamos primeiro retomar as condições de otimalidade local discutidas em~\cite[\textbf{Local Optimality Conditions.}]{tpp-dror2003}, que nos permitem determinar o mapa de último passo~\(S_i\) de um polígono~\(P_i\) a partir da região de primeiro contato~\(T_i\):
+Uma vez determinada~\(T_i\), pode-se calcular o mapa de último passo~\(S_i\) de~\(P_i\). Para tal, retomam-se primeiramente as condições de otimalidade local discutidas em~\cite[\textbf{Local Optimality Conditions.}]{tpp-dror2003}, as quais permitem determinar o mapa de último passo~\(S_i\) de um polígono~\(P_i\) a partir da região de primeiro contato~\(T_i\):
+
 
 \begin{blockQuote}
-	\hypertarget{lemma:local_optimality_conditions}{\textbf{Condições de Otimalidade Local:}}
-	Seja~\(v\) um vértice de um polígono convexo qualquer~\(P\) com arestas incidentes~\(e^1\) e~\(e^2\) e suponha que desejamos visitar~\(P\) partindo de~\(q \in \mathbb{R^2}\) e terminando em~\(p \in \mathbb{R^2}\). Para que o caminho mínimo de~\(q\) até~\(p\) passe por~\(v\), é necessário que~\(p\) esteja dentro do cone definido por~\(v\) e por um par ordenado de raios que partem de~\(v\) determinados a partir de~\(e^1\) e~\(e^2\) nessa ordem. O raio associado a uma aresta~\(e\) incidente a~\(v\) será~\(v - q\) se~\(q\) está do lado interno de~\(e\) ou~\(q' - v\) onde~\(q'\) é a reflexão de~\(q\) em relação à reta perpendicular a~\(e\) que passa por~\(v\) caso contrário. 
+\begin{lemma}
+	Seja~\(v\) um vértice de um polígono convexo qualquer~\(P\) com arestas incidentes~\(e^1\) e~\(e^2\), e suponha-se que se deseja visitar~\(P\) partindo de~\(q \in \mathbb{R}^2\) e terminando em~\(p \in \mathbb{R}^2\). Para que o caminho mínimo de~\(q\) até~\(p\) passe por~\(v\), é necessário que~\(p\) esteja contido no cone definido por~\(v\) e por um par ordenado de raios que partem de~\(v\), determinados a partir de~\(e^1\) e~\(e^2\) nessa ordem. O raio associado a uma aresta~\(e\) incidente a~\(v\) será~\(v - q\) se~\(q\) está do lado interno de~\(e\), ou~\(q' - v\), onde~\(q'\) é a reflexão de~\(q\) em relação à reta perpendicular a~\(e\) que passa por~\(v\), caso contrário. \label{lemma:2.2}
+\end{lemma}
 \end{blockQuote}
 
-Com isso em mente, seja~\(v\) um vértice de~\(P_i\) com arestas incidentes~\(e^1\) e~\(e^2\) e~\(q\) o ponto que precede~\(v\) no~\((i - 1)\)-path até~\(v\). Note que como~\(v\) faz parte de~\(e^1\) e~\(e^2\), temos que~\(q\) está do lado externo de~\(e^1\) se e somente se~\(e^1 \in T_i\) e~\(q\) está do lado externo de~\(e^2\) se e somente se~\(e^2 \in T_i\). Assim, podemos determinar os raios associados a~\(e^1\) e~\(e^2\) a partir de~\(T_i\).
+Com isso em mente, seja~\(v\) um vértice de~\(P_i\) com arestas incidentes~\(e^1\) e~\(e^2\), e seja~\(q\) o ponto que precede~\(v\) no~\((i - 1)\)-path até~\(v\). Observe-se que, como~\(v\) pertence a~\(e^1\) e~\(e^2\), tem-se que~\(q\) está do lado externo de~\(e^1\) se, e somente se,~\(e^1 \in T_i\), e~\(q\) está do lado externo de~\(e^2\) se, e somente se,~\(e^2 \in T_i\). Assim, é possível determinar os raios associados a~\(e^1\) e~\(e^2\) a partir de~\(T_i\).
 
-Por definição, o~\((i - 1)\)-path até~\(v\) tem comprimento mínimo. Assim, se determinarmos que chegar em~\(p\) visitando~\(P_i\) através de~\(v\) é localmente ótimo, então podemos afirmar que o~\(i\)-path até~\(p\) é dado pelo~\((i - 1)\)-path até~\(v\) seguido do segmento~\(\overline{vp}\). Dessa forma, concluimos que os raios associados a~\(v\) que calculamos a partir de~\(T_i\) descrevem exatamente a região de vértice associada a~\(v\) em~\(S_i\). Assim, iterando sobre cada vértice de~\(P_i\) e calculando os raios associados a ele a partir de~\(T_i\), podemos determinar todas as regiões de vértice de~\(S_i\). 
+Por definição, o~\((i - 1)\)-path até~\(v\) possui comprimento mínimo. Desse modo, se for determinado que alcançar~\(p\) visitando~\(P_i\) através de~\(v\) é localmente ótimo, então pode-se afirmar que o~\(i\)-path até~\(p\) é dado pelo~\((i - 1)\)-path até~\(v\) seguido do segmento~\(\overline{vp}\). Dessa forma, conclui-se que os raios associados a~\(v\), calculados a partir de~\(T_i\), descrevem exatamente a região de vértice associada a~\(v\) em~\(S_i\). Assim, iterando sobre cada vértice de~\(P_i\) e calculando os raios associados a ele a partir de~\(T_i\), é possível determinar todas as regiões de vértice de~\(S_i\). 
 
-Implementamos essa ideia no Algoritmo~\algref{alg:last_step_map}, onde, para cada vértice~\(v\) de~\(P_i\), calculamos os raios associados a~\(v\) e associamos o par ordenado desses raios a~\(v\) em~\(S_i\). Note que mesmo que um vértice~\(v\) de~\(P_i\) não tenha nenhuma aresta incidente em~\(T_i\), ainda assim podemos determinar os raios associados a~\(v\) que serão iguais. Isso contradiz nossa definição de região de vértice, que define regiões de vértice apenas para vértices em~\(T_i\). No entanto, essa definição dos raios para vértices que não estão em~\(T_i\) será útil posteriormente. Por enquanto, vamos manter em mente que nosso~\(S_i\) em código contém mais informação do que o~\(S_i\) definido formalmente.
+Essa ideia é implementada no Algoritmo~\algref{alg:last_step_map}, onde, para cada vértice~\(v\) de~\(P_i\), calculam-se os raios associados a~\(v\) e associa-se o par ordenado desses raios a~\(v\) em~\(S_i\). Observe-se que, mesmo que um vértice~\(v\) de~\(P_i\) não possua nenhuma aresta incidente em~\(T_i\), ainda assim é possível determinar os raios associados a~\(v\), os quais serão coincidentes. Isso contradiz a definição formal de região de vértice, que define tais regiões apenas para vértices em~\(T_i\). Todavia, essa definição dos raios para vértices que não pertencem a~\(T_i\) será útil posteriormente. Por ora, mantém-se em mente que o~\(S_i\) em código contém mais informação do que o~\(S_i\) definido formalmente.
 
-Uma vez que temos todas as regiões de vértice de~\(S_i\), podemos afirmar que as regiões de aresta de~\(S_i\) são exatamente as regiões entre os pares ordenados de raios associados a vértices adjacentes em~\(P_i\) e que a região de atravessar é o complemento dessas regiões. Assim, com as regiões de vértice em mãos, podemos determinar as regiões de aresta e a região de atravessar.
+Uma vez obtidas todas as regiões de vértice de~\(S_i\), pode-se afirmar que as regiões de aresta de~\(S_i\) são exatamente as regiões entre os pares ordenados de raios associados a vértices adjacentes em~\(P_i\), e que a região de atravessar corresponde ao complemento dessas regiões. Assim, com as regiões de vértice determinadas, é possível estabelecer as regiões de aresta e a região de atravessar.
 
 \begin{algorithm}[!ht]
 \alglabel{alg:last_step_map}
@@ -487,7 +490,7 @@ Uma vez que temos todas as regiões de vértice de~\(S_i\), podemos afirmar que 
 \hrule
 \vspace{0.3em}
 
-\tcp{Função auxiliar para calcular o raio refletido na aresta \(e = \overline{uv}\) incidente a \(v\) onde \(q\) é o ponto que precede \(v\) no \((i - 1)\)-path até \(v\).}
+\tcp{Função auxiliar para calcular o raio refletido na aresta \(e\) incidente a \(v\) onde \(q\) é o ponto que precede \(v\) no \((i - 1)\)-path até \(v\).}
 
 \Function {Reflexão(\(q, v, e\))} {
 	\If {\(e \in T_i\)} {
@@ -520,37 +523,36 @@ Uma vez que temos todas as regiões de vértice de~\(S_i\), podemos afirmar que 
 }
 
 \end{algorithm}
+\subsubsection{Localização de Pontos no Mapa de Último Passo}
 
-\subsubsection{Localizando Pontos No Mapa de Último Passo}
-
-Uma vez que sabemos calcular~\(T_i\) e~\(S_i\), desejamos implementar o algoritmo \texttt{LocalizaPonto}, que localiza um ponto~\(p\) no mapa de último passo~\(S_i\). Na primeira abordagem, implementamos esse procedimento de forma direta, verificando inicialmente todas as regiões associadas a vértices, depois todas as regiões associadas a arestas e, caso o ponto não pertença a nenhuma dessas regiões, retornando a região de atravessar~\(P_i\). Para verificar se um ponto~\(p\) pertence a uma região associada a um vértice~\(v\) de~\(P_i\) com raios~\(r^1\) e~\(r^2\), primeiro determinamos se o ângulo de abertura entre~\(r^1\) e~\(r^2\) é menor ou maior que~\(180^\circ\). Se o ângulo for menor que~\(180^\circ\), então~\(p\) pertence à região associada a~\(v\) se o produto vetorial entre~\(r^1\) e~\((p - v)\) for positivo \textbf{e} o produto vetorial entre~\((p - v)\) e~\(r^2\) for negativo. Caso contrário,~\(p\) pertence à região associada a~\(v\) se o produto vetorial entre~\(r^1\) e~\((p - v)\) for positivo \textbf{ou} o produto vetorial entre~\((p - v)\) e~\(r^2\) for negativo. Essas situações são ilustradas na Figura~\ref{fig:point_in_cone}.
+Uma vez determinados os conjuntos~\(T_i\) e~\(S_i\), objetiva-se implementar o algoritmo \texttt{LocalizaPonto}, responsável por localizar um ponto~\(p\) no mapa de último passo~\(S_i\). Na primeira abordagem proposta, implementa-se esse procedimento de forma direta, verificando inicialmente todas as regiões associadas a vértices, em seguida todas as regiões associadas a arestas e, caso o ponto não pertença a nenhuma dessas regiões, retornando a região de travessia de~\(P_i\). Para verificar se um ponto~\(p \in \mathbb{R}^2\) pertence a uma região associada a um vértice~\(v\) de~\(P_i\) com raios~\(r^1\) e~\(r^2\), determina-se primeiramente se o ângulo de abertura entre~\(r^1\) e~\(r^2\) é inferior ou superior a~\(180^\circ\). Se o ângulo for inferior a~\(180^\circ\), então~\(p\) pertence à região associada a~\(v\) se, e somente se, o produto vetorial entre~\(r^1\) e~\((p - v)\) for positivo \textbf{e} o produto vetorial entre~\((p - v)\) e~\(r^2\) for negativo. Caso contrário,~\(p\) pertence à região associada a~\(v\) se, e somente se, o produto vetorial entre~\(r^1\) e~\((p - v)\) for positivo \textbf{ou} o produto vetorial entre~\((p - v)\) e~\(r^2\) for negativo. Essas situações encontram-se ilustradas na Figura~\ref{fig:point_in_cone}.
 
 \begin{figure}[!ht]
 	\centering
 	\begin{subfigure}{0.49\textwidth}
 		\centering
 		\includegraphics[width=0.99\textwidth]{cone_check_small.png}
-		\caption{Ângulo de abertura menor que \(180^\circ\).}
+		\caption{Ângulo de abertura inferior a \(180^\circ\).}
 	\end{subfigure}
 	\begin{subfigure}{0.49\textwidth}
 		\centering
 		\includegraphics[width=0.99\textwidth]{cone_check_large.png}
-		\caption{Ângulo de abertura maior que \(180^\circ\).}
+		\caption{Ângulo de abertura superior a \(180^\circ\).}
 	\end{subfigure}
-	\caption{Verificamos se um ponto \(p\) está no cone definido pelo vértice \(v\) e raios \(r^1\) e \(r^2\).}
+	\caption{Verificação se um ponto \(p\) está no cone definido pelo vértice \(v\) e pelos raios \(r^1\) e \(r^2\).}
 	\label{fig:point_in_cone}
 \end{figure}
 
-Além disso, desejamos verificar se um ponto~\(p\) pertence a uma região associada a uma aresta~\(e\) de~\(P_i\). Para isso, consideramos que~\(u\) e~\(v\) são os vértices que definem a aresta~\(e\), em sentido anti-horário, e tomamos~\(r^1\) como o segundo raio associado ao vértice~\(u\) e~\(r^2\) como o primeiro raio associado ao vértice~\(v\) em~\(S_i\). Então,~\(p\) pertence à região associada a~\(e\) se estiver do lado externo da aresta~\(e\) e entre os raios~\(r^1\) e~\(r^2\), como ilustrado na Figura~\ref{fig:point_in_edge_region}.
+Analogamente, deseja-se verificar se um ponto~\(p\) pertence a uma região associada a uma aresta~\(e\) de~\(P_i\). Para tanto, consideram-se~\(u\) e~\(v\) como os vértices que definem a aresta~\(e\), em sentido anti-horário, e toma-se~\(r^1\) como o segundo raio associado ao vértice~\(u\) e~\(r^2\) como o primeiro raio associado ao vértice~\(v\) em~\(S_i\). Assim,~\(p\) pertence à região associada a~\(e\) se, e somente se, estiver no lado externo da aresta~\(e\) e entre os raios~\(r^1\) e~\(r^2\), conforme ilustrado na Figura~\ref{fig:point_in_edge_region}.
 
 \begin{figure}[!ht]
 	\centering
 	\includegraphics[width=0.8\textwidth]{edge_region_check.png}
-	\caption{Verificando se um ponto pertence a uma região associada a uma aresta.}
+	\caption{Verificação da pertinência de um ponto a uma região associada a uma aresta.}
 	\label{fig:point_in_edge_region}
 \end{figure}
 
-Uma vez que conseguimos verificar se um ponto pertence a uma região associada a um vértice ou a uma aresta de~\(P_i\), podemos implementar o algoritmo \texttt{LocalizaPonto} de forma direta, como mostrado no Algoritmo~\algref{alg:locate_point_first_approach}. Realizamos dois laços: o primeiro verifica todas as regiões associadas a vértices de~\(P_i\) pertencentes a~\(T_i\) e o segundo verifica todas as regiões associadas a arestas de~\(P_i\) pertencentes a~\(T_i\). Caso o ponto~\(p\) não pertença a nenhuma dessas regiões, retornamos a região de atravessar~\(P_i\). Note que verificamos apenas vértices de~\(P_i\) que estão em~\(T_i\), resolvendo o problema de ter raios associados a vértices que não estão em~\(T_i\) e que, portanto, não definem regiões de vértice em~\(S_i\).
+Uma vez estabelecidos os critérios para verificar se um ponto pertence a uma região associada a um vértice ou a uma aresta de~\(P_i\), pode-se implementar o algoritmo \texttt{LocalizaPonto} de forma direta, conforme apresentado no Algoritmo~\algref{alg:locate_point_first_approach}. Realizam-se dois laços: o primeiro verifica todas as regiões associadas a vértices de~\(P_i\) pertencentes a~\(T_i\) e o segundo verifica todas as regiões associadas a arestas de~\(P_i\) pertencentes a~\(T_i\). Caso o ponto~\(p\) não pertença a nenhuma dessas regiões, retorna-se a região de travessia de~\(P_i\). Observe-se que são verificados apenas vértices de~\(P_i\) presentes em~\(T_i\), o que soluciona o problema de considerar raios associados a vértices ausentes em~\(T_i\) e que, portanto, não definem regiões de vértice em~\(S_i\).
 
 \begin{algorithm}[!ht]
 \alglabel{alg:locate_point_first_approach}
@@ -588,14 +590,14 @@ Uma vez que conseguimos verificar se um ponto pertence a uma região associada a
 		}
 	}
 
-	\Return {} região de atravessar \(P_i\)
+	\Return {} região de travessia de \(P_i\)
 }
 
 \end{algorithm}
 
 \subsubsection{Implementação Completa}
 
-Finalmente, uma vez que sabemos calcular~\(T_i\),~\(S_i\) e localizar um ponto~\(p\) em~\(S_i\), podemos implementar o algoritmo completo para resolver o TPP, conforme mostrado no Algoritmo~\algref{alg:tpp_complete-1-2}. Esse algoritmo itera sobre todos os polígonos~\(P_1, \dots, P_k\), calculando~\(T_i\) e~\(S_i\) para cada polígono por meio dos algoritmos discutidos anteriormente. Após calcular todas as regiões de primeiro contato e mapas de último passo, o algoritmo retorna o~\(k\)-path até o ponto~\(t\) utilizando o Algoritmo~\algref{alg:consulta-caminho}. Esse algoritmo também será utilizado na segunda abordagem, na qual apenas o algoritmo~\texttt{LocalizaPonto} será modificado.
+Uma vez estabelecidos os procedimentos para calcular~\(T_i\),~\(S_i\) e localizar um ponto~\(p\) em~\(S_i\), pode-se implementar o algoritmo completo para resolver o TPP, conforme apresentado no Algoritmo~\algref{alg:tpp_complete-1-2}. Esse algoritmo itera sobre todos os polígonos~\(P_1, \dots, P_k\), calculando~\(T_i\) e~\(S_i\) para cada polígono mediante os algoritmos previamente discutidos. Após calcular todas as regiões de primeiro contato e mapas de último passo, o algoritmo retorna o~\(k\)-path até o ponto~\(t\) utilizando o Algoritmo~\algref{alg:consulta-caminho}. Esse algoritmo também será empregado na segunda abordagem, na qual apenas o algoritmo~\texttt{LocalizaPonto} será modificado.
 
 \begin{algorithm}[!ht]
 \alglabel{alg:tpp_complete-1-2}
@@ -626,52 +628,52 @@ Finalmente, uma vez que sabemos calcular~\(T_i\),~\(S_i\) e localizar um ponto~\
 
 \subsection{Segunda Abordagem}
 
-A implementação anterior é direta e segue a definição formal dos mapas de último passo, mas não é eficiente, pois o algoritmo \texttt{LocalizaPonto} tem complexidade~\(O(\abs{T_i})\) no pior caso, já que pode ser necessário verificar todas as regiões associadas a vértices e arestas de~\(P_i\) para localizar um ponto~\(p\). Por esse motivo, propomos uma segunda abordagem para implementar o algoritmo \texttt{LocalizaPonto} de forma mais eficiente, utilizando uma estratégia de busca binária. Por hora, vamos manter a mesma implementação para os algoritmos de cálculo de regiões de primeiro contato e mapas de último passo, na terceira abordagem, discutiremos uma forma de otimizar esses algoritmos também.
+A implementação anterior é direta e adere rigorosamente à definição formal dos mapas de último passo. Todavia, sua eficiência é limitada, uma vez que o algoritmo \texttt{LocalizaPonto} possui complexidade~\(O(\abs{T_i})\) no pior caso, dado que pode ser necessário examinar todas as regiões associadas aos vértices e arestas de~\(P_i\) para localizar um ponto~\(p\). Em virtude dessa limitação, propomos uma segunda abordagem para implementar o algoritmo \texttt{LocalizaPonto} de maneira mais eficiente, empregando uma estratégia de busca binária. Neste momento, manteremos a mesma implementação para os algoritmos de cálculo das regiões de primeiro contato e dos mapas de último passo; na terceira abordagem, discutiremos meios de otimizar esses algoritmos igualmente.
 
-Primeiramente, vamos propor uma nova maneira de interpretar o mapa de último passo~\(S_i\) de um polígono~\(P_i\) e vamos mostrar que essa nova definição é equivalente à definição anterior. A nova definição é a seguinte:
+Inicialmente, propomos uma nova interpretação do mapa de último passo~\(S_i\) de um polígono~\(P_i\) e demonstramos que essa nova definição é equivalente à anterior. A nova definição é apresentada a seguir:
 
 \begin{blockQuote}
 	
-	\textbf{Nova definição de Mapa de Último Passo:} O mapa de último passo~\(S_i\) de um polígono~\(P_i\)~\(1 \le i \le k\) é uma partição do plano em regiões associadas a cada vértice de~\(P_i\) e regiões associadas a cada aresta de~\(P_i\).
+	\textbf{Nova definição de Mapa de Último Passo:} O mapa de último passo~\(S_i\) de um polígono~\(P_i\), ~\(1 \le i \le k\), constitui uma partição do plano em regiões associadas a cada vértice de~\(P_i\) e regiões associadas a cada aresta de~\(P_i\).
 
-	A região associada a um vértice~\(v\) de~\(P_i\) é a mesma definida anteriormente se~\(v \in T_i\) e é uma semireta que parte de~\(v\) e tem a mesma direção de~\(v - q\), onde~\(q\) é o ponto que precede~\(v\) no~\((i - 1)\)-path até~\(v\), caso contrário.
+	A região associada a um vértice~\(v\) de~\(P_i\) corresponde àquela definida anteriormente se~\(v \in T_i\); caso contrário, trata-se de uma semirreta que parte de~\(v\) e possui a mesma direção do vetor~\(v - q\), onde~\(q\) é o ponto que precede~\(v\) no~\((i - 1)\)-path até~\(v\).
 
-	A região associada a uma aresta~\(e = \overline{uv}\) de~\(P_i\) é o conjunto de pontos que estão do lado externo de~\(e\) e entre o segundo raio associado a~\(u\) e o primeiro raio associado a~\(v\) em~\(S_i\). Os pontos na fronteira de uma região de vértice e aresta pertencem à região de vértice. Os pontos na parte interna da aresta pertencem à região de aresta.
+	A região associada a uma aresta~\(e = \overline{uv}\) de~\(P_i\) é o conjunto de pontos situados no lado externo de~\(e\) e entre o segundo raio associado a~\(u\) e o primeiro raio associado a~\(v\) em~\(S_i\). Os pontos na fronteira entre uma região de vértice e uma região de aresta pertencem à região de vértice. Os pontos na parte interna da aresta pertencem à região de aresta.
 
-	Finalmente, dizemos que os pontos no interior de~\(P_i\) pertencem à região de atravessar~\(P_i\). Assim,~\(S_i\) define uma partição de~\(\mathbb{R}^2\).
+	Finalmente, os pontos no interior de~\(P_i\) são considerados pertencentes à região de atravessar~\(P_i\). Dessa forma,~\(S_i\) define uma partição de~\(\mathbb{R}^2\).
 
-	Veja a Figura~\ref{fig:last_step_map-new} para uma ilustração dessa nova definição de mapa de último passo. Note que as regiões associadas a vértices e arestas na região de primeiro contato são as mesmas da definição anterior, enquanto as regiões associadas a vértices e arestas que não estão na região de primeiro contato particionam a região de atravessar~\(P_i\) em regiões associadas a vértices e arestas, respectivamente.
+	A Figura~\ref{fig:last_step_map-new} ilustra essa nova definição de mapa de último passo. Observa-se que as regiões associadas aos vértices e arestas presentes na região de primeiro contato coincidem com aquelas da definição anterior, ao passo que as regiões associadas aos vértices e arestas ausentes da região de primeiro contato particionam a região de atravessar~\(P_i\) em regiões de vértices e de arestas, respectivamente.
 
 \end{blockQuote}
 
 \begin{figure}[!ht]
 \centering
 	\includegraphics[width=0.5\linewidth]{last_step_map_new.png}
-	\caption{Nova interpretação do mapa de último passo \(S_1\) de um polígono \(P_1\). Representamos as regiões de vértice em vermelho e as de aresta em verde. Note que embora as arestas \(e^3, e^4, e^5\) e vértices \(v^4\) e \(v^5\) não estejam em \(T_1\), eles têm uma região associada.}
+	\caption{Nova interpretação do mapa de último passo \(S_1\) de um polígono \(P_1\). As regiões de vértice são representadas em vermelho e as de aresta em verde. Observe que, embora as arestas \(e^3, e^4, e^5\) e os vértices \(v^4\) e \(v^5\) não estejam em \(T_1\), possuem uma região associada.}
 	\label{fig:last_step_map-new}
 \end{figure}
 
-Note que as regiões são definidas da mesma forma para vértices e arestas na região de primeiro contato. Além disso, as regiões de vértice e aresta que não estão na região de primeiro contato cobrem exatamente a região de atravessar~\(P_i\), desconsiderando o interior de~\(P_i\), que não é relevante, uma vez que assumimos que os polígonos são disjuntos. Assim, para calcular o \(i\)-path até um ponto~\(p\), basta localizá-lo em~\(S_i\), se ele está na região de algum vértice ou aresta na região de primeiro contato, prosseguimos como anteriormente, caso contrário, sabemos que~\(p\) está na região de atravessar~\(P_i\) e, portanto, o \(i\)-path até~\(p\) é dado pelo~\((i - 1)\)-path até \(p\). Dessa forma, essa nova definição é equivalente à definição anterior.
+Nota-se que as regiões são definidas de maneira idêntica para vértices e arestas na região de primeiro contato. Ademais, as regiões de vértice e de aresta que não pertencem à região de primeiro contato cobrem exatamente a região de atravessar~\(P_i\), desconsiderando o interior de~\(P_i\), o qual não é relevante, haja vista a hipótese de que os polígonos são disjuntos. Assim, para calcular o \(i\)-path até um ponto~\(p\), basta localizá-lo em~\(S_i\): se ele pertence à região de algum vértice ou aresta na região de primeiro contato, procede-se conforme anteriormente; caso contrário, conclui-se que~\(p\) está na região de atravessar~\(P_i\) e, portanto, o \(i\)-path até~\(p\) é dado pelo~\((i - 1)\)-path até~\(p\). Dessa forma, esta nova definição é equivalente à anterior.
 
-O motivo de utilizarmos essa nova definição é que ela garante a seguinte propriedade, que é essencial para a implementação do algoritmo \texttt{LocalizaPonto} utilizando uma estratégia de busca binária:
+A motivação para utilizar essa nova definição reside na garantia da seguinte propriedade, que é essencial para a implementação do algoritmo \texttt{LocalizaPonto} mediante uma estratégia de busca binária:
 
 \begin{blockQuote}
-	\textbf{Arestas Fictícias}: Seja~\(P_i\) um polígono de \(m\) vértices e~\(S_i\) seu mapa de último passo. Além disso, sejam~\(v^l\) e~\(v^r\) vértices de~\(P_i\), com~\(1 \le l \le r \le m + 1\), assumindo que os vértices de~\(P_i\) estão ordenados em sentido anti-horário e~\(v^{m + 1} = v^1\). Dado~\(p \in \mathbb{R}^2\), desejamos determinar se existe algum~\(l \le j < r - 1\) tal que~\(p\) pertence à região associada ao vértice~\(v^j\) de~\(P_i\) ou à região associada à aresta~\(\overline{v^j v^{j + 1}}\) de~\(P_i\) . 
+	\textbf{Arestas Fictícias}: Seja~\(P_i\) um polígono de \(m\) vértices e~\(S_i\) seu mapa de último passo. Ademais, sejam~\(v^l\) e~\(v^r\) vértices de~\(P_i\), com~\(1 \le l \le r \le m + 1\), supondo que os vértices de~\(P_i\) estão ordenados em sentido anti-horário e~\(v^{m + 1} = v^1\). Dado~\(p \in \mathbb{R}^2\), desejamos determinar se existe algum~\(l \le j < r - 1\) tal que~\(p\) pertence à região associada ao vértice~\(v^j\) de~\(P_i\) ou à região associada à aresta~\(\overline{v^j v^{j + 1}}\) de~\(P_i\). 
 	
-	Para tal, poderíamos verificar cada região individualmente, mas isso não é eficiente. No entanto, podemos criar uma \textit{aresta fictícia} entre~\(v^l\) e~\(v^r\), e usando o primeiro raio associado a~\(v^l\) e o primeiro raio associado a~\(v^r\) em~\(S_i\), definimos uma região~\(R\) que contém exatamente as regiões associadas às arestas entre~\(v^l\) e~\(v^r\) e aos vértices entre~\(v^l\) e~\(v^r\) e parte do interior de~\(P_i\). Veremos a seguir que a região~\(R\) é similar à região de aresta que tratamos anteriormente. Além disso, podemos verificar se~\(p\) pertence a~\(R\) em tempo~\(O(1)\), e~\(p\) pertence a~\(R\) se e somente se pertence a alguma região de vértice ou de aresta entre~\(v^l\) e~\(v^r\), pois supomos que~\(p\) não está no interior de~\(P_i\).
+	Para tal, poderíamos examinar cada região individualmente, porém essa estratégia não é eficiente. Entretanto, podemos criar uma \textit{aresta fictícia} entre~\(v^l\) e~\(v^r\) e, utilizando o primeiro raio associado a~\(v^l\) e o primeiro raio associado a~\(v^r\) em~\(S_i\), definir uma região~\(R\) que contém exatamente as regiões associadas às arestas entre~\(v^l\) e~\(v^r\), aos vértices entre~\(v^l\) e~\(v^r\) e parte do interior de~\(P_i\). Demonstraremos a seguir que a região~\(R\) é análoga à região de aresta tratada anteriormente. Ademais, é possível verificar se~\(p\) pertence a~\(R\) em tempo~\(O(1)\), e~\(p\) pertence a~\(R\) se e somente se pertence a alguma região de vértice ou de aresta entre~\(v^l\) e~\(v^r\), visto que supomos que~\(p\) não está no interior de~\(P_i\).
 
-	Veja a Figura~\ref{fig:fake_edge} para uma ilustração dessa ideia. Criamos uma aresta fictícia entre os vértices~\(v^3\) e~\(v^6 = v^1\) de~\(P_1\) e definimos a região~\(R\), que engloba todas as regiões entre eles. Assim, para verificar se existe algum~\(3 \le j < 6\) tal que~\(p\) pertence à região associada à aresta~\(\overline{v^j v^{j + 1}}\) de~\(P_1\) ou existe algum~\(3 < j < 6\) tal que~\(p\) pertence à região associada ao vértice~\(v^j\) de~\(P_1\), basta verificar se~\(p\) pertence a~\(R\). Além disso,~\(R\) tem a forma de uma região de aresta tradicional, então podemos verificar se~\(p\) pertence a~\(R\) utilizando o mesmo procedimento do Algoritmo~\algref{alg:locate_point_first_approach}.
+	A Figura~\ref{fig:fake_edge} ilustra essa ideia. Criamos uma aresta fictícia entre os vértices~\(v^3\) e~\(v^6 = v^1\) de~\(P_1\) e definimos a região~\(R\), que engloba todas as regiões entre eles. Assim, para verificar se existe algum~\(3 \le j < 6\) tal que~\(p\) pertence à região associada à aresta~\(\overline{v^j v^{j + 1}}\) de~\(P_1\) ou à região associada ao vértice~\(v^j\) de~\(P_1\), basta verificar se~\(p\) pertence a~\(R\). Adicionalmente,~\(R\) possui a forma de uma região de aresta tradicional, de modo que se pode verificar se~\(p\) pertence a~\(R\) empregando o mesmo procedimento do Algoritmo~\algref{alg:locate_point_first_approach}.
 
 \end{blockQuote}
 
 \begin{figure}[!ht]
 	\centering
 	\includegraphics[width=0.5\linewidth]{fake_edge.png}
-	\caption{Criamos uma aresta fictícia entre os vértices \(v^3\) e \(v^6 = v^1\) de \(P_1\), definindo a região \(R\), que engloba todas as regiões dos vértices \(v^3, v^4\) e \(v^5\) e das arestas \(e^3, e^4\) e \(e^5\).}
+	\caption{Criação de uma aresta fictícia entre os vértices \(v^3\) e \(v^6 = v^1\) de \(P_1\), definindo a região \(R\), que engloba todas as regiões dos vértices \(v^3, v^4\) e \(v^5\) e das arestas \(e^3, e^4\) e \(e^5\).}
 	\label{fig:fake_edge}
 \end{figure}
 
-Antes de utilizar essa ideia propriamente, precisamos primeiro ser capazes de determinar se um ponto~\(p \in \mathbb{R}^2\) pertence à região~\(R\) formada pelo vértice~\(u\) com raio associado~\(r^1\) e~\(v\) com raio associado~\(r^2\). Para tal, definimos~\(d = v - u\) e dizemos que um raio~\(r\) está do \textbf{lado externo} da aresta~\(\overline{uv}\) se~\(d \times r < 0\) e do \textbf{lado interno} se~\(d \times r \ge 0\). Além disso, calculamos as seguintes variáveis booleanas:
+Antes de aplicar essa ideia propriamente, é necessário estabelecer um método para determinar se um ponto~\(p \in \mathbb{R}^2\) pertence à região~\(R\) formada pelo vértice~\(u\) com raio associado~\(r^1\) e pelo vértice~\(v\) com raio associado~\(r^2\). Para tanto, define-se~\(d = v - u\) e estabelece-se que um raio~\(r\) está do \textbf{lado externo} da aresta~\(\overline{uv}\) se~\(d \times r < 0\) e do \textbf{lado interno} se~\(d \times r \ge 0\). Além disso, calculam-se as seguintes variáveis booleanas:
 
 \begin{enumerate}
 	\item \(c_1 \iff r^1 \times (p - u) \ge 0\)
@@ -679,7 +681,7 @@ Antes de utilizar essa ideia propriamente, precisamos primeiro ser capazes de de
 	\item \(c_3 \iff (v - u) \times (p - u) \le 0\)
 \end{enumerate}
 
-Note que, considerando os 4 casos possíveis para os lados de~\(r^1\) e~\(r^2\), podemos determinar se~\(p\) pertence à~\(R\) usando apenas~\(c_1, c_2\) e~\(c_3\):
+Observa-se que, considerando os quatro casos possíveis para os lados de~\(r^1\) e~\(r^2\), pode-se determinar se~\(p\) pertence a~\(R\) utilizando apenas~\(c_1, c_2\) e~\(c_3\):
 
 \begin{enumerate}[label=(\alph*)]
 	\item \textbf{\(r^1\) e \(r^2\) externos:} \(c_1 \land c_2 \land c_3\). Veja a Figura~\ref{fig:binary_search_cases}(a).
@@ -696,7 +698,7 @@ Note que, considerando os 4 casos possíveis para os lados de~\(r^1\) e~\(r^2\),
 		\includegraphics[width=\textwidth]{binary_search_cases-1.png}
 		\caption{\(r^1\) e \(r^2\) no lado externo.}
 	\end{subfigure}
-	\hspace{0.5cm} %\hfill
+	\hspace{0.5cm}
 	\begin{subfigure}[b]{0.40\textwidth}
 		\centering
 		\includegraphics[width=\textwidth]{binary_search_cases-2.png}
@@ -710,28 +712,28 @@ Note que, considerando os 4 casos possíveis para os lados de~\(r^1\) e~\(r^2\),
 		\includegraphics[width=\textwidth]{binary_search_cases-3.png}
 		\caption{\(r^1\) no lado externo e \(r^2\) no lado interno.}
 	\end{subfigure}
-	\hspace{0.5cm} %\hfill
+	\hspace{0.5cm}
 	\begin{subfigure}[b]{0.40\textwidth}
 		\centering
 		\includegraphics[width=\textwidth]{binary_search_cases-4.png}
 		\caption{\(r^1\) no lado interno e \(r^2\) no lado externo.}
 	\end{subfigure}
 
-	\caption{Ilustração dos 4 casos possíveis ao verificar se um ponto pertence à região de uma aresta fictícia entre dois vértices.}
+	\caption{Ilustração dos quatro casos possíveis ao verificar se um ponto pertence à região de uma aresta fictícia entre dois vértices.}
 	\label{fig:binary_search_cases}
 
 \end{figure}
 
-Agora que sabemos como verificar se um ponto~\(p \in \mathbb{R}^2\) está em uma região de aresta fictícia~\(R\), podemos usar isso para localizar~\(p\) no mapa de último passo~\(S_i\) de um polígono~\(P_i\). Definindo~\(m = |P_i|\) como o número de vértices de~\(P_i\), dizemos que~\(l_0 = 1\) e~\(r_0 = m + 1\). 
+Uma vez estabelecido o método para verificar se um ponto~\(p \in \mathbb{R}^2\) pertence a uma região de aresta fictícia~\(R\), podemos utilizá-lo para localizar~\(p\) no mapa de último passo~\(S_i\) de um polígono~\(P_i\).
 
 \begin{blockQuote}
-	\textbf{Algoritmo de localização:} Dado~\(1 \le i \le k\) e~\(p \in \mathbb{R}^2\) tal que~\(p\) não está no interior de~\(P_i\), queremos encontrar a região de~\(S_i\) que contém~\(p\). 
-	
-	Definimos~\(l_0 = 1\) e~\(r_0 = m + 1\). Para todo~\(i \in \mathbb{N}\), se~\(l_i + 1 \ne r_i\), definimos~\(mid_i = \floor{(l_i + r_i) / 2}\) e verificamos se~\(p\) pertence à região de aresta fictícia entre os vértices~\(v^{l_i}\) e~\(v^{mid_i}\) de~\(P_i\). Se~\(p\) pertence a essa região, definimos~\(r_{i + 1} = mid_i\) e~\(l_{i + 1} = l_i\), caso contrário, definimos~\(l_{i + 1} = mid_i\) e~\(r_{i + 1} = r_i\). 
-	
-	Eventualmente, teremos~\(l_i + 1 = r_i\) para algum~\(i\), e nesse ponto, sabemos que~\(p\) pertence à região associada ao vértice~\(v^{l_i}\) ou à região associada à aresta~\(\overline{v^{l_i} v^{r_i}}\). Então, verificamos se~\(v^{l_i} \in T_i\) e se~\(p\) pertence à região associada ao vértice~\(v^{l_i}\). Se sim, retornamos a região associada a~\(v^{l_i}\). Caso contrário, verificamos se~\(\overline{v^{l_i} v^{r_i}} \in T_i\). Se sim, retornamos a região associada à aresta~\(\overline{v^{l_i} v^{r_i}}\). Caso contrário, retornamos a região de atravessar~\(P_i\).
 
-	Implementamos esse algoritmo de localização no Algoritmo~\algref{alg:locate_point_second_approach}. Note que, para implementar a função \texttt{VerificaAresta}, utilizamos o procedimento descrito anteriormente para verificar se um ponto pertence à região de uma aresta fictícia entre dois vértices.
+	\textbf{Algoritmo de localização:} Dado~\(1 \le i \le k\) e~\(p \in \mathbb{R}^2\) tal que~\(p\) não pertence ao interior de~\(P_i\), deseja-se determinar a região de~\(S_i\) que contém~\(p\). 
+	Definem-se~\(l_0 = 1\) e~\(r_0 = |P_i| + 1\), onde \(|P_i|\) é o número de vértices de \(P_i\). Para todo~\(i \in \mathbb{N}\), se~\(l_i + 1 \ne r_i\), define-se~\(mid_i = \floor{(l_i + r_i) / 2}\) e verifica-se se~\(p\) pertence à região delimitada pela aresta fictícia entre os vértices~\(v^{l_i}\) e~\(v^{mid_i}\) de~\(P_i\). Caso~\(p\) pertença a essa região, definem-se~\(r_{i + 1} = mid_i\) e~\(l_{i + 1} = l_i\); caso contrário, definem-se~\(l_{i + 1} = mid_i\) e~\(r_{i + 1} = r_i\). 
+	
+	Eventualmente, alcança-se~\(l_i + 1 = r_i\) para algum~\(i\), momento no qual se conclui que~\(p\) pertence à região associada ao vértice~\(v^{l_i}\) ou à região associada à aresta~\(\overline{v^{l_i} v^{r_i}}\). Verifica-se, então, se~\(v^{l_i} \in T_i\) e se~\(p\) pertence à região associada ao vértice~\(v^{l_i}\). Em caso afirmativo, retorna-se a região associada a~\(v^{l_i}\). Caso contrário, verifica-se se~\(\overline{v^{l_i} v^{r_i}} \in T_i\). Em caso afirmativo, retorna-se a região associada à aresta~\(\overline{v^{l_i} v^{r_i}}\). Caso contrário, retorna-se a região correspondente a atravessar~\(P_i\).
+
+	Esse algoritmo de localização encontra-se implementado no Algoritmo~\algref{alg:locate_point_second_approach}. Observa-se que, para implementar a função \texttt{VerificaAresta}, utiliza-se o procedimento descrito anteriormente para verificar se um ponto pertence à região delimitada por uma aresta fictícia entre dois vértices.
 
 \end{blockQuote}
 
@@ -804,28 +806,27 @@ Agora que sabemos como verificar se um ponto~\(p \in \mathbb{R}^2\) está em uma
 }
 
 \end{algorithm}
+Considerando que implementamos o algoritmo \texttt{LocalizaPonto} mediante uma estratégia de busca binária, podemos substituir a implementação do Algoritmo~\algref{alg:locate_point_first_approach} pela implementação do Algoritmo~\algref{alg:locate_point_second_approach} no Algoritmo~\algref{alg:tpp_complete-1-2}, mantendo inalterados os algoritmos de cálculo de regiões de primeiro contato e mapas de último passo.
 
-Uma vez que implementamos o algoritmo \texttt{LocalizaPonto} utilizando uma estratégia de busca binária, podemos substituir a implementação do Algoritmo~\algref{alg:locate_point_first_approach} pela implementação do Algoritmo~\algref{alg:locate_point_second_approach} no Algoritmo~\algref{alg:tpp_complete-1-2}, mantendo os algoritmos de cálculo de regiões de primeiro contato e mapas de último passo inalterados.
-
-A principal vantagem dessa abordagem é que a busca binária reduz o número de verificações para localizar~\(p\) em~\(S_i\) de~\(O\abs{T_i}\) para~\(O(\log\abs{P_i})\), o que pode representar uma melhoria significativa quando~\(P_i\) possui muitos vértices em~\(T_i\). Analisaremos o impacto dessa modificação com mais detalhes na análise de complexidade.
+A principal vantagem dessa abordagem reside no fato de que a busca binária reduz o número de verificações necessárias para localizar~\(p\) em~\(S_i\) de~\(O(\abs{T_i})\) para~\(O(\log\abs{P_i})\), o que pode representar uma melhoria significativa quando~\(P_i\) possui muitos vértices em~\(T_i\). Analisaremos o impacto dessa modificação com maior profundidade na análise de complexidade.
 
 \subsection{Terceira Abordagem}
 
-Antes de discutirmos a terceira abordagem, apresentamos a motivação para essa nova implementação do algoritmo \texttt{LocalizaPonto}. Considere o caso de um único polígono~\(P_1\) com um grande número de vértices, por exemplo, um milhão. Pela segunda abordagem, calculamos~\(T_1\), em seguida~\(S_1\) e, finalmente, realizamos uma única consulta ao mapa de último passo~\(S_1\) para localizar o ponto~\(t\). No entanto, essa consulta utiliza no máximo cerca de 20 regiões de vértice de~\(P_1\) para localizar~\(t\) em~\(S_1\). Assim, acabamos calculando aproximadamente 999\,980 regiões de vértice que nunca são utilizadas. Diante disso, na terceira abordagem buscamos empregar uma estratégia de memoização, de modo a calcular apenas as regiões de vértice de~\(P_i\) que são efetivamente necessárias para localizar os pontos consultados no mapa de último passo~\(S_i\).
+Antes de apresentarmos a terceira abordagem, é necessário discutir a motivação para essa nova implementação do algoritmo \texttt{LocalizaPonto}. Considere o caso de um único polígono~\(P_1\) com um número elevado de vértices, por exemplo, um milhão. De acordo com a segunda abordagem, calculamos~\(T_1\) e, em seguida,~\(S_1\), para finalmente realizar uma única consulta ao mapa de último passo~\(S_1\) a fim de localizar o ponto~\(t\). Entretanto, essa consulta utiliza no máximo 20 regiões de vértice de~\(P_1\) para localizar~\(t\) em~\(S_1\). Consequentemente, terminamos por calcular aproximadamente 999\,980 regiões de vértice que nunca são efetivamente utilizadas. Diante dessa constatação, na terceira abordagem propomos empregar uma estratégia de memoização, de modo a calcular apenas as regiões de vértice de~\(P_i\) que sejam efetivamente necessárias para localizar os pontos consultados no mapa de último passo~\(S_i\).
 
-Essa abordagem irá reutilizar muitas das ideias apresentadas nas últimas duas abordagens. Primeiramente, observe que os algoritmos de consulta (Algoritmo~\algref{alg:consulta-caminho} e Algoritmo~\algref{alg:consulta-ultimo-passo}) não usam os valores de \(T_i\) e \(S_i\) explicitamente, apenas repassando-os para o algoritmo \texttt{LocalizaPonto}. Assim, podemos manter esses dois algoritmos inalterados. Infelizmente, não podemos reutilizar os algoritmos que calculam as regiões de primeiro contato e os mapas de último passo (Algoritmo~\algref{alg:first_contact_region} e Algoritmo~\algref{alg:last_step_map}) diretamente, pois eles calculam~\(T_i\) e~\(S_i\) por completo, o que não é eficiente.
+Essa abordagem reutilizará diversas das ideias apresentadas nas duas abordagens anteriores. Primeiramente, observe que os algoritmos de consulta (Algoritmo~\algref{alg:consulta-caminho} e Algoritmo~\algref{alg:consulta-ultimo-passo}) não utilizam os valores de \(T_i\) e \(S_i\) explicitamente, limitando-se a repassá-los ao algoritmo \texttt{LocalizaPonto}. Assim, podemos manter esses dois algoritmos inalterados. Infelizmente, não é possível reutilizar diretamente os algoritmos que calculam as regiões de primeiro contato e os mapas de último passo (Algoritmo~\algref{alg:first_contact_region} e Algoritmo~\algref{alg:last_step_map}), uma vez que eles calculam~\(T_i\) e~\(S_i\) em sua totalidade, o que não é eficiente.
 
-Retomando as conclusões de \hyperlink{lemma:edge_in_first_contact}{\textbf{Aresta em Região de Primeiro Contato}} e \hyperlink{lemma:local_optimality_conditions}{\textbf{Condições de Otimalidade Local}}. Seja \(v\) um vértice de \(P_i\) com arestas incidentes \(e^1\) e \(e^2\) e \(q\) último passo do \((i - 1)\)-path até \(v\). Como \(v\) faz parte tanto de \(e^1\) e \(e^2\), temos que \(e^1 \in T_i\) se e somente se \(q\) está do lado externo de \(e^1\) e \(e^2 \in T_i\) se e somente se \(q\) está do lado externo de \(e^2\). Além disso, uma vez que sabemos se \(e^1\) e \(e^2\) pertencem a \(T_i\), podemos calcular os raios associados a \(v\) em \(S_i\) utilizando o algoritmo de reflexão apresentado no Algoritmo~\algref{alg:last_step_map}. 
+Retomando as conclusões de \ref{lemma:2.1} e \ref{lemma:2.2}, se~\(v\) um vértice de~\(P_i\) com arestas incidentes~\(e^1\) e~\(e^2\), e seja~\(q\) o último passo do~\((i - 1)\)-path até~\(v\). Como~\(v\) pertence tanto a~\(e^1\) quanto a~\(e^2\), temos que~\(e^1 \in T_i\) se e somente se~\(q\) está localizado no lado externo de~\(e^1\), e~\(e^2 \in T_i\) se e somente se~\(q\) está localizado no lado externo de~\(e^2\). Além disso, uma vez determinado se~\(e^1\) e~\(e^2\) pertencem a~\(T_i\), podemos calcular os raios associados a~\(v\) em~\(S_i\) utilizando o algoritmo de reflexão apresentado no Algoritmo~\algref{alg:last_step_map}.
 
-A partir dessa ideia, segue que podemos determinar se uma aresta \(e\) pertence a \(T_i\) utilizando apenas uma consulta ao \((i - 1)\)-path até um dos seus vértices. Dessa forma, conseguimos calcular o cone de visibilidade de \(v\) em \(S_i\) e determinar se uma aresta \(e\) de \(P_i\) pertence a \(T_i\) usando apenas uma consulta. É importante mencionar que podemos guardar o resultado dessas consultas para evitar cálculos repetidos. Assim, calculamos os raios associados a um vértice de \(P_i\) e determinamos se uma aresta pertence a \(T_i\) uma única vez, e retornamos os resultados armazenados para as próximas consultas.
+A partir dessa observação, segue que é possível determinar se uma aresta~\(e\) pertence a~\(T_i\) utilizando apenas uma consulta ao~\((i - 1)\)-path até um de seus vértices. Dessa forma, conseguimos calcular o cone de visibilidade de~\(v\) em~\(S_i\) e determinar se uma aresta~\(e\) de~\(P_i\) pertence a~\(T_i\) mediante uma única consulta. É importante ressaltar que podemos armazenar os resultados dessas consultas para evitar cálculos repetidos. Assim, calculamos os raios associados a um vértice de~\(P_i\) e determinamos se uma aresta pertence a~\(T_i\) uma única vez, retornando os resultados armazenados para consultas posteriores.
 
-Dessa forma, podemos reutilizar a segunda implementação do algoritmo \texttt{LocalizaPonto} (Algoritmo~\algref{alg:locate_point_second_approach}). Para tal, deixamos implícito que as linhas 2 e 3 do Algoritmo~\algref{alg:locate_point_second_approach} que pedem os raios associados aos vértices \(u\) e \(v\) em \(S_i\) realizam as consultas necessárias para calcular os raios associados a \(u\) e \(v\) em \(S_i\), e armazenam os resultados para futuras consultas. Além disso, as linhas 28 e 30, que verificam se \(v^l \in T_i\) e se \(\overline{v^l v^r} \in T_i\), respectivamente, realizam as consultas necessárias para determinar se \(v^l\) e \(\overline{v^l v^r}\) pertencem a \(T_i\), e armazenam os resultados para futuras consultas.
+Dessa forma, podemos reutilizar a segunda implementação do algoritmo \texttt{LocalizaPonto} (Algoritmo~\algref{alg:locate_point_second_approach}). Para tanto, deixamos implícito que as linhas 2 e 3 do Algoritmo~\algref{alg:locate_point_second_approach}, que solicitam os raios associados aos vértices~\(u\) e~\(v\) em~\(S_i\), realizam as consultas necessárias para calcular os raios associados a~\(u\) e~\(v\) em~\(S_i\) e armazenam os resultados para consultas futuras. Além disso, as linhas 28 e 30, que verificam se~\(v^l \in T_i\) e se~\(\overline{v^l v^r} \in T_i\), respectivamente, realizam as consultas necessárias para determinar se~\(v^l\) e~\(\overline{v^l v^r}\) pertencem a~\(T_i\) e armazenam os resultados para consultas futuras.
 
-Assim, concluimos a implementação da terceira abordagem do algoritmo \texttt{LocalizaPonto} e podemos finalizar a implementação completa do algoritmo TPP utilizando essa abordagem. Para tal, inicializamos \(S_1, \dots, S_k\) e \(T_1, \dots, T_k\) como conjuntos vazios e então retornamos o \(k\)-path até \(t\) utilizando o Algoritmo~\algref{alg:consulta-caminho}. Note que, nesse caso, o cálculo de \(T_i\) e \(S_i\) para cada \(i = 1, \dots, k\) é feito de forma implícita durante as consultas ao mapa de último passo \(S_i\), apenas para os vértices e arestas que são efetivamente necessários para localizar os pontos consultados em \(S_i\).
+Assim, concluímos a implementação da terceira abordagem do algoritmo \texttt{LocalizaPonto} e podemos finalizar a implementação completa do algoritmo TPP utilizando essa abordagem. Para isso, inicializamos~\(S_1, \dots, S_k\) e~\(T_1, \dots, T_k\) como conjuntos vazios e, em seguida, retornamos o~\(k\)-path até~\(t\) utilizando o Algoritmo~\algref{alg:consulta-caminho}. Observe que, nesse caso, o cálculo de~\(T_i\) e~\(S_i\) para cada~\(i = 1, \dots, k\) é realizado de forma implícita durante as consultas ao mapa de último passo~\(S_i\), restringindo-se aos vértices e arestas que sejam efetivamente necessários para localizar os pontos consultados em~\(S_i\).
 
 \subsection{Análise de Complexidade}
 
-Analizaremos agora a complexidade de cada uma das três abordagens apresentadas para resolver o TPP. Para isso, utilizaremos as seguintes notações: seja~\(\abs{P_i}\) o número de vértices do polígono~\(P_i\) e~\(\abs{T_i}\) o número de arestas em~\(T_i\). Seja ainda~\(k\) o número total de polígonos na sequência~\(P_1, \dots, P_k\) e~\(n\) é a soma do número de vértices dos \(k\) polígonos.
+Analizaremos agora a complexidade de cada uma das três abordagens apresentadas para resolver o TPP. Para isso, utilizaremos as seguintes notações: seja~\(\abs{P_i}\) o número de vértices do polígono~\(P_i\) e~\(\abs{T_i}\) o número de arestas em~\(T_i\). Seja ainda~\(k\) o número total de polígonos na sequência~\(P_1, \dots, P_k\) e~\(n\) é a soma do número de vértices dos~\(k\) polígonos.
 
 \subsubsection{Primeira Abordagem}
 
@@ -899,6 +900,16 @@ Dessa forma, concluimos que a complexidade final do algoritmo TPP utilizando a s
 Por fim, resta analisar a complexidade da terceira abordagem. Essa análise é mais delicada, pois a complexidade do algoritmo \texttt{LocalizaPonto} passa a depender fortemente da instância específica, em particular da distribuição dos vértices nos polígonos e das consultas efetivamente realizadas ao mapa de último passo. 
 
 Ainda assim, é imediato observar que a terceira abordagem nunca será pior do que a segunda, uma vez que, no pior caso, todas as regiões de vértice em~\(T_i\) serão calculadas, recuperando exatamente o comportamento da segunda abordagem. Assim, concluímos que a complexidade da terceira abordagem é~\(O(nk \log (n/k))\) no pior caso, podendo ser significativamente melhor em instâncias favoráveis, dependendo do padrão das consultas realizadas.
+
+\section{TPP Não Convexo}
+\label{sec:non-convex-tpp}
+
+TODO: Implementar o algoritmo TPP para o caso de polígonos não convexos.
+
+\section{Conclusão}
+\label{sec:conclusion}
+
+TODO: Concluir o texto, discutir possíveis melhorias e trabalhos futuros.
 
 
 \bibliographystyle{plain}
