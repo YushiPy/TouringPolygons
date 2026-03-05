@@ -673,61 +673,27 @@ O motivo de utilizarmos essa nova definição é que ela garante a seguinte prop
 \end{minipage}
 \end{figure}
 
-\begin{figure}[!ht]
-	\centering
+Antes de utilizar essa ideia propriamente, precisamos primeiro ser capazes de determinar se um ponto \(p \in \mathbb{R}^2\) pertence à região \(R\) formada pelo vértice \(u\) com raio associado \(r^1\) e \(v\) com raio associado \(r^2\). Para tal, definimos \(d = v - u\) e dizemos que um raio \(r\) está do \textbf{lado externo} da aresta \(\overline{uv}\) se \(d \times r < 0\) e do \textbf{lado interno} se \(d \times r \ge 0\). Além disso, calculamos as seguintes variáveis booleanas:
 
-	\begin{subfigure}[b]{0.40\textwidth}
-		\centering
-		\includegraphics[width=\textwidth]{binary_search_idea-1.png}
-		\caption{Visão geral do polígono.}
-	\end{subfigure}
-	\hspace{0.5cm} %\hfill
-	\begin{subfigure}[b]{0.40\textwidth}
-		\centering
-		\includegraphics[width=\textwidth]{binary_search_idea-2.png}
-		\caption{Verificando região de travessia.}
-	\end{subfigure}
+\begin{enumerate}
+	\item \(c_1 \iff r^1 \times (p - u) \ge 0\)
+	\item \(c_2 \iff r^2 \times (p - v) \le 0\)
+	\item \(c_3 \iff (v - u) \times (p - u) \le 0\)
+\end{enumerate}
 
-	\medskip
-
-	\begin{subfigure}[b]{0.40\textwidth}
-		\centering
-		\includegraphics[width=\textwidth]{binary_search_idea-3.png}
-		\caption{Verificando regiões de vértice adjacentes à região de travessia.}
-	\end{subfigure}
-	\hspace{0.5cm} %\hfill
-	\begin{subfigure}[b]{0.40\textwidth}
-		\centering
-		\includegraphics[width=\textwidth]{binary_search_idea-4.png}
-		\caption{Particionando o restante do plano em duas regiões de aresta e uma de vértice.}
-	\end{subfigure}
-
-	\caption{Ilustração dos três passos do algoritmo de busca binária para localizar um ponto em um mapa de último passo.}
-	\label{fig:binary_search_idea}
-
-\end{figure}
-
-A Figura~\ref{fig:binary_search_idea} será utilizada para descrever cada etapa do algoritmo. O primeiro quadro apresenta um polígono~\(P_i\) com 8 vértices, dos quais 5 pertencem a~\(T_i\), denotados por~\(u^1, \dots, u^5\). As regiões de vértice estão destacadas em vermelho, as regiões de aresta em verde e a região de travessia em azul. O objetivo é localizar um ponto nesse mapa de último passo. O algoritmo possui dois passos iniciais e, em seguida, inicia a busca binária, conforme descrito a seguir:
-
-\begin{blockQuote}
-
-\textbf{\large Algoritmo para localizar um ponto \(p\) em \(S_i\):}
+Note que, considerando os 4 casos possíveis para os lados de \(r^1\) e \(r^2\), podemos determinar se \(p\) pertence à \(R\) usando apenas \(c_1, c_2\) e \(c_3\):
 
 \begin{description}
 
-	\item[Passo 1.] Verificar se~\(p\) está na região de travessia de~\(P_i\) (Quadro 2): criamos uma aresta fictícia entre~\(u^5\) e~\(u^1\), gerando uma região~\(R\) que contém exatamente a região de travessia e parte de~\(P_i\). A verificação se~\(p\) pertence a~\(R\) é feita utilizando a mesma estratégia do Algoritmo~\algref{alg:locate_point_first_approach}, considerando~\(u^5\) e~\(u^1\) como os vértices que definem a aresta fictícia e o segundo raio de~\(u^5\) e o primeiro raio de~\(u^1\) como os raios que delimitam~\(R\). Caso~\(p\) pertença a~\(R\), retornamos a região de travessia.
-	
-	\item[Passo 2.] Verificar se~\(p\) está em alguma região de vértice de~\(u^1\) ou~\(u^5\) (Quadro 3): utilizamos a mesma verificação do Algoritmo~\algref{alg:locate_point_first_approach}. Se~\(p\) pertencer a alguma dessas regiões, retornamos a região correspondente.
-	
-	\item[Passo 3.] Busca binária (Quadro 4): sabendo que~\(p\) não está nem na região de travessia nem nas regiões de vértice de~\(u^1\) ou~\(u^5\), iniciamos a busca binária entre os vértices~\(u^1\) e~\(u^5\). Selecionamos~\(u^3\) como vértice intermediário e verificamos se~\(p\) pertence à região de vértice de~\(u^3\). Em caso afirmativo, retornamos essa região.
+	\item[\(r^1\) e \(r^2\) externos:] \(c_1 \land c_2 \land c_3\). Veja a Figura~\ref{fig:binary_search_cases}(a).
 
-	Caso contrário, criamos duas arestas fictícias, uma entre~\(u^1\) e~\(u^3\) e outra entre~\(u^3\) e~\(u^5\), gerando as regiões~\(R_1\) (em roxo) e~\(R_2\) (em laranja). Verificamos se~\(p\) pertence a~\(R_1\); se sim, repetimos esse passo recursivamente considerando apenas os vértices entre~\(u^1\) e~\(u^3\). Caso contrário, sabemos que~\(p\) pertence a~\(R_2\) e repetimos esse passo considerando apenas os vértices entre~\(u^3\) e~\(u^5\). Esse passo é repetido até que~\(p\) pertença a uma região de vértice ou restem apenas dois vértices em que concluímos que~\(p\) está na região de aresta entre esses dois vértices.
+	\item[\(r^1\) e \(r^2\) internos:] \(c_1 \lor c_2 \lor c_3\). Veja a Figura~\ref{fig:binary_search_cases}(b).
+
+	\item[\(r^1\) externo e \(r^2\) interno:] \((c_1 \land c_3) \lor (c_2 \land \lnot c_3)\). Veja a Figura~\ref{fig:binary_search_cases}(c).
+	
+	\item[\(r^1\) interno e \(r^2\) externo:] \((c_1 \land \lnot c_3) \lor (c_2 \land c_3)\). Veja a Figura~\ref{fig:binary_search_cases}(d).
 
 \end{description}
-
-\end{blockQuote}
-
-A maior parte desse algoritmo é direta de implementar, exceto pela verificação se~\(p\) pertence à região~\(R_1\). Isso ocorre porque essa região pode assumir formas que não são cobertas pela verificação original do Algoritmo~\algref{alg:locate_point_first_approach}. Em particular, ao criar uma aresta fictícia entre dois vértices~\(u\) e~\(v\) com raios~\(r^1\) e~\(r^2\), pode ocorrer que esses raios formem um ângulo maior que~\(180^\circ\) ou estejam em lados distintos da aresta fictícia, como ilustrado na Figura~\ref{fig:binary_search_cases}.
 
 \begin{figure}[!ht]
 	\centering
@@ -735,13 +701,13 @@ A maior parte desse algoritmo é direta de implementar, exceto pela verificaçã
 	\begin{subfigure}[b]{0.40\textwidth}
 		\centering
 		\includegraphics[width=\textwidth]{binary_search_cases-1.png}
-		\caption{Ambos raios no lado negativo.}
+		\caption{\(r^1\) e \(r^2\) no lado externo.}
 	\end{subfigure}
 	\hspace{0.5cm} %\hfill
 	\begin{subfigure}[b]{0.40\textwidth}
 		\centering
 		\includegraphics[width=\textwidth]{binary_search_cases-2.png}
-		\caption{Ambos raios no lado positivo.}
+		\caption{\(r^1\) e \(r^2\) no lado interno.}
 	\end{subfigure}
 
 	\medskip
@@ -749,32 +715,19 @@ A maior parte desse algoritmo é direta de implementar, exceto pela verificaçã
 	\begin{subfigure}[b]{0.40\textwidth}
 		\centering
 		\includegraphics[width=\textwidth]{binary_search_cases-3.png}
-		\caption{Raios em lados diferentes.}
+		\caption{\(r^1\) no lado externo e \(r^2\) no lado interno.}
 	\end{subfigure}
 	\hspace{0.5cm} %\hfill
 	\begin{subfigure}[b]{0.40\textwidth}
 		\centering
 		\includegraphics[width=\textwidth]{binary_search_cases-4.png}
-		\caption{Raios em lados diferentes.}
+		\caption{\(r^1\) no lado interno e \(r^2\) no lado externo.}
 	\end{subfigure}
 
 	\caption{Ilustração dos 4 casos possíveis ao verificar se um ponto pertence à região de uma aresta fictícia entre dois vértices.}
 	\label{fig:binary_search_cases}
 
 \end{figure}
-
-Desejamos determinar se um ponto~\(p\) pertence à região de aresta fictícia entre os vértices~\(u\) e~\(v\), delimitada pelos raios~\(r^1\) partindo de~\(u\) e~\(r^2\) partindo de~\(v\). Os casos são definidos pelo lado em que~\(r^1\) e~\(r^2\) se encontram em relação à direção~\(d = v - u\), e tratamos cada situação separadamente:
-\begin{enumerate}[label=(\alph*)]
-
-	\item \(d \times r^1 < 0 \land d \times r^2 < 0\): Verificamos se~\(p\) está entre os raios~\(r^1\) e~\(r^2\) e do lado externo da aresta~\(\overline{u v}\).
-
-	\item \(d \times r^1 > 0 \land d \times r^2 > 0\): Esse caso é o complemento do anterior. Verificamos se~\(p\) não está entre os raios~\(r^1\) e~\(r^2\) e se está do lado interno da aresta~\(\overline{u v}\).
-
-	\item \(d \times r^1 < 0 \land d \times r^2 > 0\): Inicialmente verificamos de que lado da reta que contém~\(\overline{u v}\) o ponto~\(p\) se encontra. Se~\(p\) estiver do lado externo, verificamos se está do lado negativo de~\(r^2\); caso contrário, verificamos se está do lado positivo de~\(r^1\).
-
-	\item \(d \times r^1 > 0 \land d \times r^2 < 0\): Procedemos de forma análoga ao caso anterior, invertendo os testes correspondentes aos raios.
-
-\end{enumerate}
 
 Com essas verificações, podemos implementar o algoritmo \texttt{LocalizaPonto} utilizando a estratégia de busca binária, conforme apresentado no Algoritmo~\algref{alg:locate_point_second_approach}. Nesse algoritmo, implementamos a função auxiliar \texttt{VerificaAresta}, responsável por verificar se~\(p\) pertence à região de uma aresta fictícia entre dois vértices~\(u\) e~\(v\), de acordo com os casos discutidos anteriormente. A verificação se~\(p\) pertence à região de vértice de um dado vértice~\(u^{mid}\) é abstraída, pois é idêntica àquela utilizada no Algoritmo~\algref{alg:locate_point_first_approach}.
 
