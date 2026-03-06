@@ -623,15 +623,6 @@ class Solution:
 		if simplify:
 			polygons = [clean_polygon(polygon) for polygon in polygons]
 
-		def _locate_point(point: Vector2, index: int) -> int:
-			return locate_point(point, polygons[index], self.cones[index].__getitem__, self.first_contact[index].__getitem__, binary_search=True)
-
-		def _query_full(point: Vector2, i: int) -> list[Vector2]:
-			return query_full(point, i, start, polygons, _locate_point)
-
-		def _query(point: Vector2, i: int) -> Vector2:
-			return query(point, i, start, polygons, _locate_point)
-
 		def get_first_contact_region(i: int) -> list[bool]:
 			"""
 			Returns the first contact region of polygon `i`.
@@ -644,7 +635,7 @@ class Solution:
 
 				v1 = polygon[j]
 				v2 = polygon[(j + 1) % len(polygon)]
-				last = _query(v1, i - 1)
+				last = self.query(v1, i - 1)
 
 				result.append(vector_cross(vector_sub(v2, v1), vector_sub(last, v1)) < 0)
 
@@ -665,7 +656,7 @@ class Solution:
 				vertex = polygon[j]
 				after = polygon[(j + 1) % len(polygon)]
 				
-				last = _query(vertex, i - 1)
+				last = self.query(vertex, i - 1)
 				diff = vector_sub(vertex, last)
 
 				ray1 = vector_reflect_ray(diff, vertex, before)
@@ -685,4 +676,13 @@ class Solution:
 			self.first_contact.append(get_first_contact_region(i))
 			self.cones.append(get_last_step_map(i))
 
-		self.path = _query_full(target, len(polygons))
+		self.path = self.query_full(target, len(polygons))
+
+	def _locate_point(self, point: Vector2, index: int) -> int:
+		return locate_point(point, self.polygons[index], self.cones[index].__getitem__, self.first_contact[index].__getitem__, binary_search=True)
+
+	def query_full(self, point: Vector2, i: int) -> list[Vector2]:
+		return query_full(point, i, self.start, self.polygons, self._locate_point)
+
+	def query(self, point: Vector2, i: int) -> Vector2:
+		return query(point, i, self.start, self.polygons, self._locate_point)

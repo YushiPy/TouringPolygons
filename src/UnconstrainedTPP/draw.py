@@ -337,9 +337,9 @@ class Drawing:
 		# ax.legend() # type: ignore
 		ax.grid() # type: ignore
 
-t = ((0.0, 1.0), (3.0, 2.0), [[(2.0, 3.0), (-1.0, 2.0), (2.0, 2.0)]])
+test = ((-1.0, 0.0), (-1.0, 2.8), [[(-1.0, 3.0), (-1.0, 2.0), (2.0, 2.0), (0.2, 3.0)]])
 
-d = Drawing(*t)
+d = Drawing(*test)
 d.draw()
 
 print(d.path)

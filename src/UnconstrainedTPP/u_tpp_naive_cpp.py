@@ -12,10 +12,18 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 	Returns the shortest path from `start` to `target` that visits all polygons in order.
 	"""
 	
-	export_test_cases([(start, target, polygons)], "/tmp/test_cases.bin")
+	export_test_cases([(start, target, polygons, 1)], "/tmp/test_cases.bin")
 
 	subprocess.run([PATH, "/tmp/test_cases.bin", "/tmp/solution.bin"], check=True)
 
 	result = read_test_results("/tmp/solution.bin")
 
 	return [(x, y) for x, y in result[0][1]]
+
+def solve_test_cases(test_cases: Sequence[tuple[tuple[float, float], tuple[float, float], Sequence[Sequence[tuple[float, float]]], int]]) -> Sequence[tuple[float, Sequence[tuple[float, float]]]]:
+
+	export_test_cases(test_cases, "/tmp/test_cases.bin")
+
+	subprocess.run([PATH, "/tmp/test_cases.bin", "/tmp/solution.bin"], check=True)
+
+	return read_test_results("/tmp/solution.bin")

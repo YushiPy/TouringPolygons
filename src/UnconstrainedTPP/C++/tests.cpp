@@ -12,8 +12,11 @@
 #include <string>
 
 
-typedef std::tuple<Vector2, Vector2, std::vector<std::vector<Vector2>>> TestCase;
-typedef std::tuple<double, std::vector<Vector2>> TestResult;
+#define FILE_READ(filevar, var) filevar.read((char*) &var, sizeof(var))
+
+
+using TestCase = std::tuple<Vector2, Vector2, std::vector<std::vector<Vector2>>, size_t>;
+using TestResult = std::tuple<double, std::vector<Vector2>>;
 
 std::vector<TestCase> read_test_cases(const std::string& filename) {
 	/*
@@ -21,6 +24,7 @@ std::vector<TestCase> read_test_cases(const std::string& filename) {
 	
 	- `8` bytes: number of test cases (`m`)
 	- For each test case:
+		- `8` bytes: number of repetitions
 		- `16` bytes: `start`
 		- `16` bytes: `target`
 		- `8` bytes: number of polygons (`k`)
@@ -39,13 +43,15 @@ std::vector<TestCase> read_test_cases(const std::string& filename) {
 	file.read((char*) &num_cases, sizeof(size_t));
 
 	for (size_t i = 0; i < num_cases; i++) {
-
+		
+		size_t repetitions;
 		Vector2 start, target;
 		uint64_t k;
 
-		file.read((char*) &start, sizeof(Vector2));
-		file.read((char*) &target, sizeof(Vector2));
-		file.read((char*) &k, sizeof(uint64_t));
+		FILE_READ(file, repetitions);
+		FILE_READ(file, start);
+		FILE_READ(file, target);
+		FILE_READ(file, k);
 
 		std::vector<std::vector<Vector2>> polygons;
 
@@ -57,14 +63,14 @@ std::vector<TestCase> read_test_cases(const std::string& filename) {
 
 			for (size_t j = 0; j < num_vertices; j++) {
 				Vector2 vertex;
-				file.read((char*) &vertex, sizeof(Vector2));
+				FILE_READ(file, vertex);
 				polygon.push_back(vertex);
 			}
 
 			polygons.push_back(polygon);
 		}
 
-		test_cases.emplace_back(start, target, polygons);
+		test_cases.emplace_back(start, target, polygons, repetitions);
 	}
 
 	while (file.peek() != EOF) {
@@ -83,14 +89,21 @@ std::vector<TestResult> run_tests(const std::vector<TestCase>& test_cases) {
 
 	std::vector<std::tuple<double, std::vector<Vector2>>> results;
 
-	for (const auto& [start, target, polygons] : test_cases) {
+	for (const auto& [start, target, polygons, repetitions] : test_cases) {
 		
-		auto start_time = std::chrono::high_resolution_clock::now();
-		auto path = tpp_solve(start, target, polygons);
-		auto end_time = std::chrono::high_resolution_clock::now();
-		
-		std::chrono::duration<double> elapsed = end_time - start_time;
-		results.emplace_back(elapsed.count(), path);
+		auto total_time = 0.0;
+		std::vector<Vector2> path;
+
+		for (size_t i = 0; i < repetitions; i++) {
+			auto start_time = std::chrono::high_resolution_clock::now();
+			path = tpp_solve(start, target, polygons);
+			auto end_time = std::chrono::high_resolution_clock::now();
+			
+			std::chrono::duration<double> elapsed = end_time - start_time;
+			total_time += elapsed.count();
+		}
+
+		results.emplace_back(total_time, path);
 	}
 
 	return results;

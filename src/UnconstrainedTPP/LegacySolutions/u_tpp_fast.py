@@ -13,9 +13,6 @@ and making this solution a standalone implementation that does not depend on the
 type Vector2 = tuple[float, float]
 type Polygon2 = Sequence[Vector2]
 
-# Magic number to switch between binary search and linear search in point location.
-BINARY_SEACH_THRESHOLD = 5
-
 # Vector operations
 
 def vector_add(v1: Vector2, v2: Vector2) -> Vector2:
@@ -88,25 +85,6 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 
 def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
 	"""
-	Check if `point` is inside the cone defined by `vertex` and rays `ray1` and `ray2`. 
-	The rays are in counter-clockwise order.
-	"""
-
-	if vector_cross(ray1, ray2) >= 0:
-		return vector_cross(ray1, vector_sub(point, vertex)) >= 0 and vector_cross(ray2, vector_sub(point, vertex)) <= 0
-	else:
-		return vector_cross(ray1, vector_sub(point, vertex)) >= 0 or vector_cross(ray2, vector_sub(point, vertex)) <= 0
-
-def point_in_edge(point: Vector2, vertex1: Vector2, ray1: Vector2, vertex2: Vector2, ray2: Vector2) -> bool:
-	"""
-	Check if `point` is inside the edge region defined by `ray1` coming from `vertex1` and `ray2` coming from `vertex2`.
-	The rays and edge are in counter-clockwise order.
-	"""
-	return vector_cross(ray1, vector_sub(point, vertex1)) > 0 and vector_cross(ray2, vector_sub(point, vertex2)) < 0 and vector_cross(vector_sub(vertex2, vertex1), vector_sub(point, vertex1)) <= 0
-
-
-def point_in_cone2(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
-	"""
 	Check if a `point` is inside the cone defined by `vertex` and rays `ray1` and `ray2`.
 	The rays are in counter-clockwise order. 
 
@@ -114,15 +92,15 @@ def point_in_cone2(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2
 	"""
 
 	# Rays are almost parallel and in the same direction, treat as a single ray
-	if vector_is_same_direction(ray1, ray2):
-		return vector_is_same_direction(vector_sub(point, vertex), ray1)
+	#if vector_is_same_direction(ray1, ray2):
+	#	return vector_is_same_direction(vector_sub(point, vertex), ray1)
 
 	if vector_cross(ray1, ray2) < 0:
 		return vector_cross(ray1, vector_sub(point, vertex)) >= 0 or vector_cross(ray2, vector_sub(point, vertex)) <= 0
 	else:
 		return vector_cross(ray1, vector_sub(point, vertex)) >= 0 and vector_cross(ray2, vector_sub(point, vertex)) <= 0
 
-def point_in_edge2(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
+def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vector2, ray2: Vector2) -> bool:
 	"""
 	Check if `point` is inside the edge region defined by `ray1` coming from `vertex1` and `ray2` coming from `vertex2`.
 	The rays and edge are in counter-clockwise order. 
@@ -131,7 +109,7 @@ def point_in_edge2(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vec
 	"""
 
 	if vertex1 == vertex2:
-		return point_in_cone2(point, vertex1, ray1, ray2)
+		return point_in_cone(point, vertex1, ray1, ray2)
 
 	dv = vector_sub(vertex2, vertex1)
 
@@ -237,56 +215,24 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 
 		return cones[i][j] # type: ignore
 
-	def locate_point_linear_seach(point: Vector2, i: int) -> int:
+	def locate_point(point: Vector2, i: int) -> int:
 		"""
-		Uses linear search to locate `point` in the visibility map of `polygon[i]`.
-		Returns index as follows:
-		- `2n` -> cone in vertex `n`
-		- `2n + 1` -> edge between vertex `n` and `n + 1`
-		- `-1` -> pass through region
-		"""
-
-		polygon = polygons[i]
-
-		for j in range(len(polygon)):
-
-			v = polygon[j]
-			ray1, ray2 = get_cone(i, j)
-			
-			if not first_contact[i][j] and not first_contact[i][j - 1]:
-				continue
-
-			if point_in_cone(point, v, ray1, ray2):
-				return 2 * j
-
-		for j in range(len(polygon)):
-
-			v1 = polygon[j]
-			v2 = polygon[(j + 1) % len(polygon)]
-
-			ray1 = get_cone(i, j)[1]
-			ray2 = get_cone(i, (j + 1) % len(polygon))[0]
-			
-			if point_in_edge(point, v1, ray1, v2, ray2):
-				return 2 * j + 1 if first_contact[i][j] else -1
-
-		return -1
-	
-	def locate_point_binary_search(point: Vector2, i: int) -> int:
-		"""
-		Uses binary search to locate `point` in the visibility map of `polygon[i]`.
-		Returns index as follows:
-		- `2n` -> cone in vertex `n`
-		- `2n + 1` -> edge between vertex `n` and `n + 1`
-
-		The returned vertex or edge may not be in the first contact region, 
-		so the caller should check for that and return -1 if it's not in the first contact region.
+		Locate `point` in the shortest last step map of `polygon[i]` and return the index of the region as follows:
+		- `2n` if the point is in the region of vertex `n`
+		- `2n + 1` if the point is between vertices `n` and `n + 1`.
+		- `-1` if the point is in the pass through region.
 		"""
 
 		def check_vertex(j: int) -> bool:
 			"""Checks if `point` is in the cone of vertex `j` of polygon `i`."""
-			return point_in_cone2(point, polygon[j], *get_cone(i, j))
+			
+			ray1, ray2 = get_cone(i, j)
 
+			if visible[j] or visible[j - 1]:
+				return point_in_cone(point, polygon[j], ray1, ray2)
+			else:
+				return False
+			
 		def check_edge(l: int, r: int) -> bool:
 			"""Checks if `point` is in any of the regions of edges `l` to `r`, inclusive."""			
 
@@ -297,22 +243,23 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 			ray1 = get_cone(i, l)[1]
 			ray2 = get_cone(i, r_index)[0]
 
-			return point_in_edge2(point, v1, v2, ray1, ray2)
+			return point_in_edge(point, v1, v2, ray1, ray2)
 
 		polygon = polygons[i]
+		visible = first_contact[i]
 
 		left = 0
 		right = len(polygon) - 1
-				
+		
 		if check_vertex(0):
-			return 0
-
+			return 0 if visible[0] or visible[-1] else -1
+		
 		while left != right:
 
 			mid = (left + right) // 2
 
 			if check_vertex(mid + 1):
-				return 2 * (mid + 1)
+				return 2 * (mid + 1) if visible[mid] or visible[mid + 1] else -1
 			
 			if check_edge(left, mid):
 				right = mid
@@ -322,28 +269,7 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 		if not check_edge(left, right):
 			raise ValueError("Point is not located in any cone or edge.")
 
-		return 2 * left + 1
-
-	def locate_point(point: Vector2, i: int) -> int:
-		"""
-		Locate `point` in the shortest last step map of `polygon[i]` and return the index of the region as follows:
-		- `2n` if the point is in the region of vertex `n`
-		- `2n + 1` if the point is between vertices `n` and `n + 1`.
-		- `-1` if the point is in the pass through region.
-
-		Decides between linear search and binary search based on the number of vertices in the polygon.
-		"""
-	
-		if len(polygons[i]) < BINARY_SEACH_THRESHOLD:
-			return locate_point_linear_seach(point, i)
-		
-		location = locate_point_binary_search(point, i)
-		visible = first_contact[i]
-
-		if visible[location // 2] or visible[(location - 1) // 2]:
-			return location
-		else:
-			return -1
+		return 2 * left + 1 if visible[left] else -1
 
 	def query_full(point: Vector2, i: int) -> list[Vector2]:
 		"""

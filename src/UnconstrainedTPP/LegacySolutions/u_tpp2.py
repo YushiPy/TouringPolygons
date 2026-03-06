@@ -92,8 +92,8 @@ def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2)
 	"""
 
 	# Rays are almost parallel and in the same direction, treat as a single ray
-	if vector_is_same_direction(ray1, ray2):
-		return vector_is_same_direction(vector_sub(point, vertex), ray1)
+	#if vector_is_same_direction(ray1, ray2):
+	#	return vector_is_same_direction(vector_sub(point, vertex), ray1)
 
 	if vector_cross(ray1, ray2) < 0:
 		return vector_cross(ray1, vector_sub(point, vertex)) >= 0 or vector_cross(ray2, vector_sub(point, vertex)) <= 0
@@ -119,22 +119,20 @@ def point_in_edge(point: Vector2, vertex1: Vector2, vertex2: Vector2, ray1: Vect
 	p1 = vector_sub(point, vertex1)
 	p2 = vector_sub(point, vertex2)
 	
+	rp1 = vector_cross(ray1, p1) >= 0
+	rp2 = vector_cross(ray2, p2) <= 0
+	dp = vector_cross(dv, p1) <= 0
+
 	if vector_cross(dv, ray1) < 0:
 		if vector_cross(dv, ray2) < 0:
-			return vector_cross(ray1, p1) >= 0 and vector_cross(ray2, p2) <= 0 and vector_cross(dv, p1) <= 0
+			return rp1 and rp2 and dp
 		else:
-			if vector_cross(dv, p1) < 0:
-				return vector_cross(ray1, p1) >= 0
-			else:
-				return vector_cross(ray2, p2) <= 0
+			return rp1 if dp else rp2
 	else:
 		if vector_cross(dv, ray2) < 0:
-			if vector_cross(dv, p2) < 0:
-				return vector_cross(ray2, p2) <= 0
-			else:
-				return vector_cross(ray1, p1) >= 0
+			return rp2 if dp else rp1
 		else:
-			return vector_cross(ray1, p1) >= 0 or vector_cross(ray2, p2) <= 0 or vector_cross(dv, p1) <= 0
+			return rp1 or rp2 or dp
 
 
 # Cleanup functions
@@ -235,16 +233,13 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 			else:
 				return False
 			
-
 		def check_edge(l: int, r: int) -> bool:
 			"""Checks if `point` is in any of the regions of edges `l` to `r`, inclusive."""			
 
-			r_index = (r + 1) % len(polygon)
-
 			v1 = polygon[l]
-			v2 = polygon[r_index]
-			ray1 = get_cone(i, l)[1]
-			ray2 = get_cone(i, r_index)[0]
+			v2 = polygon[r]
+			ray1 = get_cone(i, l)[0]
+			ray2 = get_cone(i, r)[0]
 
 			return point_in_edge(point, v1, v2, ray1, ray2)
 
@@ -252,27 +247,21 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 		visible = first_contact[i]
 
 		left = 0
-		right = len(polygon) - 1
+		right = len(polygon)
 		
-		if check_vertex(0):
-			return 0 if visible[0] or visible[-1] else -1
-		
-		while left != right:
+		while left + 1 != right:
 
 			mid = (left + right) // 2
 
-			if check_vertex(mid + 1):
-				return 2 * (mid + 1) if visible[mid] or visible[mid + 1] else -1
-			
 			if check_edge(left, mid):
 				right = mid
 			else:
-				left = mid + 1
-		
-		if not check_edge(left, right):
-			raise ValueError("Point is not located in any cone or edge.")
+				left = mid
 
-		return 2 * left + 1 if visible[left] else -1
+		if check_vertex(left):
+			return 2 * left
+		else:
+			return 2 * left + 1 if visible[left] else -1
 
 	def query_full(point: Vector2, i: int) -> list[Vector2]:
 		"""

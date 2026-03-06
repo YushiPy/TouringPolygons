@@ -6,6 +6,9 @@
 #include <format>
 
 
+#define EPSILON 1e-8
+#define EPSILON_SQUARED (EPSILON * EPSILON)
+
 using std::vector;
 using std::pair;
 
@@ -39,14 +42,13 @@ bool point_in_cone(const Vector2& point, const Vector2& vertex, const Vector2& r
 	The rays are in counter-clockwise order.
 	*/
 
-	if (ray1.cross(ray2) == 0 && ray1.dot(ray2) >= 0) {
-		return ray1.cross(point - vertex) == 0 && ray1.dot(point - vertex) >= 0;
-	}
+	bool c1 = ray1.cross(point - vertex) >= -EPSILON_SQUARED;
+	bool c2 = ray2.cross(point - vertex) <= EPSILON_SQUARED;
 
 	if (ray1.cross(ray2) >= 0) {
-		return ray1.cross(point - vertex) >= 0 && ray2.cross(point - vertex) <= 0;
+		return c1 && c2;
 	} else {
-		return ray1.cross(point - vertex) >= 0 || ray2.cross(point - vertex) <= 0;
+		return c1 || c2;
 	}
 }
 
@@ -63,6 +65,62 @@ Vector2 reflect_segment(const Vector2& point, const Vector2& vertex1, const Vect
 	Returns the reflection of `point` across the line defined by `vertex1` and `vertex2`.
 	*/
 	return vertex1 + (point - vertex1).reflect(vertex2 - vertex1);
+}
+
+/*
+
+def remove_collinear_points(points: Sequence[Vector2]) -> list[Vector2]:
+	"""
+	Removes collinear points from a sequence of points.
+	"""
+
+	cleaned: list[Vector2] = [points[0], points[1]]
+
+	for i in range(2, len(points)):
+
+		a = cleaned[-2]
+		b = cleaned[-1]
+		candidate = points[i]
+
+		v1 = vector_sub(b, a)
+		v2 = vector_sub(candidate, b)
+
+		if vector_is_same_direction(v1, v2):
+			cleaned[-1] = candidate
+		else:
+			cleaned.append(candidate)
+
+	return cleaned
+*/
+
+vector<Vector2> remove_collinear_points(const vector<Vector2>& points) {
+	/*
+	Removes collinear points from a sequence of points.
+	*/
+
+	if (points.size() <= 2) {
+		return points;
+	}
+
+	vector<Vector2> cleaned = {points[0], points[1]};
+
+	for (size_t i = 2; i < points.size(); i++) {
+
+		auto a = cleaned[cleaned.size() - 2];
+		auto b = cleaned[cleaned.size() - 1];
+		auto candidate = points[i];
+
+		auto v1 = b - a;
+		auto v2 = candidate - b;
+
+		if (fabs(v1.cross(v2)) < EPSILON_SQUARED && v1.dot(v2) >= 0) {
+			cleaned.back() = candidate;
+		} else {
+			cleaned.push_back(candidate);
+		}
+	}
+
+	return cleaned;
 }
 
 
@@ -99,6 +157,7 @@ class Solution {
 
 			auto v = polygon[j];
 			auto [ray1, ray2] = cones[j];
+			#include "print"
 
 			if (point_in_cone(point, v, ray1, ray2)) {
 				return 2 * j;
@@ -279,7 +338,7 @@ class Solution {
 			cones.push_back(get_last_step_map(i));
 		}
 
-		return query_full(target, polygons.size());
+		return remove_collinear_points(query_full(target, polygons.size()));
 	}
 };
 

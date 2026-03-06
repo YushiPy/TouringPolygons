@@ -15,12 +15,13 @@ def point_to_bytes(point: tuple[float, float]) -> bytes:
 	import struct
 	return struct.pack('<d', point[0]) + struct.pack('<d', point[1])
 
-def test_case_to_binary(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]]) -> bytes:
+def test_case_to_binary(start: tuple[float, float], target: tuple[float, float], polygons: Sequence[Sequence[tuple[float, float]]], number: int = 1) -> bytes:
 	"""
 	Converts a test case to a binary format that can be read by the C++ code. 
 	Each point is represented as two 64-bit floats (16 bytes), and the number of polygons and vertices are represented as 64-bit integers (8 bytes).
 	The format is as follows:
 	
+	- `8` bytes: number of repetitions
 	- `16` bytes: `start`
 	- `16` bytes: `target`
 	- `8` bytes: number of polygons (`k`)
@@ -32,6 +33,7 @@ def test_case_to_binary(start: tuple[float, float], target: tuple[float, float],
 
 	result = bytearray()
 
+	result.extend(number.to_bytes(8, byteorder='little'))
 	result.extend(point_to_bytes(start))
 	result.extend(point_to_bytes(target))
 
@@ -44,7 +46,7 @@ def test_case_to_binary(start: tuple[float, float], target: tuple[float, float],
 	
 	return bytes(result)
 
-def export_test_cases(test_cases: Sequence[tuple[tuple[float, float], tuple[float, float], Sequence[Sequence[tuple[float, float]]]]], filename: str) -> None:
+def export_test_cases(test_cases: Sequence[tuple[tuple[float, float], tuple[float, float], Sequence[Sequence[tuple[float, float]]], int]], filename: str) -> None:
 	"""
 	Exports a list of test cases to a binary file. 
 	Each test case is converted to binary format using the `test_case_to_binary` function and written to the file sequentially.
@@ -52,6 +54,7 @@ def export_test_cases(test_cases: Sequence[tuple[tuple[float, float], tuple[floa
 
 	- `8` bytes: number of test cases (`m`)
 	- For each test case:
+		- `8` bytes: number of repetitions
 		- `16` bytes: `start`
 		- `16` bytes: `target`
 		- `8` bytes: number of polygons (`k`)
@@ -63,8 +66,8 @@ def export_test_cases(test_cases: Sequence[tuple[tuple[float, float], tuple[floa
 
 	with open(filename, 'wb') as f:
 		f.write(len(test_cases).to_bytes(8, byteorder='little'))
-		for start, target, polygons in test_cases:
-			f.write(test_case_to_binary(start, target, polygons))
+		for start, target, polygons, repetitions in test_cases:
+			f.write(test_case_to_binary(start, target, polygons, repetitions))
 
 def read_test_results(filename: str) -> list[tuple[float, list[tuple[float, float]]]]:
 	"""
