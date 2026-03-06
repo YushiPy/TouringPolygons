@@ -1,16 +1,17 @@
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 import math
 import random
 
-from time import perf_counter
 
 import sys
 sys.setrecursionlimit(10 ** 7)
 
-from u_tpp import tpp_solve as reference_solution
-from u_tpp_fast import tpp_solve as test_solution
-# from LegacySolutions.u_tpp_jit2 import tpp_solve as test_solution
+
+import solutions
+
+reference_solution = solutions.timed_tpp_solve
+test_solution = solutions.timed_tpp_solve_binary_jit
 
 
 type Point = tuple[float, float]
@@ -19,12 +20,7 @@ type Points = Sequence[Point]
 type TestCase = tuple[Point, Point, list[Points]]
 
 
-STRICT = True
 EPSILON = 1e-10
-
-# If True, tests will compare solution by total length rather than by matching individual points, 
-# which can allows for solutions with collinear points to be considered correct even if they don't match exactly.
-TEST_TOTAL_LENGTH = False 
 
 # If true, reference solution will be a dummy solution that instantly returns an empty list. 
 # This is useful for testing the performance of the tested solution without the overhead of the reference solution, 
@@ -32,7 +28,7 @@ TEST_TOTAL_LENGTH = False
 DUMMY_REFERENCE = False
 
 if DUMMY_REFERENCE:
-	reference_solution = lambda start, target, polygons: []
+	reference_solution = lambda *args: []
 
 def cross_product(o: Point, a: Point, b: Point) -> float:
 	"""
@@ -82,153 +78,46 @@ def is_convex(polygon: Points) -> bool:
 	return len(polygon) >= 3 and all(cross_product(polygon[i - 1], polygon[i], polygon[(i + 1) % len(polygon)]) > 0 for i in range(len(polygon)))
 
 
-def solutions_equal(sol1: Sequence[Point], sol2: Sequence[Point], eps: float = EPSILON) -> bool:
-
-	if DUMMY_REFERENCE:
-		return True
-
-	if TEST_TOTAL_LENGTH:
-
-		def path_length(path: Sequence[Point]) -> float:
-			return sum(((path[i][0] - path[i - 1][0]) ** 2 + (path[i][1] - path[i - 1][1]) ** 2) ** 0.5 for i in range(1, len(path)))
-
-		return abs(path_length(sol1) - path_length(sol2)) < eps
-	
+def get_original_name(func: Callable) -> str:
+	"""
+	Returns the original name of a function, even if it's wrapped by another function (e.g. by a decorator).
+	"""
+	if func.__closure__ is not None:
+		return func.__closure__[0].cell_contents.__name__ # type: ignore
 	else:
+		return func.__name__
 
-		if len(sol1) != len(sol2):
-			return False
-
-		return all(((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) < eps ** 2 for p1, p2 in zip(sol1, sol2))
-
-def do_test(test: TestCase, number: int = 10) -> tuple[float, float]:
-	"""
-	Runs both the reference solution and the tested solution on the given test case, and returns the time taken by each respective solution.
-	"""
-
-	test = (test[0], test[1], [clean_polygon(polygon) for polygon in test[2]])
-
-	if any(not is_convex(polygon) for polygon in test[2]):
-		if STRICT:
-			raise ValueError("All polygons must be convex.")
-		else:
-			print("⚠️​ Warning: All polygons should be convex for accurate testing.")
-			return (0.0, 0.0)
-
-	reference_time = 0.0
-	tested_time = 0.0
-
-	def run_reference() -> tuple[float, list[Point]]:
-		start_time = perf_counter()
-
-		try:
-			result = reference_solution(*test)
-		except Exception as e:
-			if STRICT:
-				raise ValueError(f"Reference solution raised an exception for input={test}.\nException: {e}.")
-			else:
-				print(f"⚠️​ Warning: Reference solution raised an exception for input={test}.\nException: {e}.")
-				return (0.0, [])
-
-		return perf_counter() - start_time, result
-
-	def run_tested() -> tuple[float, list[Point]]:
-
-		start_time = perf_counter()
-
-		try:
-			result = test_solution(*test)
-		except Exception as e:
-			if STRICT:
-				raise ValueError(f"Tested solution raised an exception for input={test}.\nException: {e}.")
-			else:
-				print(f"⚠️​ Warning: Tested solution raised an exception for input={test}.\nException: {e}.")
-				return (0.0, [])
-
-		return perf_counter() - start_time, result
-
-	for i in range(number):
-
-		if random.random() < 0.5:
-			ellapsed_reference, reference_result = run_reference()
-			ellapsed_tested, tested_result = run_tested()
-		else:
-			ellapsed_tested, tested_result = run_tested()
-			ellapsed_reference, reference_result = run_reference()
-
-		reference_time += ellapsed_reference
-		tested_time += ellapsed_tested
-
-		# Only check the first result to avoid slowing down the tests too much, since the results should be deterministic.
-		if i == 0 and not solutions_equal(reference_result, tested_result):
-			if STRICT:
-				raise ValueError(f"Test failed for input={test}.\nReference solution: {reference_result}.\nTested solution: {tested_result}.")
-			else:
-				print(f"⚠️​ Warning: Test failed for input={test}.\nReference solution: {reference_result}.\nTested solution: {tested_result}.")
-
-	return reference_time, tested_time
-
-def test_suite(name: str, test_cases: list[TestCase], number: int = 10) -> None:
+def test_suite(test_cases: Sequence[TestCase], number: int = 10, *, name: str = "") -> None:
 	"""
 	Runs a suite of tests and prints the total time taken by both the reference solution and the tested solution,
 	as well as the ratio
 	"""
 
-	print(f"{name} Tests:", flush=True)
+	tested_results = test_solution([(s, t, p, number) for s, t, p in test_cases])
+	reference_results = reference_solution([(s, t, p, number) for s, t, p in test_cases])
 
-	reference_times = []
-	tested_times = []
-
-	for test in test_cases:
-		a, b = do_test(test, number=number)
-		reference_times.append(a)
-		tested_times.append(b)
+	reference_times = [result[0] for result in reference_results]
+	tested_times = [result[0] for result in tested_results]
 
 	ratios = [round(ref / test if test > 0 else float('inf'), 2) for ref, test in zip(reference_times, tested_times)]
 	min_ratio = min(ratios)
 	max_ratio = max(ratios)
 
 	speedup = round(sum(reference_times) / sum(tested_times), 2) if ratios else 1.0
-	reference_time = round(sum(reference_times), 6)
-	tested_time = round(sum(tested_times), 6)
+	reference_time = f"{round(sum(reference_times), 6)}s".ljust(10)
+	tested_time = f"{round(sum(tested_times), 6)}s".ljust(10)
 
-	print(f"- Ref/Test: {speedup}x ({min_ratio}x - {max_ratio}x) | {reference_solution.__module__}: {reference_time}s | {test_solution.__module__}: {tested_time}s", flush=True)
+	ratios = f"{speedup}x ({min_ratio}x - {max_ratio}x)".ljust(25)
 
-def correctness_test_suite(name: str, test_cases: Sequence[tuple[Point, Point, Sequence[Points], Points]]) -> None:
-
-	failed = False
-
-	for start, target, polygons, expected in test_cases:
-
-		try:
-			result = test_solution(start, target, polygons)
-		except Exception as e:
-			if STRICT:
-				raise ValueError(f"Tested solution raised an exception for input={(start, target, polygons)}.\nException: {e}.")
-			else:
-				print(f"⚠️​ Warning: Tested solution raised an exception for input={(start, target, polygons)}.\nException: {e}.", flush=True)
-				failed = True
-				continue
-
-		if not solutions_equal(result, expected):
-			if STRICT:
-				raise ValueError(f"Correctness test failed for input={(start, target, polygons)}.\nExpected: {expected}.\nGot: {result}.")
-			else:
-				print(f"⚠️​ Warning: Correctness test failed for input={(start, target, polygons)}.\nExpected: {expected}.\nGot: {result}.", flush=True)
-
-			failed = True
-
-	if failed:
-		print(f"❌​ {name} tests failed.", flush=True)
+	if name:
+		print(f"- {name.ljust(25)}: {ratios} | {reference_time} | {tested_time}".strip(), flush=True)
 	else:
-		print(f"✅​ {name} tests passed.", flush=True)
-
+		print(f"- {ratios} | {reference_time} | {tested_time}".strip(), flush=True)
 
 def regular_polygon(n: int, radius: float, center: Point = (0.0, 0.0), angle: float = 0.0) -> list[Point]:
 	"""
 	Generates a regular polygon with `n` sides, given a `radius`, `center`, and starting `angle`.
 	"""
-
 	return [(center[0] + radius * math.cos(angle + 2 * math.pi * i / n), center[1] + radius * math.sin(angle + 2 * math.pi * i / n)) for i in range(n)]
 
 def make_test(sides: list[int], compactness: float) -> TestCase:
@@ -317,10 +206,10 @@ if __name__ == "__main__":
 		((4.5, 2.0), (3.5, 2.0), [[(0.0, 5.0), (0.0, 2.0), (2.8, 2.0)]], [(4.5, 2.0), (2.8, 2.0), (3.5, 2.0)]),
 		((0.0, 4.0), (4.0, 0.0), [[(3.0, 3.0), (1.0, 3.0), (1.0, 1.0), (3.0, 1.0)]], [(0.0, 4.0), (4.0, 0.0)]),
 		((-1.7926052592116688, 2.0041878360341565), (-1.2727245469438635, -2.1926283895019223), [[(-2.8043080390114095, -3.654186702016027), (-1.7541858929206575, -5.033836318424196), (-1.0844353498351025, -3.4345790546288875)], [(2.0975681598044416, 2.0395046385241002), (3.094175815858267, 3.1866802982459888), (1.9470001561363786, 4.183287954299814), (0.950392500082553, 3.0361122945779258)]], [(-1.7926052592116688, 2.0041878360341565), (-1.0844353498351025, -3.4345790546288875), (2.0975681598044416, 2.0395046385241002), (-1.2727245469438635, -2.1926283895019223)]),
-		((-1.0, 0.0), (-1.0, 2.8000000000000003), [[(-1.0, 3.0), (-1.0, 2.0), (2.0, 2.0), (0.2, 3.0)]], [(-1.0, 0.0), (-1.0, 2.8000000000000003)]),
+		((-1.0, 0.0), (-1.0, 2.8), [[(-1.0, 3.0), (-1.0, 2.0), (2.0, 2.0), (0.2, 3.0)]], [(-1.0, 0.0), (-1.0, 2.8)]),
 		((-1.0, 1.0), (-1.0, 2.6), [[(-1.0, 3.0), (-1.0, 2.0), (2.0, 2.0), (2.0, 3.0)]], [(-1.0, 1.0), (-1.0, 2.6)]),
 		((-2.0, 2.0), (16.0, 2.0), [[(2.0, 2.0), (0.0, 4.0), (0.0, 2.0)], [(5.0, 2.0), (3.0, 4.0), (3.0, 2.0)], [(8.0, 2.0), (6.0, 4.0), (6.0, 2.0)], [(11.0, 2.0), (9.0, 4.0), (9.0, 2.0)], [(14.0, 2.0), (12.0, 4.0), (12.0, 2.0)]], [(-2.0, 2.0), (16.0, 2.0)]),
-		((0.0, 0.0), (0.0, 1.2000000000000002), [[(0.0, 3.0), (-1.0, 2.0), (1.0, 2.0)]], [(0.0, 0.0), (0.0, 2.0), (0.0, 1.2000000000000002)]),
+		((0.0, 0.0), (0.0, 1.2), [[(0.0, 3.0), (-1.0, 2.0), (1.0, 2.0)]], [(0.0, 0.0), (0.0, 2.0), (0.0, 1.2)]),
 	]
 
 	random_tests = [
@@ -365,8 +254,11 @@ if __name__ == "__main__":
 		] * 10, 0.5, 20),
 	]
 
-	correctness_test_suite("Basic", basic_tests)
-	correctness_test_suite("Edge Cases", edge_cases)
+	print("Reference Solution:", get_original_name(reference_solution))
+	print("Tested Solution:", get_original_name(test_solution))
+
+	test_suite([x[:3] for x in basic_tests], 10, name="Basic") # type: ignore
+	test_suite([x[:3] for x in edge_cases], 10, name="Edge Cases") # type: ignore
 
 	for name, sides_list, compactness, number in random_tests:
-		test_suite(name, make_tests(sides_list, compactness), number=number)
+		test_suite(make_tests(sides_list, compactness), name=name)
