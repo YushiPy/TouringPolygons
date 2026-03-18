@@ -712,6 +712,13 @@ class Main:
 			part_points = [self.to_screen_pos(pg.Vector2(p)) for p in part]
 			pg.draw.polygon(surface, polygon.color + (100,), part_points)
 			pg.draw.polygon(surface, polygon.color + (255,), part_points, 2)
+		
+		if not p2.is_simple():
+			centroid_point = sum(screen_points, pg.Vector2(0, 0)) / len(screen_points)
+			text = FONT.render("Not Simple", True, (255, 0, 0))
+			text_rect = text.get_rect()
+			text_rect.center = centroid_point # type: ignore
+			surface.blit(text, text_rect)
 
 		self.screen.blit(surface, (0, 0))
 
