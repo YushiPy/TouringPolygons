@@ -24,3 +24,12 @@
 18. Falar na introdução que temos um ponto inicial `s` e final `t`
 19. Linha cheia no desenho de mapa de último passo para mostrar que a fronteira da região de vértice pertence à região de vértice e a fronterira de região de aresta pertence à região de aresta
 20. Incluir `p`, `q`, `q'`, `p'` na figura da reflexão
+
+21. Definição alterntiva de mapa de último passo
+22. cgal - Polygon decomposition
+23. https://doc.cgal.org/latest/Partition_2/group__PkgPartition2Ref.html#ga3ca9fb1f363f9f792bfbbeca65ad5cc5
+24. Branch and bound
+25. Sala B1 da monitoria
+Minimizador global e local, condicções de primeira orderm e segunda ordem
+exercícios do capitulo 1 e 2 da ana
+Nocelda capitulo 2, 2.2, 2.3, 2.5, 2.8

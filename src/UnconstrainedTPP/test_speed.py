@@ -11,7 +11,7 @@ sys.setrecursionlimit(10 ** 7)
 import solutions
 
 reference_solution = solutions.timed_tpp_solve
-test_solution = solutions.timed_tpp_solve_binary_jit
+test_solution = solutions.timed_tpp_solve_naive_cpp
 
 
 type Point = tuple[float, float]
