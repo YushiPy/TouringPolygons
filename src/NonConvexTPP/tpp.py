@@ -19,7 +19,12 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 	for comb in itertools.product(*convex_pieces):
 		# comb is a tuple of convex pieces, one from each polygon
 
-		path = u_tpp.tpp_solve(start, target, comb, simplify=False)
+		try:
+			path = u_tpp.tpp_solve(start, target, comb, simplify=False)
+		except ValueError:
+			print("Failed to solve TPP for input:\n", (start, target, comb), flush=True)
+			continue
+
 		length = sum(((path[i][0] - path[i-1][0]) ** 2 + (path[i][1] - path[i-1][1]) ** 2) ** 0.5 for i in range(1, len(path)))
 
 		if length < minimal_length:

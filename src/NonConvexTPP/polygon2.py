@@ -327,6 +327,12 @@ class Polygon2(tuple[Vector2, ...]):
 		points = [(p.x, p.y) for p in self]
 		hull_points = hull_method(points)
 		return Polygon2(hull_points)
+	
+	def to_list(self) -> list[tuple[float, float]]:
+		"""
+		Convert the Polygon2 instance to a list of (x, y) tuples.
+		"""
+		return [(p.x, p.y) for p in self]
 
 	def __getitem__(self, index: SupportsIndex) -> Vector2: # type: ignore
 		"""

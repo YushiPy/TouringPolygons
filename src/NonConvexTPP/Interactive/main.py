@@ -11,8 +11,7 @@ import os
 os.chdir(os.path.dirname(__file__))
 sys.path.append("..")
 
-
-from tpp import tpp_solve
+import tpp, tpp_bnb
 from polygon_decomposition import hertel_mehlhorn
 from polygon2 import Polygon2
 from vector2 import Vector2
@@ -242,6 +241,21 @@ class Main:
 		self.loaded_index = 0
 		self.load_button = Button("Load Next", wrap_function(self.load_next))
 		self.buttons.append(self.load_button)
+
+
+		self.solution = tpp_bnb.tpp_solve
+		self.solution_button = Button("Solve (bnb)", wrap_function(self.swap_solution))
+
+		self.buttons.append(self.solution_button)
+
+	def swap_solution(self) -> None:
+
+		if self.solution == tpp_bnb.tpp_solve:
+			self.solution = tpp.tpp_solve
+			self.solution_button._text = "Solve (normal)"
+		else:
+			self.solution = tpp_bnb.tpp_solve
+			self.solution_button._text = "Solve (bnb)"
 
 	def load_next(self) -> None:
 
@@ -828,7 +842,7 @@ class Main:
 		polygons = [Polygon2(p.position for p in poly.vertices) for poly in self.polygons] # type: ignore
 
 		try:
-			path = tpp_solve(start, target, polygons) # type: ignore
+			path = self.solution(start, target, polygons) # type: ignore
 		except Exception as e:
 			print(f"Error solving TPP: {e}")
 			print(f"{start}\n{target}\n{polygons}")
