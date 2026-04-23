@@ -1,0 +1,78 @@
+:root {
+	--tool-bar-bg-color: #121212;
+}
+
+.canvas-section {
+	flex: 1;
+	display: flex;
+	flex-direction: row;
+}
+
+.tool-bar {
+	display: flex;
+	flex-direction: column;
+	padding: 12px;
+	gap: 12px;
+	border-right: 2px solid var(--accent-color);
+	background-color: var(--tool-bar-bg-color);
+}
+
+.tool-button {
+	width: 47px;
+	height: 47px;
+	outline: 2px solid var(--tool-bar-bg-color);
+
+	--bg: var(--accent-color);
+}
+
+.tool-button:hover {
+	outline: 2px solid var(--accent-color);
+	--bg: color-mix(in srgb, var(--accent-color) 80%, transparent);
+}
+
+.tool-button:active {
+	--bg: color-mix(in srgb, var(--accent-color) 60%, transparent);
+}
+
+
+.tool-button.active {
+	outline: 2px solid white;
+}
+
+.tool-icon {
+	width: 24px;
+	height: 24px;
+	color: transparent;
+}
+
+.tool-icon rect,
+.tool-icon path {
+	stroke: var(--text-color);
+}
+
+.tool-button:hover .tool-icon rect,
+.tool-button:hover .tool-icon path {
+	stroke: var(--text-color);
+}
+
+
+.tool-button:active .tool-icon rect,
+.tool-button:active .tool-icon path {
+	stroke: var(--text-color);
+}
+
+#vertex-line-toggle {
+	display: grid;
+	place-items: center;
+}
+
+#vertex-line-toggle .tool-icon {
+	grid-area: 1 / 1;
+}
+
+#drawing-canvas {
+	height: calc(100vh - var(--header-height));
+	flex: 1;
+	width: 1px;
+	background-color: var(--tool-bar-bg-color);
+}

@@ -67,32 +67,6 @@ Vector2 reflect_segment(const Vector2& point, const Vector2& vertex1, const Vect
 	return vertex1 + (point - vertex1).reflect(vertex2 - vertex1);
 }
 
-/*
-
-def remove_collinear_points(points: Sequence[Vector2]) -> list[Vector2]:
-	"""
-	Removes collinear points from a sequence of points.
-	"""
-
-	cleaned: list[Vector2] = [points[0], points[1]]
-
-	for i in range(2, len(points)):
-
-		a = cleaned[-2]
-		b = cleaned[-1]
-		candidate = points[i]
-
-		v1 = vector_sub(b, a)
-		v2 = vector_sub(candidate, b)
-
-		if vector_is_same_direction(v1, v2):
-			cleaned[-1] = candidate
-		else:
-			cleaned.append(candidate)
-
-	return cleaned
-*/
-
 vector<Vector2> remove_collinear_points(const vector<Vector2>& points) {
 	/*
 	Removes collinear points from a sequence of points.
@@ -122,7 +96,6 @@ vector<Vector2> remove_collinear_points(const vector<Vector2>& points) {
 
 	return cleaned;
 }
-
 
 class Solution {
 

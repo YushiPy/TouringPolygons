@@ -1,0 +1,279 @@
+:root {
+
+	--font-size: 14.4px;
+	--font-family: Helvetica, sans-serif;
+
+	--header-height: 46px;
+	--header-color: #2A2A2A;
+	--text-color: #E2E2E2;
+	--text-highlight-color: #ffffff;
+
+	--accent-color: rgb(47, 114, 220);
+}
+
+* {
+	font-family: var(--font-family);
+	font-size: var(--font-size);
+}
+
+body {
+	display: flex;
+	flex-direction: column;
+	background-color: var(--background-color);
+	align-items: start;
+	margin: 0;
+	padding: 0;
+	width: 100%;
+}
+
+input {
+	border-radius: 5px;
+	cursor: pointer;
+	border: 2px solid var(--border-color);
+	background-color: var(--background-color);
+}
+
+span {
+	color: var(--text-color);
+}
+
+button {
+
+	--bg: var(--accent-color);
+	--border-color: var(--bg);
+
+	background-color: var(--bg);
+	padding: 8px;
+	cursor: pointer;
+
+	border: 1px solid var(--border-color);
+	border-radius: 4px;
+
+	transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+	pointer-events: none;
+	color: transparent;
+	border-color: var(--text-color);
+}
+
+/* ============================================================
+   Mix Utility Classes
+   
+	Classes:
+	- mix-bg-hover         mix color into background on hover
+	- mix-bg-active        mix color into background on active
+	- mix-bg               mix color into background on both hover and active (use this instead of applying both classes above)
+	- mix-color-hover      mix color into text/fill on hover
+	- mix-color-active     mix color into text/fill on active
+	- mix-color            mix color into text/fill on both hover and active (use this instead of applying both classes above)
+
+   Variables the user can set:
+
+   Background:
+     --bg                  base background color
+     --border-color        base border color (falls back to --bg)
+     --mix-bg              mix color for background, applies to both hover and active
+     --mix-bg-hover        mix color for background on hover  (falls back to --mix-bg, then transparent)
+     --mix-bg-active       mix color for background on active (falls back to --mix-bg, then transparent)
+     --mix-amount          amount to mix, applies to both hover and active
+     --mix-amount-hover    amount to mix on hover  (falls back to --mix-amount, then 15%)
+     --mix-amount-active   amount to mix on active (falls back to --mix-amount, then 35%)
+	 --mix-amount-hover-bg   amount to mix on hover for background only (falls back to --mix-amount-hover, then --mix-amount, then 15%)
+	 --mix-amount-active-bg  amount to mix on active for background only (falls back to --mix-amount-active, then --mix-amount, then 35%)
+
+   Color / Fill:
+     --color               base text/fill color
+     --fill                base fill color (falls back to --color)
+     --mix-text            mix color for text/fill, applies to both hover and active
+     --mix-text-hover      mix color for text/fill on hover  (falls back to --mix-text, then transparent)
+     --mix-text-active     mix color for text/fill on active (falls back to --mix-text, then transparent)
+     (shares --mix-amount-hover, --mix-amount-active, --mix-amount)
+	 --mix-amount-hover-text      amount to mix on hover for text/fill only (falls back to --mix-amount-hover, then --mix-amount, then 15%)
+	 --mix-amount-active-text     amount to mix on active for text/fill only (falls back to --mix-amount-active, then --mix-amount, then 35%)
+   
+   Usage examples:
+     Darken bg on hover only:
+       <button class="mix-bg-hover" style="--bg: royalblue; --mix-bg: black;">
+
+     Lighten text on both hover and active:
+       <button class="mix-color" style="--color: #333; --mix-text: white;">
+
+     Different colors for hover and active:
+       <button class="mix-bg" style="--bg: royalblue; --mix-bg-hover: white; --mix-bg-active: black;">
+
+     Custom amounts:
+       <button class="mix-bg" style="--bg: red; --mix-amount-hover: 10%; --mix-amount-active: 40%;">
+   ============================================================ */
+
+
+/* ------------------------------------------------------------
+   Background: hover only
+   ------------------------------------------------------------ */
+
+.mix-bg-hover {
+	background-color: var(--bg);
+	border-color: var(--border-color, var(--bg));
+}
+
+.mix-bg-hover:hover {
+	--_amount: var(--mix-amount-hover-bg, var(--mix-amount-hover, var(--mix-amount, 15%)));
+	--_color: var(--mix-bg-hover, var(--mix-bg, transparent));
+	background-color: color-mix(in srgb, var(--bg, var(--background-color)), var(--_color) var(--_amount));
+	border-color: color-mix(in srgb, var(--border-color, var(--bg, var(--background-color))), var(--_color) var(--_amount));
+}
+
+
+/* ------------------------------------------------------------
+   Background: active only
+   ------------------------------------------------------------ */
+
+.mix-bg-active {
+	background-color: var(--bg);
+	border-color: var(--border-color, var(--bg));
+}
+
+.mix-bg-active:active {
+	--_amount: var(--mix-amount-active-bg, var(--mix-amount-active, var(--mix-amount, 35%)));
+	--_color: var(--mix-bg-active, var(--mix-bg, transparent));
+	background-color: color-mix(in srgb, var(--bg, var(--background-color)), var(--_color) var(--_amount));
+	border-color: color-mix(in srgb, var(--border-color, var(--bg, var(--background-color))), var(--_color) var(--_amount));
+}
+
+
+/* ------------------------------------------------------------
+   Background: hover + active combined
+   Use this instead of applying both classes above.
+   ------------------------------------------------------------ */
+
+.mix-bg {
+	background-color: var(--bg);
+	border-color: var(--border-color, var(--bg));
+}
+
+.mix-bg:hover {
+	--_amount: var(--mix-amount-hover-bg, var(--mix-amount-hover, var(--mix-amount, 15%)));
+	--_color: var(--mix-bg-hover, var(--mix-bg, transparent));
+	background-color: color-mix(in srgb, var(--bg, var(--background-color)), var(--_color) var(--_amount));
+	border-color: color-mix(in srgb, var(--border-color, var(--bg, var(--background-color))), var(--_color) var(--_amount));
+}
+
+.mix-bg:active {
+	--_amount: var(--mix-amount-active-bg, var(--mix-amount-active, var(--mix-amount, 35%)));
+	--_color: var(--mix-bg-active, var(--mix-bg, transparent));
+	background-color: color-mix(in srgb, var(--bg, var(--background-color)), var(--_color) var(--_amount));
+	border-color: color-mix(in srgb, var(--border-color, var(--bg, var(--background-color))), var(--_color) var(--_amount));
+}
+
+
+/* ------------------------------------------------------------
+   Color / Fill: hover only
+   ------------------------------------------------------------ */
+
+.mix-color-hover {
+	color: var(--color);
+	fill: var(--fill, var(--color));
+}
+
+.mix-color-hover:hover {
+	--_amount: var(--mix-amount-hover-text, var(--mix-amount-hover, var(--mix-amount, 15%)));
+	--_color: var(--mix-text-hover, var(--mix-text, transparent));
+	color: color-mix(in srgb, var(--color, var(--text-color)), var(--_color) var(--_amount));
+	fill: color-mix(in srgb, var(--fill, var(--color, var(--text-color))), var(--_color) var(--_amount));
+}
+
+
+/* ------------------------------------------------------------
+   Color / Fill: active only
+   ------------------------------------------------------------ */
+
+.mix-color-active {
+	color: var(--color);
+	fill: var(--fill, var(--color));
+}
+
+.mix-color-active:active {
+	--_amount: var(--mix-amount-active-text, var(--mix-amount-active, var(--mix-amount, 35%)));
+	--_color: var(--mix-text-active, var(--mix-text, transparent));
+	color: color-mix(in srgb, var(--color, var(--text-color)), var(--_color) var(--_amount));
+	fill: color-mix(in srgb, var(--fill, var(--color, var(--text-color))), var(--_color) var(--_amount));
+}
+
+
+/* ------------------------------------------------------------
+   Color / Fill: hover + active combined
+   Use this instead of applying both classes above.
+   ------------------------------------------------------------ */
+
+.mix-color {
+	color: var(--color);
+	fill: var(--fill, var(--color));
+}
+
+.mix-color:hover {
+	--_amount: var(--mix-amount-hover-text, var(--mix-amount-hover, var(--mix-amount, 15%)));
+	--_color: var(--mix-text-hover, var(--mix-text, transparent));
+	color: color-mix(in srgb, var(--color, var(--text-color)), var(--_color) var(--_amount));
+	fill: color-mix(in srgb, var(--fill, var(--color, var(--text-color))), var(--_color) var(--_amount));
+}
+
+.mix-color:active {
+	--_amount: var(--mix-amount-active-text, var(--mix-amount-active, var(--mix-amount, 35%)));
+	--_color: var(--mix-text-active, var(--mix-text, transparent));
+	color: color-mix(in srgb, var(--color, var(--text-color)), var(--_color) var(--_amount));
+	fill: color-mix(in srgb, var(--fill, var(--color, var(--text-color))), var(--_color) var(--_amount));
+}
+
+/* ------------------------------------------------------------
+	light-mixing utility class (example)
+	- This combination makes light colors lighter on hover, 
+	but darkens colors on active, which can be a nice effect for certain UI elements.
+   ------------------------------------------------------------ */
+
+.light-mixing {
+	--mix-amount-hover: 100%;
+	--mix-bg-hover: white;
+	--mix-text-hover: white;
+	--mix-amount-active: 15%;
+	--mix-bg-active: black;
+	--mix-text-active: black;
+}
+
+.darken-mixing {
+	--mix-text: black;
+	--mix-bg: black;
+
+	--mix-bg-hover: initial;
+	--mix-text-hover: initial;
+	--mix-bg-active: initial;
+	--mix-text-active: initial;
+
+	--mix-amount-hover: 15%;
+	--mix-amount-active: 30%;
+}
+
+.lighten-mixing {
+	--mix-text: white;
+	--mix-bg: white;
+	--mix-amount-hover: 15%;
+	--mix-amount-active: 30%;
+}
+
+
+.smart-form {
+	display: flex;
+	flex-direction: column;
+	margin: 0;
+	padding: 0;
+	width: 100%;
+}
+
+.dummy {
+	width: 0;
+	height: 0;
+	pointer-events: none;
+	opacity: 0;
+}

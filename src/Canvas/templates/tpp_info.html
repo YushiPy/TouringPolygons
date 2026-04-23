@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+	<meta charset="UTF-8">
+
+	<title>TPP Visualizer</title>
+
+	<link rel="icon" type="image/svg+xml" href="{{ static }}/img/favicon.svg">
+	<link rel="icon" type="image/png" href="{{ static }}/img/favicon.png" sizes="32x32">
+
+	<style>
+		:root {
+			--doc-text: #1a1a1a;
+			--doc-text-secondary: #555;
+			--doc-bg: #ffffff;
+			--doc-bg-secondary: #f5f5f4;
+			--doc-border: rgba(0, 0, 0, 0.12);
+			--doc-border-md: rgba(0, 0, 0, 0.22);
+			--doc-info-bg: #e8f0fe;
+			--doc-info-border: #4a90d9;
+			--doc-info-text: #1a56a0;
+			--doc-warn-bg: #fff8e1;
+			--doc-warn-border: #f5a623;
+			--doc-warn-text: #8a5e00;
+			--doc-radius: 8px;
+			--doc-radius-sm: 4px;
+		}
+
+		@media (prefers-color-scheme: dark) {
+			:root {
+				--doc-text: #e8e8e6;
+				--doc-text-secondary: #aaa;
+				--doc-bg: #1e1e1c;
+				--doc-bg-secondary: #2a2a28;
+				--doc-border: rgba(255, 255, 255, 0.10);
+				--doc-border-md: rgba(255, 255, 255, 0.20);
+				--doc-info-bg: #0d2340;
+				--doc-info-border: #3a72b8;
+				--doc-info-text: #7ab3f0;
+				--doc-warn-bg: #2a1f00;
+				--doc-warn-border: #c98f00;
+				--doc-warn-text: #f5c842;
+			}
+		}
+
+		* {
+			box-sizing: border-box;
+			margin: 0;
+			padding: 0;
+		}
+
+		body {
+			margin: 0;
+			padding: 2rem;
+			background: var(--doc-bg);
+		}
+
+		.doc {
+			max-width: 720px;
+			margin: 0 auto;
+			font-family: sans-serif;
+			color: var(--doc-text);
+			line-height: 1.7;
+		}
+
+		h1 {
+			font-size: 30px;
+			font-weight: 500;
+			margin-bottom: 0.5rem;
+		}
+
+		h2 {
+			font-size: 24px;
+			font-weight: 500;
+			margin: 2rem 0 0.75rem;
+		}
+
+		h3 {
+			font-size: 20px;
+			font-weight: 500;
+			margin: 1.25rem 0 0.4rem;
+		}
+
+		p {
+			font-size: 17px;
+			color: var(--doc-text-secondary);
+			margin-bottom: 0.6rem;
+		}
+
+		a {
+			color: var(--doc-info-text);
+			text-decoration: none;
+		}
+
+		a:hover {
+			text-decoration: underline;
+		}
+
+		code {
+			font-family: monospace;
+			font-size: 15px;
+			background: var(--doc-bg-secondary);
+			border: 0.5px solid var(--doc-border);
+			border-radius: var(--doc-radius-sm);
+			padding: 1px 5px;
+			color: var(--doc-text);
+		}
+
+		.section {
+			border-top: 0.5px solid var(--doc-border);
+			padding-top: 1.5rem;
+			margin-top: 1.5rem;
+		}
+
+		kbd {
+			font-family: monospace;
+			font-size: 15px;
+			background: var(--doc-bg);
+			border: 0.5px solid var(--doc-border-md);
+			border-radius: var(--doc-radius-sm);
+			padding: 2px 6px;
+			color: var(--doc-text);
+			box-shadow: 0 1px 0 var(--doc-border-md);
+		}
+
+		.note {
+			background: var(--doc-info-bg);
+			border-left: 2px solid var(--doc-info-border);
+			border-radius: 0 var(--doc-radius) var(--doc-radius) 0;
+			padding: 10px 14px;
+			margin: 0.75rem 0;
+			font-size: 14px;
+			color: var(--doc-info-text);
+			line-height: 1.6;
+		}
+
+		.warn {
+			background: var(--doc-warn-bg);
+			border-left: 2px solid var(--doc-warn-border);
+			border-radius: 0 var(--doc-radius) var(--doc-radius) 0;
+			padding: 10px 14px;
+			margin: 0.75rem 0;
+			font-size: 15px;
+			color: var(--doc-warn-text);
+			line-height: 1.6;
+		}
+
+		ul {
+			margin: 0.5rem 0 0.5rem 1.25rem;
+			font-size: 15px;
+			color: var(--doc-text-secondary);
+			line-height: 1.8;
+		}
+
+		.shortcut-grid {
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+			margin: 0.75rem 0;
+		}
+
+		.shortcut-item {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+			background: var(--doc-bg-secondary);
+			border: 0.5px solid var(--doc-border);
+			border-radius: var(--doc-radius);
+			padding: 8px 14px;
+			font-size: 15px;
+			color: var(--doc-text);
+		}
+
+
+		.shortcut-keys {
+			display: flex;
+			gap: 4px;
+			flex-shrink: 0;
+		}
+
+		.shortcut-desc {
+			color: var(--doc-text-secondary);
+			font-size: 15px;
+		}
+
+		.complexity-table {
+			width: 100%;
+			border-collapse: collapse;
+			font-size: 15px;
+			margin: 0.75rem 0;
+		}
+
+		.complexity-table th {
+			text-align: left;
+			font-weight: 500;
+			color: var(--doc-text);
+			border-bottom: 0.5px solid var(--doc-border-md);
+			padding: 6px 12px 6px 0;
+		}
+
+		.complexity-table td {
+			color: var(--doc-text-secondary);
+			padding: 6px 12px 6px 0;
+			border-bottom: 0.5px solid var(--doc-border);
+			vertical-align: top;
+		}
+
+		.complexity-table tr:last-child td {
+			border-bottom: none;
+		}
+
+		.ref {
+			display: block;
+			background: var(--doc-bg-secondary);
+			border: 0.5px solid var(--doc-border);
+			border-radius: var(--doc-radius);
+			padding: 10px 14px;
+			margin: 0.5rem 0;
+			font-size: 15px;
+			color: var(--doc-text-secondary);
+			line-height: 1.6;
+		}
+
+		.ref strong {
+			color: var(--doc-text);
+			font-weight: 500;
+		}
+
+		.bib {
+			background: var(--doc-bg-secondary);
+			border: 0.5px solid var(--doc-border);
+			border-radius: var(--doc-radius);
+			padding: 12px 14px;
+			overflow-x: auto;
+			line-height: 1.7;
+			margin-top: 0.25rem;
+		}
+
+		.bib-type {
+			color: #c678dd;
+			font-weight: 500;
+		}
+
+		.bib-key {
+			color: var(--doc-info-text);
+		}
+
+		.bib-field {
+			color: #e06c75;
+		}
+
+		.bib-value {
+			color: var(--doc-text-secondary);
+		}
+
+		.bib-brace {
+			color: var(--doc-text);
+		}
+
+		.bib-line {
+			font-family: monospace;
+			font-size: 12px;
+			display: block;
+			white-space: pre;
+		}
+	</style>
+</head>
+
+<body>
+	<div class="doc">
+
+		<h1>The Touring Polygons Problem Visualizer</h1>
+		<p style="font-size: 16px; color: var(--doc-text-secondary); margin: 0.5rem 0 1.5rem;">
+			This is an interactive visualizer for the Touring Polygons Problem (TPP), a
+			geometric optimization problem. Drag points and polygons around the canvas and
+			watch the shortest path update in real time. This page explains both the
+			underlying theory and how to use the visualizer.
+		</p>
+
+		<nav
+			style="background: var(--doc-bg-secondary); border: 0.5px solid var(--doc-border); border-radius: var(--doc-radius); padding: 1rem 1.25rem; margin-bottom: 0.5rem;">
+			<p style="font-size: 13px; font-weight: 500; color: var(--doc-text); margin-bottom: 0.6rem;">Contents</p>
+			<ol
+				style="margin: 0 0 0 1.1rem; padding: 0; font-size: 14px; color: var(--doc-text-secondary); line-height: 2;">
+				<li><a href="#problem">Problem definition</a></li>
+				<li><a href="#algorithms">Algorithms and complexity</a></li>
+				<li><a href="#nonconvex">Non-convex polygons</a></li>
+				<li><a href="#visualizer">Using the visualizer</a></li>
+				<li><a href="#saving">Saving and loading</a></li>
+				<li><a href="#points">Points and polygons</a></li>
+				<li><a href="#selection">Selection</a></li>
+				<li><a href="#toolbar">Toolbar</a></li>
+				<li><a href="#resources">Resources</a></li>
+				<li><a href="#shortcuts">Keyboard shortcuts</a></li>
+			</ol>
+		</nav>
+
+		<div class="section">
+			<h2 id="problem">Problem definition</h2>
+			<p>
+				The Touring Polygons Problem (TPP) is a special case of the Traveling Salesman Problem with
+				Neighborhoods
+				(TSPN), which is itself a generalization of the famous Traveling Salesman Problem
+				(TSP). In the TSP, one seeks the shortest route visiting a set of discrete points;
+				the TSPN relaxes this by replacing points with regions, requiring only that the
+				path touch each region rather than a specific location within it. The visit order
+				in the TSPN is also typically left free. The TPP adds two further constraints:
+				the regions must be convex polygons, and the visit order is fixed. These
+				restrictions are precisely what make the problem tractable — without them, Dror
+				et al. proved that the problem is NP-hard.
+			</p>
+			<p>
+				This problem has applications in robotics navigation, where a robot must pass
+				through a sequence of regions in order, and in logistics, where a route must
+				visit a series of areas in a fixed sequence.
+			</p>
+		</div>
+
+		<div class="section">
+			<h2 id="algorithms">Algorithms and complexity</h2>
+			<p>
+				The TPP was first introduced and studied by Dror et al., who gave the first
+				polynomial-time algorithm for convex polygons:
+			</p>
+			<span class="ref">
+				<strong>Dror et al.</strong> — <em>Touring a sequence of polygons</em><br>
+				Time complexity: <code>O(kn log(n/k))</code> when polygons are non-intersecting,
+				<code>O(k²n log(n/k))</code> when they may intersect, where <code>k</code> is
+				the number of polygons and <code>n</code> is the total number of vertices.
+			</span>
+			<p>
+				A subsequent paper by Tan and Jiang improved upon this result by removing the
+				logarithmic factor:
+			</p>
+			<span class="ref">
+				<strong>Tan &amp; Jiang</strong> — <em>Efficient Algorithms for Touring a Sequence of Convex Polygons
+					and Related Problems</em><br>
+				Presents an <code>O(kn)</code> algorithm for the non-intersecting case,
+				eliminating the log factor from Dror et al.'s result.
+			</span>
+			<p>
+				This visualizer uses the algorithm from Dror et al., as it is more
+				straightforward to implement. We plan to adopt Tan and Jiang's more efficient
+				algorithm in the future.
+			</p>
+			<div class="warn">
+				The intersecting polygon case has not yet been implemented. The solution
+				displayed may be incorrect if any two polygons overlap. Support for this
+				case is planned.
+			</div>
+		</div>
+
+		<div class="section">
+			<h2 id="nonconvex">Non-convex polygons</h2>
+			<p>
+				The TPP for non-convex polygons is NP-hard, as shown by Dror et al., and
+				there has been relatively little work on this case in the literature. We plan
+				to approach it by first computing a convex partition or convex cover of each
+				non-convex polygon, then applying a branch-and-bound search over the resulting
+				convex pieces. This should make it possible to find exact or near-optimal
+				solutions in reasonable time for small inputs.
+			</p>
+			<p>
+				For now, if any polygon is non-convex, the canvas displays a
+				<code>NOT CONVEX</code> label at its centroid and the solution is suppressed
+				until all polygons are made convex.
+			</p>
+		</div>
+
+		<div class="section">
+			<h2 id="visualizer">Using the visualizer</h2>
+			<p>
+				The canvas is interactive in real time. As you move points or polygons,
+				the shortest path is recomputed and redrawn immediately.
+			</p>
+
+			<h3>Panning</h3>
+			<p>Click and drag any empty area of the canvas (not on a point or polygon) to pan the view.</p>
+
+			<h3>Zooming</h3>
+			<p>
+				Scroll the mouse wheel to zoom in or out. Zoom is anchored to the cursor
+				position, so the point under the cursor stays fixed.
+			</p>
+
+			<h3>Grid</h3>
+			<p>
+				The grid adapts to the zoom level. The main grid spacing is 1, 2, 5, or 10
+				units depending on zoom. Each main cell is subdivided into 4 or 5 subgrid
+				lines, which are also the snap targets when snapping is enabled.
+			</p>
+		</div>
+
+		<div class="section">
+			<h2 id="saving">Saving and loading</h2>
+			<p>
+				Creating an account lets you save and revisit any configuration. Once logged
+				in, the folder icon in the top-left of the header opens the drawings panel,
+				where all your saved drawings are listed and can be searched by name.
+			</p>
+
+			<h3>Saving a drawing</h3>
+			<p>
+				To save the current configuration, give it a name first — unnamed drawings
+				cannot be saved. Saving an already-named drawing updates it in place rather
+				than creating a new one.
+			</p>
+
+			<h3>Managing drawings</h3>
+			<p>
+				After selecting a drawing from the panel you can rename it or duplicate it.
+				Duplicating creates a new independent copy, which is useful for exploring
+				variations without overwriting the original.
+			</p>
+		</div>
+
+		<div class="section">
+			<h2 id="points">Points and polygons</h2>
+
+			<h3>Dragging points</h3>
+			<p>Click and drag <code>s</code>, <code>t</code>, or any polygon vertex to move it.</p>
+
+			<h3>Dragging polygons</h3>
+			<p>Click and drag the interior of a polygon (not on a vertex) to translate the entire polygon at once.</p>
+
+			<h3>Adding vertices</h3>
+			<p>
+				Click anywhere on the canvas to add a new vertex to the currently active
+				polygon. Clicks are only registered if the mouse has not moved much and
+				the button was released within 300 ms — slow or dragging clicks are ignored.
+			</p>
+			<div class="note">
+				The vertex is inserted between two consecutive vertices of the active polygon,
+				not appended at the end. Enable the vertex line (button 3 or <kbd>3</kbd>) to
+				preview exactly where it will land before clicking.
+			</div>
+
+			<h3>Active polygon</h3>
+			<p>
+				Clicks and vertex insertions always target the active polygon. Press
+				<kbd>↑</kbd> / <kbd>↓</kbd> to cycle through polygons. The active polygon
+				is visually distinguished from the others.
+			</p>
+
+			<h3>Adding polygons</h3>
+			<p>
+				Press button 2 or <kbd>2</kbd> to insert a new equilateral triangle centered
+				on the canvas. Reposition it and add vertices to it as needed. This is the
+				only way to create a new polygon.
+			</p>
+		</div>
+
+		<div class="section">
+			<h2 id="selection">Selection</h2>
+			<p>
+				You can select multiple points across any combination of polygons — including
+				<code>s</code> and <code>t</code> — and drag them all together by the same
+				offset. Selection is additive: make multiple passes to accumulate points from
+				different regions.
+			</p>
+
+			<h3>Creating a selection</h3>
+			<p>
+				Hold <kbd>Shift</kbd> and move the mouse to draw a selection rectangle. Release
+				<kbd>Shift</kbd> to commit. Repeat to add more points to the selection.
+			</p>
+
+			<h3>Selected point indicator</h3>
+			<p>
+				Selected points are marked with a rotating dashed ring that animates
+				continuously, so you can always tell what is in your selection even after
+				releasing <kbd>Shift</kbd>.
+			</p>
+
+			<h3>Dragging the selection</h3>
+			<p>Drag any selected point to move the entire selection by the same amount.</p>
+
+			<h3>Clearing the selection</h3>
+			<p>Double-tap <kbd>Shift</kbd> quickly without moving the mouse to deselect all points.</p>
+
+			<h3>Deleting selected points</h3>
+			<p>Press <kbd>Backspace</kbd>, <kbd>Delete</kbd>, or <kbd>x</kbd> to delete selected points:</p>
+			<ul>
+				<li>If all vertices of a polygon are selected, the entire polygon is removed.</li>
+				<li>If only some vertices are selected, deletion stops when 3 remain — a polygon must have at least 3
+					vertices.</li>
+				<li><code>s</code> and <code>t</code> are never deleted even if selected.</li>
+			</ul>
+		</div>
+
+		<div class="section">
+			<h2 id="toolbar">Toolbar</h2>
+
+			<h3>Snapping <kbd>1</kbd></h3>
+			<p>
+				Toggles snapping on or off. When enabled, all moved points snap to the
+				nearest subgrid intersection. The button is highlighted when active.
+			</p>
+
+			<h3>New triangle <kbd>2</kbd></h3>
+			<p>Inserts a new equilateral triangle centered on the canvas. This is how new polygons are added.</p>
+
+			<h3>Vertex line <kbd>3</kbd></h3>
+			<p>
+				Toggles the vertex preview lines. When enabled, two dashed lines are drawn
+				from the cursor to the two vertices that bracket the insertion point, showing
+				exactly where a new vertex would be placed on click.
+			</p>
+		</div>
+
+		<div class="section">
+			<h2 id="resources">Resources</h2>
+			<p>
+				The source code for this project, a collection of algorithm implementations,
+				and a detailed technical report (roughly 20 pages) explaining how the
+				algorithms work are all available on GitHub:
+			</p>
+			<a href="https://github.com/YushiPy/TouringPolygons" target="_blank" id="github-btn" style="display: inline-flex; align-items: center; gap: 8px; margin: 0.5rem 0 1rem;
+          background: var(--doc-bg-secondary); border: 0.5px solid var(--doc-border);
+          border-left: 2px solid var(--doc-border);
+          border-radius: var(--doc-radius); padding: 8px 16px; font-size: 14px;
+          color: var(--doc-text); text-decoration: none; transition: border-left-color 0.15s, background 0.15s;">
+				<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+					<path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
+             0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13
+             -.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66
+             .07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15
+             -.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27
+             .68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12
+             .51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48
+             0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+				</svg>
+				YushiPy/TouringPolygons
+			</a>
+			<script>
+				const btn = document.getElementById('github-btn');
+				btn.addEventListener('mouseenter', () => {
+					btn.style.borderLeftColor = 'var(--doc-info-border)';
+					btn.style.background = 'var(--doc-bg)';
+				});
+				btn.addEventListener('mouseleave', () => {
+					btn.style.borderLeftColor = 'var(--doc-border)';
+					btn.style.background = 'var(--doc-bg-secondary)';
+				});
+				btn.addEventListener('mousedown', () => { btn.style.borderLeftColor = 'var(--doc-info-text)'; });
+				btn.addEventListener('mouseup', () => { btn.style.borderLeftColor = 'var(--doc-info-border)'; });
+			</script>
+			<p>The report covers the full geometric and algorithmic details behind both the
+				Dror et al. and Tan &amp; Jiang approaches, including proofs and worked examples,
+				and is a good starting point if you want to understand the theory in depth.</p>
+
+			<h3>References</h3>
+			<div style="margin-top: 0.75rem; display: flex; flex-direction: column; gap: 1rem;">
+
+				<div
+					style="background: var(--doc-bg-secondary); border: 0.5px solid var(--doc-border); border-radius: var(--doc-radius); padding: 14px 16px; font-size: 14px; line-height: 1.8; color: var(--doc-text-secondary);">
+					<span style="color: var(--doc-text); font-weight: 500;">Dror, M., Efrat, A., Lubiw, A., and
+						Mitchell, J. S. B.</span> 2003.
+					Touring a sequence of polygons. In <em>Proceedings of the Thirty-Fifth Annual ACM Symposium on
+						Theory of Computing</em>
+					(San Diego, CA, USA) <em>(STOC '03)</em>. ACM, New York, NY, USA, 473–482.
+					<a href="https://doi.org/10.1145/780542.780612" target="_blank"
+						style="color: var(--doc-info-text); font-size: 13px; margin-left: 4px;">https://doi.org/10.1145/780542.780612</a>
+					<details style="margin-top: 10px;">
+						<summary
+							style="font-size: 12px; color: var(--doc-text-secondary); cursor: pointer; user-select: none; list-style: none; display: flex; align-items: center; gap: 6px;">
+							<span id="dror-arrow" style="font-size: 10px; transition: transform 0.2s;">▶</span> BibTeX
+						</summary>
+						<div class="bib" style="margin-top: 10px;">
+							<span class="bib-line"><span class="bib-type">@inproceedings</span><span
+									class="bib-brace">{</span><span class="bib-key">tpp-dror2003</span><span
+									class="bib-brace">,</span></span>
+							<span class="bib-line"> <span class="bib-field">author</span> = <span
+									class="bib-brace">{</span><span class="bib-value">Dror, M. and Efrat, A. and Lubiw,
+									A. and Mitchell, J. S. B.</span><span class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">title</span> = <span
+									class="bib-brace">{</span><span class="bib-value">Touring a sequence of
+									polygons</span><span class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">year</span> = <span
+									class="bib-brace">{</span><span class="bib-value">2003</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">isbn</span> = <span
+									class="bib-brace">{</span><span class="bib-value">1581136749</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">address</span> = <span
+									class="bib-brace">{</span><span class="bib-value">New York, NY, USA</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">url</span> = <span
+									class="bib-brace">{</span><span
+									class="bib-value">https://doi.org/10.1145/780542.780612</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">doi</span> = <span
+									class="bib-brace">{</span><span class="bib-value">10.1145/780542.780612</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">booktitle</span> = <span
+									class="bib-brace">{</span><span class="bib-value">Proceedings of the Thirty-Fifth
+									Annual ACM Symposium on Theory of Computing</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">pages</span> = <span
+									class="bib-brace">{</span><span class="bib-value">473--482</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">numpages</span> = <span
+									class="bib-brace">{</span><span class="bib-value">10</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">keywords</span> = <span
+									class="bib-brace">{</span><span class="bib-value">NP-hardness, polygons, safari
+									route, shortest path, traveling salesman problem, watchman route</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">location</span> = <span
+									class="bib-brace">{</span><span class="bib-value">San Diego, CA, USA</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">series</span> = <span
+									class="bib-brace">{</span><span class="bib-value">STOC '03</span><span
+									class="bib-brace">}</span></span>
+							<span class="bib-line"><span class="bib-brace">}</span></span>
+						</div>
+					</details>
+				</div>
+
+				<div
+					style="background: var(--doc-bg-secondary); border: 0.5px solid var(--doc-border); border-radius: var(--doc-radius); padding: 14px 16px; font-size: 14px; line-height: 1.8; color: var(--doc-text-secondary);">
+					<span style="color: var(--doc-text); font-weight: 500;">Tan, X. and Jiang, B.</span> 2017.
+					Efficient algorithms for touring a sequence of convex polygons and related problems. In
+					<em>Theory and Applications of Models of Computation — TAMC 2017</em>,
+					T. Gopal, G. Jäger, and S. Steila, Eds. Lecture Notes in Computer Science, vol. 10185.
+					Springer, Cham, 614–625.
+					<a href="https://doi.org/10.1007/978-3-319-55911-7_44" target="_blank"
+						style="color: var(--doc-info-text); font-size: 13px; margin-left: 4px;">https://doi.org/10.1007/978-3-319-55911-7_44</a>
+					<details style="margin-top: 10px;">
+						<summary
+							style="font-size: 12px; color: var(--doc-text-secondary); cursor: pointer; user-select: none; list-style: none; display: flex; align-items: center; gap: 6px;">
+							<span id="tan-arrow" style="font-size: 10px; transition: transform 0.2s;">▶</span> BibTeX
+						</summary>
+						<div class="bib" style="margin-top: 10px;">
+							<span class="bib-line"><span class="bib-type">@inproceedings</span><span
+									class="bib-brace">{</span><span class="bib-key">tpp-tan2017</span><span
+									class="bib-brace">,</span></span>
+							<span class="bib-line"> <span class="bib-field">author</span> = <span
+									class="bib-brace">{</span><span class="bib-value">Tan, X. and Jiang, B.</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">title</span> = <span
+									class="bib-brace">{</span><span class="bib-value">Efficient Algorithms for Touring a
+									Sequence of Convex Polygons and Related Problems</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">year</span> = <span
+									class="bib-brace">{</span><span class="bib-value">2017</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">address</span> = <span
+									class="bib-brace">{</span><span class="bib-value">Cham</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">url</span> = <span
+									class="bib-brace">{</span><span
+									class="bib-value">https://doi.org/10.1007/978-3-319-55911-7_44</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">doi</span> = <span
+									class="bib-brace">{</span><span
+									class="bib-value">10.1007/978-3-319-55911-7_44</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">booktitle</span> = <span
+									class="bib-brace">{</span><span class="bib-value">Proceedings of the Twelfth Annual
+									Conference on Theory and Applications of Models of Computation</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">pages</span> = <span
+									class="bib-brace">{</span><span class="bib-value">614--625</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">numpages</span> = <span
+									class="bib-brace">{</span><span class="bib-value">12</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">keywords</span> = <span
+									class="bib-brace">{</span><span class="bib-value">convex polygons, shortest path,
+									touring polygons, computational geometry</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">location</span> = <span
+									class="bib-brace">{</span><span class="bib-value">Bern, Switzerland</span><span
+									class="bib-brace">},</span></span>
+							<span class="bib-line"> <span class="bib-field">series</span> = <span
+									class="bib-brace">{</span><span class="bib-value">TAMC '17</span><span
+									class="bib-brace">}</span></span>
+							<span class="bib-line"><span class="bib-brace">}</span></span>
+						</div>
+					</details>
+				</div>
+
+			</div>
+
+			<script>
+				document.querySelectorAll('details').forEach(details => {
+					const arrow = details.querySelector('span[id$="-arrow"]');
+					details.addEventListener('toggle', () => {
+						if (arrow) arrow.style.transform = details.open ? 'rotate(90deg)' : '';
+					});
+				});
+			</script>
+
+			<div class="section">
+				<h2 id="shortcuts">Keyboard shortcuts</h2>
+				<div class="shortcut-grid">
+					<div class="shortcut-item">
+						<div class="shortcut-keys"><kbd>↑</kbd><kbd>↓</kbd></div><span class="shortcut-desc">Cycle
+							active
+							polygon</span>
+					</div>
+					<div class="shortcut-item">
+						<div class="shortcut-keys"><kbd>1</kbd></div><span class="shortcut-desc">Toggle snapping</span>
+					</div>
+					<div class="shortcut-item">
+						<div class="shortcut-keys"><kbd>2</kbd></div><span class="shortcut-desc">Add triangle</span>
+					</div>
+					<div class="shortcut-item">
+						<div class="shortcut-keys"><kbd>3</kbd></div><span class="shortcut-desc">Toggle vertex
+							line</span>
+					</div>
+					<div class="shortcut-item">
+						<div class="shortcut-keys"><kbd>Backspace</kbd> <kbd>Del</kbd> <kbd>x</kbd></div><span
+							class="shortcut-desc">Delete selected</span>
+					</div>
+					<div class="shortcut-item">
+						<div class="shortcut-keys"><kbd>Shift</kbd> (hold)</div><span class="shortcut-desc">Draw
+							selection
+							rect</span>
+					</div>
+					<div class="shortcut-item">
+						<div class="shortcut-keys"><kbd>Shift</kbd><kbd>Shift</kbd></div><span
+							class="shortcut-desc">Clear
+							selection</span>
+					</div>
+				</div>
+			</div>
+
+		</div>
+</body>
+
+</html>

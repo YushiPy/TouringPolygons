@@ -1,0 +1,52 @@
+<link rel="stylesheet" href="{{ static }}/css/signup.css">
+
+<div id="signup-overlay" class="signup-overlay">
+	<div class="signup-box">
+
+		<h2 class="menu-title">Sign Up</h2>
+
+		<div id="signup-form" class="signup-form">
+
+			<input id="username-field" name="username" type="text" placeholder="Username" required />
+			<input id="password-field" name="password" type="password" placeholder="Password" required />
+			<input id="confirm-password-field" name="confirm_password" type="password" placeholder="Confirm Password"
+				required />
+
+			<div id="response-signup"></div>
+
+			<button class="signup-submit mix-bg darken-mixing" hx-post="/signup" hx-include="#signup-form input"
+				hx-target="#response-signup" hx-swap="innerHTML">Sign Up</button>
+		</div>
+
+		<div class="auth-switch">
+			<div id="auth-switch-text">
+				Already have an account?
+			</div>
+			<button id="auth-switch-btn" type="submit" class="auth-switch-btn" hx-get="/login"
+				hx-target="#user-login-section-outer" hx-swap="innerHTML">
+				Log in
+			</button>
+		</div>
+	</div>
+</div>
+
+<script>
+
+	enableSmartNavigation(document.getElementById("signup-form"));
+
+	document.addEventListener('click', function (event) {
+		const signupOverlay = document.getElementById('signup-overlay');
+		const signupBox = document.querySelector('.signup-box');
+
+		if (signupOverlay && !signupBox.contains(event.target)) {
+			document.getElementById('user-login-section-outer').innerHTML = '';
+		}
+	});
+
+	document.querySelector('#username-field').focus();
+
+	document.addEventListener('signupSuccess', function () {
+		document.getElementById('user-login-section-outer').innerHTML = '';
+	});
+
+</script>

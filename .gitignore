@@ -46,3 +46,6 @@ cronograma.md
 # Polygon Helper
 PolygonsOut/
 PolygonsOut/*
+
+*.db
+.*

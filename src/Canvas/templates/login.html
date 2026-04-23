@@ -1,0 +1,53 @@
+<link rel="stylesheet" href="{{ static }}/css/login.css">
+
+<div id="login-overlay" class="login-overlay">
+	<div class="login-box">
+
+		<h2 class="menu-title">Login</h2>
+
+		<div id="login-form" class="login-form">
+
+			<input id="username-field" name="username" type="text" placeholder="Username" required />
+			<input id="password-field" name="password" type="password" placeholder="Password" required />
+
+			<div id="response-login"></div>
+
+			<button class="login-submit mix-bg darken-mixing" hx-post="/login" hx-include="#login-form input"
+				hx-target="#response-login" hx-swap="innerHTML">
+				Login
+			</button>
+
+		</div>
+
+		<div class="auth-switch">
+			<div id="auth-switch-text">
+				First time?
+			</div>
+			<button id="auth-switch-btn" type="submit" class="auth-switch-btn" hx-get="/signup"
+				hx-target="#user-login-section-outer" hx-swap="innerHTML">
+				Create an account
+			</button>
+		</div>
+	</div>
+</div>
+
+<script>
+
+	enableSmartNavigation(document.getElementById("login-form"));
+
+	document.addEventListener('click', function (event) {
+		const loginOverlay = document.getElementById('login-overlay');
+		const loginBox = document.querySelector('.login-box');
+
+		if (loginOverlay && !loginBox.contains(event.target)) {
+			document.getElementById('user-login-section-outer').innerHTML = '';
+		}
+	});
+
+	document.querySelector('#username-field').focus();
+
+	document.addEventListener('loginSuccess', function () {
+		document.getElementById('user-login-section-outer').innerHTML = '';
+	});
+
+</script>

@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="{{ static }}/css/index.css">
+
+<title>TPP Visualizer</title>
+
+<style>
+	.overlay {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		background-color: rgba(0, 0, 0, 0.5);
+		display: flex;
+		flex-direction: column;
+		justify-content: flex-start;
+		align-items: center;
+		z-index: 1000;
+	}
+
+	.prompt-box {
+		background-color: rgb(65, 65, 65);
+		padding: 1.5vw;
+		border-radius: 2vh;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		margin-top: 10vh;
+	}
+
+	.prompt-box h2 {
+		color: var(--text-color);
+		font-size: 30px;
+		margin: 0;
+		margin-bottom: 1vh;
+	}
+
+	.prompt-form {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.prompt-form input {
+		padding: 0.5vh;
+		font-size: 16px;
+		border-radius: 5px;
+		border: 2px solid var(--text-color);
+		margin-right: 1vw;
+		flex: 1;
+		color: var(--text-color);
+	}
+
+	.submit-button {
+		padding: 0.5vh 1vw;
+		font-size: 16px;
+		border-radius: 5px;
+		border: none;
+
+		--bg: var(--accent-color);
+		background-color: var(--bg);
+		color: var(--text-color);
+		cursor: pointer;
+	}
+
+	.submit-button:hover {
+		background-color: color-mix(in srgb, var(--bg) 85%, black);
+	}
+
+	.submit-button:active {
+		background-color: color-mix(in srgb, var(--bg) 70%, black);
+	}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="main-body">
+	<div class="main-header">
+		<div id="header" hx-get="/header" hx-trigger="load" hx-target="#header" hx-swap="outerHTML">
+		</div>
+		<!-- O conteúdo do header será carregado aqui -->
+	</div>
+	<div class="drawing-section">
+
+	</div>
+
+	<div class="canvas-section" hx-get="/canvas" hx-trigger="load" hx-target=".canvas-section" hx-swap="innerHTML">
+		>
+
+	</div>
+
+	<div id="user-login-section-outer">
+
+	</div>
+
+	<div id="save-prompt">
+		<div id="save-prompt-overlay" class="overlay">
+			<div class="prompt-box">
+
+				<h2>Save This Drawing</h2>
+
+				<form class="prompt-form smart-form">
+					<input type="text" id="save-prompt-input" placeholder="Drawing Name" required>
+					<button id="save-submit-button" class="submit-button" type="button" onclick="saveDrawing()">
+						Save
+					</button>
+				</form>
+			</div>
+		</div>
+	</div>
+
+	<div id="rename-prompt">
+		<div id="rename-prompt-overlay" class="overlay">
+			<div class="prompt-box">
+
+				<h2>Rename This Drawing</h2>
+
+				<form class="prompt-form smart-form">
+					<input type="text" id="rename-prompt-input" placeholder="New Name" required>
+					<button id="rename-submit-button" class="submit-button" type="button" onclick="renameDrawing()">
+						Rename
+					</button>
+				</form>
+			</div>
+		</div>
+	</div>
+
+	<div id="duplicate-prompt">
+		<div id="duplicate-prompt-overlay" class="overlay">
+			<div class="prompt-box">
+
+				<h2>Duplicate This Drawing</h2>
+
+				<form class="prompt-form smart-form">
+					<input type="text" id="duplicate-prompt-input" placeholder="New Name" required>
+					<button id="duplicate-submit-button" class="submit-button" type="button"
+						onclick="duplicateDrawing()">
+						Duplicate
+					</button>
+				</form>
+			</div>
+		</div>
+	</div>
+
+	<div id="saved-drawings-overlay" class="saved-drawings-overlay">
+
+	</div>
+
+</div>
+
+<script>
+
+	let drawingName = null;
+	let drawingId = null;
+
+	function setSavedDrawing(id, name) {
+
+		drawingName = name;
+		drawingId = id;
+
+		const span = document.getElementById("drawing-name-text");
+
+		if (span) {
+			span.textContent = drawingName || "Untitled Drawing";
+		}
+
+		const saveOptionsButton = document.getElementById("save-options-button");
+
+		if (saveOptionsButton) {
+			// Remove disabled atribute if it exists
+
+			if (id === null) {
+				saveOptionsButton.setAttribute("disabled", "disabled");
+			} else {
+				saveOptionsButton.removeAttribute("disabled");
+			}
+		}
+	}
+
+	function toggleOverlay(id, show) {
+
+		const overlay = document.getElementById(id);
+
+		if (overlay) {
+			overlay.style.display = show ? "flex" : "none";
+			overlay.style.pointerEvents = show ? "auto" : "none";
+			overlay.style.opacity = show ? "1" : "0";
+		}
+	}
+
+	async function saveDrawing() {
+
+		const input = document.getElementById("save-prompt-input");
+		const name = input.value.trim();
+		const scene = window.scene;
+
+		const id = await scene.saveToDB(name);
+
+		input.value = "";
+
+		setSavedDrawing(id, name);
+	}
+
+	async function renameDrawing() {
+
+		const input = document.getElementById("rename-prompt-input");
+		const name = input.value.trim();
+		const scene = window.scene;
+
+		await scene.updateDrawingData(drawingId, name);
+
+		input.value = "";
+
+		setSavedDrawing(drawingId, name);
+	}
+
+	async function duplicateDrawing() {
+
+		const input = document.getElementById("duplicate-prompt-input");
+		const name = input.value.trim();
+		const scene = window.scene;
+
+		const id = await scene.saveToDB(name);
+
+		input.value = "";
+
+		setSavedDrawing(id, name);
+	}
+
+	const overlays = ["save-prompt", "rename-prompt", "duplicate-prompt"];
+
+	for (const id of overlays) {
+
+		toggleOverlay(id, false);
+
+		const promptBox = document.querySelector(`#${id} .prompt-box`);
+
+		// Add click listener to close overlay when clicking outside the prompt box
+		document.getElementById(id).addEventListener("click", (event) => {
+
+			if (!promptBox.contains(event.target)) {
+				toggleOverlay(id, false);
+			}
+		});
+
+		// Make on click close the overlay when submitting the form
+		const submitButton = document.querySelector(`#${id} .submit-button`);
+
+		submitButton.addEventListener("click", () => {
+			toggleOverlay(id, false);
+		});
+	}
+
+</script>
+
+{% endblock %}

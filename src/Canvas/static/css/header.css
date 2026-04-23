@@ -1,0 +1,286 @@
+.main-header {
+	height: var(--header-height);
+	width: 100%;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 10px;
+	background-color: var(--header-color);
+	justify-content: space-between;
+}
+
+.header-left {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+}
+
+.folder-button {
+	--bg: transparent;
+	--color: var(--text-color);
+	margin-left: 2px;
+}
+
+.folder-icon {
+	width: 22px;
+	height: 22px;
+	stroke-width: 30px;
+
+	fill: inherit;
+	stroke: inherit;
+}
+
+.drawing-name {
+	margin-right: 10px;
+	padding-left: 10px;
+	border-left: 1px solid var(--text-color);
+	border-radius: 0px;
+	text-align: center;
+	display: flex;
+	align-items: center;
+}
+
+.save-buttons {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+
+	position: relative;
+}
+
+.visible-save-options {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+}
+
+.save-button {
+
+	background-color: var(--accent-color);
+
+	padding-left: 15px;
+	padding-right: 15px;
+
+	border-radius: 0px;
+	border-bottom-left-radius: 5px;
+	border-top-left-radius: 5px;
+	border: 1px solid var(--text-color);
+}
+
+.save-button:hover {
+	background-color: color-mix(in srgb, var(--accent-color) 80%, var(--header-color));
+}
+
+.save-button:active {
+	background-color: color-mix(in srgb, var(--accent-color) 60%, var(--header-color));
+}
+
+.save-options-button {
+	--bg: var(--accent-color);
+	height: 32px;
+	padding: 0;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	padding-left: 5px;
+	padding-right: 5px;
+
+	border-radius: 0px;
+	border-top-right-radius: 5px;
+	border-bottom-right-radius: 5px;
+
+	border: 1px solid var(--text-color);
+	border-left: none;
+}
+
+.save-options-button:hover {
+	background-color: color-mix(in srgb, var(--accent-color) 80%, var(--header-color));
+}
+
+.save-options-button:active {
+	background-color: color-mix(in srgb, var(--accent-color) 60%, var(--header-color));
+}
+
+.down-arrow-svg-save {
+
+	height: 20px;
+	padding: 0;
+
+	color: var(--text-color);
+	stroke: var(--text-color);
+	fill: var(--text-color);
+}
+
+.save-dropdown-menu {
+	position: absolute;
+	top: calc(100% + 10px);
+	right: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+
+}
+
+.rename-button,
+.duplicate-button {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	width: 100%;
+	justify-content: space-between;
+	background-color: var(--text-color);
+
+	border: none;
+	border-radius: 0px;
+}
+
+.rename-button:hover,
+.duplicate-button:hover {
+	background-color: color-mix(in srgb, var(--header-color) 10%, var(--text-color));
+}
+
+.rename-button:active,
+.duplicate-button:active {
+	background-color: color-mix(in srgb, var(--header-color) 20%, var(--text-color));
+}
+
+.rename-button {
+	color: var(--accent-color);
+	border-top-left-radius: 5px;
+	border-top-right-radius: 5px;
+}
+
+.duplicate-button {
+	color: var(--header-color);
+	border-bottom-left-radius: 5px;
+	border-bottom-right-radius: 5px;
+}
+
+.pencil-svg,
+.duplicate-svg {
+	width: 20px;
+	height: 20px;
+	stroke: var(--text-color);
+	fill: transparent;
+	margin-right: 10px;
+}
+
+.pencil-svg {
+	stroke: var(--accent-color);
+}
+
+.folder-button,
+.save-button {
+	height: 32px;
+	/* or whatever you want */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.header-right {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 10px;
+}
+
+.username-button {
+
+	color: var(--text-color);
+
+	--bg: transparent;
+	--mix-bg: white;
+
+	--mix-amount-hover: 30%;
+	--mix-amount-active: 15%;
+
+	border: none;
+
+	display: flex;
+	align-items: center;
+}
+
+.down-arrow-svg {
+	width: 20px;
+	height: 20px;
+	stroke: var(--text-color);
+	fill: var(--text-color);
+	margin-left: 6px;
+}
+
+
+.logo-button {
+	--bg: transparent;
+	--color: var(--text-color);
+}
+
+.username-dropdown {
+	position: relative;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	margin-right: 15px;
+}
+
+.dropdown-content {
+	position: absolute;
+	top: calc(100% + 10px);
+	right: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	width: max-content;
+}
+
+.dropdown-items {
+	border-radius: 5px;
+	display: flex;
+	flex-direction: column;
+	background-color: white;
+	color: black;
+	border: 1px solid black;
+}
+
+.dropdown-button {
+	--bg: transparent;
+	color: currentColor;
+}
+
+.login-button {
+	color: var(--text-color);
+	background-color: transparent;
+	outline: 1px solid var(--text-color);
+	border: 2px solid transparent;
+}
+
+.login-button:hover {
+	color: white;
+	outline: 2px solid white;
+}
+
+.signup-button {
+	--bg: var(--accent-color);
+	--color: var(--text-color);
+	color: var(--color);
+	margin-right: 10px;
+}
+
+.login-button,
+.signup-button {
+	height: 32px;
+	/* or whatever you want */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+#user-login-section,
+.logged-in-section,
+.not-logged-in-section {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 10px;
+}

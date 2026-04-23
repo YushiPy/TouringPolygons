@@ -1,0 +1,76 @@
+<link rel="stylesheet" href="{{ static }}/css/canvas.css">
+
+<nav class="tool-bar" id="tool-bar">
+	<button id="snapping-toggle" class="tool-button toggleable">
+		<svg class="tool-icon" width="800px" height="800px" viewBox="0 0 24 24" fill="none"
+			xmlns="http://www.w3.org/2000/svg">
+			<path
+				d="M17 2H19.5C20.3284 2 21 2.67157 21 3.5V5.5C21 6.32843 20.3284 7 19.5 7H17M17 2H13C11.5778 2 10.2249 2.2969 9 2.83209M17 2V7M17 7H13C10.2386 7 8 9.23858 8 12C8 13.1258 8.37209 14.1647 9 15.0005M17 17H19.5C20.3284 17 21 17.6716 21 18.5V20.5C21 21.3284 20.3284 22 19.5 22H17M17 17H13M17 17V22M17 22H13C7.47715 22 3 17.5228 3 12C3 9.74835 3.74418 7.67051 5 5.99903"
+				stroke="#1C274C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+		</svg>
+	</button>
+	<button id="triangle-button" class="tool-button">
+		<svg class="tool-icon" width="222" height="195" viewBox="0 0 222 195" fill="none"
+			xmlns="http://www.w3.org/2000/svg">
+			<path d="M110 184H11L111 11L211 184H110Z" stroke="white" stroke-width="22" stroke-linecap="round"
+				stroke-linejoin="round" />
+		</svg>
+	</button>
+	<button id="vertex-line-toggle" class="tool-button">
+
+		<svg class="tool-icon" id="vertex-line-toggle-off" viewBox="0 0 15 15" fill="none"
+			xmlns="http://www.w3.org/2000/svg">
+			<path fill-rule="evenodd" clip-rule="evenodd"
+				d="M14.7649 6.07595C14.9991 6.22231 15.0703 6.53078 14.9239 6.76495C14.4849 7.46742 13.9632 8.10644 13.3702 8.66304L14.5712 9.86405C14.7664 10.0593 14.7664 10.3759 14.5712 10.5712C14.3759 10.7664 14.0593 10.7664 13.8641 10.5712L12.6011 9.30816C11.8049 9.90282 10.9089 10.3621 9.93374 10.651L10.383 12.3276C10.4544 12.5944 10.2961 12.8685 10.0294 12.94C9.76266 13.0115 9.4885 12.8532 9.41703 12.5864L8.95916 10.8775C8.48742 10.958 8.00035 10.9999 7.5 10.9999C6.99964 10.9999 6.51257 10.958 6.04082 10.8775L5.58299 12.5864C5.51153 12.8532 5.23737 13.0115 4.97063 12.94C4.7039 12.8685 4.5456 12.5944 4.61706 12.3277L5.06624 10.651C4.09111 10.3621 3.19503 9.90281 2.3989 9.30814L1.1359 10.5711C0.940638 10.7664 0.624058 10.7664 0.428797 10.5711C0.233537 10.3759 0.233537 10.0593 0.428797 9.86404L1.62982 8.66302C1.03682 8.10643 0.515113 7.46742 0.0760677 6.76495C-0.0702867 6.53078 0.000898544 6.22231 0.235064 6.07595C0.46923 5.9296 0.777703 6.00078 0.924057 6.23495C1.40354 7.00212 1.989 7.68056 2.66233 8.2427C2.67315 8.25096 2.6837 8.25971 2.69397 8.26897C4.00897 9.35527 5.65536 9.9999 7.5 9.9999C10.3078 9.9999 12.6563 8.50629 14.0759 6.23495C14.2223 6.00078 14.5308 5.9296 14.7649 6.07595Z"
+				fill="#000000" />
+		</svg>
+
+		<svg class="tool-icon toggleable" id="vertex-line-toggle-on" fill="none" xmlns="http://www.w3.org/2000/svg"
+			viewBox="0 0 15 15" xml:space="preserve" style="stroke-width: 10px;">
+			<g>
+				<g transform="scale(0.0893)"> <!-- 15/168 ≈ 0.0893 -->
+					<circle cx="84.048" cy="84.044" r="20.699" />
+					<path
+						d="M167.055,81.422c-1.516-1.604-37.579-39.41-83.017-39.41c-45.433,0-81.491,37.806-83.003,39.41
+					c-1.379,1.473-1.379,3.77,0,5.236c1.518,1.604,37.577,39.427,83.003,39.427c45.438,0,81.512-37.823,83.017-39.427
+					C168.444,85.192,168.444,82.883,167.055,81.422z M84.048,116.043c-17.639,0-31.989-14.353-31.989-32.006
+					c0-17.639,14.35-32,31.989-32c17.638,0,32.008,14.356,32.008,32C116.052,101.68,101.686,116.043,84.048,116.043z M58.682,53.829
+					c-8.645,7.275-14.269,18.044-14.269,30.208c0,12.159,5.624,22.929,14.269,30.217c-23.92-7.693-42.704-23.88-49.418-30.217
+					C15.979,77.707,34.767,61.518,58.682,53.829z M109.426,114.242c8.639-7.28,14.27-18.052,14.27-30.205
+					c0-12.153-5.626-22.917-14.277-30.197c23.919,7.693,42.689,23.86,49.407,30.197C152.107,90.368,133.337,106.538,109.426,114.242z" />
+				</g>
+			</g>
+		</svg>
+
+	</button>
+</nav>
+
+<canvas id="drawing-canvas">
+
+</canvas>
+
+<script>
+
+	const vertexLineToggle = document.getElementById("vertex-line-toggle");
+	const vertexLineToggleOnIcon = document.getElementById("vertex-line-toggle-on");
+	const vertexLineToggleOffIcon = document.getElementById("vertex-line-toggle-off");
+
+	vertexLineToggle.toggleIcons = () => {
+
+		const isActive = vertexLineToggle.classList.contains("active");
+
+		if (isActive) {
+			vertexLineToggleOnIcon.style.display = "block";
+			vertexLineToggleOffIcon.style.display = "none";
+		} else {
+			vertexLineToggleOnIcon.style.display = "none";
+			vertexLineToggleOffIcon.style.display = "block";
+		}
+	}
+
+	vertexLineToggle.toggleIcons();
+
+</script>
+
+
+<script type="module" src="{{ static }}/js/canvas.js" defer></script>
