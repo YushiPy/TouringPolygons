@@ -263,22 +263,24 @@ class Main:
 			return
 
 		with open(LOAD_FILE, "r") as f:
-			lines = f.readlines()
+			content = f.read()
 		
-		if not lines:
-			return
+		mapping = {
+			"[": "(",
+			"]": ")",
+			"{": "(",
+			"}": ")",
+		}
 
-		self.loaded_index = self.loaded_index % len(lines)
-		line = lines[self.loaded_index]
-
+		content = "".join(mapping.get(c, c) for c in content).strip(", \n\t")
+	
 		try:
-			
-			data = eval(line.strip("\t\n ,"))
 
-			while isinstance(data, Sequence) and len(data) == 1:
-				data = data[0]
+			data = eval(content)
 
-			start, target, polygons = data[:3]
+			instance = data[self.loaded_index % len(data)]
+
+			start, target, polygons = instance[:3]
 			self.load_polygons(start, target, polygons)
 
 		except Exception as e:
