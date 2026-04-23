@@ -828,6 +828,17 @@ class Scene {
 		if (e.key === "1") { this.snapButton.click(); }
 		if (e.key === "2") { this.triangleButton.click(); }
 		if (e.key === "3") { this.vertexLineButton.click(); }
+
+		if (e.key === "0") {
+			
+			let x = {
+				startPoint: [this.startPoint.x, this.startPoint.y],
+				targetPoint: [this.targetPoint.x, this.targetPoint.y],
+				polygons: this.polygons.map(poly => poly.points.map(p => [p.x, p.y])),
+			}
+
+			console.log(JSON.stringify(x));
+		}
 	}
 
 	_onKeyUp(e) {
