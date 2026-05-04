@@ -1,39 +1,399 @@
 
 #include <print>
 #include <chrono>
+
 #include "vector2.h"
+#include "tpp_convex_naive.h"
+
+using Polygon = std::vector<Vector2>;
 
 int main() {
-	std::print("Hello, World!\n");
-	
-	
-	auto start = std::chrono::high_resolution_clock::now();
-	
-	Vector2 x;
-	
-	for (size_t i = 0; i < 100'000'000; i++) {
+std::vector<std::tuple<Vector2, Vector2, std::vector<std::vector<Vector2>>, std::vector<Vector2>>> tests = {
+	{
+		Vector2(0.0, 1.0),
+		Vector2(2.0, 1.0),
+		{
+			{
+				Vector2(2.0, 3.0),
+				Vector2(-1.0, 2.0),
+				Vector2(2.0, 2.0),
+			},
+		},
+		{
+			Vector2(0.0, 1.0),
+			Vector2(1.0, 2.0),
+			Vector2(2.0, 1.0),
+		}
+	},
+	{
+		Vector2(0.0, 1.0),
+		Vector2(3.0, 2.0),
+		{
+			{
+				Vector2(2.0, 3.0),
+				Vector2(-1.0, 2.0),
+				Vector2(2.0, 2.0),
+			},
+		},
+		{
+			Vector2(0.0, 1.0),
+			Vector2(2.0, 2.0),
+			Vector2(3.0, 2.0),
+		}
+	},
+	{
+		Vector2(0.0, 1.0),
+		Vector2(0.0, 3.0),
+		{
+			{
+				Vector2(2.0, 3.0),
+				Vector2(-1.0, 2.0),
+				Vector2(2.0, 2.0),
+			},
+		},
+		{
+			Vector2(0.0, 1.0),
+			Vector2(0.0, 3.0),
+		}
+	},
+	{
+		Vector2(0.0, 0.0),
+		Vector2(-2.0, 1.0),
+		{
+			{
+				Vector2(-1.0, 2.0),
+				Vector2(0.7745461995542708, 1.0969540776602265),
+				Vector2(2.0, 2.0),
+				Vector2(2.0, 3.0),
+				Vector2(0.01042765904450249, 3.997485680411619),
+			},
+		},
+		{
+			Vector2(0.0, 0.0),
+			Vector2(-0.3877793180272373, 1.688448015291771),
+			Vector2(-2.0, 1.0),
+		}
+	},
+	{
+		Vector2(-1.0, 0.5),
+		Vector2(3.0, 0.5),
+		{
+			{
+				Vector2(-1.0, 2.0),
+				Vector2(1.0, 1.0),
+				Vector2(3.0, 2.0),
+				Vector2(1.0, 3.0),
+			},
+		},
+		{
+			Vector2(-1.0, 0.5),
+			Vector2(1.0, 1.0),
+			Vector2(3.0, 0.5),
+		}
+	},
+	{
+		Vector2(-1.0, 0.5),
+		Vector2(3.0, 0.5),
+		{
+			{
+				Vector2(-1.0, 2.0),
+				Vector2(1.0, 1.0),
+				Vector2(3.0, 2.0),
+				Vector2(1.0, 3.0),
+			},
+			{
+				Vector2(2.0, -2.5),
+				Vector2(0.0, -2.0),
+				Vector2(0.0, -4.0),
+			},
+		},
+		{
+			Vector2(-1.0, 0.5),
+			Vector2(0.44179104477611975, 1.2791044776119402),
+			Vector2(0.9670014347202298, -2.241750358680058),
+			Vector2(3.0, 0.5),
+		}
+	},
+	{
+		Vector2(4.0, 1.5),
+		Vector2(-1.5, -1.0),
+		{
+			{
+				Vector2(-1.0, 2.0),
+				Vector2(1.0, 1.0),
+				Vector2(3.0, 2.0),
+				Vector2(1.0, 3.0),
+			},
+			{
+				Vector2(2.0, -2.0),
+				Vector2(0.0, -2.0),
+				Vector2(1.0, -4.0),
+			},
+		},
+		{
+			Vector2(4.0, 1.5),
+			Vector2(2.2857142857142856, 1.6428571428571428),
+			Vector2(0.0, -2.0),
+			Vector2(-1.5, -1.0),
+		}
+	},
+	{
+		Vector2(-2.0, 0.5),
+		Vector2(-1.0, 5.5),
+		{
+			{
+				Vector2(-1.0, 2.0),
+				Vector2(1.0, 1.0),
+				Vector2(3.0, 2.0),
+				Vector2(1.0, 3.0),
+			},
+			{
+				Vector2(2.0, -2.0),
+				Vector2(0.0, -2.0),
+				Vector2(1.0, -4.0),
+			},
+			{
+				Vector2(-5.5892251770067904, -2.0635401226162013),
+				Vector2(-4.0, -2.5),
+				Vector2(-3.0, -1.5),
+				Vector2(-4.0, 1.0),
+				Vector2(-5.5, 1.5),
+			},
+			{
+				Vector2(-0.5, 3.5),
+				Vector2(-3.5, 5.5),
+				Vector2(-3.0, 2.5),
+			},
+		},
+		{
+			Vector2(-2.0, 0.5),
+			Vector2(-0.25454545454545463, 1.6272727272727272),
+			Vector2(0.0, -2.0),
+			Vector2(-3.417422867513612, -0.45644283121597096),
+			Vector2(-1.0, 5.5),
+		}
+	},
+	{
+		Vector2(-2.0, 0.0),
+		Vector2(2.0, 0.0),
+		{
+			{
+				Vector2(-1.0, 1.0),
+				Vector2(1.0, 1.0),
+				Vector2(0.0, 2.0),
+			},
+		},
+		{
+			Vector2(-2.0, 0.0),
+			Vector2(0.0, 1.0),
+			Vector2(2.0, 0.0),
+		}
+	},
+	{
+		Vector2(-1.0, 5.0),
+		Vector2(-0.5, 4.5),
+		{
+			{
+				Vector2(0.0, 4.0),
+				Vector2(0.0, 2.0),
+				Vector2(2.0, 2.0),
+			},
+		},
+		{
+			Vector2(-1.0, 5.0),
+			Vector2(0.0, 4.0),
+			Vector2(-0.5, 4.5),
+		}
+	},
+	{
+		Vector2(-0.6, 5.2),
+		Vector2(-0.6, 4.8),
+		{
+			{
+				Vector2(0.0, 5.0),
+				Vector2(0.0, 2.0),
+				Vector2(2.8, 2.0),
+			},
+		},
+		{
+			Vector2(-0.6, 5.2),
+			Vector2(0.0, 5.0),
+			Vector2(-0.6, 4.8),
+		}
+	},
+	{
+		Vector2(4.5, 2.0),
+		Vector2(3.5, 2.0),
+		{
+			{
+				Vector2(0.0, 5.0),
+				Vector2(0.0, 2.0),
+				Vector2(2.8, 2.0),
+			},
+		},
+		{
+			Vector2(4.5, 2.0),
+			Vector2(2.8, 2.0),
+			Vector2(3.5, 2.0),
+		}
+	},
+	{
+		Vector2(0.0, 4.0),
+		Vector2(4.0, 0.0),
+		{
+			{
+				Vector2(3.0, 3.0),
+				Vector2(1.0, 3.0),
+				Vector2(1.0, 1.0),
+				Vector2(3.0, 1.0),
+			},
+		},
+		{
+			Vector2(0.0, 4.0),
+			Vector2(4.0, 0.0),
+		}
+	},
+	{
+		Vector2(-1.7926052592116688, 2.0041878360341565),
+		Vector2(-1.2727245469438635, -2.1926283895019223),
+		{
+			{
+				Vector2(-2.8043080390114095, -3.654186702016027),
+				Vector2(-1.7541858929206575, -5.033836318424196),
+				Vector2(-1.0844353498351025, -3.4345790546288875),
+			},
+			{
+				Vector2(2.0975681598044416, 2.0395046385241002),
+				Vector2(3.094175815858267, 3.1866802982459888),
+				Vector2(1.9470001561363786, 4.183287954299814),
+				Vector2(0.950392500082553, 3.0361122945779258),
+			},
+		},
+		{
+			Vector2(-1.7926052592116688, 2.0041878360341565),
+			Vector2(-1.0844353498351025, -3.4345790546288875),
+			Vector2(2.0975681598044416, 2.0395046385241002),
+			Vector2(-1.2727245469438635, -2.1926283895019223),
+		}
+	},
+	{
+		Vector2(-1.0, 0.0),
+		Vector2(-1.0, 2.8000000000000003),
+		{
+			{
+				Vector2(-1.0, 3.0),
+				Vector2(-1.0, 2.0),
+				Vector2(2.0, 2.0),
+				Vector2(0.2, 3.0),
+			},
+		},
+		{
+			Vector2(-1.0, 0.0),
+			Vector2(-1.0, 2.8000000000000003),
+		}
+	},
+	{
+		Vector2(-1.0, 1.0),
+		Vector2(-1.0, 2.6),
+		{
+			{
+				Vector2(-1.0, 3.0),
+				Vector2(-1.0, 2.0),
+				Vector2(2.0, 2.0),
+				Vector2(2.0, 3.0),
+			},
+		},
+		{
+			Vector2(-1.0, 1.0),
+			Vector2(-1.0, 2.6),
+		}
+	},
+	{
+		Vector2(-2.0, 2.0),
+		Vector2(16.0, 2.0),
+		{
+			{
+				Vector2(2.0, 2.0),
+				Vector2(0.0, 4.0),
+				Vector2(0.0, 2.0),
+			},
+			{
+				Vector2(5.0, 2.0),
+				Vector2(3.0, 4.0),
+				Vector2(3.0, 2.0),
+			},
+			{
+				Vector2(8.0, 2.0),
+				Vector2(6.0, 4.0),
+				Vector2(6.0, 2.0),
+			},
+			{
+				Vector2(11.0, 2.0),
+				Vector2(9.0, 4.0),
+				Vector2(9.0, 2.0),
+			},
+			{
+				Vector2(14.0, 2.0),
+				Vector2(12.0, 4.0),
+				Vector2(12.0, 2.0),
+			},
+		},
+		{
+			Vector2(-2.0, 2.0),
+			Vector2(16.0, 2.0),
+		}
+	},
+	{
+		Vector2(0.0, 0.0),
+		Vector2(0.0, 1.2000000000000002),
+		{
+			{
+				Vector2(0.0, 3.0),
+				Vector2(-1.0, 2.0),
+				Vector2(1.0, 2.0),
+			},
+		},
+		{
+			Vector2(0.0, 0.0),
+			Vector2(0.0, 2.0),
+			Vector2(0.0, 1.2000000000000002),
+		}
+	},
+};
 
-		auto before(Vector2(i, i));
-		auto vertex = before + Vector2(2 * i, - 3 * i);
-		auto after = vertex * Vector2(0.5, 0.5 * i);
+	for (size_t i = 0; i < tests.size(); i++) {
+		
+		const auto &[start, target, polygons, expected] = tests[i];
 
-		auto last = after;
-		auto diff = vertex - last;
+		auto start_time = std::chrono::high_resolution_clock::now();
+		auto result = tpp_solve(start, target, polygons);
+		auto end_time = std::chrono::high_resolution_clock::now();
 
-		// ray1 = vector_reflect(diff, vector_perpendicular(vector_sub(vertex, before)))
-		// ray2 = vector_reflect(diff, vector_perpendicular(vector_sub(vertex, after)))
-		auto ray1 = diff.reflect((vertex - before).orthogonal());
-		auto ray2 = diff.reflect((vertex - after).orthogonal());
+		std::chrono::duration<double> elapsed = end_time - start_time;
 
-		x += ray1 + ray2;
+		if (result.size() != expected.size()) {
+			std::println("Test {} failed: expected path of length {}, got path of length {}", i, expected.size(), result.size());
+			continue;
+		}
+
+		bool all_approx_equal = true;
+
+		for (size_t j = 0; j < expected.size(); j++) {
+
+			const auto &res = result[j];
+			const auto &exp = expected[j];
+
+			if (!res.is_equal_approx(exp)) {
+				std::println("Test {} failed at index {}: expected {}, got {}", i, j, exp, res);
+				all_approx_equal = false;
+				break;
+			}
+		}
+
+		if (!all_approx_equal) {
+			continue;
+		}
+
+		std::println("Test {} passed in {} seconds", i, elapsed.count());
 	}
-
-	std::println("Final x: {}", x);
-
-	auto end = std::chrono::high_resolution_clock::now();
-	auto ellaped = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-
-	std::println("Time taken: {} ms", ellaped);
-	
-	return 0;
 }

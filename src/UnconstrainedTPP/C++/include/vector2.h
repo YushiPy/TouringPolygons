@@ -55,6 +55,8 @@ class Vector2 {
 	static const Vector2 ONE;
 	/*Infinity vector, a vector with all components set to `INFINITY`.*/
 	static const Vector2 INF;
+	/*NaN vector, a vector with all components set to `NAN`.*/
+	static const Vector2 NaN;
 	/*Left unit vector. Represents the direction of left.*/
 	static const Vector2 LEFT;
 	/*Right unit vector. Represents the direction of right.*/
@@ -147,6 +149,8 @@ class Vector2 {
 	bool is_same_direction(const Vector2 &other) const;
 	/*Returns `true` if this vector is finite, by checking if each component is finite.*/
 	bool is_finite() const;
+	/*Returns `true` if this vector is NaN, by checking if any component is NaN.*/
+	bool is_nan() const;
 	/*Returns `true` if the vector is normalized, i.e. its length is approximately equal to 1.*/
 	bool is_normalized() const;
 	/*

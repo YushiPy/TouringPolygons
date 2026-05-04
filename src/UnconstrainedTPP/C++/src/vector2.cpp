@@ -137,6 +137,7 @@ double fposmod(double p_x, double p_y) {
 const Vector2 Vector2::ZERO = Vector2(0.0, 0.0);
 const Vector2 Vector2::ONE = Vector2(1.0, 1.0);
 const Vector2 Vector2::INF = Vector2(INFINITY, INFINITY);
+const Vector2 Vector2::NaN = Vector2(NAN, NAN);
 const Vector2 Vector2::LEFT = Vector2(-1.0, 0.0);
 const Vector2 Vector2::RIGHT = Vector2(1.0, 0.0);
 const Vector2 Vector2::UP = Vector2(0.0, -1.0);
@@ -263,6 +264,10 @@ bool Vector2::is_same_direction(const Vector2 &other) const {
 
 bool Vector2::is_finite() const {
 	return std::isfinite(x) && std::isfinite(y);
+}
+
+bool Vector2::is_nan() const {
+	return std::isnan(x) || std::isnan(y);
 }
 
 bool Vector2::is_normalized() const {
