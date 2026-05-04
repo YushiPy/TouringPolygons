@@ -257,6 +257,10 @@ bool Vector2::is_equal_approx(const Vector2 &v) const {
 	return ::is_equal_approx(x, v.x) && ::is_equal_approx(y, v.y);
 }
 
+bool Vector2::is_same_direction(const Vector2 &other) const {
+	return ::is_zero_approx(cross(other)) && dot(other) > 0;
+}
+
 bool Vector2::is_finite() const {
 	return std::isfinite(x) && std::isfinite(y);
 }
@@ -386,6 +390,11 @@ Vector2 Vector2::project(const Vector2 &b) const {
 
 Vector2 Vector2::reflect(const Vector2 &line) const {
 	return 2.0f * line * dot(line) / line.length_squared() - *this;
+}
+
+Vector2 Vector2::reflect_line(const Vector2& point1, const Vector2 &point2) const {
+	Vector2 line_dir = (point2 - point1).normalized();
+	return point1 + (*this - point1).reflect(line_dir);
 }
 
 Vector2 Vector2::rotated(double angle) const {

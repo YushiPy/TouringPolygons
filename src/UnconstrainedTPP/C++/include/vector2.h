@@ -141,17 +141,19 @@ class Vector2 {
 	
 	Note: The length of the returned Vector2 is approximately `1.0`, but is is not guaranteed to be exactly `1.0` due to floating-point precision issues. Call `normalized()` on the returned Vector2 if you require a unit vector.*/
 	static  Vector2 from_angle(double angle);
-	/*Returns `true` if this vector and to are approximately equal, by checking if each component is approximately equal.*/
-	bool    is_equal_approx(const Vector2 &v) const;
+	/*Returns `true` if this vector and `other` are approximately equal, by checking if each component is approximately equal.*/
+	bool is_equal_approx(const Vector2 &other) const;
+	/*Returns `true` if this vector and `other` point in the same direction, regardless of their lengths. This is equivalent to checking if the vectors are parallel and have a positive dot product.*/
+	bool is_same_direction(const Vector2 &other) const;
 	/*Returns `true` if this vector is finite, by checking if each component is finite.*/
-	bool    is_finite() const;
+	bool is_finite() const;
 	/*Returns `true` if the vector is normalized, i.e. its length is approximately equal to 1.*/
-	bool    is_normalized() const;
+	bool is_normalized() const;
 	/*
 	Returns `true` if this vector's values are approximately zero, by running checking if each component is approximately zero.
 
 	This method is faster than using `is_equal_approx()` with one value as a zero vector.*/
-	bool    is_zero_approx() const;
+	bool is_zero_approx() const;
 	/*Returns the length (magnitude) of this vector.*/
 	double  length() const;
 	/*Returns the squared length (squared magnitude) of this vector.
@@ -205,6 +207,8 @@ class Vector2 {
 	Note: `reflect()` differs from what other engines and frameworks call `reflect()`. In other engines, `reflect()` takes a normal direction which is a direction perpendicular to the line. Here, you specify the direction of the line directly. See also `bounce()` which does what most engines call `reflect()`.
 	*/
 	Vector2 reflect(const Vector2 &line) const;
+	/*Returns the result of reflecting the vector across the line defined by `point1` and `point2`. This is equivalent to reflecting across the line defined by the direction of `point2 - point1` and passing through `point1`. See also `reflect()`.*/
+	Vector2 reflect_line(const Vector2& point1, const Vector2 &point2) const;
 	/*Returns the result of rotating this vector by `angle` (in radians)*/
 	Vector2 rotated(double angle) const;
 	/*Returns a new vector with all components rounded to the nearest integer, with halfway cases rounded away from zero.*/
