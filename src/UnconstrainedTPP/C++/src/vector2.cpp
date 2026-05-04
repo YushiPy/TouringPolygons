@@ -453,8 +453,6 @@ Vector2 Vector2::snappedf(double step) const {
 }
 
 
-
-
 bool Vector2::operator!=(const Vector2& right) const {
 	return x != right.x || y != right.y;
 }

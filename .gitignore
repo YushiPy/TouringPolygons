@@ -2,6 +2,9 @@
 # Files starting with _
 _*
 
+# CMake
+build/
+
 # VSCode
 .vscode/
 
