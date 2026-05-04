@@ -6,6 +6,7 @@ import time
 import common
 import u_tpp
 import u_tpp_naive_cpp
+import u_tpp_tamc
 
 type Point = tuple[float, float]
 type Points = Sequence[Point]
@@ -55,6 +56,8 @@ timed_tpp_solve_dynamic_jit = wrap_python_solution(common.tpp_solve_dynamic_jit)
 timed_tpp_solve = wrap_python_solution(u_tpp.tpp_solve)
 timed_tpp_solve_naive_cpp = u_tpp_naive_cpp.solve_test_cases
 
+timed_tpp_solve_tamc = wrap_python_solution(u_tpp_tamc.tpp_solve)
+
 # Solutions used for testing correctness. They return only the path, without the time taken.
 
 tpp_solve_linear = common.tpp_solve_linear
@@ -65,6 +68,8 @@ tpp_solve_linear_jit = common.tpp_solve_linear_jit
 tpp_solve_binary_jit = common.tpp_solve_binary_jit
 tpp_solve_binary2_jit = common.tpp_solve_binary2_jit
 tpp_solve_dynamic_jit = common.tpp_solve_dynamic_jit
+
+tpp_solve_tamc = u_tpp_tamc.tpp_solve
 
 tpp_solve = u_tpp.tpp_solve
 tpp_solve_naive_cpp = u_tpp_naive_cpp.tpp_solve

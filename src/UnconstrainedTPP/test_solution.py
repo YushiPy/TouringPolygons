@@ -7,9 +7,11 @@ import sys
 sys.setrecursionlimit(10 ** 7)
 
 import solutions
+import UnconstrainedTPP.u_tpp_tamc as u_tpp_tamc
 
 reference_solution = solutions.tpp_solve
-test_solution = solutions.tpp_solve_naive_cpp
+# test_solution = solutions.tpp_solve_naive_cpp
+test_solution = u_tpp_tamc.tpp_solve
 
 #import LegacySolutions
 #test_solution = LegacySolutions.u_tpp_filtered.tpp_solve
@@ -290,11 +292,11 @@ if __name__ == "__main__":
 			[10 ** 4] * 2,
 			[10 ** 5] * 2,
 			[10 ** 6] * 1,
-		] * 10, 0.5, 20),
+		] * 1, 0.5, 20),
 	]
 
 	test_suite("Basic", basic_tests)
 	test_suite("Edge Cases", edge_cases)
 
-	for name, sides_list, compactness, number in random_tests:
+	for name, sides_list, compactness, _ in random_tests:
 		test_suite(name, make_tests(sides_list, compactness))

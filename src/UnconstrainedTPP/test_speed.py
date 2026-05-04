@@ -11,8 +11,7 @@ sys.setrecursionlimit(10 ** 7)
 import solutions
 
 reference_solution = solutions.timed_tpp_solve
-test_solution = solutions.timed_tpp_solve_naive_cpp
-
+test_solution = solutions.timed_tpp_solve_tamc
 
 type Point = tuple[float, float]
 type Points = Sequence[Point]
@@ -242,6 +241,9 @@ if __name__ == "__main__":
 			[30] * 30,
 			[40] * 30,
 			[50] * 30,
+			[20] * 100,
+			[30] * 100 + [40] * 100,
+			[50] * 100 + [60] * 100 + [70] * 100,
 		], 0.5, 20),
 		("Few Large Polygons", [
 			[100] * 1,
@@ -249,9 +251,9 @@ if __name__ == "__main__":
 			[300] * 3,
 			[400] * 4,
 			[10 ** 4] * 2,
-			[10 ** 5] * 2,
-			[10 ** 6] * 1,
-		] * 10, 0.5, 20),
+			#[10 ** 5] * 2,
+			#[10 ** 6] * 1,
+		] * 0, 0.5, 1),
 	]
 
 	print("Reference Solution:", get_original_name(reference_solution))

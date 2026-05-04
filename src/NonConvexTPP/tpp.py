@@ -2,7 +2,7 @@
 import itertools
 from time import perf_counter
 
-from polygon_decomposition import hertel_mehlhorn
+import polygon_decomposition
 import u_tpp
 
 from collections.abc import Sequence
@@ -12,7 +12,7 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 	if simplify:
 		polygons = [u_tpp.clean_polygon(poly) for poly in polygons]
 
-	convex_pieces = [hertel_mehlhorn(poly) for poly in polygons]
+	convex_pieces = [polygon_decomposition.decompose(poly) for poly in polygons]
 
 	minimal_path = None
 	minimal_length = float('inf')
@@ -45,7 +45,7 @@ def tpp_solve_tracked(start: tuple[float, float], target: tuple[float, float], p
 	if simplify:
 		polygons = [u_tpp.clean_polygon(poly) for poly in polygons]
 
-	convex_pieces = [hertel_mehlhorn(poly) for poly in polygons]
+	convex_pieces = [polygon_decomposition.decompose(poly) for poly in polygons]
 
 	minimal_path = None
 	minimal_length = float('inf')

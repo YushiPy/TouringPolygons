@@ -251,6 +251,7 @@ function triangulate(polygon, doNotCheckOrdering = false) {
 	if (polygon.length < 4) {
 		return [polygon];
 	}
+	
 	const len = polygon.length;
 	const vertices = [];
 	const triangles = [];

@@ -166,3 +166,5 @@ def hertel_mehlhorn(polygon: Sequence[tuple[float, float]]) -> list[list[tuple[f
 		current = new_pieces
 	
 	return [list(p) for p in current] # type: ignore
+
+decompose = hertel_mehlhorn

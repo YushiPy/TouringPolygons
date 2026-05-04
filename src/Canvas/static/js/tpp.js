@@ -382,6 +382,30 @@ function pathLength(path) {
 	return length;
 }
 
+function isConvex(polygon) {
+
+	if (polygon.length < 3) return true;
+	
+	let gotNegative = false;
+	let gotPositive = false;
+	const n = polygon.length;
+
+	for (let i = 0; i < n; i++) {
+		const p0 = polygon[i];
+		const p1 = polygon[(i + 1) % n];
+		const p2 = polygon[(i + 2) % n];
+
+		const cross = (p1.x - p0.x) * (p2.y - p1.y) - (p1.y - p0.y) * (p2.x - p1.x);
+
+		if (cross < 0) gotNegative = true;
+		else if (cross > 0) gotPositive = true;
+
+		if (gotNegative && gotPositive) return false;
+	}
+
+	return true;
+}
+
 export function tppSolveBNB(start, target, polygons, simplify = false) {
 	
 	start = new Vector2(start);
@@ -392,8 +416,12 @@ export function tppSolveBNB(start, target, polygons, simplify = false) {
 		polygons = polygons.map(cleanPolygon);
 	}
 
+	if (polygons.every(isConvex)) {
+		return tppSolveConvex(start, target, polygons);
+	}
+
 	const convexHulls = polygons.map(convexHull);
-	const convexPartitions = polygons.map(polygon => convexPartition(polygon));
+	const convexPartitions = polygons.map(polygon => isConvex(polygon) ? [polygon] : convexPartition(polygon));
 
 	function lowerBound(instance) {
 
