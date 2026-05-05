@@ -9,12 +9,13 @@
 
 int main() {
 
-	size_t m = 5;
+	// size_t m = 100;
+	size_t k = 10;
 	std::vector<double> times;
 
-	for (size_t k = 3; k < 300; k += 10) {
+	for (size_t m = 1; m < 10000; m += 1) {
 
-		std::vector<size_t> polygon_sizes(m, k);
+		std::vector<size_t> polygon_sizes(k, m);
 
 		auto [start, target, polygons] = tpp::generate_test(polygon_sizes);
 		auto start_time = std::chrono::high_resolution_clock::now();

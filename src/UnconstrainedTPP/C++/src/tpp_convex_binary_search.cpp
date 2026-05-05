@@ -71,9 +71,11 @@ class SolutionBinarySearch : public tpp::Solution {
 	int64_t locate_point(const Vector2& point, size_t i) override {
 
 		size_t location = _locate_point(point, i);
-		size_t previous_index = location == 0 ? first_contact.size() - 1 : (location - 1) / 2;
+		const auto &fc = first_contact[i - 1];
+		
+		size_t previous_index = location == 0 ? fc.size() - 1 : (location - 1) / 2;
 
-		if (first_contact[i - 1][location / 2] || first_contact[i - 1][previous_index]) {
+		if (fc[location / 2] || fc[previous_index]) {
 			return location;
 		} else {
 			return -1;
