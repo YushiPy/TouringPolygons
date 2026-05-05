@@ -11,7 +11,7 @@ class SolutionLinearSearch : public tpp::Solution {
 
 	using tpp::Solution::Solution;
 
-	int64_t locate_point(const Vector2& point, size_t i) {
+	int64_t locate_point(const Vector2& point, size_t i) override {
 
 		const auto &polygon = polygons[i - 1];
 		const auto &_first_contact = first_contact[i - 1];
@@ -51,17 +51,6 @@ class SolutionLinearSearch : public tpp::Solution {
 
 		return -1;
 	}
-
-	/*
-	void preload_cones() {
-
-		for (size_t i = 0; i < polygons.size(); i++) {
-			for (size_t j = 0; j < polygons[i].size(); j++) {
-				get_cone(i, j); // Computes the cones[i][j]
-			}
-		}
-	}
-	*/
 };
 
 namespace tpp {

@@ -1,6 +1,7 @@
 
 #include "vector2.h"
 #include "tpp_convex_linear_search.h"
+#include "tpp_convex_binary_search.h"
 #include "tests.h"
 
 #include <print>
@@ -11,13 +12,13 @@ int main() {
 	size_t m = 5;
 	std::vector<double> times;
 
-	for (size_t k = 3; k < 3000; k += 10) {
+	for (size_t k = 3; k < 300; k += 10) {
 
 		std::vector<size_t> polygon_sizes(m, k);
 
 		auto [start, target, polygons] = tpp::generate_test(polygon_sizes);
 		auto start_time = std::chrono::high_resolution_clock::now();
-		auto solution = tpp::tpp_convex_solve_linear_search(start, target, polygons);
+		auto solution = tpp::tpp_convex_solve_binary_search(start, target, polygons);
 		auto end_time = std::chrono::high_resolution_clock::now();
 		
 		double elapsed_seconds = std::chrono::duration<double>(end_time - start_time).count();
