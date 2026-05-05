@@ -5,8 +5,12 @@
 
 #include <vector>
 #include <cmath>
+#include <tuple>
+#include <algorithm>
+#include <random>
 
 using std::vector;
+using std::tuple;
 
 vector<Vector2> regular_polygon(size_t n, const Vector2 &center, double radius) {
 
@@ -44,6 +48,43 @@ bool segment_polygon_intersection(const Vector2 &p1, const Vector2 &p2, const ve
 
 
 namespace tpp {
+
+	auto rng = std::default_random_engine {};
+
+	tuple<Vector2, Vector2, vector<vector<Vector2>>> generate_random_test(const vector<size_t> &polygon_sizes) {
+
+		const size_t height = std::ceil(std::sqrt(polygon_sizes.size()));
+		const size_t width = std::ceil((double) polygon_sizes.size() / height);
+
+		vector<size_t> indeces(height * width);
+		
+		for (size_t i = 0; i < indeces.size(); i++) {
+			indeces[i] = i;
+		}
+
+		// Shuffle the indeces to randomize the polygon positions
+		
+		std::ranges::shuffle(indeces, rng);
+
+		vector<vector<Vector2>> polygons;
+
+		for (size_t i = 0; i < polygon_sizes.size(); i++) {
+			
+			size_t index = indeces[i];
+			size_t row = index / width;
+			size_t col = index % width;
+
+			Vector2 center(col, row);
+			double radius = (double) rng() / rng.max() * 0.4 + 0.1; // Random radius between 0.1 and 0.5
+
+			polygons.push_back(regular_polygon(polygon_sizes[i], center, radius));
+		}
+
+		Vector2 start(-0.5, -0.5);
+		Vector2 target(width - 0.5, height - 0.5);
+
+		return {start, target, polygons};
+	}
 
 	bool is_valid_solution(const Vector2 &start, const Vector2 & target, const vector<vector<Vector2>> &polygons, const vector<Vector2> &solution) {
 

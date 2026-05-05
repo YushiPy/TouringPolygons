@@ -3,25 +3,26 @@
 #include "tpp_convex_naive.h"
 #include "tests.h"
 
+#include <print>
+
 int main() {
 
-	Vector2 start(-1.0, 0.5);
-	Vector2 target(3.0, 0.5);
+	bool failed = false;
 
-	std::vector<std::vector<Vector2>> polygons = {
-		{
-			Vector2(-1.0, 2.0),
-			Vector2(1.0, 1.0),
-			Vector2(3.0, 2.0),
-			Vector2(1.0, 3.0),
-		},
-		{
-			Vector2(2.0, -2.5),
-			Vector2(0.0, -2.0),
-			Vector2(0.0, -4.0),
-		},
-	};
+	for (size_t i = 0; i < 1000; i++) {
 
-	auto path = tpp::tpp_convex_solve(start, target, polygons);
-	bool is_valid = tpp::is_valid_solution(start, target, polygons, path);
+		auto [start, target, polygons] = tpp::generate_random_test({3, 4, 5, 6, 7});
+		auto solution = tpp::tpp_convex_solve(start, target, polygons);
+	
+		if (!tpp::is_valid_solution(start, target, polygons, solution)) {
+			failed = true;
+			break;
+		}
+	}
+
+	if (failed) {
+		std::print("A test failed.\n");
+	} else {
+		std::print("All tests passed.\n");
+	}
 }

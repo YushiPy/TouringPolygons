@@ -395,7 +395,6 @@ int main() {
 
 		if (!all_approx_equal) {
 			
-
 			std::println("start={}; target={}", start, target);
 			for (const auto &polygon : polygons) {
 				for (const auto &vertex : polygon) {
