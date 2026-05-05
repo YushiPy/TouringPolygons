@@ -9,7 +9,7 @@ int main() {
 
 	bool failed = false;
 
-	for (size_t i = 0; i < 1000; i++) {
+	for (size_t i = 0; i < 1; i++) {
 
 		auto [start, target, polygons] = tpp::generate_random_test({3, 4, 5, 6, 7});
 		auto solution = tpp::tpp_convex_solve(start, target, polygons);
@@ -18,6 +18,8 @@ int main() {
 			failed = true;
 			break;
 		}
+
+		tpp::plot_solution(start, target, polygons, solution);
 	}
 
 	if (failed) {

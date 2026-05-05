@@ -3,11 +3,20 @@
 #include "common.h"
 #include "tests.h"
 
+// Math for generating random test cases and verifying solutions.
 #include <vector>
 #include <cmath>
 #include <tuple>
+
+// Random number generation
 #include <algorithm>
 #include <random>
+
+// For plotting solutions
+#include <cstdlib>
+#include <string>
+#include <format>
+#include <chrono>
 
 using std::vector;
 using std::tuple;
@@ -49,33 +58,35 @@ bool segment_polygon_intersection(const Vector2 &p1, const Vector2 &p2, const ve
 
 namespace tpp {
 
-	auto rng = std::default_random_engine {};
+	auto rng = std::default_random_engine(std::chrono::steady_clock::now().time_since_epoch().count());
 
 	tuple<Vector2, Vector2, vector<vector<Vector2>>> generate_random_test(const vector<size_t> &polygon_sizes) {
 
 		const size_t height = std::ceil(std::sqrt(polygon_sizes.size()));
 		const size_t width = std::ceil((double) polygon_sizes.size() / height);
 
-		vector<size_t> indeces(height * width);
+		vector<size_t> indices(height * width);
 		
-		for (size_t i = 0; i < indeces.size(); i++) {
-			indeces[i] = i;
+		for (size_t i = 0; i < indices.size(); i++) {
+			indices[i] = i;
 		}
 
-		// Shuffle the indeces to randomize the polygon positions
+		// Shuffle the indices to randomize the polygon positions
 		
-		std::ranges::shuffle(indeces, rng);
+		std::ranges::shuffle(indices, rng);
 
 		vector<vector<Vector2>> polygons;
 
 		for (size_t i = 0; i < polygon_sizes.size(); i++) {
 			
-			size_t index = indeces[i];
+			size_t index = indices[i];
 			size_t row = index / width;
 			size_t col = index % width;
 
 			Vector2 center(col, row);
-			double radius = (double) rng() / rng.max() * 0.4 + 0.1; // Random radius between 0.1 and 0.5
+
+			std::uniform_real_distribution<double> dist(0.1, 0.5);
+			double radius = dist(rng);
 
 			polygons.push_back(regular_polygon(polygon_sizes[i], center, radius));
 		}
@@ -86,7 +97,7 @@ namespace tpp {
 		return {start, target, polygons};
 	}
 
-	bool is_valid_solution(const Vector2 &start, const Vector2 & target, const vector<vector<Vector2>> &polygons, const vector<Vector2> &solution) {
+	bool is_valid_solution(const Vector2 &start, const Vector2 &target, const vector<vector<Vector2>> &polygons, const vector<Vector2> &solution) {
 
 		// A correct solution must start at `start`, end at `target`, have no consecutive collinear points, and visit the polygons in order without skipping any.
 		if (solution.size() < 2) {
@@ -248,4 +259,102 @@ namespace tpp {
 		return true;
 	}
 
+	std::string vectors_to_string(const vector<Vector2> &vectors) {
+		
+		std::string result = "[";
+
+		for (size_t i = 0; i < vectors.size(); i++) {
+			
+			result += std::format("({}, {})", vectors[i].x, vectors[i].y);
+
+			if (i < vectors.size() - 1) {
+				result += ", ";
+			}
+		}
+
+		result += "]";
+		
+		return result;
+	}
+
+	std::string polygons_to_string(const vector<vector<Vector2>> &polygons) {
+		
+		std::string result = "[";
+
+		for (size_t i = 0; i < polygons.size(); i++) {
+			result += vectors_to_string(polygons[i]);
+
+			if (i < polygons.size() - 1) {
+				result += ", ";
+			}
+		}
+
+		result += "]";
+		
+		return result;
+	}
+
+	void plot_solution(const Vector2 &start, const Vector2 &target, const vector<vector<Vector2>> &polygons, const vector<Vector2> &solution) {
+
+		std::string code;
+
+		code += std::format("start = ({}, {})\ntarget = ({}, {})\npolygons = {}\nsolution = {}\n", start.x, start.y, target.x, target.y, polygons_to_string(polygons), vectors_to_string(solution));
+		code += R""""(
+
+SQUARE = True
+SCALE = 1.2
+
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+
+minx = min(start[0], target[0], min(vertex[0] for polygon in polygons for vertex in polygon))
+maxx = max(start[0], target[0], max(vertex[0] for polygon in polygons for vertex in polygon))
+miny = min(start[1], target[1], min(vertex[1] for polygon in polygons for vertex in polygon))
+maxy = max(start[1], target[1], max(vertex[1] for polygon in polygons for vertex in polygon))
+
+width = maxx - minx
+height = maxy - miny
+
+centerx = (minx + maxx) / 2
+centery = (miny + maxy) / 2
+
+if SQUARE:
+	width = max(width, height)
+	height = width
+
+width *= SCALE
+height *= SCALE
+
+bbox = (centerx - width / 2, centerx + width / 2, centery - height / 2, centery + height / 2)
+
+ax.set_xlim(bbox[0], bbox[1])
+ax.set_ylim(bbox[2], bbox[3])
+
+ax.set_aspect('equal', adjustable='box')
+
+ax.fill([bbox[0], bbox[1], bbox[1], bbox[0]], [bbox[2], bbox[2], bbox[3], bbox[3]], color='lightgray')
+
+ax.scatter(*start, color='green', label='Start', zorder=5)
+ax.scatter(*target, color='red', label='Target', zorder=5)
+
+ax.text(start[0] + 0.05, start[1] + 0.05, 's', ha='center', va='center', backgroundcolor='white')
+ax.text(target[0] + 0.05, target[1] + 0.05, 't', ha='center', va='center', backgroundcolor='white')
+
+for i, polygon in enumerate(polygons):
+	ax.fill(*zip(*polygon), alpha=0.5, edgecolor='black')
+	centerx = sum(vertex[0] for vertex in polygon) / len(polygon)
+	centery = sum(vertex[1] for vertex in polygon) / len(polygon)
+	ax.text(centerx, centery, f'{i + 1}', ha='center', va='center')
+
+ax.plot(*zip(*solution), color='blue', label='Solution')
+ax.legend()
+
+plt.tight_layout()
+plt.show()
+		)"""";
+		
+		std::string cmd = std::format("python3 -c \"{}\"", code);
+		std::system(cmd.c_str());
+	}
 }

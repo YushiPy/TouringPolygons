@@ -27,4 +27,10 @@ namespace tpp {
 	- If a bend occours at an edge, it must follow the reflection rule.
 	*/
 	bool is_valid_solution(const Vector2 &start, const Vector2 & target, const std::vector<std::vector<Vector2>> &polygons, const std::vector<Vector2> &solution);
+
+	/*
+	Plots the given `solution` to a TPP instance defined by `start`, `target`, and `polygons` using matplotlib. 
+	This function calls Python through the command line to generate the plot, so it requires Python and matplotlib to be installed on the system.
+	*/
+	void plot_solution(const Vector2 &start, const Vector2 &target, const std::vector<std::vector<Vector2>> &polygons, const std::vector<Vector2> &solution);
 }
