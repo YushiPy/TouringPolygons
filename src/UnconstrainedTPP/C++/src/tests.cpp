@@ -21,12 +21,12 @@
 using std::vector;
 using std::tuple;
 
-vector<Vector2> regular_polygon(size_t n, const Vector2 &center, double radius) {
+vector<Vector2> regular_polygon(size_t n, const Vector2 &center, double radius, double rotation = 0.0) {
 
 	vector<Vector2> vertices;
 
 	for (size_t i = 0; i < n; i++) {
-		double angle = 2.0 * M_PI * i / n;
+		double angle = 2.0 * M_PI * i / n + rotation;
 		auto vertex = Vector2::from_angle(angle) * radius + center;
 		vertices.push_back(vertex);
 	}
@@ -72,7 +72,6 @@ namespace tpp {
 		}
 
 		// Shuffle the indices to randomize the polygon positions
-		
 		std::ranges::shuffle(indices, rng);
 
 		vector<vector<Vector2>> polygons;
@@ -94,6 +93,86 @@ namespace tpp {
 		Vector2 start(-0.5, -0.5);
 		Vector2 target(width - 0.5, height - 0.5);
 
+		return {start, target, polygons};
+	}
+
+	tuple<Vector2, Vector2, vector<vector<Vector2>>> generate_random_test_bad(const vector<size_t> &polygon_sizes, bool shuffle) {
+
+		if (shuffle) {
+			vector<size_t> copy = polygon_sizes;
+			std::ranges::shuffle(copy, rng);
+			return generate_random_test_bad(copy, false);
+		}
+
+		vector<vector<Vector2>> polygons;
+
+		for (size_t i = 0; i < polygon_sizes.size(); i++) {
+
+			// std::uniform_real_distribution<double> dist(0.25, 0.5);
+			// double radius = dist(rng);
+			double radius = 0.5;
+
+			Vector2 center(i, 0);
+			polygons.push_back(regular_polygon(polygon_sizes[i], center, radius));
+		}
+
+		Vector2 start(-1.0, 0);
+		Vector2 target(polygon_sizes.size(), 0);
+
+		return {start, target, polygons};
+	}
+
+	std::tuple<Vector2, Vector2, std::vector<std::vector<Vector2>>> generate_random_test_good(const std::vector<size_t> &polygon_sizes, bool shuffle) {
+
+		if (polygon_sizes.empty()) {
+			Vector2 start(0, 0);
+			Vector2 target(1, 0);
+			return {start, target, {}};
+		}
+
+		if (shuffle) {
+			vector<size_t> copy = polygon_sizes;
+			std::ranges::shuffle(copy, rng);
+			return generate_random_test_good(copy, false);
+		}
+
+		vector<vector<Vector2>> polygons;
+		
+		Vector2 start(0, 0);
+
+		const double max_r = 0.5;
+		const double min_x = 1.0;
+		
+		double x = min_x;
+		const auto first = regular_polygon(polygon_sizes[0], Vector2(x, 0), max_r, M_PI);
+
+		polygons.push_back(first);
+
+		for (size_t i = 1; i < polygon_sizes.size(); i++) {
+
+			auto n = polygon_sizes[i];
+
+			if (n <= 4) {
+				x = min_x;
+			} else {
+				double h = max_r / std::sin(2 * M_PI / n);
+				x = std::max(min_x, h - x + max_r);
+			}
+
+			double poly_x = x;
+			double angle = M_PI;
+
+			if (i % 2 == 1) {
+				poly_x *= -1;
+				angle = 0;
+			}
+
+			const auto polygon = regular_polygon(n, Vector2(poly_x, 0), max_r, angle);
+			polygons.push_back(polygon);
+		}
+
+		Vector2 target(-min_x / 3, 0);
+		
 		return {start, target, polygons};
 	}
 
@@ -351,9 +430,13 @@ ax.plot(*zip(*solution), color='blue', label='Solution')
 ax.legend()
 
 plt.tight_layout()
-plt.show()
+
+try:
+	plt.show()
+except KeyboardInterrupt:
+	pass
 		)"""";
-		
+
 		std::string cmd = std::format("python3 -c \"{}\"", code);
 		std::system(cmd.c_str());
 	}
