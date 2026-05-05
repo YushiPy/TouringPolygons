@@ -60,7 +60,7 @@ namespace tpp {
 
 	auto rng = std::default_random_engine(std::chrono::steady_clock::now().time_since_epoch().count());
 
-	tuple<Vector2, Vector2, vector<vector<Vector2>>> generate_random_test(const vector<size_t> &polygon_sizes) {
+	tuple<Vector2, Vector2, vector<vector<Vector2>>> generate_test(const vector<size_t> &polygon_sizes) {
 
 		const size_t height = std::ceil(std::sqrt(polygon_sizes.size()));
 		const size_t width = std::ceil((double) polygon_sizes.size() / height);
@@ -96,12 +96,12 @@ namespace tpp {
 		return {start, target, polygons};
 	}
 
-	tuple<Vector2, Vector2, vector<vector<Vector2>>> generate_random_test_bad(const vector<size_t> &polygon_sizes, bool shuffle) {
+	tuple<Vector2, Vector2, vector<vector<Vector2>>> generate_test_bad(const vector<size_t> &polygon_sizes, bool shuffle) {
 
 		if (shuffle) {
 			vector<size_t> copy = polygon_sizes;
 			std::ranges::shuffle(copy, rng);
-			return generate_random_test_bad(copy, false);
+			return generate_test_bad(copy, false);
 		}
 
 		vector<vector<Vector2>> polygons;
@@ -122,7 +122,7 @@ namespace tpp {
 		return {start, target, polygons};
 	}
 
-	std::tuple<Vector2, Vector2, std::vector<std::vector<Vector2>>> generate_random_test_good(const std::vector<size_t> &polygon_sizes, bool shuffle) {
+	std::tuple<Vector2, Vector2, std::vector<std::vector<Vector2>>> generate_test_good(const std::vector<size_t> &polygon_sizes, bool shuffle) {
 
 		if (polygon_sizes.empty()) {
 			Vector2 start(0, 0);
@@ -133,7 +133,7 @@ namespace tpp {
 		if (shuffle) {
 			vector<size_t> copy = polygon_sizes;
 			std::ranges::shuffle(copy, rng);
-			return generate_random_test_good(copy, false);
+			return generate_test_good(copy, false);
 		}
 
 		vector<vector<Vector2>> polygons;

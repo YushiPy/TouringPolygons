@@ -1,30 +1,34 @@
 
 #include "vector2.h"
-#include "tpp_convex_naive.h"
+#include "tpp_convex_linear_search.h"
 #include "tests.h"
 
 #include <print>
+#include <chrono>
 
 int main() {
 
-	bool failed = false;
+	size_t m = 5;
+	std::vector<double> times;
 
-	for (size_t i = 0; i < 1; i++) {
+	for (size_t k = 3; k < 3000; k += 10) {
 
-		auto [start, target, polygons] = tpp::generate_random_test({3, 4, 5, 6, 7});
-		auto solution = tpp::tpp_convex_solve(start, target, polygons);
-	
-		if (!tpp::is_valid_solution(start, target, polygons, solution)) {
-			failed = true;
-			break;
-		}
+		std::vector<size_t> polygon_sizes(m, k);
 
-		tpp::plot_solution(start, target, polygons, solution);
+		auto [start, target, polygons] = tpp::generate_test(polygon_sizes);
+		auto start_time = std::chrono::high_resolution_clock::now();
+		auto solution = tpp::tpp_convex_solve_linear_search(start, target, polygons);
+		auto end_time = std::chrono::high_resolution_clock::now();
+		
+		double elapsed_seconds = std::chrono::duration<double>(end_time - start_time).count();
+		times.push_back(elapsed_seconds);
+		
+		// tpp::plot_solution(start, target, polygons, solution);
 	}
 
-	if (failed) {
-		std::print("A test failed.\n");
-	} else {
-		std::print("All tests passed.\n");
+	for (const auto &time : times) {
+		std::print("{}, ", time);
 	}
+
+	std::println();
 }

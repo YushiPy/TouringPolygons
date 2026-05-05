@@ -3,7 +3,7 @@
 #include <chrono>
 
 #include "vector2.h"
-#include "tpp_convex_naive.h"
+#include "tpp_convex_linear_search.h"
 #include "tests.h"
 
 using Polygon = std::vector<Vector2>;
@@ -368,7 +368,7 @@ int main() {
 		const auto &[start, target, polygons, expected] = tests[i];
 
 		auto start_time = std::chrono::high_resolution_clock::now();
-		auto result = tpp::tpp_convex_solve(start, target, polygons);
+		auto result = tpp::tpp_convex_solve_linear_search(start, target, polygons);
 		auto end_time = std::chrono::high_resolution_clock::now();
 
 		std::chrono::duration<double> elapsed = end_time - start_time;
