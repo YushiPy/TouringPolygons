@@ -4,11 +4,13 @@
 
 #include "vector2.h"
 #include "tpp_convex_naive.h"
+#include "tests.h"
 
 using Polygon = std::vector<Vector2>;
 
 int main() {
-std::vector<std::tuple<Vector2, Vector2, std::vector<std::vector<Vector2>>, std::vector<Vector2>>> tests = {
+
+	std::vector<std::tuple<Vector2, Vector2, std::vector<std::vector<Vector2>>, std::vector<Vector2>>> tests = {
 	{
 		Vector2(0.0, 1.0),
 		Vector2(2.0, 1.0),
@@ -366,14 +368,15 @@ std::vector<std::tuple<Vector2, Vector2, std::vector<std::vector<Vector2>>, std:
 		const auto &[start, target, polygons, expected] = tests[i];
 
 		auto start_time = std::chrono::high_resolution_clock::now();
-		auto result = tpp_solve(start, target, polygons);
+		auto result = tpp::tpp_convex_solve(start, target, polygons);
 		auto end_time = std::chrono::high_resolution_clock::now();
 
 		std::chrono::duration<double> elapsed = end_time - start_time;
 
-		if (result.size() != expected.size()) {
-			std::println("Test {} failed: expected path of length {}, got path of length {}", i, expected.size(), result.size());
-			continue;
+		if (!tpp::is_valid_solution(start, target, polygons, result)) {
+			std::println("Test {} failed: invalid solution", i);
+			//continue;
+			break;
 		}
 
 		bool all_approx_equal = true;
@@ -391,7 +394,24 @@ std::vector<std::tuple<Vector2, Vector2, std::vector<std::vector<Vector2>>, std:
 		}
 
 		if (!all_approx_equal) {
-			continue;
+			
+
+			std::println("start={}; target={}", start, target);
+			for (const auto &polygon : polygons) {
+				for (const auto &vertex : polygon) {
+					std::print("{}, ", vertex);
+				}
+				std::println();
+			}
+			for (const auto &point : result) {
+				std::print("{}, ", point);
+			}
+			std::println();
+			for (const auto &point : expected) {
+				std::print("{}, ", point);
+			}
+			std::println();
+			break;
 		}
 
 		std::println("Test {} passed in {} seconds", i, elapsed.count());

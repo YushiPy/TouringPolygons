@@ -119,10 +119,13 @@ class Vector2:
 	
 	def scale_to_length_ip(self, value: float) -> None:
 		"""Scales the vector to the desired length, maintaining the direction."""
-		mult = value / self.magnitude()
+		
+		mag = self.magnitude()
 
-		if mult == 0:
-			raise ValueError("Can't scale a vector of length Zero")
+		if mag == 0:
+			raise ValueError("Can't scale a zero-length vector to a specific length")
+
+		mult = value / mag
 
 		self.x *= mult
 		self.y *= mult
@@ -429,7 +432,7 @@ class Vector2:
 
 	def is_same_direction(self, other: Self, eps: float = 1e-8) -> bool:
 		"""Checks if this vector is parallel to the other vector within a given epsilon."""
-		return abs(self.cross(other)) < eps * eps and self.dot(other) >= 0
+		return abs(self.cross(other)) < eps and self.dot(other) >= 0
 
 	def __add__(self, other: Self) -> Self:
 		"""Returns a new vector that is the sum of this vector and the other vector."""

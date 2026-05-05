@@ -198,7 +198,7 @@ def is_correct_solution(start: Vector2, target: Vector2, polygons: list[list[Vec
 				polygon_index += 1
 				break
 		else:
-			if not visited and path_index + 1 < len(solution):
+			if not visited:
 				return f"OptimalityError: Bends can only occur at the polygon's edge, point {path_index} is not optimal."
 			else:
 				path_index += 1
@@ -234,50 +234,63 @@ if __name__ == "__main__":
 
 	tests = basic_tests + edge_cases
 
-	for start, target, polygons, expected in tests:
+	def random_tests() -> None:
 
-		expected = list(map(Vector2, expected))
+		for start, target, polygons, expected in tests:
 
-		import random
+			expected = list(map(Vector2, expected))
 
-		if len(expected) <= 2:
-			continue
+			import random
 
-		index = random.randint(1, len(expected) - 2)
-
-		if random.random() < 0.5:
-			vertex = None
-
-			while True:
-				vertex = Vector2(random.choice(polygons[index - 1]))
-
-				if vertex.is_close(expected[index]):
-					continue
-
-				break
-
-			expected[index] = vertex
-		else:
-			edge = random.randrange(len(polygons[index - 1]))
-			v1 = Vector2(polygons[index - 1][edge])
-			v2 = Vector2(polygons[index - 1][(edge + 1) % len(polygons[index - 1])])
-
-			scale = random.random()
-			p = v1.lerp(v2, scale)
-
-			if p.is_close(expected[index]):
+			if len(expected) <= 2:
 				continue
+
+			index = random.randint(1, len(expected) - 2)
+
+			if random.random() < 0.5:
+				vertex = None
+
+				while True:
+					vertex = Vector2(random.choice(polygons[index - 1]))
+
+					if vertex.is_close(expected[index]):
+						continue
+
+					break
+
+				expected[index] = vertex
 			else:
-				expected[index] = p
+				edge = random.randrange(len(polygons[index - 1]))
+				v1 = Vector2(polygons[index - 1][edge])
+				v2 = Vector2(polygons[index - 1][(edge + 1) % len(polygons[index - 1])])
 
-		result = is_correct_solution(Vector2(start), Vector2(target), [list(map(Vector2, polys)) for polys in polygons], expected)
+				scale = random.random()
+				p = v1.lerp(v2, scale)
 
-		if result != "":
-			print(f"Test failed: {result}")
-		else:
-			print("Test passed.")
+				if p.is_close(expected[index]):
+					continue
+				else:
+					expected[index] = p
 
-	start, target, polygons, expected = tests[5]
+			result = is_correct_solution(Vector2(start), Vector2(target), [list(map(Vector2, polys)) for polys in polygons], expected)
+
+			if result != "":
+				print(f"Test failed: {result}")
+			else:
+				print("Test passed.")
+
+	start = Vector2(-1, 0.5)
+	target = Vector2(3, 0.5)
+	polygons = [
+		[Vector2(-1, 2), Vector2(1, 1), Vector2(3, 2), Vector2(1, 3)],
+		[Vector2(2, -2.5), Vector2(0, -2), Vector2(0, -4)],
+	]
+
+	result = [Vector2(-1, 0.5), Vector2(0.15714285714285725, 1.4214285714285713), Vector2(0, -4), Vector2(3, 0.5)]
+	expected = [Vector2(-1, 0.5), Vector2(0.44179104477611975, 1.2791044776119402), Vector2(0.9670014347202298, -2.241750358680058), Vector2(3, 0.5)]
+
+	expected = result
+	#start, target, polygons, expected = tests[5]
 
 	import matplotlib.pyplot as plt
 

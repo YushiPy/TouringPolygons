@@ -41,7 +41,7 @@ class Solution {
 			const auto after = polygon[j_next];
 
 			const auto last = query(vertex, i);
-			const auto diff = vertex - last;
+			const auto diff = (vertex - last).normalized(); // Normalizing is not necessary, but makes debugging easier and does not affect the correctness of the algorithm.
 
 			auto ray1 = diff.reflect(vertex - before);
 			auto ray2 = diff.reflect(vertex - after);
@@ -57,7 +57,7 @@ class Solution {
 				ray2 = diff;
 			}
 
-			cones[i][j] = {ray1.normalized(), ray2.normalized()};
+			cones[i][j] = {ray1, ray2};
 		}
 
 		return cones[i][j];
@@ -87,7 +87,7 @@ class Solution {
 			const auto &v = polygon[j];
 			const auto &[ray1, ray2] = _cones[j];
 
-			if (point_in_cone(point, v, ray1, ray2)) {
+			if (tpp::point_in_cone(point, v, ray1, ray2)) {
 				return 2 * j;
 			}
 		}
@@ -104,7 +104,7 @@ class Solution {
 			const auto &ray1 = _cones[j].second;
 			const auto &ray2 = _cones[(j + 1) % _cones.size()].first;
 
-			if (point_in_edge(point, v1, ray1, v2, ray2)) {
+			if (tpp::point_in_edge(point, v1, ray1, v2, ray2)) {
 				return 2 * j + 1;
 			}
 		}
@@ -154,7 +154,7 @@ class Solution {
 		query_full(reflected, i - 1, accumulator);
 
 		const auto &last = accumulator.back();
-		const auto &intersection = segment_segment_intersection(last, reflected, v1, v2);
+		const auto &intersection = tpp::segment_segment_intersection(last, reflected, v1, v2);
 
 		if (!intersection.is_finite()) {
 			throw std::runtime_error(
@@ -209,7 +209,7 @@ class Solution {
 
 		const auto reflected = point.reflect_line(v1, v2);
 		const auto last = query(reflected, i - 1);
-		const auto intersection = segment_segment_intersection(last, reflected, v1, v2);
+		const auto intersection = tpp::segment_segment_intersection(last, reflected, v1, v2);
 
 		if (!intersection.is_finite()) {
 			throw std::runtime_error(
@@ -243,11 +243,14 @@ class Solution {
 	}
 };
 
-std::vector<Vector2> tpp_convex_solve(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
-	
-	Solution solution(start, target, polygons);
-	auto path = solution.solve();
-	path = remove_collinear_points(path);
+namespace tpp {
 
-	return path;
+	std::vector<Vector2> tpp_convex_solve(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		
+		Solution solution(start, target, polygons);
+		auto path = solution.solve();
+		path = tpp::remove_collinear_points(path);
+
+		return path;
+	}
 }

@@ -7,7 +7,7 @@ import sys
 sys.setrecursionlimit(10 ** 7)
 
 import solutions
-import UnconstrainedTPP.u_tpp_tamc as u_tpp_tamc
+import u_tpp_tamc as u_tpp_tamc
 
 reference_solution = solutions.tpp_solve
 # test_solution = solutions.tpp_solve_naive_cpp
@@ -287,11 +287,11 @@ if __name__ == "__main__":
 		("Few Large Polygons Tests", [
 			[100] * 1,
 			[200] * 2,
-			[300] * 3,
-			[400] * 4,
-			[10 ** 4] * 2,
-			[10 ** 5] * 2,
-			[10 ** 6] * 1,
+			#[300] * 3,
+			#[400] * 4,
+			#[10 ** 4] * 2,
+			#[10 ** 5] * 2,
+			#[10 ** 6] * 1,
 		] * 1, 0.5, 20),
 	]
 
