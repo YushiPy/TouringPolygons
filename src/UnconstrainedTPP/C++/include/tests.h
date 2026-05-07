@@ -8,6 +8,22 @@
 
 namespace tpp {
 
+	struct TestCase {
+		Vector2 start, target;
+		std::vector<std::vector<Vector2>> polygons;
+		std::vector<Vector2> solution;
+	};
+
+	/*
+	Sets the seed for the random number generator used in the test case generation functions (`generate_test()`).
+	By default, the seed is set to the current time since epoch, which means that the generated test cases 
+	will be different each time the program is run.
+
+	Setting a fixed seed can be useful for debugging or for generating the same test cases across 
+	different runs of the program.
+	*/
+	void set_rng_seed(unsigned int seed);
+
 	/*
 	Generates a random TPP instance with the given number of polygons and vertices per polygon.
 	The polygons are generated as regular polygons with random centers and radii, and are placed in a grid-like pattern to avoid overlaps.
@@ -57,4 +73,61 @@ namespace tpp {
 	This function calls Python through the command line to generate the plot, so it requires Python and matplotlib to be installed on the system.
 	*/
 	void plot_solution(const Vector2 &start, const Vector2 &target, const std::vector<std::vector<Vector2>> &polygons, const std::vector<Vector2> &solution);
+
+	/*
+	Encodes the given TPP instance defined by `start`, `target`, `polygons` and its `solution` into a 
+	binary format that can be saved to a file or transmitted over a network.
+	
+	The encoding format is as follows:
+	- 16 bytes: Start point (2 doubles)
+	- 16 bytes: Target point (2 doubles)
+	- 8 bytes: Number of polygons (size_t)
+	- For each polygon:
+		- 8 bytes: Number of vertices (size_t)
+		- For each vertex:
+			- 16 bytes: Vertex position (2 doubles)
+	- 8 bytes: Number of points in the solution (size_t)
+	- For each point in the solution:
+		- 16 bytes: Point position (2 doubles)
+	*/
+	std::vector<std::byte> encode_test(const Vector2 &start, const Vector2 &target, const std::vector<std::vector<Vector2>> &polygons, const std::vector<Vector2> &solution = {});
+
+	/*
+	Decodes a TPP instance and its solution from a `data` buffer and updates the `offset` to
+	the position after the decoded data.
+
+	The input `data` is expected to be in the following format:
+	- 16 bytes: Start point (2 doubles)
+	- 16 bytes: Target point (2 doubles)
+	- 8 bytes: Number of polygons (size_t)
+	- For each polygon:
+		- 8 bytes: Number of vertices (size_t)
+		- For each vertex:
+			- 16 bytes: Vertex position (2 doubles)
+	- 8 bytes: Number of points in the solution (size_t)
+	- For each point in the solution:
+		- 16 bytes: Point position (2 doubles)
+
+	Otherwise, the behavior is undefined (e.g. if the data is malformed or does not follow the expected format).
+	*/
+	TestCase decode_test(const std::byte *data, size_t &offset);
+
+	/*
+	Decodes a TPP instance and its solution from a binary input stream.
+
+	The input `data` is expected to be in the following format:
+	- 16 bytes: Start point (2 doubles)
+	- 16 bytes: Target point (2 doubles)
+	- 8 bytes: Number of polygons (size_t)
+	- For each polygon:
+		- 8 bytes: Number of vertices (size_t)
+		- For each vertex:
+			- 16 bytes: Vertex position (2 doubles)
+	- 8 bytes: Number of points in the solution (size_t)
+	- For each point in the solution:
+		- 16 bytes: Point position (2 doubles)
+
+	Otherwise, the behavior is undefined (e.g. if the data is malformed or does not follow the expected format).
+	*/
+	TestCase decode_test(std::istream &ifs);
 }

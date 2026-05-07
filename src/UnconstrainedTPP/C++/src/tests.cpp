@@ -63,8 +63,11 @@ bool segment_polygon_intersection(const Vector2 &p1, const Vector2 &p2, const ve
 
 namespace tpp {
 
-	// auto rng = std::default_random_engine(std::chrono::steady_clock::now().time_since_epoch().count());
-	auto rng = std::default_random_engine(42); // Fixed seed for reproducibility
+	auto rng = std::default_random_engine(std::chrono::steady_clock::now().time_since_epoch().count());
+
+	void set_rng_seed(unsigned int seed) {
+		rng.seed(seed);
+	}
 
 	tuple<Vector2, Vector2, vector<vector<Vector2>>> generate_test(const vector<size_t> &polygon_sizes) {
 
@@ -447,4 +450,120 @@ except KeyboardInterrupt:
 		std::system(cmd.c_str());
 	}
 
+	std::vector<std::byte> encode_test(const Vector2 &start, const Vector2 &target, const vector<vector<Vector2>> &polygons, const vector<Vector2> &solution) {
+
+		std::vector<std::byte> data;
+
+		auto append_vector2 = [&data](const Vector2 &v) {
+			const auto x_bytes = std::bit_cast<std::array<std::byte, sizeof(double)>>(v.x);
+			const auto y_bytes = std::bit_cast<std::array<std::byte, sizeof(double)>>(v.y);
+			data.insert(data.end(), x_bytes.begin(), x_bytes.end());
+			data.insert(data.end(), y_bytes.begin(), y_bytes.end());
+		};
+
+		auto append_size_t = [&data](size_t value) {
+			const auto bytes = std::bit_cast<std::array<std::byte, sizeof(size_t)>>(value);
+			data.insert(data.end(), bytes.begin(), bytes.end());
+		};
+
+		append_vector2(start);
+		append_vector2(target);
+		append_size_t(polygons.size());
+
+		for (const auto &polygon : polygons) {
+			append_size_t(polygon.size());
+			for (const auto &vertex : polygon) {
+				append_vector2(vertex);
+			}
+		}
+
+		append_size_t(solution.size());
+
+		for (const auto &point : solution) {
+			append_vector2(point);
+		}
+
+		return data;
+	}
+
+	TestCase decode_test(const std::byte *data, size_t &offset) {
+
+		Vector2 start, target;
+		std::vector<std::vector<Vector2>> polygons;
+		std::vector<Vector2> solution;
+
+		auto read_vector2 = [&data](size_t &offset) -> Vector2 {
+			double x = std::bit_cast<double>(std::array<std::byte, sizeof(double)>{data[offset], data[offset + 1], data[offset + 2], data[offset + 3], data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7]});
+			double y = std::bit_cast<double>(std::array<std::byte, sizeof(double)>{data[offset + 8], data[offset + 9], data[offset + 10], data[offset + 11], data[offset + 12], data[offset + 13], data[offset + 14], data[offset + 15]});
+			offset += sizeof(double) * 2;
+			return Vector2(x, y);
+		};
+
+		auto read_size_t = [&data](size_t &offset) -> size_t {
+			size_t value = std::bit_cast<size_t>(std::array<std::byte, sizeof(size_t)>{data[offset], data[offset + 1], data[offset + 2], data[offset + 3], data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7]});
+			offset += sizeof(size_t);
+			return value;
+		};
+
+		start = read_vector2(offset);
+		target = read_vector2(offset);
+
+		size_t num_polygons = read_size_t(offset);
+		polygons.reserve(num_polygons);
+
+		for (size_t i = 0; i < num_polygons; i++) {
+
+			size_t num_vertices = read_size_t(offset);
+
+			std::vector<Vector2> polygon;
+			polygon.reserve(num_vertices);
+
+			for (size_t j = 0; j < num_vertices; j++) {
+				polygon.push_back(read_vector2(offset));
+			}
+
+			polygons.push_back(polygon);
+		}
+
+		size_t num_solution_points = read_size_t(offset);
+		solution.reserve(num_solution_points);
+
+		for (size_t i = 0; i < num_solution_points; i++) {
+			solution.push_back(read_vector2(offset));
+		}
+		
+		return {start, target, polygons, solution};
+	}
+
+	TestCase decode_test(std::istream &ifs) {
+
+		auto read_vector2 = [&ifs]() -> Vector2 {
+			double x, y;
+			ifs.read(reinterpret_cast<char*>(&x), sizeof(double));
+			ifs.read(reinterpret_cast<char*>(&y), sizeof(double));
+			return Vector2(x, y);
+		};
+
+		auto read_size_t = [&ifs]() -> size_t {
+			size_t value;
+			ifs.read(reinterpret_cast<char*>(&value), sizeof(size_t));
+			return value;
+		};
+
+		const auto start = read_vector2();
+		const auto target = read_vector2();
+
+		const size_t num_polygons = read_size_t();
+		std::vector<std::vector<Vector2>> polygons(num_polygons);
+		for (auto &polygon : polygons) {
+			polygon.resize(read_size_t());
+			for (auto &v : polygon) v = read_vector2();
+		}
+
+		const size_t num_solution = read_size_t();
+		std::vector<Vector2> solution(num_solution);
+		for (auto &v : solution) v = read_vector2();
+
+		return {start, target, polygons, solution};
+	}
 }

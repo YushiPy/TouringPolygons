@@ -1,8 +1,6 @@
 
 #include "vector2.h"
-#include "tpp_convex_linear_search.h"
-#include "tpp_convex_binary_search.h"
-#include "tpp_convex_tamc.h"
+#include "tpp_convex.h"
 #include "tests.h"
 
 #include <print>
