@@ -468,30 +468,80 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 		last = query(v, i + 1, location)
 		
 		build_rays(i + 1, 0, last)
-
-		# All vertices in indices `j` such that 
-		# `l <= j < r` have not been built yet.
-		l = 1
-		r = len(next_polygon) - 1
-
+		
 		def point_in_location(point: Vector2, location: int) -> bool:
 
 			if location % 2 == 0:
-				return point_in_cone2(point, current_polygon[location // 2], *current_cones[location // 2])
+				v = current_polygon[location // 2]
+				ray1, ray2 = current_cones[location // 2] # type: ignore
+				return point_in_cone(point, v, ray1, ray2)
 			else:
-				return point_in_edge(point, current_polygon[location // 2], current_polygon[(location + 1) // 2 % len(current_polygon)], current_cones[location // 2][1], current_cones[(location + 1) // 2 % len(current_cones)][0])
-		
-		while l <= r:
+				v1 = current_polygon[location // 2]
+				v2 = current_polygon[(location // 2 + 1) % len(current_polygon)]
+				ray1 = current_cones[location // 2][1] # type: ignore
+				ray2 = current_cones[(location // 2 + 1) % len(current_polygon)][0] # type: ignore
+				return point_in_edge(point, v1, v2, ray1, ray2)
 
-			while l <= r and point_in_location(next_polygon[l], location):
-				build_rays(i + 1, l, query(next_polygon[l], i + 1, location))
-				l += 1
-			
-			while l <= r and point_in_location(next_polygon[r], location):
-				build_rays(i + 1, r, query(next_polygon[r], i + 1, location))
-				r -= 1
+		v_index = 1
+		original_location = location
+		last_location = location
+		
+		while True:
+
+			while v_index < len(next_polygon) and point_in_location(next_polygon[v_index], location):
+				build_rays(i + 1, v_index, query(next_polygon[v_index], i + 1))
+				v_index += 1
+				last_location = location
 			
 			location = (location + 1) % (2 * len(current_polygon))
+
+			if location == original_location or v_index == len(next_polygon):
+				break
+		
+		location = last_location
+		original_location = location
+
+		while True:
+
+			while v_index < len(next_polygon) and point_in_location(next_polygon[v_index], location):
+				build_rays(i + 1, v_index, query(next_polygon[v_index], i + 1))
+				v_index += 1
+				last_location = location
+			
+			location = (location - 1) % (2 * len(current_polygon))
+
+			if location == original_location:
+				break
+		
+		location = last_location
+		original_location = location
+		
+		while True:
+
+			while v_index < len(next_polygon) and point_in_location(next_polygon[v_index], location):
+				build_rays(i + 1, v_index, query(next_polygon[v_index], i + 1))
+				v_index += 1
+				last_location = location
+			
+			location = (location + 1) % (2 * len(current_polygon))
+
+			if location == original_location or v_index == len(next_polygon):
+				break
+		
+		location = last_location
+		original_location = location
+
+		while True:
+			
+			while v_index < len(next_polygon) and point_in_location(next_polygon[v_index], location):
+				build_rays(i + 1, v_index, query(next_polygon[v_index], i + 1))
+				v_index += 1
+				last_location = location
+			
+			location = (location - 1) % (2 * len(current_polygon))
+
+			if location == original_location:
+				break
 
 	path = remove_collinear_points(query_full(target, len(polygons)))
 	return path

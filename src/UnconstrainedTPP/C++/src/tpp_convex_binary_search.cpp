@@ -81,6 +81,15 @@ class SolutionBinarySearch : public tpp::Solution {
 			return -1;
 		}
 	}
+
+	void preload_cones() override {
+
+		for (size_t i = 0; i < polygons.size(); i++) {
+			for (size_t j = 0; j < polygons[i].size(); j++) {
+				get_cone(i, j);
+			}
+		}
+	}
 };
 
 namespace tpp {

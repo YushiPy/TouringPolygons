@@ -23,6 +23,10 @@ using std::tuple;
 
 vector<Vector2> regular_polygon(size_t n, const Vector2 &center, double radius, double rotation = 0.0) {
 
+	if (n < 3) {
+		throw std::invalid_argument("A polygon must have at least 3 vertices.");
+	}
+
 	vector<Vector2> vertices;
 
 	for (size_t i = 0; i < n; i++) {
@@ -37,10 +41,11 @@ vector<Vector2> regular_polygon(size_t n, const Vector2 &center, double radius, 
 bool segment_polygon_intersection(const Vector2 &p1, const Vector2 &p2, const vector<Vector2> &polygon, Vector2 *intersection) {
 
 	for (size_t i = 0; i < polygon.size(); i++) {
+
 		const auto &v1 = polygon[i];
 		const auto &v2 = polygon[(i + 1) % polygon.size()];
 
-		auto current_intersection = tpp::segment_segment_intersection(p1, p2, v1, v2);
+		auto current_intersection = tpp::segment_segment_intersection_safe(p1, p2, v1, v2);
 
 		if (current_intersection.is_finite()) {
 			
@@ -58,7 +63,8 @@ bool segment_polygon_intersection(const Vector2 &p1, const Vector2 &p2, const ve
 
 namespace tpp {
 
-	auto rng = std::default_random_engine(std::chrono::steady_clock::now().time_since_epoch().count());
+	// auto rng = std::default_random_engine(std::chrono::steady_clock::now().time_since_epoch().count());
+	auto rng = std::default_random_engine(42); // Fixed seed for reproducibility
 
 	tuple<Vector2, Vector2, vector<vector<Vector2>>> generate_test(const vector<size_t> &polygon_sizes) {
 
@@ -84,7 +90,7 @@ namespace tpp {
 
 			Vector2 center(col, row);
 
-			std::uniform_real_distribution<double> dist(0.1, 0.5);
+			std::uniform_real_distribution<double> dist(0.1, 0.45);
 			double radius = dist(rng);
 
 			polygons.push_back(regular_polygon(polygon_sizes[i], center, radius));
@@ -110,7 +116,7 @@ namespace tpp {
 
 			// std::uniform_real_distribution<double> dist(0.25, 0.5);
 			// double radius = dist(rng);
-			double radius = 0.5;
+			double radius = 0.45;
 
 			Vector2 center(i, 0);
 			polygons.push_back(regular_polygon(polygon_sizes[i], center, radius));
@@ -140,7 +146,7 @@ namespace tpp {
 		
 		Vector2 start(0, 0);
 
-		const double max_r = 0.5;
+		const double max_r = 0.45;
 		const double min_x = 1.0;
 		
 		double x = min_x;
@@ -315,7 +321,7 @@ namespace tpp {
 				const auto &v1 = polygon[i];
 				const auto &v2 = polygon[(i + 1) % polygon.size()];
 
-				if (tpp::segment_segment_intersection(previous_point, point, v1, v2).is_finite()) {
+				if (tpp::segment_segment_intersection_safe(previous_point, point, v1, v2).is_finite()) {
 					crosses_polygon = true;
 					break;
 				}
@@ -440,4 +446,5 @@ except KeyboardInterrupt:
 		std::string cmd = std::format("python3 -c \"{}\"", code);
 		std::system(cmd.c_str());
 	}
+
 }

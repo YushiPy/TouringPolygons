@@ -44,7 +44,7 @@ class SolutionLinearSearch : public tpp::Solution {
 			const auto &ray1 = get_cone(i - 1, j).second;
 			const auto &ray2 = get_cone(i - 1, (j + 1) % cones[i - 1].size()).first;
 
-			if (tpp::point_in_edge(point, v1, ray1, v2, ray2)) {
+			if (tpp::point_in_edge(point, v1, v2, ray1, ray2)) {
 				return 2 * j + 1;
 			}
 		}

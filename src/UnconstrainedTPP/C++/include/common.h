@@ -6,10 +6,19 @@
 namespace tpp {
 
 	/*
-	Determines the intersection point of two line segments (start1, end1) and (start2, end2).
-	Returns the intersection point if they intersect, otherwise returns `Vector2::INF`.
+	Returns the intersection point of segments (start1, end1) and (start2, end2) if they intersect, 
+	otherwise returns a "reasonable point".
+
+	If the segments are parallel, returns `start1` as a "reasonable point".
+	If the segments do not intersect, returns the intersection point of the lines extended
+	from the segments, which is a "reasonable point" for the purposes of the algorithm.
 	*/
 	Vector2 segment_segment_intersection(const Vector2& start1, const Vector2& end1, const Vector2& start2, const Vector2& end2);
+
+	/*
+	Returns the intersection point of segments (start1, end1) and (start2, end2) if they intersect, otherwise returns `Vector2::INF`.
+	*/
+	Vector2 segment_segment_intersection_safe(const Vector2& start1, const Vector2& end1, const Vector2& start2, const Vector2& end2);
 
 	/*
 	Returns the reflection of `point` across the line defined by `vertex1` and `vertex2`.

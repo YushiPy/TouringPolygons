@@ -253,7 +253,7 @@ if __name__ == "__main__":
 			[10 ** 4] * 2,
 			#[10 ** 5] * 2,
 			#[10 ** 6] * 1,
-		] * 0, 0.5, 1),
+		] * 1, 0.5, 1),
 	]
 
 	print("Reference Solution:", get_original_name(reference_solution))

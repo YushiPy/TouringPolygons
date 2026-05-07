@@ -24,7 +24,7 @@ type TestCase = tuple[Point, Point, Sequence[Points], Points | None]
 
 # If True, the test suite will stop at the first failed test and raise an exception, 
 # otherwise it will continue running all tests and print a summary at the end.
-STRICT = False
+STRICT = True
 
 # If True, the test suite will print detailed information about each failed test, 
 # including the input and the expected and actual outputs. Otherwise, it will only print 
@@ -287,8 +287,8 @@ if __name__ == "__main__":
 		("Few Large Polygons Tests", [
 			[100] * 1,
 			[200] * 2,
-			#[300] * 3,
-			#[400] * 4,
+			[300] * 3,
+			[400] * 4,
 			#[10 ** 4] * 2,
 			#[10 ** 5] * 2,
 			#[10 ** 6] * 1,

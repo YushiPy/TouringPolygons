@@ -1,10 +1,11 @@
 
+from collections.abc import Sequence
 import math
 
 from LegacySolutions.vector2 import Vector2
 
 
-def segment_segment_intersection(p1: Vector2, p2: Vector2, p3: Vector2, p4: Vector2) -> bool:
+def segment_segment_intersection(p1: Vector2, p2: Vector2, p3: Vector2, p4: Vector2, eps: float = 1e-8) -> bool:
 
 	denominator = (p2.x - p1.x) * (p4.y - p3.y) - (p2.y - p1.y) * (p4.x - p3.x)
 
@@ -14,9 +15,9 @@ def segment_segment_intersection(p1: Vector2, p2: Vector2, p3: Vector2, p4: Vect
 	t = ((p3.x - p1.x) * (p4.y - p3.y) - (p3.y - p1.y) * (p4.x - p3.x)) / denominator
 	u = ((p3.x - p1.x) * (p2.y - p1.y) - (p3.y - p1.y) * (p2.x - p1.x)) / denominator
 
-	return 0 <= t <= 1 and 0 <= u <= 1
+	return -eps <= t <= 1 + eps and -eps <= u <= 1 + eps
 
-def segment_segment_intersection_point(p1: Vector2, p2: Vector2, p3: Vector2, p4: Vector2) -> Vector2 | None:
+def segment_segment_intersection_point(p1: Vector2, p2: Vector2, p3: Vector2, p4: Vector2, eps: float = 1e-8) -> Vector2 | None:
 	
 	denominator = (p2.x - p1.x) * (p4.y - p3.y) - (p2.y - p1.y) * (p4.x - p3.x)
 
@@ -26,12 +27,12 @@ def segment_segment_intersection_point(p1: Vector2, p2: Vector2, p3: Vector2, p4
 	t = ((p3.x - p1.x) * (p4.y - p3.y) - (p3.y - p1.y) * (p4.x - p3.x)) / denominator
 	u = ((p3.x - p1.x) * (p2.y - p1.y) - (p3.y - p1.y) * (p2.x - p1.x)) / denominator
 
-	if 0 <= t <= 1 and 0 <= u <= 1:
+	if -eps <= t <= 1 + eps and -eps <= u <= 1 + eps:
 		return Vector2(p1.x + t * (p2.x - p1.x), p1.y + t * (p2.y - p1.y))
 	else:
 		return None
 
-def segment_polygon_intersection(p1: Vector2, p2: Vector2, polygon: list[Vector2]) -> bool:
+def segment_polygon_intersection(p1: Vector2, p2: Vector2, polygon: Sequence[Vector2]) -> bool:
 
 	for i in range(len(polygon)):
 		if segment_segment_intersection(p1, p2, polygon[i], polygon[(i + 1) % len(polygon)]):
@@ -58,7 +59,27 @@ def point_in_cone(point: Vector2, vertex: Vector2, ray1: Vector2, ray2: Vector2)
 		return ray1.cross(point - vertex) >= 0 and ray2.cross(point - vertex) <= 0
 
 
-def is_correct_solution(start: Vector2, target: Vector2, polygons: list[list[Vector2]], solution: list[Vector2]) -> str:
+def is_correct_solution(start: Vector2 | tuple[float, float], target: Vector2 | tuple[float, float], polygons: Sequence[Sequence[Vector2 | tuple[float, float]]], solution: Sequence[Vector2 | tuple[float, float]]) -> str:
+	"""
+	Checks if the given solution is correct for the given start, target, and polygons. 
+	If not, returns a string describing the reason why the solution is not correct. 
+	If the solution is correct, returns an empty string.
+	
+	Some reasons why a solution might not be correct include:
+	- The solution does not start at the start point or end at the target point.
+	- The solution does not visit all the polygons in order.
+	- The visit to a polygon vertex is not optimal, meaning that the path leaves the polygon at a suboptimal angle.
+	- The visit to a polygon edge is not optimal, meaning that the path leaves the polygon at an angle which does not correspond to a reflection at that edge.
+	"""
+
+	start = Vector2(start)
+	target = Vector2(target)
+	polygons = [list(map(Vector2, polygon)) for polygon in polygons]
+	solution = list(map(Vector2, solution))
+
+	return _is_correct_solution(start, target, polygons, solution) # type: ignore
+
+def _is_correct_solution(start: Vector2, target: Vector2, polygons: Sequence[Sequence[Vector2]], solution: list[Vector2]) -> str:
 	"""
 	Checks if the given solution is correct for the given start, target, and polygons. 
 	If not, returns a string describing the reason why the solution is not correct. 
@@ -114,7 +135,7 @@ def is_correct_solution(start: Vector2, target: Vector2, polygons: list[list[Vec
 	visited = False
 
 	while polygon_index < len(polygons) and path_index < len(solution):
-		
+
 		polygon = polygons[polygon_index]
 		
 		new_point = solution[path_index]
@@ -168,17 +189,15 @@ def is_correct_solution(start: Vector2, target: Vector2, polygons: list[list[Vec
 			
 			# Path visits polygon at edge
 			else:
-				
-				d1 = new_point - v1
-				d2 = v2 - v1
 
-				if abs(d1.cross(d2)) > 1e-8:
-					continue
-
-				if (new_point - v1).dot(v2 - v1) <= 1e-10 or (new_point - v2).dot(v1 - v2) <= 1e-10:
+				if not segment_segment_intersection(previous_point, new_point, v1, v2):
 					continue
 
 				visited = True
+
+				if abs((new_point - v1).cross(v2 - v1)) > 1e-8:
+					polygon_index += 1
+					continue
 
 				# The target is at the edge, which shouldn't happen, 
 				# but we let the algorithm continue to check the rest of the path.

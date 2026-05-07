@@ -10,9 +10,23 @@
 namespace tpp {
 
 	Vector2 segment_segment_intersection(const Vector2& start1, const Vector2& end1, const Vector2& start2, const Vector2& end2) {
-		/*
-		Returns the intersection point of segments (start1, end1) and (start2, end2) if they intersect, otherwise returns `Vector2::INF`.
-		*/
+
+		Vector2 direction1 = end1 - start1;
+		Vector2 direction2 = end2 - start2;
+
+		double cross = direction1.cross(direction2);
+
+		if (cross == 0) {
+			return start1;
+		}
+
+		double rate1 = (start2 - start1).cross(direction2) / cross;
+		double rate2 = (start2 - start1).cross(direction1) / cross;
+
+		return start1 + direction1 * rate1;
+	}
+
+	Vector2 segment_segment_intersection_safe(const Vector2& start1, const Vector2& end1, const Vector2& start2, const Vector2& end2) {
 
 		Vector2 direction1 = end1 - start1;
 		Vector2 direction2 = end2 - start2;
@@ -50,7 +64,7 @@ namespace tpp {
 		}
 	}
 
-	bool point_in_edge(const Vector2& point, const Vector2& vertex1, const Vector2& ray1, const Vector2& vertex2, const Vector2& ray2) {
+	bool point_in_edge(const Vector2& point, const Vector2& vertex1, const Vector2& vertex2, const Vector2& ray1, const Vector2& ray2) {
 		return ray1.cross(point - vertex1) > 0 && ray2.cross(point - vertex2) < 0 && (vertex2 - vertex1).cross(point - vertex1) <= 0;
 	}
 

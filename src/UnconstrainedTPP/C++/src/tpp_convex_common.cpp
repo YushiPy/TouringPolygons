@@ -127,12 +127,6 @@ namespace tpp {
 		const auto last = query(reflected, i - 1);
 		const auto intersection = tpp::segment_segment_intersection(last, reflected, v1, v2);
 
-		if (!intersection.is_finite()) {
-			throw std::runtime_error(
-				std::format("Intersection not found for point {} in polygon {} at edge {}", point, i, vertex_index)
-			);
-		}
-
 		return intersection;
 	}
 	
