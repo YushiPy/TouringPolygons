@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(utpp)
+project(tpp-convex)
 
 set(CMAKE_CXX_STANDARD 26)
 

@@ -69,6 +69,11 @@ namespace tpp {
 	bool is_valid_solution(const Vector2 &start, const Vector2 & target, const std::vector<std::vector<Vector2>> &polygons, const std::vector<Vector2> &solution);
 
 	/*
+	Checks if two solutions are equal, meaning that they have the same number of points and all corresponding points are approximately equal (i.e. their distance is less than a small epsilon).
+	*/
+	bool solutions_equal(const std::vector<Vector2> &sol1, const std::vector<Vector2> &sol2);
+
+	/*
 	Plots the given `solution` to a TPP instance defined by `start`, `target`, and `polygons` using matplotlib. 
 	This function calls Python through the command line to generate the plot, so it requires Python and matplotlib to be installed on the system.
 	*/
