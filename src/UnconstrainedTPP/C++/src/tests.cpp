@@ -108,9 +108,18 @@ namespace tpp {
 	tuple<Vector2, Vector2, vector<vector<Vector2>>> generate_test_bad(const vector<size_t> &polygon_sizes, bool shuffle) {
 
 		if (shuffle) {
+
 			vector<size_t> copy = polygon_sizes;
+			
 			std::ranges::shuffle(copy, rng);
-			return generate_test_bad(copy, false);
+			auto [start, target, polygons] = generate_test_bad(copy, false);
+			
+			for (auto &polygon : polygons) {
+				size_t index = rng() % polygon.size();
+				std::ranges::rotate(polygon, polygon.begin() + index);
+			}
+
+			return {start, target, polygons};
 		}
 
 		vector<vector<Vector2>> polygons;
@@ -140,9 +149,17 @@ namespace tpp {
 		}
 
 		if (shuffle) {
+			
 			vector<size_t> copy = polygon_sizes;
 			std::ranges::shuffle(copy, rng);
-			return generate_test_good(copy, false);
+			auto [start, target, polygons] = generate_test_good(copy, false);
+			
+			for (auto &polygon : polygons) {
+				size_t index = rng() % polygon.size();
+				std::ranges::rotate(polygon, polygon.begin() + index);
+			}
+
+			return {start, target, polygons};
 		}
 
 		vector<vector<Vector2>> polygons;

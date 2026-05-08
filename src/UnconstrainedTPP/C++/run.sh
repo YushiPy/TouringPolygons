@@ -18,11 +18,13 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
+OPENMP_ROOT=$(brew --prefix libomp)
+
 if [ $SILENCE -eq 1 ]; then
-	cmake -S . -B $BUILD_DIR -DTARGET=$TARGET > /dev/null 2>&1
+	cmake -S . -B $BUILD_DIR -DTARGET=$TARGET -DOpenMP_ROOT=$OPENMP_ROOT > /dev/null 2>&1
 	cmake --build $BUILD_DIR --config Release > /dev/null 2>&1
 else
-	cmake -S . -B $BUILD_DIR -DTARGET=$TARGET
+	cmake -S . -B $BUILD_DIR -DTARGET=$TARGET -DOpenMP_ROOT=$OPENMP_ROOT
 	cmake --build $BUILD_DIR --config Release
 fi
 

@@ -12,3 +12,6 @@ add_executable(${PROJECT_NAME} ${SOURCES} src/${TARGET}.cpp)
 target_include_directories(${PROJECT_NAME} PRIVATE include)
 
 target_compile_options(${PROJECT_NAME} PRIVATE -O3)
+
+find_package(OpenMP REQUIRED)
+target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)

@@ -7,7 +7,7 @@
 
 namespace tpp {
 
-	using Solution = std::function<std::vector<Vector2>(const Vector2&, const Vector2&, const std::vector<std::vector<Vector2>>&)>;
+	using Solver = std::function<std::vector<Vector2>(const Vector2&, const Vector2&, const std::vector<std::vector<Vector2>>&)>;
 
 	auto tpp_convex_solve = tpp_convex_solve_binary_search;
 }
