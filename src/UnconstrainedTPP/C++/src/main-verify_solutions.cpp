@@ -6,6 +6,25 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <algorithm>
+
+template <typename T>
+struct std::formatter<std::vector<T>> {
+    constexpr auto parse(std::format_parse_context &ctx) { return ctx.begin(); }
+    auto format(const std::vector<T> &v, std::format_context &ctx) const {
+        auto out = ctx.out();
+        out = std::format_to(out, "[");
+        for (size_t i = 0; i < v.size(); i++) {
+            if (i) out = std::format_to(out, ", ");
+            out = std::format_to(out, "{}", v[i]);
+        }
+        return std::format_to(out, "]");
+    }
+};
+
+void print_test(const Vector2 &start, const Vector2 &target, const std::vector<std::vector<Vector2>> &polygons, const std::vector<Vector2> &solution, const std::vector<Vector2> &expected_solution) {
+	std::println("start = {};\ntarget = {};\npolygons = {};\nsolution = {};\nexpected_solution = {}", start, target, polygons, solution, expected_solution);
+}
 
 int main() {
 
@@ -15,8 +34,15 @@ int main() {
 		tpp::tpp_convex_solve_tamc
 	};
 
+	std::vector<std::filesystem::directory_entry> entries(
+		std::filesystem::directory_iterator("tests/"), {}
+	);
 
-	for (const auto &entry : std::filesystem::directory_iterator("tests/")) {
+	std::sort(entries.begin(), entries.end(), [](const auto &a, const auto &b) {
+		return a.file_size() < b.file_size();
+	});
+
+	for (const auto &entry : entries) {
 		
 		if (entry.path().extension() != ".bin") {
 			continue;
@@ -39,9 +65,11 @@ int main() {
 
 				if (is_valid != equals_expected) {
 					std::println("❌ Verifier and expected solutions disagree on test {} in file {}: valid={}, expected={}", test_num, filename, is_valid, equals_expected);
+					print_test(start, target, polygons, solution, expected_solution);
 					return 1;
 				} else if (!is_valid) {
 					std::println("❌ Invalid solution for test {} in file {}.", test_num, filename);
+					print_test(start, target, polygons, solution, expected_solution);
 					return 1;
 				}
 			}

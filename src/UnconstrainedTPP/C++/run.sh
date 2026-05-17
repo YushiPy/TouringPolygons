@@ -18,6 +18,17 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
+# If TARGET ends with .cpp, remove the extension
+if [[ $TARGET == *.cpp ]]; then
+	TARGET=${TARGET%.cpp}
+fi
+
+# Check if the target source file exists
+if [ ! -f "src/${TARGET}.cpp" ]; then
+	echo "Error: Source file src/${TARGET}.cpp not found."
+	exit 1
+fi
+
 OPENMP_ROOT=$(brew --prefix libomp)
 
 if [ $SILENCE -eq 1 ]; then

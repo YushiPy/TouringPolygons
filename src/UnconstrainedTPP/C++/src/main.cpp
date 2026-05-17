@@ -139,7 +139,8 @@ vector<vector<double>> run_tests_parallel(
 
 std::string timings_to_string(const vector<vector<double>> &times, const vector<vector<size_t>> &polygon_size_configs) {
 	
-	std::string result = "k,n,linear_search,binary_search,tamc\n";
+	// std::string result = "k,n,linear_search,binary_search,tamc\n";
+	std::string result = "k,n,binary_search,tamc\n";
 
 	for (size_t config_index = 0; config_index < polygon_size_configs.size(); config_index++) {
 
@@ -172,6 +173,7 @@ std::string timings_to_string(const vector<vector<double>> &times, const vector<
 
 int main() {
 	
+
 	vector<tpp::Solver> solvers = {
 		// tpp::tpp_convex_solve_linear_search,
 		tpp::tpp_convex_solve_binary_search,
@@ -264,7 +266,7 @@ int main() {
 		do_test(polygon_size_configs, filename);
 	};
 
-	// test_over_k(10, 100);
-	test_over_m(100, 200, 1);
+	//test_over_k(10, 1000);
+	test_over_m(10, 5000, 1);
 	// test_over_n(10, 5000, 10);
 }

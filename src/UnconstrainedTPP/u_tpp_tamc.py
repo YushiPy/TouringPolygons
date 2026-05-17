@@ -72,16 +72,35 @@ def segment_segment_intersection(start1: Vector2, end1: Vector2, start2: Vector2
 	cross = vector_cross(direction1, direction2)
 
 	if cross == 0:
+		return start1
+
+	sdiff = vector_sub(start2, start1)
+	rate1 = vector_cross(sdiff, direction2) / cross
+	
+	return vector_add(start1, vector_mul(direction1, rate1))
+	
+def segment_segment_intersection_safe(start1: Vector2, end1: Vector2, start2: Vector2, end2: Vector2, eps: float = 1e-8) -> Vector2 | None:
+	"""
+	Returns the intersection point of segments (start1, end1) and (start2, end2) if they intersect, otherwise returns None.
+	"""
+
+	direction1 = vector_sub(end1, start1)
+	direction2 = vector_sub(end2, start2)
+
+	cross = vector_cross(direction1, direction2)
+
+	if cross == 0:
 		return None
 
 	sdiff = vector_sub(start2, start1)
 	rate1 = vector_cross(sdiff, direction2) / cross
 	rate2 = vector_cross(sdiff, direction1) / cross
-
-	if 0 <= rate1 <= 1 and 0 <= rate2 <= 1:
+	
+	if -eps <= rate1 <= 1 + eps and -eps <= rate2 <= 1 + eps:
 		return vector_add(start1, vector_mul(direction1, rate1))
 	
 	return None
+
 
 
 # Point location functions
@@ -455,20 +474,24 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 	if len(polygons) == 1:
 		return remove_collinear_points(query_full(target, 1))
 	
-	for i in range(len(polygons) - 1):
-		
-		current_polygon = polygons[i]
-		next_polygon = polygons[i + 1]
+	def query_points(points: Sequence[Vector2], i: int) -> list[Vector2]:
+		"""
+		Returns the last steps of the `i`-path to each point in `points`, 
+		given that the rays for the vertices of `polygon[i - 1]` are already built.
+		"""
 
-		current_cones: list[tuple[Vector2, Vector2]] = cones[i] # type: ignore
-
-		v = next_polygon[0]
-
-		location = locate_point_binary_search(v, i)
-		last = query(v, i + 1, location)
+		if i == 0:
+			return [start] * len(points)
 		
-		build_rays(i + 1, 0, last)
-		
+		if not points:
+			return []
+
+		current_polygon = polygons[i - 1]
+		current_cones = cones[i - 1]
+
+		point = points[0]
+		location = locate_point_binary_search(point, i - 1)
+
 		def point_in_location(point: Vector2, location: int) -> bool:
 
 			if location % 2 == 0:
@@ -482,94 +505,94 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 				ray2 = current_cones[(location // 2 + 1) % len(current_polygon)][0] # type: ignore
 				return point_in_edge(point, v1, v2, ray1, ray2)
 
-		v_index = 1
-		original_location = location
+		def scan(start_location: int, points_index: int, step: int) -> tuple[int, int]:
+
+			location = start_location
+			last_location = location
+
+			while points_index < len(points):
+
+				if point_in_location(points[points_index], location):
+					locations.append(location)
+					points_index += 1
+					last_location = location
+
+				else:
+
+					location = (location + step) % (2 * len(current_polygon))
+
+					if location == start_location:
+						break
+			
+			return last_location, points_index
+		
+		locations = [location]
+
 		last_location = location
+		point_index = 1
+
+		last_location, point_index = scan(last_location, point_index, 1)
+		last_location, point_index = scan(last_location, point_index, -1)
+		last_location, point_index = scan(last_location, point_index, 1)
+		last_location, point_index = scan(last_location, point_index, -1)
 		
-		while True:
+		fc = first_contact[i - 1]
 
-			while v_index < len(next_polygon) and point_in_location(next_polygon[v_index], location):
-				build_rays(i + 1, v_index, query(next_polygon[v_index], i + 1))
-				v_index += 1
-				last_location = location
-			
-			location = (location + 1) % (2 * len(current_polygon))
+		reflection_points = []
+		pass_through_points = []
 
-			if location == original_location or v_index == len(next_polygon):
-				break
+		for j in range(len(points)):
+
+			location = locations[j]
+
+			if location % 2 == 0:
+				continue
+
+			if fc[location // 2]:
+				v1 = current_polygon[location // 2]
+				v2 = current_polygon[(location // 2 + 1) % len(current_polygon)]
+				reflected_point = vector_reflect_segment(points[j], v1, v2)
+				reflection_points.append(reflected_point)
+			else:
+				pass_through_points.append(points[j])
 		
-		location = last_location
-		original_location = location
-
-		while True:
-
-			while v_index < len(next_polygon) and point_in_location(next_polygon[v_index], location):
-				build_rays(i + 1, v_index, query(next_polygon[v_index], i + 1))
-				v_index += 1
-				last_location = location
-			
-			location = (location - 1) % (2 * len(current_polygon))
-
-			if location == original_location:
-				break
+		reflection_points = iter(query_points(reflection_points, i - 1))
+		pass_through_points = iter(query_points(pass_through_points, i - 1))
 		
-		location = last_location
-		original_location = location
+		results = []
+
+		for j in range(len(points)):
+
+			location = locations[j]
+
+			if location % 2 == 0:
+				results.append(current_polygon[location // 2])
+
+			elif fc[location // 2]:
+
+				v1 = current_polygon[location // 2]
+				v2 = current_polygon[(location // 2 + 1) % len(current_polygon)]
+				reflected_point = vector_reflect_segment(points[j], v1, v2)
+
+				last = next(reflection_points)
+				intersection = segment_segment_intersection(last, reflected_point, v1, v2)
+
+				if intersection is None:
+					raise ValueError(f"Intersection not found for point {points[j]} in polygon {i} at edge {location // 2}")
+
+				results.append(intersection)
+
+			else:
+				results.append(next(pass_through_points))
+
+		return results
+
+	for i in range(len(polygons) - 1):
+
+		polygon = polygons[i + 1]
+		results = query_points(polygon, i + 1)
 		
-		while True:
-
-			while v_index < len(next_polygon) and point_in_location(next_polygon[v_index], location):
-				build_rays(i + 1, v_index, query(next_polygon[v_index], i + 1))
-				v_index += 1
-				last_location = location
-			
-			location = (location + 1) % (2 * len(current_polygon))
-
-			if location == original_location or v_index == len(next_polygon):
-				break
-		
-		location = last_location
-		original_location = location
-
-		while True:
-			
-			while v_index < len(next_polygon) and point_in_location(next_polygon[v_index], location):
-				build_rays(i + 1, v_index, query(next_polygon[v_index], i + 1))
-				v_index += 1
-				last_location = location
-			
-			location = (location - 1) % (2 * len(current_polygon))
-
-			if location == original_location:
-				break
-
-	path = remove_collinear_points(query_full(target, len(polygons)))
-	return path
-
-	from common import Solution
-	import math
-
-	solution = Solution(start, target, polygons)
-	ref_cones = solution.cones
-
-	def cones_equal(cone1: tuple[Vector2, Vector2] | None, cone2: tuple[Vector2, Vector2] | None) -> bool:
-		
-		if cone1 is None and cone2 is None:
-			return True
-		
-		if cone1 is None or cone2 is None:
-			return False
-		
-		return math.isclose(vector_cross(cone1[0], cone2[0]), 0) and math.isclose(vector_cross(cone1[1], cone2[1]), 0)
-
-	def solutions_equal() -> bool:
-
-		if not all(cones_equal(cones[i][j], ref_cones[i][j]) for i in range(len(polygons)) for j in range(len(polygons[i]))):
-			return False
-		
-		if not all(math.isclose(vector_length(vector_sub(a, b)), 0) for a, b in zip(path, solution.path)):
-			return False
-		
-		return True
-
-	return path
+		for j in range(len(polygon)):
+			build_rays(i + 1, j, results[j])
+	
+	return remove_collinear_points(query_full(target, len(polygons)))

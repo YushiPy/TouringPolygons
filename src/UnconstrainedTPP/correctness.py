@@ -1,4 +1,12 @@
 
+# print deprecation warning
+import warnings
+warnings.warn("This module is outdated, please update.", DeprecationWarning, stacklevel=1)
+"""
+We need to update the correctness check:
+- If the path crosses an edge, we must update the currect segment we are checking againt. Otherwise, we might accept incorrect solutions where a segment visits polygon 2 then 1 and we will consider that it visits 1 then 2.
+"""
+
 from collections.abc import Sequence
 import math
 

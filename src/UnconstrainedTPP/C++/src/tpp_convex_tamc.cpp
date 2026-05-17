@@ -97,75 +97,141 @@ class SolutionTAMC : public tpp::Solution {
 		}
 	}
 
-	/*
-	We allow the caller to pass the location of the point in the last step map.
-	This is useful if the caller ha already determined the location of the point in the last step map, 
-	as it avoids doing the same binary search again in the `query` function.
 
-	However, it is important to note that the location passed by the caller only informs
-	us about the location of the point in the current last step map. Thus, we might have to perform
-	additional binary searches if the location is not a vertex region.
-	*/
-	Vector2 query(const Vector2& point, size_t i, int64_t location) {
+	vector<Vector2> query_points(const vector<Vector2> &points, size_t i) {
 
-		const auto &fc = first_contact[i - 1];
-		size_t previous_index = location == 0 ? fc.size() - 1 : (location - 1) / 2;
-
-		if (!fc[location / 2] && !fc[previous_index]) {
-			location = -1;
+		if (points.empty()) {
+			return {};
 		}
 
-		if (location == -1) {
-			return query(point, i - 1);
+		if (i == 0) {
+			return vector<Vector2>(points.size(), start);
 		}
 
 		const auto &polygon = polygons[i - 1];
-		auto vertex_index = location / 2;
-		
-		if (location % 2 == 0) {
-			return polygon[vertex_index];
+
+		const auto &point = points[0];
+		auto location = _locate_point(point, i);
+
+		vector<size_t> locations;
+		locations.reserve(points.size());
+		locations.push_back(location);
+
+		auto point_in_location = [&](const Vector2 &point, size_t location) -> bool {
+
+			const auto index1 = location / 2;
+			const auto index2 = (location + 1) / 2 % polygon.size();
+
+			if (location % 2 == 0) {
+
+				const auto &vertex = polygon[index1];
+				const auto &[ray1, ray2] = get_cone(i - 1, index1);
+
+				return tpp::point_in_cone_plus(point, vertex, ray1, ray2);
+
+			} else {
+
+				const auto &v1 = polygon[index1];
+				const auto &v2 = polygon[index2];
+				const auto &ray1 = get_cone(i - 1, index1).second;
+				const auto &ray2 = get_cone(i - 1, index2).first;
+
+				return tpp::point_in_edge_plus(point, v1, v2, ray1, ray2);
+			}
+		};
+
+		auto scan = [&](size_t &start_location, size_t &point_index, int shift) -> void {
+
+			size_t location = start_location;
+			size_t original_location = location;
+
+			while (point_index < points.size()) {
+
+				const Vector2 &point = points[point_index];
+
+				if (point_in_location(point, location)) {
+					locations.push_back(location);
+					point_index++;
+					start_location = location;
+				} else {
+					
+					location = (location + shift + 2 * polygon.size()) % (2 * polygon.size());
+
+					if (location == original_location) {
+						break;
+					}
+				}
+			}
+		};
+
+		// Perform 4 scans to ensure that we find the location of all points, two in each direction.
+		size_t last_location = location;
+		size_t point_index = 1;
+
+		scan(last_location, point_index, 1);
+		scan(last_location, point_index, -1);
+		scan(last_location, point_index, 1);
+		scan(last_location, point_index, -1);
+
+		vector<Vector2> reflected_points, pass_through_points;
+
+		for (size_t j = 0; j < points.size(); j++) {
+
+			const auto &point = points[j];
+			const auto &location = locations[j];
+
+			if (location % 2 == 1) {
+				if (first_contact[i - 1][location / 2]) {
+
+					const auto &v1 = polygon[location / 2];
+					const auto &v2 = polygon[(location / 2 + 1) % polygon.size()];
+					const auto reflected = point.reflect_line(v1, v2);
+
+					reflected_points.push_back(reflected);
+
+				} else {
+					pass_through_points.push_back(point);
+				}
+			}
 		}
 
-		const auto &v1 = polygon[vertex_index];
-		const auto &v2 = polygon[(vertex_index + 1) % polygon.size()];
+		auto reflected_results = query_points(reflected_points, i - 1);
+		auto pass_through_results = query_points(pass_through_points, i - 1);
 
-		const auto reflected = point.reflect_line(v1, v2);
-		const auto last = query(reflected, i - 1);
-		const auto intersection = tpp::segment_segment_intersection(last, reflected, v1, v2);
+		vector<Vector2> results;
+		results.reserve(points.size());
 
-		return intersection;
-	};
+		size_t reflected_index = 0;
+		size_t pass_through_index = 0;
 
-	void build_cone(size_t i, size_t j, const Vector2 &last) {
-		
-		auto j_prev = (j - 1 + polygons[i].size()) % polygons[i].size();
-		auto j_next = (j + 1) % polygons[i].size();
+		for (size_t j = 0; j < points.size(); j++) {
 
-		const auto &polygon = polygons[i];
-		const auto &_first_contact = first_contact[i];
+			const auto &point = points[j];
+			const auto &location = locations[j];
 
-		const auto before = polygon[j_prev];
-		const auto vertex = polygon[j];
-		const auto after = polygon[j_next];
+			if (location % 2 == 1) {
+				if (first_contact[i - 1][location / 2]) {
 
-		// const auto last = query(vertex, i);
-		const auto diff = (vertex - last).normalized(); // Normalizing is not necessary, but makes debugging easier and does not affect the correctness of the algorithm.
+					const auto &v1 = polygon[location / 2];
+					const auto &v2 = polygon[(location / 2 + 1) % polygon.size()];
 
-		auto ray1 = diff.reflect(vertex - before);
-		auto ray2 = diff.reflect(vertex - after);
+					const auto &reflected_point = reflected_points[reflected_index];
+					const auto &reflected_result = reflected_results[reflected_index++];
+					
+					const auto intersection = tpp::segment_segment_intersection(reflected_point, reflected_result, v1, v2);
 
-		first_contact[i][j_prev] = diff.cross(vertex - before) < 0;
-		first_contact[i][j] = diff.cross(vertex - after) > 0;
+					results.push_back(intersection);
 
-		if (!_first_contact[j_prev]) {
-			ray1 = diff;
+				} else {
+					results.push_back(pass_through_results[pass_through_index]);
+					pass_through_index++;
+				}
+			} else {
+				results.push_back(polygon[location / 2]);
+			}
 		}
 
-		if (!_first_contact[j]) {
-			ray2 = diff;
-		}
-
-		cones[i][j] = {ray1, ray2};
+		return results;
 	}
 
 	void preload_cones() override {
@@ -181,70 +247,14 @@ class SolutionTAMC : public tpp::Solution {
 			build_cone(0, j, start);
 		}
 		
-		for (size_t i = 0; i < polygons.size() - 1; i++) {
-			
-			const auto &polygon1 = polygons[i]; // Solved polygon
-			const auto &polygon2 = polygons[i + 1]; // Next polygon to solve
+		for (size_t i = 1; i < polygons.size(); i++) {
 
-			const auto &v = polygon2[0];
+			const auto &polygon = polygons[i];
+			const auto last_points = query_points(polygon, i);
 
-			auto location = _locate_point(v, i + 1);
-			const auto last = query(v, i + 1, location);
-
-			build_cone(i + 1, 0, last);
-
-			auto point_in_location = [&](size_t vertex_index, size_t location) -> bool {
-
-				const auto &target = polygon2[vertex_index];
-				const auto index1 = location / 2;
-				const auto index2 = (location + 1) / 2 % polygon1.size();
-
-				if (location % 2 == 0) {
-					const auto &vertex = polygon1[index1];
-					const auto &[ray1, ray2] = get_cone(i, index1);
-					return tpp::point_in_cone_plus(target, vertex, ray1, ray2);
-				} else {
-
-					const auto &v1 = polygon1[index1];
-					const auto &v2 = polygon1[index2];
-					const auto &ray1 = get_cone(i, index1).second;
-					const auto &ray2 = get_cone(i, index2).first;
-
-					return tpp::point_in_edge_plus(target, v1, v2, ray1, ray2);
-				}
-			};
-
-			auto scan = [&](size_t start_location, size_t vertex_index, int shift) -> pair<size_t, size_t> {
-
-				size_t location = start_location;
-				size_t last_location = location;
-
-				while (vertex_index < polygon2.size()) {
-
-					if (point_in_location(vertex_index, location)) {
-						build_cone(i + 1, vertex_index, query(polygon2[vertex_index], i + 1, location));
-						vertex_index++;
-						last_location = location;
-					} else {
-						
-						location = (location + shift + 2 * polygon1.size()) % (2 * polygon1.size());
-
-						if (location == start_location) {
-							break;
-						}
-					}
-				}
-
-				return {last_location, vertex_index};
-			};
-
-			size_t last_location = location;
-			size_t vertex_index = 1;
-
-			std::tie(last_location, vertex_index) = scan(last_location, vertex_index, 1);
-			std::tie(last_location, vertex_index) = scan(last_location, vertex_index, -1);
-			std::tie(last_location, vertex_index) = scan(last_location, vertex_index, 1);
-			std::tie(last_location, vertex_index) = scan(last_location, vertex_index, -1);
+			for (size_t j = 0; j < polygon.size(); j++) {
+				build_cone(i, j, last_points[j]);
+			}
 		}
 	}
 };

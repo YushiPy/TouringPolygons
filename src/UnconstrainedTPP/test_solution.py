@@ -116,6 +116,7 @@ def test_suite(name: str, test_cases: Sequence[TestCase]) -> None:
 		except Exception as e:
 			
 			print(f"❌ Tested solution raised an exception: {e}")
+			print(e)
 
 			if VERBOSE:
 				print(f"Input: {(start, target, polygons)}")
@@ -256,47 +257,48 @@ if __name__ == "__main__":
 	random_tests = [
 		("Single Polygon", [
 			[n] for n in range(3, 50)
-		], 0.5, 100),
+		], 0.5),
 		("Small Tests", [
 			[3, 3, 3, 3],
 			[4, 4, 4, 4],
 			[5, 5, 5, 5],
 			[6, 6, 6, 6],
 			[7, 7, 7, 7],
-		], 0.5, 100),
+		] * 10, 0.5),
 		("Medium Tests", [
 			[3, 4, 5, 8, 6, 7, 4, 4, 10, 7, 3, 5],
 			[5] * 10,
 			[30] * 10,
 			[4, 5, 6] * 3
-		], 1.0, 10),
+		] * 10, 1.0),
 		("Many Small Polygons Tests", [
 			[3] * 150,
 			[4] * 150,
 			[5] * 150,
 			[6] * 150,
 			[7] * 150,
-		], 0.0, 10),
+		] * 10, 0.0),
 		("Many Medium Polygons Tests", [
 			[10] * 30,
 			[20] * 30,
 			[30] * 30,
 			[40] * 30,
 			[50] * 30,
-		], 0.5, 20),
+		] * 10, 0.5),
 		("Few Large Polygons Tests", [
 			[100] * 1,
 			[200] * 2,
 			[300] * 3,
 			[400] * 4,
+			[1000] * 5,
 			#[10 ** 4] * 2,
 			#[10 ** 5] * 2,
 			#[10 ** 6] * 1,
-		] * 1, 0.5, 20),
+		] * 100, 0.5),
 	]
 
 	test_suite("Basic", basic_tests)
 	test_suite("Edge Cases", edge_cases)
 
-	for name, sides_list, compactness, _ in random_tests:
+	for name, sides_list, compactness in random_tests:
 		test_suite(name, make_tests(sides_list, compactness))

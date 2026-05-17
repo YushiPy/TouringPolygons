@@ -233,16 +233,17 @@ namespace tpp {
 		size_t polygon_index = 0;
 		size_t path_index = 1;
 
+		Vector2 segment_start = start;
+
 		// Tracks whether the current segment has visited at least one polygon. 
 		// Every segment must visit at least one polygon, but it can visit more than one.
 		bool segment_visits_a_polygon = false;
 
 		while (polygon_index < polygons.size() && path_index < solution.size()) {
-
+			
 			const auto &polygon = polygons[polygon_index];
 
 			const auto &point = solution[path_index];
-			const auto &previous_point = solution[path_index - 1];
 
 			bool is_on_vertex = false;
 
@@ -265,7 +266,7 @@ namespace tpp {
 				const auto &before = polygon[(i + polygon.size() - 1) % polygon.size()];
 				const auto &after = polygon[(i + 1) % polygon.size()];
 
-				const auto last = previous_point;
+				const auto last = segment_start;
 				const auto diff = vertex - last;
 
 				auto ray1 = diff.reflect(vertex - before);
@@ -289,8 +290,10 @@ namespace tpp {
 			}
 
 			if (is_on_vertex) {
-				segment_visits_a_polygon = true;
+				segment_visits_a_polygon = false;
 				polygon_index++;
+				path_index++;
+				segment_start = solution[path_index - 1];
 				continue;
 			}
 
@@ -318,7 +321,7 @@ namespace tpp {
 				const auto reflected = next_point.reflect_line(v1, v2);
 
 				const auto d1 = reflected - point;
-				const auto d2 = point - previous_point;
+				const auto d2 = point - segment_start;
 
 				// We verify the reflection rule
 				if (!d1.is_same_direction(d2)) {
@@ -329,8 +332,10 @@ namespace tpp {
 			}
 
 			if (is_on_edge) {
-				segment_visits_a_polygon = true;
+				segment_visits_a_polygon = false;
 				polygon_index++;
+				path_index++;
+				segment_start = solution[path_index - 1];
 				continue;
 			}
 
@@ -341,8 +346,11 @@ namespace tpp {
 				const auto &v1 = polygon[i];
 				const auto &v2 = polygon[(i + 1) % polygon.size()];
 
-				if (tpp::segment_segment_intersection_safe(previous_point, point, v1, v2).is_finite()) {
+				const auto intersection = tpp::segment_segment_intersection_safe(segment_start, point, v1, v2);
+
+				if (intersection.is_finite()) {
 					crosses_polygon = true;
+					segment_start = intersection;
 					break;
 				}
 			}
@@ -417,6 +425,8 @@ namespace tpp {
 	void plot_solution(const Vector2 &start, const Vector2 &target, const vector<vector<Vector2>> &polygons, const vector<Vector2> &solution) {
 
 		std::string code;
+
+		// std::println("{}", std::format("start = ({}, {})\ntarget = ({}, {})\npolygons = {}\nsolution = {}\n", start.x, start.y, target.x, target.y, polygons_to_string(polygons), vectors_to_string(solution)));
 
 		code += std::format("start = ({}, {})\ntarget = ({}, {})\npolygons = {}\nsolution = {}\n", start.x, start.y, target.x, target.y, polygons_to_string(polygons), vectors_to_string(solution));
 		code += R""""(
