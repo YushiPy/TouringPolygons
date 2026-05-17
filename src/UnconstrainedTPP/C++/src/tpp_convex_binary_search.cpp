@@ -88,7 +88,7 @@ class SolutionBinarySearch : public tpp::Solution {
 
 		for (size_t i = 0; i < polygons.size(); i++) {
 			for (size_t j = 0; j < polygons[i].size(); j++) {
-				get_cone(i, j);
+				build_cone(i, j);
 			}
 		}
 	}

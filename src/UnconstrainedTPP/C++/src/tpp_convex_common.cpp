@@ -10,38 +10,46 @@ namespace tpp {
 
 	Solution::Solution(const Vector2& start, const Vector2& target, const vector<vector<Vector2>>& polygons) : start(start), target(target), polygons(polygons), first_contact(), cones() {}
 
+	void Solution::build_cone(size_t i, size_t j, const Vector2 &last) {
+		
+		auto j_prev = (j - 1 + polygons[i].size()) % polygons[i].size();
+		auto j_next = (j + 1) % polygons[i].size();
+
+		const auto &polygon = polygons[i];
+		const auto &_first_contact = first_contact[i];
+
+		const auto before = polygon[j_prev];
+		const auto vertex = polygon[j];
+		const auto after = polygon[j_next];
+
+		const auto diff = (vertex - last).normalized(); // Normalizing is not necessary, but makes debugging easier and does not affect the correctness of the algorithm.
+
+		auto ray1 = diff.reflect(vertex - before);
+		auto ray2 = diff.reflect(vertex - after);
+
+		first_contact[i][j_prev] = diff.cross(vertex - before) < 0;
+		first_contact[i][j] = diff.cross(vertex - after) > 0;
+
+		if (!_first_contact[j_prev]) {
+			ray1 = diff;
+		}
+
+		if (!_first_contact[j]) {
+			ray2 = diff;
+		}
+
+		cones[i][j] = {ray1, ray2};
+	}
+
+	void Solution::build_cone(size_t i, size_t j) {
+		const auto last = query(polygons[i][j], i);
+		build_cone(i, j, last);
+	}
+
 	pair<Vector2, Vector2>& Solution::get_cone(size_t i, size_t j) {
 
 		if (cones[i][j].first.is_nan()) {
-			
-			auto j_prev = (j - 1 + polygons[i].size()) % polygons[i].size();
-			auto j_next = (j + 1) % polygons[i].size();
-
-			const auto &polygon = polygons[i];
-			const auto &_first_contact = first_contact[i];
-
-			const auto before = polygon[j_prev];
-			const auto vertex = polygon[j];
-			const auto after = polygon[j_next];
-
-			const auto last = query(vertex, i);
-			const auto diff = (vertex - last).normalized(); // Normalizing is not necessary, but makes debugging easier and does not affect the correctness of the algorithm.
-
-			auto ray1 = diff.reflect(vertex - before);
-			auto ray2 = diff.reflect(vertex - after);
-
-			first_contact[i][j_prev] = diff.cross(vertex - before) < 0;
-			first_contact[i][j] = diff.cross(vertex - after) > 0;
-
-			if (!_first_contact[j_prev]) {
-				ray1 = diff;
-			}
-
-			if (!_first_contact[j]) {
-				ray2 = diff;
-			}
-
-			cones[i][j] = {ray1, ray2};
+			build_cone(i, j);
 		}
 
 		return cones[i][j];

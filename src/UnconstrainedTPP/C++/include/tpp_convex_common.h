@@ -21,6 +21,16 @@ namespace tpp {
 		Solution(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons);
 
 		/*
+		Builds the cone of vertex `j` in polygon `i` using the last point `last` in the path 
+		before reaching vertex `j`, and stores it in `cones[i][j]`. 
+		It also updates the `first_contact` array for vertex `j` and its previous vertex.
+		
+		If last is not provided, it will be computed using the `query` function, which will make this function recursive.
+		*/
+		void build_cone(size_t i, size_t j, const Vector2 &last);
+		void build_cone(size_t i, size_t j);
+
+		/*
 		Returns `cones[i][j] = (ray1, ray2)`. If the rays haven't been computed yet, computes the cone of vertex `j` in polygon `i` 
 		and stores it in `cones[i][j]` before returning it. It also uses this value to update the `first_contact` array.
 		
