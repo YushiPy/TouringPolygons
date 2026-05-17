@@ -358,7 +358,7 @@ namespace tpp {
 			}
 
 			path_index++;
-
+			segment_visits_a_polygon = false;
 		}
 
 		return true;
