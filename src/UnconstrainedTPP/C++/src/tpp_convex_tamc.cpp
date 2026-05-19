@@ -13,10 +13,7 @@ https://doi.org/10.1007/978-3-319-55911-7_44
 #include "common.h"
 #include "tpp_convex_common.h"
 
-
 #include "tests.h"
-#include <iostream>
-#include <print>
 
 using std::vector;
 using std::pair;
@@ -168,35 +165,55 @@ class SolutionTAMC : public tpp::Solution {
 		size_t last_location = location;
 		size_t point_index = 1;
 
-		scan(last_location, point_index, 1);
-		scan(last_location, point_index, -1);
-		scan(last_location, point_index, 1);
-		scan(last_location, point_index, -1);
+		int scan_direction = 1;
+		size_t scan_count = 0;
 
-		vector<Vector2> reflected_points, pass_through_points;
+		while (point_index < points.size()) {
+			scan(last_location, point_index, scan_direction);
+			scan_direction *= -1;
+			scan_count++;
+		}
 
+		if (scan_count > 8) {
+			throw std::runtime_error("Too many scans, something might be wrong with the implementation.");
+		}
+
+		vector<Vector2> combined_points;
+		vector<int> combined_indices; // 0 = reflected, 1 = pass_through
+		vector<size_t> reflected_original, pass_through_original;
+		
 		for (size_t j = 0; j < points.size(); j++) {
-
+			
 			const auto &point = points[j];
 			const auto &location = locations[j];
-
+			
 			if (location % 2 == 1) {
 				if (first_contact[i - 1][location / 2]) {
-
 					const auto &v1 = polygon[location / 2];
 					const auto &v2 = polygon[(location / 2 + 1) % polygon.size()];
 					const auto reflected = point.reflect_line(v1, v2);
-
-					reflected_points.push_back(reflected);
-
+					
+					combined_points.push_back(reflected);
+					combined_indices.push_back(0);
+					reflected_original.push_back(j);
 				} else {
-					pass_through_points.push_back(point);
+					combined_points.push_back(point);
+					combined_indices.push_back(1);
+					pass_through_original.push_back(j);
 				}
 			}
 		}
+		
+		auto combined_results = query_points(combined_points, i - 1);
 
-		auto reflected_results = query_points(reflected_points, i - 1);
-		auto pass_through_results = query_points(pass_through_points, i - 1);
+		vector<Vector2> reflected_results, pass_through_results;
+		size_t ri = 0, pi = 0;
+		for (size_t k = 0; k < combined_results.size(); k++) {
+			if (combined_indices[k] == 0)
+				reflected_results.push_back(combined_results[k]);
+			else
+				pass_through_results.push_back(combined_results[k]);
+		}
 
 		vector<Vector2> results;
 		results.reserve(points.size());
@@ -215,7 +232,7 @@ class SolutionTAMC : public tpp::Solution {
 					const auto &v1 = polygon[location / 2];
 					const auto &v2 = polygon[(location / 2 + 1) % polygon.size()];
 
-					const auto &reflected_point = reflected_points[reflected_index];
+					const auto &reflected_point = point.reflect_line(v1, v2);
 					const auto &reflected_result = reflected_results[reflected_index++];
 					
 					const auto intersection = tpp::segment_segment_intersection(reflected_point, reflected_result, v1, v2);
