@@ -2,6 +2,7 @@
 #include "vector2.h"
 #include "tests.h"
 #include "common.h"
+#include "tpp_convex.h"
 
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Partition_traits_2.h>
@@ -58,6 +59,8 @@ vector<vector<Vector2>> decompose_polygon(const vector<Vector2> &polygon) {
 		for (auto v = p.vertices_begin(); v != p.vertices_end(); ++v) {
 			piece.emplace_back(v->x(), v->y());
 		}
+
+		result.push_back(std::move(piece));
 	}
 
 	return result;
@@ -345,21 +348,344 @@ vector<Vector2> tpp_approximation2(const Vector2 &start, const Vector2 &target, 
 	return path;
 }
 
+
+bool is_ccw_turn(const Vector2 &p0, const Vector2 &p1, const Vector2 &p2) {
+	return (p1.x - p0.x) * (p2.y - p0.y) - (p2.x - p0.x) * (p1.y - p0.y) > 0;
+}
+
+vector<Vector2> half_hull(const vector<Vector2> &sorted_points) {
+
+	vector<Vector2> hull;
+
+	for (const auto &p : sorted_points) {
+		
+		while (hull.size() > 1 && !is_ccw_turn(hull[hull.size() - 2], hull[hull.size() - 1], p)) {
+			hull.pop_back();
+		}
+		
+		hull.push_back(p);
+	}
+
+	hull.pop_back(); // Remove last point to avoid duplication in full hull
+
+	return hull;
+}
+
+vector<Vector2> convex_hull(const vector<Vector2> &points) {
+
+	vector<Vector2> sorted_points = points;
+	
+	std::sort(sorted_points.begin(), sorted_points.end(), [](const Vector2 &a, const Vector2 &b) {
+		return std::tie(a.x, a.y) < std::tie(b.x, b.y);
+	});
+
+	vector<Vector2> lower = half_hull(sorted_points);
+	vector<Vector2> upper = half_hull(vector<Vector2>(sorted_points.rbegin(), sorted_points.rend()));
+
+	lower.insert(lower.end(), upper.begin(), upper.end());
+
+	return lower;
+}
+
+
+Vector2 project_point_on_polygon(const Vector2 &point, const vector<Vector2> &polygon) {
+
+	Vector2 closest_point;
+	double closest_distance = std::numeric_limits<double>::infinity();
+
+	for (size_t i = 0; i < polygon.size(); i++) {
+
+		const Vector2 &a = polygon[i];
+		const Vector2 &b = polygon[(i + 1) % polygon.size()];
+
+		const Vector2 ab = b - a;
+		const Vector2 ap = point - a;
+
+		double t = ap.dot(ab) / ab.dot(ab);
+		t = std::clamp(t, 0.0, 1.0);
+
+		Vector2 projection = a + t * ab;
+		double distance = projection.distance_to(point);
+
+		if (distance < closest_distance) {
+			closest_distance = distance;
+			closest_point = projection;
+		}
+	}
+
+	return closest_point;
+}
+
+vector<Vector2> tpp_solve(const Vector2 &start, const Vector2 &target, const vector<vector<Vector2>> &polygons) {
+
+	auto path_length = [&](const vector<Vector2> &path) {
+		
+		if (path.empty()) {
+			return start.distance_to(target);
+		}
+
+		double length = start.distance_to(path[0]);
+
+		for (size_t i = 1; i < path.size(); i++) {
+			length += path[i - 1].distance_to(path[i]);
+		}
+
+		length += path.back().distance_to(target);
+
+		return length;
+	};
+
+	if (polygons.empty()) {
+		return {};
+	}
+
+	vector<vector<Vector2>> convex_hulls;
+	vector<vector<vector<Vector2>>> convex_pieces;
+
+	convex_hulls.reserve(polygons.size());
+	convex_pieces.reserve(polygons.size());
+
+	for (const auto &polygon : polygons) {
+		convex_hulls.push_back(convex_hull(polygon));
+		convex_pieces.push_back(decompose_polygon(polygon));
+	}
+
+	vector<Vector2> best_path = tpp_approximation2(start, target, convex_hulls);
+
+	vector<Vector2> full_path;
+	full_path.reserve(best_path.size() + 2);
+
+	full_path.push_back(start);
+
+	for (const auto &p : best_path) {
+		full_path.push_back(p);
+	}
+
+	full_path.push_back(target);
+
+	auto point_on_boundary = [](const Vector2 &p, const vector<Vector2> &polygon) {
+
+		constexpr double EPS = 1e-9;
+
+		for (size_t i = 0; i < polygon.size(); i++) {
+
+			const auto &a = polygon[i];
+			const auto &b = polygon[(i + 1) % polygon.size()];
+
+			Vector2 ab = b - a;
+			Vector2 ap = p - a;
+
+			if (std::abs(ab.cross(ap)) > EPS) {
+				continue;
+			}
+
+			double dot = ap.dot(ab);
+
+			if (dot < -EPS) {
+				continue;
+			}
+
+			if (dot > ab.dot(ab) + EPS) {
+				continue;
+			}
+
+			return true;
+		}
+
+		return false;
+	};
+
+	auto segment_intersects_polygon = [](const Vector2 &a, const Vector2 &b, const vector<Vector2> &polygon) {
+
+		for (size_t i = 0; i < polygon.size(); i++) {
+
+			const auto &p1 = polygon[i];
+			const auto &p2 = polygon[(i + 1) % polygon.size()];
+
+			if (tpp::segment_segment_intersection(a, b, p1, p2).is_finite()) {
+				return true;
+			}
+		}
+
+		return false;
+	};
+
+	size_t current_polygon = 0;
+	size_t current_path = 1;
+
+	vector<vector<Vector2>> selected_pieces;
+
+	while (current_polygon < polygons.size() && current_path + 1 < full_path.size()) {
+
+		const auto &polygon = polygons[current_polygon];
+
+		const Vector2 &prev = full_path[current_path - 1];
+		const Vector2 &curr = full_path[current_path];
+		const Vector2 &next = full_path[current_path + 1];
+
+		auto &pieces = convex_pieces[current_polygon];
+
+		if (point_on_boundary(curr, polygon)) {
+
+			std::sort(
+				pieces.begin(),
+				pieces.end(),
+				[&](const vector<Vector2> &a, const vector<Vector2> &b) {
+
+					double da =
+						project_point_on_polygon(curr, a)
+						.distance_squared_to(curr);
+
+					double db =
+						project_point_on_polygon(curr, b)
+						.distance_squared_to(curr);
+
+					return da < db;
+				}
+			);
+
+			selected_pieces.push_back(pieces[0]);
+
+			current_polygon++;
+			current_path++;
+
+			continue;
+		}
+
+		vector<vector<Vector2>> intersecting;
+		vector<vector<Vector2>> non_intersecting;
+
+		for (const auto &piece : pieces) {
+
+			if (segment_intersects_polygon(prev, next, piece)) {
+				intersecting.push_back(piece);
+			} else {
+				non_intersecting.push_back(piece);
+			}
+		}
+
+		pieces.clear();
+
+		for (auto &piece : intersecting) {
+			pieces.push_back(std::move(piece));
+		}
+
+		for (auto &piece : non_intersecting) {
+			pieces.push_back(std::move(piece));
+		}
+
+		current_polygon++;
+	}
+	
+	// Initial solution from the heuristic ordering.
+	best_path = tpp::tpp_convex_solve(start, target, selected_pieces);
+
+	double minimal_length = path_length(best_path);
+	vector<Vector2> minimal_path = best_path;
+
+	auto bound = [&](const vector<size_t> &instance) {
+
+		vector<vector<Vector2>> input_polygons;
+		input_polygons.reserve(polygons.size());
+
+		for (size_t i = 0; i < instance.size(); i++) {
+			input_polygons.push_back(convex_pieces[i][instance[i]]);
+		}
+
+		for (size_t i = instance.size(); i < polygons.size(); i++) {
+			input_polygons.push_back(convex_hulls[i]);
+		}
+
+		vector<Vector2> path;
+
+		try {
+			path = tpp::tpp_convex_solve(start, target, input_polygons);
+		} catch (...) {
+			return std::numeric_limits<double>::infinity();
+		}
+
+		return path_length(path);
+	};
+
+	std::vector<std::vector<size_t>> queue;
+	queue.push_back({});
+
+	while (!queue.empty()) {
+
+		vector<size_t> current = std::move(queue.back());
+		queue.pop_back();
+
+		if (current.size() == polygons.size()) {
+
+			vector<vector<Vector2>> instance;
+			instance.reserve(polygons.size());
+
+			for (size_t i = 0; i < polygons.size(); i++) {
+				instance.push_back(convex_pieces[i][current[i]]);
+			}
+
+			vector<Vector2> path;
+
+			try {
+				path = tpp::tpp_convex_solve(start, target, instance);
+			} catch (...) {
+				continue;
+			}
+
+			double length = path_length(path);
+
+			if (length < minimal_length) {
+				minimal_length = length;
+				minimal_path = std::move(path);
+			}
+
+			continue;
+		}
+
+		size_t next_polygon_index = current.size();
+
+		for (size_t i = 0; i < convex_pieces[next_polygon_index].size(); i++) {
+
+			vector<size_t> selected = current;
+			selected.push_back(i);
+
+			if (bound(selected) > minimal_length) {
+				continue;
+			}
+
+			queue.push_back(std::move(selected));
+		}
+	}
+
+	best_path = std::move(minimal_path);
+
+	best_path.insert(best_path.begin(), start);
+	best_path.push_back(target);
+
+	return best_path;
+}
+
+
 int main() {
 	
-	const auto &[_start, _target, polygons] = tpp::generate_test({5, 5, 5});
-	const auto start = _start + Vector2(0.0, 0.5); // Perturb start to avoid numerical issues
-	const auto target = _target + Vector2(0.0, -0.5); // Perturb target to avoid numerical issues
+	Vector2 start(-2.0, 0.177198062845644);
+	Vector2 target(10.0, -10.0);
+	
+	vector<vector<Vector2>> polygons = {
+
+		{{0.4497354497354502, 4.761904761904762}, {-1.851851851851852, 2.5793650793650795}, {-0.5423280423280419, 3.32010582010582}, {0.3306878306878307, 3.373015873015873}, {0.846560846560847, 2.552910052910053}, {-1.0, 1.0}, {2.0, 2.0}}, 
+		{{4.969135802469138, -3.1481481481481484}, {3.9021164021164005, -2.2751322751322762}, {3.505291005291004, -3.240740740740742}, {1.970899470899469, -4.232804232804234}, {0.6084656084656066, -4.034391534391536}, {1.7217813051146398, -5.02300914134991}}, 
+		{{-1.7900939934870728, -5.1503424152681445}, {-4.797306307390922, -6.105278916062125}, {-6.405620413991311, -6.281188271471543}, {-5.928152163594321, -4.522094717377367}, {-3.2895118324530586, -3.7681974799084355}, {-7.9594863867745005, -1.588442056267219}, {-7.959486386774497, -8.712242774269072}}, 
+		{{-4.353344600881444, 4.926750658899912}, {-9.521728995529566, 3.1425271968901045}, {-9.722768258854616, 4.273373053093503}, {-8.46627286307306, 5.705777804284474}, {-6.80769894064141, 5.152919830140591}, {-10.522736994168872, 8.488651017900835}, {-10.522736994168868, 1.3648502998989844}}, 
+		{{17.65625045019001, 7.99160221179721}, {16.13829923570195, 10.530476367002898}, {19.64436354527171, 10.973771854419763}, {16.702493492414327, 13.149949701738926}, {14.16361933720864, 10.40957759770739}, {15.493505799459237, 7.508007134615176}, {10.053061181161336, 5.573626825887033}, {8.844073488206247, 7.185610416493819}, {8.118680872433194, 9.522986622873656}, {9.126170616562435, 12.102160367844515}, {7.762701162840861, 13.703645556089068}, {7.762701162840866, 2.2795588675053517}}, 
+		{{23.016095888957572, -6.717748052489705}, {19.201068057854844, -7.32224189896725}, {15.735303338050254, -9.65961810534709}, {14.16361933720864, -7.765537386384116}, {13.96212138838279, -5.6699587185952955}, {15.856202107345764, -3.372882101980626}, {13.122546601608423, -1.0057047081978485}, {13.122546601608427, -12.429791396781566}}
+	};
 
 	const auto start_time = std::chrono::high_resolution_clock::now();
-	auto solution = tpp_approximation2(start, target, polygons);
+	auto solution = tpp_solve(start, target, polygons);
 	const auto end_time = std::chrono::high_resolution_clock::now();
-
-	const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-	std::println("Approximation found in {} ms", duration);
-
-	solution.insert(solution.begin(), start);
-	solution.push_back(target);
+	const double elapsed_seconds = std::chrono::duration<double>(end_time - start_time).count();
+	std::println("Solution found in {} seconds", elapsed_seconds);
 
 	tpp::plot_solution(start, target, polygons, solution);
 }

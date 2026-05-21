@@ -60,5 +60,4 @@ namespace tpp {
 	Removes collinear points from a sequence of points.
 	*/
 	std::vector<Vector2> remove_collinear_points(const std::vector<Vector2>& points);
-
 }
