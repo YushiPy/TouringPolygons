@@ -172,12 +172,11 @@ std::string timings_to_string(const vector<vector<double>> &times, const vector<
 
 
 int main() {
-	
 
 	vector<tpp::Solver> solvers = {
 		// tpp::tpp_convex_solve_linear_search,
 		tpp::tpp_convex_solve_binary_search,
-		tpp::tpp_convex_solve_tamc
+		// tpp::tpp_convex_solve_tamc
 	};
 
 	auto generator_normal = tpp::generate_test;
@@ -267,6 +266,6 @@ int main() {
 	};
 
 	//test_over_k(10, 1000);
-	test_over_m(10, 5000, 1);
+	test_over_m(10, 200000, 10000);
 	// test_over_n(10, 5000, 10);
 }

@@ -840,8 +840,12 @@ class Main:
 
 		if not self.polygons:
 			return
-
+		
 		index = self.polygon_index
+		polygon = self.polygons[index]
+
+		if not Polygon2((v.position for v in polygon.vertices)).is_convex():
+			return
 
 		start = tuple(self.start.position)
 		target = tuple(self.target.position)
