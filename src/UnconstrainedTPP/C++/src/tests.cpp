@@ -123,6 +123,7 @@ namespace tpp {
 		}
 
 		vector<vector<Vector2>> polygons;
+		polygons.reserve(polygon_sizes.size());
 
 		for (size_t i = 0; i < polygon_sizes.size(); i++) {
 

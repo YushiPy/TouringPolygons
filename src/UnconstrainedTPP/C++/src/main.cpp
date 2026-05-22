@@ -9,10 +9,20 @@
 #include <fstream>
 #include <functional>
 
+#include <string>
+
 #include <omp.h>
 
 using std::tuple;
 using std::vector;
+using std::string;
+
+vector<std::pair<std::string, tpp::Solver>> solvers = {
+	{"Linear Search", tpp::tpp_convex_solve_linear_search},
+	{"Binary Search", tpp::tpp_convex_solve_binary_search},
+	{"TAMC", tpp::tpp_convex_solve_tamc},
+};
+
 
 vector<vector<double>> run_tests(
 	const vector<tpp::Solver> &solvers, 
@@ -107,14 +117,12 @@ vector<vector<double>> run_tests_parallel(
 		
 		const auto &polygon_sizes = polygon_size_configs[config_index];
 		
-		vector<tuple<Vector2, Vector2, vector<vector<Vector2>>>> test_cases(num_trials);
-		
 		for (size_t trial = 0; trial < num_trials; trial++) {
-			test_cases[trial] = generator(polygon_sizes);
-		}
 
-		for (const auto &[start, target, polygons] : test_cases) {
+			const auto [start, target, polygons] = generator(polygon_sizes);
+
 			for (size_t solver_index = 0; solver_index < solvers.size(); solver_index++) {
+				
 				const auto &solver = solvers[solver_index];
 
 				auto start_time = std::chrono::high_resolution_clock::now();
@@ -122,7 +130,7 @@ vector<vector<double>> run_tests_parallel(
 				auto end_time = std::chrono::high_resolution_clock::now();
 
 				std::chrono::duration<double> elapsed = end_time - start_time;
-				times[solver_index][config_index] += elapsed.count();  // no race: each thread owns its config_index column
+				times[solver_index][config_index] += elapsed.count();
 			}
 		}
 
@@ -137,10 +145,18 @@ vector<vector<double>> run_tests_parallel(
 }
 
 
-std::string timings_to_string(const vector<vector<double>> &times, const vector<vector<size_t>> &polygon_size_configs) {
+std::string timings_to_string(const vector<string> &names, const vector<vector<double>> &times, const vector<vector<size_t>> &polygon_size_configs) {
 	
-	// std::string result = "k,n,linear_search,binary_search,tamc\n";
-	std::string result = "k,n,binary_search,tamc\n";
+	std::string result = "k,n,";
+
+	for (size_t i = 0; i < names.size(); i++) {
+		result += names[i];
+		if (i < names.size() - 1) {
+			result += ",";
+		}
+	}
+
+	result += "\n";
 
 	for (size_t config_index = 0; config_index < polygon_size_configs.size(); config_index++) {
 
@@ -173,11 +189,15 @@ std::string timings_to_string(const vector<vector<double>> &times, const vector<
 
 int main() {
 
-	vector<tpp::Solver> solvers = {
-		// tpp::tpp_convex_solve_linear_search,
-		tpp::tpp_convex_solve_binary_search,
-		// tpp::tpp_convex_solve_tamc
-	};
+	const vector<std::pair<std::string, tpp::Solver>> tested_solvers = {solvers[0], solvers[1], solvers[2]};
+	
+	vector<string> solver_names(tested_solvers.size());
+	vector<tpp::Solver> solver_functions(tested_solvers.size());
+	
+	for (size_t i = 0; i < tested_solvers.size(); i++) {
+		solver_names[i] = tested_solvers[i].first;
+		solver_functions[i] = tested_solvers[i].second;
+	}
 
 	auto generator_normal = tpp::generate_test;
 
@@ -200,18 +220,18 @@ int main() {
 		if (parallel) {
 			
 			const auto start_time = std::chrono::high_resolution_clock::now();
-			times = run_tests_parallel(solvers, polygon_size_configs, num_trials, generator);
+			times = run_tests_parallel(solver_functions, polygon_size_configs, num_trials, generator);
 			const auto end_time = std::chrono::high_resolution_clock::now();
 			
 			std::chrono::duration<double> elapsed = end_time - start_time;
 			std::println("Total elapsed time: {} seconds", elapsed.count());
 
 		} else {
-			times = run_tests(solvers, polygon_size_configs, num_trials, generator);
+			times = run_tests(solver_functions, polygon_size_configs, num_trials, generator);
 		}
 
 		// Write results in CSV format
-		std::string result = timings_to_string(times, polygon_size_configs);
+		std::string result = timings_to_string(solver_names, times, polygon_size_configs);
 
 		std::ofstream file(filename);
 		file << result;
@@ -265,7 +285,7 @@ int main() {
 		do_test(polygon_size_configs, filename);
 	};
 
-	//test_over_k(10, 1000);
-	test_over_m(10, 200000, 10000);
+	test_over_k(3, 10000, 1000);
+	// test_over_m(10, 2000, 10);
 	// test_over_n(10, 5000, 10);
 }
