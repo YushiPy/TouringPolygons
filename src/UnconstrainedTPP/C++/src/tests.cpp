@@ -242,7 +242,6 @@ namespace tpp {
 		while (polygon_index < polygons.size() && path_index < solution.size()) {
 			
 			const auto &polygon = polygons[polygon_index];
-
 			const auto &point = solution[path_index];
 
 			bool is_on_vertex = false;
@@ -292,8 +291,7 @@ namespace tpp {
 			if (is_on_vertex) {
 				segment_visits_a_polygon = false;
 				polygon_index++;
-				path_index++;
-				segment_start = solution[path_index - 1];
+				segment_start = solution[path_index++];
 				continue;
 			}
 
@@ -334,8 +332,7 @@ namespace tpp {
 			if (is_on_edge) {
 				segment_visits_a_polygon = false;
 				polygon_index++;
-				path_index++;
-				segment_start = solution[path_index - 1];
+				segment_start = solution[path_index++];
 				continue;
 			}
 
@@ -367,6 +364,10 @@ namespace tpp {
 
 			path_index++;
 			segment_visits_a_polygon = false;
+		}
+
+		if (polygon_index < polygons.size()) {
+			return false;
 		}
 
 		return true;

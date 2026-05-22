@@ -10,20 +10,24 @@
 
 template <typename T>
 struct std::formatter<std::vector<T>> {
-    constexpr auto parse(std::format_parse_context &ctx) { return ctx.begin(); }
-    auto format(const std::vector<T> &v, std::format_context &ctx) const {
-        auto out = ctx.out();
-        out = std::format_to(out, "[");
-        for (size_t i = 0; i < v.size(); i++) {
-            if (i) out = std::format_to(out, ", ");
-            out = std::format_to(out, "{}", v[i]);
-        }
-        return std::format_to(out, "]");
-    }
+	constexpr auto parse(std::format_parse_context &ctx) { return ctx.begin(); }
+	auto format(const std::vector<T> &v, std::format_context &ctx) const {
+		auto out = ctx.out();
+		out = std::format_to(out, "{{");
+		for (size_t i = 0; i < v.size(); i++) {
+			if (i) out = std::format_to(out, ", ");
+			out = std::format_to(out, "{}", v[i]);
+		}
+		return std::format_to(out, "}}");
+	}
 };
 
 void print_test(const Vector2 &start, const Vector2 &target, const std::vector<std::vector<Vector2>> &polygons, const std::vector<Vector2> &solution, const std::vector<Vector2> &expected_solution) {
-	std::println("start = {};\ntarget = {};\npolygons = {};\nsolution = {};\nexpected_solution = {}", start, target, polygons, solution, expected_solution);
+	std::print("Vector2 start({}, {});\n", start.x, start.y);
+	std::print("Vector2 target({}, {});\n", target.x, target.y);
+	std::print("std::vector<std::vector<Vector2>> polygons = {};\n", polygons);
+	std::print("std::vector<Vector2> solution = {};\n", solution);
+	std::print("std::vector<Vector2> expected_solution = {};\n", expected_solution);
 }
 
 int main() {
@@ -31,7 +35,7 @@ int main() {
 	std::vector<tpp::Solver> solvers = {
 		tpp::tpp_convex_solve_linear_search,
 		tpp::tpp_convex_solve_binary_search,
-		tpp::tpp_convex_solve_tamc
+		tpp::tpp_convex_solve_tamc,
 	};
 
 	std::vector<std::filesystem::directory_entry> entries(

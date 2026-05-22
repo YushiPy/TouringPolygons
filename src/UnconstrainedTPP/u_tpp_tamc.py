@@ -531,34 +531,38 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 		last_location = location
 		point_index = 1
 
-		last_location, point_index = scan(last_location, point_index, 1)
-		last_location, point_index = scan(last_location, point_index, -1)
-		last_location, point_index = scan(last_location, point_index, 1)
-		last_location, point_index = scan(last_location, point_index, -1)
+		counter = 0
+
+		while point_index < len(points):
+			last_location, point_index = scan(last_location, point_index, 1)
+			last_location, point_index = scan(last_location, point_index, -1)
+			counter += 1
+
+		MAX_SCANS = 3
+
+		if counter > MAX_SCANS:
+			raise ValueError(f"Too many scans needed to locate points. Should be at most {MAX_SCANS}, but got {counter}. This may indicate a bug in the code.")
 		
 		fc = first_contact[i - 1]
 
-		reflection_points = []
-		pass_through_points = []
+		input_points = []
 
-		for j in range(len(points)):
-
-			location = locations[j]
+		for location, point in zip(locations, points):
 
 			if location % 2 == 0:
-				continue
-
-			if fc[location // 2]:
+				pass
+				# input_points.append(current_polygon[location // 2])
+			elif not fc[location // 2]:
+				input_points.append(point)
+			else:
 				v1 = current_polygon[location // 2]
 				v2 = current_polygon[(location // 2 + 1) % len(current_polygon)]
-				reflected_point = vector_reflect_segment(points[j], v1, v2)
-				reflection_points.append(reflected_point)
-			else:
-				pass_through_points.append(points[j])
-		
-		reflection_points = iter(query_points(reflection_points, i - 1))
-		pass_through_points = iter(query_points(pass_through_points, i - 1))
-		
+				reflected = vector_reflect_segment(point, v1, v2)
+				input_points.append(reflected)
+
+		returned_points = query_points(input_points, i - 1)
+		index = 0
+
 		results = []
 
 		for j in range(len(points)):
@@ -567,23 +571,22 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 
 			if location % 2 == 0:
 				results.append(current_polygon[location // 2])
-
-			elif fc[location // 2]:
-
+			elif not fc[location // 2] and not fc[(location - 1) // 2]:
+				results.append(returned_points[index])
+				index += 1
+			else:
 				v1 = current_polygon[location // 2]
 				v2 = current_polygon[(location // 2 + 1) % len(current_polygon)]
-				reflected_point = vector_reflect_segment(points[j], v1, v2)
+				reflected = vector_reflect_segment(points[j], v1, v2)
+				last = returned_points[index]
+				index += 1
 
-				last = next(reflection_points)
-				intersection = segment_segment_intersection(last, reflected_point, v1, v2)
+				intersection = segment_segment_intersection(last, reflected, v1, v2)
 
 				if intersection is None:
 					raise ValueError(f"Intersection not found for point {points[j]} in polygon {i} at edge {location // 2}")
-
+	
 				results.append(intersection)
-
-			else:
-				results.append(next(pass_through_points))
 
 		return results
 
@@ -591,7 +594,7 @@ def tpp_solve(start: tuple[float, float], target: tuple[float, float], polygons:
 
 		polygon = polygons[i + 1]
 		results = query_points(polygon, i + 1)
-		
+
 		for j in range(len(polygon)):
 			build_rays(i + 1, j, results[j])
 	

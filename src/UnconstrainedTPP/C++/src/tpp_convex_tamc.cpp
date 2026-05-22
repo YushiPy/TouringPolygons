@@ -15,6 +15,10 @@ https://doi.org/10.1007/978-3-319-55911-7_44
 
 #include "tests.h"
 
+// Maximum number of "up and down" scans allowed in `query_points` function. 
+// If the number of scans exceeds this value, an exception will be thrown.
+#define MAX_SCAN_COUNT 3
+
 using std::vector;
 using std::pair;
 
@@ -83,17 +87,13 @@ class SolutionTAMC : public tpp::Solution {
 	int64_t locate_point(const Vector2& point, size_t i) override {
 
 		size_t location = _locate_point(point, i);
-		const auto &fc = first_contact[i - 1];
-		
-		size_t previous_index = location == 0 ? fc.size() - 1 : (location - 1) / 2;
 
-		if (fc[location / 2] || fc[previous_index]) {
+		if (location % 2 == 0 || first_contact[i - 1][location / 2]) {
 			return location;
 		} else {
 			return -1;
 		}
 	}
-
 
 	vector<Vector2> query_points(const vector<Vector2> &points, size_t i) {
 
@@ -106,6 +106,7 @@ class SolutionTAMC : public tpp::Solution {
 		}
 
 		const auto &polygon = polygons[i - 1];
+		const auto &fc = first_contact[i - 1];
 
 		const auto &point = points[0];
 		auto location = _locate_point(point, i);
@@ -150,6 +151,7 @@ class SolutionTAMC : public tpp::Solution {
 					locations.push_back(location);
 					point_index++;
 					start_location = location;
+
 				} else {
 					
 					location = (location + shift + 2 * polygon.size()) % (2 * polygon.size());
@@ -165,86 +167,60 @@ class SolutionTAMC : public tpp::Solution {
 		size_t last_location = location;
 		size_t point_index = 1;
 
-		int scan_direction = 1;
 		size_t scan_count = 0;
 
 		while (point_index < points.size()) {
-			scan(last_location, point_index, scan_direction);
-			scan_direction *= -1;
+			scan(last_location, point_index, 1);
+			scan(last_location, point_index, -1);
 			scan_count++;
 		}
 
-		if (scan_count > 8) {
+		if (scan_count > MAX_SCAN_COUNT) {
 			throw std::runtime_error("Too many scans, something might be wrong with the implementation.");
 		}
 
-		vector<Vector2> combined_points;
-		vector<int> combined_indices; // 0 = reflected, 1 = pass_through
-		vector<size_t> reflected_original, pass_through_original;
-		
+		vector<Vector2> input_points;
+
 		for (size_t j = 0; j < points.size(); j++) {
-			
+
 			const auto &point = points[j];
 			const auto &location = locations[j];
-			
-			if (location % 2 == 1) {
-				if (first_contact[i - 1][location / 2]) {
-					const auto &v1 = polygon[location / 2];
-					const auto &v2 = polygon[(location / 2 + 1) % polygon.size()];
-					const auto reflected = point.reflect_line(v1, v2);
-					
-					combined_points.push_back(reflected);
-					combined_indices.push_back(0);
-					reflected_original.push_back(j);
-				} else {
-					combined_points.push_back(point);
-					combined_indices.push_back(1);
-					pass_through_original.push_back(j);
-				}
+
+			if (location % 2 == 0) {
+				// Do nothing, we can tell the point come from the vertex directly without needing to query the previous polygon.
+			} else if (!fc[location / 2]) {
+				input_points.push_back(point);
+			} else {
+				const auto &v1 = polygon[location / 2];
+				const auto &v2 = polygon[(location / 2 + 1) % polygon.size()];
+				const auto reflected = point.reflect_line(v1, v2);
+				input_points.push_back(reflected);
 			}
 		}
-		
-		auto combined_results = query_points(combined_points, i - 1);
 
-		vector<Vector2> reflected_results, pass_through_results;
-		size_t ri = 0, pi = 0;
-		for (size_t k = 0; k < combined_results.size(); k++) {
-			if (combined_indices[k] == 0)
-				reflected_results.push_back(combined_results[k]);
-			else
-				pass_through_results.push_back(combined_results[k]);
-		}
+		vector<Vector2> returned_points = query_points(input_points, i - 1);
+		size_t index = 0;
 
 		vector<Vector2> results;
-		results.reserve(points.size());
-
-		size_t reflected_index = 0;
-		size_t pass_through_index = 0;
 
 		for (size_t j = 0; j < points.size(); j++) {
 
-			const auto &point = points[j];
 			const auto &location = locations[j];
 
-			if (location % 2 == 1) {
-				if (first_contact[i - 1][location / 2]) {
-
-					const auto &v1 = polygon[location / 2];
-					const auto &v2 = polygon[(location / 2 + 1) % polygon.size()];
-
-					const auto &reflected_point = point.reflect_line(v1, v2);
-					const auto &reflected_result = reflected_results[reflected_index++];
-					
-					const auto intersection = tpp::segment_segment_intersection(reflected_point, reflected_result, v1, v2);
-
-					results.push_back(intersection);
-
-				} else {
-					results.push_back(pass_through_results[pass_through_index]);
-					pass_through_index++;
-				}
-			} else {
+			if (location % 2 == 0) {
 				results.push_back(polygon[location / 2]);
+			} else if (!fc[location / 2]) {
+				results.push_back(returned_points[index++]);
+			} else {
+				
+				const auto &v1 = polygon[location / 2];
+				const auto &v2 = polygon[(location / 2 + 1) % polygon.size()];
+				const auto reflected = input_points[index];
+				const auto last = returned_points[index++];
+
+				const auto intersection = tpp::segment_segment_intersection(last, reflected, v1, v2);
+
+				results.push_back(intersection);
 			}
 		}
 
@@ -252,7 +228,7 @@ class SolutionTAMC : public tpp::Solution {
 	}
 
 	void preload_cones() override {
-
+		
 		// If there are no polygons, there is nothing to preload.
 		// If there is a sinlge polygon, queries to the vertices take O(1) time, 
 		// so there is no need to preload the cones.
@@ -268,7 +244,7 @@ class SolutionTAMC : public tpp::Solution {
 
 			const auto &polygon = polygons[i];
 			const auto last_points = query_points(polygon, i);
-
+			
 			for (size_t j = 0; j < polygon.size(); j++) {
 				build_cone(i, j, last_points[j]);
 			}
