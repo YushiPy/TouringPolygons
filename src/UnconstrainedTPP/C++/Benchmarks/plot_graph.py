@@ -11,8 +11,6 @@ from numpy.typing import NDArray
 type Vector = NDArray[np.float64]
 type Matrix = NDArray[np.float64]
 
-COLORS = ["#003f5c", "#008c54", "#ffa600"]
-ALGORITHMS = ["Linear Search", "Binary Search", "TAMC"]
 
 def quadratic_model(n: Vector, k: Vector) -> Matrix:
 	return np.column_stack((np.ones_like(n), n + k, (n + k) ** 2))
@@ -23,12 +21,14 @@ def polylog_model(n: Vector, k: Vector) -> Matrix:
 def linear_model(n: Vector, k: Vector) -> Matrix:
 	return np.column_stack((np.ones_like(n), n + k, n * k))
 
-MODELS = {
-	"Linear Search": quadratic_model,
-	"Binary Search": polylog_model,
-	"TAMC": linear_model,
-}
 
+
+ALGORITHMS = {
+	"Linear Search": ("#003f5c", quadratic_model),
+	"Binary Search": ("#7a4f99", polylog_model),
+	"Binary Search (lazy)": ("#ef527a", polylog_model),
+	"TAMC": ("#ffa600", linear_model),
+}
 
 def regression(x: Vector, y: Vector, model: Matrix) -> Vector:
 	"""
@@ -61,30 +61,43 @@ def regression(x: Vector, y: Vector, model: Matrix) -> Vector:
 
 def plot_vs_k(df: pd.DataFrame, ax: Axes | None = None) -> None:
 
+	algs = [alg for alg in ALGORITHMS if alg in df.columns]
+
 	k = np.array(df["k"], dtype=np.float64)
 	n = np.array(df["n"], dtype=np.float64)
-	timings = [np.array(df[alg], dtype=np.float64) if alg in df.columns else np.array([]) for alg in ALGORITHMS]
+	timings = [np.array(df[alg], dtype=np.float64) for alg in algs]
+
+	min_len = len(k)
+
+	for x in [k, n] + timings:
+		if np.isnan(x).any():
+			min_len = min(min_len, np.where(np.isnan(x))[0][0])
+	
+	k = k[:min_len]
+	n = n[:min_len]
+	timings = [timing[:min_len] for timing in timings]
 
 	if ax is None:
 		fig, ax = plt.subplots(1, 1, figsize=(10, 6))
 		fig.tight_layout()
 
-	for i in range(len(ALGORITHMS)):
+	for i in range(len(algs)):
 
-		alg_name = ALGORITHMS[i]
+		alg_name = algs[i]
 		timing = timings[i]
-		color = COLORS[i]
-
-		if timing.size == 0:
-			continue
-
-		base_model = MODELS[alg_name]
+		color = ALGORITHMS[alg_name][0]
+		base_model = ALGORITHMS[alg_name][1]
 		model = base_model(n, k)
 
-		fit = regression(k, timing, model)
+		try:
+	
+			fit = regression(k, timing, model)
 
-		with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
-			predicted = fit.T @ model.T
+			with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+				predicted = fit.T @ model.T
+	
+		except np.linalg.LinAlgError:
+			predicted = timing
 		
 		ax.plot(k, timing, label=alg_name, color=color)
 		
@@ -101,32 +114,47 @@ def plot_vs_k(df: pd.DataFrame, ax: Axes | None = None) -> None:
 
 def plot_vs_m(df: pd.DataFrame, ax: Axes | None = None) -> None:
 
+	algs = [alg for alg in ALGORITHMS if alg in df.columns]
+
 	k = np.array(df["k"], dtype=np.float64)
 	n = np.array(df["n"], dtype=np.float64)
 	m = n / k
 	
-	timings = [np.array(df[alg], dtype=np.float64) if alg in df.columns else np.array([]) for alg in ALGORITHMS]
+	timings = [np.array(df[alg], dtype=np.float64) for alg in algs]
+
+	min_len = len(k)
+
+	for x in [k, n] + timings:
+		if np.isnan(x).any():
+			min_len = min(min_len, np.where(np.isnan(x))[0][0])
+
+	k = k[:min_len]
+	n = n[:min_len]
+	m = m[:min_len]
+	timings = [timing[:min_len] for timing in timings]
 
 	if ax is None:
 		fig, ax = plt.subplots(1, 1, figsize=(10, 6))
 		fig.tight_layout()
 
-	for i in range(len(ALGORITHMS)):
+	for i in range(len(algs)):
 
-		alg_name = ALGORITHMS[i]
+		alg_name = algs[i]
 		timing = timings[i]
-		color = COLORS[i]
-
-		if timing.size == 0:
-			continue
-
-		base_model = MODELS[alg_name]
+		color = ALGORITHMS[alg_name][0]
+		base_model = ALGORITHMS[alg_name][1]
 		model = base_model(n, k)
 
-		fit = regression(m, timing, model)
+		try:
 
-		with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
-			predicted = fit.T @ model.T
+			fit = regression(m, timing, model)
+
+			with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+				predicted = fit.T @ model.T
+
+		except np.linalg.LinAlgError:
+			predicted = timing
+
 		
 		ax.plot(m, timing, label=alg_name, color=color)
 		
@@ -142,7 +170,7 @@ def plot_vs_m(df: pd.DataFrame, ax: Axes | None = None) -> None:
 	ax.grid(True)
 
 
-df = pd.read_csv("benchmark_results_k_100_m_1_to_3000.csv")
-df = pd.read_csv("benchmark_results_k_5_m_1_to_40000.csv")
+df = pd.read_csv("benchmark_results_k_100_m_1_to_40000.csv")
+# df = pd.read_csv("benchmark_results_k_1_to_3000_m_100.csv")
 
 plot_vs_m(df)

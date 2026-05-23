@@ -189,7 +189,7 @@ std::string timings_to_string(const vector<string> &names, const vector<vector<d
 
 int main() {
 
-	const vector<size_t> solver_indices_to_test = {1, 2};
+	const vector<size_t> solver_indices_to_test = {1};
 	const size_t chunk_count = 1;
 	const size_t num_trials = 1;
 	const bool parallel = true;
@@ -389,8 +389,10 @@ int main() {
 	};
 
 	vector<size_t> ks = {1, 3, 5, 10, 20, 50, 100};
+	vector<size_t> ms = {3, 5, 10, 20, 50, 100};
 	const size_t max_m = 40000;
-	const size_t step = 100;
+	const size_t max_k = 3000;
+	const size_t step = 10;
 
 	for (auto k : ks) {
 		try {
