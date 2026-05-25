@@ -28,6 +28,7 @@
 \SetKwInOut{Output}{Saída}
 \SetKwIF{If}{ElseIf}{Else}{se}{:}{senão se}{senão}{end}
 \SetKwFor{For}{para cada}{:}{end}
+\SetKwFor{While}{enquanto}{faça:}{end}
 \SetKwRepeat{Do}{do}{enquanto}
 
 \SetKwProg{Function}{define}{:}{}
@@ -823,6 +824,114 @@ A partir dessa observação, segue que é possível determinar se uma aresta~\(e
 Dessa forma, podemos reutilizar a segunda implementação do algoritmo \texttt{LocalizaPonto} (Algoritmo~\algref{alg:locate_point_second_approach}). Para tanto, deixamos implícito que as linhas 2 e 3 do Algoritmo~\algref{alg:locate_point_second_approach}, que solicitam os raios associados aos vértices~\(u\) e~\(v\) em~\(S_i\), realizam as consultas necessárias para calcular os raios associados a~\(u\) e~\(v\) em~\(S_i\) e armazenam os resultados para consultas futuras. Além disso, as linhas 28 e 30, que verificam se~\(v^l \in T_i\) e se~\(\overline{v^l v^r} \in T_i\), respectivamente, realizam as consultas necessárias para determinar se~\(v^l\) e~\(\overline{v^l v^r}\) pertencem a~\(T_i\) e armazenam os resultados para consultas futuras.
 
 Assim, concluímos a implementação da terceira abordagem do algoritmo \texttt{LocalizaPonto} e podemos finalizar a implementação completa do algoritmo TPP utilizando essa abordagem. Para isso, inicializamos~\(S_1, \dots, S_k\) e~\(T_1, \dots, T_k\) como conjuntos vazios e, em seguida, retornamos o~\(k\)-path até~\(t\) utilizando o Algoritmo~\algref{alg:consulta-caminho}. Observe que, nesse caso, o cálculo de~\(T_i\) e~\(S_i\) para cada~\(i = 1, \dots, k\) é realizado de forma implícita durante as consultas ao mapa de último passo~\(S_i\), restringindo-se aos vértices e arestas que sejam efetivamente necessários para localizar os pontos consultados em~\(S_i\).
+
+\subsection{Quarta Abordagem}
+
+Nessa seção, consideramos a abordagem descrita em \cite{tpp-tan2017}, que propõem uma solução em tempo \(O(nk)\), melhorando sobre a complexidade \(O(nk \log(n / k))\) da abordagem anterior. Grande parte dessa abordagem segue de forma similar às anteriores, no entanto, ela usa o fato dos polígonos serem convexos para otimizar a construção dos mapas de último passo. Para cada mapa de último passo \(S_i\), em vez de calcular o \((i - 1)\)-path até cada vértice de \(P_i\), calcula-se o \((i - 1)\)-path até um vértice arbitrário de \(P_i\) e, a partir disso, é possível determinar o \((i - 1)\)-path até os demais vértices de \(P_i\) em tempo \(O(|P_{i - 1}| + |P_i|)\) utilizando um número constante de varreduras sobre as regiões de \(S_{i - 1}\).
+
+A primeira parte do artigo foca nas definições das estruturas que já definimos, assim pulamos para a parte que apresenta uma novidade sobre o algoritmo anterior, que são os lemas 1 e 2, os quais condensamos em um único lema a seguir. Para tal, para um dado polígono \(P_{i + 1}\) definimos \(v_j\) \((1 \le j \le m)\), onde \(m\) é o número de vértices de \(P_{i + 1}\), como o \(j\)-ésimo vértice de \(P_i\) em sentido anti-horário e \(q_{h,j}\) (\(1 \le h \le i\)) como o último ponto de contato de \(P_h\) com o \(i\)-path até \(v_j\).
+
+\begin{blockQuote}
+	\textbf{Lemma 1}: Os últimos pontos de contato \(q_{h,1}, q_{h,2}, \dots, q_{h,m}\) de \(P_h\) com o \(i\)-path até os vértices de \(P_{i + 1}\) formam no máximo 3 cadeias \(x\) monotônicas em \(S_h\).
+\end{blockQuote}
+
+A partir desse lema, enunciamos o seguinte resultado, que é a base para a construção eficiente dos mapas de último passo:
+
+\begin{blockQuote}
+	\textbf{Lema 2}: Dados \(S_1, \dots, S_i\), o mapa de último passo \(S_{i + 1}\) pode ser construído em tempo \(O(i|P_{i + 1}| + \sum_{h=1}^{i} |P_h|)\).
+\end{blockQuote}
+
+Agora vamos provar o Lema 2. Primeiramente, consideramos que somos dados \(S_1, \dots, S_i\) de tal maneira que podemos iterar sobre as regiões de vértice e de aresta de cada \(S_h\) (\(1 \le h \le i\)) na seguinte ordem: região de \(v_1\), região da aresta entre \(v_1\) e \(v_2\), \(\dots\), região de \(v_m\) e região entre \(v_m\) e \(v_1\), podemos atribuir um inteiro de 1 até \(2m\) à cada uma dessas regiões seguindo essa ordem. Nesse caso, consideramos que a região de passagem é composta por múltiplas regiões de vértice e de aresta, na qual as regiões de vértice são compostas por uma semireta.
+
+Primeiro consideramos o vértice \(v_1\) e verificamos se ele pertence à região 1, se não pertence, verificamos a região 2, se pertencer, permanecemos na mesma região de \(S_i\) e verificamos se \(v_2\) pertence a essa região, repetimos isso até verificar todas as regiões ou encontrarmos a localização de todos os pontos.
+
+Em seguida, caso não tenhamos localizado todos os pontos ainda, iteramos sobre as regiões de \(S_i\) em ordem inversa, ou seja, regiões \(2m\), \(2m - 1\), \(\dots\), 1. Para cada região, verificamos se o vértice \(v_j\) pertence a essa região, caso pertença, permanecemos nessa região e verificamos se \(v_{j + 1}\) pertence a essa região, repetimos isso até verificar todas as regiões ou encontrarmos a localização de todos os pontos.
+
+Repetimos essas duas verreduras até que todos os vértices de \(P_{i + 1}\) tenham sido localizados em \(S_i\). O Lemma 1 garante que esse processo termina em um número constante de iterações. Vale notar que essa varredura tem complexidade \(O(|P_i| + |P_{i + 1}|)\), pois a complexidade é linear no número de pontos consultados e no número de regiões que varremos.
+
+Dessa maneira, temos todas as localizações dos vértice de \(P_{i + 1}\) em \(S_i\), no entanto, isso não é suficiente para construir \(S_{i + 1}\) ainda. Como observamos no Algoritmo~\algref{alg:last_step_map}, para construir \(S_{i + 1}\) precisamos saber o último passo do \(i\)-path até cada um desses vértices.
+
+Se a localização de um dado vértice \(v_j\) é uma região de vértice, sabemos que o último passo do \(i\)-path até \(v_j\) vem do vértice associado a essa região, assim não precisamos investigar mais nada para determinar o último passo do \(i\)-path até \(v_j\). No entanto, se a localização for uma região de aresta, precisamos saber o último passo do \((i - 1)\)-path até a reflexão de \(v_j\) em relação a essa aresta. Similarmente, se a localização for a região de atravessar, precisamos saber o último passo do \((i - 1)\)-path até \(v_j\) para determinar o último passo do \(i\)-path até \(v_j\).
+
+O Lema 1 garante que se usássemos a mesma estratégia de varredura nos pontos \(q_{i,1}, \dots, q_{i,m}\), conseguiríamos determinar o \((i - 1)\)-path até eles em um número constante de iterações. No entanto, se conhecessemos os pontos \(q_{i,1}, \dots, q_{i,m}\), não seria necessário localizar eles em primeiro lugar, pois eles são suficientes para determinar o mapa de último passo \(S_{i + 1}\). 
+
+Por esse motivo, usamos pontos que pertencem à mesma localização que esses pontos. Note que se \(v_j\) pertence à região de atravessar, então \(q_{i,j}\) está na mesma região que \(v_j\) no mapa \(S_{i - 1}\). Além disso, se \(v_j\) pertence à região de aresta associada à aresta \(\overline{v^l v^r}\), então \(q_{i,j}\) pertence à região de aresta associada à mesma aresta \(\overline{v^l v^r}\). Finalmente, se \(v_j\) pertence à região de vértice, então sabemos que \(q_{i,j}\) é exatamente esse vértice.
+
+Dessa forma, podemos usar essa estratégia recursivamente para determinar o último ponto do \((i - 1)\)-path até os pontos \(q_{i,1}, \dots, q_{i,m}\) em um número constante de iterações, o que é suficiente para determinar o mapa de último passo \(S_{i + 1}\). Assim, a complexidade total para construir \(S_{i + 1}\) é \(O(i|P_{i + 1}| + \sum_{h=1}^{i} |P_h|)\), pois o número de pontos consultados é sempre no máximo \(|P_{i + 1}|\) e varremos as regiões de \(S_1, \dots, S_i\) um número constante de vezes, o que resulta em uma complexidade linear no número de regiões varridas.
+
+Usando esses fatos, conseguimos criar um algoritmo que dados \(i, s, (P_1, \dots, P_{i + 1}), (T_1, \dots, T_i), (S_1, \dots, S_i)\) retorna o último passo do \(i\)-path até cada um dos vértices de \(P_{i + 1}\). A partir disso, podemos usar os Algoritmos já desenvolvidos para determinar a região de último passo e mapa de último passo \(T_{i + 1}\) e \(S_{i + 1}\). Finalmente, o algoritmo para determinar o caminho até \(t\) permanece o mesmo.
+
+\begin{algorithm}[!ht]
+\alglabel{alg:locate-points-4}
+\caption{Consulta Polígono}
+\Input{\(i, s, (P_1, \dots, P_{i + 1}), (T_1, \dots, T_i), (S_1, \dots, S_i)\)}
+\Output{\(k\)-path até \(t\).}
+\vspace{0.3em}
+\hrule
+\vspace{0.3em}
+
+\Function {ConsultaPontos(\(i, (p_1, \dots, p_n)\))} {
+
+	\If {\(n = 0\)} {
+		\Return {} \(\emptyset\)
+	} \ElseIf {\(i = 0\)} {
+		\Return {} \({s, s, \dots, s}\) \tcp{\(n\) vezes}
+	}
+
+	\(L \leftarrow \emptyset\)
+	\(j \leftarrow 1\) \tcp{Índice do próximo ponto a ser localizado.}
+
+	\While {\(j \le n\)} {
+
+		\For {região \(R\) de \(S_i\)} {
+			\While {\(j < n\)} {
+				\If {\(p_j\) está na região \(R\)} {
+					Associa \(p_j\) à região \(R\) \\
+					\(j \leftarrow j + 1\)
+				}
+			}
+		}
+
+		\For {região \(R\) de \(S_i\) em ordem inversa} {
+			\While {\(j < n\)} {
+				\If {\(p_j\) está na região \(R\)} {
+					Associa \(p_j\) à região \(R\) \\
+					\(j \leftarrow j + 1\)
+				}
+			}
+		}
+	}
+
+	\For {\(j = 1\) até \(n\)} {
+		\If {\(p_j\) está em região de vértice} {
+			\(p'_j \leftarrow\) vértice associado à região de vértice de \(p_j\)
+		} \ElseIf {\(p_j\) está em região de aresta} {
+			\(p'_j \leftarrow\) reflexão de \(p_j\) em relação à aresta associada à região de aresta de \(p_j\)
+		} \Else {
+			\(p'_j \leftarrow p_j\)
+		}
+	}
+
+	\((q'_1, \dots, q'_m) \leftarrow\) ConsultaPontos(\(i - 1, (p'_1, \dots, p'_n)\)) \\
+
+	\For {\(j = 1\) até \(n\)} {
+		\If {\(p_j\) está em região de vértice} {
+			\(q_j \leftarrow\) região de vértice associada a \(p_j\) em \(S_i\)
+		} \ElseIf {\(p_j\) está em região de aresta} {
+			\(q_j \leftarrow\) interseção do segmento \(\overline{p'_j q'_j}\) com a aresta associada à região de aresta de \(p_j\)
+		} \Else {
+			\(q_j \leftarrow q'_j\)
+		}
+	}
+
+	\Return {} \((q_1, \dots, q_n)\)
+}
+
+\Function {ConsultaPolígono(\(i, s, (P_1, \dots, P_{i + 1}), (T_1, \dots, T_i), (S_1, \dots, S_i)\))} {
+	\Return {} ConsultaPontos(\(i, (v^1, \dots, v^m)\)) \tcp{Onde \(v^1, \dots, v^m\) são os vértices de \(P_{i + 1}\).}
+}
+
+\end{algorithm}
 
 \subsection{Análise de Complexidade}
 
