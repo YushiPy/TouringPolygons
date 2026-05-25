@@ -1,5 +1,6 @@
 
 from collections.abc import Callable, Sequence
+import re
 
 from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
@@ -24,10 +25,10 @@ def linear_model(n: Vector, k: Vector) -> Matrix:
 
 
 ALGORITHMS = {
-	"Linear Search": ("#003f5c", quadratic_model),
-	"Binary Search": ("#7a4f99", polylog_model),
-	"Binary Search (lazy)": ("#ef527a", polylog_model),
-	"TAMC": ("#ffa600", linear_model),
+	"Linear Search": ("#003f5c", quadratic_model, "Busca Linear"),
+	"Binary Search": ("#7a4f99", polylog_model, "Busca Binária"),
+	"Binary Search (lazy)": ("#ef527a", polylog_model, "Busca Binária (Preguiçosa)"),
+	"TAMC": ("#ffa600", linear_model, "Tan & Jiang"),
 }
 
 def regression(x: Vector, y: Vector, model: Matrix) -> Vector:
@@ -78,7 +79,7 @@ def plot_vs_k(df: pd.DataFrame, ax: Axes | None = None) -> None:
 	timings = [timing[:min_len] for timing in timings]
 
 	if ax is None:
-		fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+		fig, ax = plt.subplots(1, 1, figsize=(4, 4))
 		fig.tight_layout()
 
 	for i in range(len(algs)):
@@ -106,10 +107,10 @@ def plot_vs_k(df: pd.DataFrame, ax: Axes | None = None) -> None:
 
 	m = round(np.mean(n / k))
 
-	ax.set_xlabel("k")
-	ax.set_ylabel("Time (seconds)")
-	ax.set_title(f"Execution Time vs Number of Polygons (k) for m={m}")
-	ax.legend()
+	#ax.set_xlabel("k")
+	#ax.set_ylabel("Time (seconds)")
+	#ax.set_title(f"Execution Time vs Number of Polygons (k) for m={m}")
+	ax.legend(fontsize='xx-large')
 	ax.grid(True)
 
 def plot_vs_m(df: pd.DataFrame, ax: Axes | None = None) -> None:
@@ -166,11 +167,41 @@ def plot_vs_m(df: pd.DataFrame, ax: Axes | None = None) -> None:
 	ax.set_xlabel("m")
 	ax.set_ylabel("Time (seconds)")
 	ax.set_title(f"Execution Time vs Vertices per Polygon (m) for k={average_k}")
-	ax.legend()
+	ax.legend(fontsize='xx-large')
 	ax.grid(True)
 
+if __name__ == "__main__":
 
-df = pd.read_csv("benchmark_results_k_100_m_1_to_40000.csv")
-# df = pd.read_csv("benchmark_results_k_1_to_3000_m_100.csv")
+	# fig, ax = plt.subplots(3, 2, figsize=(6, 6))
+	# flat = ax.flatten()
 
-plot_vs_m(df)
+	import os
+
+	m_files = [f for f in os.listdir() if f.startswith("benchmark_results_k_1_to")]
+	m_files.sort(key=lambda x: int(x.split("_")[-1].strip(".csv")))
+	dfs = [pd.read_csv(f) for f in m_files]
+
+	for df in dfs:
+
+		fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+		plot_vs_k(df, ax)
+
+		m = round(np.mean(df["n"] / df["k"]))
+		filename = f"plt_vs_k_m_{m}.png"
+		fig.tight_layout()
+		plt.savefig(filename, dpi=250)
+
+	k_files = [f for f in os.listdir() if re.search(r"benchmark\_results\_k\_\d+\_m\_1\_to\_\d+\.csv", f)]
+	k_files.sort(key=lambda x: int(re.search(r"k_(\d+)_m", x).group(1)))
+	dfs = [pd.read_csv(f) for f in k_files]
+
+	for df in dfs:
+
+		fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+		plot_vs_m(df, ax)
+
+		k = round(np.mean(df["k"]))
+		filename = f"plt_vs_m_k_{k}.png"
+		fig.tight_layout()
+		plt.savefig(filename, dpi=250)
+

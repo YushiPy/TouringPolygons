@@ -859,7 +859,7 @@ Por esse motivo, usamos pontos que pertencem à mesma localização que esses po
 
 Dessa forma, podemos usar essa estratégia recursivamente para determinar o último ponto do \((i - 1)\)-path até os pontos \(q_{i,1}, \dots, q_{i,m}\) em um número constante de iterações, o que é suficiente para determinar o mapa de último passo \(S_{i + 1}\). Assim, a complexidade total para construir \(S_{i + 1}\) é \(O(i|P_{i + 1}| + \sum_{h=1}^{i} |P_h|)\), pois o número de pontos consultados é sempre no máximo \(|P_{i + 1}|\) e varremos as regiões de \(S_1, \dots, S_i\) um número constante de vezes, o que resulta em uma complexidade linear no número de regiões varridas.
 
-Usando esses fatos, conseguimos criar um algoritmo que dados \(i, s, (P_1, \dots, P_{i + 1}), (T_1, \dots, T_i), (S_1, \dots, S_i)\) retorna o último passo do \(i\)-path até cada um dos vértices de \(P_{i + 1}\). A partir disso, podemos usar os Algoritmos já desenvolvidos para determinar a região de último passo e mapa de último passo \(T_{i + 1}\) e \(S_{i + 1}\). Finalmente, o algoritmo para determinar o caminho até \(t\) permanece o mesmo.
+Usando esses fatos, conseguimos criar um algoritmo que dados \(i, s, (P_1, \dots, P_{i + 1}), (T_1, \dots, T_i), (S_1, \dots, S_i)\) retorna o último passo do \(i\)-path até cada um dos vértices de \(P_{i + 1}\). A partir disso, podemos usar os Algoritmos já desenvolvidos para determinar a região de último passo e mapa de último passo \(T_{i + 1}\) e \(S_{i + 1}\). Finalmente, o algoritmo para determinar o caminho até \(t\) permanece o mesmo
 
 \begin{algorithm}[!ht]
 \alglabel{alg:locate-points-4}
@@ -1013,29 +1013,145 @@ Não obstante, é imediato observar que a terceira abordagem não apresenta dese
 
 \subsection{Experimentos}
 
-\begin{figure}[!ht]
-\centering
-	\includegraphics[width=0.9\linewidth]{plt1.png}
-	\caption{Comparação dos 3 algoritmos conforme \(k\) cresce, com 10 vértices por polígono.}
-\end{figure}
+Realizamos uma série de experimentos com o intuito de confirmar a complexidade teórica dos algoritmos apresentados e comparar o desempenho das diferentes abordagens. 
+
+Para isso, realizamos testes levando em conta dois parâmetros: o número de polígonos~\(k\) e o número de vértices de cada polígono~\(m\). Dados esses parâmetros, geramos instâncias com \(k\) polígonos regulares, cada um com \(m\) vértices. Além disso, os polígonos foram dispostos de tal maneira que todo vértice de um polígono~\(P_i\) (\(1 \le k + 1\)) estão na região de atravessar de\(P_{j}\) (\((1 \le j < i)\)). Essa configuração garante que toda consulta requer consultar todos os mapas de último passo anteriores, o que representa o pior caso para os algoritmos apresentados.
+
+Note que essa configuração garante \(n = mk\), logos as complexidades teóricas dos algoritmos são:
+
+\begin{description}
+	\item[Busca Linear:] \(O(n^2) = O(m^2 k^2)\).
+	\item[Busca Binária:] \(O(nk \log (n/k)) = O(m \log(m) k^2)\).
+	\item[Busca com Memoização:] \(O(nk \log (n/k)) = O(m \log(m) k^2)\) no pior caso, podendo ser significativamente inferior em instâncias favoráveis.
+	\item[Tan \& Jiang:] \(O(nk) = O(m k^2)\).
+\end{description}
+
+Note que todas as soluções são quadráticas em relação a~\(k\), enquanto a complexidade em relação a~\(m\) varia entre quadrática e linear, dependendo da abordagem. 
+
+Assim, em um primeiro experimento, fixamos \(m\) nos valores \(\{3, 5, 10, 20, 50, 100\}\) e variamos \(k\) de 1 até 3000, realizando um total de 300 medições espaçadas uniformemente, medindo o tempo de execução de cada algoritmo para cada configuração. Os resultados obtidos estão apresentados na Figura~\ref{fig:plt_vs_k}.
 
 \begin{figure}[!ht]
-\centering
-	\includegraphics[width=0.9\linewidth]{plt2.png}
-	\caption{Comparação dos 3 algoritmos conforme \(m\), o número de vértices por polígono, cresce, com \(k = 10\) polígonos.}
+	\centering
+
+	% Row 1
+	\begin{subfigure}[b]{0.45\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{plt_vs_k_m_3.png}
+		\caption{Resultados para \(m = 3\).}
+		\label{fig:plt_vs_k_m_3}
+	\end{subfigure}
+	\hspace{10pt}
+	\begin{subfigure}[b]{0.45\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{plt_vs_k_m_5.png}
+		\caption{Resultados para \(m = 5\).}
+		\label{fig:plt_vs_k_m_5}
+	\end{subfigure}
+
+	\vspace{1em}
+
+	% Row 2
+	\begin{subfigure}[b]{0.45\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{plt_vs_k_m_10.png}
+		\caption{Resultados para \(m = 10\).}
+		\label{fig:plt_vs_k_m_10}
+	\end{subfigure}
+	\hspace{10pt}
+	\begin{subfigure}[b]{0.45\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{plt_vs_k_m_20.png}
+		\caption{Resultados para \(m = 20\).}
+		\label{fig:plt_vs_k_m_20}
+	\end{subfigure}
+
+	\vspace{1em}
+
+	% Row 3
+	\begin{subfigure}[b]{0.45\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{plt_vs_k_m_50.png}
+		\caption{Resultados para \(m = 50\).}
+		\label{fig:plt_vs_k_m_50}
+	\end{subfigure}
+	\hspace{10pt}
+	\begin{subfigure}[b]{0.45\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{plt_vs_k_m_100.png}
+		\caption{Resultados para \(m = 100\).}
+		\label{fig:plt_vs_k_m_100}
+	\end{subfigure}
+
+	\caption{Comparação dos gráficos obtidos para diferentes valores de \(m\).}
+	\label{fig:plt_vs_k}
 \end{figure}
 
-\begin{figure}[!ht]
-\centering
-	\includegraphics[width=0.9\linewidth]{plt3.png}
-	\caption{Comparação da busca binária (programação dinâmica) com algoritmo de Tan e Jiang}
-\end{figure}
+A partir desses resultados, observamoss que de fato todos os algoritmos apresentam um comportamento quadrático em relação a~\(k\), conforme previsto pela análise teórica. Além disso, é possível notar que para valores menores de~\(m\), o algoritmo de Tan \& Jiang apresenta um desempenho significativamente pior, uma vez que possui um overhead consideravelmente alto, enquanto a busca linear apresenta os melhores resultados, pois é o método mais eficiente de realizar uma busca sobre poucas regiões.
+
+Por outro lado, conforme~\(m\) aumenta, o desempenho do algoritmo de Tan \& Jiang melhora significativamente, superando as demais abordagens para valores maiores de~\(m\). Além disso, os algoritmos de busca binária e busca com memoização apresentam um desempenho similar, apresentam um desempenho entre a busca linear e o algoritmo de Tan \& Jiang, com uma certa vantagem para a busca com memoização, que se torna mais evidente à medida que~\(m\) aumenta.
+
+Além desse experimento, realizamos um segundo experimento fixando \(k\) nos valores \(\{3, 5, 10, 20, 50, 100\}\) e variando \(m\) de 3 até 40000, realizando 400 medições uniformemente espaçadas, medindo o tempo de execução de cada algoritmo para cada configuração. Os resultados obtidos estão apresentados na Figura~\ref{fig:plt_vs_m}. Vale notar que não incluimos os resultados para a busca linear, uma vez que ela cresce extremamente rápido em relação a~\(m\) e, para valores maiores de~\(m\), o tempo de execução torna-se proibitivo, mesmo para valores pequenos de~\(k\).
 
 \begin{figure}[!ht]
-\centering
-	\includegraphics[width=0.9\linewidth]{plt4.png}
-		\caption{Comparação da busca binária (JIT) com algoritmo de Tan e Jiang, com JIT}
+	\centering
+
+	% Row 1
+	\begin{subfigure}[b]{0.45\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{plt_vs_m_k_3.png}
+		\caption{Resultados para \(k = 3\).}
+		\label{fig:plt_vs_m_k_3}
+	\end{subfigure}
+	\hspace{10pt}
+	\begin{subfigure}[b]{0.45\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{plt_vs_m_k_5.png}
+		\caption{Resultados para \(k = 5\).}
+		\label{fig:plt_vs_m_k_5}
+	\end{subfigure}
+
+	\vspace{1em}
+
+	% Row 2
+	\begin{subfigure}[b]{0.45\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{plt_vs_m_k_10.png}
+		\caption{Resultados para \(k = 10\).}
+		\label{fig:plt_vs_m_k_10}
+	\end{subfigure}
+	\hspace{10pt}
+	\begin{subfigure}[b]{0.45\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{plt_vs_m_k_20.png}
+		\caption{Resultados para \(k = 20\).}
+		\label{fig:plt_vs_m_k_20}
+	\end{subfigure}
+
+	\vspace{1em}
+
+	% Row 3
+	\begin{subfigure}[b]{0.45\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{plt_vs_m_k_50.png}
+		\caption{Resultados para \(k = 50\).}
+		\label{fig:plt_vs_m_k_50}
+	\end{subfigure}
+	\hspace{10pt}
+	\begin{subfigure}[b]{0.45\textwidth}
+		\centering
+		\includegraphics[width=\textwidth]{plt_vs_m_k_100.png}
+		\caption{Resultados para \(k = 100\).}
+		\label{fig:plt_vs_m_k_100}
+	\end{subfigure}
+
+	\caption{Comparação dos gráficos obtidos para diferentes valores de \(k\).}
+	\label{fig:plt_vs_m}
 \end{figure}
+
+A partir desses resultados, observamos que
+para todos os valores de \(k\), os algoritmos seguem a mesma ordem, a Busca Binária é a mais lenta, seguida pelo algoritmo de Tan \& Jiang, depois a busca com memoização. Além disso, observamos que todas as curvas tem um aspecto linear, o que contradiz o comportamento esperado de ser polilogaritmico.
+
+Esses experimentos evidenciam que a complexidade teórica dos algoritmos é confirmada, no entanto não conta a história toda, visto que o desempenho do algoritmo de Busca Binário preguiçoso é significativamente melhor do que o previsto, embora tenha a mesma complexidade assintótica que a versão sem memoização.
 
 \section{TPP Não Convexo}
 \label{sec:non-convex-tpp}
