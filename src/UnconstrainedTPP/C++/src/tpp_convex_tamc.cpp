@@ -108,12 +108,8 @@ class SolutionTAMC : public tpp::Solution {
 		const auto &polygon = polygons[i - 1];
 		const auto &fc = first_contact[i - 1];
 
-		const auto &point = points[0];
-		auto location = _locate_point(point, i);
-
 		vector<size_t> locations;
 		locations.reserve(points.size());
-		locations.push_back(location);
 
 		auto point_in_location = [&](const Vector2 &point, size_t location) -> bool {
 
@@ -138,40 +134,51 @@ class SolutionTAMC : public tpp::Solution {
 			}
 		};
 
-		auto scan = [&](size_t &start_location, size_t &point_index, int shift) -> void {
+		// Perform 4 scans to ensure that we find the location of all points, two in each direction.
+		size_t point_index = 0;
+		size_t last_location = 0;
+		size_t scan_count = 0;
 
-			size_t location = start_location;
-			size_t original_location = location;
+		while (point_index < points.size()) {
+
+			size_t original_location = last_location;
+			size_t location = last_location;
 
 			while (point_index < points.size()) {
 
-				const Vector2 &point = points[point_index];
-
-				if (point_in_location(point, location)) {
+				if (point_in_location(points[point_index], location)) {
 					locations.push_back(location);
+					last_location = location;
 					point_index++;
-					start_location = location;
-
 				} else {
 					
-					location = (location + shift + 2 * polygon.size()) % (2 * polygon.size());
+					location = (location + 1) % (2 * polygon.size());
 
 					if (location == original_location) {
 						break;
 					}
 				}
 			}
-		};
 
-		// Perform 4 scans to ensure that we find the location of all points, two in each direction.
-		size_t last_location = location;
-		size_t point_index = 1;
+			original_location = last_location;
+			location = last_location;
 
-		size_t scan_count = 0;
+			while (point_index < points.size()) {
 
-		while (point_index < points.size()) {
-			scan(last_location, point_index, 1);
-			scan(last_location, point_index, -1);
+				if (point_in_location(points[point_index], location)) {
+					locations.push_back(location);
+					last_location = location;
+					point_index++;
+				} else {
+					
+					location = (location + 2 * polygon.size() - 1) % (2 * polygon.size());
+
+					if (location == original_location) {
+						break;
+					}
+				}
+			}
+
 			scan_count++;
 		}
 
