@@ -7,6 +7,7 @@ BUILD_DIR=build
 SILENCE=0
 RUN=1
 TARGET="main"
+SRC_DIR="src"
 
 while [[ $# -gt 0 ]]; do
 	case $1 in
@@ -24,9 +25,28 @@ if [[ $TARGET == *.cpp ]]; then
 fi
 
 # Check if the target source file exists
-if [ ! -f "src/${TARGET}.cpp" ]; then
-	echo "Error: Source file src/${TARGET}.cpp not found."
-	exit 1
+if [ ! -f "${SRC_DIR}/${TARGET}.cpp" ]; then
+
+	matches=(${SRC_DIR}/${TARGET}*.cpp)
+
+	# Remove non-existing globs
+	matches=(${^matches}(N))
+
+	if (( ${#matches[@]} == 1 )); then
+		file="${matches[1]}"
+		PREVIOUS_TARGET=$TARGET
+		TARGET="${file:t:r}"  # basename without extension
+		echo "⚠️ Warning: '$PREVIOUS_TARGET' does not exist in '$SRC_DIR', defaulting TARGET to '$TARGET'"
+	elif (( ${#matches[@]} == 0 )); then
+		echo "Error: no matching .cpp file found for prefix '$TARGET'" >&2
+		exit 1
+	else
+		echo "Error: multiple matching .cpp files found for prefix '$TARGET':" >&2
+		for f in "${matches[@]}"; do
+			echo "  $f" >&2
+		done
+		exit 1
+	fi
 fi
 
 OPENMP_ROOT=$(brew --prefix libomp)
