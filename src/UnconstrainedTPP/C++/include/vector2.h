@@ -326,10 +326,10 @@ struct std::formatter<Vector2> : std::formatter<double> {
 		// reusing the base formatter for doubles ensures format specifiers like
 		// {:.2f} or {:>10} work for each coordinate.
 		auto out = ctx.out();
-		out = std::format_to(out, "Vector2(");
+		out = std::format_to(out, "{{");
 		out = std::formatter<double>::format(v.x, ctx);
 		out = std::format_to(out, ", ");
 		out = std::formatter<double>::format(v.y, ctx);
-		return std::format_to(out, ")");
+		return std::format_to(out, "}}");
 	}
 };

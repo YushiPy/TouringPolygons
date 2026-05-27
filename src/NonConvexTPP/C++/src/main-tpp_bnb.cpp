@@ -4,67 +4,15 @@
 #include "common.h"
 #include "tpp_convex.h"
 
-#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
-#include <CGAL/Partition_traits_2.h>
-#include <CGAL/partition_2.h>
-#include <CGAL/point_generators_2.h>
-
 #include <vector>
 #include <utility>
 #include <queue>
+#include <algorithm>
 
 #include <chrono>
 #include <print>
 
-using K      = CGAL::Exact_predicates_inexact_constructions_kernel;
-using Traits = CGAL::Partition_traits_2<K>;
-using Poly   = Traits::Polygon_2;
-using Point  = Traits::Point_2;
-using PolyList = std::list<Poly>;
-
 using std::vector;
-
-vector<vector<Vector2>> decompose_polygon(const vector<Vector2> &polygon) {
-
-	vector<Point> points;
-
-	for (const auto &v : polygon) {
-		points.emplace_back(v.x, v.y);
-	}
-
-	Poly poly(points.begin(), points.end());
-
-	if (poly.orientation() == CGAL::CLOCKWISE) {
-		poly.reverse_orientation();
-	}
-
-	// Ensure the polygon is simple (no self-intersections)
-	assert(poly.is_simple());
-
-	PolyList pieces;
-	CGAL::optimal_convex_partition_2(poly.vertices_begin(), poly.vertices_end(), std::back_inserter(pieces));
-
-	// Validate the partitioning
-	assert(CGAL::convex_partition_is_valid_2(
-		poly.vertices_begin(), poly.vertices_end(),
-		pieces.begin(), pieces.end()
-	));
-
-	vector<vector<Vector2>> result;
-
-	for (const auto& p : pieces) {
-	
-		vector<Vector2> piece;
-	
-		for (auto v = p.vertices_begin(); v != p.vertices_end(); ++v) {
-			piece.emplace_back(v->x(), v->y());
-		}
-
-		result.push_back(std::move(piece));
-	}
-
-	return result;
-}
 
 vector<Vector2> tpp_approximation(const Vector2 &start, const Vector2 &target, const vector<vector<Vector2>> &polygons) {
 
@@ -447,7 +395,7 @@ vector<Vector2> tpp_solve(const Vector2 &start, const Vector2 &target, const vec
 
 	for (const auto &polygon : polygons) {
 		convex_hulls.push_back(convex_hull(polygon));
-		convex_pieces.push_back(decompose_polygon(polygon));
+		convex_pieces.push_back(tpp::decompose_polygon(polygon));
 	}
 
 	vector<Vector2> best_path = tpp_approximation2(start, target, convex_hulls);

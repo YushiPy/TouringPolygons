@@ -4,6 +4,38 @@
 #include "vector2.h"
 
 #include <vector>
+#include <iostream>
+#include <format>
+
+
+namespace std {
+
+	// std::vector<Vector2> -> {{x1, y1}, ..., {xn, yn}}
+	template<>
+	struct std::formatter<std::vector<Vector2>> : std::formatter<Vector2> {
+		auto format(const std::vector<Vector2>& vec, std::format_context& ctx) const {
+			auto out = std::format_to(ctx.out(), "{{");
+			for (size_t i = 0; i < vec.size(); ++i) {
+				if (i > 0) out = std::format_to(out, ", ");
+				out = std::formatter<Vector2>::format(vec[i], ctx);
+			}
+			return std::format_to(out, "}}");
+		}
+	};
+
+	// std::vector<std::vector<Vector2>> -> {{{x1, y1}, ...}, ..., {{xn, yn}, ...}}
+	template<>
+	struct std::formatter<std::vector<std::vector<Vector2>>> : std::formatter<std::vector<Vector2>> {
+		auto format(const std::vector<std::vector<Vector2>>& mat, std::format_context& ctx) const {
+			auto out = std::format_to(ctx.out(), "{{");
+			for (size_t i = 0; i < mat.size(); ++i) {
+				if (i > 0) out = std::format_to(out, ", ");
+				out = std::formatter<std::vector<Vector2>>::format(mat[i], ctx);
+			}
+			return std::format_to(out, "}}");
+		}
+	};
+}
 
 namespace tpp {
 
@@ -62,4 +94,22 @@ namespace tpp {
 	Removes collinear points from a sequence of points.
 	*/
 	std::vector<Vector2> remove_collinear_points(const std::vector<Vector2>& points);
+
+	/*
+	Decomposes a simple polygon into convex pieces using CGAL's optimal convex partitioning algorithm.
+	Returns a list of convex pieces, where each piece is represented as a list of its vertices in counter-clockwise order.
+
+	The input polygon must be simple (no self-intersections) and can be either clockwise or counter-clockwise. 
+	Furthermore, the last vertex of the input polygon should not be the same as the first vertex, as CGAL expects a sequence of distinct vertices.
+	*/
+	std::vector<std::vector<Vector2>> decompose_polygon(const std::vector<Vector2> &polygon);
+
+	// operator<< overloads for iostream
+	inline std::ostream& operator<<(std::ostream& os, const std::vector<Vector2>& vec) {
+		return os << std::format("{}", vec);
+	}
+
+	inline std::ostream& operator<<(std::ostream& os, const std::vector<std::vector<Vector2>>& mat) {
+		return os << std::format("{}", mat);
+	}
 }
