@@ -135,4 +135,12 @@ namespace tpp {
 	Otherwise, the behavior is undefined (e.g. if the data is malformed or does not follow the expected format).
 	*/
 	TestCase decode_test(std::istream &ifs);
+
+	/*
+	Loads TPP test cases from a binary file specified by `filename`. 
+	The file is expected to contain multiple TPP instances encoded in the format defined by `encode_test()`. 
+	The function reads the file, decodes each test case using `decode_test()`, and returns a vector of `TestCase` objects.
+	The function continues to read and decode test cases until it reaches the end of the file or encounters an error.
+	*/
+	std::vector<TestCase> load_test_cases(const std::string &filename);
 }

@@ -143,6 +143,8 @@ class Solution {
 			cones[i].resize(polygons[i].size(), {Vector2::NaN, Vector2::NaN});
 		}
 
+		
+
 		return tpp::remove_collinear_points(query_full(target, polygons.size()));
 	}
 

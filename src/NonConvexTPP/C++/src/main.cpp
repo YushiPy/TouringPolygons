@@ -1,18 +1,21 @@
 
 #include "common.h"
+#include "tests.h"
+#include "tpp_convex.h"
+
+#include <print>
+#include <fstream>
 
 int main() {
 
-	std::vector<Vector2> polygon = {
-		Vector2(0, 0),
-		Vector2(1, 0),
-		Vector2(0.5, 0.25),
-		Vector2(0, 1)
-	};
+	// Open file "test_cases.bin"
+	auto test_cases = tpp::load_test_cases("tests/test_cases_simplified2.bin");
+	const auto &[start, target, polygons, _] = test_cases[0];
 
-	const auto decomposition = tpp::decompose_polygon(polygon);
+	auto solution = tpp::tpp_convex_solve(start, target, polygons);
+	
+	solution.push_back(target);
+	solution.insert(solution.begin(), start);
 
-	for (const auto &piece : decomposition) {
-		std::println("{}", piece);
-	}
+	tpp::plot_solution(start, target, polygons, solution);
 }
