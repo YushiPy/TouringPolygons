@@ -413,7 +413,31 @@ vector<Vector2> tpp_solve(const Vector2 &start, const Vector2 &target, const vec
 		convex_pieces.push_back(tpp::decompose_polygon(polygon));
 	}
 
-	vector<Vector2> best_path = tpp_approximation2(start, target, convex_hulls);
+	vector<vector<Vector2>> interpolated_hulls;
+	const size_t n = 10;
+
+	for (const auto &hull : convex_hulls) {
+		
+		vector<Vector2> interpolated;
+
+		for (size_t i = 0; i < hull.size(); i++) {
+
+			const Vector2 &a = hull[i];
+			const Vector2 &b = hull[(i + 1) % hull.size()];
+
+			for (size_t j = 0; j < n; j++) {
+				double t = static_cast<double>(j) / (n + 1);
+				interpolated.push_back(a.lerp(b, t));
+			}
+		}
+
+		interpolated_hulls.push_back(std::move(interpolated));
+	}
+
+	// vector<Vector2> best_path = tpp_approximation2(start, target, convex_hulls);
+	vector<Vector2> best_path = tpp_approximation(start, target, interpolated_hulls);
+
+	std::println("Initial approximation length: {}", path_length(best_path));
 
 	vector<Vector2> full_path;
 	full_path.reserve(best_path.size() + 2);
@@ -545,7 +569,7 @@ vector<Vector2> tpp_solve(const Vector2 &start, const Vector2 &target, const vec
 		selected_pieces.push_back(pieces.front());
 	}
 
-	best_path = tpp::tpp_convex_solve(start, target, selected_pieces);
+	// best_path = tpp::tpp_convex_solve(start, target, selected_pieces);
 
 	double minimal_length = path_length(best_path);
 	vector<Vector2> minimal_path = best_path;
@@ -639,7 +663,7 @@ vector<Vector2> tpp_solve(const Vector2 &start, const Vector2 &target, const vec
 	best_path.push_back(target);
 
 	
-	size_t prod = 1;
+	double prod = 1.0;
 	
 	for (const auto &pieces : convex_pieces) {
 		prod *= pieces.size();
@@ -657,7 +681,7 @@ int main() {
 	
 	const auto test_cases = tpp::load_test_cases("tests/test_cases_simplified2.bin");
 	auto [start, target, polygons, _] = test_cases[0];
-	polygons = vector<vector<Vector2>>(polygons.begin(), polygons.begin() + 25); // Limit to first 10 polygons for testing
+	// polygons = vector<vector<Vector2>>(polygons.begin(), polygons.begin() + 3); // Limit to first 10 polygons for testing
 
 	std::println("{}", polygons.size());
 
@@ -671,6 +695,14 @@ int main() {
 	const auto end_time = std::chrono::high_resolution_clock::now();
 	const double elapsed_seconds = std::chrono::duration<double>(end_time - start_time).count();
 	std::println("Solution found in {} seconds", elapsed_seconds);
+	
+	double length = 0;
 
-	tpp::plot_solution(start, target, polygons, solution);
+	for (size_t i = 0; i < solution.size() - 1; i++) {
+		length += solution[i].distance_to(solution[i + 1]);
+	}
+
+	std::println("Path length: {}", length);
+
+	//tpp::plot_solution(start, target, polygons, solution);
 }

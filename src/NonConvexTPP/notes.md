@@ -1,34 +1,34 @@
 
-## Feitos até agora
+## Pontos a serem discutidos (29/05/2026)
 
-- Implementamos A-star para aproximar a solução ótima.
-- Comentar sobre **tentar** verificar se uma solução é ótima dada a solução.
-- Comentar sobre bolsa BEPE.
-- Comentar sobre a monitoria na greve.
-- Comentar sobre a outra implementação do TPP.
-	- Calcula todas as regiões do mapa de primeiro contato de uma vez.
-	- Remove o fator logaritmico, mas não permite computação preguiçosa.
-	- Interessante se quase todas as regiões forem necessárias.
-	- É uma melhoria local, assim, podemos misturar com a abordagem anterior.
-- Comentar sobre a versão interativa web do TPP.
+- Resultados do problema convexo no overleaf.
 
-- Tour convexo:
-	- Fácil (custo O(min|P_i|)) determinar a aresta ótima, mas como determinar o ponto ótimo?
+- Comentar sobre incumbente, versão atual é rápida, mas simples e não captura caminhos que atravessam. A solução para isso é consideravelmente mais cara.
+- Versão do problema com interseções.
+- 59 polígonos. Usa 2 milhões de contas para resolver o que levaria 2e33 na enumeraçao completa, emm 25 segundos.
 
+- Sobre a BEPE, incluir na proposta por que aquela instituição é a melhor para o projeto e não outra.
+- Matemática vs computação: Tentar matemática.
+- Uma coisa nova? Problema não convexo como um todo?
 
-## Estratégia Futuras
+- Incluir relatório parcial no pedido de extensão?
+- Carta da instituição no exterior aceitando. Deveríamos tentar replicar a do Diaulas ou falar com o Leandor primeiro.
+- Qual curriculo usar, completo ou resumido?
 
-- Quebrar o fecho convexo em multiplas partes.
-	- Dificil de implementar, pois não sabemos escolher os pontos de quebra.
-	- Não garante que seja mais rápido.
+- Quão grande deve ser o pedido BEPE? Só duas páginas mesmo?
 
-## Novas ideias
+## Pontos levantados em reunião (29/05/2026)
 
-- Mais limitantes
-- Tentar explorar a árvore em outras ordens, não precisamos começar no primeiro polígono
-- Explorar a árvore em subconjuntos do polígono original, em vez de explorar a árvore do polígono inteiro.
-	- Inicialmente, podemos fazer hardcoding para certas instâncias para verificar se isso é útil.
-- O incumbente já é muito bom, então talvez seja melhor focar em melhorar os limitantes.
-- Deixar pra lá o problema de um tour em polígonos convexos, pode não ter solução boa.
-- Implementar a solução melhor do TPP não é prioridade.
-- Instâncias maiores
+- Linha 9, j < n -> j <= n
+- Linha 9 e 10, enquanto j <= n e p_j está na região R
+- Mais valores de m nos gráficos.
+- Trocar Binary Search para Busca Binária.
+- Tabela da constante quadrática no quadratic fit.
+- Tabela mostrando os coeficientes do fit.,
+
+- Extensão de 1 mes, falando sobre Tan e Jiang
+- BEPE: Aprofundar as estratégias que reduzam o custo computacional da enumeração, implementando Branch and Bound para o TPP no caso não convexo. Vamos explorar o problema de encontrar uma sequência ótima. VAmos encontrar o caminho ótimo e ordenação ótima. Se o tempo permitir, vamos explorar a construção de rotas para o VRP, onde as visinhanças são polígonos não convexos, pois o TPP serve para dado um conjunto de clientes, construir a rota ótima.
+
+- Extensão de 6 meses, justificar mencionando o caso do Tan e Jiang para convexo e incluir tranformar o método enumerativo em branch and bound e incluir a ordenação dos polígonos.
+
+- BEPE será focada no método exato para o VRP, vamos focar o TPP na bolsa no Brasil
