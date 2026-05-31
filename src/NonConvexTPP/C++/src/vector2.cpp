@@ -258,6 +258,10 @@ bool Vector2::is_equal_approx(const Vector2 &v) const {
 	return ::is_equal_approx(x, v.x) && ::is_equal_approx(y, v.y);
 }
 
+bool Vector2::is_equal_approx(const Vector2 &v, double epsilon) const {
+	return ::is_equal_approx(x, v.x, epsilon) && ::is_equal_approx(y, v.y, epsilon);
+}
+
 bool Vector2::is_same_direction(const Vector2 &other) const {
 	return ::is_zero_approx(cross(other)) && dot(other) > 0;
 }

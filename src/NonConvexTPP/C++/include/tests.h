@@ -71,7 +71,7 @@ namespace tpp {
 	/*
 	Checks if two solutions are equal, meaning that they have the same number of points and all corresponding points are approximately equal (i.e. their distance is less than a small epsilon).
 	*/
-	bool solutions_equal(const std::vector<Vector2> &sol1, const std::vector<Vector2> &sol2);
+	bool solutions_equal(const std::vector<Vector2> &sol1, const std::vector<Vector2> &sol2, double epsilon);
 
 	/*
 	Plots the given `solution` to a TPP instance defined by `start`, `target`, and `polygons` using matplotlib. 

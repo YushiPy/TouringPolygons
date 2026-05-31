@@ -1,8 +1,7 @@
 
-#include "vector2.h"
 #include "common.h"
 #include "tpp_convex_common.h"
-#include "tpp_convex_binary_search.h"
+#include "tpp_convex.h"
 
 using std::vector;
 using std::pair;

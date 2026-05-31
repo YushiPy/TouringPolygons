@@ -12,8 +12,7 @@ https://doi.org/10.1007/978-3-319-55911-7_44
 #include "vector2.h"
 #include "common.h"
 #include "tpp_convex_common.h"
-
-#include "tests.h"
+#include "tpp_convex.h"
 
 // Maximum number of "up and down" scans allowed in `query_points` function. 
 // If the number of scans exceeds this value, an exception will be thrown.

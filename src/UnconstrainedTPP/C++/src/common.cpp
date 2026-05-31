@@ -119,8 +119,11 @@ namespace tpp {
 		}
 	}
 
-
 	std::vector<Vector2> remove_collinear_points(const std::vector<Vector2>& points) {
+		return remove_collinear_points(points, EPSILON);
+	}
+
+	std::vector<Vector2> remove_collinear_points(const std::vector<Vector2>& points, double epsilon) {
 
 		if (points.size() <= 2) {
 			return points;
@@ -137,7 +140,7 @@ namespace tpp {
 			auto v1 = b - a;
 			auto v2 = candidate - b;
 
-			if (std::fabs(v1.cross(v2)) < EPSILON_SQUARED && v1.dot(v2) >= 0) {
+			if (std::fabs(v1.cross(v2)) < epsilon * epsilon && v1.dot(v2) >= 0) {
 				cleaned.back() = candidate;
 			} else {
 				cleaned.push_back(candidate);

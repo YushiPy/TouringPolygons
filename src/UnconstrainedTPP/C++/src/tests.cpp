@@ -374,14 +374,14 @@ namespace tpp {
 		return true;
 	}
 
-	bool solutions_equal(const vector<Vector2> &sol1, const vector<Vector2> &sol2) {
+	bool solutions_equal(const vector<Vector2> &sol1, const vector<Vector2> &sol2, double epsilon) {
 
 		if (sol1.size() != sol2.size()) {
 			return false;
 		}
 
 		for (size_t i = 0; i < sol1.size(); i++) {
-			if (!sol1[i].is_equal_approx(sol2[i])) {
+			if (!sol1[i].is_equal_approx(sol2[i], epsilon)) {
 				return false;
 			}
 		}

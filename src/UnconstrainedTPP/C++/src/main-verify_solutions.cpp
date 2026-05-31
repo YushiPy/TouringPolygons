@@ -36,6 +36,7 @@ int main() {
 		tpp::tpp_convex_solve_linear_search,
 		tpp::tpp_convex_solve_binary_search,
 		tpp::tpp_convex_solve_tamc,
+		// tpp::tpp_convex_solve_gurobi,
 	};
 
 	std::vector<std::filesystem::directory_entry> entries(
@@ -65,7 +66,7 @@ int main() {
 				const auto solution = solver(start, target, polygons);
 
 				bool is_valid = tpp::is_valid_solution(start, target, polygons, solution);
-				bool equals_expected = tpp::solutions_equal(solution, expected_solution);
+				bool equals_expected = tpp::solutions_equal(solution, expected_solution, 1e-8);
 
 				if (is_valid != equals_expected) {
 					std::println("❌ Verifier and expected solutions disagree on test {} in file {}: valid={}, expected={}", test_num, filename, is_valid, equals_expected);

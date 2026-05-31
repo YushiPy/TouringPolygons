@@ -145,6 +145,8 @@ class Vector2 {
 	static  Vector2 from_angle(double angle);
 	/*Returns `true` if this vector and `other` are approximately equal, by checking if each component is approximately equal.*/
 	bool is_equal_approx(const Vector2 &other) const;
+	/*Returns `true` if this vector and `other` are approximately equal, by checking if each component is approximately equal within the given `epsilon` tolerance.*/
+	bool is_equal_approx(const Vector2 &other, double epsilon) const;
 	/*Returns `true` if this vector and `other` point in the same direction, regardless of their lengths. This is equivalent to checking if the vectors are parallel and have a positive dot product.*/
 	bool is_same_direction(const Vector2 &other) const;
 	/*Returns `true` if this vector is finite, by checking if each component is finite.*/

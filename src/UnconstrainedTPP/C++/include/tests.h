@@ -71,7 +71,7 @@ namespace tpp {
 	/*
 	Checks if two solutions are equal, meaning that they have the same number of points and all corresponding points are approximately equal (i.e. their distance is less than a small epsilon).
 	*/
-	bool solutions_equal(const std::vector<Vector2> &sol1, const std::vector<Vector2> &sol2);
+	bool solutions_equal(const std::vector<Vector2> &sol1, const std::vector<Vector2> &sol2, double epsilon);
 
 	/*
 	Plots the given `solution` to a TPP instance defined by `start`, `target`, and `polygons` using matplotlib. 
@@ -135,4 +135,12 @@ namespace tpp {
 	Otherwise, the behavior is undefined (e.g. if the data is malformed or does not follow the expected format).
 	*/
 	TestCase decode_test(std::istream &ifs);
+
+	/*
+	Loads TPP test cases from a binary file specified by `filename`. 
+	The file is expected to contain multiple TPP instances encoded in the format defined by `encode_test()`. 
+	The function reads the file, decodes each test case using `decode_test()`, and returns a vector of `TestCase` objects.
+	The function continues to read and decode test cases until it reaches the end of the file or encounters an error.
+	*/
+	std::vector<TestCase> load_test_cases(const std::string &filename);
 }

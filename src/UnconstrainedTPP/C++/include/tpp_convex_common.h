@@ -2,8 +2,6 @@
 #pragma once
 
 #include "vector2.h"
-#include "common.h"
-
 
 namespace tpp {
 

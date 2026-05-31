@@ -51,12 +51,20 @@ fi
 
 OPENMP_ROOT=$(brew --prefix libomp)
 
+# Gurobi
+GUROBI_HOME=$(ls -d /Library/gurobi*/macos* 2>/dev/null | tail -1)
+
+if [ -z "$GUROBI_HOME" ]; then
+    echo "Error: could not find Gurobi installation in /Library" >&2
+    exit 1
+fi
+
 if [ $SILENCE -eq 1 ]; then
-	cmake -S . -B $BUILD_DIR -DTARGET=$TARGET -DOpenMP_ROOT=$OPENMP_ROOT > /dev/null 2>&1
-	cmake --build $BUILD_DIR --config Release > /dev/null 2>&1
+    cmake -S . -B $BUILD_DIR -DTARGET=$TARGET -DOpenMP_ROOT=$OPENMP_ROOT -DGUROBI_HOME=$GUROBI_HOME > /dev/null 2>&1
+    cmake --build $BUILD_DIR --config Release > /dev/null 2>&1
 else
-	cmake -S . -B $BUILD_DIR -DTARGET=$TARGET -DOpenMP_ROOT=$OPENMP_ROOT
-	cmake --build $BUILD_DIR --config Release
+    cmake -S . -B $BUILD_DIR -DTARGET=$TARGET -DOpenMP_ROOT=$OPENMP_ROOT -DGUROBI_HOME=$GUROBI_HOME
+    cmake --build $BUILD_DIR --config Release
 fi
 
 if [ $? -ne 0 ]; then
