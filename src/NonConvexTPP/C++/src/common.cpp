@@ -155,7 +155,7 @@ namespace tpp {
 			auto v1 = b - a;
 			auto v2 = candidate - b;
 
-			if (std::fabs(v1.cross(v2)) < EPSILON_SQUARED && v1.dot(v2) >= 0) {
+			if (std::fabs(v1.cross(v2)) < EPSILON && v1.dot(v2) >= 0) {
 				cleaned.back() = candidate;
 			} else {
 				cleaned.push_back(candidate);

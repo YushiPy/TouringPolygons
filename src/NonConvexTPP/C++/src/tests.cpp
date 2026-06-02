@@ -483,6 +483,7 @@ for i, polygon in enumerate(polygons):
 
 ax.plot(*zip(*solution), color='blue', label='Solution')
 ax.legend()
+ax.grid()
 
 plt.tight_layout()
 

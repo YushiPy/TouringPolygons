@@ -413,32 +413,31 @@ vector<Vector2> tpp_solve(const Vector2 &start, const Vector2 &target, const vec
 		convex_pieces.push_back(tpp::decompose_polygon(polygon));
 	}
 
-	vector<vector<Vector2>> interpolated_hulls;
+	vector<vector<Vector2>> interpolated_points;
 	const size_t n = 10;
 
-	for (const auto &hull : convex_hulls) {
+	for (const auto &polygon : polygons) {
 		
 		vector<Vector2> interpolated;
 
-		for (size_t i = 0; i < hull.size(); i++) {
+		for (size_t i = 0; i < polygon.size(); i++) {
 
-			const Vector2 &a = hull[i];
-			const Vector2 &b = hull[(i + 1) % hull.size()];
+			const auto &a = polygon[i];
+			const auto &b = polygon[(i + 1) % polygon.size()];
 
 			for (size_t j = 0; j < n; j++) {
-				double t = static_cast<double>(j) / (n + 1);
+				double t = static_cast<double>(j) / n;
 				interpolated.push_back(a.lerp(b, t));
 			}
 		}
 
-		interpolated_hulls.push_back(std::move(interpolated));
+		interpolated_points.push_back(std::move(interpolated));
 	}
 
-	// vector<Vector2> best_path = tpp_approximation2(start, target, convex_hulls);
-	vector<Vector2> best_path = tpp_approximation(start, target, interpolated_hulls);
+	const auto time_after_preprocessing = std::chrono::high_resolution_clock::now();
 
-	std::println("Initial approximation length: {}", path_length(best_path));
-
+	vector<Vector2> best_path = tpp_approximation(start, target, interpolated_points);
+	
 	vector<Vector2> full_path;
 	full_path.reserve(best_path.size() + 2);
 
@@ -466,7 +465,7 @@ vector<Vector2> tpp_solve(const Vector2 &start, const Vector2 &target, const vec
 				continue;
 			}
 
-			double dot = ap.dot(ab);
+			double dot = ab.dot(ap);
 
 			if (dot < -EPS) {
 				continue;
@@ -475,7 +474,7 @@ vector<Vector2> tpp_solve(const Vector2 &start, const Vector2 &target, const vec
 			if (dot > ab.dot(ab) + EPS) {
 				continue;
 			}
-
+			//std::println("Point {} is on segment {}-{}", p, a, b);
 			return true;
 		}
 
@@ -499,13 +498,15 @@ vector<Vector2> tpp_solve(const Vector2 &start, const Vector2 &target, const vec
 
 	size_t current_polygon = 0;
 	size_t current_path = 1;
-
+	//std::println("{}", best_path);
 	while (current_polygon < polygons.size() && current_path + 1 < full_path.size()) {
-
+		//std::println("Current path point: {}, current polygon: {}", full_path[current_path], current_polygon);
 		const Vector2 &curr = full_path[current_path];
+		const auto original_polygon_index = current_polygon;
 
 		while (point_on_boundary(curr, polygons[current_polygon])) {
-			
+			//std::println("Current polygon {} contains point {}", current_polygon, curr);
+			//std::println("{}", polygons[current_polygon]);
 			auto &pieces = convex_pieces[current_polygon];
 
 			std::sort(
@@ -530,6 +531,12 @@ vector<Vector2> tpp_solve(const Vector2 &start, const Vector2 &target, const vec
 			if (current_polygon >= polygons.size()) {
 				break;
 			}
+		}
+
+		if (current_polygon != original_polygon_index) {
+			current_path++;
+			// We moved to a different polygon, so this is not a pass through segment
+			continue; 
 		}
 
 		auto &pieces = convex_pieces[current_polygon];
@@ -569,7 +576,22 @@ vector<Vector2> tpp_solve(const Vector2 &start, const Vector2 &target, const vec
 		selected_pieces.push_back(pieces.front());
 	}
 
-	// best_path = tpp::tpp_convex_solve(start, target, selected_pieces);
+	//std::println("Vector2 start = {};", start);
+	//std::println("Vector2 target = {};", target);
+	//std::println("std::vector<std::vector<Vector2>> polygons = {};", selected_pieces);
+	//std::println("std::vector<Vector2> solution = {};", best_path);
+
+	const double first_length = path_length(best_path);
+	best_path = tpp::tpp_convex_solve(start, target, selected_pieces);
+	const double second_length = path_length(best_path);
+	const double improvement = (first_length - second_length) / first_length * 100.0;
+
+	std::println("Initial heuristic length: {}, after convex solve: {}", first_length, second_length);
+	std::println("Improvement: {:.6f}%", improvement);	
+
+	if (improvement < 0) {
+		throw std::runtime_error("Heuristic solution is worse than approximation, something went wrong");
+	}
 
 	double minimal_length = path_length(best_path);
 	vector<Vector2> minimal_path = best_path;
@@ -604,6 +626,8 @@ vector<Vector2> tpp_solve(const Vector2 &start, const Vector2 &target, const vec
 
 	std::vector<std::vector<size_t>> queue;
 	queue.push_back({});
+
+	const auto time_after_initial_solution = std::chrono::high_resolution_clock::now();
 
 	while (!queue.empty()) {
 
@@ -673,15 +697,27 @@ vector<Vector2> tpp_solve(const Vector2 &start, const Vector2 &target, const vec
 	std::println("Total combinations: {}", prod);
 	std::println("Ratio: {}", static_cast<double>(prod) / count);
 
+	const auto time_after_bnb = std::chrono::high_resolution_clock::now();
+
+	std::println("Time taken for preprocessing: {} seconds", std::chrono::duration<double>(time_after_initial_solution - time_after_preprocessing).count());
+	std::println("Time taken for branch and bound: {} seconds", std::chrono::duration<double>(time_after_bnb - time_after_initial_solution).count());
+
 	return best_path;
 }
 
 
 int main() {
 	
+	// const auto test_cases = tpp::load_test_cases("tests/custom_tests.bin");
 	const auto test_cases = tpp::load_test_cases("tests/test_cases_simplified2.bin");
 	auto [start, target, polygons, _] = test_cases[0];
-	// polygons = vector<vector<Vector2>>(polygons.begin(), polygons.begin() + 3); // Limit to first 10 polygons for testing
+	
+	for (size_t i = 0; i < polygons.size(); i++) {
+		polygons[i] = tpp::remove_collinear_points(polygons[i]);
+	}
+
+	size_t poly_count = std::min(polygons.size(), static_cast<size_t>(100));
+	polygons = vector<vector<Vector2>>(polygons.begin(), polygons.begin() + poly_count); // Limit to first 10 polygons for testing
 
 	std::println("{}", polygons.size());
 
@@ -696,6 +732,9 @@ int main() {
 	const double elapsed_seconds = std::chrono::duration<double>(end_time - start_time).count();
 	std::println("Solution found in {} seconds", elapsed_seconds);
 	
+	solution.insert(solution.begin(), start);
+	solution.push_back(target);
+
 	double length = 0;
 
 	for (size_t i = 0; i < solution.size() - 1; i++) {
@@ -704,5 +743,5 @@ int main() {
 
 	std::println("Path length: {}", length);
 
-	//tpp::plot_solution(start, target, polygons, solution);
+	tpp::plot_solution(start, target, polygons, solution);
 }
