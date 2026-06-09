@@ -303,6 +303,55 @@ def locate_point_binary_search2(point: Vector2, polygon: Polygon2, cones: Callab
 
 	return 2 * left + 1
 
+
+def locate_point_binary_search2(point: Vector2, polygon: Polygon2, cones: Callable[[int], tuple[Vector2, Vector2]]) -> int:
+	"""
+	Uses binary search to locate `point` in the visibility map of `polygon[i]` defined by `cones`.
+	Returns index as follows:
+	- `2n` -> cone in vertex `n`
+	- `2n + 1` -> edge between vertex `n` and `n + 1`
+
+	The returned vertex or edge may not be in the first contact region, 
+	so the caller should check for that and return -1 if it's not in the first contact region.
+	"""
+
+	def check_vertex(j: int) -> bool:
+		"""Checks if `point` is in the cone of vertex `j`."""
+		return point_in_cone_plus(point, polygon[j], *cones(j))
+
+	def check_edge(l: int, r: int) -> bool:
+		"""Checks if `point` is in any edge region between edges `l` and `r` (inclusive)"""
+		
+		r_index = (r) % len(polygon)
+
+		v1 = polygon[l]
+		v2 = polygon[r_index]
+		ray1 = cones(l)[0]
+		ray2 = cones(r_index)[0]
+
+		return point_in_edge_plus(point, v1, v2, ray1, ray2)
+	
+	left = 0
+	right = len(polygon)
+		
+	while left + 1 != right:
+
+		mid = (left + right) // 2
+
+		if check_edge(left, mid):
+			right = mid
+		else:
+			left = mid
+
+	if check_vertex(left):
+		return 2 * left
+
+	if not check_edge(left, right):
+		raise ValueError("Point is not located in any cone or edge.")
+
+	return 2 * left + 1
+
+
 def locate_point(point: Vector2, polygon: Polygon2, cones: Callable[[int], tuple[Vector2, Vector2]], first_contact: Callable[[int], bool], *, binary_search: bool = True) -> int:
 	"""
 	Locates `point` in the last step map of `polygon`, defined by `cones` and `first_contact`.

@@ -11,7 +11,7 @@ import u_tpp_tamc as u_tpp_tamc
 
 reference_solution = solutions.tpp_solve
 # test_solution = solutions.tpp_solve_naive_cpp
-test_solution = u_tpp_tamc.tpp_solve
+test_solution = solutions.tpp_solve_binary2
 
 #import LegacySolutions
 #test_solution = LegacySolutions.u_tpp_filtered.tpp_solve
