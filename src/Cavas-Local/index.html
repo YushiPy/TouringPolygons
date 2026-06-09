@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>TPP Visualizer</title>
+	<link rel="icon" type="image/svg+xml" href="./img/favicon.svg">
+	<script src="https://cdn.tailwindcss.com"></script>
+	<script>
+		tailwind.config = {
+			darkMode: 'class',
+			theme: {
+				extend: {
+					colors: {
+						accent: '#2f72dc',
+						surface: '#121212',
+					}
+				}
+			}
+		};
+	</script>
+	<style>
+		#snapping-toggle.active,
+		#map-toggle.active,
+		#vertex-line-toggle.active {
+			outline-color: #fff !important;
+		}
+	</style>
+	<script src="https://cdn.jsdelivr.net/npm/polygon-clipping@0.15.7/dist/polygon-clipping.umd.js"></script>
+</head>
+
+<body class="flex h-screen min-h-0 flex-col overflow-hidden">
+	<div id="save-prompt" class="fixed inset-0 z-[1100] flex flex-col items-center justify-start bg-black/50 pt-[10vh]"
+		style="display: none; opacity: 0; pointer-events: none;">
+		<div class="prompt-box w-[min(420px,92vw)] rounded-2xl bg-neutral-800 p-6 shadow-xl">
+			<h2 class="mb-4 text-center text-xl font-medium text-neutral-100">Save drawing</h2>
+			<form class="smart-form flex flex-row items-center gap-3">
+				<input type="text" id="save-prompt-input" placeholder="Drawing name" required
+					class="min-w-0 flex-1 rounded-md border border-neutral-600 bg-neutral-900 px-3 py-2 text-neutral-100 placeholder:text-neutral-500 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent">
+				<button id="save-submit-button" type="button"
+					class="submit-button shrink-0 rounded-md bg-accent px-4 py-2 font-medium text-white transition hover:brightness-110 active:brightness-90"
+					onclick="saveDrawing()">Save</button>
+			</form>
+		</div>
+	</div>
+
+	<div id="rename-prompt"
+		class="fixed inset-0 z-[1100] flex flex-col items-center justify-start bg-black/50 pt-[10vh]"
+		style="display: none; opacity: 0; pointer-events: none;">
+		<div class="prompt-box w-[min(420px,92vw)] rounded-2xl bg-neutral-800 p-6 shadow-xl">
+			<h2 class="mb-4 text-center text-xl font-medium text-neutral-100">Rename</h2>
+			<form class="smart-form flex flex-row items-center gap-3">
+				<input type="text" id="rename-prompt-input" placeholder="New name" required
+					class="min-w-0 flex-1 rounded-md border border-neutral-600 bg-neutral-900 px-3 py-2 text-neutral-100 placeholder:text-neutral-500 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent">
+				<button type="button"
+					class="submit-button shrink-0 rounded-md bg-accent px-4 py-2 font-medium text-white transition hover:brightness-110"
+					onclick="renameDrawing()">OK</button>
+			</form>
+		</div>
+	</div>
+
+	<div id="duplicate-prompt"
+		class="fixed inset-0 z-[1100] flex flex-col items-center justify-start bg-black/50 pt-[10vh]"
+		style="display: none; opacity: 0; pointer-events: none;">
+		<div class="prompt-box w-[min(420px,92vw)] rounded-2xl bg-neutral-800 p-6 shadow-xl">
+			<h2 class="mb-4 text-center text-xl font-medium text-neutral-100">Duplicate</h2>
+			<form class="smart-form flex flex-row items-center gap-3">
+				<input type="text" id="duplicate-prompt-input" placeholder="Name for the copy" required
+					class="min-w-0 flex-1 rounded-md border border-neutral-600 bg-neutral-900 px-3 py-2 text-neutral-100 placeholder:text-neutral-500 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent">
+				<button type="button"
+					class="submit-button shrink-0 rounded-md bg-accent px-4 py-2 font-medium text-white transition hover:brightness-110"
+					onclick="duplicateDrawing()">Create</button>
+			</form>
+		</div>
+	</div>
+
+	<div id="saved-drawings-overlay" class="pointer-events-none fixed inset-0 z-[1000]"
+		style="display: none; opacity: 0;"></div>
+
+	<div id="delete-modal" class="fixed inset-0 z-[1200] hidden items-center justify-center bg-black/50 p-4">
+		<div class="w-full max-w-sm rounded-xl border border-neutral-700 bg-neutral-800 p-6 shadow-xl">
+			<p class="mb-1 text-base font-medium text-neutral-100">Delete drawing?</p>
+			<p class="mb-5 text-sm text-neutral-400">This cannot be undone.</p>
+			<div class="flex justify-end gap-2">
+				<button type="button" id="delete-cancel"
+					class="rounded-lg border border-neutral-600 px-4 py-2 text-sm text-neutral-200 transition hover:bg-neutral-700">Cancel</button>
+				<button type="button" id="delete-confirm"
+					class="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition hover:brightness-110">Delete</button>
+			</div>
+		</div>
+	</div>
+
+	<header
+		class="flex h-[46px] shrink-0 items-center justify-between gap-3 border-b border-neutral-700 bg-neutral-800 px-3">
+		<div class="flex min-w-0 flex-1 items-center gap-2">
+			<button type="button" id="folder-button"
+				class="flex h-9 w-10 shrink-0 items-center justify-center rounded-md text-neutral-200 transition hover:bg-neutral-700 hover:text-white"
+				title="Local library" aria-label="Library">
+				<svg width="22" height="16" viewBox="0 0 22 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+					<path
+						d="M0.988 15.306H0C0 15.852 0.443 16.294 0.988 16.294L0.988 15.306ZM18.27 15.306V16.294C18.708 16.294 19.096 16.009 19.22 15.585L18.27 15.306ZM20.659 7.184L21.609 7.463L21.982 6.204H20.659V7.184ZM5.259 7.184V6.204H4.514L4.308 6.921L5.259 7.184ZM0.988 0.988V0C0.443 0 0 0.443 0 0.988L0.988 0.988ZM7.84 0.988L8.495 0.305C8.311 0.110 8.059 0 7.84 0V0.988ZM9.91 3.147L9.255 3.830C9.439 4.025 9.691 4.135 9.91 4.135V3.147ZM19.018 4.135C19.563 4.135 20.006 3.692 20.006 3.147C20.006 2.602 19.563 2.159 19.018 2.159V3.147V4.135ZM18.27 15.306L19.22 15.585L21.609 7.463L20.659 7.184L19.708 6.905L17.319 14.027L18.27 15.306ZM20.659 7.184V6.204H5.259V7.184V8.165H20.659V7.184ZM0.988 15.306V16.294H2.884V15.306V14.318H0.988V15.306ZM2.884 15.306V16.294H18.27V15.306V14.318H2.884V15.306ZM5.259 7.184L4.308 6.921L1.919 14.027L2.884 15.306L3.849 15.585L6.209 7.463L5.259 7.184ZM0.988 15.306H1.978V0.988H0.988H0V15.306H0.988ZM7.84 0.988L7.185 1.671L9.255 3.830L9.91 3.147L10.565 2.464L8.495 0.305L7.84 0.988ZM9.91 3.147V4.135H19.018V3.147V2.159H9.91V3.147ZM0.988 0.988V1.978H7.84V0.988V0H0.988V0.988Z" />
+				</svg>
+			</button>
+			<div class="min-w-0 truncate border-l border-neutral-600 pl-2">
+				<span id="drawing-name-text" class="text-sm font-medium text-neutral-200 pl-2">Untitled</span>
+			</div>
+			<div class="relative ml-1 flex items-center">
+				<div class="visible-save-options flex">
+					<button type="button" id="save-drawing-button"
+						class="rounded-l-md bg-accent px-3 py-1.5 text-sm font-medium text-white transition hover:brightness-110">Save</button>
+					<button type="button" id="save-options-button"
+						class="save-options-button rounded-r-md border-l border-blue-800 bg-accent px-2 py-1.5 text-white transition hover:brightness-110 disabled:opacity-40"
+						disabled aria-haspopup="true" aria-label="More save options">
+						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+							<path fill-rule="evenodd" clip-rule="evenodd"
+								d="M4.293 8.293a1 1 0 011.414 0L12 14.586l6.293-6.293a1 1 0 111.414 1.414l-7 7a1 1 0 01-1.414 0l-7-7a1 1 0 010-1.414z" />
+						</svg>
+					</button>
+				</div>
+				<div id="save-dropdown-menu"
+					class="absolute left-0 top-full z-50 mt-1 min-w-[11rem] rounded-lg border border-neutral-600 bg-neutral-800 py-1 shadow-lg opacity-0 pointer-events-none transition-opacity">
+					<button type="button"
+						class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-700"
+						onclick="toggleOverlay('rename-prompt', true)">
+						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path
+								d="M9.657 17H7v-2M6.102 14.897L17.41 3.59a2.121 2.121 0 013.182 2.828l-11.475 11.475a2 2 0 01-.9.528l-2.434.94.783-2.35a2 2 0 01.587-1.003z" />
+						</svg>
+						Rename
+					</button>
+					<button type="button"
+						class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-700"
+						onclick="toggleOverlay('duplicate-prompt', true)">
+						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+							<path
+								d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
+						</svg>
+						Duplicate
+					</button>
+				</div>
+			</div>
+		</div>
+
+		<div class="flex shrink-0 justify-center">
+			<button type="button" id="logo-button"
+				class="rounded-md px-3 py-1.5 text-sm font-semibold tracking-wide text-neutral-300 transition hover:bg-neutral-700 hover:text-white"
+				title="TPP documentation">
+				Touring Polygons Problem
+			</button>
+		</div>
+
+		<div class="flex flex-1 justify-end gap-2">
+			<input type="file" id="import-input" accept="application/json,.json" class="hidden">
+			<button type="button" id="import-button"
+				class="rounded-md border border-neutral-600 px-3 py-1.5 text-sm text-neutral-200 transition hover:bg-neutral-700">Import…</button>
+			<button type="button" id="export-button"
+				class="rounded-md bg-neutral-700 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-neutral-600">Export…</button>
+		</div>
+	</header>
+
+	<div class="flex min-h-0 flex-1 flex-row overflow-hidden">
+		<nav class="flex w-[76px] shrink-0 flex-col items-center gap-4 border-r-2 border-l-2 border-accent bg-neutral-950 px-3 py-4"
+			id="tool-bar" aria-label="Tools">
+			<button type="button" id="snapping-toggle"
+				class="flex h-11 w-11 items-center justify-center rounded outline outline-2 outline-neutral-950 transition [--bg:theme(colors.accent)] hover:outline-accent hover:[--bg:color-mix(in_srgb,theme(colors.accent)_80%,transparent)] active:[--bg:color-mix(in_srgb,theme(colors.accent)_60%,transparent)] bg-[var(--bg)]">
+				<svg class="h-6 w-6 text-neutral-200" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
+					aria-hidden="true">
+					<path
+						d="M17 2H19.5C20.3284 2 21 2.67157 21 3.5V5.5C21 6.32843 20.3284 7 19.5 7H17M17 2H13C11.5778 2 10.2249 2.2969 9 2.83209M17 2V7M17 7H13C10.2386 7 8 9.23858 8 12C8 13.1258 8.37209 14.1647 9 15.0005M17 17H19.5C20.3284 17 21 17.6716 21 18.5V20.5C21 21.3284 20.3284 22 19.5 22H17M17 17H13M17 17V22M17 22H13C7.47715 22 3 17.5228 3 12C3 9.74835 3.74418 7.67051 5 5.99903"
+						stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+				</svg>
+			</button>
+			<button type="button" id="triangle-button"
+				class="flex h-11 w-11 items-center justify-center rounded outline outline-2 outline-neutral-950 bg-[var(--bg)] transition [--bg:theme(colors.accent)] hover:outline-accent hover:[--bg:color-mix(in_srgb,theme(colors.accent)_80%,transparent)] active:[--bg:color-mix(in_srgb,theme(colors.accent)_60%,transparent)]">
+				<svg class="h-6 w-6" viewBox="0 0 222 195" fill="none" xmlns="http://www.w3.org/2000/svg"
+					aria-hidden="true">
+					<path d="M110 184H11L111 11l100 173H110Z" stroke="white" stroke-width="22" stroke-linecap="round"
+						stroke-linejoin="round" />
+				</svg>
+			</button>
+			<button type="button" id="vertex-line-toggle"
+				class="relative grid h-11 w-11 place-items-center rounded outline outline-2 outline-neutral-950 bg-[var(--bg)] text-neutral-200 transition [--bg:theme(colors.accent)] hover:outline-accent hover:[--bg:color-mix(in_srgb,theme(colors.accent)_80%,transparent)] active:[--bg:color-mix(in_srgb,theme(colors.accent)_60%,transparent)]">
+				<svg class="tool-icon col-start-1 row-start-1 h-6 w-6 text-neutral-200" id="vertex-line-toggle-off"
+					viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+					<path fill-rule="evenodd" clip-rule="evenodd"
+						d="M14.7649 6.07595C14.9991 6.22231 15.0703 6.53078 14.9239 6.76495C14.4849 7.46742 13.9632 8.10644 13.3702 8.66304L14.5712 9.86405C14.7664 10.0593 14.7664 10.3759 14.5712 10.5712C14.3759 10.7664 14.0593 10.7664 13.8641 10.5712L12.6011 9.30816C11.8049 9.90282 10.9089 10.3621 9.93374 10.651L10.383 12.3276C10.4544 12.5944 10.2961 12.8685 10.0294 12.94C9.76266 13.0115 9.4885 12.8532 9.41703 12.5864L8.95916 10.8775C8.48742 10.958 8.00035 10.9999 7.5 10.9999C6.99964 10.9999 6.51257 10.958 6.04082 10.8775L5.58299 12.5864C5.51153 12.8532 5.23737 13.0115 4.97063 12.94C4.7039 12.8685 4.5456 12.5944 4.61706 12.3277L5.06624 10.651C4.09111 10.3621 3.19503 9.90281 2.3989 9.30814L1.1359 10.5711C0.940638 10.7664 0.624058 10.7664 0.428797 10.5711C0.233537 10.3759 0.233537 10.0593 0.428797 9.86404L1.62982 8.66302C1.03682 8.10643 0.515113 7.46742 0.0760677 6.76495C-0.0702867 6.53078 0.000898544 6.22231 0.235064 6.07595C0.46923 5.9296 0.777703 6.00078 0.924057 6.23495C1.40354 7.00212 1.989 7.68056 2.66233 8.2427C2.67315 8.25096 2.6837 8.25971 2.69397 8.26897C4.00897 9.35527 5.65536 9.9999 7.5 9.9999C10.3078 9.9999 12.6563 8.50629 14.0759 6.23495C14.2223 6.00078 14.5308 5.9296 14.7649 6.07595Z"
+						fill="currentColor" />
+				</svg>
+				<svg class="tool-icon toggleable col-start-1 row-start-1 hidden h-6 w-6 stroke-current text-neutral-200"
+					id="vertex-line-toggle-on" fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15"
+					aria-hidden="true" style="stroke-width:7px">
+					<g transform="scale(0.0893)">
+						<circle cx="84.048" cy="84.044" r="20.699" />
+						<path
+							d="M167.055,81.422c-1.516-1.604-37.579-39.41-83.017-39.41c-45.433,0-81.491,37.806-83.003,39.41c-1.379,1.473-1.379,3.77,0,5.236c1.518,1.604,37.577,39.427,83.003,39.427c45.438,0,81.512-37.823,83.017-39.427C168.444,85.192,168.444,82.883,167.055,81.422z M84.048,116.043c-17.639,0-31.989-14.353-31.989-32.006c0-17.639,14.35-32,31.989-32c17.638,0,32.008,14.356,32.008,32C116.052,101.68,101.686,116.043,84.048,116.043z M58.682,53.829c-8.645,7.275-14.269,18.044-14.269,30.208c0,12.159,5.624,22.929,14.269,30.217c-23.92-7.693-42.704-23.88-49.418-30.217C15.979,77.707,34.767,61.518,58.682,53.829z M109.426,114.242c8.639-7.28,14.27-18.052,14.27-30.205c0-12.153-5.626-22.917-14.277-30.197c23.919,7.693,42.689,23.86,49.407,30.197C152.107,90.368,133.337,106.538,109.426,114.242z" />
+					</g>
+				</svg>
+			</button>
+			<button type="button" id="map-toggle"
+				class="flex h-11 w-11 items-center justify-center rounded outline outline-2 outline-neutral-950 transition [--bg:theme(colors.accent)] hover:outline-accent hover:[--bg:color-mix(in_srgb,theme(colors.accent)_80%,transparent)] active:[--bg:color-mix(in_srgb,theme(colors.accent)_60%,transparent)] bg-[var(--bg)]">
+				<svg class="h-6 w-6 text-neutral-200" viewBox="0 -0.28 46.384 46.384" xmlns="http://www.w3.org/2000/svg">
+					<g id="Group_47" data-name="Group 47" transform="translate(-369.028 -1786.405)">
+						<path id="Path_126" data-name="Path 126" d="M384.789,1824.733l-13.761,5.5v-36.329l13.761-5.5Z"
+							fill="#ffffff" stroke="#231f20" stroke-linecap="round" stroke-linejoin="round"
+							stroke-width="4" />
+						<path id="Path_127" data-name="Path 127" d="M413.412,1824.733l-13.761,5.5v-36.329l13.761-5.5Z"
+							fill="#ffffff" stroke="#231f20" stroke-linecap="round" stroke-linejoin="round"
+							stroke-width="4" />
+						<path id="Path_128" data-name="Path 128" d="M385.34,1824.733l13.761,5.5v-36.329l-13.761-5.5Z"
+							fill="#d1d3d4" stroke="#231f20" stroke-linecap="round" stroke-linejoin="round"
+							stroke-width="4" />
+					</g>
+				</svg>
+			</button>
+		</nav>
+		<canvas id="drawing-canvas" class="block min-h-0 min-w-0 flex-1 cursor-default bg-neutral-950"></canvas>
+	</div>
+
+	<script src="./js/base.js"></script>
+	<script type="module" src="./js/canvas.js"></script>
+	<script type="module" src="./js/app.js"></script>
+</body>
+
+</html>

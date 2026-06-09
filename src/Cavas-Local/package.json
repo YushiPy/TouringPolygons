@@ -1,0 +1,8 @@
+{
+	"name": "tpp-visualizer-local",
+	"private": true,
+	"scripts": {
+		"start": "npx --yes serve . -p 5173"
+	},
+	"description": "Static client-only TPP Visualizer; run npm start and open http://localhost:5173"
+}
