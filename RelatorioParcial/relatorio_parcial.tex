@@ -180,6 +180,8 @@ complexidade computacional, experimentos numéricos.
 
 \tableofcontents
 
+\newpage
+
 \section{Introdução}
 
 O Problema de Visita de Polígonos (\textit{Touring Polygons Problem}, TPP), introduzido por Dror et al.~\cite{tpp-dror-2003}, é um problema de otimização geométrica que consiste em determinar um caminho de comprimento mínimo na norma Euclidiana partindo de um ponto~\(s\), visitando uma sequência ordenada de polígonos~\(P_1, \dots, P_k\) no plano e terminando em um ponto~\(t\). O problema pode ser interpretado como um caso particular do Problema do Caixeiro Viajante com Regiões (\textit{Traveling Salesman Problem with Neighborhoods}, TSPN)~\cite{tspn-arkin-1994}, no qual as regiões são polígonos e a ordem de visita é pré-determinada.
@@ -597,73 +599,35 @@ que coincide com a complexidade apresentada por Dror et al.~\cite{tpp-dror-2003}
 
 \subsection{Experimentos Computacionais}
 
-Realizou-se uma série de experimentos com o objetivo de confirmar o comportamento assintótico previsto pela análise de complexidade. Os experimentos foram conduzidos em instâncias sintéticas controladas, parametrizadas por dois valores: o número de polígonos~\(k\) e o número de vértices por polígono~\(m\). Para cada configuração, geraram-se instâncias com~\(k\) polígonos regulares de~\(m\) vértices cada, dispostos de forma que todo ponto de~\(P_i\) esteja na região de atravessar de~\(P_j\) para todo~\(j < i\). Essa configuração garante que toda consulta percorre todos os mapas de último passo anteriores, representando o pior caso para o algoritmo. Em particular, tem-se~\(n = mk\), de modo que a complexidade teórica nesse cenário é~\(O(m\log(m) \cdot k^2)\).
+Os experimentos foram conduzidos em um MacBook Pro com chip Apple M4 Pro (12 núcleos, sendo 8 de desempenho e 4 de eficiência) e 24 GB de memória. O código foi compilado com GCC 15.2.0 usando C++23 e otimização~\texttt{-O3}. Para acelerar a execução dos testes, utilizou-se paralelismo via OpenMP, porém os tempos registrados correspondem à execução sequencial de cada instância individualmente.
 
-Realizaram-se dois experimentos. No primeiro, fixou-se~\(m \in \{3, 5, 10, 20, 50, 100\}\) e variou-se~\(k\) de~\(1\) até~\(3000\), com~\(300\) medições uniformemente espaçadas. No segundo, fixou-se~\(k \in \{3, 5, 10, 20, 50, 100\}\) e variou-se~\(m\) de~\(3\) até~\(40000\), com~\(400\) medições uniformemente espaçadas.
+O objetivo dos experimentos é verificar que o comportamento assintótico do algoritmo está de acordo com a complexidade~\(O(nk\log(n/k))\) prevista pela análise teórica. Utilizaram-se instâncias sintéticas com~\(k\) polígonos regulares de~\(m\) vértices cada, dispostos de forma que todo ponto de~\(P_i\) esteja na região de atravessar de~\(P_j\) para todo~\(j < i\), representando o pior caso do algoritmo. Nessa configuração,~\(n = mk\) e a complexidade teórica é~\(O(m\log(m) \cdot k^2)\).
 
-Os resultados do primeiro experimento estão apresentados na Figura~\ref{fig:plt_vs_k}. Observa-se que o algoritmo apresenta crescimento quadrático em~\(k\) para todos os valores de~\(m\), conforme previsto. Para valores pequenos de~\(m\), o comportamento logarítmico em~\(m\) tem pouco impacto e as curvas são dominadas pelas constantes de implementação.
+Realizaram-se dois experimentos. No primeiro, fixou-se~\(m \in \{5, 50\}\) e variou-se~\(k\) de~\(1\) até~\(3000\), com~\(300\) medições uniformemente espaçadas. Para cada valor de~\(m\), ajustou-se um modelo da forma~\(c_0 + c_1 k + c_2 k^2\) aos dados de tempo de execução por mínimos quadrados; a curva ajustada é exibida junto com os dados na Figura~\ref{fig:plt_vs_k}. Os resultados mostram que o tempo de execução cresce de forma quadrática em~\(k\), conforme previsto.
 
 \begin{figure}[!ht]
 	\centering
-	\begin{subfigure}[b]{0.45\textwidth}
-		\centering
-		\includegraphics[width=\textwidth]{plt_vs_k_m_3.png}
-		\caption{Resultados para~\(m = 3\).}
-	\end{subfigure}
-	\hspace{10pt}
 	\begin{subfigure}[b]{0.45\textwidth}
 		\centering
 		\includegraphics[width=\textwidth]{plt_vs_k_m_5.png}
 		\caption{Resultados para~\(m = 5\).}
 	\end{subfigure}
-	\vspace{1em}
-	\begin{subfigure}[b]{0.45\textwidth}
-		\centering
-		\includegraphics[width=\textwidth]{plt_vs_k_m_10.png}
-		\caption{Resultados para~\(m = 10\).}
-	\end{subfigure}
 	\hspace{10pt}
-	\begin{subfigure}[b]{0.45\textwidth}
-		\centering
-		\includegraphics[width=\textwidth]{plt_vs_k_m_20.png}
-		\caption{Resultados para~\(m = 20\).}
-	\end{subfigure}
-	\vspace{1em}
 	\begin{subfigure}[b]{0.45\textwidth}
 		\centering
 		\includegraphics[width=\textwidth]{plt_vs_k_m_50.png}
 		\caption{Resultados para~\(m = 50\).}
 	\end{subfigure}
-	\hspace{10pt}
-	\begin{subfigure}[b]{0.45\textwidth}
-		\centering
-		\includegraphics[width=\textwidth]{plt_vs_k_m_100.png}
-		\caption{Resultados para~\(m = 100\).}
-	\end{subfigure}
-	\caption{Tempo de execução em função de~\(k\) para diferentes valores de~\(m\).}
+	\caption{Tempo de execução em função de~\(k\) para dois valores de~\(m\). A curva tracejada corresponde ao modelo ajustado por mínimos quadrados.}
 	\label{fig:plt_vs_k}
 \end{figure}
-
-Os resultados do segundo experimento estão apresentados na Figura~\ref{fig:plt_vs_m}. Observa-se que o tempo de execução cresce de forma aproximadamente linear em~\(m\) para todos os valores de~\(k\), o que é consistente com o fator~\(m\log(m)\) da complexidade teórica, já que~\(\log(m)\) cresce lentamente e não é perceptível na escala dos gráficos. Esses resultados confirmam que a implementação atinge o comportamento assintótico previsto.
 
 \begin{figure}[!ht]
 	\centering
 	\begin{subfigure}[b]{0.45\textwidth}
 		\centering
-		\includegraphics[width=\textwidth]{plt_vs_m_k_3.png}
-		\caption{Resultados para~\(k = 3\).}
-	\end{subfigure}
-	\hspace{10pt}
-	\begin{subfigure}[b]{0.45\textwidth}
-		\centering
 		\includegraphics[width=\textwidth]{plt_vs_m_k_5.png}
 		\caption{Resultados para~\(k = 5\).}
-	\end{subfigure}
-	\vspace{1em}
-	\begin{subfigure}[b]{0.45\textwidth}
-		\centering
-		\includegraphics[width=\textwidth]{plt_vs_m_k_10.png}
-		\caption{Resultados para~\(k = 10\).}
 	\end{subfigure}
 	\hspace{10pt}
 	\begin{subfigure}[b]{0.45\textwidth}
@@ -671,21 +635,12 @@ Os resultados do segundo experimento estão apresentados na Figura~\ref{fig:plt_
 		\includegraphics[width=\textwidth]{plt_vs_m_k_20.png}
 		\caption{Resultados para~\(k = 20\).}
 	\end{subfigure}
-	\vspace{1em}
-	\begin{subfigure}[b]{0.45\textwidth}
-		\centering
-		\includegraphics[width=\textwidth]{plt_vs_m_k_50.png}
-		\caption{Resultados para~\(k = 50\).}
-	\end{subfigure}
-	\hspace{10pt}
-	\begin{subfigure}[b]{0.45\textwidth}
-		\centering
-		\includegraphics[width=\textwidth]{plt_vs_m_k_100.png}
-		\caption{Resultados para~\(k = 100\).}
-	\end{subfigure}
-	\caption{Tempo de execução em função de~\(m\) para diferentes valores de~\(k\).}
+	\caption{Tempo de execução em função de~\(m\) para dois valores de~\(k\). A curva tracejada corresponde ao modelo ajustado por mínimos quadrados.}
 	\label{fig:plt_vs_m}
 \end{figure}
+
+No segundo experimento, fixou-se~\(k \in \{5, 20\}\) e variou-se~\(m\) de~\(3\) até~\(40000\), com~\(400\) medições uniformemente espaçadas. Para cada valor de~\(k\), ajustou-se um modelo da forma~\(c_0 + c_1(n+k) + c_2 nk + c_3 nk\log(n/k)\) por mínimos quadrados; a curva ajustada é exibida na Figura~\ref{fig:plt_vs_m}. As curvas têm aspecto aproximadamente linear, o que é esperado: o fator~\(\log(m)\) varia apenas de~\(\log(3) \approx 1{,}6\) a~\(\log(40000) \approx 10{,}6\) na faixa considerada, uma variação de apenas~\(6\times\) em uma escala de~\(40000\times\), tornando-o imperceptível visualmente. O ajuste do modelo polilogarítmico confirma, no entanto, que os coeficientes são consistentes com a complexidade teórica.
+
 \section{Ferramenta de Visualização}
 \label{sec:visualizer}
 
@@ -705,16 +660,16 @@ A ferramenta foi projetada para acompanhar o desenvolvimento do projeto: à medi
 \section{Plano de Atividades para o Próximo Período}
 \label{sec:proximos_passos}
 
-O próximo período será dedicado ao TPP não convexo com ordem fixa, que é NP-difícil~\cite{tpp-dror-2003}. A abordagem planejada consiste em decompor cada polígono não convexo em peças convexas e aplicar o algoritmo desenvolvido neste período a cada combinação possível de peças, explorando técnicas de Branch and Bound para tornar essa busca tratável na prática.
+O próximo período será dedicado ao TPP não convexo com ordem fixa, que é NP-difícil~\cite{tpp-dror-2003}. A abordagem planejada consiste em decompor cada polígono não convexo em peças convexas, usando o algoritmo de Greene~\cite{cpd-greene-1983} disponível na biblioteca CGAL~\cite{cgal}, e aplicar o algoritmo desenvolvido neste período a cada combinação possível de peças, explorando técnicas de Branch and Bound para tornar essa busca tratável na prática.
 
 As atividades previstas são as seguintes:
 
 \begin{enumerate}
-	\item Implementar a decomposição convexa dos polígonos não convexos. Utilizará o algoritmo de Greene~\cite{cpd-greene-1983}, disponível na biblioteca CGAL~\cite{cgal}, que produz uma decomposição com número mínimo de peças convexas sem o uso de pontos de Steiner.
+	\item Integrar a decomposição convexa de polígonos não convexos via algoritmo de Greene~\cite{cpd-greene-1983}, disponível na biblioteca CGAL~\cite{cgal}.
 
 	\item Formular e implementar o algoritmo de Branch and Bound para o TPP não convexo. Cada nó da árvore de busca atribui uma peça convexa a cada polígono; o lower bound é obtido resolvendo o TPP convexo com os convex hulls dos polígonos ainda não atribuídos.
 
-	\item Implementar um incumbente heurístico para inicializar o Branch and Bound com uma solução de boa qualidade, reduzindo o espaço de busca explorado.
+	\item Calcular uma solução inicial de boa qualidade para inicializar o Branch and Bound, reduzindo o espaço de busca explorado.
 
 	\item Implementar um baseline via programação inteira mista com o solver Gurobi~\cite{gurobi} para verificar a corretude e comparar o desempenho do Branch and Bound.
 
@@ -722,6 +677,8 @@ As atividades previstas são as seguintes:
 
 	\item Realizar experimentos computacionais para avaliar o desempenho do Branch and Bound em instâncias de diferentes tamanhos e características.
 \end{enumerate}
+
+Paralelamente, será submetida à FAPESP uma solicitação de bolsa BEPE para dar continuidade ao projeto em estágio de pesquisa no exterior. A proposta prevê uma visita de quatro meses à Université Laval, no Canadá, sob supervisão do Prof.\ Leandro Callegari Coelho, cujo grupo de pesquisa possui ampla experiência em métodos exatos para problemas de roteamento de veículos. O foco da etapa no exterior será o TPP sem ordem fixa de visita, variante NP-difícil que generaliza o TPP não convexo e equivale ao problema de roteamento de veículo único com vizinhanças poligonais não convexas.
 
 \bibliographystyle{plain}
 \bibliography{referencias}

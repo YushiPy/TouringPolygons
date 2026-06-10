@@ -179,6 +179,19 @@ if __name__ == "__main__":
 
 	m_files = [f for f in os.listdir() if f.startswith("benchmark_results_k_1_to")]
 	m_files.sort(key=lambda x: int(x.split("_")[-1].strip(".csv")))
+
+	m_files = [
+		"benchmark_results_k_1_to_3000_m_5.csv",
+		"benchmark_results_k_1_to_3000_m_50.csv",
+	]
+
+	ALGORITHMS = {
+		#"Linear Search": ("#003f5c", quadratic_model, "Busca Linear"),
+		"Binary Search": ("#7a4f99", polylog_model, "Busca Binária"),
+		"Binary Search (lazy)": ("#ef527a", polylog_model, "Busca Binária (Preguiçosa)"),
+		#"TAMC": ("#ffa600", linear_model, "Tan & Jiang"),
+	}
+
 	dfs = [pd.read_csv(f) for f in m_files]
 
 	for df in dfs:
@@ -194,6 +207,9 @@ if __name__ == "__main__":
 	k_files = [f for f in os.listdir() if re.search(r"benchmark\_results\_k\_\d+\_m\_1\_to\_\d+\.csv", f)]
 	k_files.sort(key=lambda x: int(re.search(r"k_(\d+)_m", x).group(1)))
 	dfs = [pd.read_csv(f) for f in k_files]
+
+	print(k_files)
+	exit(0)
 
 	for df in dfs:
 
