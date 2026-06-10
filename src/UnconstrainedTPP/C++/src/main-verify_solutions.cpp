@@ -35,6 +35,7 @@ int main() {
 	std::vector<tpp::Solver> solvers = {
 		tpp::tpp_convex_solve_linear_search,
 		tpp::tpp_convex_solve_binary_search,
+		tpp::tpp_convex_solve_binary_search_dp,
 		tpp::tpp_convex_solve_tamc,
 		// tpp::tpp_convex_solve_gurobi,
 	};

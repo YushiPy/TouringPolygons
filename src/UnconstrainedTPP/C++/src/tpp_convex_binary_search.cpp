@@ -10,6 +10,8 @@ class SolutionBinarySearch : public tpp::Solution {
 
 	using tpp::Solution::Solution;
 
+	public:
+
 	/*
 	Uses binary search to locate `point` in the visibility map of `polygon[i]`.
 	Returns index as follows:
@@ -81,21 +83,35 @@ class SolutionBinarySearch : public tpp::Solution {
 		}
 	}
 
-	void preload_cones() override {
-		
-		return;
+	vector<Vector2> solve(bool dp) {
 
+		first_contact.resize(polygons.size());
+		cones.resize(polygons.size());
+		
 		for (size_t i = 0; i < polygons.size(); i++) {
-			for (size_t j = 0; j < polygons[i].size(); j++) {
-				build_cone(i, j);
+			first_contact[i].resize(polygons[i].size(), false);
+			cones[i].resize(polygons[i].size(), {Vector2::NaN, Vector2::NaN});
+		}
+
+		if (dp) {
+			for (size_t i = 0; i < polygons.size(); i++) {
+				for (size_t j = 0; j < polygons[i].size(); j++) {
+					build_cone(i, j);
+				}
 			}
 		}
+
+		return tpp::remove_collinear_points(query_full(target, polygons.size()));
 	}
 };
 
 namespace tpp {
 
 	std::vector<Vector2> tpp_convex_solve_binary_search(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
-		return SolutionBinarySearch(start, target, polygons).solve();
+		return SolutionBinarySearch(start, target, polygons).solve(false);
+	}
+
+	std::vector<Vector2> tpp_convex_solve_binary_search_dp(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		return SolutionBinarySearch(start, target, polygons).solve(true);
 	}
 }

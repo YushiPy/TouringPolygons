@@ -20,6 +20,7 @@ using std::string;
 vector<std::pair<std::string, tpp::Solver>> solvers = {
 	{"Linear Search", tpp::tpp_convex_solve_linear_search},
 	{"Binary Search", tpp::tpp_convex_solve_binary_search},
+	{"Binary Search DP", tpp::tpp_convex_solve_binary_search_dp},
 	{"TAMC", tpp::tpp_convex_solve_tamc},
 };
 
@@ -189,9 +190,9 @@ std::string timings_to_string(const vector<string> &names, const vector<vector<d
 
 int main() {
 
-	const vector<size_t> solver_indices_to_test = {1};
+	const vector<size_t> solver_indices_to_test = {1, 2};
 	const size_t chunk_count = 1;
-	const size_t num_trials = 1;
+	const size_t num_trials = 10;
 	const bool parallel = true;
 
 
@@ -390,15 +391,27 @@ int main() {
 
 	vector<size_t> ks = {1, 3, 5, 10, 20, 50, 100};
 	vector<size_t> ms = {3, 5, 10, 20, 50, 100};
-	const size_t max_m = 40000;
-	const size_t max_k = 3000;
-	const size_t step = 10;
+
+	ks = {5, 20};
+	ms = {5, 40};
+
+	const size_t max_m = 200;
+	const size_t max_k = 100;
+	const size_t step = 1;
 
 	for (auto k : ks) {
 		try {
 			test_over_m(k, max_m, step);
 		} catch (const std::exception &e) {
 			std::println("Error during test_over_k: {}", e.what());
+		}
+	}
+
+	for (auto m : ms) {
+		try {
+			test_over_k(m, max_k, step);
+		} catch (const std::exception &e) {
+			std::println("Error during test_over_m: {}", e.what());
 		}
 	}
 }
