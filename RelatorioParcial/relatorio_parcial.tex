@@ -213,7 +213,7 @@ Utiliza-se o operador~\(\times\) para denotar o produto vetorial em~\(\mathbb{R}
 
 \item[Região de Primeiro Contato (\(T_i\)):] A região de primeiro contato~\(T_i\) (\(1 \le i \le k\)) de um polígono~\(P_i\) consiste nos pontos~\(p\) pertencentes à fronteira de~\(P_i\) tais que o último segmento do~\((i-1)\)-path até~\(p\) não atravessa o interior de~\(P_i\). Como~\(P_i\) é convexo,~\(T_i\) é sempre composta por uma região contígua de arestas de~\(P_i\). A Figura~\ref{fig:first_contact} ilustra as regiões~\(T_1\) e~\(T_2\).
 
-\begin{figure}[!htb]
+\begin{figure}[h!]
 \centering
 \begin{minipage}{0.44\textwidth}
 	\centering
@@ -232,9 +232,9 @@ Utiliza-se o operador~\(\times\) para denotar o produto vetorial em~\(\mathbb{R}
 
 \item[Mapa de Último Passo (\(S_i\)):] O mapa de último passo~\(S_i\) (\(1 \le i \le k\)) de um polígono~\(P_i\) é uma partição do plano em regiões associadas a cada vértice e a cada aresta de~\(P_i\). Um ponto~\(p \in \mathbb{R}^2\) pertence à região associada a um vértice~\(v\) se o~\(i\)-path até~\(p\) possui~\(\overline{vp}\) como último segmento; pertence à região associada a uma aresta~\(e\) se o último segmento do~\(i\)-path até~\(p\) parte do interior de~\(e\); e pertence à região de atravessar caso contrário, ou seja, quando o~\(i\)-path até~\(p\) coincide com o~\((i-1)\)-path até~\(p\). Apenas vértices e arestas em~\(T_i\) possuem regiões não degeneradas. A Figura~\ref{fig:last_step_map} apresenta um exemplo de mapa de último passo.
 
-\begin{figure}[!htb]
+\begin{figure}[h!]
 	\centering
-	\begin{minipage}[t]{0.55\textwidth}
+	\begin{minipage}[t]{0.47\textwidth}
 		\includegraphics[width=\textwidth]{last_step_map.png}
 	\end{minipage}
 	\caption{Exemplo do mapa de último passo~\(S_1\) de~\(P_1\). Regiões de vértice em vermelho, de aresta em verde e de atravessar em azul, com o~\(1\)-path até um ponto representativo de cada região.}
@@ -251,7 +251,7 @@ Dado um ponto~\(p \in \mathbb{R}^2\) e o mapa~\(S_i\), é possível determinar o
 
 \item[Região de Atravessar:] Se~\(p\) pertence à região de atravessar, o~\(i\)-path até~\(p\) coincide com o~\((i-1)\)-path até~\(p\), pois o caminho ótimo simplesmente atravessa~\(P_i\) sem desviar. A Figura~\ref{fig:pass_through} ilustra esse caso.
 
-\begin{figure}[!htb]
+\begin{figure}[h!]
 \centering
 \begin{minipage}{0.44\textwidth}
 	\centering
@@ -274,7 +274,7 @@ Dado um ponto~\(p \in \mathbb{R}^2\) e o mapa~\(S_i\), é possível determinar o
 	q  &= q' + \frac{(u - q') \times (v - u)}{(p' - q') \times (v - u)}(p' - q'). \label{eq:intersection_on_edge}
 \end{align}
 
-\begin{figure}[!htb]
+\begin{figure}[h!]
 \centering
 \includegraphics[width=0.5\linewidth]{paths-edge.png}
 \caption{\(2\)-path até~\(p\), em região de aresta de~\(P_2\). O ponto~\(p'\) é a reflexão de~\(p\), \(q'\) precede~\(p'\) no~\(1\)-path, e~\(q\) é a interseção de~\(\overline{q'p'}\) com~\(e\).}
@@ -289,46 +289,9 @@ O algoritmo opera em duas fases. Na primeira, para cada~\(i = 1, \dots, k\), cal
 
 \subsubsection{Região de Primeiro Contato}
 
-Para determinar~\(T_i\), basta verificar cada aresta de~\(P_i\). Pelo Lema~\ref{lemma:first_contact}, uma aresta~\(e = \overline{uv}\) pertence a~\(T_i\) se e somente se o ponto~\(q\) que precede~\(u\) no~\((i-1)\)-path até~\(u\) está do lado externo de~\(e\).
+Para determinar~\(T_i\), basta verificar cada aresta de~\(P_i\): uma aresta~\(e = \overline{uv}\) pertence a~\(T_i\) se e somente se~\((v - u) \times (q - u) < 0\), onde~\(q\) é o ponto que precede~\(u\) no~\((i-1)\)-path até~\(u\). Essa verificação é implementada no Algoritmo~\algref{alg:first_contact_region}. Os algoritmos a seguir fazem uso de uma função auxiliar \texttt{ConsultaÚltimoPasso}\((p, i, \dots)\), que dado um ponto~\(p \in \mathbb{R}^2\) e um índice~\(i\), retorna o ponto que precede~\(p\) no~\(i\)-path até~\(p\); essa função será implementada na Seção~\ref{sec:query}, após a definição de \texttt{LocalizaPonto}.
 
-\begin{blockQuote}
-\begin{lemma}
-Seja~\(e = \overline{uv}\) uma aresta de~\(P_i\) e~\(q\) o ponto que precede~\(u\) no~\((i-1)\)-path até~\(u\). Tem-se que~\(e \in T_i\) se e somente se~\((v - u) \times (q - u) < 0\). \label{lemma:first_contact}
-\end{lemma}
-\end{blockQuote}
-
-Essa ideia é implementada no Algoritmo~\algref{alg:first_contact_region}, ilustrado na Figura~\ref{fig:first_contact_region}. Os algoritmos a seguir fazem uso de uma função auxiliar \texttt{ConsultaÚltimoPasso}\((p, i, \dots)\), que dado um ponto~\(p \in \mathbb{R}^2\) e um índice~\(i\), retorna o ponto que precede~\(p\) no~\(i\)-path até~\(p\). Essa função será implementada na Seção~\ref{sec:query}, após a definição de \texttt{LocalizaPonto}.
-
-\begin{figure}[!htb]
-	\centering
-	\begin{subfigure}[b]{0.45\textwidth}
-		\centering
-		\includegraphics[width=\textwidth]{aresta-0.png}
-		\caption{\(e^1\) pertence a~\(T_2\):~\(q\) está do lado externo.}
-	\end{subfigure}
-	\hspace{10pt}
-	\begin{subfigure}[b]{0.45\textwidth}
-		\centering
-		\includegraphics[width=\textwidth]{aresta-1.png}
-		\caption{\(e^2\) não pertence a~\(T_2\):~\(q\) está do lado interno.}
-	\end{subfigure}
-	\vspace{1em}
-	\begin{subfigure}[b]{0.45\textwidth}
-		\centering
-		\includegraphics[width=\textwidth]{aresta-2.png}
-		\caption{\(e^3\) não pertence a~\(T_2\):~\(q\) está do lado interno.}
-	\end{subfigure}
-	\hspace{10pt}
-	\begin{subfigure}[b]{0.45\textwidth}
-		\centering
-		\includegraphics[width=\textwidth]{arestas-resultado.png}
-		\caption{Resultado: apenas~\(e^1\) pertence a~\(T_2\).}
-	\end{subfigure}
-	\caption{Determinação de~\(T_2\) pelo Algoritmo~\ref{alg:first_contact_region}.}
-	\label{fig:first_contact_region}
-\end{figure}
-
-\begin{algorithm}[!htb]
+\begin{algorithm}[h!]
 \alglabel{alg:first_contact_region}
 \caption{Região de Primeiro Contato}
 \Input{\(i, s, (P_1, \dots, P_i), (T_1, \dots, T_{i-1}), (S_1, \dots, S_{i-1})\)}
@@ -362,7 +325,7 @@ A reflexão~\(r_\perp(q, v, e)\) de~\(q - v\) em relação à perpendicular a~\(
 \]
 onde~\(\cdot\) denota o produto interno em~\(\mathbb{R}^2\). Esse cálculo é implementado no Algoritmo~\algref{alg:last_step_map}.
 
-\begin{algorithm}[!htb]
+\begin{algorithm}[h!]
 \alglabel{alg:last_step_map}
 \caption{Mapa de Último Passo}
 \Input{\(i, s, (P_1, \dots, P_i), (T_1, \dots, T_i), (S_1, \dots, S_{i-1})\)}
@@ -390,76 +353,44 @@ onde~\(\cdot\) denota o produto interno em~\(\mathbb{R}^2\). Esse cálculo é im
 
 \subsubsection{Localização de Pontos e Busca Binária}
 
-Com~\(S_i\) calculado, o passo central é localizar um ponto~\(p \in \mathbb{R}^2\) no mapa de último passo~\(S_i\). Para isso, é necessário verificar se~\(p\) pertence a uma região de vértice, a uma região de aresta ou à região de atravessar. Descreve-se a seguir como realizar cada uma dessas verificações em tempo~\(O(1)\).
+Com~\(S_i\) calculado, o passo central é localizar um ponto~\(p \in \mathbb{R}^2\) no mapa~\(S_i\). Descreve-se a seguir como realizar cada verificação em tempo~\(O(1)\).
+\paragraph{Região de vértice.} Seja~\(v\) um vértice com raios associados~\((r^1, r^2)\) em~\(S_i\). O ponto~\(p\) pertence à região de~\(v\) se está no cone definido por~\(v\) e pelos raios~\(r^1\) e~\(r^2\) em sentido anti-horário. Se o ângulo de abertura é inferior a~\(180^\circ\) (\(r^1 \times r^2 \ge 0\)), exige-se~\(r^1 \times (p - v) > 0\) e~\(r^2 \times (p - v) < 0\); caso contrário (\(r^1 \times r^2 < 0\)), basta uma das duas condições.
 
-\paragraph{Região de vértice.} Seja~\(v\) um vértice de~\(P_i\) com raios associados~\((r^1, r^2)\) em~\(S_i\). O ponto~\(p\) pertence à região de~\(v\) se e somente se está no cone definido por~\(v\) e pelos raios~\(r^1\) e~\(r^2\), em sentido anti-horário de~\(r^1\) a~\(r^2\). Dependendo do ângulo de abertura do cone, a condição é:
-
-\begin{itemize}
-	\item Se o ângulo é inferior a~\(180^\circ\), isto é,~\(r^1 \times r^2 \ge 0\): o ponto~\(p - v\) deve estar à esquerda de~\(r^1\) e à direita de~\(r^2\), ou seja,~\(r^1 \times (p - v) > 0\) e~\(r^2 \times (p - v) < 0\).
-	\item Se o ângulo é superior a~\(180^\circ\), isto é,~\(r^1 \times r^2 < 0\): basta que~\(p - v\) esteja à esquerda de~\(r^1\) ou à direita de~\(r^2\), ou seja,~\(r^1 \times (p - v) > 0\) ou~\(r^2 \times (p - v) < 0\).
-\end{itemize}
-
-Esses dois casos estão ilustrados na Figura~\ref{fig:point_in_cone}.
-
-\begin{figure}[!htb]
-	\centering
-	\begin{subfigure}{0.49\textwidth}
-		\centering
-		\includegraphics[width=0.99\textwidth]{cone_check_small.png}
-		\caption{Ângulo de abertura inferior a~\(180^\circ\).}
-	\end{subfigure}
-	\begin{subfigure}{0.49\textwidth}
-		\centering
-		\includegraphics[width=0.99\textwidth]{cone_check_large.png}
-		\caption{Ângulo de abertura superior a~\(180^\circ\).}
-	\end{subfigure}
-	\caption{Verificação se~\(p\) está no cone definido por~\(v\) e pelos raios~\(r^1\) e~\(r^2\).}
-	\label{fig:point_in_cone}
-\end{figure}
-
-\paragraph{Região de aresta.} Seja~\(e = \overline{uv}\) uma aresta de~\(P_i\) em~\(T_i\). O ponto~\(p\) pertence à região de~\(e\) se está do lado externo de~\(e\) e entre o segundo raio de~\(u\) e o primeiro raio de~\(v\) em~\(S_i\). Formalmente, sendo~\(r^1\) o segundo raio de~\(u\) e~\(r^2\) o primeiro raio de~\(v\):
+\paragraph{Região de aresta.} Seja~\(e = \overline{uv}\) uma aresta de~\(T_i\), com~\(r^1\) o segundo raio de~\(u\) e~\(r^2\) o primeiro raio de~\(v\) em~\(S_i\). O ponto~\(p\) pertence à região de~\(e\) se e somente se:
 \[
 	r^1 \times (p - u) > 0 \quad \text{e} \quad r^2 \times (p - v) < 0 \quad \text{e} \quad (v - u) \times (p - u) < 0.
 \]
-Esse caso está ilustrado na Figura~\ref{fig:point_in_edge_region}.
-
-\begin{figure}[!htb]
-	\centering
-	\includegraphics[width=0.8\textwidth]{edge_region_check.png}
-	\caption{Verificação da pertinência de~\(p\) à região associada à aresta~\(e = \overline{uv}\).}
-	\label{fig:point_in_edge_region}
-\end{figure}
 
 \paragraph{Busca binária via arestas fictícias.} Uma abordagem direta para localizar~\(p\) em~\(S_i\) verificaria cada região de vértice e aresta de~\(T_i\) sequencialmente, com custo~\(O(|T_i|)\). Para melhorar isso, observa-se que as verificações acima se generalizam naturalmente para subconjuntos contíguos de vértices. Dado um subconjunto~\(v^l, \dots, v^r\) de vértices consecutivos de~\(P_i\), define-se uma \textit{aresta fictícia} entre~\(v^l\) e~\(v^r\) usando os primeiros raios de~\(v^l\) e~\(v^r\) em~\(S_i\). A região associada a essa aresta fictícia contempla exatamente as regiões de vértice de~\(v^l\) até~\(v^{r-1}\) e as regiões de aresta entre eles, totalizando~\(r - l\) regiões de cada tipo. Formalmente, um ponto~\(p\) pertence à região da aresta fictícia se e somente se pertence a alguma dessas regiões, ou a parte do interior de~\(P_i\) delimitada por~\(v^l\) e~\(v^r\). Como os polígonos são disjuntos,~\(p\) nunca está no interior de~\(P_i\), de modo que essa ambiguidade não afeta a corretude do algoritmo. A verificação pode ser feita em tempo~\(O(1)\), considerando quatro casos dependendo de se os raios~\(r^1\) e~\(r^2\) estão do lado interno ou externo da aresta fictícia. A Figura~\ref{fig:fake_edge} ilustra a construção e a Figura~\ref{fig:binary_search_cases} os quatro casos.
 
-\begin{figure}[!htb]
+\begin{figure}[h!]
 	\centering
-	\includegraphics[width=0.5\linewidth]{fake_edge.png}
+	\includegraphics[width=0.45\linewidth]{fake_edge.png}
 	\caption{Aresta fictícia entre~\(v^3\) e~\(v^6\) de~\(P_1\), cobrindo as regiões de vértice de~\(v^3, v^4, v^5\) e das arestas entre eles.}
 	\label{fig:fake_edge}
 \end{figure}
 
-\begin{figure}[!htb]
+\begin{figure}[h!]
 	\centering
-	\begin{subfigure}[b]{0.40\textwidth}
+	\begin{subfigure}[b]{0.37\textwidth}
 		\centering
 		\includegraphics[width=\textwidth]{binary_search_cases-1.png}
 		\caption{\(r^1\) e~\(r^2\) externos.}
 	\end{subfigure}
 	\hspace{0.5cm}
-	\begin{subfigure}[b]{0.40\textwidth}
+	\begin{subfigure}[b]{0.37\textwidth}
 		\centering
 		\includegraphics[width=\textwidth]{binary_search_cases-2.png}
 		\caption{\(r^1\) e~\(r^2\) internos.}
 	\end{subfigure}
 	\medskip
-	\begin{subfigure}[b]{0.40\textwidth}
+	\begin{subfigure}[b]{0.37\textwidth}
 		\centering
 		\includegraphics[width=\textwidth]{binary_search_cases-3.png}
 		\caption{\(r^1\) externo,~\(r^2\) interno.}
 	\end{subfigure}
 	\hspace{0.5cm}
-	\begin{subfigure}[b]{0.40\textwidth}
+	\begin{subfigure}[b]{0.37\textwidth}
 		\centering
 		\includegraphics[width=\textwidth]{binary_search_cases-4.png}
 		\caption{\(r^1\) interno,~\(r^2\) externo.}
@@ -470,7 +401,7 @@ Esse caso está ilustrado na Figura~\ref{fig:point_in_edge_region}.
 
 Com essa ferramenta, aplica-se busca binária sobre os vértices de~\(P_i\): mantém-se um intervalo~\([l, r]\) com~\(l = 1\) e~\(r = |P_i| + 1\), e a cada passo verifica-se se~\(p\) está entre~\(v^l\) e~\(v^{mid}\). Quando~\(l + 1 = r\), sabe-se que~\(p\) está na região de~\(v^l\) ou de~\(\overline{v^l v^r}\), e basta checar qual dos dois casos se aplica, retornando a região de atravessar se nenhum deles pertencer a~\(T_i\). O custo total é~\(O(\log|P_i|)\), implementado no Algoritmo~\algref{alg:locate_point}.
 
-\begin{algorithm}[!htb]
+\begin{algorithm}[h!]
 \alglabel{alg:locate_point}
 \caption{Localiza Ponto}
 \Input{\(p\),~\(P_i\),~\(T_i\),~\(S_i\)}
@@ -511,7 +442,7 @@ Com \texttt{LocalizaPonto} definido, pode-se implementar \texttt{ConsultaÚltimo
 
 A distinção entre as duas funções é que \texttt{ConsultaÚltimoPasso} retorna apenas o ponto que precede~\(p\) no~\(i\)-path, sem reconstruir o caminho completo. Isso permite uma otimização importante: no caso de região de vértice,~\(v\) é imediatamente o ponto predecessor, sem necessidade de recursão adicional. Essa função é usada pelos Algoritmos~\algref{alg:first_contact_region} e~\algref{alg:last_step_map}, que precisam apenas do último passo e não do caminho completo. Ambas as funções estão implementadas no Algoritmo~\algref{alg:query}.
 
-\begin{algorithm}[!htb]
+\begin{algorithm}[h!]
 \alglabel{alg:query}
 \caption{Consulta Caminho e Último Passo}
 \Input{\(p, i, s, (P_1, \dots, P_i), (T_1, \dots, T_i), (S_1, \dots, S_i)\)}
@@ -548,7 +479,7 @@ A distinção entre as duas funções é que \texttt{ConsultaÚltimoPasso} retor
 
 O algoritmo completo para o TPP Convexo itera sobre os polígonos calculando~\(T_i\) e~\(S_i\) em ordem, e ao final consulta o~\(k\)-path até~\(t\), conforme o Algoritmo~\algref{alg:tpp_complete}.
 
-\begin{algorithm}[!htb]
+\begin{algorithm}[h!]
 \alglabel{alg:tpp_complete}
 \caption{TPP Convexo}
 \Input{Pontos~\(s\) e~\(t\), polígonos convexos disjuntos~\((P_1, \dots, P_k)\)}
