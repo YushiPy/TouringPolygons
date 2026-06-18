@@ -148,26 +148,9 @@
 
 \begin{abstract}
 
-Este relatório parcial descreve as atividades realizadas no primeiro período da bolsa de
-Iniciação Científica, correspondente ao estudo e implementação de algoritmos para o
-Problema de Visita de Polígonos (\textit{Touring Polygons Problem}, TPP). O TPP consiste
-em determinar um caminho de comprimento mínimo na norma Euclidiana partindo de um ponto
-inicial~\(s\), visitando uma sequência ordenada de polígonos~\(P_1, \dots, P_k\) no plano
-e terminando em um ponto~\(t\). Em sua formulação geral, o problema é NP-difícil. Por esse
-motivo, o período coberto por este relatório foca na variante em que os polígonos são
-convexos, para a qual existe solução polinomial tanto no caso disjunto quanto no caso com
-interseções. Até o momento, implementou-se o caso convexo e disjunto, que é mais simples e serve de base para as
-demais variantes.
+Neste relatório parcial, descrevemos as atividades realizadas nos 2 primeiros meses da bolsa de Iniciação Científica, dedicadas ao estudo e implementação de algoritmos para o Problema de Visita de Polígonos (\textit{Touring Polygons Problem}, TPP). O TPP consiste em determinar um caminho de comprimento mínimo na norma Euclidiana partindo de um ponto inicial~\(s\), visitando uma sequência ordenada de polígonos~\(P_1, \dots, P_k\) no plano e terminando em um ponto~\(t\). Em sua formulação geral, o problema é NP-difícil; por esse motivo, focamos o período coberto por este relatório na variante em que os polígonos são convexos e disjuntos, para a qual existe solução polinomial.
 
-Estudou-se o artigo de Dror et al.~\cite{tpp-dror-2003}, que introduz o problema e apresenta
-um algoritmo exato baseado nas estruturas de região de primeiro contato e mapa de último
-passo, com complexidade~\(O(nk\log(n/k))\), onde~\(n\) é o número total de vértices e~\(k\)
-é o número de polígonos. Implementou-se esse algoritmo em C++23, produzindo pseudocódigo
-detalhado, análise de complexidade e experimentos computacionais que confirmam o comportamento
-assintótico previsto. Desenvolveu-se também uma ferramenta de visualização interativa,
-disponível em \url{https://yushipy.github.io/PersonalPage/Visualizer/index.html}, que permite
-inspecionar instâncias, soluções e mapas de último passo, e que será estendida para suportar
-o caso não convexo nas próximas etapas do projeto.
+Estudamos o artigo de Dror et al.~\cite{tpp-dror-2003}, que introduz o problema e apresenta um algoritmo exato baseado nas estruturas de região de primeiro contato e mapa de último passo, com complexidade~\(O(nk\log(n/k))\), onde~\(n\) é o número total de vértices e~\(k\) é o número de polígonos. Implementamos esse algoritmo em C++23, produzindo pseudocódigo detalhado, análise de complexidade e experimentos computacionais que confirmam o comportamento assintótico previsto. Desenvolvemos também uma ferramenta de visualização interativa, disponível em \url{https://yushipy.github.io/PersonalPage/Visualizer/index.html}, que permite inspecionar instâncias, soluções e mapas de último passo, e que estenderemos para suportar o caso não convexo nas próximas etapas do projeto.
 
 \vspace{10pt}
 
@@ -186,16 +169,16 @@ complexidade computacional, experimentos numéricos.
 
 O Problema de Visita de Polígonos (\textit{Touring Polygons Problem}, TPP), introduzido por Dror et al.~\cite{tpp-dror-2003}, é um problema de otimização geométrica que consiste em determinar um caminho de comprimento mínimo na norma Euclidiana partindo de um ponto~\(s\), visitando uma sequência ordenada de polígonos~\(P_1, \dots, P_k\) no plano e terminando em um ponto~\(t\). O problema pode ser interpretado como um caso particular do Problema do Caixeiro Viajante com Regiões (\textit{Traveling Salesman Problem with Neighborhoods}, TSPN)~\cite{tspn-arkin-1994}, no qual as regiões são polígonos e a ordem de visita é pré-determinada.
 
-O TPP apresenta variantes de dificuldade bastante distinta. Quando os polígonos são convexos, o problema admite solução exata em tempo polinomial: Dror et al.~\cite{tpp-dror-2003} apresentam um algoritmo de complexidade~\(O(nk\log(n/k))\) para o caso disjunto e~\(O(nk^2\log(n/k))\) para o caso com interseções, onde~\(n\) é o número total de vértices. Quando os polígonos podem ser não convexos, o problema torna-se NP-difícil, mesmo com a ordem de visita fixada~\cite{tpp-dror-2003}.
+O TPP apresenta variantes de dificuldade bastante distinta. Quando os polígonos são convexos e disjuntos, o problema admite solução exata em tempo polinomial: Dror et al.~\cite{tpp-dror-2003} apresentam um algoritmo de complexidade~\(O(nk\log(n/k))\), onde~\(n\) é o número total de vértices. Quando os polígonos podem ser não convexos, o problema torna-se NP-difícil, mesmo com a ordem de visita fixada~\cite{tpp-dror-2003}.
 
-Este relatório cobre o primeiro período da bolsa, dedicado ao estudo e implementação do caso convexo disjunto, que é o mais simples e serve de base para as etapas seguintes do projeto. Estudou-se em detalhe o algoritmo de Dror et al.~\cite{tpp-dror-2003}, baseado nas estruturas de região de primeiro contato e mapa de último passo. O algoritmo foi implementado em C++23 com busca binária para localização de pontos nos mapas de último passo, atingindo a complexidade~\(O(nk\log(n/k))\) prevista no artigo original. Realizaram-se experimentos computacionais para verificar o comportamento assintótico e comparar variantes da implementação. Desenvolveu-se também uma ferramenta de visualização interativa que permite inspecionar instâncias, soluções e mapas de último passo.
+Este relatório cobre os 2 primeiros meses da bolsa, dedicados ao estudo e implementação do caso convexo disjunto, que é o mais simples e serve de base para as etapas seguintes do projeto. Estudamos em detalhe o algoritmo de Dror et al.~\cite{tpp-dror-2003}, baseado nas estruturas de região de primeiro contato e mapa de último passo. Implementamos o algoritmo em C++23 com busca binária para localização de pontos nos mapas de último passo, atingindo a complexidade~\(O(nk\log(n/k))\) prevista no artigo original. Realizamos experimentos computacionais para verificar o comportamento assintótico e comparar variantes da implementação. Desenvolvemos também uma ferramenta de visualização interativa que permite inspecionar instâncias, soluções e mapas de último passo.
 
 O restante deste relatório está organizado da seguinte forma. A Seção~\ref{sec:convex_tpp} apresenta a definição formal do problema, as estruturas centrais do algoritmo e sua implementação, juntamente com a análise de complexidade e os experimentos computacionais. A Seção~\ref{sec:visualizer} descreve a ferramenta de visualização desenvolvida. Por fim, a Seção~\ref{sec:proximos_passos} descreve o plano de atividades para o próximo período.
 
 \section{O Problema de Visita de Polígonos Convexos Disjuntos}
 \label{sec:convex_tpp}
 
-Considera-se o TPP na variante em que os polígonos são convexos e disjuntos. Utilizam-se tanto a formulação quanto a solução apresentadas em~\cite{tpp-dror-2003} como base para a implementação desenvolvida. O problema é definido formalmente a seguir:
+Consideramos o TPP na variante em que os polígonos são convexos e disjuntos. Utilizamos tanto a formulação quanto a solução apresentadas em~\cite{tpp-dror-2003} como base para a implementação desenvolvida. O problema é definido formalmente a seguir:
 
 \begin{blockQuote}
 {\large \textbf{TPP Convexo Disjunto:}} Dados pontos~\(s, t \in \mathbb{R}^2\) e uma sequência de polígonos convexos disjuntos~\(P_1, \dots, P_k\), determinar pontos~\(p_i \in P_i\) para~\(i = 1, 2, \dots, k\) de forma que o caminho que parte de~\(s\), passa por~\(p_1, \dots, p_k\) e termina em~\(t\) possua comprimento mínimo na norma Euclidiana.
@@ -205,7 +188,7 @@ Considera-se o TPP na variante em que os polígonos são convexos e disjuntos. U
 
 As definições e propriedades a seguir são baseadas em~\cite{tpp-dror-2003}. Supõe-se que um polígono é representado por uma sequência de vértices em sentido anti-horário, e que~\(P_0 = \{s\}\) e~\(P_{k+1} = \{t\}\). 
 
-Utiliza-se o operador~\(\times\) para denotar o produto vetorial em~\(\mathbb{R}^2\): para dois vetores~\(a = (a_x, a_y)\) e~\(b = (b_x, b_y)\), define-se~\(a \times b = a_x b_y - a_y b_x\). Note que~\(a \times b > 0\) se~\(b\) está à esquerda de~\(a\), e~\(a \times b < 0\) se~\(b\) está à direita de~\(a\).
+Utilizamos o operador~\(\times\) para denotar o produto vetorial em~\(\mathbb{R}^2\): para dois vetores~\(a = (a_x, a_y)\) e~\(b = (b_x, b_y)\), define-se~\(a \times b = a_x b_y - a_y b_x\). Note que~\(a \times b > 0\) se~\(b\) está à esquerda de~\(a\), e~\(a \times b < 0\) se~\(b\) está à direita de~\(a\).
 
 \begin{description}
 
@@ -285,7 +268,7 @@ Dado um ponto~\(p \in \mathbb{R}^2\) e o mapa~\(S_i\), é possível determinar o
 
 \subsection{O Algoritmo}
 
-O algoritmo opera em duas fases. Na primeira, para cada~\(i = 1, \dots, k\), calcula-se~\(T_i\) e em seguida~\(S_i\), usando os mapas já computados. Na segunda, consulta-se o~\(k\)-path até~\(t\). A seguir, detalha-se cada etapa.
+O algoritmo opera em duas fases. Na primeira, para cada~\(i = 1, \dots, k\), calcula-se~\(T_i\) e em seguida~\(S_i\), usando os mapas já computados. Na segunda, consulta-se o~\(k\)-path até~\(t\). A seguir, detalhamos cada etapa.
 
 \subsubsection{Região de Primeiro Contato}
 
@@ -353,7 +336,8 @@ onde~\(\cdot\) denota o produto interno em~\(\mathbb{R}^2\). Esse cálculo é im
 
 \subsubsection{Localização de Pontos e Busca Binária}
 
-Com~\(S_i\) calculado, o passo central é localizar um ponto~\(p \in \mathbb{R}^2\) no mapa~\(S_i\). Descreve-se a seguir como realizar cada verificação em tempo~\(O(1)\).
+Com~\(S_i\) calculado, o passo central é localizar um ponto~\(p \in \mathbb{R}^2\) no mapa~\(S_i\). Descrevemos a seguir como realizar cada verificação em tempo~\(O(1)\).
+
 \paragraph{Região de vértice.} Seja~\(v\) um vértice com raios associados~\((r^1, r^2)\) em~\(S_i\). O ponto~\(p\) pertence à região de~\(v\) se está no cone definido por~\(v\) e pelos raios~\(r^1\) e~\(r^2\) em sentido anti-horário. Se o ângulo de abertura é inferior a~\(180^\circ\) (\(r^1 \times r^2 \ge 0\)), exige-se~\(r^1 \times (p - v) > 0\) e~\(r^2 \times (p - v) < 0\); caso contrário (\(r^1 \times r^2 < 0\)), basta uma das duas condições.
 
 \paragraph{Região de aresta.} Seja~\(e = \overline{uv}\) uma aresta de~\(T_i\), com~\(r^1\) o segundo raio de~\(u\) e~\(r^2\) o primeiro raio de~\(v\) em~\(S_i\). O ponto~\(p\) pertence à região de~\(e\) se e somente se:
@@ -438,7 +422,7 @@ Com essa ferramenta, aplica-se busca binária sobre os vértices de~\(P_i\): man
 \subsubsection{Consulta ao Caminho}
 \label{sec:query}
 
-Com \texttt{LocalizaPonto} definido, pode-se implementar \texttt{ConsultaÚltimoPasso} e \texttt{ConsultaCaminho}. Ambas operam recursivamente sobre os mesmos três casos: se~\(p\) está em uma região de vértice~\(v\), o~\(i\)-path até~\(p\) é o~\((i-1)\)-path até~\(v\) seguido de~\(\overline{vp}\); se está em uma região de aresta~\(e = \overline{uv}\), reflete-se~\(p\) em relação à reta que contém~\(e\) obtendo~\(p'\), calcula-se o~\((i-1)\)-path até~\(p'\) e toma-se a interseção do último segmento com~\(e\) como ponto de contato; se está na região de atravessar, o~\(i\)-path até~\(p\) coincide com o~\((i-1)\)-path até~\(p\).
+Com \texttt{LocalizaPonto} definido, podemos implementar \texttt{ConsultaÚltimoPasso} e \texttt{ConsultaCaminho}. Ambas operam recursivamente sobre os mesmos três casos: se~\(p\) está em uma região de vértice~\(v\), o~\(i\)-path até~\(p\) é o~\((i-1)\)-path até~\(v\) seguido de~\(\overline{vp}\); se está em uma região de aresta~\(e = \overline{uv}\), reflete-se~\(p\) em relação à reta que contém~\(e\) obtendo~\(p'\), calcula-se o~\((i-1)\)-path até~\(p'\) e toma-se a interseção do último segmento com~\(e\) como ponto de contato; se está na região de atravessar, o~\(i\)-path até~\(p\) coincide com o~\((i-1)\)-path até~\(p\).
 
 A distinção entre as duas funções é que \texttt{ConsultaÚltimoPasso} retorna apenas o ponto que precede~\(p\) no~\(i\)-path, sem reconstruir o caminho completo. Isso permite uma otimização importante: no caso de região de vértice,~\(v\) é imediatamente o ponto predecessor, sem necessidade de recursão adicional. Essa função é usada pelos Algoritmos~\algref{alg:first_contact_region} e~\algref{alg:last_step_map}, que precisam apenas do último passo e não do caminho completo. Ambas as funções estão implementadas no Algoritmo~\algref{alg:query}.
 
@@ -498,7 +482,7 @@ O algoritmo completo para o TPP Convexo itera sobre os polígonos calculando~\(T
 
 Adota-se a seguinte notação: seja~\(|P_i|\) o número de vértices do polígono~\(P_i\), seja~\(k\) o número de polígonos e~\(n = \sum_{i=1}^{k} |P_i|\) o número total de vértices.
 
-Analisa-se a complexidade de cada componente do algoritmo, de baixo para cima.
+Analisamos a complexidade de cada componente do algoritmo, de baixo para cima.
 
 \begin{description}
 
@@ -530,11 +514,11 @@ que coincide com a complexidade apresentada por Dror et al.~\cite{tpp-dror-2003}
 
 \subsection{Experimentos Computacionais}
 
-Os experimentos foram conduzidos em um MacBook Pro com chip Apple M4 Pro (12 núcleos, sendo 8 de desempenho e 4 de eficiência) e 24 GB de memória. O código foi compilado com GCC 15.2.0 usando C++23 e otimização~\texttt{-O3}. Para acelerar a execução dos testes, utilizou-se paralelismo via OpenMP, porém os tempos registrados correspondem à execução sequencial de cada instância individualmente.
+Os experimentos foram conduzidos em um MacBook Pro com chip Apple M4 Pro (12 núcleos, sendo 8 de desempenho e 4 de eficiência) e 24 GB de memória. O código foi compilado com GCC 15.2.0 usando C++23 e otimização~\texttt{-O3}. Para acelerar a execução dos testes, utilizamos paralelismo via OpenMP, porém os tempos registrados correspondem à execução sequencial de cada instância individualmente.
 
-O objetivo dos experimentos é verificar que o comportamento assintótico do algoritmo está de acordo com a complexidade~\(O(nk\log(n/k))\) prevista pela análise teórica. Utilizaram-se instâncias sintéticas com~\(k\) polígonos regulares de~\(m\) vértices cada, dispostos de forma que todo ponto de~\(P_i\) esteja na região de atravessar de~\(P_j\) para todo~\(j < i\), representando o pior caso do algoritmo. Nessa configuração,~\(n = mk\) e a complexidade teórica é~\(O(m\log(m) \cdot k^2)\).
+O objetivo dos experimentos é verificar que o comportamento assintótico do algoritmo está de acordo com a complexidade~\(O(nk\log(n/k))\) prevista pela análise teórica. Utilizamos instâncias sintéticas com~\(k\) polígonos regulares de~\(m\) vértices cada, dispostos de forma que todo ponto de~\(P_i\) esteja na região de atravessar de~\(P_j\) para todo~\(j < i\), representando o pior caso do algoritmo. Nessa configuração,~\(n = mk\) e a complexidade teórica é~\(O(m\log(m) \cdot k^2)\).
 
-Realizaram-se dois experimentos. No primeiro, fixou-se~\(m \in \{5, 50\}\) e variou-se~\(k\) de~\(1\) até~\(3000\), com~\(300\) medições uniformemente espaçadas. Para cada valor de~\(m\), ajustou-se um modelo da forma~\(c_0 + c_1 k + c_2 k^2\) aos dados de tempo de execução por mínimos quadrados; a curva ajustada é exibida junto com os dados na Figura~\ref{fig:plt_vs_k}. Os resultados mostram que o tempo de execução cresce de forma quadrática em~\(k\), conforme previsto.
+Realizamos dois experimentos. No primeiro, fixamos~\(m \in \{5, 50\}\) e variamos~\(k\) de~\(1\) até~\(3000\), com~\(300\) medições uniformemente espaçadas. Para cada valor de~\(m\), ajustamos um modelo da forma~\(c_0 + c_1 k + c_2 k^2\) aos dados de tempo de execução por mínimos quadrados; a curva ajustada é exibida junto com os dados na Figura~\ref{fig:plt_vs_k}. Os resultados mostram que o tempo de execução cresce de forma quadrática em~\(k\), conforme previsto.
 
 \begin{figure}[!ht]
 	\centering
@@ -570,12 +554,12 @@ Realizaram-se dois experimentos. No primeiro, fixou-se~\(m \in \{5, 50\}\) e var
 	\label{fig:plt_vs_m}
 \end{figure}
 
-No segundo experimento, fixou-se~\(k \in \{5, 20\}\) e variou-se~\(m\) de~\(3\) até~\(40000\), com~\(400\) medições uniformemente espaçadas. Para cada valor de~\(k\), ajustou-se um modelo da forma~\(c_0 + c_1(n+k) + c_2 nk + c_3 nk\log(n/k)\) por mínimos quadrados; a curva ajustada é exibida na Figura~\ref{fig:plt_vs_m}. As curvas têm aspecto aproximadamente linear, o que é esperado: o fator~\(\log(m)\) varia apenas de~\(\log(3) \approx 1{,}6\) a~\(\log(40000) \approx 10{,}6\) na faixa considerada, uma variação de apenas~\(6\times\) em uma escala de~\(40000\times\), tornando-o imperceptível visualmente. O ajuste do modelo polilogarítmico confirma, no entanto, que os coeficientes são consistentes com a complexidade teórica.
+No segundo experimento, fixamos~\(k \in \{5, 20\}\) e variamos~\(m\) de~\(3\) até~\(40000\), com~\(400\) medições uniformemente espaçadas. Para cada valor de~\(k\), ajustamos um modelo da forma~\(c_0 + c_1(n+k) + c_2 nk + c_3 nk\log(n/k)\) por mínimos quadrados; a curva ajustada é exibida na Figura~\ref{fig:plt_vs_m}. As curvas têm aspecto aproximadamente linear, o que é esperado: o fator~\(\log(m)\) varia apenas de~\(\log(3) \approx 1{,}6\) a~\(\log(40000) \approx 10{,}6\) na faixa considerada, uma variação de apenas~\(6\times\) em uma escala de~\(40000\times\), tornando-o imperceptível visualmente. O ajuste do modelo polilogarítmico confirma, no entanto, que os coeficientes são consistentes com a complexidade teórica.
 
 \section{Ferramenta de Visualização}
 \label{sec:visualizer}
 
-Como parte do trabalho desenvolvido neste período, implementou-se uma ferramenta de visualização interativa para o TPP, disponível em \url{https://yushipy.github.io/PersonalPage/Visualizer/index.html}. A ferramenta permite construir instâncias do problema diretamente no navegador, definir os pontos~\(s\) e~\(t\), editar polígonos e acionar o algoritmo para computar o caminho ótimo.
+Como parte do trabalho desenvolvido neste período, implementamos uma ferramenta de visualização interativa para o TPP, disponível em \url{https://yushipy.github.io/PersonalPage/Visualizer/index.html}. A ferramenta permite construir instâncias do problema diretamente no navegador, definir os pontos~\(s\) e~\(t\), editar polígonos e acionar o algoritmo para computar o caminho ótimo.
 
 Para instâncias com polígonos convexos, é possível exibir o mapa de último passo do polígono selecionado, colorindo as regiões de vértice em vermelho, as regiões de aresta em verde e a região de atravessar em ciano. A Figura~\ref{fig:visualizer} apresenta uma captura de tela da ferramenta com uma instância de exemplo.
 
@@ -586,19 +570,19 @@ Para instâncias com polígonos convexos, é possível exibir o mapa de último 
 	\label{fig:visualizer}
 \end{figure}
 
-A ferramenta foi projetada para acompanhar o desenvolvimento do projeto: à medida que o suporte ao caso não convexo for implementado nas etapas seguintes, a visualização será estendida para cobrir essas instâncias. No momento da escrita deste relatório, instâncias com polígonos não convexos desativam automaticamente a exibição dos mapas de último passo. Uma documentação detalhada das funcionalidades está disponível em \url{https://yushipy.github.io/PersonalPage/Visualizer/tpp-info.html#toolbar}.
+A ferramenta foi projetada para acompanhar o desenvolvimento do projeto: à medida que implementarmos o suporte ao caso não convexo nas etapas seguintes, estenderemos a visualização para cobrir essas instâncias. No momento da escrita deste relatório, instâncias com polígonos não convexos desativam automaticamente a exibição dos mapas de último passo. Uma documentação detalhada das funcionalidades está disponível em \url{https://yushipy.github.io/PersonalPage/Visualizer/tpp-info.html#toolbar}.
 
 \section{Plano de Atividades para o Próximo Período}
 \label{sec:proximos_passos}
 
-O próximo período será dedicado ao TPP não convexo com ordem fixa, que é NP-difícil~\cite{tpp-dror-2003}. A abordagem planejada consiste em decompor cada polígono não convexo em peças convexas, usando o algoritmo de Greene~\cite{cpd-greene-1983} disponível na biblioteca CGAL~\cite{cgal}, e aplicar o algoritmo desenvolvido neste período a cada combinação possível de peças, explorando técnicas de Branch and Bound para tornar essa busca tratável na prática.
+Dedicaremos o próximo período ao TPP não convexo com ordem fixa, que é NP-difícil~\cite{tpp-dror-2003}. A abordagem planejada consiste em decompor cada polígono não convexo em peças convexas, usando o algoritmo de Greene~\cite{cpd-greene-1983} disponível na biblioteca CGAL~\cite{cgal}, e aplicar o algoritmo desenvolvido neste período a cada combinação possível de peças, explorando técnicas de Branch and Bound para tornar essa busca tratável na prática.
 
 As atividades previstas são as seguintes:
 
 \begin{enumerate}
 	\item Integrar a decomposição convexa de polígonos não convexos via algoritmo de Greene~\cite{cpd-greene-1983}, disponível na biblioteca CGAL~\cite{cgal}.
 
-	\item Formular e implementar o algoritmo de Branch and Bound para o TPP não convexo. Cada nó da árvore de busca atribui uma peça convexa a cada polígono; o lower bound é obtido resolvendo o TPP convexo com os convex hulls dos polígonos ainda não atribuídos.
+	\item Formular e implementar o algoritmo de Branch and Bound para o TPP não convexo. Cada nó da árvore de busca atribui uma peça convexa a cada polígono; o limitante inferior é obtido substituindo os polígonos ainda não atribuídos pelos seus cascos convexos e resolvendo o TPP convexo resultante, o que mantém o cálculo do limitante em tempo polinomial em cada nó.
 
 	\item Calcular uma solução inicial de boa qualidade para inicializar o Branch and Bound, reduzindo o espaço de busca explorado.
 
@@ -609,7 +593,7 @@ As atividades previstas são as seguintes:
 	\item Realizar experimentos computacionais para avaliar o desempenho do Branch and Bound em instâncias de diferentes tamanhos e características.
 \end{enumerate}
 
-Paralelamente, será submetida à FAPESP uma solicitação de bolsa BEPE para dar continuidade ao projeto em estágio de pesquisa no exterior. A proposta prevê uma visita de quatro meses à Université Laval, no Canadá, sob supervisão do Prof.\ Leandro Callegari Coelho, cujo grupo de pesquisa possui ampla experiência em métodos exatos para problemas de roteamento de veículos. O foco da etapa no exterior será o TPP sem ordem fixa de visita, variante NP-difícil que generaliza o TPP não convexo e equivale ao problema de roteamento de veículo único com vizinhanças poligonais não convexas.
+Paralelamente, submeteremos à FAPESP uma solicitação de bolsa BEPE para dar continuidade ao projeto em estágio de pesquisa no exterior. A proposta prevê uma visita de quatro meses à Université Laval, no Canadá, sob supervisão do Prof.\ Leandro Callegari Coelho, cujo grupo de pesquisa possui ampla experiência em métodos exatos para problemas de roteamento de veículos. O foco da etapa no exterior será o TPP sem ordem fixa de visita, variante NP-difícil que generaliza o TPP não convexo e resolve o problema de roteamento de veículo único com vizinhanças poligonais não convexas.
 
 \bibliographystyle{plain}
 \bibliography{referencias}
