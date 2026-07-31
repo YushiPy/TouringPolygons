@@ -1,0 +1,483 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{authblk}
+\usepackage{float}
+\usepackage{graphicx}
+\usepackage{hyperref}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{observation}{Observation}
+
+\title{Efficient Algorithms for Touring a Sequence\\ of Convex Polygons and Related Problems}
+\author[2]{Xuehou Tan\thanks{Corresponding author.}}
+\author[1]{Bo Jiang}
+\affil[1]{Dalian Maritime University, Linghai Road 1, Dalian, China}
+\affil[2]{Tokai University, 4-1-1 Kitakaname, Hiratsuka 259-1292, Japan \\ \texttt{tan@wing.ncc.u-tokai.ac.jp}}
+\date{TAMC 2017, LNCS 10185, pp.\ 614--627, DOI: 10.1007/978-3-319-55911-7\_44}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Given a sequence of ~\(k\) convex polygons in the plane, a start point ~\(s\), and a target point ~\(t\), we seek a shortest path that starts at ~\(s\), visits in order each of the polygons, and ends at ~\(t\).
+This paper describes a simple method to compute the so-called last step shortest path maps, which were developed to solve this touring polygons problem by Dror et al.\ (STOC'2003).
+A major simplification is to avoid the (previous) use of point location algorithms.
+We obtain an ~\(O(kn)\) time solution to the problem for a sequence of disjoint convex polygons and an ~\(O(k^2n)\) time solution for possibly intersecting convex polygons, where ~\(n\) is the total number of vertices of all polygons.
+Our results improve upon the previous time bounds roughly by a factor of ~\(\log n\).
+
+Our new method can be used to improve the running times of two classic problems in computational geometry.
+We then describe an ~\(O(n(k+\log n))\) time solution to the safari problem and an ~\(O(n^3)\) time solution to the watchman route problem, respectively.
+The last step shortest path maps are further modified, so as to meet a new requirement that the shortest paths between a pair of consecutive convex polygons be contained in another bounding simple polygon.
+\end{abstract}
+
+\noindent \emph{The work by Tan was partially supported by JSPS KAKENHI Grant Number 15K00023, and the work by Jiang was partially supported by National Natural Science Foundation of China under grant 61173034.}
+
+\section{Introduction}
+
+Shortest paths are of fundamental importance in computational geometry, robotics and autonomous navigation.
+The touring polygons problem, introduced by Dror et al.~\cite{ref6}, is defined as follows.
+Suppose that we are given a start point ~\(s = P_0\), a target point ~\(t = P_{k+1}\), and a sequence of ~\(k\) possibly intersecting polygons ~\(P_1, P_2, \ldots, P_k\) in the plane.
+The objective is to compute a shortest path that begins at ~\(s\), visits ~\(P_1, P_2, \ldots, P_k\), in that order, and finally arrives at ~\(t\).
+See Figure~\ref{fig:touring}.
+
+\begin{figure}[H]
+	\centering
+	\fbox{\parbox{0.75\textwidth}{\centering \vspace{1.8cm} (Original figure: a sequence of convex polygons ~\(P_1, \ldots, P_5\) touring from ~\(s\) to ~\(t\).) \vspace{1.8cm}}}
+	\caption{Touring a sequence of convex polygons.}
+	\label{fig:touring}
+\end{figure}
+
+The touring polygons problem has been well studied in the literature~\cite{ref8}.
+If the given polygons are disjoint and convex, the shortest touring polygons path can be computed in ~\(O(kn\log(n/k))\) time~\cite{ref6}, where ~\(n\) is the total number of vertices of all polygons.
+This simplest variant is related to the well-known safari problem, in which all convex polygons are placed in the interior of a given polygon ~\(P\) and have a common edge with ~\(P\)~\cite{ref12}.
+In the case that the convex polygons are arbitrarily intersecting, the problem can be solved in ~\(O(nk^2\log n)\) time~\cite{ref6}.
+If the given polygons are not convex, the touring polygons problem is NP-hard~\cite{ref1}.
+
+The solution of the touring polygons problem finds applications in many fundamental geometric problems, including the parts cutting problem, the safari problem, the zoo-keeper problem and the watchman route problem; these problems involve finding a shortest path, within some constrained region, which visits a set of convex polygons in an order that is given, or can be computed.
+See~\cite{ref2,ref5,ref6,ref11,ref12,ref13,ref14,ref15}.
+The touring polygons problem is also related to the problem of finding the shortest path between two given points among polyhedral obstacles in three dimensions~\cite{ref6,ref8}.
+
+\paragraph{Previous work.}
+A shortest touring path starting at ~\(s\) either goes through a polygon ~\(P_i\) (~\(1 \le i \le k\)) or reflects on some edge of ~\(P_i\), before it reaches ~\(t\).
+In the case that all given polygons are convex, local optimality of a path implies global optimality~\cite{ref6}.
+To give an efficient solution, Dror et al.\ showed that the plane can be partitioned into regions such that the last steps of the shortest touring paths from ~\(s\) to all points in one region are combinatorially equivalent~\cite{ref6}.
+The location of the target point ~\(t\) in the subdivision of the plane (i.e., finding the region that contains ~\(t\)) then tells us the information on the last step of the shortest touring path.
+This data structure is termed the last step shortest path map.
+
+The touring polygons problem is then solved using dynamic programming~\cite{ref6}.
+The last step shortest path maps are computed iteratively, one for each of the ~\(k\) polygons, in the order that they are given.
+The shortest touring path to a vertex ~\(v\) of ~\(P_{i+1}\) (~\(0 \le i \le k\)), which visits ~\(P_1, \ldots, P_i\) in order, can be computed by performing ~\(i\) point location queries in the last step shortest path maps for the previous polygons ~\(P_i, \ldots, P_1\).
+To efficiently answer a point location query (roughly in ~\(O(\log n)\) time), the last step shortest path map for a polygon ~\(P_j\) (~\(j \le i\)) is saved in a point location data structure~\cite{ref6}.
+
+Although the solution for disjoint convex polygons is simple, the other three known algorithms (for possibly intersecting polygons, the safari problem and the watchman route problem) are quite complicated and not easy to be understood (e.g., a last step shortest path map consists of three data structures: ~\(S^R\), ~\(S^F\) and ~\(S^A\))~\cite{ref6}.
+It may be because they are obtained as by-products of a more general touring problem, in which intersecting polygons are allowed and the shortest paths between a pair of consecutive polygons are limited to a polygonal region.
+
+\paragraph{Our work.}
+A deep observation made in this paper is that instead of performing the locations of the vertices of ~\(P_{i+1}\) in the last step shortest path map for a polygon ~\(P_j\) (~\(j \le i\)) independently, we can do them together.
+Since all given polygons are convex, locating the vertices of ~\(P_{i+1}\) in a previous map can be handled by a constant number of traversals of that map.
+Hence, the point location data structure is not needed at all.
+This simple method does decrease the time complexities of all considered algorithms, roughly by a factor of ~\(\log n\).
+Although this improvement is small, as only elementary computations are needed, our algorithms are quite simple and easy to implement.
+Also, we apply our new method to the safari and watchman route problems, and obtain improved solutions to them.
+
+The rest of this paper is organized as follows.
+Section~\ref{sec:local-optimality} defines three types of contact of a shortest touring polygons path with an edge of a polygon.
+In Section~\ref{sec:disjoint}, we describe how to construct the last step shortest path maps and give an ~\(O(kn)\) time solution to the touring problem for disjoint convex polygons.
+To deal with the general case of possibly intersecting polygons, it requires computing and distinguishing the intersection points among the boundaries of the polygons.
+In Section~\ref{sec:intersecting}, an ~\(O(k^2n)\) time solution is further presented for the intersecting polygons.
+In Section~\ref{sec:applications}, the applications of our new method to the watchman route problem and the safari problem are given.
+For these two problems, we further modify the shortest touring path maps so as to meet a new requirement that the shortest paths between a pair of consecutive convex polygons be contained in another bounding simple polygon.
+Our data structures are much simpler and essentially differ from that of Dror et al.\ (STOC'2003).
+Concluding remarks are given in Section~\ref{sec:conclusions}.
+
+\section{Local Optimality of Shortest Touring Polygons Paths}
+\label{sec:local-optimality}
+
+Assume that all given polygons ~\(P_1, P_2, \ldots, P_k\) are convex, and the start point ~\(s\) and the target point ~\(t\) are outside of ~\(P_1\) and ~\(P_k\) respectively; otherwise, ~\(P_1\) or/and ~\(P_k\) needn't be considered.
+Also, we denote by ~\(|P_i|\) the number of vertices of ~\(P_i\), and let ~\(n = \sum_1^k |P_i|\).
+We will simply call a touring polygons path, a touring path.
+Let ~\(P_0 = s\) and ~\(P_{k+1} = t\).
+Denote by ~\(T_{\mathrm{opt}}\) a shortest touring path for the given polygons ~\(P_0, P_1, \ldots, P_k, P_{k+1}\).
+
+Suppose that ~\(T_{\mathrm{opt}}\) visits in order the edges ~\(e_1, e_2, \ldots, e_k\), ~\(e_i \in P_i\) and ~\(1 \le i \le k\).
+Note that local optimality of ~\(T_{\mathrm{opt}}\) with respect to edge ~\(e_i\) (~\(1 \le i \le k\)) is equivalent to global optimality~\cite{ref6,ref12}.
+Let us consider the contact point ~\(c_i\) of ~\(T_{\mathrm{opt}}\) with the edge ~\(e_i\), after ~\(T_{\mathrm{opt}}\) visits ~\(P_1, P_2, \ldots, P_{i-1}\).
+If ~\(T_{\mathrm{opt}}\) goes across ~\(P_i\), then we consider ~\(c_i\) as the second intersection point of the boundary of ~\(P_i\) with ~\(T_{\mathrm{opt}}\), and thus ~\(T_{\mathrm{opt}}\) reaches the point ~\(c_i\) from the interior of ~\(P_i\) (see Figure~\ref{fig:contacttypes}(c)).
+The point ~\(c_i\) occurs in one of the following situations:
+
+\begin{enumerate}
+	\item \textbf{Perfect reflection contacts:} ~\(T_{\mathrm{opt}}\) reflects on ~\(e_i\) at an interior point ~\(c_i\) of ~\(e_i\) such that the incoming angle of ~\(T_{\mathrm{opt}}\) with the reflected edge ~\(e_i\) is equal to the outgoing angle. See Figure~\ref{fig:contacttypes}(a). So, the reflection of the incoming segment of ~\(T_{\mathrm{opt}}\), with respect to the line through ~\(e_i\), is collinear to its outgoing segment. In Figure~\ref{fig:contacttypes}(a), the point ~\(a'\) is the reflection of ~\(a\), which is obtained by reflecting ~\(a\) across the line (considered as a mirror) through ~\(e_i\). This operation is called the unfolding of the point ~\(a\) with respect to edge ~\(e_i\).
+	\item \textbf{Bending contacts:} ~\(T_{\mathrm{opt}}\) bends at a polygon vertex ~\(c_i\), see Figure~\ref{fig:contacttypes}(b).
+	\item \textbf{Crossing contacts:} A line segment of ~\(T_{\mathrm{opt}}\) passes the edge ~\(e_i\) through an interior point ~\(c_i\) of ~\(e_i\), see Figure~\ref{fig:contacttypes}(c).
+\end{enumerate}
+
+\begin{figure}[H]
+	\centering
+	\fbox{\parbox{0.85\textwidth}{\centering \vspace{1.8cm} (Original figure: (a) perfect reflection contact, showing the unfolded point ~\(a'\) collinear with the outgoing segment ~\(b\); (b) bending contact at a polygon vertex ~\(c_i\); (c) crossing contact through the interior of ~\(P_i\).) \vspace{1.8cm}}}
+	\caption{Types of contact of ~\(T_{\mathrm{opt}}\) with an edge ~\(e_i\) of polygon ~\(P_i\).}
+	\label{fig:contacttypes}
+\end{figure}
+
+\section{An ~\(O(kn)\) Algorithm for Touring ~\(k\) Disjoint Polygons}
+\label{sec:disjoint}
+
+In this section, we describe a new method to construct the last step shortest path maps, without invoking any point location algorithm.\footnote{The authors have to point out an unhappy thing. The result (algorithm) obtained in this section was once given in \emph{The Open Automation and Control Systems Journal}, 2015, 7, pp.\ 1364--1368, mainly by a student of the second author, without permission from the authors of this paper. Needless to say more, that paper (titled ``A new algorithm for the shortest path of touring disjoint convex polygons'') had been RETRACTED.}
+We will also consider each polygon vertex as a target point, and call the path from ~\(s\) to a vertex of ~\(P_i\), a partial touring path if it visits in order each of the polygons ~\(P_1, \ldots, P_{i-1}\).
+The last step shortest path map for ~\(P_i\), denoted by ~\(M_i\), is a subdivision of the plane, excluding the interior of ~\(P_i\), into regions such that the shortest partial touring paths to all the points in a region visit the same edge or vertex of ~\(P_i\).
+In the following, if a path from ~\(s\) is said to be extended, it means that the last line segment of the path is extended to infinity, starting from the ending point of the path.
+
+\begin{observation}
+\label{obs:necessary}
+A necessary condition for ~\(T_{\mathrm{opt}}\) to make a perfect reflection (resp.\ crossing) contact with an edge ~\(e\) of ~\(P_i\) is that the shortest touring path from ~\(s\) to any point of ~\(e\) does not intersect (resp.\ intersects) the interior of ~\(P_i\).
+\end{observation}
+
+Suppose that all given polygons are disjoint.
+Consider the first map ~\(M_1\).
+For an edge ~\(e\) of ~\(P_1\), we first find the shortest paths from ~\(s\) to two vertices of ~\(e\).
+From these two shortest paths, one can easily determine whether ~\(T_{\mathrm{opt}}\) may make a perfect reflection contact with ~\(e\), or ~\(T_{\mathrm{opt}}\) may go across ~\(e\) (Observation~\ref{obs:necessary}).
+If ~\(T_{\mathrm{opt}}\) may go across ~\(e\), the portion of ~\(M_1\) for ~\(e\) is a crossing region, which is bounded by ~\(e\) and the rays that emanate from two vertices of ~\(e\) along the extensions of the shortest paths (line segments) from ~\(s\) to them.
+Clearly, the defining edges for all crossing regions form a continuous chain on the boundary of ~\(P_1\).
+In Figure~\ref{fig:disjointmaps}(a), the crossing regions of the edges from ~\(e_3\) to ~\(e_7\) are shown.
+If ~\(T_{\mathrm{opt}}\) may reflect on ~\(e\), the portion of ~\(M_1\) for ~\(e\) consists of a reflection region and two bending regions, one per vertex.
+The reflection region is bounded by ~\(e\) and the two rays, which form perfect reflections on ~\(e\) with the incoming segments of the shortest paths from ~\(s\) to the vertices of ~\(e\).
+Denote by ~\(v\) the common vertex of edge ~\(e\) with the other edge ~\(e'\).
+The bending region of ~\(v\) is then the triangular region, with the apex at ~\(v\), bounded by the two rays that emanate from ~\(v\) and are used in defining the reflection region of ~\(e\) and the reflection or crossing region of ~\(e'\).
+(The bending regions of some vertices may be defined twice, but it can easily be handled.)
+In Figure~\ref{fig:disjointmaps}(a), the reflection regions and bending regions for ~\(e_1\) and ~\(e_2\) are shown.
+
+\begin{figure}[H]
+	\centering
+	\fbox{\parbox{0.85\textwidth}{\centering \vspace{2cm} (Original figure: last step shortest path maps for disjoint convex polygons. (a) The map ~\(M_1\) for ~\(P_1\), showing crossing regions for edges ~\(e_3\)--~\(e_7\) and reflection/bending regions for ~\(e_1\), ~\(e_2\). (b) The map ~\(M_2\) for ~\(P_1, P_2\), with a reflection illustrated via the point ~\(t'\), the reflection of the target ~\(t\) with respect to edge ~\(e\).) \vspace{2cm}}}
+	\caption{The last step shortest path maps for disjoint convex polygons.}
+	\label{fig:disjointmaps}
+\end{figure}
+
+The portion of ~\(M_1\) for an edge ~\(e\) consists of at most three regions of constant size, and can thus be constructed in constant time.
+So, ~\(M_1\) is of size ~\(O(|P_1|)\) and can be constructed in ~\(O(|P_1|)\) time.
+All regions of ~\(M_1\) form a plane subdivision, excluding the interior of ~\(P_1\), see Figure~\ref{fig:disjointmaps}(a).
+Moreover, the regions of the map ~\(M_1\) can be arranged into a circular order according to their defining edges/vertices on the boundary of ~\(P_1\).
+
+Assume now that the last step shortest path map ~\(M_i\) (~\(1 \le i < k\)) has been constructed.
+To construct the next map ~\(M_{i+1}\), we first describe how to compute the (unique) shortest partial touring path to a vertex ~\(v\) of ~\(P_{i+1}\)~\cite{ref6}.
+Suppose that the region of ~\(M_i\) containing ~\(v\) has been found.
+(The method of locating ~\(v\) in ~\(M_i\) will be given later.)
+We then distinguish the following three situations.
+
+\begin{description}
+	\item[Case 1.] ~\(v\) is contained in the bending region of a vertex ~\(u\). Clearly, the last portion of the shortest partial touring path to ~\(v\) is the line segment with the endpoints ~\(u\) and ~\(v\).
+	\item[Case 2.] ~\(v\) is contained in a crossing region. We recursively compute the shortest partial touring path to ~\(v\) by locating ~\(v\) in the map ~\(M_{i-1}\). In the case that ~\(v\) is located in the (empty) map ~\(M_0\), the shortest partial touring path to ~\(v\) is just the line segment having the endpoints ~\(v\) and ~\(s\).
+	\item[Case 3.] ~\(v\) is in a reflection region. Let ~\(v'\) be the reflection of the point ~\(v\) with respect to the line through the reflected edge, say, ~\(e\). We then recursively compute the shortest partial touring path to ~\(v'\) in ~\(M_{i-1}\): replacing the portion of the (currently) found path from the edge ~\(e\) to ~\(v'\) by the line segment from ~\(e\) to ~\(v\) gives the last segment of the shortest partial touring path to ~\(v\). See Figure~\ref{fig:disjointmaps}(b) for an example, where the point ~\(t'\) is obtained by reflecting the endpoint ~\(t\) on edge ~\(e\).
+\end{description}
+
+After the shortest partial touring paths to all vertices of ~\(P_{i+1}\) are computed, the reflection, crossing and bending regions of ~\(M_{i+1}\) can be defined analogously.
+Also, all the regions of ~\(M_{i+1}\) can be arranged into a circular order, and they form a plane subdivision, excluding the interior of ~\(P_{i+1}\).
+See Figure~\ref{fig:disjointmaps}(b) for an instance of ~\(M_2\).
+
+Let ~\(m\) denote the number of vertices of polygon ~\(P_{i+1}\), and ~\(p_j\) (~\(1 \le j \le m\)) a vertex of ~\(P_{i+1}\).
+Denote by ~\(q_{h,j}\), ~\(1 \le h \le i\), the (last) contact point of ~\(P_h\) with the shortest partial touring path to ~\(p_j\) in ~\(M_h\).
+
+\begin{lemma}
+\label{lem:xmonotone}
+The last contact points ~\(q_{h,1}, q_{h,2}, \ldots, q_{h,m}\) of ~\(P_h\) (~\(1 \le h \le i\)) with the shortest partial touring paths to all vertices of ~\(P_{i+1}\) form at most three ~\(x\)-monotone chains in ~\(M_h\).
+\end{lemma}
+
+\begin{proof}
+Let ~\(x\) and ~\(y\) be two adjacent vertices of ~\(P_{i+1}\).
+Consider the shortest partial touring paths to ~\(x\) and ~\(y\), which start at ~\(s\) and end at ~\(x\) and ~\(y\), respectively.
+The last steps of the two subpaths of them in the map ~\(M_h\) do not cross, due to subpath optimality.
+Since ~\(P_h\) is convex, the points ~\(q_{h,1}, q_{h,2}, \ldots, q_{h,m}\) then form two or three ~\(x\)-monotone chains, depending on whether or not the ~\(x\)-coordinate of ~\(q_{h,1}\) is the minimum or maximum among those of ~\(q_{h,1}, q_{h,2}, \ldots, q_{h,m}\).
+\end{proof}
+
+\begin{lemma}
+\label{lem:constructMi1}
+Given ~\(M_1, \ldots, M_i\), the map ~\(M_{i+1}\) can be constructed in time ~\(O\!\left(i|P_{i+1}| + \sum_{h=1}^i |P_h|\right)\).
+\end{lemma}
+
+\begin{proof}
+The computation of ~\(M_{i+1}\) requires visiting, in this order, the maps ~\(M_i, \ldots, M_1\).
+Locating in ~\(M_i\) the points ~\(q_{i+1,j}\) (i.e., the vertices ~\(p_j\) of ~\(P_{i+1}\)), ~\(1 \le j \le m\), can be done as follows.
+First, we locate a point, say, ~\(q_{i+1,1}\) in ~\(M_i\).
+From the found region, locating all other points ~\(q_{i+1,2}, \ldots, q_{i+1,m}\) in ~\(M_i\) can be done by a constant number of monotone scans (Lemma~\ref{lem:xmonotone}).
+The region containing ~\(q_{i+1,1}\) can be found in ~\(O(|P_i|)\) time.
+The total time required to locate ~\(q_{i+1,1}, q_{i+1,2}, \ldots, q_{i+1,m}\) in ~\(M_i\) is clearly ~\(O(|P_i| + |P_{i+1}|)\).
+This procedure is then recursively performed for ~\(M_h\), ~\(1 \le h < i\).
+Note that if a bending contact occurs in ~\(M_{h+1}\), the point ~\(q_{h+1,j}\) is then the bending vertex.
+If a crossing (reflection) contact occurs, then ~\(q_{h+2,j}\) (the reflection of ~\(q_{h+2,j}\)) can be used as ~\(q_{h+1,j}\), as they are in the same region of ~\(M_h\).
+Since ~\(M_i, \ldots, M_1\) are all visited, the lemma thus follows.
+\end{proof}
+
+Since ~\(\sum_{i=1}^k i|P_i| = O\!\left(k\left(\sum_{i=1}^k |P_i|\right)\right) = O(kn)\), all maps ~\(M_1, \ldots, M_k\) can be computed in ~\(O(kn)\) time.
+After ~\(M_k\) is found, we can report in time ~\(O(n)\) the shortest path from ~\(s\) to ~\(t\) that tours all polygons ~\(P_1, \ldots, P_k\).
+On the other hand, following from the circular property of the map ~\(M_i\) (~\(1 \le i \le k\)), a binary search can also be used to answer a point-in-region query in time ~\(O(\log|P_i|)\).
+Thus, for a given query point ~\(t\), we can report the shortest touring path to ~\(t\) in ~\(O(k\log(n/k))\) time~\cite{ref6}.
+Hence, we obtain the first result of this paper.
+
+\begin{theorem}
+\label{thm:disjoint}
+For the problem of touring a sequence of ~\(k\) disjoint convex polygons, a data structure of ~\(O(n)\) size can be built in time ~\(O(kn)\) such that the shortest touring path to any given point ~\(t\) can be reported in time ~\(O(n)\) or ~\(O(k\log(n/k))\), where ~\(n\) is the total number of vertices of the given polygons.
+\end{theorem}
+
+\section{Touring a Sequence of Possibly Intersecting Polygons}
+\label{sec:intersecting}
+
+Let us now extend the data structure developed in the previous section to the case of intersecting convex polygons.
+Without loss of generality, assume that no three (polygon) edges can intersect at the same point.
+Note that a vertex of ~\(P_i\) may be in the interior of ~\(P_{i+1}\), and the shortest touring path map for ~\(P_{i+1}\) is affected by the intersection points among previous polygons.
+These new situations need to be handled carefully.
+
+First, we compute the intersection points among all convex polygons.
+Clearly, the total number of edge intersections among all convex polygons is bounded by ~\(O(kn)\).
+All of these intersection points can simply be computed in time ~\(O(k^2n)\) or ~\(O(kn\log n)\).
+In our algorithm, we consider the intersection points between ~\(P_i\) and ~\(P_h\), ~\(h < i\), as the pseudo-vertices of ~\(P_i\), and the fragments of a polygon edge, which are introduced by the pseudo-vertices, as the pseudo-edges.
+Still, we denote by ~\(|P_i|\) the total number of the vertices and pseudo-vertices of ~\(P_i\), and ~\(M_i\) the shortest path touring map for ~\(P_i\), ~\(1 \le i \le k\).
+So, we have ~\(\sum_1^k |P_i| = O(kn)\).
+
+The first map ~\(M_1\) is the same as that constructed in Section~\ref{sec:disjoint}, except that the interior of ~\(P_1\) is now a crossing region of ~\(M_1\).
+This is because a portion of ~\(P_2\) may be in the interior of ~\(P_1\).
+Notice that the size of the crossing region ~\(P_1\) is ~\(|P_1|\), other than a constant.
+Clearly, the map ~\(M_1\) is a partition of the full plane.
+
+Suppose that the shortest touring path maps ~\(M_1, \ldots, M_i\) (~\(1 \le i < k\)) have been computed.
+Notice that the shortest partial touring path to a boundary point of ~\(P_i\) is unique, even in the case that the given polygons are arbitrarily intersecting~\cite{ref6}.
+We then compute the shortest partial touring paths to all vertices ~\(v\) of ~\(P_{i+1}\), including the pseudo-vertices.
+Since Observation~\ref{obs:necessary} also holds in this case, the reflection and crossing regions of ~\(M_{i+1}\) can analogously be computed for the pseudo-edges of ~\(P_{i+1}\).
+Also, the interior of ~\(P_{i+1}\) is a crossing region of ~\(M_{i+1}\).
+For the instance given in Figure~\ref{fig:intersectingmaps}(a), the map ~\(M_2\) is shown.
+(Clearly, the crossing regions of ~\(M_{i+1}\) for the pseudo-edges of a single edge can be merged.)
+
+\begin{figure}[H]
+	\centering
+	\fbox{\parbox{0.85\textwidth}{\centering \vspace{2cm} (Original figure: (a) the map ~\(M_2\) for intersecting polygons ~\(P_1, P_2\), showing merged crossing regions labeled ~\(A\) and ~\(B\). (b) The bending region of a pseudo-vertex ~\(j\) of ~\(P_{i+1}\), determined by ~\(P_h\), bounded by rays that form perfect reflections on ~\(P_h\) and ~\(P_{i+1}\).) \vspace{2cm}}}
+	\caption{Illustrating the maps for possibly intersecting polygons.}
+	\label{fig:intersectingmaps}
+\end{figure}
+
+The bending regions of the vertices of ~\(P_{i+1}\) can be computed analogously, too.
+However, a new treatment is needed for the pseudo-vertices.
+Let ~\(j\) be an intersection point of ~\(P_{i+1}\) and ~\(P_h\), ~\(1 \le h \le i\).
+The bending region of ~\(j\) exists only when (1) ~\(j\) is in the interiors of ~\(P_{h+1}, \ldots, P_i\), and (2) the shortest partial touring path to ~\(j\) does not intersect the interior of ~\(P_h\) nor ~\(P_{i+1}\).
+See Figure~\ref{fig:intersectingmaps}(b).
+The second condition comes from the fact that if ~\(T_{\mathrm{opt}}\) makes a bending contact at point ~\(j\), then its outgoing segment (away from ~\(j\)) in the bounding region of ~\(j\) cannot intersect the interiors of both ~\(P_h\) and ~\(P_{i+1}\); otherwise, ~\(T_{\mathrm{opt}}\) can be shortened by slightly sliding its contact point on the edge of either ~\(P_h\) or ~\(P_{i+1}\).
+Clearly, if the last segments of two shortest partial touring paths to ~\(j\) (in ~\(M_h\) and ~\(M_{i+1}\)) overlap each other, the conditions (1) and (2) are true.
+The bending region of ~\(j\) (if it exists) is bounded by the two rays which form perfect reflections with the last segment of the shortest partial touring path to ~\(j\), on the reflected edges of ~\(P_h\) and ~\(P_{i+1}\) respectively.
+By definitions of crossing and reflection regions, one of the regions adjacent to the bending region of ~\(j\) is the crossing region, and the other is the reflection region.
+See Figure~\ref{fig:intersectingmaps}(b).
+In summary, at most two pseudo-vertices of a polygon may have their (extreme) bending regions, and two reflection regions may be adjacent on a polygon edge, because of the non-existence of bounding regions of some pseudo-vertices (see Figure~\ref{fig:intersectingmaps}(a)).
+
+The time required to construct the map ~\(M_{i+1}\) is still ~\(O\!\left(i|P_{i+1}| + \sum_{h=1}^i |P_h|\right)\).
+This is because finding the ~\(P_{i+1}\)'s vertices that are in the interior (i.e., the crossing region) of a polygon ~\(P_h\) can be done in ~\(O(|P_h| + |P_{i+1}|)\) time, as the intersection points between ~\(P_h\) and ~\(P_{i+1}\) have been precomputed.
+Also, since we have the last segments of two shortest partial touring paths to a pseudo-vertex at hand, whether the bending region of the pseudo-vertex exists can be determined in constant time, and such a bending region can be computed in constant time.
+
+Since ~\(\sum_{i=1}^k i|P_i| = O\!\left(k\left(\sum_{i=1}^k |P_i|\right)\right) = O(k^2n)\), all last step shortest path maps can then be computed in time ~\(O(k^2n)\).
+After all maps are found, we can report in ~\(O(kn)\) time the shortest touring path from ~\(s\) to ~\(t\).
+
+\begin{theorem}
+\label{thm:intersecting}
+For the problem of touring a sequence of ~\(k\) possibly intersecting convex polygons, a data structure of ~\(O(kn)\) size can be built in time ~\(O(k^2n)\) such that the shortest touring path to any given point ~\(t\) can be reported in time ~\(O(kn)\), where ~\(n\) is the total number of vertices of the given polygons.
+\end{theorem}
+
+\section{Applications}
+\label{sec:applications}
+
+Our method for touring a sequence of convex polygons can be used to solve two well-known problems in computational geometry.
+The safari problem is defined as follows: given a simple polygon ~\(P\) (a safari area), a starting point ~\(s\) on the boundary of ~\(P\), and disjoint convex polygons (animal zones) ~\(P_1, P_2, \ldots, P_k\) inside ~\(P\), each sharing exactly one edge with ~\(P\), one wants to find a shortest safari tour that starts at ~\(s\), visits all polygons in order, and finally returns back to ~\(s\).
+Assume that ~\(P_1, P_2, \ldots, P_k\) appear on ~\(P\) clockwise, starting at ~\(s\).
+The safari tour may enter the interior of a convex polygon ~\(P_i\), ~\(1 \le i \le k\).
+See Figure~\ref{fig:safariwatchman}(a).
+
+In the watchman route problem, we are given a simple polygon ~\(P\) with a starting point ~\(s\) on its boundary.
+The objective is to find a shortest (closed) tour such that every point of ~\(P\) is visible from at least one point of the tour, starting and ending at ~\(s\).
+See Figure~\ref{fig:safariwatchman}(b).
+This problem is quite interesting, because it deals with both the visibility and metric information~\cite{ref5,ref9}.
+
+\begin{figure}[H]
+	\centering
+	\fbox{\parbox{0.85\textwidth}{\centering \vspace{2cm} (Original figure: (a) an instance of the safari problem with cages ~\(P_1, \ldots, P_5\) sharing edges with the enclosing polygon ~\(P\). (b) An instance of the watchman route problem with essential pockets ~\(P_1, \ldots, P_4\).) \vspace{2cm}}}
+	\caption{Instances of the shortest safari and watchman routes.}
+	\label{fig:safariwatchman}
+\end{figure}
+
+\subsection{New Last Step Shortest Path Maps for the Safari Problem}
+
+A vertex of the polygon ~\(P\) is reflex if its internal angle is strictly larger than ~\(\pi\); otherwise, it is convex.
+For an instance of the safari problem, we denote by ~\(n\) the total number of the vertices of all the polygons ~\(P\) and ~\(P_i\), ~\(1 \le i \le k\).
+Let ~\(P_{k+1} = s\).
+Again, we denote by ~\(|P_i|\) the number of vertices of a convex polygon ~\(P_i\), and thus ~\(\sum_{i=1}^k |P_i| = O(n)\).
+The currently best result on the safari problem is an ~\(O(kn\log n)\) solution~\cite{ref6}.
+
+The last step shortest path map ~\(M_i\) for a polygon ~\(P_i\), ~\(1 \le i \le k\), is almost the same as that defined in Section~\ref{sec:disjoint}, except that the shortest paths between any two points (on convex polygons) have to be contained in the interior of ~\(P\).
+With a careful treatment, we can construct the last step shortest path maps, which are independent of the enclosing polygon ~\(P\).
+For simplicity, we will denote by ~\(l_i\) (~\(1 \le i \le k\)) the vertex of the common edge of ~\(P_i\) and ~\(P\), which is first encountered by a clockwise scan on ~\(P\) from ~\(s\), and ~\(r_i\) the other vertex of that common edge.
+
+To efficiently answer the shortest path queries inside ~\(P\), we first preprocess ~\(P\) in ~\(O(n)\) time such that the last segment of a shortest path between two query points in ~\(P\) (while ignoring all convex polygons) can be found in ~\(O(\log n)\) time~\cite{ref7}.
+Also, we preprocess ~\(P\) in ~\(O(n\log n)\) time such that a ray-shooting query inside ~\(P\) can be answered in ~\(O(\log n)\) time~\cite{ref3}.
+A shortest path or a ray, as computed above, may go through the interior of a convex polygon ~\(P_i\).
+
+Consider how to construct the first map ~\(M_1\).
+We first compute the last segments of the shortest paths from ~\(s\) to all vertices of ~\(P_1\) in ~\(O(|P_1|\log n)\) time.
+For the ~\(P_1\)'s edges that the shortest safari route may go across, we extend the last segments of the shortest paths to their vertices until the boundary of ~\(P\) is reached.
+For the ~\(P_1\)'s edges that the shortest safari route may reflect on, we extend the outgoing line segments, which form perfect reflections with the last segments of the shortest paths to their vertices, until the boundary of ~\(P\) is reached.
+These first reached, or simply, hit points on ~\(P\) can be found by invoking the ray-shooting query algorithm~\cite{ref3}.
+We call the computed segments, which have the origins on ~\(P_1\) and the hit points on ~\(P\), the ~\(P_1\)-rays (see Figure~\ref{fig:safarimaps}(a)).
+
+A new situation here is that the shortest partial touring paths to some vertices of ~\(P_2\) may turn, left or/and right, at reflex vertices of ~\(P\).
+For left turns, we describe below a method to find the first left turn point, denoted by ~\(a_1\).
+First, we find the first ~\(P_1\)-ray (as viewed from ~\(s\)), which does not intersect ~\(P_2\) and whose hit point appears before the vertex ~\(l_2\) on the boundary of ~\(P\).
+Denote by ~\(u_1\) (it always exists) the vertex of ~\(P_1\) from which the found ~\(P_1\)-ray emanates, see Figure~\ref{fig:safarimaps}(a).
+Whether or not a ~\(P_1\)-ray intersects ~\(P_2\) can be determined in ~\(O(\log|P_2|)\) time.
+Hence, the vertex ~\(u_1\) can be computed in ~\(O(|P_1|\log|P_2|)\), or simply ~\(O(|P_1|\log n)\) time.
+
+Observe that the point ~\(a_1\) (if it exists) is contained in the bending region of ~\(u_1\) or the reflection/crossing region of the edge having ~\(u_1\) as its right vertex (as viewed from ~\(s\)).
+Although ~\(M_1\) has not yet been completely computed, the ~\(u_1\)'s region is known at this moment.
+In the case that the ~\(u_1\)'s region is a bending one, we compute the first turn point of the shortest path from ~\(u_1\) to the vertex ~\(l_2\).
+If that turn point is ~\(l_2\) itself, then ~\(a_1\) does not exist; otherwise, it is the point ~\(a_1\).
+In the case that the ~\(u_1\)'s region is a reflection or crossing one, ~\(a_1\) is the first turn point of the shortest path from the other vertex of the edge defining the ~\(u_1\)'s region to ~\(l_2\).
+After ~\(a_1\) (if it exists) is found, we compute using the ~\(u_1\)'s region the last segment of the shortest touring path to ~\(a_1\) and then extend the found segment till the boundary of ~\(P\) is reached.
+We also consider the extended segment (passing through ~\(a_1\)) as a special ~\(P_1\)-ray.
+See Figure~\ref{fig:safarimaps}(a) for an example, where the ~\(P_1\)-ray through ~\(a_1\) is drawn in bold dashed line.
+In this way, the vertex ~\(a_1\) (if it exists) can be computed in ~\(O(\log n)\) time.
+
+\begin{figure}[H]
+	\centering
+	\fbox{\parbox{0.85\textwidth}{\centering \vspace{2cm} (Original figure: (a) construction of the ~\(P_1\)-rays and the first left turn point ~\(a_1\) via vertex ~\(u_1\), with the special ray drawn dashed. (b) Construction of the first right turn point ~\(b_1\) via vertex ~\(v_1\) and the extreme vertex ~\(w_2\) of ~\(P_2\).) \vspace{2cm}}}
+	\caption{Illustration of the last step shortest path maps for the safari problem.}
+	\label{fig:safarimaps}
+\end{figure}
+
+Consider now the situation in which the shortest partial touring paths to some vertices of ~\(P_2\) turn right.
+Again, we focus on the first right turn point, denoted by ~\(b_1\).
+First, find the last ~\(P_1\)-ray (if it exists) that intersects ~\(P_2\).
+It can simply be done in time ~\(O(|P_1|\log|P_2|)\) or ~\(O(|P_1|\log n)\).
+Denote by ~\(v_1\) the vertex of ~\(P_1\) from which the found ~\(P_1\)-ray emanates (Figure~\ref{fig:safarimaps}(b)).
+Next, we find the vertex of ~\(P_2\), which is to the right of the line containing the ~\(P_1\)-ray emanating from ~\(v_1\) and whose distance to that line is maximum.
+This vertex, say, ~\(w_2\), can be computed in ~\(O(|P_2|)\) time.
+We then find in ~\(O(\log n)\) time the first turn point of the shortest path from ~\(v_1\) to ~\(w_2\).
+If the found point differs from ~\(v_1\), then it is the point ~\(b_1\).
+Also, we find the special ~\(P_1\)-ray through ~\(b_1\) (if it exists).
+See Figure~\ref{fig:safarimaps}(b).
+The portion of ~\(P_2\) that is to the right of the ~\(P_1\)-ray through ~\(b_1\) can safely be ignored, because the shortest safari route needn't enter it.
+
+The extensions of all ~\(P_1\)-rays between two ~\(P_1\)-rays through ~\(a_1\) and ~\(b_1\) into half-lines can be considered as a partition of the plane, excluding the interior of ~\(P_1\); in the case that the point ~\(a_1\) (~\(b_1\)) does not exist, the restriction placed by the ~\(P_1\)-ray through ~\(a_1\) (~\(b_1\)) is completely released.
+See Figure~\ref{fig:safarimaps}(b).
+We call the obtained partition, a p-map (short for ``portion of the map''), and denote it by ~\(N_1\).
+In summary, ~\(M_1\) consists of a p-map ~\(N_1\), a left turn point ~\(a_1\) and a right turn point ~\(b_1\).
+At least one of ~\(N_1\), ~\(a_1\) and ~\(b_1\) exists.
+Note that ~\(N_1\) is completely independent of the enclosing polygon ~\(P\).
+
+Suppose now that the maps ~\(M_i\), for ~\(1 \le i < k\), have been computed.
+A map ~\(M_i\) consists of at most three elements: a p-map ~\(N_i\), a left turn point ~\(a_i\) and a right turn point ~\(b_i\).
+Again, let ~\(m = |P_{i+1}|\), and denote by ~\(q_{h,j}\), ~\(1 \le h \le i\), the last contact point of ~\(P_h\) with the shortest partial touring path to a vertex ~\(p_j\) of ~\(P_{i+1}\).
+(Some of ~\(q_{h,1}, q_{h,2}, \ldots, q_{h,m}\) may be the same point.)
+
+\begin{lemma}
+\label{lem:safari-xmonotone}
+The last contact points ~\(q_{h,1}, q_{h,2}, \ldots, q_{h,m}\) (~\(1 \le h \le i\)) of ~\(P_h\) with the shortest partial touring path to all vertices of ~\(P_{i+1}\) form at most three ~\(x\)-monotone chains.
+\end{lemma}
+
+\begin{proof}
+By an argument similar to the proof of Lemma~\ref{lem:xmonotone}, the lemma simply follows.
+\end{proof}
+
+For the vertices of ~\(P_{i+1}\) that are to the left of the half-line through ~\(a_i\) (if it exists), we then compute the last steps of shortest partial touring paths to them by taking ~\(a_i\) as the local starting point.
+It clearly takes ~\(O(|P_{i+1}|\log n)\) time.
+For the vertices of ~\(P_{i+1}\) that are to the left and right of the half-lines through ~\(a_i\) (if it exists) and ~\(b_i\) (if it exists) respectively, we compute the shortest partial touring paths to them using ~\(N_i\) and possibly the previous maps ~\(M_1, \ldots, M_{i-1}\).
+It then follows from Lemma~\ref{lem:safari-xmonotone} that ~\(N_{i+1}\) can be computed in ~\(O\!\left(i|P_{i+1}| + \sum_{h=1}^i |P_h|\right)\) time.
+Analogous to the operation for computing the map ~\(M_1\), we can find the points ~\(a_{i+1}, b_{i+1}\) (if they exist) in ~\(O(|P_{i+1}|\log n + |P_{i+2}|)\) time.
+
+\begin{lemma}
+\label{lem:safari-Mi1}
+Given ~\(M_1, \ldots, M_i\), the map ~\(M_{i+1}\) can be constructed in time ~\(O\!\left((i + \log n)|P_{i+1}| + |P_{i+2}| + \sum_{h=1}^i |P_h|\right)\).
+\end{lemma}
+
+\begin{proof}
+The lemma simply follows from the discussion made above.
+\end{proof}
+
+Since ~\(\sum_{i=1}^k i|P_i| = O\!\left(k\left(\sum_{i=1}^k |P_i|\right)\right) = O(kn)\), all maps ~\(M_1, \ldots, M_k\) can be computed in ~\(O(n(k+\log n))\) time.
+After ~\(M_k\) is found, we can report in time ~\(O(n)\) the shortest path, starting and ending at ~\(s\), for touring all polygons ~\(P_1, \ldots, P_k\).
+
+\begin{theorem}
+\label{thm:safari}
+Suppose that a simple polygon ~\(P\) with a starting point on its boundary is given. Then, the safari problem can be solved in ~\(O(n(k+\log n))\) time, where ~\(k\) is the number of convex polygons ~\(P_i\) inside ~\(P\) and ~\(n\) is the total number of the vertices of all polygons ~\(P\) and ~\(P_i\), ~\(1 \le i \le k\).
+\end{theorem}
+
+\subsection{An \(O(n^3)\) Algorithm for the Watchman Route Problem}
+
+For the watchman route problem, Tan et al.~\cite{ref13,ref14} gave the first polynomial-time (~\(O(n^4)\)) algorithm using dynamic programming, where ~\(n\) denotes the number of the vertices of the given polygon ~\(P\).
+This result was later improved to ~\(O(n^3\log n)\)~\cite{ref6}.
+
+Let ~\(e\) be an edge incident to a reflex vertex ~\(v\) of ~\(P\).
+Starting from ~\(v\), one can extend ~\(e\) inside ~\(P\), until the boundary of ~\(P\) is reached.
+This extension of ~\(e\) divides ~\(P\) into two pieces.
+It is called a cut, denoted by ~\(C\), if the extension of ~\(e\) leads to a convex vertex at ~\(v\) in the piece containing ~\(s\).
+The portion of ~\(P\) not containing ~\(s\), is called a pocket.
+A cut ~\(C\) is essential if no other pocket is fully contained in the pocket of ~\(C\).
+Also, a pocket is essential if its cut is essential.
+Then, a tour sees all points of ~\(P\) if and only if it visits all essential pockets, or equivalently, all essential cuts.
+
+Let us denote by ~\(P_1, \ldots, P_k\) (~\(C_1, \ldots, C_k\)) the sequence of essential pockets (cuts), ordered by their appearances (i.e., their first points) on the boundary of ~\(P\) clockwise, starting from ~\(s\).
+Clearly, some of ~\(P_1, \ldots, P_k\) may intersect each other.
+Then, there exists a shortest watchman route that visits the pockets ~\(P_1, \ldots, P_k\), in this order, see Figure~\ref{fig:safariwatchman}(b).\footnote{The shortest watchman route may not visit the essential cuts ~\(C_1, \ldots, C_k\), exactly in this order. But, the cuts on which the shortest watchman route reflects (e.g., the cuts of ~\(P_1\), ~\(P_4\) and ~\(P_5\) in Figure~\ref{fig:safariwatchman}(b)) still follow that order.}
+
+Observe that the shortest watchman route needs not to visit any common boundary point between ~\(P\) and a pocket ~\(P_i\), except for two endpoints of the cut ~\(C_i\).
+So, the (convex) cut ~\(C_i\) can be considered as a simple representation of its (non-convex) pocket ~\(P_i\).
+The last step shortest path maps for ~\(P_1, \ldots, P_k\) can then be defined as those in Section~\ref{sec:intersecting}, by considering the intersection points among ~\(C_1, \ldots, C_k\) as the pseudo-vertices.
+By handling the enclosing polygon ~\(P\) as described in Section~\ref{sec:applications}.1, we then compute the shortest partial watchman tours to the pseudo-vertices of ~\(C_i\), in the increasing order of ~\(i\).
+In this way, we can find the shortest watchman route through ~\(s\).
+Since the total number of cut intersections is ~\(O(n^2)\), we obtain a new result for the watchman route problem.
+
+\begin{theorem}
+\label{thm:watchman}
+Suppose that a simple polygon ~\(P\) of ~\(n\) vertices and a starting point ~\(s\) on the boundary of ~\(P\) are given. Then, the watchman route problem can be solved in ~\(O(n^3)\) time.
+\end{theorem}
+
+\section{Conclusions}
+\label{sec:conclusions}
+
+We have presented an ~\(O(kn)\) time solution to the problem of touring a sequence of disjoint convex polygons, and an ~\(O(k^2n)\) time solution for a sequence of possibly intersecting convex polygons, where ~\(k\) is the number of convex polygons and ~\(n\) is the total number of vertices of all polygons.
+Our results improve upon the previous time bounds roughly by a factor of ~\(\log n\).
+We have also given an ~\(O(n(k+\log n))\) time solution to the safari problem and an ~\(O(n^3)\) time solution to the watchman route problem, improving upon the previous time bounds ~\(O(kn\log n)\) and ~\(O(n^3\log n)\) respectively.
+The data structures presented in this paper are much simpler and essentially differ from that of Dror et al.\ (STOC'03).
+Whether or not our results can be improved is an interesting open problem.
+
+\begin{thebibliography}{99}
+
+\bibitem{ref1} Ahadi, A., Mozafari, A., Zarei, A.: Touring a sequence of disjoint polygons: complexity and extension. Theoret. Comput. Sci. 556, 45--54 (2014)
+
+\bibitem{ref2} Bespamyatnikh, S.: An ~\(O(n\log n)\) algorithm for the zoo-keeper's problem. Comput. Geom. 24, 63--74 (2002)
+
+\bibitem{ref3} Chazelle, B., Guibas, L.: Visibility and intersection problem in plane geometry. Discrete Comput. Geom. 4, 551--581 (1989)
+
+\bibitem{ref4} Chazelle, B., Edelsbrunner, H.: An optimal algorithm for intersecting line segments in the plane. J. ACM 39, 1--54 (1992)
+
+\bibitem{ref5} Chin, W.P., Ntafos, S.: Optimum watchman routes. Inform. Process. Lett. 28, 39--44 (1988)
+
+\bibitem{ref6} Dror, M., Efrat, A., Lubiw, A., Mitchell, J.S.B.: Touring a sequence of polygons. In: Proceedings of the STOC 2003, pp.\ 473--482 (2003)
+
+\bibitem{ref7} Guibas, L., Hershberger, J., Leven, D., Sharir, M., Tarjan, R.: Linear time algorithms for visibility and shortest path problems inside simple triangulated polygons. Algorithmica 2, 209--233 (1987)
+
+\bibitem{ref8} Mitchell, J.S.B.: Geometric shortest paths and network optimization. In: Sack, J.-R., Urrutia, J. (eds.) Handbook of Computational Geometry, pp.\ 633--701. Elsevier Science (2000)
+
+\bibitem{ref9} Mitchell, J.S.B.: Approximating watchman routes. In: Proceedings of SODA 2013, pp.\ 844--855 (2013)
+
+\bibitem{ref10} Ntafos, S.: Watchman routes under limited visibility. Comput. Geom. Theory Appl. 1, 149--170 (1992)
+
+\bibitem{ref11} Tan, X.: Fast computation of shortest watchman routes in simple polygons. Inform. Process. Lett. 77, 27--33 (2001)
+
+\bibitem{ref12} Tan, X., Hirata, T.: Finding shortest safari routes in simple polygons. Inform. Process. Lett. 87, 179--186 (2003)
+
+\bibitem{ref13} Tan, X., Hirata, T., Inagaki, Y.: An incremental algorithm for constructing shortest watchman routes. Int. J. Comput. Geom. Appl. 3, 351--365 (1993)
+
+\bibitem{ref14} Tan, X., Hirata, T., Inagaki, Y.: Corrigendum to ``an incremental algorithm for constructing shortest watchman routes''. Int. J. Comput. Geom. Appl. 9, 319--323 (1999)
+
+\bibitem{ref15} Tan, X., Wei, Q.: An improved on-line strategy for exploring unknown polygons. In: Lu, Z., Kim, D., Wu, W., Li, W., Du, D.-Z. (eds.) COCOA 2015. LNCS, vol. 9486, pp.\ 163--177. Springer, Cham (2015). doi:10.1007/978-3-319-26626-8\_13
+
+\end{thebibliography}
+
+\end{document}

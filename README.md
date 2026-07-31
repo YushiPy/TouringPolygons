@@ -11,19 +11,31 @@ An interactive visualizer for the convex case is available [here](https://yuship
 ## Repository Structure
 
 ```
-src/
-├── UnconstrainedTPP/     # Convex TPP: Python prototypes and C++ implementations
-├── NonConvexTPP/         # Non-convex TPP: Branch and Bound, MILP, decomposition
-├── FencedTPP/            # Fenced TPP (legacy, deprioritized)
-└── Canvas/               # Web-based interactive visualizer
-Relatorio/                # LaTeX report (Portuguese)
+apps/
+├── visualizer-local/     # Static browser visualizer
+└── visualizer-server/    # Server-backed visualizer
+packages/
+├── convex-tpp/           # Convex TPP solvers and Python prototypes
+├── nonconvex-tpp/        # Non-convex TPP solvers, B&B, MILP, decomposition
+├── fenced-tpp/           # Fenced TPP code (legacy, deprioritized)
+└── instance-generation/  # Instance generation code pending integration
+experiments/
+└── convex-legacy/        # Older convex prototypes and alternate attempts
+docs/
+├── bibliography/         # Source papers and LLM-friendly TeX conversions
+└── reports/              # Portuguese LaTeX reports
+tools/                    # Repository-level helper scripts
 ```
+
+This repository is organized as a research monorepo. Each package or app may
+have its own dependencies and build system; the root is only the coordination
+point for documentation, shared tooling, and repository layout.
 
 ---
 
 ## The Convex TPP
 
-When all polygons are convex and disjoint, the problem is solvable in polynomial time. All implementations are in C++ (`src/UnconstrainedTPP/C++`) and share the same algorithmic framework based on two geometric structures:
+When all polygons are convex and disjoint, the problem is solvable in polynomial time. The maintained C++ implementations live in `packages/convex-tpp/cpp` and share the same algorithmic framework based on two geometric structures:
 
 **First contact region $T_i$:** the subset of the boundary of $P_i$ that can be the first point of contact of an optimal path arriving at $P_i$ — equivalently, the edges of $P_i$ whose exterior side faces the direction the path arrives from.
 
@@ -89,6 +101,9 @@ An alternative exact approach models the non-convex TPP as a Mixed Integer Linea
 - CMake
 - CGAL (for convex decomposition in the non-convex solver)
 - Gurobi (optional, for MILP baseline)
+
+The root `CMakePresets.json` exposes separate `convex-release` and
+`nonconvex-release` presets so IDEs can configure one solver at a time.
 
 **Python (prototypes and visualizations):**
 - Python 3.12+

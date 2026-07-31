@@ -12,6 +12,13 @@ except ImportError:
 current_directory = os.path.dirname(__file__)
 os.chdir(current_directory)
 
-path = os.path.join(current_directory, "src", "UnconstrainedTPP", "Interactive", "main.py")
+path = os.path.join(
+	current_directory,
+	"packages",
+	"convex-tpp",
+	"python",
+	"Interactive",
+	"main.py",
+)
 
 subprocess.run([sys.executable, path])

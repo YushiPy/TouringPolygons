@@ -1,14 +1,32 @@
-
-# Files starting with _
-_*
-
-# CMake
-build/
-
-# VSCode
+# OS/editor metadata
+.DS_Store
+.cache/
 .vscode/
+.CLAUDE.md
+.notes.md
 
-# Latex
+# Local environments
+.venv/
+venv/
+
+# CMake/build outputs
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+compile_commands.json
+*.cmake
+!CMakeLists.txt
+
+# Python
+*.pyc
+__pycache__/
+.pytest_cache/
+
+# Node
+node_modules/
+
+# LaTeX
 *.aux
 *.bcf
 *.fdb_latexmk
@@ -19,36 +37,25 @@ build/
 *.toc
 *.synctex.gz
 *.synctex*
-
-# Bibtex
 *.bbl*
 *.blg
 *.bcf-SAVE-ERROR
 
-# Git
-*.git
-*.gitignore
-
-# Python
-*.pyc
-__pycache__
-
 # C++
 *.o
 
-# Test files
-test.*
-test[0-9].*
-
-# Special Files
-cronograma.md
-
-# MacOS
-.DS_Store
-
-# Polygon Helper
+# Generated/local project artifacts
 PolygonsOut/
-PolygonsOut/*
-
 *.db
-.*
+apps/visualizer-server/_output_images/
+
+# Papers
+docs/bibliography/TPP-Dror/original.pdf
+docs/bibliography/TPP-Dror/main.pdf
+
+docs/bibliography/TPP-Tan&Jiang/original.pdf
+docs/bibliography/TPP-Tan&Jiang/main.pdf
+
+docs/bibliography/TSPN-B&B-Michael/original.pdf
+docs/bibliography/TSPN-B&B-Michael/main.pdf
+

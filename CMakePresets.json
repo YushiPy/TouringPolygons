@@ -1,0 +1,39 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "convex-release",
+      "displayName": "Convex TPP Release",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/convex-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "TPP_BUILD_CONVEX": "ON",
+        "TPP_BUILD_NONCONVEX": "OFF"
+      }
+    },
+    {
+      "name": "nonconvex-release",
+      "displayName": "Non-Convex TPP Release",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/nonconvex-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "TPP_BUILD_CONVEX": "OFF",
+        "TPP_BUILD_NONCONVEX": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "convex-release",
+      "configurePreset": "convex-release"
+    },
+    {
+      "name": "nonconvex-release",
+      "configurePreset": "nonconvex-release"
+    }
+  ]
+}
