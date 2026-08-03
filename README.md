@@ -104,6 +104,14 @@ An alternative exact approach models the non-convex TPP as a Mixed Integer Linea
 
 The root `CMakePresets.json` exposes separate `convex-release` and
 `nonconvex-release` presets so IDEs can configure one solver at a time.
+Configure the convex preset with `-DTARGET=main-storage_benchmark` to compare
+the convenience API against reusable dynamic and static workspaces.
+
+For high-volume callers such as Branch and Bound, the convex C++ solver exposes
+workspace overloads that avoid per-call storage allocation. Use
+`DynamicConvexTppWorkspace` when the memory should live on the heap and
+`StaticConvexTppWorkspace<MaxPolygons, MaxTotalVertices>` when the caller can
+provide a fixed stack-capacity workspace.
 
 **Python (prototypes and visualizations):**
 - Python 3.12+

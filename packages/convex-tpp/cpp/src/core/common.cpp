@@ -125,29 +125,40 @@ namespace tpp {
 
 	std::vector<Vector2> remove_collinear_points(const std::vector<Vector2>& points, double epsilon) {
 
+		std::vector<Vector2> cleaned = points;
+		remove_collinear_points_inplace(cleaned, epsilon);
+		return cleaned;
+	}
+
+	void remove_collinear_points_inplace(std::vector<Vector2>& points) {
+		remove_collinear_points_inplace(points, EPSILON);
+	}
+
+	void remove_collinear_points_inplace(std::vector<Vector2>& points, double epsilon) {
+
 		if (points.size() <= 2) {
-			return points;
+			return;
 		}
 
-		std::vector<Vector2> cleaned = {points[0], points[1]};
+		size_t write = 2;
 
-		for (size_t i = 2; i < points.size(); i++) {
+		for (size_t read = 2; read < points.size(); read++) {
 
-			auto a = cleaned[cleaned.size() - 2];
-			auto b = cleaned[cleaned.size() - 1];
-			auto candidate = points[i];
+			auto a = points[write - 2];
+			auto b = points[write - 1];
+			auto candidate = points[read];
 
 			auto v1 = b - a;
 			auto v2 = candidate - b;
 
 			if (std::fabs(v1.cross(v2)) < epsilon * epsilon && v1.dot(v2) >= 0) {
-				cleaned.back() = candidate;
+				points[write - 1] = candidate;
 			} else {
-				cleaned.push_back(candidate);
+				points[write++] = candidate;
 			}
 		}
 
-		return cleaned;
+		points.resize(write);
 	}
 }
 

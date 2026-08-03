@@ -87,7 +87,7 @@ class SolutionTAMC : public tpp::Solution {
 
 		size_t location = _locate_point(point, i);
 
-		if (location % 2 == 0 || first_contact[i - 1][location / 2]) {
+		if (location % 2 == 0 || is_first_contact(i - 1, location / 2)) {
 			return location;
 		} else {
 			return -1;
@@ -105,7 +105,6 @@ class SolutionTAMC : public tpp::Solution {
 		}
 
 		const auto &polygon = polygons[i - 1];
-		const auto &fc = first_contact[i - 1];
 
 		vector<size_t> locations;
 		locations.reserve(points.size());
@@ -194,7 +193,7 @@ class SolutionTAMC : public tpp::Solution {
 
 			if (location % 2 == 0) {
 				// Do nothing, we can tell the point come from the vertex directly without needing to query the previous polygon.
-			} else if (!fc[location / 2]) {
+			} else if (!is_first_contact(i - 1, location / 2)) {
 				input_points.push_back(point);
 			} else {
 				const auto &v1 = polygon[location / 2];
@@ -215,7 +214,7 @@ class SolutionTAMC : public tpp::Solution {
 
 			if (location % 2 == 0) {
 				results.push_back(polygon[location / 2]);
-			} else if (!fc[location / 2]) {
+			} else if (!is_first_contact(i - 1, location / 2)) {
 				results.push_back(returned_points[index++]);
 			} else {
 				
@@ -260,7 +259,19 @@ class SolutionTAMC : public tpp::Solution {
 
 namespace tpp {
 
-	std::vector<Vector2> tpp_convex_solve_tamc(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+	void tpp_convex_solve_tan_jiang(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons, ConvexTppWorkspaceView workspace, std::vector<Vector2>& output) {
+		SolutionTAMC(start, target, polygons, workspace).solve(PreloadPolicy::Lazy, output);
+	}
+
+	void tpp_convex_solve_tan_jiang(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons, DynamicConvexTppWorkspace& workspace, std::vector<Vector2>& output) {
+		tpp_convex_solve_tan_jiang(start, target, polygons, workspace.prepare(polygons.size(), total_vertex_count(polygons)), output);
+	}
+
+	std::vector<Vector2> tpp_convex_solve_tan_jiang(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
 		return SolutionTAMC(start, target, polygons).solve();
+	}
+
+	std::vector<Vector2> tpp_convex_solve_tamc(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		return tpp_convex_solve_tan_jiang(start, target, polygons);
 	}
 }

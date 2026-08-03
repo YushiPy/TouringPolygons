@@ -18,10 +18,11 @@ using std::vector;
 using std::string;
 
 vector<std::pair<std::string, tpp::Solver>> solvers = {
-	{"Linear Search", tpp::tpp_convex_solve_linear_search},
-	{"Binary Search", tpp::tpp_convex_solve_binary_search},
-	{"Binary Search DP", tpp::tpp_convex_solve_binary_search_dp},
-	{"TAMC", tpp::tpp_convex_solve_tamc},
+	{"Linear Search (Lazy)", [](const auto &s, const auto &t, const auto &p) { return tpp::tpp_convex_solve_linear_search_lazy(s, t, p); }},
+	{"Linear Search (Eager)", [](const auto &s, const auto &t, const auto &p) { return tpp::tpp_convex_solve_linear_search_eager(s, t, p); }},
+	{"Binary Search (Lazy)", [](const auto &s, const auto &t, const auto &p) { return tpp::tpp_convex_solve_binary_search_lazy(s, t, p); }},
+	{"Binary Search (Eager)", [](const auto &s, const auto &t, const auto &p) { return tpp::tpp_convex_solve_binary_search_eager(s, t, p); }},
+	{"Tan-Jiang", [](const auto &s, const auto &t, const auto &p) { return tpp::tpp_convex_solve_tan_jiang(s, t, p); }},
 };
 
 
@@ -230,8 +231,10 @@ int main() {
 	auto complexity = [](size_t solver_index, double n, double k) -> double {
 		switch (solver_index) {
 			case 0: return n * n;
-			case 1: return n * k * std::log(n / k);
-			case 2: return 6.0 * n * k;
+			case 1: return n * n;
+			case 2: return n * k * std::log(n / k);
+			case 3: return n * k * std::log(n / k);
+			case 4: return 6.0 * n * k;
 			default: return n * n;
 		}
 	};

@@ -33,10 +33,11 @@ void print_test(const Vector2 &start, const Vector2 &target, const std::vector<s
 int main() {
 
 	std::vector<tpp::Solver> solvers = {
-		tpp::tpp_convex_solve_linear_search,
-		tpp::tpp_convex_solve_binary_search,
-		tpp::tpp_convex_solve_binary_search_dp,
-		tpp::tpp_convex_solve_tamc,
+		[](const auto &s, const auto &t, const auto &p) { return tpp::tpp_convex_solve_linear_search_lazy(s, t, p); },
+		[](const auto &s, const auto &t, const auto &p) { return tpp::tpp_convex_solve_linear_search_eager(s, t, p); },
+		[](const auto &s, const auto &t, const auto &p) { return tpp::tpp_convex_solve_binary_search_lazy(s, t, p); },
+		[](const auto &s, const auto &t, const auto &p) { return tpp::tpp_convex_solve_binary_search_eager(s, t, p); },
+		[](const auto &s, const auto &t, const auto &p) { return tpp::tpp_convex_solve_tan_jiang(s, t, p); },
 		// tpp::tpp_convex_solve_gurobi,
 	};
 

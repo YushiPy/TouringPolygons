@@ -63,5 +63,7 @@ namespace tpp {
 	*/
 	std::vector<Vector2> remove_collinear_points(const std::vector<Vector2>& points);
 	std::vector<Vector2> remove_collinear_points(const std::vector<Vector2>& points, double epsilon);
+	void remove_collinear_points_inplace(std::vector<Vector2>& points);
+	void remove_collinear_points_inplace(std::vector<Vector2>& points, double epsilon);
 
 }
