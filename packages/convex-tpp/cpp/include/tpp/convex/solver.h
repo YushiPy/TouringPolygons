@@ -31,6 +31,7 @@ namespace tpp {
 	void tpp_convex_solve_tan_jiang(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons, DynamicConvexTppWorkspace& workspace, std::vector<Vector2>& output);
 
 	// Compatibility wrappers for older callers.
+	std::vector<Vector2> tpp_convex_solve(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons);
 	std::vector<Vector2> tpp_convex_solve_binary_search(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons);
 	std::vector<Vector2> tpp_convex_solve_binary_search_dp(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons);
 	std::vector<Vector2> tpp_convex_solve_linear_search(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons);

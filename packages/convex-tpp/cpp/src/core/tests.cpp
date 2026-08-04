@@ -17,6 +17,10 @@
 #include <string>
 #include <format>
 #include <chrono>
+#include <array>
+#include <bit>
+#include <fstream>
+#include <iostream>
 
 using std::vector;
 using std::tuple;
@@ -609,5 +613,26 @@ except KeyboardInterrupt:
 		for (auto &v : solution) v = read_vector2();
 
 		return {start, target, polygons, solution};
+	}
+
+	vector<TestCase> load_test_cases(const std::string &filename) {
+
+		std::vector<TestCase> test_cases;
+		std::ifstream ifs(filename, std::ios::binary);
+		
+		if (!ifs) {
+			throw std::runtime_error("Error opening file: " + filename);
+		}
+
+		while (ifs.peek() != EOF) {
+			try {
+				test_cases.push_back(decode_test(ifs));
+			} catch (const std::exception &e) {
+				std::cerr << "Error decoding test case: " << e.what() << std::endl;
+				break;
+			}
+		}
+
+		return test_cases;
 	}
 }

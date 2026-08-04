@@ -1,8 +1,6 @@
+#include "tpp/geometry/common.h"
 
 #include <cmath>
-
-#include "vector2.h"
-#include "common.h"
 
 #define EPSILON 1e-8
 #define EPSILON_SQUARED (EPSILON * EPSILON)
@@ -21,7 +19,6 @@ namespace tpp {
 		}
 
 		double rate1 = (start2 - start1).cross(direction2) / cross;
-		double rate2 = (start2 - start1).cross(direction1) / cross;
 
 		return start1 + direction1 * rate1;
 	}
@@ -50,7 +47,6 @@ namespace tpp {
 	Vector2 reflect_segment(const Vector2& point, const Vector2& vertex1, const Vector2& vertex2) {
 		return vertex1 + (point - vertex1).reflect(vertex2 - vertex1);
 	}
-
 
 	bool point_in_cone(const Vector2& point, const Vector2& vertex, const Vector2& ray1, const Vector2& ray2) {
 

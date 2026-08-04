@@ -116,6 +116,10 @@ namespace tpp {
 		return tpp_convex_solve_binary_search_lazy(start, target, polygons);
 	}
 
+	std::vector<Vector2> tpp_convex_solve(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		return tpp_convex_solve_binary_search_lazy(start, target, polygons);
+	}
+
 	std::vector<Vector2> tpp_convex_solve_binary_search_dp(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
 		return tpp_convex_solve_binary_search_eager(start, target, polygons);
 	}

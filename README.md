@@ -15,6 +15,7 @@ apps/
 ├── visualizer-local/     # Static browser visualizer
 └── visualizer-server/    # Server-backed visualizer
 packages/
+├── common-geometry/      # Shared C++ vector and geometry primitives
 ├── convex-tpp/           # Convex TPP solvers and Python prototypes
 ├── nonconvex-tpp/        # Non-convex TPP solvers, B&B, MILP, decomposition
 ├── fenced-tpp/           # Fenced TPP code (legacy, deprioritized)
@@ -27,9 +28,17 @@ docs/
 tools/                    # Repository-level helper scripts
 ```
 
-This repository is organized as a research monorepo. Each package or app may
-have its own dependencies and build system; the root is only the coordination
-point for documentation, shared tooling, and repository layout.
+This repository is organized as a research monorepo. The maintained C++ code is
+split into reusable CMake targets:
+
+```text
+tpp_geometry -> tpp_convex -> tpp_nonconvex
+```
+
+The common geometry package owns `Vector2`/`Vec2` and low-level geometric
+helpers. The convex package owns the exact convex TPP solvers. The non-convex
+package owns CGAL decomposition, approximation, and Branch and Bound, and calls
+the convex solver package instead of carrying a second convex implementation.
 
 ---
 
@@ -106,6 +115,9 @@ The root `CMakePresets.json` exposes separate `convex-release` and
 `nonconvex-release` presets so IDEs can configure one solver at a time.
 Configure the convex preset with `-DTARGET=main-storage_benchmark` to compare
 the convenience API against reusable dynamic and static workspaces.
+Configure the non-convex preset with `-DTARGET=main-bnb_workload_benchmark` to
+run a bounded Branch-and-Bound-like convex-call workload generated from real
+CGAL decompositions of the non-convex test case files.
 
 For high-volume callers such as Branch and Bound, the convex C++ solver exposes
 workspace overloads that avoid per-call storage allocation. Use

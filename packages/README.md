@@ -3,8 +3,11 @@
 Maintained solver and helper code lives here.
 
 - `convex-tpp/`: convex Touring Polygons implementations.
+- `common-geometry/`: shared C++ vector and low-level geometry primitives.
 - `nonconvex-tpp/`: non-convex Touring Polygons implementations.
 - `fenced-tpp/`: fenced variant, currently legacy/deprioritized.
 - `instance-generation/`: instance generation code pending integration.
 
-Each package may keep its own dependency files and build system. Shared geometry code should be extracted only when two maintained packages use the same API and behavior.
+Each package may keep its own dependency files and build system. Maintained C++
+packages should depend on `common-geometry` for shared geometry and avoid local
+copies of solver implementations.
