@@ -1,18 +1,28 @@
 #include "common.h"
 #include "tests.h"
 
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
+#include <CGAL/Partition_traits_2.h>
+#include <CGAL/partition_2.h>
 #include <optimal_convex_partition/optimal_convex_partition.h>
 
+#include <cassert>
 #include <chrono>
 #include <cstdlib>
 #include <exception>
 #include <iostream>
+#include <list>
 #include <string>
 #include <vector>
 
 namespace {
 
 	using Partition = std::vector<std::vector<Vector2>>;
+	using K = CGAL::Exact_predicates_inexact_constructions_kernel;
+	using Traits = CGAL::Partition_traits_2<K>;
+	using CgalPoint = Traits::Point_2;
+	using CgalPolygon = Traits::Polygon_2;
+	using CgalPolygonList = std::list<CgalPolygon>;
 
 	struct Mismatch {
 		std::string reason;
@@ -75,6 +85,45 @@ namespace {
 		}
 	}
 
+	Partition cgal_decompose_polygon(const std::vector<Vector2> &polygon) {
+		std::vector<CgalPoint> points;
+		points.reserve(polygon.size());
+
+		for (const auto &point : polygon) {
+			points.emplace_back(point.x, point.y);
+		}
+
+		CgalPolygon input(points.begin(), points.end());
+
+		if (input.orientation() == CGAL::CLOCKWISE) {
+			input.reverse_orientation();
+		}
+
+		assert(input.is_simple());
+
+		CgalPolygonList pieces;
+		CGAL::optimal_convex_partition_2(input.vertices_begin(), input.vertices_end(), std::back_inserter(pieces));
+
+		assert(CGAL::convex_partition_is_valid_2(
+			input.vertices_begin(), input.vertices_end(),
+			pieces.begin(), pieces.end()
+		));
+
+		Partition result;
+		result.reserve(pieces.size());
+
+		for (const auto &piece : pieces) {
+			auto &converted_piece = result.emplace_back();
+			converted_piece.reserve(piece.size());
+
+			for (auto vertex = piece.vertices_begin(); vertex != piece.vertices_end(); ++vertex) {
+				converted_piece.emplace_back(vertex->x(), vertex->y());
+			}
+		}
+
+		return result;
+	}
+
 	optimal_convex_partition::Polygon to_standalone_polygon(const std::vector<Vector2> &polygon) {
 		optimal_convex_partition::Polygon result;
 		result.reserve(polygon.size());
@@ -125,7 +174,7 @@ int main(int argc, char **argv) {
 			vertex_count += polygon.size();
 
 			const auto cgal_start = std::chrono::steady_clock::now();
-			const auto cgal_partition = tpp::decompose_polygon(polygon);
+			const auto cgal_partition = cgal_decompose_polygon(polygon);
 			cgal_time += std::chrono::steady_clock::now() - cgal_start;
 
 			Partition standalone_partition;

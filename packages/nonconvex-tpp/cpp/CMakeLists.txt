@@ -40,11 +40,11 @@ list(FILTER TPP_NONCONVEX_SOURCES EXCLUDE REGEX "src/vector2\\.cpp")
 
 add_library(tpp_nonconvex STATIC ${TPP_NONCONVEX_SOURCES})
 target_include_directories(tpp_nonconvex PUBLIC include)
-target_link_libraries(tpp_nonconvex PUBLIC tpp_geometry tpp_convex)
+target_link_libraries(tpp_nonconvex PUBLIC tpp_geometry tpp_convex optimal_convex_partition)
 target_compile_options(tpp_nonconvex PRIVATE -O3)
 
 add_executable(${PROJECT_NAME} src/${TARGET}.cpp)
-target_link_libraries(${PROJECT_NAME} PRIVATE tpp_nonconvex optimal_convex_partition)
+target_link_libraries(${PROJECT_NAME} PRIVATE tpp_nonconvex)
 
 target_compile_options(${PROJECT_NAME} PRIVATE -O3)
 
@@ -55,7 +55,8 @@ if(APPLE)
 	target_include_directories(tpp_nonconvex PUBLIC ${OpenMP_INCLUDE_DIR})
 endif()
 
-find_package(CGAL REQUIRED)
-target_link_libraries(tpp_nonconvex PUBLIC CGAL::CGAL)
-
-target_compile_definitions(tpp_nonconvex PUBLIC CGAL_DO_NOT_USE_BOOST_MP)
+if("${TARGET}" STREQUAL "main-compare_cgal_partition")
+	find_package(CGAL REQUIRED)
+	target_link_libraries(${PROJECT_NAME} PRIVATE CGAL::CGAL)
+	target_compile_definitions(${PROJECT_NAME} PRIVATE CGAL_DO_NOT_USE_BOOST_MP)
+endif()
