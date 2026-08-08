@@ -59,6 +59,10 @@ Important fields:
 | `Fully solved runs` | Instances where the B&B search finished under the configured limits. |
 | `Capped by calls runs` | Instances stopped by `max_calls_per_instance`; these are usually the hard cases. |
 | `Best updates` | How often B&B improved the approximation/incumbent. Low values mean the approximation is already strong. |
+| `Polygons` | Distribution of polygon counts across benchmarked runs. Useful when comparing generated workloads with different nominal sizes. |
+| `Decomposed pieces` | Total convex pieces after decomposing all non-convex polygons in an instance. |
+| `Pieces per polygon` | Average decomposition branching density per polygon. |
+| `log2(total combinations)` | Base-2 logarithm of the product of per-polygon decomposition piece counts. This is easier to compare than raw combination counts when branch spaces are huge. |
 | `Initial gap %` | Relative improvement from the initial approximation to the final result. |
 | `Incumbent gap %` | Relative improvement from the first selected-piece incumbent to the final result. |
 | `Failed-prune bound/incumbent` | How close non-pruning lower bounds are to the incumbent. Values near `1.0` mean proving optimality is hard. |

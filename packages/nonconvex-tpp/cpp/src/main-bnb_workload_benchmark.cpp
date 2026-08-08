@@ -411,6 +411,18 @@ double combination_count(const vector<vector<vector<Vector2>>> &convex_pieces) {
 	return combinations;
 }
 
+double log2_combination_count(const InstanceRecord &record) {
+	if (record.total_combinations <= 0.0) {
+		return 0.0;
+	}
+
+	return std::log2(record.total_combinations);
+}
+
+double pieces_per_polygon(const InstanceRecord &record) {
+	return record.polygons == 0 ? 0.0 : static_cast<double>(record.decomposed_pieces) / static_cast<double>(record.polygons);
+}
+
 Vector2 project_point_on_polygon(const Vector2 &point, const vector<Vector2> &polygon) {
 
 	Vector2 closest_point;
@@ -1568,12 +1580,15 @@ int main(int argc, char **argv) {
 	emit("| Metric | Min | Median | P90 | P99 | Max | Mean |");
 	emit("|---|---:|---:|---:|---:|---:|---:|");
 	print_distribution("Seconds per call", distribution(values([](const InstanceRecord &r) { return r.seconds_per_call; })), false);
+	print_distribution("Polygons", distribution(values([](const InstanceRecord &r) { return r.polygons; })), true);
 	print_distribution("Calls", distribution(values([](const InstanceRecord &r) { return r.calls; })), true);
 	print_distribution("Best updates", distribution(values([](const InstanceRecord &r) { return r.best_updates; })), true);
 	print_distribution("Initial gap %", distribution(values([](const InstanceRecord &r) { return initial_gap_percent(r); })), false);
 	print_distribution("Incumbent gap %", distribution(values([](const InstanceRecord &r) { return incumbent_gap_percent(r); })), false);
 	print_distribution("Max branching", distribution(values([](const InstanceRecord &r) { return r.max_observed_branching; })), true);
 	print_distribution("Decomposed pieces", distribution(values([](const InstanceRecord &r) { return r.decomposed_pieces; })), true);
+	print_distribution("Pieces per polygon", distribution(values([](const InstanceRecord &r) { return pieces_per_polygon(r); })), false);
+	print_distribution("log2(total combinations)", distribution(values([](const InstanceRecord &r) { return log2_combination_count(r); })), false);
 	emit("");
 	emit("## Derived Metrics");
 	emit("");
@@ -1601,6 +1616,7 @@ int main(int argc, char **argv) {
 	print_top("By Runtime", [](const InstanceRecord &r) { return r.instance_seconds; }, "Seconds", false);
 	print_top("By Convex Calls", [](const InstanceRecord &r) { return r.calls; }, "Calls", true);
 	print_top("By Decomposed Pieces", [](const InstanceRecord &r) { return r.decomposed_pieces; }, "Pieces", true);
+	print_top("By log2(Total Combinations)", [](const InstanceRecord &r) { return log2_combination_count(r); }, "log2(combinations)", false);
 	print_top("By Max Branching", [](const InstanceRecord &r) { return r.max_observed_branching; }, "Max Branch", true);
 	print_top("By Initial Gap", [](const InstanceRecord &r) { return initial_gap_percent(r); }, "Gap %", false);
 	emit("Tip: with summary output enabled, render it with `glow summary.md`.");

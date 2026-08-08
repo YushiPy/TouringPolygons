@@ -51,6 +51,7 @@ apps/visualizer-server/_output_images/
 benchmarks/*
 !benchmarks/README.md
 !benchmarks/bench.py
+packages/instance-generation/regions/
 
 # Papers
 docs/bibliography/TPP-Dror/original.pdf
@@ -61,3 +62,6 @@ docs/bibliography/TPP-Tan&Jiang/main.pdf
 
 docs/bibliography/TSPN-B&B-Michael/original.pdf
 docs/bibliography/TSPN-B&B-Michael/main.pdf
+
+# Miscellaneous
+Repos/
