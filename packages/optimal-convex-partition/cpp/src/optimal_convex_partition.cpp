@@ -228,31 +228,6 @@ namespace optimal_convex_partition {
 			return left_turn(b, a, c);
 		}
 
-		bool on_segment(const Point &a, const Point &b, const Point &p) {
-			if (orientation(a, b, p) != Orientation::collinear) {
-				return false;
-			}
-
-			return std::min(a.x, b.x) <= p.x && p.x <= std::max(a.x, b.x)
-				&& std::min(a.y, b.y) <= p.y && p.y <= std::max(a.y, b.y);
-		}
-
-		bool segments_intersect(const Point &a, const Point &b, const Point &c, const Point &d) {
-			const Orientation o1 = orientation(a, b, c);
-			const Orientation o2 = orientation(a, b, d);
-			const Orientation o3 = orientation(c, d, a);
-			const Orientation o4 = orientation(c, d, b);
-
-			if (o1 != o2 && o3 != o4) {
-				return true;
-			}
-
-			return (o1 == Orientation::collinear && on_segment(a, b, c))
-				|| (o2 == Orientation::collinear && on_segment(a, b, d))
-				|| (o3 == Orientation::collinear && on_segment(c, d, a))
-				|| (o4 == Orientation::collinear && on_segment(c, d, b));
-		}
-
 		void set_valid_edge(Edge &edge,
 		                    const Point &p1, const Point &p2, const Point &p3,
 		                    const Point &p4, const Point &p5, const Point &p6) {
@@ -265,50 +240,8 @@ namespace optimal_convex_partition {
 			if (right_turn(p4, p5, p6)) {
 				edge.validity = edge.validity == EdgeValidity::start_valid
 					? EdgeValidity::both_valid
-					: EdgeValidity::end_valid;
+				: EdgeValidity::end_valid;
 			}
-		}
-
-		bool segment_leaves_interior_at_endpoint(const Polygon &polygon, unsigned int endpoint, unsigned int other) {
-			const size_t n = polygon.size();
-			const size_t prev = endpoint == 0 ? n - 1 : endpoint - 1;
-			const size_t next = (endpoint + 1) % n;
-
-			if (right_turn(polygon[prev], polygon[endpoint], polygon[next])) {
-				return right_turn(polygon[prev], polygon[endpoint], polygon[other])
-					&& right_turn(polygon[other], polygon[endpoint], polygon[next]);
-			}
-
-			return right_turn(polygon[prev], polygon[endpoint], polygon[other])
-				|| right_turn(polygon[other], polygon[endpoint], polygon[next]);
-		}
-
-		bool is_visible_n3(const Polygon &polygon, unsigned int i, unsigned int j) {
-			const size_t n = polygon.size();
-			if ((i + 1) % n == j || (j + 1) % n == i) {
-				return true;
-			}
-
-			if (segment_leaves_interior_at_endpoint(polygon, i, j)
-				|| segment_leaves_interior_at_endpoint(polygon, j, i)) {
-				return false;
-			}
-
-			const size_t prev_i = i == 0 ? n - 1 : i - 1;
-			const size_t prev_j = j == 0 ? n - 1 : j - 1;
-
-			for (size_t e = 0; e < n; ++e) {
-				if (e == i || e == prev_i || e == j || e == prev_j) {
-					continue;
-				}
-
-				const size_t next_e = e == n - 1 ? 0 : e + 1;
-				if (segments_intersect(polygon[i], polygon[j], polygon[e], polygon[next_e])) {
-					return false;
-				}
-			}
-
-			return true;
 		}
 
 		bool collinearly_visible(unsigned int edge_num1,

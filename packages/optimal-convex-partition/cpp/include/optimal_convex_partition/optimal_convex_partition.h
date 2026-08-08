@@ -16,8 +16,7 @@ namespace optimal_convex_partition {
 	using Polygon = std::vector<Point>;
 	using Partition = std::vector<Polygon>;
 
-	// Placeholder for the standalone port of CGAL::optimal_convex_partition_2.
-	// Input polygons are expected to be simple. The final implementation should
-	// match CGAL's output order exactly for the same input vertex order.
+	// Standalone port of CGAL::optimal_convex_partition_2 for simple polygons.
+	// The output order intentionally follows CGAL's implementation.
 	Partition decompose_polygon(const Polygon &polygon);
 }
