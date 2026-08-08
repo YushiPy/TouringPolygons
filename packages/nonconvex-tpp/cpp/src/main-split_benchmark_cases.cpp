@@ -1,6 +1,8 @@
 #include "tests.h"
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstddef>
 #include <filesystem>
 #include <format>
@@ -24,8 +26,6 @@ struct Options {
 	std::string input_path;
 	std::string csv_path;
 	std::string output_dir;
-	double easy_fraction = 0.34;
-	double medium_fraction = 0.33;
 };
 
 struct CaseDifficulty {
@@ -36,6 +36,21 @@ struct CaseDifficulty {
 	bool capped = false;
 	bool branch_limited = false;
 	double bnb_seconds = 0.0;
+};
+
+struct RuntimeBucket {
+	std::string_view name;
+	std::string_view filename;
+	double upper_seconds = std::numeric_limits<double>::infinity();
+};
+
+constexpr std::array RUNTIME_BUCKETS = {
+	RuntimeBucket{"under_1ms", "under_1ms.bin", 0.001},
+	RuntimeBucket{"under_10ms", "under_10ms.bin", 0.010},
+	RuntimeBucket{"under_100ms", "under_100ms.bin", 0.100},
+	RuntimeBucket{"under_1s", "under_1s.bin", 1.000},
+	RuntimeBucket{"under_10s", "under_10s.bin", 10.000},
+	RuntimeBucket{"over_10s_or_capped", "over_10s_or_capped.bin", std::numeric_limits<double>::infinity()},
 };
 
 vector<std::string> split(std::string_view line, char delimiter) {
@@ -100,20 +115,21 @@ bool parse_bool(std::string_view value) {
 
 void print_usage(const char *program) {
 	std::println(stderr, "Usage:");
-	std::println(stderr, "  {} <input_bin> <benchmark_csv> <output_dir> [easy_fraction] [medium_fraction]", program);
+	std::println(stderr, "  {} <input_bin> <benchmark_csv> <output_dir>", program);
 	std::println(stderr, "");
 	std::println(stderr, "Example:");
 	std::println(stderr, "  {} packages/nonconvex-tpp/cpp/tests/test_cases_simplified2.bin results.csv benchmarks/splits", program);
 	std::println(stderr, "");
-	std::println(stderr, "The tool ranks cases by measured benchmark difficulty and writes:");
-	std::println(stderr, "  <output_dir>/easy.bin");
-	std::println(stderr, "  <output_dir>/medium.bin");
-	std::println(stderr, "  <output_dir>/hard.bin");
+	std::println(stderr, "The tool splits cases by measured B&B runtime and writes:");
+	for (const auto &bucket : RUNTIME_BUCKETS) {
+		std::println(stderr, "  <output_dir>/{}", bucket.filename);
+	}
 	std::println(stderr, "  <output_dir>/manifest.csv");
+	std::println(stderr, "  <output_dir>/instances.json");
 }
 
 std::optional<Options> parse_options(int argc, char **argv) {
-	if (argc != 4 && argc != 5 && argc != 6) {
+	if (argc != 4) {
 		print_usage(argv[0]);
 		return std::nullopt;
 	}
@@ -122,33 +138,6 @@ std::optional<Options> parse_options(int argc, char **argv) {
 	options.input_path = argv[1];
 	options.csv_path = argv[2];
 	options.output_dir = argv[3];
-
-	if (argc >= 5) {
-		const auto easy_fraction = parse_double(argv[4]);
-
-		if (!easy_fraction || *easy_fraction < 0.0 || *easy_fraction > 1.0) {
-			print_usage(argv[0]);
-			return std::nullopt;
-		}
-
-		options.easy_fraction = *easy_fraction;
-	}
-
-	if (argc == 6) {
-		const auto medium_fraction = parse_double(argv[5]);
-
-		if (!medium_fraction || *medium_fraction < 0.0 || *medium_fraction > 1.0) {
-			print_usage(argv[0]);
-			return std::nullopt;
-		}
-
-		options.medium_fraction = *medium_fraction;
-	}
-
-	if (options.easy_fraction + options.medium_fraction > 1.0) {
-		print_usage(argv[0]);
-		return std::nullopt;
-	}
 
 	return options;
 }
@@ -253,44 +242,211 @@ bool easier_than(const CaseDifficulty &a, const CaseDifficulty &b) {
 	);
 }
 
-void write_test_set(const std::filesystem::path &path, const vector<tpp::TestCase> &test_cases, const vector<CaseDifficulty> &difficulties, size_t begin, size_t end) {
+size_t bucket_index(const CaseDifficulty &difficulty) {
+	if (difficulty.capped || difficulty.branch_limited) {
+		return RUNTIME_BUCKETS.size() - 1;
+	}
+
+	for (size_t i = 0; i < RUNTIME_BUCKETS.size(); i++) {
+		if (difficulty.bnb_seconds < RUNTIME_BUCKETS[i].upper_seconds) {
+			return i;
+		}
+	}
+
+	return RUNTIME_BUCKETS.size() - 1;
+}
+
+void write_test_set(const std::filesystem::path &path, const vector<tpp::TestCase> &test_cases, const vector<CaseDifficulty> &difficulties) {
 	std::ofstream output(path, std::ios::binary);
 
 	if (!output) {
 		throw std::runtime_error("Could not open output file: " + path.string());
 	}
 
-	for (size_t i = begin; i < end; i++) {
-		const auto &test_case = test_cases[difficulties[i].case_index];
+	for (const auto &difficulty : difficulties) {
+		const auto &test_case = test_cases[difficulty.case_index];
 		const vector<std::byte> encoded = tpp::encode_test(test_case.start, test_case.target, test_case.polygons, test_case.solution);
 		output.write(reinterpret_cast<const char *>(encoded.data()), static_cast<std::streamsize>(encoded.size()));
 	}
 }
 
-void write_manifest(const std::filesystem::path &path, const vector<CaseDifficulty> &difficulties, size_t easy_count, size_t medium_count) {
+void write_manifest(const std::filesystem::path &path, const vector<vector<CaseDifficulty>> &buckets) {
 	std::ofstream output(path);
 
 	if (!output) {
 		throw std::runtime_error("Could not open manifest file: " + path.string());
 	}
 
-	output << "bucket;rank;case_index;calls;bnb_seconds;decomposed_pieces;max_observed_branching;capped;branch_limited\n";
+	output << "bucket;bucket_rank;case_index;calls;bnb_seconds;decomposed_pieces;max_observed_branching;capped;branch_limited\n";
 
-	for (size_t i = 0; i < difficulties.size(); i++) {
-		const std::string bucket = i < easy_count ? "easy" : (i < easy_count + medium_count ? "medium" : "hard");
-		const auto &difficulty = difficulties[i];
+	for (size_t bucket = 0; bucket < buckets.size(); bucket++) {
+		for (size_t i = 0; i < buckets[bucket].size(); i++) {
+			const auto &difficulty = buckets[bucket][i];
 
-		output
-			<< bucket << ';'
-			<< i << ';'
-			<< difficulty.case_index << ';'
-			<< difficulty.calls << ';'
-			<< std::format("{:.6f}", difficulty.bnb_seconds) << ';'
-			<< difficulty.decomposed_pieces << ';'
-			<< difficulty.max_branching << ';'
-			<< (difficulty.capped ? "true" : "false") << ';'
-			<< (difficulty.branch_limited ? "true" : "false") << '\n';
+			output
+				<< RUNTIME_BUCKETS[bucket].name << ';'
+				<< i << ';'
+				<< difficulty.case_index << ';'
+				<< difficulty.calls << ';'
+				<< std::format("{:.6f}", difficulty.bnb_seconds) << ';'
+				<< difficulty.decomposed_pieces << ';'
+				<< difficulty.max_branching << ';'
+				<< (difficulty.capped ? "true" : "false") << ';'
+				<< (difficulty.branch_limited ? "true" : "false") << '\n';
+		}
 	}
+}
+
+std::string json_escape(std::string_view value) {
+	std::string escaped;
+	escaped.reserve(value.size() + 8);
+
+	for (const char c : value) {
+		switch (c) {
+			case '\\':
+				escaped += "\\\\";
+				break;
+			case '"':
+				escaped += "\\\"";
+				break;
+			case '\n':
+				escaped += "\\n";
+				break;
+			case '\r':
+				escaped += "\\r";
+				break;
+			case '\t':
+				escaped += "\\t";
+				break;
+			default:
+				escaped.push_back(c);
+				break;
+		}
+	}
+
+	return escaped;
+}
+
+void write_json_string(std::ostream &output, std::string_view value) {
+	output << '"' << json_escape(value) << '"';
+}
+
+void write_json_number_or_null(std::ostream &output, double value) {
+	if (std::isfinite(value)) {
+		output << std::format("{:.12f}", value);
+	} else {
+		output << "null";
+	}
+}
+
+void write_json_index(
+	const std::filesystem::path &path,
+	const Options &options,
+	const vector<vector<CaseDifficulty>> &buckets
+) {
+	std::ofstream output(path);
+
+	if (!output) {
+		throw std::runtime_error("Could not open JSON index file: " + path.string());
+	}
+
+	output << "{\n";
+	output << "  \"source\": {\n";
+	output << "    \"input_bin\": ";
+	write_json_string(output, options.input_path);
+	output << ",\n";
+	output << "    \"benchmark_csv\": ";
+	write_json_string(output, options.csv_path);
+	output << "\n";
+	output << "  },\n";
+	output << "  \"groups\": {\n";
+
+	for (size_t bucket = 0; bucket < buckets.size(); bucket++) {
+		const auto &bucket_info = RUNTIME_BUCKETS[bucket];
+		const auto &items = buckets[bucket];
+		double total_seconds = 0.0;
+		double max_seconds = 0.0;
+		size_t total_calls = 0;
+		size_t max_calls = 0;
+		bool has_capped = false;
+		bool has_branch_limited = false;
+
+		for (const auto &difficulty : items) {
+			total_seconds += difficulty.bnb_seconds;
+			max_seconds = std::max(max_seconds, difficulty.bnb_seconds);
+			total_calls += difficulty.calls;
+			max_calls = std::max(max_calls, difficulty.calls);
+			has_capped = has_capped || difficulty.capped;
+			has_branch_limited = has_branch_limited || difficulty.branch_limited;
+		}
+
+		const double mean_seconds = items.empty() ? 0.0 : total_seconds / static_cast<double>(items.size());
+		const double mean_calls = items.empty() ? 0.0 : static_cast<double>(total_calls) / static_cast<double>(items.size());
+
+		output << "    ";
+		write_json_string(output, bucket_info.name);
+		output << ": {\n";
+		output << "      \"file\": ";
+		write_json_string(output, bucket_info.filename);
+		output << ",\n";
+		output << "      \"count\": " << items.size() << ",\n";
+		output << "      \"upper_seconds\": ";
+		write_json_number_or_null(output, bucket_info.upper_seconds);
+		output << ",\n";
+		output << "      \"measured_max_seconds\": " << std::format("{:.12f}", max_seconds) << ",\n";
+		output << "      \"mean_seconds\": " << std::format("{:.12f}", mean_seconds) << ",\n";
+		output << "      \"total_seconds\": " << std::format("{:.12f}", total_seconds) << ",\n";
+		output << "      \"max_calls\": " << max_calls << ",\n";
+		output << "      \"mean_calls\": " << std::format("{:.6f}", mean_calls) << ",\n";
+		output << "      \"has_capped\": " << (has_capped ? "true" : "false") << ",\n";
+		output << "      \"has_branch_limited\": " << (has_branch_limited ? "true" : "false") << ",\n";
+		output << "      \"case_indices\": [";
+
+		for (size_t i = 0; i < items.size(); i++) {
+			if (i != 0) {
+				output << ", ";
+			}
+
+			output << items[i].case_index;
+		}
+
+		output << "]\n";
+		output << "    }" << (bucket + 1 == buckets.size() ? "\n" : ",\n");
+	}
+
+	output << "  },\n";
+	output << "  \"instances\": [\n";
+
+	bool first_instance = true;
+
+	for (size_t bucket = 0; bucket < buckets.size(); bucket++) {
+		for (size_t i = 0; i < buckets[bucket].size(); i++) {
+			const auto &difficulty = buckets[bucket][i];
+
+			if (!first_instance) {
+				output << ",\n";
+			}
+
+			first_instance = false;
+			output << "    {";
+			output << "\"case_index\": " << difficulty.case_index << ", ";
+			output << "\"group\": ";
+			write_json_string(output, RUNTIME_BUCKETS[bucket].name);
+			output << ", ";
+			output << "\"bucket_rank\": " << i << ", ";
+			output << "\"calls\": " << difficulty.calls << ", ";
+			output << "\"bnb_seconds\": " << std::format("{:.12f}", difficulty.bnb_seconds) << ", ";
+			output << "\"decomposed_pieces\": " << difficulty.decomposed_pieces << ", ";
+			output << "\"max_observed_branching\": " << difficulty.max_branching << ", ";
+			output << "\"capped\": " << (difficulty.capped ? "true" : "false") << ", ";
+			output << "\"branch_limited\": " << (difficulty.branch_limited ? "true" : "false");
+			output << "}";
+		}
+	}
+
+	output << "\n";
+	output << "  ]\n";
+	output << "}\n";
 }
 
 } // namespace
@@ -318,19 +474,24 @@ int main(int argc, char **argv) {
 
 		std::sort(difficulties.begin(), difficulties.end(), easier_than);
 
-		const size_t easy_count = static_cast<size_t>(static_cast<double>(difficulties.size()) * options->easy_fraction);
-		const size_t medium_count = static_cast<size_t>(static_cast<double>(difficulties.size()) * options->medium_fraction);
-		const size_t hard_count = difficulties.size() - easy_count - medium_count;
+		vector<vector<CaseDifficulty>> buckets(RUNTIME_BUCKETS.size());
+
+		for (const auto &difficulty : difficulties) {
+			buckets[bucket_index(difficulty)].push_back(difficulty);
+		}
+
 		const std::filesystem::path output_dir = options->output_dir;
 		std::filesystem::create_directories(output_dir);
 
-		write_test_set(output_dir / "easy.bin", test_cases, difficulties, 0, easy_count);
-		write_test_set(output_dir / "medium.bin", test_cases, difficulties, easy_count, easy_count + medium_count);
-		write_test_set(output_dir / "hard.bin", test_cases, difficulties, easy_count + medium_count, difficulties.size());
-		write_manifest(output_dir / "manifest.csv", difficulties, easy_count, medium_count);
+		for (size_t i = 0; i < buckets.size(); i++) {
+			write_test_set(output_dir / std::string(RUNTIME_BUCKETS[i].filename), test_cases, buckets[i]);
+			std::println("Wrote {} instances to {}", buckets[i].size(), (output_dir / std::string(RUNTIME_BUCKETS[i].filename)).string());
+		}
 
-		std::println("Wrote {} easy, {} medium, and {} hard instances to {}", easy_count, medium_count, hard_count, output_dir.string());
+		write_manifest(output_dir / "manifest.csv", buckets);
+		write_json_index(output_dir / "instances.json", *options, buckets);
 		std::println("Manifest: {}", (output_dir / "manifest.csv").string());
+		std::println("Index: {}", (output_dir / "instances.json").string());
 	} catch (const std::exception &error) {
 		std::println(stderr, "Error: {}", error.what());
 		return 1;

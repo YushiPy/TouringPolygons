@@ -70,16 +70,21 @@ If `Initial gap %` is tiny but calls are high, the solver is finding good soluti
 
 ## Split A Test Set By Difficulty
 
-First run a benchmark and keep its CSV. Then build the splitter:
+First run a benchmark and keep its CSV. Then split the original binary test set using the measured CSV:
+
+```bash
+python3 benchmarks/bench.py split \
+  --input packages/nonconvex-tpp/cpp/tests/test_cases_simplified2.bin \
+  --csv benchmarks/results.csv \
+  --output benchmarks/splits
+```
+
+This builds and runs the C++ splitter, then restores the benchmark target. To run the splitter directly:
 
 ```bash
 cmake --preset nonconvex-release -DTARGET=main-split_benchmark_cases
 cmake --build --preset nonconvex-release
-```
 
-Split the original binary test set using the measured CSV:
-
-```bash
 ./build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp \
   packages/nonconvex-tpp/cpp/tests/test_cases_simplified2.bin \
   benchmarks/results.csv \
@@ -90,26 +95,66 @@ This writes:
 
 | File | Contents |
 |---|---|
-| `benchmarks/splits/easy.bin` | Lowest measured-difficulty instances. |
-| `benchmarks/splits/medium.bin` | Middle measured-difficulty instances. |
-| `benchmarks/splits/hard.bin` | Highest measured-difficulty instances. |
-| `benchmarks/splits/manifest.csv` | Original case indices and ranking metrics. |
+| `benchmarks/splits/under_1ms.bin` | Cases with measured B&B time under `1ms`. |
+| `benchmarks/splits/under_10ms.bin` | Cases with measured B&B time from `1ms` to under `10ms`. |
+| `benchmarks/splits/under_100ms.bin` | Cases with measured B&B time from `10ms` to under `100ms`. |
+| `benchmarks/splits/under_1s.bin` | Cases with measured B&B time from `100ms` to under `1s`. |
+| `benchmarks/splits/under_10s.bin` | Cases with measured B&B time from `1s` to under `10s`. |
+| `benchmarks/splits/over_10s_or_capped.bin` | Cases that took at least `10s`, hit the call cap, or were branch-limited. |
+| `benchmarks/splits/manifest.csv` | Original case indices and measured metrics for every split case. |
+| `benchmarks/splits/instances.json` | Machine-readable index used by `bench.py`. |
 
-Default split sizes are `34%` easy, `33%` medium, and the rest hard. You can override the first two fractions:
-
-```bash
-./build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp \
-  packages/nonconvex-tpp/cpp/tests/test_cases_simplified2.bin \
-  benchmarks/results.csv \
-  benchmarks/splits \
-  0.50 0.25
-```
-
-The splitter ranks instances by measured behavior from the CSV:
-
-1. fully solved cases before capped or branch-limited cases;
-2. fewer convex calls before more convex calls;
-3. lower B&B runtime before higher runtime;
-4. fewer decomposed pieces and lower branching as tie-breakers.
+Inside each bucket, cases are ordered from easier to harder using calls, B&B runtime, decomposed pieces, branching, and original case index as tie-breakers.
 
 This means the difficulty split is tied to the benchmark configuration used to generate the CSV. If you change `max_calls_per_instance`, solver implementation, hardware, or the B&B policy, regenerate the CSV and split again.
+
+## Use The Helper
+
+List available groups:
+
+```bash
+python3 benchmarks/bench.py list --index benchmarks/splits/instances.json
+```
+
+Run all groups whose bucket upper bound is at most `1s`:
+
+```bash
+python3 benchmarks/bench.py run \
+  --index benchmarks/splits/instances.json \
+  --max-time 1s
+```
+
+By default, selected groups are concatenated into one temporary `.bin` file and benchmarked in a single run. This produces one CSV and one markdown summary for the whole selected workload.
+
+Run one explicit group:
+
+```bash
+python3 benchmarks/bench.py run \
+  --index benchmarks/splits/instances.json \
+  --group under_100ms
+```
+
+Useful run options:
+
+| Option | Meaning |
+|---|---|
+| `--group NAME` | Run a specific group. May be passed more than once. |
+| `--max-time 1s` | Run groups whose JSON `upper_seconds` is at most this limit. |
+| `--include-overflow` | Include `over_10s_or_capped` when using `--max-time`. |
+| `--name NAME` | Output basename for the combined run. |
+| `--separate-groups` | Run each selected group separately instead of concatenating them. |
+| `--no-build` | Skip CMake configure/build and use the existing binary. |
+| `--threads N` | Set `TPP_BENCH_THREADS=N` for this run. |
+| `--max-calls N` | Override the per-instance convex call cap. |
+| `--max-instances N` | Limit instances from the selected input. Useful for smoke tests. |
+
+Run outputs are written under `benchmarks/runs/<timestamp>/`. Combined runs write:
+
+| File | Meaning |
+|---|---|
+| `<name>.bin` | Concatenated temporary benchmark input. |
+| `<name>.csv` | Per-instance benchmark rows. |
+| `<name>.md` | Single summary for the whole selected workload. |
+| `<name>.groups.json` | Names of the groups included in the combined input. |
+
+The helper only reconfigures CMake when the configured target is different from the required target. It still runs the incremental build by default so source changes are not missed. Use `--no-build` only when you know the binary is already current.
