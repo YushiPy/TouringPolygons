@@ -162,3 +162,25 @@ Run outputs are written under `benchmarks/runs/<timestamp>/`. Combined runs writ
 | `<name>.groups.json` | Names of the groups included in the combined input. |
 
 The helper only reconfigures CMake when the configured target is different from the required target. It still runs the incremental build by default so source changes are not missed. Use `--no-build` only when you know the binary is already current.
+
+## Run Generated Test Sets
+
+Run every `.bin` file under the generated test directory:
+
+```bash
+python3 benchmarks/run_generated.py
+```
+
+Results are written to `benchmarks/generated-runs/`, with one CSV, Markdown summary, and log per input file. `run-index.csv` records the status and elapsed time of the whole batch. Completed inputs are skipped when the command is run again; pass `--force` to rerun them.
+
+Common controls:
+
+```bash
+python3 benchmarks/run_generated.py \
+  --input packages/nonconvex-tpp/cpp/tests/generated/sao-paulo \
+  --threads 1 \
+  --max-calls 1000000 \
+  --timeout 3600
+```
+
+Use `--dry-run` to list the selected files without building or running them, and `--pattern 'p20_*.bin'` to run only matching generated configurations.

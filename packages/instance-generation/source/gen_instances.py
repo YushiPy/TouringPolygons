@@ -51,26 +51,40 @@ class TestCase:
 	span: tuple[float, float]
 
 
-def ensure_dependencies() -> None:
-	global MultiPolygon, Polygon, osmium, plt
+def ensure_geometry_dependencies() -> None:
+	global MultiPolygon, Polygon, osmium
 
 	if osmium is not None:
 		return
 
 	try:
-		import matplotlib.pyplot as matplotlib_pyplot
 		import osmium as osmium_module
 		from shapely.geometry import MultiPolygon as ShapelyMultiPolygon
 		from shapely.geometry import Polygon as ShapelyPolygon
 	except ImportError as error:
 		raise SystemExit(
-			"Missing Python dependency. Install osmium, shapely, and matplotlib before running this generator."
+			"Missing Python dependency. Install osmium and shapely before running this generator."
 		) from error
 
-	plt = matplotlib_pyplot
 	osmium = osmium_module
 	Polygon = ShapelyPolygon
 	MultiPolygon = ShapelyMultiPolygon
+
+
+def ensure_plot_dependency() -> None:
+	global plt
+
+	if plt is not None:
+		return
+
+	try:
+		import matplotlib.pyplot as matplotlib_pyplot
+	except ImportError as error:
+		raise SystemExit(
+			"Missing Python dependency. Install matplotlib or pass --no-preview."
+		) from error
+
+	plt = matplotlib_pyplot
 
 
 def parse_args() -> argparse.Namespace:
@@ -79,6 +93,8 @@ def parse_args() -> argparse.Namespace:
 	parser.add_argument("--output-bin", type=Path, default=Path("instances.bin"), help="Binary output compatible with load_test_cases().")
 	parser.add_argument("--preview", type=Path, default=Path("instances.png"), help="Preview image output.")
 	parser.add_argument("--manifest", type=Path, help="Optional JSON metadata output. Defaults to <output-bin>.manifest.json.")
+	parser.add_argument("--no-preview", action="store_true", help="Do not write preview images.")
+	parser.add_argument("--no-manifest", action="store_true", help="Do not write the metadata manifest.")
 	parser.add_argument("--instances", type=int, default=20, help="Number of TPP instances to generate.")
 	parser.add_argument("--polygons-per-instance", type=int, default=8, help="Number of polygons in each instance.")
 	parser.add_argument("--seed", type=int, default=42, help="Random seed.")
@@ -93,6 +109,10 @@ def parse_args() -> argparse.Namespace:
 	parser.add_argument("--grid-cell-size", type=float, default=3.0, help="For grid layout, distance between grid cell centers before --scale.")
 	parser.add_argument("--grid-columns", type=int, default=0, help="For grid layout, number of columns. Defaults to ceil(sqrt(polygons_per_instance)).")
 	parser.add_argument("--grid-placement", choices=("row-major", "random"), default="row-major", help="For grid layout, assign visit order to row-major cells or random cells.")
+	parser.add_argument("--convex-replacement-fraction", type=float, default=0.0, help="Replace this fraction of sampled polygons with synthetic convex many-vertex polygons.")
+	parser.add_argument("--convex-replacement-vertices", type=int, default=64, help="Number of vertices in each synthetic convex replacement polygon.")
+	parser.add_argument("--convex-replacement-scale", type=float, default=1.0, help="Size multiplier for synthetic convex replacement polygons.")
+	parser.add_argument("--convex-replacement-position", choices=("middle", "random", "alternating"), default="middle", help="Where to place convex replacements in the TPP visit order.")
 	parser.add_argument("--endpoint-mode", choices=("ordered", "bbox"), default="ordered", help="How start and target points are placed.")
 	parser.add_argument("--candidate-pool", choices=("nonconvex", "all"), default="nonconvex", help="Use only non-convex buildings or all valid buildings.")
 	parser.add_argument("--nonconvex-threshold", type=float, default=0.98, help="Area / convex-hull-area below this value is considered non-convex.")
@@ -118,7 +138,7 @@ def load_building_rings(pbf_path: Path, cache_path: Path, use_cache: bool) -> li
 		print(f"Loaded {len(rings)} raw building rings.", flush=True)
 		return rings
 
-	ensure_dependencies()
+	ensure_geometry_dependencies()
 
 	class BuildingHandler(osmium.SimpleHandler):
 		def __init__(self) -> None:
@@ -406,6 +426,70 @@ def grid_layout_polygons(args: argparse.Namespace, ordered: Sequence[Candidate],
 	return placed
 
 
+def regular_polygon(center: tuple[float, float], radius: float, vertices: int, rotation: float) -> list[tuple[float, float]]:
+	return [
+		(
+			center[0] + math.cos(rotation + 2.0 * math.pi * index / vertices) * radius,
+			center[1] + math.sin(rotation + 2.0 * math.pi * index / vertices) * radius,
+		)
+		for index in range(vertices)
+	]
+
+
+def convex_replacement_indices(args: argparse.Namespace, count: int, rng: random.Random) -> set[int]:
+	if args.convex_replacement_fraction <= 0.0:
+		return set()
+
+	if args.convex_replacement_fraction > 1.0:
+		raise ValueError("--convex-replacement-fraction must be between 0 and 1.")
+
+	replacement_count = min(count, int(round(count * args.convex_replacement_fraction)))
+
+	if replacement_count == 0:
+		return set()
+
+	if args.convex_replacement_position == "random":
+		return set(rng.sample(range(count), replacement_count))
+
+	if args.convex_replacement_position == "alternating":
+		return set(range(1, count, 2)) if replacement_count >= count // 2 else set(range(1, replacement_count * 2, 2))
+
+	start = max(0, (count - replacement_count) // 2)
+	return set(range(start, start + replacement_count))
+
+
+def apply_convex_replacements(
+	args: argparse.Namespace,
+	polygons: list[list[tuple[float, float]]],
+	rng: random.Random,
+) -> list[list[tuple[float, float]]]:
+	indices = convex_replacement_indices(args, len(polygons), rng)
+
+	if not indices:
+		return polygons
+
+	if args.convex_replacement_vertices < 3:
+		raise ValueError("--convex-replacement-vertices must be at least 3.")
+
+	if args.convex_replacement_scale <= 0.0:
+		raise ValueError("--convex-replacement-scale must be positive.")
+
+	replaced: list[list[tuple[float, float]]] = []
+
+	for index, polygon in enumerate(polygons):
+		if index not in indices:
+			replaced.append(polygon)
+			continue
+
+		minx, miny, maxx, maxy = bounds_of_point_polygons([polygon])
+		size = max(maxx - minx, maxy - miny)
+		center = polygon_centroid(polygon)
+		radius = size * args.convex_replacement_scale / 2.0
+		replaced.append(regular_polygon(center, radius, args.convex_replacement_vertices, rng.random() * 2.0 * math.pi))
+
+	return replaced
+
+
 def normalize_case(
 	start: tuple[float, float],
 	target: tuple[float, float],
@@ -494,28 +578,24 @@ def generate_cases(args: argparse.Namespace, candidates: Sequence[Candidate]) ->
 
 		if args.layout == "grid":
 			point_polygons = grid_layout_polygons(args, ordered_candidates, rng)
-			start, target = make_point_endpoints(point_polygons, args.endpoint_mode, args.grid_cell_size * 0.5)
-			minx, miny, maxx, maxy = bounds_of_point_polygons(point_polygons)
-			norm_start, norm_target, norm_polygons, center = normalize_point_case(
-				start,
-				target,
-				point_polygons,
-				args.normalization,
-				(0.0, 0.0),
-				args.scale,
-			)
+			endpoint_margin = args.grid_cell_size * 0.5
+			normalization_origin = (0.0, 0.0)
 		else:
-			start, target = make_endpoints(ordered_candidates, args.endpoint_mode)
-			polygons = [candidate.polygon for candidate in ordered_candidates]
-			minx, miny, maxx, maxy = bounds_of_polygons(polygons)
-			norm_start, norm_target, norm_polygons, center = normalize_case(
-				start,
-				target,
-				polygons,
-				args.normalization,
-				dataset_origin,
-				args.scale,
-			)
+			point_polygons = [polygon_without_duplicate_close(candidate.polygon) for candidate in ordered_candidates]
+			endpoint_margin = 20.0
+			normalization_origin = dataset_origin
+
+		point_polygons = apply_convex_replacements(args, point_polygons, rng)
+		start, target = make_point_endpoints(point_polygons, args.endpoint_mode, endpoint_margin)
+		minx, miny, maxx, maxy = bounds_of_point_polygons(point_polygons)
+		norm_start, norm_target, norm_polygons, center = normalize_point_case(
+			start,
+			target,
+			point_polygons,
+			args.normalization,
+			normalization_origin,
+			args.scale,
+		)
 
 		cases.append(
 			TestCase(
@@ -587,6 +667,10 @@ def write_manifest(args: argparse.Namespace, cases: Sequence[TestCase], candidat
 			"grid_cell_size": args.grid_cell_size,
 			"grid_columns": args.grid_columns,
 			"grid_placement": args.grid_placement,
+			"convex_replacement_fraction": args.convex_replacement_fraction,
+			"convex_replacement_vertices": args.convex_replacement_vertices,
+			"convex_replacement_scale": args.convex_replacement_scale,
+			"convex_replacement_position": args.convex_replacement_position,
 			"endpoint_mode": args.endpoint_mode,
 			"candidate_pool": args.candidate_pool,
 			"nonconvex_threshold": args.nonconvex_threshold,
@@ -717,16 +801,22 @@ def main() -> int:
 	single_preview_dir = args.single_preview_dir if args.single_preview_dir else args.preview.with_name(f"{args.preview.stem}-instances")
 
 	rings = load_building_rings(args.input_pbf, cache_path, not args.no_cache)
-	ensure_dependencies()
+	ensure_geometry_dependencies()
 	origin = projection_origin(rings)
 	candidates = build_candidates(args, rings, origin)
 	print(f"Selected {len(candidates)} candidate polygons from {len(rings)} raw building rings.", flush=True)
 
 	cases = generate_cases(args, candidates)
 	write_binary_cases(cases, args.output_bin)
-	plot_cases(cases, args.preview)
-	plot_single_case_previews(cases, single_preview_dir, args.single_preview_count)
-	write_manifest(args, cases, candidates, manifest_path, origin)
+
+	if not args.no_preview:
+		ensure_plot_dependency()
+		plot_cases(cases, args.preview)
+		plot_single_case_previews(cases, single_preview_dir, args.single_preview_count)
+
+	if not args.no_manifest:
+		write_manifest(args, cases, candidates, manifest_path, origin)
+
 	return 0
 
 

@@ -23,6 +23,8 @@ Important options:
 | `--output-bin` | Binary TPP test set for the C++ solver and benchmark tools. |
 | `--preview` | PNG preview of all generated instances. |
 | `--manifest` | Optional metadata JSON. Defaults to `<output-bin>.manifest.json`. |
+| `--no-preview` | Skip preview images. This also avoids requiring `matplotlib`. |
+| `--no-manifest` | Skip metadata JSON. Useful for large benchmark sweeps where filenames carry the parameters. |
 | `--instances` | Number of TPP instances to generate. |
 | `--polygons-per-instance` | Number of building footprints per instance. |
 | `--seed` | Random seed for reproducible sampling. |
@@ -36,6 +38,9 @@ Important options:
 | `--grid-cell-size` | Distance between grid cell centers in grid layout. Must be larger than `--grid-polygon-size`. |
 | `--grid-columns` | Number of grid columns. Defaults to `ceil(sqrt(polygons_per_instance))`. |
 | `--grid-placement` | `row-major` assigns visit order across the grid; `random` assigns ordered polygons to random grid cells. |
+| `--convex-replacement-fraction` | Replace this fraction of sampled polygons with synthetic convex many-vertex polygons. |
+| `--convex-replacement-vertices` | Vertex count for synthetic convex replacements. |
+| `--convex-replacement-position` | Put replacements in the `middle`, at `random`, or in `alternating` positions of the visit order. |
 | `--order` | Polygon visit order: `spatial`, `left-to-right`, `random`, or `angle`. |
 | `--endpoint-mode` | Start/target placement from ordered endpoints or the instance bounding box. |
 | `--single-preview-count` | Number of individual instance preview images to write. |
@@ -63,12 +68,66 @@ python3 packages/instance-generation/source/gen_instances.py packages/instance-g
 
 Grid layout keeps each sampled building's footprint shape, scales all selected footprints to comparable size, and places them into non-overlapping cells in the selected visit order.
 
+To mix complex non-convex buildings with many-vertex convex polygons:
+
+```bash
+python3 packages/instance-generation/source/gen_instances.py sp-city.osm.pbf \
+  --output-bin packages/nonconvex-tpp/cpp/tests/osm_buildings_grid_convex50.bin \
+  --instances 100 \
+  --polygons-per-instance 50 \
+  --layout grid \
+  --grid-placement random \
+  --convex-replacement-fraction 0.5 \
+  --convex-replacement-vertices 64 \
+  --no-preview \
+  --no-manifest
+```
+
 The grid preview intentionally shows only the first 50 cases when many instances are generated. Individual previews are written next to it by default:
 
 ```text
 <preview-stem>-instances/case-000.png
 <preview-stem>-instances/case-001.png
 <preview-stem>-instances/case-002.png
+```
+
+## Batch Matrix
+
+`source/generate_benchmark_matrix.py` creates a sweep of binary inputs. It loads the OSM building cache and builds the candidate polygon pool once, then reuses it for every generated binary.
+
+Default sweep:
+
+- polygons per instance: `1,3,5,10,20,50,100,200`
+- layouts: `geographic,grid`
+- grid spacings: `1.1,1.25,1.5,2.0,2.5,3.0`
+- convex replacement fractions: `0.0,0.25,0.5,0.75,1.0`
+
+Preview and manifest files are disabled by default for batch runs.
+
+```bash
+python3 packages/instance-generation/source/generate_benchmark_matrix.py \
+  packages/instance-generation/regions/sao-paulo.osm.pbf \
+  --output-dir packages/nonconvex-tpp/cpp/tests/generated/sao-paulo \
+  --instances 100
+```
+
+To sample a smaller subset from the full matrix:
+
+```bash
+python3 packages/instance-generation/source/generate_benchmark_matrix.py \
+  packages/instance-generation/regions/sao-paulo.osm.pbf \
+  --output-dir packages/nonconvex-tpp/cpp/tests/generated/sao-paulo \
+  --instances 100 \
+  --sample-size 40 \
+  --seed 42
+```
+
+Preview the commands without generating files:
+
+```bash
+python3 packages/instance-generation/source/generate_benchmark_matrix.py \
+  packages/instance-generation/regions/sao-paulo.osm.pbf \
+  --dry-run
 ```
 
 ## Benchmark Workflow

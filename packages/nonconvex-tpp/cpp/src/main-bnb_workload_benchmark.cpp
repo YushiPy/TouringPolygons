@@ -1523,6 +1523,10 @@ int main(int argc, char **argv) {
 		emit("");
 	};
 
+	auto format_count_with_percent = [](size_t count, size_t total) {
+		return std::format("{} ({})", format_count(count), format_percent(static_cast<double>(count), static_cast<double>(total)));
+	};
+
 	emit("");
 	emit("## Benchmark Summary");
 	emit("");
@@ -1540,28 +1544,28 @@ int main(int argc, char **argv) {
 	emit("| Metric | Value |");
 	emit("|---|---:|");
 	emitf("| Total instances | {} |", format_count(summary.total_instances));
-	emitf("| Benchmarked instances | {} |", format_count(summary.benchmarked_instances));
+	emitf("| Benchmarked instances | {} |", format_count_with_percent(summary.benchmarked_instances, summary.total_instances));
 	emitf("| Benchmark runs | {} |", format_count(records.size()));
 	emitf("| Repeat count | {} |", format_count(options.repeat_count));
 	emitf("| Worker threads | {} |", format_count(worker_count));
-	emitf("| Fully solved runs | {} |", format_count(summary.fully_covered_instances));
-	emitf("| Capped by calls runs | {} |", format_count(summary.capped_by_calls_instances));
-	emitf("| Branch limited runs | {} |", format_count(summary.branch_limited_instances));
-	emitf("| Skipped by max polygons | {} |", format_count(summary.skipped_max_polygons));
-	emitf("| Skipped empty | {} |", format_count(summary.skipped_empty));
-	emitf("| Skipped decomposition | {} |", format_count(summary.skipped_decomposition));
-	emitf("| Skipped no calls | {} |", format_count(summary.skipped_no_calls));
+	emitf("| Fully solved runs | {} |", format_count_with_percent(summary.fully_covered_instances, records.size()));
+	emitf("| Capped by calls runs | {} |", format_count_with_percent(summary.capped_by_calls_instances, records.size()));
+	emitf("| Branch limited runs | {} |", format_count_with_percent(summary.branch_limited_instances, records.size()));
+	emitf("| Skipped by max polygons | {} |", format_count_with_percent(summary.skipped_max_polygons, summary.total_instances));
+	emitf("| Skipped empty | {} |", format_count_with_percent(summary.skipped_empty, summary.total_instances));
+	emitf("| Skipped decomposition | {} |", format_count_with_percent(summary.skipped_decomposition, summary.total_instances));
+	emitf("| Skipped no calls | {} |", format_count_with_percent(summary.skipped_no_calls, summary.total_instances));
 	emitf("| Max observed branching | {} |", format_count(summary.max_observed_branching));
 	emit("");
 	emit("| B&B Counter | Value |");
 	emit("|---|---:|");
 	emitf("| Total convex calls | {} |", format_count(summary.total_calls));
-	emitf("| Incumbent solves | {} |", format_count(summary.total_incumbent_solves));
-	emitf("| Bound solves | {} |", format_count(summary.total_bound_solves));
-	emitf("| Leaf solves | {} |", format_count(summary.total_leaf_solves));
-	emitf("| Visited nodes | {} |", format_count(summary.total_visited_nodes));
-	emitf("| Pruned nodes | {} |", format_count(summary.total_pruned_nodes));
-	emitf("| Best updates | {} |", format_count(summary.total_best_updates));
+	emitf("| Incumbent solves | {} |", format_count_with_percent(summary.total_incumbent_solves, summary.total_calls));
+	emitf("| Bound solves | {} |", format_count_with_percent(summary.total_bound_solves, summary.total_calls));
+	emitf("| Leaf solves | {} |", format_count_with_percent(summary.total_leaf_solves, summary.total_calls));
+	emitf("| Visited nodes | {} |", format_count_with_percent(summary.total_visited_nodes, summary.total_visited_nodes + summary.total_pruned_nodes));
+	emitf("| Pruned nodes | {} |", format_count_with_percent(summary.total_pruned_nodes, summary.total_visited_nodes + summary.total_pruned_nodes));
+	emitf("| Best updates | {} |", format_count_with_percent(summary.total_best_updates, summary.total_visited_nodes));
 	emit("");
 	emit("| Timing | Value |");
 	emit("|---|---:|");
