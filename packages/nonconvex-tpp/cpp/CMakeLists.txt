@@ -16,6 +16,10 @@ if(NOT TARGET tpp_convex)
 	add_subdirectory(../../convex-tpp/cpp tpp_convex)
 endif()
 
+if(NOT TARGET optimal_convex_partition)
+	add_subdirectory(../../optimal-convex-partition/cpp optimal_convex_partition)
+endif()
+
 if(APPLE)
 	set(OpenMP_ROOT /opt/homebrew/opt/libomp)
 	set(OpenMP_INCLUDE_DIR /opt/homebrew/opt/libomp/include)
@@ -40,7 +44,7 @@ target_link_libraries(tpp_nonconvex PUBLIC tpp_geometry tpp_convex)
 target_compile_options(tpp_nonconvex PRIVATE -O3)
 
 add_executable(${PROJECT_NAME} src/${TARGET}.cpp)
-target_link_libraries(${PROJECT_NAME} PRIVATE tpp_nonconvex)
+target_link_libraries(${PROJECT_NAME} PRIVATE tpp_nonconvex optimal_convex_partition)
 
 target_compile_options(${PROJECT_NAME} PRIVATE -O3)
 

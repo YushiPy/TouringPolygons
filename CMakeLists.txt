@@ -13,5 +13,9 @@ if(TPP_BUILD_CONVEX OR TPP_BUILD_NONCONVEX)
 endif()
 
 if(TPP_BUILD_NONCONVEX)
+    add_subdirectory(packages/optimal-convex-partition/cpp)
+endif()
+
+if(TPP_BUILD_NONCONVEX)
     add_subdirectory(packages/nonconvex-tpp/cpp)
 endif()
