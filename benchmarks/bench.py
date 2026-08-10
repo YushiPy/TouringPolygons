@@ -296,9 +296,9 @@ def make_parser() -> argparse.ArgumentParser:
 	return parser
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
 	parser = make_parser()
-	args = parser.parse_args()
+	args = parser.parse_args(argv)
 
 	try:
 		args.func(args)

@@ -4,6 +4,58 @@ This folder is for benchmark outputs, split test sets, and notes about how to in
 
 The current benchmark focuses on the non-convex branch-and-bound solver. Each B&B node calls the convex TPP solver on either a lower-bound instance or a leaf instance, so the main cost drivers are the number of convex calls and the cost per convex call.
 
+## Recommended Workflow
+
+`tpp.py` is the main entry point for instance generation and benchmarking. A generated parameter sweep is stored as a campaign so its inputs, generation settings, benchmark results, and progress stay together.
+
+Activate the project virtual environment before generating OSM instances so `osmium` and `shapely` are available:
+
+```bash
+source .venv/bin/activate
+```
+
+Create a campaign:
+
+```bash
+python3 benchmarks/tpp.py generate-matrix sao-paulo \
+  packages/instance-generation/regions/sao-paulo.osm.pbf \
+  --instances 100 \
+  --sample-size 40 \
+  --seed 42
+```
+
+This creates:
+
+```text
+benchmarks/campaigns/sao-paulo/
+├── campaign.json
+├── inputs/
+└── results/              # created when the benchmark starts
+```
+
+Run or resume all campaign inputs, then inspect progress:
+
+```bash
+python3 benchmarks/tpp.py run sao-paulo --max-calls 1000000 --timeout 3600
+python3 benchmarks/tpp.py status sao-paulo
+```
+
+Each input receives a CSV, Markdown summary, and log under `results/`. `results/run-index.csv` tracks pending, completed, failed, timed-out, and interrupted files. Completed files are skipped when a run resumes. The benchmark parameters and status totals are also appended to `campaign.json`.
+
+Generate one standalone binary with the same entry point:
+
+```bash
+python3 benchmarks/tpp.py generate \
+  packages/instance-generation/regions/sao-paulo.osm.pbf \
+  --output-bin /tmp/sao-paulo.bin \
+  --instances 100 \
+  --polygons-per-instance 20 \
+  --no-preview \
+  --no-manifest
+```
+
+Run `python3 benchmarks/tpp.py --help` to see all workflow commands. The older scripts remain available as compatible lower-level entry points.
+
 ## Build
 
 From the repository root:
@@ -165,7 +217,7 @@ The helper only reconfigures CMake when the configured target is different from 
 
 ## Run Generated Test Sets
 
-Run every `.bin` file under the generated test directory:
+For existing generated directories that predate campaigns, run every `.bin` file directly:
 
 ```bash
 python3 benchmarks/run_generated.py

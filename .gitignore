@@ -51,6 +51,8 @@ apps/visualizer-server/_output_images/
 benchmarks/*
 !benchmarks/README.md
 !benchmarks/bench.py
+!benchmarks/run_generated.py
+!benchmarks/tpp.py
 packages/instance-generation/regions/
 
 # Papers

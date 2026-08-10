@@ -95,14 +95,26 @@ The grid preview intentionally shows only the first 50 cases when many instances
 
 `source/generate_benchmark_matrix.py` creates a sweep of binary inputs. It loads the OSM building cache and builds the candidate polygon pool once, then reuses it for every generated binary.
 
-Default sweep:
+Current default sweep:
 
-- polygons per instance: `1,3,5,10,20,50,100,200`
+- polygons per instance: `1,3,5,10,20,30,40,50`
 - layouts: `geographic,grid`
 - grid spacings: `1.1,1.25,1.5,2.0,2.5,3.0`
 - convex replacement fractions: `0.0,0.25,0.5,0.75,1.0`
 
 Preview and manifest files are disabled by default for batch runs.
+
+For new experiments, use the campaign entry point. It stores the binaries outside the C++ regression-test directory and writes one campaign-level provenance file instead of a manifest for every binary:
+
+```bash
+python3 benchmarks/tpp.py generate-matrix sao-paulo \
+  packages/instance-generation/regions/sao-paulo.osm.pbf \
+  --instances 100 \
+  --sample-size 40 \
+  --seed 42
+```
+
+The lower-level matrix script remains available for producing binaries in an explicitly selected directory:
 
 ```bash
 python3 packages/instance-generation/source/generate_benchmark_matrix.py \

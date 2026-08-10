@@ -10,8 +10,12 @@ and builds the candidate polygon pool once, then reuses it for every output.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
+import json
 import random
+import subprocess
 from pathlib import Path
+from typing import Sequence
 
 import gen_instances
 
@@ -30,7 +34,7 @@ def format_number(value: float) -> str:
 	return text.replace(".", "p")
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 	parser = argparse.ArgumentParser(description="Generate a benchmark matrix of TPP instance binaries.")
 	parser.add_argument("input_pbf", type=Path, help="Input .osm.pbf file.")
 	parser.add_argument("--output-dir", type=Path, default=Path("packages/nonconvex-tpp/cpp/tests/generated"), help="Directory for generated .bin files.")
@@ -63,8 +67,9 @@ def parse_args() -> argparse.Namespace:
 	parser.add_argument("--with-preview", action="store_true", help="Generate previews for every binary.")
 	parser.add_argument("--with-manifest", action="store_true", help="Generate manifests for every binary.")
 	parser.add_argument("--single-preview-count", type=int, default=3)
+	parser.add_argument("--campaign-file", type=Path, help=argparse.SUPPRESS)
 	parser.add_argument("--dry-run", action="store_true", help="Print commands without running them.")
-	return parser.parse_args()
+	return parser.parse_args(argv)
 
 
 def matrix_job_args(
@@ -132,8 +137,7 @@ def describe_job(job_args: argparse.Namespace) -> str:
 	return " ".join(parts)
 
 
-def main() -> int:
-	args = parse_args()
+def build_jobs(args: argparse.Namespace) -> tuple[list[argparse.Namespace], int]:
 	polygon_counts = parse_csv_numbers(args.polygon_counts, int)
 	layouts = [layout.strip() for layout in args.layouts.split(",") if layout.strip()]
 	grid_spacings = parse_csv_numbers(args.grid_spacings, float)
@@ -143,7 +147,6 @@ def main() -> int:
 		if layout not in {"geographic", "grid"}:
 			raise SystemExit(f"Unsupported layout: {layout}")
 
-	args.output_dir.mkdir(parents=True, exist_ok=True)
 	jobs: list[argparse.Namespace] = []
 
 	for polygons in polygon_counts:
@@ -187,12 +190,130 @@ def main() -> int:
 		jobs = [jobs[index] for index in selected_indices]
 		print(f"Sampled {len(jobs)} jobs from {total_jobs} matrix combinations with seed {args.seed}.", flush=True)
 
+	return jobs, total_jobs
+
+
+def git_revision() -> str | None:
+	completed = subprocess.run(
+		["git", "rev-parse", "HEAD"],
+		cwd=Path(__file__).resolve().parents[3],
+		text=True,
+		stdout=subprocess.PIPE,
+		stderr=subprocess.DEVNULL,
+		check=False,
+	)
+	return completed.stdout.strip() if completed.returncode == 0 else None
+
+
+def git_is_dirty() -> bool | None:
+	completed = subprocess.run(
+		["git", "status", "--porcelain"],
+		cwd=Path(__file__).resolve().parents[3],
+		text=True,
+		stdout=subprocess.PIPE,
+		stderr=subprocess.DEVNULL,
+		check=False,
+	)
+	return bool(completed.stdout.strip()) if completed.returncode == 0 else None
+
+
+def job_record(job: argparse.Namespace, campaign_dir: Path) -> dict:
+	try:
+		output = job.output_bin.resolve().relative_to(campaign_dir.resolve())
+	except ValueError:
+		output = job.output_bin.resolve()
+
+	return {
+		"file": str(output),
+		"instances": job.instances,
+		"polygons_per_instance": job.polygons_per_instance,
+		"seed": job.seed,
+		"layout": job.layout,
+		"order": job.order,
+		"local_pool_size": job.local_pool_size,
+		"grid_cell_size": job.grid_cell_size if job.layout == "grid" else None,
+		"grid_polygon_size": job.grid_polygon_size if job.layout == "grid" else None,
+		"grid_placement": job.grid_placement if job.layout == "grid" else None,
+		"convex_replacement_fraction": job.convex_replacement_fraction,
+		"convex_replacement_vertices": job.convex_replacement_vertices,
+	}
+
+
+def write_campaign(
+	args: argparse.Namespace,
+	jobs: Sequence[argparse.Namespace],
+	total_jobs: int,
+	origin: tuple[float, float],
+	candidate_count: int,
+) -> None:
+	if args.campaign_file is None:
+		return
+
+	campaign_file = args.campaign_file.resolve()
+	campaign_file.parent.mkdir(parents=True, exist_ok=True)
+	pbf_path = args.input_pbf.resolve()
+	pbf_stat = pbf_path.stat()
+	cache_path = args.cache if args.cache else args.input_pbf.with_suffix(args.input_pbf.suffix + ".buildings.pkl")
+	data = {
+		"schema_version": 1,
+		"name": campaign_file.parent.name,
+		"created_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
+		"git_revision": git_revision(),
+		"git_dirty": git_is_dirty(),
+		"source": {
+			"pbf": str(pbf_path),
+			"pbf_size_bytes": pbf_stat.st_size,
+			"pbf_mtime_ns": pbf_stat.st_mtime_ns,
+			"building_cache": str(cache_path.resolve()) if not args.no_cache else None,
+			"projection_origin_lon_lat": list(origin),
+			"candidate_count": candidate_count,
+		},
+		"generation": {
+			"instances_per_file": args.instances,
+			"base_seed": args.seed,
+			"sample_size": args.sample_size,
+			"total_matrix_combinations": total_jobs,
+			"selected_combinations": len(jobs),
+			"polygon_counts": parse_csv_numbers(args.polygon_counts, int),
+			"layouts": [value.strip() for value in args.layouts.split(",") if value.strip()],
+			"grid_spacings": parse_csv_numbers(args.grid_spacings, float),
+			"convex_fractions": parse_csv_numbers(args.convex_fractions, float),
+			"sampling": args.sampling,
+			"local_pool_size": args.local_pool_size,
+			"simplify_tolerance": args.simplify_tolerance,
+			"scale": args.scale,
+			"normalization": args.normalization,
+			"order": args.order,
+			"endpoint_mode": args.endpoint_mode,
+			"grid_polygon_size": args.grid_polygon_size,
+			"grid_placement": args.grid_placement,
+			"convex_replacement_vertices": args.convex_replacement_vertices,
+			"convex_replacement_scale": args.convex_replacement_scale,
+			"convex_replacement_position": args.convex_replacement_position,
+			"candidate_pool": args.candidate_pool,
+			"nonconvex_threshold": args.nonconvex_threshold,
+			"min_area": args.min_area,
+			"min_vertices": args.min_vertices,
+			"max_vertices": args.max_vertices,
+		},
+		"inputs": [job_record(job, campaign_file.parent) for job in jobs],
+		"benchmark_runs": [],
+	}
+	campaign_file.write_text(json.dumps(data, indent=2) + "\n")
+	print(f"Wrote campaign metadata to {campaign_file}", flush=True)
+
+
+def run_matrix(args: argparse.Namespace) -> None:
+	jobs, total_jobs = build_jobs(args)
+
 	for job in jobs:
 		print("+", describe_job(job), flush=True)
 
 	if args.dry_run:
 		print(f"Prepared {len(jobs)} generation jobs from {total_jobs} matrix combinations.", flush=True)
-		return 0
+		return
+
+	args.output_dir.mkdir(parents=True, exist_ok=True)
 
 	cache_path = args.cache if args.cache else args.input_pbf.with_suffix(args.input_pbf.suffix + ".buildings.pkl")
 	rings = gen_instances.load_building_rings(args.input_pbf, cache_path, not args.no_cache)
@@ -228,7 +349,13 @@ def main() -> int:
 			manifest_path = job.output_bin.with_suffix(job.output_bin.suffix + ".manifest.json")
 			gen_instances.write_manifest(job, cases, candidates, manifest_path, origin)
 
+	write_campaign(args, jobs, total_jobs, origin, len(candidates))
 	print(f"Generated {len(jobs)} binary files from {total_jobs} matrix combinations.", flush=True)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+	args = parse_args(argv)
+	run_matrix(args)
 	return 0
 
 

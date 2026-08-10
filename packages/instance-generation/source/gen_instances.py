@@ -87,7 +87,7 @@ def ensure_plot_dependency() -> None:
 	plt = matplotlib_pyplot
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 	parser = argparse.ArgumentParser(description="Generate binary TPP test cases from OSM building footprints.")
 	parser.add_argument("input_pbf", type=Path, help="Input .osm.pbf file.")
 	parser.add_argument("--output-bin", type=Path, default=Path("instances.bin"), help="Binary output compatible with load_test_cases().")
@@ -123,7 +123,7 @@ def parse_args() -> argparse.Namespace:
 	parser.add_argument("--single-preview-dir", type=Path, help="Directory for individual instance previews. Defaults to <preview-stem>-instances.")
 	parser.add_argument("--cache", type=Path, help="Raw building-ring cache. Defaults to <input>.buildings.pkl.")
 	parser.add_argument("--no-cache", action="store_true", help="Do not read or write the building-ring cache.")
-	return parser.parse_args()
+	return parser.parse_args(argv)
 
 
 def load_building_rings(pbf_path: Path, cache_path: Path, use_cache: bool) -> list[list[tuple[float, float]]]:
@@ -794,8 +794,7 @@ def plot_single_case_previews(cases: Sequence[TestCase], output_dir: Path, count
 		print(f"Wrote single-instance preview to {path}", flush=True)
 
 
-def main() -> int:
-	args = parse_args()
+def run_generation(args: argparse.Namespace) -> None:
 	cache_path = args.cache if args.cache else args.input_pbf.with_suffix(args.input_pbf.suffix + ".buildings.pkl")
 	manifest_path = args.manifest if args.manifest else args.output_bin.with_suffix(args.output_bin.suffix + ".manifest.json")
 	single_preview_dir = args.single_preview_dir if args.single_preview_dir else args.preview.with_name(f"{args.preview.stem}-instances")
@@ -816,6 +815,11 @@ def main() -> int:
 
 	if not args.no_manifest:
 		write_manifest(args, cases, candidates, manifest_path, origin)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+	args = parse_args(argv)
+	run_generation(args)
 
 	return 0
 
