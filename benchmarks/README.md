@@ -122,7 +122,7 @@ The benchmark binary is:
 
 ```bash
 ./build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp \
-  packages/nonconvex-tpp/cpp/tests/test_cases_simplified2.bin \
+  benchmarks/suites/canonical-v1.bin \
   -1 -1 1000000 -1 \
   benchmarks/results/results.csv \
   benchmarks/results/summary.md
@@ -177,7 +177,7 @@ First run a benchmark and keep its CSV. Then split the original binary test set 
 
 ```bash
 python3 benchmarks/tpp.py split \
-  --input packages/nonconvex-tpp/cpp/tests/test_cases_simplified2.bin \
+  --input benchmarks/suites/canonical-v1.bin \
   --csv benchmarks/results/results.csv \
   --output benchmarks/results/splits
 ```
@@ -189,7 +189,7 @@ cmake --preset nonconvex-release -DTARGET=main-split_benchmark_cases
 cmake --build --preset nonconvex-release
 
 ./build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp \
-  packages/nonconvex-tpp/cpp/tests/test_cases_simplified2.bin \
+  benchmarks/suites/canonical-v1.bin \
   benchmarks/results/results.csv \
   benchmarks/results/splits
 ```
@@ -276,7 +276,7 @@ Common controls:
 
 ```bash
 python3 benchmarks/scripts/run_generated.py \
-  --input packages/nonconvex-tpp/cpp/tests/generated/sao-paulo \
+  --input benchmarks/campaigns/sao-paulo/inputs \
   --threads 1 \
   --max-calls 1000000 \
   --timeout 3600

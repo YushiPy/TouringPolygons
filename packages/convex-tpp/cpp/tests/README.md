@@ -1,8 +1,17 @@
 
 ## Tests directory
 
-This directory contains test cases for the TPP for convex polygons C++ implementation.
-These test cases are used to verify the correctness of the implementation and to ensure that it produces the expected results for various input scenarios. The test cases are stored in binary format in the `tests` directory.
+This directory contains the handwritten test cases for the TPP for convex
+polygons C++ implementation. The generated stress suites are intentionally not
+tracked; generate and run them with:
+
+```bash
+packages/convex-tpp/cpp/run_generated_tests.sh
+```
+
+The script writes generated `.bin` files under `build/convex-generated-tests/`
+and runs the verifier against both the tracked handwritten fixtures and the
+generated fixtures.
 
 ## Test case format
 

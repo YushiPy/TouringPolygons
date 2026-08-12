@@ -8,8 +8,7 @@
 
 int main() {
 
-	// Open file "test_cases.bin"
-	auto test_cases = tpp::load_test_cases("tests/test_cases_simplified2.bin");
+	auto test_cases = tpp::load_test_cases("benchmarks/suites/canonical-v1.bin");
 	const auto &[start, target, polygons, _] = test_cases[0];
 
 	auto solution = tpp::tpp_convex_solve(start, target, polygons);

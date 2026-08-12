@@ -34,7 +34,7 @@ constexpr size_t PROGRESS_BAR_WIDTH = 30;
 constexpr size_t BRANCH_BUCKET_COUNT = 5;
 
 struct BenchmarkOptions {
-	std::string input_path = "tests/test_cases_simplified2.bin";
+	std::string input_path = "benchmarks/suites/canonical-v1.bin";
 	size_t max_polygons = 40;
 	size_t max_instances = 6;
 	size_t max_calls_per_instance = 512;
@@ -1131,10 +1131,10 @@ void print_usage(const char *program) {
 	std::println(stderr, "  {} <input_file> <max_polygons> <max_instances> <max_calls_per_instance> <max_branching> [repeat_count] [csv_output_file] [summary_md_file]", program);
 	std::println(stderr, "");
 	std::println(stderr, "Example:");
-	std::println(stderr, "  {} packages/nonconvex-tpp/cpp/tests/test_cases_simplified2.bin 40 6 512 6", program);
-	std::println(stderr, "  {} packages/nonconvex-tpp/cpp/tests/test_cases_simplified2.bin -1 -1 1000000 -1 results.csv", program);
-	std::println(stderr, "  {} packages/nonconvex-tpp/cpp/tests/test_cases_simplified2.bin 40 6 512 6 5 results.csv", program);
-	std::println(stderr, "  {} packages/nonconvex-tpp/cpp/tests/test_cases_simplified2.bin 40 6 512 6 5 results.csv summary.md", program);
+	std::println(stderr, "  {} benchmarks/suites/canonical-v1.bin 40 6 512 6", program);
+	std::println(stderr, "  {} benchmarks/suites/canonical-v1.bin -1 -1 1000000 -1 results.csv", program);
+	std::println(stderr, "  {} benchmarks/suites/canonical-v1.bin 40 6 512 6 5 results.csv", program);
+	std::println(stderr, "  {} benchmarks/suites/canonical-v1.bin 40 6 512 6 5 results.csv summary.md", program);
 	std::println(stderr, "");
 	std::println(stderr, "Arguments:");
 	std::println(stderr, "  input_file              Binary test case file.");

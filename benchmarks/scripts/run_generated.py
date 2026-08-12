@@ -16,7 +16,7 @@ from typing import Sequence
 import bench
 
 
-DEFAULT_INPUT = bench.REPO_ROOT / "packages/nonconvex-tpp/cpp/tests/generated"
+DEFAULT_INPUT = bench.REPO_ROOT / "benchmarks/campaigns"
 DEFAULT_OUTPUT = bench.REPO_ROOT / "benchmarks/results/generated-runs"
 
 

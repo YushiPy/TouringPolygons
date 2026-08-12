@@ -8,7 +8,7 @@ The primary output is a binary test-case stream compatible with the non-convex C
 
 ```bash
 python3 packages/instance-generation/source/gen_instances.py packages/instance-generation/regions/sao-paulo.osm.pbf \
-  --output-bin packages/nonconvex-tpp/cpp/tests/osm_buildings.bin \
+  --output-bin benchmarks/results/osm_buildings.bin \
   --preview packages/instance-generation/source/osm_buildings.png \
   --instances 100 \
   --polygons-per-instance 8 \
@@ -55,7 +55,7 @@ The current non-convex C++ solver cannot handle touching or intersecting polygon
 
 ```bash
 python3 packages/instance-generation/source/gen_instances.py packages/instance-generation/regions/sao-paulo.osm.pbf \
-  --output-bin packages/nonconvex-tpp/cpp/tests/osm_buildings_grid.bin \
+  --output-bin benchmarks/results/osm_buildings_grid.bin \
   --preview packages/instance-generation/source/osm_buildings_grid.png \
   --instances 100 \
   --polygons-per-instance 8 \
@@ -72,7 +72,7 @@ To mix complex non-convex buildings with many-vertex convex polygons:
 
 ```bash
 python3 packages/instance-generation/source/gen_instances.py sp-city.osm.pbf \
-  --output-bin packages/nonconvex-tpp/cpp/tests/osm_buildings_grid_convex50.bin \
+  --output-bin benchmarks/results/osm_buildings_grid_convex50.bin \
   --instances 100 \
   --polygons-per-instance 50 \
   --layout grid \
@@ -119,7 +119,7 @@ The lower-level matrix script remains available for producing binaries in an exp
 ```bash
 python3 packages/instance-generation/source/generate_benchmark_matrix.py \
   packages/instance-generation/regions/sao-paulo.osm.pbf \
-  --output-dir packages/nonconvex-tpp/cpp/tests/generated/sao-paulo \
+  --output-dir benchmarks/campaigns/sao-paulo/inputs \
   --instances 100
 ```
 
@@ -128,7 +128,7 @@ To sample a smaller subset from the full matrix:
 ```bash
 python3 packages/instance-generation/source/generate_benchmark_matrix.py \
   packages/instance-generation/regions/sao-paulo.osm.pbf \
-  --output-dir packages/nonconvex-tpp/cpp/tests/generated/sao-paulo \
+  --output-dir benchmarks/campaigns/sao-paulo/inputs \
   --instances 100 \
   --sample-size 40 \
   --seed 42
@@ -156,13 +156,13 @@ To classify a newly generated binary by difficulty, first benchmark it and then 
 
 ```bash
 ./build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp \
-  packages/nonconvex-tpp/cpp/tests/osm_buildings.bin \
+  benchmarks/results/osm_buildings.bin \
   -1 -1 1000000 -1 1 \
   benchmarks/results/osm_buildings.csv \
   benchmarks/results/osm_buildings.md
 
 python3 benchmarks/tpp.py split \
-  --input packages/nonconvex-tpp/cpp/tests/osm_buildings.bin \
+  --input benchmarks/results/osm_buildings.bin \
   --csv benchmarks/results/osm_buildings.csv \
   --output benchmarks/results/osm_building_splits
 ```

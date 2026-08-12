@@ -118,7 +118,7 @@ void print_usage(const char *program) {
 	std::println(stderr, "  {} <input_bin> <benchmark_csv> <output_dir>", program);
 	std::println(stderr, "");
 	std::println(stderr, "Example:");
-	std::println(stderr, "  {} packages/nonconvex-tpp/cpp/tests/test_cases_simplified2.bin results.csv benchmarks/results/splits", program);
+	std::println(stderr, "  {} benchmarks/suites/canonical-v1.bin results.csv benchmarks/results/splits", program);
 	std::println(stderr, "");
 	std::println(stderr, "The tool splits cases by measured B&B runtime and writes:");
 	for (const auto &bucket : RUNTIME_BUCKETS) {

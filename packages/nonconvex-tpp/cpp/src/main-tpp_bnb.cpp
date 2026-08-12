@@ -708,8 +708,8 @@ vector<Vector2> tpp_solve(const Vector2 &start, const Vector2 &target, const vec
 
 int main() {
 	
-	// const auto test_cases = tpp::load_test_cases("tests/custom_tests.bin");
-	const auto test_cases = tpp::load_test_cases("tests/test_cases_simplified2.bin");
+	// const auto test_cases = tpp::load_test_cases("benchmarks/suites/nonconvex/custom_tests.bin");
+	const auto test_cases = tpp::load_test_cases("benchmarks/suites/canonical-v1.bin");
 	auto [start, target, polygons, _] = test_cases[0];
 	
 	for (size_t i = 0; i < polygons.size(); i++) {

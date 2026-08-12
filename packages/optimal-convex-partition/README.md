@@ -37,7 +37,7 @@ cmake -S cpp -B build-parity \
 	-DOPTIMAL_CONVEX_PARTITION_BUILD_CGAL_PARITY_TEST=ON
 cmake --build build-parity --config Release
 ./build-parity/optimal_convex_partition_cgal_parity \
-	../nonconvex-tpp/cpp/tests/test_cases_simplified2.bin
+	../../benchmarks/suites/canonical-v1.bin
 ```
 
 Current validation result on the TouringPolygons fixture corpus:

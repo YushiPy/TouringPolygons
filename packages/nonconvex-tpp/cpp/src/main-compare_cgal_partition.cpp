@@ -155,7 +155,7 @@ namespace {
 int main(int argc, char **argv) {
 	const std::string filename = argc > 1
 		? argv[1]
-		: "tests/test_cases_simplified2.bin";
+		: "benchmarks/suites/canonical-v1.bin";
 
 	const auto test_cases = tpp::load_test_cases(filename);
 

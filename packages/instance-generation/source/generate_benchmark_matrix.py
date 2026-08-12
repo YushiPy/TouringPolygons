@@ -37,7 +37,7 @@ def format_number(value: float) -> str:
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 	parser = argparse.ArgumentParser(description="Generate a benchmark matrix of TPP instance binaries.")
 	parser.add_argument("input_pbf", type=Path, help="Input .osm.pbf file.")
-	parser.add_argument("--output-dir", type=Path, default=Path("packages/nonconvex-tpp/cpp/tests/generated"), help="Directory for generated .bin files.")
+	parser.add_argument("--output-dir", type=Path, default=Path("benchmarks/campaigns/generated/inputs"), help="Directory for generated .bin files.")
 	parser.add_argument("--instances", type=int, default=100, help="Instances per generated binary.")
 	parser.add_argument("--seed", type=int, default=42, help="Base random seed.")
 	parser.add_argument("--sample-size", type=int, default=0, help="Randomly sample this many jobs from the full matrix. Defaults to all jobs.")

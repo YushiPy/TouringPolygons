@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <fstream>
 #include <algorithm>
+#include <cstdlib>
 
 template <typename T>
 struct std::formatter<std::vector<T>> {
@@ -41,8 +42,11 @@ int main() {
 		// tpp::tpp_convex_solve_gurobi,
 	};
 
+	const char *test_dir_env = std::getenv("TPP_TEST_DIR");
+	const std::filesystem::path test_dir = test_dir_env != nullptr ? test_dir_env : "tests/";
+
 	std::vector<std::filesystem::directory_entry> entries(
-		std::filesystem::directory_iterator("tests/"), {}
+		std::filesystem::directory_iterator(test_dir), {}
 	);
 
 	std::sort(entries.begin(), entries.end(), [](const auto &a, const auto &b) {
