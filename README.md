@@ -14,6 +14,12 @@ An interactive visualizer for the convex case is available [here](https://yuship
 apps/
 ├── visualizer-local/     # Static browser visualizer
 └── visualizer-server/    # Server-backed visualizer
+benchmarks/
+├── scripts/              # Benchmark and instance-generation command internals
+├── suites/               # Tracked canonical benchmark suites
+├── campaigns/            # Ignored generated campaigns
+├── results/              # Ignored benchmark outputs
+└── archive/              # Historical benchmark data kept for reference
 packages/
 ├── common-geometry/      # Shared C++ vector and geometry primitives
 ├── convex-tpp/           # Convex TPP solvers and Python prototypes
@@ -25,7 +31,6 @@ experiments/
 docs/
 ├── bibliography/         # Source papers and LLM-friendly TeX conversions
 └── reports/              # Portuguese LaTeX reports
-tools/                    # Repository-level helper scripts
 ```
 
 This repository is organized as a research monorepo. The maintained C++ code is
@@ -39,6 +44,16 @@ The common geometry package owns `Vector2`/`Vec2` and low-level geometric
 helpers. The convex package owns the exact convex TPP solvers. The non-convex
 package owns CGAL decomposition, approximation, and Branch and Bound, and calls
 the convex solver package instead of carrying a second convex implementation.
+
+Repository boundaries:
+
+- `packages/` is for maintained package code and intentional regression fixtures.
+- `experiments/` is for abandoned approaches, historical prototypes, and scratch
+  implementations that are still worth keeping.
+- `benchmarks/suites/` contains tracked canonical benchmark suites. Campaigns,
+  split outputs, run outputs, and generated instance matrices are ignored.
+- `benchmarks/generate_instances.py` regenerates ignored benchmark campaign
+  inputs with a single command.
 
 ---
 

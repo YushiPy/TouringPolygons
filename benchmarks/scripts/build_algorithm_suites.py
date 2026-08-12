@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Sequence
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CAMPAIGN = REPO_ROOT / "benchmarks/campaigns/sao-paulo"
 DEFAULT_OUTPUT = REPO_ROOT / "benchmarks/suites"
 

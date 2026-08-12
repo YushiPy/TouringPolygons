@@ -11,6 +11,7 @@ venv/
 
 # CMake/build outputs
 build/
+packages/*/cpp/build/
 cmake-build-*/
 CMakeFiles/
 CMakeCache.txt
@@ -48,19 +49,25 @@ node_modules/
 PolygonsOut/
 *.db
 apps/visualizer-server/_output_images/
+benchmarks/campaigns/
+benchmarks/generated-runs/
+benchmarks/results/
+benchmarks/splits/
+benchmarks/suite-results/
 benchmarks/*
 !benchmarks/README.md
-!benchmarks/bench.py
-!benchmarks/build_algorithm_suites.py
-!benchmarks/run_algorithm_benchmark.py
-!benchmarks/run_generated.py
 !benchmarks/tpp.py
+!benchmarks/generate_instances.py
+!benchmarks/scripts/
+!benchmarks/scripts/*.py
 !benchmarks/suites/
 !benchmarks/suites/*.bin
 !benchmarks/suites/*.csv
 !benchmarks/suites/*.json
 !benchmarks/suites/*.md
 packages/instance-generation/regions/
+packages/nonconvex-tpp/cpp/tests/generated/
+packages/nonconvex-tpp/python/instances*.zip
 
 # Papers
 docs/bibliography/TPP-Dror/original.pdf

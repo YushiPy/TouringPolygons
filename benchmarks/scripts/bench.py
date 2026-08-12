@@ -12,15 +12,15 @@ import sys
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 BUILD_PRESET = "nonconvex-release"
 TARGET_BINARY = REPO_ROOT / "build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp"
 BUILD_DIR = REPO_ROOT / "build/nonconvex-release"
 CMAKE_CACHE = BUILD_DIR / "CMakeCache.txt"
 DEFAULT_INPUT = REPO_ROOT / "packages/nonconvex-tpp/cpp/tests/test_cases_simplified2.bin"
-DEFAULT_RESULTS = REPO_ROOT / "benchmarks/results.csv"
-DEFAULT_SPLITS = REPO_ROOT / "benchmarks/splits"
-DEFAULT_RUNS = REPO_ROOT / "benchmarks/runs"
+DEFAULT_RESULTS = REPO_ROOT / "benchmarks/results/results.csv"
+DEFAULT_SPLITS = REPO_ROOT / "benchmarks/results/splits"
+DEFAULT_RUNS = REPO_ROOT / "benchmarks/results/runs"
 
 
 def run_command(command: list[str], *, env: dict[str, str] | None = None) -> None:

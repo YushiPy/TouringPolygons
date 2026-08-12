@@ -1,6 +1,17 @@
 # Benchmarking
 
-This folder is for benchmark outputs, split test sets, and notes about how to interpret them.
+This folder is for benchmark commands, tracked benchmark suites, generated
+benchmark outputs, and notes about how to interpret them.
+
+Layout:
+
+- `tpp.py`: stable command entry point.
+- `generate_instances.py`: one-command helper for the default generated campaign.
+- `scripts/`: lower-level implementation scripts used by `tpp.py`.
+- `suites/`: tracked canonical benchmark inputs and metadata.
+- `campaigns/`: ignored generated campaign inputs and results.
+- `results/`: ignored ad hoc benchmark outputs, splits, and run summaries.
+- `archive/`: ignored historical benchmark data kept locally for reference.
 
 The current benchmark focuses on the non-convex branch-and-bound solver. Each B&B node calls the convex TPP solver on either a lower-bound instance or a leaf instance, so the main cost drivers are the number of convex calls and the cost per convex call.
 
@@ -15,6 +26,12 @@ source .venv/bin/activate
 ```
 
 Create a campaign:
+
+```bash
+python3 benchmarks/generate_instances.py
+```
+
+For custom campaign settings, call the benchmark entry point directly:
 
 ```bash
 python3 benchmarks/tpp.py generate-matrix sao-paulo \
@@ -54,7 +71,7 @@ python3 benchmarks/tpp.py generate \
   --no-manifest
 ```
 
-Run `python3 benchmarks/tpp.py --help` to see all workflow commands. The older scripts remain available as compatible lower-level entry points.
+Run `python3 benchmarks/tpp.py --help` to see all workflow commands. Lower-level scripts remain available under `benchmarks/scripts/` for direct debugging.
 
 ## Canonical Algorithm Suite
 
@@ -81,16 +98,10 @@ The selection is deterministic, rejects intersecting or touching polygons, dedup
 Run the canonical benchmark with no required options:
 
 ```bash
-python3 benchmarks/run_algorithm_benchmark.py
-```
-
-Equivalently:
-
-```bash
 python3 benchmarks/tpp.py benchmark
 ```
 
-The runner builds the current B&B benchmark target, uses all hardware threads by default, writes timestamped CSV and Markdown outputs under `benchmarks/suite-results/`, and prints the complete summary in the terminal. Use `--suite benchmarks/suites/algorithm-dev-v1.bin` for the smaller development workload. Pass `--threads 1` when you specifically need a single-thread timing baseline.
+The runner builds the current B&B benchmark target, uses all hardware threads by default, writes timestamped CSV and Markdown outputs under `benchmarks/results/suite-results/`, and prints the complete summary in the terminal. Use `--suite benchmarks/suites/algorithm-dev-v1.bin` for the smaller development workload. Pass `--threads 1` when you specifically need a single-thread timing baseline.
 
 ## Build
 
@@ -113,8 +124,8 @@ The benchmark binary is:
 ./build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp \
   packages/nonconvex-tpp/cpp/tests/test_cases_simplified2.bin \
   -1 -1 1000000 -1 \
-  benchmarks/results.csv \
-  benchmarks/summary.md
+  benchmarks/results/results.csv \
+  benchmarks/results/summary.md
 ```
 
 Arguments:
@@ -165,10 +176,10 @@ If `Initial gap %` is tiny but calls are high, the solver is finding good soluti
 First run a benchmark and keep its CSV. Then split the original binary test set using the measured CSV:
 
 ```bash
-python3 benchmarks/bench.py split \
+python3 benchmarks/tpp.py split \
   --input packages/nonconvex-tpp/cpp/tests/test_cases_simplified2.bin \
-  --csv benchmarks/results.csv \
-  --output benchmarks/splits
+  --csv benchmarks/results/results.csv \
+  --output benchmarks/results/splits
 ```
 
 This builds and runs the C++ splitter, then restores the benchmark target. To run the splitter directly:
@@ -179,22 +190,22 @@ cmake --build --preset nonconvex-release
 
 ./build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp \
   packages/nonconvex-tpp/cpp/tests/test_cases_simplified2.bin \
-  benchmarks/results.csv \
-  benchmarks/splits
+  benchmarks/results/results.csv \
+  benchmarks/results/splits
 ```
 
 This writes:
 
 | File | Contents |
 |---|---|
-| `benchmarks/splits/under_1ms.bin` | Cases with measured B&B time under `1ms`. |
-| `benchmarks/splits/under_10ms.bin` | Cases with measured B&B time from `1ms` to under `10ms`. |
-| `benchmarks/splits/under_100ms.bin` | Cases with measured B&B time from `10ms` to under `100ms`. |
-| `benchmarks/splits/under_1s.bin` | Cases with measured B&B time from `100ms` to under `1s`. |
-| `benchmarks/splits/under_10s.bin` | Cases with measured B&B time from `1s` to under `10s`. |
-| `benchmarks/splits/over_10s_or_capped.bin` | Cases that took at least `10s`, hit the call cap, or were branch-limited. |
-| `benchmarks/splits/manifest.csv` | Original case indices and measured metrics for every split case. |
-| `benchmarks/splits/instances.json` | Machine-readable index used by `bench.py`. |
+| `benchmarks/results/splits/under_1ms.bin` | Cases with measured B&B time under `1ms`. |
+| `benchmarks/results/splits/under_10ms.bin` | Cases with measured B&B time from `1ms` to under `10ms`. |
+| `benchmarks/results/splits/under_100ms.bin` | Cases with measured B&B time from `10ms` to under `100ms`. |
+| `benchmarks/results/splits/under_1s.bin` | Cases with measured B&B time from `100ms` to under `1s`. |
+| `benchmarks/results/splits/under_10s.bin` | Cases with measured B&B time from `1s` to under `10s`. |
+| `benchmarks/results/splits/over_10s_or_capped.bin` | Cases that took at least `10s`, hit the call cap, or were branch-limited. |
+| `benchmarks/results/splits/manifest.csv` | Original case indices and measured metrics for every split case. |
+| `benchmarks/results/splits/instances.json` | Machine-readable index used by the helper. |
 
 Inside each bucket, cases are ordered from easier to harder using calls, B&B runtime, decomposed pieces, branching, and original case index as tie-breakers.
 
@@ -205,14 +216,14 @@ This means the difficulty split is tied to the benchmark configuration used to g
 List available groups:
 
 ```bash
-python3 benchmarks/bench.py list --index benchmarks/splits/instances.json
+python3 benchmarks/tpp.py list-groups --index benchmarks/results/splits/instances.json
 ```
 
 Run all groups whose bucket upper bound is at most `1s`:
 
 ```bash
-python3 benchmarks/bench.py run \
-  --index benchmarks/splits/instances.json \
+python3 benchmarks/tpp.py run-groups \
+  --index benchmarks/results/splits/instances.json \
   --max-time 1s
 ```
 
@@ -221,8 +232,8 @@ By default, selected groups are concatenated into one temporary `.bin` file and 
 Run one explicit group:
 
 ```bash
-python3 benchmarks/bench.py run \
-  --index benchmarks/splits/instances.json \
+python3 benchmarks/tpp.py run-groups \
+  --index benchmarks/results/splits/instances.json \
   --group under_100ms
 ```
 
@@ -240,7 +251,7 @@ Useful run options:
 | `--max-calls N` | Override the per-instance convex call cap. |
 | `--max-instances N` | Limit instances from the selected input. Useful for smoke tests. |
 
-Run outputs are written under `benchmarks/runs/<timestamp>/`. Combined runs write:
+Run outputs are written under `benchmarks/results/runs/<timestamp>/`. Combined runs write:
 
 | File | Meaning |
 |---|---|
@@ -256,15 +267,15 @@ The helper only reconfigures CMake when the configured target is different from 
 For existing generated directories that predate campaigns, run every `.bin` file directly:
 
 ```bash
-python3 benchmarks/run_generated.py
+python3 benchmarks/scripts/run_generated.py
 ```
 
-Results are written to `benchmarks/generated-runs/`, with one CSV, Markdown summary, and log per input file. `run-index.csv` records the status and elapsed time of the whole batch. Completed inputs are skipped when the command is run again; pass `--force` to rerun them.
+Results are written to `benchmarks/results/generated-runs/`, with one CSV, Markdown summary, and log per input file. `run-index.csv` records the status and elapsed time of the whole batch. Completed inputs are skipped when the command is run again; pass `--force` to rerun them.
 
 Common controls:
 
 ```bash
-python3 benchmarks/run_generated.py \
+python3 benchmarks/scripts/run_generated.py \
   --input packages/nonconvex-tpp/cpp/tests/generated/sao-paulo \
   --threads 1 \
   --max-calls 1000000 \

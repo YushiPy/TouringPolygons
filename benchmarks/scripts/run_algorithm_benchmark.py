@@ -14,7 +14,7 @@ import bench
 
 
 DEFAULT_SUITE = bench.REPO_ROOT / "benchmarks/suites/canonical-v1.bin"
-DEFAULT_OUTPUT = bench.REPO_ROOT / "benchmarks/suite-results"
+DEFAULT_OUTPUT = bench.REPO_ROOT / "benchmarks/results/suite-results"
 
 
 def make_parser() -> argparse.ArgumentParser:
@@ -32,7 +32,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 	args = make_parser().parse_args(argv)
 	suite = args.suite.resolve()
 	if not suite.exists():
-		raise SystemExit(f"Canonical suite does not exist: {suite}\nRun python3 benchmarks/build_algorithm_suites.py first.")
+		raise SystemExit(f"Canonical suite does not exist: {suite}\nRun python3 benchmarks/tpp.py build-suites first.")
 	if args.threads is not None and args.threads < 1:
 		raise SystemExit("--threads must be at least 1")
 

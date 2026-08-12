@@ -17,7 +17,7 @@ import bench
 
 
 DEFAULT_INPUT = bench.REPO_ROOT / "packages/nonconvex-tpp/cpp/tests/generated"
-DEFAULT_OUTPUT = bench.REPO_ROOT / "benchmarks/generated-runs"
+DEFAULT_OUTPUT = bench.REPO_ROOT / "benchmarks/results/generated-runs"
 
 
 @dataclass

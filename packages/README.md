@@ -11,3 +11,8 @@ Maintained solver and helper code lives here.
 Each package may keep its own dependency files and build system. Maintained C++
 packages should depend on `common-geometry` for shared geometry and avoid local
 copies of solver implementations.
+
+Keep package directories limited to maintained source, package-local tests, and
+intentional regression fixtures. Scratch files, alternate historical versions,
+and generated benchmark matrices belong in `experiments/` or ignored benchmark
+output directories instead.

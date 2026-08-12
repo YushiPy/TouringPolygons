@@ -147,8 +147,8 @@ python3 packages/instance-generation/source/generate_benchmark_matrix.py \
 Generated binaries can be passed directly to the benchmark runner:
 
 ```bash
-python3 benchmarks/bench.py run \
-  --index benchmarks/splits/instances.json \
+python3 benchmarks/tpp.py run-groups \
+  --index benchmarks/results/splits/instances.json \
   --group under_100ms
 ```
 
@@ -158,11 +158,11 @@ To classify a newly generated binary by difficulty, first benchmark it and then 
 ./build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp \
   packages/nonconvex-tpp/cpp/tests/osm_buildings.bin \
   -1 -1 1000000 -1 1 \
-  benchmarks/osm_buildings.csv \
-  benchmarks/osm_buildings.md
+  benchmarks/results/osm_buildings.csv \
+  benchmarks/results/osm_buildings.md
 
-python3 benchmarks/bench.py split \
+python3 benchmarks/tpp.py split \
   --input packages/nonconvex-tpp/cpp/tests/osm_buildings.bin \
-  --csv benchmarks/osm_buildings.csv \
-  --output benchmarks/osm_building_splits
+  --csv benchmarks/results/osm_buildings.csv \
+  --output benchmarks/results/osm_building_splits
 ```
