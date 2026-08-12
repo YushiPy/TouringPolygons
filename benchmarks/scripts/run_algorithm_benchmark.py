@@ -32,7 +32,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 	args = make_parser().parse_args(argv)
 	suite = args.suite.resolve()
 	if not suite.exists():
-		raise SystemExit(f"Canonical suite does not exist: {suite}\nRun python3 benchmarks/tpp.py build-suites first.")
+		raise SystemExit(f"Canonical suite does not exist: {suite}\nRun python3 benchmarks/tpp.py generate-suites first.")
 	if args.threads is not None and args.threads < 1:
 		raise SystemExit("--threads must be at least 1")
 

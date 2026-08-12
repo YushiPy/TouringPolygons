@@ -8,7 +8,7 @@ Layout:
 - `tpp.py`: stable command entry point.
 - `generate_instances.py`: one-command helper for the default generated campaign.
 - `scripts/`: lower-level implementation scripts used by `tpp.py`.
-- `suites/`: tracked canonical benchmark inputs and metadata.
+- `suites/nonconvex/`: tracked hand-curated benchmark inputs.
 - `campaigns/`: ignored generated campaign inputs and results.
 - `results/`: ignored ad hoc benchmark outputs, splits, and run summaries.
 - `archive/`: ignored historical benchmark data kept locally for reference.
@@ -86,14 +86,24 @@ python3 benchmarks/tpp.py run sao-paulo \
 python3 benchmarks/tpp.py build-suites
 ```
 
-This writes two disjoint suites under `benchmarks/suites/`:
+For fresh clones, generate the derived algorithm suites from the tracked
+non-convex corpus:
+
+```bash
+python3 benchmarks/tpp.py generate-suites
+```
+
+This writes two deterministic generated suites under `benchmarks/suites/`:
 
 | Suite | Purpose | Default composition |
 |---|---|---:|
-| `algorithm-dev-v1.bin` | Frequent runs while changing an algorithm | 20 easy, 20 medium, 20 hard |
-| `canonical-v1.bin` | Final comparison between algorithm versions | 100 easy, 100 medium, 100 hard |
+| `algorithm-dev-v1.bin` | Frequent runs while changing an algorithm | 60 cases spread across the corpus |
+| `canonical-v1.bin` | Final comparison between algorithm versions | 300 cases spread across the corpus |
 
-The selection is deterministic, rejects intersecting or touching polygons, deduplicates exact encoded instances, spreads cases across source configurations, and limits baseline-capped cases to a target fraction of the hard stratum. The adjacent CSV files retain source case identity and baseline measurements.
+The generated suite binaries, CSVs, Markdown summaries, and metadata are ignored
+because they are derived from `benchmarks/suites/nonconvex/test_cases.bin`.
+The adjacent CSV files retain source case identity, polygon counts, and vertex
+counts.
 
 Run the canonical benchmark with no required options:
 

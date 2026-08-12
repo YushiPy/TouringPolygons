@@ -63,12 +63,11 @@ benchmarks/*
 !benchmarks/scripts/
 !benchmarks/scripts/*.py
 !benchmarks/suites/
-!benchmarks/suites/*.bin
-!benchmarks/suites/*.csv
-!benchmarks/suites/*.json
-!benchmarks/suites/*.md
 !benchmarks/suites/nonconvex/
 !benchmarks/suites/nonconvex/*.bin
+benchmarks/suites/algorithm-dev-v1.*
+benchmarks/suites/canonical-v1.*
+benchmarks/suites/suite-metadata.json
 packages/instance-generation/regions/
 packages/convex-tpp/cpp/tests/*_tests.bin
 !packages/convex-tpp/cpp/tests/basic_tests.bin

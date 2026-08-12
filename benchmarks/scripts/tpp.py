@@ -41,6 +41,7 @@ Commands:
   generate-matrix NAME PBF ARGS...   Create a reproducible benchmark campaign.
   run NAME ARGS...                   Benchmark all campaign inputs, resumably.
   status NAME                        Show generation and benchmark progress.
+  generate-suites ARGS...            Generate dev/canonical suites from tracked corpus.
   build-suites ARGS...               Select fixed development and canonical suites.
   benchmark ARGS...                  Run the canonical algorithm benchmark.
   split ARGS...                      Split a benchmarked binary by difficulty.
@@ -166,6 +167,11 @@ def command_build_suites(argv: Sequence[str]) -> int:
 	return build_algorithm_suites.main(argv)
 
 
+def command_generate_suites(argv: Sequence[str]) -> int:
+	import generate_algorithm_suites
+	return generate_algorithm_suites.main(argv)
+
+
 def command_benchmark(argv: Sequence[str]) -> int:
 	import run_algorithm_benchmark
 	return run_algorithm_benchmark.main(argv)
@@ -186,6 +192,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 		return command_run(rest)
 	if command == "status":
 		return command_status(rest)
+	if command == "generate-suites":
+		return command_generate_suites(rest)
 	if command == "build-suites":
 		return command_build_suites(rest)
 	if command == "benchmark":

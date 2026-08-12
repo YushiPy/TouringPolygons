@@ -55,6 +55,16 @@ Repository boundaries:
 - `benchmarks/generate_instances.py` regenerates ignored benchmark campaign
   inputs with a single command.
 
+For a fresh-clone sanity check, run:
+
+```bash
+scripts/sanity_check.sh
+```
+
+The script checks required local tools, installs missing system dependencies
+when possible, regenerates generated suites, builds the C++ targets, verifies
+convex correctness, and runs a small non-convex benchmark.
+
 ---
 
 ## The Convex TPP
