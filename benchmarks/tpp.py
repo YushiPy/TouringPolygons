@@ -41,6 +41,8 @@ Commands:
   generate-matrix NAME PBF ARGS...   Create a reproducible benchmark campaign.
   run NAME ARGS...                   Benchmark all campaign inputs, resumably.
   status NAME                        Show generation and benchmark progress.
+  build-suites ARGS...               Select fixed development and canonical suites.
+  benchmark ARGS...                  Run the canonical algorithm benchmark.
   split ARGS...                      Split a benchmarked binary by difficulty.
   list-groups ARGS...                List groups from a difficulty split.
   run-groups ARGS...                 Benchmark selected difficulty groups.
@@ -159,6 +161,16 @@ def command_legacy(command: str, argv: Sequence[str]) -> int:
 	return bench.main([mapping[command], *argv])
 
 
+def command_build_suites(argv: Sequence[str]) -> int:
+	import build_algorithm_suites
+	return build_algorithm_suites.main(argv)
+
+
+def command_benchmark(argv: Sequence[str]) -> int:
+	import run_algorithm_benchmark
+	return run_algorithm_benchmark.main(argv)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
 	arguments = list(sys.argv[1:] if argv is None else argv)
 	if not arguments or arguments[0] in {"-h", "--help"}:
@@ -174,6 +186,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 		return command_run(rest)
 	if command == "status":
 		return command_status(rest)
+	if command == "build-suites":
+		return command_build_suites(rest)
+	if command == "benchmark":
+		return command_benchmark(rest)
 	if command in {"split", "list-groups", "run-groups"}:
 		return command_legacy(command, rest)
 

@@ -51,8 +51,15 @@ apps/visualizer-server/_output_images/
 benchmarks/*
 !benchmarks/README.md
 !benchmarks/bench.py
+!benchmarks/build_algorithm_suites.py
+!benchmarks/run_algorithm_benchmark.py
 !benchmarks/run_generated.py
 !benchmarks/tpp.py
+!benchmarks/suites/
+!benchmarks/suites/*.bin
+!benchmarks/suites/*.csv
+!benchmarks/suites/*.json
+!benchmarks/suites/*.md
 packages/instance-generation/regions/
 
 # Papers
@@ -66,4 +73,4 @@ docs/bibliography/TSPN-B&B-Michael/original.pdf
 docs/bibliography/TSPN-B&B-Michael/main.pdf
 
 # Miscellaneous
-Repos/
+tspn-comparison/

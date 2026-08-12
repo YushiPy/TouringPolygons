@@ -65,6 +65,31 @@ def output_paths(input_file: Path, input_root: Path, output_root: Path) -> tuple
 	)
 
 
+def completion_signature(args: argparse.Namespace, input_file: Path) -> dict:
+	input_stat = input_file.stat()
+	binary_stat = bench.TARGET_BINARY.stat()
+	return {
+		"input_size": input_stat.st_size,
+		"input_mtime_ns": input_stat.st_mtime_ns,
+		"benchmark_binary_mtime_ns": binary_stat.st_mtime_ns,
+		"threads": args.threads,
+		"max_polygons": str(args.max_polygons),
+		"max_instances": str(args.max_instances),
+		"max_calls": str(args.max_calls),
+		"max_branching": str(args.max_branching),
+		"repeat_count": str(args.repeat_count),
+	}
+
+
+def marker_matches(path: Path, signature: dict) -> bool:
+	if not path.exists():
+		return False
+	try:
+		return json.loads(path.read_text()) == signature
+	except (json.JSONDecodeError, OSError):
+		return False
+
+
 def write_index(path: Path, results: list[Result]) -> None:
 	path.parent.mkdir(parents=True, exist_ok=True)
 	with path.open("w", newline="") as file:
@@ -181,8 +206,9 @@ def run_batch(args: argparse.Namespace) -> int:
 		summary_output = result.summary_output
 		log_output = result.log_output
 		completion_marker = result.completion_marker
+		signature = completion_signature(args, input_file)
 
-		if not args.force and completion_marker.exists() and csv_output.exists() and summary_output.exists():
+		if not args.force and marker_matches(completion_marker, signature) and csv_output.exists() and summary_output.exists():
 			print(f"[{number}/{len(input_files)}] skip {input_file.name} (already complete)", flush=True)
 			result.status = "completed"
 			result.action = "skipped"
@@ -242,7 +268,7 @@ def run_batch(args: argparse.Namespace) -> int:
 		result.action = "ran"
 		result.elapsed_seconds = elapsed
 		if status == "completed":
-			completion_marker.touch()
+			completion_marker.write_text(json.dumps(signature, sort_keys=True) + "\n")
 		write_index(index_path, results)
 
 	completed_count = sum(result.status == "completed" for result in results)

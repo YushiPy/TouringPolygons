@@ -412,7 +412,9 @@ def grid_layout_polygons(args: argparse.Namespace, ordered: Sequence[Candidate],
 		if source_size <= 0:
 			continue
 
-		centroid = polygon_centroid(source)
+		# Center the bounding box, not the polygon centroid. With bbox centering,
+		# cell_size > polygon_size guarantees that neighboring bboxes are disjoint.
+		centroid = ((minx + maxx) / 2.0, (miny + maxy) / 2.0)
 		target_center = cell_centers[index]
 		scale = args.grid_polygon_size / source_size
 		placed.append([

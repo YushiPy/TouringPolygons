@@ -1426,7 +1426,7 @@ int main(int argc, char **argv) {
 	const auto program_end_time = std::chrono::steady_clock::now();
 	const double total_seconds = std::chrono::duration<double>(program_end_time - program_start_time).count();
 	const double measured_work_seconds = summary.decomposition_seconds + summary.approximation_seconds + summary.bnb_seconds;
-	const double parallel_speedup_estimate = total_seconds == 0.0 ? 0.0 : measured_work_seconds / total_seconds;
+	const double measured_parallelism = total_seconds == 0.0 ? 0.0 : measured_work_seconds / total_seconds;
 	const double mean_seconds_per_call =
 		summary.total_calls == 0 ? 0.0 : summary.solver_seconds / static_cast<double>(summary.total_calls);
 	const double mean_failed_prune_ratio =
@@ -1541,6 +1541,18 @@ int main(int argc, char **argv) {
 		emit("");
 	}
 
+	emit("| Timing | Value |");
+	emit("|---|---:|");
+	emitf("| Decomposition | {} |", format_seconds_with_percent(summary.decomposition_seconds, measured_work_seconds));
+	emitf("| Approximation | {} |", format_seconds_with_percent(summary.approximation_seconds, measured_work_seconds));
+	emitf("| B&B | {} |", format_seconds_with_percent(summary.bnb_seconds, measured_work_seconds));
+	emitf("| Convex solver | {} of measured work |", format_seconds_with_percent(summary.solver_seconds, measured_work_seconds));
+	emitf("| Measured work | {:.6f}s (100.00%) |", measured_work_seconds);
+	emitf("| Wall-clock total | {:.6f}s |", total_seconds);
+	emitf("| Measured parallelism | {:.2f}x |", measured_parallelism);
+	emitf("| Mean seconds per call | {:.12f}s |", mean_seconds_per_call);
+	emitf("| Checksum | {:.12f} |", summary.checksum);
+	emit("");
 	emit("| Metric | Value |");
 	emit("|---|---:|");
 	emitf("| Total instances | {} |", format_count(summary.total_instances));
@@ -1566,18 +1578,6 @@ int main(int argc, char **argv) {
 	emitf("| Visited nodes | {} |", format_count_with_percent(summary.total_visited_nodes, summary.total_visited_nodes + summary.total_pruned_nodes));
 	emitf("| Pruned nodes | {} |", format_count_with_percent(summary.total_pruned_nodes, summary.total_visited_nodes + summary.total_pruned_nodes));
 	emitf("| Best updates | {} |", format_count_with_percent(summary.total_best_updates, summary.total_visited_nodes));
-	emit("");
-	emit("| Timing | Value |");
-	emit("|---|---:|");
-	emitf("| Decomposition | {} |", format_seconds_with_percent(summary.decomposition_seconds, measured_work_seconds));
-	emitf("| Approximation | {} |", format_seconds_with_percent(summary.approximation_seconds, measured_work_seconds));
-	emitf("| B&B | {} |", format_seconds_with_percent(summary.bnb_seconds, measured_work_seconds));
-	emitf("| Convex solver | {} of measured work |", format_seconds_with_percent(summary.solver_seconds, measured_work_seconds));
-	emitf("| Measured work | {:.6f}s (100.00%) |", measured_work_seconds);
-	emitf("| Wall-clock total | {:.6f}s |", total_seconds);
-	emitf("| Parallel speedup estimate | {:.2f}x |", parallel_speedup_estimate);
-	emitf("| Mean seconds per call | {:.12f}s |", mean_seconds_per_call);
-	emitf("| Checksum | {:.12f} |", summary.checksum);
 	emit("");
 	emit("## Distributions");
 	emit("");

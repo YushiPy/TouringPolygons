@@ -56,6 +56,42 @@ python3 benchmarks/tpp.py generate \
 
 Run `python3 benchmarks/tpp.py --help` to see all workflow commands. The older scripts remain available as compatible lower-level entry points.
 
+## Canonical Algorithm Suite
+
+The fixed algorithm-development workloads are selected from a completed campaign baseline:
+
+```bash
+python3 benchmarks/tpp.py run sao-paulo \
+  --max-instances -1 \
+  --max-calls 100000 \
+  --threads 8
+
+python3 benchmarks/tpp.py build-suites
+```
+
+This writes two disjoint suites under `benchmarks/suites/`:
+
+| Suite | Purpose | Default composition |
+|---|---|---:|
+| `algorithm-dev-v1.bin` | Frequent runs while changing an algorithm | 20 easy, 20 medium, 20 hard |
+| `canonical-v1.bin` | Final comparison between algorithm versions | 100 easy, 100 medium, 100 hard |
+
+The selection is deterministic, rejects intersecting or touching polygons, deduplicates exact encoded instances, spreads cases across source configurations, and limits baseline-capped cases to a target fraction of the hard stratum. The adjacent CSV files retain source case identity and baseline measurements.
+
+Run the canonical benchmark with no required options:
+
+```bash
+python3 benchmarks/run_algorithm_benchmark.py
+```
+
+Equivalently:
+
+```bash
+python3 benchmarks/tpp.py benchmark
+```
+
+The runner builds the current B&B benchmark target, uses all hardware threads by default, writes timestamped CSV and Markdown outputs under `benchmarks/suite-results/`, and prints the complete summary in the terminal. Use `--suite benchmarks/suites/algorithm-dev-v1.bin` for the smaller development workload. Pass `--threads 1` when you specifically need a single-thread timing baseline.
+
 ## Build
 
 From the repository root:
@@ -118,9 +154,9 @@ Important fields:
 | `Initial gap %` | Relative improvement from the initial approximation to the final result. |
 | `Incumbent gap %` | Relative improvement from the first selected-piece incumbent to the final result. |
 | `Failed-prune bound/incumbent` | How close non-pruning lower bounds are to the incumbent. Values near `1.0` mean proving optimality is hard. |
-| `Measured work` | Sum of per-instance measured times. In parallel runs this can exceed wall-clock time. |
+| `Measured work` | Sum of per-instance wall-clock measurements. Concurrent cases overlap, and each case may run slower under contention, so this is not CPU time and is not directly comparable across thread counts. |
 | `Wall-clock total` | Actual elapsed time. |
-| `Parallel speedup estimate` | `measured work / wall-clock total`. |
+| `Measured parallelism` | `measured work / wall-clock total`; approximately how many case measurements overlapped on average. This is not speedup versus a single-thread run. |
 
 If `Initial gap %` is tiny but calls are high, the solver is finding good solutions quickly but spending time proving optimality.
 
