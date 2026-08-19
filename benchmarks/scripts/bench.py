@@ -209,6 +209,8 @@ def command_run(args: argparse.Namespace) -> None:
 
 	if args.threads is not None:
 		env["TPP_BENCH_THREADS"] = str(args.threads)
+	if args.solver is not None:
+		env["TPP_BENCH_SOLVER"] = args.solver
 
 	if args.separate_groups:
 		for group_name in groups:
@@ -218,18 +220,23 @@ def command_run(args: argparse.Namespace) -> None:
 			summary_output = run_dir / f"{group_name}.md"
 
 			print(f"\n## {group_name}", flush=True)
+			command = [
+				str(TARGET_BINARY),
+				str(input_file),
+				str(args.max_polygons),
+				str(args.max_instances),
+				str(args.max_calls),
+				str(args.max_branching),
+			]
+			if args.max_seconds is not None:
+				command.append(str(float(args.max_seconds)))
+			command.extend([
+				str(args.repeat_count),
+				str(csv_output),
+				str(summary_output),
+			])
 			run_command(
-				[
-					str(TARGET_BINARY),
-					str(input_file),
-					str(args.max_polygons),
-					str(args.max_instances),
-					str(args.max_calls),
-					str(args.max_branching),
-					str(args.repeat_count),
-					str(csv_output),
-					str(summary_output),
-				],
+				command,
 				env=env,
 			)
 	else:
@@ -242,18 +249,23 @@ def command_run(args: argparse.Namespace) -> None:
 		combined_index.write_text(json.dumps({"groups": groups}, indent=2) + "\n")
 
 		print(f"\n## {name}", flush=True)
+		command = [
+			str(TARGET_BINARY),
+			str(input_file),
+			str(args.max_polygons),
+			str(args.max_instances),
+			str(args.max_calls),
+			str(args.max_branching),
+		]
+		if args.max_seconds is not None:
+			command.append(str(float(args.max_seconds)))
+		command.extend([
+			str(args.repeat_count),
+			str(csv_output),
+			str(summary_output),
+		])
 		run_command(
-			[
-				str(TARGET_BINARY),
-				str(input_file),
-				str(args.max_polygons),
-				str(args.max_instances),
-				str(args.max_calls),
-				str(args.max_branching),
-				str(args.repeat_count),
-				str(csv_output),
-				str(summary_output),
-			],
+			command,
 			env=env,
 		)
 
@@ -286,10 +298,12 @@ def make_parser() -> argparse.ArgumentParser:
 	run_parser.add_argument("--separate-groups", action="store_true", help="Run each selected group separately instead of concatenating them.")
 	run_parser.add_argument("--no-build", action="store_true", help="Use the existing benchmark binary without configuring or building.")
 	run_parser.add_argument("--threads", type=int)
+	run_parser.add_argument("--solver", help="Convex solver selected via TPP_BENCH_SOLVER.")
 	run_parser.add_argument("--max-polygons", default="-1")
 	run_parser.add_argument("--max-instances", default="-1")
 	run_parser.add_argument("--max-calls", default="1000000")
 	run_parser.add_argument("--max-branching", default="-1")
+	run_parser.add_argument("--max-seconds", help="Per-instance B&B elapsed-time cap. Defaults to unlimited.")
 	run_parser.add_argument("--repeat-count", default="1")
 	run_parser.set_defaults(func=command_run)
 

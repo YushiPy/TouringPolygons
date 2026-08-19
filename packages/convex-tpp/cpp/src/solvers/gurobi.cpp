@@ -8,6 +8,8 @@
 #include <array>
 #include <stdexcept>
 #include <string>
+#include <cmath>
+#include <cstdlib>
 
 using Point = std::array<double, 2>;
 using Polygon = std::vector<Point>;
@@ -17,19 +19,57 @@ struct Halfplanes {
 	std::vector<double> b;
 };
 
+double signed_area(const Polygon& verts) {
+	double area = 0.0;
+	for (int i = 0; i < static_cast<int>(verts.size()); i++) {
+		auto [x0, y0] = verts[i];
+		auto [x1, y1] = verts[(i + 1) % verts.size()];
+		area += x0 * y1 - x1 * y0;
+	}
+	return 0.5 * area;
+}
+
 Halfplanes vertices_to_halfplanes(const Polygon& verts) {
 	int n = verts.size();
 	Halfplanes hp;
 	hp.A.resize(n);
 	hp.b.resize(n);
+	const double sign = signed_area(verts) >= 0.0 ? 1.0 : -1.0;
 	for (int i = 0; i < n; i++) {
 		auto [x0, y0] = verts[i];
 		auto [x1, y1] = verts[(i + 1) % n];
 		double dx = x1 - x0, dy = y1 - y0;
-		hp.A[i] = {dy, -dx};
-		hp.b[i] = dy * x0 - dx * y0;
+		hp.A[i] = {sign * dy, -sign * dx};
+		hp.b[i] = sign * (dy * x0 - dx * y0);
 	}
 	return hp;
+}
+
+GRBEnv& shared_env() {
+	thread_local GRBEnv env = [] {
+		GRBEnv result(true);
+		result.set(GRB_IntParam_OutputFlag, 0);
+		result.set(GRB_IntParam_Presolve, 0);
+		result.set(GRB_IntParam_SimplexPricing, 3);
+		result.set(GRB_IntParam_Threads, 1);
+		result.start();
+		return result;
+	}();
+	return env;
+}
+
+double gurobi_time_limit_seconds() {
+	const char *text = std::getenv("TPP_BENCH_MAX_SECONDS");
+	if (text == nullptr) {
+		return GRB_INFINITY;
+	}
+
+	try {
+		const double parsed = std::stod(text);
+		return parsed > 0.0 && std::isfinite(parsed) ? parsed : GRB_INFINITY;
+	} catch (...) {
+		return GRB_INFINITY;
+	}
 }
 
 std::vector<Point> shortest_path(
@@ -42,10 +82,11 @@ std::vector<Point> shortest_path(
 	for (const auto& poly : polygons)
 		halfplanes.push_back(vertices_to_halfplanes(poly));
 
-	GRBEnv env(true);
-	env.set(GRB_IntParam_OutputFlag, 0);
-	env.start();
-	GRBModel m(env);
+	GRBModel m(shared_env());
+	const double time_limit = gurobi_time_limit_seconds();
+	if (time_limit != GRB_INFINITY) {
+		m.set(GRB_DoubleParam_TimeLimit, time_limit);
+	}
 
 	// p[i] = 2D point in polygon i
 	std::vector<std::array<GRBVar, 2>> p(k);
@@ -110,8 +151,9 @@ std::vector<Point> shortest_path(
 
 	m.optimize();
 
-	if (m.get(GRB_IntAttr_Status) != GRB_OPTIMAL)
-		throw std::runtime_error("Model status: " + std::to_string(m.get(GRB_IntAttr_Status)));
+	const int status = m.get(GRB_IntAttr_Status);
+	if (status != GRB_OPTIMAL && status != GRB_SUBOPTIMAL && m.get(GRB_IntAttr_SolCount) == 0)
+		throw std::runtime_error("Model status: " + std::to_string(status));
 
 	std::vector<Point> result(k);
 	for (int i = 0; i < k; i++)

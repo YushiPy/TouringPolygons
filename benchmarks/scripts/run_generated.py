@@ -73,10 +73,12 @@ def completion_signature(args: argparse.Namespace, input_file: Path) -> dict:
 		"input_mtime_ns": input_stat.st_mtime_ns,
 		"benchmark_binary_mtime_ns": binary_stat.st_mtime_ns,
 		"threads": args.threads,
+		"solver": args.solver,
 		"max_polygons": str(args.max_polygons),
 		"max_instances": str(args.max_instances),
 		"max_calls": str(args.max_calls),
 		"max_branching": str(args.max_branching),
+		"max_seconds": str(args.max_seconds),
 		"repeat_count": str(args.repeat_count),
 	}
 
@@ -125,10 +127,12 @@ def make_parser() -> argparse.ArgumentParser:
 	parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="Directory for CSV, Markdown, and log outputs.")
 	parser.add_argument("--pattern", default="*.bin", help="Filename pattern used when searching the input directory.")
 	parser.add_argument("--threads", type=positive_int, help="Worker threads used inside each benchmark process.")
+	parser.add_argument("--solver", help="Convex solver selected via TPP_BENCH_SOLVER.")
 	parser.add_argument("--max-polygons", default="-1")
 	parser.add_argument("--max-instances", default="-1")
 	parser.add_argument("--max-calls", default="1000000")
 	parser.add_argument("--max-branching", default="-1")
+	parser.add_argument("--max-seconds", help="Per-instance B&B elapsed-time cap. Defaults to unlimited.")
 	parser.add_argument("--repeat-count", default="1")
 	parser.add_argument(
 		"--timeout",
@@ -158,10 +162,12 @@ def record_campaign_run(args: argparse.Namespace, results: Sequence[Result], sta
 		"finished_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
 		"parameters": {
 			"threads": args.threads,
+			"solver": args.solver,
 			"max_polygons": args.max_polygons,
 			"max_instances": args.max_instances,
 			"max_calls": args.max_calls,
 			"max_branching": args.max_branching,
+			"max_seconds": args.max_seconds,
 			"repeat_count": args.repeat_count,
 			"timeout_seconds": args.timeout,
 		},
@@ -189,6 +195,8 @@ def run_batch(args: argparse.Namespace) -> int:
 	env = os.environ.copy()
 	if args.threads is not None:
 		env["TPP_BENCH_THREADS"] = str(args.threads)
+	if args.solver is not None:
+		env["TPP_BENCH_SOLVER"] = args.solver
 
 	results: list[Result] = []
 	for input_file in input_files:
@@ -228,10 +236,10 @@ def run_batch(args: argparse.Namespace) -> int:
 			str(args.max_instances),
 			str(args.max_calls),
 			str(args.max_branching),
-			str(args.repeat_count),
-			str(csv_output),
-			str(summary_output),
 		]
+		if args.max_seconds is not None:
+			command.append(str(float(args.max_seconds)))
+		command.extend([str(args.repeat_count), str(csv_output), str(summary_output)])
 		print(f"[{number}/{len(input_files)}] run  {input_file.name}", flush=True)
 		result.action = "running"
 		write_index(index_path, results)

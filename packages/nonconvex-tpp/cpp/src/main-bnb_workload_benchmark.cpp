@@ -33,14 +33,23 @@ constexpr char NUMBER_SEPARATOR = '_';
 constexpr size_t PROGRESS_BAR_WIDTH = 30;
 constexpr size_t BRANCH_BUCKET_COUNT = 5;
 
+using ConvexSolverFunction = std::vector<Vector2> (*)(
+	const Vector2&,
+	const Vector2&,
+	const std::vector<std::vector<Vector2>>&
+);
+
 struct BenchmarkOptions {
 	std::string input_path = "benchmarks/suites/canonical-v1.bin";
 	size_t max_polygons = 40;
 	size_t max_instances = 6;
 	size_t max_calls_per_instance = 512;
 	size_t max_branching = 6;
+	double max_seconds_per_instance = std::numeric_limits<double>::infinity();
 	size_t repeat_count = 1;
 	size_t thread_count = 0;
+	std::string solver_name = "binary_search_lazy";
+	ConvexSolverFunction solver = tpp::tpp_convex_solve_binary_search_lazy;
 	std::optional<std::string> output_path;
 	std::optional<std::string> summary_output_path;
 };
@@ -67,6 +76,7 @@ struct BenchmarkSummary {
 	size_t benchmarked_instances = 0;
 	size_t fully_covered_instances = 0;
 	size_t capped_by_calls_instances = 0;
+	size_t capped_by_time_instances = 0;
 	size_t branch_limited_instances = 0;
 	size_t total_calls = 0;
 	size_t total_incumbent_solves = 0;
@@ -173,6 +183,7 @@ struct BranchAndBoundResult {
 	size_t max_vertices = 0;
 	size_t max_observed_branching = 0;
 	bool exhausted = true;
+	bool time_limited = false;
 	bool branch_limited = false;
 	double initial_length = std::numeric_limits<double>::infinity();
 	double incumbent_length = std::numeric_limits<double>::infinity();
@@ -220,6 +231,7 @@ struct InstanceRecord {
 	double leaf_solver_seconds = 0.0;
 	double seconds_per_call = 0.0;
 	bool exhausted = false;
+	bool time_limited = false;
 	bool branch_limited = false;
 	size_t max_observed_branching = 0;
 	size_t failed_prune_count = 0;
@@ -614,13 +626,30 @@ BranchAndBoundResult run_branch_and_bound(
 	const vector<Vector2> &approximate_path,
 	size_t max_calls,
 	size_t max_branching,
+	double max_seconds,
+	ConvexSolverFunction solver,
 	size_t case_index,
 	bool show_progress
 ) {
 
 	BranchAndBoundResult result;
 	result.initial_length = path_length(start, target, approximate_path);
+	const auto bnb_start_time = std::chrono::steady_clock::now();
 	auto last_progress_time = std::chrono::steady_clock::now();
+
+	auto elapsed_seconds = [&]() {
+		return std::chrono::duration<double>(std::chrono::steady_clock::now() - bnb_start_time).count();
+	};
+
+	auto stop_by_time = [&]() {
+		if (elapsed_seconds() < max_seconds) {
+			return false;
+		}
+
+		result.exhausted = false;
+		result.time_limited = true;
+		return true;
+	};
 
 	auto update_progress = [&](bool force) {
 		if (!show_progress) {
@@ -645,6 +674,10 @@ BranchAndBoundResult run_branch_and_bound(
 	update_progress(true);
 
 	auto solve_convex = [&](const vector<vector<Vector2>> &input_polygons, vector<Vector2> *output_path, double &kind_seconds) -> double {
+		if (stop_by_time()) {
+			return std::numeric_limits<double>::infinity();
+		}
+
 		if (result.convex_calls >= max_calls) {
 			result.exhausted = false;
 			return std::numeric_limits<double>::infinity();
@@ -657,7 +690,7 @@ BranchAndBoundResult run_branch_and_bound(
 		const auto solver_start_time = std::chrono::steady_clock::now();
 
 		try {
-			vector<Vector2> path = tpp::tpp_convex_solve(start, target, input_polygons);
+			vector<Vector2> path = solver(start, target, input_polygons);
 			const auto solver_end_time = std::chrono::steady_clock::now();
 			const double elapsed_seconds = std::chrono::duration<double>(solver_end_time - solver_start_time).count();
 			result.solver_seconds += elapsed_seconds;
@@ -982,6 +1015,7 @@ void write_csv_record(std::ostream &output, const InstanceRecord &record) {
 		<< std::format("{:.6f}", record.leaf_solver_seconds) << ';'
 		<< std::format("{:.12f}", record.seconds_per_call) << ';'
 		<< (record.exhausted ? "true" : "false") << ';'
+		<< (record.time_limited ? "true" : "false") << ';'
 		<< (record.branch_limited ? "true" : "false") << ';'
 		<< record.max_observed_branching << ';'
 		<< record.failed_prune_count << ';'
@@ -1059,6 +1093,8 @@ CaseBenchmarkResult run_case_benchmark(size_t case_index, const tpp::TestCase &t
 			approximate_path,
 			options.max_calls_per_instance,
 			options.max_branching,
+			options.max_seconds_per_instance,
+			options.solver,
 			case_index,
 			false
 		);
@@ -1098,6 +1134,7 @@ CaseBenchmarkResult run_case_benchmark(size_t case_index, const tpp::TestCase &t
 		record.leaf_solver_seconds = bnb.leaf_solver_seconds;
 		record.seconds_per_call = bnb.solver_seconds / static_cast<double>(bnb.convex_calls);
 		record.exhausted = bnb.exhausted;
+		record.time_limited = bnb.time_limited;
 		record.branch_limited = bnb.branch_limited;
 		record.max_observed_branching = bnb.max_observed_branching;
 		record.failed_prune_count = bnb.failed_prune_count;
@@ -1129,9 +1166,11 @@ size_t default_thread_count() {
 void print_usage(const char *program) {
 	std::println(stderr, "Usage:");
 	std::println(stderr, "  {} <input_file> <max_polygons> <max_instances> <max_calls_per_instance> <max_branching> [repeat_count] [csv_output_file] [summary_md_file]", program);
+	std::println(stderr, "  {} <input_file> <max_polygons> <max_instances> <max_calls_per_instance> <max_branching> <max_seconds_per_instance> [repeat_count] [csv_output_file] [summary_md_file]", program);
 	std::println(stderr, "");
 	std::println(stderr, "Example:");
 	std::println(stderr, "  {} benchmarks/suites/canonical-v1.bin 40 6 512 6", program);
+	std::println(stderr, "  {} benchmarks/suites/canonical-v1.bin 40 6 512 6 10", program);
 	std::println(stderr, "  {} benchmarks/suites/canonical-v1.bin -1 -1 1000000 -1 results.csv", program);
 	std::println(stderr, "  {} benchmarks/suites/canonical-v1.bin 40 6 512 6 5 results.csv", program);
 	std::println(stderr, "  {} benchmarks/suites/canonical-v1.bin 40 6 512 6 5 results.csv summary.md", program);
@@ -1142,12 +1181,15 @@ void print_usage(const char *program) {
 	std::println(stderr, "  max_instances           Stop after benchmarking this many accepted instances.");
 	std::println(stderr, "  max_calls_per_instance  Cap actual convex solver calls per instance.");
 	std::println(stderr, "  max_branching           Cap explored children per polygon during B&B.");
+	std::println(stderr, "  max_seconds_per_instance Optional B&B elapsed-time cap per instance. Use -1 for unlimited.");
 	std::println(stderr, "  repeat_count            Optional repeated runs per accepted instance.");
 	std::println(stderr, "  csv_output_file         Optional file path for per-instance CSV rows.");
 	std::println(stderr, "  summary_md_file         Optional file path for the markdown summary.");
 	std::println(stderr, "");
 	std::println(stderr, "All numeric arguments must be non-negative integers or -1 for unlimited.");
 	std::println(stderr, "Set TPP_BENCH_THREADS to override the default hardware thread count.");
+	std::println(stderr, "Set TPP_BENCH_MAX_SECONDS to override the default per-instance time cap.");
+	std::println(stderr, "Set TPP_BENCH_SOLVER to one of linear_search_lazy, binary_search_lazy, tan_jiang, gurobi.");
 }
 
 std::optional<size_t> parse_size_arg(const char *text) {
@@ -1176,11 +1218,69 @@ std::optional<size_t> parse_size_arg(const char *text) {
 	}
 }
 
+std::optional<double> parse_seconds_arg(const char *text) {
+
+	const std::string value = text;
+
+	if (value == "-1") {
+		return std::numeric_limits<double>::infinity();
+	}
+
+	if (value.empty() || value.front() == '-') {
+		return std::nullopt;
+	}
+
+	size_t consumed = 0;
+
+	try {
+		const double parsed = std::stod(value, &consumed);
+		if (consumed != value.size() || !std::isfinite(parsed)) {
+			return std::nullopt;
+		}
+
+		return parsed;
+	} catch (...) {
+		return std::nullopt;
+	}
+}
+
+bool set_solver(BenchmarkOptions &options, const std::string &name) {
+	if (name == "linear_search_lazy" || name == "linear") {
+		options.solver_name = "linear_search_lazy";
+		options.solver = tpp::tpp_convex_solve_linear_search_lazy;
+		return true;
+	}
+
+	if (name == "binary_search_lazy" || name == "binary" || name == "default") {
+		options.solver_name = "binary_search_lazy";
+		options.solver = tpp::tpp_convex_solve_binary_search_lazy;
+		return true;
+	}
+
+	if (name == "tan_jiang" || name == "tan-jiang" || name == "tamc") {
+		options.solver_name = "tan_jiang";
+		options.solver = tpp::tpp_convex_solve_tan_jiang;
+		return true;
+	}
+
+	if (name == "gurobi") {
+#if defined(TPP_ENABLE_GUROBI)
+		options.solver_name = "gurobi";
+		options.solver = tpp::tpp_convex_solve_gurobi;
+		return true;
+#else
+		return false;
+#endif
+	}
+
+	return false;
+}
+
 std::optional<BenchmarkOptions> parse_options(int argc, char **argv) {
 
 	BenchmarkOptions options;
 
-	if (argc != 1 && argc != 6 && argc != 7 && argc != 8 && argc != 9) {
+	if (argc != 1 && (argc < 6 || argc > 10)) {
 		print_usage(argv[0]);
 		return std::nullopt;
 	}
@@ -1206,49 +1306,56 @@ std::optional<BenchmarkOptions> parse_options(int argc, char **argv) {
 	options.max_calls_per_instance = *max_calls_per_instance;
 	options.max_branching = *max_branching;
 
-	if (argc == 7) {
-		const auto repeat_count = parse_size_arg(argv[6]);
+	int next_arg = 6;
+	if (argc > next_arg) {
+		const std::string first_optional = argv[next_arg];
+		const auto repeat_count = parse_size_arg(argv[next_arg]);
+		const bool looks_like_legacy_repeat =
+			repeat_count
+			&& *repeat_count != 0
+			&& *repeat_count != std::numeric_limits<size_t>::max()
+			&& first_optional.find('.') == std::string::npos;
 
-		if (repeat_count) {
-			if (*repeat_count == 0 || *repeat_count == std::numeric_limits<size_t>::max()) {
-				print_usage(argv[0]);
-				return std::nullopt;
-			}
-
+		if (looks_like_legacy_repeat) {
 			options.repeat_count = *repeat_count;
+			next_arg++;
+		} else if (const auto max_seconds = parse_seconds_arg(argv[next_arg])) {
+			options.max_seconds_per_instance = *max_seconds;
+			next_arg++;
+
+			if (argc > next_arg) {
+				const auto explicit_repeat_count = parse_size_arg(argv[next_arg]);
+				if (explicit_repeat_count) {
+					if (*explicit_repeat_count == 0 || *explicit_repeat_count == std::numeric_limits<size_t>::max()) {
+						print_usage(argv[0]);
+						return std::nullopt;
+					}
+
+					options.repeat_count = *explicit_repeat_count;
+					next_arg++;
+				}
+			}
 		} else {
-			options.output_path = argv[6];
+			options.output_path = argv[next_arg];
+			next_arg++;
 		}
 	}
 
-	if (argc == 8) {
-		const auto repeat_count = parse_size_arg(argv[6]);
-
-		if (repeat_count) {
-			if (*repeat_count == 0 || *repeat_count == std::numeric_limits<size_t>::max()) {
-				print_usage(argv[0]);
-				return std::nullopt;
-			}
-
-			options.repeat_count = *repeat_count;
-			options.output_path = argv[7];
-		} else {
-			options.output_path = argv[6];
-			options.summary_output_path = argv[7];
+	if (argc > next_arg) {
+		if (!options.output_path) {
+			options.output_path = argv[next_arg];
+			next_arg++;
 		}
 	}
 
-	if (argc == 9) {
-		const auto repeat_count = parse_size_arg(argv[6]);
+	if (argc > next_arg) {
+		options.summary_output_path = argv[next_arg];
+		next_arg++;
+	}
 
-		if (!repeat_count || *repeat_count == 0 || *repeat_count == std::numeric_limits<size_t>::max()) {
-			print_usage(argv[0]);
-			return std::nullopt;
-		}
-
-		options.repeat_count = *repeat_count;
-		options.output_path = argv[7];
-		options.summary_output_path = argv[8];
+	if (argc > next_arg) {
+		print_usage(argv[0]);
+		return std::nullopt;
 	}
 
 	return options;
@@ -1281,6 +1388,26 @@ int main(int argc, char **argv) {
 		options.thread_count = default_thread_count();
 	}
 
+	if (const char *max_seconds_text = std::getenv("TPP_BENCH_MAX_SECONDS")) {
+		const auto max_seconds = parse_seconds_arg(max_seconds_text);
+
+		if (!max_seconds) {
+			std::println(stderr, "Invalid TPP_BENCH_MAX_SECONDS value: {}", max_seconds_text);
+			print_usage(argv[0]);
+			return 2;
+		}
+
+		options.max_seconds_per_instance = *max_seconds;
+	}
+
+	if (const char *solver_text = std::getenv("TPP_BENCH_SOLVER")) {
+		if (!set_solver(options, solver_text)) {
+			std::println(stderr, "Invalid or unavailable TPP_BENCH_SOLVER value: {}", solver_text);
+			print_usage(argv[0]);
+			return 2;
+		}
+	}
+
 	const auto program_start_time = std::chrono::steady_clock::now();
 	const auto test_cases = tpp::load_test_cases(options.input_path);
 	BenchmarkSummary summary;
@@ -1292,7 +1419,7 @@ int main(int argc, char **argv) {
 	std::array<size_t, BRANCH_BUCKET_COUNT> total_branching_histogram = {};
 
 	constexpr const char *csv_header =
-		"source;case_index;repeat_index;polygons;decomposed_pieces;total_combinations;calls;incumbent_solves;bound_solves;leaf_solves;visited_nodes;pruned_nodes;best_updates;mean_selected;total_vertices_min;total_vertices_max;initial_length;incumbent_length;final_length;initial_gap_percent;incumbent_gap_percent;prune_rate_percent;calls_per_visited_node;bound_calls_per_leaf;decomposition_seconds;decomposition_percent;approximation_seconds;approximation_percent;bnb_seconds;bnb_percent;solver_seconds;solver_percent;incumbent_solver_seconds;bound_solver_seconds;leaf_solver_seconds;seconds_per_call;exhausted;branch_limited;max_observed_branching;failed_prune_count;failed_prune_ratio_mean;failed_prune_gap_mean;failed_prune_depth_mean;checksum";
+		"source;case_index;repeat_index;polygons;decomposed_pieces;total_combinations;calls;incumbent_solves;bound_solves;leaf_solves;visited_nodes;pruned_nodes;best_updates;mean_selected;total_vertices_min;total_vertices_max;initial_length;incumbent_length;final_length;initial_gap_percent;incumbent_gap_percent;prune_rate_percent;calls_per_visited_node;bound_calls_per_leaf;decomposition_seconds;decomposition_percent;approximation_seconds;approximation_percent;bnb_seconds;bnb_percent;solver_seconds;solver_percent;incumbent_solver_seconds;bound_solver_seconds;leaf_solver_seconds;seconds_per_call;exhausted;time_limited;branch_limited;max_observed_branching;failed_prune_count;failed_prune_ratio_mean;failed_prune_gap_mean;failed_prune_depth_mean;checksum";
 
 	std::ofstream csv_file;
 	std::ostream *csv_output = &std::cout;
@@ -1394,7 +1521,8 @@ int main(int argc, char **argv) {
 
 		for (const auto &record : case_result.records) {
 			summary.fully_covered_instances += record.exhausted && !record.branch_limited ? 1 : 0;
-			summary.capped_by_calls_instances += record.exhausted ? 0 : 1;
+			summary.capped_by_calls_instances += !record.exhausted && !record.time_limited ? 1 : 0;
+			summary.capped_by_time_instances += record.time_limited ? 1 : 0;
 			summary.branch_limited_instances += record.branch_limited ? 1 : 0;
 			summary.total_calls += record.calls;
 			summary.total_incumbent_solves += record.incumbent_solves;
@@ -1560,8 +1688,11 @@ int main(int argc, char **argv) {
 	emitf("| Benchmark runs | {} |", format_count(records.size()));
 	emitf("| Repeat count | {} |", format_count(options.repeat_count));
 	emitf("| Worker threads | {} |", format_count(worker_count));
+	emitf("| Convex solver name | {} |", options.solver_name);
+	emitf("| Max seconds per instance | {} |", std::isfinite(options.max_seconds_per_instance) ? std::format("{:.6f}s", options.max_seconds_per_instance) : std::string("unlimited"));
 	emitf("| Fully solved runs | {} |", format_count_with_percent(summary.fully_covered_instances, records.size()));
 	emitf("| Capped by calls runs | {} |", format_count_with_percent(summary.capped_by_calls_instances, records.size()));
+	emitf("| Capped by time runs | {} |", format_count_with_percent(summary.capped_by_time_instances, records.size()));
 	emitf("| Branch limited runs | {} |", format_count_with_percent(summary.branch_limited_instances, records.size()));
 	emitf("| Skipped by max polygons | {} |", format_count_with_percent(summary.skipped_max_polygons, summary.total_instances));
 	emitf("| Skipped empty | {} |", format_count_with_percent(summary.skipped_empty, summary.total_instances));

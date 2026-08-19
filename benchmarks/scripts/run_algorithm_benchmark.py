@@ -22,7 +22,9 @@ def make_parser() -> argparse.ArgumentParser:
 	parser.add_argument("--suite", type=Path, default=DEFAULT_SUITE)
 	parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
 	parser.add_argument("--threads", type=int, help="Worker threads. Defaults to all hardware threads.")
+	parser.add_argument("--solver", help="Convex solver selected via TPP_BENCH_SOLVER.")
 	parser.add_argument("--max-calls", default="1000000")
+	parser.add_argument("--max-seconds", help="Per-instance B&B elapsed-time cap. Defaults to unlimited.")
 	parser.add_argument("--repeat-count", default="1")
 	parser.add_argument("--no-build", action="store_true")
 	return parser
@@ -48,10 +50,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 		env["TPP_BENCH_THREADS"] = str(args.threads)
 	else:
 		env.pop("TPP_BENCH_THREADS", None)
+	if args.solver is not None:
+		env["TPP_BENCH_SOLVER"] = args.solver
 	command = [
 		str(bench.TARGET_BINARY), str(suite), "-1", "-1", str(args.max_calls), "-1",
-		str(args.repeat_count), str(csv_output), str(summary_output),
 	]
+	if args.max_seconds is not None:
+		command.append(str(float(args.max_seconds)))
+	command.extend([str(args.repeat_count), str(csv_output), str(summary_output)])
 	print("+", " ".join(command), flush=True)
 	completed = subprocess.run(command, cwd=bench.REPO_ROOT, env=env, check=False)
 	if completed.returncode != 0:

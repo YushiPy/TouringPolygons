@@ -44,6 +44,7 @@ Commands:
   generate-suites ARGS...            Generate dev/canonical suites from tracked corpus.
   build-suites ARGS...               Select fixed development and canonical suites.
   benchmark ARGS...                  Run the canonical algorithm benchmark.
+  compare-solvers ARGS...            Compare B&B performance across convex solvers.
   split ARGS...                      Split a benchmarked binary by difficulty.
   list-groups ARGS...                List groups from a difficulty split.
   run-groups ARGS...                 Benchmark selected difficulty groups.
@@ -177,6 +178,11 @@ def command_benchmark(argv: Sequence[str]) -> int:
 	return run_algorithm_benchmark.main(argv)
 
 
+def command_compare_solvers(argv: Sequence[str]) -> int:
+	import compare_convex_solvers
+	return compare_convex_solvers.main(argv)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
 	arguments = list(sys.argv[1:] if argv is None else argv)
 	if not arguments or arguments[0] in {"-h", "--help"}:
@@ -198,6 +204,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 		return command_build_suites(rest)
 	if command == "benchmark":
 		return command_benchmark(rest)
+	if command == "compare-solvers":
+		return command_compare_solvers(rest)
 	if command in {"split", "list-groups", "run-groups"}:
 		return command_legacy(command, rest)
 

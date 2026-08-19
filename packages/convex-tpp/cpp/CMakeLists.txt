@@ -49,6 +49,8 @@ if(APPLE)
 endif()
 
 if(TPP_ENABLE_GUROBI)
+    target_compile_definitions(tpp_convex PUBLIC TPP_ENABLE_GUROBI=1)
+
     if(DEFINED GUROBI_HOME)
         set(GUROBI_HOME ${GUROBI_HOME})
     elseif(DEFINED ENV{GUROBI_HOME})
