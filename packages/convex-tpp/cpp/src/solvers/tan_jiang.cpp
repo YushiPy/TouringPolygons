@@ -14,17 +14,95 @@ https://doi.org/10.1007/978-3-319-55911-7_44
 #include "tpp_convex_common.h"
 #include "tpp_convex.h"
 
-// Maximum number of "up and down" scans allowed in `query_points` function. 
-// If the number of scans exceeds this value, an exception will be thrown.
+// Maximum number of "up and down" scans before falling back to independent point location.
 #define MAX_SCAN_COUNT 3
 
 using std::vector;
 using std::pair;
 
+namespace {
+
+	constexpr double LOCAL_EPSILON = 1e-8;
+	constexpr double LOCAL_EPSILON_SQUARED = LOCAL_EPSILON * LOCAL_EPSILON;
+
+	bool point_in_convex_polygon_closed(const Vector2 &point, const vector<Vector2> &polygon) {
+
+		if (polygon.empty()) {
+			return false;
+		}
+
+		bool has_positive = false;
+		bool has_negative = false;
+
+		for (size_t i = 0; i < polygon.size(); i++) {
+			const auto &v1 = polygon[i];
+			const auto &v2 = polygon[(i + 1) % polygon.size()];
+			const double cross = (v2 - v1).cross(point - v1);
+
+			if (cross > LOCAL_EPSILON_SQUARED) {
+				has_positive = true;
+			} else if (cross < -LOCAL_EPSILON_SQUARED) {
+				has_negative = true;
+			}
+
+			if (has_positive && has_negative) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	bool polygons_intersect_or_touch(const vector<Vector2> &a, const vector<Vector2> &b) {
+
+		for (size_t i = 0; i < a.size(); i++) {
+			const auto &a1 = a[i];
+			const auto &a2 = a[(i + 1) % a.size()];
+
+			for (size_t j = 0; j < b.size(); j++) {
+				const auto &b1 = b[j];
+				const auto &b2 = b[(j + 1) % b.size()];
+
+				if (tpp::segment_segment_intersection_safe(a1, a2, b1, b2).is_finite()) {
+					return true;
+				}
+			}
+		}
+
+		return point_in_convex_polygon_closed(a.front(), b) || point_in_convex_polygon_closed(b.front(), a);
+	}
+
+	bool is_tan_jiang_supported_disjoint_case(const vector<vector<Vector2>> &polygons) {
+
+		for (size_t i = 0; i < polygons.size(); i++) {
+			for (size_t j = i + 1; j < polygons.size(); j++) {
+				if (polygons_intersect_or_touch(polygons[i], polygons[j])) {
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+}
+
 class SolutionTAMC : public tpp::Solution {
 
 	using tpp::Solution::Solution;
 	using tpp::Solution::query;
+
+	bool is_active_location(size_t polygon_index, size_t location) const {
+
+		const auto vertex_count = polygons[polygon_index].size();
+
+		if (location % 2 == 0) {
+			const auto vertex_index = location / 2;
+			const auto previous_index = vertex_index == 0 ? vertex_count - 1 : vertex_index - 1;
+			return is_first_contact(polygon_index, vertex_index) || is_first_contact(polygon_index, previous_index);
+		}
+
+		return is_first_contact(polygon_index, location / 2);
+	}
 
 	/*
 	Uses binary search to locate `point` in the visibility map of `polygon[i - 1]`.
@@ -87,7 +165,7 @@ class SolutionTAMC : public tpp::Solution {
 
 		size_t location = _locate_point(point, i);
 
-		if (location % 2 == 0 || is_first_contact(i - 1, location / 2)) {
+		if (is_active_location(i - 1, location)) {
 			return location;
 		} else {
 			return -1;
@@ -139,6 +217,7 @@ class SolutionTAMC : public tpp::Solution {
 
 		while (point_index < points.size()) {
 
+			const size_t first_unlocated_point = point_index;
 			size_t original_location = last_location;
 			size_t location = last_location;
 
@@ -178,10 +257,24 @@ class SolutionTAMC : public tpp::Solution {
 			}
 
 			scan_count++;
-		}
 
-		if (scan_count > MAX_SCAN_COUNT) {
-			throw std::runtime_error("Too many scans, something might be wrong with the implementation.");
+			if (point_index == first_unlocated_point) {
+				location = _locate_point(points[point_index], i);
+				locations.push_back(location);
+				last_location = location;
+				point_index++;
+				scan_count = 0;
+				continue;
+			}
+
+			if (scan_count > MAX_SCAN_COUNT) {
+				while (point_index < points.size()) {
+					location = _locate_point(points[point_index], i);
+					locations.push_back(location);
+					last_location = location;
+					point_index++;
+				}
+			}
 		}
 
 		vector<Vector2> input_points;
@@ -191,10 +284,10 @@ class SolutionTAMC : public tpp::Solution {
 			const auto &point = points[j];
 			const auto &location = locations[j];
 
-			if (location % 2 == 0) {
-				// Do nothing, we can tell the point come from the vertex directly without needing to query the previous polygon.
-			} else if (!is_first_contact(i - 1, location / 2)) {
+			if (!is_active_location(i - 1, location)) {
 				input_points.push_back(point);
+			} else if (location % 2 == 0) {
+				// Do nothing, we can tell the point come from the vertex directly without needing to query the previous polygon.
 			} else {
 				const auto &v1 = polygon[location / 2];
 				const auto &v2 = polygon[(location / 2 + 1) % polygon.size()];
@@ -212,10 +305,10 @@ class SolutionTAMC : public tpp::Solution {
 
 			const auto &location = locations[j];
 
-			if (location % 2 == 0) {
-				results.push_back(polygon[location / 2]);
-			} else if (!is_first_contact(i - 1, location / 2)) {
+			if (!is_active_location(i - 1, location)) {
 				results.push_back(returned_points[index++]);
+			} else if (location % 2 == 0) {
+				results.push_back(polygon[location / 2]);
 			} else {
 				
 				const auto &v1 = polygon[location / 2];
@@ -260,6 +353,11 @@ class SolutionTAMC : public tpp::Solution {
 namespace tpp {
 
 	void tpp_convex_solve_tan_jiang(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons, ConvexTppWorkspaceView workspace, std::vector<Vector2>& output) {
+		if (!is_tan_jiang_supported_disjoint_case(polygons)) {
+			tpp_convex_solve_binary_search_lazy(start, target, polygons, workspace, output);
+			return;
+		}
+
 		SolutionTAMC(start, target, polygons, workspace).solve(PreloadPolicy::Lazy, output);
 	}
 
@@ -268,6 +366,10 @@ namespace tpp {
 	}
 
 	std::vector<Vector2> tpp_convex_solve_tan_jiang(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		if (!is_tan_jiang_supported_disjoint_case(polygons)) {
+			return tpp_convex_solve_binary_search_lazy(start, target, polygons);
+		}
+
 		return SolutionTAMC(start, target, polygons).solve();
 	}
 

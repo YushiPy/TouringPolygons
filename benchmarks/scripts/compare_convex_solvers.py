@@ -99,9 +99,13 @@ def build_benchmark_command(args: argparse.Namespace, suite: Path, csv_output: P
 		str(args.max_branching),
 	]
 	if args.max_seconds is not None:
-		command.append(str(float(args.max_seconds)))
+		command.append(format_optional_seconds(args.max_seconds))
 	command.extend([str(args.repeat_count), str(csv_output), str(summary_output)])
 	return command
+
+
+def format_optional_seconds(value: str) -> str:
+	return "-1" if value == "-1" else str(float(value))
 
 
 def write_comparison(run_dir: Path, rows: list[dict[str, str]]) -> None:
@@ -205,7 +209,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 	if args.threads is not None:
 		env["TPP_BENCH_THREADS"] = str(args.threads)
 	if args.max_seconds is not None:
-		env["TPP_BENCH_MAX_SECONDS"] = str(float(args.max_seconds))
+		env["TPP_BENCH_MAX_SECONDS"] = format_optional_seconds(args.max_seconds)
 
 	for solver in solvers:
 		print(f"\n## {solver.name}", flush=True)
