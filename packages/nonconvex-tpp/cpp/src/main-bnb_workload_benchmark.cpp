@@ -72,6 +72,7 @@ struct BenchmarkSummary {
 	size_t skipped_empty = 0;
 	size_t skipped_max_polygons = 0;
 	size_t skipped_decomposition = 0;
+	size_t skipped_intersecting_hulls = 0;
 	size_t skipped_no_calls = 0;
 	size_t benchmarked_instances = 0;
 	size_t fully_covered_instances = 0;
@@ -246,6 +247,7 @@ struct CaseBenchmarkResult {
 	size_t case_index = 0;
 	bool decomposed = false;
 	size_t skipped_decomposition = 0;
+	size_t skipped_intersecting_hulls = 0;
 	size_t skipped_no_calls = 0;
 	std::string decomposition_error;
 	vector<InstanceRecord> records;
@@ -257,6 +259,100 @@ struct CaseBenchmarkResult {
 
 bool is_ccw_turn(const Vector2 &p0, const Vector2 &p1, const Vector2 &p2) {
 	return (p1.x - p0.x) * (p2.y - p0.y) - (p2.x - p0.x) * (p1.y - p0.y) > 0;
+}
+
+double cross(const Vector2 &a, const Vector2 &b, const Vector2 &c) {
+	return (b - a).cross(c - a);
+}
+
+bool point_on_segment(const Vector2 &point, const Vector2 &a, const Vector2 &b) {
+
+	constexpr double EPS = 1e-9;
+
+	if (std::abs(cross(a, b, point)) > EPS) {
+		return false;
+	}
+
+	return point.x >= std::min(a.x, b.x) - EPS
+		&& point.x <= std::max(a.x, b.x) + EPS
+		&& point.y >= std::min(a.y, b.y) - EPS
+		&& point.y <= std::max(a.y, b.y) + EPS;
+}
+
+bool segments_intersect_or_touch(const Vector2 &a, const Vector2 &b, const Vector2 &c, const Vector2 &d) {
+
+	constexpr double EPS = 1e-9;
+
+	const double c1 = cross(a, b, c);
+	const double c2 = cross(a, b, d);
+	const double c3 = cross(c, d, a);
+	const double c4 = cross(c, d, b);
+
+	if (((c1 > EPS && c2 < -EPS) || (c1 < -EPS && c2 > EPS))
+		&& ((c3 > EPS && c4 < -EPS) || (c3 < -EPS && c4 > EPS))) {
+		return true;
+	}
+
+	return point_on_segment(c, a, b)
+		|| point_on_segment(d, a, b)
+		|| point_on_segment(a, c, d)
+		|| point_on_segment(b, c, d);
+}
+
+bool point_in_polygon_or_on_boundary(const Vector2 &point, const vector<Vector2> &polygon) {
+
+	bool inside = false;
+
+	for (size_t i = 0; i < polygon.size(); i++) {
+		const Vector2 &a = polygon[i];
+		const Vector2 &b = polygon[(i + 1) % polygon.size()];
+
+		if (point_on_segment(point, a, b)) {
+			return true;
+		}
+
+		if ((a.y > point.y) != (b.y > point.y)) {
+			const double intersection_x = a.x + (point.y - a.y) * (b.x - a.x) / (b.y - a.y);
+			if (intersection_x >= point.x) {
+				inside = !inside;
+			}
+		}
+	}
+
+	return inside;
+}
+
+bool polygons_intersect_or_touch(const vector<Vector2> &a, const vector<Vector2> &b) {
+
+	for (size_t i = 0; i < a.size(); i++) {
+		const Vector2 &a1 = a[i];
+		const Vector2 &a2 = a[(i + 1) % a.size()];
+
+		for (size_t j = 0; j < b.size(); j++) {
+			const Vector2 &b1 = b[j];
+			const Vector2 &b2 = b[(j + 1) % b.size()];
+
+			if (segments_intersect_or_touch(a1, a2, b1, b2)) {
+				return true;
+			}
+		}
+	}
+
+	return (!a.empty() && point_in_polygon_or_on_boundary(a.front(), b))
+		|| (!b.empty() && point_in_polygon_or_on_boundary(b.front(), a));
+}
+
+bool any_polygons_intersect_or_touch(const vector<vector<Vector2>> &polygons) {
+
+	for (size_t i = 0; i < polygons.size(); i++) {
+		for (size_t j = i + 1; j < polygons.size(); j++) {
+			if (polygons_intersect_or_touch(polygons[i], polygons[j])) {
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 vector<Vector2> half_hull(const vector<Vector2> &sorted_points) {
@@ -1059,6 +1155,12 @@ CaseBenchmarkResult run_case_benchmark(size_t case_index, const tpp::TestCase &t
 
 	const auto decomposition_end_time = std::chrono::steady_clock::now();
 	const double decomposition_seconds = std::chrono::duration<double>(decomposition_end_time - decomposition_start_time).count();
+
+	if (any_polygons_intersect_or_touch(convex_hulls)) {
+		result.skipped_intersecting_hulls = 1;
+		return result;
+	}
+
 	result.decomposed = true;
 
 	const auto approximation_start_time = std::chrono::steady_clock::now();
@@ -1505,6 +1607,7 @@ int main(int argc, char **argv) {
 		}
 
 		summary.skipped_decomposition += case_result.skipped_decomposition;
+		summary.skipped_intersecting_hulls += case_result.skipped_intersecting_hulls;
 		summary.skipped_no_calls += case_result.skipped_no_calls;
 
 		if (case_result.decomposed) {
@@ -1697,6 +1800,7 @@ int main(int argc, char **argv) {
 	emitf("| Skipped by max polygons | {} |", format_count_with_percent(summary.skipped_max_polygons, summary.total_instances));
 	emitf("| Skipped empty | {} |", format_count_with_percent(summary.skipped_empty, summary.total_instances));
 	emitf("| Skipped decomposition | {} |", format_count_with_percent(summary.skipped_decomposition, summary.total_instances));
+	emitf("| Skipped intersecting convex hulls | {} |", format_count_with_percent(summary.skipped_intersecting_hulls, summary.total_instances));
 	emitf("| Skipped no calls | {} |", format_count_with_percent(summary.skipped_no_calls, summary.total_instances));
 	emitf("| Max observed branching | {} |", format_count(summary.max_observed_branching));
 	emit("");

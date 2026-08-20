@@ -24,6 +24,7 @@ class EncodedCase:
 	data: bytes
 	digest: str
 	case_index: int
+	polygon_vertices: tuple[tuple[tuple[float, float], ...], ...]
 	polygons: int
 	vertices: int
 
@@ -50,11 +51,17 @@ def read_encoded_cases(path: Path) -> list[EncodedCase]:
 		start = offset
 		offset = skip_bytes(data, offset, 32, path)
 		polygon_count, offset = read_u64(data, offset, path)
+		polygon_vertices: list[tuple[tuple[float, float], ...]] = []
 		vertex_total = 0
 
 		for _ in range(polygon_count):
 			vertex_count, offset = read_u64(data, offset, path)
 			vertex_total += vertex_count
+			vertices = tuple(
+				struct.unpack_from("<dd", data, offset + 16 * vertex_index)
+				for vertex_index in range(vertex_count)
+			)
+			polygon_vertices.append(vertices)
 			offset = skip_bytes(data, offset, 16 * vertex_count, path)
 
 		solution_count, offset = read_u64(data, offset, path)
@@ -64,11 +71,116 @@ def read_encoded_cases(path: Path) -> list[EncodedCase]:
 			data=encoded,
 			digest=hashlib.sha256(encoded).hexdigest(),
 			case_index=len(cases),
+			polygon_vertices=tuple(polygon_vertices),
 			polygons=polygon_count,
 			vertices=vertex_total,
 		))
 
 	return cases
+
+
+def orientation(a: tuple[float, float], b: tuple[float, float], c: tuple[float, float]) -> float:
+	return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+
+def convex_hull(points: Sequence[tuple[float, float]]) -> tuple[tuple[float, float], ...]:
+	unique = sorted(set(points))
+	if len(unique) <= 1:
+		return tuple(unique)
+
+	def half_hull(sorted_points: Sequence[tuple[float, float]]) -> list[tuple[float, float]]:
+		hull: list[tuple[float, float]] = []
+		for point in sorted_points:
+			while len(hull) > 1 and orientation(hull[-2], hull[-1], point) <= 0.0:
+				hull.pop()
+			hull.append(point)
+		return hull[:-1]
+
+	return tuple(half_hull(unique) + half_hull(list(reversed(unique))))
+
+
+def point_on_segment(point: tuple[float, float], a: tuple[float, float], b: tuple[float, float]) -> bool:
+	epsilon = 1e-12
+	return (
+		abs(orientation(a, b, point)) <= epsilon
+		and min(a[0], b[0]) - epsilon <= point[0] <= max(a[0], b[0]) + epsilon
+		and min(a[1], b[1]) - epsilon <= point[1] <= max(a[1], b[1]) + epsilon
+	)
+
+
+def segments_intersect_or_touch(
+	a: tuple[float, float],
+	b: tuple[float, float],
+	c: tuple[float, float],
+	d: tuple[float, float],
+) -> bool:
+	o1 = orientation(a, b, c)
+	o2 = orientation(a, b, d)
+	o3 = orientation(c, d, a)
+	o4 = orientation(c, d, b)
+	if o1 * o2 < 0.0 and o3 * o4 < 0.0:
+		return True
+	return (
+		point_on_segment(c, a, b)
+		or point_on_segment(d, a, b)
+		or point_on_segment(a, c, d)
+		or point_on_segment(b, c, d)
+	)
+
+
+def point_in_polygon_or_on_boundary(
+	point: tuple[float, float],
+	polygon: Sequence[tuple[float, float]],
+) -> bool:
+	inside = False
+	px, py = point
+	for index, a in enumerate(polygon):
+		b = polygon[(index + 1) % len(polygon)]
+		if point_on_segment(point, a, b):
+			return True
+		if (a[1] > py) != (b[1] > py):
+			x_crossing = (b[0] - a[0]) * (py - a[1]) / (b[1] - a[1]) + a[0]
+			if px <= x_crossing:
+				inside = not inside
+	return inside
+
+
+def polygons_intersect_or_touch(
+	first: Sequence[tuple[float, float]],
+	second: Sequence[tuple[float, float]],
+) -> bool:
+	first_bounds = (
+		min(point[0] for point in first), min(point[1] for point in first),
+		max(point[0] for point in first), max(point[1] for point in first),
+	)
+	second_bounds = (
+		min(point[0] for point in second), min(point[1] for point in second),
+		max(point[0] for point in second), max(point[1] for point in second),
+	)
+	if (
+		first_bounds[2] < second_bounds[0]
+		or second_bounds[2] < first_bounds[0]
+		or first_bounds[3] < second_bounds[1]
+		or second_bounds[3] < first_bounds[1]
+	):
+		return False
+
+	for first_index, a in enumerate(first):
+		b = first[(first_index + 1) % len(first)]
+		for second_index, c in enumerate(second):
+			d = second[(second_index + 1) % len(second)]
+			if segments_intersect_or_touch(a, b, c, d):
+				return True
+	return point_in_polygon_or_on_boundary(first[0], second) or point_in_polygon_or_on_boundary(second[0], first)
+
+
+def case_has_intersecting_hulls(case: EncodedCase) -> bool:
+	hulls = [convex_hull(polygon) for polygon in case.polygon_vertices]
+	return any(
+		polygons_intersect_or_touch(hulls[first], hulls[second])
+		for first in range(len(hulls))
+		for second in range(first + 1, len(hulls))
+	)
 
 
 def spread_select(cases: Sequence[EncodedCase], count: int) -> list[EncodedCase]:
@@ -156,6 +268,7 @@ def make_parser() -> argparse.ArgumentParser:
 	parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
 	parser.add_argument("--canonical-size", type=int, default=300)
 	parser.add_argument("--dev-size", type=int, default=60)
+	parser.add_argument("--require-disjoint-hulls", action="store_true")
 	return parser
 
 
@@ -169,7 +282,19 @@ def main(argv: Sequence[str] | None = None) -> int:
 		raise SystemExit("--dev-size must be less than or equal to --canonical-size")
 
 	source_cases = read_encoded_cases(source)
-	canonical = prefix_representative_order(spread_select(source_cases, args.canonical_size))
+	if args.require_disjoint_hulls:
+		filtered_cases = [case for case in source_cases if not case_has_intersecting_hulls(case)]
+		rejected_hull_intersections = len(source_cases) - len(filtered_cases)
+		print(
+			f"Available hull-disjoint cases: {len(filtered_cases)} of {len(source_cases)} "
+			f"({rejected_hull_intersections} rejected).",
+			flush=True,
+		)
+	else:
+		filtered_cases = source_cases
+		rejected_hull_intersections = 0
+
+	canonical = prefix_representative_order(spread_select(filtered_cases, args.canonical_size))
 	dev = prefix_representative_order(spread_select(canonical, args.dev_size))
 
 	write_suite("canonical-v1", canonical, output, source)
@@ -180,9 +305,16 @@ def main(argv: Sequence[str] | None = None) -> int:
 		"generator": "benchmarks/scripts/generate_algorithm_suites.py",
 		"source": str(source.relative_to(REPO_ROOT)),
 		"source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+		"source_cases": len(source_cases),
+		"rejected_intersecting_or_touching_hulls": rejected_hull_intersections,
+		"require_disjoint_hulls": args.require_disjoint_hulls,
 		"canonical_size": len(canonical),
 		"development_size": len(dev),
-		"selection": "even spread by polygon count, vertex count, and case digest; ordered so prefixes remain representative",
+		"selection": (
+			"reject cases with intersecting or touching convex hulls; even spread by polygon count, vertex count, and case digest; ordered so prefixes remain representative"
+			if args.require_disjoint_hulls
+			else "even spread by polygon count, vertex count, and case digest; ordered so prefixes remain representative"
+		),
 		"canonical_sha256": hashlib.sha256((output / "canonical-v1.bin").read_bytes()).hexdigest(),
 		"development_sha256": hashlib.sha256((output / "algorithm-dev-v1.bin").read_bytes()).hexdigest(),
 	}

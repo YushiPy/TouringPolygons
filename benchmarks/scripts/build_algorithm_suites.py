@@ -81,6 +81,22 @@ def orientation(a: tuple[float, float], b: tuple[float, float], c: tuple[float, 
 	return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
 
 
+def convex_hull(points: Sequence[tuple[float, float]]) -> tuple[tuple[float, float], ...]:
+	unique = sorted(set(points))
+	if len(unique) <= 1:
+		return tuple(unique)
+
+	def half_hull(sorted_points: Sequence[tuple[float, float]]) -> list[tuple[float, float]]:
+		hull: list[tuple[float, float]] = []
+		for point in sorted_points:
+			while len(hull) > 1 and orientation(hull[-2], hull[-1], point) <= 0.0:
+				hull.pop()
+			hull.append(point)
+		return hull[:-1]
+
+	return tuple(half_hull(unique) + half_hull(list(reversed(unique))))
+
+
 def point_on_segment(point: tuple[float, float], a: tuple[float, float], b: tuple[float, float]) -> bool:
 	epsilon = 1e-12
 	return (
@@ -159,6 +175,15 @@ def case_has_intersections(encoded: EncodedCase) -> bool:
 	)
 
 
+def case_has_intersecting_hulls(encoded: EncodedCase) -> bool:
+	hulls = [convex_hull(polygon) for polygon in encoded.polygons]
+	return any(
+		polygons_intersect(hulls[first], hulls[second])
+		for first in range(len(hulls))
+		for second in range(first + 1, len(hulls))
+	)
+
+
 def read_benchmark_rows(path: Path) -> dict[int, dict[str, str]]:
 	with path.open(newline="") as file:
 		rows = csv.DictReader(file, delimiter=";")
@@ -189,6 +214,7 @@ def campaign_candidates(args: argparse.Namespace) -> tuple[dict, list[CandidateC
 	candidates: list[CandidateCase] = []
 	seen: set[str] = set()
 	rejected_intersections = 0
+	rejected_hull_intersections = 0
 
 	for input_record in campaign.get("inputs", []):
 		input_path = args.campaign / input_record["file"]
@@ -205,6 +231,9 @@ def campaign_candidates(args: argparse.Namespace) -> tuple[dict, list[CandidateC
 			if case_has_intersections(encoded):
 				rejected_intersections += 1
 				continue
+			if case_has_intersecting_hulls(encoded):
+				rejected_hull_intersections += 1
+				continue
 			if encoded.digest in seen:
 				continue
 			seen.add(encoded.digest)
@@ -217,7 +246,7 @@ def campaign_candidates(args: argparse.Namespace) -> tuple[dict, list[CandidateC
 				generation=input_record,
 			))
 
-	return campaign, candidates, rejected_intersections
+	return campaign, candidates, rejected_intersections + rejected_hull_intersections
 
 
 def spread_pick(candidates: Sequence[CandidateCase], count: int, rng: random.Random) -> list[CandidateCase]:
