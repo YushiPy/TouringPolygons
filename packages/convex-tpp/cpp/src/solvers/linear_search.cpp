@@ -78,6 +78,14 @@ namespace tpp {
 		return SolutionLinearSearch(start, target, polygons).solve(PreloadPolicy::Eager);
 	}
 
+	double tpp_convex_solve_length_linear_search_lazy(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		return SolutionLinearSearch(start, target, polygons).solve_length(PreloadPolicy::Lazy);
+	}
+
+	double tpp_convex_solve_length_linear_search_eager(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		return SolutionLinearSearch(start, target, polygons).solve_length(PreloadPolicy::Eager);
+	}
+
 	std::vector<Vector2> tpp_convex_solve_linear_search(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
 		return tpp_convex_solve_linear_search_lazy(start, target, polygons);
 	}

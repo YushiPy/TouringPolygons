@@ -194,4 +194,21 @@ namespace tpp {
 		
 		return tpp::remove_collinear_points(result, 1e-6);
 	}
+
+	double tpp_convex_solve_length_gurobi(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		const auto path = tpp_convex_solve_gurobi(start, target, polygons);
+
+		if (path.empty()) {
+			return start.distance_to(target);
+		}
+
+		double length = start.distance_to(path.front());
+
+		for (size_t i = 1; i < path.size(); i++) {
+			length += path[i - 1].distance_to(path[i]);
+		}
+
+		length += path.back().distance_to(target);
+		return length;
+	}
 }

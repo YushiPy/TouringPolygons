@@ -23,43 +23,35 @@ class SolutionBinarySearch : public tpp::Solution {
 	*/
 	size_t _locate_point(const Vector2& point, size_t i) {
 
-		auto check_vertex = [&](size_t j) -> bool {
+		const auto polygon_index = i - 1;
+		const auto &polygon = polygons[polygon_index];
+		const auto vertex_count = polygon.size();
 
-			const auto &v = polygons[i - 1][j];
-			const auto &[ray1, ray2] = get_cone(i - 1, j);
+		const auto &first_vertex = polygon[0];
+		const auto &[first_ray1, first_ray2] = get_cone(polygon_index, 0);
 
-			return tpp::point_in_cone_plus(point, v, ray1, ray2);
-		};
-
-		auto check_edge = [&](size_t l, size_t r) -> bool {
-
-			r = (r + 1) % polygons[i - 1].size();
-
-			const auto &v1 = polygons[i - 1][l];
-			const auto &v2 = polygons[i - 1][r];
-
-			const auto &ray1 = get_cone(i - 1, l).second;
-			const auto &ray2 = get_cone(i - 1, r).first;
-
-			return tpp::point_in_edge_plus(point, v1, v2, ray1, ray2);
-		};
-
-		if (check_vertex(0)) {
+		if (tpp::point_in_cone_plus(point, first_vertex, first_ray1, first_ray2)) {
 			return 0;
 		}
 
 		size_t left = 0;
-		size_t right = polygons[i - 1].size() - 1;
+		size_t right = vertex_count - 1;
 
 		while (left != right) {
 
-			auto mid = left + (right - left) / 2;
+			const auto mid = left + (right - left) / 2;
+			const auto mid_vertex_index = mid + 1;
+			const auto &mid_vertex = polygon[mid_vertex_index];
+			const auto &[mid_ray1, mid_ray2] = get_cone(polygon_index, mid_vertex_index);
 
-			if (check_vertex(mid + 1)) {
-				return 2 * (mid + 1);
+			if (tpp::point_in_cone_plus(point, mid_vertex, mid_ray1, mid_ray2)) {
+				return 2 * mid_vertex_index;
 			}
 
-			if (check_edge(left, mid)) {
+			const auto &left_vertex = polygon[left];
+			const auto &left_ray2 = get_cone(polygon_index, left).second;
+
+			if (tpp::point_in_edge_plus(point, left_vertex, mid_vertex, left_ray2, mid_ray1)) {
 				right = mid;
 			} else {
 				left = mid + 1;
@@ -110,6 +102,14 @@ namespace tpp {
 
 	std::vector<Vector2> tpp_convex_solve_binary_search_eager(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
 		return SolutionBinarySearch(start, target, polygons).solve(PreloadPolicy::Eager);
+	}
+
+	double tpp_convex_solve_length_binary_search_lazy(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		return SolutionBinarySearch(start, target, polygons).solve_length(PreloadPolicy::Lazy);
+	}
+
+	double tpp_convex_solve_length_binary_search_eager(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		return SolutionBinarySearch(start, target, polygons).solve_length(PreloadPolicy::Eager);
 	}
 
 	std::vector<Vector2> tpp_convex_solve_binary_search(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {

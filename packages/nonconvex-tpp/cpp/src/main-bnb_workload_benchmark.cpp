@@ -39,6 +39,12 @@ using ConvexSolverFunction = std::vector<Vector2> (*)(
 	const std::vector<std::vector<Vector2>>&
 );
 
+using ConvexLengthSolverFunction = double (*)(
+	const Vector2&,
+	const Vector2&,
+	const std::vector<std::vector<Vector2>>&
+);
+
 struct BenchmarkOptions {
 	std::string input_path = "benchmarks/suites/canonical-v1.bin";
 	size_t max_polygons = 40;
@@ -50,6 +56,7 @@ struct BenchmarkOptions {
 	size_t thread_count = 0;
 	std::string solver_name = "binary_search_lazy";
 	ConvexSolverFunction solver = tpp::tpp_convex_solve_binary_search_lazy;
+	ConvexLengthSolverFunction length_solver = tpp::tpp_convex_solve_length_binary_search_lazy;
 	std::optional<std::string> output_path;
 	std::optional<std::string> summary_output_path;
 };
@@ -724,6 +731,7 @@ BranchAndBoundResult run_branch_and_bound(
 	size_t max_branching,
 	double max_seconds,
 	ConvexSolverFunction solver,
+	ConvexLengthSolverFunction length_solver,
 	size_t case_index,
 	bool show_progress
 ) {
@@ -769,19 +777,56 @@ BranchAndBoundResult run_branch_and_bound(
 
 	update_progress(true);
 
-	auto solve_convex = [&](const vector<vector<Vector2>> &input_polygons, vector<Vector2> *output_path, double &kind_seconds) -> double {
+	auto before_convex_call = [&](const vector<vector<Vector2>> &input_polygons) -> bool {
 		if (stop_by_time()) {
-			return std::numeric_limits<double>::infinity();
+			return false;
 		}
 
 		if (result.convex_calls >= max_calls) {
 			result.exhausted = false;
-			return std::numeric_limits<double>::infinity();
+			return false;
 		}
 
 		const size_t vertices = vertex_count(input_polygons);
 		result.min_vertices = std::min(result.min_vertices, vertices);
 		result.max_vertices = std::max(result.max_vertices, vertices);
+
+		return true;
+	};
+
+	auto solve_convex_length = [&](const vector<vector<Vector2>> &input_polygons, double &kind_seconds) -> double {
+		if (!before_convex_call(input_polygons)) {
+			return std::numeric_limits<double>::infinity();
+		}
+
+		const auto solver_start_time = std::chrono::steady_clock::now();
+
+		try {
+			const double length = length_solver(start, target, input_polygons);
+			const auto solver_end_time = std::chrono::steady_clock::now();
+			const double elapsed_seconds = std::chrono::duration<double>(solver_end_time - solver_start_time).count();
+			result.solver_seconds += elapsed_seconds;
+			kind_seconds += elapsed_seconds;
+			result.convex_calls++;
+			result.checksum += length;
+			update_progress(false);
+			return length;
+		} catch (...) {
+			const auto solver_end_time = std::chrono::steady_clock::now();
+			const double elapsed_seconds = std::chrono::duration<double>(solver_end_time - solver_start_time).count();
+			result.solver_seconds += elapsed_seconds;
+			kind_seconds += elapsed_seconds;
+			result.convex_calls++;
+			result.checksum += std::numeric_limits<double>::infinity();
+			update_progress(false);
+			return std::numeric_limits<double>::infinity();
+		}
+	};
+
+	auto solve_convex_path = [&](const vector<vector<Vector2>> &input_polygons, vector<Vector2> &output_path, double &kind_seconds) -> double {
+		if (!before_convex_call(input_polygons)) {
+			return std::numeric_limits<double>::infinity();
+		}
 
 		const auto solver_start_time = std::chrono::steady_clock::now();
 
@@ -792,15 +837,10 @@ BranchAndBoundResult run_branch_and_bound(
 			result.solver_seconds += elapsed_seconds;
 			kind_seconds += elapsed_seconds;
 			result.convex_calls++;
-			result.checksum += path_length(start, target, path);
-			update_progress(false);
-
 			const double length = path_length(start, target, path);
-
-			if (output_path != nullptr) {
-				*output_path = std::move(path);
-			}
-
+			result.checksum += length;
+			update_progress(false);
+			output_path = std::move(path);
 			return length;
 		} catch (...) {
 			const auto solver_end_time = std::chrono::steady_clock::now();
@@ -828,7 +868,7 @@ BranchAndBoundResult run_branch_and_bound(
 
 	vector<Vector2> selected_path;
 	const size_t calls_before_incumbent = result.convex_calls;
-	const double selected_length = solve_convex(selected_pieces, &selected_path, result.incumbent_solver_seconds);
+	const double selected_length = solve_convex_path(selected_pieces, selected_path, result.incumbent_solver_seconds);
 
 	if (result.convex_calls > calls_before_incumbent) {
 		result.incumbent_solves++;
@@ -862,7 +902,7 @@ BranchAndBoundResult run_branch_and_bound(
 			vector<Vector2> path;
 			const size_t calls_before = result.convex_calls;
 			increment_histogram(result.leaf_depth_histogram, current.size());
-			const double length = solve_convex(instance, &path, result.leaf_solver_seconds);
+			const double length = solve_convex_length(instance, result.leaf_solver_seconds);
 
 			if (result.convex_calls > calls_before) {
 				result.leaf_solves++;
@@ -873,9 +913,17 @@ BranchAndBoundResult run_branch_and_bound(
 			}
 
 			if (length < result.final_length) {
-				result.final_length = length;
-				best_path = std::move(path);
-				result.best_updates++;
+				const double path_length = solve_convex_path(instance, path, result.leaf_solver_seconds);
+
+				if (!result.exhausted) {
+					break;
+				}
+
+				if (path_length < result.final_length) {
+					result.final_length = path_length;
+					best_path = std::move(path);
+					result.best_updates++;
+				}
 			}
 
 			continue;
@@ -907,7 +955,7 @@ BranchAndBoundResult run_branch_and_bound(
 			const size_t calls_before = result.convex_calls;
 			increment_histogram(result.bound_depth_histogram, selected.size());
 			const double incumbent_before_bound = result.final_length;
-			const double bound = solve_convex(bound_instance, nullptr, result.bound_solver_seconds);
+			const double bound = solve_convex_length(bound_instance, result.bound_solver_seconds);
 
 			if (result.convex_calls > calls_before) {
 				result.bound_solves++;
@@ -1197,6 +1245,7 @@ CaseBenchmarkResult run_case_benchmark(size_t case_index, const tpp::TestCase &t
 			options.max_branching,
 			options.max_seconds_per_instance,
 			options.solver,
+			options.length_solver,
 			case_index,
 			false
 		);
@@ -1291,7 +1340,7 @@ void print_usage(const char *program) {
 	std::println(stderr, "All numeric arguments must be non-negative integers or -1 for unlimited.");
 	std::println(stderr, "Set TPP_BENCH_THREADS to override the default hardware thread count.");
 	std::println(stderr, "Set TPP_BENCH_MAX_SECONDS to override the default per-instance time cap.");
-	std::println(stderr, "Set TPP_BENCH_SOLVER to one of linear_search_lazy, binary_search_lazy, tan_jiang, gurobi.");
+	std::println(stderr, "Set TPP_BENCH_SOLVER to one of linear_search_lazy, binary_search_lazy, binary_search_eager, tan_jiang, gurobi.");
 }
 
 std::optional<size_t> parse_size_arg(const char *text) {
@@ -1350,18 +1399,28 @@ bool set_solver(BenchmarkOptions &options, const std::string &name) {
 	if (name == "linear_search_lazy" || name == "linear") {
 		options.solver_name = "linear_search_lazy";
 		options.solver = tpp::tpp_convex_solve_linear_search_lazy;
+		options.length_solver = tpp::tpp_convex_solve_length_linear_search_lazy;
 		return true;
 	}
 
 	if (name == "binary_search_lazy" || name == "binary" || name == "default") {
 		options.solver_name = "binary_search_lazy";
 		options.solver = tpp::tpp_convex_solve_binary_search_lazy;
+		options.length_solver = tpp::tpp_convex_solve_length_binary_search_lazy;
+		return true;
+	}
+
+	if (name == "binary_search_eager" || name == "binary_search_dp" || name == "binary_dp") {
+		options.solver_name = "binary_search_eager";
+		options.solver = tpp::tpp_convex_solve_binary_search_eager;
+		options.length_solver = tpp::tpp_convex_solve_length_binary_search_eager;
 		return true;
 	}
 
 	if (name == "tan_jiang" || name == "tan-jiang" || name == "tamc") {
 		options.solver_name = "tan_jiang";
 		options.solver = tpp::tpp_convex_solve_tan_jiang;
+		options.length_solver = tpp::tpp_convex_solve_length_tan_jiang;
 		return true;
 	}
 
@@ -1369,6 +1428,7 @@ bool set_solver(BenchmarkOptions &options, const std::string &name) {
 #if defined(TPP_ENABLE_GUROBI)
 		options.solver_name = "gurobi";
 		options.solver = tpp::tpp_convex_solve_gurobi;
+		options.length_solver = tpp::tpp_convex_solve_length_gurobi;
 		return true;
 #else
 		return false;

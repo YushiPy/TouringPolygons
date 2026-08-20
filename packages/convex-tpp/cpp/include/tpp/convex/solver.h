@@ -18,6 +18,13 @@ namespace tpp {
 	std::vector<Vector2> tpp_convex_solve_binary_search_eager(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons);
 	std::vector<Vector2> tpp_convex_solve_tan_jiang(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons);
 
+	double tpp_convex_solve_length_linear_search_lazy(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons);
+	double tpp_convex_solve_length_linear_search_eager(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons);
+	double tpp_convex_solve_length_binary_search_lazy(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons);
+	double tpp_convex_solve_length_binary_search_eager(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons);
+	double tpp_convex_solve_length_tan_jiang(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons);
+	double tpp_convex_solve_length_gurobi(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons);
+
 	void tpp_convex_solve_linear_search_lazy(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons, ConvexTppWorkspaceView workspace, std::vector<Vector2>& output);
 	void tpp_convex_solve_linear_search_eager(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons, ConvexTppWorkspaceView workspace, std::vector<Vector2>& output);
 	void tpp_convex_solve_binary_search_lazy(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons, ConvexTppWorkspaceView workspace, std::vector<Vector2>& output);

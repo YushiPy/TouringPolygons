@@ -119,7 +119,7 @@ namespace tpp {
 		const auto vertex = polygon[j];
 		const auto after = polygon[j_next];
 
-		const auto diff = (vertex - last).normalized(); // Normalizing is not necessary, but makes debugging easier and does not affect the correctness of the algorithm.
+		const auto diff = (vertex - last).normalized(); // Normalizing is not necessary, but keeps numerical tolerances stable.
 
 		auto ray1 = diff.reflect(vertex - before);
 		auto ray2 = diff.reflect(vertex - after);
@@ -265,5 +265,53 @@ namespace tpp {
 		query_full(target, polygons.size(), output);
 		output.push_back(target);
 		tpp::remove_collinear_points_inplace(output);
+	}
+
+	double Solution::solve_length() {
+		return solve_length(PreloadPolicy::Lazy);
+	}
+
+	double Solution::solve_length(PreloadPolicy preload_policy) {
+
+		initialize_storage();
+
+		if (preload_policy == PreloadPolicy::Eager) {
+			for (size_t i = 0; i < polygons.size(); i++) {
+				for (size_t j = 0; j < polygons[i].size(); j++) {
+					build_cone(i, j);
+				}
+			}
+		} else {
+			preload_cones();
+		}
+
+		return query_length(target, polygons.size());
+	}
+
+	double Solution::query_length(const Vector2& point, size_t i) {
+
+		if (i == 0) {
+			return start.distance_to(point);
+		}
+
+		const auto location = locate_point(point, i);
+
+		if (location == -1) {
+			return query_length(point, i - 1);
+		}
+
+		const auto &polygon = polygons[i - 1];
+		const auto vertex_index = location / 2;
+
+		if (location % 2 == 0) {
+			const auto &vertex = polygon[vertex_index];
+			return query_length(vertex, i - 1) + vertex.distance_to(point);
+		}
+
+		const auto &v1 = polygon[vertex_index];
+		const auto &v2 = polygon[(vertex_index + 1) % polygon.size()];
+		const auto reflected = point.reflect_line(v1, v2);
+
+		return query_length(reflected, i - 1);
 	}
 }

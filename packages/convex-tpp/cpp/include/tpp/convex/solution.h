@@ -88,6 +88,14 @@ namespace tpp {
 		std::vector<Vector2> solve();
 		std::vector<Vector2> solve(PreloadPolicy preload_policy);
 		void solve(PreloadPolicy preload_policy, std::vector<Vector2> &output);
+		double solve_length();
+		double solve_length(PreloadPolicy preload_policy);
+
+		/*
+		Returns the length of the shortest i-path to `point`, without materializing
+		the bend sequence.
+		*/
+		double query_length(const Vector2& point, size_t i);
 
 		/*
 		Locates `point` in the shortest last step map of `i (0 to k)` 

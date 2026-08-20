@@ -373,6 +373,14 @@ namespace tpp {
 		return SolutionTAMC(start, target, polygons).solve();
 	}
 
+	double tpp_convex_solve_length_tan_jiang(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		if (!is_tan_jiang_supported_disjoint_case(polygons)) {
+			return tpp_convex_solve_length_binary_search_lazy(start, target, polygons);
+		}
+
+		return SolutionTAMC(start, target, polygons).solve_length();
+	}
+
 	std::vector<Vector2> tpp_convex_solve_tamc(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
 		return tpp_convex_solve_tan_jiang(start, target, polygons);
 	}
