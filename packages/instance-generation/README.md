@@ -4,6 +4,129 @@
 
 The primary output is a binary test-case stream compatible with the non-convex C++ `load_test_cases()` / `encode_test()` format. The generator also writes a preview image for visual inspection and a small manifest with generation metadata.
 
+## Download OSM Data
+
+[Geofabrik](https://download.geofabrik.de/) provides regional OpenStreetMap extracts
+in the `.osm.pbf` format. Open the continent and country pages, then download the
+smallest extract containing the desired area. For example, Brazil and its regions are
+available from the [Brazil download page](https://download.geofabrik.de/south-america/brazil.html).
+
+Store downloaded files under `packages/instance-generation/regions/`, which is
+ignored by Git:
+
+### Ready-to-paste downloads
+
+Create the local data directory:
+
+```bash
+mkdir -p packages/instance-generation/regions
+```
+
+Download Southeast Brazil:
+
+```bash
+curl --fail --location --continue-at - \
+  https://download.geofabrik.de/south-america/brazil/sudeste-latest.osm.pbf \
+  -o packages/instance-generation/regions/sudeste-latest.osm.pbf
+```
+
+Download Portugal:
+
+```bash
+curl --fail --location --continue-at - \
+  https://download.geofabrik.de/europe/portugal-latest.osm.pbf \
+  -o packages/instance-generation/regions/portugal-latest.osm.pbf
+```
+
+Download California:
+
+```bash
+curl --fail --location --continue-at - \
+  https://download.geofabrik.de/north-america/us/california-latest.osm.pbf \
+  -o packages/instance-generation/regions/california-latest.osm.pbf
+```
+
+`--continue-at -` resumes a partial download when the command is run again. The
+`latest` extracts are updated regularly, so record the download date when exact
+dataset reproducibility matters.
+
+Large regional files can be cropped before generation. Install `osmium-tool` on
+macOS with Homebrew:
+
+```bash
+brew install osmium-tool
+```
+
+Then extract a city or neighborhood using a bounding box:
+
+```bash
+osmium extract \
+  --bbox MIN_LONGITUDE,MIN_LATITUDE,MAX_LONGITUDE,MAX_LATITUDE \
+  packages/instance-generation/regions/sudeste-latest.osm.pbf \
+  --output packages/instance-generation/regions/sao-paulo.osm.pbf \
+  --overwrite
+```
+
+Longitude is the horizontal coordinate and latitude is the vertical coordinate. The
+bounding box therefore describes its southwest corner first and northeast corner
+second. Coordinates can be obtained by drawing a rectangle with
+[OpenStreetMap's export tool](https://www.openstreetmap.org/export), then copying the
+displayed bounds. Prefer a reasonably small crop: building extraction and the first
+cache creation are substantially faster when unrelated parts of the regional file
+are removed.
+
+### Ready-to-paste crops
+
+These are approximate rectangular study areas, not official administrative
+boundaries.
+
+Extract the São Paulo metropolitan area from the Southeast Brazil file:
+
+```bash
+osmium extract \
+  --bbox -46.83,-24.01,-46.36,-23.35 \
+  packages/instance-generation/regions/sudeste-latest.osm.pbf \
+  --output packages/instance-generation/regions/sao-paulo.osm.pbf \
+  --overwrite
+```
+
+Extract the Lisbon metropolitan area from the Portugal file:
+
+```bash
+osmium extract \
+  --bbox -9.30,38.65,-9.00,38.85 \
+  packages/instance-generation/regions/portugal-latest.osm.pbf \
+  --output packages/instance-generation/regions/lisbon.osm.pbf \
+  --overwrite
+```
+
+Extract San Francisco from the California file:
+
+```bash
+osmium extract \
+  --bbox -122.52,37.70,-122.35,37.84 \
+  packages/instance-generation/regions/california-latest.osm.pbf \
+  --output packages/instance-generation/regions/san-francisco.osm.pbf \
+  --overwrite
+```
+
+Generate a small solver-ready grid dataset from any cropped file, for example São
+Paulo:
+
+```bash
+python3 packages/instance-generation/source/gen_instances.py \
+  packages/instance-generation/regions/sao-paulo.osm.pbf \
+  --output-bin benchmarks/results/sao-paulo-grid.bin \
+  --preview benchmarks/results/sao-paulo-grid.png \
+  --instances 100 \
+  --polygons-per-instance 20 \
+  --layout grid \
+  --grid-cell-size 2.0 \
+  --grid-placement random \
+  --order random \
+  --seed 42
+```
+
 ## Usage
 
 ```bash
