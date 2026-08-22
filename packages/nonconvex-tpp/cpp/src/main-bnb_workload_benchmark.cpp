@@ -14,10 +14,12 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <mutex>
 #include <numeric>
 #include <optional>
 #include <print>
+#include <set>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -88,6 +90,7 @@ struct BenchmarkSummary {
 	size_t capped_by_calls_instances = 0;
 	size_t capped_by_time_instances = 0;
 	size_t branch_limited_instances = 0;
+	size_t grouped_pieces = 0;
 	size_t total_calls = 0;
 	size_t total_incumbent_solves = 0;
 	size_t total_bound_solves = 0;
@@ -100,6 +103,26 @@ struct BenchmarkSummary {
 	double approximation_seconds = 0.0;
 	double bnb_seconds = 0.0;
 	double solver_seconds = 0.0;
+	double piece_graph_precompute_seconds = 0.0;
+	double piece_graph_bound_seconds = 0.0;
+	size_t piece_graph_bound_calls = 0;
+	double port_bound_precompute_seconds = 0.0;
+	double port_bound_seconds = 0.0;
+	size_t port_bound_calls = 0;
+	size_t hull_bound_prunes = 0;
+	size_t piece_graph_extra_prunes = 0;
+	size_t piece_graph_dominates = 0;
+	size_t port_extra_prunes = 0;
+	size_t port_dominates = 0;
+	double refinement_bound_seconds = 0.0;
+	size_t refinement_bound_calls = 0;
+	size_t refinement_extra_prunes = 0;
+	size_t refinement_dominates = 0;
+	double contact_bound_seconds = 0.0;
+	size_t contact_path_calls = 0;
+	size_t contact_bound_calls = 0;
+	size_t contact_extra_prunes = 0;
+	size_t contact_dominates = 0;
 	double checksum = 0.0;
 };
 
@@ -202,6 +225,26 @@ struct BranchAndBoundResult {
 	double incumbent_solver_seconds = 0.0;
 	double bound_solver_seconds = 0.0;
 	double leaf_solver_seconds = 0.0;
+	double piece_graph_precompute_seconds = 0.0;
+	double piece_graph_bound_seconds = 0.0;
+	size_t piece_graph_bound_calls = 0;
+	double port_bound_precompute_seconds = 0.0;
+	double port_bound_seconds = 0.0;
+	size_t port_bound_calls = 0;
+	size_t hull_bound_prunes = 0;
+	size_t piece_graph_extra_prunes = 0;
+	size_t piece_graph_dominates = 0;
+	size_t port_extra_prunes = 0;
+	size_t port_dominates = 0;
+	double refinement_bound_seconds = 0.0;
+	size_t refinement_bound_calls = 0;
+	size_t refinement_extra_prunes = 0;
+	size_t refinement_dominates = 0;
+	double contact_bound_seconds = 0.0;
+	size_t contact_path_calls = 0;
+	size_t contact_bound_calls = 0;
+	size_t contact_extra_prunes = 0;
+	size_t contact_dominates = 0;
 	size_t failed_prune_count = 0;
 	double failed_prune_ratio_sum = 0.0;
 	double failed_prune_gap_sum = 0.0;
@@ -218,6 +261,7 @@ struct InstanceRecord {
 	size_t repeat_index = 0;
 	size_t polygons = 0;
 	size_t decomposed_pieces = 0;
+	size_t grouped_pieces = 0;
 	double total_combinations = 0.0;
 	size_t calls = 0;
 	size_t incumbent_solves = 0;
@@ -240,6 +284,26 @@ struct InstanceRecord {
 	double bound_solver_seconds = 0.0;
 	double leaf_solver_seconds = 0.0;
 	double seconds_per_call = 0.0;
+	double piece_graph_precompute_seconds = 0.0;
+	double piece_graph_bound_seconds = 0.0;
+	size_t piece_graph_bound_calls = 0;
+	double port_bound_precompute_seconds = 0.0;
+	double port_bound_seconds = 0.0;
+	size_t port_bound_calls = 0;
+	size_t hull_bound_prunes = 0;
+	size_t piece_graph_extra_prunes = 0;
+	size_t piece_graph_dominates = 0;
+	size_t port_extra_prunes = 0;
+	size_t port_dominates = 0;
+	double refinement_bound_seconds = 0.0;
+	size_t refinement_bound_calls = 0;
+	size_t refinement_extra_prunes = 0;
+	size_t refinement_dominates = 0;
+	double contact_bound_seconds = 0.0;
+	size_t contact_path_calls = 0;
+	size_t contact_bound_calls = 0;
+	size_t contact_extra_prunes = 0;
+	size_t contact_dominates = 0;
 	bool exhausted = false;
 	bool time_limited = false;
 	bool branch_limited = false;
@@ -264,6 +328,11 @@ struct CaseBenchmarkResult {
 	vector<size_t> bound_depth_histogram;
 	vector<size_t> leaf_depth_histogram;
 	std::array<size_t, BRANCH_BUCKET_COUNT> branching_histogram = {};
+};
+
+struct SyntheticCoverSuite {
+	vector<tpp::TestCase> cases;
+	vector<vector<vector<vector<Vector2>>>> covers;
 };
 
 bool is_ccw_turn(const Vector2 &p0, const Vector2 &p1, const Vector2 &p2) {
@@ -351,6 +420,458 @@ bool polygons_intersect_or_touch(const vector<Vector2> &a, const vector<Vector2>
 		|| (!b.empty() && point_in_polygon_or_on_boundary(b.front(), a));
 }
 
+double point_segment_distance(const Vector2 &point, const Vector2 &a, const Vector2 &b) {
+
+	const Vector2 ab = b - a;
+	const double denominator = ab.dot(ab);
+
+	if (denominator == 0.0) {
+		return point.distance_to(a);
+	}
+
+	const double t = std::clamp((point - a).dot(ab) / denominator, 0.0, 1.0);
+	return point.distance_to(a + ab * t);
+}
+
+double segment_segment_distance(const Vector2 &a, const Vector2 &b, const Vector2 &c, const Vector2 &d) {
+
+	if (segments_intersect_or_touch(a, b, c, d)) {
+		return 0.0;
+	}
+
+	return std::min({
+		point_segment_distance(a, c, d),
+		point_segment_distance(b, c, d),
+		point_segment_distance(c, a, b),
+		point_segment_distance(d, a, b),
+	});
+}
+
+double point_polygon_distance(const Vector2 &point, const vector<Vector2> &polygon) {
+
+	if (polygon.empty()) {
+		return std::numeric_limits<double>::infinity();
+	}
+
+	if (point_in_polygon_or_on_boundary(point, polygon)) {
+		return 0.0;
+	}
+
+	double distance = std::numeric_limits<double>::infinity();
+
+	for (size_t i = 0; i < polygon.size(); i++) {
+		distance = std::min(distance, point_segment_distance(point, polygon[i], polygon[(i + 1) % polygon.size()]));
+	}
+
+	return distance;
+}
+
+double polygon_polygon_distance(const vector<Vector2> &a, const vector<Vector2> &b) {
+
+	if (a.empty() || b.empty()) {
+		return std::numeric_limits<double>::infinity();
+	}
+
+	if (polygons_intersect_or_touch(a, b)) {
+		return 0.0;
+	}
+
+	double distance = std::numeric_limits<double>::infinity();
+
+	for (size_t i = 0; i < a.size(); i++) {
+		for (size_t j = 0; j < b.size(); j++) {
+			distance = std::min(
+				distance,
+				segment_segment_distance(a[i], a[(i + 1) % a.size()], b[j], b[(j + 1) % b.size()])
+			);
+		}
+	}
+
+	return distance;
+}
+
+bool use_piece_graph_bound() {
+
+	const char *enabled = std::getenv("TPP_PIECE_GRAPH_BOUND");
+	return enabled != nullptr && std::string_view(enabled) != "0";
+}
+
+bool use_piece_grouping() {
+
+	const char *enabled = std::getenv("TPP_GROUP_PIECES");
+	return enabled != nullptr && std::string_view(enabled) != "0";
+}
+
+double piece_group_max_excess_ratio() {
+
+	const char *value = std::getenv("TPP_GROUP_MAX_EXCESS_RATIO");
+
+	if (value == nullptr) {
+		return 0.05;
+	}
+
+	return std::strtod(value, nullptr);
+}
+
+size_t piece_group_max_size() {
+
+	const char *value = std::getenv("TPP_GROUP_MAX_SIZE");
+
+	if (value == nullptr) {
+		return 3;
+	}
+
+	return std::strtoull(value, nullptr, 10);
+}
+
+bool use_synthetic_cover() {
+
+	const char *enabled = std::getenv("TPP_USE_SYNTHETIC_COVER");
+	return enabled != nullptr && std::string_view(enabled) != "0";
+}
+
+std::string synthetic_cover_pattern() {
+
+	const char *value = std::getenv("TPP_SYNTHETIC_COVER_PATTERN");
+
+	if (value == nullptr) {
+		return "stair";
+	}
+
+	return value;
+}
+
+bool use_port_bound() {
+
+	const char *enabled = std::getenv("TPP_PORT_BOUND");
+	return enabled != nullptr && std::string_view(enabled) != "0";
+}
+
+bool use_refinement_bound() {
+
+	const char *enabled = std::getenv("TPP_REFINEMENT_BOUND");
+	return enabled != nullptr && std::string_view(enabled) != "0";
+}
+
+double refinement_gap_ratio() {
+
+	const char *value = std::getenv("TPP_REFINEMENT_GAP_RATIO");
+
+	if (value == nullptr) {
+		return std::numeric_limits<double>::infinity();
+	}
+
+	return std::strtod(value, nullptr);
+}
+
+size_t refinement_min_depth() {
+
+	const char *value = std::getenv("TPP_REFINEMENT_MIN_DEPTH");
+
+	if (value == nullptr) {
+		return 0;
+	}
+
+	return std::strtoull(value, nullptr, 10);
+}
+
+size_t refinement_window_size() {
+
+	const char *value = std::getenv("TPP_REFINEMENT_WINDOW_SIZE");
+
+	if (value == nullptr) {
+		return 1;
+	}
+
+	return std::strtoull(value, nullptr, 10);
+}
+
+size_t refinement_max_combinations() {
+
+	const char *value = std::getenv("TPP_REFINEMENT_MAX_COMBINATIONS");
+
+	if (value == nullptr) {
+		return 64;
+	}
+
+	return std::strtoull(value, nullptr, 10);
+}
+
+bool use_contact_bound() {
+
+	const char *enabled = std::getenv("TPP_CONTACT_BOUND");
+	return enabled != nullptr && std::string_view(enabled) != "0";
+}
+
+double contact_gap_ratio() {
+
+	const char *value = std::getenv("TPP_CONTACT_GAP_RATIO");
+
+	if (value == nullptr) {
+		return 1e-5;
+	}
+
+	return std::strtod(value, nullptr);
+}
+
+size_t contact_min_depth() {
+
+	const char *value = std::getenv("TPP_CONTACT_MIN_DEPTH");
+
+	if (value == nullptr) {
+		return 8;
+	}
+
+	return std::strtoull(value, nullptr, 10);
+}
+
+size_t contact_max_polygons() {
+
+	const char *value = std::getenv("TPP_CONTACT_MAX_POLYGONS");
+
+	if (value == nullptr) {
+		return 2;
+	}
+
+	return std::strtoull(value, nullptr, 10);
+}
+
+size_t contact_max_combinations() {
+
+	const char *value = std::getenv("TPP_CONTACT_MAX_COMBINATIONS");
+
+	if (value == nullptr) {
+		return 64;
+	}
+
+	return std::strtoull(value, nullptr, 10);
+}
+
+struct PieceGraphBoundCache {
+	vector<vector<double>> start_distances;
+	vector<vector<double>> target_distances;
+	vector<vector<vector<double>>> transitions;
+
+	explicit PieceGraphBoundCache(
+		const Vector2 &start,
+		const Vector2 &target,
+		const vector<vector<vector<Vector2>>> &convex_pieces
+	) {
+		start_distances.resize(convex_pieces.size());
+		target_distances.resize(convex_pieces.size());
+
+		for (size_t i = 0; i < convex_pieces.size(); i++) {
+			start_distances[i].reserve(convex_pieces[i].size());
+			target_distances[i].reserve(convex_pieces[i].size());
+
+			for (const auto &piece : convex_pieces[i]) {
+				start_distances[i].push_back(point_polygon_distance(start, piece));
+				target_distances[i].push_back(point_polygon_distance(target, piece));
+			}
+		}
+
+		if (convex_pieces.size() >= 2) {
+			transitions.resize(convex_pieces.size() - 1);
+		}
+
+		for (size_t i = 0; i + 1 < convex_pieces.size(); i++) {
+			transitions[i].resize(convex_pieces[i].size());
+
+			for (size_t a = 0; a < convex_pieces[i].size(); a++) {
+				transitions[i][a].reserve(convex_pieces[i + 1].size());
+
+				for (size_t b = 0; b < convex_pieces[i + 1].size(); b++) {
+					transitions[i][a].push_back(polygon_polygon_distance(convex_pieces[i][a], convex_pieces[i + 1][b]));
+				}
+			}
+		}
+	}
+
+	double bound(const vector<size_t> &selected) const {
+
+		if (start_distances.empty()) {
+			return 0.0;
+		}
+
+		vector<double> dp = start_distances.front();
+
+		if (!selected.empty()) {
+			for (size_t piece = 0; piece < dp.size(); piece++) {
+				if (piece != selected.front()) {
+					dp[piece] = std::numeric_limits<double>::infinity();
+				}
+			}
+		}
+
+		for (size_t i = 0; i + 1 < start_distances.size(); i++) {
+			vector<double> next(start_distances[i + 1].size(), std::numeric_limits<double>::infinity());
+
+			for (size_t a = 0; a < dp.size(); a++) {
+				if (!std::isfinite(dp[a])) {
+					continue;
+				}
+
+				for (size_t b = 0; b < next.size(); b++) {
+					if (i + 1 < selected.size() && b != selected[i + 1]) {
+						continue;
+					}
+
+					next[b] = std::min(next[b], dp[a] + transitions[i][a][b]);
+				}
+			}
+
+			dp = std::move(next);
+		}
+
+		double result = std::numeric_limits<double>::infinity();
+
+		for (size_t piece = 0; piece < dp.size(); piece++) {
+			result = std::min(result, dp[piece] + target_distances.back()[piece]);
+		}
+
+		return result;
+	}
+};
+
+double triangle_cover_radius(const Vector2 &a, const Vector2 &b, const Vector2 &c) {
+
+	const double ab = a.distance_to(b);
+	const double bc = b.distance_to(c);
+	const double ca = c.distance_to(a);
+	const double longest = std::max({ab, bc, ca});
+	const double longest_squared = longest * longest;
+	const double side_sum_squared = ab * ab + bc * bc + ca * ca;
+
+	if (longest_squared * 2.0 >= side_sum_squared - 1e-12) {
+		return longest * 0.5;
+	}
+
+	const double area2 = std::abs((b - a).cross(c - a));
+
+	if (area2 <= 1e-12) {
+		return longest * 0.5;
+	}
+
+	return ab * bc * ca / (2.0 * area2);
+}
+
+struct PortState {
+	size_t piece = 0;
+	Vector2 point;
+	double radius = 0.0;
+};
+
+struct PortBoundCache {
+	vector<vector<PortState>> layers;
+
+	explicit PortBoundCache(const vector<vector<vector<Vector2>>> &convex_pieces) {
+		layers.reserve(convex_pieces.size());
+
+		for (const auto &polygon_pieces : convex_pieces) {
+			vector<PortState> layer;
+
+			for (size_t piece_index = 0; piece_index < polygon_pieces.size(); piece_index++) {
+				const auto &piece = polygon_pieces[piece_index];
+
+				if (piece.empty()) {
+					continue;
+				}
+
+				Vector2 centroid;
+
+				for (const auto &point : piece) {
+					centroid = centroid + point;
+				}
+
+				centroid = centroid / static_cast<double>(piece.size());
+
+				vector<Vector2> boundary_ports;
+				boundary_ports.reserve(piece.size() * 2);
+
+				for (size_t i = 0; i < piece.size(); i++) {
+					const Vector2 &current = piece[i];
+					const Vector2 &next = piece[(i + 1) % piece.size()];
+					boundary_ports.push_back(current);
+					boundary_ports.push_back((current + next) * 0.5);
+				}
+
+				double radius = 0.0;
+
+				for (size_t i = 0; i < boundary_ports.size(); i++) {
+					radius = std::max(
+						radius,
+						triangle_cover_radius(centroid, boundary_ports[i], boundary_ports[(i + 1) % boundary_ports.size()])
+					);
+				}
+
+				for (const auto &port : boundary_ports) {
+					layer.push_back({piece_index, port, radius});
+				}
+
+				layer.push_back({piece_index, centroid, radius});
+			}
+
+			layers.push_back(std::move(layer));
+		}
+	}
+
+	double bound(const Vector2 &start, const Vector2 &target, const vector<size_t> &selected) const {
+
+		if (layers.empty()) {
+			return start.distance_to(target);
+		}
+
+		vector<double> dp(layers.front().size(), std::numeric_limits<double>::infinity());
+
+		for (size_t state = 0; state < layers.front().size(); state++) {
+			const auto &port = layers.front()[state];
+
+			if (!selected.empty() && port.piece != selected.front()) {
+				continue;
+			}
+
+			dp[state] = std::max(0.0, start.distance_to(port.point) - port.radius);
+		}
+
+		for (size_t layer_index = 0; layer_index + 1 < layers.size(); layer_index++) {
+			vector<double> next_dp(layers[layer_index + 1].size(), std::numeric_limits<double>::infinity());
+
+			for (size_t previous = 0; previous < layers[layer_index].size(); previous++) {
+				if (!std::isfinite(dp[previous])) {
+					continue;
+				}
+
+				const auto &previous_port = layers[layer_index][previous];
+
+				for (size_t next = 0; next < layers[layer_index + 1].size(); next++) {
+					const auto &next_port = layers[layer_index + 1][next];
+
+					if (layer_index + 1 < selected.size() && next_port.piece != selected[layer_index + 1]) {
+						continue;
+					}
+
+					const double segment_bound = std::max(
+						0.0,
+						previous_port.point.distance_to(next_port.point) - previous_port.radius - next_port.radius
+					);
+					next_dp[next] = std::min(next_dp[next], dp[previous] + segment_bound);
+				}
+			}
+
+			dp = std::move(next_dp);
+		}
+
+		double result = std::numeric_limits<double>::infinity();
+
+		for (size_t state = 0; state < layers.back().size(); state++) {
+			const auto &port = layers.back()[state];
+			result = std::min(result, dp[state] + std::max(0.0, port.point.distance_to(target) - port.radius));
+		}
+
+		return result;
+	}
+};
+
 bool any_polygons_intersect_or_touch(const vector<vector<Vector2>> &polygons) {
 
 	for (size_t i = 0; i < polygons.size(); i++) {
@@ -399,6 +920,323 @@ vector<Vector2> convex_hull(const vector<Vector2> &points) {
 	lower.insert(lower.end(), upper.begin(), upper.end());
 
 	return lower;
+}
+
+double polygon_area(const vector<Vector2> &polygon) {
+
+	double twice_area = 0.0;
+
+	for (size_t i = 0; i < polygon.size(); i++) {
+		twice_area += polygon[i].cross(polygon[(i + 1) % polygon.size()]);
+	}
+
+	return std::abs(twice_area) * 0.5;
+}
+
+struct PieceGroup {
+	vector<size_t> piece_indices;
+	vector<Vector2> hull;
+	double piece_area_sum = 0.0;
+};
+
+vector<Vector2> group_hull_from_indices(const vector<vector<Vector2>> &pieces, const vector<size_t> &indices) {
+
+	vector<Vector2> points;
+
+	for (const size_t index : indices) {
+		points.insert(points.end(), pieces[index].begin(), pieces[index].end());
+	}
+
+	return convex_hull(points);
+}
+
+PieceGroup make_piece_group(const vector<vector<Vector2>> &pieces, vector<size_t> indices) {
+
+	PieceGroup group;
+	group.piece_indices = std::move(indices);
+	group.hull = group_hull_from_indices(pieces, group.piece_indices);
+
+	for (const size_t index : group.piece_indices) {
+		group.piece_area_sum += polygon_area(pieces[index]);
+	}
+
+	return group;
+}
+
+double group_excess_ratio(const PieceGroup &group) {
+
+	if (group.piece_area_sum <= 0.0) {
+		return std::numeric_limits<double>::infinity();
+	}
+
+	return std::max(0.0, polygon_area(group.hull) - group.piece_area_sum) / group.piece_area_sum;
+}
+
+vector<PieceGroup> make_piece_groups_for_polygon(
+	const vector<vector<Vector2>> &pieces,
+	double max_excess_ratio,
+	size_t max_group_size
+) {
+
+	vector<PieceGroup> groups;
+	groups.reserve(pieces.size());
+
+	for (size_t i = 0; i < pieces.size(); i++) {
+		groups.push_back(make_piece_group(pieces, {i}));
+	}
+
+	while (true) {
+		std::optional<std::tuple<size_t, size_t, double, PieceGroup>> best_merge;
+
+		for (size_t i = 0; i < groups.size(); i++) {
+			for (size_t j = i + 1; j < groups.size(); j++) {
+				if (groups[i].piece_indices.size() + groups[j].piece_indices.size() > max_group_size) {
+					continue;
+				}
+
+				vector<size_t> merged_indices = groups[i].piece_indices;
+				merged_indices.insert(merged_indices.end(), groups[j].piece_indices.begin(), groups[j].piece_indices.end());
+				std::sort(merged_indices.begin(), merged_indices.end());
+
+				PieceGroup merged = make_piece_group(pieces, std::move(merged_indices));
+				const double excess_ratio = group_excess_ratio(merged);
+
+				if (excess_ratio > max_excess_ratio) {
+					continue;
+				}
+
+				if (!best_merge || excess_ratio < std::get<2>(*best_merge)) {
+					best_merge = std::make_tuple(i, j, excess_ratio, std::move(merged));
+				}
+			}
+		}
+
+		if (!best_merge) {
+			break;
+		}
+
+		const size_t first = std::get<0>(*best_merge);
+		const size_t second = std::get<1>(*best_merge);
+		PieceGroup merged = std::move(std::get<3>(*best_merge));
+		groups[first] = std::move(merged);
+		groups.erase(groups.begin() + static_cast<std::ptrdiff_t>(second));
+	}
+
+	return groups;
+}
+
+struct GridPoint {
+	int x = 0;
+	int y = 0;
+
+	auto operator<=>(const GridPoint&) const = default;
+};
+
+struct GridRect {
+	int x0 = 0;
+	int y0 = 0;
+	int x1 = 0;
+	int y1 = 0;
+};
+
+vector<Vector2> rectangle_polygon(double x0, double y0, double x1, double y1) {
+
+	return {
+		{x0, y0},
+		{x1, y0},
+		{x1, y1},
+		{x0, y1},
+	};
+}
+
+vector<Vector2> union_boundary_from_grid_rectangles(const vector<GridRect> &rectangles, double scale, const Vector2 &offset) {
+
+	std::set<GridPoint> cells;
+
+	for (const auto &rectangle : rectangles) {
+		for (int x = rectangle.x0; x < rectangle.x1; x++) {
+			for (int y = rectangle.y0; y < rectangle.y1; y++) {
+				cells.insert({x, y});
+			}
+		}
+	}
+
+	auto occupied = [&](int x, int y) {
+		return cells.contains({x, y});
+	};
+
+	std::map<GridPoint, GridPoint> next_vertex;
+
+	for (const auto &cell : cells) {
+		const int x = cell.x;
+		const int y = cell.y;
+
+		if (!occupied(x, y - 1)) {
+			next_vertex[{x, y}] = {x + 1, y};
+		}
+
+		if (!occupied(x + 1, y)) {
+			next_vertex[{x + 1, y}] = {x + 1, y + 1};
+		}
+
+		if (!occupied(x, y + 1)) {
+			next_vertex[{x + 1, y + 1}] = {x, y + 1};
+		}
+
+		if (!occupied(x - 1, y)) {
+			next_vertex[{x, y + 1}] = {x, y};
+		}
+	}
+
+	if (next_vertex.empty()) {
+		return {};
+	}
+
+	GridPoint start = next_vertex.begin()->first;
+
+	for (const auto &[point, _] : next_vertex) {
+		if (std::tie(point.y, point.x) < std::tie(start.y, start.x)) {
+			start = point;
+		}
+	}
+
+	vector<Vector2> polygon;
+	GridPoint current = start;
+
+	do {
+		polygon.push_back({offset.x + static_cast<double>(current.x) * scale, offset.y + static_cast<double>(current.y) * scale});
+		current = next_vertex.at(current);
+	} while (current != start && polygon.size() <= next_vertex.size() + 1);
+
+	return tpp::remove_collinear_points(polygon);
+}
+
+vector<GridRect> synthetic_cover_rectangles(size_t polygon_index, size_t case_index, std::string_view pattern) {
+
+	const int variant = static_cast<int>((polygon_index + case_index) % 4);
+
+	if (pattern == "cross") {
+		if (variant == 0) {
+			return {{0, 2, 12, 5}, {4, 0, 8, 8}};
+		}
+
+		if (variant == 1) {
+			return {{0, 1, 10, 4}, {3, 0, 6, 7}, {6, 3, 12, 6}};
+		}
+
+		if (variant == 2) {
+			return {{0, 3, 14, 6}, {2, 1, 5, 8}, {8, 0, 11, 9}};
+		}
+
+		return {{0, 2, 13, 5}, {3, 0, 6, 8}, {7, 1, 10, 7}};
+	}
+
+	if (pattern == "overlap") {
+		if (variant == 0) {
+			return {{0, 0, 8, 3}, {2, 1, 10, 5}, {5, 3, 13, 7}};
+		}
+
+		if (variant == 1) {
+			return {{0, 2, 12, 5}, {1, 0, 5, 7}, {4, 1, 9, 8}, {8, 3, 14, 6}};
+		}
+
+		if (variant == 2) {
+			return {{0, 0, 6, 4}, {3, 1, 10, 6}, {7, 0, 13, 4}, {9, 3, 15, 7}};
+		}
+
+		return {{0, 1, 9, 4}, {2, 0, 6, 8}, {5, 3, 13, 6}, {9, 2, 15, 9}};
+	}
+
+	if (pattern == "comb") {
+		if (variant == 0) {
+			return {{0, 0, 14, 2}, {1, 1, 3, 7}, {5, 1, 7, 6}, {9, 1, 11, 8}};
+		}
+
+		if (variant == 1) {
+			return {{0, 4, 14, 6}, {2, 0, 4, 5}, {6, 2, 8, 8}, {10, 1, 12, 5}};
+		}
+
+		if (variant == 2) {
+			return {{0, 0, 16, 2}, {2, 1, 4, 8}, {6, 1, 8, 6}, {10, 1, 12, 9}, {13, 1, 15, 5}};
+		}
+
+		return {{0, 5, 16, 7}, {1, 0, 3, 6}, {5, 2, 7, 6}, {9, 1, 11, 8}, {13, 3, 15, 6}};
+	}
+
+	if (pattern == "longstair") {
+		if (variant == 0) {
+			return {{0, 0, 8, 2}, {3, 1, 11, 3}, {6, 2, 14, 4}, {9, 3, 17, 5}};
+		}
+
+		if (variant == 1) {
+			return {{0, 3, 8, 5}, {3, 2, 11, 4}, {6, 1, 14, 3}, {9, 0, 17, 2}};
+		}
+
+		if (variant == 2) {
+			return {{0, 0, 7, 3}, {2, 2, 10, 5}, {5, 4, 13, 7}, {8, 6, 16, 9}};
+		}
+
+		return {{0, 6, 7, 9}, {2, 4, 10, 7}, {5, 2, 13, 5}, {8, 0, 16, 3}};
+	}
+
+	if (variant == 0) {
+		return {{0, 0, 4, 2}, {2, 1, 6, 3}, {4, 2, 8, 4}};
+	}
+
+	if (variant == 1) {
+		return {{0, 1, 5, 3}, {1, 0, 3, 5}, {3, 2, 7, 4}};
+	}
+
+	if (variant == 2) {
+		return {{0, 0, 3, 3}, {2, 1, 6, 4}, {5, 0, 8, 2}, {6, 1, 9, 5}};
+	}
+
+	return {{0, 0, 5, 2}, {1, 1, 4, 5}, {3, 3, 8, 5}, {6, 2, 9, 4}};
+}
+
+SyntheticCoverSuite make_synthetic_cover_suite(size_t case_count) {
+
+	SyntheticCoverSuite suite;
+	suite.cases.reserve(case_count);
+	suite.covers.reserve(case_count);
+	const std::string pattern = synthetic_cover_pattern();
+
+	for (size_t case_index = 0; case_index < case_count; case_index++) {
+		const size_t polygon_count = 8 + case_index % 9;
+		const double scale = 0.75;
+		const double spacing = pattern == "stair" ? 9.0 : 14.0;
+		tpp::TestCase test_case;
+		test_case.start = {-2.0, 1.5};
+		test_case.target = {static_cast<double>(polygon_count) * spacing + 1.0, 3.0};
+		vector<vector<vector<Vector2>>> case_cover;
+
+		for (size_t polygon_index = 0; polygon_index < polygon_count; polygon_index++) {
+			const Vector2 offset{
+				static_cast<double>(polygon_index) * spacing,
+				static_cast<double>((polygon_index + case_index) % 3) * 1.75,
+			};
+			const vector<GridRect> rectangles = synthetic_cover_rectangles(polygon_index, case_index, pattern);
+			vector<vector<Vector2>> polygon_cover;
+			polygon_cover.reserve(rectangles.size());
+
+			for (const auto &rectangle : rectangles) {
+				polygon_cover.push_back(rectangle_polygon(
+					offset.x + static_cast<double>(rectangle.x0) * scale,
+					offset.y + static_cast<double>(rectangle.y0) * scale,
+					offset.x + static_cast<double>(rectangle.x1) * scale,
+					offset.y + static_cast<double>(rectangle.y1) * scale
+				));
+			}
+
+			test_case.polygons.push_back(union_boundary_from_grid_rectangles(rectangles, scale, offset));
+			case_cover.push_back(std::move(polygon_cover));
+		}
+
+		suite.cases.push_back(std::move(test_case));
+		suite.covers.push_back(std::move(case_cover));
+	}
+
+	return suite;
 }
 
 double path_length(const Vector2 &start, const Vector2 &target, const vector<Vector2> &path) {
@@ -849,6 +1687,7 @@ BranchAndBoundResult run_branch_and_bound(
 	const Vector2 &target,
 	const vector<vector<vector<Vector2>>> &convex_pieces,
 	const vector<vector<Vector2>> &convex_hulls,
+	const vector<vector<PieceGroup>> *piece_groups,
 	const vector<Vector2> &approximate_path,
 	size_t max_calls,
 	size_t max_branching,
@@ -863,6 +1702,56 @@ BranchAndBoundResult run_branch_and_bound(
 	result.initial_length = path_length(start, target, approximate_path);
 	const auto bnb_start_time = std::chrono::steady_clock::now();
 	auto last_progress_time = std::chrono::steady_clock::now();
+	vector<vector<vector<Vector2>>> grouped_branch_pieces;
+	const vector<vector<vector<Vector2>>> *branch_pieces = &convex_pieces;
+
+	if (piece_groups != nullptr) {
+		grouped_branch_pieces.reserve(piece_groups->size());
+
+		for (const auto &polygon_groups : *piece_groups) {
+			vector<vector<Vector2>> polygon_branch_pieces;
+			polygon_branch_pieces.reserve(polygon_groups.size());
+
+			for (const auto &group : polygon_groups) {
+				polygon_branch_pieces.push_back(group.hull);
+			}
+
+			grouped_branch_pieces.push_back(std::move(polygon_branch_pieces));
+		}
+
+		branch_pieces = &grouped_branch_pieces;
+	}
+
+	std::optional<PieceGraphBoundCache> piece_graph_bound_cache;
+	std::optional<PortBoundCache> port_bound_cache;
+	const bool piece_graph_bound_enabled = use_piece_graph_bound();
+	const bool port_bound_enabled = use_port_bound();
+	const bool refinement_bound_enabled = use_refinement_bound();
+	const double refinement_gap_ratio_value = refinement_gap_ratio();
+	const size_t refinement_min_depth_value = refinement_min_depth();
+	const size_t refinement_window_size_value = refinement_window_size();
+	const size_t refinement_max_combinations_value = refinement_max_combinations();
+	const bool contact_bound_enabled = use_contact_bound();
+	const double contact_gap_ratio_value = contact_gap_ratio();
+	const size_t contact_min_depth_value = contact_min_depth();
+	const size_t contact_max_polygons_value = contact_max_polygons();
+	const size_t contact_max_combinations_value = contact_max_combinations();
+
+	if (piece_graph_bound_enabled) {
+		const auto graph_precompute_start_time = std::chrono::steady_clock::now();
+		piece_graph_bound_cache.emplace(start, target, *branch_pieces);
+		const auto graph_precompute_end_time = std::chrono::steady_clock::now();
+		result.piece_graph_precompute_seconds =
+			std::chrono::duration<double>(graph_precompute_end_time - graph_precompute_start_time).count();
+	}
+
+	if (port_bound_enabled) {
+		const auto port_precompute_start_time = std::chrono::steady_clock::now();
+		port_bound_cache.emplace(*branch_pieces);
+		const auto port_precompute_end_time = std::chrono::steady_clock::now();
+		result.port_bound_precompute_seconds =
+			std::chrono::duration<double>(port_precompute_end_time - port_precompute_start_time).count();
+	}
 
 	auto elapsed_seconds = [&]() {
 		return std::chrono::duration<double>(std::chrono::steady_clock::now() - bnb_start_time).count();
@@ -977,6 +1866,249 @@ BranchAndBoundResult run_branch_and_bound(
 		}
 	};
 
+	auto solve_piece_graph_bound = [&](const vector<size_t> &selected) {
+		if (!piece_graph_bound_cache) {
+			return 0.0;
+		}
+
+		const auto graph_bound_start_time = std::chrono::steady_clock::now();
+		const double bound = piece_graph_bound_cache->bound(selected);
+		const auto graph_bound_end_time = std::chrono::steady_clock::now();
+		result.piece_graph_bound_seconds += std::chrono::duration<double>(graph_bound_end_time - graph_bound_start_time).count();
+		result.piece_graph_bound_calls++;
+		return bound;
+	};
+
+	auto solve_port_bound = [&](const vector<size_t> &selected) {
+		if (!port_bound_cache) {
+			return 0.0;
+		}
+
+		const auto port_bound_start_time = std::chrono::steady_clock::now();
+		const double bound = port_bound_cache->bound(start, target, selected);
+		const auto port_bound_end_time = std::chrono::steady_clock::now();
+		result.port_bound_seconds += std::chrono::duration<double>(port_bound_end_time - port_bound_start_time).count();
+		result.port_bound_calls++;
+		return bound;
+	};
+
+	auto solve_refinement_bound = [&](const vector<size_t> &selected, double incumbent) {
+		if (!refinement_bound_enabled || selected.size() >= branch_pieces->size()) {
+			return 0.0;
+		}
+
+		const auto refinement_start_time = std::chrono::steady_clock::now();
+		const size_t first_refined_polygon = selected.size();
+		size_t refined_polygon_count = 0;
+		size_t combination_count = 1;
+
+		while (
+			refined_polygon_count < refinement_window_size_value
+			&& first_refined_polygon + refined_polygon_count < branch_pieces->size()
+		) {
+			const size_t polygon = first_refined_polygon + refined_polygon_count;
+			const size_t next_count = combination_count * (*branch_pieces)[polygon].size();
+
+			if (next_count > refinement_max_combinations_value) {
+				break;
+			}
+
+			combination_count = next_count;
+			refined_polygon_count++;
+		}
+
+		if (refined_polygon_count == 0) {
+			return 0.0;
+		}
+
+		double refined_bound = std::numeric_limits<double>::infinity();
+		double refinement_solver_seconds = 0.0;
+		vector<size_t> refined_piece_indices(refined_polygon_count, 0);
+		bool done = false;
+
+		while (!done) {
+			vector<vector<Vector2>> refined_instance;
+			refined_instance.reserve(convex_pieces.size());
+
+			for (size_t j = 0; j < selected.size(); j++) {
+				refined_instance.push_back((*branch_pieces)[j][selected[j]]);
+			}
+
+			for (size_t j = 0; j < refined_polygon_count; j++) {
+				const size_t polygon = first_refined_polygon + j;
+				refined_instance.push_back((*branch_pieces)[polygon][refined_piece_indices[j]]);
+			}
+
+			for (size_t j = first_refined_polygon + refined_polygon_count; j < convex_hulls.size(); j++) {
+				refined_instance.push_back(convex_hulls[j]);
+			}
+
+			const size_t calls_before_candidate = result.convex_calls;
+			const double candidate = solve_convex_length(refined_instance, refinement_solver_seconds);
+			if (result.convex_calls > calls_before_candidate) {
+				result.refinement_bound_calls++;
+			}
+			refined_bound = std::min(refined_bound, candidate);
+
+			if (!result.exhausted || refined_bound <= incumbent) {
+				// The minimum can only decrease as we inspect more pieces, so
+				// no pruning proof is possible after this point.
+				break;
+			}
+
+			for (size_t index = refined_piece_indices.size(); index > 0; index--) {
+				const size_t piece_slot = index - 1;
+				refined_piece_indices[piece_slot]++;
+
+				if (refined_piece_indices[piece_slot] < (*branch_pieces)[first_refined_polygon + piece_slot].size()) {
+					break;
+				}
+
+				refined_piece_indices[piece_slot] = 0;
+
+				if (piece_slot == 0) {
+					done = true;
+				}
+			}
+		}
+
+		const auto refinement_end_time = std::chrono::steady_clock::now();
+		result.refinement_bound_seconds += std::chrono::duration<double>(refinement_end_time - refinement_start_time).count();
+		return refined_bound;
+	};
+
+	auto solve_contact_bound = [&](const vector<size_t> &selected, const vector<vector<Vector2>> &bound_instance, double incumbent) {
+		if (!contact_bound_enabled || selected.size() >= branch_pieces->size()) {
+			return 0.0;
+		}
+
+		const auto contact_start_time = std::chrono::steady_clock::now();
+		vector<Vector2> hull_path;
+		double contact_solver_seconds = 0.0;
+		const size_t calls_before_path = result.convex_calls;
+		const double hull_path_length = solve_convex_path(bound_instance, hull_path, contact_solver_seconds);
+
+		if (result.convex_calls > calls_before_path) {
+			result.contact_path_calls++;
+		}
+
+		if (!result.exhausted || !std::isfinite(hull_path_length) || hull_path.size() != branch_pieces->size()) {
+			const auto contact_end_time = std::chrono::steady_clock::now();
+			result.contact_bound_seconds += std::chrono::duration<double>(contact_end_time - contact_start_time).count();
+			return 0.0;
+		}
+
+		struct FakeContact {
+			size_t polygon = 0;
+			double distance = 0.0;
+		};
+
+		vector<FakeContact> fake_contacts;
+
+		for (size_t polygon = selected.size(); polygon < hull_path.size(); polygon++) {
+			double distance = std::numeric_limits<double>::infinity();
+
+			for (const auto &piece : (*branch_pieces)[polygon]) {
+				if (point_in_polygon_or_on_boundary(hull_path[polygon], piece)) {
+					distance = 0.0;
+					break;
+				}
+
+				distance = std::min(distance, point_polygon_distance(hull_path[polygon], piece));
+			}
+
+			if (distance > 1e-9 && std::isfinite(distance)) {
+				fake_contacts.push_back({polygon, distance});
+			}
+		}
+
+		std::sort(fake_contacts.begin(), fake_contacts.end(), [](const FakeContact &a, const FakeContact &b) {
+			return a.distance > b.distance;
+		});
+
+		vector<size_t> refined_polygons;
+		size_t combination_count = 1;
+
+		for (const auto &contact : fake_contacts) {
+			if (refined_polygons.size() >= contact_max_polygons_value) {
+				break;
+			}
+
+			const size_t next_count = combination_count * (*branch_pieces)[contact.polygon].size();
+
+			if (next_count > contact_max_combinations_value) {
+				continue;
+			}
+
+			refined_polygons.push_back(contact.polygon);
+			combination_count = next_count;
+		}
+
+		if (refined_polygons.empty()) {
+			const auto contact_end_time = std::chrono::steady_clock::now();
+			result.contact_bound_seconds += std::chrono::duration<double>(contact_end_time - contact_start_time).count();
+			return 0.0;
+		}
+
+		double contact_bound = std::numeric_limits<double>::infinity();
+		vector<size_t> refined_piece_indices(refined_polygons.size(), 0);
+		bool done = false;
+
+		while (!done) {
+			vector<vector<Vector2>> refined_instance;
+			refined_instance.reserve(branch_pieces->size());
+
+			for (size_t polygon = 0; polygon < branch_pieces->size(); polygon++) {
+				if (polygon < selected.size()) {
+					refined_instance.push_back((*branch_pieces)[polygon][selected[polygon]]);
+					continue;
+				}
+
+				auto refined_it = std::find(refined_polygons.begin(), refined_polygons.end(), polygon);
+
+				if (refined_it == refined_polygons.end()) {
+					refined_instance.push_back(convex_hulls[polygon]);
+					continue;
+				}
+
+				const size_t refined_index = static_cast<size_t>(std::distance(refined_polygons.begin(), refined_it));
+				refined_instance.push_back((*branch_pieces)[polygon][refined_piece_indices[refined_index]]);
+			}
+
+			const size_t calls_before_candidate = result.convex_calls;
+			const double candidate = solve_convex_length(refined_instance, contact_solver_seconds);
+
+			if (result.convex_calls > calls_before_candidate) {
+				result.contact_bound_calls++;
+			}
+
+			contact_bound = std::min(contact_bound, candidate);
+
+			if (!result.exhausted || contact_bound <= incumbent) {
+				break;
+			}
+
+			for (size_t index = refined_piece_indices.size(); index > 0; index--) {
+				const size_t piece_slot = index - 1;
+				refined_piece_indices[piece_slot]++;
+
+				if (refined_piece_indices[piece_slot] < (*branch_pieces)[refined_polygons[piece_slot]].size()) {
+					break;
+				}
+
+				refined_piece_indices[piece_slot] = 0;
+
+				if (piece_slot == 0) {
+					done = true;
+				}
+			}
+		}
+
+		const auto contact_end_time = std::chrono::steady_clock::now();
+		result.contact_bound_seconds += std::chrono::duration<double>(contact_end_time - contact_start_time).count();
+		return contact_bound;
+	};
+
 	vector<vector<Vector2>> selected_pieces;
 	selected_pieces.reserve(convex_pieces.size());
 
@@ -1003,6 +2135,123 @@ BranchAndBoundResult run_branch_and_bound(
 		best_path = std::move(selected_path);
 	}
 
+	auto refine_selected_groups = [&](const vector<size_t> &selected_groups) {
+		if (piece_groups == nullptr) {
+			return;
+		}
+
+		vector<vector<Vector2>> selected_group_hulls;
+		selected_group_hulls.reserve(selected_groups.size());
+
+		for (size_t i = 0; i < selected_groups.size(); i++) {
+			selected_group_hulls.push_back((*piece_groups)[i][selected_groups[i]].hull);
+		}
+
+		vector<vector<size_t>> stack;
+		stack.push_back({});
+
+		while (!stack.empty() && result.exhausted) {
+			vector<size_t> current = std::move(stack.back());
+			stack.pop_back();
+			result.visited_nodes++;
+			result.selected_sum += current.size();
+			increment_histogram(result.visited_depth_histogram, current.size());
+
+			if (current.size() == convex_pieces.size()) {
+				vector<vector<Vector2>> instance;
+				instance.reserve(convex_pieces.size());
+
+				for (size_t i = 0; i < convex_pieces.size(); i++) {
+					const size_t piece_index = (*piece_groups)[i][selected_groups[i]].piece_indices[current[i]];
+					instance.push_back(convex_pieces[i][piece_index]);
+				}
+
+				vector<Vector2> path;
+				const size_t calls_before = result.convex_calls;
+				increment_histogram(result.leaf_depth_histogram, current.size());
+				const double length = solve_convex_length(instance, result.leaf_solver_seconds);
+
+				if (result.convex_calls > calls_before) {
+					result.leaf_solves++;
+				}
+
+				if (!result.exhausted) {
+					break;
+				}
+
+				if (length < result.final_length) {
+					const double path_length = solve_convex_path(instance, path, result.leaf_solver_seconds);
+
+					if (!result.exhausted) {
+						break;
+					}
+
+					if (path_length < result.final_length) {
+						result.final_length = path_length;
+						best_path = std::move(path);
+						result.best_updates++;
+					}
+				}
+
+				continue;
+			}
+
+			const size_t next_polygon = current.size();
+			const auto &group = (*piece_groups)[next_polygon][selected_groups[next_polygon]];
+			const size_t observed_branching = group.piece_indices.size();
+			const size_t branch_count = std::min(max_branching, observed_branching);
+
+			result.max_observed_branching = std::max(result.max_observed_branching, observed_branching);
+			result.branch_limited = result.branch_limited || branch_count < observed_branching;
+			result.branching_histogram[branching_bucket(observed_branching)]++;
+
+			for (size_t i = branch_count; i > 0; i--) {
+				vector<size_t> selected = current;
+				selected.push_back(i - 1);
+
+				vector<vector<Vector2>> bound_instance;
+				bound_instance.reserve(convex_pieces.size());
+
+				for (size_t j = 0; j < selected.size(); j++) {
+					const size_t piece_index = (*piece_groups)[j][selected_groups[j]].piece_indices[selected[j]];
+					bound_instance.push_back(convex_pieces[j][piece_index]);
+				}
+
+				for (size_t j = selected.size(); j < selected_group_hulls.size(); j++) {
+					bound_instance.push_back(selected_group_hulls[j]);
+				}
+
+				const size_t calls_before = result.convex_calls;
+				increment_histogram(result.bound_depth_histogram, selected_groups.size() + selected.size());
+				const double incumbent_before_bound = result.final_length;
+				const double bound = solve_convex_length(bound_instance, result.bound_solver_seconds);
+
+				if (result.convex_calls > calls_before) {
+					result.bound_solves++;
+				}
+
+				if (!result.exhausted) {
+					break;
+				}
+
+				if (bound > result.final_length) {
+					result.hull_bound_prunes++;
+					result.pruned_nodes++;
+					continue;
+				}
+
+				if (std::isfinite(bound) && std::isfinite(incumbent_before_bound) && incumbent_before_bound > 0.0) {
+					result.failed_prune_count++;
+					result.failed_prune_ratio_sum += bound / incumbent_before_bound;
+					result.failed_prune_gap_sum += incumbent_before_bound - bound;
+					result.failed_prune_depth_sum += static_cast<double>(selected_groups.size() + selected.size());
+				}
+
+				stack.push_back(std::move(selected));
+			}
+		}
+	};
+
 	vector<vector<size_t>> stack;
 	stack.push_back({});
 
@@ -1013,12 +2262,17 @@ BranchAndBoundResult run_branch_and_bound(
 		result.selected_sum += current.size();
 		increment_histogram(result.visited_depth_histogram, current.size());
 
-		if (current.size() == convex_pieces.size()) {
-			vector<vector<Vector2>> instance;
-			instance.reserve(convex_pieces.size());
+		if (current.size() == branch_pieces->size()) {
+			if (piece_groups != nullptr) {
+				refine_selected_groups(current);
+				continue;
+			}
 
-			for (size_t i = 0; i < convex_pieces.size(); i++) {
-				instance.push_back(convex_pieces[i][current[i]]);
+			vector<vector<Vector2>> instance;
+			instance.reserve(branch_pieces->size());
+
+			for (size_t i = 0; i < branch_pieces->size(); i++) {
+				instance.push_back((*branch_pieces)[i][current[i]]);
 			}
 
 			vector<Vector2> path;
@@ -1052,7 +2306,7 @@ BranchAndBoundResult run_branch_and_bound(
 		}
 
 		const size_t next_polygon = current.size();
-		const size_t observed_branching = convex_pieces[next_polygon].size();
+		const size_t observed_branching = (*branch_pieces)[next_polygon].size();
 		const size_t branch_count = std::min(max_branching, observed_branching);
 
 		result.max_observed_branching = std::max(result.max_observed_branching, observed_branching);
@@ -1064,10 +2318,10 @@ BranchAndBoundResult run_branch_and_bound(
 			selected.push_back(i - 1);
 
 			vector<vector<Vector2>> bound_instance;
-			bound_instance.reserve(convex_pieces.size());
+			bound_instance.reserve(branch_pieces->size());
 
 			for (size_t j = 0; j < selected.size(); j++) {
-				bound_instance.push_back(convex_pieces[j][selected[j]]);
+				bound_instance.push_back((*branch_pieces)[j][selected[j]]);
 			}
 
 			for (size_t j = selected.size(); j < convex_hulls.size(); j++) {
@@ -1077,7 +2331,38 @@ BranchAndBoundResult run_branch_and_bound(
 			const size_t calls_before = result.convex_calls;
 			increment_histogram(result.bound_depth_histogram, selected.size());
 			const double incumbent_before_bound = result.final_length;
-			const double bound = solve_convex_length(bound_instance, result.bound_solver_seconds);
+			const double hull_bound = solve_convex_length(bound_instance, result.bound_solver_seconds);
+			const double piece_graph_bound = solve_piece_graph_bound(selected);
+			const double port_bound = solve_port_bound(selected);
+			double refinement_bound = 0.0;
+			double contact_bound = 0.0;
+			double bound = std::max({hull_bound, piece_graph_bound, port_bound});
+
+			const bool should_refine =
+				refinement_bound_enabled
+				&& selected.size() >= refinement_min_depth_value
+				&& std::isfinite(bound)
+				&& std::isfinite(result.final_length)
+				&& result.final_length > 0.0
+				&& result.final_length - bound <= refinement_gap_ratio_value * result.final_length;
+
+			if (bound <= result.final_length && should_refine) {
+				refinement_bound = solve_refinement_bound(selected, result.final_length);
+				bound = std::max(bound, refinement_bound);
+			}
+
+			const bool should_contact_refine =
+				contact_bound_enabled
+				&& selected.size() >= contact_min_depth_value
+				&& std::isfinite(bound)
+				&& std::isfinite(result.final_length)
+				&& result.final_length > 0.0
+				&& result.final_length - bound <= contact_gap_ratio_value * result.final_length;
+
+			if (bound <= result.final_length && should_contact_refine) {
+				contact_bound = solve_contact_bound(selected, bound_instance, result.final_length);
+				bound = std::max(bound, contact_bound);
+			}
 
 			if (result.convex_calls > calls_before) {
 				result.bound_solves++;
@@ -1087,7 +2372,35 @@ BranchAndBoundResult run_branch_and_bound(
 				break;
 			}
 
+			if (piece_graph_bound > hull_bound + 1e-9) {
+				result.piece_graph_dominates++;
+			}
+
+			if (port_bound > std::max(hull_bound, piece_graph_bound) + 1e-9) {
+				result.port_dominates++;
+			}
+
+			if (refinement_bound > std::max({hull_bound, piece_graph_bound, port_bound}) + 1e-9) {
+				result.refinement_dominates++;
+			}
+
+			if (contact_bound > std::max({hull_bound, piece_graph_bound, port_bound, refinement_bound}) + 1e-9) {
+				result.contact_dominates++;
+			}
+
 			if (bound > result.final_length) {
+				if (hull_bound > result.final_length) {
+					result.hull_bound_prunes++;
+				} else if (piece_graph_bound > result.final_length) {
+					result.piece_graph_extra_prunes++;
+				} else if (port_bound > result.final_length) {
+					result.port_extra_prunes++;
+				} else if (refinement_bound > result.final_length) {
+					result.refinement_extra_prunes++;
+				} else if (contact_bound > result.final_length) {
+					result.contact_extra_prunes++;
+				}
+
 				result.pruned_nodes++;
 				continue;
 			}
@@ -1249,6 +2562,7 @@ void write_csv_record(std::ostream &output, const InstanceRecord &record) {
 		<< record.repeat_index << ';'
 		<< record.polygons << ';'
 		<< record.decomposed_pieces << ';'
+		<< record.grouped_pieces << ';'
 		<< std::format("{:.0f}", record.total_combinations) << ';'
 		<< record.calls << ';'
 		<< record.incumbent_solves << ';'
@@ -1280,6 +2594,26 @@ void write_csv_record(std::ostream &output, const InstanceRecord &record) {
 		<< std::format("{:.6f}", record.bound_solver_seconds) << ';'
 		<< std::format("{:.6f}", record.leaf_solver_seconds) << ';'
 		<< std::format("{:.12f}", record.seconds_per_call) << ';'
+		<< std::format("{:.6f}", record.piece_graph_precompute_seconds) << ';'
+		<< std::format("{:.6f}", record.piece_graph_bound_seconds) << ';'
+		<< record.piece_graph_bound_calls << ';'
+		<< std::format("{:.6f}", record.port_bound_precompute_seconds) << ';'
+		<< std::format("{:.6f}", record.port_bound_seconds) << ';'
+		<< record.port_bound_calls << ';'
+		<< record.hull_bound_prunes << ';'
+		<< record.piece_graph_extra_prunes << ';'
+		<< record.piece_graph_dominates << ';'
+		<< record.port_extra_prunes << ';'
+		<< record.port_dominates << ';'
+		<< std::format("{:.6f}", record.refinement_bound_seconds) << ';'
+		<< record.refinement_bound_calls << ';'
+		<< record.refinement_extra_prunes << ';'
+		<< record.refinement_dominates << ';'
+		<< std::format("{:.6f}", record.contact_bound_seconds) << ';'
+		<< record.contact_path_calls << ';'
+		<< record.contact_bound_calls << ';'
+		<< record.contact_extra_prunes << ';'
+		<< record.contact_dominates << ';'
 		<< (record.exhausted ? "true" : "false") << ';'
 		<< (record.time_limited ? "true" : "false") << ';'
 		<< (record.branch_limited ? "true" : "false") << ';'
@@ -1292,7 +2626,12 @@ void write_csv_record(std::ostream &output, const InstanceRecord &record) {
 		<< '\n';
 }
 
-CaseBenchmarkResult run_case_benchmark(size_t case_index, const tpp::TestCase &test_case, const BenchmarkOptions &options) {
+CaseBenchmarkResult run_case_benchmark(
+	size_t case_index,
+	const tpp::TestCase &test_case,
+	const BenchmarkOptions &options,
+	const vector<vector<vector<Vector2>>> *synthetic_cover
+) {
 	CaseBenchmarkResult result;
 	result.case_index = case_index;
 
@@ -1313,9 +2652,14 @@ CaseBenchmarkResult run_case_benchmark(size_t case_index, const tpp::TestCase &t
 	const auto decomposition_start_time = std::chrono::steady_clock::now();
 
 	try {
-		for (const auto &polygon : polygons) {
-			convex_hulls.push_back(convex_hull(polygon));
-			convex_pieces.push_back(tpp::decompose_polygon(polygon));
+		for (size_t polygon_index = 0; polygon_index < polygons.size(); polygon_index++) {
+			convex_hulls.push_back(convex_hull(polygons[polygon_index]));
+
+			if (synthetic_cover != nullptr) {
+				convex_pieces.push_back((*synthetic_cover)[polygon_index]);
+			} else {
+				convex_pieces.push_back(tpp::decompose_polygon(polygons[polygon_index]));
+			}
 		}
 	} catch (const std::exception &error) {
 		result.skipped_decomposition = 1;
@@ -1361,6 +2705,21 @@ CaseBenchmarkResult run_case_benchmark(size_t case_index, const tpp::TestCase &t
 		total_pieces += pieces.size();
 	}
 
+	vector<vector<PieceGroup>> piece_groups;
+	size_t total_groups = total_pieces;
+
+	if (use_piece_grouping()) {
+		piece_groups.reserve(convex_pieces.size());
+		total_groups = 0;
+		const double max_excess_ratio = piece_group_max_excess_ratio();
+		const size_t max_group_size = piece_group_max_size();
+
+		for (const auto &pieces : convex_pieces) {
+			piece_groups.push_back(make_piece_groups_for_polygon(pieces, max_excess_ratio, max_group_size));
+			total_groups += piece_groups.back().size();
+		}
+	}
+
 	result.records.reserve(options.repeat_count);
 
 	for (size_t repeat_index = 0; repeat_index < options.repeat_count; repeat_index++) {
@@ -1370,6 +2729,7 @@ CaseBenchmarkResult run_case_benchmark(size_t case_index, const tpp::TestCase &t
 			target,
 			convex_pieces,
 			convex_hulls,
+			piece_groups.empty() ? nullptr : &piece_groups,
 			approximate_path,
 			options.max_calls_per_instance,
 			options.max_branching,
@@ -1392,6 +2752,7 @@ CaseBenchmarkResult run_case_benchmark(size_t case_index, const tpp::TestCase &t
 		record.repeat_index = repeat_index;
 		record.polygons = polygons.size();
 		record.decomposed_pieces = total_pieces;
+		record.grouped_pieces = total_groups;
 		record.total_combinations = combination_count(convex_pieces);
 		record.calls = bnb.convex_calls;
 		record.incumbent_solves = bnb.incumbent_solves;
@@ -1414,6 +2775,26 @@ CaseBenchmarkResult run_case_benchmark(size_t case_index, const tpp::TestCase &t
 		record.bound_solver_seconds = bnb.bound_solver_seconds;
 		record.leaf_solver_seconds = bnb.leaf_solver_seconds;
 		record.seconds_per_call = bnb.solver_seconds / static_cast<double>(bnb.convex_calls);
+		record.piece_graph_precompute_seconds = bnb.piece_graph_precompute_seconds;
+		record.piece_graph_bound_seconds = bnb.piece_graph_bound_seconds;
+		record.piece_graph_bound_calls = bnb.piece_graph_bound_calls;
+		record.port_bound_precompute_seconds = bnb.port_bound_precompute_seconds;
+		record.port_bound_seconds = bnb.port_bound_seconds;
+		record.port_bound_calls = bnb.port_bound_calls;
+		record.hull_bound_prunes = bnb.hull_bound_prunes;
+		record.piece_graph_extra_prunes = bnb.piece_graph_extra_prunes;
+		record.piece_graph_dominates = bnb.piece_graph_dominates;
+		record.port_extra_prunes = bnb.port_extra_prunes;
+		record.port_dominates = bnb.port_dominates;
+		record.refinement_bound_seconds = bnb.refinement_bound_seconds;
+		record.refinement_bound_calls = bnb.refinement_bound_calls;
+		record.refinement_extra_prunes = bnb.refinement_extra_prunes;
+		record.refinement_dominates = bnb.refinement_dominates;
+		record.contact_bound_seconds = bnb.contact_bound_seconds;
+		record.contact_path_calls = bnb.contact_path_calls;
+		record.contact_bound_calls = bnb.contact_bound_calls;
+		record.contact_extra_prunes = bnb.contact_extra_prunes;
+		record.contact_dominates = bnb.contact_dominates;
 		record.exhausted = bnb.exhausted;
 		record.time_limited = bnb.time_limited;
 		record.branch_limited = bnb.branch_limited;
@@ -1471,6 +2852,18 @@ void print_usage(const char *program) {
 	std::println(stderr, "Set TPP_BENCH_THREADS to override the default hardware thread count.");
 	std::println(stderr, "Set TPP_BENCH_MAX_SECONDS to override the default per-instance time cap.");
 	std::println(stderr, "Set TPP_BENCH_SOLVER to one of linear_search_lazy, binary_search_lazy, binary_search_eager, tan_jiang, gurobi.");
+	std::println(stderr, "Set TPP_GROUP_PIECES=1 to branch first on safe almost-convex piece groups.");
+	std::println(stderr, "Set TPP_GROUP_MAX_EXCESS_RATIO and TPP_GROUP_MAX_SIZE to control piece grouping.");
+	std::println(stderr, "Set TPP_SYNTHETIC_COVER_CASES to generate synthetic merged-cover instances instead of loading input.");
+	std::println(stderr, "Set TPP_USE_SYNTHETIC_COVER=1 with TPP_SYNTHETIC_COVER_CASES to use the known cover pieces.");
+	std::println(stderr, "Set TPP_SYNTHETIC_COVER_PATTERN to stair, cross, overlap, comb, or longstair.");
+	std::println(stderr, "Set TPP_PIECE_GRAPH_BOUND=1 to enable the experimental layered piece-distance lower bound.");
+	std::println(stderr, "Set TPP_PORT_BOUND=1 to enable the experimental covering-port DP lower bound.");
+	std::println(stderr, "Set TPP_REFINEMENT_BOUND=1 to enable the experimental one-step piece refinement lower bound.");
+	std::println(stderr, "Set TPP_REFINEMENT_GAP_RATIO and TPP_REFINEMENT_MIN_DEPTH to gate the refinement bound.");
+	std::println(stderr, "Set TPP_REFINEMENT_WINDOW_SIZE and TPP_REFINEMENT_MAX_COMBINATIONS for bounded multi-polygon refinement.");
+	std::println(stderr, "Set TPP_CONTACT_BOUND=1 to enable the experimental contact-aware fake-hull refinement bound.");
+	std::println(stderr, "Set TPP_CONTACT_GAP_RATIO, TPP_CONTACT_MIN_DEPTH, TPP_CONTACT_MAX_POLYGONS, and TPP_CONTACT_MAX_COMBINATIONS to gate it.");
 }
 
 std::optional<size_t> parse_size_arg(const char *text) {
@@ -1701,9 +3094,23 @@ int main(int argc, char **argv) {
 	}
 
 	const auto program_start_time = std::chrono::steady_clock::now();
-	const auto test_cases = tpp::load_test_cases(options.input_path);
+	SyntheticCoverSuite synthetic_cover_suite;
+	vector<tpp::TestCase> loaded_test_cases;
+	const vector<tpp::TestCase> *test_cases = nullptr;
+	const bool synthetic_cover_enabled = use_synthetic_cover();
+
+	if (const char *synthetic_case_count_text = std::getenv("TPP_SYNTHETIC_COVER_CASES")) {
+		const size_t synthetic_case_count = std::strtoull(synthetic_case_count_text, nullptr, 10);
+		synthetic_cover_suite = make_synthetic_cover_suite(synthetic_case_count);
+		test_cases = &synthetic_cover_suite.cases;
+		std::println(stderr, "Generated {} synthetic merged-cover cases", synthetic_cover_suite.cases.size());
+	} else {
+		loaded_test_cases = tpp::load_test_cases(options.input_path);
+		test_cases = &loaded_test_cases;
+	}
+
 	BenchmarkSummary summary;
-	summary.total_instances = test_cases.size();
+	summary.total_instances = test_cases->size();
 	vector<InstanceRecord> records;
 	vector<size_t> total_visited_depth_histogram;
 	vector<size_t> total_bound_depth_histogram;
@@ -1711,7 +3118,7 @@ int main(int argc, char **argv) {
 	std::array<size_t, BRANCH_BUCKET_COUNT> total_branching_histogram = {};
 
 	constexpr const char *csv_header =
-		"source;case_index;repeat_index;polygons;decomposed_pieces;total_combinations;calls;incumbent_solves;bound_solves;leaf_solves;visited_nodes;pruned_nodes;best_updates;mean_selected;total_vertices_min;total_vertices_max;initial_length;incumbent_length;final_length;initial_gap_percent;incumbent_gap_percent;prune_rate_percent;calls_per_visited_node;bound_calls_per_leaf;decomposition_seconds;decomposition_percent;approximation_seconds;approximation_percent;bnb_seconds;bnb_percent;solver_seconds;solver_percent;incumbent_solver_seconds;bound_solver_seconds;leaf_solver_seconds;seconds_per_call;exhausted;time_limited;branch_limited;max_observed_branching;failed_prune_count;failed_prune_ratio_mean;failed_prune_gap_mean;failed_prune_depth_mean;checksum";
+		"source;case_index;repeat_index;polygons;decomposed_pieces;grouped_pieces;total_combinations;calls;incumbent_solves;bound_solves;leaf_solves;visited_nodes;pruned_nodes;best_updates;mean_selected;total_vertices_min;total_vertices_max;initial_length;incumbent_length;final_length;initial_gap_percent;incumbent_gap_percent;prune_rate_percent;calls_per_visited_node;bound_calls_per_leaf;decomposition_seconds;decomposition_percent;approximation_seconds;approximation_percent;bnb_seconds;bnb_percent;solver_seconds;solver_percent;incumbent_solver_seconds;bound_solver_seconds;leaf_solver_seconds;seconds_per_call;piece_graph_precompute_seconds;piece_graph_bound_seconds;piece_graph_bound_calls;port_bound_precompute_seconds;port_bound_seconds;port_bound_calls;hull_bound_prunes;piece_graph_extra_prunes;piece_graph_dominates;port_extra_prunes;port_dominates;refinement_bound_seconds;refinement_bound_calls;refinement_extra_prunes;refinement_dominates;contact_bound_seconds;contact_path_calls;contact_bound_calls;contact_extra_prunes;contact_dominates;exhausted;time_limited;branch_limited;max_observed_branching;failed_prune_count;failed_prune_ratio_mean;failed_prune_gap_mean;failed_prune_depth_mean;checksum";
 
 	std::ofstream csv_file;
 	std::ostream *csv_output = &std::cout;
@@ -1729,10 +3136,10 @@ int main(int argc, char **argv) {
 	}
 
 	vector<size_t> case_jobs;
-	case_jobs.reserve(std::min(test_cases.size(), options.max_instances));
+	case_jobs.reserve(std::min(test_cases->size(), options.max_instances));
 
-	for (size_t case_index = 0; case_index < test_cases.size() && case_jobs.size() < options.max_instances; case_index++) {
-		const auto &[start, target, raw_polygons, _] = test_cases[case_index];
+	for (size_t case_index = 0; case_index < test_cases->size() && case_jobs.size() < options.max_instances; case_index++) {
+		const auto &[start, target, raw_polygons, _] = (*test_cases)[case_index];
 		if (raw_polygons.empty()) {
 			summary.skipped_empty++;
 			continue;
@@ -1770,7 +3177,11 @@ int main(int argc, char **argv) {
 				}
 
 				const size_t case_index = case_jobs[job_index];
-				case_results[job_index] = run_case_benchmark(case_index, test_cases[case_index], options);
+				const vector<vector<vector<Vector2>>> *synthetic_cover =
+					synthetic_cover_enabled && !synthetic_cover_suite.covers.empty()
+						? &synthetic_cover_suite.covers[case_index]
+						: nullptr;
+				case_results[job_index] = run_case_benchmark(case_index, (*test_cases)[case_index], options, synthetic_cover);
 				const size_t done = completed_jobs.fetch_add(1) + 1;
 
 				if (show_case_progress) {
@@ -1817,6 +3228,7 @@ int main(int argc, char **argv) {
 			summary.capped_by_calls_instances += !record.exhausted && !record.time_limited ? 1 : 0;
 			summary.capped_by_time_instances += record.time_limited ? 1 : 0;
 			summary.branch_limited_instances += record.branch_limited ? 1 : 0;
+			summary.grouped_pieces += record.grouped_pieces;
 			summary.total_calls += record.calls;
 			summary.total_incumbent_solves += record.incumbent_solves;
 			summary.total_bound_solves += record.bound_solves;
@@ -1829,6 +3241,26 @@ int main(int argc, char **argv) {
 			summary.approximation_seconds += record.approximation_seconds;
 			summary.bnb_seconds += record.bnb_seconds;
 			summary.solver_seconds += record.solver_seconds;
+			summary.piece_graph_precompute_seconds += record.piece_graph_precompute_seconds;
+			summary.piece_graph_bound_seconds += record.piece_graph_bound_seconds;
+			summary.piece_graph_bound_calls += record.piece_graph_bound_calls;
+			summary.port_bound_precompute_seconds += record.port_bound_precompute_seconds;
+			summary.port_bound_seconds += record.port_bound_seconds;
+			summary.port_bound_calls += record.port_bound_calls;
+			summary.hull_bound_prunes += record.hull_bound_prunes;
+			summary.piece_graph_extra_prunes += record.piece_graph_extra_prunes;
+			summary.piece_graph_dominates += record.piece_graph_dominates;
+			summary.port_extra_prunes += record.port_extra_prunes;
+			summary.port_dominates += record.port_dominates;
+			summary.refinement_bound_seconds += record.refinement_bound_seconds;
+			summary.refinement_bound_calls += record.refinement_bound_calls;
+			summary.refinement_extra_prunes += record.refinement_extra_prunes;
+			summary.refinement_dominates += record.refinement_dominates;
+			summary.contact_bound_seconds += record.contact_bound_seconds;
+			summary.contact_path_calls += record.contact_path_calls;
+			summary.contact_bound_calls += record.contact_bound_calls;
+			summary.contact_extra_prunes += record.contact_extra_prunes;
+			summary.contact_dominates += record.contact_dominates;
 			summary.checksum += record.checksum + record.final_length;
 			records.push_back(record);
 		}
@@ -1968,6 +3400,12 @@ int main(int argc, char **argv) {
 	emitf("| Approximation | {} |", format_seconds_with_percent(summary.approximation_seconds, measured_work_seconds));
 	emitf("| B&B | {} |", format_seconds_with_percent(summary.bnb_seconds, measured_work_seconds));
 	emitf("| Convex solver | {} of measured work |", format_seconds_with_percent(summary.solver_seconds, measured_work_seconds));
+	emitf("| Piece graph precompute | {:.6f}s (inside B&B) |", summary.piece_graph_precompute_seconds);
+	emitf("| Piece graph bound DP | {:.6f}s (inside B&B) |", summary.piece_graph_bound_seconds);
+	emitf("| Port bound precompute | {:.6f}s (inside B&B) |", summary.port_bound_precompute_seconds);
+	emitf("| Port bound DP | {:.6f}s (inside B&B) |", summary.port_bound_seconds);
+	emitf("| Refinement bound | {:.6f}s (inside B&B) |", summary.refinement_bound_seconds);
+	emitf("| Contact-aware bound | {:.6f}s (inside B&B) |", summary.contact_bound_seconds);
 	emitf("| Measured work | {:.6f}s (100.00%) |", measured_work_seconds);
 	emitf("| Wall-clock total | {:.6f}s |", total_seconds);
 	emitf("| Measured parallelism | {:.2f}x |", measured_parallelism);
@@ -1987,6 +3425,7 @@ int main(int argc, char **argv) {
 	emitf("| Capped by calls runs | {} |", format_count_with_percent(summary.capped_by_calls_instances, records.size()));
 	emitf("| Capped by time runs | {} |", format_count_with_percent(summary.capped_by_time_instances, records.size()));
 	emitf("| Branch limited runs | {} |", format_count_with_percent(summary.branch_limited_instances, records.size()));
+	emitf("| Mean grouped pieces | {:.3f} |", records.empty() ? 0.0 : static_cast<double>(summary.grouped_pieces) / static_cast<double>(records.size()));
 	emitf("| Skipped by max polygons | {} |", format_count_with_percent(summary.skipped_max_polygons, summary.total_instances));
 	emitf("| Skipped empty | {} |", format_count_with_percent(summary.skipped_empty, summary.total_instances));
 	emitf("| Skipped decomposition | {} |", format_count_with_percent(summary.skipped_decomposition, summary.total_instances));
@@ -2000,8 +3439,22 @@ int main(int argc, char **argv) {
 	emitf("| Incumbent solves | {} |", format_count_with_percent(summary.total_incumbent_solves, summary.total_calls));
 	emitf("| Bound solves | {} |", format_count_with_percent(summary.total_bound_solves, summary.total_calls));
 	emitf("| Leaf solves | {} |", format_count_with_percent(summary.total_leaf_solves, summary.total_calls));
+	emitf("| Piece graph bound calls | {} |", format_count(summary.piece_graph_bound_calls));
+	emitf("| Port bound calls | {} |", format_count(summary.port_bound_calls));
+	emitf("| Refinement bound calls | {} |", format_count(summary.refinement_bound_calls));
+	emitf("| Contact path calls | {} |", format_count(summary.contact_path_calls));
+	emitf("| Contact bound calls | {} |", format_count(summary.contact_bound_calls));
 	emitf("| Visited nodes | {} |", format_count_with_percent(summary.total_visited_nodes, summary.total_visited_nodes + summary.total_pruned_nodes));
 	emitf("| Pruned nodes | {} |", format_count_with_percent(summary.total_pruned_nodes, summary.total_visited_nodes + summary.total_pruned_nodes));
+	emitf("| Hull-bound prunes | {} |", format_count_with_percent(summary.hull_bound_prunes, summary.total_pruned_nodes));
+	emitf("| Piece-graph extra prunes | {} |", format_count_with_percent(summary.piece_graph_extra_prunes, summary.total_pruned_nodes));
+	emitf("| Piece graph dominated hull bound | {} |", format_count_with_percent(summary.piece_graph_dominates, summary.piece_graph_bound_calls));
+	emitf("| Port extra prunes | {} |", format_count_with_percent(summary.port_extra_prunes, summary.total_pruned_nodes));
+	emitf("| Port dominated previous bounds | {} |", format_count_with_percent(summary.port_dominates, summary.port_bound_calls));
+	emitf("| Refinement extra prunes | {} |", format_count_with_percent(summary.refinement_extra_prunes, summary.total_pruned_nodes));
+	emitf("| Refinement dominated previous bounds | {} |", format_count_with_percent(summary.refinement_dominates, summary.refinement_bound_calls));
+	emitf("| Contact extra prunes | {} |", format_count_with_percent(summary.contact_extra_prunes, summary.total_pruned_nodes));
+	emitf("| Contact dominated previous bounds | {} |", format_count_with_percent(summary.contact_dominates, summary.contact_path_calls));
 	emitf("| Best updates | {} |", format_count_with_percent(summary.total_best_updates, summary.total_visited_nodes));
 	emit("");
 	emit("## Distributions");
@@ -2009,6 +3462,20 @@ int main(int argc, char **argv) {
 	emit("| Metric | Min | Median | P90 | P99 | Max | Mean |");
 	emit("|---|---:|---:|---:|---:|---:|---:|");
 	print_distribution("Seconds per call", distribution(values([](const InstanceRecord &r) { return r.seconds_per_call; })), false);
+	print_distribution("Piece graph precompute seconds", distribution(values([](const InstanceRecord &r) { return r.piece_graph_precompute_seconds; })), false);
+	print_distribution("Piece graph bound seconds", distribution(values([](const InstanceRecord &r) { return r.piece_graph_bound_seconds; })), false);
+	print_distribution("Piece graph extra prunes", distribution(values([](const InstanceRecord &r) { return r.piece_graph_extra_prunes; })), true);
+	print_distribution("Piece graph dominates", distribution(values([](const InstanceRecord &r) { return r.piece_graph_dominates; })), true);
+	print_distribution("Port bound precompute seconds", distribution(values([](const InstanceRecord &r) { return r.port_bound_precompute_seconds; })), false);
+	print_distribution("Port bound seconds", distribution(values([](const InstanceRecord &r) { return r.port_bound_seconds; })), false);
+	print_distribution("Port extra prunes", distribution(values([](const InstanceRecord &r) { return r.port_extra_prunes; })), true);
+	print_distribution("Port dominates", distribution(values([](const InstanceRecord &r) { return r.port_dominates; })), true);
+	print_distribution("Refinement bound seconds", distribution(values([](const InstanceRecord &r) { return r.refinement_bound_seconds; })), false);
+	print_distribution("Refinement extra prunes", distribution(values([](const InstanceRecord &r) { return r.refinement_extra_prunes; })), true);
+	print_distribution("Refinement dominates", distribution(values([](const InstanceRecord &r) { return r.refinement_dominates; })), true);
+	print_distribution("Contact bound seconds", distribution(values([](const InstanceRecord &r) { return r.contact_bound_seconds; })), false);
+	print_distribution("Contact extra prunes", distribution(values([](const InstanceRecord &r) { return r.contact_extra_prunes; })), true);
+	print_distribution("Contact dominates", distribution(values([](const InstanceRecord &r) { return r.contact_dominates; })), true);
 	print_distribution("Polygons", distribution(values([](const InstanceRecord &r) { return r.polygons; })), true);
 	print_distribution("Calls", distribution(values([](const InstanceRecord &r) { return r.calls; })), true);
 	print_distribution("Best updates", distribution(values([](const InstanceRecord &r) { return r.best_updates; })), true);
@@ -2016,6 +3483,7 @@ int main(int argc, char **argv) {
 	print_distribution("Incumbent gap %", distribution(values([](const InstanceRecord &r) { return incumbent_gap_percent(r); })), false);
 	print_distribution("Max branching", distribution(values([](const InstanceRecord &r) { return r.max_observed_branching; })), true);
 	print_distribution("Decomposed pieces", distribution(values([](const InstanceRecord &r) { return r.decomposed_pieces; })), true);
+	print_distribution("Grouped pieces", distribution(values([](const InstanceRecord &r) { return r.grouped_pieces; })), true);
 	print_distribution("Pieces per polygon", distribution(values([](const InstanceRecord &r) { return pieces_per_polygon(r); })), false);
 	print_distribution("log2(total combinations)", distribution(values([](const InstanceRecord &r) { return log2_combination_count(r); })), false);
 	emit("");
@@ -2027,6 +3495,10 @@ int main(int argc, char **argv) {
 	emitf("| Calls per visited node | {:.6f} |", summary.total_visited_nodes == 0 ? 0.0 : static_cast<double>(summary.total_calls) / static_cast<double>(summary.total_visited_nodes));
 	emitf("| Bound calls per leaf | {:.6f} |", summary.total_leaf_solves == 0 ? 0.0 : static_cast<double>(summary.total_bound_solves) / static_cast<double>(summary.total_leaf_solves));
 	emitf("| Solver time share | {} |", format_percent(summary.solver_seconds, measured_work_seconds));
+	emitf("| Piece graph bound time per call | {:.12f}s |", summary.piece_graph_bound_calls == 0 ? 0.0 : summary.piece_graph_bound_seconds / static_cast<double>(summary.piece_graph_bound_calls));
+	emitf("| Port bound time per call | {:.12f}s |", summary.port_bound_calls == 0 ? 0.0 : summary.port_bound_seconds / static_cast<double>(summary.port_bound_calls));
+	emitf("| Refinement bound time per call | {:.12f}s |", summary.refinement_bound_calls == 0 ? 0.0 : summary.refinement_bound_seconds / static_cast<double>(summary.refinement_bound_calls));
+	emitf("| Contact bound time per call | {:.12f}s |", summary.contact_bound_calls == 0 ? 0.0 : summary.contact_bound_seconds / static_cast<double>(summary.contact_bound_calls));
 	emitf("| Mean failed-prune bound/incumbent | {:.6f} |", mean_failed_prune_ratio);
 	emitf("| Mean failed-prune incumbent-bound gap | {:.6f} |", mean_failed_prune_gap);
 	emitf("| Mean failed-prune depth | {:.3f} |", mean_failed_prune_depth);
@@ -2047,6 +3519,10 @@ int main(int argc, char **argv) {
 	print_top("By Decomposed Pieces", [](const InstanceRecord &r) { return r.decomposed_pieces; }, "Pieces", true);
 	print_top("By log2(Total Combinations)", [](const InstanceRecord &r) { return log2_combination_count(r); }, "log2(combinations)", false);
 	print_top("By Max Branching", [](const InstanceRecord &r) { return r.max_observed_branching; }, "Max Branch", true);
+	print_top("By Piece-Graph Extra Prunes", [](const InstanceRecord &r) { return r.piece_graph_extra_prunes; }, "Extra Prunes", true);
+	print_top("By Port Extra Prunes", [](const InstanceRecord &r) { return r.port_extra_prunes; }, "Extra Prunes", true);
+	print_top("By Refinement Extra Prunes", [](const InstanceRecord &r) { return r.refinement_extra_prunes; }, "Extra Prunes", true);
+	print_top("By Contact Extra Prunes", [](const InstanceRecord &r) { return r.contact_extra_prunes; }, "Extra Prunes", true);
 	print_top("By Initial Gap", [](const InstanceRecord &r) { return initial_gap_percent(r); }, "Gap %", false);
 	emit("Tip: with summary output enabled, render it with `glow summary.md`.");
 
