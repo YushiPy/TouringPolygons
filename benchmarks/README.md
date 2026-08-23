@@ -93,17 +93,26 @@ non-convex corpus:
 python3 benchmarks/tpp.py generate-suites
 ```
 
-This writes two deterministic generated suites under `benchmarks/suites/`:
+This writes two deterministic generated `.bin` suites under `benchmarks/suites/`:
 
 | Suite | Purpose | Default composition |
 |---|---|---:|
 | `algorithm-dev-v1.bin` | Frequent runs while changing an algorithm | 60 cases spread across the corpus |
 | `canonical-v1.bin` | Final comparison between algorithm versions | 300 cases spread across the corpus |
 
-The generated suite binaries, CSVs, Markdown summaries, and metadata are ignored
-because they are derived from `benchmarks/suites/nonconvex/test_cases.bin`.
-The adjacent CSV files retain source case identity, polygon counts, and vertex
-counts.
+The generated suite files are ignored because they are derived from
+`benchmarks/suites/nonconvex/test_cases.bin`.
+
+The tracked `benchmarks/suites/nonconvex/test_cases.bin` corpus is converted
+from a TSPN JSON archive. Regenerate it with:
+
+```bash
+python3 benchmarks/scripts/convert_instances.py
+```
+
+The source instances are TSPN cycles and do not contain path endpoints, so the
+converter uses the lower-left and upper-right corners of each instance bounding
+box as `start` and `target`.
 
 Run the canonical benchmark with no required options:
 

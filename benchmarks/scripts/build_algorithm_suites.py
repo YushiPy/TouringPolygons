@@ -8,9 +8,8 @@ import csv
 import hashlib
 import json
 import random
-import statistics
 import struct
-from collections import Counter, defaultdict
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
@@ -322,62 +321,14 @@ def interleave_difficulties(selected: Sequence[CandidateCase]) -> list[Candidate
 	return interleaved
 
 
-def relative_source(candidate: CandidateCase, campaign_dir: Path) -> str:
-	try:
-		return str(candidate.source_bin.relative_to(campaign_dir))
-	except ValueError:
-		return str(candidate.source_bin)
-
-
-def write_suite(name: str, selected: Sequence[CandidateCase], output_dir: Path, campaign_dir: Path) -> None:
+def write_suite(name: str, selected: Sequence[CandidateCase], output_dir: Path) -> None:
 	bin_path = output_dir / f"{name}.bin"
-	csv_path = output_dir / f"{name}.csv"
-	md_path = output_dir / f"{name}.md"
 	output_dir.mkdir(parents=True, exist_ok=True)
 
 	with bin_path.open("wb") as file:
 		for candidate in selected:
 			file.write(candidate.encoded.data)
 
-	fieldnames = [
-		"suite_index", "difficulty", "sha256", "source_bin", "source_case_index",
-		"polygons", "layout", "grid_cell_size", "convex_replacement_fraction", "seed",
-		"calls", "bnb_seconds", "decomposed_pieces", "total_combinations", "exhausted",
-		"branch_limited", "checksum",
-	]
-	with csv_path.open("w", newline="") as file:
-		writer = csv.DictWriter(file, fieldnames=fieldnames)
-		writer.writeheader()
-		for suite_index, candidate in enumerate(selected):
-			writer.writerow({
-				"suite_index": suite_index,
-				"difficulty": candidate.difficulty,
-				"sha256": candidate.encoded.digest,
-				"source_bin": relative_source(candidate, campaign_dir),
-				"source_case_index": candidate.case_index,
-				"polygons": candidate.metrics["polygons"],
-				"layout": candidate.generation.get("layout"),
-				"grid_cell_size": candidate.generation.get("grid_cell_size"),
-				"convex_replacement_fraction": candidate.generation.get("convex_replacement_fraction"),
-				"seed": candidate.generation.get("seed"),
-				"calls": candidate.metrics["calls"],
-				"bnb_seconds": candidate.metrics["bnb_seconds"],
-				"decomposed_pieces": candidate.metrics["decomposed_pieces"],
-				"total_combinations": candidate.metrics["total_combinations"],
-				"exhausted": candidate.metrics["exhausted"],
-				"branch_limited": candidate.metrics["branch_limited"],
-				"checksum": candidate.metrics["checksum"],
-			})
-
-	lines = [f"# {name}", "", f"Cases: {len(selected)}", "", "| Difficulty | Count | Calls min | Calls median | Calls mean | Calls max |", "|---|---:|---:|---:|---:|---:|"]
-	for difficulty in ("easy", "medium", "hard"):
-		calls = [int(candidate.metrics["calls"]) for candidate in selected if candidate.difficulty == difficulty]
-		lines.append(
-			f"| {difficulty} | {len(calls)} | {min(calls)} | {statistics.median(calls):.0f} | "
-			f"{statistics.mean(calls):.1f} | {max(calls)} |"
-		)
-	lines.extend(["", f"Distinct source binaries: {len({candidate.source_bin for candidate in selected})}", ""])
-	md_path.write_text("\n".join(lines))
 	print(f"Wrote {len(selected)} cases to {bin_path}", flush=True)
 
 
@@ -403,7 +354,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 	if not 0.0 <= args.hard_capped_fraction <= 1.0:
 		raise SystemExit("--hard-capped-fraction must be between 0 and 1")
 
-	campaign, candidates, rejected_intersections = campaign_candidates(args)
+	_, candidates, rejected_intersections = campaign_candidates(args)
 	available = {
 		difficulty: [candidate for candidate in candidates if candidate.difficulty == difficulty]
 		for difficulty in ("easy", "medium", "hard")
@@ -413,31 +364,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 	rng = random.Random(args.seed)
 	final_suite = interleave_difficulties(select_suite(available, args.final_per_difficulty, args.hard_capped_fraction, rng))
 	dev_suite = interleave_difficulties(select_suite(available, args.dev_per_difficulty, args.hard_capped_fraction, rng))
-	write_suite("canonical-v1", final_suite, args.output, args.campaign)
-	write_suite("algorithm-dev-v1", dev_suite, args.output, args.campaign)
-
-	metadata = {
-		"schema_version": 1,
-		"source_campaign": str(args.campaign),
-		"source_campaign_git_revision": campaign.get("git_revision"),
-		"source_campaign_git_dirty": campaign.get("git_dirty"),
-		"baseline_benchmark": campaign.get("benchmark_runs", [])[-1] if campaign.get("benchmark_runs") else None,
-		"selection_seed": args.seed,
-		"rejected_intersecting_or_touching": rejected_intersections,
-		"difficulty": {
-			"easy": f"exhausted and calls <= {args.easy_max_calls}",
-			"medium": f"exhausted and {args.easy_max_calls} < calls <= {args.medium_max_calls}",
-			"hard": f"not exhausted, branch limited, or calls > {args.medium_max_calls}",
-		},
-		"canonical_counts": dict(Counter(candidate.difficulty for candidate in final_suite)),
-		"development_counts": dict(Counter(candidate.difficulty for candidate in dev_suite)),
-		"canonical_baseline_capped": sum(candidate.metrics["exhausted"].lower() != "true" for candidate in final_suite),
-		"development_baseline_capped": sum(candidate.metrics["exhausted"].lower() != "true" for candidate in dev_suite),
-		"hard_capped_fraction_target": args.hard_capped_fraction,
-		"canonical_sha256": hashlib.sha256((args.output / "canonical-v1.bin").read_bytes()).hexdigest(),
-		"development_sha256": hashlib.sha256((args.output / "algorithm-dev-v1.bin").read_bytes()).hexdigest(),
-	}
-	(args.output / "suite-metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
+	write_suite("canonical-v1", final_suite, args.output)
+	write_suite("algorithm-dev-v1", dev_suite, args.output)
 	return 0
 
 

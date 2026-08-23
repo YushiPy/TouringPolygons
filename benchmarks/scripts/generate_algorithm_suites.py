@@ -4,10 +4,7 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import hashlib
-import json
-import statistics
 import struct
 from dataclasses import dataclass
 from pathlib import Path
@@ -223,42 +220,13 @@ def prefix_representative_order(cases: Sequence[EncodedCase]) -> list[EncodedCas
 	return result
 
 
-def write_suite(name: str, cases: Sequence[EncodedCase], output_dir: Path, source: Path) -> None:
+def write_suite(name: str, cases: Sequence[EncodedCase], output_dir: Path) -> None:
 	bin_path = output_dir / f"{name}.bin"
-	csv_path = output_dir / f"{name}.csv"
-	md_path = output_dir / f"{name}.md"
 
 	with bin_path.open("wb") as file:
 		for case in cases:
 			file.write(case.data)
 
-	with csv_path.open("w", newline="") as file:
-		writer = csv.DictWriter(file, fieldnames=[
-			"suite_index", "source_case_index", "sha256", "polygons", "vertices",
-		])
-		writer.writeheader()
-		for suite_index, case in enumerate(cases):
-			writer.writerow({
-				"suite_index": suite_index,
-				"source_case_index": case.case_index,
-				"sha256": case.digest,
-				"polygons": case.polygons,
-				"vertices": case.vertices,
-			})
-
-	polygon_counts = [case.polygons for case in cases]
-	vertex_counts = [case.vertices for case in cases]
-	lines = [
-		f"# {name}",
-		"",
-		f"Generated from `{source.relative_to(REPO_ROOT)}`.",
-		"",
-		f"Cases: {len(cases)}",
-		f"Polygons: min {min(polygon_counts)}, median {statistics.median(polygon_counts):.0f}, max {max(polygon_counts)}",
-		f"Vertices: min {min(vertex_counts)}, median {statistics.median(vertex_counts):.0f}, max {max(vertex_counts)}",
-		"",
-	]
-	md_path.write_text("\n".join(lines))
 	print(f"Wrote {len(cases)} cases to {bin_path}", flush=True)
 
 
@@ -297,28 +265,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 	canonical = prefix_representative_order(spread_select(filtered_cases, args.canonical_size))
 	dev = prefix_representative_order(spread_select(canonical, args.dev_size))
 
-	write_suite("canonical-v1", canonical, output, source)
-	write_suite("algorithm-dev-v1", dev, output, source)
-
-	metadata = {
-		"schema_version": 2,
-		"generator": "benchmarks/scripts/generate_algorithm_suites.py",
-		"source": str(source.relative_to(REPO_ROOT)),
-		"source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
-		"source_cases": len(source_cases),
-		"rejected_intersecting_or_touching_hulls": rejected_hull_intersections,
-		"require_disjoint_hulls": args.require_disjoint_hulls,
-		"canonical_size": len(canonical),
-		"development_size": len(dev),
-		"selection": (
-			"reject cases with intersecting or touching convex hulls; even spread by polygon count, vertex count, and case digest; ordered so prefixes remain representative"
-			if args.require_disjoint_hulls
-			else "even spread by polygon count, vertex count, and case digest; ordered so prefixes remain representative"
-		),
-		"canonical_sha256": hashlib.sha256((output / "canonical-v1.bin").read_bytes()).hexdigest(),
-		"development_sha256": hashlib.sha256((output / "algorithm-dev-v1.bin").read_bytes()).hexdigest(),
-	}
-	(output / "suite-metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
+	write_suite("canonical-v1", canonical, output)
+	write_suite("algorithm-dev-v1", dev, output)
 	return 0
 
 
