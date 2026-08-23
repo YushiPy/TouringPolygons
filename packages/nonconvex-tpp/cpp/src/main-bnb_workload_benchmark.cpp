@@ -502,12 +502,18 @@ bool use_piece_grouping() {
 	return enabled != nullptr && std::string_view(enabled) != "0";
 }
 
+bool use_adaptive_piece_grouping() {
+
+	const char *enabled = std::getenv("TPP_GROUP_ADAPTIVE");
+	return enabled != nullptr && std::string_view(enabled) != "0";
+}
+
 double piece_group_max_excess_ratio() {
 
 	const char *value = std::getenv("TPP_GROUP_MAX_EXCESS_RATIO");
 
 	if (value == nullptr) {
-		return 0.05;
+		return use_adaptive_piece_grouping() ? 0.25 : 0.05;
 	}
 
 	return std::strtod(value, nullptr);
@@ -522,6 +528,67 @@ size_t piece_group_max_size() {
 	}
 
 	return std::strtoull(value, nullptr, 10);
+}
+
+double adaptive_group_max_local_slack_ratio() {
+
+	const char *value = std::getenv("TPP_GROUP_ADAPTIVE_MAX_LOCAL_SLACK_RATIO");
+
+	if (value == nullptr) {
+		return 0.025;
+	}
+
+	return std::strtod(value, nullptr);
+}
+
+double adaptive_group_excess_weight() {
+
+	const char *value = std::getenv("TPP_GROUP_ADAPTIVE_EXCESS_WEIGHT");
+
+	if (value == nullptr) {
+		return 1.0;
+	}
+
+	return std::strtod(value, nullptr);
+}
+
+double adaptive_group_local_slack_weight() {
+
+	const char *value = std::getenv("TPP_GROUP_ADAPTIVE_LOCAL_SLACK_WEIGHT");
+
+	if (value == nullptr) {
+		return 3.0;
+	}
+
+	return std::strtod(value, nullptr);
+}
+
+double adaptive_group_size_weight() {
+
+	const char *value = std::getenv("TPP_GROUP_ADAPTIVE_SIZE_WEIGHT");
+
+	if (value == nullptr) {
+		return 0.05;
+	}
+
+	return std::strtod(value, nullptr);
+}
+
+bool piece_group_require_touch() {
+
+	const char *enabled = std::getenv("TPP_GROUP_REQUIRE_TOUCH");
+	return enabled != nullptr && std::string_view(enabled) != "0";
+}
+
+double piece_group_order_penalty() {
+
+	const char *value = std::getenv("TPP_GROUP_ORDER_PENALTY");
+
+	if (value == nullptr) {
+		return 0.0;
+	}
+
+	return std::strtod(value, nullptr);
 }
 
 bool use_synthetic_cover() {
@@ -972,6 +1039,32 @@ double group_excess_ratio(const PieceGroup &group) {
 	return std::max(0.0, polygon_area(group.hull) - group.piece_area_sum) / group.piece_area_sum;
 }
 
+size_t group_min_piece_index(const PieceGroup &group) {
+	return *std::min_element(group.piece_indices.begin(), group.piece_indices.end());
+}
+
+size_t group_max_piece_index(const PieceGroup &group) {
+	return *std::max_element(group.piece_indices.begin(), group.piece_indices.end());
+}
+
+size_t group_order_gap(const PieceGroup &a, const PieceGroup &b) {
+
+	const size_t a_min = group_min_piece_index(a);
+	const size_t a_max = group_max_piece_index(a);
+	const size_t b_min = group_min_piece_index(b);
+	const size_t b_max = group_max_piece_index(b);
+
+	if (a_max < b_min) {
+		return b_min - a_max - 1;
+	}
+
+	if (b_max < a_min) {
+		return a_min - b_max - 1;
+	}
+
+	return 0;
+}
+
 vector<PieceGroup> make_piece_groups_for_polygon(
 	const vector<vector<Vector2>> &pieces,
 	double max_excess_ratio,
@@ -985,6 +1078,9 @@ vector<PieceGroup> make_piece_groups_for_polygon(
 		groups.push_back(make_piece_group(pieces, {i}));
 	}
 
+	const bool require_touch = piece_group_require_touch();
+	const double order_penalty = piece_group_order_penalty();
+
 	while (true) {
 		std::optional<std::tuple<size_t, size_t, double, PieceGroup>> best_merge;
 
@@ -994,19 +1090,24 @@ vector<PieceGroup> make_piece_groups_for_polygon(
 					continue;
 				}
 
+				if (require_touch && !polygons_intersect_or_touch(groups[i].hull, groups[j].hull)) {
+					continue;
+				}
+
 				vector<size_t> merged_indices = groups[i].piece_indices;
 				merged_indices.insert(merged_indices.end(), groups[j].piece_indices.begin(), groups[j].piece_indices.end());
 				std::sort(merged_indices.begin(), merged_indices.end());
 
 				PieceGroup merged = make_piece_group(pieces, std::move(merged_indices));
 				const double excess_ratio = group_excess_ratio(merged);
+				const double merge_score = excess_ratio + order_penalty * static_cast<double>(group_order_gap(groups[i], groups[j]));
 
 				if (excess_ratio > max_excess_ratio) {
 					continue;
 				}
 
-				if (!best_merge || excess_ratio < std::get<2>(*best_merge)) {
-					best_merge = std::make_tuple(i, j, excess_ratio, std::move(merged));
+				if (!best_merge || merge_score < std::get<2>(*best_merge)) {
+					best_merge = std::make_tuple(i, j, merge_score, std::move(merged));
 				}
 			}
 		}
@@ -1021,6 +1122,158 @@ vector<PieceGroup> make_piece_groups_for_polygon(
 		groups[first] = std::move(merged);
 		groups.erase(groups.begin() + static_cast<std::ptrdiff_t>(second));
 	}
+
+	std::sort(groups.begin(), groups.end(), [](const PieceGroup &a, const PieceGroup &b) {
+		return group_min_piece_index(a) < group_min_piece_index(b);
+	});
+
+	return groups;
+}
+
+double local_distance_through_piece(
+	const std::optional<Vector2> &previous_point,
+	const vector<Vector2> *previous_polygon,
+	const vector<Vector2> &piece,
+	const std::optional<Vector2> &next_point,
+	const vector<Vector2> *next_polygon
+) {
+
+	double distance = 0.0;
+
+	if (previous_point) {
+		distance += point_polygon_distance(*previous_point, piece);
+	} else if (previous_polygon != nullptr) {
+		distance += polygon_polygon_distance(*previous_polygon, piece);
+	}
+
+	if (next_point) {
+		distance += point_polygon_distance(*next_point, piece);
+	} else if (next_polygon != nullptr) {
+		distance += polygon_polygon_distance(piece, *next_polygon);
+	}
+
+	return distance;
+}
+
+double group_local_slack_ratio(
+	const vector<vector<Vector2>> &pieces,
+	const PieceGroup &group,
+	const std::optional<Vector2> &previous_point,
+	const vector<Vector2> *previous_polygon,
+	const std::optional<Vector2> &next_point,
+	const vector<Vector2> *next_polygon
+) {
+
+	double best_piece_distance = std::numeric_limits<double>::infinity();
+
+	for (const size_t piece_index : group.piece_indices) {
+		best_piece_distance = std::min(
+			best_piece_distance,
+			local_distance_through_piece(previous_point, previous_polygon, pieces[piece_index], next_point, next_polygon)
+		);
+	}
+
+	const double group_distance = local_distance_through_piece(
+		previous_point,
+		previous_polygon,
+		group.hull,
+		next_point,
+		next_polygon
+	);
+	const double slack = std::max(0.0, best_piece_distance - group_distance);
+	return slack / std::max(1.0, best_piece_distance);
+}
+
+vector<PieceGroup> make_adaptive_piece_groups_for_polygon(
+	const vector<vector<Vector2>> &pieces,
+	const std::optional<Vector2> &previous_point,
+	const vector<Vector2> *previous_polygon,
+	const std::optional<Vector2> &next_point,
+	const vector<Vector2> *next_polygon,
+	double max_excess_ratio,
+	size_t max_group_size
+) {
+
+	vector<PieceGroup> groups;
+	groups.reserve(pieces.size());
+
+	for (size_t i = 0; i < pieces.size(); i++) {
+		groups.push_back(make_piece_group(pieces, {i}));
+	}
+
+	const bool require_touch = piece_group_require_touch();
+	const double order_penalty = piece_group_order_penalty();
+	const double max_local_slack_ratio = adaptive_group_max_local_slack_ratio();
+	const double excess_weight = adaptive_group_excess_weight();
+	const double local_slack_weight = adaptive_group_local_slack_weight();
+	const double size_weight = adaptive_group_size_weight();
+
+	while (true) {
+		std::optional<std::tuple<size_t, size_t, double, PieceGroup>> best_merge;
+
+		for (size_t i = 0; i < groups.size(); i++) {
+			for (size_t j = i + 1; j < groups.size(); j++) {
+				const size_t merged_size = groups[i].piece_indices.size() + groups[j].piece_indices.size();
+
+				if (merged_size > max_group_size) {
+					continue;
+				}
+
+				if (require_touch && !polygons_intersect_or_touch(groups[i].hull, groups[j].hull)) {
+					continue;
+				}
+
+				vector<size_t> merged_indices = groups[i].piece_indices;
+				merged_indices.insert(merged_indices.end(), groups[j].piece_indices.begin(), groups[j].piece_indices.end());
+				std::sort(merged_indices.begin(), merged_indices.end());
+
+				PieceGroup merged = make_piece_group(pieces, std::move(merged_indices));
+				const double excess_ratio = group_excess_ratio(merged);
+
+				if (excess_ratio > max_excess_ratio) {
+					continue;
+				}
+
+				const double local_slack_ratio = group_local_slack_ratio(
+					pieces,
+					merged,
+					previous_point,
+					previous_polygon,
+					next_point,
+					next_polygon
+				);
+
+				if (local_slack_ratio > max_local_slack_ratio) {
+					continue;
+				}
+
+				const double size_ratio = static_cast<double>(merged_size - 1) / static_cast<double>(std::max<size_t>(1, max_group_size - 1));
+				const double merge_score =
+					excess_weight * excess_ratio
+					+ local_slack_weight * local_slack_ratio
+					+ size_weight * size_ratio
+					+ order_penalty * static_cast<double>(group_order_gap(groups[i], groups[j]));
+
+				if (!best_merge || merge_score < std::get<2>(*best_merge)) {
+					best_merge = std::make_tuple(i, j, merge_score, std::move(merged));
+				}
+			}
+		}
+
+		if (!best_merge) {
+			break;
+		}
+
+		const size_t first = std::get<0>(*best_merge);
+		const size_t second = std::get<1>(*best_merge);
+		PieceGroup merged = std::move(std::get<3>(*best_merge));
+		groups[first] = std::move(merged);
+		groups.erase(groups.begin() + static_cast<std::ptrdiff_t>(second));
+	}
+
+	std::sort(groups.begin(), groups.end(), [](const PieceGroup &a, const PieceGroup &b) {
+		return group_min_piece_index(a) < group_min_piece_index(b);
+	});
 
 	return groups;
 }
@@ -2713,9 +2966,36 @@ CaseBenchmarkResult run_case_benchmark(
 		total_groups = 0;
 		const double max_excess_ratio = piece_group_max_excess_ratio();
 		const size_t max_group_size = piece_group_max_size();
+		const bool adaptive_grouping = use_adaptive_piece_grouping();
 
-		for (const auto &pieces : convex_pieces) {
-			piece_groups.push_back(make_piece_groups_for_polygon(pieces, max_excess_ratio, max_group_size));
+		for (size_t polygon_index = 0; polygon_index < convex_pieces.size(); polygon_index++) {
+			if (adaptive_grouping) {
+				const std::optional<Vector2> previous_point = polygon_index == 0
+					? std::optional<Vector2>(start)
+					: std::nullopt;
+				const vector<Vector2> *previous_polygon = polygon_index == 0
+					? nullptr
+					: &convex_hulls[polygon_index - 1];
+				const std::optional<Vector2> next_point = polygon_index + 1 == convex_pieces.size()
+					? std::optional<Vector2>(target)
+					: std::nullopt;
+				const vector<Vector2> *next_polygon = polygon_index + 1 == convex_pieces.size()
+					? nullptr
+					: &convex_hulls[polygon_index + 1];
+
+				piece_groups.push_back(make_adaptive_piece_groups_for_polygon(
+					convex_pieces[polygon_index],
+					previous_point,
+					previous_polygon,
+					next_point,
+					next_polygon,
+					max_excess_ratio,
+					max_group_size
+				));
+			} else {
+				piece_groups.push_back(make_piece_groups_for_polygon(convex_pieces[polygon_index], max_excess_ratio, max_group_size));
+			}
+
 			total_groups += piece_groups.back().size();
 		}
 	}
@@ -2854,6 +3134,8 @@ void print_usage(const char *program) {
 	std::println(stderr, "Set TPP_BENCH_SOLVER to one of linear_search_lazy, binary_search_lazy, binary_search_eager, tan_jiang, gurobi.");
 	std::println(stderr, "Set TPP_GROUP_PIECES=1 to branch first on safe almost-convex piece groups.");
 	std::println(stderr, "Set TPP_GROUP_MAX_EXCESS_RATIO and TPP_GROUP_MAX_SIZE to control piece grouping.");
+	std::println(stderr, "Set TPP_GROUP_REQUIRE_TOUCH=1 and TPP_GROUP_ORDER_PENALTY to make grouping more local.");
+	std::println(stderr, "Set TPP_GROUP_ADAPTIVE=1 and TPP_GROUP_ADAPTIVE_MAX_LOCAL_SLACK_RATIO to use neighbor-aware grouping.");
 	std::println(stderr, "Set TPP_SYNTHETIC_COVER_CASES to generate synthetic merged-cover instances instead of loading input.");
 	std::println(stderr, "Set TPP_USE_SYNTHETIC_COVER=1 with TPP_SYNTHETIC_COVER_CASES to use the known cover pieces.");
 	std::println(stderr, "Set TPP_SYNTHETIC_COVER_PATTERN to stair, cross, overlap, comb, or longstair.");
