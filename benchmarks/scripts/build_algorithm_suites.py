@@ -5,26 +5,25 @@ from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
 import json
 import random
-import struct
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
+from benchmark_cases import (
+	EncodedCase,
+	case_has_intersecting_hulls,
+	case_has_intersections,
+	read_encoded_cases,
+	write_encoded_cases,
+)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CAMPAIGN = REPO_ROOT / "benchmarks/campaigns/sao-paulo"
 DEFAULT_OUTPUT = REPO_ROOT / "benchmarks/suites"
-
-
-@dataclass(frozen=True)
-class EncodedCase:
-	data: bytes
-	digest: str
-	polygons: tuple[tuple[tuple[float, float], ...], ...]
 
 
 @dataclass(frozen=True)
@@ -35,152 +34,6 @@ class CandidateCase:
 	difficulty: str
 	metrics: dict[str, str]
 	generation: dict
-
-
-def read_u64(data: bytes, offset: int, path: Path) -> tuple[int, int]:
-	if offset + 8 > len(data):
-		raise ValueError(f"Truncated size value at byte {offset} in {path}")
-	return struct.unpack_from("<Q", data, offset)[0], offset + 8
-
-
-def skip_bytes(data: bytes, offset: int, count: int, path: Path) -> int:
-	end = offset + count
-	if end > len(data):
-		raise ValueError(f"Truncated case payload at byte {offset} in {path}")
-	return end
-
-
-def read_encoded_cases(path: Path) -> list[EncodedCase]:
-	data = path.read_bytes()
-	offset = 0
-	cases: list[EncodedCase] = []
-
-	while offset < len(data):
-		start = offset
-		offset = skip_bytes(data, offset, 32, path)  # start and target vectors
-		polygon_count, offset = read_u64(data, offset, path)
-		polygons: list[tuple[tuple[float, float], ...]] = []
-		for _ in range(polygon_count):
-			vertex_count, offset = read_u64(data, offset, path)
-			vertices = tuple(
-				struct.unpack_from("<dd", data, offset + 16 * vertex_index)
-				for vertex_index in range(vertex_count)
-			)
-			polygons.append(vertices)
-			offset = skip_bytes(data, offset, 16 * vertex_count, path)
-		solution_count, offset = read_u64(data, offset, path)
-		offset = skip_bytes(data, offset, 16 * solution_count, path)
-		encoded = data[start:offset]
-		cases.append(EncodedCase(encoded, hashlib.sha256(encoded).hexdigest(), tuple(polygons)))
-
-	return cases
-
-
-def orientation(a: tuple[float, float], b: tuple[float, float], c: tuple[float, float]) -> float:
-	return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
-
-
-def convex_hull(points: Sequence[tuple[float, float]]) -> tuple[tuple[float, float], ...]:
-	unique = sorted(set(points))
-	if len(unique) <= 1:
-		return tuple(unique)
-
-	def half_hull(sorted_points: Sequence[tuple[float, float]]) -> list[tuple[float, float]]:
-		hull: list[tuple[float, float]] = []
-		for point in sorted_points:
-			while len(hull) > 1 and orientation(hull[-2], hull[-1], point) <= 0.0:
-				hull.pop()
-			hull.append(point)
-		return hull[:-1]
-
-	return tuple(half_hull(unique) + half_hull(list(reversed(unique))))
-
-
-def point_on_segment(point: tuple[float, float], a: tuple[float, float], b: tuple[float, float]) -> bool:
-	epsilon = 1e-12
-	return (
-		abs(orientation(a, b, point)) <= epsilon
-		and min(a[0], b[0]) - epsilon <= point[0] <= max(a[0], b[0]) + epsilon
-		and min(a[1], b[1]) - epsilon <= point[1] <= max(a[1], b[1]) + epsilon
-	)
-
-
-def segments_intersect(
-	a: tuple[float, float],
-	b: tuple[float, float],
-	c: tuple[float, float],
-	d: tuple[float, float],
-) -> bool:
-	o1 = orientation(a, b, c)
-	o2 = orientation(a, b, d)
-	o3 = orientation(c, d, a)
-	o4 = orientation(c, d, b)
-	if o1 * o2 < 0.0 and o3 * o4 < 0.0:
-		return True
-	return (
-		(abs(o1) <= 1e-12 and point_on_segment(c, a, b))
-		or (abs(o2) <= 1e-12 and point_on_segment(d, a, b))
-		or (abs(o3) <= 1e-12 and point_on_segment(a, c, d))
-		or (abs(o4) <= 1e-12 and point_on_segment(b, c, d))
-	)
-
-
-def point_in_polygon(point: tuple[float, float], polygon: Sequence[tuple[float, float]]) -> bool:
-	inside = False
-	px, py = point
-	for index, a in enumerate(polygon):
-		b = polygon[(index + 1) % len(polygon)]
-		if (a[1] > py) != (b[1] > py):
-			x_crossing = (b[0] - a[0]) * (py - a[1]) / (b[1] - a[1]) + a[0]
-			if px < x_crossing:
-				inside = not inside
-	return inside
-
-
-def polygons_intersect(
-	first: Sequence[tuple[float, float]],
-	second: Sequence[tuple[float, float]],
-) -> bool:
-	first_bounds = (
-		min(point[0] for point in first), min(point[1] for point in first),
-		max(point[0] for point in first), max(point[1] for point in first),
-	)
-	second_bounds = (
-		min(point[0] for point in second), min(point[1] for point in second),
-		max(point[0] for point in second), max(point[1] for point in second),
-	)
-	if (
-		first_bounds[2] < second_bounds[0]
-		or second_bounds[2] < first_bounds[0]
-		or first_bounds[3] < second_bounds[1]
-		or second_bounds[3] < first_bounds[1]
-	):
-		return False
-
-	for first_index, a in enumerate(first):
-		b = first[(first_index + 1) % len(first)]
-		for second_index, c in enumerate(second):
-			d = second[(second_index + 1) % len(second)]
-			if segments_intersect(a, b, c, d):
-				return True
-	return point_in_polygon(first[0], second) or point_in_polygon(second[0], first)
-
-
-def case_has_intersections(encoded: EncodedCase) -> bool:
-	return any(
-		polygons_intersect(encoded.polygons[first], encoded.polygons[second])
-		for first in range(len(encoded.polygons))
-		for second in range(first + 1, len(encoded.polygons))
-	)
-
-
-def case_has_intersecting_hulls(encoded: EncodedCase) -> bool:
-	hulls = [convex_hull(polygon) for polygon in encoded.polygons]
-	return any(
-		polygons_intersect(hulls[first], hulls[second])
-		for first in range(len(hulls))
-		for second in range(first + 1, len(hulls))
-	)
 
 
 def read_benchmark_rows(path: Path) -> dict[int, dict[str, str]]:
@@ -323,12 +176,7 @@ def interleave_difficulties(selected: Sequence[CandidateCase]) -> list[Candidate
 
 def write_suite(name: str, selected: Sequence[CandidateCase], output_dir: Path) -> None:
 	bin_path = output_dir / f"{name}.bin"
-	output_dir.mkdir(parents=True, exist_ok=True)
-
-	with bin_path.open("wb") as file:
-		for candidate in selected:
-			file.write(candidate.encoded.data)
-
+	write_encoded_cases(bin_path, [candidate.encoded for candidate in selected])
 	print(f"Wrote {len(selected)} cases to {bin_path}", flush=True)
 
 
