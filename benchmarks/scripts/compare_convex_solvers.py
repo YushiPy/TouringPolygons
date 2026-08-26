@@ -30,6 +30,7 @@ class SolverConfig:
 
 SOLVERS = [
 	SolverConfig("linear_search_lazy"),
+	SolverConfig("linear_search_disjoint"),
 	SolverConfig("binary_search_lazy"),
 	SolverConfig("binary_search_disjoint"),
 	SolverConfig("binary_search_eager"),
@@ -84,6 +85,16 @@ def parse_summary(path: Path) -> dict[str, str]:
 def parse_leading_float(value: str) -> float:
 	match = re.search(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)", value.replace("_", ""))
 	return float(match.group(0)) if match else math.nan
+
+
+def parse_duration_seconds(value: str) -> float:
+	number = parse_leading_float(value)
+	lower = value.lower()
+	if "us" in lower or "µs" in lower:
+		return number / 1_000_000.0
+	if "ms" in lower:
+		return number / 1_000.0
+	return number
 
 
 def parse_count(value: str) -> int:
@@ -233,7 +244,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 			"wall_clock_seconds": f"{parse_leading_float(summary.get('Wall-clock total', 'nan')):.6f}",
 			"measured_work_seconds": f"{parse_leading_float(summary.get('Measured work', 'nan')):.6f}",
 			"convex_solver_seconds": f"{parse_leading_float(summary.get('Convex solver', 'nan')):.6f}",
-			"mean_seconds_per_call": f"{parse_leading_float(summary.get('Mean seconds per call', 'nan')):.12f}",
+			"mean_seconds_per_call": f"{parse_duration_seconds(summary.get('Mean seconds per call', 'nan')):.12f}",
 			"total_convex_calls": str(parse_count(summary.get('Total convex calls', '0'))),
 			"fully_solved_runs": str(parse_count(summary.get('Fully solved runs', '0'))),
 			"capped_by_calls_runs": str(parse_count(summary.get('Capped by calls runs', '0'))),

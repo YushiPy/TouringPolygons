@@ -234,6 +234,10 @@ namespace tpp {
 		}
 	}
 
+	void tpp_convex_solve_linear_search_disjoint(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons, ConvexTppWorkspaceView workspace, std::vector<Vector2>& output) {
+		SolutionLinearSearchDisjoint(start, target, polygons, workspace).solve(PreloadPolicy::Lazy, output);
+	}
+
 	void tpp_convex_solve_linear_search_eager(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons, ConvexTppWorkspaceView workspace, std::vector<Vector2>& output) {
 		if (polygons_are_pairwise_disjoint(polygons)) {
 			SolutionLinearSearchDisjoint(start, target, polygons, workspace).solve(PreloadPolicy::Eager, output);
@@ -246,6 +250,10 @@ namespace tpp {
 		tpp_convex_solve_linear_search_lazy(start, target, polygons, workspace.prepare(polygons.size(), total_vertex_count(polygons)), output);
 	}
 
+	void tpp_convex_solve_linear_search_disjoint(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons, DynamicConvexTppWorkspace& workspace, std::vector<Vector2>& output) {
+		tpp_convex_solve_linear_search_disjoint(start, target, polygons, workspace.prepare(polygons.size(), total_vertex_count(polygons)), output);
+	}
+
 	void tpp_convex_solve_linear_search_eager(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons, DynamicConvexTppWorkspace& workspace, std::vector<Vector2>& output) {
 		tpp_convex_solve_linear_search_eager(start, target, polygons, workspace.prepare(polygons.size(), total_vertex_count(polygons)), output);
 	}
@@ -256,6 +264,10 @@ namespace tpp {
 		} else {
 			return SolutionLinearSearchIntersecting(start, target, polygons).solve(PreloadPolicy::Lazy);
 		}
+	}
+
+	std::vector<Vector2> tpp_convex_solve_linear_search_disjoint(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		return SolutionLinearSearchDisjoint(start, target, polygons).solve(PreloadPolicy::Lazy);
 	}
 
 	std::vector<Vector2> tpp_convex_solve_linear_search_eager(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
@@ -272,6 +284,10 @@ namespace tpp {
 		} else {
 			return SolutionLinearSearchIntersecting(start, target, polygons).solve_length(PreloadPolicy::Lazy);
 		}
+	}
+
+	double tpp_convex_solve_length_linear_search_disjoint(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		return SolutionLinearSearchDisjoint(start, target, polygons).solve_length(PreloadPolicy::Lazy);
 	}
 
 	double tpp_convex_solve_length_linear_search_eager(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {

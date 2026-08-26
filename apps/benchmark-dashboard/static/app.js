@@ -1,12 +1,15 @@
 const state = {
   campaigns: [],
   currentJob: null,
+  currentRunJob: null,
+  currentComparisonJob: null,
   cpuCount: 1,
   selectedCampaign: "",
   selectedComparisonCampaign: "",
   osmFiles: [],
   osmScanStarted: false,
   benchmarkedInstances: new Map(),
+  benchmarkedSort: "case",
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -50,6 +53,41 @@ function formatElapsed(seconds) {
     return `${minutes}:${remaining.toFixed(1).padStart(4, "0")}`;
   }
   return `${remaining.toFixed(1)}s`;
+}
+
+function formatSeconds(value) {
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return "-";
+  }
+  if (Math.abs(number) >= 1) {
+    return `${number.toFixed(3)} s`;
+  }
+  if (Math.abs(number) >= 0.001) {
+    return `${(number * 1000).toFixed(2)} ms`;
+  }
+  return `${(number * 1000000).toFixed(2)} us`;
+}
+
+function formatMicroseconds(seconds) {
+  if (seconds === null || seconds === undefined || seconds === "") {
+    return "-";
+  }
+  const number = Number(seconds);
+  if (!Number.isFinite(number)) {
+    return "-";
+  }
+  const microseconds = number * 1000000;
+  if (Math.abs(microseconds) >= 100) {
+    return `${microseconds.toFixed(1)} us`;
+  }
+  if (Math.abs(microseconds) >= 1) {
+    return `${microseconds.toFixed(2)} us`;
+  }
+  return `${microseconds.toFixed(3)} us`;
 }
 
 function switchPanel(panelId) {
@@ -277,6 +315,52 @@ function resetMaxInstancesControl() {
   slider.style.setProperty("--tick-step", `${100 / Math.max(1, max - 1)}%`);
 }
 
+function setupCompareMaxInstancesControl() {
+  const slider = $("#compare-max-instances-slider");
+  const input = $("#compare-max-instances-input");
+  const maxLabel = $("#compare-max-instances-label");
+
+  function clamp(value) {
+    const max = campaignInstanceTotal(state.selectedComparisonCampaign);
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) {
+      return max;
+    }
+    return Math.max(1, Math.min(max, Math.round(parsed)));
+  }
+
+  function setValue(value = null) {
+    const max = campaignInstanceTotal(state.selectedComparisonCampaign);
+    const clamped = clamp(value ?? max);
+    slider.max = String(max);
+    input.max = String(max);
+    slider.value = String(clamped);
+    input.value = String(clamped);
+    maxLabel.textContent = String(max);
+    slider.style.setProperty("--progress", `${((clamped - 1) / Math.max(1, max - 1)) * 100}%`);
+    slider.style.setProperty("--tick-step", `${100 / Math.max(1, max - 1)}%`);
+  }
+
+  slider.addEventListener("input", () => setValue(slider.value));
+  input.addEventListener("input", () => setValue(input.value));
+  input.addEventListener("blur", () => setValue(input.value));
+  setValue();
+}
+
+function resetCompareMaxInstancesControl() {
+  const slider = $("#compare-max-instances-slider");
+  const input = $("#compare-max-instances-input");
+  const maxLabel = $("#compare-max-instances-label");
+  const max = campaignInstanceTotal(state.selectedComparisonCampaign);
+  slider.max = String(max);
+  input.max = String(max);
+  slider.value = String(max);
+  input.value = String(max);
+  maxLabel.textContent = String(max);
+  slider.style.setProperty("--progress", "100%");
+  slider.style.setProperty("--tick-step", `${100 / Math.max(1, max - 1)}%`);
+}
+
 function formatBytes(value) {
   if (!Number.isFinite(value)) {
     return "-";
@@ -392,6 +476,7 @@ function selectComparisonCampaign(name) {
   state.selectedComparisonCampaign = name;
   $("#compare-campaign").value = name;
   renderCampaignChoiceGrid($("#compare-campaign-grid"), name, selectComparisonCampaign);
+  resetCompareMaxInstancesControl();
   if (name) {
     refreshComparisonReport(name);
   }
@@ -448,7 +533,7 @@ function zoomableImage(src, alt, extraClass = "", options = {}) {
     <figure class="instance-detail zoomable-detail ${extraClass}">
       <div class="zoom-toolbar" aria-label="Zoom controls">
         <div class="zoom-toolbar-toggles">
-          ${options.inspectable ? '<button class="secondary zoom-toggle is-active" type="button" data-style-panel aria-pressed="true">Style</button>' : ""}
+          ${options.inspectable ? '<button class="secondary zoom-toggle has-dropdown" type="button" data-style-panel aria-pressed="false" aria-expanded="false">Style</button>' : ""}
           ${options.inspectable ? '<button class="secondary zoom-toggle" type="button" data-toggle-grid aria-pressed="false">Grid</button>' : ""}
           ${options.inspectable ? '<button class="secondary zoom-toggle is-active" type="button" data-toggle-endpoints aria-pressed="true">S/T</button>' : ""}
           ${options.inspectable ? '<button class="secondary zoom-toggle" type="button" data-toggle-bounces aria-pressed="false">Bounces</button>' : ""}
@@ -461,7 +546,7 @@ function zoomableImage(src, alt, extraClass = "", options = {}) {
         </div>
       </div>
       ${options.inspectable ? `
-        <div class="zoom-style-panel">
+        <div class="zoom-style-panel is-hidden">
           <label>
             Grid step
             <input data-inspect-grid-step type="number" min="4" max="200" step="1" value="40">
@@ -568,6 +653,7 @@ function setupInspectableSvg(root, svg, controls) {
   const piecePolygons = [...svg.querySelectorAll("polygon[fill='none']")];
   const path = svg.querySelector("polyline");
   const endpoints = [...svg.querySelectorAll("circle")].slice(-2);
+  const endpointLabels = [...svg.querySelectorAll("text")].slice(-2);
   const pathPoints = path ? parsePointList(path.getAttribute("points")) : [];
 
   function renderGrid() {
@@ -619,6 +705,7 @@ function setupInspectableSvg(root, svg, controls) {
     const radius = Math.max(1, Number(controls.pointRadius.value) || 6);
     const strokeWidth = Math.max(0.5, Number(controls.pathWidth.value) || 3);
     const opacity = Math.max(0, Math.min(0.8, Number(controls.polygonOpacity.value) || 0));
+    controls.polygonOpacity?.style.setProperty("--progress", `${(opacity / 0.8) * 100}%`);
     polygons.forEach((polygon) => polygon.setAttribute("fill-opacity", opacity));
     piecePolygons.forEach((polygon) => {
       polygon.style.display = controls.showPieces ? "" : "none";
@@ -626,6 +713,9 @@ function setupInspectableSvg(root, svg, controls) {
     endpoints.forEach((circle) => {
       circle.style.display = controls.showEndpoints ? "" : "none";
       circle.setAttribute("r", radius);
+    });
+    endpointLabels.forEach((label) => {
+      label.style.display = controls.showEndpoints ? "" : "none";
     });
     if (path) {
       path.setAttribute("stroke-width", strokeWidth);
@@ -665,9 +755,12 @@ async function setupZoomableDetail(root) {
   let applySvgStyle = null;
 
   const originalAlt = image.alt;
-  if (inspectable && image.dataset.zoomSrc.split("?")[0].endsWith(".svg")) {
+  if (inspectable) {
     try {
       const response = await fetch(image.dataset.zoomSrc);
+      if (!response.ok) {
+        throw new Error("Failed to load SVG preview.");
+      }
       const text = await response.text();
       const documentSvg = new DOMParser().parseFromString(text, "image/svg+xml").querySelector("svg");
       if (documentSvg) {
@@ -771,9 +864,13 @@ async function setupZoomableDetail(root) {
   root.querySelector("[data-zoom-reset]")?.addEventListener("click", fitToBounds);
   root.querySelector("[data-style-panel]")?.addEventListener("click", (event) => {
     const panel = root.querySelector(".zoom-style-panel");
-    const visible = panel.classList.toggle("is-hidden");
-    event.currentTarget.classList.toggle("is-active", !visible);
-    event.currentTarget.setAttribute("aria-pressed", !visible ? "true" : "false");
+    if (!panel) {
+      return;
+    }
+    const hidden = panel.classList.toggle("is-hidden");
+    event.currentTarget.classList.toggle("is-active", !hidden);
+    event.currentTarget.setAttribute("aria-pressed", !hidden ? "true" : "false");
+    event.currentTarget.setAttribute("aria-expanded", !hidden ? "true" : "false");
   });
   [
     ["[data-toggle-grid]", "showGrid"],
@@ -918,11 +1015,32 @@ function renderBenchmarkedInstanceSection(root, campaign, instances) {
         <h3>Benchmarked Instances</h3>
         <p>Completed rows with available previews and benchmark metrics.</p>
       </div>
+      <label class="compact-select">
+        Sort
+        <select data-benchmarked-sort>
+          <option value="case" ${state.benchmarkedSort === "case" ? "selected" : ""}>Case</option>
+          <option value="time" ${state.benchmarkedSort === "time" ? "selected" : ""}>Solve time</option>
+          <option value="calls" ${state.benchmarkedSort === "calls" ? "selected" : ""}>Convex calls</option>
+        </select>
+      </label>
     </header>
     <div class="benchmarked-grid"></div>
   `;
   const grid = root.querySelector(".benchmarked-grid");
-  for (const item of instances) {
+  root.querySelector("[data-benchmarked-sort]")?.addEventListener("change", (event) => {
+    state.benchmarkedSort = event.currentTarget.value;
+    renderBenchmarkedInstanceSection(root, campaign, instances);
+  });
+  const sortedInstances = instances.slice().sort((left, right) => {
+    if (state.benchmarkedSort === "time") {
+      return (parseNumber(right.total_seconds) || 0) - (parseNumber(left.total_seconds) || 0);
+    }
+    if (state.benchmarkedSort === "calls") {
+      return (parseNumber(right.calls) || 0) - (parseNumber(left.calls) || 0);
+    }
+    return Number(left.case_index) - Number(right.case_index);
+  });
+  for (const item of sortedInstances) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "benchmarked-card";
@@ -937,6 +1055,7 @@ function renderBenchmarkedInstanceSection(root, campaign, instances) {
         <strong>Case ${instanceLabel(item.case_index)}</strong>
         <span class="status-pill ${item.status === "solved" ? "is-solved" : "is-capped"}">${item.status}</span>
         <small>final ${shortNumber(item.final_length)}</small>
+        <small>${formatSeconds(parseNumber(item.total_seconds))}</small>
         <small>${item.calls ?? "-"} calls</small>
         <small>${item.solution_available ? "path + pieces" : `${item.decomposed_pieces ?? "-"} pieces`}</small>
       </div>
@@ -1028,6 +1147,21 @@ function parseNumber(value) {
   return cleaned ? Number(cleaned[0]) : null;
 }
 
+function parseDurationSeconds(value) {
+  const number = parseNumber(value);
+  if (!Number.isFinite(number)) {
+    return null;
+  }
+  const text = String(value).toLowerCase();
+  if (text.includes("us") || text.includes("µs")) {
+    return number / 1000000;
+  }
+  if (text.includes("ms")) {
+    return number / 1000;
+  }
+  return number;
+}
+
 function parseTimingDetail(value) {
   const text = String(value || "").replace(" of measured work", "");
   const seconds = text.match(/[-+]?(?:\d+(?:\.\d*)?|\.\d+)s/);
@@ -1103,6 +1237,102 @@ function renderCounterMetrics(table) {
   return rows ? `<div class="counter-summary">${rows}</div>` : "";
 }
 
+function tableValue(table, label, labelKey) {
+  const row = table?.rows.find((item) => item[labelKey] === label);
+  return row?.Value ?? null;
+}
+
+function formatSummaryValue(label, value) {
+  if (value === null || value === undefined) {
+    return "-";
+  }
+  if (label === "Mean seconds per call") {
+    return formatMicroseconds(parseDurationSeconds(value));
+  }
+  if (label === "Total work in seconds") {
+    return formatSeconds(parseDurationSeconds(value));
+  }
+  return value;
+}
+
+function instanceTotalSeconds(row) {
+  const parts = [
+    parseNumber(row.decomposition_seconds),
+    parseNumber(row.approximation_seconds),
+    parseNumber(row.bnb_seconds),
+  ].filter(Number.isFinite);
+  if (parts.length > 0) {
+    return parts.reduce((sum, value) => sum + value, 0);
+  }
+  return parseNumber(row.total_seconds);
+}
+
+function renderHistogram(values, formatter) {
+  const finite = values.filter(Number.isFinite);
+  if (finite.length === 0) {
+    return '<p class="inline-note">No values available.</p>';
+  }
+  const min = Math.min(...finite);
+  const max = Math.max(...finite);
+  const binCount = Math.min(12, Math.max(4, Math.ceil(Math.sqrt(finite.length))));
+  const width = max === min ? 1 : (max - min) / binCount;
+  const bins = Array.from({ length: binCount }, (_, index) => ({
+    start: min + index * width,
+    end: index === binCount - 1 ? max : min + (index + 1) * width,
+    count: 0,
+  }));
+  finite.forEach((value) => {
+    const index = max === min ? 0 : Math.min(binCount - 1, Math.floor((value - min) / width));
+    bins[index].count += 1;
+  });
+  const peak = Math.max(...bins.map((bin) => bin.count), 1);
+  return `
+    <div class="histogram">
+      ${bins.map((bin) => `
+        <div class="histogram-row">
+          <span>${formatter(bin.start)}-${formatter(bin.end)}</span>
+          <div><i style="width: ${Math.max(3, Math.round((bin.count / peak) * 100))}%"></i></div>
+          <strong>${bin.count}</strong>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderBenchmarkSummaryRows(timing, metrics, counters) {
+  const rows = [
+    [
+      ["Benchmarked instances", tableValue(metrics, "Benchmarked instances", "Metric")],
+      ["Fully solved runs", tableValue(metrics, "Fully solved runs", "Metric")],
+      ["Capped by calls runs", tableValue(metrics, "Capped by calls runs", "Metric")],
+      ["Capped by time runs", tableValue(metrics, "Capped by time runs", "Metric")],
+    ],
+    [
+      ["Worker threads", tableValue(metrics, "Worker threads", "Metric")],
+      ["Convex solver name", tableValue(metrics, "Convex solver name", "Metric")],
+    ],
+    [
+      ["Wall-clock total", tableValue(timing, "Wall-clock total", "Timing")],
+      ["Total work in seconds", tableValue(timing, "Measured work", "Timing")],
+      ["Mean seconds per call", tableValue(timing, "Mean seconds per call", "Timing")],
+    ],
+    [
+      ["Total convex calls", tableValue(counters, "Total convex calls", "B&B Counter")],
+      ["Bound solves", tableValue(counters, "Bound solves", "B&B Counter")],
+      ["Leaf solves", tableValue(counters, "Leaf solves", "B&B Counter")],
+    ],
+  ];
+  return `
+    <div class="benchmark-summary-rows">
+      ${rows.map((row) => `
+        <div class="benchmark-summary-row" style="--summary-columns: ${row.length}">
+          ${row.map(([label, value]) => metricCard(label, formatSummaryValue(label, value))).join("")}
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
 function renderBenchmarkReport(report) {
   const root = $("#benchmark-report");
   if (!report || report.files.length === 0) {
@@ -1113,24 +1343,7 @@ function renderBenchmarkReport(report) {
   const timing = findTable(report, "Timing");
   const metrics = findTable(report, "Metric");
   const counters = findTable(report, "B&B Counter");
-  const cards = [];
-  for (const label of [
-    "Benchmarked instances",
-    "Worker threads",
-    "Convex solver name",
-    "Wall-clock total",
-    "Mean seconds per call",
-    "Fully solved runs",
-    "Capped by calls runs",
-    "Capped by time runs",
-  ]) {
-    const table = ["Wall-clock total", "Mean seconds per call"].includes(label) ? timing : metrics;
-    const key = ["Wall-clock total", "Mean seconds per call"].includes(label) ? "Timing" : "Metric";
-    const row = table?.rows.find((item) => item[key] === label);
-    if (row) {
-      cards.push(metricCard(label, row.Value));
-    }
-  }
+  const resultRows = report.files[0].rows || [];
   const timingRows = timing?.rows
     .filter((row) => ["Decomposition", "Approximation", "B&B", "Convex solver"].includes(row.Timing))
     .map((row) => {
@@ -1143,34 +1356,69 @@ function renderBenchmarkReport(report) {
         percent: detail.percent,
       };
     }) || [];
+  const timeHistogram = renderHistogram(
+    resultRows.map(instanceTotalSeconds),
+    (value) => formatSeconds(value),
+  );
+  const callHistogram = renderHistogram(
+    resultRows.map((row) => parseNumber(row.calls)),
+    (value) => shortNumber(value),
+  );
   root.innerHTML = `
     <header class="report-header">
       <div>
         <h3>Latest Markdown Summary</h3>
-        <p>${report.files[0].path}</p>
+        <p>${report.files[0].path}${report.input_file ? ` | Test case: ${report.input_file}` : ""}</p>
       </div>
     </header>
-    <div class="summary-grid">${cards.join("")}</div>
+    ${renderBenchmarkSummaryRows(timing, metrics, counters)}
     <div class="report-grid report-grid-single">
       <section class="report-panel">
         <h4>Timing Share</h4>
         ${renderBarChart(timingRows)}
-        ${renderCounterMetrics(counters)}
+      </section>
+      <section class="report-panel">
+        <div class="histogram-head">
+          <h4>Instance Histograms</h4>
+          <div>
+            <button class="secondary" type="button" data-toggle-histogram="time">Time</button>
+            <button class="secondary" type="button" data-toggle-histogram="calls">Calls</button>
+          </div>
+        </div>
+        <div class="histogram-panel is-hidden" data-histogram-panel="time">
+          <h5>Instance Time</h5>
+          ${timeHistogram}
+        </div>
+        <div class="histogram-panel is-hidden" data-histogram-panel="calls">
+          <h5>Convex Calls</h5>
+          ${callHistogram}
+        </div>
       </section>
     </div>
   `;
+  root.querySelectorAll("[data-toggle-histogram]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const target = button.dataset.toggleHistogram;
+      const panel = root.querySelector(`[data-histogram-panel="${target}"]`);
+      const hidden = panel.classList.toggle("is-hidden");
+      button.classList.toggle("is-active", !hidden);
+      button.setAttribute("aria-pressed", !hidden ? "true" : "false");
+    });
+  });
   root.classList.remove("is-hidden");
 }
 
 function solverLabel(name) {
   const labels = {
-    linear_search_lazy: "Linear",
+    linear_search_lazy: "Linear Intersections",
+    linear_search_disjoint: "Linear Disjoint",
     binary_search_lazy: "Binary Intersections",
     binary_search_disjoint: "Binary Disjoint",
     binary_search_eager: "Binary Eager",
     tan_jiang: "Tan Jiang",
     gurobi: "Gurobi",
-    linear: "Linear",
+    linear: "Linear Intersections",
+    linear_disjoint: "Linear Disjoint",
     binary: "Binary Intersections",
     binary_disjoint: "Binary Disjoint",
     tan: "Tan Jiang",
@@ -1206,7 +1454,7 @@ function renderComparisonReport(data) {
       label: solverLabel(row.solver),
       value: row.mean_seconds_per_call,
       numeric: mean,
-      time: mean === null ? "-" : `${mean.toExponential(3)} s`,
+      time: mean === null ? "-" : formatMicroseconds(mean),
     };
   });
   const bestMean = rows
@@ -1218,14 +1466,14 @@ function renderComparisonReport(data) {
     <header class="report-header">
       <div>
         <h3>Latest Solver Comparison</h3>
-        <p>${rows.length} solver${rows.length === 1 ? "" : "s"} in the latest comparison run</p>
+        <p>${rows.length} solver${rows.length === 1 ? "" : "s"} in the latest comparison run${data?.input_file ? ` | Test case: ${data.input_file}` : ""}</p>
       </div>
     </header>
     <div class="summary-grid">
       ${metricCard("Completed", `${completed}/${rows.length}`)}
       ${metricCard("Fastest", fastest ? solverLabel(fastest.solver) : "-")}
       ${metricCard("Best wall clock", fastest ? `${shortNumber(fastest.seconds)} s` : "-")}
-      ${metricCard("Best avg solve", bestMean ? `${bestMean.seconds.toExponential(3)} s` : "-")}
+      ${metricCard("Best avg solve", bestMean ? formatMicroseconds(bestMean.seconds) : "-")}
       ${metricCard("Total calls max", maxCalls || "-")}
     </div>
     <div class="report-grid">
@@ -1259,7 +1507,7 @@ function renderComparisonReport(data) {
                   <td>${row.status}</td>
                   <td>${shortNumber(row.wall_clock_seconds)} s</td>
                   <td>${shortNumber(row.convex_solver_seconds)} s</td>
-                  <td>${meanSecondsPerCall(row) === null ? "-" : `${meanSecondsPerCall(row).toExponential(3)} s`}</td>
+                  <td>${meanSecondsPerCall(row) === null ? "-" : formatMicroseconds(meanSecondsPerCall(row))}</td>
                   <td>${row.total_convex_calls || "-"}</td>
                   <td>${row.fully_solved_runs || "-"}</td>
                 </tr>
@@ -1400,7 +1648,9 @@ function openBenchmarkedInstanceModal(campaign, item) {
     <div class="modal-summary">
       ${metricCard("Status", item.status)}
       ${metricCard("Final length", shortNumber(item.final_length))}
+      ${metricCard("Solve time", formatSeconds(parseNumber(item.total_seconds)))}
       ${metricCard("Calls", item.calls ?? "-")}
+      ${metricCard("Avg convex solve", formatMicroseconds(parseNumber(item.seconds_per_call)))}
       ${metricCard("Decomposed pieces", item.decomposed_pieces ?? "-")}
       ${metricCard("Visited nodes", item.visited_nodes ?? "-")}
       ${metricCard("Pruned nodes", item.pruned_nodes ?? "-")}
@@ -1536,6 +1786,7 @@ async function createCampaign(event) {
     renderPreviewPanels(preview, campaign);
   } catch (error) {
     setOutput(output, error.message);
+    setStopButton("#stop-run-button", null);
   }
 }
 
@@ -1592,8 +1843,74 @@ async function deleteCampaign(event) {
   }
 }
 
+function setStopButton(selector, jobId) {
+  const button = $(selector);
+  if (!button) {
+    return;
+  }
+  button.dataset.job = jobId || "";
+  button.disabled = !jobId;
+  button.classList.toggle("is-hidden", !jobId);
+  button.textContent = "Stop";
+}
+
+async function cancelJob(selector, outputSelector) {
+  const button = $(selector);
+  const jobId = button?.dataset.job;
+  if (!jobId || button.disabled) {
+    return;
+  }
+  button.disabled = true;
+  button.textContent = "Stopping...";
+  try {
+    await requestJSON(`/api/jobs/${jobId}/cancel`, { method: "POST" });
+  } catch (error) {
+    setOutput($(outputSelector), error.message);
+    button.disabled = false;
+    button.textContent = "Stop";
+  }
+}
+
+function renderComparisonProgress(progress, options) {
+  const active = options.active;
+  const instancePercent = options.instanceTotal
+    ? Math.round((options.instanceCompleted / options.instanceTotal) * 100)
+    : active ? 0 : 100;
+  const visibleInstancePercent = active && instancePercent === 0 ? 8 : instancePercent;
+  const solverPercent = options.solverTotal
+    ? Math.round((options.solverCompleted / options.solverTotal) * 100)
+    : active ? 0 : 100;
+  const visibleSolverPercent = active && solverPercent === 0 ? 8 : solverPercent;
+  progress.innerHTML = `
+    <div class="comparison-progress-head">
+      <strong>Status: ${options.status}</strong>
+      <span>Test case: ${options.testCase || "-"}</span>
+      <span>Wall clock: <strong>${formatElapsed(options.elapsedSeconds || 0)}</strong></span>
+      <span>Current solver: ${options.currentSolver || "-"}</span>
+    </div>
+    <div class="comparison-progress-lines">
+      <div class="comparison-progress-line">
+        <span>Instances Solved</span>
+        <div class="run-progress-track ${active ? "is-running" : ""}">
+          <div class="run-progress-fill" style="width: ${visibleInstancePercent}%"></div>
+        </div>
+        <strong>${instancePercent}%</strong>
+      </div>
+      <div class="comparison-progress-line">
+        <span>Solvers Tested</span>
+        <div class="run-progress-track ${active ? "is-running" : ""}">
+          <div class="run-progress-fill" style="width: ${visibleSolverPercent}%"></div>
+        </div>
+        <strong>${options.solverTotal ? `${options.solverCompleted}/${options.solverTotal}` : "-"}</strong>
+      </div>
+    </div>
+  `;
+  progress.classList.remove("is-hidden");
+}
+
 async function pollJob(jobId) {
   const output = $("#run-output");
+  setStopButton("#stop-run-button", jobId);
   let lastRefresh = 0;
   while (true) {
     const job = await requestJSON(`/api/jobs/${jobId}`);
@@ -1617,8 +1934,9 @@ async function pollJob(jobId) {
         ...runProgress(campaign),
         elapsed_seconds: job.elapsed_seconds,
       } : null;
-    renderRunProgressCard(campaign, job.status === "running", liveProgress);
-    if (job.status !== "running") {
+    const jobActive = job.status === "running" || job.status === "stopping";
+    renderRunProgressCard(campaign, jobActive, liveProgress);
+    if (!jobActive) {
       let logText = "";
       if (job.status === "failed") {
         const selected = state.selectedCampaign;
@@ -1631,6 +1949,8 @@ async function pollJob(jobId) {
       renderRunProgressCard(finalCampaign, false);
       renderSolvedPreview(finalCampaign);
       setOutput(output, command + (job.output || "") + logText + `\nstatus: ${job.status}`);
+      setStopButton("#stop-run-button", null);
+      state.currentRunJob = null;
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -1640,42 +1960,35 @@ async function pollJob(jobId) {
 async function pollComparisonJob(jobId) {
   const output = $("#compare-output");
   const progress = $("#compare-progress");
+  setStopButton("#stop-compare-button", jobId);
   let lastReportRefresh = 0;
   while (true) {
     const job = await requestJSON(`/api/jobs/${jobId}`);
     const command = `+ ${job.command.join(" ")}\n\n`;
     setOutput(output, command + (job.output || ""));
-    const liveProgress = job.progress_total
-      ? `${job.progress_completed || 0}/${job.progress_total} instances`
-      : state.selectedComparisonCampaign || job.campaign || "";
-    const progressPercent = job.progress_total
-      ? Math.round(((job.progress_completed || 0) / job.progress_total) * 100)
-      : job.status === "running" ? 0 : 100;
-    const visiblePercent = job.status === "running" && progressPercent === 0 ? 8 : progressPercent;
-    progress.innerHTML = `
-      <div class="run-progress-header">
-        <strong>${job.status === "running" ? "Running comparison" : "Comparison finished"}</strong>
-        <span>${liveProgress}</span>
-      </div>
-      <div class="run-progress-meta">
-        <span>Wall clock</span>
-        <strong>${formatElapsed(job.elapsed_seconds || 0)}</strong>
-      </div>
-      <div class="run-progress-line">
-        <div class="run-progress-track ${job.status === "running" ? "is-running" : ""}">
-          <div class="run-progress-fill" style="width: ${visiblePercent}%"></div>
-        </div>
-        <strong class="run-progress-percent">${progressPercent}%</strong>
-      </div>
-    `;
-    progress.classList.remove("is-hidden");
-    if (Date.now() - lastReportRefresh > 1000 && job.status === "running") {
+    const jobActive = job.status === "running" || job.status === "stopping";
+    const solverTotal = job.solver_progress_total || 0;
+    const solverCompleted = job.solver_progress_completed || 0;
+    renderComparisonProgress(progress, {
+      active: jobActive,
+      status: jobActive ? (job.status === "stopping" ? "Stopping comparison" : "Running comparison") : "Comparison finished",
+      testCase: state.selectedComparisonCampaign || job.campaign || "",
+      elapsedSeconds: job.elapsed_seconds || 0,
+      currentSolver: job.current_solver ? solverLabel(job.current_solver) : "-",
+      instanceCompleted: job.progress_completed || 0,
+      instanceTotal: job.progress_total || 0,
+      solverCompleted,
+      solverTotal,
+    });
+    if (Date.now() - lastReportRefresh > 1000 && jobActive) {
       refreshComparisonReport(state.selectedComparisonCampaign || job.campaign);
       lastReportRefresh = Date.now();
     }
-    if (job.status !== "running") {
+    if (!jobActive) {
       await refreshComparisonReport(state.selectedComparisonCampaign || job.campaign);
       setOutput(output, command + (job.output || "") + `\nstatus: ${job.status}`);
+      setStopButton("#stop-compare-button", null);
+      state.currentComparisonJob = null;
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -1713,6 +2026,7 @@ async function runCampaign(event) {
       body: JSON.stringify(payload),
     });
     state.currentJob = data.job;
+    state.currentRunJob = data.job;
     await pollJob(data.job);
   } catch (error) {
     setOutput(output, error.message);
@@ -1730,29 +2044,24 @@ async function runComparison(event) {
     threads: values.threads ? Number(values.threads) : null,
     solvers,
     max_calls: values.max_calls,
+    max_instances: values.max_instances ? Number(values.max_instances) : null,
     max_seconds: values.max_seconds || null,
     no_build: boolField(form, "no_build"),
   };
   const output = $("#compare-output");
   const progress = $("#compare-progress");
   renderComparisonReport(null);
-  progress.innerHTML = `
-    <div class="run-progress-header">
-      <strong>Starting comparison</strong>
-      <span>${solvers.map(solverLabel).join(", ")}</span>
-    </div>
-    <div class="run-progress-meta">
-      <span>Wall clock</span>
-      <strong>${formatElapsed(0)}</strong>
-    </div>
-    <div class="run-progress-line">
-      <div class="run-progress-track is-running">
-        <div class="run-progress-fill" style="width: 8%"></div>
-      </div>
-      <strong class="run-progress-percent">0%</strong>
-    </div>
-  `;
-  progress.classList.remove("is-hidden");
+  renderComparisonProgress(progress, {
+    active: true,
+    status: "Starting comparison",
+    testCase: state.selectedComparisonCampaign || values.name || "",
+    elapsedSeconds: 0,
+    currentSolver: solvers.map(solverLabel).join(", "),
+    instanceCompleted: 0,
+    instanceTotal: 0,
+    solverCompleted: 0,
+    solverTotal: solvers.length,
+  });
   setOutput(output, "Starting comparison...");
   try {
     const data = await requestJSON("/api/comparisons", {
@@ -1760,9 +2069,11 @@ async function runComparison(event) {
       body: JSON.stringify(payload),
     });
     state.currentJob = data.job;
+    state.currentComparisonJob = data.job;
     await pollComparisonJob(data.job);
   } catch (error) {
     setOutput(output, error.message);
+    setStopButton("#stop-compare-button", null);
   }
 }
 
@@ -1791,6 +2102,7 @@ setupSegmentedControls();
 setupToggleButtons();
 setupBoundedSliders();
 setupMaxInstancesControl();
+setupCompareMaxInstancesControl();
 $("#refresh-button").addEventListener("click", refresh);
 $("#import-canonical-button").addEventListener("click", importCanonicalSuite);
 $("#import-german-button").addEventListener("click", importGermanInstances);
@@ -1798,6 +2110,8 @@ $("#scan-osm-files").addEventListener("click", scanOsmFiles);
 $("#create-form").addEventListener("submit", createCampaign);
 $("#run-form").addEventListener("submit", runCampaign);
 $("#compare-form").addEventListener("submit", runComparison);
+$("#stop-run-button").addEventListener("click", () => cancelJob("#stop-run-button", "#run-output"));
+$("#stop-compare-button").addEventListener("click", () => cancelJob("#stop-compare-button", "#compare-output"));
 $("#create-name").addEventListener("input", updateCampaignNameIndicator);
 updateCreateMode();
 

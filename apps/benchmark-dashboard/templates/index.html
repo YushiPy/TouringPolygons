@@ -250,7 +250,8 @@
               <span class="field-label">Solver</span>
               <input name="solver" type="hidden" value="binary">
               <span class="segmented solver-grid" data-input="solver">
-                <button class="segment" data-value="linear" type="button">Linear</button>
+                <button class="segment" data-value="linear" type="button">Linear Intersections</button>
+                <button class="segment" data-value="linear_disjoint" type="button">Linear Disjoint</button>
                 <button class="segment is-active" data-value="binary" type="button">Binary Intersections</button>
                 <button class="segment" data-value="binary_disjoint" type="button">Binary Disjoint</button>
                 <button class="segment" data-value="tan" type="button">Tan Jiang</button>
@@ -276,6 +277,7 @@
             </div>
             <div class="actions run-actions">
               <button type="submit">Run</button>
+              <button id="stop-run-button" class="secondary stop-button is-hidden" type="button" disabled>Stop</button>
             </div>
           </div>
         </form>
@@ -306,6 +308,14 @@
               </span>
               <span class="thread-scale" aria-hidden="true"><span>1</span><span id="compare-threads-max-label">1</span></span>
             </label>
+            <label>
+              Instance cap
+              <span class="range-number">
+                <input id="compare-max-instances-slider" type="range" min="1" value="1">
+                <input id="compare-max-instances-input" name="max_instances" type="number" min="1" value="1">
+              </span>
+              <span class="thread-scale" aria-hidden="true"><span>1</span><span id="compare-max-instances-label">1</span></span>
+            </label>
           </div>
           <div class="run-limit-fields">
             <label>
@@ -325,7 +335,11 @@
           <div class="compare-solver-grid">
             <label class="solver-check">
               <input name="solvers" value="linear" type="checkbox" checked>
-              <span>Linear</span>
+              <span>Linear Intersections</span>
+            </label>
+            <label class="solver-check">
+              <input name="solvers" value="linear_disjoint" type="checkbox" checked>
+              <span>Linear Disjoint</span>
             </label>
             <label class="solver-check">
               <input name="solvers" value="binary" type="checkbox" checked>
@@ -346,6 +360,7 @@
           </div>
           <div class="actions compare-actions">
             <button type="submit">Compare</button>
+            <button id="stop-compare-button" class="secondary stop-button is-hidden" type="button" disabled>Stop</button>
           </div>
         </form>
         <div id="compare-progress" class="run-progress-card is-hidden" aria-live="polite"></div>

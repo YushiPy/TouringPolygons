@@ -6,6 +6,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -32,15 +33,18 @@ TRACKED_NONCONVEX_SUITE = REPO_ROOT / "benchmarks/suites/nonconvex/test_cases.bi
 GERMAN_INSTANCES_ZIP = REPO_ROOT / "tspn-comparison/solver/instances/instances_socg_simplified.zip"
 SOLVERS = {
 	"linear": "linear_search_lazy",
+	"linear_disjoint": "linear_search_disjoint",
 	"binary": "binary_search_lazy",
 	"binary_disjoint": "binary_search_disjoint",
 	"tan": "tan_jiang",
 	"gurobi": "gurobi",
 	"linear_search_lazy": "linear_search_lazy",
+	"linear_search_disjoint": "linear_search_disjoint",
 	"binary_search_lazy": "binary_search_lazy",
 	"binary_search_disjoint": "binary_search_disjoint",
 	"binary_search_eager": "binary_search_eager",
 	"tan_jiang": "tan_jiang",
+	"gurobi": "gurobi",
 }
 OSM_SEARCH_ROOTS = [
 	REPO_ROOT,
@@ -117,6 +121,7 @@ class CompareSolversRequest(BaseModel):
 	name: str
 	solvers: list[str]
 	threads: int | None = None
+	max_instances: int | None = None
 	max_calls: str = "1000000"
 	max_seconds: str | None = None
 	timeout: int | None = None
@@ -145,11 +150,20 @@ class Job:
 	output: str = ""
 	progress_completed: int | None = None
 	progress_total: int | None = None
+	solver_progress_completed: int | None = None
+	solver_progress_total: int | None = None
+	current_solver: str | None = None
+	cancel_requested: bool = False
+	process: asyncio.subprocess.Process | None = field(default=None, repr=False)
 
 	@property
 	def status(self) -> str:
 		if self.returncode is None:
+			if self.cancel_requested:
+				return "stopping"
 			return "running"
+		if self.cancel_requested:
+			return "canceled"
 		if self.returncode == 0:
 			return "completed"
 		return "failed"
@@ -157,6 +171,7 @@ class Job:
 
 jobs: dict[str, Job] = {}
 PROGRESS_PATTERN = re.compile(r"cases\s+\|\s+\[[^\]]*\]\s+(\d+)\s*/\s*(\d+)")
+SOLVER_SECTION_PATTERN = re.compile(r"^##\s+(.+)$", re.MULTILINE)
 Point = tuple[float, float]
 CaseData = tuple[Point, Point, list[list[Point]]]
 
@@ -196,6 +211,13 @@ def read_result_rows(path: Path) -> list[dict[str, str]]:
 		return []
 	with path.open(newline="") as file:
 		return list(csv.DictReader(file, delimiter=";"))
+
+
+def parse_float(value: str | None) -> float:
+	try:
+		return float(value or "0")
+	except ValueError:
+		return 0.0
 
 
 def binary_case_count(path: Path) -> int:
@@ -539,6 +561,9 @@ def benchmarked_instances(path: Path, *, limit: int = 200) -> list[dict[str, Any
 			exhausted = result_row.get("exhausted") == "true"
 			branch_limited = result_row.get("branch_limited") == "true"
 			time_limited = result_row.get("time_limited") == "true"
+			decomposition_seconds = parse_float(result_row.get("decomposition_seconds"))
+			approximation_seconds = parse_float(result_row.get("approximation_seconds"))
+			bnb_seconds = parse_float(result_row.get("bnb_seconds"))
 			instances.append({
 				"case_index": case_index,
 				"repeat_index": result_row.get("repeat_index", "0"),
@@ -552,7 +577,11 @@ def benchmarked_instances(path: Path, *, limit: int = 200) -> list[dict[str, Any
 				"pruned_nodes": result_row.get("pruned_nodes"),
 				"visited_nodes": result_row.get("visited_nodes"),
 				"decomposition_seconds": result_row.get("decomposition_seconds"),
+				"approximation_seconds": result_row.get("approximation_seconds"),
 				"bnb_seconds": result_row.get("bnb_seconds"),
+				"solver_seconds": result_row.get("solver_seconds"),
+				"seconds_per_call": result_row.get("seconds_per_call"),
+				"total_seconds": f"{decomposition_seconds + approximation_seconds + bnb_seconds:.6f}",
 				"solution_preview": str(solution_preview.relative_to(path)) if solution_preview and solution_preview.exists() else None,
 				"solution_available": bool(solution_preview and solution_preview.exists()),
 			})
@@ -587,6 +616,15 @@ def first_input_file(path: Path) -> Path:
 	raise HTTPException(status_code=400, detail="Campaign has no generated input file.")
 
 
+def campaign_input_label(path: Path) -> str | None:
+	data = read_json(path / "campaign.json")
+	for input_record in data.get("inputs", []):
+		file_value = input_record.get("file")
+		if isinstance(file_value, str) and file_value:
+			return file_value
+	return None
+
+
 def comparison_rows(path: Path) -> list[dict[str, str]]:
 	comparison_root = path / "results" / "comparisons"
 	if not comparison_root.exists():
@@ -600,6 +638,30 @@ def comparison_rows(path: Path) -> list[dict[str, str]]:
 		return []
 	with candidates[0].open(newline="") as file:
 		return list(csv.DictReader(file))
+
+
+def comparison_data(path: Path) -> dict[str, Any]:
+	comparison_root = path / "results" / "comparisons"
+	if not comparison_root.exists():
+		return {"rows": [], "input_file": campaign_input_label(path), "path": None}
+	candidates = sorted(
+		comparison_root.glob("*/comparison.csv"),
+		key=lambda file: file.stat().st_mtime,
+		reverse=True,
+	)
+	if not candidates:
+		return {"rows": [], "input_file": campaign_input_label(path), "path": None}
+	with candidates[0].open(newline="") as file:
+		rows = list(csv.DictReader(file))
+	return {
+		"rows": rows,
+		"input_file": campaign_input_label(path),
+		"path": str(candidates[0].relative_to(path)),
+	}
+
+
+def summary_result_rows(summary_path: Path) -> list[dict[str, str]]:
+	return read_result_rows(summary_path.with_suffix(".csv"))
 
 
 def campaign_summary(path: Path) -> dict[str, Any]:
@@ -706,6 +768,16 @@ def update_job_progress(job: Job, output: str) -> None:
 	for match in PROGRESS_PATTERN.finditer(output):
 		job.progress_completed = int(match.group(1))
 		job.progress_total = int(match.group(2))
+	if job.kind == "comparison" and job.solver_progress_total is not None:
+		known_solvers = set(SOLVERS.values())
+		solvers = [
+			match.group(1).strip()
+			for match in SOLVER_SECTION_PATTERN.finditer(output)
+			if match.group(1).strip() in known_solvers
+		]
+		if solvers:
+			job.current_solver = solvers[-1]
+			job.solver_progress_completed = min(job.solver_progress_total, max(0, len(solvers) - 1))
 
 
 async def run_job(job: Job) -> None:
@@ -717,7 +789,9 @@ async def run_job(job: Job) -> None:
 		env=env,
 		stdout=asyncio.subprocess.PIPE,
 		stderr=asyncio.subprocess.STDOUT,
+		start_new_session=True,
 	)
+	job.process = process
 	assert process.stdout is not None
 	output_parts: list[str] = []
 	while True:
@@ -731,7 +805,10 @@ async def run_job(job: Job) -> None:
 	job.returncode = await process.wait()
 	if job.returncode == 0 and job.progress_total is not None:
 		job.progress_completed = job.progress_total
+	if job.returncode == 0 and job.solver_progress_total is not None:
+		job.solver_progress_completed = job.solver_progress_total
 	job.finished_at = time.time()
+	job.process = None
 
 
 @app.get("/")
@@ -974,7 +1051,7 @@ async def compare_solvers(request: CompareSolversRequest):
 		"--suite", str(suite),
 		"--output", str(path / "results" / "comparisons"),
 		"--max-calls", request.max_calls,
-		"--max-instances", "-1",
+		"--max-instances", str(request.max_instances) if request.max_instances is not None else "-1",
 		"--max-polygons", "-1",
 		"--max-branching", "-1",
 		"--keep-going",
@@ -991,7 +1068,14 @@ async def compare_solvers(request: CompareSolversRequest):
 	if request.no_build:
 		command.append("--no-build")
 
-	job = Job(id=str(uuid.uuid4()), command=command, kind="comparison", campaign=request.name)
+	job = Job(
+		id=str(uuid.uuid4()),
+		command=command,
+		kind="comparison",
+		campaign=request.name,
+		solver_progress_completed=0,
+		solver_progress_total=len(request.solvers),
+	)
 	jobs[job.id] = job
 	asyncio.create_task(run_job(job))
 	return {"job": job.id, "command": command}
@@ -1017,7 +1101,26 @@ async def get_job(job_id: str):
 		"campaign": job.campaign,
 		"progress_completed": job.progress_completed,
 		"progress_total": job.progress_total,
+		"solver_progress_completed": job.solver_progress_completed,
+		"solver_progress_total": job.solver_progress_total,
+		"current_solver": job.current_solver,
 	}
+
+
+@app.post("/api/jobs/{job_id}/cancel")
+async def cancel_job(job_id: str):
+	job = jobs.get(job_id)
+	if job is None:
+		raise HTTPException(status_code=404, detail="Unknown job.")
+	if job.returncode is not None:
+		return {"ok": True, "status": job.status}
+	job.cancel_requested = True
+	if job.process is not None:
+		try:
+			os.killpg(job.process.pid, signal.SIGTERM)
+		except ProcessLookupError:
+			pass
+	return {"ok": True, "status": job.status}
 
 
 @app.get("/api/system")
@@ -1055,10 +1158,12 @@ async def get_campaign_summaries(name: str):
 			"path": str(summary_path.relative_to(path)),
 			"mtime": summary_path.stat().st_mtime,
 			"tables": parse_markdown_tables(text),
+			"rows": summary_result_rows(summary_path),
 		})
 	return {
 		"files": files,
 		"tables": files[0]["tables"] if files else [],
+		"input_file": campaign_input_label(path),
 	}
 
 
@@ -1069,7 +1174,7 @@ async def get_benchmarked_instances(name: str, limit: int = 200):
 
 @app.get("/api/campaigns/{name}/comparisons")
 async def get_comparisons(name: str):
-	return {"rows": comparison_rows(campaign_path(name))}
+	return comparison_data(campaign_path(name))
 
 
 @app.get("/api/results")

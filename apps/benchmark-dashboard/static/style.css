@@ -53,8 +53,8 @@ button {
 }
 
 button:hover {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: #2b3a55;
+  border-color: #2b3a55;
   box-shadow: var(--shadow-sm);
   transform: translateY(-1px);
 }
@@ -62,8 +62,8 @@ button:hover {
 button.is-active:hover,
 .tab.is-active:hover,
 .segment.is-active:hover {
-  background: #0f172a;
-  border-color: #0f172a;
+  background: #2b3a55;
+  border-color: #2b3a55;
   color: #fff;
 }
 
@@ -708,14 +708,27 @@ select:focus {
   height: 100%;
 }
 
+.run-actions,
+.compare-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
 .run-actions button {
   height: 100%;
   min-height: 74px;
 }
 
+.run-actions .stop-button,
+.compare-actions .stop-button {
+  width: auto;
+  min-width: 92px;
+}
+
 .compare-solver-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
   padding: 6px;
   border: 1px solid #c7cfdd;
@@ -771,6 +784,36 @@ select:focus {
 
 .compare-actions button {
   min-height: 52px;
+}
+
+.stop-button,
+button.secondary.stop-button {
+  border-color: #b42318;
+  background: #b42318;
+  color: #fff;
+  box-shadow: none;
+}
+
+.stop-button:hover,
+button.secondary.stop-button:hover {
+  border-color: #d92d20;
+  background: #d92d20;
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.stop-button:active,
+button.secondary.stop-button:active {
+  border-color: #912018;
+  background: #912018;
+  color: #fff;
+}
+
+.stop-button:disabled,
+button.secondary.stop-button:disabled {
+  border-color: #fda29b;
+  background: #fda29b;
+  color: #fff;
 }
 
 .field-note {
@@ -1031,9 +1074,22 @@ select:focus {
   margin-top: 16px;
 }
 
+.benchmark-summary-rows {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.benchmark-summary-row {
+  display: grid;
+  grid-template-columns: repeat(var(--summary-columns), minmax(0, 1fr));
+  gap: 12px;
+}
+
 .section-subheader {
   display: flex;
   justify-content: space-between;
+  align-items: end;
   gap: 14px;
   margin-bottom: 12px;
 }
@@ -1048,11 +1104,24 @@ select:focus {
   font-size: 0.9rem;
 }
 
+.compact-select {
+  display: grid;
+  grid-template-columns: auto minmax(128px, 170px);
+  gap: 8px;
+  align-items: center;
+  font-size: 0.82rem;
+}
+
+.compact-select select {
+  min-height: 34px;
+  padding: 0.35rem 0.5rem;
+}
+
 .result-preview-section {
   margin-top: 18px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 14px;
+  padding: 18px;
   background: var(--surface-muted);
 }
 
@@ -1062,6 +1131,7 @@ select:focus {
   gap: 10px;
   max-height: 520px;
   overflow: auto;
+  padding: 4px 8px 18px 4px;
 }
 
 .benchmarked-card {
@@ -1156,6 +1226,48 @@ select:focus {
 
 .run-progress-header span {
   color: var(--muted);
+}
+
+.comparison-progress-head {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.9fr) minmax(160px, 1.1fr) minmax(140px, 0.8fr) minmax(160px, 1fr);
+  gap: 10px 14px;
+  align-items: center;
+  margin-bottom: 12px;
+  color: #344054;
+  font-size: 0.86rem;
+}
+
+.comparison-progress-head span {
+  color: var(--muted);
+}
+
+.comparison-progress-head strong {
+  color: var(--text);
+}
+
+.comparison-progress-lines {
+  display: grid;
+  gap: 10px;
+}
+
+.comparison-progress-line {
+  display: grid;
+  grid-template-columns: 136px minmax(0, 1fr) 72px;
+  gap: 12px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.comparison-progress-line span,
+.comparison-progress-line strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.comparison-progress-line strong {
+  color: var(--text);
+  text-align: right;
 }
 
 .run-progress-meta {
@@ -1362,6 +1474,86 @@ select:focus {
   text-align: right;
 }
 
+.histogram-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.histogram-head h4 {
+  margin: 0;
+}
+
+.histogram-head div {
+  display: flex;
+  gap: 8px;
+}
+
+.histogram-head button {
+  min-height: 32px;
+  padding: 0.35rem 0.65rem;
+}
+
+.histogram-head button.is-active,
+.histogram-head button.is-active:hover {
+  border-color: var(--text);
+  background: var(--text);
+  color: #fff;
+}
+
+.histogram-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.histogram-panel h5 {
+  margin: 0;
+  color: #344054;
+  font-size: 0.84rem;
+}
+
+.histogram {
+  display: grid;
+  gap: 8px;
+}
+
+.histogram-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(160px, 2fr) 48px;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.histogram-row span {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.histogram-row div {
+  height: 12px;
+  border-radius: 999px;
+  background: #e4e7ec;
+  overflow: hidden;
+}
+
+.histogram-row i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), #16a34a);
+}
+
+.histogram-row strong {
+  color: var(--text);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 .counter-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1514,6 +1706,7 @@ select:focus {
 }
 
 .zoomable-detail {
+  position: relative;
   display: grid;
   grid-template-rows: auto minmax(320px, min(62vh, 560px));
 }
@@ -1546,17 +1739,113 @@ select:focus {
   color: #fff;
 }
 
+.zoom-toggle.is-active:hover,
+button.secondary.zoom-toggle.is-active:hover {
+  border-color: #2b3a55;
+  background: #2b3a55;
+  color: #fff;
+}
+
+.zoom-toggle.has-dropdown::after {
+  content: "v";
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.78em;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+.zoom-toggle.has-dropdown.is-active::after {
+  transform: translateY(-1px) rotate(180deg);
+}
+
 .zoom-style-panel {
+  position: absolute;
+  top: 54px;
+  left: 10px;
+  right: 10px;
+  z-index: 3;
   display: grid;
   grid-template-columns: repeat(3, minmax(128px, 1fr));
   gap: 10px;
   padding: 10px;
-  border-bottom: 1px solid var(--line);
+  border: 1px solid var(--line);
+  border-radius: 8px;
   background: #fff;
+  box-shadow: var(--shadow-sm);
 }
 
 .zoom-style-panel label {
   font-size: 0.78rem;
+}
+
+.zoom-style-panel input[type="range"] {
+  --progress: 0%;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  appearance: none;
+}
+
+.zoom-style-panel input[type="range"]::-webkit-slider-runnable-track {
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid #c7cfdd;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent calc(var(--tick-step, 100%) - 1px),
+      rgba(15, 23, 42, 0.22) calc(var(--tick-step, 100%) - 1px),
+      rgba(15, 23, 42, 0.22) var(--tick-step, 100%)
+    ),
+    linear-gradient(90deg, var(--accent) 0 var(--progress), #e8edf4 var(--progress) 100%);
+}
+
+.zoom-style-panel input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -6px;
+  border: 2px solid var(--text);
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.2);
+  transition:
+    border-color var(--transition),
+    transform var(--transition);
+}
+
+.zoom-style-panel input[type="range"]:hover::-webkit-slider-thumb {
+  border-color: var(--accent);
+  transform: scale(1.04);
+}
+
+.zoom-style-panel input[type="range"]::-moz-range-track {
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid #c7cfdd;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent calc(var(--tick-step, 100%) - 1px),
+      rgba(15, 23, 42, 0.22) calc(var(--tick-step, 100%) - 1px),
+      rgba(15, 23, 42, 0.22) var(--tick-step, 100%)
+    ),
+    linear-gradient(90deg, var(--accent) 0 var(--progress), #e8edf4 var(--progress) 100%);
+}
+
+.zoom-style-panel input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--text);
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.2);
 }
 
 .zoom-style-panel .switch-row {
@@ -1613,6 +1902,10 @@ select:focus {
   border-radius: 8px;
 }
 
+.benchmarked-detail {
+  margin-top: 18px;
+}
+
 @keyframes panel-in {
   from {
     opacity: 0;
@@ -1653,7 +1946,10 @@ select:focus {
   .campaign-grid,
   .preview-layout,
   .summary-grid,
+  .benchmark-summary-row,
   .modal-summary,
+  .comparison-progress-head,
+  .comparison-progress-line,
   .report-grid {
     grid-template-columns: 1fr;
   }
