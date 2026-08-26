@@ -304,12 +304,13 @@ function selectOsmFile(path) {
 function renderOsmFiles() {
   const grid = $("#osm-file-grid");
   grid.innerHTML = "";
-  if (state.osmFiles.length === 0) {
+  const files = state.osmFiles.slice().sort((left, right) => right.size - left.size);
+  if (files.length === 0) {
     grid.innerHTML = '<div class="empty-choice">No .osm.pbf files found.</div>';
     selectOsmFile("");
     return;
   }
-  for (const file of state.osmFiles) {
+  for (const file of files) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "choice-card osm-file-card";
@@ -368,15 +369,19 @@ function renderCampaignOptions() {
   const input = $("#run-campaign");
   const selected = state.selectedCampaign || input.value;
   const fallback = state.campaigns[0]?.name || "";
-  selectRunCampaign(state.campaigns.some((campaign) => campaign.name === selected) ? selected : fallback);
+  const nextSelected = state.campaigns.some((campaign) => campaign.name === selected) ? selected : fallback;
+  selectRunCampaign(nextSelected, { resetCap: nextSelected !== state.selectedCampaign });
   selectComparisonCampaign(state.campaigns.some((campaign) => campaign.name === state.selectedComparisonCampaign) ? state.selectedComparisonCampaign : fallback);
 }
 
-function selectRunCampaign(name) {
+function selectRunCampaign(name, options = {}) {
+  const resetCap = options.resetCap ?? true;
   state.selectedCampaign = name;
   $("#run-campaign").value = name;
   renderCampaignChoiceGrid($("#run-campaign-grid"), name, selectRunCampaign);
-  resetMaxInstancesControl();
+  if (resetCap) {
+    resetMaxInstancesControl();
+  }
   renderRunSummary();
   if (name) {
     refreshBenchmarkReport(name);
@@ -436,6 +441,85 @@ function detailPreviewUrl(campaign, kind) {
 
 function solutionPreviewUrl(campaign, item) {
   return `/api/campaigns/${encodeURIComponent(campaign.name)}/solution-preview/${item.case_index}?repeat_index=${item.repeat_index}&v=${campaign.version || ""}`;
+}
+
+function zoomableImage(src, alt, extraClass = "") {
+  return `
+    <figure class="instance-detail zoomable-detail ${extraClass}">
+      <div class="zoom-toolbar" aria-label="Zoom controls">
+        <button class="secondary" type="button" data-zoom-out>-</button>
+        <button class="secondary" type="button" data-zoom-reset>Reset</button>
+        <button class="secondary" type="button" data-zoom-in>+</button>
+      </div>
+      <div class="zoom-viewport">
+        <img src="${src}" alt="${alt}" draggable="false">
+      </div>
+    </figure>
+  `;
+}
+
+function setupZoomableDetail(root) {
+  const viewport = root.querySelector(".zoom-viewport");
+  const image = root.querySelector(".zoom-viewport img");
+  if (!viewport || !image) {
+    return;
+  }
+  const state = { scale: 1, x: 0, y: 0, dragging: false, lastX: 0, lastY: 0 };
+
+  function render() {
+    image.style.transform = `translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
+  }
+
+  function clampScale(value) {
+    return Math.max(0.5, Math.min(12, value));
+  }
+
+  function zoomAt(nextScale, originX = viewport.clientWidth / 2, originY = viewport.clientHeight / 2) {
+    const previous = state.scale;
+    state.scale = clampScale(nextScale);
+    const ratio = state.scale / previous;
+    state.x = originX - (originX - state.x) * ratio;
+    state.y = originY - (originY - state.y) * ratio;
+    render();
+  }
+
+  root.querySelector("[data-zoom-in]")?.addEventListener("click", () => zoomAt(state.scale * 1.25));
+  root.querySelector("[data-zoom-out]")?.addEventListener("click", () => zoomAt(state.scale / 1.25));
+  root.querySelector("[data-zoom-reset]")?.addEventListener("click", () => {
+    state.scale = 1;
+    state.x = 0;
+    state.y = 0;
+    render();
+  });
+  viewport.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    const rect = viewport.getBoundingClientRect();
+    const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+    zoomAt(state.scale * factor, event.clientX - rect.left, event.clientY - rect.top);
+  }, { passive: false });
+  viewport.addEventListener("pointerdown", (event) => {
+    state.dragging = true;
+    state.lastX = event.clientX;
+    state.lastY = event.clientY;
+    viewport.setPointerCapture(event.pointerId);
+  });
+  viewport.addEventListener("pointermove", (event) => {
+    if (!state.dragging) {
+      return;
+    }
+    state.x += event.clientX - state.lastX;
+    state.y += event.clientY - state.lastY;
+    state.lastX = event.clientX;
+    state.lastY = event.clientY;
+    render();
+  });
+  viewport.addEventListener("pointerup", () => {
+    state.dragging = false;
+  });
+  viewport.addEventListener("pointercancel", () => {
+    state.dragging = false;
+  });
+  render();
 }
 
 function renderPreviewPanels(root, campaign) {
@@ -960,11 +1044,11 @@ function openInstanceModal(campaign, index) {
   const modal = $("#campaign-modal");
   const body = $("#modal-body");
   $("#modal-title").textContent = `${campaign.name} / instance ${instanceLabel(index)}`;
-  body.innerHTML = `
-    <figure class="instance-detail">
-      <img src="${instancePreviewUrl(campaign, index)}" alt="Instance ${instanceLabel(index)} detail">
-    </figure>
-  `;
+  body.innerHTML = zoomableImage(
+    instancePreviewUrl(campaign, index),
+    `Instance ${instanceLabel(index)} detail`,
+  );
+  setupZoomableDetail(body);
   modal.classList.remove("is-hidden");
 }
 
@@ -972,11 +1056,11 @@ function openBenchmarkedInstanceModal(campaign, item) {
   const modal = $("#campaign-modal");
   const body = $("#modal-body");
   $("#modal-title").textContent = `${campaign.name} / case ${instanceLabel(item.case_index)}`;
-  const preview = item.solution_available
-    ? `<img src="${solutionPreviewUrl(campaign, item)}" alt="Solved instance ${instanceLabel(item.case_index)} with path and decomposition">`
+  const previewUrl = item.solution_available
+    ? solutionPreviewUrl(campaign, item)
     : item.preview
-      ? `<img src="${instancePreviewUrl(campaign, item.case_index)}" alt="Benchmarked instance ${instanceLabel(item.case_index)}">`
-    : '<div class="missing-preview">No preview available.</div>';
+      ? instancePreviewUrl(campaign, item.case_index)
+      : null;
   body.innerHTML = `
     <div class="modal-summary">
       ${metricCard("Status", item.status)}
@@ -986,11 +1070,12 @@ function openBenchmarkedInstanceModal(campaign, item) {
       ${metricCard("Visited nodes", item.visited_nodes ?? "-")}
       ${metricCard("Pruned nodes", item.pruned_nodes ?? "-")}
     </div>
-    <figure class="instance-detail benchmarked-detail">
-      ${preview}
-    </figure>
+    ${previewUrl
+      ? zoomableImage(previewUrl, `Solved instance ${instanceLabel(item.case_index)} detail`, "benchmarked-detail")
+      : '<div class="missing-preview detail-missing">No preview available.</div>'}
     ${item.solution_available ? "" : '<p class="inline-note">This is an older run. Rerun the benchmark to generate the path/decomposition overlay SVG for this case.</p>'}
   `;
+  setupZoomableDetail(body);
   modal.classList.remove("is-hidden");
 }
 
@@ -998,11 +1083,8 @@ function openPreviewModal(campaign, kind, title) {
   const modal = $("#campaign-modal");
   const body = $("#modal-body");
   $("#modal-title").textContent = `${campaign.name} / ${title}`;
-  body.innerHTML = `
-    <figure class="instance-detail">
-      <img src="${detailPreviewUrl(campaign, kind)}" alt="${title} detail">
-    </figure>
-  `;
+  body.innerHTML = zoomableImage(detailPreviewUrl(campaign, kind), `${title} detail`);
+  setupZoomableDetail(body);
   modal.classList.remove("is-hidden");
 }
 

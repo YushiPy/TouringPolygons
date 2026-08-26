@@ -465,7 +465,7 @@ def find_osm_files() -> list[dict[str, Any]]:
 			"size": path.stat().st_size,
 			"mtime": path.stat().st_mtime,
 		}
-		for path in sorted(paths, key=lambda item: item.name.lower())
+		for path in sorted(paths, key=lambda item: (-item.stat().st_size, item.name.lower()))
 	]
 
 
