@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <exception>
+#include <filesystem>
 #include <format>
 #include <fstream>
 #include <iostream>
@@ -249,6 +250,7 @@ struct BranchAndBoundResult {
 	double failed_prune_ratio_sum = 0.0;
 	double failed_prune_gap_sum = 0.0;
 	double failed_prune_depth_sum = 0.0;
+	vector<Vector2> best_path;
 	vector<size_t> visited_depth_histogram;
 	vector<size_t> bound_depth_histogram;
 	vector<size_t> leaf_depth_histogram;
@@ -314,6 +316,7 @@ struct InstanceRecord {
 	double failed_prune_depth_mean = 0.0;
 	double instance_seconds = 0.0;
 	double checksum = 0.0;
+	std::string solution_preview_path;
 };
 
 struct CaseBenchmarkResult {
@@ -2679,6 +2682,7 @@ BranchAndBoundResult run_branch_and_bound(
 		std::cerr << '\n';
 	}
 
+	result.best_path = std::move(best_path);
 	return result;
 }
 
@@ -2730,6 +2734,128 @@ std::string format_count_double(double value) {
 	}
 
 	return format_count(static_cast<size_t>(std::llround(value)));
+}
+
+struct SvgBounds {
+	double min_x = std::numeric_limits<double>::infinity();
+	double min_y = std::numeric_limits<double>::infinity();
+	double max_x = -std::numeric_limits<double>::infinity();
+	double max_y = -std::numeric_limits<double>::infinity();
+};
+
+void include_point(SvgBounds &bounds, const Vector2 &point) {
+	bounds.min_x = std::min(bounds.min_x, point.x);
+	bounds.min_y = std::min(bounds.min_y, point.y);
+	bounds.max_x = std::max(bounds.max_x, point.x);
+	bounds.max_y = std::max(bounds.max_y, point.y);
+}
+
+std::string svg_points(
+	const vector<Vector2> &points,
+	const SvgBounds &bounds,
+	double scale,
+	double padding,
+	double height
+) {
+	std::ostringstream output;
+	for (size_t i = 0; i < points.size(); i++) {
+		const double x = padding + (points[i].x - bounds.min_x) * scale;
+		const double y = height - padding - (points[i].y - bounds.min_y) * scale;
+		if (i != 0) {
+			output << ' ';
+		}
+		output << std::format("{:.2f},{:.2f}", x, y);
+	}
+	return output.str();
+}
+
+void write_solution_preview(
+	const std::filesystem::path &path,
+	const Vector2 &start,
+	const Vector2 &target,
+	const vector<vector<Vector2>> &polygons,
+	const vector<vector<vector<Vector2>>> &convex_pieces,
+	const vector<Vector2> &best_path
+) {
+	SvgBounds bounds;
+	include_point(bounds, start);
+	include_point(bounds, target);
+	for (const auto &polygon : polygons) {
+		for (const auto &point : polygon) {
+			include_point(bounds, point);
+		}
+	}
+	for (const auto &point : best_path) {
+		include_point(bounds, point);
+	}
+
+	const double width = 720.0;
+	const double height = 520.0;
+	const double padding = 28.0;
+	const double span_x = std::max(1e-9, bounds.max_x - bounds.min_x);
+	const double span_y = std::max(1e-9, bounds.max_y - bounds.min_y);
+	const double scale = std::min((width - 2.0 * padding) / span_x, (height - 2.0 * padding) / span_y);
+	const std::array<std::string_view, 7> colors = {"#2563eb", "#0891b2", "#16a34a", "#ca8a04", "#dc2626", "#9333ea", "#0f766e"};
+
+	std::filesystem::create_directories(path.parent_path());
+	std::ofstream output(path);
+	if (!output) {
+		return;
+	}
+
+	output << std::format(
+		"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{:.0f}\" height=\"{:.0f}\" viewBox=\"0 0 {:.0f} {:.0f}\">\n",
+		width,
+		height,
+		width,
+		height
+	);
+	output << "<rect width=\"100%\" height=\"100%\" fill=\"#ffffff\"/>\n";
+
+	for (size_t polygon_index = 0; polygon_index < polygons.size(); polygon_index++) {
+		const auto color = colors[polygon_index % colors.size()];
+		output << std::format(
+			"<polygon points=\"{}\" fill=\"{}\" fill-opacity=\"0.24\" stroke=\"#111827\" stroke-width=\"1.2\"/>\n",
+			svg_points(polygons[polygon_index], bounds, scale, padding, height),
+			color
+		);
+		for (const auto &piece : convex_pieces[polygon_index]) {
+			output << std::format(
+				"<polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-opacity=\"0.72\" stroke-width=\"0.9\" stroke-dasharray=\"4 3\"/>\n",
+				svg_points(piece, bounds, scale, padding, height),
+				color
+			);
+		}
+	}
+
+	vector<Vector2> full_path;
+	full_path.reserve(best_path.size() + 2);
+	full_path.push_back(start);
+	full_path.insert(full_path.end(), best_path.begin(), best_path.end());
+	full_path.push_back(target);
+	output << std::format(
+		"<polyline points=\"{}\" fill=\"none\" stroke=\"#7c3aed\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\n",
+		svg_points(full_path, bounds, scale, padding, height)
+	);
+
+	const auto marker = [&](const Vector2 &point, std::string_view label, std::string_view fill, std::string_view text_fill) {
+		const double x = padding + (point.x - bounds.min_x) * scale;
+		const double y = height - padding - (point.y - bounds.min_y) * scale;
+		output << std::format("<circle cx=\"{:.2f}\" cy=\"{:.2f}\" r=\"6\" fill=\"{}\" stroke=\"#111827\"/>\n", x, y, fill);
+		output << std::format("<text x=\"{:.2f}\" y=\"{:.2f}\" font-size=\"14\" font-weight=\"700\" fill=\"{}\">{}</text>\n", x + 9.0, y + 5.0, text_fill, label);
+	};
+	marker(start, "s", "#22c55e", "#166534");
+	marker(target, "t", "#ef4444", "#991b1b");
+	output << "</svg>\n";
+}
+
+std::filesystem::path solution_preview_path(const BenchmarkOptions &options, size_t case_index, size_t repeat_index) {
+	if (!options.output_path) {
+		return {};
+	}
+	const std::filesystem::path csv_path(*options.output_path);
+	const std::filesystem::path directory = csv_path.parent_path() / (csv_path.stem().string() + "-solutions");
+	return directory / std::format("case-{:04}-repeat-{:03}.svg", case_index, repeat_index);
 }
 
 double initial_gap_percent(const InstanceRecord &record) {
@@ -2923,11 +3049,6 @@ CaseBenchmarkResult run_case_benchmark(
 	const auto decomposition_end_time = std::chrono::steady_clock::now();
 	const double decomposition_seconds = std::chrono::duration<double>(decomposition_end_time - decomposition_start_time).count();
 
-	if (any_polygons_intersect_or_touch(convex_hulls)) {
-		result.skipped_intersecting_hulls = 1;
-		return result;
-	}
-
 	result.decomposed = true;
 
 	const auto approximation_start_time = std::chrono::steady_clock::now();
@@ -3085,6 +3206,11 @@ CaseBenchmarkResult run_case_benchmark(
 		record.failed_prune_depth_mean = bnb.failed_prune_count == 0 ? 0.0 : bnb.failed_prune_depth_sum / static_cast<double>(bnb.failed_prune_count);
 		record.instance_seconds = record.decomposition_seconds + record.approximation_seconds + bnb_seconds;
 		record.checksum = bnb.checksum;
+		const auto preview_path = solution_preview_path(options, case_index, repeat_index);
+		if (!preview_path.empty() && !bnb.best_path.empty()) {
+			write_solution_preview(preview_path, start, target, polygons, convex_pieces, bnb.best_path);
+			record.solution_preview_path = preview_path.string();
+		}
 
 		add_histogram(result.visited_depth_histogram, bnb.visited_depth_histogram);
 		add_histogram(result.bound_depth_histogram, bnb.bound_depth_histogram);
