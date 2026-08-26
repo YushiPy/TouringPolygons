@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import csv
+import shutil
 import sys
+import textwrap
 from collections import Counter
 from pathlib import Path
 from typing import Sequence
@@ -36,7 +38,13 @@ def print_help() -> None:
 	print(
 		"""usage: python3 benchmarks/tpp.py COMMAND [arguments]
 
+Common workflow:
+  create NAME --vertices 8 --polygons 20 --instances 100
+  run NAME --threads 8 --max-calls 1000000 --max-seconds 30
+  status NAME
+
 Commands:
+  create NAME ARGS...                Create a synthetic benchmark campaign.
   generate ARGS...                   Generate one binary using gen_instances.py options.
   generate-matrix NAME PBF ARGS...   Create a reproducible benchmark campaign.
   run NAME ARGS...                   Benchmark all campaign inputs, resumably.
@@ -54,6 +62,38 @@ Pass a path instead of NAME to use another location. Add --help after a command
 to see that command's detailed options.
 """
 	)
+
+
+def command_create(argv: Sequence[str]) -> int:
+	if not argv or argv[0] in {"-h", "--help"}:
+		print(
+			textwrap.dedent(
+				"""\
+				usage: python3 benchmarks/tpp.py create NAME [options]
+
+				Creates benchmarks/campaigns/NAME with a synthetic .bin input, preview image,
+				and campaign metadata. Add --help after NAME to see generation options.
+
+				Examples:
+				  python3 benchmarks/tpp.py create smoke --vertices 8 --polygons 20 --instances 100
+				  python3 benchmarks/tpp.py create varied --vertices 4,5,6,7 --polygons 4 --shape convex
+				"""
+			)
+		)
+		return 0
+
+	name, rest = argv[0], list(argv[1:])
+	campaign = resolve_campaign(name)
+	if rest and rest[0] in {"-h", "--help"}:
+		import create_synthetic_campaign
+		try:
+			create_synthetic_campaign.main(["--campaign", str(campaign), "--help"])
+		except SystemExit as error:
+			return int(error.code or 0)
+		return 0
+
+	import create_synthetic_campaign
+	return create_synthetic_campaign.main(["--campaign", str(campaign), *rest])
 
 
 def command_generate(argv: Sequence[str]) -> int:
@@ -77,11 +117,16 @@ def command_generate_matrix(argv: Sequence[str]) -> int:
 	input_pbf = argv[1]
 	forwarded = list(argv[2:])
 	campaign_file = campaign / "campaign.json"
+	overwrite = "--overwrite" in forwarded
+	if overwrite:
+		forwarded = [argument for argument in forwarded if argument != "--overwrite"]
 
-	if campaign_file.exists() and "--dry-run" not in forwarded:
+	if campaign_file.exists() and overwrite and "--dry-run" not in forwarded:
+		shutil.rmtree(campaign)
+	elif campaign_file.exists() and "--dry-run" not in forwarded:
 		raise SystemExit(
 			f"Campaign already exists: {campaign}\n"
-			"Choose another campaign name so existing inputs and results remain reproducible."
+			"Choose another campaign name or pass --overwrite."
 		)
 
 	_, matrix = load_generation_modules()
@@ -133,8 +178,30 @@ def command_status(argv: Sequence[str]) -> int:
 	existing = sum((campaign / record["file"]).exists() for record in inputs)
 	print(f"Campaign: {data.get('name', campaign.name)}")
 	print(f"Location: {campaign}")
+	if data.get("type"):
+		print(f"Type:     {data['type']}")
+	generation = data.get("generation", {})
+	if generation:
+		for label, key in (
+			("Instances", "instances"),
+			("Polygons", "polygons"),
+			("Shape", "shape"),
+			("Seed", "seed"),
+		):
+			if key in generation:
+				print(f"{label + ':':<10} {generation[key]}")
+		vertices = generation.get("vertices")
+		if isinstance(vertices, list) and vertices:
+			if len(set(vertices)) == 1:
+				print(f"Vertices: {vertices[0]} per polygon")
+			else:
+				print(f"Vertices: {','.join(str(value) for value in vertices)}")
 	print(f"Inputs:   {existing}/{len(inputs)} generated")
-	print(f"Source:   {data.get('source', {}).get('pbf', '-')}")
+	if data.get("preview"):
+		print(f"Preview:  {campaign / data['preview']}")
+	source = data.get("source", {}).get("pbf")
+	if source:
+		print(f"Source:   {source}")
 
 	index_path = campaign / "results/run-index.csv"
 	if not index_path.exists():
@@ -147,7 +214,10 @@ def command_status(argv: Sequence[str]) -> int:
 	actions = Counter(row.get("action", "") for row in rows)
 	print(f"Benchmark: {len(rows)} input files indexed")
 	for status, count in sorted(counts.items()):
-		print(f"  {status}: {count}")
+		width = 24
+		filled = round(width * count / max(1, len(rows)))
+		bar = "#" * filled + "-" * (width - filled)
+		print(f"  {status:<12} [{bar}] {count}")
 	if actions.get("skipped"):
 		print(f"  resumed/skipped this run: {actions['skipped']}")
 	return 0
@@ -190,6 +260,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 		return 0
 
 	command, rest = arguments[0], arguments[1:]
+	if command == "create":
+		return command_create(rest)
 	if command == "generate":
 		return command_generate(rest)
 	if command == "generate-matrix":

@@ -17,7 +17,63 @@ The current benchmark focuses on the non-convex branch-and-bound solver. Each B&
 
 ## Recommended Workflow
 
-`tpp.py` is the main entry point for instance generation and benchmarking. A generated parameter sweep is stored as a campaign so its inputs, generation settings, benchmark results, and progress stay together.
+`tpp.py` is the main entry point for instance generation and benchmarking. A
+generated test set is stored as a campaign so inputs, generation settings,
+benchmark results, previews, and progress stay together.
+
+For a quick synthetic benchmark, create a campaign by specifying the exact
+instance shape:
+
+```bash
+python3 benchmarks/tpp.py create smoke \
+  --vertices 8 \
+  --polygons 20 \
+  --instances 100 \
+  --shape star
+```
+
+This creates:
+
+```text
+benchmarks/campaigns/smoke/
+├── campaign.json
+├── inputs/synthetic.bin
+└── preview.svg
+```
+
+Run or resume the campaign, then inspect progress:
+
+```bash
+python3 benchmarks/tpp.py run smoke \
+  --threads 8 \
+  --max-calls 1000000 \
+  --max-seconds 30 \
+  --timeout 3600
+
+python3 benchmarks/tpp.py status smoke
+```
+
+Use one `--vertices` value to give every polygon the same vertex count. Use a
+comma-separated list with one value per polygon when the instance should mix
+sizes:
+
+```bash
+python3 benchmarks/tpp.py create mixed \
+  --vertices 4,5,6,7,8 \
+  --polygons 5 \
+  --instances 50 \
+  --shape convex
+```
+
+Each input receives a CSV, Markdown summary, and log under `results/`.
+`results/run-index.csv` tracks pending, completed, failed, timed-out, and
+interrupted files. Completed files are skipped when a run resumes. The benchmark
+parameters and status totals are also appended to `campaign.json`.
+
+Run `python3 benchmarks/tpp.py --help` to see all workflow commands. Lower-level
+scripts remain available under `benchmarks/scripts/` for direct debugging.
+
+## OSM Campaigns
 
 Activate the project virtual environment before generating OSM instances so `osmium` and `shapely` are available:
 
@@ -50,14 +106,12 @@ benchmarks/campaigns/sao-paulo/
 └── results/              # created when the benchmark starts
 ```
 
-Run or resume all campaign inputs, then inspect progress:
+Run or resume all OSM campaign inputs with the same benchmark command:
 
 ```bash
 python3 benchmarks/tpp.py run sao-paulo --max-calls 1000000 --timeout 3600
 python3 benchmarks/tpp.py status sao-paulo
 ```
-
-Each input receives a CSV, Markdown summary, and log under `results/`. `results/run-index.csv` tracks pending, completed, failed, timed-out, and interrupted files. Completed files are skipped when a run resumes. The benchmark parameters and status totals are also appended to `campaign.json`.
 
 Generate one standalone binary with the same entry point:
 
@@ -70,8 +124,6 @@ python3 benchmarks/tpp.py generate \
   --no-preview \
   --no-manifest
 ```
-
-Run `python3 benchmarks/tpp.py --help` to see all workflow commands. Lower-level scripts remain available under `benchmarks/scripts/` for direct debugging.
 
 ## Canonical Algorithm Suite
 

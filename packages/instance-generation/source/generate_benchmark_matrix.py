@@ -42,11 +42,16 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 	parser.add_argument("--seed", type=int, default=42, help="Base random seed.")
 	parser.add_argument("--sample-size", type=int, default=0, help="Randomly sample this many jobs from the full matrix. Defaults to all jobs.")
 	parser.add_argument("--polygon-counts", default=",".join(str(value) for value in DEFAULT_POLYGON_COUNTS), help="Comma-separated polygons-per-instance values.")
+	parser.add_argument("--polygon-count", type=int, help="Single polygons-per-instance value. Overrides --polygon-counts.")
 	parser.add_argument("--layouts", default="geographic,grid", help="Comma-separated layouts: geographic,grid.")
+	parser.add_argument("--layout", choices=("geographic", "grid"), help="Single layout. Overrides --layouts.")
 	parser.add_argument("--grid-spacings", default=",".join(str(value) for value in DEFAULT_GRID_SPACINGS), help="Comma-separated grid cell sizes.")
+	parser.add_argument("--grid-cell-size", type=float, help="Single grid cell size. Overrides --grid-spacings.")
 	parser.add_argument("--convex-fractions", default=",".join(str(value) for value in DEFAULT_CONVEX_FRACTIONS), help="Comma-separated synthetic convex replacement fractions.")
+	parser.add_argument("--convex-replacement-fraction", type=float, help="Single convex replacement fraction. Overrides --convex-fractions.")
 	parser.add_argument("--grid-polygon-size", type=float, default=1.0)
-	parser.add_argument("--grid-placement", choices=("row-major", "random"), default="random")
+	parser.add_argument("--grid-columns", type=int, default=0)
+	parser.add_argument("--grid-placement", choices=("row-major", "random"), default="row-major")
 	parser.add_argument("--order", choices=("spatial", "left-to-right", "random", "angle"), default="spatial")
 	parser.add_argument("--sampling", choices=("local", "uniform"), default="local")
 	parser.add_argument("--local-pool-size", type=int, default=80)
@@ -102,7 +107,7 @@ def matrix_job_args(
 		layout=layout,
 		grid_polygon_size=args.grid_polygon_size,
 		grid_cell_size=spacing if spacing is not None else 0.0,
-		grid_columns=0,
+		grid_columns=args.grid_columns,
 		grid_placement=args.grid_placement,
 		convex_replacement_fraction=convex_fraction,
 		convex_replacement_vertices=args.convex_replacement_vertices,
@@ -138,10 +143,14 @@ def describe_job(job_args: argparse.Namespace) -> str:
 
 
 def build_jobs(args: argparse.Namespace) -> tuple[list[argparse.Namespace], int]:
-	polygon_counts = parse_csv_numbers(args.polygon_counts, int)
-	layouts = [layout.strip() for layout in args.layouts.split(",") if layout.strip()]
-	grid_spacings = parse_csv_numbers(args.grid_spacings, float)
-	convex_fractions = parse_csv_numbers(args.convex_fractions, float)
+	polygon_counts = [args.polygon_count] if args.polygon_count is not None else parse_csv_numbers(args.polygon_counts, int)
+	layouts = [args.layout] if args.layout else [layout.strip() for layout in args.layouts.split(",") if layout.strip()]
+	grid_spacings = [args.grid_cell_size] if args.grid_cell_size is not None else parse_csv_numbers(args.grid_spacings, float)
+	convex_fractions = (
+		[args.convex_replacement_fraction]
+		if args.convex_replacement_fraction is not None
+		else parse_csv_numbers(args.convex_fractions, float)
+	)
 
 	for layout in layouts:
 		if layout not in {"geographic", "grid"}:
@@ -233,6 +242,7 @@ def job_record(job: argparse.Namespace, campaign_dir: Path) -> dict:
 		"local_pool_size": job.local_pool_size,
 		"grid_cell_size": job.grid_cell_size if job.layout == "grid" else None,
 		"grid_polygon_size": job.grid_polygon_size if job.layout == "grid" else None,
+		"grid_columns": job.grid_columns if job.layout == "grid" else None,
 		"grid_placement": job.grid_placement if job.layout == "grid" else None,
 		"convex_replacement_fraction": job.convex_replacement_fraction,
 		"convex_replacement_vertices": job.convex_replacement_vertices,
@@ -274,10 +284,14 @@ def write_campaign(
 			"sample_size": args.sample_size,
 			"total_matrix_combinations": total_jobs,
 			"selected_combinations": len(jobs),
-			"polygon_counts": parse_csv_numbers(args.polygon_counts, int),
-			"layouts": [value.strip() for value in args.layouts.split(",") if value.strip()],
-			"grid_spacings": parse_csv_numbers(args.grid_spacings, float),
-			"convex_fractions": parse_csv_numbers(args.convex_fractions, float),
+			"polygon_counts": [args.polygon_count] if args.polygon_count is not None else parse_csv_numbers(args.polygon_counts, int),
+			"layouts": [args.layout] if args.layout else [value.strip() for value in args.layouts.split(",") if value.strip()],
+			"grid_spacings": [args.grid_cell_size] if args.grid_cell_size is not None else parse_csv_numbers(args.grid_spacings, float),
+			"convex_fractions": (
+				[args.convex_replacement_fraction]
+				if args.convex_replacement_fraction is not None
+				else parse_csv_numbers(args.convex_fractions, float)
+			),
 			"sampling": args.sampling,
 			"local_pool_size": args.local_pool_size,
 			"simplify_tolerance": args.simplify_tolerance,
@@ -286,6 +300,7 @@ def write_campaign(
 			"order": args.order,
 			"endpoint_mode": args.endpoint_mode,
 			"grid_polygon_size": args.grid_polygon_size,
+			"grid_columns": args.grid_columns,
 			"grid_placement": args.grid_placement,
 			"convex_replacement_vertices": args.convex_replacement_vertices,
 			"convex_replacement_scale": args.convex_replacement_scale,

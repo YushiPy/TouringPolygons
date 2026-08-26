@@ -749,7 +749,7 @@ def draw_case(ax, case: TestCase, case_index: int, *, show_route: bool, title: b
 	ax.scatter([case.target[0]], [case.target[1]], c="crimson", marker="x", s=32, linewidths=1.2, zorder=3)
 
 	if title:
-		ax.set_title(f"case {case_index} ({case.span[0]:.2g} x {case.span[1]:.2g})", fontsize=9)
+		ax.set_title(f"case {case_index + 1} ({case.span[0]:.2g} x {case.span[1]:.2g})", fontsize=9)
 
 	ax.set_aspect("equal", adjustable="box")
 	ax.axis("off")

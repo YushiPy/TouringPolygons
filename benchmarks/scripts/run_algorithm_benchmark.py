@@ -38,7 +38,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 	if args.threads is not None and args.threads < 1:
 		raise SystemExit("--threads must be at least 1")
 
-	bench.ensure_target("main-bnb_workload_benchmark", no_build=args.no_build)
+	bench.ensure_target("main-bnb_workload_benchmark", no_build=args.no_build, enable_gurobi=args.solver == "gurobi")
 	timestamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
 	run_dir = args.output.resolve() / timestamp
 	run_dir.mkdir(parents=True, exist_ok=True)

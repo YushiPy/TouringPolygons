@@ -65,6 +65,15 @@ The script checks required local tools, installs missing system dependencies
 when possible, regenerates generated suites, builds the C++ targets, verifies
 convex correctness, and runs a small non-convex benchmark.
 
+The benchmark CLI is centralized at `benchmarks/tpp.py`. A typical synthetic
+benchmark workflow is:
+
+```bash
+python3 benchmarks/tpp.py create smoke --vertices 8 --polygons 20 --instances 100
+python3 benchmarks/tpp.py run smoke --threads 8 --max-calls 1000000 --max-seconds 30
+python3 benchmarks/tpp.py status smoke
+```
+
 See [`DEVELOPMENT.md`](DEVELOPMENT.md) for maintenance conventions, generated
 file boundaries, and the intended command entry points.
 

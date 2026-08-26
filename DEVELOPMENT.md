@@ -24,7 +24,11 @@ Generated benchmark campaigns, benchmark results, derived suites, CMake build tr
 
 ## Python benchmark scripts
 
-Use `benchmarks/tpp.py` for user-facing commands. Lower-level scripts under `benchmarks/scripts/` should remain importable and testable as modules, with command-line parsing isolated in `make_parser()` and `main()`.
+Use `benchmarks/tpp.py` for user-facing commands. The common workflow should
+stay visible as `create`, `run`, and `status`; more specialized scripts can
+remain as lower-level commands. Lower-level scripts under `benchmarks/scripts/`
+should remain importable and testable as modules, with command-line parsing
+isolated in `make_parser()` and `main()`.
 
 Shared binary case parsing and geometry filtering belongs in `benchmarks/scripts/benchmark_cases.py`.
 

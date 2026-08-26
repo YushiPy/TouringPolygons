@@ -191,7 +191,7 @@ def run_batch(args: argparse.Namespace) -> int:
 			print(input_file.relative_to(input_root), flush=True)
 		return 0
 
-	bench.ensure_target("main-bnb_workload_benchmark", no_build=args.no_build)
+	bench.ensure_target("main-bnb_workload_benchmark", no_build=args.no_build, enable_gurobi=args.solver == "gurobi")
 	env = os.environ.copy()
 	if args.threads is not None:
 		env["TPP_BENCH_THREADS"] = str(args.threads)

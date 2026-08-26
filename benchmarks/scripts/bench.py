@@ -39,7 +39,18 @@ def configured_target() -> str | None:
 	return None
 
 
-def ensure_target(target: str, *, no_build: bool = False) -> None:
+def configured_bool(name: str) -> bool | None:
+	if not CMAKE_CACHE.exists():
+		return None
+
+	for line in CMAKE_CACHE.read_text().splitlines():
+		if line.startswith(f"{name}:BOOL="):
+			return line.split("=", 1)[1].upper() in {"1", "ON", "TRUE", "YES"}
+
+	return None
+
+
+def ensure_target(target: str, *, no_build: bool = False, enable_gurobi: bool = False) -> None:
 	if no_build:
 		if not TARGET_BINARY.exists():
 			raise SystemExit(f"Binary does not exist and --no-build was passed: {TARGET_BINARY}")
@@ -47,11 +58,19 @@ def ensure_target(target: str, *, no_build: bool = False) -> None:
 
 		if current_target is not None and current_target != target:
 			raise SystemExit(f"Configured target is {current_target}, but {target} is required. Drop --no-build once to rebuild.")
+		if enable_gurobi and configured_bool("TPP_ENABLE_GUROBI") is not True:
+			raise SystemExit("Configured binary does not have Gurobi enabled. Drop --no-build once to rebuild with Gurobi.")
 
 		return
 
-	if configured_target() != target or not TARGET_BINARY.exists():
-		run_command(["cmake", "--preset", BUILD_PRESET, f"-DTARGET={target}"])
+	if configured_target() != target or configured_bool("TPP_ENABLE_GUROBI") != enable_gurobi or not TARGET_BINARY.exists():
+		run_command([
+			"cmake",
+			"--preset",
+			BUILD_PRESET,
+			f"-DTARGET={target}",
+			f"-DTPP_ENABLE_GUROBI={'ON' if enable_gurobi else 'OFF'}",
+		])
 	else:
 		print(f"+ cmake target already configured: {target}", flush=True)
 
@@ -200,7 +219,7 @@ def command_run(args: argparse.Namespace) -> None:
 	if not groups:
 		raise SystemExit("No groups selected.")
 
-	ensure_target("main-bnb_workload_benchmark", no_build=args.no_build)
+	ensure_target("main-bnb_workload_benchmark", no_build=args.no_build, enable_gurobi=args.solver == "gurobi")
 	timestamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
 	run_dir = args.output / timestamp
 	run_dir.mkdir(parents=True, exist_ok=True)
