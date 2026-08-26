@@ -3257,7 +3257,7 @@ void print_usage(const char *program) {
 	std::println(stderr, "All numeric arguments must be non-negative integers or -1 for unlimited.");
 	std::println(stderr, "Set TPP_BENCH_THREADS to override the default hardware thread count.");
 	std::println(stderr, "Set TPP_BENCH_MAX_SECONDS to override the default per-instance time cap.");
-	std::println(stderr, "Set TPP_BENCH_SOLVER to one of linear_search_lazy, binary_search_lazy, binary_search_eager, tan_jiang, gurobi.");
+	std::println(stderr, "Set TPP_BENCH_SOLVER to one of linear_search_lazy, binary_search_lazy, binary_search_disjoint, binary_search_eager, tan_jiang, gurobi.");
 	std::println(stderr, "Set TPP_GROUP_PIECES=1 to branch first on safe almost-convex piece groups.");
 	std::println(stderr, "Set TPP_GROUP_MAX_EXCESS_RATIO and TPP_GROUP_MAX_SIZE to control piece grouping.");
 	std::println(stderr, "Set TPP_GROUP_REQUIRE_TOUCH=1 and TPP_GROUP_ORDER_PENALTY to make grouping more local.");
@@ -3338,6 +3338,13 @@ bool set_solver(BenchmarkOptions &options, const std::string &name) {
 		options.solver_name = "binary_search_lazy";
 		options.solver = tpp::tpp_convex_solve_binary_search_lazy;
 		options.length_solver = tpp::tpp_convex_solve_length_binary_search_lazy;
+		return true;
+	}
+
+	if (name == "binary_search_disjoint" || name == "binary_disjoint") {
+		options.solver_name = "binary_search_disjoint";
+		options.solver = tpp::tpp_convex_solve_binary_search_disjoint;
+		options.length_solver = tpp::tpp_convex_solve_length_binary_search_disjoint;
 		return true;
 	}
 
