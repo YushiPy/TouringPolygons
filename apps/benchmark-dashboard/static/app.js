@@ -443,35 +443,309 @@ function solutionPreviewUrl(campaign, item) {
   return `/api/campaigns/${encodeURIComponent(campaign.name)}/solution-preview/${item.case_index}?repeat_index=${item.repeat_index}&v=${campaign.version || ""}`;
 }
 
-function zoomableImage(src, alt, extraClass = "") {
+function zoomableImage(src, alt, extraClass = "", options = {}) {
   return `
     <figure class="instance-detail zoomable-detail ${extraClass}">
       <div class="zoom-toolbar" aria-label="Zoom controls">
-        <button class="secondary" type="button" data-zoom-out>-</button>
-        <button class="secondary" type="button" data-zoom-reset>Reset</button>
-        <button class="secondary" type="button" data-zoom-in>+</button>
+        <div class="zoom-toolbar-toggles">
+          ${options.inspectable ? '<button class="secondary zoom-toggle is-active" type="button" data-style-panel aria-pressed="true">Style</button>' : ""}
+          ${options.inspectable ? '<button class="secondary zoom-toggle" type="button" data-toggle-grid aria-pressed="false">Grid</button>' : ""}
+          ${options.inspectable ? '<button class="secondary zoom-toggle is-active" type="button" data-toggle-endpoints aria-pressed="true">S/T</button>' : ""}
+          ${options.inspectable ? '<button class="secondary zoom-toggle" type="button" data-toggle-bounces aria-pressed="false">Bounces</button>' : ""}
+          ${options.inspectable ? '<button class="secondary zoom-toggle is-active" type="button" data-toggle-pieces aria-pressed="true">Pieces</button>' : ""}
+        </div>
+        <div class="zoom-toolbar-main">
+          <button class="secondary" type="button" data-zoom-out>-</button>
+          <button class="secondary" type="button" data-zoom-reset>Fit</button>
+          <button class="secondary" type="button" data-zoom-in>+</button>
+        </div>
       </div>
+      ${options.inspectable ? `
+        <div class="zoom-style-panel">
+          <label>
+            Grid step
+            <input data-inspect-grid-step type="number" min="4" max="200" step="1" value="40">
+          </label>
+          <label>
+            Point radius
+            <input data-inspect-point-radius type="number" min="1" max="24" step="1" value="6">
+          </label>
+          <label>
+            Path width
+            <input data-inspect-path-width type="number" min="0.5" max="16" step="0.5" value="3">
+          </label>
+          <label>
+            Polygon opacity
+            <input data-inspect-polygon-opacity type="range" min="0" max="0.8" step="0.02" value="0.24">
+          </label>
+          <label class="switch-row">
+            <input data-inspect-path-dashed type="checkbox">
+            <span class="switch-control"></span>
+            <span>Dashed path</span>
+          </label>
+        </div>
+      ` : ""}
       <div class="zoom-viewport">
-        <img src="${src}" alt="${alt}" draggable="false">
+        <img src="${src}" alt="${alt}" draggable="false" data-zoom-src="${src}">
       </div>
     </figure>
   `;
 }
 
-function setupZoomableDetail(root) {
+function parsePointList(value) {
+  return String(value || "").trim().split(/\s+/)
+    .map((pair) => pair.split(",").map(Number))
+    .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y))
+    .map(([x, y]) => ({ x, y }));
+}
+
+function svgViewBox(svg) {
+  const raw = svg.getAttribute("viewBox");
+  if (raw) {
+    const values = raw.trim().split(/[\s,]+/).map(Number);
+    if (values.length === 4 && values.every(Number.isFinite)) {
+      return { x: values[0], y: values[1], width: values[2], height: values[3] };
+    }
+  }
+  return {
+    x: 0,
+    y: 0,
+    width: Number(svg.getAttribute("width")) || 1,
+    height: Number(svg.getAttribute("height")) || 1,
+  };
+}
+
+function extendBounds(bounds, point) {
+  bounds.minX = Math.min(bounds.minX, point.x);
+  bounds.maxX = Math.max(bounds.maxX, point.x);
+  bounds.minY = Math.min(bounds.minY, point.y);
+  bounds.maxY = Math.max(bounds.maxY, point.y);
+}
+
+function svgGeometryBounds(svg) {
+  const bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+  svg.querySelectorAll("polygon, polyline").forEach((element) => {
+    parsePointList(element.getAttribute("points")).forEach((point) => extendBounds(bounds, point));
+  });
+  svg.querySelectorAll("circle").forEach((circle) => {
+    const x = Number(circle.getAttribute("cx"));
+    const y = Number(circle.getAttribute("cy"));
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      extendBounds(bounds, { x, y });
+    }
+  });
+  if (!Number.isFinite(bounds.minX)) {
+    const viewBox = svgViewBox(svg);
+    return { minX: viewBox.x, minY: viewBox.y, maxX: viewBox.x + viewBox.width, maxY: viewBox.y + viewBox.height };
+  }
+  const span = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY, 1);
+  const slack = span * 0.08;
+  return {
+    minX: bounds.minX - slack,
+    minY: bounds.minY - slack,
+    maxX: bounds.maxX + slack,
+    maxY: bounds.maxY + slack,
+  };
+}
+
+function setupInspectableSvg(root, svg, controls) {
+  const ns = "http://www.w3.org/2000/svg";
+  const gridGroup = document.createElementNS(ns, "g");
+  gridGroup.classList.add("inspection-grid");
+  gridGroup.dataset.inspectionOverlay = "grid";
+  const background = svg.querySelector("rect");
+  if (background) {
+    background.after(gridGroup);
+  } else {
+    svg.prepend(gridGroup);
+  }
+
+  const bounceGroup = document.createElementNS(ns, "g");
+  bounceGroup.dataset.inspectionOverlay = "bounces";
+  svg.appendChild(bounceGroup);
+
+  const polygons = [...svg.querySelectorAll("polygon[fill]:not([fill='none'])")];
+  const piecePolygons = [...svg.querySelectorAll("polygon[fill='none']")];
+  const path = svg.querySelector("polyline");
+  const endpoints = [...svg.querySelectorAll("circle")].slice(-2);
+  const pathPoints = path ? parsePointList(path.getAttribute("points")) : [];
+
+  function renderGrid() {
+    gridGroup.replaceChildren();
+    if (!controls.showGrid) {
+      return;
+    }
+    const viewBox = svgViewBox(svg);
+    const step = Math.max(4, Number(controls.gridStep.value) || 40);
+    const minX = Math.floor(viewBox.x / step) * step;
+    const maxX = viewBox.x + viewBox.width;
+    const minY = Math.floor(viewBox.y / step) * step;
+    const maxY = viewBox.y + viewBox.height;
+    for (let x = minX; x <= maxX; x += step) {
+      const line = document.createElementNS(ns, "line");
+      line.setAttribute("x1", x);
+      line.setAttribute("x2", x);
+      line.setAttribute("y1", viewBox.y);
+      line.setAttribute("y2", maxY);
+      gridGroup.appendChild(line);
+    }
+    for (let y = minY; y <= maxY; y += step) {
+      const line = document.createElementNS(ns, "line");
+      line.setAttribute("x1", viewBox.x);
+      line.setAttribute("x2", maxX);
+      line.setAttribute("y1", y);
+      line.setAttribute("y2", y);
+      gridGroup.appendChild(line);
+    }
+  }
+
+  function renderBounces() {
+    bounceGroup.replaceChildren();
+    if (!controls.showBounces || pathPoints.length <= 2) {
+      return;
+    }
+    const radius = Math.max(1, Number(controls.pointRadius.value) || 6) * 0.72;
+    pathPoints.slice(1, -1).forEach((point) => {
+      const circle = document.createElementNS(ns, "circle");
+      circle.classList.add("inspection-bounce-point");
+      circle.setAttribute("cx", point.x);
+      circle.setAttribute("cy", point.y);
+      circle.setAttribute("r", radius);
+      bounceGroup.appendChild(circle);
+    });
+  }
+
+  function applyStyle() {
+    const radius = Math.max(1, Number(controls.pointRadius.value) || 6);
+    const strokeWidth = Math.max(0.5, Number(controls.pathWidth.value) || 3);
+    const opacity = Math.max(0, Math.min(0.8, Number(controls.polygonOpacity.value) || 0));
+    polygons.forEach((polygon) => polygon.setAttribute("fill-opacity", opacity));
+    piecePolygons.forEach((polygon) => {
+      polygon.style.display = controls.showPieces ? "" : "none";
+    });
+    endpoints.forEach((circle) => {
+      circle.style.display = controls.showEndpoints ? "" : "none";
+      circle.setAttribute("r", radius);
+    });
+    if (path) {
+      path.setAttribute("stroke-width", strokeWidth);
+      path.setAttribute("stroke-dasharray", controls.pathDashed.checked ? `${strokeWidth * 3} ${strokeWidth * 2}` : "");
+    }
+    renderGrid();
+    renderBounces();
+  }
+
+  [controls.gridStep, controls.pointRadius, controls.pathWidth, controls.polygonOpacity, controls.pathDashed].forEach((input) => {
+    input?.addEventListener("input", applyStyle);
+  });
+  applyStyle();
+  return applyStyle;
+}
+
+async function setupZoomableDetail(root) {
   const viewport = root.querySelector(".zoom-viewport");
-  const image = root.querySelector(".zoom-viewport img");
+  let image = root.querySelector(".zoom-viewport img");
   if (!viewport || !image) {
     return;
   }
-  const state = { scale: 1, x: 0, y: 0, dragging: false, lastX: 0, lastY: 0 };
+  let allowedBounds = null;
+  let viewBox = null;
+  const inspectable = Boolean(root.querySelector("[data-style-panel]"));
+  const controls = {
+    showGrid: false,
+    showEndpoints: true,
+    showBounces: false,
+    showPieces: true,
+    gridStep: root.querySelector("[data-inspect-grid-step]"),
+    pointRadius: root.querySelector("[data-inspect-point-radius]"),
+    pathWidth: root.querySelector("[data-inspect-path-width]"),
+    polygonOpacity: root.querySelector("[data-inspect-polygon-opacity]"),
+    pathDashed: root.querySelector("[data-inspect-path-dashed]"),
+  };
+  let applySvgStyle = null;
+
+  const originalAlt = image.alt;
+  if (inspectable && image.dataset.zoomSrc.split("?")[0].endsWith(".svg")) {
+    try {
+      const response = await fetch(image.dataset.zoomSrc);
+      const text = await response.text();
+      const documentSvg = new DOMParser().parseFromString(text, "image/svg+xml").querySelector("svg");
+      if (documentSvg) {
+        image.replaceWith(document.importNode(documentSvg, true));
+        image = viewport.querySelector("svg");
+        image.removeAttribute("width");
+        image.removeAttribute("height");
+        image.setAttribute("role", "img");
+        image.setAttribute("aria-label", originalAlt || "Solution detail");
+        viewBox = svgViewBox(image);
+        allowedBounds = svgGeometryBounds(image);
+        applySvgStyle = setupInspectableSvg(root, image, controls);
+      }
+    } catch {
+      allowedBounds = null;
+    }
+  }
+
+  const state = { scale: 1, minScale: 0.5, x: 0, y: 0, dragging: false, lastX: 0, lastY: 0 };
+
+  function baseRectForBounds(bounds) {
+    if (!bounds || !viewBox) {
+      return { left: 0, top: 0, right: viewport.clientWidth, bottom: viewport.clientHeight };
+    }
+    const scale = Math.min(viewport.clientWidth / viewBox.width, viewport.clientHeight / viewBox.height);
+    const offsetX = (viewport.clientWidth - viewBox.width * scale) / 2;
+    const offsetY = (viewport.clientHeight - viewBox.height * scale) / 2;
+    return {
+      left: offsetX + (bounds.minX - viewBox.x) * scale,
+      right: offsetX + (bounds.maxX - viewBox.x) * scale,
+      top: offsetY + (bounds.minY - viewBox.y) * scale,
+      bottom: offsetY + (bounds.maxY - viewBox.y) * scale,
+    };
+  }
+
+  function updateMinScale() {
+    if (!allowedBounds || !viewBox) {
+      state.minScale = 0.5;
+      return;
+    }
+    const rect = baseRectForBounds(allowedBounds);
+    state.minScale = Math.max(
+      viewport.clientWidth / Math.max(1, rect.right - rect.left),
+      viewport.clientHeight / Math.max(1, rect.bottom - rect.top),
+      0.5,
+    );
+  }
+
+  function clampPan() {
+    if (!allowedBounds || !viewBox) {
+      return;
+    }
+    const rect = baseRectForBounds(allowedBounds);
+    const left = rect.left * state.scale + state.x;
+    const right = rect.right * state.scale + state.x;
+    const top = rect.top * state.scale + state.y;
+    const bottom = rect.bottom * state.scale + state.y;
+    if (right - left <= viewport.clientWidth) {
+      state.x += (viewport.clientWidth - (left + right)) / 2;
+    } else {
+      state.x += Math.min(0, viewport.clientWidth - right);
+      state.x += Math.max(0, -left);
+    }
+    if (bottom - top <= viewport.clientHeight) {
+      state.y += (viewport.clientHeight - (top + bottom)) / 2;
+    } else {
+      state.y += Math.min(0, viewport.clientHeight - bottom);
+      state.y += Math.max(0, -top);
+    }
+  }
 
   function render() {
+    clampPan();
     image.style.transform = `translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
   }
 
   function clampScale(value) {
-    return Math.max(0.5, Math.min(12, value));
+    return Math.max(state.minScale, Math.min(12, value));
   }
 
   function zoomAt(nextScale, originX = viewport.clientWidth / 2, originY = viewport.clientHeight / 2) {
@@ -483,13 +757,36 @@ function setupZoomableDetail(root) {
     render();
   }
 
-  root.querySelector("[data-zoom-in]")?.addEventListener("click", () => zoomAt(state.scale * 1.25));
-  root.querySelector("[data-zoom-out]")?.addEventListener("click", () => zoomAt(state.scale / 1.25));
-  root.querySelector("[data-zoom-reset]")?.addEventListener("click", () => {
-    state.scale = 1;
+  function fitToBounds() {
+    updateMinScale();
+    state.scale = state.minScale;
     state.x = 0;
     state.y = 0;
+    clampPan();
     render();
+  }
+
+  root.querySelector("[data-zoom-in]")?.addEventListener("click", () => zoomAt(state.scale * 1.25));
+  root.querySelector("[data-zoom-out]")?.addEventListener("click", () => zoomAt(state.scale / 1.25));
+  root.querySelector("[data-zoom-reset]")?.addEventListener("click", fitToBounds);
+  root.querySelector("[data-style-panel]")?.addEventListener("click", (event) => {
+    const panel = root.querySelector(".zoom-style-panel");
+    const visible = panel.classList.toggle("is-hidden");
+    event.currentTarget.classList.toggle("is-active", !visible);
+    event.currentTarget.setAttribute("aria-pressed", !visible ? "true" : "false");
+  });
+  [
+    ["[data-toggle-grid]", "showGrid"],
+    ["[data-toggle-endpoints]", "showEndpoints"],
+    ["[data-toggle-bounces]", "showBounces"],
+    ["[data-toggle-pieces]", "showPieces"],
+  ].forEach(([selector, key]) => {
+    root.querySelector(selector)?.addEventListener("click", (event) => {
+      controls[key] = !controls[key];
+      event.currentTarget.classList.toggle("is-active", controls[key]);
+      event.currentTarget.setAttribute("aria-pressed", controls[key] ? "true" : "false");
+      applySvgStyle?.();
+    });
   });
   viewport.addEventListener("wheel", (event) => {
     event.preventDefault();
@@ -519,7 +816,8 @@ function setupZoomableDetail(root) {
   viewport.addEventListener("pointercancel", () => {
     state.dragging = false;
   });
-  render();
+  window.addEventListener("resize", fitToBounds);
+  fitToBounds();
 }
 
 function renderPreviewPanels(root, campaign) {
@@ -741,6 +1039,19 @@ function parseTimingDetail(value) {
   };
 }
 
+function meanSecondsPerCall(row) {
+  const explicit = parseNumber(row.mean_seconds_per_call);
+  if (Number.isFinite(explicit)) {
+    return explicit;
+  }
+  const solverSeconds = parseNumber(row.convex_solver_seconds);
+  const calls = parseNumber(row.total_convex_calls);
+  if (!Number.isFinite(solverSeconds) || !Number.isFinite(calls) || calls <= 0) {
+    return null;
+  }
+  return solverSeconds / calls;
+}
+
 function findTable(report, title) {
   return report.tables.find((table) => table.title === title);
 }
@@ -808,12 +1119,13 @@ function renderBenchmarkReport(report) {
     "Worker threads",
     "Convex solver name",
     "Wall-clock total",
+    "Mean seconds per call",
     "Fully solved runs",
     "Capped by calls runs",
     "Capped by time runs",
   ]) {
-    const table = label === "Wall-clock total" ? timing : metrics;
-    const key = label === "Wall-clock total" ? "Timing" : "Metric";
+    const table = ["Wall-clock total", "Mean seconds per call"].includes(label) ? timing : metrics;
+    const key = ["Wall-clock total", "Mean seconds per call"].includes(label) ? "Timing" : "Metric";
     const row = table?.rows.find((item) => item[key] === label);
     if (row) {
       cards.push(metricCard(label, row.Value));
@@ -853,11 +1165,14 @@ function renderBenchmarkReport(report) {
 function solverLabel(name) {
   const labels = {
     linear_search_lazy: "Linear",
-    binary_search_lazy: "Binary",
+    binary_search_lazy: "Binary Intersections",
+    binary_search_disjoint: "Binary Disjoint",
+    binary_search_eager: "Binary Eager",
     tan_jiang: "Tan Jiang",
     gurobi: "Gurobi",
     linear: "Linear",
-    binary: "Binary",
+    binary: "Binary Intersections",
+    binary_disjoint: "Binary Disjoint",
     tan: "Tan Jiang",
   };
   return labels[name] || name;
@@ -885,6 +1200,19 @@ function renderComparisonReport(data) {
     label: solverLabel(row.solver),
     value: row.wall_clock_seconds,
   }));
+  const meanRows = rows.map((row) => {
+    const mean = meanSecondsPerCall(row);
+    return {
+      label: solverLabel(row.solver),
+      value: row.mean_seconds_per_call,
+      numeric: mean,
+      time: mean === null ? "-" : `${mean.toExponential(3)} s`,
+    };
+  });
+  const bestMean = rows
+    .map((row) => ({ solver: row.solver, seconds: meanSecondsPerCall(row) }))
+    .filter((row) => Number.isFinite(row.seconds))
+    .sort((left, right) => left.seconds - right.seconds)[0];
 
   root.innerHTML = `
     <header class="report-header">
@@ -897,12 +1225,17 @@ function renderComparisonReport(data) {
       ${metricCard("Completed", `${completed}/${rows.length}`)}
       ${metricCard("Fastest", fastest ? solverLabel(fastest.solver) : "-")}
       ${metricCard("Best wall clock", fastest ? `${shortNumber(fastest.seconds)} s` : "-")}
+      ${metricCard("Best avg solve", bestMean ? `${bestMean.seconds.toExponential(3)} s` : "-")}
       ${metricCard("Total calls max", maxCalls || "-")}
     </div>
     <div class="report-grid">
       <section class="report-panel">
         <h4>Wall Clock</h4>
         ${renderBarChart(timeRows)}
+      </section>
+      <section class="report-panel">
+        <h4>Average Convex Solve</h4>
+        ${renderBarChart(meanRows)}
       </section>
       <section class="report-panel comparison-table-panel">
         <h4>Solver Details</h4>
@@ -914,6 +1247,7 @@ function renderComparisonReport(data) {
                 <th>Status</th>
                 <th>Wall</th>
                 <th>Work</th>
+                <th>Avg solve</th>
                 <th>Calls</th>
                 <th>Solved</th>
               </tr>
@@ -925,6 +1259,7 @@ function renderComparisonReport(data) {
                   <td>${row.status}</td>
                   <td>${shortNumber(row.wall_clock_seconds)} s</td>
                   <td>${shortNumber(row.convex_solver_seconds)} s</td>
+                  <td>${meanSecondsPerCall(row) === null ? "-" : `${meanSecondsPerCall(row).toExponential(3)} s`}</td>
                   <td>${row.total_convex_calls || "-"}</td>
                   <td>${row.fully_solved_runs || "-"}</td>
                 </tr>
@@ -1071,7 +1406,7 @@ function openBenchmarkedInstanceModal(campaign, item) {
       ${metricCard("Pruned nodes", item.pruned_nodes ?? "-")}
     </div>
     ${previewUrl
-      ? zoomableImage(previewUrl, `Solved instance ${instanceLabel(item.case_index)} detail`, "benchmarked-detail")
+      ? zoomableImage(previewUrl, `Solved instance ${instanceLabel(item.case_index)} detail`, "benchmarked-detail", { inspectable: item.solution_available })
       : '<div class="missing-preview detail-missing">No preview available.</div>'}
     ${item.solution_available ? "" : '<p class="inline-note">This is an older run. Rerun the benchmark to generate the path/decomposition overlay SVG for this case.</p>'}
   `;

@@ -249,9 +249,9 @@ select {
 
 .solver-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   height: auto;
-  min-height: 74px;
+  min-height: 112px;
 }
 
 .segmented-3,
@@ -715,7 +715,7 @@ select:focus {
 
 .compare-solver-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   padding: 6px;
   border: 1px solid #c7cfdd;
@@ -1519,17 +1519,49 @@ select:focus {
 }
 
 .zoom-toolbar {
-  display: flex;
-  justify-content: flex-end;
+  display: grid;
+  grid-template-columns: 1fr auto;
   gap: 8px;
   padding: 10px;
   border-bottom: 1px solid var(--line);
   background: var(--surface-muted);
 }
 
+.zoom-toolbar-main,
+.zoom-toolbar-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 .zoom-toolbar button {
   min-height: 32px;
   padding: 0.35rem 0.65rem;
+}
+
+.zoom-toggle.is-active {
+  border-color: var(--text);
+  background: var(--text);
+  color: #fff;
+}
+
+.zoom-style-panel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(128px, 1fr));
+  gap: 10px;
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+
+.zoom-style-panel label {
+  font-size: 0.78rem;
+}
+
+.zoom-style-panel .switch-row {
+  min-height: 32px;
+  font-size: 0.82rem;
 }
 
 .zoom-viewport {
@@ -1545,7 +1577,8 @@ select:focus {
   cursor: grabbing;
 }
 
-.zoom-viewport img {
+.zoom-viewport img,
+.zoom-viewport svg {
   width: 100%;
   height: 100%;
   max-height: none;
@@ -1554,6 +1587,24 @@ select:focus {
   transform-origin: 0 0;
   user-select: none;
   will-change: transform;
+}
+
+.zoom-viewport svg {
+  display: block;
+  overflow: visible;
+  padding: 0;
+}
+
+.inspection-grid line {
+  stroke: #94a3b8;
+  stroke-width: 0.7;
+  stroke-opacity: 0.35;
+}
+
+.inspection-bounce-point {
+  fill: #f97316;
+  stroke: #111827;
+  stroke-width: 1.2;
 }
 
 .detail-missing {
@@ -1634,5 +1685,10 @@ select:focus {
 
   .instance-grid {
     grid-template-columns: repeat(2, minmax(120px, 1fr));
+  }
+
+  .zoom-toolbar,
+  .zoom-style-panel {
+    grid-template-columns: 1fr;
   }
 }

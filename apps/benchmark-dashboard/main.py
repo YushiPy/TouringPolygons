@@ -33,10 +33,13 @@ GERMAN_INSTANCES_ZIP = REPO_ROOT / "tspn-comparison/solver/instances/instances_s
 SOLVERS = {
 	"linear": "linear_search_lazy",
 	"binary": "binary_search_lazy",
+	"binary_disjoint": "binary_search_disjoint",
 	"tan": "tan_jiang",
 	"gurobi": "gurobi",
 	"linear_search_lazy": "linear_search_lazy",
 	"binary_search_lazy": "binary_search_lazy",
+	"binary_search_disjoint": "binary_search_disjoint",
+	"binary_search_eager": "binary_search_eager",
 	"tan_jiang": "tan_jiang",
 }
 OSM_SEARCH_ROOTS = [

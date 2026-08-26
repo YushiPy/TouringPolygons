@@ -251,7 +251,8 @@
               <input name="solver" type="hidden" value="binary">
               <span class="segmented solver-grid" data-input="solver">
                 <button class="segment" data-value="linear" type="button">Linear</button>
-                <button class="segment is-active" data-value="binary" type="button">Binary</button>
+                <button class="segment is-active" data-value="binary" type="button">Binary Intersections</button>
+                <button class="segment" data-value="binary_disjoint" type="button">Binary Disjoint</button>
                 <button class="segment" data-value="tan" type="button">Tan Jiang</button>
                 <button class="segment" data-value="gurobi" type="button">Gurobi</button>
               </span>
@@ -328,7 +329,11 @@
             </label>
             <label class="solver-check">
               <input name="solvers" value="binary" type="checkbox" checked>
-              <span>Binary</span>
+              <span>Binary Intersections</span>
+            </label>
+            <label class="solver-check">
+              <input name="solvers" value="binary_disjoint" type="checkbox" checked>
+              <span>Binary Disjoint</span>
             </label>
             <label class="solver-check">
               <input name="solvers" value="tan" type="checkbox" checked>

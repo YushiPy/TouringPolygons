@@ -31,6 +31,7 @@ class SolverConfig:
 SOLVERS = [
 	SolverConfig("linear_search_lazy"),
 	SolverConfig("binary_search_lazy"),
+	SolverConfig("binary_search_disjoint"),
 	SolverConfig("binary_search_eager"),
 	SolverConfig("tan_jiang"),
 	SolverConfig("gurobi", enable_gurobi=True),
