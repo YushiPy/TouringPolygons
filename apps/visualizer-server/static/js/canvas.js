@@ -1,5 +1,4 @@
 import { Vector2 } from "./vector2.js";
-import { tppSolve } from "./tpp.js";
 import { convexPartition } from "./convex-partition.js";
 import * as settings from "./settings.js";
 
@@ -476,20 +475,83 @@ class Scene {
 		const start = [this.startPoint.x, this.startPoint.y];
 		const target = [this.targetPoint.x, this.targetPoint.y];
 		const polys = this.polygons.map(poly => poly.points.map(v => [v.x, v.y]));
+		const key = JSON.stringify({ start, target, polygons: polys });
 
-		let path;
+		this.requestSolution(key, { start, target, polygons: polys });
 
-		try {
-			path = tppSolve(start, target, polys, true);
-		} catch (e) {
+		if (this.solutionKey !== key || this.solutionPath === null) {
 			return;
 		}
+
+		const path = this.solutionPath;
 
 		for (let i = 0; i < path.length - 1; i++) {
 			const p1 = new Vector2(path[i].x, path[i].y);
 			const p2 = new Vector2(path[i + 1].x, path[i + 1].y);
 			this.canvas.drawLineWorld(p1, p2, settings.SOLUTION_COLOR, 3);
 			this.canvas.drawPointWorld(p1, settings.SOLUTION_COLOR, 6);
+		}
+	}
+
+	requestSolution(key, payload) {
+		if (this.pendingSolutionKey === key || this.solutionKey === key) {
+			return;
+		}
+
+		this.pendingSolutionKey = key;
+
+		if (this.solutionTimer !== null) {
+			clearTimeout(this.solutionTimer);
+		}
+
+		this.solutionTimer = setTimeout(() => {
+			this.fetchSolution(key, payload);
+		}, 120);
+	}
+
+	async fetchSolution(key, payload) {
+		if (this.solutionAbort !== null) {
+			this.solutionAbort.abort();
+		}
+
+		const abort = new AbortController();
+		this.solutionAbort = abort;
+
+		try {
+			const response = await fetch(settings.SOLVE_TPP_ENDPOINT_URL, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					...payload,
+					maxCalls: 200000,
+					maxSeconds: 3,
+				}),
+				signal: abort.signal,
+			});
+
+			if (!response.ok) {
+				throw new Error(await response.text());
+			}
+
+			const result = await response.json();
+			this.solutionKey = key;
+			this.solutionPath = result.path.map(([x, y]) => new Vector2(x, y));
+			this.solutionExact = result.exact;
+			this.solutionError = null;
+		} catch (error) {
+			if (error.name !== "AbortError") {
+				this.solutionError = error;
+				this.solutionKey = null;
+				this.solutionPath = null;
+			}
+		} finally {
+			if (this.solutionAbort === abort) {
+				this.solutionAbort = null;
+			}
+
+			if (this.pendingSolutionKey === key) {
+				this.pendingSolutionKey = null;
+			}
 		}
 	}
 
@@ -1010,6 +1072,13 @@ class Scene {
 		this.lastShiftPosition = new Vector2(0, 0);
 
 		this.changedPolygon = false;
+		this.solutionKey = null;
+		this.pendingSolutionKey = null;
+		this.solutionPath = null;
+		this.solutionExact = true;
+		this.solutionError = null;
+		this.solutionTimer = null;
+		this.solutionAbort = null;
 
 		this._initInput();
 	}

@@ -74,3 +74,4 @@ export const BLOCK_CLICK_IDS = [
 
 export const SAVE_DRAWING_ENDPOINT_URL = "/drawings/save";
 export const UPDATE_DRAWING_ENDPOINT_URL = "/drawings";
+export const SOLVE_TPP_ENDPOINT_URL = "/api/tpp/solve";

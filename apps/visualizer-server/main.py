@@ -1,4 +1,7 @@
 import json
+import subprocess
+from pathlib import Path
+from typing import Any
 
 from sqlalchemy.exc import IntegrityError
 
@@ -17,6 +20,10 @@ from models import Drawing, User, get_utctime
 
 SECRET_KEY = "ASFQEUBFOEUQB)!#H) #) UR)(*#!U&R) &)*#!&UR) &$#!)_( &$#)"
 serializer = URLSafeTimedSerializer(SECRET_KEY)
+APP_DIR = Path(__file__).resolve().parent
+REPO_ROOT = APP_DIR.parents[1]
+SOLVER_BINARY = REPO_ROOT / "build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp"
+SOLVER_BUILD_CACHE = REPO_ROOT / "build/nonconvex-release/CMakeCache.txt"
 
 
 def create_token(username: str) -> str:
@@ -39,9 +46,9 @@ async def initFunction(app: FastAPI):
 STATIC_PATH = "/static"
 
 app = FastAPI(lifespan=initFunction)
-app.mount(STATIC_PATH, StaticFiles(directory="static"), name="static")
+app.mount(STATIC_PATH, StaticFiles(directory=APP_DIR / "static"), name="static")
 
-templates = Jinja2Templates(directory=["templates"])
+templates = Jinja2Templates(directory=APP_DIR / "templates")
 
 arquivo_sqlite = "tpp.db"
 url_sqlite = f"sqlite:///{arquivo_sqlite}"
@@ -52,11 +59,129 @@ def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
 
 
+def validate_point(value: Any, name: str) -> tuple[float, float]:
+    if (
+        not isinstance(value, list)
+        or len(value) != 2
+        or not all(isinstance(coord, (int, float)) for coord in value)
+    ):
+        raise HTTPException(status_code=400, detail=f"{name} must be a pair of numbers")
+
+    return float(value[0]), float(value[1])
+
+
+def validate_polygons(value: Any) -> list[list[tuple[float, float]]]:
+    if not isinstance(value, list):
+        raise HTTPException(status_code=400, detail="polygons must be a list")
+
+    polygons: list[list[tuple[float, float]]] = []
+
+    for polygon_index, raw_polygon in enumerate(value):
+        if not isinstance(raw_polygon, list) or len(raw_polygon) < 3:
+            raise HTTPException(
+                status_code=400,
+                detail=f"polygon {polygon_index} must have at least 3 vertices",
+            )
+
+        polygons.append([
+            validate_point(point, f"polygons[{polygon_index}] vertex")
+            for point in raw_polygon
+        ])
+
+    return polygons
+
+
+def ensure_solver_binary() -> None:
+    configured_target = None
+
+    if SOLVER_BUILD_CACHE.exists():
+        for line in SOLVER_BUILD_CACHE.read_text().splitlines():
+            if line.startswith("TARGET:STRING="):
+                configured_target = line.split("=", 1)[1]
+                break
+
+    if SOLVER_BINARY.exists() and configured_target == "main-visualizer_solve":
+        return
+
+    subprocess.run(
+        [
+            "cmake",
+            "--preset",
+            "nonconvex-release",
+            "-DTARGET=main-visualizer_solve",
+            "-DTPP_ENABLE_GUROBI=OFF",
+        ],
+        cwd=REPO_ROOT,
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    subprocess.run(
+        ["cmake", "--build", "--preset", "nonconvex-release"],
+        cwd=REPO_ROOT,
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+def solver_input(
+    start: tuple[float, float],
+    target: tuple[float, float],
+    polygons: list[list[tuple[float, float]]],
+    max_calls: int,
+    max_seconds: float,
+) -> str:
+    lines = [
+        f"{start[0]} {start[1]}",
+        f"{target[0]} {target[1]}",
+        f"{len(polygons)} {max_calls} {max_seconds}",
+    ]
+
+    for polygon in polygons:
+        lines.append(str(len(polygon)))
+        lines.extend(f"{x} {y}" for x, y in polygon)
+
+    return "\n".join(lines) + "\n"
+
+
+def parse_solver_output(output: str) -> dict[str, Any]:
+    lines = output.strip().splitlines()
+
+    if not lines:
+        raise HTTPException(status_code=500, detail="solver produced no output")
+
+    header = lines[0].split()
+
+    if header[0] == "ERR":
+        raise HTTPException(status_code=422, detail=" ".join(header[1:]))
+
+    if len(header) != 5 or header[0] != "OK":
+        raise HTTPException(status_code=500, detail="invalid solver output")
+
+    exact = header[1] == "1"
+    calls = int(header[2])
+    seconds = float(header[3])
+    point_count = int(header[4])
+
+    if len(lines) != point_count + 1:
+        raise HTTPException(status_code=500, detail="truncated solver output")
+
+    path = []
+    for line in lines[1:]:
+        x, y = line.split()
+        path.append([float(x), float(y)])
+
+    return {"path": path, "exact": exact, "calls": calls, "seconds": seconds}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def get_main_page(request: Request, session: str | None = Cookie(default=None)):
     username = decode_token(session) if session else None
     return templates.TemplateResponse(
-        "index.html", {"request": request, "static": STATIC_PATH, "username": username}
+        request, "index.html", {"static": STATIC_PATH, "username": username}
     )
 
 
@@ -64,21 +189,21 @@ async def get_main_page(request: Request, session: str | None = Cookie(default=N
 async def get_header(request: Request, session: str | None = Cookie(default=None)):
     username = decode_token(session) if session else None
     return templates.TemplateResponse(
-        "header.html", {"request": request, "static": STATIC_PATH, "username": username}
+        request, "header.html", {"static": STATIC_PATH, "username": username}
     )
 
 
 @app.get("/login", response_class=HTMLResponse)
 async def get_login(request: Request):
     return templates.TemplateResponse(
-        "login.html", {"request": request, "static": STATIC_PATH}
+        request, "login.html", {"static": STATIC_PATH}
     )
 
 
 @app.get("/signup", response_class=HTMLResponse)
 async def get_signup(request: Request):
     return templates.TemplateResponse(
-        "signup.html", {"request": request, "static": STATIC_PATH}
+        request, "signup.html", {"static": STATIC_PATH}
     )
 
 
@@ -207,14 +332,51 @@ async def post_logout(request: Request):
 @app.get("/canvas", response_class=HTMLResponse)
 async def get_canvas(request: Request):
     return templates.TemplateResponse(
-        "canvas.html", {"request": request, "static": STATIC_PATH}
+        request, "canvas.html", {"static": STATIC_PATH}
     )
+
+
+@app.post("/api/tpp/solve")
+async def solve_tpp(request: Request):
+    data = await request.json()
+    start = validate_point(data.get("start"), "start")
+    target = validate_point(data.get("target"), "target")
+    polygons = validate_polygons(data.get("polygons"))
+    max_calls = int(data.get("maxCalls", 200000))
+    max_seconds = float(data.get("maxSeconds", 3.0))
+
+    if max_calls < 1 or max_calls > 5000000:
+        raise HTTPException(status_code=400, detail="maxCalls is out of range")
+
+    if max_seconds <= 0 or max_seconds > 30:
+        raise HTTPException(status_code=400, detail="maxSeconds is out of range")
+
+    try:
+        ensure_solver_binary()
+        completed = subprocess.run(
+            [SOLVER_BINARY],
+            input=solver_input(start, target, polygons, max_calls, max_seconds),
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=max_seconds + 5.0,
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="solver timed out")
+    except subprocess.CalledProcessError as error:
+        raise HTTPException(status_code=500, detail=error.stderr.strip() or "solver build failed")
+
+    if completed.returncode != 0 and not completed.stdout:
+        raise HTTPException(status_code=500, detail=completed.stderr.strip() or "solver failed")
+
+    return JSONResponse(parse_solver_output(completed.stdout))
 
 
 @app.get("/save_prompt", response_class=HTMLResponse)
 async def get_saved_drawings_prompt(request: Request):
     return templates.TemplateResponse(
-        "save_prompt.html", {"request": request, "static": STATIC_PATH}
+        request, "save_prompt.html", {"static": STATIC_PATH}
     )
 
 
@@ -323,8 +485,9 @@ async def get_drawings(request: Request, session: str | None = Cookie(default=No
         drawings.sort(key=lambda d: d["modified_at"], reverse=True)
 
     return templates.TemplateResponse(
+        request,
         "saved_drawings.html",
-        {"request": request, "static": STATIC_PATH, "drawings": drawings},
+        {"static": STATIC_PATH, "drawings": drawings},
     )
 
 
@@ -356,7 +519,7 @@ async def get_drawing(
 @app.get("/tpp-info", response_class=HTMLResponse)
 async def get_info(request: Request):
     return templates.TemplateResponse(
-        "tpp_info.html", {"request": request, "static": STATIC_PATH}
+        request, "tpp_info.html", {"static": STATIC_PATH}
     )
 
 

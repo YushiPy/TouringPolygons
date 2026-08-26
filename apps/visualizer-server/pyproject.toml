@@ -1,0 +1,17 @@
+[project]
+name = "tpp-visualizer-server"
+version = "0.1.0"
+description = "FastAPI server for the Touring Polygons Problem visualizer."
+requires-python = ">=3.12"
+dependencies = [
+	"bcrypt",
+	"fastapi",
+	"itsdangerous",
+	"jinja2",
+	"python-multipart",
+	"sqlmodel",
+	"uvicorn",
+]
+
+[tool.uv]
+package = false
