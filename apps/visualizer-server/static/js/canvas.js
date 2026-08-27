@@ -1,6 +1,6 @@
 import { Vector2 } from "./vector2.js";
 import { convexPartition } from "./convex-partition.js";
-import { isTppWasmReady, loadTppWasm, solveTppWasm, tppWasmStatus } from "./tpp-wasm.js";
+import { isTppWasmReady, loadTppWasm, solveTppWasm, solveTppWasmGroups, tppWasmStatus } from "./tpp-wasm.js";
 import * as settings from "./settings.js";
 
 const floatToString = (integerPart, exponent) => {
@@ -11,6 +11,100 @@ const floatToString = (integerPart, exponent) => {
 		.toFixed(6)
 		.replace(/\.?0+$/, "");
 };
+
+const EPS = 1e-10;
+
+function orientation(a, b, c) {
+	const value = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+	if (Math.abs(value) <= EPS) return 0;
+	return value < 0 ? -1 : 1;
+}
+
+function pointOnSegment(a, b, p) {
+	return orientation(a, b, p) === 0
+		&& Math.min(a.x, b.x) - EPS <= p.x && p.x <= Math.max(a.x, b.x) + EPS
+		&& Math.min(a.y, b.y) - EPS <= p.y && p.y <= Math.max(a.y, b.y) + EPS;
+}
+
+function segmentsIntersect(a, b, c, d) {
+	const o1 = orientation(a, b, c);
+	const o2 = orientation(a, b, d);
+	const o3 = orientation(c, d, a);
+	const o4 = orientation(c, d, b);
+
+	if (o1 !== o2 && o3 !== o4) return true;
+	return pointOnSegment(a, b, c)
+		|| pointOnSegment(a, b, d)
+		|| pointOnSegment(c, d, a)
+		|| pointOnSegment(c, d, b);
+}
+
+function polygonHasSelfIntersection(points) {
+	for (let i = 0; i < points.length; i++) {
+		const a = points[i];
+		const b = points[(i + 1) % points.length];
+
+		for (let j = i + 1; j < points.length; j++) {
+			if (j === i || j === (i + 1) % points.length || i === (j + 1) % points.length) {
+				continue;
+			}
+
+			const c = points[j];
+			const d = points[(j + 1) % points.length];
+			if (segmentsIntersect(a, b, c, d)) {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+function pointListIsConvex(points) {
+	let gotNegative = false;
+	let gotPositive = false;
+
+	for (let i = 0; i < points.length; i++) {
+		const turn = orientation(points[i], points[(i + 1) % points.length], points[(i + 2) % points.length]);
+
+		if (turn < 0) gotNegative = true;
+		else if (turn > 0) gotPositive = true;
+
+		if (gotNegative && gotPositive) return false;
+	}
+
+	return true;
+}
+
+function prepareWasmInput(polygons) {
+	let usePieceGroups = false;
+	let hasSelfIntersection = false;
+	const pieceGroups = [];
+
+	for (const polygon of polygons) {
+		const selfIntersecting = polygonHasSelfIntersection(polygon.points);
+		const needsPieces = selfIntersecting || !polygon.isConvex();
+		hasSelfIntersection ||= selfIntersecting;
+		usePieceGroups ||= needsPieces;
+
+		if (!needsPieces) {
+			pieceGroups.push([polygon.points.map(point => [point.x, point.y])]);
+			continue;
+		}
+
+		const pieces = convexPartition(polygon.points)
+			.filter(piece => piece.length >= 3 && !polygonHasSelfIntersection(piece) && pointListIsConvex(piece))
+			.map(piece => piece.map(point => [point.x, point.y]));
+
+		if (pieces.length === 0) {
+			throw new Error("Could not normalize polygon.");
+		}
+
+		pieceGroups.push(pieces);
+	}
+
+	return { usePieceGroups, pieceGroups, hasSelfIntersection };
+}
 
 class Canvas {
 
@@ -482,7 +576,20 @@ class Scene {
 		if (this.solutionKey !== key || this.solutionPath === null) {
 			if (isTppWasmReady()) {
 				const solveStart = performance.now();
-				const result = solveTppWasm(start, target, polys);
+				let prepared = null;
+				let result = null;
+
+				try {
+					prepared = prepareWasmInput(this.polygons);
+					result = prepared.usePieceGroups
+						? solveTppWasmGroups(start, target, prepared.pieceGroups)
+						: solveTppWasm(start, target, polys);
+				} catch (error) {
+					prepared = { hasSelfIntersection: true };
+					this.solutionError = error;
+					this.solutionSource = "invalid polygon";
+					this.solutionComputeMs = null;
+				}
 
 				if (result !== null) {
 					this.clearPendingSolution();
@@ -492,8 +599,14 @@ class Scene {
 					this.solutionError = null;
 					this.solutionSource = result.exact ? "wasm" : "wasm approximate";
 					this.solutionComputeMs = performance.now() - solveStart;
-				} else {
+				} else if (!prepared?.hasSelfIntersection) {
 					this.requestSolution(key, { start, target, polygons: polys });
+				} else {
+					this.clearPendingSolution();
+					this.solutionKey = null;
+					this.solutionPath = null;
+					this.solutionSource = "invalid polygon";
+					this.solutionComputeMs = null;
 				}
 			} else if (tppWasmStatus() === "failed") {
 				this.requestSolution(key, { start, target, polygons: polys });

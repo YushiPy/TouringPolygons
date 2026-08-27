@@ -61,6 +61,7 @@ em++ \
 	"$repo_root/packages/convex-tpp/cpp/src/solvers/linear_search.cpp" \
 	"$repo_root/packages/convex-tpp/cpp/src/solvers/tan_jiang.cpp" \
 	"$repo_root/packages/nonconvex-tpp/cpp/src/common.cpp" \
+	"$repo_root/packages/nonconvex-tpp/cpp/src/solvers/bnb.cpp" \
 	"$repo_root/packages/optimal-convex-partition/cpp/src/optimal_convex_partition.cpp" \
 	-sMODULARIZE=1 \
 	-sEXPORT_ES6=1 \
@@ -70,6 +71,6 @@ em++ \
 	-sDISABLE_EXCEPTION_CATCHING=0 \
 	-sMIN_WEBGL_VERSION=0 \
 	-sMAX_WEBGL_VERSION=0 \
-	-sEXPORTED_FUNCTIONS='["_malloc","_free","_tpp_solve","_tpp_solve_convex","_tpp_get_path_points","_tpp_solution_exact","_tpp_solution_calls","_tpp_solution_seconds"]' \
+	-sEXPORTED_FUNCTIONS='["_malloc","_free","_tpp_solve","_tpp_solve_piece_groups","_tpp_solve_convex","_tpp_get_path_points","_tpp_solution_exact","_tpp_solution_calls","_tpp_solution_seconds"]' \
 	-sEXPORTED_RUNTIME_METHODS='["HEAPF64","HEAP32"]' \
 	-o "$output_dir/tpp_convex_wasm.js"
