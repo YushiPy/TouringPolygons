@@ -26,6 +26,8 @@ __pycache__/
 
 # Node
 node_modules/
+apps/visualizer-server/.emscripten-cache/
+apps/visualizer-server/static/wasm/
 
 # LaTeX
 *.aux

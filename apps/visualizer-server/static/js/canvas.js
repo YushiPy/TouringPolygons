@@ -1,5 +1,6 @@
 import { Vector2 } from "./vector2.js";
 import { convexPartition } from "./convex-partition.js";
+import { isTppWasmReady, loadTppWasm, solveTppWasm, tppWasmStatus } from "./tpp-wasm.js";
 import * as settings from "./settings.js";
 
 const floatToString = (integerPart, exponent) => {
@@ -259,6 +260,7 @@ class Camera {
 class Scene {
 
 	constructor(data = null) {
+		loadTppWasm();
 		this.loadFromData(data);
 	}
 
@@ -477,7 +479,29 @@ class Scene {
 		const polys = this.polygons.map(poly => poly.points.map(v => [v.x, v.y]));
 		const key = JSON.stringify({ start, target, polygons: polys });
 
-		this.requestSolution(key, { start, target, polygons: polys });
+		if (this.solutionKey !== key || this.solutionPath === null) {
+			if (isTppWasmReady()) {
+				const solveStart = performance.now();
+				const result = solveTppWasm(start, target, polys);
+
+				if (result !== null) {
+					this.clearPendingSolution();
+					this.solutionKey = key;
+					this.solutionPath = result.path;
+					this.solutionExact = result.exact;
+					this.solutionError = null;
+					this.solutionSource = result.exact ? "wasm" : "wasm approximate";
+					this.solutionComputeMs = performance.now() - solveStart;
+				} else {
+					this.requestSolution(key, { start, target, polygons: polys });
+				}
+			} else if (tppWasmStatus() === "failed") {
+				this.requestSolution(key, { start, target, polygons: polys });
+			} else {
+				this.solutionSource = "wasm loading";
+				this.solutionComputeMs = null;
+			}
+		}
 
 		if (this.solutionKey !== key || this.solutionPath === null) {
 			return;
@@ -493,12 +517,28 @@ class Scene {
 		}
 	}
 
+	clearPendingSolution() {
+		if (this.solutionTimer !== null) {
+			clearTimeout(this.solutionTimer);
+			this.solutionTimer = null;
+		}
+
+		if (this.solutionAbort !== null) {
+			this.solutionAbort.abort();
+			this.solutionAbort = null;
+		}
+
+		this.pendingSolutionKey = null;
+	}
+
 	requestSolution(key, payload) {
 		if (this.pendingSolutionKey === key || this.solutionKey === key) {
 			return;
 		}
 
 		this.pendingSolutionKey = key;
+		this.solutionSource = "backend pending";
+		this.solutionComputeMs = null;
 
 		if (this.solutionTimer !== null) {
 			clearTimeout(this.solutionTimer);
@@ -538,11 +578,15 @@ class Scene {
 			this.solutionPath = result.path.map(([x, y]) => new Vector2(x, y));
 			this.solutionExact = result.exact;
 			this.solutionError = null;
+			this.solutionSource = "backend";
+			this.solutionComputeMs = result.seconds * 1000;
 		} catch (error) {
 			if (error.name !== "AbortError") {
 				this.solutionError = error;
 				this.solutionKey = null;
 				this.solutionPath = null;
+				this.solutionSource = "error";
+				this.solutionComputeMs = null;
 			}
 		} finally {
 			if (this.solutionAbort === abort) {
@@ -553,6 +597,23 @@ class Scene {
 				this.pendingSolutionKey = null;
 			}
 		}
+	}
+
+	drawSolverStatus() {
+		const ctx = this.canvas.ctx;
+		const source = this.solutionSource || `wasm ${tppWasmStatus()}`;
+		const time = this.solutionComputeMs === null ? "" : ` ${this.solutionComputeMs.toFixed(2)}ms`;
+		const label = `solver: ${source}${time}`;
+
+		ctx.save();
+		ctx.font = "12px Arial";
+		ctx.textAlign = "left";
+		ctx.textBaseline = "top";
+		ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+		ctx.fillRect(10, 10, ctx.measureText(label).width + 14, 22);
+		ctx.fillStyle = settings.MAIN_AXIS_COLOR;
+		ctx.fillText(label, 17, 15);
+		ctx.restore();
 	}
 
 	drawPolygons() {
@@ -638,6 +699,7 @@ class Scene {
 		this.drawSelectedPoints();
 		this.canvas.drawPointWorld(this.startPoint, settings.START_POINT_COLOR, settings.POINT_RADIUS, true);
 		this.canvas.drawPointWorld(this.targetPoint, settings.TARGET_POINT_COLOR, settings.POINT_RADIUS, true);
+		this.drawSolverStatus();
 
 		if (this.selectionRect) this.updateSelectionRect(null, this.mouseLocation);
 	}
@@ -1079,6 +1141,8 @@ class Scene {
 		this.solutionError = null;
 		this.solutionTimer = null;
 		this.solutionAbort = null;
+		this.solutionSource = null;
+		this.solutionComputeMs = null;
 
 		this._initInput();
 	}
