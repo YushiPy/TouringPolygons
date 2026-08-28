@@ -13,7 +13,10 @@
           <h1>TPP Benchmark Dashboard</h1>
           <p>Local control panel for benchmark campaigns, runs, and result inspection.</p>
         </div>
-        <button id="refresh-button" type="button">Refresh</button>
+        <div class="topbar-actions">
+          <button id="theme-toggle" class="secondary" type="button" aria-pressed="false">Dark</button>
+          <button id="refresh-button" type="button">Refresh</button>
+        </div>
       </header>
 
       <nav class="tabs" aria-label="Dashboard sections">
@@ -473,12 +476,20 @@
       <article class="confirm-card keybind-card">
         <header class="modal-header">
           <h2 id="keybind-title">Keyboard Shortcuts</h2>
-          <button class="secondary" type="button" data-close-keybinds>Close</button>
+          <button class="modal-x-button" type="button" data-close-keybinds aria-label="Close keyboard shortcuts">×</button>
         </header>
         <div class="keybind-list">
           <div class="keybind-row">
             <span>Close polygon</span>
             <div id="close-polygon-keybinds" class="keybind-controls"></div>
+          </div>
+          <div class="keybind-row">
+            <span>Delete selection</span>
+            <div id="delete-selection-keybinds" class="keybind-controls"></div>
+          </div>
+          <div class="keybind-row">
+            <span>Toggle snap</span>
+            <div id="toggle-snap-keybinds" class="keybind-controls"></div>
           </div>
         </div>
       </article>
