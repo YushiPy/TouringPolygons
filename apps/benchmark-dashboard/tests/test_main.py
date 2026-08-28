@@ -51,6 +51,19 @@ class DashboardMainTests(unittest.TestCase):
 
 			self.assertEqual(dashboard.read_csv_rows(path), [{"name": "second", "value": "2"}])
 
+	def test_manual_case_round_trip_through_binary_format(self) -> None:
+		case = dashboard.manual_case_from_request(dashboard.ManualCaseRequest(
+			start=(0.0, 0.0),
+			target=(2.0, 0.0),
+			polygons=[[(0.5, 0.5), (1.5, 0.5), (1.0, 1.25)]],
+		))
+		with tempfile.TemporaryDirectory() as directory:
+			path = Path(directory) / "manual.bin"
+
+			dashboard.write_binary_cases(path, [case])
+
+			self.assertEqual(dashboard.read_binary_cases(path, limit=10), [case])
+
 
 if __name__ == "__main__":
 	unittest.main()

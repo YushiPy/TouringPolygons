@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 
 APP_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = APP_ROOT.parents[1]
+VISUALIZER_STATIC_ROOT = REPO_ROOT / "apps/visualizer-server/static"
 BENCHMARK_CLI = REPO_ROOT / "benchmarks/tpp.py"
 CONVERT_INSTANCES_SCRIPT = REPO_ROOT / "benchmarks/scripts/convert_instances.py"
 CAMPAIGNS_ROOT = REPO_ROOT / "benchmarks/campaigns"
@@ -47,6 +48,8 @@ SOLVERS = {
 	"tan_jiang": "tan_jiang",
 	"gurobi": "gurobi",
 }
+SOLVER_BINARY = REPO_ROOT / "build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp"
+SOLVER_BUILD_CACHE = REPO_ROOT / "build/nonconvex-release/CMakeCache.txt"
 OSM_SEARCH_ROOTS = [
 	REPO_ROOT,
 	Path.home() / "Downloads",
@@ -65,6 +68,8 @@ OSM_SEARCH_EXCLUDES = {
 
 app = FastAPI(title="TPP Benchmark Dashboard")
 app.mount("/static", StaticFiles(directory=APP_ROOT / "static"), name="static")
+if VISUALIZER_STATIC_ROOT.exists():
+	app.mount("/visualizer-static", StaticFiles(directory=VISUALIZER_STATIC_ROOT), name="visualizer-static")
 templates = Jinja2Templates(directory=str(APP_ROOT / "templates"))
 
 
@@ -137,6 +142,23 @@ class ImportCanonicalRequest(BaseModel):
 class ImportGermanRequest(BaseModel):
 	name: str = "german-instances"
 	overwrite: bool = False
+
+
+class ManualCampaignRequest(BaseModel):
+	name: str
+	overwrite: bool = False
+
+
+class ManualCaseRequest(BaseModel):
+	name: str | None = None
+	generated: bool = False
+	start: tuple[float, float] = (0.0, 0.0)
+	target: tuple[float, float] = (1.0, 0.0)
+	polygons: list[list[tuple[float, float]]] = Field(default_factory=list)
+
+
+class ManualCasesRequest(BaseModel):
+	cases: list[ManualCaseRequest] = Field(default_factory=list)
 
 
 @dataclass
@@ -371,6 +393,32 @@ def read_binary_cases(path: Path, limit: int) -> list[CaseData]:
 	return cases
 
 
+def write_vector(file, point: Point) -> None:
+	import struct
+
+	file.write(struct.pack("<dd", point[0], point[1]))
+
+
+def write_size(file, value: int) -> None:
+	import struct
+
+	file.write(struct.pack("<Q", value))
+
+
+def write_binary_cases(path: Path, cases: list[CaseData]) -> None:
+	path.parent.mkdir(parents=True, exist_ok=True)
+	with path.open("wb") as file:
+		for start, target, polygons in cases:
+			write_vector(file, start)
+			write_vector(file, target)
+			write_size(file, len(polygons))
+			for polygon in polygons:
+				write_size(file, len(polygon))
+				for point in polygon:
+					write_vector(file, point)
+			write_size(file, 0)
+
+
 def case_bounds(case: CaseData) -> tuple[float, float, float, float]:
 	start, target, polygons = case
 	points = [start, target, *(point for polygon in polygons for point in polygon)]
@@ -447,6 +495,167 @@ def write_imported_previews(path: Path, cases: list[CaseData]) -> tuple[dict[str
 		"all": "previews/all.svg",
 	}
 	return previews, instance_paths
+
+
+def manual_cases_path(path: Path) -> Path:
+	return path / "manual-cases.json"
+
+
+def manual_input_path(path: Path) -> Path:
+	return path / "inputs" / "manual.bin"
+
+
+def manual_case_to_data(case: CaseData, name: str | None = None, generated: bool = False) -> dict[str, Any]:
+	start, target, polygons = case
+	data: dict[str, Any] = {
+		"start": [start[0], start[1]],
+		"target": [target[0], target[1]],
+		"polygons": [[[x, y] for x, y in polygon] for polygon in polygons],
+	}
+	if name:
+		data["name"] = name
+	if generated:
+		data["generated"] = True
+	return data
+
+
+def manual_case_from_request(request: ManualCaseRequest) -> CaseData:
+	polygons = [
+		[(float(x), float(y)) for x, y in polygon]
+		for polygon in request.polygons
+		if len(polygon) >= 3
+	]
+	return (
+		(float(request.start[0]), float(request.start[1])),
+		(float(request.target[0]), float(request.target[1])),
+		polygons,
+	)
+
+
+def manual_case_request_to_json(request: ManualCaseRequest) -> dict[str, Any]:
+	return request.model_dump() if hasattr(request, "model_dump") else request.dict()
+
+
+def read_manual_cases(path: Path) -> list[CaseData]:
+	return [manual_case_from_request(case) for case in read_editable_case_requests(path)]
+
+
+def read_editable_case_requests(path: Path) -> list[ManualCaseRequest]:
+	if not manual_cases_path(path).exists():
+		data = read_json(path / "campaign.json")
+		cases: list[ManualCaseRequest] = []
+		for input_record in data.get("inputs", []):
+			file = input_record.get("file")
+			instances = input_record.get("instances")
+			if not isinstance(file, str):
+				continue
+			limit = instances if isinstance(instances, int) and instances >= 0 else 1000000
+			for case in read_binary_cases(path / file, limit=limit):
+				cases.append(ManualCaseRequest(**manual_case_to_data(case, generated=data.get("type") != "manual")))
+		return cases
+	raw_cases = read_json(manual_cases_path(path)).get("cases", [])
+	if not isinstance(raw_cases, list):
+		raise HTTPException(status_code=500, detail="Invalid manual case store.")
+	cases: list[ManualCaseRequest] = []
+	for index, raw_case in enumerate(raw_cases):
+		if not isinstance(raw_case, dict):
+			raise HTTPException(status_code=500, detail=f"Invalid manual case {index}.")
+		try:
+			request = ManualCaseRequest(**raw_case)
+		except ValueError as error:
+			raise HTTPException(status_code=500, detail=f"Invalid manual case {index}.") from error
+		cases.append(request)
+	return cases
+
+
+def write_manual_case_requests(path: Path, cases: list[ManualCaseRequest]) -> None:
+	manual_cases_path(path).write_text(json.dumps({
+		"schema_version": 1,
+		"cases": [
+			{
+				**manual_case_to_data(manual_case_from_request(case), name=case.name),
+				**({"generated": True} if getattr(case, "generated", False) else {}),
+			}
+			for case in cases
+		],
+	}, indent=2) + "\n")
+
+
+def write_manual_cases(path: Path, cases: list[CaseData]) -> None:
+	write_manual_case_requests(path, [ManualCaseRequest(**manual_case_to_data(case)) for case in cases])
+
+
+def rebuild_manual_campaign(path: Path, cases: list[ManualCaseRequest] | list[CaseData]) -> dict[str, Any]:
+	case_requests = [
+		case if isinstance(case, ManualCaseRequest) else ManualCaseRequest(**manual_case_to_data(case))
+		for case in cases
+	]
+	case_data = [manual_case_from_request(case) for case in case_requests]
+	write_manual_case_requests(path, case_requests)
+	write_binary_cases(manual_input_path(path), case_data)
+	results_dir = path / "results"
+	if results_dir.exists():
+		shutil.rmtree(results_dir)
+	preview_dir = path / "previews"
+	if preview_dir.exists():
+		shutil.rmtree(preview_dir)
+	if case_data:
+		previews, instance_previews = write_imported_previews(path, case_data)
+	else:
+		previews, instance_previews = {}, []
+
+	campaign_file = path / "campaign.json"
+	data = read_json(campaign_file)
+	if data.get("type") != "manual":
+		data["edited_from_type"] = data.get("edited_from_type") or data.get("type")
+	data["generation"] = {
+		"instances": len(case_data),
+		"polygons": None,
+		"format": "manual-json-v1",
+		"edited": True,
+	}
+	data["inputs"] = [{
+		"file": "inputs/manual.bin",
+		"instances": len(case_data),
+		"polygons_per_instance": None,
+		"source": "manual-editor",
+	}]
+	data["preview"] = previews.get("all")
+	data["previews"] = previews
+	data["instance_previews"] = instance_previews
+	campaign_file.write_text(json.dumps(data, indent=2) + "\n")
+	_json_cache.pop(campaign_file, None)
+	_json_cache.pop(manual_cases_path(path), None)
+	return campaign_summary(path)
+
+
+def create_manual_campaign_data(path: Path) -> None:
+	path.mkdir(parents=True, exist_ok=True)
+	(path / "inputs").mkdir(parents=True, exist_ok=True)
+	data = {
+		"schema_version": 1,
+		"name": path.name,
+		"type": "manual",
+		"created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+		"generation": {
+			"instances": 0,
+			"polygons": None,
+			"format": "manual-json-v1",
+		},
+		"inputs": [{
+			"file": "inputs/manual.bin",
+			"instances": 0,
+			"polygons_per_instance": None,
+			"source": "manual-editor",
+		}],
+		"preview": None,
+		"previews": {},
+		"instance_previews": [],
+		"benchmark_runs": [],
+	}
+	(path / "campaign.json").write_text(json.dumps(data, indent=2) + "\n")
+	write_manual_cases(path, [])
+	write_binary_cases(manual_input_path(path), [])
 
 
 def total_instance_count(data: dict[str, Any]) -> int:
@@ -793,6 +1002,76 @@ def run_command(command: list[str]) -> subprocess.CompletedProcess[str]:
 	)
 
 
+def ensure_live_solver_binary() -> None:
+	configured_target = None
+	if SOLVER_BUILD_CACHE.exists():
+		for line in SOLVER_BUILD_CACHE.read_text().splitlines():
+			if line.startswith("TARGET:STRING="):
+				configured_target = line.split("=", 1)[1]
+				break
+
+	if SOLVER_BINARY.exists() and configured_target == "main-visualizer_solve":
+		return
+
+	subprocess.run(
+		[
+			"cmake",
+			"--preset",
+			"nonconvex-release",
+			"-DTARGET=main-visualizer_solve",
+			"-DTPP_ENABLE_GUROBI=OFF",
+		],
+		cwd=REPO_ROOT,
+		check=True,
+		stdout=subprocess.DEVNULL,
+		stderr=subprocess.PIPE,
+		text=True,
+	)
+	subprocess.run(
+		["cmake", "--build", "--preset", "nonconvex-release"],
+		cwd=REPO_ROOT,
+		check=True,
+		stdout=subprocess.DEVNULL,
+		stderr=subprocess.PIPE,
+		text=True,
+	)
+
+
+def live_solver_input(case: CaseData, max_calls: int, max_seconds: float) -> str:
+	start, target, polygons = case
+	lines = [
+		f"{start[0]} {start[1]}",
+		f"{target[0]} {target[1]}",
+		f"{len(polygons)} {max_calls} {max_seconds}",
+	]
+	for polygon in polygons:
+		lines.append(str(len(polygon)))
+		lines.extend(f"{x} {y}" for x, y in polygon)
+	return "\n".join(lines) + "\n"
+
+
+def parse_live_solver_output(output: str) -> dict[str, Any]:
+	lines = output.strip().splitlines()
+	if not lines:
+		raise HTTPException(status_code=500, detail="Solver produced no output.")
+	header = lines[0].split()
+	if header[0] == "ERR":
+		raise HTTPException(status_code=422, detail=" ".join(header[1:]))
+	if len(header) != 5 or header[0] != "OK":
+		raise HTTPException(status_code=500, detail="Invalid solver output.")
+	exact = header[1] == "1"
+	calls = int(header[2])
+	seconds = float(header[3])
+	point_count = int(header[4])
+	if len(lines) != point_count + 1:
+		raise HTTPException(status_code=500, detail="Truncated solver output.")
+	path = []
+	for line in lines[1:]:
+		x, y = line.split()
+		path.append([float(x), float(y)])
+	return {"path": path, "exact": exact, "calls": calls, "seconds": seconds}
+
+
 def import_binary_suite(
 	*,
 	name: str,
@@ -1085,6 +1364,88 @@ async def import_german(request: ImportGermanRequest):
 		overwrite=request.overwrite,
 		extra_generation={"source_zip": str(GERMAN_INSTANCES_ZIP) if GERMAN_INSTANCES_ZIP.exists() else None},
 	)
+
+
+@app.post("/api/campaigns/manual")
+async def create_manual_campaign(request: ManualCampaignRequest):
+	path = campaign_path(request.name)
+	if path.exists() and request.overwrite:
+		shutil.rmtree(path)
+	elif (path / "campaign.json").exists():
+		raise HTTPException(status_code=400, detail="Campaign already exists.")
+	create_manual_campaign_data(path)
+	return {"ok": True, "campaign": campaign_summary(path), "cases": []}
+
+
+@app.get("/api/campaigns/{name}/cases")
+async def get_manual_cases(name: str):
+	path = campaign_path(name)
+	read_json(path / "campaign.json")
+	return {"cases": [manual_case_request_to_json(case) for case in read_editable_case_requests(path)]}
+
+
+@app.put("/api/campaigns/{name}/cases")
+async def replace_manual_cases(name: str, request: ManualCasesRequest):
+	path = campaign_path(name)
+	read_json(path / "campaign.json")
+	campaign = rebuild_manual_campaign(path, request.cases)
+	return {"ok": True, "campaign": campaign, "cases": [manual_case_request_to_json(case) for case in request.cases]}
+
+
+@app.post("/api/campaigns/{name}/cases")
+async def append_manual_case(name: str, request: ManualCaseRequest):
+	path = campaign_path(name)
+	cases = read_manual_cases(path)
+	cases.append(manual_case_from_request(request))
+	campaign = rebuild_manual_campaign(path, cases)
+	return {"ok": True, "index": len(cases) - 1, "campaign": campaign}
+
+
+@app.put("/api/campaigns/{name}/cases/{case_index}")
+async def update_manual_case(name: str, case_index: int, request: ManualCaseRequest):
+	path = campaign_path(name)
+	cases = read_manual_cases(path)
+	if case_index < 0 or case_index >= len(cases):
+		raise HTTPException(status_code=404, detail="Case does not exist.")
+	cases[case_index] = manual_case_from_request(request)
+	campaign = rebuild_manual_campaign(path, cases)
+	return {"ok": True, "campaign": campaign}
+
+
+@app.delete("/api/campaigns/{name}/cases/{case_index}")
+async def delete_manual_case(name: str, case_index: int):
+	path = campaign_path(name)
+	cases = read_manual_cases(path)
+	if case_index < 0 or case_index >= len(cases):
+		raise HTTPException(status_code=404, detail="Case does not exist.")
+	del cases[case_index]
+	campaign = rebuild_manual_campaign(path, cases)
+	return {"ok": True, "campaign": campaign}
+
+
+@app.post("/api/editor/solve")
+async def solve_editor_case(request: ManualCaseRequest):
+	case = manual_case_from_request(request)
+	if len(case[2]) == 0:
+		return {"path": [list(case[0]), list(case[1])], "exact": True, "calls": 0, "seconds": 0}
+	try:
+		ensure_live_solver_binary()
+		completed = subprocess.run(
+			[SOLVER_BINARY],
+			input=live_solver_input(case, max_calls=200000, max_seconds=3.0),
+			cwd=REPO_ROOT,
+			check=False,
+			capture_output=True,
+			text=True,
+			timeout=8.0,
+		)
+	except subprocess.TimeoutExpired as error:
+		raise HTTPException(status_code=504, detail="Solver timed out.") from error
+	except subprocess.CalledProcessError as error:
+		raise HTTPException(status_code=500, detail=error.stderr.strip() or "Solver build failed.") from error
+	if completed.returncode != 0 and not completed.stdout:
+		raise HTTPException(status_code=500, detail=completed.stderr.strip() or "Solver failed.")
+	return JSONResponse(parse_live_solver_output(completed.stdout))
 
 
 @app.delete("/api/campaigns/{name}")

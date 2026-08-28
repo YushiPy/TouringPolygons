@@ -19,3 +19,7 @@ This is useful, but it needs guardrails. Removing hand-picked bad instances can 
 Add a visual editor, similar to the visualizer app, where users can draw or modify polygons, set start/end points, validate the geometry, and add the resulting instance to one or more test cases.
 
 This is the strongest idea, but also the largest. It would make debugging and adversarial testcase design much better than relying only on random generation. The core challenge is validation and export: the editor should prevent invalid polygon orderings, malformed polygons, accidental intersections when the target suite is disjoint-only, and inconsistent coordinate scaling. If done well, it could become the main workflow for constructing regression cases.
+
+## Instance Action Icons
+
+Replace the temporary text/symbol controls in the instance list with proper duplicate/delete icons that match the dashboard's visual language.

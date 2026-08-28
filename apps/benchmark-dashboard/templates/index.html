@@ -18,6 +18,7 @@
 
       <nav class="tabs" aria-label="Dashboard sections">
         <button class="tab is-active" data-panel="create-panel" type="button">Create</button>
+        <button class="tab" data-panel="cases-panel" type="button">Cases</button>
         <button class="tab" data-panel="benchmark-panel" type="button">Benchmark</button>
         <button class="tab" data-panel="comparison-panel" type="button">Comparison</button>
         <button class="tab" data-panel="inspect-panel" type="button">Inspect</button>
@@ -200,6 +201,55 @@
         <div id="campaign-name-indicator" class="inline-note"></div>
         <div id="create-preview" class="preview-layout is-hidden"></div>
         <pre id="create-output" class="output" aria-live="polite"></pre>
+      </section>
+
+      <section id="cases-panel" class="panel">
+        <div class="panel-header">
+          <h2>Edit Instances</h2>
+          <p>Create or open benchmark campaigns and edit their instances directly.</p>
+        </div>
+        <div class="case-editor-shell">
+          <aside class="case-sidebar">
+            <form id="manual-campaign-form" class="manual-campaign-form">
+              <label>
+                New campaign
+                <input id="manual-campaign-name" name="name" value="manual">
+              </label>
+              <button type="submit">Create</button>
+            </form>
+            <div class="field">
+              <span class="field-label">Campaigns</span>
+              <div id="manual-campaign-grid" class="choice-grid manual-campaign-grid" role="listbox" aria-label="Editable campaigns"></div>
+            </div>
+            <div class="case-list-head">
+              <h3>Instances</h3>
+              <button id="new-manual-case" class="secondary" type="button">New</button>
+            </div>
+            <div id="manual-case-list" class="manual-case-list"></div>
+          </aside>
+          <section class="case-editor">
+            <div class="case-toolbar">
+              <div class="segmented case-mode-control" data-manual-mode>
+                <button class="segment is-active" data-mode="move" type="button">Move</button>
+                <button class="segment" data-mode="polygon" type="button">Polygon</button>
+                <button class="segment" data-mode="select" type="button">Select</button>
+              </div>
+              <button id="close-manual-polygon" class="secondary" type="button" data-tooltip="Needs at least 3 vertices">Close Poly</button>
+              <button id="delete-manual-selection" class="secondary" type="button">Delete Selection</button>
+              <button id="toggle-manual-snapping" class="secondary" type="button" aria-pressed="false">Snap</button>
+              <button id="manual-zoom-out" class="secondary" type="button">-</button>
+              <button id="manual-zoom-in" class="secondary" type="button">+</button>
+              <button id="manual-editor-expand" class="secondary" type="button" aria-pressed="false">Expand</button>
+              <button id="manual-keybinds-button" class="secondary" type="button">Keyboard Shortcuts</button>
+              <button id="manual-editor-close" class="manual-editor-close" type="button" aria-label="Close expanded editor">×</button>
+            </div>
+            <canvas id="manual-case-canvas" width="960" height="620"></canvas>
+            <div id="manual-editor-status" class="editor-status-row">
+              <span id="manual-solve-status"></span>
+              <span id="manual-save-status"></span>
+            </div>
+          </section>
+        </div>
       </section>
 
       <section id="benchmark-panel" class="panel">
@@ -415,6 +465,21 @@
         <div class="confirm-actions">
           <button class="secondary" type="button" data-confirm-cancel>Cancel</button>
           <button class="danger" type="button" data-confirm-ok>Delete</button>
+        </div>
+      </article>
+    </div>
+    <div id="keybind-modal" class="modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="keybind-title">
+      <div class="modal-backdrop" data-close-keybinds></div>
+      <article class="confirm-card keybind-card">
+        <header class="modal-header">
+          <h2 id="keybind-title">Keyboard Shortcuts</h2>
+          <button class="secondary" type="button" data-close-keybinds>Close</button>
+        </header>
+        <div class="keybind-list">
+          <div class="keybind-row">
+            <span>Close polygon</span>
+            <div id="close-polygon-keybinds" class="keybind-controls"></div>
+          </div>
         </div>
       </article>
     </div>
