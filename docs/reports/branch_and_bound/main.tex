@@ -1,0 +1,284 @@
+\documentclass[11pt]{article}
+
+\usepackage[
+	a4paper,
+	left=0.9in,
+	right=0.9in,
+	top=1in,
+	bottom=1in
+]{geometry}
+\usepackage[english]{babel}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{microtype}
+
+\setlength{\parindent}{1.5em}
+\setlist[itemize]{itemsep=0.25em,topsep=0.4em}
+\setlist[enumerate]{itemsep=0.25em,topsep=0.4em}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\dist}{\operatorname{dist}}
+\newcommand{\conv}{\operatorname{conv}}
+
+\title{\textbf{Branch and Bound for the Nonconvex Touring Polygons Problem}}
+\author{Gabriel F. Ushijima}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This note summarizes the current branch and bound algorithm implemented for the nonconvex Touring Polygons Problem (TPP), explains why the method is correct when it exhausts the search tree, and lists practical routes for improvement. The current solver reduces each nonconvex polygon to a set of convex pieces, searches over one selected piece per polygon, and uses the exact convex TPP solver as both a lower-bound oracle and a leaf solver. This makes the implementation conceptually simple and exact under its stopping limits, but it also makes performance sensitive to the number of convex pieces and to the cost of repeated convex solves.
+\end{abstract}
+
+\section{Problem setting}
+
+The Touring Polygons Problem asks for a shortest polygonal path from a start point \(s \in \R^2\) to a target point \(t \in \R^2\) that visits a fixed ordered sequence of polygons
+\[
+	P_1, P_2, \ldots, P_k.
+\]
+For a path represented by contact points \(x_i \in P_i\), the objective is
+\[
+	\|s - x_1\| + \sum_{i=1}^{k - 1} \|x_i - x_{i + 1}\| + \|x_k - t\|.
+\]
+
+The implementation treats convex and nonconvex inputs differently. If every polygon is already convex, the nonconvex entry point immediately delegates to the convex TPP solver. Otherwise, each nonconvex polygon \(P_i\) is decomposed into convex pieces
+\[
+	P_i = \bigcup_{j=1}^{m_i} C_{i,j}.
+\]
+After this decomposition, the nonconvex problem becomes a discrete-continuous problem: choose one convex piece \(C_{i,j_i}\) for each polygon, then solve the convex TPP instance over the chosen pieces.
+
+\section{Current implementation}
+
+The production implementation is in \path{packages/nonconvex-tpp/cpp/src/solvers/bnb.cpp}. Its public options are intentionally small:
+\[
+	\texttt{max\_calls}=200000,
+	\qquad
+	\texttt{max\_seconds}=3.0.
+\]
+The result stores the best path found, whether the proof of optimality is exact, the number of convex-solver calls, and the elapsed time.
+
+\subsection{Preprocessing}
+
+The solver first handles two easy cases.
+
+\begin{enumerate}
+	\item If there are no polygons, it returns the direct segment \((s,t)\).
+	\item If every polygon is convex, it calls \texttt{tpp\_convex\_solve\_binary\_search\_lazy} once and returns an exact answer.
+\end{enumerate}
+
+For a genuinely nonconvex instance, each polygon is replaced by its convex decomposition. For later lower bounds, the solver also constructs one convex relaxation per polygon:
+\[
+	H_i =
+	\begin{cases}
+		C_{i,1}, & m_i = 1,\\
+		\conv\left(\bigcup_{j=1}^{m_i} C_{i,j}\right), & m_i > 1.
+	\end{cases}
+\]
+The hull \(H_i\) contains the original polygon, so replacing an unassigned polygon by \(H_i\) can only decrease the optimum. This is the main source of valid lower bounds in the current solver.
+
+\subsection{Initial incumbent}
+
+Branch and bound needs a feasible incumbent path. The code first selects the first convex piece of every polygon and tries to solve the resulting convex TPP instance exactly. If that fails, it falls back to a sampled vertex path over the hulls, computed by dynamic programming over polygon vertices. The incumbent length is then the length of the best initial path.
+
+This choice is pragmatic: it gives a feasible solution cheaply, but the initial path may be far from optimal. A weak incumbent makes pruning harder because a node is pruned only when its lower bound is already larger than the current best path length.
+
+\subsection{Search tree}
+
+A search node is a vector
+\[
+	(j_1,\ldots,j_d),
+\]
+meaning that the first \(d\) polygons have fixed pieces \(C_{1,j_1},\ldots,C_{d,j_d}\), while polygons \(d+1,\ldots,k\) are still undecided. The implementation explores these nodes with a FIFO queue, so the traversal is breadth-first.
+
+For a child node \((j_1,\ldots,j_d,j)\), the solver constructs the relaxed convex instance
+\[
+	C_{1,j_1},\ldots,C_{d,j_d},C_{d+1,j},H_{d+2},\ldots,H_k.
+\]
+It then calls the convex length solver on this relaxed instance. Let this value be \(L(j_1,\ldots,j_d,j)\). Since each remaining hull contains all corresponding pieces, every feasible completion of this partial assignment has length at least \(L(j_1,\ldots,j_d,j)\). Therefore:
+\[
+	L(j_1,\ldots,j_d,j) > \text{incumbent}
+	\quad \Longrightarrow \quad
+	\text{the child subtree can be discarded.}
+\]
+The code uses \(\leq\) as the keep condition, so ties are explored.
+
+\subsection{Leaves}
+
+When a node has depth \(k\), it fixes a complete combination of convex pieces. At that point the solver calls the full convex path solver, not only the length solver. If the returned path is shorter than the incumbent, the incumbent path and incumbent length are updated.
+
+\subsection{Stopping conditions}
+
+The algorithm stops early if it reaches either the maximum number of convex-solver calls or the maximum elapsed time. In that case, it returns the best path found so far with \texttt{exact=false}. If the queue is exhausted before either cap is reached, then every non-pruned combination has been solved and every pruned combination has a certified lower bound above the incumbent. In that case, the returned path is globally optimal for the decomposed problem and \texttt{exact=true}.
+
+\section{Correctness argument}
+
+The correctness proof follows the standard branch and bound template.
+
+\paragraph{Coverage.}
+Every feasible path for the decomposed instance chooses at least one convex piece from each original polygon. Since the solver branches over all piece indices for every polygon, every possible complete assignment appears as a leaf unless one of its ancestors is pruned.
+
+\paragraph{Validity of the lower bound.}
+At a partial node, fixed polygons are represented by their selected convex pieces and unfixed polygons are represented by convex hull relaxations. These hulls are supersets of the remaining feasible regions. Minimizing over a superset cannot increase the optimum, so the convex solver value is a valid lower bound for all completions of the partial assignment.
+
+\paragraph{Safe pruning.}
+If a node lower bound is larger than the incumbent length, then no completion of that node can improve the incumbent. Removing that subtree cannot remove an optimal solution.
+
+\paragraph{Optimality on exhaustion.}
+If the queue is exhausted, every leaf was either evaluated exactly by the convex solver or safely pruned by a valid lower bound. The incumbent is therefore no longer merely the best observed path; it is a certificate of global optimality for the decomposed nonconvex instance.
+
+\section{Current state}
+
+The current production solver is exact when it exhausts the queue and useful as an anytime solver when it hits the call or time cap. Its main strengths are:
+
+\begin{itemize}
+	\item it reuses the existing exact convex TPP solver instead of introducing a separate nonlinear solver;
+	\item the lower-bound logic is simple and easy to audit;
+	\item the implementation has deterministic behavior except for upstream decomposition details;
+	\item it already exposes practical caps through \texttt{NonconvexTppSolveOptions}.
+\end{itemize}
+
+The main limitations are:
+
+\begin{itemize}
+	\item the worst-case number of complete piece assignments is \(\prod_{i=1}^k m_i\);
+	\item every internal child bound requires a convex length solve, so most runtime is spent inside the convex solver;
+	\item the breadth-first queue does not prioritize nodes with small lower bounds or strong incumbent-improvement potential;
+	\item the initial incumbent is weak because it uses only the first piece of every polygon, with a vertex-sampled fallback;
+	\item no bound cache is used in the production solver, so similar relaxed convex instances may be solved repeatedly;
+	\item the solver returns only coarse metrics, making it difficult to diagnose why a given instance was hard.
+\end{itemize}
+
+The benchmark implementation in \path{packages/nonconvex-tpp/cpp/src/main-bnb_workload_benchmark.cpp} already experiments with several improvement ideas: piece grouping, piece-graph bounds, port bounds, local refinement bounds, contact-aware bounds, per-kind timing, prune counters, depth histograms, and worst-case run summaries. These experiments are not yet part of the compact production solver.
+
+\section{Routes for improvement}
+
+\subsection{Improve the incumbent}
+
+The cheapest immediate improvement is to find a better feasible path before the search starts. Possible strategies include:
+
+\begin{itemize}
+	\item try multiple piece selections instead of only the first piece of each polygon;
+	\item choose initial pieces using distances from \(s\), \(t\), and neighboring polygons;
+	\item run a fast local search over piece indices, updating one polygon at a time;
+	\item use the approximate path produced elsewhere in the benchmark pipeline as the initial incumbent.
+\end{itemize}
+
+A better incumbent improves pruning without changing the proof of exactness.
+
+\subsection{Use best-first search}
+
+The current FIFO queue explores shallow nodes before considering their lower-bound quality. A priority queue ordered by lower bound would explore the most promising nodes first. This can improve anytime behavior because good leaves are found earlier, and it can also improve pruning because better incumbents appear sooner.
+
+A practical priority could combine the bound value, depth, and estimated branching factor:
+\[
+	\text{priority}(u) = \text{bound}(u) + \lambda (k - \text{depth}(u)).
+\]
+The pure lower-bound ordering is the cleanest exact branch and bound variant; depth penalties should be treated as heuristics for exploration order only, not as pruning criteria.
+
+\subsection{Branch on harder polygons first}
+
+The current node depth is tied to the original polygon order. This is natural because the convex TPP instance itself has an ordered sequence, but the discrete search could still choose which polygon to fix next while constructing the relaxed instance in the original order.
+
+Useful branching scores include:
+
+\begin{itemize}
+	\item number of pieces \(m_i\);
+	\item gap between the hull relaxation and the best piece-level restriction;
+	\item distance of the hull contact point to the actual decomposed pieces;
+	\item historical prune success at each depth.
+\end{itemize}
+
+This can reduce the tree faster by resolving the polygons whose hull relaxations are most misleading.
+
+\subsection{Add cheap lower bounds before convex solves}
+
+The benchmark file contains two cheap dynamic-programming bounds that can avoid some expensive convex solver calls.
+
+\paragraph{Piece-graph bound.}
+Build a layered graph whose states are convex pieces. Edge weights are distances between pieces, with start and target distances on the first and last layers. A shortest path in this graph is a lower bound because it ignores the consistency of actual contact points along a polygonal path.
+
+\paragraph{Port bound.}
+Represent each piece by a small set of ports, such as vertices, edge midpoints, and centroids, with a covering radius. Dynamic programming over ports gives another lower bound. It is weaker than an exact convex relaxation in some cases, but much cheaper per call after preprocessing.
+
+In production, these bounds could be used as filters:
+\[
+	\max\{B_{\text{piece}}, B_{\text{port}}\} > \text{incumbent}
+	\quad \Longrightarrow \quad
+	\text{prune without a convex solve.}
+\]
+If the cheap bounds fail to prune, the current hull-based convex bound can still be computed.
+
+\subsection{Refine only suspicious bounds}
+
+The hull relaxation is weakest when the optimal relaxed contact point lies in the hull but outside the actual nonconvex polygon. The benchmark explores two ways to address this.
+
+\paragraph{Window refinement.}
+Instead of relaxing all remaining polygons by hulls, exactly branch over a small window of upcoming polygons and relax only the rest. This gives a stronger lower bound at a controlled additional cost.
+
+\paragraph{Contact-aware refinement.}
+Solve the hull-relaxed path, identify future polygons where the contact point is far from any real piece, and refine only those polygons. This targets the polygons responsible for the bound gap.
+
+Both refinements should be applied selectively, for example only when the current lower bound is close to the incumbent. Otherwise the extra convex calls may cost more than they prune.
+
+\subsection{Group pieces safely}
+
+Piece grouping reduces branching by replacing several nearby convex pieces with the convex hull of the group, then refining inside selected groups later. The benchmark implements grouping controlled by the area excess
+\[
+	\frac{\operatorname{area}(\conv(\cup C)) - \sum_C \operatorname{area}(C)}{\sum_C \operatorname{area}(C)}.
+\]
+Small excess means the group hull is close to the union of its pieces, so the relaxation is less likely to be misleading. This gives a two-level search tree: first choose a group, then choose a piece inside each selected group.
+
+The risk is that aggressive grouping weakens bounds and postpones important branching decisions. Grouping should therefore be adaptive and measured against actual prune rates.
+
+\subsection{Cache and reuse convex solves}
+
+The production solver constructs many related convex instances. Caching can help at several levels:
+
+\begin{itemize}
+	\item memoize bounds by the selected piece-prefix vector;
+	\item cache geometric preprocessing inside the convex solver;
+	\item reuse last-step map information between instances that differ only in later polygons;
+	\item separate length-only and path-producing calls so full paths are computed only when needed.
+\end{itemize}
+
+The last item is partly already done: internal bounds use the length solver, and leaves compute a full path only when needed. More reuse inside the convex solver is likely more valuable than caching whole instances alone.
+
+\subsection{Expose diagnostics}
+
+The production result currently reports only \texttt{path}, \texttt{exact}, \texttt{calls}, and \texttt{seconds}. The benchmark shows that more counters are useful:
+
+\begin{itemize}
+	\item visited nodes and pruned nodes;
+	\item bound calls versus leaf calls;
+	\item incumbent updates;
+	\item maximum observed branching;
+	\item time spent in decomposition, bounds, and leaf solves;
+	\item reason for non-exact termination: time cap or call cap.
+\end{itemize}
+
+These diagnostics would make it easier to decide whether future work should focus on decomposition quality, incumbent quality, bound strength, or convex solver speed.
+
+\section{Suggested near-term plan}
+
+A reasonable development order is:
+
+\begin{enumerate}
+	\item Add production diagnostics without changing the algorithm.
+	\item Replace the FIFO queue by a priority queue ordered by lower bound.
+	\item Improve the initial incumbent with several cheap candidate piece selections.
+	\item Add the piece-graph bound as a cheap prefilter before convex hull bounds.
+	\item Port the contact-aware refinement from the benchmark once metrics show that hull bounds often fail close to the incumbent.
+	\item Run benchmark comparisons after each change, tracking exactness rate, total convex calls, prune rate, and wall-clock time.
+\end{enumerate}
+
+This order minimizes risk: the first changes improve observability and search order, while later changes introduce stronger but more complex bounds.
+
+\section{Conclusion}
+
+The current branch and bound solver is a clean exact method for the decomposed nonconvex TPP. Its correctness comes from exhaustive branching over convex pieces and from lower bounds obtained by replacing undecided nonconvex regions by convex hull supersets. Its practical bottleneck is the number of convex solver calls. The most promising improvements are therefore better incumbents, better node ordering, cheap lower-bound filters, targeted refinement of weak hull relaxations, and diagnostics that identify which mechanism is limiting each instance.
+
+\end{document}
