@@ -7,9 +7,13 @@ const state = {
   selectedCampaign: "",
   selectedComparisonCampaign: "",
   osmFiles: [],
+  resultFiles: [],
+  recentJobs: [],
   osmScanStarted: false,
   benchmarkedInstances: new Map(),
   benchmarkedSort: "case",
+  campaignFilter: "",
+  resultFilter: "",
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -39,6 +43,37 @@ async function requestJSON(url, options = {}) {
 
 function setOutput(target, text) {
   target.textContent = text || "";
+}
+
+function escapeHTML(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character]);
+}
+
+function csvCell(value) {
+  const text = String(value ?? "");
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+function downloadCSV(filename, rows) {
+  if (!rows || rows.length === 0) {
+    return;
+  }
+  const headers = Object.keys(rows[0]);
+  const csv = [
+    headers.map(csvCell).join(","),
+    ...rows.map((row) => headers.map((header) => csvCell(row[header])).join(",")),
+  ].join("\n");
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
 }
 
 function instanceLabel(index) {
@@ -347,6 +382,17 @@ function setupCompareMaxInstancesControl() {
   setValue();
 }
 
+function setupFilterInput(selector, stateKey, render) {
+  const input = $(selector);
+  if (!input) {
+    return;
+  }
+  input.addEventListener("input", () => {
+    state[stateKey] = input.value.trim().toLowerCase();
+    render();
+  });
+}
+
 function resetCompareMaxInstancesControl() {
   const slider = $("#compare-max-instances-slider");
   const input = $("#compare-max-instances-input");
@@ -401,9 +447,9 @@ function renderOsmFiles() {
     button.dataset.value = file.path;
     button.setAttribute("role", "option");
     button.innerHTML = `
-      <strong>${file.name}</strong>
+      <strong>${escapeHTML(file.name)}</strong>
       <span>${formatBytes(file.size)}</span>
-      <small>${file.path}</small>
+      <small>${escapeHTML(file.path)}</small>
     `;
     button.addEventListener("click", () => selectOsmFile(file.path));
     grid.appendChild(button);
@@ -434,8 +480,8 @@ function renderCampaignChoiceGrid(grid, selectedName, onSelect) {
     button.dataset.value = campaign.name;
     button.setAttribute("role", "option");
     button.innerHTML = `
-      <strong>${campaign.name}</strong>
-      <span>${campaign.type}</span>
+      <strong>${escapeHTML(campaign.name)}</strong>
+      <span>${escapeHTML(campaign.type)}</span>
       <small>${campaign.inputs.existing}/${campaign.inputs.total} input files</small>
       <small>${campaign.instance_progress.total || generation.instances || "-"} instances</small>
     `;
@@ -1056,8 +1102,8 @@ function renderBenchmarkedInstanceSection(root, campaign, instances) {
         <span class="status-pill ${item.status === "solved" ? "is-solved" : "is-capped"}">${item.status}</span>
         <small>final ${shortNumber(item.final_length)}</small>
         <small>${formatSeconds(parseNumber(item.total_seconds))}</small>
-        <small>${item.calls ?? "-"} calls</small>
-        <small>${item.solution_available ? "path + pieces" : `${item.decomposed_pieces ?? "-"} pieces`}</small>
+        <small>${escapeHTML(item.calls ?? "-")} calls</small>
+        <small>${item.solution_available ? "path + pieces" : `${escapeHTML(item.decomposed_pieces ?? "-")} pieces`}</small>
       </div>
     `;
     button.addEventListener("click", () => openBenchmarkedInstanceModal(campaign, item));
@@ -1075,21 +1121,33 @@ function renderSolvedPreview(campaign) {
 function renderCampaigns() {
   const root = $("#campaign-list");
   root.innerHTML = "";
-  for (const campaign of state.campaigns) {
+  const campaigns = state.campaigns.filter((campaign) => {
+    const query = state.campaignFilter;
+    if (!query) {
+      return true;
+    }
+    return [campaign.name, campaign.type, JSON.stringify(campaign.generation || {})]
+      .some((value) => String(value || "").toLowerCase().includes(query));
+  });
+  if (campaigns.length === 0) {
+    root.innerHTML = '<div class="empty-choice">No campaigns match the current filter.</div>';
+    return;
+  }
+  for (const campaign of campaigns) {
     const generation = campaign.generation || {};
     const progress = runProgress(campaign);
     const card = document.createElement("article");
     card.className = "campaign-card";
     card.tabIndex = 0;
     card.innerHTML = `
-      <button class="campaign-delete" type="button" data-delete-campaign="${campaign.name}" aria-label="Delete ${campaign.name}">x</button>
-      <h3>${campaign.name}</h3>
+      <button class="campaign-delete" type="button" data-delete-campaign="${escapeHTML(campaign.name)}" aria-label="Delete ${escapeHTML(campaign.name)}">x</button>
+      <h3>${escapeHTML(campaign.name)}</h3>
       <div class="meta">
-        <div><span>Type</span><br>${campaign.type}</div>
+        <div><span>Type</span><br>${escapeHTML(campaign.type)}</div>
         <div><span>Input files</span><br>${campaign.inputs.existing}/${campaign.inputs.total}</div>
         <div><span>Instances</span><br>${generation.instances ?? generation.instances_per_file ?? "-"}</div>
         <div><span>Polygon Count</span><br>${generation.polygons ?? generation.polygon_counts ?? "-"}</div>
-        <div><span>Vertices</span><br>${describeVertices(generation)}</div>
+        <div><span>Vertices</span><br>${escapeHTML(describeVertices(generation))}</div>
         <div><span>Progress</span><br>${progress.label}</div>
       </div>
       <div class="bar" aria-label="Benchmark progress">
@@ -1115,11 +1173,16 @@ function renderCampaigns() {
 function renderResults(files) {
   const root = $("#result-list");
   root.innerHTML = "";
-  if (files.length === 0) {
+  const query = state.resultFilter;
+  const filtered = files
+    .filter((file) => !query || file.path.toLowerCase().includes(query))
+    .slice()
+    .sort((left, right) => right.mtime - left.mtime);
+  if (filtered.length === 0) {
     root.textContent = "No result files found.";
     return;
   }
-  for (const file of files.slice().reverse().slice(0, 40)) {
+  for (const file of filtered.slice(0, 40)) {
     const row = document.createElement("div");
     row.className = "result-row";
     row.textContent = `${file.path} (${file.size} bytes)`;
@@ -1127,8 +1190,33 @@ function renderResults(files) {
   }
 }
 
+function renderJobs(jobs) {
+  const root = $("#job-list");
+  if (!root) {
+    return;
+  }
+  root.innerHTML = "";
+  if (!jobs || jobs.length === 0) {
+    root.textContent = "No jobs recorded.";
+    return;
+  }
+  for (const job of jobs.slice(0, 20)) {
+    const row = document.createElement("div");
+    row.className = "result-row job-row";
+    const started = new Date((job.started_at || 0) * 1000);
+    const elapsed = job.finished_at
+      ? formatElapsed(job.finished_at - job.started_at)
+      : formatElapsed(Date.now() / 1000 - job.started_at);
+    row.innerHTML = `
+      <strong>${escapeHTML(job.kind || "job")} / ${escapeHTML(job.status || "unknown")}</strong>
+      <span>${escapeHTML(job.campaign || "-")} | ${Number.isNaN(started.getTime()) ? "-" : started.toLocaleString()} | ${elapsed}</span>
+    `;
+    root.appendChild(row);
+  }
+}
+
 function metricCard(label, value) {
-  return `<div class="metric-card"><span>${label}</span><strong>${value}</strong></div>`;
+  return `<div class="metric-card"><span>${escapeHTML(label)}</span><strong>${escapeHTML(value)}</strong></div>`;
 }
 
 function shortNumber(value) {
@@ -1208,10 +1296,10 @@ function renderBarChart(rows, options = {}) {
     <div class="chart-bars">
       ${values.map((row) => `
         <div class="chart-row">
-          <span>${row.label}</span>
+          <span>${escapeHTML(row.label)}</span>
           <div><i style="width: ${Math.max(2, Math.round((row.value / max) * 100))}%"></i></div>
-          <strong>${row.time}</strong>
-          <em>${row.percent}</em>
+          <strong>${escapeHTML(row.time)}</strong>
+          <em>${escapeHTML(row.percent)}</em>
         </div>
       `).join("")}
     </div>
@@ -1290,7 +1378,7 @@ function renderHistogram(values, formatter) {
     <div class="histogram">
       ${bins.map((bin) => `
         <div class="histogram-row">
-          <span>${formatter(bin.start)}-${formatter(bin.end)}</span>
+          <span>${escapeHTML(formatter(bin.start))}-${escapeHTML(formatter(bin.end))}</span>
           <div><i style="width: ${Math.max(3, Math.round((bin.count / peak) * 100))}%"></i></div>
           <strong>${bin.count}</strong>
         </div>
@@ -1368,8 +1456,9 @@ function renderBenchmarkReport(report) {
     <header class="report-header">
       <div>
         <h3>Latest Markdown Summary</h3>
-        <p>${report.files[0].path}${report.input_file ? ` | Test case: ${report.input_file}` : ""}</p>
+        <p>${escapeHTML(report.files[0].path)}${report.input_file ? ` | Test case: ${escapeHTML(report.input_file)}` : ""}</p>
       </div>
+      <button class="secondary" type="button" data-export-benchmark>Export CSV</button>
     </header>
     ${renderBenchmarkSummaryRows(timing, metrics, counters)}
     <div class="report-grid report-grid-single">
@@ -1404,6 +1493,9 @@ function renderBenchmarkReport(report) {
       button.classList.toggle("is-active", !hidden);
       button.setAttribute("aria-pressed", !hidden ? "true" : "false");
     });
+  });
+  root.querySelector("[data-export-benchmark]")?.addEventListener("click", () => {
+    downloadCSV(`${report.files[0].path.split("/").pop() || "benchmark"}.csv`, resultRows);
   });
   root.classList.remove("is-hidden");
 }
@@ -1466,8 +1558,9 @@ function renderComparisonReport(data) {
     <header class="report-header">
       <div>
         <h3>Latest Solver Comparison</h3>
-        <p>${rows.length} solver${rows.length === 1 ? "" : "s"} in the latest comparison run${data?.input_file ? ` | Test case: ${data.input_file}` : ""}</p>
+        <p>${rows.length} solver${rows.length === 1 ? "" : "s"} in the latest comparison run${data?.input_file ? ` | Test case: ${escapeHTML(data.input_file)}` : ""}</p>
       </div>
+      <button class="secondary" type="button" data-export-comparison>Export CSV</button>
     </header>
     <div class="summary-grid">
       ${metricCard("Completed", `${completed}/${rows.length}`)}
@@ -1503,13 +1596,13 @@ function renderComparisonReport(data) {
             <tbody>
               ${rows.map((row) => `
                 <tr>
-                  <td>${solverLabel(row.solver)}</td>
-                  <td>${row.status}</td>
+                  <td>${escapeHTML(solverLabel(row.solver))}</td>
+                  <td>${escapeHTML(row.status)}</td>
                   <td>${shortNumber(row.wall_clock_seconds)} s</td>
                   <td>${shortNumber(row.convex_solver_seconds)} s</td>
                   <td>${meanSecondsPerCall(row) === null ? "-" : formatMicroseconds(meanSecondsPerCall(row))}</td>
-                  <td>${row.total_convex_calls || "-"}</td>
-                  <td>${row.fully_solved_runs || "-"}</td>
+                  <td>${escapeHTML(row.total_convex_calls || "-")}</td>
+                  <td>${escapeHTML(row.fully_solved_runs || "-")}</td>
                 </tr>
               `).join("")}
             </tbody>
@@ -1518,6 +1611,9 @@ function renderComparisonReport(data) {
       </section>
     </div>
   `;
+  root.querySelector("[data-export-comparison]")?.addEventListener("click", () => {
+    downloadCSV(`${data?.path?.split("/").at(-2) || "comparison"}.csv`, rows);
+  });
   root.classList.remove("is-hidden");
 }
 
@@ -1674,14 +1770,18 @@ function openPreviewModal(campaign, kind, title) {
 }
 
 async function refresh() {
-  const [campaignData, resultData] = await Promise.all([
+  const [campaignData, resultData, jobData] = await Promise.all([
     requestJSON("/api/campaigns"),
     requestJSON("/api/results"),
+    requestJSON("/api/jobs"),
   ]);
   state.campaigns = campaignData.campaigns;
+  state.resultFiles = resultData.files;
+  state.recentJobs = jobData.jobs;
   renderCampaignOptions();
   renderCampaigns();
-  renderResults(resultData.files);
+  renderResults(state.resultFiles);
+  renderJobs(state.recentJobs);
   updateCampaignNameIndicator();
 }
 
@@ -1953,7 +2053,7 @@ async function pollJob(jobId) {
       state.currentRunJob = null;
       return;
     }
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
 }
 
@@ -1991,7 +2091,7 @@ async function pollComparisonJob(jobId) {
       state.currentComparisonJob = null;
       return;
     }
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
 }
 
@@ -2113,6 +2213,8 @@ $("#compare-form").addEventListener("submit", runComparison);
 $("#stop-run-button").addEventListener("click", () => cancelJob("#stop-run-button", "#run-output"));
 $("#stop-compare-button").addEventListener("click", () => cancelJob("#stop-compare-button", "#compare-output"));
 $("#create-name").addEventListener("input", updateCampaignNameIndicator);
+setupFilterInput("#campaign-filter", "campaignFilter", renderCampaigns);
+setupFilterInput("#result-filter", "resultFilter", () => renderResults(state.resultFiles));
 updateCreateMode();
 
 requestJSON("/api/system")

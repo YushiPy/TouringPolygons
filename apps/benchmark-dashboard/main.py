@@ -13,13 +13,13 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 APP_ROOT = Path(__file__).resolve().parent
@@ -28,6 +28,7 @@ BENCHMARK_CLI = REPO_ROOT / "benchmarks/tpp.py"
 CONVERT_INSTANCES_SCRIPT = REPO_ROOT / "benchmarks/scripts/convert_instances.py"
 CAMPAIGNS_ROOT = REPO_ROOT / "benchmarks/campaigns"
 RESULTS_ROOT = REPO_ROOT / "benchmarks/results"
+JOBS_PATH = APP_ROOT / ".jobs.json"
 CANONICAL_SUITE = REPO_ROOT / "benchmarks/suites/canonical-v1.bin"
 TRACKED_NONCONVEX_SUITE = REPO_ROOT / "benchmarks/suites/nonconvex/test_cases.bin"
 GERMAN_INSTANCES_ZIP = REPO_ROOT / "tspn-comparison/solver/instances/instances_socg_simplified.zip"
@@ -70,9 +71,9 @@ templates = Jinja2Templates(directory=str(APP_ROOT / "templates"))
 class CreateSyntheticRequest(BaseModel):
 	name: str
 	vertices: str = "8"
-	polygons: int = 20
-	instances: int = 100
-	shape: str = "star"
+	polygons: int = Field(default=20, ge=1)
+	instances: int = Field(default=100, ge=1)
+	shape: Literal["star", "convex"] = "star"
 	seed: int = 42
 	no_preview: bool = False
 	overwrite: bool = False
@@ -81,37 +82,37 @@ class CreateSyntheticRequest(BaseModel):
 class CreateOsmRequest(BaseModel):
 	name: str
 	pbf_path: str
-	instances: int = 100
-	polygon_counts: int = 20
-	sample_size: int | None = None
+	instances: int = Field(default=100, ge=1)
+	polygon_counts: int = Field(default=20, ge=1)
+	sample_size: int | None = Field(default=None, ge=1)
 	seed: int = 42
-	simplify_tolerance: float = 1.0
-	normalization: str = "instance"
-	scale: float = 1.0
-	sampling: str = "local"
-	local_pool_size: int = 80
-	layout: str = "geographic"
-	grid_polygon_size: float = 1.0
-	grid_cell_size: float = 3.0
-	grid_columns: int | None = None
-	grid_placement: str = "random"
-	convex_replacement_fraction: float = 0.0
-	convex_replacement_vertices: int = 64
-	convex_replacement_position: str = "middle"
-	order: str = "spatial"
-	endpoint_mode: str = "ordered"
+	simplify_tolerance: float = Field(default=1.0, ge=0.0, le=10.0)
+	normalization: Literal["instance", "dataset", "none"] = "instance"
+	scale: float = Field(default=1.0, ge=0.1, le=10.0)
+	sampling: Literal["local", "uniform"] = "local"
+	local_pool_size: int = Field(default=80, ge=1)
+	layout: Literal["geographic", "grid"] = "geographic"
+	grid_polygon_size: float = Field(default=1.0, ge=0.1, le=20.0)
+	grid_cell_size: float = Field(default=3.0, ge=0.2, le=40.0)
+	grid_columns: int | None = Field(default=None, ge=1)
+	grid_placement: Literal["row-major", "random"] = "random"
+	convex_replacement_fraction: float = Field(default=0.0, ge=0.0, le=1.0)
+	convex_replacement_vertices: int = Field(default=64, ge=3)
+	convex_replacement_position: Literal["middle", "random", "alternating"] = "middle"
+	order: Literal["spatial", "left-to-right", "random", "angle"] = "spatial"
+	endpoint_mode: Literal["ordered", "bbox"] = "ordered"
 	no_preview: bool = False
 	overwrite: bool = False
 
 
 class RunCampaignRequest(BaseModel):
 	name: str
-	threads: int | None = None
+	threads: int | None = Field(default=None, ge=1)
 	solver: str | None = None
-	max_instances: int | None = None
+	max_instances: int | None = Field(default=None, ge=1)
 	max_calls: str = "1000000"
 	max_seconds: str | None = None
-	timeout: int | None = None
+	timeout: int | None = Field(default=None, ge=1)
 	force: bool = False
 	no_build: bool = False
 	dry_run: bool = False
@@ -120,11 +121,11 @@ class RunCampaignRequest(BaseModel):
 class CompareSolversRequest(BaseModel):
 	name: str
 	solvers: list[str]
-	threads: int | None = None
-	max_instances: int | None = None
+	threads: int | None = Field(default=None, ge=1)
+	max_instances: int | None = Field(default=None, ge=1)
 	max_calls: str = "1000000"
 	max_seconds: str | None = None
-	timeout: int | None = None
+	timeout: int | None = Field(default=None, ge=1)
 	no_build: bool = False
 
 
@@ -168,8 +169,29 @@ class Job:
 			return "completed"
 		return "failed"
 
+	def snapshot(self) -> dict[str, Any]:
+		return {
+			"id": self.id,
+			"command": self.command,
+			"kind": self.kind,
+			"campaign": self.campaign,
+			"started_at": self.started_at,
+			"finished_at": self.finished_at,
+			"returncode": self.returncode,
+			"output": self.output,
+			"progress_completed": self.progress_completed,
+			"progress_total": self.progress_total,
+			"solver_progress_completed": self.solver_progress_completed,
+			"solver_progress_total": self.solver_progress_total,
+			"current_solver": self.current_solver,
+			"cancel_requested": self.cancel_requested,
+			"status": self.status,
+		}
+
 
 jobs: dict[str, Job] = {}
+_json_cache: dict[Path, tuple[int, int, dict[str, Any]]] = {}
+_csv_cache: dict[tuple[Path, str], tuple[int, int, list[dict[str, str]]]] = {}
 PROGRESS_PATTERN = re.compile(r"cases\s+\|\s+\[[^\]]*\]\s+(\d+)\s*/\s*(\d+)")
 SOLVER_SECTION_PATTERN = re.compile(r"^##\s+(.+)$", re.MULTILINE)
 Point = tuple[float, float]
@@ -182,9 +204,24 @@ def campaign_path(name: str) -> Path:
 	return CAMPAIGNS_ROOT / name
 
 
+def file_signature(path: Path) -> tuple[int, int]:
+	stat = path.stat()
+	return stat.st_mtime_ns, stat.st_size
+
+
+def clone_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+	return [row.copy() for row in rows]
+
+
 def read_json(path: Path) -> dict[str, Any]:
 	try:
-		return json.loads(path.read_text())
+		signature = file_signature(path)
+		cached = _json_cache.get(path)
+		if cached and cached[:2] == signature:
+			return dict(cached[2])
+		data = json.loads(path.read_text())
+		_json_cache[path] = (*signature, data)
+		return dict(data)
 	except FileNotFoundError as error:
 		raise HTTPException(status_code=404, detail=f"Missing file: {path}") from error
 	except json.JSONDecodeError as error:
@@ -195,8 +232,7 @@ def read_run_index(path: Path) -> dict[str, Any]:
 	if not path.exists():
 		return {"exists": False, "rows": [], "counts": {}}
 
-	with path.open(newline="") as file:
-		rows = list(csv.DictReader(file))
+	rows = read_csv_rows(path)
 
 	counts: dict[str, int] = {}
 	for row in rows:
@@ -206,11 +242,61 @@ def read_run_index(path: Path) -> dict[str, Any]:
 	return {"exists": True, "rows": rows, "counts": counts}
 
 
-def read_result_rows(path: Path) -> list[dict[str, str]]:
+def read_csv_rows(path: Path, *, delimiter: str = ",") -> list[dict[str, str]]:
 	if not path.exists():
 		return []
+	signature = file_signature(path)
+	cache_key = (path, delimiter)
+	cached = _csv_cache.get(cache_key)
+	if cached and cached[:2] == signature:
+		return clone_rows(cached[2])
 	with path.open(newline="") as file:
-		return list(csv.DictReader(file, delimiter=";"))
+		rows = list(csv.DictReader(file, delimiter=delimiter))
+	_csv_cache[cache_key] = (*signature, rows)
+	return clone_rows(rows)
+
+
+def read_result_rows(path: Path) -> list[dict[str, str]]:
+	return read_csv_rows(path, delimiter=";")
+
+
+def persist_jobs() -> None:
+	JOBS_PATH.write_text(json.dumps([job.snapshot() for job in jobs.values()], indent=2) + "\n")
+
+
+def load_jobs() -> None:
+	if not JOBS_PATH.exists():
+		return
+	try:
+		raw_jobs = json.loads(JOBS_PATH.read_text())
+	except (OSError, json.JSONDecodeError):
+		return
+	if not isinstance(raw_jobs, list):
+		return
+	for raw_job in raw_jobs[-100:]:
+		if not isinstance(raw_job, dict):
+			continue
+		job = Job(
+			id=str(raw_job.get("id") or uuid.uuid4()),
+			command=[str(part) for part in raw_job.get("command", [])],
+			kind=str(raw_job.get("kind") or "run"),
+			campaign=raw_job.get("campaign") if isinstance(raw_job.get("campaign"), str) else None,
+			started_at=float(raw_job.get("started_at") or time.time()),
+			finished_at=raw_job.get("finished_at") if isinstance(raw_job.get("finished_at"), float | int) else time.time(),
+			returncode=raw_job.get("returncode") if isinstance(raw_job.get("returncode"), int) else 130,
+			output=str(raw_job.get("output") or ""),
+			progress_completed=raw_job.get("progress_completed") if isinstance(raw_job.get("progress_completed"), int) else None,
+			progress_total=raw_job.get("progress_total") if isinstance(raw_job.get("progress_total"), int) else None,
+			solver_progress_completed=raw_job.get("solver_progress_completed") if isinstance(raw_job.get("solver_progress_completed"), int) else None,
+			solver_progress_total=raw_job.get("solver_progress_total") if isinstance(raw_job.get("solver_progress_total"), int) else None,
+			current_solver=raw_job.get("current_solver") if isinstance(raw_job.get("current_solver"), str) else None,
+			cancel_requested=bool(raw_job.get("cancel_requested")),
+		)
+		if raw_job.get("returncode") is None:
+			job.returncode = 130
+			job.finished_at = time.time()
+			job.output = (job.output + "\nServer restarted before this job finished.").strip()
+		jobs[job.id] = job
 
 
 def parse_float(value: str | None) -> float:
@@ -636,8 +722,7 @@ def comparison_rows(path: Path) -> list[dict[str, str]]:
 	)
 	if not candidates:
 		return []
-	with candidates[0].open(newline="") as file:
-		return list(csv.DictReader(file))
+	return read_csv_rows(candidates[0])
 
 
 def comparison_data(path: Path) -> dict[str, Any]:
@@ -651,8 +736,7 @@ def comparison_data(path: Path) -> dict[str, Any]:
 	)
 	if not candidates:
 		return {"rows": [], "input_file": campaign_input_label(path), "path": None}
-	with candidates[0].open(newline="") as file:
-		rows = list(csv.DictReader(file))
+	rows = read_csv_rows(candidates[0])
 	return {
 		"rows": rows,
 		"input_file": campaign_input_label(path),
@@ -809,6 +893,10 @@ async def run_job(job: Job) -> None:
 		job.solver_progress_completed = job.solver_progress_total
 	job.finished_at = time.time()
 	job.process = None
+	persist_jobs()
+
+
+load_jobs()
 
 
 @app.get("/")
@@ -1034,6 +1122,7 @@ async def run_campaign(request: RunCampaignRequest):
 
 	job = Job(id=str(uuid.uuid4()), command=command, kind="run", campaign=request.name)
 	jobs[job.id] = job
+	persist_jobs()
 	asyncio.create_task(run_job(job))
 	return {"job": job.id, "command": command}
 
@@ -1077,6 +1166,7 @@ async def compare_solvers(request: CompareSolversRequest):
 		solver_progress_total=len(request.solvers),
 	)
 	jobs[job.id] = job
+	persist_jobs()
 	asyncio.create_task(run_job(job))
 	return {"job": job.id, "command": command}
 
@@ -1107,6 +1197,12 @@ async def get_job(job_id: str):
 	}
 
 
+@app.get("/api/jobs")
+async def list_jobs():
+	items = sorted(jobs.values(), key=lambda item: item.started_at, reverse=True)
+	return {"jobs": [job.snapshot() for job in items[:100]]}
+
+
 @app.post("/api/jobs/{job_id}/cancel")
 async def cancel_job(job_id: str):
 	job = jobs.get(job_id)
@@ -1120,6 +1216,7 @@ async def cancel_job(job_id: str):
 			os.killpg(job.process.pid, signal.SIGTERM)
 		except ProcessLookupError:
 			pass
+	persist_jobs()
 	return {"ok": True, "status": job.status}
 
 

@@ -376,10 +376,22 @@
         <div class="inspect-actions">
           <button id="import-canonical-button" class="secondary" type="button">Import Canonical Suite</button>
           <button id="import-german-button" class="secondary" type="button">Import German Instances</button>
+          <label class="toolbar-search">
+            <span>Campaign filter</span>
+            <input id="campaign-filter" type="search" placeholder="name, type, parameter">
+          </label>
         </div>
         <div id="campaign-list" class="campaign-grid"></div>
-        <h3>Recent Result Files</h3>
+        <div class="section-title-row">
+          <h3>Recent Result Files</h3>
+          <label class="toolbar-search">
+            <span>Result filter</span>
+            <input id="result-filter" type="search" placeholder=".csv, .md, campaign">
+          </label>
+        </div>
         <div id="result-list" class="result-list"></div>
+        <h3>Recent Jobs</h3>
+        <div id="job-list" class="result-list"></div>
         <pre id="inspect-output" class="output inspect-output" aria-live="polite"></pre>
       </section>
     </main>
