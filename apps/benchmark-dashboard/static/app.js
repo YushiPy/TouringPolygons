@@ -33,6 +33,7 @@ const defaultKeybinds = {
   deleteSelection: ["X"],
   clearSelection: ["Z"],
   toggleSnap: ["S"],
+  fitInstance: ["F"],
 };
 let editorKeybinds = loadEditorKeybinds();
 let pendingKeybindAction = null;
@@ -238,6 +239,7 @@ function loadEditorKeybinds() {
       deleteSelection: normalizeBindings(loaded.deleteSelection, defaultKeybinds.deleteSelection),
       clearSelection: normalizeBindings(loaded.clearSelection, defaultKeybinds.clearSelection),
       toggleSnap: normalizeBindings(loaded.toggleSnap, defaultKeybinds.toggleSnap),
+      fitInstance: normalizeBindings(loaded.fitInstance, defaultKeybinds.fitInstance),
     };
   } catch {
     return {
@@ -245,6 +247,7 @@ function loadEditorKeybinds() {
       deleteSelection: [...defaultKeybinds.deleteSelection],
       clearSelection: [...defaultKeybinds.clearSelection],
       toggleSnap: [...defaultKeybinds.toggleSnap],
+      fitInstance: [...defaultKeybinds.fitInstance],
     };
   }
 }
@@ -291,6 +294,7 @@ function updateKeybindUI() {
   renderKeybindControl("deleteSelection", "#delete-selection-keybinds");
   renderKeybindControl("clearSelection", "#clear-selection-keybinds");
   renderKeybindControl("toggleSnap", "#toggle-snap-keybinds");
+  renderKeybindControl("fitInstance", "#fit-instance-keybinds");
 }
 
 function renderKeybindControl(action, selector) {
@@ -921,8 +925,17 @@ const manualEditor = {
   snapping: false,
   activePolygon: null,
   solutionPath: null,
+  solutionStale: false,
   solutionTimer: null,
+  solutionFrame: null,
   solutionAbort: null,
+  solutionRevision: 0,
+  layers: {
+    grid: true,
+    solution: true,
+    decomposition: true,
+    labels: true,
+  },
   labelDirections: {
     start: [1, 0],
     target: [-1, 0],
@@ -1072,6 +1085,17 @@ const manualEditor = {
     this.offsetX = width / 2 - centerX * this.scale;
     this.offsetY = height / 2 + centerY * this.scale;
     this.saveCamera();
+    this.draw();
+  },
+
+  toggleLayer(layer, force = null) {
+    if (!(layer in this.layers)) {
+      return;
+    }
+    this.layers[layer] = force === null ? !this.layers[layer] : force;
+    const button = document.querySelector(`[data-editor-layer="${layer}"]`);
+    button?.classList.toggle("is-active", this.layers[layer]);
+    button?.setAttribute("aria-pressed", this.layers[layer] ? "true" : "false");
     this.draw();
   },
 
@@ -1483,6 +1507,11 @@ const manualEditor = {
       const dy = world[1] - this.dragPolygon.lastWorld[1];
       current.polygons[this.dragPolygon.index] = current.polygons[this.dragPolygon.index]
         .map(([px, py]) => this.snap([px + dx, py + dy]));
+      for (const selected of this.selectedPoints) {
+        if (selected.kind === "vertex" && selected.polygonIndex === this.dragPolygon.index) {
+          selected.point = current.polygons[selected.polygonIndex][selected.vertexIndex];
+        }
+      }
       this.dragPolygon.lastWorld = world;
       this.changed();
       return;
@@ -1583,6 +1612,9 @@ const manualEditor = {
     } else if (keyMatchesBinding(event, editorKeybinds.clearSelection)) {
       event.preventDefault();
       this.clearSelection();
+    } else if (keyMatchesBinding(event, editorKeybinds.fitInstance)) {
+      event.preventDefault();
+      this.frameCurrentCase();
     } else if (keyMatchesBinding(event, editorKeybinds.closePolygon)) {
       event.preventDefault();
       this.closePolygon();
@@ -1688,7 +1720,8 @@ const manualEditor = {
   },
 
   changed() {
-    this.solutionPath = null;
+    this.solutionRevision += 1;
+    this.solutionStale = Boolean(this.solutionPath);
     this.updateLabelDirections(false);
     this.syncCloseButton();
     updateManualCaseListMetadata();
@@ -1702,19 +1735,36 @@ const manualEditor = {
     if (!current) {
       return;
     }
+    if (this.solutionStale) {
+      this.setStatus("Updating solution...");
+    }
     if (this.solutionTimer) {
       clearTimeout(this.solutionTimer);
+      this.solutionTimer = null;
     }
-    this.solutionTimer = setTimeout(() => this.fetchSolution(cloneCaseData(current)), 35);
+    if (this.solutionFrame) {
+      cancelAnimationFrame(this.solutionFrame);
+    }
+    this.solutionFrame = requestAnimationFrame(() => {
+      this.solutionFrame = null;
+      this.fetchSolution(cloneCaseData(this.currentCase()), this.solutionRevision);
+    });
   },
 
-  async fetchSolution(caseData) {
+  async fetchSolution(caseData, revision = this.solutionRevision) {
+    if (!caseData) {
+      return;
+    }
     if (this.solutionAbort) {
       this.solutionAbort.abort();
     }
     this.solutionAbort = new AbortController();
     if (caseData.polygons.length === 0) {
+      if (revision !== this.solutionRevision) {
+        return;
+      }
       this.solutionPath = [caseData.start, caseData.target];
+      this.solutionStale = false;
       this.updateLabelDirections(true);
       this.setStatus("Solution: exact, 0 calls");
       this.draw();
@@ -1724,7 +1774,11 @@ const manualEditor = {
     try {
       await loadEditorWasm();
       if (!editorWasmModule) {
+        if (revision !== this.solutionRevision) {
+          return;
+        }
         this.solutionPath = null;
+        this.solutionStale = false;
         this.updateLabelDirections(true);
         this.setStatus("WASM solver unavailable.");
         this.draw();
@@ -1745,13 +1799,21 @@ const manualEditor = {
         wasmResult = solveEditorWasmGroups(caseData, caseData.polygons.map(convexDecomposition));
       }
       if (wasmResult) {
+        if (revision !== this.solutionRevision) {
+          return;
+        }
         this.solutionPath = wasmResult.path;
+        this.solutionStale = false;
         this.updateLabelDirections(true);
         this.setStatus(`Solution: ${wasmResult.exact ? "exact" : "approximate"}, ${wasmResult.calls} calls, ${formatSeconds(wasmResult.seconds)} via WASM`);
         this.draw();
         return;
       }
+      if (revision !== this.solutionRevision) {
+        return;
+      }
       this.solutionPath = null;
+      this.solutionStale = false;
       this.updateLabelDirections(true);
       this.setStatus("WASM solver could not solve this case.");
       this.draw();
@@ -1766,8 +1828,11 @@ const manualEditor = {
     const width = this.canvas.offsetWidth;
     const height = this.canvas.offsetHeight;
     const ctx = this.ctx;
-    ctx.fillStyle = "#111827";
+    ctx.fillStyle = "#121417";
     ctx.fillRect(0, 0, width, height);
+    if (!this.layers.grid) {
+      return;
+    }
     const { gridSpacing, subGridCount } = this.gridMetrics();
     const left = (0 - this.offsetX) / this.scale;
     const right = (width - this.offsetX) / this.scale;
@@ -1786,21 +1851,21 @@ const manualEditor = {
     const firstX = Math.floor(left / gridSpacing) * gridSpacing;
     const firstY = Math.floor(bottom / gridSpacing) * gridSpacing;
     for (let x = firstX; x <= right + gridSpacing; x += gridSpacing) {
-      drawWorldLine([x, bottom], [x, top], "#475569");
+      drawWorldLine([x, bottom], [x, top], "#515a67");
       for (let index = 0; index < subGridCount; index += 1) {
         const subX = x + (gridSpacing * (index + 1)) / (subGridCount + 1);
-        drawWorldLine([subX, bottom], [subX, top], "#263244");
+        drawWorldLine([subX, bottom], [subX, top], "#2a2f38");
       }
     }
     for (let y = firstY; y <= top + gridSpacing; y += gridSpacing) {
-      drawWorldLine([left, y], [right, y], "#475569");
+      drawWorldLine([left, y], [right, y], "#515a67");
       for (let index = 0; index < subGridCount; index += 1) {
         const subY = y + (gridSpacing * (index + 1)) / (subGridCount + 1);
-        drawWorldLine([left, subY], [right, subY], "#263244");
+        drawWorldLine([left, subY], [right, subY], "#2a2f38");
       }
     }
     const origin = this.worldToCanvas([0, 0]);
-    ctx.strokeStyle = "#94a3b8";
+    ctx.strokeStyle = "#9aa3ad";
     ctx.beginPath();
     ctx.moveTo(0, origin.y);
     ctx.lineTo(width, origin.y);
@@ -1903,9 +1968,14 @@ const manualEditor = {
       return;
     }
     const ctx = this.ctx;
-    if (this.solutionPath && this.solutionPath.length >= 2) {
+    if (this.layers.solution && this.solutionPath && this.solutionPath.length >= 2) {
+      ctx.save();
       ctx.strokeStyle = "#facc15";
       ctx.lineWidth = 4;
+      ctx.globalAlpha = this.solutionStale ? 0.45 : 1;
+      if (this.solutionStale) {
+        ctx.setLineDash([9, 6]);
+      }
       ctx.beginPath();
       this.solutionPath.forEach((point, index) => {
         const canvasPoint = this.worldToCanvas(point);
@@ -1916,6 +1986,7 @@ const manualEditor = {
         }
       });
       ctx.stroke();
+      ctx.restore();
     }
     current.polygons.forEach((polygon, index) => {
       if (polygon.length === 0) {
@@ -1939,7 +2010,7 @@ const manualEditor = {
       ctx.strokeStyle = color;
       ctx.lineWidth = 2;
       ctx.stroke();
-      if (polygon.length >= 3) {
+      if (this.layers.decomposition && polygon.length >= 3) {
         this.drawDecomposition(polygon, color);
       }
       polygon.forEach((point) => this.drawPoint(point, color));
@@ -1965,7 +2036,7 @@ const manualEditor = {
         this.drawPoint(selected.point, "#f8fafc");
       }
     }
-    if (this.solutionPath && this.solutionPath.length > 2) {
+    if (this.layers.solution && this.solutionPath && this.solutionPath.length > 2) {
       this.solutionPath.slice(1, -1).forEach((point) => this.drawPoint(point, "#f97316"));
     }
     if (this.selectionRect) {
@@ -1980,8 +2051,8 @@ const manualEditor = {
       ctx.strokeRect(left, top, width, height);
       ctx.setLineDash([]);
     }
-    this.drawPoint(current.start, "#22c55e", "s", this.labelDirections.start);
-    this.drawPoint(current.target, "#ef4444", "t", this.labelDirections.target);
+    this.drawPoint(current.start, "#22c55e", this.layers.labels ? "s" : "", this.labelDirections.start);
+    this.drawPoint(current.target, "#ef4444", this.layers.labels ? "t" : "", this.labelDirections.target);
   },
 };
 
@@ -4221,6 +4292,10 @@ $("#clear-manual-selection").addEventListener("click", () => manualEditor.clearS
 $("#toggle-manual-snapping").addEventListener("click", () => manualEditor.toggleSnapping());
 $("#manual-zoom-out").addEventListener("click", () => manualEditor.zoomBy(1 / 1.2));
 $("#manual-zoom-in").addEventListener("click", () => manualEditor.zoomBy(1.2));
+$("#manual-fit-instance").addEventListener("click", () => manualEditor.frameCurrentCase());
+document.querySelectorAll("[data-editor-layer]").forEach((button) => {
+  button.addEventListener("click", () => manualEditor.toggleLayer(button.dataset.editorLayer));
+});
 $("#manual-editor-expand").addEventListener("click", () => manualEditor.toggleExpanded());
 $("#manual-editor-close").addEventListener("click", () => manualEditor.toggleExpanded(false));
 $("#manual-keybinds-button").addEventListener("click", openKeybinds);

@@ -253,6 +253,13 @@
               <button id="toggle-manual-snapping" class="secondary" type="button" aria-pressed="false">Snap</button>
               <button id="manual-zoom-out" class="secondary" type="button">-</button>
               <button id="manual-zoom-in" class="secondary" type="button">+</button>
+              <button id="manual-fit-instance" class="secondary" type="button">Fit</button>
+              <div class="editor-layer-toggles" aria-label="Editor layers">
+                <button class="secondary is-active" data-editor-layer="grid" type="button" aria-pressed="true">Grid</button>
+                <button class="secondary is-active" data-editor-layer="solution" type="button" aria-pressed="true">Path</button>
+                <button class="secondary is-active" data-editor-layer="decomposition" type="button" aria-pressed="true">Decomp</button>
+                <button class="secondary is-active" data-editor-layer="labels" type="button" aria-pressed="true">Labels</button>
+              </div>
               <button id="manual-editor-expand" class="secondary" type="button" aria-pressed="false">Expand</button>
               <button id="manual-keybinds-button" class="secondary" type="button">Keyboard Shortcuts</button>
               <button id="manual-editor-close" class="manual-editor-close" type="button" aria-label="Close expanded editor">×</button>
@@ -505,6 +512,10 @@
           <div class="keybind-row">
             <span>Toggle snap</span>
             <div id="toggle-snap-keybinds" class="keybind-controls"></div>
+          </div>
+          <div class="keybind-row">
+            <span>Fit instance</span>
+            <div id="fit-instance-keybinds" class="keybind-controls"></div>
           </div>
         </div>
       </article>

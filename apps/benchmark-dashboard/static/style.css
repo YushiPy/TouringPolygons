@@ -22,20 +22,20 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  background: #0f172a;
-  color: #e5e7eb;
-  --bg: #0f172a;
-  --surface: #111827;
-  --surface-muted: #1f2937;
-  --text: #e5e7eb;
-  --muted: #9ca3af;
-  --line: #334155;
-  --line-strong: #475569;
-  --accent: #60a5fa;
-  --accent-strong: #93c5fd;
-  --active-bg: #3b82f6;
-  --active-text: #07111f;
-  --success: #22c55e;
+  background: #121417;
+  color: #eceff3;
+  --bg: #121417;
+  --surface: #181b20;
+  --surface-muted: #20242b;
+  --text: #eceff3;
+  --muted: #a8b0bb;
+  --line: #343a44;
+  --line-strong: #515a67;
+  --accent: #f59e0b;
+  --accent-strong: #fbbf24;
+  --active-bg: #e5e7eb;
+  --active-text: #14171c;
+  --success: #34d399;
   --shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
   --shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.22);
 }
@@ -54,9 +54,7 @@ body {
 }
 
 :root[data-theme="dark"] body {
-  background:
-    linear-gradient(180deg, rgba(96, 165, 250, 0.12), rgba(96, 165, 250, 0) 260px),
-    var(--bg);
+  background: var(--bg);
 }
 
 button,
@@ -146,27 +144,35 @@ button.secondary.is-active:hover {
 :root[data-theme="dark"] .tab.is-active:hover,
 :root[data-theme="dark"] .segment.is-active:hover,
 :root[data-theme="dark"] button.secondary.is-active:hover {
-  background: #60a5fa;
-  border-color: #93c5fd;
-  color: #07111f;
+  background: #f3f4f6;
+  border-color: #fbbf24;
+  color: #14171c;
 }
 
 :root[data-theme="dark"] button {
-  background: #2563eb;
-  border-color: #3b82f6;
-  color: #fff;
+  background: #f59e0b;
+  border-color: #fbbf24;
+  color: #14171c;
 }
 
 :root[data-theme="dark"] button.secondary,
 :root[data-theme="dark"] .tabs button {
-  background: #1f2937;
+  background: #20242b;
   color: var(--text);
   border-color: var(--line);
 }
 
+:root[data-theme="dark"] .tab.is-active,
+:root[data-theme="dark"] .segment.is-active,
+:root[data-theme="dark"] button.secondary.is-active {
+  background: var(--active-bg);
+  border-color: var(--active-bg);
+  color: var(--active-text);
+}
+
 :root[data-theme="dark"] button.secondary:hover,
 :root[data-theme="dark"] .tabs button:hover {
-  background: #273449;
+  background: #2a2f38;
   color: var(--accent-strong);
 }
 
@@ -340,8 +346,23 @@ select {
 :root[data-theme="dark"] select,
 :root[data-theme="dark"] textarea {
   border-color: var(--line);
-  background: #0f172a;
+  background: #15181d;
   color: var(--text);
+}
+
+:root[data-theme="dark"] .segmented {
+  background: #15181d;
+}
+
+:root[data-theme="dark"] .segment {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+:root[data-theme="dark"] .segment:hover {
+  background: #242932;
+  color: var(--accent-strong);
 }
 
 .segmented {
@@ -499,8 +520,8 @@ select:focus {
 
 .switch-row input:checked + .switch-control,
 .switch-toggle.is-active {
-  border-color: var(--text);
-  background: var(--text);
+  border-color: var(--active-bg);
+  background: var(--active-bg);
 }
 
 .switch-row input:focus-visible + .switch-control {
@@ -519,6 +540,18 @@ select:focus {
   background: var(--accent-strong);
   box-shadow: var(--shadow-sm);
   transform: none;
+}
+
+:root[data-theme="dark"] .switch-control,
+:root[data-theme="dark"] .switch-toggle {
+  border-color: var(--line-strong);
+  background: #2a2f38;
+}
+
+:root[data-theme="dark"] .switch-row input:checked + .switch-control,
+:root[data-theme="dark"] .switch-toggle.is-active {
+  border-color: var(--active-bg);
+  background: var(--active-bg);
 }
 
 .skip-preview-toggle {
@@ -766,7 +799,13 @@ select:focus {
 
 :root[data-theme="dark"] .choice-grid {
   border-color: var(--line);
-  background: #0f172a;
+  background: #15181d;
+}
+
+:root[data-theme="dark"] .choice-card {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
 }
 
 .choice-card {
@@ -819,10 +858,17 @@ select:focus {
 }
 
 :root[data-theme="dark"] .choice-card:hover,
-:root[data-theme="dark"] .manual-case-select:hover,
+:root[data-theme="dark"] .manual-case-select:hover {
+  background: #2a2f38;
+}
+
+:root[data-theme="dark"] .choice-card.is-active,
+:root[data-theme="dark"] .choice-card.is-active:hover,
 :root[data-theme="dark"] .manual-case-row.is-active .manual-case-select,
 :root[data-theme="dark"] .manual-case-row.is-active .manual-case-select:hover {
-  background: #1e293b;
+  border-color: var(--active-bg);
+  background: var(--active-bg);
+  color: var(--active-text);
 }
 
 .choice-card.is-active .auto-sticker,
@@ -900,6 +946,11 @@ select:focus {
   background: #eef2f7;
 }
 
+:root[data-theme="dark"] .compare-solver-grid {
+  border-color: var(--line);
+  background: #15181d;
+}
+
 .solver-check {
   position: relative;
   display: block;
@@ -933,11 +984,16 @@ select:focus {
   color: var(--accent-strong);
 }
 
+:root[data-theme="dark"] .solver-check:hover span {
+  background: #242932;
+  color: var(--accent-strong);
+}
+
 .solver-check input:checked + span,
 .solver-check input:checked + span:hover {
-  border-color: var(--text);
-  background: var(--text);
-  color: #fff;
+  border-color: var(--active-bg);
+  background: var(--active-bg);
+  color: var(--active-text);
   box-shadow: var(--shadow-sm);
 }
 
@@ -1294,6 +1350,40 @@ button.secondary.stop-button:disabled {
 
 .case-toolbar > button {
   min-height: 36px;
+}
+
+.editor-layer-toggles {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.editor-layer-toggles button {
+  min-height: 30px;
+  padding: 0.32rem 0.48rem;
+  font-size: 0.82rem;
+}
+
+.editor-layer-toggles button.is-active {
+  background: var(--surface);
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+:root[data-theme="dark"] .editor-layer-toggles button {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+:root[data-theme="dark"] .editor-layer-toggles button.is-active {
+  background: #e5e7eb;
+  border-color: #e5e7eb;
+  color: #14171c;
 }
 
 .case-toolbar > button.is-disabled {
@@ -2027,9 +2117,17 @@ button.secondary.stop-button:disabled {
   background: #fff;
 }
 
+:root[data-theme="dark"] .report-panel {
+  background: #181b20;
+}
+
 .report-panel h4 {
   margin: 0 0 10px;
   color: #344054;
+}
+
+:root[data-theme="dark"] .report-panel h4 {
+  color: var(--text);
 }
 
 .comparison-table-panel {
@@ -2059,6 +2157,11 @@ button.secondary.stop-button:disabled {
   color: #344054;
   font-weight: 700;
   background: #f8fafc;
+}
+
+:root[data-theme="dark"] .comparison-table th {
+  color: var(--text);
+  background: #20242b;
 }
 
 .comparison-table td {
@@ -2093,11 +2196,19 @@ button.secondary.stop-button:disabled {
   overflow: hidden;
 }
 
+:root[data-theme="dark"] .chart-row div {
+  background: #343a44;
+}
+
 .chart-row i {
   display: block;
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--accent), #16a34a);
+}
+
+:root[data-theme="dark"] .chart-row i {
+  background: linear-gradient(90deg, #f59e0b, #34d399);
 }
 
 .chart-row strong {
@@ -2138,9 +2249,9 @@ button.secondary.stop-button:disabled {
 
 .histogram-head button.is-active,
 .histogram-head button.is-active:hover {
-  border-color: var(--text);
-  background: var(--text);
-  color: #fff;
+  border-color: var(--active-bg);
+  background: var(--active-bg);
+  color: var(--active-text);
 }
 
 .histogram-panel {
