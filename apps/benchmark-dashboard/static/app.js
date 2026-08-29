@@ -116,6 +116,23 @@ function formatElapsed(seconds) {
   return `${remaining.toFixed(1)}s`;
 }
 
+function bindTapZoom(button, action) {
+  if (!button) {
+    return;
+  }
+  button.addEventListener("click", () => {
+    if (Date.now() - (button._lastTouchZoomAt || 0) < 450) {
+      return;
+    }
+    action();
+  });
+  button.addEventListener("touchend", (event) => {
+    event.preventDefault();
+    button._lastTouchZoomAt = Date.now();
+    action();
+  }, { passive: false });
+}
+
 function formatSeconds(value) {
   if (value === null || value === undefined || value === "") {
     return "-";
@@ -1252,6 +1269,7 @@ const manualEditor = {
     const polygon = current && this.activePolygon !== null ? current.polygons[this.activePolygon] : null;
     const canClose = Boolean(polygon && polygon.length >= 3);
     button.classList.toggle("is-disabled", !canClose);
+    button.disabled = !canClose;
     button.setAttribute("aria-disabled", canClose ? "false" : "true");
   },
 
@@ -2850,8 +2868,8 @@ function readonlyInstanceDetail(title) {
     <figure class="instance-detail readonly-instance-detail">
       <div class="case-toolbar readonly-toolbar">
         <div class="readonly-toolbar-main">
-          <button class="secondary" type="button" data-readonly-zoom-out>-</button>
-          <button class="secondary" type="button" data-readonly-zoom-in>+</button>
+          <button class="secondary tap-zoom-button" type="button" data-readonly-zoom-out>-</button>
+          <button class="secondary tap-zoom-button" type="button" data-readonly-zoom-in>+</button>
           <button class="secondary" type="button" data-readonly-fit>Fit</button>
           <div class="editor-layer-toggles" aria-label="Viewer layers">
             <button class="secondary is-active" data-readonly-layer="grid" type="button" aria-pressed="true">Grid</button>
@@ -2878,8 +2896,10 @@ function setupReadonlyInstanceDetail(root, caseData) {
     solve: true,
     status: root.querySelector("[data-readonly-status]"),
   });
-  root.querySelector("[data-readonly-zoom-out]")?.addEventListener("click", () => viewer.zoomBy(1 / 1.2));
-  root.querySelector("[data-readonly-zoom-in]")?.addEventListener("click", () => viewer.zoomBy(1.2));
+  const zoomOut = root.querySelector("[data-readonly-zoom-out]");
+  const zoomIn = root.querySelector("[data-readonly-zoom-in]");
+  bindTapZoom(zoomOut, () => viewer.zoomBy(1 / 1.2));
+  bindTapZoom(zoomIn, () => viewer.zoomBy(1.2));
   root.querySelector("[data-readonly-fit]")?.addEventListener("click", () => viewer.frameCurrentCase());
   root.querySelectorAll("[data-readonly-layer]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -2929,9 +2949,9 @@ function zoomableImage(src, alt, extraClass = "", options = {}) {
           ${options.inspectable ? '<button class="secondary zoom-toggle is-active" type="button" data-toggle-pieces aria-pressed="true">Pieces</button>' : ""}
         </div>
         <div class="zoom-toolbar-main">
-          <button class="secondary" type="button" data-zoom-out>-</button>
+          <button class="secondary tap-zoom-button" type="button" data-zoom-out>-</button>
           <button class="secondary" type="button" data-zoom-reset>Fit</button>
-          <button class="secondary" type="button" data-zoom-in>+</button>
+          <button class="secondary tap-zoom-button" type="button" data-zoom-in>+</button>
         </div>
       </div>
       ${options.inspectable ? `
@@ -3262,8 +3282,10 @@ async function setupZoomableDetail(root) {
     render();
   }
 
-  root.querySelector("[data-zoom-in]")?.addEventListener("click", () => zoomAt(state.scale * 1.25));
-  root.querySelector("[data-zoom-out]")?.addEventListener("click", () => zoomAt(state.scale / 1.25));
+  const zoomIn = root.querySelector("[data-zoom-in]");
+  const zoomOut = root.querySelector("[data-zoom-out]");
+  bindTapZoom(zoomIn, () => zoomAt(state.scale * 1.25));
+  bindTapZoom(zoomOut, () => zoomAt(state.scale / 1.25));
   root.querySelector("[data-zoom-reset]")?.addEventListener("click", fitToBounds);
   root.querySelector("[data-style-panel]")?.addEventListener("click", (event) => {
     const panel = root.querySelector(".zoom-style-panel");
@@ -3967,22 +3989,26 @@ function renderRunProgressCard(campaign, running = false, liveProgress = null) {
     return;
   }
   const progress = liveProgress || runProgress(campaign);
+  const phase = progress.phase || (running ? "benchmark" : "completed");
+  const compiling = running && phase === "compile";
   const percent = Math.round(progress.ratio * 100);
-  const visiblePercent = running && percent === 0 ? 8 : percent;
+  const visiblePercent = compiling ? 100 : running && percent === 0 ? 8 : percent;
+  const title = compiling ? "Compiling benchmark" : running ? "Running tests" : "Benchmark progress";
+  const label = compiling ? "Build in progress" : progress.label;
   root.innerHTML = `
     <div class="run-progress-header">
-      <strong>${running ? "Running benchmark" : "Benchmark progress"}</strong>
-      <span>${progress.label}</span>
+      <strong>${title}</strong>
+      <span>${label}</span>
     </div>
     <div class="run-progress-meta">
-      <span>Wall clock</span>
+      <span>${compiling ? "Compile wall clock" : running ? "Test wall clock" : "Wall clock"}</span>
       <strong>${formatElapsed(progress.elapsed_seconds || 0)}</strong>
     </div>
     <div class="run-progress-line">
-      <div class="run-progress-track ${running ? "is-running" : ""}">
+      <div class="run-progress-track ${running ? "is-running" : ""} ${compiling ? "is-compiling" : ""}">
         <div class="run-progress-fill" style="width: ${visiblePercent}%"></div>
       </div>
-      <strong class="run-progress-percent">${percent}%</strong>
+      <strong class="run-progress-percent">${compiling ? "build" : `${percent}%`}</strong>
     </div>
   `;
   root.classList.remove("is-hidden");
@@ -4068,12 +4094,17 @@ function closeCampaignModal() {
 }
 
 function returnToCampaignModal() {
-  const campaign = state.instanceModalReturn;
-  if (!campaign) {
+  const modalReturn = state.instanceModalReturn;
+  if (!modalReturn) {
     closeCampaignModal();
     return;
   }
-  openCampaignModal(campaign);
+  if (modalReturn.panel) {
+    closeCampaignModal();
+    switchPanel(modalReturn.panel);
+    return;
+  }
+  openCampaignModal(modalReturn.campaign || modalReturn);
 }
 
 function setInstanceModalBackButton(modal) {
@@ -4093,7 +4124,7 @@ function setInstanceModalBackButton(modal) {
 
 async function openInstanceModal(campaign, index) {
   const modal = $("#campaign-modal");
-  state.instanceModalReturn = campaign;
+  state.instanceModalReturn = { campaign };
   setInstanceModalBackButton(modal);
   const cases = await loadCampaignCaseMetadata(campaign.name);
   const caseData = cases[index];
@@ -4113,7 +4144,7 @@ async function openInstanceModal(campaign, index) {
 
 async function openBenchmarkedInstanceModal(campaign, item) {
   const modal = $("#campaign-modal");
-  state.instanceModalReturn = campaign;
+  state.instanceModalReturn = { campaign, panel: "benchmark-panel" };
   setInstanceModalBackButton(modal);
   const cases = await loadCampaignCaseMetadata(campaign.name);
   const caseData = cases[item.case_index];
@@ -4410,11 +4441,17 @@ async function pollJob(jobId) {
         label: `${job.progress_completed || 0}/${job.progress_total} instances`,
         elapsed_seconds: job.elapsed_seconds,
         counts: campaign?.run_index?.counts || {},
+        phase: "benchmark",
       }
-      : campaign ? {
-        ...runProgress(campaign),
+      : {
+        completed: 0,
+        total: 0,
+        ratio: 0,
+        label: "Compiling",
         elapsed_seconds: job.elapsed_seconds,
-      } : null;
+        counts: campaign?.run_index?.counts || {},
+        phase: "compile",
+      };
     const jobActive = job.status === "running" || job.status === "stopping";
     renderRunProgressCard(campaign, jobActive, liveProgress);
     if (!jobActive) {
@@ -4496,8 +4533,13 @@ async function runCampaign(event) {
   renderBenchmarkReport(null);
   const activeCampaign = state.campaigns.find((item) => item.name === state.selectedCampaign);
   renderRunProgressCard(activeCampaign, true, activeCampaign ? {
-    ...runProgress(activeCampaign),
+    completed: 0,
+    total: 0,
+    ratio: 0,
+    label: "Compiling",
     elapsed_seconds: 0,
+    counts: activeCampaign.run_index?.counts || {},
+    phase: "compile",
   } : null);
   setOutput(output, "Starting run...");
   renderRunSummary();
@@ -4646,8 +4688,8 @@ $("#close-manual-polygon").addEventListener("click", () => manualEditor.closePol
 $("#delete-manual-selection").addEventListener("click", () => manualEditor.deleteSelection());
 $("#clear-manual-selection").addEventListener("click", () => manualEditor.clearSelection());
 $("#toggle-manual-snapping").addEventListener("click", () => manualEditor.toggleSnapping());
-$("#manual-zoom-out").addEventListener("click", () => manualEditor.zoomBy(1 / 1.2));
-$("#manual-zoom-in").addEventListener("click", () => manualEditor.zoomBy(1.2));
+bindTapZoom($("#manual-zoom-out"), () => manualEditor.zoomBy(1 / 1.2));
+bindTapZoom($("#manual-zoom-in"), () => manualEditor.zoomBy(1.2));
 $("#manual-fit-instance").addEventListener("click", () => manualEditor.frameCurrentCase());
 document.querySelectorAll("[data-editor-layer]").forEach((button) => {
   button.addEventListener("click", () => manualEditor.toggleLayer(button.dataset.editorLayer));

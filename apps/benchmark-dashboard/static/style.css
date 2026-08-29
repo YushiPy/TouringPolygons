@@ -95,6 +95,18 @@ button.secondary:hover,
   color: var(--accent-strong);
 }
 
+button:disabled,
+button:disabled:hover,
+button.secondary:disabled,
+button.secondary:disabled:hover {
+  cursor: default;
+  border-color: var(--line);
+  background: var(--surface-muted);
+  color: var(--muted);
+  box-shadow: none;
+  transform: none;
+}
+
 button.secondary.is-active:hover {
   background: var(--primary-hover);
   border-color: var(--primary-hover);
@@ -137,6 +149,17 @@ button.secondary.is-active:hover {
 :root[data-theme="dark"] .tabs button:hover {
   background: var(--secondary-hover);
   color: var(--accent-strong);
+}
+
+:root[data-theme="dark"] button:disabled,
+:root[data-theme="dark"] button:disabled:hover,
+:root[data-theme="dark"] button.secondary:disabled,
+:root[data-theme="dark"] button.secondary:disabled:hover {
+  border-color: #2d323a;
+  background: #181b20;
+  color: #626a75;
+  box-shadow: none;
+  transform: none;
 }
 
 button.danger {
@@ -924,6 +947,11 @@ select:focus {
   min-height: 74px;
 }
 
+.run-options .run-progress-card {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+
 .run-actions .stop-button,
 .compare-actions .stop-button {
   width: auto;
@@ -1427,6 +1455,7 @@ button.secondary.stop-button:disabled {
   border-color: var(--line);
   background: var(--surface-muted);
   color: var(--muted);
+  cursor: default;
   box-shadow: none;
   transform: none;
 }
@@ -2172,6 +2201,20 @@ button.secondary.stop-button:disabled {
   inset: 0;
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.42), transparent);
   animation: progress-shine 900ms linear infinite;
+}
+
+.run-progress-track.is-compiling .run-progress-fill {
+  background:
+    repeating-linear-gradient(
+      120deg,
+      var(--accent) 0,
+      var(--accent) 12px,
+      var(--success) 12px,
+      var(--success) 24px
+    );
+  background-size: 34px 100%;
+  animation: compile-progress 900ms linear infinite;
+  opacity: 0.72;
 }
 
 .benchmark-report {
@@ -3006,6 +3049,16 @@ button.secondary.zoom-toggle.is-active:hover {
   }
 }
 
+@keyframes compile-progress {
+  from {
+    background-position: 0 0;
+  }
+
+  to {
+    background-position: 34px 0;
+  }
+}
+
 @media (max-width: 780px) {
   .shell {
     padding: 18px;
@@ -3095,5 +3148,42 @@ button.secondary.zoom-toggle.is-active:hover {
   .zoom-toolbar,
   .zoom-style-panel {
     grid-template-columns: 1fr;
+  }
+
+  .summary-grid,
+  .modal-summary,
+  .benchmark-summary-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .metric-card {
+    min-width: 0;
+    padding: 8px 10px;
+  }
+
+  .metric-card span {
+    margin-bottom: 3px;
+    font-size: 0.74rem;
+  }
+
+  .metric-card strong {
+    font-size: 0.95rem;
+  }
+
+  .summary-progress {
+    padding: 10px;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .keyboard-only {
+    display: none;
+  }
+
+  .tap-zoom-button {
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
   }
 }

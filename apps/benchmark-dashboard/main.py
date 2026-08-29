@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import csv
 import json
+import math
 import os
 import re
 import shutil
@@ -434,6 +435,13 @@ def svg_points(points: list[Point], offset_x: float, offset_y: float, scale: flo
 	return " ".join(f"{offset_x + x * scale:.2f},{offset_y - y * scale:.2f}" for x, y in points)
 
 
+def svg_line(x1: float, y1: float, x2: float, y2: float, color: str, opacity: float = 1.0) -> str:
+	return (
+		f'<line x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}" '
+		f'stroke="{color}" stroke-opacity="{opacity:.2f}" stroke-width="1"/>'
+	)
+
+
 def write_case_preview(path: Path, cases: list[CaseData], *, cell_size: int, columns: int) -> None:
 	if not cases:
 		return
@@ -442,10 +450,10 @@ def write_case_preview(path: Path, cases: list[CaseData], *, cell_size: int, col
 	width = columns * cell_size
 	height = rows * cell_size
 	padding = 18
-	colors = ["#2563eb", "#0891b2", "#16a34a", "#ca8a04", "#dc2626", "#7c3aed"]
+	colors = ["#38bdf8", "#a3e635", "#f97316", "#f472b6", "#c084fc"]
 	elements = [
 		f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
-		'<rect width="100%" height="100%" fill="#ffffff"/>',
+		'<rect width="100%" height="100%" fill="#121417"/>',
 	]
 	for case_index, case in enumerate(cases):
 		start, target, polygons = case
@@ -458,21 +466,59 @@ def write_case_preview(path: Path, cases: list[CaseData], *, cell_size: int, col
 		scale = (cell_size - 2 * padding) / span
 		offset_x = x0 + padding - min_x * scale
 		offset_y = y0 + cell_size - padding + min_y * scale
-		elements.append(f'<text x="{x0 + 9}" y="{y0 + 17}" font-size="12" fill="#334155">case {case_index + 1}</text>')
+		elements.append(f'<rect x="{x0}" y="{y0}" width="{cell_size}" height="{cell_size}" fill="#121417"/>')
+		grid_step = 10 ** math.floor(math.log10(max(span / 4, 1e-9)))
+		if span / grid_step < 4:
+			grid_step /= 2
+		elif span / grid_step > 10:
+			grid_step *= 2
+		first_x = math.floor(min_x / grid_step) * grid_step
+		first_y = math.floor(min_y / grid_step) * grid_step
+		x = first_x
+		while x <= max_x + grid_step:
+			screen_x = offset_x + x * scale
+			if x0 <= screen_x <= x0 + cell_size:
+				elements.append(svg_line(screen_x, y0, screen_x, y0 + cell_size, "#515a67", 0.62))
+				for index in range(1, 4):
+					sub_x = screen_x + index * grid_step * scale / 4
+					if x0 <= sub_x <= x0 + cell_size:
+						elements.append(svg_line(sub_x, y0, sub_x, y0 + cell_size, "#2a2f38", 0.74))
+			x += grid_step
+		y = first_y
+		while y <= max_y + grid_step:
+			screen_y = offset_y - y * scale
+			if y0 <= screen_y <= y0 + cell_size:
+				elements.append(svg_line(x0, screen_y, x0 + cell_size, screen_y, "#515a67", 0.62))
+				for index in range(1, 4):
+					sub_y = screen_y - index * grid_step * scale / 4
+					if y0 <= sub_y <= y0 + cell_size:
+						elements.append(svg_line(x0, sub_y, x0 + cell_size, sub_y, "#2a2f38", 0.74))
+			y += grid_step
+		origin_x = offset_x
+		origin_y = offset_y
+		if y0 <= origin_y <= y0 + cell_size:
+			elements.append(svg_line(x0, origin_y, x0 + cell_size, origin_y, "#9aa3ad", 0.86))
+		if x0 <= origin_x <= x0 + cell_size:
+			elements.append(svg_line(origin_x, y0, origin_x, y0 + cell_size, "#9aa3ad", 0.86))
+		elements.append(f'<text x="{x0 + 9}" y="{y0 + 17}" font-size="12" fill="#f8fafc" fill-opacity="0.88">case {case_index + 1}</text>')
 		for polygon_index, polygon in enumerate(polygons):
 			color = colors[polygon_index % len(colors)]
 			elements.append(
 				f'<polygon points="{svg_points(polygon, offset_x, offset_y, scale)}" '
-				f'fill="{color}" fill-opacity="0.32" stroke="#111827" stroke-width="1"/>'
+				f'fill="{color}" fill-opacity="0.20" stroke="{color}" stroke-width="2"/>'
 			)
+			for point_x, point_y in polygon:
+				screen_x = offset_x + point_x * scale
+				screen_y = offset_y - point_y * scale
+				elements.append(f'<circle cx="{screen_x:.2f}" cy="{screen_y:.2f}" r="3.6" fill="{color}"/>')
 		start_x = offset_x + start[0] * scale
 		start_y = offset_y - start[1] * scale
 		target_x = offset_x + target[0] * scale
 		target_y = offset_y - target[1] * scale
-		elements.append(f'<circle cx="{start_x:.2f}" cy="{start_y:.2f}" r="5" fill="#22c55e" stroke="#111827"/>')
-		elements.append(f'<text x="{start_x + 8:.2f}" y="{start_y + 4:.2f}" font-size="13" font-weight="700" fill="#166534">s</text>')
-		elements.append(f'<circle cx="{target_x:.2f}" cy="{target_y:.2f}" r="5" fill="#ef4444" stroke="#111827"/>')
-		elements.append(f'<text x="{target_x + 8:.2f}" y="{target_y + 4:.2f}" font-size="13" font-weight="700" fill="#991b1b">t</text>')
+		elements.append(f'<circle cx="{start_x:.2f}" cy="{start_y:.2f}" r="5" fill="#22c55e"/>')
+		elements.append(f'<text x="{start_x + 10:.2f}" y="{start_y + 4:.2f}" font-size="13" font-weight="700" fill="#f8fafc">s</text>')
+		elements.append(f'<circle cx="{target_x:.2f}" cy="{target_y:.2f}" r="5" fill="#ef4444"/>')
+		elements.append(f'<text x="{target_x + 10:.2f}" y="{target_y + 4:.2f}" font-size="13" font-weight="700" fill="#f8fafc">t</text>')
 	elements.append("</svg>")
 	path.parent.mkdir(parents=True, exist_ok=True)
 	path.write_text("\n".join(elements) + "\n")
