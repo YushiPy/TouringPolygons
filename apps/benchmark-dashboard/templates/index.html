@@ -10,8 +10,8 @@
     <main class="shell">
       <header class="topbar">
         <div>
-          <h1>TPP Benchmark Dashboard</h1>
-          <p>Local control panel for benchmark campaigns, runs, and result inspection.</p>
+          <h1>TPP Instance Workbench</h1>
+          <p>Create, edit, benchmark, compare, and inspect touring-polygon instance suites.</p>
         </div>
         <div class="topbar-actions">
           <button id="theme-toggle" class="secondary" type="button" aria-pressed="false">Dark</button>
@@ -20,11 +20,21 @@
       </header>
 
       <nav class="tabs" aria-label="Dashboard sections">
-        <button class="tab is-active" data-panel="create-panel" type="button">Create</button>
-        <button class="tab" data-panel="cases-panel" type="button">Cases</button>
-        <button class="tab" data-panel="benchmark-panel" type="button">Benchmark</button>
-        <button class="tab" data-panel="comparison-panel" type="button">Comparison</button>
-        <button class="tab" data-panel="inspect-panel" type="button">Inspect</button>
+        <div class="tab-group">
+          <span>Edit test cases</span>
+          <div>
+            <button class="tab is-active" data-panel="create-panel" type="button">Create</button>
+            <button class="tab" data-panel="cases-panel" type="button">Cases</button>
+            <button class="tab" data-panel="inspect-panel" type="button">Inspect</button>
+          </div>
+        </div>
+        <div class="tab-group">
+          <span>Evaluate</span>
+          <div>
+            <button class="tab" data-panel="benchmark-panel" type="button">Benchmark</button>
+            <button class="tab" data-panel="comparison-panel" type="button">Comparison</button>
+          </div>
+        </div>
       </nav>
 
       <section id="create-panel" class="panel is-active">
@@ -233,12 +243,13 @@
           <section class="case-editor">
             <div class="case-toolbar">
               <div class="segmented case-mode-control" data-manual-mode>
-                <button class="segment is-active" data-mode="move" type="button">Move</button>
-                <button class="segment" data-mode="polygon" type="button">Polygon</button>
-                <button class="segment" data-mode="select" type="button">Select</button>
+                <button class="segment is-active" data-mode="move" type="button"><span>Move</span><kbd>1</kbd></button>
+                <button class="segment" data-mode="polygon" type="button"><span>Polygon</span><kbd>2</kbd></button>
+                <button class="segment" data-mode="select" type="button"><span>Select</span><kbd>3</kbd></button>
               </div>
               <button id="close-manual-polygon" class="secondary" type="button" data-tooltip="Needs at least 3 vertices">Close Poly</button>
               <button id="delete-manual-selection" class="secondary" type="button">Delete Selection</button>
+              <button id="clear-manual-selection" class="secondary" type="button">Clear Selection</button>
               <button id="toggle-manual-snapping" class="secondary" type="button" aria-pressed="false">Snap</button>
               <button id="manual-zoom-out" class="secondary" type="button">-</button>
               <button id="manual-zoom-in" class="secondary" type="button">+</button>
@@ -486,6 +497,10 @@
           <div class="keybind-row">
             <span>Delete selection</span>
             <div id="delete-selection-keybinds" class="keybind-controls"></div>
+          </div>
+          <div class="keybind-row">
+            <span>Clear selection</span>
+            <div id="clear-selection-keybinds" class="keybind-controls"></div>
           </div>
           <div class="keybind-row">
             <span>Toggle snap</span>
