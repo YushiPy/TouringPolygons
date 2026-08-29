@@ -1802,10 +1802,15 @@ button.secondary.stop-button:disabled {
   width: 100%;
   min-height: 320px;
   padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: var(--editor-bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-muted);
   overflow: hidden;
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition),
+    transform var(--transition),
+    background var(--transition);
 }
 
 .selected-instance-button img {
@@ -1818,9 +1823,10 @@ button.secondary.stop-button:disabled {
 }
 
 .selected-instance-button:hover {
-  background: var(--editor-bg);
-  box-shadow: none;
-  transform: none;
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
 }
 
 .selected-instance-button span {
@@ -2577,6 +2583,33 @@ button.secondary.stop-button:disabled {
   border-color: var(--danger-active);
   background: var(--danger-active);
   color: #fff;
+}
+
+.modal-x-button.modal-back-button {
+  border: 1px solid var(--line);
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+.modal-x-button.modal-back-button:hover {
+  border-color: var(--accent);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.modal-x-button.modal-back-button:active {
+  border-color: var(--line-strong);
+  background: var(--surface-muted);
+}
+
+.modal-back-button svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
 }
 
 .modal-json {

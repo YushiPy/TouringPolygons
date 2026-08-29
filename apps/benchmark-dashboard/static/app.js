@@ -23,6 +23,7 @@ const state = {
   manualAutosaveQueued: false,
   manualRenamingIndex: null,
   campaignCaseMetadata: new Map(),
+  instanceModalReturn: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -2795,7 +2796,7 @@ function instanceModalTitle(campaign, index) {
   const total = campaign.instance_progress?.total || campaign.generation?.instances || campaign.generation?.instances_per_file || "?";
   const name = instanceDisplayName(campaign, index);
   return `
-    <span class="modal-title-main">${escapeHTML(name)}</span>
+    <span class="modal-title-main">${escapeHTML(campaign.name)}</span>
     <span class="modal-title-sub">${instanceLabel(index)}/${escapeHTML(total)}: <button class="instance-name-button modal-title-rename" type="button" data-modal-rename-trigger>${escapeHTML(name)}</button></span>
   `;
 }
@@ -4017,8 +4018,16 @@ function renderRunSummary() {
 function openCampaignModal(campaign) {
   const modal = $("#campaign-modal");
   const body = $("#modal-body");
+  const closeButton = modal.querySelector(".modal-x-button");
   const generation = campaign.generation || {};
   const progress = runProgress(campaign);
+  state.instanceModalReturn = null;
+  closeButton?.removeAttribute("data-modal-back-instance");
+  if (closeButton) {
+    closeButton.classList.remove("modal-back-button");
+    closeButton.innerHTML = "×";
+    closeButton.setAttribute("aria-label", "Close campaign details");
+  }
   $("#modal-title").textContent = campaign.name;
   body.innerHTML = `
     <div class="modal-summary">
@@ -4055,12 +4064,39 @@ function openCampaignModal(campaign) {
 
 function closeCampaignModal() {
   $("#campaign-modal").classList.add("is-hidden");
+  state.instanceModalReturn = null;
+}
+
+function returnToCampaignModal() {
+  const campaign = state.instanceModalReturn;
+  if (!campaign) {
+    closeCampaignModal();
+    return;
+  }
+  openCampaignModal(campaign);
+}
+
+function setInstanceModalBackButton(modal) {
+  const closeButton = modal.querySelector(".modal-x-button");
+  if (!closeButton) {
+    return;
+  }
+  closeButton.setAttribute("data-modal-back-instance", "true");
+  closeButton.classList.add("modal-back-button");
+  closeButton.innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M19 12H5M11 6l-6 6 6 6" />
+    </svg>
+  `;
+  closeButton.setAttribute("aria-label", "Back to campaign details");
 }
 
 async function openInstanceModal(campaign, index) {
+  const modal = $("#campaign-modal");
+  state.instanceModalReturn = campaign;
+  setInstanceModalBackButton(modal);
   const cases = await loadCampaignCaseMetadata(campaign.name);
   const caseData = cases[index];
-  const modal = $("#campaign-modal");
   const body = $("#modal-body");
   const title = instanceTitle(campaign, index);
   $("#modal-title").innerHTML = instanceModalTitle(campaign, index);
@@ -4076,9 +4112,11 @@ async function openInstanceModal(campaign, index) {
 }
 
 async function openBenchmarkedInstanceModal(campaign, item) {
+  const modal = $("#campaign-modal");
+  state.instanceModalReturn = campaign;
+  setInstanceModalBackButton(modal);
   const cases = await loadCampaignCaseMetadata(campaign.name);
   const caseData = cases[item.case_index];
-  const modal = $("#campaign-modal");
   const body = $("#modal-body");
   const title = instanceTitle(campaign, item.case_index);
   $("#modal-title").innerHTML = instanceModalTitle(campaign, item.case_index);
@@ -4561,7 +4599,13 @@ document.querySelectorAll(".tab").forEach((tab) => {
 });
 
 document.querySelectorAll("[data-close-modal]").forEach((element) => {
-  element.addEventListener("click", closeCampaignModal);
+  element.addEventListener("click", (event) => {
+    if (event.currentTarget.dataset.modalBackInstance === "true") {
+      returnToCampaignModal();
+      return;
+    }
+    closeCampaignModal();
+  });
 });
 
 document.querySelectorAll("[data-confirm-cancel]").forEach((element) => {
