@@ -2088,6 +2088,180 @@ const manualEditor = {
   },
 };
 
+function renderCanvasPlaceholder(root, text = "Loading instances...") {
+  root.innerHTML = `<div class="missing-preview">${escapeHTML(text)}</div>`;
+  root.classList.remove("is-hidden");
+}
+
+function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
+  const viewer = {
+    canvas,
+    ctx: canvas.getContext("2d"),
+    caseData: cloneCaseData(caseData),
+    scale: 70,
+    minScale: 0.1,
+    maxScale: 50000,
+    offsetX: 0,
+    offsetY: 0,
+    activePolygon: null,
+    selectedPoints: [],
+    selectionRect: null,
+    mouseCanvas: { x: 0, y: 0 },
+    solutionPath: null,
+    solutionStale: false,
+    solutionRevision: 0,
+    labelDirections: {
+      start: [1, 0],
+      target: [-1, 0],
+    },
+    layers: {
+      grid: options.grid ?? true,
+      solution: options.solution ?? true,
+      decomposition: options.decomposition ?? true,
+      labels: options.labels ?? true,
+    },
+    currentCase() {
+      return this.caseData;
+    },
+    saveCamera() {},
+    setStatus(message) {
+      if (options.status) {
+        options.status.textContent = message || "";
+      }
+    },
+    resize: manualEditor.resize,
+    caseBounds: manualEditor.caseBounds,
+    updateZoomLimits: manualEditor.updateZoomLimits,
+    frameCurrentCase: manualEditor.frameCurrentCase,
+    pointRadius: manualEditor.pointRadius,
+    worldToCanvas: manualEditor.worldToCanvas,
+    canvasToWorld: manualEditor.canvasToWorld,
+    gridMetrics: manualEditor.gridMetrics,
+    drawGrid: manualEditor.drawGrid,
+    drawPoint: manualEditor.drawPoint,
+    drawDecomposition: manualEditor.drawDecomposition,
+    updateLabelDirections: manualEditor.updateLabelDirections,
+    draw: manualEditor.draw,
+    zoomBy(factor) {
+      const centerX = this.canvas.offsetWidth / 2;
+      const centerY = this.canvas.offsetHeight / 2;
+      const before = this.canvasToWorld(centerX, centerY);
+      this.updateZoomLimits();
+      this.scale = Math.max(this.minScale, Math.min(this.maxScale, this.scale * factor));
+      const after = this.canvasToWorld(centerX, centerY);
+      this.offsetX += (after[0] - before[0]) * this.scale;
+      this.offsetY -= (after[1] - before[1]) * this.scale;
+      this.draw();
+    },
+    async fetchSolution(caseData, revision = this.solutionRevision) {
+      if (!caseData) {
+        return;
+      }
+      if (caseData.polygons.length === 0) {
+        if (revision !== this.solutionRevision) {
+          return;
+        }
+        this.solutionPath = [caseData.start, caseData.target];
+        this.solutionStale = false;
+        this.updateLabelDirections(true);
+        this.setStatus("Solution: exact, 0 calls");
+        this.draw();
+        return;
+      }
+      this.setStatus(editorWasmModule ? "Solving..." : editorWasmFailed ? "WASM solver unavailable." : "Loading solver...");
+      try {
+        await loadEditorWasm();
+        if (!editorWasmModule) {
+          if (revision !== this.solutionRevision) {
+            return;
+          }
+          this.solutionPath = null;
+          this.solutionStale = false;
+          this.setStatus("WASM solver unavailable.");
+          this.draw();
+          return;
+        }
+        const geometry = await loadEditorGeometry();
+        let wasmResult = null;
+        if (caseData.polygons.every(polygonIsConvex)) {
+          wasmResult = solveEditorWasm(caseData);
+        } else if (geometry) {
+          const pieceGroups = caseData.polygons.map((polygon) => (
+            geometry.partition.convexPartition(polygon.map(([x, y]) => new geometry.vector.Vector2(x, y)))
+              .filter((piece) => piece.length >= 3)
+              .map((piece) => piece.map((point) => [point.x, point.y]))
+          ));
+          wasmResult = solveEditorWasmGroups(caseData, pieceGroups);
+        } else {
+          wasmResult = solveEditorWasmGroups(caseData, caseData.polygons.map(convexDecomposition));
+        }
+        if (revision !== this.solutionRevision) {
+          return;
+        }
+        this.solutionPath = wasmResult?.path || null;
+        this.solutionStale = false;
+        this.updateLabelDirections(true);
+        this.setStatus(wasmResult
+          ? `Solution: ${wasmResult.exact ? "exact" : "approximate"}, ${wasmResult.calls} calls, ${formatSeconds(wasmResult.seconds)} via WASM`
+          : "WASM solver could not solve this case.");
+        this.draw();
+      } catch (error) {
+        this.setStatus(error.message);
+      }
+    },
+  };
+
+  viewer.resize();
+  viewer.frameCurrentCase();
+  new ResizeObserver(() => {
+    viewer.resize();
+    viewer.frameCurrentCase();
+  }).observe(canvas);
+  canvas.addEventListener("wheel", (event) => {
+    if (!options.interactive) {
+      return;
+    }
+    event.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const before = viewer.canvasToWorld(event.clientX - rect.left, event.clientY - rect.top);
+    const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
+    viewer.updateZoomLimits();
+    viewer.scale = Math.max(viewer.minScale, Math.min(viewer.maxScale, viewer.scale * factor));
+    const after = viewer.canvasToWorld(event.clientX - rect.left, event.clientY - rect.top);
+    viewer.offsetX += (after[0] - before[0]) * viewer.scale;
+    viewer.offsetY -= (after[1] - before[1]) * viewer.scale;
+    viewer.draw();
+  }, { passive: false });
+  if (options.interactive) {
+    let pan = null;
+    canvas.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      pan = { x: event.clientX, y: event.clientY };
+      canvas.setPointerCapture(event.pointerId);
+      canvas.style.cursor = "grabbing";
+    });
+    canvas.addEventListener("pointermove", (event) => {
+      if (!pan) {
+        return;
+      }
+      viewer.offsetX += event.clientX - pan.x;
+      viewer.offsetY += event.clientY - pan.y;
+      pan = { x: event.clientX, y: event.clientY };
+      viewer.draw();
+    });
+    const finishPan = () => {
+      pan = null;
+      canvas.style.cursor = "grab";
+    };
+    canvas.addEventListener("pointerup", finishPan);
+    canvas.addEventListener("pointercancel", finishPan);
+  }
+  if (options.solve) {
+    viewer.fetchSolution(viewer.caseData);
+  }
+  return viewer;
+}
+
 function resetCompareMaxInstancesControl() {
   const slider = $("#compare-max-instances-slider");
   const input = $("#compare-max-instances-input");
@@ -2617,6 +2791,131 @@ function solutionPreviewUrl(campaign, item) {
   return `/api/campaigns/${encodeURIComponent(campaign.name)}/solution-preview/${item.case_index}?repeat_index=${item.repeat_index}&v=${campaign.version || ""}`;
 }
 
+function instanceModalTitle(campaign, index) {
+  const total = campaign.instance_progress?.total || campaign.generation?.instances || campaign.generation?.instances_per_file || "?";
+  const name = instanceDisplayName(campaign, index);
+  return `
+    <span class="modal-title-main">${escapeHTML(name)}</span>
+    <span class="modal-title-sub">${instanceLabel(index)}/${escapeHTML(total)}: <button class="instance-name-button modal-title-rename" type="button" data-modal-rename-trigger>${escapeHTML(name)}</button></span>
+  `;
+}
+
+function setupModalTitleRename(campaign, index, afterRename) {
+  const title = $("#modal-title");
+  const trigger = title.querySelector("[data-modal-rename-trigger]");
+  if (!trigger) {
+    return;
+  }
+  trigger.addEventListener("click", () => {
+    const input = document.createElement("input");
+    input.className = "instance-name-input modal-title-input";
+    input.value = instanceDisplayName(campaign, index);
+    trigger.replaceWith(input);
+    input.focus();
+    input.select();
+    let committed = false;
+    const commit = async () => {
+      if (committed) {
+        return;
+      }
+      committed = true;
+      try {
+        await renameCampaignInstance(campaign, index, input.value);
+        afterRename?.();
+      } catch (error) {
+        setOutput($("#inspect-output"), error.message);
+        title.innerHTML = instanceModalTitle(campaign, index);
+        setupModalTitleRename(campaign, index, afterRename);
+      }
+    };
+    input.addEventListener("blur", commit);
+    input.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commit();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        committed = true;
+        title.innerHTML = instanceModalTitle(campaign, index);
+        setupModalTitleRename(campaign, index, afterRename);
+      }
+    });
+  });
+}
+
+function readonlyInstanceDetail(title) {
+  return `
+    <figure class="instance-detail readonly-instance-detail">
+      <div class="case-toolbar readonly-toolbar">
+        <div class="readonly-toolbar-main">
+          <button class="secondary" type="button" data-readonly-zoom-out>-</button>
+          <button class="secondary" type="button" data-readonly-zoom-in>+</button>
+          <button class="secondary" type="button" data-readonly-fit>Fit</button>
+          <div class="editor-layer-toggles" aria-label="Viewer layers">
+            <button class="secondary is-active" data-readonly-layer="grid" type="button" aria-pressed="true">Grid</button>
+            <button class="secondary is-active" data-readonly-layer="solution" type="button" aria-pressed="true">Path</button>
+            <button class="secondary is-active" data-readonly-layer="decomposition" type="button" aria-pressed="true">Decomp</button>
+            <button class="secondary is-active" data-readonly-layer="labels" type="button" aria-pressed="true">Labels</button>
+          </div>
+        </div>
+        <button class="secondary readonly-edit-button" type="button" data-edit-instance>Edit Instance</button>
+      </div>
+      <canvas class="readonly-instance-canvas" width="960" height="620" aria-label="${escapeHTML(title)}"></canvas>
+      <div class="editor-status-row"><span data-readonly-status></span></div>
+    </figure>
+  `;
+}
+
+function setupReadonlyInstanceDetail(root, caseData) {
+  const canvas = root.querySelector(".readonly-instance-canvas");
+  if (!canvas) {
+    return null;
+  }
+  const viewer = createReadonlyInstanceViewer(canvas, caseData, {
+    interactive: true,
+    solve: true,
+    status: root.querySelector("[data-readonly-status]"),
+  });
+  root.querySelector("[data-readonly-zoom-out]")?.addEventListener("click", () => viewer.zoomBy(1 / 1.2));
+  root.querySelector("[data-readonly-zoom-in]")?.addEventListener("click", () => viewer.zoomBy(1.2));
+  root.querySelector("[data-readonly-fit]")?.addEventListener("click", () => viewer.frameCurrentCase());
+  root.querySelectorAll("[data-readonly-layer]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const layer = button.dataset.readonlyLayer;
+      viewer.layers[layer] = !viewer.layers[layer];
+      button.classList.toggle("is-active", viewer.layers[layer]);
+      button.setAttribute("aria-pressed", viewer.layers[layer] ? "true" : "false");
+      viewer.draw();
+    });
+  });
+  return viewer;
+}
+
+async function renameCampaignInstance(campaign, index, value) {
+  const cases = await loadCampaignCaseMetadata(campaign.name);
+  if (!cases[index]) {
+    throw new Error("Case does not exist.");
+  }
+  cases[index].name = value.trim();
+  const data = await requestJSON(`/api/campaigns/${encodeURIComponent(campaign.name)}/cases`, {
+    method: "PUT",
+    body: JSON.stringify({ cases: cases.map(casePayload) }),
+  });
+  const campaignIndex = state.campaigns.findIndex((item) => item.name === data.campaign.name);
+  if (campaignIndex !== -1) {
+    state.campaigns[campaignIndex] = data.campaign;
+    campaign.version = data.campaign.version;
+  }
+  state.campaignCaseMetadata.set(campaign.name, cases.map(cloneCaseData));
+  if (state.manualCampaign === campaign.name) {
+    state.manualCases = cases.map(cloneCaseData);
+    renderManualCases();
+  }
+  renderCampaigns();
+  renderSolvedPreview(state.campaigns.find((item) => item.name === campaign.name) || campaign);
+}
+
 function zoomableImage(src, alt, extraClass = "", options = {}) {
   return `
     <figure class="instance-detail zoomable-detail ${extraClass}">
@@ -3020,90 +3319,63 @@ async function setupZoomableDetail(root) {
   fitToBounds();
 }
 
+function instancePreviewButton(campaign, index, className = "instance-thumb") {
+  const button = document.createElement("button");
+  button.className = className;
+  button.type = "button";
+  button.innerHTML = `
+    <img src="${instancePreviewUrl(campaign, index)}" alt="${escapeHTML(instanceDisplayName(campaign, index))} preview">
+    <span>${instanceLabel(index)}</span>
+  `;
+  button.addEventListener("click", () => openInstanceModal(campaign, index));
+  return button;
+}
+
+async function populateInstancePreviewPanels(root, campaign) {
+  const previewCount = campaign.instance_previews?.length || 0;
+  if (previewCount === 0) {
+    root.classList.toggle("is-hidden", root.children.length === 0);
+    return;
+  }
+  root.innerHTML = "";
+
+  const selected = document.createElement("figure");
+  selected.className = "preview-panel preview-selected";
+  selected.innerHTML = "<figcaption>Selected Instance</figcaption>";
+  selected.appendChild(instancePreviewButton(campaign, 0, "selected-instance-button"));
+  root.appendChild(selected);
+
+  const four = document.createElement("figure");
+  four.className = "preview-panel preview-four";
+  four.innerHTML = "<figcaption>Four Instances</figcaption>";
+  const grid = document.createElement("div");
+  grid.className = "four-instance-grid";
+  Array.from({ length: Math.min(4, previewCount) }, (_, index) => index).forEach((index) => {
+    grid.appendChild(instancePreviewButton(campaign, index));
+  });
+  four.appendChild(grid);
+  root.appendChild(four);
+
+  const panel = document.createElement("figure");
+  panel.className = "preview-panel preview-instances";
+  panel.innerHTML = "<figcaption>All Instances</figcaption>";
+  const instanceGrid = document.createElement("div");
+  instanceGrid.className = "instance-grid";
+  Array.from({ length: previewCount }, (_, index) => index).forEach((index) => {
+    instanceGrid.appendChild(instancePreviewButton(campaign, index));
+  });
+  panel.appendChild(instanceGrid);
+  root.appendChild(panel);
+  root.classList.remove("is-hidden");
+}
+
 function renderPreviewPanels(root, campaign) {
   root.innerHTML = "";
-  const panels = [
-    ["selected", "Selected Instance"],
-    ["four", "Four Instances"],
-  ];
-  for (const [kind, title] of panels) {
-    const url = previewUrl(campaign, kind);
-    if (!url) {
-      continue;
-    }
-    const panel = document.createElement("figure");
-    panel.className = `preview-panel preview-${kind}`;
-    panel.innerHTML = `
-      <figcaption>${title}</figcaption>
-      <img src="${url}" alt="${title} preview for ${campaign.name}">
-    `;
-    panel.classList.add("is-clickable");
-    panel.tabIndex = 0;
-    panel.addEventListener("click", () => openPreviewModal(campaign, kind, title));
-    panel.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        openPreviewModal(campaign, kind, title);
-      }
-    });
-    root.appendChild(panel);
-  }
-  if (root.children.length === 0 && campaign.instance_previews && campaign.instance_previews.length > 0) {
-    const selected = document.createElement("figure");
-    selected.className = "preview-panel preview-selected is-clickable";
-    selected.tabIndex = 0;
-    selected.innerHTML = `
-      <figcaption>Selected Instance</figcaption>
-      <img src="${instancePreviewUrl(campaign, 0)}" alt="Selected instance preview for ${campaign.name}">
-    `;
-    selected.addEventListener("click", () => openInstanceModal(campaign, 0));
-    selected.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        openInstanceModal(campaign, 0);
-      }
-    });
-    const four = document.createElement("figure");
-    four.className = "preview-panel preview-four";
-    four.innerHTML = "<figcaption>Four Instances</figcaption>";
-    const grid = document.createElement("div");
-    grid.className = "four-instance-grid";
-    campaign.instance_previews.slice(0, 4).forEach((_, index) => {
-      const button = document.createElement("button");
-      button.className = "instance-thumb";
-      button.type = "button";
-      button.innerHTML = `
-        <img src="${instancePreviewUrl(campaign, index)}" alt="Instance ${instanceLabel(index)} preview">
-        <span>${instanceLabel(index)}</span>
-      `;
-      button.addEventListener("click", () => openInstanceModal(campaign, index));
-      grid.appendChild(button);
-    });
-    four.appendChild(grid);
-    root.appendChild(selected);
-    root.appendChild(four);
-  }
-  if (campaign.instance_previews && campaign.instance_previews.length > 0) {
-    const panel = document.createElement("figure");
-    panel.className = "preview-panel preview-instances";
-    panel.innerHTML = "<figcaption>All Instances</figcaption>";
-    const grid = document.createElement("div");
-    grid.className = "instance-grid";
-    campaign.instance_previews.forEach((_, index) => {
-      const button = document.createElement("button");
-      button.className = "instance-thumb";
-      button.type = "button";
-      button.innerHTML = `
-        <img src="${instancePreviewUrl(campaign, index)}" alt="Instance ${instanceLabel(index)} preview">
-        <span>${instanceLabel(index)}</span>
-      `;
-      button.addEventListener("click", () => openInstanceModal(campaign, index));
-      grid.appendChild(button);
-    });
-    panel.appendChild(grid);
-    root.appendChild(panel);
-  }
-  root.classList.toggle("is-hidden", root.children.length === 0);
+  renderCanvasPlaceholder(root);
+  populateInstancePreviewPanels(root, campaign).catch(() => {
+    root.innerHTML = "";
+    root.classList.add("is-hidden");
+  });
 }
 
 function renderBenchmarkedInstanceSection(root, campaign, instances) {
@@ -3154,7 +3426,7 @@ function renderBenchmarkedInstanceSection(root, campaign, instances) {
       ? `<img src="${solutionPreviewUrl(campaign, item)}" alt="Solved instance ${instanceLabel(item.case_index)} with path and decomposition">`
       : item.preview
         ? `<img src="${instancePreviewUrl(campaign, item.case_index)}" alt="Benchmarked instance ${instanceLabel(item.case_index)}">`
-      : '<div class="missing-preview">No preview</div>';
+        : '<div class="missing-preview">No preview</div>';
     button.innerHTML = `
       ${preview}
       <div class="benchmarked-meta">
@@ -3786,33 +4058,30 @@ function closeCampaignModal() {
 }
 
 async function openInstanceModal(campaign, index) {
-  await loadCampaignCaseMetadata(campaign.name);
+  const cases = await loadCampaignCaseMetadata(campaign.name);
+  const caseData = cases[index];
   const modal = $("#campaign-modal");
   const body = $("#modal-body");
   const title = instanceTitle(campaign, index);
-  $("#modal-title").textContent = `${campaign.name} / ${title}`;
+  $("#modal-title").innerHTML = instanceModalTitle(campaign, index);
   body.innerHTML = `
-    ${zoomableImage(instancePreviewUrl(campaign, index), `${title} detail`)}
-    <div class="modal-actions">
-      <button class="secondary" type="button" data-edit-instance>Edit Instance</button>
-    </div>
+    ${caseData ? readonlyInstanceDetail(`${title} detail`) : '<div class="missing-preview detail-missing">No case data available.</div>'}
   `;
-  body.querySelector("[data-edit-instance]").addEventListener("click", () => editInstance(campaign, index));
-  setupZoomableDetail(body);
+  body.querySelector("[data-edit-instance]")?.addEventListener("click", () => editInstance(campaign, index));
+  if (caseData) {
+    setupReadonlyInstanceDetail(body, caseData);
+  }
+  setupModalTitleRename(campaign, index, () => openInstanceModal(campaign, index));
   modal.classList.remove("is-hidden");
 }
 
 async function openBenchmarkedInstanceModal(campaign, item) {
-  await loadCampaignCaseMetadata(campaign.name);
+  const cases = await loadCampaignCaseMetadata(campaign.name);
+  const caseData = cases[item.case_index];
   const modal = $("#campaign-modal");
   const body = $("#modal-body");
   const title = instanceTitle(campaign, item.case_index);
-  $("#modal-title").textContent = `${campaign.name} / ${title}`;
-  const previewUrl = item.solution_available
-    ? solutionPreviewUrl(campaign, item)
-    : item.preview
-      ? instancePreviewUrl(campaign, item.case_index)
-      : null;
+  $("#modal-title").innerHTML = instanceModalTitle(campaign, item.case_index);
   body.innerHTML = `
     <div class="modal-summary">
       ${metricCard("Status", item.status)}
@@ -3824,16 +4093,13 @@ async function openBenchmarkedInstanceModal(campaign, item) {
       ${metricCard("Visited nodes", item.visited_nodes ?? "-")}
       ${metricCard("Pruned nodes", item.pruned_nodes ?? "-")}
     </div>
-    ${previewUrl
-      ? zoomableImage(previewUrl, `${title} detail`, "benchmarked-detail", { inspectable: item.solution_available })
-      : '<div class="missing-preview detail-missing">No preview available.</div>'}
-    ${item.solution_available ? "" : '<p class="inline-note">This is an older run. Rerun the benchmark to generate the path/decomposition overlay SVG for this case.</p>'}
-    <div class="modal-actions">
-      <button class="secondary" type="button" data-edit-instance>Edit Instance</button>
-    </div>
+    ${caseData ? readonlyInstanceDetail(`${title} detail`) : '<div class="missing-preview detail-missing">No case data available.</div>'}
   `;
-  body.querySelector("[data-edit-instance]").addEventListener("click", () => editInstance(campaign, item.case_index));
-  setupZoomableDetail(body);
+  body.querySelector("[data-edit-instance]")?.addEventListener("click", () => editInstance(campaign, item.case_index));
+  if (caseData) {
+    setupReadonlyInstanceDetail(body, caseData);
+  }
+  setupModalTitleRename(campaign, item.case_index, () => openBenchmarkedInstanceModal(campaign, item));
   modal.classList.remove("is-hidden");
 }
 

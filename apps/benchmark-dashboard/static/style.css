@@ -113,8 +113,8 @@ button.secondary.is-active:hover {
 }
 
 :root[data-theme="dark"] button {
-  background: var(--accent);
-  border-color: var(--accent-strong);
+  background: var(--active-bg);
+  border-color: var(--active-bg);
   color: var(--active-text);
 }
 
@@ -292,14 +292,14 @@ h1 {
 label {
   display: grid;
   gap: 6px;
-  color: #344054;
+  color: var(--text);
   font-size: 0.9rem;
 }
 
 .field {
   display: grid;
   gap: 6px;
-  color: #344054;
+  color: var(--text);
   font-size: 0.9rem;
 }
 
@@ -334,12 +334,12 @@ select {
 :root[data-theme="dark"] select,
 :root[data-theme="dark"] textarea {
   border-color: var(--line);
-  background: #15181d;
+  background: var(--surface);
   color: var(--text);
 }
 
 :root[data-theme="dark"] .segmented {
-  background: #15181d;
+  background: var(--bg);
 }
 
 :root[data-theme="dark"] .segment {
@@ -379,7 +379,7 @@ select {
 }
 
 .segment:hover {
-  background: #fff;
+  background: var(--surface);
   border-color: transparent;
   color: var(--accent-strong);
   box-shadow: none;
@@ -463,7 +463,7 @@ select:focus {
   align-items: center;
   gap: 10px;
   min-height: 38px;
-  color: #344054;
+  color: var(--text);
   font-size: 0.92rem;
   cursor: pointer;
 }
@@ -501,7 +501,7 @@ select:focus {
   width: 18px;
   height: 18px;
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.24);
   transition: transform var(--transition);
 }
@@ -546,6 +546,11 @@ select:focus {
   justify-self: end;
   min-height: 38px;
   white-space: nowrap;
+  cursor: default;
+}
+
+.skip-preview-toggle .switch-toggle {
+  cursor: pointer;
 }
 
 .osm-picker-field {
@@ -787,7 +792,7 @@ select:focus {
 
 :root[data-theme="dark"] .choice-grid {
   border-color: var(--line);
-  background: #15181d;
+  background: var(--bg);
 }
 
 :root[data-theme="dark"] .choice-card {
@@ -937,7 +942,7 @@ select:focus {
 
 :root[data-theme="dark"] .compare-solver-grid {
   border-color: var(--line);
-  background: #15181d;
+  background: var(--bg);
 }
 
 .solver-check {
@@ -1183,7 +1188,7 @@ button.secondary.stop-button:disabled {
 .preview-panel figcaption {
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);
-  color: #344054;
+  color: var(--text);
   font-weight: 650;
   font-size: 0.9rem;
 }
@@ -1193,7 +1198,7 @@ button.secondary.stop-button:disabled {
   width: 100%;
   height: 320px;
   padding: 10px;
-  background: #fff;
+  background: var(--surface);
   object-fit: contain;
 }
 
@@ -1275,7 +1280,7 @@ button.secondary.stop-button:disabled {
 
 .manual-case-select:hover {
   border-color: transparent;
-  background: #fff;
+  background: var(--surface);
   color: var(--accent-strong);
   transform: none;
   box-shadow: none;
@@ -1421,7 +1426,7 @@ button.secondary.stop-button:disabled {
 .case-toolbar > button.is-disabled {
   border-color: var(--line);
   background: var(--surface-muted);
-  color: #8a95a6;
+  color: var(--muted);
   box-shadow: none;
   transform: none;
 }
@@ -1730,7 +1735,7 @@ button.secondary.stop-button:disabled {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 10px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .four-instance-grid .instance-thumb,
@@ -1750,7 +1755,7 @@ button.secondary.stop-button:disabled {
   max-height: 460px;
   overflow: auto;
   padding: 10px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .modal-card .instance-grid {
@@ -1768,7 +1773,7 @@ button.secondary.stop-button:disabled {
 
 .instance-thumb:hover {
   border-color: var(--accent);
-  background: #fff;
+  background: var(--surface);
 }
 
 .instance-thumb img {
@@ -1777,6 +1782,7 @@ button.secondary.stop-button:disabled {
   height: 112px;
   object-fit: contain;
   padding: 6px;
+  background: var(--surface);
 }
 
 .instance-thumb span {
@@ -1790,11 +1796,49 @@ button.secondary.stop-button:disabled {
   font-size: 0.75rem;
 }
 
+.selected-instance-button {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 320px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--editor-bg);
+  overflow: hidden;
+}
+
+.selected-instance-button img {
+  display: block;
+  width: 100%;
+  height: 320px;
+  object-fit: contain;
+  padding: 10px;
+  background: var(--surface);
+}
+
+.selected-instance-button:hover {
+  background: var(--editor-bg);
+  box-shadow: none;
+  transform: none;
+}
+
+.selected-instance-button span {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: rgba(15, 23, 42, 0.78);
+  color: #fff;
+  font-size: 0.78rem;
+}
+
 .bar {
   height: 10px;
   border-radius: 999px;
   overflow: hidden;
-  background: #e4e7ec;
+  background: var(--track-bg);
   margin-top: 10px;
 }
 
@@ -1932,7 +1976,7 @@ button.secondary.stop-button:disabled {
   min-height: 0;
   padding: 0;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
   overflow: hidden;
   text-align: left;
@@ -1941,17 +1985,18 @@ button.secondary.stop-button:disabled {
 
 .benchmarked-card:hover {
   border-color: var(--accent);
-  background: #fff;
+  background: var(--surface);
   box-shadow: var(--shadow-sm);
   transform: translateY(-1px);
 }
 
 .benchmarked-card img,
+.benchmarked-card canvas,
 .missing-preview {
   width: 100%;
   height: 130px;
-  padding: 8px;
-  background: #fff;
+  padding: 0;
+  background: var(--editor-bg);
   object-fit: contain;
 }
 
@@ -2030,7 +2075,7 @@ button.secondary.stop-button:disabled {
   gap: 10px 14px;
   align-items: center;
   margin-bottom: 12px;
-  color: #344054;
+  color: var(--text);
   font-size: 0.86rem;
 }
 
@@ -2181,19 +2226,11 @@ button.secondary.stop-button:disabled {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px;
-  background: #fff;
-}
-
-:root[data-theme="dark"] .report-panel {
-  background: #181b20;
+  background: var(--surface);
 }
 
 .report-panel h4 {
   margin: 0 0 10px;
-  color: #344054;
-}
-
-:root[data-theme="dark"] .report-panel h4 {
   color: var(--text);
 }
 
@@ -2221,14 +2258,9 @@ button.secondary.stop-button:disabled {
 }
 
 .comparison-table th {
-  color: #344054;
-  font-weight: 700;
-  background: #f8fafc;
-}
-
-:root[data-theme="dark"] .comparison-table th {
   color: var(--text);
-  background: #20242b;
+  font-weight: 700;
+  background: var(--surface-muted);
 }
 
 .comparison-table td {
@@ -2259,7 +2291,7 @@ button.secondary.stop-button:disabled {
 .chart-row div {
   height: 9px;
   border-radius: 999px;
-  background: #e4e7ec;
+  background: var(--track-bg);
   overflow: hidden;
 }
 
@@ -2329,7 +2361,7 @@ button.secondary.stop-button:disabled {
 
 .histogram-panel h5 {
   margin: 0;
-  color: #344054;
+  color: var(--text);
   font-size: 0.84rem;
 }
 
@@ -2354,7 +2386,7 @@ button.secondary.stop-button:disabled {
 .histogram-row div {
   height: 12px;
   border-radius: 999px;
-  background: #e4e7ec;
+  background: var(--track-bg);
   overflow: hidden;
 }
 
@@ -2406,7 +2438,7 @@ button.secondary.stop-button:disabled {
   border-radius: 8px;
   padding: 12px;
   background: var(--surface-muted);
-  color: #344054;
+  color: var(--text);
 }
 
 .result-row {
@@ -2469,6 +2501,39 @@ button.secondary.stop-button:disabled {
 
 .modal-header h2 {
   margin-bottom: 0;
+}
+
+.modal-title-main,
+.modal-title-sub {
+  display: block;
+}
+
+.modal-title-main {
+  font-size: 1.28rem;
+  font-weight: 750;
+  line-height: 1.15;
+}
+
+.modal-title-sub {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+.modal-title-rename {
+  width: auto;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.modal-title-input {
+  width: min(320px, 100%);
+  margin-left: 4px;
+  font-size: 0.9rem;
+  font-weight: 500;
 }
 
 .modal-x-button {
@@ -2629,7 +2694,7 @@ button.secondary.stop-button:disabled {
   margin: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
   overflow: hidden;
 }
 
@@ -2639,6 +2704,50 @@ button.secondary.stop-button:disabled {
   max-height: min(560px, calc(100vh - 190px));
   object-fit: contain;
   padding: 16px;
+}
+
+.readonly-instance-detail {
+  display: grid;
+  grid-template-rows: auto minmax(420px, min(62vh, 620px)) auto;
+  gap: 10px;
+  padding: 10px;
+  background: var(--surface);
+}
+
+.readonly-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 0;
+}
+
+.readonly-toolbar-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.readonly-edit-button {
+  justify-self: end;
+}
+
+.readonly-instance-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--editor-bg);
+  cursor: grab;
+  overscroll-behavior: contain;
+  touch-action: none;
+  user-select: none;
+}
+
+[data-readonly-status]:not(:empty)::before {
+  content: "Solve: ";
 }
 
 .zoomable-detail {
@@ -2707,7 +2816,7 @@ button.secondary.zoom-toggle.is-active:hover {
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: var(--shadow-sm);
 }
 

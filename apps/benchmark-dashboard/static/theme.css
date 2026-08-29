@@ -55,12 +55,12 @@
   --track-bg: #2d323a;
   --track-tick: rgba(236, 239, 243, 0.16);
   --track-tick-strong: rgba(236, 239, 243, 0.22);
-  --accent: #c8a24a;
-  --accent-strong: #e3bf69;
+  --accent: #8ab4ff;
+  --accent-strong: #c3dafe;
   --active-bg: #e5e7eb;
   --active-text: #14171c;
-  --toggle-active-bg: #c8a24a;
-  --toggle-active-hover: #aa873b;
+  --toggle-active-bg: #e5e7eb;
+  --toggle-active-hover: #d1d5db;
   --toggle-active-text: #14171c;
   --danger: #dc2626;
   --danger-hover: #b91c1c;
@@ -71,8 +71,8 @@
   --shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
   --shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.22);
   --page-gradient: none;
-  --primary-hover: #aa873b;
-  --primary-active: #86682d;
+  --primary-hover: #d1d5db;
+  --primary-active: #b8c2d3;
   --secondary-bg: #22262c;
   --secondary-hover: #2d323a;
   --editor-bg: #121417;
