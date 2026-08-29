@@ -34,6 +34,10 @@ const defaultKeybinds = {
   clearSelection: ["Z"],
   toggleSnap: ["S"],
   fitInstance: ["F"],
+  toggleGrid: ["G"],
+  togglePath: ["P"],
+  toggleDecomposition: ["D"],
+  toggleLabels: ["L"],
 };
 let editorKeybinds = loadEditorKeybinds();
 let pendingKeybindAction = null;
@@ -240,6 +244,10 @@ function loadEditorKeybinds() {
       clearSelection: normalizeBindings(loaded.clearSelection, defaultKeybinds.clearSelection),
       toggleSnap: normalizeBindings(loaded.toggleSnap, defaultKeybinds.toggleSnap),
       fitInstance: normalizeBindings(loaded.fitInstance, defaultKeybinds.fitInstance),
+      toggleGrid: normalizeBindings(loaded.toggleGrid, defaultKeybinds.toggleGrid),
+      togglePath: normalizeBindings(loaded.togglePath, defaultKeybinds.togglePath),
+      toggleDecomposition: normalizeBindings(loaded.toggleDecomposition, defaultKeybinds.toggleDecomposition),
+      toggleLabels: normalizeBindings(loaded.toggleLabels, defaultKeybinds.toggleLabels),
     };
   } catch {
     return {
@@ -248,6 +256,10 @@ function loadEditorKeybinds() {
       clearSelection: [...defaultKeybinds.clearSelection],
       toggleSnap: [...defaultKeybinds.toggleSnap],
       fitInstance: [...defaultKeybinds.fitInstance],
+      toggleGrid: [...defaultKeybinds.toggleGrid],
+      togglePath: [...defaultKeybinds.togglePath],
+      toggleDecomposition: [...defaultKeybinds.toggleDecomposition],
+      toggleLabels: [...defaultKeybinds.toggleLabels],
     };
   }
 }
@@ -289,12 +301,20 @@ function keyMatchesBinding(event, bindings) {
   return bindings.includes(keyEventToBinding(event));
 }
 
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
 function updateKeybindUI() {
   renderKeybindControl("closePolygon", "#close-polygon-keybinds");
   renderKeybindControl("deleteSelection", "#delete-selection-keybinds");
   renderKeybindControl("clearSelection", "#clear-selection-keybinds");
   renderKeybindControl("toggleSnap", "#toggle-snap-keybinds");
   renderKeybindControl("fitInstance", "#fit-instance-keybinds");
+  renderKeybindControl("toggleGrid", "#toggle-grid-keybinds");
+  renderKeybindControl("togglePath", "#toggle-path-keybinds");
+  renderKeybindControl("toggleDecomposition", "#toggle-decomposition-keybinds");
+  renderKeybindControl("toggleLabels", "#toggle-labels-keybinds");
 }
 
 function renderKeybindControl(action, selector) {
@@ -1615,6 +1635,18 @@ const manualEditor = {
     } else if (keyMatchesBinding(event, editorKeybinds.fitInstance)) {
       event.preventDefault();
       this.frameCurrentCase();
+    } else if (keyMatchesBinding(event, editorKeybinds.toggleGrid)) {
+      event.preventDefault();
+      this.toggleLayer("grid");
+    } else if (keyMatchesBinding(event, editorKeybinds.togglePath)) {
+      event.preventDefault();
+      this.toggleLayer("solution");
+    } else if (keyMatchesBinding(event, editorKeybinds.toggleDecomposition)) {
+      event.preventDefault();
+      this.toggleLayer("decomposition");
+    } else if (keyMatchesBinding(event, editorKeybinds.toggleLabels)) {
+      event.preventDefault();
+      this.toggleLayer("labels");
     } else if (keyMatchesBinding(event, editorKeybinds.closePolygon)) {
       event.preventDefault();
       this.closePolygon();
@@ -1828,7 +1860,7 @@ const manualEditor = {
     const width = this.canvas.offsetWidth;
     const height = this.canvas.offsetHeight;
     const ctx = this.ctx;
-    ctx.fillStyle = "#121417";
+    ctx.fillStyle = cssVar("--editor-bg") || "#121417";
     ctx.fillRect(0, 0, width, height);
     if (!this.layers.grid) {
       return;
@@ -1851,21 +1883,21 @@ const manualEditor = {
     const firstX = Math.floor(left / gridSpacing) * gridSpacing;
     const firstY = Math.floor(bottom / gridSpacing) * gridSpacing;
     for (let x = firstX; x <= right + gridSpacing; x += gridSpacing) {
-      drawWorldLine([x, bottom], [x, top], "#515a67");
+      drawWorldLine([x, bottom], [x, top], cssVar("--editor-grid-major") || "#515a67");
       for (let index = 0; index < subGridCount; index += 1) {
         const subX = x + (gridSpacing * (index + 1)) / (subGridCount + 1);
-        drawWorldLine([subX, bottom], [subX, top], "#2a2f38");
+        drawWorldLine([subX, bottom], [subX, top], cssVar("--editor-grid-minor") || "#2a2f38");
       }
     }
     for (let y = firstY; y <= top + gridSpacing; y += gridSpacing) {
-      drawWorldLine([left, y], [right, y], "#515a67");
+      drawWorldLine([left, y], [right, y], cssVar("--editor-grid-major") || "#515a67");
       for (let index = 0; index < subGridCount; index += 1) {
         const subY = y + (gridSpacing * (index + 1)) / (subGridCount + 1);
-        drawWorldLine([left, subY], [right, subY], "#2a2f38");
+        drawWorldLine([left, subY], [right, subY], cssVar("--editor-grid-minor") || "#2a2f38");
       }
     }
     const origin = this.worldToCanvas([0, 0]);
-    ctx.strokeStyle = "#9aa3ad";
+    ctx.strokeStyle = cssVar("--editor-axis") || "#9aa3ad";
     ctx.beginPath();
     ctx.moveTo(0, origin.y);
     ctx.lineTo(width, origin.y);
@@ -2692,6 +2724,19 @@ function svgGeometryBounds(svg) {
 
 function setupInspectableSvg(root, svg, controls) {
   const ns = "http://www.w3.org/2000/svg";
+  const restyleSvg = () => {
+    const background = svg.querySelector("rect");
+    if (background) {
+      background.setAttribute("fill", cssVar("--editor-bg") || "#121417");
+    }
+    svg.querySelectorAll("text").forEach((text) => {
+      text.setAttribute("fill", cssVar("--text") || "#f8fafc");
+    });
+    const path = svg.querySelector("polyline");
+    if (path) {
+      path.setAttribute("stroke", cssVar("--accent-strong") || "#facc15");
+    }
+  };
   const gridGroup = document.createElementNS(ns, "g");
   gridGroup.classList.add("inspection-grid");
   gridGroup.dataset.inspectionOverlay = "grid";
@@ -2759,6 +2804,7 @@ function setupInspectableSvg(root, svg, controls) {
   }
 
   function applyStyle() {
+    restyleSvg();
     const radius = Math.max(1, Number(controls.pointRadius.value) || 6);
     const strokeWidth = Math.max(0.5, Number(controls.pathWidth.value) || 3);
     const opacity = Math.max(0, Math.min(0.8, Number(controls.polygonOpacity.value) || 0));

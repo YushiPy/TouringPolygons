@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>TPP Benchmark Dashboard</title>
+    <link rel="stylesheet" href="/static/theme.css">
     <link rel="stylesheet" href="/static/style.css">
   </head>
   <body>
@@ -247,8 +248,8 @@
                 <button class="segment" data-mode="polygon" type="button"><span>Polygon</span><kbd>2</kbd></button>
                 <button class="segment" data-mode="select" type="button"><span>Select</span><kbd>3</kbd></button>
               </div>
-              <button id="close-manual-polygon" class="secondary" type="button" data-tooltip="Needs at least 3 vertices">Close Poly</button>
-              <button id="delete-manual-selection" class="secondary" type="button">Delete Selection</button>
+              <button id="close-manual-polygon" class="danger" type="button" data-tooltip="Needs at least 3 vertices">Close Poly</button>
+              <button id="delete-manual-selection" class="danger" type="button">Delete Selection</button>
               <button id="clear-manual-selection" class="secondary" type="button">Clear Selection</button>
               <button id="toggle-manual-snapping" class="secondary" type="button" aria-pressed="false">Snap</button>
               <button id="manual-zoom-out" class="secondary" type="button">-</button>
@@ -471,7 +472,7 @@
       <article class="modal-card">
         <header class="modal-header">
           <h2 id="modal-title">Campaign</h2>
-          <button class="secondary" type="button" data-close-modal>Close</button>
+          <button class="modal-x-button" type="button" data-close-modal aria-label="Close campaign details">×</button>
         </header>
         <div id="modal-body"></div>
       </article>
@@ -516,6 +517,22 @@
           <div class="keybind-row">
             <span>Fit instance</span>
             <div id="fit-instance-keybinds" class="keybind-controls"></div>
+          </div>
+          <div class="keybind-row">
+            <span>Toggle grid</span>
+            <div id="toggle-grid-keybinds" class="keybind-controls"></div>
+          </div>
+          <div class="keybind-row">
+            <span>Toggle path</span>
+            <div id="toggle-path-keybinds" class="keybind-controls"></div>
+          </div>
+          <div class="keybind-row">
+            <span>Toggle decomposition</span>
+            <div id="toggle-decomposition-keybinds" class="keybind-controls"></div>
+          </div>
+          <div class="keybind-row">
+            <span>Toggle labels</span>
+            <div id="toggle-labels-keybinds" class="keybind-controls"></div>
           </div>
         </div>
       </article>
