@@ -64,6 +64,29 @@ class DashboardMainTests(unittest.TestCase):
 
 			self.assertEqual(dashboard.read_binary_cases(path, limit=10), [case])
 
+	def test_instance_previews_are_generated_lazily(self) -> None:
+		case = dashboard.manual_case_from_request(dashboard.ManualCaseRequest(
+			start=(0.0, 0.0),
+			target=(2.0, 0.0),
+			polygons=[[(0.5, 0.5), (1.5, 0.5), (1.0, 1.25)]],
+		))
+		with tempfile.TemporaryDirectory() as directory:
+			path = Path(directory)
+			dashboard.write_binary_cases(path / "inputs/manual.bin", [case])
+			previews, instance_previews = dashboard.write_imported_previews(path, [case])
+			data = {
+				"inputs": [{"file": "inputs/manual.bin", "instances": 1}],
+				"preview": previews["all"],
+				"previews": previews,
+				"instance_previews": instance_previews,
+			}
+
+			instance_path = path / instance_previews[0]
+			self.assertFalse(instance_path.exists())
+
+			self.assertEqual(dashboard.ensure_instance_preview(path, data, 0), instance_path)
+			self.assertTrue(instance_path.exists())
+
 
 if __name__ == "__main__":
 	unittest.main()

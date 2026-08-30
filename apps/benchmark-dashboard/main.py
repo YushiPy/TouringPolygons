@@ -567,18 +567,32 @@ def write_imported_previews(path: Path, cases: list[CaseData]) -> tuple[dict[str
 	write_case_preview(preview_dir / "selected.svg", cases[:1], cell_width=420, cell_height=320, columns=1, padding=8)
 	write_case_preview(preview_dir / "four.svg", cases[:4], cell_width=210, cell_height=160, columns=2, padding=6)
 	write_case_preview(preview_dir / "all.svg", overview_cases, cell_width=150, cell_height=overview_cell_height, columns=overview_columns, padding=6)
-	instance_dir = preview_dir / "instances"
-	instance_paths = []
-	for index, case in enumerate(cases):
-		instance_path = instance_dir / f"case-{index:04}.svg"
-		write_case_preview(instance_path, [case], cell_width=260, cell_height=180, columns=1, padding=6)
-		instance_paths.append(str(instance_path.relative_to(path)))
+	instance_paths = [
+		f"previews/instances/case-{index:04}.svg"
+		for index in range(len(cases))
+	]
 	previews = {
 		"selected": "previews/selected.svg",
 		"four": "previews/four.svg",
 		"all": "previews/all.svg",
 	}
 	return previews, instance_paths
+
+
+def ensure_instance_preview(path: Path, data: dict[str, Any], index: int) -> Path | None:
+	if index < 0:
+		return None
+	instance_previews = instance_preview_list(data)
+	if index >= len(instance_previews):
+		return None
+	preview_path = path / instance_previews[index]
+	if preview_path.exists() and not preview_svg_is_stale(preview_path):
+		return preview_path
+	cases = read_campaign_cases(path, data)
+	if index >= len(cases):
+		return None
+	write_case_preview(preview_path, [cases[index]], cell_width=260, cell_height=180, columns=1, padding=6)
+	return preview_path
 
 
 def sample_cases(cases: list[CaseData], limit: int) -> list[CaseData]:
@@ -1373,8 +1387,10 @@ async def get_preview_kind(name: str, kind: str):
 			index = int(kind.removeprefix("instance-"))
 		except ValueError as error:
 			raise HTTPException(status_code=404, detail="Invalid instance preview.") from error
-		instance_previews = result_preview_list(path, data)
-		preview = instance_previews[index] if 0 <= index < len(instance_previews) else None
+		preview_path = ensure_instance_preview(path, data, index)
+		if not preview_path:
+			raise HTTPException(status_code=404, detail="Campaign has no preview.")
+		return FileResponse(preview_path)
 	else:
 		preview = previews.get(kind) or previews.get("all") or next(iter(previews.values()), None)
 	if not preview:
