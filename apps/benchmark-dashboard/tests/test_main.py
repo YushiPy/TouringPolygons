@@ -10,7 +10,6 @@ from unittest.mock import patch
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-
 MODULE_PATH = Path(__file__).resolve().parents[1] / "main.py"
 SPEC = importlib.util.spec_from_file_location("benchmark_dashboard_main", MODULE_PATH)
 assert SPEC is not None

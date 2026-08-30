@@ -1,6 +1,7 @@
 {
 	"name": "tpp-benchmark-dashboard-tests",
 	"private": true,
+	"type": "module",
 	"scripts": {
 		"test:browser": "node tests/browser_smoke.mjs",
 		"lint:js": "eslint static tests"

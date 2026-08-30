@@ -27,14 +27,19 @@ export default [
 				WheelEvent: "readonly",
 				Window: "readonly",
 				console: "readonly",
+				cancelAnimationFrame: "readonly",
+				clearTimeout: "readonly",
+				DOMParser: "readonly",
 				fetch: "readonly",
+				getComputedStyle: "readonly",
 				globalThis: "readonly",
 				localStorage: "readonly",
 				navigator: "readonly",
 				performance: "readonly",
 				requestAnimationFrame: "readonly",
 				setTimeout: "readonly",
-				window: "readonly"
+				window: "readonly",
+				process: "readonly"
 			},
 		},
 		rules: {

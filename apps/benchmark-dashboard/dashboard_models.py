@@ -7,7 +7,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-
 Point = tuple[float, float]
 CaseData = tuple[Point, Point, list[list[Point]]]
 

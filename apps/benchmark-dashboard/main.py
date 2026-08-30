@@ -23,7 +23,6 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-
 APP_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = APP_ROOT.parents[1]
 VISUALIZER_STATIC_ROOT = REPO_ROOT / "apps/visualizer-server/static"
@@ -50,7 +49,6 @@ SOLVERS = {
 	"binary_search_disjoint": "binary_search_disjoint",
 	"binary_search_eager": "binary_search_eager",
 	"tan_jiang": "tan_jiang",
-	"gurobi": "gurobi",
 }
 SOLVER_BINARY = REPO_ROOT / "build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp"
 SOLVER_BUILD_CACHE = REPO_ROOT / "build/nonconvex-release/CMakeCache.txt"
@@ -72,7 +70,17 @@ OSM_SEARCH_EXCLUDES = {
 
 if str(APP_ROOT) not in sys.path:
 	sys.path.insert(0, str(APP_ROOT))
-from dashboard_models import (
+from dashboard_binary import (  # noqa: E402
+	_binary_offset_cache,
+	binary_case_count,
+	read_binary_case,
+	read_binary_cases,
+	write_binary_cases,
+)
+from dashboard_models import (  # noqa: E402
+	MAX_MANUAL_CASES,
+	MAX_POLYGONS_PER_CASE,
+	MAX_VERTICES_PER_CASE,
 	CaseData,
 	CompareSolversRequest,
 	CreateOsmRequest,
@@ -83,30 +91,9 @@ from dashboard_models import (
 	ManualCampaignRequest,
 	ManualCaseRequest,
 	ManualCasesRequest,
-	MAX_MANUAL_CASES,
-	MAX_POLYGONS_PER_CASE,
-	MAX_VERTICES_PER_CASE,
 	Point,
 	RunCampaignRequest,
 )
-from dashboard_binary import (
-	_binary_offset_cache,
-	binary_case_count,
-	binary_case_offsets,
-	read_binary_case,
-	read_binary_case_from_file,
-	read_binary_cases,
-	read_exact,
-	read_point,
-	read_size,
-	skip_binary_case,
-	skip_bytes,
-	trim_binary_cache,
-	write_binary_cases,
-	write_size,
-	write_vector,
-)
-
 
 app = FastAPI(title="TPP Benchmark Dashboard")
 app.mount("/static", StaticFiles(directory=APP_ROOT / "static"), name="static")

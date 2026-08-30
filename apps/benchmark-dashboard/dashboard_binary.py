@@ -8,7 +8,6 @@ from typing import BinaryIO
 
 from dashboard_models import CaseData, Point
 
-
 SIZE_STRUCT = struct.Struct("<Q")
 POINT_STRUCT = struct.Struct("<dd")
 FILE_CACHE_LIMIT = 128
