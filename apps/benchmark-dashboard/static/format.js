@@ -56,3 +56,21 @@ export function formatSeconds(value) {
 	}
 	return `${(number * 1000000000).toFixed(2)} ns`;
 }
+
+export function formatMicroseconds(seconds) {
+	if (seconds === null || seconds === undefined || seconds === "") {
+		return "-";
+	}
+	const number = Number(seconds);
+	if (!Number.isFinite(number)) {
+		return "-";
+	}
+	const microseconds = number * 1000000;
+	if (Math.abs(microseconds) >= 100) {
+		return `${microseconds.toFixed(1)} us`;
+	}
+	if (Math.abs(microseconds) >= 1) {
+		return `${microseconds.toFixed(2)} us`;
+	}
+	return `${microseconds.toFixed(3)} us`;
+}

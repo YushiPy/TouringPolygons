@@ -17,11 +17,13 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 	- [x] shared state;
 	- [x] campaign rendering;
 	- [x] job dock and polling;
-	- benchmark/comparison reports;
+	- [x] benchmark/comparison reports;
 	- [x] editor geometry;
 	- [x] editor renderer;
 	- manual editor interactions;
-	- read-only instance viewer.
+	- [x] read-only instance viewer;
+	- [x] command builders and form controls;
+	- [x] theme, keybinding, and UI utility helpers.
 - [x] Replace eager per-instance preview generation with lazy generation on first request.
 - [x] Separate manual autosave from benchmark artifact rebuilding.
 - [x] Stream binary case reads instead of loading whole `.bin` files into memory.
@@ -137,3 +139,14 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 	- `completed_instance_count()` now keys cached counts by `run-index.csv` and referenced result CSV file signatures.
 	- Campaign list refreshes avoid rescanning unchanged result CSV rows.
 	- Added a regression test for count cache invalidation when a result CSV changes.
+- Continued splitting `static/app.js` into focused modules.
+	- Moved case cloning/payload helpers into `static/case-data.js`.
+	- Moved CLI command preview builders into `static/command-builders.js`.
+	- Moved theme handling into `static/theme.js`.
+	- Moved shared UI helpers and tooltip handling into `static/ui-utils.js`.
+	- Moved WASM solver loading and calls into `static/editor-solver.js`.
+	- Moved read-only instance viewer rendering and interactions into `static/readonly-viewer.js`.
+	- Moved benchmark/comparison report rendering into `static/report-rendering.js`.
+	- Moved job dock rendering/interactions into `static/job-dock.js`.
+	- Moved keybinding persistence and editing UI into `static/keybinds.js`.
+	- Moved segmented controls, sliders, and filter wiring into `static/controls.js`.
