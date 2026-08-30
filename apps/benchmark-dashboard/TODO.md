@@ -2,6 +2,232 @@
 
 This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 
+## Luna Execution Brief
+
+Use this when continuing the refactor with a smaller model:
+
+```text
+You are working in /Users/gabrielushijima/Documents/Scripts/TouringPolygons, specifically apps/benchmark-dashboard.
+
+The benchmark dashboard has already had several backend, frontend, template, and stylesheet refactors. Continue improving performance, storage, and maintainability without changing behavior.
+
+Rules:
+- Read TODO.md before starting.
+- Make small, mechanical, verifiable changes.
+- Do not revert existing changes.
+- Preserve all IDs, classes, names, aria attributes, and data-* hooks used by JavaScript.
+- Before editing, inspect the relevant files.
+- Prefer extraction by explicit dependency injection over rewrites.
+- Do not redesign the UI.
+- Do not remove compatibility with existing campaign/result files.
+- If a change looks risky, stop and explain the risk before continuing.
+- After each meaningful step, update TODO.md and run the relevant checks.
+
+Validation commands:
+- cd apps/benchmark-dashboard
+- node --check static/*.js
+- npm run lint:js
+- uv run python -m unittest tests/test_main.py
+- uv run ruff check .
+- git diff --check
+- If HTML, CSS, frontend boot, or routes changed: run uvicorn locally and then npm run test:browser.
+
+Recommended first action:
+Read TODO.md, main.py, dashboard_routes.py, static/app.js, static/manual-cases.js, templates/index.html, and the list of static/*.css files. Then execute only the next unchecked task from "Luna Task Queue".
+```
+
+### Luna Operating Rules
+
+- Do one small task group at a time. Avoid broad "clean everything" edits.
+- Keep route moves mechanical: copy route body, inject dependencies, register router, delete old route, run tests.
+- Keep JS moves mechanical: create module/factory, inject dependencies, wire in `app.js`, remove old block, run JS checks.
+- Keep CSS moves mechanical: preserve selector behavior and loading order.
+- Do not move the manual canvas editor object all at once unless all intermediate checks are green.
+- Do not remove `manual.bin` until tests prove it can be regenerated from `manual-cases.json`.
+- If a command fails due macOS sandbox/cache permissions, rerun the same command with the appropriate approval instead of changing code around it.
+- Always stop local dev servers before finishing.
+- Final response after each batch must include files changed, size changes when relevant, and checks run.
+
+### Luna Task Queue
+
+1. [ ] Inspect current size and structure:
+	- run `wc -l main.py static/app.js static/*.css templates/index.html templates/partials/*.html`;
+	- run `rg -n "^@app\\.|register_.*routes|create.*Controller|const manualEditor" main.py static/app.js`;
+	- summarize only the next safe extraction boundary.
+2. [ ] Extract campaign list/detail/delete routes from `main.py` into `dashboard_campaign_routes.py`:
+	- `GET /api/campaigns`;
+	- `GET /api/campaigns/{name}`;
+	- `DELETE /api/campaigns/{name}`.
+3. [ ] Register campaign routes through `register_campaign_routes(app, ...)` with explicit dependencies.
+4. [ ] Run `uv run ruff check .` and `uv run python -m unittest tests/test_main.py` after the first route extraction.
+5. [ ] Extract campaign preview routes into `dashboard_campaign_routes.py`:
+	- `GET /api/campaigns/{name}/preview`;
+	- `GET /api/campaigns/{name}/preview/{kind}`;
+	- `GET /api/campaigns/{name}/solution-preview/{case_index}`.
+6. [ ] Run Python tests, Ruff, and browser smoke after preview route extraction.
+7. [ ] Extract campaign creation/import routes:
+	- `POST /api/campaigns/synthetic`;
+	- `POST /api/campaigns/osm`;
+	- `POST /api/campaigns/canonical`;
+	- `POST /api/campaigns/german`;
+	- `POST /api/campaigns/manual`.
+8. [ ] Extract manual case mutation routes:
+	- `GET /api/campaigns/{name}/cases`;
+	- `PUT /api/campaigns/{name}/cases`;
+	- `POST /api/campaigns/{name}/cases`;
+	- `PUT /api/campaigns/{name}/cases/{case_index}`;
+	- `DELETE /api/campaigns/{name}/cases/{case_index}`.
+9. [ ] Extract editor solve route:
+	- `POST /api/editor/solve`;
+	- keep WASM/live solver behavior unchanged.
+10. [ ] Remove imports from `main.py` that become unused after route extraction.
+11. [ ] If `dashboard_campaign_routes.py` becomes too large, split it into:
+	- `dashboard_campaign_routes.py`;
+	- `dashboard_manual_routes.py`;
+	- `dashboard_import_routes.py`.
+12. [ ] Extract job orchestration helpers from `main.py` only after route extraction is stable:
+	- `active_job`;
+	- `persist_jobs`;
+	- `load_jobs`;
+	- `refresh_job_progress_from_logs`;
+	- `update_job_progress`;
+	- `run_job`.
+13. [ ] Keep the `jobs` registry ownership obvious. Do not introduce background workers or queues.
+14. [ ] Add or update tests for any route extraction that changes dependency wiring.
+15. [ ] Add a Jinja render regression test:
+	- render `templates/index.html`;
+	- verify required IDs are present;
+	- verify partial includes render correctly.
+16. [ ] Required template IDs for the render test:
+	- `create-form`;
+	- `manual-case-canvas`;
+	- `run-form`;
+	- `compare-form`;
+	- `campaign-modal`;
+	- `confirm-modal`;
+	- `keybind-modal`;
+	- `job-dock`.
+17. [ ] Add a CSS manifest test:
+	- parse `static/style.css`;
+	- verify every imported CSS file exists.
+18. [ ] Add a CSS template loading test:
+	- parse `templates/index.html`;
+	- verify all linked `static/*.css` files exist.
+19. [ ] Extract modal helpers from `static/app.js` into `static/modals.js`:
+	- confirmation modal;
+	- campaign modal open/close;
+	- shared close handling.
+20. [ ] Keep modal extraction dependency-injected. Do not import `state` into too many modules unless already established.
+21. [ ] Extract instance modal orchestration into `static/instance-modals.js`:
+	- `openInstanceModal`;
+	- `openBenchmarkedInstanceModal`;
+	- `instanceModalTitle`;
+	- `setupModalTitleRename`;
+	- `renameCampaignInstance`.
+22. [ ] Preserve `manualCases.editInstance(...)` behavior when extracting instance modals.
+23. [ ] Extract OSM picker helpers from `app.js` into `static/osm-picker.js`:
+	- `formatBytes`;
+	- `selectOsmFile`;
+	- `renderOsmFiles`;
+	- `scanOsmFiles`.
+24. [ ] Extract campaign choice grid rendering into `static/campaign-choice.js`.
+25. [ ] Extract run/comparison form submission orchestration if it can be done without changing polling behavior.
+26. [ ] Do not extract the manual canvas editor object yet if `app.js` is still above 2000 lines but checks are unstable.
+27. [ ] Start manual canvas editor extraction with pure camera helpers:
+	- bounds calculation;
+	- zoom limits;
+	- world/canvas coordinate conversion;
+	- camera persistence keys.
+28. [ ] Create `static/manual-editor-camera.js` only for pure camera functions.
+29. [ ] Add JS tests for camera helpers if extracted.
+30. [ ] Extract manual selection helpers:
+	- selected point lookup;
+	- selection rectangle logic;
+	- active polygon reset helpers.
+31. [ ] Create `static/manual-editor-selection.js` only if the helper functions are mostly pure.
+32. [ ] Convert `manualEditor` to a factory only after camera and selection helpers are extracted:
+	- `createManualEditor({ $, state, requestJSON, drawCanvasScene, ... })`.
+33. [ ] Move the full `manualEditor` object to `static/manual-editor.js` only after the factory passes browser smoke.
+34. [ ] Keep `app.js` as the bootstrap/wiring file:
+	- imports;
+	- dependency construction;
+	- top-level event listeners;
+	- refresh startup.
+35. [ ] Target `app.js` size below 1500 lines before doing deeper behavior changes.
+36. [ ] Add JS unit test scaffolding if simple:
+	- Node `assert`;
+	- no browser dependency for pure modules.
+37. [ ] Add JS tests for `case-data.js`.
+38. [ ] Add JS tests for `command-builders.js`.
+39. [ ] Add JS tests for `report-utils.js`.
+40. [ ] Add JS tests for `job-utils.js`.
+41. [ ] Add JS tests for `manual-cases.js` only if DOM stubbing stays small.
+42. [ ] Centralize localStorage keys into `static/storage.js`.
+43. [ ] Replace repeated localStorage strings with exported constants.
+44. [ ] Confirm key names do not change unless migration fallback is included.
+45. [ ] Improve thumbnail network pressure:
+	- inspect where preview images are created;
+	- add `loading="lazy"` to generated `<img>` tags where safe;
+	- avoid changing visible behavior.
+46. [ ] Consider limiting initial thumbnail rendering for very large grids.
+47. [ ] Do not implement complex virtualization until simple lazy loading is measured/validated.
+48. [ ] Add tests around `dashboard_files.py` JSON cache invalidation when files change.
+49. [ ] Add tests around CSV cache invalidation when files change.
+50. [ ] Add tests around cache trimming beyond `FILE_CACHE_LIMIT`.
+51. [ ] Review `dashboard_previews.py` for any non-atomic preview writes.
+52. [ ] Add regression test for lazy single-instance preview generation.
+53. [ ] If feasible, assert single-instance preview generation does not read all cases.
+54. [ ] Review `dashboard_reports.py` with malformed or empty Markdown summaries.
+55. [ ] Add tests for:
+	- empty summary file;
+	- missing CSV;
+	- comparison file missing;
+	- partially written result CSV.
+56. [ ] Document current manual-case storage flow:
+	- `manual-cases.json` as canonical editable data;
+	- `inputs/manual.bin` as solver compatibility artifact.
+57. [ ] Before removing duplicate storage, add test:
+	- save manual cases;
+	- delete `inputs/manual.bin`;
+	- call endpoint that needs solver input;
+	- verify binary is regenerated.
+58. [ ] Add helper `ensure_manual_binary_cache(path)` if missing.
+59. [ ] Treat `manual.bin` as generated cache only after all manual binary tests pass.
+60. [ ] Do not change the solver CLI contract unless explicitly requested.
+61. [ ] Inspect generated preview/storage directories for redundant files before deleting anything.
+62. [ ] Never delete user data or campaign artifacts without an explicit backup/migration path.
+63. [ ] Add README notes for the dashboard architecture after major extraction stabilizes.
+64. [ ] Update README with:
+	- how to run dashboard;
+	- validation commands;
+	- file/module layout;
+	- manual storage model.
+65. [ ] Keep `TODO.md` current after every completed task group.
+66. [ ] After each route extraction batch, run:
+	- `uv run python -m unittest tests/test_main.py`;
+	- `uv run ruff check .`;
+	- `git diff --check`.
+67. [ ] After each frontend extraction batch, run:
+	- `node --check static/*.js`;
+	- `npm run lint:js`;
+	- `git diff --check`.
+68. [ ] After HTML/CSS/frontend boot changes, run browser smoke:
+	- start `uv run uvicorn main:app --host 127.0.0.1 --port 8017`;
+	- run `npm run test:browser`;
+	- stop the server.
+69. [ ] Before finalizing a long Luna session, run all checks:
+	- `node --check static/*.js`;
+	- `npm run lint:js`;
+	- `uv run python -m unittest tests/test_main.py`;
+	- `uv run ruff check .`;
+	- `git diff --check`;
+	- `npm run test:browser`.
+70. [ ] End each batch with a compact summary:
+	- files changed;
+	- line count changes;
+	- checks passed;
+	- next recommended task number.
+
 ## Planned
 
 - [ ] Split `main.py` into focused backend modules:
