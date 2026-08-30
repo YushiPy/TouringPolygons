@@ -34,6 +34,7 @@ JOBS_PATH = APP_ROOT / ".jobs.json"
 CANONICAL_SUITE = REPO_ROOT / "benchmarks/suites/canonical-v1.bin"
 TRACKED_NONCONVEX_SUITE = REPO_ROOT / "benchmarks/suites/nonconvex/test_cases.bin"
 GERMAN_INSTANCES_ZIP = REPO_ROOT / "tspn-comparison/solver/instances/instances_socg_simplified.zip"
+PREVIEW_VERSION = 2
 SOLVERS = {
 	"linear": "linear_search_lazy",
 	"linear_disjoint": "linear_search_disjoint",
@@ -475,7 +476,8 @@ def write_case_preview(path: Path, cases: list[CaseData], *, cell_size: int, col
 	padding = 18
 	colors = ["#38bdf8", "#a3e635", "#f97316", "#f472b6", "#c084fc"]
 	elements = [
-		f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
+		f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+		f'viewBox="0 0 {width} {height}" data-preview-version="{PREVIEW_VERSION}">',
 		'<rect width="100%" height="100%" fill="#121417"/>',
 	]
 	for case_index, case in enumerate(cases):
@@ -491,10 +493,14 @@ def write_case_preview(path: Path, cases: list[CaseData], *, cell_size: int, col
 		offset_y = y0 + cell_size - padding + min_y * scale
 		elements.append(f'<rect x="{x0}" y="{y0}" width="{cell_size}" height="{cell_size}" fill="#121417"/>')
 		grid_step, sub_grid_count = preview_grid_metrics(scale)
-		first_x = math.floor(min_x / grid_step) * grid_step
-		first_y = math.floor(min_y / grid_step) * grid_step
+		visible_min_x = (x0 - offset_x) / scale
+		visible_max_x = (x0 + cell_size - offset_x) / scale
+		visible_min_y = (offset_y - (y0 + cell_size)) / scale
+		visible_max_y = (offset_y - y0) / scale
+		first_x = math.floor(visible_min_x / grid_step) * grid_step
+		first_y = math.floor(visible_min_y / grid_step) * grid_step
 		x = first_x
-		while x <= max_x + grid_step:
+		while x <= visible_max_x + grid_step:
 			screen_x = offset_x + x * scale
 			if x0 <= screen_x <= x0 + cell_size:
 				elements.append(svg_line(screen_x, y0, screen_x, y0 + cell_size, "#515a67", 0.62))
@@ -504,7 +510,7 @@ def write_case_preview(path: Path, cases: list[CaseData], *, cell_size: int, col
 						elements.append(svg_line(sub_x, y0, sub_x, y0 + cell_size, "#2a2f38", 0.74))
 			x += grid_step
 		y = first_y
-		while y <= max_y + grid_step:
+		while y <= visible_max_y + grid_step:
 			screen_y = offset_y - y * scale
 			if y0 <= screen_y <= y0 + cell_size:
 				elements.append(svg_line(x0, screen_y, x0 + cell_size, screen_y, "#515a67", 0.62))
@@ -546,7 +552,7 @@ def write_imported_previews(path: Path, cases: list[CaseData]) -> tuple[dict[str
 	preview_dir = path / "previews"
 	write_case_preview(preview_dir / "selected.svg", cases[:1], cell_size=320, columns=1)
 	write_case_preview(preview_dir / "four.svg", cases[:4], cell_size=160, columns=2)
-	write_case_preview(preview_dir / "all.svg", cases[:100], cell_size=120, columns=10)
+	write_case_preview(preview_dir / "all.svg", sample_cases(cases, 20), cell_size=120, columns=5)
 	instance_dir = preview_dir / "instances"
 	instance_paths = []
 	for index, case in enumerate(cases):
@@ -559,6 +565,12 @@ def write_imported_previews(path: Path, cases: list[CaseData]) -> tuple[dict[str
 		"all": "previews/all.svg",
 	}
 	return previews, instance_paths
+
+
+def sample_cases(cases: list[CaseData], limit: int) -> list[CaseData]:
+	if len(cases) <= limit:
+		return cases
+	return [cases[round(index * (len(cases) - 1) / (limit - 1))] for index in range(limit)]
 
 
 def manual_cases_path(path: Path) -> Path:
@@ -903,7 +915,11 @@ def preview_svg_is_stale(path: Path) -> bool:
 		text = path.read_text(errors="ignore")
 	except OSError:
 		return False
-	return ">case " in text or 'fill="#ffffff"' in text
+	return (
+		">case " in text
+		or 'fill="#ffffff"' in text
+		or f'data-preview-version="{PREVIEW_VERSION}"' not in text
+	)
 
 
 def campaign_previews_are_stale(path: Path, data: dict[str, Any]) -> bool:

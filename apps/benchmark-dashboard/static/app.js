@@ -3557,6 +3557,34 @@ function instancePreviewButton(campaign, index, className = "instance-thumb") {
   return button;
 }
 
+function sampleInstanceIndices(count, limit = 20) {
+  if (count <= limit) {
+    return Array.from({ length: count }, (_, index) => index);
+  }
+  return Array.from({ length: limit }, (_, index) => Math.round(index * (count - 1) / (limit - 1)));
+}
+
+function makeFoldablePanel(tagName, className, title, folded = false) {
+  const panel = document.createElement(tagName);
+  panel.className = className;
+  panel.classList.toggle("is-folded", folded);
+  panel.innerHTML = `
+    <figcaption class="fold-header">
+      <button class="fold-toggle" type="button" aria-expanded="${folded ? "false" : "true"}">
+        <span class="fold-caret" aria-hidden="true"></span>
+        <span>${escapeHTML(title)}</span>
+      </button>
+    </figcaption>
+    <div class="fold-content"></div>
+  `;
+  const button = panel.querySelector(".fold-toggle");
+  button.addEventListener("click", () => {
+    const isFolded = panel.classList.toggle("is-folded");
+    button.setAttribute("aria-expanded", isFolded ? "false" : "true");
+  });
+  return panel;
+}
+
 async function populateInstancePreviewPanels(root, campaign) {
   const previewCount = campaign.instance_previews?.length || 0;
   if (previewCount === 0) {
@@ -3565,32 +3593,26 @@ async function populateInstancePreviewPanels(root, campaign) {
   }
   root.innerHTML = "";
 
-  const selected = document.createElement("figure");
-  selected.className = "preview-panel preview-selected";
-  selected.innerHTML = "<figcaption>Selected Instance</figcaption>";
-  selected.appendChild(instancePreviewButton(campaign, 0, "selected-instance-button"));
+  const selected = makeFoldablePanel("figure", "preview-panel preview-selected", "Selected Instance");
+  selected.querySelector(".fold-content").appendChild(instancePreviewButton(campaign, 0, "selected-instance-button"));
   root.appendChild(selected);
 
-  const four = document.createElement("figure");
-  four.className = "preview-panel preview-four";
-  four.innerHTML = "<figcaption>Four Instances</figcaption>";
+  const four = makeFoldablePanel("figure", "preview-panel preview-four", "Four Instances");
   const grid = document.createElement("div");
   grid.className = "four-instance-grid";
   Array.from({ length: Math.min(4, previewCount) }, (_, index) => index).forEach((index) => {
     grid.appendChild(instancePreviewButton(campaign, index));
   });
-  four.appendChild(grid);
+  four.querySelector(".fold-content").appendChild(grid);
   root.appendChild(four);
 
-  const panel = document.createElement("figure");
-  panel.className = "preview-panel preview-instances";
-  panel.innerHTML = "<figcaption>All Instances</figcaption>";
+  const panel = makeFoldablePanel("figure", "preview-panel preview-instances", "All Instances");
   const instanceGrid = document.createElement("div");
   instanceGrid.className = "instance-grid";
-  Array.from({ length: previewCount }, (_, index) => index).forEach((index) => {
+  sampleInstanceIndices(previewCount, 20).forEach((index) => {
     instanceGrid.appendChild(instancePreviewButton(campaign, index));
   });
-  panel.appendChild(instanceGrid);
+  panel.querySelector(".fold-content").appendChild(instanceGrid);
   root.appendChild(panel);
   root.classList.remove("is-hidden");
 }
@@ -3614,9 +3636,14 @@ function renderBenchmarkedInstanceSection(root, campaign, instances) {
     loadCampaignCaseMetadata(campaign.name).then(() => renderBenchmarkedInstanceSection(root, campaign, instances));
   }
   root.innerHTML = `
-    <header class="section-subheader">
+    <header class="section-subheader foldable-section-header">
       <div>
-        <h3>Benchmarked Instances</h3>
+        <h3>
+          <button class="fold-toggle" type="button" aria-expanded="true">
+            <span class="fold-caret" aria-hidden="true"></span>
+            <span>Benchmarked Instances</span>
+          </button>
+        </h3>
         <p>Completed rows with available previews and benchmark metrics.</p>
       </div>
       <div class="benchmarked-sort" aria-label="Sort benchmarked instances">
@@ -3625,9 +3652,16 @@ function renderBenchmarkedInstanceSection(root, campaign, instances) {
         <button class="segment ${state.benchmarkedSort === "calls" ? "is-active" : ""}" data-benchmarked-sort="calls" type="button" aria-pressed="${state.benchmarkedSort === "calls" ? "true" : "false"}">Convex calls</button>
       </div>
     </header>
-    <div class="benchmarked-grid"></div>
+    <div class="fold-content">
+      <div class="benchmarked-grid"></div>
+    </div>
   `;
   const grid = root.querySelector(".benchmarked-grid");
+  const foldButton = root.querySelector(".fold-toggle");
+  foldButton.addEventListener("click", () => {
+    const isFolded = root.classList.toggle("is-folded");
+    foldButton.setAttribute("aria-expanded", isFolded ? "false" : "true");
+  });
   root.querySelectorAll("[data-benchmarked-sort]").forEach((button) => button.addEventListener("click", (event) => {
     state.benchmarkedSort = event.currentTarget.dataset.benchmarkedSort;
     renderBenchmarkedInstanceSection(root, campaign, instances);
@@ -3699,7 +3733,6 @@ function renderCampaigns() {
       <h3>${escapeHTML(campaign.name)}</h3>
       <div class="meta">
         <div><span>Type</span><br>${escapeHTML(campaign.type)}</div>
-        <div><span>Input files</span><br>${campaign.inputs.existing}/${campaign.inputs.total}</div>
         <div><span>Instances</span><br>${generation.instances ?? generation.instances_per_file ?? "-"}</div>
         <div><span>Polygon Count</span><br>${generation.polygons ?? generation.polygon_counts ?? "-"}</div>
         <div><span>Vertices</span><br>${escapeHTML(describeVertices(generation))}</div>
@@ -3826,16 +3859,22 @@ function renderJobDock(previousJobs = []) {
   const visibleJobs = activeJobs.length > 0 ? activeJobs : state.finishedDockJob ? [state.finishedDockJob] : [];
   dock.classList.toggle("is-hidden", visibleJobs.length === 0);
   dock.classList.remove("is-dismissing");
+  const signature = visibleJobs.map((job) => `${job.id}:${job.status}`).join(",");
+  if (dock.dataset.signature === signature) {
+    visibleJobs.forEach((job) => updateJobDockItem(dock.querySelector(`[data-job-id="${CSS.escape(job.id)}"]`), job));
+    return;
+  }
+  dock.dataset.signature = signature;
   dock.innerHTML = visibleJobs.map((job) => {
     const active = job.status === "running" || job.status === "stopping";
     return `
     <div class="job-dock-item ${active ? "is-active" : "is-complete"}" data-job-panel="${jobPanel(job)}" data-job-id="${escapeHTML(job.id)}">
       <button class="job-dock-main" type="button" data-job-open>
-        <span>${jobKindLabel(job)} ${active ? "running..." : "done"}</span>
-        <strong>${escapeHTML(job.campaign || "-")}</strong>
-        <small>${escapeHTML(jobProgressLabel(job))} | ${formatElapsed((job.finished_at || Date.now() / 1000) - (job.started_at || Date.now() / 1000))}</small>
+        <span data-job-dock-status>${jobKindLabel(job)} ${active ? "running..." : "done"}</span>
+        <strong data-job-dock-campaign>${escapeHTML(job.campaign || "-")}</strong>
+        <small data-job-dock-progress>${escapeHTML(jobProgressLabel(job))} | ${formatElapsed((job.finished_at || Date.now() / 1000) - (job.started_at || Date.now() / 1000))}</small>
       </button>
-      ${active ? '<button class="job-dock-stop" type="button" data-job-stop aria-label="Stop job">Stop</button>' : '<span class="job-dock-check" aria-hidden="true">✓</span>'}
+      ${active ? '<button class="job-dock-stop" type="button" data-job-stop aria-label="Stop job">×</button>' : '<span class="job-dock-check" aria-hidden="true">✓</span>'}
     </div>
   `;
   }).join("");
@@ -3860,10 +3899,23 @@ function renderJobDock(previousJobs = []) {
       event.stopPropagation();
       const item = button.closest(".job-dock-item");
       button.disabled = true;
-      button.textContent = "Stopping";
+      button.textContent = "×";
       await cancelJobId(item.dataset.jobId);
     });
   });
+}
+
+function updateJobDockItem(item, job) {
+  if (!item) {
+    return;
+  }
+  const active = job.status === "running" || job.status === "stopping";
+  item.dataset.jobPanel = jobPanel(job);
+  item.classList.toggle("is-active", active);
+  item.classList.toggle("is-complete", !active);
+  item.querySelector("[data-job-dock-status]").textContent = `${jobKindLabel(job)} ${active ? "running..." : "done"}`;
+  item.querySelector("[data-job-dock-campaign]").textContent = job.campaign || "-";
+  item.querySelector("[data-job-dock-progress]").textContent = `${jobProgressLabel(job)} | ${formatElapsed((job.finished_at || Date.now() / 1000) - (job.started_at || Date.now() / 1000))}`;
 }
 
 function setupJobDockDrag() {
@@ -4419,7 +4471,6 @@ function openCampaignModal(campaign) {
   body.innerHTML = `
     <div class="modal-summary">
       ${metricCard("Type", campaign.type)}
-      ${metricCard("Input files", `${campaign.inputs.existing}/${campaign.inputs.total}`)}
       ${metricCard("Instances", generation.instances ?? generation.instances_per_file ?? "-")}
       ${metricCard("Polygon Count", generation.polygons ?? generation.polygon_counts ?? "-")}
       ${metricCard("Vertices", describeVertices(generation))}
@@ -4725,8 +4776,17 @@ function setStopButton(selector, jobId) {
   }
   button.dataset.job = jobId || "";
   button.disabled = !jobId;
-  button.classList.toggle("is-hidden", !jobId);
+  button.classList.toggle("is-hidden", selector === "#stop-run-button" || !jobId);
   button.textContent = "Stop";
+  if (selector === "#stop-run-button") {
+    const runButton = $("#run-submit-button");
+    if (runButton) {
+      runButton.dataset.job = jobId || "";
+      runButton.disabled = false;
+      runButton.textContent = jobId ? "Stop" : "Run";
+      runButton.classList.toggle("stop-button", Boolean(jobId));
+    }
+  }
 }
 
 async function cancelJob(selector, outputSelector) {
@@ -4887,6 +4947,12 @@ async function pollComparisonJob(jobId) {
 async function runCampaign(event) {
   event.preventDefault();
   if (state.currentRunJob) {
+    const jobId = $("#run-submit-button")?.dataset.job || $("#stop-run-button")?.dataset.job;
+    if (jobId && jobId !== "pending") {
+      $("#run-submit-button").disabled = true;
+      $("#run-submit-button").textContent = "Stopping...";
+      await cancelJobId(jobId);
+    }
     switchPanel("benchmark-panel");
     return;
   }
@@ -4920,15 +4986,22 @@ async function runCampaign(event) {
   renderRunSummary();
   try {
     state.currentRunJob = "pending";
+    const runButton = $("#run-submit-button");
+    if (runButton) {
+      runButton.disabled = true;
+      runButton.textContent = "Starting...";
+    }
     const data = await requestJSON("/api/runs", {
       method: "POST",
       body: JSON.stringify(payload),
     });
     state.currentJob = data.job;
     state.currentRunJob = data.job;
+    setStopButton("#stop-run-button", data.job);
     await pollJob(data.job);
   } catch (error) {
     state.currentRunJob = null;
+    setStopButton("#stop-run-button", null);
     setOutput(output, error.message);
   }
 }

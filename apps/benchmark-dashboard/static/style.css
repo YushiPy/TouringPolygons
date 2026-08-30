@@ -1,28 +1,10 @@
 * {
   box-sizing: border-box;
-  scrollbar-color: color-mix(in srgb, var(--muted) 58%, transparent) transparent;
-  scrollbar-width: thin;
+  scrollbar-width: none;
 }
 
 *::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--muted) 58%, transparent);
-  background-clip: padding-box;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--text) 50%, transparent);
-  background-clip: padding-box;
+  display: none;
 }
 
 body {
@@ -961,13 +943,27 @@ select:focus {
 .run-actions,
 .compare-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
 }
 
+.run-actions {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.compare-actions {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .run-actions button {
-  height: 100%;
-  min-height: 74px;
+  min-height: 38px;
+}
+
+.run-actions button[type="submit"] {
+  min-height: 114px;
+}
+
+.run-actions .command-copy {
+  min-height: 38px;
 }
 
 .run-options .run-progress-card {
@@ -1234,11 +1230,12 @@ button.secondary.stop-button:disabled {
 
 .preview {
   width: 100%;
+  height: 220px;
   max-height: 220px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: var(--surface);
-  object-fit: contain;
+  background: var(--editor-bg);
+  object-fit: cover;
   margin-top: 12px;
 }
 
@@ -1283,13 +1280,70 @@ button.secondary.stop-button:disabled {
   font-size: 0.9rem;
 }
 
+.fold-header {
+  padding: 0;
+}
+
+.fold-toggle {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  box-shadow: none;
+}
+
+.fold-toggle:hover,
+.fold-toggle:active {
+  border-color: transparent;
+  background: transparent;
+  color: var(--accent-strong);
+  box-shadow: none;
+  transform: none;
+}
+
+.fold-caret {
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 7px solid currentColor;
+  transform: rotate(90deg);
+  transition: transform var(--transition);
+}
+
+.is-folded .fold-caret {
+  transform: rotate(0deg);
+}
+
+.fold-content {
+  max-height: 1200px;
+  overflow: hidden;
+  transition:
+    max-height 260ms ease,
+    opacity 180ms ease;
+}
+
+.is-folded > .fold-content,
+.is-folded > header + .fold-content {
+  max-height: 0;
+  opacity: 0;
+}
+
 .preview-panel img {
   display: block;
   width: 100%;
   height: 320px;
-  padding: 10px;
-  background: var(--surface);
-  object-fit: contain;
+  padding: 0;
+  background: var(--editor-bg);
+  object-fit: cover;
 }
 
 .preview-all {
@@ -1838,7 +1892,7 @@ button.secondary.stop-button:disabled {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 10px;
-  background: var(--surface);
+  background: var(--surface-muted);
 }
 
 .four-instance-grid .instance-thumb,
@@ -1853,12 +1907,10 @@ button.secondary.stop-button:disabled {
 
 .instance-grid {
   display: grid;
-  grid-template-columns: repeat(10, minmax(104px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 8px;
-  max-height: 460px;
-  overflow: auto;
   padding: 10px;
-  background: var(--surface);
+  background: var(--surface-muted);
 }
 
 .modal-card .instance-grid {
@@ -1870,7 +1922,8 @@ button.secondary.stop-button:disabled {
   min-height: 112px;
   padding: 0;
   border: 1px solid var(--line);
-  background: var(--surface-muted);
+  border-radius: 6px;
+  background: var(--editor-bg);
   overflow: hidden;
 }
 
@@ -1883,9 +1936,9 @@ button.secondary.stop-button:disabled {
   display: block;
   width: 100%;
   height: 112px;
-  object-fit: contain;
-  padding: 6px;
-  background: var(--surface);
+  object-fit: cover;
+  padding: 0;
+  background: var(--editor-bg);
 }
 
 .instance-thumb span {
@@ -1894,8 +1947,8 @@ button.secondary.stop-button:disabled {
   left: 6px;
   border-radius: 999px;
   padding: 2px 6px;
-  background: rgba(15, 23, 42, 0.78);
-  color: #fff;
+  background: #fff;
+  color: #111827;
   font-size: 0.75rem;
 }
 
@@ -1907,7 +1960,7 @@ button.secondary.stop-button:disabled {
   padding: 0;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: var(--surface-muted);
+  background: var(--editor-bg);
   overflow: hidden;
   transition:
     border-color var(--transition),
@@ -1920,9 +1973,9 @@ button.secondary.stop-button:disabled {
   display: block;
   width: 100%;
   height: 320px;
-  object-fit: contain;
-  padding: 10px;
-  background: var(--surface);
+  object-fit: cover;
+  padding: 0;
+  background: var(--editor-bg);
 }
 
 .selected-instance-button:hover {
@@ -1938,8 +1991,8 @@ button.secondary.stop-button:disabled {
   left: 10px;
   border-radius: 999px;
   padding: 2px 8px;
-  background: rgba(15, 23, 42, 0.78);
-  color: #fff;
+  background: #fff;
+  color: #111827;
   font-size: 0.78rem;
 }
 
@@ -2100,12 +2153,21 @@ button.secondary.stop-button:disabled {
   background: var(--surface-muted);
 }
 
+.foldable-section-header h3 {
+  margin: 0;
+}
+
+.foldable-section-header .fold-toggle {
+  padding: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
 .benchmarked-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 10px;
   max-height: 520px;
-  overflow: auto;
   padding: 4px 8px 18px 4px;
 }
 
@@ -2606,7 +2668,6 @@ button.secondary.stop-button:disabled {
   transition:
     opacity var(--transition),
     transform var(--transition),
-    border-color var(--transition),
     background var(--transition);
 }
 
@@ -2664,12 +2725,19 @@ button.secondary.stop-button:disabled {
 }
 
 .job-dock-stop {
-  min-height: 30px;
-  padding: 0.32rem 0.62rem;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  place-items: center;
+  padding: 0;
   border-color: #dc2626;
+  border-radius: 999px;
   background: #dc2626;
   color: #fff;
-  font-size: 0.78rem;
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .job-dock-stop:hover {
