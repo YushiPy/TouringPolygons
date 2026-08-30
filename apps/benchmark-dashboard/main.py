@@ -1,20 +1,15 @@
 from __future__ import annotations
 
 import asyncio
-import csv
 import json
-import math
 import os
 import re
 import shutil
 import signal
 import subprocess
 import sys
-import tempfile
-import threading
 import time
 import uuid
-from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
@@ -34,8 +29,6 @@ JOBS_PATH = APP_ROOT / ".jobs.json"
 CANONICAL_SUITE = REPO_ROOT / "benchmarks/suites/canonical-v1.bin"
 TRACKED_NONCONVEX_SUITE = REPO_ROOT / "benchmarks/suites/nonconvex/test_cases.bin"
 GERMAN_INSTANCES_ZIP = REPO_ROOT / "tspn-comparison/solver/instances/instances_socg_simplified.zip"
-PREVIEW_VERSION = 6
-FILE_CACHE_LIMIT = 128
 SOLVERS = {
 	"linear": "linear_search_lazy",
 	"linear_disjoint": "linear_search_disjoint",
@@ -77,6 +70,27 @@ from dashboard_binary import (  # noqa: E402
 	read_binary_cases,
 	write_binary_cases,
 )
+from dashboard_campaigns import (  # noqa: E402
+	campaign_input_label,
+	first_input_file,
+	instance_preview_list,
+	preview_map,
+	read_campaign_case,
+	read_campaign_cases,
+	result_preview_list,
+	total_instance_count,
+)
+from dashboard_files import (  # noqa: E402
+	FILE_CACHE_LIMIT,
+	_csv_cache,
+	_json_cache,
+	file_signature,
+	read_csv_rows,
+	read_json,
+	read_result_rows,
+	read_run_index,
+	trim_file_caches,
+)
 from dashboard_models import (  # noqa: E402
 	MAX_MANUAL_CASES,
 	MAX_POLYGONS_PER_CASE,
@@ -91,8 +105,54 @@ from dashboard_models import (  # noqa: E402
 	ManualCampaignRequest,
 	ManualCaseRequest,
 	ManualCasesRequest,
-	Point,
 	RunCampaignRequest,
+)
+from dashboard_previews import (  # noqa: E402
+	PREVIEW_VERSION,
+	campaign_previews_are_stale,
+	case_bounds,
+	ensure_instance_preview,
+	preview_grid_metrics,
+	preview_svg_is_stale,
+	refresh_stale_previews,
+	rewrite_dashboard_previews,
+	sample_cases,
+	svg_line,
+	svg_points,
+	write_case_preview,
+	write_imported_previews,
+)
+from dashboard_reports import (  # noqa: E402
+	comparison_rows,
+	completed_instance_count,
+	latest_comparison_path,
+	parse_float,
+	parse_markdown_tables,
+	summary_files,
+	summary_result_rows,
+)
+
+_COMPAT_EXPORTS = (
+	FILE_CACHE_LIMIT,
+	_binary_offset_cache,
+	_csv_cache,
+	file_signature,
+	trim_file_caches,
+	completed_instance_count,
+	comparison_rows,
+	PREVIEW_VERSION,
+	campaign_previews_are_stale,
+	case_bounds,
+	instance_preview_list,
+	preview_grid_metrics,
+	preview_svg_is_stale,
+	read_binary_case,
+	read_campaign_case,
+	read_campaign_cases,
+	sample_cases,
+	svg_line,
+	svg_points,
+	write_case_preview,
 )
 
 app = FastAPI(title="TPP Benchmark Dashboard")
@@ -102,12 +162,7 @@ if VISUALIZER_STATIC_ROOT.exists():
 templates = Jinja2Templates(directory=str(APP_ROOT / "templates"))
 
 
-_preview_lock = threading.RLock()
-
-
 jobs: dict[str, Job] = {}
-_json_cache: OrderedDict[Path, tuple[int, int, dict[str, Any]]] = OrderedDict()
-_csv_cache: OrderedDict[tuple[Path, str], tuple[int, int, list[dict[str, str]]]] = OrderedDict()
 PROGRESS_PATTERN = re.compile(r"cases\s+\|\s+\[[^\]]*\]\s+(\d+)\s*/\s*(\d+)")
 SOLVER_SECTION_PATTERN = re.compile(r"^##\s+(.+)$", re.MULTILINE)
 
@@ -123,75 +178,6 @@ def campaign_path(name: str) -> Path:
 	if "/" in name or "\\" in name or name in {"", ".", ".."}:
 		raise HTTPException(status_code=400, detail="Invalid campaign name.")
 	return CAMPAIGNS_ROOT / name
-
-
-def file_signature(path: Path) -> tuple[int, int]:
-	stat = path.stat()
-	return stat.st_mtime_ns, stat.st_size
-
-
-def clone_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
-	return [row.copy() for row in rows]
-
-
-def trim_file_caches() -> None:
-	while len(_json_cache) > FILE_CACHE_LIMIT:
-		_json_cache.popitem(last=False)
-	while len(_csv_cache) > FILE_CACHE_LIMIT:
-		_csv_cache.popitem(last=False)
-	while len(_binary_offset_cache) > FILE_CACHE_LIMIT:
-		_binary_offset_cache.popitem(last=False)
-
-
-def read_json(path: Path) -> dict[str, Any]:
-	try:
-		signature = file_signature(path)
-		cached = _json_cache.get(path)
-		if cached and cached[:2] == signature:
-			_json_cache.move_to_end(path)
-			return dict(cached[2])
-		data = json.loads(path.read_text())
-		_json_cache[path] = (*signature, data)
-		trim_file_caches()
-		return dict(data)
-	except FileNotFoundError as error:
-		raise HTTPException(status_code=404, detail=f"Missing file: {path}") from error
-	except json.JSONDecodeError as error:
-		raise HTTPException(status_code=500, detail=f"Invalid JSON: {path}") from error
-
-
-def read_run_index(path: Path) -> dict[str, Any]:
-	if not path.exists():
-		return {"exists": False, "rows": [], "counts": {}}
-
-	rows = read_csv_rows(path)
-
-	counts: dict[str, int] = {}
-	for row in rows:
-		status = row.get("status", "unknown")
-		counts[status] = counts.get(status, 0) + 1
-
-	return {"exists": True, "rows": rows, "counts": counts}
-
-
-def read_csv_rows(path: Path, *, delimiter: str = ",") -> list[dict[str, str]]:
-	if not path.exists():
-		return []
-	signature = file_signature(path)
-	cache_key = (path, delimiter)
-	cached = _csv_cache.get(cache_key)
-	if cached and cached[:2] == signature:
-		_csv_cache.move_to_end(cache_key)
-		return clone_rows(cached[2])
-	with path.open(newline="") as file:
-		rows = list(csv.DictReader(file, delimiter=delimiter))
-	_csv_cache[cache_key] = (*signature, rows)
-	trim_file_caches()
-	return clone_rows(rows)
-
-
-def read_result_rows(path: Path) -> list[dict[str, str]]:
-	return read_csv_rows(path, delimiter=";")
 
 
 def persist_jobs() -> None:
@@ -233,13 +219,6 @@ def load_jobs() -> None:
 		jobs[job.id] = job
 
 
-def parse_float(value: str | None) -> float:
-	try:
-		return float(value or "0")
-	except ValueError:
-		return 0.0
-
-
 def validate_manual_cases(cases: list[ManualCaseRequest]) -> None:
 	if len(cases) > MAX_MANUAL_CASES:
 		raise HTTPException(status_code=413, detail=f"A campaign may contain at most {MAX_MANUAL_CASES} cases.")
@@ -249,194 +228,6 @@ def validate_manual_cases(cases: list[ManualCaseRequest]) -> None:
 		vertex_count = sum(len(polygon) for polygon in case.polygons)
 		if vertex_count > MAX_VERTICES_PER_CASE:
 			raise HTTPException(status_code=413, detail=f"Case {case_index} has too many vertices.")
-
-
-def case_bounds(case: CaseData) -> tuple[float, float, float, float]:
-	start, target, polygons = case
-	points = [start, target, *(point for polygon in polygons for point in polygon)]
-	return (
-		min(point[0] for point in points),
-		min(point[1] for point in points),
-		max(point[0] for point in points),
-		max(point[1] for point in points),
-	)
-
-
-def svg_points(points: list[Point], offset_x: float, offset_y: float, scale: float) -> str:
-	return " ".join(f"{offset_x + x * scale:.2f},{offset_y - y * scale:.2f}" for x, y in points)
-
-
-def svg_line(x1: float, y1: float, x2: float, y2: float, color: str, opacity: float = 1.0) -> str:
-	return (
-		f'<line x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}" '
-		f'stroke="{color}" stroke-opacity="{opacity:.2f}" stroke-width="1"/>'
-	)
-
-
-def preview_grid_metrics(scale: float) -> tuple[float, int]:
-	decision_value = 83 / scale
-	exponent = math.ceil(math.log10(decision_value)) if decision_value > 0 else 0
-	multiplier = 1
-	sub_grid_count = 4
-	grid_scale = 10 ** exponent
-	if grid_scale / 5 > decision_value:
-		sub_grid_count = 3
-		exponent -= 1
-		multiplier = 2
-	elif grid_scale / 2 > decision_value:
-		exponent -= 1
-		multiplier = 5
-	return (10 ** exponent) * multiplier, sub_grid_count
-
-
-def write_case_preview(
-	path: Path,
-	cases: list[CaseData],
-	*,
-	cell_width: int,
-	cell_height: int,
-	columns: int,
-	padding: int = 10,
-) -> None:
-	if not cases:
-		return
-	columns = min(columns, len(cases))
-	rows = (len(cases) + columns - 1) // columns
-	width = columns * cell_width
-	height = rows * cell_height
-	colors = ["#38bdf8", "#a3e635", "#f97316", "#f472b6", "#c084fc"]
-	elements = [
-		f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
-		f'viewBox="0 0 {width} {height}" data-preview-version="{PREVIEW_VERSION}">',
-		'<rect width="100%" height="100%" fill="#121417"/>',
-	]
-	for case_index, case in enumerate(cases):
-		start, target, polygons = case
-		col = case_index % columns
-		row = case_index // columns
-		x0 = col * cell_width
-		y0 = row * cell_height
-		min_x, min_y, max_x, max_y = case_bounds(case)
-		span_x = max(max_x - min_x, 1e-9)
-		span_y = max(max_y - min_y, 1e-9)
-		scale = min((cell_width - 2 * padding) / span_x, (cell_height - 2 * padding) / span_y)
-		draw_width = span_x * scale
-		draw_height = span_y * scale
-		offset_x = x0 + (cell_width - draw_width) / 2 - min_x * scale
-		offset_y = y0 + (cell_height + draw_height) / 2 + min_y * scale
-		elements.append(f'<rect x="{x0}" y="{y0}" width="{cell_width}" height="{cell_height}" fill="#121417"/>')
-		grid_step, sub_grid_count = preview_grid_metrics(scale)
-		visible_min_x = (x0 - offset_x) / scale
-		visible_max_x = (x0 + cell_width - offset_x) / scale
-		visible_min_y = (offset_y - (y0 + cell_height)) / scale
-		visible_max_y = (offset_y - y0) / scale
-		first_x = math.floor(visible_min_x / grid_step) * grid_step
-		first_y = math.floor(visible_min_y / grid_step) * grid_step
-		x = first_x
-		while x <= visible_max_x + grid_step:
-			screen_x = offset_x + x * scale
-			if x0 <= screen_x <= x0 + cell_width:
-				elements.append(svg_line(screen_x, y0, screen_x, y0 + cell_height, "#515a67", 0.62))
-				for index in range(sub_grid_count):
-					sub_x = screen_x + (index + 1) * grid_step * scale / (sub_grid_count + 1)
-					if x0 <= sub_x <= x0 + cell_width:
-						elements.append(svg_line(sub_x, y0, sub_x, y0 + cell_height, "#2a2f38", 0.74))
-			x += grid_step
-		y = first_y
-		while y <= visible_max_y + grid_step:
-			screen_y = offset_y - y * scale
-			if y0 <= screen_y <= y0 + cell_height:
-				elements.append(svg_line(x0, screen_y, x0 + cell_width, screen_y, "#515a67", 0.62))
-				for index in range(sub_grid_count):
-					sub_y = screen_y - (index + 1) * grid_step * scale / (sub_grid_count + 1)
-					if y0 <= sub_y <= y0 + cell_height:
-						elements.append(svg_line(x0, sub_y, x0 + cell_width, sub_y, "#2a2f38", 0.74))
-			y += grid_step
-		origin_x = offset_x
-		origin_y = offset_y
-		if y0 <= origin_y <= y0 + cell_height:
-			elements.append(svg_line(x0, origin_y, x0 + cell_width, origin_y, "#9aa3ad", 0.86))
-		if x0 <= origin_x <= x0 + cell_width:
-			elements.append(svg_line(origin_x, y0, origin_x, y0 + cell_height, "#9aa3ad", 0.86))
-		for polygon_index, polygon in enumerate(polygons):
-			color = colors[polygon_index % len(colors)]
-			elements.append(
-				f'<polygon points="{svg_points(polygon, offset_x, offset_y, scale)}" '
-				f'fill="{color}" fill-opacity="0.20" stroke="{color}" stroke-width="2"/>'
-			)
-			for point_x, point_y in polygon:
-				screen_x = offset_x + point_x * scale
-				screen_y = offset_y - point_y * scale
-				elements.append(f'<circle cx="{screen_x:.2f}" cy="{screen_y:.2f}" r="1.35" fill="{color}"/>')
-		start_x = offset_x + start[0] * scale
-		start_y = offset_y - start[1] * scale
-		target_x = offset_x + target[0] * scale
-		target_y = offset_y - target[1] * scale
-		elements.append(f'<circle cx="{start_x:.2f}" cy="{start_y:.2f}" r="5" fill="#22c55e"/>')
-		elements.append(f'<text x="{start_x + 10:.2f}" y="{start_y + 4:.2f}" font-size="12" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" fill="#f8fafc">s</text>')
-		elements.append(f'<circle cx="{target_x:.2f}" cy="{target_y:.2f}" r="5" fill="#ef4444"/>')
-		elements.append(f'<text x="{target_x + 10:.2f}" y="{target_y + 4:.2f}" font-size="12" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" fill="#f8fafc">t</text>')
-	elements.append("</svg>")
-	path.parent.mkdir(parents=True, exist_ok=True)
-	content = "\n".join(elements) + "\n"
-	with _preview_lock:
-		with tempfile.NamedTemporaryFile(
-			mode="w",
-			encoding="utf-8",
-			dir=path.parent,
-			prefix=f".{path.name}.",
-			suffix=".tmp",
-			delete=False,
-		) as temporary:
-			temporary.write(content)
-		temporary_path = Path(temporary.name)
-		try:
-			os.replace(temporary_path, path)
-		finally:
-			temporary_path.unlink(missing_ok=True)
-
-
-def write_imported_previews(path: Path, cases: list[CaseData]) -> tuple[dict[str, str], list[str]]:
-	preview_dir = path / "previews"
-	overview_cases = sample_cases(cases, 20)
-	overview_columns = 5 if len(overview_cases) <= 10 else 7
-	overview_rows = (len(overview_cases) + overview_columns - 1) // overview_columns
-	overview_cell_height = round((overview_columns * 150) / max(overview_rows, 1) / 2.52)
-	write_case_preview(preview_dir / "selected.svg", cases[:1], cell_width=420, cell_height=320, columns=1, padding=8)
-	write_case_preview(preview_dir / "four.svg", cases[:4], cell_width=210, cell_height=160, columns=2, padding=6)
-	write_case_preview(preview_dir / "all.svg", overview_cases, cell_width=150, cell_height=overview_cell_height, columns=overview_columns, padding=6)
-	instance_paths = [
-		f"previews/instances/case-{index:04}.svg"
-		for index in range(len(cases))
-	]
-	previews = {
-		"selected": "previews/selected.svg",
-		"four": "previews/four.svg",
-		"all": "previews/all.svg",
-	}
-	return previews, instance_paths
-
-
-def ensure_instance_preview(path: Path, data: dict[str, Any], index: int) -> Path | None:
-	if index < 0:
-		return None
-	instance_previews = instance_preview_list(data)
-	if index >= len(instance_previews):
-		return None
-	preview_path = path / instance_previews[index]
-	if preview_path.exists() and not preview_svg_is_stale(preview_path):
-		return preview_path
-	case = read_campaign_case(path, data, index)
-	if case is None:
-		return None
-	write_case_preview(preview_path, [case], cell_width=260, cell_height=180, columns=1, padding=6)
-	return preview_path
-
-
-def sample_cases(cases: list[CaseData], limit: int) -> list[CaseData]:
-	if len(cases) <= limit:
-		return cases
-	return [cases[round(index * (len(cases) - 1) / (limit - 1))] for index in range(limit)]
 
 
 def manual_cases_path(path: Path) -> Path:
@@ -605,37 +396,6 @@ def create_manual_campaign_data(path: Path) -> None:
 	write_binary_cases(manual_input_path(path), [])
 
 
-def total_instance_count(data: dict[str, Any]) -> int:
-	input_total = 0
-	for input_record in data.get("inputs", []):
-		instances = input_record.get("instances")
-		if isinstance(instances, int):
-			input_total += instances
-	if input_total > 0:
-		return input_total
-	generation_instances = data.get("generation", {}).get("instances")
-	return generation_instances if isinstance(generation_instances, int) else 0
-
-
-def completed_instance_count(path: Path, run_index: dict[str, Any] | None = None) -> int:
-	index = run_index or read_run_index(path / "results/run-index.csv")
-	completed_cases: set[tuple[str, str]] = set()
-	for run_row in index["rows"]:
-		if run_row.get("status") != "completed":
-			continue
-		csv_value = run_row.get("csv_output", "")
-		if not csv_value:
-			continue
-		csv_path = Path(csv_value)
-		if not csv_path.is_absolute():
-			csv_path = path / csv_path
-		for result_row in read_result_rows(csv_path):
-			case_index = result_row.get("case_index")
-			if case_index is not None:
-				completed_cases.add((str(csv_path), case_index))
-	return len(completed_cases)
-
-
 def refresh_job_progress_from_logs(job: Job) -> None:
 	if job.campaign is None or job.kind != "run" or job.status != "running":
 		return
@@ -653,50 +413,6 @@ def refresh_job_progress_from_logs(job: Job) -> None:
 		if log_path.exists():
 			update_job_progress(job, log_path.read_text(errors="replace")[-12000:])
 			return
-
-
-def parse_markdown_tables(text: str) -> list[dict[str, Any]]:
-	tables: list[dict[str, Any]] = []
-	section = ""
-	lines = text.splitlines()
-	index = 0
-	while index < len(lines):
-		line = lines[index].strip()
-		if line.startswith("## "):
-			section = line.removeprefix("## ").strip()
-			index += 1
-			continue
-		if not line.startswith("|") or index + 1 >= len(lines):
-			index += 1
-			continue
-		separator = lines[index + 1].strip()
-		if not separator.startswith("|") or "---" not in separator:
-			index += 1
-			continue
-		headers = [cell.strip() for cell in line.strip("|").split("|")]
-		rows: list[dict[str, str]] = []
-		index += 2
-		while index < len(lines) and lines[index].strip().startswith("|"):
-			cells = [cell.strip() for cell in lines[index].strip().strip("|").split("|")]
-			if len(cells) == len(headers):
-				rows.append(dict(zip(headers, cells, strict=True)))
-			index += 1
-		title = headers[0] if headers else "Table"
-		if section == "Distributions" and title == "Metric":
-			title = "Metric:distributions"
-		tables.append({"section": section, "title": title, "headers": headers, "rows": rows})
-	return tables
-
-
-def summary_files(path: Path) -> list[Path]:
-	results_dir = path / "results"
-	if not results_dir.exists():
-		return []
-	return sorted(
-		(file for file in results_dir.glob("*.md") if file.is_file()),
-		key=lambda file: file.stat().st_mtime,
-		reverse=True,
-	)
 
 
 def find_osm_files() -> list[dict[str, Any]]:
@@ -734,138 +450,6 @@ def find_osm_files() -> list[dict[str, Any]]:
 		}
 		for path in sorted(paths, key=lambda item: (-item.stat().st_size, item.name.lower()))
 	]
-
-
-def preview_map(data: dict[str, Any]) -> dict[str, str]:
-	previews = data.get("previews")
-	if isinstance(previews, dict):
-		return {
-			str(name): str(value)
-			for name, value in previews.items()
-			if isinstance(value, str)
-		}
-	preview = data.get("preview")
-	if isinstance(preview, str) and preview:
-		return {"all": preview}
-	return {}
-
-
-def instance_preview_list(data: dict[str, Any]) -> list[str]:
-	previews = data.get("instance_previews")
-	if isinstance(previews, list):
-		return [str(value) for value in previews if isinstance(value, str)]
-	return []
-
-
-def result_preview_list(path: Path, data: dict[str, Any]) -> list[str]:
-	previews = instance_preview_list(data)
-	if previews:
-		return previews
-
-	found: list[Path] = []
-	for input_record in data.get("inputs", []):
-		file_value = input_record.get("file")
-		if not isinstance(file_value, str):
-			continue
-		stem = Path(file_value).stem
-		for directory in (
-			path / "previews" / "instances",
-			path / "inputs" / f"{stem}-instances",
-			path / "previews" / f"{stem}-instances",
-		):
-			if directory.exists():
-				found.extend(sorted(directory.glob("case-*.*")))
-
-	return [str(preview.relative_to(path)) for preview in found if preview.suffix.lower() in {".png", ".svg"}]
-
-
-def preview_svg_is_stale(path: Path) -> bool:
-	if path.suffix.lower() != ".svg" or not path.exists():
-		return False
-	try:
-		text = path.read_text(errors="ignore")
-	except OSError:
-		return False
-	return (
-		">case " in text
-		or 'fill="#ffffff"' in text
-		or f'data-preview-version="{PREVIEW_VERSION}"' not in text
-	)
-
-
-def campaign_previews_are_stale(path: Path, data: dict[str, Any]) -> bool:
-	candidates = list(preview_map(data).values()) + instance_preview_list(data)[:1]
-	if not candidates:
-		return total_instance_count(data) > 0
-	return any(preview_svg_is_stale(path / preview) for preview in candidates)
-
-
-def read_campaign_cases(path: Path, data: dict[str, Any]) -> list[CaseData]:
-	cases: list[CaseData] = []
-	total = total_instance_count(data)
-	for input_record in data.get("inputs", []):
-		file_value = input_record.get("file")
-		if not isinstance(file_value, str):
-			continue
-		input_path = path / file_value
-		if not input_path.exists():
-			continue
-		remaining = max(0, total - len(cases)) if total else 10_000
-		if remaining == 0:
-			break
-		cases.extend(read_binary_cases(input_path, remaining))
-	return cases
-
-
-def read_campaign_case(path: Path, data: dict[str, Any], index: int) -> CaseData | None:
-	if index < 0:
-		return None
-	seen = 0
-	for input_record in data.get("inputs", []):
-		file_value = input_record.get("file")
-		if not isinstance(file_value, str):
-			continue
-		input_path = path / file_value
-		if not input_path.exists():
-			continue
-		instances = input_record.get("instances")
-		input_count = instances if isinstance(instances, int) and instances >= 0 else binary_case_count(input_path)
-		if index < seen + input_count:
-			return read_binary_case(input_path, index - seen)
-		seen += input_count
-	return None
-
-
-def refresh_stale_previews(path: Path, data: dict[str, Any]) -> dict[str, Any]:
-	if not campaign_previews_are_stale(path, data):
-		return data
-	cases = read_campaign_cases(path, data)
-	if not cases:
-		return data
-	previews, instance_previews = write_imported_previews(path, cases)
-	data["preview"] = previews.get("all")
-	data["previews"] = previews
-	data["instance_previews"] = instance_previews
-	campaign_file = path / "campaign.json"
-	campaign_file.write_text(json.dumps(data, indent=2) + "\n")
-	_json_cache.pop(campaign_file, None)
-	return data
-
-
-def rewrite_dashboard_previews(path: Path) -> None:
-	campaign_file = path / "campaign.json"
-	if not campaign_file.exists():
-		return
-	data = read_json(campaign_file)
-	cases = read_campaign_cases(path, data)
-	if not cases:
-		return
-	previews, instance_previews = write_imported_previews(path, cases)
-	data["preview"] = previews.get("all")
-	data["previews"] = previews
-	data["instance_previews"] = instance_previews
-	campaign_file.write_text(json.dumps(data, indent=2) + "\n")
-	_json_cache.pop(campaign_file, None)
 
 
 def benchmarked_instances(path: Path, *, limit: int = 200) -> list[dict[str, Any]]:
@@ -935,62 +519,15 @@ def solution_preview_path(path: Path, csv_path: Path, case_index: int, repeat_in
 	return matches[-1] if matches else solution_path
 
 
-def first_input_file(path: Path) -> Path:
-	data = read_json(path / "campaign.json")
-	for input_record in data.get("inputs", []):
-		file_value = input_record.get("file")
-		if not isinstance(file_value, str):
-			continue
-		input_path = path / file_value
-		if input_path.exists():
-			return input_path
-	raise HTTPException(status_code=400, detail="Campaign has no generated input file.")
-
-
-def campaign_input_label(path: Path) -> str | None:
-	data = read_json(path / "campaign.json")
-	for input_record in data.get("inputs", []):
-		file_value = input_record.get("file")
-		if isinstance(file_value, str) and file_value:
-			return file_value
-	return None
-
-
-def comparison_rows(path: Path) -> list[dict[str, str]]:
-	comparison_root = path / "results" / "comparisons"
-	if not comparison_root.exists():
-		return []
-	candidates = sorted(
-		comparison_root.glob("*/comparison.csv"),
-		key=lambda file: file.stat().st_mtime,
-		reverse=True,
-	)
-	if not candidates:
-		return []
-	return read_csv_rows(candidates[0])
-
-
 def comparison_data(path: Path) -> dict[str, Any]:
-	comparison_root = path / "results" / "comparisons"
-	if not comparison_root.exists():
+	comparison_path = latest_comparison_path(path)
+	if not comparison_path:
 		return {"rows": [], "input_file": campaign_input_label(path), "path": None}
-	candidates = sorted(
-		comparison_root.glob("*/comparison.csv"),
-		key=lambda file: file.stat().st_mtime,
-		reverse=True,
-	)
-	if not candidates:
-		return {"rows": [], "input_file": campaign_input_label(path), "path": None}
-	rows = read_csv_rows(candidates[0])
 	return {
-		"rows": rows,
+		"rows": read_csv_rows(comparison_path),
 		"input_file": campaign_input_label(path),
-		"path": str(candidates[0].relative_to(path)),
+		"path": str(comparison_path.relative_to(path)),
 	}
-
-
-def summary_result_rows(summary_path: Path) -> list[dict[str, str]]:
-	return read_result_rows(summary_path.with_suffix(".csv"))
 
 
 def campaign_summary(path: Path) -> dict[str, Any]:

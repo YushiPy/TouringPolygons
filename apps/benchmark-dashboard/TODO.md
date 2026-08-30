@@ -6,11 +6,11 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 
 - [ ] Split `main.py` into focused backend modules:
 	- [x] request/data models and shared types;
-	- path and campaign metadata helpers;
+	- [x] path and campaign metadata helpers;
 	- [x] binary case parsing and writing;
-	- preview generation;
+	- [x] preview generation;
 	- job orchestration and persistence;
-	- report parsing;
+	- [x] report parsing;
 	- FastAPI routers.
 - [ ] Split `static/app.js` into ES modules:
 	- [x] API client;
@@ -26,6 +26,7 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 - [x] Separate manual autosave from benchmark artifact rebuilding.
 - [x] Stream binary case reads instead of loading whole `.bin` files into memory.
 - [x] Add optional binary case offset indexes for fast single-case reads.
+- [x] Cache completed-instance counts for unchanged result files.
 - [x] Move stale preview migration out of `GET /api/campaigns`.
 - [x] Replace unbounded JSON/CSV globals with a bounded file-signature cache.
 - [x] Cache frontend convex decomposition per polygon version.
@@ -124,3 +125,15 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 	- Lazy instance preview generation now reads only the requested case instead of all campaign cases.
 	- Added regression tests for offset invalidation and multi-input campaign lookup.
 	- Verified with `uv run python -m unittest apps/benchmark-dashboard/tests/test_main.py`.
+- Extracted shared file cache and report helpers from `main.py`.
+	- Moved bounded JSON/CSV file cache logic into `dashboard_files.py`.
+	- Moved markdown summary parsing and comparison report discovery into `dashboard_reports.py`.
+	- Kept compatibility imports in `main.py` for existing tests and callers.
+- Extracted campaign metadata and preview generation helpers from `main.py`.
+	- Moved input counting, preview metadata lookup, campaign case lookup, and input-file labels into `dashboard_campaigns.py`.
+	- Moved SVG preview rendering, stale-preview detection, lazy instance preview generation, and preview metadata rewriting into `dashboard_previews.py`.
+	- Kept route-level behavior and compatibility imports unchanged.
+- Cached completed-instance counts for unchanged benchmark outputs.
+	- `completed_instance_count()` now keys cached counts by `run-index.csv` and referenced result CSV file signatures.
+	- Campaign list refreshes avoid rescanning unchanged result CSV rows.
+	- Added a regression test for count cache invalidation when a result CSV changes.

@@ -17,6 +17,7 @@ dashboard = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 sys.modules[SPEC.name] = dashboard
 SPEC.loader.exec_module(dashboard)
+import dashboard_reports  # noqa: E402
 
 
 class DashboardMainTests(unittest.TestCase):
@@ -80,6 +81,22 @@ class DashboardMainTests(unittest.TestCase):
 
 			with patch.object(dashboard, "refresh_stale_previews", side_effect=AssertionError):
 				self.assertEqual(dashboard.campaign_summary(path)["name"], "summary")
+
+	def test_completed_instance_count_cache_invalidates_when_result_changes(self) -> None:
+		dashboard_reports._completed_count_cache.clear()
+		with tempfile.TemporaryDirectory() as directory:
+			path = Path(directory)
+			results = path / "results"
+			results.mkdir()
+			(results / "run-index.csv").write_text("status,csv_output\ncompleted,results/run.csv\n")
+			(results / "run.csv").write_text("case_index\n0\n")
+
+			self.assertEqual(dashboard.completed_instance_count(path), 1)
+			self.assertEqual(dashboard.completed_instance_count(path), 1)
+
+			(results / "run.csv").write_text("case_index\n0\n1\n")
+
+			self.assertEqual(dashboard.completed_instance_count(path), 2)
 
 	def test_manual_case_round_trip_through_binary_format(self) -> None:
 		case = dashboard.manual_case_from_request(dashboard.ManualCaseRequest(
