@@ -1,0 +1,71 @@
+<div id="job-dock" class="job-dock is-hidden" aria-live="polite"></div>
+<div id="campaign-modal" class="modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal-backdrop" data-close-modal></div>
+  <article class="modal-card">
+    <header class="modal-header">
+      <h2 id="modal-title">Campaign</h2>
+      <button class="modal-x-button" type="button" data-close-modal aria-label="Close campaign details">×</button>
+    </header>
+    <div id="modal-body"></div>
+  </article>
+</div>
+<div id="confirm-modal" class="modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+  <div class="modal-backdrop" data-confirm-cancel></div>
+  <article class="confirm-card">
+    <header>
+      <h2 id="confirm-title">Confirm</h2>
+      <p id="confirm-message"></p>
+    </header>
+    <div class="confirm-actions">
+      <button class="secondary" type="button" data-confirm-cancel>Cancel</button>
+      <button class="danger" type="button" data-confirm-ok>Delete</button>
+    </div>
+  </article>
+</div>
+<div id="keybind-modal" class="modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="keybind-title">
+  <div class="modal-backdrop" data-close-keybinds></div>
+  <article class="confirm-card keybind-card">
+    <header class="modal-header">
+      <h2 id="keybind-title">Keyboard Shortcuts</h2>
+      <button class="modal-x-button" type="button" data-close-keybinds aria-label="Close keyboard shortcuts">×</button>
+    </header>
+    <div class="keybind-list">
+      <div class="keybind-row">
+        <span>Close polygon</span>
+        <div id="close-polygon-keybinds" class="keybind-controls"></div>
+      </div>
+      <div class="keybind-row">
+        <span>Delete selection</span>
+        <div id="delete-selection-keybinds" class="keybind-controls"></div>
+      </div>
+      <div class="keybind-row">
+        <span>Clear selection</span>
+        <div id="clear-selection-keybinds" class="keybind-controls"></div>
+      </div>
+      <div class="keybind-row">
+        <span>Toggle snap</span>
+        <div id="toggle-snap-keybinds" class="keybind-controls"></div>
+      </div>
+      <div class="keybind-row">
+        <span>Fit instance</span>
+        <div id="fit-instance-keybinds" class="keybind-controls"></div>
+      </div>
+      <div class="keybind-row">
+        <span>Toggle grid</span>
+        <div id="toggle-grid-keybinds" class="keybind-controls"></div>
+      </div>
+      <div class="keybind-row">
+        <span>Toggle path</span>
+        <div id="toggle-path-keybinds" class="keybind-controls"></div>
+      </div>
+      <div class="keybind-row">
+        <span>Toggle decomposition</span>
+        <div id="toggle-decomposition-keybinds" class="keybind-controls"></div>
+      </div>
+      <div class="keybind-row">
+        <span>Toggle labels</span>
+        <div id="toggle-labels-keybinds" class="keybind-controls"></div>
+      </div>
+    </div>
+  </article>
+</div>

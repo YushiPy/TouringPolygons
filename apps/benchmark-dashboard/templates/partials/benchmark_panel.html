@@ -1,0 +1,88 @@
+<section id="benchmark-panel" class="panel">
+  <div class="panel-header">
+    <h2>Run Benchmark</h2>
+    <p>Runs are resumable and write CSV, Markdown, logs, and a run index.</p>
+  </div>
+  <form id="run-form" class="run-form">
+    <div class="run-main-fields">
+      <div class="field campaign-picker-field">
+        <span class="field-label">Campaign</span>
+        <input name="name" id="run-campaign" type="hidden">
+        <div id="run-campaign-grid" class="choice-grid campaign-choice-grid" role="listbox" aria-label="Campaign"></div>
+      </div>
+      <label>
+        Threads
+        <span class="thread-control">
+          <input id="threads-slider" type="range" min="1" value="1">
+          <input id="threads-input" name="threads" type="number" min="1" value="1">
+        </span>
+        <span class="thread-scale" aria-hidden="true"><span>1</span><span id="threads-max-label">1</span></span>
+      </label>
+      <label>
+        Instance cap
+        <span class="range-number">
+          <input id="max-instances-slider" type="range" min="1" value="1">
+          <input id="max-instances-input" name="max_instances" type="number" min="1" value="1">
+        </span>
+        <span class="thread-scale" aria-hidden="true"><span>1</span><span id="max-instances-label">1</span></span>
+      </label>
+    </div>
+    <div class="run-limit-fields">
+      <label>
+        Max calls
+        <input name="max_calls" value="1000000" required>
+      </label>
+      <label>
+        Max seconds
+        <input name="max_seconds" placeholder="unlimited">
+      </label>
+      <label>
+        File timeout
+        <input name="timeout" type="number" min="1" placeholder="unlimited">
+      </label>
+    </div>
+    <div class="run-options">
+      <div class="field solver-field">
+        <span class="field-label">Solver</span>
+        <input name="solver" type="hidden" value="binary">
+        <span class="segmented solver-grid" data-input="solver">
+          <button class="segment" data-value="linear" type="button">Linear Intersections</button>
+          <button class="segment" data-value="linear_disjoint" type="button">Linear Disjoint</button>
+          <button class="segment is-active" data-value="binary" type="button">Binary Intersections</button>
+          <button class="segment" data-value="binary_disjoint" type="button">Binary Disjoint</button>
+          <button class="segment" data-value="tan" type="button">Tan Jiang</button>
+          <button class="segment" data-value="gurobi" type="button">Gurobi</button>
+        </span>
+      </div>
+      <div class="run-switches">
+        <label class="switch-row">
+          <input name="dry_run" type="checkbox">
+          <span class="switch-control"></span>
+          <span>Dry run</span>
+        </label>
+        <label class="switch-row">
+          <input name="force" type="checkbox">
+          <span class="switch-control"></span>
+          <span>Force rerun</span>
+        </label>
+        <label class="switch-row">
+          <input name="no_build" type="checkbox">
+          <span class="switch-control"></span>
+          <span>Skip build</span>
+        </label>
+      </div>
+      <div class="actions run-actions">
+        <button id="run-submit-button" type="submit">Run</button>
+        <button id="copy-run-command" class="secondary command-copy" type="button">Copy Command</button>
+        <button id="stop-run-button" class="secondary stop-button is-hidden" type="button" disabled>Stop</button>
+      </div>
+      <div id="run-progress" class="run-progress-card is-hidden" aria-live="polite"></div>
+    </div>
+  </form>
+  <div id="run-summary" class="summary-grid"></div>
+  <div id="benchmark-report" class="benchmark-report is-hidden"></div>
+  <section id="solved-preview" class="result-preview-section is-hidden"></section>
+  <div class="output-panel">
+    <pre id="run-output" class="output" aria-live="polite"></pre>
+  </div>
+</section>

@@ -24,6 +24,8 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 	- [x] read-only instance viewer;
 	- [x] command builders and form controls;
 	- [x] theme, keybinding, and UI utility helpers.
+- [x] Split `templates/index.html` into focused Jinja partials.
+- [x] Consolidate duplicated `static/style.css` rules for common controls and containers.
 - [x] Replace eager per-instance preview generation with lazy generation on first request.
 - [x] Separate manual autosave from benchmark artifact rebuilding.
 - [x] Stream binary case reads instead of loading whole `.bin` files into memory.
@@ -150,3 +152,13 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 	- Moved job dock rendering/interactions into `static/job-dock.js`.
 	- Moved keybinding persistence and editing UI into `static/keybinds.js`.
 	- Moved segmented controls, sliders, and filter wiring into `static/controls.js`.
+- Split the dashboard HTML into focused Jinja partials.
+	- `index.html` now contains only the page shell, tabs, includes, and module script tag.
+	- Moved each primary panel into `templates/partials/*_panel.html`.
+	- Moved dock and modal markup into `templates/partials/modals.html`.
+	- Verified the rendered template preserves the same JS-facing ids/classes/data attributes as the original file.
+- Consolidated repeated stylesheet rules.
+	- Shared range input styling now covers thread sliders, numeric range controls, and zoom style sliders through custom properties.
+	- Shared custom scrollbar styling now covers instance and benchmarked preview grids.
+	- Shared report/progress container styling now covers benchmark, comparison, result-preview, and progress cards.
+	- Deduplicated common icon and modal card primitives.
