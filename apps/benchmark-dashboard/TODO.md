@@ -11,7 +11,8 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 	- [x] preview generation;
 	- job orchestration and persistence;
 	- [x] report parsing;
-	- FastAPI routers.
+	- [x] support/read-only FastAPI routes;
+	- campaign mutation FastAPI routes.
 - [ ] Split `static/app.js` into ES modules:
 	- [x] API client;
 	- [x] shared state;
@@ -20,11 +21,13 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 	- [x] benchmark/comparison reports;
 	- [x] editor geometry;
 	- [x] editor renderer;
-	- manual editor interactions;
+	- [x] manual campaign/case list and autosave controller;
+	- manual canvas editor interactions;
 	- [x] read-only instance viewer;
 	- [x] command builders and form controls;
 	- [x] theme, keybinding, and UI utility helpers.
 - [x] Split `templates/index.html` into focused Jinja partials.
+- [x] Split `static/style.css` into focused domain stylesheets.
 - [x] Consolidate duplicated `static/style.css` rules for common controls and containers.
 - [x] Replace eager per-instance preview generation with lazy generation on first request.
 - [x] Separate manual autosave from benchmark artifact rebuilding.
@@ -162,3 +165,13 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 	- Shared custom scrollbar styling now covers instance and benchmarked preview grids.
 	- Shared report/progress container styling now covers benchmark, comparison, result-preview, and progress cards.
 	- Deduplicated common icon and modal card primitives.
+- Split the stylesheet by UI domain.
+	- Added `base.css`, `forms.css`, `campaigns.css`, `editor.css`, `previews.css`, `reports.css`, `overlays.css`, and `responsive.css`.
+	- `index.html` loads the focused CSS files directly for better cache granularity.
+	- Kept `style.css` as an import manifest for compatibility with older direct references.
+- Extracted manual campaign and case-list orchestration from `app.js`.
+	- Added `static/manual-cases.js` for editable campaign selection, case list rendering, rename/duplicate/delete, and autosave.
+	- Kept the canvas editor object in `app.js` while injecting it into the controller to avoid a circular module dependency.
+- Extracted support/read-only route registration from `main.py`.
+	- Added `dashboard_routes.py` for job status/cancel, system, OSM file scan, logs, summaries, benchmarked instances, comparisons, and result listing routes.
+	- Kept route behavior registered on the same FastAPI app via explicit dependency injection.

@@ -1,0 +1,286 @@
+.campaign-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.campaign-card {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--surface-muted);
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition),
+    transform var(--transition),
+    background var(--transition);
+}
+
+.campaign-delete {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.campaign-delete,
+.modal-x-button,
+.job-dock-stop,
+.keybind-remove,
+#cases-panel.editor-expanded .manual-editor-close,
+.manual-case-action.danger {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-color: var(--danger);
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  line-height: 1;
+  box-shadow: none;
+}
+
+.campaign-delete:hover,
+.modal-x-button:hover,
+.job-dock-stop:hover,
+.keybind-remove:hover,
+#cases-panel.editor-expanded .manual-editor-close:hover,
+.manual-case-action.danger:hover {
+  border-color: var(--danger-hover);
+  background: var(--danger-hover);
+  color: #fff;
+  transform: none;
+  box-shadow: none;
+}
+
+.campaign-delete:active,
+.modal-x-button:active,
+.job-dock-stop:active,
+.keybind-remove:active,
+#cases-panel.editor-expanded .manual-editor-close:active,
+.manual-case-action.danger:active {
+  border-color: var(--danger-active);
+  background: var(--danger-active);
+  color: #fff;
+}
+
+:root[data-theme="dark"] .campaign-delete,
+:root[data-theme="dark"] .campaign-delete:focus,
+:root[data-theme="dark"] .modal-x-button,
+:root[data-theme="dark"] .modal-x-button:focus,
+:root[data-theme="dark"] .job-dock-stop,
+:root[data-theme="dark"] .job-dock-stop:focus,
+:root[data-theme="dark"] .keybind-remove,
+:root[data-theme="dark"] .keybind-remove:focus,
+:root[data-theme="dark"] #cases-panel.editor-expanded .manual-editor-close,
+:root[data-theme="dark"] .manual-case-action.danger {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+}
+
+:root[data-theme="dark"] .campaign-delete:hover,
+:root[data-theme="dark"] .modal-x-button:hover,
+:root[data-theme="dark"] .job-dock-stop:hover,
+:root[data-theme="dark"] .keybind-remove:hover,
+:root[data-theme="dark"] #cases-panel.editor-expanded .manual-editor-close:hover,
+:root[data-theme="dark"] .manual-case-action.danger:hover {
+  border-color: var(--danger-hover);
+  background: var(--danger-hover);
+  color: #fff;
+}
+
+:root[data-theme="dark"] .campaign-delete:active,
+:root[data-theme="dark"] .modal-x-button:active,
+:root[data-theme="dark"] .job-dock-stop:active,
+:root[data-theme="dark"] .keybind-remove:active,
+:root[data-theme="dark"] #cases-panel.editor-expanded .manual-editor-close:active,
+:root[data-theme="dark"] .manual-case-action.danger:active {
+  border-color: var(--danger-active);
+  background: var(--danger-active);
+  color: #fff;
+}
+
+.campaign-card:hover {
+  background: var(--surface);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-2px);
+}
+
+.campaign-card h3 {
+  margin-bottom: 8px;
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0;
+  font-size: 0.9rem;
+}
+
+.meta span {
+  color: var(--muted);
+}
+
+.preview {
+  width: 100%;
+  height: 220px;
+  max-height: 220px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--editor-bg);
+  object-fit: contain;
+  margin-top: 12px;
+}
+
+.x-icon,
+.status-icon {
+  display: block;
+  width: 62%;
+  height: 62%;
+  overflow: visible;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.preview-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+  min-width: 0;
+}
+
+.preview-layout.is-hidden {
+  display: none;
+}
+
+.preview-panel {
+  margin: 0;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  overflow: hidden;
+}
+
+.preview-panel.is-clickable {
+  cursor: pointer;
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition),
+    transform var(--transition);
+}
+
+.preview-panel.is-clickable:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.preview-panel figcaption {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-muted);
+  color: var(--text);
+  font-weight: 650;
+  font-size: 0.9rem;
+}
+
+.fold-header {
+  padding: 0;
+}
+
+.fold-toggle {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  box-shadow: none;
+}
+
+.fold-toggle:hover,
+.fold-toggle:active {
+  border-color: transparent;
+  background: transparent;
+  color: var(--accent-strong);
+  box-shadow: none;
+  transform: none;
+}
+
+:root[data-theme="dark"] .fold-toggle,
+:root[data-theme="dark"] .fold-toggle:hover,
+:root[data-theme="dark"] .fold-toggle:active {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
+  transform: none;
+}
+
+.fold-caret {
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 7px solid currentColor;
+  transform: rotate(90deg);
+  transition: transform var(--transition);
+}
+
+.is-folded .fold-caret {
+  transform: rotate(0deg);
+}
+
+.fold-content {
+  max-height: 1200px;
+  overflow: hidden;
+  transition:
+    max-height 260ms ease,
+    opacity 180ms ease;
+}
+
+.is-folded > .fold-content,
+.is-folded > header + .fold-content {
+  max-height: 0;
+  opacity: 0;
+}
+
+.preview-panel img {
+  display: block;
+  width: 100%;
+  height: 320px;
+  padding: 0;
+  background: var(--editor-bg);
+  object-fit: contain;
+}
+
+@media (min-width: 761px) {
+  .mobile-only-fold .fold-caret {
+    display: none;
+  }
+
+  .mobile-only-fold .fold-toggle {
+    cursor: default;
+  }
+}
+
+.preview-all {
+  grid-column: 1 / -1;
+}
+
