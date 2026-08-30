@@ -34,7 +34,7 @@ JOBS_PATH = APP_ROOT / ".jobs.json"
 CANONICAL_SUITE = REPO_ROOT / "benchmarks/suites/canonical-v1.bin"
 TRACKED_NONCONVEX_SUITE = REPO_ROOT / "benchmarks/suites/nonconvex/test_cases.bin"
 GERMAN_INSTANCES_ZIP = REPO_ROOT / "tspn-comparison/solver/instances/instances_socg_simplified.zip"
-PREVIEW_VERSION = 4
+PREVIEW_VERSION = 6
 SOLVERS = {
 	"linear": "linear_search_lazy",
 	"linear_disjoint": "linear_search_disjoint",
@@ -473,6 +473,7 @@ def write_case_preview(
 	cell_width: int,
 	cell_height: int,
 	columns: int,
+	padding: int = 10,
 ) -> None:
 	if not cases:
 		return
@@ -480,7 +481,6 @@ def write_case_preview(
 	rows = (len(cases) + columns - 1) // columns
 	width = columns * cell_width
 	height = rows * cell_height
-	padding = 18
 	colors = ["#38bdf8", "#a3e635", "#f97316", "#f472b6", "#c084fc"]
 	elements = [
 		f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
@@ -560,14 +560,18 @@ def write_case_preview(
 
 def write_imported_previews(path: Path, cases: list[CaseData]) -> tuple[dict[str, str], list[str]]:
 	preview_dir = path / "previews"
-	write_case_preview(preview_dir / "selected.svg", cases[:1], cell_width=420, cell_height=320, columns=1)
-	write_case_preview(preview_dir / "four.svg", cases[:4], cell_width=210, cell_height=160, columns=2)
-	write_case_preview(preview_dir / "all.svg", sample_cases(cases, 20), cell_width=150, cell_height=120, columns=5)
+	overview_cases = sample_cases(cases, 20)
+	overview_columns = 5 if len(overview_cases) <= 10 else 7
+	overview_rows = (len(overview_cases) + overview_columns - 1) // overview_columns
+	overview_cell_height = round((overview_columns * 150) / max(overview_rows, 1) / 2.52)
+	write_case_preview(preview_dir / "selected.svg", cases[:1], cell_width=420, cell_height=320, columns=1, padding=8)
+	write_case_preview(preview_dir / "four.svg", cases[:4], cell_width=210, cell_height=160, columns=2, padding=6)
+	write_case_preview(preview_dir / "all.svg", overview_cases, cell_width=150, cell_height=overview_cell_height, columns=overview_columns, padding=6)
 	instance_dir = preview_dir / "instances"
 	instance_paths = []
 	for index, case in enumerate(cases):
 		instance_path = instance_dir / f"case-{index:04}.svg"
-		write_case_preview(instance_path, [case], cell_width=260, cell_height=180, columns=1)
+		write_case_preview(instance_path, [case], cell_width=260, cell_height=180, columns=1, padding=6)
 		instance_paths.append(str(instance_path.relative_to(path)))
 	previews = {
 		"selected": "previews/selected.svg",

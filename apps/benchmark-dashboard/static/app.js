@@ -14,6 +14,7 @@ const state = {
   benchmarkedSort: "case",
   campaignFilter: "",
   resultFilter: "",
+  campaignVersions: new Map(),
   manualCampaign: "",
   loadedManualCampaign: "",
   manualCases: [],
@@ -1809,7 +1810,7 @@ const manualEditor = {
     const rect = this.canvas.getBoundingClientRect();
     const before = this.canvasToWorld(event.clientX - rect.left, event.clientY - rect.top);
     const delta = Math.max(-80, Math.min(80, event.deltaY));
-    const factor = Math.exp(-delta * (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL ? 0.0028 : 0.08));
+    const factor = Math.exp(-delta * (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL ? 0.0035 : 0.1));
     this.updateZoomLimits();
     this.scale = Math.max(this.minScale, Math.min(this.maxScale, this.scale * factor));
     const after = this.canvasToWorld(event.clientX - rect.left, event.clientY - rect.top);
@@ -2477,7 +2478,8 @@ function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
     }
     event.preventDefault();
     const rect = canvas.getBoundingClientRect();
-    const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
+    const delta = Math.max(-80, Math.min(80, event.deltaY));
+    const factor = Math.exp(-delta * (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL ? 0.0035 : 0.1));
     viewer.zoomAtCanvasPoint(factor, event.clientX - rect.left, event.clientY - rect.top);
   }, { passive: false });
   if (options.interactive) {
@@ -2890,9 +2892,9 @@ async function loadManualCases(name) {
 }
 
 async function loadCampaignCaseMetadata(campaignName) {
-  if (state.campaignCaseMetadata.has(campaignName)) {
-    return state.campaignCaseMetadata.get(campaignName);
-  }
+	if (state.campaignCaseMetadata.has(campaignName)) {
+		return state.campaignCaseMetadata.get(campaignName);
+	}
   try {
     const data = await requestJSON(`/api/campaigns/${encodeURIComponent(campaignName)}/cases`);
     const cases = data.cases.map(cloneCaseData);
@@ -2900,8 +2902,33 @@ async function loadCampaignCaseMetadata(campaignName) {
     return cases;
   } catch {
     state.campaignCaseMetadata.set(campaignName, []);
-    return [];
-  }
+		return [];
+	}
+}
+
+function rememberCampaignVersions(campaigns) {
+	const nextVersions = new Map();
+	campaigns.forEach((campaign) => {
+		const version = campaign.version || "";
+		nextVersions.set(campaign.name, version);
+		if (state.campaignVersions.has(campaign.name) && state.campaignVersions.get(campaign.name) !== version) {
+			state.campaignCaseMetadata.delete(campaign.name);
+			state.benchmarkedInstances.delete(campaign.name);
+			if (state.loadedManualCampaign === campaign.name) {
+				state.loadedManualCampaign = "";
+			}
+		}
+	});
+	state.campaignVersions.forEach((_, name) => {
+		if (!nextVersions.has(name)) {
+			state.campaignCaseMetadata.delete(name);
+			state.benchmarkedInstances.delete(name);
+			if (state.loadedManualCampaign === name) {
+				state.loadedManualCampaign = "";
+			}
+		}
+	});
+	state.campaignVersions = nextVersions;
 }
 
 async function editInstance(campaign, index) {
@@ -3603,7 +3630,8 @@ async function setupZoomableDetail(root) {
   viewport.addEventListener("wheel", (event) => {
     event.preventDefault();
     const rect = viewport.getBoundingClientRect();
-    const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+    const delta = Math.max(-80, Math.min(80, event.deltaY));
+    const factor = Math.exp(-delta * (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL ? 0.0035 : 0.1));
     zoomAt(state.scale * factor, event.clientX - rect.left, event.clientY - rect.top);
   }, { passive: false });
   viewport.addEventListener("pointerdown", (event) => {
@@ -4744,6 +4772,7 @@ async function refresh() {
     requestJSON("/api/results"),
     requestJSON("/api/jobs"),
   ]);
+  rememberCampaignVersions(campaignData.campaigns);
   state.campaigns = campaignData.campaigns;
   state.resultFiles = resultData.files;
   state.recentJobs = jobData.jobs;
