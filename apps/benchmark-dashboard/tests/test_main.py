@@ -55,6 +55,7 @@ class DashboardMainTests(unittest.TestCase):
 	def test_file_caches_are_bounded(self) -> None:
 		dashboard._json_cache.clear()
 		dashboard._csv_cache.clear()
+		dashboard._binary_offset_cache.clear()
 		with tempfile.TemporaryDirectory() as directory:
 			root = Path(directory)
 			for index in range(dashboard.FILE_CACHE_LIMIT + 5):
@@ -114,6 +115,50 @@ class DashboardMainTests(unittest.TestCase):
 			self.assertEqual(dashboard.binary_case_count(path), 2)
 			self.assertEqual(dashboard.read_binary_cases(path, limit=1), cases[:1])
 
+	def test_binary_case_offset_cache_invalidates_when_file_changes(self) -> None:
+		first = dashboard.manual_case_from_request(dashboard.ManualCaseRequest(
+			start=(0.0, 0.0),
+			target=(1.0, 0.0),
+			polygons=[[(0.0, 1.0), (1.0, 1.0), (0.5, 2.0)]],
+		))
+		second = dashboard.manual_case_from_request(dashboard.ManualCaseRequest(
+			start=(2.0, 0.0),
+			target=(3.0, 0.0),
+			polygons=[[(2.0, 1.0), (3.0, 1.0), (2.5, 2.0)]],
+		))
+		with tempfile.TemporaryDirectory() as directory:
+			path = Path(directory) / "manual.bin"
+			dashboard.write_binary_cases(path, [first])
+			self.assertEqual(dashboard.binary_case_count(path), 1)
+
+			dashboard.write_binary_cases(path, [first, second])
+			self.assertEqual(dashboard.binary_case_count(path), 2)
+			self.assertEqual(dashboard.read_binary_case(path, 1), second)
+
+	def test_campaign_case_lookup_handles_multiple_input_files(self) -> None:
+		first = dashboard.manual_case_from_request(dashboard.ManualCaseRequest(
+			start=(0.0, 0.0),
+			target=(1.0, 0.0),
+			polygons=[[(0.0, 1.0), (1.0, 1.0), (0.5, 2.0)]],
+		))
+		second = dashboard.manual_case_from_request(dashboard.ManualCaseRequest(
+			start=(2.0, 0.0),
+			target=(3.0, 0.0),
+			polygons=[[(2.0, 1.0), (3.0, 1.0), (2.5, 2.0)]],
+		))
+		with tempfile.TemporaryDirectory() as directory:
+			path = Path(directory)
+			dashboard.write_binary_cases(path / "inputs/a.bin", [first])
+			dashboard.write_binary_cases(path / "inputs/b.bin", [second])
+			data = {"inputs": [
+				{"file": "inputs/a.bin", "instances": 1},
+				{"file": "inputs/b.bin", "instances": 1},
+			]}
+
+			self.assertEqual(dashboard.read_campaign_case(path, data, 0), first)
+			self.assertEqual(dashboard.read_campaign_case(path, data, 1), second)
+			self.assertIsNone(dashboard.read_campaign_case(path, data, 2))
+
 	def test_instance_previews_are_generated_lazily(self) -> None:
 		case = dashboard.manual_case_from_request(dashboard.ManualCaseRequest(
 			start=(0.0, 0.0),
@@ -136,6 +181,25 @@ class DashboardMainTests(unittest.TestCase):
 
 			self.assertEqual(dashboard.ensure_instance_preview(path, data, 0), instance_path)
 			self.assertTrue(instance_path.exists())
+
+	def test_manual_autosave_invalidates_previews_without_rebuilding_them(self) -> None:
+		case = dashboard.manual_case_from_request(dashboard.ManualCaseRequest(
+			start=(0.0, 0.0),
+			target=(2.0, 0.0),
+			polygons=[[(0.5, 0.5), (1.5, 0.5), (1.0, 1.25)]],
+		))
+		with tempfile.TemporaryDirectory() as directory:
+			path = Path(directory)
+			dashboard.create_manual_campaign_data(path)
+			dashboard.rebuild_manual_campaign(path, [case])
+			preview_path = path / "previews" / "all.svg"
+			self.assertTrue(preview_path.exists())
+
+			dashboard.rebuild_manual_campaign(path, [case], rebuild_previews=False)
+			self.assertFalse(preview_path.exists())
+			data = dashboard.read_json(path / "campaign.json")
+			self.assertEqual(data["previews"], {})
+			self.assertTrue(dashboard.campaign_previews_are_stale(path, data))
 
 
 if __name__ == "__main__":

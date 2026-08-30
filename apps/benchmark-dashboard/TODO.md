@@ -13,24 +13,24 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 	- report parsing;
 	- FastAPI routers.
 - [ ] Split `static/app.js` into ES modules:
-	- API client;
-	- shared state;
+	- [x] API client;
+	- [x] shared state;
 	- campaign rendering;
-	- job dock and polling;
+	- [x] job dock and polling;
 	- benchmark/comparison reports;
-	- editor geometry;
+	- [x] editor geometry;
 	- editor renderer;
 	- manual editor interactions;
 	- read-only instance viewer.
 - [x] Replace eager per-instance preview generation with lazy generation on first request.
-- [ ] Separate manual autosave from benchmark artifact rebuilding.
+- [x] Separate manual autosave from benchmark artifact rebuilding.
 - [x] Stream binary case reads instead of loading whole `.bin` files into memory.
-- [ ] Add optional binary case offset indexes for fast single-case reads.
+- [x] Add optional binary case offset indexes for fast single-case reads.
 - [x] Move stale preview migration out of `GET /api/campaigns`.
 - [x] Replace unbounded JSON/CSV globals with a bounded file-signature cache.
 - [x] Cache frontend convex decomposition per polygon version.
 - [ ] Extract a shared canvas renderer used by both the manual editor and read-only viewer.
-- [ ] Reduce job polling/report refresh pressure, possibly with server-sent events.
+- [x] Reduce job polling/report refresh pressure, possibly with server-sent events.
 - [ ] Add regression tests around campaign summaries, manual save/rebuild behavior, preview paths, and binary parsing.
 
 ## Done
@@ -62,4 +62,38 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 	- Editor redraws now reuse decompositions while polygon coordinates are unchanged.
 	- The cache invalidates naturally when point coordinates change because the signature changes.
 	- Verified with `node --check apps/benchmark-dashboard/static/app.js`.
+	- Verified with `uv run python -m unittest apps/benchmark-dashboard/tests/test_main.py`.
+- Started splitting `static/app.js` into ES modules.
+	- Extracted API requests into `static/api.js`.
+	- Extracted DOM helpers into `static/dom.js`.
+	- Extracted shell quoting, CSV download, and elapsed/seconds formatting into `static/format.js`.
+	- Switched the dashboard script tag to `type="module"`.
+	- Verified module syntax with `node --input-type=module --check`.
+	- Verified the app and module files are served by Uvicorn on a temporary local port.
+- Extracted pure editor geometry helpers into `static/editor-geometry.js`.
+	- Moved convexity checks, ear-clipping decomposition, decomposition caching, and solution direction helpers out of `app.js`.
+	- Kept the module dependency-free so it can be tested and reused independently.
+	- Verified all dashboard JavaScript modules pass Node syntax checks.
+- Extracted the mutable dashboard state object into `static/state.js`.
+	- Kept the same object shape and Map instances so existing event handlers retain their behavior.
+	- Verified all dashboard JavaScript modules pass Node syntax checks.
+- Extracted pure job status helpers into `static/job-utils.js`.
+	- Moved job panel selection, labels, progress text, terminal states, and status classes out of `app.js`.
+	- Kept DOM event handling and polling orchestration in `app.js`.
+	- Verified all dashboard JavaScript modules pass syntax checks.
+- Separated manual autosave persistence from preview generation.
+	- Autosave still updates the editable JSON, binary input, campaign metadata, and invalidates benchmark results.
+	- Autosave now skips expensive preview rendering and invalidates old preview metadata.
+	- Preview requests regenerate the previews lazily when they are needed.
+- Reduced duplicate polling work in the frontend.
+	- Centralized job and report polling intervals.
+	- Prevented overlapping comparison report requests when a prior refresh is still running.
+	- Removed a duplicate final dashboard refresh after benchmark jobs complete.
+- Added an in-memory binary case offset cache for fast single-case reads.
+	- `binary_case_offsets()` scans each `.bin` file once per file signature and caches valid case offsets.
+	- `binary_case_count()` now uses the offset cache.
+	- `read_binary_case()` can jump directly to a specific case.
+	- `read_campaign_case()` resolves global campaign case indexes across multiple input files.
+	- Lazy instance preview generation now reads only the requested case instead of all campaign cases.
+	- Added regression tests for offset invalidation and multi-input campaign lookup.
 	- Verified with `uv run python -m unittest apps/benchmark-dashboard/tests/test_main.py`.

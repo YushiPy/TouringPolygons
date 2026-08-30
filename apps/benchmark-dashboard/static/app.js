@@ -1,34 +1,13 @@
-const state = {
-  campaigns: [],
-  currentJob: null,
-  currentRunJob: null,
-  currentComparisonJob: null,
-  cpuCount: 1,
-  selectedCampaign: "",
-  selectedComparisonCampaign: "",
-  osmFiles: [],
-  resultFiles: [],
-  recentJobs: [],
-  osmScanStarted: false,
-  benchmarkedInstances: new Map(),
-  benchmarkedSort: "case",
-  campaignFilter: "",
-  resultFilter: "",
-  campaignVersions: new Map(),
-  manualCampaign: "",
-  loadedManualCampaign: "",
-  manualCases: [],
-  manualCaseIndex: 0,
-  manualAutosaveTimer: null,
-  manualAutosaving: false,
-  manualAutosaveQueued: false,
-  manualRenamingIndex: null,
-  campaignCaseMetadata: new Map(),
-  instanceModalReturn: null,
-  finishedDockJob: null,
-};
+import { requestJSON } from "./api.js";
+import { $, escapeHTML, setOutput } from "./dom.js";
+import { convexDecomposition, polygonIsConvex, solutionDirectionAt } from "./editor-geometry.js";
+import { downloadCSV, formatElapsed, formatSeconds, shellQuote } from "./format.js";
+import { jobDockStatusClass, jobKindLabel, jobPanel, jobProgressLabel, jobTerminalState } from "./job-utils.js";
+import { state } from "./state.js";
 
-const $ = (selector) => document.querySelector(selector);
+const JOB_POLL_INTERVAL_MS = 500;
+const REPORT_REFRESH_INTERVAL_MS = 1000;
+
 const KEYBIND_STORAGE_KEY = "benchmarkDashboardManualEditorKeybinds";
 const THEME_STORAGE_KEY = "benchmarkDashboardTheme";
 const CLI_SOLVERS = {
@@ -53,8 +32,6 @@ const defaultKeybinds = {
 let editorKeybinds = loadEditorKeybinds();
 let pendingKeybindAction = null;
 let floatingTooltip = null;
-const decompositionCache = new WeakMap();
-
 let pendingConfirmation = null;
 
 function formData(form) {
@@ -64,33 +41,6 @@ function formData(form) {
 function boolField(form, name) {
   const input = form.querySelector(`[name="${name}"]`);
   return input.type === "checkbox" ? input.checked : input.value === "1";
-}
-
-async function requestJSON(url, options = {}) {
-  const response = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data.detail || data.output || `Request failed: ${response.status}`);
-  }
-  return data;
-}
-
-function setOutput(target, text) {
-  if (!target) {
-    return;
-  }
-  target.textContent = text || "";
-}
-
-function shellQuote(value) {
-  const text = String(value ?? "");
-  if (/^[A-Za-z0-9_./:=@+-]+$/.test(text)) {
-    return text;
-  }
-  return `'${text.replaceAll("'", "'\\''")}'`;
 }
 
 function runCommandFromForm(form = $("#run-form")) {
@@ -186,49 +136,8 @@ async function copyText(text, button) {
   }
 }
 
-function escapeHTML(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  })[character]);
-}
-
-function csvCell(value) {
-  const text = String(value ?? "");
-  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-}
-
-function downloadCSV(filename, rows) {
-  if (!rows || rows.length === 0) {
-    return;
-  }
-  const headers = Object.keys(rows[0]);
-  const csv = [
-    headers.map(csvCell).join(","),
-    ...rows.map((row) => headers.map((header) => csvCell(row[header])).join(",")),
-  ].join("\n");
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(link.href);
-}
-
 function instanceLabel(index) {
   return Number(index) + 1;
-}
-
-function formatElapsed(seconds) {
-  const value = Math.max(0, Number(seconds) || 0);
-  const minutes = Math.floor(value / 60);
-  const remaining = value - minutes * 60;
-  if (minutes > 0) {
-    return `${minutes}:${remaining.toFixed(1).padStart(4, "0")}`;
-  }
-  return `${remaining.toFixed(1)}s`;
 }
 
 function bindTapZoom(button, action) {
@@ -246,26 +155,6 @@ function bindTapZoom(button, action) {
     button._lastTouchZoomAt = Date.now();
     action();
   }, { passive: false });
-}
-
-function formatSeconds(value) {
-  if (value === null || value === undefined || value === "") {
-    return "-";
-  }
-  const number = Number(value);
-  if (!Number.isFinite(number)) {
-    return "-";
-  }
-  if (Math.abs(number) >= 1) {
-    return `${number.toFixed(3)} s`;
-  }
-  if (Math.abs(number) >= 0.001) {
-    return `${(number * 1000).toFixed(2)} ms`;
-  }
-  if (Math.abs(number) >= 0.000001) {
-    return `${(number * 1000000).toFixed(2)} us`;
-  }
-  return `${(number * 1000000000).toFixed(2)} ns`;
 }
 
 function instanceDisplayName(campaign, index) {
@@ -537,95 +426,6 @@ function closeKeybinds() {
   $("#keybind-modal")?.classList.add("is-hidden");
 }
 
-function signedArea(points) {
-  let area = 0;
-  for (let index = 0; index < points.length; index += 1) {
-    const point = points[index];
-    const next = points[(index + 1) % points.length];
-    area += point[0] * next[1] - next[0] * point[1];
-  }
-  return area / 2;
-}
-
-function pointInTriangle(point, a, b, c) {
-  const area = (u, v, w) => (v[0] - u[0]) * (w[1] - u[1]) - (v[1] - u[1]) * (w[0] - u[0]);
-  const ab = area(a, b, point);
-  const bc = area(b, c, point);
-  const ca = area(c, a, point);
-  return (ab >= -1e-9 && bc >= -1e-9 && ca >= -1e-9) || (ab <= 1e-9 && bc <= 1e-9 && ca <= 1e-9);
-}
-
-function earClipDecomposition(polygon) {
-  if (polygon.length < 3) {
-    return [];
-  }
-  if (polygonIsConvex(polygon)) {
-    return [polygon];
-  }
-  const oriented = signedArea(polygon) >= 0 ? polygon.map((point) => [...point]) : [...polygon].reverse().map((point) => [...point]);
-  const remaining = oriented.map((_, index) => index);
-  const pieces = [];
-  let guard = 0;
-  while (remaining.length > 3 && guard < oriented.length * oriented.length) {
-    let clipped = false;
-    for (let index = 0; index < remaining.length; index += 1) {
-      const previousIndex = remaining[(index + remaining.length - 1) % remaining.length];
-      const currentIndex = remaining[index];
-      const nextIndex = remaining[(index + 1) % remaining.length];
-      const previous = oriented[previousIndex];
-      const current = oriented[currentIndex];
-      const next = oriented[nextIndex];
-      const cross = (current[0] - previous[0]) * (next[1] - current[1]) - (current[1] - previous[1]) * (next[0] - current[0]);
-      if (cross <= 1e-9) {
-        continue;
-      }
-      const containsOther = remaining.some((candidateIndex) => (
-        candidateIndex !== previousIndex
-        && candidateIndex !== currentIndex
-        && candidateIndex !== nextIndex
-        && pointInTriangle(oriented[candidateIndex], previous, current, next)
-      ));
-      if (containsOther) {
-        continue;
-      }
-      pieces.push([previous, current, next].map((point) => [...point]));
-      remaining.splice(index, 1);
-      clipped = true;
-      break;
-    }
-    if (!clipped) {
-      return [polygon];
-    }
-    guard += 1;
-  }
-  if (remaining.length === 3) {
-    pieces.push(remaining.map((index) => [...oriented[index]]));
-  }
-  return pieces;
-}
-
-function convexDecomposition(polygon) {
-  const signature = polygon.map((point) => `${point[0]},${point[1]}`).join(";");
-  const cached = decompositionCache.get(polygon);
-  if (cached?.signature === signature) {
-    return cached.pieces;
-  }
-  const pieces = earClipDecomposition(polygon).filter((piece) => piece.length >= 3);
-  decompositionCache.set(polygon, { signature, pieces });
-  return pieces;
-}
-
-function solutionDirectionAt(path, index) {
-  if (!path || path.length < 2) {
-    return index === 0 ? [1, 0] : [-1, 0];
-  }
-  if (index === 0) {
-    return [path[0][0] - path[1][0], path[0][1] - path[1][1]];
-  }
-  const last = path.length - 1;
-  return [path[last][0] - path[last - 1][0], path[last][1] - path[last - 1][1]];
-}
-
 let editorWasmModule = null;
 let editorWasmLoad = null;
 let editorWasmFailed = false;
@@ -667,26 +467,6 @@ async function loadEditorGeometry() {
     editorGeometryModule = null;
   }
   return editorGeometryModule;
-}
-
-function polygonIsConvex(polygon) {
-  let gotNegative = false;
-  let gotPositive = false;
-  for (let index = 0; index < polygon.length; index += 1) {
-    const a = polygon[index];
-    const b = polygon[(index + 1) % polygon.length];
-    const c = polygon[(index + 2) % polygon.length];
-    const cross = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
-    if (cross < 0) {
-      gotNegative = true;
-    } else if (cross > 0) {
-      gotPositive = true;
-    }
-    if (gotNegative && gotPositive) {
-      return false;
-    }
-  }
-  return true;
 }
 
 function solveEditorWasm(caseData, maxCalls = 200000, maxSeconds = 3) {
@@ -2981,7 +2761,7 @@ async function saveManualCasesNow() {
   state.manualAutosaving = true;
   manualEditor.setSaveStatus("Saving...");
   try {
-    const data = await requestJSON(`/api/campaigns/${encodeURIComponent(campaignName)}/cases`, {
+    const data = await requestJSON(`/api/campaigns/${encodeURIComponent(campaignName)}/cases?refresh_previews=false`, {
       method: "PUT",
       body: JSON.stringify({ cases: state.manualCases.map(casePayload) }),
     });
@@ -3940,14 +3720,6 @@ function runningJobs() {
   return state.recentJobs.filter((job) => job.status === "running" || job.status === "stopping");
 }
 
-function jobPanel(job) {
-  return job.kind === "comparison" ? "comparison-panel" : "benchmark-panel";
-}
-
-function jobKindLabel(job) {
-  return job.kind === "comparison" ? "Comparison" : "Benchmark";
-}
-
 function dismissFinishedJobForPanel(panelId) {
   if (state.finishedDockJob && jobPanel(state.finishedDockJob) === panelId) {
     const dock = $("#job-dock");
@@ -3957,39 +3729,6 @@ function dismissFinishedJobForPanel(panelId) {
       renderJobDock();
     }, 180);
   }
-}
-
-function jobProgressLabel(job) {
-  if (job.kind === "comparison") {
-    const solverTotal = job.solver_progress_total || 0;
-    const solverCompleted = job.solver_progress_completed || 0;
-    const instanceTotal = job.progress_total || 0;
-    const instanceCompleted = job.progress_completed || 0;
-    const solverText = solverTotal ? `${solverCompleted}/${solverTotal} solvers` : "Comparing solvers";
-    const instanceText = instanceTotal ? `, ${instanceCompleted}/${instanceTotal} instances` : "";
-    return `${solverText}${instanceText}`;
-  }
-  if (job.progress_total) {
-    return `${job.progress_completed || 0}/${job.progress_total} instances`;
-  }
-  return "Compiling";
-}
-
-function jobTerminalState(job) {
-  if (job.status === "failed") {
-    return "failed";
-  }
-  if (job.status === "canceled") {
-    return "canceled";
-  }
-  if (job.status === "completed") {
-    return "completed";
-  }
-  return "running";
-}
-
-function jobDockStatusClass(job) {
-  return `is-${jobTerminalState(job)}`;
 }
 
 function jobDockStatusIcon(job) {
@@ -5035,7 +4774,7 @@ async function pollJob(jobId) {
     renderJobDock(previousJobs);
     const command = `+ ${job.command.join(" ")}\n\n`;
     setOutput(output, command + (job.output || ""));
-    if (Date.now() - lastRefresh > 1000) {
+    if (Date.now() - lastRefresh > REPORT_REFRESH_INTERVAL_MS) {
       await refresh();
       lastRefresh = Date.now();
     }
@@ -5076,10 +4815,9 @@ async function pollJob(jobId) {
       setOutput(output, command + (job.output || "") + logText + `\nstatus: ${job.status}`);
       setStopButton("#stop-run-button", null);
       state.currentRunJob = null;
-      await refresh();
       return;
     }
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
   }
 }
 
@@ -5088,6 +4826,7 @@ async function pollComparisonJob(jobId) {
   const progress = $("#compare-progress");
   setStopButton("#stop-compare-button", jobId);
   let lastReportRefresh = 0;
+  let reportRefreshInFlight = null;
   while (true) {
     const job = await requestJSON(`/api/jobs/${jobId}`);
     const previousJobs = state.recentJobs;
@@ -5109,11 +4848,18 @@ async function pollComparisonJob(jobId) {
       solverCompleted,
       solverTotal,
     });
-    if (Date.now() - lastReportRefresh > 1000 && jobActive) {
-      refreshComparisonReport(state.selectedComparisonCampaign || job.campaign);
+    if (Date.now() - lastReportRefresh > REPORT_REFRESH_INTERVAL_MS && jobActive && !reportRefreshInFlight) {
+      reportRefreshInFlight = refreshComparisonReport(state.selectedComparisonCampaign || job.campaign)
+        .catch((error) => setOutput(output, error.message))
+        .finally(() => {
+          reportRefreshInFlight = null;
+        });
       lastReportRefresh = Date.now();
     }
     if (!jobActive) {
+      if (reportRefreshInFlight) {
+        await reportRefreshInFlight;
+      }
       await refreshComparisonReport(state.selectedComparisonCampaign || job.campaign);
       setOutput(output, command + (job.output || "") + `\nstatus: ${job.status}`);
       setStopButton("#stop-compare-button", null);
@@ -5121,7 +4867,7 @@ async function pollComparisonJob(jobId) {
       await refresh();
       return;
     }
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
   }
 }
 

@@ -221,6 +221,7 @@ class Job:
 jobs: dict[str, Job] = {}
 _json_cache: OrderedDict[Path, tuple[int, int, dict[str, Any]]] = OrderedDict()
 _csv_cache: OrderedDict[tuple[Path, str], tuple[int, int, list[dict[str, str]]]] = OrderedDict()
+_binary_offset_cache: OrderedDict[Path, tuple[int, int, list[int]]] = OrderedDict()
 PROGRESS_PATTERN = re.compile(r"cases\s+\|\s+\[[^\]]*\]\s+(\d+)\s*/\s*(\d+)")
 SOLVER_SECTION_PATTERN = re.compile(r"^##\s+(.+)$", re.MULTILINE)
 Point = tuple[float, float]
@@ -254,6 +255,8 @@ def trim_file_caches() -> None:
 		_json_cache.popitem(last=False)
 	while len(_csv_cache) > FILE_CACHE_LIMIT:
 		_csv_cache.popitem(last=False)
+	while len(_binary_offset_cache) > FILE_CACHE_LIMIT:
+		_binary_offset_cache.popitem(last=False)
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -375,53 +378,88 @@ def skip_bytes(file: BinaryIO, byte_count: int, file_size: int) -> bool:
 	return True
 
 
-def binary_case_count(path: Path) -> int:
-	count = 0
-	file_size = path.stat().st_size
+def skip_binary_case(file: BinaryIO, file_size: int) -> bool:
+	if not skip_bytes(file, 2 * POINT_STRUCT.size, file_size):
+		return False
+	polygon_count = read_size(file)
+	if polygon_count is None:
+		return False
+	for _ in range(polygon_count):
+		vertex_count = read_size(file)
+		if vertex_count is None:
+			return False
+		if not skip_bytes(file, vertex_count * POINT_STRUCT.size, file_size):
+			return False
+	return read_size(file) is not None
+
+
+def binary_case_offsets(path: Path) -> list[int]:
+	signature = file_signature(path)
+	cached = _binary_offset_cache.get(path)
+	if cached and cached[:2] == signature:
+		_binary_offset_cache.move_to_end(path)
+		return list(cached[2])
+	offsets: list[int] = []
+	file_size = signature[1]
 	with path.open("rb") as file:
 		while file.tell() < file_size:
-			if not skip_bytes(file, 2 * POINT_STRUCT.size, file_size):
-				return count
-			polygon_count = read_size(file)
-			if polygon_count is None:
-				return count
-			for _ in range(polygon_count):
-				vertex_count = read_size(file)
-				if vertex_count is None:
-					return count
-				if not skip_bytes(file, vertex_count * POINT_STRUCT.size, file_size):
-					return count
-			if read_size(file) is None:
-				return count
-			count += 1
-	return count
+			offset = file.tell()
+			if not skip_binary_case(file, file_size):
+				break
+			offsets.append(offset)
+	_binary_offset_cache[path] = (*signature, offsets)
+	trim_file_caches()
+	return list(offsets)
+
+
+def read_binary_case_from_file(file: BinaryIO) -> CaseData | None:
+	start = read_point(file)
+	target = read_point(file)
+	polygon_count = read_size(file)
+	if start is None or target is None or polygon_count is None:
+		return None
+	polygons: list[list[Point]] = []
+	for _ in range(polygon_count):
+		vertex_count = read_size(file)
+		if vertex_count is None:
+			return None
+		polygon: list[Point] = []
+		for _ in range(vertex_count):
+			point = read_point(file)
+			if point is None:
+				return None
+			polygon.append(point)
+		polygons.append(polygon)
+	if read_size(file) is None:
+		return None
+	return start, target, polygons
+
+
+def binary_case_count(path: Path) -> int:
+	return len(binary_case_offsets(path))
+
+
+def read_binary_case(path: Path, index: int) -> CaseData | None:
+	if index < 0:
+		return None
+	offsets = binary_case_offsets(path)
+	if index >= len(offsets):
+		return None
+	with path.open("rb") as file:
+		file.seek(offsets[index])
+		return read_binary_case_from_file(file)
 
 
 def read_binary_cases(path: Path, limit: int) -> list[CaseData]:
 	cases: list[CaseData] = []
-	file_size = path.stat().st_size
+	offsets = binary_case_offsets(path)
 	with path.open("rb") as file:
-		while file.tell() < file_size and len(cases) < limit:
-			start = read_point(file)
-			target = read_point(file)
-			polygon_count = read_size(file)
-			if start is None or target is None or polygon_count is None:
+		for offset in offsets[:max(0, limit)]:
+			file.seek(offset)
+			case = read_binary_case_from_file(file)
+			if case is None:
 				return cases
-			polygons: list[list[Point]] = []
-			for _ in range(polygon_count):
-				vertex_count = read_size(file)
-				if vertex_count is None:
-					return cases
-				polygon: list[Point] = []
-				for _ in range(vertex_count):
-					point = read_point(file)
-					if point is None:
-						return cases
-					polygon.append(point)
-				polygons.append(polygon)
-			if read_size(file) is None:
-				return cases
-			cases.append((start, target, polygons))
+			cases.append(case)
 	return cases
 
 
@@ -607,10 +645,10 @@ def ensure_instance_preview(path: Path, data: dict[str, Any], index: int) -> Pat
 	preview_path = path / instance_previews[index]
 	if preview_path.exists() and not preview_svg_is_stale(preview_path):
 		return preview_path
-	cases = read_campaign_cases(path, data)
-	if index >= len(cases):
+	case = read_campaign_case(path, data, index)
+	if case is None:
 		return None
-	write_case_preview(preview_path, [cases[index]], cell_width=260, cell_height=180, columns=1, padding=6)
+	write_case_preview(preview_path, [case], cell_width=260, cell_height=180, columns=1, padding=6)
 	return preview_path
 
 
@@ -708,7 +746,12 @@ def write_manual_cases(path: Path, cases: list[CaseData]) -> None:
 	write_manual_case_requests(path, [ManualCaseRequest(**manual_case_to_data(case)) for case in cases])
 
 
-def rebuild_manual_campaign(path: Path, cases: list[ManualCaseRequest] | list[CaseData]) -> dict[str, Any]:
+def rebuild_manual_campaign(
+	path: Path,
+	cases: list[ManualCaseRequest] | list[CaseData],
+	*,
+	rebuild_previews: bool = True,
+) -> dict[str, Any]:
 	case_requests = [
 		case if isinstance(case, ManualCaseRequest) else ManualCaseRequest(**manual_case_to_data(case))
 		for case in cases
@@ -722,7 +765,7 @@ def rebuild_manual_campaign(path: Path, cases: list[ManualCaseRequest] | list[Ca
 	preview_dir = path / "previews"
 	if preview_dir.exists():
 		shutil.rmtree(preview_dir)
-	if case_data:
+	if case_data and rebuild_previews:
 		previews, instance_previews = write_imported_previews(path, case_data)
 	else:
 		previews, instance_previews = {}, []
@@ -971,6 +1014,8 @@ def preview_svg_is_stale(path: Path) -> bool:
 
 def campaign_previews_are_stale(path: Path, data: dict[str, Any]) -> bool:
 	candidates = list(preview_map(data).values()) + instance_preview_list(data)[:1]
+	if not candidates:
+		return total_instance_count(data) > 0
 	return any(preview_svg_is_stale(path / preview) for preview in candidates)
 
 
@@ -989,6 +1034,25 @@ def read_campaign_cases(path: Path, data: dict[str, Any]) -> list[CaseData]:
 			break
 		cases.extend(read_binary_cases(input_path, remaining))
 	return cases
+
+
+def read_campaign_case(path: Path, data: dict[str, Any], index: int) -> CaseData | None:
+	if index < 0:
+		return None
+	seen = 0
+	for input_record in data.get("inputs", []):
+		file_value = input_record.get("file")
+		if not isinstance(file_value, str):
+			continue
+		input_path = path / file_value
+		if not input_path.exists():
+			continue
+		instances = input_record.get("instances")
+		input_count = instances if isinstance(instances, int) and instances >= 0 else binary_case_count(input_path)
+		if index < seen + input_count:
+			return read_binary_case(input_path, index - seen)
+		seen += input_count
+	return None
 
 
 def refresh_stale_previews(path: Path, data: dict[str, Any]) -> dict[str, Any]:
@@ -1586,10 +1650,10 @@ async def get_manual_cases(name: str):
 
 
 @app.put("/api/campaigns/{name}/cases")
-async def replace_manual_cases(name: str, request: ManualCasesRequest):
+async def replace_manual_cases(name: str, request: ManualCasesRequest, refresh_previews: bool = True):
 	path = campaign_path(name)
 	read_json(path / "campaign.json")
-	campaign = rebuild_manual_campaign(path, request.cases)
+	campaign = rebuild_manual_campaign(path, request.cases, rebuild_previews=refresh_previews)
 	return {"ok": True, "campaign": campaign, "cases": [manual_case_request_to_json(case) for case in request.cases]}
 
 
