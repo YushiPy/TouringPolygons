@@ -27,1572 +27,1572 @@ const keybinds = createKeybindManager({ setCloseIcon });
 const controls = createDashboardControls({ $, campaignInstanceTotal, state, updateCreateMode });
 
 function instanceDisplayName(campaign, index) {
-  const cases = state.campaignCaseMetadata.get(campaign.name) || [];
-  return cases[index]?.name || `Instance ${instanceLabel(index)}`;
+	const cases = state.campaignCaseMetadata.get(campaign.name) || [];
+	return cases[index]?.name || `Instance ${instanceLabel(index)}`;
 }
 
 function instanceTitle(campaign, index) {
-  const total = campaign.instance_progress?.total || campaign.generation?.instances || campaign.generation?.instances_per_file || "?";
-  return `${instanceLabel(index)}/${total}: ${instanceDisplayName(campaign, index)}`;
+	const total = campaign.instance_progress?.total || campaign.generation?.instances || campaign.generation?.instances_per_file || "?";
+	return `${instanceLabel(index)}/${total}: ${instanceDisplayName(campaign, index)}`;
 }
 
 function cssVar(name) {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+	return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
 function switchPanel(panelId) {
-  document.querySelectorAll(".tab").forEach((tab) => {
-    tab.classList.toggle("is-active", tab.dataset.panel === panelId);
-  });
-  document.querySelectorAll(".panel").forEach((panel) => {
-    panel.classList.toggle("is-active", panel.id === panelId);
-  });
-  if (panelId === "cases-panel") {
-    requestAnimationFrame(() => manualEditor.frameCurrentCase());
-  }
-  dismissFinishedJobForPanel(panelId);
+	document.querySelectorAll(".tab").forEach((tab) => {
+		tab.classList.toggle("is-active", tab.dataset.panel === panelId);
+	});
+	document.querySelectorAll(".panel").forEach((panel) => {
+		panel.classList.toggle("is-active", panel.id === panelId);
+	});
+	if (panelId === "cases-panel") {
+		requestAnimationFrame(() => manualEditor.frameCurrentCase());
+	}
+	dismissFinishedJobForPanel(panelId);
 }
 
 const jobDock = createJobDock({ requestJSON, state, switchPanel });
 
 function renderJobDock(previousJobs = []) {
-  jobDock.renderJobDock(previousJobs);
+	jobDock.renderJobDock(previousJobs);
 }
 
 function setupJobDockDrag() {
-  jobDock.setupJobDockDrag();
+	jobDock.setupJobDockDrag();
 }
 
 async function cancelJobId(jobId) {
-  await jobDock.cancelJobId(jobId);
+	await jobDock.cancelJobId(jobId);
 }
 
 function dismissFinishedJobForPanel(panelId) {
-  dismissDockJobForPanel(state, panelId, renderJobDock);
+	dismissDockJobForPanel(state, panelId, renderJobDock);
 }
 
 function askConfirmation(message, action = "Delete") {
-  const modal = $("#confirm-modal");
-  $("#confirm-message").textContent = message;
-  modal.querySelector("[data-confirm-ok]").textContent = action;
-  modal.classList.remove("is-hidden");
-  return new Promise((resolve) => {
-    pendingConfirmation = resolve;
-  });
+	const modal = $("#confirm-modal");
+	$("#confirm-message").textContent = message;
+	modal.querySelector("[data-confirm-ok]").textContent = action;
+	modal.classList.remove("is-hidden");
+	return new Promise((resolve) => {
+		pendingConfirmation = resolve;
+	});
 }
 
 function closeConfirmation(value) {
-  $("#confirm-modal").classList.add("is-hidden");
-  if (pendingConfirmation) {
-    pendingConfirmation(value);
-    pendingConfirmation = null;
-  }
+	$("#confirm-modal").classList.add("is-hidden");
+	if (pendingConfirmation) {
+		pendingConfirmation(value);
+		pendingConfirmation = null;
+	}
 }
 
 function campaignExists(name) {
-  return state.campaigns.some((campaign) => campaign.name === name);
+	return state.campaigns.some((campaign) => campaign.name === name);
 }
 
 function campaignInstanceTotal(name) {
-  const campaign = state.campaigns.find((item) => item.name === name);
-  if (!campaign) {
-    return 1;
-  }
-  const generation = campaign.generation || {};
-  return Math.max(
-    1,
-    Number(campaign.instance_progress?.total)
-      || Number(generation.instances)
-      || Number(generation.instances_per_file)
-      || 1,
-  );
+	const campaign = state.campaigns.find((item) => item.name === name);
+	if (!campaign) {
+		return 1;
+	}
+	const generation = campaign.generation || {};
+	return Math.max(
+		1,
+		Number(campaign.instance_progress?.total)
+		|| Number(generation.instances)
+		|| Number(generation.instances_per_file)
+		|| 1,
+	);
 }
 
 function updateCampaignNameIndicator() {
-  const name = $("#create-name").value.trim();
-  const exists = campaignExists(name);
-  const indicator = $("#campaign-name-indicator");
-  const overwriteInput = document.querySelector('[name="overwrite"]');
-  const submit = $("#create-submit");
-  overwriteInput.value = exists ? "1" : "";
-  submit.textContent = exists ? "Overwrite" : "Create";
-  indicator.textContent = exists
-    ? "A campaign with this name already exists. Creating will overwrite it."
-    : "";
-  indicator.classList.toggle("is-warning", exists);
+	const name = $("#create-name").value.trim();
+	const exists = campaignExists(name);
+	const indicator = $("#campaign-name-indicator");
+	const overwriteInput = document.querySelector('[name="overwrite"]');
+	const submit = $("#create-submit");
+	overwriteInput.value = exists ? "1" : "";
+	submit.textContent = exists ? "Overwrite" : "Create";
+	indicator.textContent = exists
+		? "A campaign with this name already exists. Creating will overwrite it."
+		: "";
+	indicator.classList.toggle("is-warning", exists);
 }
 
 const manualEditor = {
-  canvas: null,
-  ctx: null,
-  mode: "move",
-  scale: 70,
-  minScale: 0.1,
-  maxScale: 50000,
-  offsetX: 0,
-  offsetY: 0,
-  activePoint: null,
-  selectedPoint: null,
-  selectedPoints: [],
-  selectionBase: [],
-  dragPolygon: null,
-  dragSelection: null,
-  panDrag: null,
-  pointerStart: null,
-  activePointers: new Map(),
-  pinchGesture: null,
-  selectionRect: null,
-  mouseCanvas: { x: 0, y: 0 },
-  selectionSpinStarted: performance.now(),
-  selectionAnimationRunning: false,
-  snapping: false,
-  activePolygon: null,
-  solutionPath: null,
-  solutionStale: false,
-  solutionTimer: null,
-  solutionFrame: null,
-  solutionAbort: null,
-  solutionRevision: 0,
-  layers: {
-    grid: true,
-    solution: true,
-    decomposition: true,
-    labels: true,
-  },
-  labelDirections: {
-    start: [1, 0],
-    target: [-1, 0],
-  },
-  labelAnimation: null,
-  expanded: false,
+	canvas: null,
+	ctx: null,
+	mode: "move",
+	scale: 70,
+	minScale: 0.1,
+	maxScale: 50000,
+	offsetX: 0,
+	offsetY: 0,
+	activePoint: null,
+	selectedPoint: null,
+	selectedPoints: [],
+	selectionBase: [],
+	dragPolygon: null,
+	dragSelection: null,
+	panDrag: null,
+	pointerStart: null,
+	activePointers: new Map(),
+	pinchGesture: null,
+	selectionRect: null,
+	mouseCanvas: { x: 0, y: 0 },
+	selectionSpinStarted: performance.now(),
+	selectionAnimationRunning: false,
+	snapping: false,
+	activePolygon: null,
+	solutionPath: null,
+	solutionStale: false,
+	solutionTimer: null,
+	solutionFrame: null,
+	solutionAbort: null,
+	solutionRevision: 0,
+	layers: {
+		grid: true,
+		solution: true,
+		decomposition: true,
+		labels: true,
+	},
+	labelDirections: {
+		start: [1, 0],
+		target: [-1, 0],
+	},
+	labelAnimation: null,
+	expanded: false,
 
-  init() {
-    this.canvas = $("#manual-case-canvas");
-    if (!this.canvas) {
-      return;
-    }
-    this.ctx = this.canvas.getContext("2d");
-    this.canvas.tabIndex = 0;
-    this.loadCamera();
-    this.resize();
-    new ResizeObserver(() => {
-      this.resize();
-      this.draw();
-    }).observe(this.canvas);
-    this.canvas.addEventListener("pointerdown", (event) => this.onPointerDown(event));
-    this.canvas.addEventListener("pointermove", (event) => this.onPointerMove(event));
-    $("#cases-panel")?.addEventListener("click", (event) => {
-      if (this.expanded && event.target === event.currentTarget) {
-        this.toggleExpanded(false);
-      }
-    });
-    const finishPointer = (event) => {
-      this.activePointers.delete(event.pointerId);
-      if (this.pinchGesture && this.activePointers.size < 2) {
-        this.pinchGesture = null;
-      }
-      this.activePoint = null;
-      this.dragSelection = null;
-      this.dragPolygon = null;
-      const pointerStart = this.pointerStart;
-      this.panDrag = null;
-      this.pointerStart = null;
-      if (this.selectionRect) {
-        this.finishSelection();
-      } else if (pointerStart?.kind === "pan") {
-        const moved = Math.hypot(event.clientX - pointerStart.clientX, event.clientY - pointerStart.clientY) > 4;
-        if (!moved) {
-          this.clearSelection();
-        }
-      }
-      if (event.pointerId !== undefined && this.canvas.hasPointerCapture?.(event.pointerId)) {
-        this.canvas.releasePointerCapture(event.pointerId);
-      }
-      this.updateCursor();
-    };
-    window.addEventListener("pointerup", finishPointer);
-    window.addEventListener("pointercancel", finishPointer);
-    this.canvas.addEventListener("wheel", (event) => this.onWheel(event), { passive: false });
-    document.addEventListener("keydown", (event) => this.onKeyDown(event));
-    loadEditorWasm();
-    loadEditorGeometry();
-    this.syncCloseButton();
-    this.toggleSnapping(false);
-    this.draw();
-  },
+	init() {
+		this.canvas = $("#manual-case-canvas");
+		if (!this.canvas) {
+			return;
+		}
+		this.ctx = this.canvas.getContext("2d");
+		this.canvas.tabIndex = 0;
+		this.loadCamera();
+		this.resize();
+		new ResizeObserver(() => {
+			this.resize();
+			this.draw();
+		}).observe(this.canvas);
+		this.canvas.addEventListener("pointerdown", (event) => this.onPointerDown(event));
+		this.canvas.addEventListener("pointermove", (event) => this.onPointerMove(event));
+		$("#cases-panel")?.addEventListener("click", (event) => {
+			if (this.expanded && event.target === event.currentTarget) {
+				this.toggleExpanded(false);
+			}
+		});
+		const finishPointer = (event) => {
+			this.activePointers.delete(event.pointerId);
+			if (this.pinchGesture && this.activePointers.size < 2) {
+				this.pinchGesture = null;
+			}
+			this.activePoint = null;
+			this.dragSelection = null;
+			this.dragPolygon = null;
+			const pointerStart = this.pointerStart;
+			this.panDrag = null;
+			this.pointerStart = null;
+			if (this.selectionRect) {
+				this.finishSelection();
+			} else if (pointerStart?.kind === "pan") {
+				const moved = Math.hypot(event.clientX - pointerStart.clientX, event.clientY - pointerStart.clientY) > 4;
+				if (!moved) {
+					this.clearSelection();
+				}
+			}
+			if (event.pointerId !== undefined && this.canvas.hasPointerCapture?.(event.pointerId)) {
+				this.canvas.releasePointerCapture(event.pointerId);
+			}
+			this.updateCursor();
+		};
+		window.addEventListener("pointerup", finishPointer);
+		window.addEventListener("pointercancel", finishPointer);
+		this.canvas.addEventListener("wheel", (event) => this.onWheel(event), { passive: false });
+		document.addEventListener("keydown", (event) => this.onKeyDown(event));
+		loadEditorWasm();
+		loadEditorGeometry();
+		this.syncCloseButton();
+		this.toggleSnapping(false);
+		this.draw();
+	},
 
-  resize() {
-    const dpr = window.devicePixelRatio || 1;
-    this.canvas.width = Math.max(1, Math.round(this.canvas.offsetWidth * dpr));
-    this.canvas.height = Math.max(1, Math.round(this.canvas.offsetHeight * dpr));
-    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (this.offsetX === 0 && this.offsetY === 0) {
-      this.offsetX = this.canvas.offsetWidth / 2;
-      this.offsetY = this.canvas.offsetHeight / 2;
-    }
-  },
+	resize() {
+		const dpr = window.devicePixelRatio || 1;
+		this.canvas.width = Math.max(1, Math.round(this.canvas.offsetWidth * dpr));
+		this.canvas.height = Math.max(1, Math.round(this.canvas.offsetHeight * dpr));
+		this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+		if (this.offsetX === 0 && this.offsetY === 0) {
+			this.offsetX = this.canvas.offsetWidth / 2;
+			this.offsetY = this.canvas.offsetHeight / 2;
+		}
+	},
 
-  loadCamera() {
-    try {
-      const camera = JSON.parse(localStorage.getItem("benchmarkDashboardManualEditorCamera") || "null");
-      if (!camera) {
-        return;
-      }
-      this.scale = Number(camera.scale) || this.scale;
-      this.offsetX = Number(camera.offsetX) || this.offsetX;
-      this.offsetY = Number(camera.offsetY) || this.offsetY;
-    } catch {
-      // Ignore stale local camera data.
-    }
-  },
+	loadCamera() {
+		try {
+			const camera = JSON.parse(localStorage.getItem("benchmarkDashboardManualEditorCamera") || "null");
+			if (!camera) {
+				return;
+			}
+			this.scale = Number(camera.scale) || this.scale;
+			this.offsetX = Number(camera.offsetX) || this.offsetX;
+			this.offsetY = Number(camera.offsetY) || this.offsetY;
+		} catch {
+			// Ignore stale local camera data.
+		}
+	},
 
-  saveCamera() {
-    localStorage.setItem("benchmarkDashboardManualEditorCamera", JSON.stringify({
-      scale: this.scale,
-      offsetX: this.offsetX,
-      offsetY: this.offsetY,
-    }));
-  },
+	saveCamera() {
+		localStorage.setItem("benchmarkDashboardManualEditorCamera", JSON.stringify({
+			scale: this.scale,
+			offsetX: this.offsetX,
+			offsetY: this.offsetY,
+		}));
+	},
 
-  currentCase() {
-    return state.manualCases[state.manualCaseIndex] || null;
-  },
+	currentCase() {
+		return state.manualCases[state.manualCaseIndex] || null;
+	},
 
-  caseBounds(caseData = this.currentCase()) {
-    if (!caseData) {
-      return null;
-    }
-    const points = [caseData.start, caseData.target, ...caseData.polygons.flat()];
-    if (points.length === 0) {
-      return null;
-    }
-    const xs = points.map((point) => point[0]);
-    const ys = points.map((point) => point[1]);
-    return {
-      minX: Math.min(...xs),
-      minY: Math.min(...ys),
-      maxX: Math.max(...xs),
-      maxY: Math.max(...ys),
-    };
-  },
+	caseBounds(caseData = this.currentCase()) {
+		if (!caseData) {
+			return null;
+		}
+		const points = [caseData.start, caseData.target, ...caseData.polygons.flat()];
+		if (points.length === 0) {
+			return null;
+		}
+		const xs = points.map((point) => point[0]);
+		const ys = points.map((point) => point[1]);
+		return {
+			minX: Math.min(...xs),
+			minY: Math.min(...ys),
+			maxX: Math.max(...xs),
+			maxY: Math.max(...ys),
+		};
+	},
 
-  updateZoomLimits(bounds = this.caseBounds()) {
-    if (!bounds || !this.canvas) {
-      this.minScale = 0.1;
-      this.maxScale = 50000;
-      return;
-    }
-    const width = Math.max(this.canvas.offsetWidth, 1);
-    const height = Math.max(this.canvas.offsetHeight, 1);
-    const spanX = Math.max(bounds.maxX - bounds.minX, 1e-6);
-    const spanY = Math.max(bounds.maxY - bounds.minY, 1e-6);
-    const fitScale = Math.min(width / spanX, height / spanY);
-    this.minScale = Math.max(0.00001, fitScale * 0.025);
-    this.maxScale = Math.min(2000000, Math.max(fitScale * 180, this.minScale * 10));
-    this.scale = Math.max(this.minScale, Math.min(this.maxScale, this.scale));
-  },
+	updateZoomLimits(bounds = this.caseBounds()) {
+		if (!bounds || !this.canvas) {
+			this.minScale = 0.1;
+			this.maxScale = 50000;
+			return;
+		}
+		const width = Math.max(this.canvas.offsetWidth, 1);
+		const height = Math.max(this.canvas.offsetHeight, 1);
+		const spanX = Math.max(bounds.maxX - bounds.minX, 1e-6);
+		const spanY = Math.max(bounds.maxY - bounds.minY, 1e-6);
+		const fitScale = Math.min(width / spanX, height / spanY);
+		this.minScale = Math.max(0.00001, fitScale * 0.025);
+		this.maxScale = Math.min(2000000, Math.max(fitScale * 180, this.minScale * 10));
+		this.scale = Math.max(this.minScale, Math.min(this.maxScale, this.scale));
+	},
 
-  frameCurrentCase() {
-    const bounds = this.caseBounds();
-    if (!bounds || !this.canvas) {
-      return;
-    }
-    this.updateZoomLimits(bounds);
-    const width = this.canvas.offsetWidth;
-    const height = this.canvas.offsetHeight;
-    const pad = 42;
-    const spanX = Math.max(bounds.maxX - bounds.minX, 1e-6);
-    const spanY = Math.max(bounds.maxY - bounds.minY, 1e-6);
-    this.scale = Math.max(this.minScale, Math.min(this.maxScale, Math.min(
-      (width - 2 * pad) / spanX,
-      (height - 2 * pad) / spanY,
-    )));
-    const centerX = (bounds.minX + bounds.maxX) / 2;
-    const centerY = (bounds.minY + bounds.maxY) / 2;
-    this.offsetX = width / 2 - centerX * this.scale;
-    this.offsetY = height / 2 + centerY * this.scale;
-    this.saveCamera();
-    this.draw();
-  },
+	frameCurrentCase() {
+		const bounds = this.caseBounds();
+		if (!bounds || !this.canvas) {
+			return;
+		}
+		this.updateZoomLimits(bounds);
+		const width = this.canvas.offsetWidth;
+		const height = this.canvas.offsetHeight;
+		const pad = 42;
+		const spanX = Math.max(bounds.maxX - bounds.minX, 1e-6);
+		const spanY = Math.max(bounds.maxY - bounds.minY, 1e-6);
+		this.scale = Math.max(this.minScale, Math.min(this.maxScale, Math.min(
+			(width - 2 * pad) / spanX,
+			(height - 2 * pad) / spanY,
+		)));
+		const centerX = (bounds.minX + bounds.maxX) / 2;
+		const centerY = (bounds.minY + bounds.maxY) / 2;
+		this.offsetX = width / 2 - centerX * this.scale;
+		this.offsetY = height / 2 + centerY * this.scale;
+		this.saveCamera();
+		this.draw();
+	},
 
-  toggleLayer(layer, force = null) {
-    if (!(layer in this.layers)) {
-      return;
-    }
-    this.layers[layer] = force === null ? !this.layers[layer] : force;
-    const button = document.querySelector(`[data-editor-layer="${layer}"]`);
-    button?.classList.toggle("is-active", this.layers[layer]);
-    button?.setAttribute("aria-pressed", this.layers[layer] ? "true" : "false");
-    this.draw();
-  },
+	toggleLayer(layer, force = null) {
+		if (!(layer in this.layers)) {
+			return;
+		}
+		this.layers[layer] = force === null ? !this.layers[layer] : force;
+		const button = document.querySelector(`[data-editor-layer="${layer}"]`);
+		button?.classList.toggle("is-active", this.layers[layer]);
+		button?.setAttribute("aria-pressed", this.layers[layer] ? "true" : "false");
+		this.draw();
+	},
 
-  pointRadius(kind = "vertex") {
-    const base = Math.sqrt(Math.max(0.1, this.scale)) * 0.62;
-    const radius = Math.max(1.4, Math.min(kind === "endpoint" ? 6.5 : 5.2, base));
-    return radius;
-  },
+	pointRadius(kind = "vertex") {
+		const base = Math.sqrt(Math.max(0.1, this.scale)) * 0.62;
+		const radius = Math.max(1.4, Math.min(kind === "endpoint" ? 6.5 : 5.2, base));
+		return radius;
+	},
 
-  worldToCanvas(point) {
-    return {
-      x: this.offsetX + point[0] * this.scale,
-      y: this.offsetY - point[1] * this.scale,
-    };
-  },
+	worldToCanvas(point) {
+		return {
+			x: this.offsetX + point[0] * this.scale,
+			y: this.offsetY - point[1] * this.scale,
+		};
+	},
 
-  canvasToWorld(x, y) {
-    return [
-      (x - this.offsetX) / this.scale,
-      -(y - this.offsetY) / this.scale,
-    ];
-  },
+	canvasToWorld(x, y) {
+		return [
+			(x - this.offsetX) / this.scale,
+			-(y - this.offsetY) / this.scale,
+		];
+	},
 
-  snapStep() {
-    return this.gridMetrics().subGridSpacing;
-  },
+	snapStep() {
+		return this.gridMetrics().subGridSpacing;
+	},
 
-  gridMetrics() {
-    const decisionValue = 83 / this.scale;
-    let exponent = Math.ceil(Math.log10(decisionValue)) || 0;
-    let multiplier = 1;
-    let subGridCount = 4;
-    const gridScale = 10 ** exponent;
-    if (gridScale / 5 > decisionValue) {
-      subGridCount = 3;
-      exponent -= 1;
-      multiplier = 2;
-    } else if (gridScale / 2 > decisionValue) {
-      exponent -= 1;
-      multiplier = 5;
-    }
-    const gridSpacing = (10 ** exponent) * multiplier;
-    return {
-      gridSpacing,
-      subGridCount,
-      subGridSpacing: gridSpacing / (subGridCount + 1),
-    };
-  },
+	gridMetrics() {
+		const decisionValue = 83 / this.scale;
+		let exponent = Math.ceil(Math.log10(decisionValue)) || 0;
+		let multiplier = 1;
+		let subGridCount = 4;
+		const gridScale = 10 ** exponent;
+		if (gridScale / 5 > decisionValue) {
+			subGridCount = 3;
+			exponent -= 1;
+			multiplier = 2;
+		} else if (gridScale / 2 > decisionValue) {
+			exponent -= 1;
+			multiplier = 5;
+		}
+		const gridSpacing = (10 ** exponent) * multiplier;
+		return {
+			gridSpacing,
+			subGridCount,
+			subGridSpacing: gridSpacing / (subGridCount + 1),
+		};
+	},
 
-  snap(point) {
-    if (!this.snapping) {
-      return point;
-    }
-    const step = this.snapStep();
-    return point.map((value) => Math.round(value / step) * step);
-  },
+	snap(point) {
+		if (!this.snapping) {
+			return point;
+		}
+		const step = this.snapStep();
+		return point.map((value) => Math.round(value / step) * step);
+	},
 
-  setMode(mode) {
-    this.mode = mode;
-    document.querySelectorAll("[data-manual-mode] .segment").forEach((button) => {
-      button.classList.toggle("is-active", button.dataset.mode === mode);
-    });
-    this.updateCursor();
-    this.syncCloseButton();
-    this.draw();
-  },
+	setMode(mode) {
+		this.mode = mode;
+		document.querySelectorAll("[data-manual-mode] .segment").forEach((button) => {
+			button.classList.toggle("is-active", button.dataset.mode === mode);
+		});
+		this.updateCursor();
+		this.syncCloseButton();
+		this.draw();
+	},
 
-  toggleSnapping(force = null) {
-    this.snapping = force === null ? !this.snapping : force;
-    const button = $("#toggle-manual-snapping");
-    button?.classList.toggle("is-active", this.snapping);
-    button?.setAttribute("aria-pressed", this.snapping ? "true" : "false");
-    this.draw();
-  },
+	toggleSnapping(force = null) {
+		this.snapping = force === null ? !this.snapping : force;
+		const button = $("#toggle-manual-snapping");
+		button?.classList.toggle("is-active", this.snapping);
+		button?.setAttribute("aria-pressed", this.snapping ? "true" : "false");
+		this.draw();
+	},
 
-  zoomBy(factor) {
-    const centerX = this.canvas.offsetWidth / 2;
-    const centerY = this.canvas.offsetHeight / 2;
-    const before = this.canvasToWorld(centerX, centerY);
-    this.updateZoomLimits();
-    this.scale = Math.max(this.minScale, Math.min(this.maxScale, this.scale * factor));
-    const after = this.canvasToWorld(centerX, centerY);
-    this.offsetX += (after[0] - before[0]) * this.scale;
-    this.offsetY -= (after[1] - before[1]) * this.scale;
-    this.saveCamera();
-    this.draw();
-  },
+	zoomBy(factor) {
+		const centerX = this.canvas.offsetWidth / 2;
+		const centerY = this.canvas.offsetHeight / 2;
+		const before = this.canvasToWorld(centerX, centerY);
+		this.updateZoomLimits();
+		this.scale = Math.max(this.minScale, Math.min(this.maxScale, this.scale * factor));
+		const after = this.canvasToWorld(centerX, centerY);
+		this.offsetX += (after[0] - before[0]) * this.scale;
+		this.offsetY -= (after[1] - before[1]) * this.scale;
+		this.saveCamera();
+		this.draw();
+	},
 
-  toggleExpanded(force = null) {
-    const centerWorld = this.canvasToWorld(this.canvas.offsetWidth / 2, this.canvas.offsetHeight / 2);
-    this.expanded = force === null ? !this.expanded : force;
-    const panel = $("#cases-panel");
-    const button = $("#manual-editor-expand");
-    panel?.classList.toggle("editor-expanded", this.expanded);
-    document.body.classList.toggle("manual-editor-is-expanded", this.expanded);
-    button?.setAttribute("aria-pressed", this.expanded ? "true" : "false");
-    if (button) {
-      button.textContent = this.expanded ? "Collapse" : "Expand";
-    }
-    requestAnimationFrame(() => {
-      this.resize();
-      this.offsetX = this.canvas.offsetWidth / 2 - centerWorld[0] * this.scale;
-      this.offsetY = this.canvas.offsetHeight / 2 + centerWorld[1] * this.scale;
-      this.saveCamera();
-      this.draw();
-    });
-  },
+	toggleExpanded(force = null) {
+		const centerWorld = this.canvasToWorld(this.canvas.offsetWidth / 2, this.canvas.offsetHeight / 2);
+		this.expanded = force === null ? !this.expanded : force;
+		const panel = $("#cases-panel");
+		const button = $("#manual-editor-expand");
+		panel?.classList.toggle("editor-expanded", this.expanded);
+		document.body.classList.toggle("manual-editor-is-expanded", this.expanded);
+		button?.setAttribute("aria-pressed", this.expanded ? "true" : "false");
+		if (button) {
+			button.textContent = this.expanded ? "Collapse" : "Expand";
+		}
+		requestAnimationFrame(() => {
+			this.resize();
+			this.offsetX = this.canvas.offsetWidth / 2 - centerWorld[0] * this.scale;
+			this.offsetY = this.canvas.offsetHeight / 2 + centerWorld[1] * this.scale;
+			this.saveCamera();
+			this.draw();
+		});
+	},
 
-  setSolveStatus(message) {
-    const status = $("#manual-solve-status");
-    if (status) {
-      status.textContent = message || "";
-    }
-  },
+	setSolveStatus(message) {
+		const status = $("#manual-solve-status");
+		if (status) {
+			status.textContent = message || "";
+		}
+	},
 
-  setSaveStatus(message) {
-    const status = $("#manual-save-status");
-    if (status) {
-      status.textContent = message || "";
-    }
-  },
+	setSaveStatus(message) {
+		const status = $("#manual-save-status");
+		if (status) {
+			status.textContent = message || "";
+		}
+	},
 
-  setStatus(message) {
-    this.setSolveStatus(message);
-  },
+	setStatus(message) {
+		this.setSolveStatus(message);
+	},
 
-  syncCloseButton() {
-    const button = $("#close-manual-polygon");
-    if (!button) {
-      return;
-    }
-    const current = this.currentCase();
-    const polygon = current && this.activePolygon !== null ? current.polygons[this.activePolygon] : null;
-    const canClose = Boolean(polygon && polygon.length >= 3);
-    button.classList.toggle("is-disabled", !canClose);
-    button.disabled = !canClose;
-    button.setAttribute("aria-disabled", canClose ? "false" : "true");
-  },
+	syncCloseButton() {
+		const button = $("#close-manual-polygon");
+		if (!button) {
+			return;
+		}
+		const current = this.currentCase();
+		const polygon = current && this.activePolygon !== null ? current.polygons[this.activePolygon] : null;
+		const canClose = Boolean(polygon && polygon.length >= 3);
+		button.classList.toggle("is-disabled", !canClose);
+		button.disabled = !canClose;
+		button.setAttribute("aria-disabled", canClose ? "false" : "true");
+	},
 
-  showCloseHint() {
-    const button = $("#close-manual-polygon");
-    if (!button) {
-      return;
-    }
-    button.classList.add("show-tooltip");
-    clearTimeout(button._tooltipTimer);
-    button._tooltipTimer = setTimeout(() => button.classList.remove("show-tooltip"), 1800);
-  },
+	showCloseHint() {
+		const button = $("#close-manual-polygon");
+		if (!button) {
+			return;
+		}
+		button.classList.add("show-tooltip");
+		clearTimeout(button._tooltipTimer);
+		button._tooltipTimer = setTimeout(() => button.classList.remove("show-tooltip"), 1800);
+	},
 
-  updateLabelDirections(animate = false) {
-    const targets = {
-      start: solutionDirectionAt(this.solutionPath, 0),
-      target: solutionDirectionAt(this.solutionPath, 1),
-    };
-    if (!animate) {
-      this.labelDirections = targets;
-      return;
-    }
-    if (this.labelAnimation) {
-      cancelAnimationFrame(this.labelAnimation);
-    }
-    let frame = 0;
-    const step = () => {
-      frame += 1;
-      for (const key of ["start", "target"]) {
-        this.labelDirections[key] = [
-          this.labelDirections[key][0] + (targets[key][0] - this.labelDirections[key][0]) * 0.24,
-          this.labelDirections[key][1] + (targets[key][1] - this.labelDirections[key][1]) * 0.24,
-        ];
-      }
-      this.draw();
-      if (frame < 14) {
-        this.labelAnimation = requestAnimationFrame(step);
-      } else {
-        this.labelDirections = targets;
-        this.labelAnimation = null;
-        this.draw();
-      }
-    };
-    step();
-  },
+	updateLabelDirections(animate = false) {
+		const targets = {
+			start: solutionDirectionAt(this.solutionPath, 0),
+			target: solutionDirectionAt(this.solutionPath, 1),
+		};
+		if (!animate) {
+			this.labelDirections = targets;
+			return;
+		}
+		if (this.labelAnimation) {
+			cancelAnimationFrame(this.labelAnimation);
+		}
+		let frame = 0;
+		const step = () => {
+			frame += 1;
+			for (const key of ["start", "target"]) {
+				this.labelDirections[key] = [
+					this.labelDirections[key][0] + (targets[key][0] - this.labelDirections[key][0]) * 0.24,
+					this.labelDirections[key][1] + (targets[key][1] - this.labelDirections[key][1]) * 0.24,
+				];
+			}
+			this.draw();
+			if (frame < 14) {
+				this.labelAnimation = requestAnimationFrame(step);
+			} else {
+				this.labelDirections = targets;
+				this.labelAnimation = null;
+				this.draw();
+			}
+		};
+		step();
+	},
 
-  selectNearestPoint(x, y) {
-    const current = this.currentCase();
-    if (!current) {
-      return null;
-    }
-    const candidates = [
-      { kind: "start", point: current.start },
-      { kind: "target", point: current.target },
-    ];
-    current.polygons.forEach((polygon, polygonIndex) => {
-      polygon.forEach((point, vertexIndex) => {
-        candidates.push({ kind: "vertex", point, polygonIndex, vertexIndex });
-      });
-    });
-    let best = null;
-    let bestDistance = 20;
-    for (const candidate of candidates) {
-      const canvasPoint = this.worldToCanvas(candidate.point);
-      const distance = Math.hypot(canvasPoint.x - x, canvasPoint.y - y);
-      if (distance <= bestDistance) {
-        best = candidate;
-        bestDistance = distance;
-      }
-    }
-    return best;
-  },
+	selectNearestPoint(x, y) {
+		const current = this.currentCase();
+		if (!current) {
+			return null;
+		}
+		const candidates = [
+			{ kind: "start", point: current.start },
+			{ kind: "target", point: current.target },
+		];
+		current.polygons.forEach((polygon, polygonIndex) => {
+			polygon.forEach((point, vertexIndex) => {
+				candidates.push({ kind: "vertex", point, polygonIndex, vertexIndex });
+			});
+		});
+		let best = null;
+		let bestDistance = 20;
+		for (const candidate of candidates) {
+			const canvasPoint = this.worldToCanvas(candidate.point);
+			const distance = Math.hypot(canvasPoint.x - x, canvasPoint.y - y);
+			if (distance <= bestDistance) {
+				best = candidate;
+				bestDistance = distance;
+			}
+		}
+		return best;
+	},
 
-  isClosingPolygon(x, y) {
-    const current = this.currentCase();
-    if (!current || this.mode !== "polygon" || this.activePolygon === null) {
-      return false;
-    }
-    const polygon = current.polygons[this.activePolygon];
-    if (!polygon || polygon.length < 3) {
-      return false;
-    }
-    const first = this.worldToCanvas(polygon[0]);
-    return Math.hypot(first.x - x, first.y - y) <= 16;
-  },
+	isClosingPolygon(x, y) {
+		const current = this.currentCase();
+		if (!current || this.mode !== "polygon" || this.activePolygon === null) {
+			return false;
+		}
+		const polygon = current.polygons[this.activePolygon];
+		if (!polygon || polygon.length < 3) {
+			return false;
+		}
+		const first = this.worldToCanvas(polygon[0]);
+		return Math.hypot(first.x - x, first.y - y) <= 16;
+	},
 
-  pointInPolygon(world, polygon) {
-    let inside = false;
-    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-      const xi = polygon[i][0];
-      const yi = polygon[i][1];
-      const xj = polygon[j][0];
-      const yj = polygon[j][1];
-      if (((yi > world[1]) !== (yj > world[1]))
-        && world[0] < ((xj - xi) * (world[1] - yi)) / (yj - yi) + xi) {
-        inside = !inside;
-      }
-    }
-    return inside;
-  },
+	pointInPolygon(world, polygon) {
+		let inside = false;
+		for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+			const xi = polygon[i][0];
+			const yi = polygon[i][1];
+			const xj = polygon[j][0];
+			const yj = polygon[j][1];
+			if (((yi > world[1]) !== (yj > world[1]))
+				&& world[0] < ((xj - xi) * (world[1] - yi)) / (yj - yi) + xi) {
+				inside = !inside;
+			}
+		}
+		return inside;
+	},
 
-  selectPolygon(x, y) {
-    const current = this.currentCase();
-    if (!current) {
-      return -1;
-    }
-    const world = this.canvasToWorld(x, y);
-    for (let index = current.polygons.length - 1; index >= 0; index -= 1) {
-      const polygon = current.polygons[index];
-      if (polygon.length >= 3 && this.pointInPolygon(world, polygon)) {
-        return index;
-      }
-    }
-    return -1;
-  },
+	selectPolygon(x, y) {
+		const current = this.currentCase();
+		if (!current) {
+			return -1;
+		}
+		const world = this.canvasToWorld(x, y);
+		for (let index = current.polygons.length - 1; index >= 0; index -= 1) {
+			const polygon = current.polygons[index];
+			if (polygon.length >= 3 && this.pointInPolygon(world, polygon)) {
+				return index;
+			}
+		}
+		return -1;
+	},
 
-  pointsInRect(rect) {
-    const current = this.currentCase();
-    if (!current) {
-      return [];
-    }
-    const left = Math.min(rect.start.x, rect.end.x);
-    const right = Math.max(rect.start.x, rect.end.x);
-    const top = Math.min(rect.start.y, rect.end.y);
-    const bottom = Math.max(rect.start.y, rect.end.y);
-    const selected = [];
-    [
-      { kind: "start", point: current.start },
-      { kind: "target", point: current.target },
-    ].forEach((point) => {
-      const canvasPoint = this.worldToCanvas(point.point);
-      if (canvasPoint.x >= left && canvasPoint.x <= right && canvasPoint.y >= top && canvasPoint.y <= bottom) {
-        selected.push(point);
-      }
-    });
-    current.polygons.forEach((polygon, polygonIndex) => {
-      polygon.forEach((point, vertexIndex) => {
-        const canvasPoint = this.worldToCanvas(point);
-        if (canvasPoint.x >= left && canvasPoint.x <= right && canvasPoint.y >= top && canvasPoint.y <= bottom) {
-          selected.push({ kind: "vertex", point, polygonIndex, vertexIndex });
-        }
-      });
-    });
-    return selected;
-  },
+	pointsInRect(rect) {
+		const current = this.currentCase();
+		if (!current) {
+			return [];
+		}
+		const left = Math.min(rect.start.x, rect.end.x);
+		const right = Math.max(rect.start.x, rect.end.x);
+		const top = Math.min(rect.start.y, rect.end.y);
+		const bottom = Math.max(rect.start.y, rect.end.y);
+		const selected = [];
+		[
+			{ kind: "start", point: current.start },
+			{ kind: "target", point: current.target },
+		].forEach((point) => {
+			const canvasPoint = this.worldToCanvas(point.point);
+			if (canvasPoint.x >= left && canvasPoint.x <= right && canvasPoint.y >= top && canvasPoint.y <= bottom) {
+				selected.push(point);
+			}
+		});
+		current.polygons.forEach((polygon, polygonIndex) => {
+			polygon.forEach((point, vertexIndex) => {
+				const canvasPoint = this.worldToCanvas(point);
+				if (canvasPoint.x >= left && canvasPoint.x <= right && canvasPoint.y >= top && canvasPoint.y <= bottom) {
+					selected.push({ kind: "vertex", point, polygonIndex, vertexIndex });
+				}
+			});
+		});
+		return selected;
+	},
 
-  samePointSelection(left, right) {
-    return left?.kind === right?.kind
-      && left?.polygonIndex === right?.polygonIndex
-      && left?.vertexIndex === right?.vertexIndex;
-  },
+	samePointSelection(left, right) {
+		return left?.kind === right?.kind
+			&& left?.polygonIndex === right?.polygonIndex
+			&& left?.vertexIndex === right?.vertexIndex;
+	},
 
-  mergeSelections(base, selected) {
-    const merged = [...base];
-    for (const point of selected) {
-      if (!merged.some((existing) => this.samePointSelection(existing, point))) {
-        merged.push(point);
-      }
-    }
-    return merged;
-  },
+	mergeSelections(base, selected) {
+		const merged = [...base];
+		for (const point of selected) {
+			if (!merged.some((existing) => this.samePointSelection(existing, point))) {
+				merged.push(point);
+			}
+		}
+		return merged;
+	},
 
-  activeTouchPoints() {
-    return [...this.activePointers.values()].filter((pointer) => pointer.pointerType === "touch");
-  },
+	activeTouchPoints() {
+		return [...this.activePointers.values()].filter((pointer) => pointer.pointerType === "touch");
+	},
 
-  startPinchGesture() {
-    const touches = this.activeTouchPoints().slice(0, 2);
-    if (touches.length < 2) {
-      return false;
-    }
-    const rect = this.canvas.getBoundingClientRect();
-    const midpoint = {
-      x: (touches[0].clientX + touches[1].clientX) / 2 - rect.left,
-      y: (touches[0].clientY + touches[1].clientY) / 2 - rect.top,
-    };
-    this.pinchGesture = {
-      distance: Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY),
-      midpoint,
-    };
-    this.activePoint = null;
-    this.dragSelection = null;
-    this.dragPolygon = null;
-    this.panDrag = null;
-    this.selectionRect = null;
-    this.pointerStart = { kind: "pinch", clientX: midpoint.x + rect.left, clientY: midpoint.y + rect.top };
-    return true;
-  },
+	startPinchGesture() {
+		const touches = this.activeTouchPoints().slice(0, 2);
+		if (touches.length < 2) {
+			return false;
+		}
+		const rect = this.canvas.getBoundingClientRect();
+		const midpoint = {
+			x: (touches[0].clientX + touches[1].clientX) / 2 - rect.left,
+			y: (touches[0].clientY + touches[1].clientY) / 2 - rect.top,
+		};
+		this.pinchGesture = {
+			distance: Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY),
+			midpoint,
+		};
+		this.activePoint = null;
+		this.dragSelection = null;
+		this.dragPolygon = null;
+		this.panDrag = null;
+		this.selectionRect = null;
+		this.pointerStart = { kind: "pinch", clientX: midpoint.x + rect.left, clientY: midpoint.y + rect.top };
+		return true;
+	},
 
-  updatePinchGesture() {
-    if (!this.pinchGesture && !this.startPinchGesture()) {
-      return false;
-    }
-    const gesture = this.pinchGesture;
-    if (!gesture || gesture.distance <= 0) {
-      return false;
-    }
-    const touches = this.activeTouchPoints().slice(0, 2);
-    const distance = Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
-    if (distance <= 0) {
-      return false;
-    }
-    const rect = this.canvas.getBoundingClientRect();
-    const midpoint = {
-      x: (touches[0].clientX + touches[1].clientX) / 2 - rect.left,
-      y: (touches[0].clientY + touches[1].clientY) / 2 - rect.top,
-    };
-    const before = this.canvasToWorld(midpoint.x, midpoint.y);
-    this.updateZoomLimits();
-    this.scale = Math.max(this.minScale, Math.min(this.maxScale, this.scale * (distance / gesture.distance)));
-    const after = this.canvasToWorld(midpoint.x, midpoint.y);
-    this.offsetX += (after[0] - before[0]) * this.scale;
-    this.offsetY -= (after[1] - before[1]) * this.scale;
-    this.pinchGesture = { distance, midpoint };
-    this.saveCamera();
-    this.draw();
-    return true;
-  },
+	updatePinchGesture() {
+		if (!this.pinchGesture && !this.startPinchGesture()) {
+			return false;
+		}
+		const gesture = this.pinchGesture;
+		if (!gesture || gesture.distance <= 0) {
+			return false;
+		}
+		const touches = this.activeTouchPoints().slice(0, 2);
+		const distance = Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
+		if (distance <= 0) {
+			return false;
+		}
+		const rect = this.canvas.getBoundingClientRect();
+		const midpoint = {
+			x: (touches[0].clientX + touches[1].clientX) / 2 - rect.left,
+			y: (touches[0].clientY + touches[1].clientY) / 2 - rect.top,
+		};
+		const before = this.canvasToWorld(midpoint.x, midpoint.y);
+		this.updateZoomLimits();
+		this.scale = Math.max(this.minScale, Math.min(this.maxScale, this.scale * (distance / gesture.distance)));
+		const after = this.canvasToWorld(midpoint.x, midpoint.y);
+		this.offsetX += (after[0] - before[0]) * this.scale;
+		this.offsetY -= (after[1] - before[1]) * this.scale;
+		this.pinchGesture = { distance, midpoint };
+		this.saveCamera();
+		this.draw();
+		return true;
+	},
 
-  onPointerDown(event) {
-    event.preventDefault();
-    const current = this.currentCase();
-    if (!current) {
-      return;
-    }
-    const rect = this.canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    this.mouseCanvas = { x, y };
-    this.activePointers.set(event.pointerId, {
-      pointerType: event.pointerType,
-      clientX: event.clientX,
-      clientY: event.clientY,
-    });
-    if (event.pointerType === "touch" && this.activeTouchPoints().length >= 2) {
-      this.canvas.setPointerCapture(event.pointerId);
-      this.startPinchGesture();
-      return;
-    }
-    const world = this.snap(this.canvasToWorld(x, y));
-    if (this.mode === "select" || (event.shiftKey && this.mode === "move")) {
-      this.selectionRect = { start: { x, y }, end: { x, y } };
-      this.selectionBase = [...this.selectedPoints];
-      this.selectedPoint = null;
-      this.draw();
-      return;
-    }
-    if (this.mode === "polygon") {
-      if (this.isClosingPolygon(x, y)) {
-        this.closePolygon();
-        return;
-      }
-      if (this.activePolygon === null) {
-        current.polygons.push([]);
-        this.activePolygon = current.polygons.length - 1;
-      }
-      current.polygons[this.activePolygon].push(world);
-      this.changed();
-      return;
-    }
-    this.activePoint = this.selectNearestPoint(x, y);
-    this.selectedPoint = this.activePoint;
-    if (this.activePoint) {
-      if (this.selectedPoints.some((point) => this.samePointSelection(point, this.activePoint))) {
-        this.dragSelection = {
-          lastWorld: this.canvasToWorld(x, y),
-        };
-      }
-      this.pointerStart = { kind: "point", clientX: event.clientX, clientY: event.clientY };
-      this.canvas.setPointerCapture(event.pointerId);
-      this.canvas.style.cursor = "grabbing";
-      this.animateSelection();
-      this.draw();
-      return;
-    }
-    const polygonIndex = this.selectPolygon(x, y);
-    if (polygonIndex !== -1) {
-      this.dragPolygon = {
-        index: polygonIndex,
-        lastWorld: this.canvasToWorld(x, y),
-      };
-      this.pointerStart = { kind: "polygon", clientX: event.clientX, clientY: event.clientY };
-      this.canvas.setPointerCapture(event.pointerId);
-      this.canvas.style.cursor = "grabbing";
-      this.draw();
-      return;
-    }
-    this.selectedPoint = null;
-    this.panDrag = { x, y };
-    this.pointerStart = { kind: "pan", clientX: event.clientX, clientY: event.clientY };
-    this.canvas.setPointerCapture(event.pointerId);
-  },
+	onPointerDown(event) {
+		event.preventDefault();
+		const current = this.currentCase();
+		if (!current) {
+			return;
+		}
+		const rect = this.canvas.getBoundingClientRect();
+		const x = event.clientX - rect.left;
+		const y = event.clientY - rect.top;
+		this.mouseCanvas = { x, y };
+		this.activePointers.set(event.pointerId, {
+			pointerType: event.pointerType,
+			clientX: event.clientX,
+			clientY: event.clientY,
+		});
+		if (event.pointerType === "touch" && this.activeTouchPoints().length >= 2) {
+			this.canvas.setPointerCapture(event.pointerId);
+			this.startPinchGesture();
+			return;
+		}
+		const world = this.snap(this.canvasToWorld(x, y));
+		if (this.mode === "select" || (event.shiftKey && this.mode === "move")) {
+			this.selectionRect = { start: { x, y }, end: { x, y } };
+			this.selectionBase = [...this.selectedPoints];
+			this.selectedPoint = null;
+			this.draw();
+			return;
+		}
+		if (this.mode === "polygon") {
+			if (this.isClosingPolygon(x, y)) {
+				this.closePolygon();
+				return;
+			}
+			if (this.activePolygon === null) {
+				current.polygons.push([]);
+				this.activePolygon = current.polygons.length - 1;
+			}
+			current.polygons[this.activePolygon].push(world);
+			this.changed();
+			return;
+		}
+		this.activePoint = this.selectNearestPoint(x, y);
+		this.selectedPoint = this.activePoint;
+		if (this.activePoint) {
+			if (this.selectedPoints.some((point) => this.samePointSelection(point, this.activePoint))) {
+				this.dragSelection = {
+					lastWorld: this.canvasToWorld(x, y),
+				};
+			}
+			this.pointerStart = { kind: "point", clientX: event.clientX, clientY: event.clientY };
+			this.canvas.setPointerCapture(event.pointerId);
+			this.canvas.style.cursor = "grabbing";
+			this.animateSelection();
+			this.draw();
+			return;
+		}
+		const polygonIndex = this.selectPolygon(x, y);
+		if (polygonIndex !== -1) {
+			this.dragPolygon = {
+				index: polygonIndex,
+				lastWorld: this.canvasToWorld(x, y),
+			};
+			this.pointerStart = { kind: "polygon", clientX: event.clientX, clientY: event.clientY };
+			this.canvas.setPointerCapture(event.pointerId);
+			this.canvas.style.cursor = "grabbing";
+			this.draw();
+			return;
+		}
+		this.selectedPoint = null;
+		this.panDrag = { x, y };
+		this.pointerStart = { kind: "pan", clientX: event.clientX, clientY: event.clientY };
+		this.canvas.setPointerCapture(event.pointerId);
+	},
 
-  onPointerMove(event) {
-    event.preventDefault();
-    if (this.activePointers.has(event.pointerId)) {
-      this.activePointers.set(event.pointerId, {
-        pointerType: event.pointerType,
-        clientX: event.clientX,
-        clientY: event.clientY,
-      });
-    }
-    const current = this.currentCase();
-    const rect = this.canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    this.mouseCanvas = { x, y };
-    if (!current) {
-      return;
-    }
-    if (this.pinchGesture || (event.pointerType === "touch" && this.activeTouchPoints().length >= 2)) {
-      if (this.updatePinchGesture()) {
-        return;
-      }
-    }
-    this.updateCursor();
-    if (this.selectionRect) {
-      this.selectionRect.end = { x, y };
-      this.selectedPoints = this.mergeSelections(this.selectionBase, this.pointsInRect(this.selectionRect));
-      this.draw();
-      return;
-    }
-    if (this.panDrag) {
-      this.offsetX += x - this.panDrag.x;
-      this.offsetY += y - this.panDrag.y;
-      this.panDrag = { x, y };
-      this.saveCamera();
-      this.draw();
-      return;
-    }
-    if (this.dragSelection) {
-      const world = this.snap(this.canvasToWorld(x, y));
-      const dx = world[0] - this.dragSelection.lastWorld[0];
-      const dy = world[1] - this.dragSelection.lastWorld[1];
-      for (const selected of this.selectedPoints) {
-        const next = this.snap([selected.point[0] + dx, selected.point[1] + dy]);
-        if (selected.kind === "start") {
-          current.start = next;
-        } else if (selected.kind === "target") {
-          current.target = next;
-        } else if (selected.kind === "vertex") {
-          current.polygons[selected.polygonIndex][selected.vertexIndex] = next;
-        }
-        selected.point = next;
-      }
-      this.dragSelection.lastWorld = world;
-      this.changed();
-      return;
-    }
-    if (this.dragPolygon) {
-      const world = this.snap(this.canvasToWorld(x, y));
-      const dx = world[0] - this.dragPolygon.lastWorld[0];
-      const dy = world[1] - this.dragPolygon.lastWorld[1];
-      current.polygons[this.dragPolygon.index] = current.polygons[this.dragPolygon.index]
-        .map(([px, py]) => this.snap([px + dx, py + dy]));
-      for (const selected of this.selectedPoints) {
-        if (selected.kind === "vertex" && selected.polygonIndex === this.dragPolygon.index) {
-          selected.point = current.polygons[selected.polygonIndex][selected.vertexIndex];
-        }
-      }
-      this.dragPolygon.lastWorld = world;
-      this.changed();
-      return;
-    }
-    if (!this.activePoint) {
-      if (this.mode === "polygon") {
-        this.draw();
-      }
-      return;
-    }
-    const world = this.snap(this.canvasToWorld(x, y));
-    if (this.activePoint.kind === "start") {
-      current.start = world;
-    } else if (this.activePoint.kind === "target") {
-      current.target = world;
-    } else if (this.activePoint.kind === "vertex") {
-      current.polygons[this.activePoint.polygonIndex][this.activePoint.vertexIndex] = world;
-      this.activePoint.point = world;
-    }
-    this.changed();
-  },
+	onPointerMove(event) {
+		event.preventDefault();
+		if (this.activePointers.has(event.pointerId)) {
+			this.activePointers.set(event.pointerId, {
+				pointerType: event.pointerType,
+				clientX: event.clientX,
+				clientY: event.clientY,
+			});
+		}
+		const current = this.currentCase();
+		const rect = this.canvas.getBoundingClientRect();
+		const x = event.clientX - rect.left;
+		const y = event.clientY - rect.top;
+		this.mouseCanvas = { x, y };
+		if (!current) {
+			return;
+		}
+		if (this.pinchGesture || (event.pointerType === "touch" && this.activeTouchPoints().length >= 2)) {
+			if (this.updatePinchGesture()) {
+				return;
+			}
+		}
+		this.updateCursor();
+		if (this.selectionRect) {
+			this.selectionRect.end = { x, y };
+			this.selectedPoints = this.mergeSelections(this.selectionBase, this.pointsInRect(this.selectionRect));
+			this.draw();
+			return;
+		}
+		if (this.panDrag) {
+			this.offsetX += x - this.panDrag.x;
+			this.offsetY += y - this.panDrag.y;
+			this.panDrag = { x, y };
+			this.saveCamera();
+			this.draw();
+			return;
+		}
+		if (this.dragSelection) {
+			const world = this.snap(this.canvasToWorld(x, y));
+			const dx = world[0] - this.dragSelection.lastWorld[0];
+			const dy = world[1] - this.dragSelection.lastWorld[1];
+			for (const selected of this.selectedPoints) {
+				const next = this.snap([selected.point[0] + dx, selected.point[1] + dy]);
+				if (selected.kind === "start") {
+					current.start = next;
+				} else if (selected.kind === "target") {
+					current.target = next;
+				} else if (selected.kind === "vertex") {
+					current.polygons[selected.polygonIndex][selected.vertexIndex] = next;
+				}
+				selected.point = next;
+			}
+			this.dragSelection.lastWorld = world;
+			this.changed();
+			return;
+		}
+		if (this.dragPolygon) {
+			const world = this.snap(this.canvasToWorld(x, y));
+			const dx = world[0] - this.dragPolygon.lastWorld[0];
+			const dy = world[1] - this.dragPolygon.lastWorld[1];
+			current.polygons[this.dragPolygon.index] = current.polygons[this.dragPolygon.index]
+				.map(([px, py]) => this.snap([px + dx, py + dy]));
+			for (const selected of this.selectedPoints) {
+				if (selected.kind === "vertex" && selected.polygonIndex === this.dragPolygon.index) {
+					selected.point = current.polygons[selected.polygonIndex][selected.vertexIndex];
+				}
+			}
+			this.dragPolygon.lastWorld = world;
+			this.changed();
+			return;
+		}
+		if (!this.activePoint) {
+			if (this.mode === "polygon") {
+				this.draw();
+			}
+			return;
+		}
+		const world = this.snap(this.canvasToWorld(x, y));
+		if (this.activePoint.kind === "start") {
+			current.start = world;
+		} else if (this.activePoint.kind === "target") {
+			current.target = world;
+		} else if (this.activePoint.kind === "vertex") {
+			current.polygons[this.activePoint.polygonIndex][this.activePoint.vertexIndex] = world;
+			this.activePoint.point = world;
+		}
+		this.changed();
+	},
 
-  onWheel(event) {
-    event.preventDefault();
-    const rect = this.canvas.getBoundingClientRect();
-    const before = this.canvasToWorld(event.clientX - rect.left, event.clientY - rect.top);
-    const delta = Math.max(-80, Math.min(80, event.deltaY));
-    const factor = Math.exp(-delta * (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL ? 0.0035 : 0.1));
-    this.updateZoomLimits();
-    this.scale = Math.max(this.minScale, Math.min(this.maxScale, this.scale * factor));
-    const after = this.canvasToWorld(event.clientX - rect.left, event.clientY - rect.top);
-    this.offsetX += (after[0] - before[0]) * this.scale;
-    this.offsetY -= (after[1] - before[1]) * this.scale;
-    this.saveCamera();
-    this.draw();
-  },
+	onWheel(event) {
+		event.preventDefault();
+		const rect = this.canvas.getBoundingClientRect();
+		const before = this.canvasToWorld(event.clientX - rect.left, event.clientY - rect.top);
+		const delta = Math.max(-80, Math.min(80, event.deltaY));
+		const factor = Math.exp(-delta * (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL ? 0.0035 : 0.1));
+		this.updateZoomLimits();
+		this.scale = Math.max(this.minScale, Math.min(this.maxScale, this.scale * factor));
+		const after = this.canvasToWorld(event.clientX - rect.left, event.clientY - rect.top);
+		this.offsetX += (after[0] - before[0]) * this.scale;
+		this.offsetY -= (after[1] - before[1]) * this.scale;
+		this.saveCamera();
+		this.draw();
+	},
 
-  updateCursor() {
-    if (!this.canvas) {
-      return;
-    }
-    if (this.mode === "polygon") {
-      this.canvas.style.cursor = this.isClosingPolygon(this.mouseCanvas.x, this.mouseCanvas.y) ? "copy" : "crosshair";
-      return;
-    }
-    if (this.mode === "select") {
-      this.canvas.style.cursor = "crosshair";
-      return;
-    }
-    if (this.selectNearestPoint(this.mouseCanvas.x, this.mouseCanvas.y)) {
-      this.canvas.style.cursor = "grab";
-      return;
-    }
-    if (this.selectPolygon(this.mouseCanvas.x, this.mouseCanvas.y) !== -1) {
-      this.canvas.style.cursor = "grab";
-      return;
-    }
-    this.canvas.style.cursor = "all-scroll";
-  },
+	updateCursor() {
+		if (!this.canvas) {
+			return;
+		}
+		if (this.mode === "polygon") {
+			this.canvas.style.cursor = this.isClosingPolygon(this.mouseCanvas.x, this.mouseCanvas.y) ? "copy" : "crosshair";
+			return;
+		}
+		if (this.mode === "select") {
+			this.canvas.style.cursor = "crosshair";
+			return;
+		}
+		if (this.selectNearestPoint(this.mouseCanvas.x, this.mouseCanvas.y)) {
+			this.canvas.style.cursor = "grab";
+			return;
+		}
+		if (this.selectPolygon(this.mouseCanvas.x, this.mouseCanvas.y) !== -1) {
+			this.canvas.style.cursor = "grab";
+			return;
+		}
+		this.canvas.style.cursor = "all-scroll";
+	},
 
-  onKeyDown(event) {
-    if (keybinds.capturePending(event)) {
-      return;
-    }
-    if (!$("#keybind-modal")?.classList.contains("is-hidden")) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        keybinds.close();
-      }
-      return;
-    }
-    if (event.target?.closest?.("input, textarea, select, [contenteditable='true']")) {
-      return;
-    }
-    if (!$("#cases-panel")?.classList.contains("is-active")) {
-      return;
-    }
-    if (keybinds.matches(event, "toggleSnap")) {
-      event.preventDefault();
-      this.toggleSnapping();
-    } else if (keybinds.matches(event, "deleteSelection") || event.key === "Backspace" || event.key === "Delete") {
-      event.preventDefault();
-      this.deleteSelection();
-    } else if (keybinds.matches(event, "clearSelection")) {
-      event.preventDefault();
-      this.clearSelection();
-    } else if (keybinds.matches(event, "fitInstance")) {
-      event.preventDefault();
-      this.frameCurrentCase();
-    } else if (keybinds.matches(event, "toggleGrid")) {
-      event.preventDefault();
-      this.toggleLayer("grid");
-    } else if (keybinds.matches(event, "togglePath")) {
-      event.preventDefault();
-      this.toggleLayer("solution");
-    } else if (keybinds.matches(event, "toggleDecomposition")) {
-      event.preventDefault();
-      this.toggleLayer("decomposition");
-    } else if (keybinds.matches(event, "toggleLabels")) {
-      event.preventDefault();
-      this.toggleLayer("labels");
-    } else if (keybinds.matches(event, "closePolygon")) {
-      event.preventDefault();
-      this.closePolygon();
-    } else if (event.key === "Escape") {
-      if (this.expanded) {
-        event.preventDefault();
-        this.toggleExpanded(false);
-        return;
-      }
-      this.activePolygon = null;
-      this.selectedPoint = null;
-      this.selectedPoints = [];
-      this.selectionRect = null;
-      this.setMode("move");
-    } else if (event.key === "1") {
-      this.setMode("move");
-    } else if (event.key === "2") {
-      this.setMode("polygon");
-    } else if (event.key === "3") {
-      this.setMode("select");
-    }
-  },
+	onKeyDown(event) {
+		if (keybinds.capturePending(event)) {
+			return;
+		}
+		if (!$("#keybind-modal")?.classList.contains("is-hidden")) {
+			if (event.key === "Escape") {
+				event.preventDefault();
+				keybinds.close();
+			}
+			return;
+		}
+		if (event.target?.closest?.("input, textarea, select, [contenteditable='true']")) {
+			return;
+		}
+		if (!$("#cases-panel")?.classList.contains("is-active")) {
+			return;
+		}
+		if (keybinds.matches(event, "toggleSnap")) {
+			event.preventDefault();
+			this.toggleSnapping();
+		} else if (keybinds.matches(event, "deleteSelection") || event.key === "Backspace" || event.key === "Delete") {
+			event.preventDefault();
+			this.deleteSelection();
+		} else if (keybinds.matches(event, "clearSelection")) {
+			event.preventDefault();
+			this.clearSelection();
+		} else if (keybinds.matches(event, "fitInstance")) {
+			event.preventDefault();
+			this.frameCurrentCase();
+		} else if (keybinds.matches(event, "toggleGrid")) {
+			event.preventDefault();
+			this.toggleLayer("grid");
+		} else if (keybinds.matches(event, "togglePath")) {
+			event.preventDefault();
+			this.toggleLayer("solution");
+		} else if (keybinds.matches(event, "toggleDecomposition")) {
+			event.preventDefault();
+			this.toggleLayer("decomposition");
+		} else if (keybinds.matches(event, "toggleLabels")) {
+			event.preventDefault();
+			this.toggleLayer("labels");
+		} else if (keybinds.matches(event, "closePolygon")) {
+			event.preventDefault();
+			this.closePolygon();
+		} else if (event.key === "Escape") {
+			if (this.expanded) {
+				event.preventDefault();
+				this.toggleExpanded(false);
+				return;
+			}
+			this.activePolygon = null;
+			this.selectedPoint = null;
+			this.selectedPoints = [];
+			this.selectionRect = null;
+			this.setMode("move");
+		} else if (event.key === "1") {
+			this.setMode("move");
+		} else if (event.key === "2") {
+			this.setMode("polygon");
+		} else if (event.key === "3") {
+			this.setMode("select");
+		}
+	},
 
-  finishSelection() {
-    const selected = this.pointsInRect(this.selectionRect);
-    const moved = Math.hypot(
-      this.selectionRect.end.x - this.selectionRect.start.x,
-      this.selectionRect.end.y - this.selectionRect.start.y,
-    ) > 4;
-    if (!moved && selected.length === 0) {
-      this.selectedPoints = [];
-      this.selectedPoint = null;
-      this.selectionRect = null;
-      this.selectionBase = [];
-      this.draw();
-      return;
-    }
-    this.selectedPoints = this.mergeSelections(this.selectionBase, selected);
-    this.selectedPoint = this.selectedPoints[0] || null;
-    this.selectionRect = null;
-    this.selectionBase = [];
-    this.animateSelection();
-    this.draw();
-  },
+	finishSelection() {
+		const selected = this.pointsInRect(this.selectionRect);
+		const moved = Math.hypot(
+			this.selectionRect.end.x - this.selectionRect.start.x,
+			this.selectionRect.end.y - this.selectionRect.start.y,
+		) > 4;
+		if (!moved && selected.length === 0) {
+			this.selectedPoints = [];
+			this.selectedPoint = null;
+			this.selectionRect = null;
+			this.selectionBase = [];
+			this.draw();
+			return;
+		}
+		this.selectedPoints = this.mergeSelections(this.selectionBase, selected);
+		this.selectedPoint = this.selectedPoints[0] || null;
+		this.selectionRect = null;
+		this.selectionBase = [];
+		this.animateSelection();
+		this.draw();
+	},
 
-  closePolygon() {
-    const current = this.currentCase();
-    if (!current || this.activePolygon === null) {
-      this.showCloseHint();
-      return;
-    }
-    if ((current.polygons[this.activePolygon] || []).length < 3) {
-      this.showCloseHint();
-      return;
-    }
-    this.activePolygon = null;
-    this.syncCloseButton();
-    this.changed();
-    this.canvas?.focus({ preventScroll: true });
-  },
+	closePolygon() {
+		const current = this.currentCase();
+		if (!current || this.activePolygon === null) {
+			this.showCloseHint();
+			return;
+		}
+		if ((current.polygons[this.activePolygon] || []).length < 3) {
+			this.showCloseHint();
+			return;
+		}
+		this.activePolygon = null;
+		this.syncCloseButton();
+		this.changed();
+		this.canvas?.focus({ preventScroll: true });
+	},
 
-  deleteSelection() {
-    const current = this.currentCase();
-    const selected = this.selectedPoints;
-    if (!current || selected.length === 0) {
-      return;
-    }
-    const byPolygon = new Map();
-    for (const point of selected) {
-      if (point.kind !== "vertex") {
-        continue;
-      }
-      const vertices = byPolygon.get(point.polygonIndex) || [];
-      vertices.push(point.vertexIndex);
-      byPolygon.set(point.polygonIndex, vertices);
-    }
-    [...byPolygon.entries()]
-      .sort(([left], [right]) => right - left)
-      .forEach(([polygonIndex, vertexIndices]) => {
-        const polygon = current.polygons[polygonIndex];
-        [...new Set(vertexIndices)].sort((left, right) => right - left).forEach((vertexIndex) => {
-          polygon.splice(vertexIndex, 1);
-        });
-        if (polygon.length < 3) {
-          current.polygons.splice(polygonIndex, 1);
-        }
-      });
-    if (this.activePolygon !== null && this.activePolygon >= current.polygons.length) {
-      this.activePolygon = null;
-    }
-    this.activePoint = null;
-    this.selectedPoint = null;
-    this.selectedPoints = [];
-    this.changed();
-  },
+	deleteSelection() {
+		const current = this.currentCase();
+		const selected = this.selectedPoints;
+		if (!current || selected.length === 0) {
+			return;
+		}
+		const byPolygon = new Map();
+		for (const point of selected) {
+			if (point.kind !== "vertex") {
+				continue;
+			}
+			const vertices = byPolygon.get(point.polygonIndex) || [];
+			vertices.push(point.vertexIndex);
+			byPolygon.set(point.polygonIndex, vertices);
+		}
+		[...byPolygon.entries()]
+			.sort(([left], [right]) => right - left)
+			.forEach(([polygonIndex, vertexIndices]) => {
+				const polygon = current.polygons[polygonIndex];
+				[...new Set(vertexIndices)].sort((left, right) => right - left).forEach((vertexIndex) => {
+					polygon.splice(vertexIndex, 1);
+				});
+				if (polygon.length < 3) {
+					current.polygons.splice(polygonIndex, 1);
+				}
+			});
+		if (this.activePolygon !== null && this.activePolygon >= current.polygons.length) {
+			this.activePolygon = null;
+		}
+		this.activePoint = null;
+		this.selectedPoint = null;
+		this.selectedPoints = [];
+		this.changed();
+	},
 
-  clearSelection() {
-    this.selectedPoint = null;
-    this.selectedPoints = [];
-    this.selectionBase = [];
-    this.selectionRect = null;
-    this.draw();
-  },
+	clearSelection() {
+		this.selectedPoint = null;
+		this.selectedPoints = [];
+		this.selectionBase = [];
+		this.selectionRect = null;
+		this.draw();
+	},
 
-  changed() {
-    this.solutionRevision += 1;
-    this.solutionStale = Boolean(this.solutionPath);
-    this.updateLabelDirections(false);
-    this.syncCloseButton();
-    updateManualCaseListMetadata();
-    this.draw();
-    this.scheduleSolve();
-    scheduleManualAutosave();
-  },
+	changed() {
+		this.solutionRevision += 1;
+		this.solutionStale = Boolean(this.solutionPath);
+		this.updateLabelDirections(false);
+		this.syncCloseButton();
+		updateManualCaseListMetadata();
+		this.draw();
+		this.scheduleSolve();
+		scheduleManualAutosave();
+	},
 
-  scheduleSolve() {
-    const current = this.currentCase();
-    if (!current) {
-      return;
-    }
-    if (this.solutionStale) {
-      this.setStatus("Updating solution...");
-    }
-    if (this.solutionTimer) {
-      clearTimeout(this.solutionTimer);
-      this.solutionTimer = null;
-    }
-    if (this.solutionFrame) {
-      cancelAnimationFrame(this.solutionFrame);
-    }
-    this.solutionFrame = requestAnimationFrame(() => {
-      this.solutionFrame = null;
-      this.fetchSolution(cloneCaseData(this.currentCase()), this.solutionRevision);
-    });
-  },
+	scheduleSolve() {
+		const current = this.currentCase();
+		if (!current) {
+			return;
+		}
+		if (this.solutionStale) {
+			this.setStatus("Updating solution...");
+		}
+		if (this.solutionTimer) {
+			clearTimeout(this.solutionTimer);
+			this.solutionTimer = null;
+		}
+		if (this.solutionFrame) {
+			cancelAnimationFrame(this.solutionFrame);
+		}
+		this.solutionFrame = requestAnimationFrame(() => {
+			this.solutionFrame = null;
+			this.fetchSolution(cloneCaseData(this.currentCase()), this.solutionRevision);
+		});
+	},
 
-  async fetchSolution(caseData, revision = this.solutionRevision) {
-    if (!caseData) {
-      return;
-    }
-    if (this.solutionAbort) {
-      this.solutionAbort.abort();
-    }
-    this.solutionAbort = new AbortController();
-    if (caseData.polygons.length === 0) {
-      if (revision !== this.solutionRevision) {
-        return;
-      }
-      this.solutionPath = [caseData.start, caseData.target];
-      this.solutionStale = false;
-      this.updateLabelDirections(true);
-      this.setStatus("Solution: exact, 0 calls");
-      this.draw();
-      return;
-    }
-    this.setStatus(editorSolverState.module ? "Solving..." : editorSolverState.failed ? "WASM solver unavailable." : "Loading solver...");
-    try {
-      await loadEditorWasm();
-      if (!editorSolverState.module) {
-        if (revision !== this.solutionRevision) {
-          return;
-        }
-        this.solutionPath = null;
-        this.solutionStale = false;
-        this.updateLabelDirections(true);
-        this.setStatus("WASM solver unavailable.");
-        this.draw();
-        return;
-      }
-      const geometry = await loadEditorGeometry();
-      let wasmResult = null;
-      if (caseData.polygons.every(polygonIsConvex)) {
-        wasmResult = solveEditorWasm(caseData);
-      } else if (geometry) {
-        const pieceGroups = caseData.polygons.map((polygon) => (
-          geometry.partition.convexPartition(polygon.map(([x, y]) => new geometry.vector.Vector2(x, y)))
-            .filter((piece) => piece.length >= 3)
-            .map((piece) => piece.map((point) => [point.x, point.y]))
-        ));
-        wasmResult = solveEditorWasmGroups(caseData, pieceGroups);
-      } else {
-        wasmResult = solveEditorWasmGroups(caseData, caseData.polygons.map(convexDecomposition));
-      }
-      if (wasmResult) {
-        if (revision !== this.solutionRevision) {
-          return;
-        }
-        this.solutionPath = wasmResult.path;
-        this.solutionStale = false;
-        this.updateLabelDirections(true);
-        this.setStatus(`Solution: ${wasmResult.exact ? "exact" : "approximate"}, ${wasmResult.calls} calls, ${formatSeconds(wasmResult.seconds)} via WASM`);
-        this.draw();
-        return;
-      }
-      if (revision !== this.solutionRevision) {
-        return;
-      }
-      this.solutionPath = null;
-      this.solutionStale = false;
-      this.updateLabelDirections(true);
-      this.setStatus("WASM solver could not solve this case.");
-      this.draw();
-    } catch (error) {
-      if (error.name !== "AbortError") {
-        this.setStatus(error.message);
-      }
-    }
-  },
+	async fetchSolution(caseData, revision = this.solutionRevision) {
+		if (!caseData) {
+			return;
+		}
+		if (this.solutionAbort) {
+			this.solutionAbort.abort();
+		}
+		this.solutionAbort = new AbortController();
+		if (caseData.polygons.length === 0) {
+			if (revision !== this.solutionRevision) {
+				return;
+			}
+			this.solutionPath = [caseData.start, caseData.target];
+			this.solutionStale = false;
+			this.updateLabelDirections(true);
+			this.setStatus("Solution: exact, 0 calls");
+			this.draw();
+			return;
+		}
+		this.setStatus(editorSolverState.module ? "Solving..." : editorSolverState.failed ? "WASM solver unavailable." : "Loading solver...");
+		try {
+			await loadEditorWasm();
+			if (!editorSolverState.module) {
+				if (revision !== this.solutionRevision) {
+					return;
+				}
+				this.solutionPath = null;
+				this.solutionStale = false;
+				this.updateLabelDirections(true);
+				this.setStatus("WASM solver unavailable.");
+				this.draw();
+				return;
+			}
+			const geometry = await loadEditorGeometry();
+			let wasmResult = null;
+			if (caseData.polygons.every(polygonIsConvex)) {
+				wasmResult = solveEditorWasm(caseData);
+			} else if (geometry) {
+				const pieceGroups = caseData.polygons.map((polygon) => (
+					geometry.partition.convexPartition(polygon.map(([x, y]) => new geometry.vector.Vector2(x, y)))
+						.filter((piece) => piece.length >= 3)
+						.map((piece) => piece.map((point) => [point.x, point.y]))
+				));
+				wasmResult = solveEditorWasmGroups(caseData, pieceGroups);
+			} else {
+				wasmResult = solveEditorWasmGroups(caseData, caseData.polygons.map(convexDecomposition));
+			}
+			if (wasmResult) {
+				if (revision !== this.solutionRevision) {
+					return;
+				}
+				this.solutionPath = wasmResult.path;
+				this.solutionStale = false;
+				this.updateLabelDirections(true);
+				this.setStatus(`Solution: ${wasmResult.exact ? "exact" : "approximate"}, ${wasmResult.calls} calls, ${formatSeconds(wasmResult.seconds)} via WASM`);
+				this.draw();
+				return;
+			}
+			if (revision !== this.solutionRevision) {
+				return;
+			}
+			this.solutionPath = null;
+			this.solutionStale = false;
+			this.updateLabelDirections(true);
+			this.setStatus("WASM solver could not solve this case.");
+			this.draw();
+		} catch (error) {
+			if (error.name !== "AbortError") {
+				this.setStatus(error.message);
+			}
+		}
+	},
 
-  drawGrid() {
-    const width = this.canvas.offsetWidth;
-    const height = this.canvas.offsetHeight;
-    const ctx = this.ctx;
-    ctx.fillStyle = cssVar("--editor-bg") || "#121417";
-    ctx.fillRect(0, 0, width, height);
-    if (!this.layers.grid) {
-      return;
-    }
-    const { gridSpacing, subGridCount } = this.gridMetrics();
-    const left = (0 - this.offsetX) / this.scale;
-    const right = (width - this.offsetX) / this.scale;
-    const top = (this.offsetY - 0) / this.scale;
-    const bottom = (this.offsetY - height) / this.scale;
-    const drawWorldLine = (a, b, color) => {
-      const start = this.worldToCanvas(a);
-      const end = this.worldToCanvas(b);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(start.x, start.y);
-      ctx.lineTo(end.x, end.y);
-      ctx.stroke();
-    };
-    const firstX = Math.floor(left / gridSpacing) * gridSpacing;
-    const firstY = Math.floor(bottom / gridSpacing) * gridSpacing;
-    for (let x = firstX; x <= right + gridSpacing; x += gridSpacing) {
-      drawWorldLine([x, bottom], [x, top], cssVar("--editor-grid-major") || "#515a67");
-      for (let index = 0; index < subGridCount; index += 1) {
-        const subX = x + (gridSpacing * (index + 1)) / (subGridCount + 1);
-        drawWorldLine([subX, bottom], [subX, top], cssVar("--editor-grid-minor") || "#2a2f38");
-      }
-    }
-    for (let y = firstY; y <= top + gridSpacing; y += gridSpacing) {
-      drawWorldLine([left, y], [right, y], cssVar("--editor-grid-major") || "#515a67");
-      for (let index = 0; index < subGridCount; index += 1) {
-        const subY = y + (gridSpacing * (index + 1)) / (subGridCount + 1);
-        drawWorldLine([left, subY], [right, subY], cssVar("--editor-grid-minor") || "#2a2f38");
-      }
-    }
-    const origin = this.worldToCanvas([0, 0]);
-    ctx.strokeStyle = cssVar("--editor-axis") || "#9aa3ad";
-    ctx.beginPath();
-    ctx.moveTo(0, origin.y);
-    ctx.lineTo(width, origin.y);
-    ctx.moveTo(origin.x, 0);
-    ctx.lineTo(origin.x, height);
-    ctx.stroke();
-  },
+	drawGrid() {
+		const width = this.canvas.offsetWidth;
+		const height = this.canvas.offsetHeight;
+		const ctx = this.ctx;
+		ctx.fillStyle = cssVar("--editor-bg") || "#121417";
+		ctx.fillRect(0, 0, width, height);
+		if (!this.layers.grid) {
+			return;
+		}
+		const { gridSpacing, subGridCount } = this.gridMetrics();
+		const left = (0 - this.offsetX) / this.scale;
+		const right = (width - this.offsetX) / this.scale;
+		const top = (this.offsetY - 0) / this.scale;
+		const bottom = (this.offsetY - height) / this.scale;
+		const drawWorldLine = (a, b, color) => {
+			const start = this.worldToCanvas(a);
+			const end = this.worldToCanvas(b);
+			ctx.strokeStyle = color;
+			ctx.lineWidth = 1;
+			ctx.beginPath();
+			ctx.moveTo(start.x, start.y);
+			ctx.lineTo(end.x, end.y);
+			ctx.stroke();
+		};
+		const firstX = Math.floor(left / gridSpacing) * gridSpacing;
+		const firstY = Math.floor(bottom / gridSpacing) * gridSpacing;
+		for (let x = firstX; x <= right + gridSpacing; x += gridSpacing) {
+			drawWorldLine([x, bottom], [x, top], cssVar("--editor-grid-major") || "#515a67");
+			for (let index = 0; index < subGridCount; index += 1) {
+				const subX = x + (gridSpacing * (index + 1)) / (subGridCount + 1);
+				drawWorldLine([subX, bottom], [subX, top], cssVar("--editor-grid-minor") || "#2a2f38");
+			}
+		}
+		for (let y = firstY; y <= top + gridSpacing; y += gridSpacing) {
+			drawWorldLine([left, y], [right, y], cssVar("--editor-grid-major") || "#515a67");
+			for (let index = 0; index < subGridCount; index += 1) {
+				const subY = y + (gridSpacing * (index + 1)) / (subGridCount + 1);
+				drawWorldLine([left, subY], [right, subY], cssVar("--editor-grid-minor") || "#2a2f38");
+			}
+		}
+		const origin = this.worldToCanvas([0, 0]);
+		ctx.strokeStyle = cssVar("--editor-axis") || "#9aa3ad";
+		ctx.beginPath();
+		ctx.moveTo(0, origin.y);
+		ctx.lineTo(width, origin.y);
+		ctx.moveTo(origin.x, 0);
+		ctx.lineTo(origin.x, height);
+		ctx.stroke();
+	},
 
-  drawPoint(point, color, label = "", labelDirection = [1, -1], options = {}) {
-    const ctx = this.ctx;
-    const canvasPoint = this.worldToCanvas(point);
-    const radius = options.radius ?? this.pointRadius(label ? "endpoint" : "vertex");
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(canvasPoint.x, canvasPoint.y, radius, 0, Math.PI * 2);
-    ctx.fill();
-    if (label) {
-      const length = Math.hypot(labelDirection[0], labelDirection[1]) || 1;
-      const offset = Math.max(13, radius + 9);
-      const offsetX = (labelDirection[0] / length) * offset;
-      const offsetY = -(labelDirection[1] / length) * offset;
-      ctx.fillStyle = "#f8fafc";
-      ctx.font = "12px system-ui";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(label, canvasPoint.x + offsetX, canvasPoint.y + offsetY);
-      ctx.textAlign = "start";
-      ctx.textBaseline = "alphabetic";
-    }
-  },
+	drawPoint(point, color, label = "", labelDirection = [1, -1], options = {}) {
+		const ctx = this.ctx;
+		const canvasPoint = this.worldToCanvas(point);
+		const radius = options.radius ?? this.pointRadius(label ? "endpoint" : "vertex");
+		ctx.fillStyle = color;
+		ctx.beginPath();
+		ctx.arc(canvasPoint.x, canvasPoint.y, radius, 0, Math.PI * 2);
+		ctx.fill();
+		if (label) {
+			const length = Math.hypot(labelDirection[0], labelDirection[1]) || 1;
+			const offset = Math.max(13, radius + 9);
+			const offsetX = (labelDirection[0] / length) * offset;
+			const offsetY = -(labelDirection[1] / length) * offset;
+			ctx.fillStyle = "#f8fafc";
+			ctx.font = "12px system-ui";
+			ctx.textAlign = "center";
+			ctx.textBaseline = "middle";
+			ctx.fillText(label, canvasPoint.x + offsetX, canvasPoint.y + offsetY);
+			ctx.textAlign = "start";
+			ctx.textBaseline = "alphabetic";
+		}
+	},
 
-  drawSelectedRing(point) {
-    const ctx = this.ctx;
-    const canvasPoint = this.worldToCanvas(point);
-    const radius = this.pointRadius("vertex") + 5;
-    const rotation = ((performance.now() - this.selectionSpinStarted) / 700) * Math.PI * 2;
-    ctx.save();
-    ctx.translate(canvasPoint.x, canvasPoint.y);
-    ctx.rotate(rotation);
-    ctx.strokeStyle = "#f8fafc";
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([5, 4]);
-    ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  },
+	drawSelectedRing(point) {
+		const ctx = this.ctx;
+		const canvasPoint = this.worldToCanvas(point);
+		const radius = this.pointRadius("vertex") + 5;
+		const rotation = ((performance.now() - this.selectionSpinStarted) / 700) * Math.PI * 2;
+		ctx.save();
+		ctx.translate(canvasPoint.x, canvasPoint.y);
+		ctx.rotate(rotation);
+		ctx.strokeStyle = "#f8fafc";
+		ctx.lineWidth = 1.5;
+		ctx.setLineDash([5, 4]);
+		ctx.beginPath();
+		ctx.arc(0, 0, radius, 0, Math.PI * 2);
+		ctx.stroke();
+		ctx.restore();
+	},
 
-  animateSelection() {
-    if (this.selectionAnimationRunning) {
-      return;
-    }
-    this.selectionAnimationRunning = true;
-    const tick = () => {
-      if (this.selectedPoints.length === 0) {
-        this.selectionAnimationRunning = false;
-        return;
-      }
-      this.draw();
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  },
+	animateSelection() {
+		if (this.selectionAnimationRunning) {
+			return;
+		}
+		this.selectionAnimationRunning = true;
+		const tick = () => {
+			if (this.selectedPoints.length === 0) {
+				this.selectionAnimationRunning = false;
+				return;
+			}
+			this.draw();
+			requestAnimationFrame(tick);
+		};
+		requestAnimationFrame(tick);
+	},
 
-  drawDecomposition(polygon, color) {
-    const pieces = convexDecomposition(polygon);
-    if (pieces.length <= 1) {
-      return;
-    }
-    const ctx = this.ctx;
-    ctx.save();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1;
-    ctx.globalAlpha = 0.82;
-    ctx.setLineDash([5, 5]);
-    for (const piece of pieces) {
-      ctx.beginPath();
-      piece.forEach((point, pointIndex) => {
-        const canvasPoint = this.worldToCanvas(point);
-        if (pointIndex === 0) {
-          ctx.moveTo(canvasPoint.x, canvasPoint.y);
-        } else {
-          ctx.lineTo(canvasPoint.x, canvasPoint.y);
-        }
-      });
-      ctx.closePath();
-      ctx.stroke();
-    }
-    ctx.restore();
-  },
+	drawDecomposition(polygon, color) {
+		const pieces = convexDecomposition(polygon);
+		if (pieces.length <= 1) {
+			return;
+		}
+		const ctx = this.ctx;
+		ctx.save();
+		ctx.strokeStyle = color;
+		ctx.lineWidth = 1;
+		ctx.globalAlpha = 0.82;
+		ctx.setLineDash([5, 5]);
+		for (const piece of pieces) {
+			ctx.beginPath();
+			piece.forEach((point, pointIndex) => {
+				const canvasPoint = this.worldToCanvas(point);
+				if (pointIndex === 0) {
+					ctx.moveTo(canvasPoint.x, canvasPoint.y);
+				} else {
+					ctx.lineTo(canvasPoint.x, canvasPoint.y);
+				}
+			});
+			ctx.closePath();
+			ctx.stroke();
+		}
+		ctx.restore();
+	},
 
-  draw() {
-    drawCanvasScene(this);
-  },
+	draw() {
+		drawCanvasScene(this);
+	},
 };
 
 const manualCases = createManualCaseController({
-  $,
-  askConfirmation,
-  autoGeneratedSticker,
-  campaignExists,
-  casePayload,
-  cloneCaseData,
-  closeCampaignModal,
-  emptyCaseData,
-  escapeHTML,
-  formData,
-  instanceLabel,
-  manualEditor,
-  refresh,
-  requestJSON,
-  setCloseIcon,
-  state,
-  switchPanel,
+	$,
+	askConfirmation,
+	autoGeneratedSticker,
+	campaignExists,
+	casePayload,
+	cloneCaseData,
+	closeCampaignModal,
+	emptyCaseData,
+	escapeHTML,
+	formData,
+	instanceLabel,
+	manualEditor,
+	refresh,
+	requestJSON,
+	setCloseIcon,
+	state,
+	switchPanel,
 });
 const {
-  createManualCampaign,
-  editInstance,
-  loadCampaignCaseMetadata,
-  loadManualCases,
-  newManualCase,
-  renderManualCampaigns,
-  renderManualCases,
-  scheduleManualAutosave,
-  selectManualCampaign,
-  updateManualCaseListMetadata,
+	createManualCampaign,
+	editInstance,
+	loadCampaignCaseMetadata,
+	loadManualCases,
+	newManualCase,
+	renderManualCampaigns,
+	renderManualCases,
+	scheduleManualAutosave,
+	selectManualCampaign,
+	updateManualCaseListMetadata,
 } = manualCases;
 
 function formatBytes(value) {
-  if (!Number.isFinite(value)) {
-    return "-";
-  }
-  const units = ["B", "KB", "MB", "GB"];
-  let current = value;
-  let unit = 0;
-  while (current >= 1024 && unit < units.length - 1) {
-    current /= 1024;
-    unit += 1;
-  }
-  return `${current.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+	if (!Number.isFinite(value)) {
+		return "-";
+	}
+	const units = ["B", "KB", "MB", "GB"];
+	let current = value;
+	let unit = 0;
+	while (current >= 1024 && unit < units.length - 1) {
+		current /= 1024;
+		unit += 1;
+	}
+	return `${current.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
 function selectOsmFile(path) {
-  document.querySelector('[name="pbf_path"]').value = path;
-  $("#osm-file-status").textContent = path || "No file selected.";
-  document.querySelectorAll("#osm-file-grid .choice-card").forEach((button) => {
-    const active = button.dataset.value === path;
-    button.classList.toggle("is-active", active);
-    button.setAttribute("aria-selected", active ? "true" : "false");
-  });
+	document.querySelector('[name="pbf_path"]').value = path;
+	$("#osm-file-status").textContent = path || "No file selected.";
+	document.querySelectorAll("#osm-file-grid .choice-card").forEach((button) => {
+		const active = button.dataset.value === path;
+		button.classList.toggle("is-active", active);
+		button.setAttribute("aria-selected", active ? "true" : "false");
+	});
 }
 
 function renderOsmFiles() {
-  const grid = $("#osm-file-grid");
-  grid.innerHTML = "";
-  const files = state.osmFiles.slice().sort((left, right) => right.size - left.size);
-  if (files.length === 0) {
-    grid.innerHTML = '<div class="empty-choice">No .osm.pbf files found.</div>';
-    selectOsmFile("");
-    return;
-  }
-  for (const file of files) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "choice-card osm-file-card";
-    button.dataset.value = file.path;
-    button.setAttribute("role", "option");
-    button.innerHTML = `
+	const grid = $("#osm-file-grid");
+	grid.innerHTML = "";
+	const files = state.osmFiles.slice().sort((left, right) => right.size - left.size);
+	if (files.length === 0) {
+		grid.innerHTML = '<div class="empty-choice">No .osm.pbf files found.</div>';
+		selectOsmFile("");
+		return;
+	}
+	for (const file of files) {
+		const button = document.createElement("button");
+		button.type = "button";
+		button.className = "choice-card osm-file-card";
+		button.dataset.value = file.path;
+		button.setAttribute("role", "option");
+		button.innerHTML = `
       <strong>${escapeHTML(file.name)}</strong>
       <span>${formatBytes(file.size)}</span>
       <small>${escapeHTML(file.path)}</small>
     `;
-    button.addEventListener("click", () => selectOsmFile(file.path));
-    grid.appendChild(button);
-  }
-  selectOsmFile(state.osmFiles[0].path);
+		button.addEventListener("click", () => selectOsmFile(file.path));
+		grid.appendChild(button);
+	}
+	selectOsmFile(state.osmFiles[0].path);
 }
 
 async function scanOsmFiles() {
-  const status = $("#osm-file-status");
-  state.osmScanStarted = true;
-  status.textContent = "Scanning...";
-  try {
-    const data = await requestJSON("/api/osm-files");
-    state.osmFiles = data.files;
-    renderOsmFiles();
-  } catch (error) {
-    status.textContent = error.message;
-  }
+	const status = $("#osm-file-status");
+	state.osmScanStarted = true;
+	status.textContent = "Scanning...";
+	try {
+		const data = await requestJSON("/api/osm-files");
+		state.osmFiles = data.files;
+		renderOsmFiles();
+	} catch (error) {
+		status.textContent = error.message;
+	}
 }
 
 function renderCampaignChoiceGrid(grid, selectedName, onSelect) {
-  grid.innerHTML = "";
-  for (const campaign of state.campaigns) {
-    const button = document.createElement("button");
-    const generation = campaign.generation || {};
-    button.type = "button";
-    button.className = "choice-card";
-    button.dataset.value = campaign.name;
-    button.setAttribute("role", "option");
-    button.innerHTML = `
+	grid.innerHTML = "";
+	for (const campaign of state.campaigns) {
+		const button = document.createElement("button");
+		const generation = campaign.generation || {};
+		button.type = "button";
+		button.className = "choice-card";
+		button.dataset.value = campaign.name;
+		button.setAttribute("role", "option");
+		button.innerHTML = `
       <strong>${escapeHTML(campaign.name)}</strong>
       <span>${escapeHTML(campaign.type)}</span>
       <small>${campaign.inputs.existing}/${campaign.inputs.total} input files</small>
       <small>${campaign.instance_progress.total || generation.instances || "-"} instances</small>
     `;
-    button.addEventListener("click", () => onSelect(campaign.name));
-    grid.appendChild(button);
-  }
-  document.querySelectorAll(`#${grid.id} .choice-card`).forEach((button) => {
-    const active = button.dataset.value === selectedName;
-    button.classList.toggle("is-active", active);
-    button.setAttribute("aria-selected", active ? "true" : "false");
-  });
+		button.addEventListener("click", () => onSelect(campaign.name));
+		grid.appendChild(button);
+	}
+	document.querySelectorAll(`#${grid.id} .choice-card`).forEach((button) => {
+		const active = button.dataset.value === selectedName;
+		button.classList.toggle("is-active", active);
+		button.setAttribute("aria-selected", active ? "true" : "false");
+	});
 }
 
 function renderCampaignOptions() {
-  const input = $("#run-campaign");
-  const selected = state.selectedCampaign || input.value;
-  const fallback = state.campaigns[0]?.name || "";
-  const nextSelected = state.campaigns.some((campaign) => campaign.name === selected) ? selected : fallback;
-  selectRunCampaign(nextSelected, { resetCap: nextSelected !== state.selectedCampaign });
-  selectComparisonCampaign(state.campaigns.some((campaign) => campaign.name === state.selectedComparisonCampaign) ? state.selectedComparisonCampaign : fallback);
-  renderManualCampaigns();
-  if (state.manualCampaign && state.loadedManualCampaign !== state.manualCampaign) {
-    loadManualCases(state.manualCampaign);
-  }
+	const input = $("#run-campaign");
+	const selected = state.selectedCampaign || input.value;
+	const fallback = state.campaigns[0]?.name || "";
+	const nextSelected = state.campaigns.some((campaign) => campaign.name === selected) ? selected : fallback;
+	selectRunCampaign(nextSelected, { resetCap: nextSelected !== state.selectedCampaign });
+	selectComparisonCampaign(state.campaigns.some((campaign) => campaign.name === state.selectedComparisonCampaign) ? state.selectedComparisonCampaign : fallback);
+	renderManualCampaigns();
+	if (state.manualCampaign && state.loadedManualCampaign !== state.manualCampaign) {
+		loadManualCases(state.manualCampaign);
+	}
 }
 
 function rememberCampaignVersions(campaigns) {
-  const nextVersions = new Map();
-  campaigns.forEach((campaign) => {
-    const version = campaign.version || "";
-    nextVersions.set(campaign.name, version);
-    if (state.campaignVersions.has(campaign.name) && state.campaignVersions.get(campaign.name) !== version) {
-      state.campaignCaseMetadata.delete(campaign.name);
-      state.benchmarkedInstances.delete(campaign.name);
-      if (state.loadedManualCampaign === campaign.name) {
-        state.loadedManualCampaign = "";
-      }
-    }
-  });
-  state.campaignVersions.forEach((_, name) => {
-    if (!nextVersions.has(name)) {
-      state.campaignCaseMetadata.delete(name);
-      state.benchmarkedInstances.delete(name);
-      if (state.loadedManualCampaign === name) {
-        state.loadedManualCampaign = "";
-      }
-    }
-  });
-  state.campaignVersions = nextVersions;
+	const nextVersions = new Map();
+	campaigns.forEach((campaign) => {
+		const version = campaign.version || "";
+		nextVersions.set(campaign.name, version);
+		if (state.campaignVersions.has(campaign.name) && state.campaignVersions.get(campaign.name) !== version) {
+			state.campaignCaseMetadata.delete(campaign.name);
+			state.benchmarkedInstances.delete(campaign.name);
+			if (state.loadedManualCampaign === campaign.name) {
+				state.loadedManualCampaign = "";
+			}
+		}
+	});
+	state.campaignVersions.forEach((_, name) => {
+		if (!nextVersions.has(name)) {
+			state.campaignCaseMetadata.delete(name);
+			state.benchmarkedInstances.delete(name);
+			if (state.loadedManualCampaign === name) {
+				state.loadedManualCampaign = "";
+			}
+		}
+	});
+	state.campaignVersions = nextVersions;
 }
 
 function selectRunCampaign(name, options = {}) {
-  const resetCap = options.resetCap ?? true;
-  state.selectedCampaign = name;
-  $("#run-campaign").value = name;
-  renderCampaignChoiceGrid($("#run-campaign-grid"), name, selectRunCampaign);
-  if (resetCap) {
-    controls.resetMaxInstancesControl();
-  }
-  renderRunSummary();
-  if (name) {
-    refreshBenchmarkReport(name);
-  }
+	const resetCap = options.resetCap ?? true;
+	state.selectedCampaign = name;
+	$("#run-campaign").value = name;
+	renderCampaignChoiceGrid($("#run-campaign-grid"), name, selectRunCampaign);
+	if (resetCap) {
+		controls.resetMaxInstancesControl();
+	}
+	renderRunSummary();
+	if (name) {
+		refreshBenchmarkReport(name);
+	}
 }
 
 function selectComparisonCampaign(name) {
-  state.selectedComparisonCampaign = name;
-  $("#compare-campaign").value = name;
-  renderCampaignChoiceGrid($("#compare-campaign-grid"), name, selectComparisonCampaign);
-  controls.resetCompareMaxInstancesControl();
-  if (name) {
-    refreshComparisonReport(name);
-  }
+	state.selectedComparisonCampaign = name;
+	$("#compare-campaign").value = name;
+	renderCampaignChoiceGrid($("#compare-campaign-grid"), name, selectComparisonCampaign);
+	controls.resetCompareMaxInstancesControl();
+	if (name) {
+		refreshComparisonReport(name);
+	}
 }
 
 function runProgress(campaign) {
-  const progress = campaign.instance_progress || {};
-  const total = progress.total || 0;
-  const completed = progress.completed || 0;
-  if (total === 0) {
-    return { label: "not started", ratio: 0, total: 0, completed: 0, counts: campaign.run_index.counts || {} };
-  }
-  return {
-    label: `${completed}/${total} instances`,
-    ratio: progress.ratio || completed / total,
-    total,
-    completed,
-    counts: campaign.run_index.counts || {},
-  };
+	const progress = campaign.instance_progress || {};
+	const total = progress.total || 0;
+	const completed = progress.completed || 0;
+	if (total === 0) {
+		return { label: "not started", ratio: 0, total: 0, completed: 0, counts: campaign.run_index.counts || {} };
+	}
+	return {
+		label: `${completed}/${total} instances`,
+		ratio: progress.ratio || completed / total,
+		total,
+		completed,
+		counts: campaign.run_index.counts || {},
+	};
 }
 
 function describeVertices(generation) {
-  const vertices = generation.vertices;
-  if (!Array.isArray(vertices) || vertices.length === 0) {
-    return "-";
-  }
-  if (new Set(vertices).size === 1) {
-    return `${vertices[0]} each`;
-  }
-  return vertices.join(",");
+	const vertices = generation.vertices;
+	if (!Array.isArray(vertices) || vertices.length === 0) {
+		return "-";
+	}
+	if (new Set(vertices).size === 1) {
+		return `${vertices[0]} each`;
+	}
+	return vertices.join(",");
 }
 
 function previewUrl(campaign, kind) {
-  if (!campaign.previews || !campaign.previews[kind]) {
-    return null;
-  }
-  return `/api/campaigns/${encodeURIComponent(campaign.name)}/preview/${kind}?v=${campaign.version || ""}`;
+	if (!campaign.previews || !campaign.previews[kind]) {
+		return null;
+	}
+	return `/api/campaigns/${encodeURIComponent(campaign.name)}/preview/${kind}?v=${campaign.version || ""}`;
 }
 
 function instancePreviewUrl(campaign, index) {
-  return `/api/campaigns/${encodeURIComponent(campaign.name)}/preview/instance-${index}?v=${campaign.version || ""}`;
+	return `/api/campaigns/${encodeURIComponent(campaign.name)}/preview/instance-${index}?v=${campaign.version || ""}`;
 }
 
 function solutionPreviewUrl(campaign, item) {
-  return `/api/campaigns/${encodeURIComponent(campaign.name)}/solution-preview/${item.case_index}?repeat_index=${item.repeat_index}&v=${campaign.version || ""}`;
+	return `/api/campaigns/${encodeURIComponent(campaign.name)}/solution-preview/${item.case_index}?repeat_index=${item.repeat_index}&v=${campaign.version || ""}`;
 }
 
 function instanceModalTitle(campaign, index) {
-  const total = campaign.instance_progress?.total || campaign.generation?.instances || campaign.generation?.instances_per_file || "?";
-  const name = instanceDisplayName(campaign, index);
-  return `
+	const total = campaign.instance_progress?.total || campaign.generation?.instances || campaign.generation?.instances_per_file || "?";
+	const name = instanceDisplayName(campaign, index);
+	return `
     <span class="modal-title-main">${escapeHTML(campaign.name)}</span>
     <span class="modal-title-sub">${instanceLabel(index)}/${escapeHTML(total)}: <button class="instance-name-button modal-title-rename" type="button" data-modal-rename-trigger>${escapeHTML(name)}</button></span>
   `;
 }
 
 function setupModalTitleRename(campaign, index, afterRename) {
-  const title = $("#modal-title");
-  const trigger = title.querySelector("[data-modal-rename-trigger]");
-  if (!trigger) {
-    return;
-  }
-  trigger.addEventListener("click", () => {
-    const input = document.createElement("input");
-    input.className = "instance-name-input modal-title-input";
-    input.value = instanceDisplayName(campaign, index);
-    trigger.replaceWith(input);
-    input.focus();
-    input.select();
-    let committed = false;
-    const commit = async () => {
-      if (committed) {
-        return;
-      }
-      committed = true;
-      try {
-        await renameCampaignInstance(campaign, index, input.value);
-        afterRename?.();
-      } catch (error) {
-        setOutput($("#inspect-output"), error.message);
-        title.innerHTML = instanceModalTitle(campaign, index);
-        setupModalTitleRename(campaign, index, afterRename);
-      }
-    };
-    input.addEventListener("blur", commit);
-    input.addEventListener("keydown", (event) => {
-      event.stopPropagation();
-      if (event.key === "Enter") {
-        event.preventDefault();
-        commit();
-      } else if (event.key === "Escape") {
-        event.preventDefault();
-        committed = true;
-        title.innerHTML = instanceModalTitle(campaign, index);
-        setupModalTitleRename(campaign, index, afterRename);
-      }
-    });
-  });
+	const title = $("#modal-title");
+	const trigger = title.querySelector("[data-modal-rename-trigger]");
+	if (!trigger) {
+		return;
+	}
+	trigger.addEventListener("click", () => {
+		const input = document.createElement("input");
+		input.className = "instance-name-input modal-title-input";
+		input.value = instanceDisplayName(campaign, index);
+		trigger.replaceWith(input);
+		input.focus();
+		input.select();
+		let committed = false;
+		const commit = async () => {
+			if (committed) {
+				return;
+			}
+			committed = true;
+			try {
+				await renameCampaignInstance(campaign, index, input.value);
+				afterRename?.();
+			} catch (error) {
+				setOutput($("#inspect-output"), error.message);
+				title.innerHTML = instanceModalTitle(campaign, index);
+				setupModalTitleRename(campaign, index, afterRename);
+			}
+		};
+		input.addEventListener("blur", commit);
+		input.addEventListener("keydown", (event) => {
+			event.stopPropagation();
+			if (event.key === "Enter") {
+				event.preventDefault();
+				commit();
+			} else if (event.key === "Escape") {
+				event.preventDefault();
+				committed = true;
+				title.innerHTML = instanceModalTitle(campaign, index);
+				setupModalTitleRename(campaign, index, afterRename);
+			}
+		});
+	});
 }
 
 async function renameCampaignInstance(campaign, index, value) {
-  const cases = await loadCampaignCaseMetadata(campaign.name);
-  if (!cases[index]) {
-    throw new Error("Case does not exist.");
-  }
-  cases[index].name = value.trim();
-  const data = await requestJSON(`/api/campaigns/${encodeURIComponent(campaign.name)}/cases`, {
-    method: "PUT",
-    body: JSON.stringify({ cases: cases.map(casePayload) }),
-  });
-  const campaignIndex = state.campaigns.findIndex((item) => item.name === data.campaign.name);
-  if (campaignIndex !== -1) {
-    state.campaigns[campaignIndex] = data.campaign;
-    campaign.version = data.campaign.version;
-  }
-  state.campaignCaseMetadata.set(campaign.name, cases.map(cloneCaseData));
-  if (state.manualCampaign === campaign.name) {
-    state.manualCases = cases.map(cloneCaseData);
-    renderManualCases();
-  }
-  renderCampaigns();
-  renderSolvedPreview(state.campaigns.find((item) => item.name === campaign.name) || campaign);
+	const cases = await loadCampaignCaseMetadata(campaign.name);
+	if (!cases[index]) {
+		throw new Error("Case does not exist.");
+	}
+	cases[index].name = value.trim();
+	const data = await requestJSON(`/api/campaigns/${encodeURIComponent(campaign.name)}/cases`, {
+		method: "PUT",
+		body: JSON.stringify({ cases: cases.map(casePayload) }),
+	});
+	const campaignIndex = state.campaigns.findIndex((item) => item.name === data.campaign.name);
+	if (campaignIndex !== -1) {
+		state.campaigns[campaignIndex] = data.campaign;
+		campaign.version = data.campaign.version;
+	}
+	state.campaignCaseMetadata.set(campaign.name, cases.map(cloneCaseData));
+	if (state.manualCampaign === campaign.name) {
+		state.manualCases = cases.map(cloneCaseData);
+		renderManualCases();
+	}
+	renderCampaigns();
+	renderSolvedPreview(state.campaigns.find((item) => item.name === campaign.name) || campaign);
 }
 
 function instancePreviewButton(campaign, index, className = "instance-thumb", options = {}) {
-  const button = document.createElement("button");
-  button.className = className;
-  button.type = "button";
-  const src = options.src || instancePreviewUrl(campaign, index);
-  button.innerHTML = `
+	const button = document.createElement("button");
+	button.className = className;
+	button.type = "button";
+	const src = options.src || instancePreviewUrl(campaign, index);
+	button.innerHTML = `
     <img src="${src}" alt="${escapeHTML(instanceDisplayName(campaign, index))} preview">
     <span>${instanceLabel(index)}</span>
   `;
-  button.addEventListener("click", () => openInstanceModal(campaign, index));
-  return button;
+	button.addEventListener("click", () => openInstanceModal(campaign, index));
+	return button;
 }
 
 function sampleInstanceIndices(count, limit = 20) {
-  if (count <= limit) {
-    return Array.from({ length: count }, (_, index) => index);
-  }
-  return Array.from({ length: limit }, (_, index) => Math.round(index * (count - 1) / (limit - 1)));
+	if (count <= limit) {
+		return Array.from({ length: count }, (_, index) => index);
+	}
+	return Array.from({ length: limit }, (_, index) => Math.round(index * (count - 1) / (limit - 1)));
 }
 
 function makeFoldablePanel(tagName, className, title, folded = false) {
-  const panel = document.createElement(tagName);
-  panel.className = className;
-  panel.classList.toggle("is-folded", folded);
-  panel.innerHTML = `
+	const panel = document.createElement(tagName);
+	panel.className = className;
+	panel.classList.toggle("is-folded", folded);
+	panel.innerHTML = `
     <figcaption class="fold-header">
       <button class="fold-toggle" type="button" aria-expanded="${folded ? "false" : "true"}">
         <span class="fold-caret" aria-hidden="true"></span>
@@ -1601,74 +1601,74 @@ function makeFoldablePanel(tagName, className, title, folded = false) {
     </figcaption>
     <div class="fold-content"></div>
   `;
-  const button = panel.querySelector(".fold-toggle");
-  button.addEventListener("click", () => {
-    if (panel.classList.contains("mobile-only-fold") && !window.matchMedia("(max-width: 760px)").matches) {
-      return;
-    }
-    const isFolded = panel.classList.toggle("is-folded");
-    button.setAttribute("aria-expanded", isFolded ? "false" : "true");
-  });
-  return panel;
+	const button = panel.querySelector(".fold-toggle");
+	button.addEventListener("click", () => {
+		if (panel.classList.contains("mobile-only-fold") && !window.matchMedia("(max-width: 760px)").matches) {
+			return;
+		}
+		const isFolded = panel.classList.toggle("is-folded");
+		button.setAttribute("aria-expanded", isFolded ? "false" : "true");
+	});
+	return panel;
 }
 
 async function populateInstancePreviewPanels(root, campaign, options = {}) {
-  const previewCount = campaign.instance_previews?.length || 0;
-  if (previewCount === 0) {
-    root.classList.toggle("is-hidden", root.children.length === 0);
-    return;
-  }
-  root.innerHTML = "";
+	const previewCount = campaign.instance_previews?.length || 0;
+	if (previewCount === 0) {
+		root.classList.toggle("is-hidden", root.children.length === 0);
+		return;
+	}
+	root.innerHTML = "";
 
-  const selected = makeFoldablePanel("figure", "preview-panel preview-selected mobile-only-fold", "Selected Instance");
-  selected.querySelector(".fold-content").appendChild(instancePreviewButton(
-    campaign,
-    0,
-    "selected-instance-button",
-    { src: previewUrl(campaign, "selected") || instancePreviewUrl(campaign, 0) },
-  ));
-  root.appendChild(selected);
+	const selected = makeFoldablePanel("figure", "preview-panel preview-selected mobile-only-fold", "Selected Instance");
+	selected.querySelector(".fold-content").appendChild(instancePreviewButton(
+		campaign,
+		0,
+		"selected-instance-button",
+		{ src: previewUrl(campaign, "selected") || instancePreviewUrl(campaign, 0) },
+	));
+	root.appendChild(selected);
 
-  const four = makeFoldablePanel("figure", "preview-panel preview-four mobile-only-fold", "Four Instances");
-  const grid = document.createElement("div");
-  grid.className = "four-instance-grid";
-  Array.from({ length: Math.min(4, previewCount) }, (_, index) => index).forEach((index) => {
-    grid.appendChild(instancePreviewButton(campaign, index));
-  });
-  four.querySelector(".fold-content").appendChild(grid);
-  root.appendChild(four);
+	const four = makeFoldablePanel("figure", "preview-panel preview-four mobile-only-fold", "Four Instances");
+	const grid = document.createElement("div");
+	grid.className = "four-instance-grid";
+	Array.from({ length: Math.min(4, previewCount) }, (_, index) => index).forEach((index) => {
+		grid.appendChild(instancePreviewButton(campaign, index));
+	});
+	four.querySelector(".fold-content").appendChild(grid);
+	root.appendChild(four);
 
-  const panel = makeFoldablePanel("figure", "preview-panel preview-instances", "All Instances");
-  const instanceGrid = document.createElement("div");
-  instanceGrid.className = "instance-grid";
-  const indices = options.sampleAll ? sampleInstanceIndices(previewCount, 20) : Array.from({ length: previewCount }, (_, index) => index);
-  indices.forEach((index) => {
-    instanceGrid.appendChild(instancePreviewButton(campaign, index));
-  });
-  panel.querySelector(".fold-content").appendChild(instanceGrid);
-  root.appendChild(panel);
-  root.classList.remove("is-hidden");
+	const panel = makeFoldablePanel("figure", "preview-panel preview-instances", "All Instances");
+	const instanceGrid = document.createElement("div");
+	instanceGrid.className = "instance-grid";
+	const indices = options.sampleAll ? sampleInstanceIndices(previewCount, 20) : Array.from({ length: previewCount }, (_, index) => index);
+	indices.forEach((index) => {
+		instanceGrid.appendChild(instancePreviewButton(campaign, index));
+	});
+	panel.querySelector(".fold-content").appendChild(instanceGrid);
+	root.appendChild(panel);
+	root.classList.remove("is-hidden");
 }
 
 function renderPreviewPanels(root, campaign, options = {}) {
-  root.innerHTML = "";
-  renderCanvasPlaceholder(root);
-  populateInstancePreviewPanels(root, campaign, options).catch(() => {
-    root.innerHTML = "";
-    root.classList.add("is-hidden");
-  });
+	root.innerHTML = "";
+	renderCanvasPlaceholder(root);
+	populateInstancePreviewPanels(root, campaign, options).catch(() => {
+		root.innerHTML = "";
+		root.classList.add("is-hidden");
+	});
 }
 
 function renderBenchmarkedInstanceSection(root, campaign, instances) {
-  if (!campaign || instances.length === 0) {
-    root.innerHTML = "";
-    root.classList.add("is-hidden");
-    return;
-  }
-  if (!state.campaignCaseMetadata.has(campaign.name)) {
-    loadCampaignCaseMetadata(campaign.name).then(() => renderBenchmarkedInstanceSection(root, campaign, instances));
-  }
-  root.innerHTML = `
+	if (!campaign || instances.length === 0) {
+		root.innerHTML = "";
+		root.classList.add("is-hidden");
+		return;
+	}
+	if (!state.campaignCaseMetadata.has(campaign.name)) {
+		loadCampaignCaseMetadata(campaign.name).then(() => renderBenchmarkedInstanceSection(root, campaign, instances));
+	}
+	root.innerHTML = `
     <header class="section-subheader foldable-section-header">
       <div>
         <h3>
@@ -1689,35 +1689,35 @@ function renderBenchmarkedInstanceSection(root, campaign, instances) {
       <div class="benchmarked-grid"></div>
     </div>
   `;
-  const grid = root.querySelector(".benchmarked-grid");
-  const foldButton = root.querySelector(".fold-toggle");
-  foldButton.addEventListener("click", () => {
-    const isFolded = root.classList.toggle("is-folded");
-    foldButton.setAttribute("aria-expanded", isFolded ? "false" : "true");
-  });
-  root.querySelectorAll("[data-benchmarked-sort]").forEach((button) => button.addEventListener("click", (event) => {
-    state.benchmarkedSort = event.currentTarget.dataset.benchmarkedSort;
-    renderBenchmarkedInstanceSection(root, campaign, instances);
-  }));
-  const sortedInstances = instances.slice().sort((left, right) => {
-    if (state.benchmarkedSort === "time") {
-      return (parseNumber(right.total_seconds) || 0) - (parseNumber(left.total_seconds) || 0);
-    }
-    if (state.benchmarkedSort === "calls") {
-      return (parseNumber(right.calls) || 0) - (parseNumber(left.calls) || 0);
-    }
-    return Number(left.case_index) - Number(right.case_index);
-  });
-  for (const item of sortedInstances) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "benchmarked-card";
-    const preview = item.preview
-      ? `<img src="${instancePreviewUrl(campaign, item.case_index)}" alt="Benchmarked instance ${instanceLabel(item.case_index)}">`
-      : item.solution_available
-        ? `<img src="${solutionPreviewUrl(campaign, item)}" alt="Solved instance ${instanceLabel(item.case_index)} with path and decomposition">`
-        : '<div class="missing-preview">No preview</div>';
-    button.innerHTML = `
+	const grid = root.querySelector(".benchmarked-grid");
+	const foldButton = root.querySelector(".fold-toggle");
+	foldButton.addEventListener("click", () => {
+		const isFolded = root.classList.toggle("is-folded");
+		foldButton.setAttribute("aria-expanded", isFolded ? "false" : "true");
+	});
+	root.querySelectorAll("[data-benchmarked-sort]").forEach((button) => button.addEventListener("click", (event) => {
+		state.benchmarkedSort = event.currentTarget.dataset.benchmarkedSort;
+		renderBenchmarkedInstanceSection(root, campaign, instances);
+	}));
+	const sortedInstances = instances.slice().sort((left, right) => {
+		if (state.benchmarkedSort === "time") {
+			return (parseNumber(right.total_seconds) || 0) - (parseNumber(left.total_seconds) || 0);
+		}
+		if (state.benchmarkedSort === "calls") {
+			return (parseNumber(right.calls) || 0) - (parseNumber(left.calls) || 0);
+		}
+		return Number(left.case_index) - Number(right.case_index);
+	});
+	for (const item of sortedInstances) {
+		const button = document.createElement("button");
+		button.type = "button";
+		button.className = "benchmarked-card";
+		const preview = item.preview
+			? `<img src="${instancePreviewUrl(campaign, item.case_index)}" alt="Benchmarked instance ${instanceLabel(item.case_index)}">`
+			: item.solution_available
+				? `<img src="${solutionPreviewUrl(campaign, item)}" alt="Solved instance ${instanceLabel(item.case_index)} with path and decomposition">`
+				: '<div class="missing-preview">No preview</div>';
+		button.innerHTML = `
       ${preview}
       <div class="benchmarked-meta">
         <strong>${escapeHTML(instanceTitle(campaign, item.case_index))}</strong>
@@ -1728,97 +1728,97 @@ function renderBenchmarkedInstanceSection(root, campaign, instances) {
         <small>${item.solution_available ? "path + pieces" : `${escapeHTML(item.decomposed_pieces ?? "-")} pieces`}</small>
       </div>
     `;
-    button.addEventListener("click", () => openBenchmarkedInstanceModal(campaign, item));
-    grid.appendChild(button);
-  }
-  root.classList.remove("is-hidden");
+		button.addEventListener("click", () => openBenchmarkedInstanceModal(campaign, item));
+		grid.appendChild(button);
+	}
+	root.classList.remove("is-hidden");
 }
 
 function renderSolvedPreview(campaign) {
-  const root = $("#solved-preview");
-  const instances = campaign ? state.benchmarkedInstances.get(campaign.name) || [] : [];
-  renderBenchmarkedInstanceSection(root, campaign, instances);
+	const root = $("#solved-preview");
+	const instances = campaign ? state.benchmarkedInstances.get(campaign.name) || [] : [];
+	renderBenchmarkedInstanceSection(root, campaign, instances);
 }
 
 function renderCampaigns() {
-  renderCampaignList($("#campaign-list"), {
-    closeIconSVG,
-    deleteCampaign,
-    describeVertices,
-    openCampaignModal,
-    runProgress,
-  });
+	renderCampaignList($("#campaign-list"), {
+		closeIconSVG,
+		deleteCampaign,
+		describeVertices,
+		openCampaignModal,
+		runProgress,
+	});
 }
 
 function renderResults(files) {
-  const root = $("#result-list");
-  root.innerHTML = "";
-  const query = state.resultFilter;
-  const filtered = files
-    .filter((file) => !query || file.path.toLowerCase().includes(query))
-    .slice()
-    .sort((left, right) => right.mtime - left.mtime);
-  if (filtered.length === 0) {
-    root.textContent = "No result files found.";
-    return;
-  }
-  for (const file of filtered.slice(0, 40)) {
-    const row = document.createElement("div");
-    row.className = "result-row";
-    row.textContent = `${file.path} (${file.size} bytes)`;
-    root.appendChild(row);
-  }
+	const root = $("#result-list");
+	root.innerHTML = "";
+	const query = state.resultFilter;
+	const filtered = files
+		.filter((file) => !query || file.path.toLowerCase().includes(query))
+		.slice()
+		.sort((left, right) => right.mtime - left.mtime);
+	if (filtered.length === 0) {
+		root.textContent = "No result files found.";
+		return;
+	}
+	for (const file of filtered.slice(0, 40)) {
+		const row = document.createElement("div");
+		row.className = "result-row";
+		row.textContent = `${file.path} (${file.size} bytes)`;
+		root.appendChild(row);
+	}
 }
 
 function renderJobs(jobs) {
-  const root = $("#job-list");
-  if (!root) {
-    return;
-  }
-  root.innerHTML = "";
-  if (!jobs || jobs.length === 0) {
-    root.textContent = "No jobs recorded.";
-    return;
-  }
-  for (const job of jobs.slice(0, 20)) {
-    const row = document.createElement("div");
-    row.className = "result-row job-row";
-    const started = new Date((job.started_at || 0) * 1000);
-    const elapsed = job.finished_at
-      ? formatElapsed(job.finished_at - job.started_at)
-      : formatElapsed(Date.now() / 1000 - job.started_at);
-    row.innerHTML = `
+	const root = $("#job-list");
+	if (!root) {
+		return;
+	}
+	root.innerHTML = "";
+	if (!jobs || jobs.length === 0) {
+		root.textContent = "No jobs recorded.";
+		return;
+	}
+	for (const job of jobs.slice(0, 20)) {
+		const row = document.createElement("div");
+		row.className = "result-row job-row";
+		const started = new Date((job.started_at || 0) * 1000);
+		const elapsed = job.finished_at
+			? formatElapsed(job.finished_at - job.started_at)
+			: formatElapsed(Date.now() / 1000 - job.started_at);
+		row.innerHTML = `
       <strong>${escapeHTML(job.kind || "job")} / ${escapeHTML(job.status || "unknown")}</strong>
       <span>${escapeHTML(job.campaign || "-")} | ${Number.isNaN(started.getTime()) ? "-" : started.toLocaleString()} | ${elapsed}</span>
     `;
-    root.appendChild(row);
-  }
+		root.appendChild(row);
+	}
 }
 
 async function refreshComparisonReport(campaignName) {
-  if (!campaignName) {
-    renderComparisonReport(null);
-    return;
-  }
-  const data = await requestJSON(`/api/campaigns/${encodeURIComponent(campaignName)}/comparisons`);
-  renderComparisonReport(data);
+	if (!campaignName) {
+		renderComparisonReport(null);
+		return;
+	}
+	const data = await requestJSON(`/api/campaigns/${encodeURIComponent(campaignName)}/comparisons`);
+	renderComparisonReport(data);
 }
 
 function renderRunProgressCard(campaign, running = false, liveProgress = null) {
-  const root = $("#run-progress");
-  if (!campaign) {
-    root.innerHTML = "";
-    root.classList.add("is-hidden");
-    return;
-  }
-  const progress = liveProgress || runProgress(campaign);
-  const phase = progress.phase || (running ? "benchmark" : "completed");
-  const compiling = running && phase === "compile";
-  const percent = Math.round(progress.ratio * 100);
-  const visiblePercent = compiling ? 100 : running && percent === 0 ? 8 : percent;
-  const title = compiling ? "Compiling benchmark" : running ? "Running tests" : "Benchmark progress";
-  const label = compiling ? "Build in progress" : progress.label;
-  root.innerHTML = `
+	const root = $("#run-progress");
+	if (!campaign) {
+		root.innerHTML = "";
+		root.classList.add("is-hidden");
+		return;
+	}
+	const progress = liveProgress || runProgress(campaign);
+	const phase = progress.phase || (running ? "benchmark" : "completed");
+	const compiling = running && phase === "compile";
+	const percent = Math.round(progress.ratio * 100);
+	const visiblePercent = compiling ? 100 : running && percent === 0 ? 8 : percent;
+	const title = compiling ? "Compiling benchmark" : running ? "Running tests" : "Benchmark progress";
+	const label = compiling ? "Build in progress" : progress.label;
+	root.innerHTML = `
     <div class="run-progress-header">
       <strong>${title}</strong>
       <span>${label}</span>
@@ -1834,23 +1834,23 @@ function renderRunProgressCard(campaign, running = false, liveProgress = null) {
       <strong class="run-progress-percent">${compiling ? "build" : `${percent}%`}</strong>
     </div>
   `;
-  root.classList.remove("is-hidden");
+	root.classList.remove("is-hidden");
 }
 
 function renderRunSummary() {
-  const root = $("#run-summary");
-  const selected = $("#run-campaign").value;
-  const campaign = state.campaigns.find((item) => item.name === selected);
-  if (!campaign) {
-    root.innerHTML = "";
-    return;
-  }
-  const progress = runProgress(campaign);
-  const failedFiles = Object.entries(progress.counts)
-    .filter(([status]) => status !== "completed" && status !== "pending")
-    .reduce((total, [, count]) => total + count, 0);
-  const pendingInstances = Math.max(0, progress.total - progress.completed);
-  root.innerHTML = `
+	const root = $("#run-summary");
+	const selected = $("#run-campaign").value;
+	const campaign = state.campaigns.find((item) => item.name === selected);
+	if (!campaign) {
+		root.innerHTML = "";
+		return;
+	}
+	const progress = runProgress(campaign);
+	const failedFiles = Object.entries(progress.counts)
+		.filter(([status]) => status !== "completed" && status !== "pending")
+		.reduce((total, [, count]) => total + count, 0);
+	const pendingInstances = Math.max(0, progress.total - progress.completed);
+	root.innerHTML = `
     ${metricCard("Instances", `${progress.completed}/${progress.total || "-"}`)}
     ${metricCard("Completed", progress.completed)}
     ${metricCard("Pending", pendingInstances || 0)}
@@ -1860,25 +1860,25 @@ function renderRunSummary() {
       <div class="bar"><div class="bar-fill" style="width: ${Math.round(progress.ratio * 100)}%"></div></div>
     </div>
   `;
-  renderRunProgressCard(campaign);
-  renderSolvedPreview(campaign);
+	renderRunProgressCard(campaign);
+	renderSolvedPreview(campaign);
 }
 
 function openCampaignModal(campaign) {
-  const modal = $("#campaign-modal");
-  const body = $("#modal-body");
-  const closeButton = modal.querySelector(".modal-x-button");
-  const generation = campaign.generation || {};
-  const progress = runProgress(campaign);
-  state.instanceModalReturn = null;
-  closeButton?.removeAttribute("data-modal-back-instance");
-  if (closeButton) {
-    closeButton.classList.remove("modal-back-button");
-    setCloseIcon(closeButton);
-    closeButton.setAttribute("aria-label", "Close campaign details");
-  }
-  $("#modal-title").textContent = campaign.name;
-  body.innerHTML = `
+	const modal = $("#campaign-modal");
+	const body = $("#modal-body");
+	const closeButton = modal.querySelector(".modal-x-button");
+	const generation = campaign.generation || {};
+	const progress = runProgress(campaign);
+	state.instanceModalReturn = null;
+	closeButton?.removeAttribute("data-modal-back-instance");
+	if (closeButton) {
+		closeButton.classList.remove("modal-back-button");
+		setCloseIcon(closeButton);
+		closeButton.setAttribute("aria-label", "Close campaign details");
+	}
+	$("#modal-title").textContent = campaign.name;
+	body.innerHTML = `
     <div class="modal-summary">
       ${metricCard("Type", campaign.type)}
       ${metricCard("Instances", generation.instances ?? generation.instances_per_file ?? "-")}
@@ -1895,85 +1895,85 @@ function openCampaignModal(campaign) {
       <button class="danger" type="button" data-delete-campaign="${campaign.name}">Delete Campaign</button>
     </div>
   `;
-  body.querySelector("[data-edit-campaign]")?.addEventListener("click", async (event) => {
-    closeCampaignModal();
-    await selectManualCampaign(event.currentTarget.dataset.editCampaign);
-    switchPanel("cases-panel");
-  });
-  body.querySelector("[data-delete-campaign]").addEventListener("click", deleteCampaign);
-  renderPreviewPanels(body.querySelector(".modal-previews"), campaign);
-  const instances = state.benchmarkedInstances.get(campaign.name) || [];
-  renderBenchmarkedInstanceSection(body.querySelector(".modal-results"), campaign, instances);
-  if (progress.completed > 0 && instances.length === 0) {
-    refreshBenchmarkedInstances(campaign.name);
-  }
-  modal.classList.remove("is-hidden");
+	body.querySelector("[data-edit-campaign]")?.addEventListener("click", async (event) => {
+		closeCampaignModal();
+		await selectManualCampaign(event.currentTarget.dataset.editCampaign);
+		switchPanel("cases-panel");
+	});
+	body.querySelector("[data-delete-campaign]").addEventListener("click", deleteCampaign);
+	renderPreviewPanels(body.querySelector(".modal-previews"), campaign);
+	const instances = state.benchmarkedInstances.get(campaign.name) || [];
+	renderBenchmarkedInstanceSection(body.querySelector(".modal-results"), campaign, instances);
+	if (progress.completed > 0 && instances.length === 0) {
+		refreshBenchmarkedInstances(campaign.name);
+	}
+	modal.classList.remove("is-hidden");
 }
 
 function closeCampaignModal() {
-  $("#campaign-modal").classList.add("is-hidden");
-  state.instanceModalReturn = null;
+	$("#campaign-modal").classList.add("is-hidden");
+	state.instanceModalReturn = null;
 }
 
 function returnToCampaignModal() {
-  const modalReturn = state.instanceModalReturn;
-  if (!modalReturn) {
-    closeCampaignModal();
-    return;
-  }
-  if (modalReturn.panel) {
-    closeCampaignModal();
-    switchPanel(modalReturn.panel);
-    return;
-  }
-  openCampaignModal(modalReturn.campaign || modalReturn);
+	const modalReturn = state.instanceModalReturn;
+	if (!modalReturn) {
+		closeCampaignModal();
+		return;
+	}
+	if (modalReturn.panel) {
+		closeCampaignModal();
+		switchPanel(modalReturn.panel);
+		return;
+	}
+	openCampaignModal(modalReturn.campaign || modalReturn);
 }
 
 function setInstanceModalBackButton(modal) {
-  const closeButton = modal.querySelector(".modal-x-button");
-  if (!closeButton) {
-    return;
-  }
-  closeButton.setAttribute("data-modal-back-instance", "true");
-  closeButton.classList.add("modal-back-button");
-  closeButton.innerHTML = `
+	const closeButton = modal.querySelector(".modal-x-button");
+	if (!closeButton) {
+		return;
+	}
+	closeButton.setAttribute("data-modal-back-instance", "true");
+	closeButton.classList.add("modal-back-button");
+	closeButton.innerHTML = `
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <path d="M19 12H5M11 6l-6 6 6 6" />
     </svg>
   `;
-  closeButton.setAttribute("aria-label", "Back to campaign details");
+	closeButton.setAttribute("aria-label", "Back to campaign details");
 }
 
 async function openInstanceModal(campaign, index) {
-  const modal = $("#campaign-modal");
-  state.instanceModalReturn = { campaign };
-  setInstanceModalBackButton(modal);
-  const cases = await loadCampaignCaseMetadata(campaign.name);
-  const caseData = cases[index];
-  const body = $("#modal-body");
-  const title = instanceTitle(campaign, index);
-  $("#modal-title").innerHTML = instanceModalTitle(campaign, index);
-  body.innerHTML = `
+	const modal = $("#campaign-modal");
+	state.instanceModalReturn = { campaign };
+	setInstanceModalBackButton(modal);
+	const cases = await loadCampaignCaseMetadata(campaign.name);
+	const caseData = cases[index];
+	const body = $("#modal-body");
+	const title = instanceTitle(campaign, index);
+	$("#modal-title").innerHTML = instanceModalTitle(campaign, index);
+	body.innerHTML = `
     ${caseData ? readonlyInstanceDetail(`${title} detail`) : '<div class="missing-preview detail-missing">No case data available.</div>'}
   `;
-  body.querySelector("[data-edit-instance]")?.addEventListener("click", () => editInstance(campaign, index));
-  if (caseData) {
-    setupReadonlyInstanceDetail(body, caseData, manualEditor);
-  }
-  setupModalTitleRename(campaign, index, () => openInstanceModal(campaign, index));
-  modal.classList.remove("is-hidden");
+	body.querySelector("[data-edit-instance]")?.addEventListener("click", () => editInstance(campaign, index));
+	if (caseData) {
+		setupReadonlyInstanceDetail(body, caseData, manualEditor);
+	}
+	setupModalTitleRename(campaign, index, () => openInstanceModal(campaign, index));
+	modal.classList.remove("is-hidden");
 }
 
 async function openBenchmarkedInstanceModal(campaign, item) {
-  const modal = $("#campaign-modal");
-  state.instanceModalReturn = { campaign, panel: "benchmark-panel" };
-  setInstanceModalBackButton(modal);
-  const cases = await loadCampaignCaseMetadata(campaign.name);
-  const caseData = cases[item.case_index];
-  const body = $("#modal-body");
-  const title = instanceTitle(campaign, item.case_index);
-  $("#modal-title").innerHTML = instanceModalTitle(campaign, item.case_index);
-  body.innerHTML = `
+	const modal = $("#campaign-modal");
+	state.instanceModalReturn = { campaign, panel: "benchmark-panel" };
+	setInstanceModalBackButton(modal);
+	const cases = await loadCampaignCaseMetadata(campaign.name);
+	const caseData = cases[item.case_index];
+	const body = $("#modal-body");
+	const title = instanceTitle(campaign, item.case_index);
+	$("#modal-title").innerHTML = instanceModalTitle(campaign, item.case_index);
+	body.innerHTML = `
     <div class="modal-summary">
       ${metricCard("Status", item.status)}
       ${metricCard("Final length", shortNumber(item.final_length))}
@@ -1986,239 +1986,239 @@ async function openBenchmarkedInstanceModal(campaign, item) {
     </div>
     ${caseData ? readonlyInstanceDetail(`${title} detail`) : '<div class="missing-preview detail-missing">No case data available.</div>'}
   `;
-  body.querySelector("[data-edit-instance]")?.addEventListener("click", () => editInstance(campaign, item.case_index));
-  if (caseData) {
-    setupReadonlyInstanceDetail(body, caseData, manualEditor);
-  }
-  setupModalTitleRename(campaign, item.case_index, () => openBenchmarkedInstanceModal(campaign, item));
-  modal.classList.remove("is-hidden");
+	body.querySelector("[data-edit-instance]")?.addEventListener("click", () => editInstance(campaign, item.case_index));
+	if (caseData) {
+		setupReadonlyInstanceDetail(body, caseData, manualEditor);
+	}
+	setupModalTitleRename(campaign, item.case_index, () => openBenchmarkedInstanceModal(campaign, item));
+	modal.classList.remove("is-hidden");
 }
 
 async function refresh() {
-  const previousJobs = state.recentJobs;
-  const [campaignData, resultData, jobData] = await Promise.all([
-    requestJSON("/api/campaigns"),
-    requestJSON("/api/results"),
-    requestJSON("/api/jobs"),
-  ]);
-  rememberCampaignVersions(campaignData.campaigns);
-  state.campaigns = campaignData.campaigns;
-  state.resultFiles = resultData.files;
-  state.recentJobs = jobData.jobs;
-  renderJobDock(previousJobs);
-  renderCampaignOptions();
-  renderCampaigns();
-  renderResults(state.resultFiles);
-  renderJobs(state.recentJobs);
-  updateCampaignNameIndicator();
+	const previousJobs = state.recentJobs;
+	const [campaignData, resultData, jobData] = await Promise.all([
+		requestJSON("/api/campaigns"),
+		requestJSON("/api/results"),
+		requestJSON("/api/jobs"),
+	]);
+	rememberCampaignVersions(campaignData.campaigns);
+	state.campaigns = campaignData.campaigns;
+	state.resultFiles = resultData.files;
+	state.recentJobs = jobData.jobs;
+	renderJobDock(previousJobs);
+	renderCampaignOptions();
+	renderCampaigns();
+	renderResults(state.resultFiles);
+	renderJobs(state.recentJobs);
+	updateCampaignNameIndicator();
 }
 
 function updateCreateMode() {
-  const mode = document.querySelector('[name="campaign_type"]').value;
-  const synthetic = mode === "synthetic";
-  document.querySelectorAll(".synthetic-field").forEach((field) => {
-    field.classList.toggle("is-hidden", !synthetic);
-    field.querySelectorAll("input, select").forEach((input) => {
-      input.disabled = !synthetic;
-    });
-  });
-  document.querySelectorAll(".osm-field").forEach((field) => {
-    field.classList.toggle("is-hidden", synthetic);
-    field.querySelectorAll("input, select").forEach((input) => {
-      input.disabled = synthetic;
-    });
-  });
-  if (!synthetic && !state.osmScanStarted) {
-    scanOsmFiles();
-  }
+	const mode = document.querySelector('[name="campaign_type"]').value;
+	const synthetic = mode === "synthetic";
+	document.querySelectorAll(".synthetic-field").forEach((field) => {
+		field.classList.toggle("is-hidden", !synthetic);
+		field.querySelectorAll("input, select").forEach((input) => {
+			input.disabled = !synthetic;
+		});
+	});
+	document.querySelectorAll(".osm-field").forEach((field) => {
+		field.classList.toggle("is-hidden", synthetic);
+		field.querySelectorAll("input, select").forEach((input) => {
+			input.disabled = synthetic;
+		});
+	});
+	if (!synthetic && !state.osmScanStarted) {
+		scanOsmFiles();
+	}
 }
 
 async function refreshBenchmarkReport(campaignName) {
-  if (!campaignName) {
-    renderBenchmarkReport(null);
-    renderSolvedPreview(null);
-    return;
-  }
-  const report = await requestJSON(`/api/campaigns/${encodeURIComponent(campaignName)}/summaries`);
-  renderBenchmarkReport(report);
-  await refreshBenchmarkedInstances(campaignName);
+	if (!campaignName) {
+		renderBenchmarkReport(null);
+		renderSolvedPreview(null);
+		return;
+	}
+	const report = await requestJSON(`/api/campaigns/${encodeURIComponent(campaignName)}/summaries`);
+	renderBenchmarkReport(report);
+	await refreshBenchmarkedInstances(campaignName);
 }
 
 async function refreshBenchmarkedInstances(campaignName) {
-  if (!campaignName) {
-    return;
-  }
-  const data = await requestJSON(`/api/campaigns/${encodeURIComponent(campaignName)}/benchmarked-instances`);
-  state.benchmarkedInstances.set(campaignName, data.instances);
-  const campaign = state.campaigns.find((item) => item.name === campaignName);
-  renderSolvedPreview(campaign);
-  document.querySelectorAll("[data-benchmarked-section]").forEach((root) => {
-    if (root.dataset.benchmarkedSection === campaignName) {
-      renderBenchmarkedInstanceSection(root, campaign, data.instances);
-    }
-  });
+	if (!campaignName) {
+		return;
+	}
+	const data = await requestJSON(`/api/campaigns/${encodeURIComponent(campaignName)}/benchmarked-instances`);
+	state.benchmarkedInstances.set(campaignName, data.instances);
+	const campaign = state.campaigns.find((item) => item.name === campaignName);
+	renderSolvedPreview(campaign);
+	document.querySelectorAll("[data-benchmarked-section]").forEach((root) => {
+		if (root.dataset.benchmarkedSection === campaignName) {
+			renderBenchmarkedInstanceSection(root, campaign, data.instances);
+		}
+	});
 }
 
 async function createCampaign(event) {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const values = formData(form);
-  const synthetic = values.campaign_type === "synthetic";
-  const payload = synthetic ? {
-    name: values.name,
-    vertices: values.vertices,
-    polygons: Number(values.polygons),
-    instances: Number(values.instances),
-    shape: values.shape,
-    seed: Number(values.seed),
-    no_preview: boolField(form, "no_preview"),
-    overwrite: boolField(form, "overwrite"),
-  } : {
-    name: values.name,
-    pbf_path: values.pbf_path,
-    polygon_counts: Number(values.polygon_counts),
-    sample_size: values.sample_size ? Number(values.sample_size) : null,
-    instances: Number(values.instances),
-    seed: Number(values.seed),
-    simplify_tolerance: Number(values.simplify_tolerance),
-    normalization: values.normalization,
-    scale: Number(values.scale),
-    sampling: values.sampling,
-    local_pool_size: Number(values.local_pool_size),
-    layout: values.layout,
-    grid_polygon_size: Number(values.grid_polygon_size),
-    grid_cell_size: Number(values.grid_cell_size),
-    grid_columns: values.grid_columns ? Number(values.grid_columns) : null,
-    grid_placement: values.grid_placement,
-    convex_replacement_fraction: Number(values.convex_replacement_fraction),
-    convex_replacement_vertices: Number(values.convex_replacement_vertices),
-    convex_replacement_position: values.convex_replacement_position,
-    order: values.order,
-    endpoint_mode: values.endpoint_mode,
-    no_preview: boolField(form, "no_preview"),
-    overwrite: boolField(form, "overwrite"),
-  };
-  const output = $("#create-output");
-  const preview = $("#create-preview");
-  setOutput(output, "Creating campaign...");
-  preview.innerHTML = "";
-  preview.classList.add("is-hidden");
-  try {
-    const data = await requestJSON(synthetic ? "/api/campaigns/synthetic" : "/api/campaigns/osm", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    setOutput(output, data.output);
-    await refresh();
-    const campaign = state.campaigns.find((item) => item.name === data.campaign.name) || data.campaign;
-    renderPreviewPanels(preview, campaign);
-  } catch (error) {
-    setOutput(output, error.message);
-    setStopButton("#stop-run-button", null);
-  }
+	event.preventDefault();
+	const form = event.currentTarget;
+	const values = formData(form);
+	const synthetic = values.campaign_type === "synthetic";
+	const payload = synthetic ? {
+		name: values.name,
+		vertices: values.vertices,
+		polygons: Number(values.polygons),
+		instances: Number(values.instances),
+		shape: values.shape,
+		seed: Number(values.seed),
+		no_preview: boolField(form, "no_preview"),
+		overwrite: boolField(form, "overwrite"),
+	} : {
+		name: values.name,
+		pbf_path: values.pbf_path,
+		polygon_counts: Number(values.polygon_counts),
+		sample_size: values.sample_size ? Number(values.sample_size) : null,
+		instances: Number(values.instances),
+		seed: Number(values.seed),
+		simplify_tolerance: Number(values.simplify_tolerance),
+		normalization: values.normalization,
+		scale: Number(values.scale),
+		sampling: values.sampling,
+		local_pool_size: Number(values.local_pool_size),
+		layout: values.layout,
+		grid_polygon_size: Number(values.grid_polygon_size),
+		grid_cell_size: Number(values.grid_cell_size),
+		grid_columns: values.grid_columns ? Number(values.grid_columns) : null,
+		grid_placement: values.grid_placement,
+		convex_replacement_fraction: Number(values.convex_replacement_fraction),
+		convex_replacement_vertices: Number(values.convex_replacement_vertices),
+		convex_replacement_position: values.convex_replacement_position,
+		order: values.order,
+		endpoint_mode: values.endpoint_mode,
+		no_preview: boolField(form, "no_preview"),
+		overwrite: boolField(form, "overwrite"),
+	};
+	const output = $("#create-output");
+	const preview = $("#create-preview");
+	setOutput(output, "Creating campaign...");
+	preview.innerHTML = "";
+	preview.classList.add("is-hidden");
+	try {
+		const data = await requestJSON(synthetic ? "/api/campaigns/synthetic" : "/api/campaigns/osm", {
+			method: "POST",
+			body: JSON.stringify(payload),
+		});
+		setOutput(output, data.output);
+		await refresh();
+		const campaign = state.campaigns.find((item) => item.name === data.campaign.name) || data.campaign;
+		renderPreviewPanels(preview, campaign);
+	} catch (error) {
+		setOutput(output, error.message);
+		setStopButton("#stop-run-button", null);
+	}
 }
 
 async function importCanonicalSuite() {
-  const output = $("#inspect-output");
-  try {
-    const data = await requestJSON("/api/campaigns/canonical", {
-      method: "POST",
-      body: JSON.stringify({ name: "canonical-v1", overwrite: campaignExists("canonical-v1") }),
-    });
-    await refresh();
-    switchPanel("inspect-panel");
-    setOutput(output, `Imported canonical suite as ${data.campaign.name}.`);
-  } catch (error) {
-    switchPanel("inspect-panel");
-    setOutput(output, error.message);
-  }
+	const output = $("#inspect-output");
+	try {
+		const data = await requestJSON("/api/campaigns/canonical", {
+			method: "POST",
+			body: JSON.stringify({ name: "canonical-v1", overwrite: campaignExists("canonical-v1") }),
+		});
+		await refresh();
+		switchPanel("inspect-panel");
+		setOutput(output, `Imported canonical suite as ${data.campaign.name}.`);
+	} catch (error) {
+		switchPanel("inspect-panel");
+		setOutput(output, error.message);
+	}
 }
 
 async function importGermanInstances() {
-  const output = $("#inspect-output");
-  try {
-    const data = await requestJSON("/api/campaigns/german", {
-      method: "POST",
-      body: JSON.stringify({ name: "german-instances", overwrite: campaignExists("german-instances") }),
-    });
-    await refresh();
-    switchPanel("inspect-panel");
-    setOutput(output, `Imported German instances as ${data.campaign.name}.`);
-  } catch (error) {
-    switchPanel("inspect-panel");
-    setOutput(output, error.message);
-  }
+	const output = $("#inspect-output");
+	try {
+		const data = await requestJSON("/api/campaigns/german", {
+			method: "POST",
+			body: JSON.stringify({ name: "german-instances", overwrite: campaignExists("german-instances") }),
+		});
+		await refresh();
+		switchPanel("inspect-panel");
+		setOutput(output, `Imported German instances as ${data.campaign.name}.`);
+	} catch (error) {
+		switchPanel("inspect-panel");
+		setOutput(output, error.message);
+	}
 }
 
 async function deleteCampaign(event) {
-  const name = event.currentTarget.dataset.deleteCampaign;
-  if (!name || !(await askConfirmation(`Delete campaign "${name}"? This removes its inputs, previews, results, and metadata.`, "Delete"))) {
-    return;
-  }
-  try {
-    await requestJSON(`/api/campaigns/${encodeURIComponent(name)}`, { method: "DELETE" });
-    closeCampaignModal();
-    state.benchmarkedInstances.delete(name);
-    if (state.selectedCampaign === name) {
-      state.selectedCampaign = "";
-    }
-    if (state.selectedComparisonCampaign === name) {
-      state.selectedComparisonCampaign = "";
-    }
-    await refresh();
-  } catch (error) {
-    setOutput($("#inspect-output"), error.message);
-  }
+	const name = event.currentTarget.dataset.deleteCampaign;
+	if (!name || !(await askConfirmation(`Delete campaign "${name}"? This removes its inputs, previews, results, and metadata.`, "Delete"))) {
+		return;
+	}
+	try {
+		await requestJSON(`/api/campaigns/${encodeURIComponent(name)}`, { method: "DELETE" });
+		closeCampaignModal();
+		state.benchmarkedInstances.delete(name);
+		if (state.selectedCampaign === name) {
+			state.selectedCampaign = "";
+		}
+		if (state.selectedComparisonCampaign === name) {
+			state.selectedComparisonCampaign = "";
+		}
+		await refresh();
+	} catch (error) {
+		setOutput($("#inspect-output"), error.message);
+	}
 }
 
 function setStopButton(selector, jobId) {
-  const button = $(selector);
-  if (!button) {
-    return;
-  }
-  button.dataset.job = jobId || "";
-  button.disabled = !jobId;
-  button.classList.toggle("is-hidden", selector === "#stop-run-button" || !jobId);
-  button.textContent = "Stop";
-  if (selector === "#stop-run-button") {
-    const runButton = $("#run-submit-button");
-    if (runButton) {
-      runButton.dataset.job = jobId || "";
-      runButton.disabled = false;
-      runButton.textContent = jobId ? "Stop" : "Run";
-      runButton.classList.toggle("stop-button", Boolean(jobId));
-    }
-  }
+	const button = $(selector);
+	if (!button) {
+		return;
+	}
+	button.dataset.job = jobId || "";
+	button.disabled = !jobId;
+	button.classList.toggle("is-hidden", selector === "#stop-run-button" || !jobId);
+	button.textContent = "Stop";
+	if (selector === "#stop-run-button") {
+		const runButton = $("#run-submit-button");
+		if (runButton) {
+			runButton.dataset.job = jobId || "";
+			runButton.disabled = false;
+			runButton.textContent = jobId ? "Stop" : "Run";
+			runButton.classList.toggle("stop-button", Boolean(jobId));
+		}
+	}
 }
 
 async function cancelJob(selector, outputSelector) {
-  const button = $(selector);
-  const jobId = button?.dataset.job;
-  if (!jobId || button.disabled) {
-    return;
-  }
-  button.disabled = true;
-  button.textContent = "Stopping...";
-  try {
-    await cancelJobId(jobId);
-  } catch (error) {
-    setOutput($(outputSelector), error.message);
-    button.disabled = false;
-    button.textContent = "Stop";
-  }
+	const button = $(selector);
+	const jobId = button?.dataset.job;
+	if (!jobId || button.disabled) {
+		return;
+	}
+	button.disabled = true;
+	button.textContent = "Stopping...";
+	try {
+		await cancelJobId(jobId);
+	} catch (error) {
+		setOutput($(outputSelector), error.message);
+		button.disabled = false;
+		button.textContent = "Stop";
+	}
 }
 
 function renderComparisonProgress(progress, options) {
-  const active = options.active;
-  const instancePercent = options.instanceTotal
-    ? Math.round((options.instanceCompleted / options.instanceTotal) * 100)
-    : active ? 0 : 100;
-  const visibleInstancePercent = active && instancePercent === 0 ? 8 : instancePercent;
-  const solverPercent = options.solverTotal
-    ? Math.round((options.solverCompleted / options.solverTotal) * 100)
-    : active ? 0 : 100;
-  const visibleSolverPercent = active && solverPercent === 0 ? 8 : solverPercent;
-  progress.innerHTML = `
+	const active = options.active;
+	const instancePercent = options.instanceTotal
+		? Math.round((options.instanceCompleted / options.instanceTotal) * 100)
+		: active ? 0 : 100;
+	const visibleInstancePercent = active && instancePercent === 0 ? 8 : instancePercent;
+	const solverPercent = options.solverTotal
+		? Math.round((options.solverCompleted / options.solverTotal) * 100)
+		: active ? 0 : 100;
+	const visibleSolverPercent = active && solverPercent === 0 ? 8 : solverPercent;
+	progress.innerHTML = `
     <div class="comparison-progress-head">
       <strong>Status: ${options.status}</strong>
       <span>Test case: ${options.testCase || "-"}</span>
@@ -2242,290 +2242,290 @@ function renderComparisonProgress(progress, options) {
       </div>
     </div>
   `;
-  progress.classList.remove("is-hidden");
+	progress.classList.remove("is-hidden");
 }
 
 async function pollJob(jobId) {
-  const output = $("#run-output");
-  setStopButton("#stop-run-button", jobId);
-  let lastRefresh = 0;
-  while (true) {
-    const job = await requestJSON(`/api/jobs/${jobId}/progress`);
-    const previousJobs = state.recentJobs;
-    state.recentJobs = [job, ...state.recentJobs.filter((item) => item.id !== job.id)];
-    renderJobDock(previousJobs);
-    const command = `+ ${job.command.join(" ")}\n\n`;
-    setOutput(output, command + (job.output || ""));
-    if (Date.now() - lastRefresh > REPORT_REFRESH_INTERVAL_MS) {
-      await refresh();
-      lastRefresh = Date.now();
-    }
-    const campaign = state.campaigns.find((item) => item.name === state.selectedCampaign);
-    const liveProgress = job.progress_total
-      ? {
-        completed: job.progress_completed || 0,
-        total: job.progress_total,
-        ratio: (job.progress_completed || 0) / job.progress_total,
-        label: `${job.progress_completed || 0}/${job.progress_total} instances`,
-        elapsed_seconds: job.elapsed_seconds,
-        counts: campaign?.run_index?.counts || {},
-        phase: "benchmark",
-      }
-      : {
-        completed: 0,
-        total: 0,
-        ratio: 0,
-        label: "Compiling",
-        elapsed_seconds: job.elapsed_seconds,
-        counts: campaign?.run_index?.counts || {},
-        phase: "compile",
-      };
-    const jobActive = job.status === "running" || job.status === "stopping";
-    renderRunProgressCard(campaign, jobActive, liveProgress);
-    if (!jobActive) {
-      let logText = "";
-      if (job.status === "failed") {
-        const selected = state.selectedCampaign;
-        const logs = await requestJSON(`/api/campaigns/${encodeURIComponent(selected)}/logs`);
-        logText = logs.logs.map((log) => `\n\n--- ${log.path} ---\n${log.tail}`).join("");
-      }
-      await refresh();
-      await refreshBenchmarkReport(state.selectedCampaign);
-      const finalCampaign = state.campaigns.find((item) => item.name === state.selectedCampaign);
-      renderRunProgressCard(finalCampaign, false);
-      renderSolvedPreview(finalCampaign);
-      setOutput(output, command + (job.output || "") + logText + `\nstatus: ${job.status}`);
-      setStopButton("#stop-run-button", null);
-      state.currentRunJob = null;
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
-  }
+	const output = $("#run-output");
+	setStopButton("#stop-run-button", jobId);
+	let lastRefresh = 0;
+	while (true) {
+		const job = await requestJSON(`/api/jobs/${jobId}/progress`);
+		const previousJobs = state.recentJobs;
+		state.recentJobs = [job, ...state.recentJobs.filter((item) => item.id !== job.id)];
+		renderJobDock(previousJobs);
+		const command = `+ ${job.command.join(" ")}\n\n`;
+		setOutput(output, command + (job.output || ""));
+		if (Date.now() - lastRefresh > REPORT_REFRESH_INTERVAL_MS) {
+			await refresh();
+			lastRefresh = Date.now();
+		}
+		const campaign = state.campaigns.find((item) => item.name === state.selectedCampaign);
+		const liveProgress = job.progress_total
+			? {
+				completed: job.progress_completed || 0,
+				total: job.progress_total,
+				ratio: (job.progress_completed || 0) / job.progress_total,
+				label: `${job.progress_completed || 0}/${job.progress_total} instances`,
+				elapsed_seconds: job.elapsed_seconds,
+				counts: campaign?.run_index?.counts || {},
+				phase: "benchmark",
+			}
+			: {
+				completed: 0,
+				total: 0,
+				ratio: 0,
+				label: "Compiling",
+				elapsed_seconds: job.elapsed_seconds,
+				counts: campaign?.run_index?.counts || {},
+				phase: "compile",
+			};
+		const jobActive = job.status === "running" || job.status === "stopping";
+		renderRunProgressCard(campaign, jobActive, liveProgress);
+		if (!jobActive) {
+			let logText = "";
+			if (job.status === "failed") {
+				const selected = state.selectedCampaign;
+				const logs = await requestJSON(`/api/campaigns/${encodeURIComponent(selected)}/logs`);
+				logText = logs.logs.map((log) => `\n\n--- ${log.path} ---\n${log.tail}`).join("");
+			}
+			await refresh();
+			await refreshBenchmarkReport(state.selectedCampaign);
+			const finalCampaign = state.campaigns.find((item) => item.name === state.selectedCampaign);
+			renderRunProgressCard(finalCampaign, false);
+			renderSolvedPreview(finalCampaign);
+			setOutput(output, command + (job.output || "") + logText + `\nstatus: ${job.status}`);
+			setStopButton("#stop-run-button", null);
+			state.currentRunJob = null;
+			return;
+		}
+		await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
+	}
 }
 
 async function pollComparisonJob(jobId) {
-  const output = $("#compare-output");
-  const progress = $("#compare-progress");
-  setStopButton("#stop-compare-button", jobId);
-  let lastReportRefresh = 0;
-  let reportRefreshInFlight = null;
-  while (true) {
-    const job = await requestJSON(`/api/jobs/${jobId}/progress`);
-    const previousJobs = state.recentJobs;
-    state.recentJobs = [job, ...state.recentJobs.filter((item) => item.id !== job.id)];
-    renderJobDock(previousJobs);
-    const command = `+ ${job.command.join(" ")}\n\n`;
-    setOutput(output, command + (job.output || ""));
-    const jobActive = job.status === "running" || job.status === "stopping";
-    const solverTotal = job.solver_progress_total || 0;
-    const solverCompleted = job.solver_progress_completed || 0;
-    renderComparisonProgress(progress, {
-      active: jobActive,
-      status: jobActive ? (job.status === "stopping" ? "Stopping comparison" : "Running comparison") : "Comparison finished",
-      testCase: state.selectedComparisonCampaign || job.campaign || "",
-      elapsedSeconds: job.elapsed_seconds || 0,
-      currentSolver: job.current_solver ? solverLabel(job.current_solver) : "-",
-      instanceCompleted: job.progress_completed || 0,
-      instanceTotal: job.progress_total || 0,
-      solverCompleted,
-      solverTotal,
-    });
-    if (Date.now() - lastReportRefresh > REPORT_REFRESH_INTERVAL_MS && jobActive && !reportRefreshInFlight) {
-      reportRefreshInFlight = refreshComparisonReport(state.selectedComparisonCampaign || job.campaign)
-        .catch((error) => setOutput(output, error.message))
-        .finally(() => {
-          reportRefreshInFlight = null;
-        });
-      lastReportRefresh = Date.now();
-    }
-    if (!jobActive) {
-      if (reportRefreshInFlight) {
-        await reportRefreshInFlight;
-      }
-      await refreshComparisonReport(state.selectedComparisonCampaign || job.campaign);
-      setOutput(output, command + (job.output || "") + `\nstatus: ${job.status}`);
-      setStopButton("#stop-compare-button", null);
-      state.currentComparisonJob = null;
-      await refresh();
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
-  }
+	const output = $("#compare-output");
+	const progress = $("#compare-progress");
+	setStopButton("#stop-compare-button", jobId);
+	let lastReportRefresh = 0;
+	let reportRefreshInFlight = null;
+	while (true) {
+		const job = await requestJSON(`/api/jobs/${jobId}/progress`);
+		const previousJobs = state.recentJobs;
+		state.recentJobs = [job, ...state.recentJobs.filter((item) => item.id !== job.id)];
+		renderJobDock(previousJobs);
+		const command = `+ ${job.command.join(" ")}\n\n`;
+		setOutput(output, command + (job.output || ""));
+		const jobActive = job.status === "running" || job.status === "stopping";
+		const solverTotal = job.solver_progress_total || 0;
+		const solverCompleted = job.solver_progress_completed || 0;
+		renderComparisonProgress(progress, {
+			active: jobActive,
+			status: jobActive ? (job.status === "stopping" ? "Stopping comparison" : "Running comparison") : "Comparison finished",
+			testCase: state.selectedComparisonCampaign || job.campaign || "",
+			elapsedSeconds: job.elapsed_seconds || 0,
+			currentSolver: job.current_solver ? solverLabel(job.current_solver) : "-",
+			instanceCompleted: job.progress_completed || 0,
+			instanceTotal: job.progress_total || 0,
+			solverCompleted,
+			solverTotal,
+		});
+		if (Date.now() - lastReportRefresh > REPORT_REFRESH_INTERVAL_MS && jobActive && !reportRefreshInFlight) {
+			reportRefreshInFlight = refreshComparisonReport(state.selectedComparisonCampaign || job.campaign)
+				.catch((error) => setOutput(output, error.message))
+				.finally(() => {
+					reportRefreshInFlight = null;
+				});
+			lastReportRefresh = Date.now();
+		}
+		if (!jobActive) {
+			if (reportRefreshInFlight) {
+				await reportRefreshInFlight;
+			}
+			await refreshComparisonReport(state.selectedComparisonCampaign || job.campaign);
+			setOutput(output, command + (job.output || "") + `\nstatus: ${job.status}`);
+			setStopButton("#stop-compare-button", null);
+			state.currentComparisonJob = null;
+			await refresh();
+			return;
+		}
+		await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
+	}
 }
 
 async function runCampaign(event) {
-  event.preventDefault();
-  if (state.currentRunJob) {
-    const jobId = $("#run-submit-button")?.dataset.job || $("#stop-run-button")?.dataset.job;
-    if (jobId && jobId !== "pending") {
-      $("#run-submit-button").disabled = true;
-      $("#run-submit-button").textContent = "Stopping...";
-      await cancelJobId(jobId);
-    }
-    switchPanel("benchmark-panel");
-    return;
-  }
-  const form = event.currentTarget;
-  const values = formData(form);
-  const payload = {
-    name: values.name,
-    threads: values.threads ? Number(values.threads) : null,
-    solver: values.solver || null,
-    max_calls: values.max_calls,
-    max_instances: values.max_instances ? Number(values.max_instances) : null,
-    max_seconds: values.max_seconds || null,
-    timeout: values.timeout ? Number(values.timeout) : null,
-    dry_run: boolField(form, "dry_run"),
-    force: boolField(form, "force"),
-    no_build: boolField(form, "no_build"),
-  };
-  const output = $("#run-output");
-  renderBenchmarkReport(null);
-  const activeCampaign = state.campaigns.find((item) => item.name === state.selectedCampaign);
-  renderRunProgressCard(activeCampaign, true, activeCampaign ? {
-    completed: 0,
-    total: 0,
-    ratio: 0,
-    label: "Compiling",
-    elapsed_seconds: 0,
-    counts: activeCampaign.run_index?.counts || {},
-    phase: "compile",
-  } : null);
-  setOutput(output, "Starting run...");
-  renderRunSummary();
-  try {
-    state.currentRunJob = "pending";
-    const runButton = $("#run-submit-button");
-    if (runButton) {
-      runButton.disabled = true;
-      runButton.textContent = "Starting...";
-    }
-    const data = await requestJSON("/api/runs", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    state.currentJob = data.job;
-    state.currentRunJob = data.job;
-    setStopButton("#stop-run-button", data.job);
-    await pollJob(data.job);
-  } catch (error) {
-    state.currentRunJob = null;
-    setStopButton("#stop-run-button", null);
-    setOutput(output, error.message);
-  }
+	event.preventDefault();
+	if (state.currentRunJob) {
+		const jobId = $("#run-submit-button")?.dataset.job || $("#stop-run-button")?.dataset.job;
+		if (jobId && jobId !== "pending") {
+			$("#run-submit-button").disabled = true;
+			$("#run-submit-button").textContent = "Stopping...";
+			await cancelJobId(jobId);
+		}
+		switchPanel("benchmark-panel");
+		return;
+	}
+	const form = event.currentTarget;
+	const values = formData(form);
+	const payload = {
+		name: values.name,
+		threads: values.threads ? Number(values.threads) : null,
+		solver: values.solver || null,
+		max_calls: values.max_calls,
+		max_instances: values.max_instances ? Number(values.max_instances) : null,
+		max_seconds: values.max_seconds || null,
+		timeout: values.timeout ? Number(values.timeout) : null,
+		dry_run: boolField(form, "dry_run"),
+		force: boolField(form, "force"),
+		no_build: boolField(form, "no_build"),
+	};
+	const output = $("#run-output");
+	renderBenchmarkReport(null);
+	const activeCampaign = state.campaigns.find((item) => item.name === state.selectedCampaign);
+	renderRunProgressCard(activeCampaign, true, activeCampaign ? {
+		completed: 0,
+		total: 0,
+		ratio: 0,
+		label: "Compiling",
+		elapsed_seconds: 0,
+		counts: activeCampaign.run_index?.counts || {},
+		phase: "compile",
+	} : null);
+	setOutput(output, "Starting run...");
+	renderRunSummary();
+	try {
+		state.currentRunJob = "pending";
+		const runButton = $("#run-submit-button");
+		if (runButton) {
+			runButton.disabled = true;
+			runButton.textContent = "Starting...";
+		}
+		const data = await requestJSON("/api/runs", {
+			method: "POST",
+			body: JSON.stringify(payload),
+		});
+		state.currentJob = data.job;
+		state.currentRunJob = data.job;
+		setStopButton("#stop-run-button", data.job);
+		await pollJob(data.job);
+	} catch (error) {
+		state.currentRunJob = null;
+		setStopButton("#stop-run-button", null);
+		setOutput(output, error.message);
+	}
 }
 
 async function runComparison(event) {
-  event.preventDefault();
-  if (state.currentComparisonJob) {
-    switchPanel("comparison-panel");
-    return;
-  }
-  const form = event.currentTarget;
-  const values = formData(form);
-  const solvers = [...form.querySelectorAll('input[name="solvers"]:checked')]
-    .map((input) => input.value);
-  const payload = {
-    name: values.name,
-    threads: values.threads ? Number(values.threads) : null,
-    solvers,
-    max_calls: values.max_calls,
-    max_instances: values.max_instances ? Number(values.max_instances) : null,
-    max_seconds: values.max_seconds || null,
-    no_build: boolField(form, "no_build"),
-  };
-  const output = $("#compare-output");
-  const progress = $("#compare-progress");
-  renderComparisonReport(null);
-  renderComparisonProgress(progress, {
-    active: true,
-    status: "Starting comparison",
-    testCase: state.selectedComparisonCampaign || values.name || "",
-    elapsedSeconds: 0,
-    currentSolver: solvers.map(solverLabel).join(", "),
-    instanceCompleted: 0,
-    instanceTotal: 0,
-    solverCompleted: 0,
-    solverTotal: solvers.length,
-  });
-  setOutput(output, "Starting comparison...");
-  try {
-    state.currentComparisonJob = "pending";
-    const data = await requestJSON("/api/comparisons", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    state.currentJob = data.job;
-    state.currentComparisonJob = data.job;
-    await pollComparisonJob(data.job);
-  } catch (error) {
-    state.currentComparisonJob = null;
-    setOutput(output, error.message);
-    setStopButton("#stop-compare-button", null);
-  }
+	event.preventDefault();
+	if (state.currentComparisonJob) {
+		switchPanel("comparison-panel");
+		return;
+	}
+	const form = event.currentTarget;
+	const values = formData(form);
+	const solvers = [...form.querySelectorAll('input[name="solvers"]:checked')]
+		.map((input) => input.value);
+	const payload = {
+		name: values.name,
+		threads: values.threads ? Number(values.threads) : null,
+		solvers,
+		max_calls: values.max_calls,
+		max_instances: values.max_instances ? Number(values.max_instances) : null,
+		max_seconds: values.max_seconds || null,
+		no_build: boolField(form, "no_build"),
+	};
+	const output = $("#compare-output");
+	const progress = $("#compare-progress");
+	renderComparisonReport(null);
+	renderComparisonProgress(progress, {
+		active: true,
+		status: "Starting comparison",
+		testCase: state.selectedComparisonCampaign || values.name || "",
+		elapsedSeconds: 0,
+		currentSolver: solvers.map(solverLabel).join(", "),
+		instanceCompleted: 0,
+		instanceTotal: 0,
+		solverCompleted: 0,
+		solverTotal: solvers.length,
+	});
+	setOutput(output, "Starting comparison...");
+	try {
+		state.currentComparisonJob = "pending";
+		const data = await requestJSON("/api/comparisons", {
+			method: "POST",
+			body: JSON.stringify(payload),
+		});
+		state.currentJob = data.job;
+		state.currentComparisonJob = data.job;
+		await pollComparisonJob(data.job);
+	} catch (error) {
+		state.currentComparisonJob = null;
+		setOutput(output, error.message);
+		setStopButton("#stop-compare-button", null);
+	}
 }
 
 document.addEventListener("pointerover", (event) => {
-  const sticker = event.target?.closest?.(".auto-sticker[data-tooltip]");
-  if (sticker) {
-    floatingTooltip.show(sticker);
-  }
+	const sticker = event.target?.closest?.(".auto-sticker[data-tooltip]");
+	if (sticker) {
+		floatingTooltip.show(sticker);
+	}
 });
 
 document.addEventListener("pointerout", (event) => {
-  if (event.target?.closest?.(".auto-sticker[data-tooltip]")) {
-    floatingTooltip.hide();
-  }
+	if (event.target?.closest?.(".auto-sticker[data-tooltip]")) {
+		floatingTooltip.hide();
+	}
 });
 
 document.addEventListener("focusin", (event) => {
-  const sticker = event.target?.closest?.(".auto-sticker[data-tooltip]");
-  if (sticker) {
-    floatingTooltip.show(sticker);
-  }
+	const sticker = event.target?.closest?.(".auto-sticker[data-tooltip]");
+	if (sticker) {
+		floatingTooltip.show(sticker);
+	}
 });
 
 document.addEventListener("focusout", (event) => {
-  if (event.target?.closest?.(".auto-sticker[data-tooltip]")) {
-    floatingTooltip.hide();
-  }
+	if (event.target?.closest?.(".auto-sticker[data-tooltip]")) {
+		floatingTooltip.hide();
+	}
 });
 
 document.addEventListener("click", (event) => {
-  const sticker = event.target?.closest?.(".auto-sticker[data-tooltip]");
-  if (sticker) {
-    event.stopPropagation();
-    floatingTooltip.show(sticker);
-    clearTimeout(sticker._tooltipTimer);
-    sticker._tooltipTimer = setTimeout(floatingTooltip.hide, 2200);
-  }
+	const sticker = event.target?.closest?.(".auto-sticker[data-tooltip]");
+	if (sticker) {
+		event.stopPropagation();
+		floatingTooltip.show(sticker);
+		clearTimeout(sticker._tooltipTimer);
+		sticker._tooltipTimer = setTimeout(floatingTooltip.hide, 2200);
+	}
 });
 
 document.querySelectorAll(".tab").forEach((tab) => {
-  tab.addEventListener("click", () => switchPanel(tab.dataset.panel));
+	tab.addEventListener("click", () => switchPanel(tab.dataset.panel));
 });
 
 document.querySelectorAll("[data-close-modal]").forEach((element) => {
-  element.addEventListener("click", (event) => {
-    if (event.currentTarget.dataset.modalBackInstance === "true") {
-      returnToCampaignModal();
-      return;
-    }
-    closeCampaignModal();
-  });
+	element.addEventListener("click", (event) => {
+		if (event.currentTarget.dataset.modalBackInstance === "true") {
+			returnToCampaignModal();
+			return;
+		}
+		closeCampaignModal();
+	});
 });
 
 document.querySelectorAll("[data-confirm-cancel]").forEach((element) => {
-  element.addEventListener("click", () => closeConfirmation(false));
+	element.addEventListener("click", () => closeConfirmation(false));
 });
 
 document.querySelector("[data-confirm-ok]").addEventListener("click", () => closeConfirmation(true));
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") {
-    closeCampaignModal();
-    closeConfirmation(false);
-  }
+	if (event.key === "Escape") {
+		closeCampaignModal();
+		closeConfirmation(false);
+	}
 });
 
 controls.setupSegmentedControls();
@@ -2549,7 +2549,7 @@ $("#stop-run-button").addEventListener("click", () => cancelJob("#stop-run-butto
 $("#stop-compare-button").addEventListener("click", () => cancelJob("#stop-compare-button", "#compare-output"));
 $("#create-name").addEventListener("input", updateCampaignNameIndicator);
 document.querySelectorAll("[data-manual-mode] .segment").forEach((button) => {
-  button.addEventListener("click", () => manualEditor.setMode(button.dataset.mode));
+	button.addEventListener("click", () => manualEditor.setMode(button.dataset.mode));
 });
 $("#new-manual-case").addEventListener("click", newManualCase);
 $("#close-manual-polygon").addEventListener("click", () => manualEditor.closePolygon());
@@ -2560,13 +2560,13 @@ bindTapZoom($("#manual-zoom-out"), () => manualEditor.zoomBy(1 / 1.2));
 bindTapZoom($("#manual-zoom-in"), () => manualEditor.zoomBy(1.2));
 $("#manual-fit-instance").addEventListener("click", () => manualEditor.frameCurrentCase());
 document.querySelectorAll("[data-editor-layer]").forEach((button) => {
-  button.addEventListener("click", () => manualEditor.toggleLayer(button.dataset.editorLayer));
+	button.addEventListener("click", () => manualEditor.toggleLayer(button.dataset.editorLayer));
 });
 $("#manual-editor-expand").addEventListener("click", () => manualEditor.toggleExpanded());
 $("#manual-editor-close").addEventListener("click", () => manualEditor.toggleExpanded(false));
 $("#manual-keybinds-button").addEventListener("click", keybinds.open);
 document.querySelectorAll("[data-close-keybinds]").forEach((button) => {
-  button.addEventListener("click", keybinds.close);
+	button.addEventListener("click", keybinds.close);
 });
 setupJobDockDrag();
 controls.setupFilterInput("#campaign-filter", "campaignFilter", renderCampaigns);
@@ -2579,14 +2579,14 @@ manualEditor.init();
 updateCreateMode();
 
 requestJSON("/api/system")
-  .then((system) => {
-    state.cpuCount = system.cpu_count || 1;
-    controls.setupThreadsControl();
-    controls.setupThreadsControl("#compare-threads-slider", "#compare-threads-input", "#compare-threads-max-label");
-    return refresh();
-  })
-  .catch((error) => {
-    controls.setupThreadsControl();
-    controls.setupThreadsControl("#compare-threads-slider", "#compare-threads-input", "#compare-threads-max-label");
-    setOutput($("#create-output"), error.message);
-  });
+	.then((system) => {
+		state.cpuCount = system.cpu_count || 1;
+		controls.setupThreadsControl();
+		controls.setupThreadsControl("#compare-threads-slider", "#compare-threads-input", "#compare-threads-max-label");
+		return refresh();
+	})
+	.catch((error) => {
+		controls.setupThreadsControl();
+		controls.setupThreadsControl("#compare-threads-slider", "#compare-threads-input", "#compare-threads-max-label");
+		setOutput($("#create-output"), error.message);
+	});

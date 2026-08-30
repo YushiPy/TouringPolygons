@@ -1,82 +1,86 @@
 <section id="comparison-panel" class="panel">
-  <div class="panel-header">
-    <h2>Compare Solvers</h2>
-    <p>Run the same campaign input across selected convex solvers and compare their summaries.</p>
-  </div>
-  <form id="compare-form" class="run-form">
-    <div class="run-main-fields">
-      <div class="field campaign-picker-field">
-        <span class="field-label">Campaign</span>
-        <input name="name" id="compare-campaign" type="hidden">
-        <div id="compare-campaign-grid" class="choice-grid campaign-choice-grid" role="listbox" aria-label="Comparison campaign"></div>
-      </div>
-      <label>
-        Threads
-        <span class="thread-control">
-          <input id="compare-threads-slider" type="range" min="1" value="1">
-          <input id="compare-threads-input" name="threads" type="number" min="1" value="1">
-        </span>
-        <span class="thread-scale" aria-hidden="true"><span>1</span><span id="compare-threads-max-label">1</span></span>
-      </label>
-      <label>
-        Instance cap
-        <span class="range-number">
-          <input id="compare-max-instances-slider" type="range" min="1" value="1">
-          <input id="compare-max-instances-input" name="max_instances" type="number" min="1" value="1">
-        </span>
-        <span class="thread-scale" aria-hidden="true"><span>1</span><span id="compare-max-instances-label">1</span></span>
-      </label>
-    </div>
-    <div class="run-limit-fields">
-      <label>
-        Max calls
-        <input name="max_calls" value="1000000" required>
-      </label>
-      <label>
-        Max seconds
-        <input name="max_seconds" placeholder="unlimited">
-      </label>
-      <label class="switch-row compare-switch">
-        <input name="no_build" type="checkbox">
-        <span class="switch-control"></span>
-        <span>Skip build</span>
-      </label>
-    </div>
-    <div class="compare-solver-grid">
-      <label class="solver-check">
-        <input name="solvers" value="linear" type="checkbox" checked>
-        <span>Linear Intersections</span>
-      </label>
-      <label class="solver-check">
-        <input name="solvers" value="linear_disjoint" type="checkbox" checked>
-        <span>Linear Disjoint</span>
-      </label>
-      <label class="solver-check">
-        <input name="solvers" value="binary" type="checkbox" checked>
-        <span>Binary Intersections</span>
-      </label>
-      <label class="solver-check">
-        <input name="solvers" value="binary_disjoint" type="checkbox" checked>
-        <span>Binary Disjoint</span>
-      </label>
-      <label class="solver-check">
-        <input name="solvers" value="tan" type="checkbox" checked>
-        <span>Tan Jiang</span>
-      </label>
-      <label class="solver-check">
-        <input name="solvers" value="gurobi" type="checkbox">
-        <span>Gurobi</span>
-      </label>
-    </div>
-    <div class="actions compare-actions">
-      <button type="submit">Compare</button>
-      <button id="copy-compare-command" class="secondary command-copy" type="button">Copy Command</button>
-      <button id="stop-compare-button" class="secondary stop-button is-hidden" type="button" disabled>Stop</button>
-    </div>
-  </form>
-  <div id="compare-progress" class="run-progress-card is-hidden" aria-live="polite"></div>
-  <div id="comparison-report" class="comparison-report is-hidden"></div>
-  <div class="output-panel">
-    <pre id="compare-output" class="output" aria-live="polite"></pre>
-  </div>
+	<div class="panel-header">
+		<h2>Compare Solvers</h2>
+		<p>Run the same campaign input across selected convex solvers and compare their summaries.</p>
+	</div>
+	<form id="compare-form" class="run-form">
+		<div class="run-main-fields">
+			<div class="field campaign-picker-field">
+				<span class="field-label">Campaign</span>
+				<input name="name" id="compare-campaign" type="hidden">
+				<div id="compare-campaign-grid" class="choice-grid campaign-choice-grid" role="listbox"
+					aria-label="Comparison campaign"></div>
+			</div>
+			<label>
+				Threads
+				<span class="thread-control">
+					<input id="compare-threads-slider" type="range" min="1" value="1">
+					<input id="compare-threads-input" name="threads" type="number" min="1" value="1">
+				</span>
+				<span class="thread-scale" aria-hidden="true"><span>1</span><span
+						id="compare-threads-max-label">1</span></span>
+			</label>
+			<label>
+				Instance cap
+				<span class="range-number">
+					<input id="compare-max-instances-slider" type="range" min="1" value="1">
+					<input id="compare-max-instances-input" name="max_instances" type="number" min="1" value="1">
+				</span>
+				<span class="thread-scale" aria-hidden="true"><span>1</span><span
+						id="compare-max-instances-label">1</span></span>
+			</label>
+		</div>
+		<div class="run-limit-fields">
+			<label>
+				Max calls
+				<input name="max_calls" value="1000000" required>
+			</label>
+			<label>
+				Max seconds
+				<input name="max_seconds" placeholder="unlimited">
+			</label>
+			<label class="switch-row compare-switch">
+				<input name="no_build" type="checkbox">
+				<span class="switch-control"></span>
+				<span>Skip build</span>
+			</label>
+		</div>
+		<div class="compare-solver-grid">
+			<label class="solver-check">
+				<input name="solvers" value="linear" type="checkbox" checked>
+				<span>Linear Intersections</span>
+			</label>
+			<label class="solver-check">
+				<input name="solvers" value="linear_disjoint" type="checkbox" checked>
+				<span>Linear Disjoint</span>
+			</label>
+			<label class="solver-check">
+				<input name="solvers" value="binary" type="checkbox" checked>
+				<span>Binary Intersections</span>
+			</label>
+			<label class="solver-check">
+				<input name="solvers" value="binary_disjoint" type="checkbox" checked>
+				<span>Binary Disjoint</span>
+			</label>
+			<label class="solver-check">
+				<input name="solvers" value="tan" type="checkbox" checked>
+				<span>Tan Jiang</span>
+			</label>
+			<label class="solver-check">
+				<input name="solvers" value="gurobi" type="checkbox">
+				<span>Gurobi</span>
+			</label>
+		</div>
+		<div class="actions compare-actions">
+			<button type="submit">Compare</button>
+			<button id="copy-compare-command" class="secondary command-copy" type="button">Copy Command</button>
+			<button id="stop-compare-button" class="secondary stop-button is-hidden" type="button"
+				disabled>Stop</button>
+		</div>
+	</form>
+	<div id="compare-progress" class="run-progress-card is-hidden" aria-live="polite"></div>
+	<div id="comparison-report" class="comparison-report is-hidden"></div>
+	<div class="output-panel">
+		<pre id="compare-output" class="output" aria-live="polite"></pre>
+	</div>
 </section>

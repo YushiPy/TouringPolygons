@@ -1,609 +1,606 @@
 .result-list {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
+	display: grid;
+	gap: 8px;
+	min-width: 0;
 }
 
 .job-row {
-  display: grid;
-  gap: 2px;
+	display: grid;
+	gap: 2px;
 }
 
 .job-row strong {
-  color: var(--text);
+	color: var(--text);
 }
 
 .job-row span {
-  color: var(--muted);
-  font-size: 0.84rem;
+	color: var(--muted);
+	font-size: 0.84rem;
 }
 
 .inspect-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  align-items: end;
-  gap: 10px;
-  margin-bottom: 14px;
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	align-items: end;
+	gap: 10px;
+	margin-bottom: 14px;
 }
 
 .toolbar-search {
-  min-width: 240px;
-  max-width: 360px;
+	min-width: 240px;
+	max-width: 360px;
 }
 
 .toolbar-search span {
-  color: var(--muted);
-  font-size: 0.78rem;
+	color: var(--muted);
+	font-size: 0.78rem;
 }
 
 .section-title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: end;
-  gap: 14px;
-  margin-top: 24px;
-  margin-bottom: 10px;
+	display: flex;
+	justify-content: space-between;
+	align-items: end;
+	gap: 14px;
+	margin-top: 24px;
+	margin-bottom: 10px;
 }
 
 .section-title-row h3 {
-  margin-bottom: 0;
+	margin-bottom: 0;
 }
 
-#result-list + h3 {
-  margin-top: 30px;
-  margin-bottom: 6px;
+#result-list+h3 {
+	margin-top: 30px;
+	margin-bottom: 6px;
 }
 
 .inspect-output:empty {
-  display: none;
+	display: none;
 }
 
 #job-list {
-  margin-top: 0;
+	margin-top: 0;
 }
 
 .generation-metadata-title {
-  margin-top: 30px;
+	margin-top: 30px;
 }
 
 .summary-grid,
 .modal-summary {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 16px;
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 12px;
+	margin-top: 16px;
 }
 
 .benchmark-summary-rows {
-  display: grid;
-  gap: 12px;
-  margin-top: 16px;
+	display: grid;
+	gap: 12px;
+	margin-top: 16px;
 }
 
 .benchmark-summary-row {
-  display: grid;
-  grid-template-columns: repeat(var(--summary-columns), minmax(0, 1fr));
-  gap: 12px;
+	display: grid;
+	grid-template-columns: repeat(var(--summary-columns), minmax(0, 1fr));
+	gap: 12px;
 }
 
 .section-subheader {
-  display: flex;
-  justify-content: space-between;
-  align-items: end;
-  gap: 14px;
-  margin-bottom: 12px;
+	display: flex;
+	justify-content: space-between;
+	align-items: end;
+	gap: 14px;
+	margin-bottom: 12px;
 }
 
 .section-subheader h3 {
-  margin-bottom: 3px;
+	margin-bottom: 3px;
 }
 
 .section-subheader p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.9rem;
+	margin: 0;
+	color: var(--muted);
+	font-size: 0.9rem;
 }
 
 .compact-select {
-  display: grid;
-  grid-template-columns: auto minmax(128px, 170px);
-  gap: 8px;
-  align-items: center;
-  font-size: 0.82rem;
+	display: grid;
+	grid-template-columns: auto minmax(128px, 170px);
+	gap: 8px;
+	align-items: center;
+	font-size: 0.82rem;
 }
 
 .compact-select select {
-  min-height: 34px;
-  padding: 0.35rem 0.5rem;
+	min-height: 34px;
+	padding: 0.35rem 0.5rem;
 }
 
 .benchmarked-sort {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, auto));
-  gap: 6px;
-  padding: 4px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--bg);
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, auto));
+	gap: 6px;
+	padding: 4px;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	background: var(--bg);
 }
 
 .benchmarked-sort .segment {
-  min-height: 34px;
-  padding: 0.34rem 0.62rem;
-  white-space: nowrap;
+	min-height: 34px;
+	padding: 0.34rem 0.62rem;
+	white-space: nowrap;
 }
 
 .foldable-section-header h3 {
-  margin: 0;
+	margin: 0;
 }
 
 .foldable-section-header .fold-toggle {
-  padding: 0;
-  font-size: inherit;
-  font-weight: inherit;
+	padding: 0;
+	font-size: inherit;
+	font-weight: inherit;
 }
 
 .benchmarked-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 10px;
-  max-height: 520px;
-  overflow: auto;
-  padding: 4px 8px 18px 4px;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+	gap: 10px;
+	max-height: 520px;
+	overflow: auto;
+	padding: 4px 8px 18px 4px;
 }
 
 .benchmarked-card {
-  display: grid;
-  grid-template-rows: 130px auto;
-  min-height: 0;
-  padding: 0;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--text);
-  overflow: hidden;
-  text-align: left;
-  box-shadow: none;
+	display: grid;
+	grid-template-rows: 130px auto;
+	min-height: 0;
+	padding: 0;
+	border: 1px solid var(--line);
+	background: var(--surface);
+	color: var(--text);
+	overflow: hidden;
+	text-align: left;
+	box-shadow: none;
 }
 
 :root[data-theme="dark"] .benchmarked-card,
 :root[data-theme="dark"] .benchmarked-card:hover {
-  border-color: var(--line);
-  background: var(--surface);
-  color: var(--text);
+	border-color: var(--line);
+	background: var(--surface);
+	color: var(--text);
 }
 
 :root[data-theme="dark"] .benchmarked-meta small {
-  color: var(--muted);
+	color: var(--muted);
 }
 
 .benchmarked-card:hover {
-  border-color: var(--accent);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-  transform: translateY(-1px);
+	border-color: var(--accent);
+	background: var(--surface);
+	box-shadow: var(--shadow-sm);
+	transform: translateY(-1px);
 }
 
 .benchmarked-card img,
 .benchmarked-card canvas,
 .missing-preview {
-  width: 100%;
-  height: 130px;
-  padding: 0;
-  background: var(--editor-bg);
-  object-fit: contain;
+	width: 100%;
+	height: 130px;
+	padding: 0;
+	background: var(--editor-bg);
+	object-fit: contain;
 }
 
 .missing-preview {
-  display: grid;
-  place-items: center;
-  color: var(--muted);
-  background: var(--bg);
+	display: grid;
+	place-items: center;
+	color: var(--muted);
+	background: var(--bg);
 }
 
 .benchmarked-meta {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 4px 8px;
-  padding: 10px;
+	display: grid;
+	grid-template-columns: 1fr auto;
+	gap: 4px 8px;
+	padding: 10px;
 }
 
 .benchmarked-meta strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .benchmarked-meta small {
-  color: var(--muted);
-  font-size: 0.78rem;
+	color: var(--muted);
+	font-size: 0.78rem;
 }
 
 .status-pill {
-  justify-self: end;
-  border-radius: 999px;
-  padding: 2px 7px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
+	justify-self: end;
+	border-radius: 999px;
+	padding: 2px 7px;
+	font-size: 0.72rem;
+	font-weight: 700;
+	text-transform: uppercase;
 }
 
 .status-pill.is-solved {
-  background: #dcfce7;
-  color: #166534;
+	background: #dcfce7;
+	color: #166534;
 }
 
 .status-pill.is-capped {
-  background: #fee2e2;
-  color: #991b1b;
+	background: #fee2e2;
+	color: #991b1b;
 }
 
 .run-progress-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  color: var(--text);
-  font-size: 0.9rem;
-  margin-bottom: 10px;
+	display: flex;
+	justify-content: space-between;
+	gap: 12px;
+	color: var(--text);
+	font-size: 0.9rem;
+	margin-bottom: 10px;
 }
 
 .run-progress-header strong {
-  color: var(--text);
+	color: var(--text);
 }
 
 .run-progress-header span {
-  color: var(--muted);
+	color: var(--muted);
 }
 
 .comparison-progress-head {
-  display: grid;
-  grid-template-columns: minmax(160px, 0.9fr) minmax(160px, 1.1fr) minmax(140px, 0.8fr) minmax(160px, 1fr);
-  gap: 10px 14px;
-  align-items: center;
-  margin-bottom: 12px;
-  color: var(--text);
-  font-size: 0.86rem;
+	display: grid;
+	grid-template-columns: minmax(160px, 0.9fr) minmax(160px, 1.1fr) minmax(140px, 0.8fr) minmax(160px, 1fr);
+	gap: 10px 14px;
+	align-items: center;
+	margin-bottom: 12px;
+	color: var(--text);
+	font-size: 0.86rem;
 }
 
 .comparison-progress-head span {
-  color: var(--muted);
+	color: var(--muted);
 }
 
 .comparison-progress-head strong {
-  color: var(--text);
+	color: var(--text);
 }
 
 .comparison-progress-lines {
-  display: grid;
-  gap: 10px;
+	display: grid;
+	gap: 10px;
 }
 
 .comparison-progress-line {
-  display: grid;
-  grid-template-columns: 136px minmax(0, 1fr) 72px;
-  gap: 12px;
-  align-items: center;
-  color: var(--muted);
-  font-size: 0.84rem;
+	display: grid;
+	grid-template-columns: 136px minmax(0, 1fr) 72px;
+	gap: 12px;
+	align-items: center;
+	color: var(--muted);
+	font-size: 0.84rem;
 }
 
 .comparison-progress-line span,
 .comparison-progress-line strong {
-  font-variant-numeric: tabular-nums;
+	font-variant-numeric: tabular-nums;
 }
 
 .comparison-progress-line strong {
-  color: var(--text);
-  text-align: right;
+	color: var(--text);
+	text-align: right;
 }
 
 .run-progress-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-  color: var(--muted);
-  font-size: 0.82rem;
+	display: flex;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 10px;
+	color: var(--muted);
+	font-size: 0.82rem;
 }
 
 .run-progress-meta strong {
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
+	color: var(--text);
+	font-variant-numeric: tabular-nums;
 }
 
 .run-progress-track {
-  height: 16px;
-  padding: 3px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--track-bg);
-  overflow: hidden;
+	height: 16px;
+	padding: 3px;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	background: var(--track-bg);
+	overflow: hidden;
 }
 
 .run-progress-line {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 46px;
-  gap: 10px;
-  align-items: center;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 46px;
+	gap: 10px;
+	align-items: center;
 }
 
 .run-progress-percent {
-  color: var(--text);
-  font-size: 0.86rem;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
+	color: var(--text);
+	font-size: 0.86rem;
+	font-variant-numeric: tabular-nums;
+	text-align: right;
 }
 
 .run-progress-fill {
-  height: 100%;
-  min-width: 0;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--accent), var(--success));
-  transition: width 240ms ease;
+	height: 100%;
+	min-width: 0;
+	border-radius: inherit;
+	background: linear-gradient(90deg, var(--accent), var(--success));
+	transition: width 240ms ease;
 }
 
 .run-progress-track.is-running .run-progress-fill {
-  position: relative;
+	position: relative;
 }
 
 .run-progress-track.is-running .run-progress-fill::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.42), transparent);
-  animation: progress-shine 900ms linear infinite;
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.42), transparent);
+	animation: progress-shine 900ms linear infinite;
 }
 
 .run-progress-track.is-compiling .run-progress-fill {
-  background:
-    repeating-linear-gradient(
-      120deg,
-      var(--accent) 0,
-      var(--accent) 12px,
-      var(--success) 12px,
-      var(--success) 24px
-    );
-  background-size: 34px 100%;
-  animation: compile-progress 900ms linear infinite;
-  opacity: 0.72;
+	background:
+		repeating-linear-gradient(120deg,
+			var(--accent) 0,
+			var(--accent) 12px,
+			var(--success) 12px,
+			var(--success) 24px);
+	background-size: 34px 100%;
+	animation: compile-progress 900ms linear infinite;
+	opacity: 0.72;
 }
 
 .run-progress-card,
 .benchmark-report,
 .comparison-report,
 .result-preview-section {
-  margin-top: 18px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 14px;
-  background: var(--surface-muted);
+	margin-top: 18px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 14px;
+	background: var(--surface-muted);
 }
 
 .result-preview-section {
-  padding: 18px;
+	padding: 18px;
 }
 
 .benchmark-report.is-hidden,
 .comparison-report.is-hidden {
-  display: none;
+	display: none;
 }
 
 .report-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: start;
-  gap: 14px;
-  margin-bottom: 12px;
+	display: flex;
+	justify-content: space-between;
+	align-items: start;
+	gap: 14px;
+	margin-bottom: 12px;
 }
 
 .report-header h3 {
-  margin-bottom: 4px;
+	margin-bottom: 4px;
 }
 
 .report-header p {
-  margin: 0;
-  color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.82rem;
+	margin: 0;
+	color: var(--muted);
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	font-size: 0.82rem;
 }
 
 .report-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 12px;
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 12px;
+	margin-top: 12px;
 }
 
 .report-grid-single {
-  grid-template-columns: minmax(0, 1fr);
+	grid-template-columns: minmax(0, 1fr);
 }
 
 .report-panel {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 12px;
-  background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 12px;
+	background: var(--surface);
 }
 
 .report-panel h4 {
-  margin: 0 0 10px;
-  color: var(--text);
+	margin: 0 0 10px;
+	color: var(--text);
 }
 
 .comparison-table-panel {
-  grid-column: span 2;
+	grid-column: span 2;
 }
 
 .comparison-table-wrap {
-  overflow: auto;
+	overflow: auto;
 }
 
 .comparison-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 620px;
-  font-size: 0.84rem;
+	width: 100%;
+	border-collapse: collapse;
+	min-width: 620px;
+	font-size: 0.84rem;
 }
 
 .comparison-table th,
 .comparison-table td {
-  padding: 9px 10px;
-  border-bottom: 1px solid var(--line);
-  text-align: left;
-  white-space: nowrap;
+	padding: 9px 10px;
+	border-bottom: 1px solid var(--line);
+	text-align: left;
+	white-space: nowrap;
 }
 
 .comparison-table th {
-  color: var(--text);
-  font-weight: 700;
-  background: var(--surface-muted);
+	color: var(--text);
+	font-weight: 700;
+	background: var(--surface-muted);
 }
 
 .comparison-table td {
-  color: var(--muted);
+	color: var(--muted);
 }
 
 .comparison-table tr:last-child td {
-  border-bottom: 0;
+	border-bottom: 0;
 }
 
 .chart-bars {
-  display: grid;
-  gap: 9px;
+	display: grid;
+	gap: 9px;
 }
 
 .chart-row {
-  display: grid;
-  grid-template-columns: minmax(84px, 1fr) minmax(96px, 2fr) minmax(74px, 92px) minmax(48px, 64px);
-  gap: 8px;
-  align-items: center;
-  font-size: 0.82rem;
+	display: grid;
+	grid-template-columns: minmax(84px, 1fr) minmax(96px, 2fr) minmax(74px, 92px) minmax(48px, 64px);
+	gap: 8px;
+	align-items: center;
+	font-size: 0.82rem;
 }
 
 .chart-row span {
-  color: var(--muted);
+	color: var(--muted);
 }
 
 .chart-row div {
-  height: 9px;
-  border-radius: 999px;
-  background: var(--track-bg);
-  overflow: hidden;
+	height: 9px;
+	border-radius: 999px;
+	background: var(--track-bg);
+	overflow: hidden;
 }
 
 :root[data-theme="dark"] .chart-row div {
-  background: #343a44;
+	background: #343a44;
 }
 
 .chart-row i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--accent), var(--chart-positive));
+	display: block;
+	height: 100%;
+	border-radius: inherit;
+	background: linear-gradient(90deg, var(--accent), var(--chart-positive));
 }
 
 :root[data-theme="dark"] .chart-row i {
-  background: linear-gradient(90deg, var(--accent), var(--chart-positive));
+	background: linear-gradient(90deg, var(--accent), var(--chart-positive));
 }
 
 .chart-row strong {
-  font-variant-numeric: tabular-nums;
-  font-size: 0.78rem;
-  text-align: right;
+	font-variant-numeric: tabular-nums;
+	font-size: 0.78rem;
+	text-align: right;
 }
 
 .chart-row em {
-  color: var(--muted);
-  font-style: normal;
-  font-variant-numeric: tabular-nums;
-  font-size: 0.78rem;
-  text-align: right;
+	color: var(--muted);
+	font-style: normal;
+	font-variant-numeric: tabular-nums;
+	font-size: 0.78rem;
+	text-align: right;
 }
 
 .histogram-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-  margin-bottom: 10px;
+	display: flex;
+	justify-content: space-between;
+	gap: 12px;
+	align-items: center;
+	margin-bottom: 10px;
 }
 
 .histogram-head h4 {
-  margin: 0;
+	margin: 0;
 }
 
 .histogram-head div {
-  display: flex;
-  gap: 8px;
+	display: flex;
+	gap: 8px;
 }
 
 .histogram-head button {
-  min-height: 32px;
-  padding: 0.35rem 0.65rem;
+	min-height: 32px;
+	padding: 0.35rem 0.65rem;
 }
 
 .histogram-head button.is-active,
 .histogram-head button.is-active:hover {
-  border-color: var(--active-bg);
-  background: var(--active-bg);
-  color: var(--active-text);
+	border-color: var(--active-bg);
+	background: var(--active-bg);
+	color: var(--active-text);
 }
 
 .histogram-panel {
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
+	display: grid;
+	gap: 8px;
+	margin-top: 12px;
 }
 
 .histogram-panel h5 {
-  margin: 0;
-  color: var(--text);
-  font-size: 0.84rem;
+	margin: 0;
+	color: var(--text);
+	font-size: 0.84rem;
 }
 
 .histogram {
-  display: grid;
-  gap: 8px;
+	display: grid;
+	gap: 8px;
 }
 
 .histogram-row {
-  display: grid;
-  grid-template-columns: minmax(118px, 1fr) minmax(96px, 2fr) 38px;
-  gap: 10px;
-  align-items: center;
-  font-size: 0.8rem;
+	display: grid;
+	grid-template-columns: minmax(118px, 1fr) minmax(96px, 2fr) 38px;
+	gap: 10px;
+	align-items: center;
+	font-size: 0.8rem;
 }
 
 .histogram-row span {
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
+	color: var(--muted);
+	font-variant-numeric: tabular-nums;
 }
 
 .histogram-row div {
-  height: 12px;
-  border-radius: 999px;
-  background: var(--track-bg);
-  overflow: hidden;
+	height: 12px;
+	border-radius: 999px;
+	background: var(--track-bg);
+	overflow: hidden;
 }
 
 .histogram-row i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--accent), #16a34a);
+	display: block;
+	height: 100%;
+	border-radius: inherit;
+	background: linear-gradient(90deg, var(--accent), #16a34a);
 }
 
 .histogram-row strong {
-  color: var(--text);
-  font-size: 0.78rem;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
+	color: var(--text);
+	font-size: 0.78rem;
+	font-variant-numeric: tabular-nums;
+	text-align: right;
 }
 
 .counter-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 14px;
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 10px;
+	margin-top: 14px;
 }
-

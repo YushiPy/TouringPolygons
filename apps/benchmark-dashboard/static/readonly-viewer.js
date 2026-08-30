@@ -65,7 +65,7 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 		currentCase() {
 			return this.caseData;
 		},
-		saveCamera() {},
+		saveCamera() { },
 		setStatus(message) {
 			if (options.status) {
 				options.status.textContent = message || "";

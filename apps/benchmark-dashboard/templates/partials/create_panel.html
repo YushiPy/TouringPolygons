@@ -1,180 +1,181 @@
 <section id="create-panel" class="panel is-active">
-  <div class="panel-header">
-    <h2>Create Campaign</h2>
-    <p>Synthetic cases or OSM building campaigns from a local .osm.pbf file.</p>
-  </div>
-  <form id="create-form" class="form-grid">
-    <div class="field">
-      <span class="field-label">Source</span>
-      <input name="campaign_type" type="hidden" value="synthetic">
-      <span class="segmented" data-input="campaign_type">
-        <button class="segment is-active" data-value="synthetic" type="button">Synthetic</button>
-        <button class="segment" data-value="osm" type="button">OSM</button>
-      </span>
-    </div>
-    <label>
-      Campaign
-      <input id="create-name" name="name" value="smoke" required>
-    </label>
-    <label class="synthetic-field">
-      Vertices
-      <input name="vertices" type="number" min="3" value="8" required>
-    </label>
-    <label class="synthetic-field">
-      Polygon Count
-      <input name="polygons" type="number" min="1" value="20" required>
-    </label>
-    <div class="field osm-field osm-picker-field is-hidden">
-      <span class="field-label">OSM PBF</span>
-      <input name="pbf_path" type="hidden">
-      <div class="osm-picker-head">
-        <button id="scan-osm-files" class="secondary" type="button">Scan Files</button>
-        <span id="osm-file-status" class="field-note">No file selected.</span>
-      </div>
-      <div id="osm-file-grid" class="choice-grid osm-file-grid"></div>
-    </div>
-    <label class="osm-field is-hidden">
-      Polygon Count
-      <input name="polygon_counts" type="number" min="1" value="20">
-    </label>
-    <label>
-      Instances
-      <input name="instances" type="number" min="1" value="100" required>
-    </label>
-    <div class="field osm-field is-hidden">
-      <span class="field-label">Layout</span>
-      <input name="layout" type="hidden" value="geographic">
-      <span class="segmented" data-input="layout">
-        <button class="segment is-active" data-value="geographic" type="button">Geographic</button>
-        <button class="segment" data-value="grid" type="button">Grid</button>
-      </span>
-    </div>
-    <div class="field osm-field is-hidden">
-      <span class="field-label">Sampling</span>
-      <input name="sampling" type="hidden" value="local">
-      <span class="segmented" data-input="sampling">
-        <button class="segment is-active" data-value="local" type="button">Local</button>
-        <button class="segment" data-value="uniform" type="button">Uniform</button>
-      </span>
-    </div>
-    <div class="field osm-field is-hidden osm-wide-field">
-      <span class="field-label">Order</span>
-      <input name="order" type="hidden" value="spatial">
-      <span class="segmented segmented-4" data-input="order">
-        <button class="segment is-active" data-value="spatial" type="button">Spatial</button>
-        <button class="segment" data-value="left-to-right" type="button">Left to right</button>
-        <button class="segment" data-value="random" type="button">Random</button>
-        <button class="segment" data-value="angle" type="button">Angle</button>
-      </span>
-    </div>
-    <div class="field osm-field is-hidden">
-      <span class="field-label">Endpoint mode</span>
-      <input name="endpoint_mode" type="hidden" value="ordered">
-      <span class="segmented" data-input="endpoint_mode">
-        <button class="segment is-active" data-value="ordered" type="button">Ordered</button>
-        <button class="segment" data-value="bbox" type="button">Bounding box</button>
-      </span>
-    </div>
-    <div class="field osm-field is-hidden osm-wide-field">
-      <span class="field-label">Normalization</span>
-      <input name="normalization" type="hidden" value="instance">
-      <span class="segmented segmented-3" data-input="normalization">
-        <button class="segment is-active" data-value="instance" type="button">Instance</button>
-        <button class="segment" data-value="dataset" type="button">Dataset</button>
-        <button class="segment" data-value="none" type="button">None</button>
-      </span>
-    </div>
-    <label class="osm-field is-hidden">
-      Simplify tolerance
-      <span class="range-number">
-        <input data-range-for="simplify_tolerance" type="range" min="0" max="10" step="0.05" value="1.0">
-        <input name="simplify_tolerance" type="number" min="0" max="10" step="0.05" value="1.0">
-      </span>
-    </label>
-    <label class="osm-field is-hidden">
-      Scale
-      <span class="range-number">
-        <input data-range-for="scale" type="range" min="0.1" max="10" step="0.1" value="1.0">
-        <input name="scale" type="number" min="0.1" max="10" step="0.1" value="1.0">
-      </span>
-    </label>
-    <label class="osm-field is-hidden">
-      Local pool size
-      <input name="local_pool_size" type="number" min="1" value="80">
-    </label>
-    <label class="osm-field is-hidden">
-      Grid polygon size
-      <span class="range-number">
-        <input data-range-for="grid_polygon_size" type="range" min="0.1" max="20" step="0.1" value="1.0">
-        <input name="grid_polygon_size" type="number" min="0.1" max="20" step="0.1" value="1.0">
-      </span>
-    </label>
-    <label class="osm-field is-hidden">
-      Grid cell size
-      <span class="range-number">
-        <input data-range-for="grid_cell_size" type="range" min="0.2" max="40" step="0.1" value="3.0">
-        <input name="grid_cell_size" type="number" min="0.2" max="40" step="0.1" value="3.0">
-      </span>
-    </label>
-    <label class="osm-field is-hidden">
-      Grid columns
-      <input name="grid_columns" type="number" min="1" placeholder="auto">
-    </label>
-    <div class="field osm-field is-hidden">
-      <span class="field-label">Grid placement</span>
-      <input name="grid_placement" type="hidden" value="row-major">
-      <span class="segmented" data-input="grid_placement">
-        <button class="segment is-active" data-value="row-major" type="button">Row major</button>
-        <button class="segment" data-value="random" type="button">Random</button>
-      </span>
-    </div>
-    <label class="osm-field is-hidden">
-      Convex replacement fraction
-      <span class="range-number">
-        <input data-range-for="convex_replacement_fraction" type="range" min="0" max="1" step="0.05" value="0">
-        <input name="convex_replacement_fraction" type="number" min="0" max="1" step="0.05" value="0">
-      </span>
-    </label>
-    <label class="osm-field is-hidden">
-      Convex replacement vertices
-      <input name="convex_replacement_vertices" type="number" min="3" value="64">
-    </label>
-    <div class="field osm-field is-hidden osm-wide-field">
-      <span class="field-label">Convex replacement position</span>
-      <input name="convex_replacement_position" type="hidden" value="middle">
-      <span class="segmented segmented-3" data-input="convex_replacement_position">
-        <button class="segment is-active" data-value="middle" type="button">Middle</button>
-        <button class="segment" data-value="random" type="button">Random</button>
-        <button class="segment" data-value="alternating" type="button">Alternating</button>
-      </span>
-    </div>
-    <div class="field synthetic-field">
-      <span class="field-label">Shape</span>
-      <input name="shape" type="hidden" value="star">
-      <span class="segmented" data-input="shape">
-        <button class="segment is-active" data-value="star" type="button">Star</button>
-        <button class="segment" data-value="convex" type="button">Convex</button>
-      </span>
-    </div>
-    <label>
-      Seed
-      <input name="seed" type="number" value="42" required>
-    </label>
-    <div class="create-actions">
-      <button id="create-submit" type="submit">Create</button>
-      <div class="switch-row skip-preview-toggle">
-        <button id="skip-preview-button" class="switch-toggle toggle-button" data-input="no_preview" type="button" aria-pressed="false">
-          <span></span>
-        </button>
-        <span>Skip preview</span>
-      </div>
-      <input name="no_preview" type="hidden" value="">
-      <input name="overwrite" type="hidden" value="">
-    </div>
-  </form>
-  <div id="campaign-name-indicator" class="inline-note"></div>
-  <div id="create-preview" class="preview-layout is-hidden"></div>
-  <div class="output-panel">
-    <pre id="create-output" class="output" aria-live="polite"></pre>
-  </div>
+	<div class="panel-header">
+		<h2>Create Campaign</h2>
+		<p>Synthetic cases or OSM building campaigns from a local .osm.pbf file.</p>
+	</div>
+	<form id="create-form" class="form-grid">
+		<div class="field">
+			<span class="field-label">Source</span>
+			<input name="campaign_type" type="hidden" value="synthetic">
+			<span class="segmented" data-input="campaign_type">
+				<button class="segment is-active" data-value="synthetic" type="button">Synthetic</button>
+				<button class="segment" data-value="osm" type="button">OSM</button>
+			</span>
+		</div>
+		<label>
+			Campaign
+			<input id="create-name" name="name" value="smoke" required>
+		</label>
+		<label class="synthetic-field">
+			Vertices
+			<input name="vertices" type="number" min="3" value="8" required>
+		</label>
+		<label class="synthetic-field">
+			Polygon Count
+			<input name="polygons" type="number" min="1" value="20" required>
+		</label>
+		<div class="field osm-field osm-picker-field is-hidden">
+			<span class="field-label">OSM PBF</span>
+			<input name="pbf_path" type="hidden">
+			<div class="osm-picker-head">
+				<button id="scan-osm-files" class="secondary" type="button">Scan Files</button>
+				<span id="osm-file-status" class="field-note">No file selected.</span>
+			</div>
+			<div id="osm-file-grid" class="choice-grid osm-file-grid"></div>
+		</div>
+		<label class="osm-field is-hidden">
+			Polygon Count
+			<input name="polygon_counts" type="number" min="1" value="20">
+		</label>
+		<label>
+			Instances
+			<input name="instances" type="number" min="1" value="100" required>
+		</label>
+		<div class="field osm-field is-hidden">
+			<span class="field-label">Layout</span>
+			<input name="layout" type="hidden" value="geographic">
+			<span class="segmented" data-input="layout">
+				<button class="segment is-active" data-value="geographic" type="button">Geographic</button>
+				<button class="segment" data-value="grid" type="button">Grid</button>
+			</span>
+		</div>
+		<div class="field osm-field is-hidden">
+			<span class="field-label">Sampling</span>
+			<input name="sampling" type="hidden" value="local">
+			<span class="segmented" data-input="sampling">
+				<button class="segment is-active" data-value="local" type="button">Local</button>
+				<button class="segment" data-value="uniform" type="button">Uniform</button>
+			</span>
+		</div>
+		<div class="field osm-field is-hidden osm-wide-field">
+			<span class="field-label">Order</span>
+			<input name="order" type="hidden" value="spatial">
+			<span class="segmented segmented-4" data-input="order">
+				<button class="segment is-active" data-value="spatial" type="button">Spatial</button>
+				<button class="segment" data-value="left-to-right" type="button">Left to right</button>
+				<button class="segment" data-value="random" type="button">Random</button>
+				<button class="segment" data-value="angle" type="button">Angle</button>
+			</span>
+		</div>
+		<div class="field osm-field is-hidden">
+			<span class="field-label">Endpoint mode</span>
+			<input name="endpoint_mode" type="hidden" value="ordered">
+			<span class="segmented" data-input="endpoint_mode">
+				<button class="segment is-active" data-value="ordered" type="button">Ordered</button>
+				<button class="segment" data-value="bbox" type="button">Bounding box</button>
+			</span>
+		</div>
+		<div class="field osm-field is-hidden osm-wide-field">
+			<span class="field-label">Normalization</span>
+			<input name="normalization" type="hidden" value="instance">
+			<span class="segmented segmented-3" data-input="normalization">
+				<button class="segment is-active" data-value="instance" type="button">Instance</button>
+				<button class="segment" data-value="dataset" type="button">Dataset</button>
+				<button class="segment" data-value="none" type="button">None</button>
+			</span>
+		</div>
+		<label class="osm-field is-hidden">
+			Simplify tolerance
+			<span class="range-number">
+				<input data-range-for="simplify_tolerance" type="range" min="0" max="10" step="0.05" value="1.0">
+				<input name="simplify_tolerance" type="number" min="0" max="10" step="0.05" value="1.0">
+			</span>
+		</label>
+		<label class="osm-field is-hidden">
+			Scale
+			<span class="range-number">
+				<input data-range-for="scale" type="range" min="0.1" max="10" step="0.1" value="1.0">
+				<input name="scale" type="number" min="0.1" max="10" step="0.1" value="1.0">
+			</span>
+		</label>
+		<label class="osm-field is-hidden">
+			Local pool size
+			<input name="local_pool_size" type="number" min="1" value="80">
+		</label>
+		<label class="osm-field is-hidden">
+			Grid polygon size
+			<span class="range-number">
+				<input data-range-for="grid_polygon_size" type="range" min="0.1" max="20" step="0.1" value="1.0">
+				<input name="grid_polygon_size" type="number" min="0.1" max="20" step="0.1" value="1.0">
+			</span>
+		</label>
+		<label class="osm-field is-hidden">
+			Grid cell size
+			<span class="range-number">
+				<input data-range-for="grid_cell_size" type="range" min="0.2" max="40" step="0.1" value="3.0">
+				<input name="grid_cell_size" type="number" min="0.2" max="40" step="0.1" value="3.0">
+			</span>
+		</label>
+		<label class="osm-field is-hidden">
+			Grid columns
+			<input name="grid_columns" type="number" min="1" placeholder="auto">
+		</label>
+		<div class="field osm-field is-hidden">
+			<span class="field-label">Grid placement</span>
+			<input name="grid_placement" type="hidden" value="row-major">
+			<span class="segmented" data-input="grid_placement">
+				<button class="segment is-active" data-value="row-major" type="button">Row major</button>
+				<button class="segment" data-value="random" type="button">Random</button>
+			</span>
+		</div>
+		<label class="osm-field is-hidden">
+			Convex replacement fraction
+			<span class="range-number">
+				<input data-range-for="convex_replacement_fraction" type="range" min="0" max="1" step="0.05" value="0">
+				<input name="convex_replacement_fraction" type="number" min="0" max="1" step="0.05" value="0">
+			</span>
+		</label>
+		<label class="osm-field is-hidden">
+			Convex replacement vertices
+			<input name="convex_replacement_vertices" type="number" min="3" value="64">
+		</label>
+		<div class="field osm-field is-hidden osm-wide-field">
+			<span class="field-label">Convex replacement position</span>
+			<input name="convex_replacement_position" type="hidden" value="middle">
+			<span class="segmented segmented-3" data-input="convex_replacement_position">
+				<button class="segment is-active" data-value="middle" type="button">Middle</button>
+				<button class="segment" data-value="random" type="button">Random</button>
+				<button class="segment" data-value="alternating" type="button">Alternating</button>
+			</span>
+		</div>
+		<div class="field synthetic-field">
+			<span class="field-label">Shape</span>
+			<input name="shape" type="hidden" value="star">
+			<span class="segmented" data-input="shape">
+				<button class="segment is-active" data-value="star" type="button">Star</button>
+				<button class="segment" data-value="convex" type="button">Convex</button>
+			</span>
+		</div>
+		<label>
+			Seed
+			<input name="seed" type="number" value="42" required>
+		</label>
+		<div class="create-actions">
+			<button id="create-submit" type="submit">Create</button>
+			<div class="switch-row skip-preview-toggle">
+				<button id="skip-preview-button" class="switch-toggle toggle-button" data-input="no_preview"
+					type="button" aria-pressed="false">
+					<span></span>
+				</button>
+				<span>Skip preview</span>
+			</div>
+			<input name="no_preview" type="hidden" value="">
+			<input name="overwrite" type="hidden" value="">
+		</div>
+	</form>
+	<div id="campaign-name-indicator" class="inline-note"></div>
+	<div id="create-preview" class="preview-layout is-hidden"></div>
+	<div class="output-panel">
+		<pre id="create-output" class="output" aria-live="polite"></pre>
+	</div>
 </section>

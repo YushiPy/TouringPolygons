@@ -1,137 +1,136 @@
 .preview-instances {
-  grid-column: 1 / -1;
+	grid-column: 1 / -1;
 }
 
 .instance-grid,
 .benchmarked-grid {
-  scrollbar-color: color-mix(in srgb, var(--muted) 68%, transparent) transparent;
-  scrollbar-width: thin;
+	scrollbar-color: color-mix(in srgb, var(--muted) 68%, transparent) transparent;
+	scrollbar-width: thin;
 }
 
 .instance-grid::-webkit-scrollbar,
 .benchmarked-grid::-webkit-scrollbar {
-  display: block;
-  width: 10px;
-  height: 10px;
+	display: block;
+	width: 10px;
+	height: 10px;
 }
 
 .instance-grid::-webkit-scrollbar-track,
 .benchmarked-grid::-webkit-scrollbar-track {
-  background: transparent;
+	background: transparent;
 }
 
 .instance-grid::-webkit-scrollbar-thumb,
 .benchmarked-grid::-webkit-scrollbar-thumb {
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--muted) 68%, transparent);
-  background-clip: padding-box;
+	border: 2px solid transparent;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--muted) 68%, transparent);
+	background-clip: padding-box;
 }
 
 .instance-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 8px;
-  max-height: 460px;
-  overflow: auto;
-  padding: 10px;
-  background: var(--surface-muted);
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+	gap: 8px;
+	max-height: 460px;
+	overflow: auto;
+	padding: 10px;
+	background: var(--surface-muted);
 }
 
 .modal-card .instance-grid {
-  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+	grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
 }
 
 .instance-thumb {
-  position: relative;
-  min-height: 112px;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--editor-bg);
-  overflow: hidden;
+	position: relative;
+	min-height: 112px;
+	padding: 0;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	background: var(--editor-bg);
+	overflow: hidden;
 }
 
 .instance-thumb:hover {
-  border-color: var(--accent);
-  background: var(--surface);
+	border-color: var(--accent);
+	background: var(--surface);
 }
 
 .instance-thumb img {
-  display: block;
-  width: 100%;
-  height: 112px;
-  object-fit: contain;
-  padding: 0;
-  background: var(--editor-bg);
+	display: block;
+	width: 100%;
+	height: 112px;
+	object-fit: contain;
+	padding: 0;
+	background: var(--editor-bg);
 }
 
 .instance-thumb span {
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  border-radius: 999px;
-  padding: 2px 6px;
-  background: #fff;
-  color: #111827;
-  font-size: 0.75rem;
+	position: absolute;
+	top: 6px;
+	left: 6px;
+	border-radius: 999px;
+	padding: 2px 6px;
+	background: #fff;
+	color: #111827;
+	font-size: 0.75rem;
 }
 
 .selected-instance-button {
-  position: relative;
-  display: block;
-  width: 100%;
-  min-height: 320px;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--editor-bg);
-  overflow: hidden;
-  transition:
-    border-color var(--transition),
-    box-shadow var(--transition),
-    transform var(--transition),
-    background var(--transition);
+	position: relative;
+	display: block;
+	width: 100%;
+	min-height: 320px;
+	padding: 0;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	background: var(--editor-bg);
+	overflow: hidden;
+	transition:
+		border-color var(--transition),
+		box-shadow var(--transition),
+		transform var(--transition),
+		background var(--transition);
 }
 
 .selected-instance-button img {
-  display: block;
-  width: 100%;
-  height: 320px;
-  object-fit: contain;
-  padding: 0;
-  background: var(--editor-bg);
+	display: block;
+	width: 100%;
+	height: 320px;
+	object-fit: contain;
+	padding: 0;
+	background: var(--editor-bg);
 }
 
 .selected-instance-button:hover {
-  border-color: var(--accent);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-  transform: translateY(-1px);
+	border-color: var(--accent);
+	background: var(--surface);
+	box-shadow: var(--shadow-sm);
+	transform: translateY(-1px);
 }
 
 .selected-instance-button span {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  border-radius: 999px;
-  padding: 2px 8px;
-  background: #fff;
-  color: #111827;
-  font-size: 0.78rem;
+	position: absolute;
+	top: 10px;
+	left: 10px;
+	border-radius: 999px;
+	padding: 2px 8px;
+	background: #fff;
+	color: #111827;
+	font-size: 0.78rem;
 }
 
 .bar {
-  height: 10px;
-  border-radius: 999px;
-  overflow: hidden;
-  background: var(--track-bg);
-  margin-top: 10px;
+	height: 10px;
+	border-radius: 999px;
+	overflow: hidden;
+	background: var(--track-bg);
+	margin-top: 10px;
 }
 
 .bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--success), #22c55e);
-  transition: width 240ms ease;
+	height: 100%;
+	background: linear-gradient(90deg, var(--success), #22c55e);
+	transition: width 240ms ease;
 }
-

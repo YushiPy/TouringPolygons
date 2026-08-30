@@ -1,57 +1,60 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>TPP Benchmark Dashboard</title>
-    <link rel="stylesheet" href="/static/theme.css">
-    <link rel="stylesheet" href="/static/base.css">
-    <link rel="stylesheet" href="/static/forms.css">
-    <link rel="stylesheet" href="/static/campaigns.css">
-    <link rel="stylesheet" href="/static/editor.css">
-    <link rel="stylesheet" href="/static/previews.css">
-    <link rel="stylesheet" href="/static/reports.css">
-    <link rel="stylesheet" href="/static/overlays.css">
-    <link rel="stylesheet" href="/static/responsive.css">
-  </head>
-  <body>
-    <main class="shell">
-      <header class="topbar">
-        <div>
-          <h1>TPP Instance Workbench</h1>
-          <p>Create, edit, benchmark, compare, and inspect touring-polygon instance suites.</p>
-        </div>
-        <div class="topbar-actions">
-          <button id="theme-toggle" class="secondary" type="button" aria-pressed="false">Dark</button>
-          <button id="refresh-button" type="button">Refresh</button>
-        </div>
-      </header>
 
-      <nav class="tabs" aria-label="Dashboard sections">
-        <div class="tab-group">
-          <span>Edit test cases</span>
-          <div>
-            <button class="tab is-active" data-panel="create-panel" type="button">Create</button>
-            <button class="tab" data-panel="cases-panel" type="button">Cases</button>
-            <button class="tab" data-panel="inspect-panel" type="button">Inspect</button>
-          </div>
-        </div>
-        <div class="tab-group">
-          <span>Evaluate</span>
-          <div>
-            <button class="tab" data-panel="benchmark-panel" type="button">Benchmark</button>
-            <button class="tab" data-panel="comparison-panel" type="button">Comparison</button>
-          </div>
-        </div>
-      </nav>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>TPP Benchmark Dashboard</title>
+	<link rel="stylesheet" href="/static/theme.css">
+	<link rel="stylesheet" href="/static/base.css">
+	<link rel="stylesheet" href="/static/forms.css">
+	<link rel="stylesheet" href="/static/campaigns.css">
+	<link rel="stylesheet" href="/static/editor.css">
+	<link rel="stylesheet" href="/static/previews.css">
+	<link rel="stylesheet" href="/static/reports.css">
+	<link rel="stylesheet" href="/static/overlays.css">
+	<link rel="stylesheet" href="/static/responsive.css">
+</head>
 
-      {% include "partials/create_panel.html" %}
-      {% include "partials/cases_panel.html" %}
-      {% include "partials/benchmark_panel.html" %}
-      {% include "partials/comparison_panel.html" %}
-      {% include "partials/inspect_panel.html" %}
-    </main>
-    {% include "partials/modals.html" %}
-    <script type="module" src="/static/app.js"></script>
-  </body>
+<body>
+	<main class="shell">
+		<header class="topbar">
+			<div>
+				<h1>TPP Instance Workbench</h1>
+				<p>Create, edit, benchmark, compare, and inspect touring-polygon instance suites.</p>
+			</div>
+			<div class="topbar-actions">
+				<button id="theme-toggle" class="secondary" type="button" aria-pressed="false">Dark</button>
+				<button id="refresh-button" type="button">Refresh</button>
+			</div>
+		</header>
+
+		<nav class="tabs" aria-label="Dashboard sections">
+			<div class="tab-group">
+				<span>Edit test cases</span>
+				<div>
+					<button class="tab is-active" data-panel="create-panel" type="button">Create</button>
+					<button class="tab" data-panel="cases-panel" type="button">Cases</button>
+					<button class="tab" data-panel="inspect-panel" type="button">Inspect</button>
+				</div>
+			</div>
+			<div class="tab-group">
+				<span>Evaluate</span>
+				<div>
+					<button class="tab" data-panel="benchmark-panel" type="button">Benchmark</button>
+					<button class="tab" data-panel="comparison-panel" type="button">Comparison</button>
+				</div>
+			</div>
+		</nav>
+
+		{% include "partials/create_panel.html" %}
+		{% include "partials/cases_panel.html" %}
+		{% include "partials/benchmark_panel.html" %}
+		{% include "partials/comparison_panel.html" %}
+		{% include "partials/inspect_panel.html" %}
+	</main>
+	{% include "partials/modals.html" %}
+	<script type="module" src="/static/app.js"></script>
+</body>
+
 </html>
