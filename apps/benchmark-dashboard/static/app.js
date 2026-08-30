@@ -1,8 +1,11 @@
 import { requestJSON } from "./api.js";
+import { drawCanvasScene } from "./canvas-renderer.js";
 import { $, escapeHTML, setOutput } from "./dom.js";
 import { convexDecomposition, polygonIsConvex, solutionDirectionAt } from "./editor-geometry.js";
+import { renderCampaignList } from "./campaign-rendering.js";
 import { downloadCSV, formatElapsed, formatSeconds, shellQuote } from "./format.js";
 import { jobDockStatusClass, jobKindLabel, jobPanel, jobProgressLabel, jobTerminalState } from "./job-utils.js";
+import { findTable, instanceTotalSeconds, meanSecondsPerCall, metricCard, parseDurationSeconds, parseNumber, parseTimingDetail, shortNumber, solverLabel } from "./report-utils.js";
 import { state } from "./state.js";
 
 const JOB_POLL_INTERVAL_MS = 500;
@@ -2030,101 +2033,7 @@ const manualEditor = {
   },
 
   draw() {
-    if (!this.canvas || !this.ctx) {
-      return;
-    }
-    this.drawGrid();
-    const current = this.currentCase();
-    if (!current) {
-      this.setStatus("Create or select an editable campaign.");
-      return;
-    }
-    const ctx = this.ctx;
-    if (this.layers.solution && this.solutionPath && this.solutionPath.length >= 2) {
-      ctx.save();
-      ctx.strokeStyle = "#facc15";
-      ctx.lineWidth = 4;
-      ctx.globalAlpha = this.solutionStale ? 0.45 : 1;
-      if (this.solutionStale) {
-        ctx.setLineDash([9, 6]);
-      }
-      ctx.beginPath();
-      this.solutionPath.forEach((point, index) => {
-        const canvasPoint = this.worldToCanvas(point);
-        if (index === 0) {
-          ctx.moveTo(canvasPoint.x, canvasPoint.y);
-        } else {
-          ctx.lineTo(canvasPoint.x, canvasPoint.y);
-        }
-      });
-      ctx.stroke();
-      ctx.restore();
-    }
-    current.polygons.forEach((polygon, index) => {
-      if (polygon.length === 0) {
-        return;
-      }
-      const color = ["#38bdf8", "#a3e635", "#f97316", "#f472b6", "#c084fc"][index % 5];
-      ctx.beginPath();
-      polygon.forEach((point, pointIndex) => {
-        const canvasPoint = this.worldToCanvas(point);
-        if (pointIndex === 0) {
-          ctx.moveTo(canvasPoint.x, canvasPoint.y);
-        } else {
-          ctx.lineTo(canvasPoint.x, canvasPoint.y);
-        }
-      });
-      if (polygon.length >= 3 && index !== this.activePolygon) {
-        ctx.closePath();
-        ctx.fillStyle = `${color}33`;
-        ctx.fill();
-      }
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      if (this.layers.decomposition && polygon.length >= 3) {
-        this.drawDecomposition(polygon, color);
-      }
-      polygon.forEach((point) => this.drawPoint(point, color));
-      if (index === this.activePolygon && polygon.length > 0) {
-        const last = this.worldToCanvas(polygon.at(-1));
-        const preview = this.worldToCanvas(this.snap(this.canvasToWorld(this.mouseCanvas.x, this.mouseCanvas.y)));
-        ctx.strokeStyle = color;
-        ctx.setLineDash([7, 5]);
-        ctx.beginPath();
-        ctx.moveTo(last.x, last.y);
-        ctx.lineTo(preview.x, preview.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = this.isClosingPolygon(this.mouseCanvas.x, this.mouseCanvas.y) ? "#facc15" : "#f8fafc";
-        ctx.beginPath();
-        ctx.arc(preview.x, preview.y, 4, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    });
-    for (const selected of this.selectedPoints) {
-      this.drawSelectedRing(selected.point);
-      if (selected.kind === "vertex") {
-        this.drawPoint(selected.point, "#f8fafc");
-      }
-    }
-    if (this.layers.solution && this.solutionPath && this.solutionPath.length > 2) {
-      this.solutionPath.slice(1, -1).forEach((point) => this.drawPoint(point, "#f97316"));
-    }
-    if (this.selectionRect) {
-      const left = Math.min(this.selectionRect.start.x, this.selectionRect.end.x);
-      const top = Math.min(this.selectionRect.start.y, this.selectionRect.end.y);
-      const width = Math.abs(this.selectionRect.start.x - this.selectionRect.end.x);
-      const height = Math.abs(this.selectionRect.start.y - this.selectionRect.end.y);
-      ctx.fillStyle = "rgba(37, 99, 235, 0.18)";
-      ctx.strokeStyle = "#93c5fd";
-      ctx.setLineDash([6, 4]);
-      ctx.fillRect(left, top, width, height);
-      ctx.strokeRect(left, top, width, height);
-      ctx.setLineDash([]);
-    }
-    this.drawPoint(current.start, "#22c55e", this.layers.labels ? "s" : "", this.labelDirections.start);
-    this.drawPoint(current.target, "#ef4444", this.layers.labels ? "t" : "", this.labelDirections.target);
+    drawCanvasScene(this);
   },
 };
 
@@ -2181,7 +2090,9 @@ function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
     drawPoint: manualEditor.drawPoint,
     drawDecomposition: manualEditor.drawDecomposition,
     updateLabelDirections: manualEditor.updateLabelDirections,
-    draw: manualEditor.draw,
+    draw() {
+      drawCanvasScene(this);
+    },
     zoomAtCanvasPoint(factor, x, y) {
       const before = this.canvasToWorld(x, y);
       this.updateZoomLimits();
@@ -3621,54 +3532,13 @@ function renderSolvedPreview(campaign) {
 }
 
 function renderCampaigns() {
-  const root = $("#campaign-list");
-  root.innerHTML = "";
-  const campaigns = state.campaigns.filter((campaign) => {
-    const query = state.campaignFilter;
-    if (!query) {
-      return true;
-    }
-    return [campaign.name, campaign.type, JSON.stringify(campaign.generation || {})]
-      .some((value) => String(value || "").toLowerCase().includes(query));
+  renderCampaignList($("#campaign-list"), {
+    closeIconSVG,
+    deleteCampaign,
+    describeVertices,
+    openCampaignModal,
+    runProgress,
   });
-  if (campaigns.length === 0) {
-    root.innerHTML = '<div class="empty-choice">No campaigns match the current filter.</div>';
-    return;
-  }
-  for (const campaign of campaigns) {
-    const generation = campaign.generation || {};
-    const progress = runProgress(campaign);
-    const card = document.createElement("article");
-    card.className = "campaign-card";
-    card.tabIndex = 0;
-    card.innerHTML = `
-      <button class="campaign-delete" type="button" data-delete-campaign="${escapeHTML(campaign.name)}" aria-label="Delete ${escapeHTML(campaign.name)}">${closeIconSVG()}</button>
-      <h3>${escapeHTML(campaign.name)}</h3>
-      <div class="meta">
-        <div><span>Type</span><br>${escapeHTML(campaign.type)}</div>
-        <div><span>Instances</span><br>${generation.instances ?? generation.instances_per_file ?? "-"}</div>
-        <div><span>Polygon Count</span><br>${generation.polygons ?? generation.polygon_counts ?? "-"}</div>
-        <div><span>Vertices</span><br>${escapeHTML(describeVertices(generation))}</div>
-        <div><span>Progress</span><br>${progress.label}</div>
-      </div>
-      <div class="bar" aria-label="Benchmark progress">
-        <div class="bar-fill" style="width: ${Math.round(progress.ratio * 100)}%"></div>
-      </div>
-      ${campaign.has_preview ? `<img class="preview" src="/api/campaigns/${encodeURIComponent(campaign.name)}/preview?v=${campaign.version || ""}" alt="Preview for ${campaign.name}">` : ""}
-    `;
-    card.querySelector(".campaign-delete").addEventListener("click", (event) => {
-      event.stopPropagation();
-      deleteCampaign(event);
-    });
-    card.addEventListener("click", () => openCampaignModal(campaign));
-    card.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        openCampaignModal(campaign);
-      }
-    });
-    root.appendChild(card);
-  }
 }
 
 function renderResults(files) {
@@ -3902,69 +3772,6 @@ async function cancelJobId(jobId) {
   }
 }
 
-function metricCard(label, value) {
-  return `<div class="metric-card"><span>${escapeHTML(label)}</span><strong>${escapeHTML(value)}</strong></div>`;
-}
-
-function shortNumber(value) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) {
-    return value ?? "-";
-  }
-  if (Math.abs(number) >= 1000) {
-    return number.toFixed(1);
-  }
-  return number.toFixed(3);
-}
-
-function parseNumber(value) {
-  const cleaned = String(value).replaceAll("_", "").replace("%", "").match(/-?\d+(?:\.\d+)?/);
-  return cleaned ? Number(cleaned[0]) : null;
-}
-
-function parseDurationSeconds(value) {
-  const number = parseNumber(value);
-  if (!Number.isFinite(number)) {
-    return null;
-  }
-  const text = String(value).toLowerCase();
-  if (text.includes("us") || text.includes("µs")) {
-    return number / 1000000;
-  }
-  if (text.includes("ms")) {
-    return number / 1000;
-  }
-  return number;
-}
-
-function parseTimingDetail(value) {
-  const text = String(value || "").replace(" of measured work", "");
-  const seconds = text.match(/[-+]?(?:\d+(?:\.\d*)?|\.\d+)s/);
-  const percent = text.match(/\(([^)]+%)\)/);
-  return {
-    value: parseNumber(seconds?.[0] || text),
-    time: seconds?.[0] || text,
-    percent: percent?.[1] || "",
-  };
-}
-
-function meanSecondsPerCall(row) {
-  const explicit = parseNumber(row.mean_seconds_per_call);
-  if (Number.isFinite(explicit)) {
-    return explicit;
-  }
-  const solverSeconds = parseNumber(row.convex_solver_seconds);
-  const calls = parseNumber(row.total_convex_calls);
-  if (!Number.isFinite(solverSeconds) || !Number.isFinite(calls) || calls <= 0) {
-    return null;
-  }
-  return solverSeconds / calls;
-}
-
-function findTable(report, title) {
-  return report.tables.find((table) => table.title === title);
-}
-
 function renderBarChart(rows, options = {}) {
   const values = rows
     .map((row) => ({
@@ -4028,18 +3835,6 @@ function formatSummaryValue(label, value) {
     return formatSeconds(parseDurationSeconds(value));
   }
   return value;
-}
-
-function instanceTotalSeconds(row) {
-  const parts = [
-    parseNumber(row.decomposition_seconds),
-    parseNumber(row.approximation_seconds),
-    parseNumber(row.bnb_seconds),
-  ].filter(Number.isFinite);
-  if (parts.length > 0) {
-    return parts.reduce((sum, value) => sum + value, 0);
-  }
-  return parseNumber(row.total_seconds);
 }
 
 function renderHistogram(values, formatter) {
@@ -4185,24 +3980,6 @@ function renderBenchmarkReport(report) {
     downloadCSV(`${report.files[0].path.split("/").pop() || "benchmark"}.csv`, resultRows);
   });
   root.classList.remove("is-hidden");
-}
-
-function solverLabel(name) {
-  const labels = {
-    linear_search_lazy: "Linear Intersections",
-    linear_search_disjoint: "Linear Disjoint",
-    binary_search_lazy: "Binary Intersections",
-    binary_search_disjoint: "Binary Disjoint",
-    binary_search_eager: "Binary Eager",
-    tan_jiang: "Tan Jiang",
-    gurobi: "Gurobi",
-    linear: "Linear Intersections",
-    linear_disjoint: "Linear Disjoint",
-    binary: "Binary Intersections",
-    binary_disjoint: "Binary Disjoint",
-    tan: "Tan Jiang",
-  };
-  return labels[name] || name;
 }
 
 function renderComparisonReport(data) {

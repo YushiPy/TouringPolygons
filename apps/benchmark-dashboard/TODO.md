@@ -5,9 +5,9 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 ## Planned
 
 - [ ] Split `main.py` into focused backend modules:
-	- request/data models and shared types;
+	- [x] request/data models and shared types;
 	- path and campaign metadata helpers;
-	- binary case parsing and writing;
+	- [x] binary case parsing and writing;
 	- preview generation;
 	- job orchestration and persistence;
 	- report parsing;
@@ -15,11 +15,11 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 - [ ] Split `static/app.js` into ES modules:
 	- [x] API client;
 	- [x] shared state;
-	- campaign rendering;
+	- [x] campaign rendering;
 	- [x] job dock and polling;
 	- benchmark/comparison reports;
 	- [x] editor geometry;
-	- editor renderer;
+	- [x] editor renderer;
 	- manual editor interactions;
 	- read-only instance viewer.
 - [x] Replace eager per-instance preview generation with lazy generation on first request.
@@ -29,9 +29,9 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 - [x] Move stale preview migration out of `GET /api/campaigns`.
 - [x] Replace unbounded JSON/CSV globals with a bounded file-signature cache.
 - [x] Cache frontend convex decomposition per polygon version.
-- [ ] Extract a shared canvas renderer used by both the manual editor and read-only viewer.
+- [x] Extract a shared canvas renderer used by both the manual editor and read-only viewer.
 - [x] Reduce job polling/report refresh pressure, possibly with server-sent events.
-- [ ] Add regression tests around campaign summaries, manual save/rebuild behavior, preview paths, and binary parsing.
+- [x] Add regression tests around campaign summaries, manual save/rebuild behavior, preview paths, and binary parsing.
 
 ## Done
 
@@ -81,6 +81,20 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 	- Moved job panel selection, labels, progress text, terminal states, and status classes out of `app.js`.
 	- Kept DOM event handling and polling orchestration in `app.js`.
 	- Verified all dashboard JavaScript modules pass syntax checks.
+- Extracted campaign list rendering into `static/campaign-rendering.js`.
+	- Kept filtering and card interaction behavior unchanged while leaving modal and deletion workflows in `app.js`.
+	- Passed existing campaign helpers into the renderer to avoid circular module dependencies.
+- Extracted report parsing and formatting helpers into `static/report-utils.js`.
+	- Moved numeric parsing, timing parsing, solver labels, metric cards, and report lookup helpers out of `app.js`.
+	- Kept report DOM rendering in `app.js` until its event and formatting dependencies can be separated cleanly.
+- Extracted backend request models and shared case types into `dashboard_models.py`.
+	- Kept `main.py` compatibility imports so the existing API and test loader continue to work.
+- Extracted binary case IO and offset indexing into `dashboard_binary.py`.
+	- Kept the offset cache shared with the existing dashboard cache controls.
+	- Verified the full 12-test dashboard suite after the extraction.
+- Extracted shared canvas scene composition into `static/canvas-renderer.js`.
+	- Manual editing and read-only viewing now call the same polygon, solution, selection, and label renderer.
+	- Preserved mode-specific interaction and camera behavior around the shared renderer.
 - Separated manual autosave persistence from preview generation.
 	- Autosave still updates the editable JSON, binary input, campaign metadata, and invalidates benchmark results.
 	- Autosave now skips expensive preview rendering and invalidates old preview metadata.
