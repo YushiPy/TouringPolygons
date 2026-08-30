@@ -53,6 +53,7 @@ apps/visualizer-server/static/wasm/
 PolygonsOut/
 *.db
 apps/visualizer-server/_output_images/
+apps/benchmark-dashboard/.jobs.json
 benchmarks/campaigns/
 benchmarks/generated-runs/
 benchmarks/results/

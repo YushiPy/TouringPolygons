@@ -442,6 +442,22 @@ def svg_line(x1: float, y1: float, x2: float, y2: float, color: str, opacity: fl
 	)
 
 
+def preview_grid_metrics(scale: float) -> tuple[float, int]:
+	decision_value = 83 / scale
+	exponent = math.ceil(math.log10(decision_value)) if decision_value > 0 else 0
+	multiplier = 1
+	sub_grid_count = 4
+	grid_scale = 10 ** exponent
+	if grid_scale / 5 > decision_value:
+		sub_grid_count = 3
+		exponent -= 1
+		multiplier = 2
+	elif grid_scale / 2 > decision_value:
+		exponent -= 1
+		multiplier = 5
+	return (10 ** exponent) * multiplier, sub_grid_count
+
+
 def write_case_preview(path: Path, cases: list[CaseData], *, cell_size: int, columns: int) -> None:
 	if not cases:
 		return
@@ -467,11 +483,7 @@ def write_case_preview(path: Path, cases: list[CaseData], *, cell_size: int, col
 		offset_x = x0 + padding - min_x * scale
 		offset_y = y0 + cell_size - padding + min_y * scale
 		elements.append(f'<rect x="{x0}" y="{y0}" width="{cell_size}" height="{cell_size}" fill="#121417"/>')
-		grid_step = 10 ** math.floor(math.log10(max(span / 4, 1e-9)))
-		if span / grid_step < 4:
-			grid_step /= 2
-		elif span / grid_step > 10:
-			grid_step *= 2
+		grid_step, sub_grid_count = preview_grid_metrics(scale)
 		first_x = math.floor(min_x / grid_step) * grid_step
 		first_y = math.floor(min_y / grid_step) * grid_step
 		x = first_x
@@ -479,8 +491,8 @@ def write_case_preview(path: Path, cases: list[CaseData], *, cell_size: int, col
 			screen_x = offset_x + x * scale
 			if x0 <= screen_x <= x0 + cell_size:
 				elements.append(svg_line(screen_x, y0, screen_x, y0 + cell_size, "#515a67", 0.62))
-				for index in range(1, 4):
-					sub_x = screen_x + index * grid_step * scale / 4
+				for index in range(sub_grid_count):
+					sub_x = screen_x + (index + 1) * grid_step * scale / (sub_grid_count + 1)
 					if x0 <= sub_x <= x0 + cell_size:
 						elements.append(svg_line(sub_x, y0, sub_x, y0 + cell_size, "#2a2f38", 0.74))
 			x += grid_step
@@ -489,8 +501,8 @@ def write_case_preview(path: Path, cases: list[CaseData], *, cell_size: int, col
 			screen_y = offset_y - y * scale
 			if y0 <= screen_y <= y0 + cell_size:
 				elements.append(svg_line(x0, screen_y, x0 + cell_size, screen_y, "#515a67", 0.62))
-				for index in range(1, 4):
-					sub_y = screen_y - index * grid_step * scale / 4
+				for index in range(sub_grid_count):
+					sub_y = screen_y - (index + 1) * grid_step * scale / (sub_grid_count + 1)
 					if y0 <= sub_y <= y0 + cell_size:
 						elements.append(svg_line(x0, sub_y, x0 + cell_size, sub_y, "#2a2f38", 0.74))
 			y += grid_step
@@ -500,7 +512,6 @@ def write_case_preview(path: Path, cases: list[CaseData], *, cell_size: int, col
 			elements.append(svg_line(x0, origin_y, x0 + cell_size, origin_y, "#9aa3ad", 0.86))
 		if x0 <= origin_x <= x0 + cell_size:
 			elements.append(svg_line(origin_x, y0, origin_x, y0 + cell_size, "#9aa3ad", 0.86))
-		elements.append(f'<text x="{x0 + 9}" y="{y0 + 17}" font-size="12" fill="#f8fafc" fill-opacity="0.88">case {case_index + 1}</text>')
 		for polygon_index, polygon in enumerate(polygons):
 			color = colors[polygon_index % len(colors)]
 			elements.append(
@@ -516,9 +527,9 @@ def write_case_preview(path: Path, cases: list[CaseData], *, cell_size: int, col
 		target_x = offset_x + target[0] * scale
 		target_y = offset_y - target[1] * scale
 		elements.append(f'<circle cx="{start_x:.2f}" cy="{start_y:.2f}" r="5" fill="#22c55e"/>')
-		elements.append(f'<text x="{start_x + 10:.2f}" y="{start_y + 4:.2f}" font-size="13" font-weight="700" fill="#f8fafc">s</text>')
+		elements.append(f'<text x="{start_x + 10:.2f}" y="{start_y + 4:.2f}" font-size="12" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" fill="#f8fafc">s</text>')
 		elements.append(f'<circle cx="{target_x:.2f}" cy="{target_y:.2f}" r="5" fill="#ef4444"/>')
-		elements.append(f'<text x="{target_x + 10:.2f}" y="{target_y + 4:.2f}" font-size="13" font-weight="700" fill="#f8fafc">t</text>')
+		elements.append(f'<text x="{target_x + 10:.2f}" y="{target_y + 4:.2f}" font-size="12" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" fill="#f8fafc">t</text>')
 	elements.append("</svg>")
 	path.parent.mkdir(parents=True, exist_ok=True)
 	path.write_text("\n".join(elements) + "\n")

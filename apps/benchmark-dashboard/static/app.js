@@ -68,7 +68,56 @@ async function requestJSON(url, options = {}) {
 }
 
 function setOutput(target, text) {
+  if (!target) {
+    return;
+  }
   target.textContent = text || "";
+  syncOutputPanel(target);
+}
+
+function commandFromOutput(text) {
+  const firstLine = String(text || "").split("\n").find((line) => line.startsWith("+ "));
+  return firstLine ? firstLine.slice(2) : "";
+}
+
+function syncOutputPanel(target) {
+  const panel = target.closest?.(".output-panel");
+  if (!panel) {
+    return;
+  }
+  const command = commandFromOutput(target.textContent);
+  const button = panel.querySelector("[data-copy-output]");
+  button?.classList.toggle("is-hidden", !command);
+  if (button) {
+    button.dataset.command = command;
+    button.textContent = "Copy command";
+  }
+}
+
+async function copyCommandFromOutput(button) {
+  const command = button.dataset.command || "";
+  if (!command) {
+    return;
+  }
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(command);
+  } else {
+    const selection = window.getSelection();
+    const scratch = document.createElement("textarea");
+    scratch.value = command;
+    scratch.style.position = "fixed";
+    scratch.style.opacity = "0";
+    document.body.appendChild(scratch);
+    scratch.select();
+    document.execCommand("copy");
+    document.body.removeChild(scratch);
+    selection?.removeAllRanges();
+  }
+  button.textContent = "Copied";
+  clearTimeout(button._copyTimer);
+  button._copyTimer = setTimeout(() => {
+    button.textContent = "Copy command";
+  }, 1400);
 }
 
 function escapeHTML(value) {
@@ -1662,7 +1711,8 @@ const manualEditor = {
     event.preventDefault();
     const rect = this.canvas.getBoundingClientRect();
     const before = this.canvasToWorld(event.clientX - rect.left, event.clientY - rect.top);
-    const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
+    const delta = Math.max(-80, Math.min(80, event.deltaY));
+    const factor = Math.exp(-delta * (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL ? 0.0028 : 0.08));
     this.updateZoomLimits();
     this.scale = Math.max(this.minScale, Math.min(this.maxScale, this.scale * factor));
     const after = this.canvasToWorld(event.clientX - rect.left, event.clientY - rect.top);
@@ -3652,6 +3702,64 @@ function renderJobs(jobs) {
   }
 }
 
+function runningJobs() {
+  return state.recentJobs.filter((job) => job.status === "running" || job.status === "stopping");
+}
+
+function jobProgressLabel(job) {
+  if (job.kind === "comparison") {
+    const solverTotal = job.solver_progress_total || 0;
+    const solverCompleted = job.solver_progress_completed || 0;
+    const instanceTotal = job.progress_total || 0;
+    const instanceCompleted = job.progress_completed || 0;
+    const solverText = solverTotal ? `${solverCompleted}/${solverTotal} solvers` : "Comparing solvers";
+    const instanceText = instanceTotal ? `, ${instanceCompleted}/${instanceTotal} instances` : "";
+    return `${solverText}${instanceText}`;
+  }
+  if (job.progress_total) {
+    return `${job.progress_completed || 0}/${job.progress_total} instances`;
+  }
+  return "Compiling";
+}
+
+function showJobToast(message) {
+  const toast = $("#job-toast");
+  if (!toast) {
+    return;
+  }
+  toast.textContent = message;
+  toast.classList.remove("is-hidden");
+  clearTimeout(toast._hideTimer);
+  toast._hideTimer = setTimeout(() => toast.classList.add("is-hidden"), 4200);
+}
+
+function renderJobDock(previousJobs = []) {
+  const dock = $("#job-dock");
+  if (!dock) {
+    return;
+  }
+  const activeJobs = runningJobs();
+  dock.classList.toggle("is-hidden", activeJobs.length === 0);
+  dock.innerHTML = activeJobs.map((job) => `
+    <button class="job-dock-item" type="button" data-job-panel="${job.kind === "comparison" ? "comparison-panel" : "benchmark-panel"}">
+      <span>${job.kind === "comparison" ? "Comparison" : "Benchmark"} running</span>
+      <strong>${escapeHTML(job.campaign || "-")}</strong>
+      <small>${escapeHTML(jobProgressLabel(job))} | ${formatElapsed((Date.now() / 1000) - (job.started_at || Date.now() / 1000))}</small>
+    </button>
+  `).join("");
+  dock.querySelectorAll("[data-job-panel]").forEach((button) => {
+    button.addEventListener("click", () => switchPanel(button.dataset.jobPanel));
+  });
+  const previousActive = new Map(previousJobs
+    .filter((job) => job.status === "running" || job.status === "stopping")
+    .map((job) => [job.id, job]));
+  for (const job of state.recentJobs) {
+    if (previousActive.has(job.id) && job.status !== "running" && job.status !== "stopping") {
+      showJobToast(`${job.kind === "comparison" ? "Comparison" : "Benchmark"} ${job.status}: ${job.campaign || "-"}`);
+    }
+  }
+}
+
 function metricCard(label, value) {
   return `<div class="metric-card"><span>${escapeHTML(label)}</span><strong>${escapeHTML(value)}</strong></div>`;
 }
@@ -4264,6 +4372,7 @@ function openPreviewModal(campaign, kind, title) {
 }
 
 async function refresh() {
+  const previousJobs = state.recentJobs;
   const [campaignData, resultData, jobData] = await Promise.all([
     requestJSON("/api/campaigns"),
     requestJSON("/api/results"),
@@ -4272,6 +4381,7 @@ async function refresh() {
   state.campaigns = campaignData.campaigns;
   state.resultFiles = resultData.files;
   state.recentJobs = jobData.jobs;
+  renderJobDock(previousJobs);
   renderCampaignOptions();
   renderCampaigns();
   renderResults(state.resultFiles);
@@ -4508,6 +4618,9 @@ async function pollJob(jobId) {
   let lastRefresh = 0;
   while (true) {
     const job = await requestJSON(`/api/jobs/${jobId}`);
+    const previousJobs = state.recentJobs;
+    state.recentJobs = [job, ...state.recentJobs.filter((item) => item.id !== job.id)];
+    renderJobDock(previousJobs);
     const command = `+ ${job.command.join(" ")}\n\n`;
     setOutput(output, command + (job.output || ""));
     if (Date.now() - lastRefresh > 1000) {
@@ -4551,6 +4664,7 @@ async function pollJob(jobId) {
       setOutput(output, command + (job.output || "") + logText + `\nstatus: ${job.status}`);
       setStopButton("#stop-run-button", null);
       state.currentRunJob = null;
+      await refresh();
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
@@ -4564,6 +4678,9 @@ async function pollComparisonJob(jobId) {
   let lastReportRefresh = 0;
   while (true) {
     const job = await requestJSON(`/api/jobs/${jobId}`);
+    const previousJobs = state.recentJobs;
+    state.recentJobs = [job, ...state.recentJobs.filter((item) => item.id !== job.id)];
+    renderJobDock(previousJobs);
     const command = `+ ${job.command.join(" ")}\n\n`;
     setOutput(output, command + (job.output || ""));
     const jobActive = job.status === "running" || job.status === "stopping";
@@ -4589,6 +4706,7 @@ async function pollComparisonJob(jobId) {
       setOutput(output, command + (job.output || "") + `\nstatus: ${job.status}`);
       setStopButton("#stop-compare-button", null);
       state.currentComparisonJob = null;
+      await refresh();
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
@@ -4781,6 +4899,9 @@ $("#manual-editor-close").addEventListener("click", () => manualEditor.toggleExp
 $("#manual-keybinds-button").addEventListener("click", openKeybinds);
 document.querySelectorAll("[data-close-keybinds]").forEach((button) => {
   button.addEventListener("click", closeKeybinds);
+});
+document.querySelectorAll("[data-copy-output]").forEach((button) => {
+  button.addEventListener("click", () => copyCommandFromOutput(button));
 });
 setupFilterInput("#campaign-filter", "campaignFilter", renderCampaigns);
 setupFilterInput("#result-filter", "resultFilter", () => renderResults(state.resultFiles));
