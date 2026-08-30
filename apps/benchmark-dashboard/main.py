@@ -221,6 +221,13 @@ Point = tuple[float, float]
 CaseData = tuple[Point, Point, list[list[Point]]]
 
 
+def active_job(kind: str, campaign: str) -> Job | None:
+	for job in jobs.values():
+		if job.kind == kind and job.campaign == campaign and job.status in {"running", "stopping"}:
+			return job
+	return None
+
+
 def campaign_path(name: str) -> Path:
 	if "/" in name or "\\" in name or name in {"", ".", ".."}:
 		raise HTTPException(status_code=400, detail="Invalid campaign name.")
@@ -889,6 +896,54 @@ def result_preview_list(path: Path, data: dict[str, Any]) -> list[str]:
 	return [str(preview.relative_to(path)) for preview in found if preview.suffix.lower() in {".png", ".svg"}]
 
 
+def preview_svg_is_stale(path: Path) -> bool:
+	if path.suffix.lower() != ".svg" or not path.exists():
+		return False
+	try:
+		text = path.read_text(errors="ignore")
+	except OSError:
+		return False
+	return ">case " in text or 'fill="#ffffff"' in text
+
+
+def campaign_previews_are_stale(path: Path, data: dict[str, Any]) -> bool:
+	candidates = list(preview_map(data).values()) + instance_preview_list(data)[:1]
+	return any(preview_svg_is_stale(path / preview) for preview in candidates)
+
+
+def read_campaign_cases(path: Path, data: dict[str, Any]) -> list[CaseData]:
+	cases: list[CaseData] = []
+	total = total_instance_count(data)
+	for input_record in data.get("inputs", []):
+		file_value = input_record.get("file")
+		if not isinstance(file_value, str):
+			continue
+		input_path = path / file_value
+		if not input_path.exists():
+			continue
+		remaining = max(0, total - len(cases)) if total else 10_000
+		if remaining == 0:
+			break
+		cases.extend(read_binary_cases(input_path, remaining))
+	return cases
+
+
+def refresh_stale_previews(path: Path, data: dict[str, Any]) -> dict[str, Any]:
+	if not campaign_previews_are_stale(path, data):
+		return data
+	cases = read_campaign_cases(path, data)
+	if not cases:
+		return data
+	previews, instance_previews = write_imported_previews(path, cases)
+	data["preview"] = previews.get("all")
+	data["previews"] = previews
+	data["instance_previews"] = instance_previews
+	campaign_file = path / "campaign.json"
+	campaign_file.write_text(json.dumps(data, indent=2) + "\n")
+	_json_cache.pop(campaign_file, None)
+	return data
+
+
 def benchmarked_instances(path: Path, *, limit: int = 200) -> list[dict[str, Any]]:
 	data = read_json(path / "campaign.json")
 	previews = result_preview_list(path, data)
@@ -1016,6 +1071,7 @@ def summary_result_rows(summary_path: Path) -> list[dict[str, str]]:
 
 def campaign_summary(path: Path) -> dict[str, Any]:
 	data = read_json(path / "campaign.json")
+	data = refresh_stale_previews(path, data)
 	campaign_file = path / "campaign.json"
 	inputs = data.get("inputs", [])
 	existing_inputs = sum((path / record["file"]).exists() for record in inputs)
@@ -1516,6 +1572,10 @@ async def delete_campaign(name: str):
 
 @app.post("/api/runs")
 async def run_campaign(request: RunCampaignRequest):
+	existing_job = active_job("run", request.name)
+	if existing_job is not None:
+		return {"job": existing_job.id, "command": existing_job.command}
+
 	command = [sys.executable, str(BENCHMARK_CLI), "run", request.name]
 	if request.threads is not None:
 		command.extend(["--threads", str(request.threads)])
@@ -1549,6 +1609,10 @@ async def run_campaign(request: RunCampaignRequest):
 async def compare_solvers(request: CompareSolversRequest):
 	if not request.solvers:
 		raise HTTPException(status_code=400, detail="Select at least one solver.")
+	existing_job = active_job("comparison", request.name)
+	if existing_job is not None:
+		return {"job": existing_job.id, "command": existing_job.command}
+
 	path = campaign_path(request.name)
 	suite = first_input_file(path)
 	command = [

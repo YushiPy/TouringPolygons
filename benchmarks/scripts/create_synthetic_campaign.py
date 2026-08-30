@@ -135,6 +135,29 @@ def svg_points(points: Sequence[Point], offset_x: float, offset_y: float, scale:
 	)
 
 
+def svg_line(x1: float, y1: float, x2: float, y2: float, color: str, opacity: float = 1.0) -> str:
+	return (
+		f'<line x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}" '
+		f'stroke="{color}" stroke-opacity="{opacity:.2f}" stroke-width="1"/>'
+	)
+
+
+def preview_grid_metrics(scale: float) -> tuple[float, int]:
+	decision_value = 83 / scale
+	exponent = math.ceil(math.log10(decision_value)) if decision_value > 0 else 0
+	multiplier = 1
+	sub_grid_count = 4
+	grid_scale = 10 ** exponent
+	if grid_scale / 5 > decision_value:
+		sub_grid_count = 3
+		exponent -= 1
+		multiplier = 2
+	elif grid_scale / 2 > decision_value:
+		exponent -= 1
+		multiplier = 5
+	return (10 ** exponent) * multiplier, sub_grid_count
+
+
 def case_bounds(case: TestCase) -> tuple[float, float, float, float]:
 	points = [case.start, case.target, *(point for polygon in case.polygons for point in polygon)]
 	return (
@@ -156,13 +179,13 @@ def write_preview(
 	preview_cases = list(cases[:max_cases])
 	columns = min(columns, max(1, len(preview_cases)))
 	rows = math.ceil(len(preview_cases) / columns)
-	padding = 22
+	padding = 18
 	width = columns * cell_size
 	height = rows * cell_size
-	colors = ["#4f46e5", "#0891b2", "#16a34a", "#ca8a04", "#dc2626", "#9333ea", "#0f766e"]
+	colors = ["#38bdf8", "#a3e635", "#f97316", "#f472b6", "#c084fc"]
 	elements = [
 		f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
-		'<rect width="100%" height="100%" fill="#ffffff"/>',
+		'<rect width="100%" height="100%" fill="#121417"/>',
 	]
 
 	for case_index, case in enumerate(preview_cases):
@@ -175,23 +198,56 @@ def write_preview(
 		scale = (cell_size - 2 * padding) / span
 		offset_x = x0 + padding - min_x * scale
 		offset_y = y0 + cell_size - padding + min_y * scale
-		elements.append(f'<text x="{x0 + 10}" y="{y0 + 18}" font-size="12" fill="#334155">case {case_index + 1}</text>')
+		elements.append(f'<rect x="{x0}" y="{y0}" width="{cell_size}" height="{cell_size}" fill="#121417"/>')
+		grid_step, sub_grid_count = preview_grid_metrics(scale)
+		first_x = math.floor(min_x / grid_step) * grid_step
+		first_y = math.floor(min_y / grid_step) * grid_step
+		x = first_x
+		while x <= max_x + grid_step:
+			screen_x = offset_x + x * scale
+			if x0 <= screen_x <= x0 + cell_size:
+				elements.append(svg_line(screen_x, y0, screen_x, y0 + cell_size, "#515a67", 0.62))
+				for index in range(sub_grid_count):
+					sub_x = screen_x + (index + 1) * grid_step * scale / (sub_grid_count + 1)
+					if x0 <= sub_x <= x0 + cell_size:
+						elements.append(svg_line(sub_x, y0, sub_x, y0 + cell_size, "#2a2f38", 0.74))
+			x += grid_step
+		y = first_y
+		while y <= max_y + grid_step:
+			screen_y = offset_y - y * scale
+			if y0 <= screen_y <= y0 + cell_size:
+				elements.append(svg_line(x0, screen_y, x0 + cell_size, screen_y, "#515a67", 0.62))
+				for index in range(sub_grid_count):
+					sub_y = screen_y - (index + 1) * grid_step * scale / (sub_grid_count + 1)
+					if y0 <= sub_y <= y0 + cell_size:
+						elements.append(svg_line(x0, sub_y, x0 + cell_size, sub_y, "#2a2f38", 0.74))
+			y += grid_step
+		origin_x = offset_x
+		origin_y = offset_y
+		if y0 <= origin_y <= y0 + cell_size:
+			elements.append(svg_line(x0, origin_y, x0 + cell_size, origin_y, "#9aa3ad", 0.86))
+		if x0 <= origin_x <= x0 + cell_size:
+			elements.append(svg_line(origin_x, y0, origin_x, y0 + cell_size, "#9aa3ad", 0.86))
 
 		for polygon_index, polygon in enumerate(case.polygons):
 			color = colors[polygon_index % len(colors)]
 			elements.append(
 				f'<polygon points="{svg_points(polygon, offset_x, offset_y, scale)}" '
-				f'fill="{color}" fill-opacity="0.42" stroke="#111827" stroke-width="1"/>'
+				f'fill="{color}" fill-opacity="0.20" stroke="{color}" stroke-width="2"/>'
 			)
+			for point_x, point_y in polygon:
+				screen_x = offset_x + point_x * scale
+				screen_y = offset_y - point_y * scale
+				elements.append(f'<circle cx="{screen_x:.2f}" cy="{screen_y:.2f}" r="3.6" fill="{color}"/>')
 
 		start_x = offset_x + case.start[0] * scale
 		start_y = offset_y - case.start[1] * scale
 		target_x = offset_x + case.target[0] * scale
 		target_y = offset_y - case.target[1] * scale
-		elements.append(f'<circle cx="{start_x:.2f}" cy="{start_y:.2f}" r="5" fill="#22c55e" stroke="#111827"/>')
-		elements.append(f'<text x="{start_x + 8:.2f}" y="{start_y + 4:.2f}" font-size="13" font-weight="700" fill="#166534">s</text>')
-		elements.append(f'<circle cx="{target_x:.2f}" cy="{target_y:.2f}" r="5" fill="#ef4444" stroke="#111827"/>')
-		elements.append(f'<text x="{target_x + 8:.2f}" y="{target_y + 4:.2f}" font-size="13" font-weight="700" fill="#991b1b">t</text>')
+		elements.append(f'<circle cx="{start_x:.2f}" cy="{start_y:.2f}" r="5" fill="#22c55e"/>')
+		elements.append(f'<text x="{start_x + 10:.2f}" y="{start_y + 4:.2f}" font-size="12" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" fill="#f8fafc">s</text>')
+		elements.append(f'<circle cx="{target_x:.2f}" cy="{target_y:.2f}" r="5" fill="#ef4444"/>')
+		elements.append(f'<text x="{target_x + 10:.2f}" y="{target_y + 4:.2f}" font-size="12" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" fill="#f8fafc">t</text>')
 
 	elements.append("</svg>")
 	path.parent.mkdir(parents=True, exist_ok=True)

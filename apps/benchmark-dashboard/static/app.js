@@ -24,11 +24,20 @@ const state = {
   manualRenamingIndex: null,
   campaignCaseMetadata: new Map(),
   instanceModalReturn: null,
+  finishedDockJob: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
 const KEYBIND_STORAGE_KEY = "benchmarkDashboardManualEditorKeybinds";
 const THEME_STORAGE_KEY = "benchmarkDashboardTheme";
+const CLI_SOLVERS = {
+  linear: "linear_search_lazy",
+  linear_disjoint: "linear_search_disjoint",
+  binary: "binary_search_lazy",
+  binary_disjoint: "binary_search_disjoint",
+  tan: "tan_jiang",
+  gurobi: "gurobi",
+};
 const defaultKeybinds = {
   closePolygon: ["Enter", "C"],
   deleteSelection: ["X"],
@@ -72,39 +81,91 @@ function setOutput(target, text) {
     return;
   }
   target.textContent = text || "";
-  syncOutputPanel(target);
 }
 
-function commandFromOutput(text) {
-  const firstLine = String(text || "").split("\n").find((line) => line.startsWith("+ "));
-  return firstLine ? firstLine.slice(2) : "";
-}
-
-function syncOutputPanel(target) {
-  const panel = target.closest?.(".output-panel");
-  if (!panel) {
-    return;
+function shellQuote(value) {
+  const text = String(value ?? "");
+  if (/^[A-Za-z0-9_./:=@+-]+$/.test(text)) {
+    return text;
   }
-  const command = commandFromOutput(target.textContent);
-  const button = panel.querySelector("[data-copy-output]");
-  button?.classList.toggle("is-hidden", !command);
-  if (button) {
-    button.dataset.command = command;
-    button.textContent = "Copy command";
-  }
+  return `'${text.replaceAll("'", "'\\''")}'`;
 }
 
-async function copyCommandFromOutput(button) {
-  const command = button.dataset.command || "";
-  if (!command) {
+function runCommandFromForm(form = $("#run-form")) {
+  const values = formData(form);
+  const command = ["python3", "benchmarks/tpp.py", "run", values.name];
+  if (values.threads) {
+    command.push("--threads", values.threads);
+  }
+  if (values.solver) {
+    command.push("--solver", CLI_SOLVERS[values.solver] || values.solver);
+  }
+  if (values.max_instances) {
+    command.push("--max-instances", values.max_instances);
+  }
+  command.push("--max-calls", values.max_calls || "1000000");
+  if (values.max_seconds) {
+    command.push("--max-seconds", values.max_seconds);
+  }
+  if (values.timeout) {
+    command.push("--timeout", values.timeout);
+  }
+  if (boolField(form, "force")) {
+    command.push("--force");
+  }
+  if (boolField(form, "no_build")) {
+    command.push("--no-build");
+  }
+  if (boolField(form, "dry_run")) {
+    command.push("--dry-run");
+  }
+  return command.map(shellQuote).join(" ");
+}
+
+function compareCommandFromForm(form = $("#compare-form")) {
+  const values = formData(form);
+  const solvers = [...form.querySelectorAll('input[name="solvers"]:checked')].map((input) => input.value);
+  const inputDir = shellQuote(`benchmarks/campaigns/${values.name}/inputs`);
+  const command = [
+    "python3",
+    "benchmarks/tpp.py",
+    "compare-solvers",
+    "--suite",
+    `$(find ${inputDir} -name '*.bin' | sort | head -n 1)`,
+    "--output",
+    `benchmarks/campaigns/${values.name}/results/comparisons`,
+    "--max-calls",
+    values.max_calls || "1000000",
+  ];
+  if (values.max_instances) {
+    command.push("--max-instances", values.max_instances);
+  }
+  command.push("--max-polygons", "-1", "--max-branching", "-1", "--keep-going");
+  if (values.threads) {
+    command.push("--threads", values.threads);
+  }
+  if (values.max_seconds) {
+    command.push("--max-seconds", values.max_seconds);
+  }
+  if (boolField(form, "no_build")) {
+    command.push("--no-build");
+  }
+  for (const solver of solvers) {
+    command.push("--solver", CLI_SOLVERS[solver] || solver);
+  }
+  return command.map((part) => String(part).startsWith("$(") ? part : shellQuote(part)).join(" ");
+}
+
+async function copyText(text, button) {
+  if (!text) {
     return;
   }
   if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(command);
+    await navigator.clipboard.writeText(text);
   } else {
     const selection = window.getSelection();
     const scratch = document.createElement("textarea");
-    scratch.value = command;
+    scratch.value = text;
     scratch.style.position = "fixed";
     scratch.style.opacity = "0";
     document.body.appendChild(scratch);
@@ -113,11 +174,14 @@ async function copyCommandFromOutput(button) {
     document.body.removeChild(scratch);
     selection?.removeAllRanges();
   }
-  button.textContent = "Copied";
-  clearTimeout(button._copyTimer);
-  button._copyTimer = setTimeout(() => {
-    button.textContent = "Copy command";
-  }, 1400);
+  if (button) {
+    const original = button.textContent;
+    button.textContent = "Copied";
+    clearTimeout(button._copyTimer);
+    button._copyTimer = setTimeout(() => {
+      button.textContent = original;
+    }, 1400);
+  }
 }
 
 function escapeHTML(value) {
@@ -727,6 +791,10 @@ function switchPanel(panelId) {
   document.querySelectorAll(".panel").forEach((panel) => {
     panel.classList.toggle("is-active", panel.id === panelId);
   });
+  if (panelId === "cases-panel") {
+    requestAnimationFrame(() => manualEditor.frameCurrentCase());
+  }
+  dismissFinishedJobForPanel(panelId);
 }
 
 function askConfirmation(message, action = "Delete") {
@@ -3577,10 +3645,10 @@ function renderBenchmarkedInstanceSection(root, campaign, instances) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "benchmarked-card";
-    const preview = item.solution_available
-      ? `<img src="${solutionPreviewUrl(campaign, item)}" alt="Solved instance ${instanceLabel(item.case_index)} with path and decomposition">`
-      : item.preview
-        ? `<img src="${instancePreviewUrl(campaign, item.case_index)}" alt="Benchmarked instance ${instanceLabel(item.case_index)}">`
+    const preview = item.preview
+      ? `<img src="${instancePreviewUrl(campaign, item.case_index)}" alt="Benchmarked instance ${instanceLabel(item.case_index)}">`
+      : item.solution_available
+        ? `<img src="${solutionPreviewUrl(campaign, item)}" alt="Solved instance ${instanceLabel(item.case_index)} with path and decomposition">`
         : '<div class="missing-preview">No preview</div>';
     button.innerHTML = `
       ${preview}
@@ -3706,6 +3774,25 @@ function runningJobs() {
   return state.recentJobs.filter((job) => job.status === "running" || job.status === "stopping");
 }
 
+function jobPanel(job) {
+  return job.kind === "comparison" ? "comparison-panel" : "benchmark-panel";
+}
+
+function jobKindLabel(job) {
+  return job.kind === "comparison" ? "Comparison" : "Benchmark";
+}
+
+function dismissFinishedJobForPanel(panelId) {
+  if (state.finishedDockJob && jobPanel(state.finishedDockJob) === panelId) {
+    const dock = $("#job-dock");
+    dock?.classList.add("is-dismissing");
+    setTimeout(() => {
+      state.finishedDockJob = null;
+      renderJobDock();
+    }, 180);
+  }
+}
+
 function jobProgressLabel(job) {
   if (job.kind === "comparison") {
     const solverTotal = job.solver_progress_total || 0;
@@ -3722,41 +3809,125 @@ function jobProgressLabel(job) {
   return "Compiling";
 }
 
-function showJobToast(message) {
-  const toast = $("#job-toast");
-  if (!toast) {
-    return;
-  }
-  toast.textContent = message;
-  toast.classList.remove("is-hidden");
-  clearTimeout(toast._hideTimer);
-  toast._hideTimer = setTimeout(() => toast.classList.add("is-hidden"), 4200);
-}
-
 function renderJobDock(previousJobs = []) {
   const dock = $("#job-dock");
   if (!dock) {
     return;
   }
-  const activeJobs = runningJobs();
-  dock.classList.toggle("is-hidden", activeJobs.length === 0);
-  dock.innerHTML = activeJobs.map((job) => `
-    <button class="job-dock-item" type="button" data-job-panel="${job.kind === "comparison" ? "comparison-panel" : "benchmark-panel"}">
-      <span>${job.kind === "comparison" ? "Comparison" : "Benchmark"} running</span>
-      <strong>${escapeHTML(job.campaign || "-")}</strong>
-      <small>${escapeHTML(jobProgressLabel(job))} | ${formatElapsed((Date.now() / 1000) - (job.started_at || Date.now() / 1000))}</small>
-    </button>
-  `).join("");
-  dock.querySelectorAll("[data-job-panel]").forEach((button) => {
-    button.addEventListener("click", () => switchPanel(button.dataset.jobPanel));
-  });
   const previousActive = new Map(previousJobs
     .filter((job) => job.status === "running" || job.status === "stopping")
     .map((job) => [job.id, job]));
   for (const job of state.recentJobs) {
     if (previousActive.has(job.id) && job.status !== "running" && job.status !== "stopping") {
-      showJobToast(`${job.kind === "comparison" ? "Comparison" : "Benchmark"} ${job.status}: ${job.campaign || "-"}`);
+      state.finishedDockJob = job;
     }
+  }
+  const activeJobs = runningJobs();
+  const visibleJobs = activeJobs.length > 0 ? activeJobs : state.finishedDockJob ? [state.finishedDockJob] : [];
+  dock.classList.toggle("is-hidden", visibleJobs.length === 0);
+  dock.classList.remove("is-dismissing");
+  dock.innerHTML = visibleJobs.map((job) => {
+    const active = job.status === "running" || job.status === "stopping";
+    return `
+    <div class="job-dock-item ${active ? "is-active" : "is-complete"}" data-job-panel="${jobPanel(job)}" data-job-id="${escapeHTML(job.id)}">
+      <button class="job-dock-main" type="button" data-job-open>
+        <span>${jobKindLabel(job)} ${active ? "running..." : "done"}</span>
+        <strong>${escapeHTML(job.campaign || "-")}</strong>
+        <small>${escapeHTML(jobProgressLabel(job))} | ${formatElapsed((job.finished_at || Date.now() / 1000) - (job.started_at || Date.now() / 1000))}</small>
+      </button>
+      ${active ? '<button class="job-dock-stop" type="button" data-job-stop aria-label="Stop job">Stop</button>' : '<span class="job-dock-check" aria-hidden="true">✓</span>'}
+    </div>
+  `;
+  }).join("");
+  dock.querySelectorAll("[data-job-open]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (dock.dataset.suppressClick === "true") {
+        return;
+      }
+      const item = button.closest(".job-dock-item");
+      switchPanel(item.dataset.jobPanel);
+      if (item.classList.contains("is-complete")) {
+        item.classList.add("is-dismissing");
+        setTimeout(() => {
+          state.finishedDockJob = null;
+          renderJobDock();
+        }, 180);
+      }
+    });
+  });
+  dock.querySelectorAll("[data-job-stop]").forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      const item = button.closest(".job-dock-item");
+      button.disabled = true;
+      button.textContent = "Stopping";
+      await cancelJobId(item.dataset.jobId);
+    });
+  });
+}
+
+function setupJobDockDrag() {
+  const dock = $("#job-dock");
+  if (!dock) {
+    return;
+  }
+  let drag = null;
+  dock.addEventListener("pointerdown", (event) => {
+    if (event.target.closest("button:not(.job-dock-main)")) {
+      return;
+    }
+    const rect = dock.getBoundingClientRect();
+    drag = {
+      pointerId: event.pointerId,
+      dx: event.clientX - rect.left,
+      dy: event.clientY - rect.top,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+    };
+    dock.setPointerCapture(event.pointerId);
+  });
+  dock.addEventListener("pointermove", (event) => {
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
+    if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4) {
+      drag.moved = true;
+      dock.dataset.dragging = "true";
+    }
+    const left = Math.max(8, Math.min(window.innerWidth - dock.offsetWidth - 8, event.clientX - drag.dx));
+    const top = Math.max(8, Math.min(window.innerHeight - dock.offsetHeight - 8, event.clientY - drag.dy));
+    dock.style.left = `${left}px`;
+    dock.style.top = `${top}px`;
+    dock.style.right = "auto";
+    dock.style.bottom = "auto";
+  });
+  const finish = (event) => {
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
+    if (drag.moved) {
+      dock.dataset.suppressClick = "true";
+      setTimeout(() => {
+        delete dock.dataset.suppressClick;
+      }, 120);
+    }
+    delete dock.dataset.dragging;
+    drag = null;
+    dock.releasePointerCapture?.(event.pointerId);
+  };
+  dock.addEventListener("pointerup", finish);
+  dock.addEventListener("pointercancel", finish);
+}
+
+async function cancelJobId(jobId) {
+  if (!jobId) {
+    return;
+  }
+  try {
+    await requestJSON(`/api/jobs/${jobId}/cancel`, { method: "POST" });
+  } catch (error) {
+    setOutput($("#run-output"), error.message);
   }
 }
 
@@ -4256,7 +4427,7 @@ function openCampaignModal(campaign) {
     </div>
     <div class="preview-layout modal-previews"></div>
     <section class="result-preview-section modal-results is-hidden" data-benchmarked-section="${campaign.name}"></section>
-    <h3>Generation Metadata</h3>
+		<h3 class="generation-metadata-title">Generation Metadata</h3>
     <pre class="output modal-json">${JSON.stringify(generation, null, 2)}</pre>
     <div class="modal-actions">
       ${campaign.type === "manual" ? `<button class="secondary" type="button" data-edit-campaign="${campaign.name}">Edit Cases</button>` : ""}
@@ -4567,7 +4738,7 @@ async function cancelJob(selector, outputSelector) {
   button.disabled = true;
   button.textContent = "Stopping...";
   try {
-    await requestJSON(`/api/jobs/${jobId}/cancel`, { method: "POST" });
+    await cancelJobId(jobId);
   } catch (error) {
     setOutput($(outputSelector), error.message);
     button.disabled = false;
@@ -4715,6 +4886,10 @@ async function pollComparisonJob(jobId) {
 
 async function runCampaign(event) {
   event.preventDefault();
+  if (state.currentRunJob) {
+    switchPanel("benchmark-panel");
+    return;
+  }
   const form = event.currentTarget;
   const values = formData(form);
   const payload = {
@@ -4744,6 +4919,7 @@ async function runCampaign(event) {
   setOutput(output, "Starting run...");
   renderRunSummary();
   try {
+    state.currentRunJob = "pending";
     const data = await requestJSON("/api/runs", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -4752,12 +4928,17 @@ async function runCampaign(event) {
     state.currentRunJob = data.job;
     await pollJob(data.job);
   } catch (error) {
+    state.currentRunJob = null;
     setOutput(output, error.message);
   }
 }
 
 async function runComparison(event) {
   event.preventDefault();
+  if (state.currentComparisonJob) {
+    switchPanel("comparison-panel");
+    return;
+  }
   const form = event.currentTarget;
   const values = formData(form);
   const solvers = [...form.querySelectorAll('input[name="solvers"]:checked')]
@@ -4787,6 +4968,7 @@ async function runComparison(event) {
   });
   setOutput(output, "Starting comparison...");
   try {
+    state.currentComparisonJob = "pending";
     const data = await requestJSON("/api/comparisons", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -4795,6 +4977,7 @@ async function runComparison(event) {
     state.currentComparisonJob = data.job;
     await pollComparisonJob(data.job);
   } catch (error) {
+    state.currentComparisonJob = null;
     setOutput(output, error.message);
     setStopButton("#stop-compare-button", null);
   }
@@ -4877,6 +5060,8 @@ $("#create-form").addEventListener("submit", createCampaign);
 $("#manual-campaign-form").addEventListener("submit", createManualCampaign);
 $("#run-form").addEventListener("submit", runCampaign);
 $("#compare-form").addEventListener("submit", runComparison);
+$("#copy-run-command").addEventListener("click", (event) => copyText(runCommandFromForm(), event.currentTarget));
+$("#copy-compare-command").addEventListener("click", (event) => copyText(compareCommandFromForm(), event.currentTarget));
 $("#stop-run-button").addEventListener("click", () => cancelJob("#stop-run-button", "#run-output"));
 $("#stop-compare-button").addEventListener("click", () => cancelJob("#stop-compare-button", "#compare-output"));
 $("#create-name").addEventListener("input", updateCampaignNameIndicator);
@@ -4900,9 +5085,7 @@ $("#manual-keybinds-button").addEventListener("click", openKeybinds);
 document.querySelectorAll("[data-close-keybinds]").forEach((button) => {
   button.addEventListener("click", closeKeybinds);
 });
-document.querySelectorAll("[data-copy-output]").forEach((button) => {
-  button.addEventListener("click", () => copyCommandFromOutput(button));
-});
+setupJobDockDrag();
 setupFilterInput("#campaign-filter", "campaignFilter", renderCampaigns);
 setupFilterInput("#result-filter", "resultFilter", () => renderResults(state.resultFiles));
 updateKeybindUI();

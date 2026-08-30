@@ -215,7 +215,6 @@
         <div id="campaign-name-indicator" class="inline-note"></div>
         <div id="create-preview" class="preview-layout is-hidden"></div>
         <div class="output-panel">
-          <button class="secondary output-copy is-hidden" type="button" data-copy-output="create-output">Copy command</button>
           <pre id="create-output" class="output" aria-live="polite"></pre>
         </div>
       </section>
@@ -352,6 +351,7 @@
             </div>
             <div class="actions run-actions">
               <button type="submit">Run</button>
+              <button id="copy-run-command" class="secondary command-copy" type="button">Copy Command</button>
               <button id="stop-run-button" class="secondary stop-button is-hidden" type="button" disabled>Stop</button>
             </div>
             <div id="run-progress" class="run-progress-card is-hidden" aria-live="polite"></div>
@@ -361,7 +361,6 @@
         <div id="benchmark-report" class="benchmark-report is-hidden"></div>
         <section id="solved-preview" class="result-preview-section is-hidden"></section>
         <div class="output-panel">
-          <button class="secondary output-copy is-hidden" type="button" data-copy-output="run-output">Copy command</button>
           <pre id="run-output" class="output" aria-live="polite"></pre>
         </div>
       </section>
@@ -438,13 +437,13 @@
           </div>
           <div class="actions compare-actions">
             <button type="submit">Compare</button>
+            <button id="copy-compare-command" class="secondary command-copy" type="button">Copy Command</button>
             <button id="stop-compare-button" class="secondary stop-button is-hidden" type="button" disabled>Stop</button>
           </div>
         </form>
         <div id="compare-progress" class="run-progress-card is-hidden" aria-live="polite"></div>
         <div id="comparison-report" class="comparison-report is-hidden"></div>
         <div class="output-panel">
-          <button class="secondary output-copy is-hidden" type="button" data-copy-output="compare-output">Copy command</button>
           <pre id="compare-output" class="output" aria-live="polite"></pre>
         </div>
       </section>
@@ -474,13 +473,11 @@
         <h3>Recent Jobs</h3>
         <div id="job-list" class="result-list"></div>
         <div class="output-panel">
-          <button class="secondary output-copy is-hidden" type="button" data-copy-output="inspect-output">Copy command</button>
           <pre id="inspect-output" class="output inspect-output" aria-live="polite"></pre>
         </div>
       </section>
     </main>
     <div id="job-dock" class="job-dock is-hidden" aria-live="polite"></div>
-    <div id="job-toast" class="job-toast is-hidden" aria-live="polite"></div>
     <div id="campaign-modal" class="modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal-backdrop" data-close-modal></div>
       <article class="modal-card">
