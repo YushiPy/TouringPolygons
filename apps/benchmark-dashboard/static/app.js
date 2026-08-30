@@ -956,6 +956,8 @@ const manualEditor = {
   dragSelection: null,
   panDrag: null,
   pointerStart: null,
+  activePointers: new Map(),
+  pinchGesture: null,
   selectionRect: null,
   mouseCanvas: { x: 0, y: 0 },
   selectionSpinStarted: performance.now(),
@@ -1002,6 +1004,10 @@ const manualEditor = {
       }
     });
     const finishPointer = (event) => {
+      this.activePointers.delete(event.pointerId);
+      if (this.pinchGesture && this.activePointers.size < 2) {
+        this.pinchGesture = null;
+      }
       this.activePoint = null;
       this.dragSelection = null;
       this.dragPolygon = null;
@@ -1432,6 +1438,63 @@ const manualEditor = {
     return merged;
   },
 
+  activeTouchPoints() {
+    return [...this.activePointers.values()].filter((pointer) => pointer.pointerType === "touch");
+  },
+
+  startPinchGesture() {
+    const touches = this.activeTouchPoints().slice(0, 2);
+    if (touches.length < 2) {
+      return false;
+    }
+    const rect = this.canvas.getBoundingClientRect();
+    const midpoint = {
+      x: (touches[0].clientX + touches[1].clientX) / 2 - rect.left,
+      y: (touches[0].clientY + touches[1].clientY) / 2 - rect.top,
+    };
+    this.pinchGesture = {
+      distance: Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY),
+      midpoint,
+    };
+    this.activePoint = null;
+    this.dragSelection = null;
+    this.dragPolygon = null;
+    this.panDrag = null;
+    this.selectionRect = null;
+    this.pointerStart = { kind: "pinch", clientX: midpoint.x + rect.left, clientY: midpoint.y + rect.top };
+    return true;
+  },
+
+  updatePinchGesture() {
+    if (!this.pinchGesture && !this.startPinchGesture()) {
+      return false;
+    }
+    const gesture = this.pinchGesture;
+    if (!gesture || gesture.distance <= 0) {
+      return false;
+    }
+    const touches = this.activeTouchPoints().slice(0, 2);
+    const distance = Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
+    if (distance <= 0) {
+      return false;
+    }
+    const rect = this.canvas.getBoundingClientRect();
+    const midpoint = {
+      x: (touches[0].clientX + touches[1].clientX) / 2 - rect.left,
+      y: (touches[0].clientY + touches[1].clientY) / 2 - rect.top,
+    };
+    const before = this.canvasToWorld(midpoint.x, midpoint.y);
+    this.updateZoomLimits();
+    this.scale = Math.max(this.minScale, Math.min(this.maxScale, this.scale * (distance / gesture.distance)));
+    const after = this.canvasToWorld(midpoint.x, midpoint.y);
+    this.offsetX += (after[0] - before[0]) * this.scale;
+    this.offsetY -= (after[1] - before[1]) * this.scale;
+    this.pinchGesture = { distance, midpoint };
+    this.saveCamera();
+    this.draw();
+    return true;
+  },
+
   onPointerDown(event) {
     event.preventDefault();
     const current = this.currentCase();
@@ -1442,6 +1505,16 @@ const manualEditor = {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
     this.mouseCanvas = { x, y };
+    this.activePointers.set(event.pointerId, {
+      pointerType: event.pointerType,
+      clientX: event.clientX,
+      clientY: event.clientY,
+    });
+    if (event.pointerType === "touch" && this.activeTouchPoints().length >= 2) {
+      this.canvas.setPointerCapture(event.pointerId);
+      this.startPinchGesture();
+      return;
+    }
     const world = this.snap(this.canvasToWorld(x, y));
     if (this.mode === "select" || (event.shiftKey && this.mode === "move")) {
       this.selectionRect = { start: { x, y }, end: { x, y } };
@@ -1498,6 +1571,13 @@ const manualEditor = {
 
   onPointerMove(event) {
     event.preventDefault();
+    if (this.activePointers.has(event.pointerId)) {
+      this.activePointers.set(event.pointerId, {
+        pointerType: event.pointerType,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      });
+    }
     const current = this.currentCase();
     const rect = this.canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
@@ -1505,6 +1585,11 @@ const manualEditor = {
     this.mouseCanvas = { x, y };
     if (!current) {
       return;
+    }
+    if (this.pinchGesture || (event.pointerType === "touch" && this.activeTouchPoints().length >= 2)) {
+      if (this.updatePinchGesture()) {
+        return;
+      }
     }
     this.updateCursor();
     if (this.selectionRect) {
@@ -3416,22 +3501,19 @@ function renderBenchmarkedInstanceSection(root, campaign, instances) {
         <h3>Benchmarked Instances</h3>
         <p>Completed rows with available previews and benchmark metrics.</p>
       </div>
-      <label class="compact-select">
-        Sort
-        <select data-benchmarked-sort>
-          <option value="case" ${state.benchmarkedSort === "case" ? "selected" : ""}>Case</option>
-          <option value="time" ${state.benchmarkedSort === "time" ? "selected" : ""}>Solve time</option>
-          <option value="calls" ${state.benchmarkedSort === "calls" ? "selected" : ""}>Convex calls</option>
-        </select>
-      </label>
+      <div class="benchmarked-sort" aria-label="Sort benchmarked instances">
+        <button class="segment ${state.benchmarkedSort === "case" ? "is-active" : ""}" data-benchmarked-sort="case" type="button" aria-pressed="${state.benchmarkedSort === "case" ? "true" : "false"}">Case</button>
+        <button class="segment ${state.benchmarkedSort === "time" ? "is-active" : ""}" data-benchmarked-sort="time" type="button" aria-pressed="${state.benchmarkedSort === "time" ? "true" : "false"}">Solve time</button>
+        <button class="segment ${state.benchmarkedSort === "calls" ? "is-active" : ""}" data-benchmarked-sort="calls" type="button" aria-pressed="${state.benchmarkedSort === "calls" ? "true" : "false"}">Convex calls</button>
+      </div>
     </header>
     <div class="benchmarked-grid"></div>
   `;
   const grid = root.querySelector(".benchmarked-grid");
-  root.querySelector("[data-benchmarked-sort]")?.addEventListener("change", (event) => {
-    state.benchmarkedSort = event.currentTarget.value;
+  root.querySelectorAll("[data-benchmarked-sort]").forEach((button) => button.addEventListener("click", (event) => {
+    state.benchmarkedSort = event.currentTarget.dataset.benchmarkedSort;
     renderBenchmarkedInstanceSection(root, campaign, instances);
-  });
+  }));
   const sortedInstances = instances.slice().sort((left, right) => {
     if (state.benchmarkedSort === "time") {
       return (parseNumber(right.total_seconds) || 0) - (parseNumber(left.total_seconds) || 0);

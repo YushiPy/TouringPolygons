@@ -1058,6 +1058,30 @@ button.secondary.stop-button:disabled {
   color: #fff;
 }
 
+:root[data-theme="dark"] .stop-button,
+:root[data-theme="dark"] button.secondary.stop-button,
+:root[data-theme="dark"] .stop-button:hover,
+:root[data-theme="dark"] button.secondary.stop-button:hover,
+:root[data-theme="dark"] .stop-button:focus,
+:root[data-theme="dark"] button.secondary.stop-button:focus {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+}
+
+:root[data-theme="dark"] .stop-button:hover,
+:root[data-theme="dark"] button.secondary.stop-button:hover {
+  border-color: var(--danger-hover);
+  background: var(--danger-hover);
+}
+
+:root[data-theme="dark"] .stop-button:disabled,
+:root[data-theme="dark"] button.secondary.stop-button:disabled {
+  border-color: #7f1d1d;
+  background: #7f1d1d;
+  color: rgba(255, 255, 255, 0.72);
+}
+
 .field-note {
   color: var(--muted);
   font-size: 0.82rem;
@@ -1676,6 +1700,7 @@ button.secondary.stop-button:disabled {
 }
 
 #cases-panel.editor-expanded .case-editor-shell {
+  position: relative;
   width: min(1280px, 100%);
   height: min(860px, calc(100vh - 56px));
   display: block;
@@ -1695,6 +1720,7 @@ button.secondary.stop-button:disabled {
 }
 
 #cases-panel.editor-expanded .case-editor {
+  position: static;
   grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100%;
   min-height: 0;
@@ -1748,11 +1774,6 @@ button.secondary.stop-button:disabled {
 #cases-panel.editor-expanded .manual-editor-close:hover {
   background: var(--danger-hover);
   transform: none;
-}
-
-#cases-panel.editor-expanded .case-toolbar {
-  position: relative;
-  padding-right: 28px;
 }
 
 .preview-four img {
@@ -1986,6 +2007,22 @@ button.secondary.stop-button:disabled {
 .compact-select select {
   min-height: 34px;
   padding: 0.35rem 0.5rem;
+}
+
+.benchmarked-sort {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, auto));
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.benchmarked-sort .segment {
+  min-height: 34px;
+  padding: 0.34rem 0.62rem;
+  white-space: nowrap;
 }
 
 .result-preview-section {
@@ -3109,7 +3146,15 @@ button.secondary.zoom-toggle.is-active:hover {
   #cases-panel.editor-expanded .case-editor-shell {
     width: 100%;
     height: min(760px, calc(100vh - 20px));
-    padding: 10px;
+    padding: 42px 10px 10px;
+  }
+
+  #cases-panel.editor-expanded .manual-editor-close {
+    top: 10px;
+    right: 10px;
+    width: 28px;
+    height: 28px;
+    min-height: 28px;
   }
 
   #cases-panel.editor-expanded #manual-case-canvas {
@@ -3148,6 +3193,22 @@ button.secondary.zoom-toggle.is-active:hover {
   .zoom-toolbar,
   .zoom-style-panel {
     grid-template-columns: 1fr;
+  }
+
+  .section-subheader {
+    display: grid;
+    align-items: start;
+  }
+
+  .benchmarked-sort {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .benchmarked-sort .segment {
+    min-width: 0;
+    padding-inline: 0.35rem;
+    white-space: normal;
   }
 
   .summary-grid,
