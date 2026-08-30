@@ -4545,7 +4545,7 @@ async function pollJob(jobId) {
   setStopButton("#stop-run-button", jobId);
   let lastRefresh = 0;
   while (true) {
-    const job = await requestJSON(`/api/jobs/${jobId}`);
+    const job = await requestJSON(`/api/jobs/${jobId}/progress`);
     const previousJobs = state.recentJobs;
     state.recentJobs = [job, ...state.recentJobs.filter((item) => item.id !== job.id)];
     renderJobDock(previousJobs);
@@ -4605,7 +4605,7 @@ async function pollComparisonJob(jobId) {
   let lastReportRefresh = 0;
   let reportRefreshInFlight = null;
   while (true) {
-    const job = await requestJSON(`/api/jobs/${jobId}`);
+    const job = await requestJSON(`/api/jobs/${jobId}/progress`);
     const previousJobs = state.recentJobs;
     state.recentJobs = [job, ...state.recentJobs.filter((item) => item.id !== job.id)];
     renderJobDock(previousJobs);
@@ -4866,6 +4866,8 @@ document.querySelectorAll("[data-close-keybinds]").forEach((button) => {
 setupJobDockDrag();
 setupFilterInput("#campaign-filter", "campaignFilter", renderCampaigns);
 setupFilterInput("#result-filter", "resultFilter", () => renderResults(state.resultFiles));
+
+window.__benchmarkDashboardReady = true;
 updateKeybindUI();
 applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || "light");
 manualEditor.init();

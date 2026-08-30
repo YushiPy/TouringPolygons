@@ -15,8 +15,8 @@ CaseData = tuple[Point, Point, list[list[Point]]]
 class CreateSyntheticRequest(BaseModel):
 	name: str
 	vertices: str = "8"
-	polygons: int = Field(default=20, ge=1)
-	instances: int = Field(default=100, ge=1)
+	polygons: int = Field(default=20, ge=1, le=500)
+	instances: int = Field(default=100, ge=1, le=5000)
 	shape: Literal["star", "convex"] = "star"
 	seed: int = 42
 	no_preview: bool = False
@@ -26,8 +26,8 @@ class CreateSyntheticRequest(BaseModel):
 class CreateOsmRequest(BaseModel):
 	name: str
 	pbf_path: str
-	instances: int = Field(default=100, ge=1)
-	polygon_counts: int = Field(default=20, ge=1)
+	instances: int = Field(default=100, ge=1, le=5000)
+	polygon_counts: int = Field(default=20, ge=1, le=500)
 	sample_size: int | None = Field(default=None, ge=1)
 	seed: int = 42
 	simplify_tolerance: float = Field(default=1.0, ge=0.0, le=10.0)
@@ -51,9 +51,9 @@ class CreateOsmRequest(BaseModel):
 
 class RunCampaignRequest(BaseModel):
 	name: str
-	threads: int | None = Field(default=None, ge=1)
+	threads: int | None = Field(default=None, ge=1, le=128)
 	solver: str | None = None
-	max_instances: int | None = Field(default=None, ge=1)
+	max_instances: int | None = Field(default=None, ge=1, le=5000)
 	max_calls: str = "1000000"
 	max_seconds: str | None = None
 	timeout: int | None = Field(default=None, ge=1)
@@ -65,8 +65,8 @@ class RunCampaignRequest(BaseModel):
 class CompareSolversRequest(BaseModel):
 	name: str
 	solvers: list[str]
-	threads: int | None = Field(default=None, ge=1)
-	max_instances: int | None = Field(default=None, ge=1)
+	threads: int | None = Field(default=None, ge=1, le=128)
+	max_instances: int | None = Field(default=None, ge=1, le=5000)
 	max_calls: str = "1000000"
 	max_seconds: str | None = None
 	timeout: int | None = Field(default=None, ge=1)
@@ -98,6 +98,11 @@ class ManualCaseRequest(BaseModel):
 
 class ManualCasesRequest(BaseModel):
 	cases: list[ManualCaseRequest] = Field(default_factory=list)
+
+
+MAX_MANUAL_CASES = 2000
+MAX_POLYGONS_PER_CASE = 500
+MAX_VERTICES_PER_CASE = 20000
 
 
 @dataclass
@@ -147,4 +152,22 @@ class Job:
 			"current_solver": self.current_solver,
 			"cancel_requested": self.cancel_requested,
 			"status": self.status,
+		}
+
+	def progress_snapshot(self) -> dict[str, Any]:
+		return {
+			"id": self.id,
+			"kind": self.kind,
+			"campaign": self.campaign,
+			"started_at": self.started_at,
+			"finished_at": self.finished_at,
+			"status": self.status,
+			"output": self.output,
+			"command": self.command,
+			"progress_completed": self.progress_completed,
+			"progress_total": self.progress_total,
+			"solver_progress_completed": self.solver_progress_completed,
+			"solver_progress_total": self.solver_progress_total,
+			"current_solver": self.current_solver,
+			"elapsed_seconds": max(0.0, (self.finished_at or time.time()) - self.started_at),
 		}

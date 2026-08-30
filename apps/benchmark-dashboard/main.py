@@ -10,6 +10,8 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
+import threading
 import time
 import uuid
 from collections import OrderedDict
@@ -81,6 +83,9 @@ from dashboard_models import (
 	ManualCampaignRequest,
 	ManualCaseRequest,
 	ManualCasesRequest,
+	MAX_MANUAL_CASES,
+	MAX_POLYGONS_PER_CASE,
+	MAX_VERTICES_PER_CASE,
 	Point,
 	RunCampaignRequest,
 )
@@ -108,6 +113,9 @@ app.mount("/static", StaticFiles(directory=APP_ROOT / "static"), name="static")
 if VISUALIZER_STATIC_ROOT.exists():
 	app.mount("/visualizer-static", StaticFiles(directory=VISUALIZER_STATIC_ROOT), name="visualizer-static")
 templates = Jinja2Templates(directory=str(APP_ROOT / "templates"))
+
+
+_preview_lock = threading.RLock()
 
 
 jobs: dict[str, Job] = {}
@@ -245,6 +253,17 @@ def parse_float(value: str | None) -> float:
 		return 0.0
 
 
+def validate_manual_cases(cases: list[ManualCaseRequest]) -> None:
+	if len(cases) > MAX_MANUAL_CASES:
+		raise HTTPException(status_code=413, detail=f"A campaign may contain at most {MAX_MANUAL_CASES} cases.")
+	for case_index, case in enumerate(cases):
+		if len(case.polygons) > MAX_POLYGONS_PER_CASE:
+			raise HTTPException(status_code=413, detail=f"Case {case_index} has too many polygons.")
+		vertex_count = sum(len(polygon) for polygon in case.polygons)
+		if vertex_count > MAX_VERTICES_PER_CASE:
+			raise HTTPException(status_code=413, detail=f"Case {case_index} has too many vertices.")
+
+
 def case_bounds(case: CaseData) -> tuple[float, float, float, float]:
 	start, target, polygons = case
 	points = [start, target, *(point for polygon in polygons for point in polygon)]
@@ -372,7 +391,22 @@ def write_case_preview(
 		elements.append(f'<text x="{target_x + 10:.2f}" y="{target_y + 4:.2f}" font-size="12" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" fill="#f8fafc">t</text>')
 	elements.append("</svg>")
 	path.parent.mkdir(parents=True, exist_ok=True)
-	path.write_text("\n".join(elements) + "\n")
+	content = "\n".join(elements) + "\n"
+	with _preview_lock:
+		with tempfile.NamedTemporaryFile(
+			mode="w",
+			encoding="utf-8",
+			dir=path.parent,
+			prefix=f".{path.name}.",
+			suffix=".tmp",
+			delete=False,
+		) as temporary:
+			temporary.write(content)
+		temporary_path = Path(temporary.name)
+		try:
+			os.replace(temporary_path, path)
+		finally:
+			temporary_path.unlink(missing_ok=True)
 
 
 def write_imported_previews(path: Path, cases: list[CaseData]) -> tuple[dict[str, str], list[str]]:
@@ -1413,6 +1447,7 @@ async def get_manual_cases(name: str):
 async def replace_manual_cases(name: str, request: ManualCasesRequest, refresh_previews: bool = True):
 	path = campaign_path(name)
 	read_json(path / "campaign.json")
+	validate_manual_cases(request.cases)
 	campaign = rebuild_manual_campaign(path, request.cases, rebuild_previews=refresh_previews)
 	return {"ok": True, "campaign": campaign, "cases": [manual_case_request_to_json(case) for case in request.cases]}
 
@@ -1422,6 +1457,7 @@ async def append_manual_case(name: str, request: ManualCaseRequest):
 	path = campaign_path(name)
 	cases = read_manual_cases(path)
 	cases.append(manual_case_from_request(request))
+	validate_manual_cases([ManualCaseRequest(**manual_case_to_data(case)) for case in cases])
 	campaign = rebuild_manual_campaign(path, cases)
 	return {"ok": True, "index": len(cases) - 1, "campaign": campaign}
 
@@ -1433,6 +1469,7 @@ async def update_manual_case(name: str, case_index: int, request: ManualCaseRequ
 	if case_index < 0 or case_index >= len(cases):
 		raise HTTPException(status_code=404, detail="Case does not exist.")
 	cases[case_index] = manual_case_from_request(request)
+	validate_manual_cases([ManualCaseRequest(**manual_case_to_data(case)) for case in cases])
 	campaign = rebuild_manual_campaign(path, cases)
 	return {"ok": True, "campaign": campaign}
 
@@ -1450,6 +1487,7 @@ async def delete_manual_case(name: str, case_index: int):
 
 @app.post("/api/editor/solve")
 async def solve_editor_case(request: ManualCaseRequest):
+	validate_manual_cases([request])
 	case = manual_case_from_request(request)
 	if len(case[2]) == 0:
 		return {"path": [list(case[0]), list(case[1])], "exact": True, "calls": 0, "seconds": 0}
@@ -1589,6 +1627,15 @@ async def get_job(job_id: str):
 		"solver_progress_total": job.solver_progress_total,
 		"current_solver": job.current_solver,
 	}
+
+
+@app.get("/api/jobs/{job_id}/progress")
+async def get_job_progress(job_id: str):
+	job = jobs.get(job_id)
+	if job is None:
+		raise HTTPException(status_code=404, detail="Unknown job.")
+	refresh_job_progress_from_logs(job)
+	return job.progress_snapshot()
 
 
 @app.get("/api/jobs")

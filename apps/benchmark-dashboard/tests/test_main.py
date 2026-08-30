@@ -201,6 +201,21 @@ class DashboardMainTests(unittest.TestCase):
 			self.assertEqual(data["previews"], {})
 			self.assertTrue(dashboard.campaign_previews_are_stale(path, data))
 
+	def test_manual_case_resource_limits_are_enforced(self) -> None:
+		too_many_polygons = dashboard.ManualCaseRequest(
+			polygons=[[] for _ in range(dashboard.MAX_POLYGONS_PER_CASE + 1)],
+		)
+		with self.assertRaises(HTTPException) as context:
+			dashboard.validate_manual_cases([too_many_polygons])
+		self.assertEqual(context.exception.status_code, 413)
+
+	def test_job_progress_snapshot_is_compact(self) -> None:
+		job = dashboard.Job(id="job", command=["run"], campaign="campaign")
+		snapshot = job.progress_snapshot()
+		self.assertEqual(snapshot["id"], "job")
+		self.assertEqual(snapshot["campaign"], "campaign")
+		self.assertNotIn("cancel_requested", snapshot)
+
 
 if __name__ == "__main__":
 	unittest.main()

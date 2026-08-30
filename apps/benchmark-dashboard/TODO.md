@@ -32,6 +32,9 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 - [x] Extract a shared canvas renderer used by both the manual editor and read-only viewer.
 - [x] Reduce job polling/report refresh pressure, possibly with server-sent events.
 - [x] Add regression tests around campaign summaries, manual save/rebuild behavior, preview paths, and binary parsing.
+- [x] Add browser-level smoke-test scaffolding and static quality configuration.
+- [x] Add resource limits to dashboard API requests.
+- [ ] Remove duplicate manual-case storage by replacing the solver binary with a generated cache.
 
 ## Done
 
@@ -95,6 +98,16 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 - Extracted shared canvas scene composition into `static/canvas-renderer.js`.
 	- Manual editing and read-only viewing now call the same polygon, solution, selection, and label renderer.
 	- Preserved mode-specific interaction and camera behavior around the shared renderer.
+- Added browser and static-quality tooling.
+	- Added `tests/browser_smoke.mjs` and `npm run test:browser` using Playwright.
+	- Added ESLint and Ruff configuration for the dashboard sources.
+	- Browser execution remains environment-dependent because the local browser runner may block localhost URLs.
+- Added explicit upper bounds for generated instances, polygon counts, worker threads, benchmark sizes, and manual editor payloads.
+- Kept `manual-cases.json` as the canonical editable source and `inputs/manual.bin` as a compatibility artifact for the existing solver CLI.
+	- Full removal of the binary artifact requires changing the solver input contract and is intentionally still pending.
+- Added atomic, locked preview writes using temporary files and `os.replace()`.
+- Added compact `/api/jobs/{job_id}/progress` responses for active polling.
+- Added regression tests for resource limits and compact job snapshots.
 - Separated manual autosave persistence from preview generation.
 	- Autosave still updates the editable JSON, binary input, campaign metadata, and invalidates benchmark results.
 	- Autosave now skips expensive preview rendering and invalidates old preview metadata.
