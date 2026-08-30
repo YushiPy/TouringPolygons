@@ -34,7 +34,7 @@ JOBS_PATH = APP_ROOT / ".jobs.json"
 CANONICAL_SUITE = REPO_ROOT / "benchmarks/suites/canonical-v1.bin"
 TRACKED_NONCONVEX_SUITE = REPO_ROOT / "benchmarks/suites/nonconvex/test_cases.bin"
 GERMAN_INSTANCES_ZIP = REPO_ROOT / "tspn-comparison/solver/instances/instances_socg_simplified.zip"
-PREVIEW_VERSION = 2
+PREVIEW_VERSION = 4
 SOLVERS = {
 	"linear": "linear_search_lazy",
 	"linear_disjoint": "linear_search_disjoint",
@@ -466,13 +466,20 @@ def preview_grid_metrics(scale: float) -> tuple[float, int]:
 	return (10 ** exponent) * multiplier, sub_grid_count
 
 
-def write_case_preview(path: Path, cases: list[CaseData], *, cell_size: int, columns: int) -> None:
+def write_case_preview(
+	path: Path,
+	cases: list[CaseData],
+	*,
+	cell_width: int,
+	cell_height: int,
+	columns: int,
+) -> None:
 	if not cases:
 		return
 	columns = min(columns, len(cases))
 	rows = (len(cases) + columns - 1) // columns
-	width = columns * cell_size
-	height = rows * cell_size
+	width = columns * cell_width
+	height = rows * cell_height
 	padding = 18
 	colors = ["#38bdf8", "#a3e635", "#f97316", "#f472b6", "#c084fc"]
 	elements = [
@@ -484,47 +491,50 @@ def write_case_preview(path: Path, cases: list[CaseData], *, cell_size: int, col
 		start, target, polygons = case
 		col = case_index % columns
 		row = case_index // columns
-		x0 = col * cell_size
-		y0 = row * cell_size
+		x0 = col * cell_width
+		y0 = row * cell_height
 		min_x, min_y, max_x, max_y = case_bounds(case)
-		span = max(max_x - min_x, max_y - min_y, 1e-9)
-		scale = (cell_size - 2 * padding) / span
-		offset_x = x0 + padding - min_x * scale
-		offset_y = y0 + cell_size - padding + min_y * scale
-		elements.append(f'<rect x="{x0}" y="{y0}" width="{cell_size}" height="{cell_size}" fill="#121417"/>')
+		span_x = max(max_x - min_x, 1e-9)
+		span_y = max(max_y - min_y, 1e-9)
+		scale = min((cell_width - 2 * padding) / span_x, (cell_height - 2 * padding) / span_y)
+		draw_width = span_x * scale
+		draw_height = span_y * scale
+		offset_x = x0 + (cell_width - draw_width) / 2 - min_x * scale
+		offset_y = y0 + (cell_height + draw_height) / 2 + min_y * scale
+		elements.append(f'<rect x="{x0}" y="{y0}" width="{cell_width}" height="{cell_height}" fill="#121417"/>')
 		grid_step, sub_grid_count = preview_grid_metrics(scale)
 		visible_min_x = (x0 - offset_x) / scale
-		visible_max_x = (x0 + cell_size - offset_x) / scale
-		visible_min_y = (offset_y - (y0 + cell_size)) / scale
+		visible_max_x = (x0 + cell_width - offset_x) / scale
+		visible_min_y = (offset_y - (y0 + cell_height)) / scale
 		visible_max_y = (offset_y - y0) / scale
 		first_x = math.floor(visible_min_x / grid_step) * grid_step
 		first_y = math.floor(visible_min_y / grid_step) * grid_step
 		x = first_x
 		while x <= visible_max_x + grid_step:
 			screen_x = offset_x + x * scale
-			if x0 <= screen_x <= x0 + cell_size:
-				elements.append(svg_line(screen_x, y0, screen_x, y0 + cell_size, "#515a67", 0.62))
+			if x0 <= screen_x <= x0 + cell_width:
+				elements.append(svg_line(screen_x, y0, screen_x, y0 + cell_height, "#515a67", 0.62))
 				for index in range(sub_grid_count):
 					sub_x = screen_x + (index + 1) * grid_step * scale / (sub_grid_count + 1)
-					if x0 <= sub_x <= x0 + cell_size:
-						elements.append(svg_line(sub_x, y0, sub_x, y0 + cell_size, "#2a2f38", 0.74))
+					if x0 <= sub_x <= x0 + cell_width:
+						elements.append(svg_line(sub_x, y0, sub_x, y0 + cell_height, "#2a2f38", 0.74))
 			x += grid_step
 		y = first_y
 		while y <= visible_max_y + grid_step:
 			screen_y = offset_y - y * scale
-			if y0 <= screen_y <= y0 + cell_size:
-				elements.append(svg_line(x0, screen_y, x0 + cell_size, screen_y, "#515a67", 0.62))
+			if y0 <= screen_y <= y0 + cell_height:
+				elements.append(svg_line(x0, screen_y, x0 + cell_width, screen_y, "#515a67", 0.62))
 				for index in range(sub_grid_count):
 					sub_y = screen_y - (index + 1) * grid_step * scale / (sub_grid_count + 1)
-					if y0 <= sub_y <= y0 + cell_size:
-						elements.append(svg_line(x0, sub_y, x0 + cell_size, sub_y, "#2a2f38", 0.74))
+					if y0 <= sub_y <= y0 + cell_height:
+						elements.append(svg_line(x0, sub_y, x0 + cell_width, sub_y, "#2a2f38", 0.74))
 			y += grid_step
 		origin_x = offset_x
 		origin_y = offset_y
-		if y0 <= origin_y <= y0 + cell_size:
-			elements.append(svg_line(x0, origin_y, x0 + cell_size, origin_y, "#9aa3ad", 0.86))
-		if x0 <= origin_x <= x0 + cell_size:
-			elements.append(svg_line(origin_x, y0, origin_x, y0 + cell_size, "#9aa3ad", 0.86))
+		if y0 <= origin_y <= y0 + cell_height:
+			elements.append(svg_line(x0, origin_y, x0 + cell_width, origin_y, "#9aa3ad", 0.86))
+		if x0 <= origin_x <= x0 + cell_width:
+			elements.append(svg_line(origin_x, y0, origin_x, y0 + cell_height, "#9aa3ad", 0.86))
 		for polygon_index, polygon in enumerate(polygons):
 			color = colors[polygon_index % len(colors)]
 			elements.append(
@@ -534,7 +544,7 @@ def write_case_preview(path: Path, cases: list[CaseData], *, cell_size: int, col
 			for point_x, point_y in polygon:
 				screen_x = offset_x + point_x * scale
 				screen_y = offset_y - point_y * scale
-				elements.append(f'<circle cx="{screen_x:.2f}" cy="{screen_y:.2f}" r="3.6" fill="{color}"/>')
+				elements.append(f'<circle cx="{screen_x:.2f}" cy="{screen_y:.2f}" r="1.35" fill="{color}"/>')
 		start_x = offset_x + start[0] * scale
 		start_y = offset_y - start[1] * scale
 		target_x = offset_x + target[0] * scale
@@ -550,14 +560,14 @@ def write_case_preview(path: Path, cases: list[CaseData], *, cell_size: int, col
 
 def write_imported_previews(path: Path, cases: list[CaseData]) -> tuple[dict[str, str], list[str]]:
 	preview_dir = path / "previews"
-	write_case_preview(preview_dir / "selected.svg", cases[:1], cell_size=320, columns=1)
-	write_case_preview(preview_dir / "four.svg", cases[:4], cell_size=160, columns=2)
-	write_case_preview(preview_dir / "all.svg", sample_cases(cases, 20), cell_size=120, columns=5)
+	write_case_preview(preview_dir / "selected.svg", cases[:1], cell_width=420, cell_height=320, columns=1)
+	write_case_preview(preview_dir / "four.svg", cases[:4], cell_width=210, cell_height=160, columns=2)
+	write_case_preview(preview_dir / "all.svg", sample_cases(cases, 20), cell_width=150, cell_height=120, columns=5)
 	instance_dir = preview_dir / "instances"
 	instance_paths = []
 	for index, case in enumerate(cases):
 		instance_path = instance_dir / f"case-{index:04}.svg"
-		write_case_preview(instance_path, [case], cell_size=260, columns=1)
+		write_case_preview(instance_path, [case], cell_width=260, cell_height=180, columns=1)
 		instance_paths.append(str(instance_path.relative_to(path)))
 	previews = {
 		"selected": "previews/selected.svg",
@@ -958,6 +968,22 @@ def refresh_stale_previews(path: Path, data: dict[str, Any]) -> dict[str, Any]:
 	campaign_file.write_text(json.dumps(data, indent=2) + "\n")
 	_json_cache.pop(campaign_file, None)
 	return data
+
+
+def rewrite_dashboard_previews(path: Path) -> None:
+	campaign_file = path / "campaign.json"
+	if not campaign_file.exists():
+		return
+	data = read_json(campaign_file)
+	cases = read_campaign_cases(path, data)
+	if not cases:
+		return
+	previews, instance_previews = write_imported_previews(path, cases)
+	data["preview"] = previews.get("all")
+	data["previews"] = previews
+	data["instance_previews"] = instance_previews
+	campaign_file.write_text(json.dumps(data, indent=2) + "\n")
+	_json_cache.pop(campaign_file, None)
 
 
 def benchmarked_instances(path: Path, *, limit: int = 200) -> list[dict[str, Any]]:
@@ -1396,7 +1422,10 @@ async def create_synthetic(request: CreateSyntheticRequest):
 			{"ok": False, "output": completed.stdout},
 			status_code=400,
 		)
-	return {"ok": True, "output": completed.stdout, "campaign": campaign_summary(campaign_path(request.name))}
+	path = campaign_path(request.name)
+	if not request.no_preview:
+		rewrite_dashboard_previews(path)
+	return {"ok": True, "output": completed.stdout, "campaign": campaign_summary(path)}
 
 
 @app.post("/api/campaigns/osm")
@@ -1449,7 +1478,10 @@ async def create_osm(request: CreateOsmRequest):
 			{"ok": False, "output": completed.stdout},
 			status_code=400,
 		)
-	return {"ok": True, "output": completed.stdout, "campaign": campaign_summary(campaign_path(request.name))}
+	path = campaign_path(request.name)
+	if not request.no_preview:
+		rewrite_dashboard_previews(path)
+	return {"ok": True, "output": completed.stdout, "campaign": campaign_summary(path)}
 
 
 @app.post("/api/campaigns/canonical")

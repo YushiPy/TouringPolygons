@@ -436,6 +436,35 @@ function cssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+function closeIconSVG() {
+  return `
+    <svg class="x-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M7 7l10 10M17 7L7 17" />
+    </svg>
+  `;
+}
+
+function warningIconSVG() {
+  return `
+    <svg class="status-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 8v5" />
+      <path d="M12 17h.01" />
+    </svg>
+  `;
+}
+
+function setCloseIcon(button) {
+  if (!button) {
+    return;
+  }
+  button.innerHTML = closeIconSVG();
+}
+
+function normalizeCloseIcons(root = document) {
+  root.querySelectorAll(".campaign-delete, .manual-editor-close, .keybind-remove, .manual-case-action.danger, .modal-x-button:not(.modal-back-button), .job-dock-stop")
+    .forEach(setCloseIcon);
+}
+
 function updateKeybindUI() {
   renderKeybindControl("closePolygon", "#close-polygon-keybinds");
   renderKeybindControl("deleteSelection", "#delete-selection-keybinds");
@@ -466,7 +495,7 @@ function renderKeybindControl(action, selector) {
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "keybind-remove";
-    remove.textContent = "×";
+    setCloseIcon(remove);
     remove.setAttribute("aria-label", `Remove ${binding}`);
     remove.addEventListener("click", () => {
       editorKeybinds[action].splice(index, 1);
@@ -2364,16 +2393,19 @@ function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
     drawDecomposition: manualEditor.drawDecomposition,
     updateLabelDirections: manualEditor.updateLabelDirections,
     draw: manualEditor.draw,
-    zoomBy(factor) {
-      const centerX = this.canvas.offsetWidth / 2;
-      const centerY = this.canvas.offsetHeight / 2;
-      const before = this.canvasToWorld(centerX, centerY);
+    zoomAtCanvasPoint(factor, x, y) {
+      const before = this.canvasToWorld(x, y);
       this.updateZoomLimits();
       this.scale = Math.max(this.minScale, Math.min(this.maxScale, this.scale * factor));
-      const after = this.canvasToWorld(centerX, centerY);
+      const after = this.canvasToWorld(x, y);
       this.offsetX += (after[0] - before[0]) * this.scale;
       this.offsetY -= (after[1] - before[1]) * this.scale;
       this.draw();
+    },
+    zoomBy(factor) {
+      const centerX = this.canvas.offsetWidth / 2;
+      const centerY = this.canvas.offsetHeight / 2;
+      this.zoomAtCanvasPoint(factor, centerX, centerY);
     },
     async fetchSolution(caseData, revision = this.solutionRevision) {
       if (!caseData) {
@@ -2445,24 +2477,75 @@ function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
     }
     event.preventDefault();
     const rect = canvas.getBoundingClientRect();
-    const before = viewer.canvasToWorld(event.clientX - rect.left, event.clientY - rect.top);
     const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
-    viewer.updateZoomLimits();
-    viewer.scale = Math.max(viewer.minScale, Math.min(viewer.maxScale, viewer.scale * factor));
-    const after = viewer.canvasToWorld(event.clientX - rect.left, event.clientY - rect.top);
-    viewer.offsetX += (after[0] - before[0]) * viewer.scale;
-    viewer.offsetY -= (after[1] - before[1]) * viewer.scale;
-    viewer.draw();
+    viewer.zoomAtCanvasPoint(factor, event.clientX - rect.left, event.clientY - rect.top);
   }, { passive: false });
   if (options.interactive) {
     let pan = null;
+    const activePointers = new Map();
+    let pinch = null;
+    const touchPointers = () => [...activePointers.values()].filter((pointer) => pointer.pointerType === "touch");
+    const startPinch = () => {
+      const touches = touchPointers().slice(0, 2);
+      if (touches.length < 2) {
+        pinch = null;
+        return false;
+      }
+      const rect = canvas.getBoundingClientRect();
+      pinch = {
+        distance: Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY),
+        x: (touches[0].clientX + touches[1].clientX) / 2 - rect.left,
+        y: (touches[0].clientY + touches[1].clientY) / 2 - rect.top,
+      };
+      pan = null;
+      return true;
+    };
+    const updatePinch = () => {
+      const touches = touchPointers().slice(0, 2);
+      if (touches.length < 2 || !pinch) {
+        return false;
+      }
+      const distance = Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
+      if (distance <= 0 || pinch.distance <= 0) {
+        return false;
+      }
+      const rect = canvas.getBoundingClientRect();
+      const x = (touches[0].clientX + touches[1].clientX) / 2 - rect.left;
+      const y = (touches[0].clientY + touches[1].clientY) / 2 - rect.top;
+      viewer.zoomAtCanvasPoint(distance / pinch.distance, x, y);
+      pinch = { distance, x, y };
+      return true;
+    };
     canvas.addEventListener("pointerdown", (event) => {
       event.preventDefault();
+      activePointers.set(event.pointerId, {
+        pointerType: event.pointerType,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      });
+      if (event.pointerType === "touch" && touchPointers().length >= 2 && startPinch()) {
+        canvas.setPointerCapture(event.pointerId);
+        return;
+      }
       pan = { x: event.clientX, y: event.clientY };
       canvas.setPointerCapture(event.pointerId);
       canvas.style.cursor = "grabbing";
     });
     canvas.addEventListener("pointermove", (event) => {
+      if (activePointers.has(event.pointerId)) {
+        activePointers.set(event.pointerId, {
+          pointerType: event.pointerType,
+          clientX: event.clientX,
+          clientY: event.clientY,
+        });
+      }
+      if (pinch || (event.pointerType === "touch" && touchPointers().length >= 2)) {
+        if (!pinch) {
+          startPinch();
+        }
+        updatePinch();
+        return;
+      }
       if (!pan) {
         return;
       }
@@ -2471,7 +2554,11 @@ function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
       pan = { x: event.clientX, y: event.clientY };
       viewer.draw();
     });
-    const finishPan = () => {
+    const finishPan = (event) => {
+      activePointers.delete(event.pointerId);
+      if (pinch && touchPointers().length < 2) {
+        pinch = null;
+      }
       pan = null;
       canvas.style.cursor = "grab";
     };
@@ -2733,7 +2820,7 @@ function renderManualCases() {
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "danger manual-case-action";
-    deleteButton.textContent = "×";
+    setCloseIcon(deleteButton);
     deleteButton.title = "Delete";
     deleteButton.setAttribute("aria-label", `Delete instance ${instanceLabel(index)}`);
     deleteButton.addEventListener("click", () => deleteManualCase(index));
@@ -3545,12 +3632,13 @@ async function setupZoomableDetail(root) {
   fitToBounds();
 }
 
-function instancePreviewButton(campaign, index, className = "instance-thumb") {
+function instancePreviewButton(campaign, index, className = "instance-thumb", options = {}) {
   const button = document.createElement("button");
   button.className = className;
   button.type = "button";
+  const src = options.src || instancePreviewUrl(campaign, index);
   button.innerHTML = `
-    <img src="${instancePreviewUrl(campaign, index)}" alt="${escapeHTML(instanceDisplayName(campaign, index))} preview">
+    <img src="${src}" alt="${escapeHTML(instanceDisplayName(campaign, index))} preview">
     <span>${instanceLabel(index)}</span>
   `;
   button.addEventListener("click", () => openInstanceModal(campaign, index));
@@ -3579,13 +3667,16 @@ function makeFoldablePanel(tagName, className, title, folded = false) {
   `;
   const button = panel.querySelector(".fold-toggle");
   button.addEventListener("click", () => {
+    if (panel.classList.contains("mobile-only-fold") && !window.matchMedia("(max-width: 760px)").matches) {
+      return;
+    }
     const isFolded = panel.classList.toggle("is-folded");
     button.setAttribute("aria-expanded", isFolded ? "false" : "true");
   });
   return panel;
 }
 
-async function populateInstancePreviewPanels(root, campaign) {
+async function populateInstancePreviewPanels(root, campaign, options = {}) {
   const previewCount = campaign.instance_previews?.length || 0;
   if (previewCount === 0) {
     root.classList.toggle("is-hidden", root.children.length === 0);
@@ -3593,11 +3684,16 @@ async function populateInstancePreviewPanels(root, campaign) {
   }
   root.innerHTML = "";
 
-  const selected = makeFoldablePanel("figure", "preview-panel preview-selected", "Selected Instance");
-  selected.querySelector(".fold-content").appendChild(instancePreviewButton(campaign, 0, "selected-instance-button"));
+  const selected = makeFoldablePanel("figure", "preview-panel preview-selected mobile-only-fold", "Selected Instance");
+  selected.querySelector(".fold-content").appendChild(instancePreviewButton(
+    campaign,
+    0,
+    "selected-instance-button",
+    { src: previewUrl(campaign, "selected") || instancePreviewUrl(campaign, 0) },
+  ));
   root.appendChild(selected);
 
-  const four = makeFoldablePanel("figure", "preview-panel preview-four", "Four Instances");
+  const four = makeFoldablePanel("figure", "preview-panel preview-four mobile-only-fold", "Four Instances");
   const grid = document.createElement("div");
   grid.className = "four-instance-grid";
   Array.from({ length: Math.min(4, previewCount) }, (_, index) => index).forEach((index) => {
@@ -3609,7 +3705,8 @@ async function populateInstancePreviewPanels(root, campaign) {
   const panel = makeFoldablePanel("figure", "preview-panel preview-instances", "All Instances");
   const instanceGrid = document.createElement("div");
   instanceGrid.className = "instance-grid";
-  sampleInstanceIndices(previewCount, 20).forEach((index) => {
+  const indices = options.sampleAll ? sampleInstanceIndices(previewCount, 20) : Array.from({ length: previewCount }, (_, index) => index);
+  indices.forEach((index) => {
     instanceGrid.appendChild(instancePreviewButton(campaign, index));
   });
   panel.querySelector(".fold-content").appendChild(instanceGrid);
@@ -3617,10 +3714,10 @@ async function populateInstancePreviewPanels(root, campaign) {
   root.classList.remove("is-hidden");
 }
 
-function renderPreviewPanels(root, campaign) {
+function renderPreviewPanels(root, campaign, options = {}) {
   root.innerHTML = "";
   renderCanvasPlaceholder(root);
-  populateInstancePreviewPanels(root, campaign).catch(() => {
+  populateInstancePreviewPanels(root, campaign, options).catch(() => {
     root.innerHTML = "";
     root.classList.add("is-hidden");
   });
@@ -3729,7 +3826,7 @@ function renderCampaigns() {
     card.className = "campaign-card";
     card.tabIndex = 0;
     card.innerHTML = `
-      <button class="campaign-delete" type="button" data-delete-campaign="${escapeHTML(campaign.name)}" aria-label="Delete ${escapeHTML(campaign.name)}">x</button>
+      <button class="campaign-delete" type="button" data-delete-campaign="${escapeHTML(campaign.name)}" aria-label="Delete ${escapeHTML(campaign.name)}">${closeIconSVG()}</button>
       <h3>${escapeHTML(campaign.name)}</h3>
       <div class="meta">
         <div><span>Type</span><br>${escapeHTML(campaign.type)}</div>
@@ -3842,6 +3939,31 @@ function jobProgressLabel(job) {
   return "Compiling";
 }
 
+function jobTerminalState(job) {
+  if (job.status === "failed") {
+    return "failed";
+  }
+  if (job.status === "canceled") {
+    return "canceled";
+  }
+  if (job.status === "completed") {
+    return "completed";
+  }
+  return "running";
+}
+
+function jobDockStatusClass(job) {
+  return `is-${jobTerminalState(job)}`;
+}
+
+function jobDockStatusIcon(job) {
+  const state = jobTerminalState(job);
+  if (state === "failed" || state === "canceled") {
+    return `<span class="job-dock-warning" aria-hidden="true">${warningIconSVG()}</span>`;
+  }
+  return '<span class="job-dock-check" aria-hidden="true">✓</span>';
+}
+
 function renderJobDock(previousJobs = []) {
   const dock = $("#job-dock");
   if (!dock) {
@@ -3868,30 +3990,28 @@ function renderJobDock(previousJobs = []) {
   dock.innerHTML = visibleJobs.map((job) => {
     const active = job.status === "running" || job.status === "stopping";
     return `
-    <div class="job-dock-item ${active ? "is-active" : "is-complete"}" data-job-panel="${jobPanel(job)}" data-job-id="${escapeHTML(job.id)}">
+    <div class="job-dock-item ${active ? "is-active" : `is-complete ${jobDockStatusClass(job)}`}" data-job-panel="${jobPanel(job)}" data-job-id="${escapeHTML(job.id)}">
       <button class="job-dock-main" type="button" data-job-open>
-        <span data-job-dock-status>${jobKindLabel(job)} ${active ? "running..." : "done"}</span>
+        <span data-job-dock-status>${jobKindLabel(job)} ${active ? "running..." : job.status}</span>
         <strong data-job-dock-campaign>${escapeHTML(job.campaign || "-")}</strong>
         <small data-job-dock-progress>${escapeHTML(jobProgressLabel(job))} | ${formatElapsed((job.finished_at || Date.now() / 1000) - (job.started_at || Date.now() / 1000))}</small>
       </button>
-      ${active ? '<button class="job-dock-stop" type="button" data-job-stop aria-label="Stop job">×</button>' : '<span class="job-dock-check" aria-hidden="true">✓</span>'}
+      ${active ? `<button class="job-dock-stop" type="button" data-job-stop aria-label="Stop job">${closeIconSVG()}</button>` : jobDockStatusIcon(job)}
     </div>
   `;
   }).join("");
   dock.querySelectorAll("[data-job-open]").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (dock.dataset.suppressClick === "true") {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openJobDockItem(button.closest(".job-dock-item"));
+    });
+  });
+  dock.querySelectorAll(".job-dock-item").forEach((item) => {
+    item.addEventListener("click", (event) => {
+      if (event.target.closest("[data-job-stop]")) {
         return;
       }
-      const item = button.closest(".job-dock-item");
-      switchPanel(item.dataset.jobPanel);
-      if (item.classList.contains("is-complete")) {
-        item.classList.add("is-dismissing");
-        setTimeout(() => {
-          state.finishedDockJob = null;
-          renderJobDock();
-        }, 180);
-      }
+      openJobDockItem(item);
     });
   });
   dock.querySelectorAll("[data-job-stop]").forEach((button) => {
@@ -3899,7 +4019,7 @@ function renderJobDock(previousJobs = []) {
       event.stopPropagation();
       const item = button.closest(".job-dock-item");
       button.disabled = true;
-      button.textContent = "×";
+      setCloseIcon(button);
       await cancelJobId(item.dataset.jobId);
     });
   });
@@ -3913,7 +4033,10 @@ function updateJobDockItem(item, job) {
   item.dataset.jobPanel = jobPanel(job);
   item.classList.toggle("is-active", active);
   item.classList.toggle("is-complete", !active);
-  item.querySelector("[data-job-dock-status]").textContent = `${jobKindLabel(job)} ${active ? "running..." : "done"}`;
+  item.classList.toggle("is-completed", jobTerminalState(job) === "completed");
+  item.classList.toggle("is-failed", jobTerminalState(job) === "failed");
+  item.classList.toggle("is-canceled", jobTerminalState(job) === "canceled");
+  item.querySelector("[data-job-dock-status]").textContent = `${jobKindLabel(job)} ${active ? "running..." : job.status}`;
   item.querySelector("[data-job-dock-campaign]").textContent = job.campaign || "-";
   item.querySelector("[data-job-dock-progress]").textContent = `${jobProgressLabel(job)} | ${formatElapsed((job.finished_at || Date.now() / 1000) - (job.started_at || Date.now() / 1000))}`;
 }
@@ -3928,6 +4051,7 @@ function setupJobDockDrag() {
     if (event.target.closest("button:not(.job-dock-main)")) {
       return;
     }
+    event.preventDefault();
     const rect = dock.getBoundingClientRect();
     drag = {
       pointerId: event.pointerId,
@@ -3936,6 +4060,7 @@ function setupJobDockDrag() {
       startX: event.clientX,
       startY: event.clientY,
       moved: false,
+      target: event.target.closest(".job-dock-item"),
     };
     dock.setPointerCapture(event.pointerId);
   });
@@ -3943,9 +4068,12 @@ function setupJobDockDrag() {
     if (!drag || drag.pointerId !== event.pointerId) {
       return;
     }
-    if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4) {
+    if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 10) {
       drag.moved = true;
       dock.dataset.dragging = "true";
+    }
+    if (!drag.moved) {
+      return;
     }
     const left = Math.max(8, Math.min(window.innerWidth - dock.offsetWidth - 8, event.clientX - drag.dx));
     const top = Math.max(8, Math.min(window.innerHeight - dock.offsetHeight - 8, event.clientY - drag.dy));
@@ -3963,6 +4091,8 @@ function setupJobDockDrag() {
       setTimeout(() => {
         delete dock.dataset.suppressClick;
       }, 120);
+    } else if (!event.target.closest("[data-job-stop]")) {
+      openJobDockItem(drag.target);
     }
     delete dock.dataset.dragging;
     drag = null;
@@ -3970,6 +4100,20 @@ function setupJobDockDrag() {
   };
   dock.addEventListener("pointerup", finish);
   dock.addEventListener("pointercancel", finish);
+}
+
+function openJobDockItem(item) {
+  if (!item || $("#job-dock")?.dataset.suppressClick === "true") {
+    return;
+  }
+  switchPanel(item.dataset.jobPanel);
+  if (item.classList.contains("is-complete")) {
+    item.classList.add("is-dismissing");
+    setTimeout(() => {
+      state.finishedDockJob = null;
+      renderJobDock();
+    }, 180);
+  }
 }
 
 async function cancelJobId(jobId) {
@@ -4464,7 +4608,7 @@ function openCampaignModal(campaign) {
   closeButton?.removeAttribute("data-modal-back-instance");
   if (closeButton) {
     closeButton.classList.remove("modal-back-button");
-    closeButton.innerHTML = "×";
+    setCloseIcon(closeButton);
     closeButton.setAttribute("aria-label", "Close campaign details");
   }
   $("#modal-title").textContent = campaign.name;
@@ -5124,6 +5268,7 @@ setupToggleButtons();
 setupBoundedSliders();
 setupMaxInstancesControl();
 setupCompareMaxInstancesControl();
+normalizeCloseIcons();
 $("#refresh-button").addEventListener("click", refresh);
 $("#theme-toggle").addEventListener("click", toggleTheme);
 $("#import-canonical-button").addEventListener("click", importCanonicalSuite);

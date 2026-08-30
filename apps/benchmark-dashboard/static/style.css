@@ -208,6 +208,7 @@ button.danger:active {
   max-width: 1320px;
   margin: 0 auto;
   padding: 24px;
+  min-width: 0;
 }
 
 .topbar {
@@ -289,6 +290,7 @@ h1 {
 
 .panel {
   display: none;
+  min-width: 0;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1157,22 +1159,35 @@ button.secondary.stop-button:disabled {
   position: absolute;
   top: 10px;
   right: 10px;
+}
+
+.campaign-delete,
+.modal-x-button,
+.job-dock-stop,
+.keybind-remove,
+#cases-panel.editor-expanded .manual-editor-close,
+.manual-case-action.danger {
   display: grid;
   place-items: center;
   width: 28px;
   height: 28px;
+  min-width: 28px;
   min-height: 28px;
   padding: 0;
   border-color: var(--danger);
   border-radius: 999px;
   background: var(--danger);
   color: #fff;
-  font-size: 0.95rem;
   line-height: 1;
   box-shadow: none;
 }
 
-.campaign-delete:hover {
+.campaign-delete:hover,
+.modal-x-button:hover,
+.job-dock-stop:hover,
+.keybind-remove:hover,
+#cases-panel.editor-expanded .manual-editor-close:hover,
+.manual-case-action.danger:hover {
   border-color: var(--danger-hover);
   background: var(--danger-hover);
   color: #fff;
@@ -1180,26 +1195,49 @@ button.secondary.stop-button:disabled {
   box-shadow: none;
 }
 
-.campaign-delete:active {
+.campaign-delete:active,
+.modal-x-button:active,
+.job-dock-stop:active,
+.keybind-remove:active,
+#cases-panel.editor-expanded .manual-editor-close:active,
+.manual-case-action.danger:active {
   border-color: var(--danger-active);
   background: var(--danger-active);
   color: #fff;
 }
 
 :root[data-theme="dark"] .campaign-delete,
-:root[data-theme="dark"] .campaign-delete:focus {
+:root[data-theme="dark"] .campaign-delete:focus,
+:root[data-theme="dark"] .modal-x-button,
+:root[data-theme="dark"] .modal-x-button:focus,
+:root[data-theme="dark"] .job-dock-stop,
+:root[data-theme="dark"] .job-dock-stop:focus,
+:root[data-theme="dark"] .keybind-remove,
+:root[data-theme="dark"] .keybind-remove:focus,
+:root[data-theme="dark"] #cases-panel.editor-expanded .manual-editor-close,
+:root[data-theme="dark"] .manual-case-action.danger {
   border-color: var(--danger);
   background: var(--danger);
   color: #fff;
 }
 
-:root[data-theme="dark"] .campaign-delete:hover {
+:root[data-theme="dark"] .campaign-delete:hover,
+:root[data-theme="dark"] .modal-x-button:hover,
+:root[data-theme="dark"] .job-dock-stop:hover,
+:root[data-theme="dark"] .keybind-remove:hover,
+:root[data-theme="dark"] #cases-panel.editor-expanded .manual-editor-close:hover,
+:root[data-theme="dark"] .manual-case-action.danger:hover {
   border-color: var(--danger-hover);
   background: var(--danger-hover);
   color: #fff;
 }
 
-:root[data-theme="dark"] .campaign-delete:active {
+:root[data-theme="dark"] .campaign-delete:active,
+:root[data-theme="dark"] .modal-x-button:active,
+:root[data-theme="dark"] .job-dock-stop:active,
+:root[data-theme="dark"] .keybind-remove:active,
+:root[data-theme="dark"] #cases-panel.editor-expanded .manual-editor-close:active,
+:root[data-theme="dark"] .manual-case-action.danger:active {
   border-color: var(--danger-active);
   background: var(--danger-active);
   color: #fff;
@@ -1235,8 +1273,28 @@ button.secondary.stop-button:disabled {
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--editor-bg);
-  object-fit: cover;
+  object-fit: contain;
   margin-top: 12px;
+}
+
+.x-icon {
+  display: block;
+  width: 62%;
+  height: 62%;
+  overflow: visible;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.status-icon {
+  display: block;
+  width: 62%;
+  height: 62%;
+  overflow: visible;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
 }
 
 .preview-layout {
@@ -1244,6 +1302,7 @@ button.secondary.stop-button:disabled {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   margin-top: 18px;
+  min-width: 0;
 }
 
 .preview-layout.is-hidden {
@@ -1252,6 +1311,7 @@ button.secondary.stop-button:disabled {
 
 .preview-panel {
   margin: 0;
+  min-width: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface-muted);
@@ -1275,6 +1335,7 @@ button.secondary.stop-button:disabled {
 .preview-panel figcaption {
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);
+  background: var(--surface-muted);
   color: var(--text);
   font-weight: 650;
   font-size: 0.9rem;
@@ -1305,6 +1366,16 @@ button.secondary.stop-button:disabled {
   border-color: transparent;
   background: transparent;
   color: var(--accent-strong);
+  box-shadow: none;
+  transform: none;
+}
+
+:root[data-theme="dark"] .fold-toggle,
+:root[data-theme="dark"] .fold-toggle:hover,
+:root[data-theme="dark"] .fold-toggle:active {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text);
   box-shadow: none;
   transform: none;
 }
@@ -1343,7 +1414,17 @@ button.secondary.stop-button:disabled {
   height: 320px;
   padding: 0;
   background: var(--editor-bg);
-  object-fit: cover;
+  object-fit: contain;
+}
+
+@media (min-width: 761px) {
+  .mobile-only-fold .fold-caret {
+    display: none;
+  }
+
+  .mobile-only-fold .fold-toggle {
+    cursor: default;
+  }
 }
 
 .preview-all {
@@ -1480,8 +1561,8 @@ button.secondary.stop-button:disabled {
   place-items: center;
   width: 28px;
   min-width: 28px;
-  min-height: 24px;
-  height: 24px;
+  min-height: 28px;
+  height: 28px;
   padding: 0;
   font-size: 0.86rem;
   line-height: 1;
@@ -1850,15 +1931,14 @@ button.secondary.stop-button:disabled {
   z-index: 2;
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  min-height: 24px;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
   padding: 0;
-  border: 0;
+  border: 1px solid var(--danger);
   border-radius: 999px;
   background: var(--danger);
   color: #fff;
-  font-size: 1rem;
   line-height: 1;
 }
 
@@ -1909,8 +1989,29 @@ button.secondary.stop-button:disabled {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 8px;
+  max-height: 460px;
+  overflow: auto;
   padding: 10px;
   background: var(--surface-muted);
+  scrollbar-color: color-mix(in srgb, var(--muted) 68%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.instance-grid::-webkit-scrollbar {
+  display: block;
+  width: 10px;
+  height: 10px;
+}
+
+.instance-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.instance-grid::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 68%, transparent);
+  background-clip: padding-box;
 }
 
 .modal-card .instance-grid {
@@ -1936,7 +2037,7 @@ button.secondary.stop-button:disabled {
   display: block;
   width: 100%;
   height: 112px;
-  object-fit: cover;
+  object-fit: contain;
   padding: 0;
   background: var(--editor-bg);
 }
@@ -1973,7 +2074,7 @@ button.secondary.stop-button:disabled {
   display: block;
   width: 100%;
   height: 320px;
-  object-fit: cover;
+  object-fit: contain;
   padding: 0;
   background: var(--editor-bg);
 }
@@ -2013,6 +2114,7 @@ button.secondary.stop-button:disabled {
 .result-list {
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
 .job-row {
@@ -2168,7 +2270,27 @@ button.secondary.stop-button:disabled {
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 10px;
   max-height: 520px;
+  overflow: auto;
   padding: 4px 8px 18px 4px;
+  scrollbar-color: color-mix(in srgb, var(--muted) 68%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.benchmarked-grid::-webkit-scrollbar {
+  display: block;
+  width: 10px;
+  height: 10px;
+}
+
+.benchmarked-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.benchmarked-grid::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 68%, transparent);
+  background-clip: padding-box;
 }
 
 .benchmarked-card {
@@ -2182,6 +2304,17 @@ button.secondary.stop-button:disabled {
   overflow: hidden;
   text-align: left;
   box-shadow: none;
+}
+
+:root[data-theme="dark"] .benchmarked-card,
+:root[data-theme="dark"] .benchmarked-card:hover {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--text);
+}
+
+:root[data-theme="dark"] .benchmarked-meta small {
+  color: var(--muted);
 }
 
 .benchmarked-card:hover {
@@ -2637,6 +2770,7 @@ button.secondary.stop-button:disabled {
   display: grid;
   gap: 8px;
   width: min(360px, calc(100vw - 36px));
+  touch-action: none;
   transition:
     opacity var(--transition),
     transform var(--transition);
@@ -2669,6 +2803,12 @@ button.secondary.stop-button:disabled {
     opacity var(--transition),
     transform var(--transition),
     background var(--transition);
+}
+
+:root[data-theme="dark"] .job-dock-item {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--surface) 94%, var(--accent));
+  color: var(--text);
 }
 
 .job-dock-item:hover {
@@ -2710,6 +2850,17 @@ button.secondary.stop-button:disabled {
   transform: none;
 }
 
+:root[data-theme="dark"] .job-dock-main,
+:root[data-theme="dark"] .job-dock-main:hover,
+:root[data-theme="dark"] .job-dock-main:active,
+:root[data-theme="dark"] .job-dock-main:focus {
+  border-color: transparent;
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
+  transform: none;
+}
+
 .job-dock-main span,
 .job-dock-main small {
   color: var(--muted);
@@ -2728,12 +2879,13 @@ button.secondary.stop-button:disabled {
   display: grid;
   width: 32px;
   height: 32px;
+  min-width: 32px;
   min-height: 32px;
   place-items: center;
   padding: 0;
-  border-color: #dc2626;
+  border-color: var(--danger);
   border-radius: 999px;
-  background: #dc2626;
+  background: var(--danger);
   color: #fff;
   font-size: 1.2rem;
   font-weight: 800;
@@ -2741,8 +2893,8 @@ button.secondary.stop-button:disabled {
 }
 
 .job-dock-stop:hover {
-  border-color: #b91c1c;
-  background: #b91c1c;
+  border-color: var(--danger-hover);
+  background: var(--danger-hover);
 }
 
 .job-dock-check {
@@ -2756,6 +2908,25 @@ button.secondary.stop-button:disabled {
   font-size: 1.05rem;
   font-weight: 800;
   box-shadow: 0 8px 18px rgba(34, 197, 94, 0.26);
+}
+
+.job-dock-warning {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  place-items: center;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #111827;
+  font-weight: 900;
+  box-shadow: 0 8px 18px rgba(245, 158, 11, 0.24);
+}
+
+:root[data-theme="dark"] .job-dock-warning {
+  background: #f59e0b;
+  color: #111827;
 }
 
 .metric-card {
@@ -2789,12 +2960,16 @@ button.secondary.stop-button:disabled {
 }
 
 .result-row {
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 10px;
   background: var(--surface-muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.85rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
   transition:
     border-color var(--transition),
     background var(--transition);
@@ -2828,6 +3003,7 @@ button.secondary.stop-button:disabled {
 .modal-card {
   position: relative;
   width: min(860px, 100%);
+  min-width: 0;
   max-height: min(760px, calc(100vh - 56px));
   overflow: auto;
   border: 1px solid var(--line);
@@ -3362,6 +3538,15 @@ button.secondary.zoom-toggle.is-active:hover {
     padding: 18px;
   }
 
+  .modal {
+    padding: 12px;
+  }
+
+  .modal-card {
+    max-height: calc(100vh - 24px);
+    padding: 14px;
+  }
+
   .topbar,
   .tabs,
   .inspect-actions,
@@ -3447,6 +3632,24 @@ button.secondary.zoom-toggle.is-active:hover {
 
   .instance-grid {
     grid-template-columns: repeat(2, minmax(120px, 1fr));
+    max-height: 430px;
+  }
+
+  .selected-instance-button,
+  .selected-instance-button img,
+  .preview-panel img {
+    min-height: 0;
+    height: 260px;
+  }
+
+  .four-instance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .four-instance-grid .instance-thumb,
+  .four-instance-grid .instance-thumb img {
+    height: 180px;
+    min-height: 180px;
   }
 
   .zoom-toolbar,
