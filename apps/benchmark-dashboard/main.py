@@ -8,13 +8,15 @@ import os
 import re
 import shutil
 import signal
+import struct
 import subprocess
 import sys
 import time
 import uuid
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, BinaryIO, Literal
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -35,6 +37,9 @@ CANONICAL_SUITE = REPO_ROOT / "benchmarks/suites/canonical-v1.bin"
 TRACKED_NONCONVEX_SUITE = REPO_ROOT / "benchmarks/suites/nonconvex/test_cases.bin"
 GERMAN_INSTANCES_ZIP = REPO_ROOT / "tspn-comparison/solver/instances/instances_socg_simplified.zip"
 PREVIEW_VERSION = 6
+SIZE_STRUCT = struct.Struct("<Q")
+POINT_STRUCT = struct.Struct("<dd")
+FILE_CACHE_LIMIT = 128
 SOLVERS = {
 	"linear": "linear_search_lazy",
 	"linear_disjoint": "linear_search_disjoint",
@@ -214,8 +219,8 @@ class Job:
 
 
 jobs: dict[str, Job] = {}
-_json_cache: dict[Path, tuple[int, int, dict[str, Any]]] = {}
-_csv_cache: dict[tuple[Path, str], tuple[int, int, list[dict[str, str]]]] = {}
+_json_cache: OrderedDict[Path, tuple[int, int, dict[str, Any]]] = OrderedDict()
+_csv_cache: OrderedDict[tuple[Path, str], tuple[int, int, list[dict[str, str]]]] = OrderedDict()
 PROGRESS_PATTERN = re.compile(r"cases\s+\|\s+\[[^\]]*\]\s+(\d+)\s*/\s*(\d+)")
 SOLVER_SECTION_PATTERN = re.compile(r"^##\s+(.+)$", re.MULTILINE)
 Point = tuple[float, float]
@@ -244,14 +249,23 @@ def clone_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
 	return [row.copy() for row in rows]
 
 
+def trim_file_caches() -> None:
+	while len(_json_cache) > FILE_CACHE_LIMIT:
+		_json_cache.popitem(last=False)
+	while len(_csv_cache) > FILE_CACHE_LIMIT:
+		_csv_cache.popitem(last=False)
+
+
 def read_json(path: Path) -> dict[str, Any]:
 	try:
 		signature = file_signature(path)
 		cached = _json_cache.get(path)
 		if cached and cached[:2] == signature:
+			_json_cache.move_to_end(path)
 			return dict(cached[2])
 		data = json.loads(path.read_text())
 		_json_cache[path] = (*signature, data)
+		trim_file_caches()
 		return dict(data)
 	except FileNotFoundError as error:
 		raise HTTPException(status_code=404, detail=f"Missing file: {path}") from error
@@ -280,10 +294,12 @@ def read_csv_rows(path: Path, *, delimiter: str = ",") -> list[dict[str, str]]:
 	cache_key = (path, delimiter)
 	cached = _csv_cache.get(cache_key)
 	if cached and cached[:2] == signature:
+		_csv_cache.move_to_end(cache_key)
 		return clone_rows(cached[2])
 	with path.open(newline="") as file:
 		rows = list(csv.DictReader(file, delimiter=delimiter))
 	_csv_cache[cache_key] = (*signature, rows)
+	trim_file_caches()
 	return clone_rows(rows)
 
 
@@ -337,81 +353,84 @@ def parse_float(value: str | None) -> float:
 		return 0.0
 
 
-def binary_case_count(path: Path) -> int:
-	import struct
+def read_exact(file: BinaryIO, size: int) -> bytes | None:
+	data = file.read(size)
+	return data if len(data) == size else None
 
-	data = path.read_bytes()
-	offset = 0
+
+def read_size(file: BinaryIO) -> int | None:
+	data = read_exact(file, SIZE_STRUCT.size)
+	return SIZE_STRUCT.unpack(data)[0] if data is not None else None
+
+
+def read_point(file: BinaryIO) -> Point | None:
+	data = read_exact(file, POINT_STRUCT.size)
+	return POINT_STRUCT.unpack(data) if data is not None else None
+
+
+def skip_bytes(file: BinaryIO, byte_count: int, file_size: int) -> bool:
+	if file.tell() + byte_count > file_size:
+		return False
+	file.seek(byte_count, os.SEEK_CUR)
+	return True
+
+
+def binary_case_count(path: Path) -> int:
 	count = 0
-	size = struct.calcsize("<Q")
-	vector_size = struct.calcsize("<dd")
-	while offset < len(data):
-		if offset + 2 * vector_size + size > len(data):
-			break
-		offset += 2 * vector_size
-		polygon_count = struct.unpack_from("<Q", data, offset)[0]
-		offset += size
-		for _ in range(polygon_count):
-			if offset + size > len(data):
+	file_size = path.stat().st_size
+	with path.open("rb") as file:
+		while file.tell() < file_size:
+			if not skip_bytes(file, 2 * POINT_STRUCT.size, file_size):
 				return count
-			vertex_count = struct.unpack_from("<Q", data, offset)[0]
-			offset += size + vertex_count * vector_size
-			if offset > len(data):
+			polygon_count = read_size(file)
+			if polygon_count is None:
 				return count
-		if offset + size > len(data):
-			return count
-		offset += size
-		count += 1
+			for _ in range(polygon_count):
+				vertex_count = read_size(file)
+				if vertex_count is None:
+					return count
+				if not skip_bytes(file, vertex_count * POINT_STRUCT.size, file_size):
+					return count
+			if read_size(file) is None:
+				return count
+			count += 1
 	return count
 
 
 def read_binary_cases(path: Path, limit: int) -> list[CaseData]:
-	import struct
-
-	data = path.read_bytes()
-	offset = 0
 	cases: list[CaseData] = []
-	size = struct.calcsize("<Q")
-	vector_size = struct.calcsize("<dd")
-	while offset < len(data) and len(cases) < limit:
-		if offset + 2 * vector_size + size > len(data):
-			break
-		start = struct.unpack_from("<dd", data, offset)
-		offset += vector_size
-		target = struct.unpack_from("<dd", data, offset)
-		offset += vector_size
-		polygon_count = struct.unpack_from("<Q", data, offset)[0]
-		offset += size
-		polygons: list[list[Point]] = []
-		for _ in range(polygon_count):
-			if offset + size > len(data):
+	file_size = path.stat().st_size
+	with path.open("rb") as file:
+		while file.tell() < file_size and len(cases) < limit:
+			start = read_point(file)
+			target = read_point(file)
+			polygon_count = read_size(file)
+			if start is None or target is None or polygon_count is None:
 				return cases
-			vertex_count = struct.unpack_from("<Q", data, offset)[0]
-			offset += size
-			polygon: list[Point] = []
-			for _ in range(vertex_count):
-				if offset + vector_size > len(data):
+			polygons: list[list[Point]] = []
+			for _ in range(polygon_count):
+				vertex_count = read_size(file)
+				if vertex_count is None:
 					return cases
-				polygon.append(struct.unpack_from("<dd", data, offset))
-				offset += vector_size
-			polygons.append(polygon)
-		if offset + size > len(data):
-			return cases
-		offset += size
-		cases.append((start, target, polygons))
+				polygon: list[Point] = []
+				for _ in range(vertex_count):
+					point = read_point(file)
+					if point is None:
+						return cases
+					polygon.append(point)
+				polygons.append(polygon)
+			if read_size(file) is None:
+				return cases
+			cases.append((start, target, polygons))
 	return cases
 
 
-def write_vector(file, point: Point) -> None:
-	import struct
-
-	file.write(struct.pack("<dd", point[0], point[1]))
+def write_vector(file: BinaryIO, point: Point) -> None:
+	file.write(POINT_STRUCT.pack(point[0], point[1]))
 
 
-def write_size(file, value: int) -> None:
-	import struct
-
-	file.write(struct.pack("<Q", value))
+def write_size(file: BinaryIO, value: int) -> None:
+	file.write(SIZE_STRUCT.pack(value))
 
 
 def write_binary_cases(path: Path, cases: list[CaseData]) -> None:
@@ -1131,7 +1150,6 @@ def summary_result_rows(summary_path: Path) -> list[dict[str, str]]:
 
 def campaign_summary(path: Path) -> dict[str, Any]:
 	data = read_json(path / "campaign.json")
-	data = refresh_stale_previews(path, data)
 	campaign_file = path / "campaign.json"
 	inputs = data.get("inputs", [])
 	existing_inputs = sum((path / record["file"]).exists() for record in inputs)
@@ -1381,6 +1399,8 @@ async def get_preview(name: str):
 async def get_preview_kind(name: str, kind: str):
 	path = campaign_path(name)
 	data = read_json(path / "campaign.json")
+	if not kind.startswith("instance-"):
+		data = refresh_stale_previews(path, data)
 	previews = preview_map(data)
 	if kind.startswith("instance-"):
 		try:

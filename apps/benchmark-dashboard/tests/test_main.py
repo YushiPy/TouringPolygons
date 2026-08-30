@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -51,6 +52,35 @@ class DashboardMainTests(unittest.TestCase):
 
 			self.assertEqual(dashboard.read_csv_rows(path), [{"name": "second", "value": "2"}])
 
+	def test_file_caches_are_bounded(self) -> None:
+		dashboard._json_cache.clear()
+		dashboard._csv_cache.clear()
+		with tempfile.TemporaryDirectory() as directory:
+			root = Path(directory)
+			for index in range(dashboard.FILE_CACHE_LIMIT + 5):
+				path = root / f"{index}.json"
+				path.write_text(f'{{"index": {index}}}\n')
+				self.assertEqual(dashboard.read_json(path)["index"], index)
+
+			self.assertLessEqual(len(dashboard._json_cache), dashboard.FILE_CACHE_LIMIT)
+			self.assertNotIn(root / "0.json", dashboard._json_cache)
+			self.assertIn(root / f"{dashboard.FILE_CACHE_LIMIT + 4}.json", dashboard._json_cache)
+
+	def test_campaign_summary_does_not_refresh_previews(self) -> None:
+		with tempfile.TemporaryDirectory() as directory:
+			path = Path(directory)
+			(path / "campaign.json").write_text("""{
+				"name": "summary",
+				"type": "manual",
+				"inputs": [],
+				"previews": {"all": "previews/all.svg"},
+				"instance_previews": []
+			}
+			""")
+
+			with patch.object(dashboard, "refresh_stale_previews", side_effect=AssertionError):
+				self.assertEqual(dashboard.campaign_summary(path)["name"], "summary")
+
 	def test_manual_case_round_trip_through_binary_format(self) -> None:
 		case = dashboard.manual_case_from_request(dashboard.ManualCaseRequest(
 			start=(0.0, 0.0),
@@ -63,6 +93,26 @@ class DashboardMainTests(unittest.TestCase):
 			dashboard.write_binary_cases(path, [case])
 
 			self.assertEqual(dashboard.read_binary_cases(path, limit=10), [case])
+
+	def test_binary_case_reader_counts_and_respects_limit(self) -> None:
+		cases = [
+			dashboard.manual_case_from_request(dashboard.ManualCaseRequest(
+				start=(0.0, 0.0),
+				target=(1.0, 0.0),
+				polygons=[[(0.0, 1.0), (1.0, 1.0), (0.5, 2.0)]],
+			)),
+			dashboard.manual_case_from_request(dashboard.ManualCaseRequest(
+				start=(2.0, 0.0),
+				target=(3.0, 0.0),
+				polygons=[[(2.0, 1.0), (3.0, 1.0), (2.5, 2.0)]],
+			)),
+		]
+		with tempfile.TemporaryDirectory() as directory:
+			path = Path(directory) / "manual.bin"
+			dashboard.write_binary_cases(path, cases)
+
+			self.assertEqual(dashboard.binary_case_count(path), 2)
+			self.assertEqual(dashboard.read_binary_cases(path, limit=1), cases[:1])
 
 	def test_instance_previews_are_generated_lazily(self) -> None:
 		case = dashboard.manual_case_from_request(dashboard.ManualCaseRequest(

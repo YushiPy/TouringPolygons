@@ -53,6 +53,7 @@ const defaultKeybinds = {
 let editorKeybinds = loadEditorKeybinds();
 let pendingKeybindAction = null;
 let floatingTooltip = null;
+const decompositionCache = new WeakMap();
 
 let pendingConfirmation = null;
 
@@ -604,7 +605,14 @@ function earClipDecomposition(polygon) {
 }
 
 function convexDecomposition(polygon) {
-  return earClipDecomposition(polygon).filter((piece) => piece.length >= 3);
+  const signature = polygon.map((point) => `${point[0]},${point[1]}`).join(";");
+  const cached = decompositionCache.get(polygon);
+  if (cached?.signature === signature) {
+    return cached.pieces;
+  }
+  const pieces = earClipDecomposition(polygon).filter((piece) => piece.length >= 3);
+  decompositionCache.set(polygon, { signature, pieces });
+  return pieces;
 }
 
 function solutionDirectionAt(path, index) {

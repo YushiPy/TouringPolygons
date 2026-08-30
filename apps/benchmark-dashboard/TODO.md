@@ -24,11 +24,11 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 	- read-only instance viewer.
 - [x] Replace eager per-instance preview generation with lazy generation on first request.
 - [ ] Separate manual autosave from benchmark artifact rebuilding.
-- [ ] Stream binary case reads instead of loading whole `.bin` files into memory.
+- [x] Stream binary case reads instead of loading whole `.bin` files into memory.
 - [ ] Add optional binary case offset indexes for fast single-case reads.
-- [ ] Move stale preview migration out of `GET /api/campaigns`.
-- [ ] Replace unbounded JSON/CSV globals with a bounded file-signature cache.
-- [ ] Cache frontend convex decomposition per polygon version.
+- [x] Move stale preview migration out of `GET /api/campaigns`.
+- [x] Replace unbounded JSON/CSV globals with a bounded file-signature cache.
+- [x] Cache frontend convex decomposition per polygon version.
 - [ ] Extract a shared canvas renderer used by both the manual editor and read-only viewer.
 - [ ] Reduce job polling/report refresh pressure, possibly with server-sent events.
 - [ ] Add regression tests around campaign summaries, manual save/rebuild behavior, preview paths, and binary parsing.
@@ -40,4 +40,26 @@ This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
 	- `/api/campaigns/{name}/preview/instance-{index}` now creates the missing SVG on first request and reuses it afterward.
 	- Existing preview files remain compatible.
 	- Added a regression test for lazy instance preview generation.
+	- Verified with `uv run python -m unittest apps/benchmark-dashboard/tests/test_main.py`.
+- Reworked binary case parsing to stream from disk instead of reading entire `.bin` files into memory.
+	- `binary_case_count()` now scans with file reads/seeks.
+	- `read_binary_cases()` now reads only up to the requested limit.
+	- Shared binary format helpers now use cached `struct.Struct` instances.
+	- Added a regression test for counting and limited reads.
+	- Verified with `uv run python -m unittest apps/benchmark-dashboard/tests/test_main.py`.
+- Replaced unbounded JSON/CSV file caches with bounded least-recently-used caches.
+	- Cache hits are refreshed with `move_to_end()`.
+	- New inserts trim both caches to `FILE_CACHE_LIMIT`.
+	- Explicit invalidation through `.pop()` still works for mutated campaign files.
+	- Added a regression test for cache trimming.
+	- Verified with `uv run python -m unittest apps/benchmark-dashboard/tests/test_main.py`.
+- Moved stale overview preview regeneration out of campaign summaries.
+	- `campaign_summary()` is now read-only with respect to preview migration.
+	- Non-instance preview requests still refresh stale overview SVGs before serving them.
+	- Added a regression test to keep `campaign_summary()` from calling preview regeneration.
+	- Verified with `uv run python -m unittest apps/benchmark-dashboard/tests/test_main.py`.
+- Cached frontend convex decomposition results per polygon object and coordinate signature.
+	- Editor redraws now reuse decompositions while polygon coordinates are unchanged.
+	- The cache invalidates naturally when point coordinates change because the signature changes.
+	- Verified with `node --check apps/benchmark-dashboard/static/app.js`.
 	- Verified with `uv run python -m unittest apps/benchmark-dashboard/tests/test_main.py`.
