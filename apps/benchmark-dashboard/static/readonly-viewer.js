@@ -2,7 +2,7 @@ import { drawCanvasScene } from "./canvas-renderer.js";
 import { cloneCaseData } from "./case-data.js";
 import { escapeHTML } from "./dom.js";
 import { convexDecomposition, polygonIsConvex } from "./editor-geometry.js";
-import { editorSolverState, loadEditorGeometry, loadEditorWasm, solveEditorWasm, solveEditorWasmGroups } from "./editor-solver.js";
+import { editorSolverState, loadEditorGeometry, loadEditorWasm, solveEditorWasmAsync } from "./editor-solver.js";
 import { formatSeconds } from "./format.js";
 import { bindTapZoom } from "./ui-utils.js";
 
@@ -52,6 +52,7 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 		solutionPath: null,
 		solutionStale: false,
 		solutionRevision: 0,
+		solutionAbort: null,
 		labelDirections: {
 			start: [1, 0],
 			target: [-1, 0],
@@ -100,6 +101,18 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 			const centerY = this.canvas.offsetHeight / 2;
 			this.zoomAtCanvasPoint(factor, centerX, centerY);
 		},
+		cancelPendingSolution() {
+			this.solutionRevision += 1;
+			this.solutionAbort?.abort();
+			this.solutionAbort = null;
+		},
+		destroy() {
+			this.cancelPendingSolution();
+			if (this.labelAnimation) {
+				cancelAnimationFrame(this.labelAnimation);
+				this.labelAnimation = null;
+			}
+		},
 		async fetchSolution(caseData, revision = this.solutionRevision) {
 			if (!caseData) {
 				return;
@@ -115,9 +128,17 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 				this.draw();
 				return;
 			}
+			if (this.solutionAbort) {
+				this.solutionAbort.abort();
+			}
+			this.solutionAbort = new AbortController();
+			const signal = this.solutionAbort.signal;
 			this.setStatus(editorSolverState.module ? "Solving..." : editorSolverState.failed ? "WASM solver unavailable." : "Loading solver...");
 			try {
 				await loadEditorWasm();
+				if (signal.aborted || revision !== this.solutionRevision) {
+					return;
+				}
 				if (!editorSolverState.module) {
 					if (revision !== this.solutionRevision) {
 						return;
@@ -128,21 +149,22 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 					this.draw();
 					return;
 				}
-				const geometry = await loadEditorGeometry();
-				let wasmResult = null;
+				let pieceGroups = null;
 				const solveStarted = performance.now();
-				if (caseData.polygons.every(polygonIsConvex)) {
-					wasmResult = solveEditorWasm(caseData);
-				} else if (geometry) {
-					const pieceGroups = caseData.polygons.map((polygon) => (
+				if (!caseData.polygons.every(polygonIsConvex)) {
+					const geometry = await loadEditorGeometry();
+					if (signal.aborted || revision !== this.solutionRevision) {
+						return;
+					}
+					pieceGroups = geometry
+						? caseData.polygons.map((polygon) => (
 						geometry.partition.convexPartition(polygon.map(([x, y]) => new geometry.vector.Vector2(x, y)))
 							.filter((piece) => piece.length >= 3)
 							.map((piece) => piece.map((point) => [point.x, point.y]))
-					));
-					wasmResult = solveEditorWasmGroups(caseData, pieceGroups);
-				} else {
-					wasmResult = solveEditorWasmGroups(caseData, caseData.polygons.map(convexDecomposition));
+						))
+						: caseData.polygons.map(convexDecomposition);
 				}
+				const wasmResult = await solveEditorWasmAsync(caseData, pieceGroups, signal);
 				const solveWallSeconds = (performance.now() - solveStarted) / 1000;
 				if (revision !== this.solutionRevision) {
 					return;
@@ -155,18 +177,21 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 					: "WASM solver could not solve this case.");
 				this.draw();
 			} catch (error) {
-				this.setStatus(error.message);
+				if (error.name !== "AbortError") {
+					this.setStatus(error.message);
+				}
 			}
 		},
 	};
 
 	viewer.resize();
 	viewer.frameCurrentCase();
-	new ResizeObserver(() => {
+	const resizeObserver = new ResizeObserver(() => {
 		viewer.resize();
 		viewer.frameCurrentCase();
-	}).observe(canvas);
-	canvas.addEventListener("wheel", (event) => {
+	});
+	resizeObserver.observe(canvas);
+	const wheelHandler = (event) => {
 		if (!options.interactive) {
 			return;
 		}
@@ -175,7 +200,12 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 		const delta = Math.max(-80, Math.min(80, event.deltaY));
 		const factor = Math.exp(-delta * (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL ? 0.0035 : 0.1));
 		viewer.zoomAtCanvasPoint(factor, event.clientX - rect.left, event.clientY - rect.top);
-	}, { passive: false });
+	};
+	canvas.addEventListener("wheel", wheelHandler, { passive: false });
+	const cleanup = [
+		() => resizeObserver.disconnect(),
+		() => canvas.removeEventListener("wheel", wheelHandler),
+	];
 	if (options.interactive) {
 		let pan = null;
 		const activePointers = new Map();
@@ -212,7 +242,7 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 			pinch = { distance, x, y };
 			return true;
 		};
-		canvas.addEventListener("pointerdown", (event) => {
+		const pointerDownHandler = (event) => {
 			event.preventDefault();
 			activePointers.set(event.pointerId, {
 				pointerType: event.pointerType,
@@ -226,8 +256,8 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 			pan = { x: event.clientX, y: event.clientY };
 			canvas.setPointerCapture(event.pointerId);
 			canvas.style.cursor = "grabbing";
-		});
-		canvas.addEventListener("pointermove", (event) => {
+		};
+		const pointerMoveHandler = (event) => {
 			if (activePointers.has(event.pointerId)) {
 				activePointers.set(event.pointerId, {
 					pointerType: event.pointerType,
@@ -249,7 +279,7 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 			viewer.offsetY += event.clientY - pan.y;
 			pan = { x: event.clientX, y: event.clientY };
 			viewer.draw();
-		});
+		};
 		const finishPan = (event) => {
 			activePointers.delete(event.pointerId);
 			if (pinch && touchPointers().length < 2) {
@@ -258,9 +288,24 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 			pan = null;
 			canvas.style.cursor = "grab";
 		};
+		canvas.addEventListener("pointerdown", pointerDownHandler);
+		canvas.addEventListener("pointermove", pointerMoveHandler);
 		canvas.addEventListener("pointerup", finishPan);
 		canvas.addEventListener("pointercancel", finishPan);
+		cleanup.push(
+			() => canvas.removeEventListener("pointerdown", pointerDownHandler),
+			() => canvas.removeEventListener("pointermove", pointerMoveHandler),
+			() => canvas.removeEventListener("pointerup", finishPan),
+			() => canvas.removeEventListener("pointercancel", finishPan),
+		);
 	}
+	const destroy = viewer.destroy;
+	viewer.destroy = () => {
+		destroy.call(viewer);
+		while (cleanup.length > 0) {
+			cleanup.pop()();
+		}
+	};
 	if (options.solve) {
 		viewer.fetchSolution(viewer.caseData);
 	}

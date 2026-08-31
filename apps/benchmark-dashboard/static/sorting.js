@@ -2,8 +2,8 @@ function instanceName(item, index) {
 	return String(item.name || `Instance ${Number(index) + 1}`).toLowerCase();
 }
 
-export function sortCampaigns(campaigns, mode = "default") {
-	return [...campaigns].sort((left, right) => {
+export function sortCampaigns(campaigns, mode = "default", reverse = false) {
+	const sorted = [...campaigns].sort((left, right) => {
 		if (mode === "name") {
 			return left.name.localeCompare(right.name, undefined, { sensitivity: "base", numeric: true });
 		}
@@ -15,10 +15,11 @@ export function sortCampaigns(campaigns, mode = "default") {
 		const rightOrder = Number.isFinite(right.order) ? right.order : Number.MAX_SAFE_INTEGER;
 		return leftOrder - rightOrder || left.name.localeCompare(right.name, undefined, { sensitivity: "base" });
 	});
+	return reverse ? sorted.reverse() : sorted;
 }
 
-export function sortInstances(cases, mode = "default") {
-	return cases
+export function sortInstances(cases, mode = "default", reverse = false) {
+	const sorted = cases
 		.map((item, index) => ({ item, index }))
 		.sort((left, right) => {
 			if (mode === "name") {
@@ -29,4 +30,5 @@ export function sortInstances(cases, mode = "default") {
 			}
 			return left.index - right.index;
 		});
+	return reverse ? sorted.reverse() : sorted;
 }

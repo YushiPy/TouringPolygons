@@ -96,6 +96,13 @@
 
 .case-list-head h3 {
 	margin-bottom: 0;
+	font-size: 1.15rem;
+	line-height: 1.2;
+}
+
+.case-sidebar .field-label {
+	font-size: 1.15rem;
+	line-height: 1.2;
 }
 
 .manual-case-list {
@@ -184,6 +191,11 @@
 	padding: 0.25rem 0.45rem;
 	font-size: 0.75rem;
 	white-space: nowrap;
+}
+
+.list-sort-control .icon-segment {
+	width: 28px;
+	padding: 0.22rem;
 }
 
 .case-sidebar .sort-by-control {

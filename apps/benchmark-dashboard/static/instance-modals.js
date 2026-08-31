@@ -5,6 +5,13 @@ export function createInstanceModalController({
 	readonlyInstanceDetail, setupReadonlyInstanceDetail, manualEditor, metricCard,
 	shortNumber, formatSeconds, parseNumber, formatMicroseconds, editInstance,
 }) {
+	let activeViewer = null;
+
+	function cancelActiveViewer() {
+		activeViewer?.destroy?.();
+		activeViewer = null;
+	}
+
 	function instanceModalTitle(campaign, index) {
 		const total = campaign.instance_progress?.total || campaign.generation?.instances || campaign.generation?.instances_per_file || "?";
 		return `<span class="modal-title-main">${escapeHTML(campaign.name)}</span><span class="modal-title-sub">${instanceLabel(index)}/${escapeHTML(total)}: <button class="instance-name-button modal-title-rename" type="button" data-modal-rename-trigger>${escapeHTML(instanceDisplayName(campaign, index))}</button></span>`;
@@ -78,6 +85,7 @@ export function createInstanceModalController({
 	}
 
 	async function openInstanceModal(campaign, index) {
+		cancelActiveViewer();
 		const modal = $("#campaign-modal");
 		state.instanceModalReturn = { campaign };
 		setInstanceModalBackButton(modal);
@@ -88,12 +96,13 @@ export function createInstanceModalController({
 		$("#modal-title").innerHTML = instanceModalTitle(campaign, index);
 		body.innerHTML = `${caseData ? readonlyInstanceDetail(`${title} detail`) : '<div class="missing-preview detail-missing">No case data available.</div>'}`;
 		body.querySelector("[data-edit-instance]")?.addEventListener("click", () => editInstance(campaign, index));
-		if (caseData) setupReadonlyInstanceDetail(body, caseData, manualEditor);
+		if (caseData) activeViewer = setupReadonlyInstanceDetail(body, caseData, manualEditor);
 		setupModalTitleRename(campaign, index, () => openInstanceModal(campaign, index));
 		modal.classList.remove("is-hidden");
 	}
 
 	async function openBenchmarkedInstanceModal(campaign, item) {
+		cancelActiveViewer();
 		const modal = $("#campaign-modal");
 		state.instanceModalReturn = { campaign, panel: "benchmark-panel" };
 		setInstanceModalBackButton(modal);
@@ -104,10 +113,10 @@ export function createInstanceModalController({
 		$("#modal-title").innerHTML = instanceModalTitle(campaign, item.case_index);
 		body.innerHTML = `<div class="modal-summary">${metricCard("Status", item.status)}${metricCard("Final length", shortNumber(item.final_length))}${metricCard("Solve time", formatSeconds(parseNumber(item.total_seconds)))}${metricCard("Calls", item.calls ?? "-")}${metricCard("Avg convex solve", formatMicroseconds(parseNumber(item.seconds_per_call)))}${metricCard("Decomposed pieces", item.decomposed_pieces ?? "-")}${metricCard("Visited nodes", item.visited_nodes ?? "-")}${metricCard("Pruned nodes", item.pruned_nodes ?? "-")}</div>${caseData ? readonlyInstanceDetail(`${title} detail`) : '<div class="missing-preview detail-missing">No case data available.</div>'}`;
 		body.querySelector("[data-edit-instance]")?.addEventListener("click", () => editInstance(campaign, item.case_index));
-		if (caseData) setupReadonlyInstanceDetail(body, caseData, manualEditor);
+		if (caseData) activeViewer = setupReadonlyInstanceDetail(body, caseData, manualEditor);
 		setupModalTitleRename(campaign, item.case_index, () => openBenchmarkedInstanceModal(campaign, item));
 		modal.classList.remove("is-hidden");
 	}
 
-	return { instanceModalTitle, setupModalTitleRename, renameCampaignInstance, setInstanceModalBackButton, openInstanceModal, openBenchmarkedInstanceModal };
+	return { instanceModalTitle, setupModalTitleRename, renameCampaignInstance, setInstanceModalBackButton, openInstanceModal, openBenchmarkedInstanceModal, cancelActiveViewer };
 }

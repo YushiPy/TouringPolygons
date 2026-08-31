@@ -1,3 +1,5 @@
+/* global DOMException, Worker */
+
 import { convexDecomposition, polygonIsConvex } from "./editor-geometry.js";
 
 export const editorSolverState = {
@@ -6,6 +8,75 @@ export const editorSolverState = {
 	failed: false,
 	geometry: null,
 };
+
+const WORKER_SOLVE_VERTEX_THRESHOLD = 120;
+let idleSolverWorker = null;
+
+function solveVertexCount(caseData, pieceGroups) {
+	if (pieceGroups) {
+		return pieceGroups.flat(2).length;
+	}
+	return caseData.polygons.reduce((sum, polygon) => sum + polygon.length, 0);
+}
+
+export function solveEditorWasmAsync(caseData, pieceGroups = null, signal = null) {
+	if (signal?.aborted) {
+		return Promise.reject(new DOMException("The solve was cancelled.", "AbortError"));
+	}
+	if (editorSolverState.module && solveVertexCount(caseData, pieceGroups) <= WORKER_SOLVE_VERTEX_THRESHOLD) {
+		return Promise.resolve(pieceGroups ? solveEditorWasmGroups(caseData, pieceGroups) : solveEditorWasm(caseData));
+	}
+	const worker = idleSolverWorker || new Worker(new URL("./editor-solver-worker.js", import.meta.url), { type: "module" });
+	idleSolverWorker = null;
+	let settled = false;
+	let cancel = null;
+
+	const promise = new Promise((resolve, reject) => {
+		const finish = (callback, value, reusable = false) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			if (signal && cancel) {
+				signal.removeEventListener("abort", cancel);
+			}
+			worker.onmessage = null;
+			worker.onerror = null;
+			if (reusable) {
+				if (idleSolverWorker && idleSolverWorker !== worker) {
+					idleSolverWorker.terminate();
+				}
+				idleSolverWorker = worker;
+			} else {
+				worker.terminate();
+				if (idleSolverWorker === worker) {
+					idleSolverWorker = null;
+				}
+			}
+			callback(value);
+		};
+		cancel = () => finish(reject, new DOMException("The solve was cancelled.", "AbortError"));
+
+		worker.onmessage = (event) => {
+			if (event.data.error) {
+				finish(reject, new Error(event.data.error));
+				return;
+			}
+			finish(resolve, event.data.result, true);
+		};
+		worker.onerror = (event) => finish(reject, new Error(event.message || "WASM solver worker failed."));
+		if (signal) {
+			signal.addEventListener("abort", cancel, { once: true });
+			if (signal.aborted) {
+				cancel();
+				return;
+			}
+		}
+		worker.postMessage({ caseData, pieceGroups });
+	});
+
+	return promise;
+}
 
 export function loadEditorWasm() {
 	if (editorSolverState.load) {

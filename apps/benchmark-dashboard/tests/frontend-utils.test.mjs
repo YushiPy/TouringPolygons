@@ -8,6 +8,7 @@ import {
 	instanceLabel,
 } from "../static/case-data.js";
 import { compareCommandFromForm, runCommandFromForm } from "../static/command-builders.js";
+import { convexDecomposition, polygonIsConvex } from "../static/editor-geometry.js";
 import {
 	findTable,
 	instanceTotalSeconds,
@@ -30,6 +31,7 @@ import {
 	THEME_STORAGE_KEY,
 } from "../static/storage.js";
 import { createManualCaseController } from "../static/manual-cases.js";
+import { sortCampaigns, sortInstances } from "../static/sorting.js";
 
 test("storage keys remain stable and distinct", () => {
 	assert.deepEqual(
@@ -95,6 +97,30 @@ test("case data helpers clone and normalize cases", () => {
 	assert.deepEqual(casePayload(original).polygons, [[[0, 0], [1, 0], [0, 1]]]);
 	assert.deepEqual(emptyCaseData(), { name: "", generated: false, start: [0, 0], target: [1, 0], polygons: [] });
 	assert.equal(instanceLabel(3), 4);
+});
+
+test("crossing quadrilaterals decompose before convex solving", () => {
+	const bowTie = [[0, 0], [2, 2], [0, 2], [2, 0]];
+	const pieces = convexDecomposition(bowTie);
+
+	assert.equal(polygonIsConvex(bowTie), false);
+	assert.equal(pieces.length, 2);
+	assert.deepEqual(pieces.map((piece) => piece.length), [3, 3]);
+});
+
+test("campaign and instance sorting can be reversed", () => {
+	const campaigns = [
+		{ name: "beta", order: 1, instance_progress: { total: 2 } },
+		{ name: "alpha", order: 0, instance_progress: { total: 3 } },
+	];
+	const cases = [
+		{ name: "b", polygons: [[]] },
+		{ name: "a", polygons: [[], []] },
+	];
+
+	assert.deepEqual(sortCampaigns(campaigns, "default", true).map((campaign) => campaign.name), ["beta", "alpha"]);
+	assert.deepEqual(sortCampaigns(campaigns, "name", true).map((campaign) => campaign.name), ["beta", "alpha"]);
+	assert.deepEqual(sortInstances(cases, "name", true).map(({ index }) => index), [0, 1]);
 });
 
 test("command builders preserve selected options", () => {

@@ -189,11 +189,11 @@ const {
 	openInstanceModal, openBenchmarkedInstanceModal,
 } = instanceModals;
 
-const renderCampaignChoice = (grid, selectedName, onSelect) => renderCampaignChoiceGrid(
+const renderCampaignChoice = (grid, selectedName, onSelect, options = {}) => renderCampaignChoiceGrid(
 	grid,
 	selectedName,
 	onSelect,
-	{ state, escapeHTML },
+	{ state, escapeHTML, ...options },
 );
 
 function renderCampaignOptions() {
@@ -257,7 +257,10 @@ function selectRunCampaign(name, options = {}) {
 	const resetCap = options.resetCap ?? true;
 	state.selectedCampaign = name;
 	$("#run-campaign").value = name;
-	renderCampaignChoice($("#run-campaign-grid"), name, selectRunCampaign);
+	renderCampaignChoice($("#run-campaign-grid"), name, selectRunCampaign, {
+		sortMode: state.runCampaignSort,
+		reverse: state.runCampaignSortReverse,
+	});
 	if (resetCap) {
 		controls.resetMaxInstancesControl();
 	}
@@ -267,11 +270,17 @@ function selectRunCampaign(name, options = {}) {
 	}
 }
 
-function selectComparisonCampaign(name) {
+function selectComparisonCampaign(name, options = {}) {
+	const resetCap = options.resetCap ?? true;
 	state.selectedComparisonCampaign = name;
 	$("#compare-campaign").value = name;
-	renderCampaignChoice($("#compare-campaign-grid"), name, selectComparisonCampaign);
-	controls.resetCompareMaxInstancesControl();
+	renderCampaignChoice($("#compare-campaign-grid"), name, selectComparisonCampaign, {
+		sortMode: state.comparisonCampaignSort,
+		reverse: state.comparisonCampaignSortReverse,
+	});
+	if (resetCap) {
+		controls.resetCompareMaxInstancesControl();
+	}
 	if (name) {
 		refreshComparisonReport(name);
 	}
@@ -356,6 +365,7 @@ function renderBenchmarkedInstanceSection(root, campaign, instances) {
         <button class="segment ${state.benchmarkedSort === "case" ? "is-active" : ""}" data-benchmarked-sort="case" type="button" aria-pressed="${state.benchmarkedSort === "case" ? "true" : "false"}">Case</button>
         <button class="segment ${state.benchmarkedSort === "time" ? "is-active" : ""}" data-benchmarked-sort="time" type="button" aria-pressed="${state.benchmarkedSort === "time" ? "true" : "false"}">Solve time</button>
         <button class="segment ${state.benchmarkedSort === "calls" ? "is-active" : ""}" data-benchmarked-sort="calls" type="button" aria-pressed="${state.benchmarkedSort === "calls" ? "true" : "false"}">Convex calls</button>
+        <button class="segment icon-segment sort-reverse-button ${state.benchmarkedSortReverse ? "is-active" : ""}" data-benchmarked-sort-reverse type="button" title="Reverse order" aria-label="Reverse order" aria-pressed="${state.benchmarkedSortReverse ? "true" : "false"}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v15"></path><path d="m3 14 4 4 4-4"></path><path d="M17 21V6"></path><path d="m13 10 4-4 4 4"></path></svg></button>
       </div>
     </header>
     <div class="fold-content">
@@ -372,6 +382,10 @@ function renderBenchmarkedInstanceSection(root, campaign, instances) {
 		state.benchmarkedSort = event.currentTarget.dataset.benchmarkedSort;
 		renderBenchmarkedInstanceSection(root, campaign, instances);
 	}));
+	root.querySelector("[data-benchmarked-sort-reverse]")?.addEventListener("click", () => {
+		state.benchmarkedSortReverse = !state.benchmarkedSortReverse;
+		renderBenchmarkedInstanceSection(root, campaign, instances);
+	});
 	const sortedInstances = instances.slice().sort((left, right) => {
 		if (state.benchmarkedSort === "time") {
 			return (parseNumber(right.total_seconds) || 0) - (parseNumber(left.total_seconds) || 0);
@@ -381,7 +395,7 @@ function renderBenchmarkedInstanceSection(root, campaign, instances) {
 		}
 		return Number(left.case_index) - Number(right.case_index);
 	});
-	for (const item of sortedInstances) {
+	for (const item of state.benchmarkedSortReverse ? sortedInstances.reverse() : sortedInstances) {
 		const button = document.createElement("button");
 		button.type = "button";
 		button.className = "benchmarked-card";
@@ -422,20 +436,66 @@ function renderCampaigns() {
 
 function setupListSortControls() {
 	document.querySelectorAll("[data-campaign-sort]").forEach((group) => {
-		const stateKey = group.dataset.campaignSort === "edit" ? "manualCampaignSort" : "campaignSort";
-		group.querySelectorAll(".segment").forEach((button) => button.addEventListener("click", () => {
-			state[stateKey] = button.dataset.sort;
-			group.querySelectorAll(".segment").forEach((item) => item.classList.toggle("is-active", item === button));
+		const sortTarget = group.dataset.campaignSort;
+		const stateKey = {
+			edit: "manualCampaignSort",
+			run: "runCampaignSort",
+			compare: "comparisonCampaignSort",
+		}[sortTarget] || "campaignSort";
+		const reverseKey = `${stateKey}Reverse`;
+		const render = () => {
 			if (stateKey === "campaignSort") renderCampaigns();
-			else renderManualCampaigns();
+			else if (stateKey === "manualCampaignSort") renderManualCampaigns();
+			else if (stateKey === "runCampaignSort") {
+				renderCampaignChoice($("#run-campaign-grid"), state.selectedCampaign, selectRunCampaign, {
+					sortMode: state.runCampaignSort,
+					reverse: state.runCampaignSortReverse,
+				});
+			} else {
+				renderCampaignChoice($("#compare-campaign-grid"), state.selectedComparisonCampaign, selectComparisonCampaign, {
+					sortMode: state.comparisonCampaignSort,
+					reverse: state.comparisonCampaignSortReverse,
+				});
+			}
+		};
+		const sync = () => {
+			group.querySelectorAll("[data-sort]").forEach((item) => {
+				item.classList.toggle("is-active", item.dataset.sort === state[stateKey]);
+			});
+			const reverseButton = group.querySelector("[data-sort-reverse]");
+			reverseButton?.classList.toggle("is-active", Boolean(state[reverseKey]));
+			reverseButton?.setAttribute("aria-pressed", state[reverseKey] ? "true" : "false");
+		};
+		group.querySelectorAll(".segment").forEach((button) => button.addEventListener("click", () => {
+			if (!button.dataset.sort) {
+				return;
+			}
+			state[stateKey] = button.dataset.sort;
+			sync();
+			render();
 		}));
+		group.querySelector("[data-sort-reverse]")?.addEventListener("click", () => {
+			state[reverseKey] = !state[reverseKey];
+			sync();
+			render();
+		});
+		sync();
 	});
 	const group = document.querySelector("[data-instance-sort]");
 	group?.querySelectorAll(".segment").forEach((button) => button.addEventListener("click", () => {
+		if (!button.dataset.sort) {
+			return;
+		}
 		state.manualInstanceSort = button.dataset.sort;
-		group.querySelectorAll(".segment").forEach((item) => item.classList.toggle("is-active", item === button));
+		group.querySelectorAll("[data-sort]").forEach((item) => item.classList.toggle("is-active", item === button));
 		renderManualCases();
 	}));
+	group?.querySelector("[data-sort-reverse]")?.addEventListener("click", (event) => {
+		state.manualInstanceSortReverse = !state.manualInstanceSortReverse;
+		event.currentTarget.classList.toggle("is-active", state.manualInstanceSortReverse);
+		event.currentTarget.setAttribute("aria-pressed", state.manualInstanceSortReverse ? "true" : "false");
+		renderManualCases();
+	});
 }
 
 function renderResults(files) {
@@ -986,6 +1046,7 @@ const modalController = createModalController({
 	$, state, setCloseIcon, metricCard, describeVertices, runProgress,
 	renderPreviewPanels, renderBenchmarkedInstanceSection, refreshBenchmarkedInstances,
 	selectManualCampaign, switchPanel, deleteCampaign,
+	cancelReadonlyViewer: instanceModals.cancelActiveViewer,
 });
 const {
 	openCampaignModal,

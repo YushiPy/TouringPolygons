@@ -32,7 +32,7 @@ export function createManualCaseController(deps) {
 			return;
 		}
 		grid.innerHTML = "";
-		const campaigns = sortCampaigns(editableCampaigns(), state.manualCampaignSort);
+		const campaigns = sortCampaigns(editableCampaigns(), state.manualCampaignSort, state.manualCampaignSortReverse);
 		if (!campaigns.some((campaign) => campaign.name === state.manualCampaign)) {
 			state.manualCampaign = campaigns[0]?.name || "";
 		}
@@ -95,14 +95,14 @@ export function createManualCaseController(deps) {
 				}
 			});
 			const handle = button.querySelector(".drag-handle");
-			setDragHandleEnabled(handle, state.manualCampaignSort === "default");
-			setDraggableRow(row, state.manualCampaignSort === "default");
+			setDragHandleEnabled(handle, state.manualCampaignSort === "default" && !state.manualCampaignSortReverse);
+			setDraggableRow(row, state.manualCampaignSort === "default" && !state.manualCampaignSortReverse);
 			const startCampaignDrag = (event) => {
 				if (event.target.closest(".manual-campaign-actions, .campaign-name-input")) {
 					event.preventDefault();
 					return;
 				}
-				if (state.manualCampaignSort !== "default") {
+				if (state.manualCampaignSort !== "default" || state.manualCampaignSortReverse) {
 					event.preventDefault();
 					return;
 				}
@@ -130,7 +130,7 @@ export function createManualCaseController(deps) {
 				const source = event.dataTransfer.getData("application/x-campaign-name") || event.dataTransfer.getData("text/plain");
 				const position = dropPosition(row, event);
 				clearDropMarkers(grid);
-				if (!source || source === campaign.name || state.manualCampaignSort !== "default") return;
+				if (!source || source === campaign.name || state.manualCampaignSort !== "default" || state.manualCampaignSortReverse) return;
 				await reorderCampaigns(source, campaign.name, position);
 			});
 			grid.appendChild(row);
@@ -160,7 +160,7 @@ export function createManualCaseController(deps) {
 			manualEditor.draw();
 			return;
 		}
-		for (const { item, index } of sortInstances(state.manualCases, state.manualInstanceSort)) {
+		for (const { item, index } of sortInstances(state.manualCases, state.manualInstanceSort, state.manualInstanceSortReverse)) {
 			root.appendChild(manualCaseRow(item, index));
 		}
 		root.appendChild(newManualCaseButton());
@@ -197,14 +197,14 @@ export function createManualCaseController(deps) {
 		row.dataset.caseIndex = String(index);
 		row.append(manualCaseSelect(item, index, active), manualCaseActions(index));
 		const handle = row.querySelector(".drag-handle");
-		setDragHandleEnabled(handle, state.manualInstanceSort === "default");
-		setDraggableRow(row, state.manualInstanceSort === "default");
+		setDragHandleEnabled(handle, state.manualInstanceSort === "default" && !state.manualInstanceSortReverse);
+		setDraggableRow(row, state.manualInstanceSort === "default" && !state.manualInstanceSortReverse);
 		const startCaseDrag = (event) => {
 			if (event.target.closest(".manual-case-actions, .instance-name-input")) {
 				event.preventDefault();
 				return;
 			}
-			if (state.manualInstanceSort !== "default") {
+			if (state.manualInstanceSort !== "default" || state.manualInstanceSortReverse) {
 				event.preventDefault();
 				return;
 			}
@@ -232,7 +232,7 @@ export function createManualCaseController(deps) {
 			const sourceIndex = Number(event.dataTransfer.getData("application/x-manual-case-index") || event.dataTransfer.getData("text/plain"));
 			const position = dropPosition(row, event);
 			clearDropMarkers(row.parentElement);
-			if (Number.isInteger(sourceIndex) && sourceIndex !== index && state.manualInstanceSort === "default") {
+			if (Number.isInteger(sourceIndex) && sourceIndex !== index && state.manualInstanceSort === "default" && !state.manualInstanceSortReverse) {
 				reorderManualCases(sourceIndex, index, position);
 			}
 		});
@@ -255,7 +255,7 @@ export function createManualCaseController(deps) {
 		handle.title = "Drag to reorder";
 		handle.setAttribute("aria-label", "Drag to reorder");
 		handle.setAttribute("role", "img");
-		setDragHandleEnabled(handle, state.manualInstanceSort === "default");
+		setDragHandleEnabled(handle, state.manualInstanceSort === "default" && !state.manualInstanceSortReverse);
 		selectArea.append(handle, manualCaseNameControl(item, index), count);
 		const select = () => selectManualCase(index, active);
 		selectArea.addEventListener("click", select);
@@ -449,6 +449,7 @@ export function createManualCaseController(deps) {
 		if (active) {
 			return;
 		}
+		manualEditor.cancelPendingSolution();
 		state.manualCaseIndex = index;
 		manualEditor.activePolygon = null;
 		manualEditor.solutionPath = null;

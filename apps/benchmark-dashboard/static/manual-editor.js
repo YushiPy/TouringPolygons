@@ -1,7 +1,7 @@
 import { drawCanvasScene } from "./canvas-renderer.js";
 import { cloneCaseData } from "./case-data.js";
 import { convexDecomposition, polygonIsConvex, solutionDirectionAt } from "./editor-geometry.js";
-import { editorSolverState, loadEditorGeometry, loadEditorWasm, solveEditorWasm, solveEditorWasmGroups } from "./editor-solver.js";
+import { editorSolverState, loadEditorGeometry, loadEditorWasm, solveEditorWasmAsync } from "./editor-solver.js";
 import { CAMERA_STORAGE_KEY, canvasToWorld as cameraCanvasToWorld, caseBounds as cameraCaseBounds, worldToCanvas as cameraWorldToCanvas, zoomLimits } from "./manual-editor-camera.js";
 import { mergeSelections, pointsInRect as selectionPointsInRect, samePointSelection as selectionSamePoint } from "./manual-editor-selection.js";
 
@@ -853,8 +853,22 @@ export function createManualEditor({
 			this.draw();
 		},
 
-		changed() {
+		cancelPendingSolution() {
 			this.solutionRevision += 1;
+			this.solutionAbort?.abort();
+			this.solutionAbort = null;
+			if (this.solutionTimer) {
+				clearTimeout(this.solutionTimer);
+				this.solutionTimer = null;
+			}
+			if (this.solutionFrame) {
+				cancelAnimationFrame(this.solutionFrame);
+				this.solutionFrame = null;
+			}
+		},
+
+		changed() {
+			this.cancelPendingSolution();
 			this.solutionStale = Boolean(this.solutionPath);
 			this.updateLabelDirections(false);
 			this.syncCloseButton();
@@ -879,14 +893,12 @@ export function createManualEditor({
 			}
 			if (this.solutionFrame) {
 				cancelAnimationFrame(this.solutionFrame);
-			}
-			this.solutionFrame = requestAnimationFrame(() => {
 				this.solutionFrame = null;
-				this.solutionTimer = setTimeout(() => {
-					this.solutionTimer = null;
-					this.fetchSolution(cloneCaseData(this.currentCase()), this.solutionRevision);
-				}, 0);
-			});
+			}
+			this.solutionTimer = setTimeout(() => {
+				this.solutionTimer = null;
+				this.fetchSolution(cloneCaseData(this.currentCase()), this.solutionRevision);
+			}, 0);
 		},
 
 		async fetchSolution(caseData, revision = this.solutionRevision) {
@@ -897,6 +909,7 @@ export function createManualEditor({
 				this.solutionAbort.abort();
 			}
 			this.solutionAbort = new AbortController();
+			const signal = this.solutionAbort.signal;
 			if (caseData.polygons.length === 0) {
 				if (revision !== this.solutionRevision) {
 					return;
@@ -911,6 +924,9 @@ export function createManualEditor({
 			this.setStatus(editorSolverState.module ? "Solving..." : editorSolverState.failed ? "WASM solver unavailable." : "Loading solver...");
 			try {
 				await loadEditorWasm();
+				if (signal.aborted || revision !== this.solutionRevision) {
+					return;
+				}
 				if (!editorSolverState.module) {
 					if (revision !== this.solutionRevision) {
 						return;
@@ -922,21 +938,22 @@ export function createManualEditor({
 					this.draw();
 					return;
 				}
-				const geometry = await loadEditorGeometry();
-				let wasmResult = null;
+				let pieceGroups = null;
 				const solveStarted = performance.now();
-				if (caseData.polygons.every(polygonIsConvex)) {
-					wasmResult = solveEditorWasm(caseData);
-				} else if (geometry) {
-					const pieceGroups = caseData.polygons.map((polygon) => (
+				if (!caseData.polygons.every(polygonIsConvex)) {
+					const geometry = await loadEditorGeometry();
+					if (signal.aborted || revision !== this.solutionRevision) {
+						return;
+					}
+					pieceGroups = geometry
+						? caseData.polygons.map((polygon) => (
 						geometry.partition.convexPartition(polygon.map(([x, y]) => new geometry.vector.Vector2(x, y)))
 							.filter((piece) => piece.length >= 3)
 							.map((piece) => piece.map((point) => [point.x, point.y]))
-					));
-					wasmResult = solveEditorWasmGroups(caseData, pieceGroups);
-				} else {
-					wasmResult = solveEditorWasmGroups(caseData, caseData.polygons.map(convexDecomposition));
+						))
+						: caseData.polygons.map(convexDecomposition);
 				}
+				const wasmResult = await solveEditorWasmAsync(caseData, pieceGroups, signal);
 				const solveWallSeconds = (performance.now() - solveStarted) / 1000;
 				if (wasmResult) {
 					if (revision !== this.solutionRevision) {

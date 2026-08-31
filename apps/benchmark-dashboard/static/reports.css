@@ -124,7 +124,7 @@
 
 .benchmarked-sort {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(0, auto));
+	grid-template-columns: repeat(3, minmax(0, auto)) 34px;
 	gap: 6px;
 	padding: 4px;
 	border: 1px solid var(--line);
@@ -136,6 +136,11 @@
 	min-height: 34px;
 	padding: 0.34rem 0.62rem;
 	white-space: nowrap;
+}
+
+.benchmarked-sort .icon-segment {
+	width: 100%;
+	padding: 0.25rem;
 }
 
 .foldable-section-header h3 {

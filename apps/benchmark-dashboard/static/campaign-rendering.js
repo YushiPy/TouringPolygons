@@ -7,7 +7,7 @@ export function renderCampaignList(root, { closeIconSVG, trashIconSVG, deleteCam
 		return;
 	}
 	root.innerHTML = "";
-	const campaigns = sortCampaigns(state.campaigns, state.campaignSort).filter((campaign) => {
+	const campaigns = sortCampaigns(state.campaigns, state.campaignSort, state.campaignSortReverse).filter((campaign) => {
 		const query = state.campaignFilter;
 		if (!query) {
 			return true;

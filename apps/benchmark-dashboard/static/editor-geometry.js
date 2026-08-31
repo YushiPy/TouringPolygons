@@ -16,17 +16,63 @@ function pointInTriangle(point, a, b, c) {
 	return (ab >= -1e-9 && bc >= -1e-9 && ca >= -1e-9) || (ab <= 1e-9 && bc <= 1e-9 && ca <= 1e-9);
 }
 
+function cross(a, b, c) {
+	return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+}
+
+function segmentsAreAdjacent(first, second, length) {
+	return first === second || (first + 1) % length === second || (second + 1) % length === first;
+}
+
+function segmentIntersection(a, b, c, d) {
+	const denominator = (b[0] - a[0]) * (d[1] - c[1]) - (b[1] - a[1]) * (d[0] - c[0]);
+	if (Math.abs(denominator) <= 1e-9) {
+		return null;
+	}
+	const t = ((c[0] - a[0]) * (d[1] - c[1]) - (c[1] - a[1]) * (d[0] - c[0])) / denominator;
+	const u = ((c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0])) / denominator;
+	if (t <= 1e-9 || t >= 1 - 1e-9 || u <= 1e-9 || u >= 1 - 1e-9) {
+		return null;
+	}
+	return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
+}
+
+function selfIntersections(polygon) {
+	const intersections = [];
+	for (let first = 0; first < polygon.length; first += 1) {
+		const a = polygon[first];
+		const b = polygon[(first + 1) % polygon.length];
+		for (let second = first + 1; second < polygon.length; second += 1) {
+			if (segmentsAreAdjacent(first, second, polygon.length)) {
+				continue;
+			}
+			const point = segmentIntersection(a, b, polygon[second], polygon[(second + 1) % polygon.length]);
+			if (point) {
+				intersections.push({ first, second, point });
+			}
+		}
+	}
+	return intersections;
+}
+
+function polygonIsSimple(polygon) {
+	return selfIntersections(polygon).length === 0;
+}
+
 export function polygonIsConvex(polygon) {
+	if (!polygonIsSimple(polygon)) {
+		return false;
+	}
 	let gotNegative = false;
 	let gotPositive = false;
 	for (let index = 0; index < polygon.length; index += 1) {
 		const a = polygon[index];
 		const b = polygon[(index + 1) % polygon.length];
 		const c = polygon[(index + 2) % polygon.length];
-		const cross = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
-		if (cross < 0) {
+		const turn = cross(a, b, c);
+		if (turn < 0) {
 			gotNegative = true;
-		} else if (cross > 0) {
+		} else if (turn > 0) {
 			gotPositive = true;
 		}
 		if (gotNegative && gotPositive) {
@@ -36,9 +82,30 @@ export function polygonIsConvex(polygon) {
 	return true;
 }
 
+function splitSingleSelfIntersection(polygon) {
+	const intersections = selfIntersections(polygon);
+	if (intersections.length !== 1) {
+		return null;
+	}
+	const { first, second, point } = intersections[0];
+	const firstLoop = [point];
+	for (let index = (first + 1) % polygon.length; index !== (second + 1) % polygon.length; index = (index + 1) % polygon.length) {
+		firstLoop.push([...polygon[index]]);
+	}
+	const secondLoop = [point];
+	for (let index = (second + 1) % polygon.length; index !== (first + 1) % polygon.length; index = (index + 1) % polygon.length) {
+		secondLoop.push([...polygon[index]]);
+	}
+	return [firstLoop, secondLoop].filter((piece) => Math.abs(signedArea(piece)) > 1e-9);
+}
+
 function earClipDecomposition(polygon) {
 	if (polygon.length < 3) {
 		return [];
+	}
+	const splitPieces = splitSingleSelfIntersection(polygon);
+	if (splitPieces) {
+		return splitPieces.flatMap(earClipDecomposition);
 	}
 	if (polygonIsConvex(polygon)) {
 		return [polygon];

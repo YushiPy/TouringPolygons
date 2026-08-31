@@ -1,6 +1,8 @@
-export function renderCampaignChoiceGrid(grid, selectedName, onSelect, { state, escapeHTML }) {
+import { sortCampaigns } from "./sorting.js";
+
+export function renderCampaignChoiceGrid(grid, selectedName, onSelect, { state, escapeHTML, sortMode = "default", reverse = false }) {
 	grid.innerHTML = "";
-	for (const campaign of state.campaigns) {
+	for (const campaign of sortCampaigns(state.campaigns, sortMode, reverse)) {
 		const button = document.createElement("button");
 		const generation = campaign.generation || {};
 		button.type = "button";

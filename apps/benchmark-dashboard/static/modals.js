@@ -26,8 +26,10 @@ export function createModalController({
 	$, state, setCloseIcon, metricCard, runProgress,
 	renderPreviewPanels, renderBenchmarkedInstanceSection, refreshBenchmarkedInstances,
 	selectManualCampaign, switchPanel, deleteCampaign,
+	cancelReadonlyViewer,
 }) {
 	function openCampaignModal(campaign) {
+		cancelReadonlyViewer?.();
 		const modal = $("#campaign-modal");
 		const body = $("#modal-body");
 		const closeButton = modal.querySelector(".modal-x-button");
@@ -72,6 +74,7 @@ export function createModalController({
 	}
 
 	function closeCampaignModal() {
+		cancelReadonlyViewer?.();
 		$("#campaign-modal").classList.add("is-hidden");
 		state.instanceModalReturn = null;
 	}

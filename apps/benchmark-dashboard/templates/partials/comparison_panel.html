@@ -6,7 +6,19 @@
 	<form id="compare-form" class="run-form">
 		<div class="run-main-fields">
 			<div class="field campaign-picker-field">
-				<span class="field-label">Campaign</span>
+				<div class="field-label-row">
+					<span class="field-label section-field-label">Campaign</span>
+					<div class="sort-by-control">
+						<span>Sort by:</span>
+						<div class="segmented list-sort-control" data-campaign-sort="compare" aria-label="Sort comparison campaigns">
+							<button class="segment is-active" data-sort="default" type="button">Default</button>
+							<button class="segment" data-sort="name" type="button">Name</button>
+							<button class="segment" data-sort="count" type="button">Instances</button>
+							<button class="segment icon-segment sort-reverse-button" data-sort-reverse type="button" title="Reverse order"
+								aria-label="Reverse order" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v15"></path><path d="m3 14 4 4 4-4"></path><path d="M17 21V6"></path><path d="m13 10 4-4 4 4"></path></svg></button>
+						</div>
+					</div>
+				</div>
 				<input name="name" id="compare-campaign" type="hidden">
 				<div id="compare-campaign-grid" class="choice-grid campaign-choice-grid" role="listbox"
 					aria-label="Comparison campaign"></div>
