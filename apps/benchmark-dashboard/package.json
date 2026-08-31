@@ -3,6 +3,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
+		"test:all": "scripts/run-tests.sh",
 		"test:browser": "node tests/browser_smoke.mjs",
 		"check:js": "for file in static/*.js; do node --check \"$file\"; done",
 		"lint:js": "eslint static tests"

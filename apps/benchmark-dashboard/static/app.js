@@ -161,6 +161,9 @@ const {
 	renderManualCampaigns,
 	renderManualCases,
 	selectManualCampaign,
+	selectAllManualCases,
+	toggleBulkDeleteMode,
+	deleteSelectedManualCases,
 } = manualCases;
 scheduleManualAutosave = manualCases.scheduleManualAutosave;
 updateManualCaseListMetadata = manualCases.updateManualCaseListMetadata;
@@ -996,6 +999,9 @@ document.querySelectorAll("[data-manual-mode] .segment").forEach((button) => {
 	button.addEventListener("click", () => manualEditor.setMode(button.dataset.mode));
 });
 $("#new-manual-case").addEventListener("click", newManualCase);
+$("#bulk-delete-toggle").addEventListener("click", toggleBulkDeleteMode);
+$("#bulk-delete-all").addEventListener("click", selectAllManualCases);
+$("#bulk-delete-selected").addEventListener("click", deleteSelectedManualCases);
 $("#close-manual-polygon").addEventListener("click", () => manualEditor.closePolygon());
 $("#delete-manual-selection").addEventListener("click", () => manualEditor.deleteSelection());
 $("#clear-manual-selection").addEventListener("click", () => manualEditor.clearSelection());

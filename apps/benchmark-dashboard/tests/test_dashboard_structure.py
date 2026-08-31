@@ -35,6 +35,8 @@ class DashboardStructureTests(unittest.TestCase):
         template = main.templates.get_template("index.html").render(request=object())
         for element_id in (
             "append-target",
+            "bulk-delete-toggle",
+            "bulk-delete-selected",
             "create-form",
             "manual-case-canvas",
             "run-form",
@@ -68,6 +70,12 @@ class DashboardStructureTests(unittest.TestCase):
         self.assertIn("duplicateIconSVG", utilities)
         self.assertIn("setDuplicateIcon(duplicateButton)", manual_cases)
         self.assertNotIn('duplicateButton.textContent = "⧉"', manual_cases)
+
+    def test_dashboard_test_runner_exists(self) -> None:
+        script = ROOT / "scripts/run-tests.sh"
+
+        self.assertTrue(script.exists())
+        self.assertIn("RUN_BROWSER", script.read_text())
 
     def test_generated_preview_images_use_lazy_loading(self) -> None:
         for path in (ROOT / "static/app.js", ROOT / "static/campaign-rendering.js"):

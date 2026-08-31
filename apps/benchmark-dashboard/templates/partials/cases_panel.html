@@ -19,7 +19,12 @@
 			</div>
 			<div class="case-list-head">
 				<h3>Instances</h3>
-				<button id="new-manual-case" class="secondary" type="button">New</button>
+				<div class="case-list-actions">
+					<button id="bulk-delete-toggle" class="secondary" type="button">Select</button>
+					<button id="bulk-delete-all" class="secondary is-hidden" type="button">All</button>
+					<button id="bulk-delete-selected" class="danger is-hidden" type="button" disabled>Delete Selected</button>
+					<button id="new-manual-case" class="secondary" type="button">New</button>
+				</div>
 			</div>
 			<div id="manual-case-list" class="manual-case-list"></div>
 		</aside>

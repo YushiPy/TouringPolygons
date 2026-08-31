@@ -19,6 +19,8 @@ export const state = {
 	loadedManualCampaign: "",
 	manualCases: [],
 	manualCaseIndex: 0,
+	manualBulkDelete: false,
+	manualDeleteSelection: new Set(),
 	manualAutosaveTimer: null,
 	manualAutosaving: false,
 	manualAutosaveQueued: false,
