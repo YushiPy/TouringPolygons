@@ -75,6 +75,7 @@ test("manual case controller loads editable cases through injected dependencies"
 		refresh: async () => {},
 		requestJSON: async () => ({ cases: [{ start: [0, 0], target: [1, 1], polygons: [] }] }),
 		setCloseIcon: () => {},
+		setDuplicateIcon: () => {},
 		state,
 		switchPanel: () => {},
 	});

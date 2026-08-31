@@ -16,6 +16,18 @@
 			Campaign
 			<input id="create-name" name="name" value="smoke" required>
 		</label>
+		<div class="field">
+			<span class="field-label">Destination</span>
+			<input name="create_mode" type="hidden" value="new">
+			<span class="segmented" data-input="create_mode">
+				<button class="segment is-active" data-value="new" type="button">New</button>
+				<button class="segment" data-value="append" type="button">Append</button>
+			</span>
+		</div>
+		<label id="append-target-field" class="is-hidden">
+			Append to
+			<select id="append-target" name="append_to" disabled></select>
+		</label>
 		<label class="synthetic-field">
 			Vertices
 			<input name="vertices" type="number" min="3" value="8" required>

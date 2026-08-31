@@ -63,6 +63,15 @@ export function closeIconSVG() {
 	`;
 }
 
+export function duplicateIconSVG() {
+	return `
+		<svg class="duplicate-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+			<rect x="8" y="8" width="10" height="10" rx="2" />
+			<path d="M6 14H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1" />
+		</svg>
+	`;
+}
+
 export function warningIconSVG() {
 	return `
 		<svg class="status-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -77,6 +86,13 @@ export function setCloseIcon(button) {
 		return;
 	}
 	button.innerHTML = closeIconSVG();
+}
+
+export function setDuplicateIcon(button) {
+	if (!button) {
+		return;
+	}
+	button.innerHTML = duplicateIconSVG();
 }
 
 export function normalizeCloseIcons(root = document) {

@@ -15,6 +15,7 @@ export function createManualCaseController(deps) {
 		refresh,
 		requestJSON,
 		setCloseIcon,
+		setDuplicateIcon,
 		state,
 		switchPanel,
 	} = deps;
@@ -154,7 +155,7 @@ export function createManualCaseController(deps) {
 		const duplicateButton = document.createElement("button");
 		duplicateButton.type = "button";
 		duplicateButton.className = "secondary manual-case-action";
-		duplicateButton.textContent = "⧉";
+		setDuplicateIcon(duplicateButton);
 		duplicateButton.title = "Duplicate";
 		duplicateButton.setAttribute("aria-label", `Duplicate instance ${instanceLabel(index)}`);
 		duplicateButton.addEventListener("click", () => duplicateManualCase(index));

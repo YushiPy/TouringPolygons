@@ -34,6 +34,7 @@ class DashboardStructureTests(unittest.TestCase):
     def test_index_template_contains_required_hooks(self) -> None:
         template = main.templates.get_template("index.html").render(request=object())
         for element_id in (
+            "append-target",
             "create-form",
             "manual-case-canvas",
             "run-form",
@@ -59,6 +60,14 @@ class DashboardStructureTests(unittest.TestCase):
         self.assertTrue(links)
         for linked in links:
             self.assertTrue((ROOT / "static" / linked).exists(), linked)
+
+    def test_manual_instance_actions_use_icons(self) -> None:
+        utilities = (ROOT / "static/ui-utils.js").read_text()
+        manual_cases = (ROOT / "static/manual-cases.js").read_text()
+
+        self.assertIn("duplicateIconSVG", utilities)
+        self.assertIn("setDuplicateIcon(duplicateButton)", manual_cases)
+        self.assertNotIn('duplicateButton.textContent = "⧉"', manual_cases)
 
     def test_generated_preview_images_use_lazy_loading(self) -> None:
         for path in (ROOT / "static/app.js", ROOT / "static/campaign-rendering.js"):

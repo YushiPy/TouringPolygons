@@ -13,6 +13,7 @@ CaseData = tuple[Point, Point, list[list[Point]]]
 
 class CreateSyntheticRequest(BaseModel):
     name: str
+    append_to: str | None = None
     vertices: str = "8"
     polygons: int = Field(default=20, ge=1, le=500)
     instances: int = Field(default=100, ge=1, le=5000)
@@ -24,6 +25,7 @@ class CreateSyntheticRequest(BaseModel):
 
 class CreateOsmRequest(BaseModel):
     name: str
+    append_to: str | None = None
     pbf_path: str
     instances: int = Field(default=100, ge=1, le=5000)
     polygon_counts: int = Field(default=20, ge=1, le=500)

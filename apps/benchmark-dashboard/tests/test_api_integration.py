@@ -223,6 +223,59 @@ class DashboardApiIntegrationTests(unittest.TestCase):
                 self.assertFalse(marker.exists())
                 self.assertEqual(self.binary_case_count(binary_path), 2)
 
+    def test_generated_cases_can_append_to_existing_campaign(self) -> None:
+        create_manual = endpoint("/api/campaigns/manual", "POST")
+        replace_cases = endpoint("/api/campaigns/{name}/cases", "PUT")
+        get_cases = endpoint("/api/campaigns/{name}/cases", "GET")
+        first = ManualCaseRequest(
+            name="original",
+            start=(0.0, 0.0),
+            target=(1.0, 0.0),
+            polygons=[[(0.0, 1.0), (1.0, 1.0), (0.5, 2.0)]],
+        )
+        generated_case = (
+            (2.0, 0.0),
+            (3.0, 0.0),
+            [[(2.0, 1.0), (3.0, 1.0), (2.5, 2.0)]],
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            campaigns_root = Path(directory)
+            with patch.object(main, "CAMPAIGNS_ROOT", campaigns_root):
+                asyncio.run(create_manual(ManualCampaignRequest(name="target")))
+                asyncio.run(replace_cases("target", ManualCasesRequest(cases=[first]), refresh_previews=False))
+                generated_path = campaigns_root / "generated"
+                input_path = generated_path / "inputs/generated.bin"
+                input_path.parent.mkdir(parents=True)
+                main.write_binary_cases(input_path, [generated_case])
+                (generated_path / "campaign.json").write_text(
+                    json.dumps(
+                        {
+                            "schema_version": 1,
+                            "name": "generated",
+                            "type": "synthetic",
+                            "generation": {"instances": 1},
+                            "inputs": [{"file": "inputs/generated.bin", "instances": 1}],
+                        }
+                    )
+                    + "\n"
+                )
+
+                response = main.append_generated_cases_to_campaign(
+                    "target",
+                    generated_path,
+                    "synthetic",
+                    {"name": "ignored", "instances": 1, "polygons": 1},
+                )
+                cases = asyncio.run(get_cases("target"))
+                campaign_data = json.loads((campaigns_root / "target/campaign.json").read_text())
+
+                self.assertEqual(response["name"], "target")
+                self.assertEqual(len(cases["cases"]), 2)
+                self.assertEqual(cases["cases"][0]["name"], "original")
+                self.assertTrue(cases["cases"][1]["generated"])
+                self.assertEqual(campaign_data["edit_history"][-1]["action"], "append-generated")
+
 
 if __name__ == "__main__":
     unittest.main()

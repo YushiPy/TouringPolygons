@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import sys
+import uuid
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -42,6 +43,7 @@ def register_campaign_routes(
     manual_case_request_to_json: Callable[[ManualCaseRequest], dict[str, Any]],
     validate_manual_cases: Callable[[list[ManualCaseRequest]], None],
     rebuild_manual_campaign: Callable[..., dict[str, Any]],
+    append_generated_cases_to_campaign: Callable[[str, Path, str, dict[str, Any]], dict[str, Any]],
     read_manual_cases: Callable[[Path], list[Any]],
     manual_case_from_request: Callable[[ManualCaseRequest], Any],
     manual_case_to_data: Callable[..., dict[str, Any]],
@@ -127,11 +129,13 @@ def register_campaign_routes(
 
     @router.post("/api/campaigns/synthetic")
     async def create_synthetic(request: CreateSyntheticRequest):
+        append_to = request.append_to.strip() if request.append_to else ""
+        generated_name = f"__append_synthetic_{uuid.uuid4().hex}" if append_to else request.name
         command = [
             sys.executable,
             str(benchmark_cli),
             "create",
-            request.name,
+            generated_name,
             "--vertices",
             request.vertices,
             "--polygons",
@@ -145,18 +149,38 @@ def register_campaign_routes(
         ]
         if request.no_preview:
             command.append("--no-preview")
-        if request.overwrite:
+        if request.overwrite or append_to:
             command.append("--overwrite")
-        completed = run_command(command)
-        if completed.returncode != 0:
-            return JSONResponse({"ok": False, "output": completed.stdout}, status_code=400)
-        path = campaign_path(request.name)
-        if not request.no_preview:
-            rewrite_dashboard_previews(path)
-        return {"ok": True, "output": completed.stdout, "campaign": campaign_summary(path)}
+        path = campaign_path(generated_name)
+        try:
+            completed = run_command(command)
+            if completed.returncode != 0:
+                return JSONResponse({"ok": False, "output": completed.stdout}, status_code=400)
+            if append_to:
+                summary = append_generated_cases_to_campaign(
+                    append_to,
+                    path,
+                    "synthetic",
+                    {
+                        "vertices": request.vertices,
+                        "polygons": request.polygons,
+                        "instances": request.instances,
+                        "shape": request.shape,
+                        "seed": request.seed,
+                    },
+                )
+                return {"ok": True, "output": completed.stdout, "campaign": summary}
+            if not request.no_preview:
+                rewrite_dashboard_previews(path)
+            return {"ok": True, "output": completed.stdout, "campaign": campaign_summary(path)}
+        finally:
+            if append_to and path.exists():
+                shutil.rmtree(path)
 
     @router.post("/api/campaigns/osm")
     async def create_osm(request: CreateOsmRequest):
+        append_to = request.append_to.strip() if request.append_to else ""
+        generated_name = f"__append_osm_{uuid.uuid4().hex}" if append_to else request.name
         simplify_tolerance = max(0.0, min(10.0, request.simplify_tolerance))
         scale = max(0.1, min(10.0, request.scale))
         grid_polygon_size = max(0.1, min(20.0, request.grid_polygon_size))
@@ -168,7 +192,7 @@ def register_campaign_routes(
             sys.executable,
             str(benchmark_cli),
             "generate-matrix",
-            request.name,
+            generated_name,
             request.pbf_path,
             "--instances",
             str(request.instances),
@@ -214,15 +238,37 @@ def register_campaign_routes(
             command.extend(["--sample-size", str(request.sample_size)])
         if not request.no_preview:
             command.append("--with-preview")
-        if request.overwrite:
+        if request.overwrite or append_to:
             command.append("--overwrite")
-        completed = run_command(command)
-        if completed.returncode != 0:
-            return JSONResponse({"ok": False, "output": completed.stdout}, status_code=400)
-        path = campaign_path(request.name)
-        if not request.no_preview:
-            rewrite_dashboard_previews(path)
-        return {"ok": True, "output": completed.stdout, "campaign": campaign_summary(path)}
+        path = campaign_path(generated_name)
+        try:
+            completed = run_command(command)
+            if completed.returncode != 0:
+                return JSONResponse({"ok": False, "output": completed.stdout}, status_code=400)
+            if append_to:
+                summary = append_generated_cases_to_campaign(
+                    append_to,
+                    path,
+                    "osm",
+                    {
+                        "pbf_path": request.pbf_path,
+                        "instances": request.instances,
+                        "polygon_counts": request.polygon_counts,
+                        "sample_size": request.sample_size,
+                        "seed": request.seed,
+                        "layout": request.layout,
+                        "sampling": request.sampling,
+                        "order": request.order,
+                        "endpoint_mode": request.endpoint_mode,
+                    },
+                )
+                return {"ok": True, "output": completed.stdout, "campaign": summary}
+            if not request.no_preview:
+                rewrite_dashboard_previews(path)
+            return {"ok": True, "output": completed.stdout, "campaign": campaign_summary(path)}
+        finally:
+            if append_to and path.exists():
+                shutil.rmtree(path)
 
     @router.post("/api/campaigns/canonical")
     async def import_canonical(request: ImportCanonicalRequest):

@@ -194,14 +194,20 @@ export function createDashboardControls({ $, campaignInstanceTotal, state, updat
 
 	function setupSegmentedControls() {
 		document.querySelectorAll(".segmented").forEach((group) => {
+			if (!group.dataset.input) {
+				return;
+			}
 			const input = document.querySelector(`[name="${group.dataset.input}"]`);
+			if (!input) {
+				return;
+			}
 			group.querySelectorAll(".segment").forEach((button) => {
 				button.addEventListener("click", () => {
 					input.value = button.dataset.value;
 					group.querySelectorAll(".segment").forEach((item) => {
 						item.classList.toggle("is-active", item === button);
 					});
-					if (group.dataset.input === "campaign_type") {
+					if (group.dataset.input === "campaign_type" || group.dataset.input === "create_mode") {
 						updateCreateMode();
 					}
 				});

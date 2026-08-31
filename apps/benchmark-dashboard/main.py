@@ -664,6 +664,57 @@ def import_binary_suite(
     return {"ok": True, "campaign": campaign_summary(path)}
 
 
+def append_generated_cases_to_campaign(
+    destination_name: str,
+    generated_path: Path,
+    source_kind: str,
+    generator_config: dict[str, Any],
+) -> dict[str, Any]:
+    destination_path = campaign_path(destination_name)
+    if not (destination_path / "campaign.json").exists():
+        raise HTTPException(status_code=404, detail="Append target campaign does not exist.")
+    generated_data = read_json(generated_path / "campaign.json")
+    generated_cases = read_campaign_cases(generated_path, generated_data)
+    if not generated_cases:
+        raise HTTPException(status_code=400, detail="Generated campaign has no instances to append.")
+
+    existing_cases = read_editable_case_requests(destination_path)
+    offset = len(existing_cases)
+    appended_cases = [
+        ManualCaseRequest(
+            **manual_case_to_data(
+                case,
+                name=f"{source_kind} generated {offset + index + 1}",
+                generated=True,
+            )
+        )
+        for index, case in enumerate(generated_cases)
+    ]
+    next_cases = existing_cases + appended_cases
+    validate_manual_cases(next_cases)
+    rebuild_manual_campaign(destination_path, next_cases)
+
+    campaign_file = destination_path / "campaign.json"
+    data = read_json(campaign_file)
+    edit_history = data.get("edit_history")
+    if not isinstance(edit_history, list):
+        edit_history = []
+    edit_history.append(
+        {
+            "action": "append-generated",
+            "source": source_kind,
+            "appended_instances": len(appended_cases),
+            "start_index": offset,
+            "generator": generator_config,
+            "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+    )
+    data["edit_history"] = edit_history
+    campaign_file.write_text(json.dumps(data, indent=2) + "\n")
+    _json_cache.pop(campaign_file, None)
+    return campaign_summary(destination_path)
+
+
 def clamp_float(value: float, minimum: float, maximum: float) -> float:
     return max(minimum, min(maximum, value))
 
@@ -799,6 +850,7 @@ register_campaign_routes(
     manual_case_request_to_json=manual_case_request_to_json,
     validate_manual_cases=validate_manual_cases,
     rebuild_manual_campaign=rebuild_manual_campaign,
+    append_generated_cases_to_campaign=append_generated_cases_to_campaign,
     read_manual_cases=read_manual_cases,
     manual_case_from_request=manual_case_from_request,
     manual_case_to_data=manual_case_to_data,
