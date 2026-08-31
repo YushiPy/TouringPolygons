@@ -10,7 +10,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS_DIR = REPO_ROOT / "benchmarks/scripts"
 if str(SCRIPTS_DIR) not in sys.path:
@@ -170,8 +169,7 @@ class BenchmarkToolTests(unittest.TestCase):
             completed = subprocess.run(
                 [sys.executable, str(REPO_ROOT / "benchmarks/scripts/normalize_polygon_orientation.py"), "--check", str(path)],
                 text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 check=False,
             )
 
@@ -195,15 +193,13 @@ class BenchmarkToolTests(unittest.TestCase):
             subprocess.run(
                 [sys.executable, str(REPO_ROOT / "benchmarks/scripts/normalize_polygon_orientation.py"), "--in-place", str(path)],
                 check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
             )
             normalized_bytes = path.read_bytes()
             completed = subprocess.run(
                 [sys.executable, str(REPO_ROOT / "benchmarks/scripts/normalize_polygon_orientation.py"), "--in-place", str(path)],
                 text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 check=True,
             )
 
