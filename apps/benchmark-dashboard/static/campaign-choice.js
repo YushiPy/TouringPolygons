@@ -9,7 +9,6 @@ export function renderCampaignChoiceGrid(grid, selectedName, onSelect, { state, 
 		button.setAttribute("role", "option");
 		button.innerHTML = `
       <strong>${escapeHTML(campaign.name)}</strong>
-      <span>${escapeHTML(campaign.type)}</span>
 			<small>${campaign.instance_progress.total || generation.instances || "-"} instances</small>
     `;
 		button.addEventListener("click", () => onSelect(campaign.name));

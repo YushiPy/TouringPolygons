@@ -14,19 +14,10 @@
 
 .manual-campaign-grid {
 	grid-template-columns: 1fr;
-	max-height: 244px;
-}
-
-.manual-campaign-grid .choice-card {
-	min-height: 56px;
-	user-select: none;
-}
-
-.manual-campaign-grid .choice-card strong {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	min-width: 0;
+	grid-auto-rows: auto;
+	gap: 8px;
+	max-height: 292px;
+	overflow-y: auto;
 }
 
 .manual-campaign-row {
@@ -41,9 +32,46 @@
 }
 
 .manual-campaign-select {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	gap: 2px;
 	min-height: 56px;
 	padding: 0.55rem 0.65rem;
+	border: 1px solid transparent;
 	border-radius: 6px;
+	background: transparent;
+	color: var(--muted);
+	text-align: left;
+	box-shadow: none;
+	cursor: pointer;
+}
+
+.manual-campaign-select:hover {
+	border-color: transparent;
+	background: var(--surface);
+	color: var(--accent-strong);
+	transform: none;
+	box-shadow: none;
+}
+
+.manual-campaign-row.is-active .manual-campaign-select,
+.manual-campaign-row.is-active .manual-campaign-select:hover {
+	border-color: var(--active-bg);
+	background: var(--active-bg);
+	color: var(--active-text);
+	cursor: default;
+}
+
+.manual-campaign-select span {
+	color: inherit;
+	font-size: 0.8rem;
+	opacity: 1;
+}
+
+.manual-campaign-select .drag-handle {
+	grid-row: 1 / span 2;
+	align-self: start;
+	margin-top: 1px;
 }
 
 .manual-campaign-actions {
@@ -107,6 +135,15 @@
 
 .manual-case-row:active {
 	cursor: grabbing;
+}
+
+.manual-campaign-row:active {
+	cursor: grabbing;
+}
+
+.manual-campaign-row.is-drag-disabled,
+.manual-case-row.is-drag-disabled {
+	cursor: default;
 }
 
 .field-label-row {
@@ -202,9 +239,15 @@
 
 .manual-case-select .instance-name-button,
 .manual-case-select [data-case-polygon-count],
+.manual-campaign-select .campaign-name-button,
+.manual-campaign-select [data-campaign-instance-count],
 .campaign-name-button,
 .campaign-name-input {
 	min-width: 0;
+}
+
+.manual-campaign-select [data-campaign-instance-count] {
+	grid-column: 2;
 }
 
 .campaign-name-button {
@@ -216,11 +259,17 @@
 	background: transparent;
 	color: inherit;
 	font-weight: 700;
+	font-size: 1rem;
 	text-align: left;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	box-shadow: none;
+}
+
+.drag-handle.is-disabled {
+	cursor: default;
+	opacity: 0.35;
 }
 
 :root[data-theme="dark"] .campaign-name-button,

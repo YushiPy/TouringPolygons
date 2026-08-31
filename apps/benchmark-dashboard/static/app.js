@@ -852,12 +852,14 @@ async function pollJob(jobId) {
 			lastRefresh = Date.now();
 		}
 		const campaign = state.campaigns.find((item) => item.name === state.selectedCampaign);
+		const completedRun = job.status === "completed" && job.progress_total;
+		const progressCompleted = completedRun ? job.progress_total : job.progress_completed || 0;
 		const liveProgress = job.progress_total
 			? {
-				completed: job.progress_completed || 0,
+				completed: progressCompleted,
 				total: job.progress_total,
-				ratio: (job.progress_completed || 0) / job.progress_total,
-				label: `${job.progress_completed || 0}/${job.progress_total} instances`,
+				ratio: completedRun ? 1 : progressCompleted / job.progress_total,
+				label: `${progressCompleted}/${job.progress_total} instances`,
 				elapsed_seconds: job.elapsed_seconds,
 				counts: campaign?.run_index?.counts || {},
 				phase: "benchmark",

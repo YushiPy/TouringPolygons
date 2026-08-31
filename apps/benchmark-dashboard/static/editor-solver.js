@@ -139,10 +139,10 @@ export function solveEditorWasmGroups(caseData, pieceGroups, maxCalls = 200000, 
 	try {
 		const points = new Float64Array(module.HEAPF64.buffer, pointsPtr, totalVertices * 2);
 		const pieceSizes = new Int32Array(module.HEAP32.buffer, pieceSizesPtr, pieces.length);
-			const groupSizes = new Int32Array(module.HEAP32.buffer, groupSizesPtr, normalizedGroups.length);
-			let pointIndex = 0;
-			let pieceIndex = 0;
-			normalizedGroups.forEach((group, groupIndex) => {
+		const groupSizes = new Int32Array(module.HEAP32.buffer, groupSizesPtr, normalizedGroups.length);
+		let pointIndex = 0;
+		let pieceIndex = 0;
+		normalizedGroups.forEach((group, groupIndex) => {
 			groupSizes[groupIndex] = group.length;
 			group.forEach((piece) => {
 				pieceSizes[pieceIndex] = piece.length;

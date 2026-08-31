@@ -81,7 +81,6 @@ struct BoundCallSet {
 
 struct BenchmarkSummary {
 	size_t total_instances = 0;
-	size_t skipped_empty = 0;
 	size_t skipped_max_polygons = 0;
 	size_t skipped_decomposition = 0;
 	size_t skipped_intersecting_hulls = 0;
@@ -3659,10 +3658,6 @@ int main(int argc, char **argv) {
 
 	for (size_t case_index = 0; case_index < test_cases->size() && case_jobs.size() < options.max_instances; case_index++) {
 		const auto &[start, target, raw_polygons, _] = (*test_cases)[case_index];
-		if (raw_polygons.empty()) {
-			summary.skipped_empty++;
-			continue;
-		}
 
 		if (raw_polygons.size() > options.max_polygons) {
 			summary.skipped_max_polygons++;
@@ -3946,7 +3941,6 @@ int main(int argc, char **argv) {
 	emitf("| Branch limited runs | {} |", format_count_with_percent(summary.branch_limited_instances, records.size()));
 	emitf("| Mean grouped pieces | {:.3f} |", records.empty() ? 0.0 : static_cast<double>(summary.grouped_pieces) / static_cast<double>(records.size()));
 	emitf("| Skipped by max polygons | {} |", format_count_with_percent(summary.skipped_max_polygons, summary.total_instances));
-	emitf("| Skipped empty | {} |", format_count_with_percent(summary.skipped_empty, summary.total_instances));
 	emitf("| Skipped decomposition | {} |", format_count_with_percent(summary.skipped_decomposition, summary.total_instances));
 	emitf("| Skipped intersecting convex hulls | {} |", format_count_with_percent(summary.skipped_intersecting_hulls, summary.total_instances));
 	emitf("| Skipped no calls | {} |", format_count_with_percent(summary.skipped_no_calls, summary.total_instances));

@@ -33,6 +33,7 @@ export function createModalController({
 		const closeButton = modal.querySelector(".modal-x-button");
 		const generation = campaign.generation || {};
 		const progress = runProgress(campaign);
+		const instanceTotal = progress.total || generation.instances || generation.instances_per_file || "-";
 		state.instanceModalReturn = null;
 		closeButton?.removeAttribute("data-modal-back-instance");
 		if (closeButton) {
@@ -43,8 +44,7 @@ export function createModalController({
 		$("#modal-title").textContent = campaign.name;
 		body.innerHTML = `
     <div class="modal-summary">
-      ${metricCard("Type", campaign.type)}
-      ${metricCard("Instances", generation.instances ?? generation.instances_per_file ?? "-")}
+      ${metricCard("Instances", instanceTotal)}
       ${metricCard("Progress", progress.label)}
     </div>
     <div class="preview-layout modal-previews"></div>

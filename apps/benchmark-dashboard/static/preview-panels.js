@@ -45,8 +45,8 @@ export function createPreviewPanelController({
 			|| generation.instances_per_file
 			|| 0;
 		if (previewCount === 0) {
-			root.innerHTML = "";
-			root.classList.toggle("is-hidden", root.children.length === 0);
+			root.innerHTML = '<div class="empty-preview">This campaign has no instances.</div>';
+			root.classList.remove("is-hidden");
 			return;
 		}
 		root.innerHTML = "";

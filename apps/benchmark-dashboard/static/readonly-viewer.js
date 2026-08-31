@@ -130,6 +130,7 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 				}
 				const geometry = await loadEditorGeometry();
 				let wasmResult = null;
+				const solveStarted = performance.now();
 				if (caseData.polygons.every(polygonIsConvex)) {
 					wasmResult = solveEditorWasm(caseData);
 				} else if (geometry) {
@@ -142,6 +143,7 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 				} else {
 					wasmResult = solveEditorWasmGroups(caseData, caseData.polygons.map(convexDecomposition));
 				}
+				const solveWallSeconds = (performance.now() - solveStarted) / 1000;
 				if (revision !== this.solutionRevision) {
 					return;
 				}
@@ -149,7 +151,7 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 				this.solutionStale = false;
 				this.updateLabelDirections(true);
 				this.setStatus(wasmResult
-					? `Solution: ${wasmResult.exact ? "exact" : "approximate"}, ${wasmResult.calls} calls, ${formatSeconds(wasmResult.seconds)} via WASM`
+					? `Solution: ${wasmResult.exact ? "exact" : "approximate"}, ${wasmResult.calls} calls, ${formatSeconds(Math.max(wasmResult.seconds || 0, solveWallSeconds))} via WASM`
 					: "WASM solver could not solve this case.");
 				this.draw();
 			} catch (error) {

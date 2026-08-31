@@ -284,7 +284,7 @@ def run_batch(args: argparse.Namespace) -> int:
 	failed_count = len(results) - completed_count
 	record_campaign_run(args, results, started_utc)
 	print(
-		f"Finished: {completed_count} completed ({skipped_count} already existed), "
+		f"Finished: {completed_count} input file(s) completed ({skipped_count} already existed), "
 		f"{failed_count} failed/timed out. Index: {index_path}",
 		flush=True,
 	)

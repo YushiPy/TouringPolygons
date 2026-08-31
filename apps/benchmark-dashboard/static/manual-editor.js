@@ -869,6 +869,7 @@ export function createManualEditor({
 			if (!current) {
 				return;
 			}
+			this.draw();
 			if (this.solutionStale) {
 				this.setStatus("Updating solution...");
 			}
@@ -881,7 +882,10 @@ export function createManualEditor({
 			}
 			this.solutionFrame = requestAnimationFrame(() => {
 				this.solutionFrame = null;
-				this.fetchSolution(cloneCaseData(this.currentCase()), this.solutionRevision);
+				this.solutionTimer = setTimeout(() => {
+					this.solutionTimer = null;
+					this.fetchSolution(cloneCaseData(this.currentCase()), this.solutionRevision);
+				}, 0);
 			});
 		},
 
@@ -920,6 +924,7 @@ export function createManualEditor({
 				}
 				const geometry = await loadEditorGeometry();
 				let wasmResult = null;
+				const solveStarted = performance.now();
 				if (caseData.polygons.every(polygonIsConvex)) {
 					wasmResult = solveEditorWasm(caseData);
 				} else if (geometry) {
@@ -932,6 +937,7 @@ export function createManualEditor({
 				} else {
 					wasmResult = solveEditorWasmGroups(caseData, caseData.polygons.map(convexDecomposition));
 				}
+				const solveWallSeconds = (performance.now() - solveStarted) / 1000;
 				if (wasmResult) {
 					if (revision !== this.solutionRevision) {
 						return;
@@ -939,7 +945,7 @@ export function createManualEditor({
 					this.solutionPath = wasmResult.path;
 					this.solutionStale = false;
 					this.updateLabelDirections(true);
-					this.setStatus(`Solution: ${wasmResult.exact ? "exact" : "approximate"}, ${wasmResult.calls} calls, ${formatSeconds(wasmResult.seconds)} via WASM`);
+					this.setStatus(`Solution: ${wasmResult.exact ? "exact" : "approximate"}, ${wasmResult.calls} calls, ${formatSeconds(Math.max(wasmResult.seconds || 0, solveWallSeconds))} via WASM`);
 					this.draw();
 					return;
 				}
