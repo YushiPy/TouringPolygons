@@ -30,6 +30,7 @@ jobs:
       - run: npm ci
       - run: uv run python -m unittest discover -s tests
       - run: uv run ruff check .
+      - run: uv run ruff format --check .
       - run: npm run lint:js
       - run: npm run check:js
       - run: npx playwright install --with-deps chromium

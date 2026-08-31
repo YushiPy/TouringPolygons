@@ -46,7 +46,7 @@ The modal title shows the campaign/test-case name on the first line and the sele
 
 Campaign data lives under `benchmarks/campaigns`. Benchmark outputs live under `benchmarks/results`.
 
-Generated and imported campaigns can be inspected and edited through the same case API. Saving edits rebuilds the campaign input binary and its preview metadata.
+Generated and imported campaigns can be inspected and edited through the same case API. Saving edits updates the canonical manual case JSON and campaign metadata; preview images and the solver compatibility binary are regenerated lazily when requested.
 
 ## Module Layout
 
@@ -64,13 +64,13 @@ From `apps/benchmark-dashboard`:
 ```bash
 uv run python -m unittest discover -s tests
 uv run ruff check .
+uv run ruff format --check .
 npm run lint:js
 npm run check:js
-for file in static/*.js; do node --check "$file"; done
 node --test tests/*.test.mjs
 DASHBOARD_URL=http://127.0.0.1:8017 npm run test:browser
 ```
 
-The Python suite also includes route-level integration coverage for manual campaign mutation and regeneration of a missing `inputs/manual.bin` compatibility artifact.
+The Python suite also includes route-level integration coverage for manual campaign mutation and lazy regeneration of a missing `inputs/manual.bin` compatibility artifact.
 
-Manual campaigns use `manual-cases.json` as the canonical editable representation. The generated `inputs/manual.bin` file remains a solver compatibility artifact and is rebuilt when manual cases are saved.
+Manual campaigns use `manual-cases.json` as the canonical editable representation. The generated `inputs/manual.bin` file remains a solver compatibility artifact and is rebuilt on demand for previews, benchmark runs, and comparisons.

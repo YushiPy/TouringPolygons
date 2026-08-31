@@ -198,6 +198,7 @@ def ensure_manual_binary_cache(path: Path) -> Path:
     input_path = manual_input_path(path)
     if input_path.exists() or not manual_cases_path(path).exists():
         return input_path
+    input_path.parent.mkdir(parents=True, exist_ok=True)
     write_binary_cases(input_path, read_manual_cases(path))
     return input_path
 
@@ -296,7 +297,6 @@ def rebuild_manual_campaign(
     ]
     case_data = [manual_case_from_request(case) for case in case_requests]
     write_manual_case_requests(path, case_requests)
-    write_binary_cases(manual_input_path(path), case_data)
     results_dir = path / "results"
     if results_dir.exists():
         shutil.rmtree(results_dir)
@@ -363,7 +363,6 @@ def create_manual_campaign_data(path: Path) -> None:
     }
     (path / "campaign.json").write_text(json.dumps(data, indent=2) + "\n")
     write_manual_cases(path, [])
-    write_binary_cases(manual_input_path(path), [])
 
 
 def find_osm_files() -> list[dict[str, Any]]:
@@ -495,7 +494,10 @@ def campaign_summary(path: Path) -> dict[str, Any]:
     data = read_json(path / "campaign.json")
     campaign_file = path / "campaign.json"
     inputs = data.get("inputs", [])
-    existing_inputs = sum((path / record["file"]).exists() for record in inputs)
+    if data.get("type") == "manual" and manual_cases_path(path).exists():
+        existing_inputs = len(inputs)
+    else:
+        existing_inputs = sum((path / record["file"]).exists() for record in inputs)
     previews = preview_map(data)
     run_index = read_run_index(path / "results/run-index.csv")
     total_instances = total_instance_count(data)

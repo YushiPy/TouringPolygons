@@ -157,10 +157,26 @@ class DashboardMainTests(unittest.TestCase):
             dashboard.create_manual_campaign_data(path)
             dashboard.write_manual_cases(path, [case])
             input_path = dashboard.manual_input_path(path)
-            input_path.unlink()
 
+            self.assertFalse(input_path.exists())
             self.assertEqual(dashboard.ensure_manual_binary_cache(path), input_path)
             self.assertEqual(dashboard.read_binary_cases(input_path, limit=1), [case])
+
+    def test_manual_rebuild_does_not_eagerly_write_binary_cache(self) -> None:
+        case = dashboard.ManualCaseRequest(
+            start=(0.0, 0.0),
+            target=(2.0, 0.0),
+            polygons=[[(0.5, 0.5), (1.5, 0.5), (1.0, 1.25)]],
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            dashboard.create_manual_campaign_data(path)
+
+            summary = dashboard.rebuild_manual_campaign(path, [case])
+
+            self.assertFalse(dashboard.manual_input_path(path).exists())
+            self.assertEqual(summary["inputs"], {"existing": 1, "total": 1})
+            self.assertEqual(summary["instance_progress"]["total"], 1)
 
     def test_binary_case_reader_counts_and_respects_limit(self) -> None:
         cases = [

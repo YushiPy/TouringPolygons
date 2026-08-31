@@ -56,8 +56,7 @@ class DashboardApiIntegrationTests(unittest.TestCase):
 
                 campaign_path = campaigns_root / "integration"
                 binary_path = campaign_path / "inputs/manual.bin"
-                self.assertTrue(binary_path.exists())
-                binary_path.unlink()
+                self.assertFalse(binary_path.exists())
 
                 response = asyncio.run(preview("integration", "instance-0"))
                 self.assertEqual(response.path, campaign_path / "previews/instances/case-0000.svg")
@@ -95,7 +94,7 @@ class DashboardApiIntegrationTests(unittest.TestCase):
                     )
                 )
                 binary_path = campaigns_root / "integration" / "inputs/manual.bin"
-                binary_path.unlink()
+                self.assertFalse(binary_path.exists())
 
                 response = asyncio.run(
                     compare(

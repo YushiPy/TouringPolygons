@@ -1,10 +1,10 @@
-# Benchmark Dashboard Refactor TODO
+# Benchmark Dashboard Refactor Log
 
-This file tracks cleanup and performance work for `apps/benchmark-dashboard`.
+This file records the completed cleanup and performance work for `apps/benchmark-dashboard`.
 
 ## Luna Execution Brief
 
-Use this when continuing the refactor with a smaller model:
+Use this only if starting a new follow-up refactor with a smaller model:
 
 ```text
 You are working in /Users/gabrielushijima/Documents/Scripts/TouringPolygons, specifically apps/benchmark-dashboard.
@@ -21,19 +21,20 @@ Rules:
 - Do not redesign the UI.
 - Do not remove compatibility with existing campaign/result files.
 - If a change looks risky, stop and explain the risk before continuing.
-- After each meaningful step, update TODO.md and run the relevant checks.
+- After each meaningful step, update the relevant docs and run the relevant checks.
 
 Validation commands:
 - cd apps/benchmark-dashboard
 - node --check static/*.js
 - npm run lint:js
-- uv run python -m unittest tests/test_main.py
+- uv run python -m unittest discover -s tests
 - uv run ruff check .
+- uv run ruff format --check .
 - git diff --check
 - If HTML, CSS, frontend boot, or routes changed: run uvicorn locally and then npm run test:browser.
 
 Recommended first action:
-Read TODO.md, main.py, dashboard_routes.py, static/app.js, static/manual-cases.js, templates/index.html, and the list of static/*.css files. Then execute only the next unchecked task from "Luna Task Queue".
+Read this log, main.py, dashboard_routes.py, static/app.js, static/manual-cases.js, templates/index.html, and the list of static/*.css files. Then create a small, explicit follow-up task list before editing.
 ```
 
 ### Luna Operating Rules
@@ -42,8 +43,8 @@ Read TODO.md, main.py, dashboard_routes.py, static/app.js, static/manual-cases.j
 - Keep route moves mechanical: copy route body, inject dependencies, register router, delete old route, run tests.
 - Keep JS moves mechanical: create module/factory, inject dependencies, wire in `app.js`, remove old block, run JS checks.
 - Keep CSS moves mechanical: preserve selector behavior and loading order.
-- Do not move the manual canvas editor object all at once unless all intermediate checks are green.
-- Do not remove `manual.bin` until tests prove it can be regenerated from `manual-cases.json`.
+- The manual canvas editor now lives in `static/manual-editor.js`; keep future edits small and verify browser boot after changing it.
+- Treat `manual.bin` as a generated solver compatibility cache. Do not make it canonical storage again.
 - If a command fails due macOS sandbox/cache permissions, rerun the same command with the appropriate approval instead of changing code around it.
 - Always stop local dev servers before finishing.
 - Final response after each batch must include files changed, size changes when relevant, and checks run.
@@ -59,8 +60,8 @@ Read TODO.md, main.py, dashboard_routes.py, static/app.js, static/manual-cases.j
 	- `GET /api/campaigns/{name}`;
 	- `DELETE /api/campaigns/{name}`.
 3. [x] Register campaign routes through `register_campaign_routes(app, ...)` with explicit dependencies.
-4. [x] Run `uv run ruff check .` and `uv run python -m unittest tests/test_main.py` after the first route extraction.
-	- Equivalent local checks passed with `/Users/gabrielushijima/.local/bin/ruff` and `.venv/bin/python`; `uv run` was blocked by macOS cache permissions.
+4. [x] Run Python and Ruff checks after the first route extraction.
+	- Historical local checks passed with `/Users/gabrielushijima/.local/bin/ruff` and `.venv/bin/python`; current validation uses `uv run python -m unittest discover -s tests`, `uv run ruff check .`, and `uv run ruff format --check .`.
 5. [x] Extract campaign preview routes into `dashboard_campaign_routes.py`:
 	- `GET /api/campaigns/{name}/preview`;
 	- `GET /api/campaigns/{name}/preview/{kind}`;
@@ -195,7 +196,7 @@ Read TODO.md, main.py, dashboard_routes.py, static/app.js, static/manual-cases.j
 	- delete `inputs/manual.bin`;
 	- call endpoint that needs solver input;
 	- verify binary is regenerated; covered through registered instance-preview and comparison routes.
-58. [x] Add helper `ensure_manual_binary_cache(path)` if missing; benchmark and comparison runs rebuild the missing compatibility binary from `manual-cases.json`.
+58. [x] Add helper `ensure_manual_binary_cache(path)` if missing; previews, benchmark runs, and comparisons rebuild the missing compatibility binary from `manual-cases.json`.
 59. [x] Treat `manual.bin` as generated cache only after all manual binary tests pass.
 60. [x] Do not change the solver CLI contract unless explicitly requested; no CLI contract changes were made.
 61. [x] Inspect generated preview/storage directories for redundant files before deleting anything; inspected campaign inputs/previews and deleted nothing.
@@ -208,8 +209,9 @@ Read TODO.md, main.py, dashboard_routes.py, static/app.js, static/manual-cases.j
 	- manual storage model.
 65. [x] Keep `TODO.md` current after every completed task group.
 66. [x] After each route extraction batch, run:
-	- `uv run python -m unittest tests/test_main.py`;
+	- `uv run python -m unittest discover -s tests`;
 	- `uv run ruff check .`;
+	- `uv run ruff format --check .`;
 	- `git diff --check`.
 67. [x] After each frontend extraction batch, run:
 	- `node --check static/*.js`;
@@ -344,14 +346,14 @@ Read TODO.md, main.py, dashboard_routes.py, static/app.js, static/manual-cases.j
 	- Added ESLint and Ruff configuration for the dashboard sources.
 	- Browser execution remains environment-dependent because the local browser runner may block localhost URLs.
 - Added explicit upper bounds for generated instances, polygon counts, worker threads, benchmark sizes, and manual editor payloads.
-- Kept `manual-cases.json` as the canonical editable source and `inputs/manual.bin` as a compatibility artifact for the existing solver CLI.
-	- Full removal of the binary artifact requires changing the solver input contract and is intentionally still pending.
+- Kept `manual-cases.json` as the canonical editable source and `inputs/manual.bin` as a generated compatibility artifact for the existing solver CLI.
+	- The binary artifact remains in campaign metadata for CLI compatibility and is rebuilt lazily when previews, benchmark runs, or comparisons need it.
 - Added atomic, locked preview writes using temporary files and `os.replace()`.
 - Added compact `/api/jobs/{job_id}/progress` responses for active polling.
 - Added regression tests for resource limits and compact job snapshots.
 - Separated manual autosave persistence from preview generation.
-	- Autosave still updates the editable JSON, binary input, campaign metadata, and invalidates benchmark results.
-	- Autosave now skips expensive preview rendering and invalidates old preview metadata.
+	- Autosave updates the editable JSON and campaign metadata, then invalidates benchmark results.
+	- Autosave now skips expensive preview rendering and binary input generation.
 	- Preview requests regenerate the previews lazily when they are needed.
 - Reduced duplicate polling work in the frontend.
 	- Centralized job and report polling intervals.
