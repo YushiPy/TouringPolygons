@@ -6,7 +6,7 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import BinaryIO
 
-from dashboard_models import CaseData, Point
+from dashboard.dashboard_models import CaseData, Point
 
 SIZE_STRUCT = struct.Struct("<Q")
 POINT_STRUCT = struct.Struct("<dd")

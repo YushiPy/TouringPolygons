@@ -8,7 +8,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from dashboard_binary import _binary_offset_cache
+from dashboard.dashboard_binary import _binary_offset_cache
 
 FILE_CACHE_LIMIT = 128
 

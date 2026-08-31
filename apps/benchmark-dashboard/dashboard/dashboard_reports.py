@@ -4,7 +4,7 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
-from dashboard_files import (
+from dashboard.dashboard_files import (
     FILE_CACHE_LIMIT,
     file_signature,
     read_csv_rows,

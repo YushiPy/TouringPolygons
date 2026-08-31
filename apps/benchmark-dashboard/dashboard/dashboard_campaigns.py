@@ -5,9 +5,9 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from dashboard_binary import binary_case_count, read_binary_case, read_binary_cases
-from dashboard_files import read_json
-from dashboard_models import CaseData
+from dashboard.dashboard_binary import binary_case_count, read_binary_case, read_binary_cases
+from dashboard.dashboard_files import read_json
+from dashboard.dashboard_models import CaseData
 
 
 def total_instance_count(data: dict[str, Any]) -> int:

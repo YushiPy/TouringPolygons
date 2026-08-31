@@ -8,15 +8,15 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from dashboard_campaigns import (
+from dashboard.dashboard_campaigns import (
     instance_preview_list,
     preview_map,
     read_campaign_case,
     read_campaign_cases,
     total_instance_count,
 )
-from dashboard_files import _json_cache, read_json
-from dashboard_models import CaseData, Point
+from dashboard.dashboard_files import _json_cache, read_json
+from dashboard.dashboard_models import CaseData, Point
 
 PREVIEW_VERSION = 6
 

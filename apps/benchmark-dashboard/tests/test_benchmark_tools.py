@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -31,6 +32,7 @@ normalizer = load_module(
     REPO_ROOT / "benchmarks/scripts/normalize_polygon_orientation.py",
 )
 run_generated = load_module("run_generated", REPO_ROOT / "benchmarks/scripts/run_generated.py")
+convert_instances = load_module("convert_instances", REPO_ROOT / "benchmarks/scripts/convert_instances.py")
 
 
 class BenchmarkToolTests(unittest.TestCase):
@@ -151,6 +153,83 @@ class BenchmarkToolTests(unittest.TestCase):
                 next_signature = run_generated.completion_signature(args, input_path)
 
             self.assertFalse(run_generated.marker_matches(marker, next_signature))
+
+    def test_normalizer_check_cli_reports_clockwise_polygons(self) -> None:
+        cases = [
+            normalizer.BinaryCase(
+                start=(-1.0, 0.5),
+                target=(2.0, 0.5),
+                polygons=[[(0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]],
+                solution=[],
+            )
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "cases.bin"
+            normalizer.write_binary_cases(path, cases)
+            completed = subprocess.run(
+                [sys.executable, str(REPO_ROOT / "benchmarks/scripts/normalize_polygon_orientation.py"), "--check", str(path)],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(completed.returncode, 1)
+            self.assertIn("needs-fix:", completed.stdout)
+            self.assertIn("reversed=1", completed.stdout)
+
+    def test_normalizer_in_place_cli_is_idempotent(self) -> None:
+        cases = [
+            normalizer.BinaryCase(
+                start=(-1.0, 0.5),
+                target=(2.0, 0.5),
+                polygons=[[(0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]],
+                solution=[(-1.0, 0.5), (2.0, 0.5)],
+            )
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "cases.bin"
+            normalizer.write_binary_cases(path, cases)
+            subprocess.run(
+                [sys.executable, str(REPO_ROOT / "benchmarks/scripts/normalize_polygon_orientation.py"), "--in-place", str(path)],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            normalized_bytes = path.read_bytes()
+            completed = subprocess.run(
+                [sys.executable, str(REPO_ROOT / "benchmarks/scripts/normalize_polygon_orientation.py"), "--in-place", str(path)],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
+
+            self.assertEqual(path.read_bytes(), normalized_bytes)
+            self.assertIn("reversed=0", completed.stdout)
+
+    def test_convert_instances_parses_polygons_as_counter_clockwise(self) -> None:
+        polygon = convert_instances.parse_polygon_wkt("POLYGON ((0 1, 1 1, 1 0, 0 0, 0 1))")
+
+        self.assertGreater(convert_instances.signed_area2(polygon), 0.0)
+
+    def test_binary_reader_rejects_trailing_garbage(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "cases.bin"
+            path.write_bytes(b"trailing")
+
+            with self.assertRaises(ValueError):
+                normalizer.read_binary_cases(path)
+
+    def test_zero_area_polygons_are_left_unchanged(self) -> None:
+        polygon = [(0.0, 0.0), (1.0, 0.0), (2.0, 0.0)]
+
+        normalized, changed = normalizer.normalize_polygon(polygon)
+
+        self.assertFalse(changed)
+        self.assertEqual(normalized, polygon)
 
 
 if __name__ == "__main__":

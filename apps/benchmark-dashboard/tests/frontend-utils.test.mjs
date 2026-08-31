@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { benchmarkedPreviewHTML } from "../static/benchmarked-preview.js";
 import {
 	casePayload,
 	cloneCaseData,
@@ -113,6 +114,20 @@ test("command builders preserve selected options", () => {
 	} finally {
 		globalThis.FormData = originalFormData;
 	}
+});
+
+test("benchmarked cards prefer solution previews when available", () => {
+	const campaign = { name: "demo suite", version: 123 };
+	const html = benchmarkedPreviewHTML(campaign, {
+		case_index: 2,
+		repeat_index: 1,
+		preview: "previews/instances/case-0002.svg",
+		solution_available: true,
+	});
+
+	assert.match(html, /\/api\/campaigns\/demo%20suite\/solution-preview\/2\?repeat_index=1&v=123/);
+	assert.doesNotMatch(html, /\/preview\/instance-2/);
+	assert.match(html, /loading="lazy"/);
 });
 
 test("report utilities parse common timing and solver values", () => {

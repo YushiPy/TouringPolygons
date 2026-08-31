@@ -10,7 +10,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from dashboard_models import Job
+from dashboard.dashboard_models import Job
 
 PROGRESS_PATTERN = re.compile(r"cases\s+\|\s+\[[^\]]*\]\s+(\d+)\s*/\s*(\d+)")
 SOLVER_SECTION_PATTERN = re.compile(r"^##\s+(.+)$", re.MULTILINE)

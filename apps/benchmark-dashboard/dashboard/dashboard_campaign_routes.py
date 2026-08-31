@@ -10,7 +10,7 @@ from typing import Any
 from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 
-from dashboard_models import (
+from dashboard.dashboard_models import (
     CreateOsmRequest,
     CreateSyntheticRequest,
     ImportCanonicalRequest,

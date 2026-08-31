@@ -8,6 +8,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class DashboardStructureTests(unittest.TestCase):
+    def test_python_support_modules_live_in_dashboard_package(self) -> None:
+        self.assertTrue((ROOT / "dashboard/__init__.py").exists())
+        self.assertEqual(
+            sorted(path.name for path in ROOT.glob("dashboard_*.py")),
+            [],
+        )
+
     def test_campaign_routes_are_registered(self) -> None:
         paths_data = main.app.openapi()["paths"]
         paths = set(paths_data)
@@ -56,6 +63,16 @@ class DashboardStructureTests(unittest.TestCase):
     def test_generated_preview_images_use_lazy_loading(self) -> None:
         for path in (ROOT / "static/app.js", ROOT / "static/campaign-rendering.js"):
             self.assertIn('loading="lazy"', path.read_text(), path.name)
+
+    def test_benchmark_solution_preview_uses_dashboard_style(self) -> None:
+        source = (
+            ROOT.parents[1]
+            / "packages/nonconvex-tpp/cpp/src/main-bnb_workload_benchmark.cpp"
+        ).read_text()
+
+        self.assertIn('data-preview-version=\\"7\\"', source)
+        self.assertIn('fill=\\"#121417\\"', source)
+        self.assertIn('stroke=\\"#facc15\\"', source)
 
     def test_large_preview_grids_start_with_a_sample(self) -> None:
         module = (ROOT / "static/preview-panels.js").read_text()

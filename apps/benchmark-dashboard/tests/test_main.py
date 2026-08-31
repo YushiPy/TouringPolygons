@@ -17,7 +17,7 @@ dashboard = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 sys.modules[SPEC.name] = dashboard
 SPEC.loader.exec_module(dashboard)
-import dashboard_reports  # noqa: E402
+import dashboard.dashboard_reports as dashboard_reports  # noqa: E402
 
 
 class DashboardMainTests(unittest.TestCase):

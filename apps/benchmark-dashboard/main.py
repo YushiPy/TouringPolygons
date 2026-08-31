@@ -60,15 +60,15 @@ OSM_SEARCH_EXCLUDES = {
 
 if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
-from dashboard_binary import (  # noqa: E402
+from dashboard.dashboard_binary import (  # noqa: E402
     _binary_offset_cache,
     binary_case_count,
     read_binary_case,
     read_binary_cases,
     write_binary_cases,
 )
-from dashboard_campaign_routes import register_campaign_routes  # noqa: E402
-from dashboard_campaigns import (  # noqa: E402
+from dashboard.dashboard_campaign_routes import register_campaign_routes  # noqa: E402
+from dashboard.dashboard_campaigns import (  # noqa: E402
     campaign_input_label,
     first_input_file,
     instance_preview_list,
@@ -78,7 +78,7 @@ from dashboard_campaigns import (  # noqa: E402
     result_preview_list,
     total_instance_count,
 )
-from dashboard_files import (  # noqa: E402
+from dashboard.dashboard_files import (  # noqa: E402
     FILE_CACHE_LIMIT,
     _csv_cache,
     _json_cache,
@@ -89,8 +89,8 @@ from dashboard_files import (  # noqa: E402
     read_run_index,
     trim_file_caches,
 )
-from dashboard_jobs import JobController  # noqa: E402
-from dashboard_models import (  # noqa: E402
+from dashboard.dashboard_jobs import JobController  # noqa: E402
+from dashboard.dashboard_models import (  # noqa: E402
     MAX_MANUAL_CASES,
     MAX_POLYGONS_PER_CASE,
     MAX_VERTICES_PER_CASE,
@@ -101,7 +101,7 @@ from dashboard_models import (  # noqa: E402
     ManualCaseRequest,
     RunCampaignRequest,
 )
-from dashboard_previews import (  # noqa: E402
+from dashboard.dashboard_previews import (  # noqa: E402
     PREVIEW_VERSION,
     campaign_previews_are_stale,
     case_bounds,
@@ -116,7 +116,7 @@ from dashboard_previews import (  # noqa: E402
     write_case_preview,
     write_imported_previews,
 )
-from dashboard_reports import (  # noqa: E402
+from dashboard.dashboard_reports import (  # noqa: E402
     comparison_rows,
     completed_instance_count,
     latest_comparison_path,
@@ -125,7 +125,7 @@ from dashboard_reports import (  # noqa: E402
     summary_files,
     summary_result_rows,
 )
-from dashboard_routes import register_support_routes  # noqa: E402
+from dashboard.dashboard_routes import register_support_routes  # noqa: E402
 
 _COMPAT_EXPORTS = (
     FILE_CACHE_LIMIT,

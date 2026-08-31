@@ -1,4 +1,5 @@
 import { requestJSON } from "./api.js";
+import { benchmarkedPreviewHTML, instancePreviewUrl } from "./benchmarked-preview.js";
 import { casePayload, cloneCaseData, emptyCaseData, instanceLabel } from "./case-data.js";
 import { boolField, compareCommandFromForm, formData, runCommandFromForm } from "./command-builders.js";
 import { createDashboardControls } from "./controls.js";
@@ -274,14 +275,6 @@ function previewUrl(campaign, kind) {
 	return `/api/campaigns/${encodeURIComponent(campaign.name)}/preview/${kind}?v=${campaign.version || ""}`;
 }
 
-function instancePreviewUrl(campaign, index) {
-	return `/api/campaigns/${encodeURIComponent(campaign.name)}/preview/instance-${index}?v=${campaign.version || ""}`;
-}
-
-function solutionPreviewUrl(campaign, item) {
-	return `/api/campaigns/${encodeURIComponent(campaign.name)}/solution-preview/${item.case_index}?repeat_index=${item.repeat_index}&v=${campaign.version || ""}`;
-}
-
 function instancePreviewButton(campaign, index, className = "instance-thumb", options = {}) {
 	const button = document.createElement("button");
 	button.className = className;
@@ -356,11 +349,7 @@ function renderBenchmarkedInstanceSection(root, campaign, instances) {
 		const button = document.createElement("button");
 		button.type = "button";
 		button.className = "benchmarked-card";
-		const preview = item.preview
-			? `<img src="${instancePreviewUrl(campaign, item.case_index)}" alt="Benchmarked instance ${instanceLabel(item.case_index)}" loading="lazy">`
-			: item.solution_available
-				? `<img src="${solutionPreviewUrl(campaign, item)}" alt="Solved instance ${instanceLabel(item.case_index)} with path and decomposition" loading="lazy">`
-				: '<div class="missing-preview">No preview</div>';
+		const preview = benchmarkedPreviewHTML(campaign, item);
 		button.innerHTML = `
       ${preview}
       <div class="benchmarked-meta">
