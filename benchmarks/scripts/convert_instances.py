@@ -48,7 +48,18 @@ def parse_polygon_wkt(wkt: str) -> list[Point]:
 	if len(points) < 3:
 		raise ValueError(f"Polygon has fewer than 3 distinct vertices: {wkt[:80]}")
 
+	if signed_area2(points) < 0.0:
+		points.reverse()
+
 	return points
+
+
+def signed_area2(polygon: Sequence[Point]) -> float:
+	area = 0.0
+	for index, point in enumerate(polygon):
+		next_point = polygon[(index + 1) % len(polygon)]
+		area += point[0] * next_point[1] - next_point[0] * point[1]
+	return area
 
 
 def bounding_box(polygons: Sequence[Sequence[Point]]) -> tuple[float, float, float, float]:
