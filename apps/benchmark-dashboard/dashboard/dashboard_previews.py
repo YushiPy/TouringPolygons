@@ -238,9 +238,13 @@ def ensure_instance_preview(path: Path, data: dict[str, Any], index: int) -> Pat
     if index < 0:
         return None
     instance_previews = instance_preview_list(data)
-    if index >= len(instance_previews):
+    if index >= len(instance_previews) and index >= total_instance_count(data):
         return None
-    preview_path = path / instance_previews[index]
+    preview_path = (
+        path / instance_previews[index]
+        if index < len(instance_previews)
+        else path / "previews" / "instances" / f"case-{index:04}.svg"
+    )
     if preview_path.exists() and not preview_svg_is_stale(preview_path):
         return preview_path
     case = read_campaign_case(path, data, index)

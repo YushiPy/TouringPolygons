@@ -23,7 +23,7 @@ uv run uvicorn main:app --host 127.0.0.1 --port 8017
 ## Main Views
 
 - `Create`: builds synthetic or OSM-derived campaigns, with optional preview generation. Generated batches can also be appended to an existing campaign.
-- `Cases`: opens a campaign in the manual instance editor. The editor supports moving endpoints and vertices, drawing polygons, selecting/deleting vertices, bulk-deleting instances, zooming, fitting, grid snapping, convex decomposition display, labels, and live path solving.
+- `Cases`: opens a campaign in the manual instance editor. The editor supports moving endpoints and vertices, drawing polygons, selecting/deleting vertices, deleting instances, zooming, fitting, grid snapping, convex decomposition display, labels, and live path solving.
 - `Inspect`: lists campaigns, imports bundled suites, shows SVG preview grids, opens individual instances, and shows recent result files and jobs.
 - `Benchmark`: runs a selected campaign through a solver and displays progress, summary metrics, histograms, and solved instance cards.
 - `Comparison`: runs the same campaign through multiple solvers and compares wall time, convex solve time, calls, and solved counts.
@@ -49,6 +49,8 @@ Campaign data lives under `benchmarks/campaigns`. Benchmark outputs live under `
 Generated and imported campaigns can be inspected and edited through the same case API. Saving edits updates the canonical manual case JSON and campaign metadata; preview images and the solver compatibility binary are regenerated lazily when requested.
 
 Appending generated cases converts the destination campaign to the editable manual-json format, marks appended instances as generated, stores a compact edit-history entry, and clears stale benchmark outputs.
+
+The topbar `Unsafe Delete` toggle disables delete confirmations for faster editing sessions. Overwrite confirmations still remain enabled.
 
 ## Module Layout
 

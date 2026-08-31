@@ -185,6 +185,14 @@ button.danger:active {
 	color: #fff;
 }
 
+#unsafe-delete-toggle.is-active,
+#unsafe-delete-toggle.is-active:hover,
+#unsafe-delete-toggle.is-active:focus {
+	border-color: var(--danger);
+	background: var(--danger);
+	color: #fff;
+}
+
 :root[data-theme="dark"] button.danger,
 :root[data-theme="dark"] button.danger:focus {
 	border-color: var(--danger);

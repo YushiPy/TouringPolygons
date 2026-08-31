@@ -5,6 +5,7 @@ APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "${APP_ROOT}/../.." && pwd)"
 PYTHON="${APP_ROOT}/.venv/bin/python3"
 BROWSER_PORT="${BROWSER_PORT:-8018}"
+export UV_CACHE_DIR="${UV_CACHE_DIR:-/tmp/touringpolygons-uv-cache}"
 TMP_FILES=()
 
 cleanup() {
@@ -37,7 +38,7 @@ frontend_utils_log="$(make_log)"
 camera_log="$(make_log)"
 browser_status="skipped"
 
-"${PYTHON}" -m ruff check .
+uv run ruff check .
 "${PYTHON}" -m py_compile main.py dashboard/*.py tests/*.py
 "${PYTHON}" -m unittest discover -s tests 2>&1 | tee "${python_unittest_log}"
 npm run check:js

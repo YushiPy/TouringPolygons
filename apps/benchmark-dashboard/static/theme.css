@@ -21,7 +21,6 @@
 	--toggle-active-hover: #1d4ed8;
 	--toggle-active-text: #ffffff;
 	--danger: #991b1b;
-	--danger-soft: #fee2e2;
 	--danger-hover: #7f1d1d;
 	--danger-active: #6b1111;
 	--success: #16a34a;
@@ -64,7 +63,6 @@
 	--toggle-active-hover: #d1d5db;
 	--toggle-active-text: #14171c;
 	--danger: #dc2626;
-	--danger-soft: rgba(220, 38, 38, 0.16);
 	--danger-hover: #b91c1c;
 	--danger-active: #991b1b;
 	--success: #34d399;

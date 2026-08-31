@@ -93,14 +93,6 @@
 	cursor: default;
 }
 
-.manual-case-row.is-delete-selected .manual-case-select,
-.manual-case-row.is-delete-selected .manual-case-select:hover {
-	border-color: var(--danger);
-	background: var(--danger-soft);
-	color: var(--danger);
-	cursor: pointer;
-}
-
 .manual-case-select span {
 	color: inherit;
 	font-size: 0.8rem;
@@ -154,14 +146,6 @@
 
 .manual-case-actions .manual-case-action:hover {
 	transform: none;
-}
-
-.manual-case-delete-check {
-	width: 22px;
-	height: 22px;
-	margin: 0;
-	accent-color: var(--danger);
-	cursor: pointer;
 }
 
 .case-editor {
@@ -361,8 +345,7 @@
 	transform: translateX(0);
 }
 
-.instance-name-button,
-.instance-name-label {
+.instance-name-button {
 	width: max-content;
 	max-width: 100%;
 	min-height: 0;

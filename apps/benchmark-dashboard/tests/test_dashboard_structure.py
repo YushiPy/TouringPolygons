@@ -35,8 +35,6 @@ class DashboardStructureTests(unittest.TestCase):
         template = main.templates.get_template("index.html").render(request=object())
         for element_id in (
             "append-target",
-            "bulk-delete-toggle",
-            "bulk-delete-selected",
             "create-form",
             "manual-case-canvas",
             "run-form",
@@ -45,6 +43,7 @@ class DashboardStructureTests(unittest.TestCase):
             "confirm-modal",
             "keybind-modal",
             "job-dock",
+            "unsafe-delete-toggle",
         ):
             self.assertRegex(template, rf'id=["\']{element_id}["\']')
 
@@ -63,13 +62,12 @@ class DashboardStructureTests(unittest.TestCase):
         for linked in links:
             self.assertTrue((ROOT / "static" / linked).exists(), linked)
 
-    def test_manual_instance_actions_use_icons(self) -> None:
-        utilities = (ROOT / "static/ui-utils.js").read_text()
+    def test_manual_instance_actions_use_original_controls(self) -> None:
         manual_cases = (ROOT / "static/manual-cases.js").read_text()
 
-        self.assertIn("duplicateIconSVG", utilities)
-        self.assertIn("setDuplicateIcon(duplicateButton)", manual_cases)
-        self.assertNotIn('duplicateButton.textContent = "⧉"', manual_cases)
+        self.assertIn('duplicateButton.textContent = "⧉"', manual_cases)
+        self.assertIn("setCloseIcon(deleteButton)", manual_cases)
+        self.assertNotIn("setDuplicateIcon(duplicateButton)", manual_cases)
 
     def test_dashboard_test_runner_exists(self) -> None:
         script = ROOT / "scripts/run-tests.sh"

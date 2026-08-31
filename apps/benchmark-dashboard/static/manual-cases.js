@@ -15,7 +15,6 @@ export function createManualCaseController(deps) {
 		refresh,
 		requestJSON,
 		setCloseIcon,
-		setDuplicateIcon,
 		state,
 		switchPanel,
 	} = deps;
@@ -64,39 +63,28 @@ export function createManualCaseController(deps) {
 			return;
 		}
 		root.innerHTML = "";
-		state.manualDeleteSelection ??= new Set();
 		if (!state.manualCampaign) {
 			root.textContent = "Create or select a manual campaign.";
 			state.manualCases = [];
-			state.manualDeleteSelection.clear();
-			renderBulkDeleteControls();
 			manualEditor.draw();
 			return;
 		}
 		if (state.manualCases.length === 0) {
 			root.textContent = "No instances yet.";
-			state.manualDeleteSelection.clear();
-			renderBulkDeleteControls();
 			manualEditor.draw();
 			return;
 		}
-		state.manualDeleteSelection = new Set(
-			[...state.manualDeleteSelection].filter((index) => index >= 0 && index < state.manualCases.length),
-		);
 		state.manualCases.forEach((item, index) => {
 			root.appendChild(manualCaseRow(item, index));
 		});
-		renderBulkDeleteControls();
 		manualEditor.draw();
 	}
 
 	function manualCaseRow(item, index) {
 		const active = index === state.manualCaseIndex;
-		const selected = state.manualDeleteSelection?.has(index);
 		const row = document.createElement("div");
 		row.className = "manual-case-row";
 		row.classList.toggle("is-active", active);
-		row.classList.toggle("is-delete-selected", selected);
 		row.dataset.caseIndex = String(index);
 		row.append(manualCaseSelect(item, index, active), manualCaseActions(index));
 		return row;
@@ -113,13 +101,7 @@ export function createManualCaseController(deps) {
 		count.dataset.casePolygonCount = "";
 		count.innerHTML = polygonCountLabel(item);
 		selectArea.append(manualCaseNameControl(item, index), count);
-		const select = () => {
-			if (state.manualBulkDelete) {
-				toggleManualCaseDeleteSelection(index);
-			} else {
-				selectManualCase(index, active);
-			}
-		};
+		const select = () => selectManualCase(index, active);
 		selectArea.addEventListener("click", select);
 		selectArea.addEventListener("keydown", (event) => {
 			if (event.key === "Enter" || event.key === " ") {
@@ -131,12 +113,6 @@ export function createManualCaseController(deps) {
 	}
 
 	function manualCaseNameControl(item, index) {
-		if (state.manualBulkDelete) {
-			const label = document.createElement("strong");
-			label.className = "instance-name-label";
-			label.textContent = item.name || `Instance ${instanceLabel(index)}`;
-			return label;
-		}
 		if (state.manualRenamingIndex === index) {
 			const input = document.createElement("input");
 			input.className = "instance-name-input";
@@ -175,23 +151,10 @@ export function createManualCaseController(deps) {
 	function manualCaseActions(index) {
 		const actions = document.createElement("div");
 		actions.className = "manual-case-actions";
-		if (state.manualBulkDelete) {
-			const checkbox = document.createElement("input");
-			checkbox.type = "checkbox";
-			checkbox.className = "manual-case-delete-check";
-			checkbox.checked = Boolean(state.manualDeleteSelection?.has(index));
-			checkbox.setAttribute("aria-label", `Select instance ${instanceLabel(index)} for deletion`);
-			checkbox.addEventListener("click", (event) => {
-				event.stopPropagation();
-				toggleManualCaseDeleteSelection(index);
-			});
-			actions.append(checkbox);
-			return actions;
-		}
 		const duplicateButton = document.createElement("button");
 		duplicateButton.type = "button";
 		duplicateButton.className = "secondary manual-case-action";
-		setDuplicateIcon(duplicateButton);
+		duplicateButton.textContent = "⧉";
 		duplicateButton.title = "Duplicate";
 		duplicateButton.setAttribute("aria-label", `Duplicate instance ${instanceLabel(index)}`);
 		duplicateButton.addEventListener("click", () => duplicateManualCase(index));
@@ -204,56 +167,6 @@ export function createManualCaseController(deps) {
 		deleteButton.addEventListener("click", (event) => deleteManualCase(index, { skipConfirm: event.shiftKey }));
 		actions.append(duplicateButton, deleteButton);
 		return actions;
-	}
-
-	function renderBulkDeleteControls() {
-		const toggle = $("#bulk-delete-toggle");
-		const all = $("#bulk-delete-all");
-		const selected = $("#bulk-delete-selected");
-		if (!toggle || !all || !selected) {
-			return;
-		}
-		const count = state.manualDeleteSelection?.size || 0;
-		const active = Boolean(state.manualBulkDelete);
-		toggle.textContent = active ? "Cancel" : "Select";
-		toggle.classList.toggle("is-active", active);
-		all.classList.toggle("is-hidden", !active);
-		selected.classList.toggle("is-hidden", !active);
-		selected.disabled = count === 0;
-		selected.textContent = count > 0 ? `Delete ${count}` : "Delete Selected";
-		all.textContent = count === state.manualCases.length ? "None" : "All";
-	}
-
-	function setBulkDeleteMode(active) {
-		state.manualBulkDelete = active;
-		state.manualDeleteSelection = new Set();
-		renderManualCases();
-	}
-
-	function toggleBulkDeleteMode() {
-		setBulkDeleteMode(!state.manualBulkDelete);
-	}
-
-	function toggleManualCaseDeleteSelection(index) {
-		state.manualDeleteSelection ??= new Set();
-		if (state.manualDeleteSelection.has(index)) {
-			state.manualDeleteSelection.delete(index);
-		} else {
-			state.manualDeleteSelection.add(index);
-		}
-		renderManualCases();
-	}
-
-	function selectAllManualCases() {
-		if (!state.manualBulkDelete) {
-			state.manualBulkDelete = true;
-		}
-		if ((state.manualDeleteSelection?.size || 0) === state.manualCases.length) {
-			state.manualDeleteSelection = new Set();
-		} else {
-			state.manualDeleteSelection = new Set(state.manualCases.map((_, index) => index));
-		}
-		renderManualCases();
 	}
 
 	function polygonCountLabel(item) {
@@ -459,7 +372,7 @@ export function createManualCaseController(deps) {
 		if (!state.manualCampaign || state.manualCases.length === 0) {
 			return;
 		}
-		if (!options.skipConfirm && !(await askConfirmation(`Delete instance ${instanceLabel(index)} from "${state.manualCampaign}"?`, "Delete"))) {
+		if (!options.skipConfirm && !state.unsafeDeletion && !(await askConfirmation(`Delete instance ${instanceLabel(index)} from "${state.manualCampaign}"?`, "Delete"))) {
 			return;
 		}
 		state.manualCases.splice(index, 1);
@@ -471,30 +384,9 @@ export function createManualCaseController(deps) {
 		scheduleManualAutosave({ immediate: true });
 	}
 
-	async function deleteSelectedManualCases() {
-		const selected = [...(state.manualDeleteSelection || new Set())].sort((a, b) => a - b);
-		if (!state.manualCampaign || selected.length === 0) {
-			return;
-		}
-		if (!(await askConfirmation(`Delete ${selected.length} selected instances from "${state.manualCampaign}"?`, "Delete"))) {
-			return;
-		}
-		const deleteSet = new Set(selected);
-		state.manualCases = state.manualCases.filter((_, index) => !deleteSet.has(index));
-		state.manualCaseIndex = Math.min(state.manualCaseIndex, Math.max(0, state.manualCases.length - 1));
-		state.manualBulkDelete = false;
-		state.manualDeleteSelection = new Set();
-		manualEditor.activePolygon = null;
-		manualEditor.solutionPath = null;
-		renderManualCases();
-		manualEditor.changed();
-		scheduleManualAutosave({ immediate: true });
-	}
-
 	return {
 		createManualCampaign,
 		deleteManualCase,
-		deleteSelectedManualCases,
 		duplicateManualCase,
 		editInstance,
 		loadCampaignCaseMetadata,
@@ -504,8 +396,6 @@ export function createManualCaseController(deps) {
 		renderManualCases,
 		scheduleManualAutosave,
 		selectManualCampaign,
-		selectAllManualCases,
-		toggleBulkDeleteMode,
 		updateManualCaseListMetadata,
 	};
 }

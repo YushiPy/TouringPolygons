@@ -38,8 +38,14 @@ export function createPreviewPanelController({
 	renderCanvasPlaceholder,
 }) {
 	async function populateInstancePreviewPanels(root, campaign, options = {}) {
-		const previewCount = campaign.instance_previews?.length || 0;
+		const generation = campaign.generation || {};
+		const previewCount = campaign.instance_previews?.length
+			|| campaign.instance_progress?.total
+			|| generation.instances
+			|| generation.instances_per_file
+			|| 0;
 		if (previewCount === 0) {
+			root.innerHTML = "";
 			root.classList.toggle("is-hidden", root.children.length === 0);
 			return;
 		}

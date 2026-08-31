@@ -306,6 +306,29 @@ class DashboardMainTests(unittest.TestCase):
             self.assertEqual(dashboard.ensure_instance_preview(path, data, 0), instance_path)
             self.assertTrue(instance_path.exists())
 
+    def test_instance_previews_are_generated_without_preview_metadata(self) -> None:
+        case = dashboard.manual_case_from_request(
+            dashboard.ManualCaseRequest(
+                start=(0.0, 0.0),
+                target=(2.0, 0.0),
+                polygons=[[(0.5, 0.5), (1.5, 0.5), (1.0, 1.25)]],
+            )
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            dashboard.write_binary_cases(path / "inputs/manual.bin", [case])
+            data = {
+                "inputs": [{"file": "inputs/manual.bin", "instances": 1}],
+                "generation": {"instances": 1},
+                "preview": None,
+                "previews": {},
+                "instance_previews": [],
+            }
+            instance_path = path / "previews/instances/case-0000.svg"
+
+            self.assertEqual(dashboard.ensure_instance_preview(path, data, 0), instance_path)
+            self.assertTrue(instance_path.exists())
+
     def test_manual_autosave_invalidates_previews_without_rebuilding_them(self) -> None:
         case = dashboard.manual_case_from_request(
             dashboard.ManualCaseRequest(
