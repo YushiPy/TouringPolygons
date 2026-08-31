@@ -30,6 +30,29 @@
 	}
 }
 
+@media (max-width: 1150px) {
+	.case-editor-shell {
+		grid-template-columns: 1fr;
+	}
+
+	.case-sidebar {
+		overflow: hidden;
+	}
+
+	.field-label-row,
+	.case-list-head {
+		align-items: flex-start;
+	}
+
+	.sort-by-control {
+		max-width: 100%;
+	}
+
+	.sort-by-control .segment {
+		padding-inline: 0.4rem;
+	}
+}
+
 @media (max-width: 780px) {
 	.shell {
 		padding: 18px;

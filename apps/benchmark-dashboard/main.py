@@ -63,6 +63,7 @@ if str(APP_ROOT) not in sys.path:
 from dashboard.dashboard_binary import (  # noqa: E402
     _binary_offset_cache,
     binary_case_count,
+    counter_clockwise_case,
     read_binary_case,
     read_binary_cases,
     write_binary_cases,
@@ -198,8 +199,6 @@ def ensure_manual_binary_cache(path: Path) -> Path:
     input_path = manual_input_path(path)
     cases_path = manual_cases_path(path)
     if not cases_path.exists():
-        return input_path
-    if input_path.exists() and input_path.stat().st_mtime_ns >= cases_path.stat().st_mtime_ns:
         return input_path
     input_path.parent.mkdir(parents=True, exist_ok=True)
     write_binary_cases(input_path, read_manual_cases(path))
@@ -502,11 +501,17 @@ def campaign_summary(path: Path) -> dict[str, Any]:
     else:
         existing_inputs = sum((path / record["file"]).exists() for record in inputs)
     previews = preview_map(data)
+    inputs_available = (
+        manual_cases_path(path).exists()
+        if data.get("type") == "manual"
+        else any((path / record["file"]).exists() for record in inputs if isinstance(record.get("file"), str))
+    )
     run_index = read_run_index(path / "results/run-index.csv")
     total_instances = total_instance_count(data)
     completed_instances = completed_instance_count(path, run_index)
     return {
         "name": data.get("name", path.name),
+        "order": data.get("display_order"),
         "type": data.get("type", "osm" if data.get("source") else "unknown"),
         "path": str(path),
         "created_utc": data.get("created_utc"),
@@ -520,7 +525,7 @@ def campaign_summary(path: Path) -> dict[str, Any]:
         "preview": previews.get("all") or next(iter(previews.values()), None),
         "previews": previews,
         "instance_previews": result_preview_list(path, data),
-        "has_preview": any((path / preview).exists() for preview in previews.values()),
+        "has_preview": (bool(total_instances) and inputs_available) or any((path / preview).exists() for preview in previews.values()),
         "run_index": run_index,
         "benchmark_runs": data.get("benchmark_runs", []),
         "version": campaign_file.stat().st_mtime_ns,
@@ -577,7 +582,7 @@ def ensure_live_solver_binary() -> None:
 
 
 def live_solver_input(case: CaseData, max_calls: int, max_seconds: float) -> str:
-    start, target, polygons = case
+    start, target, polygons = counter_clockwise_case(case)
     lines = [
         f"{start[0]} {start[1]}",
         f"{target[0]} {target[1]}",

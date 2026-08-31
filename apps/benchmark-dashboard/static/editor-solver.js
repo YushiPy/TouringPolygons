@@ -45,12 +45,37 @@ export async function loadEditorGeometry() {
 	return editorSolverState.geometry;
 }
 
+function signedArea2(polygon) {
+	let area = 0;
+	for (let index = 0; index < polygon.length; index += 1) {
+		const point = polygon[index];
+		const next = polygon[(index + 1) % polygon.length];
+		area += point[0] * next[1] - next[0] * point[1];
+	}
+	return area;
+}
+
+function counterClockwisePolygon(polygon) {
+	const points = polygon.map((point) => [...point]);
+	return points.length >= 3 && signedArea2(points) < 0 ? points.reverse() : points;
+}
+
+function counterClockwiseCase(caseData) {
+	return {
+		...caseData,
+		start: [...caseData.start],
+		target: [...caseData.target],
+		polygons: caseData.polygons.map(counterClockwisePolygon),
+	};
+}
+
 export function solveEditorWasm(caseData, maxCalls = 200000, maxSeconds = 3) {
 	const module = editorSolverState.module;
 	if (!module) {
 		return null;
 	}
-	const polygons = caseData.polygons;
+	const normalizedCase = counterClockwiseCase(caseData);
+	const polygons = normalizedCase.polygons;
 	const totalVertices = polygons.reduce((sum, polygon) => sum + polygon.length, 0);
 	const pointsPtr = module._malloc(totalVertices * 2 * Float64Array.BYTES_PER_ELEMENT);
 	const sizesPtr = module._malloc(polygons.length * Int32Array.BYTES_PER_ELEMENT);
@@ -67,10 +92,10 @@ export function solveEditorWasm(caseData, maxCalls = 200000, maxSeconds = 3) {
 			});
 		});
 		const pathSize = module._tpp_solve(
-			caseData.start[0],
-			caseData.start[1],
-			caseData.target[0],
-			caseData.target[1],
+			normalizedCase.start[0],
+			normalizedCase.start[1],
+			normalizedCase.target[0],
+			normalizedCase.target[1],
 			pointsPtr,
 			sizesPtr,
 			polygons.length,
@@ -104,18 +129,20 @@ export function solveEditorWasmGroups(caseData, pieceGroups, maxCalls = 200000, 
 	if (!module) {
 		return null;
 	}
-	const pieces = pieceGroups.flat();
+	const normalizedCase = counterClockwiseCase(caseData);
+	const normalizedGroups = pieceGroups.map((group) => group.map(counterClockwisePolygon));
+	const pieces = normalizedGroups.flat();
 	const totalVertices = pieces.reduce((sum, piece) => sum + piece.length, 0);
 	const pointsPtr = module._malloc(totalVertices * 2 * Float64Array.BYTES_PER_ELEMENT);
 	const pieceSizesPtr = module._malloc(pieces.length * Int32Array.BYTES_PER_ELEMENT);
-	const groupSizesPtr = module._malloc(pieceGroups.length * Int32Array.BYTES_PER_ELEMENT);
+	const groupSizesPtr = module._malloc(normalizedGroups.length * Int32Array.BYTES_PER_ELEMENT);
 	try {
 		const points = new Float64Array(module.HEAPF64.buffer, pointsPtr, totalVertices * 2);
 		const pieceSizes = new Int32Array(module.HEAP32.buffer, pieceSizesPtr, pieces.length);
-		const groupSizes = new Int32Array(module.HEAP32.buffer, groupSizesPtr, pieceGroups.length);
-		let pointIndex = 0;
-		let pieceIndex = 0;
-		pieceGroups.forEach((group, groupIndex) => {
+			const groupSizes = new Int32Array(module.HEAP32.buffer, groupSizesPtr, normalizedGroups.length);
+			let pointIndex = 0;
+			let pieceIndex = 0;
+			normalizedGroups.forEach((group, groupIndex) => {
 			groupSizes[groupIndex] = group.length;
 			group.forEach((piece) => {
 				pieceSizes[pieceIndex] = piece.length;
@@ -128,14 +155,14 @@ export function solveEditorWasmGroups(caseData, pieceGroups, maxCalls = 200000, 
 			});
 		});
 		const pathSize = module._tpp_solve_piece_groups(
-			caseData.start[0],
-			caseData.start[1],
-			caseData.target[0],
-			caseData.target[1],
+			normalizedCase.start[0],
+			normalizedCase.start[1],
+			normalizedCase.target[0],
+			normalizedCase.target[1],
 			pointsPtr,
 			pieceSizesPtr,
 			groupSizesPtr,
-			pieceGroups.length,
+			normalizedGroups.length,
 			maxCalls,
 			maxSeconds,
 		);
@@ -164,10 +191,11 @@ export function solveEditorWasmGroups(caseData, pieceGroups, maxCalls = 200000, 
 
 export function solveCaseWithEditorWasm(caseData) {
 	let wasmResult = null;
-	if (caseData.polygons.every(polygonIsConvex)) {
-		wasmResult = solveEditorWasm(caseData);
+	const normalizedCase = counterClockwiseCase(caseData);
+	if (normalizedCase.polygons.every(polygonIsConvex)) {
+		wasmResult = solveEditorWasm(normalizedCase);
 	} else {
-		wasmResult = solveEditorWasmGroups(caseData, caseData.polygons.map(convexDecomposition));
+		wasmResult = solveEditorWasmGroups(normalizedCase, normalizedCase.polygons.map(convexDecomposition));
 	}
 	return wasmResult;
 }

@@ -185,12 +185,21 @@ button.danger:active {
 	color: #fff;
 }
 
-#unsafe-delete-toggle.is-active,
-#unsafe-delete-toggle.is-active:hover,
-#unsafe-delete-toggle.is-active:focus {
-	border-color: var(--danger);
-	background: var(--danger);
-	color: #fff;
+#refresh-button.is-refreshing::after {
+	content: "";
+	display: inline-block;
+	width: 0.8em;
+	height: 0.8em;
+	margin-left: 0.45em;
+	vertical-align: -0.1em;
+	border: 2px solid currentColor;
+	border-right-color: transparent;
+	border-radius: 50%;
+	animation: refresh-spin 0.55s linear infinite;
+}
+
+@keyframes refresh-spin {
+	to { transform: rotate(360deg); }
 }
 
 :root[data-theme="dark"] button.danger,

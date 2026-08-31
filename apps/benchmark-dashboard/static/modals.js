@@ -23,7 +23,7 @@ export function createConfirmationController({ $ }) {
 }
 
 export function createModalController({
-	$, state, setCloseIcon, metricCard, describeVertices, runProgress,
+	$, state, setCloseIcon, metricCard, runProgress,
 	renderPreviewPanels, renderBenchmarkedInstanceSection, refreshBenchmarkedInstances,
 	selectManualCampaign, switchPanel, deleteCampaign,
 }) {
@@ -45,8 +45,6 @@ export function createModalController({
     <div class="modal-summary">
       ${metricCard("Type", campaign.type)}
       ${metricCard("Instances", generation.instances ?? generation.instances_per_file ?? "-")}
-      ${metricCard("Polygon Count", generation.polygons ?? generation.polygon_counts ?? "-")}
-      ${metricCard("Vertices", describeVertices(generation))}
       ${metricCard("Progress", progress.label)}
     </div>
     <div class="preview-layout modal-previews"></div>

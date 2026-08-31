@@ -17,8 +17,8 @@
 	--accent-strong: #1d4ed8;
 	--active-bg: #172033;
 	--active-text: #ffffff;
-	--toggle-active-bg: #2563eb;
-	--toggle-active-hover: #1d4ed8;
+	--toggle-active-bg: #172033;
+	--toggle-active-hover: #172033;
 	--toggle-active-text: #ffffff;
 	--danger: #991b1b;
 	--danger-hover: #7f1d1d;
@@ -60,7 +60,7 @@
 	--active-bg: #e5e7eb;
 	--active-text: #14171c;
 	--toggle-active-bg: #e5e7eb;
-	--toggle-active-hover: #d1d5db;
+	--toggle-active-hover: #e5e7eb;
 	--toggle-active-text: #14171c;
 	--danger: #dc2626;
 	--danger-hover: #b91c1c;

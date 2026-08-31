@@ -21,10 +21,14 @@
 .inspect-actions {
 	display: flex;
 	flex-wrap: wrap;
-	justify-content: flex-end;
+	justify-content: flex-start;
 	align-items: end;
 	gap: 10px;
 	margin-bottom: 14px;
+}
+
+.inspect-actions .toolbar-search {
+	margin-left: auto;
 }
 
 .toolbar-search {

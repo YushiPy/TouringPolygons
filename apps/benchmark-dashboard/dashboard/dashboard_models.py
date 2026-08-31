@@ -101,6 +101,14 @@ class ManualCasesRequest(BaseModel):
     cases: list[ManualCaseRequest] = Field(default_factory=list)
 
 
+class CampaignOrderRequest(BaseModel):
+    names: list[str]
+
+
+class CampaignRenameRequest(BaseModel):
+    name: str
+
+
 MAX_MANUAL_CASES = 2000
 MAX_POLYGONS_PER_CASE = 500
 MAX_VERTICES_PER_CASE = 20000

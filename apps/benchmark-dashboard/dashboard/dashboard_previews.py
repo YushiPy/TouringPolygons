@@ -18,7 +18,7 @@ from dashboard.dashboard_campaigns import (
 from dashboard.dashboard_files import _json_cache, read_json
 from dashboard.dashboard_models import CaseData, Point
 
-PREVIEW_VERSION = 6
+PREVIEW_VERSION = 7
 
 _preview_lock = threading.RLock()
 
@@ -218,12 +218,14 @@ def write_imported_previews(path: Path, cases: list[CaseData]) -> tuple[dict[str
 
 
 def preview_svg_is_stale(path: Path) -> bool:
-    if path.suffix.lower() != ".svg" or not path.exists():
+    if path.suffix.lower() != ".svg":
         return False
+    if not path.exists():
+        return True
     try:
         text = path.read_text(errors="ignore")
     except OSError:
-        return False
+        return True
     return ">case " in text or 'fill="#ffffff"' in text or f'data-preview-version="{PREVIEW_VERSION}"' not in text
 
 

@@ -10,8 +10,7 @@ export function renderCampaignChoiceGrid(grid, selectedName, onSelect, { state, 
 		button.innerHTML = `
       <strong>${escapeHTML(campaign.name)}</strong>
       <span>${escapeHTML(campaign.type)}</span>
-      <small>${campaign.inputs.existing}/${campaign.inputs.total} input files</small>
-      <small>${campaign.instance_progress.total || generation.instances || "-"} instances</small>
+			<small>${campaign.instance_progress.total || generation.instances || "-"} instances</small>
     `;
 		button.addEventListener("click", () => onSelect(campaign.name));
 		grid.appendChild(button);

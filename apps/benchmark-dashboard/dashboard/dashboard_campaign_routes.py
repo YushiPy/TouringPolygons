@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import sys
@@ -12,6 +13,8 @@ from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 
 from dashboard.dashboard_models import (
+    CampaignOrderRequest,
+    CampaignRenameRequest,
     CreateOsmRequest,
     CreateSyntheticRequest,
     ImportCanonicalRequest,
@@ -63,16 +66,54 @@ def register_campaign_routes(
     @router.get("/api/campaigns")
     async def list_campaigns():
         campaigns_root.mkdir(parents=True, exist_ok=True)
-        campaigns = [
-            campaign_summary(path)
+        paths = [
+            path
             for path in sorted(campaigns_root.iterdir())
             if path.is_dir() and (path / "campaign.json").exists()
         ]
+        campaigns = [campaign_summary(path) for path in paths]
+        campaigns.sort(key=lambda campaign: (
+            campaign["order"] is None,
+            campaign["order"] if campaign["order"] is not None else 0,
+            campaign["name"].lower(),
+        ))
         return {"campaigns": campaigns}
+
+    @router.put("/api/campaigns/order")
+    async def reorder_campaigns(request: CampaignOrderRequest):
+        campaigns_root.mkdir(parents=True, exist_ok=True)
+        paths = {
+            path.name: path
+            for path in campaigns_root.iterdir()
+            if path.is_dir() and (path / "campaign.json").exists()
+        }
+        if len(request.names) != len(set(request.names)) or set(request.names) != set(paths):
+            raise HTTPException(status_code=400, detail="Campaign order must include every campaign exactly once.")
+        for order, name in enumerate(request.names):
+            path = paths[name]
+            data = read_json(path / "campaign.json")
+            data["display_order"] = order
+            (path / "campaign.json").write_text(json.dumps(data, indent=2) + "\n")
+        return {"ok": True, "campaigns": [campaign_summary(paths[name]) for name in request.names]}
 
     @router.get("/api/campaigns/{name}")
     async def get_campaign(name: str):
         return campaign_summary(campaign_path(name))
+
+    @router.put("/api/campaigns/{name}/rename")
+    async def rename_campaign(name: str, request: CampaignRenameRequest):
+        path = campaign_path(name)
+        target = campaign_path(request.name)
+        if not (path / "campaign.json").exists():
+            raise HTTPException(status_code=404, detail="Campaign does not exist.")
+        if target != path and target.exists():
+            raise HTTPException(status_code=400, detail="Campaign already exists.")
+        data = read_json(path / "campaign.json")
+        data["name"] = request.name
+        (path / "campaign.json").write_text(json.dumps(data, indent=2) + "\n")
+        if target != path:
+            path.rename(target)
+        return {"ok": True, "campaign": campaign_summary(target)}
 
     @router.delete("/api/campaigns/{name}")
     async def delete_campaign(name: str):
@@ -90,11 +131,12 @@ def register_campaign_routes(
     async def get_preview_kind(name: str, kind: str):
         path = campaign_path(name)
         data = read_json(path / "campaign.json")
+        if data.get("type") == "manual":
+            ensure_manual_binary_cache(path)
         if not kind.startswith("instance-"):
             data = refresh_stale_previews(path, data)
         previews = preview_map(data)
         if kind.startswith("instance-"):
-            ensure_manual_binary_cache(path)
             try:
                 index = int(kind.removeprefix("instance-"))
             except ValueError as error:

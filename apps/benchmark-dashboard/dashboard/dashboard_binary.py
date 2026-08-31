@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import struct
+from collections.abc import Sequence
 from collections import OrderedDict
 from pathlib import Path
 from typing import BinaryIO
@@ -137,10 +138,29 @@ def write_size(file: BinaryIO, value: int) -> None:
     file.write(SIZE_STRUCT.pack(value))
 
 
+def signed_area2(polygon: Sequence[Point]) -> float:
+    area = 0.0
+    for index, point in enumerate(polygon):
+        next_point = polygon[(index + 1) % len(polygon)]
+        area += point[0] * next_point[1] - next_point[0] * point[1]
+    return area
+
+
+def counter_clockwise_polygon(polygon: list[Point]) -> list[Point]:
+    if len(polygon) >= 3 and signed_area2(polygon) < 0.0:
+        return list(reversed(polygon))
+    return polygon
+
+
+def counter_clockwise_case(case: CaseData) -> CaseData:
+    start, target, polygons = case
+    return start, target, [counter_clockwise_polygon(polygon) for polygon in polygons]
+
+
 def write_binary_cases(path: Path, cases: list[CaseData]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("wb") as file:
-        for start, target, polygons in cases:
+        for start, target, polygons in (counter_clockwise_case(case) for case in cases):
             write_vector(file, start)
             write_vector(file, target)
             write_size(file, len(polygons))

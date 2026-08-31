@@ -43,7 +43,6 @@ class DashboardStructureTests(unittest.TestCase):
             "confirm-modal",
             "keybind-modal",
             "job-dock",
-            "unsafe-delete-toggle",
         ):
             self.assertRegex(template, rf'id=["\']{element_id}["\']')
 

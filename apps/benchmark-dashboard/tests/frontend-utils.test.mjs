@@ -28,19 +28,17 @@ import {
 	CAMERA_STORAGE_KEY,
 	KEYBIND_STORAGE_KEY,
 	THEME_STORAGE_KEY,
-	UNSAFE_DELETION_STORAGE_KEY,
 } from "../static/storage.js";
 import { createManualCaseController } from "../static/manual-cases.js";
 
 test("storage keys remain stable and distinct", () => {
 	assert.deepEqual(
-		new Set([CAMERA_STORAGE_KEY, KEYBIND_STORAGE_KEY, THEME_STORAGE_KEY, UNSAFE_DELETION_STORAGE_KEY]).size,
-		4,
+		new Set([CAMERA_STORAGE_KEY, KEYBIND_STORAGE_KEY, THEME_STORAGE_KEY]).size,
+		3,
 	);
 	assert.equal(CAMERA_STORAGE_KEY, "benchmarkDashboardManualEditorCamera");
 	assert.equal(KEYBIND_STORAGE_KEY, "benchmarkDashboardManualEditorKeybinds");
 	assert.equal(THEME_STORAGE_KEY, "benchmarkDashboardTheme");
-	assert.equal(UNSAFE_DELETION_STORAGE_KEY, "benchmarkDashboardUnsafeDeletion");
 });
 
 test("manual case controller loads editable cases through injected dependencies", async () => {

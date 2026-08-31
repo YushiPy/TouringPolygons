@@ -144,6 +144,26 @@ class DashboardMainTests(unittest.TestCase):
 
             self.assertEqual(dashboard.read_binary_cases(path, limit=10), [case])
 
+    def test_binary_writer_normalizes_clockwise_polygons(self) -> None:
+        clockwise_square = [(0.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, 0.0)]
+        case = ((0.0, 0.0), (2.0, 0.0), [clockwise_square])
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "manual.bin"
+
+            dashboard.write_binary_cases(path, [case])
+            normalized = dashboard.read_binary_cases(path, limit=1)
+
+            self.assertEqual(normalized[0][2][0], list(reversed(clockwise_square)))
+
+    def test_live_solver_input_normalizes_clockwise_polygons(self) -> None:
+        clockwise_square = [(0.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, 0.0)]
+        case = ((0.0, 0.0), (2.0, 0.0), [clockwise_square])
+
+        payload = dashboard.live_solver_input(case, max_calls=10, max_seconds=1.0)
+
+        lines = payload.splitlines()
+        self.assertEqual(lines[4:8], ["1.0 0.0", "1.0 1.0", "0.0 1.0", "0.0 0.0"])
+
     def test_manual_binary_cache_is_rebuilt_from_editable_cases(self) -> None:
         case = dashboard.manual_case_from_request(
             dashboard.ManualCaseRequest(
@@ -349,6 +369,30 @@ class DashboardMainTests(unittest.TestCase):
             data = dashboard.read_json(path / "campaign.json")
             self.assertEqual(data["previews"], {})
             self.assertTrue(dashboard.campaign_previews_are_stale(path, data))
+
+    def test_missing_svg_preview_metadata_is_stale(self) -> None:
+        case = dashboard.manual_case_from_request(
+            dashboard.ManualCaseRequest(
+                start=(0.0, 0.0),
+                target=(2.0, 0.0),
+                polygons=[[(0.5, 0.5), (1.5, 0.5), (1.0, 1.25)]],
+            )
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            dashboard.create_manual_campaign_data(path)
+            dashboard.write_manual_cases(path, [case])
+            dashboard.write_binary_cases(dashboard.manual_input_path(path), [case])
+            data = dashboard.read_json(path / "campaign.json")
+            data["previews"] = {"selected": "previews/selected.svg", "all": "previews/all.svg"}
+            data["instance_previews"] = ["previews/instances/case-0000.svg"]
+            (path / "campaign.json").write_text(dashboard.json.dumps(data, indent=2) + "\n")
+
+            self.assertTrue(dashboard.campaign_previews_are_stale(path, data))
+            rebuilt = dashboard.refresh_stale_previews(path, data)
+
+            self.assertTrue((path / rebuilt["previews"]["selected"]).exists())
+            self.assertTrue((path / rebuilt["previews"]["all"]).exists())
 
     def test_manual_case_resource_limits_are_enforced(self) -> None:
         too_many_polygons = dashboard.ManualCaseRequest(

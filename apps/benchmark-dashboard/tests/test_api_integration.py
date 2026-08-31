@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import main
 from dashboard.dashboard_models import (
+    CampaignRenameRequest,
     CompareSolversRequest,
     ManualCampaignRequest,
     ManualCaseRequest,
@@ -67,6 +68,54 @@ class DashboardApiIntegrationTests(unittest.TestCase):
                 self.assertEqual(response.path, campaign_path / "previews/instances/case-0000.svg")
                 self.assertTrue(binary_path.exists())
                 self.assertTrue(Path(response.path).exists())
+
+    def test_manual_campaign_aggregate_preview_regenerates_missing_binary(self) -> None:
+        create_manual = endpoint("/api/campaigns/manual", "POST")
+        replace_cases = endpoint("/api/campaigns/{name}/cases", "PUT")
+        preview = endpoint("/api/campaigns/{name}/preview/{kind}", "GET")
+        case = ManualCaseRequest(
+            start=(0.0, 0.0),
+            target=(2.0, 0.0),
+            polygons=[[(0.5, 0.5), (1.5, 0.5), (1.0, 1.25)]],
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            campaigns_root = Path(directory)
+            with patch.object(main, "CAMPAIGNS_ROOT", campaigns_root):
+                asyncio.run(create_manual(ManualCampaignRequest(name="integration")))
+                asyncio.run(
+                    replace_cases(
+                        "integration",
+                        ManualCasesRequest(cases=[case]),
+                        refresh_previews=False,
+                    )
+                )
+
+                campaign_path = campaigns_root / "integration"
+                binary_path = campaign_path / "inputs/manual.bin"
+                self.assertFalse(binary_path.exists())
+
+                response = asyncio.run(preview("integration", "selected"))
+
+                self.assertEqual(response.path, campaign_path / "previews/selected.svg")
+                self.assertTrue(binary_path.exists())
+                self.assertTrue(Path(response.path).exists())
+
+    def test_campaign_rename_updates_directory_and_metadata(self) -> None:
+        create_manual = endpoint("/api/campaigns/manual", "POST")
+        rename_campaign = endpoint("/api/campaigns/{name}/rename", "PUT")
+
+        with tempfile.TemporaryDirectory() as directory:
+            campaigns_root = Path(directory)
+            with patch.object(main, "CAMPAIGNS_ROOT", campaigns_root):
+                asyncio.run(create_manual(ManualCampaignRequest(name="old-name")))
+
+                renamed = asyncio.run(rename_campaign("old-name", CampaignRenameRequest(name="new-name")))
+
+                self.assertTrue(renamed["ok"])
+                self.assertFalse((campaigns_root / "old-name").exists())
+                self.assertTrue((campaigns_root / "new-name").exists())
+                self.assertEqual(main.read_json(campaigns_root / "new-name/campaign.json")["name"], "new-name")
 
     def test_comparison_regenerates_missing_manual_binary_before_suite_lookup(
         self,

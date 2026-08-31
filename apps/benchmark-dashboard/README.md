@@ -50,7 +50,7 @@ Generated and imported campaigns can be inspected and edited through the same ca
 
 Appending generated cases converts the destination campaign to the editable manual-json format, marks appended instances as generated, stores a compact edit-history entry, and clears stale benchmark outputs.
 
-The topbar `Unsafe Delete` toggle disables delete confirmations for faster editing sessions. Overwrite confirmations still remain enabled.
+Shift-clicking a delete button bypasses the confirmation for faster editing sessions. Normal delete clicks and overwrite prompts still ask for confirmation.
 
 ## Module Layout
 

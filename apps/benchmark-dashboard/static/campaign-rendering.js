@@ -1,12 +1,13 @@
 import { escapeHTML } from "./dom.js";
 import { state } from "./state.js";
+import { sortCampaigns } from "./sorting.js";
 
-export function renderCampaignList(root, { closeIconSVG, deleteCampaign, describeVertices, openCampaignModal, runProgress }) {
+export function renderCampaignList(root, { closeIconSVG, trashIconSVG, deleteCampaign, openCampaignModal, runProgress }) {
 	if (!root) {
 		return;
 	}
 	root.innerHTML = "";
-	const campaigns = state.campaigns.filter((campaign) => {
+	const campaigns = sortCampaigns(state.campaigns, state.campaignSort).filter((campaign) => {
 		const query = state.campaignFilter;
 		if (!query) {
 			return true;
@@ -18,6 +19,7 @@ export function renderCampaignList(root, { closeIconSVG, deleteCampaign, describ
 		root.innerHTML = '<div class="empty-choice">No campaigns match the current filter.</div>';
 		return;
 	}
+	const deleteIconSVG = trashIconSVG || closeIconSVG;
 	for (const campaign of campaigns) {
 		const generation = campaign.generation || {};
 		const progress = runProgress(campaign);
@@ -25,13 +27,11 @@ export function renderCampaignList(root, { closeIconSVG, deleteCampaign, describ
 		card.className = "campaign-card";
 		card.tabIndex = 0;
 		card.innerHTML = `
-			<button class="campaign-delete" type="button" data-delete-campaign="${escapeHTML(campaign.name)}" aria-label="Delete ${escapeHTML(campaign.name)}">${closeIconSVG()}</button>
+			<button class="campaign-delete" type="button" data-delete-campaign="${escapeHTML(campaign.name)}" aria-label="Delete ${escapeHTML(campaign.name)}">${deleteIconSVG()}</button>
 			<h3>${escapeHTML(campaign.name)}</h3>
 			<div class="meta">
 				<div><span>Type</span><br>${escapeHTML(campaign.type)}</div>
 				<div><span>Instances</span><br>${generation.instances ?? generation.instances_per_file ?? "-"}</div>
-				<div><span>Polygon Count</span><br>${generation.polygons ?? generation.polygon_counts ?? "-"}</div>
-				<div><span>Vertices</span><br>${escapeHTML(describeVertices(generation))}</div>
 				<div><span>Progress</span><br>${progress.label}</div>
 			</div>
 			<div class="bar" aria-label="Benchmark progress">

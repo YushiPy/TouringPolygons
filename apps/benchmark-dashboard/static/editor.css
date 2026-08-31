@@ -1,6 +1,6 @@
 .case-editor-shell {
 	display: grid;
-	grid-template-columns: 300px minmax(0, 1fr);
+	grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
 	gap: 16px;
 	min-height: 620px;
 }
@@ -9,18 +9,46 @@
 	display: grid;
 	align-content: start;
 	gap: 14px;
-}
-
-.manual-campaign-form {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
-	gap: 10px;
-	align-items: end;
+	min-width: 0;
 }
 
 .manual-campaign-grid {
 	grid-template-columns: 1fr;
-	max-height: 176px;
+	max-height: 244px;
+}
+
+.manual-campaign-grid .choice-card {
+	min-height: 56px;
+	user-select: none;
+}
+
+.manual-campaign-grid .choice-card strong {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+.manual-campaign-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 30px;
+	gap: 6px;
+	align-items: center;
+	min-height: 56px;
+	border-radius: 6px;
+	cursor: grab;
+	user-select: none;
+}
+
+.manual-campaign-select {
+	min-height: 56px;
+	padding: 0.55rem 0.65rem;
+	border-radius: 6px;
+}
+
+.manual-campaign-actions {
+	display: grid;
+	gap: 4px;
 }
 
 .case-list-head {
@@ -35,6 +63,7 @@
 	flex-wrap: wrap;
 	gap: 6px;
 	justify-content: flex-end;
+	min-width: 0;
 }
 
 .case-list-head h3 {
@@ -53,6 +82,17 @@
 	background: var(--bg);
 }
 
+.new-manual-case-row,
+.new-manual-campaign-row {
+	display: grid;
+	place-items: center;
+	width: 100%;
+	min-height: 56px;
+	padding: 0;
+	font-size: 1.7rem;
+	line-height: 1;
+}
+
 .manual-case-row {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) 30px;
@@ -61,10 +101,65 @@
 	min-height: 56px;
 	border-radius: 6px;
 	overflow: visible;
+	cursor: grab;
+	user-select: none;
+}
+
+.manual-case-row:active {
+	cursor: grabbing;
+}
+
+.field-label-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	min-width: 0;
+}
+
+.list-sort-control {
+	display: inline-flex;
+	flex-wrap: wrap;
+	gap: 2px;
+	padding: 2px;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	background: var(--bg);
+}
+
+.sort-by-control {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	min-width: 0;
+	white-space: nowrap;
+	color: var(--muted);
+	font-size: 0.76rem;
+}
+
+.sort-by-control .list-sort-control {
+	min-width: 0;
+	flex-wrap: nowrap;
+}
+
+.list-sort-control .segment {
+	min-height: 28px;
+	padding: 0.25rem 0.45rem;
+	font-size: 0.75rem;
+	white-space: nowrap;
+}
+
+.case-sidebar .sort-by-control {
+	font-size: 0.72rem;
+}
+
+.case-sidebar .list-sort-control .segment {
+	padding: 0.22rem 0.36rem;
 }
 
 .manual-case-select {
 	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
 	gap: 2px;
 	min-height: 56px;
 	padding: 0.55rem 0.65rem;
@@ -99,6 +194,70 @@
 	opacity: 1;
 }
 
+.manual-case-select .drag-handle {
+	grid-row: 1 / span 2;
+	align-self: start;
+	margin-top: 1px;
+}
+
+.manual-case-select .instance-name-button,
+.manual-case-select [data-case-polygon-count],
+.campaign-name-button,
+.campaign-name-input {
+	min-width: 0;
+}
+
+.campaign-name-button {
+	width: auto;
+	max-width: 100%;
+	min-height: 0;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	font-weight: 700;
+	text-align: left;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	box-shadow: none;
+}
+
+:root[data-theme="dark"] .campaign-name-button,
+:root[data-theme="dark"] .campaign-name-button:hover,
+:root[data-theme="dark"] .campaign-name-button:active,
+.campaign-name-button:hover,
+.campaign-name-button:active {
+	border-color: transparent;
+	background: transparent;
+	color: inherit;
+	box-shadow: none;
+	transform: none;
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 3px;
+}
+
+.campaign-name-input {
+	width: min(100%, 220px);
+	min-height: 24px;
+	padding: 1px 4px;
+	border: 1px solid var(--accent);
+	border-radius: 3px;
+	background: var(--surface);
+	color: var(--text);
+	font-weight: 700;
+}
+
+.drag-preview {
+	position: fixed;
+	top: -1000px;
+	left: -1000px;
+	z-index: 9999;
+	pointer-events: none;
+	opacity: 0.92;
+}
+
 .auto-sticker {
 	position: relative;
 	display: inline-grid;
@@ -111,12 +270,15 @@
 	color: var(--auto-badge-text);
 	opacity: 1;
 	vertical-align: -3px;
+	box-sizing: border-box;
+	overflow: hidden;
 }
 
 .auto-sticker svg {
-	width: 9px;
-	height: 9px;
+	width: 14px;
+	height: 14px;
 	fill: currentColor;
+	overflow: visible;
 }
 
 .auto-sticker[data-tooltip]::after {

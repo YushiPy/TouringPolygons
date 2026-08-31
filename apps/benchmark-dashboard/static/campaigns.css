@@ -24,6 +24,7 @@
 }
 
 .campaign-delete,
+.campaign-edit-delete,
 .modal-x-button,
 .job-dock-stop,
 .keybind-remove,
@@ -44,7 +45,14 @@
 	box-shadow: none;
 }
 
+.campaign-delete,
+.campaign-edit-delete,
+.manual-case-action.danger {
+	border-radius: 8px;
+}
+
 .campaign-delete:hover,
+.campaign-edit-delete:hover,
 .modal-x-button:hover,
 .job-dock-stop:hover,
 .keybind-remove:hover,
@@ -58,6 +66,7 @@
 }
 
 .campaign-delete:active,
+.campaign-edit-delete:active,
 .modal-x-button:active,
 .job-dock-stop:active,
 .keybind-remove:active,
@@ -69,6 +78,7 @@
 }
 
 :root[data-theme="dark"] .campaign-delete,
+:root[data-theme="dark"] .campaign-edit-delete,
 :root[data-theme="dark"] .campaign-delete:focus,
 :root[data-theme="dark"] .modal-x-button,
 :root[data-theme="dark"] .modal-x-button:focus,
@@ -84,6 +94,7 @@
 }
 
 :root[data-theme="dark"] .campaign-delete:hover,
+:root[data-theme="dark"] .campaign-edit-delete:hover,
 :root[data-theme="dark"] .modal-x-button:hover,
 :root[data-theme="dark"] .job-dock-stop:hover,
 :root[data-theme="dark"] .keybind-remove:hover,
@@ -95,6 +106,7 @@
 }
 
 :root[data-theme="dark"] .campaign-delete:active,
+:root[data-theme="dark"] .campaign-edit-delete:active,
 :root[data-theme="dark"] .modal-x-button:active,
 :root[data-theme="dark"] .job-dock-stop:active,
 :root[data-theme="dark"] .keybind-remove:active,
@@ -114,6 +126,16 @@
 
 .campaign-card h3 {
 	margin-bottom: 8px;
+}
+
+.trash-icon {
+	width: 62%;
+	height: 62%;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
 }
 
 .meta {
@@ -148,6 +170,67 @@
 	stroke: currentColor;
 	stroke-width: 3;
 	stroke-linecap: round;
+}
+
+.trash-icon {
+	display: block;
+	width: 62%;
+	height: 62%;
+	overflow: visible;
+	fill: currentColor;
+}
+
+.drag-handle {
+	display: inline-block;
+	margin-right: 6px;
+	color: var(--muted);
+	cursor: grab;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.manual-campaign-row.is-dragging,
+.manual-case-row.is-dragging {
+	opacity: 0.55;
+}
+
+.manual-campaign-row.is-drop-before,
+.manual-campaign-row.is-drop-after,
+.manual-case-row.is-drop-before,
+.manual-case-row.is-drop-after {
+	position: relative;
+}
+
+.manual-campaign-row.is-drop-before::before,
+.manual-campaign-row.is-drop-after::after,
+.manual-case-row.is-drop-before::before,
+.manual-case-row.is-drop-after::after {
+	content: "";
+	position: absolute;
+	right: 6px;
+	left: 6px;
+	z-index: 2;
+	height: 3px;
+	border-radius: 999px;
+	background: var(--active-bg);
+}
+
+.manual-campaign-row.is-drop-before::before,
+.manual-case-row.is-drop-before::before {
+	top: -5px;
+}
+
+.manual-campaign-row.is-drop-after::after,
+.manual-case-row.is-drop-after::after {
+	bottom: -5px;
+}
+
+.campaign-edit-delete {
+	margin-left: auto;
+	width: 26px;
+	height: 26px;
+	min-width: 26px;
+	min-height: 26px;
 }
 
 .preview-layout {
@@ -266,6 +349,7 @@
 	width: 100%;
 	height: 320px;
 	padding: 0;
+	border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
 	background: var(--editor-bg);
 	object-fit: contain;
 }

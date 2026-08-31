@@ -5,21 +5,33 @@
 	</div>
 	<div class="case-editor-shell">
 		<aside class="case-sidebar">
-			<form id="manual-campaign-form" class="manual-campaign-form">
-				<label>
-					New campaign
-					<input id="manual-campaign-name" name="name" value="manual">
-				</label>
-				<button type="submit">Create</button>
-			</form>
 			<div class="field">
-				<span class="field-label">Campaigns</span>
+				<div class="field-label-row">
+					<span class="field-label">Campaigns</span>
+					<div class="sort-by-control">
+						<span>Sort by:</span>
+						<div class="segmented list-sort-control" data-campaign-sort="edit" aria-label="Sort campaigns">
+							<button class="segment is-active" data-sort="default" type="button">Default</button>
+							<button class="segment" data-sort="name" type="button">Name</button>
+							<button class="segment" data-sort="count" type="button">Instances</button>
+						</div>
+					</div>
+				</div>
 				<div id="manual-campaign-grid" class="choice-grid manual-campaign-grid" role="listbox"
 					aria-label="Editable campaigns"></div>
 			</div>
 			<div class="case-list-head">
 				<h3>Instances</h3>
-				<button id="new-manual-case" class="secondary" type="button">New</button>
+				<div class="case-list-actions">
+					<div class="sort-by-control">
+						<span>Sort by:</span>
+						<div class="segmented list-sort-control" data-instance-sort aria-label="Sort instances">
+							<button class="segment is-active" data-sort="default" type="button">Default</button>
+							<button class="segment" data-sort="name" type="button">Name</button>
+							<button class="segment" data-sort="count" type="button">Polygon</button>
+						</div>
+					</div>
+				</div>
 			</div>
 			<div id="manual-case-list" class="manual-case-list"></div>
 		</aside>
