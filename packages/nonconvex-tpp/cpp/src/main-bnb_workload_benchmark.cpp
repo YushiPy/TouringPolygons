@@ -2743,6 +2743,14 @@ struct SvgBounds {
 	double max_y = -std::numeric_limits<double>::infinity();
 };
 
+struct SvgViewport {
+	double width = 720.0;
+	double height = 520.0;
+	double scale = 1.0;
+	double offset_x = 0.0;
+	double offset_y = 0.0;
+};
+
 void include_point(SvgBounds &bounds, const Vector2 &point) {
 	bounds.min_x = std::min(bounds.min_x, point.x);
 	bounds.min_y = std::min(bounds.min_y, point.y);
@@ -2750,23 +2758,113 @@ void include_point(SvgBounds &bounds, const Vector2 &point) {
 	bounds.max_y = std::max(bounds.max_y, point.y);
 }
 
+SvgViewport svg_viewport(const SvgBounds &bounds, double width, double height, double padding) {
+	const double span_x = std::max(1e-9, bounds.max_x - bounds.min_x);
+	const double span_y = std::max(1e-9, bounds.max_y - bounds.min_y);
+	const double scale = std::min((width - 2.0 * padding) / span_x, (height - 2.0 * padding) / span_y);
+	const double draw_width = span_x * scale;
+	const double draw_height = span_y * scale;
+	return {
+		.width = width,
+		.height = height,
+		.scale = scale,
+		.offset_x = (width - draw_width) / 2.0 - bounds.min_x * scale,
+		.offset_y = (height + draw_height) / 2.0 + bounds.min_y * scale,
+	};
+}
+
+std::pair<double, double> svg_point(const Vector2 &point, const SvgViewport &viewport) {
+	return {
+		viewport.offset_x + point.x * viewport.scale,
+		viewport.offset_y - point.y * viewport.scale,
+	};
+}
+
 std::string svg_points(
 	const vector<Vector2> &points,
-	const SvgBounds &bounds,
-	double scale,
-	double padding,
-	double height
+	const SvgViewport &viewport
 ) {
 	std::ostringstream output;
 	for (size_t i = 0; i < points.size(); i++) {
-		const double x = padding + (points[i].x - bounds.min_x) * scale;
-		const double y = height - padding - (points[i].y - bounds.min_y) * scale;
+		const auto [x, y] = svg_point(points[i], viewport);
 		if (i != 0) {
 			output << ' ';
 		}
 		output << std::format("{:.2f},{:.2f}", x, y);
 	}
 	return output.str();
+}
+
+std::string svg_line(double x1, double y1, double x2, double y2, std::string_view color, double opacity, double width) {
+	return std::format(
+		"<line x1=\"{:.2f}\" y1=\"{:.2f}\" x2=\"{:.2f}\" y2=\"{:.2f}\" "
+		"stroke=\"{}\" stroke-opacity=\"{:.2f}\" stroke-width=\"{:.2f}\"/>\n",
+		x1,
+		y1,
+		x2,
+		y2,
+		color,
+		opacity,
+		width
+	);
+}
+
+std::pair<double, int> preview_grid_metrics(double scale) {
+	const double decision_value = 83.0 / scale;
+	int exponent = decision_value > 0.0 ? static_cast<int>(std::ceil(std::log10(decision_value))) : 0;
+	double multiplier = 1.0;
+	int sub_grid_count = 4;
+	const double grid_scale = std::pow(10.0, exponent);
+	if (grid_scale / 5.0 > decision_value) {
+		sub_grid_count = 3;
+		exponent--;
+		multiplier = 2.0;
+	} else if (grid_scale / 2.0 > decision_value) {
+		exponent--;
+		multiplier = 5.0;
+	}
+	return {std::pow(10.0, exponent) * multiplier, sub_grid_count};
+}
+
+void write_svg_grid(std::ofstream &output, const SvgViewport &viewport) {
+	const auto [grid_step, sub_grid_count] = preview_grid_metrics(viewport.scale);
+	const double visible_min_x = -viewport.offset_x / viewport.scale;
+	const double visible_max_x = (viewport.width - viewport.offset_x) / viewport.scale;
+	const double visible_min_y = (viewport.offset_y - viewport.height) / viewport.scale;
+	const double visible_max_y = viewport.offset_y / viewport.scale;
+
+	for (double x = std::floor(visible_min_x / grid_step) * grid_step; x <= visible_max_x + grid_step; x += grid_step) {
+		const double screen_x = viewport.offset_x + x * viewport.scale;
+		if (0.0 <= screen_x && screen_x <= viewport.width) {
+			output << svg_line(screen_x, 0.0, screen_x, viewport.height, "#515a67", 0.62, 1.0);
+			for (int index = 0; index < sub_grid_count; index++) {
+				const double sub_x = screen_x + static_cast<double>(index + 1) * grid_step * viewport.scale / static_cast<double>(sub_grid_count + 1);
+				if (0.0 <= sub_x && sub_x <= viewport.width) {
+					output << svg_line(sub_x, 0.0, sub_x, viewport.height, "#2a2f38", 0.74, 1.0);
+				}
+			}
+		}
+	}
+
+	for (double y = std::floor(visible_min_y / grid_step) * grid_step; y <= visible_max_y + grid_step; y += grid_step) {
+		const double screen_y = viewport.offset_y - y * viewport.scale;
+		if (0.0 <= screen_y && screen_y <= viewport.height) {
+			output << svg_line(0.0, screen_y, viewport.width, screen_y, "#515a67", 0.62, 1.0);
+			for (int index = 0; index < sub_grid_count; index++) {
+				const double sub_y = screen_y - static_cast<double>(index + 1) * grid_step * viewport.scale / static_cast<double>(sub_grid_count + 1);
+				if (0.0 <= sub_y && sub_y <= viewport.height) {
+					output << svg_line(0.0, sub_y, viewport.width, sub_y, "#2a2f38", 0.74, 1.0);
+				}
+			}
+		}
+	}
+
+	if (0.0 <= viewport.offset_y && viewport.offset_y <= viewport.height) {
+		output << svg_line(0.0, viewport.offset_y, viewport.width, viewport.offset_y, "#9aa3ad", 0.86, 1.0);
+	}
+	if (0.0 <= viewport.offset_x && viewport.offset_x <= viewport.width) {
+		output << svg_line(viewport.offset_x, 0.0, viewport.offset_x, viewport.height, "#9aa3ad", 0.86, 1.0);
+	}
 }
 
 void write_solution_preview(
@@ -2792,10 +2890,8 @@ void write_solution_preview(
 	const double width = 720.0;
 	const double height = 520.0;
 	const double padding = 28.0;
-	const double span_x = std::max(1e-9, bounds.max_x - bounds.min_x);
-	const double span_y = std::max(1e-9, bounds.max_y - bounds.min_y);
-	const double scale = std::min((width - 2.0 * padding) / span_x, (height - 2.0 * padding) / span_y);
-	const std::array<std::string_view, 7> colors = {"#2563eb", "#0891b2", "#16a34a", "#ca8a04", "#dc2626", "#9333ea", "#0f766e"};
+	const auto viewport = svg_viewport(bounds, width, height, padding);
+	const std::array<std::string_view, 5> colors = {"#38bdf8", "#a3e635", "#f97316", "#f472b6", "#c084fc"};
 
 	std::filesystem::create_directories(path.parent_path());
 	std::ofstream output(path);
@@ -2804,25 +2900,27 @@ void write_solution_preview(
 	}
 
 	output << std::format(
-		"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{:.0f}\" height=\"{:.0f}\" viewBox=\"0 0 {:.0f} {:.0f}\">\n",
+		"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{:.0f}\" height=\"{:.0f}\" viewBox=\"0 0 {:.0f} {:.0f}\" data-preview-version=\"7\">\n",
 		width,
 		height,
 		width,
 		height
 	);
-	output << "<rect width=\"100%\" height=\"100%\" fill=\"#ffffff\"/>\n";
+	output << "<rect width=\"100%\" height=\"100%\" fill=\"#121417\"/>\n";
+	write_svg_grid(output, viewport);
 
 	for (size_t polygon_index = 0; polygon_index < polygons.size(); polygon_index++) {
 		const auto color = colors[polygon_index % colors.size()];
 		output << std::format(
-			"<polygon points=\"{}\" fill=\"{}\" fill-opacity=\"0.24\" stroke=\"#111827\" stroke-width=\"1.2\"/>\n",
-			svg_points(polygons[polygon_index], bounds, scale, padding, height),
+			"<polygon points=\"{}\" fill=\"{}\" fill-opacity=\"0.20\" stroke=\"{}\" stroke-width=\"2\"/>\n",
+			svg_points(polygons[polygon_index], viewport),
+			color,
 			color
 		);
 		for (const auto &piece : convex_pieces[polygon_index]) {
 			output << std::format(
-				"<polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-opacity=\"0.72\" stroke-width=\"0.9\" stroke-dasharray=\"4 3\"/>\n",
-				svg_points(piece, bounds, scale, padding, height),
+				"<polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-opacity=\"0.74\" stroke-width=\"1\" stroke-dasharray=\"4 3\"/>\n",
+				svg_points(piece, viewport),
 				color
 			);
 		}
@@ -2834,18 +2932,17 @@ void write_solution_preview(
 	full_path.insert(full_path.end(), best_path.begin(), best_path.end());
 	full_path.push_back(target);
 	output << std::format(
-		"<polyline points=\"{}\" fill=\"none\" stroke=\"#7c3aed\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\n",
-		svg_points(full_path, bounds, scale, padding, height)
+		"<polyline points=\"{}\" fill=\"none\" stroke=\"#facc15\" stroke-width=\"5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\n",
+		svg_points(full_path, viewport)
 	);
 
 	const auto marker = [&](const Vector2 &point, std::string_view label, std::string_view fill, std::string_view text_fill) {
-		const double x = padding + (point.x - bounds.min_x) * scale;
-		const double y = height - padding - (point.y - bounds.min_y) * scale;
-		output << std::format("<circle cx=\"{:.2f}\" cy=\"{:.2f}\" r=\"6\" fill=\"{}\" stroke=\"#111827\"/>\n", x, y, fill);
-		output << std::format("<text x=\"{:.2f}\" y=\"{:.2f}\" font-size=\"14\" font-weight=\"700\" fill=\"{}\">{}</text>\n", x + 9.0, y + 5.0, text_fill, label);
+		const auto [x, y] = svg_point(point, viewport);
+		output << std::format("<circle cx=\"{:.2f}\" cy=\"{:.2f}\" r=\"5\" fill=\"{}\"/>\n", x, y, fill);
+		output << std::format("<text x=\"{:.2f}\" y=\"{:.2f}\" font-size=\"14\" font-weight=\"700\" font-family=\"system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif\" fill=\"{}\">{}</text>\n", x + 10.0, y + 5.0, text_fill, label);
 	};
-	marker(start, "s", "#22c55e", "#166534");
-	marker(target, "t", "#ef4444", "#991b1b");
+	marker(start, "s", "#22c55e", "#f8fafc");
+	marker(target, "t", "#ef4444", "#f8fafc");
 	output << "</svg>\n";
 }
 

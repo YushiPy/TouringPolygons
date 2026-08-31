@@ -196,7 +196,10 @@ def manual_input_path(path: Path) -> Path:
 def ensure_manual_binary_cache(path: Path) -> Path:
     """Rebuild the solver compatibility file when the editable store is present."""
     input_path = manual_input_path(path)
-    if input_path.exists() or not manual_cases_path(path).exists():
+    cases_path = manual_cases_path(path)
+    if not cases_path.exists():
+        return input_path
+    if input_path.exists() and input_path.stat().st_mtime_ns >= cases_path.stat().st_mtime_ns:
         return input_path
     input_path.parent.mkdir(parents=True, exist_ok=True)
     write_binary_cases(input_path, read_manual_cases(path))

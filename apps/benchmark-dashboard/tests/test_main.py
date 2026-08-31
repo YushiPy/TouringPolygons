@@ -162,6 +162,31 @@ class DashboardMainTests(unittest.TestCase):
             self.assertEqual(dashboard.ensure_manual_binary_cache(path), input_path)
             self.assertEqual(dashboard.read_binary_cases(input_path, limit=1), [case])
 
+    def test_stale_manual_binary_cache_is_rebuilt(self) -> None:
+        first = dashboard.manual_case_from_request(
+            dashboard.ManualCaseRequest(
+                start=(0.0, 0.0),
+                target=(1.0, 0.0),
+                polygons=[[(0.0, 1.0), (1.0, 1.0), (0.5, 2.0)]],
+            )
+        )
+        second = dashboard.manual_case_from_request(
+            dashboard.ManualCaseRequest(
+                start=(2.0, 0.0),
+                target=(3.0, 0.0),
+                polygons=[[(2.0, 1.0), (3.0, 1.0), (2.5, 2.0)]],
+            )
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            dashboard.create_manual_campaign_data(path)
+            dashboard.write_binary_cases(dashboard.manual_input_path(path), [first])
+            dashboard.write_manual_cases(path, [first, second])
+
+            input_path = dashboard.ensure_manual_binary_cache(path)
+
+            self.assertEqual(dashboard.read_binary_cases(input_path, limit=10), [first, second])
+
     def test_manual_rebuild_does_not_eagerly_write_binary_cache(self) -> None:
         case = dashboard.ManualCaseRequest(
             start=(0.0, 0.0),
