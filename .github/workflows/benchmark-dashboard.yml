@@ -1,0 +1,45 @@
+name: Benchmark Dashboard
+
+on:
+  push:
+    paths:
+      - "apps/benchmark-dashboard/**"
+      - ".github/workflows/benchmark-dashboard.yml"
+  pull_request:
+    paths:
+      - "apps/benchmark-dashboard/**"
+      - ".github/workflows/benchmark-dashboard.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/benchmark-dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/benchmark-dashboard/package-lock.json
+      - run: uv sync --locked
+      - run: npm ci
+      - run: uv run python -m unittest discover -s tests
+      - run: uv run ruff check .
+      - run: npm run lint:js
+      - run: npm run check:js
+      - run: npx playwright install --with-deps chromium
+      - name: Start dashboard
+        run: |
+          uv run uvicorn main:app --host 127.0.0.1 --port 8017 > /tmp/benchmark-dashboard.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8017/ > /dev/null; then break; fi
+            sleep 1
+          done
+      - run: DASHBOARD_URL=http://127.0.0.1:8017 npm run test:browser
+      - if: failure()
+        run: cat /tmp/benchmark-dashboard.log

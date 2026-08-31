@@ -25,11 +25,7 @@ def total_instance_count(data: dict[str, Any]) -> int:
 def preview_map(data: dict[str, Any]) -> dict[str, str]:
     previews = data.get("previews")
     if isinstance(previews, dict):
-        return {
-            str(name): str(value)
-            for name, value in previews.items()
-            if isinstance(value, str)
-        }
+        return {str(name): str(value) for name, value in previews.items() if isinstance(value, str)}
     preview = data.get("preview")
     if isinstance(preview, str) and preview:
         return {"all": preview}
@@ -62,11 +58,7 @@ def result_preview_list(path: Path, data: dict[str, Any]) -> list[str]:
             if directory.exists():
                 found.extend(sorted(directory.glob("case-*.*")))
 
-    return [
-        str(preview.relative_to(path))
-        for preview in found
-        if preview.suffix.lower() in {".png", ".svg"}
-    ]
+    return [str(preview.relative_to(path)) for preview in found if preview.suffix.lower() in {".png", ".svg"}]
 
 
 def read_campaign_cases(path: Path, data: dict[str, Any]) -> list[CaseData]:
@@ -98,11 +90,7 @@ def read_campaign_case(path: Path, data: dict[str, Any], index: int) -> CaseData
         if not input_path.exists():
             continue
         instances = input_record.get("instances")
-        input_count = (
-            instances
-            if isinstance(instances, int) and instances >= 0
-            else binary_case_count(input_path)
-        )
+        input_count = instances if isinstance(instances, int) and instances >= 0 else binary_case_count(input_path)
         if index < seen + input_count:
             return read_binary_case(input_path, index - seen)
         seen += input_count

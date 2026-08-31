@@ -47,3 +47,30 @@ The modal title shows the campaign/test-case name on the first line and the sele
 Campaign data lives under `benchmarks/campaigns`. Benchmark outputs live under `benchmarks/results`.
 
 Generated and imported campaigns can be inspected and edited through the same case API. Saving edits rebuilds the campaign input binary and its preview metadata.
+
+## Module Layout
+
+- `main.py`: FastAPI application setup, compatibility imports, and route wiring.
+- `dashboard_*`: backend models, file and binary IO, campaign and preview helpers, reports, jobs, and route groups.
+- `static/app.js`: frontend bootstrap and cross-feature wiring.
+- `static/*.js`: focused API, rendering, preview, editor, report, job, and form modules.
+- `templates/partials`: page panels, dialogs, and shared modal markup.
+- `static/*css`: stylesheet modules loaded by the page shell.
+
+## Validation
+
+From `apps/benchmark-dashboard`:
+
+```bash
+uv run python -m unittest discover -s tests
+uv run ruff check .
+npm run lint:js
+npm run check:js
+for file in static/*.js; do node --check "$file"; done
+node --test tests/*.test.mjs
+DASHBOARD_URL=http://127.0.0.1:8017 npm run test:browser
+```
+
+The Python suite also includes route-level integration coverage for manual campaign mutation and regeneration of a missing `inputs/manual.bin` compatibility artifact.
+
+Manual campaigns use `manual-cases.json` as the canonical editable representation. The generated `inputs/manual.bin` file remains a solver compatibility artifact and is rebuilt when manual cases are saved.

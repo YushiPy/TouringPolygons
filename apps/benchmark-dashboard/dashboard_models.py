@@ -168,7 +168,5 @@ class Job:
             "solver_progress_completed": self.solver_progress_completed,
             "solver_progress_total": self.solver_progress_total,
             "current_solver": self.current_solver,
-            "elapsed_seconds": max(
-                0.0, (self.finished_at or time.time()) - self.started_at
-            ),
+            "elapsed_seconds": max(0.0, (self.finished_at or time.time()) - self.started_at),
         }

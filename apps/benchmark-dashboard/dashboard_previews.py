@@ -34,17 +34,11 @@ def case_bounds(case: CaseData) -> tuple[float, float, float, float]:
     )
 
 
-def svg_points(
-    points: list[Point], offset_x: float, offset_y: float, scale: float
-) -> str:
-    return " ".join(
-        f"{offset_x + x * scale:.2f},{offset_y - y * scale:.2f}" for x, y in points
-    )
+def svg_points(points: list[Point], offset_x: float, offset_y: float, scale: float) -> str:
+    return " ".join(f"{offset_x + x * scale:.2f},{offset_y - y * scale:.2f}" for x, y in points)
 
 
-def svg_line(
-    x1: float, y1: float, x2: float, y2: float, color: str, opacity: float = 1.0
-) -> str:
+def svg_line(x1: float, y1: float, x2: float, y2: float, color: str, opacity: float = 1.0) -> str:
     return (
         f'<line x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}" '
         f'stroke="{color}" stroke-opacity="{opacity:.2f}" stroke-width="1"/>'
@@ -97,16 +91,12 @@ def write_case_preview(
         min_x, min_y, max_x, max_y = case_bounds(case)
         span_x = max(max_x - min_x, 1e-9)
         span_y = max(max_y - min_y, 1e-9)
-        scale = min(
-            (cell_width - 2 * padding) / span_x, (cell_height - 2 * padding) / span_y
-        )
+        scale = min((cell_width - 2 * padding) / span_x, (cell_height - 2 * padding) / span_y)
         draw_width = span_x * scale
         draw_height = span_y * scale
         offset_x = x0 + (cell_width - draw_width) / 2 - min_x * scale
         offset_y = y0 + (cell_height + draw_height) / 2 + min_y * scale
-        elements.append(
-            f'<rect x="{x0}" y="{y0}" width="{cell_width}" height="{cell_height}" fill="#121417"/>'
-        )
+        elements.append(f'<rect x="{x0}" y="{y0}" width="{cell_width}" height="{cell_height}" fill="#121417"/>')
         grid_step, sub_grid_count = preview_grid_metrics(scale)
         visible_min_x = (x0 - offset_x) / scale
         visible_max_x = (x0 + cell_width - offset_x) / scale
@@ -118,46 +108,28 @@ def write_case_preview(
         while x <= visible_max_x + grid_step:
             screen_x = offset_x + x * scale
             if x0 <= screen_x <= x0 + cell_width:
-                elements.append(
-                    svg_line(screen_x, y0, screen_x, y0 + cell_height, "#515a67", 0.62)
-                )
+                elements.append(svg_line(screen_x, y0, screen_x, y0 + cell_height, "#515a67", 0.62))
                 for index in range(sub_grid_count):
-                    sub_x = screen_x + (index + 1) * grid_step * scale / (
-                        sub_grid_count + 1
-                    )
+                    sub_x = screen_x + (index + 1) * grid_step * scale / (sub_grid_count + 1)
                     if x0 <= sub_x <= x0 + cell_width:
-                        elements.append(
-                            svg_line(
-                                sub_x, y0, sub_x, y0 + cell_height, "#2a2f38", 0.74
-                            )
-                        )
+                        elements.append(svg_line(sub_x, y0, sub_x, y0 + cell_height, "#2a2f38", 0.74))
             x += grid_step
         y = first_y
         while y <= visible_max_y + grid_step:
             screen_y = offset_y - y * scale
             if y0 <= screen_y <= y0 + cell_height:
-                elements.append(
-                    svg_line(x0, screen_y, x0 + cell_width, screen_y, "#515a67", 0.62)
-                )
+                elements.append(svg_line(x0, screen_y, x0 + cell_width, screen_y, "#515a67", 0.62))
                 for index in range(sub_grid_count):
-                    sub_y = screen_y - (index + 1) * grid_step * scale / (
-                        sub_grid_count + 1
-                    )
+                    sub_y = screen_y - (index + 1) * grid_step * scale / (sub_grid_count + 1)
                     if y0 <= sub_y <= y0 + cell_height:
-                        elements.append(
-                            svg_line(x0, sub_y, x0 + cell_width, sub_y, "#2a2f38", 0.74)
-                        )
+                        elements.append(svg_line(x0, sub_y, x0 + cell_width, sub_y, "#2a2f38", 0.74))
             y += grid_step
         origin_x = offset_x
         origin_y = offset_y
         if y0 <= origin_y <= y0 + cell_height:
-            elements.append(
-                svg_line(x0, origin_y, x0 + cell_width, origin_y, "#9aa3ad", 0.86)
-            )
+            elements.append(svg_line(x0, origin_y, x0 + cell_width, origin_y, "#9aa3ad", 0.86))
         if x0 <= origin_x <= x0 + cell_width:
-            elements.append(
-                svg_line(origin_x, y0, origin_x, y0 + cell_height, "#9aa3ad", 0.86)
-            )
+            elements.append(svg_line(origin_x, y0, origin_x, y0 + cell_height, "#9aa3ad", 0.86))
         for polygon_index, polygon in enumerate(polygons):
             color = colors[polygon_index % len(colors)]
             elements.append(
@@ -167,22 +139,16 @@ def write_case_preview(
             for point_x, point_y in polygon:
                 screen_x = offset_x + point_x * scale
                 screen_y = offset_y - point_y * scale
-                elements.append(
-                    f'<circle cx="{screen_x:.2f}" cy="{screen_y:.2f}" r="1.35" fill="{color}"/>'
-                )
+                elements.append(f'<circle cx="{screen_x:.2f}" cy="{screen_y:.2f}" r="1.35" fill="{color}"/>')
         start_x = offset_x + start[0] * scale
         start_y = offset_y - start[1] * scale
         target_x = offset_x + target[0] * scale
         target_y = offset_y - target[1] * scale
-        elements.append(
-            f'<circle cx="{start_x:.2f}" cy="{start_y:.2f}" r="5" fill="#22c55e"/>'
-        )
+        elements.append(f'<circle cx="{start_x:.2f}" cy="{start_y:.2f}" r="5" fill="#22c55e"/>')
         elements.append(
             f'<text x="{start_x + 10:.2f}" y="{start_y + 4:.2f}" font-size="12" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" fill="#f8fafc">s</text>'
         )
-        elements.append(
-            f'<circle cx="{target_x:.2f}" cy="{target_y:.2f}" r="5" fill="#ef4444"/>'
-        )
+        elements.append(f'<circle cx="{target_x:.2f}" cy="{target_y:.2f}" r="5" fill="#ef4444"/>')
         elements.append(
             f'<text x="{target_x + 10:.2f}" y="{target_y + 4:.2f}" font-size="12" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" fill="#f8fafc">t</text>'
         )
@@ -209,21 +175,15 @@ def write_case_preview(
 def sample_cases(cases: list[CaseData], limit: int) -> list[CaseData]:
     if len(cases) <= limit:
         return cases
-    return [
-        cases[round(index * (len(cases) - 1) / (limit - 1))] for index in range(limit)
-    ]
+    return [cases[round(index * (len(cases) - 1) / (limit - 1))] for index in range(limit)]
 
 
-def write_imported_previews(
-    path: Path, cases: list[CaseData]
-) -> tuple[dict[str, str], list[str]]:
+def write_imported_previews(path: Path, cases: list[CaseData]) -> tuple[dict[str, str], list[str]]:
     preview_dir = path / "previews"
     overview_cases = sample_cases(cases, 20)
     overview_columns = 5 if len(overview_cases) <= 10 else 7
     overview_rows = (len(overview_cases) + overview_columns - 1) // overview_columns
-    overview_cell_height = round(
-        (overview_columns * 150) / max(overview_rows, 1) / 2.52
-    )
+    overview_cell_height = round((overview_columns * 150) / max(overview_rows, 1) / 2.52)
     write_case_preview(
         preview_dir / "selected.svg",
         cases[:1],
@@ -248,9 +208,7 @@ def write_imported_previews(
         columns=overview_columns,
         padding=6,
     )
-    instance_paths = [
-        f"previews/instances/case-{index:04}.svg" for index in range(len(cases))
-    ]
+    instance_paths = [f"previews/instances/case-{index:04}.svg" for index in range(len(cases))]
     previews = {
         "selected": "previews/selected.svg",
         "four": "previews/four.svg",
@@ -266,11 +224,7 @@ def preview_svg_is_stale(path: Path) -> bool:
         text = path.read_text(errors="ignore")
     except OSError:
         return False
-    return (
-        ">case " in text
-        or 'fill="#ffffff"' in text
-        or f'data-preview-version="{PREVIEW_VERSION}"' not in text
-    )
+    return ">case " in text or 'fill="#ffffff"' in text or f'data-preview-version="{PREVIEW_VERSION}"' not in text
 
 
 def campaign_previews_are_stale(path: Path, data: dict[str, Any]) -> bool:
@@ -280,9 +234,7 @@ def campaign_previews_are_stale(path: Path, data: dict[str, Any]) -> bool:
     return any(preview_svg_is_stale(path / preview) for preview in candidates)
 
 
-def ensure_instance_preview(
-    path: Path, data: dict[str, Any], index: int
-) -> Path | None:
+def ensure_instance_preview(path: Path, data: dict[str, Any], index: int) -> Path | None:
     if index < 0:
         return None
     instance_previews = instance_preview_list(data)
@@ -294,9 +246,7 @@ def ensure_instance_preview(
     case = read_campaign_case(path, data, index)
     if case is None:
         return None
-    write_case_preview(
-        preview_path, [case], cell_width=260, cell_height=180, columns=1, padding=6
-    )
+    write_case_preview(preview_path, [case], cell_width=260, cell_height=180, columns=1, padding=6)
     return preview_path
 
 

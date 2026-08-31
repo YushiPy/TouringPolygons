@@ -13,9 +13,7 @@ from dashboard_binary import _binary_offset_cache
 FILE_CACHE_LIMIT = 128
 
 _json_cache: OrderedDict[Path, tuple[int, int, dict[str, Any]]] = OrderedDict()
-_csv_cache: OrderedDict[tuple[Path, str], tuple[int, int, list[dict[str, str]]]] = (
-    OrderedDict()
-)
+_csv_cache: OrderedDict[tuple[Path, str], tuple[int, int, list[dict[str, str]]]] = OrderedDict()
 
 
 def file_signature(path: Path) -> tuple[int, int]:

@@ -12,9 +12,7 @@ from dashboard_files import (
     read_run_index,
 )
 
-_completed_count_cache: OrderedDict[
-    Path, tuple[tuple[tuple[str, int, int], ...], int]
-] = OrderedDict()
+_completed_count_cache: OrderedDict[Path, tuple[tuple[tuple[str, int, int], ...], int]] = OrderedDict()
 
 
 def parse_float(value: str | None) -> float:
@@ -24,9 +22,7 @@ def parse_float(value: str | None) -> float:
         return 0.0
 
 
-def completed_instance_count(
-    path: Path, run_index: dict[str, Any] | None = None
-) -> int:
+def completed_instance_count(path: Path, run_index: dict[str, Any] | None = None) -> int:
     index = run_index or read_run_index(path / "results/run-index.csv")
     csv_paths: list[Path] = []
     for run_row in index["rows"]:
@@ -93,18 +89,14 @@ def parse_markdown_tables(text: str) -> list[dict[str, Any]]:
         rows: list[dict[str, str]] = []
         index += 2
         while index < len(lines) and lines[index].strip().startswith("|"):
-            cells = [
-                cell.strip() for cell in lines[index].strip().strip("|").split("|")
-            ]
+            cells = [cell.strip() for cell in lines[index].strip().strip("|").split("|")]
             if len(cells) == len(headers):
                 rows.append(dict(zip(headers, cells, strict=True)))
             index += 1
         title = headers[0] if headers else "Table"
         if section == "Distributions" and title == "Metric":
             title = "Metric:distributions"
-        tables.append(
-            {"section": section, "title": title, "headers": headers, "rows": rows}
-        )
+        tables.append({"section": section, "title": title, "headers": headers, "rows": rows})
     return tables
 
 

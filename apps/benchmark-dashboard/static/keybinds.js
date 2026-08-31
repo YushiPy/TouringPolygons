@@ -1,6 +1,6 @@
 import { $ } from "./dom.js";
+import { KEYBIND_STORAGE_KEY } from "./storage.js";
 
-const KEYBIND_STORAGE_KEY = "benchmarkDashboardManualEditorKeybinds";
 
 const defaultKeybinds = {
 	closePolygon: ["Enter", "C"],

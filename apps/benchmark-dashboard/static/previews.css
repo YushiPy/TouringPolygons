@@ -38,6 +38,11 @@
 	background: var(--surface-muted);
 }
 
+.preview-load-all {
+	display: block;
+	margin: 0.75rem auto 0;
+}
+
 .modal-card .instance-grid {
 	grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
 }

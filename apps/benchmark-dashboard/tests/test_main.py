@@ -46,15 +46,40 @@ class DashboardMainTests(unittest.TestCase):
             path = Path(directory) / "rows.csv"
             path.write_text("name,value\nfirst,1\n")
 
-            self.assertEqual(
-                dashboard.read_csv_rows(path), [{"name": "first", "value": "1"}]
-            )
+            self.assertEqual(dashboard.read_csv_rows(path), [{"name": "first", "value": "1"}])
 
             path.write_text("name,value\nsecond,2\n")
 
-            self.assertEqual(
-                dashboard.read_csv_rows(path), [{"name": "second", "value": "2"}]
-            )
+            self.assertEqual(dashboard.read_csv_rows(path), [{"name": "second", "value": "2"}])
+
+    def test_json_cache_invalidates_when_file_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "data.json"
+            path.write_text('{"value": "first"}\n')
+            self.assertEqual(dashboard.read_json(path)["value"], "first")
+            path.write_text('{"value": "second"}\n')
+            self.assertEqual(dashboard.read_json(path)["value"], "second")
+
+    def test_binary_offset_cache_is_bounded(self) -> None:
+        dashboard._binary_offset_cache.clear()
+        case = dashboard.manual_case_from_request(dashboard.ManualCaseRequest())
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for index in range(dashboard.FILE_CACHE_LIMIT + 5):
+                path = root / f"{index}.bin"
+                dashboard.write_binary_cases(path, [case])
+                dashboard.read_binary_case(path, 0)
+            self.assertLessEqual(len(dashboard._binary_offset_cache), dashboard.FILE_CACHE_LIMIT)
+
+    def test_report_helpers_handle_missing_and_partial_files(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            self.assertEqual(dashboard_reports.summary_result_rows(path / "missing.md"), [])
+            self.assertIsNone(dashboard_reports.latest_comparison_path(path))
+            self.assertEqual(dashboard_reports.parse_markdown_tables("## Summary\n"), [])
+            partial = path / "partial.csv"
+            partial.write_text("case_index;total_seconds\n0;1.2\n1;\n")
+            self.assertEqual(dashboard_reports.read_result_rows(partial)[1]["case_index"], "1")
 
     def test_file_caches_are_bounded(self) -> None:
         dashboard._json_cache.clear()
@@ -69,9 +94,7 @@ class DashboardMainTests(unittest.TestCase):
 
             self.assertLessEqual(len(dashboard._json_cache), dashboard.FILE_CACHE_LIMIT)
             self.assertNotIn(root / "0.json", dashboard._json_cache)
-            self.assertIn(
-                root / f"{dashboard.FILE_CACHE_LIMIT + 4}.json", dashboard._json_cache
-            )
+            self.assertIn(root / f"{dashboard.FILE_CACHE_LIMIT + 4}.json", dashboard._json_cache)
 
     def test_campaign_summary_does_not_refresh_previews(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -85,9 +108,7 @@ class DashboardMainTests(unittest.TestCase):
 			}
 			""")
 
-            with patch.object(
-                dashboard, "refresh_stale_previews", side_effect=AssertionError
-            ):
+            with patch.object(dashboard, "refresh_stale_previews", side_effect=AssertionError):
                 self.assertEqual(dashboard.campaign_summary(path)["name"], "summary")
 
     def test_completed_instance_count_cache_invalidates_when_result_changes(
@@ -98,9 +119,7 @@ class DashboardMainTests(unittest.TestCase):
             path = Path(directory)
             results = path / "results"
             results.mkdir()
-            (results / "run-index.csv").write_text(
-                "status,csv_output\ncompleted,results/run.csv\n"
-            )
+            (results / "run-index.csv").write_text("status,csv_output\ncompleted,results/run.csv\n")
             (results / "run.csv").write_text("case_index\n0\n")
 
             self.assertEqual(dashboard.completed_instance_count(path), 1)
@@ -124,6 +143,24 @@ class DashboardMainTests(unittest.TestCase):
             dashboard.write_binary_cases(path, [case])
 
             self.assertEqual(dashboard.read_binary_cases(path, limit=10), [case])
+
+    def test_manual_binary_cache_is_rebuilt_from_editable_cases(self) -> None:
+        case = dashboard.manual_case_from_request(
+            dashboard.ManualCaseRequest(
+                start=(0.0, 0.0),
+                target=(2.0, 0.0),
+                polygons=[[(0.5, 0.5), (1.5, 0.5), (1.0, 1.25)]],
+            )
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            dashboard.create_manual_campaign_data(path)
+            dashboard.write_manual_cases(path, [case])
+            input_path = dashboard.manual_input_path(path)
+            input_path.unlink()
+
+            self.assertEqual(dashboard.ensure_manual_binary_cache(path), input_path)
+            self.assertEqual(dashboard.read_binary_cases(input_path, limit=1), [case])
 
     def test_binary_case_reader_counts_and_respects_limit(self) -> None:
         cases = [
@@ -214,9 +251,7 @@ class DashboardMainTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
             dashboard.write_binary_cases(path / "inputs/manual.bin", [case])
-            previews, instance_previews = dashboard.write_imported_previews(
-                path, [case]
-            )
+            previews, instance_previews = dashboard.write_imported_previews(path, [case])
             data = {
                 "inputs": [{"file": "inputs/manual.bin", "instances": 1}],
                 "preview": previews["all"],
@@ -227,9 +262,7 @@ class DashboardMainTests(unittest.TestCase):
             instance_path = path / instance_previews[0]
             self.assertFalse(instance_path.exists())
 
-            self.assertEqual(
-                dashboard.ensure_instance_preview(path, data, 0), instance_path
-            )
+            self.assertEqual(dashboard.ensure_instance_preview(path, data, 0), instance_path)
             self.assertTrue(instance_path.exists())
 
     def test_manual_autosave_invalidates_previews_without_rebuilding_them(self) -> None:

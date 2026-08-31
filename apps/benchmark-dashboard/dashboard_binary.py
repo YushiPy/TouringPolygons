@@ -54,9 +54,7 @@ def skip_binary_case(file: BinaryIO, file_size: int) -> bool:
         return False
     for _ in range(polygon_count):
         vertex_count = read_size(file)
-        if vertex_count is None or not skip_bytes(
-            file, vertex_count * POINT_STRUCT.size, file_size
-        ):
+        if vertex_count is None or not skip_bytes(file, vertex_count * POINT_STRUCT.size, file_size):
             return False
     return read_size(file) is not None
 

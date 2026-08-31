@@ -1,6 +1,5 @@
 import { $ } from "./dom.js";
-
-export const THEME_STORAGE_KEY = "benchmarkDashboardTheme";
+import { THEME_STORAGE_KEY } from "./storage.js";
 
 export function applyTheme(theme) {
 	const dark = theme === "dark";

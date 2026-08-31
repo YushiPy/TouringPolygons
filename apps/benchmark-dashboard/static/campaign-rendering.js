@@ -37,7 +37,7 @@ export function renderCampaignList(root, { closeIconSVG, deleteCampaign, describ
 			<div class="bar" aria-label="Benchmark progress">
 				<div class="bar-fill" style="width: ${Math.round(progress.ratio * 100)}%"></div>
 			</div>
-			${campaign.has_preview ? `<img class="preview" src="/api/campaigns/${encodeURIComponent(campaign.name)}/preview?v=${campaign.version || ""}" alt="Preview for ${escapeHTML(campaign.name)}">` : ""}
+			${campaign.has_preview ? `<img class="preview" src="/api/campaigns/${encodeURIComponent(campaign.name)}/preview?v=${campaign.version || ""}" alt="Preview for ${escapeHTML(campaign.name)}" loading="lazy">` : ""}
 		`;
 		card.querySelector(".campaign-delete").addEventListener("click", (event) => {
 			event.stopPropagation();

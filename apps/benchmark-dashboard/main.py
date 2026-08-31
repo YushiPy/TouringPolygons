@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -13,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -27,9 +25,7 @@ RESULTS_ROOT = REPO_ROOT / "benchmarks/results"
 JOBS_PATH = APP_ROOT / ".jobs.json"
 CANONICAL_SUITE = REPO_ROOT / "benchmarks/suites/canonical-v1.bin"
 TRACKED_NONCONVEX_SUITE = REPO_ROOT / "benchmarks/suites/nonconvex/test_cases.bin"
-GERMAN_INSTANCES_ZIP = (
-    REPO_ROOT / "tspn-comparison/solver/instances/instances_socg_simplified.zip"
-)
+GERMAN_INSTANCES_ZIP = REPO_ROOT / "tspn-comparison/solver/instances/instances_socg_simplified.zip"
 SOLVERS = {
     "linear": "linear_search_lazy",
     "linear_disjoint": "linear_search_disjoint",
@@ -71,6 +67,7 @@ from dashboard_binary import (  # noqa: E402
     read_binary_cases,
     write_binary_cases,
 )
+from dashboard_campaign_routes import register_campaign_routes  # noqa: E402
 from dashboard_campaigns import (  # noqa: E402
     campaign_input_label,
     first_input_file,
@@ -92,6 +89,7 @@ from dashboard_files import (  # noqa: E402
     read_run_index,
     trim_file_caches,
 )
+from dashboard_jobs import JobController  # noqa: E402
 from dashboard_models import (  # noqa: E402
     MAX_MANUAL_CASES,
     MAX_POLYGONS_PER_CASE,
@@ -99,13 +97,8 @@ from dashboard_models import (  # noqa: E402
     CaseData,
     CompareSolversRequest,
     CreateOsmRequest,
-    CreateSyntheticRequest,
-    ImportCanonicalRequest,
-    ImportGermanRequest,
     Job,
-    ManualCampaignRequest,
     ManualCaseRequest,
-    ManualCasesRequest,
     RunCampaignRequest,
 )
 from dashboard_previews import (  # noqa: E402
@@ -155,6 +148,7 @@ _COMPAT_EXPORTS = (
     svg_line,
     svg_points,
     write_case_preview,
+    CreateOsmRequest,
 )
 
 app = FastAPI(title="TPP Benchmark Dashboard")
@@ -169,100 +163,12 @@ templates = Jinja2Templates(directory=str(APP_ROOT / "templates"))
 
 
 jobs: dict[str, Job] = {}
-PROGRESS_PATTERN = re.compile(r"cases\s+\|\s+\[[^\]]*\]\s+(\d+)\s*/\s*(\d+)")
-SOLVER_SECTION_PATTERN = re.compile(r"^##\s+(.+)$", re.MULTILINE)
-
-
-def active_job(kind: str, campaign: str) -> Job | None:
-    for job in jobs.values():
-        if (
-            job.kind == kind
-            and job.campaign == campaign
-            and job.status in {"running", "stopping"}
-        ):
-            return job
-    return None
 
 
 def campaign_path(name: str) -> Path:
     if "/" in name or "\\" in name or name in {"", ".", ".."}:
         raise HTTPException(status_code=400, detail="Invalid campaign name.")
     return CAMPAIGNS_ROOT / name
-
-
-def persist_jobs() -> None:
-    JOBS_PATH.write_text(
-        json.dumps([job.snapshot() for job in jobs.values()], indent=2) + "\n"
-    )
-
-
-def load_jobs() -> None:
-    if not JOBS_PATH.exists():
-        return
-    try:
-        raw_jobs = json.loads(JOBS_PATH.read_text())
-    except (OSError, json.JSONDecodeError):
-        return
-    if not isinstance(raw_jobs, list):
-        return
-    for raw_job in raw_jobs[-100:]:
-        if not isinstance(raw_job, dict):
-            continue
-        job = Job(
-            id=str(raw_job.get("id") or uuid.uuid4()),
-            command=[str(part) for part in raw_job.get("command", [])],
-            kind=str(raw_job.get("kind") or "run"),
-            campaign=(
-                raw_job.get("campaign")
-                if isinstance(raw_job.get("campaign"), str)
-                else None
-            ),
-            started_at=float(raw_job.get("started_at") or time.time()),
-            finished_at=(
-                raw_job.get("finished_at")
-                if isinstance(raw_job.get("finished_at"), float | int)
-                else time.time()
-            ),
-            returncode=(
-                raw_job.get("returncode")
-                if isinstance(raw_job.get("returncode"), int)
-                else 130
-            ),
-            output=str(raw_job.get("output") or ""),
-            progress_completed=(
-                raw_job.get("progress_completed")
-                if isinstance(raw_job.get("progress_completed"), int)
-                else None
-            ),
-            progress_total=(
-                raw_job.get("progress_total")
-                if isinstance(raw_job.get("progress_total"), int)
-                else None
-            ),
-            solver_progress_completed=(
-                raw_job.get("solver_progress_completed")
-                if isinstance(raw_job.get("solver_progress_completed"), int)
-                else None
-            ),
-            solver_progress_total=(
-                raw_job.get("solver_progress_total")
-                if isinstance(raw_job.get("solver_progress_total"), int)
-                else None
-            ),
-            current_solver=(
-                raw_job.get("current_solver")
-                if isinstance(raw_job.get("current_solver"), str)
-                else None
-            ),
-            cancel_requested=bool(raw_job.get("cancel_requested")),
-        )
-        if raw_job.get("returncode") is None:
-            job.returncode = 130
-            job.finished_at = time.time()
-            job.output = (
-                job.output + "\nServer restarted before this job finished."
-            ).strip()
-        jobs[job.id] = job
 
 
 def validate_manual_cases(cases: list[ManualCaseRequest]) -> None:
@@ -273,14 +179,10 @@ def validate_manual_cases(cases: list[ManualCaseRequest]) -> None:
         )
     for case_index, case in enumerate(cases):
         if len(case.polygons) > MAX_POLYGONS_PER_CASE:
-            raise HTTPException(
-                status_code=413, detail=f"Case {case_index} has too many polygons."
-            )
+            raise HTTPException(status_code=413, detail=f"Case {case_index} has too many polygons.")
         vertex_count = sum(len(polygon) for polygon in case.polygons)
         if vertex_count > MAX_VERTICES_PER_CASE:
-            raise HTTPException(
-                status_code=413, detail=f"Case {case_index} has too many vertices."
-            )
+            raise HTTPException(status_code=413, detail=f"Case {case_index} has too many vertices.")
 
 
 def manual_cases_path(path: Path) -> Path:
@@ -291,9 +193,16 @@ def manual_input_path(path: Path) -> Path:
     return path / "inputs" / "manual.bin"
 
 
-def manual_case_to_data(
-    case: CaseData, name: str | None = None, generated: bool = False
-) -> dict[str, Any]:
+def ensure_manual_binary_cache(path: Path) -> Path:
+    """Rebuild the solver compatibility file when the editable store is present."""
+    input_path = manual_input_path(path)
+    if input_path.exists() or not manual_cases_path(path).exists():
+        return input_path
+    write_binary_cases(input_path, read_manual_cases(path))
+    return input_path
+
+
+def manual_case_to_data(case: CaseData, name: str | None = None, generated: bool = False) -> dict[str, Any]:
     start, target, polygons = case
     data: dict[str, Any] = {
         "start": [start[0], start[1]],
@@ -308,11 +217,7 @@ def manual_case_to_data(
 
 
 def manual_case_from_request(request: ManualCaseRequest) -> CaseData:
-    polygons = [
-        [(float(x), float(y)) for x, y in polygon]
-        for polygon in request.polygons
-        if len(polygon) >= 3
-    ]
+    polygons = [[(float(x), float(y)) for x, y in polygon] for polygon in request.polygons if len(polygon) >= 3]
     return (
         (float(request.start[0]), float(request.start[1])),
         (float(request.target[0]), float(request.target[1])),
@@ -325,9 +230,7 @@ def manual_case_request_to_json(request: ManualCaseRequest) -> dict[str, Any]:
 
 
 def read_manual_cases(path: Path) -> list[CaseData]:
-    return [
-        manual_case_from_request(case) for case in read_editable_case_requests(path)
-    ]
+    return [manual_case_from_request(case) for case in read_editable_case_requests(path)]
 
 
 def read_editable_case_requests(path: Path) -> list[ManualCaseRequest]:
@@ -339,17 +242,9 @@ def read_editable_case_requests(path: Path) -> list[ManualCaseRequest]:
             instances = input_record.get("instances")
             if not isinstance(file, str):
                 continue
-            limit = (
-                instances if isinstance(instances, int) and instances >= 0 else 1000000
-            )
+            limit = instances if isinstance(instances, int) and instances >= 0 else 1000000
             for case in read_binary_cases(path / file, limit=limit):
-                cases.append(
-                    ManualCaseRequest(
-                        **manual_case_to_data(
-                            case, generated=data.get("type") != "manual"
-                        )
-                    )
-                )
+                cases.append(ManualCaseRequest(**manual_case_to_data(case, generated=data.get("type") != "manual")))
         return cases
     raw_cases = read_json(manual_cases_path(path)).get("cases", [])
     if not isinstance(raw_cases, list):
@@ -361,9 +256,7 @@ def read_editable_case_requests(path: Path) -> list[ManualCaseRequest]:
         try:
             request = ManualCaseRequest(**raw_case)
         except ValueError as error:
-            raise HTTPException(
-                status_code=500, detail=f"Invalid manual case {index}."
-            ) from error
+            raise HTTPException(status_code=500, detail=f"Invalid manual case {index}.") from error
         cases.append(request)
     return cases
 
@@ -375,14 +268,8 @@ def write_manual_case_requests(path: Path, cases: list[ManualCaseRequest]) -> No
                 "schema_version": 1,
                 "cases": [
                     {
-                        **manual_case_to_data(
-                            manual_case_from_request(case), name=case.name
-                        ),
-                        **(
-                            {"generated": True}
-                            if getattr(case, "generated", False)
-                            else {}
-                        ),
+                        **manual_case_to_data(manual_case_from_request(case), name=case.name),
+                        **({"generated": True} if getattr(case, "generated", False) else {}),
                     }
                     for case in cases
                 ],
@@ -394,9 +281,7 @@ def write_manual_case_requests(path: Path, cases: list[ManualCaseRequest]) -> No
 
 
 def write_manual_cases(path: Path, cases: list[CaseData]) -> None:
-    write_manual_case_requests(
-        path, [ManualCaseRequest(**manual_case_to_data(case)) for case in cases]
-    )
+    write_manual_case_requests(path, [ManualCaseRequest(**manual_case_to_data(case)) for case in cases])
 
 
 def rebuild_manual_campaign(
@@ -406,11 +291,7 @@ def rebuild_manual_campaign(
     rebuild_previews: bool = True,
 ) -> dict[str, Any]:
     case_requests = [
-        (
-            case
-            if isinstance(case, ManualCaseRequest)
-            else ManualCaseRequest(**manual_case_to_data(case))
-        )
+        (case if isinstance(case, ManualCaseRequest) else ManualCaseRequest(**manual_case_to_data(case)))
         for case in cases
     ]
     case_data = [manual_case_from_request(case) for case in case_requests]
@@ -485,25 +366,6 @@ def create_manual_campaign_data(path: Path) -> None:
     write_binary_cases(manual_input_path(path), [])
 
 
-def refresh_job_progress_from_logs(job: Job) -> None:
-    if job.campaign is None or job.kind != "run" or job.status != "running":
-        return
-    path = campaign_path(job.campaign)
-    index = read_run_index(path / "results/run-index.csv")
-    for run_row in reversed(index["rows"]):
-        if run_row.get("action") != "running":
-            continue
-        log_value = run_row.get("log_output", "")
-        if not log_value:
-            continue
-        log_path = Path(log_value)
-        if not log_path.is_absolute():
-            log_path = path / log_path
-        if log_path.exists():
-            update_job_progress(job, log_path.read_text(errors="replace")[-12000:])
-            return
-
-
 def find_osm_files() -> list[dict[str, Any]]:
     paths: set[Path] = set()
     if sys.platform == "darwin":
@@ -523,11 +385,7 @@ def find_osm_files() -> list[dict[str, Any]]:
         if not root.exists():
             continue
         for directory, names, files in os.walk(root):
-            names[:] = [
-                name
-                for name in names
-                if name not in OSM_SEARCH_EXCLUDES and not name.startswith(".")
-            ]
+            names[:] = [name for name in names if name not in OSM_SEARCH_EXCLUDES and not name.startswith(".")]
             for file in files:
                 if file.endswith(".osm.pbf"):
                     paths.add((Path(directory) / file).resolve())
@@ -541,9 +399,7 @@ def find_osm_files() -> list[dict[str, Any]]:
             "size": path.stat().st_size,
             "mtime": path.stat().st_mtime,
         }
-        for path in sorted(
-            paths, key=lambda item: (-item.stat().st_size, item.name.lower())
-        )
+        for path in sorted(paths, key=lambda item: (-item.stat().st_size, item.name.lower()))
     ]
 
 
@@ -567,9 +423,7 @@ def benchmarked_instances(path: Path, *, limit: int = 200) -> list[dict[str, Any
             except (KeyError, ValueError):
                 continue
             preview = previews[case_index] if 0 <= case_index < len(previews) else None
-            solution_preview = solution_preview_path(
-                path, csv_path, case_index, result_row.get("repeat_index", "0")
-            )
+            solution_preview = solution_preview_path(path, csv_path, case_index, result_row.get("repeat_index", "0"))
             exhausted = result_row.get("exhausted") == "true"
             branch_limited = result_row.get("branch_limited") == "true"
             time_limited = result_row.get("time_limited") == "true"
@@ -580,11 +434,7 @@ def benchmarked_instances(path: Path, *, limit: int = 200) -> list[dict[str, Any
                 {
                     "case_index": case_index,
                     "repeat_index": result_row.get("repeat_index", "0"),
-                    "status": (
-                        "solved"
-                        if exhausted and not branch_limited and not time_limited
-                        else "capped"
-                    ),
+                    "status": ("solved" if exhausted and not branch_limited and not time_limited else "capped"),
                     "preview": preview,
                     "final_length": result_row.get("final_length"),
                     "initial_length": result_row.get("initial_length"),
@@ -604,9 +454,7 @@ def benchmarked_instances(path: Path, *, limit: int = 200) -> list[dict[str, Any
                         if solution_preview and solution_preview.exists()
                         else None
                     ),
-                    "solution_available": bool(
-                        solution_preview and solution_preview.exists()
-                    ),
+                    "solution_available": bool(solution_preview and solution_preview.exists()),
                 }
             )
             if len(instances) >= limit:
@@ -614,26 +462,18 @@ def benchmarked_instances(path: Path, *, limit: int = 200) -> list[dict[str, Any
     return instances
 
 
-def solution_preview_path(
-    path: Path, csv_path: Path, case_index: int, repeat_index: str
-) -> Path | None:
+def solution_preview_path(path: Path, csv_path: Path, case_index: int, repeat_index: str) -> Path | None:
     try:
         repeat = int(repeat_index)
     except ValueError:
         repeat = 0
-    solution_path = (
-        csv_path.parent
-        / f"{csv_path.stem}-solutions"
-        / f"case-{case_index:04}-repeat-{repeat:03}.svg"
-    )
+    solution_path = csv_path.parent / f"{csv_path.stem}-solutions" / f"case-{case_index:04}-repeat-{repeat:03}.svg"
     if solution_path.exists():
         return solution_path
 
     results_dir = path / "results"
     matches = (
-        sorted(
-            results_dir.glob(f"*-solutions/case-{case_index:04}-repeat-{repeat:03}.svg")
-        )
+        sorted(results_dir.glob(f"*-solutions/case-{case_index:04}-repeat-{repeat:03}.svg"))
         if results_dir.exists()
         else []
     )
@@ -823,57 +663,19 @@ def clamp_float(value: float, minimum: float, maximum: float) -> float:
     return max(minimum, min(maximum, value))
 
 
-def update_job_progress(job: Job, output: str) -> None:
-    for match in PROGRESS_PATTERN.finditer(output):
-        job.progress_completed = int(match.group(1))
-        job.progress_total = int(match.group(2))
-    if job.kind == "comparison" and job.solver_progress_total is not None:
-        known_solvers = set(SOLVERS.values())
-        solvers = [
-            match.group(1).strip()
-            for match in SOLVER_SECTION_PATTERN.finditer(output)
-            if match.group(1).strip() in known_solvers
-        ]
-        if solvers:
-            job.current_solver = solvers[-1]
-            job.solver_progress_completed = min(
-                job.solver_progress_total, max(0, len(solvers) - 1)
-            )
-
-
-async def run_job(job: Job) -> None:
-    env = os.environ.copy()
-    env.setdefault("PYTHONPYCACHEPREFIX", "/tmp/touringpolygons-pycache")
-    process = await asyncio.create_subprocess_exec(
-        *job.command,
-        cwd=REPO_ROOT,
-        env=env,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-        start_new_session=True,
-    )
-    job.process = process
-    assert process.stdout is not None
-    output_parts: list[str] = []
-    while True:
-        chunk = await process.stdout.read(1024)
-        if not chunk:
-            break
-        text = chunk.decode(errors="replace")
-        output_parts.append(text)
-        job.output = "".join(output_parts)[-20000:]
-        update_job_progress(job, job.output)
-    job.returncode = await process.wait()
-    if job.returncode == 0 and job.progress_total is not None:
-        job.progress_completed = job.progress_total
-    if job.returncode == 0 and job.solver_progress_total is not None:
-        job.solver_progress_completed = job.solver_progress_total
-    job.finished_at = time.time()
-    job.process = None
-    persist_jobs()
-
-
-load_jobs()
+job_controller = JobController(
+    jobs,
+    jobs_path=JOBS_PATH,
+    repo_root=REPO_ROOT,
+    campaign_path=campaign_path,
+    read_run_index=read_run_index,
+    solvers=SOLVERS,
+)
+active_job = job_controller.active_job
+persist_jobs = job_controller.persist_jobs
+refresh_job_progress_from_logs = job_controller.refresh_job_progress_from_logs
+run_job = job_controller.run_job
+job_controller.load_jobs()
 
 
 @app.get("/")
@@ -881,370 +683,9 @@ async def index(request: Request):
     return templates.TemplateResponse(request, "index.html")
 
 
-@app.get("/api/campaigns")
-async def list_campaigns():
-    CAMPAIGNS_ROOT.mkdir(parents=True, exist_ok=True)
-    campaigns = [
-        campaign_summary(path)
-        for path in sorted(CAMPAIGNS_ROOT.iterdir())
-        if path.is_dir() and (path / "campaign.json").exists()
-    ]
-    return {"campaigns": campaigns}
-
-
-@app.get("/api/campaigns/{name}")
-async def get_campaign(name: str):
-    return campaign_summary(campaign_path(name))
-
-
-@app.get("/api/campaigns/{name}/preview")
-async def get_preview(name: str):
-    return await get_preview_kind(name, "all")
-
-
-@app.get("/api/campaigns/{name}/preview/{kind}")
-async def get_preview_kind(name: str, kind: str):
-    path = campaign_path(name)
-    data = read_json(path / "campaign.json")
-    if not kind.startswith("instance-"):
-        data = refresh_stale_previews(path, data)
-    previews = preview_map(data)
-    if kind.startswith("instance-"):
-        try:
-            index = int(kind.removeprefix("instance-"))
-        except ValueError as error:
-            raise HTTPException(
-                status_code=404, detail="Invalid instance preview."
-            ) from error
-        preview_path = ensure_instance_preview(path, data, index)
-        if not preview_path:
-            raise HTTPException(status_code=404, detail="Campaign has no preview.")
-        return FileResponse(preview_path)
-    else:
-        preview = (
-            previews.get(kind)
-            or previews.get("all")
-            or next(iter(previews.values()), None)
-        )
-    if not preview:
-        raise HTTPException(status_code=404, detail="Campaign has no preview.")
-    preview_path = path / preview
-    if not preview_path.exists():
-        raise HTTPException(status_code=404, detail="Preview file does not exist.")
-    return FileResponse(preview_path)
-
-
-@app.get("/api/campaigns/{name}/solution-preview/{case_index}")
-async def get_solution_preview(name: str, case_index: int, repeat_index: int = 0):
-    path = campaign_path(name)
-    index = read_run_index(path / "results/run-index.csv")
-    for run_row in reversed(index["rows"]):
-        csv_value = run_row.get("csv_output", "")
-        if not csv_value:
-            continue
-        csv_path = Path(csv_value)
-        if not csv_path.is_absolute():
-            csv_path = path / csv_path
-        preview_path = solution_preview_path(
-            path, csv_path, case_index, str(repeat_index)
-        )
-        if preview_path and preview_path.exists():
-            return FileResponse(preview_path)
-    raise HTTPException(status_code=404, detail="Solution preview does not exist.")
-
-
-@app.post("/api/campaigns/synthetic")
-async def create_synthetic(request: CreateSyntheticRequest):
-    command = [
-        sys.executable,
-        str(BENCHMARK_CLI),
-        "create",
-        request.name,
-        "--vertices",
-        request.vertices,
-        "--polygons",
-        str(request.polygons),
-        "--instances",
-        str(request.instances),
-        "--shape",
-        request.shape,
-        "--seed",
-        str(request.seed),
-    ]
-    if request.no_preview:
-        command.append("--no-preview")
-    if request.overwrite:
-        command.append("--overwrite")
-
-    completed = run_command(command)
-    if completed.returncode != 0:
-        return JSONResponse(
-            {"ok": False, "output": completed.stdout},
-            status_code=400,
-        )
-    path = campaign_path(request.name)
-    if not request.no_preview:
-        rewrite_dashboard_previews(path)
-    return {"ok": True, "output": completed.stdout, "campaign": campaign_summary(path)}
-
-
-@app.post("/api/campaigns/osm")
-async def create_osm(request: CreateOsmRequest):
-    simplify_tolerance = clamp_float(request.simplify_tolerance, 0.0, 10.0)
-    scale = clamp_float(request.scale, 0.1, 10.0)
-    grid_polygon_size = clamp_float(request.grid_polygon_size, 0.1, 20.0)
-    grid_cell_size = clamp_float(request.grid_cell_size, 0.2, 40.0)
-    if grid_cell_size <= grid_polygon_size:
-        grid_cell_size = min(40.0, grid_polygon_size + 0.1)
-    convex_replacement_fraction = clamp_float(
-        request.convex_replacement_fraction, 0.0, 1.0
-    )
-    command = [
-        sys.executable,
-        str(BENCHMARK_CLI),
-        "generate-matrix",
-        request.name,
-        request.pbf_path,
-        "--instances",
-        str(request.instances),
-        "--polygon-count",
-        str(request.polygon_counts),
-        "--layout",
-        request.layout,
-        "--grid-cell-size",
-        str(grid_cell_size),
-        "--simplify-tolerance",
-        str(simplify_tolerance),
-        "--normalization",
-        request.normalization,
-        "--scale",
-        str(scale),
-        "--sampling",
-        request.sampling,
-        "--local-pool-size",
-        str(request.local_pool_size),
-        "--grid-polygon-size",
-        str(grid_polygon_size),
-        "--grid-placement",
-        request.grid_placement,
-        "--convex-replacement-fraction",
-        str(convex_replacement_fraction),
-        "--convex-replacement-vertices",
-        str(request.convex_replacement_vertices),
-        "--convex-replacement-position",
-        request.convex_replacement_position,
-        "--order",
-        request.order,
-        "--endpoint-mode",
-        request.endpoint_mode,
-        "--single-preview-count",
-        str(request.instances),
-        "--seed",
-        str(request.seed),
-        "--with-manifest",
-    ]
-    if request.grid_columns is not None:
-        command.extend(["--grid-columns", str(request.grid_columns)])
-    if request.sample_size is not None:
-        command.extend(["--sample-size", str(request.sample_size)])
-    if not request.no_preview:
-        command.append("--with-preview")
-    if request.overwrite:
-        command.append("--overwrite")
-
-    completed = run_command(command)
-    if completed.returncode != 0:
-        return JSONResponse(
-            {"ok": False, "output": completed.stdout},
-            status_code=400,
-        )
-    path = campaign_path(request.name)
-    if not request.no_preview:
-        rewrite_dashboard_previews(path)
-    return {"ok": True, "output": completed.stdout, "campaign": campaign_summary(path)}
-
-
-@app.post("/api/campaigns/canonical")
-async def import_canonical(request: ImportCanonicalRequest):
-    source_suite = (
-        CANONICAL_SUITE if CANONICAL_SUITE.exists() else TRACKED_NONCONVEX_SUITE
-    )
-    if not source_suite.exists():
-        raise HTTPException(
-            status_code=404, detail="No canonical or tracked nonconvex suite exists."
-        )
-    return import_binary_suite(
-        name=request.name,
-        source_suite=source_suite,
-        input_filename="canonical-v1.bin",
-        campaign_type="canonical",
-        format_name="canonical-v1",
-        overwrite=request.overwrite,
-    )
-
-
-@app.post("/api/campaigns/german")
-async def import_german(request: ImportGermanRequest):
-    if GERMAN_INSTANCES_ZIP.exists():
-        completed = run_command(
-            [
-                sys.executable,
-                str(CONVERT_INSTANCES_SCRIPT),
-                "--input",
-                str(GERMAN_INSTANCES_ZIP),
-                "--output",
-                str(TRACKED_NONCONVEX_SUITE),
-            ]
-        )
-        if completed.returncode != 0:
-            return JSONResponse(
-                {"ok": False, "output": completed.stdout},
-                status_code=400,
-            )
-    elif not TRACKED_NONCONVEX_SUITE.exists():
-        raise HTTPException(
-            status_code=404,
-            detail="No German instances zip or converted nonconvex suite exists.",
-        )
-
-    return import_binary_suite(
-        name=request.name,
-        source_suite=TRACKED_NONCONVEX_SUITE,
-        input_filename="german-instances.bin",
-        campaign_type="german",
-        format_name="socg-simplified",
-        overwrite=request.overwrite,
-        extra_generation={
-            "source_zip": (
-                str(GERMAN_INSTANCES_ZIP) if GERMAN_INSTANCES_ZIP.exists() else None
-            )
-        },
-    )
-
-
-@app.post("/api/campaigns/manual")
-async def create_manual_campaign(request: ManualCampaignRequest):
-    path = campaign_path(request.name)
-    if path.exists() and request.overwrite:
-        shutil.rmtree(path)
-    elif (path / "campaign.json").exists():
-        raise HTTPException(status_code=400, detail="Campaign already exists.")
-    create_manual_campaign_data(path)
-    return {"ok": True, "campaign": campaign_summary(path), "cases": []}
-
-
-@app.get("/api/campaigns/{name}/cases")
-async def get_manual_cases(name: str):
-    path = campaign_path(name)
-    read_json(path / "campaign.json")
-    return {
-        "cases": [
-            manual_case_request_to_json(case)
-            for case in read_editable_case_requests(path)
-        ]
-    }
-
-
-@app.put("/api/campaigns/{name}/cases")
-async def replace_manual_cases(
-    name: str, request: ManualCasesRequest, refresh_previews: bool = True
-):
-    path = campaign_path(name)
-    read_json(path / "campaign.json")
-    validate_manual_cases(request.cases)
-    campaign = rebuild_manual_campaign(
-        path, request.cases, rebuild_previews=refresh_previews
-    )
-    return {
-        "ok": True,
-        "campaign": campaign,
-        "cases": [manual_case_request_to_json(case) for case in request.cases],
-    }
-
-
-@app.post("/api/campaigns/{name}/cases")
-async def append_manual_case(name: str, request: ManualCaseRequest):
-    path = campaign_path(name)
-    cases = read_manual_cases(path)
-    cases.append(manual_case_from_request(request))
-    validate_manual_cases(
-        [ManualCaseRequest(**manual_case_to_data(case)) for case in cases]
-    )
-    campaign = rebuild_manual_campaign(path, cases)
-    return {"ok": True, "index": len(cases) - 1, "campaign": campaign}
-
-
-@app.put("/api/campaigns/{name}/cases/{case_index}")
-async def update_manual_case(name: str, case_index: int, request: ManualCaseRequest):
-    path = campaign_path(name)
-    cases = read_manual_cases(path)
-    if case_index < 0 or case_index >= len(cases):
-        raise HTTPException(status_code=404, detail="Case does not exist.")
-    cases[case_index] = manual_case_from_request(request)
-    validate_manual_cases(
-        [ManualCaseRequest(**manual_case_to_data(case)) for case in cases]
-    )
-    campaign = rebuild_manual_campaign(path, cases)
-    return {"ok": True, "campaign": campaign}
-
-
-@app.delete("/api/campaigns/{name}/cases/{case_index}")
-async def delete_manual_case(name: str, case_index: int):
-    path = campaign_path(name)
-    cases = read_manual_cases(path)
-    if case_index < 0 or case_index >= len(cases):
-        raise HTTPException(status_code=404, detail="Case does not exist.")
-    del cases[case_index]
-    campaign = rebuild_manual_campaign(path, cases)
-    return {"ok": True, "campaign": campaign}
-
-
-@app.post("/api/editor/solve")
-async def solve_editor_case(request: ManualCaseRequest):
-    validate_manual_cases([request])
-    case = manual_case_from_request(request)
-    if len(case[2]) == 0:
-        return {
-            "path": [list(case[0]), list(case[1])],
-            "exact": True,
-            "calls": 0,
-            "seconds": 0,
-        }
-    try:
-        ensure_live_solver_binary()
-        completed = subprocess.run(
-            [SOLVER_BINARY],
-            input=live_solver_input(case, max_calls=200000, max_seconds=3.0),
-            cwd=REPO_ROOT,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=8.0,
-        )
-    except subprocess.TimeoutExpired as error:
-        raise HTTPException(status_code=504, detail="Solver timed out.") from error
-    except subprocess.CalledProcessError as error:
-        raise HTTPException(
-            status_code=500, detail=error.stderr.strip() or "Solver build failed."
-        ) from error
-    if completed.returncode != 0 and not completed.stdout:
-        raise HTTPException(
-            status_code=500, detail=completed.stderr.strip() or "Solver failed."
-        )
-    return JSONResponse(parse_live_solver_output(completed.stdout))
-
-
-@app.delete("/api/campaigns/{name}")
-async def delete_campaign(name: str):
-    path = campaign_path(name)
-    if not (path / "campaign.json").exists():
-        raise HTTPException(status_code=404, detail="Campaign does not exist.")
-    shutil.rmtree(path)
-    return {"ok": True}
-
-
 @app.post("/api/runs")
 async def run_campaign(request: RunCampaignRequest):
+    ensure_manual_binary_cache(campaign_path(request.name))
     existing_job = active_job("run", request.name)
     if existing_job is not None:
         return {"job": existing_job.id, "command": existing_job.command}
@@ -1287,6 +728,7 @@ async def compare_solvers(request: CompareSolversRequest):
         return {"job": existing_job.id, "command": existing_job.command}
 
     path = campaign_path(request.name)
+    ensure_manual_binary_cache(path)
     suite = first_input_file(path)
     command = [
         sys.executable,
@@ -1309,9 +751,7 @@ async def compare_solvers(request: CompareSolversRequest):
     for solver_name in request.solvers:
         solver = SOLVERS.get(solver_name)
         if solver is None:
-            raise HTTPException(
-                status_code=400, detail=f"Unknown solver: {solver_name}"
-            )
+            raise HTTPException(status_code=400, detail=f"Unknown solver: {solver_name}")
         command.extend(["--solver", solver])
     if request.threads is not None:
         command.extend(["--threads", str(request.threads)])
@@ -1333,6 +773,41 @@ async def compare_solvers(request: CompareSolversRequest):
     asyncio.create_task(run_job(job))
     return {"job": job.id, "command": command}
 
+
+register_campaign_routes(
+    app,
+    campaigns_root=CAMPAIGNS_ROOT,
+    campaign_path=campaign_path,
+    campaign_summary=campaign_summary,
+    read_json=read_json,
+    read_run_index=read_run_index,
+    preview_map=preview_map,
+    refresh_stale_previews=refresh_stale_previews,
+    ensure_instance_preview=ensure_instance_preview,
+    ensure_manual_binary_cache=ensure_manual_binary_cache,
+    solution_preview_path=solution_preview_path,
+    run_command=run_command,
+    rewrite_dashboard_previews=rewrite_dashboard_previews,
+    import_binary_suite=import_binary_suite,
+    create_manual_campaign_data=create_manual_campaign_data,
+    read_editable_case_requests=read_editable_case_requests,
+    manual_case_request_to_json=manual_case_request_to_json,
+    validate_manual_cases=validate_manual_cases,
+    rebuild_manual_campaign=rebuild_manual_campaign,
+    read_manual_cases=read_manual_cases,
+    manual_case_from_request=manual_case_from_request,
+    manual_case_to_data=manual_case_to_data,
+    ensure_live_solver_binary=ensure_live_solver_binary,
+    live_solver_input=live_solver_input,
+    parse_live_solver_output=parse_live_solver_output,
+    benchmark_cli=BENCHMARK_CLI,
+    repo_root=REPO_ROOT,
+    convert_instances_script=CONVERT_INSTANCES_SCRIPT,
+    canonical_suite=CANONICAL_SUITE,
+    tracked_nonconvex_suite=TRACKED_NONCONVEX_SUITE,
+    german_instances_zip=GERMAN_INSTANCES_ZIP,
+    solver_binary=SOLVER_BINARY,
+)
 
 register_support_routes(
     app,
