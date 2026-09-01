@@ -1,7 +1,7 @@
 import { drawCanvasScene } from "./canvas-renderer.js";
 import { cloneCaseData } from "./case-data.js";
 import { convexDecomposition, polygonIsConvex, solutionDirectionAt } from "./editor-geometry.js";
-import { editorSolverState, loadEditorGeometry, loadEditorWasm, solveEditorWasmAsync } from "./editor-solver.js";
+import { WORKER_SOLVE_VERTEX_THRESHOLD, editorSolverState, loadEditorGeometry, loadEditorWasm, solveEditorWasm, solveEditorWasmAsync, solveEditorWasmGroups } from "./editor-solver.js";
 import { CAMERA_STORAGE_KEY, canvasToWorld as cameraCanvasToWorld, caseBounds as cameraCaseBounds, worldToCanvas as cameraWorldToCanvas, zoomLimits } from "./manual-editor-camera.js";
 import { mergeSelections, pointsInRect as selectionPointsInRect, samePointSelection as selectionSamePoint } from "./manual-editor-selection.js";
 
@@ -883,7 +883,11 @@ export function createManualEditor({
 			if (!current) {
 				return;
 			}
-			this.draw();
+			const caseData = cloneCaseData(current);
+			const revision = this.solutionRevision;
+			if (this.trySolveImmediately(caseData, revision)) {
+				return;
+			}
 			if (this.solutionStale) {
 				this.setStatus("Updating solution...");
 			}
@@ -897,8 +901,65 @@ export function createManualEditor({
 			}
 			this.solutionTimer = setTimeout(() => {
 				this.solutionTimer = null;
-				this.fetchSolution(cloneCaseData(this.currentCase()), this.solutionRevision);
+				this.fetchSolution(caseData, revision);
 			}, 0);
+		},
+
+		trySolveImmediately(caseData, revision) {
+			if (!caseData) {
+				return false;
+			}
+			if (caseData.polygons.length === 0) {
+				if (revision !== this.solutionRevision) {
+					return true;
+				}
+				this.solutionPath = [caseData.start, caseData.target];
+				this.solutionStale = false;
+				this.updateLabelDirections(true);
+				this.setStatus("Solution: exact, 0 calls");
+				this.draw();
+				return true;
+			}
+			if (!editorSolverState.module) {
+				return false;
+			}
+
+			const vertexCount = caseData.polygons.reduce((sum, polygon) => sum + polygon.length, 0);
+			if (vertexCount > WORKER_SOLVE_VERTEX_THRESHOLD) {
+				return false;
+			}
+
+			try {
+				const solveStarted = performance.now();
+				const pieceGroups = caseData.polygons.every(polygonIsConvex)
+					? null
+					: caseData.polygons.map(convexDecomposition);
+				const wasmResult = pieceGroups
+					? solveEditorWasmGroups(caseData, pieceGroups)
+					: solveEditorWasm(caseData);
+				const solveWallSeconds = (performance.now() - solveStarted) / 1000;
+
+				if (revision !== this.solutionRevision) {
+					return true;
+				}
+				if (!wasmResult) {
+					this.solutionPath = null;
+					this.solutionStale = false;
+					this.updateLabelDirections(true);
+					this.setStatus("WASM solver could not solve this case.");
+					this.draw();
+					return true;
+				}
+
+				this.solutionPath = wasmResult.path;
+				this.solutionStale = false;
+				this.updateLabelDirections(true);
+				this.setStatus(`Solution: ${wasmResult.exact ? "exact" : "approximate"}, ${wasmResult.calls} calls, ${formatSeconds(Math.max(wasmResult.seconds || 0, solveWallSeconds))} via WASM`);
+				this.draw();
+				return true;
+			} catch {
+				return false;
+			}
 		},
 
 		async fetchSolution(caseData, revision = this.solutionRevision) {

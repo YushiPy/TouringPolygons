@@ -72,6 +72,7 @@
 	grid-row: 1 / span 2;
 	align-self: start;
 	margin-top: 1px;
+	touch-action: none;
 }
 
 .manual-campaign-actions {
@@ -247,6 +248,7 @@
 	grid-row: 1 / span 2;
 	align-self: start;
 	margin-top: 1px;
+	touch-action: none;
 }
 
 .manual-case-select .instance-name-button,

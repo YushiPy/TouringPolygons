@@ -8,6 +8,40 @@
 
 using std::vector;
 
+namespace {
+
+	constexpr double LOCAL_EPSILON = 1e-8;
+	constexpr double LOCAL_EPSILON_SQUARED = LOCAL_EPSILON * LOCAL_EPSILON;
+
+	bool point_in_convex_polygon_closed(const Vector2 &point, const vector<Vector2> &polygon) {
+		if (polygon.empty()) {
+			return false;
+		}
+
+		bool has_positive = false;
+		bool has_negative = false;
+
+		for (size_t i = 0; i < polygon.size(); i++) {
+			const auto &v1 = polygon[i];
+			const auto &v2 = polygon[(i + 1) % polygon.size()];
+			const double cross = (v2 - v1).cross(point - v1);
+
+			if (cross > LOCAL_EPSILON_SQUARED) {
+				has_positive = true;
+			} else if (cross < -LOCAL_EPSILON_SQUARED) {
+				has_negative = true;
+			}
+
+			if (has_positive && has_negative) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+}
+
 namespace tpp {
 
 	void DynamicConvexTppWorkspace::reserve(size_t max_polygons, size_t max_total_vertices) {
@@ -161,6 +195,11 @@ namespace tpp {
 			return;
 		}
 
+		if (point_in_convex_polygon_closed(point, polygons[i - 1])) {
+			query_full(point, i - 1, accumulator);
+			return;
+		}
+
 		auto location = locate_point(point, i);
 
 		if (location == -1) {
@@ -212,6 +251,10 @@ namespace tpp {
 
 		if (i == 0) {
 			return start;
+		}
+
+		if (point_in_convex_polygon_closed(point, polygons[i - 1])) {
+			return query(point, i - 1);
 		}
 
 		auto location = locate_point(point, i);
@@ -292,6 +335,10 @@ namespace tpp {
 
 		if (i == 0) {
 			return start.distance_to(point);
+		}
+
+		if (point_in_convex_polygon_closed(point, polygons[i - 1])) {
+			return query_length(point, i - 1);
 		}
 
 		const auto location = locate_point(point, i);

@@ -9,7 +9,7 @@ export const editorSolverState = {
 	geometry: null,
 };
 
-const WORKER_SOLVE_VERTEX_THRESHOLD = 120;
+export const WORKER_SOLVE_VERTEX_THRESHOLD = 120;
 let idleSolverWorker = null;
 
 function solveVertexCount(caseData, pieceGroups) {

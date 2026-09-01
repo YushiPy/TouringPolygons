@@ -191,6 +191,18 @@ def manual_cases_path(path: Path) -> Path:
 
 
 def manual_input_path(path: Path) -> Path:
+    campaign_file = path / "campaign.json"
+    if campaign_file.exists():
+        data = read_json(campaign_file)
+        for input_record in data.get("inputs", []):
+            file_value = input_record.get("file")
+            if isinstance(file_value, str) and file_value:
+                input_path = path / file_value
+                if input_path.exists() or file_value != "inputs/manual.bin":
+                    return input_path
+        campaign_named_input = path / "inputs" / f"{path.name}.bin"
+        if campaign_named_input.exists():
+            return campaign_named_input
     return path / "inputs" / "manual.bin"
 
 
@@ -202,6 +214,18 @@ def ensure_manual_binary_cache(path: Path) -> Path:
         return input_path
     input_path.parent.mkdir(parents=True, exist_ok=True)
     write_binary_cases(input_path, read_manual_cases(path))
+    campaign_file = path / "campaign.json"
+    if campaign_file.exists():
+        data = read_json(campaign_file)
+        relative_input = str(input_path.relative_to(path))
+        if data.get("inputs", [{}])[0].get("file") != relative_input:
+            inputs = data.get("inputs")
+            if not isinstance(inputs, list) or not inputs:
+                inputs = [{}]
+            inputs[0] = {**inputs[0], "file": relative_input}
+            data["inputs"] = inputs
+            campaign_file.write_text(json.dumps(data, indent=2) + "\n")
+            _json_cache.pop(campaign_file, None)
     return input_path
 
 
@@ -322,7 +346,7 @@ def rebuild_manual_campaign(
     }
     data["inputs"] = [
         {
-            "file": "inputs/manual.bin",
+            "file": str(manual_input_path(path).relative_to(path)),
             "instances": len(case_data),
             "polygons_per_instance": None,
             "source": "manual-editor",

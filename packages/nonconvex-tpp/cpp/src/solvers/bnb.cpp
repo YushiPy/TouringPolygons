@@ -70,6 +70,54 @@ namespace {
 		return true;
 	}
 
+	double signed_area(const std::vector<Vector2> &polygon) {
+		double area = 0.0;
+
+		for (size_t i = 0; i < polygon.size(); i++) {
+			const auto &current = polygon[i];
+			const auto &next = polygon[(i + 1) % polygon.size()];
+			area += current.cross(next);
+		}
+
+		return area / 2.0;
+	}
+
+	std::vector<Vector2> counter_clockwise_polygon(const std::vector<Vector2> &polygon) {
+		std::vector<Vector2> normalized = polygon;
+
+		if (signed_area(normalized) < 0.0) {
+			std::reverse(normalized.begin(), normalized.end());
+		}
+
+		return normalized;
+	}
+
+	std::vector<std::vector<Vector2>> counter_clockwise_polygons(
+		const std::vector<std::vector<Vector2>> &polygons
+	) {
+		std::vector<std::vector<Vector2>> normalized;
+		normalized.reserve(polygons.size());
+
+		for (const auto &polygon : polygons) {
+			normalized.push_back(counter_clockwise_polygon(polygon));
+		}
+
+		return normalized;
+	}
+
+	std::vector<std::vector<std::vector<Vector2>>> counter_clockwise_piece_groups(
+		const std::vector<std::vector<std::vector<Vector2>>> &pieces
+	) {
+		std::vector<std::vector<std::vector<Vector2>>> normalized;
+		normalized.reserve(pieces.size());
+
+		for (const auto &polygon_pieces : pieces) {
+			normalized.push_back(counter_clockwise_polygons(polygon_pieces));
+		}
+
+		return normalized;
+	}
+
 	double path_length(const std::vector<Vector2> &path) {
 		double length = 0.0;
 
@@ -195,7 +243,8 @@ namespace tpp {
 		}
 
 		if (std::ranges::all_of(polygons, is_convex)) {
-			return {tpp_convex_solve_binary_search_lazy(start, target, polygons), true, 1, 0.0};
+			const auto normalized_polygons = counter_clockwise_polygons(polygons);
+			return {tpp_convex_solve_binary_search_lazy(start, target, normalized_polygons), true, 1, 0.0};
 		}
 
 		std::vector<std::vector<std::vector<Vector2>>> pieces;
@@ -220,10 +269,12 @@ namespace tpp {
 			return {{start, target}, true, 0, 0.0};
 		}
 
-		std::vector<std::vector<Vector2>> hulls;
-		hulls.reserve(pieces.size());
+		const auto normalized_pieces = counter_clockwise_piece_groups(pieces);
 
-		for (const auto &polygon_pieces : pieces) {
+		std::vector<std::vector<Vector2>> hulls;
+		hulls.reserve(normalized_pieces.size());
+
+		for (const auto &polygon_pieces : normalized_pieces) {
 			if (polygon_pieces.empty()) {
 				throw std::runtime_error("Every polygon must have at least one convex piece.");
 			}
@@ -232,7 +283,7 @@ namespace tpp {
 		}
 
 		std::vector<Vector2> best_path;
-		const auto selected = first_piece_instance(pieces);
+		const auto selected = first_piece_instance(normalized_pieces);
 
 		try {
 			best_path = tpp_convex_solve_binary_search_lazy(start, target, selected);
@@ -249,13 +300,13 @@ namespace tpp {
 
 		auto bound = [&](const std::vector<size_t> &instance) {
 			std::vector<std::vector<Vector2>> input;
-			input.reserve(pieces.size());
+			input.reserve(normalized_pieces.size());
 
 			for (size_t i = 0; i < instance.size(); i++) {
-				input.push_back(pieces[i][instance[i]]);
+				input.push_back(normalized_pieces[i][instance[i]]);
 			}
 
-			for (size_t i = instance.size(); i < pieces.size(); i++) {
+			for (size_t i = instance.size(); i < normalized_pieces.size(); i++) {
 				input.push_back(hulls[i]);
 			}
 
@@ -275,12 +326,12 @@ namespace tpp {
 			auto current = std::move(queue.front());
 			queue.pop();
 
-			if (current.size() == pieces.size()) {
+			if (current.size() == normalized_pieces.size()) {
 				std::vector<std::vector<Vector2>> input;
-				input.reserve(pieces.size());
+				input.reserve(normalized_pieces.size());
 
 				for (size_t i = 0; i < current.size(); i++) {
-					input.push_back(pieces[i][current[i]]);
+					input.push_back(normalized_pieces[i][current[i]]);
 				}
 
 				result.calls++;
@@ -296,7 +347,7 @@ namespace tpp {
 			}
 
 			const size_t next_polygon = current.size();
-			for (size_t i = 0; i < pieces[next_polygon].size(); i++) {
+			for (size_t i = 0; i < normalized_pieces[next_polygon].size(); i++) {
 				auto next = current;
 				next.push_back(i);
 

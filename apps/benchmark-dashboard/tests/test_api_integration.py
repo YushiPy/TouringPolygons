@@ -101,6 +101,46 @@ class DashboardApiIntegrationTests(unittest.TestCase):
                 self.assertTrue(binary_path.exists())
                 self.assertTrue(Path(response.path).exists())
 
+    def test_edited_import_preview_repairs_stale_manual_input_name(self) -> None:
+        preview = endpoint("/api/campaigns/{name}/preview/{kind}", "GET")
+        case = ManualCaseRequest(
+            start=(0.0, 0.0),
+            target=(2.0, 0.0),
+            polygons=[[(0.5, 0.5), (1.5, 0.5), (1.0, 1.25)]],
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            campaigns_root = Path(directory)
+            campaign_path = campaigns_root / "canonical-v1"
+            campaign_path.mkdir(parents=True)
+            main.write_manual_case_requests(campaign_path, [case])
+            main.write_binary_cases(campaign_path / "inputs/canonical-v1.bin", [main.manual_case_from_request(case)])
+            (campaign_path / "campaign.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "name": "canonical-v1",
+                        "type": "canonical",
+                        "generation": {"instances": 1, "format": "manual-json-v1", "edited": True},
+                        "inputs": [{"file": "inputs/manual.bin", "instances": 1}],
+                        "preview": None,
+                        "previews": {},
+                        "instance_previews": [],
+                    },
+                    indent=2,
+                )
+                + "\n"
+            )
+            with patch.object(main, "CAMPAIGNS_ROOT", campaigns_root):
+                response = asyncio.run(preview("canonical-v1", "instance-0"))
+
+                self.assertEqual(response.path, campaign_path / "previews/instances/case-0000.svg")
+                self.assertTrue(Path(response.path).exists())
+                self.assertEqual(
+                    main.read_json(campaign_path / "campaign.json")["inputs"][0]["file"],
+                    "inputs/canonical-v1.bin",
+                )
+
     def test_campaign_rename_updates_directory_and_metadata(self) -> None:
         create_manual = endpoint("/api/campaigns/manual", "POST")
         rename_campaign = endpoint("/api/campaigns/{name}/rename", "PUT")

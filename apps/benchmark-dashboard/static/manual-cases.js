@@ -97,6 +97,12 @@ export function createManualCaseController(deps) {
 			const handle = button.querySelector(".drag-handle");
 			setDragHandleEnabled(handle, state.manualCampaignSort === "default" && !state.manualCampaignSortReverse);
 			setDraggableRow(row, state.manualCampaignSort === "default" && !state.manualCampaignSortReverse);
+			setupPointerReorder(handle, row, {
+				enabled: () => state.manualCampaignSort === "default" && !state.manualCampaignSortReverse,
+				root: () => grid,
+				rowSelector: ".manual-campaign-row",
+				reorder: async (target, position) => reorderCampaigns(campaign.name, target.dataset.value, position),
+			});
 			const startCampaignDrag = (event) => {
 				if (event.target.closest(".manual-campaign-actions, .campaign-name-input")) {
 					event.preventDefault();
@@ -199,6 +205,17 @@ export function createManualCaseController(deps) {
 		const handle = row.querySelector(".drag-handle");
 		setDragHandleEnabled(handle, state.manualInstanceSort === "default" && !state.manualInstanceSortReverse);
 		setDraggableRow(row, state.manualInstanceSort === "default" && !state.manualInstanceSortReverse);
+		setupPointerReorder(handle, row, {
+			enabled: () => state.manualInstanceSort === "default" && !state.manualInstanceSortReverse,
+			root: () => row.parentElement,
+			rowSelector: ".manual-case-row",
+			reorder: async (target, position) => {
+				const targetIndex = Number(target.dataset.caseIndex);
+				if (Number.isInteger(targetIndex) && targetIndex !== index) {
+					reorderManualCases(index, targetIndex, position);
+				}
+			},
+		});
 		const startCaseDrag = (event) => {
 			if (event.target.closest(".manual-case-actions, .instance-name-input")) {
 				event.preventDefault();
@@ -411,6 +428,64 @@ export function createManualCaseController(deps) {
 		document.body.appendChild(ghost);
 		event.dataTransfer.setDragImage(ghost, 18, 18);
 		requestAnimationFrame(() => ghost.remove());
+	}
+
+	function setupPointerReorder(handle, row, options) {
+		let drag = null;
+		handle.addEventListener("pointerdown", (event) => {
+			if (event.button !== 0 || !options.enabled()) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			drag = {
+				pointerId: event.pointerId,
+				startX: event.clientX,
+				startY: event.clientY,
+				active: false,
+				target: null,
+			};
+			handle.setPointerCapture?.(event.pointerId);
+		});
+		handle.addEventListener("pointermove", (event) => {
+			if (!drag || drag.pointerId !== event.pointerId) {
+				return;
+			}
+			const moved = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+			if (!drag.active && moved < 8) {
+				return;
+			}
+			drag.active = true;
+			event.preventDefault();
+			row.classList.add("is-dragging");
+			const target = document.elementFromPoint(event.clientX, event.clientY)?.closest(options.rowSelector);
+			clearDropMarkers(options.root());
+			if (!target || target === row || !options.root()?.contains(target)) {
+				drag.target = null;
+				return;
+			}
+			drag.target = target;
+			markDropTarget(target, event);
+		});
+		const finish = async (event) => {
+			if (!drag || drag.pointerId !== event.pointerId) {
+				return;
+			}
+			const target = drag.target;
+			const active = drag.active;
+			handle.releasePointerCapture?.(event.pointerId);
+			drag = null;
+			row.classList.remove("is-dragging");
+			clearDropMarkers(options.root());
+			if (!active || !target || !options.enabled()) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			await options.reorder(target, dropPosition(target, event));
+		};
+		handle.addEventListener("pointerup", finish);
+		handle.addEventListener("pointercancel", finish);
 	}
 
 	function reorderManualCases(sourceIndex, targetIndex, position = "before") {

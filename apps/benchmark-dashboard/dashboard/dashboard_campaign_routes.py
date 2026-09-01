@@ -131,8 +131,9 @@ def register_campaign_routes(
     async def get_preview_kind(name: str, kind: str):
         path = campaign_path(name)
         data = read_json(path / "campaign.json")
-        if data.get("type") == "manual":
+        if data.get("type") == "manual" or (path / "manual-cases.json").exists():
             ensure_manual_binary_cache(path)
+            data = read_json(path / "campaign.json")
         if not kind.startswith("instance-"):
             data = refresh_stale_previews(path, data)
         previews = preview_map(data)
