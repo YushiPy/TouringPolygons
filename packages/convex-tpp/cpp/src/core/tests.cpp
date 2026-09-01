@@ -250,6 +250,7 @@ namespace tpp {
 			const auto &point = solution[path_index];
 
 			bool is_on_vertex = false;
+			bool is_valid_vertex_bend = false;
 
 			// Verify if the point is on a vertex and if it is a valid bend.
 			for (size_t i = 0; i < polygon.size(); i++) {
@@ -287,13 +288,14 @@ namespace tpp {
 				const auto &next_point = solution[path_index + 1];
 
 				if (!tpp::point_in_cone_plus(next_point, vertex, ray1, ray2)) {
-					return false;
+					break;
 				}
 
+				is_valid_vertex_bend = true;
 				break;
 			}
 
-			if (is_on_vertex) {
+			if (is_on_vertex && is_valid_vertex_bend) {
 				segment_visits_a_polygon = false;
 				polygon_index++;
 				segment_start = solution[path_index++];
@@ -301,6 +303,7 @@ namespace tpp {
 			}
 
 			bool is_on_edge = false;
+			bool is_valid_edge_bend = false;
 
 			// Verify if the point is on an edge and if it follows the reflection rule.
 			for (size_t i = 0; i < polygon.size(); i++) {
@@ -328,13 +331,14 @@ namespace tpp {
 
 				// We verify the reflection rule
 				if (!d1.is_same_direction(d2)) {
-					return false;
+					break;
 				}
 
+				is_valid_edge_bend = true;
 				break;
 			}
 
-			if (is_on_edge) {
+			if (is_on_edge && is_valid_edge_bend) {
 				segment_visits_a_polygon = false;
 				polygon_index++;
 				segment_start = solution[path_index++];

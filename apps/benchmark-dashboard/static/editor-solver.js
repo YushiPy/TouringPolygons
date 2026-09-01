@@ -10,6 +10,7 @@ export const editorSolverState = {
 };
 
 export const WORKER_SOLVE_VERTEX_THRESHOLD = 120;
+const WASM_SOLVER_VERSION = "intersections-2026-09-01-length";
 let idleSolverWorker = null;
 
 function solveVertexCount(caseData, pieceGroups) {
@@ -26,7 +27,7 @@ export function solveEditorWasmAsync(caseData, pieceGroups = null, signal = null
 	if (editorSolverState.module && solveVertexCount(caseData, pieceGroups) <= WORKER_SOLVE_VERTEX_THRESHOLD) {
 		return Promise.resolve(pieceGroups ? solveEditorWasmGroups(caseData, pieceGroups) : solveEditorWasm(caseData));
 	}
-	const worker = idleSolverWorker || new Worker(new URL("./editor-solver-worker.js", import.meta.url), { type: "module" });
+	const worker = idleSolverWorker || new Worker(new URL(`./editor-solver-worker.js?v=${WASM_SOLVER_VERSION}`, import.meta.url), { type: "module" });
 	idleSolverWorker = null;
 	let settled = false;
 	let cancel = null;
@@ -82,9 +83,9 @@ export function loadEditorWasm() {
 	if (editorSolverState.load) {
 		return editorSolverState.load;
 	}
-	editorSolverState.load = import("/visualizer-static/wasm/tpp_convex_wasm.js")
+	editorSolverState.load = import(`/visualizer-static/wasm/tpp_convex_wasm.js?v=${WASM_SOLVER_VERSION}`)
 		.then((module) => module.default({
-			locateFile: (path) => path.endsWith(".wasm") ? `/visualizer-static/wasm/${path}` : path,
+			locateFile: (path) => path.endsWith(".wasm") ? `/visualizer-static/wasm/${path}?v=${WASM_SOLVER_VERSION}` : path,
 		}))
 		.then((module) => {
 			editorSolverState.module = module;
@@ -140,6 +141,14 @@ function counterClockwiseCase(caseData) {
 	};
 }
 
+function pathLength(path) {
+	let length = 0;
+	for (let index = 1; index < path.length; index += 1) {
+		length += Math.hypot(path[index][0] - path[index - 1][0], path[index][1] - path[index - 1][1]);
+	}
+	return length;
+}
+
 export function solveEditorWasm(caseData, maxCalls = 200000, maxSeconds = 3) {
 	const module = editorSolverState.module;
 	if (!module) {
@@ -184,6 +193,7 @@ export function solveEditorWasm(caseData, maxCalls = 200000, maxSeconds = 3) {
 		}
 		return {
 			path,
+			length: pathLength(path),
 			exact: module._tpp_solution_exact() === 1,
 			calls: module._tpp_solution_calls(),
 			seconds: module._tpp_solution_seconds(),
@@ -248,6 +258,7 @@ export function solveEditorWasmGroups(caseData, pieceGroups, maxCalls = 200000, 
 		}
 		return {
 			path,
+			length: pathLength(path),
 			exact: module._tpp_solution_exact() === 1,
 			calls: module._tpp_solution_calls(),
 			seconds: module._tpp_solution_seconds(),

@@ -3,6 +3,7 @@ import { Vector2 } from "./vector2.js";
 let wasmModule = null;
 let wasmLoadStarted = false;
 let wasmLoadFailed = false;
+const WASM_SOLVER_VERSION = "intersections-2026-09-01-length";
 
 export function loadTppWasm() {
 	if (wasmLoadStarted) {
@@ -12,15 +13,15 @@ export function loadTppWasm() {
 	wasmLoadStarted = true;
 	wasmLoadFailed = false;
 
-	fetch("/static/wasm/tpp_convex_wasm.js", { method: "HEAD" })
-		.then(response => response.ok ? import("/static/wasm/tpp_convex_wasm.js") : null)
+	fetch(`/static/wasm/tpp_convex_wasm.js?v=${WASM_SOLVER_VERSION}`, { method: "HEAD" })
+		.then(response => response.ok ? import(`/static/wasm/tpp_convex_wasm.js?v=${WASM_SOLVER_VERSION}`) : null)
 		.then(module => {
 			if (module === null) {
 				return null;
 			}
 
 			return module.default({
-				locateFile: path => path.endsWith(".wasm") ? `/static/wasm/${path}` : path,
+				locateFile: path => path.endsWith(".wasm") ? `/static/wasm/${path}?v=${WASM_SOLVER_VERSION}` : path,
 			});
 		})
 		.then(module => {

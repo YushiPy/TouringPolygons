@@ -29,6 +29,76 @@ namespace {
 		}
 	}
 
+	double orientation(const Vector2 &a, const Vector2 &b, const Vector2 &c) {
+		return (b - a).cross(c - a);
+	}
+
+	bool point_on_segment(const Vector2 &point, const Vector2 &a, const Vector2 &b) {
+		return std::fabs(orientation(a, b, point)) <= 1e-10
+			&& (point - a).dot(point - b) <= 1e-10;
+	}
+
+	bool point_in_polygon_or_on_boundary(const Vector2 &point, const vector<Vector2> &polygon) {
+		bool inside = false;
+
+		for (size_t i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++) {
+			const auto &current = polygon[i];
+			const auto &previous = polygon[j];
+
+			if (point_on_segment(point, previous, current)) {
+				return true;
+			}
+
+			if ((current.y > point.y) != (previous.y > point.y)
+				&& point.x < (previous.x - current.x) * (point.y - current.y) / (previous.y - current.y) + current.x) {
+				inside = !inside;
+			}
+		}
+
+		return inside;
+	}
+
+	bool segments_intersect_or_touch(const Vector2 &a, const Vector2 &b, const Vector2 &c, const Vector2 &d) {
+		const double ab_c = orientation(a, b, c);
+		const double ab_d = orientation(a, b, d);
+		const double cd_a = orientation(c, d, a);
+		const double cd_b = orientation(c, d, b);
+
+		if (point_on_segment(c, a, b) || point_on_segment(d, a, b) || point_on_segment(a, c, d) || point_on_segment(b, c, d)) {
+			return true;
+		}
+
+		return (ab_c > 1e-10) != (ab_d > 1e-10) && (cd_a > 1e-10) != (cd_b > 1e-10);
+	}
+
+	bool path_touches_polygon(const vector<Vector2> &path, const vector<Vector2> &polygon) {
+		for (size_t i = 1; i < path.size(); i++) {
+			if (point_in_polygon_or_on_boundary(path[i - 1], polygon) || point_in_polygon_or_on_boundary(path[i], polygon)) {
+				return true;
+			}
+
+			for (size_t j = 0; j < polygon.size(); j++) {
+				if (segments_intersect_or_touch(path[i - 1], path[i], polygon[j], polygon[(j + 1) % polygon.size()])) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	void expect_touches_all_polygons(
+		const vector<Vector2> &path,
+		const vector<vector<Vector2>> &polygons,
+		const std::string &name
+	) {
+		for (size_t i = 0; i < polygons.size(); i++) {
+			if (!path_touches_polygon(path, polygons[i])) {
+				throw std::runtime_error(std::format("{}: path does not touch polygon {}", name, i + 1));
+			}
+		}
+	}
+
 	void verify_case(
 		const std::string &name,
 		const Vector2 &start,
@@ -69,6 +139,34 @@ namespace {
 		expect_close(eager_length, expected_length, name + " eager length");
 		expect_close(linear_lazy_length, expected_length, name + " linear lazy length");
 		expect_close(linear_eager_length, expected_length, name + " linear eager length");
+	}
+
+	void verify_touching_case(
+		const std::string &name,
+		const Vector2 &start,
+		const Vector2 &target,
+		const vector<vector<Vector2>> &polygons,
+		double expected_length,
+		size_t expected_path_size = 0
+	) {
+		const auto lazy = tpp::tpp_convex_solve_binary_search_lazy(start, target, polygons);
+		const auto eager = tpp::tpp_convex_solve_binary_search_eager(start, target, polygons);
+
+		expect_touches_all_polygons(lazy, polygons, name + " lazy");
+		expect_touches_all_polygons(eager, polygons, name + " eager");
+
+		if (expected_path_size != 0 && lazy.size() != expected_path_size) {
+			throw std::runtime_error(std::format("{} lazy: expected {} path points, got {}", name, expected_path_size, lazy.size()));
+		}
+
+		if (expected_path_size != 0 && eager.size() != expected_path_size) {
+			throw std::runtime_error(std::format("{} eager: expected {} path points, got {}", name, expected_path_size, eager.size()));
+		}
+
+		expect_close(path_length(lazy), expected_length, name + " lazy materialized");
+		expect_close(path_length(eager), expected_length, name + " eager materialized");
+		expect_close(tpp::tpp_convex_solve_length_binary_search_lazy(start, target, polygons), expected_length, name + " lazy length");
+		expect_close(tpp::tpp_convex_solve_length_binary_search_eager(start, target, polygons), expected_length, name + " eager length");
 	}
 }
 
@@ -146,6 +244,105 @@ int main() {
 			},
 		},
 		0.6432371109761946
+	);
+
+	verify_touching_case(
+		"intersecting convex polygons require second contact",
+		Vector2(0.36700299616392595, 0.08906283997628592),
+		Vector2(0.6052234643909907, 0.07032639865505626),
+		{
+			{
+				Vector2(0.813665848719522, 0.35969091612613247),
+				Vector2(0.6842605417766566, 0.47722417656047805),
+				Vector2(0.3209759186159518, 0.3300107998548331),
+			},
+			{
+				Vector2(0.1261945059352388, 0.28356747517486985),
+				Vector2(0.385880929252367, 0.30976093782165826),
+				Vector2(0.4556637421496295, 0.4172455669175958),
+				Vector2(0.3182102641538071, 0.5970644633278386),
+			},
+		},
+		0.581842291484105
+	);
+
+	verify_touching_case(
+		"problem instance 1 intersecting triangles",
+		Vector2(0.31545199525507134, 0.09935234956713011),
+		Vector2(0.6052234643909907, 0.07032639865505626),
+		{
+			{
+				Vector2(0.3209759186159518, 0.3300107998548331),
+				Vector2(0.6842605417766566, 0.47722417656047805),
+				Vector2(0.813665848719522, 0.35969091612613247),
+			},
+			{
+				Vector2(0.332652898650887, 0.5965839842936889),
+				Vector2(0.4701063766467094, 0.41676508788344635),
+				Vector2(0.4003235637494469, 0.3092804587875088),
+				Vector2(0.14063714043231867, 0.2830869961407204),
+			},
+		},
+		0.5827093381286692
+	);
+
+	verify_touching_case(
+		"problem instance 2 intersecting triangles",
+		Vector2(0.3368950507369469, 0.10262852539848555),
+		Vector2(0.6052234643909907, 0.07032639865505626),
+		{
+			{
+				Vector2(0.28431890403510046, 0.3268764921507503),
+				Vector2(0.6476035271958053, 0.4740898688563962),
+				Vector2(0.7770088341386706, 0.35655660842204967),
+			},
+			{
+				Vector2(0.39797599762989433, 0.5645356676562588),
+				Vector2(0.486273041837264, 0.35630691090949673),
+				Vector2(0.20596023941132602, 0.2510386795032903),
+			},
+		},
+		0.56879423031879461
+	);
+
+	verify_touching_case(
+		"problem instance 3 intersecting triangles",
+		Vector2(0.3368950507369469, 0.10262852539848555),
+		Vector2(0.6052234643909907, 0.07032639865505626),
+		{
+			{
+				Vector2(0.28431890403510046, 0.3268764921507503),
+				Vector2(0.6476035271958053, 0.4740898688563962),
+				Vector2(0.764982282478466, 0.3584256331225459),
+			},
+			{
+				Vector2(0.34132700957925033, 0.21668258376715543),
+				Vector2(0.47561163938781914, 0.381393663885594),
+				Vector2(0.1802507510455204, 0.2563984718528892),
+			},
+		},
+		0.5699301241460529
+	);
+
+	verify_touching_case(
+		"intersecting polygon can be touched by outgoing segment",
+		Vector2(0.2, 0.1),
+		Vector2(0.6000000000000001, 0.1),
+		{
+			{
+				Vector2(0.2, 0.35000000000000003),
+				Vector2(0.7000000000000001, 0.55),
+				Vector2(0.7000000000000001, 0.35000000000000003),
+			},
+			{
+				Vector2(0.2, 0.30000000000000004),
+				Vector2(0.2, 0.15000000000000002),
+				Vector2(0.7000000000000001, 0.15000000000000002),
+				Vector2(0.5903471022310567, 0.3563539238069492),
+			},
+		},
+		0.6403124237432849,
+		3
 	);
 
 	verify_case(

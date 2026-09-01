@@ -1,6 +1,6 @@
 /* global self */
 
-import { loadEditorWasm, solveEditorWasm, solveEditorWasmGroups } from "./editor-solver.js";
+import { loadEditorWasm, solveEditorWasm, solveEditorWasmGroups } from "./editor-solver.js?v=intersections-2026-09-01-length";
 
 self.onmessage = async ({ data }) => {
 	try {

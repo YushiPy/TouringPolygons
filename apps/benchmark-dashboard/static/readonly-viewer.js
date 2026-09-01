@@ -2,8 +2,8 @@ import { drawCanvasScene } from "./canvas-renderer.js";
 import { cloneCaseData } from "./case-data.js";
 import { escapeHTML } from "./dom.js";
 import { convexDecomposition, polygonIsConvex } from "./editor-geometry.js";
-import { editorSolverState, loadEditorGeometry, loadEditorWasm, solveEditorWasmAsync } from "./editor-solver.js";
-import { formatSeconds } from "./format.js";
+import { editorSolverState, loadEditorGeometry, loadEditorWasm, solveEditorWasmAsync } from "./editor-solver.js?v=intersections-2026-09-01-length";
+import { formatLength, formatSeconds } from "./format.js";
 import { bindTapZoom } from "./ui-utils.js";
 
 export function renderCanvasPlaceholder(root, text = "Loading instances...") {
@@ -122,9 +122,10 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 					return;
 				}
 				this.solutionPath = [caseData.start, caseData.target];
+				const length = Math.hypot(caseData.target[0] - caseData.start[0], caseData.target[1] - caseData.start[1]);
 				this.solutionStale = false;
 				this.updateLabelDirections(true);
-				this.setStatus("Solution: exact, 0 calls");
+				this.setStatus(`Solution: exact, length ${formatLength(length)}, 0 calls`);
 				this.draw();
 				return;
 			}
@@ -173,7 +174,7 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 				this.solutionStale = false;
 				this.updateLabelDirections(true);
 				this.setStatus(wasmResult
-					? `Solution: ${wasmResult.exact ? "exact" : "approximate"}, ${wasmResult.calls} calls, ${formatSeconds(Math.max(wasmResult.seconds || 0, solveWallSeconds))} via WASM`
+					? `Solution: ${wasmResult.exact ? "exact" : "approximate"}, length ${formatLength(wasmResult.length)}, ${wasmResult.calls} calls, ${formatSeconds(Math.max(wasmResult.seconds || 0, solveWallSeconds))} via WASM`
 					: "WASM solver could not solve this case.");
 				this.draw();
 			} catch (error) {

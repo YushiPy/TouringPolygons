@@ -1,7 +1,7 @@
 import { drawCanvasScene } from "./canvas-renderer.js";
 import { cloneCaseData } from "./case-data.js";
 import { convexDecomposition, polygonIsConvex, solutionDirectionAt } from "./editor-geometry.js";
-import { WORKER_SOLVE_VERTEX_THRESHOLD, editorSolverState, loadEditorGeometry, loadEditorWasm, solveEditorWasm, solveEditorWasmAsync, solveEditorWasmGroups } from "./editor-solver.js";
+import { WORKER_SOLVE_VERTEX_THRESHOLD, editorSolverState, loadEditorGeometry, loadEditorWasm, solveEditorWasm, solveEditorWasmAsync, solveEditorWasmGroups } from "./editor-solver.js?v=intersections-2026-09-01-length";
 import { CAMERA_STORAGE_KEY, canvasToWorld as cameraCanvasToWorld, caseBounds as cameraCaseBounds, worldToCanvas as cameraWorldToCanvas, zoomLimits } from "./manual-editor-camera.js";
 import { mergeSelections, pointsInRect as selectionPointsInRect, samePointSelection as selectionSamePoint } from "./manual-editor-selection.js";
 
@@ -9,6 +9,7 @@ export function createManualEditor({
 	$,
 	state,
 	keybinds,
+	formatLength,
 	formatSeconds,
 	cssVar,
 	scheduleManualAutosave,
@@ -914,9 +915,10 @@ export function createManualEditor({
 					return true;
 				}
 				this.solutionPath = [caseData.start, caseData.target];
+				const length = Math.hypot(caseData.target[0] - caseData.start[0], caseData.target[1] - caseData.start[1]);
 				this.solutionStale = false;
 				this.updateLabelDirections(true);
-				this.setStatus("Solution: exact, 0 calls");
+				this.setStatus(`Solution: exact, length ${formatLength(length)}, 0 calls`);
 				this.draw();
 				return true;
 			}
@@ -954,7 +956,7 @@ export function createManualEditor({
 				this.solutionPath = wasmResult.path;
 				this.solutionStale = false;
 				this.updateLabelDirections(true);
-				this.setStatus(`Solution: ${wasmResult.exact ? "exact" : "approximate"}, ${wasmResult.calls} calls, ${formatSeconds(Math.max(wasmResult.seconds || 0, solveWallSeconds))} via WASM`);
+				this.setStatus(`Solution: ${wasmResult.exact ? "exact" : "approximate"}, length ${formatLength(wasmResult.length)}, ${wasmResult.calls} calls, ${formatSeconds(Math.max(wasmResult.seconds || 0, solveWallSeconds))} via WASM`);
 				this.draw();
 				return true;
 			} catch {
@@ -976,9 +978,10 @@ export function createManualEditor({
 					return;
 				}
 				this.solutionPath = [caseData.start, caseData.target];
+				const length = Math.hypot(caseData.target[0] - caseData.start[0], caseData.target[1] - caseData.start[1]);
 				this.solutionStale = false;
 				this.updateLabelDirections(true);
-				this.setStatus("Solution: exact, 0 calls");
+				this.setStatus(`Solution: exact, length ${formatLength(length)}, 0 calls`);
 				this.draw();
 				return;
 			}
@@ -1023,7 +1026,7 @@ export function createManualEditor({
 					this.solutionPath = wasmResult.path;
 					this.solutionStale = false;
 					this.updateLabelDirections(true);
-					this.setStatus(`Solution: ${wasmResult.exact ? "exact" : "approximate"}, ${wasmResult.calls} calls, ${formatSeconds(Math.max(wasmResult.seconds || 0, solveWallSeconds))} via WASM`);
+					this.setStatus(`Solution: ${wasmResult.exact ? "exact" : "approximate"}, length ${formatLength(wasmResult.length)}, ${wasmResult.calls} calls, ${formatSeconds(Math.max(wasmResult.seconds || 0, solveWallSeconds))} via WASM`);
 					this.draw();
 					return;
 				}

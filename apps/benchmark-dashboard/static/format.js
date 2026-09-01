@@ -57,6 +57,23 @@ export function formatSeconds(value) {
 	return `${(number * 1000000000).toFixed(2)} ns`;
 }
 
+export function formatLength(value) {
+	if (value === null || value === undefined || value === "") {
+		return "-";
+	}
+	const number = Number(value);
+	if (!Number.isFinite(number)) {
+		return "-";
+	}
+	if (Math.abs(number) >= 1000) {
+		return number.toFixed(3);
+	}
+	if (Math.abs(number) >= 1) {
+		return number.toFixed(6);
+	}
+	return number.toPrecision(6);
+}
+
 export function formatMicroseconds(seconds) {
 	if (seconds === null || seconds === undefined || seconds === "") {
 		return "-";

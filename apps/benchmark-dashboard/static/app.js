@@ -6,17 +6,17 @@ import { createDashboardControls } from "./controls.js";
 import { $, escapeHTML, setOutput } from "./dom.js";
 import { renderCampaignList } from "./campaign-rendering.js";
 import { renderCampaignChoiceGrid } from "./campaign-choice.js";
-import { formatElapsed, formatMicroseconds, formatSeconds } from "./format.js";
+import { formatElapsed, formatLength, formatMicroseconds, formatSeconds } from "./format.js";
 import { createJobDock, dismissFinishedJobForPanel as dismissDockJobForPanel } from "./job-dock.js";
 import { createKeybindManager } from "./keybinds.js";
-import { createManualEditor } from "./manual-editor.js";
+import { createManualEditor } from "./manual-editor.js?v=intersections-2026-09-01-length";
 import { createManualCaseController } from "./manual-cases.js";
 import { createConfirmationController, createModalController } from "./modals.js";
 import { createInstanceModalController } from "./instance-modals.js";
 import { createFormSubmissionController } from "./form-submissions.js";
 import { createOsmPicker } from "./osm-picker.js";
 import { createPreviewPanelController } from "./preview-panels.js";
-import { readonlyInstanceDetail, renderCanvasPlaceholder, setupReadonlyInstanceDetail } from "./readonly-viewer.js";
+import { readonlyInstanceDetail, renderCanvasPlaceholder, setupReadonlyInstanceDetail } from "./readonly-viewer.js?v=intersections-2026-09-01-length";
 import { renderBenchmarkReport, renderComparisonReport } from "./report-rendering.js";
 import { metricCard, parseNumber, shortNumber, solverLabel } from "./report-utils.js";
 import { state } from "./state.js";
@@ -130,6 +130,7 @@ const manualEditor = createManualEditor({
 	$,
 	state,
 	keybinds,
+	formatLength,
 	formatSeconds,
 	cssVar,
 	scheduleManualAutosave: (...args) => scheduleManualAutosave(...args),

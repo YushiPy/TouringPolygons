@@ -195,7 +195,7 @@ namespace tpp {
 			return;
 		}
 
-		if (point_in_convex_polygon_closed(point, polygons[i - 1])) {
+		if (point.is_equal_approx(target, LOCAL_EPSILON) && point_in_convex_polygon_closed(point, polygons[i - 1])) {
 			query_full(point, i - 1, accumulator);
 			return;
 		}
@@ -253,7 +253,7 @@ namespace tpp {
 			return start;
 		}
 
-		if (point_in_convex_polygon_closed(point, polygons[i - 1])) {
+		if (point.is_equal_approx(target, LOCAL_EPSILON) && point_in_convex_polygon_closed(point, polygons[i - 1])) {
 			return query(point, i - 1);
 		}
 
@@ -337,7 +337,7 @@ namespace tpp {
 			return start.distance_to(point);
 		}
 
-		if (point_in_convex_polygon_closed(point, polygons[i - 1])) {
+		if (point.is_equal_approx(target, LOCAL_EPSILON) && point_in_convex_polygon_closed(point, polygons[i - 1])) {
 			return query_length(point, i - 1);
 		}
 
