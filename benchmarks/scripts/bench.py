@@ -14,8 +14,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BUILD_PRESET = "nonconvex-release"
-TARGET_BINARY = REPO_ROOT / "build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp"
-BUILD_DIR = REPO_ROOT / "build/nonconvex-release"
+TARGET_BINARY = REPO_ROOT / ".build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp"
+BUILD_DIR = REPO_ROOT / ".build/nonconvex-release"
 CMAKE_CACHE = BUILD_DIR / "CMakeCache.txt"
 DEFAULT_INPUT = REPO_ROOT / "benchmarks/suites/canonical-v1.bin"
 DEFAULT_RESULTS = REPO_ROOT / "benchmarks/results/results.csv"

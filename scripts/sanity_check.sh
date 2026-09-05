@@ -151,7 +151,7 @@ summary_output="$benchmark_dir/dev-${timestamp}.md"
 echo
 echo "==> Non-convex benchmark smoke run"
 benchmark_command=(
-	build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp
+	.build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp
 	benchmarks/suites/algorithm-dev-v1.bin
 	-1 "$benchmark_instances" "$benchmark_max_calls" -1 1
 	"$csv_output" "$summary_output"

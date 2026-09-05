@@ -11,7 +11,9 @@
 venv/
 
 # CMake/build outputs
+# `build/` covers legacy local trees. New maintained entry points use `.build*`.
 build/
+.build*/
 packages/*/cpp/build/
 cmake-build-*/
 CMakeFiles/

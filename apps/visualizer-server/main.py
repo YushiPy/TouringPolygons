@@ -22,8 +22,8 @@ SECRET_KEY = "ASFQEUBFOEUQB)!#H) #) UR)(*#!U&R) &)*#!&UR) &$#!)_( &$#)"
 serializer = URLSafeTimedSerializer(SECRET_KEY)
 APP_DIR = Path(__file__).resolve().parent
 REPO_ROOT = APP_DIR.parents[1]
-SOLVER_BINARY = REPO_ROOT / "build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp"
-SOLVER_BUILD_CACHE = REPO_ROOT / "build/nonconvex-release/CMakeCache.txt"
+SOLVER_BINARY = REPO_ROOT / ".build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp"
+SOLVER_BUILD_CACHE = REPO_ROOT / ".build/nonconvex-release/CMakeCache.txt"
 
 
 def create_token(username: str) -> str:

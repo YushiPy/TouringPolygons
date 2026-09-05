@@ -40,8 +40,8 @@ SOLVERS = {
     "binary_search_eager": "binary_search_eager",
     "tan_jiang": "tan_jiang",
 }
-SOLVER_BINARY = REPO_ROOT / "build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp"
-SOLVER_BUILD_CACHE = REPO_ROOT / "build/nonconvex-release/CMakeCache.txt"
+SOLVER_BINARY = REPO_ROOT / ".build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp"
+SOLVER_BUILD_CACHE = REPO_ROOT / ".build/nonconvex-release/CMakeCache.txt"
 OSM_SEARCH_ROOTS = [
     REPO_ROOT,
     Path.home() / "Downloads",

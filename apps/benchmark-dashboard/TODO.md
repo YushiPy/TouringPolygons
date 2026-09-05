@@ -77,7 +77,7 @@ For intersecting convex polygons:
 - Rebuild native targets:
 	- `cmake --preset convex-release -DTARGET=main-intersection_tests -DTPP_ENABLE_GUROBI=OFF`
 	- `cmake --build --preset convex-release`
-	- `build/convex-release/packages/convex-tpp/cpp/tpp-convex`
+	- `.build/convex-release/packages/convex-tpp/cpp/tpp-convex`
 - Rebuild dashboard/visualizer solver artifacts:
 	- `cmake --preset nonconvex-release -DTARGET=main-visualizer_solve -DTPP_ENABLE_GUROBI=OFF`
 	- `cmake --build --preset nonconvex-release`

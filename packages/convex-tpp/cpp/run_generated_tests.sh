@@ -3,9 +3,9 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/../../.." && pwd)"
-generator_build_dir="$repo_root/build/convex-generate-tests"
-verifier_build_dir="$repo_root/build/convex-verify-tests"
-generated_dir="$repo_root/build/convex-generated-tests/tests"
+generator_build_dir="$repo_root/.build/convex-generate-tests"
+verifier_build_dir="$repo_root/.build/convex-verify-tests"
+generated_dir="$repo_root/.build/convex-generated-tests/tests"
 
 cmake -S "$script_dir" -B "$generator_build_dir" -DTARGET=main-generate_tests
 cmake --build "$generator_build_dir"

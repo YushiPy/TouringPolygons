@@ -21,8 +21,8 @@ optimal_convex_partition::Partition pieces =
 ## Build
 
 ```sh
-cmake -S cpp -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release
+cmake -S cpp -B .build -DCMAKE_BUILD_TYPE=Release
+cmake --build .build --config Release
 ```
 
 ## CGAL Parity Test
@@ -32,11 +32,11 @@ CGAL output. CGAL is run in isolated child processes so known CGAL crashes in
 the fixture corpus are reported as skipped instead of killing the test run.
 
 ```sh
-cmake -S cpp -B build-parity \
+cmake -S cpp -B .build-parity \
 	-DCMAKE_BUILD_TYPE=Release \
 	-DOPTIMAL_CONVEX_PARTITION_BUILD_CGAL_PARITY_TEST=ON
-cmake --build build-parity --config Release
-./build-parity/optimal_convex_partition_cgal_parity \
+cmake --build .build-parity --config Release
+./.build-parity/optimal_convex_partition_cgal_parity \
 	../../benchmarks/suites/canonical-v1.bin
 ```
 

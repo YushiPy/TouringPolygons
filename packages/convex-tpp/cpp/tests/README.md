@@ -9,7 +9,7 @@ tracked; generate and run them with:
 packages/convex-tpp/cpp/run_generated_tests.sh
 ```
 
-The script writes generated `.bin` files under `build/convex-generated-tests/`
+The script writes generated `.bin` files under `.build/convex-generated-tests/`
 and runs the verifier against both the tracked handwritten fixtures and the
 generated fixtures.
 

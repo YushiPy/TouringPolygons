@@ -60,7 +60,7 @@ fi
 cd "${REPO_ROOT}"
 cmake --preset convex-release -DTARGET=main-intersection_tests
 cmake --build --preset convex-release
-./build/convex-release/packages/convex-tpp/cpp/tpp-convex
+./.build/convex-release/packages/convex-tpp/cpp/tpp-convex
 git diff --check
 
 python_unittest_count="$(extract_unittest_count "${python_unittest_log}")"

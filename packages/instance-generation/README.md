@@ -278,7 +278,7 @@ python3 benchmarks/tpp.py run-groups \
 To classify a newly generated binary by difficulty, first benchmark it and then split it:
 
 ```bash
-./build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp \
+./.build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp \
   benchmarks/results/osm_buildings.bin \
   -1 -1 1000000 -1 1 \
   benchmarks/results/osm_buildings.csv \

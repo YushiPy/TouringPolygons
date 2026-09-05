@@ -186,13 +186,13 @@ cmake --build --preset nonconvex-release
 The benchmark binary is:
 
 ```bash
-./build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp
+./.build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp
 ```
 
 ## Run A Full Benchmark
 
 ```bash
-./build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp \
+./.build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp \
   benchmarks/suites/canonical-v1.bin \
   -1 -1 1000000 -1 \
   benchmarks/results/results.csv \
@@ -215,7 +215,7 @@ Arguments:
 By default the benchmark uses the machine's hardware thread count. To force a specific number of workers:
 
 ```bash
-TPP_BENCH_THREADS=1 ./build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp ...
+TPP_BENCH_THREADS=1 ./.build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp ...
 ```
 
 Use `TPP_BENCH_THREADS=1` when you want a single-thread baseline.
@@ -259,7 +259,7 @@ This builds and runs the C++ splitter, then restores the benchmark target. To ru
 cmake --preset nonconvex-release -DTARGET=main-split_benchmark_cases
 cmake --build --preset nonconvex-release
 
-./build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp \
+./.build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp \
   benchmarks/suites/canonical-v1.bin \
   benchmarks/results/results.csv \
   benchmarks/results/splits

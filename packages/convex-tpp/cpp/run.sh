@@ -3,7 +3,7 @@
 # alias run='zsh run.sh'
 
 PROJECT_NAME=$(sed -n 's/project(\(.*\))/\1/p' CMakeLists.txt)
-BUILD_DIR=build
+BUILD_DIR=.build
 SILENCE=0
 RUN=1
 TARGET="main"
