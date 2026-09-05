@@ -93,9 +93,7 @@ def main() -> None:
 	parser.add_argument("--output", type=Path)
 	args = parser.parse_args()
 
-	output = args.output or args.transcript.with_name(
-		args.transcript.name.replace(".transcricao-bruta.txt", ".transcricao-revisada.txt")
-	)
+	output = args.output or args.transcript.with_name("transcrição-revisada.txt")
 	raw = args.transcript.read_text(encoding="utf-8")
 	header = (
 		"TRANSCRIÇÃO REVISADA\n"

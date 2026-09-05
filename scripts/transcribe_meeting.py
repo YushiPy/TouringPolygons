@@ -25,12 +25,10 @@ def extract_audio(video: Path, audio: Path) -> None:
 			"-i",
 			str(video),
 			"-vn",
-			"-ac",
-			"1",
-			"-ar",
-			"16000",
+			"-map",
+			"0:a:0",
 			"-c:a",
-			"flac",
+			"copy",
 			str(audio),
 		],
 		check=True,
@@ -39,7 +37,8 @@ def extract_audio(video: Path, audio: Path) -> None:
 
 def transcribe(
 	audio: Path,
-	output_prefix: Path,
+	transcript_txt: Path,
+	transcript_json: Path,
 	model_name: str,
 	language: str,
 	prompt: str | None,
@@ -68,14 +67,12 @@ def transcribe(
 		segments.append(item)
 		print(f"[{segment.start:8.2f} -> {segment.end:8.2f}] {text}", flush=True)
 
-	output_prefix.parent.mkdir(parents=True, exist_ok=True)
+	transcript_txt.parent.mkdir(parents=True, exist_ok=True)
 	transcript = "\n\n".join(
 		f"[{timestamp(float(item['start']))} - {timestamp(float(item['end']))}] {item['text']}"
 		for item in segments
 	)
-	output_prefix.with_suffix(".transcricao-bruta.txt").write_text(
-		transcript + "\n", encoding="utf-8"
-	)
+	transcript_txt.write_text(transcript + "\n", encoding="utf-8")
 	payload = {
 		"audio": str(audio),
 		"model": model_name,
@@ -84,7 +81,7 @@ def transcribe(
 		"duration": info.duration,
 		"segments": segments,
 	}
-	output_prefix.with_suffix(".transcricao-bruta.json").write_text(
+	transcript_json.write_text(
 		json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
 	)
 
@@ -96,21 +93,30 @@ def main() -> None:
 	parser.add_argument("video", type=Path)
 	parser.add_argument("--model", default="small")
 	parser.add_argument("--language", default="pt")
-	parser.add_argument("--output-prefix", type=Path)
+	parser.add_argument("--output-dir", type=Path)
 	parser.add_argument("--prompt")
 	parser.add_argument(
 		"--skip-audio",
 		action="store_true",
-		help="Reutiliza o arquivo FLAC existente.",
+		help="Reutiliza o arquivo gravação-áudio.m4a existente.",
 	)
 	args = parser.parse_args()
 
 	video = args.video.resolve()
-	output_prefix = (args.output_prefix or video.with_suffix("")).resolve()
-	audio = output_prefix.with_suffix(".audio.flac")
+	output_dir = (args.output_dir or video.parent).resolve()
+	audio = output_dir / "gravação-áudio.m4a"
+	transcript_txt = output_dir / "transcrição-bruta.txt"
+	transcript_json = output_dir / "transcrição-bruta.json"
 	if not args.skip_audio:
 		extract_audio(video, audio)
-	transcribe(audio, output_prefix, args.model, args.language, args.prompt)
+	transcribe(
+		audio,
+		transcript_txt,
+		transcript_json,
+		args.model,
+		args.language,
+		args.prompt,
+	)
 
 
 if __name__ == "__main__":
