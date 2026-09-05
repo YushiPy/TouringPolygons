@@ -85,5 +85,6 @@ docs/bibliography/**/*.pdf
 
 # Miscellaneous
 tspn-comparison/
+experiments/
 docs/reports/SIICUSP/resultados-anteriores
 docs/meetings

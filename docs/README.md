@@ -6,4 +6,4 @@
 Report contents were moved here as-is. Keep report-specific build artifacts local to each report directory.
 Do not keep scratch Python tests in report directories; move reproducible figure
 generation scripts to the relevant report with descriptive names, or to
-`experiments/report-figure-scripts/` if they are historical.
+an ignored local directory if they are historical.

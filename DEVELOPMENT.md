@@ -15,7 +15,6 @@ This repository is a research monorepo. Keep maintained solver code, generated a
 - `benchmarks/scripts/`: command internals used by `benchmarks/tpp.py`; prefer shared helpers here over copy-pasted parsing or benchmark logic.
 - `benchmarks/suites/`: tracked canonical input corpora only. Derived suites and run outputs are ignored.
 - `apps/`: runnable visualizers and their UI/server dependencies.
-- `experiments/`: abandoned or historical prototypes that should not be imported by maintained code.
 - `docs/`: reports, bibliography notes, and other project documentation.
 
 ## Generated and local files
@@ -33,6 +32,8 @@ Keep previously submitted material written by others under
 `tspn-comparison/` ignored as well.
 
 `benchmarks/campaigns/` is a local experiment workspace and remains ignored.
+Historical implementation experiments under `experiments/` are local-only and
+remain ignored as well.
 When a case from a campaign becomes a durable regression test, copy or export
 only that case into `benchmarks/suites/`, preferably as a small documented
 fixture. Commit the stable input required by the test harness and document the

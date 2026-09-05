@@ -14,5 +14,4 @@ copies of solver implementations.
 
 Keep package directories limited to maintained source, package-local tests, and
 intentional regression fixtures. Scratch files, alternate historical versions,
-and generated benchmark matrices belong in `experiments/` or ignored benchmark
-output directories instead.
+and generated benchmark matrices belong in ignored local directories.

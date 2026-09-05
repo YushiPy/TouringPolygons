@@ -26,8 +26,6 @@ packages/
 ├── nonconvex-tpp/        # Non-convex TPP solvers, B&B, MILP, decomposition
 ├── fenced-tpp/           # Fenced TPP code (legacy, deprioritized)
 └── instance-generation/  # Instance generation code pending integration
-experiments/
-└── convex-legacy/        # Older convex prototypes and alternate attempts
 docs/
 ├── bibliography/         # Source papers and LLM-friendly TeX conversions
 └── reports/              # Portuguese LaTeX reports
@@ -48,8 +46,6 @@ the convex solver package instead of carrying a second convex implementation.
 Repository boundaries:
 
 - `packages/` is for maintained package code and intentional regression fixtures.
-- `experiments/` is for abandoned approaches, historical prototypes, and scratch
-  implementations that are still worth keeping.
 - `benchmarks/suites/` contains tracked canonical benchmark suites. Campaigns,
   split outputs, run outputs, and generated instance matrices are ignored.
 - `benchmarks/generate_instances.py` regenerates ignored benchmark campaign
