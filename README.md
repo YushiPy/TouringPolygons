@@ -128,6 +128,26 @@ An alternative exact approach models the non-convex TPP as a Mixed Integer Linea
 
 ---
 
+## Free visit order (non-convex TPP)
+
+The maintained unordered solver finds an endpoint path through arbitrary simple
+polygons. It combines insertion branching and lazy convex decomposition in one
+search tree, reusing the convex geometric solver and existing decomposition.
+A support-function dual certificate protects lower bounds; a commercial-solver-free
+interior-point fallback handles subproblems that the geometric solver cannot certify.
+The result includes the visit order, path, bounds, termination reason, and search statistics.
+
+```bash
+scripts/verify_unordered.sh
+.build/unordered/tpp < packages/nonconvex-tpp/cpp/tests/unordered-example.txt
+```
+
+See [`docs/algorithms/unordered-tpp.md`](docs/algorithms/unordered-tpp.md) for the
+algorithm, numerical guarantees, API, input format, and reproducible comparisons.
+The new certified convex API uses Eigen and Boost headers, available on macOS with
+`brew install eigen boost` and on Debian/Ubuntu with
+`sudo apt-get install libeigen3-dev libboost-dev`.
+
 ## Open Directions
 
 - **Better decomposition:** Chazelle–Dobkin optimal decomposition (allowing Steiner points) produces strictly fewer pieces than Greene's, potentially reducing the branching factor. Convex *covers* (whose union covers the polygon, with possible overlaps) may use even fewer pieces; no implemented algorithm for optimal covers exists.

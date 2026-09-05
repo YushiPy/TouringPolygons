@@ -613,3 +613,18 @@
 	gap: 10px;
 	margin-top: 14px;
 }
+
+.free-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 20px 0; }
+.free-solved { font-size: 2rem; }
+.free-notes { margin: 16px 0; line-height: 1.5; }
+.free-notes p { margin: 8px 0; }
+.free-filter { display: flex; gap: 12px; align-items: center; margin: 16px 0; }
+.free-table-wrap { overflow: auto; }
+.free-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.free-table td, .free-table th { padding: 10px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.free-path { width: min(100%, 850px); display: block; background: var(--editor-bg); }
+.free-path polygon { fill: #50a4cd33; stroke: #459cc2; stroke-width: 1; }
+.free-path polyline { fill: none; stroke: #e49a35; stroke-width: 2.5; }
+.free-path circle { fill: #db6b55; }
+.free-path text { fill: currentColor; font-size: 11px; }
+.visit-order-field { margin: 12px 0; }

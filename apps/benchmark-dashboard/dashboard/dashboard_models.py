@@ -51,6 +51,7 @@ class CreateOsmRequest(BaseModel):
 
 
 class RunCampaignRequest(BaseModel):
+    visit_order: Literal["fixed", "free"] = "fixed"
     name: str
     threads: int | None = Field(default=None, ge=1, le=128)
     solver: str | None = None
@@ -64,6 +65,7 @@ class RunCampaignRequest(BaseModel):
 
 
 class CompareSolversRequest(BaseModel):
+    visit_order: Literal["fixed", "free"] = "fixed"
     name: str
     solvers: list[str]
     threads: int | None = Field(default=None, ge=1, le=128)
@@ -95,6 +97,10 @@ class ManualCaseRequest(BaseModel):
     start: Point = (0.0, 0.0)
     target: Point = (1.0, 0.0)
     polygons: list[list[Point]] = Field(default_factory=list)
+
+
+class LiveSolveRequest(ManualCaseRequest):
+    visit_order: Literal["fixed", "free"] = "fixed"
 
 
 class ManualCasesRequest(BaseModel):

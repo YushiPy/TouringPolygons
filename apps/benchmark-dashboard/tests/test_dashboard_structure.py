@@ -96,7 +96,7 @@ class DashboardStructureTests(unittest.TestCase):
     def test_local_javascript_imports_resolve(self) -> None:
         for source in (ROOT / "static").glob("*.js"):
             for imported in re.findall(r'from ["\'](\./[^"\']+)["\']', source.read_text()):
-                self.assertTrue((source.parent / imported.removeprefix("./")).exists(), f"{source.name}: {imported}")
+                self.assertTrue((source.parent / imported.removeprefix("./").split("?", 1)[0]).exists(), f"{source.name}: {imported}")
 
 
 if __name__ == "__main__":

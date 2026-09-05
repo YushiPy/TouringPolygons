@@ -20,8 +20,9 @@ export function createFormSubmissionController({
 		const values = formData(form);
 		const payload = {
 			name: values.name,
-			threads: values.threads ? Number(values.threads) : null,
-			solver: values.solver || null,
+			threads: values.visit_order === "free" ? 1 : values.threads ? Number(values.threads) : null,
+			visit_order: values.visit_order || "fixed",
+			solver: values.visit_order === "free" ? values.free_solver : values.solver || null,
 			max_calls: values.max_calls,
 			max_instances: values.max_instances ? Number(values.max_instances) : null,
 			max_seconds: values.max_seconds || null,
@@ -63,10 +64,10 @@ export function createFormSubmissionController({
 		}
 		const form = event.currentTarget;
 		const values = formData(form);
-		const solvers = [...form.querySelectorAll('input[name="solvers"]:checked')].map((input) => input.value);
+		const solvers = [...form.querySelectorAll(values.visit_order === "free" ? 'input[name="free_solvers"]:checked' : 'input[name="solvers"]:checked')].map((input) => input.value);
 		const payload = {
-			name: values.name, threads: values.threads ? Number(values.threads) : null,
-			solvers, max_calls: values.max_calls,
+			name: values.name, threads: values.visit_order === "free" ? 1 : values.threads ? Number(values.threads) : null,
+			solvers, visit_order: values.visit_order || "fixed", max_calls: values.max_calls,
 			max_instances: values.max_instances ? Number(values.max_instances) : null,
 			max_seconds: values.max_seconds || null, no_build: boolField(form, "no_build"),
 		};

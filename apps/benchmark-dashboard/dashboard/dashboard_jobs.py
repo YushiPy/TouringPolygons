@@ -94,7 +94,7 @@ class JobController:
             self.jobs[job.id] = job
 
     def refresh_job_progress_from_logs(self, job: Job) -> None:
-        if job.campaign is None or job.kind != "run" or job.status != "running":
+        if job.campaign is None or job.kind != "run" or job.status != "running" or "free-order" in job.command:
             return
         path = self.campaign_path(job.campaign)
         index = self.read_run_index(path / "results/run-index.csv")
@@ -116,7 +116,7 @@ class JobController:
             job.progress_completed = int(match.group(1))
             job.progress_total = int(match.group(2))
         if job.kind == "comparison" and job.solver_progress_total is not None:
-            known_solvers = set(self.solvers.values())
+            known_solvers = set(self.solvers.values()) | {"unordered", "tspn"}
             solvers = [
                 match.group(1).strip()
                 for match in SOLVER_SECTION_PATTERN.finditer(output)

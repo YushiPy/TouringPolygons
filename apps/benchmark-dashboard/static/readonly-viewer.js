@@ -1,3 +1,4 @@
+import { visitOrder, solveFreeOrder } from "./order-mode.js";
 import { drawCanvasScene } from "./canvas-renderer.js";
 import { cloneCaseData } from "./case-data.js";
 import { escapeHTML } from "./dom.js";
@@ -107,6 +108,7 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 			this.solutionAbort = null;
 		},
 		destroy() {
+			window.removeEventListener("visit-order-changed", orderChanged);
 			this.cancelPendingSolution();
 			if (this.labelAnimation) {
 				cancelAnimationFrame(this.labelAnimation);
@@ -136,6 +138,17 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 			const signal = this.solutionAbort.signal;
 			this.setStatus(editorSolverState.module ? "Solving..." : editorSolverState.failed ? "WASM solver unavailable." : "Loading solver...");
 			try {
+				if (visitOrder() === "free") {
+					this.setStatus("Solving free visit order...");
+					const result = await solveFreeOrder(caseData, signal);
+					if (signal.aborted || revision !== this.solutionRevision) return;
+					this.solutionPath = result.path;
+					this.solutionStale = false;
+					this.updateLabelDirections(true);
+					this.setStatus(`Free order: ${result.exact ? "optimal within tolerance" : result.termination}, length ${formatLength(result.upper_bound)}, gap ${formatLength(result.upper_bound - result.lower_bound)}, order ${result.order.join(" → ")}`);
+					this.draw();
+					return;
+				}
 				await loadEditorWasm();
 				if (signal.aborted || revision !== this.solutionRevision) {
 					return;
@@ -185,6 +198,12 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 		},
 	};
 
+	const orderChanged = () => {
+		viewer.cancelPendingSolution();
+		viewer.solutionPath = null;
+		viewer.fetchSolution(viewer.caseData);
+	};
+	window.addEventListener("visit-order-changed", orderChanged);
 	viewer.resize();
 	viewer.frameCurrentCase();
 	const resizeObserver = new ResizeObserver(() => {

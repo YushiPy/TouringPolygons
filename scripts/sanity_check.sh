@@ -89,7 +89,12 @@ ensure_dependencies() {
 		if ! have brew || ! brew --prefix libomp >/dev/null 2>&1; then
 			missing+=(libomp)
 		fi
+		for package in eigen boost; do
+			if ! have brew || ! brew --prefix "$package" >/dev/null 2>&1; then missing+=("$package"); fi
+		done
 	else
+		[[ -f /usr/include/eigen3/Eigen/Core || -f /usr/local/include/eigen3/Eigen/Core ]] || missing+=(eigen)
+		[[ -f /usr/include/boost/multiprecision/cpp_bin_float.hpp || -f /usr/local/include/boost/multiprecision/cpp_bin_float.hpp ]] || missing+=(boost)
 		if ! ldconfig -p 2>/dev/null | grep -q 'libomp'; then
 			missing+=(libomp)
 		fi
@@ -121,6 +126,8 @@ ensure_dependencies() {
 			case "$item" in
 				cxx|make) apt_packages+=(build-essential) ;;
 				libomp) apt_packages+=(libomp-dev) ;;
+				eigen) apt_packages+=(libeigen3-dev) ;;
+				boost) apt_packages+=(libboost-dev) ;;
 				*) apt_packages+=("$item") ;;
 			esac
 		done

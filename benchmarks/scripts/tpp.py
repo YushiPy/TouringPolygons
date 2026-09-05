@@ -48,6 +48,7 @@ Commands:
   generate ARGS...                   Generate one binary using gen_instances.py options.
   generate-matrix NAME PBF ARGS...   Create a reproducible benchmark campaign.
   run NAME ARGS...                   Benchmark all campaign inputs, resumably.
+  free-order NAME ARGS...            Run/compare free-order endpoint TPP solvers.
   status NAME                        Show generation and benchmark progress.
   generate-suites ARGS...            Generate dev/canonical suites from tracked corpus.
   build-suites ARGS...               Select fixed development and canonical suites.
@@ -266,6 +267,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 		return command_generate(rest)
 	if command == "generate-matrix":
 		return command_generate_matrix(rest)
+	if command == "free-order":
+		import free_order_campaign
+		return free_order_campaign.main(rest)
 	if command == "run":
 		return command_run(rest)
 	if command == "status":

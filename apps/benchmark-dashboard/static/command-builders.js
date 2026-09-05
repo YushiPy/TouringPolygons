@@ -18,8 +18,18 @@ export function boolField(form, name) {
 	return input.type === "checkbox" ? input.checked : input.value === "1";
 }
 
+function freeCommand(form, values, compare = false) {
+	const command = ["python3", "benchmarks/tpp.py", "free-order", values.name, "--threads", "1", "--max-calls", values.max_calls || "1000000", "--max-seconds", values.max_seconds || "30"];
+	if (values.max_instances) command.push("--max-instances", values.max_instances);
+	const solvers = compare ? [...form.querySelectorAll('input[name="free_solvers"]:checked')].map((input) => input.value) : [values.free_solver || "unordered"];
+	for (const solver of solvers) command.push("--solver", solver);
+	for (const name of compare ? ["no_build"] : ["no_build", "force", "dry_run"]) if (boolField(form, name)) command.push(`--${name.replaceAll("_", "-")}`);
+	return command.map(shellQuote).join(" ");
+}
+
 export function runCommandFromForm(form = document.querySelector("#run-form")) {
 	const values = formData(form);
+	if (values.visit_order === "free") return freeCommand(form, values);
 	const command = ["python3", "benchmarks/tpp.py", "run", values.name];
 	if (values.threads) {
 		command.push("--threads", values.threads);
@@ -51,6 +61,7 @@ export function runCommandFromForm(form = document.querySelector("#run-form")) {
 
 export function compareCommandFromForm(form = document.querySelector("#compare-form")) {
 	const values = formData(form);
+	if (values.visit_order === "free") return freeCommand(form, values, true);
 	const solvers = [...form.querySelectorAll('input[name="solvers"]:checked')].map((input) => input.value);
 	const inputDir = shellQuote(`benchmarks/campaigns/${values.name}/inputs`);
 	const command = [

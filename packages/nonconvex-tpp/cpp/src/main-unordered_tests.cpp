@@ -1,0 +1,97 @@
+#include "tpp/nonconvex/unordered.h"
+#include "tpp/convex/certified.h"
+#include "common.h"
+#include <functional>
+#include <algorithm>
+#include <cmath>
+#include <iostream>
+#include <numeric>
+#include <random>
+#include <stdexcept>
+
+using namespace tpp;
+using Polygon = std::vector<Vector2>;
+
+double length(const Polygon &p) {
+	double value = 0;
+	for (size_t i = 1; i < p.size(); ++i) value += p[i - 1].distance_to(p[i]);
+	return value;
+}
+
+void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
+	const auto result = tpp::tpp_nonconvex_unordered_solve(s, t, polygons);
+	std::vector<size_t> order(polygons.size());
+	std::iota(order.begin(), order.end(), 0);
+	std::vector<std::vector<Polygon>> pieces;
+	for (auto p : polygons) {
+		double area = 0;
+		for (size_t i = 0; i < p.size(); ++i) area += p[i].cross(p[(i + 1) % p.size()]);
+		if (area < 0) std::reverse(p.begin(), p.end());
+		pieces.push_back(tpp::decompose_polygon(p));
+	}
+	double best = std::numeric_limits<double>::infinity();
+	tpp::DynamicConvexTppWorkspace workspace;
+	do {
+		std::vector<Polygon> ordered;
+		std::function<void(size_t)> enumerate = [&](size_t i) {
+			if (i == order.size()) {
+				const auto fixed = tpp::tpp_convex_solve_certified(s, t, ordered, workspace, 1e-7);
+				if (fixed.upper_bound - fixed.lower_bound > 1e-6) {
+					std::cerr << "Oracle " << fixed.lower_bound << ' ' << fixed.upper_bound << " polygons " << ordered << " endpoints " << s << ' ' << t << "\n";
+					throw std::runtime_error("Enumeration oracle gap.");
+				}
+				best = std::min(best, fixed.upper_bound);
+				return;
+			}
+			for (const auto &piece : pieces[order[i]]) {
+				ordered.push_back(piece);
+				enumerate(i + 1);
+				ordered.pop_back();
+			}
+		};
+		enumerate(0);
+	} while (std::next_permutation(order.begin(), order.end()));
+	if (!result.exact || std::abs(best - result.upper_bound) > 1e-6 * (1 + best)) {
+		std::cerr << "Expected " << best << ", got " << result.upper_bound << '\n';
+		throw std::runtime_error("Permutation enumeration mismatch.");
+	}
+	for (size_t cap : {0, 1, 3, 10}) {
+		tpp::UnorderedTppSolveOptions options;
+		options.max_calls = cap;
+		const auto limited = tpp::tpp_nonconvex_unordered_solve(s, t, polygons, options);
+		if (limited.calls > cap || limited.lower_bound > best + 1e-6 || limited.upper_bound < best - 1e-6)
+			throw std::runtime_error("Invalid interrupted search bounds.");
+	}
+}
+
+int main() {
+	try {
+		check({0, 0}, {10, 0}, {});
+		check({0, 0}, {10, 0}, {{{2, -1}, {3, -1}, {3, 1}, {2, 1}}});
+		check({0, 0}, {0, 0}, {{{2, -1}, {3, -1}, {3, 1}, {2, 1}}});
+		check({0, 0}, {0, 0}, {{{-2, -2}, {2, -2}, {2, 2}, {-2, 2}}});
+		check({1, 1.2}, {1.8, 1.3}, {{{0, 0}, {2, 0}, {2, .6}, {.6, .6}, {.6, 2}, {0, 2}}});
+		check({0, 0}, {0, 1}, {{{-2, -2}, {2, -2}, {2, 2}, {1, 2}, {1, -1}, {-1, -1}, {-1, 2}, {-2, 2}}});
+		std::mt19937 rng(342026);
+		std::uniform_real_distribution<double> offset(-1, 1);
+		for (size_t trial = 0; trial < 80; ++trial) {
+			std::vector<Polygon> polygons;
+			const size_t count = 2 + trial % 4;
+			for (size_t i = 0; i < count; ++i) {
+				const double x = (trial % 2 ? 1.5 : 5) * double(i % 3) + offset(rng);
+				const double y = 5 * double(i / 3) + offset(rng);
+				Polygon p = {{0, 0}, {2, 0}, {2, .6}, {.6, .6}, {.6, 2}, {0, 2}};
+				if (trial % 3 == 0) p = {{0, 0}, {2, 0}, {2, 2}, {0, 2}};
+				for (auto &v : p) v += Vector2{x, y};
+				if (trial % 4 == 0) std::reverse(p.begin(), p.end());
+				polygons.push_back(p);
+			}
+			
+			check({-3, -2}, trial % 5 ? Vector2{13, 8} : Vector2{-3, -2}, polygons);
+		}
+		std::cout << "Passed 86 exhaustive-order cases and 344 interrupted-search checks.\n";
+	} catch (const std::exception &e) {
+		std::cerr << e.what() << '\n';
+		return 1;
+	}
+}

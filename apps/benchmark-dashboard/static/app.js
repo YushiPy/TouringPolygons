@@ -1,3 +1,5 @@
+import { visitOrder, setupVisitOrder } from "./order-mode.js";
+import { renderFreeOrderReport } from "./free-order-report.js";
 import { requestJSON } from "./api.js";
 import { benchmarkedPreviewHTML, instancePreviewUrl } from "./benchmarked-preview.js";
 import { casePayload, cloneCaseData, emptyCaseData, instanceLabel } from "./case-data.js";
@@ -545,12 +547,17 @@ function renderJobs(jobs) {
 }
 
 async function refreshComparisonReport(campaignName) {
+	if (visitOrder() === "free") {
+		const data = campaignName ? await requestJSON(`/api/campaigns/${encodeURIComponent(campaignName)}/free-results`) : null;
+		if (visitOrder() === "free") renderFreeOrderReport($("#comparison-report"), data);
+		return;
+	}
 	if (!campaignName) {
 		renderComparisonReport(null);
 		return;
 	}
 	const data = await requestJSON(`/api/campaigns/${encodeURIComponent(campaignName)}/comparisons`);
-	renderComparisonReport(data);
+	if (visitOrder() === "fixed") renderComparisonReport(data);
 }
 
 function renderRunProgressCard(campaign, running = false, liveProgress = null) {
@@ -668,12 +675,19 @@ function updateCreateMode() {
 }
 
 async function refreshBenchmarkReport(campaignName) {
+	if (visitOrder() === "free") {
+		renderSolvedPreview(null);
+		const data = campaignName ? await requestJSON(`/api/campaigns/${encodeURIComponent(campaignName)}/free-results`) : null;
+		if (visitOrder() === "free") renderFreeOrderReport($("#benchmark-report"), data);
+		return;
+	}
 	if (!campaignName) {
 		renderBenchmarkReport(null);
 		renderSolvedPreview(null);
 		return;
 	}
 	const report = await requestJSON(`/api/campaigns/${encodeURIComponent(campaignName)}/summaries`);
+	if (visitOrder() !== "fixed") return;
 	renderBenchmarkReport(report);
 	await refreshBenchmarkedInstances(campaignName);
 }
@@ -1150,3 +1164,24 @@ requestJSON("/api/system")
 		controls.setupThreadsControl("#compare-threads-slider", "#compare-threads-input", "#compare-threads-max-label");
 		setOutput($("#create-output"), error.message);
 	});
+
+setupVisitOrder(() => {
+	if (visitOrder() === "fixed") $("#free-reference-report").classList.add("is-hidden");
+	manualEditor.cancelPendingSolution();
+	manualEditor.solutionPath = null;
+	manualEditor.scheduleSolve();
+	manualEditor.draw();
+	window.dispatchEvent(new window.Event("visit-order-changed"));
+	Promise.all([refreshBenchmarkReport(state.selectedCampaign), refreshComparisonReport(state.selectedComparisonCampaign)])
+		.catch((error) => setOutput($("#run-output"), error.message));
+});
+$("#show-free-reference").addEventListener("click", async () => {
+	const select = $("#compare-visit-order");
+	select.value = "free";
+	select.dispatchEvent(new window.Event("change"));
+	try {
+		const report = await requestJSON("/api/free-order/reference");
+		renderFreeOrderReport($("#free-reference-report"), report);
+		$("#free-reference-report").scrollIntoView({ behavior: "smooth", block: "start" });
+	} catch (error) { setOutput($("#compare-output"), error.message); }
+});

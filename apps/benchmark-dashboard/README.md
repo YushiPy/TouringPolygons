@@ -87,3 +87,25 @@ RUN_BROWSER=1 BROWSER_PORT=8020 npm run test:all
 The Python suite includes route-level integration coverage for manual campaign mutation, append behavior, stale benchmark invalidation, and lazy regeneration of a missing or stale `inputs/manual.bin` compatibility artifact.
 
 Manual campaigns use `manual-cases.json` as the canonical editable representation. The generated `inputs/manual.bin` file remains a solver compatibility artifact and is rebuilt on demand for previews, benchmark runs, and comparisons.
+
+## Visit order
+
+Choose `Fixed order` or `Free order` in Benchmark, Comparison, or Cases. The selection is synchronized across these views. Fixed order keeps the existing solver pipeline. Free order uses the native nonconvex TPP branch-and-bound, with fixed start and target points. The live editor uses a three-second budget and displays the incumbent path and gap when the search has not finished.
+
+Free-order campaigns currently run with one worker. An empty time limit means 30 seconds per instance. Comparison supports `Our TPP B&B` and `External TSPN`; the external checkout and its Python environment must be installed, and its time limit must be an integer number of seconds.
+
+Reports include per-instance bounds, gaps, timing, termination, and our saved paths and first-visit orders. Results are saved separately under `benchmarks/campaigns/<campaign>/results/free-order/<run>/report.json`. Matching completed configurations are reused unless forced. They never populate fixed-order summary files.
+
+In Comparison, click `Show recorded free-order comparison (60 instances)` to inspect the measured development suite, including numerical tolerances and endpoint validation differences. This requires the local artifacts under `benchmarks/results/unordered/final-dev.jsonl` and `tspn-comparison/results/unordered-final`; those benchmark artifacts are not tracked in Git.
+
+The same campaign runner is available from the repository root:
+
+```bash
+apps/benchmark-dashboard/.venv/bin/python benchmarks/tpp.py free-order CAMPAIGN --solver unordered --solver tspn --max-seconds 2
+```
+
+The additional browser test exercises mode switching, the saved comparison, a live free-order solve, a campaign run, and an actual external comparison. Start the dashboard, then run:
+
+```bash
+DASHBOARD_URL=http://127.0.0.1:8137 npm run test:browser:free
+```

@@ -19,6 +19,7 @@ from dashboard.dashboard_models import (
     CreateSyntheticRequest,
     ImportCanonicalRequest,
     ImportGermanRequest,
+    LiveSolveRequest,
     ManualCampaignRequest,
     ManualCaseRequest,
     ManualCasesRequest,
@@ -413,9 +414,12 @@ def register_campaign_routes(
         return {"ok": True, "campaign": campaign}
 
     @router.post("/api/editor/solve")
-    async def solve_editor_case(request: ManualCaseRequest):
+    async def solve_editor_case(request: LiveSolveRequest):
         validate_manual_cases([request])
         case = manual_case_from_request(request)
+        if request.visit_order == "free":
+            from dashboard.dashboard_free_order import solve_free_editor
+            return await solve_free_editor(case)
         if len(case[2]) == 0:
             return {"path": [list(case[0]), list(case[1])], "exact": True, "calls": 0, "seconds": 0}
         try:

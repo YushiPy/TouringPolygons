@@ -773,12 +773,14 @@ async def run_campaign(request: RunCampaignRequest):
     ensure_manual_binary_cache(campaign_path(request.name))
     existing_job = active_job("run", request.name)
     if existing_job is not None:
+        if ("free-order" in existing_job.command) != (request.visit_order == "free"):
+            raise HTTPException(409, "A different visit-order run is already active for this campaign.")
         return {"job": existing_job.id, "command": existing_job.command}
 
     command = [sys.executable, str(BENCHMARK_CLI), "run", request.name]
     if request.threads is not None:
         command.extend(["--threads", str(request.threads)])
-    if request.solver:
+    if request.solver and request.visit_order == "fixed":
         solver = SOLVERS.get(request.solver)
         if solver is None:
             raise HTTPException(status_code=400, detail="Unknown solver.")
@@ -797,6 +799,8 @@ async def run_campaign(request: RunCampaignRequest):
     if request.dry_run:
         command.append("--dry-run")
 
+    if request.visit_order == "free":
+        command = free_command(request, campaign_path(request.name), BENCHMARK_CLI)
     job = Job(id=str(uuid.uuid4()), command=command, kind="run", campaign=request.name)
     jobs[job.id] = job
     persist_jobs()
@@ -810,6 +814,8 @@ async def compare_solvers(request: CompareSolversRequest):
         raise HTTPException(status_code=400, detail="Select at least one solver.")
     existing_job = active_job("comparison", request.name)
     if existing_job is not None:
+        if ("free-order" in existing_job.command) != (request.visit_order == "free"):
+            raise HTTPException(409, "A different visit-order run is already active for this campaign.")
         return {"job": existing_job.id, "command": existing_job.command}
 
     path = campaign_path(request.name)
@@ -833,7 +839,7 @@ async def compare_solvers(request: CompareSolversRequest):
         "-1",
         "--keep-going",
     ]
-    for solver_name in request.solvers:
+    for solver_name in (request.solvers if request.visit_order == "fixed" else []):
         solver = SOLVERS.get(solver_name)
         if solver is None:
             raise HTTPException(status_code=400, detail=f"Unknown solver: {solver_name}")
@@ -845,6 +851,8 @@ async def compare_solvers(request: CompareSolversRequest):
     if request.no_build:
         command.append("--no-build")
 
+    if request.visit_order == "free":
+        command = free_command(request, path, BENCHMARK_CLI, comparison=True)
     job = Job(
         id=str(uuid.uuid4()),
         command=command,
@@ -912,3 +920,16 @@ register_support_routes(
     benchmarked_instances=benchmarked_instances,
     comparison_data=comparison_data,
 )
+
+
+from dashboard.dashboard_free_order import free_command, free_results, recorded_results  # noqa: E402
+
+
+@app.get("/api/campaigns/{name}/free-results")
+async def get_free_results(name: str):
+    return free_results(campaign_path(name))
+
+
+@app.get("/api/free-order/reference")
+async def get_free_reference():
+    return recorded_results()

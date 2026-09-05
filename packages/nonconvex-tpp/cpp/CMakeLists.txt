@@ -60,3 +60,8 @@ if("${TARGET}" STREQUAL "main-compare_cgal_partition")
 	target_link_libraries(${PROJECT_NAME} PRIVATE CGAL::CGAL)
 	target_compile_definitions(${PROJECT_NAME} PRIVATE CGAL_DO_NOT_USE_BOOST_MP)
 endif()
+
+add_executable(tpp-unordered EXCLUDE_FROM_ALL src/main-unordered.cpp)
+target_link_libraries(tpp-unordered PRIVATE tpp_nonconvex)
+add_executable(tpp-unordered-tests EXCLUDE_FROM_ALL src/main-unordered_tests.cpp)
+target_link_libraries(tpp-unordered-tests PRIVATE tpp_nonconvex)

@@ -1,9 +1,12 @@
 <section id="comparison-panel" class="panel">
 	<div class="panel-header">
 		<h2>Compare Solvers</h2>
-		<p>Run the same campaign input across selected convex solvers and compare their summaries.</p>
+		<p>Compare solvers on the same campaign and visit-order variant.</p>
 	</div>
 	<form id="compare-form" class="run-form">
+		<label class="visit-order-field">Visit order
+			<select id="compare-visit-order" name="visit_order" data-visit-order><option value="fixed">Fixed order</option><option value="free">Free order</option></select>
+		</label>
 		<div class="run-main-fields">
 			<div class="field campaign-picker-field">
 				<div class="field-label-row">
@@ -57,7 +60,7 @@
 				<span>Skip build</span>
 			</label>
 		</div>
-		<div class="compare-solver-grid">
+		<div class="compare-solver-grid" data-order-only="fixed">
 			<label class="solver-check">
 				<input name="solvers" value="linear" type="checkbox" checked>
 				<span>Linear Intersections</span>
@@ -83,6 +86,10 @@
 				<span>Gurobi</span>
 			</label>
 		</div>
+		<div class="compare-solver-grid is-hidden" data-order-only="free">
+			<label class="solver-check"><input name="free_solvers" value="unordered" type="checkbox" checked><span>Our TPP B&amp;B</span></label>
+			<label class="solver-check"><input name="free_solvers" value="tspn" type="checkbox" checked><span>External TSPN</span></label>
+		</div>
 		<div class="actions compare-actions">
 			<button type="submit">Compare</button>
 			<button id="copy-compare-command" class="secondary command-copy" type="button">Copy Command</button>
@@ -91,6 +98,8 @@
 		</div>
 	</form>
 	<div id="compare-progress" class="run-progress-card is-hidden" aria-live="polite"></div>
+	<button id="show-free-reference" class="secondary" type="button">Show recorded free-order comparison (60 instances)</button>
+	<div id="free-reference-report" class="comparison-report is-hidden"></div>
 	<div id="comparison-report" class="comparison-report is-hidden"></div>
 	<div class="output-panel">
 		<pre id="compare-output" class="output" aria-live="polite"></pre>

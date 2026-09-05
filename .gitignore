@@ -83,6 +83,9 @@ packages/nonconvex-tpp/python/instances*.zip
 # Third-party papers and local TeX conversions
 docs/bibliography/**/*.pdf
 
+# Local research material received from collaborators
+paula-tspn/
+
 # Miscellaneous
 tspn-comparison/
 experiments/

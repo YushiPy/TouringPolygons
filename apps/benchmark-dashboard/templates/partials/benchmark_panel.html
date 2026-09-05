@@ -4,6 +4,9 @@
 		<p>Runs are resumable and write CSV, Markdown, logs, and a run index.</p>
 	</div>
 	<form id="run-form" class="run-form">
+		<label class="visit-order-field">Visit order
+			<select id="run-visit-order" name="visit_order" data-visit-order><option value="fixed">Fixed order</option><option value="free">Free order</option></select>
+		</label>
 		<div class="run-main-fields">
 			<div class="field campaign-picker-field">
 				<div class="field-label-row">
@@ -56,7 +59,7 @@
 			</label>
 		</div>
 		<div class="run-options">
-			<div class="field solver-field">
+			<div class="field solver-field" data-order-only="fixed">
 				<span class="field-label section-field-label">Solver</span>
 				<input name="solver" type="hidden" value="binary">
 				<span class="segmented solver-grid" data-input="solver">
@@ -68,6 +71,10 @@
 					<button class="segment" data-value="gurobi" type="button">Gurobi</button>
 				</span>
 			</div>
+			<label data-order-only="free" class="is-hidden">Solver
+				<select name="free_solver"><option value="unordered">Our TPP B&amp;B</option><option value="tspn">External TSPN (local installation)</option></select>
+				<span>Free-order runs use one worker. The oracle is selected by the B&amp;B.</span>
+			</label>
 			<div class="run-switches">
 				<label class="switch-row">
 					<input name="dry_run" type="checkbox">
