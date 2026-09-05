@@ -83,6 +83,7 @@ Exemplo reutilizando um áudio já extraído:
 
 - `transcript`: caminho da transcrição bruta, argumento obrigatório.
 - `--output`: caminho alternativo para a versão revisada. Quando omitido, gera `transcrição-revisada.txt` ao lado do arquivo de entrada.
+- `--end-time`: ignora segmentos iniciados depois do instante informado em segundos. É útil quando a gravação continua após o encerramento da reunião.
 
 Exemplo com destino personalizado:
 
@@ -90,6 +91,14 @@ Exemplo com destino personalizado:
 .venv/bin/python scripts/review_meeting_transcript.py \
 	"/caminho/transcrição-bruta.txt" \
 	--output "/caminho/transcrição-revisada.txt"
+```
+
+Exemplo limitando a revisão à primeira hora e quatro minutos:
+
+```bash
+.venv/bin/python scripts/review_meeting_transcript.py \
+	"/caminho/transcrição-bruta.txt" \
+	--end-time 3852
 ```
 
 ## Sobrescrita de arquivos

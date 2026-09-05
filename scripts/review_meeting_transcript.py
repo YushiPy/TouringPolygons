@@ -30,6 +30,9 @@ REPLACEMENTS = {
 	"Brandtian Bound": "Branch and Bound",
 	"brancha de bão": "Branch and Bound",
 	"branch no bottom": "Branch and Bound",
+	"branch about": "Branch and Bound",
+	"branch on bound": "Branch and Bound",
+	"Branchenbaum": "Branch and Bound",
 	"pedímetro": "perímetro",
 	"colígono": "polígono",
 	"colígonos": "polígonos",
@@ -52,6 +55,11 @@ REPLACEMENTS = {
 	"Guroby": "Gurobi",
 	"Sikuspi": "SIICUSP",
 	"Sikusp": "SIICUSP",
+	"bolsa do BEP": "bolsa do BEPE",
+	"pedido BEP": "pedido de BEPE",
+	"bolsa de Bepi": "bolsa de BEPE",
+	"reconsideração da Beppi": "reconsideração do BEPE",
+	"bolsa de papel": "bolsa do BEPE",
 	"viciâncias": "vizinhanças",
 	"viciância": "vizinhança",
 	"poligonárias": "poligonais",
@@ -71,6 +79,14 @@ REPLACEMENTS = {
 	"c mais mais": "C++",
 	"A-Star": "A*",
 	"breadth for search": "breadth-first search",
+	"Universidade de Laval": "Université Laval",
+	"instação científica": "iniciação científica",
+	"10 mil dores canadenses": "10 mil dólares canadenses",
+	"indiferimento": "indeferimento",
+	"indiferir": "indeferir",
+	"Fabespi": "FAPESP",
+	"vê quanto custa nos passagens": "vê quanto custam as passagens",
+	"a consideração": "a reconsideração",
 }
 
 
@@ -81,8 +97,25 @@ def revise(text: str) -> str:
 	text = re.sub(r"\bTCP\b", "TSP", text)
 	text = re.sub(r"\bSEGAL\b|\bcegal\b", "CGAL", text)
 	text = re.sub(r"\bDUROR\b|\bDOR\b", "Dror", text)
+	text = re.sub(r"\bBEP(?:I)?\b|\bBeppi\b", "BEPE", text)
 	text = re.sub(r"\s+([,.?!:;])", r"\1", text)
 	return text
+
+
+def limit_duration(text: str, end_time: float | None) -> str:
+	if end_time is None:
+		return text
+	blocks = text.strip().split("\n\n")
+	kept: list[str] = []
+	for block in blocks:
+		match = re.match(r"\[(\d{2}):(\d{2}):(\d{2}),\d{3}", block)
+		if match is None:
+			continue
+		hours, minutes, seconds = map(int, match.groups())
+		start = hours * 3600 + minutes * 60 + seconds
+		if start <= end_time:
+			kept.append(block)
+	return "\n\n".join(kept) + "\n"
 
 
 def main() -> None:
@@ -91,15 +124,26 @@ def main() -> None:
 	)
 	parser.add_argument("transcript", type=Path)
 	parser.add_argument("--output", type=Path)
+	parser.add_argument(
+		"--end-time",
+		type=float,
+		help="Ignora segmentos iniciados após este instante, em segundos.",
+	)
 	args = parser.parse_args()
 
 	output = args.output or args.transcript.with_name("transcrição-revisada.txt")
-	raw = args.transcript.read_text(encoding="utf-8")
+	raw = limit_duration(args.transcript.read_text(encoding="utf-8"), args.end_time)
 	header = (
 		"TRANSCRIÇÃO REVISADA\n"
 		"Revisão contextual de nomes próprios e termos técnicos. Os timestamps foram "
-		"preservados. Trechos ainda pouco claros devem ser conferidos no áudio.\n\n"
+		"preservados. Trechos ainda pouco claros devem ser conferidos no áudio.\n"
 	)
+	if args.end_time is not None:
+		header += (
+			f"Conteúdo limitado aos primeiros {args.end_time:g} segundos, para excluir "
+			"áudio posterior que não pertence à reunião.\n"
+		)
+	header += "\n"
 	output.write_text(header + revise(raw), encoding="utf-8")
 
 
