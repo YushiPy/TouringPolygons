@@ -4,6 +4,7 @@
 .vscode/
 .CLAUDE.md
 .notes.md
+:memory:.ses
 
 # Local environments
 .venv/
@@ -16,8 +17,6 @@ cmake-build-*/
 CMakeFiles/
 CMakeCache.txt
 compile_commands.json
-*.cmake
-!CMakeLists.txt
 
 # Python
 *.pyc
@@ -43,8 +42,9 @@ apps/visualizer-server/static/wasm/
 *.bbl*
 *.blg
 *.bcf-SAVE-ERROR
-*.pdf
-!docs/reports/**/references/*.pdf
+docs/reports/**/build/
+docs/reports/**/*.pdf
+output/
 
 # C++
 *.o
@@ -78,15 +78,8 @@ packages/convex-tpp/cpp/tests/*_tests.bin
 packages/nonconvex-tpp/cpp/tests/generated/
 packages/nonconvex-tpp/python/instances*.zip
 
-# Papers
-docs/bibliography/TPP-Dror/original.pdf
-docs/bibliography/TPP-Dror/main.pdf
-
-docs/bibliography/TPP-Tan&Jiang/original.pdf
-docs/bibliography/TPP-Tan&Jiang/main.pdf
-
-docs/bibliography/TSPN-B&B-Michael/original.pdf
-docs/bibliography/TSPN-B&B-Michael/main.pdf
+# Third-party papers and local TeX conversions
+docs/bibliography/**/*.pdf
 
 # Miscellaneous
 tspn-comparison/

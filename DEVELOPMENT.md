@@ -22,6 +22,24 @@ This repository is a research monorepo. Keep maintained solver code, generated a
 
 Generated benchmark campaigns, benchmark results, derived suites, CMake build trees, Python caches, local virtual environments, and local source archives are ignored by `.gitignore`. If a generated file is needed for reproducibility, document the command that recreates it rather than committing the output, unless it is a small canonical fixture.
 
+## Public repository policy
+
+This repository must not contain private supervision material or third-party
+content that is not ours to redistribute. Keep meeting recordings, transcripts,
+summaries, and other correspondence under `docs/meetings/`, which is ignored.
+Keep previously submitted material written by others under
+`docs/reports/SIICUSP/resultados-anteriores/`, external paper PDFs under
+`docs/bibliography/`, and external repository checkouts such as
+`tspn-comparison/` ignored as well.
+
+`benchmarks/campaigns/` is a local experiment workspace and remains ignored.
+When a case from a campaign becomes a durable regression test, copy or export
+only that case into `benchmarks/suites/`, preferably as a small documented
+fixture. Commit the stable input required by the test harness and document the
+command that produces any derived binary or preview. Do not commit a campaign's
+run history, previews, local paths, or unrelated cases merely to preserve one
+test.
+
 ## Python benchmark scripts
 
 Use `benchmarks/tpp.py` for user-facing commands. The common workflow should
