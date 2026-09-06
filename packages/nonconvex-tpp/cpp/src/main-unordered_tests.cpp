@@ -20,6 +20,14 @@ double length(const Polygon &p) {
 
 void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
 	const auto result = tpp::tpp_nonconvex_unordered_solve(s, t, polygons);
+	if (result.fallback_calls != result.fallback_geometric_path_invalid_calls + result.fallback_certificate_gap_calls
+		|| result.extended_precision_calls > result.fallback_calls
+		|| result.repaired_geometric_path_calls > result.calls
+		|| result.convex_oracle_seconds + result.decomposition_seconds + result.search_visit_check_seconds
+			+ result.search_maintenance_seconds > result.search_seconds + 1e-9
+		|| result.heuristic_visit_check_seconds + result.search_visit_check_seconds
+			+ result.finalization_visit_check_seconds > result.visit_check_seconds + 1e-9)
+		throw std::runtime_error("Inconsistent unordered profiling metrics.");
 	std::vector<size_t> order(polygons.size());
 	std::iota(order.begin(), order.end(), 0);
 	std::vector<std::vector<Polygon>> pieces;

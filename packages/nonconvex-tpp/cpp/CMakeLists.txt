@@ -33,7 +33,7 @@ if(APPLE)
 	set(OpenMP_omp_LIBRARY /opt/homebrew/opt/libomp/lib/libomp.dylib)
 endif()
 
-file(GLOB_RECURSE TPP_NONCONVEX_SOURCES src/*.cpp)
+file(GLOB_RECURSE TPP_NONCONVEX_SOURCES CONFIGURE_DEPENDS src/*.cpp)
 list(FILTER TPP_NONCONVEX_SOURCES EXCLUDE REGEX "src/main.*\\.cpp")
 list(FILTER TPP_NONCONVEX_SOURCES EXCLUDE REGEX "src/tpp_convex\\.cpp")
 list(FILTER TPP_NONCONVEX_SOURCES EXCLUDE REGEX "src/vector2\\.cpp")

@@ -1,6 +1,7 @@
 #include "tpp/nonconvex/unordered.h"
 #include "tpp/convex/certified.h"
 #include "common.h"
+#include "unordered_geometry.h"
 
 #include <algorithm>
 #include <chrono>
@@ -8,78 +9,10 @@
 #include <optional>
 #include <queue>
 #include <stdexcept>
-#include <tuple>
 
 namespace {
-	using Polygon = std::vector<Vector2>;
+	using namespace tpp::unordered_detail;
 	constexpr size_t none = std::numeric_limits<size_t>::max();
-
-	double length(const Polygon &path) {
-		double result = 0;
-		for (size_t i = 1; i < path.size(); ++i) result += path[i - 1].distance_to(path[i]);
-		return result;
-	}
-
-	Polygon hull(Polygon p) {
-		std::sort(p.begin(), p.end(), [](auto a, auto b) { return std::tie(a.x, a.y) < std::tie(b.x, b.y); });
-		p.erase(std::unique(p.begin(), p.end(), [](auto a, auto b) { return a.x == b.x && a.y == b.y; }), p.end());
-		Polygon h;
-		for (auto v : p) {
-			while (h.size() > 1 && (h.back() - h[h.size() - 2]).cross(v - h.back()) <= 0) h.pop_back();
-			h.push_back(v);
-		}
-		const size_t lower = h.size();
-		for (size_t i = p.size() - 1; i-- > 0;) {
-			while (h.size() > lower && (h.back() - h[h.size() - 2]).cross(p[i] - h.back()) <= 0) h.pop_back();
-			h.push_back(p[i]);
-		}
-		h.pop_back();
-		return h;
-	}
-
-	Vector2 project(Vector2 p, Vector2 a, Vector2 b) {
-		const auto d = b - a;
-		return a + d * (d.length_squared() == 0 ? 0 : std::clamp((p - a).dot(d) / d.length_squared(), 0.0, 1.0));
-	}
-
-	bool inside(Vector2 p, const Polygon &poly, double eps) {
-		bool result = false;
-		for (size_t i = 0, j = poly.size() - 1; i < poly.size(); j = i++) {
-			const auto a = poly[j], b = poly[i];
-			if (p.distance_to(project(p, a, b)) <= eps) return true;
-			if ((a.y > p.y) != (b.y > p.y) && p.x < a.x + (b.x - a.x) * (p.y - a.y) / (b.y - a.y)) result = !result;
-		}
-		return result;
-	}
-
-	struct Contact { double distance = std::numeric_limits<double>::infinity(); double position = 0; };
-
-	Contact contact(const Polygon &path, const Polygon &poly, double eps) {
-		Contact best;
-		for (size_t i = 1; i < path.size(); ++i) {
-			const auto a = path[i - 1], b = path[i], d = b - a;
-			if (inside(a, poly, eps)) return {0, double(i - 1)};
-			double first = std::numeric_limits<double>::infinity();
-			for (size_t j = 0; j < poly.size(); ++j) {
-				const auto c = poly[j], e = poly[(j + 1) % poly.size()], v = e - c;
-				const double denominator = d.cross(v);
-				if (denominator != 0) {
-					const double t = (c - a).cross(v) / denominator, u = (c - a).cross(d) / denominator;
-					if (t >= 0 && t <= 1 && u >= 0 && u <= 1) first = std::min(first, t);
-				}
-				for (const auto &[p, q] : {std::pair{a, project(a, c, e)}, std::pair{b, project(b, c, e)},
-					std::pair{project(c, a, b), c}, std::pair{project(e, a, b), e}}) {
-					const double distance = p.distance_to(q);
-					const double t = d.length_squared() == 0 ? 0 : (p - a).dot(d) / d.length_squared();
-					if (distance <= eps) first = std::min(first, t);
-					if (distance < best.distance) best = {distance, double(i - 1) + t};
-				}
-			}
-			if (std::isfinite(first)) return {0, double(i - 1) + first};
-			if (inside(b, poly, eps)) return {0, double(i)};
-		}
-		return best;
-	}
 
 	struct Element { size_t polygon; size_t piece = none; };
 	struct Node {
@@ -102,6 +35,9 @@ namespace tpp {
 	) {
 		const auto began = std::chrono::steady_clock::now();
 		auto elapsed = [&] { return std::chrono::duration<double>(std::chrono::steady_clock::now() - began).count(); };
+		auto duration = [](auto since) { return std::chrono::duration<double>(std::chrono::steady_clock::now() - since).count(); };
+		UnorderedTppSolveResult result;
+		const auto preprocessing_began = std::chrono::steady_clock::now();
 		if (!start.is_finite() || !target.is_finite() || std::isnan(options.max_seconds) || options.max_seconds < 0
 			|| !std::isfinite(options.absolute_gap) || options.absolute_gap < 0
 			|| !std::isfinite(options.relative_gap) || options.relative_gap < 0
@@ -128,17 +64,26 @@ namespace tpp {
 			for (size_t i = 0; i < p.size(); ++i) area += (p[i] - p[0]).cross(p[(i + 1) % p.size()] - p[0]);
 			if (area == 0) throw std::invalid_argument("Zero-area polygon.");
 			if (area < 0) std::reverse(p.begin(), p.end());
-			hulls.push_back(hull(p));
+			hulls.push_back(convex_hull(p));
 		}
-		UnorderedTppSolveResult result;
+		result.preprocessing_seconds = duration(preprocessing_began);
+		const auto heuristic_began = std::chrono::steady_clock::now();
 		const size_t n = polygons.size();
 		std::vector<size_t> initial_order;
 		const double eps = options.feasibility_tolerance;
+		enum class Phase { Heuristic, Search, Finalization };
+		Phase phase = Phase::Heuristic;
 		auto covered = [&](const Polygon &path) {
-			return std::all_of(polygons.begin(), polygons.end(), [&](const auto &p) { return contact(path, p, eps).distance <= eps; });
+			const auto check_began = std::chrono::steady_clock::now();
+			const bool covered_result = std::all_of(polygons.begin(), polygons.end(), [&](const auto &p) { return contact(path, p, eps).distance <= eps; });
+			const double seconds = duration(check_began);
+			if (phase == Phase::Heuristic) result.heuristic_visit_check_seconds += seconds;
+			else if (phase == Phase::Search) result.search_visit_check_seconds += seconds;
+			else result.finalization_visit_check_seconds += seconds;
+			return covered_result;
 		};
 		auto improve = [&](const Polygon &path) {
-			const double value = length(path);
+			const double value = path_length(path);
 			if (std::isfinite(value) && value < result.upper_bound && covered(path)) {
 				result.path = path;
 				result.upper_bound = value;
@@ -196,6 +141,9 @@ namespace tpp {
 			// Every heuristic contact stays on its original polygon.
 			improve(initial);
 		}
+		result.initial_heuristic_seconds = duration(heuristic_began);
+		phase = Phase::Search;
+		const auto search_began = std::chrono::steady_clock::now();
 		auto gap = [&] { return options.absolute_gap + options.relative_gap * std::abs(result.upper_bound); };
 		auto limited = [&] { return result.calls >= options.max_calls || elapsed() >= options.max_seconds; };
 		std::vector<std::vector<Polygon>> pieces(n);
@@ -207,10 +155,19 @@ namespace tpp {
 			const auto certified = tpp_convex_solve_certified(start, target, selected, workspace, gap() * .25);
 			node.path = certified.path;
 			result.fallback_calls += certified.used_fallback;
+			result.fallback_geometric_path_invalid_calls += certified.fallback_geometric_path_invalid;
+			result.fallback_certificate_gap_calls += certified.fallback_certificate_gap;
+			result.extended_precision_calls += certified.used_extended_precision;
+			result.repaired_geometric_path_calls += certified.repaired_geometric_path;
+			result.convex_oracle_seconds += certified.seconds;
+			result.convex_geometric_solver_seconds += certified.geometric_solver_seconds;
+			result.convex_certificate_verification_seconds += certified.certificate_verification_seconds;
+			result.convex_fallback_seconds += certified.fallback_seconds;
+			result.convex_fallback_long_double_seconds += certified.fallback_long_double_seconds;
+			result.convex_fallback_extended_precision_seconds += certified.fallback_extended_precision_seconds;
 			node.bound = std::max(node.bound, certified.lower_bound);
 			if (node.path.size() < 2 || !std::all_of(node.path.begin(), node.path.end(), [](auto v) { return v.is_finite(); }))
 				throw std::runtime_error("Convex oracle returned an invalid path.");
-			
 		};
 		double settled_bound = result.upper_bound;
 		std::priority_queue<Node, std::vector<Node>, Later> queue;
@@ -235,10 +192,12 @@ namespace tpp {
 			if (node.bound >= result.upper_bound - gap()) { settled_bound = std::min(settled_bound, node.bound); continue; }
 			size_t chosen = none;
 			double farthest = eps;
+			const auto visit_began = std::chrono::steady_clock::now();
 			for (size_t j = 0; j < n; ++j) {
 				const double distance = contact(node.path, polygons[j], eps).distance;
 				if (distance > farthest) { farthest = distance; chosen = j; }
 			}
+			result.search_visit_check_seconds += duration(visit_began);
 			if (chosen == none) {
 				// An unresolved numerical oracle gap must remain in the global certificate.
 				queue.push(std::move(node));
@@ -250,10 +209,12 @@ namespace tpp {
 				if (found->piece != none) throw std::runtime_error("Certified oracle failed to visit an assigned piece.");
 				++result.decomposition_branches;
 				if (pieces[chosen].empty()) {
+					const auto decomposition_began = std::chrono::steady_clock::now();
 					for (auto piece : decompose_polygon(polygons[chosen])) {
-						piece = hull(std::move(piece));
+						piece = convex_hull(std::move(piece));
 						if (piece.size() >= 3) pieces[chosen].push_back(std::move(piece));
 					}
+					result.decomposition_seconds += duration(decomposition_began);
 				}
 				if (pieces[chosen].empty()) throw std::runtime_error("Empty convex decomposition.");
 				const size_t position = found - node.sequence.begin();
@@ -280,6 +241,11 @@ namespace tpp {
 				} else settled_bound = std::min(settled_bound, child.bound);
 			}
 		}
+		result.search_seconds = duration(search_began);
+		result.search_maintenance_seconds = std::max(0.0, result.search_seconds - result.convex_oracle_seconds
+			- result.decomposition_seconds - result.search_visit_check_seconds);
+		phase = Phase::Finalization;
+		const auto finalization_began = std::chrono::steady_clock::now();
 		result.lower_bound = std::min({result.upper_bound, settled_bound, frontier_bound()});
 		result.lower_bound = std::max(start.distance_to(target), result.lower_bound - normalization_error);
 		result.exact = result.upper_bound - result.lower_bound <= gap();
@@ -288,9 +254,14 @@ namespace tpp {
 			: elapsed() >= options.max_seconds ? UnorderedTppTermination::TimeLimit
 			: UnorderedTppTermination::NumericalLimit;
 		std::vector<std::pair<double, size_t>> visits;
+		const auto final_visits_began = std::chrono::steady_clock::now();
 		for (size_t j = 0; j < n; ++j) visits.emplace_back(contact(result.path, polygons[j], eps).position, j);
+		result.finalization_visit_check_seconds += duration(final_visits_began);
 		std::sort(visits.begin(), visits.end());
 		for (auto [position, j] : visits) result.order.push_back(j);
+		result.finalization_seconds = duration(finalization_began);
+		result.visit_check_seconds = result.heuristic_visit_check_seconds + result.search_visit_check_seconds
+			+ result.finalization_visit_check_seconds;
 		result.seconds = elapsed();
 		return result;
 	}

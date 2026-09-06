@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from benchmark_cases import read_encoded_cases
+from unordered_runner import run_unordered_solver
+from unordered_validation import validate_path
 
 ROOT = Path(__file__).resolve().parents[2]
 BINARY = ROOT / '.build/unordered/tpp'
@@ -33,19 +35,6 @@ def ensure_binary(no_build: bool = False) -> Path:
 	subprocess.run(['cmake', '-S', str(ROOT / 'packages/nonconvex-tpp/cpp'), '-B', str(BINARY.parent), '-DTARGET=main-unordered'], check=True)
 	subprocess.run(['cmake', '--build', str(BINARY.parent), '--target', 'tpp', '-j', '8'], check=True)
 	return BINARY
-
-
-def solve_case(start: tuple, target: tuple, polygons: list | tuple, max_calls: int, seconds: float) -> dict:
-	data = ' '.join(map(str, (*start, *target, len(polygons), max_calls, seconds))) + '\n'
-	for p in polygons:
-		data += str(len(p)) + ' ' + ' '.join(str(x) for v in p for x in v) + '\n'
-	process = subprocess.run([str(BINARY)], input=data, text=True, capture_output=True, timeout=seconds + 30)
-	if process.returncode:
-		raise RuntimeError(process.stderr.strip() or 'Free-order solver failed.')
-	result = json.loads(process.stdout)
-	result['visit_order'] = 'free'
-	result['length'] = result['upper_bound']
-	return result
 
 
 def atomic_json(path: Path, data: dict) -> None:
@@ -85,7 +74,10 @@ def main(argv: list[str] | None = None) -> int:
 	if 'tspn' in solvers and args.max_seconds != int(args.max_seconds):
 		parser.error('The external runner requires an integer time limit in seconds.')
 	config = {'visit_order': 'free', 'solvers': solvers, 'threads': 1, 'max_calls': args.max_calls,
-		'max_seconds': args.max_seconds, 'hashes': [c.digest for c in cases]}
+		'max_seconds': args.max_seconds, 'hashes': [c.digest for c in cases],
+		'ours_optimality': {'absolute_gap': 1e-7, 'relative_gap': 1e-9},
+		'external_optimality_eps': 1e-9, 'solver_feasibility_tolerance': 1e-8,
+		'independent_validation_tolerance': 1e-7}
 	key = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
 	results = campaign / 'results/free-order'
 	if args.dry_run:
@@ -105,7 +97,9 @@ def main(argv: list[str] | None = None) -> int:
 	report = {'key': key, 'config': config, 'visit_order': 'free', 'title': metadata.get('name', campaign.name),
 		'created_at': datetime.now(timezone.utc).isoformat(), 'status': 'running', 'rows': [],
 		'notes': ['Fixed endpoints; free visit order. One worker.',
-			'Our tolerance: 1e-7 + 1e-9 × UB. External: relative gap 1e-6, default geometry tolerance 0.001.',
+			'Our tolerance is 1e-7 + 1e-9 × UB. The external API only exposes a relative ratio, so eps=1e-9 is conservative rather than algebraically identical.',
+			'Both solvers use feasibility tolerance 1e-8 where their APIs permit it; independent validation uses 1e-7.',
+			'External raw and endpoint-snapped trajectories are reported separately; snapping never changes the declared solver result.',
 			'External calls are SOCP calls; our calls invoke a certified convex oracle. They are not identical units.']}
 	atomic_json(run / 'report.json', report)
 	try:
@@ -117,10 +111,11 @@ def main(argv: list[str] | None = None) -> int:
 					row = {'case': i, 'sha256': case.digest, 'solver': solver, 'polygons': len(case.polygons),
 						'geometry': {'start': [sx, sy], 'target': [tx, ty], 'polygons': case.polygons}}
 					try:
-						row.update(solve_case((sx, sy), (tx, ty), case.polygons, args.max_calls, args.max_seconds))
-						from shapely.geometry import LineString, Polygon
-						line = LineString(row['path'])
-						row['valid'] = row['path'][0] == [sx, sy] and row['path'][-1] == [tx, ty] and all(line.distance(Polygon(p)) <= 1e-7 for p in case.polygons)
+						row.update(run_unordered_solver(BINARY, (sx, sy), (tx, ty), case.polygons, args.max_calls, args.max_seconds))
+						row['visit_order'] = 'free'
+						row['length'] = row['upper_bound']
+						row['validation'] = validate_path((sx, sy), (tx, ty), case.polygons, row['path'], 1e-7)
+						row['valid'] = row['validation']['valid']
 					except (RuntimeError, subprocess.TimeoutExpired) as error:
 						row['error'] = str(error)
 					report['rows'].append(row)
@@ -130,7 +125,9 @@ def main(argv: list[str] | None = None) -> int:
 				suite = run / 'input.bin'
 				suite.write_bytes(b''.join(c.data for c in cases))
 				subprocess.run([str(EXTERNAL_PYTHON), str(EXTERNAL_RUNNER), '--suite', str(suite), '--mode', 'path',
-					'--threads', '1', '--time-limit', str(int(args.max_seconds)), '--eps', '0.000001', '--output', str(run / 'external')], check=True)
+					'--threads', '1', '--time-limit', str(int(args.max_seconds)), '--eps', '0.000000001',
+					'--feasibility-tolerance', '0.00000001', '--validation-tolerance', '0.0000001',
+					'--output', str(run / 'external')], check=True)
 				csv_path = next((run / 'external').glob('*/*-tspn-path.csv'))
 				with csv_path.open() as file:
 					for external in csv.DictReader(file):
@@ -141,7 +138,14 @@ def main(argv: list[str] | None = None) -> int:
 							'polygons': len(cases[i].polygons), 'upper_bound': finite(external['upper_bound']),
 							'lower_bound': finite(external['lower_bound']), 'seconds': finite(external['solve_seconds']),
 							'calls': finite(external['soc_num_calls']), 'exact': external['is_optimal'] == 'True',
-							'endpoint_valid': external['is_valid_trajectory'] == 'True', 'valid': None,
+							'path': json.loads(external['trajectory_json']) if external.get('trajectory_json') else None,
+							'endpoint_valid': external['is_valid_trajectory'] == 'True',
+							'valid': external.get('raw_valid') == 'True',
+							'endpoint_repaired_valid': external.get('snapped_valid') == 'True',
+							'validation': {'start_distance': finite(external.get('start_distance')),
+								'target_distance': finite(external.get('target_distance')),
+								'max_polygon_distance': finite(external.get('max_polygon_distance')),
+								'recomputed_length': finite(external.get('recomputed_length'))},
 							'termination': external['status'], 'error': external['error'] or None})
 				print(f'cases | [free] {len(cases)}/{len(cases)}', flush=True)
 		report['status'] = 'failed' if any(r.get('error') for r in report['rows']) else 'completed'
@@ -152,3 +156,7 @@ def main(argv: list[str] | None = None) -> int:
 		atomic_json(run / 'report.json', report)
 	print(f'Report: {run / "report.json"}', flush=True)
 	return int(report['status'] != 'completed')
+
+
+if __name__ == '__main__':
+	raise SystemExit(main())

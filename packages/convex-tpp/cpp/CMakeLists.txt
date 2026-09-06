@@ -23,7 +23,7 @@ if(APPLE)
     set(OpenMP_omp_LIBRARY /opt/homebrew/opt/libomp/lib/libomp.dylib)
 endif()
 
-file(GLOB_RECURSE TPP_CONVEX_SOURCES src/*.cpp)
+file(GLOB_RECURSE TPP_CONVEX_SOURCES CONFIGURE_DEPENDS src/*.cpp)
 list(FILTER TPP_CONVEX_SOURCES EXCLUDE REGEX "src/main.*\\.cpp")
 
 if(NOT TPP_ENABLE_GUROBI)

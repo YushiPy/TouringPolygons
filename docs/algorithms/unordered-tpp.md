@@ -62,6 +62,12 @@ Isso é necessário porque foram encontrados caminhos inviáveis e valores incor
 na implementação antiga para algumas sequências com interseções. A proteção vale
 para a nova API; as APIs antigas de ordem fixa não foram redirecionadas.
 
+Quando o caminho geométrico tem um ponto por região, mas a recuperação falha por um
+contato numericamente exterior à fronteira, o certificado tenta deslocar cada ponto
+para o centroide de sua região por fatores `1e-12`, `1e-10` e `1e-8`. O caminho
+reparado ainda passa por `contacts`, pela avaliação primal e pelo limite dual. Se a
+viabilidade ou o gap original não fechar, o fallback permanece obrigatório.
+
 Para regiões convexas $C_1,\ldots,C_m$ e vetores $u_0,\ldots,u_m$ com norma no máximo 1,
 um limite inferior é
 
@@ -125,12 +131,36 @@ vertex_count x0 y0 x1 y1 ...
 
 A saída JSON inclui `path`, `order` (índices a partir de zero, pela primeira visita),
 `lower_bound`, `upper_bound`, `exact`, `termination`, `calls`, `fallback_calls`,
-`nodes`, os dois contadores de ramificação, `peak_queue` e `seconds`.
+motivos de fallback, reparações do caminho geométrico, uso de precisão ampliada,
+`nodes`, os dois contadores de
+ramificação, `peak_queue`, `seconds` e `profile`.
 A API C++ não tem limite de busca por padrão. A CLI exige limites explícitos.
 O limite de tempo é cooperativo: uma chamada geométrica/decomposição já iniciada
 pode excedê-lo. `calls` conta invocações do oráculo convexo certificado, não passos
 internos de Newton. `termination` distingue `optimal`, `call_limit`, `time_limit`
 e `numerical_limit`.
+
+### Organização da implementação
+
+- `certified.cpp` orquestra o solver geométrico, a certificação e o fallback.
+- `certified_geometry.cpp` recupera/repara contatos e calcula o limite dual.
+- `certified_refinement.cpp` contém o método de pontos interiores nas duas precisões.
+- `unordered.cpp` contém heurística, branch-and-bound, bounds e instrumentação.
+- `unordered_geometry.cpp` contém operações puras de fecho convexo e contato.
+- `unordered_runner.py` centraliza o protocolo de processo usado pelos benchmarks e
+  campanhas Python.
+
+Os headers `certified_internal.h` e `unordered_geometry.h` são internos aos seus
+respectivos módulos e não ampliam a API pública.
+
+Em `profile`, pré-processamento, heurística inicial, busca e finalização são fases
+superiores disjuntas. O tempo da busca contém oráculo convexo, decomposição,
+verificação de visitas e manutenção exclusiva da busca. O tempo do oráculo é
+inclusivo e contém solver geométrico, verificação inicial do certificado e fallback;
+o fallback contém suas fases em `long double` e precisão ampliada. O total de
+verificação de visitas soma medições nas fases superiores e se sobrepõe a elas,
+portanto não deve ser somado novamente. A semântica também acompanha cada resultado
+em `profile.timing_semantics`.
 
 ```cpp
 #include "tpp/nonconvex/unordered.h"
@@ -176,7 +206,11 @@ python3 benchmarks/scripts/summarize_unordered.py \
   --output benchmarks/results/unordered/comparison
 ```
 
-O resumo exige hashes iguais e modo `path`. A dificuldade original da suíte se refere
+O adaptador externo exporta a trajetória bruta e uma candidata diagnóstica com
+extremos encaixados, além de aplicar `benchmarks/scripts/unordered_validation.py`,
+o mesmo validador independente usado nos caminhos próprios. Otimalidade declarada,
+viabilidade bruta e viabilidade após encaixe são campos separados. O resumo exige
+hashes iguais e modo `path`. A dificuldade original da suíte se refere
 a ordem fixa, não necessariamente à dificuldade com ordem livre. Não se deve comparar
 o antigo benchmark de ordem fixa com o externo de ordem livre como se fossem o mesmo
 problema. Os resultados gerados ficam em `benchmarks/results/` e não entram no Git.

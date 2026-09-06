@@ -28,10 +28,30 @@ namespace tpp {
 		size_t calls = 0;
 		size_t nodes = 0;
 		size_t fallback_calls = 0;
+		size_t fallback_geometric_path_invalid_calls = 0;
+		size_t fallback_certificate_gap_calls = 0;
+		size_t extended_precision_calls = 0;
+		size_t repaired_geometric_path_calls = 0;
 		size_t insertion_branches = 0;
 		size_t decomposition_branches = 0;
 		size_t peak_queue = 0;
 		double seconds = 0.0;
+		double preprocessing_seconds = 0.0;
+		double initial_heuristic_seconds = 0.0;
+		double search_seconds = 0.0;
+		double finalization_seconds = 0.0;
+		double convex_oracle_seconds = 0.0;
+		double convex_geometric_solver_seconds = 0.0;
+		double convex_certificate_verification_seconds = 0.0;
+		double convex_fallback_seconds = 0.0;
+		double convex_fallback_long_double_seconds = 0.0;
+		double convex_fallback_extended_precision_seconds = 0.0;
+		double decomposition_seconds = 0.0;
+		double visit_check_seconds = 0.0;
+		double heuristic_visit_check_seconds = 0.0;
+		double search_visit_check_seconds = 0.0;
+		double finalization_visit_check_seconds = 0.0;
+		double search_maintenance_seconds = 0.0;
 	};
 
 	// Simple polygons, either orientation. Endpoints are fixed, including start == target.

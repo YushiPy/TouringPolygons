@@ -7,6 +7,16 @@ namespace tpp {
 		double lower_bound = 0;
 		double upper_bound = 0;
 		bool used_fallback = false;
+		bool fallback_geometric_path_invalid = false;
+		bool fallback_certificate_gap = false;
+		bool used_extended_precision = false;
+		bool repaired_geometric_path = false;
+		double seconds = 0;
+		double geometric_solver_seconds = 0;
+		double certificate_verification_seconds = 0;
+		double fallback_seconds = 0;
+		double fallback_long_double_seconds = 0;
+		double fallback_extended_precision_seconds = 0;
 	};
 
 	// Verifies the geometric oracle against a support-function dual bound.

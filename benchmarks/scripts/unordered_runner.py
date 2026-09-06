@@ -1,0 +1,43 @@
+"""Shared process runner for the free-order C++ solver."""
+from __future__ import annotations
+
+import json
+import subprocess
+from pathlib import Path
+from typing import Sequence
+
+Point = Sequence[float]
+Polygon = Sequence[Point]
+
+
+def encode_instance(
+	start: Point,
+	target: Point,
+	polygons: Sequence[Polygon],
+	max_calls: int,
+	max_seconds: float,
+) -> str:
+	lines = [' '.join(map(str, (*start, *target, len(polygons), max_calls, max_seconds)))]
+	lines.extend(f'{len(polygon)} ' + ' '.join(str(coordinate) for vertex in polygon for coordinate in vertex)
+		for polygon in polygons)
+	return '\n'.join(lines) + '\n'
+
+
+def run_unordered_solver(
+	solver: Path,
+	start: Point,
+	target: Point,
+	polygons: Sequence[Polygon],
+	max_calls: int,
+	max_seconds: float,
+) -> dict:
+	process = subprocess.run(
+		[str(solver.resolve())],
+		input=encode_instance(start, target, polygons, max_calls, max_seconds),
+		text=True,
+		capture_output=True,
+		timeout=max(30, max_seconds + 30),
+	)
+	if process.returncode:
+		raise RuntimeError(process.stderr.strip() or 'Free-order solver failed.')
+	return json.loads(process.stdout)

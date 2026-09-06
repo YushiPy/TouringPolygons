@@ -5,9 +5,10 @@ from __future__ import annotations
 import argparse
 import json
 import struct
-import subprocess
 from pathlib import Path
 from benchmark_cases import read_encoded_cases
+from unordered_runner import run_unordered_solver
+from unordered_validation import validate_path
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -27,22 +28,18 @@ def main() -> None:
 			if args.case is not None and case.case_index not in args.case:
 				continue
 			s = struct.unpack_from('<dddd', case.data)
-			data = ' '.join(map(str, (*s, case.polygon_count, args.max_calls, args.seconds))) + '\n'
-			for polygon in case.polygons:
-				data += f'{len(polygon)} ' + ' '.join(str(x) for v in polygon for x in v) + '\n'
-			process = subprocess.run([str(args.solver.resolve())], input=data, text=True, capture_output=True, timeout=max(30, args.seconds + 30))
 			row = {'case': case.case_index, 'sha256': case.digest, 'polygons': case.polygon_count}
-			if process.returncode:
-				row['error'] = process.stderr.strip()
-			else:
-				row.update(json.loads(process.stdout))
+			try:
+				row.update(run_unordered_solver(args.solver, s[:2], s[2:], case.polygons, args.max_calls, args.seconds))
 				try:
-					from shapely.geometry import LineString, Polygon
-					line = LineString(row['path'])
-					row['max_polygon_distance'] = max((line.distance(Polygon(p)) for p in case.polygons), default=0)
-					row['valid'] = row['max_polygon_distance'] <= 1e-7 and row['path'][0] == list(s[:2]) and row['path'][-1] == list(s[2:])
+					row['validation'] = validate_path(s[:2], s[2:], case.polygons, row['path'], 1e-7)
+					row['max_polygon_distance'] = row['validation']['max_polygon_distance']
+					row['valid'] = row['validation']['valid']
 				except ImportError:
+					row['validation'] = None
 					row['valid'] = None
+			except RuntimeError as error:
+				row['error'] = str(error)
 			file.write(json.dumps(row) + '\n')
 			file.flush()
 			print(json.dumps({k: v for k, v in row.items() if k not in ('path', 'order', 'sha256')}), flush=True)
