@@ -1,5 +1,5 @@
 import { escapeHTML } from "./dom.js";
-import { convexHull, endpointOffset, filterRows, gapRatio, pathPrefix, projectedCase, qualityLabel, regionColors, sortRows, playbackDuration } from "./event-geometry.js";
+import { convexHull, endpointOffset, filterRows, gapRatio, pathPrefix, projectedCase, qualityLabel, regionColors, sortRows, sortGroupedRows, toggleOrderRegion, playbackDuration } from "./event-geometry.js?v=20260907-3";
 
 const element = (id) => document.getElementById(id);
 const number = (value, digits = 4) => value.toLocaleString("pt-BR", { maximumFractionDigits: digits });
@@ -26,7 +26,7 @@ function initialize() {
 	let pan = [0, 0], drag = null;
 	const speeds = [.25, .5, 1, 1.5, 2, 3, 4];
 	let speedIndex = 2;
-	let resultFilter = "all";
+	let resultGroup = null;
 	let showAllResults = false;
 	const sorting = { picker: { key: "case", descending: false }, result: { key: "case", descending: false } };
 	const enabled = (id) => element(id).getAttribute("aria-pressed") === "true";
@@ -156,13 +156,13 @@ function initialize() {
 	}
 
 	function renderTable() {
-		const rows = sortRows(filterRows(data.rows, resultFilter, element("case-search").value), sorting.result.key, sorting.result.descending);
+		const rows = sortGroupedRows(filterRows(data.rows, "all", element("case-search").value), sorting.result.key, sorting.result.descending, resultGroup);
 		const visible = showAllResults ? rows : rows.slice(0, 8);
 		element("result-count").textContent = `${visible.length} de ${rows.length} resultados${rows.length < data.rows.length ? " nesta busca" : ""}. Selecione um caso para ver o caminho.`;
 		element("show-all-results").hidden = rows.length <= 8;
 		element("show-all-results").textContent = showAllResults ? "Mostrar menos resultados" : `Ver todos os ${rows.length} resultados`;
 		element("show-all-results").setAttribute("aria-expanded", String(showAllResults));
-		element("result-rows").innerHTML = visible.length ? visible.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Caso </span>${String(item.case).padStart(2, "0")}</th><td data-label="Regiões">${item.polygons}</td><td data-label="Tempo (s)">${item.seconds < .001 ? "< 0,001" : number(item.seconds, 3)}</td><td data-label="Gap relativo">${escapeHTML(percent(gapRatio(item)))}</td><td class="result-status"><span class="status ${item.exact ? "certified" : "limited"}">${item.exact ? "✓ Ótimo certificado" : "◷ Limite de tempo"}</span></td><td class="result-action"><button type="button" data-open-case="${item.case}" aria-label="Ver caminho do caso ${item.case}">Ver caminho →</button></td></tr>`).join("") : '<tr><td colspan="6">Nenhum caso corresponde à busca. Limpe o número ou escolha “Todos os resultados”.</td></tr>';
+		element("result-rows").innerHTML = visible.length ? visible.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Caso </span>${String(item.case).padStart(2, "0")}</th><td data-label="Regiões">${item.polygons}</td><td data-label="Tempo (s)">${item.seconds < .001 ? "< 0,001" : number(item.seconds, 3)}</td><td data-label="Gap relativo">${escapeHTML(percent(gapRatio(item)))}</td><td class="result-status"><span class="status ${item.exact ? "certified" : "limited"}">${item.exact ? "✓ Ótimo certificado" : "◷ Limite de tempo"}</span></td><td class="result-action"><button type="button" data-open-case="${item.case}" aria-label="Ver caminho do caso ${item.case}">Ver caminho →</button></td></tr>`).join("") : '<tr><td colspan="6">Nenhum caso corresponde à busca. Limpe o número para ver todos os casos.</td></tr>';
 	}
 
 	document.querySelectorAll("button:disabled, input:disabled, select:disabled").forEach((control) => { control.disabled = false; });
@@ -260,12 +260,6 @@ function initialize() {
 	});
 	document.addEventListener("visibilitychange", () => { if (document.hidden) stop(); });
 	reducedMotion.addEventListener("change", stop);
-	element("result-filter").querySelectorAll("[data-filter]").forEach((button) => button.addEventListener("click", () => {
-		resultFilter = button.dataset.filter;
-		showAllResults = false;
-		element("result-filter").querySelectorAll("[data-filter]").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
-		renderTable();
-	}));
 	element("case-search").addEventListener("input", () => { showAllResults = false; renderTable(); });
 	element("show-all-results").addEventListener("click", () => { showAllResults = !showAllResults; renderTable(); });
 	element("result-rows").addEventListener("click", (event) => {
@@ -336,31 +330,28 @@ function initialize() {
 		});
 	}
 	function updateResultSorting() {
+		const names = { case: "caso", polygons: "regiões", seconds: "tempo", gap: "gap relativo" };
 		document.querySelectorAll("[data-result-column]").forEach((header) => {
-			const active = header.dataset.resultColumn === sorting.result.key;
-			header.setAttribute("aria-sort", active ? (sorting.result.descending ? "descending" : "ascending") : "none");
-			header.querySelector(".sort-arrow").textContent = active ? (sorting.result.descending ? " ↓" : " ↑") : "";
+			const key = header.dataset.resultColumn;
+			const active = key === "result" ? resultGroup !== null : key === sorting.result.key;
+			const descending = key === "result" ? resultGroup : sorting.result.descending;
+			const primary = resultGroup === null ? key === sorting.result.key : key === "result";
+			header.setAttribute("aria-sort", active && primary ? (descending ? "descending" : "ascending") : "none");
+			header.querySelector(".sort-arrow").textContent = active ? (descending ? " ↓" : " ↑") : "";
+			header.classList.toggle("sort-active", active);
 		});
-		element("result-sort-mobile").value = sorting.result.key;
-		element("result-direction-mobile").textContent = sorting.result.descending ? "↓" : "↑";
-		element("result-direction-mobile").setAttribute("aria-label", sorting.result.descending ? "Ordem decrescente; mudar para crescente" : "Ordem crescente; mudar para decrescente");
+		element("result-sort-description").textContent = `${resultGroup === null ? "Sem agrupamento; " : resultGroup ? "Limites de tempo primeiro; depois " : "Ótimos certificados primeiro; depois "}${names[sorting.result.key]} em ordem ${sorting.result.descending ? "decrescente" : "crescente"}. Resultado alterna: ótimos primeiro, tempo primeiro, sem agrupamento.`;
 		renderTable();
 	}
 	document.querySelectorAll("[data-result-sort]").forEach((button) => button.addEventListener("click", () => {
 		const key = button.dataset.resultSort;
-		sorting.result.descending = sorting.result.key === key ? !sorting.result.descending : false;
-		sorting.result.key = key;
+		if (key === "result") resultGroup = resultGroup === null ? false : resultGroup === false ? true : null;
+		else {
+			sorting.result.descending = sorting.result.key === key ? !sorting.result.descending : false;
+			sorting.result.key = key;
+		}
 		updateResultSorting();
 	}));
-	element("result-sort-mobile").addEventListener("change", (event) => {
-		sorting.result.key = event.target.value;
-		sorting.result.descending = false;
-		updateResultSorting();
-	});
-	element("result-direction-mobile").addEventListener("click", () => {
-		sorting.result.descending = !sorting.result.descending;
-		updateResultSorting();
-	});
 	updateResultSorting();
 	element("case-picker").hidden = false;
 	element("case-select").hidden = true;
@@ -376,6 +367,15 @@ function initialize() {
 	renderTable();
 	initializeChallenge();
 	initializePieceChallenge();
+	initializeDisclosures();
+	initializeContents();
+}
+
+function orderSketch(id, geometry, polygons) {
+	if (!polygons.length) return "";
+	const centers = polygons.map((polygon) => polygon.reduce((sum, point) => sum.map((value, axis) => value + point[axis] / polygon.length), [0, 0]));
+	const points = [geometry.start, ...centers, geometry.target];
+	return `<g class="order-sketch" aria-hidden="true"><defs><marker id="sketch-${id}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M1 1L8 5L1 9" fill="none" stroke="#c3d9e5" stroke-width="1.8"/></marker></defs>${points.slice(1).map((point, index) => `<path d="M${points[index].join(" ")}L${point.join(" ")}" marker-end="url(#sketch-${id})"/>`).join("")}</g>`;
 }
 
 function initializeChallenge() {
@@ -390,9 +390,9 @@ function initializeChallenge() {
 		map.innerHTML = challenge.geometry.polygons.map((polygon, index) => {
 			const x = (polygon[0][0] + polygon[2][0]) / 2, y = (polygon[0][1] + polygon[2][1]) / 2;
 			const rank = order.indexOf(index);
-			return `<g role="button" tabindex="0" data-challenge-region="${index}" aria-label="Região ${letters[index]}${rank >= 0 ? `, escolha ${rank + 1}` : ""}" aria-disabled="${rank >= 0 || compared}"><polygon points="${coordinates(polygon)}" class="challenge-region ${rank >= 0 ? "chosen" : ""}"/><text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central">${letters[index]}${rank >= 0 ? ` · ${rank + 1}` : ""}</text></g>`;
-		}).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line" points="${coordinates(chosen.path)}"/>` : "") + '<circle cx="25" cy="130" r="5" fill="white"/><text x="17" y="153">S</text><circle cx="395" cy="130" r="5" fill="#ffad66"/><text x="389" y="153">T</text>';
-		element("challenge-choices").innerHTML = letters.map((letter, index) => `<button type="button" data-challenge-region="${index}" ${order.includes(index) || compared ? "disabled" : ""}>${letter}</button>`).join("");
+			return `<g role="button" tabindex="0" data-challenge-region="${index}" aria-label="Região ${letters[index]}${rank >= 0 ? `, escolha ${rank + 1}` : ""}" aria-pressed="${rank >= 0}"><polygon points="${coordinates(polygon)}" class="challenge-region ${rank >= 0 ? "chosen" : ""}"/><text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central">${letters[index]}${rank >= 0 ? ` · ${rank + 1}` : ""}</text></g>`;
+		}).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line" points="${coordinates(chosen.path)}"/>` : orderSketch("order", challenge.geometry, order.map((index) => challenge.geometry.polygons[index]))) + '<circle cx="25" cy="130" r="5" fill="white"/><text x="17" y="153">S</text><circle cx="395" cy="130" r="5" fill="#ffad66"/><text x="389" y="153">T</text>';
+		element("challenge-choices").innerHTML = letters.map((letter, index) => `<button type="button" data-challenge-region="${index}" aria-pressed="${order.includes(index)}">${letter}</button>`).join("");
 		element("challenge-order").textContent = `Sua ordem: S → ${order.length ? order.map((index) => letters[index]).join(" → ") + " → " : ""}${order.length < 4 ? "… → " : ""}T`;
 		element("challenge-compare").disabled = order.length !== 4 || compared;
 		element("challenge-undo").disabled = !order.length;
@@ -401,14 +401,16 @@ function initializeChallenge() {
 	}
 	function choose(event) {
 		const control = event.target.closest("[data-challenge-region]");
-		if (!control || compared) return;
+		if (!control) return;
 		const index = Number(control.dataset.challengeRegion);
-		if (order.includes(index)) return;
-		order.push(index);
+		order = toggleOrderRegion(order, index);
+		compared = false;
 		const fromMap = map.contains(control);
 		render();
-		const next = order.length === 4 ? element("challenge-compare") : (fromMap ? map.querySelector('[aria-disabled="false"]') : element("challenge-choices").querySelector("button:not(:disabled)"));
-		next?.focus({ preventScroll: true });
+		if (event.type === "keydown" || event.detail === 0) {
+			const parent = fromMap ? map : element("challenge-choices");
+			parent.querySelector(`[data-challenge-region="${index}"]`).focus({ preventScroll: true });
+		}
 	}
 	map.addEventListener("click", choose);
 	map.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(event); } });
@@ -430,7 +432,7 @@ function initializePieceChallenge() {
 		map.innerHTML = data.pieces.map((pieces, region) => pieces.map((piece, index) => {
 			const x = (piece[0][0] + piece[2][0]) / 2, y = (piece[0][1] + piece[2][1]) / 2;
 			return `<g role="button" tabindex="0" data-piece="${index}" data-piece-region="${region}" aria-label="Região ${letters[region]}, peça ${index + 1}" aria-pressed="${choices[region] === index}"><polygon class="challenge-region ${choices[region] === index ? "chosen" : ""}" points="${coordinates(piece)}"/><text x="${x}" y="${y}" dominant-baseline="central" text-anchor="middle">${index + 1}</text></g>`;
-		}).join("") + `<text x="${data.pieces[region][0][0][0] + 40}" y="${data.pieces[region][0][0][1] - 10}" text-anchor="middle">${letters[region]}</text>`).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line" points="${coordinates(selected.path)}"/>` : "") + '<circle cx="25" cy="200" r="5" fill="white"/><text x="17" y="223">S</text><circle cx="395" cy="180" r="5" fill="#ffad66"/><text x="389" y="203">T</text>';
+		}).join("") + `<text x="${data.pieces[region][0][0][0] + 40}" y="${data.pieces[region][0][0][1] - 10}" text-anchor="middle">${letters[region]}</text>`).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line" points="${coordinates(selected.path)}"/>` : orderSketch("pieces", data.geometry, choices.slice(0, choices.includes(null) ? choices.indexOf(null) : choices.length).map((piece, region) => data.pieces[region][piece]))) + '<circle cx="25" cy="200" r="5" fill="white"/><text x="17" y="223">S</text><circle cx="395" cy="180" r="5" fill="#ffad66"/><text x="389" y="203">T</text>';
 		element("piece-choices").innerHTML = letters.map((letter, region) => `<fieldset><legend>Região ${letter}</legend>${[0, 1, 2].map((piece) => `<button type="button" data-piece="${piece}" data-piece-region="${region}" aria-pressed="${choices[region] === piece}" aria-label="${letter}: peça ${piece + 1}">${piece + 1}</button>`).join("")}</fieldset>`).join("");
 		element("piece-selection").textContent = choices.map((piece, region) => `${letters[region]}: ${piece === null ? "?" : `peça ${piece + 1}`}`).join(" · ");
 		element("piece-compare").disabled = choices.includes(null) || compared;
@@ -445,7 +447,7 @@ function initializePieceChallenge() {
 		choices[region] = piece;
 		compared = false;
 		render();
-		parent.querySelector(`[data-piece-region="${region}"][data-piece="${piece}"]`).focus({ preventScroll: true });
+		if (event.type === "keydown" || event.detail === 0) parent.querySelector(`[data-piece-region="${region}"][data-piece="${piece}"]`).focus({ preventScroll: true });
 	}
 	map.addEventListener("click", choose);
 	map.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(event); } });
@@ -453,6 +455,100 @@ function initializePieceChallenge() {
 	element("piece-compare").addEventListener("click", () => { compared = true; render(); });
 	element("piece-reset").addEventListener("click", () => { choices = [null, null, null]; compared = false; render(); element("piece-choices").querySelector("button").focus({ preventScroll: true }); });
 	render();
+}
+
+function initializeDisclosures() {
+	const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+	document.querySelectorAll("details").forEach((details) => {
+		const summary = details.querySelector(":scope > summary");
+		if (!summary) return;
+		const body = document.createElement("div");
+		body.className = "disclosure-body";
+		while (summary.nextSibling) body.append(summary.nextSibling);
+		details.append(body);
+		let expanded = details.open, animation = null;
+		const finish = () => {
+			details.open = expanded;
+			body.style.height = "";
+			body.style.overflow = "";
+			body.inert = false;
+			animation = null;
+		};
+		summary.addEventListener("click", (event) => {
+			event.preventDefault();
+			const from = details.open ? body.getBoundingClientRect().height : 0;
+			animation?.cancel();
+			expanded = !expanded;
+			if (reduced.matches) { finish(); return; }
+			details.open = true;
+			body.inert = !expanded;
+			body.style.overflow = "hidden";
+			const to = expanded ? body.scrollHeight : 0;
+			animation = body.animate([{ height: `${from}px`, opacity: from ? 1 : 0 }, { height: `${to}px`, opacity: expanded ? 1 : 0 }], { duration: 220, easing: "cubic-bezier(.2,.7,.2,1)", fill: "forwards" });
+			animation.onfinish = () => { animation.cancel(); finish(); };
+		});
+		reduced.addEventListener("change", () => { animation?.cancel(); finish(); });
+	});
+}
+
+function initializeContents() {
+	const handle = element("toc-handle"), dialog = element("mobile-toc");
+	const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+	const mobile = window.matchMedia("(max-width: 850px)");
+	let animation = null;
+	function open() {
+		if (dialog.open) return;
+		animation?.cancel();
+		dialog.showModal();
+		handle.setAttribute("aria-expanded", "true");
+		if (!reduced.matches) animation = dialog.animate([{ transform: "translateX(100%)" }, { transform: "translateX(0)" }], { duration: 200, easing: "ease-out" });
+		element("toc-close").focus();
+	}
+	function close(after) {
+		animation?.cancel();
+		const finish = () => { dialog.close(); handle.setAttribute("aria-expanded", "false"); after?.(); };
+		if (reduced.matches) { finish(); return; }
+		animation = dialog.animate([{ transform: "translateX(0)" }, { transform: "translateX(100%)" }], { duration: 180, easing: "ease-in" });
+		animation.onfinish = finish;
+	}
+	handle.hidden = false;
+	handle.addEventListener("click", open);
+	element("toc-close").addEventListener("click", () => close());
+	dialog.addEventListener("cancel", (event) => { event.preventDefault(); close(); });
+	dialog.addEventListener("close", () => handle.setAttribute("aria-expanded", "false"));
+	dialog.addEventListener("click", (event) => {
+		const link = event.target.closest('a[href^="#"]');
+		if (link) {
+			event.preventDefault();
+			const target = document.getElementById(link.hash.slice(1));
+			close(() => {
+				if (target.matches("details") && !target.open) target.querySelector("summary").click();
+				target.scrollIntoView({ behavior: reduced.matches ? "instant" : "smooth" });
+				const focusTarget = target.matches("details") ? target.querySelector("summary") : target;
+				if (!focusTarget.hasAttribute("tabindex")) focusTarget.setAttribute("tabindex", "-1");
+				focusTarget.focus({ preventScroll: true });
+				dialog.querySelectorAll("a").forEach(item => item.removeAttribute("aria-current"));
+				link.setAttribute("aria-current", "location");
+			});
+		} else if (event.target === dialog) {
+			const box = dialog.getBoundingClientRect();
+			if (event.clientX < box.left) close();
+		}
+	});
+	for (const surface of [handle, dialog]) {
+		let start = null;
+		surface.addEventListener("pointerdown", event => { if (event.isPrimary) { start = [event.clientX, event.clientY]; if (surface === handle) surface.setPointerCapture(event.pointerId); } });
+		surface.addEventListener("pointerup", event => {
+			if (!start) return;
+			const dx = event.clientX - start[0], dy = event.clientY - start[1];
+			start = null;
+			if (Math.abs(dx) < 35 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+			if (surface === handle && dx < 0) open();
+			if (surface === dialog && dx > 0) close();
+		});
+		surface.addEventListener("pointercancel", () => { start = null; });
+	}
+	mobile.addEventListener("change", () => { if (!mobile.matches && dialog.open) { animation?.cancel(); dialog.close(); } });
 }
 
 try { initialize(); }

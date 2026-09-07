@@ -80,3 +80,26 @@ test("playback duration scales with region count and remains bounded", async () 
 	assert.equal(playbackDuration(1000), 15000);
 	assert.ok(playbackDuration(10) < playbackDuration(20));
 });
+
+test("result grouping stays primary while numeric sort orders each group", async () => {
+	const { sortGroupedRows } = await import("../static/event-geometry.js");
+	const rows = [
+		{ case: 0, exact: false, seconds: 1 },
+		{ case: 1, exact: true, seconds: 9 },
+		{ case: 2, exact: false, seconds: 4 },
+		{ case: 3, exact: true, seconds: 2 },
+	];
+	assert.deepEqual(sortGroupedRows(rows, "seconds", false, false).map(row => row.case), [3, 1, 0, 2]);
+	assert.deepEqual(sortGroupedRows(rows, "seconds", true, true).map(row => row.case), [2, 0, 1, 3]);
+	assert.deepEqual(sortGroupedRows(rows, "seconds", false, null).map(row => row.case), [0, 3, 2, 1]);
+	assert.deepEqual(rows.map(row => row.case), [0, 1, 2, 3]);
+});
+
+test("deselecting any region preserves the remaining order and allows reselecting", async () => {
+	const { toggleOrderRegion } = await import("../static/event-geometry.js");
+	const order = [2, 0, 3, 1];
+	assert.deepEqual(toggleOrderRegion(order, 0), [2, 3, 1]);
+	assert.deepEqual(toggleOrderRegion(toggleOrderRegion(order, 0), 0), [2, 3, 1, 0]);
+	assert.deepEqual(toggleOrderRegion([2], 2), []);
+	assert.deepEqual(order, [2, 0, 3, 1]);
+});

@@ -82,3 +82,14 @@ export function sortRows(rows, key = "case", descending = false) {
 export function playbackDuration(polygons) {
 	return 500 * Math.min(30, 6 + .4 * Math.max(0, polygons));
 }
+
+export function sortGroupedRows(rows, key, descending, resultGroup = null) {
+	const ordered = sortRows(rows, key, descending);
+	if (resultGroup === null) return ordered;
+	const first = resultGroup ? false : true;
+	return [...ordered.filter(row => row.exact === first), ...ordered.filter(row => row.exact !== first)];
+}
+
+export function toggleOrderRegion(order, index) {
+	return order.includes(index) ? order.filter(value => value !== index) : [...order, index];
+}

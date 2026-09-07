@@ -12,13 +12,16 @@ cd apps/benchmark-dashboard
 npm run start:event
 ```
 
-The visitor layout puts playback before the map, keeps geometry controls visible below the map, and displays results as cards on small screens. Results
+The visitor layout puts playback before the map, keeps geometry controls visible below the map, and keeps the sortable table on small screens with horizontal scrolling. Results
 start with eight cases; “Ver todos” expands the current filtered selection.
 The method section illustrates one nonconvex region in three conceptual stages.
 Playback is twice as fast at 1× as the initial visitor version (3.8 s for four
 regions, 11 s for 40). Wheel and pinch gestures zoom around the pointer; keyboard
 zoom and the Fit button remain available. Click a result column heading to sort;
-click it again to reverse direction. Mobile cards use a compact sort selector.
+click it again to reverse direction. “Resultado” cycles between certified-first,
+time-limit-first and no grouping; it stays primary while another column sorts
+within each group. Mobile keeps the same clickable headers with pinned case IDs
+and open-case actions. The three outcome filter buttons have been removed.
 
 `#desafio` offers a separate four-region teaching example. Visitors choose an
 order; the page compares the saved path for that order against the best of all
@@ -27,7 +30,12 @@ The requested sequence need not equal the first-contact sequence because
 incidental visits are allowed. This example is not part of the 60-case benchmark.
 A second challenge fixes the order A → B → C and lets visitors choose one of
 three convex pieces per nonconvex region. All 27 combinations are precomputed.
-Both challenges are included in the offline export. To regenerate into a new file:
+Selected regions in the order challenge toggle off when clicked again. Dashed
+arrows through representative centers preview the selected sequence, never a
+solver path; comparison replaces the sketch with the computed paths. Both
+challenges are included in the offline export. Disclosure sections animate
+opening and closing (respecting reduced motion). On mobile, tap or drag the
+“Nesta página” handle left to open a section index, and swipe right to close it. To regenerate into a new file:
 
 ```bash
 .venv/bin/python scripts/export_event_challenge.py /tmp/challenge-reviewed.json
