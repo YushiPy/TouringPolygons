@@ -1,3 +1,4 @@
+import { displayPartition } from "./native-partition.js";
 import { visitOrder, solveFreeOrder } from "./order-mode.js";
 import { drawCanvasScene } from "./canvas-renderer.js";
 import { cloneCaseData } from "./case-data.js";
@@ -1165,8 +1166,8 @@ export function createManualEditor({
 		},
 
 		drawDecomposition(polygon, color) {
-			const pieces = convexDecomposition(polygon);
-			if (pieces.length <= 1) {
+			const pieces = displayPartition(polygon, () => this.draw(), (message) => this.setStatus?.(message));
+			if (!pieces || pieces.length <= 1) {
 				return;
 			}
 			const ctx = this.ctx;

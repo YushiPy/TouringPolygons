@@ -49,3 +49,32 @@ export function filterRows(rows, status, search) {
 	return rows.filter((row) => (status === "all" || row.termination === status)
 		&& (!term || String(row.case).padStart(2, "0").includes(term)));
 }
+
+export function endpointOffset(path, target, distance) {
+	const points = target ? [...path].reverse() : path;
+	const a = points[0];
+	for (const b of points.slice(1)) {
+		const length = Math.hypot(a[0] - b[0], a[1] - b[1]);
+		if (length > 1e-10) return [a[0] + distance * (a[0] - b[0]) / length, a[1] + distance * (a[1] - b[1]) / length];
+	}
+	return [a[0] + (target ? distance : -distance), a[1]];
+}
+
+export function regionColors(rank, count, visited) {
+	const position = count > 1 ? rank / (count - 1) : 0;
+	return visited
+		? { fill: `hsl(${105 + position * 70} 60% ${62 - position * 32}% / .62)`, stroke: `hsl(${105 + position * 70} 65% 68%)` }
+		: { fill: `hsl(${195 + position * 65} 60% ${65 - position * 30}% / .4)`, stroke: `hsl(${195 + position * 65} 55% 70%)` };
+}
+
+export function qualityLabel(row) {
+	if (row.exact) return "≈ 100% de qualidade numérica";
+	const ratio = row.upper_bound > 0 ? Math.max(0, Math.min(1, row.lower_bound / row.upper_bound)) : 0;
+	const conservative = Math.floor(ratio * 10000) / 100;
+	return `Pelo menos ${conservative.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% de qualidade numérica`;
+}
+
+export function sortRows(rows, key = "case", descending = false) {
+	const value = (row) => key === "gap" ? gapRatio(row) : key === "result" ? Number(!row.exact) : row[key];
+	return [...rows].sort((a, b) => (descending ? -1 : 1) * (value(a) - value(b)) || a.case - b.case);
+}

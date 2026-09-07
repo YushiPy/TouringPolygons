@@ -153,7 +153,10 @@ _COMPAT_EXPORTS = (
     CreateOsmRequest,
 )
 
+from dashboard.dashboard_partition import partition_router  # noqa: E402
+
 app = FastAPI(title="TPP Benchmark Dashboard")
+app.include_router(partition_router())
 app.mount("/static", StaticFiles(directory=APP_ROOT / "static"), name="static")
 if VISUALIZER_STATIC_ROOT.exists():
     app.mount(

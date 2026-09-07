@@ -39,7 +39,7 @@ camera_log="$(make_log)"
 browser_status="skipped"
 
 uv run ruff check .
-"${PYTHON}" -m py_compile main.py dashboard/*.py tests/*.py
+"${PYTHON}" -m py_compile main.py event_server.py dashboard/*.py tests/*.py
 "${PYTHON}" -m unittest discover -s tests 2>&1 | tee "${python_unittest_log}"
 npm run check:js
 npm run lint:js

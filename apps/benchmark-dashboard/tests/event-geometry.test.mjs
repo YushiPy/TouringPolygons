@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { convexHull, filterRows, gapRatio, pathPrefix, projectedCase } from "../static/event-geometry.js";
+import { convexHull, endpointOffset, filterRows, gapRatio, pathPrefix, projectedCase, qualityLabel, regionColors } from "../static/event-geometry.js";
 
 test("playback follows arc length and clamps progress", () => {
 	const path = [[0, 0], [3, 0], [3, 4]];
@@ -36,4 +36,38 @@ test("filters distinguish time limits from closed gaps and allow zero-padded IDs
 	assert.deepEqual(filterRows(rows, "optimal", "55"), []);
 	assert.equal(gapRatio({ lower_bound: 90, upper_bound: 100 }), .1);
 	assert.equal(gapRatio({ lower_bound: 0, upper_bound: 0 }), 0);
+});
+
+test("endpoint labels point away from the first and last nonzero rays", () => {
+	const path = [[0, 0], [0, 0], [3, 0], [3, 4], [3, 4]];
+	assert.deepEqual(endpointOffset(path, false, 10), [-10, 0]);
+	assert.deepEqual(endpointOffset(path, true, 10), [3, 14]);
+	assert.deepEqual(endpointOffset([[1, 1], [1, 1]], false, 10), [-9, 1]);
+	assert.deepEqual(endpointOffset([[1, 1], [1, 1]], true, 10), [11, 1]);
+});
+
+test("quality is conservatively rounded and never declares an open gap optimal", () => {
+	assert.equal(qualityLabel({ exact: false, lower_bound: 99.99999, upper_bound: 100 }), "Pelo menos 99,99% de qualidade numérica");
+	assert.match(qualityLabel({ exact: true, lower_bound: 0, upper_bound: 0 }), /≈ 100%/);
+	assert.match(qualityLabel({ exact: false, lower_bound: 90.126, upper_bound: 100 }), /90,12%/);
+});
+
+test("subtle region palettes vary by visit rank and by reached state", () => {
+	assert.notDeepEqual(regionColors(0, 40, false), regionColors(39, 40, false));
+	assert.notDeepEqual(regionColors(0, 40, false), regionColors(0, 40, true));
+	assert.ok(!regionColors(0, 1, true).fill.includes("NaN"));
+});
+
+test("case sorting is numeric, stable and reversible without mutating evidence", async () => {
+	const { sortRows } = await import("../static/event-geometry.js");
+	const rows = [
+		{ case: 2, polygons: 4, seconds: 10, upper_bound: 10, lower_bound: 9, exact: false },
+		{ case: 1, polygons: 10, seconds: 2, upper_bound: 10, lower_bound: 10, exact: true },
+		{ case: 3, polygons: 4, seconds: 3, upper_bound: 10, lower_bound: 8, exact: false },
+	];
+	assert.deepEqual(sortRows(rows, "polygons").map(r => r.case), [2, 3, 1]);
+	assert.deepEqual(sortRows(rows, "seconds", true).map(r => r.case), [2, 3, 1]);
+	assert.deepEqual(sortRows(rows, "gap").map(r => r.case), [1, 2, 3]);
+	assert.deepEqual(sortRows(rows, "result").map(r => r.case), [1, 2, 3]);
+	assert.deepEqual(rows.map(r => r.case), [2, 1, 3]);
 });

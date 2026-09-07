@@ -15,7 +15,8 @@ npm run start:event
 Open [the event demonstration](http://127.0.0.1:8017/evento). It includes:
 
 - three guided examples and all 60 audited cases, with shareable `?caso=55` links;
-- path playback and scrubbing, labels, convex hulls, zoom and pan;
+- path playback and scrubbing with adjustable speed, visit-order labels, subtle
+  visited/unvisited colors, contact points, convex decomposition, hulls, zoom and pan;
 - keyboard controls (focus the diagram, then use arrows, `+`, `-`, or `Home`),
   reduced-motion support, responsive layout and a static fallback without JavaScript;
 - separate explanations for feasible paths, numerical gap closure and time limits;
@@ -27,7 +28,20 @@ The event page uses `static/event/siicusp34.json`, a portable snapshot of the ad
 6 September 2026 confirmation run: 60 verified paths, 43 closed numerical gaps and
 17 time limits. It does not launch new computations. The animation is playback of
 the saved path, not a visualization of search progress. Case IDs are zero-based;
-region labels in the event viewer start at one. The historical 5 September
+region labels show the first-visit rank starting at one, with original IDs mapped
+in the details. The quality percentage is a conservative LB/UB bound, not a
+probability of optimality. Contact points are reconstructed from the saved path
+with the audit tolerance of 1e-7. Convex decomposition uses the repository’s native
+`optimal_convex_partition::decompose_polygon`, the same library called by the
+solver. Frozen pieces are stored separately in `static/event/siicusp34-partitions.json`;
+zero-area pieces are omitted only from the display. They do not replay search branches.
+The dashboard’s decomposition layer calls the same library through `/api/geometry/partition`.
+The first dashboard request builds the small adapter using the local C++ compiler.
+The event and offline pages need no compiler or runtime solve.
+Regenerate the frozen partitions into a new file using
+`.venv/bin/python scripts/export_event_partitions.py /tmp/reviewed-partitions.json`.
+Both case lists support ascending/descending sorting. Map controls support pinch
+zoom, focus-based keyboard navigation, touch taps and accessible pressed toggles. The historical 5 September
 comparison remains explicitly labeled as historical in the technical workbench.
 
 Rebuild the snapshot from the original audit into a **new** file for review:
@@ -48,6 +62,16 @@ The snapshot and the offline document omit machine-local paths and credentials.
 playback geometry, filtering and the live solver adapter. `npm run test:all` includes
 these tests and the existing regression suites. Browser smoke remains opt-in.
 This integration does not publish the site or alter the submitted abstract.
+
+## Test on a phone
+
+From `apps/benchmark-dashboard`, run `npm run start:event:lan`. Connect the phone
+and Mac to the same Wi-Fi, then open `http://<Mac Wi-Fi IP>:8019/evento` on the phone.
+Find the Wi-Fi IP with `ipconfig getifaddr en0` (or in macOS Wi-Fi settings).
+Keep the Mac awake and the terminal running. This separate server exposes only
+the event page, static assets and offline download, without campaign editing or
+solver endpoints. Stop it with Ctrl+C. The downloaded offline HTML also includes
+all playback controls, contact points and decomposition data.
 
 ## Run
 

@@ -13,7 +13,7 @@ from unittest.mock import patch
 from starlette.requests import Request
 
 import main
-from dashboard.dashboard_event import event_context, event_data, inline_event_assets
+from dashboard.dashboard_event import event_context, event_data, inline_event_assets, visual_data
 from dashboard.dashboard_free_order import solve_free_editor
 
 
@@ -51,7 +51,7 @@ class EventTests(unittest.TestCase):
 		self.assertIn("Quatro regiões", html)
 		self.assertIn('href="/evento/offline"', html)
 		data = json.loads(re.search(r'<script id="event-data" type="application/json">(.*?)</script>', html, re.S)[1])
-		self.assertEqual(data, event_data())
+		self.assertEqual(data, json.loads(json.dumps(visual_data())))
 
 	def test_offline_document_contains_all_assets_and_valid_javascript(self):
 		request = Request({"type": "http", "method": "GET", "path": "/evento/offline", "headers": []})
@@ -85,3 +85,35 @@ class EventTests(unittest.TestCase):
 			for point in polygon.split():
 				x, y = map(float, point.split(","))
 				self.assertTrue(0 <= x <= 840 and 0 <= y <= 480)
+
+	def test_visual_contacts_and_convex_pieces_cover_the_original_regions(self):
+		from shapely.geometry import LineString, Point, Polygon
+		from shapely.ops import unary_union
+
+		for row in visual_data()["rows"]:
+			line = LineString(row["path"])
+			for vertices, contact, pieces in zip(row["geometry"]["polygons"], row["visualization"]["contacts"], row["visualization"]["decomposition"]):
+				with self.subTest(case=row["case"]):
+					polygon = Polygon(vertices)
+					self.assertIsNotNone(contact)
+					self.assertGreaterEqual(contact["fraction"], 0)
+					self.assertLessEqual(contact["fraction"], 1 + 1e-12)
+					self.assertLessEqual(Point(contact["point"]).distance(polygon), 1e-7)
+					self.assertLessEqual(Point(contact["point"]).distance(line), 1e-7)
+					triangles = [Polygon(piece) for piece in pieces]
+					self.assertTrue(all(piece.is_valid and piece.area > 0 and piece.convex_hull.symmetric_difference(piece).area <= max(1e-8, piece.area * 1e-12) for piece in triangles))
+					self.assertLessEqual(unary_union(triangles).symmetric_difference(polygon).area, max(1e-8, polygon.area * 1e-12))
+
+	def test_visual_enrichment_does_not_modify_the_recorded_evidence(self):
+		for original, enriched in zip(event_data()["rows"], visual_data()["rows"]):
+			self.assertEqual(original, {key: value for key, value in enriched.items() if key != "visualization"})
+
+	def test_phone_preview_has_no_campaign_or_solver_routes(self):
+		import event_server
+
+		paths = {getattr(route, "path", "") for route in event_server.app.routes}
+		self.assertEqual(paths, {"/", "/evento", "/evento/offline", "/static"})
+		request = Request({"type": "http", "method": "GET", "path": "/evento", "headers": []})
+		html = asyncio.run(event_server.event(request)).body.decode()
+		self.assertNotIn('href="/"', html)
+		self.assertIn('href="/evento/offline"', html)
