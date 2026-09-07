@@ -78,3 +78,7 @@ export function sortRows(rows, key = "case", descending = false) {
 	const value = (row) => key === "gap" ? gapRatio(row) : key === "result" ? Number(!row.exact) : row[key];
 	return [...rows].sort((a, b) => (descending ? -1 : 1) * (value(a) - value(b)) || a.case - b.case);
 }
+
+export function playbackDuration(polygons) {
+	return 1000 * Math.min(30, 6 + .4 * Math.max(0, polygons));
+}

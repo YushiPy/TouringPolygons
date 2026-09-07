@@ -71,3 +71,12 @@ test("case sorting is numeric, stable and reversible without mutating evidence",
 	assert.deepEqual(sortRows(rows, "result").map(r => r.case), [1, 2, 3]);
 	assert.deepEqual(rows.map(r => r.case), [2, 1, 3]);
 });
+
+test("playback duration scales with region count and remains bounded", async () => {
+	const { playbackDuration } = await import("../static/event-geometry.js");
+	assert.equal(playbackDuration(4), 7600);
+	assert.equal(playbackDuration(40), 22000);
+	assert.equal(playbackDuration(60), 30000);
+	assert.equal(playbackDuration(1000), 30000);
+	assert.ok(playbackDuration(10) < playbackDuration(20));
+});

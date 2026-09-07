@@ -1,5 +1,5 @@
 import { escapeHTML } from "./dom.js";
-import { convexHull, endpointOffset, filterRows, gapRatio, pathPrefix, projectedCase, qualityLabel, regionColors, sortRows } from "./event-geometry.js";
+import { convexHull, endpointOffset, filterRows, gapRatio, pathPrefix, projectedCase, qualityLabel, regionColors, sortRows, playbackDuration } from "./event-geometry.js";
 
 const element = (id) => document.getElementById(id);
 const number = (value, digits = 4) => value.toLocaleString("pt-BR", { maximumFractionDigits: digits });
@@ -26,6 +26,7 @@ function initialize() {
 	let pan = [0, 0], drag = null;
 	const speeds = [.25, .5, 1, 1.5, 2, 3, 4];
 	let speedIndex = 2;
+	let resultFilter = "all";
 	const sorting = { picker: { key: "case", descending: false }, result: { key: "case", descending: false } };
 	const enabled = (id) => element(id).getAttribute("aria-pressed") === "true";
 	const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -131,6 +132,7 @@ function initialize() {
 			button.setAttribute("aria-pressed", String(active));
 		});
 		element("drawing-title").textContent = titles[row.case] || `${row.polygons} regiões, extremos fixos`;
+		element("speed-value").title = `A 1×, este caso leva ${number(playbackDuration(row.polygons) / 1000, 1)} s para percorrer o caminho.`;
 		element("case-id").textContent = `Caso ${String(row.case).padStart(2, "0")}`;
 		element("outcome-badge").className = `status ${row.exact ? "certified" : "limited"}`;
 		element("outcome-badge").textContent = row.exact ? "✓ Gap numérico fechado" : "◷ Encerrado por tempo";
@@ -155,7 +157,7 @@ function initialize() {
 	}
 
 	function renderTable() {
-		const rows = sortRows(filterRows(data.rows, element("result-filter").value, element("case-search").value), sorting.result.key, sorting.result.descending);
+		const rows = sortRows(filterRows(data.rows, resultFilter, element("case-search").value), sorting.result.key, sorting.result.descending);
 		element("result-count").textContent = `${rows.length} de ${data.rows.length} resultados. Selecione um caso para ver o caminho.`;
 		element("result-rows").innerHTML = rows.length ? rows.map((item) => `<tr><th scope="row">${String(item.case).padStart(2, "0")}</th><td>${item.polygons}</td><td>${item.seconds < .001 ? "< 0,001" : number(item.seconds, 3)}</td><td>${escapeHTML(percent(gapRatio(item)))}</td><td><span class="status ${item.exact ? "certified" : "limited"}">${item.exact ? "✓ Gap fechado" : "◷ Limite de tempo"}</span></td><td><button type="button" data-open-case="${item.case}" aria-label="Ver caminho do caso ${item.case}">Ver caminho ↗</button></td></tr>`).join("") : '<tr><td colspan="6">Nenhum caso corresponde à busca. Limpe o número ou escolha “Todos os resultados”.</td></tr>';
 	}
@@ -227,7 +229,7 @@ function initialize() {
 		element("play-route").setAttribute("aria-pressed", "true");
 		let previous = performance.now();
 		const tick = (now) => {
-			fraction = Math.min(1, fraction + (now - previous) * speeds[speedIndex] / 8000);
+			fraction = Math.min(1, fraction + (now - previous) * speeds[speedIndex] / playbackDuration(row.polygons));
 			previous = now;
 			drawRoute();
 			if (fraction >= 1) stop();
@@ -237,7 +239,11 @@ function initialize() {
 	});
 	document.addEventListener("visibilitychange", () => { if (document.hidden) stop(); });
 	reducedMotion.addEventListener("change", stop);
-	element("result-filter").addEventListener("change", renderTable);
+	element("result-filter").querySelectorAll("[data-filter]").forEach((button) => button.addEventListener("click", () => {
+		resultFilter = button.dataset.filter;
+		element("result-filter").querySelectorAll("[data-filter]").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
+		renderTable();
+	}));
 	element("case-search").addEventListener("input", renderTable);
 	element("result-rows").addEventListener("click", (event) => {
 		const button = event.target.closest("[data-open-case]");
@@ -314,6 +320,11 @@ function initialize() {
 		const header = ["case", "polygons", "seconds", "lower_bound", "upper_bound", "relative_gap", "exact", "termination", "valid", "sha256"];
 		const csv = [header.join(","), ...data.rows.map((item) => header.map((key) => key === "relative_gap" ? gapRatio(item) : item[key]).join(","))].join("\n");
 		download("siicusp34-resultados-60-casos.csv", csv, "text/csv;charset=utf-8");
+	});
+	const contact = document.querySelector(".author-contact");
+	document.addEventListener("pointerdown", (event) => { if (!contact.contains(event.target)) contact.open = false; });
+	contact.addEventListener("keydown", (event) => {
+		if (event.key === "Escape") { contact.open = false; contact.querySelector("summary").focus(); }
 	});
 	const requested = new URLSearchParams(window.location.search).get("caso");
 	selectCase(requested !== null && /^\d+$/.test(requested) ? Number(requested) : 2, false) || selectCase(2, false);
