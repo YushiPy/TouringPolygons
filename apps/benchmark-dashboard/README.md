@@ -2,6 +2,53 @@
 
 Local FastAPI dashboard for creating, appending, editing, running, comparing, and inspecting TPP benchmark campaigns.
 
+## 34º SIICUSP: visitor experience
+
+The Portuguese event page is available at `/evento`. The technical workbench remains
+at `/`, with links to the event in its header and comparison panel. Start locally:
+
+```bash
+cd apps/benchmark-dashboard
+npm run start:event
+```
+
+Open [the event demonstration](http://127.0.0.1:8017/evento). It includes:
+
+- three guided examples and all 60 audited cases, with shareable `?caso=55` links;
+- path playback and scrubbing, labels, convex hulls, zoom and pan;
+- keyboard controls (focus the diagram, then use arrows, `+`, `-`, or `Home`),
+  reduced-motion support, responsive layout and a static fallback without JavaScript;
+- separate explanations for feasible paths, numerical gap closure and time limits;
+- filtered results, CSV export and per-case geometry, paths, bounds and provenance;
+- an offline download at `/evento/offline`: one HTML file containing data, CSS and
+  JavaScript, usable without the server, network, C++ build or Gurobi license.
+
+The event page uses `static/event/siicusp34.json`, a portable snapshot of the adopted
+6 September 2026 confirmation run: 60 verified paths, 43 closed numerical gaps and
+17 time limits. It does not launch new computations. The animation is playback of
+the saved path, not a visualization of search progress. Case IDs are zero-based;
+region labels in the event viewer start at one. The historical 5 September
+comparison remains explicitly labeled as historical in the technical workbench.
+
+Rebuild the snapshot from the original audit into a **new** file for review:
+
+```bash
+.venv/bin/python scripts/export_event.py \
+	--run ../../benchmarks/results/unordered/siicusp34-20260906-200122 \
+	--output /tmp/siicusp34-reviewed.json
+```
+
+The exporter checks suite identity, case coverage, paths, lengths and certificate
+status before exporting. It refuses to overwrite its destination. Any later change
+to the campaign should update the explanatory copy and tests alongside the data;
+the page is deliberately pinned to this reviewed result, not the latest local run.
+The snapshot and the offline document omit machine-local paths and credentials.
+
+`npm run test:event` checks the frozen evidence, route rendering, standalone export,
+playback geometry, filtering and the live solver adapter. `npm run test:all` includes
+these tests and the existing regression suites. Browser smoke remains opt-in.
+This integration does not publish the site or alter the submitted abstract.
+
 ## Run
 
 From the repository root:

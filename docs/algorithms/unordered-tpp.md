@@ -105,6 +105,9 @@ Uma falha em fechar o certificado numérico não autoriza declarar otimalidade.
 O resultado recebe `numerical_limit`, preservando caminho e limites. Nos limites
 de tempo/chamadas, filhos ainda não avaliados conservam o limite do pai. A fronteira,
 o nó da descida e as regiões já podadas participam do certificado global.
+Isso descreve o gap não fechado de um resultado utilizável. Falhas geométricas
+irrecuperáveis, como caminho não finito, peça atribuída não visitada ou falha do
+ponto interior, podem lançar exceção sem devolver caminho e limites.
 
 ## Compilação e uso
 
@@ -136,7 +139,8 @@ motivos de fallback, reparações do caminho geométrico, uso de precisão ampli
 ramificação, `peak_queue`, `seconds` e `profile`.
 A API C++ não tem limite de busca por padrão. A CLI exige limites explícitos.
 O limite de tempo é cooperativo: uma chamada geométrica/decomposição já iniciada
-pode excedê-lo. `calls` conta invocações do oráculo convexo certificado, não passos
+pode excedê-lo; o pré-processamento e partes da heurística inicial também não
+consultam o limite a cada operação. `calls` conta invocações do oráculo convexo certificado, não passos
 internos de Newton. `termination` distingue `optimal`, `call_limit`, `time_limit`
 e `numerical_limit`.
 
@@ -179,7 +183,9 @@ python3 benchmarks/scripts/unordered_benchmark.py \
 ```
 
 O teste C++ enumera todas as ordens e todas as combinações de peças de 86 instâncias,
-comparando os intervalos obtidos com o resultado do B&B. Executa ainda 344 buscas
+comparando o melhor objetivo obtido com o resultado do B&B. Essa enumeração
+reutiliza o mesmo oráculo convexo e a mesma decomposição, portanto não é uma
+verificação independente desses componentes. Executa ainda 344 buscas
 interrompidas com limites de chamadas 0, 1, 3 e 10, verificando a preservação dos limites.
 Inclui caminhos fechados, regiões sobrepostas, regiões em L e U e orientações invertidas.
 
@@ -261,6 +267,11 @@ com verificação geométrica via Shapely. Os scripts Python/Shell e `git diff -
 também passaram.
 
 ## Próximos trabalhos de pesquisa
+
+A reprodução de 6 de setembro de 2026, com resultados brutos separados,
+profiling e ressalvas para comunicação científica, está em
+[`resultados-ordem-livre.md`](../reports/SIICUSP/SIICUSP34/resultados-ordem-livre.md).
+Os números de 5 de setembro acima permanecem como referência histórica.
 
 O algoritmo e a interface solicitados estão implementados. Melhorias adicionais
 possíveis incluem eliminar as falhas nas APIs antigas de interseção, reduzir a

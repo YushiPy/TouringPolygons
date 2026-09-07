@@ -16,6 +16,31 @@ body {
 		var(--bg);
 }
 
+.event-entry {
+	color: var(--accent-strong);
+	font-size: .875rem;
+	text-decoration: none;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	padding: .65rem .85rem;
+}
+
+.event-callout {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 16px;
+	padding: 20px;
+	margin: 20px 0;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: var(--surface-muted);
+}
+
+.event-callout p { margin: 6px 0 0; color: var(--muted); }
+.event-callout a { color: var(--accent-strong); }
+
 :root[data-theme="dark"] body {
 	background:
 		var(--page-gradient),

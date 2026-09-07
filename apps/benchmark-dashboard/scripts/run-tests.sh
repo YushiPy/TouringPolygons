@@ -45,6 +45,7 @@ npm run check:js
 npm run lint:js
 node --test tests/frontend-utils.test.mjs | tee "${frontend_utils_log}"
 node --test tests/manual-editor-camera.test.mjs | tee "${camera_log}"
+node --test tests/event-geometry.test.mjs
 
 if [[ "${RUN_BROWSER:-0}" == "1" ]]; then
 	uv run uvicorn main:app --host 127.0.0.1 --port "${BROWSER_PORT}" &
@@ -76,6 +77,7 @@ printf '  JavaScript syntax: static/*.js\n'
 printf '  JavaScript lint: eslint static tests\n'
 printf '  Frontend utility tests: %s tests\n' "${frontend_utils_count:-unknown}"
 printf '  Manual editor camera tests: %s tests\n' "${camera_count:-unknown}"
+printf '  Event geometry tests: passed\n'
 printf '  Browser smoke: %s\n' "${browser_status}"
 printf '  Native convex regression: main-intersection_tests\n'
 printf '  Diff hygiene: git diff --check\n'

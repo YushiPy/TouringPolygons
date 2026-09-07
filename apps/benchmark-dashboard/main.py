@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -766,6 +767,19 @@ job_controller.load_jobs()
 @app.get("/")
 async def index(request: Request):
     return templates.TemplateResponse(request, "index.html")
+
+
+@app.get("/evento")
+async def event_page(request: Request):
+    from dashboard.dashboard_event import event_context
+    return templates.TemplateResponse(request, "event.html", event_context())
+
+
+@app.get("/evento/offline", response_class=HTMLResponse)
+async def event_offline(request: Request):
+    from dashboard.dashboard_event import event_context, inline_event_assets
+    html = templates.get_template("event.html").render(request=request, offline=True, **event_context())
+    return HTMLResponse(inline_event_assets(html), headers={"Content-Disposition": 'attachment; filename="tpp-siicusp34.html"'})
 
 
 @app.post("/api/runs")

@@ -17,7 +17,8 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 from benchmark_cases import read_encoded_cases  # noqa: E402
-from free_order_campaign import ensure_binary, solve_case  # noqa: E402
+from free_order_campaign import ensure_binary  # noqa: E402
+from unordered_runner import run_unordered_solver  # noqa: E402
 
 _build_lock = threading.Lock()
 
@@ -95,8 +96,8 @@ def recorded_results() -> dict:
 async def solve_free_editor(case) -> dict:
     def run():
         with _build_lock:
-            ensure_binary()
-        return solve_case(case[0], case[1], case[2], 200000, 3)
+            binary = ensure_binary()
+        return run_unordered_solver(binary, case[0], case[1], case[2], 200000, 3)
     try:
         return await asyncio.to_thread(run)
     except Exception as error:
