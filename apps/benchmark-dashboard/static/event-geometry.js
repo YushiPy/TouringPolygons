@@ -80,5 +80,5 @@ export function sortRows(rows, key = "case", descending = false) {
 }
 
 export function playbackDuration(polygons) {
-	return 1000 * Math.min(30, 6 + .4 * Math.max(0, polygons));
+	return 500 * Math.min(30, 6 + .4 * Math.max(0, polygons));
 }

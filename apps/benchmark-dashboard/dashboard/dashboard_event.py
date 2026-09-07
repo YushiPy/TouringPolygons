@@ -64,6 +64,7 @@ def event_context() -> dict:
 
 	return {
 		"data": data,
+		"challenge": json.loads(DATA_PATH.with_name("siicusp34-challenge.json").read_text()),
 		"initial": row,
 		"polygons": [" ".join(f"{x},{y}" for x, y in map(project, polygon)) for polygon in row["geometry"]["polygons"]],
 		"path": " ".join(f"{x},{y}" for x, y in map(project, row["path"])),

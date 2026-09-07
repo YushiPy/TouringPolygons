@@ -12,6 +12,31 @@ cd apps/benchmark-dashboard
 npm run start:event
 ```
 
+The visitor layout puts playback before the map, keeps geometry controls visible below the map, and displays results as cards on small screens. Results
+start with eight cases; “Ver todos” expands the current filtered selection.
+The method section illustrates one nonconvex region in three conceptual stages.
+Playback is twice as fast at 1× as the initial visitor version (3.8 s for four
+regions, 11 s for 40). Wheel and pinch gestures zoom around the pointer; keyboard
+zoom and the Fit button remain available. Click a result column heading to sort;
+click it again to reverse direction. Mobile cards use a compact sort selector.
+
+`#desafio` offers a separate four-region teaching example. Visitors choose an
+order; the page compares the saved path for that order against the best of all
+24 permutations. Contact points were optimized by the native fixed-order solver.
+The requested sequence need not equal the first-contact sequence because
+incidental visits are allowed. This example is not part of the 60-case benchmark.
+A second challenge fixes the order A → B → C and lets visitors choose one of
+three convex pieces per nonconvex region. All 27 combinations are precomputed.
+Both challenges are included in the offline export. To regenerate into a new file:
+
+```bash
+.venv/bin/python scripts/export_event_challenge.py /tmp/challenge-reviewed.json
+```
+
+For the poster, use “Explore os caminhos da pesquisa” beside the QR and print a
+short readable URL. Point it at the public `/evento` URL after deployment; the
+localhost preview is only for review and is not accessible to event visitors.
+
 Open [the event demonstration](http://127.0.0.1:8017/evento). It includes:
 
 - three guided examples and all 60 audited cases, with shareable `?caso=55` links;
@@ -63,15 +88,57 @@ playback geometry, filtering and the live solver adapter. `npm run test:all` inc
 these tests and the existing regression suites. Browser smoke remains opt-in.
 This integration does not publish the site or alter the submitted abstract.
 
-## Test on a phone
+## Abrir no celular pela rede local
 
-From `apps/benchmark-dashboard`, run `npm run start:event:lan`. Connect the phone
-and Mac to the same Wi-Fi, then open `http://<Mac Wi-Fi IP>:8019/evento` on the phone.
-Find the Wi-Fi IP with `ipconfig getifaddr en0` (or in macOS Wi-Fi settings).
-Keep the Mac awake and the terminal running. This separate server exposes only
-the event page, static assets and offline download, without campaign editing or
-solver endpoints. Stop it with Ctrl+C. The downloaded offline HTML also includes
-all playback controls, contact points and decomposition data.
+A prévia `127.0.0.1:8020` e o comando `start:event` aceitam conexões apenas do
+próprio Mac. No celular, `localhost` e `127.0.0.1` apontam para o próprio celular.
+Para acessar a demonstração nos dois aparelhos, use o servidor de rede local:
+
+1. Conecte o Mac e o celular à **mesma rede Wi-Fi**.
+2. Na raiz deste repositório, execute:
+
+```bash
+cd apps/benchmark-dashboard
+uv sync  # necessário na primeira execução ou após atualizar dependências
+npm run start:event:lan
+```
+
+3. Aguarde a mensagem `Uvicorn running on http://0.0.0.0:8019`.
+   O comando imprime o endereço do Mac e o endereço para o celular, por exemplo
+   `http://192.168.0.36:8019/evento`. **Copie o endereço exibido no seu terminal**;
+   o IP pode mudar quando a rede mudar. Use `http`, não `https`.
+4. Abra esse endereço no Safari ou Chrome do celular. No Mac, você também pode
+   abrir [a versão de rede local](http://127.0.0.1:8019/evento).
+
+O terminal deve continuar aberto e o Mac acordado. Para impedir repouso enquanto
+faz a demonstração, use `caffeinate -i npm run start:event:lan` no lugar do comando
+acima. Encerre com Ctrl+C. O servidor recarrega alterações em Python; após mudar
+HTML ou JavaScript, atualize a página do navegador.
+
+Este comando serve apenas a página do evento, seus arquivos estáticos e o download
+offline. O laboratório de edição e os endpoints do solver não ficam expostos.
+`0.0.0.0` é o endereço de escuta, não o endereço que se digita no celular.
+
+### Se não abrir
+
+- **“Address already in use”**: pare o servidor anterior com Ctrl+C no terminal
+  dele ou escolha outra porta: `npm run start:event:lan -- --port 8021`.
+  Use a nova porta também no celular.
+- **Erro 500 também no Mac**: confira a mensagem no terminal e reinicie o servidor.
+  Um processo antigo pode estar usando código Python anterior às mudanças.
+- **Funciona no Mac, mas o celular não conecta**: confirme o mesmo Wi-Fi, IP e
+  porta. Redes de convidados e algumas redes institucionais isolam os aparelhos;
+  nesses casos, use uma rede que permita comunicação entre eles.
+- **macOS pede acesso à rede**: permita conexões de entrada para o Python usado
+  nesta demonstração, se você deseja disponibilizá-la nessa rede. Não é necessário
+  desligar o firewall. Se uma VPN estiver ativa, confira se ela permite rede local.
+- **O comando não mostrou IP**: execute `ipconfig getifaddr en0` no Mac. Se não houver
+  resultado, consulte o endereço IP nos detalhes da conexão Wi-Fi em Ajustes do
+  Sistema. No Linux, use `hostname -I`.
+
+Também é possível baixar “Levar demonstração offline” depois de abrir a página;
+essa cópia inclui os dois desafios e não depende de um servidor ativo. Para o QR
+no pôster, use um endereço público permanente, pois o IP local só funciona nessa rede.
 
 ## Run
 

@@ -3,7 +3,7 @@ import { convexHull, endpointOffset, filterRows, gapRatio, pathPrefix, projected
 
 const element = (id) => document.getElementById(id);
 const number = (value, digits = 4) => value.toLocaleString("pt-BR", { maximumFractionDigits: digits });
-const percent = (value) => value < 0.000001 ? "< 0,0001%" : `${number(value * 100)}%`;
+const percent = (value) => value < 0.000001 ? "< 0,0001%" : `${number(value * 100, value < .0001 ? 4 : 2)}%`;
 const coordinates = (points) => points.map((point) => point.join(",")).join(" ");
 const titles = { 2: "Quatro regiões, um caminho", 9: "Quarenta regiões, ordem livre", 55: "Um caminho, uma prova em aberto" };
 
@@ -27,6 +27,7 @@ function initialize() {
 	const speeds = [.25, .5, 1, 1.5, 2, 3, 4];
 	let speedIndex = 2;
 	let resultFilter = "all";
+	let showAllResults = false;
 	const sorting = { picker: { key: "case", descending: false }, result: { key: "case", descending: false } };
 	const enabled = (id) => element(id).getAttribute("aria-pressed") === "true";
 	const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -43,7 +44,7 @@ function initialize() {
 	function stop() {
 		cancelAnimationFrame(frame);
 		playing = false;
-		element("play-route").textContent = "▶ Percorrer caminho";
+		element("play-route").textContent = "▶ Veja o caminho";
 		element("play-route").setAttribute("aria-pressed", "false");
 	}
 
@@ -110,8 +111,6 @@ function initialize() {
 		element("map-caption").textContent = decomposition ? "Decomposição convexa calculada pela implementação C++ autoral de Greene usada pelo solver. As linhas tracejadas delimitam as peças, não os ramos percorridos na busca." : hulls ? "Os contornos tracejados são fechos convexos: regiões maiores que simplificam o problema para obter limites inferiores." : "Basta tocar a borda ou atravessar a região. Seus centros não são pontos de visita obrigatórios.";
 		if (enabled("show-contacts")) element("map-caption").textContent += " Os pontos marcam os primeiros contatos reconstruídos do caminho, com tolerância de 10⁻⁷. Visitas simultâneas podem compartilhar um ponto.";
 		element("map-title").textContent = `Caso ${row.case}: caminho verificado por ${row.polygons} regiões; ${row.exact ? "gap numérico fechado" : "limite de tempo"}.`;
-		element("zoom-in").disabled = zoom >= 3;
-		element("zoom-out").disabled = zoom <= 1;
 		drawRoute();
 	}
 
@@ -136,9 +135,9 @@ function initialize() {
 		element("case-id").textContent = `Caso ${String(row.case).padStart(2, "0")}`;
 		element("outcome-badge").className = `status ${row.exact ? "certified" : "limited"}`;
 		element("outcome-badge").textContent = row.exact ? "✓ Gap numérico fechado" : "◷ Encerrado por tempo";
-		element("outcome-title").textContent = row.exact ? "Um caminho ótimo nas tolerâncias." : "Caminho viável. O ótimo segue em aberto.";
-		element("outcome-explanation").textContent = row.exact ? "Os limites inferior e superior ficaram suficientemente próximos para encerrar a busca." : "O caminho visita todas as regiões. A diferença entre os limites ainda não permite certificar o ótimo.";
-		element("case-length").textContent = number(row.upper_bound);
+		element("outcome-title").textContent = row.exact ? "Ótimo certificado" : "Caminho encontrado; ótimo ainda não certificado";
+		element("outcome-explanation").textContent = row.exact ? "Dentro das tolerâncias numéricas adotadas. O comprimento encontrado e seu limite inferior concordam nessas tolerâncias." : "O caminho visita todas as regiões. A diferença entre os limites ainda não permite certificar o ótimo.";
+		element("case-length").textContent = number(row.upper_bound, 2);
 		element("case-time").textContent = row.seconds < .001 ? "< 0,001 s" : `${number(row.seconds, 3)} s`;
 		element("case-regions").textContent = `${row.polygons} / ${row.polygons}`;
 		element("case-gap").textContent = percent(gapRatio(row));
@@ -158,8 +157,12 @@ function initialize() {
 
 	function renderTable() {
 		const rows = sortRows(filterRows(data.rows, resultFilter, element("case-search").value), sorting.result.key, sorting.result.descending);
-		element("result-count").textContent = `${rows.length} de ${data.rows.length} resultados. Selecione um caso para ver o caminho.`;
-		element("result-rows").innerHTML = rows.length ? rows.map((item) => `<tr><th scope="row">${String(item.case).padStart(2, "0")}</th><td>${item.polygons}</td><td>${item.seconds < .001 ? "< 0,001" : number(item.seconds, 3)}</td><td>${escapeHTML(percent(gapRatio(item)))}</td><td><span class="status ${item.exact ? "certified" : "limited"}">${item.exact ? "✓ Gap fechado" : "◷ Limite de tempo"}</span></td><td><button type="button" data-open-case="${item.case}" aria-label="Ver caminho do caso ${item.case}">Ver caminho ↗</button></td></tr>`).join("") : '<tr><td colspan="6">Nenhum caso corresponde à busca. Limpe o número ou escolha “Todos os resultados”.</td></tr>';
+		const visible = showAllResults ? rows : rows.slice(0, 8);
+		element("result-count").textContent = `${visible.length} de ${rows.length} resultados${rows.length < data.rows.length ? " nesta busca" : ""}. Selecione um caso para ver o caminho.`;
+		element("show-all-results").hidden = rows.length <= 8;
+		element("show-all-results").textContent = showAllResults ? "Mostrar menos resultados" : `Ver todos os ${rows.length} resultados`;
+		element("show-all-results").setAttribute("aria-expanded", String(showAllResults));
+		element("result-rows").innerHTML = visible.length ? visible.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Caso </span>${String(item.case).padStart(2, "0")}</th><td data-label="Regiões">${item.polygons}</td><td data-label="Tempo (s)">${item.seconds < .001 ? "< 0,001" : number(item.seconds, 3)}</td><td data-label="Gap relativo">${escapeHTML(percent(gapRatio(item)))}</td><td class="result-status"><span class="status ${item.exact ? "certified" : "limited"}">${item.exact ? "✓ Ótimo certificado" : "◷ Limite de tempo"}</span></td><td class="result-action"><button type="button" data-open-case="${item.case}" aria-label="Ver caminho do caso ${item.case}">Ver caminho →</button></td></tr>`).join("") : '<tr><td colspan="6">Nenhum caso corresponde à busca. Limpe o número ou escolha “Todos os resultados”.</td></tr>';
 	}
 
 	document.querySelectorAll("button:disabled, input:disabled, select:disabled").forEach((control) => { control.disabled = false; });
@@ -169,8 +172,6 @@ function initialize() {
 	element("show-hulls").addEventListener("click", () => { element("show-hulls").setAttribute("aria-pressed", String(!enabled("show-hulls"))); draw(); });
 	element("show-contacts").addEventListener("click", () => { element("show-contacts").setAttribute("aria-pressed", String(!enabled("show-contacts"))); draw(); });
 	element("show-decomposition").addEventListener("click", () => { element("show-decomposition").setAttribute("aria-pressed", String(!enabled("show-decomposition"))); draw(); });
-	element("zoom-in").addEventListener("click", () => { zoom = Math.min(3, zoom + .5); draw(); });
-	element("zoom-out").addEventListener("click", () => { zoom = Math.max(1, zoom - .5); draw(); });
 	element("fit-view").addEventListener("click", () => { zoom = 1; pan = [0, 0]; draw(); });
 	const pointers = new Map();
 	let gesture = null;
@@ -179,6 +180,26 @@ function initialize() {
 		const scale = Math.min(box.width / 840, box.height / 480);
 		return [(event.clientX - box.left - box.width / 2) / scale, (event.clientY - box.top - box.height / 2) / scale];
 	}
+	function zoomAt(next, point) {
+		const previous = zoom;
+		zoom = Math.max(1, Math.min(3, next));
+		pan = point.map((value, axis) => value - (value - pan[axis]) * zoom / previous);
+		draw();
+	}
+	let trackpadGesture = null;
+	map.addEventListener("wheel", (event) => {
+		event.preventDefault();
+		if (trackpadGesture) return;
+		const units = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 480 : 1;
+		zoomAt(zoom * Math.exp(-event.deltaY * units * (event.ctrlKey ? .01 : .002)), localPoint(event));
+	}, { passive: false });
+	map.addEventListener("gesturestart", (event) => { event.preventDefault(); trackpadGesture = { zoom, scale: 1 }; }, { passive: false });
+	map.addEventListener("gesturechange", (event) => {
+		event.preventDefault();
+		if (!trackpadGesture || !Number.isFinite(event.scale)) return;
+		zoomAt(trackpadGesture.zoom * event.scale, localPoint(event));
+	}, { passive: false });
+	map.addEventListener("gestureend", (event) => { event.preventDefault(); trackpadGesture = null; }, { passive: false });
 	function resetGesture() {
 		const points = [...pointers.values()];
 		if (points.length >= 2) {
@@ -241,16 +262,18 @@ function initialize() {
 	reducedMotion.addEventListener("change", stop);
 	element("result-filter").querySelectorAll("[data-filter]").forEach((button) => button.addEventListener("click", () => {
 		resultFilter = button.dataset.filter;
+		showAllResults = false;
 		element("result-filter").querySelectorAll("[data-filter]").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
 		renderTable();
 	}));
-	element("case-search").addEventListener("input", renderTable);
+	element("case-search").addEventListener("input", () => { showAllResults = false; renderTable(); });
+	element("show-all-results").addEventListener("click", () => { showAllResults = !showAllResults; renderTable(); });
 	element("result-rows").addEventListener("click", (event) => {
 		const button = event.target.closest("[data-open-case]");
 		if (!button) return;
 		selectCase(Number(button.dataset.openCase));
 		element("explorar").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth" });
-		element("case-picker-button").focus({ preventScroll: true });
+		element("play-route").focus({ preventScroll: true });
 	});
 	function setSpeed(index) {
 		speedIndex = Math.max(0, Math.min(speeds.length - 1, index));
@@ -296,7 +319,7 @@ function initialize() {
 			buttons[(index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length]?.focus();
 		}
 	});
-	for (const prefix of ["picker", "result"]) {
+	for (const prefix of ["picker"]) {
 		const direction = element(`${prefix}-direction`);
 		const group = direction.parentElement;
 		const render = prefix === "picker" ? renderPicker : renderTable;
@@ -312,6 +335,33 @@ function initialize() {
 			render();
 		});
 	}
+	function updateResultSorting() {
+		document.querySelectorAll("[data-result-column]").forEach((header) => {
+			const active = header.dataset.resultColumn === sorting.result.key;
+			header.setAttribute("aria-sort", active ? (sorting.result.descending ? "descending" : "ascending") : "none");
+			header.querySelector(".sort-arrow").textContent = active ? (sorting.result.descending ? " ↓" : " ↑") : "";
+		});
+		element("result-sort-mobile").value = sorting.result.key;
+		element("result-direction-mobile").textContent = sorting.result.descending ? "↓" : "↑";
+		element("result-direction-mobile").setAttribute("aria-label", sorting.result.descending ? "Ordem decrescente; mudar para crescente" : "Ordem crescente; mudar para decrescente");
+		renderTable();
+	}
+	document.querySelectorAll("[data-result-sort]").forEach((button) => button.addEventListener("click", () => {
+		const key = button.dataset.resultSort;
+		sorting.result.descending = sorting.result.key === key ? !sorting.result.descending : false;
+		sorting.result.key = key;
+		updateResultSorting();
+	}));
+	element("result-sort-mobile").addEventListener("change", (event) => {
+		sorting.result.key = event.target.value;
+		sorting.result.descending = false;
+		updateResultSorting();
+	});
+	element("result-direction-mobile").addEventListener("click", () => {
+		sorting.result.descending = !sorting.result.descending;
+		updateResultSorting();
+	});
+	updateResultSorting();
 	element("case-picker").hidden = false;
 	element("case-select").hidden = true;
 	document.querySelector('label[for="case-select"]').setAttribute("for", "case-picker-button");
@@ -321,14 +371,88 @@ function initialize() {
 		const csv = [header.join(","), ...data.rows.map((item) => header.map((key) => key === "relative_gap" ? gapRatio(item) : item[key]).join(","))].join("\n");
 		download("siicusp34-resultados-60-casos.csv", csv, "text/csv;charset=utf-8");
 	});
-	const contact = document.querySelector(".author-contact");
-	document.addEventListener("pointerdown", (event) => { if (!contact.contains(event.target)) contact.open = false; });
-	contact.addEventListener("keydown", (event) => {
-		if (event.key === "Escape") { contact.open = false; contact.querySelector("summary").focus(); }
-	});
 	const requested = new URLSearchParams(window.location.search).get("caso");
 	selectCase(requested !== null && /^\d+$/.test(requested) ? Number(requested) : 2, false) || selectCase(2, false);
 	renderTable();
+	initializeChallenge();
+	initializePieceChallenge();
+}
+
+function initializeChallenge() {
+	const challenge = JSON.parse(element("challenge-data").textContent);
+	const letters = ["A", "B", "C", "D"];
+	const best = challenge.solutions[challenge.reference];
+	let order = [], compared = false;
+	const map = element("challenge-map");
+	map.setAttribute("role", "group");
+	function render() {
+		const chosen = challenge.solutions.find((solution) => solution.order.join() === order.join());
+		map.innerHTML = challenge.geometry.polygons.map((polygon, index) => {
+			const x = (polygon[0][0] + polygon[2][0]) / 2, y = (polygon[0][1] + polygon[2][1]) / 2;
+			const rank = order.indexOf(index);
+			return `<g role="button" tabindex="0" data-challenge-region="${index}" aria-label="Região ${letters[index]}${rank >= 0 ? `, escolha ${rank + 1}` : ""}" aria-disabled="${rank >= 0 || compared}"><polygon points="${coordinates(polygon)}" class="challenge-region ${rank >= 0 ? "chosen" : ""}"/><text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central">${letters[index]}${rank >= 0 ? ` · ${rank + 1}` : ""}</text></g>`;
+		}).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line" points="${coordinates(chosen.path)}"/>` : "") + '<circle cx="25" cy="130" r="5" fill="white"/><text x="17" y="153">S</text><circle cx="395" cy="130" r="5" fill="#ffad66"/><text x="389" y="153">T</text>';
+		element("challenge-choices").innerHTML = letters.map((letter, index) => `<button type="button" data-challenge-region="${index}" ${order.includes(index) || compared ? "disabled" : ""}>${letter}</button>`).join("");
+		element("challenge-order").textContent = `Sua ordem: S → ${order.length ? order.map((index) => letters[index]).join(" → ") + " → " : ""}${order.length < 4 ? "… → " : ""}T`;
+		element("challenge-compare").disabled = order.length !== 4 || compared;
+		element("challenge-undo").disabled = !order.length;
+		element("challenge-reset").disabled = !order.length;
+		element("challenge-feedback").innerHTML = compared ? `<strong>${chosen.length - best.length < .00001 ? "Você encontrou uma das melhores ordens!" : `Seu caminho ficou ${number(100 * (chosen.length / best.length - 1), 1)}% mais longo.`}</strong><div class="challenge-scores"><span>Sua escolha <b>${number(chosen.length, 2)}</b></span><span>Melhor das 24 <b>${number(best.length, 2)}</b></span></div><p>Comprimentos em unidades deste exemplo. Laranja: sua escolha; tracejado claro: referência (${best.order.map((index) => letters[index]).join(" → ")}).</p>` : "";
+	}
+	function choose(event) {
+		const control = event.target.closest("[data-challenge-region]");
+		if (!control || compared) return;
+		const index = Number(control.dataset.challengeRegion);
+		if (order.includes(index)) return;
+		order.push(index);
+		const fromMap = map.contains(control);
+		render();
+		const next = order.length === 4 ? element("challenge-compare") : (fromMap ? map.querySelector('[aria-disabled="false"]') : element("challenge-choices").querySelector("button:not(:disabled)"));
+		next?.focus({ preventScroll: true });
+	}
+	map.addEventListener("click", choose);
+	map.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(event); } });
+	element("challenge-choices").addEventListener("click", choose);
+	element("challenge-compare").addEventListener("click", () => { compared = true; render(); });
+	element("challenge-undo").addEventListener("click", () => { order.pop(); compared = false; render(); });
+	element("challenge-reset").addEventListener("click", () => { order = []; compared = false; render(); element("challenge-choices").querySelector("button").focus({ preventScroll: true }); });
+	render();
+}
+
+function initializePieceChallenge() {
+	const data = JSON.parse(element("challenge-data").textContent).piece_challenge;
+	const best = data.solutions[data.reference];
+	const letters = ["A", "B", "C"];
+	let choices = [null, null, null], compared = false;
+	const map = element("piece-map");
+	function render() {
+		const selected = data.solutions.find((item) => item.choices.every((piece, index) => piece === choices[index]));
+		map.innerHTML = data.pieces.map((pieces, region) => pieces.map((piece, index) => {
+			const x = (piece[0][0] + piece[2][0]) / 2, y = (piece[0][1] + piece[2][1]) / 2;
+			return `<g role="button" tabindex="0" data-piece="${index}" data-piece-region="${region}" aria-label="Região ${letters[region]}, peça ${index + 1}" aria-pressed="${choices[region] === index}"><polygon class="challenge-region ${choices[region] === index ? "chosen" : ""}" points="${coordinates(piece)}"/><text x="${x}" y="${y}" dominant-baseline="central" text-anchor="middle">${index + 1}</text></g>`;
+		}).join("") + `<text x="${data.pieces[region][0][0][0] + 40}" y="${data.pieces[region][0][0][1] - 10}" text-anchor="middle">${letters[region]}</text>`).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line" points="${coordinates(selected.path)}"/>` : "") + '<circle cx="25" cy="200" r="5" fill="white"/><text x="17" y="223">S</text><circle cx="395" cy="180" r="5" fill="#ffad66"/><text x="389" y="203">T</text>';
+		element("piece-choices").innerHTML = letters.map((letter, region) => `<fieldset><legend>Região ${letter}</legend>${[0, 1, 2].map((piece) => `<button type="button" data-piece="${piece}" data-piece-region="${region}" aria-pressed="${choices[region] === piece}" aria-label="${letter}: peça ${piece + 1}">${piece + 1}</button>`).join("")}</fieldset>`).join("");
+		element("piece-selection").textContent = choices.map((piece, region) => `${letters[region]}: ${piece === null ? "?" : `peça ${piece + 1}`}`).join(" · ");
+		element("piece-compare").disabled = choices.includes(null) || compared;
+		element("piece-reset").disabled = choices.every((piece) => piece === null);
+		element("piece-feedback").innerHTML = compared ? `<strong>${selected.length - best.length < .00001 ? "Você encontrou uma das melhores combinações!" : `Seu caminho ficou ${number(100 * (selected.length / best.length - 1), 1)}% mais longo.`}</strong><div class="challenge-scores"><span>Sua escolha <b>${number(selected.length, 2)}</b></span><span>Melhor das 27 <b>${number(best.length, 2)}</b></span></div><p>Laranja: sua escolha. Tracejado claro: referência (${best.choices.map((piece, region) => `${letters[region]}${piece + 1}`).join(" → ")}). Comprimentos em unidades deste exemplo.</p>` : "";
+	}
+	function choose(event) {
+		const control = event.target.closest("[data-piece]");
+		if (!control) return;
+		const region = Number(control.dataset.pieceRegion), piece = Number(control.dataset.piece);
+		const parent = map.contains(control) ? map : element("piece-choices");
+		choices[region] = piece;
+		compared = false;
+		render();
+		parent.querySelector(`[data-piece-region="${region}"][data-piece="${piece}"]`).focus({ preventScroll: true });
+	}
+	map.addEventListener("click", choose);
+	map.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(event); } });
+	element("piece-choices").addEventListener("click", choose);
+	element("piece-compare").addEventListener("click", () => { compared = true; render(); });
+	element("piece-reset").addEventListener("click", () => { choices = [null, null, null]; compared = false; render(); element("piece-choices").querySelector("button").focus({ preventScroll: true }); });
+	render();
 }
 
 try { initialize(); }

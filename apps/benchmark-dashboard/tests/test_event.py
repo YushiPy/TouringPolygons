@@ -18,6 +18,50 @@ from dashboard.dashboard_free_order import solve_free_editor
 
 
 class EventTests(unittest.TestCase):
+	def test_piece_challenge_partitions_and_ordered_solutions(self):
+		from itertools import product
+
+		from shapely.geometry import Point, Polygon
+		from shapely.ops import unary_union
+
+		data = event_context()["challenge"]["piece_challenge"]
+		for polygon, pieces in zip(data["geometry"]["polygons"], data["pieces"]):
+			shapes = [Polygon(piece) for piece in pieces]
+			self.assertLess(unary_union(shapes).symmetric_difference(Polygon(polygon)).area, 1e-7)
+			self.assertAlmostEqual(sum(shape.area for shape in shapes), Polygon(polygon).area)
+			for shape in shapes:
+				self.assertAlmostEqual(shape.area, shape.convex_hull.area)
+		self.assertEqual(len(data["solutions"]), 27)
+		self.assertEqual({tuple(item["choices"]) for item in data["solutions"]}, set(product(range(3), repeat=3)))
+		for item in data["solutions"]:
+			with self.subTest(choices=item["choices"]):
+				self.assertEqual(item["path"][0], data["geometry"]["start"])
+				self.assertEqual(item["path"][-1], data["geometry"]["target"])
+				self.assertEqual(len(item["path"]), 5)
+				for region, (piece, point) in enumerate(zip(item["choices"], item["path"][1:-1])):
+					self.assertLessEqual(Point(point).distance(Polygon(data["pieces"][region][piece])), 1e-7)
+				self.assertAlmostEqual(item["length"], sum(math.dist(a, b) for a, b in zip(item["path"], item["path"][1:])))
+		self.assertEqual(data["solutions"][data["reference"]]["length"], min(item["length"] for item in data["solutions"]))
+
+	def test_challenge_covers_all_orders_with_ordered_feasible_paths(self):
+		from itertools import permutations
+
+		from shapely.geometry import Point, Polygon
+
+		challenge = event_context()["challenge"]
+		geometry = challenge["geometry"]
+		self.assertEqual({tuple(item["order"]) for item in challenge["solutions"]}, set(permutations(range(4))))
+		self.assertEqual(len(challenge["solutions"]), 24)
+		for item in challenge["solutions"]:
+			with self.subTest(order=item["order"]):
+				self.assertEqual(item["path"][0], geometry["start"])
+				self.assertEqual(item["path"][-1], geometry["target"])
+				self.assertEqual(len(item["path"]), 6)
+				for point, index in zip(item["path"][1:-1], item["order"]):
+					self.assertLessEqual(Point(point).distance(Polygon(geometry["polygons"][index])), 1e-7)
+				self.assertAlmostEqual(item["length"], sum(math.dist(a, b) for a, b in zip(item["path"], item["path"][1:])))
+		self.assertEqual(challenge["solutions"][challenge["reference"]]["length"], min(item["length"] for item in challenge["solutions"]))
+
 	def test_snapshot_matches_claims_and_independent_geometry(self):
 		from shapely.geometry import LineString, Polygon
 
@@ -61,6 +105,8 @@ class EventTests(unittest.TestCase):
 		self.assertNotRegex(html, r'(?:src|href)="/(?:static|evento)')
 		self.assertNotIn('href="/"', html)
 		self.assertIn("<style>", html)
+		challenge = json.loads(re.search(r'<script id="challenge-data" type="application/json">(.*?)</script>', html, re.S)[1])
+		self.assertEqual(challenge, event_context()["challenge"])
 		javascript = re.search(r'<script type="module">(.*?)</script>', html, re.S)[1]
 		self.assertNotRegex(javascript, r"(?m)^(import|export) ")
 		result = subprocess.run(["node", "--input-type=module", "--check"], input=javascript, text=True, capture_output=True)
