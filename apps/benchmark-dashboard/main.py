@@ -301,6 +301,16 @@ def write_manual_case_requests(path: Path, cases: list[ManualCaseRequest]) -> No
                     {
                         **manual_case_to_data(manual_case_from_request(case), name=case.name),
                         **({"generated": True} if getattr(case, "generated", False) else {}),
+                        **(
+                            {"background": case.background.model_dump()}
+                            if getattr(case, "background", None) is not None
+                            else {}
+                        ),
+                        **(
+                            {"map_view": case.map_view.model_dump()}
+                            if getattr(case, "map_view", None) is not None
+                            else {}
+                        ),
                     }
                     for case in cases
                 ],

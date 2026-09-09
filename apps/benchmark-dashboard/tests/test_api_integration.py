@@ -37,6 +37,34 @@ class DashboardApiIntegrationTests(unittest.TestCase):
     def binary_case_count(self, path: Path) -> int:
         return main.binary_case_count(path)
 
+    def test_manual_background_round_trips_without_entering_solver_geometry(self) -> None:
+        create_manual = endpoint("/api/campaigns/manual", "POST")
+        replace_cases = endpoint("/api/campaigns/{name}/cases", "PUT")
+        get_cases = endpoint("/api/campaigns/{name}/cases", "GET")
+        case = ManualCaseRequest(
+            start=(0.0, 0.0),
+            target=(2.0, 0.0),
+            polygons=[],
+            background={
+                "data_url": "data:image/png;base64,eA==",
+                "opacity": 0.35,
+                "bounds": (-1.0, -2.0, 3.0, 4.0),
+            },
+            map_view={"latitude": -23.5614, "longitude": -46.7308, "zoom": 20},
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            campaigns_root = Path(directory)
+            with patch.object(main, "CAMPAIGNS_ROOT", campaigns_root):
+                asyncio.run(create_manual(ManualCampaignRequest(name="campus")))
+                asyncio.run(replace_cases("campus", ManualCasesRequest(cases=[case]), refresh_previews=False))
+                stored = asyncio.run(get_cases("campus"))["cases"][0]
+
+                self.assertEqual(stored["background"]["opacity"], 0.35)
+                self.assertEqual(stored["background"]["bounds"], (-1.0, -2.0, 3.0, 4.0))
+                self.assertEqual(stored["map_view"]["zoom"], 20)
+                self.assertEqual(main.read_manual_cases(campaigns_root / "campus"), [((0.0, 0.0), (2.0, 0.0), [])])
+
     def test_manual_campaign_mutation_and_preview_regenerate_missing_binary(self) -> None:
         create_manual = endpoint("/api/campaigns/manual", "POST")
         replace_cases = endpoint("/api/campaigns/{name}/cases", "PUT")

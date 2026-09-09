@@ -156,12 +156,14 @@ export function createManualCaseController(deps) {
 			root.textContent = "Create or select a manual campaign.";
 			state.manualCases = [];
 			manualEditor.draw();
+			window.dispatchEvent(new Event("manual-case-changed"));
 			return;
 		}
 		if (state.manualCases.length === 0) {
 			root.innerHTML = '<div class="empty-choice">No instances yet.</div>';
 			root.appendChild(newManualCaseButton());
 			manualEditor.draw();
+			window.dispatchEvent(new Event("manual-case-changed"));
 			return;
 		}
 		for (const { item, index } of sortInstances(state.manualCases, state.manualInstanceSort, state.manualInstanceSortReverse)) {
@@ -169,6 +171,7 @@ export function createManualCaseController(deps) {
 		}
 		root.appendChild(newManualCaseButton());
 		manualEditor.draw();
+		window.dispatchEvent(new Event("manual-case-changed"));
 	}
 
 	function newManualCaseButton() {
@@ -681,6 +684,9 @@ export function createManualCaseController(deps) {
 		}
 		try {
 			const data = await requestJSON(`/api/campaigns/${encodeURIComponent(name)}/cases`);
+			if (state.manualCampaign !== name) {
+				return;
+			}
 			state.manualCases = data.cases.map(cloneCaseData);
 			state.campaignCaseMetadata.set(name, state.manualCases.map(cloneCaseData));
 			state.loadedManualCampaign = name;
@@ -690,7 +696,9 @@ export function createManualCaseController(deps) {
 			manualEditor.frameCurrentCase();
 			manualEditor.scheduleSolve();
 		} catch (error) {
-			manualEditor.setStatus(error.message);
+			if (state.manualCampaign === name) {
+				manualEditor.setStatus(error.message);
+			}
 		}
 	}
 

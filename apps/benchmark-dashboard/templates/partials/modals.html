@@ -70,3 +70,29 @@
 		</div>
 	</article>
 </div>
+<div id="satellite-modal" class="modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="satellite-title">
+	<div class="modal-backdrop" data-close-satellite></div>
+	<article class="modal-card satellite-card">
+		<header class="modal-header">
+			<div>
+				<h2 id="satellite-title">Trace buildings from satellite imagery</h2>
+				<p>Enter coordinates, navigate the map, then click the building corners.</p>
+			</div>
+			<button class="modal-x-button" type="button" data-close-satellite aria-label="Close satellite map">×</button>
+		</header>
+		<div class="satellite-controls">
+			<label>Latitude <input id="satellite-latitude" type="number" min="-85" max="85" step="any" value="-23.5614"></label>
+			<label>Longitude <input id="satellite-longitude" type="number" min="-180" max="180" step="any" value="-46.7308"></label>
+			<button id="satellite-go" type="button">Go</button>
+			<button id="satellite-zoom-out" class="secondary" type="button" aria-label="Zoom out">−</button>
+			<button id="satellite-zoom-in" class="secondary" type="button" aria-label="Zoom in">+</button>
+			<button id="satellite-undo" class="secondary" type="button">Undo point</button>
+			<button id="satellite-finish" type="button">Finish polygon</button>
+		</div>
+		<div class="satellite-map-wrap">
+			<canvas id="satellite-map" width="1100" height="680"></canvas>
+			<div class="satellite-attribution">Tiles © Esri and imagery providers</div>
+		</div>
+		<p id="satellite-status" class="field-note" aria-live="polite">Click at least three corners. Drag to pan, scroll to zoom.</p>
+	</article>
+</div>

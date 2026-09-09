@@ -3,6 +3,7 @@ import { renderFreeOrderReport } from "./free-order-report.js";
 import { requestJSON } from "./api.js";
 import { benchmarkedPreviewHTML, instancePreviewUrl } from "./benchmarked-preview.js";
 import { casePayload, cloneCaseData, emptyCaseData, instanceLabel } from "./case-data.js";
+import { createSatelliteMap } from "./satellite-map.js";
 import { boolField, compareCommandFromForm, formData, runCommandFromForm } from "./command-builders.js";
 import { createDashboardControls } from "./controls.js";
 import { $, escapeHTML, setOutput } from "./dom.js";
@@ -64,7 +65,11 @@ function switchPanel(panelId) {
 		panel.classList.toggle("is-active", panel.id === panelId);
 	});
 	if (panelId === "cases-panel") {
-		requestAnimationFrame(() => manualEditor.frameCurrentCase());
+		if (state.manualCampaign && state.loadedManualCampaign !== state.manualCampaign) {
+			loadManualCases(state.manualCampaign);
+		} else {
+			requestAnimationFrame(() => manualEditor.frameCurrentCase());
+		}
 	}
 	if (panelId === "benchmark-panel") {
 		controls.resetMaxInstancesControl();
@@ -207,7 +212,11 @@ function renderCampaignOptions() {
 	selectComparisonCampaign(state.campaigns.some((campaign) => campaign.name === state.selectedComparisonCampaign) ? state.selectedComparisonCampaign : fallback);
 	renderManualCampaigns();
 	renderAppendTargetOptions();
-	if (state.manualCampaign && state.loadedManualCampaign !== state.manualCampaign) {
+	if (
+		document.querySelector("#cases-panel")?.classList.contains("is-active")
+		&& state.manualCampaign
+		&& state.loadedManualCampaign !== state.manualCampaign
+	) {
 		loadManualCases(state.manualCampaign);
 	}
 }
@@ -1132,6 +1141,53 @@ $("#toggle-manual-snapping").addEventListener("click", () => manualEditor.toggle
 bindTapZoom($("#manual-zoom-out"), () => manualEditor.zoomBy(1 / 1.2));
 bindTapZoom($("#manual-zoom-in"), () => manualEditor.zoomBy(1.2));
 $("#manual-fit-instance").addEventListener("click", () => manualEditor.frameCurrentCase());
+$("#manual-background-button").addEventListener("click", () => $("#manual-background-input").click());
+$("#manual-background-input").addEventListener("change", (event) => {
+	const file = event.currentTarget.files?.[0];
+	event.currentTarget.value = "";
+	if (!file) return;
+	if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+		manualEditor.setSaveStatus("Use a PNG, JPEG, or WebP image.");
+		return;
+	}
+	if (file.size > 10_000_000) {
+		manualEditor.setSaveStatus("Background images must be at most 10 MB.");
+		return;
+	}
+	const reader = new FileReader();
+	reader.addEventListener("load", () => {
+		const image = new Image();
+		image.addEventListener("load", () => {
+			manualEditor.setBackground(String(reader.result), image.naturalWidth, image.naturalHeight);
+			syncBackgroundControls();
+		}, { once: true });
+		image.addEventListener("error", () => manualEditor.setSaveStatus("Could not read this image."), { once: true });
+		image.src = String(reader.result);
+	}, { once: true });
+	reader.readAsDataURL(file);
+});
+$("#manual-background-opacity").addEventListener("input", (event) => {
+	manualEditor.setBackgroundOpacity(Number(event.currentTarget.value) / 100);
+});
+$("#manual-fit-background").addEventListener("click", () => manualEditor.frameBounds(manualEditor.backgroundBounds()));
+$("#manual-remove-background").addEventListener("click", () => {
+	manualEditor.removeBackground();
+	syncBackgroundControls();
+});
+
+function syncBackgroundControls() {
+	const background = manualEditor.currentCase()?.background;
+	const hidden = !background;
+	$("#manual-background-opacity-control").classList.toggle("is-hidden", hidden);
+	$("#manual-fit-background").classList.toggle("is-hidden", hidden);
+	$("#manual-remove-background").classList.toggle("is-hidden", hidden);
+	$("#manual-background-button").textContent = hidden ? "Background" : "Replace image";
+	if (background) {
+		$("#manual-background-opacity").value = String(Math.round((background.opacity ?? 0.45) * 100));
+	}
+}
+
+window.addEventListener("manual-case-changed", syncBackgroundControls);
 document.querySelectorAll("[data-editor-layer]").forEach((button) => {
 	button.addEventListener("click", () => manualEditor.toggleLayer(button.dataset.editorLayer));
 });
@@ -1149,6 +1205,7 @@ window.__benchmarkDashboardReady = true;
 keybinds.updateUI();
 applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || "light");
 manualEditor.init();
+createSatelliteMap({ $, manualEditor, scheduleManualAutosave }).init();
 updateCreateMode();
 
 requestJSON("/api/system")

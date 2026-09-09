@@ -60,6 +60,8 @@ export function createManualEditor({
 		},
 		labelAnimation: null,
 		expanded: false,
+		backgroundSource: "",
+		backgroundImage: null,
 
 		init() {
 			this.canvas = $("#manual-case-canvas");
@@ -164,6 +166,10 @@ export function createManualEditor({
 
 		frameCurrentCase() {
 			const bounds = this.caseBounds();
+			this.frameBounds(bounds);
+		},
+
+		frameBounds(bounds) {
 			if (!bounds || !this.canvas) {
 				return;
 			}
@@ -183,6 +189,93 @@ export function createManualEditor({
 			this.offsetY = height / 2 + centerY * this.scale;
 			this.saveCamera();
 			this.draw();
+		},
+
+		backgroundBounds() {
+			const bounds = this.currentCase()?.background?.bounds;
+			if (!Array.isArray(bounds) || bounds.length !== 4) {
+				return null;
+			}
+			return { minX: bounds[0], minY: bounds[1], maxX: bounds[2], maxY: bounds[3] };
+		},
+
+		drawBackground() {
+			const background = this.currentCase()?.background;
+			if (!background?.data_url) {
+				this.backgroundSource = "";
+				this.backgroundImage = null;
+				return;
+			}
+			if (this.backgroundSource !== background.data_url) {
+				this.backgroundSource = background.data_url;
+				this.backgroundImage = new Image();
+				this.backgroundImage.addEventListener("load", () => this.draw(), { once: true });
+				this.backgroundImage.src = background.data_url;
+			}
+			if (!this.backgroundImage?.complete || !this.backgroundImage.naturalWidth) {
+				return;
+			}
+			const bounds = this.backgroundBounds();
+			if (!bounds) {
+				return;
+			}
+			const topLeft = this.worldToCanvas([bounds.minX, bounds.maxY]);
+			const bottomRight = this.worldToCanvas([bounds.maxX, bounds.minY]);
+			this.ctx.save();
+			this.ctx.globalAlpha = background.opacity ?? 0.45;
+			this.ctx.drawImage(
+				this.backgroundImage,
+				topLeft.x,
+				topLeft.y,
+				bottomRight.x - topLeft.x,
+				bottomRight.y - topLeft.y,
+			);
+			this.ctx.restore();
+		},
+
+		setBackground(dataUrl, width, height) {
+			const current = this.currentCase();
+			if (!current || !this.canvas || width <= 0 || height <= 0) {
+				return;
+			}
+			const viewWidth = this.canvas.offsetWidth * 0.9;
+			const viewHeight = this.canvas.offsetHeight * 0.9;
+			const fittedWidth = Math.min(viewWidth, viewHeight * (width / height));
+			const fittedHeight = fittedWidth * (height / width);
+			const left = (this.canvas.offsetWidth - fittedWidth) / 2;
+			const top = (this.canvas.offsetHeight - fittedHeight) / 2;
+			const bottomLeft = this.canvasToWorld(left, top + fittedHeight);
+			const topRight = this.canvasToWorld(left + fittedWidth, top);
+			current.background = {
+				data_url: dataUrl,
+				opacity: 0.45,
+				bounds: [bottomLeft[0], bottomLeft[1], topRight[0], topRight[1]],
+			};
+			this.backgroundSource = "";
+			this.draw();
+			scheduleManualAutosave();
+		},
+
+		setBackgroundOpacity(opacity) {
+			const background = this.currentCase()?.background;
+			if (!background) {
+				return;
+			}
+			background.opacity = Math.max(0.05, Math.min(1, opacity));
+			this.draw();
+			scheduleManualAutosave();
+		},
+
+		removeBackground() {
+			const current = this.currentCase();
+			if (!current?.background) {
+				return;
+			}
+			current.background = null;
+			this.backgroundSource = "";
+			this.backgroundImage = null;
+			this.draw();
+			scheduleManualAutosave({ immediate: true });
 		},
 
 		toggleLayer(layer, force = null) {

@@ -384,27 +384,27 @@ def register_campaign_routes(
     @router.post("/api/campaigns/{name}/cases")
     async def append_manual_case(name: str, request: ManualCaseRequest):
         path = campaign_path(name)
-        cases = read_manual_cases(path)
-        cases.append(manual_case_from_request(request))
-        validate_manual_cases([ManualCaseRequest(**manual_case_to_data(case)) for case in cases])
+        cases = read_editable_case_requests(path)
+        cases.append(request)
+        validate_manual_cases(cases)
         campaign = rebuild_manual_campaign(path, cases)
         return {"ok": True, "index": len(cases) - 1, "campaign": campaign}
 
     @router.put("/api/campaigns/{name}/cases/{case_index}")
     async def update_manual_case(name: str, case_index: int, request: ManualCaseRequest):
         path = campaign_path(name)
-        cases = read_manual_cases(path)
+        cases = read_editable_case_requests(path)
         if case_index < 0 or case_index >= len(cases):
             raise HTTPException(status_code=404, detail="Case does not exist.")
-        cases[case_index] = manual_case_from_request(request)
-        validate_manual_cases([ManualCaseRequest(**manual_case_to_data(case)) for case in cases])
+        cases[case_index] = request
+        validate_manual_cases(cases)
         campaign = rebuild_manual_campaign(path, cases)
         return {"ok": True, "campaign": campaign}
 
     @router.delete("/api/campaigns/{name}/cases/{case_index}")
     async def delete_manual_case(name: str, case_index: int):
         path = campaign_path(name)
-        cases = read_manual_cases(path)
+        cases = read_editable_case_requests(path)
         if case_index < 0 or case_index >= len(cases):
             raise HTTPException(status_code=404, detail="Case does not exist.")
         del cases[case_index]

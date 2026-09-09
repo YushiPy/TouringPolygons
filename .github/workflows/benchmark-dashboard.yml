@@ -17,11 +17,11 @@ jobs:
       run:
         working-directory: apps/benchmark-dashboard
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v8
         with:
           version: latest
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -36,7 +36,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Start dashboard
         run: |
-          uv run uvicorn main:app --host 127.0.0.1 --port 8017 > /tmp/benchmark-dashboard.log 2>&1 &
+          .venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8017 > /tmp/benchmark-dashboard.log 2>&1 &
+          echo $! > /tmp/benchmark-dashboard.pid
           for attempt in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:8017/ > /dev/null; then break; fi
             sleep 1
@@ -48,4 +49,10 @@ jobs:
             cat /tmp/benchmark-dashboard.log
           else
             echo "Dashboard did not start; no server log was created."
+          fi
+      - name: Stop dashboard
+        if: always()
+        run: |
+          if [[ -f /tmp/benchmark-dashboard.pid ]]; then
+            kill "$(cat /tmp/benchmark-dashboard.pid)" 2>/dev/null || true
           fi

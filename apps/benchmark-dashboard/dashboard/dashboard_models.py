@@ -5,7 +5,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 Point = tuple[float, float]
 CaseData = tuple[Point, Point, list[list[Point]]]
@@ -91,12 +91,41 @@ class ManualCampaignRequest(BaseModel):
     overwrite: bool = False
 
 
+class BackgroundImage(BaseModel):
+    data_url: str = Field(max_length=16_000_000)
+    opacity: float = Field(default=0.45, ge=0.05, le=1.0)
+    bounds: tuple[float, float, float, float]
+
+    @field_validator("data_url")
+    @classmethod
+    def validate_data_url(cls, value: str) -> str:
+        if not value.startswith(("data:image/png;base64,", "data:image/jpeg;base64,", "data:image/webp;base64,")):
+            raise ValueError("Background must be a PNG, JPEG, or WebP data URL.")
+        return value
+
+    @field_validator("bounds")
+    @classmethod
+    def validate_bounds(cls, value: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
+        min_x, min_y, max_x, max_y = value
+        if min_x >= max_x or min_y >= max_y:
+            raise ValueError("Background bounds must have positive width and height.")
+        return value
+
+
+class MapView(BaseModel):
+    latitude: float = Field(ge=-85.0, le=85.0)
+    longitude: float = Field(ge=-180.0, le=180.0)
+    zoom: int = Field(default=19, ge=1, le=20)
+
+
 class ManualCaseRequest(BaseModel):
     name: str | None = None
     generated: bool = False
     start: Point = (0.0, 0.0)
     target: Point = (1.0, 0.0)
     polygons: list[list[Point]] = Field(default_factory=list)
+    background: BackgroundImage | None = None
+    map_view: MapView | None = None
 
 
 class LiveSolveRequest(ManualCaseRequest):

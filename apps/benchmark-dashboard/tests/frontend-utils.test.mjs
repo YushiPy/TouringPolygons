@@ -89,13 +89,62 @@ test("manual case controller loads editable cases through injected dependencies"
 	assert.deepEqual(calls, ["frame", "solve"]);
 });
 
+test("manual case controller ignores a stale campaign response", async () => {
+	const state = {
+		campaigns: [], campaignCaseMetadata: new Map(), manualCampaign: "old", manualCaseIndex: 0,
+		manualCases: [], manualRenamingIndex: null, manualAutosaveTimer: null, loadedManualCampaign: "",
+	};
+	const pending = new Map();
+	const controller = createManualCaseController({
+		$: () => null,
+		askConfirmation: async () => true,
+		campaignExists: () => false,
+		casePayload: (value) => value,
+		cloneCaseData,
+		closeCampaignModal: () => {},
+		emptyCaseData,
+		instanceLabel,
+		manualEditor: { draw: () => {}, frameCurrentCase: () => {}, scheduleSolve: () => {}, setStatus: () => {}, setSaveStatus: () => {} },
+		refresh: async () => {},
+		requestJSON: (url) => new Promise((resolve) => pending.set(url, resolve)),
+		setCloseIcon: () => {},
+		setTrashIcon: () => {},
+		sortCampaigns: (items) => items,
+		sortInstances: (items) => items.map((item, index) => ({ item, index })),
+		state,
+		switchPanel: () => {},
+	});
+
+	const oldRequest = controller.loadManualCases("old");
+	state.manualCampaign = "new";
+	const newRequest = controller.loadManualCases("new");
+	pending.get("/api/campaigns/old/cases")({ cases: [{ name: "stale", polygons: [] }] });
+	await oldRequest;
+	assert.deepEqual(state.manualCases, []);
+	pending.get("/api/campaigns/new/cases")({ cases: [{ name: "current", polygons: [] }] });
+	await newRequest;
+	assert.equal(state.manualCases[0].name, "current");
+});
+
 test("case data helpers clone and normalize cases", () => {
-	const original = { name: "demo", generated: true, start: [0, 1], target: [2, 3], polygons: [[[0, 0], [1, 0]], [[0, 0], [1, 0], [0, 1]]] };
+	const original = {
+		name: "demo",
+		generated: true,
+		start: [0, 1],
+		target: [2, 3],
+		polygons: [[[0, 0], [1, 0]], [[0, 0], [1, 0], [0, 1]]],
+		background: { data_url: "data:image/png;base64,eA==", opacity: 0.4, bounds: [-1, -2, 3, 4] },
+		map_view: { latitude: -23.5, longitude: -46.7, zoom: 19 },
+	};
 	const clone = cloneCaseData(original);
 	clone.polygons[1][0][0] = 9;
+	clone.background.bounds[0] = -9;
 	assert.equal(original.polygons[1][0][0], 0);
+	assert.equal(original.background.bounds[0], -1);
 	assert.deepEqual(casePayload(original).polygons, [[[0, 0], [1, 0], [0, 1]]]);
-	assert.deepEqual(emptyCaseData(), { name: "", generated: false, start: [0, 0], target: [1, 0], polygons: [] });
+	assert.deepEqual(emptyCaseData(), {
+		name: "", generated: false, start: [0, 0], target: [1, 0], polygons: [], background: null, map_view: null,
+	});
 	assert.equal(instanceLabel(3), 4);
 });
 
