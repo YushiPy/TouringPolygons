@@ -91,7 +91,7 @@ def inline_event_assets(html: str) -> str:
 	css = (static / "event.css").read_text()
 	modules = [(static / name).read_text() for name in ("dom.js", "event-geometry.js", "event.js")]
 	javascript = "\n".join(re.sub(r"^export ", "", re.sub(r"^import .*;\n", "", source, flags=re.M), flags=re.M) for source in modules)
-	html = html.replace('<link rel="stylesheet" href="/static/event.css?v=20260909-3">', f"<style>{css}</style>")
-	html = html.replace('<script type="module" src="/static/event.js?v=20260909-3"></script>', f'<script type="module">{javascript}</script>')
+	html = html.replace('<link rel="stylesheet" href="/static/event.css?v=20260909-4">', f"<style>{css}</style>")
+	html = html.replace('<script type="module" src="/static/event.js?v=20260909-4"></script>', f'<script type="module">{javascript}</script>')
 	encoded = base64.b64encode(DATA_PATH.read_bytes()).decode("ascii")
 	return html.replace('href="/static/event/siicusp34.json"', f'href="data:application/json;base64,{encoded}"')

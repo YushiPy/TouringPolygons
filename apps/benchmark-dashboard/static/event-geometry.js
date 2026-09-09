@@ -93,3 +93,7 @@ export function sortGroupedRows(rows, key, descending, resultGroup = null) {
 export function toggleOrderRegion(order, index) {
 	return order.includes(index) ? order.filter(value => value !== index) : [...order, index];
 }
+
+export function toggleChoice(current, next) {
+	return current === next ? null : next;
+}

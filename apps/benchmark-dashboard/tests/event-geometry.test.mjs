@@ -103,3 +103,10 @@ test("deselecting any region preserves the remaining order and allows reselectin
 	assert.deepEqual(toggleOrderRegion([2], 2), []);
 	assert.deepEqual(order, [2, 0, 3, 1]);
 });
+
+test("tapping the selected convex piece deselects it", async () => {
+	const { toggleChoice } = await import("../static/event-geometry.js");
+	assert.equal(toggleChoice(null, 2), 2);
+	assert.equal(toggleChoice(2, 2), null);
+	assert.equal(toggleChoice(2, 1), 1);
+});
