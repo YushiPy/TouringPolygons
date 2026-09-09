@@ -43,4 +43,9 @@ jobs:
           done
       - run: DASHBOARD_URL=http://127.0.0.1:8017 npm run test:browser
       - if: failure()
-        run: cat /tmp/benchmark-dashboard.log
+        run: |
+          if [[ -f /tmp/benchmark-dashboard.log ]]; then
+            cat /tmp/benchmark-dashboard.log
+          else
+            echo "Dashboard did not start; no server log was created."
+          fi

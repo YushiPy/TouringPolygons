@@ -1,5 +1,5 @@
 import { escapeHTML } from "./dom.js";
-import { convexHull, endpointOffset, gapRatio, pathPrefix, projectedCase, qualityLabel, regionColors, sortRows, sortGroupedRows, toggleChoice, toggleOrderRegion, playbackDuration } from "./event-geometry.js?v=20260909-4";
+import { convexHull, endpointOffset, gapRatio, pathPrefix, projectedCase, qualityLabel, regionColors, sortRows, sortGroupedRows, toggleChoice, toggleOrderRegion, playbackDuration } from "./event-geometry.js?v=20260909-6";
 
 const element = (id) => document.getElementById(id);
 const number = (value, digits = 4) => value.toLocaleString("pt-BR", { maximumFractionDigits: digits });
@@ -9,6 +9,28 @@ const caseLabel = (id) => String(id + 1).padStart(2, "0");
 const visitorRows = (rows, query) => rows.filter(row => !query.trim() || caseLabel(row.case).includes(query.trim()));
 const titles = { 2: "Quatro regiões, um caminho", 9: "Quarenta regiões, ordem livre", 55: "Um caminho, uma prova em aberto" };
 const MAX_ZOOM = 8;
+
+function animateChallengeRoute(map) {
+	const route = map.querySelector(".challenge-solution-route");
+	if (!route || !route.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+	const length = route.getTotalLength();
+	route.style.strokeDasharray = `${length} ${length}`;
+	route.style.strokeDashoffset = String(length);
+	const animation = route.animate([{ strokeDashoffset: String(length) }, { strokeDashoffset: "0" }], {
+		duration: 2000,
+		easing: "cubic-bezier(.3,.65,.25,1)",
+		fill: "forwards",
+	});
+	animation.finished.then(() => {
+		route.style.strokeDasharray = "none";
+		route.style.strokeDashoffset = "0";
+		animation.cancel();
+	}).catch(() => {});
+}
+
+function challengeComparison(chosenLabel, chosenLength, bestLabel, bestLength, choiceLabel, chosenChoice, bestChoice) {
+	return `<table class="challenge-comparison"><thead><tr><td></td><th><i class="comparison-line chosen" aria-hidden="true"></i>${chosenLabel}</th><th><i class="comparison-line reference" aria-hidden="true"></i>${bestLabel}</th></tr></thead><tbody><tr><th scope="row">Comprimento</th><td>${number(chosenLength, 2)}</td><td>${number(bestLength, 2)}</td></tr><tr><th scope="row">${choiceLabel}</th><td>${chosenChoice}</td><td>${bestChoice}</td></tr></tbody></table><p class="comparison-note">Comprimentos em unidades deste exemplo.</p>`;
+}
 
 function download(name, text, type) {
 	const url = URL.createObjectURL(new Blob([text], { type }));
@@ -442,14 +464,15 @@ function initializeChallenge() {
 			const x = (polygon[0][0] + polygon[2][0]) / 2, y = (polygon[0][1] + polygon[2][1]) / 2;
 			const rank = order.indexOf(index);
 			return `<g role="button" tabindex="0" data-challenge-region="${index}" aria-label="Região ${letters[index]}${rank >= 0 ? `, escolha ${rank + 1}` : ""}" aria-pressed="${rank >= 0}"><polygon points="${coordinates(polygon)}" class="challenge-region ${rank >= 0 ? "chosen" : ""}"/><text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central">${letters[index]}${rank >= 0 ? ` · ${rank + 1}` : ""}</text></g>`;
-		}).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line challenge-solution-route" pathLength="1" points="${coordinates(chosen.path)}"/>` : orderSketch("order", challenge.geometry, order.map((index) => challenge.geometry.polygons[index]))) + '<circle cx="25" cy="130" r="5" fill="white"/><text x="17" y="153">S</text><circle cx="395" cy="130" r="5" fill="#ffad66"/><text x="389" y="153">T</text>';
+		}).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line challenge-solution-route" points="${coordinates(chosen.path)}"/>` : orderSketch("order", challenge.geometry, order.map((index) => challenge.geometry.polygons[index]))) + '<circle cx="25" cy="130" r="5" fill="white"/><text x="17" y="153">S</text><circle cx="395" cy="130" r="5" fill="#ffad66"/><text x="389" y="153">T</text>';
 		element("challenge-choices").innerHTML = letters.map((letter, index) => `<button type="button" data-challenge-region="${index}" aria-pressed="${order.includes(index)}">${letter}</button>`).join("");
 		element("challenge-order").textContent = `Sua ordem: S → ${order.length ? order.map((index) => letters[index]).join(" → ") + " → " : ""}${order.length < 4 ? "… → " : ""}T`;
 		element("challenge-guidance").textContent = order.length === 4 ? "Sequência completa. Compare agora os caminhos." : `Escolha mais ${4 - order.length} ${4 - order.length === 1 ? "região" : "regiões"} para comparar.`;
 		element("challenge-compare").disabled = order.length !== 4 || compared;
 		element("challenge-undo").disabled = !order.length;
 		element("challenge-reset").disabled = !order.length;
-		element("challenge-feedback").innerHTML = compared ? `<strong>${chosen.length - best.length < .00001 ? "Você encontrou uma das melhores ordens!" : `Seu caminho ficou ${number(100 * (chosen.length / best.length - 1), 1)}% mais longo.`}</strong><div class="challenge-scores"><span>Sua escolha <b>${number(chosen.length, 2)}</b></span><span>Melhor das 24 <b>${number(best.length, 2)}</b></span></div><p>Comprimentos em unidades deste exemplo. Laranja: sua escolha; tracejado claro: referência (${best.order.map((index) => letters[index]).join(" → ")}).</p>` : "";
+		element("challenge-feedback").innerHTML = compared ? `<strong>${chosen.length - best.length < .00001 ? "Você encontrou uma das melhores ordens!" : `Seu caminho ficou ${number(100 * (chosen.length / best.length - 1), 1)}% mais longo.`}</strong>${challengeComparison("Sua escolha", chosen.length, "Melhor das 24", best.length, "Ordem", order.map((index) => letters[index]).join(" → "), best.order.map((index) => letters[index]).join(" → "))}` : "";
+		if (compared) animateChallengeRoute(map);
 	}
 	function choose(event) {
 		const control = event.target.closest("[data-challenge-region]");
@@ -497,7 +520,7 @@ function initializePieceChallenge(combined = false) {
 				return `<g role="button" tabindex="0" data-piece="${index}" data-piece-region="${region}" aria-label="Região ${letters[region]}, peça ${index + 1}${rank >= 0 ? `, visita ${rank + 1}` : ""}" aria-pressed="${choices[region] === index}"><polygon class="challenge-region ${choices[region] === index ? "chosen" : ""}" points="${coordinates(piece)}"/><text x="${x}" y="${y}" dominant-baseline="central" text-anchor="middle">${index + 1}</text></g>`;
 			}).join("");
 			return `${pieceMarkup}<text class="challenge-region-name" x="${(bounds.minX + bounds.maxX) / 2}" y="${Math.max(18, bounds.minY - 10)}" text-anchor="middle">${regionName}</text>`;
-		}).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line challenge-solution-route" pathLength="1" points="${coordinates(selected.path)}"/>` : orderSketch(prefix, data.geometry, combined ? order.map(index => data.pieces[index][choices[index]]) : choices.slice(0, choices.includes(null) ? choices.indexOf(null) : choices.length).map((piece, region) => data.pieces[region][piece]))) + `<circle cx="${data.geometry.start[0]}" cy="${data.geometry.start[1]}" r="5" fill="white"/><text x="${data.geometry.start[0] - 6}" y="${data.geometry.start[1] + 22}">S</text><circle cx="${data.geometry.target[0]}" cy="${data.geometry.target[1]}" r="5" fill="#ffad66"/><text x="${data.geometry.target[0] - 6}" y="${data.geometry.target[1] + 22}">T</text>`;
+		}).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line challenge-solution-route" points="${coordinates(selected.path)}"/>` : orderSketch(prefix, data.geometry, combined ? order.map(index => data.pieces[index][choices[index]]) : choices.slice(0, choices.includes(null) ? choices.indexOf(null) : choices.length).map((piece, region) => data.pieces[region][piece]))) + `<circle cx="${data.geometry.start[0]}" cy="${data.geometry.start[1]}" r="5" fill="white"/><text x="${data.geometry.start[0] - 6}" y="${data.geometry.start[1] + 22}">S</text><circle cx="${data.geometry.target[0]}" cy="${data.geometry.target[1]}" r="5" fill="#ffad66"/><text x="${data.geometry.target[0] - 6}" y="${data.geometry.target[1] + 22}">T</text>`;
 		ui("choices").innerHTML = letters.map((letter, region) => `<fieldset><legend>Região ${letter}</legend>${[0, 1, 2].map((piece) => `<button type="button" data-piece="${piece}" data-piece-region="${region}" aria-pressed="${choices[region] === piece}" aria-label="${letter}: peça ${piece + 1}">${piece + 1}</button>`).join("")}</fieldset>`).join("");
 		ui("selection").textContent = choices.map((piece, region) => `${letters[region]}: ${piece === null ? "?" : `peça ${piece + 1}`}`).join(" · ");
 		if (combined) ui("selection").textContent = `Sua sequência: S → ${order.map(index => `${letters[index]}${choices[index] + 1}`).join(" → ")}${order.length < letters.length ? " → …" : ""} → T`;
@@ -505,7 +528,11 @@ function initializePieceChallenge(combined = false) {
 		ui("guidance").textContent = remaining ? `Faltam ${remaining} ${remaining === 1 ? "região" : "regiões"}.` : "Escolha completa. Compare agora os caminhos.";
 		ui("compare").disabled = choices.includes(null) || compared;
 		ui("reset").disabled = choices.every((piece) => piece === null);
-		ui("feedback").innerHTML = compared ? `<strong>${selected.length - best.length < .00001 ? "Você encontrou uma das melhores combinações!" : `Seu caminho ficou ${number(100 * (selected.length / best.length - 1), 1)}% mais longo.`}</strong><div class="challenge-scores"><span>Sua escolha <b>${number(selected.length, 2)}</b></span><span>Melhor das ${data.solutions.length.toLocaleString("pt-BR")} <b>${number(best.length, 2)}</b></span></div><p>Laranja: sua escolha. Tracejado claro: referência (${(combined ? best.order : letters.map((_, index) => index)).map(region => `${letters[region]}${best.choices[region] + 1}`).join(" → ")}). Comprimentos em unidades deste exemplo.</p>` : "";
+		const chosenSequence = (combined ? order : letters.map((_, index) => index)).map(region => `${letters[region]}${choices[region] + 1}`).join(" → ");
+		const bestSequence = (combined ? best.order : letters.map((_, index) => index)).map(region => `${letters[region]}${best.choices[region] + 1}`).join(" → ");
+		const impact = combined ? '<aside class="challenge-impact"><strong>Achou difícil?</strong> Em um caso da pesquisa com mais de 2 × 10<sup>66</sup> possibilidades brutas, nosso algoritmo certificou o melhor caminho em 1,51 segundo. Mesmo que 10 bilhões de computadores testassem uma combinação por nanossegundo, levariam cerca de 7 × 10<sup>39</sup> anos, muito depois de o Sol se tornar uma gigante vermelha e possivelmente engolir a Terra <a href="#ref-sun">[2]</a>.</aside>' : "";
+		ui("feedback").innerHTML = compared ? `<strong>${selected.length - best.length < .00001 ? "Você encontrou uma das melhores combinações!" : `Seu caminho ficou ${number(100 * (selected.length / best.length - 1), 1)}% mais longo.`}</strong>${challengeComparison("Sua escolha", selected.length, `Melhor das ${data.solutions.length.toLocaleString("pt-BR")}`, best.length, combined ? "Solução" : "Peças", chosenSequence, bestSequence)}${impact}` : "";
+		if (compared) animateChallengeRoute(map);
 	}
 	function choose(event) {
 		const control = event.target.closest("[data-piece]");
@@ -572,6 +599,16 @@ function initializeChallengeFlow() {
 	dialog.querySelectorAll("[data-challenge-back]").forEach((button) => button.addEventListener("click", () => show(current - 1)));
 	element("finish-challenge").addEventListener("click", () => dialog.close());
 	dialog.addEventListener("click", (event) => {
+		const referenceLink = event.target.closest('a[href^="#ref-"]');
+		if (referenceLink) {
+			event.preventDefault();
+			const target = document.querySelector(referenceLink.getAttribute("href"));
+			const details = target?.closest("details");
+			if (details && !details.open) details.querySelector(":scope > summary").click();
+			dialog.close();
+			setTimeout(() => target?.scrollIntoView({ behavior: "smooth", block: "center" }), 240);
+			return;
+		}
 		if (event.target !== dialog) return;
 		const box = dialog.getBoundingClientRect();
 		if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.close();

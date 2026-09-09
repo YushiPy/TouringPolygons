@@ -79,10 +79,7 @@ class DashboardStructureTests(unittest.TestCase):
             self.assertIn('loading="lazy"', path.read_text(), path.name)
 
     def test_benchmark_solution_preview_uses_dashboard_style(self) -> None:
-        source = (
-            ROOT.parents[1]
-            / "packages/nonconvex-tpp/cpp/src/main-bnb_workload_benchmark.cpp"
-        ).read_text()
+        source = (ROOT.parents[1] / "packages/nonconvex-tpp/cpp/src/main-bnb_workload_benchmark.cpp").read_text()
 
         self.assertIn('data-preview-version=\\"7\\"', source)
         self.assertIn('fill=\\"#121417\\"', source)
@@ -96,7 +93,10 @@ class DashboardStructureTests(unittest.TestCase):
     def test_local_javascript_imports_resolve(self) -> None:
         for source in (ROOT / "static").glob("*.js"):
             for imported in re.findall(r'from ["\'](\./[^"\']+)["\']', source.read_text()):
-                self.assertTrue((source.parent / imported.removeprefix("./").split("?", 1)[0]).exists(), f"{source.name}: {imported}")
+                self.assertTrue(
+                    (source.parent / imported.removeprefix("./").split("?", 1)[0]).exists(),
+                    f"{source.name}: {imported}",
+                )
 
 
 if __name__ == "__main__":

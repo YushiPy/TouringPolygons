@@ -306,7 +306,9 @@ class DashboardApiIntegrationTests(unittest.TestCase):
                 }
                 marker.write_text(json.dumps(old_signature, sort_keys=True) + "\n")
 
-                asyncio.run(replace_cases("integration", ManualCasesRequest(cases=[first, second]), refresh_previews=False))
+                asyncio.run(
+                    replace_cases("integration", ManualCasesRequest(cases=[first, second]), refresh_previews=False)
+                )
                 main.ensure_manual_binary_cache(campaign_path)
 
                 self.assertFalse(marker.exists())

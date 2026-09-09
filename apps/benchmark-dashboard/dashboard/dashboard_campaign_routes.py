@@ -68,25 +68,23 @@ def register_campaign_routes(
     async def list_campaigns():
         campaigns_root.mkdir(parents=True, exist_ok=True)
         paths = [
-            path
-            for path in sorted(campaigns_root.iterdir())
-            if path.is_dir() and (path / "campaign.json").exists()
+            path for path in sorted(campaigns_root.iterdir()) if path.is_dir() and (path / "campaign.json").exists()
         ]
         campaigns = [campaign_summary(path) for path in paths]
-        campaigns.sort(key=lambda campaign: (
-            campaign["order"] is None,
-            campaign["order"] if campaign["order"] is not None else 0,
-            campaign["name"].lower(),
-        ))
+        campaigns.sort(
+            key=lambda campaign: (
+                campaign["order"] is None,
+                campaign["order"] if campaign["order"] is not None else 0,
+                campaign["name"].lower(),
+            )
+        )
         return {"campaigns": campaigns}
 
     @router.put("/api/campaigns/order")
     async def reorder_campaigns(request: CampaignOrderRequest):
         campaigns_root.mkdir(parents=True, exist_ok=True)
         paths = {
-            path.name: path
-            for path in campaigns_root.iterdir()
-            if path.is_dir() and (path / "campaign.json").exists()
+            path.name: path for path in campaigns_root.iterdir() if path.is_dir() and (path / "campaign.json").exists()
         }
         if len(request.names) != len(set(request.names)) or set(request.names) != set(paths):
             raise HTTPException(status_code=400, detail="Campaign order must include every campaign exactly once.")
@@ -419,6 +417,7 @@ def register_campaign_routes(
         case = manual_case_from_request(request)
         if request.visit_order == "free":
             from dashboard.dashboard_free_order import solve_free_editor
+
             return await solve_free_editor(case)
         if len(case[2]) == 0:
             return {"path": [list(case[0]), list(case[1])], "exact": True, "calls": 0, "seconds": 0}

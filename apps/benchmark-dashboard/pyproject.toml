@@ -20,3 +20,6 @@ dev = [
 
 [tool.uv]
 package = false
+
+[tool.ruff.format]
+indent-style = "tab"

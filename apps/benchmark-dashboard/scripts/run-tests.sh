@@ -39,6 +39,7 @@ camera_log="$(make_log)"
 browser_status="skipped"
 
 uv run ruff check .
+uv run ruff format --check .
 "${PYTHON}" -m py_compile main.py event_server.py dashboard/*.py tests/*.py
 "${PYTHON}" -m unittest discover -s tests 2>&1 | tee "${python_unittest_log}"
 npm run check:js
@@ -70,7 +71,7 @@ camera_count="$(extract_node_test_count "${camera_log}")"
 
 printf '\n'
 printf 'Test summary: all checks passed.\n'
-printf '  Python lint: ruff check\n'
+printf '  Python lint and format: ruff check, ruff format --check\n'
 printf '  Python compile: main.py, dashboard/*.py, tests/*.py\n'
 printf '  Python unittest: %s tests\n' "${python_unittest_count:-unknown}"
 printf '  JavaScript syntax: static/*.js\n'

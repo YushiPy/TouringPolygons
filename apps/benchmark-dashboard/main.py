@@ -553,7 +553,8 @@ def campaign_summary(path: Path) -> dict[str, Any]:
         "preview": previews.get("all") or next(iter(previews.values()), None),
         "previews": previews,
         "instance_previews": result_preview_list(path, data),
-        "has_preview": (bool(total_instances) and inputs_available) or any((path / preview).exists() for preview in previews.values()),
+        "has_preview": (bool(total_instances) and inputs_available)
+        or any((path / preview).exists() for preview in previews.values()),
         "run_index": run_index,
         "benchmark_runs": data.get("benchmark_runs", []),
         "version": campaign_file.stat().st_mtime_ns,
@@ -775,14 +776,18 @@ async def index(request: Request):
 @app.get("/evento")
 async def event_page(request: Request):
     from dashboard.dashboard_event import event_context
+
     return templates.TemplateResponse(request, "event.html", event_context())
 
 
 @app.get("/evento/offline", response_class=HTMLResponse)
 async def event_offline(request: Request):
     from dashboard.dashboard_event import event_context, inline_event_assets
+
     html = templates.get_template("event.html").render(request=request, offline=True, **event_context())
-    return HTMLResponse(inline_event_assets(html), headers={"Content-Disposition": 'attachment; filename="tpp-siicusp34.html"'})
+    return HTMLResponse(
+        inline_event_assets(html), headers={"Content-Disposition": 'attachment; filename="tpp-siicusp34.html"'}
+    )
 
 
 @app.post("/api/runs")
@@ -856,7 +861,7 @@ async def compare_solvers(request: CompareSolversRequest):
         "-1",
         "--keep-going",
     ]
-    for solver_name in (request.solvers if request.visit_order == "fixed" else []):
+    for solver_name in request.solvers if request.visit_order == "fixed" else []:
         solver = SOLVERS.get(solver_name)
         if solver is None:
             raise HTTPException(status_code=400, detail=f"Unknown solver: {solver_name}")

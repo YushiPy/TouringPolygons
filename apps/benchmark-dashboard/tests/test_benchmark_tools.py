@@ -167,7 +167,12 @@ class BenchmarkToolTests(unittest.TestCase):
             path = Path(directory) / "cases.bin"
             normalizer.write_binary_cases(path, cases)
             completed = subprocess.run(
-                [sys.executable, str(REPO_ROOT / "benchmarks/scripts/normalize_polygon_orientation.py"), "--check", str(path)],
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "benchmarks/scripts/normalize_polygon_orientation.py"),
+                    "--check",
+                    str(path),
+                ],
                 text=True,
                 capture_output=True,
                 check=False,
@@ -191,13 +196,23 @@ class BenchmarkToolTests(unittest.TestCase):
             path = Path(directory) / "cases.bin"
             normalizer.write_binary_cases(path, cases)
             subprocess.run(
-                [sys.executable, str(REPO_ROOT / "benchmarks/scripts/normalize_polygon_orientation.py"), "--in-place", str(path)],
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "benchmarks/scripts/normalize_polygon_orientation.py"),
+                    "--in-place",
+                    str(path),
+                ],
                 check=True,
                 capture_output=True,
             )
             normalized_bytes = path.read_bytes()
             completed = subprocess.run(
-                [sys.executable, str(REPO_ROOT / "benchmarks/scripts/normalize_polygon_orientation.py"), "--in-place", str(path)],
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "benchmarks/scripts/normalize_polygon_orientation.py"),
+                    "--in-place",
+                    str(path),
+                ],
                 text=True,
                 capture_output=True,
                 check=True,
