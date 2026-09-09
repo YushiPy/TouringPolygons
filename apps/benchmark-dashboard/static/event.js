@@ -1,11 +1,14 @@
 import { escapeHTML } from "./dom.js";
-import { convexHull, endpointOffset, filterRows, gapRatio, pathPrefix, projectedCase, qualityLabel, regionColors, sortRows, sortGroupedRows, toggleOrderRegion, playbackDuration } from "./event-geometry.js?v=20260907-3";
+import { convexHull, endpointOffset, gapRatio, pathPrefix, projectedCase, qualityLabel, regionColors, sortRows, sortGroupedRows, toggleOrderRegion, playbackDuration } from "./event-geometry.js?v=20260909-3";
 
 const element = (id) => document.getElementById(id);
 const number = (value, digits = 4) => value.toLocaleString("pt-BR", { maximumFractionDigits: digits });
 const percent = (value) => value < 0.000001 ? "< 0,0001%" : `${number(value * 100, value < .0001 ? 4 : 2)}%`;
 const coordinates = (points) => points.map((point) => point.join(",")).join(" ");
+const caseLabel = (id) => String(id + 1).padStart(2, "0");
+const visitorRows = (rows, query) => rows.filter(row => !query.trim() || caseLabel(row.case).includes(query.trim()));
 const titles = { 2: "Quatro regiões, um caminho", 9: "Quarenta regiões, ordem livre", 55: "Um caminho, uma prova em aberto" };
+const MAX_ZOOM = 8;
 
 function download(name, text, type) {
 	const url = URL.createObjectURL(new Blob([text], { type }));
@@ -38,7 +41,11 @@ function initialize() {
 		pan = [Math.max(-420 * (zoom - 1), Math.min(420 * (zoom - 1), pan[0])), Math.max(-240 * (zoom - 1), Math.min(240 * (zoom - 1), pan[1]))];
 		mapContent.setAttribute("transform", `translate(${420 + pan[0]} ${240 + pan[1]}) scale(${zoom}) translate(-420 -240)`);
 		map.classList.toggle("is-zoomed", zoom > 1);
-		map.style.touchAction = "none";
+		map.style.touchAction = zoom > 1 ? "none" : "pan-y";
+		element("zoom-out").disabled = zoom <= 1;
+		element("zoom-in").disabled = zoom >= MAX_ZOOM;
+		element("fit-view").disabled = zoom <= 1;
+		element("map-navigation").textContent = zoom > 1 ? `Zoom ${number(zoom, 1)}×. Arraste para mover ou toque em Redefinir para voltar à rolagem da página.` : "Amplie para mover o desenho. Na visualização ajustada, arraste para continuar rolando a página.";
 	}
 
 	function stop() {
@@ -80,7 +87,7 @@ function initialize() {
 		const hulls = enabled("show-hulls");
 		const decomposition = enabled("show-decomposition");
 		mapContent.innerHTML = `${hulls ? row.geometry.polygons.map((polygon) => `<polygon class="hull" points="${coordinates(convexHull(polygon).map(projected.project))}"/>`).join("") : ""}
-			${projected.polygons.map((polygon, index) => `<polygon class="region" data-region="${index}" points="${coordinates(polygon)}"><title>Região ${index + 1}; ${row.order.indexOf(index) + 1}ª na ordem exportada</title></polygon>`).join("")}
+			${projected.polygons.map((polygon, index) => `<polygon class="region" data-region="${index}" points="${coordinates(polygon)}" style="fill:${regionColors(row.order.indexOf(index), row.polygons, fraction + 1e-12 >= (row.visualization.contacts[index]?.fraction ?? Infinity)).fill};stroke:${regionColors(row.order.indexOf(index), row.polygons, fraction + 1e-12 >= (row.visualization.contacts[index]?.fraction ?? Infinity)).stroke}"><title>Região ${index + 1}; ${row.order.indexOf(index) + 1}ª na ordem exportada</title></polygon>`).join("")}
 			${decomposition ? row.visualization.decomposition.flatMap((pieces) => pieces.map((piece) => `<polygon class="convex-piece" points="${coordinates(piece.map(projected.project))}"/>`)).join("") : ""}
 			<polyline class="route-ghost" points="${coordinates(projected.path)}"/><polyline id="animated-route" class="route-line"/>
 			${labels ? projected.polygons.map((polygon, index) => {
@@ -108,9 +115,9 @@ function initialize() {
 		mapContent.querySelectorAll(".endpoint, .traveler").forEach((point) => point.setAttribute("r", 6 * textScale));
 		mapContent.querySelectorAll(".visit-contact").forEach((point) => point.setAttribute("r", 4 * textScale));
 		camera();
-		element("map-caption").textContent = decomposition ? "Decomposição convexa calculada pela implementação C++ autoral de Greene usada pelo solver. As linhas tracejadas delimitam as peças, não os ramos percorridos na busca." : hulls ? "Os contornos tracejados são fechos convexos: regiões maiores que simplificam o problema para obter limites inferiores." : "Basta tocar a borda ou atravessar a região. Seus centros não são pontos de visita obrigatórios.";
-		if (enabled("show-contacts")) element("map-caption").textContent += " Os pontos marcam os primeiros contatos reconstruídos do caminho, com tolerância de 10⁻⁷. Visitas simultâneas podem compartilhar um ponto.";
-		element("map-title").textContent = `Caso ${row.case}: caminho verificado por ${row.polygons} regiões; ${row.exact ? "gap numérico fechado" : "limite de tempo"}.`;
+		document.querySelectorAll("[data-layer-note]").forEach((item) => item.classList.toggle("active", enabled(item.dataset.layerNote)));
+		element("map-caption").textContent = "Basta tocar a borda ou atravessar a região. Seus centros não são pontos de visita obrigatórios.";
+		element("map-title").textContent = `Caso ${caseLabel(row.case)}: caminho verificado por ${row.polygons} regiões; ${row.exact ? "gap numérico fechado" : "limite de tempo"}.`;
 		drawRoute();
 	}
 
@@ -124,15 +131,17 @@ function initialize() {
 		pan = [0, 0];
 		element("show-labels").setAttribute("aria-pressed", String(row.polygons <= 15));
 		element("case-select").value = row.case;
-		element("case-picker-value").textContent = `Caso ${String(row.case).padStart(2, "0")} · ${row.polygons} regiões · ${row.exact ? "gap fechado" : "limite de tempo"}`;
+		element("case-picker-value").textContent = `Caso ${caseLabel(row.case)} · ${row.polygons} regiões · ${row.exact ? "gap fechado" : "limite de tempo"}`;
 		document.querySelectorAll(".example").forEach((button) => {
 			const active = Number(button.dataset.case) === row.case;
 			button.classList.toggle("active", active);
 			button.setAttribute("aria-pressed", String(active));
+			if (active) button.setAttribute("aria-current", "true");
+			else button.removeAttribute("aria-current");
 		});
 		element("drawing-title").textContent = titles[row.case] || `${row.polygons} regiões, extremos fixos`;
 		element("speed-value").title = `A 1×, este caso leva ${number(playbackDuration(row.polygons) / 1000, 1)} s para percorrer o caminho.`;
-		element("case-id").textContent = `Caso ${String(row.case).padStart(2, "0")}`;
+		element("case-id").textContent = `Caso ${caseLabel(row.case)}`;
 		element("outcome-badge").className = `status ${row.exact ? "certified" : "limited"}`;
 		element("outcome-badge").textContent = row.exact ? "✓ Gap numérico fechado" : "◷ Encerrado por tempo";
 		element("outcome-title").textContent = row.exact ? "Ótimo certificado" : "Caminho encontrado; ótimo ainda não certificado";
@@ -156,23 +165,31 @@ function initialize() {
 	}
 
 	function renderTable() {
-		const rows = sortGroupedRows(filterRows(data.rows, "all", element("case-search").value), sorting.result.key, sorting.result.descending, resultGroup);
+		const rows = sortGroupedRows(data.rows, sorting.result.key, sorting.result.descending, resultGroup);
 		const visible = showAllResults ? rows : rows.slice(0, 8);
-		element("result-count").textContent = `${visible.length} de ${rows.length} resultados${rows.length < data.rows.length ? " nesta busca" : ""}. Selecione um caso para ver o caminho.`;
-		element("show-all-results").hidden = rows.length <= 8;
-		element("show-all-results").textContent = showAllResults ? "Mostrar menos resultados" : `Ver todos os ${rows.length} resultados`;
-		element("show-all-results").setAttribute("aria-expanded", String(showAllResults));
-		element("result-rows").innerHTML = visible.length ? visible.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Caso </span>${String(item.case).padStart(2, "0")}</th><td data-label="Regiões">${item.polygons}</td><td data-label="Tempo (s)">${item.seconds < .001 ? "< 0,001" : number(item.seconds, 3)}</td><td data-label="Gap relativo">${escapeHTML(percent(gapRatio(item)))}</td><td class="result-status"><span class="status ${item.exact ? "certified" : "limited"}">${item.exact ? "✓ Ótimo certificado" : "◷ Limite de tempo"}</span></td><td class="result-action"><button type="button" data-open-case="${item.case}" aria-label="Ver caminho do caso ${item.case}">Ver caminho →</button></td></tr>`).join("") : '<tr><td colspan="6">Nenhum caso corresponde à busca. Limpe o número para ver todos os casos.</td></tr>';
+		element("result-count").textContent = "Selecione um caso para ver o caminho.";
+		const toggle = rows.length > 8 ? `<tr class="result-toggle-row"><td colspan="6"><button type="button" data-toggle-results aria-expanded="${showAllResults}">${showAllResults ? "Mostrar somente os 8 destaques ↑" : `Ver todos os ${rows.length} resultados ↓`}</button></td></tr>` : "";
+		element("result-rows").innerHTML = visible.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Caso </span>${caseLabel(item.case)}</th><td data-label="Regiões">${item.polygons}</td><td data-label="Tempo">${item.seconds < .001 ? "< 0,001 s" : `${number(item.seconds, 3)} s`}</td><td data-label="Distância até certificar">${escapeHTML(percent(gapRatio(item)))}</td><td class="result-status"><span class="status ${item.exact ? "certified" : "limited"}">${item.exact ? "✓ Ótimo certificado" : "◷ Limite de tempo"}</span></td><td class="result-action"><button type="button" data-open-case="${item.case}" aria-label="Ver caminho do caso ${item.case + 1}">Ver caminho →</button></td></tr>`).join("") + toggle;
 	}
 
 	document.querySelectorAll("button:disabled, input:disabled, select:disabled").forEach((control) => { control.disabled = false; });
-	document.querySelectorAll(".example").forEach((button) => button.addEventListener("click", () => selectCase(Number(button.dataset.case))));
-	element("case-select").addEventListener("change", (event) => selectCase(Number(event.target.value)));
+	function showMap() {
+		element("route-map").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "center" });
+		element("play-route").focus({ preventScroll: true });
+	}
+	document.querySelectorAll(".example").forEach((button) => button.addEventListener("click", () => {
+		if (Number(button.dataset.case) === row.case) return;
+		selectCase(Number(button.dataset.case));
+		showMap();
+	}));
+	element("case-select").addEventListener("change", (event) => { selectCase(Number(event.target.value)); showMap(); });
 	element("show-labels").addEventListener("click", () => { element("show-labels").setAttribute("aria-pressed", String(!enabled("show-labels"))); draw(); });
 	element("show-hulls").addEventListener("click", () => { element("show-hulls").setAttribute("aria-pressed", String(!enabled("show-hulls"))); draw(); });
 	element("show-contacts").addEventListener("click", () => { element("show-contacts").setAttribute("aria-pressed", String(!enabled("show-contacts"))); draw(); });
 	element("show-decomposition").addEventListener("click", () => { element("show-decomposition").setAttribute("aria-pressed", String(!enabled("show-decomposition"))); draw(); });
 	element("fit-view").addEventListener("click", () => { zoom = 1; pan = [0, 0]; draw(); });
+	element("zoom-out").addEventListener("click", () => zoomAt(zoom / 1.5, [0, 0]));
+	element("zoom-in").addEventListener("click", () => zoomAt(zoom * 1.5, [0, 0]));
 	const pointers = new Map();
 	let gesture = null;
 	function localPoint(event) {
@@ -182,7 +199,7 @@ function initialize() {
 	}
 	function zoomAt(next, point) {
 		const previous = zoom;
-		zoom = Math.max(1, Math.min(3, next));
+		zoom = Math.max(1, Math.min(MAX_ZOOM, next));
 		pan = point.map((value, axis) => value - (value - pan[axis]) * zoom / previous);
 		draw();
 	}
@@ -209,6 +226,7 @@ function initialize() {
 	}
 	map.addEventListener("pointerdown", (event) => {
 		if (event.button !== 0) return;
+		if (event.pointerType === "touch" && zoom <= 1 && event.isPrimary) return;
 		map.focus({ preventScroll: true });
 		pointers.set(event.pointerId, localPoint(event));
 		map.setPointerCapture(event.pointerId);
@@ -221,7 +239,7 @@ function initialize() {
 		if (gesture && pointers.size >= 2) {
 			const points = [...pointers.values()];
 			const distance = Math.hypot(...points[0].map((v, i) => v - points[1][i]));
-			zoom = Math.max(1, Math.min(3, gesture.zoom * distance / Math.max(gesture.distance, 1e-6)));
+			zoom = Math.max(1, Math.min(MAX_ZOOM, gesture.zoom * distance / Math.max(gesture.distance, 1e-6)));
 			pan = points[0].map((v, i) => (v + points[1][i]) / 2 - (gesture.center[i] - gesture.pan[i]) * zoom / gesture.zoom);
 			draw();
 		} else if (drag) { pan = point.map((v, i) => drag[i + 2] + v - drag[i]); camera(); }
@@ -232,7 +250,7 @@ function initialize() {
 	map.addEventListener("keydown", (event) => {
 		const moves = { ArrowLeft: [40, 0], ArrowRight: [-40, 0], ArrowUp: [0, 40], ArrowDown: [0, -40] };
 		if (moves[event.key]) pan = pan.map((value, axis) => value + moves[event.key][axis]);
-		else if (event.key === "+" || event.key === "=") zoom = Math.min(3, zoom + .5);
+		else if (event.key === "+" || event.key === "=") zoom = Math.min(MAX_ZOOM, zoom + .5);
 		else if (event.key === "-" || event.key === "−") zoom = Math.max(1, zoom - .5);
 		else if (event.key === "Home") { zoom = 1; pan = [0, 0]; }
 		else return;
@@ -260,14 +278,44 @@ function initialize() {
 	});
 	document.addEventListener("visibilitychange", () => { if (document.hidden) stop(); });
 	reducedMotion.addEventListener("change", stop);
-	element("case-search").addEventListener("input", () => { showAllResults = false; renderTable(); });
-	element("show-all-results").addEventListener("click", () => { showAllResults = !showAllResults; renderTable(); });
+	let returnContext = null;
 	element("result-rows").addEventListener("click", (event) => {
+		const toggle = event.target.closest("[data-toggle-results]");
+		if (toggle) {
+			showAllResults = !showAllResults;
+			renderTable();
+			element("result-rows").querySelector("[data-toggle-results]")?.focus({ preventScroll: true });
+			return;
+		}
 		const button = event.target.closest("[data-open-case]");
 		if (!button) return;
+		returnContext = { top: window.scrollY, control: button };
 		selectCase(Number(button.dataset.openCase));
-		element("explorar").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth" });
-		element("play-route").focus({ preventScroll: true });
+		element("context-return").hidden = false;
+		showMap();
+	});
+	element("context-return").addEventListener("click", () => {
+		if (!returnContext) return;
+		const destination = returnContext;
+		returnContext = null;
+		element("context-return").hidden = true;
+		const start = window.scrollY;
+		const finish = () => destination.control.focus({ preventScroll: true });
+		if (reducedMotion.matches || Math.abs(start - destination.top) < 2) {
+			window.scrollTo({ top: destination.top, behavior: "instant" });
+			finish();
+			return;
+		}
+		window.scrollTo({ top: start, behavior: "instant" });
+		const started = performance.now();
+		const animate = (now) => {
+			const progress = Math.min(1, (now - started) / 260);
+			const eased = 1 - (1 - progress) ** 3;
+			window.scrollTo(0, start + (destination.top - start) * eased);
+			if (progress < 1) requestAnimationFrame(animate);
+			else finish();
+		};
+		requestAnimationFrame(animate);
 	});
 	function setSpeed(index) {
 		speedIndex = Math.max(0, Math.min(speeds.length - 1, index));
@@ -280,9 +328,9 @@ function initialize() {
 	element("speed-up").addEventListener("click", () => setSpeed(speedIndex + 1));
 	const picker = element("case-picker-dialog");
 	function renderPicker() {
-		const rows = sortRows(filterRows(data.rows, "all", element("picker-search").value), sorting.picker.key, sorting.picker.descending);
+		const rows = sortRows(visitorRows(data.rows, element("picker-search").value), sorting.picker.key, sorting.picker.descending);
 		element("picker-count").textContent = `${rows.length} casos disponíveis`;
-		element("picker-options").innerHTML = rows.length ? rows.map((item) => `<button type="button" data-pick-case="${item.case}" aria-pressed="${item.case === row.case}"><span><strong>Caso ${String(item.case).padStart(2, "0")}</strong><small>${item.polygons} regiões · ${number(item.seconds, 3)} s · gap ${percent(gapRatio(item))}</small></span><span class="status ${item.exact ? "certified" : "limited"}">${item.exact ? "✓ Gap fechado" : "◷ Limite de tempo"}</span></button>`).join("") : "<p>Nenhum caso encontrado. Experimente outro número.</p>";
+		element("picker-options").innerHTML = rows.length ? rows.map((item) => `<button type="button" data-pick-case="${item.case}" aria-pressed="${item.case === row.case}"><span><strong>Caso ${caseLabel(item.case)}</strong><small>${item.polygons} regiões · ${number(item.seconds, 3)} s · gap ${percent(gapRatio(item))}</small></span><span class="status ${item.exact ? "certified" : "limited"}">${item.exact ? "✓ Gap fechado" : "◷ Limite de tempo"}</span></button>`).join("") : "<p>Nenhum caso encontrado. Experimente outro número.</p>";
 	}
 	element("case-picker-button").addEventListener("click", () => {
 		element("picker-search").value = "";
@@ -303,7 +351,7 @@ function initialize() {
 	element("picker-search").addEventListener("input", renderPicker);
 	element("picker-options").addEventListener("click", (event) => {
 		const button = event.target.closest("[data-pick-case]");
-		if (button) { selectCase(Number(button.dataset.pickCase)); picker.close(); }
+		if (button) { selectCase(Number(button.dataset.pickCase)); picker.close(); showMap(); }
 	});
 	element("picker-options").addEventListener("keydown", (event) => {
 		const buttons = [...element("picker-options").querySelectorAll("button")];
@@ -356,10 +404,10 @@ function initialize() {
 	element("case-picker").hidden = false;
 	element("case-select").hidden = true;
 	document.querySelector('label[for="case-select"]').setAttribute("for", "case-picker-button");
-	element("download-case").addEventListener("click", () => download(`tpp-siicusp-caso-${row.case}.json`, JSON.stringify({ provenance: data.provenance, config: data.config, result: row }, null, 2), "application/json"));
+	element("download-case").addEventListener("click", () => download(`tpp-siicusp-caso-${row.case + 1}.json`, JSON.stringify({ case_number: row.case + 1, provenance: data.provenance, config: data.config, result: row }, null, 2), "application/json"));
 	element("download-results").addEventListener("click", () => {
-		const header = ["case", "polygons", "seconds", "lower_bound", "upper_bound", "relative_gap", "exact", "termination", "valid", "sha256"];
-		const csv = [header.join(","), ...data.rows.map((item) => header.map((key) => key === "relative_gap" ? gapRatio(item) : item[key]).join(","))].join("\n");
+		const header = ["case_number", "case", "polygons", "seconds", "lower_bound", "upper_bound", "relative_gap", "exact", "termination", "valid", "sha256"];
+		const csv = [header.join(","), ...data.rows.map((item) => header.map((key) => key === "case_number" ? item.case + 1 : key === "relative_gap" ? gapRatio(item) : item[key]).join(","))].join("\n");
 		download("siicusp34-resultados-60-casos.csv", csv, "text/csv;charset=utf-8");
 	});
 	const requested = new URLSearchParams(window.location.search).get("caso");
@@ -367,6 +415,8 @@ function initialize() {
 	renderTable();
 	initializeChallenge();
 	initializePieceChallenge();
+	initializePieceChallenge(true);
+	initializeChallengeFlow();
 	initializeDisclosures();
 	initializeContents();
 }
@@ -394,6 +444,7 @@ function initializeChallenge() {
 		}).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line" points="${coordinates(chosen.path)}"/>` : orderSketch("order", challenge.geometry, order.map((index) => challenge.geometry.polygons[index]))) + '<circle cx="25" cy="130" r="5" fill="white"/><text x="17" y="153">S</text><circle cx="395" cy="130" r="5" fill="#ffad66"/><text x="389" y="153">T</text>';
 		element("challenge-choices").innerHTML = letters.map((letter, index) => `<button type="button" data-challenge-region="${index}" aria-pressed="${order.includes(index)}">${letter}</button>`).join("");
 		element("challenge-order").textContent = `Sua ordem: S → ${order.length ? order.map((index) => letters[index]).join(" → ") + " → " : ""}${order.length < 4 ? "… → " : ""}T`;
+		element("challenge-guidance").textContent = order.length === 4 ? "Sequência completa. Compare agora os caminhos." : `Escolha mais ${4 - order.length} ${4 - order.length === 1 ? "região" : "regiões"} para comparar.`;
 		element("challenge-compare").disabled = order.length !== 4 || compared;
 		element("challenge-undo").disabled = !order.length;
 		element("challenge-reset").disabled = !order.length;
@@ -405,6 +456,7 @@ function initializeChallenge() {
 		const index = Number(control.dataset.challengeRegion);
 		order = toggleOrderRegion(order, index);
 		compared = false;
+		element("challenge-next-one").hidden = true;
 		const fromMap = map.contains(control);
 		render();
 		if (event.type === "keydown" || event.detail === 0) {
@@ -415,46 +467,115 @@ function initializeChallenge() {
 	map.addEventListener("click", choose);
 	map.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(event); } });
 	element("challenge-choices").addEventListener("click", choose);
-	element("challenge-compare").addEventListener("click", () => { compared = true; render(); });
-	element("challenge-undo").addEventListener("click", () => { order.pop(); compared = false; render(); });
-	element("challenge-reset").addEventListener("click", () => { order = []; compared = false; render(); element("challenge-choices").querySelector("button").focus({ preventScroll: true }); });
+	element("challenge-compare").addEventListener("click", () => { compared = true; render(); element("challenge-next-one").hidden = false; });
+	element("challenge-undo").addEventListener("click", () => { order.pop(); compared = false; element("challenge-next-one").hidden = true; render(); });
+	element("challenge-reset").addEventListener("click", () => { order = []; compared = false; element("challenge-next-one").hidden = true; render(); map.querySelector("[data-challenge-region]").focus({ preventScroll: true }); });
 	render();
 }
 
-function initializePieceChallenge() {
-	const data = JSON.parse(element("challenge-data").textContent).piece_challenge;
+function initializePieceChallenge(combined = false) {
+	const all = JSON.parse(element("challenge-data").textContent);
+	const data = combined ? all.combined_challenge : all.piece_challenge;
+	const prefix = combined ? "combined" : "piece";
+	const ui = (suffix) => element(`${prefix}-${suffix}`);
+	let order = [];
 	const best = data.solutions[data.reference];
-	const letters = ["A", "B", "C"];
-	let choices = [null, null, null], compared = false;
-	const map = element("piece-map");
+	const letters = combined ? ["A", "B", "C", "D"] : ["A", "B", "C"];
+	let choices = letters.map(() => null), compared = false;
+	const map = ui("map");
 	function render() {
-		const selected = data.solutions.find((item) => item.choices.every((piece, index) => piece === choices[index]));
-		map.innerHTML = data.pieces.map((pieces, region) => pieces.map((piece, index) => {
-			const x = (piece[0][0] + piece[2][0]) / 2, y = (piece[0][1] + piece[2][1]) / 2;
-			return `<g role="button" tabindex="0" data-piece="${index}" data-piece-region="${region}" aria-label="Região ${letters[region]}, peça ${index + 1}" aria-pressed="${choices[region] === index}"><polygon class="challenge-region ${choices[region] === index ? "chosen" : ""}" points="${coordinates(piece)}"/><text x="${x}" y="${y}" dominant-baseline="central" text-anchor="middle">${index + 1}</text></g>`;
-		}).join("") + `<text x="${data.pieces[region][0][0][0] + 40}" y="${data.pieces[region][0][0][1] - 10}" text-anchor="middle">${letters[region]}</text>`).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line" points="${coordinates(selected.path)}"/>` : orderSketch("pieces", data.geometry, choices.slice(0, choices.includes(null) ? choices.indexOf(null) : choices.length).map((piece, region) => data.pieces[region][piece]))) + '<circle cx="25" cy="200" r="5" fill="white"/><text x="17" y="223">S</text><circle cx="395" cy="180" r="5" fill="#ffad66"/><text x="389" y="203">T</text>';
-		element("piece-choices").innerHTML = letters.map((letter, region) => `<fieldset><legend>Região ${letter}</legend>${[0, 1, 2].map((piece) => `<button type="button" data-piece="${piece}" data-piece-region="${region}" aria-pressed="${choices[region] === piece}" aria-label="${letter}: peça ${piece + 1}">${piece + 1}</button>`).join("")}</fieldset>`).join("");
-		element("piece-selection").textContent = choices.map((piece, region) => `${letters[region]}: ${piece === null ? "?" : `peça ${piece + 1}`}`).join(" · ");
-		element("piece-compare").disabled = choices.includes(null) || compared;
-		element("piece-reset").disabled = choices.every((piece) => piece === null);
-		element("piece-feedback").innerHTML = compared ? `<strong>${selected.length - best.length < .00001 ? "Você encontrou uma das melhores combinações!" : `Seu caminho ficou ${number(100 * (selected.length / best.length - 1), 1)}% mais longo.`}</strong><div class="challenge-scores"><span>Sua escolha <b>${number(selected.length, 2)}</b></span><span>Melhor das 27 <b>${number(best.length, 2)}</b></span></div><p>Laranja: sua escolha. Tracejado claro: referência (${best.choices.map((piece, region) => `${letters[region]}${piece + 1}`).join(" → ")}). Comprimentos em unidades deste exemplo.</p>` : "";
+		const selected = data.solutions.find((item) => item.choices.every((piece, index) => piece === choices[index]) && (!combined || item.order.join() === order.join()));
+		map.innerHTML = data.pieces.map((pieces, region) => {
+			const rank = order.indexOf(region);
+			const bounds = data.geometry.polygons[region].reduce((box, point) => ({
+				minX: Math.min(box.minX, point[0]), maxX: Math.max(box.maxX, point[0]), minY: Math.min(box.minY, point[1]),
+			}), { minX: Infinity, maxX: -Infinity, minY: Infinity });
+			const regionName = combined && rank >= 0 ? `${letters[region]} · ${rank + 1}ª` : letters[region];
+			const pieceMarkup = pieces.map((piece, index) => {
+				const x = (piece[0][0] + piece[2][0]) / 2, y = (piece[0][1] + piece[2][1]) / 2;
+				return `<g role="button" tabindex="0" data-piece="${index}" data-piece-region="${region}" aria-label="Região ${letters[region]}, peça ${index + 1}${rank >= 0 ? `, visita ${rank + 1}` : ""}" aria-pressed="${choices[region] === index}"><polygon class="challenge-region ${choices[region] === index ? "chosen" : ""}" points="${coordinates(piece)}"/><text x="${x}" y="${y}" dominant-baseline="central" text-anchor="middle">${index + 1}</text></g>`;
+			}).join("");
+			return `${pieceMarkup}<text class="challenge-region-name" x="${(bounds.minX + bounds.maxX) / 2}" y="${Math.max(18, bounds.minY - 10)}" text-anchor="middle">${regionName}</text>`;
+		}).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line" points="${coordinates(selected.path)}"/>` : orderSketch(prefix, data.geometry, combined ? order.map(index => data.pieces[index][choices[index]]) : choices.slice(0, choices.includes(null) ? choices.indexOf(null) : choices.length).map((piece, region) => data.pieces[region][piece]))) + `<circle cx="${data.geometry.start[0]}" cy="${data.geometry.start[1]}" r="5" fill="white"/><text x="${data.geometry.start[0] - 6}" y="${data.geometry.start[1] + 22}">S</text><circle cx="${data.geometry.target[0]}" cy="${data.geometry.target[1]}" r="5" fill="#ffad66"/><text x="${data.geometry.target[0] - 6}" y="${data.geometry.target[1] + 22}">T</text>`;
+		ui("choices").innerHTML = letters.map((letter, region) => `<fieldset><legend>Região ${letter}</legend>${[0, 1, 2].map((piece) => `<button type="button" data-piece="${piece}" data-piece-region="${region}" aria-pressed="${choices[region] === piece}" aria-label="${letter}: peça ${piece + 1}">${piece + 1}</button>`).join("")}</fieldset>`).join("");
+		ui("selection").textContent = choices.map((piece, region) => `${letters[region]}: ${piece === null ? "?" : `peça ${piece + 1}`}`).join(" · ");
+		if (combined) ui("selection").textContent = `Sua sequência: S → ${order.map(index => `${letters[index]}${choices[index] + 1}`).join(" → ")}${order.length < letters.length ? " → …" : ""} → T`;
+		const remaining = choices.filter((piece) => piece === null).length;
+		ui("guidance").textContent = remaining ? `Faltam ${remaining} ${remaining === 1 ? "região" : "regiões"}.` : "Escolha completa. Compare agora os caminhos.";
+		ui("compare").disabled = choices.includes(null) || compared;
+		ui("reset").disabled = choices.every((piece) => piece === null);
+		ui("feedback").innerHTML = compared ? `<strong>${selected.length - best.length < .00001 ? "Você encontrou uma das melhores combinações!" : `Seu caminho ficou ${number(100 * (selected.length / best.length - 1), 1)}% mais longo.`}</strong><div class="challenge-scores"><span>Sua escolha <b>${number(selected.length, 2)}</b></span><span>Melhor das ${data.solutions.length.toLocaleString("pt-BR")} <b>${number(best.length, 2)}</b></span></div><p>Laranja: sua escolha. Tracejado claro: referência (${(combined ? best.order : letters.map((_, index) => index)).map(region => `${letters[region]}${best.choices[region] + 1}`).join(" → ")}). Comprimentos em unidades deste exemplo.</p>` : "";
 	}
 	function choose(event) {
 		const control = event.target.closest("[data-piece]");
 		if (!control) return;
 		const region = Number(control.dataset.pieceRegion), piece = Number(control.dataset.piece);
-		const parent = map.contains(control) ? map : element("piece-choices");
-		choices[region] = piece;
+		const parent = map.contains(control) ? map : ui("choices");
+		if (combined) {
+			if (choices[region] === piece) { choices[region] = null; order = order.filter(index => index !== region); }
+			else { if (choices[region] === null) order.push(region); choices[region] = piece; }
+		} else choices[region] = piece;
 		compared = false;
+		if (combined) element("finish-challenge").hidden = true;
+		else element("challenge-next-two").hidden = true;
 		render();
 		if (event.type === "keydown" || event.detail === 0) parent.querySelector(`[data-piece-region="${region}"][data-piece="${piece}"]`).focus({ preventScroll: true });
 	}
 	map.addEventListener("click", choose);
 	map.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(event); } });
-	element("piece-choices").addEventListener("click", choose);
-	element("piece-compare").addEventListener("click", () => { compared = true; render(); });
-	element("piece-reset").addEventListener("click", () => { choices = [null, null, null]; compared = false; render(); element("piece-choices").querySelector("button").focus({ preventScroll: true }); });
+	ui("choices").addEventListener("click", choose);
+	ui("compare").addEventListener("click", () => {
+		compared = true;
+		render();
+		if (combined) element("finish-challenge").hidden = false;
+		else element("challenge-next-two").hidden = false;
+	});
+	ui("reset").addEventListener("click", () => {
+		choices = letters.map(() => null);
+		order = [];
+		compared = false;
+		if (combined) element("finish-challenge").hidden = true;
+		else element("challenge-next-two").hidden = true;
+		render();
+		map.querySelector("[data-piece]").focus({ preventScroll: true });
+	});
 	render();
+}
+
+function initializeChallengeFlow() {
+	const dialog = element("challenge-dialog");
+	const steps = [...dialog.querySelectorAll("[data-challenge-step]")];
+	const titles = ["Escolha a ordem das visitas", "Escolha uma peça em cada região", "Escolha a ordem e as peças"];
+	let current = 0;
+	function show(index) {
+		current = Math.max(0, Math.min(steps.length - 1, index));
+		steps.forEach((step, position) => { step.hidden = position !== current; });
+		element("challenge-progress").textContent = `DESAFIO ${current + 1} DE ${steps.length}`;
+		element("challenge-dialog-title").textContent = titles[current];
+		dialog.querySelectorAll("[data-challenge-tab]").forEach((button, position) => {
+			button.classList.toggle("visited", position <= current);
+			button.classList.toggle("active", position === current);
+			if (position === current) button.setAttribute("aria-current", "step");
+			else button.removeAttribute("aria-current");
+		});
+		dialog.scrollTo({ top: 0, behavior: "instant" });
+		const heading = steps[current].querySelector("h3");
+		heading.setAttribute("tabindex", "-1");
+		heading.focus({ preventScroll: true });
+	}
+	element("open-challenge").addEventListener("click", () => { dialog.showModal(); show(0); });
+	element("close-challenge").addEventListener("click", () => dialog.close());
+	element("challenge-next-one").addEventListener("click", () => show(1));
+	element("challenge-next-two").addEventListener("click", () => show(2));
+	dialog.querySelectorAll("[data-challenge-tab]").forEach((button) => button.addEventListener("click", () => show(Number(button.dataset.challengeTab))));
+	dialog.querySelectorAll("[data-challenge-back]").forEach((button) => button.addEventListener("click", () => show(current - 1)));
+	element("finish-challenge").addEventListener("click", () => dialog.close());
+	dialog.addEventListener("click", (event) => {
+		if (event.target !== dialog) return;
+		const box = dialog.getBoundingClientRect();
+		if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.close();
+	});
+	dialog.addEventListener("close", () => element("open-challenge").focus({ preventScroll: true }));
 }
 
 function initializeDisclosures() {

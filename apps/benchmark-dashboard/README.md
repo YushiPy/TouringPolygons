@@ -60,8 +60,11 @@ Open [the event demonstration](http://127.0.0.1:8017/evento). It includes:
 The event page uses `static/event/siicusp34.json`, a portable snapshot of the adopted
 6 September 2026 confirmation run: 60 verified paths, 43 closed numerical gaps and
 17 time limits. It does not launch new computations. The animation is playback of
-the saved path, not a visualization of search progress. Case IDs are zero-based;
-region labels show the first-visit rank starting at one, with original IDs mapped
+the saved path, not a visualization of search progress. Visitor case numbers and
+searches are one-based (1–60). Stored IDs and existing
+`?caso=` links stay zero-based for compatibility; CSV includes both `case_number`
+and `case`, and per-case downloads include `case_number`.
+Region labels show the first-visit rank starting at one, with original IDs mapped
 in the details. The quality percentage is a conservative LB/UB bound, not a
 probability of optimality. Contact points are reconstructed from the saved path
 with the audit tolerance of 1e-7. Convex decomposition uses the repository’s native
@@ -255,3 +258,8 @@ The additional browser test exercises mode switching, the saved comparison, a li
 ```bash
 DASHBOARD_URL=http://127.0.0.1:8137 npm run test:browser:free
 ```
+
+The final challenge combines four-region visit order with three convex pieces per
+region (24 × 81 = 1,944 precomputed solutions). Selecting a new region appends it;
+changing its piece retains its position; selecting its current piece removes it.
+All three challenges are synthetic and separate from the 60 benchmark cases.

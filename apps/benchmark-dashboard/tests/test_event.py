@@ -18,6 +18,39 @@ from dashboard.dashboard_free_order import solve_free_editor
 
 
 class EventTests(unittest.TestCase):
+	def test_combined_challenge_all_orders_and_pieces_are_feasible(self):
+		from itertools import permutations, product
+
+		from shapely.geometry import LineString, Point, Polygon
+		from shapely.ops import nearest_points, unary_union
+
+		data = event_context()["challenge"]["combined_challenge"]
+		self.assertEqual(len(data["solutions"]), 1944)
+		self.assertEqual({(tuple(item["order"]), tuple(item["choices"])) for item in data["solutions"]}, set(product(permutations(range(4)), product(range(3), repeat=4))))
+		for polygon, pieces in zip(data["geometry"]["polygons"], data["pieces"]):
+			shapes = [Polygon(piece) for piece in pieces]
+			self.assertLess(unary_union(shapes).symmetric_difference(Polygon(polygon)).area, 1e-7)
+			for shape in shapes:
+				self.assertAlmostEqual(shape.area, shape.convex_hull.area)
+		for item in data["solutions"]:
+			self.assertEqual(item["path"][0], data["geometry"]["start"])
+			self.assertEqual(item["path"][-1], data["geometry"]["target"])
+			self.assertAlmostEqual(LineString(item["path"]).length, item["length"])
+			remaining = item["path"]
+			for region in item["order"]:
+				shape = Polygon(data["pieces"][region][item["choices"][region]]).buffer(1e-7)
+				found = False
+				for index, (a, b) in enumerate(zip(remaining, remaining[1:])):
+					intersection = LineString([a, b]).intersection(shape)
+					if intersection.is_empty:
+						continue
+					point = nearest_points(Point(a), intersection)[1]
+					remaining = [[point.x, point.y], *remaining[index + 1:]]
+					found = True
+					break
+				self.assertTrue(found)
+		self.assertEqual(data["solutions"][data["reference"]]["length"], min(item["length"] for item in data["solutions"]))
+
 	def test_piece_challenge_partitions_and_ordered_solutions(self):
 		from itertools import product
 
@@ -94,6 +127,19 @@ class EventTests(unittest.TestCase):
 		self.assertIn('id="map-content"', html)
 		self.assertIn("Quatro regiões", html)
 		self.assertIn('href="/evento/offline"', html)
+		self.assertIn('id="zoom-in"', html)
+		self.assertIn('aria-label="Redefinir zoom e posição"', html)
+		self.assertIn('id="context-return"', html)
+		self.assertIn('id="challenge-dialog"', html)
+		self.assertIn('data-challenge-tab="2"', html)
+		self.assertIn('class="challenge-method-note"', html)
+		self.assertIn('data-layer-note="show-decomposition"', html)
+		self.assertIn("Não alteram o caminho calculado", html)
+		self.assertIn("Dados e reprodutibilidade", html)
+		self.assertNotIn('id="case-search"', html)
+		self.assertNotIn('id="show-all-results"', html)
+		self.assertNotIn("Você está vendo uma solução já calculada", html)
+		self.assertNotIn('class="challenge-details"', html)
 		data = json.loads(re.search(r'<script id="event-data" type="application/json">(.*?)</script>', html, re.S)[1])
 		self.assertEqual(data, json.loads(json.dumps(visual_data())))
 
