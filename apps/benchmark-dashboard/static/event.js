@@ -439,6 +439,7 @@ function initialize() {
 	initializeChallenge();
 	initializePieceChallenge();
 	initializePieceChallenge(true);
+	initializeReferences();
 	initializeChallengeFlow();
 	initializeDisclosures();
 	initializeContents();
@@ -530,7 +531,7 @@ function initializePieceChallenge(combined = false) {
 		ui("reset").disabled = choices.every((piece) => piece === null);
 		const chosenSequence = (combined ? order : letters.map((_, index) => index)).map(region => `${letters[region]}${choices[region] + 1}`).join(" → ");
 		const bestSequence = (combined ? best.order : letters.map((_, index) => index)).map(region => `${letters[region]}${best.choices[region] + 1}`).join(" → ");
-		const impact = combined ? '<aside class="challenge-impact"><strong>Achou difícil?</strong> Em um caso da pesquisa com mais de 2 × 10<sup>66</sup> possibilidades brutas, nosso algoritmo certificou o melhor caminho em 1,51 segundo. Mesmo que 10 bilhões de computadores testassem uma combinação por nanossegundo, levariam cerca de 7 × 10<sup>39</sup> anos, muito depois de o Sol se tornar uma gigante vermelha e possivelmente engolir a Terra <a href="#ref-sun">[2]</a>.</aside>' : "";
+		const impact = combined ? '<aside class="challenge-impact"><strong>Achou difícil?</strong> Em um caso da pesquisa com mais de 2 × 10<sup>66</sup> possibilidades brutas, nosso algoritmo certificou o melhor caminho em 1,51 segundo. Mesmo que 10 bilhões de computadores testassem uma combinação por nanossegundo, levariam cerca de 7 × 10<sup>39</sup> anos, muito depois de o Sol se tornar uma gigante vermelha e possivelmente engolir a Terra <a href="#ref-sun">[5]</a>.</aside>' : "";
 		ui("feedback").innerHTML = compared ? `<strong>${selected.length - best.length < .00001 ? "Você encontrou uma das melhores combinações!" : `Seu caminho ficou ${number(100 * (selected.length / best.length - 1), 1)}% mais longo.`}</strong>${challengeComparison("Sua escolha", selected.length, `Melhor das ${data.solutions.length.toLocaleString("pt-BR")}`, best.length, combined ? "Solução" : "Peças", chosenSequence, bestSequence)}${impact}` : "";
 		if (compared) animateChallengeRoute(map);
 	}
@@ -599,21 +600,36 @@ function initializeChallengeFlow() {
 	dialog.querySelectorAll("[data-challenge-back]").forEach((button) => button.addEventListener("click", () => show(current - 1)));
 	element("finish-challenge").addEventListener("click", () => dialog.close());
 	dialog.addEventListener("click", (event) => {
-		const referenceLink = event.target.closest('a[href^="#ref-"]');
-		if (referenceLink) {
-			event.preventDefault();
-			const target = document.querySelector(referenceLink.getAttribute("href"));
-			const details = target?.closest("details");
-			if (details && !details.open) details.querySelector(":scope > summary").click();
-			dialog.close();
-			setTimeout(() => target?.scrollIntoView({ behavior: "smooth", block: "center" }), 240);
-			return;
-		}
 		if (event.target !== dialog) return;
 		const box = dialog.getBoundingClientRect();
 		if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.close();
 	});
 	dialog.addEventListener("close", () => element("open-challenge").focus({ preventScroll: true }));
+}
+
+function initializeReferences() {
+	const dialog = element("references-dialog");
+	let opener = null;
+	document.addEventListener("click", (event) => {
+		const trigger = event.target.closest('[data-open-references], a[href^="#ref-"]');
+		if (!trigger || dialog.contains(trigger)) return;
+		event.preventDefault();
+		opener = trigger;
+		if (element("mobile-toc").open) element("mobile-toc").close();
+		if (!dialog.open) dialog.showModal();
+		const selector = trigger.getAttribute("href");
+		const target = selector?.startsWith("#ref-") ? dialog.querySelector(selector) : null;
+		dialog.querySelectorAll("li.current-reference").forEach((item) => item.classList.remove("current-reference"));
+		target?.classList.add("current-reference");
+		requestAnimationFrame(() => target?.scrollIntoView({ behavior: "smooth", block: "center" }));
+	});
+	element("references-close").addEventListener("click", () => dialog.close());
+	dialog.addEventListener("click", (event) => {
+		if (event.target !== dialog) return;
+		const box = dialog.getBoundingClientRect();
+		if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.close();
+	});
+	dialog.addEventListener("close", () => opener?.focus({ preventScroll: true }));
 }
 
 function initializeDisclosures() {

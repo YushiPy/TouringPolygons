@@ -770,7 +770,16 @@ job_controller.load_jobs()
 
 @app.get("/")
 async def index(request: Request):
-    return templates.TemplateResponse(request, "index.html")
+    wasm_root = VISUALIZER_STATIC_ROOT / "wasm"
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "editor_wasm_available": os.environ.get("DISABLE_EDITOR_WASM") != "1"
+            and (wasm_root / "tpp_convex_wasm.js").is_file()
+            and (wasm_root / "tpp_convex_wasm.wasm").is_file(),
+        },
+    )
 
 
 @app.get("/evento")

@@ -80,6 +80,10 @@ export function solveEditorWasmAsync(caseData, pieceGroups = null, signal = null
 }
 
 export function loadEditorWasm() {
+	if (globalThis.__editorWasmAvailable === false) {
+		editorSolverState.failed = true;
+		return Promise.resolve(null);
+	}
 	if (editorSolverState.load) {
 		return editorSolverState.load;
 	}

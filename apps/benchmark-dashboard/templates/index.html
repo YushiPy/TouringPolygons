@@ -55,6 +55,7 @@
 		{% include "partials/inspect_panel.html" %}
 	</main>
 	{% include "partials/modals.html" %}
+	<script>window.__editorWasmAvailable = {{ editor_wasm_available|default(false)|tojson }};</script>
 	<script type="module" src="/static/app.js?v=intersections-2026-09-01-length"></script>
 </body>
 

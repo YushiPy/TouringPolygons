@@ -49,7 +49,7 @@ node --test tests/manual-editor-camera.test.mjs | tee "${camera_log}"
 node --test tests/event-geometry.test.mjs
 
 if [[ "${RUN_BROWSER:-0}" == "1" ]]; then
-	uv run uvicorn main:app --host 127.0.0.1 --port "${BROWSER_PORT}" &
+	DISABLE_EDITOR_WASM=1 uv run uvicorn main:app --host 127.0.0.1 --port "${BROWSER_PORT}" &
 	server_pid="$!"
 	trap 'kill "${server_pid}" 2>/dev/null || true; cleanup' EXIT
 	sleep 1

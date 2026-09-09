@@ -428,14 +428,20 @@ html, #case-picker-dialog { scrollbar-width: thin; scrollbar-color: #76958d #e6e
 thead th button { display: flex; align-items: center; gap: 6px; font-weight: inherit; color: inherit; min-height: 44px; width: 100%; text-align: left; }
 .sort-arrow { min-width: 1ch; }
 thead th[aria-sort="ascending"], thead th[aria-sort="descending"] { color: var(--teal); }
-.references-section { margin: 0 0 28px; }
-.references-section details { border: 1px solid var(--line); border-radius: 10px; background: #fff; }
-.references-section summary { padding: 14px 16px; color: var(--teal); font-weight: 700; cursor: pointer; }
-.references-section ol { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
-.references-section li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; scroll-margin-top: 28px; color: var(--muted); font-size: .875rem; }
-.references-section li p { margin: 0; }
-.references-section li > span { color: var(--teal); font-weight: 700; }
-.references-section .disclosure-body { padding: 2px 16px 18px; }
+.references-entry { display: flex; justify-content: flex-end; margin: -12px 0 16px; }
+.references-entry button { min-height: 44px; }
+.references-dialog { width: min(720px, calc(100% - 32px)); max-width: none; max-height: min(760px, calc(100dvh - 32px)); padding: 0; border: 0; border-radius: 16px; background: #f7fafb; color: var(--ink); box-shadow: 0 22px 80px #071c2466; overflow-y: auto; }
+.references-dialog::backdrop { background: #071c2466; backdrop-filter: blur(2px); }
+.references-dialog header { position: sticky; z-index: 1; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px 22px 14px; border-bottom: 1px solid var(--line); background: #f7fafbf2; backdrop-filter: blur(9px); }
+.references-dialog header h2 { margin: 0; font-size: 1.45rem; }
+.references-dialog header .eyebrow { margin-bottom: 3px; }
+.references-dialog header button { flex: 0 0 42px; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 9px; background: #e1ece8; color: var(--teal); font-size: 1.6rem; }
+.references-dialog ol { display: grid; gap: 4px; margin: 0; padding: 18px 22px 24px; list-style: none; }
+.references-dialog li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 8px; padding: 12px; border-radius: 9px; scroll-margin: 88px 0 20px; color: var(--muted); font-size: .9rem; transition: background-color 180ms ease; }
+.references-dialog li.current-reference { background: #e5f1ed; }
+.references-dialog li p { margin: 0; }
+.references-dialog li > span { color: var(--teal); font-weight: 750; }
+.references-dialog cite { color: var(--ink); }
 .contact-section { display: flex; justify-content: space-between; gap: 28px; align-items: center; padding: 24px 28px; border-radius: 12px; background: #e8f0f2; margin: 28px 0 36px; }
 .contact-section h2 { font-size: 1.5rem; }
 .contact-section p:last-child { margin: 12px 0 0; color: var(--muted); }
@@ -463,6 +469,9 @@ thead th[aria-sort="ascending"], thead th[aria-sort="descending"] { color: var(-
 #piece-selection { margin: 16px 0; font-size: .875rem; }
 @media (max-width: 850px) { .contact-section { flex-direction: column; align-items: flex-start; gap: 16px; } }
 @media (max-width: 560px) {
+	.references-dialog { inset: 0; width: 100%; max-height: 100dvh; height: 100dvh; margin: 0; border-radius: 0; }
+	.references-dialog header { padding: max(14px, env(safe-area-inset-top)) 16px 12px; }
+	.references-dialog ol { padding: 10px 10px max(22px, env(safe-area-inset-bottom)); }
 	.contact-section { padding: 24px 18px; }
 	.contact-email { font-size: .875rem !important; }
 	.piece-choices { gap: 12px 8px; }

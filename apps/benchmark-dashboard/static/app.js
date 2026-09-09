@@ -173,7 +173,6 @@ const {
 	editInstance,
 	loadCampaignCaseMetadata,
 	loadManualCases,
-	newManualCase,
 	renderManualCampaigns,
 	renderManualCases,
 	selectManualCampaign,

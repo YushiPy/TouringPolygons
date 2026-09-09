@@ -109,8 +109,6 @@ export function createManualEditor({
 			window.addEventListener("pointercancel", finishPointer);
 			this.canvas.addEventListener("wheel", (event) => this.onWheel(event), { passive: false });
 			document.addEventListener("keydown", (event) => this.onKeyDown(event));
-			loadEditorWasm();
-			loadEditorGeometry();
 			this.syncCloseButton();
 			this.toggleSnapping(false);
 			this.draw();
