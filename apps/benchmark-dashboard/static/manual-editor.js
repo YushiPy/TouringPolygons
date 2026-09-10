@@ -1,9 +1,11 @@
-import { displayPartition } from "./native-partition.js";
-import { visitOrder, solveFreeOrder } from "./order-mode.js";
+/* global Image */
+
+import { displayPartition } from "./native-partition.js?v=editor-align-2026-09-09d";
+import { visitOrder, solveFreeOrder } from "./order-mode.js?v=editor-align-2026-09-09d";
 import { drawCanvasScene } from "./canvas-renderer.js";
-import { cloneCaseData } from "./case-data.js";
-import { convexDecomposition, polygonIsConvex, solutionDirectionAt } from "./editor-geometry.js";
-import { WORKER_SOLVE_VERTEX_THRESHOLD, editorSolverState, loadEditorGeometry, loadEditorWasm, solveEditorWasm, solveEditorWasmAsync, solveEditorWasmGroups } from "./editor-solver.js?v=intersections-2026-09-01-length";
+import { cloneCaseData } from "./case-data.js?v=editor-align-2026-09-09d";
+import { polygonIsConvex, solutionDirectionAt } from "./editor-geometry.js";
+import { solveEditorWasmAsync } from "./editor-solver.js?v=editor-align-2026-09-09d";
 import { CAMERA_STORAGE_KEY, canvasToWorld as cameraCanvasToWorld, caseBounds as cameraCaseBounds, worldToCanvas as cameraWorldToCanvas, zoomLimits } from "./manual-editor-camera.js";
 import { mergeSelections, pointsInRect as selectionPointsInRect, samePointSelection as selectionSamePoint } from "./manual-editor-selection.js";
 
@@ -74,7 +76,7 @@ export function createManualEditor({
 			this.resize();
 			new ResizeObserver(() => {
 				this.resize();
-				this.draw();
+				this.requestDraw();
 			}).observe(this.canvas);
 			this.canvas.addEventListener("pointerdown", (event) => this.onPointerDown(event));
 			this.canvas.addEventListener("pointermove", (event) => this.onPointerMove(event));
@@ -88,6 +90,8 @@ export function createManualEditor({
 				if (this.pinchGesture && this.activePointers.size < 2) {
 					this.pinchGesture = null;
 				}
+				if (this.backgroundDrag) scheduleManualAutosave();
+				this.backgroundDrag = null;
 				this.activePoint = null;
 				this.dragSelection = null;
 				this.dragPolygon = null;
@@ -113,7 +117,7 @@ export function createManualEditor({
 			document.addEventListener("keydown", (event) => this.onKeyDown(event));
 			this.syncCloseButton();
 			this.toggleSnapping(false);
-			this.draw();
+			this.requestDraw();
 		},
 
 		resize() {
@@ -188,7 +192,7 @@ export function createManualEditor({
 			this.offsetX = width / 2 - centerX * this.scale;
 			this.offsetY = height / 2 + centerY * this.scale;
 			this.saveCamera();
-			this.draw();
+			this.requestDraw();
 		},
 
 		backgroundBounds() {
@@ -252,7 +256,26 @@ export function createManualEditor({
 				bounds: [bottomLeft[0], bottomLeft[1], topRight[0], topRight[1]],
 			};
 			this.backgroundSource = "";
-			this.draw();
+			this.requestDraw();
+			scheduleManualAutosave();
+		},
+
+		toggleBackgroundEditing() {
+			this.backgroundEditing = !this.backgroundEditing && Boolean(this.currentCase()?.background);
+			$("#manual-refit-background").textContent = this.backgroundEditing ? "Done positioning" : "Refit Image";
+			this.canvas.style.cursor = this.backgroundEditing ? "move" : "default";
+			this.setStatus(this.backgroundEditing ? "Drag to move the image; scroll to resize it. Geometry stays in place." : "Image position saved.");
+		},
+
+		resizeBackground(factor, x, y) {
+			const background = this.currentCase()?.background;
+			if (!background) return;
+			const [wx, wy] = this.canvasToWorld(x, y);
+			background.bounds = background.bounds.map((value, index) => {
+				const anchor = index % 2 === 0 ? wx : wy;
+				return anchor + (value - anchor) * factor;
+			});
+			this.requestDraw();
 			scheduleManualAutosave();
 		},
 
@@ -262,7 +285,7 @@ export function createManualEditor({
 				return;
 			}
 			background.opacity = Math.max(0.05, Math.min(1, opacity));
-			this.draw();
+			this.requestDraw();
 			scheduleManualAutosave();
 		},
 
@@ -274,7 +297,7 @@ export function createManualEditor({
 			current.background = null;
 			this.backgroundSource = "";
 			this.backgroundImage = null;
-			this.draw();
+			this.requestDraw();
 			scheduleManualAutosave({ immediate: true });
 		},
 
@@ -286,7 +309,7 @@ export function createManualEditor({
 			const button = document.querySelector(`[data-editor-layer="${layer}"]`);
 			button?.classList.toggle("is-active", this.layers[layer]);
 			button?.setAttribute("aria-pressed", this.layers[layer] ? "true" : "false");
-			this.draw();
+			this.requestDraw();
 		},
 
 		pointRadius(kind = "vertex") {
@@ -344,7 +367,7 @@ export function createManualEditor({
 			});
 			this.updateCursor();
 			this.syncCloseButton();
-			this.draw();
+			this.requestDraw();
 		},
 
 		toggleSnapping(force = null) {
@@ -352,7 +375,7 @@ export function createManualEditor({
 			const button = $("#toggle-manual-snapping");
 			button?.classList.toggle("is-active", this.snapping);
 			button?.setAttribute("aria-pressed", this.snapping ? "true" : "false");
-			this.draw();
+			this.requestDraw();
 		},
 
 		zoomBy(factor) {
@@ -365,7 +388,7 @@ export function createManualEditor({
 			this.offsetX += (after[0] - before[0]) * this.scale;
 			this.offsetY -= (after[1] - before[1]) * this.scale;
 			this.saveCamera();
-			this.draw();
+			this.requestDraw();
 		},
 
 		toggleExpanded(force = null) {
@@ -384,20 +407,20 @@ export function createManualEditor({
 				this.offsetX = this.canvas.offsetWidth / 2 - centerWorld[0] * this.scale;
 				this.offsetY = this.canvas.offsetHeight / 2 + centerWorld[1] * this.scale;
 				this.saveCamera();
-				this.draw();
+				this.requestDraw();
 			});
 		},
 
 		setSolveStatus(message) {
 			const status = $("#manual-solve-status");
-			if (status) {
+			if (status && status.textContent !== (message || "")) {
 				status.textContent = message || "";
 			}
 		},
 
 		setSaveStatus(message) {
 			const status = $("#manual-save-status");
-			if (status) {
+			if (status && status.textContent !== (message || "")) {
 				status.textContent = message || "";
 			}
 		},
@@ -434,7 +457,8 @@ export function createManualEditor({
 				start: solutionDirectionAt(this.solutionPath, 0),
 				target: solutionDirectionAt(this.solutionPath, 1),
 			};
-			if (!animate) {
+			if (this.labelAnimation) { cancelAnimationFrame(this.labelAnimation); this.labelAnimation = null; }
+			if (!animate || this.activePoint || this.dragPolygon || this.dragSelection) {
 				this.labelDirections = targets;
 				return;
 			}
@@ -450,13 +474,13 @@ export function createManualEditor({
 						this.labelDirections[key][1] + (targets[key][1] - this.labelDirections[key][1]) * 0.24,
 					];
 				}
-				this.draw();
+				this.requestDraw();
 				if (frame < 14) {
 					this.labelAnimation = requestAnimationFrame(step);
 				} else {
 					this.labelDirections = targets;
 					this.labelAnimation = null;
-					this.draw();
+					this.requestDraw();
 				}
 			};
 			step();
@@ -597,7 +621,7 @@ export function createManualEditor({
 			this.offsetY -= (after[1] - before[1]) * this.scale;
 			this.pinchGesture = { distance, midpoint };
 			this.saveCamera();
-			this.draw();
+			this.requestDraw();
 			return true;
 		},
 
@@ -611,6 +635,11 @@ export function createManualEditor({
 			const x = event.clientX - rect.left;
 			const y = event.clientY - rect.top;
 			this.mouseCanvas = { x, y };
+			if (this.backgroundEditing && current.background) {
+				this.backgroundDrag = { world: this.canvasToWorld(x, y), bounds: [...current.background.bounds] };
+				this.canvas.setPointerCapture(event.pointerId);
+				return;
+			}
 			this.activePointers.set(event.pointerId, {
 				pointerType: event.pointerType,
 				clientX: event.clientX,
@@ -626,7 +655,7 @@ export function createManualEditor({
 				this.selectionRect = { start: { x, y }, end: { x, y } };
 				this.selectionBase = [...this.selectedPoints];
 				this.selectedPoint = null;
-				this.draw();
+				this.requestDraw();
 				return;
 			}
 			if (this.mode === "polygon") {
@@ -654,7 +683,7 @@ export function createManualEditor({
 				this.canvas.setPointerCapture(event.pointerId);
 				this.canvas.style.cursor = "grabbing";
 				this.animateSelection();
-				this.draw();
+				this.requestDraw();
 				return;
 			}
 			const polygonIndex = this.selectPolygon(x, y);
@@ -666,7 +695,7 @@ export function createManualEditor({
 				this.pointerStart = { kind: "polygon", clientX: event.clientX, clientY: event.clientY };
 				this.canvas.setPointerCapture(event.pointerId);
 				this.canvas.style.cursor = "grabbing";
-				this.draw();
+				this.requestDraw();
 				return;
 			}
 			this.selectedPoint = null;
@@ -689,6 +718,12 @@ export function createManualEditor({
 			const x = event.clientX - rect.left;
 			const y = event.clientY - rect.top;
 			this.mouseCanvas = { x, y };
+			if (this.backgroundDrag && current?.background) {
+				const world = this.canvasToWorld(x, y);
+				current.background.bounds = this.backgroundDrag.bounds.map((value, index) => value + world[index % 2] - this.backgroundDrag.world[index % 2]);
+				this.requestDraw();
+				return;
+			}
 			if (!current) {
 				return;
 			}
@@ -697,11 +732,11 @@ export function createManualEditor({
 					return;
 				}
 			}
-			this.updateCursor();
+			if (!this.activePoint && !this.dragPolygon && !this.dragSelection && !this.panDrag) this.updateCursor();
 			if (this.selectionRect) {
 				this.selectionRect.end = { x, y };
 				this.selectedPoints = this.mergeSelections(this.selectionBase, this.pointsInRect(this.selectionRect));
-				this.draw();
+				this.requestDraw();
 				return;
 			}
 			if (this.panDrag) {
@@ -709,7 +744,7 @@ export function createManualEditor({
 				this.offsetY += y - this.panDrag.y;
 				this.panDrag = { x, y };
 				this.saveCamera();
-				this.draw();
+				this.requestDraw();
 				return;
 			}
 			if (this.dragSelection) {
@@ -748,7 +783,7 @@ export function createManualEditor({
 			}
 			if (!this.activePoint) {
 				if (this.mode === "polygon") {
-					this.draw();
+					this.requestDraw();
 				}
 				return;
 			}
@@ -765,6 +800,12 @@ export function createManualEditor({
 		},
 
 		onWheel(event) {
+			if (this.backgroundEditing) {
+				event.preventDefault();
+				const rect = this.canvas.getBoundingClientRect();
+				this.resizeBackground(Math.exp(-Math.max(-100, Math.min(100, event.deltaY)) * 0.005), event.clientX - rect.left, event.clientY - rect.top);
+				return;
+			}
 			event.preventDefault();
 			const rect = this.canvas.getBoundingClientRect();
 			const before = this.canvasToWorld(event.clientX - rect.left, event.clientY - rect.top);
@@ -776,7 +817,7 @@ export function createManualEditor({
 			this.offsetX += (after[0] - before[0]) * this.scale;
 			this.offsetY -= (after[1] - before[1]) * this.scale;
 			this.saveCamera();
-			this.draw();
+			this.requestDraw();
 		},
 
 		updateCursor() {
@@ -803,6 +844,8 @@ export function createManualEditor({
 		},
 
 		onKeyDown(event) {
+			if (!$("#satellite-modal")?.classList.contains("is-hidden")) return;
+			if (event.key === "Escape" && this.backgroundEditing) { this.toggleBackgroundEditing(); return; }
 			if (keybinds.capturePending(event)) {
 				return;
 			}
@@ -877,7 +920,7 @@ export function createManualEditor({
 				this.selectedPoint = null;
 				this.selectionRect = null;
 				this.selectionBase = [];
-				this.draw();
+				this.requestDraw();
 				return;
 			}
 			this.selectedPoints = this.mergeSelections(this.selectionBase, selected);
@@ -885,7 +928,7 @@ export function createManualEditor({
 			this.selectionRect = null;
 			this.selectionBase = [];
 			this.animateSelection();
-			this.draw();
+			this.requestDraw();
 		},
 
 		closePolygon() {
@@ -944,11 +987,13 @@ export function createManualEditor({
 			this.selectedPoints = [];
 			this.selectionBase = [];
 			this.selectionRect = null;
-			this.draw();
+			this.requestDraw();
 		},
 
 		cancelPendingSolution() {
 			this.solutionRevision += 1;
+			this.solutionQueued = false;
+			this.solutionRun = null;
 			this.solutionAbort?.abort();
 			this.solutionAbort = null;
 			if (this.solutionTimer) {
@@ -962,24 +1007,31 @@ export function createManualEditor({
 		},
 
 		changed() {
-			this.cancelPendingSolution();
+			this.solutionRevision += 1;
 			this.solutionStale = Boolean(this.solutionPath);
 			this.updateLabelDirections(false);
 			this.syncCloseButton();
 			updateManualCaseListMetadata();
-			this.draw();
+			this.requestDraw();
 			this.scheduleSolve();
 			scheduleManualAutosave();
 		},
 
 		scheduleSolve() {
+			if (this.solutionRun) { this.solutionQueued = true; return; }
 			const current = this.currentCase();
 			if (!current) {
 				return;
 			}
-			const caseData = cloneCaseData(current);
+			const caseData = cloneCaseData({ start: current.start, target: current.target, polygons: current.polygons.filter(polygon => polygon.length >= 3) });
 			const revision = this.solutionRevision;
-			if (this.trySolveImmediately(caseData, revision)) {
+			if (caseData.polygons.length === 0) {
+				this.solutionPath = [caseData.start, caseData.target];
+				const length = Math.hypot(caseData.target[0] - caseData.start[0], caseData.target[1] - caseData.start[1]);
+				this.solutionStale = false;
+				this.updateLabelDirections(true);
+				this.setStatus(`Solution: exact, length ${formatLength(length)}, 0 calls`);
+				this.requestDraw();
 				return;
 			}
 			if (this.solutionStale) {
@@ -993,72 +1045,11 @@ export function createManualEditor({
 				cancelAnimationFrame(this.solutionFrame);
 				this.solutionFrame = null;
 			}
-			this.solutionTimer = setTimeout(() => {
-				this.solutionTimer = null;
-				this.fetchSolution(caseData, revision);
-			}, 0);
+			const requestedAt = performance.now();
+			this.fetchSolution(caseData, revision, requestedAt);
 		},
 
-		trySolveImmediately(caseData, revision) {
-			if (visitOrder() === "free") return false;
-			if (!caseData) {
-				return false;
-			}
-			if (caseData.polygons.length === 0) {
-				if (revision !== this.solutionRevision) {
-					return true;
-				}
-				this.solutionPath = [caseData.start, caseData.target];
-				const length = Math.hypot(caseData.target[0] - caseData.start[0], caseData.target[1] - caseData.start[1]);
-				this.solutionStale = false;
-				this.updateLabelDirections(true);
-				this.setStatus(`Solution: exact, length ${formatLength(length)}, 0 calls`);
-				this.draw();
-				return true;
-			}
-			if (!editorSolverState.module) {
-				return false;
-			}
-
-			const vertexCount = caseData.polygons.reduce((sum, polygon) => sum + polygon.length, 0);
-			if (vertexCount > WORKER_SOLVE_VERTEX_THRESHOLD) {
-				return false;
-			}
-
-			try {
-				const solveStarted = performance.now();
-				const pieceGroups = caseData.polygons.every(polygonIsConvex)
-					? null
-					: caseData.polygons.map(convexDecomposition);
-				const wasmResult = pieceGroups
-					? solveEditorWasmGroups(caseData, pieceGroups)
-					: solveEditorWasm(caseData);
-				const solveWallSeconds = (performance.now() - solveStarted) / 1000;
-
-				if (revision !== this.solutionRevision) {
-					return true;
-				}
-				if (!wasmResult) {
-					this.solutionPath = null;
-					this.solutionStale = false;
-					this.updateLabelDirections(true);
-					this.setStatus("WASM solver could not solve this case.");
-					this.draw();
-					return true;
-				}
-
-				this.solutionPath = wasmResult.path;
-				this.solutionStale = false;
-				this.updateLabelDirections(true);
-				this.setStatus(`Solution: ${wasmResult.exact ? "exact" : "approximate"}, length ${formatLength(wasmResult.length)}, ${wasmResult.calls} calls, ${formatSeconds(Math.max(wasmResult.seconds || 0, solveWallSeconds))} via WASM`);
-				this.draw();
-				return true;
-			} catch {
-				return false;
-			}
-		},
-
-		async fetchSolution(caseData, revision = this.solutionRevision) {
+		async fetchSolution(caseData, revision = this.solutionRevision, requestedAt = performance.now()) {
 			if (!caseData) {
 				return;
 			}
@@ -1076,10 +1067,12 @@ export function createManualEditor({
 				this.solutionStale = false;
 				this.updateLabelDirections(true);
 				this.setStatus(`Solution: exact, length ${formatLength(length)}, 0 calls`);
-				this.draw();
+				this.requestDraw();
 				return;
 			}
-			this.setStatus(editorSolverState.module ? "Solving..." : editorSolverState.failed ? "WASM solver unavailable." : "Loading solver...");
+			const run = {};
+			this.solutionRun = run;
+			this.setStatus("Solving...");
 			try {
 				if (visitOrder() === "free") {
 					this.setStatus("Solving free visit order...");
@@ -1088,41 +1081,12 @@ export function createManualEditor({
 					this.solutionPath = result.path;
 					this.solutionStale = false;
 					this.updateLabelDirections(true);
-					this.setStatus(`Free order: ${result.exact ? "optimal within tolerance" : result.termination}, length ${formatLength(result.upper_bound)}, gap ${formatLength(result.upper_bound - result.lower_bound)}, order ${result.order.join(" → ")}`);
-					this.draw();
+					this.setStatus(`Free order: ${result.exact ? "optimal within tolerance" : result.termination}, length ${formatLength(result.upper_bound)}, gap ${formatLength(result.upper_bound - result.lower_bound)}, ${formatSeconds(result.seconds)} solver, ${formatSeconds((performance.now() - requestedAt) / 1000)} update, order ${result.order.join(" → ")}`);
+					this.requestDraw();
 					return;
 				}
-				await loadEditorWasm();
-				if (signal.aborted || revision !== this.solutionRevision) {
-					return;
-				}
-				if (!editorSolverState.module) {
-					if (revision !== this.solutionRevision) {
-						return;
-					}
-					this.solutionPath = null;
-					this.solutionStale = false;
-					this.updateLabelDirections(true);
-					this.setStatus("WASM solver unavailable.");
-					this.draw();
-					return;
-				}
-				let pieceGroups = null;
-				const solveStarted = performance.now();
-				if (!caseData.polygons.every(polygonIsConvex)) {
-					const geometry = await loadEditorGeometry();
-					if (signal.aborted || revision !== this.solutionRevision) {
-						return;
-					}
-					pieceGroups = geometry
-						? caseData.polygons.map((polygon) => (
-						geometry.partition.convexPartition(polygon.map(([x, y]) => new geometry.vector.Vector2(x, y)))
-							.filter((piece) => piece.length >= 3)
-							.map((piece) => piece.map((point) => [point.x, point.y]))
-						))
-						: caseData.polygons.map(convexDecomposition);
-				}
-				const wasmResult = await solveEditorWasmAsync(caseData, pieceGroups, signal);
+				const solveStarted = requestedAt;
+				const wasmResult = await solveEditorWasmAsync(caseData, null, signal);
 				const solveWallSeconds = (performance.now() - solveStarted) / 1000;
 				if (wasmResult) {
 					if (revision !== this.solutionRevision) {
@@ -1131,8 +1095,8 @@ export function createManualEditor({
 					this.solutionPath = wasmResult.path;
 					this.solutionStale = false;
 					this.updateLabelDirections(true);
-					this.setStatus(`Solution: ${wasmResult.exact ? "exact" : "approximate"}, length ${formatLength(wasmResult.length)}, ${wasmResult.calls} calls, ${formatSeconds(Math.max(wasmResult.seconds || 0, solveWallSeconds))} via WASM`);
-					this.draw();
+					this.setStatus(`Solution: ${wasmResult.exact ? "exact" : "approximate"}, length ${formatLength(wasmResult.length)}, ${wasmResult.calls} calls, ${wasmResult.seconds > 0 ? formatSeconds(wasmResult.seconds) : "below timer resolution"} solver, ${formatSeconds(solveWallSeconds)} update via WASM`);
+					this.requestDraw();
 					return;
 				}
 				if (revision !== this.solutionRevision) {
@@ -1142,10 +1106,19 @@ export function createManualEditor({
 				this.solutionStale = false;
 				this.updateLabelDirections(true);
 				this.setStatus("WASM solver could not solve this case.");
-				this.draw();
+				this.requestDraw();
 			} catch (error) {
-				if (error.name !== "AbortError") {
+				if (!signal.aborted && revision === this.solutionRevision && error.name !== "AbortError") {
 					this.setStatus(error.message);
+				}
+			} finally {
+				if (this.solutionRun === run) {
+					this.solutionRun = null;
+					this.solutionAbort = null;
+					if (this.solutionQueued) {
+						this.solutionQueued = false;
+						this.scheduleSolve();
+					}
 				}
 			}
 		},
@@ -1156,6 +1129,7 @@ export function createManualEditor({
 			const ctx = this.ctx;
 			ctx.fillStyle = cssVar("--editor-bg") || "#121417";
 			ctx.fillRect(0, 0, width, height);
+			this.drawBackground();
 			if (!this.layers.grid) {
 				return;
 			}
@@ -1174,20 +1148,22 @@ export function createManualEditor({
 				ctx.lineTo(end.x, end.y);
 				ctx.stroke();
 			};
+			const majorColor = cssVar("--editor-grid-major") || "#515a67";
+			const minorColor = cssVar("--editor-grid-minor") || "#2a2f38";
 			const firstX = Math.floor(left / gridSpacing) * gridSpacing;
 			const firstY = Math.floor(bottom / gridSpacing) * gridSpacing;
 			for (let x = firstX; x <= right + gridSpacing; x += gridSpacing) {
-				drawWorldLine([x, bottom], [x, top], cssVar("--editor-grid-major") || "#515a67");
+				drawWorldLine([x, bottom], [x, top], majorColor);
 				for (let index = 0; index < subGridCount; index += 1) {
 					const subX = x + (gridSpacing * (index + 1)) / (subGridCount + 1);
-					drawWorldLine([subX, bottom], [subX, top], cssVar("--editor-grid-minor") || "#2a2f38");
+					drawWorldLine([subX, bottom], [subX, top], minorColor);
 				}
 			}
 			for (let y = firstY; y <= top + gridSpacing; y += gridSpacing) {
-				drawWorldLine([left, y], [right, y], cssVar("--editor-grid-major") || "#515a67");
+				drawWorldLine([left, y], [right, y], majorColor);
 				for (let index = 0; index < subGridCount; index += 1) {
 					const subY = y + (gridSpacing * (index + 1)) / (subGridCount + 1);
-					drawWorldLine([left, subY], [right, subY], cssVar("--editor-grid-minor") || "#2a2f38");
+					drawWorldLine([left, subY], [right, subY], minorColor);
 				}
 			}
 			const origin = this.worldToCanvas([0, 0]);
@@ -1250,14 +1226,17 @@ export function createManualEditor({
 					this.selectionAnimationRunning = false;
 					return;
 				}
-				this.draw();
+				this.requestDraw();
 				requestAnimationFrame(tick);
 			};
 			requestAnimationFrame(tick);
 		},
 
 		drawDecomposition(polygon, color) {
-			const pieces = displayPartition(polygon, () => this.draw(), (message) => this.setStatus?.(message));
+			if (polygonIsConvex(polygon)) {
+				return;
+			}
+			const pieces = displayPartition(polygon, this.partitionReady ||= () => this.draw(), this.partitionFailed ||= (message) => this.setStatus?.(message));
 			if (!pieces || pieces.length <= 1) {
 				return;
 			}
@@ -1281,6 +1260,14 @@ export function createManualEditor({
 				ctx.stroke();
 			}
 			ctx.restore();
+		},
+
+		requestDraw() {
+			if (this.drawFrame != null) return;
+			this.drawFrame = requestAnimationFrame(() => {
+				this.drawFrame = null;
+				this.draw();
+			});
 		},
 
 		draw() {

@@ -9,23 +9,22 @@ export const editorSolverState = {
 	geometry: null,
 };
 
-export const WORKER_SOLVE_VERTEX_THRESHOLD = 120;
-const WASM_SOLVER_VERSION = "intersections-2026-09-01-length";
+const WASM_SOLVER_VERSION = "editor-align-2026-09-09d";
 let idleSolverWorker = null;
-
-function solveVertexCount(caseData, pieceGroups) {
-	if (pieceGroups) {
-		return pieceGroups.flat(2).length;
-	}
-	return caseData.polygons.reduce((sum, polygon) => sum + polygon.length, 0);
-}
 
 export function solveEditorWasmAsync(caseData, pieceGroups = null, signal = null) {
 	if (signal?.aborted) {
 		return Promise.reject(new DOMException("The solve was cancelled.", "AbortError"));
 	}
-	if (editorSolverState.module && solveVertexCount(caseData, pieceGroups) <= WORKER_SOLVE_VERTEX_THRESHOLD) {
-		return Promise.resolve(pieceGroups ? solveEditorWasmGroups(caseData, pieceGroups) : solveEditorWasm(caseData));
+	if (globalThis.__editorWasmAvailable === false) return Promise.resolve(null);
+	const smallConvex = !pieceGroups && caseData.polygons.length <= 4
+		&& caseData.polygons.reduce((count, polygon) => count + polygon.length, 0) <= 24
+		&& caseData.polygons.every(polygonIsConvex);
+	if (smallConvex) {
+		return loadEditorWasm().then(() => {
+			if (signal?.aborted) throw new DOMException("The solve was cancelled.", "AbortError");
+			return solveEditorWasm(caseData);
+		});
 	}
 	const worker = idleSolverWorker || new Worker(new URL(`./editor-solver-worker.js?v=${WASM_SOLVER_VERSION}`, import.meta.url), { type: "module" });
 	idleSolverWorker = null;
@@ -73,7 +72,11 @@ export function solveEditorWasmAsync(caseData, pieceGroups = null, signal = null
 				return;
 			}
 		}
-		worker.postMessage({ caseData, pieceGroups });
+		try {
+			worker.postMessage({ caseData: { start: caseData.start, target: caseData.target, polygons: caseData.polygons }, pieceGroups });
+		} catch (error) {
+			finish(reject, error);
+		}
 	});
 
 	return promise;
@@ -175,6 +178,7 @@ export function solveEditorWasm(caseData, maxCalls = 200000, maxSeconds = 3) {
 				pointIndex += 1;
 			});
 		});
+		const solveStarted = performance.now();
 		const pathSize = module._tpp_solve(
 			normalizedCase.start[0],
 			normalizedCase.start[1],
@@ -186,6 +190,7 @@ export function solveEditorWasm(caseData, maxCalls = 200000, maxSeconds = 3) {
 			maxCalls,
 			maxSeconds,
 		);
+		const solveSeconds = (performance.now() - solveStarted) / 1000;
 		if (pathSize < 0) {
 			return null;
 		}
@@ -200,7 +205,7 @@ export function solveEditorWasm(caseData, maxCalls = 200000, maxSeconds = 3) {
 			length: pathLength(path),
 			exact: module._tpp_solution_exact() === 1,
 			calls: module._tpp_solution_calls(),
-			seconds: module._tpp_solution_seconds(),
+			seconds: solveSeconds,
 			source: "wasm",
 		};
 	} finally {
@@ -239,6 +244,7 @@ export function solveEditorWasmGroups(caseData, pieceGroups, maxCalls = 200000, 
 				});
 			});
 		});
+		const solveStarted = performance.now();
 		const pathSize = module._tpp_solve_piece_groups(
 			normalizedCase.start[0],
 			normalizedCase.start[1],
@@ -251,6 +257,7 @@ export function solveEditorWasmGroups(caseData, pieceGroups, maxCalls = 200000, 
 			maxCalls,
 			maxSeconds,
 		);
+		const solveSeconds = (performance.now() - solveStarted) / 1000;
 		if (pathSize < 0) {
 			return null;
 		}
@@ -265,7 +272,7 @@ export function solveEditorWasmGroups(caseData, pieceGroups, maxCalls = 200000, 
 			length: pathLength(path),
 			exact: module._tpp_solution_exact() === 1,
 			calls: module._tpp_solution_calls(),
-			seconds: module._tpp_solution_seconds(),
+			seconds: solveSeconds,
 			source: "wasm",
 		};
 	} finally {

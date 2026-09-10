@@ -5,10 +5,13 @@ export function visitOrder() {
 export async function solveFreeOrder(caseData, signal) {
 	const response = await fetch("/api/editor/solve", {
 		method: "POST", headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ ...caseData, visit_order: "free" }), signal,
+		body: JSON.stringify({ start: caseData.start, target: caseData.target, polygons: caseData.polygons.filter(polygon => polygon.length >= 3), visit_order: "free" }), signal,
 	});
 	const result = await response.json();
-	if (!response.ok) throw new Error(result.detail || "Free-order solver failed.");
+	if (!response.ok) {
+		const detail = Array.isArray(result.detail) ? result.detail.map(item => item.msg).join("; ") : result.detail;
+		throw new Error(detail || "Free-order solver failed.");
+	}
 	return result;
 }
 

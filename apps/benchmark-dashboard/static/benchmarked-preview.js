@@ -1,4 +1,4 @@
-import { instanceLabel } from "./case-data.js";
+import { instanceLabel } from "./case-data.js?v=editor-align-2026-09-09d";
 
 export function instancePreviewUrl(campaign, index) {
 	return `/api/campaigns/${encodeURIComponent(campaign.name)}/preview/instance-${index}?v=${campaign.version || ""}`;

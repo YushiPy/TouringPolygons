@@ -1,4 +1,5 @@
 #include "tests.h"
+#include "tpp/convex/solution.h"
 #include "tpp_convex.h"
 
 #include <cmath>
@@ -171,6 +172,25 @@ namespace {
 }
 
 int main() {
+	class RepeatedQuery final : public tpp::Solution {
+	public:
+		using tpp::Solution::Solution;
+		size_t calls = 0;
+		int64_t locate_point(const Vector2& point, size_t i) override {
+			++calls;
+			query(point, i - 1);
+			return -1;
+		}
+	};
+	const Vector2 cache_start(0, 0), cache_target(1, 1);
+	const vector<vector<Vector2>> cache_polygons(10, {{2, 2}, {3, 2}, {2, 3}});
+	RepeatedQuery repeated(cache_start, cache_target, cache_polygons);
+	repeated.initialize_storage();
+	repeated.query({4, 4}, cache_polygons.size());
+	if (repeated.calls != cache_polygons.size()) {
+		throw std::runtime_error("Repeated recursive queries must reuse their previous result.");
+	}
+
 	verify_case(
 		"straight line visits separated convex polygons",
 		Vector2(5.6599944320712705, 41.90941119153675),

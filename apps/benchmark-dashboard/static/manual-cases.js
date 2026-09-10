@@ -1,3 +1,5 @@
+/* global Event */
+
 export function createManualCaseController(deps) {
 	const {
 		$,
@@ -538,8 +540,8 @@ export function createManualCaseController(deps) {
 		const current = manualEditor.currentCase();
 		const row = document.querySelector(`.manual-case-row[data-case-index="${state.manualCaseIndex}"]`);
 		const label = row?.querySelector("[data-case-polygon-count]");
-		if (label && current) {
-			label.innerHTML = polygonCountLabel(current);
+		if (label && current && label.textContent !== polygonCountLabel(current)) {
+			label.textContent = polygonCountLabel(current);
 		}
 	}
 
@@ -669,6 +671,7 @@ export function createManualCaseController(deps) {
 	}
 
 	async function selectManualCampaign(name) {
+		manualEditor.cancelPendingSolution();
 		state.manualCampaign = name;
 		state.loadedManualCampaign = "";
 		state.manualCases = [];

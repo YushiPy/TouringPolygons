@@ -21,6 +21,7 @@ from free_order_campaign import ensure_binary  # noqa: E402
 from unordered_runner import run_unordered_solver  # noqa: E402
 
 _build_lock = threading.Lock()
+_live_binary: Path | None = None
 
 
 def free_command(request, campaign: Path, cli: Path, *, comparison: bool = False) -> list[str]:
@@ -135,8 +136,11 @@ def recorded_results() -> dict:
 
 async def solve_free_editor(case) -> dict:
     def run():
+        global _live_binary
         with _build_lock:
-            binary = ensure_binary()
+            if _live_binary is None:
+                _live_binary = ensure_binary()
+            binary = _live_binary
         return run_unordered_solver(binary, case[0], case[1], case[2], 200000, 3)
 
     try:

@@ -8,6 +8,7 @@
 		"test:event": ".venv/bin/python -m unittest discover -s tests -p test_event.py && node --test tests/event-geometry.test.mjs",
 		"test:all": "scripts/run-tests.sh",
 		"test:browser:free": "node tests/free-order-smoke.mjs",
+		"test:browser:editor": "node tests/editor-performance.mjs",
 		"test:browser": "node tests/browser_smoke.mjs",
 		"check:js": "for file in static/*.js; do node --check \"$file\"; done",
 		"lint:js": "eslint static tests"

@@ -1,4 +1,7 @@
+/* global Image */
+
 const TILE_SIZE = 256;
+const MAX_TILES = 128;
 const EARTH_RADIUS = 6378137;
 const MAX_LATITUDE = 85.051129;
 
@@ -23,14 +26,6 @@ function pixelLocation(x, y, zoom) {
 	};
 }
 
-function mercatorMeters(latitude, longitude) {
-	const lat = clamp(latitude, -MAX_LATITUDE, MAX_LATITUDE) * Math.PI / 180;
-	return [
-		EARTH_RADIUS * longitude * Math.PI / 180,
-		EARTH_RADIUS * Math.log(Math.tan(Math.PI / 4 + lat / 2)),
-	];
-}
-
 export function createSatelliteMap({ $, manualEditor, scheduleManualAutosave }) {
 	const state = {
 		canvas: null,
@@ -38,16 +33,31 @@ export function createSatelliteMap({ $, manualEditor, scheduleManualAutosave }) 
 		latitude: -23.5614,
 		longitude: -46.7308,
 		zoom: 19,
+		instanceScale: 1,
+		offsetX: 0,
+		offsetY: 0,
+		unitsPerPixel: 1,
+		mode: "polygon",
 		points: [],
 		drag: null,
 		moved: false,
 		tiles: new Map(),
+		active: false,
+		width: 0,
+		height: 0,
+		frame: null,
 	};
 
 	function resize() {
-		const ratio = window.devicePixelRatio || 1;
-		state.canvas.width = Math.max(1, Math.round(state.canvas.clientWidth * ratio));
-		state.canvas.height = Math.max(1, Math.round(state.canvas.clientHeight * ratio));
+		if (!state.active) return;
+		const container = state.canvas.parentElement;
+		state.width = Math.min(2048, Math.max(1, container.clientWidth));
+		state.height = Math.min(1024, Math.max(1, container.clientHeight));
+		const ratio = Math.min(window.devicePixelRatio || 1, 2);
+		const width = Math.max(1, Math.round(state.width * ratio));
+		const height = Math.max(1, Math.round(state.height * ratio));
+		if (state.canvas.width !== width) state.canvas.width = width;
+		if (state.canvas.height !== height) state.canvas.height = height;
 		state.ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
 		draw();
 	}
@@ -58,20 +68,18 @@ export function createSatelliteMap({ $, manualEditor, scheduleManualAutosave }) 
 
 	function screenToLocation(x, y) {
 		const center = centerPixel();
-		return pixelLocation(
-			center.x + x - state.canvas.clientWidth / 2,
-			center.y + y - state.canvas.clientHeight / 2,
-			state.zoom,
-		);
+		return pixelLocation(center.x + (x - state.width / 2 - state.offsetX) / state.instanceScale,
+			center.y + (y - state.height / 2 - state.offsetY) / state.instanceScale, state.zoom);
 	}
 
-	function locationToScreen(location) {
-		const center = centerPixel();
-		const point = worldPixel(location.latitude, location.longitude, state.zoom);
-		return {
-			x: point.x - center.x + state.canvas.clientWidth / 2,
-			y: point.y - center.y + state.canvas.clientHeight / 2,
-		};
+	function screenToWorld(x, y) {
+		return [(x - state.width / 2 - state.offsetX) * state.unitsPerPixel / state.instanceScale,
+			-(y - state.height / 2 - state.offsetY) * state.unitsPerPixel / state.instanceScale];
+	}
+
+	function worldToScreen([x, y]) {
+		return { x: state.width / 2 + state.offsetX + x / state.unitsPerPixel * state.instanceScale,
+			y: state.height / 2 + state.offsetY - y / state.unitsPerPixel * state.instanceScale };
 	}
 
 	function requestTile(zoom, x, y) {
@@ -82,41 +90,55 @@ export function createSatelliteMap({ $, manualEditor, scheduleManualAutosave }) 
 		if (!state.tiles.has(key)) {
 			const image = new Image();
 			image.crossOrigin = "anonymous";
-			image.addEventListener("load", draw, { once: true });
+			image.onload = draw;
+			image.onerror = () => {
+				if (state.active) $("#satellite-status").textContent = "Some satellite tiles could not load. Check your connection or try another area.";
+			};
 			image.src = `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${y}/${wrappedX}`;
 			state.tiles.set(key, image);
 		}
-		return state.tiles.get(key);
+		const image = state.tiles.get(key);
+		state.tiles.delete(key);
+		state.tiles.set(key, image);
+		while (state.tiles.size > MAX_TILES) {
+			const oldest = state.tiles.keys().next().value;
+			const discarded = state.tiles.get(oldest);
+			discarded.onload = discarded.onerror = null;
+			if (!discarded.complete) discarded.src = "";
+			state.tiles.delete(oldest);
+		}
+		return image;
 	}
 
 	function drawTiles() {
 		const center = centerPixel();
-		const left = center.x - state.canvas.clientWidth / 2;
-		const top = center.y - state.canvas.clientHeight / 2;
+		if (![center.x, center.y, state.width, state.height].every(Number.isFinite)) return;
+		const left = center.x - (state.width / 2 + state.offsetX) / state.instanceScale;
+		const top = center.y - (state.height / 2 + state.offsetY) / state.instanceScale;
 		const minX = Math.floor(left / TILE_SIZE);
 		const minY = Math.floor(top / TILE_SIZE);
-		const maxX = Math.floor((left + state.canvas.clientWidth) / TILE_SIZE);
-		const maxY = Math.floor((top + state.canvas.clientHeight) / TILE_SIZE);
-		for (let y = minY; y <= maxY; y += 1) {
-			for (let x = minX; x <= maxX; x += 1) {
+		state.visibleTiles = [];
+		const columns = Math.min(11, Math.ceil(state.width / state.instanceScale / TILE_SIZE) + 1);
+		const rows = Math.min(8, Math.ceil(state.height / state.instanceScale / TILE_SIZE) + 1);
+		for (let row = 0; row < rows; row += 1) {
+			for (let column = 0; column < columns; column += 1) {
+				const x = minX + column, y = minY + row;
 				const image = requestTile(state.zoom, x, y);
+				if (image) state.visibleTiles.push(image);
 				if (image?.complete && image.naturalWidth) {
-					state.ctx.drawImage(image, x * TILE_SIZE - left, y * TILE_SIZE - top, TILE_SIZE, TILE_SIZE);
+					state.ctx.drawImage(image, (x * TILE_SIZE - left) * state.instanceScale,
+						(y * TILE_SIZE - top) * state.instanceScale, TILE_SIZE * state.instanceScale, TILE_SIZE * state.instanceScale);
 				}
 			}
 		}
 	}
 
 	function drawExistingPolygons() {
-		const view = manualEditor.currentCase()?.map_view;
-		if (!view) return;
-		const origin = mercatorMeters(view.latitude, view.longitude);
-		for (const polygon of manualEditor.currentCase()?.polygons || []) {
+		const current = manualEditor.currentCase();
+		for (const polygon of current?.polygons || []) {
 			state.ctx.beginPath();
-			polygon.forEach(([x, y], index) => {
-				const longitude = (origin[0] + x) / EARTH_RADIUS * 180 / Math.PI;
-				const latitude = (2 * Math.atan(Math.exp((origin[1] + y) / EARTH_RADIUS)) - Math.PI / 2) * 180 / Math.PI;
-				const screen = locationToScreen({ latitude, longitude });
+			polygon.forEach((point, index) => {
+				const screen = worldToScreen(point);
 				if (index === 0) state.ctx.moveTo(screen.x, screen.y);
 				else state.ctx.lineTo(screen.x, screen.y);
 			});
@@ -127,13 +149,23 @@ export function createSatelliteMap({ $, manualEditor, scheduleManualAutosave }) 
 			state.ctx.fill();
 			state.ctx.stroke();
 		}
+		for (const [key, color] of [["start", "#22c55e"], ["target", "#ef4444"]]) {
+			if (!current?.[key]) continue;
+			const screen = worldToScreen(current[key]);
+			state.ctx.fillStyle = color;
+			state.ctx.beginPath();
+			state.ctx.arc(screen.x, screen.y, 5, 0, 2 * Math.PI);
+			state.ctx.fill();
+			state.ctx.font = "14px system-ui";
+			state.ctx.fillText(key === "start" ? "s" : "t", screen.x + 8, screen.y - 8);
+		}
 	}
 
 	function drawTrace() {
 		if (!state.points.length) return;
 		state.ctx.beginPath();
 		state.points.forEach((point, index) => {
-			const screen = locationToScreen(point);
+			const screen = worldToScreen(point);
 			if (index === 0) state.ctx.moveTo(screen.x, screen.y);
 			else state.ctx.lineTo(screen.x, screen.y);
 		});
@@ -141,7 +173,7 @@ export function createSatelliteMap({ $, manualEditor, scheduleManualAutosave }) 
 		state.ctx.lineWidth = 3;
 		state.ctx.stroke();
 		for (const point of state.points) {
-			const screen = locationToScreen(point);
+			const screen = worldToScreen(point);
 			state.ctx.beginPath();
 			state.ctx.arc(screen.x, screen.y, 5, 0, Math.PI * 2);
 			state.ctx.fillStyle = "#facc15";
@@ -150,10 +182,18 @@ export function createSatelliteMap({ $, manualEditor, scheduleManualAutosave }) 
 	}
 
 	function draw() {
+		if (!state.active || state.frame !== null) return;
+		state.frame = requestAnimationFrame(() => {
+			state.frame = null;
+			if (state.active) render();
+		});
+	}
+
+	function render() {
 		if (!state.ctx) return;
-		state.ctx.clearRect(0, 0, state.canvas.clientWidth, state.canvas.clientHeight);
+		state.ctx.clearRect(0, 0, state.width, state.height);
 		state.ctx.fillStyle = "#17202a";
-		state.ctx.fillRect(0, 0, state.canvas.clientWidth, state.canvas.clientHeight);
+		state.ctx.fillRect(0, 0, state.width, state.height);
 		drawTiles();
 		drawExistingPolygons();
 		drawTrace();
@@ -165,15 +205,41 @@ export function createSatelliteMap({ $, manualEditor, scheduleManualAutosave }) 
 	}
 
 	function setCenter(latitude, longitude) {
+		if (!Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude))) return;
 		state.latitude = clamp(Number(latitude), -85, 85);
 		state.longitude = clamp(Number(longitude), -180, 180);
 		syncInputs();
 		draw();
 	}
 
-	function zoom(delta) {
+	function zoom(delta, x = state.width / 2, y = state.height / 2) {
+		const anchor = screenToLocation(x, y);
 		state.zoom = clamp(state.zoom + delta, 1, 20);
+		const pixel = worldPixel(anchor.latitude, anchor.longitude, state.zoom);
+		const center = pixelLocation(pixel.x - (x - state.width / 2 - state.offsetX) / state.instanceScale,
+			pixel.y - (y - state.height / 2 - state.offsetY) / state.instanceScale, state.zoom);
+		state.latitude = center.latitude;
+		state.longitude = center.longitude;
+		syncInputs();
 		draw();
+	}
+
+	function zoomInstance(factor, x = state.width / 2, y = state.height / 2) {
+		const oldScale = state.instanceScale;
+		// Keep at most 96 visible tiles, including partially visible edge tiles.
+		const minimum = Math.max(state.width / (10 * TILE_SIZE), state.height / (7 * TILE_SIZE));
+		state.instanceScale = clamp(oldScale * factor, minimum, 16);
+		const ratio = state.instanceScale / oldScale;
+		state.offsetX = x - state.width / 2 - (x - state.width / 2 - state.offsetX) * ratio;
+		state.offsetY = y - state.height / 2 - (y - state.height / 2 - state.offsetY) * ratio;
+		draw();
+	}
+
+	function saveView() {
+		const current = manualEditor.currentCase();
+		current.map_view = { latitude: clamp(state.latitude, -85, 85),
+			longitude: ((state.longitude + 180) % 360 + 360) % 360 - 180,
+			zoom: state.zoom, units_per_pixel: state.unitsPerPixel };
 	}
 
 	function open() {
@@ -183,17 +249,44 @@ export function createSatelliteMap({ $, manualEditor, scheduleManualAutosave }) 
 		}
 		const view = manualEditor.currentCase().map_view;
 		if (view) {
-			state.latitude = view.latitude;
-			state.longitude = view.longitude;
-			state.zoom = view.zoom;
+			state.latitude = clamp(view.latitude, -85, 85);
+			state.longitude = clamp(view.longitude, -180, 180);
+			state.zoom = clamp(Math.round(view.zoom), 1, 20);
 		}
+		state.unitsPerPixel = view?.units_per_pixel || (view ? 2 * Math.PI * EARTH_RADIUS / (TILE_SIZE * 2 ** view.zoom) : 0);
+		if (!state.unitsPerPixel) {
+			const bounds = manualEditor.caseBounds();
+			state.unitsPerPixel = Math.max(bounds ? Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) / 400 : 1, 1e-6);
+		}
+		state.instanceScale = 1;
+		state.offsetX = state.offsetY = 0;
+		state.active = true;
 		state.points = [];
 		syncInputs();
 		$("#satellite-modal").classList.remove("is-hidden");
-		requestAnimationFrame(resize);
+		requestAnimationFrame(() => {
+			resize();
+			const bounds = manualEditor.caseBounds();
+			if (bounds) {
+				state.offsetX = -(bounds.minX + bounds.maxX) / 2 / state.unitsPerPixel;
+				state.offsetY = (bounds.minY + bounds.maxY) / 2 / state.unitsPerPixel;
+			}
+			draw();
+		});
 	}
 
 	function close() {
+		if (state.active) { saveView(); scheduleManualAutosave(); }
+		state.active = false;
+		state.drag = null;
+		if (state.frame !== null) cancelAnimationFrame(state.frame);
+		state.frame = null;
+		for (const image of state.tiles.values()) {
+			image.onload = image.onerror = null;
+			if (!image.complete) image.src = "";
+		}
+		state.tiles.clear();
+		state.canvas.width = state.canvas.height = 1;
 		$("#satellite-modal").classList.add("is-hidden");
 	}
 
@@ -203,17 +296,38 @@ export function createSatelliteMap({ $, manualEditor, scheduleManualAutosave }) 
 			return;
 		}
 		const current = manualEditor.currentCase();
-		const view = current.map_view || { latitude: state.latitude, longitude: state.longitude, zoom: state.zoom };
-		const origin = mercatorMeters(view.latitude, view.longitude);
-		current.map_view = { ...view, zoom: state.zoom };
-		current.polygons.push(state.points.map((point) => {
-			const meters = mercatorMeters(point.latitude, point.longitude);
-			return [meters[0] - origin[0], meters[1] - origin[1]];
-		}));
+		saveView();
+		current.polygons.push(state.points.map(point => [...point]));
 		state.points = [];
 		manualEditor.changed();
 		scheduleManualAutosave({ immediate: true });
-		close();
+		$("#satellite-status").textContent = `Polygon added. ${current.polygons.length} polygons in this instance. Click to draw the next one.`;
+		draw();
+	}
+
+	function useBackground() {
+		if (!state.visibleTiles?.length || state.visibleTiles.some(image => !image.complete || !image.naturalWidth)) {
+			$("#satellite-status").textContent = "Wait for the visible imagery to load before applying the background.";
+			return;
+		}
+		state.ctx.fillStyle = "#17202a";
+		state.ctx.fillRect(0, 0, state.width, state.height);
+		drawTiles();
+		try {
+			const current = manualEditor.currentCase();
+			const lower = screenToWorld(0, state.height), upper = screenToWorld(state.width, 0);
+			current.background = { data_url: state.canvas.toDataURL("image/jpeg", 0.9), opacity: 0.65,
+				bounds: [lower[0], lower[1], upper[0], upper[1]] };
+			saveView();
+			manualEditor.backgroundSource = "";
+			manualEditor.frameBounds(manualEditor.backgroundBounds());
+			window.dispatchEvent(new window.Event("manual-case-changed"));
+			scheduleManualAutosave({ immediate: true });
+			close();
+		} catch {
+			$("#satellite-status").textContent = "Could not export the imagery. Check the tile connection and try again.";
+			draw();
+		}
 	}
 
 	function init() {
@@ -226,8 +340,12 @@ export function createSatelliteMap({ $, manualEditor, scheduleManualAutosave }) 
 		$("#satellite-zoom-out").addEventListener("click", () => zoom(-1));
 		$("#satellite-undo").addEventListener("click", () => { state.points.pop(); draw(); });
 		$("#satellite-finish").addEventListener("click", finish);
+		$("#satellite-use-background").addEventListener("click", useBackground);
+		$("#satellite-instance-in").addEventListener("click", () => zoomInstance(1.25));
+		$("#satellite-instance-out").addEventListener("click", () => zoomInstance(1 / 1.25));
+		$("#satellite-tool").addEventListener("change", event => { state.mode = event.target.value; });
 		state.canvas.addEventListener("pointerdown", (event) => {
-			state.drag = { x: event.clientX, y: event.clientY, center: centerPixel() };
+			state.drag = { x: event.clientX, y: event.clientY, center: centerPixel(), offsetX: state.offsetX, offsetY: state.offsetY };
 			state.moved = false;
 			state.canvas.setPointerCapture(event.pointerId);
 		});
@@ -236,25 +354,42 @@ export function createSatelliteMap({ $, manualEditor, scheduleManualAutosave }) 
 			const dx = event.clientX - state.drag.x;
 			const dy = event.clientY - state.drag.y;
 			if (Math.hypot(dx, dy) > 3) state.moved = true;
-			const location = pixelLocation(state.drag.center.x - dx, state.drag.center.y - dy, state.zoom);
-			state.latitude = location.latitude;
-			state.longitude = location.longitude;
-			syncInputs();
+			if (state.mode === "map") {
+				const location = pixelLocation(state.drag.center.x - dx / state.instanceScale, state.drag.center.y - dy / state.instanceScale, state.zoom);
+				state.latitude = clamp(location.latitude, -85, 85);
+				state.longitude = ((location.longitude + 180) % 360 + 360) % 360 - 180;
+				syncInputs();
+			} else {
+				state.offsetX = state.drag.offsetX + dx;
+				state.offsetY = state.drag.offsetY + dy;
+			}
 			draw();
 		});
+		state.canvas.addEventListener("pointercancel", () => { state.drag = null; });
 		state.canvas.addEventListener("pointerup", (event) => {
+			if (!state.drag) return;
 			if (!state.moved) {
 				const rect = state.canvas.getBoundingClientRect();
-				state.points.push(screenToLocation(event.clientX - rect.left, event.clientY - rect.top));
+				const point = screenToWorld(event.clientX - rect.left, event.clientY - rect.top);
+				if (state.mode === "polygon") state.points.push(point);
+				else if (state.mode === "start" || state.mode === "target") {
+					manualEditor.currentCase()[state.mode] = point;
+					manualEditor.changed();
+				}
 				draw();
 			}
 			state.drag = null;
 		});
 		state.canvas.addEventListener("wheel", (event) => {
 			event.preventDefault();
-			zoom(event.deltaY < 0 ? 1 : -1);
+			const rect = state.canvas.getBoundingClientRect();
+			const x = event.clientX - rect.left, y = event.clientY - rect.top;
+			if ($("#satellite-wheel-mode").value === "instance") zoomInstance(Math.exp(-clamp(event.deltaY, -100, 100) * 0.005), x, y);
+			else zoom(event.deltaY < 0 ? 1 : -1, x, y);
 		}, { passive: false });
-		new ResizeObserver(resize).observe(state.canvas);
+		new ResizeObserver(() => {
+			if (state.active) requestAnimationFrame(resize);
+		}).observe(state.canvas.parentElement);
 	}
 
 	return { init, open, close };

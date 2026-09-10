@@ -31,6 +31,7 @@ import {
 	THEME_STORAGE_KEY,
 } from "../static/storage.js";
 import { createManualCaseController } from "../static/manual-cases.js";
+import { displayPartition } from "../static/native-partition.js";
 import { sortCampaigns, sortInstances } from "../static/sorting.js";
 
 test("storage keys remain stable and distinct", () => {
@@ -157,6 +158,31 @@ test("crossing quadrilaterals decompose before convex solving", () => {
 	assert.deepEqual(pieces.map((piece) => piece.length), [3, 3]);
 });
 
+test("partition completion settles before redraw callbacks run", async () => {
+	const originalFetch = globalThis.fetch;
+	const polygon = [[901, 900], [902, 900], [901, 901]];
+	globalThis.fetch = async () => ({
+		ok: true,
+		json: async () => ({ pieces: [[polygon]] }),
+	});
+	let redraws = 0;
+	try {
+		await new Promise((resolve, reject) => {
+			displayPartition(polygon, () => {
+				redraws += 1;
+				displayPartition(polygon, () => {
+					redraws += 1;
+				}, reject);
+				resolve();
+			}, reject);
+		});
+		assert.equal(redraws, 1);
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
+
 test("campaign and instance sorting can be reversed", () => {
 	const campaigns = [
 		{ name: "beta", order: 1, instance_progress: { total: 2 } },
@@ -222,4 +248,45 @@ test("job utilities classify job state consistently", () => {
 	assert.equal(jobProgressLabel(job), "1/2 solvers, 4/10 instances");
 	assert.equal(jobTerminalState({ status: "completed" }), "completed");
 	assert.equal(jobDockStatusClass({ status: "failed" }), "is-failed");
+});
+
+
+test("partition failures settle before error callbacks redraw", async () => {
+	const originalFetch = globalThis.fetch;
+	const polygon = [[911, 900], [912, 900], [911, 901]];
+	globalThis.fetch = async () => ({ ok: false });
+	let errors = 0;
+	try {
+		await new Promise(resolve => {
+			const failed = () => {
+				errors += 1;
+				displayPartition(polygon, () => {}, failed);
+				resolve();
+			};
+			displayPartition(polygon, () => {}, failed);
+		});
+		assert.equal(errors, 1);
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
+test("editing a polygon cancels its obsolete partition request", async () => {
+	const originalFetch = globalThis.fetch;
+	const requests = [];
+	const polygon = [[921, 900], [922, 900], [921, 901]];
+	globalThis.fetch = (_, options) => {
+		requests.push(options.signal);
+		return new Promise(() => {});
+	};
+	try {
+		displayPartition(polygon, () => {}, () => {});
+		polygon[0][0] += 1;
+		displayPartition(polygon, () => {}, () => {});
+		assert.equal(requests.length, 2);
+		assert.equal(requests[0].aborted, true);
+		assert.equal(requests[1].aborted, false);
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
 });

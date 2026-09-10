@@ -405,7 +405,7 @@
 	width: 82px;
 }
 
-.satellite-card {
+.modal-card.satellite-card {
 	width: min(1180px, 100%);
 }
 
@@ -424,6 +424,8 @@
 }
 
 .satellite-map-wrap {
+	height: min(68vh, 680px);
+	contain: size layout;
 	position: relative;
 	overflow: hidden;
 	border: 1px solid var(--line);
@@ -432,9 +434,11 @@
 }
 
 #satellite-map {
+	position: absolute;
+	inset: 0;
 	display: block;
 	width: 100%;
-	height: min(68vh, 680px);
+	height: 100%;
 	cursor: crosshair;
 	touch-action: none;
 }

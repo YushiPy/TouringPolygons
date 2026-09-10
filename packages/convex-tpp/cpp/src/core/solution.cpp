@@ -89,6 +89,7 @@ namespace tpp {
 	{}
 
 	void Solution::initialize_storage() {
+		last_query.reset();
 		size_t vertex_count = 0;
 
 		for (size_t i = 0; i < polygons.size(); i++) {
@@ -248,6 +249,15 @@ namespace tpp {
 	}
 
 	Vector2 Solution::query(const Vector2& point, size_t i) {
+		if (last_query && last_query->index == i && last_query->point.x == point.x && last_query->point.y == point.y) {
+			return last_query->previous;
+		}
+		const auto previous = query_uncached(point, i);
+		last_query = QueryResult{point, i, previous};
+		return previous;
+	}
+
+	Vector2 Solution::query_uncached(const Vector2& point, size_t i) {
 
 		if (i == 0) {
 			return start;

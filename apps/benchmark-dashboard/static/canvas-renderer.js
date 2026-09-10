@@ -2,7 +2,6 @@ export function drawCanvasScene(renderer) {
 	if (!renderer.canvas || !renderer.ctx) {
 		return;
 	}
-	renderer.drawBackground();
 	renderer.drawGrid();
 	const current = renderer.currentCase();
 	if (!current) {

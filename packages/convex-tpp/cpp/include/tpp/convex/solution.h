@@ -23,6 +23,9 @@ namespace tpp {
 		std::optional<ConvexTppWorkspaceView> external_workspace;
 		ConvexTppWorkspaceView workspace;
 
+		struct QueryResult { Vector2 point; size_t index; Vector2 previous; };
+		std::optional<QueryResult> last_query;
+
 		Solution(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons);
 		Solution(
 			const Vector2& start,
@@ -81,6 +84,7 @@ namespace tpp {
 		in order and ends at `point`.
 		*/
 		Vector2 query(const Vector2& point, size_t i);
+		Vector2 query_uncached(const Vector2& point, size_t i);
 
 		/*
 		Returns the shortest path from `start` to `target` that visits all polygons in `polygons` in order.

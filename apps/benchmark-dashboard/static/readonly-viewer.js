@@ -1,9 +1,8 @@
-import { visitOrder, solveFreeOrder } from "./order-mode.js";
+import { visitOrder, solveFreeOrder } from "./order-mode.js?v=editor-align-2026-09-09d";
 import { drawCanvasScene } from "./canvas-renderer.js";
-import { cloneCaseData } from "./case-data.js";
+import { cloneCaseData } from "./case-data.js?v=editor-align-2026-09-09d";
 import { escapeHTML } from "./dom.js";
-import { convexDecomposition, polygonIsConvex } from "./editor-geometry.js";
-import { editorSolverState, loadEditorGeometry, loadEditorWasm, solveEditorWasmAsync } from "./editor-solver.js?v=intersections-2026-09-01-length";
+import { solveEditorWasmAsync } from "./editor-solver.js?v=editor-align-2026-09-09d";
 import { formatLength, formatSeconds } from "./format.js";
 import { bindTapZoom } from "./ui-utils.js";
 
@@ -74,9 +73,13 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 			}
 		},
 		resize: manualEditor.resize,
+		requestDraw: manualEditor.requestDraw,
 		caseBounds: manualEditor.caseBounds,
 		updateZoomLimits: manualEditor.updateZoomLimits,
 		frameCurrentCase: manualEditor.frameCurrentCase,
+		frameBounds: manualEditor.frameBounds,
+		backgroundBounds: manualEditor.backgroundBounds,
+		drawBackground: manualEditor.drawBackground,
 		pointRadius: manualEditor.pointRadius,
 		worldToCanvas: manualEditor.worldToCanvas,
 		canvasToWorld: manualEditor.canvasToWorld,
@@ -110,6 +113,7 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 		destroy() {
 			window.removeEventListener("visit-order-changed", orderChanged);
 			this.cancelPendingSolution();
+			if (this.drawFrame != null) { cancelAnimationFrame(this.drawFrame); this.drawFrame = null; }
 			if (this.labelAnimation) {
 				cancelAnimationFrame(this.labelAnimation);
 				this.labelAnimation = null;
@@ -136,49 +140,22 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 			}
 			this.solutionAbort = new AbortController();
 			const signal = this.solutionAbort.signal;
-			this.setStatus(editorSolverState.module ? "Solving..." : editorSolverState.failed ? "WASM solver unavailable." : "Loading solver...");
+			this.setStatus("Solving...");
 			try {
 				if (visitOrder() === "free") {
 					this.setStatus("Solving free visit order...");
+					const requestedAt = performance.now();
 					const result = await solveFreeOrder(caseData, signal);
 					if (signal.aborted || revision !== this.solutionRevision) return;
 					this.solutionPath = result.path;
 					this.solutionStale = false;
 					this.updateLabelDirections(true);
-					this.setStatus(`Free order: ${result.exact ? "optimal within tolerance" : result.termination}, length ${formatLength(result.upper_bound)}, gap ${formatLength(result.upper_bound - result.lower_bound)}, order ${result.order.join(" → ")}`);
+					this.setStatus(`Free order: ${result.exact ? "optimal within tolerance" : result.termination}, length ${formatLength(result.upper_bound)}, gap ${formatLength(result.upper_bound - result.lower_bound)}, ${formatSeconds(result.seconds)} solver, ${formatSeconds((performance.now() - requestedAt) / 1000)} update, order ${result.order.join(" → ")}`);
 					this.draw();
 					return;
 				}
-				await loadEditorWasm();
-				if (signal.aborted || revision !== this.solutionRevision) {
-					return;
-				}
-				if (!editorSolverState.module) {
-					if (revision !== this.solutionRevision) {
-						return;
-					}
-					this.solutionPath = null;
-					this.solutionStale = false;
-					this.setStatus("WASM solver unavailable.");
-					this.draw();
-					return;
-				}
-				let pieceGroups = null;
 				const solveStarted = performance.now();
-				if (!caseData.polygons.every(polygonIsConvex)) {
-					const geometry = await loadEditorGeometry();
-					if (signal.aborted || revision !== this.solutionRevision) {
-						return;
-					}
-					pieceGroups = geometry
-						? caseData.polygons.map((polygon) => (
-						geometry.partition.convexPartition(polygon.map(([x, y]) => new geometry.vector.Vector2(x, y)))
-							.filter((piece) => piece.length >= 3)
-							.map((piece) => piece.map((point) => [point.x, point.y]))
-						))
-						: caseData.polygons.map(convexDecomposition);
-				}
-				const wasmResult = await solveEditorWasmAsync(caseData, pieceGroups, signal);
+				const wasmResult = await solveEditorWasmAsync(caseData, null, signal);
 				const solveWallSeconds = (performance.now() - solveStarted) / 1000;
 				if (revision !== this.solutionRevision) {
 					return;
@@ -187,11 +164,11 @@ export function createReadonlyInstanceViewer(canvas, caseData, options = {}) {
 				this.solutionStale = false;
 				this.updateLabelDirections(true);
 				this.setStatus(wasmResult
-					? `Solution: ${wasmResult.exact ? "exact" : "approximate"}, length ${formatLength(wasmResult.length)}, ${wasmResult.calls} calls, ${formatSeconds(Math.max(wasmResult.seconds || 0, solveWallSeconds))} via WASM`
+					? `Solution: ${wasmResult.exact ? "exact" : "approximate"}, length ${formatLength(wasmResult.length)}, ${wasmResult.calls} calls, ${wasmResult.seconds > 0 ? formatSeconds(wasmResult.seconds) : "below timer resolution"} solver, ${formatSeconds(solveWallSeconds)} update via WASM`
 					: "WASM solver could not solve this case.");
 				this.draw();
 			} catch (error) {
-				if (error.name !== "AbortError") {
+				if (!signal.aborted && revision === this.solutionRevision && error.name !== "AbortError") {
 					this.setStatus(error.message);
 				}
 			}

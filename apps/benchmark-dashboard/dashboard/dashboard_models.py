@@ -113,6 +113,7 @@ class BackgroundImage(BaseModel):
 
 
 class MapView(BaseModel):
+    units_per_pixel: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     latitude: float = Field(ge=-85.0, le=85.0)
     longitude: float = Field(ge=-180.0, le=180.0)
     zoom: int = Field(default=19, ge=1, le=20)

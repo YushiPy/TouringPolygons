@@ -1,9 +1,11 @@
-import { visitOrder, setupVisitOrder } from "./order-mode.js";
+/* global FileReader, Image */
+
+import { visitOrder, setupVisitOrder } from "./order-mode.js?v=editor-align-2026-09-09d";
 import { renderFreeOrderReport } from "./free-order-report.js";
 import { requestJSON } from "./api.js";
 import { benchmarkedPreviewHTML, instancePreviewUrl } from "./benchmarked-preview.js";
-import { casePayload, cloneCaseData, emptyCaseData, instanceLabel } from "./case-data.js";
-import { createSatelliteMap } from "./satellite-map.js";
+import { casePayload, cloneCaseData, emptyCaseData, instanceLabel } from "./case-data.js?v=editor-align-2026-09-09d";
+import { createSatelliteMap } from "./satellite-map.js?v=editor-align-2026-09-09d";
 import { boolField, compareCommandFromForm, formData, runCommandFromForm } from "./command-builders.js";
 import { createDashboardControls } from "./controls.js";
 import { $, escapeHTML, setOutput } from "./dom.js";
@@ -12,7 +14,7 @@ import { renderCampaignChoiceGrid } from "./campaign-choice.js";
 import { formatElapsed, formatLength, formatMicroseconds, formatSeconds } from "./format.js";
 import { createJobDock, dismissFinishedJobForPanel as dismissDockJobForPanel } from "./job-dock.js";
 import { createKeybindManager } from "./keybinds.js";
-import { createManualEditor } from "./manual-editor.js?v=intersections-2026-09-01-length";
+import { createManualEditor } from "./manual-editor.js?v=editor-align-2026-09-09d";
 import { createManualCaseController } from "./manual-cases.js";
 import { createConfirmationController, createModalController } from "./modals.js";
 import { createInstanceModalController } from "./instance-modals.js";
@@ -1154,21 +1156,34 @@ $("#manual-background-input").addEventListener("change", (event) => {
 		manualEditor.setSaveStatus("Background images must be at most 10 MB.");
 		return;
 	}
+	const current = manualEditor.currentCase();
 	const reader = new FileReader();
 	reader.addEventListener("load", () => {
 		const image = new Image();
 		image.addEventListener("load", () => {
-			manualEditor.setBackground(String(reader.result), image.naturalWidth, image.naturalHeight);
+			if (manualEditor.currentCase() !== current) return;
+			const ratio = Math.min(1, 2048 / Math.max(image.naturalWidth, image.naturalHeight));
+			let dataUrl = String(reader.result);
+			if (ratio < 1) {
+				const canvas = document.createElement("canvas");
+				canvas.width = Math.max(1, Math.round(image.naturalWidth * ratio));
+				canvas.height = Math.max(1, Math.round(image.naturalHeight * ratio));
+				canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+				dataUrl = canvas.toDataURL("image/webp", 0.9);
+			}
+			manualEditor.setBackground(dataUrl, image.naturalWidth, image.naturalHeight);
 			syncBackgroundControls();
 		}, { once: true });
 		image.addEventListener("error", () => manualEditor.setSaveStatus("Could not read this image."), { once: true });
 		image.src = String(reader.result);
 	}, { once: true });
+	reader.addEventListener("error", () => manualEditor.setSaveStatus("Could not read this image."), { once: true });
 	reader.readAsDataURL(file);
 });
 $("#manual-background-opacity").addEventListener("input", (event) => {
 	manualEditor.setBackgroundOpacity(Number(event.currentTarget.value) / 100);
 });
+$("#manual-refit-background").addEventListener("click", () => manualEditor.toggleBackgroundEditing());
 $("#manual-fit-background").addEventListener("click", () => manualEditor.frameBounds(manualEditor.backgroundBounds()));
 $("#manual-remove-background").addEventListener("click", () => {
 	manualEditor.removeBackground();
@@ -1180,6 +1195,7 @@ function syncBackgroundControls() {
 	const hidden = !background;
 	$("#manual-background-opacity-control").classList.toggle("is-hidden", hidden);
 	$("#manual-fit-background").classList.toggle("is-hidden", hidden);
+	$("#manual-refit-background").classList.toggle("is-hidden", hidden);
 	$("#manual-remove-background").classList.toggle("is-hidden", hidden);
 	$("#manual-background-button").textContent = hidden ? "Background" : "Replace image";
 	if (background) {
