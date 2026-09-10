@@ -27,6 +27,17 @@ try {
 	await dashboardPage.waitForFunction(() => window.__benchmarkDashboardReady === true);
 	await dashboardPage.locator("#campaign-list").waitFor({ state: "attached" });
 	await dashboardPage.locator("#manual-case-canvas").waitFor({ state: "attached" });
+	await dashboardPage.locator('[data-panel="benchmark-panel"]').click();
+	const threads = dashboardPage.locator("#threads-slider");
+	if (Number(await threads.getAttribute("max")) > 1) {
+		await threads.focus();
+		await threads.press("Home");
+		await threads.press("ArrowRight");
+		assert.equal(await dashboardPage.locator("#threads-input").inputValue(), "2");
+		await dashboardPage.locator('#run-form [data-visit-order-picker] [data-value="free"]').click();
+		assert.equal(await threads.isEnabled(), true, "Free-order campaign parallelism disabled the thread control.");
+		assert.equal(await dashboardPage.locator("#threads-input").inputValue(), "2");
+	}
 
 	const eventPage = await browser.newPage();
 	monitor(eventPage);

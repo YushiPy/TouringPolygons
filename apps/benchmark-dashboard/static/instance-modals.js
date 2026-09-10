@@ -87,6 +87,7 @@ export function createInstanceModalController({
 	async function openInstanceModal(campaign, index) {
 		cancelActiveViewer();
 		const modal = $("#campaign-modal");
+		modal.classList.remove("is-wide-inspection");
 		state.instanceModalReturn = { campaign };
 		setInstanceModalBackButton(modal);
 		const cases = await loadCampaignCaseMetadata(campaign.name);
@@ -104,6 +105,7 @@ export function createInstanceModalController({
 	async function openBenchmarkedInstanceModal(campaign, item) {
 		cancelActiveViewer();
 		const modal = $("#campaign-modal");
+		modal.classList.add("is-wide-inspection");
 		state.instanceModalReturn = { campaign, panel: "benchmark-panel" };
 		setInstanceModalBackButton(modal);
 		const cases = await loadCampaignCaseMetadata(campaign.name);
@@ -111,7 +113,8 @@ export function createInstanceModalController({
 		const body = $("#modal-body");
 		const title = instanceTitle(campaign, item.case_index);
 		$("#modal-title").innerHTML = instanceModalTitle(campaign, item.case_index);
-		body.innerHTML = `<div class="modal-summary">${metricCard("Status", item.status)}${metricCard("Final length", shortNumber(item.final_length))}${metricCard("Solve time", formatSeconds(parseNumber(item.total_seconds)))}${metricCard("Calls", item.calls ?? "-")}${metricCard("Avg convex solve", formatMicroseconds(parseNumber(item.seconds_per_call)))}${metricCard("Decomposed pieces", item.decomposed_pieces ?? "-")}${metricCard("Visited nodes", item.visited_nodes ?? "-")}${metricCard("Pruned nodes", item.pruned_nodes ?? "-")}</div>${caseData ? readonlyInstanceDetail(`${title} detail`) : '<div class="missing-preview detail-missing">No case data available.</div>'}`;
+		const metrics = `${metricCard("Status", item.status)}${metricCard("Final length", shortNumber(item.final_length))}${metricCard("Solve time", formatSeconds(parseNumber(item.total_seconds)))}${metricCard("Calls", item.calls ?? "-")}${metricCard("Avg convex solve", formatMicroseconds(parseNumber(item.seconds_per_call)))}${metricCard("Decomposed pieces", item.decomposed_pieces ?? "-")}${metricCard("Visited nodes", item.visited_nodes ?? "-")}${metricCard("Pruned nodes", item.pruned_nodes ?? "-")}`;
+		body.innerHTML = `<div class="benchmarked-instance-layout">${caseData ? readonlyInstanceDetail(`${title} detail`) : '<div class="missing-preview detail-missing">No case data available.</div>'}<aside class="inspection-metrics" aria-label="Benchmark evidence">${metrics}</aside></div>`;
 		body.querySelector("[data-edit-instance]")?.addEventListener("click", () => editInstance(campaign, item.case_index));
 		if (caseData) activeViewer = setupReadonlyInstanceDetail(body, caseData, manualEditor);
 		setupModalTitleRename(campaign, item.case_index, () => openBenchmarkedInstanceModal(campaign, item));

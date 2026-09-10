@@ -1,5 +1,5 @@
 import { escapeHTML } from "./dom.js";
-import { convexHull, endpointOffset, gapRatio, pathPrefix, projectedCase, qualityLabel, regionColors, sortRows, sortGroupedRows, toggleChoice, toggleOrderRegion, playbackDuration } from "./event-geometry.js?v=20260909-6";
+import { convexHull, endpointOffset, gapRatio, pathPrefix, projectedCase, qualityLabel, regionColors, sortRows, sortGroupedRows, toggleChoice, toggleOrderRegion, playbackDuration } from "./event-geometry.js?v=20260910-7";
 
 const element = (id) => document.getElementById(id);
 const number = (value, digits = 4) => value.toLocaleString("pt-BR", { maximumFractionDigits: digits });

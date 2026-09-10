@@ -6,11 +6,13 @@ import csv
 import hashlib
 import json
 import math
+import os
+import signal
 import struct
 import subprocess
-import sys
 import uuid
-from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import UTC, datetime
 from pathlib import Path
 
 from benchmark_cases import read_encoded_cases
@@ -55,6 +57,22 @@ def finite(value: str) -> float | None:
 		return None
 
 
+def run_external(command: list[str], time_limit: float) -> None:
+	process = subprocess.Popen(command, start_new_session=True)
+	try:
+		returncode = process.wait(timeout=time_limit + max(15.0, time_limit * 0.25))
+	except subprocess.TimeoutExpired:
+		os.killpg(process.pid, signal.SIGTERM)
+		try:
+			process.wait(timeout=2)
+		except subprocess.TimeoutExpired:
+			os.killpg(process.pid, signal.SIGKILL)
+			process.wait()
+		raise
+	if returncode:
+		raise subprocess.CalledProcessError(returncode, command)
+
+
 def main(argv: list[str] | None = None) -> int:
 	parser = argparse.ArgumentParser(description=__doc__)
 	parser.add_argument('campaign', type=Path)
@@ -62,12 +80,12 @@ def main(argv: list[str] | None = None) -> int:
 	parser.add_argument('--max-instances', type=int, default=5000)
 	parser.add_argument('--max-calls', type=int, default=1000000)
 	parser.add_argument('--max-seconds', type=float, default=30)
-	parser.add_argument('--threads', type=int, choices=(1,), default=1)
+	parser.add_argument('--threads', type=int, default=1)
 	parser.add_argument('--no-build', action='store_true')
 	parser.add_argument('--force', action='store_true')
 	parser.add_argument('--dry-run', action='store_true')
 	args = parser.parse_args(argv)
-	if not math.isfinite(args.max_seconds) or args.max_seconds <= 0 or args.max_calls < 0 or args.max_instances < 1:
+	if not math.isfinite(args.max_seconds) or args.max_seconds <= 0 or args.max_calls < 0 or args.max_instances < 1 or args.threads < 1:
 		parser.error('Expected positive seconds/instance cap and nonnegative calls.')
 	campaign = args.campaign if args.campaign.is_absolute() or args.campaign.parent != Path('.') else ROOT / 'benchmarks/campaigns' / args.campaign
 	metadata = json.loads((campaign / 'campaign.json').read_text())
@@ -77,7 +95,7 @@ def main(argv: list[str] | None = None) -> int:
 	solvers = list(dict.fromkeys(args.solver or ['unordered']))
 	if 'tspn' in solvers and args.max_seconds != int(args.max_seconds):
 		parser.error('The external runner requires an integer time limit in seconds.')
-	config = {'visit_order': 'free', 'solvers': solvers, 'threads': 1, 'max_calls': args.max_calls,
+	config = {'visit_order': 'free', 'solvers': solvers, 'threads': args.threads, 'max_calls': args.max_calls,
 		'max_seconds': args.max_seconds, 'hashes': [c.digest for c in cases],
 		'ours_optimality': {'absolute_gap': 1e-7, 'relative_gap': 1e-9},
 		'external_optimality_eps': 1e-9, 'solver_feasibility_tolerance': 1e-8,
@@ -85,22 +103,24 @@ def main(argv: list[str] | None = None) -> int:
 	key = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
 	results = campaign / 'results/free-order'
 	if args.dry_run:
-		print(json.dumps(config, indent=2)); return 0
+		print(json.dumps(config, indent=2))
+		return 0
 	if not args.force and results.exists():
 		for prior in results.glob('*/report.json'):
 			old = json.loads(prior.read_text())
 			if old.get('key') == key and old.get('status') == 'completed':
 				prior.touch()
-				print(f'Reusing {prior}', flush=True); return 0
+				print(f'Reusing {prior}', flush=True)
+				return 0
 	if 'unordered' in solvers:
 		ensure_binary(args.no_build)
 	if 'tspn' in solvers and not (EXTERNAL_PYTHON.exists() and EXTERNAL_RUNNER.exists()):
 		raise FileNotFoundError('External TSPN checkout/environment is unavailable.')
-	run = results / (datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-') + uuid.uuid4().hex[:6])
+	run = results / (datetime.now(UTC).strftime('%Y%m%d-%H%M%S-') + uuid.uuid4().hex[:6])
 	run.mkdir(parents=True)
 	report = {'key': key, 'config': config, 'visit_order': 'free', 'title': metadata.get('name', campaign.name),
-		'created_at': datetime.now(timezone.utc).isoformat(), 'status': 'running', 'rows': [],
-		'notes': ['Fixed endpoints; free visit order. One worker.',
+		'created_at': datetime.now(UTC).isoformat(), 'status': 'running', 'rows': [],
+		'notes': [f'Fixed endpoints; free visit order. {args.threads} campaign worker(s); each solver process is single-threaded.',
 			'Our tolerance is 1e-7 + 1e-9 × UB. The external API only exposes a relative ratio, so eps=1e-9 is conservative rather than algebraically identical.',
 			'Both solvers use feasibility tolerance 1e-8 where their APIs permit it; independent validation uses 1e-7.',
 			'External raw and endpoint-snapped trajectories are reported separately; snapping never changes the declared solver result.',
@@ -110,8 +130,8 @@ def main(argv: list[str] | None = None) -> int:
 		for solver in solvers:
 			print(f'## {solver}', flush=True)
 			if solver == 'unordered':
-				for i, case in enumerate(cases):
-					print(f'instance | [free] {i + 1}/{len(cases)} started', flush=True)
+				def solve_case(i: int) -> dict:
+					case = cases[i]
 					sx, sy, tx, ty = struct.unpack_from('<dddd', case.data)
 					row = {'case': i, 'sha256': case.digest, 'solver': solver, 'polygons': len(case.polygons),
 						'geometry': {'start': [sx, sy], 'target': [tx, ty], 'polygons': case.polygons}}
@@ -123,16 +143,27 @@ def main(argv: list[str] | None = None) -> int:
 						row['valid'] = row['validation']['valid']
 					except (RuntimeError, subprocess.TimeoutExpired) as error:
 						row['error'] = str(error)
-					report['rows'].append(row)
-					atomic_json(run / 'report.json', report)
-					print(f'cases | [free] {i + 1}/{len(cases)}', flush=True)
+					return row
+
+				with ThreadPoolExecutor(max_workers=min(args.threads, len(cases))) as executor:
+					futures = {}
+					for i in range(len(cases)):
+						print(f'instance | [free] {i + 1}/{len(cases)} queued', flush=True)
+						futures[executor.submit(solve_case, i)] = i
+					for completed, future in enumerate(as_completed(futures), 1):
+						row = future.result()
+						report['rows'].append(row)
+						report['rows'].sort(key=lambda item: (item['case'], solvers.index(item['solver'])))
+						atomic_json(run / 'report.json', report)
+						print(f'cases | [free] {completed}/{len(cases)} | case {row["case"] + 1} complete', flush=True)
 			else:
 				suite = run / 'input.bin'
 				suite.write_bytes(b''.join(c.data for c in cases))
-				subprocess.run([str(EXTERNAL_PYTHON), str(EXTERNAL_RUNNER), '--suite', str(suite), '--mode', 'path',
+				external_command = [str(EXTERNAL_PYTHON), str(EXTERNAL_RUNNER), '--suite', str(suite), '--mode', 'path',
 					'--threads', '1', '--time-limit', str(int(args.max_seconds)), '--eps', '0.000000001',
 					'--feasibility-tolerance', '0.00000001', '--validation-tolerance', '0.0000001',
-					'--output', str(run / 'external')], check=True)
+					'--output', str(run / 'external')]
+				run_external(external_command, args.max_seconds)
 				csv_path = next((run / 'external').glob('*/*-tspn-path.csv'))
 				with csv_path.open() as file:
 					for external in csv.DictReader(file):
@@ -155,7 +186,8 @@ def main(argv: list[str] | None = None) -> int:
 				print(f'cases | [free] {len(cases)}/{len(cases)}', flush=True)
 		report['status'] = 'failed' if any(r.get('error') for r in report['rows']) else 'completed'
 	except Exception as error:
-		report['status'] = 'failed'; report['error'] = str(error)
+		report['status'] = 'failed'
+		report['error'] = str(error)
 		raise
 	finally:
 		atomic_json(run / 'report.json', report)

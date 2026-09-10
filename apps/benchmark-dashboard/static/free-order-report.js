@@ -1,6 +1,6 @@
 import { escapeHTML } from "./dom.js";
 import { downloadCSV } from "./format.js";
-import { convexHull, pathPolygonContacts, pathPrefix, playbackDuration, projectedCase, regionColors } from "./event-geometry.js?v=2026-09-10c";
+import { convexHull, pathPolygonContacts, pathPrefix, playbackDuration, projectedCase, regionColors } from "./event-geometry.js?v=2026-09-10d";
 import { displayPartition } from "./native-partition.js?v=editor-align-2026-09-09d";
 
 const reportStates = new WeakMap();
@@ -45,7 +45,7 @@ function pathViewerHTML(row, viewerState) {
 				<button class="secondary ${viewerState.layers.labels ? "is-active" : ""}" type="button" data-free-layer="labels" aria-pressed="${viewerState.layers.labels}">Labels</button>
 			</div>
 		</div>
-		<svg viewBox="0 0 840 480" class="free-path" role="img" aria-label="Stored free-order solution for case ${row.case}" data-free-svg></svg>
+		<svg viewBox="0 0 840 480" class="free-path" role="img" aria-label="Stored free-order solution for case ${Number(row.case) + 1}" data-free-svg></svg>
 		<figcaption><span>Region sequence</span><strong>${escapeHTML(row.order?.join(" → ") || "No regions")}</strong></figcaption>
 	</figure>`;
 }
@@ -199,7 +199,7 @@ export function renderFreeOrderReport(root, report) {
 			const ours = pair.unordered, external = pair.tspn, key = String(index), isOpen = state.openCases.has(key);
 			const viewerState = state.viewers.get(key) || initialViewerState();
 			state.viewers.set(key, viewerState);
-			return `<tr class="free-result-row ${isOpen ? "is-open" : ""}"><td><button type="button" class="free-view-path" data-free-case="${index}" aria-expanded="${isOpen}"><span>${index}</span><small>${isOpen ? "Hide" : "View"} path</small></button></td><td>${ours?.polygons ?? external?.polygons ?? ""}</td>
+			return `<tr class="free-result-row ${isOpen ? "is-open" : ""}"><td><button type="button" class="free-view-path" data-free-case="${index}" aria-label="${isOpen ? "Hide" : "View"} path for case ${Number(index) + 1}" aria-expanded="${isOpen}"><span>${Number(index) + 1}</span><small>${isOpen ? "Hide" : "View"} path</small></button></td><td>${ours?.polygons ?? external?.polygons ?? ""}</td>
 				<td>${number(ours?.seconds)}</td><td>${number(external?.seconds)}</td><td>${percent(relativeGap(ours))}</td><td>${percent(relativeGap(external))}</td>
 				<td>${resultPill(ours)}</td><td>${resultPill(external)}${external?.endpoint_valid === false ? '<span class="endpoint-warning" title="Endpoint validation failed">!</span>' : ""}</td></tr>
 				<tr data-free-detail="${index}" class="free-detail-row ${isOpen ? "" : "is-hidden"}"><td colspan="8"><div class="free-detail-content">${pathViewerHTML(ours || external, viewerState)}<p class="free-detail-stats">Our bounds: ${number(ours?.lower_bound, 8)} ≤ optimum ≤ ${number(ours?.upper_bound, 8)} · ${ours?.calls ?? "n/a"} convex calls · ${ours?.fallback_calls ?? "n/a"} fallback calls</p></div></td></tr>`;

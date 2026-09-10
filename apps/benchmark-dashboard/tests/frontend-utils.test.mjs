@@ -212,6 +212,9 @@ test("command builders preserve selected options", () => {
 		assert.match(runCommandFromForm(form), /--solver binary_search_lazy/);
 		assert.match(runCommandFromForm(form), /--threads 4/);
 		assert.match(compareCommandFromForm(form), /--solver binary_search_lazy/);
+		values.visit_order = "free";
+		values.free_solver = "unordered";
+		assert.match(runCommandFromForm(form), /free-order .*--threads 4/);
 	} finally {
 		globalThis.FormData = originalFormData;
 	}

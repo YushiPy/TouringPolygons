@@ -19,7 +19,7 @@ export function boolField(form, name) {
 }
 
 function freeCommand(form, values, compare = false) {
-	const command = ["python3", "benchmarks/tpp.py", "free-order", values.name, "--threads", "1", "--max-calls", values.max_calls || "1000000", "--max-seconds", values.max_seconds || "30"];
+	const command = ["python3", "benchmarks/tpp.py", "free-order", values.name, "--threads", values.threads || "1", "--max-calls", values.max_calls || "1000000", "--max-seconds", values.max_seconds || "30"];
 	if (values.max_instances) command.push("--max-instances", values.max_instances);
 	const solvers = compare ? [...form.querySelectorAll('input[name="free_solvers"]:checked')].map((input) => input.value) : [values.free_solver || "unordered"];
 	for (const solver of solvers) command.push("--solver", solver);

@@ -256,6 +256,66 @@
 	overflow: auto;
 }
 
+.modal.is-wide-inspection .modal-card {
+	width: min(1460px, calc(100vw - 56px));
+	max-height: calc(100vh - 56px);
+	overflow: hidden;
+}
+
+.benchmarked-instance-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1.65fr) minmax(360px, .75fr);
+	gap: 14px;
+	height: min(700px, calc(100vh - 142px));
+	min-height: 0;
+}
+
+.benchmarked-instance-layout .readonly-instance-detail {
+	grid-template-rows: auto minmax(0, 1fr) auto;
+	height: 100%;
+	min-height: 0;
+}
+
+.benchmarked-instance-layout .readonly-instance-canvas {
+	min-height: 0;
+}
+
+.inspection-metrics {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 10px;
+	align-content: start;
+	min-width: 0;
+	overflow: auto;
+}
+
+.inspection-metrics .metric-card {
+	min-width: 0;
+	min-height: 92px;
+	padding: 14px;
+}
+
+.inspection-metrics .metric-card strong {
+	font-size: 1.15rem;
+}
+
+@media (max-width: 1050px), (max-height: 680px) {
+	.modal.is-wide-inspection .modal-card {
+		overflow: auto;
+	}
+
+	.benchmarked-instance-layout {
+		grid-template-columns: 1fr;
+		height: auto;
+	}
+
+	.inspection-metrics {
+		grid-row: 1;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		overflow: visible;
+	}
+}
+
 .modal-header {
 	display: flex;
 	justify-content: space-between;

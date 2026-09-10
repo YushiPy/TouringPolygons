@@ -1,13 +1,13 @@
 /* global FileReader, Image */
 
-import { visitOrder, setupVisitOrder } from "./order-mode.js?v=editor-align-2026-09-09d";
-import { renderFreeOrderReport } from "./free-order-report.js?v=2026-09-10c";
+import { visitOrder, setupVisitOrder } from "./order-mode.js?v=2026-09-10d";
+import { renderFreeOrderReport } from "./free-order-report.js?v=2026-09-10d";
 import { requestJSON } from "./api.js";
 import { benchmarkedPreviewHTML, instancePreviewUrl } from "./benchmarked-preview.js";
 import { casePayload, cloneCaseData, emptyCaseData, instanceLabel } from "./case-data.js?v=editor-align-2026-09-09d";
 import { createSatelliteMap } from "./satellite-map.js?v=editor-align-2026-09-09d";
-import { boolField, compareCommandFromForm, formData, runCommandFromForm } from "./command-builders.js";
-import { createDashboardControls } from "./controls.js";
+import { boolField, compareCommandFromForm, formData, runCommandFromForm } from "./command-builders.js?v=2026-09-10d";
+import { createDashboardControls } from "./controls.js?v=2026-09-10d";
 import { $, escapeHTML, setOutput } from "./dom.js";
 import { renderCampaignList } from "./campaign-rendering.js";
 import { renderCampaignChoiceGrid } from "./campaign-choice.js";
@@ -17,8 +17,8 @@ import { createKeybindManager } from "./keybinds.js";
 import { createManualEditor } from "./manual-editor.js?v=editor-align-2026-09-09d";
 import { createManualCaseController } from "./manual-cases.js";
 import { createConfirmationController, createModalController } from "./modals.js";
-import { createInstanceModalController } from "./instance-modals.js";
-import { createFormSubmissionController } from "./form-submissions.js";
+import { createInstanceModalController } from "./instance-modals.js?v=2026-09-10d";
+import { createFormSubmissionController } from "./form-submissions.js?v=2026-09-10d";
 import { createOsmPicker } from "./osm-picker.js";
 import { createPreviewPanelController } from "./preview-panels.js";
 import { readonlyInstanceDetail, renderCanvasPlaceholder, setupReadonlyInstanceDetail } from "./readonly-viewer.js?v=2026-09-10b";

@@ -96,10 +96,10 @@ test("case sorting is numeric, stable and reversible without mutating evidence",
 
 test("playback duration scales with region count and remains bounded", async () => {
 	const { playbackDuration } = await import("../static/event-geometry.js");
-	assert.equal(playbackDuration(4), 3800);
-	assert.equal(playbackDuration(40), 11000);
-	assert.equal(playbackDuration(60), 15000);
-	assert.equal(playbackDuration(1000), 15000);
+	assert.equal(playbackDuration(4), 1860);
+	assert.equal(playbackDuration(40), 2400);
+	assert.equal(playbackDuration(60), 2700);
+	assert.equal(playbackDuration(1000), 3000);
 	assert.ok(playbackDuration(10) < playbackDuration(20));
 });
 

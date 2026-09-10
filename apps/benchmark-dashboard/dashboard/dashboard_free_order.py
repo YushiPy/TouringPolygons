@@ -35,8 +35,7 @@ def free_command(request, campaign: Path, cli: Path, *, comparison: bool = False
         raise HTTPException(400, "Free order requires one numeric time/call limit.") from error
     if not math.isfinite(seconds) or seconds <= 0 or calls < 0:
         raise HTTPException(400, "Seconds must be positive and calls nonnegative.")
-    if request.threads not in (None, 1):
-        raise HTTPException(400, "Free-order runs currently use one worker.")
+    threads = request.threads or 1
     if "tspn" in solvers and seconds != int(seconds):
         raise HTTPException(400, "External TSPN requires whole seconds.")
     command = [
@@ -45,7 +44,7 @@ def free_command(request, campaign: Path, cli: Path, *, comparison: bool = False
         "free-order",
         str(campaign),
         "--threads",
-        "1",
+        str(threads),
         "--max-calls",
         str(calls),
         "--max-seconds",

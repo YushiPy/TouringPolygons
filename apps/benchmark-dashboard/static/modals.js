@@ -31,6 +31,7 @@ export function createModalController({
 	function openCampaignModal(campaign) {
 		cancelReadonlyViewer?.();
 		const modal = $("#campaign-modal");
+		modal.classList.remove("is-wide-inspection");
 		const body = $("#modal-body");
 		const closeButton = modal.querySelector(".modal-x-button");
 		const generation = campaign.generation || {};

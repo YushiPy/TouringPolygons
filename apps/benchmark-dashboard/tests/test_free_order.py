@@ -25,7 +25,7 @@ class FreeOrderTests(unittest.TestCase):
             name="sample",
             visit_order="free",
             solver="unordered",
-            threads=1,
+            threads=4,
             max_calls="10",
             max_seconds="2",
             no_build=True,
@@ -36,9 +36,10 @@ class FreeOrderTests(unittest.TestCase):
         self.assertIn("--no-build", command)
         self.assertIn("--force", command)
         self.assertEqual(command[command.index("--solver") + 1], "unordered")
+        self.assertEqual(command[command.index("--threads") + 1], "4")
 
     def test_rejects_wrong_solver_and_invalid_limits(self):
-        for values in ({"solver": "binary"}, {"max_seconds": "nan"}, {"max_calls": "1,2"}, {"threads": 2}):
+        for values in ({"solver": "binary"}, {"max_seconds": "nan"}, {"max_calls": "1,2"}):
             with self.subTest(values=values), self.assertRaises(HTTPException):
                 free_command(
                     RunCampaignRequest(name="sample", visit_order="free", **values), Path("/tmp/a"), Path("/tmp/tpp.py")
@@ -95,7 +96,7 @@ class FreeOrderTests(unittest.TestCase):
 
         async def run():
             return await main.run_campaign(
-                RunCampaignRequest(name="sample", visit_order="free", solver="unordered", threads=1, max_seconds="2")
+                RunCampaignRequest(name="sample", visit_order="free", solver="unordered", threads=4, max_seconds="2")
             )
 
         with (
@@ -109,4 +110,5 @@ class FreeOrderTests(unittest.TestCase):
             result = asyncio.run(run())
             self.assertIn("free-order", result["command"])
             self.assertNotIn("binary_search_lazy", result["command"])
+            self.assertEqual(result["command"][result["command"].index("--threads") + 1], "4")
         json.dumps(result)

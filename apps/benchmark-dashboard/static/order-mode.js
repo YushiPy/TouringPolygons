@@ -33,10 +33,6 @@ export function setupVisitOrder(onChange) {
 				group.classList.toggle("is-hidden", !enabled);
 				group.querySelectorAll("input,button").forEach((input) => { input.disabled = !enabled; });
 			});
-			form.querySelectorAll('input[name="threads"], input[id$="threads-slider"]').forEach((input) => {
-				input.disabled = value === "free";
-				if (value === "free") input.value = "1";
-			});
 			form.querySelector('[name="max_seconds"]').placeholder = value === "free" ? "30 seconds per instance" : "unlimited";
 			const timeout = form.querySelector('[name="timeout"]');
 			if (timeout) timeout.disabled = value === "free";

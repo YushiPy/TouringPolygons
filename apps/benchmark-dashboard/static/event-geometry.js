@@ -144,7 +144,7 @@ export function sortRows(rows, key = "case", descending = false) {
 }
 
 export function playbackDuration(polygons) {
-	return 500 * Math.min(30, 6 + .4 * Math.max(0, polygons));
+	return 1800 + 15 * Math.min(80, Math.max(0, polygons));
 }
 
 export function sortGroupedRows(rows, key, descending, resultGroup = null) {

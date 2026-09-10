@@ -12,12 +12,13 @@ let created = false;
 try {
 	await page.goto(baseUrl);
 	await page.waitForFunction(() => window.__benchmarkDashboardReady === true);
-	await page.getByRole("button", { name: "Comparison", exact: true }).click();
+	await page.locator('[data-panel="comparison-panel"]').click();
 	await page.locator("#show-free-reference").click();
 	await page.locator("#free-reference-report .free-solved").first().waitFor();
 	assert.equal(await page.locator("#compare-visit-order").inputValue(), "free");
 	assert.equal(await page.locator("#run-visit-order").inputValue(), "free");
 	assert.match(await page.locator("#free-reference-report").innerText(), /41 \/ 60/);
+	assert.equal(await page.locator('#free-reference-report [data-free-case="0"] span').textContent(), "1");
 	await page.locator('#free-reference-report [data-free-case="0"]').click();
 	await page.locator('#free-reference-report [data-free-detail="0"] svg').waitFor({ state: "visible" });
 	assert.equal(await page.locator('#free-reference-report [data-free-detail="0"] .free-contact').count(), 40);
@@ -40,7 +41,7 @@ try {
 	await page.locator("#free-reference-report [data-free-results] > summary").click();
 	await page.locator("#show-free-reference").click();
 	assert.equal(await page.locator("#free-reference-report [data-free-results]").getAttribute("open"), null);
-	await page.locator("#compare-visit-order").selectOption("fixed");
+	await page.locator('#compare-form [data-visit-order-picker] [data-value="fixed"]').click();
 	assert.equal(await page.locator('#compare-form [data-order-only="fixed"]').isVisible(), true);
 	assert.equal(await page.locator('#compare-form [data-order-only="free"]').isVisible(), false);
 	const create = await page.request.post(`${baseUrl}/api/campaigns/manual`, { data: { name } });
@@ -57,8 +58,8 @@ try {
 	assert.deepEqual((await live.json()).order, [1, 2, 0]);
 	await page.reload();
 	await page.waitForFunction(() => window.__benchmarkDashboardReady === true);
-	await page.getByRole("button", { name: "Benchmark", exact: true }).click();
-	await page.locator("#run-visit-order").selectOption("free");
+	await page.locator('[data-panel="benchmark-panel"]').click();
+	await page.locator('#run-form [data-visit-order-picker] [data-value="free"]').click();
 	await page.locator(`#run-campaign-grid [data-value="${name}"]`).click();
 	await page.locator('#run-form [name="max_seconds"]').fill("2");
 	const response = page.waitForResponse((r) => r.url().endsWith("/api/runs") && r.request().method() === "POST");
@@ -75,7 +76,7 @@ try {
 	await page.locator('#benchmark-report [data-free-case="0"]').click();
 	assert.match(await page.locator("#benchmark-report").innerText(), /1 → 2 → 0/);
 	assert.equal((await (await page.request.get(`${baseUrl}/api/campaigns/${name}/summaries`)).json()).files.length, 0);
-	await page.getByRole("button", { name: "Comparison", exact: true }).click();
+	await page.locator('[data-panel="comparison-panel"]').click();
 	await page.locator(`#compare-campaign-grid [data-value="${name}"]`).click();
 	await page.locator('#compare-form [name="max_seconds"]').fill("2");
 	const compareResponse = page.waitForResponse((r) => r.url().endsWith("/api/comparisons") && r.request().method() === "POST");
