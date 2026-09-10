@@ -7,6 +7,7 @@ import math
 import struct
 import sys
 import threading
+from copy import deepcopy
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -22,6 +23,7 @@ from unordered_runner import run_unordered_solver  # noqa: E402
 
 _build_lock = threading.Lock()
 _live_binary: Path | None = None
+_VISUALIZATION_FIELDS = ("geometry", "path")
 
 
 def free_command(request, campaign: Path, cli: Path, *, comparison: bool = False) -> list[str]:
@@ -60,23 +62,81 @@ def free_command(request, campaign: Path, cli: Path, *, comparison: bool = False
     return command
 
 
-def free_results(campaign: Path) -> dict:
+def _latest_free_report(campaign: Path) -> Path | None:
     files = sorted(
         (campaign / "results/free-order").glob("*/report.json"), key=lambda p: p.stat().st_mtime_ns, reverse=True
     )
-    if not files:
+    return files[0] if files else None
+
+
+def _geometry_index(report_path: Path) -> tuple[set[str], dict[str, dict]]:
+    path = report_path.with_name("geometry.json")
+    hashes = {item.stem for item in report_path.with_name("geometry").glob("*.json")}
+    if not path.exists():
+        return hashes, {}
+    data = json.loads(path.read_text())
+    legacy = data.get("cases", data if "hashes" not in data else {})
+    return hashes | set(data.get("hashes", [])) | set(legacy), legacy
+
+
+def _geometry_for_hash(report_path: Path, digest: str | None) -> dict | None:
+    if not digest:
+        return None
+    path = report_path.with_name("geometry") / f"{digest}.json"
+    if path.exists():
+        return json.loads(path.read_text())
+    return _geometry_index(report_path)[1].get(digest)
+
+
+def _compact_report(report: dict, endpoint: str) -> dict:
+    catalog_hashes = set(report.get("geometry_catalog", []))
+    compact = {key: deepcopy(value) for key, value in report.items() if key not in {"rows", "geometry_catalog"}}
+    compact["rows"] = []
+    for source in report.get("rows", []):
+        has_geometry = (
+            bool(source.get("geometry")) or (source.get("geometry_sha256") or source.get("sha256")) in catalog_hashes
+        )
+        row = {key: deepcopy(value) for key, value in source.items() if key not in _VISUALIZATION_FIELDS}
+        row["visualization_available"] = bool(source.get("path")) and has_geometry
+        compact["rows"].append(row)
+    compact["visualizations_deferred"] = True
+    compact["visualization_endpoint"] = endpoint
+    return compact
+
+
+def free_results(campaign: Path, *, endpoint: str = "") -> dict:
+    report_path = _latest_free_report(campaign)
+    if report_path is None:
         return {
             "visit_order": "free",
             "title": campaign.name,
             "rows": [],
             "notes": ["No free-order run for this campaign yet."],
         }
-    report = json.loads(files[0].read_text())
-    report["path"] = str(files[0].relative_to(campaign))
-    return report
+    report = json.loads(report_path.read_text())
+    report["path"] = str(report_path.relative_to(campaign))
+    report["geometry_catalog"] = list(_geometry_index(report_path)[0])
+    return _compact_report(report, endpoint)
 
 
-def recorded_results() -> dict:
+def free_result_case(campaign: Path, case_index: int) -> dict:
+    report_path = _latest_free_report(campaign)
+    if report_path is None:
+        raise HTTPException(404, "No free-order report exists for this campaign.")
+    report = json.loads(report_path.read_text())
+    rows = [deepcopy(row) for row in report.get("rows", []) if int(row.get("case", -1)) == case_index]
+    if not rows:
+        raise HTTPException(404, "The requested case is absent from the latest report.")
+    geometry = next((row.get("geometry") for row in rows if row.get("geometry")), None)
+    geometry_hash = next((row.get("geometry_sha256") or row.get("sha256") for row in rows), None)
+    geometry = geometry or _geometry_for_hash(report_path, geometry_hash)
+    if geometry:
+        for row in rows:
+            row["geometry"] = geometry
+    return {"case": case_index, "rows": rows}
+
+
+def _recorded_results_full(*, include_geometry: bool = True) -> dict:
     path = ROOT / "benchmarks/results/unordered/final-dev.jsonl"
     if not path.exists():
         return {
@@ -87,7 +147,7 @@ def recorded_results() -> dict:
         }
     rows = [dict(json.loads(line), solver="unordered") for line in path.read_text().splitlines()]
     suite = ROOT / "benchmarks/suites/algorithm-dev-v1.bin"
-    if suite.exists():
+    if suite.exists() and include_geometry:
         cases = read_encoded_cases(suite)
         for row in rows:
             index = row["case"]
@@ -124,6 +184,7 @@ def recorded_results() -> dict:
         "status": "completed",
         "config": {"threads": 1, "max_seconds": 2},
         "rows": rows,
+        "geometry_catalog": [row["sha256"] for row in rows if row["solver"] == "unordered"] if suite.exists() else [],
         "notes": [
             "60 matched instances; fixed endpoints; one worker; 2 seconds per instance.",
             "Our optimality tolerance: 1e-7 + 1e-9 × UB; external: 1e-6 relative, geometry tolerance 0.001.",
@@ -131,6 +192,22 @@ def recorded_results() -> dict:
             "Compare both solved counts and gaps. Speedup on jointly solved cases does not describe total suite time.",
         ],
     }
+
+
+def recorded_results(*, endpoint: str = "/api/free-order/reference/cases") -> dict:
+    return _compact_report(_recorded_results_full(include_geometry=False), endpoint)
+
+
+def recorded_result_case(case_index: int) -> dict:
+    report = _recorded_results_full()
+    rows = [row for row in report.get("rows", []) if int(row.get("case", -1)) == case_index]
+    if not rows:
+        raise HTTPException(404, "The requested recorded case does not exist.")
+    geometry = next((row.get("geometry") for row in rows if row.get("geometry")), None)
+    if geometry:
+        for row in rows:
+            row["geometry"] = geometry
+    return {"case": case_index, "rows": rows}
 
 
 async def solve_free_editor(case) -> dict:

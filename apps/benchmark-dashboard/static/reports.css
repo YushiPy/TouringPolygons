@@ -626,6 +626,9 @@
 .free-results > summary span:first-child { flex: 1; }
 .free-results > summary span:last-child { color: var(--muted); font-size: .76rem; font-weight: 500; }
 .free-table-wrap { max-height: min(680px, 70vh); overflow: auto; }
+.table-window-controls { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 9px 12px; border-top: 1px solid var(--line); background: var(--surface-muted); }
+.table-window-controls span { min-width: 9rem; color: var(--muted); font-size: .76rem; font-variant-numeric: tabular-nums; text-align: center; }
+.table-window-controls button { min-height: 30px; padding: .3rem .65rem; }
 .free-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .82rem; font-variant-numeric: tabular-nums; }
 .free-table td, .free-table th { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .free-table th { position: sticky; top: 0; z-index: 2; background: var(--surface-muted); color: var(--muted); font-size: .72rem; letter-spacing: .025em; text-transform: uppercase; }

@@ -1,5 +1,6 @@
 import { escapeHTML } from "./dom.js";
 import { downloadCSV } from "./format.js";
+import { requestJSON } from "./api.js";
 import { convexHull, pathPolygonContacts, pathPrefix, playbackDuration, projectedCase, regionColors } from "./event-geometry.js?v=2026-09-10d";
 import { displayPartition } from "./native-partition.js?v=editor-align-2026-09-09d";
 
@@ -152,7 +153,9 @@ export function renderFreeOrderReport(root, report) {
 		groups.get(row.case)[row.solver] = row;
 	}
 	const failures = rows.filter((row) => row.solver === "tspn" && row.endpoint_valid === false).length;
-	const state = reportStates.get(root) || { sortKey: "case", descending: false, tableOpen: true, openCases: new Set(), viewers: new Map(), stops: [] };
+	const reportKey = report?.path || report?.title || "empty";
+	let state = reportStates.get(root);
+	if (!state || state.reportKey !== reportKey) state = { reportKey, sortKey: "case", descending: false, tableOpen: true, openCases: new Set(), viewers: new Map(), stops: [], windowStart: 0, windowSize: 100 };
 	state.stops.forEach((stop) => stop());
 	state.stops = [];
 	reportStates.set(root, state);
@@ -178,7 +181,8 @@ export function renderFreeOrderReport(root, report) {
 				<th>External gap</th>
 				<th data-sort-column="result"><button type="button" data-free-sort-key="result">Our result <span></span></button></th>
 				<th>External result</th>
-			</tr></thead><tbody></tbody></table></div></details>` : "<p>No free-order results yet. Run the selected campaign or open the recorded comparison.</p>"}`;
+			</tr></thead><tbody></tbody></table></div>
+			<nav class="table-window-controls is-hidden" data-free-window aria-label="Result table window"><button class="secondary" type="button" data-free-window-step="-1">Previous</button><span data-free-window-label></span><button class="secondary" type="button" data-free-window-step="1">Next</button></nav></details>` : "<p>No free-order results yet. Run the selected campaign or open the recorded comparison.</p>"}`;
 
 	const drawRows = () => {
 		state.stops.forEach((stop) => stop());
@@ -195,23 +199,53 @@ export function renderFreeOrderReport(root, report) {
 		};
 		const ordered = [...groups.entries()]
 			.sort((left, right) => (state.descending ? -1 : 1) * (value(left) - value(right)) || Number(left[0]) - Number(right[0]));
-		tbody.innerHTML = ordered.map(([index, pair]) => {
+		const maximumStart = Math.max(0, Math.floor((ordered.length - 1) / state.windowSize) * state.windowSize);
+		state.windowStart = Math.min(state.windowStart, maximumStart);
+		const visible = ordered.slice(state.windowStart, state.windowStart + state.windowSize);
+		const windowControls = root.querySelector("[data-free-window]");
+		if (windowControls) {
+			windowControls.classList.toggle("is-hidden", ordered.length <= state.windowSize);
+			windowControls.querySelector("[data-free-window-label]").textContent = `${state.windowStart + 1}–${Math.min(ordered.length, state.windowStart + state.windowSize)} of ${ordered.length}`;
+			windowControls.querySelector('[data-free-window-step="-1"]').disabled = state.windowStart === 0;
+			windowControls.querySelector('[data-free-window-step="1"]').disabled = state.windowStart + state.windowSize >= ordered.length;
+		}
+		tbody.innerHTML = visible.map(([index, pair]) => {
 			const ours = pair.unordered, external = pair.tspn, key = String(index), isOpen = state.openCases.has(key);
 			const viewerState = state.viewers.get(key) || initialViewerState();
 			state.viewers.set(key, viewerState);
 			return `<tr class="free-result-row ${isOpen ? "is-open" : ""}"><td><button type="button" class="free-view-path" data-free-case="${index}" aria-label="${isOpen ? "Hide" : "View"} path for case ${Number(index) + 1}" aria-expanded="${isOpen}"><span>${Number(index) + 1}</span><small>${isOpen ? "Hide" : "View"} path</small></button></td><td>${ours?.polygons ?? external?.polygons ?? ""}</td>
 				<td>${number(ours?.seconds)}</td><td>${number(external?.seconds)}</td><td>${percent(relativeGap(ours))}</td><td>${percent(relativeGap(external))}</td>
 				<td>${resultPill(ours)}</td><td>${resultPill(external)}${external?.endpoint_valid === false ? '<span class="endpoint-warning" title="Endpoint validation failed">!</span>' : ""}</td></tr>
-				<tr data-free-detail="${index}" class="free-detail-row ${isOpen ? "" : "is-hidden"}"><td colspan="8"><div class="free-detail-content">${pathViewerHTML(ours || external, viewerState)}<p class="free-detail-stats">Our bounds: ${number(ours?.lower_bound, 8)} ≤ optimum ≤ ${number(ours?.upper_bound, 8)} · ${ours?.calls ?? "n/a"} convex calls · ${ours?.fallback_calls ?? "n/a"} fallback calls</p></div></td></tr>`;
+				<tr data-free-detail="${index}" class="free-detail-row ${isOpen ? "" : "is-hidden"}"><td colspan="8"><div class="free-detail-content">${pair.visualizationError ? `<p role="alert">${escapeHTML(pair.visualizationError)}</p>` : pathViewerHTML(ours || external, viewerState)}<p class="free-detail-stats">Our bounds: ${number(ours?.lower_bound, 8)} ≤ optimum ≤ ${number(ours?.upper_bound, 8)} · ${ours?.calls ?? "n/a"} convex calls · ${ours?.fallback_calls ?? "n/a"} fallback calls</p></div></td></tr>`;
 		}).join("");
 		root.querySelectorAll("[data-sort-column]").forEach((header) => {
 			const active = header.dataset.sortColumn === state.sortKey;
 			header.setAttribute("aria-sort", active ? (state.descending ? "descending" : "ascending") : "none");
 			header.querySelector("span").textContent = active ? (state.descending ? "↓" : "↑") : "↕";
 		});
-		tbody.querySelectorAll("[data-free-case]").forEach((button) => button.addEventListener("click", () => {
+		tbody.querySelectorAll("[data-free-case]").forEach((button) => button.addEventListener("click", async () => {
 			const key = String(button.dataset.freeCase);
-			if (state.openCases.has(key)) state.openCases.delete(key); else state.openCases.add(key);
+			if (state.openCases.has(key)) {
+				state.openCases.delete(key);
+			} else {
+				const pair = groups.get(Number(key)) || groups.get(key);
+				const candidate = pair?.unordered || pair?.tspn;
+				if (candidate && (!candidate.geometry || !candidate.path) && candidate.visualization_available && report.visualization_endpoint) {
+					button.disabled = true;
+					button.querySelector("small").textContent = "Loading…";
+					try {
+						const detail = await requestJSON(`${report.visualization_endpoint}/${encodeURIComponent(key)}`);
+						for (const loaded of detail.rows || []) {
+							const target = rows.find((row) => String(row.case) === key && row.solver === loaded.solver);
+							if (target) Object.assign(target, loaded);
+							if (pair) pair[loaded.solver] = target || loaded;
+						}
+					} catch (error) {
+						if (pair) pair.visualizationError = error.message;
+					}
+				}
+				state.openCases.add(key);
+			}
 			drawRows();
 		}));
 		for (const key of state.openCases) {
@@ -227,7 +261,13 @@ export function renderFreeOrderReport(root, report) {
 	root.querySelectorAll("[data-free-sort-key]").forEach((button) => button.addEventListener("click", () => {
 		if (state.sortKey === button.dataset.freeSortKey) state.descending = !state.descending;
 		else { state.sortKey = button.dataset.freeSortKey; state.descending = false; }
+		state.windowStart = 0;
 		drawRows();
+	}));
+	root.querySelectorAll("[data-free-window-step]").forEach((button) => button.addEventListener("click", () => {
+		state.windowStart = Math.max(0, state.windowStart + Number(button.dataset.freeWindowStep) * state.windowSize);
+		drawRows();
+		root.querySelector(".free-table-wrap")?.scrollIntoView({ block: "nearest" });
 	}));
 	root.querySelector("[data-free-export]").addEventListener("click", () => downloadCSV("free-order-results.csv", rows.map((row) => ({
 		visit_order: "free", solver: row.solver, case: row.case, sha256: row.sha256, lower_bound: row.lower_bound, upper_bound: row.upper_bound,

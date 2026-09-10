@@ -49,6 +49,11 @@ def atomic_json(path: Path, data: dict) -> None:
 	temporary.replace(path)
 
 
+def case_geometry(case) -> dict:
+	sx, sy, tx, ty = struct.unpack_from('<dddd', case.data)
+	return {'start': [sx, sy], 'target': [tx, ty], 'polygons': case.polygons}
+
+
 def finite(value: str) -> float | None:
 	try:
 		number = float(value)
@@ -105,36 +110,76 @@ def main(argv: list[str] | None = None) -> int:
 	if args.dry_run:
 		print(json.dumps(config, indent=2))
 		return 0
+	resume_path = None
 	if not args.force and results.exists():
-		for prior in results.glob('*/report.json'):
-			old = json.loads(prior.read_text())
+		for prior in sorted(results.glob('*/report.json'), key=lambda path: path.stat().st_mtime_ns, reverse=True):
+			try:
+				old = json.loads(prior.read_text())
+			except (OSError, json.JSONDecodeError):
+				continue
 			if old.get('key') == key and old.get('status') == 'completed':
 				prior.touch()
 				print(f'Reusing {prior}', flush=True)
 				return 0
+			if old.get('key') == key and resume_path is None:
+				resume_path = prior
 	if 'unordered' in solvers:
 		ensure_binary(args.no_build)
 	if 'tspn' in solvers and not (EXTERNAL_PYTHON.exists() and EXTERNAL_RUNNER.exists()):
 		raise FileNotFoundError('External TSPN checkout/environment is unavailable.')
-	run = results / (datetime.now(UTC).strftime('%Y%m%d-%H%M%S-') + uuid.uuid4().hex[:6])
-	run.mkdir(parents=True)
-	report = {'key': key, 'config': config, 'visit_order': 'free', 'title': metadata.get('name', campaign.name),
-		'created_at': datetime.now(UTC).isoformat(), 'status': 'running', 'rows': [],
-		'notes': [f'Fixed endpoints; free visit order. {args.threads} campaign worker(s); each solver process is single-threaded.',
+	if resume_path:
+		run = resume_path.parent
+		report = json.loads(resume_path.read_text())
+		report['status'] = 'running'
+		report.pop('error', None)
+		report['resumed_at'] = datetime.now(UTC).isoformat()
+		print(f'Resuming checkpoint: {resume_path}', flush=True)
+	else:
+		run = results / (datetime.now(UTC).strftime('%Y%m%d-%H%M%S-') + uuid.uuid4().hex[:6])
+		run.mkdir(parents=True)
+		report = {'schema_version': 2, 'key': key, 'config': config, 'visit_order': 'free', 'title': metadata.get('name', campaign.name),
+			'created_at': datetime.now(UTC).isoformat(), 'status': 'running', 'rows': [],
+			'notes': [f'Fixed endpoints; free visit order. {args.threads} campaign worker(s); each solver process is single-threaded.',
 			'Our tolerance is 1e-7 + 1e-9 × UB. The external API only exposes a relative ratio, so eps=1e-9 is conservative rather than algebraically identical.',
 			'Both solvers use feasibility tolerance 1e-8 where their APIs permit it; independent validation uses 1e-7.',
 			'External raw and endpoint-snapped trajectories are reported separately; snapping never changes the declared solver result.',
 			'External calls are SOCP calls; our calls invoke a certified convex oracle. They are not identical units.']}
-	atomic_json(run / 'report.json', report)
+	geometry_catalog = {case.digest: case_geometry(case) for case in cases}
+	geometry_dir = run / 'geometry'
+	geometry_dir.mkdir(exist_ok=True)
+	for digest, geometry in geometry_catalog.items():
+		path = geometry_dir / f'{digest}.json'
+		if not path.exists():
+			atomic_json(path, geometry)
+	atomic_json(run / 'geometry.json', {'schema_version': 2, 'hashes': list(geometry_catalog)})
+	for row in report['rows']:
+		if row.get('geometry'):
+			row['geometry_sha256'] = row.get('sha256')
+			row.pop('geometry', None)
+
+	def successful_pairs() -> set[tuple[str, int]]:
+		return {(row.get('solver'), int(row.get('case', -1))) for row in report['rows'] if not row.get('error')}
+
+	def save_checkpoint() -> None:
+		report['checkpoint'] = {
+			'completed_pairs': len(successful_pairs()),
+			'total_pairs': len(cases) * len(solvers),
+			'updated_at': datetime.now(UTC).isoformat(),
+		}
+		atomic_json(run / 'report.json', report)
+
+	save_checkpoint()
 	try:
 		for solver in solvers:
 			print(f'## {solver}', flush=True)
 			if solver == 'unordered':
 				def solve_case(i: int) -> dict:
 					case = cases[i]
-					sx, sy, tx, ty = struct.unpack_from('<dddd', case.data)
+					geometry = geometry_catalog[case.digest]
+					sx, sy = geometry['start']
+					tx, ty = geometry['target']
 					row = {'case': i, 'sha256': case.digest, 'solver': solver, 'polygons': len(case.polygons),
-						'geometry': {'start': [sx, sy], 'target': [tx, ty], 'polygons': case.polygons}}
+						'geometry_sha256': case.digest}
 					try:
 						row.update(run_unordered_solver(BINARY, (sx, sy), (tx, ty), case.polygons, args.max_calls, args.max_seconds))
 						row['visit_order'] = 'free'
@@ -145,18 +190,23 @@ def main(argv: list[str] | None = None) -> int:
 						row['error'] = str(error)
 					return row
 
-				with ThreadPoolExecutor(max_workers=min(args.threads, len(cases))) as executor:
+				pending = [i for i in range(len(cases)) if (solver, i) not in successful_pairs()]
+				with ThreadPoolExecutor(max_workers=min(args.threads, max(1, len(pending)))) as executor:
 					futures = {}
-					for i in range(len(cases)):
+					for i in pending:
 						print(f'instance | [free] {i + 1}/{len(cases)} queued', flush=True)
 						futures[executor.submit(solve_case, i)] = i
 					for completed, future in enumerate(as_completed(futures), 1):
 						row = future.result()
+						report['rows'] = [item for item in report['rows'] if not (item.get('solver') == solver and item.get('case') == row['case'])]
 						report['rows'].append(row)
 						report['rows'].sort(key=lambda item: (item['case'], solvers.index(item['solver'])))
-						atomic_json(run / 'report.json', report)
+						save_checkpoint()
 						print(f'cases | [free] {completed}/{len(cases)} | case {row["case"] + 1} complete', flush=True)
 			else:
+				if all((solver, i) in successful_pairs() for i in range(len(cases))):
+					print(f'cases | [free] {len(cases)}/{len(cases)} | resumed', flush=True)
+					continue
 				suite = run / 'input.bin'
 				suite.write_bytes(b''.join(c.data for c in cases))
 				external_command = [str(EXTERNAL_PYTHON), str(EXTERNAL_RUNNER), '--suite', str(suite), '--mode', 'path',
@@ -170,7 +220,8 @@ def main(argv: list[str] | None = None) -> int:
 						i = int(external['case_index'])
 						if external['sha256'] != cases[i].digest:
 							raise ValueError('External instance hash mismatch.')
-						report['rows'].append({'case': i, 'sha256': cases[i].digest, 'solver': solver,
+						report['rows'] = [item for item in report['rows'] if not (item.get('solver') == solver and item.get('case') == i)]
+						report['rows'].append({'case': i, 'sha256': cases[i].digest, 'geometry_sha256': cases[i].digest, 'solver': solver,
 							'polygons': len(cases[i].polygons), 'upper_bound': finite(external['upper_bound']),
 							'lower_bound': finite(external['lower_bound']), 'seconds': finite(external['solve_seconds']),
 							'calls': finite(external['soc_num_calls']), 'exact': external['is_optimal'] == 'True',
@@ -184,13 +235,14 @@ def main(argv: list[str] | None = None) -> int:
 								'recomputed_length': finite(external.get('recomputed_length'))},
 							'termination': external['status'], 'error': external['error'] or None})
 				print(f'cases | [free] {len(cases)}/{len(cases)}', flush=True)
-		report['status'] = 'failed' if any(r.get('error') for r in report['rows']) else 'completed'
+		complete = len(successful_pairs()) == len(cases) * len(solvers)
+		report['status'] = 'completed' if complete else 'failed'
 	except Exception as error:
 		report['status'] = 'failed'
 		report['error'] = str(error)
 		raise
 	finally:
-		atomic_json(run / 'report.json', report)
+		save_checkpoint()
 	print(f'Report: {run / "report.json"}', flush=True)
 	return int(report['status'] != 'completed')
 

@@ -10,6 +10,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -963,14 +964,31 @@ register_support_routes(
 )
 
 
-from dashboard.dashboard_free_order import free_command, free_results, recorded_results  # noqa: E402
+from dashboard.dashboard_free_order import (  # noqa: E402
+    free_command,
+    free_result_case,
+    free_results,
+    recorded_result_case,
+    recorded_results,
+)
 
 
 @app.get("/api/campaigns/{name}/free-results")
 async def get_free_results(name: str):
-    return free_results(campaign_path(name))
+    endpoint = f"/api/campaigns/{quote(name, safe='')}/free-results/cases"
+    return free_results(campaign_path(name), endpoint=endpoint)
+
+
+@app.get("/api/campaigns/{name}/free-results/cases/{case_index}")
+async def get_free_result_case(name: str, case_index: int):
+    return free_result_case(campaign_path(name), case_index)
 
 
 @app.get("/api/free-order/reference")
 async def get_free_reference():
     return recorded_results()
+
+
+@app.get("/api/free-order/reference/cases/{case_index}")
+async def get_free_reference_case(case_index: int):
+    return recorded_result_case(case_index)

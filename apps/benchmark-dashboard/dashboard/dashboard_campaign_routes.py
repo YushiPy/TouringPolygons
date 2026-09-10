@@ -373,6 +373,15 @@ def register_campaign_routes(
         read_json(path / "campaign.json")
         return {"cases": [manual_case_request_to_json(case) for case in read_editable_case_requests(path)]}
 
+    @router.get("/api/campaigns/{name}/cases/{case_index}")
+    async def get_manual_case(name: str, case_index: int):
+        path = campaign_path(name)
+        read_json(path / "campaign.json")
+        cases = read_editable_case_requests(path)
+        if case_index < 0 or case_index >= len(cases):
+            raise HTTPException(status_code=404, detail="Case does not exist.")
+        return {"case": manual_case_request_to_json(cases[case_index])}
+
     @router.put("/api/campaigns/{name}/cases")
     async def replace_manual_cases(name: str, request: ManualCasesRequest, refresh_previews: bool = True):
         path = campaign_path(name)

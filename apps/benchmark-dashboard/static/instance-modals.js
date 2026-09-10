@@ -84,14 +84,23 @@ export function createInstanceModalController({
 		closeButton.setAttribute("aria-label", "Back to campaign details");
 	}
 
+	async function loadSingleCase(campaignName, index) {
+		const cached = state.campaignCaseMetadata.get(campaignName)?.[index];
+		if (cached) return cached;
+		const data = await requestJSON(`/api/campaigns/${encodeURIComponent(campaignName)}/cases/${index}`);
+		const cases = state.campaignCaseMetadata.get(campaignName) || [];
+		cases[index] = cloneCaseData(data.case);
+		state.campaignCaseMetadata.set(campaignName, cases);
+		return cases[index];
+	}
+
 	async function openInstanceModal(campaign, index) {
 		cancelActiveViewer();
 		const modal = $("#campaign-modal");
 		modal.classList.remove("is-wide-inspection");
 		state.instanceModalReturn = { campaign };
 		setInstanceModalBackButton(modal);
-		const cases = await loadCampaignCaseMetadata(campaign.name);
-		const caseData = cases[index];
+		const caseData = await loadSingleCase(campaign.name, index);
 		const body = $("#modal-body");
 		const title = instanceTitle(campaign, index);
 		$("#modal-title").innerHTML = instanceModalTitle(campaign, index);
@@ -108,8 +117,7 @@ export function createInstanceModalController({
 		modal.classList.add("is-wide-inspection");
 		state.instanceModalReturn = { campaign, panel: "benchmark-panel" };
 		setInstanceModalBackButton(modal);
-		const cases = await loadCampaignCaseMetadata(campaign.name);
-		const caseData = cases[item.case_index];
+		const caseData = await loadSingleCase(campaign.name, item.case_index);
 		const body = $("#modal-body");
 		const title = instanceTitle(campaign, item.case_index);
 		$("#modal-title").innerHTML = instanceModalTitle(campaign, item.case_index);

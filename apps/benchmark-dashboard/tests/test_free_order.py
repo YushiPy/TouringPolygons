@@ -7,11 +7,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import free_order_campaign
 from fastapi import HTTPException
 from test_api_integration import endpoint
 
 import main
-from dashboard.dashboard_free_order import free_command, free_results
+from dashboard.dashboard_free_order import free_command, free_result_case, free_results
 from dashboard.dashboard_models import CompareSolversRequest, LiveSolveRequest, RunCampaignRequest
 
 
@@ -62,6 +63,77 @@ class FreeOrderTests(unittest.TestCase):
             run.mkdir(parents=True)
             (run / "report.json").write_text('{"visit_order":"free","rows":[{"solver":"unordered"}]}')
             self.assertEqual(free_results(root)["rows"][0]["solver"], "unordered")
+
+    def test_free_report_defers_and_hydrates_visualization_data(self):
+        with tempfile.TemporaryDirectory() as directory:
+            campaign = Path(directory)
+            run = campaign / "results/free-order/test"
+            run.mkdir(parents=True)
+            geometry = {"start": [0, 0], "target": [2, 0], "polygons": []}
+            (run / "geometry.json").write_text(json.dumps({"cases": {"digest": geometry}}))
+            (run / "report.json").write_text(
+                json.dumps(
+                    {
+                        "visit_order": "free",
+                        "rows": [
+                            {
+                                "case": 0,
+                                "solver": "unordered",
+                                "sha256": "digest",
+                                "geometry_sha256": "digest",
+                                "path": [[0, 0], [2, 0]],
+                            }
+                        ],
+                    }
+                )
+            )
+            summary = free_results(campaign, endpoint="/detail")
+            self.assertNotIn("geometry", summary["rows"][0])
+            self.assertNotIn("path", summary["rows"][0])
+            self.assertTrue(summary["rows"][0]["visualization_available"])
+            detail = free_result_case(campaign, 0)
+            self.assertEqual(detail["rows"][0]["geometry"], geometry)
+            self.assertEqual(detail["rows"][0]["path"], [[0, 0], [2, 0]])
+
+    def test_free_campaign_resumes_missing_checkpoint_rows(self):
+        with tempfile.TemporaryDirectory() as directory:
+            campaign = Path(directory)
+            inputs = campaign / "inputs/cases.bin"
+            main.write_binary_cases(inputs, [((0, 0), (1, 0), []), ((0, 0), (2, 0), [])])
+            (campaign / "campaign.json").write_text(
+                json.dumps({"name": "resume", "inputs": [{"file": "inputs/cases.bin"}]})
+            )
+
+            def solve(_binary, start, target, _polygons, _calls, _seconds):
+                return {
+                    "path": [list(start), list(target)],
+                    "lower_bound": target[0],
+                    "upper_bound": target[0],
+                    "exact": True,
+                    "seconds": 0.001,
+                    "calls": 1,
+                }
+
+            with (
+                patch.object(free_order_campaign, "ensure_binary", return_value=Path("/tmp/fake")),
+                patch.object(free_order_campaign, "run_unordered_solver", side_effect=solve) as solver,
+            ):
+                self.assertEqual(free_order_campaign.main([str(campaign), "--threads", "2"]), 0)
+                report_path = next((campaign / "results/free-order").glob("*/report.json"))
+                report = json.loads(report_path.read_text())
+                report["rows"] = [row for row in report["rows"] if row["case"] == 0]
+                report["status"] = "failed"
+                report_path.write_text(json.dumps(report))
+                self.assertEqual(free_order_campaign.main([str(campaign), "--threads", "2"]), 0)
+                self.assertEqual(solver.call_count, 3)
+
+            resumed = json.loads(report_path.read_text())
+            self.assertEqual(len(resumed["rows"]), 2)
+            self.assertEqual(resumed["checkpoint"]["completed_pairs"], 2)
+            self.assertNotIn("geometry", resumed["rows"][0])
+            self.assertTrue((report_path.parent / "geometry.json").exists())
+            self.assertEqual(len(list((report_path.parent / "geometry").glob("*.json"))), 2)
+            self.assertEqual(free_result_case(campaign, 1)["rows"][0]["geometry"]["target"], [2.0, 0.0])
 
     def test_editor_dispatches_free_order_without_fixed_solver(self):
         solve = endpoint("/api/editor/solve", "POST")

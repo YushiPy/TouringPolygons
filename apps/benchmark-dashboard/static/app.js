@@ -1,7 +1,7 @@
 /* global FileReader, Image */
 
 import { visitOrder, setupVisitOrder } from "./order-mode.js?v=2026-09-10d";
-import { renderFreeOrderReport } from "./free-order-report.js?v=2026-09-10d";
+import { renderFreeOrderReport } from "./free-order-report.js?v=2026-09-10e";
 import { requestJSON } from "./api.js";
 import { benchmarkedPreviewHTML, instancePreviewUrl } from "./benchmarked-preview.js";
 import { casePayload, cloneCaseData, emptyCaseData, instanceLabel } from "./case-data.js?v=editor-align-2026-09-09d";
@@ -17,7 +17,7 @@ import { createKeybindManager } from "./keybinds.js";
 import { createManualEditor } from "./manual-editor.js?v=editor-align-2026-09-09d";
 import { createManualCaseController } from "./manual-cases.js";
 import { createConfirmationController, createModalController } from "./modals.js";
-import { createInstanceModalController } from "./instance-modals.js?v=2026-09-10d";
+import { createInstanceModalController } from "./instance-modals.js?v=2026-09-10e";
 import { createFormSubmissionController } from "./form-submissions.js?v=2026-09-10d";
 import { createOsmPicker } from "./osm-picker.js";
 import { createPreviewPanelController } from "./preview-panels.js";
@@ -373,9 +373,6 @@ function renderBenchmarkedInstanceSection(root, campaign, instances) {
 		root.innerHTML = "";
 		root.classList.add("is-hidden");
 		return;
-	}
-	if (!state.campaignCaseMetadata.has(campaign.name)) {
-		loadCampaignCaseMetadata(campaign.name).then(() => renderBenchmarkedInstanceSection(root, campaign, instances));
 	}
 	root.innerHTML = `
     <header class="section-subheader foldable-section-header">

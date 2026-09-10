@@ -27,6 +27,20 @@ try {
 	await dashboardPage.waitForFunction(() => window.__benchmarkDashboardReady === true);
 	await dashboardPage.locator("#campaign-list").waitFor({ state: "attached" });
 	await dashboardPage.locator("#manual-case-canvas").waitFor({ state: "attached" });
+	const reference = await (await dashboardPage.request.get(`${baseUrl}/api/free-order/reference`)).json();
+	if (reference.rows.length) {
+		assert.ok(reference.rows.every((row) => !("geometry" in row) && !("path" in row)));
+		const detail = await (await dashboardPage.request.get(`${baseUrl}${reference.visualization_endpoint}/0`)).json();
+		assert.ok(detail.rows.some((row) => row.geometry && row.path));
+	}
+	const virtualWindow = await dashboardPage.evaluate(async () => {
+		const { renderFreeOrderReport } = await import("/static/free-order-report.js?v=2026-09-10e");
+		const root = document.createElement("div");
+		document.body.append(root);
+		renderFreeOrderReport(root, { title: "Virtual", path: "virtual", rows: Array.from({ length: 250 }, (_, caseIndex) => ({ case: caseIndex, solver: "unordered", exact: true })) });
+		return { rendered: root.querySelectorAll(".free-result-row").length, label: root.querySelector("[data-free-window-label]").textContent };
+	});
+	assert.deepEqual(virtualWindow, { rendered: 100, label: "1–100 of 250" });
 	await dashboardPage.locator('[data-panel="benchmark-panel"]').click();
 	const threads = dashboardPage.locator("#threads-slider");
 	if (Number(await threads.getAttribute("max")) > 1) {
