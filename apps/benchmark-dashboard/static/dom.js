@@ -4,7 +4,15 @@ export function setOutput(target, text) {
 	if (!target) {
 		return;
 	}
-	target.textContent = text || "";
+	const next = text || "";
+	if (target.textContent === next) return;
+	const selection = window.getSelection?.();
+	if (selection && !selection.isCollapsed && selection.rangeCount > 0 && target.contains(selection.anchorNode)) {
+		target.dataset.pendingOutput = next;
+		return;
+	}
+	target.textContent = target.dataset.pendingOutput || next;
+	delete target.dataset.pendingOutput;
 }
 
 export function escapeHTML(value) {

@@ -1,12 +1,17 @@
 <section id="benchmark-panel" class="panel">
 	<div class="panel-header">
-		<h2>Run Benchmark</h2>
-		<p>Runs are resumable and write CSV, Markdown, logs, and a run index.</p>
+		<h2>Benchmark</h2>
+		<p>Run one solver against a controlled slice of a campaign. Progress and artifacts persist if this page is reloaded.</p>
 	</div>
 	<form id="run-form" class="run-form">
-		<label class="visit-order-field">Visit order
-			<select id="run-visit-order" name="visit_order" data-visit-order><option value="fixed">Fixed order</option><option value="free">Free order</option></select>
-		</label>
+		<div class="visit-order-field field">
+			<span class="field-label">Problem variant</span>
+			<input id="run-visit-order" name="visit_order" type="hidden" value="fixed" data-visit-order>
+			<div class="segmented visit-order-picker" data-visit-order-picker aria-label="Problem variant">
+				<button class="segment is-active" data-value="fixed" type="button" aria-pressed="true">Fixed order</button>
+				<button class="segment" data-value="free" type="button" aria-pressed="false">Free order</button>
+			</div>
+		</div>
 		<div class="run-main-fields">
 			<div class="field campaign-picker-field">
 				<div class="field-label-row">
@@ -54,7 +59,7 @@
 				<input name="max_seconds" placeholder="unlimited">
 			</label>
 			<label>
-				File timeout
+				Per-file timeout
 				<input name="timeout" type="number" min="1" placeholder="unlimited">
 			</label>
 		</div>
@@ -71,10 +76,15 @@
 					<button class="segment" data-value="gurobi" type="button">Gurobi</button>
 				</span>
 			</div>
-			<label data-order-only="free" class="is-hidden">Solver
-				<select name="free_solver"><option value="unordered">Our TPP B&amp;B</option><option value="tspn">External TSPN (local installation)</option></select>
-				<span>Free-order runs use one worker. The oracle is selected by the B&amp;B.</span>
-			</label>
+			<div data-order-only="free" class="field solver-field is-hidden">
+				<span class="field-label section-field-label">Solver</span>
+				<input name="free_solver" type="hidden" value="unordered">
+				<span class="segmented free-solver-picker" data-input="free_solver">
+					<button class="segment is-active" data-value="unordered" type="button">Our TPP B&amp;B</button>
+					<button class="segment" data-value="tspn" type="button">External TSPN</button>
+				</span>
+				<span class="field-note">Free-order runs use one worker. The B&amp;B selects its convex oracle.</span>
+			</div>
 			<div class="run-switches">
 				<label class="switch-row">
 					<input name="dry_run" type="checkbox">
@@ -101,6 +111,7 @@
 			<div id="run-progress" class="run-progress-card is-hidden" aria-live="polite"></div>
 		</div>
 	</form>
+	<p class="experiment-note"><strong>Reliability:</strong> Stop requests terminate the complete process group. Failed files remain visible in the summary and do not hide completed measurements.</p>
 	<div id="run-summary" class="summary-grid"></div>
 	<div id="benchmark-report" class="benchmark-report is-hidden"></div>
 	<section id="solved-preview" class="result-preview-section is-hidden"></section>

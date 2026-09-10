@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import sys
 import tempfile
@@ -18,6 +19,7 @@ assert SPEC.loader is not None
 sys.modules[SPEC.name] = dashboard
 SPEC.loader.exec_module(dashboard)
 import dashboard.dashboard_reports as dashboard_reports  # noqa: E402
+from dashboard.dashboard_jobs import JobController  # noqa: E402
 
 
 class DashboardMainTests(unittest.TestCase):
@@ -408,6 +410,47 @@ class DashboardMainTests(unittest.TestCase):
         self.assertEqual(snapshot["id"], "job")
         self.assertEqual(snapshot["campaign"], "campaign")
         self.assertNotIn("cancel_requested", snapshot)
+
+    def test_job_progress_tracks_build_and_current_instance(self) -> None:
+        job = dashboard.Job(id="job", command=["run"], campaign="campaign")
+        controller = JobController(
+            {job.id: job},
+            jobs_path=Path("/tmp/unused-jobs.json"),
+            repo_root=Path("/tmp"),
+            campaign_path=lambda name: Path("/tmp") / name,
+            read_run_index=lambda path: {"rows": []},
+            solvers={},
+        )
+        controller.update_job_progress(job, "+ cmake --build --preset release\n[7/20] Building CXX object")
+        self.assertEqual((job.phase, job.build_completed, job.build_total), ("compile", 7, 20))
+        controller.update_job_progress(job, "instance | [free] 3/72 started")
+        self.assertEqual((job.phase, job.progress_completed, job.progress_total), ("benchmark", 2, 72))
+        self.assertEqual(job.current_item, "instance 3/72")
+        self.assertIn("on current input", job.progress_snapshot()["output"])
+
+    def test_job_start_failure_becomes_terminal(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            job = dashboard.Job(id="job", command=["missing-benchmark"], campaign="campaign")
+            controller = JobController(
+                {job.id: job},
+                jobs_path=root / "jobs.json",
+                repo_root=root,
+                campaign_path=lambda name: root / name,
+                read_run_index=lambda path: {"rows": []},
+                solvers={},
+            )
+            with patch(
+                "dashboard.dashboard_jobs.asyncio.create_subprocess_exec",
+                side_effect=OSError("executable not found"),
+            ):
+                asyncio.run(controller.run_job(job))
+
+            self.assertEqual(job.status, "failed")
+            self.assertEqual(job.returncode, 127)
+            self.assertIsNotNone(job.finished_at)
+            self.assertIn("Could not start benchmark process", job.output)
+            self.assertTrue((root / "jobs.json").exists())
 
 
 if __name__ == "__main__":

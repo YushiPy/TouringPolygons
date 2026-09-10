@@ -1,7 +1,7 @@
 <section id="inspect-panel" class="panel">
 	<div class="panel-header">
-		<h2>Inspect Campaigns</h2>
-		<p>Campaign metadata, previews, run progress, and recent result files.</p>
+		<h2>Campaign Library</h2>
+		<p>Inspect suite provenance, previews, completion state, recent artifacts, and job history.</p>
 	</div>
 	<div class="inspect-actions">
 		<div class="sort-by-control"><span>Sort by:</span><div class="segmented list-sort-control" data-campaign-sort="inspect" aria-label="Sort campaigns">
@@ -23,6 +23,7 @@
 		</label>
 	</div>
 	<div id="result-list" class="result-list"></div>
+	<button id="toggle-results-button" class="secondary result-toggle is-hidden" type="button">Show all</button>
 	<h3>Recent Jobs</h3>
 	<div id="job-list" class="result-list"></div>
 	<div class="output-panel">

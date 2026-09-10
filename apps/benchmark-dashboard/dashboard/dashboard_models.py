@@ -165,6 +165,11 @@ class Job:
     solver_progress_completed: int | None = None
     solver_progress_total: int | None = None
     current_solver: str | None = None
+    phase: str = "starting"
+    current_item: str | None = None
+    current_item_started_at: float | None = None
+    build_completed: int | None = None
+    build_total: int | None = None
     cancel_requested: bool = False
     process: asyncio.subprocess.Process | None = field(default=None, repr=False)
 
@@ -195,11 +200,25 @@ class Job:
             "solver_progress_completed": self.solver_progress_completed,
             "solver_progress_total": self.solver_progress_total,
             "current_solver": self.current_solver,
+            "phase": self.phase,
+            "current_item": self.current_item,
+            "current_item_started_at": self.current_item_started_at,
+            "build_completed": self.build_completed,
+            "build_total": self.build_total,
             "cancel_requested": self.cancel_requested,
             "status": self.status,
         }
 
     def progress_snapshot(self) -> dict[str, Any]:
+        elapsed = max(0.0, (self.finished_at or time.time()) - self.started_at)
+        item_elapsed = max(0.0, time.time() - self.current_item_started_at) if self.current_item_started_at else None
+        live = ""
+        if self.status in {"running", "stopping"}:
+            if self.phase == "compile":
+                count = f" {self.build_completed}/{self.build_total} build steps" if self.build_total else ""
+                live = f"\n\nLive: compiling{count} · {elapsed:.1f}s elapsed"
+            elif self.current_item:
+                live = f"\n\nLive: {self.current_item} · {(item_elapsed or 0):.1f}s on current input · {elapsed:.1f}s total"
         return {
             "id": self.id,
             "kind": self.kind,
@@ -207,12 +226,17 @@ class Job:
             "started_at": self.started_at,
             "finished_at": self.finished_at,
             "status": self.status,
-            "output": self.output,
+            "output": self.output + live,
             "command": self.command,
             "progress_completed": self.progress_completed,
             "progress_total": self.progress_total,
             "solver_progress_completed": self.solver_progress_completed,
             "solver_progress_total": self.solver_progress_total,
             "current_solver": self.current_solver,
-            "elapsed_seconds": max(0.0, (self.finished_at or time.time()) - self.started_at),
+            "elapsed_seconds": elapsed,
+            "phase": self.phase,
+            "current_item": self.current_item,
+            "current_item_elapsed_seconds": item_elapsed,
+            "build_completed": self.build_completed,
+            "build_total": self.build_total,
         }

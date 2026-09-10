@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import re
+import signal
 import time
 import uuid
 from collections.abc import Callable
@@ -14,6 +16,12 @@ from dashboard.dashboard_models import Job
 
 PROGRESS_PATTERN = re.compile(r"cases\s+\|\s+\[[^\]]*\]\s+(\d+)\s*/\s*(\d+)")
 SOLVER_SECTION_PATTERN = re.compile(r"^##\s+(.+)$", re.MULTILINE)
+INPUT_START_PATTERN = re.compile(r"^\[(\d+)/(\d+)\]\s+(?:run|skip)\s+(.+)$", re.MULTILINE)
+BUILD_NINJA_PATTERN = re.compile(r"^\[(\d+)/(\d+)\]\s+", re.MULTILINE)
+BUILD_PERCENT_PATTERN = re.compile(r"^\[\s*(\d+)%\]", re.MULTILINE)
+FREE_INSTANCE_PATTERN = re.compile(r"^instance\s+\|\s+\[free\]\s+(\d+)\s*/\s*(\d+)\s+started$", re.MULTILINE)
+JOB_OUTPUT_LIMIT = 20_000
+JOB_READ_SIZE = 16_384
 
 
 class JobController:
@@ -85,6 +93,11 @@ class JobController:
                 current_solver=(
                     raw_job.get("current_solver") if isinstance(raw_job.get("current_solver"), str) else None
                 ),
+                phase=str(raw_job.get("phase") or "starting"),
+                current_item=(raw_job.get("current_item") if isinstance(raw_job.get("current_item"), str) else None),
+                current_item_started_at=(raw_job.get("current_item_started_at") if isinstance(raw_job.get("current_item_started_at"), int | float) else None),
+                build_completed=(raw_job.get("build_completed") if isinstance(raw_job.get("build_completed"), int) else None),
+                build_total=(raw_job.get("build_total") if isinstance(raw_job.get("build_total"), int) else None),
                 cancel_requested=bool(raw_job.get("cancel_requested")),
             )
             if raw_job.get("returncode") is None:
@@ -112,9 +125,40 @@ class JobController:
                 return
 
     def update_job_progress(self, job: Job, output: str) -> None:
+        if "+ cmake --build" in output or "cmake --build" in output and job.progress_total is None:
+            job.phase = "compile"
+        for match in BUILD_NINJA_PATTERN.finditer(output):
+            if job.phase == "compile":
+                job.build_completed = int(match.group(1))
+                job.build_total = int(match.group(2))
+        for match in BUILD_PERCENT_PATTERN.finditer(output):
+            if job.phase == "compile":
+                job.build_completed = int(match.group(1))
+                job.build_total = 100
+        for match in INPUT_START_PATTERN.finditer(output):
+            item = match.group(3).strip()
+            if job.current_item != item:
+                job.current_item = item
+                job.current_item_started_at = time.time()
+            job.phase = "benchmark"
+            job.progress_completed = max(0, int(match.group(1)) - (0 if "skip" in match.group(0) else 1))
+            job.progress_total = int(match.group(2))
+        for match in FREE_INSTANCE_PATTERN.finditer(output):
+            item = f"instance {match.group(1)}/{match.group(2)}"
+            if job.current_item != item:
+                job.current_item = item
+                job.current_item_started_at = time.time()
+            job.phase = "benchmark"
+            job.progress_completed = max(0, int(match.group(1)) - 1)
+            job.progress_total = int(match.group(2))
         for match in PROGRESS_PATTERN.finditer(output):
+            if job.progress_completed != int(match.group(1)):
+                job.current_item_started_at = time.time()
+            job.phase = "benchmark"
             job.progress_completed = int(match.group(1))
             job.progress_total = int(match.group(2))
+            next_instance = min(job.progress_total, job.progress_completed + 1)
+            job.current_item = f"instance {next_instance}/{job.progress_total}"
         if job.kind == "comparison" and job.solver_progress_total is not None:
             known_solvers = set(self.solvers.values()) | {"unordered", "tspn"}
             solvers = [
@@ -129,30 +173,43 @@ class JobController:
     async def run_job(self, job: Job) -> None:
         env = os.environ.copy()
         env.setdefault("PYTHONPYCACHEPREFIX", "/tmp/touringpolygons-pycache")
-        process = await asyncio.create_subprocess_exec(
-            *job.command,
-            cwd=self.repo_root,
-            env=env,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-            start_new_session=True,
-        )
-        job.process = process
-        assert process.stdout is not None
-        output_parts: list[str] = []
-        while True:
-            chunk = await process.stdout.read(1024)
-            if not chunk:
-                break
-            text = chunk.decode(errors="replace")
-            output_parts.append(text)
-            job.output = "".join(output_parts)[-20000:]
-            self.update_job_progress(job, job.output)
-        job.returncode = await process.wait()
-        if job.returncode == 0 and job.progress_total is not None:
-            job.progress_completed = job.progress_total
-        if job.returncode == 0 and job.solver_progress_total is not None:
-            job.solver_progress_completed = job.solver_progress_total
-        job.finished_at = time.time()
-        job.process = None
-        self.persist_jobs()
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *job.command,
+                cwd=self.repo_root,
+                env=env,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                start_new_session=True,
+            )
+            job.process = process
+            if job.cancel_requested:
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(process.pid, signal.SIGTERM)
+            assert process.stdout is not None
+            while True:
+                chunk = await process.stdout.read(JOB_READ_SIZE)
+                if not chunk:
+                    break
+                text = chunk.decode(errors="replace")
+                job.output = (job.output + text)[-JOB_OUTPUT_LIMIT:]
+                self.update_job_progress(job, job.output)
+            job.returncode = await process.wait()
+            if job.returncode == 0 and job.progress_total is not None:
+                job.progress_completed = job.progress_total
+            if job.returncode == 0 and job.solver_progress_total is not None:
+                job.solver_progress_completed = job.solver_progress_total
+        except asyncio.CancelledError:
+            if job.process is not None:
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(job.process.pid, signal.SIGKILL)
+            job.returncode = 130
+            job.cancel_requested = True
+            raise
+        except (OSError, RuntimeError) as error:
+            job.returncode = 127
+            job.output = (job.output + f"\nCould not start benchmark process: {error}").strip()[-JOB_OUTPUT_LIMIT:]
+        finally:
+            job.finished_at = time.time()
+            job.process = None
+            self.persist_jobs()

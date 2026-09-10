@@ -414,8 +414,25 @@ export function createManualEditor({
 		setSolveStatus(message) {
 			const status = $("#manual-solve-status");
 			if (status && status.textContent !== (message || "")) {
+				status.classList.remove("has-metrics");
 				status.textContent = message || "";
 			}
+		},
+
+		setSolveMetrics(metrics) {
+			const status = $("#manual-solve-status");
+			if (!status) return;
+			status.classList.add("has-metrics");
+			status.replaceChildren(...Object.entries(metrics).map(([label, value]) => {
+				const item = document.createElement("span");
+				item.className = "status-metric";
+				const key = document.createElement("small");
+				key.textContent = label;
+				const content = document.createElement("strong");
+				content.textContent = String(value);
+				item.append(key, content);
+				return item;
+			}));
 		},
 
 		setSaveStatus(message) {
@@ -1018,35 +1035,29 @@ export function createManualEditor({
 		},
 
 		scheduleSolve() {
-			if (this.solutionRun) { this.solutionQueued = true; return; }
-			const current = this.currentCase();
-			if (!current) {
+			if (this.solutionRun) {
+				this.solutionQueued = true;
+				this.solutionAbort?.abort();
 				return;
 			}
-			const caseData = cloneCaseData({ start: current.start, target: current.target, polygons: current.polygons.filter(polygon => polygon.length >= 3) });
-			const revision = this.solutionRevision;
-			if (caseData.polygons.length === 0) {
-				this.solutionPath = [caseData.start, caseData.target];
-				const length = Math.hypot(caseData.target[0] - caseData.start[0], caseData.target[1] - caseData.start[1]);
-				this.solutionStale = false;
-				this.updateLabelDirections(true);
-				this.setStatus(`Solution: exact, length ${formatLength(length)}, 0 calls`);
-				this.requestDraw();
-				return;
-			}
-			if (this.solutionStale) {
-				this.setStatus("Updating solution...");
-			}
-			if (this.solutionTimer) {
-				clearTimeout(this.solutionTimer);
+			if (this.solutionTimer) return;
+			this.solutionTimer = setTimeout(() => {
 				this.solutionTimer = null;
-			}
-			if (this.solutionFrame) {
-				cancelAnimationFrame(this.solutionFrame);
-				this.solutionFrame = null;
-			}
-			const requestedAt = performance.now();
-			this.fetchSolution(caseData, revision, requestedAt);
+				const current = this.currentCase();
+				if (!current) return;
+				const caseData = cloneCaseData({ start: current.start, target: current.target, polygons: current.polygons.filter(polygon => polygon.length >= 3) });
+				const revision = this.solutionRevision;
+				if (caseData.polygons.length === 0) {
+					this.solutionPath = [caseData.start, caseData.target];
+					const length = Math.hypot(caseData.target[0] - caseData.start[0], caseData.target[1] - caseData.start[1]);
+					this.solutionStale = false;
+					this.updateLabelDirections(false);
+					this.setSolveMetrics({ Solution: "exact", Length: formatLength(length), "Oracle calls": 0 });
+					this.requestDraw();
+					return;
+				}
+				this.fetchSolution(caseData, revision, performance.now());
+			}, 16);
 		},
 
 		async fetchSolution(caseData, revision = this.solutionRevision, requestedAt = performance.now()) {
@@ -1072,16 +1083,24 @@ export function createManualEditor({
 			}
 			const run = {};
 			this.solutionRun = run;
-			this.setStatus("Solving...");
+			if (!this.solutionPath) this.setStatus("Solving...");
 			try {
 				if (visitOrder() === "free") {
-					this.setStatus("Solving free visit order...");
+					if (!this.solutionPath) this.setStatus("Solving free visit order...");
 					const result = await solveFreeOrder(caseData, signal);
 					if (signal.aborted || revision !== this.solutionRevision) return;
 					this.solutionPath = result.path;
 					this.solutionStale = false;
-					this.updateLabelDirections(true);
-					this.setStatus(`Free order: ${result.exact ? "optimal within tolerance" : result.termination}, length ${formatLength(result.upper_bound)}, gap ${formatLength(result.upper_bound - result.lower_bound)}, ${formatSeconds(result.seconds)} solver, ${formatSeconds((performance.now() - requestedAt) / 1000)} update, order ${result.order.join(" → ")}`);
+					this.updateLabelDirections(false);
+					this.setSolveMetrics({
+						Solution: result.exact ? "optimal" : result.termination,
+						Length: formatLength(result.upper_bound),
+						Gap: formatLength(result.upper_bound - result.lower_bound),
+						"Oracle calls": result.calls ?? "-",
+						Solver: formatSeconds(result.seconds),
+						Update: formatSeconds((performance.now() - requestedAt) / 1000),
+						Order: result.order.join(" → "),
+					});
 					this.requestDraw();
 					return;
 				}
@@ -1094,8 +1113,15 @@ export function createManualEditor({
 					}
 					this.solutionPath = wasmResult.path;
 					this.solutionStale = false;
-					this.updateLabelDirections(true);
-					this.setStatus(`Solution: ${wasmResult.exact ? "exact" : "approximate"}, length ${formatLength(wasmResult.length)}, ${wasmResult.calls} calls, ${wasmResult.seconds > 0 ? formatSeconds(wasmResult.seconds) : "below timer resolution"} solver, ${formatSeconds(solveWallSeconds)} update via WASM`);
+					this.updateLabelDirections(false);
+					this.setSolveMetrics({
+						Solution: wasmResult.exact ? "exact" : "approximate",
+						Length: formatLength(wasmResult.length),
+						"Oracle calls": wasmResult.calls,
+						Solver: wasmResult.seconds > 0 ? formatSeconds(wasmResult.seconds) : "< timer resolution",
+						Update: formatSeconds(solveWallSeconds),
+						Runtime: "WASM",
+					});
 					this.requestDraw();
 					return;
 				}

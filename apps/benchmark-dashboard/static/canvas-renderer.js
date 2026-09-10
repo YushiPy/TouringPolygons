@@ -13,10 +13,6 @@ export function drawCanvasScene(renderer) {
 		ctx.save();
 		ctx.strokeStyle = "#facc15";
 		ctx.lineWidth = 4;
-		ctx.globalAlpha = renderer.solutionStale ? 0.45 : 1;
-		if (renderer.solutionStale) {
-			ctx.setLineDash([9, 6]);
-		}
 		ctx.beginPath();
 		renderer.solutionPath.forEach((point, index) => {
 			const canvasPoint = renderer.worldToCanvas(point);

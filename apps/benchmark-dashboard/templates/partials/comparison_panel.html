@@ -1,12 +1,17 @@
 <section id="comparison-panel" class="panel">
 	<div class="panel-header">
-		<h2>Compare Solvers</h2>
-		<p>Compare solvers on the same campaign and visit-order variant.</p>
+		<h2>Solver Comparison</h2>
+		<p>Evaluate selected solvers with the same campaign, limits, and machine-level conditions.</p>
 	</div>
 	<form id="compare-form" class="run-form">
-		<label class="visit-order-field">Visit order
-			<select id="compare-visit-order" name="visit_order" data-visit-order><option value="fixed">Fixed order</option><option value="free">Free order</option></select>
-		</label>
+		<div class="visit-order-field field">
+			<span class="field-label">Problem variant</span>
+			<input id="compare-visit-order" name="visit_order" type="hidden" value="fixed" data-visit-order>
+			<div class="segmented visit-order-picker" data-visit-order-picker aria-label="Problem variant">
+				<button class="segment is-active" data-value="fixed" type="button" aria-pressed="true">Fixed order</button>
+				<button class="segment" data-value="free" type="button" aria-pressed="false">Free order</button>
+			</div>
+		</div>
 		<div class="run-main-fields">
 			<div class="field campaign-picker-field">
 				<div class="field-label-row">
@@ -91,12 +96,13 @@
 			<label class="solver-check"><input name="free_solvers" value="tspn" type="checkbox" checked><span>External TSPN</span></label>
 		</div>
 		<div class="actions compare-actions">
-			<button type="submit">Compare</button>
+			<button type="submit">Run comparison</button>
 			<button id="copy-compare-command" class="secondary command-copy" type="button">Copy Command</button>
 			<button id="stop-compare-button" class="secondary stop-button is-hidden" type="button"
 				disabled>Stop</button>
 		</div>
 	</form>
+	<p class="experiment-note"><strong>Interpretation:</strong> Compare wall time and solver work together. Build time is reported separately and is not solver time.</p>
 	<div id="compare-progress" class="run-progress-card is-hidden" aria-live="polite"></div>
 	<div class="event-callout"><div><strong>34º SIICUSP · Resultados verificados</strong><p>Explore os 60 caminhos e os limites da rodada de 6 de setembro.</p></div><a href="/evento#resultados">Abrir apresentação dos resultados ↗</a></div>
 	<button id="show-free-reference" class="secondary" type="button">Historical comparison · 5 September 2026 (60 instances)</button>

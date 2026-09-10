@@ -31,9 +31,13 @@ def ensure_binary(no_build: bool = False) -> Path:
 	sources = [p for package in ('common-geometry', 'convex-tpp', 'nonconvex-tpp', 'optimal-convex-partition')
 		for p in (ROOT / 'packages' / package / 'cpp').rglob('*') if p.suffix in ('.cpp', '.h', '.txt')]
 	if BINARY.exists() and all(p.stat().st_mtime_ns <= BINARY.stat().st_mtime_ns for p in sources):
+		print('Build: free-order solver is up to date.', flush=True)
 		return BINARY
+	print('Build: configuring free-order solver...', flush=True)
 	subprocess.run(['cmake', '-S', str(ROOT / 'packages/nonconvex-tpp/cpp'), '-B', str(BINARY.parent), '-DTARGET=main-unordered'], check=True)
+	print('Build: compiling free-order solver...', flush=True)
 	subprocess.run(['cmake', '--build', str(BINARY.parent), '--target', 'tpp', '-j', '8'], check=True)
+	print('Build: complete.', flush=True)
 	return BINARY
 
 
@@ -107,6 +111,7 @@ def main(argv: list[str] | None = None) -> int:
 			print(f'## {solver}', flush=True)
 			if solver == 'unordered':
 				for i, case in enumerate(cases):
+					print(f'instance | [free] {i + 1}/{len(cases)} started', flush=True)
 					sx, sy, tx, ty = struct.unpack_from('<dddd', case.data)
 					row = {'case': i, 'sha256': case.digest, 'solver': solver, 'polygons': len(case.polygons),
 						'geometry': {'start': [sx, sy], 'target': [tx, ty], 'polygons': case.polygons}}

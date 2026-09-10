@@ -14,38 +14,43 @@
 	<link rel="stylesheet" href="/static/reports.css">
 	<link rel="stylesheet" href="/static/overlays.css">
 	<link rel="stylesheet" href="/static/responsive.css">
+	<link rel="stylesheet" href="/static/workbench.css?v=2026-09-10b">
 </head>
 
 <body>
 	<main class="shell">
 		<header class="topbar">
-			<div>
-				<h1>TPP Instance Workbench</h1>
-				<p>Create, edit, benchmark, compare, and inspect touring-polygon instance suites.</p>
+			<div class="product-title">
+				<span class="product-mark" aria-hidden="true">TPP</span>
+				<div>
+					<h1>TPP Research Workbench</h1>
+					<p>Design instances, run controlled experiments, and inspect solver evidence.</p>
+				</div>
 			</div>
 			<div class="topbar-actions">
-				<a href="/evento" class="event-entry">34º SIICUSP · Explore os resultados ↗</a>
+				<a href="/evento" class="event-entry"><span>SIICUSP 34</span> Published results ↗</a>
 				<button id="theme-toggle" class="secondary" type="button" aria-pressed="false">Dark</button>
-				<button id="refresh-button" type="button">Refresh</button>
+				<button id="refresh-button" class="secondary" type="button">Refresh data</button>
 			</div>
 		</header>
 
 		<nav class="tabs" aria-label="Dashboard sections">
 			<div class="tab-group">
-				<span>Edit test cases</span>
+				<span>Workspace</span>
 				<div>
-					<button class="tab is-active" data-panel="create-panel" type="button">Create</button>
-					<button class="tab" data-panel="cases-panel" type="button">Cases</button>
-					<button class="tab" data-panel="inspect-panel" type="button">Inspect</button>
+					<button class="tab is-active" data-panel="create-panel" type="button"><span class="tab-icon">＋</span><span>Create</span></button>
+					<button class="tab" data-panel="cases-panel" type="button"><span class="tab-icon">◇</span><span>Instances</span></button>
+					<button class="tab" data-panel="inspect-panel" type="button"><span class="tab-icon">⌕</span><span>Campaigns</span></button>
 				</div>
 			</div>
 			<div class="tab-group">
-				<span>Evaluate</span>
+				<span>Experiments</span>
 				<div>
-					<button class="tab" data-panel="benchmark-panel" type="button">Benchmark</button>
-					<button class="tab" data-panel="comparison-panel" type="button">Comparison</button>
+					<button class="tab" data-panel="benchmark-panel" type="button"><span class="tab-icon">▶</span><span>Benchmark</span></button>
+					<button class="tab" data-panel="comparison-panel" type="button"><span class="tab-icon">≋</span><span>Compare</span></button>
 				</div>
 			</div>
+			<p class="nav-note">Local research environment<br><span>Artifacts stay in the repository</span></p>
 		</nav>
 
 		{% include "partials/create_panel.html" %}
@@ -56,7 +61,7 @@
 	</main>
 	{% include "partials/modals.html" %}
 	<script>window.__editorWasmAvailable = {{ editor_wasm_available|default(false)|tojson }};</script>
-	<script type="module" src="/static/app.js?v=editor-align-2026-09-09d"></script>
+	<script type="module" src="/static/app.js?v=2026-09-10b"></script>
 </body>
 
 </html>

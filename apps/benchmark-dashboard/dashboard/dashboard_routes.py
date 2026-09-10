@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import signal
 import time
@@ -7,7 +8,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, BackgroundTasks, FastAPI, HTTPException
 
 JobMap = dict[str, Any]
 
@@ -70,8 +71,17 @@ def register_support_routes(
         items = sorted(jobs.values(), key=lambda item: item.started_at, reverse=True)
         return {"jobs": [job.snapshot() for job in items[:100]]}
 
+    async def force_stop_job(job: Any) -> None:
+        await asyncio.sleep(3)
+        if job.returncode is not None or job.process is None:
+            return
+        try:
+            os.killpg(job.process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
     @router.post("/api/jobs/{job_id}/cancel")
-    async def cancel_job(job_id: str):
+    async def cancel_job(job_id: str, background_tasks: BackgroundTasks):
         job = jobs.get(job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="Unknown job.")
@@ -83,6 +93,7 @@ def register_support_routes(
                 os.killpg(job.process.pid, signal.SIGTERM)
             except ProcessLookupError:
                 pass
+            background_tasks.add_task(force_stop_job, job)
         persist_jobs()
         return {"ok": True, "status": job.status}
 
@@ -140,19 +151,22 @@ def register_support_routes(
 
     @router.get("/api/results")
     async def list_results():
-        roots = [results_root, campaigns_root]
-        files = [
-            {
-                "path": str(path.relative_to(repo_root)),
-                "size": path.stat().st_size,
-                "mtime": path.stat().st_mtime,
-            }
-            for root in roots
-            if root.exists()
-            for path in sorted(root.rglob("*"))
-            if path.is_file() and path.suffix in {".csv", ".md", ".log"}
-        ]
-        files.sort(key=lambda file: file["mtime"])
-        return {"files": files[-200:]}
+        def collect() -> list[dict[str, Any]]:
+            roots = [results_root, campaigns_root]
+            files = [
+                {
+                    "path": str(path.relative_to(repo_root)),
+                    "size": path.stat().st_size,
+                    "mtime": path.stat().st_mtime,
+                }
+                for root in roots
+                if root.exists()
+                for path in sorted(root.rglob("*"))
+                if path.is_file() and path.suffix in {".csv", ".md", ".log"}
+            ]
+            files.sort(key=lambda file: file["mtime"])
+            return files[-200:]
+
+        return {"files": await asyncio.to_thread(collect)}
 
     app.include_router(router)
