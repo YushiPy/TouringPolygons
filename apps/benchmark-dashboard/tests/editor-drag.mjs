@@ -35,10 +35,9 @@ try {
 			await idle();
 			editor.updateLabelDirections(false);
 			await new Promise(requestAnimationFrame);
-			let renders = 0, solves = 0, styles = 0;
-			const draw = editor.draw.bind(editor), fetchSolution = editor.fetchSolution.bind(editor), drawGrid = editor.drawGrid.bind(editor);
-			editor.draw = () => { renders += 1; draw(); };
-			editor.drawGrid = () => { styles += 1; drawGrid(); };
+				let renders = 0, solves = 0;
+				const draw = editor.draw.bind(editor), fetchSolution = editor.fetchSolution.bind(editor);
+				editor.draw = () => { renders += 1; draw(); };
 			editor.fetchSolution = (...args) => { solves += 1; return fetchSolution(...args); };
 			const rect = editor.canvas.getBoundingClientRect();
 			editor.dragPolygon = { index: 0, lastWorld: editor.canvasToWorld(200, 200) };

@@ -1334,6 +1334,9 @@ manualEditor.init();
 createSatelliteMap({ $, manualEditor, scheduleManualAutosave }).init();
 updateCreateMode();
 
+const requestedPanel = `${window.location.hash.slice(1)}-panel`;
+if (document.getElementById(requestedPanel)) switchPanel(requestedPanel);
+
 requestJSON("/api/system")
 	.then((system) => {
 		state.cpuCount = system.cpu_count || 1;
@@ -1343,7 +1346,6 @@ requestJSON("/api/system")
 	})
 	.then(() => {
 		resumeRunningJobs();
-		const requestedPanel = `${window.location.hash.slice(1)}-panel`;
 		if (document.getElementById(requestedPanel)) switchPanel(requestedPanel);
 	})
 	.catch((error) => {
