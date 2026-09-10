@@ -11,7 +11,7 @@ export const state = {
 	resultsLoaded: false,
 	resultsExpanded: false,
 	recentJobs: [],
-	activePanel: "create-panel",
+	activePanel: "cases-panel",
 	osmScanStarted: false,
 	benchmarkedInstances: new Map(),
 	benchmarkedSort: "case",

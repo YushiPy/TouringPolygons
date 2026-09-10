@@ -309,6 +309,60 @@ select {
 	gap: 18px;
 }
 
+.instance-workspace-switch {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(220px, 1fr));
+	width: min(680px, 100%);
+	margin-bottom: 18px;
+	padding: 3px;
+	border: 1px solid var(--line);
+	border-radius: 9px;
+	background: var(--surface-muted);
+}
+
+.instance-workspace-switch button {
+	display: grid;
+	gap: 1px;
+	min-height: 48px;
+	padding: 7px 11px;
+	border-color: transparent;
+	background: transparent;
+	color: var(--muted);
+	text-align: left;
+	box-shadow: none;
+}
+
+.instance-workspace-switch button:hover {
+	background: var(--surface);
+	color: var(--text);
+	box-shadow: none;
+	transform: none;
+}
+
+.instance-workspace-switch button.is-active {
+	border-color: var(--active-bg);
+	background: var(--active-bg);
+	color: var(--active-text);
+}
+
+.instance-workspace-switch small {
+	color: inherit;
+	font-size: .7rem;
+	opacity: .76;
+}
+
+.visually-hidden {
+	position: absolute !important;
+	width: 1px !important;
+	height: 1px !important;
+	padding: 0 !important;
+	margin: -1px !important;
+	overflow: hidden !important;
+	clip: rect(0, 0, 0, 0) !important;
+	white-space: nowrap !important;
+	border: 0 !important;
+}
+
 .create-actions {
 	margin-top: 6px;
 	padding-top: 18px;
@@ -687,6 +741,8 @@ select {
 .list-sort-control {
 	flex-wrap: nowrap;
 	box-sizing: border-box;
+	width: auto;
+	flex: 0 0 auto;
 }
 
 .list-sort-control .sort-reverse-button {
@@ -698,6 +754,25 @@ select {
 	min-width: 0;
 }
 
+.case-sidebar .field-label-row,
+.case-sidebar .case-list-head {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	justify-content: stretch;
+	gap: 6px;
+}
+
+.case-sidebar .sort-by-control {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	width: 100%;
+}
+
+.case-sidebar .list-sort-control {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr)) 32px;
+}
+
 .output {
 	user-select: text;
 	-webkit-user-select: text;
@@ -705,20 +780,33 @@ select {
 }
 
 #cases-panel.editor-expanded .case-editor-shell {
-	padding-top: 54px;
+	width: min(1680px, 100%);
+	max-width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
+}
+
+#cases-panel.editor-expanded .instance-workspace-switch {
+	display: none;
 }
 
 #cases-panel.editor-expanded .case-toolbar {
+	position: relative;
 	display: grid;
-	grid-template-columns: minmax(360px, 1.15fr) minmax(280px, 0.9fr) minmax(360px, 1.35fr) auto;
+	grid-template-columns: minmax(530px, 1.2fr) minmax(315px, .8fr) minmax(430px, 1.25fr) auto;
 	align-items: end;
+	padding-right: 48px;
+}
+
+#cases-panel.editor-expanded .case-toolbar > * {
+	order: 0;
 }
 
 #cases-panel.editor-expanded .manual-editor-close {
 	position: absolute;
-	top: 14px;
-	right: 14px;
-	order: initial;
+	top: 10px;
+	right: 10px;
+	order: 0;
 }
 
 #cases-panel.editor-expanded .toolbar-modes {
@@ -744,12 +832,84 @@ select {
 
 #manual-editor-status {
 	align-items: center;
+	margin-top: 5px;
 }
 
 #manual-save-status {
 	flex: 0 0 108px;
 	min-width: 108px;
 	text-align: right;
+}
+
+#compare-form {
+	grid-template-columns: repeat(12, minmax(0, 1fr));
+	gap: 10px;
+}
+
+#compare-form > .visit-order-field,
+#compare-form > .run-main-fields,
+#compare-form > .compare-actions {
+	grid-column: 1 / -1;
+}
+
+#compare-form > .run-limit-fields {
+	grid-column: span 5;
+}
+
+#compare-form > .compare-solver-grid {
+	grid-column: span 7;
+}
+
+#compare-form .visit-order-field {
+	margin: 0;
+}
+
+#compare-form .visit-order-picker {
+	width: min(520px, 100%);
+}
+
+#compare-form .run-main-fields,
+#compare-form .run-limit-fields {
+	padding: 11px;
+}
+
+#compare-form .campaign-choice-grid {
+	grid-auto-rows: minmax(60px, auto);
+	max-height: 78px;
+}
+
+#compare-form .campaign-choice-grid .choice-card {
+	min-height: 60px;
+	padding: 6px 8px;
+}
+
+#compare-form .compare-solver-grid {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	align-content: start;
+	padding: 5px;
+}
+
+.compare-solver-label {
+	grid-column: 1 / -1;
+	padding: 2px 5px;
+	color: var(--muted);
+	font-size: .69rem;
+	font-weight: 750;
+	letter-spacing: .05em;
+	text-transform: uppercase;
+}
+
+#compare-form .solver-check,
+#compare-form .solver-check span {
+	min-height: 38px;
+}
+
+#compare-form .compare-actions {
+	grid-template-columns: minmax(220px, 1fr) auto auto;
+}
+
+#compare-form .compare-actions button {
+	min-height: 42px;
 }
 
 #manual-solve-status.has-metrics::before,
@@ -823,6 +983,16 @@ select {
 	}
 }
 
+@media (min-width: 1181px) and (max-width: 1600px) {
+	#cases-panel.editor-expanded .case-toolbar {
+		grid-template-columns: minmax(430px, 1fr) minmax(315px, .75fr);
+	}
+
+	#cases-panel.editor-expanded .toolbar-more {
+		justify-self: start;
+	}
+}
+
 @media (max-width: 780px) {
 	.shell {
 		padding: 14px;
@@ -876,6 +1046,23 @@ select {
 	.run-limit-fields,
 	.run-options {
 		padding: 12px;
+	}
+
+	.instance-workspace-switch {
+		grid-template-columns: 1fr;
+	}
+
+	#compare-form > .run-limit-fields,
+	#compare-form > .compare-solver-grid {
+		grid-column: 1 / -1;
+	}
+
+	#compare-form .compare-actions {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+
+	#compare-form .compare-actions .stop-button {
+		grid-column: 1 / -1;
 	}
 
 	.toolbar-modes {

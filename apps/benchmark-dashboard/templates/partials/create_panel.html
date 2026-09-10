@@ -1,7 +1,11 @@
-<section id="create-panel" class="panel is-active">
+<section id="create-panel" class="panel">
 	<div class="panel-header">
-		<h2>Create Campaign</h2>
+		<h2>Instances</h2>
 		<p>Generate a reproducible synthetic suite or sample building geometry from a local OSM extract.</p>
+	</div>
+	<div class="instance-workspace-switch" role="group" aria-label="Instance creation method">
+		<button type="button" data-instance-workspace-panel="cases-panel" aria-pressed="false"><span>Manual editor</span><small>Draw and refine individual instances</small></button>
+		<button class="is-active" type="button" data-instance-workspace-panel="create-panel" aria-pressed="true"><span>Generate campaign</span><small>Synthetic or OSM batch generation</small></button>
 	</div>
 	<form id="create-form" class="form-grid">
 		<div class="field">

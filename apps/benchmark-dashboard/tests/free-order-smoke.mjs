@@ -20,8 +20,26 @@ try {
 	assert.match(await page.locator("#free-reference-report").innerText(), /41 \/ 60/);
 	await page.locator('#free-reference-report [data-free-case="0"]').click();
 	await page.locator('#free-reference-report [data-free-detail="0"] svg').waitFor({ state: "visible" });
+	assert.equal(await page.locator('#free-reference-report [data-free-detail="0"] .free-contact').count(), 40);
+	assert.ok(await page.locator('#free-reference-report [data-free-detail="0"] marker').count());
+	await page.locator('#free-reference-report [data-free-detail="0"] [data-free-progress]').evaluate((slider) => {
+		slider.value = "370";
+		slider.dispatchEvent(new slider.ownerDocument.defaultView.Event("input", { bubbles: true }));
+	});
+	await page.locator("#show-free-reference").click();
+	await page.locator('#free-reference-report [data-free-detail="0"] svg').waitFor({ state: "visible" });
+	assert.equal(await page.locator('#free-reference-report [data-free-detail="0"] [data-free-progress]').inputValue(), "370");
+	assert.equal(await page.locator('#free-reference-report [data-free-case="0"]').getAttribute("aria-expanded"), "true");
+	await page.locator('#free-reference-report [data-free-detail="0"] [data-free-speed="1"]').click();
+	assert.equal(await page.locator('#free-reference-report [data-free-detail="0"] [data-free-speed-value]').textContent(), "1.5×");
+	await page.locator('#free-reference-report [data-free-sort-key="polygons"]').click();
+	assert.equal(await page.locator('#free-reference-report [data-sort-column="polygons"]').getAttribute("aria-sort"), "ascending");
+	assert.equal(await page.locator('#free-reference-report [data-free-detail="0"] [data-free-progress]').inputValue(), "370");
 	await mkdir("../../benchmarks/results/unordered/dashboard", { recursive: true });
 	await page.screenshot({ path: "../../benchmarks/results/unordered/dashboard/reference.png", fullPage: true });
+	await page.locator("#free-reference-report [data-free-results] > summary").click();
+	await page.locator("#show-free-reference").click();
+	assert.equal(await page.locator("#free-reference-report [data-free-results]").getAttribute("open"), null);
 	await page.locator("#compare-visit-order").selectOption("fixed");
 	assert.equal(await page.locator('#compare-form [data-order-only="fixed"]').isVisible(), true);
 	assert.equal(await page.locator('#compare-form [data-order-only="free"]').isVisible(), false);

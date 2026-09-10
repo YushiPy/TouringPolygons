@@ -1,7 +1,7 @@
 /* global FileReader, Image */
 
 import { visitOrder, setupVisitOrder } from "./order-mode.js?v=editor-align-2026-09-09d";
-import { renderFreeOrderReport } from "./free-order-report.js";
+import { renderFreeOrderReport } from "./free-order-report.js?v=2026-09-10c";
 import { requestJSON } from "./api.js";
 import { benchmarkedPreviewHTML, instancePreviewUrl } from "./benchmarked-preview.js";
 import { casePayload, cloneCaseData, emptyCaseData, instanceLabel } from "./case-data.js?v=editor-align-2026-09-09d";
@@ -62,8 +62,9 @@ function cssVar(name) {
 function switchPanel(panelId) {
 	state.activePanel = panelId;
 	document.querySelectorAll(".tab").forEach((tab) => {
-		tab.classList.toggle("is-active", tab.dataset.panel === panelId);
-		tab.setAttribute("aria-current", tab.dataset.panel === panelId ? "page" : "false");
+		const active = tab.dataset.panel === panelId || (tab.dataset.workspaceTab === "instances" && panelId === "create-panel");
+		tab.classList.toggle("is-active", active);
+		tab.setAttribute("aria-current", active ? "page" : "false");
 	});
 	document.querySelectorAll(".panel").forEach((panel) => {
 		panel.classList.toggle("is-active", panel.id === panelId);
@@ -1188,6 +1189,10 @@ const { runCampaign, runComparison } = formSubmissions;
 
 document.querySelectorAll(".tab").forEach((tab) => {
 	tab.addEventListener("click", () => switchPanel(tab.dataset.panel));
+});
+
+document.querySelectorAll("[data-instance-workspace-panel]").forEach((button) => {
+	button.addEventListener("click", () => switchPanel(button.dataset.instanceWorkspacePanel));
 });
 
 document.querySelectorAll("[data-close-modal]").forEach((element) => {

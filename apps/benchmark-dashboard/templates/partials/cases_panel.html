@@ -1,7 +1,11 @@
-<section id="cases-panel" class="panel">
+<section id="cases-panel" class="panel is-active">
 	<div class="panel-header">
-		<h2>Edit Instances</h2>
-		<p>Create or open benchmark campaigns and edit their instances directly.</p>
+		<h2>Instances</h2>
+		<p>Build instances manually, or switch to generated campaigns for reproducible suites.</p>
+	</div>
+	<div class="instance-workspace-switch" role="group" aria-label="Instance creation method">
+		<button class="is-active" type="button" data-instance-workspace-panel="cases-panel" aria-pressed="true"><span>Manual editor</span><small>Draw and refine individual instances</small></button>
+		<button type="button" data-instance-workspace-panel="create-panel" aria-pressed="false"><span>Generate campaign</span><small>Synthetic or OSM batch generation</small></button>
 	</div>
 	<div class="case-editor-shell">
 		<aside class="case-sidebar">

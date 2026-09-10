@@ -95,8 +95,14 @@ class JobController:
                 ),
                 phase=str(raw_job.get("phase") or "starting"),
                 current_item=(raw_job.get("current_item") if isinstance(raw_job.get("current_item"), str) else None),
-                current_item_started_at=(raw_job.get("current_item_started_at") if isinstance(raw_job.get("current_item_started_at"), int | float) else None),
-                build_completed=(raw_job.get("build_completed") if isinstance(raw_job.get("build_completed"), int) else None),
+                current_item_started_at=(
+                    raw_job.get("current_item_started_at")
+                    if isinstance(raw_job.get("current_item_started_at"), int | float)
+                    else None
+                ),
+                build_completed=(
+                    raw_job.get("build_completed") if isinstance(raw_job.get("build_completed"), int) else None
+                ),
                 build_total=(raw_job.get("build_total") if isinstance(raw_job.get("build_total"), int) else None),
                 cancel_requested=bool(raw_job.get("cancel_requested")),
             )

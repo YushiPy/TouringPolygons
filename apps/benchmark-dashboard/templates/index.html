@@ -11,10 +11,10 @@
 	<link rel="stylesheet" href="/static/campaigns.css">
 	<link rel="stylesheet" href="/static/editor.css?v=editor-align-2026-09-09d">
 	<link rel="stylesheet" href="/static/previews.css">
-	<link rel="stylesheet" href="/static/reports.css">
+	<link rel="stylesheet" href="/static/reports.css?v=2026-09-10c">
 	<link rel="stylesheet" href="/static/overlays.css">
 	<link rel="stylesheet" href="/static/responsive.css">
-	<link rel="stylesheet" href="/static/workbench.css?v=2026-09-10b">
+	<link rel="stylesheet" href="/static/workbench.css?v=2026-09-10c">
 </head>
 
 <body>
@@ -38,8 +38,7 @@
 			<div class="tab-group">
 				<span>Workspace</span>
 				<div>
-					<button class="tab is-active" data-panel="create-panel" type="button"><span class="tab-icon">＋</span><span>Create</span></button>
-					<button class="tab" data-panel="cases-panel" type="button"><span class="tab-icon">◇</span><span>Instances</span></button>
+					<button class="tab is-active" data-panel="cases-panel" data-workspace-tab="instances" type="button"><span class="tab-icon">◇</span><span>Instances</span></button>
 					<button class="tab" data-panel="inspect-panel" type="button"><span class="tab-icon">⌕</span><span>Campaigns</span></button>
 				</div>
 			</div>
@@ -53,15 +52,15 @@
 			<p class="nav-note">Local research environment<br><span>Artifacts stay in the repository</span></p>
 		</nav>
 
-		{% include "partials/create_panel.html" %}
-		{% include "partials/cases_panel.html" %}
+	{% include "partials/cases_panel.html" %}
+	{% include "partials/create_panel.html" %}
 		{% include "partials/benchmark_panel.html" %}
 		{% include "partials/comparison_panel.html" %}
 		{% include "partials/inspect_panel.html" %}
 	</main>
 	{% include "partials/modals.html" %}
 	<script>window.__editorWasmAvailable = {{ editor_wasm_available|default(false)|tojson }};</script>
-	<script type="module" src="/static/app.js?v=2026-09-10b"></script>
+	<script type="module" src="/static/app.js?v=2026-09-10c"></script>
 </body>
 
 </html>

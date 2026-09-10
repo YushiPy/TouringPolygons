@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { convexHull, endpointOffset, filterRows, gapRatio, pathPrefix, projectedCase, qualityLabel, regionColors } from "../static/event-geometry.js";
+import { convexHull, endpointOffset, filterRows, gapRatio, pathPolygonContacts, pathPrefix, projectedCase, qualityLabel, regionColors } from "../static/event-geometry.js";
 
 test("playback follows arc length and clamps progress", () => {
 	const path = [[0, 0], [3, 0], [3, 4]];
@@ -13,6 +13,28 @@ test("playback tolerates repeated vertices and closed zero-length paths", () => 
 	assert.deepEqual(pathPrefix([[1, 2], [1, 2]], .5), [[1, 2], [1, 2]]);
 	assert.deepEqual(pathPrefix([[0, 0], [0, 0], [2, 0]], .5).at(-1), [1, 0]);
 	assert.deepEqual(pathPrefix([], .5), []);
+});
+
+test("contacts are based on polygon intersections rather than matching path indices", () => {
+	const path = [[-2, 0], [8, 0]];
+	const polygons = [
+		[[-1, -1], [1, -1], [1, 1], [-1, 1]],
+		[[3, -1], [4, -1], [4, 1], [3, 1]],
+		[[6, -1], [7, -1], [7, 1], [6, 1]],
+	];
+	const contacts = pathPolygonContacts(path, polygons);
+	assert.deepEqual(contacts.map((contact) => contact.point), [[-1, 0], [3, 0], [6, 0]]);
+	assert.deepEqual(contacts.map((contact) => contact.fraction), [.1, .5, .8]);
+});
+
+test("contacts include paths starting inside regions and collinear boundary visits", () => {
+	const polygons = [
+		[[-1, -1], [1, -1], [1, 1], [-1, 1]],
+		[[2, 0], [4, 0], [4, 2], [2, 2]],
+	];
+	const contacts = pathPolygonContacts([[0, 0], [3, 0], [5, 0]], polygons);
+	assert.deepEqual(contacts[0], { point: [0, 0], fraction: 0 });
+	assert.deepEqual(contacts[1], { point: [2, 0], fraction: .4 });
 });
 
 test("convex hull keeps extreme points without changing original geometry", () => {

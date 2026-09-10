@@ -66,6 +66,7 @@
 			</label>
 		</div>
 		<div class="compare-solver-grid" data-order-only="fixed">
+			<span class="compare-solver-label">Fixed-order convex-intersection solvers</span>
 			<label class="solver-check">
 				<input name="solvers" value="linear" type="checkbox" checked>
 				<span>Linear Intersections</span>
@@ -92,8 +93,9 @@
 			</label>
 		</div>
 		<div class="compare-solver-grid is-hidden" data-order-only="free">
-			<label class="solver-check"><input name="free_solvers" value="unordered" type="checkbox" checked><span>Our TPP B&amp;B</span></label>
-			<label class="solver-check"><input name="free_solvers" value="tspn" type="checkbox" checked><span>External TSPN</span></label>
+			<span class="compare-solver-label">Free-order solvers</span>
+			<label class="solver-check"><input name="free_solvers" value="unordered" type="checkbox" checked><span>Our free-order TPP B&amp;B</span></label>
+			<label class="solver-check"><input name="free_solvers" value="tspn" type="checkbox" checked><span>External free-order TSPN</span></label>
 		</div>
 		<div class="actions compare-actions">
 			<button type="submit">Run comparison</button>
