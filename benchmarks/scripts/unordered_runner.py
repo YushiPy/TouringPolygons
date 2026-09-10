@@ -30,9 +30,10 @@ def run_unordered_solver(
 	polygons: Sequence[Polygon],
 	max_calls: int,
 	max_seconds: float,
+	arguments: Sequence[str] = (),
 ) -> dict:
 	process = subprocess.run(
-		[str(solver.resolve())],
+		[str(solver.resolve()), *arguments],
 		input=encode_instance(start, target, polygons, max_calls, max_seconds),
 		text=True,
 		capture_output=True,

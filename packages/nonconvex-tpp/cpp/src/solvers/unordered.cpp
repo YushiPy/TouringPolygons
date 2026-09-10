@@ -2,6 +2,7 @@
 #include "tpp/convex/certified.h"
 #include "common.h"
 #include "unordered_geometry.h"
+#include "unordered_bounds.h"
 
 #include <algorithm>
 #include <chrono>
@@ -20,6 +21,7 @@ namespace {
 		Polygon path;
 		double bound = 0;
 		size_t serial = 0;
+		bool refined = false;
 	};
 	struct Later {
 		bool operator()(const Node &a, const Node &b) const {
@@ -41,6 +43,7 @@ namespace tpp {
 		if (!start.is_finite() || !target.is_finite() || std::isnan(options.max_seconds) || options.max_seconds < 0
 			|| !std::isfinite(options.absolute_gap) || options.absolute_gap < 0
 			|| !std::isfinite(options.relative_gap) || options.relative_gap < 0
+			|| !std::isfinite(options.oracle_relative_gap) || options.oracle_relative_gap < 0
 			|| !std::isfinite(options.feasibility_tolerance) || options.feasibility_tolerance <= 0)
 			throw std::invalid_argument("Invalid endpoints or unordered TPP options.");
 		std::vector<Polygon> polygons = input, hulls;
@@ -124,17 +127,14 @@ namespace tpp {
 				for (size_t k = 0; k < n; ++k) {
 					const auto &p = polygons[initial_order[k]];
 					const auto left = initial[k], right = initial[k + 2];
-					auto cost = [&](Vector2 v) { return left.distance_to(v) + right.distance_to(v); };
-					double best = cost(initial[k + 1]);
-					for (size_t j = 0; j < p.size(); ++j) {
-						const auto a = p[j], d = p[(j + 1) % p.size()] - a;
-						double lo = 0, hi = 1;
-						for (size_t iteration = 0; iteration < 36; ++iteration) {
-							const double u = (2 * lo + hi) / 3, v = (lo + 2 * hi) / 3;
-							if (cost(a + u * d) < cost(a + v * d)) hi = v; else lo = u;
-						}
-						const auto candidate = a + ((lo + hi) / 2) * d;
-						if (cost(candidate) < best) { best = cost(candidate); initial[k + 1] = candidate; }
+					initial[k + 1] = best_contact(left, right, p, initial[k + 1]);
+				}
+				for (size_t i = 1; i < n; ++i) for (size_t j = i + 1; j <= n; ++j) {
+					const double delta = initial[i - 1].distance_to(initial[j]) + initial[i].distance_to(initial[j + 1])
+						- initial[i - 1].distance_to(initial[i]) - initial[j].distance_to(initial[j + 1]);
+					if (delta < -eps) {
+						std::reverse(initial.begin() + i, initial.begin() + j + 1);
+						std::reverse(initial_order.begin() + i - 1, initial_order.begin() + j);
 					}
 				}
 			}
@@ -148,11 +148,17 @@ namespace tpp {
 		auto limited = [&] { return result.calls >= options.max_calls || elapsed() >= options.max_seconds; };
 		std::vector<std::vector<Polygon>> pieces(n);
 		DynamicConvexTppWorkspace workspace;
-		auto solve = [&](Node &node) {
+		auto solve = [&](Node &node, bool precise = false) {
 			std::vector<Polygon> selected;
 			for (auto e : node.sequence) selected.push_back(e.piece == none ? hulls[e.polygon] : pieces[e.polygon][e.piece]);
 			++result.calls;
-			const auto certified = tpp_convex_solve_certified(start, target, selected, workspace, gap() * .25);
+			result.refinement_calls += precise;
+			const double tolerance = precise ? gap() * .25
+				: std::max(gap() * .25, options.oracle_relative_gap * result.upper_bound);
+			const double cutoff = result.upper_bound - gap();
+			const auto certified = tpp_convex_solve_certified(start, target, selected, workspace, tolerance, cutoff);
+			result.oracle_cutoff_calls += certified.lower_bound >= cutoff;
+			node.refined = precise || options.oracle_relative_gap == 0;
 			node.path = certified.path;
 			result.fallback_calls += certified.used_fallback;
 			result.fallback_geometric_path_invalid_calls += certified.fallback_geometric_path_invalid;
@@ -199,6 +205,12 @@ namespace tpp {
 			}
 			result.search_visit_check_seconds += duration(visit_began);
 			if (chosen == none) {
+				if (!node.refined && !limited()) {
+					solve(node, true);
+					improve(node.path);
+					queue.push(std::move(node));
+					continue;
+				}
 				// An unresolved numerical oracle gap must remain in the global certificate.
 				queue.push(std::move(node));
 				break;
@@ -225,10 +237,19 @@ namespace tpp {
 				}
 			} else {
 				++result.insertion_branches;
+				std::vector<const Polygon *> regions;
+				for (auto e : node.sequence) regions.push_back(e.piece == none ? &hulls[e.polygon] : &pieces[e.polygon][e.piece]);
+				const auto bounds = insertion_lower_bounds(node.path, regions, hulls[chosen]);
 				for (size_t j = 0; j <= node.sequence.size(); ++j) {
+					const double bound = std::max(node.bound, bounds[j]);
+					if (bound >= result.upper_bound - gap()) {
+						++result.screened_nodes;
+						settled_bound = std::min(settled_bound, bound);
+						continue;
+					}
 					auto sequence = node.sequence;
 					sequence.insert(sequence.begin() + j, {chosen});
-					children.push_back({std::move(sequence), {}, node.bound, serial++});
+					children.push_back({std::move(sequence), {}, bound, serial++});
 				}
 			}
 			for (auto &child : children) {

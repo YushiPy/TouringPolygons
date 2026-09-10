@@ -2,12 +2,30 @@
 #include <iomanip>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 
-int main() {
+int main(int argc, char **argv) {
 	try {
 		Vector2 start, target;
 		size_t n;
 		tpp::UnorderedTppSolveOptions options;
+		for (int i = 1; i < argc; ++i) {
+			const std::string flag = argv[i];
+			if (flag == "--help") {
+				std::cout << "Usage: tpp-unordered [--absolute-gap N] [--relative-gap N] [--oracle-relative-gap N]\n"
+					<< "stdin: sx sy tx ty polygon_count max_calls max_seconds, then each polygon's vertex count and coordinates.\n";
+				return 0;
+			}
+			if (++i >= argc) throw std::invalid_argument("Expected a value after " + flag);
+			size_t parsed = 0;
+			const std::string text = argv[i];
+			const double value = std::stod(text, &parsed);
+			if (parsed != text.size()) throw std::invalid_argument("Invalid numeric option: " + text);
+			if (flag == "--absolute-gap") options.absolute_gap = value;
+			else if (flag == "--relative-gap") options.relative_gap = value;
+			else if (flag == "--oracle-relative-gap") options.oracle_relative_gap = value;
+			else throw std::invalid_argument("Unknown option: " + flag);
+		}
 		if (!(std::cin >> start.x >> start.y >> target.x >> target.y >> n >> options.max_calls >> options.max_seconds))
 			throw std::invalid_argument("Expected sx sy tx ty polygon_count max_calls max_seconds.");
 		std::vector<std::vector<Vector2>> polygons(n);
@@ -23,6 +41,8 @@ int main() {
 			<< ",\"termination\":\"" << termination[static_cast<size_t>(r.termination)] << "\""
 			<< ",\"lower_bound\":" << r.lower_bound << ",\"upper_bound\":" << r.upper_bound
 			<< ",\"seconds\":" << r.seconds << ",\"calls\":" << r.calls << ",\"nodes\":" << r.nodes
+			<< ",\"refinement_calls\":" << r.refinement_calls << ",\"oracle_cutoff_calls\":" << r.oracle_cutoff_calls
+			<< ",\"screened_nodes\":" << r.screened_nodes
 			<< ",\"fallback_calls\":" << r.fallback_calls
 			<< ",\"fallback_geometric_path_invalid_calls\":" << r.fallback_geometric_path_invalid_calls
 			<< ",\"fallback_certificate_gap_calls\":" << r.fallback_certificate_gap_calls

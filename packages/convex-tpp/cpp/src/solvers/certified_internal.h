@@ -14,10 +14,10 @@ namespace tpp::certified_detail {
 
 	CertifiedConvexTppResult refine_long_double(
 		const Vector2 &start, const Vector2 &target, const std::vector<Polygon> &polygons,
-		double tolerance, double scale, double safety, CertifiedConvexTppResult result
+		double tolerance, double scale, double safety, double cutoff, CertifiedConvexTppResult result
 	);
 	CertifiedConvexTppResult refine_extended_precision(
 		const Vector2 &start, const Vector2 &target, const std::vector<Polygon> &polygons,
-		double tolerance, double scale, double safety, CertifiedConvexTppResult result
+		double tolerance, double scale, double safety, double cutoff, CertifiedConvexTppResult result
 	);
 }

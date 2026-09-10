@@ -80,18 +80,57 @@ namespace tpp::certified_detail {
 	}
 
 	bool repair_contacts(const Polygon &path, const std::vector<Polygon> &polygons, Polygon &q) {
-		if (path.size() != polygons.size() + 2) return false;
-		for (const double inward : {1e-12, 1e-10, 1e-8}) {
-			Polygon repaired = {path.front()};
-			for (size_t i = 0; i < polygons.size(); ++i) {
-				Vector2 centroid;
-				for (const auto vertex : polygons[i]) centroid += vertex;
-				centroid /= polygons[i].size();
-				repaired.push_back((1 - inward) * path[i + 1] + inward * centroid);
+		if (path.size() < 2) return false;
+		double scale = 1;
+		for (auto v : path) scale = std::max({scale, std::abs(v.x), std::abs(v.y)});
+		for (const auto &p : polygons) for (auto v : p)
+			scale = std::max({scale, std::abs(v.x), std::abs(v.y)});
+		const double tolerance = 64 * std::numeric_limits<double>::epsilon() * scale;
+		q = {path.front()};
+		size_t segment = 1;
+		double rate = 0;
+		for (const auto &polygon : polygons) {
+			bool found = false;
+			while (segment < path.size()) {
+				const auto a = path[segment - 1], d = path[segment] - a;
+				double lo = rate, hi = 1;
+				for (size_t j = 0; j < polygon.size(); ++j) {
+					const auto edge = polygon[(j + 1) % polygon.size()] - polygon[j];
+					const double c = edge.cross(a - polygon[j]) + tolerance * edge.length();
+					const double slope = edge.cross(d);
+					if (slope > 0) lo = std::max(lo, -c / slope);
+					else if (slope < 0) hi = std::min(hi, -c / slope);
+					else if (c < 0) hi = -1;
+				}
+				if (lo <= hi && hi >= rate && lo <= 1) {
+					rate = std::clamp(lo, rate, 1.0);
+					const auto point = a + rate * d;
+					bool inside = true;
+					Vector2 closest;
+					double distance = std::numeric_limits<double>::infinity();
+					for (size_t j = 0; j < polygon.size(); ++j) {
+						const auto v = polygon[j], w = polygon[(j + 1) % polygon.size()], edge = w - v;
+						inside &= edge.cross(point - v) >= 0;
+						const double t = edge.length_squared() == 0 ? 0
+							: std::clamp((point - v).dot(edge) / edge.length_squared(), 0.0, 1.0);
+						const auto candidate = t == 0 ? v : t == 1 ? w : v + t * edge;
+						const double squared = (candidate - point).length_squared();
+						if (squared < distance) { distance = squared; closest = candidate; }
+					}
+					// Expanded halfplanes only locate a candidate. Project it back onto
+					// the original polygon before using it as a primal upper bound.
+					// Contacts need not remain on the original geometric trajectory;
+					// the independent dual certificate decides whether repair suffices.
+					q.push_back(inside ? point : closest);
+					found = true;
+					break;
+				}
+				++segment;
+				rate = 0;
 			}
-			repaired.push_back(path.back());
-			if (recover_contacts(repaired, polygons, q)) return true;
+			if (!found) return false;
 		}
-		return false;
+		q.push_back(path.back());
+		return true;
 	}
 }

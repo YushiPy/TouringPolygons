@@ -127,6 +127,23 @@ python3 benchmarks/tpp.py generate \
 
 ## Canonical Algorithm Suite
 
+For paired, sequential free-order solver comparisons with independent path
+validation and executable/input hashes:
+
+```bash
+.venv/bin/python benchmarks/tpp.py free-order-ablation \
+  --suite benchmarks/suites/algorithm-dev-v1.bin \
+  --solver baseline=.build/unordered-improvement-baseline/tpp \
+  --solver improved=.build/unordered-improved/tpp \
+  --seconds 3 --repeats 3 \
+  --output benchmarks/results/free-order-comparison.jsonl
+```
+
+The executables must already exist. Multiple `--suite` arguments are supported;
+`--help` lists selection and tolerance options. See the
+[2026-09-10 improvement report](../docs/unordered-improvements-2026-09-10.md)
+for measured ablations, held-out results, and comparison caveats.
+
 The fixed algorithm-development workloads are selected from a completed campaign baseline:
 
 ```bash

@@ -11,7 +11,7 @@ namespace tpp {
 	CertifiedConvexTppResult tpp_convex_solve_certified(
 		const Vector2 &start, const Vector2 &target,
 		const std::vector<std::vector<Vector2>> &polygons,
-		DynamicConvexTppWorkspace &workspace, double tolerance
+		DynamicConvexTppWorkspace &workspace, double tolerance, double cutoff
 	) {
 		using Clock = std::chrono::steady_clock;
 		using namespace certified_detail;
@@ -41,7 +41,7 @@ namespace tpp {
 		if (geometric_path_valid) {
 			result.upper_bound = path_length(contacts);
 			result.lower_bound = std::max(start.distance_to(target), dual_bound(contacts, polygons) - safety);
-			if (result.upper_bound - result.lower_bound <= tolerance) {
+			if (result.upper_bound - result.lower_bound <= tolerance || result.lower_bound >= cutoff) {
 				result.path = std::move(contacts);
 				result.certificate_verification_seconds = duration(certificate_began);
 				result.seconds = duration(began);
@@ -58,12 +58,12 @@ namespace tpp {
 			result.lower_bound = start.distance_to(target);
 		} else result.path = std::move(contacts);
 		const auto long_double_began = Clock::now();
-		result = refine_long_double(start, target, polygons, tolerance, scale, safety, std::move(result));
+		result = refine_long_double(start, target, polygons, tolerance, scale, safety, cutoff, std::move(result));
 		result.fallback_long_double_seconds = duration(long_double_began);
-		if (result.upper_bound - result.lower_bound > tolerance) {
+		if (result.upper_bound - result.lower_bound > tolerance && result.lower_bound < cutoff) {
 			result.used_extended_precision = true;
 			const auto extended_began = Clock::now();
-			result = refine_extended_precision(start, target, polygons, tolerance, scale, safety, std::move(result));
+			result = refine_extended_precision(start, target, polygons, tolerance, scale, safety, cutoff, std::move(result));
 			result.fallback_extended_precision_seconds = duration(extended_began);
 		}
 		result.fallback_seconds = duration(fallback_began);

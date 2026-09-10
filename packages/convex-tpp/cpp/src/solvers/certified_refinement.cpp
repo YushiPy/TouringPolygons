@@ -14,7 +14,7 @@ namespace {
 	template<class Real>
 	tpp::CertifiedConvexTppResult refine(
 		const Vector2 &start, const Vector2 &target, const std::vector<Polygon> &polygons,
-		double tolerance, double scale, double safety, tpp::CertifiedConvexTppResult result
+		double tolerance, double scale, double safety, double cutoff, tpp::CertifiedConvexTppResult result
 	) {
 		using V = Eigen::Matrix<Real, 2, 1>;
 		using M = Eigen::Matrix<Real, 2, 2>;
@@ -121,7 +121,7 @@ namespace {
 				bound += support;
 			}
 			result.lower_bound = std::max(result.lower_bound, double(bound) * scale - safety);
-			if (result.upper_bound - result.lower_bound <= tolerance) return result;
+			if (result.upper_bound - result.lower_bound <= tolerance || result.lower_bound >= cutoff) return result;
 		}
 		return result;
 	}
@@ -130,15 +130,15 @@ namespace {
 namespace tpp::certified_detail {
 	CertifiedConvexTppResult refine_long_double(
 		const Vector2 &start, const Vector2 &target, const std::vector<Polygon> &polygons,
-		double tolerance, double scale, double safety, CertifiedConvexTppResult result
+		double tolerance, double scale, double safety, double cutoff, CertifiedConvexTppResult result
 	) {
-		return refine<long double>(start, target, polygons, tolerance, scale, safety, std::move(result));
+		return refine<long double>(start, target, polygons, tolerance, scale, safety, cutoff, std::move(result));
 	}
 
 	CertifiedConvexTppResult refine_extended_precision(
 		const Vector2 &start, const Vector2 &target, const std::vector<Polygon> &polygons,
-		double tolerance, double scale, double safety, CertifiedConvexTppResult result
+		double tolerance, double scale, double safety, double cutoff, CertifiedConvexTppResult result
 	) {
-		return refine<boost::multiprecision::cpp_bin_float_quad>(start, target, polygons, tolerance, scale, safety, std::move(result));
+		return refine<boost::multiprecision::cpp_bin_float_quad>(start, target, polygons, tolerance, scale, safety, cutoff, std::move(result));
 	}
 }

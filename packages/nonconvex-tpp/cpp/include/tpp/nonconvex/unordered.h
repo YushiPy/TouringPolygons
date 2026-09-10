@@ -14,6 +14,9 @@ namespace tpp {
 		double relative_gap = 1e-9;
 		double feasibility_tolerance = 1e-8;
 		size_t dive_interval = 128;
+		// Internal relaxations may stop at this relative oracle gap. Feasible
+		// leaves are refined to the requested global gap before certification.
+		double oracle_relative_gap = 1e-6;
 	};
 
 	enum class UnorderedTppTermination { Optimal, CallLimit, TimeLimit, NumericalLimit };
@@ -26,6 +29,9 @@ namespace tpp {
 		bool exact = false;
 		UnorderedTppTermination termination = UnorderedTppTermination::NumericalLimit;
 		size_t calls = 0;
+		size_t refinement_calls = 0;
+		size_t oracle_cutoff_calls = 0;
+		size_t screened_nodes = 0;
 		size_t nodes = 0;
 		size_t fallback_calls = 0;
 		size_t fallback_geometric_path_invalid_calls = 0;

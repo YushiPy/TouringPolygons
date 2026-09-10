@@ -49,6 +49,7 @@ Commands:
   generate-matrix NAME PBF ARGS...   Create a reproducible benchmark campaign.
   run NAME ARGS...                   Benchmark all campaign inputs, resumably.
   free-order NAME ARGS...            Run/compare free-order endpoint TPP solvers.
+  free-order-ablation ARGS...        Compare solver binaries on identical cases.
   status NAME                        Show generation and benchmark progress.
   generate-suites ARGS...            Generate dev/canonical suites from tracked corpus.
   build-suites ARGS...               Select fixed development and canonical suites.
@@ -270,6 +271,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 	if command == "free-order":
 		import free_order_campaign
 		return free_order_campaign.main(rest)
+	if command == "free-order-ablation":
+		import free_order_ablation
+		return free_order_ablation.main(rest)
 	if command == "run":
 		return command_run(rest)
 	if command == "status":
