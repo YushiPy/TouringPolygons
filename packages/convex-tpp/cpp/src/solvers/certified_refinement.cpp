@@ -3,6 +3,7 @@
 #include <Eigen/Dense>
 #include <boost/multiprecision/cpp_bin_float.hpp>
 #include <boost/multiprecision/eigen.hpp>
+#include <chrono>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
@@ -14,7 +15,8 @@ namespace {
 	template<class Real>
 	tpp::CertifiedConvexTppResult refine(
 		const Vector2 &start, const Vector2 &target, const std::vector<Polygon> &polygons,
-		double tolerance, double scale, double safety, double cutoff, tpp::CertifiedConvexTppResult result
+		double tolerance, double scale, double safety, double cutoff,
+		std::chrono::steady_clock::time_point deadline, tpp::CertifiedConvexTppResult result
 	) {
 		using V = Eigen::Matrix<Real, 2, 1>;
 		using M = Eigen::Matrix<Real, 2, 2>;
@@ -22,6 +24,11 @@ namespace {
 		using std::sqrt;
 		using std::log;
 		using std::isfinite;
+		auto interrupted = [&] {
+			if (std::chrono::steady_clock::now() < deadline) return false;
+			result.time_limited = true;
+			return true;
+		};
 		Polygon q;
 		const size_t n = polygons.size();
 		std::vector<std::vector<Face>> faces(n);
@@ -59,6 +66,7 @@ namespace {
 		}
 		for (Real mu = std::numeric_limits<Real>::digits > 64 ? 1e-5L : .1L; mu >= 1e-17L; mu *= .15L) {
 			for (size_t iteration = 0; iteration < 80; ++iteration) {
+				if (interrupted()) return result;
 				std::vector<M> diagonal(n, M::Zero()), off(n, M::Zero());
 				std::vector<V> gradient(n, V::Zero()), step(n, V::Zero());
 				for (size_t i = 0; i <= n; ++i) {
@@ -97,6 +105,7 @@ namespace {
 				Real alpha = 1;
 				std::vector<V> trial = x;
 				for (; alpha > 1e-18L; alpha *= .5L) {
+					if (interrupted()) return result;
 					for (size_t i = 0; i < n; ++i) trial[i + 1] = x[i + 1] + alpha * step[i];
 					if (objective(trial, mu) <= before + .01L * alpha * slope) break;
 				}
@@ -130,15 +139,17 @@ namespace {
 namespace tpp::certified_detail {
 	CertifiedConvexTppResult refine_long_double(
 		const Vector2 &start, const Vector2 &target, const std::vector<Polygon> &polygons,
-		double tolerance, double scale, double safety, double cutoff, CertifiedConvexTppResult result
+		double tolerance, double scale, double safety, double cutoff,
+		std::chrono::steady_clock::time_point deadline, CertifiedConvexTppResult result
 	) {
-		return refine<long double>(start, target, polygons, tolerance, scale, safety, cutoff, std::move(result));
+		return refine<long double>(start, target, polygons, tolerance, scale, safety, cutoff, deadline, std::move(result));
 	}
 
 	CertifiedConvexTppResult refine_extended_precision(
 		const Vector2 &start, const Vector2 &target, const std::vector<Polygon> &polygons,
-		double tolerance, double scale, double safety, double cutoff, CertifiedConvexTppResult result
+		double tolerance, double scale, double safety, double cutoff,
+		std::chrono::steady_clock::time_point deadline, CertifiedConvexTppResult result
 	) {
-		return refine<boost::multiprecision::cpp_bin_float_quad>(start, target, polygons, tolerance, scale, safety, cutoff, std::move(result));
+		return refine<boost::multiprecision::cpp_bin_float_quad>(start, target, polygons, tolerance, scale, safety, cutoff, deadline, std::move(result));
 	}
 }

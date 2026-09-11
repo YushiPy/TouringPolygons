@@ -90,6 +90,12 @@ void check_oracle_certificates() {
 			|| (r.lower_bound < cutoff && r.upper_bound - r.lower_bound > 1e-7))
 			throw std::runtime_error("Invalid convex cutoff certificate.");
 	}
+	const auto interrupted = tpp_convex_solve_certified(
+		s, t, polygons, workspace, 0.0, std::numeric_limits<double>::infinity(), 0.0
+	);
+	if (!interrupted.time_limited || interrupted.lower_bound > optimum + 1e-8
+		|| interrupted.upper_bound < optimum - 1e-8)
+		throw std::runtime_error("Invalid deadline-interrupted convex bounds.");
 	std::mt19937 rng(9162026);
 	std::uniform_real_distribution<double> coordinate(-100, 100);
 	const Polygon inserted{{4, -2}, {5, -2}, {5, -1}, {4, -1}};

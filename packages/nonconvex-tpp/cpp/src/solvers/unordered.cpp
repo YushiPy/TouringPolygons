@@ -72,7 +72,6 @@ namespace tpp {
 		result.preprocessing_seconds = duration(preprocessing_began);
 		const auto heuristic_began = std::chrono::steady_clock::now();
 		const size_t n = polygons.size();
-		std::vector<size_t> initial_order;
 		const double eps = options.feasibility_tolerance;
 		enum class Phase { Heuristic, Search, Finalization };
 		Phase phase = Phase::Heuristic;
@@ -95,51 +94,59 @@ namespace tpp {
 		result.lower_bound = start.distance_to(target);
 		improve({start, target});
 		if (!std::isfinite(result.upper_bound)) {
-			Polygon initial{start};
-			std::vector<bool> used(n);
-			for (size_t k = 0; k < n; ++k) {
-				double best = std::numeric_limits<double>::infinity();
-				size_t selected = none;
-				Vector2 point;
-				for (size_t j = 0; j < n; ++j) if (!used[j]) for (auto v : polygons[j]) {
-					const double distance = initial.back().distance_to(v);
-					if (distance < best) { best = distance; selected = j; point = v; }
-				}
-				used[selected] = true;
-				initial_order.push_back(selected);
-				initial.push_back(point);
-			}
-			initial.push_back(target);
-			for (size_t pass = 0; pass < 10; ++pass) {
-				bool changed = false;
-				for (size_t i = 1; i < n; ++i) for (size_t j = i + 1; j <= n; ++j) {
-					const double delta = initial[i - 1].distance_to(initial[j]) + initial[i].distance_to(initial[j + 1])
-						- initial[i - 1].distance_to(initial[i]) - initial[j].distance_to(initial[j + 1]);
-					if (delta < -eps) {
-						std::reverse(initial.begin() + i, initial.begin() + j + 1);
-						std::reverse(initial_order.begin() + i - 1, initial_order.begin() + j);
-						changed = true;
-					}
-				}
-				if (!changed) break;
-			}
-			for (size_t pass = 0; pass < 8 && elapsed() < options.max_seconds; ++pass) {
+			auto initialize = [&](Vector2 source, Vector2 destination) {
+				Polygon initial{source};
+				std::vector<size_t> order;
+				std::vector<bool> used(n);
 				for (size_t k = 0; k < n; ++k) {
-					const auto &p = polygons[initial_order[k]];
-					const auto left = initial[k], right = initial[k + 2];
-					initial[k + 1] = best_contact(left, right, p, initial[k + 1]);
+					double best = std::numeric_limits<double>::infinity();
+					size_t selected = none;
+					Vector2 point;
+					for (size_t j = 0; j < n; ++j) if (!used[j]) for (auto v : polygons[j]) {
+						const double distance = initial.back().distance_to(v);
+						if (distance < best) { best = distance; selected = j; point = v; }
+					}
+					used[selected] = true;
+					order.push_back(selected);
+					initial.push_back(point);
 				}
-				for (size_t i = 1; i < n; ++i) for (size_t j = i + 1; j <= n; ++j) {
-					const double delta = initial[i - 1].distance_to(initial[j]) + initial[i].distance_to(initial[j + 1])
-						- initial[i - 1].distance_to(initial[i]) - initial[j].distance_to(initial[j + 1]);
-					if (delta < -eps) {
-						std::reverse(initial.begin() + i, initial.begin() + j + 1);
-						std::reverse(initial_order.begin() + i - 1, initial_order.begin() + j);
+				initial.push_back(destination);
+				for (size_t pass = 0; pass < 10; ++pass) {
+					bool changed = false;
+					for (size_t i = 1; i < n; ++i) for (size_t j = i + 1; j <= n; ++j) {
+						const double delta = initial[i - 1].distance_to(initial[j]) + initial[i].distance_to(initial[j + 1])
+							- initial[i - 1].distance_to(initial[i]) - initial[j].distance_to(initial[j + 1]);
+						if (delta < -eps) {
+							std::reverse(initial.begin() + i, initial.begin() + j + 1);
+							std::reverse(order.begin() + i - 1, order.begin() + j);
+							changed = true;
+						}
+					}
+					if (!changed) break;
+				}
+				for (size_t pass = 0; pass < 8 && elapsed() < options.max_seconds; ++pass) {
+					for (size_t k = 0; k < n; ++k) {
+						const auto &p = polygons[order[k]];
+						initial[k + 1] = best_contact(initial[k], initial[k + 2], p, initial[k + 1]);
+					}
+					for (size_t i = 1; i < n; ++i) for (size_t j = i + 1; j <= n; ++j) {
+						const double delta = initial[i - 1].distance_to(initial[j]) + initial[i].distance_to(initial[j + 1])
+							- initial[i - 1].distance_to(initial[i]) - initial[j].distance_to(initial[j + 1]);
+						if (delta < -eps) {
+							std::reverse(initial.begin() + i, initial.begin() + j + 1);
+							std::reverse(order.begin() + i - 1, order.begin() + j);
+						}
 					}
 				}
+				return std::pair{std::move(initial), std::move(order)};
+			};
+			auto forward = initialize(start, target);
+			improve(forward.first);
+			if (options.bidirectional_initial_heuristic && elapsed() < options.max_seconds) {
+				auto reverse = initialize(target, start);
+				std::reverse(reverse.first.begin(), reverse.first.end());
+				improve(reverse.first);
 			}
-			// Every heuristic contact stays on its original polygon.
-			improve(initial);
 		}
 		result.initial_heuristic_seconds = duration(heuristic_began);
 		phase = Phase::Search;
@@ -156,7 +163,10 @@ namespace tpp {
 			const double tolerance = precise ? gap() * .25
 				: std::max(gap() * .25, options.oracle_relative_gap * result.upper_bound);
 			const double cutoff = result.upper_bound - gap();
-			const auto certified = tpp_convex_solve_certified(start, target, selected, workspace, tolerance, cutoff);
+			const double remaining_seconds = std::max(0.0, options.max_seconds - elapsed());
+			const auto certified = tpp_convex_solve_certified(
+				start, target, selected, workspace, tolerance, cutoff, remaining_seconds
+			);
 			result.oracle_cutoff_calls += certified.lower_bound >= cutoff;
 			node.refined = precise || options.oracle_relative_gap == 0;
 			node.path = certified.path;
@@ -164,6 +174,7 @@ namespace tpp {
 			result.fallback_geometric_path_invalid_calls += certified.fallback_geometric_path_invalid;
 			result.fallback_certificate_gap_calls += certified.fallback_certificate_gap;
 			result.extended_precision_calls += certified.used_extended_precision;
+			result.oracle_time_limit_calls += certified.time_limited;
 			result.repaired_geometric_path_calls += certified.repaired_geometric_path;
 			result.convex_oracle_seconds += certified.seconds;
 			result.convex_geometric_solver_seconds += certified.geometric_solver_seconds;

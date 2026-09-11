@@ -11,12 +11,15 @@ namespace tpp {
 	CertifiedConvexTppResult tpp_convex_solve_certified(
 		const Vector2 &start, const Vector2 &target,
 		const std::vector<std::vector<Vector2>> &polygons,
-		DynamicConvexTppWorkspace &workspace, double tolerance, double cutoff
+		DynamicConvexTppWorkspace &workspace, double tolerance, double cutoff, double max_seconds
 	) {
 		using Clock = std::chrono::steady_clock;
 		using namespace certified_detail;
 		auto duration = [](auto since) { return std::chrono::duration<double>(Clock::now() - since).count(); };
 		const auto began = Clock::now();
+		const auto deadline = std::isfinite(max_seconds)
+			? began + std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(std::max(0.0, max_seconds)))
+			: Clock::time_point::max();
 		CertifiedConvexTppResult result;
 		if (polygons.empty()) {
 			result.path = {start, target};
@@ -57,13 +60,19 @@ namespace tpp {
 			result.upper_bound = std::numeric_limits<double>::infinity();
 			result.lower_bound = start.distance_to(target);
 		} else result.path = std::move(contacts);
+		if (Clock::now() >= deadline) {
+			result.time_limited = true;
+			result.fallback_seconds = duration(fallback_began);
+			result.seconds = duration(began);
+			return result;
+		}
 		const auto long_double_began = Clock::now();
-		result = refine_long_double(start, target, polygons, tolerance, scale, safety, cutoff, std::move(result));
+		result = refine_long_double(start, target, polygons, tolerance, scale, safety, cutoff, deadline, std::move(result));
 		result.fallback_long_double_seconds = duration(long_double_began);
-		if (result.upper_bound - result.lower_bound > tolerance && result.lower_bound < cutoff) {
+		if (!result.time_limited && result.upper_bound - result.lower_bound > tolerance && result.lower_bound < cutoff) {
 			result.used_extended_precision = true;
 			const auto extended_began = Clock::now();
-			result = refine_extended_precision(start, target, polygons, tolerance, scale, safety, cutoff, std::move(result));
+			result = refine_extended_precision(start, target, polygons, tolerance, scale, safety, cutoff, deadline, std::move(result));
 			result.fallback_extended_precision_seconds = duration(extended_began);
 		}
 		result.fallback_seconds = duration(fallback_began);

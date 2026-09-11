@@ -67,6 +67,8 @@ benchmarks/*
 !benchmarks/generate_instances.py
 !benchmarks/scripts/
 !benchmarks/scripts/*.py
+!benchmarks/patches/
+!benchmarks/patches/*.patch
 !benchmarks/suites/
 !benchmarks/suites/nonconvex/
 !benchmarks/suites/nonconvex/*.bin

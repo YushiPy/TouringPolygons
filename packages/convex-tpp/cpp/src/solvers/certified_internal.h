@@ -2,6 +2,7 @@
 
 #include "tpp/convex/certified.h"
 
+#include <chrono>
 #include <vector>
 
 namespace tpp::certified_detail {
@@ -14,10 +15,12 @@ namespace tpp::certified_detail {
 
 	CertifiedConvexTppResult refine_long_double(
 		const Vector2 &start, const Vector2 &target, const std::vector<Polygon> &polygons,
-		double tolerance, double scale, double safety, double cutoff, CertifiedConvexTppResult result
+		double tolerance, double scale, double safety, double cutoff,
+		std::chrono::steady_clock::time_point deadline, CertifiedConvexTppResult result
 	);
 	CertifiedConvexTppResult refine_extended_precision(
 		const Vector2 &start, const Vector2 &target, const std::vector<Polygon> &polygons,
-		double tolerance, double scale, double safety, double cutoff, CertifiedConvexTppResult result
+		double tolerance, double scale, double safety, double cutoff,
+		std::chrono::steady_clock::time_point deadline, CertifiedConvexTppResult result
 	);
 }

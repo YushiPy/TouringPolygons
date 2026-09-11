@@ -12,6 +12,7 @@ namespace tpp {
 		bool fallback_certificate_gap = false;
 		bool used_extended_precision = false;
 		bool repaired_geometric_path = false;
+		bool time_limited = false;
 		double seconds = 0;
 		double geometric_solver_seconds = 0;
 		double certificate_verification_seconds = 0;
@@ -28,6 +29,7 @@ namespace tpp {
 		const Vector2 &start, const Vector2 &target,
 		const std::vector<std::vector<Vector2>> &polygons,
 		DynamicConvexTppWorkspace &workspace, double tolerance,
-		double cutoff = std::numeric_limits<double>::infinity()
+		double cutoff = std::numeric_limits<double>::infinity(),
+		double max_seconds = std::numeric_limits<double>::infinity()
 	);
 }

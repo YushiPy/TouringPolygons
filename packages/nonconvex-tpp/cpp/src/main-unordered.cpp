@@ -12,9 +12,13 @@ int main(int argc, char **argv) {
 		for (int i = 1; i < argc; ++i) {
 			const std::string flag = argv[i];
 			if (flag == "--help") {
-				std::cout << "Usage: tpp-unordered [--absolute-gap N] [--relative-gap N] [--oracle-relative-gap N]\n"
+				std::cout << "Usage: tpp-unordered [--absolute-gap N] [--relative-gap N] [--oracle-relative-gap N] [--bidirectional-initial]\n"
 					<< "stdin: sx sy tx ty polygon_count max_calls max_seconds, then each polygon's vertex count and coordinates.\n";
 				return 0;
+			}
+			if (flag == "--bidirectional-initial") {
+				options.bidirectional_initial_heuristic = true;
+				continue;
 			}
 			if (++i >= argc) throw std::invalid_argument("Expected a value after " + flag);
 			size_t parsed = 0;
@@ -47,6 +51,7 @@ int main(int argc, char **argv) {
 			<< ",\"fallback_geometric_path_invalid_calls\":" << r.fallback_geometric_path_invalid_calls
 			<< ",\"fallback_certificate_gap_calls\":" << r.fallback_certificate_gap_calls
 			<< ",\"extended_precision_calls\":" << r.extended_precision_calls
+			<< ",\"oracle_time_limit_calls\":" << r.oracle_time_limit_calls
 			<< ",\"repaired_geometric_path_calls\":" << r.repaired_geometric_path_calls
 			<< ",\"insertion_branches\":" << r.insertion_branches << ",\"decomposition_branches\":" << r.decomposition_branches
 			<< ",\"peak_queue\":" << r.peak_queue

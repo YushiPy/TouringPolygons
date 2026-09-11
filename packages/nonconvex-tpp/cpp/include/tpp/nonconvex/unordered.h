@@ -14,6 +14,7 @@ namespace tpp {
 		double relative_gap = 1e-9;
 		double feasibility_tolerance = 1e-8;
 		size_t dive_interval = 128;
+		bool bidirectional_initial_heuristic = false;
 		// Internal relaxations may stop at this relative oracle gap. Feasible
 		// leaves are refined to the requested global gap before certification.
 		double oracle_relative_gap = 1e-6;
@@ -37,6 +38,7 @@ namespace tpp {
 		size_t fallback_geometric_path_invalid_calls = 0;
 		size_t fallback_certificate_gap_calls = 0;
 		size_t extended_precision_calls = 0;
+		size_t oracle_time_limit_calls = 0;
 		size_t repaired_geometric_path_calls = 0;
 		size_t insertion_branches = 0;
 		size_t decomposition_branches = 0;
