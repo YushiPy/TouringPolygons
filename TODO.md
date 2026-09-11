@@ -272,9 +272,13 @@ incumbent on any held-out geographic-local or scale-large case, so standalone
 normalization/initialization is also clearly more robust. The full report is
 under `benchmarks/campaigns/free-order-canon-v1/results/german-tpp-canon/`.
 
-The full SOCP canon was not run after its diagnostic result was 0/120 proofs,
-27/120 strict-valid incumbents, a 35.49% median gap, and deadline overruns up to
-3.446 s. A further 540-case run would not affect the solver-selection decision.
+German + SOCP was ultimately run on all 540 canon cases to complete the matrix.
+It proved 0/540, returned 302 trajectories of which 110 passed strict
+validation (140 after endpoint snapping), had a 34.85% median residual gap, and
+overran as far as 3.486 s. Its summed solver time was 1655.11 s. Against the
+110 strictly comparable incumbents, standalone was better on 95, SOCP was
+better on 7, and 8 were tied. The full report is under
+`benchmarks/campaigns/free-order-canon-v1/results/german-socp-canon/`.
 
 This suite is intentionally difficult. All 98 current proofs are among the 180
 40-polygon cases; neither version proves a 60- or 80-polygon case in three
@@ -287,15 +291,53 @@ and `1e6` versions proved 4/12 cases, with median call counts of 195,036 and
 so the pair remains a useful numerical regression test even though it did not
 produce a material search-performance difference.
 
-A separate six-transform metamorphic check passed 71/72 runs across 12
-diagnostic cases. Translation, rotation, reflection, and the tested scale
-changes all returned valid paths except for diagnostic case 6 after scaling an
-already `1e6` instance by another `1e3`. That deterministic total scale of
-roughly `1e9` throws `Certified oracle failed to visit an assigned piece.`
-This is a real extreme-coordinate robustness bug. Reproduce it with
-`free_order_metamorphic.py --case-index 6 --limit 1`; the full raw output is
-`benchmarks/campaigns/free-order-canon-v1/results/dev-metamorphic.jsonl`.
-Internal coordinate normalization is the clearest fix route.
+Completed: the free-order B&B now normalizes all coordinates once at its public
+boundary, solves in a centered unit-scale coordinate system, and restores the
+certified bounds and path to input units. Absolute gaps and feasibility
+tolerances are converted consistently, normalization time counts against the
+same deadline, and rare inverse-rounding misses receive a minimal explicit
+boundary detour in original coordinates.
+
+The former deterministic failure on diagnostic case 6 at total scale `1e9` is
+fixed. All 72 translation/rotation/reflection/scale metamorphic runs now pass,
+as do the oracle/contact regressions, 86 exhaustive-order cases, and 344
+interrupted-search checks. On the 120-case development benchmark,
+pre-normalization and normalized solvers both prove 22 cases and validate
+120/120 paths. Median residual gap is unchanged (12.876% versus 12.873%),
+calls increase 0.8%, all six numerical fallbacks disappear, and summed solver
+time increases 0.65%. Maximum deadline cleanup rises from 3.002 s to 3.050 s;
+this is small, but further inner-loop deadline checks could recover the tighter
+tail if needed. Raw normalized results are in
+`benchmarks/campaigns/free-order-canon-v1/results/dev-normalized.jsonl` and
+`dev-normalized-metamorphic.jsonl`.
+
+## Additional lessons from the German search
+
+- The oracle is not the whole advantage. On canon, German search improves from
+  0 proofs with SOCP to 28 with the TPP oracle, while standalone TPP reaches 98
+  with that same oracle family. Both the oracle and standalone search matter.
+- German search is a useful anytime-search portfolio member. It loses overall,
+  but finds a better strict-valid timeout incumbent on 109/328 comparable canon
+  cases, with a median win of 0.65% and a maximum of 3.20%.
+- Its strongest relative niches are many-vertex convex cases (German wins 20
+  incumbents versus 15 standalone wins among 36 comparable cases) and sparse
+  nonconvex cases (12 versus 5 among 18). Study its `FarthestPoly` branching,
+  `DfsBfs` search, and `LongestEdgePlusFurthestSite` root specifically there.
+- Endpoint direction is not the only source of those wins. Bidirectional
+  initialization changes incumbents both ways and adds only one canon proof;
+  retaining two bounded search frontiers is more promising than choosing one
+  initial direction globally.
+- German + TPP returns no incumbent on any canon geographic-local or
+  scale-large case, whereas standalone returns a strict-valid result on all of
+  them. Their search is less robust to coordinate/layout distribution even
+  when using our oracle.
+- SOCP is not a competitive strict backend here: 0/540 proofs, 110/540 strict
+  incumbents, 34.85% median gap, and worse deadline overrun. Its low call count
+  reflects expensive calls, not more efficient search.
+- The next focused experiment should import the three German node-ordering
+  choices independently, then use a short portfolio budget on the timeout
+  cases. Evaluate incumbent quality first on many-vertex and sparse profiles,
+  without replacing the current proof-oriented search.
 
 The endpoint-direction pair also showed no proof-count difference on this
 suite: neither orientation proved any of its 12 deliberately difficult cases.
@@ -303,9 +345,19 @@ The default orientation used a median 249,372 calls and the reverse used
 257,917. This remains useful for studying incumbent quality, but does not by
 itself justify enabling bidirectional initialization.
 
-The complete development comparison also found no reason to enable the option:
+The complete development comparison found no clear reason to enable the option:
 current-default and current-bidirectional both proved 22/120; bidirectional
-made about 1% more calls, improved 11 differing incumbents, and worsened 8.
+made about 1% more calls, improved 11 differing incumbents, and worsened 8. On
+canon it proved one additional case (99 versus 98), made 0.26% more calls,
+improved 38 meaningful incumbents, and worsened 23. This is promising enough
+for a portfolio experiment, but still mixed rather than a strict replacement.
+
+The expected eight-run internal matrix is complete: pre-improvement,
+original-improved, current-default, and current-bidirectional were each run on
+both development and canon. Canon proofs were respectively 32, 97, 98, and 99;
+all 2,160 returned paths passed strict validation. The one-proof differences
+among the three improved variants are small relative to scheduling noise and
+their nearly identical aggregate gaps and times.
 
 Raw and generated reports:
 

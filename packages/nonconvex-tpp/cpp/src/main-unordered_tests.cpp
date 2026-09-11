@@ -122,9 +122,33 @@ void check_oracle_certificates() {
 		throw std::runtime_error("Analytic edge contact missed pass-through.");
 }
 
+void check_coordinate_normalization() {
+	const Vector2 start{-3, -2}, target{13, 8};
+	const std::vector<Polygon> polygons = {
+		{{0, 0}, {2, 0}, {2, .6}, {.6, .6}, {.6, 2}, {0, 2}},
+		{{5, 3}, {7, 3}, {7, 5}, {5, 5}},
+	};
+	const auto base = tpp_nonconvex_unordered_solve(start, target, polygons);
+	for (double factor : {1e-9, 1e9}) {
+		const Vector2 offset{700 * factor, -400 * factor};
+		auto transformed = polygons;
+		for (auto &polygon : transformed) for (auto &point : polygon) point = point * factor + offset;
+		const auto scaled = tpp_nonconvex_unordered_solve(
+			start * factor + offset, target * factor + offset, transformed
+		);
+		if (!scaled.exact || !std::isfinite(scaled.upper_bound)
+			|| std::abs(scaled.upper_bound - factor * base.upper_bound) > 1e-7 * std::max(1.0, factor * base.upper_bound)
+			|| std::any_of(transformed.begin(), transformed.end(), [&](const auto &polygon) {
+				return unordered_detail::contact(scaled.path, polygon, 1e-8).distance > 1e-8;
+			}))
+			throw std::runtime_error("Coordinate normalization regression.");
+	}
+}
+
 int main() {
 	try {
 		check_oracle_certificates();
+		check_coordinate_normalization();
 		check({0, 0}, {10, 0}, {});
 		check({0, 0}, {10, 0}, {{{2, -1}, {3, -1}, {3, 1}, {2, 1}}});
 		check({0, 0}, {0, 0}, {{{2, -1}, {3, -1}, {3, 1}, {2, 1}}});

@@ -31,7 +31,7 @@ namespace {
 }
 
 namespace tpp {
-	UnorderedTppSolveResult tpp_nonconvex_unordered_solve(
+	static UnorderedTppSolveResult solve_normalized_unordered_tpp(
 		const Vector2 &start, const Vector2 &target, const std::vector<Polygon> &input,
 		const UnorderedTppSolveOptions &options
 	) {
@@ -294,6 +294,98 @@ namespace tpp {
 		result.finalization_seconds = duration(finalization_began);
 		result.visit_check_seconds = result.heuristic_visit_check_seconds + result.search_visit_check_seconds
 			+ result.finalization_visit_check_seconds;
+		result.seconds = elapsed();
+		return result;
+	}
+
+	UnorderedTppSolveResult tpp_nonconvex_unordered_solve(
+		const Vector2 &start, const Vector2 &target, const std::vector<Polygon> &input,
+		const UnorderedTppSolveOptions &options
+	) {
+		const auto began = std::chrono::steady_clock::now();
+		auto elapsed = [&] { return std::chrono::duration<double>(std::chrono::steady_clock::now() - began).count(); };
+		if (!start.is_finite() || !target.is_finite() || std::isnan(options.max_seconds) || options.max_seconds < 0
+			|| !std::isfinite(options.absolute_gap) || options.absolute_gap < 0
+			|| !std::isfinite(options.relative_gap) || options.relative_gap < 0
+			|| !std::isfinite(options.oracle_relative_gap) || options.oracle_relative_gap < 0
+			|| !std::isfinite(options.feasibility_tolerance) || options.feasibility_tolerance <= 0)
+			throw std::invalid_argument("Invalid endpoints or unordered TPP options.");
+
+		Vector2 minimum = start, maximum = start;
+		auto include = [&](Vector2 point) {
+			if (!point.is_finite()) throw std::invalid_argument("Expected finite polygon coordinates.");
+			minimum.x = std::min(minimum.x, point.x);
+			minimum.y = std::min(minimum.y, point.y);
+			maximum.x = std::max(maximum.x, point.x);
+			maximum.y = std::max(maximum.y, point.y);
+		};
+		include(target);
+		for (const auto &polygon : input) for (auto point : polygon) include(point);
+		const Vector2 center{minimum.x / 2 + maximum.x / 2, minimum.y / 2 + maximum.y / 2};
+		const double scale = std::max(maximum.x - minimum.x, maximum.y - minimum.y);
+		if (!std::isfinite(scale)) throw std::invalid_argument("Coordinate range is too large.");
+		const double divisor = scale > 0 ? scale : 1;
+		auto normalize = [&](Vector2 point) { return (point - center) / divisor; };
+		std::vector<Polygon> polygons = input;
+		for (auto &polygon : polygons) for (auto &point : polygon) point = normalize(point);
+
+		auto normalized_options = options;
+		normalized_options.absolute_gap /= divisor;
+		const double numerical_floor = 64 * std::numeric_limits<double>::epsilon();
+		normalized_options.feasibility_tolerance = std::max(options.feasibility_tolerance / divisor, numerical_floor);
+		normalized_options.max_seconds = std::max(0.0, options.max_seconds - elapsed());
+		const double normalization_seconds = elapsed();
+		auto result = solve_normalized_unordered_tpp(
+			normalize(start), normalize(target), polygons, normalized_options
+		);
+		result.lower_bound *= divisor;
+		result.upper_bound *= divisor;
+		for (auto &point : result.path) point = {
+			std::fma(point.x, divisor, center.x),
+			std::fma(point.y, divisor, center.y),
+		};
+		auto covered = [&](const Polygon &path) {
+			return std::all_of(input.begin(), input.end(), [&](const auto &polygon) {
+				return contact(path, polygon, options.feasibility_tolerance).distance <= options.feasibility_tolerance;
+			});
+		};
+		if (!covered(result.path)) {
+			for (const auto &polygon : input) {
+				const auto missing = contact(result.path, polygon, options.feasibility_tolerance);
+				if (missing.distance <= options.feasibility_tolerance) continue;
+				const size_t segment = std::min(size_t(std::max(0.0, std::floor(missing.position))), result.path.size() - 2);
+				const double rate = std::clamp(missing.position - segment, 0.0, 1.0);
+				const auto point = result.path[segment]
+					+ (result.path[segment + 1] - result.path[segment]) * rate;
+				Vector2 nearest = polygon.front();
+				double best = (point - nearest).length_squared();
+				for (size_t i = 0; i < polygon.size(); ++i) {
+					const auto a = polygon[i], edge = polygon[(i + 1) % polygon.size()] - a;
+					const double squared = edge.length_squared();
+					const double edge_rate = squared == 0 ? 0
+						: std::clamp((point - a).dot(edge) / squared, 0.0, 1.0);
+					const auto candidate = a + edge * edge_rate;
+					const double distance = (point - candidate).length_squared();
+					if (distance < best) { best = distance; nearest = candidate; }
+				}
+				result.path.insert(result.path.begin() + segment + 1, {point, nearest, point});
+			}
+			if (!covered(result.path)) throw std::runtime_error("Failed to restore a normalized feasible path.");
+			result.upper_bound = path_length(result.path);
+			result.lower_bound = std::min(result.lower_bound, result.upper_bound);
+			const double gap = options.absolute_gap + options.relative_gap * std::abs(result.upper_bound);
+			result.exact = result.upper_bound - result.lower_bound <= gap;
+			if (result.exact) result.termination = UnorderedTppTermination::Optimal;
+			else if (result.termination == UnorderedTppTermination::Optimal)
+				result.termination = UnorderedTppTermination::NumericalLimit;
+			result.order.clear();
+			std::vector<std::pair<double, size_t>> visits;
+			for (size_t i = 0; i < input.size(); ++i)
+				visits.emplace_back(contact(result.path, input[i], options.feasibility_tolerance).position, i);
+			std::sort(visits.begin(), visits.end());
+			for (auto [position, index] : visits) result.order.push_back(index);
+		}
+		result.preprocessing_seconds += normalization_seconds;
 		result.seconds = elapsed();
 		return result;
 	}
