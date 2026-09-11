@@ -213,10 +213,73 @@ scale ratio. Combined suite hashes:
 - diagnostic: `8c09a258fd0e70b34b2b8796e5dd78aadd61a92ec2edb3814d949e2bf0e5af4a`;
 - held-out: `6883b9a821186bd798cac3d7120d69b5dcd8a0b0ba02b3e0dc291449ff012fb8`.
 
-Only the diagnostic split has been run. With the current default solver and a
-3-second limit, all 120 incumbents passed strict validation and 22 were proven
-optimal. This suite is intentionally much harder than the German-derived
-development set: 98/120 reached the time limit.
+Both splits were run at the final comparison checkpoint with four independent
+process workers, a 3-second limit per case, and strict independent path
+validation. The pre-improvement and current-default results were joined by
+explicit case index, not JSONL row order. The current solver improved the
+inspectable split from 8/120 to 22/120 proofs, lost no proofs, improved 110
+incumbents, and reduced median residual gap from 23.41% to 12.88%.
+
+The frozen 540-case canon confirmed the result:
+
+- all 540 paths were valid for both versions;
+- proofs increased from 32 to 98, with no lost proof;
+- median residual gap fell from 23.79% to 14.29%;
+- the current incumbent was meaningfully better on 490 cases and worse on 10;
+- maximum reported solver time fell from 3.048 s to 3.002 s, with no current
+  run above 3.02 s;
+- all 32 commonly proven objectives agreed at the independent tolerance.
+
+The lower call count of the old solver is not a speed advantage. It completed
+only 15.6 million calls because it spent its budget in 3.00 million expensive
+fallbacks. The current solver completed 90.5 million calls with only 729
+fallbacks, proving three times as many cases in less summed solver time.
+
+The German search was also tested on the independent 120-case diagnostic
+split, under the same 3-second limit and strict validation:
+
+| Solver | Proven | Strict-valid incumbents | Sum time | Median gap | Max time |
+|---|---:|---:|---:|---:|---:|
+| Standalone current TPP | **22/120** | **120/120** | **310.34 s** | **12.88%** | **3.002 s** |
+| German search + TPP | 7/120 | 74/120 | 345.21 s | 19.49% | 3.070 s |
+| German search + SOCP | 0/120 | 27/120 | 367.47 s | 35.49% | 3.446 s |
+
+German + TPP returned no invalid path: its other 46 cases ended without an
+incumbent. SOCP returned 61 paths, but only 27 passed strict `1e-7` validation
+(33 after endpoint snapping). All seven objectives proven by both standalone
+and German + TPP agree at the independent tolerance.
+
+The German search still exposes an improvement opportunity. Among its 74
+strict-valid incumbents, it beats standalone TPP on 25 cases; standalone wins
+36 and 13 are tied. Its search trajectory is therefore useful as a portfolio
+source even though it is much weaker at proof, validity coverage, residual
+gap, and deadline behavior. Raw reports are under
+`benchmarks/campaigns/free-order-canon-v1/results/german-{tpp,socp}-dev/`.
+
+German + TPP was also run on all 540 canon cases. Standalone TPP proved 98
+cases and returned 540/540 valid incumbents; German + TPP proved 28 and
+returned 328/540 valid incumbents, with no invalid trajectory or integration
+error (the other 212 had no incumbent). Summed solver time was 1381.84 s versus
+1565.52 s, median residual gap was 14.29% versus 20.26%, and maximum time was
+3.002 s versus 3.084 s. All 28 commonly proven objectives agree.
+
+Among the 328 paired valid incumbents, German search was better on 109,
+standalone was better on 162, and 57 were tied. The median German win was
+0.65% and its best was 3.20%; the median standalone win was 0.85% and its best
+was 6.47%. This makes a bounded portfolio of both search trajectories the most
+concrete incumbent-quality improvement route. German + TPP produced no
+incumbent on any held-out geographic-local or scale-large case, so standalone
+normalization/initialization is also clearly more robust. The full report is
+under `benchmarks/campaigns/free-order-canon-v1/results/german-tpp-canon/`.
+
+The full SOCP canon was not run after its diagnostic result was 0/120 proofs,
+27/120 strict-valid incumbents, a 35.49% median gap, and deadline overruns up to
+3.446 s. A further 540-case run would not affect the solver-selection decision.
+
+This suite is intentionally difficult. All 98 current proofs are among the 180
+40-polygon cases; neither version proves a 60- or 80-polygon case in three
+seconds. For future work, use residual gap and incumbent quality alongside
+proof count, or give the large cases a larger time budget.
 
 The paired scale test is reassuring for the improved solver. Both the `1e-6`
 and `1e6` versions proved 4/12 cases, with median call counts of 195,036 and
@@ -224,16 +287,36 @@ and `1e6` versions proved 4/12 cases, with median call counts of 195,036 and
 so the pair remains a useful numerical regression test even though it did not
 produce a material search-performance difference.
 
+A separate six-transform metamorphic check passed 71/72 runs across 12
+diagnostic cases. Translation, rotation, reflection, and the tested scale
+changes all returned valid paths except for diagnostic case 6 after scaling an
+already `1e6` instance by another `1e3`. That deterministic total scale of
+roughly `1e9` throws `Certified oracle failed to visit an assigned piece.`
+This is a real extreme-coordinate robustness bug. Reproduce it with
+`free_order_metamorphic.py --case-index 6 --limit 1`; the full raw output is
+`benchmarks/campaigns/free-order-canon-v1/results/dev-metamorphic.jsonl`.
+Internal coordinate normalization is the clearest fix route.
+
 The endpoint-direction pair also showed no proof-count difference on this
 suite: neither orientation proved any of its 12 deliberately difficult cases.
 The default orientation used a median 249,372 calls and the reverse used
 257,917. This remains useful for studying incumbent quality, but does not by
 itself justify enabling bidirectional initialization.
 
-Do not inspect case-level results from `free-order-canon-v1.bin` during tuning.
-Use `free-order-dev-v1.bin`, then run the frozen 540-case canon only at a
-decision checkpoint. Regeneration and benchmark commands are documented in
-`benchmarks/README.md`.
+The complete development comparison also found no reason to enable the option:
+current-default and current-bidirectional both proved 22/120; bidirectional
+made about 1% more calls, improved 11 differing incumbents, and worsened 8.
+
+Raw and generated reports:
+
+- `benchmarks/campaigns/free-order-canon-v1/results/dev-comparison.md`;
+- `benchmarks/campaigns/free-order-canon-v1/results/canon-comparison.md`;
+- `benchmarks/scripts/summarize_free_order_canon.py`.
+
+Canon v1 has now been consumed and must not be treated as held out for changes
+influenced by these results. Continue routine work on `free-order-dev-v1.bin`;
+generate a new seeded canon version before the next final decision checkpoint.
+Regeneration and benchmark commands are documented in `benchmarks/README.md`.
 
 ## Files needed to resume
 

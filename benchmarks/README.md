@@ -177,6 +177,21 @@ tspn-comparison/solver/.venv/bin/python \
   --output benchmarks/campaigns/free-order-canon-v1/results/dev-default.jsonl
 ```
 
+Compare completed runs without depending on their parallel completion order:
+
+```bash
+python3 benchmarks/scripts/summarize_free_order_canon.py \
+  --index benchmarks/campaigns/free-order-canon-v1/cases.csv \
+  --split diagnostic \
+  --result baseline=benchmarks/campaigns/free-order-canon-v1/results/dev-baseline.jsonl \
+  --result candidate=benchmarks/campaigns/free-order-canon-v1/results/dev-candidate.jsonl \
+  --output benchmarks/campaigns/free-order-canon-v1/results/dev-comparison.md
+```
+
+The summary command rejects missing, duplicate, or unexpected case indices and
+reports aggregate, per-profile, and paired changes. Use `--split heldout` for a
+canon checkpoint.
+
 For paired, sequential free-order solver comparisons with independent path
 validation and executable/input hashes:
 
