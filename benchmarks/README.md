@@ -127,6 +127,56 @@ python3 benchmarks/tpp.py generate \
 
 ## Canonical Algorithm Suite
 
+### Independent free-order diagnostic and canon suite
+
+Generate a reproducible campaign from the instance-generation package:
+
+```bash
+MPLCONFIGDIR=/tmp/tpp-matplotlib XDG_CACHE_HOME=/tmp/tpp-cache \
+  tspn-comparison/solver/.venv/bin/python \
+  benchmarks/scripts/generate_free_order_canon.py \
+  --with-preview --overwrite
+```
+
+The default campaign uses the cached São Paulo OSM building footprints and a
+fixed seed. It creates 660 pairwise-disjoint endpoint-path cases at 40, 60, and
+80 polygons, split into:
+
+- `free-order-dev-v1.bin`: 120 inspectable diagnostic cases;
+- `free-order-canon-v1.bin`: 540 held-out cases;
+- one diagnostic and one held-out binary per profile;
+- `campaign.json`, with parameters, source hashes, and output hashes;
+- `cases.csv`, with the shuffled case index and per-case hashes;
+- optional diagnostic preview images.
+
+The ten profiles cover dense and low-clearance layouts, sparse layouts,
+many-vertex convex polygons, alternating convex/nonconvex polygons, paired
+endpoint reversal, geographic placement, and paired scales of `1e-6` and
+`1e6`. Generated campaigns are ignored by Git; the generator and this recipe
+are tracked. Add another geographic source with a repeated
+`--region NAME=/path/to/region.osm.pbf` option.
+
+Use the development split while tuning. Run the held-out split only for a
+decision checkpoint, and create a new canon version after its case-level
+results influence the algorithm. The current generated campaign is at
+`benchmarks/campaigns/free-order-canon-v1/` and its combined hashes are:
+
+```text
+dev:   8c09a258fd0e70b34b2b8796e5dd78aadd61a92ec2edb3814d949e2bf0e5af4a
+canon: 6883b9a821186bd798cac3d7120d69b5dcd8a0b0ba02b3e0dc291449ff012fb8
+```
+
+Run the current solver on the inspectable split with:
+
+```bash
+tspn-comparison/solver/.venv/bin/python \
+  benchmarks/scripts/unordered_benchmark.py \
+  --suite benchmarks/campaigns/free-order-canon-v1/free-order-dev-v1.bin \
+  --solver .build/unordered/tpp-unordered \
+  --seconds 3 --max-calls 10000000 --workers 4 \
+  --output benchmarks/campaigns/free-order-canon-v1/results/dev-default.jsonl
+```
+
 For paired, sequential free-order solver comparisons with independent path
 validation and executable/input hashes:
 

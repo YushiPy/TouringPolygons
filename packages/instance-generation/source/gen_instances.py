@@ -51,24 +51,26 @@ class TestCase:
 	span: tuple[float, float]
 
 
-def ensure_geometry_dependencies() -> None:
+def ensure_geometry_dependencies(*, require_osmium: bool = False) -> None:
 	global MultiPolygon, Polygon, osmium
 
-	if osmium is not None:
-		return
+	if Polygon is None:
+		try:
+			from shapely.geometry import MultiPolygon as ShapelyMultiPolygon
+			from shapely.geometry import Polygon as ShapelyPolygon
+		except ImportError as error:
+			raise SystemExit("Missing Python dependency: shapely.") from error
+		Polygon = ShapelyPolygon
+		MultiPolygon = ShapelyMultiPolygon
 
-	try:
-		import osmium as osmium_module
-		from shapely.geometry import MultiPolygon as ShapelyMultiPolygon
-		from shapely.geometry import Polygon as ShapelyPolygon
-	except ImportError as error:
-		raise SystemExit(
-			"Missing Python dependency. Install osmium and shapely before running this generator."
-		) from error
-
-	osmium = osmium_module
-	Polygon = ShapelyPolygon
-	MultiPolygon = ShapelyMultiPolygon
+	if require_osmium and osmium is None:
+		try:
+			import osmium as osmium_module
+		except ImportError as error:
+			raise SystemExit(
+				"Missing Python dependency: osmium is required when no building cache is available."
+			) from error
+		osmium = osmium_module
 
 
 def ensure_plot_dependency() -> None:
@@ -138,7 +140,7 @@ def load_building_rings(pbf_path: Path, cache_path: Path, use_cache: bool) -> li
 		print(f"Loaded {len(rings)} raw building rings.", flush=True)
 		return rings
 
-	ensure_geometry_dependencies()
+	ensure_geometry_dependencies(require_osmium=True)
 
 	class BuildingHandler(osmium.SimpleHandler):
 		def __init__(self) -> None:

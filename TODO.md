@@ -193,6 +193,48 @@ a formal performance claim:
 - freeze the code revisions, generated suite, hardware, tolerances, and seeds;
 - preserve both strict `1e-7` validation and the German native `1e-3` metric.
 
+## Independent generated canon campaign
+
+Completed on 2026-09-11. The tracked generator
+`benchmarks/scripts/generate_free_order_canon.py` creates an independent suite
+from `packages/instance-generation`, instead of reusing the German corpus. The
+default São Paulo campaign contains 120 inspectable diagnostic cases and 540
+held-out cases, balanced across 40, 60, and 80 polygons. Its ten profiles cover
+density, clearance, sparsity, polygon complexity, convex/nonconvex mixtures,
+endpoint direction, geographic placement, and numerical scale.
+
+The generated campaign is at
+`benchmarks/campaigns/free-order-canon-v1/`. All 660 cases are unique,
+pairwise-disjoint within each instance, and round-trip through the binary
+format. The 66 endpoint pairs have identical geometry with exchanged
+endpoints. The 66 scale pairs have identical geometry modulo their `1e12`
+scale ratio. Combined suite hashes:
+
+- diagnostic: `8c09a258fd0e70b34b2b8796e5dd78aadd61a92ec2edb3814d949e2bf0e5af4a`;
+- held-out: `6883b9a821186bd798cac3d7120d69b5dcd8a0b0ba02b3e0dc291449ff012fb8`.
+
+Only the diagnostic split has been run. With the current default solver and a
+3-second limit, all 120 incumbents passed strict validation and 22 were proven
+optimal. This suite is intentionally much harder than the German-derived
+development set: 98/120 reached the time limit.
+
+The paired scale test is reassuring for the improved solver. Both the `1e-6`
+and `1e6` versions proved 4/12 cases, with median call counts of 195,036 and
+198,519. Small scale caused all six observed certified fallback calls, however,
+so the pair remains a useful numerical regression test even though it did not
+produce a material search-performance difference.
+
+The endpoint-direction pair also showed no proof-count difference on this
+suite: neither orientation proved any of its 12 deliberately difficult cases.
+The default orientation used a median 249,372 calls and the reverse used
+257,917. This remains useful for studying incumbent quality, but does not by
+itself justify enabling bidirectional initialization.
+
+Do not inspect case-level results from `free-order-canon-v1.bin` during tuning.
+Use `free-order-dev-v1.bin`, then run the frozen 540-case canon only at a
+decision checkpoint. Regeneration and benchmark commands are documented in
+`benchmarks/README.md`.
+
 ## Files needed to resume
 
 - Full explanation and reproduction commands:
