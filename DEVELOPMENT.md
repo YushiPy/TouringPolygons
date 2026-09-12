@@ -63,6 +63,12 @@ Avoid reintroducing local copies of shared geometry or convex solver code in dow
 
 ## Verification
 
+Set up a fresh development machine with:
+
+```bash
+scripts/install_dependencies.sh
+```
+
 Run the broad check before larger changes:
 
 ```bash

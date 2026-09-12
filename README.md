@@ -51,7 +51,18 @@ Repository boundaries:
 - `benchmarks/generate_instances.py` regenerates ignored benchmark campaign
   inputs with a single command.
 
-For a fresh-clone sanity check, run:
+For a fresh clone or a restored machine, install all system and application
+dependencies with:
+
+```bash
+scripts/install_dependencies.sh
+```
+
+The installer is safe to rerun. It installs missing system packages, recreates
+the locked Python and Node environments for both server apps, and installs the
+Chromium runtime used by browser tests.
+
+Then run the fresh-clone sanity check:
 
 ```bash
 scripts/sanity_check.sh
