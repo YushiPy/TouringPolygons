@@ -586,9 +586,30 @@ def run_command(command: list[str]) -> subprocess.CompletedProcess[str]:
     )
 
 
+def _cmake_cache_matches_checkout(build_dir: Path, source_dir: Path) -> bool:
+    cache = build_dir / "CMakeCache.txt"
+    if not cache.exists():
+        return True
+    values: dict[str, str] = {}
+    try:
+        for line in cache.read_text().splitlines():
+            for key in ("CMAKE_HOME_DIRECTORY:INTERNAL=", "CMAKE_CACHEFILE_DIR:INTERNAL="):
+                if line.startswith(key):
+                    values[key.split(":", 1)[0]] = line[len(key) :]
+    except OSError:
+        return False
+    return values.get("CMAKE_HOME_DIRECTORY") == str(source_dir.resolve()) and values.get("CMAKE_CACHEFILE_DIR") == str(
+        build_dir.resolve()
+    )
+
+
 def ensure_live_solver_binary() -> None:
     configured_target = None
-    if SOLVER_BUILD_CACHE.exists():
+    build_dir = SOLVER_BUILD_CACHE.parent
+    if not _cmake_cache_matches_checkout(build_dir, REPO_ROOT):
+        print("Build: discarding a relocated native solver cache.", flush=True)
+        shutil.rmtree(build_dir)
+    elif SOLVER_BUILD_CACHE.exists():
         for line in SOLVER_BUILD_CACHE.read_text().splitlines():
             if line.startswith("TARGET:STRING="):
                 configured_target = line.split("=", 1)[1]

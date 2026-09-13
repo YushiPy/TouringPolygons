@@ -14,7 +14,7 @@ import { renderCampaignChoiceGrid } from "./campaign-choice.js";
 import { formatElapsed, formatLength, formatMicroseconds, formatSeconds } from "./format.js";
 import { createJobDock, dismissFinishedJobForPanel as dismissDockJobForPanel } from "./job-dock.js";
 import { createKeybindManager } from "./keybinds.js";
-import { createManualEditor } from "./manual-editor.js?v=editor-align-2026-09-09d";
+import { createManualEditor } from "./manual-editor.js?v=editor-align-2026-09-12a";
 import { createManualCaseController } from "./manual-cases.js";
 import { createConfirmationController, createModalController } from "./modals.js";
 import { createInstanceModalController } from "./instance-modals.js?v=2026-09-10e";

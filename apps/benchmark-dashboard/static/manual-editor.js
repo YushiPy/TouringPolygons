@@ -1,7 +1,8 @@
 /* global Image */
 
-import { displayPartition } from "./native-partition.js?v=editor-align-2026-09-09d";
+import { displayPartition } from "./native-partition.js?v=editor-align-2026-09-12a";
 import { visitOrder, solveFreeOrder } from "./order-mode.js?v=editor-align-2026-09-09d";
+import { solveFixedOrder } from "./fixed-order-fallback.js?v=editor-align-2026-09-11a";
 import { drawCanvasScene } from "./canvas-renderer.js";
 import { cloneCaseData } from "./case-data.js?v=editor-align-2026-09-09d";
 import { polygonIsConvex, solutionDirectionAt } from "./editor-geometry.js";
@@ -110,6 +111,7 @@ export function createManualEditor({
 					this.canvas.releasePointerCapture(event.pointerId);
 				}
 				this.updateCursor();
+				this.requestDraw();
 			};
 			window.addEventListener("pointerup", finishPointer);
 			window.addEventListener("pointercancel", finishPointer);
@@ -1105,7 +1107,12 @@ export function createManualEditor({
 					return;
 				}
 				const solveStarted = requestedAt;
-				const wasmResult = await solveEditorWasmAsync(caseData, null, signal);
+				let wasmResult = null;
+				try {
+					wasmResult = await solveEditorWasmAsync(caseData, null, signal);
+				} catch (error) {
+					if (error.name === "AbortError") throw error;
+				}
 				const solveWallSeconds = (performance.now() - solveStarted) / 1000;
 				if (wasmResult) {
 					if (revision !== this.solutionRevision) {
@@ -1125,14 +1132,24 @@ export function createManualEditor({
 					this.requestDraw();
 					return;
 				}
+				if (!this.solutionPath) this.setStatus("Solving fixed order on server...");
+				const fallbackResult = await solveFixedOrder(caseData, signal);
 				if (revision !== this.solutionRevision) {
 					return;
 				}
-				this.solutionPath = null;
+				this.solutionPath = fallbackResult.path;
 				this.solutionStale = false;
-				this.updateLabelDirections(true);
-				this.setStatus("WASM solver could not solve this case.");
+				this.updateLabelDirections(false);
+				this.setSolveMetrics({
+					Solution: fallbackResult.exact ? "exact" : "approximate",
+					Length: formatLength(fallbackResult.length),
+					"Oracle calls": fallbackResult.calls,
+					Solver: fallbackResult.seconds > 0 ? formatSeconds(fallbackResult.seconds) : "< timer resolution",
+					Update: formatSeconds((performance.now() - solveStarted) / 1000),
+					Runtime: "server",
+				});
 				this.requestDraw();
+				return;
 			} catch (error) {
 				if (!signal.aborted && revision === this.solutionRevision && error.name !== "AbortError") {
 					this.setStatus(error.message);
@@ -1258,11 +1275,18 @@ export function createManualEditor({
 			requestAnimationFrame(tick);
 		},
 
+		isDragging() {
+			return Boolean(this.backgroundDrag || this.activePoint || this.dragSelection || this.dragPolygon || this.panDrag || this.selectionRect || this.pinchGesture);
+		},
+
 		drawDecomposition(polygon, color) {
+			if (this.isDragging()) {
+				return;
+			}
 			if (polygonIsConvex(polygon)) {
 				return;
 			}
-			const pieces = displayPartition(polygon, this.partitionReady ||= () => this.draw(), this.partitionFailed ||= (message) => this.setStatus?.(message));
+			const pieces = displayPartition(polygon, this.partitionReady ||= () => this.requestDraw(), this.partitionFailed ||= (message) => this.setStatus?.(message));
 			if (!pieces || pieces.length <= 1) {
 				return;
 			}

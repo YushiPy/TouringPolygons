@@ -7,6 +7,7 @@ import hashlib
 import json
 import math
 import os
+import shutil
 import signal
 import struct
 import subprocess
@@ -25,6 +26,22 @@ EXTERNAL_PYTHON = ROOT / 'tspn-comparison/solver/.venv/bin/python'
 EXTERNAL_RUNNER = ROOT / 'tspn-comparison/benchmarks/run_comparison.py'
 
 
+def _build_cache_matches_checkout(build_dir: Path) -> bool:
+	cache = build_dir / 'CMakeCache.txt'
+	if not cache.exists():
+		return True
+	values = {}
+	try:
+		for line in cache.read_text().splitlines():
+			for key in ('CMAKE_HOME_DIRECTORY:INTERNAL=', 'CMAKE_CACHEFILE_DIR:INTERNAL='):
+				if line.startswith(key):
+					values[key.split(':', 1)[0]] = line[len(key):]
+	except OSError:
+		return False
+	source_dir = (ROOT / 'packages/nonconvex-tpp/cpp').resolve()
+	return values.get('CMAKE_HOME_DIRECTORY') == str(source_dir) and values.get('CMAKE_CACHEFILE_DIR') == str(build_dir.resolve())
+
+
 def ensure_binary(no_build: bool = False) -> Path:
 	if no_build:
 		if not BINARY.exists():
@@ -32,9 +49,13 @@ def ensure_binary(no_build: bool = False) -> Path:
 		return BINARY
 	sources = [p for package in ('common-geometry', 'convex-tpp', 'nonconvex-tpp', 'optimal-convex-partition')
 		for p in (ROOT / 'packages' / package / 'cpp').rglob('*') if p.suffix in ('.cpp', '.h', '.txt')]
-	if BINARY.exists() and all(p.stat().st_mtime_ns <= BINARY.stat().st_mtime_ns for p in sources):
+	cache_matches = _build_cache_matches_checkout(BINARY.parent)
+	if BINARY.exists() and cache_matches and all(p.stat().st_mtime_ns <= BINARY.stat().st_mtime_ns for p in sources):
 		print('Build: free-order solver is up to date.', flush=True)
 		return BINARY
+	if not cache_matches:
+		print('Build: discarding a relocated CMake build cache...', flush=True)
+		shutil.rmtree(BINARY.parent)
 	print('Build: configuring free-order solver...', flush=True)
 	subprocess.run(['cmake', '-S', str(ROOT / 'packages/nonconvex-tpp/cpp'), '-B', str(BINARY.parent), '-DTARGET=main-unordered'], check=True)
 	print('Build: compiling free-order solver...', flush=True)

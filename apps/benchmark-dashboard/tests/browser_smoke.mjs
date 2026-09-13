@@ -27,6 +27,29 @@ try {
 	await dashboardPage.waitForFunction(() => window.__benchmarkDashboardReady === true);
 	await dashboardPage.locator("#campaign-list").waitFor({ state: "attached" });
 	await dashboardPage.locator("#manual-case-canvas").waitFor({ state: "attached" });
+	const fixedFallback = await dashboardPage.evaluate(async () => {
+		const { createManualEditor } = await import("/static/manual-editor.js?v=editor-align-2026-09-12a");
+		const caseData = {
+			start: [0, 0],
+			target: [4, 0],
+			polygons: [[[1, -1], [2, -1], [2, 1], [1, 1]]],
+		};
+		const editor = createManualEditor({
+			$: selector => document.querySelector(selector),
+			state: { manualCases: [caseData], manualCaseIndex: 0 },
+			formatLength: value => String(value),
+			formatSeconds: value => String(value),
+			cssVar: () => "",
+			scheduleManualAutosave() {},
+			updateManualCaseListMetadata() {},
+		});
+		editor.requestDraw = () => {};
+		editor.updateLabelDirections = () => {};
+		await editor.fetchSolution(caseData, 0, performance.now());
+		return { path: editor.solutionPath, status: document.querySelector("#manual-solve-status").textContent };
+	});
+	assert.deepEqual(fixedFallback.path, [[0, 0], [4, 0]]);
+	assert.match(fixedFallback.status, /Runtime\s*server/);
 	const reference = await (await dashboardPage.request.get(`${baseUrl}/api/free-order/reference`)).json();
 	if (reference.rows.length) {
 		assert.ok(reference.rows.every((row) => !("geometry" in row) && !("path" in row)));

@@ -241,7 +241,7 @@ Manual campaigns use `manual-cases.json` as the canonical editable representatio
 
 Choose `Fixed order` or `Free order` in Benchmark, Comparison, or Cases. The selection is synchronized across these views. Fixed order keeps the existing solver pipeline. Free order uses the native nonconvex TPP branch-and-bound, with fixed start and target points. The live editor uses a three-second budget and displays the incumbent path and gap when the search has not finished.
 
-Free-order campaigns currently run with one worker. An empty time limit means 30 seconds per instance. Comparison supports `Our TPP B&B` and `External TSPN`; the external checkout and its Python environment must be installed, and its time limit must be an integer number of seconds.
+Free-order campaigns currently run with one worker. An empty time limit means 30 seconds per instance. Comparison supports `Our TPP B&B` and `External TSPN`; the external checkout and its Python environment must be installed, and its time limit must be an integer number of seconds. The fixed-order editor uses the optional WASM solver when available and falls back to the local fixed-order API otherwise.
 
 Reports include per-instance bounds, gaps, timing, termination, and our saved paths and first-visit orders. Results are saved separately under `benchmarks/campaigns/<campaign>/results/free-order/<run>/report.json`. Matching completed configurations are reused unless forced. They never populate fixed-order summary files.
 

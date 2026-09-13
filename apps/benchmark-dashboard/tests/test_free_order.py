@@ -17,6 +17,15 @@ from dashboard.dashboard_models import CompareSolversRequest, LiveSolveRequest, 
 
 
 class FreeOrderTests(unittest.TestCase):
+    def test_relocated_cmake_cache_is_detected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            build_dir = Path(directory)
+            (build_dir / "CMakeCache.txt").write_text(
+                "CMAKE_HOME_DIRECTORY:INTERNAL=/old/checkout/packages/nonconvex-tpp/cpp\n"
+                "CMAKE_CACHEFILE_DIR:INTERNAL=/old/checkout/.build/unordered\n"
+            )
+            self.assertFalse(free_order_campaign._build_cache_matches_checkout(build_dir))
+
     def test_fixed_order_remains_the_default(self):
         self.assertEqual(RunCampaignRequest(name="sample").visit_order, "fixed")
         self.assertEqual(LiveSolveRequest().visit_order, "fixed")

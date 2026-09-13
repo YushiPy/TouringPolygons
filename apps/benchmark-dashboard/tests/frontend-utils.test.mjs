@@ -160,7 +160,7 @@ test("crossing quadrilaterals decompose before convex solving", () => {
 
 test("partition completion settles before redraw callbacks run", async () => {
 	const originalFetch = globalThis.fetch;
-	const polygon = [[901, 900], [902, 900], [901, 901]];
+	const polygon = [[901, 900], [904, 900], [904, 902], [902, 901], [901, 902]];
 	globalThis.fetch = async () => ({
 		ok: true,
 		json: async () => ({ pieces: [[polygon]] }),
@@ -177,6 +177,59 @@ test("partition completion settles before redraw callbacks run", async () => {
 			}, reject);
 		});
 		assert.equal(redraws, 1);
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
+test("translated polygons reuse relative partitions", async () => {
+	const originalFetch = globalThis.fetch;
+	const polygon = [[1001, 1000], [1005, 1000], [1005, 1004], [1003, 1002], [1001, 1004]];
+	const translated = polygon.map(([x, y]) => [x + 20, y - 30]);
+	let requests = 0;
+	globalThis.fetch = async () => {
+		requests += 1;
+		return { ok: true, json: async () => ({ pieces: [[polygon]] }) };
+	};
+	try {
+		await new Promise((resolve, reject) => displayPartition(polygon, resolve, reject));
+		const pieces = displayPartition(translated, () => {}, () => {});
+		assert.equal(requests, 1);
+		assert.deepEqual(pieces, [translated]);
+		polygon.forEach((point) => {
+			point[0] += 20;
+			point[1] -= 30;
+		});
+		assert.deepEqual(displayPartition(polygon, () => {}, () => {}), [translated]);
+		assert.equal(requests, 1);
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
+test("in-flight translated partitions use the latest polygon origin", async () => {
+	const originalFetch = globalThis.fetch;
+	const polygon = [[1101, 1100], [1106, 1100], [1106, 1105], [1104, 1102], [1101, 1105]];
+	const requestedPolygon = polygon.map((point) => [...point]);
+	let resolveFetch;
+	globalThis.fetch = async () => new Promise((resolve) => {
+		resolveFetch = resolve;
+	});
+	try {
+		let resolveReady;
+		let rejectReady;
+		const ready = new Promise((resolve, reject) => {
+			resolveReady = resolve;
+			rejectReady = reject;
+		});
+		displayPartition(polygon, () => resolveReady(displayPartition(polygon, () => {}, rejectReady)), rejectReady);
+		polygon.forEach((point) => {
+			point[0] += 12;
+			point[1] -= 8;
+		});
+		assert.equal(displayPartition(polygon, () => {}, () => {}), null);
+		resolveFetch({ ok: true, json: async () => ({ pieces: [[requestedPolygon]] }) });
+		assert.deepEqual(await ready, [polygon]);
 	} finally {
 		globalThis.fetch = originalFetch;
 	}
@@ -256,7 +309,7 @@ test("job utilities classify job state consistently", () => {
 
 test("partition failures settle before error callbacks redraw", async () => {
 	const originalFetch = globalThis.fetch;
-	const polygon = [[911, 900], [912, 900], [911, 901]];
+	const polygon = [[911, 900], [913, 900], [913, 902], [912, 901], [911, 902]];
 	globalThis.fetch = async () => ({ ok: false });
 	let errors = 0;
 	try {
@@ -277,7 +330,7 @@ test("partition failures settle before error callbacks redraw", async () => {
 test("editing a polygon cancels its obsolete partition request", async () => {
 	const originalFetch = globalThis.fetch;
 	const requests = [];
-	const polygon = [[921, 900], [922, 900], [921, 901]];
+	const polygon = [[921, 900], [924, 900], [924, 903], [923, 901], [921, 903]];
 	globalThis.fetch = (_, options) => {
 		requests.push(options.signal);
 		return new Promise(() => {});

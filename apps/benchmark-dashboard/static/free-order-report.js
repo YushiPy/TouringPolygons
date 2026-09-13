@@ -2,7 +2,7 @@ import { escapeHTML } from "./dom.js";
 import { downloadCSV } from "./format.js";
 import { requestJSON } from "./api.js";
 import { convexHull, pathPolygonContacts, pathPrefix, playbackDuration, projectedCase, regionColors } from "./event-geometry.js?v=2026-09-10d";
-import { displayPartition } from "./native-partition.js?v=editor-align-2026-09-09d";
+import { displayPartition } from "./native-partition.js?v=editor-align-2026-09-12a";
 
 const reportStates = new WeakMap();
 const speeds = [.25, .5, 1, 1.5, 2, 3, 4];
