@@ -208,6 +208,11 @@ namespace tpp {
 	}
 
 	bool is_valid_solution(const Vector2 &start, const Vector2 &target, const vector<vector<Vector2>> &polygons, const vector<Vector2> &solution) {
+		// Retain the legacy local-bend checks below, but never let their early
+		// returns accept a path that misses a later visit or visits out of order.
+		if (!validate_ordered_path(start, target, polygons, solution).valid) {
+			return false;
+		}
 
 		// A correct solution must start at `start`, end at `target`, have no consecutive collinear points, and visit the polygons in order without skipping any.
 		if (solution.size() < 2) {

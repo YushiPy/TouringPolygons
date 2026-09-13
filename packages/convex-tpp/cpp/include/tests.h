@@ -8,6 +8,22 @@
 
 namespace tpp {
 
+	struct OrderedPathValidation {
+		bool valid = false;
+		size_t visited_polygons = 0;
+		double length = 0;
+		double coordinate_tolerance = 0;
+	};
+
+	// Independent feasibility check for closed convex polygons. Clips complete
+	// segments and greedily selects nondecreasing contact parameters. This does
+	// not assert local or global optimality, or require explicit contact vertices.
+	OrderedPathValidation validate_ordered_path(
+		const Vector2 &start, const Vector2 &target,
+		const std::vector<std::vector<Vector2>> &polygons,
+		const std::vector<Vector2> &path
+	);
+
 	struct TestCase {
 		Vector2 start, target;
 		std::vector<std::vector<Vector2>> polygons;

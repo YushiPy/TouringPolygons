@@ -30,73 +30,15 @@ namespace {
 		}
 	}
 
-	double orientation(const Vector2 &a, const Vector2 &b, const Vector2 &c) {
-		return (b - a).cross(c - a);
-	}
-
-	bool point_on_segment(const Vector2 &point, const Vector2 &a, const Vector2 &b) {
-		return std::fabs(orientation(a, b, point)) <= 1e-10
-			&& (point - a).dot(point - b) <= 1e-10;
-	}
-
-	bool point_in_polygon_or_on_boundary(const Vector2 &point, const vector<Vector2> &polygon) {
-		bool inside = false;
-
-		for (size_t i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++) {
-			const auto &current = polygon[i];
-			const auto &previous = polygon[j];
-
-			if (point_on_segment(point, previous, current)) {
-				return true;
-			}
-
-			if ((current.y > point.y) != (previous.y > point.y)
-				&& point.x < (previous.x - current.x) * (point.y - current.y) / (previous.y - current.y) + current.x) {
-				inside = !inside;
-			}
-		}
-
-		return inside;
-	}
-
-	bool segments_intersect_or_touch(const Vector2 &a, const Vector2 &b, const Vector2 &c, const Vector2 &d) {
-		const double ab_c = orientation(a, b, c);
-		const double ab_d = orientation(a, b, d);
-		const double cd_a = orientation(c, d, a);
-		const double cd_b = orientation(c, d, b);
-
-		if (point_on_segment(c, a, b) || point_on_segment(d, a, b) || point_on_segment(a, c, d) || point_on_segment(b, c, d)) {
-			return true;
-		}
-
-		return (ab_c > 1e-10) != (ab_d > 1e-10) && (cd_a > 1e-10) != (cd_b > 1e-10);
-	}
-
-	bool path_touches_polygon(const vector<Vector2> &path, const vector<Vector2> &polygon) {
-		for (size_t i = 1; i < path.size(); i++) {
-			if (point_in_polygon_or_on_boundary(path[i - 1], polygon) || point_in_polygon_or_on_boundary(path[i], polygon)) {
-				return true;
-			}
-
-			for (size_t j = 0; j < polygon.size(); j++) {
-				if (segments_intersect_or_touch(path[i - 1], path[i], polygon[j], polygon[(j + 1) % polygon.size()])) {
-					return true;
-				}
-			}
-		}
-
-		return false;
-	}
-
-	void expect_touches_all_polygons(
-		const vector<Vector2> &path,
-		const vector<vector<Vector2>> &polygons,
+	void expect_ordered_path(
+		const Vector2 &start, const Vector2 &target,
+		const vector<Vector2> &path, const vector<vector<Vector2>> &polygons,
 		const std::string &name
 	) {
-		for (size_t i = 0; i < polygons.size(); i++) {
-			if (!path_touches_polygon(path, polygons[i])) {
-				throw std::runtime_error(std::format("{}: path does not touch polygon {}", name, i + 1));
-			}
+		const auto validation = tpp::validate_ordered_path(start, target, polygons, path);
+		if (!validation.valid) {
+			throw std::runtime_error(std::format("{}: ordered visitation fails at polygon {}",
+				name, validation.visited_polygons + 1));
 		}
 	}
 
@@ -153,8 +95,8 @@ namespace {
 		const auto lazy = tpp::tpp_convex_solve_binary_search_lazy(start, target, polygons);
 		const auto eager = tpp::tpp_convex_solve_binary_search_eager(start, target, polygons);
 
-		expect_touches_all_polygons(lazy, polygons, name + " lazy");
-		expect_touches_all_polygons(eager, polygons, name + " eager");
+		expect_ordered_path(start, target, lazy, polygons, name + " lazy");
+		expect_ordered_path(start, target, eager, polygons, name + " eager");
 
 		if (expected_path_size != 0 && lazy.size() != expected_path_size) {
 			throw std::runtime_error(std::format("{} lazy: expected {} path points, got {}", name, expected_path_size, lazy.size()));
