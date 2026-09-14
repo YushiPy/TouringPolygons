@@ -1,18 +1,102 @@
 % All drawings are native, reproducible TikZ vectors.  Geometry panels use
 % identical x/y units; panels marked schematic depict decisions, not a claimed
 % complete subdivision of a particular input.
+
+\newcommand{\figrepeat}{%
+\begin{tikzpicture}[scale=.95]
+\begin{scope}
+\draw[polyA] (0,0) rectangle (2,2);
+\draw[route,-Latex] (-2,1)--(3,1);
+\fill[ink] (-2,1) circle (1.6pt); \fill[ink] (3,1) circle (1.6pt);
+\node[smalllabel,above] at (-2,1) {\(s\)};
+\node[smalllabel,above] at (3,1) {\(q\)};
+\fill[good] (0,1) circle (2pt);
+\node[smalllabel,above] at (0,1.15) {all three at \((0,1)\)};
+\foreach \x/\i in {.65/1,1.1/2,1.55/3}
+  {\draw[good] (\x,1) circle (1.7pt); \node[font=\scriptsize,below] at (\x,.92) {\(\i\)};}
+\node[smalllabel,align=center] at (1,-.65)
+  {\((P,P,P),\ q=(3,1),\ F_3(q)=5\)};
+\end{scope}
+\begin{scope}[xshift=6.1cm]
+\draw[polyA] (0,0) rectangle (2,2);
+\draw[route,-Latex] (-2,1)--(1,1);
+\fill[ink] (-2,1) circle (1.6pt); \fill[good] (1,1) circle (2pt);
+\node[smalllabel,above] at (-2,1) {\(s\)};
+\node[smalllabel,above right] at (1,1) {\(q\)};
+\node[smalllabel,above] at (1,1.36) {all three at \(q\)};
+\node[smalllabel,align=center] at (1,-.68)
+  {\(q=(1,1)\in P,\quad F_0(q)=F_1(q)=F_2(q)=F_3(q)=3\)};
+\end{scope}
+\end{tikzpicture}}
+
+\newcommand{\figfalsecrossing}{%
+\begin{tikzpicture}[scale=.44]
+\begin{scope}
+  \draw[polyA] (0,2) rectangle (2,4);
+  \draw[polyB] (0,-2) rectangle (3,2);
+  \draw[draw=good,fill=good!10,line width=.9pt] (-1,3) rectangle (1,4);
+  \node[smalllabel] at (2.35,3.6) {\(P_1\)};
+  \node[smalllabel] at (1.7,0) {\(P_2\)};
+  \node[smalllabel] at (-1.55,3.55) {\(P_3\)};
+  \fill[ink] (-4,-4) circle (2pt); \fill[ink] (4,-4) circle (2pt);
+  \node[smalllabel,below] at (-4,-4) {\(s\)};
+  \node[smalllabel,below] at (4,-4) {\(t\)};
+  \node[font=\scriptsize\bfseries,color=navy] at (0,5.15) {(a) instance};
+\end{scope}
+\begin{scope}[xshift=10.5cm]
+  \draw[polyA] (0,2) rectangle (2,4);
+  \draw[polyB] (0,-2) rectangle (3,2);
+  \draw[draw=good,fill=good!10,line width=.9pt] (-1,3) rectangle (1,4);
+  \node[smalllabel] at (2.35,3.6) {\(P_1\)};
+  \node[smalllabel] at (1.7,0) {\(P_2\)};
+  \node[smalllabel] at (-1.55,3.55) {\(P_3\)};
+  \fill[ink] (-4,-4) circle (2pt); \fill[ink] (4,-4) circle (2pt);
+  \node[smalllabel,below] at (-4,-4) {\(s\)};
+  \node[smalllabel,below] at (4,-4) {\(t\)};
+  \draw[wrong,-Latex] (-4,-4)--(0,3);
+  \draw[wrong,-Latex] (0,3)--(4,-4);
+  \fill[bad] (0,3) circle (2.4pt);
+  \fill[bad] (4/7,2) circle (2.4pt);
+  \node[smalllabel,above right] at (0,3) {\(P_1,P_3\)};
+  \node[smalllabel,above right] at (4/7,2) {\(P_2\) later};
+  \node[smalllabel,align=center] at (0,-5.35)
+    {wrong: \(P_1,P_3\longrightarrow P_2\)};
+  \node[font=\scriptsize\bfseries,color=navy] at (0,5.15) {(b) old route};
+\end{scope}
+\begin{scope}[xshift=21cm]
+  \draw[polyA] (0,2) rectangle (2,4);
+  \draw[polyB] (0,-2) rectangle (3,2);
+  \draw[draw=good,fill=good!10,line width=.9pt] (-1,3) rectangle (1,4);
+  \node[smalllabel] at (2.35,3.6) {\(P_1\)};
+  \node[smalllabel] at (1.7,0) {\(P_2\)};
+  \node[smalllabel] at (-1.55,3.55) {\(P_3\)};
+  \fill[ink] (-4,-4) circle (2pt); \fill[ink] (4,-4) circle (2pt);
+  \node[smalllabel,below] at (-4,-4) {\(s\)};
+  \node[smalllabel,below] at (4,-4) {\(t\)};
+  \draw[route,-Latex] (-4,-4)--(0,2);
+  \draw[route,-Latex] (0,2)--(.5,3);
+  \draw[route,-Latex] (.5,3)--(4,-4);
+  \fill[good] (0,2) circle (2.4pt); \fill[good] (.5,3) circle (2.4pt);
+  \node[smalllabel,below right] at (0,2) {\(1=2\): \(P_1,P_2\)};
+  \node[smalllabel,above right] at (.5,3) {\(3\): \(P_3\)};
+  \node[smalllabel,align=center] at (0,-5.35)
+    {valid: \(P_1=P_2\longrightarrow P_3\)};
+  \node[font=\scriptsize\bfseries,color=navy] at (0,5.15) {(c) corrected route};
+\end{scope}
+\end{tikzpicture}}
+
 \newcommand{\figordered}{%
 \begin{tikzpicture}[scale=.9]
 \begin{scope}
 \draw[polyA] (-1,0) rectangle (0,2); \draw[polyB] (2,0) rectangle (3,2);
 \draw[route,-Latex] (-2,1)--(-.5,1)--(2.5,1)--(4,1);
-\node[smalllabel] at (-2,1.5) {$s$}; \node[smalllabel] at (4,1.5) {$t$};
-\node[smalllabel] at (1,-.5) {ordered: $P_1$ then $P_2$};
+\node[smalllabel] at (-2,1.5) {\(s\)}; \node[smalllabel] at (4,1.5) {\(t\)};
+\node[smalllabel] at (1,-.5) {ordered: \(P_1\) then \(P_2\)};
 \end{scope}
 \begin{scope}[xshift=7cm]
 \draw[polyA] (-1,0) rectangle (0,2); \draw[polyB] (2,0) rectangle (3,2);
 \draw[wrong,-Latex] (-2,-1)--(2.5,1)--(-.5,1)--(4,-1);
-\node[smalllabel] at (1,-1.5) {$P_2$ then $P_1$; no later $P_2$ visit};
+\node[smalllabel] at (1,-1.5) {\(P_2\) then \(P_1\); no later \(P_2\) visit};
 \end{scope}
 \end{tikzpicture}}
 \newcommand{\figcontacts}{%
@@ -32,30 +116,30 @@
 \end{tikzpicture}}
 \newcommand{\figunfold}{%
 \begin{tikzpicture}[scale=1.08]
-\draw[polyA] (-.3,0)--(4.2,0); \node[smalllabel] at (4, .45) {$e$};
+\draw[polyA] (-.3,0)--(4.2,0); \node[smalllabel] at (4, .45) {\(e\)};
 \coordinate (S) at (.2,-2); \coordinate (C) at (2,0); \coordinate (Q) at (3.8,-1.4); \coordinate (R) at (3.8,1.4);
 \draw[route,-Latex] (S)--(C)--(Q); \draw[aux,-Latex] (S)--(R);
 \draw[aux] (Q)--(R); \fill[ink] (C) circle (1.5pt);
-\node[smalllabel,below] at (S) {$a$}; \node[smalllabel,below] at (Q) {$q$};
-\node[smalllabel,above] at (R) {$q'=R_e(q)$};
-\node[smalllabel,above left] at (C) {$c$};
+\node[smalllabel,below] at (S) {\(a\)}; \node[smalllabel,below] at (Q) {\(q\)};
+\node[smalllabel,above] at (R) {\(q'=R_e(q)\)};
+\node[smalllabel,above left] at (C) {\(c\)};
 \end{tikzpicture}}
 \newcommand{\figlastmap}{%
 \begin{tikzpicture}[scale=1.05]
 \draw[polyA] (0,0) rectangle (2,2); \draw[aux,-Latex] (0,0)--(-1.3,-1.3);
 \draw[aux,-Latex] (0,0)--(1,-1.7); \draw[aux,-Latex] (2,0)--(3,-1.7);
 \draw[route,-Latex] (-2,1)--(0,0)--(1.1,-1);
-\node[smalllabel] at (.9,-2.1) {level $i$: action = bend at $v$};
-\node[smalllabel] at (-1.4,1.8) {level $i-1$ supplies prefix to $v$};
-\node[smalllabel] at (1.1,1) {$P_i$};
-\node[smalllabel,above right] at (0,0) {$v$};
+\node[smalllabel] at (.9,-2.1) {level \(i\): action = bend at \(v\)};
+\node[smalllabel] at (-1.4,1.8) {level \(i-1\) supplies prefix to \(v\)};
+\node[smalllabel] at (1.1,1) {\(P_i\)};
+\node[smalllabel,above right] at (0,0) {\(v\)};
 \end{tikzpicture}}
 \newcommand{\figbinary}{%
 \begin{tikzpicture}
 \foreach \shift/\j/\endx/\endy/\rayx/\rayy/\txt in
- {0/3/8/4/2.6/.8/{keep $e_0,e_1,e_2$},
-  4.65/2/6/3/2.2/.6/{keep $e_0,e_1$},
-  9.3/1/0/0/.7/-2.4/{keep $e_0$}} {
+ {0/3/8/4/2.6/.8/{keep \(e_0,e_1,e_2\)},
+  4.65/2/6/3/2.2/.6/{keep \(e_0,e_1\)},
+  9.3/1/0/0/.7/-2.4/{keep \(e_0\)}} {
   \begin{scope}[xshift=\shift cm,scale=.21]
     \draw[polyB] (-8,-4)--(0,0)--(6,3)--(8,4)--(8,9)--(-8,9)--cycle;
     \draw[bad,line width=2pt] (\endx,\endy)--(8,4)--(8,9)--(-8,9)--(-8,-4);
@@ -65,12 +149,12 @@
     \fill[ink] (-8,-4) circle (4pt);
     \fill[ink] (\endx,\endy) circle (4pt);
     \fill[good] (-4,-3) circle (5pt);
-    \node[font=\scriptsize,below left] at (-8,-4) {$v_0$};
-    \node[font=\scriptsize,above right] at (\endx,\endy) {$v_{\j}$};
-    \node[font=\scriptsize,below] at (-4,-3) {$q$};
+    \node[font=\scriptsize,below left] at (-8,-4) {\(v_0\)};
+    \node[font=\scriptsize,above right] at (\endx,\endy) {\(v_{\j}\)};
+    \node[font=\scriptsize,below] at (-4,-3) {\(q\)};
   \end{scope}
   \node[font=\scriptsize,align=center] at (\shift cm,-1.9cm)
-    {$v_0v_{\j}$: yes\\\txt};
+    {\(v_0v_{\j}\): yes\\\txt};
 }
 \end{tikzpicture}}
 \newcommand{\figsplit}{%
@@ -93,36 +177,36 @@
 \begin{scope}
 \fill[pOne!8] (0,-4.5) rectangle (1.4,1.3);\draw[pOne,thick] (0,-4.5)--(0,1.3);
 \draw[pTwo,thick] (-3,-1.5)--(1.4,.7);\draw[route,-Latex] (-3,-4)--(1,.5);
-\node[smalllabel] at (-1,-5) {$q_+(1/2)=(1,1/2)$};
+\node[smalllabel] at (-1,-5) {\(q_+(1/2)=(1,1/2)\)};
 \end{scope}
 \begin{scope}[xshift=6.5cm]
 \fill[pOne!8] (0,-4.5) rectangle (1.4,1.3);\draw[pOne,thick] (0,-4.5)--(0,1.3);
 \draw[pTwo,thick] (-3,-1.5)--(1.4,.7);\draw[route,-Latex] (-3,-4)--(0,-11/8)--(-1,-.5);
 \fill[ink] (0,-11/8) circle (1.5pt);
-\node[smalllabel] at (-1,-5) {$q_-(1/2)=(-1,-1/2)$};
+\node[smalllabel] at (-1,-5) {\(q_-(1/2)=(-1,-1/2)\)};
 \end{scope}
 \end{tikzpicture}}
 \newcommand{\figrays}{%
 \begin{tikzpicture}[scale=1.15]
 \coordinate (J) at (0,0);
 \draw[polyA] (0,-3)--(0,2); \draw[polyB] (-3,-1.5)--(3,1.5);
-\draw[wrong,-Latex] (J)--(-1.8,2.4) node[above] {$R_1u$};
-\draw[wrong,-Latex] (J)--(3,0) node[right] {$R_2u$};
-\draw[route,-Latex] (J)--(.875,-3) node[below] {$R_2R_1u$};
+\draw[wrong,-Latex] (J)--(-1.8,2.4) node[above] {\(R_1u\)};
+\draw[wrong,-Latex] (J)--(3,0) node[right] {\(R_2u\)};
+\draw[route,-Latex] (J)--(.875,-3) node[below] {\(R_2R_1u\)};
 \draw[route,-Latex] (J)--(2.6,0);
-\fill[ink] (J) circle (2pt);\node[smalllabel,above right] at (J) {$j$};
-\fill[good] (2,-1.5) circle (2pt);\node[smalllabel,right] at (2,-1.5) {$t_A/2$};
-\fill[bad] (-2,-1.5) circle (2pt);\node[smalllabel,left] at (-2,-1.5) {$t_B/2$};
+\fill[ink] (J) circle (2pt);\node[smalllabel,above right] at (J) {\(j\)};
+\fill[good] (2,-1.5) circle (2pt);\node[smalllabel,right] at (2,-1.5) {\(t_A/2\)};
+\fill[bad] (-2,-1.5) circle (2pt);\node[smalllabel,left] at (-2,-1.5) {\(t_B/2\)};
 \end{tikzpicture}}
 \newcommand{\figvirtual}{%
 \begin{tikzpicture}[scale=1.15]
 \draw[polyA] (0,-2)--(0,2);\draw[polyB] (-3,-1.5)--(3,1.5);
 \coordinate (S) at (-1.5,-2);\coordinate (V1) at (1.5,-2);\coordinate (V2) at (-.7,2.4);
 \fill[ink] (S) circle (2pt);\fill[ink] (V1) circle (2pt);\fill[ink] (V2) circle (2pt);
-\node[smalllabel,below] at (S) {$s$};\node[smalllabel,below] at (V1) {$R_1s$};
-\node[smalllabel,above] at (V2) {$R_2R_1s$};
+\node[smalllabel,below] at (S) {\(s\)};\node[smalllabel,below] at (V1) {\(R_1s\)};
+\node[smalllabel,above] at (V2) {\(R_2R_1s\)};
 \draw[aux,-Latex] (S)--(V1);\draw[aux,-Latex] (V1)--(V2);
-\fill[good] (-2,-1.5) circle (2pt);\node[smalllabel,left] at (-2,-1.5) {$t_B/2$};
+\fill[good] (-2,-1.5) circle (2pt);\node[smalllabel,left] at (-2,-1.5) {\(t_B/2\)};
 \end{tikzpicture}}
 \newcommand{\figpath}{%
 \begin{tikzpicture}[scale=.95]
@@ -134,7 +218,7 @@
 \draw[wrong] (-3,-4)--(0,0)--(-4,-3);
 \end{scope}
 \foreach \x/\y/\lab in {-3/-4/s,0/-3/a,-3.6/-1.8/b,-4/-3/t_B,0/0/j}
-  {\fill[ink] (\x,\y) circle (2pt);\node[smalllabel,above right] at (\x,\y) {$\lab$};}
+  {\fill[ink] (\x,\y) circle (2pt);\node[smalllabel,above right] at (\x,\y) {\(\lab\)};}
 \node[smalllabel] at (2.3,-4.1) {solid: returned route};
 \end{tikzpicture}}
 \newcommand{\figbackwards}{%
@@ -143,10 +227,10 @@
 \draw[good,-Latex,line width=1.3pt] (0,0)--(3,0);
 \draw[bad,-Latex,line width=1.3pt] (0,0)--(-2,0);
 \fill[ink] (0,0) circle (2pt); \fill[bad] (-2,0) circle (2pt);
-\node[smalllabel,above] at (0,0) {$v$};
-\node[smalllabel,above] at (2,0) {forward ray $r$};
-\node[smalllabel,above] at (-2,0) {$q$ behind $v$};
-\node[smalllabel,below] at (0,-.4) {$r\times(q-v)=0$, but $r\cdot(q-v)<0$};
+\node[smalllabel,above] at (0,0) {\(v\)};
+\node[smalllabel,above] at (2,0) {forward ray \(r\)};
+\node[smalllabel,above] at (-2,0) {\(q\) behind \(v\)};
+\node[smalllabel,below] at (0,-.4) {\(r\times(q-v)=0\), but \(r\cdot(q-v)<0\)};
 \end{tikzpicture}}
 \newcommand{\figmembership}{%
 \begin{tikzpicture}[scale=1.15]
@@ -155,7 +239,7 @@
 \draw[aux] (0,0)--(4,2); \draw[aux] (0,0)--(2,4);
 \fill[good] (2,1.5) circle (2.5pt);
 \foreach \x/\y/\n in {0/0/0,3/0/1,4/2/2,2/4/3,-1/2/4}
-  {\fill[ink] (\x,\y) circle (1.5pt);\node[smalllabel,above right] at (\x,\y) {$p_{\n}$};}
-\node[smalllabel,right] at (2,1.5) {$q$};
-\node[smalllabel] at (2,-.55) {fan triangle $(p_0,p_2,p_3)$};
+  {\fill[ink] (\x,\y) circle (1.5pt);\node[smalllabel,above right] at (\x,\y) {\(p_{\n}\)};}
+\node[smalllabel,right] at (2,1.5) {\(q\)};
+\node[smalllabel] at (2,-.55) {fan triangle \((p_0,p_2,p_3)\)};
 \end{tikzpicture}}
