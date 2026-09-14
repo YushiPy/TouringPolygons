@@ -62,55 +62,55 @@ give Codex this prompt:
 
 ### Inventory and structure
 
-- [ ] Read the entire report, `figures.tex`, the report README, and the relevant
+- [x] Read the entire report, `figures.tex`, the report README, and the relevant
   benchmark-dashboard viewer files. Make an inventory of all headings, equation
   labels, figures/captions, pseudocode blocks, source notes, tables, and
   bibliography entries; store the inventory in the web project or this file.
-- [ ] Create a small, standalone web project in `web/`, with a documented local
+- [x] Create a small, standalone web project in `web/`, with a documented local
   start/build command. Use semantic HTML and a simple, maintainable file layout.
   Do not make architectural commitments about the future geometry engine or
   source-code overlay during this phase.
-- [ ] Build the reading shell: title/abstract, contents, readable text column,
+- [x] Build the reading shell: title/abstract, contents, readable text column,
   responsive navigation, stable section anchors, and distinct styling for
   examples, source notes, pseudocode, captions, and references. Preserve the
   report's chapter order and hierarchy.
 
 ### Complete static content
 
-- [ ] Transfer all 14 sections and 4 subsections, including the worked examples,
+- [x] Transfer all 14 sections and 4 subsections, including the worked examples,
   exact witness, complexity discussion, validation account, closed/limiting
   cases, source guide, and open proof obligations. Compare paragraphs against
   `main.tex`; do not summarize or replace technical claims with marketing copy.
-- [ ] Render every inline and display equation, including custom symbols such
+- [x] Render every inline and display equation, including custom symbols such
   as `\R`, `\norm`, and `\cross`. Keep equation labels and links working. Check
   fractions, primes, subscripts, signs, and the infinitesimal-query notation
   visually in a browser. Bundle math assets locally for the final offline build.
-- [ ] Port all five pseudocode blocks as readable, copyable code with line
+- [x] Port all five pseudocode blocks as readable, copyable code with line
   numbers and modest syntax highlighting. Preserve indentation and branch
   order. A static block is sufficient for Luna; line-to-geometry interaction
   belongs to Phase 2.
-- [ ] Port the source-guide table, all six bibliography entries, citations,
+- [x] Port the source-guide table, all six bibliography entries, citations,
   figure references, and internal links. Keep `Open the code` notes visible and
   mark their source identifiers for Phase 2, even if they do not yet open code.
-- [ ] Show all twelve figures with their complete captions and stable figure
+- [x] Show all twelve figures with their complete captions and stable figure
   IDs. A faithful static rendering is acceptable in Phase 1; prefer vector
   output, but use a temporary high-resolution fallback if vector export is
   unreliable. Record every temporary fallback in the handoff. Do not redraw
   an exact coordinate scene from visual guesswork.
-- [ ] Add unobtrusive, explicit placeholders for later enhancement: every
+- [x] Add unobtrusive, explicit placeholders for later enhancement: every
   figure has a future Expand control location, and source/function references
   have stable identifiers that Phase 2 can connect to overlays. Keep the static
   page usable without those future interactions.
 
 ### Luna verification and handoff
 
-- [ ] Build and serve the site locally; check a desktop and narrow/mobile
+- [x] Build and serve the site locally; check a desktop and narrow/mobile
   viewport. Confirm the full report is readable, no horizontal overflow hides
   equations or tables, and all static links have valid targets.
-- [ ] Compare the web edition with the PDF section by section. Verify the
+- [x] Compare the web edition with the PDF section by section. Verify the
   14/4/12/5/6 content counts, every caption, and the caveat that general
   equivalence of the implicit directional maps remains unproved.
-- [ ] Update the handoff record below with created files, commands run,
+- [x] Update the handoff record below with created files, commands run,
   unresolved static-content issues, temporary figure assets, and any design
   decisions that Phase 2 must preserve. Do not check a task with missing work.
 
@@ -205,13 +205,62 @@ give Codex this prompt:
 
 ## Handoff record — edit as work progresses
 
-**Phase 1 (Luna):** Not started.
+**Phase 1 (Luna):** Complete (2026-09-14).
 
 - Files created or changed:
+  - `web/build.mjs`, `web/build.sh`, `web/style.css`, `web/figure-template.tex`,
+    `web/README.md`, and `web/INVENTORY.md`.
+  - Generated `web/index.html` plus twelve local SVGs in
+    `web/assets/figures/` (`order`, `contacts`, `unfold`, `last`, `binary`,
+    `split`, `limits`, `rays`, `backwards`, `virtual`, `membership`, and
+    `path`).
+  - This checklist and handoff record.
 - Local build/start command:
+  - From `docs/reports/directional-tpp-tutorial/web/`, run `./build.sh`, then
+    `python3 -m http.server 8765` and open `http://127.0.0.1:8765/`.
+  - `pandoc` is a build-time dependency. The generated page uses local MathML
+    and SVG assets and has no runtime server/API or network dependency.
 - Checks run and results:
+  - `./build.sh` passed. It asserts 12 figures and 5 pseudocode blocks; the
+    generated page also contains 5 labeled equation anchors and 6 bibliography
+    anchors.
+  - Source inventory checks passed against `main.tex`/`figures.tex`: 14
+    sections, 4 subsections, 12 figures/captions, 5 pseudocode blocks, 7
+    source-note boxes, 5 equation labels, and 6 bibliography entries. The
+    visible source-note count is 6 because the seventh source box is the
+    contents-page code key.
+  - All twelve figure assets were rendered from the original TikZ definitions
+    with `pdflatex` and `pdftocairo -svg`; no fallback or visual redraw was
+    used. The report PDF was rebuilt with `bash build.sh` (27 A4 pages), then
+    its normalized text was checked for all 14 section headings, 12 figure
+    labels, the exact-unproved-equivalence caveat, and the corresponding web
+    content.
+  - The site was served locally and inspected in Safari at desktop width and
+    the in-app browser at a 319px narrow width. The mobile DOM audit found no
+    document overflow, all long equations/tables/pseudocode retained local
+    scroll containers, all 12 SVGs loaded, all in-page links resolved, and the
+    title/contents/figure/caption structure remained readable. Every figure has
+    a disabled `Expand · Phase 2` control; there are no script tags or enabled
+    interactive controls in the static page.
+  - The large solver regression suites were not run.
 - Temporary figure fallbacks or missing content:
+  - None. The full report text is generated from `main.tex`; all twelve figures
+    use checked-in SVG exports of the original TikZ. No static-content omission
+    or temporary asset fallback remains.
 - Decisions and notes for Phase 2:
+  - Preserve the report's exact-versus-schematic caption scope and equal x/y
+    scale. The static SVGs are source-rendered drawings, not newly inferred
+    geometry.
+  - Preserve `fig:*` anchors, the stable `figordered`-style figure IDs,
+    `data-source-ref` ranges, `data-source-symbol` names, equation anchors, and
+    the pinned revision `0aaf550` as the Phase 2 connection points.
+  - Replace the disabled controls only after verifying any geometry, source
+    signatures, excerpts, and interactions against the pinned source. Do not
+    infer signatures or behavior from the current stable identifiers alone.
+  - The page intentionally contains no geometry engine, route playback,
+    source overlay, or other interactive behavior in this Phase 1 handoff.
+
+**Phase 2 (Sol/Astra):** Not started.
 
 **Phase 2 (Sol/Astra):** Not started.
 

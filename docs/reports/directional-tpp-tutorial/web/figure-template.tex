@@ -1,0 +1,22 @@
+\documentclass[border=6pt]{standalone}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,calc}
+\definecolor{ink}{HTML}{223247}
+\definecolor{navy}{HTML}{274568}
+\definecolor{pOne}{HTML}{3677AD}
+\definecolor{pTwo}{HTML}{C78A24}
+\definecolor{good}{HTML}{007E72}
+\definecolor{bad}{HTML}{B53E62}
+\definecolor{quiet}{HTML}{617384}
+\tikzset{>=Latex,polyA/.style={draw=pOne,fill=pOne!9},
+polyB/.style={draw=pTwo,fill=pTwo!10},
+route/.style={draw=good,line width=1.4pt},wrong/.style={draw=bad,dashed,line width=1pt},
+aux/.style={draw=quiet,dashed,line width=.8pt},smalllabel/.style={font=\scriptsize,
+fill=white,fill opacity=.9,text opacity=1,inner sep=1pt}}
+\input{figures.tex}
+\begin{document}
+\FIGUREMACRO
+\end{document}
