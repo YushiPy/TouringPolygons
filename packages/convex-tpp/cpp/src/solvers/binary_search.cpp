@@ -2,9 +2,11 @@
 #include "common.h"
 #include "tpp_convex_common.h"
 #include "tpp_convex.h"
+#include "tpp/convex/detail/intersecting_maps.h"
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <tuple>
 
 using std::vector;
@@ -14,8 +16,6 @@ namespace {
 
 	constexpr double LOCAL_EPSILON = 1e-8;
 	constexpr double LOCAL_EPSILON_SQUARED = LOCAL_EPSILON * LOCAL_EPSILON;
-
-	bool point_on_segment(const Vector2 &point, const Vector2 &a, const Vector2 &b);
 
 	bool point_in_convex_polygon_closed(const Vector2 &point, const vector<Vector2> &polygon) {
 
@@ -39,52 +39,6 @@ namespace {
 		}
 
 		return true;
-	}
-
-	bool point_in_convex_polygon_open(const Vector2 &point, const vector<Vector2> &polygon) {
-
-		if (!point_in_convex_polygon_closed(point, polygon)) {
-			return false;
-		}
-
-		for (size_t j = 0; j < polygon.size(); j++) {
-			const auto &v1 = polygon[j];
-			const auto &v2 = polygon[(j + 1) % polygon.size()];
-
-			if (point_on_segment(point, v1, v2)) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	bool point_on_segment(const Vector2 &point, const Vector2 &a, const Vector2 &b) {
-		return std::fabs((b - a).cross(point - a)) <= LOCAL_EPSILON_SQUARED
-			&& (point - a).dot(point - b) <= LOCAL_EPSILON_SQUARED;
-	}
-
-	bool segment_enters_polygon_before_endpoint(const Vector2 &from, const Vector2 &to, const vector<Vector2> &polygon) {
-
-		if (point_in_convex_polygon_closed(from, polygon)) {
-			return !from.is_equal_approx(to, LOCAL_EPSILON);
-		}
-
-		for (size_t j = 0; j < polygon.size(); j++) {
-			const auto &v1 = polygon[j];
-			const auto &v2 = polygon[(j + 1) % polygon.size()];
-			const auto intersection = tpp::segment_segment_intersection_safe(from, to, v1, v2);
-
-			if (!intersection.is_finite()) {
-				continue;
-			}
-
-			if (!intersection.is_equal_approx(to, LOCAL_EPSILON)) {
-				return true;
-			}
-		}
-
-		return false;
 	}
 
 	bool polygons_intersect_or_touch(const vector<Vector2> &a, const vector<Vector2> &b) {
@@ -134,6 +88,27 @@ namespace {
 		return point_in_convex_polygon_closed(a.front(), b) || point_in_convex_polygon_closed(b.front(), a);
 	}
 
+	// The disjoint core assumes CCW boundaries. Normalize only when necessary;
+	// already-CCW inputs retain the existing solver and storage representation.
+	std::optional<vector<vector<Vector2>>> normalized_winding(const vector<vector<Vector2>> &polygons) {
+		auto clockwise = [](const vector<Vector2> &p) {
+			for (size_t j = 0; j < p.size(); ++j) {
+				const auto &a = p[j], &b = p[(j + 1) % p.size()], &c = p[(j + 2) % p.size()];
+				const long double turn = ((long double)b.x - a.x) * ((long double)c.y - b.y)
+					- ((long double)b.y - a.y) * ((long double)c.x - b.x);
+				if (turn != 0) return turn < 0;
+			}
+			return false;
+		};
+		std::optional<vector<vector<Vector2>>> result;
+		for (size_t i = 0; i < polygons.size(); ++i) {
+			if (!clockwise(polygons[i])) continue;
+			if (!result) result = polygons;
+			std::reverse((*result)[i].begin(), (*result)[i].end());
+		}
+		return result;
+	}
+
 	bool polygons_are_pairwise_disjoint(const vector<vector<Vector2>> &polygons) {
 
 		for (size_t i = 0; i < polygons.size(); i++) {
@@ -147,15 +122,7 @@ namespace {
 		return true;
 	}
 
-	double path_length(const vector<Vector2> &path) {
-		double length = 0.0;
 
-		for (size_t i = 1; i < path.size(); i++) {
-			length += path[i - 1].distance_to(path[i]);
-		}
-
-		return length;
-	}
 }
 
 class SolutionBinarySearchDisjoint : public tpp::Solution {
@@ -264,74 +231,17 @@ class SolutionBinarySearchDisjoint : public tpp::Solution {
 	}
 };
 
-class SolutionBinarySearchIntersecting : public SolutionBinarySearchDisjoint {
-
-	using SolutionBinarySearchDisjoint::SolutionBinarySearchDisjoint;
-	using SolutionBinarySearchDisjoint::_locate_point;
-
-	vector<uint8_t> intersects_previous_cache;
-
-	bool intersects_previous_polygon(size_t polygon_index) {
-
-		if (intersects_previous_cache.size() != polygons.size()) {
-			intersects_previous_cache.assign(polygons.size(), 2);
-		}
-
-		auto &cached = intersects_previous_cache[polygon_index];
-
-		if (cached != 2) {
-			return cached != 0;
-		}
-
-		for (size_t h = 0; h < polygon_index; h++) {
-			if (polygons_intersect_or_touch(polygons[h], polygons[polygon_index])) {
-				cached = 1;
-				return true;
-			}
-		}
-
-		cached = 0;
-		return false;
-	}
-
-	int64_t locate_point(const Vector2& point, size_t i) override {
-
-		const auto polygon_index = i - 1;
-		const auto &polygon = polygons[polygon_index];
-		
-		if (point_in_convex_polygon_open(point, polygon)) {
-			return -1;
-		}
-
-		if (intersects_previous_polygon(polygon_index)) {
-			const auto previous = query(point, i - 1);
-
-			if (segment_enters_polygon_before_endpoint(previous, point, polygon)) {
-				return -1;
-			}
-		}
-
-		size_t location = _locate_point(point, i);
-		const auto vertex_count = polygons[polygon_index].size();
-		
-		size_t previous_index = location == 0 ? vertex_count - 1 : (location - 1) / 2;
-
-		if (is_first_contact(polygon_index, location / 2) || is_first_contact(polygon_index, previous_index)) {
-			return location;
-		} else {
-			return locate_point_linear(point, i);
-		}
-	}
-
-	};
-
 namespace tpp {
 
 	void tpp_convex_solve_binary_search_lazy(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons, ConvexTppWorkspaceView workspace, std::vector<Vector2>& output) {
+		if (auto normalized = normalized_winding(polygons)) {
+			tpp_convex_solve_binary_search_lazy(start, target, *normalized, workspace, output);
+			return;
+		}
 		if (polygons_are_pairwise_disjoint(polygons)) {
 			SolutionBinarySearchDisjoint(start, target, polygons, workspace).solve(PreloadPolicy::Lazy, output);
 		} else {
-			tpp_convex_solve_linear_search_lazy(start, target, polygons, workspace, output);
+			output = detail::solve_intersecting_maps(start, target, polygons, PreloadPolicy::Lazy);
 		}
 	}
 
@@ -340,10 +250,14 @@ namespace tpp {
 	}
 
 	void tpp_convex_solve_binary_search_eager(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons, ConvexTppWorkspaceView workspace, std::vector<Vector2>& output) {
+		if (auto normalized = normalized_winding(polygons)) {
+			tpp_convex_solve_binary_search_eager(start, target, *normalized, workspace, output);
+			return;
+		}
 		if (polygons_are_pairwise_disjoint(polygons)) {
 			SolutionBinarySearchDisjoint(start, target, polygons, workspace).solve(PreloadPolicy::Eager, output);
 		} else {
-			tpp_convex_solve_linear_search_eager(start, target, polygons, workspace, output);
+			output = detail::solve_intersecting_maps(start, target, polygons, PreloadPolicy::Eager);
 		}
 	}
 
@@ -360,10 +274,12 @@ namespace tpp {
 	}
 
 	std::vector<Vector2> tpp_convex_solve_binary_search_lazy(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		if (auto normalized = normalized_winding(polygons))
+			return tpp_convex_solve_binary_search_lazy(start, target, *normalized);
 		if (polygons_are_pairwise_disjoint(polygons)) {
 			return SolutionBinarySearchDisjoint(start, target, polygons).solve(PreloadPolicy::Lazy);
 		} else {
-			return tpp_convex_solve_linear_search_lazy(start, target, polygons);
+			return detail::solve_intersecting_maps(start, target, polygons, PreloadPolicy::Lazy);
 		}
 	}
 
@@ -372,18 +288,22 @@ namespace tpp {
 	}
 
 	std::vector<Vector2> tpp_convex_solve_binary_search_eager(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		if (auto normalized = normalized_winding(polygons))
+			return tpp_convex_solve_binary_search_eager(start, target, *normalized);
 		if (polygons_are_pairwise_disjoint(polygons)) {
 			return SolutionBinarySearchDisjoint(start, target, polygons).solve(PreloadPolicy::Eager);
 		} else {
-			return tpp_convex_solve_linear_search_eager(start, target, polygons);
+			return detail::solve_intersecting_maps(start, target, polygons, PreloadPolicy::Eager);
 		}
 	}
 
 	double tpp_convex_solve_length_binary_search_lazy(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		if (auto normalized = normalized_winding(polygons))
+			return tpp_convex_solve_length_binary_search_lazy(start, target, *normalized);
 		if (polygons_are_pairwise_disjoint(polygons)) {
 			return SolutionBinarySearchDisjoint(start, target, polygons).solve_length(PreloadPolicy::Lazy);
 		} else {
-			return path_length(tpp_convex_solve_linear_search_lazy(start, target, polygons));
+			return detail::length_intersecting_maps(start, target, polygons, PreloadPolicy::Lazy);
 		}
 	}
 
@@ -392,10 +312,12 @@ namespace tpp {
 	}
 
 	double tpp_convex_solve_length_binary_search_eager(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		if (auto normalized = normalized_winding(polygons))
+			return tpp_convex_solve_length_binary_search_eager(start, target, *normalized);
 		if (polygons_are_pairwise_disjoint(polygons)) {
 			return SolutionBinarySearchDisjoint(start, target, polygons).solve_length(PreloadPolicy::Eager);
 		} else {
-			return path_length(tpp_convex_solve_linear_search_eager(start, target, polygons));
+			return detail::length_intersecting_maps(start, target, polygons, PreloadPolicy::Eager);
 		}
 	}
 

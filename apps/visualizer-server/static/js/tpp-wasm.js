@@ -3,7 +3,7 @@ import { Vector2 } from "./vector2.js";
 let wasmModule = null;
 let wasmLoadStarted = false;
 let wasmLoadFailed = false;
-const WASM_SOLVER_VERSION = "intersections-2026-09-01-length";
+const WASM_SOLVER_VERSION = "intersections-2026-09-13-directional";
 
 export function loadTppWasm() {
 	if (wasmLoadStarted) {

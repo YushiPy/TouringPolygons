@@ -1,6 +1,7 @@
 #include "tests.h"
 #include "tpp_convex.h"
 #include "tpp/convex/certified.h"
+#include "tpp/convex/detail/intersecting_maps.h"
 
 #include <algorithm>
 #include <chrono>
@@ -18,6 +19,23 @@ using Polygon = std::vector<Vector2>;
 using Polygons = std::vector<Polygon>;
 using tpp::TestCase;
 size_t failures = 0, checks = 0;
+bool directional_maps = false;
+
+Polygon solve_test(const TestCase &c, bool eager = false) {
+    if(directional_maps)
+        return tpp::detail::solve_intersecting_maps(c.start,c.target,c.polygons,
+            eager ? tpp::PreloadPolicy::Eager : tpp::PreloadPolicy::Lazy);
+    return eager ? tpp::tpp_convex_solve_binary_search_eager(c.start,c.target,c.polygons)
+                 : tpp::tpp_convex_solve_binary_search_lazy(c.start,c.target,c.polygons);
+}
+
+double solve_test_length(const TestCase &c, bool eager = false) {
+    if(directional_maps)
+        return tpp::detail::length_intersecting_maps(c.start,c.target,c.polygons,
+            eager ? tpp::PreloadPolicy::Eager : tpp::PreloadPolicy::Lazy);
+    return eager ? tpp::tpp_convex_solve_length_binary_search_eager(c.start,c.target,c.polygons)
+                 : tpp::tpp_convex_solve_length_binary_search_lazy(c.start,c.target,c.polygons);
+}
 
 void check(bool condition, const std::string &name) {
     ++checks;
@@ -73,16 +91,16 @@ void print_path(const Polygon &p) {
 }
 void solver_check(const TestCase &c,const std::string &name,bool verbose=false) {
     try {
-        const auto lazy=tpp::tpp_convex_solve_binary_search_lazy(c.start,c.target,c.polygons);
-        const auto eager=tpp::tpp_convex_solve_binary_search_eager(c.start,c.target,c.polygons);
+        const auto lazy=solve_test(c);
+        const auto eager=solve_test(c,true);
         const double expected=length(c.solution),tol=2e-12*std::max(expected,1e-30);
         for(const auto &[path,label]:std::vector<std::pair<Polygon,std::string>>{{lazy,"lazy"},{eager,"eager"}}) {
             auto v=tpp::validate_ordered_path(c.start,c.target,c.polygons,path);
             check(v.valid,name+" "+label+" ordered visitation");
             check(std::abs(v.length-expected)<=tol,name+" "+label+" optimal length");
         }
-        check(std::abs(tpp::tpp_convex_solve_length_binary_search_lazy(c.start,c.target,c.polygons)-length(lazy))<=tol,name+" lazy length API");
-        check(std::abs(tpp::tpp_convex_solve_length_binary_search_eager(c.start,c.target,c.polygons)-length(eager))<=tol,name+" eager length API");
+        check(std::abs(solve_test_length(c)-length(lazy))<=tol,name+" lazy length API");
+        check(std::abs(solve_test_length(c,true)-length(eager))<=tol,name+" eager length API");
         if(verbose) {
             auto v=tpp::validate_ordered_path(c.start,c.target,c.polygons,lazy);
             std::cout<<name<<" actual="<<v.length<<" expected="<<expected<<" visits="<<v.visited_polygons<<'/'<<c.polygons.size()<<" coordinate_tolerance="<<v.coordinate_tolerance<<'\n';
@@ -161,7 +179,7 @@ void random_tests(size_t count) {
             c.polygons.push_back(p);
         }
         try {
-            auto path=tpp::tpp_convex_solve_binary_search_lazy(c.start,c.target,c.polygons);
+            auto path=solve_test(c);
             const auto validation=tpp::validate_ordered_path(c.start,c.target,c.polygons,path);
             if(!validation.valid)++invalid;
             check(validation.valid,"random "+std::to_string(trial)+" ordered visitation");
@@ -184,7 +202,7 @@ void benchmark(size_t repeats) {
     auto [s,t,p]=tpp::generate_test(std::vector<size_t>(20,8));
     TestCase disjoint{s,t,p,{}};
     TestCase overlap{{-3,-4},{-4,-3},{box(0,-6,6,6),{{-8,-4},{8,4},{8,9},{-8,9}}},{}};
-    for(auto &[c,name]:std::vector<std::pair<TestCase,std::string>>{{disjoint,"disjoint-k20-m8"},{overlap,"intersecting-known-incorrect"}}) {
+    for(auto &[c,name]:std::vector<std::pair<TestCase,std::string>>{{disjoint,"disjoint-k20-m8"},{overlap,"intersecting-two-reflections"}}) {
         double checksum=0;const auto begin=std::chrono::steady_clock::now();
         for(size_t j=0;j<repeats;++j) checksum+=length(tpp::tpp_convex_solve_binary_search_lazy(c.start,c.target,c.polygons));
         const double us=std::chrono::duration<double,std::micro>(std::chrono::steady_clock::now()-begin).count()/repeats;
@@ -199,6 +217,7 @@ int main(int argc,char **argv) {
     for(int i=1;i<argc;++i) {
         std::string arg=argv[i];
         if(arg=="--proof-only")proof_only=true;
+        else if(arg=="--directional-maps")directional_maps=true;
         else if(arg=="--random" && i+1<argc)random_count=std::stoul(argv[++i]);
         else if(arg=="--bench" && i+1<argc)bench=std::stoul(argv[++i]);
         else if(arg=="--fixture" && i+1<argc)fixture=argv[++i];

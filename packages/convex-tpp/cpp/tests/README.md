@@ -41,7 +41,8 @@ checks, preventing premature success when later polygons have not been visited.
 
 A separate `main-intersection_audit` target contains exact paper counterexamples,
 Wrong1 in both input orientations, metamorphic checks, a contact-continuity
-family, and optional random/oracle comparisons. Its production checks currently
-fail and must not be described as a passing intersection implementation. See
+family, and optional random/oracle comparisons. The corrected directional maps
+now pass these production checks. Additional closed-degeneracy, continuity,
+workspace, and randomized tests are in `main-directional_tests`. See
 [fixture instructions](../../../../benchmarks/suites/intersection-audit/README.md)
-and [the report](../../../../docs/algorithms/intersecting-tpp-audit.md).
+and [the correction report](../../../../docs/algorithms/intersecting-tpp-correction.md).

@@ -43,6 +43,21 @@ NODE_JS = '/opt/homebrew/bin/node'
 EOF
 fi
 
+# The intersection maps use header-only Boost exact rational arithmetic.
+boost_include="${BOOST_INCLUDE_DIR:-}"
+if [[ -z "$boost_include" ]]; then
+	for candidate in /opt/homebrew/opt/boost/include /usr/local/include /usr/include; do
+		if [[ -f "$candidate/boost/multiprecision/cpp_int.hpp" ]]; then
+			boost_include="$candidate"
+			break
+		fi
+	done
+fi
+if [[ ! -f "$boost_include/boost/multiprecision/cpp_int.hpp" ]]; then
+	printf 'Boost headers are required; set BOOST_INCLUDE_DIR to their include directory.\n' >&2
+	exit 1
+fi
+
 cd /
 
 em++ \
@@ -50,6 +65,7 @@ em++ \
 	-std=c++23 \
 	-O3 \
 	-fexceptions \
+	-I"$boost_include" \
 	-I"$repo_root/packages/common-geometry/cpp/include" \
 	-I"$repo_root/packages/nonconvex-tpp/cpp/include" \
 	-I"$repo_root/packages/convex-tpp/cpp/include" \
@@ -58,6 +74,7 @@ em++ \
 	"$repo_root/packages/common-geometry/cpp/src/common.cpp" \
 	"$repo_root/packages/convex-tpp/cpp/src/core/solution.cpp" \
 	"$repo_root/packages/convex-tpp/cpp/src/solvers/binary_search.cpp" \
+	"$repo_root/packages/convex-tpp/cpp/src/solvers/intersecting_maps.cpp" \
 	"$repo_root/packages/convex-tpp/cpp/src/solvers/linear_search.cpp" \
 	"$repo_root/packages/convex-tpp/cpp/src/solvers/tan_jiang.cpp" \
 	"$repo_root/packages/nonconvex-tpp/cpp/src/common.cpp" \
@@ -67,6 +84,8 @@ em++ \
 	-sEXPORT_ES6=1 \
 	-sENVIRONMENT=web,node \
 	-sALLOW_MEMORY_GROWTH=1 \
+	-sSTACK_SIZE=4194304 \
+	-sSTACK_OVERFLOW_CHECK=2 \
 	-sASSERTIONS=0 \
 	-sDISABLE_EXCEPTION_CATCHING=0 \
 	-sMIN_WEBGL_VERSION=0 \

@@ -6,6 +6,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <algorithm>
 #include <cstdlib>
 
@@ -43,6 +44,7 @@ int main() {
 	};
 
 	const char *test_dir_env = std::getenv("TPP_TEST_DIR");
+	const bool progress = std::getenv("TPP_TEST_PROGRESS") != nullptr;
 	const std::filesystem::path test_dir = test_dir_env != nullptr ? test_dir_env : "tests/";
 
 	std::vector<std::filesystem::directory_entry> entries(
@@ -67,7 +69,10 @@ int main() {
 
 			const auto [start, target, polygons, expected_solution] = tpp::decode_test(file);
 
+			size_t solver_index = 0;
 			for (const auto &solver : solvers) {
+				if (progress) std::cerr << filename << " case " << test_num << " solver " << solver_index << std::endl;
+				++solver_index;
 
 				const auto solution = solver(start, target, polygons);
 

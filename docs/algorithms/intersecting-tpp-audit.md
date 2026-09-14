@@ -1,5 +1,10 @@
 # Intersecting convex TPP: mathematical audit and unfinished implementation
 
+Historical baseline: subsequent implementation and current verification are in
+[the correction report](intersecting-tpp-correction.md). The counterexample
+below remains valid; the old implementation-status statements describe the
+checkout before that correction.
+
 Status (2026-09-13): the requested faithful production hybrid is **not implemented**.
 A counterexample to the literal pseudo-vertex construction in Tan and Jiang §4
 is established below. The disjoint binary-search/memoization solver is preserved.
