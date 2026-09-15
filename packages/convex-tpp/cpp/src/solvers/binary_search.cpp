@@ -180,41 +180,6 @@ class SolutionBinarySearchDisjoint : public tpp::Solution {
 		return 2 * left + 1;
 	}
 
-	int64_t locate_point_linear(const Vector2& point, size_t i) {
-		const auto &polygon = polygons[i - 1];
-
-		for (size_t j = 0; j < polygon.size(); j++) {
-			const auto &vertex = polygon[j];
-			const auto &[ray1, ray2] = get_cone(i - 1, j);
-			const size_t previous = (j + polygon.size() - 1) % polygon.size();
-
-			if (!is_first_contact(i - 1, j) && !is_first_contact(i - 1, previous)) {
-				continue;
-			}
-
-			if (tpp::point_in_cone(point, vertex, ray1, ray2)) {
-				return 2 * j;
-			}
-		}
-
-		for (size_t j = 0; j < polygon.size(); j++) {
-			if (!is_first_contact(i - 1, j)) {
-				continue;
-			}
-
-			const auto &v1 = polygon[j];
-			const auto &v2 = polygon[(j + 1) % polygon.size()];
-			const auto &ray1 = get_cone(i - 1, j).second;
-			const auto &ray2 = get_cone(i - 1, (j + 1) % polygon.size()).first;
-
-			if (tpp::point_in_edge(point, v1, v2, ray1, ray2)) {
-				return 2 * j + 1;
-			}
-		}
-
-		return -1;
-	}
-
 	int64_t locate_point(const Vector2& point, size_t i) override {
 
 		size_t location = _locate_point(point, i);
@@ -223,11 +188,11 @@ class SolutionBinarySearchDisjoint : public tpp::Solution {
 		
 		size_t previous_index = location == 0 ? vertex_count - 1 : (location - 1) / 2;
 
-		if (is_first_contact(polygon_index, location / 2) || is_first_contact(polygon_index, previous_index)) {
+		// Binary search locates the circular fan cell. A cell with no incident
+		// first-contact edge inherits the preceding path (crossing).
+		if (is_first_contact(polygon_index, location / 2) || is_first_contact(polygon_index, previous_index))
 			return location;
-		} else {
-			return locate_point_linear(point, i);
-		}
+		return -1;
 	}
 };
 

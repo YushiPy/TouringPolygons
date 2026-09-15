@@ -1,6 +1,7 @@
 #include "common.h"
 #include "tests.h"
 #include "tpp_convex.h"
+#include "tpp/convex/detail/intersecting_maps.h"
 
 #include <algorithm>
 #include <array>
@@ -64,6 +65,7 @@ struct BenchmarkOptions {
 	ConvexLengthSolverFunction length_solver = tpp::tpp_convex_solve_length_binary_search_lazy;
 	std::optional<std::string> output_path;
 	std::optional<std::string> summary_output_path;
+	bool require_disjoint_hulls = false;
 };
 
 struct BoundCall {
@@ -3144,6 +3146,10 @@ CaseBenchmarkResult run_case_benchmark(
 
 	const auto decomposition_end_time = std::chrono::steady_clock::now();
 	const double decomposition_seconds = std::chrono::duration<double>(decomposition_end_time - decomposition_start_time).count();
+	if (options.require_disjoint_hulls && any_polygons_intersect_or_touch(convex_hulls)) {
+		result.skipped_intersecting_hulls = 1;
+		return result;
+	}
 
 	result.decomposed = true;
 
@@ -3354,6 +3360,8 @@ void print_usage(const char *program) {
 	std::println(stderr, "Set TPP_BENCH_THREADS to override the default hardware thread count.");
 	std::println(stderr, "Set TPP_BENCH_MAX_SECONDS to override the default per-instance time cap.");
 	std::println(stderr, "Set TPP_BENCH_SOLVER to one of linear_search_lazy, linear_search_disjoint, binary_search_lazy, binary_search_disjoint, binary_search_eager, tan_jiang, gurobi.");
+	std::println(stderr, "Set TPP_BENCH_SOLVER=directional_maps to force the intersecting solver on every convex call.");
+	std::println(stderr, "Set TPP_BENCH_REQUIRE_DISJOINT=1 to benchmark only cases with pairwise-disjoint convex hulls.");
 	std::println(stderr, "Set TPP_GROUP_PIECES=1 to branch first on safe almost-convex piece groups.");
 	std::println(stderr, "Set TPP_GROUP_MAX_EXCESS_RATIO and TPP_GROUP_MAX_SIZE to control piece grouping.");
 	std::println(stderr, "Set TPP_GROUP_REQUIRE_TOUCH=1 and TPP_GROUP_ORDER_PENALTY to make grouping more local.");
@@ -3423,6 +3431,18 @@ std::optional<double> parse_seconds_arg(const char *text) {
 }
 
 bool set_solver(BenchmarkOptions &options, const std::string &name) {
+	if (name == "directional_maps") {
+		options.solver_name = "directional_maps";
+		options.solver = +[](const Vector2 &start, const Vector2 &target,
+			const std::vector<std::vector<Vector2>> &polygons) {
+			return tpp::detail::solve_intersecting_maps(start, target, polygons);
+		};
+		options.length_solver = +[](const Vector2 &start, const Vector2 &target,
+			const std::vector<std::vector<Vector2>> &polygons) {
+			return tpp::detail::length_intersecting_maps(start, target, polygons);
+		};
+		return true;
+	}
 	if (name == "linear_search_lazy" || name == "linear") {
 		options.solver_name = "linear_search_lazy";
 		options.solver = tpp::tpp_convex_solve_linear_search_lazy;
@@ -3575,6 +3595,9 @@ int main(int argc, char **argv) {
 	}
 
 	BenchmarkOptions options = *parsed_options;
+	if (const char *require_disjoint = std::getenv("TPP_BENCH_REQUIRE_DISJOINT")) {
+		options.require_disjoint_hulls = std::string_view(require_disjoint) != "0";
+	}
 	if (const char *thread_count_text = std::getenv("TPP_BENCH_THREADS")) {
 		const auto thread_count = parse_size_arg(thread_count_text);
 

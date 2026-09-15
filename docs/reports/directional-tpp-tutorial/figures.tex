@@ -3,26 +3,70 @@
 % complete subdivision of a particular input.
 \tikzset{coordgrid/.style={draw=quiet!24,line width=.25pt}}
 
+% Reading map: recursive actions and their queries, not a claimed cell proof.
+\newcommand{\figoverview}{%
+\begin{tikzpicture}[font=\small,
+ overview/.style={draw=navy!40,fill=codebg,rounded corners=2pt,
+   text width=12.5cm,align=center,inner sep=8pt},
+ action/.style={draw=navy!40,fill=white,rounded corners=2pt,
+   text width=3.65cm,minimum height=3.3cm,align=center,inner sep=7pt}]
+\node[overview] (prep) at (0,0) {%
+  {\bfseries\color{navy}Prepare the level-\(i\) boundary}\\[2pt]
+  Normalize \(P_i\) and split its edges at earlier boundaries and at \(s\)
+  when \(s\) lies on an edge.
+  Build needed incident rays from two one-sided queries at level \(i-1\)
+  (lazily or eagerly).};
+\node[overview,fill=good!6,draw=good!55] (loc) at (0,-3.1) {%
+  {\bfseries\color{good}At \((q,i)\): choose the last-step action}\\[2pt]
+  Test closed membership first. For an exterior query, locate a vertex cone
+  or following pseudo-edge using the rays and chord predicates.};
+\node[action,fill=good!6] (crossing) at (-5,-7.4) {%
+  {\bfseries\color{good}CROSS}\\[5pt]
+  The previous optimal route already supplies visit \(i\).\\[7pt]
+  \(F_i(q)=F_{i-1}(q)\)\\[7pt]
+  Recurse at \(q\).};
+\node[action,fill=pOne!6] (bend) at (0,-7.4) {%
+  {\bfseries\color{pOne}BEND AT \(v\)}\\[5pt]
+  The last chosen contact is a split vertex.\\[7pt]
+  \(F_i(q)=F_{i-1}(v)+\|q-v\|\)\\[7pt]
+  Recurse at \(v\); append \(vq\).};
+\node[action,fill=pTwo!7] (reflect) at (5,-7.4) {%
+  {\bfseries\color{pTwo}REFLECT IN \(e\)}\\[5pt]
+  Unfold through the parent edge line.\\[7pt]
+  \(q'=R_e(q),\quad F_i(q)=F_{i-1}(q')\)\\[7pt]
+  Recurse at \(q'\); refold on finite \(e\).};
+\node[overview] (base) at (0,-11.8) {%
+  {\bfseries\color{navy}Return from the recursion}\\[2pt]
+  At level \(0\), \(F_0(q)=\|q-s\|\). Reconstruct contacts in return order;
+  a path query checks the finite-edge intersections before compacting
+  forward-collinear points.};
+\draw[quiet,-Latex,line width=.9pt] (prep.south)--(loc.north);
+\foreach \target in {crossing,bend,reflect}
+  \draw[quiet,-Latex,line width=.9pt] (loc.south)--(\target.north);
+\foreach \target in {crossing,bend,reflect}
+  \draw[quiet,-Latex,line width=.9pt] (\target.south)--(base.north);
+\end{tikzpicture}}
+
 \newcommand{\figreflection}{%
-\begin{tikzpicture}[scale=.78]
+\begin{tikzpicture}[scale=.92]
 \begin{scope}
+  \draw[coordgrid] (-3,-1) grid[step=.5] (3,3);
   \draw[polyA] (0,0) rectangle (2,2);
-  \draw[coordgrid] (-2,0) grid[step=.5] (2,2);
   \draw[very thick,navy] (0,0)--(0,2);
   \draw[route,-Latex] (-2,1)--(0,1/3);
   \draw[route,-Latex] (0,1/3)--(-1,0);
   \fill[ink] (-2,1) circle (1.8pt);
   \fill[ink] (-1,0) circle (1.8pt);
   \fill[good] (0,1/3) circle (2.2pt);
-  \node[smalllabel,above left] at (-2,1) {\(s=(-2,1)\)};
-  \node[smalllabel,below left] at (-1,0) {\(q=(-1,0)\)};
-  \node[smalllabel,above right] at (0,1/3) {\(c=(0,1/3)\)};
-  \node[smalllabel,above right] at (1.65,1.72) {\(P=[0,2]\times[0,2]\)};
-  \node[font=\scriptsize\bfseries,color=navy] at (1,-.58)
+  \node[smalllabel,above left] at (-2,1) {\(s\)};
+  \node[smalllabel,below] at (-1,-.08) {\(q\)};
+  \node[smalllabel,right] at (.08,.38) {\(c\)};
+  \node[smalllabel] at (1.1,1.1) {\(P\)};
+  \node[font=\scriptsize\bfseries,color=navy] at (0,-1.52)
     {(a) physical route};
 \end{scope}
-\begin{scope}[xshift=6cm]
-  \draw[coordgrid] (-2,0) grid[step=.5] (2,2);
+\begin{scope}[xshift=7.4cm]
+  \draw[coordgrid] (-3,-1) grid[step=.5] (3,3);
   \draw[very thick,navy] (0,0)--(0,2);
   \draw[route,-Latex] (-2,1)--(1,0);
   \draw[wrong,dashed] (-1,0)--(1,0);
@@ -31,19 +75,19 @@
   \fill[good] (0,1/3) circle (2.2pt);
   \fill[ink] (1,0) circle (1.8pt);
   \node[smalllabel,above left] at (-2,1) {\(s\)};
-  \node[smalllabel,below left] at (-1,0) {\(q\)};
-  \node[smalllabel,above right] at (0,1/3) {\(c\)};
-  \node[smalllabel,below right] at (1,0) {\(q'=(1,0)\)};
-  \node[smalllabel,above right] at (.4,1.72) {\(q'=R_{x=0}(q)\)};
-  \node[font=\scriptsize\bfseries,color=navy] at (1,-.58)
+  \node[smalllabel,below] at (-1,-.08) {\(q\)};
+  \node[smalllabel,right] at (.08,.38) {\(c\)};
+  \node[smalllabel,below] at (1,-.08) {\(q'\)};
+  \node[font=\scriptsize\bfseries,color=navy] at (0,-1.52)
     {(b) unfolded segment};
 \end{scope}
 \end{tikzpicture}}
 
 \newcommand{\figcrossbend}{%
-\begin{tikzpicture}[scale=.72]
+\begin{tikzpicture}[scale=1.12]
 \begin{scope}
   \draw[polyA] (0,0) rectangle (2,2);
+  \node[smalllabel] at (1,1) {\(P\)};
   \draw[coordgrid] (-2,-2) grid[step=.5] (3,2);
   \draw[route,-Latex] (-2,1)--(3,1);
   \fill[ink] (-2,1) circle (1.8pt); \fill[ink] (3,1) circle (1.8pt);
@@ -56,6 +100,7 @@
 \end{scope}
 \begin{scope}[xshift=5.5cm]
   \draw[polyA] (0,0) rectangle (2,2);
+  \node[smalllabel] at (1,1) {\(P\)};
   \draw[coordgrid] (-2,-2) grid[step=.5] (2,2);
   \draw[route,-Latex] (-2,-1)--(0,0);
   \draw[route,-Latex] (0,0)--(1,-2);
@@ -71,57 +116,45 @@
 \end{tikzpicture}}
 
 \newcommand{\figrepeat}{%
-\begin{tikzpicture}[scale=.95]
+\begin{tikzpicture}[scale=.78]
 \begin{scope}
-\draw[polyA] (0,0) rectangle (2,2);
-\draw[coordgrid] (-2,0) grid[step=.5] (3,2);
-\draw[route,-Latex] (-2,1)--(3,1);
-\fill[ink] (-2,1) circle (1.6pt); \fill[ink] (3,1) circle (1.6pt);
-\node[smalllabel,above left] at (-2,1) {\(s\)};
-\node[smalllabel,above right] at (3,1) {\(q\)};
-\fill[good] (0,1) circle (2pt);
-\node[smalllabel,above] at (0,1.15) {all three at \((0,1)\)};
-\foreach \x/\i in {.65/1,1.1/2,1.55/3}
-  {\draw[good] (\x,1) circle (1.7pt); \node[font=\scriptsize,below] at (\x,.92) {\(\i\)};}
-\node[smalllabel,align=center] at (1,-.65)
-  {\(s=(-2,1),\ q=(3,1)\);\\\((P,P,P),\ F_3(q)=5\)};
+\draw[polyA] (2,1) rectangle (4,3);
+\node[smalllabel] at (3,2.45) {\(P_1=P_2=P_3\)};
+\draw[route,-Latex] (0,2)--(6,2);
+\fill[ink] (0,2) circle (1.8pt); \fill[ink] (6,2) circle (1.8pt);
+\fill[good] (2,2) circle (2.2pt);
+\node[smalllabel,above] at (0,2.12) {\(s\)};
+\node[smalllabel,above] at (6,2.12) {\(q\)};
+\node[smalllabel,below] at (2,1.9) {visits \(1=2=3\)};
+\node[font=\scriptsize\bfseries,color=navy] at (3,-.55)
+  {(a) \(sq\) passes through the three squares};
 \end{scope}
-\begin{scope}[xshift=6.1cm]
-\draw[polyA] (0,0) rectangle (2,2);
-\draw[coordgrid] (-2,0) grid[step=.5] (2,2);
-\draw[route,-Latex] (-2,1)--(1,1);
-\fill[ink] (-2,1) circle (1.6pt); \fill[good] (1,1) circle (2pt);
-\node[smalllabel,above left] at (-2,1) {\(s\)};
-\node[smalllabel,above right] at (1,1) {\(q\)};
-\node[smalllabel,above] at (1,1.36) {all three at \(q\)};
-\node[smalllabel,align=center] at (1,-.68)
-  {\(s=(-2,1),\ q=(1,1)\in P\);\\\(F_0(q)=F_1(q)=F_2(q)=F_3(q)=3\)};
+\begin{scope}[xshift=7.3cm]
+\draw[polyA] (2,1) rectangle (4,3);
+\node[smalllabel] at (3,2.45) {\(P_1=P_2=P_3\)};
+\draw[route,-Latex] (0,2)--(3,2);
+\fill[ink] (0,2) circle (1.8pt); \fill[good] (3,2) circle (2.2pt);
+\node[smalllabel,above] at (0,2.12) {\(s\)};
+\node[smalllabel,below] at (3,1.9) {\(q:\ 1=2=3\)};
+\node[font=\scriptsize\bfseries,color=navy] at (3,-.55)
+  {(b) \(q\) lies in all three squares};
 \end{scope}
 \end{tikzpicture}}
 
 \newcommand{\figfalsecrossing}{%
-\begin{tikzpicture}[scale=.44]
+\begin{tikzpicture}[scale=.63]
 \begin{scope}
   \draw[polyA] (0,2) rectangle (2,4);
   \draw[polyB] (0,-2) rectangle (3,2);
   \draw[draw=good,fill=good!10,line width=.9pt] (-1,3) rectangle (1,4);
   \draw[coordgrid] (-4,-4) grid[step=1] (4,4);
-  \node[smalllabel] at (2.35,3.6) {\(P_1\)};
-  \node[smalllabel] at (1.7,0) {\(P_2\)};
-  \node[smalllabel] at (-1.55,3.55) {\(P_3\)};
-  \fill[ink] (-4,-4) circle (2pt); \fill[ink] (4,-4) circle (2pt);
-  \node[smalllabel,below] at (-4,-4) {\(s\)};
-  \node[smalllabel,below] at (4,-4) {\(t\)};
-  \node[font=\scriptsize\bfseries,color=navy] at (0,5.15) {(a) instance};
-\end{scope}
-\begin{scope}[xshift=10.5cm]
-  \draw[polyA] (0,2) rectangle (2,4);
-  \draw[polyB] (0,-2) rectangle (3,2);
-  \draw[draw=good,fill=good!10,line width=.9pt] (-1,3) rectangle (1,4);
-  \draw[coordgrid] (-4,-4) grid[step=1] (4,4);
-  \node[smalllabel] at (2.35,3.6) {\(P_1\)};
-  \node[smalllabel] at (1.7,0) {\(P_2\)};
-  \node[smalllabel] at (-1.55,3.55) {\(P_3\)};
+  \draw[navy!70,-Latex,line width=.9pt] (-4,0)--(4.35,0)
+    node[smalllabel,right] {\(x\)};
+  \draw[navy!70,-Latex,line width=.9pt] (0,-4)--(0,4.35)
+    node[smalllabel,above] {\(y\)};
+  \node[smalllabel] at (1.65,2.7) {\(P_1\)};
+  \node[smalllabel] at (2.25,.35) {\(P_2\)};
+  \node[smalllabel] at (-.65,3.7) {\(P_3\)};
   \fill[ink] (-4,-4) circle (2pt); \fill[ink] (4,-4) circle (2pt);
   \node[smalllabel,below] at (-4,-4) {\(s\)};
   \node[smalllabel,below] at (4,-4) {\(t\)};
@@ -129,20 +162,24 @@
   \draw[wrong,-Latex] (0,3)--(4,-4);
   \fill[bad] (0,3) circle (2.4pt);
   \fill[bad] (4/7,2) circle (2.4pt);
-  \node[smalllabel,above left,align=right] at (0,3) {\((0,3)\)\\\(P_1,P_3\)};
-  \node[smalllabel,above right,align=left] at (4/7,2) {\((4/7,2)\)\\\(P_2\) later};
+  \node[smalllabel,left] at (0,3) {\(1,3\)};
+  \node[smalllabel,right] at (4/7,2) {\(2\) later};
   \node[smalllabel,align=center] at (0,-5.35)
-    {wrong: \(P_1,P_3\longrightarrow P_2\)};
-  \node[font=\scriptsize\bfseries,color=navy] at (0,5.15) {(b) old route};
+    {invalid: \(P_1\) and \(P_3\) together, then \(P_2\)};
+  \node[font=\footnotesize\bfseries,color=navy] at (0,5.15) {(a) old route};
 \end{scope}
-\begin{scope}[xshift=21cm]
+\begin{scope}[xshift=11cm]
   \draw[polyA] (0,2) rectangle (2,4);
   \draw[polyB] (0,-2) rectangle (3,2);
   \draw[draw=good,fill=good!10,line width=.9pt] (-1,3) rectangle (1,4);
   \draw[coordgrid] (-4,-4) grid[step=1] (4,4);
-  \node[smalllabel] at (2.35,3.6) {\(P_1\)};
-  \node[smalllabel] at (1.7,0) {\(P_2\)};
-  \node[smalllabel] at (-1.55,3.55) {\(P_3\)};
+  \draw[navy!70,-Latex,line width=.9pt] (-4,0)--(4.35,0)
+    node[smalllabel,right] {\(x\)};
+  \draw[navy!70,-Latex,line width=.9pt] (0,-4)--(0,4.35)
+    node[smalllabel,above] {\(y\)};
+  \node[smalllabel] at (1.65,2.7) {\(P_1\)};
+  \node[smalllabel] at (2.25,.35) {\(P_2\)};
+  \node[smalllabel] at (-.65,3.7) {\(P_3\)};
   \fill[ink] (-4,-4) circle (2pt); \fill[ink] (4,-4) circle (2pt);
   \node[smalllabel,below] at (-4,-4) {\(s\)};
   \node[smalllabel,below] at (4,-4) {\(t\)};
@@ -150,47 +187,111 @@
   \draw[route,-Latex] (0,2)--(.5,3);
   \draw[route,-Latex] (.5,3)--(4,-4);
   \fill[good] (0,2) circle (2.4pt); \fill[good] (.5,3) circle (2.4pt);
-  \node[smalllabel,below right] at (0,2) {\((0,2):\ 1=2\)};
-  \node[smalllabel,above right] at (.5,3) {\((1/2,3):\ 3\)};
+  \node[smalllabel,left] at (0,2) {\(1=2\)};
+  \node[smalllabel,right] at (.5,3) {\(3\)};
   \node[smalllabel,align=center] at (0,-5.35)
-    {valid: \(P_1=P_2\longrightarrow P_3\)};
-  \node[font=\scriptsize\bfseries,color=navy] at (0,5.15) {(c) corrected route};
+    {valid: \(P_1\) and \(P_2\) together, then \(P_3\)};
+  \node[font=\footnotesize\bfseries,color=navy] at (0,5.15) {(b) corrected route};
 \end{scope}
 \end{tikzpicture}}
 
-\newcommand{\figordered}{%
-\begin{tikzpicture}[scale=.9]
+\newcommand{\figfalsecrossingzoom}{%
+\begin{tikzpicture}[scale=2.65]
 \begin{scope}
-\draw[polyA] (-1,0) rectangle (0,2); \draw[polyB] (2,0) rectangle (3,2);
-\draw[route,-Latex] (-2,1)--(-.5,1)--(2.5,1)--(4,1);
-\node[smalllabel] at (-2,1.5) {\(s\)}; \node[smalllabel] at (4,1.5) {\(t\)};
-\node[smalllabel] at (1,-.5) {ordered: \(P_1\) then \(P_2\)};
+  \clip (-1.15,1.35) rectangle (1.65,3.65);
+  \draw[coordgrid] (-2,1) grid[step=.5] (2,4);
+  \draw[polyB] (0,-2) rectangle (3,2);
+  \draw[polyA] (0,2) rectangle (2,4);
+  \draw[draw=good,fill=good!10,line width=.9pt] (-1,3) rectangle (1,4);
+  \draw[wrong,-Latex,line width=1.1pt] (-4,-4)--(0,3);
+  \draw[wrong,-Latex,line width=1.1pt] (0,3)--(4,-4);
+  \draw[route,-Latex] (-4,-4)--(0,2);
+  \draw[route,-Latex] (0,2)--(.5,3);
+  \draw[route,-Latex] (.5,3)--(4,-4);
 \end{scope}
-\begin{scope}[xshift=7cm]
-\draw[polyA] (-1,0) rectangle (0,2); \draw[polyB] (2,0) rectangle (3,2);
-\draw[wrong,-Latex] (-2,-1)--(2.5,1)--(-.5,1)--(4,-1);
-\node[smalllabel] at (1,-1.5) {\(P_2\) then \(P_1\); no later \(P_2\) visit};
+\draw[navy!45] (-1.15,1.35) rectangle (1.65,3.65);
+\fill[bad] (0,3) circle (1.5pt); \fill[bad] (4/7,2) circle (1.5pt);
+\fill[good] (0,2) circle (1.5pt); \fill[good] (.5,3) circle (1.5pt);
+\node[smalllabel,above left] at (0,3) {old: \(1,3\)};
+\node[smalllabel,right] at (4/7,2) {old: \(2\)};
+\node[smalllabel,left] at (0,2) {valid: \(1,2\)};
+\node[smalllabel,right] at (.5,3) {valid: \(3\)};
+\node[smalllabel] at (-.75,3.4) {\(P_3\)};
+\node[smalllabel] at (1.3,3.4) {\(P_1\)};
+\node[smalllabel] at (1.3,1.65) {\(P_2\)};
+\end{tikzpicture}}
+
+\newcommand{\figordered}{%
+\begin{tikzpicture}[scale=.72]
+\begin{scope}
+  \path (-.5,-.45) rectangle (8.5,3);
+  \draw[polyB] (2,1.5) rectangle (3,2.5);
+  \draw[polyA] (5,1.5) rectangle (6,2.5);
+  \node[smalllabel] at (2.5,2.05) {\(P_2\)};
+  \node[smalllabel] at (5.5,2.05) {\(P_1\)};
+  \draw[route,-Latex] (0,0)--(5,1.5);
+  \draw[route,-Latex] (5,1.5)--(3,1.5);
+  \draw[route,-Latex] (3,1.5)--(8,0);
+  \foreach \x/\y/\lab in {0/0/s,8/0/t}
+    {\fill[ink] (\x,\y) circle (2pt);
+     \node[smalllabel,below] at (\x,\y-.08) {\(\lab\)};}
+  \node[font=\scriptsize\bfseries,color=good] at (4,.42) {feasible};
+\end{scope}
+\begin{scope}[xshift=10.7cm]
+  \path (-.5,-.45) rectangle (8.5,3);
+  \draw[polyB] (2,1.5) rectangle (3,2.5);
+  \draw[polyA] (5,1.5) rectangle (6,2.5);
+  \node[smalllabel] at (2.5,2.05) {\(P_2\)};
+  \node[smalllabel] at (5.5,2.05) {\(P_1\)};
+  \draw[wrong,-Latex,line width=1.2pt] (0,0)--(3,1.5);
+  \draw[wrong,-Latex,line width=1.2pt] (3,1.5)--(5,1.5);
+  \draw[wrong,-Latex,line width=1.2pt] (5,1.5)--(8,0);
+  \foreach \x/\y/\lab in {0/0/s,8/0/t}
+    {\fill[ink] (\x,\y) circle (2pt);
+     \node[smalllabel,below] at (\x,\y-.08) {\(\lab\)};}
+  \node[font=\scriptsize\bfseries,color=bad] at (4,.42) {infeasible};
 \end{scope}
 \end{tikzpicture}}
 \newcommand{\figcontacts}{%
-\begin{tikzpicture}[scale=.9]
+\begin{tikzpicture}[scale=.82]
 \begin{scope}
-\draw[polyA] (0,0) rectangle (2,2); \draw[route,-Latex] (-2,1)--(3,1);
-\node[smalllabel] at (1,-.45) {crossing};
+  \draw[polyA] (0,0) rectangle (2,2);
+  \node[smalllabel] at (1,1.1) {\(P_1\)};
+  \draw[route,-Latex] (-2,-1)--(3,2);
+  \fill[ink] (-2,-1) circle (2pt); \fill[ink] (3,2) circle (2pt);
+  \node[smalllabel,below left] at (-2,-1) {\(s\)};
+  \node[smalllabel,above right] at (3,2) {\(q_C\)};
+  \node[font=\small\bfseries,color=navy] at (.5,3) {crossing};
 \end{scope}
-\begin{scope}[xshift=4.4cm]
-\draw[polyA] (0,0) rectangle (2,2); \draw[route,-Latex] (-1,-1)--(0,0)--(2,-1);
-\node[smalllabel] at (1,-1.45) {vertex bend};
+\begin{scope}[xshift=6.4cm]
+  \draw[polyA] (0,0) rectangle (2,2);
+  \node[smalllabel] at (1,1.1) {\(P_1\)};
+  \draw[route,-Latex] (-2,-1)--(0,0);
+  \draw[route,-Latex] (0,0)--(1,-2);
+  \fill[ink] (-2,-1) circle (2pt); \fill[ink] (1,-2) circle (2pt);
+  \fill[good] (0,0) circle (2.2pt);
+  \node[smalllabel,below left] at (-2,-1) {\(s\)};
+  \node[smalllabel,below right] at (1,-2) {\(q_V\)};
+  \node[smalllabel,above left] at (0,0) {\(v\)};
+  \node[font=\small\bfseries,color=navy] at (.5,3) {vertex bend};
 \end{scope}
-\begin{scope}[xshift=8.8cm]
-\draw[polyA] (0,0) rectangle (2,2); \draw[route,-Latex] (-1,-1)--(1,0)--(3,-1);
-\node[smalllabel] at (1,-1.45) {edge reflection};
+\begin{scope}[xshift=12.8cm]
+  \draw[polyA] (0,0) rectangle (2,2);
+  \node[smalllabel] at (1,1.1) {\(P_1\)};
+  \draw[route,-Latex] (-2,-1)--(.5,0);
+  \draw[route,-Latex] (.5,0)--(3,-1);
+  \fill[ink] (-2,-1) circle (2pt); \fill[ink] (3,-1) circle (2pt);
+  \fill[good] (.5,0) circle (2.2pt);
+  \node[smalllabel,below left] at (-2,-1) {\(s\)};
+  \node[smalllabel,below right] at (3,-1) {\(q_E\)};
+  \node[smalllabel,above] at (.5,0) {\(c\)};
+  \node[font=\small\bfseries,color=navy] at (.5,3) {edge reflection};
 \end{scope}
 \end{tikzpicture}}
 \newcommand{\figunfold}{%
 \begin{tikzpicture}[scale=1.08]
 \draw[polyA] (-.3,0)--(4.2,0); \node[smalllabel] at (4, .45) {\(e\)};
-\coordinate (S) at (.2,-2); \coordinate (C) at (2,0); \coordinate (Q) at (3.8,-1.4); \coordinate (R) at (3.8,1.4);
+\coordinate (S) at (.2,-2); \coordinate (C) at (2,0); \coordinate (Q) at (3.8,-2); \coordinate (R) at (3.8,2);
 \draw[route,-Latex] (S)--(C)--(Q); \draw[aux,-Latex] (S)--(R);
 \draw[aux] (Q)--(R); \fill[ink] (C) circle (1.5pt);
 \node[smalllabel,below] at (S) {\(a\)}; \node[smalllabel,below] at (Q) {\(q\)};
@@ -198,23 +299,81 @@
 \node[smalllabel,above left] at (C) {\(c\)};
 \end{tikzpicture}}
 \newcommand{\figlastmap}{%
-\begin{tikzpicture}[scale=1.05]
-\draw[polyA] (0,0) rectangle (2,2); \draw[aux,-Latex] (0,0)--(-1.3,-1.3);
-\draw[aux,-Latex] (0,0)--(1,-1.7); \draw[aux,-Latex] (2,0)--(3,-1.7);
-\draw[route,-Latex] (-2,1)--(0,0)--(1.1,-1);
-\node[smalllabel] at (.9,-2.1) {level \(i\): action = bend at \(v\)};
-\node[smalllabel] at (-1.4,1.8) {level \(i-1\) supplies prefix to \(v\)};
-\node[smalllabel] at (1.1,1) {\(P_i\)};
-\node[smalllabel,above right] at (0,0) {\(v\)};
+\begin{tikzpicture}[scale=1.24]
+\begin{scope}
+  \clip (-4,-2.4) rectangle (4,4.4);
+  \fill[bad!17] (-4,-2.4)--(4,-2.4)--(4,-2)--(0,0)--(-4,-2)--cycle;
+  \fill[bad!17] (-4,4.4)--(4,4.4)--(4,4)--(0,2)--(-4,4)--cycle;
+  \fill[pTwo!22] (-4,-2)--(0,0)--(0,2)--(-4,4)--cycle;
+  \fill[good!16] (0,0)--(4,-2)--(4,4)--(0,2)--cycle;
+  \draw[polyA,fill=pOne!27] (0,0) rectangle (2,2);
+  \draw[aux,line width=.9pt] (-4,-2)--(0,0)--(4,-2);
+  \draw[aux,line width=.9pt] (-4,4)--(0,2)--(4,4);
+  \draw[very thick,navy] (0,0)--(0,2);
+\end{scope}
+\draw[navy!45] (-4,-2.4) rectangle (4,4.4);
+\fill[ink] (-2,1) circle (2.3pt);
+\node[smalllabel,above] at (-2,1) {\(s=(-2,1)\)};
+\node[smalllabel] at (1,1.25) {\(P_1\)};
+\node[smalllabel,font=\footnotesize\bfseries,text=ink] at (0,3.15) {bend at \((0,2)\)};
+\node[smalllabel,font=\footnotesize\bfseries,text=ink] at (0,-1.3) {bend at \((0,0)\)};
+\node[smalllabel,font=\footnotesize\bfseries,text=ink] at (-2,-.45) {left-edge reflection};
+\node[smalllabel,font=\footnotesize\bfseries,text=ink] at (2.5,.4) {cross};
+\node[smalllabel,below right] at (0,0) {\((0,0)\)};
+\node[smalllabel,above right] at (0,2) {\((0,2)\)};
+\draw[good,-Latex,line width=.8pt] (-2,1)--(3,1);
+\draw[pTwo,-Latex,line width=.8pt] (-2,1)--(0,.6);
+\draw[pTwo,-Latex,line width=.8pt] (0,.6)--(-3,0);
+\draw[bad,-Latex,line width=.8pt] (-2,1)--(0,2);
+\draw[bad,-Latex,line width=.8pt] (0,2)--(1,4);
+\draw[bad,-Latex,line width=.8pt] (-2,1)--(0,0);
+\draw[bad,-Latex,line width=.8pt] (0,0)--(1,-2);
+\foreach \x/\y/\lab in {3/1/C,-3/0/R,1/4/U,1/-2/L}
+  {\fill[ink] (\x,\y) circle (2.2pt);
+   \node[smalllabel,right] at (\x+.08,\y) {\(q_{\lab}\)};}
+\end{tikzpicture}}
+
+\newcommand{\figwitnesssetup}{%
+\begin{tikzpicture}[scale=.64]
+  \path[fill=pTwo!12] (-8,-4)--(8,4)--(8,9)--(-8,9)--cycle;
+  \path[fill=pOne!12] (0,-6) rectangle (6,6);
+  \draw[coordgrid] (-9,-7) grid[step=2] (9,10);
+  \draw[navy!70,-Latex,line width=1.2pt] (-9,0)--(9.35,0)
+    node[smalllabel,right] {\(x\)};
+  \draw[navy!70,-Latex,line width=1.2pt] (0,-7)--(0,10.35)
+    node[smalllabel,above] {\(y\)};
+  \draw[polyB,fill=none] (-8,-4)--(8,4)--(8,9)--(-8,9)--cycle;
+  \draw[polyA,fill=none] (0,-6) rectangle (6,6);
+  \draw[very thick,navy] (0,-6)--(0,6);
+  \draw[very thick,pTwo] (-8,-4)--(8,4);
+  \node[smalllabel] at (4.8,5.2) {\(P_1\)};
+  \node[smalllabel] at (-5.8,6.5) {\(P_2\)};
+  \foreach \x/\y in {-3/-4,0/0,4/-3,-4/-3,6/3}
+    {\fill[ink] (\x,\y) circle (2.3pt);}
+  \foreach \x/\y in {0/-6,6/6,-8/-4,8/4}
+    {\fill[ink] (\x,\y) circle (2.3pt);}
+  \node[smalllabel,below right] at (-3,-4) {\(s=(-3,-4)\)};
+  \node[smalllabel,above left] at (-4,-3) {\(t_B=(-4,-3)\)};
+  \node[smalllabel,below right] at (4,-3) {\(t_A=(4,-3)\)};
+  \node[smalllabel,above left] at (0,0) {\(j=(0,0)\)};
+  \node[smalllabel,above right] at (6,3) {\((6,3)\)};
+  \node[smalllabel,below right] at (0,-6) {\((0,-6)\)};
+  \node[smalllabel,above left] at (6,6) {\((6,6)\)};
+  \node[smalllabel,below right] at (-8,-4) {\((-8,-4)\)};
+  \node[smalllabel,above left] at (8,4) {\((8,4)\)};
+  \node[smalllabel,above] at (-1,9) {\(y=9\)};
+  \node[smalllabel,right] at (0,-5.2) {\(\ell_1:x=0\)};
+  \node[smalllabel,below right] at (4,2) {\(\ell_2:y=x/2\)};
 \end{tikzpicture}}
 \newcommand{\figbinary}{%
 \begin{tikzpicture}
 \foreach \shift/\j/\endx/\endy/\rayx/\rayy/\txt in
  {0/3/8/4/2.6/.8/{keep \(e_0,e_1,e_2\)},
-  4.65/2/6/3/2.2/.6/{keep \(e_0,e_1\)},
-  9.3/1/0/0/.7/-2.4/{keep \(e_0\)}} {
-  \begin{scope}[xshift=\shift cm,scale=.21]
+  5.3/2/6/3/2.2/.6/{keep \(e_0,e_1\)},
+  10.6/1/0/0/.7/-2.4/{keep \(e_0\)}} {
+  \begin{scope}[xshift=\shift cm,scale=.27]
     \draw[polyB] (-8,-4)--(0,0)--(6,3)--(8,4)--(8,9)--(-8,9)--cycle;
+    \node[smalllabel] at (-4,5) {\(P_2\)};
     \draw[bad,line width=2pt] (\endx,\endy)--(8,4)--(8,9)--(-8,9)--(-8,-4);
     \draw[good,line width=2pt] (-8,-4)--(\endx,\endy);
     \draw[aux,line width=1.2pt] (-8,-4)--(\endx,\endy);
@@ -226,7 +385,7 @@
     \node[font=\scriptsize,above right] at (\endx,\endy) {\(v_{\j}\)};
     \node[font=\scriptsize,below] at (-4,-3) {\(q\)};
   \end{scope}
-  \node[font=\scriptsize,align=center] at (\shift cm,-1.9cm)
+  \node[font=\footnotesize,align=center] at (\shift cm,-2.35cm)
     {\(v_0v_{\j}\): yes\\\txt};
 }
 \end{tikzpicture}}
@@ -234,12 +393,16 @@
 \begin{tikzpicture}[scale=.67]
 \draw[polyA] (0,-3) rectangle (6,4);
 \draw[polyB] (-3,-2)--(8,3.5)--(8,6)--(-3,6)--cycle;
+\node[smalllabel] at (5,-1.5) {\(P_i\)};
+\node[smalllabel] at (-1.5,4.5) {\(P_h\)};
 \foreach \x/\y in {0/-.5,6/2.5} {\fill[bad] (\x,\y) circle (3pt);}
 \draw[very thick,good] (0,-.5)--(6,2.5);
 \node[smalllabel] at (3,-3.6) {proper crossings split the lower edge};
 \begin{scope}[xshift=11cm]
 \draw[polyA] (0,0) rectangle (5,2);
 \draw[polyB] (2,0) rectangle (7,3);
+\node[smalllabel] at (1,1) {\(P_i\)};
+\node[smalllabel] at (6,2) {\(P_h\)};
 \draw[very thick,good] (2,0)--(5,0);
 \fill[bad] (2,0) circle (3pt); \fill[bad] (5,0) circle (3pt);
 \node[smalllabel] at (3.5,-.7) {shared-edge overlap: two endpoint events};
@@ -250,11 +413,19 @@
 \begin{scope}
 \fill[pOne!8] (0,-4.5) rectangle (1.4,1.3);\draw[pOne,thick] (0,-4.5)--(0,1.3);
 \draw[pTwo,thick] (-3,-1.5)--(1.4,.7);\draw[route,-Latex] (-3,-4)--(1,.5);
+\node[smalllabel] at (.7,-3) {\(P_1\)};
+\node[smalllabel] at (-2,.1) {\(\ell_2\)};
+\fill[ink] (-3,-4) circle (1.8pt); \fill[ink] (1,.5) circle (1.8pt);
+\node[smalllabel,below left] at (-3,-4) {\(s\)};
 \node[smalllabel] at (-1,-5) {\(q_+(1/2)=(1,1/2)\)};
 \end{scope}
 \begin{scope}[xshift=6.5cm]
 \fill[pOne!8] (0,-4.5) rectangle (1.4,1.3);\draw[pOne,thick] (0,-4.5)--(0,1.3);
 \draw[pTwo,thick] (-3,-1.5)--(1.4,.7);\draw[route,-Latex] (-3,-4)--(0,-11/8)--(-1,-.5);
+\node[smalllabel] at (.7,-3) {\(P_1\)};
+\node[smalllabel] at (-2,.1) {\(\ell_2\)};
+\fill[ink] (-3,-4) circle (1.8pt); \fill[ink] (-1,-.5) circle (1.8pt);
+\node[smalllabel,below left] at (-3,-4) {\(s\)};
 \fill[ink] (0,-11/8) circle (1.5pt);
 \node[smalllabel] at (-1,-5) {\(q_-(1/2)=(-1,-1/2)\)};
 \end{scope}
@@ -263,6 +434,8 @@
 \begin{tikzpicture}[scale=1.15]
 \coordinate (J) at (0,0);
 \draw[polyA] (0,-3)--(0,2); \draw[polyB] (-3,-1.5)--(3,1.5);
+\node[smalllabel] at (.3,1.7) {\(\ell_1\)};
+\node[smalllabel] at (-2,-1.2) {\(\ell_2\)};
 \draw[wrong,-Latex] (J)--(-1.8,2.4) node[above] {\(R_1u\)};
 \draw[wrong,-Latex] (J)--(3,0) node[right] {\(R_2u\)};
 \draw[route,-Latex] (J)--(.875,-3) node[below] {\(R_2R_1u\)};
@@ -274,6 +447,8 @@
 \newcommand{\figvirtual}{%
 \begin{tikzpicture}[scale=1.15]
 \draw[polyA] (0,-2)--(0,2);\draw[polyB] (-3,-1.5)--(3,1.5);
+\node[smalllabel] at (.3,1.7) {\(\ell_1\)};
+\node[smalllabel] at (-2,-1.2) {\(\ell_2\)};
 \coordinate (S) at (-1.5,-2);\coordinate (V1) at (1.5,-2);\coordinate (V2) at (-.7,2.4);
 \fill[ink] (S) circle (2pt);\fill[ink] (V1) circle (2pt);\fill[ink] (V2) circle (2pt);
 \node[smalllabel,below] at (S) {\(s\)};\node[smalllabel,below] at (V1) {\(R_1s\)};
@@ -287,6 +462,8 @@
 \clip (-5,-4.6) rectangle (5,1.4);
 \draw[polyB] (-8,-4)--(8,4)--(8,9)--(-8,9)--cycle;
 \draw[polyA] (0,-6) rectangle (6,6);
+\node[smalllabel] at (4,-2) {\(P_1\)};
+\node[smalllabel] at (-2,.5) {\(P_2\)};
 \draw[route,-Latex] (-3,-4)--(0,-3)--(-3.6,-1.8)--(-4,-3);
 \draw[wrong] (-3,-4)--(0,0)--(-4,-3);
 \end{scope}
@@ -309,10 +486,48 @@
 \begin{tikzpicture}[scale=1.15]
 \fill[pOne!14] (0,0)--(4,2)--(2,4)--cycle;
 \draw[polyA,fill opacity=.25] (0,0)--(3,0)--(4,2)--(2,4)--(-1,2)--cycle;
+\node[smalllabel] at (2.7,2.8) {\(P_i\)};
 \draw[aux] (0,0)--(4,2); \draw[aux] (0,0)--(2,4);
 \fill[good] (2,1.5) circle (2.5pt);
 \foreach \x/\y/\n in {0/0/0,3/0/1,4/2/2,2/4/3,-1/2/4}
   {\fill[ink] (\x,\y) circle (1.5pt);\node[smalllabel,above right] at (\x,\y) {\(p_{\n}\)};}
 \node[smalllabel,right] at (2,1.5) {\(q\)};
 \node[smalllabel] at (2,-.55) {fan triangle \((p_0,p_2,p_3)\)};
+\end{tikzpicture}}
+
+% A sign decision is a coefficient comparison, not a numerically tiny offset.
+\newcommand{\figsymbolic}{%
+\begin{tikzpicture}[font=\small,
+ stage/.style={draw=navy!35,fill=codebg,rounded corners=2pt,
+                 text width=2.8cm,minimum height=1.35cm,align=center,inner sep=4pt}]
+\node[stage] (a) at (0,0) {\(\underbrace{a\times(q-o)}_{0}\)\\constant};
+\node[stage] (b) at (3.55,0) {\(\underbrace{a\times d}_{0}\)\\\(\varepsilon\) side};
+\node[stage] (c) at (7.1,0) {\(\underbrace{a\times e_1}_{0}\)\\\(\varepsilon^2\) tie};
+\node[stage,draw=good,fill=good!7] (d) at (10.65,0)
+  {\(\underbrace{a\times e_2}_{+1}\)\\\(\varepsilon^3\) decides};
+\foreach \u/\v in {a/b,b/c,c/d} \draw[quiet,-Latex] (\u.east)--(\v.west);
+\node[font=\scriptsize,color=quiet,align=center] at (5.3,-1.25)
+  {\(a=(1,0),\ o=(0,0),\ q=(2,0),\ d=(-1,0),\ e_1=(1,0),\ e_2=(0,1)\)};
+\end{tikzpicture}}
+
+% Two rows distinguish recursive query transforms from physical refolding.
+\newcommand{\figrefoldtrace}{%
+\begin{tikzpicture}[font=\small,
+ tracebox/.style={draw=navy!35,fill=codebg,rounded corners=2pt,
+              text width=3.65cm,minimum height=1.05cm,align=center,inner sep=4pt}]
+\node[font=\scriptsize\bfseries,color=navy,anchor=east] at (-.35,0)
+  {UNFOLD};
+\node[tracebox] (q) at (2,0) {\(t_B=(-4,-3)\)\\level 2};
+\node[tracebox] (qp) at (7,0) {\(q'=(-24/5,-7/5)\)\\level 1};
+\node[tracebox] (qpp) at (12,0) {\(q''=(24/5,-7/5)\)\\level 0};
+\draw[good,-Latex,line width=.9pt] (q.east)--node[above,font=\scriptsize]{\(R_{\ell_2}\)}(qp.west);
+\draw[good,-Latex,line width=.9pt] (qp.east)--node[above,font=\scriptsize]{\(R_{\ell_1}\)}(qpp.west);
+\node[font=\scriptsize\bfseries,color=navy,anchor=east] at (-.35,-2.15)
+  {REFOLD};
+\node[tracebox] (p2) at (2,-2.15) {\(s\to a\to b\to t_B\)\\\(b=(-18/5,-9/5)\)};
+\node[tracebox] (p1) at (7,-2.15) {\(s\to a\to q'\)\\\(a=(0,-3)\)};
+\node[tracebox] (p0) at (12,-2.15) {\(s\to q''\)\\base path};
+\draw[good,-Latex,line width=.9pt] (p0.west)--node[above,font=\scriptsize]{\(\ell_1\)}(p1.east);
+\draw[good,-Latex,line width=.9pt] (p1.west)--node[above,font=\scriptsize]{\(\ell_2\)}(p2.east);
+\draw[quiet,-Latex] (qpp.south)--(p0.north);
 \end{tikzpicture}}

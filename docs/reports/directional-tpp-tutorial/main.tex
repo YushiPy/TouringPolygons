@@ -6,8 +6,9 @@
 \usepackage[dvipsnames]{xcolor}
 \usepackage[a4paper,margin=24mm,headheight=16pt,headsep=9mm,footskip=12mm]{geometry}
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta,calc}
-\usepackage{caption,fancyhdr,hyperref,enumitem,needspace}
+\usetikzlibrary{arrows.meta,calc,positioning}
+\usepackage{caption,fancyhdr,hyperref,enumitem,needspace,float}
+\usepackage[all]{hypcap}
 \usepackage{titlesec,tocloft,setspace,listings}
 \usepackage[most]{tcolorbox}
 \hypersetup{colorlinks=true,linkcolor=MidnightBlue,urlcolor=MidnightBlue,
@@ -62,6 +63,7 @@ fill=white,fill opacity=.9,text opacity=1,inner sep=1pt}}
 \newcommand{\norm}[1]{\lVert#1\rVert}
 \newcommand{\R}{\mathbb R}
 \newcommand{\cross}{\mathbin{\times}}
+\newcommand{\Rect}[2]{\operatorname{Rect}\!\left[#1,#2\right]}
 \newcommand{\code}[1]{{\ttfamily\color{codekw}#1}}
 \lstdefinelanguage{TPPPseudo}{
   sensitive=true,
@@ -91,6 +93,8 @@ fill=white,fill opacity=.9,text opacity=1,inner sep=1pt}}
   boxrule=.4pt,arc=1.5mm,left=5mm,right=5mm,top=4mm,bottom=4mm}
 \input{figures.tex}
 \begin{document}
+\pagenumbering{roman}
+\hypersetup{pageanchor=false}
 \begin{titlepage}
 \thispagestyle{empty}
 {\sffamily\small\bfseries\color{good}GEOMETRY \quad\textbullet\quad ALGORITHM \quad\textbullet\quad C++ SOURCE}\par
@@ -110,7 +114,8 @@ polygon tours}\par
 \vfill
 {\small\color{quiet}TouringPolygons source revision \code{0aaf550} \quad / \quad 14 September 2026}\par
 \end{titlepage}
-{\sffamily\scriptsize\bfseries\color{good}READING MAP \hfill 14 SECTIONS \quad\textbullet\quad 12 FIGURES}\par
+\hypersetup{pageanchor=true}
+{\sffamily\scriptsize\bfseries\color{good}READING MAP \hfill 14 SECTIONS \quad\textbullet\quad 21 FIGURES}\par
 \vspace{2mm}
 {\color{navy!25}\hrule height .5pt}
 \vspace{5mm}
@@ -129,6 +134,19 @@ polygon tours}\par
 \end{tabular}
 \end{sourcebox}
 \clearpage
+\pagenumbering{arabic}
+
+\section*{The solver in one page}
+\phantomsection
+\addcontentsline{toc}{section}{The solver in one page}
+The input asks for a shortest route that visits closed convex regions in a fixed order. Each level adds one polygon \(P_i\); the map at that level chooses only the \emph{last} action. Earlier levels recover the prefix recursively.
+
+\begin{figure}[H]\centering\figoverview
+\caption{The implemented last-step recursion for an ordinary point query \(q\). Inherited crossing includes closed membership and exterior pass-through cells. Ray construction uses symbolic one-sided queries, while path refolding checks the finite edge. This is an action guide, not a proof that the implicit cells cover every degenerate input.}\label{fig:overview}
+\end{figure}
+
+The next two sections establish the visit rule and the three actions geometrically. Section~\ref{sec:execution} and the coordinate-arithmetic section trace a complete two-reflection query. The general map-equivalence proof obligation remains explicit in the final discussion.
+\clearpage
 
 \section{What problem is being solved?}
 Let \(s,t\in\R^2\) and let \(P_1,\ldots,P_k\) be nonempty, closed, positive-area convex polygons. A feasible continuous route \(\gamma:[0,1]\to\R^2\) starts at \(s\), ends at \(t\), and admits parameters
@@ -138,44 +156,48 @@ Let \(s,t\in\R^2\) and let \(P_1,\ldots,P_k\) be nonempty, closed, positive-area
 \]
 The inequalities are non-strict. Two consecutive polygons may be met at the same point and time. Polygons may overlap, touch at a point or edge, contain one another, or be repeated in the input. They are visit regions, not obstacles: passing through their interiors is allowed. The route can also revisit a polygon later.
 
-The order condition applies to the \emph{complete path}, not to the set of polygons it happens to intersect. For example, a line can meet \(P_2\) first and \(P_1\) later, yet fail to return to \(P_2\); that line intersects both sets but is not a valid \(P_1,P_2\) tour. A geometric segment may itself satisfy several visits: the solver need not store a vertex at every entry. One may choose ordered parameters along that segment, including equal parameters at a shared boundary point.
+The order condition applies to the \emph{complete path}, not to the set of polygons it happens to intersect. Figure~\ref{fig:order} makes the difference sharp: the shorter line meets \(P_2\) first and \(P_1\) later, but is invalid for the requested \(P_1,P_2\) order. A geometric segment may itself satisfy several visits: the solver need not store a vertex at every entry. One may choose ordered parameters along that segment, including equal parameters at a shared boundary point.
 
-\begin{figure}[h]\centering\figordered\caption{Ordered visits concern positions along a directed route. The panels are schematic; the right-hand red route is intended to illustrate that set intersection alone does not encode visit order.}\label{fig:order}\end{figure}
+\begin{figure}[h]\centering\figordered\caption{The dashed path is shorter than the solid path, but visits the polygons in an incorrect order.}\label{fig:order}\end{figure}
 
 Define \(F_i(q)\) to be the shortest length from \(s\) to \(q\) after visiting the first \(i\) polygons. The central recurrence is
 \begin{equation}\label{eq:prefix}
 F_0(q)=\norm{q-s},\qquad
 F_i(q)=\min_{x\in P_i}\bigl(F_{i-1}(x)+\norm{q-x}\bigr).
 \end{equation}
-To see both inequalities, take any feasible route and mark its \(i\)th visit at \(x\). Its prefix has length at least \(F_{i-1}(x)\); its suffix has length at least \(\norm{q-x}\). Conversely, concatenate an optimal prefix to \(x\) with the straight segment \(xq\). The latter is feasible even if it meets earlier polygons again. Compactness of each polygon gives a minimizer. Repeating the argument permits a polygonal route with at most one chosen contact per visit before collinear contacts are removed.
+Why does this formula give the optimum? Every feasible route is at least as long as the expression on the right: mark its \(i\)th visit at \(x\), then its prefix costs at least \(F_{i-1}(x)\) and its suffix at least \(\norm{q-x}\). Conversely, take a shortest prefix to a chosen \(x\in P_i\) and append the straight segment \(xq\); that route is feasible and attains the corresponding cost, even if the segment meets earlier polygons again. The polygons include their boundaries and are bounded, so a best contact cannot escape to infinity or approach an excluded boundary point. Repeating this argument gives a shortest polygonal route with at most one chosen contact per visit before collinear contacts are removed.
 
-The \emph{path} is a geometric polyline; \(F_i(q)\) is only its scalar length. Its \emph{last segment} is the final nonzero straight piece, which may be absent at a zero-length contact. The legacy disjoint \code{Solution::query(point,i)} returns a last contact/preceding point, not \(F_i\) and not a full route. The intersection code's \code{virtual\_source(Query,level)} instead returns an unfolded point encoding the final \emph{direction}; it is usually neither a route vertex nor a contact. \code{query\_path} reconstructs the route, and \code{query\_length} returns only its length. Confusing those result types is precisely dangerous at an intersection.
-\begin{sourcebox}
-\textbf{Open the code:} \code{SOL:192--286} contains the disjoint path and last-contact queries; \code{IM:196--274} contains virtual-source, path, and length queries for intersections. Their return types encode different information.
-\end{sourcebox}
+The \emph{path} is a geometric polyline; \(F_i(q)\) is only its scalar length. Its \emph{last segment} is the final nonzero straight piece, which may be absent at a zero-length contact.
 
-It is useful to work through the recurrence on a repeated region before considering maps. Let \(P=[0,2]\times[0,2]\), \(s=(-2,1)\), and \(q=(3,1)\). The straight segment \(sq\) meets \(P\) on the interval from \((0,1)\) to \((2,1)\). If the input is \((P,P,P)\), choose all three visit parameters at \((0,1)\); alternatively choose three increasing points along that same segment. Either way \(F_3(q)=5\), the Euclidean distance from \(s\) to \(q\), and the returned compact polyline may contain only \([s,q]\). No vertex at \((0,1)\) is needed to make the ordered visit true. If the destination is instead \(q=(1,1)\), then \(q\in P\) and \(F_3(q)=F_2(q)=F_1(q)=F_0(q)=3\); each new visit can occur at the shared endpoint. This example explains both the closed-set convention and why a visit log cannot be recovered by simply counting stored polyline vertices.
+Repeated visits illustrate why a shortest route and its visit schedule are different objects. Suppose \(P_1,P_2,P_3\) are the same square. If the segment \(sq\) passes through that square, all three visits can be assigned to its entry point, or to three successive points along the segment; the \emph{route stays the same}. If \(q\) lies inside the square, all three visits can occur at the endpoint. Thus a returned polyline need not contain a separate vertex for each required visit, and its vertex count is not a visit log.
 
-\begin{figure}[h]\centering\figrepeat\caption{Repeated-region example with \(P=[0,2]\times[0,2]\). Left: for \(\left(P,P,P\right)\) and \(q=(3,1)\), the same directed segment can witness all three visits at the entry point or at three increasing interior points. Right: when \(q=(1,1)\in P\), all three visits can occur at the endpoint and \(F_0(q)=F_1(q)=F_2(q)=F_3(q)=3\). Equal x/y scales are used.}\label{fig:repeat}\end{figure}
+\begin{figure}[h]\centering\figrepeat\caption{Three coincident input squares. Left: the segment \(sq\) already supplies all three visits. Right: because \(q\) lies inside all three squares, all visits may occur at the endpoint.}\label{fig:repeat}\end{figure}
+
+For coordinate examples, \(\Rect{(a,b)}{(c,d)}\) means the closed axis-aligned rectangle with lower-left corner \((a,b)\) and upper-right corner \((c,d)\). We use corner pairs so the placement and dimensions of each rectangle are immediately visible.
 
 An old false-crossing failure shows the opposite trap. Take
 \[
 \begin{aligned}
 s&=(-4,-4),&t&=(4,-4),\\
-P_1&=[0,2]\times[2,4],&P_2&=[0,3]\times[-2,2],\\
-P_3&=[-1,1]\times[3,4].
+P_1&=\Rect{(0,2)}{(2,4)},&P_2&=\Rect{(0,-2)}{(3,2)},\\
+P_3&=\Rect{(-1,3)}{(1,4)}.
 \end{aligned}
 \]
+Thus \(P_1\) is the upper-right blue rectangle (width 2, height 2), \(P_2\) the lower-right ochre rectangle (width 3, height 4), and \(P_3\) the narrow green rectangle across the top (width 2, height 1). In particular \((0,3)\in P_1\cap P_3\), whereas \((0,2)\in P_1\cap P_2\).
 The old returned line \(s\to(0,3)\to t\) meets \(P_1\) and \(P_3\) at \((0,3)\), but on the incoming segment \(x<0\) until that endpoint, so it has not visited \(P_2\). The outgoing segment first reaches \(P_2\) at \((4/7,2)\) after it has left \(P_3\). The path intersects all three polygons as sets, yet cannot choose nondecreasing parameters for visits \(1,2,3\). The corrected route \(s\to(0,2)\to(1/2,3)\to t\) visits \(P_1\) and \(P_2\) simultaneously at \((0,2)\), then \(P_3\) at \((1/2,3)\). This is a concrete reason for the independent ordered-segment validator described later.
 
-\begin{figure}[h]\centering\figfalsecrossing\caption{The exact three-rectangle false-crossing instance. Arrows show route direction. The old dashed route reaches \((0,3)\) in \(P_1\cap P_3\) and only later reaches \(P_2\) at \((4/7,2)\), so its encounter order is wrong. The corrected solid route visits \(P_1\) and \(P_2\) together at \((0,2)\), then \(P_3\) at \((1/2,3)\). All panels use equal x/y scales.}\label{fig:false-crossing}\end{figure}
+\begin{figure}[h]\centering\figfalsecrossing\caption{The exact three-rectangle false-crossing instance: blue \(P_1\), ochre \(P_2\), green \(P_3\). Arrows show route direction. The old dashed route reaches \((0,3)\) in \(P_1\cap P_3\) and only later reaches \(P_2\) at \((4/7,2)\), so its encounter order is wrong. The corrected solid route visits \(P_1\) and \(P_2\) together at \((0,2)\), then \(P_3\) at \((1/2,3)\). Both panels use equal x/y scales.}\label{fig:false-crossing}\end{figure}
+
+The full view preserves the source and target of the historical fixture. Figure~\ref{fig:false-crossing-zoom} magnifies the contacts instead of moving \(s\), which would change the exact recorded instance.
+\begin{figure}[H]\centering\figfalsecrossingzoom\caption{Close view of the same two routes near the three rectangles. Red is the old invalid route; green visits \(P_1\) and \(P_2\) simultaneously before \(P_3\). Both complete routes still start at \(s=(-4,-4)\) and end at \(t=(4,-4)\), outside this crop. The magnification makes the different contact order visible without changing the fixture.}\label{fig:false-crossing-zoom}\end{figure}
 
 For a closed \(P_i\), if \(q\in P_i\) then \(F_i(q)=F_{i-1}(q)\): the preceding optimal route ending at \(q\) already meets \(P_i\), while the \(i\)-prefix problem cannot be easier than the \((i-1)\)-prefix problem. This is why the entire closed polygon is classified as inherited crossing in the exact solver.
 
+\Needspace{8\baselineskip}
 \section{Three ways a last visit can behave}
 Consider a single convex polygon and an optimal route near its final visit. There are three local patterns (Figure~\ref{fig:contacts}). A route may \emph{cross}: the already optimal preceding route continues through the polygon, so adding this visit changes neither route nor length. It may \emph{bend} at a vertex, where there is no edge interior along which to slide the contact. Or it may \emph{reflect} at the relative interior of an edge, arriving and departing on its exterior side with equal angles to the edge line.
 
-\begin{figure}[h]\centering\figcontacts\caption{The three local contact types, drawn with equal horizontal and vertical scales. Solid green segments are route pieces. These are elementary examples, not a complete shortest-path subdivision.}\label{fig:contacts}\end{figure}
+\begin{figure}[h]\centering\figcontacts\caption{Three optimal tours from the same source to different targets around one square: straight crossing, bending at a vertex, and reflection at an edge interior. Equal x/y scales preserve the local geometry.}\label{fig:contacts}\end{figure}
 
 The reflection rule is an exact optimization device. Let \(a\) be the previous point, \(q\) the destination, and \(e\) an edge supported by the line \(L=\{p+\lambda d\}\). An edge contact \(c\in e\) minimizes \(\norm{c-a}+\norm{q-c}\). Reflect \(q\) across \(L\) to \(q'=R_L(q)\). Because \(c\in L\), \(\norm{q-c}=\norm{q'-c}\), so the minimum equals a straight-line problem from \(a\) to \(q'\), provided that line crosses the finite edge. The reflected ray has exactly the equal-angle condition. If \(u=d/\norm d\) is a unit edge direction, the direction reflection is
 \begin{equation}\label{eq:reflect}
@@ -188,36 +210,37 @@ The formula splits \(v\) into a component parallel to \(d\), retained, and a per
 \textbf{Open the code:} \code{IM:64--72} implements direction, point, and full-query reflection. Notice that \code{reflect\_query} transforms the primary point and all three symbolic directions.
 \end{sourcebox}
 
-For an explicit one-polygon reflection, use \(P=[0,2]\times[0,2]\), \(s=(-2,1)\), and \(q=(-1,0)\). The straight \(sq\) stays to the left of \(P\). Reflecting \(q\) in the supporting line \(x=0\) gives \(q'=(1,0)\). The segment from \(s\) to \(q'\) reaches \(x=0\) after \(2/3\) of its length, at \(c=(0,1/3)\), which is inside the finite left edge. Thus \(s\to c\to q\) is a feasible edge-reflection tour of length \(\norm{s-q'}=\sqrt{10}\). This does not merely show equal angles; it demonstrates why the recursive algorithm queries the preceding map at \(q'\) and later replaces its final unfolded portion by \(cq\).
+For an explicit one-polygon reflection, use \(P=\Rect{(0,0)}{(2,2)}\), \(s=(-2,1)\), and \(q=(-1,0)\). The straight \(sq\) stays to the left of \(P\). Reflecting \(q\) in the supporting line \(x=0\) gives \(q'=(1,0)\). The segment from \(s\) to \(q'\) reaches \(x=0\) after \(2/3\) of its length, at \(c=(0,1/3)\), which is inside the finite left edge. Thus \(s\to c\to q\) is a feasible edge-reflection tour of length \(\norm{s-q'}=\sqrt{10}\). This does not merely show equal angles; it demonstrates why the recursive algorithm queries the preceding map at \(q'\) and later replaces its final unfolded portion by \(cq\).
 
-\begin{figure}[h]\centering\figreflection\caption{Exact one-polygon reflection example. In the physical panel, the route is \(s\to c\to q\) with \(c\) on the finite edge \(x=0\). In the unfolded panel, reflecting \(q\) to \(q'\) makes the same route a straight segment, and its intersection with \(x=0\) is \(c=(0,1/3)\). Both panels use equal x/y scales and a half-unit grid.}\label{fig:reflection-example}\end{figure}
+\begin{figure}[h]\centering\figreflection\caption{Exact one-polygon reflection example. In the physical panel, the route is \(s\to c\to q\) with \(c\) on the finite edge \(x=0\). In the unfolded panel, reflecting \(q\) to \(q'\) makes the same route a straight segment, and its intersection with \(x=0\) is \(c=(0,1/3)\). Both panels use equal x/y scales and a half-unit grid padded around the geometry. The labels mark points; the preceding paragraph gives their exact coordinates.}\label{fig:reflection-example}\end{figure}
 
 For a crossing example with the same polygon and source, take \(q=(3,1)\). The straight segment \(sq\) already intersects \(P\), so the last-step action is to inherit the preceding route unchanged. For a vertex-bend example choose \(s=(-2,-1)\) and \(q=(1,-2)\). The segment \(sq\) misses \(P\), and the closest feasible broken route goes through \(v=(0,0)\), with length \(2\sqrt5\). Moving the contact a small distance up the left edge or right along the bottom edge increases length, while there is no edge interior at which to perform the equal-angle reflection. The vertex cone consists of outgoing directions for which this boundary minimizer remains \(v\). Its exact angular limits come from the two incident edge conditions, not from an arbitrary visual wedge.
 
-\begin{figure}[h]\centering\figcrossbend\caption{Exact-coordinate crossing and vertex-bend examples for \(P=[0,2]\times[0,2]\). The crossing route uses \(s=(-2,1)\), \(q=(3,1)\); the bend route uses \(s=(-2,-1)\), \(v=(0,0)\), and \(q=(1,-2)\). Half-unit grids make the boundary contact and the equal x/y scales explicit.}\label{fig:cross-bend}\end{figure}
+\begin{figure}[h]\centering\figcrossbend\caption{Exact-coordinate crossing and vertex-bend examples for \(P=\Rect{(0,0)}{(2,2)}\). The crossing route uses \(s=(-2,1)\), \(q=(3,1)\); the bend route uses \(s=(-2,-1)\), \(v=(0,0)\), and \(q=(1,-2)\). Half-unit grids make the boundary contact and the equal x/y scales explicit.}\label{fig:cross-bend}\end{figure}
 
 \begin{figure}[h]\centering\figunfold\caption{Unfolding: replace the broken path \(a\to c\to q\) by the straight dashed \(a\to q'\). Refolding intersects that straight final segment with the finite edge at \(c\). Equal axis scales preserve the angle comparison.}\label{fig:unfold}\end{figure}
 
 A \emph{last-step map} for level \(i\) classifies a query point by which of those three actions is valid. It does not store a full path to every point. A vertex cell says ``query level \(i-1\) at \(v\), then append \(vq\).'' A reflection cell says ``reflect \(q\) in this edge, query level \(i-1\), then refold.'' A crossing cell says ``query level \(i-1\) at the same \(q\).'' Thus the map stores less than the complete shortest-path map; the preceding levels supply the omitted prefix details recursively. In particular, crossing fragments can all share one inherited action without being physically merged into a polygonal region record.
 
-\begin{figure}[h]\centering\figlastmap\caption{Schematic last-step map reasoning. The current level supplies only the final bend at \(v\); the preceding level recovers the prefix to \(v\). Dashed rays delimit possible actions, not a verified full subdivision.}\label{fig:last}\end{figure}
+Figure~\ref{fig:last} shows a complete \emph{one-polygon} map, where \(F_0(q)=\norm{q-s}\). For \(s=(-2,1)\) and \(P_1=\Rect{(0,0)}{(2,2)}\), the two rays from \(s\) through \((0,0)\) and \((0,2)\) bound the right-hand straight-crossing region. On the left, reflecting \(q\) across \(x=0\) puts the contact on the finite edge precisely when \(x/2\le y\le2-x/2\). Outside those bounds the optimal contact is the lower or upper left vertex. This is an exact subdivision for this one polygon; the later intersecting-map construction needs additional split vertices and incident limits.
+
+\begin{figure}[h]\centering\figlastmap\caption{Complete last-step map for \(s=(-2,1)\) and \(P_1=\Rect{(0,0)}{(2,2)}\), within the displayed window. Green is crossing, ochre is reflection on the left edge, and rose is bending at a left vertex. The four labeled targets show one optimal route in each region. Dashed rays are exact cell boundaries, and equal x/y scales preserve the geometry. This simple map does not assert a complete subdivision for intersecting inputs.}\label{fig:last}\end{figure}
 
 The local actions have direct length recurrences. Crossing uses \(F_{i-1}(q)\); bending at \(v\) uses \(F_{i-1}(v)+\norm{q-v}\); reflecting across \(e\) uses \(F_{i-1}(R_e q)\) in the selected reflection cell. The last equality is the unfolding identity, including the fact that the selected recursive final segment crosses the finite edge. The code checks that fact during refolding rather than trusting the line equation alone.
 
+\Needspace{8\baselineskip}
 \section{The established disjoint solver}
 For pairwise disjoint polygons, an ordered route approaching \(P_i\) has a connected first-contact chain on its counterclockwise boundary in the setting of Dror et al.~\cite{dror03}. The last-step fan alternates vertex cones and edge regions around that boundary. At each original vertex, the old C++ core obtains the preceding path's final point, forms an incoming direction, reflects it across an incident edge when that incident contact is first contact, and otherwise continues it. The two rays delimit a cone. An edge has a reflection region when it is a first-contact edge and a pass-through/crossing region otherwise. \code{Solution::build\_cone} stores the rays and adjacent \code{first\_contact} flags in a workspace.
 
 \code{SolutionBinarySearchDisjoint} retains the same circular order as the polygon boundary. Its locator returns \(2j\) for vertex \(j\), \(2j+1\) for the following edge, and \(-1\) for crossing. The predicate \code{point\_in\_cone\_plus} tests whether \(q-v\) is between a vertex's two rays, using cross-product signs. If the rays coincide, it additionally requires the same forward direction. The more complicated \code{point\_in\_edge\_plus} takes two boundary vertices \(a,b\), their outgoing/incoming rays, and the query. It decides whether \(q\) lies on the circular interval between them, including when the chord \(ab\) spans several edges. The code branches on the orientation of each ray against \(d=b-a\) because the region can wrap around the exterior side of the polygon. It rejects a ray coincident with the forward chord (or the other ray coincident with its reverse) before those branches; otherwise a degenerate ``wedge'' could consume both sides of the chord.
 
-The binary-search step is geometric, not merely numerical indexing. Let \(L\) be the current left boundary vertex and \(J\) the middle tested vertex. First test \(J\)'s cone. If it contains \(q\), return \(2J\). Otherwise \code{point\_in\_edge\_plus(q,L,J,L.after,J.before)} asks whether the cell source lies on the boundary interval from \(L\) through \(J\). If yes, discard the interval after \(J\) by setting \code{right=mid}; if no, discard the interval through \(J\) by setting \code{left=mid+1}. The invariant is that a circular interval of candidate following edges remains. At termination the following edge at \code{left} is selected. The disjoint implementation then checks first-contact flags; if the binary answer does not identify a first-contact region it calls a linear locator. Accordingly its actual worst-case behavior includes that escape path, even though the cited map data structure has logarithmic point location.
+The binary-search step is geometric, not merely numerical indexing. Let \(L\) be the current left boundary vertex and \(J\) the middle tested vertex. First test \(J\)'s cone. If it contains \(q\), return \(2J\). Otherwise \code{point\_in\_edge\_plus(q,L,J,L.after,J.before)} asks whether the cell source lies on the boundary interval from \(L\) through \(J\). If yes, discard the interval after \(J\) by setting \code{right=mid}; if no, discard the interval through \(J\) by setting \code{left=mid+1}. The invariant is that a circular interval of candidate following edges remains. At termination the following edge at \code{left} is selected. The disjoint implementation then checks first-contact flags. Its binary search partitions the full boundary fan, including regions whose preceding optimal route already visits the current polygon. A candidate with no incident first-contact edge is a pass-through cell and now returns \(-1\) directly. The former linear scan returned \(-1\) on every observed fallback in a 100,000-instance seeded disjoint probe; removing it preserved a bitwise hash of every returned route and the legacy test corpus. This is empirical support for the direct classification, while a complete proof of the C++ predicates' circular ordering and floating-point boundary behavior remains separate.
 
-\begin{figure}[h]\centering\figbinary\caption{Actual split \(P_2\) boundary and successive tests for \(q=t_B\) in Section~\ref{sec:execution}. The dashed chord joins \(v_0\) to the tested endpoint; its green ray is scaled by a positive factor. Green boundary intervals are retained, red intervals discarded. Each chord predicate returns true, shrinking \([0,5]\to[0,2]\to[0,1]\to[0,0]\). Each panel has equal axis scales.}\label{fig:binary}\end{figure}
-
-Here \(m=6\): the locator first tests \(v_0\)'s cone, then the cones at \(v_3,v_2,v_1\), none containing \(t_B\). The chord tests use \(v_0v_3\), \(v_0v_2\), and \(v_0v_1\) with their endpoint rays and each returns true. That is why the search keeps the left circular interval three times and ends at following pseudo-edge \(e_0\), location code \(1\). Section~\ref{sec:execution} gives the exact points, incident rays, and recursive calls that produced those decisions. The visible chords are genuine tests; they are not claimed to be boundaries of the full map.
+Section~\ref{sec:execution} applies the same cone-and-chord search to an actual split, intersecting polygon; Figure~\ref{fig:binary} shows the candidate interval shrinking there. Its chords are genuine predicate tests, not asserted boundaries of a complete shortest-path subdivision.
 
 Lazy and eager modes differ in when vertex cones are built. \code{Solution::solve} initializes/reset its workspace on each solve. Eager builds every cone before the target query; lazy leaves cone slots unbuilt until requested (the base virtual \code{preload\_cones} is empty for this binary class). \code{Solution::query} has a single last-query memo keyed by level and point. It returns the preceding point for the disjoint last-segment computation; it is not a persistent point-location cache. The workspace's offsets, first-contact bytes and cone pairs may be caller-provided by view, dynamically reserved, or statically allocated. They hold the disjoint core's floating-point records.
 \begin{sourcebox}
-\textbf{Open the code:} \code{SOL:146--188} builds the two vertex rays and first-contact flags; \code{BS:143--230} performs the circular binary search and possible linear escape; \code{GEO:67--111} defines its floating-point cone and chord predicates. Workspace initialization is \code{SOL:91--132}.
+\textbf{Open the code:} \code{SOL:146--188} builds the two vertex rays and first-contact flags; \code{BS:143--200} performs the circular binary search and crossing classification; \code{GEO:67--111} defines its floating-point cone and chord predicates. Workspace initialization is \code{SOL:91--132}.
 \end{sourcebox}
 
 \section{What changes when polygons intersect}
@@ -233,14 +256,9 @@ At an overlapping polygon, ``first contact'' cannot mean the first geometric hit
 Tan and Jiang's intersecting construction~\cite[Section~4, printed p.~621]{tanjiang17} describes two individual reflections of the last segment of the shortest prefix \emph{at} a pseudo-vertex. That last segment is insufficient. A final reflected segment can shrink to zero as the endpoint approaches the pseudo-vertex, disappear from the path at the point, yet retain a distinct limiting direction. Dror et al.'s Claim 1~\cite[Section~4.1, printed p.~477]{dror03} in their general formulation uses incident limits, compatible with the correction. The current code queries both incident sides separately rather than trying to infer both from the endpoint path.
 
 \section{The exact two-reflection witness}
-Use
-\begin{align*}
-s&=(-3,-4),&j&=(0,0),\\
-P_1&=[0,6]\times[-6,6],&
-P_2&=\{(x,y):-8\le x\le8,\ x/2\le y\le9\},\\
-t_A&=(4,-3),&t_B&=(-4,-3).
-\end{align*}
-The left supporting edge of \(P_1\) is \(\ell_1:x=0\), and the lower supporting edge of \(P_2\) is \(\ell_2:y=x/2\). Their proper intersections are \(j\) and \((6,3)\). The unique prefix path to \(j\) is \(s\to j\), with unit incoming direction \(u=(3/5,4/5)\). The reflection matrices are
+Figure~\ref{fig:witness-setup} defines the two-polygon witness visually. The labels give the source, targets, polygon corners, and two boundary crossings. The blue rectangle is \(P_1=\Rect{(0,-6)}{(6,6)}\); the ochre polygon \(P_2\) lies above \(y=x/2\), below \(y=9\), and between \(x=-8\) and \(x=8\).
+\begin{figure}[H]\centering\figwitnesssetup\caption{The full exact two-polygon witness before unfolding. Blue \(P_1\) is specified by its opposite labeled corners. Ochre \(P_2\) is bounded by the labeled lower-edge endpoints \((-8,-4),(8,4)\), the horizontal top \(y=9\), and vertical sides. The source, both targets, and the crossings are labeled directly. The supporting lines \(\ell_1,\ell_2\) are highlighted; equal axis scales preserve the geometry.}\label{fig:witness-setup}\end{figure}
+The left supporting edge of \(P_1\) is \(\ell_1:x=0\), and the lower supporting edge of \(P_2\) is \(\ell_2:y=x/2\). The polygon boundaries cross at \(j\) and \((6,3)\). The unique prefix path to \(j\) is \(s\to j\), with unit incoming direction \(u=(3/5,4/5)\). The reflection matrices are
 \[
 R_1=\begin{pmatrix}-1&0\\0&1\end{pmatrix},\qquad
 R_2=\begin{pmatrix}3/5&4/5\\4/5&-3/5\end{pmatrix}.
@@ -305,6 +323,8 @@ a\cross(Q-o)=a\cross(q-o)+\varepsilon(a\cross d)
 \]
 For example, take \(a=(1,0)\), \(o=(0,0)\), \(q=(2,0)\), \(d=(-1,0)\), \(e_1=(1,0)\), \(e_2=(0,1)\). The first three cross coefficients are zero and the fourth is \(1\), so the symbolic point is above the line. Numerically choosing \(\varepsilon=10^{-12}\) would have to resolve an \(\varepsilon^3\) displacement, and could round to zero; coefficient comparison does not. Dot signs are evaluated by the same ordered rule. A dot test on \(a=(1,0)\) at \(q=(-2,0)\) is negative at constant order, proving that point is behind a forward ray even if its cross product with the ray is zero.
 
+\begin{figure}[htbp]\centering\figsymbolic\caption{The exact sign rule for the example above. Three zero coefficients defer the decision to \(a\times e_2=+1\); the boxes show symbolic priority, not four finite geometric displacements.}\label{fig:symbolic}\end{figure}
+
 Why two secondary directions? A one-sided query may lie exactly on a map ray, or on the \emph{backwards extension} of that ray. Cross sign alone cannot distinguish the two half-lines. The ordered dot sign distinguishes forward from backward; the two tie directions make exterior cell selection deterministic when the primary one-sided displacement is collinear too. The constructor defaults \(e_1=(1,0)\), \(e_2=(0,1)\). A reflection must carry \emph{all four} fields, not merely \(q\) or \(d\), because the reflected recursive query needs the same perturbation order in its new coordinate system.
 
 \begin{figure}[h]\centering\figbackwards\caption{A backwards-ray extension has zero cross product but is not on the outgoing half-ray. The exact locator's forward dot test rejects it; secondary symbolic directions settle remaining exterior boundary ties. Equal axis scales are used.}\label{fig:backwards}\end{figure}
@@ -315,11 +335,16 @@ Closed-polygon membership deliberately uses a different tie rule. The function \
 \end{sourcebox}
 
 \section{Virtual sources, and what the records mean}
-The exact branch uses \code{boost::multiprecision::cpp\_rational} as \code{Scalar}. Each input \code{Vector2} double becomes the \emph{exact rational value of that binary double}; intersection and reflection constructions remain rational. \code{Point} is a pair of Scalars with exact addition, subtraction, dot, cross, zero, equality, and a final conversion to doubles. A coordinate written as \(0.1\) in a user input is therefore the exact binary64 value supplied to the solver, not the abstract decimal rational \(1/10\). This matters for reproducibility at nearly coincident boundaries.
+The exact branch uses \code{boost::multiprecision::cpp\_rational} as \code{Scalar}. Each input \code{Vector2} double becomes the \emph{exact rational value of that binary double}; intersection and reflection constructions remain rational. \code{Point} is a pair of Scalars with exact addition, subtraction, dot, cross, zero, equality, and a final conversion to doubles. A coordinate written as \(0.1\) in a user input is therefore the exact binary64 value supplied to the solver, not the abstract decimal rational \(1/10\). This matters for reproducibility at nearly coincident boundaries. Exact rationals are slower and can use much more memory than doubles; the branch pays that cost so shared vertices, collinear overlaps, side-of-edge tests, and one-sided limit directions make consistent decisions. Ordinary doubles still carry the input and final reported coordinates, and the older disjoint branch remains floating point. The tradeoff is robustness of the construction predicates, not a claim of faster arithmetic.
 
 A \code{Vertex} stores its exact point, the index of its parent original edge, its parameter \(\lambda\in[0,1)\) on that edge, two incident outgoing rays (\code{before\_ray}, \code{after\_ray}), booleans for whether those sides reflect, a \code{ready} flag, and an optional cached preceding-prefix length at that fixed vertex. The two rays are \emph{different queries} at a pseudo-vertex. A \code{Map} stores the normalized original boundary, double-coordinate bounding boxes for its original edges, a reduced list of non-collinear \code{membership\_corners}, the split \code{vertices}, and one \code{last\_query} cache entry containing the complete symbolic key and its virtual source. \code{DirectionalMaps} owns the source, target, and one Map per input polygon. It is constructed for one public solve or length call; its allocations and caches do not persist across such calls.
 
 A virtual source \(V\) is a point such that, while the recursive query remains within a fixed sequence of map cells, the final ray direction is proportional to \(q-V\). It is an \emph{unfolded directional representation}, not generally a physical source, last contact, or stored route vertex. The base problem has \(V=s\). An inherited crossing leaves \(V\) unchanged. Bending at vertex \(v\) makes \(V=v\): the final piece is \(vq\). Reflection in edge line \(L\) transforms \(V\) to \(R_L(V)\) after recursively reflecting the full query in \(L\). The claim follows inductively: if the recursive unfolded final direction is \(R_L(q)-V\), reflecting it back yields \(q-R_L(V)\) because reflection is linear on differences and is its own inverse.
+
+The similarly named code queries now have different roles. The disjoint solver's \code{Solution::query(point,i)} returns the preceding point for its last segment. The intersection solver's \code{virtual\_source(Query,level)} returns the unfolded directional point \(V\), which is usually not a physical contact. Its \code{query\_path} reconstructs a route, while \code{query\_length} returns a scalar length. A caller cannot substitute one of these results for another at a boundary intersection.
+\begin{sourcebox}
+\textbf{Open the code:} \code{SOL:192--286} contains the disjoint path and last-contact queries; \code{IM:196--274} contains virtual-source, path, and length queries for intersections.
+\end{sourcebox}
 
 At \(q=V\), subtracting gives zero, but the symbolic query still has a first-order displacement \(d\). The code uses \(d\) as incoming direction in \code{build\_vertex}. This is the correct nonzero leading term of \(Q(\varepsilon)-V\). In the rare situation where the leading direction itself vanishes after a deeper symbolic cancellation, the code's representation has only its stated four coefficients; a full general equivalence proof must account for every such degeneracy. In ordinary map cells and in the counterexample, the \(q=V\) rule is exact.
 
@@ -520,6 +545,10 @@ The chord decisions can be checked numerically by hand. The following-edge ray a
 \end{center}
 The three required comparisons are \(r_1\cross(q-v_0)\ge0\), \(r_2\cross(q-v_j)\le0\), and \(d\cross(q-v_0)\le0\); all hold strictly. For example, when \(j=1\), \(d=(8,4)\) and \(q-v_0=(4,1)\), so \(d\cross(q-v_0)=8-16=-8\). This calculation explains precisely why the interval after \(v_j\) is discarded at each step. It also shows that the search is comfortably away from a symbolic tie in this target query.
 
+\begin{figure}[htbp]\centering\figbinary\caption{The split \(P_2\) boundary and the three chord tests for \(q=t_B\). The dashed chord joins \(v_0\) to the tested endpoint; its green ray is scaled by a positive factor. Green boundary intervals remain candidates, red intervals are discarded. All three predicates return true, shrinking \([0,5]\to[0,2]\to[0,1]\to[0,0]\). Each panel has equal axis scales.}\label{fig:binary}\end{figure}
+
+Here \(m=6\): the locator tests \(v_0\)'s cone, then those at \(v_3,v_2,v_1\); none contains \(t_B\). The three true chord tests retain the left circular interval and select following pseudo-edge \(e_0\), location code \(1\).
+
 At \(j\), \(j-(3,-4)=(-3,4)\) on the negative side, so reflection in the lower edge produces \((7/5,-24/5)\). On the positive side, \(j-s=(3,4)\) reflects to \((5,0)\). These are unnormalized rays: dividing the first by \(5\) and the second by \(5\) gives the two unit directions quoted earlier. Their flags are \code{true,true}; neither adjacent current-polygon cell is crossing. During the trace, the newly needed \code{Vertex::ready} slots were misses once, then repeatedly hit; the per-level \code{last\_query} source cache saw distinct symbolic keys and recorded no hit. This illustrates why ``memoized'' does not imply that every query has a cache hit.
 
 The first location is following pseudo-edge \(e_0=[(-8,-4),j]\), so the path query reflects \(t_B\) in \(\ell_2\):
@@ -530,12 +559,15 @@ At level 1, \code{locate(q',1)} tests cones and the chords from \(P_1:v_0\) to \
 
 To refold \(P_1\), intersect \(s\to q''\) with \(x=0\). Its parameter is \(5/13\), so the contact is \(a=(0,-3)\), inside the finite left edge. Replace \(q''\) by \(a\to q'\). Next refold \(P_2\): intersect \(a\to q'\) with \(y=x/2\), giving \(b=(-18/5,-9/5)\). The contact is inside \(e_0\), and both segment parameters are in \([0,1]\). Replace \(q'\) by \(b\to t_B\). The returned exact pre-compaction path is already non-collinear, so conversion yields the four points in Equation~\eqref{eq:bpath}. The first visit occurs at \(a\), the second at \(b\); their order is the order of the polyline.
 
+\begin{figure}[htbp]\centering\figrefoldtrace\caption{The recursive query transforms go from level 2 to level 0 (top); physical contacts are restored in reverse order (bottom). The arrows between boxes indicate calls and returns, not route segments. Each finite-edge check is detailed in Section~\ref{sec:execution} and the arithmetic section below.}\label{fig:refold-trace}\end{figure}
+
 \begin{figure}[h]\centering\figpath\caption{End-to-end returned route to \(t_B\) (solid) and the longer route through \(j\) (dashed). The polygon interiors are clipped for a close view; coordinates and scales are geometric.}\label{fig:path}\end{figure}
 
 For an independent arithmetic check, the three route vectors are \((3,1)\), \(\frac65(-3,1)\), and \(\frac25(-1,-3)\). Their lengths sum to \(\frac{13}{5}\sqrt{10}\). The exact certificate in the counterexample report uses their unit directions as supporting vectors for the product-of-polygons convex objective. The map trace shows \emph{how the implementation finds} the route; the certificate establishes that this particular route is globally optimal without assuming the map is correct.
 
 One can also ask what \code{virtual\_source} \emph{would} return for a directional query at \(t_B\) in the same two reflection cells. It would reflect \(s\) first through \(\ell_1\) to \((3,-4)\), then through \(\ell_2\) to \((-7/5,24/5)\). Hence \(t_B-V=(-13/5,-39/5)\), proportional to the final route vector \((-1,-3)\). The ordinary \code{query\_path} does not make that particular virtual-source call at the target; this algebra explains the invariant used for ray construction, not an extra log entry. A separate public length call constructs fresh maps, follows the same two reflected point queries, and returns the same scalar value without constructing \(a\) or \(b\).
 
+\Needspace{8\baselineskip}
 \section{Engineering choices and costs}
 The public binary/general APIs in \code{binary\_search.cpp} normalize winding and select the branch. The explicit \code{...\_disjoint} APIs retain their disjoint-only contract. The legacy linear and Tan--Jiang general APIs route intersecting inputs through the same corrected exact implementation; agreement among those entries is not an independent oracle. The exact class owns its normalized boundaries, split records, cache slots, and rational allocations for one call. The floating-point \code{ConvexTppWorkspaceView}, \code{DynamicConvexTppWorkspace}, and \code{StaticConvexTppWorkspace} store original-vertex offsets, first-contact bytes, and cone pairs for the disjoint class. General workspace overloads remain callable and can reuse those buffers across solves, but those buffers cannot hold exact split maps. On the intersection branch, preprocessing is rebuilt on each public path or length call. There is no exposed persistent preprocessed-map query object.
 
@@ -548,6 +580,7 @@ The first lazy target query includes whichever ray constructions it triggers; a 
 
 Abstract storage is \(O(M+k)\) records for original/split geometry, rays, length slots, and one last-query cache per map. This is not a byte bound. Exact rational numerators and denominators can grow through intersections and compositions of reflections, so arithmetic and memory costs depend on their bit lengths. Norm conversion and output rounding add their own numerical limits. The disjoint class is the older floating-point algorithm and can be much faster. Tan and Jiang state \(O(k^2N)\) construction and \(O(kN)\) storage/reporting for their published intersecting construction~\cite{tanjiang17}; those are paper claims, not bounds achieved by this all-pairs implementation. Dror et al. give different map structures and query bounds under their own setting~\cite{dror03}. The asymptotic comparison must not erase the current source's splitter, lazy ray recursion, or finite-size exact arithmetic costs.
 
+\Needspace{8\baselineskip}
 \section{What is justified, tested, and still open}
 The recurrence~\eqref{eq:prefix} is an exact formulation of ordered visits. Euclidean norm convexity makes the contact-coordinate objective convex on \(P_1\times\cdots\times P_k\); a feasible route with matching supporting-vector lower bound is globally optimal. Reflection is an isometry, so a correctly classified finite-edge reflection has the unfolding identity. Bending and inherited crossing have the stated local recursive costs. For a fixed cell sequence, induction on crossing/bend/reflection gives the virtual-source relation \(q-V\). Lexicographic evaluation of a \emph{linear} cross or dot predicate at Equation~\eqref{eq:symbolic} is exact: the first nonzero coefficient determines the sign for sufficiently small positive \(\varepsilon\). Those are arguments for local operations, not by themselves a proof that all implicit cells cover every possible closed input consistently.
 
@@ -600,8 +633,8 @@ The code key on the contents page supplies full repository paths. This table map
 \begingroup\small
 \begin{longtable}{@{}>{\raggedright\arraybackslash}p{39mm}>{\raggedright\arraybackslash}p{70mm}>{\raggedright\arraybackslash}p{39mm}@{}}\toprule
 Pseudocode block&Current C++ function(s)&Source lines\\\midrule\endhead
-Public dispatch and winding&\code{normalized\_winding}; pairwise test; public entry points&\code{BS:90--126, 236--332}\\
-Disjoint binary and fallback&\code{\_locate\_point}; \code{locate\_point\_linear}; \code{locate\_point}&\code{BS:143--230}\\
+Public dispatch and winding&\code{normalized\_winding}; pairwise test; public entry points&\code{BS:90--126, 201--300}\\
+Disjoint binary and crossing&\code{\_locate\_point}; \code{locate\_point}&\code{BS:143--200}\\
 Disjoint cone and recursion&\code{build\_cone}; \code{query}; \code{query\_full}; \code{query\_length}&\code{SOL:146--286, 344--374}\\
 Exact normalization and split&\code{DirectionalMaps} constructor; \code{split\_boundaries}&\code{IM:276--344}\\
 Signs and closed membership&\code{cross\_sign}; \code{dot\_sign}; \code{inside}&\code{IM:45--60, 105--116}\\

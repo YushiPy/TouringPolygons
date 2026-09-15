@@ -1,6 +1,9 @@
 #include "tpp/convex/detail/intersecting_maps.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
+#ifdef TPP_EXPERIMENT_NATIVE_DOUBLE
+#include "native_double_experiment.h"
+#endif
 #include <algorithm>
 #include <cmath>
 #include <optional>
@@ -11,7 +14,11 @@
 namespace tpp::detail {
 namespace {
 
+#ifdef TPP_EXPERIMENT_NATIVE_DOUBLE
+using Scalar = NativeDoubleExperimentScalar;
+#else
 using Scalar = boost::multiprecision::cpp_rational;
+#endif
 
 struct Point {
     Scalar x = 0, y = 0;

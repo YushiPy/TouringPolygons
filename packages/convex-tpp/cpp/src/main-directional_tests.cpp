@@ -107,13 +107,19 @@ void deterministic() {
         {"return to start",{{-3,0},{-3,0},{A,B,A},{{-3,0},{1,0},{-3,0}}}},
         {"nonconsecutive intersections",{{-4,-4},{4,-4},{box(0,2,2,4),box(0,-2,3,2),box(-1,3,1,4)},{{-4,-4},{0,2},{.5,3},{4,-4}}}},
         {"backwards ray extension",{{0,-2},{1,3},{box(2,3,5,4),box(-3,-2,0,2),box(2,2,3,5)},{{0,-2},{2,3},{0,2},{2,8./3},{1,3}}}},
-        {"thin positive area",{{-3,-2},{3,-2},{box(-2,0,0,1e-13),box(-1,0,2,2e-13)},{{-3,-2},{0,0},{3,-2}}}}
+        {"thin positive area",{{-3,-2},{3,-2},{box(-2,0,0,1e-13),box(-1,0,2,2e-13)},{{-3,-2},{0,0},{3,-2}}}},
+        {"floating feasible suboptimal",{{-3,-2},{3,-2},
+            {box(-2,0,0,2),{{-1e-6,1},{1.999999,0},{1.999999,2}}},
+            {{-3,-2},{0,0},{1.6799996719999488,0.15999966400002566},{3,-2}}}}
     };
     for(auto &[name,c]:cases) {
-        verify(c,name);
+        verify(c,name,name=="floating feasible suboptimal");
         auto reversed=c;
         for(auto &p:reversed.polygons)std::reverse(p.begin(),p.end());
         verify(reversed,name+" CW");
+        // Midpoints of non-dyadic binary doubles may round off the original
+        // supporting line, so this transform changes the precision fixture.
+        if(name=="floating feasible suboptimal") continue;
         auto collinear=c;
         for(auto &p:collinear.polygons) {
             Polygon expanded;

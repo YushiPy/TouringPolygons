@@ -1,6 +1,7 @@
 # Fixed-order convex Touring Polygons tutorial
 
-`main.tex` is the complete tutorial. `figures.tex` contains all twelve original,
+`main.tex` is the complete tutorial, including a one-page visual overview.
+`figures.tex` contains all twenty-one
 deterministic TikZ vector illustrations; no image downloads or generated raster
 assets are needed. The geometric drawings use equal horizontal and vertical
 scales. The main text labels any schematic use explicitly.
@@ -22,8 +23,13 @@ of the current `intersecting_maps.cpp`; no production solver source was edited.
 The document distinguishes exact certificates and local derivations from the
 remaining general proof obligation for the implicit directional maps.
 
-The source-line key in the PDF is pinned to repository revision `0aaf550`.
+The source-line key in the PDF reflects the current working tree after the
+disjoint locator's scan removal; it is not pinned to a committed revision.
 For validation, see `packages/convex-tpp/cpp/src/core/ordered_path_validation.cpp`,
 `packages/convex-tpp/cpp/src/main-directional_tests.cpp`,
 `packages/convex-tpp/cpp/src/main-intersection_audit.cpp`, and
 `apps/visualizer-server/wasm/test-intersections.mjs`.
+
+The separate `web/` edition is an earlier static port of twelve figures. It
+has not yet been synchronized with the expanded LaTeX tutorial; use the PDF
+for the current text and diagrams.
