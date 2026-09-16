@@ -608,6 +608,67 @@ void set_exact_bounds(ConvexHybridResult &result,Vector2 start,Vector2 target,
     result.lower_bound=rational_lower(lower);result.upper_bound=rational_upper(upper);
 }
 
+Rational sqrt_upper(const Rational &squared) {
+    if(squared==0)return 0;
+    constexpr unsigned precision=96;
+    const boost::multiprecision::cpp_int scale=boost::multiprecision::cpp_int(1)<<precision;
+    const auto numerator=boost::multiprecision::numerator(squared);
+    const auto denominator=boost::multiprecision::denominator(squared);
+    const boost::multiprecision::cpp_int scaled=(numerator<<(2*precision))/denominator;
+    return Rational(sqrt(scaled)+1)/Rational(scale);
+}
+
+Point feasible_unit_direction(const Point &direction) {
+    const Rational norm=sqrt_upper(direction.dot(direction));
+    return norm==0?Point{}:direction*(Rational(1)/norm);
+}
+
+double candidate_dual_lower(Vector2 start,Vector2 target,
+        const std::vector<Polygon> &polygons,const std::vector<Point> &contacts) {
+    std::vector<Point> chain;chain.reserve(contacts.size()+2);chain.emplace_back(start);
+    chain.insert(chain.end(),contacts.begin(),contacts.end());chain.emplace_back(target);
+    std::vector<Point> base;std::vector<bool> zero;
+    base.reserve(chain.size()-1);zero.reserve(chain.size()-1);
+    for(size_t i=1;i<chain.size();++i) {
+        const Point difference=chain[i]-chain[i-1];
+        zero.push_back(difference.zero());base.push_back(feasible_unit_direction(difference));
+    }
+    const Point origin(start),destination(target);
+    auto evaluate=[&](int zero_policy) {
+        auto directions=base;
+        for(size_t i=0;i<directions.size();++i)if(zero[i]) {
+            if(zero_policy==0)continue;
+            if(zero_policy==1) {
+                size_t j=i;while(j>0&&zero[j])--j;
+                if(!zero[j]){directions[i]=base[j];continue;}
+                j=i;while(j+1<base.size()&&zero[j])++j;
+                if(!zero[j])directions[i]=base[j];
+            } else if(zero_policy==2) {
+                size_t j=i;while(j+1<base.size()&&zero[j])++j;
+                if(!zero[j]){directions[i]=base[j];continue;}
+                j=i;while(j>0&&zero[j])--j;
+                if(!zero[j])directions[i]=base[j];
+            } else directions[i]=feasible_unit_direction(destination-origin);
+        }
+        Rational bound=(destination-origin).dot(directions.back());
+        for(size_t i=0;i<polygons.size();++i) {
+            const Point coefficient=directions[i]-directions[i+1];
+            Rational support=(polygons[i].front()-origin).dot(coefficient);
+            for(size_t j=1;j<polygons[i].size();++j)
+                support=std::min(support,(polygons[i][j]-origin).dot(coefficient));
+            bound+=support;
+        }
+        return bound;
+    };
+    Rational best=evaluate(0);
+    for(int policy=1;policy<4;++policy)best=std::max(best,evaluate(policy));
+    const Point direct=destination-origin;
+    const Rational direct_lower=direct.dot(direct)==0?Rational(0):
+        direct.dot(direct)/sqrt_upper(direct.dot(direct));
+    best=std::max(best,direct_lower);
+    return rational_lower(best);
+}
+
 void set_bounds(ConvexHybridResult &result,Vector2 start,Vector2 target) {
     const double value=contact_length(start,target,result.contacts);
     result.lower_bound=std::nextafter(value,-std::numeric_limits<double>::infinity());
@@ -699,6 +760,19 @@ ConvexHybridResult tpp_convex_solve_hybrid(const Vector2 &start,const Vector2 &t
             result.stats.predicate_exact_evaluations,result.stats.zero_link_witnesses);
         result.stats.certificate_seconds=elapsed(certificate_began);
         result.stats.double_certified=result.fallback_reason==ConvexFallbackReason::None;
+    }
+    if(options.retain_rejected_double_candidate && !result.stats.double_certified &&
+       result.contacts.size()==input.size()) {
+        result.rejected_double_contacts=result.contacts;
+        result.rejected_double_exact_feasible=true;
+        for(size_t i=0;i<result.rejected_double_contacts.size();++i)
+            result.rejected_double_exact_feasible&=inside(
+                Point(result.rejected_double_contacts[i]),polygons[i]);
+        ConvexHybridResult candidate_bounds;
+        set_exact_bounds(candidate_bounds,start,target,exact_contacts);
+        result.rejected_double_lower_bound=candidate_dual_lower(
+            start,target,polygons,exact_contacts);
+        result.rejected_double_upper_bound=candidate_bounds.upper_bound;
     }
     if(result.stats.double_certified && !options.shadow_rational) {
         result.backend=result.stats.disjoint?ConvexHybridBackend::DoubleDisjoint:ConvexHybridBackend::DoubleIntersection;

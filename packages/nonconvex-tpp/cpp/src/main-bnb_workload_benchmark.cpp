@@ -14,6 +14,7 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <map>
@@ -67,6 +68,87 @@ struct BenchmarkOptions {
 	std::optional<std::string> summary_output_path;
 	bool require_disjoint_hulls = false;
 };
+
+std::mutex hybrid_capture_mutex;
+size_t hybrid_capture_index = 0;
+
+double captured_contact_length(const Vector2 &start,const Vector2 &target,
+		const std::vector<Vector2> &contacts) {
+	long double total=0;Vector2 previous=start;
+	for(const auto point:contacts) {
+		total+=std::hypot((long double)point.x-previous.x,(long double)point.y-previous.y);
+		previous=point;
+	}
+	total+=std::hypot((long double)target.x-previous.x,(long double)target.y-previous.y);
+	return double(total);
+}
+
+double captured_max_membership_violation(const std::vector<Vector2> &contacts,
+		const std::vector<std::vector<Vector2>> &polygons) {
+	long double maximum=0;
+	for(size_t i=0;i<contacts.size();++i) {
+		const auto &polygon=polygons[i];long double area=0;
+		for(size_t j=0;j<polygon.size();++j)
+			area+=(long double)polygon[j].x*polygon[(j+1)%polygon.size()].y
+				-(long double)polygon[j].y*polygon[(j+1)%polygon.size()].x;
+		const bool ccw=area>=0;
+		for(size_t j=0;j<polygon.size();++j) {
+			const auto a=polygon[j],b=polygon[(j+1)%polygon.size()];
+			const long double dx=(long double)b.x-a.x,dy=(long double)b.y-a.y;
+			const long double side=dx*((long double)contacts[i].y-a.y)
+				-dy*((long double)contacts[i].x-a.x);
+			const long double outside=ccw?-side:side;
+			if(outside>0)maximum=std::max(maximum,outside/std::hypot(dx,dy));
+		}
+	}
+	return double(maximum);
+}
+
+void capture_hybrid_fallback(const Vector2 &start, const Vector2 &target,
+		const std::vector<std::vector<Vector2>> &polygons,
+		const tpp::ConvexHybridResult &result) {
+	if (!result.stats.rational_fallback) return;
+	const char *path = std::getenv("TPP_HYBRID_FALLBACK_CORPUS");
+	if (path == nullptr || *path == '\0') return;
+	std::lock_guard lock(hybrid_capture_mutex);
+	const auto encoded = tpp::encode_test(start, target, polygons, result.contacts);
+	std::ofstream corpus(path, std::ios::binary | std::ios::app);
+	corpus.write(reinterpret_cast<const char *>(encoded.data()), encoded.size());
+	std::ofstream metadata(std::string(path) + ".csv", std::ios::app);
+	metadata << hybrid_capture_index++ << ',' << tpp::to_string(result.fallback_reason) << ','
+		<< result.stats.disjoint << ',' << polygons.size() << ','
+		<< std::setprecision(17) << result.lower_bound << ',' << result.upper_bound << ','
+		<< !result.rejected_double_contacts.empty() << ','
+		<< (result.rejected_double_contacts.empty()?std::numeric_limits<double>::quiet_NaN():
+			captured_contact_length(start,target,result.rejected_double_contacts)) << ','
+		<< (result.rejected_double_contacts.empty()?std::numeric_limits<double>::quiet_NaN():
+			result.rejected_double_lower_bound) << ','
+		<< (result.rejected_double_contacts.empty()?std::numeric_limits<double>::quiet_NaN():
+			result.rejected_double_upper_bound) << ','
+		<< result.rejected_double_exact_feasible << ','
+		<< (result.rejected_double_contacts.empty()?std::numeric_limits<double>::quiet_NaN():
+			captured_max_membership_violation(result.rejected_double_contacts,polygons)) << '\n';
+}
+
+tpp::ConvexHybridResult captured_hybrid_solve(const Vector2 &start,const Vector2 &target,
+		const std::vector<std::vector<Vector2>> &polygons) {
+	tpp::ConvexHybridOptions options;options.retain_rejected_double_candidate=true;
+	return tpp::tpp_convex_solve_hybrid(start,target,polygons,options);
+}
+
+std::vector<Vector2> hybrid_capture_path(const Vector2 &start, const Vector2 &target,
+		const std::vector<std::vector<Vector2>> &polygons) {
+	const auto result = captured_hybrid_solve(start, target, polygons);
+	capture_hybrid_fallback(start, target, polygons, result);
+	return tpp::reconstruct_convex_polyline(start, target, result.contacts);
+}
+
+double hybrid_capture_length(const Vector2 &start, const Vector2 &target,
+		const std::vector<std::vector<Vector2>> &polygons) {
+	const auto result = captured_hybrid_solve(start, target, polygons);
+	capture_hybrid_fallback(start, target, polygons, result);
+	return result.lower_bound;
+}
 
 struct BoundCall {
 	vector<vector<Vector2>> polygons;
@@ -3431,6 +3513,12 @@ std::optional<double> parse_seconds_arg(const char *text) {
 }
 
 bool set_solver(BenchmarkOptions &options, const std::string &name) {
+	if (name == "hybrid_capture") {
+		options.solver_name = "hybrid_capture";
+		options.solver = hybrid_capture_path;
+		options.length_solver = hybrid_capture_length;
+		return true;
+	}
 	if (name == "hybrid_safe" || name == "safe") {
 		options.solver_name = "hybrid_safe";
 		options.solver = tpp::tpp_convex_solve_hybrid_safe;
@@ -3645,6 +3733,16 @@ int main(int argc, char **argv) {
 			print_usage(argv[0]);
 			return 2;
 		}
+	}
+	if (options.solver_name == "hybrid_capture") {
+		const char *path = std::getenv("TPP_HYBRID_FALLBACK_CORPUS");
+		if (path == nullptr || *path == '\0') {
+			std::println(stderr, "TPP_BENCH_SOLVER=hybrid_capture requires TPP_HYBRID_FALLBACK_CORPUS");
+			return 2;
+		}
+		std::ofstream(path, std::ios::binary | std::ios::trunc);
+		std::ofstream metadata(std::string(path) + ".csv", std::ios::trunc);
+		metadata << "index,reason,disjoint,polygons,rational_lower,rational_upper,double_candidate,double_candidate_length,double_dual_lower,double_candidate_upper,double_exact_feasible,double_max_membership_violation\n";
 	}
 
 	const auto program_start_time = std::chrono::steady_clock::now();
@@ -4073,7 +4171,8 @@ int main(int argc, char **argv) {
 	print_top("By Refinement Extra Prunes", [](const InstanceRecord &r) { return r.refinement_extra_prunes; }, "Extra Prunes", true);
 	print_top("By Contact Extra Prunes", [](const InstanceRecord &r) { return r.contact_extra_prunes; }, "Extra Prunes", true);
 	print_top("By Initial Gap", [](const InstanceRecord &r) { return initial_gap_percent(r); }, "Gap %", false);
-	if (options.solver_name == "hybrid_safe" || options.solver_name == "hybrid_unchecked") {
+	if (options.solver_name == "hybrid_safe" || options.solver_name == "hybrid_unchecked" ||
+		options.solver_name == "hybrid_capture") {
 		const auto h=tpp::convex_hybrid_aggregate();
 		emit("");emit("## Hybrid Oracle Counters");emit("");emit("| Metric | Value |");emit("|---|---:|");
 		emitf("| Total calls | {} |",h.total_calls);

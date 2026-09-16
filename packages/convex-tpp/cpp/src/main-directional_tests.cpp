@@ -92,7 +92,13 @@ Polygon verify(const TestCase &c,const std::string &name,bool oracle=false) {
 void verify_hybrid(const TestCase &c,const std::string &name,bool shadow=true) {
     try {
         tpp::ConvexHybridOptions options;options.shadow_rational=shadow;
+        options.retain_rejected_double_candidate=true;
         const auto hybrid=tpp::tpp_convex_solve_hybrid(c.start,c.target,c.polygons,options);
+        if(hybrid.stats.disjoint && hybrid.stats.rational_fallback &&
+           std::getenv("TPP_DEBUG_DISJOINT_FALLBACK")) {
+            std::cout<<"DISJOINT_FALLBACK "<<name<<" reason="
+                     <<tpp::to_string(hybrid.fallback_reason)<<'\n';describe(c);
+        }
         hybrid_fast+=hybrid.stats.double_certified&&!hybrid.stats.rational_fallback;
         hybrid_fallback+=hybrid.stats.rational_fallback;
         hybrid_shadow_mismatch+=hybrid.fallback_reason==tpp::ConvexFallbackReason::ShadowMismatch;
@@ -105,6 +111,14 @@ void verify_hybrid(const TestCase &c,const std::string &name,bool shadow=true) {
         check(tpp::validate_ordered_path(c.start,c.target,c.polygons,displayed).valid,
               name+" hybrid reconstructed visits");
         check(hybrid.lower_bound<=hybrid.upper_bound,name+" hybrid bounds ordered");
+        if(!hybrid.rejected_double_contacts.empty()) {
+            check(hybrid.rejected_double_lower_bound<=hybrid.upper_bound,
+                  name+" rejected-candidate dual bound safe");
+            check(hybrid.lower_bound<=hybrid.rejected_double_upper_bound,
+                  name+" rejected-candidate upper bound safe");
+            check(hybrid.rejected_double_lower_bound<=hybrid.rejected_double_upper_bound,
+                  name+" rejected-candidate bounds ordered");
+        }
     } catch(const std::exception &e) {check(false,name+" hybrid exception: "+e.what());}
 }
 
@@ -205,6 +219,10 @@ void adversarial_disjoint() {
     for(const auto &[name,c]:cases) {
         tpp::ConvexHybridOptions options;options.shadow_rational=true;
         const auto hybrid=tpp::tpp_convex_solve_hybrid(c.start,c.target,c.polygons,options);
+        if(hybrid.stats.rational_fallback && std::getenv("TPP_DEBUG_DISJOINT_FALLBACK")) {
+            std::cout<<"DISJOINT_FALLBACK "<<name<<" reason="
+                     <<tpp::to_string(hybrid.fallback_reason)<<'\n';describe(c);
+        }
         check(hybrid.stats.disjoint,name+" classified disjoint");
         check(hybrid.fallback_reason!=tpp::ConvexFallbackReason::ShadowMismatch,
               name+" rational shadow agreement");
@@ -344,10 +362,15 @@ int main(int argc,char **argv) {
     for(const auto &directory:corpora)corpus(directory);
     const auto aggregate=tpp::convex_hybrid_aggregate();
     std::cout<<"Checks="<<checks<<", failures="<<failures<<", unresolved="<<unresolved
+             <<", hybrid_total_calls="<<aggregate.total_calls
+             <<", hybrid_disjoint_calls="<<aggregate.disjoint_calls
+             <<", certified_double_disjoint_calls="<<aggregate.certified_double_disjoint_calls
              <<", hybrid_fast="<<hybrid_fast<<", hybrid_fallback="<<hybrid_fallback
              <<", hybrid_shadow_mismatch="<<hybrid_shadow_mismatch
              <<", rational_disjoint_directional_recoveries="
              <<aggregate.rational_disjoint_directional_recoveries
+             <<", rational_disjoint_fallbacks="<<aggregate.rational_disjoint_fallbacks
+             <<", rational_intersection_fallbacks="<<aggregate.rational_intersection_fallbacks
              <<", reasons(locator/contact/membership/local/zero)="
              <<aggregate.fallback_reasons[size_t(tpp::ConvexFallbackReason::LocatorOrRefoldingException)]<<'/'
              <<aggregate.fallback_reasons[size_t(tpp::ConvexFallbackReason::ContactConstruction)]<<'/'

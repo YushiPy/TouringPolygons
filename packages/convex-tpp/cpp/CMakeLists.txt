@@ -48,7 +48,7 @@ target_compile_options(tpp_convex PRIVATE -O3)
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/${TARGET}.cpp")
     add_executable(${PROJECT_NAME} src/${TARGET}.cpp)
-    target_link_libraries(${PROJECT_NAME} PRIVATE tpp_convex)
+    target_link_libraries(${PROJECT_NAME} PRIVATE tpp_convex Boost::headers)
     target_compile_options(${PROJECT_NAME} PRIVATE -O3)
 endif()
 
@@ -70,7 +70,7 @@ if(TPP_ENABLE_GUROBI)
         message(FATAL_ERROR "GUROBI_HOME not set")
     endif()
 
-    target_include_directories(tpp_convex PRIVATE ${GUROBI_HOME}/include)
+    target_include_directories(tpp_convex PUBLIC ${GUROBI_HOME}/include)
     target_link_directories(tpp_convex PRIVATE ${GUROBI_HOME}/lib)
 
     file(GLOB GUROBI_LIB "${GUROBI_HOME}/lib/libgurobi[0-9]*.dylib")

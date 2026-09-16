@@ -27,6 +27,9 @@ struct ConvexHybridOptions {
     // Callers requesting only a diagnostic length may skip final contact
     // reconstruction. Safe mode always materializes contacts for certification.
     bool materialize_contacts = true;
+    // Diagnostic only: preserve a fully materialized double candidate when
+    // certification rejects it and safe mode replaces it with rational output.
+    bool retain_rejected_double_candidate = false;
 };
 
 struct ConvexHybridStats {
@@ -49,6 +52,14 @@ struct ConvexHybridResult {
     // Exactly one contact per input polygon. Endpoints are never included
     // implicitly and duplicate contacts are retained.
     std::vector<Vector2> contacts;
+    std::vector<Vector2> rejected_double_contacts;
+    // Diagnostic certified bounds for the internally exact-replayed candidate.
+    // The lower bound is a feasible convex-dual value; the upper bound is its
+    // outward-rounded path length.  exact_feasible describes the exported
+    // binary64 contacts, whose boundary rounding can differ from the replay.
+    double rejected_double_lower_bound = 0;
+    double rejected_double_upper_bound = 0;
+    bool rejected_double_exact_feasible = false;
     double lower_bound = 0;
     double upper_bound = 0;
     ConvexHybridBackend backend = ConvexHybridBackend::DoubleDisjoint;
