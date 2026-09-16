@@ -24,6 +24,9 @@ enum class ConvexFallbackReason {
 struct ConvexHybridOptions {
     ConvexHybridMode mode = ConvexHybridMode::SafeCertified;
     bool shadow_rational = false;
+    // Callers requesting only a diagnostic length may skip final contact
+    // reconstruction. Safe mode always materializes contacts for certification.
+    bool materialize_contacts = true;
 };
 
 struct ConvexHybridStats {
@@ -31,7 +34,9 @@ struct ConvexHybridStats {
     bool double_attempted = false;
     bool double_certified = false;
     bool rational_fallback = false;
+    bool rational_disjoint_directional_recovery = false;
     std::size_t predicate_exact_evaluations = 0;
+    std::size_t zero_link_witnesses = 0;
     double dispatch_seconds = 0;
     double double_solver_seconds = 0;
     double contact_materialization_seconds = 0;
@@ -57,9 +62,11 @@ struct ConvexHybridAggregate {
     std::size_t certified_double_disjoint_calls = 0;
     std::size_t certified_double_intersection_calls = 0;
     std::size_t rational_disjoint_fallbacks = 0;
+    std::size_t rational_disjoint_directional_recoveries = 0;
     std::size_t rational_intersection_fallbacks = 0;
     std::array<std::size_t,8> fallback_reasons{};
     std::size_t predicate_exact_evaluations = 0;
+    std::size_t zero_link_witnesses = 0;
     double dispatch_seconds = 0;
     double double_solver_seconds = 0;
     double contact_materialization_seconds = 0;

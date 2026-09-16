@@ -4081,10 +4081,12 @@ int main(int argc, char **argv) {
 		emitf("| Certified double disjoint | {} |",h.certified_double_disjoint_calls);
 		emitf("| Certified double intersection | {} |",h.certified_double_intersection_calls);
 		emitf("| Rational disjoint fallbacks | {} |",h.rational_disjoint_fallbacks);
+		emitf("| Rational disjoint directional recoveries | {} |",h.rational_disjoint_directional_recoveries);
 		emitf("| Rational intersection fallbacks | {} |",h.rational_intersection_fallbacks);
 		for(size_t i=1;i<h.fallback_reasons.size();++i)
 			emitf("| Fallback reason {} | {} |",tpp::to_string(static_cast<tpp::ConvexFallbackReason>(i)),h.fallback_reasons[i]);
 		emitf("| Exact predicate evaluations | {} |",h.predicate_exact_evaluations);
+		emitf("| Rigorous zero-link witnesses | {} |",h.zero_link_witnesses);
 		emitf("| Dispatch seconds | {:.6f} |",h.dispatch_seconds);
 		emitf("| Double solver seconds | {:.6f} |",h.double_solver_seconds);
 		emitf("| Contact materialization seconds | {:.6f} |",h.contact_materialization_seconds);

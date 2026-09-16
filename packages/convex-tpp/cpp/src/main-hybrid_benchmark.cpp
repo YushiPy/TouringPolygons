@@ -1,6 +1,7 @@
 #include "tests.h"
 #include "tpp_convex.h"
 #include "tpp/convex/detail/intersecting_maps.h"
+#include "tpp/convex/detail/rational_disjoint.h"
 
 #include <chrono>
 #include <iomanip>
@@ -32,11 +33,17 @@ int main(int argc,char **argv) {
     show("unchecked_hybrid",[&]{return tpp::tpp_convex_solve_length_hybrid_unchecked(start,target,polygons);});
     show("safe_hybrid",[&]{return tpp::tpp_convex_solve_length_hybrid_safe(start,target,polygons);});
     show("rational_directional_length",[&]{return tpp::detail::length_intersecting_maps(start,target,polygons);});
+    show("rational_disjoint_length",[&]{return tpp::detail::length_disjoint_maps(start,target,polygons);});
+    show("rational_established_disjoint",[&]{return tpp::detail::solve_rational_disjoint(
+        start,target,polygons).lower_bound;});
     show("rational_contacts",[&]{return length(tpp::reconstruct_convex_polyline(start,target,
         tpp::detail::solve_intersecting_map_contacts(start,target,polygons,true)));});
+    show("rational_disjoint_contacts",[&]{return length(tpp::reconstruct_convex_polyline(start,target,
+        tpp::detail::solve_disjoint_map_contacts(start,target,polygons)));});
     const auto h=tpp::convex_hybrid_aggregate();
     std::cout<<"hybrid_calls="<<h.total_calls<<" fast_disjoint="<<h.certified_double_disjoint_calls
              <<" rational_disjoint="<<h.rational_disjoint_fallbacks
+             <<" directional_recoveries="<<h.rational_disjoint_directional_recoveries
              <<" dispatch_us="<<1e6*h.dispatch_seconds/h.total_calls
              <<" double_us="<<1e6*h.double_solver_seconds/h.total_calls
              <<" contacts_us="<<1e6*h.contact_materialization_seconds/h.total_calls

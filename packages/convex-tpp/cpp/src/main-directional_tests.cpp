@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -95,6 +96,10 @@ void verify_hybrid(const TestCase &c,const std::string &name,bool shadow=true) {
         hybrid_fast+=hybrid.stats.double_certified&&!hybrid.stats.rational_fallback;
         hybrid_fallback+=hybrid.stats.rational_fallback;
         hybrid_shadow_mismatch+=hybrid.fallback_reason==tpp::ConvexFallbackReason::ShadowMismatch;
+        if(hybrid.fallback_reason==tpp::ConvexFallbackReason::ContactConstruction&&
+           std::getenv("TPP_DEBUG_CONTACT_FALLBACK")) {
+            std::cout<<"CONTACT_FALLBACK "<<name<<'\n';describe(c);
+        }
         check(hybrid.contacts.size()==c.polygons.size(),name+" hybrid exact-k contacts");
         const auto displayed=tpp::reconstruct_convex_polyline(c.start,c.target,hybrid.contacts);
         check(tpp::validate_ordered_path(c.start,c.target,c.polygons,displayed).valid,
@@ -133,6 +138,13 @@ void deterministic() {
         verify_hybrid(c,name);
         try {
             const auto hybrid=tpp::tpp_convex_solve_hybrid(c.start,c.target,c.polygons);
+            if(name=="identical polygons")
+                check(hybrid.contacts.size()==2 && hybrid.contacts[0]==hybrid.contacts[1],
+                      name+" preserves duplicate contacts");
+            if(name=="three polygons common point")
+                check(hybrid.contacts.size()==3 && hybrid.contacts[0]==hybrid.contacts[1]
+                      && hybrid.contacts[1]==hybrid.contacts[2],
+                      name+" preserves all common-point contacts");
             if(name=="floating feasible suboptimal") {
                 check(hybrid.stats.rational_fallback,name+" rejects double candidate");
                 check(hybrid.backend==tpp::ConvexHybridBackend::RationalIntersection,
@@ -175,6 +187,33 @@ void deterministic() {
             tpp::tpp_convex_solve_binary_search_eager(c.start,c.target,c.polygons,fixed.view(),output);
             check(equivalent(),name+" fixed eager workspace");
         }
+    }
+}
+
+void adversarial_disjoint() {
+    std::vector<std::pair<std::string,TestCase>> cases={
+        {"disjoint exit contact",{{-3,0},{3,0},{box(-1,-1,1,1)}, {}}},
+        {"disjoint tiny scale",{{-3e-9,0},{3e-9,0},
+            {box(-2e-9,-1e-12,-1e-9,1e-12),box(1e-9,-1e-12,2e-9,1e-12)}, {}}},
+        {"disjoint huge scale",{{-3e12,0},{3e12,0},
+            {box(-2e12,-1,-1e12,1),box(1e12,-1,2e12,1)}, {}}},
+        {"disjoint near tangency",{{-4,-2},{4,-2},
+            {box(-2,0,0,2),box(std::nextafter(0.,1.),2,2,4)}, {}}},
+        {"disjoint near collinear",{{-4,-1e-13},{4,-1e-13},
+            {box(-3,0,-2,1e-14),box(-1,2e-14,0,3e-14),box(1,4e-14,2,5e-14)}, {}}}
+    };
+    for(const auto &[name,c]:cases) {
+        tpp::ConvexHybridOptions options;options.shadow_rational=true;
+        const auto hybrid=tpp::tpp_convex_solve_hybrid(c.start,c.target,c.polygons,options);
+        check(hybrid.stats.disjoint,name+" classified disjoint");
+        check(hybrid.fallback_reason!=tpp::ConvexFallbackReason::ShadowMismatch,
+              name+" rational shadow agreement");
+        check(hybrid.contacts.size()==c.polygons.size(),name+" exact-k contacts");
+        check(tpp::validate_ordered_path(c.start,c.target,c.polygons,
+              tpp::reconstruct_convex_polyline(c.start,c.target,hybrid.contacts)).valid,
+              name+" ordered visits");
+        if(name=="disjoint exit contact")
+            check(hybrid.contacts[0]==Vector2{1,0},name+" uses last/exit point");
     }
 }
 
@@ -301,10 +340,19 @@ int main(int argc,char **argv) {
         else if(arg=="--corpus"&&i+1<argc)corpora.push_back(argv[++i]);
         else throw std::invalid_argument("Unknown argument: "+arg);
     }
-    deterministic();continuity();random_boxes(random_count);random_convex(convex_count);
+    deterministic();adversarial_disjoint();continuity();random_boxes(random_count);random_convex(convex_count);
     for(const auto &directory:corpora)corpus(directory);
+    const auto aggregate=tpp::convex_hybrid_aggregate();
     std::cout<<"Checks="<<checks<<", failures="<<failures<<", unresolved="<<unresolved
              <<", hybrid_fast="<<hybrid_fast<<", hybrid_fallback="<<hybrid_fallback
-             <<", hybrid_shadow_mismatch="<<hybrid_shadow_mismatch<<std::endl;
+             <<", hybrid_shadow_mismatch="<<hybrid_shadow_mismatch
+             <<", rational_disjoint_directional_recoveries="
+             <<aggregate.rational_disjoint_directional_recoveries
+             <<", reasons(locator/contact/membership/local/zero)="
+             <<aggregate.fallback_reasons[size_t(tpp::ConvexFallbackReason::LocatorOrRefoldingException)]<<'/'
+             <<aggregate.fallback_reasons[size_t(tpp::ConvexFallbackReason::ContactConstruction)]<<'/'
+             <<aggregate.fallback_reasons[size_t(tpp::ConvexFallbackReason::MembershipOrOrdering)]<<'/'
+             <<aggregate.fallback_reasons[size_t(tpp::ConvexFallbackReason::LocalOptimality)]<<'/'
+             <<aggregate.fallback_reasons[size_t(tpp::ConvexFallbackReason::CoincidentContact)]<<std::endl;
     return failures?1:0;
 }

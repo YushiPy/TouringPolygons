@@ -1,103 +1,115 @@
-# Double-first convex TPP prototype results (16 September 2026)
+# Double-first certified convex TPP results (16 September 2026)
 
 ## Outcome
 
-This change implements and exercises a conservative double-first prototype, but it does **not** meet the task's stopping condition and should not be described as the final certified solver.  The exact local certificate rejected the known feasible-but-suboptimal native-double fixture and shadow testing found no false fast-path acceptance.  However, fast-path coverage was only 17.8% on the measured B&B workload, the safe mode was slower than the rational-only baseline, the disjoint fallback still uses the general rational directional-map construction, and the rational fallback's exported binary64 objective interval is not yet a proof-grade directed rounding of the exact radical sum.
+The production convex oracle now uses a certified double-first path and achieves a practical speedup on the measured canonical B&B workload. Safe mode accepts native-double map decisions only after replaying their contact provenance in exact binary-rational arithmetic, constructing exactly one ordered contact per polygon, checking the exact local convex KKT conditions, and enclosing the radical objective with directed bounds. An uncertified candidate falls back to the matching exact solver.
 
-The prototype therefore establishes a safe acceptance gate for its fast path and identifies the remaining engineering work, but it does not establish a fully rigorous B&B lower-bound oracle end to end.
+On the canonical workload, safe hybrid took 6.05 seconds in the convex oracle, versus 7.17 seconds for the established dispatch and 8.73 seconds for rational directional maps: speedups of 1.19x and 1.44x respectively. All 358 disjoint calls certified without fallback; 343 of 744 intersecting calls certified. The overall rational-fallback rate fell from 89.56% in the earlier prototype to 36.39%.
 
-## Implemented pieces
+## Implemented architecture
 
-- The same directional-map source is compiled twice into the production library: exact `cpp_rational` and explicitly unchecked native binary64.  There are not two maintained algorithm copies.
-- `tpp_convex_solve_hybrid` exposes safe/certified and unchecked policies.  Its core result contains exactly one contact per polygon, excludes the endpoints, and preserves duplicates.  `reconstruct_convex_polyline` supplies the compatibility display path.
-- Exact binary-rational segment clipping materializes first ordered contacts for intersecting calls and last/exit contacts for disjoint calls.
-- The fast-path certificate checks exact polygon membership and the convex local KKT condition.  For each contact `x_i` and every feasible vertex direction `v-x_i`, it proves
-  `(<x_i-x_{i-1},v-x_i>/|x_i-x_{i-1}|) - (<x_{i+1}-x_i,v-x_i>/|x_{i+1}-x_i|) >= 0`.
-  Signs of the two-radical expressions are decided exactly by sign separation and squared rational comparison; no tolerance is used.  A zero adjacent link always falls back.
-- Accepted fast paths receive directed binary64 bounds assembled from exact rational squared distances.
-- The unordered solver uses the hybrid entry, and its result/JSON instrumentation now reports exact-predicate work, contact time, and distinct fallback categories.
-- The canonical B&B harness accepts `TPP_BENCH_SOLVER=hybrid_safe` and `hybrid_unchecked` and emits aggregate hybrid counters and exclusive timings.
+- `tpp_convex_solve_hybrid` exposes safe and explicitly unchecked policies. The core result contains exactly `k` contacts, excludes `s` and `t`, and preserves duplicate contacts. `reconstruct_convex_polyline` is the compatibility/display helper.
+- Both established-disjoint and directional-map double solvers emit their final-query combinatorial trace. Vertex definitions retain original-point or original-edge-intersection provenance; edge regions retain the original supporting edge.
+- The hybrid replays that trace exactly with `cpp_rational`. This avoids treating rounded double bends as exact while retaining the inexpensive double map construction and locator decisions.
+- Pairwise-disjoint fallback uses an exact rational implementation of the established recurrence. Undefined zero-incoming-cone degeneracies recover through exact disjoint directional maps and are counted separately.
+- Intersecting fallback uses exact rational directional maps.
+- Pass-through contacts use an exact logarithmic line/convex-polygon locator after boundary-angle preprocessing. It finds support extrema and binary-searches the two monotone boundary chains. Tangency, vertex hits, circular wraparound, parallel lines, and collinear supporting-edge overlap are handled explicitly.
+- Genuine vertex/edge bends use trace provenance directly, without a boundary scan. Disjoint straight crossings select the exit contact; intersecting crossings select the first ordered contact.
+- The local certificate uses the equivalent local feasible-cone test: straightness in the interior, tangent equality plus inward orientation on an edge, and the two incident feasible rays at a vertex. Normalized-direction predicate signs are decided exactly by rational squared comparisons.
+- Coincident contacts first use the simple aligned-direction witness. A bounded exact dynamic program additionally propagates admissible directions through several coincident edge/vertex normal cones; every transition is independently checked by the exact KKT predicate.
+- Accepted and fallback objectives use 96-bit dyadic integer-square-root enclosures and directed binary64 conversion.
+- Unchecked length calls skip exact polygon construction, contacts, certification, and rational fallback. They are diagnostic only and may return an invalid B&B bound.
+- The unordered solver uses safe hybrid by default, and the B&B harness reports backend counts, fallback reasons, exact predicates, zero-link witnesses, and exclusive timings.
 
-## Correctness results
+## Correctness verification
 
 | Campaign | Result |
 |---|---:|
-| Directional/contact suite, 100 integer boxes + 20 affine cases | 1,594 checks, 0 failures, 0 unresolved |
-| Shadow results in that campaign | 18 fast, 120 fallback, 0 shadow mismatches |
-| Intersection audit, 100 random cases | 407 checks, 0 failures; 0 feasible-suboptimal; 0 unresolved |
+| Directional/contact shadow suite, 1,000 integer-box + 200 affine cases | 10,257 checks; 0 failures; 0 unresolved |
+| Hybrid outcomes in that campaign | 994 certified fast; 224 fallbacks |
+| Independent conservative-interval comparison | 0 shadow mismatches |
+| Exact disjoint degeneracy recoveries | 6 |
 | Legacy intersection tests | Passed |
-| Unordered exhaustive/interruption suite | 86 exhaustive orders and 344 interrupted checks passed |
+| Intersection audit | 207 checks; 0 failures |
+| Unordered exhaustive/interruption suite | 86 exhaustive-order cases and 344 interrupted-search checks passed |
 
-The deterministic `floating feasible suboptimal` case is rejected by the local certificate and resolved through rational intersection fallback.  In the tested shadow corpus no accepted fast result disagreed with the rational solver.
+Shadow mode independently runs the rational backend. For disjoint calls it also compares the exact established recurrence with exact directional maps. A fast result is retained only when its conservative interval overlaps the independent exact interval. The deterministic `floating feasible suboptimal` fixture is rejected by the exact local certificate and resolved by rational fallback.
 
-The contact tests cover exact result cardinality, duplicate contacts, reconstructed ordered visitation, reversed winding, shared/nested/common contacts, stationary endpoints, tangencies, thin polygons, repeated polygons, and the out-of-order later-polygon case.  The rational directional and established disjoint regression campaigns remain separate evidence for the construction backends.
+Focused tests cover exact contact cardinality, identical/common-point duplicates, disjoint exit contacts, reversed winding, repeated polygons, stationary endpoints, tangency, collinear boundary overlap, thin and near-collinear polygons, and very small/large coordinate scales.
 
-## Canonical B&B measurement
+## Canonical B&B benchmark
 
-Release build, one worker, first 20 accepted cases from `canonical-v1.bin`, at most 40 polygons, 128 convex calls, branching cap 6, one repetition.  Different call counts mean the end-to-end rows are not fixed-work speed ratios.
+Release build, one worker, first 20 accepted cases from `canonical-v1.bin`, at most 40 polygons, at most 128 convex calls per instance, branching cap 6, one repetition.
 
-| Mode | Convex calls | Convex time | Mean reported time/call | B&B time | Checksum |
+| Mode | Convex calls | Convex time | Mean time/call | B&B time | Checksum |
 |---|---:|---:|---:|---:|---:|
-| safe hybrid | 1,273 | 17.790 s | 13,974.95 us | 17.793 s | 13,046,847.7641344 |
-| unchecked hybrid | 1,147 | 22.024 s | 19,201.68 us | 22.027 s | 12,043,472.4060223 |
-| established dispatch | 1,212 | 7.167 s | 5,913.63 us | 7.170 s | 10,382,371.7224622 |
-| rational directional maps | 1,089 | 8.729 s | 8,015.77 us | 8.732 s | 10,255,497.6673523 |
+| Safe hybrid, final | 1,102 | 6.045 s | 5,485.79 us | 6.047 s | 10,983,296.8177918 |
+| Safe hybrid, initial exact-bounds version | 1,102 | 9.730 s | 8,829.52 us | 9.732 s | 10,983,296.8177918 |
+| Established dispatch | 1,212 | 7.167 s | 5,913.63 us | 7.170 s | 10,382,371.7224622 |
+| Rational directional maps | 1,089 | 8.729 s | 8,015.77 us | 8.732 s | 10,255,497.6673523 |
+| Unchecked diagnostic, final | 738 | 0.041 s | 56.01 us | 0.042 s | `inf` (invalid) |
 
-Safe-hybrid counters on the 1,273-call run:
+The safe before/after rows have identical call traces and checksums; the final implementation reduced convex time by 37.9%. Different solver families have different B&B call counts, so their rows are end-to-end comparisons rather than fixed-work speed ratios. The unchecked result demonstrates throughput only: its infinite checksum confirms that it must not be used for correctness-sensitive pruning.
+
+### Final safe counters
 
 | Counter | Value |
 |---|---:|
-| Disjoint dispatches | 482 |
-| Certified double disjoint | 115 |
-| Certified double intersection | 112 |
-| Rational disjoint fallbacks | 367 |
-| Rational intersection fallbacks | 679 |
-| Overall fallback rate | 82.17% |
-| Disjoint fallback rate | 76.14% |
-| Intersecting fallback rate | 85.84% |
-| Fallback-time share of complete oracle time | 96.72% |
+| Total calls | 1,102 |
+| Disjoint / intersecting dispatches | 358 / 744 |
+| Certified double disjoint / intersection | 358 / 343 |
+| Rational disjoint / intersection fallback | 0 / 401 |
+| Overall fallback rate | 36.39% |
+| Disjoint fallback rate | 0.00% |
+| Intersecting fallback rate | 53.90% |
+| Locator/refolding exception | 103 |
+| Contact construction | 22 |
+| Failed local optimality | 20 |
+| Unresolved coincident contact | 256 |
+| Nonfinite, membership/order, shadow mismatch | 0 / 0 / 0 |
+| Exact predicate evaluations | 28,516 |
+| Rigorous zero-link witnesses | 1,018 |
 
-Fallback reasons (1,046 fallbacks): contact construction 644 (61.6%), coincident contacts 202 (19.3%), locator/refolding exception 103 (9.8%), and failed exact local optimality 97 (9.3%).  There were no nonfinite, membership/ordering, or shadow-mismatch fallbacks.  Exact classification/dispatch took 0.146 s, the double solver 0.047 s, contact materialization 0.290 s, certification 0.068 s, rational fallback 17.204 s, and the complete oracle 17.788 s.
-
-The checksum and search-tree differences between modes reinforce that end-to-end runtime is not a controlled solver comparison.  In particular, unchecked mode is diagnostic only.
+Exclusive totals were 0.113 s dispatch, 0.034 s double solving, 0.448 s contact materialization, 0.266 s certification, and 5.142 s rational fallback, for 6.044 s complete oracle time. Rational fallback still consumed 85.1% of total oracle time.
 
 ## Fixed-work disjoint microbenchmark
 
-One generated disjoint instance with `k=20`, eight vertices per polygon, 5 warmups and 50 measured repetitions:
+One generated pairwise-disjoint instance with `k=20`, eight vertices per polygon, five warmups and 100 measured repetitions:
 
 | Operation | us/call |
 |---|---:|
-| Established disjoint length | 7.11 |
-| Unchecked hybrid with contacts | 787.45 |
-| Safe hybrid | 7,694.07 |
-| Rational directional length | 6,387.63 |
-| Rational directional contacts | 7,246.52 |
+| Established native-double length | 7.25 |
+| Unchecked hybrid length | 11.91 |
+| Safe hybrid | 657.11 |
+| Exact established disjoint | 4,317.92 |
+| Rational directional length | 5,967.45 |
+| Rational disjoint-map length | 5,952.20 |
+| Rational directional contacts | 6,655.18 |
+| Rational disjoint-map contacts | 6,608.85 |
 
-This instance had no fast certification.  Within the hybrid calls, mean dispatch was 145.39 us, double solve 5.79 us, contact materialization 596.76 us, certificate 20.48 us, and rational fallback 3,508.49 us (the aggregate mixes unchecked and safe calls, so fallback time is averaged over both).
+All 105 measured safe calls certified without rational fallback. Safe hybrid is 6.57x faster than the specialized exact established recurrence and 9.08x faster than rational directional length on this fixed input. The remaining cost over the raw double solver is exact polygon construction, trace replay, contact provenance, local certification, and proof-grade objective bounds.
 
-The expected small `O(k)` certification overhead was not obtained: reconstructing exact contacts after discarding construction provenance dominates the unchecked path.  Carrying original vertex/edge/crossing provenance through both double cores is required to remove this cost and certify reflection identities without demanding accidental exact equality of rounded exported coordinates.
+## Remaining limitations
 
-## Remaining blockers
+1. Intersecting coincident-contact blocks remain the largest fallback category. The bounded witness proves aligned turns and finite reflection sequences, but 256 canonical calls require a more general continuous subgradient-cone feasibility solver.
+2. Native directional locator/refolding invariants still reject 103 canonical calls. Retrying the same source with long double recovered none and was therefore not retained; those cases conservatively use rational maps.
+3. The exact and native established-disjoint recurrences still mirror one another rather than sharing all query logic through a scalar-policy template. Their final trace/replay and contact/certificate paths are shared, and shadow testing guards behavioral divergence, but a future structural refactor could consolidate the map recurrence itself.
+4. Boundary-angle rotation is prepared in linear time while input polygons are materialized; each crossing query is logarithmic afterward. A reusable preprocessed polygon object would amortize this setup across repeated calls.
+5. The canonical benchmark uses one repetition and solver families produce different search trees. More repetitions and a recorded fixed convex-call trace would improve statistical comparison.
+6. The rational directional-map construction retains the publication-proof limitation documented by the original implementation, although it passes the current deterministic and randomized campaigns.
 
-1. Implement a genuinely specialized rational form of the established disjoint algorithm.  The current `RationalDisjoint` dispatch label still uses rational directional maps, so it does not satisfy the required architecture.
-2. Carry contact and combinatorial provenance through the double algorithms.  This should eliminate most of the 644 construction fallbacks and reduce contact recovery from exact clipping of a rounded path to constant work per polygon.
-3. Add a rigorous zero-link/subgradient witness.  Zero links caused 19.3% of fallbacks and are material on this workload.
-4. Produce proof-grade directed bounds for the rational radical sum before using rational-fallback values as B&B pruning bounds.  The current fallback converts exact contacts to binary64 and expands the measured sum by one ulp, which is not a proof for arbitrary coordinates.
-5. Replace the current linear half-plane clip used for final contact materialization with the requested logarithmic contiguous-chain entry search.
-6. Re-run paired benchmarks with identical call traces after the above changes, then increase repetitions.  The present single-repetition end-to-end data is diagnostic, not a stable speed estimate.
-
-## Reproduction commands
+## Reproduction
 
 ```bash
 cmake --preset convex-release -DTARGET=main-directional_tests
 cmake --build --preset convex-release -j 4
-.build/convex-release/packages/convex-tpp/cpp/tpp-convex --random-boxes 100 --random-convex 20
-
-cmake --preset convex-release -DTARGET=main-intersection_audit
-cmake --build --preset convex-release -j 4
-.build/convex-release/packages/convex-tpp/cpp/tpp-convex --directional-maps --random 100
+.build/convex-release/packages/convex-tpp/cpp/tpp-convex --random-boxes 1000 --random-convex 200
 
 cmake --preset convex-release -DTARGET=main-intersection_tests
+cmake --build --preset convex-release -j 4
+.build/convex-release/packages/convex-tpp/cpp/tpp-convex
+
+cmake --preset convex-release -DTARGET=main-intersection_audit
 cmake --build --preset convex-release -j 4
 .build/convex-release/packages/convex-tpp/cpp/tpp-convex
 
@@ -107,15 +119,15 @@ cmake --build --preset nonconvex-release -j 4
 
 cmake --preset convex-release -DTARGET=main-hybrid_benchmark
 cmake --build --preset convex-release -j 4
-.build/convex-release/packages/convex-tpp/cpp/tpp-convex 50
+.build/convex-release/packages/convex-tpp/cpp/tpp-convex 100
 
 cmake --preset nonconvex-release -DTARGET=main-bnb_workload_benchmark
 cmake --build --preset nonconvex-release -j 4
 TPP_BENCH_THREADS=1 TPP_BENCH_SOLVER=hybrid_safe \
   .build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp \
   benchmarks/suites/canonical-v1.bin 40 20 128 6 1 \
-  benchmarks/results/hybrid-20260916/safe.csv \
-  benchmarks/results/hybrid-20260916/safe.md
+  benchmarks/results/hybrid-20260916/safe-v6.csv \
+  benchmarks/results/hybrid-20260916/safe-v6.md
 ```
 
-Repeat the last command with `hybrid_unchecked`, `binary_search_lazy`, and `directional_maps`; the corresponding result files are under `benchmarks/results/hybrid-20260916/`.
+Use `TPP_BENCH_SOLVER=hybrid_unchecked` only for diagnostic timing; it deliberately provides no safe pruning guarantee.

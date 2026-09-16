@@ -131,6 +131,35 @@ class SolutionBinarySearchDisjoint : public tpp::Solution {
 
 	public:
 
+	void query_trace(const Vector2 &point,size_t i,vector<tpp::detail::DirectionalTraceStep> &trace) {
+		if(i==0)return;
+		const auto location=locate_point(point,i);
+		tpp::detail::DirectionalTraceStep step;step.level=i;
+		if(location<0) {
+			step.region=tpp::detail::DirectionalTraceRegion::Crossing;
+			trace.push_back(step);query_trace(point,i-1,trace);return;
+		}
+		const auto &polygon=polygons[i-1];const size_t vertex_index=size_t(location)/2;
+		step.original_edge=vertex_index;
+		if(location%2==0) {
+			step.region=tpp::detail::DirectionalTraceRegion::Vertex;
+			step.defining_point=polygon[vertex_index];
+			trace.push_back(step);query_trace(polygon[vertex_index],i-1,trace);return;
+		}
+		step.region=tpp::detail::DirectionalTraceRegion::Edge;trace.push_back(step);
+		query_trace(point.reflect_line(polygon[vertex_index],polygon[(vertex_index+1)%polygon.size()]),i-1,trace);
+	}
+
+	vector<tpp::detail::DirectionalTraceStep> trace(tpp::PreloadPolicy preload) {
+		initialize_storage();
+		if(preload==tpp::PreloadPolicy::Eager)
+			for(size_t i=0;i<polygons.size();++i)for(size_t j=0;j<polygons[i].size();++j)build_cone(i,j);
+		else preload_cones();
+		vector<tpp::detail::DirectionalTraceStep> result;result.reserve(polygons.size());
+		query_trace(target,polygons.size(),result);
+		return result;
+	}
+
 	/*
 	Uses binary search to locate `point` in the visibility map of `polygon[i]`.
 	Returns index as follows:
@@ -197,6 +226,18 @@ class SolutionBinarySearchDisjoint : public tpp::Solution {
 };
 
 namespace tpp {
+	namespace detail {
+		bool pairwise_disjoint_unchecked_double(const std::vector<std::vector<Vector2>> &polygons) {
+			return polygons_are_pairwise_disjoint(polygons);
+		}
+		std::vector<DirectionalTraceStep> solve_binary_search_disjoint_trace_unchecked(
+			const Vector2 &start,const Vector2 &target,const std::vector<std::vector<Vector2>> &polygons,
+			PreloadPolicy preload) {
+			if(auto normalized=normalized_winding(polygons))
+				return solve_binary_search_disjoint_trace_unchecked(start,target,*normalized,preload);
+			return SolutionBinarySearchDisjoint(start,target,polygons).trace(preload);
+		}
+	}
 
 	void tpp_convex_solve_binary_search_lazy(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons, ConvexTppWorkspaceView workspace, std::vector<Vector2>& output) {
 		if (auto normalized = normalized_winding(polygons)) {
@@ -249,6 +290,8 @@ namespace tpp {
 	}
 
 	std::vector<Vector2> tpp_convex_solve_binary_search_disjoint(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		if(auto normalized=normalized_winding(polygons))
+			return tpp_convex_solve_binary_search_disjoint(start,target,*normalized);
 		return SolutionBinarySearchDisjoint(start, target, polygons).solve(PreloadPolicy::Lazy);
 	}
 
@@ -273,6 +316,8 @@ namespace tpp {
 	}
 
 	double tpp_convex_solve_length_binary_search_disjoint(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		if(auto normalized=normalized_winding(polygons))
+			return tpp_convex_solve_length_binary_search_disjoint(start,target,*normalized);
 		return SolutionBinarySearchDisjoint(start, target, polygons).solve_length(PreloadPolicy::Lazy);
 	}
 
