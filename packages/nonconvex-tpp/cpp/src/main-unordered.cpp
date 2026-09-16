@@ -50,6 +50,13 @@ int main(int argc, char **argv) {
 			<< ",\"fallback_calls\":" << r.fallback_calls
 			<< ",\"fallback_geometric_path_invalid_calls\":" << r.fallback_geometric_path_invalid_calls
 			<< ",\"fallback_certificate_gap_calls\":" << r.fallback_certificate_gap_calls
+			<< ",\"fallback_locator_exception_calls\":" << r.fallback_locator_exception_calls
+			<< ",\"fallback_nonfinite_calls\":" << r.fallback_nonfinite_calls
+			<< ",\"fallback_contact_construction_calls\":" << r.fallback_contact_construction_calls
+			<< ",\"fallback_membership_ordering_calls\":" << r.fallback_membership_ordering_calls
+			<< ",\"fallback_local_optimality_calls\":" << r.fallback_local_optimality_calls
+			<< ",\"fallback_coincident_contact_calls\":" << r.fallback_coincident_contact_calls
+			<< ",\"predicate_exact_evaluations\":" << r.predicate_exact_evaluations
 			<< ",\"extended_precision_calls\":" << r.extended_precision_calls
 			<< ",\"oracle_time_limit_calls\":" << r.oracle_time_limit_calls
 			<< ",\"repaired_geometric_path_calls\":" << r.repaired_geometric_path_calls
@@ -63,6 +70,7 @@ int main(int argc, char **argv) {
 			<< ",\"convex_oracle_seconds\":" << r.convex_oracle_seconds
 			<< ",\"convex_geometric_solver_seconds\":" << r.convex_geometric_solver_seconds
 			<< ",\"convex_certificate_verification_seconds\":" << r.convex_certificate_verification_seconds
+			<< ",\"convex_contact_materialization_seconds\":" << r.convex_contact_materialization_seconds
 			<< ",\"convex_fallback_seconds\":" << r.convex_fallback_seconds
 			<< ",\"convex_fallback_long_double_seconds\":" << r.convex_fallback_long_double_seconds
 			<< ",\"convex_fallback_extended_precision_seconds\":" << r.convex_fallback_extended_precision_seconds

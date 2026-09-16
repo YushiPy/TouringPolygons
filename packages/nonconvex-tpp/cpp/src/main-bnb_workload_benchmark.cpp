@@ -3431,6 +3431,18 @@ std::optional<double> parse_seconds_arg(const char *text) {
 }
 
 bool set_solver(BenchmarkOptions &options, const std::string &name) {
+	if (name == "hybrid_safe" || name == "safe") {
+		options.solver_name = "hybrid_safe";
+		options.solver = tpp::tpp_convex_solve_hybrid_safe;
+		options.length_solver = tpp::tpp_convex_solve_length_hybrid_safe;
+		return true;
+	}
+	if (name == "hybrid_unchecked" || name == "unchecked") {
+		options.solver_name = "hybrid_unchecked";
+		options.solver = tpp::tpp_convex_solve_hybrid_unchecked;
+		options.length_solver = tpp::tpp_convex_solve_length_hybrid_unchecked;
+		return true;
+	}
 	if (name == "directional_maps") {
 		options.solver_name = "directional_maps";
 		options.solver = +[](const Vector2 &start, const Vector2 &target,
@@ -3587,6 +3599,7 @@ std::optional<BenchmarkOptions> parse_options(int argc, char **argv) {
 } // namespace
 
 int main(int argc, char **argv) {
+	tpp::reset_convex_hybrid_aggregate();
 
 	const auto parsed_options = parse_options(argc, argv);
 
@@ -4060,6 +4073,25 @@ int main(int argc, char **argv) {
 	print_top("By Refinement Extra Prunes", [](const InstanceRecord &r) { return r.refinement_extra_prunes; }, "Extra Prunes", true);
 	print_top("By Contact Extra Prunes", [](const InstanceRecord &r) { return r.contact_extra_prunes; }, "Extra Prunes", true);
 	print_top("By Initial Gap", [](const InstanceRecord &r) { return initial_gap_percent(r); }, "Gap %", false);
+	if (options.solver_name == "hybrid_safe" || options.solver_name == "hybrid_unchecked") {
+		const auto h=tpp::convex_hybrid_aggregate();
+		emit("");emit("## Hybrid Oracle Counters");emit("");emit("| Metric | Value |");emit("|---|---:|");
+		emitf("| Total calls | {} |",h.total_calls);
+		emitf("| Disjoint dispatches | {} |",h.disjoint_calls);
+		emitf("| Certified double disjoint | {} |",h.certified_double_disjoint_calls);
+		emitf("| Certified double intersection | {} |",h.certified_double_intersection_calls);
+		emitf("| Rational disjoint fallbacks | {} |",h.rational_disjoint_fallbacks);
+		emitf("| Rational intersection fallbacks | {} |",h.rational_intersection_fallbacks);
+		for(size_t i=1;i<h.fallback_reasons.size();++i)
+			emitf("| Fallback reason {} | {} |",tpp::to_string(static_cast<tpp::ConvexFallbackReason>(i)),h.fallback_reasons[i]);
+		emitf("| Exact predicate evaluations | {} |",h.predicate_exact_evaluations);
+		emitf("| Dispatch seconds | {:.6f} |",h.dispatch_seconds);
+		emitf("| Double solver seconds | {:.6f} |",h.double_solver_seconds);
+		emitf("| Contact materialization seconds | {:.6f} |",h.contact_materialization_seconds);
+		emitf("| Certificate seconds | {:.6f} |",h.certificate_seconds);
+		emitf("| Rational fallback seconds | {:.6f} |",h.rational_fallback_seconds);
+		emitf("| Complete oracle seconds | {:.6f} |",h.total_seconds);
+	}
 	emit("Tip: with summary output enabled, render it with `glow summary.md`.");
 
 	const std::string markdown = summary_markdown.str();

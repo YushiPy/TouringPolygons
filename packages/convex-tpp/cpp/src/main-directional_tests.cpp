@@ -1,6 +1,7 @@
 #include "tests.h"
 #include "tpp/convex/certified.h"
 #include "tpp/convex/detail/intersecting_maps.h"
+#include "tpp/convex/hybrid.h"
 #include "tpp_convex.h"
 
 #include <algorithm>
@@ -18,7 +19,7 @@ namespace {
 using Polygon=std::vector<Vector2>;
 using Polygons=std::vector<Polygon>;
 using tpp::TestCase;
-size_t checks=0,failures=0,unresolved=0;
+size_t checks=0,failures=0,unresolved=0,hybrid_fast=0,hybrid_fallback=0,hybrid_shadow_mismatch=0;
 bool public_api=false;
 
 void check(bool condition,const std::string &name) {
@@ -87,6 +88,21 @@ Polygon verify(const TestCase &c,const std::string &name,bool oracle=false) {
     }
 }
 
+void verify_hybrid(const TestCase &c,const std::string &name,bool shadow=true) {
+    try {
+        tpp::ConvexHybridOptions options;options.shadow_rational=shadow;
+        const auto hybrid=tpp::tpp_convex_solve_hybrid(c.start,c.target,c.polygons,options);
+        hybrid_fast+=hybrid.stats.double_certified&&!hybrid.stats.rational_fallback;
+        hybrid_fallback+=hybrid.stats.rational_fallback;
+        hybrid_shadow_mismatch+=hybrid.fallback_reason==tpp::ConvexFallbackReason::ShadowMismatch;
+        check(hybrid.contacts.size()==c.polygons.size(),name+" hybrid exact-k contacts");
+        const auto displayed=tpp::reconstruct_convex_polyline(c.start,c.target,hybrid.contacts);
+        check(tpp::validate_ordered_path(c.start,c.target,c.polygons,displayed).valid,
+              name+" hybrid reconstructed visits");
+        check(hybrid.lower_bound<=hybrid.upper_bound,name+" hybrid bounds ordered");
+    } catch(const std::exception &e) {check(false,name+" hybrid exception: "+e.what());}
+}
+
 void deterministic() {
     const Polygon A=box(-2,-1,-1,1), B=box(1,-1,2,1);
     std::vector<std::pair<std::string,TestCase>> cases={
@@ -114,6 +130,15 @@ void deterministic() {
     };
     for(auto &[name,c]:cases) {
         verify(c,name,name=="floating feasible suboptimal");
+        verify_hybrid(c,name);
+        try {
+            const auto hybrid=tpp::tpp_convex_solve_hybrid(c.start,c.target,c.polygons);
+            if(name=="floating feasible suboptimal") {
+                check(hybrid.stats.rational_fallback,name+" rejects double candidate");
+                check(hybrid.backend==tpp::ConvexHybridBackend::RationalIntersection,
+                      name+" rational intersection fallback");
+            }
+        } catch(const std::exception &e) {check(false,name+" hybrid exception: "+e.what());}
         auto reversed=c;
         for(auto &p:reversed.polygons)std::reverse(p.begin(),p.end());
         verify(reversed,name+" CW");
@@ -220,6 +245,7 @@ void random_boxes(size_t count) {
         }
         if(trial%5==0)c.polygons.push_back(c.polygons.front());
         verify(c,"integer boxes "+std::to_string(trial),true);
+        verify_hybrid(c,"integer boxes "+std::to_string(trial));
     }
 }
 
@@ -246,6 +272,7 @@ void random_convex(size_t count) {
             c.polygons.push_back(std::move(p));
         }
         verify(c,"affine convex "+std::to_string(trial),true);
+        verify_hybrid(c,"affine convex "+std::to_string(trial));
     }
 }
 
@@ -276,6 +303,8 @@ int main(int argc,char **argv) {
     }
     deterministic();continuity();random_boxes(random_count);random_convex(convex_count);
     for(const auto &directory:corpora)corpus(directory);
-    std::cout<<"Checks="<<checks<<", failures="<<failures<<", unresolved="<<unresolved<<std::endl;
+    std::cout<<"Checks="<<checks<<", failures="<<failures<<", unresolved="<<unresolved
+             <<", hybrid_fast="<<hybrid_fast<<", hybrid_fallback="<<hybrid_fallback
+             <<", hybrid_shadow_mismatch="<<hybrid_shadow_mismatch<<std::endl;
     return failures?1:0;
 }

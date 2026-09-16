@@ -173,12 +173,23 @@ namespace tpp {
 			result.fallback_calls += certified.used_fallback;
 			result.fallback_geometric_path_invalid_calls += certified.fallback_geometric_path_invalid;
 			result.fallback_certificate_gap_calls += certified.fallback_certificate_gap;
+			switch (certified.fallback_reason) {
+				case ConvexFallbackReason::LocatorOrRefoldingException: ++result.fallback_locator_exception_calls; break;
+				case ConvexFallbackReason::Nonfinite: ++result.fallback_nonfinite_calls; break;
+				case ConvexFallbackReason::ContactConstruction: ++result.fallback_contact_construction_calls; break;
+				case ConvexFallbackReason::MembershipOrOrdering: ++result.fallback_membership_ordering_calls; break;
+				case ConvexFallbackReason::LocalOptimality: ++result.fallback_local_optimality_calls; break;
+				case ConvexFallbackReason::CoincidentContact: ++result.fallback_coincident_contact_calls; break;
+				default: break;
+			}
+			result.predicate_exact_evaluations += certified.predicate_exact_evaluations;
 			result.extended_precision_calls += certified.used_extended_precision;
 			result.oracle_time_limit_calls += certified.time_limited;
 			result.repaired_geometric_path_calls += certified.repaired_geometric_path;
 			result.convex_oracle_seconds += certified.seconds;
 			result.convex_geometric_solver_seconds += certified.geometric_solver_seconds;
 			result.convex_certificate_verification_seconds += certified.certificate_verification_seconds;
+			result.convex_contact_materialization_seconds += certified.contact_materialization_seconds;
 			result.convex_fallback_seconds += certified.fallback_seconds;
 			result.convex_fallback_long_double_seconds += certified.fallback_long_double_seconds;
 			result.convex_fallback_extended_precision_seconds += certified.fallback_extended_precision_seconds;

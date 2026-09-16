@@ -1,5 +1,6 @@
 #pragma once
 #include "tpp/convex/solver.h"
+#include "tpp/convex/hybrid.h"
 #include <limits>
 
 namespace tpp {
@@ -13,6 +14,9 @@ namespace tpp {
 		bool used_extended_precision = false;
 		bool repaired_geometric_path = false;
 		bool time_limited = false;
+		ConvexFallbackReason fallback_reason = ConvexFallbackReason::None;
+		size_t predicate_exact_evaluations = 0;
+		double contact_materialization_seconds = 0;
 		double seconds = 0;
 		double geometric_solver_seconds = 0;
 		double certificate_verification_seconds = 0;

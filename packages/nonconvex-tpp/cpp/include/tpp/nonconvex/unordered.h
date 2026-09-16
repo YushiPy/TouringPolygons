@@ -37,6 +37,13 @@ namespace tpp {
 		size_t fallback_calls = 0;
 		size_t fallback_geometric_path_invalid_calls = 0;
 		size_t fallback_certificate_gap_calls = 0;
+		size_t fallback_locator_exception_calls = 0;
+		size_t fallback_nonfinite_calls = 0;
+		size_t fallback_contact_construction_calls = 0;
+		size_t fallback_membership_ordering_calls = 0;
+		size_t fallback_local_optimality_calls = 0;
+		size_t fallback_coincident_contact_calls = 0;
+		size_t predicate_exact_evaluations = 0;
 		size_t extended_precision_calls = 0;
 		size_t oracle_time_limit_calls = 0;
 		size_t repaired_geometric_path_calls = 0;
@@ -51,6 +58,7 @@ namespace tpp {
 		double convex_oracle_seconds = 0.0;
 		double convex_geometric_solver_seconds = 0.0;
 		double convex_certificate_verification_seconds = 0.0;
+		double convex_contact_materialization_seconds = 0.0;
 		double convex_fallback_seconds = 0.0;
 		double convex_fallback_long_double_seconds = 0.0;
 		double convex_fallback_extended_precision_seconds = 0.0;

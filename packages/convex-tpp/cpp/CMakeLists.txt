@@ -32,7 +32,15 @@ endif()
 
 find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(Boost REQUIRED CONFIG)
+add_library(tpp_directional_double OBJECT src/solvers/intersecting_maps.cpp)
+target_compile_definitions(tpp_directional_double PRIVATE
+    TPP_EXPERIMENT_NATIVE_DOUBLE=1
+    TPP_DIRECTIONAL_DOUBLE_VARIANT=1)
+target_include_directories(tpp_directional_double PRIVATE include)
+target_link_libraries(tpp_directional_double PRIVATE Boost::headers tpp_geometry)
+target_compile_options(tpp_directional_double PRIVATE -O3)
 add_library(tpp_convex STATIC ${TPP_CONVEX_SOURCES})
+target_sources(tpp_convex PRIVATE $<TARGET_OBJECTS:tpp_directional_double>)
 target_link_libraries(tpp_convex PRIVATE Eigen3::Eigen Boost::headers)
 target_include_directories(tpp_convex PUBLIC include)
 target_link_libraries(tpp_convex PUBLIC tpp_geometry)

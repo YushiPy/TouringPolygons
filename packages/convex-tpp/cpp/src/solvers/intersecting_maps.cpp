@@ -369,11 +369,64 @@ public:
         for(const auto &p:compact) result.push_back(p.external());
         return result;
     }
+    std::vector<Vector2> contacts(bool use_last_contact) {
+        std::vector<Point> path;
+        query_path(target,maps.size(),path);
+        std::vector<Vector2> result;
+        result.reserve(maps.size());
+        if(path.empty()) throw std::runtime_error("Directional map returned an empty path");
+        size_t segment=path.size()==1 ? 0 : 1;
+        Scalar rate=0;
+        for(size_t i=0;i<maps.size();++i) {
+            bool found=false;
+            if(path.size()==1) {
+                if(!inside({path.front(),{}},maps[i].original))
+                    throw std::runtime_error("Stationary path misses polygon "+std::to_string(i));
+                result.push_back(path.front().external());
+                continue;
+            }
+            while(segment<path.size()) {
+                const Point a=path[segment-1], direction=path[segment]-a;
+                Scalar lo=rate,hi=1;
+                for(size_t j=0;j<maps[i].original.size();++j) {
+                    const Point v=maps[i].original[j];
+                    const Point edge=maps[i].original[(j+1)%maps[i].original.size()]-v;
+                    const Scalar constant=edge.cross(a-v),slope=edge.cross(direction);
+                    if(slope>0) {const Scalar crossing=-constant/slope;if(crossing>lo)lo=crossing;}
+                    else if(slope<0) {const Scalar crossing=-constant/slope;if(crossing<hi)hi=crossing;}
+                    else if(constant<0) {hi=-1;break;}
+                }
+                if(lo<=hi && hi>=rate && lo<=1) {
+                    rate=use_last_contact ? std::min(hi,Scalar(1)) : std::max(lo,rate);
+                    result.push_back((a+direction*rate).external());
+                    found=true;
+                    break;
+                }
+                ++segment;rate=0;
+            }
+            if(!found) throw std::runtime_error("Could not materialize ordered contact "+std::to_string(i));
+        }
+        return result;
+    }
     double length() { return double(query_length(target,maps.size())); }
 };
 
 }
 
+#ifdef TPP_DIRECTIONAL_DOUBLE_VARIANT
+std::vector<Vector2> solve_intersecting_maps_unchecked_double(const Vector2 &start,const Vector2 &target,
+        const std::vector<std::vector<Vector2>> &polygons,PreloadPolicy preload) {
+    return DirectionalMaps(start,target,polygons,preload).solve();
+}
+double length_intersecting_maps_unchecked_double(const Vector2 &start,const Vector2 &target,
+        const std::vector<std::vector<Vector2>> &polygons,PreloadPolicy preload) {
+    return DirectionalMaps(start,target,polygons,preload).length();
+}
+std::vector<Vector2> solve_intersecting_map_contacts_unchecked_double(const Vector2 &start,const Vector2 &target,
+        const std::vector<std::vector<Vector2>> &polygons,bool use_last_contact,PreloadPolicy preload) {
+    return DirectionalMaps(start,target,polygons,preload).contacts(use_last_contact);
+}
+#else
 std::vector<Vector2> solve_intersecting_maps(const Vector2 &start,const Vector2 &target,
         const std::vector<std::vector<Vector2>> &polygons,PreloadPolicy preload) {
     return DirectionalMaps(start,target,polygons,preload).solve();
@@ -382,5 +435,10 @@ double length_intersecting_maps(const Vector2 &start,const Vector2 &target,
         const std::vector<std::vector<Vector2>> &polygons,PreloadPolicy preload) {
     return DirectionalMaps(start,target,polygons,preload).length();
 }
+std::vector<Vector2> solve_intersecting_map_contacts(const Vector2 &start,const Vector2 &target,
+        const std::vector<std::vector<Vector2>> &polygons,bool use_last_contact,PreloadPolicy preload) {
+    return DirectionalMaps(start,target,polygons,preload).contacts(use_last_contact);
+}
+#endif
 
 }
