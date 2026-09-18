@@ -601,6 +601,7 @@ function initialize() {
 	}
 	if (element("references-dialog")) initializeReferences();
 	initializeDisclosures();
+	initializeGuide();
 	if (element("toc-handle")) initializeContents();
 }
 
@@ -823,6 +824,105 @@ function initializeDisclosures() {
 		});
 		reduced.addEventListener("change", () => { animation?.cancel(); finish(); });
 	});
+}
+
+function initializeGuide() {
+	const copy = {
+		resultados: ["03", "Resultados práticos", "O que os 558 casos mostram na prática."],
+		metodo: ["04", "O algoritmo", "As ideias geométricas por trás da busca."],
+		pesquisa: ["05", "O problema e a pesquisa", "O que está sendo resolvido e por quê."],
+	};
+	const ids = ["desafio", "historia", "resultados", "metodo", "pesquisa", "contato"];
+	const nodes = new Map();
+	for (const id of ids) {
+		let node = element(id);
+		if (id === "pesquisa" && !node) node = document.querySelector(".research-section");
+		if (!node) continue;
+		if (!node.id) node.id = id;
+		node.dataset.guideSection = id;
+		if (node.matches("section")) {
+			node.classList.add("guided-section");
+			const [number, title, subtitle] = copy[id] || ["", id, ""];
+			const toggle = document.createElement("button");
+			toggle.type = "button";
+			toggle.className = "guided-summary guided-toggle";
+			toggle.dataset.guideToggle = id;
+			toggle.innerHTML = `<span><b>${number}</b><strong>${title}</strong><small>${subtitle}</small></span><em data-guide-status="${id}">Ainda não visitada</em>`;
+			const panel = document.createElement("div");
+			panel.className = "guided-panel";
+			while (node.firstChild) panel.append(node.firstChild);
+			node.append(toggle, panel);
+			panel.hidden = true;
+			toggle.setAttribute("aria-expanded", "false");
+		}
+		nodes.set(id, node);
+	}
+	if (!nodes.size) return;
+	const storageKey = "tpp-siicusp34-visited-sections";
+	let visited = new Set();
+	try {
+		visited = new Set(JSON.parse(localStorage.getItem(storageKey) || "[]").filter((id) => nodes.has(id)));
+	} catch {
+		visited = new Set();
+	}
+	const statusText = (id) => visited.has(id) ? "Visitada" : "Ainda não visitada";
+	function update(id) {
+		const node = nodes.get(id);
+		if (!node) return;
+		const isOpen = node.matches("details") ? node.open : !node.querySelector(":scope > .guided-panel")?.hidden;
+		node.classList.toggle("is-open", isOpen);
+		node.classList.toggle("is-visited", visited.has(id));
+		document.querySelectorAll(`[data-guide-status="${id}"]`).forEach((status) => { status.textContent = statusText(id); });
+		document.querySelectorAll(`[data-guide-target="${id}"]`).forEach((link) => link.classList.toggle("is-visited", visited.has(id)));
+		const toggle = node.querySelector(":scope > .guided-toggle");
+		if (toggle) toggle.setAttribute("aria-expanded", String(isOpen));
+	}
+	function markVisited(id) {
+		if (!nodes.has(id)) return;
+		visited.add(id);
+		try { localStorage.setItem(storageKey, JSON.stringify([...visited])); } catch { /* Private browsing can reject storage. */ }
+		update(id);
+		const count = element("guide-title")?.closest(".guide-nav")?.querySelector("[data-guide-count]");
+		if (count) count.textContent = `${visited.size}/${nodes.size} seções visitadas`;
+	}
+	function open(id, scroll = false) {
+		const node = nodes.get(id);
+		if (!node) return;
+		if (node.matches("details")) {
+			if (!node.open) node.querySelector(":scope > .guided-summary")?.click();
+		}
+		else {
+			const panel = node.querySelector(":scope > .guided-panel");
+			if (panel) panel.hidden = false;
+		}
+		markVisited(id);
+		if (scroll) requestAnimationFrame(() => node.scrollIntoView({ behavior: "smooth", block: "start" }));
+	}
+	for (const [id, node] of nodes) {
+		if (node.matches("details")) {
+			node.querySelector(":scope > .guided-summary")?.addEventListener("click", () => { if (!node.open) markVisited(id); });
+			node.addEventListener("toggle", () => { if (node.open) markVisited(id); update(id); });
+		} else {
+			node.querySelector(":scope > .guided-toggle")?.addEventListener("click", () => {
+				const panel = node.querySelector(":scope > .guided-panel");
+				const shouldOpen = Boolean(panel?.hidden);
+				if (panel) panel.hidden = !shouldOpen;
+				if (shouldOpen) markVisited(id); else update(id);
+			});
+		}
+		update(id);
+	}
+	document.querySelectorAll("[data-guide-target]").forEach((link) => link.addEventListener("click", (event) => {
+		const id = link.dataset.guideTarget;
+		if (!nodes.has(id)) return;
+		event.preventDefault();
+		open(id, true);
+		window.history.replaceState(null, "", `#${id}`);
+	}));
+	const count = element("guide-title")?.closest(".guide-nav")?.querySelector("[data-guide-count]");
+	if (count) count.textContent = `${visited.size}/${nodes.size} seções visitadas`;
+	const initial = window.location.hash.slice(1);
+	if (nodes.has(initial)) open(initial, true);
 }
 
 function initializeContents() {
