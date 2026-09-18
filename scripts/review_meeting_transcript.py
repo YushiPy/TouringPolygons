@@ -32,7 +32,35 @@ REPLACEMENTS = {
 	"branch no bottom": "Branch and Bound",
 	"branch about": "Branch and Bound",
 	"branch on bound": "Branch and Bound",
+	"Branch Unbound": "Branch and Bound",
+	"branch-inbound": "Branch and Bound",
+	"branchambão": "Branch and Bound",
+	"Branch & Bond": "Branch and Bound",
 	"Branchenbaum": "Branch and Bound",
+	"incumente": "incumbente",
+	"ultimalidade": "optimalidade",
+	"ultimuloso": "guloso",
+	"o alimento inferior do incremento": "o limitante inferior do incumbente",
+	"porque o nosso método é": "porque o método deles é",
+	"TPP com problemas não-convexos quodem fixa": "TPP com polígonos não convexos com ordem fixa",
+	"para você cuspir": "para o SIICUSP",
+	"Sikuspe": "SIICUSP",
+	"polígons": "polígonos",
+	"polygono": "polígono",
+	"polygons": "polígonos",
+	"supolígonos": "subpolígonos",
+	"galhas abertas": "galhos abertos",
+	"nessa lança": "nessa branch",
+	"brand tá errado": "branch está errado",
+	"tp convexo": "TPP convexo",
+	"flash convex": "TPP convexo",
+	"boundings": "bounds",
+	"bounding": "bounds",
+	"Ciplex": "CPLEX",
+	"sol virtual": "solver",
+	"instalações": "instâncias",
+	"termo de TORGA": "termo de outorga",
+	"modificação do termo TORGA": "modificação do termo de outorga",
 	"pedímetro": "perímetro",
 	"colígono": "polígono",
 	"colígonos": "polígonos",
@@ -95,6 +123,9 @@ def revise(text: str) -> str:
 		text = text.replace(source, target)
 	text = re.sub(r"(?:O que eu acho legal\?\s*){2,}", "O que eu acho legal? ", text)
 	text = re.sub(r"\bTCP\b", "TSP", text)
+	text = re.sub(r"\bpolygon\b", "polígono", text)
+	text = re.sub(r"\bincumbent\b", "incumbente", text)
+	text = re.sub(r"\bBounding\b", "Bounds", text)
 	text = re.sub(r"\bSEGAL\b|\bcegal\b", "CGAL", text)
 	text = re.sub(r"\bDUROR\b|\bDOR\b", "Dror", text)
 	text = re.sub(r"\bBEP(?:I)?\b|\bBeppi\b", "BEPE", text)
