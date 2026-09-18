@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { convexHull, endpointOffset, filterRows, pathPolygonContacts, pathPrefix, projectedCase, regionColors } from "../static/event-geometry.js";
+import { closestPathPolygonConnection, convexHull, endpointOffset, filterRows, pathPolygonContacts, pathPrefix, projectedCase, regionColors } from "../static/event-geometry.js";
 
 test("playback follows arc length and clamps progress", () => {
 	const path = [[0, 0], [3, 0], [3, 4]];
@@ -13,6 +13,19 @@ test("playback tolerates repeated vertices and closed zero-length paths", () => 
 	assert.deepEqual(pathPrefix([[1, 2], [1, 2]], .5), [[1, 2], [1, 2]]);
 	assert.deepEqual(pathPrefix([[0, 0], [0, 0], [2, 0]], .5).at(-1), [1, 0]);
 	assert.deepEqual(pathPrefix([], .5), []);
+});
+
+test("closest path-polygon connection returns the two nearest points", () => {
+	const connection = closestPathPolygonConnection([[0, 0], [10, 0]], [[4, 3], [6, 3], [6, 5], [4, 5]]);
+	assert.deepEqual(connection.first, [4, 0]);
+	assert.deepEqual(connection.second, [4, 3]);
+	assert.equal(connection.distance, 3);
+});
+
+test("closest path-polygon connection detects an intersection", () => {
+	const connection = closestPathPolygonConnection([[-1, 0], [5, 0]], [[1, -1], [3, -1], [3, 1], [1, 1]]);
+	assert.equal(connection.distance, 0);
+	assert.deepEqual(connection.first, connection.second);
 });
 
 test("contacts are based on polygon intersections rather than matching path indices", () => {

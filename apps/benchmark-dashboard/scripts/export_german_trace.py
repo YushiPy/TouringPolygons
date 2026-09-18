@@ -70,6 +70,29 @@ def export_case(case: GermanCase, solver: Path, max_seconds: float, max_events: 
 	}
 
 
+def export_cases(
+	cases: dict[int, GermanCase],
+	indices: list[int],
+	solver: Path,
+	max_seconds: float,
+	max_events: int,
+	under_events: int | None = None,
+) -> dict[str, dict]:
+	"""Export requested traces, optionally retaining every short tree in the corpus."""
+	traces = {}
+	selected = set(indices)
+	for index in indices if under_events is None else cases:
+		if index not in cases:
+			raise SystemExit(f"Case index out of range: {index}")
+		case = cases[index]
+		print(f"Tracing case {index + 1} ({len(case.polygons)} polygons)...", flush=True)
+		limit = max_events if under_events is None or index in selected else 0
+		trace = export_case(case, solver, max_seconds, limit)
+		if under_events is None or trace["event_count"] < under_events or index in selected:
+			traces[str(index)] = trace
+	return traces
+
+
 def load_cases(data_path: Path) -> dict[int, GermanCase]:
 	data = json.loads(data_path.read_text())
 	return {
@@ -92,17 +115,12 @@ def main() -> None:
 	parser.add_argument("--case", type=int, action="append", help="Zero-based case index; defaults to showcase cases.")
 	parser.add_argument("--seconds", type=float, default=2.0)
 	parser.add_argument("--max-events", type=int, default=1200)
+	parser.add_argument("--under-events", type=int, help="Also export every case whose complete trace has fewer events than this threshold.")
 	args = parser.parse_args()
 
 	cases = load_cases(args.data)
-	indices = args.case if args.case is not None else [2, 14, 19, 55]
-	traces = {}
-	for index in indices:
-		if index not in cases:
-			raise SystemExit(f"Case index out of range: {index}")
-		case = cases[index]
-		print(f"Tracing case {index + 1} ({len(case.polygons)} polygons)...", flush=True)
-		traces[str(index)] = export_case(case, args.solver, args.seconds, args.max_events)
+	indices = args.case if args.case is not None else [1, 3, 9]
+	traces = export_cases(cases, indices, args.solver, args.seconds, args.max_events, args.under_events)
 
 	args.output.parent.mkdir(parents=True, exist_ok=True)
 	with args.output.open("w") as file:

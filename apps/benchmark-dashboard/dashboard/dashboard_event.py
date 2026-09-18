@@ -13,6 +13,7 @@ TRACE_PATH = DATA_PATH.with_name("siicusp34-traces.json")
 GERMAN_DATA_PATH = Path(__file__).resolve().parents[1] / "static/event/german-instances-exact-20260918.json"
 GERMAN_PARTITIONS_PATH = GERMAN_DATA_PATH.with_name("german-instances-exact-20260918-partitions.json")
 GERMAN_TRACE_PATH = GERMAN_DATA_PATH.with_name("german-instances-traces.json")
+# The generated catalog is refreshed whenever the dashboard process reloads.
 
 
 @lru_cache(maxsize=1)
@@ -27,11 +28,15 @@ def trace_data() -> dict:
     return json.loads(TRACE_PATH.read_text())
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=2)
+def _german_trace_data_for_mtime(mtime_ns: int) -> dict:
+    return json.loads(GERMAN_TRACE_PATH.read_text())
+
+
 def german_trace_data() -> dict:
     if not GERMAN_TRACE_PATH.exists():
         return {"schema_version": 1, "cases": {}}
-    return json.loads(GERMAN_TRACE_PATH.read_text())
+    return _german_trace_data_for_mtime(GERMAN_TRACE_PATH.stat().st_mtime_ns)
 
 
 @lru_cache(maxsize=1)
@@ -139,7 +144,7 @@ def event_context() -> dict:
 
 def german_context() -> dict:
     data = german_visual_data()
-    row = next(row for row in data["rows"] if row["case"] == 2)
+    row = next(row for row in data["rows"] if row["case"] == 1)
     points = [point for polygon in row["geometry"]["polygons"] for point in polygon] + row["path"]
     xmin, xmax = min(p[0] for p in points), max(p[0] for p in points)
     ymin, ymax = min(p[1] for p in points), max(p[1] for p in points)
@@ -183,9 +188,10 @@ def _inline_event_assets(html: str, data_path: Path, data_href: str) -> str:
     javascript = "\n".join(
         re.sub(r"^export ", "", re.sub(r"^import .*;\n", "", source, flags=re.M), flags=re.M) for source in modules
     )
-    html = html.replace('<link rel="stylesheet" href="/static/event.css?v=20260918-5">', f"<style>{css}</style>")
+    # Keep the route's offline copy in sync with the cache-busted assets.
+    html = html.replace('<link rel="stylesheet" href="/static/event.css?v=20260918-12">', f"<style>{css}</style>")
     html = html.replace(
-        '<script type="module" src="/static/event.js?v=20260918-6"></script>',
+        '<script type="module" src="/static/event.js?v=20260918-18"></script>',
         f'<script type="module">{javascript}</script>',
     )
     encoded = base64.b64encode(data_path.read_bytes()).decode("ascii")

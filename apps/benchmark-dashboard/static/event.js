@@ -1,4 +1,4 @@
-import { convexHull, endpointOffset, pathPrefix, projectedCase, regionColors, sortRows, sortGroupedRows, toggleChoice, toggleOrderRegion, playbackDuration } from "./event-geometry.js?v=20260910-7";
+import { closestPathPolygonConnection, convexHull, endpointOffset, pathPolygonContacts, pathPrefix, projectedCase, regionColors, sortRows, sortGroupedRows, toggleChoice, toggleOrderRegion, playbackDuration } from "./event-geometry.js?v=20260918-2";
 
 const element = (id) => document.getElementById(id);
 const number = (value, digits = 4) => value.toLocaleString("pt-BR", { maximumFractionDigits: digits });
@@ -9,7 +9,27 @@ const titles = { 2: "Quatro regiões, um caminho", 9: "Quarenta regiões, ordem 
 const MAX_ZOOM = 8;
 
 function traceNumber(value, digits = 4) {
-	return Number.isFinite(Number(value)) ? number(Number(value), digits) : "—";
+	return value === null || value === undefined || value === "" ? "—" : Number.isFinite(Number(value)) ? number(Number(value), digits) : "—";
+}
+
+function pathLength(path) {
+	return Array.isArray(path) ? path.slice(1).reduce((total, point, index) => total + Math.hypot(point[0] - path[index][0], point[1] - path[index][1]), 0) : null;
+}
+
+const TRACE_PATH_EPSILON = 1e-5;
+
+function tracePathsDiffer(left, right, epsilon = TRACE_PATH_EPSILON) {
+	if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return true;
+	return left.some((point, index) => Math.hypot(point[0] - right[index][0], point[1] - right[index][1]) > epsilon);
+}
+
+function filterTraceEvents(events) {
+	let previousPath = null;
+	return events.filter((event) => {
+		const keep = event.kind !== "heuristic_contact_pass" || !previousPath || tracePathsDiffer(previousPath, event.path);
+		if (Array.isArray(event.path) && event.path.length) previousPath = event.path;
+		return keep;
+	});
 }
 
 function traceLabel(order, original) {
@@ -62,11 +82,15 @@ function initialize() {
 	const data = JSON.parse(element("event-data").textContent);
 	const tracePayload = JSON.parse(element("trace-data")?.textContent || '{"schema_version":1,"cases":{}}');
 	const traces = tracePayload.schema_version === 1 ? (tracePayload.cases || {}) : {};
+	const shortTraceCases = Object.values(traces)
+		.filter((trace) => trace.omitted_events === 0 && trace.event_count < 200)
+		.sort((a, b) => a.case - b.case);
 	if (data.schema_version !== 1 || !data.rows.length) throw new Error("Dados da demonstração indisponíveis.");
-	let row = data.rows.find((item) => item.case === 2);
+	const defaultCase = data.corpus === "german" ? 1 : 2;
+	let row = data.rows.find((item) => item.case === defaultCase) || data.rows[0];
 	let projected, fraction = 1, zoom = 1, frame = 0, playing = false;
-	let traceEvents = [], traceIndex = 0, traceTimer = null, traceAnimation = null;
-	let pan = [0, 0], drag = null;
+	let traceEvents = [], traceIndex = 0, traceFrame = null, traceTransition = null, tracePlaying = false;
+	let pan = [0, 0], drag = null, traceZoom = 1, tracePan = [0, 0], traceDrag = null;
 	const speeds = [.25, .5, 1, 1.5, 2, 3, 4];
 	let speedIndex = 2;
 	let resultGroup = data.corpus === "german" ? false : null;
@@ -77,51 +101,199 @@ function initialize() {
 	const mapContent = element("map-content");
 	const map = element("route-map");
 	const traceMapContent = element("trace-map-content");
+	const traceMap = element("trace-map");
 	const hasTraceUI = Boolean(traceMapContent);
 
-	function stopTraceAnimation() {
-		if (traceAnimation !== null) traceAnimation.cancel();
-		traceAnimation = null;
+	function tracePickerLabel(trace) {
+		const candidate = data.rows.find((item) => item.case === trace.case);
+		const displayedSteps = Array.isArray(trace.events) ? filterTraceEvents(trace.events).length : trace.event_count;
+		return `Caso ${caseLabel(trace.case)} · ${displayedSteps} passos · ${candidate?.polygons ?? "—"} regiões`;
+	}
+
+	function renderTracePicker() {
+		const options = element("trace-picker-options");
+		if (!options) return;
+		const query = element("trace-picker-search")?.value.trim() || "";
+		const rows = shortTraceCases.filter((trace) => !query || caseLabel(trace.case).includes(query));
+		element("trace-picker-count").textContent = `${rows.length} simulações disponíveis`;
+		options.innerHTML = rows.length ? rows.map((trace) => `<button type="button" data-trace-case="${trace.case}" aria-pressed="${trace.case === row.case}"><span><strong>${tracePickerLabel(trace)}</strong><small>Árvore registrada para acompanhar passo a passo</small></span></button>`).join("") : "<p>Nenhuma simulação encontrada. Experimente outro número.</p>";
+	}
+
+	function populateTracePicker() {
+		const picker = element("trace-case-select");
+		if (picker) picker.innerHTML = `<option value="">Escolha uma simulação curta</option>${shortTraceCases.map((trace) => `<option value="${trace.case}">${tracePickerLabel(trace)}</option>`).join("")}`;
+		const customPicker = element("trace-case-picker");
+		if (!customPicker) return;
+		customPicker.hidden = false;
+		renderTracePicker();
+	}
+
+	function cancelTraceFrame() {
+		if (traceFrame !== null) window.cancelAnimationFrame(traceFrame);
+		traceFrame = null;
 	}
 
 	function stopTrace() {
 		if (!hasTraceUI) return;
-		if (traceTimer !== null) window.clearInterval(traceTimer);
-		traceTimer = null;
-		stopTraceAnimation();
+		tracePlaying = false;
+		cancelTraceFrame();
+		traceTransition = null;
 		element("trace-play").textContent = "▶ Reproduzir";
 		element("trace-play").setAttribute("aria-pressed", "false");
 	}
 
-	function animateTraceRoute() {
-		if (reducedMotion.matches) return;
-		const route = traceMapContent.querySelector(".trace-current-route");
-		if (!route?.animate || typeof route.getTotalLength !== "function") return;
-		let length;
-		try { length = route.getTotalLength(); } catch { return; }
-		if (!Number.isFinite(length) || length <= 0) return;
-		route.style.strokeDasharray = `${length} ${length}`;
-		route.style.strokeDashoffset = String(length);
-		const animation = route.animate([{ strokeDashoffset: String(length) }, { strokeDashoffset: "0" }], {
-			duration: Math.min(820, Math.max(360, 300 + length * .8)),
-			easing: "cubic-bezier(.3,.65,.25,1)",
-			fill: "forwards",
-		});
-		traceAnimation = animation;
-		animation.finished.then(() => {
-			if (traceAnimation !== animation) return;
-			route.style.strokeDasharray = "none";
-			route.style.strokeDashoffset = "0";
-			traceAnimation = null;
-			animation.cancel();
-		}).catch(() => {});
-	}
-
-	function traceCurrentPath(event) {
-		for (let index = traceIndex; index >= 0; index -= 1) {
+	function traceCurrentPath(eventIndex = traceIndex) {
+		const event = traceEvents[eventIndex];
+		if (Array.isArray(event?.path) && event.path.length) return event.path;
+		const synthetic = traceSyntheticChildPath(event, eventIndex);
+		if (synthetic) return synthetic;
+		for (let index = eventIndex - 1; index >= 0; index -= 1) {
 			if (Array.isArray(traceEvents[index]?.path) && traceEvents[index].path.length) return traceEvents[index].path;
 		}
 		return row.path;
+	}
+
+	function traceIncumbent(index) {
+		for (let eventIndex = index; eventIndex >= 0; eventIndex -= 1) {
+			const event = traceEvents[eventIndex];
+			const value = Number(event?.upper_bound);
+			if (Number.isFinite(value)) return value;
+			if (event?.kind === "incumbent" && Number.isFinite(Number(event.length))) return Number(event.length);
+		}
+		return null;
+	}
+
+	function traceIncumbentPath(index) {
+		for (let eventIndex = index; eventIndex >= 0; eventIndex -= 1) {
+			const event = traceEvents[eventIndex];
+			if (event?.kind === "incumbent" && Array.isArray(event.path) && event.path.length) return event.path;
+		}
+		return null;
+	}
+
+	function tracePathForSequence(sequence, endIndex) {
+		const key = sequence.join(",");
+		for (let eventIndex = endIndex; eventIndex >= 0; eventIndex -= 1) {
+			const event = traceEvents[eventIndex];
+			if (traceSequence(event).join(",") === key && Array.isArray(event.path) && event.path.length) return event.path;
+		}
+		return null;
+	}
+
+	function traceSyntheticChildPath(event, eventIndex) {
+		if (event?.kind !== "child" || event.reason !== "bound" || !Array.isArray(event.sequence)) return null;
+		const polygonIndex = Number(event.polygon), position = Number(event.position);
+		if (!Number.isInteger(polygonIndex) || !Number.isInteger(position) || !row.geometry.polygons[polygonIndex]) return null;
+		const parentSequence = [...event.sequence];
+		parentSequence.splice(position, 1);
+		const parentPath = tracePathForSequence(parentSequence, eventIndex - 1);
+		if (!parentPath || parentPath.length < 2) return null;
+		const segmentIndex = Math.max(0, Math.min(parentPath.length - 2, position));
+		const connection = closestPathPolygonConnection([parentPath[segmentIndex], parentPath[segmentIndex + 1]], row.geometry.polygons[polygonIndex]);
+		if (!connection) return null;
+		const path = parentPath.map((point) => [...point]);
+		path.splice(segmentIndex + 1, 0, connection.second);
+		return path;
+	}
+
+	function traceProjectedPath(index) {
+		const projection = projectedCase(row);
+		return traceCurrentPath(index).map(projection.project);
+	}
+
+	function traceBranchGeometry(event, path, polygons, originalPath, reached) {
+		if (event?.kind !== "branch" || event.reason !== "insertion") return null;
+		const connections = polygons.map((polygon, polygonIndex) => {
+			if (reached[polygonIndex]) return null;
+			const connection = closestPathPolygonConnection(path, polygon);
+			const originalConnection = closestPathPolygonConnection(originalPath, row.geometry.polygons[polygonIndex]);
+			return connection && originalConnection ? { ...connection, distance: originalConnection.distance, polygonIndex } : null;
+		}).filter(Boolean);
+		const longest = connections.reduce((best, connection) => !best || connection.distance > best.distance ? connection : best, null);
+		return { connections, longest, reached };
+	}
+
+	function prepareTraceTransition() {
+		while (traceIndex < traceEvents.length - 1) {
+			const fromPath = traceProjectedPath(traceIndex);
+			const toPath = traceProjectedPath(traceIndex + 1);
+			const from = fromPath.at(-1) || [0, 0];
+			const to = toPath.at(-1) || from;
+			const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
+			if (length <= 1e-7) {
+				traceIndex += 1;
+				continue;
+			}
+			traceTransition = {
+				fromIndex: traceIndex,
+				toIndex: traceIndex + 1,
+				from,
+				to,
+				length,
+				phase: reducedMotion.matches ? "travel" : "preview",
+				elapsed: 0,
+				previewDuration: reducedMotion.matches ? 0 : 240,
+				travelDuration: reducedMotion.matches ? 0 : Math.min(1100, Math.max(520, 280 + length * 1.7)),
+				progress: 0,
+			};
+			drawTrace();
+			return true;
+		}
+		traceTransition = null;
+		drawTrace();
+		return false;
+	}
+
+	function updateTraceAnimationVisuals() {
+		const transition = traceTransition;
+		const route = traceMapContent.querySelector("#trace-active-route");
+		if (!transition || !route || typeof route.getTotalLength !== "function") return;
+		let length;
+		try { length = route.getTotalLength(); } catch { return; }
+		if (!Number.isFinite(length) || length <= 0) return;
+		const progress = Math.max(0, Math.min(1, transition.progress));
+		route.style.strokeDasharray = `${length} ${length}`;
+		route.style.strokeDashoffset = String(length * (1 - progress));
+	}
+
+	function traceAnimationTick(now) {
+		if (!tracePlaying || !traceTransition) return;
+		const transition = traceTransition;
+		if (transition.lastTime === undefined) transition.lastTime = now;
+		transition.elapsed += now - transition.lastTime;
+		transition.lastTime = now;
+		if (transition.phase === "preview" && transition.elapsed >= transition.previewDuration) {
+			transition.phase = "travel";
+			transition.elapsed -= transition.previewDuration;
+		}
+		transition.progress = transition.phase === "travel" ? Math.min(1, transition.elapsed / Math.max(1, transition.travelDuration)) : 0;
+		drawTrace();
+		if (transition.progress >= 1) {
+			traceIndex = transition.toIndex;
+			traceTransition = null;
+			if (!prepareTraceTransition()) {
+				tracePlaying = false;
+				element("trace-play").textContent = "▶ Reproduzir";
+				element("trace-play").setAttribute("aria-pressed", "false");
+			}
+		}
+		if (tracePlaying) traceFrame = window.requestAnimationFrame(traceAnimationTick);
+	}
+
+	function startTracePlayback() {
+		if (!traceEvents.length) return;
+		if (traceIndex >= traceEvents.length - 1) {
+			traceIndex = 0;
+			traceTransition = null;
+			drawTrace();
+		}
+		if (!traceTransition && !prepareTraceTransition()) return;
+		tracePlaying = true;
+		element("trace-play").textContent = "Ⅱ Pausar";
+		element("trace-play").setAttribute("aria-pressed", "true");
+		traceTransition.lastTime = performance.now();
+		cancelTraceFrame();
+		traceFrame = window.requestAnimationFrame(traceAnimationTick);
 	}
 
 	function traceSequence(event) {
@@ -129,7 +301,20 @@ function initialize() {
 		return Array.isArray(event?.sequence) ? event.sequence : [];
 	}
 
-	function traceEventCopy(event, trace) {
+	function traceChangedContactPolygons(event, eventIndex) {
+		if (event?.kind !== "heuristic_contact_pass" || !Array.isArray(event.path)) return [];
+		const previous = traceEvents.slice(0, eventIndex).reverse().find((candidate) => Array.isArray(candidate.path) && candidate.path.length);
+		if (!previous || previous.path.length !== event.path.length) return [];
+		const order = traceSequence(event);
+		return event.path.slice(1, -1).flatMap((point, index) => {
+			const previousPoint = previous.path[index + 1];
+			if (!previousPoint || Math.hypot(point[0] - previousPoint[0], point[1] - previousPoint[1]) <= TRACE_PATH_EPSILON) return [];
+			const polygon = order[index];
+			return polygon === undefined ? [] : [traceLabel(order, polygon)];
+		});
+	}
+
+	function traceEventCopy(event, trace, branchGeometry = null) {
 		const order = trace.optimal_order || row.order || [];
 		const selected = traceLabels(order, traceSequence(event));
 		const polygon = event.polygon === undefined ? null : traceLabel(order, event.polygon);
@@ -138,12 +323,28 @@ function initialize() {
 		if (kind === "heuristic_greedy_step") return ["Escolha gulosa", `A heurística acrescenta a região ${polygon}; a sequência parcial agora é ${selected}.`];
 		if (kind === "heuristic_greedy_complete") return ["Ordem gulosa completa", `Todas as regiões foram inseridas. A ordem candidata é ${selected}.`];
 		if (kind === "heuristic_2opt") return ["Refino 2-opt", event.reason === "changed" ? `A heurística trocou trechos da ordem e obteve ${selected}.` : "Nenhuma troca 2-opt melhorou a ordem; o refino estabilizou."];
-		if (kind === "heuristic_contact_pass") return ["Refino geométrico", `O caminho da ordem ${selected} foi refinado nos pontos de contato (passagem ${Number(event.pass) + 1}).`];
+		if (kind === "heuristic_contact_pass") {
+			const changedPolygons = traceChangedContactPolygons(event, traceIndex);
+			const changedText = changedPolygons.length === 1
+				? `O ponto de contato da região ${changedPolygons[0]} mudou.`
+				: changedPolygons.length > 1
+					? `Mudaram os pontos de contato das regiões ${changedPolygons.join(", ")}.`
+					: "Os pontos de contato foram refinados.";
+			return ["Refino geométrico", `${changedText} A ordem ${selected} foi refinada (passagem ${Number(event.pass) + 1}).`];
+		}
 		if (kind === "incumbent") return ["Novo incumbente", `Foi encontrado um caminho viável de comprimento ${traceNumber(event.length, 4)} para a ordem ${selected}.`];
 		if (kind === "root") return ["Relaxação na raiz", "O solver ignora temporariamente os buracos e as regiões ainda não escolhidas para obter um limite inferior global."];
 		if (kind === "expand") return ["Expande um nó", `A busca examina a ordem parcial ${selected} e calcula como ela pode ser completada.`];
 		if (kind === "oracle") return ["Cálculo geométrico", `A relaxação convexa para ${selected} produz limite inferior ${traceNumber(event.lower_bound, 4)}${event.source === "refinement" ? "; a decomposição também foi refinada" : "."}`];
-		if (kind === "branch") return ["Branching", `A árvore escolhe a região ${polygon} e cria alternativas de inserção${event.reason === "decomposition" ? " ou de peça convexa" : " na ordem"}.`];
+		if (kind === "branch") {
+			const branchConnection = branchGeometry?.connections.find((connection) => connection.polygonIndex === Number(event.polygon));
+			if (branchConnection && branchGeometry.longest) {
+				const reachedLabels = branchGeometry.reached.map((isReached, index) => isReached ? traceLabel(order, index) : null).filter(Boolean);
+				const reachedText = reachedLabels.length ? `O caminho já atingiu as regiões ${reachedLabels.join(", ")}.` : "O caminho ainda não atingiu nenhum polígono.";
+				return ["Branching", `${reachedText} Para cada região restante, uma linha tracejada mostra a menor distância até o caminho atual. A região ${polygon} é a mais distante (${traceNumber(branchGeometry.longest.distance, 2)}) e por isso é escolhida para gerar alternativas de inserção.`];
+			}
+			return ["Branching", `A árvore escolhe a região ${polygon} e cria alternativas de inserção${event.reason === "decomposition" ? " ou de peça convexa" : " na ordem"}.`];
+		}
 		if (kind === "child") return [event.pruned ? "Filho podado" : "Filho enfileirado", event.piece === undefined ? (event.pruned ? `A sequência ${selected} tem limite ${traceNumber(event.lower_bound, 4)}, que já não pode melhorar o incumbente.` : `A sequência ${selected} permanece candidata e entra na fila de busca.`) : `A região ${polygon} foi refinada na peça convexa ${Number(event.piece) + 1}; ${event.pruned ? "o filho é podado" : "o filho entra na fila"}.`];
 		if (kind === "prune") return ["Nó podado", event.reason === "incumbent" ? "O caminho encontrado já é tão bom quanto o incumbente." : "O limite inferior excede o melhor caminho conhecido."];
 		if (kind === "complete") return ["Busca concluída", `A melhor ordem registrada é ${traceLabels(order, trace.optimal_order)}; comprimento ${traceNumber(event.length ?? trace.summary?.upper_bound, 4)}.`];
@@ -163,6 +364,17 @@ function initialize() {
 		}).join("") : '<p class="trace-tree-empty">A árvore aparecerá quando a busca começar.</p>';
 	}
 
+	function traceCamera() {
+		if (!hasTraceUI) return;
+		tracePan = [Math.max(-420 * (traceZoom - 1), Math.min(420 * (traceZoom - 1), tracePan[0])), Math.max(-240 * (traceZoom - 1), Math.min(240 * (traceZoom - 1), tracePan[1]))];
+		traceMapContent.setAttribute("transform", `translate(${420 + tracePan[0]} ${240 + tracePan[1]}) scale(${traceZoom}) translate(-420 -240)`);
+		traceMap.classList.toggle("is-zoomed", traceZoom > 1);
+		traceMap.style.touchAction = traceZoom > 1 ? "none" : "pan-y";
+		element("trace-zoom-out").disabled = traceZoom <= 1;
+		element("trace-zoom-in").disabled = traceZoom >= MAX_ZOOM;
+		element("trace-fit-view").disabled = traceZoom <= 1;
+	}
+
 	function drawTrace() {
 		if (!hasTraceUI) return;
 		const trace = traces[String(row.case)];
@@ -170,15 +382,18 @@ function initialize() {
 			traceMapContent.innerHTML = "";
 			element("trace-progress").textContent = "Nenhuma simulação carregada para este caso.";
 			element("trace-step-title").textContent = "Escolha uma instância didática";
-			element("trace-step-text").textContent = "Os casos 03, 15, 20 e 56 têm uma reprodução compacta da execução armazenada para esta demonstração.";
+			element("trace-step-text").textContent = "Os destaques mostram os Casos 02, 04 e 10. O seletor acima inclui qualquer árvore com menos de 200 passos.";
 			element("trace-kind").textContent = "PASSO ATUAL";
 			element("trace-sequence").textContent = "—";
 			element("trace-lower-bound").textContent = "—";
 			element("trace-upper-bound").textContent = "—";
+			element("trace-incumbent").textContent = "—";
+			element("trace-current-length").textContent = "—";
 			element("trace-previous").disabled = true;
 			element("trace-next").disabled = true;
 			element("trace-play").disabled = true;
 			element("trace-tree").innerHTML = '<p class="trace-tree-empty">Selecione um caso com trace disponível.</p>';
+			traceCamera();
 			return;
 		}
 		const event = traceEvents[traceIndex];
@@ -187,34 +402,65 @@ function initialize() {
 		const selected = new Set(currentSequence.map(Number));
 		const projection = projectedCase(row);
 		const start = projection.project(row.geometry.start), target = projection.project(row.geometry.target);
-		const currentPath = traceCurrentPath(event).map(projection.project);
-		const finalEvent = [...traceEvents].reverse().find((candidate) => candidate.kind === "complete" && Array.isArray(candidate.path) && candidate.path.length);
-		const finalPath = (finalEvent?.path || row.path).map(projection.project);
+		const originalPath = traceCurrentPath(traceIndex);
+		const currentPath = originalPath.map(projection.project);
+		const reached = pathPolygonContacts(originalPath, row.geometry.polygons).map(Boolean);
+		const incumbentPath = (traceIncumbentPath(traceIndex) || []).map(projection.project);
+		const isHeuristic = event.kind.startsWith("heuristic_") || (event.kind === "incumbent" && event.source === "heuristic");
+		const showIncumbentRoute = !isHeuristic && incumbentPath.length > 1;
+		const transition = traceTransition?.fromIndex === traceIndex ? traceTransition : null;
+		const movingSegment = transition ? [transition.from, transition.to] : [];
 		const showLabels = row.polygons <= 15 || selected.size > 0;
 		const pieceIndex = Number.isInteger(Number(event.piece)) ? Number(event.piece) : -1;
 		const branchPolygon = Number.isInteger(Number(event.polygon)) ? Number(event.polygon) : -1;
+		const branchGeometry = traceBranchGeometry(event, currentPath, projection.polygons, originalPath, reached);
 		const piece = branchPolygon >= 0 && pieceIndex >= 0 ? row.visualization?.decomposition?.[branchPolygon]?.[pieceIndex] : null;
-		stopTraceAnimation();
-		const traveler = currentPath.at(-1) || start;
-		traceMapContent.innerHTML = `${row.geometry.polygons.map((polygon, index) => `<polygon class="trace-region ${selected.has(index) ? "trace-selected" : ""}" points="${coordinates(polygon.map(projection.project))}"><title>Região ${traceLabel(order, index)}</title></polygon>`).join("")}
+		const branchConnectionLines = branchGeometry?.connections.map((connection) => {
+			const longest = branchGeometry.longest?.polygonIndex === connection.polygonIndex;
+			const lineClass = longest ? "trace-branch-connection trace-branch-connection-longest" : "trace-branch-connection";
+			const pointClass = longest ? "trace-branch-point trace-branch-point-longest" : "trace-branch-point";
+			return `<line class="${lineClass}" x1="${connection.first[0]}" y1="${connection.first[1]}" x2="${connection.second[0]}" y2="${connection.second[1]}"/><circle class="${pointClass}" cx="${connection.first[0]}" cy="${connection.first[1]}" r="3.5"/><circle class="${pointClass}" cx="${connection.second[0]}" cy="${connection.second[1]}" r="3.5"/>`;
+		}).join("") || "";
+		const progress = transition?.progress ?? 0;
+		const traveler = transition ? [
+			transition.from[0] + (transition.to[0] - transition.from[0]) * progress,
+			transition.from[1] + (transition.to[1] - transition.from[1]) * progress,
+		] : currentPath.at(-1) || start;
+		traceMapContent.innerHTML = `${row.geometry.polygons.map((polygon, index) => {
+			const branchSelected = branchGeometry?.longest?.polygonIndex === index;
+			const title = `Região ${traceLabel(order, index)}${branchSelected ? "; escolhida para o branching por ser a mais distante" : ""}`;
+			return `<polygon class="trace-region ${selected.has(index) ? "trace-selected" : ""} ${reached[index] ? "trace-reached" : ""} ${branchSelected ? "trace-branch-selected" : ""}" points="${coordinates(polygon.map(projection.project))}"><title>${title}</title></polygon>`;
+		}).join("")}
 			${[...selected].map((index) => `<polygon class="trace-hull" points="${coordinates(convexHull(row.geometry.polygons[index]).map(projection.project))}"/>`).join("")}
 			${piece ? `<polygon class="trace-piece" points="${coordinates(piece.map(projection.project))}"/>` : ""}
-			<polyline class="trace-final-route" points="${coordinates(finalPath)}"/><polyline class="trace-current-route" points="${coordinates(currentPath)}"/>
+			${branchConnectionLines}
+			${showIncumbentRoute ? `<polyline class="trace-incumbent-route" points="${coordinates(incumbentPath)}"/>` : ""}
+			${currentPath.length > 1 ? `<polyline class="trace-route-completed" points="${coordinates(currentPath)}"/>` : ""}
+			${movingSegment.length > 1 ? `<polyline class="trace-route-preview" points="${coordinates(movingSegment)}"/><polyline id="trace-active-route" class="trace-current-route" points="${coordinates(movingSegment)}"/>` : ""}
 			${showLabels ? projection.polygons.map((polygon, index) => { const center = polygon.reduce((sum, point) => [sum[0] + point[0] / polygon.length, sum[1] + point[1] / polygon.length], [0, 0]); return `<text class="trace-region-label ${selected.has(index) ? "trace-label-selected" : ""}" x="${center[0]}" y="${center[1]}" text-anchor="middle">${traceLabel(order, index)}</text>`; }).join("") : ""}
 			<circle class="trace-traveler" cx="${traveler[0]}" cy="${traveler[1]}" r="5"/><circle class="trace-endpoint" cx="${start[0]}" cy="${start[1]}" r="6"/><text class="trace-endpoint-label" x="${start[0] + 13}" y="${start[1] + 4}">S</text><circle class="trace-endpoint trace-target" cx="${target[0]}" cy="${target[1]}" r="6"/><text class="trace-endpoint-label" x="${target[0] + 13}" y="${target[1] + 4}">T</text>`;
-		animateTraceRoute();
-		const [title, text] = traceEventCopy(event, trace);
+		updateTraceAnimationVisuals();
+		const [title, text] = traceEventCopy(event, trace, branchGeometry);
 		element("trace-kind").textContent = event.kind.replaceAll("_", " ").toUpperCase();
 		element("trace-step-title").textContent = title;
 		element("trace-step-text").textContent = text;
 		element("trace-sequence").textContent = traceLabels(order, currentSequence);
-		element("trace-lower-bound").textContent = traceNumber(event.lower_bound, 4);
+		const incumbent = traceIncumbent(traceIndex);
+		const lowerBound = Number(event.lower_bound);
+		const boundSymbol = Number.isFinite(lowerBound) && Number.isFinite(incumbent) ? (lowerBound >= incumbent ? "≥" : "<") : "";
+		element("trace-lower-bound").textContent = `${boundSymbol ? `${boundSymbol} ` : ""}${traceNumber(event.lower_bound, 4)}`;
 		element("trace-upper-bound").textContent = traceNumber(event.upper_bound, 4);
+		element("trace-incumbent").textContent = traceNumber(incumbent, 2);
+		element("trace-current-length").textContent = traceNumber(event.length ?? pathLength(originalPath), 2);
 		element("trace-progress").textContent = `Passo ${traceIndex + 1} de ${traceEvents.length}${trace.omitted_events ? ` · ${trace.omitted_events.toLocaleString("pt-BR")} eventos omitidos` : ""}`;
 		element("trace-previous").disabled = traceIndex === 0;
 		element("trace-next").disabled = traceIndex === traceEvents.length - 1;
 		element("trace-play").disabled = traceEvents.length < 2;
-		element("trace-map-caption").textContent = `Regiões destacadas pertencem à sequência parcial ${traceLabels(order, currentSequence)}. A linha clara é o caminho final registrado; a laranja mostra o caminho disponível neste passo.`;
+		const branchCaption = branchGeometry ? " As linhas tracejadas mostram as menores distâncias até as regiões não atingidas; a linha vermelha é a maior e destaca a região escolhida." : "";
+		element("trace-map-caption").textContent = isHeuristic
+			? `Regiões destacadas pertencem à sequência parcial ${traceLabels(order, currentSequence)}. A linha laranja mostra somente o caminho construído até este passo; o trecho mais recente é animado.${branchCaption}`
+			: `Regiões destacadas pertencem à sequência parcial ${traceLabels(order, currentSequence)}. A linha tracejada mostra o incumbente; a laranja sólida mostra o caminho calculado neste passo.${branchCaption}`;
+		traceCamera();
 		renderTraceTree(trace);
 	}
 
@@ -222,13 +468,14 @@ function initialize() {
 		if (!hasTraceUI) return;
 		stopTrace();
 		const trace = traces[String(row.case)];
-		traceEvents = trace?.events || [];
+		traceEvents = filterTraceEvents(trace?.events || []);
 		traceIndex = 0;
 		drawTrace();
 	}
 
 	function advanceTrace(delta) {
 		if (!traceEvents.length) return;
+		stopTrace();
 		traceIndex = Math.max(0, Math.min(traceEvents.length - 1, traceIndex + delta));
 		drawTrace();
 	}
@@ -326,8 +573,17 @@ function initialize() {
 		fraction = 1;
 		zoom = 1;
 		pan = [0, 0];
+		traceZoom = 1;
+		tracePan = [0, 0];
 		element("show-labels").setAttribute("aria-pressed", String(row.polygons <= 15));
 		element("case-select").value = row.case;
+		const tracePicker = element("trace-case-select");
+		if (tracePicker) tracePicker.value = shortTraceCases.some((trace) => trace.case === row.case) ? String(row.case) : "";
+		const tracePickerValue = element("trace-case-picker-value");
+		if (tracePickerValue) {
+			const trace = shortTraceCases.find((candidate) => candidate.case === row.case);
+			tracePickerValue.textContent = trace ? tracePickerLabel(trace) : "Escolha uma simulação curta";
+		}
 		element("case-picker-value").textContent = `Caso ${caseLabel(row.case)} · ${row.polygons} regiões · ${row.exact ? "solução exata" : "limite de tempo"}`;
 		document.querySelectorAll(".example").forEach((button) => {
 			const active = Number(button.dataset.case) === row.case;
@@ -367,6 +623,7 @@ function initialize() {
 	}
 
 	document.querySelectorAll("button:disabled, input:disabled, select:disabled").forEach((control) => { control.disabled = false; });
+	populateTracePicker();
 	function showMap() {
 		element("route-map").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "center" });
 		element("play-route").focus({ preventScroll: true });
@@ -456,6 +713,93 @@ function initialize() {
 		draw();
 	});
 	new ResizeObserver(draw).observe(map);
+	if (hasTraceUI) {
+		const tracePointers = new Map();
+		let traceGesture = null;
+		let traceTrackpadGesture = null;
+		function traceLocalPoint(event) {
+			const box = traceMap.getBoundingClientRect();
+			const scale = Math.min(box.width / 840, box.height / 480);
+			return [(event.clientX - box.left - box.width / 2) / scale, (event.clientY - box.top - box.height / 2) / scale];
+		}
+		function traceZoomAt(next, point) {
+			const previous = traceZoom;
+			traceZoom = Math.max(1, Math.min(MAX_ZOOM, next));
+			tracePan = point.map((value, axis) => value - (value - tracePan[axis]) * traceZoom / previous);
+			traceCamera();
+		}
+		element("trace-fit-view").addEventListener("click", () => {
+			traceZoom = 1;
+			tracePan = [0, 0];
+			traceCamera();
+		});
+		element("trace-zoom-out").addEventListener("click", () => traceZoomAt(traceZoom / 1.5, [0, 0]));
+		element("trace-zoom-in").addEventListener("click", () => traceZoomAt(traceZoom * 1.5, [0, 0]));
+		function resetTraceGesture() {
+			const points = [...tracePointers.values()];
+			if (points.length >= 2) {
+				const center = points[0].map((value, axis) => (value + points[1][axis]) / 2);
+				traceGesture = { distance: Math.hypot(...points[0].map((value, axis) => value - points[1][axis])), zoom: traceZoom, center, pan: [...tracePan] };
+			} else {
+				traceGesture = null;
+				traceDrag = points.length ? [...points[0], ...tracePan] : null;
+			}
+		}
+		traceMap.addEventListener("wheel", (event) => {
+			if (traceTrackpadGesture) return;
+			const units = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 480 : 1;
+			if (!event.ctrlKey && traceZoom <= 1 && event.deltaY * units > 0) return;
+			event.preventDefault();
+			traceZoomAt(traceZoom * Math.exp(-event.deltaY * units * (event.ctrlKey ? .01 : .002)), traceLocalPoint(event));
+		}, { passive: false });
+		traceMap.addEventListener("gesturestart", (event) => { event.preventDefault(); traceTrackpadGesture = { zoom: traceZoom }; }, { passive: false });
+		traceMap.addEventListener("gesturechange", (event) => {
+			event.preventDefault();
+			if (!traceTrackpadGesture || !Number.isFinite(event.scale)) return;
+			traceZoomAt(traceTrackpadGesture.zoom * event.scale, traceLocalPoint(event));
+		}, { passive: false });
+		traceMap.addEventListener("gestureend", (event) => { event.preventDefault(); traceTrackpadGesture = null; }, { passive: false });
+		traceMap.addEventListener("pointerdown", (event) => {
+			if (event.button !== 0) return;
+			if (event.pointerType === "touch" && traceZoom <= 1 && event.isPrimary) return;
+			traceMap.focus({ preventScroll: true });
+			tracePointers.set(event.pointerId, traceLocalPoint(event));
+			traceMap.setPointerCapture(event.pointerId);
+			resetTraceGesture();
+		});
+		traceMap.addEventListener("pointermove", (event) => {
+			if (!tracePointers.has(event.pointerId)) return;
+			const point = traceLocalPoint(event);
+			tracePointers.set(event.pointerId, point);
+			if (traceGesture && tracePointers.size >= 2) {
+				const points = [...tracePointers.values()];
+				const distance = Math.hypot(...points[0].map((value, axis) => value - points[1][axis]));
+				traceZoom = Math.max(1, Math.min(MAX_ZOOM, traceGesture.zoom * distance / Math.max(traceGesture.distance, 1e-6)));
+				tracePan = points[0].map((value, axis) => (value + points[1][axis]) / 2 - (traceGesture.center[axis] - traceGesture.pan[axis]) * traceZoom / traceGesture.zoom);
+				traceCamera();
+			} else if (traceDrag) {
+				tracePan = point.map((value, axis) => traceDrag[axis + 2] + value - traceDrag[axis]);
+				traceCamera();
+			}
+			traceMap.classList.toggle("is-dragging", Boolean(traceDrag || traceGesture));
+		});
+		for (const name of ["pointerup", "pointercancel", "lostpointercapture"]) traceMap.addEventListener(name, (event) => {
+			tracePointers.delete(event.pointerId);
+			resetTraceGesture();
+			traceMap.classList.toggle("is-dragging", Boolean(traceDrag || traceGesture));
+		});
+		traceMap.addEventListener("keydown", (event) => {
+			const moves = { ArrowLeft: [40, 0], ArrowRight: [-40, 0], ArrowUp: [0, 40], ArrowDown: [0, -40] };
+			if (moves[event.key]) tracePan = tracePan.map((value, axis) => value + moves[event.key][axis]);
+			else if (event.key === "+" || event.key === "=") traceZoom = Math.min(MAX_ZOOM, traceZoom + .5);
+			else if (event.key === "-" || event.key === "−") traceZoom = Math.max(1, traceZoom - .5);
+			else if (event.key === "Home") { traceZoom = 1; tracePan = [0, 0]; }
+			else return;
+			event.preventDefault();
+			traceCamera();
+		});
+		new ResizeObserver(traceCamera).observe(traceMap);
+	}
 	element("route-progress").addEventListener("input", (event) => { stop(); fraction = Number(event.target.value) / 1000; drawRoute(); });
 	element("play-route").addEventListener("click", () => {
 		if (playing) { stop(); return; }
@@ -479,15 +823,51 @@ function initialize() {
 		element("trace-next").addEventListener("click", () => advanceTrace(1));
 		element("trace-play").addEventListener("click", () => {
 			if (!traceEvents.length) return;
-			if (traceTimer !== null) { stopTrace(); return; }
-			if (traceIndex >= traceEvents.length - 1) traceIndex = 0;
-			element("trace-play").textContent = "Ⅱ Pausar";
-			element("trace-play").setAttribute("aria-pressed", "true");
-			traceTimer = window.setInterval(() => {
-				if (traceIndex >= traceEvents.length - 1) { stopTrace(); return; }
-				advanceTrace(1);
-			}, reducedMotion.matches ? 1400 : 850);
+			if (tracePlaying) {
+				tracePlaying = false;
+				cancelTraceFrame();
+				element("trace-play").textContent = "▶ Reproduzir";
+				element("trace-play").setAttribute("aria-pressed", "false");
+				return;
+			}
+			startTracePlayback();
 		});
+		element("trace-case-select")?.addEventListener("change", (event) => {
+			if (event.target.value === "") return;
+			selectCase(Number(event.target.value));
+			element("trace-map").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "center" });
+			element("trace-play").focus({ preventScroll: true });
+		});
+		const tracePicker = element("trace-case-picker");
+		const tracePickerDialog = element("trace-case-picker-dialog");
+		if (tracePicker && tracePickerDialog) {
+			element("trace-case-picker-button").addEventListener("click", () => {
+				element("trace-picker-search").value = "";
+				renderTracePicker();
+				tracePickerDialog.showModal();
+				element("trace-case-picker-button").setAttribute("aria-expanded", "true");
+				element("trace-picker-search").focus();
+			});
+			element("trace-picker-close").addEventListener("click", () => tracePickerDialog.close());
+			tracePickerDialog.addEventListener("close", () => {
+				element("trace-case-picker-button").setAttribute("aria-expanded", "false");
+				element("trace-case-picker-button").focus({ preventScroll: true });
+			});
+			tracePickerDialog.addEventListener("click", (event) => {
+				if (event.target === tracePickerDialog) {
+					const box = tracePickerDialog.getBoundingClientRect();
+					if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) tracePickerDialog.close();
+				}
+			});
+			element("trace-picker-search").addEventListener("input", renderTracePicker);
+			element("trace-picker-options").addEventListener("click", (event) => {
+				const button = event.target.closest("[data-trace-case]");
+				if (!button) return;
+				selectCase(Number(button.dataset.traceCase));
+				tracePickerDialog.close();
+				element("trace-map").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "center" });
+			});
+		}
 	}
 	document.addEventListener("visibilitychange", () => { if (document.hidden) { stop(); stopTrace(); } });
 	reducedMotion.addEventListener("change", stop);
@@ -627,7 +1007,7 @@ function initialize() {
 		download(`tpp-resultados-${data.rows.length}-casos.csv`, csv, "text/csv;charset=utf-8");
 	});
 	const requested = new URLSearchParams(window.location.search).get("caso");
-	selectCase(requested !== null && /^\d+$/.test(requested) ? Number(requested) : 2, false) || selectCase(2, false);
+	selectCase(requested !== null && /^\d+$/.test(requested) ? Number(requested) : defaultCase, false) || selectCase(defaultCase, false);
 	renderTable();
 	if (element("challenge-data")) {
 		initializeChallenge();
@@ -921,6 +1301,42 @@ function initializeGuide() {
 		const count = element("guide-title")?.closest(".guide-nav")?.querySelector("[data-guide-count]");
 		if (count) count.textContent = `${visited.size}/${nodes.size} seções visitadas`;
 	}
+	const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+	const panelAnimations = new WeakMap();
+	function setPanelOpen(id, expanded) {
+		const node = nodes.get(id);
+		const panel = node?.querySelector(":scope > .guided-panel");
+		if (!panel) return;
+		panelAnimations.get(panel)?.cancel();
+		panelAnimations.delete(panel);
+		const current = !panel.hidden;
+		if (reduced.matches || current === expanded) {
+			panel.hidden = !expanded;
+			panel.style.height = "";
+			panel.style.overflow = "";
+			panel.inert = !expanded;
+			update(id);
+			return;
+		}
+		const from = current ? panel.getBoundingClientRect().height : 0;
+		panel.hidden = false;
+		panel.inert = !expanded;
+		const to = expanded ? panel.scrollHeight : 0;
+		panel.style.height = `${from}px`;
+		panel.style.overflow = "hidden";
+		const animation = panel.animate([{ height: `${from}px`, opacity: from ? 1 : 0 }, { height: `${to}px`, opacity: expanded ? 1 : 0 }], { duration: 220, easing: "cubic-bezier(.2,.7,.2,1)", fill: "forwards" });
+		panelAnimations.set(panel, animation);
+		update(id);
+		animation.onfinish = () => {
+			animation.cancel();
+			panel.hidden = !expanded;
+			panel.style.height = "";
+			panel.style.overflow = "";
+			panel.inert = !expanded;
+			panelAnimations.delete(panel);
+			update(id);
+		};
+	}
 	function open(id, scroll = false) {
 		const node = nodes.get(id);
 		if (!node) return;
@@ -928,8 +1344,7 @@ function initializeGuide() {
 			if (!node.open) node.querySelector(":scope > .guided-summary")?.click();
 		}
 		else {
-			const panel = node.querySelector(":scope > .guided-panel");
-			if (panel) panel.hidden = false;
+			setPanelOpen(id, true);
 		}
 		markVisited(id);
 		if (scroll) requestAnimationFrame(() => node.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -942,7 +1357,7 @@ function initializeGuide() {
 			node.querySelector(":scope > .guided-toggle")?.addEventListener("click", () => {
 				const panel = node.querySelector(":scope > .guided-panel");
 				const shouldOpen = Boolean(panel?.hidden);
-				if (panel) panel.hidden = !shouldOpen;
+				setPanelOpen(id, shouldOpen);
 				if (shouldOpen) markVisited(id); else update(id);
 			});
 		}
