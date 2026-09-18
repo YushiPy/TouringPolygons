@@ -7,7 +7,7 @@
 	<meta name="theme-color" content="#102c38">
 	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='%23102c38'/%3E%3Cpath d='M8 29 17 11 26 27 33 9' fill='none' stroke='%23ffad66' stroke-width='3'/%3E%3C/svg%3E">
 	<title>Visitar regiões, escolher caminhos · 34º SIICUSP</title>
-	<link rel="stylesheet" href="/static/event.css?v=20260918-4">
+	<link rel="stylesheet" href="/static/event.css?v=20260918-5">
 </head>
 <body>
 	<a class="skip-link" href="#explorar">Pular para a demonstração</a>
@@ -80,7 +80,7 @@
 		</section>
 		<section id="simulacao" class="trace-section" aria-labelledby="trace-title">
 			<div class="section-heading"><div><p class="eyebrow">POR DENTRO DO SOLVER</p><h2 id="trace-title">Simule a execução da busca</h2></div><p>Heurística inicial, incumbente<br>e árvore de Branch and Bound.</p></div>
-			<div class="trace-intro"><p>Avance passo a passo pela execução real do solver para o caso selecionado. A região escolhida pela heurística, os contatos refinados e as podas aparecem no mesmo espaço geométrico.</p><p class="trace-note">Os rótulos seguem a convenção da visualização: 1 é a primeira região da ordem final registrada para o caso.</p></div>
+			<div class="trace-intro"><p>Avance passo a passo pela execução real do solver para o caso selecionado. A região escolhida pela heurística, os contatos refinados e as podas aparecem no mesmo espaço geométrico.</p><p class="trace-note"><strong>Sobre os rótulos:</strong> o solver não recebe os números exibidos aqui. Depois de calcular a rota ótima de cada caso, reordenamos os rótulos para que 1 seja a primeira região visitada, 2 a segunda, e assim por diante. É uma convenção posterior para facilitar a visualização.</p></div>
 			<div class="trace-layout">
 				<div class="trace-map-panel"><svg id="trace-map" viewBox="0 0 840 480" role="img" aria-labelledby="trace-map-title trace-map-description"><title id="trace-map-title">Simulação geométrica da busca</title><desc id="trace-map-description">Caminho e regiões no passo atual da simulação.</desc><defs><pattern id="trace-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M 24 0 L 0 0 0 24" fill="none" stroke="#ffffff" stroke-opacity=".055" stroke-width="1"/></pattern></defs><rect width="840" height="480" fill="url(#trace-grid)"/><g id="trace-map-content"></g></svg><p id="trace-map-caption" class="map-caption">Selecione um caso com trace disponível para começar.</p></div>
 				<div class="trace-control-panel"><div class="trace-controls" role="group" aria-label="Controles da simulação"><button id="trace-previous" class="secondary-button compact-action" type="button" disabled>← Anterior</button><button id="trace-play" class="primary-button compact-action" type="button" disabled>▶ Reproduzir</button><button id="trace-next" class="secondary-button compact-action" type="button" disabled>Próximo →</button></div><p id="trace-progress" class="trace-progress" aria-live="polite">Nenhuma simulação carregada.</p><div class="trace-explanation" aria-live="polite" aria-atomic="true"><span id="trace-kind" class="eyebrow">PASSO ATUAL</span><h3 id="trace-step-title">Escolha uma instância didática</h3><p id="trace-step-text">Os casos 03, 10 e 56 têm uma reprodução compacta da execução armazenada para esta demonstração.</p><dl class="trace-metrics"><div><dt>Sequência parcial</dt><dd id="trace-sequence">—</dd></div><div><dt>Limite inferior</dt><dd id="trace-lower-bound">—</dd></div><div><dt>Incumbente</dt><dd id="trace-upper-bound">—</dd></div></dl></div><div class="trace-tree-wrap"><h3>Árvore registrada</h3><div id="trace-tree" class="trace-tree" role="log" aria-live="polite"></div></div></div>
@@ -129,6 +129,6 @@
 	<script id="challenge-data" type="application/json">{{ challenge|tojson }}</script>
 	<script id="trace-data" type="application/json">{{ traces|tojson }}</script>
 	<script id="event-data" type="application/json">{{ data|tojson }}</script>
-	<script type="module" src="/static/event.js?v=20260918-5"></script>
+	<script type="module" src="/static/event.js?v=20260918-6"></script>
 </body>
 </html>

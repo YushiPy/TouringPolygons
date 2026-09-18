@@ -13,7 +13,7 @@ from unittest.mock import patch
 from starlette.requests import Request
 
 import main
-from dashboard.dashboard_event import german_visual_data, event_context, event_data, inline_event_assets, trace_data, visual_data
+from dashboard.dashboard_event import german_trace_data, german_visual_data, event_context, event_data, inline_event_assets, trace_data, visual_data
 from dashboard.dashboard_free_order import solve_free_editor
 
 
@@ -130,21 +130,27 @@ class EventTests(unittest.TestCase):
                 self.assertNotIn("upper_bound", row)
                 self.assertEqual(sorted(row["order"]), list(range(row["polygons"])))
 
-    def test_main_event_route_renders_siicusp_page(self):
+    def test_main_event_route_renders_german_corpus_page(self):
         request = Request({"type": "http", "method": "GET", "path": "/evento", "headers": []})
         with patch("dashboard.dashboard_free_order.ensure_binary", side_effect=AssertionError("Unexpected build")):
             response = asyncio.run(main.event_page(request))
         self.assertEqual(response.status_code, 200)
         html = response.body.decode()
-        self.assertIn("TPP - SIICUSP34", html)
+        self.assertIn("TPP · corpus alemão adaptado · 558 instâncias", html)
         self.assertIn("558 instâncias", html)
         self.assertIn("475", html)
         self.assertNotIn("Arquivo SIICUSP", html)
-        self.assertNotIn("corpus alemão", html.lower())
+        self.assertIn("corpus alemão", html.lower())
         self.assertIn("O menor caminho", html)
         self.assertIn("Tente você mesmo", html)
         self.assertIn("Começar o desafio", html)
         self.assertIn('id="guia"', html)
+        self.assertIn('id="simulacao"', html)
+        self.assertIn("o solver não recebe os números exibidos aqui", html)
+        traces = json.loads(re.search(r'<script id="trace-data" type="application/json">(.*?)</script>', html, re.S)[1])
+        self.assertEqual(traces, german_trace_data())
+        self.assertEqual(set(traces["cases"]), {"2", "14", "19", "55"})
+        self.assertTrue(all(case["events"] for case in traces["cases"].values()))
         self.assertIn("Resultados práticos", html)
         self.assertIn("Fale com o autor", html)
         self.assertIn("DE ONDE VIEMOS", html)

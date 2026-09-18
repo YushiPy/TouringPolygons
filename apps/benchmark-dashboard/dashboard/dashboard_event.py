@@ -12,6 +12,7 @@ DATA_PATH = Path(__file__).resolve().parents[1] / "static/event/siicusp34.json"
 TRACE_PATH = DATA_PATH.with_name("siicusp34-traces.json")
 GERMAN_DATA_PATH = Path(__file__).resolve().parents[1] / "static/event/german-instances-exact-20260918.json"
 GERMAN_PARTITIONS_PATH = GERMAN_DATA_PATH.with_name("german-instances-exact-20260918-partitions.json")
+GERMAN_TRACE_PATH = GERMAN_DATA_PATH.with_name("german-instances-traces.json")
 
 
 @lru_cache(maxsize=1)
@@ -24,6 +25,13 @@ def trace_data() -> dict:
     if not TRACE_PATH.exists():
         return {"schema_version": 1, "cases": {}}
     return json.loads(TRACE_PATH.read_text())
+
+
+@lru_cache(maxsize=1)
+def german_trace_data() -> dict:
+    if not GERMAN_TRACE_PATH.exists():
+        return {"schema_version": 1, "cases": {}}
+    return json.loads(GERMAN_TRACE_PATH.read_text())
 
 
 @lru_cache(maxsize=1)
@@ -144,6 +152,7 @@ def german_context() -> dict:
     return {
         "data": data,
 		"challenge": json.loads(DATA_PATH.with_name("siicusp34-challenge.json").read_text()),
+        "traces": german_trace_data(),
         "initial": row,
         "polygons": [" ".join(f"{x},{y}" for x, y in map(project, polygon)) for polygon in row["geometry"]["polygons"]],
         "path": " ".join(f"{x},{y}" for x, y in map(project, row["path"])),
@@ -174,9 +183,9 @@ def _inline_event_assets(html: str, data_path: Path, data_href: str) -> str:
     javascript = "\n".join(
         re.sub(r"^export ", "", re.sub(r"^import .*;\n", "", source, flags=re.M), flags=re.M) for source in modules
     )
-    html = html.replace('<link rel="stylesheet" href="/static/event.css?v=20260918-4">', f"<style>{css}</style>")
+    html = html.replace('<link rel="stylesheet" href="/static/event.css?v=20260918-5">', f"<style>{css}</style>")
     html = html.replace(
-        '<script type="module" src="/static/event.js?v=20260918-5"></script>',
+        '<script type="module" src="/static/event.js?v=20260918-6"></script>',
         f'<script type="module">{javascript}</script>',
     )
     encoded = base64.b64encode(data_path.read_bytes()).decode("ascii")

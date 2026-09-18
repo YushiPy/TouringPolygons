@@ -65,7 +65,7 @@ function initialize() {
 	if (data.schema_version !== 1 || !data.rows.length) throw new Error("Dados da demonstração indisponíveis.");
 	let row = data.rows.find((item) => item.case === 2);
 	let projected, fraction = 1, zoom = 1, frame = 0, playing = false;
-	let traceEvents = [], traceIndex = 0, traceTimer = null;
+	let traceEvents = [], traceIndex = 0, traceTimer = null, traceAnimation = null;
 	let pan = [0, 0], drag = null;
 	const speeds = [.25, .5, 1, 1.5, 2, 3, 4];
 	let speedIndex = 2;
@@ -79,12 +79,42 @@ function initialize() {
 	const traceMapContent = element("trace-map-content");
 	const hasTraceUI = Boolean(traceMapContent);
 
+	function stopTraceAnimation() {
+		if (traceAnimation !== null) traceAnimation.cancel();
+		traceAnimation = null;
+	}
+
 	function stopTrace() {
 		if (!hasTraceUI) return;
 		if (traceTimer !== null) window.clearInterval(traceTimer);
 		traceTimer = null;
+		stopTraceAnimation();
 		element("trace-play").textContent = "▶ Reproduzir";
 		element("trace-play").setAttribute("aria-pressed", "false");
+	}
+
+	function animateTraceRoute() {
+		if (reducedMotion.matches) return;
+		const route = traceMapContent.querySelector(".trace-current-route");
+		if (!route?.animate || typeof route.getTotalLength !== "function") return;
+		let length;
+		try { length = route.getTotalLength(); } catch { return; }
+		if (!Number.isFinite(length) || length <= 0) return;
+		route.style.strokeDasharray = `${length} ${length}`;
+		route.style.strokeDashoffset = String(length);
+		const animation = route.animate([{ strokeDashoffset: String(length) }, { strokeDashoffset: "0" }], {
+			duration: Math.min(820, Math.max(360, 300 + length * .8)),
+			easing: "cubic-bezier(.3,.65,.25,1)",
+			fill: "forwards",
+		});
+		traceAnimation = animation;
+		animation.finished.then(() => {
+			if (traceAnimation !== animation) return;
+			route.style.strokeDasharray = "none";
+			route.style.strokeDashoffset = "0";
+			traceAnimation = null;
+			animation.cancel();
+		}).catch(() => {});
 	}
 
 	function traceCurrentPath(event) {
@@ -140,7 +170,7 @@ function initialize() {
 			traceMapContent.innerHTML = "";
 			element("trace-progress").textContent = "Nenhuma simulação carregada para este caso.";
 			element("trace-step-title").textContent = "Escolha uma instância didática";
-			element("trace-step-text").textContent = "Os casos 03, 10 e 56 têm uma reprodução compacta da execução armazenada para esta demonstração.";
+			element("trace-step-text").textContent = "Os casos 03, 15, 20 e 56 têm uma reprodução compacta da execução armazenada para esta demonstração.";
 			element("trace-kind").textContent = "PASSO ATUAL";
 			element("trace-sequence").textContent = "—";
 			element("trace-lower-bound").textContent = "—";
@@ -164,12 +194,15 @@ function initialize() {
 		const pieceIndex = Number.isInteger(Number(event.piece)) ? Number(event.piece) : -1;
 		const branchPolygon = Number.isInteger(Number(event.polygon)) ? Number(event.polygon) : -1;
 		const piece = branchPolygon >= 0 && pieceIndex >= 0 ? row.visualization?.decomposition?.[branchPolygon]?.[pieceIndex] : null;
+		stopTraceAnimation();
+		const traveler = currentPath.at(-1) || start;
 		traceMapContent.innerHTML = `${row.geometry.polygons.map((polygon, index) => `<polygon class="trace-region ${selected.has(index) ? "trace-selected" : ""}" points="${coordinates(polygon.map(projection.project))}"><title>Região ${traceLabel(order, index)}</title></polygon>`).join("")}
 			${[...selected].map((index) => `<polygon class="trace-hull" points="${coordinates(convexHull(row.geometry.polygons[index]).map(projection.project))}"/>`).join("")}
 			${piece ? `<polygon class="trace-piece" points="${coordinates(piece.map(projection.project))}"/>` : ""}
 			<polyline class="trace-final-route" points="${coordinates(finalPath)}"/><polyline class="trace-current-route" points="${coordinates(currentPath)}"/>
 			${showLabels ? projection.polygons.map((polygon, index) => { const center = polygon.reduce((sum, point) => [sum[0] + point[0] / polygon.length, sum[1] + point[1] / polygon.length], [0, 0]); return `<text class="trace-region-label ${selected.has(index) ? "trace-label-selected" : ""}" x="${center[0]}" y="${center[1]}" text-anchor="middle">${traceLabel(order, index)}</text>`; }).join("") : ""}
-			<circle class="trace-endpoint" cx="${start[0]}" cy="${start[1]}" r="6"/><text class="trace-endpoint-label" x="${start[0] + 13}" y="${start[1] + 4}">S</text><circle class="trace-endpoint trace-target" cx="${target[0]}" cy="${target[1]}" r="6"/><text class="trace-endpoint-label" x="${target[0] + 13}" y="${target[1] + 4}">T</text>`;
+			<circle class="trace-traveler" cx="${traveler[0]}" cy="${traveler[1]}" r="5"/><circle class="trace-endpoint" cx="${start[0]}" cy="${start[1]}" r="6"/><text class="trace-endpoint-label" x="${start[0] + 13}" y="${start[1] + 4}">S</text><circle class="trace-endpoint trace-target" cx="${target[0]}" cy="${target[1]}" r="6"/><text class="trace-endpoint-label" x="${target[0] + 13}" y="${target[1] + 4}">T</text>`;
+		animateTraceRoute();
 		const [title, text] = traceEventCopy(event, trace);
 		element("trace-kind").textContent = event.kind.replaceAll("_", " ").toUpperCase();
 		element("trace-step-title").textContent = title;
@@ -231,7 +264,7 @@ function initialize() {
 		mapContent.querySelectorAll(".region").forEach((polygon) => {
 			const index = Number(polygon.dataset.region);
 			const contact = row.visualization.contacts[index];
-			const visited = contact !== null && fraction + 1e-12 >= contact.fraction;
+			const visited = Boolean(contact) && fraction + 1e-12 >= contact.fraction;
 			const colors = regionColors(row.order.indexOf(index), row.polygons, visited);
 			polygon.style.fill = colors.fill;
 			polygon.style.stroke = colors.stroke;
@@ -239,7 +272,7 @@ function initialize() {
 		});
 		mapContent.querySelectorAll(".visit-contact").forEach((point) => {
 			const contact = row.visualization.contacts[Number(point.dataset.region)];
-			point.classList.toggle("reached", fraction + 1e-12 >= contact.fraction);
+			point.classList.toggle("reached", Boolean(contact) && fraction + 1e-12 >= contact.fraction);
 		});
 	}
 
@@ -341,7 +374,10 @@ function initialize() {
 	document.querySelectorAll(".example").forEach((button) => button.addEventListener("click", () => {
 		if (Number(button.dataset.case) === row.case) return;
 		selectCase(Number(button.dataset.case));
-		showMap();
+		if (button.closest(".trace-showcases")) {
+			element("trace-map").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "center" });
+			element("trace-play").focus({ preventScroll: true });
+		} else showMap();
 	}));
 	element("case-select").addEventListener("change", (event) => { selectCase(Number(event.target.value)); showMap(); });
 	element("show-labels").addEventListener("click", () => { element("show-labels").setAttribute("aria-pressed", String(!enabled("show-labels"))); draw(); });

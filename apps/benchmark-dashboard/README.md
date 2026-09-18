@@ -56,6 +56,12 @@ Open [the main event demonstration](http://127.0.0.1:8017/evento). It includes:
   reduced-motion support, responsive layout and a static fallback without JavaScript;
 - separate explanations for certified paths and time limits;
 - filtered results, CSV export and per-case geometry, paths and provenance;
+- an educational solver replay on the current German-corpus page for cases 03, 15,
+  20 and 56, including the initial heuristic, incumbent updates, order branching,
+  convex-piece branching, lower-bound pruning and the compact recorded search tree;
+- animated trace playback that progressively draws the current route. The labels in
+  that replay are assigned after the optimal route is known for presentation: the
+  solver itself does not receive this display numbering;
 - an offline download at `/evento/offline`: one HTML file containing the 558-case
   data, CSS and JavaScript, usable without the server, network, C++ build or Gurobi license.
 
@@ -87,11 +93,15 @@ The first dashboard request builds the small adapter using the local C++ compile
 The event and offline pages need no compiler or runtime solve.
 Regenerate the frozen partitions into a new file using
 `.venv/bin/python scripts/export_event_partitions.py /tmp/reviewed-partitions.json`.
-Regenerate the educational search traces into a new file using
+Regenerate the archived SIICUSP educational search traces into a new file using
 `.venv/bin/python scripts/export_event_trace.py --output /tmp/siicusp34-traces.json`.
 The exporter runs the solver with `--trace`, keeps the three showcase cases by
 default, and truncates very large traces while preserving the heuristic and final
 search events.
+The current German-page traces are regenerated with
+`.venv/bin/python scripts/export_german_trace.py --output static/event/german-instances-traces.json`;
+its default showcase cases are the zero-based solver IDs 2, 14, 19 and 55,
+displayed to visitors as cases 03, 15, 20 and 56.
 Both case lists support ascending/descending sorting. Map controls support pinch
 zoom, focus-based keyboard navigation, touch taps and accessible pressed toggles. The historical 5 September
 comparison remains explicitly labeled as historical in the technical workbench. The
