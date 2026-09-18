@@ -3,6 +3,7 @@
 #include "vector2.h"
 #include <cstddef>
 #include <limits>
+#include <string>
 #include <vector>
 
 namespace tpp {
@@ -18,13 +19,36 @@ namespace tpp {
 		// Internal relaxations may stop at this relative oracle gap. Feasible
 		// leaves are refined to the requested global gap before certification.
 		double oracle_relative_gap = 1e-6;
+		// Record an explanatory execution trace. Disabled by default so normal
+		// benchmark runs keep the same memory and timing behavior.
+		bool trace = false;
 	};
 
 	enum class UnorderedTppTermination { Optimal, CallLimit, TimeLimit, NumericalLimit };
 
+	struct UnorderedTppTraceEvent {
+		std::string kind;
+		size_t node = std::numeric_limits<size_t>::max();
+		size_t parent = std::numeric_limits<size_t>::max();
+		size_t polygon = std::numeric_limits<size_t>::max();
+		size_t piece = std::numeric_limits<size_t>::max();
+		size_t position = std::numeric_limits<size_t>::max();
+		size_t pass = std::numeric_limits<size_t>::max();
+		std::vector<size_t> sequence;
+		std::vector<size_t> order;
+		std::vector<Vector2> path;
+		double lower_bound = std::numeric_limits<double>::infinity();
+		double upper_bound = std::numeric_limits<double>::infinity();
+		double length = std::numeric_limits<double>::infinity();
+		bool pruned = false;
+		std::string source;
+		std::string reason;
+	};
+
 	struct UnorderedTppSolveResult {
 		std::vector<Vector2> path;
 		std::vector<size_t> order;
+		std::vector<UnorderedTppTraceEvent> trace;
 		double lower_bound = 0.0;
 		double upper_bound = std::numeric_limits<double>::infinity();
 		bool exact = false;

@@ -65,8 +65,12 @@ landing page.
 
 The archived SIICUSP page uses `static/event/siicusp34.json`, a portable snapshot of the adopted
 18 September 2026 exact-solver confirmation run: 60 valid paths, 45 exact
-certificates and 15 time limits. It does not launch new computations. The animation is
-playback of the saved path, not a visualization of search progress. Visitor case
+certificates and 15 time limits. It does not launch new computations. The page also
+contains a step-by-step replay of the recorded solver execution for SIICUSP cases
+03, 10 and 56. It shows the greedy heuristic, incumbent updates, convex-relaxation
+bounds, order branching and pruning; labels are remapped to the visitor convention
+in which 1 is the first region of the final recorded order. The ordinary map
+animation remains playback of the saved path. Visitor case
 numbers and searches are one-based (1–60). Stored IDs and existing `?caso=` links
 stay zero-based for compatibility; CSV includes both `case_number` and `case`, and
 per-case downloads include `case_number`.
@@ -83,6 +87,11 @@ The first dashboard request builds the small adapter using the local C++ compile
 The event and offline pages need no compiler or runtime solve.
 Regenerate the frozen partitions into a new file using
 `.venv/bin/python scripts/export_event_partitions.py /tmp/reviewed-partitions.json`.
+Regenerate the educational search traces into a new file using
+`.venv/bin/python scripts/export_event_trace.py --output /tmp/siicusp34-traces.json`.
+The exporter runs the solver with `--trace`, keeps the three showcase cases by
+default, and truncates very large traces while preserving the heuristic and final
+search events.
 Both case lists support ascending/descending sorting. Map controls support pinch
 zoom, focus-based keyboard navigation, touch taps and accessible pressed toggles. The historical 5 September
 comparison remains explicitly labeled as historical in the technical workbench. The

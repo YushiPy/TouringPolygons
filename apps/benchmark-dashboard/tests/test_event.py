@@ -13,7 +13,7 @@ from unittest.mock import patch
 from starlette.requests import Request
 
 import main
-from dashboard.dashboard_event import german_visual_data, event_context, event_data, inline_event_assets, visual_data
+from dashboard.dashboard_event import german_visual_data, event_context, event_data, inline_event_assets, trace_data, visual_data
 from dashboard.dashboard_free_order import solve_free_editor
 
 
@@ -130,17 +130,30 @@ class EventTests(unittest.TestCase):
                 self.assertNotIn("upper_bound", row)
                 self.assertEqual(sorted(row["order"]), list(range(row["polygons"])))
 
-    def test_main_event_route_renders_german_corpus(self):
+    def test_main_event_route_renders_siicusp_page(self):
         request = Request({"type": "http", "method": "GET", "path": "/evento", "headers": []})
         with patch("dashboard.dashboard_free_order.ensure_binary", side_effect=AssertionError("Unexpected build")):
             response = asyncio.run(main.event_page(request))
         self.assertEqual(response.status_code, 200)
         html = response.body.decode()
+        self.assertIn("TPP - SIICUSP34", html)
         self.assertIn("558 instâncias", html)
         self.assertIn("475", html)
-        self.assertIn("Arquivo SIICUSP", html)
+        self.assertNotIn("Arquivo SIICUSP", html)
+        self.assertNotIn("corpus alemão", html.lower())
+        self.assertIn("O menor caminho", html)
         self.assertIn("Tente você mesmo", html)
         self.assertIn("Começar o desafio", html)
+        self.assertIn("Trabalhos anteriores e o nosso ponto de entrada", html)
+        self.assertIn("O que é o Touring Polygons Problem?", html)
+        self.assertIn("Consultar referências [1–4]", html)
+        self.assertIn('id="references-dialog"', html)
+        self.assertIn("Dados e reprodutibilidade", html)
+        self.assertGreater(html.index("Dados e reprodutibilidade"), html.index("Um problema simples de explicar"))
+        self.assertIn("Algorithms Division", html)
+        self.assertIn("10.1145/780542.780612", html)
+        self.assertIn("10.1007/978-3-319-55911-7_44", html)
+        self.assertIn("10.4230/LIPIcs.SoCG.2026.46", html)
         self.assertIn('id="challenge-data"', html)
         self.assertNotIn("Gap numérico fechado", html)
 
@@ -189,8 +202,18 @@ class EventTests(unittest.TestCase):
         self.assertNotIn('id="show-all-results"', html)
         self.assertNotIn("Você está vendo uma solução já calculada", html)
         self.assertNotIn('class="challenge-details"', html)
+        self.assertIn('id="simulacao"', html)
+        self.assertIn('id="trace-map"', html)
         data = json.loads(re.search(r'<script id="event-data" type="application/json">(.*?)</script>', html, re.S)[1])
         self.assertEqual(data, json.loads(json.dumps(visual_data())))
+        traces = json.loads(re.search(r'<script id="trace-data" type="application/json">(.*?)</script>', html, re.S)[1])
+        self.assertEqual(traces, trace_data())
+        self.assertEqual(set(traces["cases"]), {"2", "9", "55"})
+        for case in traces["cases"].values():
+            self.assertTrue(case["events"])
+            complete = next(event for event in reversed(case["events"]) if event["kind"] == "complete")
+            self.assertEqual(complete["order"], case["optimal_order"])
+            self.assertTrue(complete["path"])
 
     def test_offline_document_contains_all_assets_and_valid_javascript(self):
         request = Request({"type": "http", "method": "GET", "path": "/evento/siicusp/offline", "headers": []})
@@ -204,6 +227,8 @@ class EventTests(unittest.TestCase):
             re.search(r'<script id="challenge-data" type="application/json">(.*?)</script>', html, re.S)[1]
         )
         self.assertEqual(challenge, event_context()["challenge"])
+        traces = json.loads(re.search(r'<script id="trace-data" type="application/json">(.*?)</script>', html, re.S)[1])
+        self.assertEqual(traces, trace_data())
         javascript = re.search(r'<script type="module">(.*?)</script>', html, re.S)[1]
         self.assertNotRegex(javascript, r"(?m)^(import|export) ")
         result = subprocess.run(
@@ -290,4 +315,4 @@ class EventTests(unittest.TestCase):
         html = asyncio.run(event_server.event(request)).body.decode()
         self.assertNotIn('href="/"', html)
         self.assertIn("558 instâncias", html)
-        self.assertIn('href="/evento/siicusp"', html)
+        self.assertNotIn('href="/evento/siicusp"', html)

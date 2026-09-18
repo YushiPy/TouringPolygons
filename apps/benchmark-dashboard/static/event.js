@@ -8,6 +8,23 @@ const visitorRows = (rows, query) => rows.filter(row => !query.trim() || caseLab
 const titles = { 2: "Quatro regiões, um caminho", 9: "Quarenta regiões, ordem livre", 55: "Um caminho, uma prova em aberto" };
 const MAX_ZOOM = 8;
 
+function traceNumber(value, digits = 4) {
+	return Number.isFinite(Number(value)) ? number(Number(value), digits) : "—";
+}
+
+function traceLabel(order, original) {
+	const rank = Array.isArray(order) ? order.indexOf(Number(original)) : -1;
+	return rank >= 0 ? String(rank + 1) : String(Number(original) + 1);
+}
+
+function traceLabels(order, sequence) {
+	return Array.isArray(sequence) && sequence.length ? sequence.map((index) => traceLabel(order, index)).join(" → ") : "∅";
+}
+
+function traceEscape(value) {
+	return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+}
+
 function animateChallengeRoute(map) {
 	const route = map.querySelector(".challenge-solution-route");
 	if (!route || !route.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -43,9 +60,12 @@ function download(name, text, type) {
 
 function initialize() {
 	const data = JSON.parse(element("event-data").textContent);
+	const tracePayload = JSON.parse(element("trace-data")?.textContent || '{"schema_version":1,"cases":{}}');
+	const traces = tracePayload.schema_version === 1 ? (tracePayload.cases || {}) : {};
 	if (data.schema_version !== 1 || !data.rows.length) throw new Error("Dados da demonstração indisponíveis.");
 	let row = data.rows.find((item) => item.case === 2);
 	let projected, fraction = 1, zoom = 1, frame = 0, playing = false;
+	let traceEvents = [], traceIndex = 0, traceTimer = null;
 	let pan = [0, 0], drag = null;
 	const speeds = [.25, .5, 1, 1.5, 2, 3, 4];
 	let speedIndex = 2;
@@ -56,6 +76,129 @@ function initialize() {
 	const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 	const mapContent = element("map-content");
 	const map = element("route-map");
+	const traceMapContent = element("trace-map-content");
+	const hasTraceUI = Boolean(traceMapContent);
+
+	function stopTrace() {
+		if (!hasTraceUI) return;
+		if (traceTimer !== null) window.clearInterval(traceTimer);
+		traceTimer = null;
+		element("trace-play").textContent = "▶ Reproduzir";
+		element("trace-play").setAttribute("aria-pressed", "false");
+	}
+
+	function traceCurrentPath(event) {
+		for (let index = traceIndex; index >= 0; index -= 1) {
+			if (Array.isArray(traceEvents[index]?.path) && traceEvents[index].path.length) return traceEvents[index].path;
+		}
+		return row.path;
+	}
+
+	function traceSequence(event) {
+		if (Array.isArray(event?.order) && event.order.length) return event.order;
+		return Array.isArray(event?.sequence) ? event.sequence : [];
+	}
+
+	function traceEventCopy(event, trace) {
+		const order = trace.optimal_order || row.order || [];
+		const selected = traceLabels(order, traceSequence(event));
+		const polygon = event.polygon === undefined ? null : traceLabel(order, event.polygon);
+		const kind = event.kind;
+		if (kind === "heuristic_start") return ["A heurística começa", `O caminho inicial parte de S e procura uma ordem promissora de forma gulosa (${event.source === "reverse" ? "sentido reverso" : "sentido direto"}).`];
+		if (kind === "heuristic_greedy_step") return ["Escolha gulosa", `A heurística acrescenta a região ${polygon}; a sequência parcial agora é ${selected}.`];
+		if (kind === "heuristic_greedy_complete") return ["Ordem gulosa completa", `Todas as regiões foram inseridas. A ordem candidata é ${selected}.`];
+		if (kind === "heuristic_2opt") return ["Refino 2-opt", event.reason === "changed" ? `A heurística trocou trechos da ordem e obteve ${selected}.` : "Nenhuma troca 2-opt melhorou a ordem; o refino estabilizou."];
+		if (kind === "heuristic_contact_pass") return ["Refino geométrico", `O caminho da ordem ${selected} foi refinado nos pontos de contato (passagem ${Number(event.pass) + 1}).`];
+		if (kind === "incumbent") return ["Novo incumbente", `Foi encontrado um caminho viável de comprimento ${traceNumber(event.length, 4)} para a ordem ${selected}.`];
+		if (kind === "root") return ["Relaxação na raiz", "O solver ignora temporariamente os buracos e as regiões ainda não escolhidas para obter um limite inferior global."];
+		if (kind === "expand") return ["Expande um nó", `A busca examina a ordem parcial ${selected} e calcula como ela pode ser completada.`];
+		if (kind === "oracle") return ["Cálculo geométrico", `A relaxação convexa para ${selected} produz limite inferior ${traceNumber(event.lower_bound, 4)}${event.source === "refinement" ? "; a decomposição também foi refinada" : "."}`];
+		if (kind === "branch") return ["Branching", `A árvore escolhe a região ${polygon} e cria alternativas de inserção${event.reason === "decomposition" ? " ou de peça convexa" : " na ordem"}.`];
+		if (kind === "child") return [event.pruned ? "Filho podado" : "Filho enfileirado", event.piece === undefined ? (event.pruned ? `A sequência ${selected} tem limite ${traceNumber(event.lower_bound, 4)}, que já não pode melhorar o incumbente.` : `A sequência ${selected} permanece candidata e entra na fila de busca.`) : `A região ${polygon} foi refinada na peça convexa ${Number(event.piece) + 1}; ${event.pruned ? "o filho é podado" : "o filho entra na fila"}.`];
+		if (kind === "prune") return ["Nó podado", event.reason === "incumbent" ? "O caminho encontrado já é tão bom quanto o incumbente." : "O limite inferior excede o melhor caminho conhecido."];
+		if (kind === "complete") return ["Busca concluída", `A melhor ordem registrada é ${traceLabels(order, trace.optimal_order)}; comprimento ${traceNumber(event.length ?? trace.summary?.upper_bound, 4)}.`];
+		return ["Passo da busca", "O solver atualizou o estado da busca."];
+	}
+
+	function renderTraceTree(trace) {
+		const visibleKinds = new Set(["root", "expand", "branch", "child", "prune", "complete"]);
+		const events = traceEvents.slice(0, traceIndex + 1).filter((event) => visibleKinds.has(event.kind));
+		const visible = events.length > 42 ? events.slice(-42) : events;
+		element("trace-tree").innerHTML = visible.length ? visible.map((event) => {
+			const sequence = traceLabels(trace.optimal_order || row.order, event.sequence || []);
+			const label = event.kind === "root" ? "Raiz" : event.kind === "expand" ? `Expande ${sequence}` : event.kind === "branch" ? `Branching em ${traceLabel(trace.optimal_order || row.order, event.polygon)}` : event.kind === "child" ? `${event.pruned ? "Poda" : "Fila"}: ${sequence}` : event.kind === "prune" ? `Poda: ${sequence}` : "Certificado";
+			const detail = event.kind === "child" && Number.isFinite(Number(event.lower_bound)) ? `LB ${traceNumber(event.lower_bound, 3)}` : event.kind === "complete" ? `UB ${traceNumber(event.upper_bound ?? trace.summary?.upper_bound, 3)}` : "";
+			const indent = Math.min(Array.isArray(event.sequence) ? event.sequence.length : 0, 8);
+			return `<div class="trace-tree-item ${event.pruned ? "is-pruned" : ""} ${event.kind === "complete" ? "is-complete" : ""}" style="--trace-depth:${indent}"><span>${traceEscape(label)}</span><small>${traceEscape(detail)}</small></div>`;
+		}).join("") : '<p class="trace-tree-empty">A árvore aparecerá quando a busca começar.</p>';
+	}
+
+	function drawTrace() {
+		if (!hasTraceUI) return;
+		const trace = traces[String(row.case)];
+		if (!trace || !traceEvents.length) {
+			traceMapContent.innerHTML = "";
+			element("trace-progress").textContent = "Nenhuma simulação carregada para este caso.";
+			element("trace-step-title").textContent = "Escolha uma instância didática";
+			element("trace-step-text").textContent = "Os casos 03, 10 e 56 têm uma reprodução compacta da execução armazenada para esta demonstração.";
+			element("trace-kind").textContent = "PASSO ATUAL";
+			element("trace-sequence").textContent = "—";
+			element("trace-lower-bound").textContent = "—";
+			element("trace-upper-bound").textContent = "—";
+			element("trace-previous").disabled = true;
+			element("trace-next").disabled = true;
+			element("trace-play").disabled = true;
+			element("trace-tree").innerHTML = '<p class="trace-tree-empty">Selecione um caso com trace disponível.</p>';
+			return;
+		}
+		const event = traceEvents[traceIndex];
+		const order = trace.optimal_order || row.order || [];
+		const currentSequence = traceSequence(event);
+		const selected = new Set(currentSequence.map(Number));
+		const projection = projectedCase(row);
+		const start = projection.project(row.geometry.start), target = projection.project(row.geometry.target);
+		const currentPath = traceCurrentPath(event).map(projection.project);
+		const finalEvent = [...traceEvents].reverse().find((candidate) => candidate.kind === "complete" && Array.isArray(candidate.path) && candidate.path.length);
+		const finalPath = (finalEvent?.path || row.path).map(projection.project);
+		const showLabels = row.polygons <= 15 || selected.size > 0;
+		const pieceIndex = Number.isInteger(Number(event.piece)) ? Number(event.piece) : -1;
+		const branchPolygon = Number.isInteger(Number(event.polygon)) ? Number(event.polygon) : -1;
+		const piece = branchPolygon >= 0 && pieceIndex >= 0 ? row.visualization?.decomposition?.[branchPolygon]?.[pieceIndex] : null;
+		traceMapContent.innerHTML = `${row.geometry.polygons.map((polygon, index) => `<polygon class="trace-region ${selected.has(index) ? "trace-selected" : ""}" points="${coordinates(polygon.map(projection.project))}"><title>Região ${traceLabel(order, index)}</title></polygon>`).join("")}
+			${[...selected].map((index) => `<polygon class="trace-hull" points="${coordinates(convexHull(row.geometry.polygons[index]).map(projection.project))}"/>`).join("")}
+			${piece ? `<polygon class="trace-piece" points="${coordinates(piece.map(projection.project))}"/>` : ""}
+			<polyline class="trace-final-route" points="${coordinates(finalPath)}"/><polyline class="trace-current-route" points="${coordinates(currentPath)}"/>
+			${showLabels ? projection.polygons.map((polygon, index) => { const center = polygon.reduce((sum, point) => [sum[0] + point[0] / polygon.length, sum[1] + point[1] / polygon.length], [0, 0]); return `<text class="trace-region-label ${selected.has(index) ? "trace-label-selected" : ""}" x="${center[0]}" y="${center[1]}" text-anchor="middle">${traceLabel(order, index)}</text>`; }).join("") : ""}
+			<circle class="trace-endpoint" cx="${start[0]}" cy="${start[1]}" r="6"/><text class="trace-endpoint-label" x="${start[0] + 13}" y="${start[1] + 4}">S</text><circle class="trace-endpoint trace-target" cx="${target[0]}" cy="${target[1]}" r="6"/><text class="trace-endpoint-label" x="${target[0] + 13}" y="${target[1] + 4}">T</text>`;
+		const [title, text] = traceEventCopy(event, trace);
+		element("trace-kind").textContent = event.kind.replaceAll("_", " ").toUpperCase();
+		element("trace-step-title").textContent = title;
+		element("trace-step-text").textContent = text;
+		element("trace-sequence").textContent = traceLabels(order, currentSequence);
+		element("trace-lower-bound").textContent = traceNumber(event.lower_bound, 4);
+		element("trace-upper-bound").textContent = traceNumber(event.upper_bound, 4);
+		element("trace-progress").textContent = `Passo ${traceIndex + 1} de ${traceEvents.length}${trace.omitted_events ? ` · ${trace.omitted_events.toLocaleString("pt-BR")} eventos omitidos` : ""}`;
+		element("trace-previous").disabled = traceIndex === 0;
+		element("trace-next").disabled = traceIndex === traceEvents.length - 1;
+		element("trace-play").disabled = traceEvents.length < 2;
+		element("trace-map-caption").textContent = `Regiões destacadas pertencem à sequência parcial ${traceLabels(order, currentSequence)}. A linha clara é o caminho final registrado; a laranja mostra o caminho disponível neste passo.`;
+		renderTraceTree(trace);
+	}
+
+	function selectTrace() {
+		if (!hasTraceUI) return;
+		stopTrace();
+		const trace = traces[String(row.case)];
+		traceEvents = trace?.events || [];
+		traceIndex = 0;
+		drawTrace();
+	}
+
+	function advanceTrace(delta) {
+		if (!traceEvents.length) return;
+		traceIndex = Math.max(0, Math.min(traceEvents.length - 1, traceIndex + delta));
+		drawTrace();
+	}
 
 	function camera() {
 		pan = [Math.max(-420 * (zoom - 1), Math.min(420 * (zoom - 1), pan[0])), Math.max(-240 * (zoom - 1), Math.min(240 * (zoom - 1), pan[1]))];
@@ -145,6 +288,7 @@ function initialize() {
 		const selected = data.rows.find((item) => item.case === index);
 		if (!selected) return false;
 		stop();
+		stopTrace();
 		row = selected;
 		fraction = 1;
 		zoom = 1;
@@ -177,6 +321,7 @@ function initialize() {
 			window.history.replaceState(null, "", url);
 		}
 		draw();
+		selectTrace();
 		return true;
 	}
 
@@ -293,7 +438,22 @@ function initialize() {
 		};
 		frame = requestAnimationFrame(tick);
 	});
-	document.addEventListener("visibilitychange", () => { if (document.hidden) stop(); });
+	if (hasTraceUI) {
+		element("trace-previous").addEventListener("click", () => advanceTrace(-1));
+		element("trace-next").addEventListener("click", () => advanceTrace(1));
+		element("trace-play").addEventListener("click", () => {
+			if (!traceEvents.length) return;
+			if (traceTimer !== null) { stopTrace(); return; }
+			if (traceIndex >= traceEvents.length - 1) traceIndex = 0;
+			element("trace-play").textContent = "Ⅱ Pausar";
+			element("trace-play").setAttribute("aria-pressed", "true");
+			traceTimer = window.setInterval(() => {
+				if (traceIndex >= traceEvents.length - 1) { stopTrace(); return; }
+				advanceTrace(1);
+			}, reducedMotion.matches ? 1400 : 850);
+		});
+	}
+	document.addEventListener("visibilitychange", () => { if (document.hidden) { stop(); stopTrace(); } });
 	reducedMotion.addEventListener("change", stop);
 	let returnContext = null;
 	element("result-rows").addEventListener("click", (event) => {
@@ -614,7 +774,7 @@ function initializeReferences() {
 		if (!trigger || dialog.contains(trigger)) return;
 		event.preventDefault();
 		opener = trigger;
-		if (element("mobile-toc").open) element("mobile-toc").close();
+		if (element("mobile-toc")?.open) element("mobile-toc").close();
 		if (!dialog.open) dialog.showModal();
 		const selector = trigger.getAttribute("href");
 		const target = selector?.startsWith("#ref-") ? dialog.querySelector(selector) : null;

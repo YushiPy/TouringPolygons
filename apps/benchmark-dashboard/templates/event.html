@@ -7,7 +7,7 @@
 	<meta name="theme-color" content="#102c38">
 	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='%23102c38'/%3E%3Cpath d='M8 29 17 11 26 27 33 9' fill='none' stroke='%23ffad66' stroke-width='3'/%3E%3C/svg%3E">
 	<title>Visitar regiões, escolher caminhos · 34º SIICUSP</title>
-	<link rel="stylesheet" href="/static/event.css?v=20260918-2">
+	<link rel="stylesheet" href="/static/event.css?v=20260918-3">
 </head>
 <body>
 	<a class="skip-link" href="#explorar">Pular para a demonstração</a>
@@ -18,7 +18,7 @@
 	</svg>
 	<header class="event-header">
 		<a class="brand" href="{{ '#explorar' if offline else ('/evento/siicusp' if archive else '/evento') }}" aria-label="TPP, arquivo SIICUSP"><span class="brand-mark">TPP<span>↗</span></span><span>34º SIICUSP<small>Arquivo · IME · USP</small></span></a>
-		<nav aria-label="Navegação principal"><a href="#explorar">Explorar</a><a href="#desafio">Tente você</a><a href="#resultados">Resultados</a><a href="#metodo">O método</a>{% if not offline %}<a class="lab-link" href="/evento">Página principal · 558 ↗</a>{% endif %}</nav>
+		<nav aria-label="Navegação principal"><a href="#explorar">Explorar</a><a href="#simulacao">Simular a busca</a><a href="#desafio">Tente você</a><a href="#resultados">Resultados</a><a href="#metodo">O método</a>{% if not offline %}<a class="lab-link" href="/evento">Página principal · 558 ↗</a>{% endif %}</nav>
 	</header>
 	<main>
 		<section id="explorar" class="explorer" aria-labelledby="explore-title">
@@ -74,9 +74,17 @@
 					<div class="case-metrics"><div><span>Comprimento</span><strong id="case-length">55,47</strong><small>unidades da instância</small></div><div><span>Tempo de resolução</span><strong id="case-time">&lt; 0,001 s</strong><small>uma thread</small></div><div><span>Regiões visitadas</span><strong id="case-regions">4 / 4</strong><small>verificação independente</small></div><div><span>Certificação</span><strong id="case-certification">Exata</strong><small id="case-certification-note">busca concluída</small></div></div>
 				</aside>
 			</div>
-			<details class="data-downloads"><summary>Dados e reprodutibilidade</summary><p>Arquivos para consultar, reproduzir ou apresentar a demonstração sem internet.</p><div class="export-actions"><button id="download-case" class="text-button" type="button" disabled>Baixar este caso ↓</button><button id="download-results" class="text-button" type="button" disabled>Baixar os 60 resultados (CSV) ↓</button>{% if not offline %}<a href="/evento/offline" download="tpp-siicusp34.html">Levar demonstração offline ↓</a>{% endif %}<a href="/static/event/siicusp34.json" download="siicusp34-dados-verificados.json">Baixar dados completos ↓</a></div></details>
+			<details class="data-downloads"><summary>Dados e reprodutibilidade</summary><p>Arquivos para consultar, reproduzir ou apresentar a demonstração sem internet.</p><div class="export-actions"><button id="download-case" class="text-button" type="button" disabled>Baixar este caso ↓</button><button id="download-results" class="text-button" type="button" disabled>Baixar os 60 resultados (CSV) ↓</button>{% if not offline %}<a href="/evento/offline" download="tpp-siicusp34.html">Levar demonstração offline ↓</a><a href="/static/event/siicusp34.json" download="siicusp34-dados-verificados.json">Baixar dados completos ↓</a>{% endif %}</div></details>
 			<p id="event-error" class="error-message" role="alert" hidden></p>
 			<noscript><p class="notice">A demonstração estática e os resultados estão disponíveis. Ative JavaScript para trocar de caso, animar o percurso e filtrar a tabela.</p></noscript>
+		</section>
+		<section id="simulacao" class="trace-section" aria-labelledby="trace-title">
+			<div class="section-heading"><div><p class="eyebrow">POR DENTRO DO SOLVER</p><h2 id="trace-title">Simule a execução da busca</h2></div><p>Heurística inicial, incumbente<br>e árvore de Branch and Bound.</p></div>
+			<div class="trace-intro"><p>Avance passo a passo pela execução real do solver para o caso selecionado. A região escolhida pela heurística, os contatos refinados e as podas aparecem no mesmo espaço geométrico.</p><p class="trace-note">Os rótulos seguem a convenção da visualização: 1 é a primeira região da ordem final registrada para o caso.</p></div>
+			<div class="trace-layout">
+				<div class="trace-map-panel"><svg id="trace-map" viewBox="0 0 840 480" role="img" aria-labelledby="trace-map-title trace-map-description"><title id="trace-map-title">Simulação geométrica da busca</title><desc id="trace-map-description">Caminho e regiões no passo atual da simulação.</desc><defs><pattern id="trace-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M 24 0 L 0 0 0 24" fill="none" stroke="#ffffff" stroke-opacity=".055" stroke-width="1"/></pattern></defs><rect width="840" height="480" fill="url(#trace-grid)"/><g id="trace-map-content"></g></svg><p id="trace-map-caption" class="map-caption">Selecione um caso com trace disponível para começar.</p></div>
+				<div class="trace-control-panel"><div class="trace-controls" role="group" aria-label="Controles da simulação"><button id="trace-previous" class="secondary-button compact-action" type="button" disabled>← Anterior</button><button id="trace-play" class="primary-button compact-action" type="button" disabled>▶ Reproduzir</button><button id="trace-next" class="secondary-button compact-action" type="button" disabled>Próximo →</button></div><p id="trace-progress" class="trace-progress" aria-live="polite">Nenhuma simulação carregada.</p><div class="trace-explanation" aria-live="polite" aria-atomic="true"><span id="trace-kind" class="eyebrow">PASSO ATUAL</span><h3 id="trace-step-title">Escolha uma instância didática</h3><p id="trace-step-text">Os casos 03, 10 e 56 têm uma reprodução compacta da execução armazenada para esta demonstração.</p><dl class="trace-metrics"><div><dt>Sequência parcial</dt><dd id="trace-sequence">—</dd></div><div><dt>Limite inferior</dt><dd id="trace-lower-bound">—</dd></div><div><dt>Incumbente</dt><dd id="trace-upper-bound">—</dd></div></dl></div><div class="trace-tree-wrap"><h3>Árvore registrada</h3><div id="trace-tree" class="trace-tree" role="log" aria-live="polite"></div></div></div>
+			</div>
 		</section>
 		<section id="desafio" class="challenge-section" aria-labelledby="challenge-title">
 			<div class="challenge-invitation"><div><p class="eyebrow">UM DESAFIO DE 30 SEGUNDOS</p><h2 id="challenge-title">Agora é sua vez de escolher o caminho!</h2><p>Comece escolhendo a ordem de quatro regiões. Depois, avance para decisões geométricas mais difíceis.</p></div><button id="open-challenge" class="primary-button challenge-launch" type="button">Começar o desafio →</button></div>
@@ -119,7 +127,8 @@
 	<button id="toc-handle" class="toc-handle" type="button" aria-haspopup="dialog" aria-controls="mobile-toc" aria-expanded="false" hidden>☰ Nesta página <span aria-hidden="true">‹</span></button>
 	<dialog id="mobile-toc" class="mobile-toc" aria-labelledby="toc-title"><header><h2 id="toc-title">Nesta página</h2><button id="toc-close" type="button" aria-label="Fechar índice">×</button></header><p>Toque em uma seção. Arraste para a direita para fechar.</p><nav aria-label="Índice da página"><a href="#explorar">Explorar os caminhos</a><a href="#desafio">Desafio interativo</a><a href="#resultados">Os 60 resultados</a><a href="#metodo">Como funciona o método</a><a href="#research-title">Sobre a pesquisa</a><a href="#referencias" data-open-references>Referências</a><a href="#contato">Contato</a></nav></dialog>
 	<script id="challenge-data" type="application/json">{{ challenge|tojson }}</script>
+	<script id="trace-data" type="application/json">{{ traces|tojson }}</script>
 	<script id="event-data" type="application/json">{{ data|tojson }}</script>
-	<script type="module" src="/static/event.js?v=20260918-2"></script>
+	<script type="module" src="/static/event.js?v=20260918-3"></script>
 </body>
 </html>

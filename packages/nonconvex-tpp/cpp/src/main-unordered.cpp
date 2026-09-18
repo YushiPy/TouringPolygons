@@ -1,8 +1,71 @@
 #include "tpp/nonconvex/unordered.h"
+#include <cmath>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
+
+namespace {
+	void json_string(const std::string &value) {
+		std::cout << '"';
+		for (const char character : value) {
+			switch (character) {
+				case '"': std::cout << "\\\""; break;
+				case '\\': std::cout << "\\\\"; break;
+				case '\n': std::cout << "\\n"; break;
+				case '\r': std::cout << "\\r"; break;
+				case '\t': std::cout << "\\t"; break;
+				default: std::cout << character; break;
+			}
+		}
+		std::cout << '"';
+	}
+
+	void json_size(size_t value) {
+		if (value == std::numeric_limits<size_t>::max()) std::cout << "null";
+		else std::cout << value;
+	}
+
+	void json_double(double value) {
+		if (std::isfinite(value)) std::cout << value;
+		else std::cout << "null";
+	}
+
+	void json_sizes(const std::vector<size_t> &values) {
+		std::cout << '[';
+		for (size_t i = 0; i < values.size(); ++i) std::cout << (i ? "," : "") << values[i];
+		std::cout << ']';
+	}
+
+	void json_path(const std::vector<Vector2> &path) {
+		std::cout << '[';
+		for (size_t i = 0; i < path.size(); ++i)
+			std::cout << (i ? "," : "") << '[' << path[i].x << ',' << path[i].y << ']';
+		std::cout << ']';
+	}
+
+	void json_trace_event(const tpp::UnorderedTppTraceEvent &event) {
+		std::cout << "{\"kind\":";
+		json_string(event.kind);
+		std::cout << ",\"node\":"; json_size(event.node);
+		std::cout << ",\"parent\":"; json_size(event.parent);
+		std::cout << ",\"polygon\":"; json_size(event.polygon);
+		std::cout << ",\"piece\":"; json_size(event.piece);
+		std::cout << ",\"position\":"; json_size(event.position);
+		std::cout << ",\"pass\":"; json_size(event.pass);
+		std::cout << ",\"sequence\":"; json_sizes(event.sequence);
+		std::cout << ",\"order\":"; json_sizes(event.order);
+		std::cout << ",\"path\":"; json_path(event.path);
+		std::cout << ",\"lower_bound\":"; json_double(event.lower_bound);
+		std::cout << ",\"upper_bound\":"; json_double(event.upper_bound);
+		std::cout << ",\"length\":"; json_double(event.length);
+		std::cout << ",\"pruned\":" << (event.pruned ? "true" : "false");
+		std::cout << ",\"source\":"; json_string(event.source);
+		std::cout << ",\"reason\":"; json_string(event.reason);
+		std::cout << '}';
+	}
+}
 
 int main(int argc, char **argv) {
 	try {
@@ -12,12 +75,16 @@ int main(int argc, char **argv) {
 		for (int i = 1; i < argc; ++i) {
 			const std::string flag = argv[i];
 			if (flag == "--help") {
-				std::cout << "Usage: tpp-unordered [--absolute-gap N] [--relative-gap N] [--oracle-relative-gap N] [--bidirectional-initial]\n"
+				std::cout << "Usage: tpp-unordered [--absolute-gap N] [--relative-gap N] [--oracle-relative-gap N] [--bidirectional-initial] [--trace]\n"
 					<< "stdin: sx sy tx ty polygon_count max_calls max_seconds, then each polygon's vertex count and coordinates.\n";
 				return 0;
 			}
 			if (flag == "--bidirectional-initial") {
 				options.bidirectional_initial_heuristic = true;
+				continue;
+			}
+			if (flag == "--trace") {
+				options.trace = true;
 				continue;
 			}
 			if (++i >= argc) throw std::invalid_argument("Expected a value after " + flag);
@@ -84,7 +151,16 @@ int main(int argc, char **argv) {
 		for (size_t i = 0; i < r.order.size(); ++i) std::cout << (i ? "," : "") << r.order[i];
 		std::cout << "],\"path\":[";
 		for (size_t i = 0; i < r.path.size(); ++i) std::cout << (i ? "," : "") << '[' << r.path[i].x << ',' << r.path[i].y << ']';
-		std::cout << "]}\n";
+		std::cout << ']';
+		if (options.trace) {
+			std::cout << ",\"trace\":[";
+			for (size_t i = 0; i < r.trace.size(); ++i) {
+				if (i) std::cout << ',';
+				json_trace_event(r.trace[i]);
+			}
+			std::cout << ']';
+		}
+		std::cout << "}\n";
 	} catch (const std::exception &e) {
 		std::cerr << e.what() << '\n';
 		return 1;
