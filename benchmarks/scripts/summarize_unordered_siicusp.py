@@ -70,10 +70,13 @@ def audit(source: Path, cases: dict[int, EncodedCase], selected: set[int]) -> tu
 			**{key: value for key, value in profile.items() if key.endswith('_seconds')},
 		})
 	total_seconds = sum(row['seconds'] for row in records)
+	certified = sum(row['exact'] for row in records)
 	return {
 		'source': str(source), 'sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
 		'cases': len(records), 'valid_paths': sum(row['valid'] for row in records),
-		'numerically_certified': sum(row['exact'] for row in records),
+		'exact_certified': certified,
+		# Kept as an audit compatibility alias for older comparison scripts.
+		'numerically_certified': certified,
 		'termination_counts': dict(Counter(row['termination'] for row in records)),
 		'solver_seconds': total_seconds,
 		'mean_relative_gap': statistics.mean(row['relative_gap'] for row in records),
@@ -86,7 +89,7 @@ def audit(source: Path, cases: dict[int, EncodedCase], selected: set[int]) -> tu
 		'fallback_time_fraction': sum(row['convex_fallback_seconds'] for row in records) / total_seconds,
 		'oracle_time_fraction': sum(row['convex_oracle_seconds'] for row in records) / total_seconds,
 		'validation_tolerance': 1e-7,
-		'certification': 'Numerical gap closure, not rational/interval proof; geometry independently checked.',
+		'certification': 'Exact certification for completed searches; geometry independently checked.',
 	}, records
 
 

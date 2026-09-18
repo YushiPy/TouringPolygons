@@ -1,9 +1,7 @@
-import { escapeHTML } from "./dom.js";
-import { convexHull, endpointOffset, gapRatio, pathPrefix, projectedCase, qualityLabel, regionColors, sortRows, sortGroupedRows, toggleChoice, toggleOrderRegion, playbackDuration } from "./event-geometry.js?v=20260910-7";
+import { convexHull, endpointOffset, pathPrefix, projectedCase, regionColors, sortRows, sortGroupedRows, toggleChoice, toggleOrderRegion, playbackDuration } from "./event-geometry.js?v=20260910-7";
 
 const element = (id) => document.getElementById(id);
 const number = (value, digits = 4) => value.toLocaleString("pt-BR", { maximumFractionDigits: digits });
-const percent = (value) => value < 0.000001 ? "< 0,0001%" : `${number(value * 100, value < .0001 ? 4 : 2)}%`;
 const coordinates = (points) => points.map((point) => point.join(",")).join(" ");
 const caseLabel = (id) => String(id + 1).padStart(2, "0");
 const visitorRows = (rows, query) => rows.filter(row => !query.trim() || caseLabel(row.case).includes(query.trim()));
@@ -138,8 +136,8 @@ function initialize() {
 		mapContent.querySelectorAll(".visit-contact").forEach((point) => point.setAttribute("r", 4 * textScale));
 		camera();
 		document.querySelectorAll("[data-layer-note]").forEach((item) => item.classList.toggle("active", enabled(item.dataset.layerNote)));
-		element("map-caption").textContent = "Basta tocar a borda ou atravessar a região. Seus centros não são pontos de visita obrigatórios.";
-		element("map-title").textContent = `Caso ${caseLabel(row.case)}: caminho verificado por ${row.polygons} regiões; ${row.exact ? "gap numérico fechado" : "limite de tempo"}.`;
+		element("map-caption").textContent = "Os números mostram a ordem da primeira visita. Basta tocar a borda ou atravessar a região; seus centros não são pontos obrigatórios.";
+		element("map-title").textContent = `Caso ${caseLabel(row.case)}: caminho por ${row.polygons} regiões; ${row.exact ? "solução exata certificada" : "limite de tempo"}.`;
 		drawRoute();
 	}
 
@@ -153,7 +151,7 @@ function initialize() {
 		pan = [0, 0];
 		element("show-labels").setAttribute("aria-pressed", String(row.polygons <= 15));
 		element("case-select").value = row.case;
-		element("case-picker-value").textContent = `Caso ${caseLabel(row.case)} · ${row.polygons} regiões · ${row.exact ? "gap fechado" : "limite de tempo"}`;
+		element("case-picker-value").textContent = `Caso ${caseLabel(row.case)} · ${row.polygons} regiões · ${row.exact ? "solução exata" : "limite de tempo"}`;
 		document.querySelectorAll(".example").forEach((button) => {
 			const active = Number(button.dataset.case) === row.case;
 			button.classList.toggle("active", active);
@@ -165,18 +163,14 @@ function initialize() {
 		element("speed-value").title = `A 1×, este caso leva ${number(playbackDuration(row.polygons) / 1000, 1)} s para percorrer o caminho.`;
 		element("case-id").textContent = `Caso ${caseLabel(row.case)}`;
 		element("outcome-badge").className = `status ${row.exact ? "certified" : "limited"}`;
-		element("outcome-badge").textContent = row.exact ? "✓ Gap numérico fechado" : "◷ Encerrado por tempo";
-		element("outcome-title").textContent = row.exact ? "Ótimo certificado" : "Caminho encontrado; ótimo ainda não certificado";
-		element("outcome-explanation").textContent = row.exact ? "Dentro das tolerâncias numéricas adotadas. O comprimento encontrado e seu limite inferior concordam nessas tolerâncias." : "O caminho visita todas as regiões. A diferença entre os limites ainda não permite certificar o ótimo.";
+		element("outcome-badge").textContent = row.exact ? "✓ Solução exata" : "◷ Encerrado por tempo";
+		element("outcome-title").textContent = row.exact ? "Ótimo certificado" : "Caminho encontrado; certificação pendente";
+		element("outcome-explanation").textContent = row.exact ? "A busca terminou e o solver certificou este caminho como ótimo." : "O caminho visita todas as regiões. O tempo terminou antes da certificação exata.";
 		element("case-length").textContent = number(row.upper_bound, 2);
 		element("case-time").textContent = row.seconds < .001 ? "< 0,001 s" : `${number(row.seconds, 3)} s`;
 		element("case-regions").textContent = `${row.polygons} / ${row.polygons}`;
-		element("case-gap").textContent = percent(gapRatio(row));
-		element("case-lower").textContent = row.lower_bound.toPrecision(17);
-		element("case-upper").textContent = row.upper_bound.toPrecision(17);
-		element("case-order").textContent = row.order.map((index, position) => `${position + 1}ª → região ${index + 1}`).join(" · ");
-		element("case-quality").textContent = qualityLabel(row);
-		element("case-calls").textContent = `${number(row.calls, 0)} chamadas ao oráculo convexo; ${number(row.fallback_calls, 0)} ao método auxiliar. Distância máxima às regiões: ${row.validation.max_polygon_distance.toExponential(2)}. Hash da instância: ${row.sha256}.`;
+		element("case-certification").textContent = row.exact ? "Exata" : "Pendente";
+		element("case-certification-note").textContent = row.exact ? "busca concluída" : "limite de tempo atingido";
 		if (updateURL && window.location.protocol !== "file:") {
 			const url = new URL(window.location.href);
 			url.searchParams.set("caso", row.case);
@@ -190,8 +184,8 @@ function initialize() {
 		const rows = sortGroupedRows(data.rows, sorting.result.key, sorting.result.descending, resultGroup);
 		const visible = showAllResults ? rows : rows.slice(0, 8);
 		element("result-count").textContent = "Selecione um caso para ver o caminho.";
-		const toggle = rows.length > 8 ? `<tr class="result-toggle-row"><td colspan="6"><button type="button" data-toggle-results aria-expanded="${showAllResults}">${showAllResults ? "Mostrar somente os 8 destaques ↑" : `Ver todos os ${rows.length} resultados ↓`}</button></td></tr>` : "";
-		element("result-rows").innerHTML = visible.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Caso </span>${caseLabel(item.case)}</th><td data-label="Regiões">${item.polygons}</td><td data-label="Tempo">${item.seconds < .001 ? "< 0,001 s" : `${number(item.seconds, 3)} s`}</td><td data-label="Distância até certificar">${escapeHTML(percent(gapRatio(item)))}</td><td class="result-status"><span class="status ${item.exact ? "certified" : "limited"}">${item.exact ? "✓ Ótimo certificado" : "◷ Limite de tempo"}</span></td><td class="result-action"><button type="button" data-open-case="${item.case}" aria-label="Ver caminho do caso ${item.case + 1}">Ver caminho →</button></td></tr>`).join("") + toggle;
+		const toggle = rows.length > 8 ? `<tr class="result-toggle-row"><td colspan="5"><button type="button" data-toggle-results aria-expanded="${showAllResults}">${showAllResults ? "Mostrar somente os 8 destaques ↑" : `Ver todos os ${rows.length} resultados ↓`}</button></td></tr>` : "";
+		element("result-rows").innerHTML = visible.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Caso </span>${caseLabel(item.case)}</th><td data-label="Regiões">${item.polygons}</td><td data-label="Tempo">${item.seconds < .001 ? "< 0,001 s" : `${number(item.seconds, 3)} s`}</td><td class="result-status"><span class="status ${item.exact ? "certified" : "limited"}">${item.exact ? "✓ Solução exata" : "◷ Limite de tempo"}</span></td><td class="result-action"><button type="button" data-open-case="${item.case}" aria-label="Ver caminho do caso ${item.case + 1}">Ver caminho →</button></td></tr>`).join("") + toggle;
 	}
 
 	document.querySelectorAll("button:disabled, input:disabled, select:disabled").forEach((control) => { control.disabled = false; });
@@ -353,7 +347,7 @@ function initialize() {
 	function renderPicker() {
 		const rows = sortRows(visitorRows(data.rows, element("picker-search").value), sorting.picker.key, sorting.picker.descending);
 		element("picker-count").textContent = `${rows.length} casos disponíveis`;
-		element("picker-options").innerHTML = rows.length ? rows.map((item) => `<button type="button" data-pick-case="${item.case}" aria-pressed="${item.case === row.case}"><span><strong>Caso ${caseLabel(item.case)}</strong><small>${item.polygons} regiões · ${number(item.seconds, 3)} s · gap ${percent(gapRatio(item))}</small></span><span class="status ${item.exact ? "certified" : "limited"}">${item.exact ? "✓ Gap fechado" : "◷ Limite de tempo"}</span></button>`).join("") : "<p>Nenhum caso encontrado. Experimente outro número.</p>";
+		element("picker-options").innerHTML = rows.length ? rows.map((item) => `<button type="button" data-pick-case="${item.case}" aria-pressed="${item.case === row.case}"><span><strong>Caso ${caseLabel(item.case)}</strong><small>${item.polygons} regiões · ${number(item.seconds, 3)} s</small></span><span class="status ${item.exact ? "certified" : "limited"}">${item.exact ? "✓ Solução exata" : "◷ Limite de tempo"}</span></button>`).join("") : "<p>Nenhum caso encontrado. Experimente outro número.</p>";
 	}
 	element("case-picker-button").addEventListener("click", () => {
 		element("picker-search").value = "";
@@ -401,7 +395,7 @@ function initialize() {
 		});
 	}
 	function updateResultSorting() {
-		const names = { case: "caso", polygons: "regiões", seconds: "tempo", gap: "gap relativo" };
+		const names = { case: "caso", polygons: "regiões", seconds: "tempo" };
 		document.querySelectorAll("[data-result-column]").forEach((header) => {
 			const key = header.dataset.resultColumn;
 			const active = key === "result" ? resultGroup !== null : key === sorting.result.key;
@@ -411,7 +405,7 @@ function initialize() {
 			header.querySelector(".sort-arrow").textContent = active ? (descending ? " ↓" : " ↑") : "";
 			header.classList.toggle("sort-active", active);
 		});
-		element("result-sort-description").textContent = `${resultGroup === null ? "Sem agrupamento; " : resultGroup ? "Limites de tempo primeiro; depois " : "Ótimos certificados primeiro; depois "}${names[sorting.result.key]} em ordem ${sorting.result.descending ? "decrescente" : "crescente"}. Resultado alterna: ótimos primeiro, tempo primeiro, sem agrupamento.`;
+		element("result-sort-description").textContent = `${resultGroup === null ? "Sem agrupamento; " : resultGroup ? "Limites de tempo primeiro; depois " : "Soluções exatas primeiro; depois "}${names[sorting.result.key]} em ordem ${sorting.result.descending ? "decrescente" : "crescente"}. Resultado alterna entre soluções exatas primeiro, limite de tempo primeiro e sem agrupamento.`;
 		renderTable();
 	}
 	document.querySelectorAll("[data-result-sort]").forEach((button) => button.addEventListener("click", () => {
@@ -429,8 +423,8 @@ function initialize() {
 	document.querySelector('label[for="case-select"]').setAttribute("for", "case-picker-button");
 	element("download-case").addEventListener("click", () => download(`tpp-siicusp-caso-${row.case + 1}.json`, JSON.stringify({ case_number: row.case + 1, provenance: data.provenance, config: data.config, result: row }, null, 2), "application/json"));
 	element("download-results").addEventListener("click", () => {
-		const header = ["case_number", "case", "polygons", "seconds", "lower_bound", "upper_bound", "relative_gap", "exact", "termination", "valid", "sha256"];
-		const csv = [header.join(","), ...data.rows.map((item) => header.map((key) => key === "case_number" ? item.case + 1 : key === "relative_gap" ? gapRatio(item) : item[key]).join(","))].join("\n");
+		const header = ["case_number", "case", "polygons", "seconds", "exact", "termination", "valid", "sha256"];
+		const csv = [header.join(","), ...data.rows.map((item) => header.map((key) => key === "case_number" ? item.case + 1 : item[key]).join(","))].join("\n");
 		download("siicusp34-resultados-60-casos.csv", csv, "text/csv;charset=utf-8");
 	});
 	const requested = new URLSearchParams(window.location.search).get("caso");

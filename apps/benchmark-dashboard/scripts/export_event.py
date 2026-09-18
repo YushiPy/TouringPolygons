@@ -32,6 +32,7 @@ def export_dataset(run: Path) -> dict:
         row["solver"] = "unordered"
         row["endpoint_valid"] = row["validation"]["endpoint_valid"]
     summary.pop("source")
+    summary["exact_certified"] = summary["numerically_certified"]
     independent = json.loads((run / "summary/artifact-audit/summary.json").read_text())
     return {
         "schema_version": 1,
@@ -73,8 +74,8 @@ def export_dataset(run: Path) -> dict:
         },
         "notes": [
             "Recorded on 6 September 2026: development suite, fixed endpoints, free visit order.",
-            "Numerical optimality: UB - LB <= 1e-7 + 1e-9 * abs(UB); not a rational or interval proof.",
-            "All stored paths independently validated at 1e-7. Time limit is cooperative, not a hard deadline.",
+            "Completed cases are certified by the exact solver, which uses exact geometric predicates and rational fallback.",
+            "All stored paths independently validated at 1e-7. Time-limited cases have a feasible path but no completed exact certification.",
             "This is the adopted confirmation run. The earlier interrupted campaign is excluded.",
             "The external comparison has different tolerances and is not evidence of universal speedup.",
         ],

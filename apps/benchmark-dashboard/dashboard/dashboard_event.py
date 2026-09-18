@@ -98,9 +98,9 @@ def inline_event_assets(html: str) -> str:
     javascript = "\n".join(
         re.sub(r"^export ", "", re.sub(r"^import .*;\n", "", source, flags=re.M), flags=re.M) for source in modules
     )
-    html = html.replace('<link rel="stylesheet" href="/static/event.css?v=20260909-6">', f"<style>{css}</style>")
+    html = html.replace('<link rel="stylesheet" href="/static/event.css?v=20260918-2">', f"<style>{css}</style>")
     html = html.replace(
-        '<script type="module" src="/static/event.js?v=20260910-7"></script>',
+        '<script type="module" src="/static/event.js?v=20260918-2"></script>',
         f'<script type="module">{javascript}</script>',
     )
     encoded = base64.b64encode(DATA_PATH.read_bytes()).decode("ascii")
