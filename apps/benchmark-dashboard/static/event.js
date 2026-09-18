@@ -67,19 +67,21 @@ function challengeComparison(chosenLabel, chosenLength, bestLabel, bestLength, c
 	return `<table class="challenge-comparison"><thead><tr><td></td><th><i class="comparison-line chosen" aria-hidden="true"></i>${chosenLabel}</th><th><i class="comparison-line reference" aria-hidden="true"></i>${bestLabel}</th></tr></thead><tbody><tr><th scope="row">Comprimento</th><td>${number(chosenLength, 2)}</td><td>${number(bestLength, 2)}</td></tr><tr><th scope="row">${choiceLabel}</th><td>${chosenChoice}</td><td>${bestChoice}</td></tr></tbody></table><p class="comparison-note">Comprimentos em unidades deste exemplo.</p>`;
 }
 
-function download(name, text, type) {
-	const url = URL.createObjectURL(new Blob([text], { type }));
-	const link = document.createElement("a");
-	link.href = url;
-	link.download = name;
-	document.body.append(link);
-	link.click();
-	link.remove();
-	setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-function initialize() {
+async function initialize() {
 	const data = JSON.parse(element("event-data").textContent);
+	let showBounds = data.rows.some((item) => Number.isFinite(Number(item.lower_bound)) && Number.isFinite(Number(item.upper_bound ?? item.length)));
+	if (!showBounds && data.corpus === "german" && window.location.protocol !== "file:") {
+		try {
+			const response = await fetch("/static/event/german-instances-exact-20260918-bounds.json");
+			if (response.ok) {
+				const bounds = await response.json();
+				data.rows.forEach((item) => Object.assign(item, bounds.cases?.[String(item.case)] || {}));
+				showBounds = data.rows.some((item) => Number.isFinite(Number(item.lower_bound)) && Number.isFinite(Number(item.upper_bound ?? item.length)));
+			}
+		} catch (error) {
+			console.warn("Limites de otimalidade indisponíveis.", error);
+		}
+	}
 	const tracePayload = JSON.parse(element("trace-data")?.textContent || '{"schema_version":1,"cases":{}}');
 	const traces = tracePayload.schema_version === 1 ? (tracePayload.cases || {}) : {};
 	const shortTraceCases = Object.values(traces)
@@ -387,6 +389,7 @@ function initialize() {
 			element("trace-sequence").textContent = "—";
 			element("trace-lower-bound").textContent = "—";
 			element("trace-upper-bound").textContent = "—";
+			element("trace-lower-bound").closest(".trace-metrics")?.removeAttribute("data-bound-symbol");
 			element("trace-incumbent").textContent = "—";
 			element("trace-current-length").textContent = "—";
 			element("trace-previous").disabled = true;
@@ -448,8 +451,9 @@ function initialize() {
 		const incumbent = traceIncumbent(traceIndex);
 		const lowerBound = Number(event.lower_bound);
 		const boundSymbol = Number.isFinite(lowerBound) && Number.isFinite(incumbent) ? (lowerBound >= incumbent ? "≥" : "<") : "";
-		element("trace-lower-bound").textContent = `${boundSymbol ? `${boundSymbol} ` : ""}${traceNumber(event.lower_bound, 4)}`;
+		element("trace-lower-bound").textContent = traceNumber(event.lower_bound, 4);
 		element("trace-upper-bound").textContent = traceNumber(event.upper_bound, 4);
+		element("trace-lower-bound").closest(".trace-metrics")?.setAttribute("data-bound-symbol", boundSymbol);
 		element("trace-incumbent").textContent = traceNumber(incumbent, 2);
 		element("trace-current-length").textContent = traceNumber(event.length ?? pathLength(originalPath), 2);
 		element("trace-progress").textContent = `Passo ${traceIndex + 1} de ${traceEvents.length}${trace.omitted_events ? ` · ${trace.omitted_events.toLocaleString("pt-BR")} eventos omitidos` : ""}`;
@@ -559,7 +563,6 @@ function initialize() {
 		mapContent.querySelectorAll(".visit-contact").forEach((point) => point.setAttribute("r", 4 * textScale));
 		camera();
 		document.querySelectorAll("[data-layer-note]").forEach((item) => item.classList.toggle("active", enabled(item.dataset.layerNote)));
-		element("map-caption").textContent = "Os números mostram a ordem da primeira visita. Basta tocar a borda ou atravessar a região; seus centros não são pontos obrigatórios.";
 		element("map-title").textContent = `Caso ${caseLabel(row.case)}: caminho por ${row.polygons} regiões; ${row.exact ? "solução exata certificada" : "limite de tempo"}.`;
 		drawRoute();
 	}
@@ -617,9 +620,17 @@ function initialize() {
 	function renderTable() {
 		const rows = sortGroupedRows(data.rows, sorting.result.key, sorting.result.descending, resultGroup);
 		const visible = showAllResults ? rows : rows.slice(0, 8);
+		const resultGap = (item) => {
+			if (item.exact) return '<span class="muted">Fechado</span>';
+			const lower = Number(item.lower_bound), upper = Number(item.upper_bound ?? item.length);
+			if (!Number.isFinite(lower) || !Number.isFinite(upper) || upper <= 0) return '<span class="muted">—</span>';
+			const gap = Math.max(0, (upper - lower) / Math.max(Math.abs(upper), 1e-30)) * 100;
+			return `<span class="result-gap-value">≤ ${number(gap, 2)}%</span><small title="Limite inferior: ${number(lower, 2)}">LB ${number(lower, 2)}</small>`;
+		};
+		const gapCell = (item) => showBounds ? `<td class="result-gap" data-label="Gap de otimalidade">${resultGap(item)}</td>` : "";
 		element("result-count").textContent = "Selecione um caso para ver o caminho.";
-		const toggle = rows.length > 8 ? `<tr class="result-toggle-row"><td colspan="5"><button type="button" data-toggle-results aria-expanded="${showAllResults}">${showAllResults ? "Mostrar somente os 8 destaques ↑" : `Ver todos os ${rows.length} resultados ↓`}</button></td></tr>` : "";
-		element("result-rows").innerHTML = visible.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Caso </span>${caseLabel(item.case)}</th><td data-label="Regiões">${item.polygons}</td><td data-label="Tempo">${item.seconds < .001 ? "< 0,001 s" : `${number(item.seconds, 3)} s`}</td><td class="result-status"><span class="status ${item.exact ? "certified" : "limited"}">${item.exact ? "✓ Solução exata" : "◷ Limite de tempo"}</span></td><td class="result-action"><button type="button" data-open-case="${item.case}" aria-label="Ver caminho do caso ${item.case + 1}">Ver caminho →</button></td></tr>`).join("") + toggle;
+		const toggle = rows.length > 8 ? `<tr class="result-toggle-row"><td colspan="${showBounds ? 6 : 5}"><button type="button" data-toggle-results aria-expanded="${showAllResults}">${showAllResults ? "Mostrar somente os 8 destaques ↑" : `Ver todos os ${rows.length} resultados ↓`}</button></td></tr>` : "";
+		element("result-rows").innerHTML = visible.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Caso </span>${caseLabel(item.case)}</th><td data-label="Regiões">${item.polygons}</td><td data-label="Tempo">${item.seconds < .001 ? "< 0,001 s" : `${number(item.seconds, 3)} s`}</td><td class="result-status"><span class="status ${item.exact ? "certified" : "limited"}">${item.exact ? "✓ Solução exata" : "◷ Limite de tempo"}</span></td>${gapCell(item)}<td class="result-action"><button type="button" data-open-case="${item.case}" aria-label="Ver caminho do caso ${item.case + 1}">Ver caminho →</button></td></tr>`).join("") + toggle;
 	}
 
 	document.querySelectorAll("button:disabled, input:disabled, select:disabled").forEach((control) => { control.disabled = false; });
@@ -803,7 +814,7 @@ function initialize() {
 	element("route-progress").addEventListener("input", (event) => { stop(); fraction = Number(event.target.value) / 1000; drawRoute(); });
 	element("play-route").addEventListener("click", () => {
 		if (playing) { stop(); return; }
-		if (reducedMotion.matches) { fraction = 1; drawRoute(); element("map-caption").textContent = "Movimento reduzido ativado. Use o controle Progresso para explorar o caminho sem animação."; return; }
+		if (reducedMotion.matches) { fraction = 1; drawRoute(); return; }
 		if (fraction >= 1) fraction = 0;
 		playing = true;
 		element("play-route").textContent = "Ⅱ Pausar percurso";
@@ -997,15 +1008,6 @@ function initialize() {
 	element("case-picker").hidden = false;
 	element("case-select").hidden = true;
 	document.querySelector('label[for="case-select"]').setAttribute("for", "case-picker-button");
-	element("download-case").addEventListener("click", () => {
-		const result = { ...row };
-		download(`tpp-caso-${row.case + 1}.json`, JSON.stringify({ case_number: row.case + 1, provenance: data.provenance, config: data.config, result }, null, 2), "application/json");
-	});
-	element("download-results").addEventListener("click", () => {
-		const header = ["case_number", "case", "polygons", "seconds", "exact", "termination", "valid", "sha256"];
-		const csv = [header.join(","), ...data.rows.map((item) => header.map((key) => key === "case_number" ? item.case + 1 : key === "valid" ? (item.validation?.valid ?? item.valid ?? "") : item[key]).join(","))].join("\n");
-		download(`tpp-resultados-${data.rows.length}-casos.csv`, csv, "text/csv;charset=utf-8");
-	});
 	const requested = new URLSearchParams(window.location.search).get("caso");
 	selectCase(requested !== null && /^\d+$/.test(requested) ? Number(requested) : defaultCase, false) || selectCase(defaultCase, false);
 	renderTable();
@@ -1186,6 +1188,7 @@ function initializeChallengeFlow() {
 function initializeReferences() {
 	const dialog = element("references-dialog");
 	let opener = null;
+	let highlightTimer = null;
 	document.addEventListener("click", (event) => {
 		const trigger = event.target.closest('[data-open-references], a[href^="#ref-"]');
 		if (!trigger || dialog.contains(trigger)) return;
@@ -1196,7 +1199,14 @@ function initializeReferences() {
 		const selector = trigger.getAttribute("href");
 		const target = selector?.startsWith("#ref-") ? dialog.querySelector(selector) : null;
 		dialog.querySelectorAll("li.current-reference").forEach((item) => item.classList.remove("current-reference"));
+		if (highlightTimer) window.clearTimeout(highlightTimer);
 		target?.classList.add("current-reference");
+		if (target) {
+			highlightTimer = window.setTimeout(() => {
+				target.classList.remove("current-reference");
+				highlightTimer = null;
+			}, 1800);
+		}
 		requestAnimationFrame(() => target?.scrollIntoView({ behavior: "smooth", block: "center" }));
 	});
 	element("references-close").addEventListener("click", () => dialog.close());
@@ -1205,7 +1215,12 @@ function initializeReferences() {
 		const box = dialog.getBoundingClientRect();
 		if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.close();
 	});
-	dialog.addEventListener("close", () => opener?.focus({ preventScroll: true }));
+	dialog.addEventListener("close", () => {
+		if (highlightTimer) window.clearTimeout(highlightTimer);
+		dialog.querySelectorAll("li.current-reference").forEach((item) => item.classList.remove("current-reference"));
+		highlightTimer = null;
+		opener?.focus({ preventScroll: true });
+	});
 }
 
 function initializeDisclosures() {
@@ -1436,9 +1451,8 @@ function initializeContents() {
 	mobile.addEventListener("change", () => { if (!mobile.matches && dialog.open) { animation?.cancel(); dialog.close(); } });
 }
 
-try { initialize(); }
-catch (error) {
+initialize().catch((error) => {
 	element("event-error").hidden = false;
 	element("event-error").textContent = "Não foi possível iniciar os controles interativos. Os resultados e a visualização estática continuam disponíveis. Recarregue a página para tentar novamente.";
 	console.error(error);
-}
+});

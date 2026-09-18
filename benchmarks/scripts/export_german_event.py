@@ -39,6 +39,9 @@ def export_dataset(run: Path, suite: Path, output: Path) -> None:
 			"polygons": case.polygon_count,
 			"exact": row["exact"],
 			"termination": row["termination"],
+			"lower_bound": row["lower_bound"],
+			"upper_bound": row["upper_bound"],
+			"relative_gap": max(0.0, (row["upper_bound"] - row["lower_bound"]) / max(abs(row["upper_bound"]), 1e-30)),
 			"seconds": row["seconds"],
 			"calls": row["calls"],
 			"fallback_calls": row["fallback_calls"],
@@ -97,6 +100,22 @@ def export_dataset(run: Path, suite: Path, output: Path) -> None:
 	output.parent.mkdir(parents=True, exist_ok=True)
 	with output.open("x") as file:
 		json.dump(data, file, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+		file.write("\n")
+	bounds_output = output.with_name(f"{output.stem}-bounds.json")
+	bounds = {
+		"schema_version": 1,
+		"source": str(run / "final.jsonl"),
+		"cases": {
+			str(row["case"]): {
+				"lower_bound": row["lower_bound"],
+				"upper_bound": row["upper_bound"],
+				"relative_gap": row["relative_gap"],
+			}
+			for row in exported
+		},
+	}
+	with bounds_output.open("x") as file:
+		json.dump(bounds, file, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
 		file.write("\n")
 	print(f"Exported {len(exported)} cases to {output}")
 

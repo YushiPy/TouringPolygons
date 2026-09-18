@@ -11,6 +11,7 @@ from pathlib import Path
 DATA_PATH = Path(__file__).resolve().parents[1] / "static/event/siicusp34.json"
 TRACE_PATH = DATA_PATH.with_name("siicusp34-traces.json")
 GERMAN_DATA_PATH = Path(__file__).resolve().parents[1] / "static/event/german-instances-exact-20260918.json"
+GERMAN_BOUNDS_PATH = GERMAN_DATA_PATH.with_name("german-instances-exact-20260918-bounds.json")
 GERMAN_PARTITIONS_PATH = GERMAN_DATA_PATH.with_name("german-instances-exact-20260918-partitions.json")
 GERMAN_TRACE_PATH = GERMAN_DATA_PATH.with_name("german-instances-traces.json")
 # The generated catalog is refreshed whenever the dashboard process reloads.
@@ -82,9 +83,11 @@ def german_visual_data() -> dict:
     from shapely.ops import nearest_points
 
     data = json.loads(GERMAN_DATA_PATH.read_text())
+    bounds = json.loads(GERMAN_BOUNDS_PATH.read_text()).get("cases", {}) if GERMAN_BOUNDS_PATH.exists() else {}
     partitions = json.loads(GERMAN_PARTITIONS_PATH.read_text())["cases"]
     data.setdefault("corpus", "german")
     for row in data["rows"]:
+        row.update(bounds.get(str(row["case"]), {}))
         path = row["path"]
         lengths = [math.dist(a, b) for a, b in zip(path, path[1:])]
         total = sum(lengths)
@@ -156,7 +159,7 @@ def german_context() -> dict:
 
     return {
         "data": data,
-		"challenge": json.loads(DATA_PATH.with_name("siicusp34-challenge.json").read_text()),
+        "challenge": json.loads(DATA_PATH.with_name("siicusp34-challenge.json").read_text()),
         "traces": german_trace_data(),
         "initial": row,
         "polygons": [" ".join(f"{x},{y}" for x, y in map(project, polygon)) for polygon in row["geometry"]["polygons"]],
@@ -189,9 +192,9 @@ def _inline_event_assets(html: str, data_path: Path, data_href: str) -> str:
         re.sub(r"^export ", "", re.sub(r"^import .*;\n", "", source, flags=re.M), flags=re.M) for source in modules
     )
     # Keep the route's offline copy in sync with the cache-busted assets.
-    html = html.replace('<link rel="stylesheet" href="/static/event.css?v=20260918-12">', f"<style>{css}</style>")
+    html = html.replace('<link rel="stylesheet" href="/static/event.css?v=20260918-18">', f"<style>{css}</style>")
     html = html.replace(
-        '<script type="module" src="/static/event.js?v=20260918-18"></script>',
+        '<script type="module" src="/static/event.js?v=20260918-22"></script>',
         f'<script type="module">{javascript}</script>',
     )
     encoded = base64.b64encode(data_path.read_bytes()).decode("ascii")

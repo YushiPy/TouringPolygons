@@ -2,7 +2,7 @@
 			<summary class="guided-summary"><span><b>02</b><strong>Trabalhos anteriores</strong><small>Como a pesquisa chegou até este solver autocontido.</small></span><em data-guide-status="historia">Ainda não visitada</em></summary>
 		<section class="research-history" aria-labelledby="history-title">
 			<div class="section-heading history-heading">
-				<div><p class="eyebrow">DE ONDE VIEMOS</p><h2 id="history-title">Trabalhos anteriores e o nosso ponto de entrada</h2></div>
+				<div><h2 id="history-title">Trabalhos anteriores e o nosso ponto de entrada</h2></div>
 				<p>Uma linha do tempo do TPP<br>até este solver autocontido.</p>
 			</div>
 			<div class="research-timeline">
@@ -10,19 +10,19 @@
 					<div class="research-card-top"><span class="research-year">2003</span><span class="research-tag">PONTO DE PARTIDA</span></div>
 					<h3>Dror et al. apresentam o TPP</h3>
 					<p>O trabalho de Dror, Efrat, Lubiw e Mitchell apresenta o Touring Polygons Problem e <strong>descreve</strong> um algoritmo para polígonos convexos disjuntos visitados em ordem fixa, com ponto inicial e final fixos. Para <em>n</em> vértices ao todo e <em>k</em> polígonos, o artigo dá tempo <em>O(kn&nbsp;log(n/k))</em>. A distinção é importante: estamos falando da descrição de um algoritmo no artigo, não atribuindo a ele uma implementação.</p>
-					<a class="research-source" href="https://doi.org/10.1145/780542.780612" target="_blank" rel="noopener noreferrer">[1] Touring a sequence of polygons ↗</a>
+					<a class="research-source" href="#ref-dror">[1] Touring a sequence of polygons</a>
 				</article>
 				<article class="research-card featured">
 					<div class="research-card-top"><span class="research-year">2017</span><span class="research-tag">COMPLEXIDADE</span></div>
-					<h3>Tan &amp; Jiang reduzem o overhead assintótico</h3>
-					<p>Ao revisitar o problema, Tan e Jiang <strong>descrevem</strong> uma forma mais simples de construir os mapas de menor caminho. Para polígonos convexos disjuntos, chegam a uma solução <em>O(kn)</em>; para polígonos que podem se intersectar, a solução é <em>O(k²n)</em>. O ganho é aproximadamente um fator logarítmico sobre os limites anteriores.</p>
-					<a class="research-source" href="https://link.springer.com/chapter/10.1007/978-3-319-55911-7_44" target="_blank" rel="noopener noreferrer">[2] Efficient Algorithms for Touring… ↗</a>
+					<h3>Tan &amp; Jiang diminuem a complexidade assintótica</h3>
+					<p>Ao revisitar o problema, Tan e Jiang <strong>descrevem</strong> uma forma mais simples de construir os mapas de menor caminho. Para polígonos convexos disjuntos, chegam a uma solução <em>O(kn)</em>; para polígonos que podem se intersectar, a solução é <em>O(k²n)</em>. A melhoria assintótica vem com um overhead maior, tornando o algoritmo mais lento nas instâncias testadas.</p>
+					<a class="research-source" href="#ref-tan-jiang">[2] Efficient Algorithms for Touring…</a>
 				</article>
 				<article class="research-card">
 					<div class="research-card-top"><span class="research-year">2026</span><span class="research-tag">REFERÊNCIA PRÁTICA</span></div>
 					<h3>Algorithms Division amplia o escopo</h3>
 					<p>O <em>Algorithmics Group</em> da TU Braunschweig — a <em>Algorithms Division</em> liderada por Sándor P. Fekete — apresenta um algoritmo de branch-and-bound para o TSPN. Nesse problema, dado um conjunto de regiões poligonais, possivelmente não convexas, procura-se o menor caminho fechado que visita todas e retorna ao ponto de onde partiu; esse ponto inicial não é fixado. O algoritmo também busca a ordem e resolve cada subproblema geométrico por SOCP. Por ser mais geral que o nosso TPP, ele oferece uma base natural para adaptação ao caso com extremos fixos.</p>
-					<a class="research-source" href="https://doi.org/10.4230/LIPIcs.SoCG.2026.46" target="_blank" rel="noopener noreferrer">[3] A Branch-and-Bound Algorithm for the TSPN ↗</a>
+					<a class="research-source" href="#ref-fekete">[3] A Branch-and-Bound Algorithm for the TSPN</a>
 				</article>
 			</div>
 			<div class="research-story">
@@ -40,7 +40,7 @@
 						<li><strong>Exatidão:</strong> predicados geométricos exatos e fallback racional, sem comunicar limites numéricos como resultado.</li>
 						<li><strong>Velocidade:</strong> um solver convexo especializado, medido em microssegundos nos subproblemas, no lugar de chamadas de otimização genérica em milissegundos.</li>
 						<li><strong>Busca:</strong> refinamos o branch-and-bound e preservamos a avaliação lazy, que evita pagar pela geometria completa quando ela não é necessária.</li>
-						<li><strong>Autonomia:</strong> reimplementamos o algoritmo de Greene para a decomposição convexa, removendo Gurobi e CGAL do núcleo do nosso solver.</li>
+						<li><strong>Autonomia:</strong> nossa implementação do solver convexo de Dror elimina a necessidade de usar Gurobi, enquanto a implementação do algoritmo de Greene elimina a necessidade de usar CGAL — ambas ferramentas com uso comercial restrito.</li>
 					</ul>
 					<p class="research-conclusion">Nos testes desta campanha, essa combinação se mostrou mais rápida, mais precisa e mais robusta neste conjunto de instâncias. A comparação deve ser lida nesse escopo experimental — não como uma promessa universal para toda variante do TSPN.</p>
 				</div>
