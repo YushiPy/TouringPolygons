@@ -4,8 +4,10 @@ Local FastAPI dashboard for creating, appending, editing, running, comparing, an
 
 ## 34º SIICUSP: visitor experience
 
-The Portuguese event page is available at `/evento`. The technical workbench remains
-at `/`, with links to the event in its header and comparison panel. Start locally:
+The main event page is the adapted German corpus at `/evento`, with the previous SIICUSP
+recorte archived at `/evento/siicusp`. `/evento/alemao` remains an alias for the main
+page. The technical workbench remains at `/`, with links to the event pages in its
+header and comparison panel. Start locally:
 
 ```bash
 cd apps/benchmark-dashboard
@@ -45,28 +47,33 @@ For the poster, use “Explore os caminhos da pesquisa” beside the QR and prin
 short readable URL. Point it at the public `/evento` URL after deployment; the
 localhost preview is only for review and is not accessible to event visitors.
 
-Open [the event demonstration](http://127.0.0.1:8017/evento). It includes:
+Open [the main event demonstration](http://127.0.0.1:8017/evento). It includes:
 
-- three guided examples and all 60 audited cases, with shareable `?caso=55` links;
+- all 558 adapted German cases, with shareable `?caso=557` links;
 - path playback and scrubbing with adjustable speed, visit-order labels, subtle
   visited/unvisited colors, contact points, convex decomposition, hulls, zoom and pan;
 - keyboard controls (focus the diagram, then use arrows, `+`, `-`, or `Home`),
   reduced-motion support, responsive layout and a static fallback without JavaScript;
-- separate explanations for feasible paths, numerical gap closure and time limits;
-- filtered results, CSV export and per-case geometry, paths, bounds and provenance;
-- an offline download at `/evento/offline`: one HTML file containing data, CSS and
-  JavaScript, usable without the server, network, C++ build or Gurobi license.
+- separate explanations for certified paths and time limits;
+- filtered results, CSV export and per-case geometry, paths and provenance;
+- an offline download at `/evento/offline`: one HTML file containing the 558-case
+  data, CSS and JavaScript, usable without the server, network, C++ build or Gurobi license.
 
-The event page uses `static/event/siicusp34.json`, a portable snapshot of the adopted
-6 September 2026 confirmation run: 60 verified paths, 43 closed numerical gaps and
-17 time limits. It does not launch new computations. The animation is playback of
-the saved path, not a visualization of search progress. Visitor case numbers and
-searches are one-based (1–60). Stored IDs and existing
-`?caso=` links stay zero-based for compatibility; CSV includes both `case_number`
-and `case`, and per-case downloads include `case_number`.
+The former SIICUSP demonstration remains available at `/evento/siicusp`, with its
+offline copy at `/evento/siicusp/offline`. It is an archive, not the primary benchmark
+landing page.
+
+The archived SIICUSP page uses `static/event/siicusp34.json`, a portable snapshot of the adopted
+18 September 2026 exact-solver confirmation run: 60 valid paths, 45 exact
+certificates and 15 time limits. It does not launch new computations. The animation is
+playback of the saved path, not a visualization of search progress. Visitor case
+numbers and searches are one-based (1–60). Stored IDs and existing `?caso=` links
+stay zero-based for compatibility; CSV includes both `case_number` and `case`, and
+per-case downloads include `case_number`.
 Region labels show the first-visit rank starting at one, with original IDs mapped
-in the details. The quality percentage is a conservative LB/UB bound, not a
-probability of optimality. Contact points are reconstructed from the saved path
+in the details. A certified case is presented as exact; a time-limited case is
+presented as an incumbent path with certification pending. The public event pages do
+not expose numerical lower/upper bounds or a numerical gap. Contact points are reconstructed from the saved path
 with the audit tolerance of 1e-7. Convex decomposition uses the repository’s native
 `optimal_convex_partition::decompose_polygon`, the same library called by the
 solver. Frozen pieces are stored separately in `static/event/siicusp34-partitions.json`;
@@ -78,7 +85,12 @@ Regenerate the frozen partitions into a new file using
 `.venv/bin/python scripts/export_event_partitions.py /tmp/reviewed-partitions.json`.
 Both case lists support ascending/descending sorting. Map controls support pinch
 zoom, focus-based keyboard navigation, touch taps and accessible pressed toggles. The historical 5 September
-comparison remains explicitly labeled as historical in the technical workbench.
+comparison remains explicitly labeled as historical in the technical workbench. The
+German event page contains all 558 adapted German instances: 558 valid paths, 475
+exact certificates and 83 time limits after a two-stage run with up to ten seconds
+for initially unresolved cases. This corpus is an endpoint-path adaptation of the
+German/SO-CG data, so it must not be described as the original closed-tour benchmark
+without that qualification.
 
 Rebuild the snapshot from the original audit into a **new** file for review:
 

@@ -104,10 +104,6 @@ export function pathPolygonContacts(path, polygons) {
 	});
 }
 
-export function gapRatio(row) {
-	return row.upper_bound === 0 ? 0 : Math.max(0, (row.upper_bound - row.lower_bound) / Math.abs(row.upper_bound));
-}
-
 export function filterRows(rows, status, search) {
 	const term = search.trim();
 	return rows.filter((row) => (status === "all" || row.termination === status)
@@ -131,15 +127,8 @@ export function regionColors(rank, count, visited) {
 		: { fill: `hsl(${195 + position * 65} 60% ${65 - position * 30}% / .4)`, stroke: `hsl(${195 + position * 65} 55% 70%)` };
 }
 
-export function qualityLabel(row) {
-	if (row.exact) return "≈ 100% de qualidade numérica";
-	const ratio = row.upper_bound > 0 ? Math.max(0, Math.min(1, row.lower_bound / row.upper_bound)) : 0;
-	const conservative = Math.floor(ratio * 10000) / 100;
-	return `Pelo menos ${conservative.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% de qualidade numérica`;
-}
-
 export function sortRows(rows, key = "case", descending = false) {
-	const value = (row) => key === "gap" ? gapRatio(row) : key === "result" ? Number(!row.exact) : row[key];
+	const value = (row) => key === "result" ? Number(!row.exact) : row[key];
 	return [...rows].sort((a, b) => (descending ? -1 : 1) * (value(a) - value(b)) || a.case - b.case);
 }
 

@@ -3,7 +3,7 @@ import { convexHull, endpointOffset, pathPrefix, projectedCase, regionColors, so
 const element = (id) => document.getElementById(id);
 const number = (value, digits = 4) => value.toLocaleString("pt-BR", { maximumFractionDigits: digits });
 const coordinates = (points) => points.map((point) => point.join(",")).join(" ");
-const caseLabel = (id) => String(id + 1).padStart(2, "0");
+const caseLabel = (id) => String(id + 1).padStart(id + 1 >= 100 ? 3 : 2, "0");
 const visitorRows = (rows, query) => rows.filter(row => !query.trim() || caseLabel(row.case).includes(query.trim()));
 const titles = { 2: "Quatro regiões, um caminho", 9: "Quarenta regiões, ordem livre", 55: "Um caminho, uma prova em aberto" };
 const MAX_ZOOM = 8;
@@ -49,7 +49,7 @@ function initialize() {
 	let pan = [0, 0], drag = null;
 	const speeds = [.25, .5, 1, 1.5, 2, 3, 4];
 	let speedIndex = 2;
-	let resultGroup = null;
+	let resultGroup = data.corpus === "german" ? false : null;
 	let showAllResults = false;
 	const sorting = { picker: { key: "case", descending: false }, result: { key: "case", descending: false } };
 	const enabled = (id) => element(id).getAttribute("aria-pressed") === "true";
@@ -159,14 +159,14 @@ function initialize() {
 			if (active) button.setAttribute("aria-current", "true");
 			else button.removeAttribute("aria-current");
 		});
-		element("drawing-title").textContent = titles[row.case] || `${row.polygons} regiões, extremos fixos`;
+		element("drawing-title").textContent = data.corpus === "german" ? `${row.polygons} regiões, caminho registrado` : titles[row.case] || `${row.polygons} regiões, extremos fixos`;
 		element("speed-value").title = `A 1×, este caso leva ${number(playbackDuration(row.polygons) / 1000, 1)} s para percorrer o caminho.`;
 		element("case-id").textContent = `Caso ${caseLabel(row.case)}`;
 		element("outcome-badge").className = `status ${row.exact ? "certified" : "limited"}`;
 		element("outcome-badge").textContent = row.exact ? "✓ Solução exata" : "◷ Encerrado por tempo";
 		element("outcome-title").textContent = row.exact ? "Ótimo certificado" : "Caminho encontrado; certificação pendente";
 		element("outcome-explanation").textContent = row.exact ? "A busca terminou e o solver certificou este caminho como ótimo." : "O caminho visita todas as regiões. O tempo terminou antes da certificação exata.";
-		element("case-length").textContent = number(row.upper_bound, 2);
+		element("case-length").textContent = number(row.length ?? row.validation?.recomputed_length, 2);
 		element("case-time").textContent = row.seconds < .001 ? "< 0,001 s" : `${number(row.seconds, 3)} s`;
 		element("case-regions").textContent = `${row.polygons} / ${row.polygons}`;
 		element("case-certification").textContent = row.exact ? "Exata" : "Pendente";
@@ -421,22 +421,27 @@ function initialize() {
 	element("case-picker").hidden = false;
 	element("case-select").hidden = true;
 	document.querySelector('label[for="case-select"]').setAttribute("for", "case-picker-button");
-	element("download-case").addEventListener("click", () => download(`tpp-siicusp-caso-${row.case + 1}.json`, JSON.stringify({ case_number: row.case + 1, provenance: data.provenance, config: data.config, result: row }, null, 2), "application/json"));
+	element("download-case").addEventListener("click", () => {
+		const result = { ...row };
+		download(`tpp-caso-${row.case + 1}.json`, JSON.stringify({ case_number: row.case + 1, provenance: data.provenance, config: data.config, result }, null, 2), "application/json");
+	});
 	element("download-results").addEventListener("click", () => {
 		const header = ["case_number", "case", "polygons", "seconds", "exact", "termination", "valid", "sha256"];
-		const csv = [header.join(","), ...data.rows.map((item) => header.map((key) => key === "case_number" ? item.case + 1 : item[key]).join(","))].join("\n");
-		download("siicusp34-resultados-60-casos.csv", csv, "text/csv;charset=utf-8");
+		const csv = [header.join(","), ...data.rows.map((item) => header.map((key) => key === "case_number" ? item.case + 1 : key === "valid" ? (item.validation?.valid ?? item.valid ?? "") : item[key]).join(","))].join("\n");
+		download(`tpp-resultados-${data.rows.length}-casos.csv`, csv, "text/csv;charset=utf-8");
 	});
 	const requested = new URLSearchParams(window.location.search).get("caso");
 	selectCase(requested !== null && /^\d+$/.test(requested) ? Number(requested) : 2, false) || selectCase(2, false);
 	renderTable();
-	initializeChallenge();
-	initializePieceChallenge();
-	initializePieceChallenge(true);
-	initializeReferences();
-	initializeChallengeFlow();
+	if (element("challenge-data")) {
+		initializeChallenge();
+		initializePieceChallenge();
+		initializePieceChallenge(true);
+		initializeChallengeFlow();
+	}
+	if (element("references-dialog")) initializeReferences();
 	initializeDisclosures();
-	initializeContents();
+	if (element("toc-handle")) initializeContents();
 }
 
 function orderSketch(id, geometry, polygons) {

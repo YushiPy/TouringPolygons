@@ -816,16 +816,33 @@ async def index(request: Request):
 
 @app.get("/evento")
 async def event_page(request: Request):
-    from dashboard.dashboard_event import event_context
+    from dashboard.dashboard_event import german_context
 
-    return templates.TemplateResponse(request, "event.html", event_context())
+    return templates.TemplateResponse(request, "german.html", german_context())
 
 
 @app.get("/evento/offline", response_class=HTMLResponse)
 async def event_offline(request: Request):
+    from dashboard.dashboard_event import german_context, inline_german_assets
+
+    html = templates.get_template("german.html").render(request=request, standalone=True, **german_context())
+    return HTMLResponse(
+        inline_german_assets(html), headers={"Content-Disposition": 'attachment; filename="tpp-corpus-alemao-558.html"'}
+    )
+
+
+@app.get("/evento/siicusp")
+async def event_siicusp(request: Request):
+    from dashboard.dashboard_event import event_context
+
+    return templates.TemplateResponse(request, "event.html", {"archive": True, **event_context()})
+
+
+@app.get("/evento/siicusp/offline", response_class=HTMLResponse)
+async def event_siicusp_offline(request: Request):
     from dashboard.dashboard_event import event_context, inline_event_assets
 
-    html = templates.get_template("event.html").render(request=request, offline=True, **event_context())
+    html = templates.get_template("event.html").render(request=request, offline=True, archive=True, **event_context())
     return HTMLResponse(
         inline_event_assets(html), headers={"Content-Disposition": 'attachment; filename="tpp-siicusp34.html"'}
     )

@@ -13,7 +13,7 @@ from unittest.mock import patch
 from starlette.requests import Request
 
 import main
-from dashboard.dashboard_event import event_context, event_data, inline_event_assets, visual_data
+from dashboard.dashboard_event import german_visual_data, event_context, event_data, inline_event_assets, visual_data
 from dashboard.dashboard_free_order import solve_free_editor
 
 
@@ -125,18 +125,29 @@ class EventTests(unittest.TestCase):
                 self.assertTrue(all(line.distance(Polygon(polygon)) <= 1e-7 for polygon in row["geometry"]["polygons"]))
                 self.assertEqual(row["path"][0], row["geometry"]["start"])
                 self.assertEqual(row["path"][-1], row["geometry"]["target"])
-                self.assertLessEqual(abs(line.length - row["upper_bound"]), 1e-7 + 1e-9 * row["upper_bound"])
-                self.assertLessEqual(row["lower_bound"], row["upper_bound"])
-                self.assertTrue(math.isfinite(row["lower_bound"]))
-                self.assertEqual(
-                    row["exact"], row["upper_bound"] - row["lower_bound"] <= 1e-7 + 1e-9 * row["upper_bound"]
-                )
+                self.assertLessEqual(abs(line.length - row["validation"]["recomputed_length"]), 1e-7)
+                self.assertNotIn("lower_bound", row)
+                self.assertNotIn("upper_bound", row)
                 self.assertEqual(sorted(row["order"]), list(range(row["polygons"])))
 
-    def test_event_route_renders_without_solver_or_historical_files(self):
+    def test_main_event_route_renders_german_corpus(self):
         request = Request({"type": "http", "method": "GET", "path": "/evento", "headers": []})
         with patch("dashboard.dashboard_free_order.ensure_binary", side_effect=AssertionError("Unexpected build")):
             response = asyncio.run(main.event_page(request))
+        self.assertEqual(response.status_code, 200)
+        html = response.body.decode()
+        self.assertIn("558 instâncias", html)
+        self.assertIn("475", html)
+        self.assertIn("Arquivo SIICUSP", html)
+        self.assertIn("Tente você mesmo", html)
+        self.assertIn("Começar o desafio", html)
+        self.assertIn('id="challenge-data"', html)
+        self.assertNotIn("Gap numérico fechado", html)
+
+    def test_archived_event_route_renders_without_solver_or_historical_files(self):
+        request = Request({"type": "http", "method": "GET", "path": "/evento/siicusp", "headers": []})
+        with patch("dashboard.dashboard_free_order.ensure_binary", side_effect=AssertionError("Unexpected build")):
+            response = asyncio.run(main.event_siicusp(request))
         self.assertEqual(response.status_code, 200)
         html = response.body.decode()
         self.assertIn('lang="pt-BR"', html)
@@ -182,8 +193,8 @@ class EventTests(unittest.TestCase):
         self.assertEqual(data, json.loads(json.dumps(visual_data())))
 
     def test_offline_document_contains_all_assets_and_valid_javascript(self):
-        request = Request({"type": "http", "method": "GET", "path": "/evento/offline", "headers": []})
-        response = asyncio.run(main.event_offline(request))
+        request = Request({"type": "http", "method": "GET", "path": "/evento/siicusp/offline", "headers": []})
+        response = asyncio.run(main.event_siicusp_offline(request))
         html = response.body.decode()
         self.assertIn('attachment; filename="tpp-siicusp34.html"', response.headers["content-disposition"])
         self.assertNotRegex(html, r'(?:src|href)="/(?:static|evento)')
@@ -256,12 +267,27 @@ class EventTests(unittest.TestCase):
         for original, enriched in zip(event_data()["rows"], visual_data()["rows"]):
             self.assertEqual(original, {key: value for key, value in enriched.items() if key != "visualization"})
 
+    def test_german_visual_enrichment_includes_convex_decompositions(self):
+        data = german_visual_data()
+        self.assertEqual(len(data["rows"]), 558)
+        for row in data["rows"]:
+            with self.subTest(case=row["case"]):
+                decomposition = row["visualization"]["decomposition"]
+                self.assertEqual(len(decomposition), len(row["geometry"]["polygons"]))
+                self.assertTrue(all(decomposition))
+        case_234 = next(row for row in data["rows"] if row["case"] == 233)
+        self.assertEqual(sum(len(pieces) for pieces in case_234["visualization"]["decomposition"]), 12)
+
     def test_phone_preview_has_no_campaign_or_solver_routes(self):
         import event_server
 
         paths = {getattr(route, "path", "") for route in event_server.app.routes}
-        self.assertEqual(paths, {"/", "/evento", "/evento/offline", "/static"})
+        self.assertEqual(
+            paths,
+            {"/", "/evento", "/evento/alemao", "/evento/offline", "/evento/siicusp", "/evento/siicusp/offline", "/static"},
+        )
         request = Request({"type": "http", "method": "GET", "path": "/evento", "headers": []})
         html = asyncio.run(event_server.event(request)).body.decode()
         self.assertNotIn('href="/"', html)
-        self.assertIn('href="/evento/offline"', html)
+        self.assertIn("558 instâncias", html)
+        self.assertIn('href="/evento/siicusp"', html)

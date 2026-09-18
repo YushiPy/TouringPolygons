@@ -16,6 +16,23 @@ from benchmark_cases import read_encoded_cases  # noqa: E402
 from summarize_unordered_siicusp import audit  # noqa: E402
 
 
+def sanitize_public_dataset(data: dict) -> dict:
+    """Remove search-bound diagnostics from the visitor-facing download."""
+    for row in data.get("rows", []):
+        for key in ("lower_bound", "upper_bound", "fallback_certificate_gap_calls"):
+            row.pop(key, None)
+    summary = data.get("summary", {})
+    summary.pop("numerically_certified", None)
+    for key in ("mean_relative_gap", "max_relative_gap"):
+        summary.pop(key, None)
+    config = data.get("config", {})
+    for key in ("absolute_gap", "relative_gap"):
+        config.pop(key, None)
+    independent = data.get("independent_validation", {})
+    independent.pop("socp_nonfinite_lower_bound_cases", None)
+    return data
+
+
 def export_dataset(run: Path) -> dict:
     manifest = json.loads((run / "manifest.json").read_text())
     suite = run / "inputs/algorithm-dev-v1.bin"
@@ -32,9 +49,9 @@ def export_dataset(run: Path) -> dict:
         row["solver"] = "unordered"
         row["endpoint_valid"] = row["validation"]["endpoint_valid"]
     summary.pop("source")
-    summary["exact_certified"] = summary["numerically_certified"]
+    summary["exact_certified"] = summary.pop("numerically_certified")
     independent = json.loads((run / "summary/artifact-audit/summary.json").read_text())
-    return {
+    return sanitize_public_dataset({
         "schema_version": 1,
         "title": "TPP com ordem livre · SIICUSP 2026",
         "visit_order": "free",
@@ -55,8 +72,6 @@ def export_dataset(run: Path) -> dict:
                 "threads",
                 "max_seconds",
                 "max_calls",
-                "absolute_gap",
-                "relative_gap",
                 "solver_visit_tolerance",
                 "independent_geometry_tolerance",
             )
@@ -67,7 +82,6 @@ def export_dataset(run: Path) -> dict:
             for key in (
                 "socp_cases",
                 "max_socp_objective_difference",
-                "socp_nonfinite_lower_bound_cases",
                 "independent_interruptions",
                 "interruption_termination_counts",
             )
@@ -80,7 +94,7 @@ def export_dataset(run: Path) -> dict:
             "The external comparison has different tolerances and is not evidence of universal speedup.",
         ],
         "rows": rows,
-    }
+    })
 
 
 def main() -> None:
