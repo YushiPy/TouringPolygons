@@ -59,6 +59,10 @@ struct BenchmarkOptions {
 	size_t max_calls_per_instance = 512;
 	size_t max_branching = 6;
 	double max_seconds_per_instance = std::numeric_limits<double>::infinity();
+	// A zero value preserves the historical behavior: run until the tree is
+	// exhausted or another resource limit is reached.  A positive value is a
+	// relative UB/LB tolerance in percent, matching the paper's definition.
+	double optimality_tolerance_percent = 0.0;
 	size_t repeat_count = 1;
 	size_t thread_count = 0;
 	std::string solver_name = "binary_search_lazy";
@@ -173,6 +177,9 @@ struct BenchmarkSummary {
 	size_t fully_covered_instances = 0;
 	size_t capped_by_calls_instances = 0;
 	size_t capped_by_time_instances = 0;
+	size_t reached_tolerance_instances = 0;
+	size_t call_limited_instances = 0;
+	size_t inconsistent_bounds_instances = 0;
 	size_t branch_limited_instances = 0;
 	size_t grouped_pieces = 0;
 	size_t total_calls = 0;
@@ -295,16 +302,23 @@ struct BranchAndBoundResult {
 	size_t visited_nodes = 0;
 	size_t pruned_nodes = 0;
 	size_t best_updates = 0;
+	double first_best_update_length = std::numeric_limits<double>::infinity();
 	size_t selected_sum = 0;
 	size_t min_vertices = std::numeric_limits<size_t>::max();
 	size_t max_vertices = 0;
 	size_t max_observed_branching = 0;
 	bool exhausted = true;
 	bool time_limited = false;
+	bool call_limited = false;
+	bool tolerance_reached = false;
 	bool branch_limited = false;
 	double initial_length = std::numeric_limits<double>::infinity();
 	double incumbent_length = std::numeric_limits<double>::infinity();
 	double final_length = std::numeric_limits<double>::infinity();
+	double lower_bound = 0.0;
+	double upper_bound = std::numeric_limits<double>::infinity();
+	double optimality_gap_percent = std::numeric_limits<double>::infinity();
+	bool bounds_consistent = false;
 	double solver_seconds = 0.0;
 	double incumbent_solver_seconds = 0.0;
 	double bound_solver_seconds = 0.0;
@@ -341,6 +355,11 @@ struct BranchAndBoundResult {
 	double checksum = 0.0;
 };
 
+struct SearchNode {
+	vector<size_t> selected;
+	double lower_bound = 0.0;
+};
+
 struct InstanceRecord {
 	size_t case_index = 0;
 	size_t repeat_index = 0;
@@ -355,16 +374,23 @@ struct InstanceRecord {
 	size_t visited_nodes = 0;
 	size_t pruned_nodes = 0;
 	size_t best_updates = 0;
+	double first_best_update_length = 0.0;
 	double mean_selected = 0.0;
 	size_t total_vertices_min = 0;
 	size_t total_vertices_max = 0;
 	double initial_length = 0.0;
 	double incumbent_length = 0.0;
 	double final_length = 0.0;
+	double lower_bound = 0.0;
+	double upper_bound = 0.0;
+	double optimality_gap_percent = 0.0;
+	double optimality_tolerance_percent = 0.0;
+	bool bounds_consistent = false;
 	double decomposition_seconds = 0.0;
 	double approximation_seconds = 0.0;
 	double bnb_seconds = 0.0;
 	double solver_seconds = 0.0;
+	double instance_seconds = 0.0;
 	double incumbent_solver_seconds = 0.0;
 	double bound_solver_seconds = 0.0;
 	double leaf_solver_seconds = 0.0;
@@ -391,13 +417,14 @@ struct InstanceRecord {
 	size_t contact_dominates = 0;
 	bool exhausted = false;
 	bool time_limited = false;
+	bool call_limited = false;
+	bool tolerance_reached = false;
 	bool branch_limited = false;
 	size_t max_observed_branching = 0;
 	size_t failed_prune_count = 0;
 	double failed_prune_ratio_mean = 0.0;
 	double failed_prune_gap_mean = 0.0;
 	double failed_prune_depth_mean = 0.0;
-	double instance_seconds = 0.0;
 	double checksum = 0.0;
 	std::string solution_preview_path;
 };
@@ -2031,6 +2058,7 @@ BranchAndBoundResult run_branch_and_bound(
 	size_t max_calls,
 	size_t max_branching,
 	double max_seconds,
+	double optimality_tolerance_percent,
 	ConvexSolverFunction solver,
 	ConvexLengthSolverFunction length_solver,
 	size_t case_index,
@@ -2041,6 +2069,81 @@ BranchAndBoundResult run_branch_and_bound(
 	result.initial_length = path_length(start, target, approximate_path);
 	const auto bnb_start_time = std::chrono::steady_clock::now();
 	auto last_progress_time = std::chrono::steady_clock::now();
+	const double trivial_lower_bound = start.distance_to(target);
+	std::multiset<double> frontier_lower_bounds;
+	double branch_limit_lower_bound = std::numeric_limits<double>::infinity();
+	bool frontier_initialized = false;
+
+	auto record_frontier_lower_bound = [&](double lower_bound) {
+		if (std::isfinite(lower_bound)) {
+			frontier_lower_bounds.insert(lower_bound);
+		}
+	};
+
+	auto remove_frontier_lower_bound = [&](double lower_bound) {
+		if (!std::isfinite(lower_bound)) {
+			return;
+		}
+
+		const auto iterator = frontier_lower_bounds.find(lower_bound);
+		if (iterator != frontier_lower_bounds.end()) {
+			frontier_lower_bounds.erase(iterator);
+		}
+	};
+
+	auto update_global_bounds = [&]() {
+		result.upper_bound = result.final_length;
+
+		if (frontier_initialized && result.exhausted && !result.branch_limited && frontier_lower_bounds.empty()) {
+			result.lower_bound = result.upper_bound;
+		} else {
+			double remaining_lower_bound = std::numeric_limits<double>::infinity();
+			if (!frontier_lower_bounds.empty()) {
+				remaining_lower_bound = std::min(remaining_lower_bound, *frontier_lower_bounds.begin());
+			}
+			if (std::isfinite(branch_limit_lower_bound)) {
+				remaining_lower_bound = std::min(remaining_lower_bound, branch_limit_lower_bound);
+			}
+
+			if (!std::isfinite(remaining_lower_bound)) {
+				remaining_lower_bound = trivial_lower_bound;
+			}
+			result.lower_bound = std::max(trivial_lower_bound, remaining_lower_bound);
+		}
+
+		if (std::isfinite(result.lower_bound)
+			&& std::isfinite(result.upper_bound)
+			&& result.lower_bound > 0.0) {
+			const double scale = std::max({1.0, std::abs(result.lower_bound), std::abs(result.upper_bound)});
+			result.bounds_consistent = result.lower_bound <= result.upper_bound + 1e-9 * scale;
+			result.optimality_gap_percent =
+				(result.upper_bound / result.lower_bound - 1.0) * 100.0;
+		} else {
+			result.bounds_consistent = false;
+			result.optimality_gap_percent = std::numeric_limits<double>::infinity();
+		}
+	};
+
+	auto stop_by_tolerance = [&]() {
+		if (optimality_tolerance_percent <= 0.0 || result.tolerance_reached) {
+			return false;
+		}
+
+		update_global_bounds();
+		if (result.exhausted && !result.branch_limited && frontier_lower_bounds.empty()) {
+			return false;
+		}
+		if (!std::isfinite(result.optimality_gap_percent)
+			|| result.optimality_gap_percent < 0.0
+			|| result.optimality_gap_percent > optimality_tolerance_percent) {
+			return false;
+		}
+
+		result.tolerance_reached = true;
+		result.exhausted = false;
+		return true;
+	};
+
 	vector<vector<vector<Vector2>>> grouped_branch_pieces;
 	const vector<vector<vector<Vector2>>> *branch_pieces = &convex_pieces;
 
@@ -2097,6 +2200,10 @@ BranchAndBoundResult run_branch_and_bound(
 	};
 
 	auto stop_by_time = [&]() {
+		if (result.tolerance_reached) {
+			return true;
+		}
+
 		if (elapsed_seconds() < max_seconds) {
 			return false;
 		}
@@ -2129,12 +2236,17 @@ BranchAndBoundResult run_branch_and_bound(
 	update_progress(true);
 
 	auto before_convex_call = [&](const vector<vector<Vector2>> &input_polygons) -> bool {
+		if (stop_by_tolerance()) {
+			return false;
+		}
+
 		if (stop_by_time()) {
 			return false;
 		}
 
 		if (result.convex_calls >= max_calls) {
 			result.exhausted = false;
+			result.call_limited = true;
 			return false;
 		}
 
@@ -2474,7 +2586,7 @@ BranchAndBoundResult run_branch_and_bound(
 		best_path = std::move(selected_path);
 	}
 
-	auto refine_selected_groups = [&](const vector<size_t> &selected_groups) {
+	auto refine_selected_groups = [&](const vector<size_t> &selected_groups, double selected_groups_lower_bound) {
 		if (piece_groups == nullptr) {
 			return;
 		}
@@ -2486,12 +2598,16 @@ BranchAndBoundResult run_branch_and_bound(
 			selected_group_hulls.push_back((*piece_groups)[i][selected_groups[i]].hull);
 		}
 
-		vector<vector<size_t>> stack;
-		stack.push_back({});
+		vector<SearchNode> stack;
+		stack.push_back({{}, selected_groups_lower_bound});
+		record_frontier_lower_bound(selected_groups_lower_bound);
 
-		while (!stack.empty() && result.exhausted) {
-			vector<size_t> current = std::move(stack.back());
+		while (!stack.empty() && result.exhausted && !result.tolerance_reached) {
+			SearchNode current_node = std::move(stack.back());
 			stack.pop_back();
+			remove_frontier_lower_bound(current_node.lower_bound);
+			record_frontier_lower_bound(current_node.lower_bound);
+			const vector<size_t> &current = current_node.selected;
 			result.visited_nodes++;
 			result.selected_sum += current.size();
 			increment_histogram(result.visited_depth_histogram, current.size());
@@ -2514,24 +2630,23 @@ BranchAndBoundResult run_branch_and_bound(
 					result.leaf_solves++;
 				}
 
-				if (!result.exhausted) {
-					break;
-				}
+				if (!result.exhausted) break;
 
 				if (length < result.final_length) {
 					const double path_length = solve_convex_path(instance, path, result.leaf_solver_seconds);
 
-					if (!result.exhausted) {
-						break;
-					}
+					if (!result.exhausted) break;
 
 					if (path_length < result.final_length) {
 						result.final_length = path_length;
 						best_path = std::move(path);
 						result.best_updates++;
+						if (!std::isfinite(result.first_best_update_length)) result.first_best_update_length = path_length;
 					}
 				}
 
+				remove_frontier_lower_bound(current_node.lower_bound);
+				if (stop_by_tolerance()) break;
 				continue;
 			}
 
@@ -2541,7 +2656,10 @@ BranchAndBoundResult run_branch_and_bound(
 			const size_t branch_count = std::min(max_branching, observed_branching);
 
 			result.max_observed_branching = std::max(result.max_observed_branching, observed_branching);
-			result.branch_limited = result.branch_limited || branch_count < observed_branching;
+			if (branch_count < observed_branching) {
+				result.branch_limited = true;
+				branch_limit_lower_bound = std::min(branch_limit_lower_bound, current_node.lower_bound);
+			}
 			result.branching_histogram[branching_bucket(observed_branching)]++;
 
 			for (size_t i = branch_count; i > 0; i--) {
@@ -2569,9 +2687,7 @@ BranchAndBoundResult run_branch_and_bound(
 					result.bound_solves++;
 				}
 
-				if (!result.exhausted) {
-					break;
-				}
+				if (!result.exhausted) break;
 
 				if (bound > result.final_length) {
 					result.hull_bound_prunes++;
@@ -2586,24 +2702,38 @@ BranchAndBoundResult run_branch_and_bound(
 					result.failed_prune_depth_sum += static_cast<double>(selected_groups.size() + selected.size());
 				}
 
-				stack.push_back(std::move(selected));
+				record_frontier_lower_bound(bound);
+				stack.push_back({std::move(selected), bound});
+				if (stop_by_tolerance()) break;
 			}
+
+			if (!result.exhausted) break;
+			remove_frontier_lower_bound(current_node.lower_bound);
+			if (stop_by_tolerance()) break;
 		}
 	};
 
-	vector<vector<size_t>> stack;
-	stack.push_back({});
+	vector<SearchNode> stack;
+	frontier_initialized = true;
+	stack.push_back({{}, trivial_lower_bound});
+	record_frontier_lower_bound(trivial_lower_bound);
 
-	while (!stack.empty() && result.exhausted) {
-		vector<size_t> current = std::move(stack.back());
+	while (!stack.empty() && result.exhausted && !result.tolerance_reached) {
+		SearchNode current_node = std::move(stack.back());
 		stack.pop_back();
+		remove_frontier_lower_bound(current_node.lower_bound);
+		record_frontier_lower_bound(current_node.lower_bound);
+		const vector<size_t> &current = current_node.selected;
 		result.visited_nodes++;
 		result.selected_sum += current.size();
 		increment_histogram(result.visited_depth_histogram, current.size());
 
 		if (current.size() == branch_pieces->size()) {
 			if (piece_groups != nullptr) {
-				refine_selected_groups(current);
+				refine_selected_groups(current, current_node.lower_bound);
+				if (!result.exhausted) break;
+				remove_frontier_lower_bound(current_node.lower_bound);
+				if (stop_by_tolerance()) break;
 				continue;
 			}
 
@@ -2623,24 +2753,23 @@ BranchAndBoundResult run_branch_and_bound(
 				result.leaf_solves++;
 			}
 
-			if (!result.exhausted) {
-				break;
-			}
+			if (!result.exhausted) break;
 
 			if (length < result.final_length) {
 				const double path_length = solve_convex_path(instance, path, result.leaf_solver_seconds);
 
-				if (!result.exhausted) {
-					break;
-				}
+				if (!result.exhausted) break;
 
 				if (path_length < result.final_length) {
 					result.final_length = path_length;
 					best_path = std::move(path);
 					result.best_updates++;
+					if (!std::isfinite(result.first_best_update_length)) result.first_best_update_length = path_length;
 				}
 			}
 
+			remove_frontier_lower_bound(current_node.lower_bound);
+			if (stop_by_tolerance()) break;
 			continue;
 		}
 
@@ -2649,7 +2778,10 @@ BranchAndBoundResult run_branch_and_bound(
 		const size_t branch_count = std::min(max_branching, observed_branching);
 
 		result.max_observed_branching = std::max(result.max_observed_branching, observed_branching);
-		result.branch_limited = result.branch_limited || branch_count < observed_branching;
+		if (branch_count < observed_branching) {
+			result.branch_limited = true;
+			branch_limit_lower_bound = std::min(branch_limit_lower_bound, current_node.lower_bound);
+		}
 		result.branching_histogram[branching_bucket(observed_branching)]++;
 
 		for (size_t i = branch_count; i > 0; i--) {
@@ -2707,9 +2839,7 @@ BranchAndBoundResult run_branch_and_bound(
 				result.bound_solves++;
 			}
 
-			if (!result.exhausted) {
-				break;
-			}
+			if (!result.exhausted) break;
 
 			if (piece_graph_bound > hull_bound + 1e-9) {
 				result.piece_graph_dominates++;
@@ -2751,8 +2881,14 @@ BranchAndBoundResult run_branch_and_bound(
 				result.failed_prune_depth_sum += static_cast<double>(selected.size());
 			}
 
-			stack.push_back(std::move(selected));
+			record_frontier_lower_bound(bound);
+			stack.push_back({std::move(selected), bound});
+			if (stop_by_tolerance()) break;
 		}
+
+		if (!result.exhausted) break;
+		remove_frontier_lower_bound(current_node.lower_bound);
+		if (stop_by_tolerance()) break;
 	}
 
 	if (result.convex_calls == 0) {
@@ -2765,6 +2901,7 @@ BranchAndBoundResult run_branch_and_bound(
 		std::cerr << '\n';
 	}
 
+	update_global_bounds();
 	result.best_path = std::move(best_path);
 	return result;
 }
@@ -3063,6 +3200,10 @@ double calls_per_visited_node(const InstanceRecord &record) {
 	return record.visited_nodes == 0 ? 0.0 : static_cast<double>(record.calls) / static_cast<double>(record.visited_nodes);
 }
 
+std::string format_optional_length(double value) {
+	return std::isfinite(value) ? std::format("{:.12f}", value) : "";
+}
+
 double bound_calls_per_leaf(const InstanceRecord &record) {
 	return record.leaf_solves == 0 ? 0.0 : static_cast<double>(record.bound_solves) / static_cast<double>(record.leaf_solves);
 }
@@ -3130,12 +3271,18 @@ void write_csv_record(std::ostream &output, const InstanceRecord &record) {
 		<< record.visited_nodes << ';'
 		<< record.pruned_nodes << ';'
 		<< record.best_updates << ';'
+		<< format_optional_length(record.first_best_update_length) << ';'
 		<< std::format("{:.3f}", record.mean_selected) << ';'
 		<< record.total_vertices_min << ';'
 		<< record.total_vertices_max << ';'
 		<< std::format("{:.12f}", record.initial_length) << ';'
 		<< std::format("{:.12f}", record.incumbent_length) << ';'
 		<< std::format("{:.12f}", record.final_length) << ';'
+		<< std::format("{:.12f}", record.lower_bound) << ';'
+		<< std::format("{:.12f}", record.upper_bound) << ';'
+		<< std::format("{:.9f}", record.optimality_gap_percent) << ';'
+		<< std::format("{:.9f}", record.optimality_tolerance_percent) << ';'
+		<< (record.bounds_consistent ? "true" : "false") << ';'
 		<< std::format("{:.6f}", initial_gap_percent(record)) << ';'
 		<< std::format("{:.6f}", incumbent_gap_percent(record)) << ';'
 		<< std::format("{:.6f}", prune_rate_percent(record)) << ';'
@@ -3149,6 +3296,7 @@ void write_csv_record(std::ostream &output, const InstanceRecord &record) {
 		<< format_percent(record.bnb_seconds, record.instance_seconds) << ';'
 		<< std::format("{:.6f}", record.solver_seconds) << ';'
 		<< format_percent(record.solver_seconds, record.instance_seconds) << ';'
+		<< std::format("{:.6f}", record.instance_seconds) << ';'
 		<< std::format("{:.6f}", record.incumbent_solver_seconds) << ';'
 		<< std::format("{:.6f}", record.bound_solver_seconds) << ';'
 		<< std::format("{:.6f}", record.leaf_solver_seconds) << ';'
@@ -3175,6 +3323,8 @@ void write_csv_record(std::ostream &output, const InstanceRecord &record) {
 		<< record.contact_dominates << ';'
 		<< (record.exhausted ? "true" : "false") << ';'
 		<< (record.time_limited ? "true" : "false") << ';'
+		<< (record.call_limited ? "true" : "false") << ';'
+		<< (record.tolerance_reached ? "true" : "false") << ';'
 		<< (record.branch_limited ? "true" : "false") << ';'
 		<< record.max_observed_branching << ';'
 		<< record.failed_prune_count << ';'
@@ -3319,6 +3469,7 @@ CaseBenchmarkResult run_case_benchmark(
 			options.max_calls_per_instance,
 			options.max_branching,
 			options.max_seconds_per_instance,
+			options.optimality_tolerance_percent,
 			options.solver,
 			options.length_solver,
 			case_index,
@@ -3346,16 +3497,23 @@ CaseBenchmarkResult run_case_benchmark(
 		record.visited_nodes = bnb.visited_nodes;
 		record.pruned_nodes = bnb.pruned_nodes;
 		record.best_updates = bnb.best_updates;
+		record.first_best_update_length = bnb.first_best_update_length;
 		record.mean_selected = bnb.visited_nodes == 0 ? 0.0 : static_cast<double>(bnb.selected_sum) / static_cast<double>(bnb.visited_nodes);
 		record.total_vertices_min = bnb.min_vertices;
 		record.total_vertices_max = bnb.max_vertices;
 		record.initial_length = bnb.initial_length;
 		record.incumbent_length = bnb.incumbent_length;
 		record.final_length = bnb.final_length;
+		record.lower_bound = bnb.lower_bound;
+		record.upper_bound = bnb.upper_bound;
+		record.optimality_gap_percent = bnb.optimality_gap_percent;
+		record.optimality_tolerance_percent = options.optimality_tolerance_percent;
+		record.bounds_consistent = bnb.bounds_consistent;
 		record.decomposition_seconds = repeat_index == 0 ? decomposition_seconds : 0.0;
 		record.approximation_seconds = repeat_index == 0 ? approximation_seconds : 0.0;
 		record.bnb_seconds = bnb_seconds;
 		record.solver_seconds = bnb.solver_seconds;
+		record.instance_seconds = record.decomposition_seconds + record.approximation_seconds + record.bnb_seconds;
 		record.incumbent_solver_seconds = bnb.incumbent_solver_seconds;
 		record.bound_solver_seconds = bnb.bound_solver_seconds;
 		record.leaf_solver_seconds = bnb.leaf_solver_seconds;
@@ -3382,6 +3540,8 @@ CaseBenchmarkResult run_case_benchmark(
 		record.contact_dominates = bnb.contact_dominates;
 		record.exhausted = bnb.exhausted;
 		record.time_limited = bnb.time_limited;
+		record.call_limited = bnb.call_limited;
+		record.tolerance_reached = bnb.tolerance_reached;
 		record.branch_limited = bnb.branch_limited;
 		record.max_observed_branching = bnb.max_observed_branching;
 		record.failed_prune_count = bnb.failed_prune_count;
@@ -3434,6 +3594,7 @@ void print_usage(const char *program) {
 	std::println(stderr, "  max_calls_per_instance  Cap actual convex solver calls per instance.");
 	std::println(stderr, "  max_branching           Cap explored children per polygon during B&B.");
 	std::println(stderr, "  max_seconds_per_instance Optional B&B elapsed-time cap per instance. Use -1 for unlimited.");
+	std::println(stderr, "  TPP_BENCH_OPTIMALITY_TOLERANCE_PERCENT  Stop once (UB/LB - 1) is at most this percent; 0 disables tolerance stopping.");
 	std::println(stderr, "  repeat_count            Optional repeated runs per accepted instance.");
 	std::println(stderr, "  csv_output_file         Optional file path for per-instance CSV rows.");
 	std::println(stderr, "  summary_md_file         Optional file path for the markdown summary.");
@@ -3441,6 +3602,7 @@ void print_usage(const char *program) {
 	std::println(stderr, "All numeric arguments must be non-negative integers or -1 for unlimited.");
 	std::println(stderr, "Set TPP_BENCH_THREADS to override the default hardware thread count.");
 	std::println(stderr, "Set TPP_BENCH_MAX_SECONDS to override the default per-instance time cap.");
+	std::println(stderr, "Set TPP_BENCH_OPTIMALITY_TOLERANCE_PERCENT to enable global UB/LB tolerance stopping.");
 	std::println(stderr, "Set TPP_BENCH_SOLVER to one of linear_search_lazy, linear_search_disjoint, binary_search_lazy, binary_search_disjoint, binary_search_eager, tan_jiang, gurobi.");
 	std::println(stderr, "Set TPP_BENCH_SOLVER=directional_maps to force the intersecting solver on every convex call.");
 	std::println(stderr, "Set TPP_BENCH_REQUIRE_DISJOINT=1 to benchmark only cases with pairwise-disjoint convex hulls.");
@@ -3506,6 +3668,24 @@ std::optional<double> parse_seconds_arg(const char *text) {
 			return std::nullopt;
 		}
 
+		return parsed;
+	} catch (...) {
+		return std::nullopt;
+	}
+}
+
+std::optional<double> parse_nonnegative_double_arg(const char *text) {
+	const std::string value = text;
+	if (value.empty() || value.front() == '-') {
+		return std::nullopt;
+	}
+
+	size_t consumed = 0;
+	try {
+		const double parsed = std::stod(value, &consumed);
+		if (consumed != value.size() || !std::isfinite(parsed) || parsed < 0.0) {
+			return std::nullopt;
+		}
 		return parsed;
 	} catch (...) {
 		return std::nullopt;
@@ -3727,6 +3907,18 @@ int main(int argc, char **argv) {
 		options.max_seconds_per_instance = *max_seconds;
 	}
 
+	if (const char *optimality_tolerance_text = std::getenv("TPP_BENCH_OPTIMALITY_TOLERANCE_PERCENT")) {
+		const auto optimality_tolerance = parse_nonnegative_double_arg(optimality_tolerance_text);
+
+		if (!optimality_tolerance) {
+			std::println(stderr, "Invalid TPP_BENCH_OPTIMALITY_TOLERANCE_PERCENT value: {}", optimality_tolerance_text);
+			print_usage(argv[0]);
+			return 2;
+		}
+
+		options.optimality_tolerance_percent = *optimality_tolerance;
+	}
+
 	if (const char *solver_text = std::getenv("TPP_BENCH_SOLVER")) {
 		if (!set_solver(options, solver_text)) {
 			std::println(stderr, "Invalid or unavailable TPP_BENCH_SOLVER value: {}", solver_text);
@@ -3770,7 +3962,7 @@ int main(int argc, char **argv) {
 	std::array<size_t, BRANCH_BUCKET_COUNT> total_branching_histogram = {};
 
 	constexpr const char *csv_header =
-		"source;case_index;repeat_index;polygons;decomposed_pieces;grouped_pieces;total_combinations;calls;incumbent_solves;bound_solves;leaf_solves;visited_nodes;pruned_nodes;best_updates;mean_selected;total_vertices_min;total_vertices_max;initial_length;incumbent_length;final_length;initial_gap_percent;incumbent_gap_percent;prune_rate_percent;calls_per_visited_node;bound_calls_per_leaf;decomposition_seconds;decomposition_percent;approximation_seconds;approximation_percent;bnb_seconds;bnb_percent;solver_seconds;solver_percent;incumbent_solver_seconds;bound_solver_seconds;leaf_solver_seconds;seconds_per_call;piece_graph_precompute_seconds;piece_graph_bound_seconds;piece_graph_bound_calls;port_bound_precompute_seconds;port_bound_seconds;port_bound_calls;hull_bound_prunes;piece_graph_extra_prunes;piece_graph_dominates;port_extra_prunes;port_dominates;refinement_bound_seconds;refinement_bound_calls;refinement_extra_prunes;refinement_dominates;contact_bound_seconds;contact_path_calls;contact_bound_calls;contact_extra_prunes;contact_dominates;exhausted;time_limited;branch_limited;max_observed_branching;failed_prune_count;failed_prune_ratio_mean;failed_prune_gap_mean;failed_prune_depth_mean;checksum";
+		"source;case_index;repeat_index;polygons;decomposed_pieces;grouped_pieces;total_combinations;calls;incumbent_solves;bound_solves;leaf_solves;visited_nodes;pruned_nodes;best_updates;first_best_update_length;mean_selected;total_vertices_min;total_vertices_max;initial_length;incumbent_length;final_length;lower_bound;upper_bound;optimality_gap_percent;optimality_tolerance_percent;bounds_consistent;initial_gap_percent;incumbent_gap_percent;prune_rate_percent;calls_per_visited_node;bound_calls_per_leaf;decomposition_seconds;decomposition_percent;approximation_seconds;approximation_percent;bnb_seconds;bnb_percent;solver_seconds;solver_percent;instance_seconds;incumbent_solver_seconds;bound_solver_seconds;leaf_solver_seconds;seconds_per_call;piece_graph_precompute_seconds;piece_graph_bound_seconds;piece_graph_bound_calls;port_bound_precompute_seconds;port_bound_seconds;port_bound_calls;hull_bound_prunes;piece_graph_extra_prunes;piece_graph_dominates;port_extra_prunes;port_dominates;refinement_bound_seconds;refinement_bound_calls;refinement_extra_prunes;refinement_dominates;contact_bound_seconds;contact_path_calls;contact_bound_calls;contact_extra_prunes;contact_dominates;exhausted;time_limited;call_limited;tolerance_reached;branch_limited;max_observed_branching;failed_prune_count;failed_prune_ratio_mean;failed_prune_gap_mean;failed_prune_depth_mean;checksum";
 
 	std::ofstream csv_file;
 	std::ostream *csv_output = &std::cout;
@@ -3873,8 +4065,11 @@ int main(int argc, char **argv) {
 
 		for (const auto &record : case_result.records) {
 			summary.fully_covered_instances += record.exhausted && !record.branch_limited ? 1 : 0;
-			summary.capped_by_calls_instances += !record.exhausted && !record.time_limited ? 1 : 0;
+			summary.capped_by_calls_instances += record.call_limited ? 1 : 0;
 			summary.capped_by_time_instances += record.time_limited ? 1 : 0;
+			summary.reached_tolerance_instances += record.tolerance_reached ? 1 : 0;
+			summary.call_limited_instances += record.call_limited ? 1 : 0;
+			summary.inconsistent_bounds_instances += record.bounds_consistent ? 0 : 1;
 			summary.branch_limited_instances += record.branch_limited ? 1 : 0;
 			summary.grouped_pieces += record.grouped_pieces;
 			summary.total_calls += record.calls;
@@ -4069,8 +4264,11 @@ int main(int argc, char **argv) {
 	emitf("| Worker threads | {} |", format_count(worker_count));
 	emitf("| Convex solver name | {} |", options.solver_name);
 	emitf("| Max seconds per instance | {} |", std::isfinite(options.max_seconds_per_instance) ? std::format("{:.6f}s", options.max_seconds_per_instance) : std::string("unlimited"));
+	emitf("| Optimality tolerance | {:.9f}% |", options.optimality_tolerance_percent);
 	emitf("| Fully solved runs | {} |", format_count_with_percent(summary.fully_covered_instances, records.size()));
-	emitf("| Capped by calls runs | {} |", format_count_with_percent(summary.capped_by_calls_instances, records.size()));
+	emitf("| Reached optimality tolerance | {} |", format_count_with_percent(summary.reached_tolerance_instances, records.size()));
+	emitf("| Capped by calls runs | {} |", format_count_with_percent(summary.call_limited_instances, records.size()));
+	emitf("| Inconsistent bound rows | {} |", format_count_with_percent(summary.inconsistent_bounds_instances, records.size()));
 	emitf("| Capped by time runs | {} |", format_count_with_percent(summary.capped_by_time_instances, records.size()));
 	emitf("| Branch limited runs | {} |", format_count_with_percent(summary.branch_limited_instances, records.size()));
 	emitf("| Mean grouped pieces | {:.3f} |", records.empty() ? 0.0 : static_cast<double>(summary.grouped_pieces) / static_cast<double>(records.size()));

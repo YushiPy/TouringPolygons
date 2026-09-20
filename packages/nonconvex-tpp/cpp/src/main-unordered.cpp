@@ -108,12 +108,60 @@ int main(int argc, char **argv) {
 		}
 		const auto r = tpp::tpp_nonconvex_unordered_solve(start, target, polygons, options);
 		const char *termination[] = {"optimal", "call_limit", "time_limit", "numerical_limit"};
-		std::cout << std::setprecision(17) << "{\"exact\":" << (r.exact ? "true" : "false")
+		std::cout << std::setprecision(17) << "{\"schema_version\":\"free_order_v1\",\"exact\":" << (r.exact ? "true" : "false")
 			<< ",\"termination\":\"" << termination[static_cast<size_t>(r.termination)] << "\""
 			<< ",\"lower_bound\":" << r.lower_bound << ",\"upper_bound\":" << r.upper_bound
+			<< ",\"initial_lower_bound\":"; json_double(r.initial_lower_bound);
+		std::cout << ",\"initial_upper_bound\":"; json_double(r.initial_upper_bound);
+		std::cout << ",\"initial_length\":"; json_double(r.initial_length);
+		std::cout << ",\"incumbent_length\":"; json_double(r.incumbent_length);
+		std::cout << ",\"first_best_update_length\":"; json_double(r.first_best_update_length);
+		std::cout << ",\"final_length\":"; json_double(r.final_length);
+		std::cout << ",\"first_incumbent_seconds\":"; json_double(r.first_incumbent_seconds);
+		std::cout << ",\"initial_gap_percent\":"; json_double(r.initial_gap_percent);
+		std::cout << ",\"final_absolute_gap\":"; json_double(r.final_absolute_gap);
+		std::cout << ",\"final_relative_gap\":"; json_double(r.final_relative_gap);
+		std::cout
 			<< ",\"seconds\":" << r.seconds << ",\"calls\":" << r.calls << ",\"nodes\":" << r.nodes
-			<< ",\"refinement_calls\":" << r.refinement_calls << ",\"oracle_cutoff_calls\":" << r.oracle_cutoff_calls
+			<< ",\"relaxation_calls\":" << r.relaxation_calls
+			<< ",\"refinement_calls\":" << r.refinement_calls
+			<< ",\"complete_order_oracle_calls\":" << r.complete_order_oracle_calls
+			<< ",\"complete_piece_oracle_calls\":" << r.complete_piece_oracle_calls
+			<< ",\"oracle_cutoff_calls\":" << r.oracle_cutoff_calls
 			<< ",\"screened_nodes\":" << r.screened_nodes
+			<< ",\"partial_states_created\":" << r.partial_states_created
+			<< ",\"children_generated\":" << r.children_generated
+			<< ",\"children_queued\":" << r.children_queued
+			<< ",\"pruned_nodes\":" << r.pruned_nodes
+			<< ",\"pruned_states\":" << r.pruned_states
+			<< ",\"bound_prunes\":" << r.bound_prunes
+			<< ",\"incumbent_prunes\":" << r.incumbent_prunes
+			<< ",\"insertion_positions_considered\":" << r.insertion_positions_considered
+			<< ",\"insertion_positions_pruned\":" << r.insertion_positions_pruned
+			<< ",\"branch_events\":" << r.branch_events
+			<< ",\"total_branching\":" << r.total_branching
+			<< ",\"max_observed_branching\":" << r.max_observed_branching
+			<< ",\"max_sequence_depth\":" << r.max_sequence_depth
+			<< ",\"sequence_depth_sum\":" << r.sequence_depth_sum
+			<< ",\"sequence_depth_samples\":" << r.sequence_depth_samples
+			<< ",\"incumbent_updates\":" << r.incumbent_updates
+			<< ",\"best_updates\":" << r.best_updates
+			<< ",\"decomposed_polygons\":" << r.decomposed_polygons
+			<< ",\"convex_pieces_generated\":" << r.convex_pieces_generated
+			<< ",\"convex_pieces_min\":"; json_size(r.convex_pieces_min);
+		std::cout << ",\"convex_pieces_max\":" << r.convex_pieces_max
+			<< ",\"polygon_vertices_total\":" << r.polygon_vertices_total;
+		std::cout << ",\"polygon_vertices_min\":"; json_size(r.polygon_vertices_min);
+		std::cout << ",\"polygon_vertices_max\":" << r.polygon_vertices_max
+			<< ",\"order_space_log2\":" << r.order_space_log2
+			<< ",\"mean_branching_factor\":" << (r.branch_events ? static_cast<double>(r.total_branching) / r.branch_events : 0.0)
+			<< ",\"mean_sequence_depth\":" << (r.sequence_depth_samples ? static_cast<double>(r.sequence_depth_sum) / r.sequence_depth_samples : 0.0)
+			<< ",\"calls_per_expanded_node\":" << (r.nodes ? static_cast<double>(r.calls) / r.nodes : 0.0)
+			<< ",\"seconds_per_call\":" << (r.calls ? r.seconds / r.calls : 0.0)
+			<< ",\"decomposition_percent\":" << (r.seconds ? 100.0 * r.decomposition_seconds / r.seconds : 0.0)
+			<< ",\"search_percent\":" << (r.seconds ? 100.0 * r.search_seconds / r.seconds : 0.0)
+			<< ",\"solver_seconds\":" << r.seconds
+			<< ",\"bnb_seconds\":" << r.search_seconds
 			<< ",\"fallback_calls\":" << r.fallback_calls
 			<< ",\"fallback_geometric_path_invalid_calls\":" << r.fallback_geometric_path_invalid_calls
 			<< ",\"fallback_certificate_gap_calls\":" << r.fallback_certificate_gap_calls

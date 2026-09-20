@@ -31,6 +31,7 @@ PER_INSTANCE_FIELDS = (
 	"best_updates",
 	"initial_length",
 	"incumbent_length",
+	"first_best_update_length",
 	"final_length",
 	"exhausted",
 	"time_limited",
@@ -104,7 +105,7 @@ def print_correctness_diff(before_dir: Path, after_dir: Path, solvers: Sequence[
 				(
 					field
 					for field in PER_INSTANCE_FIELDS
-					if before_rows[key][field] != after_rows[key][field]
+					if before_rows[key].get(field) != after_rows[key].get(field)
 				),
 				None,
 			)

@@ -23,14 +23,19 @@ def main() -> None:
 	parser.add_argument('--workers', type=int, default=1)
 	parser.add_argument('--solver-argument', action='append', default=[])
 	parser.add_argument('--case', type=int, action='append')
+	parser.add_argument('--case-list', type=Path,
+		help='Text file with one case index per line; combines with repeated --case.')
 	parser.add_argument('--output', type=Path, required=True)
 	parser.add_argument('--resume', action='store_true')
 	args = parser.parse_args()
 	if args.workers < 1:
 		parser.error('--workers must be positive')
 	args.output.parent.mkdir(parents=True, exist_ok=True)
+	requested_cases = set(args.case or [])
+	if args.case_list:
+		requested_cases.update(int(line) for line in args.case_list.read_text().splitlines() if line.strip())
 	cases = [case for case in read_encoded_cases(args.suite)
-		if args.case is None or case.case_index in args.case]
+		if not requested_cases or case.case_index in requested_cases]
 	completed = set()
 	if args.resume and args.output.exists():
 		for line in args.output.read_text().splitlines():

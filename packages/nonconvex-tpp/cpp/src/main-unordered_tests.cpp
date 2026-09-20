@@ -25,11 +25,29 @@ void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
 	if (result.fallback_calls != result.fallback_geometric_path_invalid_calls + result.fallback_certificate_gap_calls
 		|| result.extended_precision_calls > result.fallback_calls
 		|| result.repaired_geometric_path_calls > result.calls
+		|| result.calls != result.relaxation_calls + result.refinement_calls
+		|| result.branch_events != result.insertion_branches + result.decomposition_branches
+		|| result.partial_states_created < 1
+		|| result.nodes > result.partial_states_created
+		|| result.children_queued > result.children_generated
+		|| result.insertion_positions_pruned > result.insertion_positions_considered
+		|| result.pruned_nodes > result.pruned_states
+		|| result.pruned_states != result.bound_prunes + result.incumbent_prunes
+		|| result.best_updates > result.incumbent_updates
+		|| (result.best_updates > 0 && !std::isfinite(result.first_best_update_length))
+		|| (result.best_updates == 0 && std::isfinite(result.first_best_update_length))
+		|| (result.best_updates > 0 && result.first_best_update_length > result.incumbent_length)
+		|| result.final_length != result.upper_bound
+		|| result.initial_length != result.initial_upper_bound
+		|| result.incumbent_length != result.initial_upper_bound
+		|| !std::isfinite(result.order_space_log2)
 		|| result.convex_oracle_seconds + result.decomposition_seconds + result.search_visit_check_seconds
 			+ result.search_maintenance_seconds > result.search_seconds + 1e-9
 		|| result.heuristic_visit_check_seconds + result.search_visit_check_seconds
 			+ result.finalization_visit_check_seconds > result.visit_check_seconds + 1e-9)
+		{
 		throw std::runtime_error("Inconsistent unordered profiling metrics.");
+		}
 	std::vector<size_t> order(polygons.size());
 	std::iota(order.begin(), order.end(), 0);
 	std::vector<std::vector<Polygon>> pieces;

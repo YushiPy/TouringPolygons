@@ -72,10 +72,14 @@ namespace tpp {
 			if (area == 0) throw std::invalid_argument("Zero-area polygon.");
 			if (area < 0) std::reverse(p.begin(), p.end());
 			hulls.push_back(convex_hull(p));
+			result.polygon_vertices_total += p.size();
+			result.polygon_vertices_min = std::min(result.polygon_vertices_min, p.size());
+			result.polygon_vertices_max = std::max(result.polygon_vertices_max, p.size());
 		}
 		result.preprocessing_seconds = duration(preprocessing_began);
 		const auto heuristic_began = std::chrono::steady_clock::now();
 		const size_t n = polygons.size();
+		result.order_space_log2 = std::lgamma(static_cast<double>(n) + 1.0) / std::log(2.0);
 		const double eps = options.feasibility_tolerance;
 		enum class Phase { Heuristic, Search, Finalization };
 		Phase phase = Phase::Heuristic;
@@ -96,6 +100,12 @@ namespace tpp {
 			if (std::isfinite(value) && value < result.upper_bound && covered(path)) {
 				result.path = path;
 				result.upper_bound = value;
+				++result.incumbent_updates;
+				if (phase == Phase::Search) {
+					++result.best_updates;
+					if (!std::isfinite(result.first_best_update_length)) result.first_best_update_length = value;
+				}
+				if (!std::isfinite(result.first_incumbent_seconds)) result.first_incumbent_seconds = elapsed();
 				trace_event({
 					.kind = "incumbent",
 					.order = order,
@@ -107,6 +117,7 @@ namespace tpp {
 			}
 		};
 		result.lower_bound = start.distance_to(target);
+		result.initial_lower_bound = result.lower_bound;
 		improve({start, target}, "direct");
 		if (!std::isfinite(result.upper_bound)) {
 			auto initialize = [&](Vector2 source, Vector2 destination, const std::string &direction) {
@@ -198,6 +209,13 @@ namespace tpp {
 			}
 		}
 		result.initial_heuristic_seconds = duration(heuristic_began);
+		result.initial_upper_bound = result.upper_bound;
+		result.initial_length = result.initial_upper_bound;
+		result.incumbent_length = result.initial_upper_bound;
+		if (std::isfinite(result.initial_upper_bound)) {
+			result.initial_gap_percent = 100.0 * (result.initial_upper_bound - result.initial_lower_bound)
+				/ std::max(std::abs(result.initial_upper_bound), 1e-30);
+		}
 		phase = Phase::Search;
 		const auto search_began = std::chrono::steady_clock::now();
 		auto gap = [&] { return options.absolute_gap + options.relative_gap * std::abs(result.upper_bound); };
@@ -208,7 +226,13 @@ namespace tpp {
 			std::vector<Polygon> selected;
 			for (auto e : node.sequence) selected.push_back(e.piece == none ? hulls[e.polygon] : pieces[e.polygon][e.piece]);
 			++result.calls;
-			result.refinement_calls += precise;
+			if (precise) ++result.refinement_calls;
+			else ++result.relaxation_calls;
+			if (node.sequence.size() == n) {
+				++result.complete_order_oracle_calls;
+				if (std::all_of(node.sequence.begin(), node.sequence.end(), [](auto e) { return e.piece != none; }))
+					++result.complete_piece_oracle_calls;
+			}
 			const double tolerance = precise ? gap() * .25
 				: std::max(gap() * .25, options.oracle_relative_gap * result.upper_bound);
 			const double cutoff = result.upper_bound - gap();
@@ -263,6 +287,7 @@ namespace tpp {
 		double settled_bound = result.upper_bound;
 		std::priority_queue<Node, std::vector<Node>, Later> queue;
 		queue.push({{}, {start, target}, result.lower_bound, 0});
+		result.partial_states_created = 1;
 		trace_event({
 			.kind = "root",
 			.node = 0,
@@ -284,6 +309,9 @@ namespace tpp {
 			if (dive) { node = std::move(*dive); dive.reset(); }
 			else { node = queue.top(); queue.pop(); }
 			++result.nodes;
+			result.sequence_depth_sum += node.sequence.size();
+			++result.sequence_depth_samples;
+			result.max_sequence_depth = std::max(result.max_sequence_depth, node.sequence.size());
 			if (node.path.empty()) solve(node);
 			std::vector<size_t> node_sequence;
 			for (auto e : node.sequence) node_sequence.push_back(e.polygon);
@@ -297,6 +325,9 @@ namespace tpp {
 				.upper_bound = result.upper_bound,
 			});
 			if (node.bound >= result.upper_bound - gap()) {
+				++result.pruned_nodes;
+				++result.pruned_states;
+				++result.bound_prunes;
 				settled_bound = std::min(settled_bound, node.bound);
 				trace_event({
 					.kind = "prune",
@@ -312,6 +343,9 @@ namespace tpp {
 			}
 			improve(node.path, "oracle", node_sequence);
 			if (node.bound >= result.upper_bound - gap()) {
+				++result.pruned_nodes;
+				++result.pruned_states;
+				++result.incumbent_prunes;
 				settled_bound = std::min(settled_bound, node.bound);
 				trace_event({
 					.kind = "prune",
@@ -355,6 +389,7 @@ namespace tpp {
 				.reason = std::find_if(node.sequence.begin(), node.sequence.end(), [&](auto e) { return e.polygon == chosen; }) != node.sequence.end()
 					? "decomposition" : "insertion",
 			});
+			++result.branch_events;
 			auto found = std::find_if(node.sequence.begin(), node.sequence.end(), [&](auto e) { return e.polygon == chosen; });
 			std::vector<Node> children;
 			if (found != node.sequence.end()) {
@@ -366,10 +401,16 @@ namespace tpp {
 						piece = convex_hull(std::move(piece));
 						if (piece.size() >= 3) pieces[chosen].push_back(std::move(piece));
 					}
+					++result.decomposed_polygons;
+					result.convex_pieces_generated += pieces[chosen].size();
+					result.convex_pieces_min = std::min(result.convex_pieces_min, pieces[chosen].size());
+					result.convex_pieces_max = std::max(result.convex_pieces_max, pieces[chosen].size());
 					result.decomposition_seconds += duration(decomposition_began);
 				}
 				if (pieces[chosen].empty()) throw std::runtime_error("Empty convex decomposition.");
 				const size_t position = found - node.sequence.begin();
+				result.total_branching += pieces[chosen].size();
+				result.max_observed_branching = std::max(result.max_observed_branching, pieces[chosen].size());
 				for (size_t j = 0; j < pieces[chosen].size(); ++j) {
 					auto sequence = node.sequence;
 					sequence[position].piece = j;
@@ -379,18 +420,28 @@ namespace tpp {
 					child.branch_piece = j;
 					child.branch_position = position;
 					children.push_back(std::move(child));
+					++result.children_generated;
+					++result.partial_states_created;
 				}
 			} else {
 				++result.insertion_branches;
 				std::vector<const Polygon *> regions;
 				for (auto e : node.sequence) regions.push_back(e.piece == none ? &hulls[e.polygon] : &pieces[e.polygon][e.piece]);
 				const auto bounds = insertion_lower_bounds(node.path, regions, hulls[chosen]);
+				const size_t branching = node.sequence.size() + 1;
+				result.total_branching += branching;
+				result.max_observed_branching = std::max(result.max_observed_branching, branching);
 				for (size_t j = 0; j <= node.sequence.size(); ++j) {
+					++result.insertion_positions_considered;
+					++result.children_generated;
 					const double bound = std::max(node.bound, bounds[j]);
 					auto sequence = node.sequence;
 					sequence.insert(sequence.begin() + j, {chosen});
 					if (bound >= result.upper_bound - gap()) {
 						++result.screened_nodes;
+						++result.insertion_positions_pruned;
+						++result.pruned_states;
+						++result.bound_prunes;
 						settled_bound = std::min(settled_bound, bound);
 						trace_event({
 							.kind = "child",
@@ -414,6 +465,7 @@ namespace tpp {
 					child.branch_polygon = chosen;
 					child.branch_position = j;
 					children.push_back(std::move(child));
+					++result.partial_states_created;
 				}
 			}
 			for (auto &child : children) {
@@ -444,11 +496,14 @@ namespace tpp {
 					.reason = queued ? "queued" : "bound_after_incumbent",
 				});
 				if (queued) {
+					++result.children_queued;
 					if (diving && (!dive || child.bound < dive->bound)) {
 						if (dive) queue.push(std::move(*dive));
 						dive = std::move(child);
 					} else queue.push(std::move(child));
 				} else {
+					++result.pruned_states;
+					++result.incumbent_prunes;
 					settled_bound = std::min(settled_bound, child.bound);
 				}
 			}
@@ -460,6 +515,9 @@ namespace tpp {
 		const auto finalization_began = std::chrono::steady_clock::now();
 		result.lower_bound = std::min({result.upper_bound, settled_bound, frontier_bound()});
 		result.lower_bound = std::max(start.distance_to(target), result.lower_bound - normalization_error);
+		result.final_absolute_gap = std::max(0.0, result.upper_bound - result.lower_bound);
+		result.final_relative_gap = result.final_absolute_gap / std::max(std::abs(result.upper_bound), 1e-30);
+		result.final_length = result.upper_bound;
 		result.exact = result.upper_bound - result.lower_bound <= gap();
 		result.termination = result.exact ? UnorderedTppTermination::Optimal
 			: result.calls >= options.max_calls ? UnorderedTppTermination::CallLimit
@@ -527,8 +585,18 @@ namespace tpp {
 		auto result = solve_normalized_unordered_tpp(
 			normalize(start), normalize(target), polygons, normalized_options
 		);
-		result.lower_bound *= divisor;
-		result.upper_bound *= divisor;
+		auto scale_length = [&](double &value) {
+			if (std::isfinite(value)) value *= divisor;
+		};
+		scale_length(result.lower_bound);
+		scale_length(result.upper_bound);
+		scale_length(result.initial_lower_bound);
+		scale_length(result.initial_upper_bound);
+		scale_length(result.initial_length);
+		scale_length(result.incumbent_length);
+		scale_length(result.first_best_update_length);
+		scale_length(result.final_length);
+		scale_length(result.final_absolute_gap);
 		for (auto &point : result.path) point = {
 			std::fma(point.x, divisor, center.x),
 			std::fma(point.y, divisor, center.y),
@@ -583,6 +651,9 @@ namespace tpp {
 			std::sort(visits.begin(), visits.end());
 			for (auto [position, index] : visits) result.order.push_back(index);
 		}
+		result.final_length = result.upper_bound;
+		result.final_absolute_gap = std::max(0.0, result.upper_bound - result.lower_bound);
+		result.final_relative_gap = result.final_absolute_gap / std::max(std::abs(result.upper_bound), 1e-30);
 		if (options.trace) {
 			result.trace.push_back({
 				.kind = "complete",
