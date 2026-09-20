@@ -10,6 +10,7 @@ import hashlib
 import json
 import math
 import os
+import signal
 import statistics
 import struct
 import subprocess
@@ -44,6 +45,42 @@ RESULT_FIELDS = [
 
 sys.path.insert(0, str(PROJECT_ROOT / "benchmarks/scripts"))
 from unordered_validation import orient_path, validate_path
+
+
+_ACTIVE_PROCESSES: set[subprocess.Popen[str]] = set()
+_ACTIVE_PROCESSES_LOCK = threading.Lock()
+
+
+def _stop_process(process: subprocess.Popen[str]) -> None:
+	"""Stop one isolated worker process and reap it."""
+	if process.poll() is not None:
+		return
+	try:
+		if os.name == "posix":
+			os.killpg(process.pid, signal.SIGTERM)
+		else:
+			process.terminate()
+	except ProcessLookupError:
+		return
+	try:
+		process.wait(timeout=5)
+	except subprocess.TimeoutExpired:
+		try:
+			if os.name == "posix":
+				os.killpg(process.pid, signal.SIGKILL)
+			else:
+				process.kill()
+		except ProcessLookupError:
+			pass
+		process.wait()
+
+
+def stop_active_processes() -> None:
+	"""Stop all active case workers, for example after Ctrl-C."""
+	with _ACTIVE_PROCESSES_LOCK:
+		processes = list(_ACTIVE_PROCESSES)
+	for process in processes:
+		_stop_process(process)
 
 
 @dataclass(frozen=True)
@@ -198,7 +235,7 @@ def worker(args: argparse.Namespace) -> int:
 		instance = Instance(polygons, False)
 
 	started = time.perf_counter()
-	upper_bound, lower_bound, statistics_map = branch_and_bound(
+	options = dict(
 		instance=instance,
 		callback=lambda _: None,
 		initial_solution=None,
@@ -213,9 +250,15 @@ def worker(args: argparse.Namespace) -> int:
 		decomposition_branch=True,
 		skip_convex_hull=False,
 		eps=args.eps,
-		oracle_backend=args.oracle_backend,
-		oracle_tolerance=args.oracle_tolerance,
 	)
+	# The unmodified Fekete et al. binding only has the SOCP backend.  The
+	# oracle-comparison checkout adds these two optional keyword arguments.
+	if "oracle_backend" in (branch_and_bound.__doc__ or ""):
+		options["oracle_backend"] = args.oracle_backend
+		options["oracle_tolerance"] = args.oracle_tolerance
+	elif args.oracle_backend != "socp":
+		raise ValueError("This TSPN binding only supports its native SOCP backend")
+	upper_bound, lower_bound, statistics_map = branch_and_bound(**options)
 	solve_seconds = time.perf_counter() - started
 	statistics_map = {key: convert_stat(value) for key, value in statistics_map.items()}
 	if upper_bound is None:
@@ -294,7 +337,11 @@ def load_completed(path: Path) -> set[int]:
 	if not path.exists():
 		return set()
 	with path.open(newline="") as file:
-		return {int(row["case_index"]) for row in csv.DictReader(file)}
+		return {
+			int(row["case_index"])
+			for row in csv.DictReader(file)
+			if row.get("status") in {"optimal", "limit"} and not row.get("error")
+		}
 
 
 def result_row(
@@ -385,21 +432,30 @@ def run_case(
 			"--oracle-tolerance", str(args.oracle_tolerance),
 		]
 		started = time.perf_counter()
+		process = subprocess.Popen(
+			command, cwd=PROJECT_ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+			text=True, env=environment, start_new_session=(os.name == "posix"),
+		)
+		with _ACTIVE_PROCESSES_LOCK:
+			_ACTIVE_PROCESSES.add(process)
 		try:
-			completed = subprocess.run(
-				command, cwd=PROJECT_ROOT, capture_output=True, text=True,
-				timeout=args.time_limit + 120, check=False, env=environment,
-			)
-		except subprocess.TimeoutExpired as exc:
-			write_log(f"\n=== case {index}: process timeout ===\n{exc.stdout or ''}{exc.stderr or ''}")
-			return {"status": "process_timeout", "solve_seconds": time.perf_counter() - started}
+			try:
+				stdout, stderr = process.communicate(timeout=args.time_limit + 120)
+			except subprocess.TimeoutExpired:
+				_stop_process(process)
+				stdout, stderr = process.communicate()
+				write_log(f"\n=== case {index}: process timeout ===\n{stdout}{stderr}")
+				return {"status": "process_timeout", "solve_seconds": time.perf_counter() - started}
+		finally:
+			with _ACTIVE_PROCESSES_LOCK:
+				_ACTIVE_PROCESSES.discard(process)
 
-		write_log(f"\n=== case {index}: exit {completed.returncode} ===\n{completed.stdout}{completed.stderr}")
-		if completed.returncode != 0:
-			message = completed.stderr.strip().splitlines()
+		write_log(f"\n=== case {index}: exit {process.returncode} ===\n{stdout}{stderr}")
+		if process.returncode != 0:
+			message = stderr.strip().splitlines()
 			return {
 				"status": "error", "solve_seconds": time.perf_counter() - started,
-				"error": message[-1] if message else f"worker exited {completed.returncode}",
+				"error": message[-1] if message else f"worker exited {process.returncode}",
 			}
 		if not result_path.exists():
 			return {"status": "error", "error": "worker produced no result"}
@@ -538,7 +594,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 		if write_header:
 			writer.writeheader()
 		log_lock = threading.Lock()
-		with ThreadPoolExecutor(max_workers=min(args.workers, max(1, len(pending)))) as executor:
+		executor = ThreadPoolExecutor(max_workers=min(args.workers, max(1, len(pending))))
+		futures = {}
+		try:
 			futures = {executor.submit(run_case, args, index, log_file, log_lock): index for index in pending}
 			for position, future in enumerate(as_completed(futures), start=1):
 				index = futures[future]
@@ -547,6 +605,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 				writer.writerow(row)
 				csv_file.flush()
 				print(f"[{position}/{len(pending)}] case {index}: {row['status']} in {row['solve_seconds']}s", flush=True)
+		except KeyboardInterrupt:
+			stop_active_processes()
+			for future in futures:
+				future.cancel()
+			executor.shutdown(wait=True, cancel_futures=True)
+			print("Interrupted; completed rows are already saved and --resume will skip them.", file=sys.stderr)
+			return 130
+		else:
+			executor.shutdown(wait=True)
 
 	write_summary(csv_path, summary_path, args)
 	print(f"Results: {csv_path}")

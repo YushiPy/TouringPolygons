@@ -73,6 +73,26 @@ parameters and status totals are also appended to `campaign.json`.
 Run `python3 benchmarks/tpp.py --help` to see all workflow commands. Lower-level
 scripts remain available under `benchmarks/scripts/` for direct debugging.
 
+## Six-hour Fekete et al. comparison
+
+From the repository root, start or resume the single-thread external-solver
+campaign with:
+
+```bash
+python3 benchmarks/scripts/run_fekete_6h.py
+```
+
+For an unattended multi-day run on macOS, prevent system sleep with
+`caffeinate -i python3 benchmarks/scripts/run_fekete_6h.py`.
+
+The runner uses the free-order endpoint-path formulation, a 0.1% optimality
+gap, and a six-hour limit for each unresolved instance. It reuses certificates
+from the matching 10-second run, launches eight independent single-thread
+instances at a time, and atomically checkpoints each result under
+`tspn-comparison/results/fekete-free-order-6h/`. Pressing Ctrl-C is safe; run
+the same command again to continue. Check the inputs without starting work
+with `python3 benchmarks/scripts/run_fekete_6h.py --dry-run`.
+
 ## OSM Campaigns
 
 Activate the project virtual environment before generating OSM instances so `osmium` and `shapely` are available:
