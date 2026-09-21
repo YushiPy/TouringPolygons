@@ -71,9 +71,9 @@ benchmarks/*
 !benchmarks/patches/
 !benchmarks/patches/*.patch
 !benchmarks/results/
-benchmarks/results/*
-!benchmarks/results/german-comparison/
-!benchmarks/results/german-comparison/**
+benchmarks/results/**
+!benchmarks/results-saved/
+!benchmarks/results-saved/**
 !benchmarks/suites/
 !benchmarks/suites/nonconvex/
 !benchmarks/suites/nonconvex/*.bin
