@@ -117,6 +117,8 @@ FIELDS = [
     "repaired_geometric_path_calls",
     "peak_queue",
     "sha256",
+    "order",
+    "path",
     *PROFILE_FIELDS,
 ]
 
@@ -151,6 +153,11 @@ def ratio(numerator: float | int | None, denominator: float | int | None):
     return numerator / denominator
 
 
+def json_cell(value):
+    """Encode structured solver output safely inside one CSV cell."""
+    return json.dumps(value, separators=(",", ":"))
+
+
 def make_record(row: dict, source: str, repeat_index: int) -> dict:
     seconds = row.get("seconds")
     calls = row.get("calls")
@@ -179,6 +186,8 @@ def make_record(row: dict, source: str, repeat_index: int) -> dict:
         ),
         "mean_branching_factor": ratio(row.get("total_branching"), branch_events),
         "mean_sequence_depth": ratio(row.get("sequence_depth_sum"), sequence_samples),
+        "order": json_cell(row.get("order", [])),
+        "path": json_cell(row.get("path", [])),
     })
     return {field: record.get(field) for field in FIELDS}
 
