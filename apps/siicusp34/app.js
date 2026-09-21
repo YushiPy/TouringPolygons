@@ -39,6 +39,20 @@ function convexHull(points) {
 	return [...half(sorted), ...half([...sorted].reverse())];
 }
 
+function polygonCentroid(polygon) {
+	let twiceArea = 0;
+	let centroid = [0, 0];
+	for (let index = 0; index < polygon.length; index += 1) {
+		const current = polygon[index], next = polygon[(index + 1) % polygon.length];
+		const cross = current[0] * next[1] - next[0] * current[1];
+		twiceArea += cross;
+		centroid[0] += (current[0] + next[0]) * cross;
+		centroid[1] += (current[1] + next[1]) * cross;
+	}
+	if (Math.abs(twiceArea) > 1e-12) return [centroid[0] / (3 * twiceArea), centroid[1] / (3 * twiceArea)];
+	return polygon.reduce((sum, point) => [sum[0] + point[0] / polygon.length, sum[1] + point[1] / polygon.length], [0, 0]);
+}
+
 function projectedCase(row, width = 840, height = 480) {
 	const points = [...row.geometry.polygons.flat(), ...row.path, row.geometry.start, row.geometry.target];
 	const xs = points.map((point) => point[0]), ys = points.map((point) => point[1]);
@@ -236,7 +250,6 @@ const number = (value, digits = 4) => value.toLocaleString("pt-BR", { maximumFra
 const coordinates = (points) => points.map((point) => point.join(",")).join(" ");
 const caseLabel = (id) => String(id + 1).padStart(id + 1 >= 100 ? 3 : 2, "0");
 const visitorRows = (rows, query) => rows.filter(row => !query.trim() || caseLabel(row.case).includes(query.trim()));
-const titles = { 2: "Quatro regiões, um caminho", 9: "Quarenta regiões, ordem livre", 55: "Um caminho, uma prova em aberto" };
 const MAX_ZOOM = 8;
 
 function traceNumber(value, digits = 4) {
@@ -659,7 +672,7 @@ async function initialize() {
 			${showIncumbentRoute ? `<polyline class="trace-incumbent-route" points="${coordinates(incumbentPath)}"/>` : ""}
 			${currentPath.length > 1 ? `<polyline class="trace-route-completed" points="${coordinates(currentPath)}"/>` : ""}
 			${movingSegment.length > 1 ? `<polyline class="trace-route-preview" points="${coordinates(movingSegment)}"/><polyline id="trace-active-route" class="trace-current-route" points="${coordinates(movingSegment)}"/>` : ""}
-			${showLabels ? projection.polygons.map((polygon, index) => { const center = polygon.reduce((sum, point) => [sum[0] + point[0] / polygon.length, sum[1] + point[1] / polygon.length], [0, 0]); return `<text class="trace-region-label ${selected.has(index) ? "trace-label-selected" : ""}" x="${center[0]}" y="${center[1]}" text-anchor="middle">${traceLabel(order, index)}</text>`; }).join("") : ""}
+			${showLabels ? projection.polygons.map((polygon, index) => { const center = polygonCentroid(polygon); return `<text class="trace-region-label ${selected.has(index) ? "trace-label-selected" : ""}" x="${center[0]}" y="${center[1]}" text-anchor="middle" dominant-baseline="central">${traceLabel(order, index)}</text>`; }).join("") : ""}
 			<circle class="trace-traveler" cx="${traveler[0]}" cy="${traveler[1]}" r="5"/><circle class="trace-endpoint" cx="${start[0]}" cy="${start[1]}" r="6"/><text class="trace-endpoint-label" x="${start[0] + 13}" y="${start[1] + 4}">S</text><circle class="trace-endpoint trace-target" cx="${target[0]}" cy="${target[1]}" r="6"/><text class="trace-endpoint-label" x="${target[0] + 13}" y="${target[1] + 4}">T</text>`;
 		updateTraceAnimationVisuals();
 		const [title, text] = traceEventCopy(event, trace, branchGeometry);
@@ -757,8 +770,8 @@ async function initialize() {
 			${decomposition ? row.visualization.decomposition.flatMap((pieces) => pieces.map((piece) => `<polygon class="convex-piece" points="${coordinates(piece.map(projected.project))}"/>`)).join("") : ""}
 			<polyline class="route-ghost" points="${coordinates(projected.path)}"/><polyline id="animated-route" class="route-line"/>
 			${labels ? projected.polygons.map((polygon, index) => {
-				const center = polygon.reduce((sum, point) => [sum[0] + point[0] / polygon.length, sum[1] + point[1] / polygon.length], [0, 0]);
-				return `<text class="region-label" x="${center[0]}" y="${center[1]}" text-anchor="middle">${row.order.indexOf(index) + 1}</text>`;
+				const center = polygonCentroid(polygon);
+				return `<text class="region-label" x="${center[0]}" y="${center[1]}" text-anchor="middle" dominant-baseline="central">${row.order.indexOf(index) + 1}</text>`;
 			}).join("") : ""}
 			<circle class="endpoint" cx="${start[0]}" cy="${start[1]}" r="7"/><text class="endpoint-label" x="${start[0] + 14}" y="${start[1] + 5}">S</text>
 			<circle class="endpoint target" cx="${target[0]}" cy="${target[1]}" r="7"/><text class="endpoint-label" x="${target[0] + 14}" y="${target[1] + 5}">T</text><circle id="traveler" class="traveler" r="6"/>
@@ -814,18 +827,13 @@ async function initialize() {
 			if (active) button.setAttribute("aria-current", "true");
 			else button.removeAttribute("aria-current");
 		});
-		element("drawing-title").textContent = data.corpus === "german" ? `${row.polygons} regiões, caminho registrado` : titles[row.case] || `${row.polygons} regiões, extremos fixos`;
 		element("speed-value").title = `A 1×, este caso leva ${number(playbackDuration(row.polygons) / 1000, 1)} s para percorrer o caminho.`;
-		element("case-id").textContent = `Caso ${caseLabel(row.case)}`;
 		element("outcome-badge").className = `status ${row.exact ? "certified" : "limited"}`;
 		element("outcome-badge").textContent = row.exact ? "✓ Solução exata" : "◷ Encerrado por tempo";
-		element("outcome-title").textContent = row.exact ? "Ótimo certificado" : "Caminho encontrado; certificação pendente";
-		element("outcome-explanation").textContent = row.exact ? "A busca terminou e o solver certificou este caminho como ótimo." : "O caminho visita todas as regiões. O tempo terminou antes da certificação exata.";
+  element("outcome-title").textContent = row.exact ? "Ótimo certificado" : "Caminho encontrado; não necessariamente ótimo";
+  element("outcome-explanation").textContent = row.exact ? "A busca terminou e o solver certificou este caminho como ótimo." : "O caminho visita todas as regiões, mas o limite de tempo terminou antes de sabermos se ele é o menor possível.";
 		element("case-length").textContent = number(row.length ?? row.validation?.recomputed_length, 2);
 		element("case-time").textContent = row.seconds < .001 ? "< 0,001 s" : `${number(row.seconds, 3)} s`;
-		element("case-regions").textContent = `${row.polygons} / ${row.polygons}`;
-		element("case-certification").textContent = row.exact ? "Exata" : "Pendente";
-		element("case-certification-note").textContent = row.exact ? "busca concluída" : "limite de tempo atingido";
 		if (updateURL && window.location.protocol !== "file:") {
 			const url = new URL(window.location.href);
 			url.searchParams.set("caso", row.case);
@@ -1259,7 +1267,7 @@ function initializeChallenge() {
 	function render() {
 		const chosen = challenge.solutions.find((solution) => solution.order.join() === order.join());
 		map.innerHTML = challenge.geometry.polygons.map((polygon, index) => {
-			const x = (polygon[0][0] + polygon[2][0]) / 2, y = (polygon[0][1] + polygon[2][1]) / 2;
+			const [x, y] = polygonCentroid(polygon);
 			const rank = order.indexOf(index);
 			return `<g role="button" tabindex="0" data-challenge-region="${index}" aria-label="Região ${letters[index]}${rank >= 0 ? `, escolha ${rank + 1}` : ""}" aria-pressed="${rank >= 0}"><polygon points="${coordinates(polygon)}" class="challenge-region ${rank >= 0 ? "chosen" : ""}"/><text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central">${letters[index]}${rank >= 0 ? ` · ${rank + 1}` : ""}</text></g>`;
 		}).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line challenge-solution-route" points="${coordinates(chosen.path)}"/>` : orderSketch("order", challenge.geometry, order.map((index) => challenge.geometry.polygons[index]))) + '<circle cx="25" cy="130" r="5" fill="white"/><text x="17" y="153">S</text><circle cx="395" cy="130" r="5" fill="#ffad66"/><text x="389" y="153">T</text>';
@@ -1314,7 +1322,7 @@ function initializePieceChallenge(combined = false) {
 			}), { minX: Infinity, maxX: -Infinity, minY: Infinity });
 			const regionName = combined && rank >= 0 ? `${letters[region]} · ${rank + 1}ª` : letters[region];
 			const pieceMarkup = pieces.map((piece, index) => {
-				const x = (piece[0][0] + piece[2][0]) / 2, y = (piece[0][1] + piece[2][1]) / 2;
+				const [x, y] = polygonCentroid(piece);
 				return `<g role="button" tabindex="0" data-piece="${index}" data-piece-region="${region}" aria-label="Região ${letters[region]}, peça ${index + 1}${rank >= 0 ? `, visita ${rank + 1}` : ""}" aria-pressed="${choices[region] === index}"><polygon class="challenge-region ${choices[region] === index ? "chosen" : ""}" points="${coordinates(piece)}"/><text x="${x}" y="${y}" dominant-baseline="central" text-anchor="middle">${index + 1}</text></g>`;
 			}).join("");
 			return `${pieceMarkup}<text class="challenge-region-name" x="${(bounds.minX + bounds.maxX) / 2}" y="${Math.max(18, bounds.minY - 10)}" text-anchor="middle">${regionName}</text>`;
@@ -1370,9 +1378,13 @@ function initializePieceChallenge(combined = false) {
 
 function initializeChallengeFlow() {
 	const dialog = element("challenge-dialog");
+	if (!dialog) return;
+	if (dialog.parentElement !== document.body) document.body.append(dialog);
 	const steps = [...dialog.querySelectorAll("[data-challenge-step]")];
 	const titles = ["Escolha a ordem das visitas", "Escolha uma peça em cada região", "Escolha a ordem e as peças"];
 	let current = 0;
+	let opener = element("open-challenge");
+	let historyEntry = false;
 	function show(index) {
 		current = Math.max(0, Math.min(steps.length - 1, index));
 		steps.forEach((step, position) => { step.hidden = position !== current; });
@@ -1389,19 +1401,46 @@ function initializeChallengeFlow() {
 		heading.setAttribute("tabindex", "-1");
 		heading.focus({ preventScroll: true });
 	}
-	element("open-challenge").addEventListener("click", () => { dialog.showModal(); show(0); });
-	element("close-challenge").addEventListener("click", () => dialog.close());
+	function openChallenge(source = element("open-challenge"), fromHistory = false) {
+		opener = source || element("open-challenge");
+		if (!dialog.open) {
+			historyEntry = !fromHistory && window.location.hash !== "#desafio";
+			if (historyEntry) window.history.pushState({ tppOverlay: "desafio" }, "", "#desafio");
+			dialog.showModal();
+		}
+		show(0);
+	}
+	function requestClose(fromHistory = false) {
+		if (!dialog.open) return;
+		if (!fromHistory && historyEntry && window.location.hash === "#desafio") {
+			window.history.back();
+			return;
+		}
+		if (!fromHistory && !historyEntry && window.location.hash === "#desafio") {
+			window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+		}
+		historyEntry = false;
+		dialog.close();
+	}
+	dialog.openChallenge = openChallenge;
+	element("open-challenge").addEventListener("click", (event) => openChallenge(event.currentTarget));
+	element("close-challenge").addEventListener("click", () => requestClose());
 	element("challenge-next-one").addEventListener("click", () => show(1));
 	element("challenge-next-two").addEventListener("click", () => show(2));
 	dialog.querySelectorAll("[data-challenge-tab]").forEach((button) => button.addEventListener("click", () => show(Number(button.dataset.challengeTab))));
 	dialog.querySelectorAll("[data-challenge-back]").forEach((button) => button.addEventListener("click", () => show(current - 1)));
-	element("finish-challenge").addEventListener("click", () => dialog.close());
+	element("finish-challenge").addEventListener("click", () => requestClose());
 	dialog.addEventListener("click", (event) => {
 		if (event.target !== dialog) return;
 		const box = dialog.getBoundingClientRect();
-		if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.close();
+		if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) requestClose();
 	});
-	dialog.addEventListener("close", () => element("open-challenge").focus({ preventScroll: true }));
+	dialog.addEventListener("cancel", (event) => { event.preventDefault(); requestClose(); });
+	dialog.addEventListener("close", () => opener?.focus({ preventScroll: true }));
+	window.addEventListener("popstate", () => {
+		if (dialog.open && window.location.hash !== "#desafio") requestClose(true);
+		else if (!dialog.open && window.location.hash === "#desafio") openChallenge(null, true);
+	});
 }
 
 function initializeReferences() {
@@ -1451,6 +1490,7 @@ function initializeDisclosures() {
 		body.className = "disclosure-body";
 		while (summary.nextSibling) body.append(summary.nextSibling);
 		details.append(body);
+		if (details.classList.contains("guided-section")) return;
 		let expanded = details.open, animation = null;
 		const finish = () => {
 			details.open = expanded;
@@ -1478,9 +1518,12 @@ function initializeDisclosures() {
 
 function initializeGuide() {
 	const copy = {
+		desafio: ["01", "Tente você mesmo!", "Escolha a ordem de visita e compare com o solver."],
+		historia: ["02", "Trabalhos anteriores", "Como a pesquisa chegou até este solver autocontido."],
 		resultados: ["03", "Resultados práticos", "O que os 558 casos mostram na prática."],
 		metodo: ["04", "O algoritmo", "As ideias geométricas por trás da busca."],
 		pesquisa: ["05", "O problema e a pesquisa", "O que está sendo resolvido e por quê."],
+		contato: ["06", "Fale com o autor", "Comentários, dúvidas ou uma conversa sobre a pesquisa."],
 	};
 	const ids = ["desafio", "historia", "resultados", "metodo", "pesquisa", "contato"];
 	const nodes = new Map();
@@ -1503,11 +1546,21 @@ function initializeGuide() {
 			while (node.firstChild) panel.append(node.firstChild);
 			node.append(toggle, panel);
 			panel.hidden = true;
+			panel.inert = true;
 			toggle.setAttribute("aria-expanded", "false");
 		}
+		node.hidden = true;
+		node.inert = true;
 		nodes.set(id, node);
 	}
 	if (!nodes.size) return;
+	const dialog = element("section-dialog");
+	if (!dialog) return;
+	const content = element("section-dialog-content");
+	const closeButton = element("close-section");
+	const title = element("section-dialog-title");
+	const eyebrow = element("section-dialog-eyebrow");
+	const subtitle = element("section-dialog-subtitle");
 	const storageKey = "tpp-siicusp34-visited-sections";
 	let visited = new Set();
 	try {
@@ -1515,17 +1568,20 @@ function initializeGuide() {
 	} catch {
 		visited = new Set();
 	}
+	let active = null;
 	const statusText = (id) => visited.has(id) ? "Visitada" : "Ainda não visitada";
 	function update(id) {
 		const node = nodes.get(id);
 		if (!node) return;
-		const isOpen = node.matches("details") ? node.open : !node.querySelector(":scope > .guided-panel")?.hidden;
+		const isOpen = active?.id === id;
 		node.classList.toggle("is-open", isOpen);
 		node.classList.toggle("is-visited", visited.has(id));
 		document.querySelectorAll(`[data-guide-status="${id}"]`).forEach((status) => { status.textContent = statusText(id); });
 		document.querySelectorAll(`[data-guide-target="${id}"]`).forEach((link) => link.classList.toggle("is-visited", visited.has(id)));
 		const toggle = node.querySelector(":scope > .guided-toggle");
 		if (toggle) toggle.setAttribute("aria-expanded", String(isOpen));
+		const summary = node.matches("details") ? node.querySelector(":scope > .guided-summary") : null;
+		if (summary) summary.setAttribute("aria-expanded", String(isOpen));
 	}
 	function markVisited(id) {
 		if (!nodes.has(id)) return;
@@ -1535,79 +1591,94 @@ function initializeGuide() {
 		const count = element("guide-title")?.closest(".guide-nav")?.querySelector("[data-guide-count]");
 		if (count) count.textContent = `${visited.size}/${nodes.size} seções visitadas`;
 	}
-	const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-	const panelAnimations = new WeakMap();
-	function setPanelOpen(id, expanded) {
-		const node = nodes.get(id);
-		const panel = node?.querySelector(":scope > .guided-panel");
-		if (!panel) return;
-		panelAnimations.get(panel)?.cancel();
-		panelAnimations.delete(panel);
-		const current = !panel.hidden;
-		if (reduced.matches || current === expanded) {
-			panel.hidden = !expanded;
-			panel.style.height = "";
-			panel.style.overflow = "";
-			panel.inert = !expanded;
-			update(id);
+	function sourceFor(node) {
+		return node.matches("details")
+			? node.querySelector(":scope > .disclosure-body")
+			: node.querySelector(":scope > .guided-panel");
+	}
+	function clearHash() {
+		window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+	}
+	function close(fromHistory = false) {
+		if (!active) return;
+		if (!fromHistory && active.historyEntry && window.location.hash === `#${active.id}`) {
+			window.history.back();
 			return;
 		}
-		const from = current ? panel.getBoundingClientRect().height : 0;
-		panel.hidden = false;
-		panel.inert = !expanded;
-		const to = expanded ? panel.scrollHeight : 0;
-		panel.style.height = `${from}px`;
-		panel.style.overflow = "hidden";
-		const animation = panel.animate([{ height: `${from}px`, opacity: from ? 1 : 0 }, { height: `${to}px`, opacity: expanded ? 1 : 0 }], { duration: 220, easing: "cubic-bezier(.2,.7,.2,1)", fill: "forwards" });
-		panelAnimations.set(panel, animation);
-		update(id);
-		animation.onfinish = () => {
-			animation.cancel();
-			panel.hidden = !expanded;
-			panel.style.height = "";
-			panel.style.overflow = "";
-			panel.inert = !expanded;
-			panelAnimations.delete(panel);
-			update(id);
-		};
+		if (!fromHistory && !active.historyEntry && window.location.hash === `#${active.id}`) clearHash();
+		dialog.close();
 	}
-	function open(id, scroll = false) {
+	function open(id, opener = null, fromHistory = false) {
 		const node = nodes.get(id);
 		if (!node) return;
-		if (node.matches("details")) {
-			if (!node.open) node.querySelector(":scope > .guided-summary")?.click();
-		}
-		else {
-			setPanelOpen(id, true);
-		}
 		markVisited(id);
-		if (scroll) requestAnimationFrame(() => node.scrollIntoView({ behavior: "smooth", block: "start" }));
-	}
-	for (const [id, node] of nodes) {
-		if (node.matches("details")) {
-			node.querySelector(":scope > .guided-summary")?.addEventListener("click", () => { if (!node.open) markVisited(id); });
-			node.addEventListener("toggle", () => { if (node.open) markVisited(id); update(id); });
-		} else {
-			node.querySelector(":scope > .guided-toggle")?.addEventListener("click", () => {
-				const panel = node.querySelector(":scope > .guided-panel");
-				const shouldOpen = Boolean(panel?.hidden);
-				setPanelOpen(id, shouldOpen);
-				if (shouldOpen) markVisited(id); else update(id);
-			});
+		if (id === "desafio") {
+			element("challenge-dialog")?.openChallenge?.(opener, fromHistory);
+			return;
 		}
+		const source = sourceFor(node);
+		if (!source) return;
+		if (active && active.id !== id) close(true);
+		active = { id, node, source, opener: opener || node.querySelector(":scope > .guided-summary, :scope > .guided-toggle"), historyEntry: !fromHistory && window.location.hash !== `#${id}` };
+		if (active.historyEntry) window.history.pushState({ tppOverlay: id }, "", `#${id}`);
+		source.hidden = false;
+		source.inert = false;
+		content.append(source);
+		dialog.dataset.section = id;
+		eyebrow.textContent = `ETAPA ${copy[id][0]} DE ${ids.length}`;
+		title.textContent = copy[id][1];
+		subtitle.textContent = copy[id][2];
+		update(id);
+		if (!dialog.open) dialog.showModal();
+		closeButton.focus({ preventScroll: true });
+	}
+	dialog.addEventListener("close", () => {
+		const closing = active;
+		if (!closing) return;
+		if (closing.source.parentElement === content) {
+			closing.source.hidden = closing.node.matches("section");
+			closing.source.inert = closing.node.matches("section");
+			closing.node.append(closing.source);
+		}
+		active = null;
+		dialog.removeAttribute("data-section");
+		update(closing.id);
+		closing.opener?.focus({ preventScroll: true });
+	});
+	dialog.addEventListener("cancel", (event) => { event.preventDefault(); close(); });
+	dialog.addEventListener("click", (event) => {
+		if (event.target !== dialog) return;
+		const box = dialog.getBoundingClientRect();
+		if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) close();
+	});
+	closeButton.addEventListener("click", () => close());
+	window.addEventListener("popstate", () => {
+		if (active && window.location.hash !== `#${active.id}`) close(true);
+		else if (!active) {
+			const id = window.location.hash.slice(1);
+			if (nodes.has(id)) open(id, null, true);
+		}
+	});
+	for (const [id, node] of nodes) {
+		const trigger = node.matches("details")
+			? node.querySelector(":scope > .guided-summary")
+			: node.querySelector(":scope > .guided-toggle");
+		trigger?.addEventListener("click", (event) => {
+			event.preventDefault();
+			open(id, event.currentTarget);
+		});
 		update(id);
 	}
 	document.querySelectorAll("[data-guide-target]").forEach((link) => link.addEventListener("click", (event) => {
-		const id = link.dataset.guideTarget;
-		if (!nodes.has(id)) return;
-		event.preventDefault();
-		open(id, true);
-		window.history.replaceState(null, "", `#${id}`);
-	}));
+			const id = link.dataset.guideTarget;
+			if (!nodes.has(id)) return;
+			event.preventDefault();
+			open(id, link);
+		}));
 	const count = element("guide-title")?.closest(".guide-nav")?.querySelector("[data-guide-count]");
 	if (count) count.textContent = `${visited.size}/${nodes.size} seções visitadas`;
 	const initial = window.location.hash.slice(1);
-	if (nodes.has(initial)) open(initial, true);
+	if (nodes.has(initial)) open(initial, null, true);
 }
 
 function initializeContents() {

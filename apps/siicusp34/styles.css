@@ -156,62 +156,10 @@ select {
 	padding: 12px;
 }
 
-.event-header,
 main,
 footer {
 	width: min(1400px, calc(100% - 80px));
 	margin-inline: auto;
-}
-
-.event-header {
-	min-height: 100px;
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 24px;
-	border-bottom: 1px solid var(--line);
-}
-
-.brand {
-	display: flex;
-	align-items: center;
-	gap: 14px;
-	color: var(--ink);
-	text-decoration: none;
-	font-size: 0.9375rem;
-	font-weight: 650;
-	line-height: 1.3;
-}
-
-.brand small {
-	display: block;
-	font-weight: 400;
-	margin-top: 4px;
-	color: var(--muted);
-}
-
-.brand-mark {
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
-	font-size: 1.35rem;
-	letter-spacing: -0.04em;
-	border-right: 1px solid var(--line);
-	padding-right: 14px;
-}
-
-.brand-icon {
-	display: block;
-	width: 30px;
-	height: 30px;
-	flex: 0 0 auto;
-}
-
-.brand-word {
-	color: var(--ink);
-	font-size: 1.65rem;
-	font-weight: 800;
-	letter-spacing: -0.09em;
 }
 
 nav {
@@ -255,21 +203,16 @@ nav a:hover {
 	margin-bottom: 14px;
 }
 
-.german-event .brand-mark {
-	border-right: 0;
-	padding-right: 0;
-}
-
-.german-event .intro {
+.event .intro {
 	display: block;
 }
 
-.german-event .intro-copy {
+.event .intro-copy {
 	max-width: 100%;
 	margin-top: 16px;
 }
 
-.german-event .intro-copy p {
+.event .intro-copy p {
 	margin-bottom: 0;
 }
 
@@ -314,42 +257,6 @@ nav a:hover {
 	background: var(--navy);
 	color: #f0f6f8;
 	box-shadow: 0 12px 28px #102c3812;
-}
-
-.drawing-heading {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 10px;
-	align-items: center;
-	justify-content: space-between;
-	padding: 18px 22px;
-	border-bottom: 1px solid #ffffff18;
-	font-size: 0.875rem;
-}
-
-.drawing-heading>div {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 9px;
-}
-
-.drawing-heading .muted {
-	color: #a9c0ca;
-	font-size: 0.8125rem;
-}
-
-.live-dot {
-	width: 7px;
-	height: 7px;
-	border-radius: 50%;
-	background: #67d6c8;
-}
-
-.recorded-label {
-	font-size: 0.75rem;
-	letter-spacing: 0.07em;
-	color: #a9c0ca;
 }
 
 .canvas-tools {
@@ -463,6 +370,7 @@ input[type="checkbox"] {
 	fill: #c8ebe6;
 	font-size: 13px;
 	font-weight: 500;
+	dominant-baseline: central;
 	paint-order: stroke;
 	stroke: var(--navy);
 	stroke-width: 3;
@@ -510,7 +418,6 @@ input[type="checkbox"] {
 	flex-wrap: wrap;
 	align-items: center;
 	padding: 16px 20px;
-	border-top: 1px solid #ffffff18;
 }
 
 .play-button {
@@ -746,6 +653,7 @@ input[type="checkbox"] {
 	fill: #9bbbc1;
 	font-size: 13px;
 	font-weight: 600;
+	dominant-baseline: central;
 	paint-order: stroke;
 	stroke: var(--navy);
 	stroke-width: 3;
@@ -2122,7 +2030,6 @@ footer>div {
 
 @media (max-width: 1100px) {
 
-	.event-header,
 	main,
 	footer {
 		width: calc(100% - 48px);
@@ -2137,16 +2044,8 @@ footer>div {
 		max-width: 290px;
 	}
 
-	.german-event .intro-copy {
+	.event .intro-copy {
 		max-width: 100%;
-	}
-
-	.drawing-heading {
-		padding: 16px;
-	}
-
-	.recorded-label {
-		display: none;
 	}
 
 	.case-panel {
@@ -2164,18 +2063,8 @@ footer>div {
 }
 
 @media (max-width: 850px) {
-	.event-header {
-		flex-wrap: wrap;
-		padding-block: 18px;
-		gap: 12px;
-	}
-
 	nav {
 		gap: 22px;
-	}
-
-	.event-header nav a:last-child {
-		display: none;
 	}
 
 	.intro {
@@ -2189,11 +2078,11 @@ footer>div {
 		max-width: 600px;
 	}
 
-	.german-event .intro {
+	.event .intro {
 		display: block;
 	}
 
-	.german-event .intro-copy {
+	.event .intro-copy {
 		max-width: 100%;
 	}
 
@@ -2273,7 +2162,6 @@ footer>div {
 
 @media (max-width: 560px) {
 
-	.event-header,
 	main,
 	footer {
 		width: calc(100% - 32px);
@@ -2297,16 +2185,16 @@ footer>div {
 		padding-bottom: 24px;
 	}
 
-	.german-event .intro {
+	.event .intro {
 		padding: 18px 0 24px;
 	}
 
-	.german-event .intro-copy {
+	.event .intro-copy {
 		max-width: 100%;
 		margin-top: 12px;
 	}
 
-	.german-event .intro-copy p {
+	.event .intro-copy p {
 		font-size: 0.875rem;
 	}
 
@@ -3062,20 +2950,6 @@ html,
 }
 
 @media (max-width: 560px) {
-	.event-header nav {
-		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 0;
-	}
-
-	.event-header nav a {
-		text-align: center;
-	}
-
-	.event-header nav .lab-link {
-		grid-column: 1 / -1;
-	}
-
 	footer>div {
 		align-items: flex-start;
 		width: 100%;
@@ -3315,24 +3189,6 @@ html,
 }
 
 @media (max-width: 560px) {
-	.event-header {
-		min-height: 0;
-		padding-block: 12px 4px;
-		gap: 5px;
-	}
-
-	.brand small {
-		font-size: 0.7rem;
-	}
-
-	.event-header nav {
-		grid-template-columns: repeat(4, minmax(0, 1fr));
-	}
-
-	.event-header nav a {
-		padding-block: 9px;
-	}
-
 	.intro {
 		padding: 18px 0;
 		gap: 10px;
@@ -3345,14 +3201,6 @@ html,
 
 	.intro>p {
 		font-size: 0.875rem;
-	}
-
-	.drawing-heading {
-		padding: 12px;
-	}
-
-	.drawing-heading strong {
-		font-size: 0.8125rem;
 	}
 
 	.drawing-panel>.playback {
@@ -3490,6 +3338,102 @@ thead th[aria-sort="descending"] {
 
 .references-entry button {
 	min-height: 44px;
+}
+
+.section-dialog {
+	width: min(1120px, calc(100% - 32px));
+	max-width: none;
+	max-height: min(900px, calc(100dvh - 32px));
+	padding: 0;
+	border: 0;
+	border-radius: 18px;
+	background: #f7fafb;
+	color: var(--ink);
+	box-shadow: 0 24px 90px #071c2466;
+	overflow-y: auto;
+}
+
+.section-dialog::backdrop {
+	background: #071c24b3;
+	backdrop-filter: blur(4px);
+}
+
+.section-dialog-header {
+	position: sticky;
+	z-index: 5;
+	top: 0;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 20px;
+	padding: 22px 30px 18px;
+	border-bottom: 1px solid var(--line);
+	background: #f7fafbf2;
+	backdrop-filter: blur(10px);
+}
+
+.section-dialog-header .eyebrow {
+	margin-bottom: 4px;
+}
+
+.section-dialog-header h2 {
+	margin: 0;
+	font-size: 1.55rem;
+}
+
+.section-dialog-header #section-dialog-subtitle {
+	margin: 6px 0 0;
+	color: var(--muted);
+	font-size: 0.9rem;
+}
+
+.section-dialog-header>button {
+	flex: 0 0 44px;
+	width: 44px;
+	height: 44px;
+	padding: 0;
+	border: 0;
+	border-radius: 9px;
+	background: #e1ece8;
+	color: var(--teal);
+	font-size: 1.7rem;
+}
+
+.section-dialog-content>.guided-panel,
+.section-dialog-content>.disclosure-body {
+	padding: 0 30px 32px;
+}
+
+.section-dialog[data-section="historia"] .disclosure-body>.research-history {
+	margin-top: 0;
+}
+
+.section-dialog[data-section="metodo"] .guided-panel {
+	padding: 36px;
+	background: #e8f0f2;
+	border-radius: 0 0 12px 12px;
+}
+
+.section-dialog[data-section="pesquisa"] .guided-panel {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 80px;
+	padding-top: 28px;
+}
+
+.section-dialog[data-section="pesquisa"] .guided-panel>div:first-child h2 {
+	font-size: 1.7rem;
+	line-height: 1.2;
+	margin-bottom: 18px;
+}
+
+.section-dialog[data-section="pesquisa"] .guided-panel>div:first-child>p:not(.eyebrow) {
+	color: var(--muted);
+}
+
+.section-dialog[data-section="contato"] .contact-section {
+	margin: 0;
+	border-radius: 0 0 12px 12px;
 }
 
 .references-dialog {
@@ -4747,6 +4691,52 @@ details:not(.geometry-tools):not(.guided-section)[open]>summary::after {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.section-dialog {
+		inset: 0;
+		width: 100%;
+		max-width: none;
+		max-height: none;
+		height: 100dvh;
+		margin: 0;
+		border-radius: 0;
+	}
+
+	.section-dialog-header {
+		padding: max(14px, env(safe-area-inset-top)) 16px 12px;
+	}
+
+	.section-dialog-header h2 {
+		font-size: 1.1rem;
+	}
+
+	.section-dialog-header #section-dialog-subtitle {
+		font-size: 0.8rem;
+	}
+
+	.section-dialog-content>.guided-panel,
+	.section-dialog-content>.disclosure-body {
+		padding: 0 16px max(24px, env(safe-area-inset-bottom));
+	}
+
+	.section-dialog[data-section="metodo"] .guided-panel {
+		margin-inline: -16px;
+		padding: 24px 16px max(24px, env(safe-area-inset-bottom));
+		border-radius: 0;
+	}
+
+	.section-dialog[data-section="pesquisa"] .guided-panel {
+		grid-template-columns: 1fr;
+		gap: 24px;
+		padding-top: 24px;
+	}
+
+	.section-dialog[data-section="contato"] .contact-section {
+		align-items: flex-start;
+		flex-direction: column;
+		padding: 24px 20px max(24px, env(safe-area-inset-bottom));
+		border-radius: 0;
 	}
 
 	.challenge-invitation {
