@@ -70,6 +70,10 @@ benchmarks/*
 !benchmarks/scripts/*.py
 !benchmarks/patches/
 !benchmarks/patches/*.patch
+!benchmarks/results/
+benchmarks/results/*
+!benchmarks/results/german-comparison/
+!benchmarks/results/german-comparison/**
 !benchmarks/suites/
 !benchmarks/suites/nonconvex/
 !benchmarks/suites/nonconvex/*.bin

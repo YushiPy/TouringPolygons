@@ -25,6 +25,7 @@ def make_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--suite', type=Path, action='append', required=True)
     parser.add_argument('--solver', action='append', required=True, help='LABEL=EXECUTABLE')
+    parser.add_argument('--solver-argument', action='append', default=[], help='LABEL=ARGUMENT')
     parser.add_argument('--seconds', type=float, default=5)
     parser.add_argument('--max-calls', type=int, default=10000000)
     parser.add_argument('--repeats', type=int, default=1)
@@ -51,19 +52,27 @@ def main(argv: list[str] | None = None) -> int:
             if not math.isfinite(value) or value < 0:
                 parser.error(f'Expected a finite nonnegative {name}.')
             solver_arguments.extend(('--' + name.replace('_', '-'), str(value)))
+    arguments_by_solver: dict[str, list[str]] = {}
+    for spec in args.solver_argument:
+        label, separator, argument = spec.partition('=')
+        if not separator or not label or not argument:
+            parser.error(f'Expected LABEL=ARGUMENT: {spec}')
+        arguments_by_solver.setdefault(label, []).append(argument)
     solvers = []
     for spec in args.solver:
         label, separator, binary = spec.partition('=')
         if not separator or not label or not Path(binary).is_file():
             parser.error(f'Expected LABEL=EXISTING_EXECUTABLE: {spec}')
         path = Path(binary).resolve()
-        solvers.append((label, path, hashlib.sha256(path.read_bytes()).hexdigest()))
+        solvers.append((label, path, hashlib.sha256(path.read_bytes()).hexdigest(), arguments_by_solver.pop(label, [])))
+    if arguments_by_solver:
+        parser.error(f'Arguments provided for unknown solvers: {", ".join(sorted(arguments_by_solver))}')
     args.output.parent.mkdir(parents=True, exist_ok=True)
     metadata = {
         'platform': platform.platform(), 'processor': platform.processor(),
         'seconds': args.seconds, 'max_calls': args.max_calls, 'repeats': args.repeats,
         'solver_arguments': solver_arguments,
-        'solvers': [(name, str(path), digest) for name, path, digest in solvers],
+        'solvers': [(name, str(path), digest, arguments) for name, path, digest, arguments in solvers],
         'suites': [(str(p), hashlib.sha256(p.read_bytes()).hexdigest()) for p in args.suite],
         'case': args.case, 'limit': args.limit, 'stride': args.stride,
         'timing': 'Sequential processes; solver seconds excludes process startup and independent validation.',
@@ -80,14 +89,15 @@ def main(argv: list[str] | None = None) -> int:
                 for repeat in range(args.repeats):
                     # Rotate execution order to reduce systematic temperature/order bias.
                     offset = (case.case_index + repeat) % len(solvers)
-                    for label, binary, digest in solvers[offset:] + solvers[:offset]:
+                    for label, binary, digest, specific_arguments in solvers[offset:] + solvers[:offset]:
                         row = {'suite': str(suite), 'case': case.case_index, 'sha256': case.digest,
                                'solver': label, 'binary_sha256': digest, 'repeat': repeat,
                                'polygons': case.polygon_count}
                         began = time.perf_counter()
                         try:
                             row.update(run_unordered_solver(binary, coordinates[:2], coordinates[2:],
-                                                            case.polygons, args.max_calls, args.seconds, solver_arguments))
+                                                            case.polygons, args.max_calls, args.seconds,
+                                                            [*solver_arguments, *specific_arguments]))
                             row['process_seconds'] = time.perf_counter() - began
                             row['validation'] = validate_path(coordinates[:2], coordinates[2:],
                                                               case.polygons, row['path'], 1e-7)
@@ -104,7 +114,7 @@ def main(argv: list[str] | None = None) -> int:
                         if not args.quiet:
                             print(json.dumps({k: row.get(k) for k in
                                               ('solver', 'suite', 'case', 'repeat', 'seconds', 'exact', 'calls', 'valid', 'error')}), flush=True)
-    for label, _, _ in solvers:
+    for label, _, _, _ in solvers:
         selected = [r for r in rows if r['solver'] == label]
         times = [r['seconds'] for r in selected if 'seconds' in r]
         print(json.dumps({'solver': label, 'runs': len(selected),
