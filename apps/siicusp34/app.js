@@ -140,6 +140,34 @@ function pointOnSegment(point, start, end, epsilon = 1e-9) {
 		&& point[1] >= Math.min(start[1], end[1]) - epsilon && point[1] <= Math.max(start[1], end[1]) + epsilon;
 }
 
+function decompositionEdges(pieces, boundary) {
+	const edges = [];
+	const seen = new Set();
+	const pointKey = (point) => point.map((value) => Number(value).toFixed(8)).join(",");
+	const edgeKey = (start, end) => [pointKey(start), pointKey(end)].sort().join("|");
+	const isBoundaryEdge = (start, end) => boundary.some((point, index) => pointOnSegment(start, point, boundary[(index + 1) % boundary.length], 1e-8)
+		&& pointOnSegment(end, point, boundary[(index + 1) % boundary.length], 1e-8));
+	for (const piece of pieces || []) {
+		if (!Array.isArray(piece) || piece.length < 2) continue;
+		for (let index = 0; index < piece.length; index += 1) {
+			const start = piece[index], end = piece[(index + 1) % piece.length];
+			if (isBoundaryEdge(start, end)) continue;
+			const key = edgeKey(start, end);
+			if (seen.has(key)) continue;
+			seen.add(key);
+			edges.push([start, end]);
+		}
+	}
+	return edges;
+}
+
+function decompositionLinesMarkup(decomposition, polygons, project) {
+	return (decomposition || []).flatMap((pieces, index) => decompositionEdges(pieces, polygons?.[index] || []).map(([start, end]) => {
+		const first = project(start), second = project(end);
+		return `<line class="convex-piece" x1="${first[0]}" y1="${first[1]}" x2="${second[0]}" y2="${second[1]}"/>`;
+	})).join("");
+}
+
 function pointInPolygon(point, polygon) {
 	let inside = false;
 	for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
@@ -251,6 +279,15 @@ const coordinates = (points) => points.map((point) => point.join(",")).join(" ")
 const caseLabel = (id) => String(id + 1).padStart(id + 1 >= 100 ? 3 : 2, "0");
 const visitorRows = (rows, query) => rows.filter(row => !query.trim() || caseLabel(row.case).includes(query.trim()));
 const MAX_ZOOM = 8;
+
+function showModalWithTransition(dialog) {
+	if (!dialog || dialog.open) return;
+	dialog.classList.remove("is-entering");
+	dialog.showModal();
+	if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+	dialog.classList.add("is-entering");
+	requestAnimationFrame(() => dialog.classList.remove("is-entering"));
+}
 
 function traceNumber(value, digits = 4) {
 	return value === null || value === undefined || value === "" ? "—" : Number.isFinite(Number(value)) ? number(Number(value), digits) : "—";
@@ -642,15 +679,16 @@ async function initialize() {
 		const reached = pathPolygonContacts(originalPath, row.geometry.polygons).map(Boolean);
 		const incumbentPath = (traceIncumbentPath(traceIndex) || []).map(projection.project);
 		const isHeuristic = event.kind.startsWith("heuristic_") || (event.kind === "incumbent" && event.source === "heuristic");
-		const showIncumbentRoute = !isHeuristic && incumbentPath.length > 1;
+		const showIncumbentRoute = enabled("trace-show-incumbent") && !isHeuristic && incumbentPath.length > 1;
 		const transition = traceTransition?.fromIndex === traceIndex ? traceTransition : null;
 		const movingSegment = transition ? [transition.from, transition.to] : [];
-		const showLabels = row.polygons <= 15 || selected.size > 0;
-		const pieceIndex = Number.isInteger(Number(event.piece)) ? Number(event.piece) : -1;
-		const branchPolygon = Number.isInteger(Number(event.polygon)) ? Number(event.polygon) : -1;
+		const showLabels = enabled("trace-show-labels") && (row.polygons <= 15 || selected.size > 0);
 		const branchGeometry = traceBranchGeometry(event, currentPath, projection.polygons, originalPath, reached);
-		const piece = branchPolygon >= 0 && pieceIndex >= 0 ? row.visualization?.decomposition?.[branchPolygon]?.[pieceIndex] : null;
-		const branchConnectionLines = branchGeometry?.connections.map((connection) => {
+		const visibleBranchGeometry = enabled("trace-show-branching") ? branchGeometry : null;
+		const decompositionMarkup = enabled("trace-show-decomposition")
+			? decompositionLinesMarkup(row.visualization?.decomposition, row.geometry.polygons, projection.project)
+			: "";
+		const branchConnectionLines = visibleBranchGeometry?.connections.map((connection) => {
 			const longest = branchGeometry.longest?.polygonIndex === connection.polygonIndex;
 			const lineClass = longest ? "trace-branch-connection trace-branch-connection-longest" : "trace-branch-connection";
 			const pointClass = longest ? "trace-branch-point trace-branch-point-longest" : "trace-branch-point";
@@ -666,8 +704,8 @@ async function initialize() {
 			const title = `Região ${traceLabel(order, index)}${branchSelected ? "; escolhida para o branching por ser a mais distante" : ""}`;
 			return `<polygon class="trace-region ${selected.has(index) ? "trace-selected" : ""} ${reached[index] ? "trace-reached" : ""} ${branchSelected ? "trace-branch-selected" : ""}" points="${coordinates(polygon.map(projection.project))}"><title>${title}</title></polygon>`;
 		}).join("")}
-			${[...selected].map((index) => `<polygon class="trace-hull" points="${coordinates(convexHull(row.geometry.polygons[index]).map(projection.project))}"/>`).join("")}
-			${piece ? `<polygon class="trace-piece" points="${coordinates(piece.map(projection.project))}"/>` : ""}
+			${enabled("trace-show-hulls") ? row.geometry.polygons.map((polygon) => `<polygon class="trace-hull" points="${coordinates(convexHull(polygon).map(projection.project))}"/>`).join("") : ""}
+			${decompositionMarkup}
 			${branchConnectionLines}
 			${showIncumbentRoute ? `<polyline class="trace-incumbent-route" points="${coordinates(incumbentPath)}"/>` : ""}
 			${currentPath.length > 1 ? `<polyline class="trace-route-completed" points="${coordinates(currentPath)}"/>` : ""}
@@ -698,6 +736,7 @@ async function initialize() {
 			: `Regiões destacadas pertencem à sequência parcial ${traceLabels(order, currentSequence)}. A linha tracejada mostra o incumbente; a laranja sólida mostra o caminho calculado neste passo.${branchCaption}`;
 		traceCamera();
 		renderTraceTree(trace);
+		updateLayerNotes();
 	}
 
 	function selectTrace() {
@@ -759,6 +798,10 @@ async function initialize() {
 		});
 	}
 
+	function updateLayerNotes() {
+		document.querySelectorAll("[data-layer-note]").forEach((item) => item.classList.toggle("active", enabled(item.dataset.layerNote)));
+	}
+
 	function draw() {
 		projected = projectedCase(row);
 		const start = projected.project(row.geometry.start), target = projected.project(row.geometry.target);
@@ -767,7 +810,7 @@ async function initialize() {
 		const decomposition = enabled("show-decomposition");
 		mapContent.innerHTML = `${hulls ? row.geometry.polygons.map((polygon) => `<polygon class="hull" points="${coordinates(convexHull(polygon).map(projected.project))}"/>`).join("") : ""}
 			${projected.polygons.map((polygon, index) => `<polygon class="region" data-region="${index}" points="${coordinates(polygon)}" style="fill:${regionColors(row.order.indexOf(index), row.polygons, fraction + 1e-12 >= (row.visualization.contacts[index]?.fraction ?? Infinity)).fill};stroke:${regionColors(row.order.indexOf(index), row.polygons, fraction + 1e-12 >= (row.visualization.contacts[index]?.fraction ?? Infinity)).stroke}"><title>Região ${index + 1}; ${row.order.indexOf(index) + 1}ª na ordem exportada</title></polygon>`).join("")}
-			${decomposition ? row.visualization.decomposition.flatMap((pieces) => pieces.map((piece) => `<polygon class="convex-piece" points="${coordinates(piece.map(projected.project))}"/>`)).join("") : ""}
+			${decomposition ? decompositionLinesMarkup(row.visualization.decomposition, row.geometry.polygons, projected.project) : ""}
 			<polyline class="route-ghost" points="${coordinates(projected.path)}"/><polyline id="animated-route" class="route-line"/>
 			${labels ? projected.polygons.map((polygon, index) => {
 				const center = polygonCentroid(polygon);
@@ -794,7 +837,7 @@ async function initialize() {
 		mapContent.querySelectorAll(".endpoint, .traveler").forEach((point) => point.setAttribute("r", 6 * textScale));
 		mapContent.querySelectorAll(".visit-contact").forEach((point) => point.setAttribute("r", 4 * textScale));
 		camera();
-		document.querySelectorAll("[data-layer-note]").forEach((item) => item.classList.toggle("active", enabled(item.dataset.layerNote)));
+		updateLayerNotes();
 		element("map-title").textContent = `Caso ${caseLabel(row.case)}: caminho por ${row.polygons} regiões; ${row.exact ? "solução exata certificada" : "limite de tempo"}.`;
 		drawRoute();
 	}
@@ -879,6 +922,11 @@ async function initialize() {
 	element("show-hulls").addEventListener("click", () => { element("show-hulls").setAttribute("aria-pressed", String(!enabled("show-hulls"))); draw(); });
 	element("show-contacts").addEventListener("click", () => { element("show-contacts").setAttribute("aria-pressed", String(!enabled("show-contacts"))); draw(); });
 	element("show-decomposition").addEventListener("click", () => { element("show-decomposition").setAttribute("aria-pressed", String(!enabled("show-decomposition"))); draw(); });
+	["trace-show-labels", "trace-show-hulls", "trace-show-decomposition", "trace-show-branching", "trace-show-incumbent"].forEach((id) => element(id)?.addEventListener("click", () => {
+		const control = element(id);
+		control.setAttribute("aria-pressed", String(!enabled(id)));
+		drawTrace();
+	}));
 	element("fit-view").addEventListener("click", () => { zoom = 1; pan = [0, 0]; draw(); });
 	element("zoom-out").addEventListener("click", () => zoomAt(zoom / 1.5, [0, 0]));
 	element("zoom-in").addEventListener("click", () => zoomAt(zoom * 1.5, [0, 0]));
@@ -1082,7 +1130,7 @@ async function initialize() {
 			element("trace-case-picker-button").addEventListener("click", () => {
 				element("trace-picker-search").value = "";
 				renderTracePicker();
-				tracePickerDialog.showModal();
+				showModalWithTransition(tracePickerDialog);
 				element("trace-case-picker-button").setAttribute("aria-expanded", "true");
 				element("trace-picker-search").focus();
 			});
@@ -1166,7 +1214,7 @@ async function initialize() {
 	element("case-picker-button").addEventListener("click", () => {
 		element("picker-search").value = "";
 		renderPicker();
-		picker.showModal();
+		showModalWithTransition(picker);
 		element("case-picker-button").setAttribute("aria-expanded", "true");
 		element("picker-close").focus();
 	});
@@ -1385,6 +1433,9 @@ function initializeChallengeFlow() {
 	let current = 0;
 	let opener = element("open-challenge");
 	let historyEntry = false;
+	let sectionNavigation = null;
+	const previousSectionButton = element("challenge-previous-section");
+	const nextSectionButton = element("challenge-next-section");
 	function show(index) {
 		current = Math.max(0, Math.min(steps.length - 1, index));
 		steps.forEach((step, position) => { step.hidden = position !== current; });
@@ -1401,12 +1452,12 @@ function initializeChallengeFlow() {
 		heading.setAttribute("tabindex", "-1");
 		heading.focus({ preventScroll: true });
 	}
-	function openChallenge(source = element("open-challenge"), fromHistory = false) {
+	function openChallenge(source = element("open-challenge"), fromHistory = false, historyEntryOverride = null) {
 		opener = source || element("open-challenge");
 		if (!dialog.open) {
-			historyEntry = !fromHistory && window.location.hash !== "#desafio";
-			if (historyEntry) window.history.pushState({ tppOverlay: "desafio" }, "", "#desafio");
-			dialog.showModal();
+			historyEntry = historyEntryOverride ?? (!fromHistory && window.location.hash !== "#desafio");
+			if (historyEntryOverride === null && historyEntry) window.history.pushState({ tppOverlay: "desafio" }, "", "#desafio");
+			showModalWithTransition(dialog);
 		}
 		show(0);
 	}
@@ -1422,9 +1473,19 @@ function initializeChallengeFlow() {
 		historyEntry = false;
 		dialog.close();
 	}
+	function setSectionNavigationState(state = {}) {
+		if (previousSectionButton) previousSectionButton.disabled = !state.previous;
+		if (nextSectionButton) nextSectionButton.disabled = !state.next;
+	}
 	dialog.openChallenge = openChallenge;
+	dialog.setSectionNavigation = (callback) => { sectionNavigation = callback; };
+	dialog.setSectionNavigationState = setSectionNavigationState;
+	dialog.getSectionNavigationState = () => ({ opener, historyEntry });
+	dialog.closeForSectionNavigation = () => { if (dialog.open) dialog.close(); };
 	element("open-challenge").addEventListener("click", (event) => openChallenge(event.currentTarget));
 	element("close-challenge").addEventListener("click", () => requestClose());
+	previousSectionButton?.addEventListener("click", () => sectionNavigation?.(-1));
+	nextSectionButton?.addEventListener("click", () => sectionNavigation?.(1));
 	element("challenge-next-one").addEventListener("click", () => show(1));
 	element("challenge-next-two").addEventListener("click", () => show(2));
 	dialog.querySelectorAll("[data-challenge-tab]").forEach((button) => button.addEventListener("click", () => show(Number(button.dataset.challengeTab))));
@@ -1437,6 +1498,7 @@ function initializeChallengeFlow() {
 	});
 	dialog.addEventListener("cancel", (event) => { event.preventDefault(); requestClose(); });
 	dialog.addEventListener("close", () => opener?.focus({ preventScroll: true }));
+	setSectionNavigationState({ previous: false, next: true });
 	window.addEventListener("popstate", () => {
 		if (dialog.open && window.location.hash !== "#desafio") requestClose(true);
 		else if (!dialog.open && window.location.hash === "#desafio") openChallenge(null, true);
@@ -1453,7 +1515,7 @@ function initializeReferences() {
 		event.preventDefault();
 		opener = trigger;
 		if (element("mobile-toc")?.open) element("mobile-toc").close();
-		if (!dialog.open) dialog.showModal();
+		if (!dialog.open) showModalWithTransition(dialog);
 		const selector = trigger.getAttribute("href");
 		const target = selector?.startsWith("#ref-") ? dialog.querySelector(selector) : null;
 		dialog.querySelectorAll("li.current-reference").forEach((item) => item.classList.remove("current-reference"));
@@ -1518,12 +1580,12 @@ function initializeDisclosures() {
 
 function initializeGuide() {
 	const copy = {
-		desafio: ["01", "Tente você mesmo!", "Escolha a ordem de visita e compare com o solver."],
-		historia: ["02", "Trabalhos anteriores", "Como a pesquisa chegou até este solver autocontido."],
-		resultados: ["03", "Resultados práticos", "O que os 558 casos mostram na prática."],
-		metodo: ["04", "O algoritmo", "As ideias geométricas por trás da busca."],
-		pesquisa: ["05", "O problema e a pesquisa", "O que está sendo resolvido e por quê."],
-		contato: ["06", "Fale com o autor", "Comentários, dúvidas ou uma conversa sobre a pesquisa."],
+		desafio: ["1", "Tente você mesmo!", "Escolha a ordem de visita e compare com o solver."],
+		historia: ["2", "Trabalhos anteriores e o nosso ponto de entrada", "Uma linha do tempo do TPP até este solver autocontido."],
+		resultados: ["3", "Resultados práticos", "O que os 558 casos mostram na prática."],
+		metodo: ["4", "O algoritmo", "As ideias geométricas por trás da busca."],
+		pesquisa: ["5", "O problema e a pesquisa", "O que está sendo resolvido e por quê."],
+		contato: ["6", "Fale com o autor", "Comentários, dúvidas ou uma conversa sobre a pesquisa."],
 	};
 	const ids = ["desafio", "historia", "resultados", "metodo", "pesquisa", "contato"];
 	const nodes = new Map();
@@ -1558,6 +1620,9 @@ function initializeGuide() {
 	if (!dialog) return;
 	const content = element("section-dialog-content");
 	const closeButton = element("close-section");
+	const previousSectionButton = element("previous-section");
+	const nextSectionButton = element("next-section");
+	const challengeDialog = element("challenge-dialog");
 	const title = element("section-dialog-title");
 	const eyebrow = element("section-dialog-eyebrow");
 	const subtitle = element("section-dialog-subtitle");
@@ -1596,6 +1661,18 @@ function initializeGuide() {
 			? node.querySelector(":scope > .disclosure-body")
 			: node.querySelector(":scope > .guided-panel");
 	}
+	function restoreSource(entry) {
+		if (!entry || entry.source.parentElement !== content) return;
+		entry.source.hidden = entry.node.matches("section");
+		entry.source.inert = entry.node.matches("section");
+		entry.node.append(entry.source);
+	}
+	function updateNavigation() {
+		const index = active ? ids.indexOf(active.id) : -1;
+		if (previousSectionButton) previousSectionButton.disabled = index <= 0;
+		if (nextSectionButton) nextSectionButton.disabled = index < 0 || index >= ids.length - 1;
+		challengeDialog?.setSectionNavigationState?.({ previous: false, next: true });
+	}
 	function clearHash() {
 		window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
 	}
@@ -1608,41 +1685,83 @@ function initializeGuide() {
 		if (!fromHistory && !active.historyEntry && window.location.hash === `#${active.id}`) clearHash();
 		dialog.close();
 	}
-	function open(id, opener = null, fromHistory = false) {
+	function open(id, opener = null, fromHistory = false, historyEntryOverride = null) {
 		const node = nodes.get(id);
 		if (!node) return;
 		markVisited(id);
 		if (id === "desafio") {
-			element("challenge-dialog")?.openChallenge?.(opener, fromHistory);
+			challengeDialog?.openChallenge?.(opener, fromHistory, historyEntryOverride);
 			return;
 		}
 		const source = sourceFor(node);
 		if (!source) return;
 		if (active && active.id !== id) close(true);
-		active = { id, node, source, opener: opener || node.querySelector(":scope > .guided-summary, :scope > .guided-toggle"), historyEntry: !fromHistory && window.location.hash !== `#${id}` };
-		if (active.historyEntry) window.history.pushState({ tppOverlay: id }, "", `#${id}`);
+		const shouldPushHistory = historyEntryOverride === null && !fromHistory && window.location.hash !== `#${id}`;
+		active = { id, node, source, opener: opener || node.querySelector(":scope > .guided-summary, :scope > .guided-toggle"), historyEntry: historyEntryOverride ?? shouldPushHistory };
+		if (shouldPushHistory) window.history.pushState({ tppOverlay: id }, "", `#${id}`);
 		source.hidden = false;
 		source.inert = false;
 		content.append(source);
 		dialog.dataset.section = id;
-		eyebrow.textContent = `ETAPA ${copy[id][0]} DE ${ids.length}`;
+		eyebrow.textContent = `ETAPA ${copy[id][0]} de ${ids.length}`;
 		title.textContent = copy[id][1];
 		subtitle.textContent = copy[id][2];
 		update(id);
-		if (!dialog.open) dialog.showModal();
+		updateNavigation();
+		if (!dialog.open) showModalWithTransition(dialog);
 		closeButton.focus({ preventScroll: true });
+	}
+	function navigateFrom(currentId, delta, navigationState = null) {
+		const currentIndex = ids.indexOf(currentId);
+		const nextId = ids[currentIndex + delta];
+		if (currentIndex < 0 || !nextId) return;
+		if (nextId === "desafio") {
+			if (!active || !dialog.open) return;
+			const current = active;
+			restoreSource(current);
+			active = null;
+			dialog.removeAttribute("data-section");
+			update(current.id);
+			updateNavigation();
+			dialog.close();
+			window.history.replaceState(window.history.state, "", "#desafio");
+			challengeDialog?.openChallenge?.(current.opener, true, current.historyEntry);
+			return;
+		}
+		if (currentId === "desafio") {
+			const state = navigationState || challengeDialog?.getSectionNavigationState?.();
+			challengeDialog?.closeForSectionNavigation?.();
+			window.history.replaceState(window.history.state, "", `#${nextId}`);
+			open(nextId, state?.opener || null, true, state?.historyEntry ?? false);
+			return;
+		}
+		if (!active || active.id !== currentId) return;
+		const node = nodes.get(nextId), source = sourceFor(node);
+		if (!node || !source) return;
+		const previous = active;
+		restoreSource(previous);
+		active = { id: nextId, node, source, opener: previous.opener, historyEntry: previous.historyEntry };
+		markVisited(nextId);
+		source.hidden = false;
+		source.inert = false;
+		content.append(source);
+		dialog.dataset.section = nextId;
+		eyebrow.textContent = `ETAPA ${copy[nextId][0]} de ${ids.length}`;
+		title.textContent = copy[nextId][1];
+		subtitle.textContent = copy[nextId][2];
+		update(previous.id);
+		update(nextId);
+		updateNavigation();
+		if (window.location.hash !== `#${nextId}`) window.history.replaceState(window.history.state, "", `#${nextId}`);
 	}
 	dialog.addEventListener("close", () => {
 		const closing = active;
 		if (!closing) return;
-		if (closing.source.parentElement === content) {
-			closing.source.hidden = closing.node.matches("section");
-			closing.source.inert = closing.node.matches("section");
-			closing.node.append(closing.source);
-		}
+		restoreSource(closing);
 		active = null;
 		dialog.removeAttribute("data-section");
 		update(closing.id);
+		updateNavigation();
 		closing.opener?.focus({ preventScroll: true });
 	});
 	dialog.addEventListener("cancel", (event) => { event.preventDefault(); close(); });
@@ -1652,6 +1771,9 @@ function initializeGuide() {
 		if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) close();
 	});
 	closeButton.addEventListener("click", () => close());
+	previousSectionButton?.addEventListener("click", () => navigateFrom(active?.id, -1));
+	nextSectionButton?.addEventListener("click", () => navigateFrom(active?.id, 1));
+	challengeDialog?.setSectionNavigation?.((delta) => navigateFrom("desafio", delta));
 	window.addEventListener("popstate", () => {
 		if (active && window.location.hash !== `#${active.id}`) close(true);
 		else if (!active) {
@@ -1677,6 +1799,7 @@ function initializeGuide() {
 		}));
 	const count = element("guide-title")?.closest(".guide-nav")?.querySelector("[data-guide-count]");
 	if (count) count.textContent = `${visited.size}/${nodes.size} seções visitadas`;
+	updateNavigation();
 	const initial = window.location.hash.slice(1);
 	if (nodes.has(initial)) open(initial, null, true);
 }
