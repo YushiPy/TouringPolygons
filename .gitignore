@@ -67,6 +67,8 @@ benchmarks/suite-results/
 benchmarks/suites/algorithm-dev-v1.bin
 benchmarks/suites/canonical-v1.bin
 
+benchmarks/results-saved/*/analysis
+
 packages/instance-generation/regions/
 packages/convex-tpp/cpp/tests/*_tests.bin
 !packages/convex-tpp/cpp/tests/basic_tests.bin

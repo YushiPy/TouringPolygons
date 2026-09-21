@@ -84,12 +84,14 @@ Pontos que devem ser respeitados:
 - “Exato” e “gap menor ou igual a 0,1%” não são a mesma coisa e devem aparecer separados.
 - Resultados parciais da campanha de seis horas não devem ser apresentados como resultado final.
 
-Resultados conhecidos quando este documento foi criado:
+Resultados publicados na versão atual:
 
 - nosso solver: 558/558 instâncias certificadas exatamente;
-- baseline externo de 10 segundos: 437/558 dentro do gap de 0,1%;
-- campanha externa de seis horas: em andamento;
-- última leitura intermediária: 526/558 certificadas, 32 pendentes — número provisório, não publicável como conclusão.
+- 477/558 instâncias do nosso solver foram resolvidas em menos de 10 segundos;
+- no conjunto comum concluído, o speedup mediano Fekete/nosso é 5,11× e nosso solver é mais rápido em 492/550 casos;
+- solver de Fekete et al.: 550/558 concluídas; 8 instâncias não foram concluídas no limite de seis horas.
+
+Os caminhos da nova rodada estão em `benchmarks/results-saved/german-comparison/ours.csv` e incluem a trajetória final, a ordem livre e o SHA-256 de cada instância. O app é regenerado por `benchmarks/scripts/build_siicusp34_event_data.py`.
 
 O relatório `touring-polygons-benchmark-report.pdf` mencionado na conversa não serve como comparação com os alemães: a análise interpretada anteriormente comparava variantes internas do nosso solver e, em parte, problemas diferentes. Não reutilizar a afirmação de que “liberar a ordem melhorou 488 de 498 casos” como evidência contra Fekete et al.
 
@@ -142,7 +144,6 @@ Qualquer otimização deve preservar o funcionamento offline ou ter uma versão 
 
 Prioridade alta:
 
-- substituir os números preliminares pelos resultados finais da campanha de seis horas;
 - revisar todas as afirmações da comparação para garantir equivalência de problema e critério;
 - escolher os três melhores exemplos para abertura, variedade geométrica e valor didático;
 - revisar textos com o orientador;
@@ -172,4 +173,3 @@ Evitar:
 ## Critério de sucesso
 
 Ao escanear o QR code, o visitante deve entender em poucos segundos que está vendo uma instância real e poder tocar em “Veja o caminho”. Depois, deve conseguir escolher entre experimentar, acompanhar a busca ou examinar resultados. A página deve impressionar pela geometria e pela evidência, não por efeitos que contradigam o problema.
-

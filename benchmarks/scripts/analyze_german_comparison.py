@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Analyze the saved 558-instance German solver comparison.
 
-The script intentionally treats the two CSVs as different artifacts: the local
-solver export contains aggregate metrics and lengths, while the Fekete export
-also contains trajectories.  It therefore reports the missing local trajectory
-precision as unavailable instead of silently mixing in an older app export.
+Both current CSVs contain enough information for an independent geometric
+audit: the local solver exports its final free-order path and the Fekete export
+exports raw and snapped trajectories.  All comparisons are joined through the
+case index and the input SHA-256.
 """
 from __future__ import annotations
 
@@ -232,8 +232,10 @@ def build_analysis(args: argparse.Namespace) -> dict[str, Any]:
 	completed_fekete_seconds = []
 	ours_lengths = []
 	fekete_lengths = []
+	ours_max_distances = []
 	raw_max_distances = []
 	snapped_max_distances = []
+	ours_per_polygon_distances = []
 	per_polygon_raw_distances = []
 	per_polygon_snapped_distances = []
 
@@ -256,6 +258,19 @@ def build_analysis(args: argparse.Namespace) -> dict[str, Any]:
 		if fekete_length is not None:
 			fekete_lengths.append(fekete_length)
 
+		ours_path_distances = []
+		ours_path_text = a.get("path")
+		if ours_path_text:
+			try:
+				ours_path = orient_path(json.loads(ours_path_text), case["start"], case["target"])
+			except (TypeError, ValueError, json.JSONDecodeError):
+				ours_path = []
+			ours_path_distances = [route_polygon_distance(ours_path, polygon) for polygon in case["polygons"]]
+		if ours_path_distances:
+			ours_case_max = max(ours_path_distances)
+			ours_max_distances.append(ours_case_max)
+			ours_per_polygon_distances.extend(ours_path_distances)
+
 		path_distances = {"raw": [], "snapped": []}
 		for variant, field in path_distances.items():
 			path_text = b.get("trajectory_json" if variant == "raw" else "snapped_trajectory_json")
@@ -270,6 +285,7 @@ def build_analysis(args: argparse.Namespace) -> dict[str, Any]:
 			precision_per_polygon.append({
 				"case_index": case_index,
 				"polygon_index": polygon_index,
+				"ours_distance": ours_path_distances[polygon_index] if ours_path_distances else None,
 				"raw_distance": path_distances["raw"][polygon_index] if path_distances["raw"] else None,
 				"snapped_distance": path_distances["snapped"][polygon_index] if path_distances["snapped"] else None,
 			})
@@ -299,6 +315,7 @@ def build_analysis(args: argparse.Namespace) -> dict[str, Any]:
 			"ours_length": ours_length,
 			"fekete_length": fekete_length,
 			"length_ratio_fekete_over_ours": length_ratio,
+			"ours_max_polygon_distance": max(ours_path_distances, default=None),
 			"fekete_relative_gap": finite(b.get("relative_gap")),
 			"fekete_raw_max_polygon_distance": raw_case_max,
 			"fekete_snapped_max_polygon_distance": snapped_case_max,
@@ -329,12 +346,12 @@ def build_analysis(args: argparse.Namespace) -> dict[str, Any]:
 
 	precision = {
 		"definition": "minimum Euclidean distance from the complete trajectory polyline to each polygon; zero means the route touches or crosses the polygon",
+		"ours_per_polygon": precision_summary(ours_per_polygon_distances),
+		"ours_max_per_instance": precision_summary(ours_max_distances),
 		"fekete_raw_per_polygon": precision_summary(per_polygon_raw_distances),
 		"fekete_snapped_per_polygon": precision_summary(per_polygon_snapped_distances),
 		"fekete_raw_max_per_instance": precision_summary(raw_max_distances),
 		"fekete_snapped_max_per_instance": precision_summary(snapped_max_distances),
-		"ours": None,
-		"ours_unavailable_reason": "ours.csv has no final trajectory or per-polygon contact coordinates; the old app paths are from a different run and were not reused",
 	}
 
 	result = {
@@ -386,6 +403,7 @@ def build_analysis(args: argparse.Namespace) -> dict[str, Any]:
 		},
 		"precision": precision,
 		"derived": {
+			"ours_max_over_1e-7": sum(value > 1e-7 for value in ours_max_distances),
 			"fekete_raw_max_distance_instances": len(raw_max_distances),
 			"fekete_snapped_max_distance_instances": len(snapped_max_distances),
 			"fekete_raw_max_over_1e-7": resolved_but_invalid_raw,
@@ -440,20 +458,32 @@ def build_markdown(analysis: dict[str, Any]) -> str:
 		"",
 		"## Precisão geométrica",
 		"",
-		"A métrica usada é a distância Euclidiana mínima entre a polilinha completa da trajetória e cada polígono; zero significa que a trajetória toca ou cruza o polígono. A `fekete.csv` permite essa auditoria, mas `ours.csv` não traz a trajetória final nem os pontos de contato.",
+		"A métrica usada é a distância Euclidiana mínima entre a polilinha completa da trajetória e cada polígono; zero significa que a trajetória toca ou cruza o polígono. A tabela mostra o maior erro por instância e também a distribuição por ponto de visita.",
 		"",
 		markdown_table(
-			["Métrica Fekete", "Trajetória bruta", "Trajetória snapped"],
+			["Métrica", "Nosso solver", "Fekete bruta", "Fekete snapped"],
 			[
-				["Instâncias com trajetória", precision["fekete_raw_max_per_instance"]["stats"]["n"], precision["fekete_snapped_max_per_instance"]["stats"]["n"]],
-				["Mediana do maior erro por instância", compact(precision["fekete_raw_max_per_instance"]["stats"]["median"]), compact(precision["fekete_snapped_max_per_instance"]["stats"]["median"])],
-				["P95 do maior erro por instância", compact(precision["fekete_raw_max_per_instance"]["stats"]["p95"]), compact(precision["fekete_snapped_max_per_instance"]["stats"]["p95"])],
-				["Casos ≤ 1e−7", sum(value <= 1e-7 for value in [row["fekete_raw_max_polygon_distance"] for row in rows if row["fekete_raw_max_polygon_distance"] is not None]), sum(value <= 1e-7 for value in [row["fekete_snapped_max_polygon_distance"] for row in rows if row["fekete_snapped_max_polygon_distance"] is not None])],
-				["Casos > 1e−7", analysis["derived"]["fekete_raw_max_over_1e-7"], analysis["derived"]["fekete_snapped_max_over_1e-7"]],
+				["Instâncias com trajetória", precision["ours_max_per_instance"]["stats"]["n"], precision["fekete_raw_max_per_instance"]["stats"]["n"], precision["fekete_snapped_max_per_instance"]["stats"]["n"]],
+				["Mediana do maior erro por instância", compact(precision["ours_max_per_instance"]["stats"]["median"]), compact(precision["fekete_raw_max_per_instance"]["stats"]["median"]), compact(precision["fekete_snapped_max_per_instance"]["stats"]["median"])],
+				["P95 do maior erro por instância", compact(precision["ours_max_per_instance"]["stats"]["p95"]), compact(precision["fekete_raw_max_per_instance"]["stats"]["p95"]), compact(precision["fekete_snapped_max_per_instance"]["stats"]["p95"])],
+				["Instâncias ≤ 1e−7", sum(value <= 1e-7 for value in [row["ours_max_polygon_distance"] for row in rows if row["ours_max_polygon_distance"] is not None]), sum(value <= 1e-7 for value in [row["fekete_raw_max_polygon_distance"] for row in rows if row["fekete_raw_max_polygon_distance"] is not None]), sum(value <= 1e-7 for value in [row["fekete_snapped_max_polygon_distance"] for row in rows if row["fekete_snapped_max_polygon_distance"] is not None])],
+				["Instâncias > 1e−7", analysis["derived"]["ours_max_over_1e-7"], analysis["derived"]["fekete_raw_max_over_1e-7"], analysis["derived"]["fekete_snapped_max_over_1e-7"]],
 			],
 		),
 		"",
-		"A comparação equivalente do nosso solver ficará disponível assim que a trajetória da nova rodada for exportada junto da CSV. Os caminhos antigos em `apps/siicusp34/data/event-data.js` não foram usados porque a própria nova rodada corrige o caso 001 e os tempos/soluções são de outra seleção de runs.",
+		"Por ponto de visita, a mesma métrica tem a seguinte distribuição:",
+		"",
+		markdown_table(
+			["Métrica", "Nosso solver", "Fekete bruta", "Fekete snapped"],
+			[
+				["Pontos de visita", precision["ours_per_polygon"]["stats"]["n"], precision["fekete_raw_per_polygon"]["stats"]["n"], precision["fekete_snapped_per_polygon"]["stats"]["n"]],
+				["Mediana da distância", compact(precision["ours_per_polygon"]["stats"]["median"]), compact(precision["fekete_raw_per_polygon"]["stats"]["median"]), compact(precision["fekete_snapped_per_polygon"]["stats"]["median"])],
+				["P95 da distância", compact(precision["ours_per_polygon"]["stats"]["p95"]), compact(precision["fekete_raw_per_polygon"]["stats"]["p95"]), compact(precision["fekete_snapped_per_polygon"]["stats"]["p95"])],
+				["Pontos ≤ 1e−7", precision["ours_per_polygon"]["thresholds"][5]["count"], precision["fekete_raw_per_polygon"]["thresholds"][5]["count"], precision["fekete_snapped_per_polygon"]["thresholds"][5]["count"]],
+			],
+		),
+		"",
+		"A comparação de comprimento usa o comprimento recalculado das trajetórias do Fekete e o comprimento final certificado do nosso solver. Como ambos produzem uma solução ótima, pequenas diferenças abaixo de 1 na razão podem ser efeito de arredondamento e tolerância numérica.",
 	]
 	return "\n".join(lines) + "\n"
 
@@ -473,15 +503,15 @@ def build_html(analysis: dict[str, Any]) -> str:
 			],
 			"speedup": [analysis["speedup"]["histogram"]],
 			"length": [analysis["length"]["histogram"]],
-			"precision": [
-				{"label": "Bruta", "color": "var(--viz-series-2)", **analysis["precision"]["fekete_raw_max_per_instance"]["histogram"]},
-				{"label": "Snapped", "color": "var(--viz-series-1)", **analysis["precision"]["fekete_snapped_max_per_instance"]["histogram"]},
+		"precision": [
+				{"label": "Nosso solver", "color": "var(--viz-series-1)", **analysis["precision"]["ours_max_per_instance"]["histogram"]},
+			{"label": "Fekete et al.", "color": "var(--viz-series-2)", **analysis["precision"]["fekete_raw_max_per_instance"]["histogram"]},
 			],
 		},
 		"precisionThresholds": {
 			"labels": ["0", "≤ 1e−7", "≤ 1e−6", "≤ 1e−5", "≤ 1e−4", "≤ 1e−3"],
-			"raw": [sum(value <= threshold for value in [row["fekete_raw_max_polygon_distance"] for row in analysis["_per_instance"] if row["fekete_raw_max_polygon_distance"] is not None]) for threshold in (0.0, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3)],
-			"snapped": [sum(value <= threshold for value in [row["fekete_snapped_max_polygon_distance"] for row in analysis["_per_instance"] if row["fekete_snapped_max_polygon_distance"] is not None]) for threshold in (0.0, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3)],
+			"ours": [sum(value <= threshold for value in [row["ours_max_polygon_distance"] for row in analysis["_per_instance"] if row["ours_max_polygon_distance"] is not None]) for threshold in (0.0, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3)],
+			"fekete": [sum(value <= threshold for value in [row["fekete_raw_max_polygon_distance"] for row in analysis["_per_instance"] if row["fekete_raw_max_polygon_distance"] is not None]) for threshold in (0.0, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3)],
 		},
 	}
 	payload = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
@@ -511,12 +541,12 @@ def build_html(analysis: dict[str, Any]) -> str:
 }}
 </style>
 <h2 id="german-comparison-title">Comparação nas 558 instâncias</h2>
-<p class="analysis-intro muted">Tempos: todos os registros. Speedup e comprimento: 550 instâncias concluídas por ambos. Precisão: Fekete, porque a CSV do nosso solver não inclui a trajetória final.</p>
+<p class="analysis-intro muted">Tempos: todos os registros. Speedup e comprimento: 550 instâncias concluídas por ambos. Precisão: maior distância entre a trajetória completa e cada polígono, com zero como contato ideal.</p>
 <div class="viz-grid">
   <div class="card viz-stat"><span>Certificadas</span><strong class="viz-stat-value">{data['cards']['oursSolved']} <span class="muted">nosso</span></strong><small class="muted">{data['cards']['feketeSolved']} Fekete concluídas</small></div>
   <div class="card viz-stat"><span>Mediana do tempo</span><strong class="viz-stat-value">{analysis['time_seconds']['ours_all']['median']:.4g} s</strong><small class="muted">nosso solver</small></div>
   <div class="card viz-stat"><span>Mediana do speedup</span><strong class="viz-stat-value">{data['cards']['medianSpeedup']:.4g}×</strong><small class="muted">Fekete / nosso</small></div>
-  <div class="card viz-stat"><span>Maior erro geométrico</span><strong class="viz-stat-value">{data['cards']['medianRawPrecision']:.4g}</strong><small class="muted">mediana Fekete por instância</small></div>
+<div class="card viz-stat"><span>Precisão mediana</span><strong class="viz-stat-value">{analysis['precision']['ours_max_per_instance']['stats']['median']:.4g}</strong><small class="muted">maior distância por instância · nosso solver</small></div>
 </div>
 <div class="chart-grid">
   <figure><figcaption>Histograma dos tempos de execução</figcaption><div id="german-times-legend" class="legend" aria-label="Legenda dos tempos"></div><svg id="german-times-chart" role="img" aria-label="Histograma comparativo dos tempos de execução"><title>Histograma dos tempos de execução</title><desc>Distribuição dos tempos registrados dos dois solvers em nove faixas de tempo.</desc></svg></figure>
@@ -524,8 +554,8 @@ def build_html(analysis: dict[str, Any]) -> str:
   <figure><figcaption>Razão de comprimento: Fekete / nosso</figcaption><svg id="german-length-chart" role="img" aria-label="Histograma da razão entre comprimentos"><title>Histograma da razão de comprimento</title><desc>Distribuição da razão entre o comprimento recalculado do Fekete e o comprimento final do nosso solver.</desc></svg></figure>
   <figure><figcaption>Maior distância trajetória–polígono por instância</figcaption><div id="german-precision-legend" class="legend" aria-label="Legenda da precisão"></div><svg id="german-precision-chart" role="img" aria-label="Histograma da maior distância da trajetória do Fekete aos polígonos"><title>Histograma de precisão geométrica</title><desc>Distribuição da maior distância mínima da trajetória do Fekete a qualquer polígono.</desc></svg></figure>
 </div>
-<figure style="margin-top:1.5rem"><figcaption>Casos dentro das tolerâncias geométricas</figcaption><div id="german-threshold-legend" class="legend" aria-label="Legenda das tolerâncias"></div><svg id="german-threshold-chart" role="img" aria-label="Casos do Fekete dentro de tolerâncias de distância"><title>Casos dentro das tolerâncias</title><desc>Contagem cumulativa de instâncias do Fekete cuja maior distância trajetória–polígono está abaixo de cada tolerância.</desc></svg></figure>
-<p class="muted">Precisão = distância Euclidiana mínima entre a polilinha completa da trajetória e cada polígono. O arquivo `ours.csv` não contém os pontos necessários para repetir esse cálculo no nosso solver.</p>
+<figure style="margin-top:1.5rem"><figcaption>Casos dentro das tolerâncias geométricas</figcaption><div id="german-threshold-legend" class="legend" aria-label="Legenda das tolerâncias"></div><svg id="german-threshold-chart" role="img" aria-label="Casos dos dois solvers dentro de tolerâncias de distância"><title>Casos dentro das tolerâncias</title><desc>Contagem cumulativa de instâncias cuja maior distância trajetória–polígono está abaixo de cada tolerância.</desc></svg></figure>
+<p class="muted">Precisão = distância Euclidiana mínima entre a polilinha completa da trajetória e cada polígono. A série “maior erro” toma o máximo entre os pontos de visita de cada instância.</p>
 <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
 <script>
 (() => {{
@@ -558,13 +588,13 @@ def build_html(analysis: dict[str, Any]) -> str:
   const addLegend = (selector, series) => {{ const legend = document.querySelector(selector); series.forEach(s => {{ const item = document.createElement('span'); item.innerHTML = `<i style="--swatch:${{s.color}}"></i>${{s.label}}`; legend.appendChild(item); }}); }};
   addLegend('#german-times-legend', DATA.charts.times);
   addLegend('#german-precision-legend', DATA.charts.precision);
-  addLegend('#german-threshold-legend', [{{ label: 'Bruta', color: 'var(--viz-series-2)' }}, {{ label: 'Snapped', color: 'var(--viz-series-1)' }}]);
+  addLegend('#german-threshold-legend', [{{ label: 'Nosso solver', color: 'var(--viz-series-1)' }}, {{ label: 'Fekete et al.', color: 'var(--viz-series-2)' }}]);
   draw('#german-times-chart', DATA.charts.times, {{ xTitle: 'Tempo de solver' }});
   draw('#german-speedup-chart', [{{ labels: DATA.charts.speedup[0].labels, counts: DATA.charts.speedup[0].counts, color: 'var(--viz-series-1)' }}], {{ xTitle: 'Fekete / nosso' }});
   draw('#german-length-chart', [{{ labels: DATA.charts.length[0].labels, counts: DATA.charts.length[0].counts, color: 'var(--viz-series-1)' }}], {{ xTitle: 'Razão de comprimento' }});
-	  draw('#german-precision-chart', [{{ labels: DATA.charts.precision[0].labels, counts: DATA.charts.precision[0].counts, color: 'var(--viz-series-2)' }}, {{ labels: DATA.charts.precision[1].labels, counts: DATA.charts.precision[1].counts, color: 'var(--viz-series-1)' }}], {{ xTitle: 'Maior distância (faixa)' }});
-  draw('#german-threshold-chart', [{{ labels: DATA.precisionThresholds.labels, counts: DATA.precisionThresholds.raw, color: 'var(--viz-series-2)' }}, {{ labels: DATA.precisionThresholds.labels, counts: DATA.precisionThresholds.snapped, color: 'var(--viz-series-1)' }}], {{ xTitle: 'Tolerância' }});
-  const redraw = () => {{ draw('#german-times-chart', DATA.charts.times, {{ xTitle: 'Tempo de solver' }}); draw('#german-speedup-chart', [{{ labels: DATA.charts.speedup[0].labels, counts: DATA.charts.speedup[0].counts, color: 'var(--viz-series-1)' }}], {{ xTitle: 'Fekete / nosso' }}); draw('#german-length-chart', [{{ labels: DATA.charts.length[0].labels, counts: DATA.charts.length[0].counts, color: 'var(--viz-series-1)' }}], {{ xTitle: 'Razão de comprimento' }}); draw('#german-precision-chart', [{{ labels: DATA.charts.precision[0].labels, counts: DATA.charts.precision[0].counts, color: 'var(--viz-series-2)' }}, {{ labels: DATA.charts.precision[1].labels, counts: DATA.charts.precision[1].counts, color: 'var(--viz-series-1)' }}], {{ xTitle: 'Maior distância (faixa)' }}); draw('#german-threshold-chart', [{{ labels: DATA.precisionThresholds.labels, counts: DATA.precisionThresholds.raw, color: 'var(--viz-series-2)' }}, {{ labels: DATA.precisionThresholds.labels, counts: DATA.precisionThresholds.snapped, color: 'var(--viz-series-1)' }}], {{ xTitle: 'Tolerância' }}); }};
+	  draw('#german-precision-chart', [{{ labels: DATA.charts.precision[0].labels, counts: DATA.charts.precision[0].counts, color: 'var(--viz-series-1)' }}, {{ labels: DATA.charts.precision[1].labels, counts: DATA.charts.precision[1].counts, color: 'var(--viz-series-2)' }}], {{ xTitle: 'Maior distância (faixa)' }});
+	  draw('#german-threshold-chart', [{{ labels: DATA.precisionThresholds.labels, counts: DATA.precisionThresholds.ours, color: 'var(--viz-series-1)' }}, {{ labels: DATA.precisionThresholds.labels, counts: DATA.precisionThresholds.fekete, color: 'var(--viz-series-2)' }}], {{ xTitle: 'Tolerância' }});
+	  const redraw = () => {{ draw('#german-times-chart', DATA.charts.times, {{ xTitle: 'Tempo de solver' }}); draw('#german-speedup-chart', [{{ labels: DATA.charts.speedup[0].labels, counts: DATA.charts.speedup[0].counts, color: 'var(--viz-series-1)' }}], {{ xTitle: 'Fekete / nosso' }}); draw('#german-length-chart', [{{ labels: DATA.charts.length[0].labels, counts: DATA.charts.length[0].counts, color: 'var(--viz-series-1)' }}], {{ xTitle: 'Razão de comprimento' }}); draw('#german-precision-chart', [{{ labels: DATA.charts.precision[0].labels, counts: DATA.charts.precision[0].counts, color: 'var(--viz-series-1)' }}, {{ labels: DATA.charts.precision[1].labels, counts: DATA.charts.precision[1].counts, color: 'var(--viz-series-2)' }}], {{ xTitle: 'Maior distância (faixa)' }}); draw('#german-threshold-chart', [{{ labels: DATA.precisionThresholds.labels, counts: DATA.precisionThresholds.ours, color: 'var(--viz-series-1)' }}, {{ labels: DATA.precisionThresholds.labels, counts: DATA.precisionThresholds.fekete, color: 'var(--viz-series-2)' }}], {{ xTitle: 'Tolerância' }}); }};
 	  new ResizeObserver(redraw).observe(document.querySelector('#german-comparison-analysis'));
 }})();
 </script>

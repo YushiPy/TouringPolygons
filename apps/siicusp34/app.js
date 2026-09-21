@@ -25,6 +25,24 @@ function escapeHTML(value) {
 	})[character]);
 }
 
+function formatDuration(value) {
+	const seconds = Number(value);
+	if (!Number.isFinite(seconds)) return "—";
+	if (seconds < 0.001) return "< 0,001 s";
+	if (seconds < 60) return `${number(seconds, 3)} s`;
+	const minutes = seconds / 60;
+	if (minutes < 60) return `${number(minutes, 2)} min`;
+	return `${number(minutes / 60, 2)} horas`;
+}
+
+function formatDistance(value) {
+	const distance = Number(value);
+	if (!Number.isFinite(distance)) return "—";
+	if (distance === 0) return "0";
+	if (Math.abs(distance) >= 0.01) return number(distance, 3);
+	return distance.toExponential(2).replace(".", ",");
+}
+
 function convexHull(points) {
 	const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
 	const cross = (a, b, c) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
@@ -249,19 +267,12 @@ function regionColors(rank, count, visited) {
 }
 
 function sortRows(rows, key = "case", descending = false) {
-	const value = (row) => key === "result" ? Number(!row.exact) : row[key];
+	const value = (row) => row[key];
 	return [...rows].sort((a, b) => (descending ? -1 : 1) * (value(a) - value(b)) || a.case - b.case);
 }
 
 function playbackDuration(polygons) {
 	return 1800 + 15 * Math.min(80, Math.max(0, polygons));
-}
-
-function sortGroupedRows(rows, key, descending, resultGroup = null) {
-	const ordered = sortRows(rows, key, descending);
-	if (resultGroup === null) return ordered;
-	const first = resultGroup ? false : true;
-	return [...ordered.filter(row => row.exact === first), ...ordered.filter(row => row.exact !== first)];
 }
 
 function toggleOrderRegion(order, index) {
@@ -277,7 +288,12 @@ const element = (id) => document.getElementById(id);
 const number = (value, digits = 4) => value.toLocaleString("pt-BR", { maximumFractionDigits: digits });
 const coordinates = (points) => points.map((point) => point.join(",")).join(" ");
 const caseLabel = (id) => String(id + 1).padStart(id + 1 >= 100 ? 3 : 2, "0");
-const visitorRows = (rows, query) => rows.filter(row => !query.trim() || caseLabel(row.case).includes(query.trim()));
+const visitorRows = (rows, query) => {
+	const term = query.trim();
+	if (!term) return rows;
+	const requestedCase = /^\d+$/.test(term) ? Number(term) - 1 : null;
+	return rows.filter((row) => (requestedCase !== null && row.case === requestedCase) || caseLabel(row.case).includes(term));
+};
 const MAX_ZOOM = 8;
 
 function showModalWithTransition(dialog) {
@@ -350,7 +366,6 @@ function challengeComparison(chosenLabel, chosenLength, bestLabel, bestLength, c
 
 async function initialize() {
 	const data = window.TPPEventData;
-	let showBounds = data.rows.some((item) => Number.isFinite(Number(item.lower_bound)) && Number.isFinite(Number(item.upper_bound ?? item.length)));
 	const tracePayload = window.TPPTraceData || { schema_version: 1, cases: {} };
 	const traces = tracePayload.schema_version === 1 ? (tracePayload.cases || {}) : {};
 	const shortTraceCases = Object.values(traces)
@@ -364,7 +379,6 @@ async function initialize() {
 	let pan = [0, 0], drag = null, traceZoom = 1, tracePan = [0, 0], traceDrag = null;
 	const speeds = [.25, .5, 1, 1.5, 2, 3, 4];
 	let speedIndex = 2;
-	let resultGroup = data.corpus === "german" ? false : null;
 	let showAllResults = false;
 	const sorting = { picker: { key: "case", descending: false }, result: { key: "case", descending: false } };
 	const enabled = (id) => element(id).getAttribute("aria-pressed") === "true";
@@ -388,6 +402,59 @@ async function initialize() {
 		const rows = shortTraceCases.filter((trace) => !query || caseLabel(trace.case).includes(query));
 		element("trace-picker-count").textContent = `${rows.length} simulações disponíveis`;
 		options.innerHTML = rows.length ? rows.map((trace) => `<button type="button" data-trace-case="${trace.case}" aria-pressed="${trace.case === row.case}"><span><strong>${tracePickerLabel(trace)}</strong><small>Árvore registrada para acompanhar passo a passo</small></span></button>`).join("") : "<p>Nenhuma simulação encontrada. Experimente outro número.</p>";
+	}
+
+	function populateCaseSelect() {
+		const select = element("case-select");
+		if (!select) return;
+		select.innerHTML = data.rows.map((item) => `<option value="${item.case}">Caso ${caseLabel(item.case)} · ${item.polygons} regiões</option>`).join("");
+	}
+
+	function updateResultSummary() {
+		const summary = data.summary || {};
+		const comparison = data.comparison || {};
+		const cases = Number(summary.cases || data.rows.length);
+		const certified = Number(summary.exact_certified || 0);
+		const underTen = Number(summary.resolved_under_10_seconds || 0);
+		const medianSpeedup = Number(comparison.median_speedup_fekete_over_ours);
+		const common = Number(comparison.common_completed || 0);
+		const comparisonTime = comparison.time || {};
+		const comparisonPrecision = comparison.precision || {};
+		const certifiedElement = element("result-certified");
+		const underTenElement = element("result-under-10");
+		const speedupElement = element("result-speedup");
+		const fasterElement = element("result-faster");
+		if (certifiedElement) certifiedElement.innerHTML = `${certified}<span>/ ${cases}</span>`;
+		if (underTenElement) underTenElement.innerHTML = `${underTen}<span>/ ${cases}</span>`;
+		if (speedupElement && Number.isFinite(medianSpeedup)) speedupElement.textContent = `${number(medianSpeedup, 2)}×`;
+		if (fasterElement) fasterElement.innerHTML = `${Number(comparison.ours_faster_count || 0)}<span>/ ${common}</span>`;
+		const note = element("result-benchmark-note");
+		if (note) note.textContent = `Corpus de instâncias usado por Fekete et al. no artigo. Nosso solver certificou ${certified}/${cases}; no conjunto comum concluído, o speedup mediano Fekete/nosso foi ${number(medianSpeedup, 2)}×. O solver de Fekete et al. não concluiu ${comparison.fekete_unresolved ?? "—"} instâncias no limite de 6 horas.`;
+		const setText = (id, value) => { const target = element(id); if (target) target.textContent = value; };
+		const duration = (value) => formatDuration(value);
+		const hours = (value) => Number.isFinite(Number(value)) ? `${number(Number(value), 2)} h` : "—";
+		const fraction = (value, total) => `${Number(value ?? 0)}/${Number(total ?? 0)}`;
+		setText("comparison-time-ours-median", duration(comparisonTime.ours_median_seconds));
+		setText("comparison-time-fekete-median", duration(comparisonTime.fekete_median_seconds));
+		setText("comparison-time-ours-mean", duration(comparisonTime.ours_mean_seconds));
+		setText("comparison-time-fekete-mean", duration(comparisonTime.fekete_mean_seconds));
+		setText("comparison-time-ours-total", hours(comparisonTime.ours_total_hours));
+		setText("comparison-time-fekete-total", hours(comparisonTime.fekete_total_hours));
+		setText("comparison-time-common-ours", duration(comparisonTime.common_ours_median_seconds));
+		setText("comparison-time-common-fekete", duration(comparisonTime.common_fekete_median_seconds));
+		setText("comparison-speedup-median", Number.isFinite(medianSpeedup) ? `${number(medianSpeedup, 2)}×` : "—");
+		setText("comparison-speedup-geometric", Number.isFinite(Number(comparison.geometric_mean_speedup)) ? `${number(comparison.geometric_mean_speedup, 2)}×` : "—");
+		setText("comparison-speedup-ours-faster", fraction(comparison.ours_faster_count, common));
+		setText("comparison-speedup-fekete-faster", fraction(comparison.fekete_faster_count, common));
+		setText("comparison-precision-ours-median", formatDistance(comparisonPrecision.ours_max_per_instance?.median));
+		setText("comparison-precision-fekete-median", formatDistance(comparisonPrecision.fekete_raw_max_per_instance?.median));
+		setText("comparison-precision-ours-p95", formatDistance(comparisonPrecision.ours_max_per_instance?.p95));
+		setText("comparison-precision-fekete-p95", formatDistance(comparisonPrecision.fekete_raw_max_per_instance?.p95));
+		const oursPrecisionCount = Number(comparisonPrecision.ours_max_per_instance?.n || cases);
+		const feketePrecisionCount = Number(comparisonPrecision.fekete_raw_max_per_instance?.n || 0);
+		setText("comparison-precision-ours-threshold", fraction(oursPrecisionCount - Number(comparisonPrecision["ours_instances_at_1e-7"] || 0), oursPrecisionCount));
+		setText("comparison-precision-fekete-threshold", fraction(feketePrecisionCount - Number(comparisonPrecision["fekete_raw_instances_at_1e-7"] || 0), feketePrecisionCount));
+		setText("comparison-precision-fekete-n", comparisonPrecision.fekete_raw_max_per_instance?.n ?? "—");
 	}
 
 	function populateTracePicker() {
@@ -838,7 +905,7 @@ async function initialize() {
 		mapContent.querySelectorAll(".visit-contact").forEach((point) => point.setAttribute("r", 4 * textScale));
 		camera();
 		updateLayerNotes();
-		element("map-title").textContent = `Caso ${caseLabel(row.case)}: caminho por ${row.polygons} regiões; ${row.exact ? "solução exata certificada" : "limite de tempo"}.`;
+		element("map-title").textContent = `Caso ${caseLabel(row.case)}: caminho ótimo por ${row.polygons} regiões.`;
 		drawRoute();
 	}
 
@@ -862,7 +929,7 @@ async function initialize() {
 			const trace = shortTraceCases.find((candidate) => candidate.case === row.case);
 			tracePickerValue.textContent = trace ? tracePickerLabel(trace) : "Escolha uma simulação curta";
 		}
-		element("case-picker-value").textContent = `Caso ${caseLabel(row.case)} · ${row.polygons} regiões · ${row.exact ? "solução exata" : "limite de tempo"}`;
+		element("case-picker-value").textContent = `Caso ${caseLabel(row.case)} · ${row.polygons} regiões`;
 		document.querySelectorAll(".example").forEach((button) => {
 			const active = Number(button.dataset.case) === row.case;
 			button.classList.toggle("active", active);
@@ -871,12 +938,12 @@ async function initialize() {
 			else button.removeAttribute("aria-current");
 		});
 		element("speed-value").title = `A 1×, este caso leva ${number(playbackDuration(row.polygons) / 1000, 1)} s para percorrer o caminho.`;
-		element("outcome-badge").className = `status ${row.exact ? "certified" : "limited"}`;
-		element("outcome-badge").textContent = row.exact ? "✓ Solução exata" : "◷ Encerrado por tempo";
-  element("outcome-title").textContent = row.exact ? "Ótimo certificado" : "Caminho encontrado; não necessariamente ótimo";
-  element("outcome-explanation").textContent = row.exact ? "A busca terminou e o solver certificou este caminho como ótimo." : "O caminho visita todas as regiões, mas o limite de tempo terminou antes de sabermos se ele é o menor possível.";
+		element("outcome-badge").className = "status certified";
+		element("outcome-badge").textContent = "✓ Certificado";
+		element("outcome-title").textContent = "Caminho mínimo";
+		element("outcome-explanation").textContent = "A busca foi concluída pelo solver.";
 		element("case-length").textContent = number(row.length ?? row.validation?.recomputed_length, 2);
-		element("case-time").textContent = row.seconds < .001 ? "< 0,001 s" : `${number(row.seconds, 3)} s`;
+		element("case-time").textContent = formatDuration(row.seconds);
 		if (updateURL && window.location.protocol !== "file:") {
 			const url = new URL(window.location.href);
 			url.searchParams.set("caso", row.case);
@@ -888,22 +955,16 @@ async function initialize() {
 	}
 
 	function renderTable() {
-		const rows = sortGroupedRows(data.rows, sorting.result.key, sorting.result.descending, resultGroup);
+		const rows = sortRows(data.rows, sorting.result.key, sorting.result.descending);
 		const visible = showAllResults ? rows : rows.slice(0, 8);
-		const resultGap = (item) => {
-			if (item.exact) return '<span class="muted">Fechado</span>';
-			const lower = Number(item.lower_bound), upper = Number(item.upper_bound ?? item.length);
-			if (!Number.isFinite(lower) || !Number.isFinite(upper) || upper <= 0) return '<span class="muted">—</span>';
-			const gap = Math.max(0, (upper - lower) / Math.max(Math.abs(upper), 1e-30)) * 100;
-			return `<span class="result-gap-value">≤ ${number(gap, 2)}%</span><small title="Limite inferior: ${number(lower, 2)}">LB ${number(lower, 2)}</small>`;
-		};
-		const gapCell = (item) => showBounds ? `<td class="result-gap" data-label="Gap de otimalidade">${resultGap(item)}</td>` : "";
-		element("result-count").textContent = "Selecione um caso para ver o caminho.";
-		const toggle = rows.length > 8 ? `<tr class="result-toggle-row"><td colspan="${showBounds ? 6 : 5}"><button type="button" data-toggle-results aria-expanded="${showAllResults}">${showAllResults ? "Mostrar somente os 8 destaques ↑" : `Ver todos os ${rows.length} resultados ↓`}</button></td></tr>` : "";
-		element("result-rows").innerHTML = visible.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Caso </span>${caseLabel(item.case)}</th><td data-label="Regiões">${item.polygons}</td><td data-label="Tempo">${item.seconds < .001 ? "< 0,001 s" : `${number(item.seconds, 3)} s`}</td><td class="result-status"><span class="status ${item.exact ? "certified" : "limited"}">${item.exact ? "✓ Solução exata" : "◷ Limite de tempo"}</span></td>${gapCell(item)}<td class="result-action"><button type="button" data-open-case="${item.case}" aria-label="Ver caminho do caso ${item.case + 1}">Ver caminho →</button></td></tr>`).join("") + toggle;
+		element("result-count").textContent = `${rows.length} instâncias certificadas.`;
+		const toggle = rows.length > 8 ? `<tr class="result-toggle-row"><td colspan="4"><button type="button" data-toggle-results aria-expanded="${showAllResults}">${showAllResults ? "Mostrar somente os 8 destaques ↑" : `Ver todos os ${rows.length} resultados ↓`}</button></td></tr>` : "";
+		element("result-rows").innerHTML = visible.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Caso </span>${caseLabel(item.case)}</th><td data-label="Regiões">${item.polygons}</td><td data-label="Tempo">${formatDuration(item.seconds)}</td><td class="result-action"><button type="button" data-open-case="${item.case}" aria-label="Ver caminho do caso ${item.case + 1}">Ver caminho →</button></td></tr>`).join("") + toggle;
 	}
 
 	document.querySelectorAll("button:disabled, input:disabled, select:disabled").forEach((control) => { control.disabled = false; });
+	populateCaseSelect();
+	updateResultSummary();
 	populateTracePicker();
 	function showMap() {
 		element("route-map").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "center" });
@@ -1171,6 +1232,7 @@ async function initialize() {
 		returnContext = { top: window.scrollY, control: button };
 		selectCase(Number(button.dataset.openCase));
 		element("context-return").hidden = false;
+		element("section-dialog")?.closeGuideSection?.();
 		showMap();
 	});
 	element("context-return").addEventListener("click", () => {
@@ -1179,7 +1241,11 @@ async function initialize() {
 		returnContext = null;
 		element("context-return").hidden = true;
 		const start = window.scrollY;
-		const finish = () => destination.control.focus({ preventScroll: true });
+		const finish = () => {
+			const sectionDialog = element("section-dialog");
+			if (sectionDialog?.openGuideSection) sectionDialog.openGuideSection("resultados", destination.control);
+			else destination.control.focus({ preventScroll: true });
+		};
 		if (reducedMotion.matches || Math.abs(start - destination.top) < 2) {
 			window.scrollTo({ top: destination.top, behavior: "instant" });
 			finish();
@@ -1209,7 +1275,7 @@ async function initialize() {
 	function renderPicker() {
 		const rows = sortRows(visitorRows(data.rows, element("picker-search").value), sorting.picker.key, sorting.picker.descending);
 		element("picker-count").textContent = `${rows.length} casos disponíveis`;
-		element("picker-options").innerHTML = rows.length ? rows.map((item) => `<button type="button" data-pick-case="${item.case}" aria-pressed="${item.case === row.case}"><span><strong>Caso ${caseLabel(item.case)}</strong><small>${item.polygons} regiões · ${number(item.seconds, 3)} s</small></span><span class="status ${item.exact ? "certified" : "limited"}">${item.exact ? "✓ Solução exata" : "◷ Limite de tempo"}</span></button>`).join("") : "<p>Nenhum caso encontrado. Experimente outro número.</p>";
+		element("picker-options").innerHTML = rows.length ? rows.map((item) => `<button type="button" data-pick-case="${item.case}" aria-pressed="${item.case === row.case}"><span><strong>Caso ${caseLabel(item.case)}</strong><small>${item.polygons} regiões · ${formatDuration(item.seconds)}</small></span></button>`).join("") : "<p>Nenhum caso encontrado. Experimente outro número.</p>";
 	}
 	element("case-picker-button").addEventListener("click", () => {
 		element("picker-search").value = "";
@@ -1257,26 +1323,21 @@ async function initialize() {
 		});
 	}
 	function updateResultSorting() {
-		const names = { case: "caso", polygons: "regiões", seconds: "tempo" };
 		document.querySelectorAll("[data-result-column]").forEach((header) => {
 			const key = header.dataset.resultColumn;
-			const active = key === "result" ? resultGroup !== null : key === sorting.result.key;
-			const descending = key === "result" ? resultGroup : sorting.result.descending;
-			const primary = resultGroup === null ? key === sorting.result.key : key === "result";
+			const active = key === sorting.result.key;
+			const descending = sorting.result.descending;
+			const primary = active;
 			header.setAttribute("aria-sort", active && primary ? (descending ? "descending" : "ascending") : "none");
 			header.querySelector(".sort-arrow").textContent = active ? (descending ? " ↓" : " ↑") : "";
 			header.classList.toggle("sort-active", active);
 		});
-		element("result-sort-description").textContent = `${resultGroup === null ? "Sem agrupamento; " : resultGroup ? "Limites de tempo primeiro; depois " : "Soluções exatas primeiro; depois "}${names[sorting.result.key]} em ordem ${sorting.result.descending ? "decrescente" : "crescente"}. Resultado alterna entre soluções exatas primeiro, limite de tempo primeiro e sem agrupamento.`;
 		renderTable();
 	}
 	document.querySelectorAll("[data-result-sort]").forEach((button) => button.addEventListener("click", () => {
 		const key = button.dataset.resultSort;
-		if (key === "result") resultGroup = resultGroup === null ? false : resultGroup === false ? true : null;
-		else {
-			sorting.result.descending = sorting.result.key === key ? !sorting.result.descending : false;
-			sorting.result.key = key;
-		}
+		sorting.result.descending = sorting.result.key === key ? !sorting.result.descending : false;
+		sorting.result.key = key;
 		updateResultSorting();
 	}));
 	updateResultSorting();
@@ -1582,7 +1643,7 @@ function initializeGuide() {
 	const copy = {
 		desafio: ["1", "Tente você mesmo!", "Escolha a ordem de visita e compare com o solver."],
 		historia: ["2", "Trabalhos anteriores e o nosso ponto de entrada", "Uma linha do tempo do TPP até este solver autocontido."],
-		resultados: ["3", "Resultados práticos", "O que os 558 casos mostram na prática."],
+		resultados: ["3", "Comparação experimental", "Como nosso solver se compara ao trabalho de Fekete et al. neste corpus."],
 		metodo: ["4", "O algoritmo", "As ideias geométricas por trás da busca."],
 		pesquisa: ["5", "O problema e a pesquisa", "O que está sendo resolvido e por quê."],
 		contato: ["6", "Fale com o autor", "Comentários, dúvidas ou uma conversa sobre a pesquisa."],
@@ -1626,6 +1687,10 @@ function initializeGuide() {
 	const title = element("section-dialog-title");
 	const eyebrow = element("section-dialog-eyebrow");
 	const subtitle = element("section-dialog-subtitle");
+	const resetDialogScroll = () => {
+		dialog.scrollTop = 0;
+		content.scrollTop = 0;
+	};
 	const storageKey = "tpp-siicusp34-visited-sections";
 	let visited = new Set();
 	try {
@@ -1702,6 +1767,7 @@ function initializeGuide() {
 		source.hidden = false;
 		source.inert = false;
 		content.append(source);
+		resetDialogScroll();
 		dialog.dataset.section = id;
 		eyebrow.textContent = `ETAPA ${copy[id][0]} de ${ids.length}`;
 		title.textContent = copy[id][1];
@@ -1711,6 +1777,12 @@ function initializeGuide() {
 		if (!dialog.open) showModalWithTransition(dialog);
 		closeButton.focus({ preventScroll: true });
 	}
+	dialog.openGuideSection = (id, opener = null) => open(id, opener);
+	dialog.closeGuideSection = () => {
+		if (!active) return;
+		if (window.location.hash === `#${active.id}`) clearHash();
+		dialog.close();
+	};
 	function navigateFrom(currentId, delta, navigationState = null) {
 		const currentIndex = ids.indexOf(currentId);
 		const nextId = ids[currentIndex + delta];
@@ -1745,6 +1817,7 @@ function initializeGuide() {
 		source.hidden = false;
 		source.inert = false;
 		content.append(source);
+		resetDialogScroll();
 		dialog.dataset.section = nextId;
 		eyebrow.textContent = `ETAPA ${copy[nextId][0]} de ${ids.length}`;
 		title.textContent = copy[nextId][1];
@@ -1797,6 +1870,14 @@ function initializeGuide() {
 			event.preventDefault();
 			open(id, link);
 		}));
+	document.querySelectorAll("[data-open-comparison]").forEach((link) => link.addEventListener("click", (event) => {
+		event.preventDefault();
+		if (active?.id === "historia" && nextSectionButton && !nextSectionButton.disabled) {
+			nextSectionButton.click();
+			return;
+		}
+		document.querySelector('.guide-links [data-guide-target="resultados"]')?.click();
+	}));
 	const count = element("guide-title")?.closest(".guide-nav")?.querySelector("[data-guide-count]");
 	if (count) count.textContent = `${visited.size}/${nodes.size} seções visitadas`;
 	updateNavigation();
