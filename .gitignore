@@ -82,7 +82,7 @@ packages/nonconvex-tpp/python/instances*.zip
 docs/bibliography/**/*.pdf
 
 # Local research material received from collaborators
-paula-tspn/
+third_party/paula-tspn/
 
 # Local comparison artifacts and third-party checkouts
 tspn-comparison/

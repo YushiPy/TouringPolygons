@@ -94,7 +94,7 @@ administrativo.
    Ela foi reconhecida como útil, mas depende de uma decisão de produto sobre
    permitir novamente a inserção de vértices; o editor offline atual não deve
    ganhar essa função por acidente.
-4. A política de terceiros foi resolvida posteriormente: `paula-tspn/` permanece
+4. A política de terceiros foi resolvida posteriormente: `third_party/paula-tspn/` permanece
    local por não haver autorização de redistribuição, enquanto o solver alemão
    modificado passou a ser um fork MIT fixado como submódulo.
 5. Fazer uma revisão de conteúdo do evento SIICUSP, inclusive o tamanho dos

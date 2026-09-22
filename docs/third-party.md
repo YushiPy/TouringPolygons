@@ -36,7 +36,7 @@ pertencem ao submódulo nem ao repositório principal.
 
 ## Instâncias da Paula
 
-`paula-tspn/` contém material obtido da página pessoal da autora com permissão
+`third_party/paula-tspn/` contém material obtido da página pessoal da autora com permissão
 para uso e modificação local, mas sem autorização explícita de redistribuição.
 Por isso, a pasta inteira permanece ignorada e não deve ser publicada, copiada
 para um fork ou adicionada ao histórico Git.

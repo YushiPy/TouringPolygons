@@ -25,7 +25,7 @@ algoritmo envolvido.
 
 - O fork alemão é o submódulo `third_party/tspn-socg`. Não adicione ao
   submódulo ambientes, builds, licenças comerciais ou resultados.
-- `paula-tspn/` é material local sem autorização explícita de redistribuição;
+- `third_party/paula-tspn/` é material local sem autorização explícita de redistribuição;
   mantenha-o ignorado.
 - Nunca versione gravações, transcrições, notas brutas ou dados pessoais.
   Resumos de reunião só podem ser publicados conforme

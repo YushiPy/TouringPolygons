@@ -54,7 +54,7 @@ geometria ou solver convexo para pacotes consumidores.
 ## Terceiros e privacidade
 
 O fork alemão está em `third_party/tspn-socg` e a coleção da Paula permanece
-local e ignorada. Regras de licença, reprodução e privacidade estão em
+local e ignorada em `third_party/paula-tspn`. Regras de licença, reprodução e privacidade estão em
 [`docs/third-party.md`](docs/third-party.md).
 
 Gravações, transcrições, notas brutas e dados pessoais não pertencem ao Git.
