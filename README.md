@@ -28,6 +28,8 @@ packages/
 ├── optimal-convex-partition/ # Shared CGAL decomposition library
 ├── fenced-tpp/           # Fenced TPP code (legacy)
 └── instance-generation/  # Reproducible instance generation
+tspn-comparison/
+└── solver-oracle/        # Pinned fork of the German comparison solver
 docs/
 ├── algorithms/           # Current algorithm specifications and audits
 ├── bibliography/         # Source papers and LLM-friendly TeX conversions
@@ -36,7 +38,7 @@ docs/
 
 The repository map and lifecycle decisions are documented in
 [`docs/architecture.md`](docs/architecture.md). Local checkouts of external
-comparison projects are intentionally ignored; see
+data remain ignored; the modified German solver is a pinned submodule. See
 [`docs/third-party.md`](docs/third-party.md).
 
 This repository is organized as a research monorepo. The maintained C++ code is

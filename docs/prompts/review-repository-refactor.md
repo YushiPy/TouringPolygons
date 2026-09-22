@@ -52,9 +52,9 @@ com o evento.
    `benchmarks/results-saved/` ficaram navegáveis e se os READMEs não prometem
    apps que não existem. Resultados de benchmark devem manter dados e análise
    juntos; argumentos duráveis de correção devem estar em `docs/algorithms/`.
-8. Revise a política de `tspn-comparison/` e `paula-tspn/`: eles devem ser
-   checkouts locais ignorados, com origem, SHA e patches de compatibilidade
-   registrados, nunca cópias silenciosas commitadas.
+8. Confirme que `paula-tspn/` permanece local e ignorado, e que o solver alemão
+   modificado é reproduzido pelo submódulo versionado, sem ambientes virtuais,
+   builds, licenças comerciais ou resultados gerados.
 9. Revise privacidade: gravações e transcrições não devem entrar no Git; um
    `resumo-publico.md` só é aceitável após anonimização e remoção de detalhes
    administrativos desnecessários.

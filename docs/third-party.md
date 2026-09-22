@@ -1,43 +1,42 @@
-# External repositories and comparison code
+# Repositórios e dados de terceiros
 
-`tspn-comparison/` and `paula-tspn/` are local checkouts of other people's
-repositories. They are useful inputs to experiments, but they are deliberately
-not part of this repository's tracked source. The root `.gitignore` protects
-against accidentally committing their files.
+## Solver alemão
 
-The current arrangement is intentional:
+O solver de Fekete, Kniep, Krupke e Perk é distribuído sob a licença MIT. A
+integração modificada é mantida no fork
+[`YushiPy/TSPN-SoCG-2026`](https://github.com/YushiPy/TSPN-SoCG-2026), branch
+`codex/touring-polygons-oracle`, e fixada neste repositório pelo submódulo
+`tspn-comparison/solver-oracle`. A primeira revisão integrada é
+`94db8fa3279f428484e598a3c40c04c470d03600`.
 
-- keep the checkouts at their existing paths because benchmark scripts and local
-  workflows refer to them;
-- preserve the original remote, commit, and local modifications in each
-  checkout's own Git metadata;
-- put compatibility changes that belong to this project in
-  `benchmarks/patches/`, with a clear target revision and application order;
-- record the external revision and patch set in benchmark metadata whenever a
-  result is meant to be reproducible.
+O fork parte do upstream `tubs-alg/TSPN-SoCG-2026` e acrescenta o backend do
+oráculo convexo deste projeto, propagação do tempo restante, instrumentação e a
+interface Python correspondente. O backend SOCP original continua sendo o
+padrão. A licença e o copyright do upstream permanecem no fork.
 
-Do not replace these directories with a fresh download during a refactor: local
-compatibility edits and cached instances are part of the working experiment.
-Git submodules are also not a good default here because the comparison code is
-actively adapted locally. A submodule or vendored snapshot should be considered
-only if a future release needs a frozen, redistributable dependency and the
-license/provenance have been reviewed.
+Clone este projeto com o submódulo:
 
-## Current checkout audit
+```bash
+git clone --recurse-submodules https://github.com/YushiPy/TouringPolygons.git
+```
 
-The working tree currently contains the two ignored directories, but neither
-contains nested Git metadata. Their exact upstream revisions therefore cannot be
-proved from this repository. Treat benchmark results that depend on them as
-machine-local until a revision is recorded in the checkout itself or in the
-benchmark metadata.
+Em um checkout existente:
 
-Before recording a new comparison result, capture:
+```bash
+git submodule update --init --recursive
+```
 
-1. the upstream URL and commit for the external solver or instance collection;
-2. the local compatibility diff, saved as a patch under `benchmarks/patches/`;
-3. the patch application order and any required build command;
-4. the resulting checkout path and revision in the result's provenance file.
+Ambientes virtuais, builds, Gurobi, arquivos de licença, caches e resultados não
+pertencem ao submódulo nem ao repositório principal.
 
-The existing patches target the adapted solver under `tspn-comparison/solver/`.
-They are intentionally not applied automatically because the local checkout has
-no pinned revision to validate against.
+## Instâncias da Paula
+
+`paula-tspn/` contém material obtido da página pessoal da autora com permissão
+para uso e modificação local, mas sem autorização explícita de redistribuição.
+Por isso, a pasta inteira permanece ignorada e não deve ser publicada, copiada
+para um fork ou adicionada ao histórico Git.
+
+Quando uma instância for necessária para um resultado público, verifique
+separadamente a licença e a proveniência do conjunto de dados original. A
+permissão sobre o repositório da autora não implica permissão para redistribuir
+datasets de terceiros contidos nele.

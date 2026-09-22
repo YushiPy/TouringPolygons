@@ -40,11 +40,11 @@ crie uma segunda implementação sem justificar a compatibilidade.
 
 ## Repositórios de terceiros
 
-`tspn-comparison/` e `paula-tspn/` são checkouts locais usados para comparação.
-Eles não devem ser commitados como cópias, subtrees ou snapshots automáticos.
-Preserve-os ignorados, registre revisões e mudanças de compatibilidade em
-`benchmarks/patches/` e documente a origem e o procedimento de reprodução em
-`docs/third-party.md` ou no relatório do benchmark correspondente.
+`paula-tspn/` é uma coleção local autorizada apenas para uso e modificação; não
+presuma permissão de redistribuição e mantenha-a ignorada. O solver alemão
+modificado é o submódulo `tspn-comparison/solver-oracle`, apontando para o fork
+MIT documentado em `docs/third-party.md`. Não adicione ambientes virtuais,
+builds, licenças comerciais, caches ou resultados ao submódulo.
 
 ## Documentação e pesquisa
 

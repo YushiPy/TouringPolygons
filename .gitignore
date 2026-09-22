@@ -85,7 +85,8 @@ docs/bibliography/**/*.pdf
 paula-tspn/
 
 # Miscellaneous
-tspn-comparison/
+tspn-comparison/*
+!tspn-comparison/solver-oracle
 experiments/
 docs/reports/SIICUSP/resultados-anteriores
 

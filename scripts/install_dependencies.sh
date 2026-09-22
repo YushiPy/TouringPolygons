@@ -89,6 +89,10 @@ sync_node_app() {
 
 install_system_dependencies
 
+echo
+echo "==> Git submodules"
+git submodule update --init --recursive
+
 sync_python_app apps/benchmark-dashboard
 sync_node_app apps/benchmark-dashboard
 

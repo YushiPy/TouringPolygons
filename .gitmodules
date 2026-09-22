@@ -1,0 +1,4 @@
+[submodule "tspn-comparison/solver-oracle"]
+	path = tspn-comparison/solver-oracle
+	url = https://github.com/YushiPy/TSPN-SoCG-2026.git
+	branch = codex/touring-polygons-oracle

@@ -32,8 +32,9 @@ content that is not ours to redistribute. Keep meeting recordings, transcripts,
 summaries, and other correspondence under `docs/meetings/`, which is ignored.
 Keep previously submitted material written by others under
 `docs/reports/SIICUSP/resultados-anteriores/`, external paper PDFs under
-`docs/bibliography/`, and external repository checkouts such as
-`tspn-comparison/` and `paula-tspn/` remain ignored as well. See
+`docs/bibliography/`, and the Paula instance collection under `paula-tspn/`,
+which remains ignored. The modified German solver is tracked only as the pinned
+submodule `tspn-comparison/solver-oracle`. See
 [`docs/third-party.md`](docs/third-party.md).
 
 `benchmarks/campaigns/` is a local experiment workspace and remains ignored.

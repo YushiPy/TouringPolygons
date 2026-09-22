@@ -94,10 +94,9 @@ administrativo.
    Ela foi reconhecida como útil, mas depende de uma decisão de produto sobre
    permitir novamente a inserção de vértices; o editor offline atual não deve
    ganhar essa função por acidente.
-4. Decidir uma política operacional para `tspn-comparison/` e `paula-tspn/`:
-   mantê-los como checkouts ignorados, registrar SHA e patches de compatibilidade
-   em `benchmarks/patches/`, e adicionar um procedimento de reprodução sem
-   commitar cópias vendorizadas.
+4. A política de terceiros foi resolvida posteriormente: `paula-tspn/` permanece
+   local por não haver autorização de redistribuição, enquanto o solver alemão
+   modificado passou a ser um fork MIT fixado como submódulo.
 5. Fazer uma revisão de conteúdo do evento SIICUSP, inclusive o tamanho dos
    dados estáticos e a diferença entre resultados registrados e resultados
    calculados ao vivo. O evento está funcional, mas ainda é uma publicação
