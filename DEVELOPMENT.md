@@ -1,89 +1,82 @@
-# Development Guide
+# Guia de desenvolvimento
 
-This repository is a research monorepo. Keep maintained solver code, generated artifacts, and historical experiments separated so benchmark results remain reproducible.
+Este é um monorepo de pesquisa. Código mantido, artefatos gerados, campanhas e
+dependências externas têm fronteiras diferentes.
 
-## Maintained entry points
+## Preparação
 
-- `README.md`: project overview, algorithm summary, and fresh-clone setup.
-- `docs/architecture.md`: maintained-vs-legacy package and app decisions.
-- `scripts/sanity_check.sh`: broad local verification for a fresh clone.
-- `benchmarks/tpp.py`: public benchmark and instance-generation command entry point.
-- `CMakePresets.json`: IDE-friendly CMake presets for maintained C++ solver targets.
+```bash
+git submodule update --init --recursive
+./scripts/install_dependencies.sh
+```
 
-## Directory boundaries
+O núcleo C++ usa CMake, C++23, Eigen, Boost e CGAL. Gurobi é opcional e serve
+como baseline. O dashboard mantém seus ambientes Python e Node próprios.
 
-- `packages/`: maintained package code, package-local tests, and intentional regression fixtures.
-- `benchmarks/scripts/`: command internals used by `benchmarks/tpp.py`; prefer shared helpers here over copy-pasted parsing or benchmark logic.
-- `benchmarks/suites/`: tracked canonical input corpora only. Derived suites and run outputs are ignored.
-- `apps/`: maintained visualizers and the benchmark dashboard.
-- `docs/algorithms/`: current algorithm contracts and correctness audits.
-- `docs/`: reports, bibliography notes, and other project documentation.
-- `benchmarks/results-saved/`: deliberately preserved campaigns, with their
-  inputs, raw results, analysis, and provenance kept together.
+## Entradas mantidas
 
-## Generated and local files
+- `CMakePresets.json`: presets dos solvers C++;
+- `apps/benchmark-dashboard`: aplicação principal e WASM opcional;
+- `benchmarks/tpp.py`: única CLI pública de geração e benchmarks;
+- `scripts/sanity_check.sh`: validação ampla de um checkout;
+- `scripts/verify_unordered.sh`: verificação focada no solver de ordem livre.
 
-Generated benchmark campaigns, benchmark results, derived suites, CMake build trees, Python caches, local virtual environments, and local source archives are ignored by `.gitignore`. If a generated file is needed for reproducibility, document the command that recreates it rather than committing the output, unless it is a small canonical fixture.
+Os módulos em `benchmarks/_internal/` implementam a CLI e podem ser importados
+por testes e apps, mas não são interfaces de usuário estáveis. Um fluxo novo
+deve entrar como subcomando de `benchmarks/tpp.py`, reutilizando esses módulos,
+em vez de criar mais um script executável.
 
-## Public repository policy
+## Fronteiras dos diretórios
 
-This repository must not contain private supervision material or third-party
-content that is not ours to redistribute. Keep meeting recordings, transcripts,
-summaries, and other correspondence under `docs/meetings/`, which is ignored.
-Keep previously submitted material written by others under
-`docs/reports/SIICUSP/resultados-anteriores/`, external paper PDFs under
-`docs/bibliography/`, and the Paula instance collection under `paula-tspn/`,
-which remains ignored. The modified German solver is tracked only as the pinned
-submodule `tspn-comparison/solver-oracle`. See
-[`docs/third-party.md`](docs/third-party.md).
+- `packages/`: código mantido, testes locais dos pacotes e fixtures pequenas;
+- `apps/`: aplicações; ferramentas exclusivas de uma aplicação ficam dentro
+  dela;
+- `benchmarks/suites/`: corpora canônicos rastreados;
+- `benchmarks/campaigns/` e `benchmarks/results/`: trabalho local ignorado;
+- `benchmarks/results-saved/`: campanhas publicadas com evidência completa;
+- `third_party/`: código externo redistribuível, fixado por submódulo;
+- `docs/algorithms/`: contratos e argumentos de correção duráveis;
+- `docs/reports/`: publicações e relatórios, não dados soltos de benchmark.
 
-`benchmarks/campaigns/` is a local experiment workspace and remains ignored.
-Historical implementation experiments under `experiments/` are local-only and
-remain ignored as well.
-When a case from a campaign becomes a durable regression test, copy or export
-only that case into `benchmarks/suites/`, preferably as a small documented
-fixture. Commit the stable input required by the test harness and document the
-command that produces any derived binary or preview. Do not commit a campaign's
-run history, previews, local paths, or unrelated cases merely to preserve one
-test.
+Builds, ambientes virtuais, caches, módulos Node, WASM gerado e resultados de
+campanhas permanecem fora do Git. Para tornar um caso uma regressão durável,
+extraia apenas a entrada mínima para `benchmarks/suites/` e documente a origem.
 
-## Python benchmark scripts
-
-Use `benchmarks/tpp.py` for user-facing commands. The common workflow should
-stay visible as `create`, `run`, and `status`; more specialized scripts can
-remain as lower-level commands. Lower-level scripts under `benchmarks/scripts/`
-should remain importable and testable as modules, with command-line parsing
-isolated in `make_parser()` and `main()`.
-
-Shared binary case parsing and geometry filtering belongs in `benchmarks/scripts/benchmark_cases.py`.
-
-## C++ packages
-
-Maintained C++ package dependencies should flow in this direction:
+## Dependências C++
 
 ```text
 tpp_geometry -> tpp_convex -> optimal_convex_partition -> tpp_nonconvex
 ```
 
-Avoid reintroducing local copies of shared geometry or convex solver code in downstream packages. If a package needs shared behavior, add it to the upstream package and link it explicitly through CMake.
+Comportamento compartilhado deve subir para o pacote responsável. Não copie
+geometria ou solver convexo para pacotes consumidores.
 
-## Verification
+## Terceiros e privacidade
 
-Set up a fresh development machine with:
+O fork alemão está em `third_party/tspn-socg` e a coleção da Paula permanece
+local e ignorada. Regras de licença, reprodução e privacidade estão em
+[`docs/third-party.md`](docs/third-party.md).
+
+Gravações, transcrições, notas brutas e dados pessoais não pertencem ao Git.
+As regras de publicação de reuniões estão em `docs/meetings/README.md`.
+
+## Validação
+
+Antes de integrar mudanças amplas:
 
 ```bash
-scripts/install_dependencies.sh
+./scripts/sanity_check.sh --no-install
+cd apps/benchmark-dashboard && RUN_BROWSER=0 npm run test:all
+cd apps/benchmark-dashboard && node wasm/test-intersections.mjs
 ```
 
-Run the broad check before larger changes:
+Durante refactors das ferramentas de benchmark:
 
 ```bash
-scripts/sanity_check.sh --no-install
-```
-
-For faster benchmark-script checks during refactors:
-
-```bash
-python3 -m compileall benchmarks/scripts benchmarks/tpp.py
+python3 -m compileall benchmarks/_internal benchmarks/tpp.py \
+  apps/siicusp34/scripts
 python3 benchmarks/tpp.py generate-suites
 ```
+
+Consulte [`benchmarks/README.md`](benchmarks/README.md) para protocolos,
+limites e interpretação dos resultados.

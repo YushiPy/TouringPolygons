@@ -84,7 +84,7 @@ administrativo.
 ## O que ainda falta
 
 1. Revisar o diff completo e fazer um commit coeso da branch. Em especial,
-   conferir se cada remoção em `experiments/`, `output/`, `benchmarks/scripts/`
+   conferir se cada remoção em `experiments/`, `output/` e nas antigas ferramentas de benchmark
    e `apps/visualizer-server/` está coberta por histórico ou documentação.
 2. Revisar os artefatos ignorados que ainda podem existir localmente sob
    `apps/visualizer-server/` — banco local, ambientes virtuais, caches e

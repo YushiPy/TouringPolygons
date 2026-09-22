@@ -49,12 +49,23 @@ Commands:
   generate-matrix NAME PBF ARGS...   Create a reproducible benchmark campaign.
   run NAME ARGS...                   Benchmark all campaign inputs, resumably.
   free-order NAME ARGS...            Run/compare free-order endpoint TPP solvers.
+  free-order-run ARGS...             Run the free-order solver on a binary suite.
   free-order-ablation ARGS...        Compare solver binaries on identical cases.
+  free-order-metamorphic ARGS...     Run metamorphic free-order checks.
+  generate-free-order-canon ARGS...  Generate the diagnostic/canon campaign.
+  summarize-free-order ARGS...       Compare completed canon runs.
+  summarize-external ARGS...         Compare our run with an external run.
   status NAME                        Show generation and benchmark progress.
   generate-suites ARGS...            Generate dev/canonical suites from tracked corpus.
   build-suites ARGS...               Select fixed development and canonical suites.
   benchmark ARGS...                  Run the canonical algorithm benchmark.
   compare-solvers ARGS...            Compare B&B performance across convex solvers.
+  compare-external ARGS...           Run the pinned external solver on a suite.
+  compare-oracles ARGS...            Compare oracle backends inside the external solver.
+  run-fekete ARGS...                 Run/resume the long external campaign.
+  convert-german ARGS...             Convert the pinned German instance archive.
+  convert-tspn ARGS...               Convert native TSPN result instances.
+  normalize ARGS...                  Normalize polygon orientation in a suite.
   split ARGS...                      Split a benchmarked binary by difficulty.
   list-groups ARGS...                List groups from a difficulty split.
   run-groups ARGS...                 Benchmark selected difficulty groups.
@@ -255,6 +266,13 @@ def command_compare_solvers(argv: Sequence[str]) -> int:
 	return compare_convex_solvers.main(argv)
 
 
+def command_module(module_name: str, argv: Sequence[str]) -> int:
+	"""Invoke one internal command while keeping this file as the public CLI."""
+	module = __import__(module_name)
+	result = module.main(list(argv))
+	return int(result or 0)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
 	arguments = list(sys.argv[1:] if argv is None else argv)
 	if not arguments or arguments[0] in {"-h", "--help"}:
@@ -274,6 +292,16 @@ def main(argv: Sequence[str] | None = None) -> int:
 	if command == "free-order-ablation":
 		import free_order_ablation
 		return free_order_ablation.main(rest)
+	if command == "free-order-run":
+		return command_module("unordered_benchmark", rest)
+	if command == "free-order-metamorphic":
+		return command_module("free_order_metamorphic", rest)
+	if command == "generate-free-order-canon":
+		return command_module("generate_free_order_canon", rest)
+	if command == "summarize-free-order":
+		return command_module("summarize_free_order_canon", rest)
+	if command == "summarize-external":
+		return command_module("summarize_unordered", rest)
 	if command == "run":
 		return command_run(rest)
 	if command == "status":
@@ -286,6 +314,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 		return command_benchmark(rest)
 	if command == "compare-solvers":
 		return command_compare_solvers(rest)
+	if command == "compare-external":
+		return command_module("tspn_run_comparison", rest)
+	if command == "compare-oracles":
+		return command_module("tspn_oracle_backends", rest)
+	if command == "run-fekete":
+		return command_module("run_fekete_6h", rest)
+	if command == "convert-german":
+		return command_module("convert_instances", rest)
+	if command == "convert-tspn":
+		return command_module("convert_tspn_native_instances", rest)
+	if command == "normalize":
+		return command_module("normalize_polygon_orientation", rest)
 	if command in {"split", "list-groups", "run-groups"}:
 		return command_legacy(command, rest)
 

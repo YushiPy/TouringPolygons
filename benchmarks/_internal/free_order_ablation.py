@@ -1,6 +1,6 @@
 """Reproducible, sequential free-order solver comparisons with independent validation.
 
-Example: python benchmarks/scripts/free_order_ablation.py --suite FILE.bin
+Example: python benchmarks/tpp.py free-order-ablation --suite FILE.bin
   --solver baseline=PATH --solver candidate=PATH --output results.jsonl
 """
 from __future__ import annotations

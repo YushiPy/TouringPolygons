@@ -14,7 +14,7 @@ from unordered_validation import validate_path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int:
 	parser = argparse.ArgumentParser(description=__doc__)
 	parser.add_argument('--suite', type=Path, default=ROOT / 'benchmarks/suites/algorithm-dev-v1.bin')
 	parser.add_argument('--solver', type=Path, default=ROOT / '.build/unordered/tpp')
@@ -27,7 +27,7 @@ def main() -> None:
 		help='Text file with one case index per line; combines with repeated --case.')
 	parser.add_argument('--output', type=Path, required=True)
 	parser.add_argument('--resume', action='store_true')
-	args = parser.parse_args()
+	args = parser.parse_args(argv)
 	if args.workers < 1:
 		parser.error('--workers must be positive')
 	args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -72,6 +72,7 @@ def main() -> None:
 			file.write(json.dumps(row) + '\n')
 			file.flush()
 			print(json.dumps({k: v for k, v in row.items() if k not in ('path', 'order', 'sha256')}), flush=True)
+	return 0
 
 
 if __name__ == '__main__':

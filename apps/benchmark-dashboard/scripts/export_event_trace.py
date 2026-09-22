@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(ROOT / "benchmarks/scripts"))
+sys.path.insert(0, str(ROOT / "benchmarks/_internal"))
 
 from benchmark_cases import read_encoded_cases  # noqa: E402
 from unordered_runner import run_unordered_solver  # noqa: E402

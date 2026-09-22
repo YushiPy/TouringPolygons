@@ -10,10 +10,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(ROOT / "benchmarks/scripts"))
+sys.path.insert(0, str(ROOT / "benchmarks/_internal"))
+sys.path.insert(0, str(ROOT / "apps/siicusp34/scripts"))
 
+from audit_unordered import audit  # noqa: E402
 from benchmark_cases import read_encoded_cases  # noqa: E402
-from summarize_unordered_siicusp import audit  # noqa: E402
 
 
 def sanitize_public_dataset(data: dict) -> dict:

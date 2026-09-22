@@ -9,12 +9,12 @@ import statistics
 from pathlib import Path
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int:
 	parser = argparse.ArgumentParser(description=__doc__)
 	parser.add_argument('ours', type=Path)
 	parser.add_argument('external', type=Path)
 	parser.add_argument('--output', type=Path, required=True)
-	args = parser.parse_args()
+	args = parser.parse_args(argv)
 	ours = [json.loads(line) for line in args.ours.read_text().splitlines()]
 	with args.external.open() as file:
 		external = {int(row['case_index']): row for row in csv.DictReader(file)}
@@ -86,6 +86,7 @@ def main() -> None:
 		writer.writeheader()
 		writer.writerows(rows)
 	print(json.dumps(summary, indent=2))
+	return 0
 
 
 if __name__ == '__main__':

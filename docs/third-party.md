@@ -6,7 +6,7 @@ O solver de Fekete, Kniep, Krupke e Perk é distribuído sob a licença MIT. A
 integração modificada é mantida no fork
 [`YushiPy/TSPN-SoCG-2026`](https://github.com/YushiPy/TSPN-SoCG-2026), branch
 `codex/touring-polygons-oracle`, e fixada neste repositório pelo submódulo
-`tspn-comparison/solver-oracle`. A primeira revisão integrada é
+`third_party/tspn-socg`. A primeira revisão integrada é
 `94db8fa3279f428484e598a3c40c04c470d03600`.
 
 O fork parte do upstream `tubs-alg/TSPN-SoCG-2026` e acrescenta o backend do
@@ -25,6 +25,11 @@ Em um checkout existente:
 ```bash
 git submodule update --init --recursive
 ```
+
+O submódulo continua sendo um projeto externo, não um pacote mantido deste
+monorepo. Adaptadores, campanhas e resultados de comparação ficam em
+`benchmarks/`; mudanças necessárias ao solver externo são feitas no fork e
+fixadas aqui por revisão.
 
 Ambientes virtuais, builds, Gurobi, arquivos de licença, caches e resultados não
 pertencem ao submódulo nem ao repositório principal.

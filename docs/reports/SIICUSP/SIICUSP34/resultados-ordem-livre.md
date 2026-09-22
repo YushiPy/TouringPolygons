@@ -190,21 +190,21 @@ cmake --build "$BUILD" --target tpp tpp-unordered-tests -j 8
 "$BUILD/tpp" < packages/nonconvex-tpp/cpp/tests/unordered-example.txt
 
 caffeinate -i apps/benchmark-dashboard/.venv/bin/python \
-	benchmarks/scripts/unordered_benchmark.py \
+	benchmarks/tpp.py free-order-run \
 	--suite benchmarks/suites/algorithm-dev-v1.bin --solver "$BUILD/tpp" \
 	--seconds 2 --max-calls 10000000 --output "$RUN/canonical/ours.jsonl"
 
 apps/benchmark-dashboard/.venv/bin/python \
-	benchmarks/scripts/summarize_unordered_siicusp.py "$RUN/canonical/ours.jsonl" \
+	apps/siicusp34/scripts/audit_unordered.py "$RUN/canonical/ours.jsonl" \
 	--suite benchmarks/suites/algorithm-dev-v1.bin --output "$RUN/summary/canonical"
 
-tspn-comparison/solver/.venv/bin/python \
+third_party/tspn-socg/.venv/bin/python \
 	packages/nonconvex-tpp/cpp/tests/validate_unordered_gurobi.py \
 	--solver "$BUILD/tpp" --cases 24
 
 for REP in 1 2 3; do
 	caffeinate -i apps/benchmark-dashboard/.venv/bin/python \
-		benchmarks/scripts/unordered_benchmark.py \
+		benchmarks/tpp.py free-order-run \
 		--suite benchmarks/suites/algorithm-dev-v1.bin --solver "$BUILD/tpp" \
 		--seconds 2 --max-calls 10000000 \
 		--case 2 --case 9 --case 12 --case 55 --case 59 \
@@ -212,17 +212,17 @@ for REP in 1 2 3; do
 done
 
 apps/benchmark-dashboard/.venv/bin/python \
-	benchmarks/scripts/summarize_unordered_siicusp.py "$RUN"/profile-*/ours.jsonl \
+	apps/siicusp34/scripts/audit_unordered.py "$RUN"/profile-*/ours.jsonl \
 	--suite benchmarks/suites/algorithm-dev-v1.bin \
 	--case 2 --case 9 --case 12 --case 55 --case 59 --output "$RUN/summary/profile"
 
-caffeinate -i tspn-comparison/solver/.venv/bin/python \
-	tspn-comparison/benchmarks/run_comparison.py \
+caffeinate -i third_party/tspn-socg/.venv/bin/python \
+	benchmarks/tpp.py compare-external \
 	--suite benchmarks/suites/algorithm-dev-v1.bin --mode path --threads 1 \
 	--time-limit 2 --eps 0.000001 --feasibility-tolerance 0.001 \
 	--validation-tolerance 0.0000001 --output "$RUN/external"
 
-apps/benchmark-dashboard/.venv/bin/python benchmarks/scripts/summarize_unordered.py \
+apps/benchmark-dashboard/.venv/bin/python benchmarks/tpp.py summarize-external \
 	"$RUN/canonical/ours.jsonl" "$RUN"/external/*/algorithm-dev-v1-tspn-path.csv \
 	--output "$RUN/summary/comparison"
 ```
@@ -303,6 +303,6 @@ Não há bloqueio técnico para utilizar os resultados qualificados acima. Resta
 Arquivos criados ou modificados para esta entrega:
 
 - Este relatório.
-- `benchmarks/scripts/summarize_unordered_siicusp.py`: auditoria e sumários próprios por caso e repetição, com saídas em diretório novo.
+- `apps/siicusp34/scripts/audit_unordered.py`: auditoria e sumários próprios por caso e repetição, com saídas em diretório novo.
 - `docs/algorithms/unordered-tpp.md`: precisão sobre enumeração compartilhada, exceções e limite temporal; link para esta reprodução, preservando os números históricos.
 - Dados e drivers locais em `RUN`, incluindo entradas, binários, logs, caminhos, ordens, bounds, hashes e sumários. O plano preexistente e o resumo submetido foram preservados.

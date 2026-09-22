@@ -13,7 +13,7 @@ from pathlib import Path
 from fastapi import HTTPException
 
 ROOT = Path(__file__).resolve().parents[3]
-SCRIPTS = ROOT / "benchmarks/scripts"
+SCRIPTS = ROOT / "benchmarks/_internal"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
@@ -154,7 +154,7 @@ def _recorded_results_full(*, include_geometry: bool = True) -> dict:
             if index < len(cases) and cases[index].digest == row["sha256"]:
                 coords = struct.unpack_from("<dddd", cases[index].data)
                 row["geometry"] = {"start": coords[:2], "target": coords[2:], "polygons": cases[index].polygons}
-    external_files = sorted((ROOT / "tspn-comparison/results/unordered-final").glob("*/*-tspn-path.csv"))
+    external_files = sorted((ROOT / "benchmarks/results/tspn-socg").glob("*/*-tspn-path.csv"))
     own_hashes = {r["case"]: r["sha256"] for r in rows}
     if external_files:
         with external_files[-1].open() as file:

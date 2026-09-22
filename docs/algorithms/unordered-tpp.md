@@ -13,7 +13,7 @@ O pior caso continua exponencial.
 
 A implementação adapta as ideias de inserção do polígono mais distante e refinamento
 preguiçoso do trabalho de Fekete, Kniep, Krupke e Perk, estudadas no checkout local
-`tspn-comparison/solver`, versão 0.2.1, principalmente `strategies/branching_strategy.cpp`.
+`third_party/tspn-socg`, principalmente `strategies/branching_strategy.cpp`.
 O código foi implementado no nosso pacote, sem copiar o solver externo. Os extremos
 permanecem fixos; uma sequência com `m` polígonos tem `m + 1` posições de inserção.
 Não se usa simetria de reversão de tours para eliminar caminhos com extremos distintos.
@@ -181,7 +181,7 @@ auto result = tpp::tpp_nonconvex_unordered_solve(start, target, polygons, option
 
 ```bash
 scripts/verify_unordered.sh
-python3 benchmarks/scripts/unordered_benchmark.py \
+python3 benchmarks/tpp.py free-order-run \
   --seconds 2 --output benchmarks/results/unordered/dev.jsonl
 ```
 
@@ -207,16 +207,16 @@ sem Shapely, registra `valid: null`, não uma validação fictícia.
 Para comparar com o checkout privado instalado, em modo caminho e uma thread:
 
 ```bash
-tspn-comparison/solver/.venv/bin/python \
-  tspn-comparison/benchmarks/run_comparison.py \
+third_party/tspn-socg/.venv/bin/python \
+  benchmarks/tpp.py compare-external \
   --mode path --threads 1 --time-limit 2 --eps 0.000001
-python3 benchmarks/scripts/summarize_unordered.py \
+python3 benchmarks/tpp.py summarize-external \
   benchmarks/results/unordered/dev.jsonl EXTERNAL_RESULTS.csv \
   --output benchmarks/results/unordered/comparison
 ```
 
 O adaptador externo exporta a trajetória bruta e uma candidata diagnóstica com
-extremos encaixados, além de aplicar `benchmarks/scripts/unordered_validation.py`,
+extremos encaixados, além de aplicar `benchmarks/_internal/unordered_validation.py`,
 o mesmo validador independente usado nos caminhos próprios. Otimalidade declarada,
 viabilidade bruta e viabilidade após encaixe são campos separados. O resumo exige
 hashes iguais e modo `path`. A dificuldade original da suíte se refere

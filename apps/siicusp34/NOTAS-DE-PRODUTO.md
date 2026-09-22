@@ -91,7 +91,7 @@ Resultados publicados na versão atual:
 - no conjunto comum concluído, o speedup mediano Fekete/nosso é 5,11× e nosso solver é mais rápido em 492/550 casos;
 - solver de Fekete et al.: 550/558 concluídas; 8 instâncias não foram concluídas no limite de seis horas.
 
-Os caminhos da nova rodada estão em `benchmarks/results-saved/german-comparison/ours.csv` e incluem a trajetória final, a ordem livre e o SHA-256 de cada instância. O app é regenerado por `benchmarks/scripts/build_siicusp34_event_data.py`.
+Os caminhos da nova rodada estão em `benchmarks/results-saved/german-comparison/ours.csv` e incluem a trajetória final, a ordem livre e o SHA-256 de cada instância. O app é regenerado por `apps/siicusp34/scripts/build_event_data.py`.
 
 O relatório `touring-polygons-benchmark-report.pdf` mencionado na conversa não serve como comparação com os alemães: a análise interpretada anteriormente comparava variantes internas do nosso solver e, em parte, problemas diferentes. Não reutilizar a afirmação de que “liberar a ordem melhorou 488 de 498 casos” como evidência contra Fekete et al.
 
@@ -101,18 +101,18 @@ Quando a campanha terminar, a atualização pública deve ser pequena: números,
 
 O runner está em:
 
-`benchmarks/scripts/run_fekete_6h.py`
+`python3 benchmarks/tpp.py run-fekete`
 
 Comando a partir da raiz:
 
 ```bash
-python3 benchmarks/scripts/run_fekete_6h.py --workers 8
+python3 benchmarks/tpp.py run-fekete --workers 8
 ```
 
 Para uma máquina dedicada com 12 threads:
 
 ```bash
-python3 benchmarks/scripts/run_fekete_6h.py --workers 12
+python3 benchmarks/tpp.py run-fekete --workers 12
 ```
 
 Cada worker executa um processo independente com uma thread. O runner grava checkpoints atômicos, reaproveita certificados compatíveis do benchmark de 10 segundos e não repete instâncias concluídas. Ao interromper, perde-se apenas o trabalho das instâncias que estavam rodando naquele momento.

@@ -11,7 +11,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SCRIPTS_DIR = REPO_ROOT / "benchmarks/scripts"
+SCRIPTS_DIR = REPO_ROOT / "benchmarks/_internal"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
@@ -28,10 +28,10 @@ def load_module(name: str, path: Path):
 
 normalizer = load_module(
     "normalize_polygon_orientation",
-    REPO_ROOT / "benchmarks/scripts/normalize_polygon_orientation.py",
+    REPO_ROOT / "benchmarks/_internal/normalize_polygon_orientation.py",
 )
-run_generated = load_module("run_generated", REPO_ROOT / "benchmarks/scripts/run_generated.py")
-convert_instances = load_module("convert_instances", REPO_ROOT / "benchmarks/scripts/convert_instances.py")
+run_generated = load_module("run_generated", REPO_ROOT / "benchmarks/_internal/run_generated.py")
+convert_instances = load_module("convert_instances", REPO_ROOT / "benchmarks/_internal/convert_instances.py")
 
 
 class BenchmarkToolTests(unittest.TestCase):
@@ -169,7 +169,7 @@ class BenchmarkToolTests(unittest.TestCase):
             completed = subprocess.run(
                 [
                     sys.executable,
-                    str(REPO_ROOT / "benchmarks/scripts/normalize_polygon_orientation.py"),
+                    str(REPO_ROOT / "benchmarks/_internal/normalize_polygon_orientation.py"),
                     "--check",
                     str(path),
                 ],
@@ -198,7 +198,7 @@ class BenchmarkToolTests(unittest.TestCase):
             subprocess.run(
                 [
                     sys.executable,
-                    str(REPO_ROOT / "benchmarks/scripts/normalize_polygon_orientation.py"),
+                    str(REPO_ROOT / "benchmarks/_internal/normalize_polygon_orientation.py"),
                     "--in-place",
                     str(path),
                 ],
@@ -209,7 +209,7 @@ class BenchmarkToolTests(unittest.TestCase):
             completed = subprocess.run(
                 [
                     sys.executable,
-                    str(REPO_ROOT / "benchmarks/scripts/normalize_polygon_orientation.py"),
+                    str(REPO_ROOT / "benchmarks/_internal/normalize_polygon_orientation.py"),
                     "--in-place",
                     str(path),
                 ],

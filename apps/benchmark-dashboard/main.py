@@ -21,13 +21,13 @@ APP_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = APP_ROOT.parents[1]
 WASM_STATIC_ROOT = APP_ROOT / "static/wasm"
 BENCHMARK_CLI = REPO_ROOT / "benchmarks/tpp.py"
-CONVERT_INSTANCES_SCRIPT = REPO_ROOT / "benchmarks/scripts/convert_instances.py"
+CONVERT_INSTANCES_SCRIPT = REPO_ROOT / "benchmarks/_internal/convert_instances.py"
 CAMPAIGNS_ROOT = REPO_ROOT / "benchmarks/campaigns"
 RESULTS_ROOT = REPO_ROOT / "benchmarks/results"
 JOBS_PATH = APP_ROOT / ".jobs.json"
 CANONICAL_SUITE = REPO_ROOT / "benchmarks/suites/canonical-v1.bin"
 TRACKED_NONCONVEX_SUITE = REPO_ROOT / "benchmarks/suites/nonconvex/test_cases.bin"
-GERMAN_INSTANCES_ZIP = REPO_ROOT / "tspn-comparison/solver/instances/instances_socg_simplified.zip"
+GERMAN_INSTANCES_ZIP = REPO_ROOT / "third_party/tspn-socg/instances/instances_socg_simplified.zip"
 SOLVERS = {
     "linear": "linear_search_lazy",
     "linear_disjoint": "linear_search_disjoint",

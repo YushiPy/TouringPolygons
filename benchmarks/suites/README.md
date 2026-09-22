@@ -22,7 +22,7 @@ or private experiment notes.
 Regenerate the source corpus:
 
 ```bash
-python3 benchmarks/scripts/convert_instances.py
+python3 benchmarks/tpp.py convert-german
 ```
 
 Regenerate the derived development and canonical suites:

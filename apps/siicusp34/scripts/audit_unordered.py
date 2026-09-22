@@ -9,8 +9,12 @@ import json
 import math
 import statistics
 import struct
+import sys
 from collections import Counter
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "benchmarks/_internal"))
 
 from benchmark_cases import EncodedCase, read_encoded_cases
 from unordered_validation import validate_path

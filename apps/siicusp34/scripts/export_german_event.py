@@ -10,8 +10,8 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "benchmarks/scripts"))
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "benchmarks/_internal"))
 
 from benchmark_cases import read_encoded_cases  # noqa: E402
 

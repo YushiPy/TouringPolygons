@@ -1,88 +1,49 @@
-# Instruções para agentes e colaboradores
+# Instruções para agentes
 
-Este arquivo define as regras de trabalho para alterações neste repositório.
-Ele se aplica à árvore inteira, salvo instruções mais específicas em um
-subdiretório.
+Estas regras se aplicam a todo o repositório. Antes de alterar o núcleo, leia
+`README.md`, `DEVELOPMENT.md`, `docs/architecture.md` e a documentação do
+algoritmo envolvido.
 
-## Objetivo do projeto
+## Regras não negociáveis
 
-O repositório implementa o Touring Polygons Problem (TPP) e suas primitivas.
-As linhas mantidas são:
+- O C++ é a referência algorítmica. Preserve o fluxo
+  `tpp_geometry -> tpp_convex -> optimal_convex_partition -> tpp_nonconvex` e
+  não crie implementações paralelas sem uma exigência explícita de
+  compatibilidade.
+- `apps/benchmark-dashboard` é a aplicação mantida; `apps/siicusp34` é uma
+  publicação congelada. Não reintroduza `apps/visualizer-server` no código
+  ativo.
+- `benchmarks/tpp.py` é a única CLI pública de benchmark. Reutilize módulos em
+  `benchmarks/_internal/` em vez de criar scripts soltos.
+- Campanhas e resultados gerados são locais. Só preserve uma campanha em
+  `benchmarks/results-saved/` com entradas, dados brutos, análise, configuração
+  e proveniência juntas.
+- Não adicione builds, ambientes, caches, `node_modules`, WASM gerado,
+  campanhas locais ou resultados ad hoc.
 
-- TPP convexo com ordem fixa, incluindo a implementação legada ainda usada;
-- TPP não convexo com ordem fixa;
-- TPP não convexo com ordem livre;
-- primitivas geométricas e ferramentas de validação, benchmark e visualização
-  que sustentam esses solvers.
+## Terceiros e privacidade
 
-No código C++, `tpp_geometry` é a base geométrica, `tpp_convex` fornece o
-solver convexo, `optimal_convex_partition` fornece a decomposição e
-`tpp_nonconvex` integra essas peças para os casos não convexos. O C++ é a
-referência para o núcleo algorítmico. O código Python de `packages/` é legado
-ou experimental cercado: preserve-o quando ainda houver uso explícito, mas não
-crie uma segunda implementação sem justificar a compatibilidade.
+- O fork alemão é o submódulo `third_party/tspn-socg`. Não adicione ao
+  submódulo ambientes, builds, licenças comerciais ou resultados.
+- `paula-tspn/` é material local sem autorização explícita de redistribuição;
+  mantenha-o ignorado.
+- Nunca versione gravações, transcrições, notas brutas ou dados pessoais.
+  Resumos de reunião só podem ser publicados conforme
+  `docs/meetings/README.md`.
 
-## Limites de manutenção
+## Trabalho seguro
 
-- `apps/benchmark-dashboard` é a aplicação principal mantida e também hospeda
-  o solver WebAssembly opcional.
-- `apps/siicusp34` é uma aplicação congelada de apresentação e é autocontida;
-  sua cópia JavaScript do solver convexo de ordem fixa não deve ser confundida
-  com uma segunda implementação de produção.
-- `apps/visualizer-server` foi aposentada; não reintroduza dependências ou
-  referências a ela.
-- `experiments/` e `output/` não fazem parte do checkout mantido. Resultados
-  gerados devem ficar nos diretórios ignorados documentados em
-  `benchmarks/` ou em artefatos locais fora do Git.
-- `.build*`, ambientes virtuais, `node_modules/`, WebAssembly gerado,
-  campanhas, resultados de benchmark e arquivos locais de execução não devem
-  ser adicionados ao commit.
+- Preserve mudanças locais não relacionadas e examine o estado do Git antes
+  de operações destrutivas.
+- Refatorações amplas usam branch `codex/<descrição>` e exigem revisão do diff,
+  dos arquivos removidos e dos testes.
+- Análises de benchmark pertencem à campanha; conclusões duráveis sobre
+  contratos e correção pertencem a `docs/algorithms/`.
+- Relatórios devem declarar formulação, tolerâncias, status de exatidão e
+  limitações. Não chame de ótimo um resultado apenas factível ou limitado por
+  orçamento.
 
-## Repositórios de terceiros
-
-`paula-tspn/` é uma coleção local autorizada apenas para uso e modificação; não
-presuma permissão de redistribuição e mantenha-a ignorada. O solver alemão
-modificado é o submódulo `tspn-comparison/solver-oracle`, apontando para o fork
-MIT documentado em `docs/third-party.md`. Não adicione ambientes virtuais,
-builds, licenças comerciais, caches ou resultados ao submódulo.
-
-## Documentação e pesquisa
-
-- `docs/algorithms/` descreve contratos e algoritmos que ainda fazem parte do
-  sistema.
-- Análises de benchmark devem ficar junto da campanha correspondente em
-  `benchmarks/results-saved/<campanha>/`, acompanhadas dos dados, configuração,
-  proveniência e procedimento de reprodução necessários. Resultados antigos
-  podem ser removidos quando forem substituídos por uma campanha canônica nova.
-- Conclusões duráveis sobre correção, contratos e contraexemplos pertencem a
-  `docs/algorithms/`, não a um arquivo cronológico de experimentos.
-- Relatórios devem declarar data, escopo, formulação, tolerâncias, status de
-  exatidão e limitações. “Ótimo” não deve ser usado para um resultado apenas
-  factível ou interrompido por orçamento.
-- Evite novos Markdown soltos na raiz. Prefira o índice apropriado em `docs/`,
-  atualize README desatualizado quando a estrutura mudar e remova prompts ou
-  planos somente quando a informação útil tiver sido preservada.
-
-## Registros de reuniões e privacidade
-
-Gravações, transcrições, notas brutas, `resumo.md` e informações administrativas
-das reuniões são materiais privados e permanecem ignorados. Nunca adicione ao
-Git nomes completos, contatos, passaporte, valores financeiros, processos
-institucionais, informação médica ou outros detalhes pessoais.
-
-Um resumo pode ser versionado somente depois de revisão manual e anonimização,
-com o nome `docs/meetings/AAAA-MM-DD/resumo-publico.md`. Ele deve conter apenas
-decisões técnicas, tarefas de pesquisa, resultados reproduzíveis e contexto
-necessário ao projeto. A ausência de gravação no repositório não elimina o
-risco de privacidade do texto derivado.
-
-## Desenvolvimento e validação
-
-Antes de alterar o núcleo, leia `README.md`, `DEVELOPMENT.md`, a arquitetura e
-a documentação do algoritmo envolvido. Preserve mudanças locais não
-relacionadas e confirme o estado do Git antes de operações destrutivas.
-
-Validações mínimas, conforme o escopo:
+## Validação mínima
 
 ```bash
 ./scripts/sanity_check.sh --no-install
@@ -90,15 +51,5 @@ cd apps/benchmark-dashboard && RUN_BROWSER=0 npm run test:all
 cd apps/benchmark-dashboard && node wasm/test-intersections.mjs
 ```
 
-Para mudanças C++, use o preset/documentação correspondente e execute os testes
-nativos afetados. Para mudanças no dashboard, rode também Ruff, ESLint e os
-testes JavaScript quando aplicável. Não trate binários gerados locais como
-prova de que uma árvore nova é reproduzível.
-
-## Fluxo Git
-
-Refatorações amplas devem ocorrer em uma branch `codex/<descricao-curta>` e só
-devem ser mescladas depois de uma revisão do diff, dos arquivos removidos e dos
-testes. Não use `git reset --hard`, `git checkout --` ou remoções amplas sem
-autorização explícita. Em caso de dúvida sobre apagar documentação ou dados,
-prefira mover, marcar como histórico ou pedir confirmação.
+Para uma mudança menor, execute ao menos os testes diretamente afetados e
+registre claramente qualquer verificação que não pôde ser executada.

@@ -4,7 +4,7 @@
 .vscode/
 .CLAUDE.md
 .notes.md
-:memory:.ses
+/:memory:.ses
 
 # Local environments
 .venv/
@@ -84,9 +84,8 @@ docs/bibliography/**/*.pdf
 # Local research material received from collaborators
 paula-tspn/
 
-# Miscellaneous
-tspn-comparison/*
-!tspn-comparison/solver-oracle
+# Local comparison artifacts and third-party checkouts
+tspn-comparison/
 experiments/
 docs/reports/SIICUSP/resultados-anteriores
 

@@ -22,8 +22,8 @@ from unordered_validation import validate_path
 
 ROOT = Path(__file__).resolve().parents[2]
 BINARY = ROOT / '.build/unordered/tpp'
-EXTERNAL_PYTHON = ROOT / 'tspn-comparison/solver/.venv/bin/python'
-EXTERNAL_RUNNER = ROOT / 'tspn-comparison/benchmarks/run_comparison.py'
+EXTERNAL_PYTHON = ROOT / 'third_party/tspn-socg/.venv/bin/python'
+EXTERNAL_RUNNER = ROOT / 'benchmarks/_internal/tspn_run_comparison.py'
 
 
 def _build_cache_matches_checkout(build_dir: Path) -> bool:

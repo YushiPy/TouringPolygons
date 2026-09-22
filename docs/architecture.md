@@ -71,8 +71,8 @@ reviewed event export is intentionally produced.
    teaching instances, and intentionally isolated from production code.
 3. Promote a campaign case to a tracked suite only with a stable name,
    provenance, and regeneration/validation instructions.
-4. Keep external repositories local unless their redistribution terms and the
-   chosen integration mechanism have been reviewed; never commit a vendor
-   snapshot by accident.
+4. Keep external repositories under `third_party/` only after their
+   redistribution terms and integration mechanism have been reviewed; never
+   commit a vendor snapshot by accident.
 5. When a maintained path replaces an app or experiment, remove the active
    source after migrating its unique capabilities and record the decision here.

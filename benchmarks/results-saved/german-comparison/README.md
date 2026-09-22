@@ -17,6 +17,20 @@ independentes em paralelo; isso reduz o tempo de parede da campanha, mas nao da
 mais de um nucleo a uma instancia. O nosso solver resolveu todas as instancias;
 477 delas em menos de 10 segundos.
 
+A análise reproduzível está em `analyze.py`. Para regenerar `analysis/`:
+
+```bash
+python3 benchmarks/results-saved/german-comparison/analyze.py \
+  --instances benchmarks/results-saved/german-comparison/instances.bin \
+  --ours benchmarks/results-saved/german-comparison/ours.csv \
+  --fekete benchmarks/results-saved/german-comparison/fekete.csv \
+  --output-dir benchmarks/results-saved/german-comparison/analysis
+```
+
+O solver externo usado na campanha é o submódulo
+`third_party/tspn-socg`, fixado na revisão documentada em
+`docs/third-party.md`.
+
 ## Caso 001 corrigido
 
 A geometria desse caso havia sido alterada acidentalmente numa copia de

@@ -27,8 +27,8 @@ from typing import Any, Sequence
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SUITE = PROJECT_ROOT / "benchmarks/suites/algorithm-dev-v1.bin"
-DEFAULT_TSPN_REPO = PROJECT_ROOT / "tspn-comparison/solver-oracle"
-DEFAULT_OUTPUT = PROJECT_ROOT / "tspn-comparison/results"
+DEFAULT_TSPN_REPO = PROJECT_ROOT / "third_party/tspn-socg"
+DEFAULT_OUTPUT = PROJECT_ROOT / "benchmarks/results/tspn-socg"
 RESULT_FIELDS = [
 	"case_index", "difficulty", "sha256", "mode", "polygons", "vertices", "status",
 	"is_optimal", "is_valid_trajectory", "lower_bound", "upper_bound", "absolute_gap",
@@ -43,7 +43,7 @@ RESULT_FIELDS = [
 	"snapped_max_polygon_distance", "snapped_recomputed_length", "snapped_valid",
 ]
 
-sys.path.insert(0, str(PROJECT_ROOT / "benchmarks/scripts"))
+sys.path.insert(0, str(PROJECT_ROOT / "benchmarks/_internal"))
 from unordered_validation import orient_path, validate_path
 
 

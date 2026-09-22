@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT / "benchmarks/scripts"))
+sys.path.insert(0, str(PROJECT_ROOT / "benchmarks/_internal"))
 from benchmark_cases import read_encoded_cases
 from unordered_validation import validate_path
 

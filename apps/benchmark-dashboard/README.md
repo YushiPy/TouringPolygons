@@ -296,7 +296,7 @@ Free-order campaigns currently run with one worker. An empty time limit means 30
 
 Reports include per-instance bounds, gaps, timing, termination, and our saved paths and first-visit orders. Results are saved separately under `benchmarks/campaigns/<campaign>/results/free-order/<run>/report.json`. Matching completed configurations are reused unless forced. They never populate fixed-order summary files.
 
-In Comparison, click `Show recorded free-order comparison (60 instances)` to inspect the measured development suite, including numerical tolerances and endpoint validation differences. This requires the local artifacts under `benchmarks/results/unordered/final-dev.jsonl` and `tspn-comparison/results/unordered-final`; those benchmark artifacts are not tracked in Git.
+In Comparison, click `Show recorded free-order comparison (60 instances)` to inspect the measured development suite, including numerical tolerances and endpoint validation differences. This requires the local artifacts under `benchmarks/results/unordered/final-dev.jsonl` and `benchmarks/results/tspn-socg`; those benchmark artifacts are not tracked in Git.
 
 The same campaign runner is available from the repository root:
 

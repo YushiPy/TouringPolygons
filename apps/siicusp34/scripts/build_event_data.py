@@ -13,10 +13,11 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "benchmarks/scripts"))
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "benchmarks/_internal"))
+sys.path.insert(0, str(ROOT / "benchmarks/results-saved/german-comparison"))
 
-from analyze_german_comparison import build_analysis, orient_path, route_polygon_distance  # noqa: E402
+from analyze import build_analysis, orient_path, route_polygon_distance  # noqa: E402
 from benchmark_cases import read_encoded_cases  # noqa: E402
 
 
