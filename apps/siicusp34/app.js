@@ -374,15 +374,17 @@ function challengeComparison(chosenLabel, chosenLength, bestLabel, bestLength, c
 
 async function initialize() {
 	const data = window.TPPEventData;
+	const uspDemo = window.TPPUspDemo;
 	const tracePayload = window.TPPTraceData || { schema_version: 1, cases: {} };
 	const traces = tracePayload.schema_version === 1 ? (tracePayload.cases || {}) : {};
 	const shortTraceCases = Object.values(traces)
 		.filter((trace) => trace.omitted_events === 0 && trace.event_count < 200)
 		.sort((a, b) => a.case - b.case);
-	if (data.schema_version !== 1 || !data.rows.length) throw new Error("Dados da demonstração indisponíveis.");
-	const defaultCase = data.corpus === "german" ? 1 : 2;
-	let row = data.rows.find((item) => item.case === defaultCase) || data.rows[0];
+	if (data.schema_version !== 1 || !data.rows.length || uspDemo?.schema_version !== 1 || uspDemo.case !== "usp") throw new Error("Dados da demonstração indisponíveis.");
+	const defaultCase = "usp";
+	let row = uspDemo;
 	let projected, fraction = 1, zoom = 1, frame = 0, playing = false;
+	let routeWidth = 840, routeHeight = 480;
 	let traceEvents = [], traceIndex = 0, traceFrame = null, traceTransition = null, tracePlaying = false;
 	let pan = [0, 0], drag = null, traceZoom = 1, tracePan = [0, 0], traceDrag = null;
 	const speeds = [.25, .5, 1, 1.5, 2, 3, 4];
@@ -728,7 +730,9 @@ async function initialize() {
 			traceMapContent.innerHTML = "";
 			element("trace-progress").textContent = "Nenhuma simulação carregada para este caso.";
 			element("trace-step-title").textContent = "Escolha uma instância didática";
-			element("trace-step-text").textContent = "Os destaques mostram os Casos 02, 04 e 10. O seletor acima inclui qualquer árvore com menos de 200 passos.";
+			element("trace-step-text").textContent = row.case === "usp"
+				? "A rota da USP é uma demonstração própria. Escolha um caso do corpus acima para acompanhar uma execução registrada da busca."
+				: "Os destaques mostram os Casos 02, 04 e 10. O seletor acima inclui qualquer árvore com menos de 200 passos.";
 			element("trace-kind").textContent = "PASSO ATUAL";
 			element("trace-sequence").textContent = "—";
 			element("trace-lower-bound").textContent = "—";
@@ -831,8 +835,9 @@ async function initialize() {
 	}
 
 	function camera() {
-		pan = [Math.max(-420 * (zoom - 1), Math.min(420 * (zoom - 1), pan[0])), Math.max(-240 * (zoom - 1), Math.min(240 * (zoom - 1), pan[1]))];
-		mapContent.setAttribute("transform", `translate(${420 + pan[0]} ${240 + pan[1]}) scale(${zoom}) translate(-420 -240)`);
+		const centerX = routeWidth / 2, centerY = routeHeight / 2;
+		pan = [Math.max(-centerX * (zoom - 1), Math.min(centerX * (zoom - 1), pan[0])), Math.max(-centerY * (zoom - 1), Math.min(centerY * (zoom - 1), pan[1]))];
+		mapContent.setAttribute("transform", `translate(${centerX + pan[0]} ${centerY + pan[1]}) scale(${zoom}) translate(${-centerX} ${-centerY})`);
 		map.classList.toggle("is-zoomed", zoom > 1);
 		map.style.touchAction = zoom > 1 ? "none" : "pan-y";
 		element("zoom-out").disabled = zoom <= 1;
@@ -871,6 +876,12 @@ async function initialize() {
 			const contact = row.visualization.contacts[Number(point.dataset.region)];
 			point.classList.toggle("reached", Boolean(contact) && fraction + 1e-12 >= contact.fraction);
 		});
+		if (row.case === "usp") {
+			const next = row.order.find((index) => row.visualization.contacts[index].fraction > fraction + 1e-12);
+			setOutput(element("usp-current-stop"), next === undefined
+				? "Percurso concluído: oito edifícios visitados."
+				: `Próximo edifício: ${row.buildings[next].label}.`);
+		}
 	}
 
 	function updateLayerNotes() {
@@ -878,13 +889,18 @@ async function initialize() {
 	}
 
 	function draw() {
-		projected = projectedCase(row);
+		const mobileRoute = row.case === "usp" && window.matchMedia("(max-width: 560px)").matches;
+		map.classList.toggle("usp-route", row.case === "usp");
+		routeWidth = mobileRoute ? 420 : 840;
+		routeHeight = mobileRoute ? 600 : 480;
+		map.setAttribute("viewBox", `0 0 ${routeWidth} ${routeHeight}`);
+		projected = projectedCase(row, routeWidth, routeHeight);
 		const start = projected.project(row.geometry.start), target = projected.project(row.geometry.target);
 		const labels = enabled("show-labels");
 		const hulls = enabled("show-hulls");
 		const decomposition = enabled("show-decomposition");
 		mapContent.innerHTML = `${hulls ? row.geometry.polygons.map((polygon) => `<polygon class="hull" points="${coordinates(convexHull(polygon).map(projected.project))}"/>`).join("") : ""}
-			${projected.polygons.map((polygon, index) => `<polygon class="region" data-region="${index}" points="${coordinates(polygon)}" style="fill:${regionColors(row.order.indexOf(index), row.polygons, fraction + 1e-12 >= (row.visualization.contacts[index]?.fraction ?? Infinity)).fill};stroke:${regionColors(row.order.indexOf(index), row.polygons, fraction + 1e-12 >= (row.visualization.contacts[index]?.fraction ?? Infinity)).stroke}"><title>Região ${index + 1}; ${row.order.indexOf(index) + 1}ª na ordem exportada</title></polygon>`).join("")}
+			${projected.polygons.map((polygon, index) => `<polygon class="region" data-region="${index}" points="${coordinates(polygon)}" style="fill:${regionColors(row.order.indexOf(index), row.polygons, fraction + 1e-12 >= (row.visualization.contacts[index]?.fraction ?? Infinity)).fill};stroke:${regionColors(row.order.indexOf(index), row.polygons, fraction + 1e-12 >= (row.visualization.contacts[index]?.fraction ?? Infinity)).stroke}"><title>${row.case === "usp" ? escapeHTML(row.buildings[index].label) : `Região ${index + 1}`}; ${row.order.indexOf(index) + 1}ª visita</title></polygon>`).join("")}
 			${decomposition ? decompositionLinesMarkup(row.visualization.decomposition, row.geometry.polygons, projected.project) : ""}
 			<polyline class="route-ghost" points="${coordinates(projected.path)}"/><polyline id="animated-route" class="route-line"/>
 			${labels ? projected.polygons.map((polygon, index) => {
@@ -899,7 +915,7 @@ async function initialize() {
 				return `<circle class="visit-contact" data-region="${index}" cx="${point[0]}" cy="${point[1]}" r="4"><title>${row.order.indexOf(index) + 1}ª visita · região original ${index + 1}</title></circle>`;
 			}).join("") : ""}`;
 		const rect = map.getBoundingClientRect();
-		const textScale = 1 / Math.max(.1, Math.min(rect.width / 840, rect.height / 480)) / zoom;
+		const textScale = 1 / Math.max(.1, Math.min(rect.width / routeWidth, rect.height / routeHeight)) / zoom;
 		mapContent.querySelectorAll(".region-label").forEach((label) => { label.style.fontSize = `${13 * textScale}px`; });
 		mapContent.querySelectorAll(".endpoint-label").forEach((label, index) => {
 			const point = endpointOffset(projected.path, Boolean(index), 22 * textScale);
@@ -913,12 +929,14 @@ async function initialize() {
 		mapContent.querySelectorAll(".visit-contact").forEach((point) => point.setAttribute("r", 4 * textScale));
 		camera();
 		updateLayerNotes();
-		element("map-title").textContent = `Caso ${caseLabel(row.case)}: caminho ótimo por ${row.polygons} regiões.`;
+		element("map-title").textContent = row.case === "usp"
+			? "Rota geometricamente mínima, certificada numericamente, entre oito edifícios da USP."
+			: `Caso ${caseLabel(row.case)}: caminho mínimo certificado por ${row.polygons} regiões.`;
 		drawRoute();
 	}
 
 	function selectCase(index, updateURL = true) {
-		const selected = data.rows.find((item) => item.case === index);
+		const selected = index === "usp" ? uspDemo : data.rows.find((item) => item.case === index);
 		if (!selected) return false;
 		stop();
 		stopTrace();
@@ -937,21 +955,37 @@ async function initialize() {
 			const trace = shortTraceCases.find((candidate) => candidate.case === row.case);
 			tracePickerValue.textContent = trace ? tracePickerLabel(trace) : "Escolha uma simulação curta";
 		}
-		element("case-picker-value").textContent = `Caso ${caseLabel(row.case)} · ${row.polygons} regiões`;
+		element("case-picker-value").textContent = row.case === "usp" ? "Escolha um dos 558 casos do corpus" : `Caso ${caseLabel(row.case)} · ${row.polygons} regiões`;
 		document.querySelectorAll(".example").forEach((button) => {
-			const active = Number(button.dataset.case) === row.case;
+			const active = button.dataset.case === String(row.case);
 			button.classList.toggle("active", active);
 			button.setAttribute("aria-pressed", String(active));
 			if (active) button.setAttribute("aria-current", "true");
 			else button.removeAttribute("aria-current");
 		});
+		const isUsp = row.case === "usp";
+		element("usp-demo-details").hidden = !isUsp;
+		element("usp-current-stop").hidden = !isUsp;
+		element("show-decomposition").disabled = isUsp;
+		if (isUsp) {
+			const itinerary = [
+				`S · ${escapeHTML(row.endpoints.find((entry) => entry.id === "start").label)}`,
+				...row.order.map((building, position) => `${position + 1} · ${escapeHTML(row.buildings[building].label)}`),
+				`T · ${escapeHTML(row.endpoints.find((entry) => entry.id === "target").label)}`,
+			];
+			element("usp-itinerary").innerHTML = itinerary.map((entry) => `<li>${entry}</li>`).join("");
+		}
 		element("speed-value").title = `A 1×, este caso leva ${number(playbackDuration(row.polygons) / 1000, 1)} s para percorrer o caminho.`;
 		element("outcome-badge").className = "status certified";
-		element("outcome-badge").textContent = "✓ Certificado";
-		element("outcome-title").textContent = "Caminho mínimo";
-		element("outcome-explanation").textContent = "A busca foi concluída pelo solver.";
+		element("outcome-badge").textContent = isUsp ? "✓ Gap numérico fechado" : "✓ Certificado";
+		element("outcome-title").textContent = isUsp ? "Rota da USP" : "Caminho mínimo";
+		element("outcome-explanation").textContent = isUsp
+			? "O solver C++ fechou os limites numéricos nesta instância; ela não integra as estatísticas do corpus."
+			: "A busca foi concluída pelo solver.";
 		element("case-length").textContent = number(row.length ?? row.validation?.recomputed_length, 2);
+		element("case-unit").textContent = isUsp ? "metros no modelo plano" : "unidades da instância";
 		element("case-time").textContent = formatDuration(row.seconds);
+		element("case-time-note").textContent = isUsp ? "uma execução local, uma thread" : "uma thread";
 		if (updateURL && window.location.protocol !== "file:") {
 			const url = new URL(window.location.href);
 			url.searchParams.set("caso", row.case);
@@ -979,8 +1013,9 @@ async function initialize() {
 		element("play-route").focus({ preventScroll: true });
 	}
 	document.querySelectorAll(".example").forEach((button) => button.addEventListener("click", () => {
-		if (Number(button.dataset.case) === row.case) return;
-		selectCase(Number(button.dataset.case));
+		const key = button.dataset.case === "usp" ? "usp" : Number(button.dataset.case);
+		if (key === row.case) return;
+		selectCase(key);
 		if (button.closest(".trace-showcases")) {
 			element("trace-map").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "center" });
 			element("trace-play").focus({ preventScroll: true });
@@ -1003,7 +1038,7 @@ async function initialize() {
 	let gesture = null;
 	function localPoint(event) {
 		const box = map.getBoundingClientRect();
-		const scale = Math.min(box.width / 840, box.height / 480);
+		const scale = Math.min(box.width / routeWidth, box.height / routeHeight);
 		return [(event.clientX - box.left - box.width / 2) / scale, (event.clientY - box.top - box.height / 2) / scale];
 	}
 	function zoomAt(next, point) {
