@@ -225,9 +225,9 @@ validation and executable/input hashes:
 ```
 
 The executables must already exist. Multiple `--suite` arguments are supported;
-`--help` lists selection and tolerance options. See the
-[free-order development history](../docs/research/free-order-development-history-2026-09.md)
-for measured ablations, held-out results, and comparison caveats.
+`--help` lists selection and tolerance options. Preserve a comparison only by
+placing its inputs, raw outputs, analysis, configuration and provenance together
+under `benchmarks/results-saved/<campaign>/`.
 
 The fixed algorithm-development workloads are selected from a completed campaign baseline:
 

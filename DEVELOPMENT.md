@@ -17,8 +17,9 @@ This repository is a research monorepo. Keep maintained solver code, generated a
 - `benchmarks/suites/`: tracked canonical input corpora only. Derived suites and run outputs are ignored.
 - `apps/`: maintained visualizers and the benchmark dashboard.
 - `docs/algorithms/`: current algorithm contracts and correctness audits.
-- `docs/research/`: dated experiments and historical development notes.
 - `docs/`: reports, bibliography notes, and other project documentation.
+- `benchmarks/results-saved/`: deliberately preserved campaigns, with their
+  inputs, raw results, analysis, and provenance kept together.
 
 ## Generated and local files
 

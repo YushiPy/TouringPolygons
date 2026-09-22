@@ -169,7 +169,7 @@ Nos quatro casos concluídos, LB, UB, ordem e contagem de chamadas foram idênti
 
 Na campanha completa adotada, o oráculo consumiu 94,1% do tempo e o fallback, 90,2%. O caso 59 mostra que uma etapa rara de precisão ampliada pode dominar um caso pequeno. O custo de fila ou decomposição não é o alvo principal indicado por esses dados.
 
-**Decisão:** manter o núcleo. A reparação pequena de contatos já está implementada; seu histórico está em `docs/research/free-order-development-history-2026-09.md`. O gargalo restante exige investigar recuperação geométrica, condicionamento ou trabalho do método de pontos interiores. Não foi identificada uma intervenção adicional suficientemente pequena e justificada para aceitar antes da entrega. Reduzir precisão ou afrouxar tolerâncias para ganhar tempo alteraria a evidência científica. A contribuição desta rodada é a validação e o diagnóstico, não uma alegação de aceleração nova.
+**Decisão:** manter o núcleo. A reparação pequena de contatos já está implementada. O gargalo restante exige investigar recuperação geométrica, condicionamento ou trabalho do método de pontos interiores. Não foi identificada uma intervenção adicional suficientemente pequena e justificada para aceitar antes da entrega. Reduzir precisão ou afrouxar tolerâncias para ganhar tempo alteraria a evidência científica. A contribuição desta rodada é a validação e o diagnóstico, não uma alegação de aceleração nova.
 
 ## 8. Comandos reproduzíveis
 

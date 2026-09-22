@@ -50,10 +50,12 @@ Preserve-os ignorados, registre revisões e mudanças de compatibilidade em
 
 - `docs/algorithms/` descreve contratos e algoritmos que ainda fazem parte do
   sistema.
-- `docs/research/` preserva evidência histórica, protocolos e resultados
-  experimentais. Não apague um relatório apenas por ser antigo: primeiro
-  verifique se ele é duplicado, se suas conclusões foram incorporadas em uma
-  fonte canônica e se os artefatos ainda são necessários para reprodução.
+- Análises de benchmark devem ficar junto da campanha correspondente em
+  `benchmarks/results-saved/<campanha>/`, acompanhadas dos dados, configuração,
+  proveniência e procedimento de reprodução necessários. Resultados antigos
+  podem ser removidos quando forem substituídos por uma campanha canônica nova.
+- Conclusões duráveis sobre correção, contratos e contraexemplos pertencem a
+  `docs/algorithms/`, não a um arquivo cronológico de experimentos.
 - Relatórios devem declarar data, escopo, formulação, tolerâncias, status de
   exatidão e limitações. “Ótimo” não deve ser usado para um resultado apenas
   factível ou interrompido por orçamento.

@@ -31,7 +31,6 @@ packages/
 docs/
 ├── algorithms/           # Current algorithm specifications and audits
 ├── bibliography/         # Source papers and LLM-friendly TeX conversions
-├── research/             # Dated experiments, plans, and historical notes
 └── reports/              # Portuguese LaTeX reports
 ```
 

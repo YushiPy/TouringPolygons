@@ -58,8 +58,9 @@ reviewed event export is intentionally produced.
 - `apps/benchmark-dashboard/static/event/` contains reviewed event snapshots;
   regeneration commands and provenance belong beside the exporter, not in an
   ad hoc result directory.
-- Research notes under `docs/research/` preserve historical evidence. They do
-  not override the current API or algorithm documentation in `docs/algorithms/`.
+- Durable correctness arguments and algorithm contracts belong in
+  `docs/algorithms/`. Preserved experimental evidence belongs beside its data
+  under `benchmarks/results-saved/` and does not override current contracts.
 
 ## Refactoring rules
 
@@ -70,7 +71,8 @@ reviewed event export is intentionally produced.
    teaching instances, and intentionally isolated from production code.
 3. Promote a campaign case to a tracked suite only with a stable name,
    provenance, and regeneration/validation instructions.
-4. Keep external repositories local and patch them through explicit patch files;
-   never commit a vendor snapshot by accident.
+4. Keep external repositories local unless their redistribution terms and the
+   chosen integration mechanism have been reviewed; never commit a vendor
+   snapshot by accident.
 5. When a maintained path replaces an app or experiment, remove the active
    source after migrating its unique capabilities and record the decision here.

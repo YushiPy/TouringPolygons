@@ -37,10 +37,10 @@ evento SIICUSP independente dos visualizadores antigos.
 - Migramos o editor offline para `apps/benchmark-dashboard/offline-editor/` e
   mantivemos o mapa de último passo com o solver WASM para instâncias convexas
   disjuntas de ordem fixa. O dashboard não recebeu um solver JavaScript novo.
-- Mantivemos o código legado que ainda tem uso e deixamos a documentação de
-  pesquisa em `docs/research/` e `docs/reports/`, conforme decidido. O antigo
-  tutorial HTML do visualizador foi removido; os relatórios e materiais
-  científicos em `docs/` não foram apagados nesta etapa.
+- Mantivemos o código legado que ainda tem uso. O antigo tutorial HTML do
+  visualizador foi removido; uma limpeza posterior transferiu contratos e
+  contraexemplos duráveis para `docs/algorithms/` e passou a manter análises de
+  benchmark junto das campanhas preservadas em `benchmarks/results-saved/`.
 - Criamos `AGENTS.md`, atualizamos a arquitetura e os READMEs, e documentamos a
   política para repositórios de terceiros, reuniões e artefatos gerados.
 

@@ -41,6 +41,9 @@ A árvore integra ordem e peças. Não chama um B&B não convexo completo para c
 permutação: reutiliza o solver convexo e a interface `decompose_polygon` existentes,
 e combina as duas ramificações na mesma busca.
 
+Duas podas geométricas rejeitadas e seus fixtures de regressão estão documentados
+em [`unordered-pruning-counterexamples.md`](unordered-pruning-counterexamples.md).
+
 ### Por que a ramificação é completa
 
 Considere uma solução de um nó e escolha uma ocorrência de visita de cada região
@@ -221,60 +224,9 @@ a ordem fixa, não necessariamente à dificuldade com ordem livre. Não se deve 
 o antigo benchmark de ordem fixa com o externo de ordem livre como se fossem o mesmo
 problema. Os resultados gerados ficam em `benchmarks/results/` e não entram no Git.
 
-## Resultado medido em 5 de setembro de 2026
+## Benchmark preservado
 
-Suíte `algorithm-dev-v1.bin`, 60 instâncias, caminhos com os mesmos extremos e
-polígonos identificados por SHA-256, uma thread e limite de 2 segundos por instância.
-As duas rodadas finais foram executadas sequencialmente na mesma máquina, um
-MacBook Pro M4 Pro. Os tempos são de resolução, sem inicialização do processo Python/C++.
-
-| Medida | Nosso B&B | Externo 0.2.1 |
-| --- | ---: | ---: |
-| Instâncias declaradas ótimas nas tolerâncias configuradas | 41/60 | 40/60 |
-| Tempo total de resolução | 47,80 s | 46,52 s |
-| Gap relativo médio nas 60 instâncias | 3,061% | 3,705% |
-| Verificação independente dos nossos caminhos | 60/60 | Não executada sobre os caminhos externos |
-
-Nos **39 casos concluídos por ambos**, os objetivos concordaram com tolerância
-relativa de `1e-6`. A razão mediana `tempo externo / nosso tempo` foi **4,47**;
-nosso solver foi mais rápido em **32 desses 39 casos**. Isso não significa que ele
-seja 4,47 vezes mais rápido em toda a suíte: o tempo total foi semelhante, e os
-19 casos restantes do nosso solver atingiram o limite de tempo. Não houve erros
-nem encerramentos por limite numérico nessa rodada.
-
-As tolerâncias não são idênticas: nosso critério é `1e-7 + 1e-9 * UB`; o externo
-foi chamado com `eps = 1e-6` e manteve sua tolerância geométrica padrão de `0.001`.
-O adaptador externo sinalizou **27 falhas no seu teste de extremos a `1e-5`**.
-Essas flags estão preservadas no CSV; a contagem de 40 ótimos acima é a declaração
-do solver externo, não uma certificação independente desses 40 caminhos.
-Restringindo a comparação aos **24 casos concluídos por ambos e aprovados nesse
-teste de extremos do externo**, a razão mediana de tempos foi **5,12**.
-São resultados experimentais desta configuração, não uma demonstração de
-superioridade universal nem um benchmark com todas as tolerâncias igualadas.
-
-Artefatos locais gerados:
-
-- `benchmarks/results/unordered/final-dev.jsonl`: caminhos, ordens e estatísticas.
-- `benchmarks/results/unordered/final-comparison/comparison.csv`: comparação por instância.
-- `benchmarks/results/unordered/final-comparison/summary.json`: agregados reproduzíveis.
-- `tspn-comparison/results/unordered-final/20260905-123147/algorithm-dev-v1-tspn-path.csv`: rodada externa.
-
-O `scripts/sanity_check.sh --no-install` foi iniciado, mas sua geração ampla de
-casos convexos permaneceu em execução e foi interrompida. A validação efetivamente
-concluída foi: os 86 casos exaustivos, 344 verificações de interrupção, 24 comparações
-SOCP independentes, os testes existentes de interseção e as 60 instâncias finais
-com verificação geométrica via Shapely. Os scripts Python/Shell e `git diff --check`
-também passaram.
-
-## Próximos trabalhos de pesquisa
-
-A reprodução de 6 de setembro de 2026, com resultados brutos separados,
-profiling e ressalvas para comunicação científica, está em
-[`resultados-ordem-livre.md`](../reports/SIICUSP/SIICUSP34/resultados-ordem-livre.md).
-Os números de 5 de setembro acima permanecem como referência histórica.
-
-O algoritmo e a interface solicitados estão implementados. Melhorias adicionais
-possíveis incluem eliminar as falhas nas APIs antigas de interseção, reduzir a
-frequência do método auxiliar, fortalecer os limites para as instâncias que ainda
-atingem o tempo máximo e ampliar a comparação com tolerâncias e corpora controlados.
-Essas melhorias não são pressupostas pelos resultados relatados acima.
+A comparação canônica atual com o solver de Fekete et al. mantém corpus, saídas,
+análise e instruções em
+[`benchmarks/results-saved/german-comparison`](../../benchmarks/results-saved/german-comparison/README.md).
+Resultados temporais anteriores não fazem parte deste contrato de algoritmo.

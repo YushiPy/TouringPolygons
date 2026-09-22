@@ -45,8 +45,10 @@ data is kept outside Git:
 Scripts without a current caller are not automatically obsolete: a report may
 use them as a reproducibility recipe. Before removing one, search code and
 documentation, identify the output it produced, and preserve the conclusion or
-regeneration command in `docs/research/`. The following one-off tools were
-removed in this refactor because their outputs and callers were already retired:
+regeneration command beside a retained campaign in `benchmarks/results-saved/`,
+or in `docs/algorithms/` when it defines a current correctness contract. The
+following one-off tools were removed in this refactor because their outputs and
+callers were already retired:
 
 - `build_benchmark_report.py`, which only generated the deleted `output/` PDF;
 - `run_german_per_case.py`;

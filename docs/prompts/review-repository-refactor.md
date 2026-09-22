@@ -48,9 +48,10 @@ com o evento.
 6. Analise se algo removido de `experiments/`, `output/`, `benchmarks/scripts/`
    ou `apps/visualizer-server/` ainda é chamado por CI, CMake, scripts,
    documentação ou workflows. Recomendação de exclusão deve citar evidência.
-7. Confira se `docs/research/` e `docs/reports/` ficaram navegáveis e se os
-   READMEs não prometem apps que não existem. Não remova documentos científicos
-   sem identificar uma fonte canônica substituta.
+7. Confira se `docs/algorithms/`, `docs/reports/` e as campanhas preservadas em
+   `benchmarks/results-saved/` ficaram navegáveis e se os READMEs não prometem
+   apps que não existem. Resultados de benchmark devem manter dados e análise
+   juntos; argumentos duráveis de correção devem estar em `docs/algorithms/`.
 8. Revise a política de `tspn-comparison/` e `paula-tspn/`: eles devem ser
    checkouts locais ignorados, com origem, SHA e patches de compatibilidade
    registrados, nunca cópias silenciosas commitadas.
