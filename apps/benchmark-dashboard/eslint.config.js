@@ -1,11 +1,15 @@
 export default [
 	{
+		ignores: ["static/wasm/**"],
+	},
+	{
 		files: ["static/**/*.js", "tests/**/*.mjs"],
 		languageOptions: {
 			ecmaVersion: "latest",
 			 globals: {
-				AbortController: "readonly",
-				Blob: "readonly",
+			AbortController: "readonly",
+			Blob: "readonly",
+			Buffer: "readonly",
 				CSS: "readonly",
 				CSSStyleDeclaration: "readonly",
 				CSSStyleSheet: "readonly",

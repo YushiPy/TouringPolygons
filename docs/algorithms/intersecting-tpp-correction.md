@@ -329,8 +329,8 @@ packages/convex-tpp/cpp/run_generated_tests.sh
 
 # Use a canonical cache path matching the installed Emscripten version.
 EM_CACHE=/private/tmp/tpp-intersection-emscripten/cache \
-  bash apps/visualizer-server/wasm/build.sh
-node apps/visualizer-server/wasm/test-intersections.mjs
+  bash apps/benchmark-dashboard/wasm/build.sh
+node apps/benchmark-dashboard/wasm/test-intersections.mjs
 ```
 
 The optional `TPP_TEST_PROGRESS=1` environment variable reports each legacy

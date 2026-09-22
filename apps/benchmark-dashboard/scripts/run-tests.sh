@@ -44,9 +44,13 @@ uv run ruff format --check .
 "${PYTHON}" -m unittest discover -s tests 2>&1 | tee "${python_unittest_log}"
 npm run check:js
 npm run lint:js
+node --check ../siicusp34/app.js
+node --check ../siicusp34/tpp-solver.js
+node --check ../siicusp34/tpp-vector2.js
 node --test tests/frontend-utils.test.mjs | tee "${frontend_utils_log}"
 node --test tests/manual-editor-camera.test.mjs | tee "${camera_log}"
 node --test tests/event-geometry.test.mjs
+node --test ../siicusp34/test-solver.mjs
 
 if [[ "${RUN_BROWSER:-0}" == "1" ]]; then
 	DISABLE_EDITOR_WASM=1 uv run uvicorn main:app --host 127.0.0.1 --port "${BROWSER_PORT}" &

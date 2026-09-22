@@ -5,6 +5,7 @@ This repository is a research monorepo. Keep maintained solver code, generated a
 ## Maintained entry points
 
 - `README.md`: project overview, algorithm summary, and fresh-clone setup.
+- `docs/architecture.md`: maintained-vs-legacy package and app decisions.
 - `scripts/sanity_check.sh`: broad local verification for a fresh clone.
 - `benchmarks/tpp.py`: public benchmark and instance-generation command entry point.
 - `CMakePresets.json`: IDE-friendly CMake presets for maintained C++ solver targets.
@@ -14,7 +15,9 @@ This repository is a research monorepo. Keep maintained solver code, generated a
 - `packages/`: maintained package code, package-local tests, and intentional regression fixtures.
 - `benchmarks/scripts/`: command internals used by `benchmarks/tpp.py`; prefer shared helpers here over copy-pasted parsing or benchmark logic.
 - `benchmarks/suites/`: tracked canonical input corpora only. Derived suites and run outputs are ignored.
-- `apps/`: runnable visualizers and their UI/server dependencies.
+- `apps/`: maintained visualizers and the benchmark dashboard.
+- `docs/algorithms/`: current algorithm contracts and correctness audits.
+- `docs/research/`: dated experiments and historical development notes.
 - `docs/`: reports, bibliography notes, and other project documentation.
 
 ## Generated and local files
@@ -29,7 +32,8 @@ summaries, and other correspondence under `docs/meetings/`, which is ignored.
 Keep previously submitted material written by others under
 `docs/reports/SIICUSP/resultados-anteriores/`, external paper PDFs under
 `docs/bibliography/`, and external repository checkouts such as
-`tspn-comparison/` ignored as well.
+`tspn-comparison/` and `paula-tspn/` remain ignored as well. See
+[`docs/third-party.md`](docs/third-party.md).
 
 `benchmarks/campaigns/` is a local experiment workspace and remains ignored.
 Historical implementation experiments under `experiments/` are local-only and

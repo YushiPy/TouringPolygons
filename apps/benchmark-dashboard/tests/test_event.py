@@ -13,7 +13,15 @@ from unittest.mock import patch
 from starlette.requests import Request
 
 import main
-from dashboard.dashboard_event import german_trace_data, german_visual_data, event_context, event_data, inline_event_assets, trace_data, visual_data
+from dashboard.dashboard_event import (
+    event_context,
+    event_data,
+    german_trace_data,
+    german_visual_data,
+    inline_event_assets,
+    trace_data,
+    visual_data,
+)
 from dashboard.dashboard_free_order import solve_free_editor
 
 
@@ -157,7 +165,9 @@ class EventTests(unittest.TestCase):
         self.assertTrue({"1", "3", "9"}.issubset(traces["cases"]))
         self.assertGreaterEqual(len(traces["cases"]), 100)
         self.assertTrue(all(case["events"] for case in traces["cases"].values()))
-        self.assertTrue(all(case["event_count"] < 200 for case in traces["cases"].values() if case["omitted_events"] == 0))
+        self.assertTrue(
+            all(case["event_count"] < 200 for case in traces["cases"].values() if case["omitted_events"] == 0)
+        )
         self.assertIn("Caso 02", html)
         self.assertIn("menos de 200 passos", html)
         self.assertIn("Resultados práticos", html)
@@ -339,7 +349,15 @@ class EventTests(unittest.TestCase):
         paths = {getattr(route, "path", "") for route in event_server.app.routes}
         self.assertEqual(
             paths,
-            {"/", "/evento", "/evento/alemao", "/evento/offline", "/evento/siicusp", "/evento/siicusp/offline", "/static"},
+            {
+                "/",
+                "/evento",
+                "/evento/alemao",
+                "/evento/offline",
+                "/evento/siicusp",
+                "/evento/siicusp/offline",
+                "/static",
+            },
         )
         request = Request({"type": "http", "method": "GET", "path": "/evento", "headers": []})
         html = asyncio.run(event_server.event(request)).body.decode()

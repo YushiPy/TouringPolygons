@@ -27,8 +27,8 @@ __pycache__/
 
 # Node
 node_modules/
-apps/visualizer-server/.emscripten-cache/
-apps/visualizer-server/static/wasm/
+apps/benchmark-dashboard/.emscripten-cache/
+apps/benchmark-dashboard/static/wasm/
 
 # LaTeX
 *.aux
@@ -55,8 +55,10 @@ output/
 # Generated/local project artifacts
 PolygonsOut/
 *.db
-apps/visualizer-server/_output_images/
 apps/benchmark-dashboard/.jobs.json
+
+# Retired visualizer-server local data (source removed from the repository)
+apps/visualizer-server/
 
 benchmarks/campaigns/
 benchmarks/generated-runs/
@@ -86,4 +88,11 @@ paula-tspn/
 tspn-comparison/
 experiments/
 docs/reports/SIICUSP/resultados-anteriores
-docs/meetings
+
+# Meeting recordings, transcripts, notes, and private follow-up stay local.
+# Only the policy file and explicitly reviewed public summaries may be tracked.
+docs/meetings/**
+!docs/meetings/
+!docs/meetings/README.md
+!docs/meetings/*/
+!docs/meetings/*/resumo-publico.md

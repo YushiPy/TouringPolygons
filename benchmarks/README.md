@@ -226,7 +226,7 @@ validation and executable/input hashes:
 
 The executables must already exist. Multiple `--suite` arguments are supported;
 `--help` lists selection and tolerance options. See the
-[2026-09-10 improvement report](../docs/unordered-improvements-2026-09-10.md)
+[free-order development history](../docs/research/free-order-development-history-2026-09.md)
 for measured ablations, held-out results, and comparison caveats.
 
 The fixed algorithm-development workloads are selected from a completed campaign baseline:

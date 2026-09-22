@@ -13,13 +13,13 @@ from typing import Any
 from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 APP_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = APP_ROOT.parents[1]
-VISUALIZER_STATIC_ROOT = REPO_ROOT / "apps/visualizer-server/static"
+WASM_STATIC_ROOT = APP_ROOT / "static/wasm"
 BENCHMARK_CLI = REPO_ROOT / "benchmarks/tpp.py"
 CONVERT_INSTANCES_SCRIPT = REPO_ROOT / "benchmarks/scripts/convert_instances.py"
 CAMPAIGNS_ROOT = REPO_ROOT / "benchmarks/campaigns"
@@ -159,12 +159,6 @@ from dashboard.dashboard_partition import partition_router  # noqa: E402
 app = FastAPI(title="TPP Benchmark Dashboard")
 app.include_router(partition_router())
 app.mount("/static", StaticFiles(directory=APP_ROOT / "static"), name="static")
-if VISUALIZER_STATIC_ROOT.exists():
-    app.mount(
-        "/visualizer-static",
-        StaticFiles(directory=VISUALIZER_STATIC_ROOT),
-        name="visualizer-static",
-    )
 templates = Jinja2Templates(directory=str(APP_ROOT / "templates"))
 
 
@@ -802,7 +796,7 @@ job_controller.load_jobs()
 
 @app.get("/")
 async def index(request: Request):
-    wasm_root = VISUALIZER_STATIC_ROOT / "wasm"
+    wasm_root = WASM_STATIC_ROOT
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -812,6 +806,11 @@ async def index(request: Request):
             and (wasm_root / "tpp_convex_wasm.wasm").is_file(),
         },
     )
+
+
+@app.get("/editor/offline")
+async def offline_editor():
+    return FileResponse(APP_ROOT / "offline-editor/index.html")
 
 
 @app.get("/evento")

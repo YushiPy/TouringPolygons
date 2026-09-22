@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>TPP Offline Editor</title>
+	<link rel="stylesheet" href="/static/theme.css">
+	<link rel="stylesheet" href="/static/base.css">
+	<link rel="stylesheet" href="/static/editor.css">
+	<link rel="stylesheet" href="/static/offline-editor.css">
+</head>
+
+<body class="offline-editor-page">
+	<header class="offline-editor-header">
+		<div>
+			<p class="offline-editor-kicker">Touring Polygons</p>
+			<h1>Offline instance editor</h1>
+			<p>Edit a fixed-order TPP instance locally. Nothing is sent to the dashboard.</p>
+		</div>
+		<div class="offline-editor-actions">
+			<button id="offline-new" class="secondary" type="button">New</button>
+			<button id="offline-import" class="secondary" type="button">Import JSON</button>
+			<button id="offline-export" class="primary" type="button">Export JSON</button>
+			<button id="offline-export-all" class="secondary" type="button">Export library</button>
+			<input id="offline-import-input" type="file" accept="application/json,.json" hidden>
+		</div>
+	</header>
+
+	<main id="cases-panel" class="offline-editor-main is-active">
+		<div class="offline-editor-toolbar">
+			<div class="segmented case-mode-control" data-manual-mode aria-label="Tool">
+				<button class="segment is-active" data-mode="move" type="button">Move <kbd>1</kbd></button>
+				<button class="segment" data-mode="polygon" type="button">Draw <kbd>2</kbd></button>
+				<button class="segment" data-mode="select" type="button">Select <kbd>3</kbd></button>
+			</div>
+			<div class="offline-editor-toolbar-actions">
+			<button id="close-manual-polygon" class="secondary" type="button">Close polygon</button>
+			<button id="clear-manual-selection" class="secondary" type="button">Clear selection</button>
+			<button id="delete-manual-selection" class="secondary" type="button">Delete vertices</button>
+			<button id="toggle-manual-snapping" class="secondary" type="button" aria-pressed="false">Snap</button>
+			<button id="manual-zoom-out" class="secondary" type="button" aria-label="Zoom out">−</button>
+			<button id="manual-zoom-in" class="secondary" type="button" aria-label="Zoom in">+</button>
+			<button id="manual-fit-instance" class="secondary" type="button">Fit</button>
+		</div>
+		</div>
+
+		<div class="offline-editor-layers" aria-label="Editor layers">
+			<span>Layers</span>
+			<button class="secondary is-active" data-editor-layer="grid" type="button" aria-pressed="true">Grid</button>
+			<button class="secondary is-active" data-editor-layer="solution" type="button" aria-pressed="true">Path</button>
+			<button class="secondary is-active" data-editor-layer="decomposition" type="button" aria-pressed="true">Pieces</button>
+			<button class="secondary is-active" data-editor-layer="labels" type="button" aria-pressed="true">Labels</button>
+			<button class="secondary" data-editor-layer="lastStepMap" type="button" aria-pressed="false">Last-step map</button>
+		</div>
+
+		<section class="offline-editor-workspace">
+			<div class="offline-editor-side-panel">
+				<div class="offline-library-heading">
+					<h2>Local instances</h2>
+					<button id="offline-add-case" class="secondary compact" type="button" aria-label="Add instance">+</button>
+				</div>
+				<div id="offline-case-list" class="offline-case-list" role="listbox" aria-label="Local instances"></div>
+				<button id="offline-delete-case" class="secondary" type="button">Delete current instance</button>
+				<label for="offline-name">Instance name</label>
+				<input id="offline-name" type="text" value="offline-instance" autocomplete="off">
+				<p id="offline-summary" class="muted"></p>
+				<p class="offline-editor-help">Click <strong>Draw</strong> and add at least three points to create a polygon. In Move mode, drag endpoints, vertices, or a whole polygon. Use Shift-drag or Select to select vertices.</p>
+				<p class="offline-editor-help">The fixed-order solver runs locally through the optional WebAssembly build. Editing and JSON export work even when the WASM files are unavailable.</p>
+				<p id="offline-local-status" class="offline-local-status" role="status"></p>
+			</div>
+			<div class="offline-editor-canvas-wrap">
+				<canvas id="manual-case-canvas" width="960" height="620" aria-label="Editable TPP instance"></canvas>
+				<div id="manual-editor-status" class="editor-status-row">
+				<span id="manual-solve-status"></span>
+				<span id="manual-map-status"></span>
+				<span id="manual-save-status"></span>
+				</div>
+			</div>
+		</section>
+	</main>
+
+	<script type="module" src="/static/offline-editor.js"></script>
+</body>
+
+</html>

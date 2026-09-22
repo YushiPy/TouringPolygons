@@ -46,7 +46,7 @@ Devemos manter os três. Se o primeiro for óbvio demais, o visitante pode concl
 
 ## Solução geométrica no navegador
 
-Os três desafios podem usar apenas uma implementação JavaScript compacta do TPP convexo com ordem fixa. A implementação existente em `apps/visualizer-local` é a referência. Para instâncias tão pequenas, JavaScript é suficiente e evita:
+Os três desafios usam uma implementação JavaScript compacta do TPP convexo com ordem fixa, mantida em `tpp-solver.js` e `tpp-vector2.js` ao lado da página. Essa cópia foi congelada a partir da implementação histórica do visualizador, para que o evento seja autocontido e possa ser publicado copiando apenas `apps/siicusp34`. Para instâncias tão pequenas, JavaScript é suficiente e evita:
 
 - WebAssembly;
 - workers e carregamento adicional;
@@ -131,7 +131,7 @@ Também foi considerada uma rodada do nosso solver com parada em gap de 0,1%, pa
 - nenhum `fetch`, endpoint de API, backend ou WASM;
 - favicon local como o único arquivo adicional.
 
-O HTML tem aproximadamente 16,8 MiB. Esse tamanho foi aceito temporariamente para preservar a versão anterior sem novas alterações. Antes da publicação, podemos reduzir o carregamento mantendo o site estático, por exemplo:
+O HTML tem aproximadamente 16,8 MiB. Esse tamanho foi aceito temporariamente para preservar a versão anterior sem novas alterações. Os dados e o solver local são arquivos estáticos; não há dependência de `apps/visualizer-local` ou de outro app do repositório. Antes da publicação, podemos reduzir o carregamento mantendo o site estático, por exemplo:
 
 - embutir apenas os casos de abertura e carregar o restante de JSONs estáticos sob demanda;
 - separar traces raramente vistos;

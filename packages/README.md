@@ -1,16 +1,24 @@
 # Packages
 
-Maintained solver and helper code lives here.
+The maintained path is the C++ package graph:
 
-- `convex-tpp/`: convex Touring Polygons implementations.
-- `common-geometry/`: shared C++ vector and low-level geometry primitives.
-- `nonconvex-tpp/`: non-convex Touring Polygons implementations.
-- `fenced-tpp/`: fenced variant, currently legacy/deprioritized.
-- `instance-generation/`: instance generation code pending integration.
+```text
+common-geometry -> convex-tpp -> optimal-convex-partition -> nonconvex-tpp
+```
 
-Each package may keep its own dependency files and build system. Maintained C++
-packages should depend on `common-geometry` for shared geometry and avoid local
-copies of solver implementations.
+- `common-geometry/`: shared vectors and low-level geometry primitives.
+- `convex-tpp/`: maintained convex TPP APIs, including fixed-order primitives
+  and certified interfaces; its Python directory is legacy/prototyping code.
+- `optimal-convex-partition/`: shared CGAL-backed decomposition library.
+- `nonconvex-tpp/`: maintained fixed-order and free-order C++ solvers, plus
+  legacy Python implementations retained for comparison and historical use.
+- `fenced-tpp/`: legacy fenced-TPP research code; it is not part of the main
+  build graph.
+- `instance-generation/`: reproducible input generation helpers.
+
+Each package may keep package-local dependencies and tests. New maintained code
+must use upstream geometry/solver targets rather than copying implementations.
+Scratch experiments and generated matrices belong in ignored local directories.
 
 Keep package directories limited to maintained source, package-local tests, and
 intentional regression fixtures. Scratch files, alternate historical versions,

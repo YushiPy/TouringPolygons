@@ -1,3 +1,5 @@
+import { tppSolveConvex } from "./tpp-solver.js";
+
 const $ = (selector) => document.querySelector(selector);
 
 function setOutput(target, text) {
@@ -311,6 +313,12 @@ function traceNumber(value, digits = 4) {
 
 function pathLength(path) {
 	return Array.isArray(path) ? path.slice(1).reduce((total, point, index) => total + Math.hypot(point[0] - path[index][0], point[1] - path[index][1]), 0) : null;
+}
+
+function solveChallengeRoute(start, target, polygons) {
+	const vectorPath = tppSolveConvex(start, target, polygons, true);
+	const path = vectorPath.map(({ x, y }) => [x, y]);
+	return { path, length: pathLength(path) };
 }
 
 const TRACE_PATH_EPSILON = 1e-5;
@@ -1374,7 +1382,9 @@ function initializeChallenge() {
 	const map = element("challenge-map");
 	map.setAttribute("role", "group");
 	function render() {
-		const chosen = challenge.solutions.find((solution) => solution.order.join() === order.join());
+		const chosen = order.length === challenge.geometry.polygons.length
+			? solveChallengeRoute(challenge.geometry.start, challenge.geometry.target, order.map((index) => challenge.geometry.polygons[index]))
+			: null;
 		map.innerHTML = challenge.geometry.polygons.map((polygon, index) => {
 			const [x, y] = polygonCentroid(polygon);
 			const rank = order.indexOf(index);
@@ -1423,7 +1433,14 @@ function initializePieceChallenge(combined = false) {
 	let choices = letters.map(() => null), compared = false;
 	const map = ui("map");
 	function render() {
-		const selected = data.solutions.find((item) => item.choices.every((piece, index) => piece === choices[index]) && (!combined || item.order.join() === order.join()));
+		const complete = choices.every((piece) => piece !== null) && (!combined || order.length === letters.length);
+		const selected = complete
+			? solveChallengeRoute(
+				data.geometry.start,
+				data.geometry.target,
+				(combined ? order : letters.map((_, index) => index)).map((region) => data.pieces[region][choices[region]]),
+			)
+			: null;
 		map.innerHTML = data.pieces.map((pieces, region) => {
 			const rank = order.indexOf(region);
 			const bounds = data.geometry.polygons[region].reduce((box, point) => ({

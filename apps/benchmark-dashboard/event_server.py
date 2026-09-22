@@ -32,7 +32,9 @@ async def german_event(request: Request):
 
 @app.get("/evento/offline", response_class=HTMLResponse)
 async def offline(request: Request):
-    html = templates.get_template("german.html").render(request=request, offline=True, standalone=True, **german_context())
+    html = templates.get_template("german.html").render(
+        request=request, offline=True, standalone=True, **german_context()
+    )
     return HTMLResponse(
         inline_german_assets(html), headers={"Content-Disposition": 'attachment; filename="tpp-corpus-alemao-558.html"'}
     )

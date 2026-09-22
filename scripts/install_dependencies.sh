@@ -90,9 +90,7 @@ sync_node_app() {
 install_system_dependencies
 
 sync_python_app apps/benchmark-dashboard
-sync_python_app apps/visualizer-server
 sync_node_app apps/benchmark-dashboard
-sync_node_app apps/visualizer-server
 
 echo
 echo "==> Playwright Chromium"

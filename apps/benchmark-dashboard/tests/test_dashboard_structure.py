@@ -20,6 +20,7 @@ class DashboardStructureTests(unittest.TestCase):
         paths = set(paths_data)
         self.assertTrue(
             {
+                "/editor/offline",
                 "/api/campaigns",
                 "/api/campaigns/{name}",
                 "/api/campaigns/{name}/preview",
@@ -30,6 +31,36 @@ class DashboardStructureTests(unittest.TestCase):
         self.assertIn("get", paths_data["/api/campaigns"])
         self.assertIn("put", paths_data["/api/campaigns/{name}/cases"])
         self.assertIn("post", paths_data["/api/editor/solve"])
+
+    def test_offline_editor_is_self_contained(self) -> None:
+        page = (ROOT / "offline-editor/index.html").read_text()
+        script = (ROOT / "static/offline-editor.js").read_text()
+
+        self.assertIn("/static/offline-editor.js", page)
+        self.assertIn('id="manual-case-canvas"', page)
+        self.assertIn('id="offline-case-list"', page)
+        self.assertIn('id="offline-export-all"', page)
+        self.assertIn('data-editor-layer="lastStepMap"', page)
+        self.assertIn("partitionProvider: localPartition", script)
+        self.assertIn("solveWasmProvider: solveEditorWasmAsync", script)
+        self.assertIn("lastStepMapProvider: solveEditorWasmMaps", script)
+        self.assertIn("source.startPoint", script)
+        self.assertIn("tpp-offline-editor-library-v2", script)
+        self.assertNotIn("fetch(", script)
+
+    def test_siicusp_event_is_self_contained_and_uses_its_local_solver(self) -> None:
+        event_root = ROOT.parent / "siicusp34"
+        index = (event_root / "index.html").read_text()
+        app = (event_root / "app.js").read_text()
+        solver = (event_root / "tpp-solver.js").read_text()
+
+        self.assertIn('<script type="module" src="app.js"></script>', index)
+        self.assertIn('from "./tpp-solver.js"', app)
+        self.assertIn("solveChallengeRoute", app)
+        self.assertIn("export function tppSolveConvex", solver)
+        self.assertNotIn("visualizer-local", index + app + solver)
+        for filename in ("tpp-solver.js", "tpp-vector2.js"):
+            self.assertTrue((event_root / filename).exists(), filename)
 
     def test_index_template_contains_required_hooks(self) -> None:
         template = main.templates.get_template("index.html").render(request=object())
@@ -76,6 +107,17 @@ class DashboardStructureTests(unittest.TestCase):
 
         self.assertTrue(script.exists())
         self.assertIn("RUN_BROWSER", script.read_text())
+
+    def test_dashboard_owns_browser_solver_assets(self) -> None:
+        self.assertEqual(main.WASM_STATIC_ROOT, ROOT / "static/wasm")
+        self.assertTrue((ROOT / "wasm/build.sh").exists())
+        self.assertTrue((ROOT / "wasm/test-intersections.mjs").exists())
+
+        solver = (ROOT / "static/editor-solver.js").read_text()
+        self.assertIn("/static/wasm/", solver)
+        self.assertIn("solveEditorWasmMaps", solver)
+        self.assertIn("tpp_solve_convex_maps", (ROOT / "wasm/tpp_convex_wasm.cpp").read_text())
+        self.assertNotIn("visualizer-static", solver)
 
     def test_generated_preview_images_use_lazy_loading(self) -> None:
         for path in (ROOT / "static/app.js", ROOT / "static/campaign-rendering.js"):

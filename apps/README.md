@@ -1,9 +1,18 @@
 # Apps
 
-Runnable user-facing visualizers live here.
+The maintained user-facing applications are:
 
-- `visualizer-local/`: static browser visualizer.
-- `visualizer-server/`: server-backed visualizer with templates, static assets, and saved drawing support.
-- `benchmark-dashboard/`: local FastAPI dashboard for benchmark campaigns, runs, previews, and result inspection.
+- `benchmark-dashboard/`: local FastAPI workbench for campaigns, editing,
+  benchmarking, solver comparison, free-order reports, event pages, the
+  optional browser WASM solver, and the new `/editor/offline` editor.
+- `siicusp34/`: frozen, self-contained static event page and data package. Its
+  small fixed-order convex solver copy lives beside the page so the event does
+  not depend on another application.
 
-These apps are intentionally separate from the algorithm packages because their JavaScript, server, and UI dependencies are different from the solver dependencies.
+The former `visualizer-server/` was removed after its solver and WASM build
+path were consolidated into `benchmark-dashboard`. Its login and saved-drawing
+features were not used by the research workflow; the Git history retains the
+implementation if that product direction is revived.
+
+Application code is kept separate from solver packages because its browser,
+server, and presentation dependencies are different from the C++ libraries.

@@ -6,7 +6,7 @@ import { solveFixedOrder } from "./fixed-order-fallback.js?v=editor-align-2026-0
 import { drawCanvasScene } from "./canvas-renderer.js";
 import { cloneCaseData } from "./case-data.js?v=editor-align-2026-09-09d";
 import { polygonIsConvex, solutionDirectionAt } from "./editor-geometry.js";
-import { solveEditorWasmAsync } from "./editor-solver.js?v=editor-align-2026-09-09d";
+import { solveEditorWasmAsync } from "./editor-solver.js?v=editor-align-2026-09-21a";
 import { CAMERA_STORAGE_KEY, canvasToWorld as cameraCanvasToWorld, caseBounds as cameraCaseBounds, worldToCanvas as cameraWorldToCanvas, zoomLimits } from "./manual-editor-camera.js";
 import { mergeSelections, pointsInRect as selectionPointsInRect, samePointSelection as selectionSamePoint } from "./manual-editor-selection.js";
 
@@ -19,8 +19,20 @@ export function createManualEditor({
 	cssVar,
 	scheduleManualAutosave,
 	updateManualCaseListMetadata,
+	partitionProvider = displayPartition,
+	visitOrderProvider = visitOrder,
+	solveFreeOrderProvider = solveFreeOrder,
+	solveFixedOrderProvider = solveFixedOrder,
+	solveWasmProvider = solveEditorWasmAsync,
+	lastStepMapProvider = null,
 }) {
 	const manualEditor = {
+		partitionProvider,
+		visitOrderProvider,
+		solveFreeOrderProvider,
+		solveFixedOrderProvider,
+		solveWasmProvider,
+		lastStepMapProvider,
 		canvas: null,
 		ctx: null,
 		mode: "move",
@@ -51,11 +63,16 @@ export function createManualEditor({
 		solutionFrame: null,
 		solutionAbort: null,
 		solutionRevision: 0,
+		lastStepMapData: null,
+		lastStepMapRevision: 0,
+		lastStepMapTimer: null,
+		lastStepMapRun: null,
 		layers: {
 			grid: true,
 			solution: true,
 			decomposition: true,
 			labels: true,
+			lastStepMap: false,
 		},
 		labelDirections: {
 			start: [1, 0],
@@ -311,6 +328,11 @@ export function createManualEditor({
 			const button = document.querySelector(`[data-editor-layer="${layer}"]`);
 			button?.classList.toggle("is-active", this.layers[layer]);
 			button?.setAttribute("aria-pressed", this.layers[layer] ? "true" : "false");
+			if (layer === "lastStepMap" && this.layers[layer]) {
+				this.scheduleLastStepMap();
+			} else if (layer === "lastStepMap") {
+				this.setMapStatus("");
+			}
 			this.requestDraw();
 		},
 
@@ -1025,7 +1047,68 @@ export function createManualEditor({
 			}
 		},
 
+		invalidateLastStepMap() {
+			this.lastStepMapRevision += 1;
+			this.lastStepMapData = null;
+			if (this.lastStepMapTimer) {
+				clearTimeout(this.lastStepMapTimer);
+				this.lastStepMapTimer = null;
+			}
+			this.requestDraw();
+		},
+
+		scheduleLastStepMap() {
+		if (!this.layers.lastStepMap || !this.lastStepMapProvider || this.lastStepMapRun || this.lastStepMapTimer) return;
+		this.lastStepMapTimer = setTimeout(() => {
+			this.lastStepMapTimer = null;
+			const current = this.currentCase();
+			if (!current) return;
+			const revision = this.lastStepMapRevision;
+			const caseData = cloneCaseData({
+				start: current.start,
+				target: current.target,
+				polygons: current.polygons.filter((polygon) => polygon.length >= 3),
+			});
+			this.fetchLastStepMap(caseData, revision);
+		}, 16);
+		},
+
+		async fetchLastStepMap(caseData, revision = this.lastStepMapRevision) {
+			const run = {};
+			this.lastStepMapRun = run;
+			this.setMapStatus("Loading last-step map from WASM…");
+			try {
+				const result = await this.lastStepMapProvider(caseData);
+				if (this.lastStepMapRun !== run || revision !== this.lastStepMapRevision) return;
+				this.lastStepMapData = result?.eligible === false ? null : result;
+				if (result?.eligible === false) {
+					this.setMapStatus(result.reason);
+				} else if (result) {
+					this.setMapStatus("Last-step map: WASM");
+				} else {
+					this.setMapStatus("Last-step map unavailable; build the WASM solver.");
+				}
+				this.requestDraw();
+			} catch (error) {
+				if (this.lastStepMapRun === run && revision === this.lastStepMapRevision) {
+					this.lastStepMapData = null;
+					this.setMapStatus(error.message || "Could not load the last-step map.");
+				}
+			} finally {
+				if (this.lastStepMapRun === run) {
+					this.lastStepMapRun = null;
+					if (this.layers.lastStepMap && revision !== this.lastStepMapRevision) this.scheduleLastStepMap();
+				}
+			}
+		},
+
+		setMapStatus(message) {
+			const status = $("#manual-map-status");
+			if (status) status.textContent = message || "";
+		},
+
 		changed() {
+			this.invalidateLastStepMap();
 			this.solutionRevision += 1;
 			this.solutionStale = Boolean(this.solutionPath);
 			this.updateLabelDirections(false);
@@ -1033,6 +1116,7 @@ export function createManualEditor({
 			updateManualCaseListMetadata();
 			this.requestDraw();
 			this.scheduleSolve();
+			this.scheduleLastStepMap();
 			scheduleManualAutosave();
 		},
 
@@ -1087,9 +1171,9 @@ export function createManualEditor({
 			this.solutionRun = run;
 			if (!this.solutionPath) this.setStatus("Solving...");
 			try {
-				if (visitOrder() === "free") {
+				if (this.visitOrderProvider() === "free") {
 					if (!this.solutionPath) this.setStatus("Solving free visit order...");
-					const result = await solveFreeOrder(caseData, signal);
+					const result = await this.solveFreeOrderProvider(caseData, signal);
 					if (signal.aborted || revision !== this.solutionRevision) return;
 					this.solutionPath = result.path;
 					this.solutionStale = false;
@@ -1109,7 +1193,7 @@ export function createManualEditor({
 				const solveStarted = requestedAt;
 				let wasmResult = null;
 				try {
-					wasmResult = await solveEditorWasmAsync(caseData, null, signal);
+					wasmResult = await this.solveWasmProvider(caseData, null, signal);
 				} catch (error) {
 					if (error.name === "AbortError") throw error;
 				}
@@ -1133,7 +1217,7 @@ export function createManualEditor({
 					return;
 				}
 				if (!this.solutionPath) this.setStatus("Solving fixed order on server...");
-				const fallbackResult = await solveFixedOrder(caseData, signal);
+				const fallbackResult = await this.solveFixedOrderProvider(caseData, signal);
 				if (revision !== this.solutionRevision) {
 					return;
 				}
@@ -1286,7 +1370,7 @@ export function createManualEditor({
 			if (polygonIsConvex(polygon)) {
 				return;
 			}
-			const pieces = displayPartition(polygon, this.partitionReady ||= () => this.requestDraw(), this.partitionFailed ||= (message) => this.setStatus?.(message));
+			const pieces = this.partitionProvider(polygon, this.partitionReady ||= () => this.requestDraw(), this.partitionFailed ||= (message) => this.setStatus?.(message));
 			if (!pieces || pieces.length <= 1) {
 				return;
 			}

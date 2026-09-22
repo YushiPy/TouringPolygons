@@ -1,10 +1,11 @@
 # Touring Polygons Problem
 
-This repository contains implementations and experiments for the **Touring Polygons Problem (TPP)**: given a starting point $s$, an ending point $t$, and an ordered sequence of polygons $P_1, \dots, P_k$ in the plane, find the shortest Euclidean path from $s$ to $t$ that visits each polygon in order. The path may touch the boundary of a polygon or pass through its interior.
+This repository contains implementations and experiments for the **Touring Polygons Problem (TPP)**: given a starting point $s$, an ending point $t$, and polygonal regions in the plane, find the shortest Euclidean path from $s$ to $t$ that visits every region. It includes both the fixed-order variant, where the sequence is part of the input, and the free-order variant, where the solver chooses the sequence. The path may touch the boundary of a polygon or pass through its interior.
 
-The problem is introduced in [Dror et al. (2003)](#bibliography) and can be seen as a special case of the Traveling Salesman Problem with Neighborhoods (TSPN), where the regions are polygons and the visit order is fixed.
+The problem is introduced in [Dror et al. (2003)](#bibliography) and can be seen as a special case of the Traveling Salesman Problem with Neighborhoods (TSPN), where the regions are polygons. The repository preserves the fixed-order legacy solver while also maintaining the non-convex free-order branch-and-bound path.
 
-An interactive visualizer for the convex case is available [here](https://yushipy.github.io/PersonalPage/Visualizer/index.html) (desktop only).
+The maintained interactive tools live in `apps/benchmark-dashboard`; the SIICUSP
+event package is a separate static, self-contained publication.
 
 ---
 
@@ -12,8 +13,8 @@ An interactive visualizer for the convex case is available [here](https://yuship
 
 ```
 apps/
-├── visualizer-local/     # Static browser visualizer
-└── visualizer-server/    # Server-backed visualizer
+├── benchmark-dashboard/  # Maintained local workbench and event viewer
+├── siicusp34/             # Static archival event page
 benchmarks/
 ├── scripts/              # Benchmark and instance-generation command internals
 ├── suites/               # Tracked canonical benchmark suites
@@ -22,26 +23,36 @@ benchmarks/
 └── archive/              # Historical benchmark data kept for reference
 packages/
 ├── common-geometry/      # Shared C++ vector and geometry primitives
-├── convex-tpp/           # Convex TPP solvers and Python prototypes
-├── nonconvex-tpp/        # Non-convex TPP solvers, B&B, MILP, decomposition
-├── fenced-tpp/           # Fenced TPP code (legacy, deprioritized)
-└── instance-generation/  # Instance generation code pending integration
+├── convex-tpp/           # Maintained convex TPP solvers and legacy prototypes
+├── nonconvex-tpp/         # Fixed-order and free-order non-convex solvers
+├── optimal-convex-partition/ # Shared CGAL decomposition library
+├── fenced-tpp/           # Fenced TPP code (legacy)
+└── instance-generation/  # Reproducible instance generation
 docs/
+├── algorithms/           # Current algorithm specifications and audits
 ├── bibliography/         # Source papers and LLM-friendly TeX conversions
+├── research/             # Dated experiments, plans, and historical notes
 └── reports/              # Portuguese LaTeX reports
 ```
+
+The repository map and lifecycle decisions are documented in
+[`docs/architecture.md`](docs/architecture.md). Local checkouts of external
+comparison projects are intentionally ignored; see
+[`docs/third-party.md`](docs/third-party.md).
 
 This repository is organized as a research monorepo. The maintained C++ code is
 split into reusable CMake targets:
 
 ```text
-tpp_geometry -> tpp_convex -> tpp_nonconvex
+tpp_geometry -> tpp_convex -> optimal_convex_partition -> tpp_nonconvex
 ```
 
 The common geometry package owns `Vector2`/`Vec2` and low-level geometric
 helpers. The convex package owns the exact convex TPP solvers. The non-convex
-package owns CGAL decomposition, approximation, and Branch and Bound, and calls
-the convex solver package instead of carrying a second convex implementation.
+package owns fixed-order and free-order Branch and Bound and calls the convex
+solver package instead of carrying a second convex implementation. The old
+Python implementations remain available as legacy research code, but the
+maintained public path is the C++ API.
 
 Repository boundaries:
 
@@ -59,7 +70,7 @@ scripts/install_dependencies.sh
 ```
 
 The installer is safe to rerun. It installs missing system packages, recreates
-the locked Python and Node environments for both server apps, and installs the
+the locked Python and Node environment for the maintained dashboard, and installs the
 Chromium runtime used by browser tests.
 
 Then run the fresh-clone sanity check:

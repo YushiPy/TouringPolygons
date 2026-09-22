@@ -82,6 +82,90 @@ export function polygonIsConvex(polygon) {
 	return true;
 }
 
+function pointOnSegment(point, start, end, epsilon = 1e-9) {
+	if (Math.abs(cross(start, end, point)) > epsilon) {
+		return false;
+	}
+	return point[0] >= Math.min(start[0], end[0]) - epsilon
+		&& point[0] <= Math.max(start[0], end[0]) + epsilon
+		&& point[1] >= Math.min(start[1], end[1]) - epsilon
+		&& point[1] <= Math.max(start[1], end[1]) + epsilon;
+}
+
+function segmentsTouch(firstStart, firstEnd, secondStart, secondEnd) {
+	const coordinates = [firstStart, firstEnd, secondStart, secondEnd];
+	const scale = Math.max(1, ...coordinates.flatMap((point) => point.map((value) => Math.abs(value))));
+	const epsilon = 1e-9 * scale * scale;
+	const firstTurn = cross(firstStart, firstEnd, secondStart);
+	const secondTurn = cross(firstStart, firstEnd, secondEnd);
+	const thirdTurn = cross(secondStart, secondEnd, firstStart);
+	const fourthTurn = cross(secondStart, secondEnd, firstEnd);
+	if (Math.abs(firstTurn) <= epsilon && pointOnSegment(secondStart, firstStart, firstEnd, epsilon)) return true;
+	if (Math.abs(secondTurn) <= epsilon && pointOnSegment(secondEnd, firstStart, firstEnd, epsilon)) return true;
+	if (Math.abs(thirdTurn) <= epsilon && pointOnSegment(firstStart, secondStart, secondEnd, epsilon)) return true;
+	if (Math.abs(fourthTurn) <= epsilon && pointOnSegment(firstEnd, secondStart, secondEnd, epsilon)) return true;
+	return (firstTurn > epsilon) !== (secondTurn > epsilon)
+		&& (thirdTurn > epsilon) !== (fourthTurn > epsilon);
+}
+
+function pointInPolygonClosed(point, polygon) {
+	let inside = false;
+	for (let index = 0; index < polygon.length; index += 1) {
+		const start = polygon[index];
+		const end = polygon[(index + 1) % polygon.length];
+		if (pointOnSegment(point, start, end)) {
+			return true;
+		}
+		const crossesScanline = (start[1] > point[1]) !== (end[1] > point[1]);
+		if (crossesScanline && point[0] < ((end[0] - start[0]) * (point[1] - start[1])) / (end[1] - start[1]) + start[0]) {
+			inside = !inside;
+		}
+	}
+	return inside;
+}
+
+/**
+ * Returns true only when polygons have positive area and no shared boundary,
+ * crossing, or containment. Touching is deliberately rejected: the WASM
+ * disjoint-map solver has a different contract from the general solver.
+ */
+export function polygonsPairwiseDisjoint(polygons) {
+	if (!Array.isArray(polygons) || polygons.length === 0) {
+		return false;
+	}
+	for (const polygon of polygons) {
+		if (!Array.isArray(polygon) || polygon.length < 3 || !polygonIsConvex(polygon)) {
+			return false;
+		}
+		const area = Math.abs(signedArea(polygon));
+		if (!Number.isFinite(area) || area <= 1e-12) {
+			return false;
+		}
+		if (polygon.some((point) => !Array.isArray(point) || point.length < 2 || !point.every(Number.isFinite))) {
+			return false;
+		}
+	}
+	for (let first = 0; first < polygons.length; first += 1) {
+		for (let second = first + 1; second < polygons.length; second += 1) {
+			const firstPolygon = polygons[first];
+			const secondPolygon = polygons[second];
+			for (let firstEdge = 0; firstEdge < firstPolygon.length; firstEdge += 1) {
+				const firstStart = firstPolygon[firstEdge];
+				const firstEnd = firstPolygon[(firstEdge + 1) % firstPolygon.length];
+				for (let secondEdge = 0; secondEdge < secondPolygon.length; secondEdge += 1) {
+					if (segmentsTouch(firstStart, firstEnd, secondPolygon[secondEdge], secondPolygon[(secondEdge + 1) % secondPolygon.length])) {
+						return false;
+					}
+				}
+			}
+			if (pointInPolygonClosed(firstPolygon[0], secondPolygon) || pointInPolygonClosed(secondPolygon[0], firstPolygon)) {
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
 function splitSingleSelfIntersection(polygon) {
 	const intersections = selfIntersections(polygon);
 	if (intersections.length !== 1) {

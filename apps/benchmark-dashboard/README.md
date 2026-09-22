@@ -200,6 +200,26 @@ To use a fixed port:
 uv run uvicorn main:app --host 127.0.0.1 --port 8017
 ```
 
+## Offline editor
+
+The lightweight editor at `/editor/offline` is the migration target for the old
+former standalone editor workflow. It keeps a browser-local library of instances,
+imports legacy `startPoint`/`targetPoint` JSON as well as dashboard JSON, and
+imports/exports the library as a single file. It does not call the dashboard API;
+convex decomposition runs in JavaScript, solving uses optional WebAssembly,
+and the `Last-step map` layer uses the WASM solver's extracted cone buffers for
+fixed-order convex pairwise-disjoint instances. It deliberately does not carry
+over the old JavaScript solver.
+
+With the dashboard server running, open
+`http://127.0.0.1:8017/editor/offline`. To serve the static page without
+FastAPI, run `python3 -m http.server 8020` from this directory and open
+`http://127.0.0.1:8020/offline-editor/`.
+
+The page remains useful without the generated solver files. To enable local
+fixed-order solving, build the browser assets with `bash wasm/build.sh`; the
+generated files under `static/wasm/` are ignored by Git.
+
 ## Main Views
 
 - `Create`: builds synthetic or OSM-derived campaigns, with optional preview generation. Generated batches can also be appended to an existing campaign.
@@ -272,7 +292,7 @@ Manual campaigns use `manual-cases.json` as the canonical editable representatio
 
 Choose `Fixed order` or `Free order` in Benchmark, Comparison, or Cases. The selection is synchronized across these views. Fixed order keeps the existing solver pipeline. Free order uses the native nonconvex TPP branch-and-bound, with fixed start and target points. The live editor uses a three-second budget and displays the incumbent path and gap when the search has not finished.
 
-Free-order campaigns currently run with one worker. An empty time limit means 30 seconds per instance. Comparison supports `Our TPP B&B` and `External TSPN`; the external checkout and its Python environment must be installed, and its time limit must be an integer number of seconds. The fixed-order editor uses the optional WASM solver when available and falls back to the local fixed-order API otherwise.
+Free-order campaigns currently run with one worker. An empty time limit means 30 seconds per instance. Comparison supports `Our TPP B&B` and `External TSPN`; the external checkout and its Python environment must be installed, and its time limit must be an integer number of seconds. The fixed-order editor uses the optional WASM solver when available and falls back to the local fixed-order API otherwise. Rebuild the browser solver with `bash wasm/build.sh`; generated files under `static/wasm/` remain ignored.
 
 Reports include per-instance bounds, gaps, timing, termination, and our saved paths and first-visit orders. Results are saved separately under `benchmarks/campaigns/<campaign>/results/free-order/<run>/report.json`. Matching completed configurations are reused unless forced. They never populate fixed-order summary files.
 

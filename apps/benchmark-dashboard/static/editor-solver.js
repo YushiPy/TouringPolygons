@@ -1,15 +1,14 @@
 /* global DOMException, Worker */
 
-import { convexDecomposition, polygonIsConvex } from "./editor-geometry.js";
+import { convexDecomposition, polygonIsConvex, polygonsPairwiseDisjoint } from "./editor-geometry.js";
 
 export const editorSolverState = {
 	module: null,
 	load: null,
 	failed: false,
-	geometry: null,
 };
 
-const WASM_SOLVER_VERSION = "editor-align-2026-09-09d";
+const WASM_SOLVER_VERSION = "editor-align-2026-09-21a";
 let idleSolverWorker = null;
 
 export function solveEditorWasmAsync(caseData, pieceGroups = null, signal = null) {
@@ -90,9 +89,9 @@ export function loadEditorWasm() {
 	if (editorSolverState.load) {
 		return editorSolverState.load;
 	}
-	editorSolverState.load = import(`/visualizer-static/wasm/tpp_convex_wasm.js?v=${WASM_SOLVER_VERSION}`)
+	editorSolverState.load = import(`/static/wasm/tpp_convex_wasm.js?v=${WASM_SOLVER_VERSION}`)
 		.then((module) => module.default({
-			locateFile: (path) => path.endsWith(".wasm") ? `/visualizer-static/wasm/${path}?v=${WASM_SOLVER_VERSION}` : path,
+			locateFile: (path) => path.endsWith(".wasm") ? `/static/wasm/${path}?v=${WASM_SOLVER_VERSION}` : path,
 		}))
 		.then((module) => {
 			editorSolverState.module = module;
@@ -104,24 +103,6 @@ export function loadEditorWasm() {
 			return null;
 		});
 	return editorSolverState.load;
-}
-
-export async function loadEditorGeometry() {
-	if (!globalThis.polygonClipping) {
-		return null;
-	}
-	if (editorSolverState.geometry) {
-		return editorSolverState.geometry;
-	}
-	try {
-		editorSolverState.geometry = {
-			vector: await import("/visualizer-static/js/vector2.js"),
-			partition: await import("/visualizer-static/js/convex-partition.js"),
-		};
-	} catch {
-		editorSolverState.geometry = null;
-	}
-	return editorSolverState.geometry;
 }
 
 function signedArea2(polygon) {
@@ -207,6 +188,88 @@ export function solveEditorWasm(caseData, maxCalls = 200000, maxSeconds = 3) {
 			calls: module._tpp_solution_calls(),
 			seconds: solveSeconds,
 			source: "wasm",
+		};
+	} finally {
+		module._free(pointsPtr);
+		module._free(sizesPtr);
+	}
+}
+
+export async function solveEditorWasmMaps(caseData) {
+	const polygons = caseData?.polygons || [];
+	if (!polygonsPairwiseDisjoint(polygons)) {
+		return {
+			eligible: false,
+			reason: "Last-step maps require convex, pairwise-disjoint polygons.",
+		};
+	}
+	const module = await loadEditorWasm();
+	if (!module || typeof module._tpp_solve_convex_maps !== "function") {
+		return null;
+	}
+	return solveEditorWasmMapsSync(caseData, module);
+}
+
+function solveEditorWasmMapsSync(caseData, module) {
+	const normalizedCase = counterClockwiseCase(caseData);
+	const polygons = normalizedCase.polygons;
+	const totalVertices = polygons.reduce((sum, polygon) => sum + polygon.length, 0);
+	const pointsPtr = module._malloc(totalVertices * 2 * Float64Array.BYTES_PER_ELEMENT);
+	const sizesPtr = module._malloc(polygons.length * Int32Array.BYTES_PER_ELEMENT);
+	try {
+		const points = new Float64Array(module.HEAPF64.buffer, pointsPtr, totalVertices * 2);
+		const sizes = new Int32Array(module.HEAP32.buffer, sizesPtr, polygons.length);
+		let pointIndex = 0;
+		polygons.forEach((polygon, polygonIndex) => {
+			sizes[polygonIndex] = polygon.length;
+			polygon.forEach((point) => {
+				points[2 * pointIndex] = point[0];
+				points[2 * pointIndex + 1] = point[1];
+				pointIndex += 1;
+			});
+		});
+		const polygonCount = module._tpp_solve_convex_maps(
+			normalizedCase.start[0],
+			normalizedCase.start[1],
+			normalizedCase.target[0],
+			normalizedCase.target[1],
+			pointsPtr,
+			sizesPtr,
+			polygons.length,
+		);
+		if (polygonCount < 0 || polygonCount !== polygons.length) {
+			return null;
+		}
+		const offsetsPtr = module._tpp_get_map_offsets();
+		const raysPtr = module._tpp_get_map_rays();
+		const firstContactPtr = module._tpp_get_map_first_contact();
+		if (!offsetsPtr || !raysPtr || !firstContactPtr) return null;
+		const offsets = new Int32Array(module.HEAP32.buffer, offsetsPtr, polygonCount + 1);
+		const rays = new Float64Array(module.HEAPF64.buffer, raysPtr, totalVertices * 4);
+		const firstContact = new Uint8Array(module.HEAPU8.buffer, firstContactPtr, totalVertices);
+		const mapPolygons = polygons.map((polygon, polygonIndex) => {
+			const start = offsets[polygonIndex];
+			const end = offsets[polygonIndex + 1];
+			if (start < 0 || end - start !== polygon.length) return null;
+			return {
+				polygon: polygon.map((point) => [...point]),
+				cones: polygon.map((_, vertexIndex) => {
+					const offset = (start + vertexIndex) * 4;
+					return [
+						[rays[offset], rays[offset + 1]],
+						[rays[offset + 2], rays[offset + 3]],
+					];
+				}),
+				firstContact: Array.from(firstContact.slice(start, end), Boolean),
+			};
+		});
+		if (mapPolygons.some((map) => !map || map.cones.some((cone) => cone.flat().some((value) => !Number.isFinite(value))))) {
+			return null;
+		}
+		return {
+			eligible: true,
+			source: "wasm",
+			polygons: mapPolygons,
 		};
 	} finally {
 		module._free(pointsPtr);

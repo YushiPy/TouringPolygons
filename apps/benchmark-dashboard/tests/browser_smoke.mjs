@@ -80,10 +80,49 @@ try {
 	monitor(eventPage);
 	const eventResponse = await eventPage.goto(`${baseUrl}/evento`, { waitUntil: "load" });
 	assert.equal(eventResponse?.ok(), true, "Event route did not load successfully.");
-	assert.equal(await eventPage.title(), "Visitar regiões, escolher caminhos · 34º SIICUSP", "Event title did not load.");
+	assert.equal(await eventPage.title(), "TPP · Geometria computacional e otimização", "Event title did not load.");
 	await eventPage.locator("#map-content").waitFor({ state: "attached" });
 	await eventPage.locator("#challenge-dialog").waitFor({ state: "attached" });
 	await eventPage.locator("#references-dialog").waitFor({ state: "attached" });
+
+	const offlinePage = await browser.newPage();
+	monitor(offlinePage);
+	const offlineResponse = await offlinePage.goto(`${baseUrl}/editor/offline`, { waitUntil: "load" });
+	assert.equal(offlineResponse?.ok(), true, "Offline editor route did not load successfully.");
+	assert.equal(await offlinePage.title(), "TPP Offline Editor", "Offline editor title did not load.");
+	assert.equal(await offlinePage.locator("#offline-case-list .offline-case-item").count(), 1);
+	await offlinePage.locator("#offline-name").fill("browser-smoke-instance");
+	await offlinePage.locator("#offline-import-input").setInputFiles({
+		name: "legacy-instance.tpp.json",
+		mimeType: "application/json",
+		buffer: Buffer.from(JSON.stringify({
+			drawingName: "legacy-instance",
+			startPoint: [0, 0],
+			targetPoint: [4, 0],
+			polygons: [[[1, -1], [2, -1], [2, 1], [1, 1]]],
+		})),
+	});
+	await offlinePage.waitForFunction(() => document.querySelector("#offline-name")?.value === "legacy-instance");
+	assert.equal(await offlinePage.locator("#offline-name").inputValue(), "legacy-instance");
+	await offlinePage.locator('[data-editor-layer="lastStepMap"]').click();
+	await offlinePage.waitForFunction(() => document.querySelector("#manual-map-status")?.textContent.includes("Last-step map: WASM"), null, { timeout: 15000 });
+	await offlinePage.waitForFunction(() => {
+		const canvas = document.querySelector("#manual-case-canvas");
+		if (!canvas || canvas.width === 0 || canvas.height === 0) return false;
+		const pixels = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+		let coloredPixels = 0;
+		for (let index = 0; index < pixels.length; index += 4) {
+			if (pixels[index] < 120 && pixels[index + 1] > 100 && pixels[index + 2] > 170) coloredPixels += 1;
+		}
+		return coloredPixels > 40;
+	});
+	await offlinePage.locator("#offline-new").click();
+	assert.equal(await offlinePage.locator("#offline-case-list .offline-case-item").count(), 2);
+	await offlinePage.locator("#offline-case-list .offline-case-item").first().click();
+	assert.equal(await offlinePage.locator("#offline-name").inputValue(), "legacy-instance");
+	const libraryDownload = offlinePage.waitForEvent("download");
+	await offlinePage.locator("#offline-export-all").click();
+	assert.match((await libraryDownload).suggestedFilename(), /tpp-offline-library\.json$/);
 
 	if (failedRequests.length || runtimeErrors.length) {
 		throw new Error([

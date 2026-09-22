@@ -1,32 +1,10 @@
-# Interactive web edition — Codex TODO
+# Interactive web edition — roadmap
 
-This is the working prompt and progress record for porting the fixed-order convex
-Touring Polygons tutorial to a **local, unpublished webpage**. Keep this file in
-the repository and update its checkboxes as work is completed. An unchecked box
-means the work is still outstanding; do not check a box for a placeholder or an
-untested implementation. Add a brief note under a task if its scope changes.
-
-## How to use this prompt
-
-**Luna pass:** select GPT-5.6 Luna (medium reasoning), then give Codex this prompt:
-
-> Read `docs/reports/directional-tpp-tutorial/WEB_PORT_TODO.md`. Complete only
-> Phase 1 and its checks. Create a faithful, readable static web edition of the
-> full report. Update the checkboxes and the handoff record with what you
-> actually completed, how you verified it, and what remains. Do not invent
-> geometric claims, source signatures, or interactive behavior. Stop after the
-> Phase 1 handoff so I can switch models.
-
-**Sol/Astra pass:** switch to GPT-5.6 Sol or GPT-6 Astra (high reasoning), then
-give Codex this prompt:
-
-> Read `docs/reports/directional-tpp-tutorial/WEB_PORT_TODO.md`, the Phase 1
-> handoff, the LaTeX source, and the current web files. Audit Phase 1 against
-> the original report, fix omissions, then complete Phase 2 and the final
-> acceptance checks. Implement all twelve expandable interactive figures,
-> actual-code overlays, and function hover/focus cards. Update checkboxes only
-> after verifying each item. Keep working through the checklist until the local
-> web edition is complete; report any genuinely blocked item explicitly.
+This is the progress record for porting the fixed-order convex Touring Polygons
+tutorial to a local, unpublished webpage. Keep the checklist honest: an
+unchecked box is an outstanding task, not a placeholder for an untested
+implementation. The static Phase 1 edition is complete; the remaining work
+belongs to the interactive Phase 2 and is separate from the benchmark dashboard.
 
 ## Source material and boundaries
 

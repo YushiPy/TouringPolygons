@@ -8,7 +8,7 @@ import {
 	instanceLabel,
 } from "../static/case-data.js";
 import { compareCommandFromForm, runCommandFromForm } from "../static/command-builders.js";
-import { convexDecomposition, polygonIsConvex } from "../static/editor-geometry.js";
+import { convexDecomposition, polygonIsConvex, polygonsPairwiseDisjoint } from "../static/editor-geometry.js";
 import {
 	findTable,
 	instanceTotalSeconds,
@@ -156,6 +156,23 @@ test("crossing quadrilaterals decompose before convex solving", () => {
 	assert.equal(polygonIsConvex(bowTie), false);
 	assert.equal(pieces.length, 2);
 	assert.deepEqual(pieces.map((piece) => piece.length), [3, 3]);
+});
+
+test("last-step map eligibility rejects touching, crossing, and contained polygons", () => {
+	const square = (x, y, size = 2) => [[x, y], [x + size, y], [x + size, y + size], [x, y + size]];
+	assert.equal(polygonsPairwiseDisjoint([square(0, 0), square(4, 0)]), true);
+	assert.equal(polygonsPairwiseDisjoint([square(0, 0), square(2, 0)]), false, "shared edge");
+	assert.equal(polygonsPairwiseDisjoint([square(0, 0), [[1, -1], [3, 1], [1, 3], [-1, 1]]]), false, "crossing boundaries");
+	assert.equal(polygonsPairwiseDisjoint([square(0, 0), square(0.5, 0.5, 0.25)]), false, "containment");
+	assert.equal(polygonsPairwiseDisjoint([square(0, 0), [[2, 0], [3, 1], [2, 2], [1, 1]]]), false, "shared vertex");
+	assert.equal(polygonsPairwiseDisjoint([square(0, 0)]), true, "one polygon is vacuously disjoint");
+	assert.equal(polygonsPairwiseDisjoint([]), false, "an empty instance has no map");
+});
+
+test("last-step map eligibility rejects degenerate and non-convex polygons", () => {
+	assert.equal(polygonsPairwiseDisjoint([[[0, 0], [1, 0], [2, 0]]]), false, "zero area");
+	assert.equal(polygonsPairwiseDisjoint([[[0, 0], [2, 0], [1, 1], [1, 0.2], [0, 1]]]), false, "concave polygon");
+	assert.equal(polygonsPairwiseDisjoint([[[0, 0], [1, 0], [Number.NaN, 1]]]), false, "non-finite vertex");
 });
 
 test("partition completion settles before redraw callbacks run", async () => {

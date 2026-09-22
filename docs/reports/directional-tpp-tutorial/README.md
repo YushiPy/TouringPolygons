@@ -28,7 +28,7 @@ disjoint locator's scan removal; it is not pinned to a committed revision.
 For validation, see `packages/convex-tpp/cpp/src/core/ordered_path_validation.cpp`,
 `packages/convex-tpp/cpp/src/main-directional_tests.cpp`,
 `packages/convex-tpp/cpp/src/main-intersection_audit.cpp`, and
-`apps/visualizer-server/wasm/test-intersections.mjs`.
+`apps/benchmark-dashboard/wasm/test-intersections.mjs`.
 
 The separate `web/` edition is an earlier static port of twelve figures. It
 has not yet been synchronized with the expanded LaTeX tutorial; use the PDF

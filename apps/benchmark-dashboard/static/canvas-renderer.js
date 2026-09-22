@@ -1,3 +1,5 @@
+import { drawLastStepMap } from "./last-step-map.js";
+
 export function drawCanvasScene(renderer) {
 	if (!renderer.canvas || !renderer.ctx) {
 		return;
@@ -9,6 +11,9 @@ export function drawCanvasScene(renderer) {
 		return;
 	}
 	const ctx = renderer.ctx;
+	if (renderer.layers.lastStepMap && renderer.lastStepMapData) {
+		drawLastStepMap(renderer, renderer.lastStepMapData);
+	}
 	if (renderer.layers.solution && renderer.solutionPath && renderer.solutionPath.length >= 2) {
 		ctx.save();
 		ctx.strokeStyle = "#facc15";

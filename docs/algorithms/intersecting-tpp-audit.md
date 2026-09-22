@@ -9,7 +9,7 @@ Status (2026-09-13): the requested faithful production hybrid is **not implement
 A counterexample to the literal pseudo-vertex construction in Tan and Jiang §4
 is established below. The disjoint binary-search/memoization solver is preserved.
 This is the mathematical/specification-obstacle outcome allowed by
-`TODO-Intersection.md`, not a claim that an exact hybrid is impossible.
+`intersecting-tpp-roadmap.md`, not a claim that an exact hybrid is impossible.
 
 ## Specification and invariants (recorded before solver edits)
 
@@ -275,7 +275,7 @@ not a numerical tolerance issue. The unchecked final fallback exposes it.
 workspace implementation, and all public solver dispatches are unchanged. No
 heuristic/fallback was removed or introduced; the incorrect intersecting
 production behavior remains exposed by failing regression tests. The user's
-untracked `TODO-Intersection.md` was left unchanged.
+the roadmap was left as a separate implementation specification.
 
 ## Verification and tolerance policy
 

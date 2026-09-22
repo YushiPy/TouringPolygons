@@ -51,50 +51,52 @@ def export_dataset(run: Path) -> dict:
     summary.pop("source")
     summary["exact_certified"] = summary.pop("numerically_certified")
     independent = json.loads((run / "summary/artifact-audit/summary.json").read_text())
-    return sanitize_public_dataset({
-        "schema_version": 1,
-        "title": "TPP com ordem livre · SIICUSP 2026",
-        "visit_order": "free",
-        "status": "completed",
-        "provenance": {
-            "date": "2026-09-06",
-            "run_id": manifest["run_id"],
-            "revision": manifest["git_revision"],
-            "suite": "algorithm-dev-v1",
-            "suite_sha256": manifest["suite_sha256"],
-            "results_sha256": summary["sha256"],
-            "binary_sha256": manifest["binary_sha256"],
-            "machine": "MacBook Pro · Apple M4 Pro · 24 GB · macOS 26.6.2",
-        },
-        "config": {
-            key: manifest[key]
-            for key in (
-                "threads",
-                "max_seconds",
-                "max_calls",
-                "solver_visit_tolerance",
-                "independent_geometry_tolerance",
-            )
-        },
-        "summary": summary,
-        "independent_validation": {
-            key: independent[key]
-            for key in (
-                "socp_cases",
-                "max_socp_objective_difference",
-                "independent_interruptions",
-                "interruption_termination_counts",
-            )
-        },
-        "notes": [
-            "Recorded on 6 September 2026: development suite, fixed endpoints, free visit order.",
-            "Completed cases are certified by the exact solver, which uses exact geometric predicates and rational fallback.",
-            "All stored paths independently validated at 1e-7. Time-limited cases have a feasible path but no completed exact certification.",
-            "This is the adopted confirmation run. The earlier interrupted campaign is excluded.",
-            "The external comparison has different tolerances and is not evidence of universal speedup.",
-        ],
-        "rows": rows,
-    })
+    return sanitize_public_dataset(
+        {
+            "schema_version": 1,
+            "title": "TPP com ordem livre · SIICUSP 2026",
+            "visit_order": "free",
+            "status": "completed",
+            "provenance": {
+                "date": "2026-09-06",
+                "run_id": manifest["run_id"],
+                "revision": manifest["git_revision"],
+                "suite": "algorithm-dev-v1",
+                "suite_sha256": manifest["suite_sha256"],
+                "results_sha256": summary["sha256"],
+                "binary_sha256": manifest["binary_sha256"],
+                "machine": "MacBook Pro · Apple M4 Pro · 24 GB · macOS 26.6.2",
+            },
+            "config": {
+                key: manifest[key]
+                for key in (
+                    "threads",
+                    "max_seconds",
+                    "max_calls",
+                    "solver_visit_tolerance",
+                    "independent_geometry_tolerance",
+                )
+            },
+            "summary": summary,
+            "independent_validation": {
+                key: independent[key]
+                for key in (
+                    "socp_cases",
+                    "max_socp_objective_difference",
+                    "independent_interruptions",
+                    "interruption_termination_counts",
+                )
+            },
+            "notes": [
+                "Recorded on 6 September 2026: development suite, fixed endpoints, free visit order.",
+                "Completed cases are certified by the exact solver, which uses exact geometric predicates and rational fallback.",
+                "All stored paths independently validated at 1e-7. Time-limited cases have a feasible path but no completed exact certification.",
+                "This is the adopted confirmation run. The earlier interrupted campaign is excluded.",
+                "The external comparison has different tolerances and is not evidence of universal speedup.",
+            ],
+            "rows": rows,
+        }
+    )
 
 
 def main() -> None:
