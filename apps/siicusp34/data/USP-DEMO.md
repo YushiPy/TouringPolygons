@@ -17,10 +17,10 @@ foi autorizado pelo autor, mas não declaramos uma licença aberta nova.
 
 O arquivo `polygons.csv` da suíte liga cada região ao `fid`, ao identificador
 do QGIS, ao nome e à fonte usada para conferir o nome. Vários rótulos são
-provisórios. Em particular, os IDs `ime-a` e `ime-c` **não confirmam** a
-existência de blocos A e C no IME: a página os apresenta como edifícios
-próximos ao IME ainda sem identificação. O `ime-b` é o alvo destacado junto à
-partida. Há alvos compostos e a Praça dos Bancos, portanto “50 regiões” é
+provisórios. O autor confirmou que `ime-a`, `ime-b` e `ime-c` são,
+respectivamente, os blocos A, B e C do IME. Os três aparecem em dourado no
+mapa, e o ponto de partida fica junto ao bloco B. Há alvos compostos e a Praça
+dos Bancos, portanto “50 regiões” é
 mais preciso que “50 prédios”. Nenhum contorno deve ser interpretado como
 limite institucional ou representação completa de uma unidade.
 
@@ -69,8 +69,8 @@ ordem estão disponíveis em um painel recolhido.
 
 ## Revisão antes da publicação
 
-1. Conferir os 50 rótulos no local ou em fonte institucional, sobretudo
-   `ime-a`, `ime-c` e os marcados como provisórios em `polygons.csv`.
+1. Conferir os rótulos ainda marcados como provisórios em `polygons.csv`;
+   os três blocos do IME já foram identificados pelo autor.
 2. Conferir os contornos, a posição de partida e a licença/publicabilidade
    das geometrias desenhadas a partir do mapa-base.
 3. Caso qualquer vértice ou extremo mude, regenerar a suíte e esta exportação;

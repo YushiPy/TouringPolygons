@@ -956,7 +956,7 @@ async function initialize() {
 			const index = Number(polygon.dataset.region);
 			const contact = row.visualization.contacts[index];
 			const visited = Boolean(contact) && fraction + 1e-12 >= contact.fraction;
-			const colors = row.case === "usp" && row.buildings[index].id === "ime"
+			const colors = row.case === "usp" && ["ime-a", "ime-b", "ime-c"].includes(row.buildings[index].qgis_id)
 				? { fill: visited ? "#e6ac63aa" : "#ffcf8b55", stroke: "#ffdcaa" }
 				: regionColors(row.order.indexOf(index), row.polygons, visited);
 			polygon.style.fill = colors.fill;
@@ -995,7 +995,7 @@ async function initialize() {
 		mapContent.innerHTML = `${hulls ? row.geometry.polygons.map((polygon) => `<polygon class="hull" points="${coordinates(convexHull(polygon).map(projected.project))}"/>`).join("") : ""}
 			${projected.polygons.map((polygon, index) => {
 				const visited = fraction + 1e-12 >= (row.visualization.contacts[index]?.fraction ?? Infinity);
-				const colors = row.case === "usp" && row.buildings[index].id === "ime"
+				const colors = row.case === "usp" && ["ime-a", "ime-b", "ime-c"].includes(row.buildings[index].qgis_id)
 					? { fill: visited ? "#e6ac63aa" : "#ffcf8b55", stroke: "#ffdcaa" }
 					: regionColors(row.order.indexOf(index), row.polygons, visited);
 				return `<polygon class="region" data-region="${index}" points="${coordinates(polygon)}" style="fill:${colors.fill};stroke:${colors.stroke}"><title>${row.case === "usp" ? escapeHTML(row.buildings[index].label) : `Região ${index + 1}`}; ${row.order.indexOf(index) + 1}ª visita</title></polygon>`;
@@ -1054,7 +1054,7 @@ async function initialize() {
 			else button.removeAttribute("aria-current");
 		});
 		const isUsp = row.case === "usp";
-		element("route-endpoint-legend").textContent = isUsp ? "IME dourado · S = T na entrada" : "S partida · T chegada";
+		element("route-endpoint-legend").textContent = isUsp ? "Blocos A, B e C do IME dourados · S = T na entrada" : "S partida · T chegada";
 		element("usp-demo-details").hidden = !isUsp;
 		element("usp-current-stop").hidden = !isUsp;
 		element("show-decomposition").disabled = isUsp;

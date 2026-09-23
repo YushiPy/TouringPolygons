@@ -39,10 +39,11 @@ O fluxo da página após a revisão de setembro de 2026 é:
 A simulação fica na etapa do algoritmo e usa um pseudocódigo didático com
 palavras-chave coloridas e destaque da linha associada ao evento visível.
 O registro não mostra cada instrução executada. A demonstração da USP usa
-50 contornos desenhados manualmente pelo usuário no QGIS e exportados da suíte
-local `benchmarks/suites/usp-butanta-50`. Os rótulos e a licença de
-redistribuição das geometrias ainda precisam de revisão; dois IDs próximos ao
-IME não devem ser divulgados como blocos A e C confirmados.
+50 contornos desenhados manualmente no QGIS e exportados da suíte local
+`benchmarks/suites/usp-butanta-50`. O autor confirmou que `ime-a`, `ime-b` e
+`ime-c` representam os blocos A, B e C do IME; os três são dourados. Outros
+rótulos provisórios e a licença de redistribuição dos contornos ainda exigem
+revisão antes da publicação externa.
 
 A explicação do algoritmo começa com uma definição curta do TPP de ordem livre,
 segue a busca por ordem parcial, inserção em todas as posições, refinamento em
@@ -114,79 +115,44 @@ Os caminhos da nova rodada estão em `benchmarks/results-saved/german-comparison
 
 O relatório `touring-polygons-benchmark-report.pdf` mencionado na conversa não serve como comparação com os alemães: a análise interpretada anteriormente comparava variantes internas do nosso solver e, em parte, problemas diferentes. Não reutilizar a afirmação de que “liberar a ordem melhorou 488 de 498 casos” como evidência contra Fekete et al.
 
-Quando a campanha terminar, a atualização pública deve ser pequena: números, rótulos, metodologia e, se necessário, um gráfico/tabela. Não redesenhar a página para atualizar o benchmark.
+A página já usa a rodada salva da campanha. Atualizações dos resultados devem preservar juntos entrada, configuração, dados brutos, análise e proveniência; depois, regenerar `data/event-data.js` e revisar as afirmações públicas.
 
-## Campanha externa de seis horas
+## Estado atual da publicação
 
-O runner está em:
+A versão atual é formada por arquivos separados em `apps/siicusp34`:
 
-`python3 benchmarks/tpp.py run-fekete`
+- `index.html` (~51 kB), `styles.css` (~88 kB), `app.js` (~116 kB) e os SVGs;
+- `data/usp-demo.js` (~63 kB): 50 regiões do campus, fora do corpus;
+- `data/challenge-data.js` (~270 kB): três desafios sintéticos;
+- `data/event-data.js` (~10,5 MB): 558 casos e comparação experimental;
+- `data/trace-data.js` (~5,5 MB): 186 registros de execução.
 
-Comando a partir da raiz:
+Não há backend, WASM, `fetch` ou mapas carregados em tempo de visita. Os dados
+estáticos grandes são scripts externos carregados pela página; o total bruto
+inicial ainda é de aproximadamente 16,6 MB. A página funciona com uma pasta
+estática, mas esse peso deve ser medido em um celular real na rede do evento.
+O [README](README.md) contém os comandos de prévia local e na mesma rede Wi-Fi.
 
-```bash
-python3 benchmarks/tpp.py run-fekete --workers 8
-```
+## Pendências e prioridades
 
-Para uma máquina dedicada com 12 threads:
+Antes de publicar a URL do QR code:
 
-```bash
-python3 benchmarks/tpp.py run-fekete --workers 12
-```
+1. Conferir os nomes ainda provisórios em `polygons.csv`, os 50 contornos e a
+   permissão de publicação das geometrias desenhadas sobre o mapa-base OSM.
+2. Testar a rota, os três desafios, a simulação, a tabela e o contato em um
+   celular físico; verificar carregamento, zoom, leitura e funcionamento na
+   rede do evento.
+3. Revisar com o orientador a linguagem do algoritmo e a equivalência da
+   comparação experimental, incluindo formulação, tolerâncias e status.
+4. Fixar a URL pública antes de gerar o QR code do pôster e dos slides.
 
-Cada worker executa um processo independente com uma thread. O runner grava checkpoints atômicos, reaproveita certificados compatíveis do benchmark de 10 segundos e não repete instâncias concluídas. Ao interromper, perde-se apenas o trabalho das instâncias que estavam rodando naquele momento.
+Depois do fluxo central estar estável, medir o custo dos dois arquivos grandes
+e considerar carregamento sob demanda dos casos e traces, preservando uma
+abertura imediata da rota da USP. Uma página técnica separada e a ligação entre
+o desafio final e uma árvore registrada são opcionais.
 
-Oito workers foram escolhidos como padrão conservador para preservar responsividade e margem térmica. Doze são aceitáveis se a máquina estiver dedicada à campanha.
-
-Também foi considerada uma rodada do nosso solver com parada em gap de 0,1%, para comparação simétrica de tempo. Ela pode fortalecer a análise, mas não é necessária para mostrar que nosso solver concluiu as 558 instâncias sob as tolerâncias declaradas. Não vale atrasar o site ou o pôster esperando essa rodada.
-
-## Estado atual da versão estática
-
-`apps/siicusp34/index.html` é uma exportação estática da experiência de `/evento`:
-
-- CSS e JavaScript embutidos;
-- 558 instâncias embutidas;
-- 186 traces embutidos;
-- nenhum `fetch`, endpoint de API, backend ou WASM;
-- favicon local como o único arquivo adicional.
-
-O HTML tem aproximadamente 16,8 MiB. Esse tamanho foi aceito temporariamente para preservar a versão anterior sem novas alterações. Os dados e o solver local são arquivos estáticos; não há dependência de `apps/visualizer-local` ou de outro app do repositório. Antes da publicação, podemos reduzir o carregamento mantendo o site estático, por exemplo:
-
-- embutir apenas os casos de abertura e carregar o restante de JSONs estáticos sob demanda;
-- separar traces raramente vistos;
-- comprimir os dados no processo de deploy;
-- manter o primeiro exemplo e seu playback disponíveis imediatamente.
-
-Qualquer otimização deve preservar o funcionamento offline ou ter uma versão offline equivalente.
-
-## Melhorias futuras possíveis
-
-Prioridade alta:
-
-- revisar todas as afirmações da comparação para garantir equivalência de problema e critério;
-- escolher os três melhores exemplos para abertura, variedade geométrica e valor didático;
-- revisar textos com o orientador;
-- testar o fluxo completo em celular e na rede do evento;
-- gerar o QR code somente depois de estabilizar a URL pública.
-
-Prioridade média:
-
-- relacionar o desafio final à execução registrada do branch-and-bound;
-- oferecer explicações curtas para incumbente, limite inferior, ramificação e poda;
-- mostrar claramente a diferença entre caminho viável, busca concluída com gap numérico fechado e solução apenas factível;
-- reduzir o peso inicial sem remover conteúdo;
-- considerar uma página técnica separada para colaboradores.
-
-Evitar:
-
-- hero genérico que esconda a demonstração real;
-- caminhos curvos ou pontos de contato apenas decorativos;
-- remover a tabela ou resultados em nome de minimalismo;
-- expor o Research Workbench ao público;
-- comparar problemas diferentes;
-- publicar números provisórios como conclusão;
-- usar WASM quando dados registrados ou JavaScript simples resolvem o mesmo objetivo;
-- recomeçar o design sem primeiro preservar e validar os elementos já apreciados.
+O prazo do pôster é 1º de outubro. Isso torna revisão científica, URL e teste
+em celular prioritários em relação a novas interações ou expansão de conteúdo.
 
 ## Critério de sucesso
 

@@ -188,10 +188,7 @@ def build(solver: Path) -> dict:
             {
                 "id": "ime" if row["qgis_id"] == "ime-b" else row["qgis_id"],
                 "qgis_id": row["qgis_id"],
-                "label": (
-                    "Edifício próximo ao IME 1 · identificação pendente" if row["qgis_id"] == "ime-a" else
-                    "Edifício próximo ao IME 2 · identificação pendente" if row["qgis_id"] == "ime-c" else row["name"]
-                ),
+                "label": row["name"],
                 "name_status": row["name_status"],
                 "fid": int(row["fid"]),
             }
@@ -238,8 +235,8 @@ def write_preview(demo: dict, width: int, height: int, output: Path) -> None:
     for index, polygon in enumerate(demo["geometry"]["polygons"]):
         rank = demo["order"].index(index)
         hue = round(105 + 70 * rank / (demo["polygons"] - 1))
-        fill = "#b97732" if demo["buildings"][index]["id"] == "ime" else f"hsl({hue} 58% 42% / .68)"
-        stroke = "#ffdcaa" if demo["buildings"][index]["id"] == "ime" else "#b6e8dc"
+        fill = "#b97732" if demo["buildings"][index]["qgis_id"] in {"ime-a", "ime-b", "ime-c"} else f"hsl({hue} 58% 42% / .68)"
+        stroke = "#ffdcaa" if demo["buildings"][index]["qgis_id"] in {"ime-a", "ime-b", "ime-c"} else "#b6e8dc"
         shapes.append(f'<polygon points="{path_points(polygon)}" fill="{fill}" stroke="{stroke}" stroke-width="1.5"/>')
         if demo["polygons"] <= 15:
             x, y = map_point(centroid(polygon))
