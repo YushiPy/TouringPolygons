@@ -9,7 +9,7 @@ O site é a extensão interativa do pôster. Seu papel é fazer o visitante:
 1. entender visualmente o Touring Polygons Problem;
 2. perceber que escolher ordem e pontos de visita é difícil;
 3. ver um caminho real sendo construído;
-4. acompanhar como o algoritmo encontra e certifica uma solução;
+4. acompanhar como o algoritmo conclui a busca pelo menor caminho no modelo;
 5. sair com uma evidência experimental clara e defensável.
 
 O `TPP Research Workbench` é uma ferramenta interna. Ele pode ajudar pesquisadores e colaboradores, mas não deve aparecer na experiência pública. O site do QR code deve ter uma única entrada, sem rotas antigas ou ferramentas de laboratório expostas.
@@ -23,7 +23,7 @@ O `TPP Research Workbench` é uma ferramenta interna. Ele pode ajudar pesquisado
 - Preservar a densidade científica sem transformar a página em um workbench.
 - Fazer mudanças incrementais sobre a experiência existente. Antes de uma reformulação visual ampla, validar o que será perdido.
 
-A rota `/evento` do `benchmark-dashboard` é a referência visual e funcional atual. A pasta `apps/siicusp34` contém uma versão estática congelada dessa experiência, sem backend ou WebAssembly.
+`apps/siicusp34` é a publicação estática autocontida do evento, sem backend ou WebAssembly. Sua implementação atual deve ser examinada diretamente; materiais antigos de outras aplicações não são fonte para esta página.
 
 ## Fluxo desejado para o visitante
 
@@ -41,6 +41,13 @@ palavras-chave coloridas e destaque da linha associada ao evento visível.
 O registro não mostra cada instrução executada. A demonstração da USP usa
 contornos OSM provisórios; IME e FEA precisam de revisão manual antes de
 servirem como ilustração cartográfica confiável.
+
+A explicação do algoritmo começa com uma definição curta do TPP de ordem livre,
+segue a busca por ordem parcial, inserção em todas as posições, refinamento em
+peças convexas e poda por limite inferior. Antes da simulação, explica por que
+o subproblema convexo de ordem fixa é tratável e por que `L ≥ U` permite podar.
+A página relata conclusão da busca, status e tolerâncias; não promete ao
+visitante um certificado independente para download ou verificação.
 
 Os três desafios têm funções diferentes:
 
@@ -86,13 +93,13 @@ Pontos que devem ser respeitados:
 - A comparação deve colocar os dois solvers no mesmo problema adaptado, com extremos fixos e ordem livre.
 - Cada instância deve usar uma única thread. Rodar várias instâncias simultaneamente não deixa de ser uma comparação single-core por instância.
 - Multithreading interno não deve ser usado como argumento principal de desempenho, pois aumentar núcleos seria uma forma fácil e potencialmente enganosa de melhorar o número.
-- Devem ser publicados hardware, limite de tempo, tolerância de gap, número de threads, versão/revisão e critérios de certificação.
+- Devem ser publicados hardware, limite de tempo, tolerância de gap, número de threads, versão/revisão e critérios de término e limites numéricos.
 - “Exato” e “gap menor ou igual a 0,1%” não são a mesma coisa e devem aparecer separados.
 - Resultados parciais da campanha de seis horas não devem ser apresentados como resultado final.
 
 Resultados publicados na versão atual:
 
-- nosso solver: 558/558 instâncias certificadas exatamente;
+- nosso solver: 558/558 instâncias concluídas com `termination=optimal` e gap dentro das tolerâncias declaradas;
 - 477/558 instâncias do nosso solver foram resolvidas em menos de 10 segundos;
 - no conjunto comum concluído, o speedup mediano Fekete/nosso é 5,11× e nosso solver é mais rápido em 492/550 casos;
 - solver de Fekete et al.: 550/558 concluídas; 8 instâncias não foram concluídas no limite de seis horas.
@@ -125,7 +132,7 @@ Cada worker executa um processo independente com uma thread. O runner grava chec
 
 Oito workers foram escolhidos como padrão conservador para preservar responsividade e margem térmica. Doze são aceitáveis se a máquina estiver dedicada à campanha.
 
-Também foi considerada uma rodada do nosso solver com parada em gap de 0,1%, para comparação simétrica de tempo. Ela pode fortalecer a análise, mas não é necessária para provar que nosso solver certificou exatamente as 558 instâncias. Não vale atrasar o site ou o pôster esperando essa rodada.
+Também foi considerada uma rodada do nosso solver com parada em gap de 0,1%, para comparação simétrica de tempo. Ela pode fortalecer a análise, mas não é necessária para mostrar que nosso solver concluiu as 558 instâncias sob as tolerâncias declaradas. Não vale atrasar o site ou o pôster esperando essa rodada.
 
 ## Estado atual da versão estática
 
@@ -161,7 +168,7 @@ Prioridade média:
 - tornar os desafios ligeiramente menos óbvios;
 - relacionar o desafio final à execução registrada do branch-and-bound;
 - oferecer explicações curtas para incumbente, limite inferior, ramificação e poda;
-- mostrar claramente a diferença entre caminho viável, ótimo certificado e solução dentro de tolerância;
+- mostrar claramente a diferença entre caminho viável, busca concluída com gap numérico fechado e solução apenas factível;
 - reduzir o peso inicial sem remover conteúdo;
 - considerar uma página técnica separada para colaboradores.
 

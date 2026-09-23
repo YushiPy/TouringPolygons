@@ -505,7 +505,7 @@ async function initialize() {
 		if (speedupElement && Number.isFinite(medianSpeedup)) speedupElement.textContent = `${number(medianSpeedup, 2)}×`;
 		if (fasterElement) fasterElement.innerHTML = `${Number(comparison.ours_faster_count || 0)}<span>/ ${common}</span>`;
 		const note = element("result-benchmark-note");
-		if (note) note.textContent = `Corpus de instâncias usado por Fekete et al. no artigo. Nosso solver certificou ${certified}/${cases}; no conjunto comum concluído, o speedup mediano Fekete/nosso foi ${number(medianSpeedup, 2)}×. O solver de Fekete et al. não concluiu ${comparison.fekete_unresolved ?? "—"} instâncias no limite de 6 horas.`;
+		if (note) note.textContent = `Corpus de instâncias usado por Fekete et al. no artigo. Nosso solver concluiu ${certified}/${cases}; no conjunto comum concluído, o speedup mediano Fekete/nosso foi ${number(medianSpeedup, 2)}×. O solver de Fekete et al. não concluiu ${comparison.fekete_unresolved ?? "—"} instâncias no limite de 6 horas.`;
 		const setText = (id, value) => { const target = element(id); if (target) target.textContent = value; };
 		const duration = (value) => formatDuration(value);
 		const hours = (value) => Number.isFinite(Number(value)) ? `${number(Number(value), 2)} h` : "—";
@@ -771,7 +771,7 @@ async function initialize() {
 		const visible = events.length > 42 ? events.slice(-42) : events;
 		element("trace-tree").innerHTML = visible.length ? visible.map((event) => {
 			const sequence = traceLabels(trace.optimal_order || traceRow.order, event.sequence || []);
-			const label = event.kind === "root" ? "Raiz" : event.kind === "expand" ? `Expande ${sequence}` : event.kind === "branch" ? `Branching em ${traceLabel(trace.optimal_order || traceRow.order, event.polygon)}` : event.kind === "child" ? `${event.pruned ? "Poda" : "Fila"}: ${sequence}` : event.kind === "prune" ? `Poda: ${sequence}` : "Certificado";
+			const label = event.kind === "root" ? "Raiz" : event.kind === "expand" ? `Expande ${sequence}` : event.kind === "branch" ? `Branching em ${traceLabel(trace.optimal_order || traceRow.order, event.polygon)}` : event.kind === "child" ? `${event.pruned ? "Poda" : "Fila"}: ${sequence}` : event.kind === "prune" ? `Poda: ${sequence}` : "Busca concluída";
 			const detail = event.kind === "child" && Number.isFinite(Number(event.lower_bound)) ? `LB ${traceNumber(event.lower_bound, 3)}` : event.kind === "complete" ? `UB ${traceNumber(event.upper_bound ?? trace.summary?.upper_bound, 3)}` : "";
 			const indent = Math.min(Array.isArray(event.sequence) ? event.sequence.length : 0, 8);
 			return `<div class="trace-tree-item ${event.pruned ? "is-pruned" : ""} ${event.kind === "complete" ? "is-complete" : ""}" style="--trace-depth:${indent}"><span>${traceEscape(label)}</span><small>${traceEscape(detail)}</small></div>`;
@@ -1016,8 +1016,8 @@ async function initialize() {
 		camera();
 		updateLayerNotes();
 		element("map-title").textContent = row.case === "usp"
-			? `Rota fechada do IME por ${row.polygons} edifícios da USP, certificada numericamente.`
-			: `Caso ${caseLabel(row.case)}: caminho mínimo certificado por ${row.polygons} regiões.`;
+			? `Rota fechada do IME por ${row.polygons} edifícios da USP, com gap numérico fechado.`
+			: `Caso ${caseLabel(row.case)}: busca concluída para ${row.polygons} regiões.`;
 		drawRoute();
 	}
 
@@ -1057,7 +1057,7 @@ async function initialize() {
 		}
 		element("speed-value").title = `A 1×, este caso leva ${number(playbackDuration(row.polygons) / 1000, 1)} s para percorrer o caminho.`;
 		element("outcome-badge").className = "status certified";
-		element("outcome-badge").textContent = isUsp ? "✓ Gap numérico fechado" : "✓ Certificado";
+		element("outcome-badge").textContent = isUsp ? "✓ Gap numérico fechado" : "✓ Busca concluída";
 		element("outcome-title").textContent = isUsp ? "Rota da USP" : "Caminho mínimo";
 		element("outcome-explanation").textContent = isUsp
 			? "O solver C++ fechou os limites numéricos nesta instância; ela não integra as estatísticas do corpus."
@@ -1079,7 +1079,7 @@ async function initialize() {
 	function renderTable() {
 		const rows = sortRows(data.rows, sorting.result.key, sorting.result.descending);
 		const visible = showAllResults ? rows : rows.slice(0, 8);
-		element("result-count").textContent = `${rows.length} instâncias certificadas.`;
+		element("result-count").textContent = `${rows.length} instâncias concluídas.`;
 		const toggle = rows.length > 8 ? `<tr class="result-toggle-row"><td colspan="4"><button type="button" data-toggle-results aria-expanded="${showAllResults}">${showAllResults ? "Mostrar somente os 8 destaques ↑" : `Ver todos os ${rows.length} resultados ↓`}</button></td></tr>` : "";
 		element("result-rows").innerHTML = visible.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Caso </span>${caseLabel(item.case)}</th><td data-label="Regiões">${item.polygons}</td><td data-label="Tempo">${formatDuration(item.seconds)}</td><td class="result-action"><button type="button" data-open-case="${item.case}" aria-label="Ver caminho do caso ${item.case + 1}">Ver caminho →</button></td></tr>`).join("") + toggle;
 	}
@@ -1581,7 +1581,7 @@ function initializePieceChallenge(combined = false) {
 		ui("reset").disabled = choices.every((piece) => piece === null);
 		const chosenSequence = (combined ? order : letters.map((_, index) => index)).map(region => `${letters[region]}${choices[region] + 1}`).join(" → ");
 		const bestSequence = (combined ? best.order : letters.map((_, index) => index)).map(region => `${letters[region]}${best.choices[region] + 1}`).join(" → ");
-		const impact = combined ? '<aside class="challenge-impact"><strong>Achou difícil?</strong> Em um caso da pesquisa com mais de 2 × 10<sup>66</sup> possibilidades brutas, nosso algoritmo certificou o melhor caminho em 1,51 segundo. Mesmo que 10 bilhões de computadores testassem uma combinação por nanossegundo, levariam cerca de 7 × 10<sup>39</sup> anos, muito depois de o Sol se tornar uma gigante vermelha e possivelmente engolir a Terra <a href="#ref-sun">[5]</a>.</aside>' : "";
+		const impact = combined ? '<aside class="challenge-impact"><strong>Achou difícil?</strong> Em um caso da pesquisa com mais de 2 × 10<sup>66</sup> possibilidades brutas, nosso algoritmo encontrou o melhor caminho em 1,51 segundo. Mesmo que 10 bilhões de computadores testassem uma combinação por nanossegundo, levariam cerca de 7 × 10<sup>39</sup> anos, muito depois de o Sol se tornar uma gigante vermelha e possivelmente engolir a Terra <a href="#ref-sun">[5]</a>.</aside>' : "";
 		ui("feedback").innerHTML = compared ? `<strong>${selected.length - best.length < .00001 ? "Você encontrou uma das melhores combinações!" : `Seu caminho ficou ${number(100 * (selected.length / best.length - 1), 1)}% mais longo.`}</strong>${challengeComparison("Sua escolha", selected.length, `Melhor das ${data.solutions.length.toLocaleString("pt-BR")}`, best.length, combined ? "Solução" : "Peças", chosenSequence, bestSequence)}${impact}` : "";
 		if (compared) animateChallengeRoute(map);
 	}
@@ -1778,7 +1778,7 @@ function initializeDisclosures() {
 function initializeGuide() {
 	const copy = {
 		desafio: ["2", "Tente você mesmo!", "Escolha a ordem de visita e compare com o solver."],
-		metodo: ["3", "Como o algoritmo resolve", "A geometria, a busca e uma execução comentada."],
+		metodo: ["3", "Como o algoritmo resolve", "Rota inicial, ramificações, limites e uma execução passo a passo."],
 		historia: ["4", "Trabalhos anteriores", "Uma linha do tempo do TPP até este solver autocontido."],
 		resultados: ["5", "O que melhoramos", "Compare os resultados deste solver com os anteriores."],
 		contato: ["6", "Fale com o autor", "Comentários, dúvidas ou uma conversa sobre a pesquisa."],
