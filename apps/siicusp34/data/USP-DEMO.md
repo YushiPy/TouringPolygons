@@ -22,6 +22,12 @@ com contornos identificáveis no recorte. Ela foi feita para seleção posterior
 24 números podem ficar densos em um celular, por isso a camada de rótulos pode
 ser ligada separadamente.
 
+**Revisão pendente:** o alvo IME é somente o objeto OSM chamado “Bloco B”;
+os dados desta instância não incluem alvos chamados blocos A ou C do IME.
+O alvo FEA é somente o objeto “FEA 2”, não o conjunto de edifícios da
+faculdade. O desenho do OSM pode diferir do contorno observado no local. Os
+nomes institucionais não devem ser interpretados como limites de cada unidade.
+
 | Alvo | Contorno | Vínculo institucional no recorte |
 | --- | --- | --- |
 | IME · Bloco B | [`way/154079142`](https://www.openstreetmap.org/way/154079142) | área OSM `way/154079145` |
@@ -104,3 +110,33 @@ O JSON exportado registra SHA-256 da fonte, do binário e da entrada do solver,
 além de formulação, projeção, limites e tolerâncias. O exportador também cria
 `usp-preview.svg` e `usp-preview-mobile.svg`, visíveis enquanto os scripts
 estáticos carregam.
+
+## Como revisar os contornos
+
+1. No QGIS, crie um projeto em **EPSG:4326 (WGS84)** e carregue uma base com
+   permissão de derivação, por exemplo os dados do OpenStreetMap. Use a imagem
+   do Apple Maps apenas para apontar uma dúvida a conferir; não copie dela
+   vértices ou traçados para a publicação sem licença compatível.
+2. Crie uma camada **GeoJSON de polígonos**, com campos `id`, `label`,
+   `source` e `license`. Use os mesmos IDs de `usp-footprints.json` para
+   substituir os alvos existentes (`ime`, `fea`, `bienio` etc.). Desenhe
+   cada alvo como um único polígono simples, sem buracos e sem auto-interseções.
+   Se a unidade ocupa vários edifícios separados, mantenha alvos separados
+   com IDs distintos; não una tudo por um fecho convexo que inventaria área.
+3. Confira no local ou em fonte institucional autorizada qual edifício cada
+   contorno representa. Para o IME, marque também o ponto proposto para
+   partida/retorno fora do novo contorno; o ponto atual foi construído a partir
+   da entrada no contorno OSM e pode deixar de ser válido após a correção.
+4. Exporte **GeoJSON em EPSG:4326**, preservando os campos e um arquivo de
+   notas com data, fonte, licença, referência e dúvidas de cada alvo. O arquivo
+   pode ser enviado para revisão e conversão à lista `lon_lat` em
+   `usp-footprints.json`. Não arredonde os vértices para a tela.
+5. Antes de publicar, confira orientação, escala, interseções, extremos e
+   rótulos; regenere `usp-demo.js` e os SVGs pelo exportador, que recalcula a
+   solução no C++ e rejeita ausência de certificado numérico ou rota que não
+   visite algum alvo. Atualize os números, a atribuição e esta proveniência.
+
+O formato GeoJSON permite editar os vértices visualmente no QGIS sem mexer no
+arquivo da instância nem na implementação. A escolha de prédio ou área como
+alvo deve ser explícita: trocar o contorno também troca o problema matemático
+e exige nova resolução, mesmo que o mapa pareça semelhante.

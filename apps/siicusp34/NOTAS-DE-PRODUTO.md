@@ -27,14 +27,20 @@ A rota `/evento` do `benchmark-dashboard` é a referência visual e funcional at
 
 ## Fluxo desejado para o visitante
 
-O fluxo discutido foi:
+O fluxo da página após a revisão de setembro de 2026 é:
 
-1. ver exemplos e entender o problema;
-2. tentar tomar as decisões manualmente;
-3. perceber que o desafio final é difícil;
-4. observar o branch-and-bound resolvendo esse mesmo desafio;
-5. conhecer os resultados no corpus de benchmark;
-6. aprofundar-se no método, histórico e referências se tiver interesse.
+1. explorar a rota da USP, uma demonstração independente do corpus;
+2. tentar os três desafios;
+3. ver o problema, o método e a simulação registrada do algoritmo;
+4. conhecer os trabalhos anteriores;
+5. comparar os resultados no corpus de 558 instâncias;
+6. conversar com o autor e consultar as referências.
+
+A simulação fica na etapa do algoritmo e usa um pseudocódigo didático com
+palavras-chave coloridas e destaque da linha associada ao evento visível.
+O registro não mostra cada instrução executada. A demonstração da USP usa
+contornos OSM provisórios; IME e FEA precisam de revisão manual antes de
+servirem como ilustração cartográfica confiável.
 
 Os três desafios têm funções diferentes:
 

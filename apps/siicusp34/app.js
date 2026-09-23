@@ -27,6 +27,18 @@ function escapeHTML(value) {
 	})[character]);
 }
 
+function highlightPseudocode(source) {
+	const pattern = /(?<![\p{L}_])(para|enquanto|senão|se|continuar|retornar)(?![\p{L}_])|([\p{L}_]+)(?=\()|([←≥≠∉∅])/gu;
+	let result = "", cursor = 0;
+	for (const match of source.matchAll(pattern)) {
+		result += escapeHTML(source.slice(cursor, match.index));
+		const kind = match[1] ? "code-keyword" : match[2] ? "code-function" : "code-operator";
+		result += `<span class="${kind}">${escapeHTML(match[0])}</span>`;
+		cursor = match.index + match[0].length;
+	}
+	return result + escapeHTML(source.slice(cursor));
+}
+
 function formatDuration(value) {
 	const seconds = Number(value);
 	if (!Number.isFinite(seconds)) return "—";
@@ -71,33 +83,6 @@ function polygonCentroid(polygon) {
 	}
 	if (Math.abs(twiceArea) > 1e-12) return [centroid[0] / (3 * twiceArea), centroid[1] / (3 * twiceArea)];
 	return polygon.reduce((sum, point) => [sum[0] + point[0] / polygon.length, sum[1] + point[1] / polygon.length], [0, 0]);
-}
-
-function spreadRegionLabels(polygons, width, height, scale) {
-	const centers = polygons.map(polygonCentroid);
-	const separation = 23 * scale;
-	const positions = Array(centers.length);
-	const density = centers.map((center) => centers.filter((other) => squaredDistance(center, other) < (95 * scale) ** 2).length);
-	const placementOrder = centers.map((_, index) => index).sort((a, b) => density[b] - density[a] || a - b);
-	for (const index of placementOrder) {
-		const center = centers[index];
-		let best = center, bestScore = Infinity;
-		for (let ring = 0; ring <= 8; ring += 1) {
-			const count = ring === 0 ? 1 : 12;
-			for (let slot = 0; slot < count; slot += 1) {
-				const angle = 2 * Math.PI * slot / count;
-				const candidate = ring === 0 ? center : [center[0] + ring * 16 * scale * Math.cos(angle), center[1] + ring * 16 * scale * Math.sin(angle)];
-				if (candidate[0] < 14 * scale || candidate[0] > width - 14 * scale || candidate[1] < 14 * scale || candidate[1] > height - 14 * scale) continue;
-				const overlap = positions.filter(Boolean).reduce((total, placed) => total + Math.max(0, separation - Math.sqrt(squaredDistance(candidate, placed))) ** 2, 0);
-				const score = overlap * 100 + squaredDistance(candidate, center);
-				if (score < bestScore) { best = candidate; bestScore = score; }
-				if (overlap === 0) break;
-			}
-			if (bestScore < separation ** 2 * 2 && positions.filter(Boolean).every((placed) => squaredDistance(best, placed) >= separation ** 2)) break;
-		}
-		positions[index] = best;
-	}
-	return centers.map((center, index) => ({ center, point: positions[index] }));
 }
 
 function projectedCase(row, width = 840, height = 480) {
@@ -410,6 +395,9 @@ async function initialize() {
 	if (data.schema_version !== 1 || !data.rows.length || uspDemo?.schema_version !== 1 || uspDemo.case !== "usp") throw new Error("Dados da demonstração indisponíveis.");
 	const defaultCase = "usp";
 	let row = uspDemo;
+	let traceRow = data.rows.find((item) => item.case === 3)
+		|| data.rows.find((item) => item.case === shortTraceCases[0]?.case)
+		|| data.rows[0];
 	let projected, fraction = 1, zoom = 1, frame = 0, playing = false;
 	let routeWidth = 840, routeHeight = 480;
 	let traceEvents = [], traceIndex = 0, traceFrame = null, traceTransition = null, tracePlaying = false;
@@ -426,35 +414,55 @@ async function initialize() {
 	const traceMap = element("trace-map");
 	const hasTraceUI = Boolean(traceMapContent);
 	const traceCode = [
-		"U ← solução heurística viável",
-		"fila ← {raiz, sequência vazia}",
-		"n ← nó de menor limite inferior",
-		"(L, rota) ← relaxação convexa(n)",
-		"se L ≥ U − ε: podar n",
-		"se rota visita todos: atualizar U",
-		"P ← alvo mais distante; inserir ou refinar peça",
-		"enfileirar filhos promissores",
-		"fila vazia: retornar U, L e status",
+		[0, "U ← heurística(regiões, s, t)"],
+		[0, "fila ← {raiz(∅)}"],
+		[0, "enquanto fila ≠ ∅:"],
+		[1, "n ← melhor(fila)"],
+		[1, "(L, r) ← convexo(n)"],
+		[1, "se L ≥ U − ε: continuar"],
+		[1, "F ← não_visitados(r)"],
+		[1, "se F = ∅:"],
+		[2, "U ← min(U, comprimento(r))"],
+		[2, "continuar"],
+		[1, "P ← mais_distante(r, F)"],
+		[1, "se P ∉ n.sequência:"],
+		[2, "para i em posições(n):"],
+		[3, "filho ← inserir(n, fecho(P), i)"],
+		[3, "se promissor: enfileirar(filho)"],
+		[1, "senão:"],
+		[2, "para C em decompor(P):"],
+		[3, "filho ← refinar(n, P, C)"],
+		[3, "se promissor: enfileirar(filho)"],
+		[0, "retornar (U, L_global, status)"],
 	];
-	if (hasTraceUI) element("trace-code-lines").innerHTML = traceCode.map((line, index) => `<li data-code-line="${index}"><code>${escapeHTML(line)}</code></li>`).join("");
+	if (hasTraceUI) element("trace-code-lines").innerHTML = traceCode.map(([indent, line], index) => `<li data-code-line="${index}" style="--indent:${indent * .85}em"><code>${highlightPseudocode(line)}</code></li>`).join("");
+	let activeCodeLine = -1;
 
 	function updateTraceCode(event) {
 		const kind = event?.kind;
-		let line = kind?.startsWith("heuristic_") || (kind === "incumbent" && event.source === "heuristic") ? 0
+		const line = kind?.startsWith("heuristic_") || (kind === "incumbent" && event.source === "heuristic") ? 0
 			: kind === "root" ? 1
-			: kind === "expand" ? 2
-			: kind === "oracle" ? 3
-			: kind === "prune" || (kind === "child" && event.pruned) ? 4
-			: kind === "incumbent" ? 5
-			: kind === "branch" ? 6
-			: kind === "child" ? 7
-			: kind === "complete" ? 8 : -1;
-		setOutput(element("trace-code-active"), line < 0 ? "Escolha um caso com simulação." : `${line + 1}. ${traceCode[line]}`);
+			: kind === "expand" ? 3
+			: kind === "oracle" ? 4
+			: kind === "prune" ? 5
+			: kind === "incumbent" ? 8
+			: kind === "branch" ? (event.reason === "decomposition" ? 16 : 10)
+			: kind === "child" ? (event.piece === undefined ? 14 : 18)
+			: kind === "complete" ? 19 : -1;
+		if (line === activeCodeLine) return;
+		activeCodeLine = line;
 		element("trace-code-lines").querySelectorAll("li").forEach((item, index) => {
 			item.classList.toggle("active", index === line);
 			if (index === line) item.setAttribute("aria-current", "step");
 			else item.removeAttribute("aria-current");
 		});
+		if (line >= 0) {
+			const item = element("trace-code-lines").children[line];
+			const viewport = element("trace-code-scroll");
+			const itemBox = item.getBoundingClientRect(), viewportBox = viewport.getBoundingClientRect();
+			if (itemBox.top < viewportBox.top + 8) viewport.scrollTop += itemBox.top - viewportBox.top - 8;
+			else if (itemBox.bottom > viewportBox.bottom - 8) viewport.scrollTop += itemBox.bottom - viewportBox.bottom + 8;
+		}
 	}
 
 	function tracePickerLabel(trace) {
@@ -469,7 +477,7 @@ async function initialize() {
 		const query = element("trace-picker-search")?.value.trim() || "";
 		const rows = shortTraceCases.filter((trace) => !query || caseLabel(trace.case).includes(query));
 		element("trace-picker-count").textContent = `${rows.length} simulações disponíveis`;
-		options.innerHTML = rows.length ? rows.map((trace) => `<button type="button" data-trace-case="${trace.case}" aria-pressed="${trace.case === row.case}"><span><strong>${tracePickerLabel(trace)}</strong><small>Árvore registrada para acompanhar passo a passo</small></span></button>`).join("") : "<p>Nenhuma simulação encontrada. Experimente outro número.</p>";
+		options.innerHTML = rows.length ? rows.map((trace) => `<button type="button" data-trace-case="${trace.case}" aria-pressed="${trace.case === traceRow.case}"><span><strong>${tracePickerLabel(trace)}</strong><small>Árvore registrada para acompanhar passo a passo</small></span></button>`).join("") : "<p>Nenhuma simulação encontrada. Experimente outro número.</p>";
 	}
 
 	function populateCaseSelect() {
@@ -556,7 +564,7 @@ async function initialize() {
 		for (let index = eventIndex - 1; index >= 0; index -= 1) {
 			if (Array.isArray(traceEvents[index]?.path) && traceEvents[index].path.length) return traceEvents[index].path;
 		}
-		return row.path;
+		return traceRow.path;
 	}
 
 	function traceIncumbent(index) {
@@ -589,13 +597,13 @@ async function initialize() {
 	function traceSyntheticChildPath(event, eventIndex) {
 		if (event?.kind !== "child" || event.reason !== "bound" || !Array.isArray(event.sequence)) return null;
 		const polygonIndex = Number(event.polygon), position = Number(event.position);
-		if (!Number.isInteger(polygonIndex) || !Number.isInteger(position) || !row.geometry.polygons[polygonIndex]) return null;
+		if (!Number.isInteger(polygonIndex) || !Number.isInteger(position) || !traceRow.geometry.polygons[polygonIndex]) return null;
 		const parentSequence = [...event.sequence];
 		parentSequence.splice(position, 1);
 		const parentPath = tracePathForSequence(parentSequence, eventIndex - 1);
 		if (!parentPath || parentPath.length < 2) return null;
 		const segmentIndex = Math.max(0, Math.min(parentPath.length - 2, position));
-		const connection = closestPathPolygonConnection([parentPath[segmentIndex], parentPath[segmentIndex + 1]], row.geometry.polygons[polygonIndex]);
+		const connection = closestPathPolygonConnection([parentPath[segmentIndex], parentPath[segmentIndex + 1]], traceRow.geometry.polygons[polygonIndex]);
 		if (!connection) return null;
 		const path = parentPath.map((point) => [...point]);
 		path.splice(segmentIndex + 1, 0, connection.second);
@@ -603,7 +611,7 @@ async function initialize() {
 	}
 
 	function traceProjectedPath(index) {
-		const projection = projectedCase(row);
+		const projection = projectedCase(traceRow);
 		return traceCurrentPath(index).map(projection.project);
 	}
 
@@ -612,7 +620,7 @@ async function initialize() {
 		const connections = polygons.map((polygon, polygonIndex) => {
 			if (reached[polygonIndex]) return null;
 			const connection = closestPathPolygonConnection(path, polygon);
-			const originalConnection = closestPathPolygonConnection(originalPath, row.geometry.polygons[polygonIndex]);
+			const originalConnection = closestPathPolygonConnection(originalPath, traceRow.geometry.polygons[polygonIndex]);
 			return connection && originalConnection ? { ...connection, distance: originalConnection.distance, polygonIndex } : null;
 		}).filter(Boolean);
 		const longest = connections.reduce((best, connection) => !best || connection.distance > best.distance ? connection : best, null);
@@ -721,7 +729,7 @@ async function initialize() {
 	}
 
 	function traceEventCopy(event, trace, branchGeometry = null) {
-		const order = trace.optimal_order || row.order || [];
+		const order = trace.optimal_order || traceRow.order || [];
 		const selected = traceLabels(order, traceSequence(event));
 		const polygon = event.polygon === undefined ? null : traceLabel(order, event.polygon);
 		const kind = event.kind;
@@ -762,8 +770,8 @@ async function initialize() {
 		const events = traceEvents.slice(0, traceIndex + 1).filter((event) => visibleKinds.has(event.kind));
 		const visible = events.length > 42 ? events.slice(-42) : events;
 		element("trace-tree").innerHTML = visible.length ? visible.map((event) => {
-			const sequence = traceLabels(trace.optimal_order || row.order, event.sequence || []);
-			const label = event.kind === "root" ? "Raiz" : event.kind === "expand" ? `Expande ${sequence}` : event.kind === "branch" ? `Branching em ${traceLabel(trace.optimal_order || row.order, event.polygon)}` : event.kind === "child" ? `${event.pruned ? "Poda" : "Fila"}: ${sequence}` : event.kind === "prune" ? `Poda: ${sequence}` : "Certificado";
+			const sequence = traceLabels(trace.optimal_order || traceRow.order, event.sequence || []);
+			const label = event.kind === "root" ? "Raiz" : event.kind === "expand" ? `Expande ${sequence}` : event.kind === "branch" ? `Branching em ${traceLabel(trace.optimal_order || traceRow.order, event.polygon)}` : event.kind === "child" ? `${event.pruned ? "Poda" : "Fila"}: ${sequence}` : event.kind === "prune" ? `Poda: ${sequence}` : "Certificado";
 			const detail = event.kind === "child" && Number.isFinite(Number(event.lower_bound)) ? `LB ${traceNumber(event.lower_bound, 3)}` : event.kind === "complete" ? `UB ${traceNumber(event.upper_bound ?? trace.summary?.upper_bound, 3)}` : "";
 			const indent = Math.min(Array.isArray(event.sequence) ? event.sequence.length : 0, 8);
 			return `<div class="trace-tree-item ${event.pruned ? "is-pruned" : ""} ${event.kind === "complete" ? "is-complete" : ""}" style="--trace-depth:${indent}"><span>${traceEscape(label)}</span><small>${traceEscape(detail)}</small></div>`;
@@ -783,13 +791,13 @@ async function initialize() {
 
 	function drawTrace() {
 		if (!hasTraceUI) return;
-		const trace = traces[String(row.case)];
+		const trace = traces[String(traceRow.case)];
 		if (!trace || !traceEvents.length) {
 			updateTraceCode(null);
 			traceMapContent.innerHTML = "";
 			element("trace-progress").textContent = "Nenhuma simulação carregada para este caso.";
 			element("trace-step-title").textContent = "Escolha uma instância didática";
-			element("trace-step-text").textContent = row.case === "usp"
+			element("trace-step-text").textContent = traceRow.case === "usp"
 				? "A rota da USP é uma demonstração própria. Escolha um caso do corpus acima para acompanhar uma execução registrada da busca."
 				: "Os destaques mostram os Casos 02, 04 e 10. O seletor acima inclui qualquer árvore com menos de 200 passos.";
 			element("trace-kind").textContent = "PASSO ATUAL";
@@ -808,24 +816,24 @@ async function initialize() {
 		}
 		const event = traceEvents[traceIndex];
 		updateTraceCode(event);
-		const order = trace.optimal_order || row.order || [];
+		const order = trace.optimal_order || traceRow.order || [];
 		const currentSequence = traceSequence(event);
 		const selected = new Set(currentSequence.map(Number));
-		const projection = projectedCase(row);
-		const start = projection.project(row.geometry.start), target = projection.project(row.geometry.target);
+		const projection = projectedCase(traceRow);
+		const start = projection.project(traceRow.geometry.start), target = projection.project(traceRow.geometry.target);
 		const originalPath = traceCurrentPath(traceIndex);
 		const currentPath = originalPath.map(projection.project);
-		const reached = pathPolygonContacts(originalPath, row.geometry.polygons).map(Boolean);
+		const reached = pathPolygonContacts(originalPath, traceRow.geometry.polygons).map(Boolean);
 		const incumbentPath = (traceIncumbentPath(traceIndex) || []).map(projection.project);
 		const isHeuristic = event.kind.startsWith("heuristic_") || (event.kind === "incumbent" && event.source === "heuristic");
 		const showIncumbentRoute = enabled("trace-show-incumbent") && !isHeuristic && incumbentPath.length > 1;
 		const transition = traceTransition?.fromIndex === traceIndex ? traceTransition : null;
 		const movingSegment = transition ? [transition.from, transition.to] : [];
-		const showLabels = enabled("trace-show-labels") && (row.polygons <= 15 || selected.size > 0);
+		const showLabels = enabled("trace-show-labels") && (traceRow.polygons <= 15 || selected.size > 0);
 		const branchGeometry = traceBranchGeometry(event, currentPath, projection.polygons, originalPath, reached);
 		const visibleBranchGeometry = enabled("trace-show-branching") ? branchGeometry : null;
 		const decompositionMarkup = enabled("trace-show-decomposition")
-			? decompositionLinesMarkup(row.visualization?.decomposition, row.geometry.polygons, projection.project)
+			? decompositionLinesMarkup(traceRow.visualization?.decomposition, traceRow.geometry.polygons, projection.project)
 			: "";
 		const branchConnectionLines = visibleBranchGeometry?.connections.map((connection) => {
 			const longest = branchGeometry.longest?.polygonIndex === connection.polygonIndex;
@@ -838,12 +846,12 @@ async function initialize() {
 			transition.from[0] + (transition.to[0] - transition.from[0]) * progress,
 			transition.from[1] + (transition.to[1] - transition.from[1]) * progress,
 		] : currentPath.at(-1) || start;
-		traceMapContent.innerHTML = `${row.geometry.polygons.map((polygon, index) => {
+		traceMapContent.innerHTML = `${traceRow.geometry.polygons.map((polygon, index) => {
 			const branchSelected = branchGeometry?.longest?.polygonIndex === index;
 			const title = `Região ${traceLabel(order, index)}${branchSelected ? "; escolhida para o branching por ser a mais distante" : ""}`;
 			return `<polygon class="trace-region ${selected.has(index) ? "trace-selected" : ""} ${reached[index] ? "trace-reached" : ""} ${branchSelected ? "trace-branch-selected" : ""}" points="${coordinates(polygon.map(projection.project))}"><title>${title}</title></polygon>`;
 		}).join("")}
-			${enabled("trace-show-hulls") ? row.geometry.polygons.map((polygon) => `<polygon class="trace-hull" points="${coordinates(convexHull(polygon).map(projection.project))}"/>`).join("") : ""}
+			${enabled("trace-show-hulls") ? traceRow.geometry.polygons.map((polygon) => `<polygon class="trace-hull" points="${coordinates(convexHull(polygon).map(projection.project))}"/>`).join("") : ""}
 			${decompositionMarkup}
 			${branchConnectionLines}
 			${showIncumbentRoute ? `<polyline class="trace-incumbent-route" points="${coordinates(incumbentPath)}"/>` : ""}
@@ -878,12 +886,22 @@ async function initialize() {
 		updateLayerNotes();
 	}
 
-	function selectTrace() {
+	function selectTrace(caseIndex = traceRow.case) {
 		if (!hasTraceUI) return;
+		const selected = data.rows.find((item) => item.case === caseIndex);
+		if (!selected || !traces[String(caseIndex)]) return;
 		stopTrace();
-		const trace = traces[String(row.case)];
+		traceRow = selected;
+		const trace = traces[String(traceRow.case)];
 		traceEvents = filterTraceEvents(trace?.events || []);
 		traceIndex = 0;
+		element("trace-case-select").value = shortTraceCases.some((item) => item.case === caseIndex) ? String(caseIndex) : "";
+		element("trace-case-picker-value").textContent = tracePickerLabel(trace);
+		document.querySelectorAll(".trace-showcases .example").forEach((button) => {
+			const active = button.dataset.case === String(caseIndex);
+			button.classList.toggle("active", active);
+			button.setAttribute("aria-pressed", String(active));
+		});
 		drawTrace();
 	}
 
@@ -963,9 +981,6 @@ async function initialize() {
 		const decomposition = enabled("show-decomposition");
 		const rect = map.getBoundingClientRect();
 		const textScale = 1 / Math.max(.1, Math.min(rect.width / routeWidth, rect.height / routeHeight)) / zoom;
-		const labelPositions = labels && row.case === "usp" && row.polygons > 15
-			? spreadRegionLabels(projected.polygons, routeWidth, routeHeight, textScale)
-			: projected.polygons.map((polygon) => { const center = polygonCentroid(polygon); return { center, point: center }; });
 		mapContent.innerHTML = `${hulls ? row.geometry.polygons.map((polygon) => `<polygon class="hull" points="${coordinates(convexHull(polygon).map(projected.project))}"/>`).join("") : ""}
 			${projected.polygons.map((polygon, index) => {
 				const visited = fraction + 1e-12 >= (row.visualization.contacts[index]?.fraction ?? Infinity);
@@ -976,11 +991,11 @@ async function initialize() {
 			}).join("")}
 			${decomposition ? decompositionLinesMarkup(row.visualization.decomposition, row.geometry.polygons, projected.project) : ""}
 			<polyline class="route-ghost" points="${coordinates(projected.path)}"/><polyline id="animated-route" class="route-line"/>
-			${labels ? labelPositions.map(({ center, point }, index) => {
-				const leader = squaredDistance(center, point) > (13 * textScale) ** 2 ? `<line class="region-label-leader" x1="${center[0]}" y1="${center[1]}" x2="${point[0]}" y2="${point[1]}"/>` : "";
-				return `${leader}<circle class="region-number-disc" cx="${point[0]}" cy="${point[1]}" r="9"/><text class="region-label" x="${point[0]}" y="${point[1]}" text-anchor="middle" dominant-baseline="central">${row.order.indexOf(index) + 1}</text>`;
+			${labels ? projected.polygons.map((polygon, index) => {
+				const center = polygonCentroid(polygon);
+				return `<text class="region-label" x="${center[0]}" y="${center[1]}" text-anchor="middle" dominant-baseline="central">${row.order.indexOf(index) + 1}</text>`;
 			}).join("") : ""}
-			<circle class="endpoint" cx="${start[0]}" cy="${start[1]}" r="7"/>${row.depot && labels && row.polygons > 15 ? "" : `<text class="endpoint-label" x="${start[0] + 14}" y="${start[1] + 5}">${row.depot ? "S = T" : "S"}</text>`}
+			<circle class="endpoint" cx="${start[0]}" cy="${start[1]}" r="7"/><text class="endpoint-label" x="${start[0] + 14}" y="${start[1] + 5}">${row.depot ? "S = T" : "S"}</text>
 			${row.depot ? "" : `<circle class="endpoint target" cx="${target[0]}" cy="${target[1]}" r="7"/><text class="endpoint-label" x="${target[0] + 14}" y="${target[1] + 5}">T</text>`}<circle id="traveler" class="traveler" r="6"/>
 			${enabled("show-contacts") ? row.visualization.contacts.map((contact, index) => {
 				if (!contact) return "";
@@ -988,7 +1003,6 @@ async function initialize() {
 				return `<circle class="visit-contact" data-region="${index}" cx="${point[0]}" cy="${point[1]}" r="4"><title>${row.order.indexOf(index) + 1}ª visita · região original ${index + 1}</title></circle>`;
 			}).join("") : ""}`;
 		mapContent.querySelectorAll(".region-label").forEach((label) => { label.style.fontSize = `${13 * textScale}px`; });
-		mapContent.querySelectorAll(".region-number-disc").forEach((disc) => { disc.setAttribute("r", 10 * textScale); });
 		mapContent.querySelectorAll(".endpoint-label").forEach((label, index) => {
 			const point = row.depot ? [start[0] + 15 * textScale, start[1] + 17 * textScale] : endpointOffset(projected.path, Boolean(index), 22 * textScale);
 			label.setAttribute("text-anchor", row.depot ? "start" : "middle");
@@ -1020,15 +1034,8 @@ async function initialize() {
 		tracePan = [0, 0];
 		element("show-labels").setAttribute("aria-pressed", String(row.polygons <= 15));
 		element("case-select").value = row.case;
-		const tracePicker = element("trace-case-select");
-		if (tracePicker) tracePicker.value = shortTraceCases.some((trace) => trace.case === row.case) ? String(row.case) : "";
-		const tracePickerValue = element("trace-case-picker-value");
-		if (tracePickerValue) {
-			const trace = shortTraceCases.find((candidate) => candidate.case === row.case);
-			tracePickerValue.textContent = trace ? tracePickerLabel(trace) : "Escolha uma simulação curta";
-		}
 		element("case-picker-value").textContent = row.case === "usp" ? "Escolha um dos 558 casos do corpus" : `Caso ${caseLabel(row.case)} · ${row.polygons} regiões`;
-		document.querySelectorAll(".example").forEach((button) => {
+		document.querySelectorAll(".explorer .example").forEach((button) => {
 			const active = button.dataset.case === String(row.case);
 			button.classList.toggle("active", active);
 			button.setAttribute("aria-pressed", String(active));
@@ -1065,7 +1072,7 @@ async function initialize() {
 			window.history.replaceState(null, "", url);
 		}
 		draw();
-		selectTrace();
+		selectTrace(traces[String(row.case)] ? row.case : traceRow.case);
 		return true;
 	}
 
@@ -1087,12 +1094,16 @@ async function initialize() {
 	}
 	document.querySelectorAll(".example").forEach((button) => button.addEventListener("click", () => {
 		const key = button.dataset.case === "usp" ? "usp" : Number(button.dataset.case);
-		if (key === row.case) return;
-		selectCase(key);
 		if (button.closest(".trace-showcases")) {
+			if (key === traceRow.case) return;
+			selectTrace(key);
 			element("trace-map").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "center" });
 			element("trace-play").focus({ preventScroll: true });
-		} else showMap();
+		} else {
+			if (key === row.case) return;
+			selectCase(key);
+			showMap();
+		}
 	}));
 	element("case-select").addEventListener("change", (event) => { selectCase(Number(event.target.value)); showMap(); });
 	element("show-labels").addEventListener("click", () => { element("show-labels").setAttribute("aria-pressed", String(!enabled("show-labels"))); draw(); });
@@ -1297,7 +1308,7 @@ async function initialize() {
 		});
 		element("trace-case-select")?.addEventListener("change", (event) => {
 			if (event.target.value === "") return;
-			selectCase(Number(event.target.value));
+			selectTrace(Number(event.target.value));
 			element("trace-map").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "center" });
 			element("trace-play").focus({ preventScroll: true });
 		});
@@ -1326,7 +1337,7 @@ async function initialize() {
 			element("trace-picker-options").addEventListener("click", (event) => {
 				const button = event.target.closest("[data-trace-case]");
 				if (!button) return;
-				selectCase(Number(button.dataset.traceCase));
+				selectTrace(Number(button.dataset.traceCase));
 				tracePickerDialog.close();
 				element("trace-map").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "center" });
 			});
@@ -1766,18 +1777,16 @@ function initializeDisclosures() {
 
 function initializeGuide() {
 	const copy = {
-		desafio: ["1", "Tente você mesmo!", "Escolha a ordem de visita e compare com o solver."],
-		historia: ["2", "Trabalhos anteriores e o nosso ponto de entrada", "Uma linha do tempo do TPP até este solver autocontido."],
-		resultados: ["3", "Comparação experimental", "Como nosso solver se compara ao trabalho de Fekete et al. neste corpus."],
-		metodo: ["4", "O algoritmo", "As ideias geométricas por trás da busca."],
-		pesquisa: ["5", "O problema e a pesquisa", "O que está sendo resolvido e por quê."],
+		desafio: ["2", "Tente você mesmo!", "Escolha a ordem de visita e compare com o solver."],
+		metodo: ["3", "Como o algoritmo resolve", "A geometria, a busca e uma execução comentada."],
+		historia: ["4", "Trabalhos anteriores", "Uma linha do tempo do TPP até este solver autocontido."],
+		resultados: ["5", "O que melhoramos", "Compare os resultados deste solver com os anteriores."],
 		contato: ["6", "Fale com o autor", "Comentários, dúvidas ou uma conversa sobre a pesquisa."],
 	};
-	const ids = ["desafio", "historia", "resultados", "metodo", "pesquisa", "contato"];
+	const ids = ["desafio", "metodo", "historia", "resultados", "contato"];
 	const nodes = new Map();
 	for (const id of ids) {
 		let node = element(id);
-		if (id === "pesquisa" && !node) node = document.querySelector(".research-section");
 		if (!node) continue;
 		if (!node.id) node.id = id;
 		node.dataset.guideSection = id;
@@ -1844,7 +1853,7 @@ function initializeGuide() {
 		try { localStorage.setItem(storageKey, JSON.stringify([...visited])); } catch { /* Private browsing can reject storage. */ }
 		update(id);
 		const count = element("guide-title")?.closest(".guide-nav")?.querySelector("[data-guide-count]");
-		if (count) count.textContent = `${visited.size}/${nodes.size} seções visitadas`;
+		if (count) count.textContent = `${visited.size}/${nodes.size} etapas visitadas`;
 	}
 	function sourceFor(node) {
 		return node.matches("details")
@@ -1894,7 +1903,7 @@ function initializeGuide() {
 		content.append(source);
 		resetDialogScroll();
 		dialog.dataset.section = id;
-		eyebrow.textContent = `ETAPA ${copy[id][0]} de ${ids.length}`;
+		eyebrow.textContent = `ETAPA ${copy[id][0]} de 6`;
 		title.textContent = copy[id][1];
 		subtitle.textContent = copy[id][2];
 		update(id);
@@ -1944,7 +1953,7 @@ function initializeGuide() {
 		content.append(source);
 		resetDialogScroll();
 		dialog.dataset.section = nextId;
-		eyebrow.textContent = `ETAPA ${copy[nextId][0]} de ${ids.length}`;
+		eyebrow.textContent = `ETAPA ${copy[nextId][0]} de 6`;
 		title.textContent = copy[nextId][1];
 		subtitle.textContent = copy[nextId][2];
 		update(previous.id);
@@ -2004,7 +2013,7 @@ function initializeGuide() {
 		document.querySelector('.guide-links [data-guide-target="resultados"]')?.click();
 	}));
 	const count = element("guide-title")?.closest(".guide-nav")?.querySelector("[data-guide-count]");
-	if (count) count.textContent = `${visited.size}/${nodes.size} seções visitadas`;
+	if (count) count.textContent = `${visited.size}/${nodes.size} etapas visitadas`;
 	updateNavigation();
 	const initial = window.location.hash.slice(1);
 	if (nodes.has(initial)) open(initial, null, true);

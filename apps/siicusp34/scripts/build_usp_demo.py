@@ -219,8 +219,7 @@ def write_preview(demo: dict, width: int, height: int, output: Path) -> None:
         shapes.append(f'<polygon points="{path_points(polygon)}" fill="{fill}" stroke="{stroke}" stroke-width="1.5"/>')
         if demo["polygons"] <= 15:
             x, y = map_point(centroid(polygon))
-            shapes.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="12" fill="#f7fffc" stroke="#235764" stroke-width="1"/>')
-            shapes.append(f'<text x="{x:.2f}" y="{y:.2f}" fill="#102c38" font-family="system-ui,sans-serif" font-weight="700" font-size="15" text-anchor="middle" dominant-baseline="central">{rank + 1}</text>')
+            shapes.append(f'<text x="{x:.2f}" y="{y:.2f}" fill="white" stroke="#102c38" stroke-width="1.4" paint-order="stroke" font-family="system-ui,sans-serif" font-weight="650" font-size="15" text-anchor="middle" dominant-baseline="central">{rank + 1}</text>')
     shapes.append(f'<polyline points="{path_points(demo["path"])}" fill="none" stroke="#ffad66" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>')
     x, y = map_point(demo["geometry"]["start"])
     shapes.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="7" fill="#fff" stroke="#102c38" stroke-width="2"/>')
