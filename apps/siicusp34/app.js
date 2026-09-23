@@ -73,6 +73,33 @@ function polygonCentroid(polygon) {
 	return polygon.reduce((sum, point) => [sum[0] + point[0] / polygon.length, sum[1] + point[1] / polygon.length], [0, 0]);
 }
 
+function spreadRegionLabels(polygons, width, height, scale) {
+	const centers = polygons.map(polygonCentroid);
+	const separation = 23 * scale;
+	const positions = Array(centers.length);
+	const density = centers.map((center) => centers.filter((other) => squaredDistance(center, other) < (95 * scale) ** 2).length);
+	const placementOrder = centers.map((_, index) => index).sort((a, b) => density[b] - density[a] || a - b);
+	for (const index of placementOrder) {
+		const center = centers[index];
+		let best = center, bestScore = Infinity;
+		for (let ring = 0; ring <= 8; ring += 1) {
+			const count = ring === 0 ? 1 : 12;
+			for (let slot = 0; slot < count; slot += 1) {
+				const angle = 2 * Math.PI * slot / count;
+				const candidate = ring === 0 ? center : [center[0] + ring * 16 * scale * Math.cos(angle), center[1] + ring * 16 * scale * Math.sin(angle)];
+				if (candidate[0] < 14 * scale || candidate[0] > width - 14 * scale || candidate[1] < 14 * scale || candidate[1] > height - 14 * scale) continue;
+				const overlap = positions.filter(Boolean).reduce((total, placed) => total + Math.max(0, separation - Math.sqrt(squaredDistance(candidate, placed))) ** 2, 0);
+				const score = overlap * 100 + squaredDistance(candidate, center);
+				if (score < bestScore) { best = candidate; bestScore = score; }
+				if (overlap === 0) break;
+			}
+			if (bestScore < separation ** 2 * 2 && positions.filter(Boolean).every((placed) => squaredDistance(best, placed) >= separation ** 2)) break;
+		}
+		positions[index] = best;
+	}
+	return centers.map((center, index) => ({ center, point: positions[index] }));
+}
+
 function projectedCase(row, width = 840, height = 480) {
 	const points = [...row.geometry.polygons.flat(), ...row.path, row.geometry.start, row.geometry.target];
 	const xs = points.map((point) => point[0]), ys = points.map((point) => point[1]);
@@ -398,6 +425,37 @@ async function initialize() {
 	const traceMapContent = element("trace-map-content");
 	const traceMap = element("trace-map");
 	const hasTraceUI = Boolean(traceMapContent);
+	const traceCode = [
+		"U ← solução heurística viável",
+		"fila ← {raiz, sequência vazia}",
+		"n ← nó de menor limite inferior",
+		"(L, rota) ← relaxação convexa(n)",
+		"se L ≥ U − ε: podar n",
+		"se rota visita todos: atualizar U",
+		"P ← alvo mais distante; inserir ou refinar peça",
+		"enfileirar filhos promissores",
+		"fila vazia: retornar U, L e status",
+	];
+	if (hasTraceUI) element("trace-code-lines").innerHTML = traceCode.map((line, index) => `<li data-code-line="${index}"><code>${escapeHTML(line)}</code></li>`).join("");
+
+	function updateTraceCode(event) {
+		const kind = event?.kind;
+		let line = kind?.startsWith("heuristic_") || (kind === "incumbent" && event.source === "heuristic") ? 0
+			: kind === "root" ? 1
+			: kind === "expand" ? 2
+			: kind === "oracle" ? 3
+			: kind === "prune" || (kind === "child" && event.pruned) ? 4
+			: kind === "incumbent" ? 5
+			: kind === "branch" ? 6
+			: kind === "child" ? 7
+			: kind === "complete" ? 8 : -1;
+		setOutput(element("trace-code-active"), line < 0 ? "Escolha um caso com simulação." : `${line + 1}. ${traceCode[line]}`);
+		element("trace-code-lines").querySelectorAll("li").forEach((item, index) => {
+			item.classList.toggle("active", index === line);
+			if (index === line) item.setAttribute("aria-current", "step");
+			else item.removeAttribute("aria-current");
+		});
+	}
 
 	function tracePickerLabel(trace) {
 		const candidate = data.rows.find((item) => item.case === trace.case);
@@ -727,6 +785,7 @@ async function initialize() {
 		if (!hasTraceUI) return;
 		const trace = traces[String(row.case)];
 		if (!trace || !traceEvents.length) {
+			updateTraceCode(null);
 			traceMapContent.innerHTML = "";
 			element("trace-progress").textContent = "Nenhuma simulação carregada para este caso.";
 			element("trace-step-title").textContent = "Escolha uma instância didática";
@@ -748,6 +807,7 @@ async function initialize() {
 			return;
 		}
 		const event = traceEvents[traceIndex];
+		updateTraceCode(event);
 		const order = trace.optimal_order || row.order || [];
 		const currentSequence = traceSequence(event);
 		const selected = new Set(currentSequence.map(Number));
@@ -867,7 +927,9 @@ async function initialize() {
 			const index = Number(polygon.dataset.region);
 			const contact = row.visualization.contacts[index];
 			const visited = Boolean(contact) && fraction + 1e-12 >= contact.fraction;
-			const colors = regionColors(row.order.indexOf(index), row.polygons, visited);
+			const colors = row.case === "usp" && row.buildings[index].id === "ime"
+				? { fill: visited ? "#e6ac63aa" : "#ffcf8b55", stroke: "#ffdcaa" }
+				: regionColors(row.order.indexOf(index), row.polygons, visited);
 			polygon.style.fill = colors.fill;
 			polygon.style.stroke = colors.stroke;
 			polygon.classList.toggle("visited", visited);
@@ -879,7 +941,7 @@ async function initialize() {
 		if (row.case === "usp") {
 			const next = row.order.find((index) => row.visualization.contacts[index].fraction > fraction + 1e-12);
 			setOutput(element("usp-current-stop"), next === undefined
-				? "Percurso concluído: oito edifícios visitados."
+				? `Percurso concluído: ${row.polygons} edifícios visitados e retorno ao IME.`
 				: `Próximo edifício: ${row.buildings[next].label}.`);
 		}
 	}
@@ -892,34 +954,44 @@ async function initialize() {
 		const mobileRoute = row.case === "usp" && window.matchMedia("(max-width: 560px)").matches;
 		map.classList.toggle("usp-route", row.case === "usp");
 		routeWidth = mobileRoute ? 420 : 840;
-		routeHeight = mobileRoute ? 600 : 480;
+		routeHeight = mobileRoute ? 440 : 480;
 		map.setAttribute("viewBox", `0 0 ${routeWidth} ${routeHeight}`);
 		projected = projectedCase(row, routeWidth, routeHeight);
 		const start = projected.project(row.geometry.start), target = projected.project(row.geometry.target);
 		const labels = enabled("show-labels");
 		const hulls = enabled("show-hulls");
 		const decomposition = enabled("show-decomposition");
+		const rect = map.getBoundingClientRect();
+		const textScale = 1 / Math.max(.1, Math.min(rect.width / routeWidth, rect.height / routeHeight)) / zoom;
+		const labelPositions = labels && row.case === "usp" && row.polygons > 15
+			? spreadRegionLabels(projected.polygons, routeWidth, routeHeight, textScale)
+			: projected.polygons.map((polygon) => { const center = polygonCentroid(polygon); return { center, point: center }; });
 		mapContent.innerHTML = `${hulls ? row.geometry.polygons.map((polygon) => `<polygon class="hull" points="${coordinates(convexHull(polygon).map(projected.project))}"/>`).join("") : ""}
-			${projected.polygons.map((polygon, index) => `<polygon class="region" data-region="${index}" points="${coordinates(polygon)}" style="fill:${regionColors(row.order.indexOf(index), row.polygons, fraction + 1e-12 >= (row.visualization.contacts[index]?.fraction ?? Infinity)).fill};stroke:${regionColors(row.order.indexOf(index), row.polygons, fraction + 1e-12 >= (row.visualization.contacts[index]?.fraction ?? Infinity)).stroke}"><title>${row.case === "usp" ? escapeHTML(row.buildings[index].label) : `Região ${index + 1}`}; ${row.order.indexOf(index) + 1}ª visita</title></polygon>`).join("")}
+			${projected.polygons.map((polygon, index) => {
+				const visited = fraction + 1e-12 >= (row.visualization.contacts[index]?.fraction ?? Infinity);
+				const colors = row.case === "usp" && row.buildings[index].id === "ime"
+					? { fill: visited ? "#e6ac63aa" : "#ffcf8b55", stroke: "#ffdcaa" }
+					: regionColors(row.order.indexOf(index), row.polygons, visited);
+				return `<polygon class="region" data-region="${index}" points="${coordinates(polygon)}" style="fill:${colors.fill};stroke:${colors.stroke}"><title>${row.case === "usp" ? escapeHTML(row.buildings[index].label) : `Região ${index + 1}`}; ${row.order.indexOf(index) + 1}ª visita</title></polygon>`;
+			}).join("")}
 			${decomposition ? decompositionLinesMarkup(row.visualization.decomposition, row.geometry.polygons, projected.project) : ""}
 			<polyline class="route-ghost" points="${coordinates(projected.path)}"/><polyline id="animated-route" class="route-line"/>
-			${labels ? projected.polygons.map((polygon, index) => {
-				const center = polygonCentroid(polygon);
-				return `<text class="region-label" x="${center[0]}" y="${center[1]}" text-anchor="middle" dominant-baseline="central">${row.order.indexOf(index) + 1}</text>`;
+			${labels ? labelPositions.map(({ center, point }, index) => {
+				const leader = squaredDistance(center, point) > (13 * textScale) ** 2 ? `<line class="region-label-leader" x1="${center[0]}" y1="${center[1]}" x2="${point[0]}" y2="${point[1]}"/>` : "";
+				return `${leader}<circle class="region-number-disc" cx="${point[0]}" cy="${point[1]}" r="9"/><text class="region-label" x="${point[0]}" y="${point[1]}" text-anchor="middle" dominant-baseline="central">${row.order.indexOf(index) + 1}</text>`;
 			}).join("") : ""}
-			<circle class="endpoint" cx="${start[0]}" cy="${start[1]}" r="7"/><text class="endpoint-label" x="${start[0] + 14}" y="${start[1] + 5}">S</text>
-			<circle class="endpoint target" cx="${target[0]}" cy="${target[1]}" r="7"/><text class="endpoint-label" x="${target[0] + 14}" y="${target[1] + 5}">T</text><circle id="traveler" class="traveler" r="6"/>
+			<circle class="endpoint" cx="${start[0]}" cy="${start[1]}" r="7"/>${row.depot && labels && row.polygons > 15 ? "" : `<text class="endpoint-label" x="${start[0] + 14}" y="${start[1] + 5}">${row.depot ? "S = T" : "S"}</text>`}
+			${row.depot ? "" : `<circle class="endpoint target" cx="${target[0]}" cy="${target[1]}" r="7"/><text class="endpoint-label" x="${target[0] + 14}" y="${target[1] + 5}">T</text>`}<circle id="traveler" class="traveler" r="6"/>
 			${enabled("show-contacts") ? row.visualization.contacts.map((contact, index) => {
 				if (!contact) return "";
 				const point = projected.project(contact.point);
 				return `<circle class="visit-contact" data-region="${index}" cx="${point[0]}" cy="${point[1]}" r="4"><title>${row.order.indexOf(index) + 1}ª visita · região original ${index + 1}</title></circle>`;
 			}).join("") : ""}`;
-		const rect = map.getBoundingClientRect();
-		const textScale = 1 / Math.max(.1, Math.min(rect.width / routeWidth, rect.height / routeHeight)) / zoom;
 		mapContent.querySelectorAll(".region-label").forEach((label) => { label.style.fontSize = `${13 * textScale}px`; });
+		mapContent.querySelectorAll(".region-number-disc").forEach((disc) => { disc.setAttribute("r", 10 * textScale); });
 		mapContent.querySelectorAll(".endpoint-label").forEach((label, index) => {
-			const point = endpointOffset(projected.path, Boolean(index), 22 * textScale);
-			label.setAttribute("text-anchor", "middle");
+			const point = row.depot ? [start[0] + 15 * textScale, start[1] + 17 * textScale] : endpointOffset(projected.path, Boolean(index), 22 * textScale);
+			label.setAttribute("text-anchor", row.depot ? "start" : "middle");
 			label.setAttribute("dominant-baseline", "central");
 			label.style.fontSize = `${16 * textScale}px`;
 			label.setAttribute("x", point[0]);
@@ -930,7 +1002,7 @@ async function initialize() {
 		camera();
 		updateLayerNotes();
 		element("map-title").textContent = row.case === "usp"
-			? "Rota geometricamente mínima, certificada numericamente, entre oito edifícios da USP."
+			? `Rota fechada do IME por ${row.polygons} edifícios da USP, certificada numericamente.`
 			: `Caso ${caseLabel(row.case)}: caminho mínimo certificado por ${row.polygons} regiões.`;
 		drawRoute();
 	}
@@ -964,14 +1036,15 @@ async function initialize() {
 			else button.removeAttribute("aria-current");
 		});
 		const isUsp = row.case === "usp";
+		element("route-endpoint-legend").textContent = isUsp ? "IME dourado · S = T na entrada" : "S partida · T chegada";
 		element("usp-demo-details").hidden = !isUsp;
 		element("usp-current-stop").hidden = !isUsp;
 		element("show-decomposition").disabled = isUsp;
 		if (isUsp) {
 			const itinerary = [
-				`S · ${escapeHTML(row.endpoints.find((entry) => entry.id === "start").label)}`,
+				`S = T · ${escapeHTML(row.depot.label)} (3 m fora do contorno)`,
 				...row.order.map((building, position) => `${position + 1} · ${escapeHTML(row.buildings[building].label)}`),
-				`T · ${escapeHTML(row.endpoints.find((entry) => entry.id === "target").label)}`,
+				`Retorno · ${escapeHTML(row.depot.label)}`,
 			];
 			element("usp-itinerary").innerHTML = itinerary.map((entry) => `<li>${entry}</li>`).join("");
 		}

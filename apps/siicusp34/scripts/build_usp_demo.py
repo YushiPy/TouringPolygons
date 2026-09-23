@@ -120,8 +120,22 @@ def build(solver: Path) -> dict:
     source_bytes = SOURCE.read_bytes()
     source = json.loads(source_bytes)
     polygons = [[project(point) for point in building["lon_lat"]] for building in source["buildings"]]
-    endpoints = {entry["id"]: centroid([project(point) for point in entry["lon_lat"]]) for entry in source["endpoints"]}
-    start, target = endpoints["start"], endpoints["target"]
+    ime_polygon = polygons[0]
+    ime_center = centroid(ime_polygon)
+    entrance = project(source["depot"]["entrance_lon_lat"])
+    if not any(on_segment(entrance, point, ime_polygon[(index + 1) % len(ime_polygon)], 1e-7) for index, point in enumerate(ime_polygon)):
+        raise ValueError("The mapped entrance is not on the IME footprint")
+    outward = [entrance[axis] - ime_center[axis] for axis in (0, 1)]
+    direction_length = math.hypot(*outward)
+    if direction_length < 1e-9:
+        raise ValueError("IME entrance and centroid coincide")
+    offset = source["depot"]["outside_offset_metres"]
+    if offset <= 0:
+        raise ValueError("The depot offset must be positive")
+    start = [entrance[axis] + offset * outward[axis] / direction_length for axis in (0, 1)]
+    if point_in_polygon(start, ime_polygon, 1e-7):
+        raise ValueError("The depot is not outside the IME footprint")
+    target = start
     lines = [f"{start[0]:.12f} {start[1]:.12f} {target[0]:.12f} {target[1]:.12f} {len(polygons)} {MAX_CALLS} {MAX_SECONDS}"]
     for polygon in polygons:
         lines.append(str(len(polygon)) + " " + " ".join(f"{x:.12f} {y:.12f}" for x, y in polygon))
@@ -162,7 +176,7 @@ def build(solver: Path) -> dict:
         "seconds": result["seconds"],
         "visualization": {"contacts": contacts, "decomposition": []},
         "buildings": [{"id": building["id"], "label": building["label"], "osm_way": building["osm_way"]} for building in source["buildings"]],
-        "endpoints": [{"id": entry["id"], "label": entry["label"], "osm_way": entry["osm_way"]} for entry in source["endpoints"]],
+        "depot": {"label": source["depot"]["label"], "osm_entrance_node": source["depot"]["osm_entrance_node"], "entrance": entrance, "outside_offset_metres": offset},
         "provenance": {
             "source_sha256": hashlib.sha256(source_bytes).hexdigest(),
             "solver_sha256": hashlib.sha256(solver.read_bytes()).hexdigest(),
@@ -179,7 +193,7 @@ def build(solver: Path) -> dict:
 
 def write_preview(demo: dict, width: int, height: int, output: Path) -> None:
     """Keep the opening route visible while the large corpus scripts load."""
-    points = [*demo["geometry"]["polygons"], demo["path"], [demo["geometry"]["start"], demo["geometry"]["target"]]]
+    points = [*demo["geometry"]["polygons"], demo["path"]]
     flattened = [point for group in points for point in group]
     min_x, max_x = min(point[0] for point in flattened), max(point[0] for point in flattened)
     min_y, max_y = min(point[1] for point in flattened), max(point[1] for point in flattened)
@@ -194,20 +208,23 @@ def write_preview(demo: dict, width: int, height: int, output: Path) -> None:
         return " ".join(f"{x:.2f},{y:.2f}" for x, y in map(map_point, path))
 
     shapes = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" role="img" aria-label="Rota calculada entre oito edifícios da USP">',
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" role="img" aria-label="Rota fechada por {demo["polygons"]} edifícios da USP com partida perto da entrada do IME">',
         f'<rect width="{width}" height="{height}" fill="#102c38"/>',
     ]
     for index, polygon in enumerate(demo["geometry"]["polygons"]):
         rank = demo["order"].index(index)
         hue = round(105 + 70 * rank / (demo["polygons"] - 1))
-        shapes.append(f'<polygon points="{path_points(polygon)}" fill="hsl({hue} 58% 42% / .68)" stroke="#b6e8dc" stroke-width="1.5"/>')
-        x, y = map_point(centroid(polygon))
-        shapes.append(f'<text x="{x:.2f}" y="{y:.2f}" fill="white" stroke="#102c38" stroke-width="3" paint-order="stroke" font-family="system-ui,sans-serif" font-weight="700" font-size="17" text-anchor="middle" dominant-baseline="central">{rank + 1}</text>')
+        fill = "#b97732" if demo["buildings"][index]["id"] == "ime" else f"hsl({hue} 58% 42% / .68)"
+        stroke = "#ffdcaa" if demo["buildings"][index]["id"] == "ime" else "#b6e8dc"
+        shapes.append(f'<polygon points="{path_points(polygon)}" fill="{fill}" stroke="{stroke}" stroke-width="1.5"/>')
+        if demo["polygons"] <= 15:
+            x, y = map_point(centroid(polygon))
+            shapes.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="12" fill="#f7fffc" stroke="#235764" stroke-width="1"/>')
+            shapes.append(f'<text x="{x:.2f}" y="{y:.2f}" fill="#102c38" font-family="system-ui,sans-serif" font-weight="700" font-size="15" text-anchor="middle" dominant-baseline="central">{rank + 1}</text>')
     shapes.append(f'<polyline points="{path_points(demo["path"])}" fill="none" stroke="#ffad66" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>')
-    for label, point in (("S", demo["geometry"]["start"]), ("T", demo["geometry"]["target"])):
-        x, y = map_point(point)
-        shapes.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="7" fill="#fff" stroke="#102c38" stroke-width="2"/>')
-        shapes.append(f'<text x="{x + 13:.2f}" y="{y + 5:.2f}" fill="white" font-family="system-ui,sans-serif" font-weight="700" font-size="17">{label}</text>')
+    x, y = map_point(demo["geometry"]["start"])
+    shapes.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="7" fill="#fff" stroke="#102c38" stroke-width="2"/>')
+    shapes.append(f'<text x="{x + 13:.2f}" y="{y + 5:.2f}" fill="white" font-family="system-ui,sans-serif" font-weight="700" font-size="15">IME · S = T</text>')
     shapes.append("</svg>")
     output.write_text("\n".join(shapes) + "\n")
 
@@ -219,5 +236,5 @@ if __name__ == "__main__":
     demo = build(args.solver)
     OUTPUT.write_text("window.TPPUspDemo = " + json.dumps(demo, ensure_ascii=False, separators=(",", ":")) + ";\n")
     write_preview(demo, 840, 480, PREVIEW)
-    write_preview(demo, 420, 600, PREVIEW_MOBILE)
+    write_preview(demo, 420, 440, PREVIEW_MOBILE)
     print(f"{OUTPUT}: {demo['polygons']} regions; {demo['upper_bound']:.3f} m; certified={demo['exact']}")
