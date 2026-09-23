@@ -57,6 +57,8 @@ Os três desafios têm funções diferentes:
 
 Devemos manter os três. Se o primeiro for óbvio demais, o visitante pode concluir erroneamente que o problema inteiro é fácil. As instâncias devem ser pequenas o bastante para interação imediata, mas difíceis o bastante para escolhas locais intuitivas frequentemente falharem.
 
+As instâncias sintéticas atuais são geradas por `scripts/build_challenge_data.mjs`, independentemente do corpus de 558 casos. Para avaliar a escolha local, parte-se de `S` e escolhe-se a próxima região não visitada mais próxima da anterior. Nos desafios com peças, escolhe-se a peça (e, no terceiro, também a região) mais próxima da escolha anterior. A distância entre os retângulos é a distância euclidiana entre conjuntos, sem usar `T` antes da última visita. O script enumera as 24 ordens, 27 escolhas de peças e 1.944 combinações, calcula cada caminho com o solver local e exige diferença relevante entre a regra local e o menor caminho, alternativas próximas e margens de escolha não microscópicas. A interface mostra a comparação da regra local depois da tentativa do visitante e oferece botões recolhidos como alternativa aos alvos finos do mapa no celular.
+
 ## Solução geométrica no navegador
 
 Os três desafios usam uma implementação JavaScript compacta do TPP convexo com ordem fixa, mantida em `tpp-solver.js` e `tpp-vector2.js` ao lado da página. Essa cópia foi congelada a partir da implementação histórica do visualizador, para que o evento seja autocontido e possa ser publicado copiando apenas `apps/siicusp34`. Para instâncias tão pequenas, JavaScript é suficiente e evita:
@@ -165,7 +167,6 @@ Prioridade alta:
 
 Prioridade média:
 
-- tornar os desafios ligeiramente menos óbvios;
 - relacionar o desafio final à execução registrada do branch-and-bound;
 - oferecer explicações curtas para incumbente, limite inferior, ramificação e poda;
 - mostrar claramente a diferença entre caminho viável, busca concluída com gap numérico fechado e solução apenas factível;

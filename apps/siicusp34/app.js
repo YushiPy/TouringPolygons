@@ -384,6 +384,17 @@ function challengeComparison(chosenLabel, chosenLength, bestLabel, bestLength, c
 	return `<table class="challenge-comparison"><thead><tr><td></td><th><i class="comparison-line chosen" aria-hidden="true"></i>${chosenLabel}</th><th><i class="comparison-line reference" aria-hidden="true"></i>${bestLabel}</th></tr></thead><tbody><tr><th scope="row">Comprimento</th><td>${number(chosenLength, 2)}</td><td>${number(bestLength, 2)}</td></tr><tr><th scope="row">${choiceLabel}</th><td>${chosenChoice}</td><td>${bestChoice}</td></tr></tbody></table><p class="comparison-note">Comprimentos em unidades deste exemplo.</p>`;
 }
 
+function challengeVerdict(chosenLength, bestLength, name) {
+	const percent = 100 * (chosenLength / bestLength - 1);
+	if (percent < 1e-5) return `Você encontrou uma das melhores ${name}!`;
+	if (percent < 1) return "Seu caminho ficou a menos de 1% do menor encontrado.";
+	return `Seu caminho ficou ${number(percent, 1)}% mais longo.`;
+}
+
+function challengeGreedyNote(solution, best, description, sequence) {
+	return `<p class="challenge-local-note">Escolha local: ${description} daria ${sequence} e um caminho ${number(100 * (solution.length / best.length - 1), 1)}% mais longo que o melhor.</p>`;
+}
+
 async function initialize() {
 	const data = window.TPPEventData;
 	const uspDemo = window.TPPUspDemo;
@@ -1497,6 +1508,7 @@ function initializeChallenge() {
 	const challenge = window.TPPChallengeData;
 	const letters = ["A", "B", "C", "D"];
 	const best = challenge.solutions[challenge.reference];
+	const greedy = challenge.solutions.find((solution) => solution.order.every((region, index) => region === challenge.greedy.order[index]));
 	let order = [], compared = false;
 	const map = element("challenge-map");
 	map.setAttribute("role", "group");
@@ -1508,14 +1520,14 @@ function initializeChallenge() {
 			const [x, y] = polygonCentroid(polygon);
 			const rank = order.indexOf(index);
 			return `<g role="button" tabindex="0" data-challenge-region="${index}" aria-label="Região ${letters[index]}${rank >= 0 ? `, escolha ${rank + 1}` : ""}" aria-pressed="${rank >= 0}"><polygon points="${coordinates(polygon)}" class="challenge-region ${rank >= 0 ? "chosen" : ""}"/><text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central">${letters[index]}${rank >= 0 ? ` · ${rank + 1}` : ""}</text></g>`;
-		}).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line challenge-solution-route" points="${coordinates(chosen.path)}"/>` : orderSketch("order", challenge.geometry, order.map((index) => challenge.geometry.polygons[index]))) + '<circle cx="25" cy="130" r="5" fill="white"/><text x="17" y="153">S</text><circle cx="395" cy="130" r="5" fill="#ffad66"/><text x="389" y="153">T</text>';
+		}).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line challenge-solution-route" points="${coordinates(chosen.path)}"/>` : orderSketch("order", challenge.geometry, order.map((index) => challenge.geometry.polygons[index]))) + `<circle cx="${challenge.geometry.start[0]}" cy="${challenge.geometry.start[1]}" r="5" fill="white"/><text x="${challenge.geometry.start[0] - 8}" y="${challenge.geometry.start[1] + 23}">S</text><circle cx="${challenge.geometry.target[0]}" cy="${challenge.geometry.target[1]}" r="5" fill="#ffad66"/><text x="${challenge.geometry.target[0] - 8}" y="${challenge.geometry.target[1] + 23}">T</text>`;
 		element("challenge-choices").innerHTML = letters.map((letter, index) => `<button type="button" data-challenge-region="${index}" aria-pressed="${order.includes(index)}">${letter}</button>`).join("");
 		element("challenge-order").textContent = `Sua ordem: S → ${order.length ? order.map((index) => letters[index]).join(" → ") + " → " : ""}${order.length < 4 ? "… → " : ""}T`;
 		element("challenge-guidance").textContent = order.length === 4 ? "Sequência completa. Compare agora os caminhos." : `Escolha mais ${4 - order.length} ${4 - order.length === 1 ? "região" : "regiões"} para comparar.`;
 		element("challenge-compare").disabled = order.length !== 4 || compared;
 		element("challenge-undo").disabled = !order.length;
 		element("challenge-reset").disabled = !order.length;
-		element("challenge-feedback").innerHTML = compared ? `<strong>${chosen.length - best.length < .00001 ? "Você encontrou uma das melhores ordens!" : `Seu caminho ficou ${number(100 * (chosen.length / best.length - 1), 1)}% mais longo.`}</strong>${challengeComparison("Sua escolha", chosen.length, "Melhor das 24", best.length, "Ordem", order.map((index) => letters[index]).join(" → "), best.order.map((index) => letters[index]).join(" → "))}` : "";
+		element("challenge-feedback").innerHTML = compared ? `<strong>${challengeVerdict(chosen.length, best.length, "ordens")}</strong>${challengeComparison("Sua escolha", chosen.length, "Melhor das 24", best.length, "Ordem", order.map((index) => letters[index]).join(" → "), best.order.map((index) => letters[index]).join(" → "))}${challengeGreedyNote(greedy, best, "visitar sempre a região não visitada mais próxima da anterior, começando em S,", challenge.greedy.order.map((index) => letters[index]).join(" → "))}` : "";
 		if (compared) animateChallengeRoute(map);
 	}
 	function choose(event) {
@@ -1549,6 +1561,8 @@ function initializePieceChallenge(combined = false) {
 	let order = [];
 	const best = data.solutions[data.reference];
 	const letters = combined ? ["A", "B", "C", "D"] : ["A", "B", "C"];
+	const greedy = data.solutions.find((solution) => (combined ? solution.order.every((region, index) => region === data.greedy.order[index]) : true)
+		&& solution.choices.every((piece, region) => piece === data.greedy.choices[region]));
 	let choices = letters.map(() => null), compared = false;
 	const map = ui("map");
 	function render() {
@@ -1581,8 +1595,10 @@ function initializePieceChallenge(combined = false) {
 		ui("reset").disabled = choices.every((piece) => piece === null);
 		const chosenSequence = (combined ? order : letters.map((_, index) => index)).map(region => `${letters[region]}${choices[region] + 1}`).join(" → ");
 		const bestSequence = (combined ? best.order : letters.map((_, index) => index)).map(region => `${letters[region]}${best.choices[region] + 1}`).join(" → ");
+		const greedySequence = data.greedy.order.map(region => `${letters[region]}${data.greedy.choices[region] + 1}`).join(" → ");
+		const greedyDescription = combined ? "visitar a próxima região pela peça mais próxima da peça anterior, a partir de S," : "escolher, em cada região da ordem fixa, a peça mais próxima da anterior, a partir de S,";
 		const impact = combined ? '<aside class="challenge-impact"><strong>Achou difícil?</strong> Em um caso da pesquisa com mais de 2 × 10<sup>66</sup> possibilidades brutas, nosso algoritmo encontrou o melhor caminho em 1,51 segundo. Mesmo que 10 bilhões de computadores testassem uma combinação por nanossegundo, levariam cerca de 7 × 10<sup>39</sup> anos, muito depois de o Sol se tornar uma gigante vermelha e possivelmente engolir a Terra <a href="#ref-sun">[5]</a>.</aside>' : "";
-		ui("feedback").innerHTML = compared ? `<strong>${selected.length - best.length < .00001 ? "Você encontrou uma das melhores combinações!" : `Seu caminho ficou ${number(100 * (selected.length / best.length - 1), 1)}% mais longo.`}</strong>${challengeComparison("Sua escolha", selected.length, `Melhor das ${data.solutions.length.toLocaleString("pt-BR")}`, best.length, combined ? "Solução" : "Peças", chosenSequence, bestSequence)}${impact}` : "";
+		ui("feedback").innerHTML = compared ? `<strong>${challengeVerdict(selected.length, best.length, "combinações")}</strong>${challengeComparison("Sua escolha", selected.length, `Melhor das ${data.solutions.length.toLocaleString("pt-BR")}`, best.length, combined ? "Solução" : "Peças", chosenSequence, bestSequence)}${challengeGreedyNote(greedy, best, greedyDescription, greedySequence)}${impact}` : "";
 		if (compared) animateChallengeRoute(map);
 	}
 	function choose(event) {

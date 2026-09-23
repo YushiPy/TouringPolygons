@@ -4403,8 +4403,8 @@ thead th.sort-active {
 
 #combined-choices {
 	display: grid;
-	grid-template-columns: repeat(2, max-content);
-	gap: 14px 20px;
+	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+	gap: 14px 8px;
 }
 
 #combined-selection {
@@ -4883,6 +4883,25 @@ thead th.sort-active {
 	min-height: 2.6em;
 	color: var(--muted);
 	font-size: 0.875rem;
+}
+
+.challenge-alt-controls {
+	margin-top: 4px;
+	border-top: 1px solid var(--line);
+}
+
+.challenge-alt-controls>summary {
+	min-height: 44px !important;
+	margin: 0 !important;
+	padding: 8px 28px 8px 0 !important;
+	color: var(--teal);
+	font-size: 0.875rem;
+	font-weight: 650;
+	cursor: pointer;
+}
+
+.challenge-alt-controls>div {
+	padding: 4px 0 12px;
 }
 
 .challenge-actions {
