@@ -1,0 +1,51 @@
+﻿polygon_index,fid,qgis_id,name,name_status,reference
+0,1,ime-b,IME — Bloco B,derivado do identificador original,https://puspc.usp.br/mobilidade/mapas/
+1,2,ime-a,IME — Bloco A,derivado do identificador original,https://puspc.usp.br/mobilidade/mapas/
+2,3,ime-c,IME — Bloco C,derivado do identificador original,https://puspc.usp.br/mobilidade/mapas/
+3,4,oceanografia,Instituto Oceanográfico (IO),unidade identificada pelo usuário,https://www.io.usp.br/
+4,5,fau,Edifício Vilanova Artigas — FAU-USP,nome institucional,https://www.fau.usp.br/
+5,6,fau-anexo,Anexo da FAU-USP,provisório; nome exato a confirmar,https://www.fau.usp.br/
+6,7,fflch-administracao,Edifício de Administração e Diretoria — FFLCH,nome institucional,https://www.fflch.usp.br/contatosletras
+7,8,geociencias,Instituto de Geociências (IGc),unidade identificada pelo usuário,https://igc.usp.br/
+8,9,fflch-letras,"Edifício Antonio Candido — Letras, FFLCH",nome institucional,https://www.fflch.usp.br/contatosletras
+9,10,fflch-sociais-e-filosofia,Edifício de Filosofia e Ciências Sociais — FFLCH,nome institucional,https://www.fflch.usp.br/contatosletras
+10,11,fflch-historia-e-geografia,"Edifício Eurípedes Simões de Paula — Geografia e História, FFLCH",nome institucional,https://www.fflch.usp.br/contatosletras
+11,12,biblioteca-brasiliana,Biblioteca Brasiliana Guita e José Mindlin (BBM),nome institucional,https://www.bbm.usp.br/
+12,18,eca-biblioteca,Biblioteca da ECA-USP,nome institucional,https://www.eca.usp.br/sites/default/files/inline-files/Guia%20Conjunto%20do%20Estudante%20Estrangeiro%202025.pdf
+13,19,eca-restaurante-sindicato,Vivência da ECA — Lanchonete Dona Leoa,nome institucional; confirmar o contorno,https://www.ip.usp.br/site/wp-content/uploads/2024/05/Programacao-Completa-1.pdf
+14,20,reitoria,Edifício da Reitoria da USP,nome institucional,https://puspc.usp.br/mobilidade/mapas/
+15,36,inova-usp,Inova USP — Centro de Inovação da USP,nome institucional,https://inovausp.org/
+16,37,swedens,Restaurante Sweden’s — FEA-USP,nome institucional,https://www.fea.usp.br/sites/default/files/arquivos/anexos/perfil_da_fea_-_jan_2021_site_1.pdf
+17,38,cee-poli-usp,"CEE — Centro de Engenharia Elétrica e de Computação, Poli-USP",nome associado ao identificador original,https://www.poli.usp.br/ingressantes2022/organizacoesestudantis2022/
+18,39,poli-eletrica,Prédio de Engenharia Elétrica — Poli-USP,nome institucional,https://www.poli.usp.br/wp-content/uploads/2025/07/Guia-de-Contatos-Poli-USP-2025.v5.pdf
+19,40,poli-producao,"J. O. Monteiro de Camargo — Produção, Poli-USP",nome institucional,https://www.poli.usp.br/wp-content/uploads/2025/07/Guia-de-Contatos-Poli-USP-2025.v5.pdf
+20,41,bienio,Prédio do Biênio e Cirquinho — Poli-USP,nome institucional,https://www.poli.usp.br/wp-content/uploads/2025/07/Guia-de-Contatos-Poli-USP-2025.v5.pdf
+21,42,poli-superintendencia,Superintendência da Poli-USP,provisório; nome exato do prédio a confirmar,https://www.poli.usp.br/wp-content/uploads/2025/07/Guia-de-Contatos-Poli-USP-2025.v5.pdf
+22,43,poli-civil,"Edifício Paula Souza — Engenharia Civil, Poli-USP",nome institucional,https://www.poli.usp.br/wp-content/uploads/2025/07/Guia-de-Contatos-Poli-USP-2025.v5.pdf
+23,44,engenharia-metalurgica-e-de-materiais,Prédio da Engenharia Metalúrgica e de Materiais — Poli-USP,nome institucional,https://www.poli.usp.br/wp-content/uploads/2025/07/Guia-de-Contatos-Poli-USP-2025.v5.pdf
+24,45,engenharia-de-minas-e-petroleo,Prédio da Engenharia de Minas — Poli-USP,nome institucional,https://www.poli.usp.br/wp-content/uploads/2025/07/Guia-de-Contatos-Poli-USP-2025.v5.pdf
+25,46,engenharia-mecanica-mecatronica-e-naval,Edifício da Engenharia Mecânica — Poli-USP,nome institucional,https://www.poli.usp.br/wp-content/uploads/2025/07/Guia-de-Contatos-Poli-USP-2025.v5.pdf
+26,47,centro-tecnilogico-de-hidraulica,Centro Tecnológico de Hidráulica (CTH),nome institucional,https://pha.poli.usp.br/
+27,63,instituto-de-relacoes-internacionais,Instituto de Relações Internacionais (IRI-USP),unidade identificada pelo usuário,https://iri.usp.br/
+28,64,centro-de-difusao-internacional,Centro de Difusão Internacional (CDI-USP),nome institucional,https://puspc.usp.br/mobilidade/mapas/
+29,65,iag,"Instituto de Astronomia, Geofísica e Ciências Atmosféricas (IAG-USP)",unidade identificada pelo usuário,https://www.iag.usp.br/
+30,66,if-edificio-central,"Edifício Principal — Ala Central, IFUSP",nome institucional,https://sites.usp.br/agorasouifusp/wp-content/uploads/sites/334/2025/02/manual-dos-calouros_2025.pdf
+31,67,if-biblioteca,Biblioteca do IFUSP,nome institucional,https://sites.usp.br/agorasouifusp/wp-content/uploads/sites/334/2025/02/manual-dos-calouros_2025.pdf
+32,68,if-muitas-coisas,Edifício/conjunto do IFUSP — identificação pendente,provisório; nome exato a confirmar,https://sites.usp.br/agorasouifusp/wp-content/uploads/sites/334/2025/02/manual-dos-calouros_2025.pdf
+33,69,if-pelletron,"Edifício Oscar Sala — Pelletron, IFUSP",nome institucional,https://sites.usp.br/agorasouifusp/wp-content/uploads/sites/334/2025/02/manual-dos-calouros_2025.pdf
+34,70,if-blocos,Blocos do IFUSP — identificação pendente,provisório; nome exato a confirmar,https://sites.usp.br/agorasouifusp/wp-content/uploads/sites/334/2025/02/manual-dos-calouros_2025.pdf
+35,75,if-basilio-jafet,"Edifício Basílio Jafet, IFUSP",nome institucional,https://sites.usp.br/agorasouifusp/wp-content/uploads/sites/334/2025/02/manual-dos-calouros_2025.pdf
+36,76,if-microtron-acelerador-linear,"Acelerador Linear / Microtron, IFUSP",descritivo; nome oficial a confirmar,https://sites.usp.br/agorasouifusp/wp-content/uploads/sites/334/2025/02/manual-dos-calouros_2025.pdf
+37,77,engenharia-quimica,"Prédio da Engenharia Química — Bloco 18, Poli-USP",nome institucional,https://www.poli.usp.br/wp-content/uploads/2025/07/Guia-de-Contatos-Poli-USP-2025.v5.pdf
+38,78,poli-edificio-semi-industrial,Edifício Semi-Industrial — Poli-USP,nome institucional,https://sites.poli.usp.br/d/pqi2408/
+39,79,ru-quimica,Restaurante das Químicas,nome institucional,https://puspc.usp.br/mobilidade/mapas/
+40,80,instituto-de-quimica,Instituto de Química da USP,unidade identificada pelo usuário,https://www.iq.usp.br/
+41,81,faculdade-de-ciencias-farmaceuticas,Faculdade de Ciências Farmacêuticas da USP,unidade identificada pelo usuário,https://www.fcf.usp.br/
+42,82,administracao-central,Administração Central da USP,nome descritivo do usuário,https://www.usp.br/
+43,87,praca-dos-bancos,Praça dos Bancos,nome no mapa do campus,https://puspc.usp.br/mobilidade/mapas/
+44,88,ip,Instituto de Psicologia (IP-USP),unidade identificada pelo usuário,https://www.ip.usp.br/
+45,89,eca-artes-plasticas-musica-teatro,"ECA — Prédios 5 (CAP), 6 (CMU) e 7 (CAC/EAD)",grupo descritivo conforme mapa da ECA,https://www.eca.usp.br/sites/default/files/inline-files/Guia%20Conjunto%20do%20Estudante%20Estrangeiro%202025.pdf
+46,90,eca-anexo,Anexo da ECA-USP,provisório; nome exato a confirmar,https://www.eca.usp.br/sites/default/files/inline-files/Guia%20Conjunto%20do%20Estudante%20Estrangeiro%202025.pdf
+47,91,fea,FEA 1 — Prédio principal,nome institucional,https://www.fea.usp.br/sites/default/files/arquivos/anexos/manual_novos_docentes-links.pdf
+48,92,adm-poli,Edifício Engenheiro Mário Covas Júnior — Administração da Poli,nome institucional,https://www.poli.usp.br/wp-content/uploads/2025/07/Guia-de-Contatos-Poli-USP-2025.v5.pdf
+49,93,central,Restaurante Central da USP,nome institucional,https://puspc.usp.br/mobilidade/mapas/

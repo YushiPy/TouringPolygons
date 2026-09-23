@@ -6,9 +6,11 @@ execução do solver no visitante.
 
 ## Alvos e proveniência
 
-Os **50 polígonos** vêm da instância local
+Os primeiros **50 polígonos** vêm da instância local
 `benchmarks/suites/usp-butanta-50/usp-butanta-50.bin`, exportada da camada
-`predios` do GeoPackage `qgis/predios.gpkg` em 23/09/2026. Os contornos foram
+`predios` do GeoPackage `qgis/predios.gpkg`. O 51º, o edifício Google, vem do
+novo contorno `google` (fid 94) dessa camada, através do projeto
+`qgis/predios-usp.qgz`. Os contornos foram
 desenhados manualmente no QGIS pelo autor do projeto, sobre um mapa-base OpenStreetMap;
 não são uma exportação oficial de edifícios da USP nem um extrato direto das
 geometrias do OSM. O mapa-base não é incluído na página. A camada original não
@@ -20,16 +22,26 @@ do QGIS, ao nome e à fonte usada para conferir o nome. Vários rótulos são
 provisórios. O autor confirmou que `ime-a`, `ime-b` e `ime-c` são,
 respectivamente, os blocos A, B e C do IME. Os três aparecem em dourado no
 mapa, e o ponto de partida fica junto ao bloco B. Há alvos compostos e a Praça
-dos Bancos, portanto “50 regiões” é
-mais preciso que “50 prédios”. Nenhum contorno deve ser interpretado como
+dos Bancos, portanto “51 regiões” é
+mais preciso que “mais de 50 prédios”. Nenhum contorno deve ser interpretado como
 limite institucional ou representação completa de uma unidade.
 
 O binário guarda vértices e uma rota de referência. O exportador confere a
-contagem e a ordem das 50 linhas do CSV, o SHA-256 das fontes e a consistência
-da rota de referência com a execução do solver. O JSON de navegação embutido em
+contagem e a ordem das 50 linhas do CSV e o SHA-256 das fontes. A rota de
+referência do binário corresponde apenas à instância original de 50 regiões;
+o novo problema de 51 regiões é resolvido novamente. O JSON embutido em
 `usp-demo.js` contém os vértices já projetados, a rota, a ordem, os primeiros
-contatos e a proveniência; é suficiente para publicar a página separadamente
+contatos, a decomposição convexa ótima e a proveniência; é suficiente para publicar a página separadamente
 da suíte e do repositório de benchmarks.
+
+A decomposição é produzida durante a build pelo mesmo pacote C++
+`optimal-convex-partition` usado pelo solver. Nesta geometria, 39 das 51 regiões
+se dividem em mais de uma peça, totalizando 458 peças. O exportador confere
+convexidade e conservação da área. Essa camada é opcional e começa desligada
+para preservar a leitura do mapa em celular.
+
+Há também um registro antigo `google` (fid 48) sem geometria na camada. O
+exportador exige exatamente um registro `google` com geometria e usa o fid 94.
 
 ## Formulação e resultado
 
@@ -42,21 +54,21 @@ pátios, autorização ou condições reais de voo.
 
 O exportador chama o solver C++ de ordem livre com até 5.000.000 chamadas e
 60 segundos. Na geração desta página, retornou `termination=optimal`,
-`exact=true`, `LB≈UB≈4919,804690657526 m`, 4.352 chamadas e uma rota de 31
+`exact=true`, `LB≈UB≈4969,523045289922 m` e uma rota de 33
 pontos. O fechamento do gap usa tolerância absoluta de `1e-7 m` e relativa de
 `1e-9` do comprimento; é um resultado **numérico**, não uma prova em
 aritmética exata. O tempo mostrado é de uma execução local em uma thread, não
 uma comparação de desempenho com os 558 casos.
 
 Além de conferir os extremos e o comprimento, o exportador calcula o primeiro
-contato de cada polígono com a rota e exige que todos os 50 sejam visitados na
+contato de cada polígono com a rota e exige que todos os 51 sejam visitados na
 ordem reportada pelo solver. O binário e a rota de referência não são alterados.
 Como o percurso é fechado, apresentamos sua orientação inversa, de mesmo
 comprimento, para visitar o IME primeiro na animação. Os contatos e a ordem
 exibidos são recalculados para essa orientação.
 
 Para regenerar os dados estáticos, a partir da raiz do repositório e com o
-solver compilado:
+solver compilado e um compilador C++20:
 
 ```bash
 python3 apps/siicusp34/scripts/build_usp_demo.py --solver .build/unordered/tpp
@@ -64,8 +76,8 @@ python3 apps/siicusp34/scripts/build_usp_demo.py --solver .build/unordered/tpp
 
 Os arquivos `usp-preview.svg` e `usp-preview-mobile.svg` mostram a mesma rota
 enquanto o JavaScript carrega. Os números de visita ficam ocultos por padrão
-porque 50 rótulos cobririam os polígonos em um celular. A lista de alvos e a
-ordem estão disponíveis em um painel recolhido.
+porque 51 rótulos cobririam os polígonos em um celular. O visitante pode ativar
+a camada de ordem e ampliar o desenho para examinar os alvos.
 
 ## Revisão antes da publicação
 
@@ -73,7 +85,7 @@ ordem estão disponíveis em um painel recolhido.
    os três blocos do IME já foram identificados pelo autor.
 2. Conferir os contornos, a posição de partida e a licença/publicabilidade
    das geometrias desenhadas a partir do mapa-base.
-3. Caso qualquer vértice ou extremo mude, regenerar a suíte e esta exportação;
+3. Caso qualquer vértice ou extremo mude, regenerar esta exportação;
    um novo desenho define outro problema matemático.
 4. Inspecionar o SVG em celular: o recorte amplo favorece contexto do campus,
    mas reduz a legibilidade de polígonos pequenos sem zoom.

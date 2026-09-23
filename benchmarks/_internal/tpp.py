@@ -50,6 +50,9 @@ Commands:
   run NAME ARGS...                   Benchmark all campaign inputs, resumably.
   free-order NAME ARGS...            Run/compare free-order endpoint TPP solvers.
   free-order-run ARGS...             Run the free-order solver on a binary suite.
+  free-order-sample-sizes ARGS...    Run nested random subsets of one TPP instance.
+  inspect-footprints ARGS...         Count and compare QGIS GeoPackage footprints.
+  solve-footprints ARGS...          Solve the polygons currently drawn in a GeoPackage.
   free-order-ablation ARGS...        Compare solver binaries on identical cases.
   free-order-metamorphic ARGS...     Run metamorphic free-order checks.
   generate-free-order-canon ARGS...  Generate the diagnostic/canon campaign.
@@ -294,6 +297,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 		return free_order_ablation.main(rest)
 	if command == "free-order-run":
 		return command_module("unordered_benchmark", rest)
+	if command == "free-order-sample-sizes":
+		return command_module("free_order_sample_sizes", rest)
+	if command == "inspect-footprints":
+		return command_module("inspect_footprints", rest)
+	if command == "solve-footprints":
+		return command_module("solve_footprints", rest)
 	if command == "free-order-metamorphic":
 		return command_module("free_order_metamorphic", rest)
 	if command == "generate-free-order-canon":

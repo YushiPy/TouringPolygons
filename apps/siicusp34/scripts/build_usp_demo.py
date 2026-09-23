@@ -12,9 +12,12 @@ import csv
 import hashlib
 import json
 import math
+import os
+import sqlite3
 import struct
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,11 +25,57 @@ REPOSITORY = ROOT.parents[1]
 SUITE = REPOSITORY / "benchmarks/suites/usp-butanta-50"
 SOURCE = SUITE / "usp-butanta-50.bin"
 MAPPING = SUITE / "polygons.csv"
+QGIS_GEOMETRY = SUITE / "qgis/predios.gpkg"
 OUTPUT = ROOT / "data/usp-demo.js"
 PREVIEW = ROOT / "data/usp-preview.svg"
 PREVIEW_MOBILE = ROOT / "data/usp-preview-mobile.svg"
 MAX_CALLS = 5_000_000
 MAX_SECONDS = 60
+PARTITION_SOURCE = REPOSITORY / "packages/optimal-convex-partition/cpp"
+
+
+def google_footprint() -> tuple[int, list[list[float]]]:
+    """Read the drawn Google contour from the QGIS project's GeoPackage."""
+    with sqlite3.connect(QGIS_GEOMETRY.resolve().as_uri() + "?mode=ro", uri=True) as connection:
+        rows = connection.execute(
+            "SELECT fid, geometry FROM predios WHERE id = 'google' AND geometry IS NOT NULL"
+        ).fetchall()
+    if len(rows) != 1:
+        raise ValueError(f"Expected one drawn Google footprint, found {len(rows)}")
+    fid, blob = rows[0]
+    if blob[:2] != b"GP" or blob[2] != 0:
+        raise ValueError("Invalid GeoPackage geometry header")
+    envelope_bytes = {0: 0, 1: 32, 2: 48, 3: 48, 4: 64}
+    envelope = (blob[3] >> 1) & 7
+    if envelope not in envelope_bytes:
+        raise ValueError("Unsupported GeoPackage envelope")
+    position = 8 + envelope_bytes[envelope]
+    endian = "<" if blob[position] == 1 else ">" if blob[position] == 0 else None
+    if endian is None or struct.unpack_from(endian + "II", blob, position + 1) != (3, 1):
+        raise ValueError("Google footprint must be a simple polygon with one ring")
+    vertex_count = struct.unpack_from(endian + "I", blob, position + 9)[0]
+    if vertex_count < 4 or position + 13 + 16 * vertex_count != len(blob):
+        raise ValueError("Invalid Google footprint vertex count")
+    wgs84 = [struct.unpack_from(endian + "dd", blob, position + 13 + 16 * i)
+             for i in range(vertex_count)]
+    if wgs84[0] != wgs84[-1]:
+        raise ValueError("Google footprint ring is not closed")
+    wgs84.pop()
+    latitude_origin, longitude_origin = -23.557, -46.732
+    phi = math.radians(latitude_origin)
+    eccentricity_squared = 0.0066943799901413165
+    radius = 6_378_137.0
+    denominator = 1 - eccentricity_squared * math.sin(phi) ** 2
+    east_radius = radius / math.sqrt(denominator)
+    north_radius = radius * (1 - eccentricity_squared) / denominator**1.5
+    projected = [
+        [math.radians(lon - longitude_origin) * east_radius * math.cos(phi),
+         math.radians(lat - latitude_origin) * north_radius]
+        for lon, lat in wgs84
+    ]
+    if not all(math.isfinite(value) for point in projected for value in point) or area(projected) < 1:
+        raise ValueError("Google footprint is degenerate")
+    return fid, projected
 
 
 def centroid(points: list[list[float]]) -> list[float]:
@@ -41,6 +90,47 @@ def centroid(points: list[list[float]]) -> list[float]:
     if abs(double_area) < 1e-12:
         raise ValueError("Degenerate endpoint footprint")
     return [cx / (3 * double_area), cy / (3 * double_area)]
+
+
+def area(points: list[list[float]]) -> float:
+    return abs(sum(
+        x * points[(index + 1) % len(points)][1]
+        - points[(index + 1) % len(points)][0] * y
+        for index, (x, y) in enumerate(points)
+    )) / 2
+
+
+def optimal_decomposition(polygons: list[list[list[float]]]) -> list[list[list[list[float]]]]:
+    """Export the solver's C++ optimal convex partition, without a runtime dependency."""
+    with tempfile.TemporaryDirectory(prefix="siicusp34-partition-") as directory:
+        executable = Path(directory) / "partition_usp"
+        compiler = os.environ.get("CXX", "c++")
+        subprocess.run([
+            compiler, "-std=c++20", "-O3", "-I", str(PARTITION_SOURCE / "include"),
+            str(ROOT / "scripts/partition_usp.cpp"),
+            str(PARTITION_SOURCE / "src/optimal_convex_partition.cpp"),
+            "-o", str(executable),
+        ], check=True, capture_output=True, timeout=120)
+        encoded = "\n".join(
+            str(len(polygon)) + " " + " ".join(f"{x:.12f} {y:.12f}" for x, y in polygon)
+            for polygon in polygons
+        ) + "\n"
+        run = subprocess.run([str(executable)], input=encoded, text=True,
+                             capture_output=True, check=True, timeout=180)
+    partitions = [json.loads(line) for line in run.stdout.splitlines()]
+    if len(partitions) != len(polygons):
+        raise ValueError("Partition output does not match the polygon count")
+    for index, (polygon, pieces) in enumerate(zip(polygons, partitions)):
+        if not pieces or any(len(piece) < 3 for piece in pieces):
+            raise ValueError(f"Empty convex piece in region {index}")
+        for piece in pieces:
+            turns = [cross(piece[vertex], piece[(vertex + 1) % len(piece)],
+                           piece[(vertex + 2) % len(piece)]) for vertex in range(len(piece))]
+            if min(turns) < -1e-7 and max(turns) > 1e-7:
+                raise ValueError(f"Nonconvex partition piece in region {index}")
+        if abs(sum(area(piece) for piece in pieces) - area(polygon)) > 1e-5:
+            raise ValueError(f"Partition area differs from region {index}")
+    return partitions
 
 
 def cross(a: list[float], b: list[float], c: list[float]) -> float:
@@ -121,6 +211,7 @@ def build(solver: Path) -> dict:
     if mapping[0]["qgis_id"] != "ime-b":
         raise ValueError("The first region must be the IME entrance building")
     polygons = [[list(point) for point in polygon] for polygon in case.polygons]
+    google_fid, google_polygon = google_footprint()
     sx, sy, tx, ty = struct.unpack_from("<dddd", case.data)
     start, target = [sx, sy], [tx, ty]
     if math.dist(start, target) > 1e-7:
@@ -132,6 +223,8 @@ def build(solver: Path) -> dict:
     reference_path = [struct.unpack_from("<dd", case.data, position + 8 + 16 * index) for index in range(reference_count)]
     if len(reference_path) < 2 or math.dist(reference_path[0], start) > 1e-7 or math.dist(reference_path[-1], target) > 1e-7:
         raise ValueError("The suite reference route does not start and end at the depot")
+    polygons.append(google_polygon)
+    decomposition = optimal_decomposition(polygons)
     lines = [f"{start[0]:.12f} {start[1]:.12f} {target[0]:.12f} {target[1]:.12f} {len(polygons)} {MAX_CALLS} {MAX_SECONDS}"]
     for polygon in polygons:
         lines.append(str(len(polygon)) + " " + " ".join(f"{x:.12f} {y:.12f}" for x, y in polygon))
@@ -149,9 +242,6 @@ def build(solver: Path) -> dict:
     length = sum(math.dist(a, b) for a, b in zip(path, path[1:]))
     if abs(length - upper) > 1e-7 + 1e-9 * abs(upper):
         raise ValueError("Route length differs from the upper bound")
-    reference_length = sum(math.dist(a, b) for a, b in zip(reference_path, reference_path[1:]))
-    if abs(reference_length - upper) > 1e-7 + 1e-9 * abs(upper):
-        raise ValueError("The suite reference route differs from the solver result")
     contacts = [first_contact(path, polygon, 1e-7) for polygon in polygons]
     if any(contact is None for contact in contacts):
         raise ValueError("The route misses at least one USP region")
@@ -183,7 +273,7 @@ def build(solver: Path) -> dict:
         "exact": True,
         "termination": "optimal",
         "seconds": result["seconds"],
-        "visualization": {"contacts": contacts, "decomposition": []},
+        "visualization": {"contacts": contacts, "decomposition": decomposition},
         "buildings": [
             {
                 "id": "ime" if row["qgis_id"] == "ime-b" else row["qgis_id"],
@@ -193,12 +283,14 @@ def build(solver: Path) -> dict:
                 "fid": int(row["fid"]),
             }
             for row in mapping
-        ],
+        ] + [{"id": "google", "qgis_id": "google", "label": "Google", "name_status": "confirmed", "fid": google_fid}],
         "depot": {"label": "Entrada do IME", "outside_offset_metres": 3},
         "provenance": {
             "source_sha256": hashlib.sha256(source_bytes).hexdigest(),
             "mapping_sha256": hashlib.sha256(MAPPING.read_bytes()).hexdigest(),
-            "source": "Project-author-drawn QGIS GeoPackage; exported as benchmarks/suites/usp-butanta-50/usp-butanta-50.bin",
+            "qgis_geo_package_sha256": hashlib.sha256(QGIS_GEOMETRY.read_bytes()).hexdigest(),
+            "partition_source_sha256": hashlib.sha256((PARTITION_SOURCE / "src/optimal_convex_partition.cpp").read_bytes()).hexdigest(),
+            "source": "50 regions from usp-butanta-50.bin plus the Google footprint drawn in qgis/predios.gpkg",
             "source_license": "No redistributable license declared; author authorized this event instance",
             "solver_sha256": hashlib.sha256(solver.read_bytes()).hexdigest(),
             "input_sha256": hashlib.sha256(encoded_input).hexdigest(),
@@ -229,7 +321,7 @@ def write_preview(demo: dict, width: int, height: int, output: Path) -> None:
         return " ".join(f"{x:.2f},{y:.2f}" for x, y in map(map_point, path))
 
     shapes = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" role="img" aria-label="Rota fechada por {demo["polygons"]} edifícios da USP com partida perto da entrada do IME">',
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" role="img" aria-label="Rota fechada por {demo["polygons"]} regiões da USP com partida perto da entrada do IME">',
         f'<rect width="{width}" height="{height}" fill="#102c38"/>',
     ]
     for index, polygon in enumerate(demo["geometry"]["polygons"]):
@@ -244,7 +336,7 @@ def write_preview(demo: dict, width: int, height: int, output: Path) -> None:
     shapes.append(f'<polyline points="{path_points(demo["path"])}" fill="none" stroke="#ffad66" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>')
     x, y = map_point(demo["geometry"]["start"])
     shapes.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="7" fill="#fff" stroke="#102c38" stroke-width="2"/>')
-    shapes.append(f'<text x="{x + 13:.2f}" y="{y + 5:.2f}" fill="white" font-family="system-ui,sans-serif" font-weight="700" font-size="15">IME · S = T</text>')
+    shapes.append(f'<text x="{x + 13:.2f}" y="{y + 5:.2f}" fill="white" font-family="system-ui,sans-serif" font-weight="700" font-size="15">IME · s = t</text>')
     shapes.append("</svg>")
     output.write_text("\n".join(shapes) + "\n")
 

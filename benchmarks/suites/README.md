@@ -14,6 +14,10 @@ or private experiment notes.
   archive. The source instances are cycles, so the converter uses each instance
   bounding box lower-left corner as `start` and upper-right corner as `target`.
 - `nonconvex/custom_tests.bin`: small tracked hand-made/debug fixture.
+- `usp-butanta-50/usp-butanta-50.bin`: a 50-building USP Butantã case traced in
+  QGIS; see its README and `polygons.csv` for provenance and the polygon-name
+  mapping. The companion QGIS projects and editable GeoPackage are under
+  `usp-butanta-50/qgis/`.
 - `algorithm-dev-v1.bin`: ignored generated development suite, regenerated from
   `nonconvex/test_cases.bin`.
 - `canonical-v1.bin`: ignored generated benchmark suite, regenerated from

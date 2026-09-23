@@ -285,8 +285,8 @@ function sortRows(rows, key = "case", descending = false) {
 	return [...rows].sort((a, b) => (descending ? -1 : 1) * (value(a) - value(b)) || a.case - b.case);
 }
 
-function playbackDuration(polygons) {
-	return 1800 + 15 * Math.min(80, Math.max(0, polygons));
+function playbackDuration(selected) {
+	return 2400 + 50 * Math.min(80, Math.max(0, selected.polygons));
 }
 
 function toggleOrderRegion(order, index) {
@@ -381,7 +381,7 @@ function animateChallengeRoute(map) {
 }
 
 function challengeComparison(chosenLabel, chosenLength, bestLabel, bestLength, choiceLabel, chosenChoice, bestChoice) {
-	return `<table class="challenge-comparison"><thead><tr><td></td><th><i class="comparison-line chosen" aria-hidden="true"></i>${chosenLabel}</th><th><i class="comparison-line reference" aria-hidden="true"></i>${bestLabel}</th></tr></thead><tbody><tr><th scope="row">Comprimento</th><td>${number(chosenLength, 2)}</td><td>${number(bestLength, 2)}</td></tr><tr><th scope="row">${choiceLabel}</th><td>${chosenChoice}</td><td>${bestChoice}</td></tr></tbody></table><p class="comparison-note">Comprimentos em unidades deste exemplo.</p>`;
+	return `<table class="challenge-comparison"><thead><tr><td></td><th><i class="comparison-line chosen" aria-hidden="true"></i>${chosenLabel}</th><th><i class="comparison-line reference" aria-hidden="true"></i>${bestLabel}</th></tr></thead><tbody><tr><th scope="row">Comprimento</th><td>${number(chosenLength, 2)} m</td><td>${number(bestLength, 2)} m</td></tr><tr><th scope="row">${choiceLabel}</th><td>${chosenChoice}</td><td>${bestChoice}</td></tr></tbody></table>`;
 }
 
 function challengeVerdict(chosenLength, bestLength, name) {
@@ -389,10 +389,6 @@ function challengeVerdict(chosenLength, bestLength, name) {
 	if (percent < 1e-5) return `Você encontrou uma das melhores ${name}!`;
 	if (percent < 1) return "Seu caminho ficou a menos de 1% do menor encontrado.";
 	return `Seu caminho ficou ${number(percent, 1)}% mais longo.`;
-}
-
-function challengeGreedyNote(solution, best, description, sequence) {
-	return `<p class="challenge-local-note">Escolha local: ${description} daria ${sequence} e um caminho ${number(100 * (solution.length / best.length - 1), 1)}% mais longo que o melhor.</p>`;
 }
 
 async function initialize() {
@@ -516,20 +512,18 @@ async function initialize() {
 		if (speedupElement && Number.isFinite(medianSpeedup)) speedupElement.textContent = `${number(medianSpeedup, 2)}×`;
 		if (fasterElement) fasterElement.innerHTML = `${Number(comparison.ours_faster_count || 0)}<span>/ ${common}</span>`;
 		const note = element("result-benchmark-note");
-		if (note) note.textContent = `Corpus de instâncias usado por Fekete et al. no artigo. Nosso solver concluiu ${certified}/${cases}; no conjunto comum concluído, o speedup mediano Fekete/nosso foi ${number(medianSpeedup, 2)}×. O solver de Fekete et al. não concluiu ${comparison.fekete_unresolved ?? "—"} instâncias no limite de 6 horas.`;
+		if (note) note.textContent = `Esses resultados dizem respeito às instâncias usadas por Fekete et al. no artigo. Rodamos cada instância por até 6 horas: nosso solver concluiu ${certified}/${cases}, enquanto o de Fekete et al. concluiu ${comparison.fekete_completed ?? "—"}/${cases}. As comparações de tempo e velocidade usam os ${common} casos concluídos por ambos.`;
 		const setText = (id, value) => { const target = element(id); if (target) target.textContent = value; };
 		const duration = (value) => formatDuration(value);
 		const hours = (value) => Number.isFinite(Number(value)) ? `${number(Number(value), 2)} h` : "—";
 		const fraction = (value, total) => `${Number(value ?? 0)}/${Number(total ?? 0)}`;
-		setText("comparison-time-ours-median", duration(comparisonTime.ours_median_seconds));
-		setText("comparison-time-fekete-median", duration(comparisonTime.fekete_median_seconds));
-		setText("comparison-time-ours-mean", duration(comparisonTime.ours_mean_seconds));
-		setText("comparison-time-fekete-mean", duration(comparisonTime.fekete_mean_seconds));
-		setText("comparison-time-ours-total", hours(comparisonTime.ours_total_hours));
-		setText("comparison-time-fekete-total", hours(comparisonTime.fekete_total_hours));
-		setText("comparison-time-common-ours", duration(comparisonTime.common_ours_median_seconds));
-		setText("comparison-time-common-fekete", duration(comparisonTime.common_fekete_median_seconds));
-		setText("comparison-speedup-median", Number.isFinite(medianSpeedup) ? `${number(medianSpeedup, 2)}×` : "—");
+		setText("comparison-time-ours-median", duration(comparisonTime.common_ours_median_seconds));
+		setText("comparison-time-fekete-median", duration(comparisonTime.common_fekete_median_seconds));
+		setText("comparison-time-ours-mean", duration(comparisonTime.common_ours_mean_seconds));
+		setText("comparison-time-fekete-mean", duration(comparisonTime.common_fekete_mean_seconds));
+		setText("comparison-time-ours-total", hours(comparisonTime.common_ours_total_hours));
+		setText("comparison-time-fekete-total", hours(comparisonTime.common_fekete_total_hours));
+				setText("comparison-speedup-median", Number.isFinite(medianSpeedup) ? `${number(medianSpeedup, 2)}×` : "—");
 		setText("comparison-speedup-geometric", Number.isFinite(Number(comparison.geometric_mean_speedup)) ? `${number(comparison.geometric_mean_speedup, 2)}×` : "—");
 		setText("comparison-speedup-ours-faster", fraction(comparison.ours_faster_count, common));
 		setText("comparison-speedup-fekete-faster", fraction(comparison.fekete_faster_count, common));
@@ -744,7 +738,7 @@ async function initialize() {
 		const selected = traceLabels(order, traceSequence(event));
 		const polygon = event.polygon === undefined ? null : traceLabel(order, event.polygon);
 		const kind = event.kind;
-		if (kind === "heuristic_start") return ["A heurística começa", `O caminho inicial parte de S e procura uma ordem promissora de forma gulosa (${event.source === "reverse" ? "sentido reverso" : "sentido direto"}).`];
+		if (kind === "heuristic_start") return ["A heurística começa", `O caminho inicial parte de s e procura uma ordem promissora de forma gulosa (${event.source === "reverse" ? "sentido reverso" : "sentido direto"}).`];
 		if (kind === "heuristic_greedy_step") return ["Escolha gulosa", `A heurística acrescenta a região ${polygon}; a sequência parcial agora é ${selected}.`];
 		if (kind === "heuristic_greedy_complete") return ["Ordem gulosa completa", `Todas as regiões foram inseridas. A ordem candidata é ${selected}.`];
 		if (kind === "heuristic_2opt") return ["Refino 2-opt", event.reason === "changed" ? `A heurística trocou trechos da ordem e obteve ${selected}.` : "Nenhuma troca 2-opt melhorou a ordem; o refino estabilizou."];
@@ -869,7 +863,7 @@ async function initialize() {
 			${currentPath.length > 1 ? `<polyline class="trace-route-completed" points="${coordinates(currentPath)}"/>` : ""}
 			${movingSegment.length > 1 ? `<polyline class="trace-route-preview" points="${coordinates(movingSegment)}"/><polyline id="trace-active-route" class="trace-current-route" points="${coordinates(movingSegment)}"/>` : ""}
 			${showLabels ? projection.polygons.map((polygon, index) => { const center = polygonCentroid(polygon); return `<text class="trace-region-label ${selected.has(index) ? "trace-label-selected" : ""}" x="${center[0]}" y="${center[1]}" text-anchor="middle" dominant-baseline="central">${traceLabel(order, index)}</text>`; }).join("") : ""}
-			<circle class="trace-traveler" cx="${traveler[0]}" cy="${traveler[1]}" r="5"/><circle class="trace-endpoint" cx="${start[0]}" cy="${start[1]}" r="6"/><text class="trace-endpoint-label" x="${start[0] + 13}" y="${start[1] + 4}">S</text><circle class="trace-endpoint trace-target" cx="${target[0]}" cy="${target[1]}" r="6"/><text class="trace-endpoint-label" x="${target[0] + 13}" y="${target[1] + 4}">T</text>`;
+			<circle class="trace-traveler" cx="${traveler[0]}" cy="${traveler[1]}" r="5"/><circle class="trace-endpoint" cx="${start[0]}" cy="${start[1]}" r="6"/><text class="trace-endpoint-label" x="${start[0] + 13}" y="${start[1] + 4}">s</text><circle class="trace-endpoint trace-target" cx="${target[0]}" cy="${target[1]}" r="6"/><text class="trace-endpoint-label" x="${target[0] + 13}" y="${target[1] + 4}">t</text>`;
 		updateTraceAnimationVisuals();
 		const [title, text] = traceEventCopy(event, trace, branchGeometry);
 		element("trace-kind").textContent = event.kind.replaceAll("_", " ").toUpperCase();
@@ -970,7 +964,7 @@ async function initialize() {
 		if (row.case === "usp") {
 			const next = row.order.find((index) => row.visualization.contacts[index].fraction > fraction + 1e-12);
 			setOutput(element("usp-current-stop"), next === undefined
-				? `Percurso concluído: ${row.polygons} regiões visitadas e retorno ao IME.`
+				? ""
 				: `Próximo alvo: ${row.buildings[next].label}.`);
 		}
 	}
@@ -1006,8 +1000,8 @@ async function initialize() {
 				const center = polygonCentroid(polygon);
 				return `<text class="region-label" x="${center[0]}" y="${center[1]}" text-anchor="middle" dominant-baseline="central">${row.order.indexOf(index) + 1}</text>`;
 			}).join("") : ""}
-			<circle class="endpoint" cx="${start[0]}" cy="${start[1]}" r="7"/><text class="endpoint-label" x="${start[0] + 14}" y="${start[1] + 5}">${row.depot ? "S = T" : "S"}</text>
-			${row.depot ? "" : `<circle class="endpoint target" cx="${target[0]}" cy="${target[1]}" r="7"/><text class="endpoint-label" x="${target[0] + 14}" y="${target[1] + 5}">T</text>`}<circle id="traveler" class="traveler" r="6"/>
+			<circle class="endpoint" cx="${start[0]}" cy="${start[1]}" r="7"/><text class="endpoint-label" x="${start[0] + 14}" y="${start[1] + 5}">${row.depot ? "s = t" : "s"}</text>
+			${row.depot ? "" : `<circle class="endpoint target" cx="${target[0]}" cy="${target[1]}" r="7"/><text class="endpoint-label" x="${target[0] + 14}" y="${target[1] + 5}">t</text>`}<circle id="traveler" class="traveler" r="6"/>
 			${enabled("show-contacts") ? row.visualization.contacts.map((contact, index) => {
 				if (!contact) return "";
 				const point = projected.project(contact.point);
@@ -1027,8 +1021,11 @@ async function initialize() {
 		camera();
 		updateLayerNotes();
 		element("map-title").textContent = row.case === "usp"
-			? `Rota fechada do IME por ${row.polygons} regiões da USP, com gap numérico fechado.`
+			? "Menor caminho que visita mais de 50 regiões da USP e retorna ao IME."
 			: `Caso ${caseLabel(row.case)}: busca concluída para ${row.polygons} regiões.`;
+		element("map-description").textContent = row.case === "usp"
+			? "Rota fechada com partida e retorno perto do IME; mais de 50 contornos da USP e caminho calculado em laranja."
+			: `Caminho calculado em laranja, partindo de s, visitando ${row.polygons} regiões e chegando a t.`;
 		drawRoute();
 	}
 
@@ -1045,7 +1042,14 @@ async function initialize() {
 		tracePan = [0, 0];
 		element("show-labels").setAttribute("aria-pressed", String(row.polygons <= 15));
 		element("case-select").value = row.case;
-		element("case-picker-value").textContent = row.case === "usp" ? "Escolha um dos 558 casos do corpus" : `Caso ${caseLabel(row.case)} · ${row.polygons} regiões`;
+		element("case-picker-value").textContent = "Explorar";
+		const featured = ["usp", 3, 9].includes(row.case);
+		element("case-picker-active").hidden = featured;
+		element("case-picker-active").textContent = featured ? "" : `· ${caseLabel(row.case)}`;
+		element("case-picker-button").setAttribute("aria-pressed", String(!featured));
+		element("case-picker-button").setAttribute("aria-label", featured
+			? "Explorar os 558 casos"
+			: `Explorar os 558 casos; caso ${caseLabel(row.case)} selecionado`);
 		document.querySelectorAll(".explorer .example").forEach((button) => {
 			const active = button.dataset.case === String(row.case);
 			button.classList.toggle("active", active);
@@ -1054,29 +1058,15 @@ async function initialize() {
 			else button.removeAttribute("aria-current");
 		});
 		const isUsp = row.case === "usp";
-		element("route-endpoint-legend").textContent = isUsp ? "Blocos A, B e C do IME dourados · S = T na entrada" : "S partida · T chegada";
-		element("usp-demo-details").hidden = !isUsp;
+		element("intro-story").textContent = isUsp
+			? "Suponha que um drone parta da entrada do IME, visite mais de 50 regiões da USP e retorne ao ponto de partida. Veja o menor caminho para esse problema a seguir:"
+			: `No Caso ${caseLabel(row.case)} da pesquisa, a rota sai de s, visita ${row.polygons} regiões e chega a t. Veja o menor caminho para esse problema a seguir:`;
+		element("route-endpoint-legend").textContent = isUsp ? "Blocos A, B e C do IME dourados · s = t na entrada" : "s partida · t chegada";
 		element("usp-current-stop").hidden = !isUsp;
-		element("show-decomposition").disabled = isUsp;
-		if (isUsp) {
-			const itinerary = [
-				`S = T · ${escapeHTML(row.depot.label)} (fora do contorno)`,
-				...row.order.map((building, position) => `${position + 1} · ${escapeHTML(row.buildings[building].label)}`),
-				`Retorno · ${escapeHTML(row.depot.label)}`,
-			];
-			element("usp-itinerary").innerHTML = itinerary.map((entry) => `<li>${entry}</li>`).join("");
-		}
-		element("speed-value").title = `A 1×, este caso leva ${number(playbackDuration(row.polygons) / 1000, 1)} s para percorrer o caminho.`;
-		element("outcome-badge").className = "status certified";
-		element("outcome-badge").textContent = isUsp ? "✓ Gap numérico fechado" : "✓ Busca concluída";
-		element("outcome-title").textContent = isUsp ? "Rota da USP" : "Caminho mínimo";
-		element("outcome-explanation").textContent = isUsp
-			? "O solver C++ fechou os limites numéricos nesta instância; ela não integra as estatísticas do corpus."
-			: "A busca foi concluída pelo solver.";
-		element("case-length").textContent = number(row.length ?? row.validation?.recomputed_length, 2);
-		element("case-unit").textContent = isUsp ? "metros no modelo plano" : "unidades da instância";
+		element("show-decomposition").setAttribute("aria-pressed", "false");
+		element("show-decomposition").disabled = !row.visualization.decomposition?.some((pieces) => pieces.length > 1);
+		element("speed-value").title = `A 1×, este caso leva ${number(playbackDuration(row) / 1000, 1)} s para percorrer o caminho.`;
 		element("case-time").textContent = formatDuration(row.seconds);
-		element("case-time-note").textContent = isUsp ? "uma execução local, uma thread" : "uma thread";
 		if (updateURL && window.location.protocol !== "file:") {
 			const url = new URL(window.location.href);
 			url.searchParams.set("caso", row.case);
@@ -1092,16 +1082,16 @@ async function initialize() {
 		const visible = showAllResults ? rows : rows.slice(0, 8);
 		element("result-count").textContent = `${rows.length} instâncias concluídas.`;
 		const toggle = rows.length > 8 ? `<tr class="result-toggle-row"><td colspan="4"><button type="button" data-toggle-results aria-expanded="${showAllResults}">${showAllResults ? "Mostrar somente os 8 destaques ↑" : `Ver todos os ${rows.length} resultados ↓`}</button></td></tr>` : "";
-		element("result-rows").innerHTML = visible.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Caso </span>${caseLabel(item.case)}</th><td data-label="Regiões">${item.polygons}</td><td data-label="Tempo">${formatDuration(item.seconds)}</td><td class="result-action"><button type="button" data-open-case="${item.case}" aria-label="Ver caminho do caso ${item.case + 1}">Ver caminho →</button></td></tr>`).join("") + toggle;
+		element("result-rows").innerHTML = visible.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Caso </span>${caseLabel(item.case)}</th><td data-label="Regiões">${item.polygons}</td><td data-label="Tempo">${formatDuration(item.seconds)}</td><td class="result-action"><button type="button" data-open-case="${item.case}" aria-label="Ver caminho do caso ${item.case + 1}"><span class="picker-action-full">Ver caminho →</span><span class="picker-action-short">Abrir →</span></button></td></tr>`).join("") + toggle;
 	}
 
 	document.querySelectorAll("button:disabled, input:disabled, select:disabled").forEach((control) => { control.disabled = false; });
 	populateCaseSelect();
 	updateResultSummary();
 	populateTracePicker();
-	function showMap() {
-		element("route-map").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "center" });
-		element("play-route").focus({ preventScroll: true });
+	function showMap(focusPlayback = false) {
+		document.querySelector(".drawing-panel").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "start" });
+		if (focusPlayback) element("play-route").focus({ preventScroll: true });
 	}
 	document.querySelectorAll(".example").forEach((button) => button.addEventListener("click", () => {
 		const key = button.dataset.case === "usp" ? "usp" : Number(button.dataset.case);
@@ -1295,7 +1285,7 @@ async function initialize() {
 		element("play-route").setAttribute("aria-pressed", "true");
 		let previous = performance.now();
 		const tick = (now) => {
-			fraction = Math.min(1, fraction + (now - previous) * speeds[speedIndex] / playbackDuration(row.polygons));
+			fraction = Math.min(1, fraction + (now - previous) * speeds[speedIndex] / playbackDuration(row));
 			previous = now;
 			drawRoute();
 			if (fraction >= 1) stop();
@@ -1371,7 +1361,7 @@ async function initialize() {
 		selectCase(Number(button.dataset.openCase));
 		element("context-return").hidden = false;
 		element("section-dialog")?.closeGuideSection?.();
-		showMap();
+		showMap(true);
 	});
 	element("context-return").addEventListener("click", () => {
 		if (!returnContext) return;
@@ -1413,7 +1403,12 @@ async function initialize() {
 	function renderPicker() {
 		const rows = sortRows(visitorRows(data.rows, element("picker-search").value), sorting.picker.key, sorting.picker.descending);
 		element("picker-count").textContent = `${rows.length} casos disponíveis`;
-		element("picker-options").innerHTML = rows.length ? rows.map((item) => `<button type="button" data-pick-case="${item.case}" aria-pressed="${item.case === row.case}"><span><strong>Caso ${caseLabel(item.case)}</strong><small>${item.polygons} regiões · ${formatDuration(item.seconds)}</small></span></button>`).join("") : "<p>Nenhum caso encontrado. Experimente outro número.</p>";
+		element("picker-options").innerHTML = rows.length ? rows.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Caso </span>${caseLabel(item.case)}</th><td data-label="Regiões">${item.polygons}</td><td data-label="Tempo">${formatDuration(item.seconds)}</td><td class="result-action"><button type="button" data-pick-case="${item.case}" aria-label="Ver caminho do caso ${item.case + 1}" aria-current="${item.case === row.case}"><span class="picker-action-full">Ver caminho →</span><span class="picker-action-short">Abrir →</span></button></td></tr>`).join("") : '<tr><td colspan="4">Nenhum caso encontrado. Experimente outro número.</td></tr>';
+		document.querySelectorAll("[data-picker-column]").forEach((header) => {
+			const active = header.dataset.pickerColumn === sorting.picker.key;
+			header.setAttribute("aria-sort", active ? (sorting.picker.descending ? "descending" : "ascending") : "none");
+			header.querySelector(".sort-arrow").textContent = active ? (sorting.picker.descending ? " ↓" : " ↑") : "";
+		});
 	}
 	element("case-picker-button").addEventListener("click", () => {
 		element("picker-search").value = "";
@@ -1444,22 +1439,12 @@ async function initialize() {
 			buttons[(index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length]?.focus();
 		}
 	});
-	for (const prefix of ["picker"]) {
-		const direction = element(`${prefix}-direction`);
-		const group = direction.parentElement;
-		const render = prefix === "picker" ? renderPicker : renderTable;
-		group.querySelectorAll("[data-sort]").forEach((button) => button.addEventListener("click", () => {
-			sorting[prefix].key = button.dataset.sort;
-			group.querySelectorAll("[data-sort]").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
-			render();
-		}));
-		direction.addEventListener("click", () => {
-			sorting[prefix].descending = !sorting[prefix].descending;
-			direction.setAttribute("aria-pressed", String(sorting[prefix].descending));
-			direction.textContent = sorting[prefix].descending ? "↓ Decrescente" : "↑ Crescente";
-			render();
-		});
-	}
+	document.querySelectorAll("[data-picker-sort]").forEach((button) => button.addEventListener("click", () => {
+		const key = button.dataset.pickerSort;
+		sorting.picker.descending = sorting.picker.key === key ? !sorting.picker.descending : false;
+		sorting.picker.key = key;
+		renderPicker();
+	}));
 	function updateResultSorting() {
 		document.querySelectorAll("[data-result-column]").forEach((header) => {
 			const key = header.dataset.resultColumn;
@@ -1481,7 +1466,6 @@ async function initialize() {
 	updateResultSorting();
 	element("case-picker").hidden = false;
 	element("case-select").hidden = true;
-	document.querySelector('label[for="case-select"]').setAttribute("for", "case-picker-button");
 	const requested = new URLSearchParams(window.location.search).get("caso");
 	selectCase(requested !== null && /^\d+$/.test(requested) ? Number(requested) : defaultCase, false) || selectCase(defaultCase, false);
 	renderTable();
@@ -1506,9 +1490,8 @@ function orderSketch(id, geometry, polygons) {
 
 function initializeChallenge() {
 	const challenge = window.TPPChallengeData;
-	const letters = ["A", "B", "C", "D"];
+	const letters = challenge.geometry.polygons.map((_, index) => String.fromCharCode(65 + index));
 	const best = challenge.solutions[challenge.reference];
-	const greedy = challenge.solutions.find((solution) => solution.order.every((region, index) => region === challenge.greedy.order[index]));
 	let order = [], compared = false;
 	const map = element("challenge-map");
 	map.setAttribute("role", "group");
@@ -1516,18 +1499,19 @@ function initializeChallenge() {
 		const chosen = order.length === challenge.geometry.polygons.length
 			? solveChallengeRoute(challenge.geometry.start, challenge.geometry.target, order.map((index) => challenge.geometry.polygons[index]))
 			: null;
+		if (chosen) chosen.length *= challenge.meters_per_display_unit;
 		map.innerHTML = challenge.geometry.polygons.map((polygon, index) => {
 			const [x, y] = polygonCentroid(polygon);
 			const rank = order.indexOf(index);
 			return `<g role="button" tabindex="0" data-challenge-region="${index}" aria-label="Região ${letters[index]}${rank >= 0 ? `, escolha ${rank + 1}` : ""}" aria-pressed="${rank >= 0}"><polygon points="${coordinates(polygon)}" class="challenge-region ${rank >= 0 ? "chosen" : ""}"/><text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central">${letters[index]}${rank >= 0 ? ` · ${rank + 1}` : ""}</text></g>`;
-		}).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line challenge-solution-route" points="${coordinates(chosen.path)}"/>` : orderSketch("order", challenge.geometry, order.map((index) => challenge.geometry.polygons[index]))) + `<circle cx="${challenge.geometry.start[0]}" cy="${challenge.geometry.start[1]}" r="5" fill="white"/><text x="${challenge.geometry.start[0] - 8}" y="${challenge.geometry.start[1] + 23}">S</text><circle cx="${challenge.geometry.target[0]}" cy="${challenge.geometry.target[1]}" r="5" fill="#ffad66"/><text x="${challenge.geometry.target[0] - 8}" y="${challenge.geometry.target[1] + 23}">T</text>`;
-		element("challenge-choices").innerHTML = letters.map((letter, index) => `<button type="button" data-challenge-region="${index}" aria-pressed="${order.includes(index)}">${letter}</button>`).join("");
-		element("challenge-order").textContent = `Sua ordem: S → ${order.length ? order.map((index) => letters[index]).join(" → ") + " → " : ""}${order.length < 4 ? "… → " : ""}T`;
-		element("challenge-guidance").textContent = order.length === 4 ? "Sequência completa. Compare agora os caminhos." : `Escolha mais ${4 - order.length} ${4 - order.length === 1 ? "região" : "regiões"} para comparar.`;
-		element("challenge-compare").disabled = order.length !== 4 || compared;
+		}).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line challenge-solution-route" points="${coordinates(chosen.path)}"/>` : orderSketch("order", challenge.geometry, order.map((index) => challenge.geometry.polygons[index]))) + `<circle cx="${challenge.geometry.start[0]}" cy="${challenge.geometry.start[1]}" r="5" fill="white"/><text x="${challenge.geometry.start[0] - 8}" y="${challenge.geometry.start[1] + 23}">s</text><circle cx="${challenge.geometry.target[0]}" cy="${challenge.geometry.target[1]}" r="5" fill="#ffad66"/><text x="${challenge.geometry.target[0] - 8}" y="${challenge.geometry.target[1] + 23}">t</text>`;
+		element("challenge-guidance").textContent = order.length === letters.length ? "Sequência completa. Compare agora os caminhos." : `Escolha mais ${letters.length - order.length} ${letters.length - order.length === 1 ? "região" : "regiões"} para comparar.`;
+		element("challenge-guidance").hidden = compared;
+		element("challenge-compare").disabled = order.length !== letters.length || compared;
+		element("challenge-compare").hidden = compared;
 		element("challenge-undo").disabled = !order.length;
 		element("challenge-reset").disabled = !order.length;
-		element("challenge-feedback").innerHTML = compared ? `<strong>${challengeVerdict(chosen.length, best.length, "ordens")}</strong>${challengeComparison("Sua escolha", chosen.length, "Melhor das 24", best.length, "Ordem", order.map((index) => letters[index]).join(" → "), best.order.map((index) => letters[index]).join(" → "))}${challengeGreedyNote(greedy, best, "visitar sempre a região não visitada mais próxima da anterior, começando em S,", challenge.greedy.order.map((index) => letters[index]).join(" → "))}` : "";
+		element("challenge-feedback").innerHTML = compared ? `<strong>${challengeVerdict(chosen.length, best.length, "ordens")}</strong>${challengeComparison("Sua escolha", chosen.length, `Melhor das ${challenge.solutions.length.toLocaleString("pt-BR")}`, best.length, "Ordem", order.map((index) => letters[index]).join(" → "), best.order.map((index) => letters[index]).join(" → "))}` : "";
 		if (compared) animateChallengeRoute(map);
 	}
 	function choose(event) {
@@ -1537,20 +1521,24 @@ function initializeChallenge() {
 		order = toggleOrderRegion(order, index);
 		compared = false;
 		element("challenge-next-one").hidden = true;
-		const fromMap = map.contains(control);
 		render();
 		if (event.type === "keydown" || event.detail === 0) {
-			const parent = fromMap ? map : element("challenge-choices");
-			parent.querySelector(`[data-challenge-region="${index}"]`).focus({ preventScroll: true });
+			map.querySelector(`[data-challenge-region="${index}"]`).focus({ preventScroll: true });
 		}
 	}
 	map.addEventListener("click", choose);
 	map.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(event); } });
-	element("challenge-choices").addEventListener("click", choose);
-	element("challenge-compare").addEventListener("click", () => { compared = true; render(); element("challenge-next-one").hidden = false; });
+	element("challenge-compare").addEventListener("click", () => { compared = true; render(); element("challenge-next-one").hidden = false; scrollToChallengeDrawing(map); });
 	element("challenge-undo").addEventListener("click", () => { order.pop(); compared = false; element("challenge-next-one").hidden = true; render(); });
 	element("challenge-reset").addEventListener("click", () => { order = []; compared = false; element("challenge-next-one").hidden = true; render(); map.querySelector("[data-challenge-region]").focus({ preventScroll: true }); });
 	render();
+}
+
+function scrollToChallengeDrawing(map) {
+	requestAnimationFrame(() => map.closest(".challenge-drawing")?.scrollIntoView({
+		behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+		block: "start",
+	}));
 }
 
 function initializePieceChallenge(combined = false) {
@@ -1560,9 +1548,7 @@ function initializePieceChallenge(combined = false) {
 	const ui = (suffix) => element(`${prefix}-${suffix}`);
 	let order = [];
 	const best = data.solutions[data.reference];
-	const letters = combined ? ["A", "B", "C", "D"] : ["A", "B", "C"];
-	const greedy = data.solutions.find((solution) => (combined ? solution.order.every((region, index) => region === data.greedy.order[index]) : true)
-		&& solution.choices.every((piece, region) => piece === data.greedy.choices[region]));
+	const letters = data.geometry.polygons.map((_, index) => String.fromCharCode(65 + index));
 	let choices = letters.map(() => null), compared = false;
 	const map = ui("map");
 	function render() {
@@ -1574,38 +1560,37 @@ function initializePieceChallenge(combined = false) {
 				(combined ? order : letters.map((_, index) => index)).map((region) => data.pieces[region][choices[region]]),
 			)
 			: null;
+		if (selected) selected.length *= data.meters_per_display_unit;
 		map.innerHTML = data.pieces.map((pieces, region) => {
 			const rank = order.indexOf(region);
 			const bounds = data.geometry.polygons[region].reduce((box, point) => ({
-				minX: Math.min(box.minX, point[0]), maxX: Math.max(box.maxX, point[0]), minY: Math.min(box.minY, point[1]),
-			}), { minX: Infinity, maxX: -Infinity, minY: Infinity });
+				minX: Math.min(box.minX, point[0]), maxX: Math.max(box.maxX, point[0]), minY: Math.min(box.minY, point[1]), maxY: Math.max(box.maxY, point[1]),
+			}), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
 			const regionName = combined && rank >= 0 ? `${letters[region]} · ${rank + 1}ª` : letters[region];
 			const pieceMarkup = pieces.map((piece, index) => {
 				const [x, y] = polygonCentroid(piece);
 				return `<g role="button" tabindex="0" data-piece="${index}" data-piece-region="${region}" aria-label="Região ${letters[region]}, peça ${index + 1}${rank >= 0 ? `, visita ${rank + 1}` : ""}" aria-pressed="${choices[region] === index}"><polygon class="challenge-region ${choices[region] === index ? "chosen" : ""}" points="${coordinates(piece)}"/><text x="${x}" y="${y}" dominant-baseline="central" text-anchor="middle">${index + 1}</text></g>`;
 			}).join("");
-			return `${pieceMarkup}<text class="challenge-region-name" x="${(bounds.minX + bounds.maxX) / 2}" y="${Math.max(18, bounds.minY - 10)}" text-anchor="middle">${regionName}</text>`;
-		}).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line challenge-solution-route" points="${coordinates(selected.path)}"/>` : orderSketch(prefix, data.geometry, combined ? order.map(index => data.pieces[index][choices[index]]) : choices.slice(0, choices.includes(null) ? choices.indexOf(null) : choices.length).map((piece, region) => data.pieces[region][piece]))) + `<circle cx="${data.geometry.start[0]}" cy="${data.geometry.start[1]}" r="5" fill="white"/><text x="${data.geometry.start[0] - 6}" y="${data.geometry.start[1] + 22}">S</text><circle cx="${data.geometry.target[0]}" cy="${data.geometry.target[1]}" r="5" fill="#ffad66"/><text x="${data.geometry.target[0] - 6}" y="${data.geometry.target[1] + 22}">T</text>`;
-		ui("choices").innerHTML = letters.map((letter, region) => `<fieldset><legend>Região ${letter}</legend>${[0, 1, 2].map((piece) => `<button type="button" data-piece="${piece}" data-piece-region="${region}" aria-pressed="${choices[region] === piece}" aria-label="${letter}: peça ${piece + 1}">${piece + 1}</button>`).join("")}</fieldset>`).join("");
-		ui("selection").textContent = choices.map((piece, region) => `${letters[region]}: ${piece === null ? "?" : `peça ${piece + 1}`}`).join(" · ");
-		if (combined) ui("selection").textContent = `Sua sequência: S → ${order.map(index => `${letters[index]}${choices[index] + 1}`).join(" → ")}${order.length < letters.length ? " → …" : ""} → T`;
+			const labelY = (combined && region === 3) || (!combined && region === 2) ? Math.min(248, bounds.maxY + 18) : Math.max(18, bounds.minY - 10);
+			const labelX = combined && region === 0 ? Math.min(408, bounds.maxX + 14) : (bounds.minX + bounds.maxX) / 2;
+			return `${pieceMarkup}<text class="challenge-region-name" x="${labelX}" y="${labelY}" text-anchor="${combined && region === 0 ? "start" : "middle"}">${regionName}</text>`;
+		}).join("") + (compared ? `<polyline class="challenge-reference" points="${coordinates(best.path)}"/><polyline class="route-line challenge-solution-route" points="${coordinates(selected.path)}"/>` : orderSketch(prefix, data.geometry, combined ? order.map(index => data.pieces[index][choices[index]]) : choices.slice(0, choices.includes(null) ? choices.indexOf(null) : choices.length).map((piece, region) => data.pieces[region][piece]))) + `<circle cx="${data.geometry.start[0]}" cy="${data.geometry.start[1]}" r="5" fill="white"/><text x="${data.geometry.start[0] - 6}" y="${data.geometry.start[1] + 22}">s</text><circle cx="${data.geometry.target[0]}" cy="${data.geometry.target[1]}" r="5" fill="#ffad66"/><text x="${combined ? data.geometry.target[0] - 6 : data.geometry.target[0] + 8}" y="${combined ? data.geometry.target[1] + 24 : data.geometry.target[1] - 18}">t</text>`;
 		const remaining = choices.filter((piece) => piece === null).length;
-		ui("guidance").textContent = remaining ? `Faltam ${remaining} ${remaining === 1 ? "região" : "regiões"}.` : "Escolha completa. Compare agora os caminhos.";
+		ui("guidance").textContent = remaining ? `Falta escolher ${remaining} ${remaining === 1 ? "região" : "regiões"}.` : "Escolha completa. Compare agora os caminhos.";
+		ui("guidance").hidden = compared;
 		ui("compare").disabled = choices.includes(null) || compared;
+		ui("compare").hidden = compared;
 		ui("reset").disabled = choices.every((piece) => piece === null);
 		const chosenSequence = (combined ? order : letters.map((_, index) => index)).map(region => `${letters[region]}${choices[region] + 1}`).join(" → ");
 		const bestSequence = (combined ? best.order : letters.map((_, index) => index)).map(region => `${letters[region]}${best.choices[region] + 1}`).join(" → ");
-		const greedySequence = data.greedy.order.map(region => `${letters[region]}${data.greedy.choices[region] + 1}`).join(" → ");
-		const greedyDescription = combined ? "visitar a próxima região pela peça mais próxima da peça anterior, a partir de S," : "escolher, em cada região da ordem fixa, a peça mais próxima da anterior, a partir de S,";
 		const impact = combined ? '<aside class="challenge-impact"><strong>Achou difícil?</strong> No caso 49, as 60! ordens e as escolhas de peças convexas produzem cerca de 1,6 × 10<sup>117</sup> combinações formais. Nosso solver resolveu o caso em 2,47 s com uma thread. Imagine <em>cada átomo da Terra</em> como um computador <a href="#ref-atoms">[7]</a>, testando uma combinação por nanossegundo: ainda levaria mais de 10<sup>49</sup> anos para enumerar tudo. Isso é mais de 10<sup>39</sup> vezes os cerca de 5 bilhões de anos até o Sol virar uma gigante vermelha e possivelmente engolir a Terra <a href="#ref-sun">[6]</a>. O solver não enumerou essas combinações; limites geométricos e podas reduziram a busca.</aside>' : "";
-		ui("feedback").innerHTML = compared ? `<strong>${challengeVerdict(selected.length, best.length, "combinações")}</strong>${challengeComparison("Sua escolha", selected.length, `Melhor das ${data.solutions.length.toLocaleString("pt-BR")}`, best.length, combined ? "Solução" : "Peças", chosenSequence, bestSequence)}${challengeGreedyNote(greedy, best, greedyDescription, greedySequence)}${impact}` : "";
+		ui("feedback").innerHTML = compared ? `<strong>${challengeVerdict(selected.length, best.length, "combinações")}</strong>${challengeComparison("Sua escolha", selected.length, `Melhor das ${data.solutions.length.toLocaleString("pt-BR")}`, best.length, combined ? "Solução" : "Peças", chosenSequence, bestSequence)}${impact}` : "";
 		if (compared) animateChallengeRoute(map);
 	}
 	function choose(event) {
 		const control = event.target.closest("[data-piece]");
 		if (!control) return;
 		const region = Number(control.dataset.pieceRegion), piece = Number(control.dataset.piece);
-		const parent = map.contains(control) ? map : ui("choices");
 		if (combined) {
 			if (choices[region] === piece) { choices[region] = null; order = order.filter(index => index !== region); }
 			else { if (choices[region] === null) order.push(region); choices[region] = piece; }
@@ -1614,16 +1599,16 @@ function initializePieceChallenge(combined = false) {
 		if (combined) element("finish-challenge").hidden = true;
 		else element("challenge-next-two").hidden = true;
 		render();
-		if (event.type === "keydown" || event.detail === 0) parent.querySelector(`[data-piece-region="${region}"][data-piece="${piece}"]`).focus({ preventScroll: true });
+		if (event.type === "keydown" || event.detail === 0) map.querySelector(`[data-piece-region="${region}"][data-piece="${piece}"]`).focus({ preventScroll: true });
 	}
 	map.addEventListener("click", choose);
 	map.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(event); } });
-	ui("choices").addEventListener("click", choose);
 	ui("compare").addEventListener("click", () => {
 		compared = true;
 		render();
 		if (combined) element("finish-challenge").hidden = false;
 		else element("challenge-next-two").hidden = false;
+		scrollToChallengeDrawing(map);
 	});
 	ui("reset").addEventListener("click", () => {
 		choices = letters.map(() => null);
@@ -1869,7 +1854,7 @@ function initializeGuide() {
 		try { localStorage.setItem(storageKey, JSON.stringify([...visited])); } catch { /* Private browsing can reject storage. */ }
 		update(id);
 		const count = element("guide-title")?.closest(".guide-nav")?.querySelector("[data-guide-count]");
-		if (count) count.textContent = `${visited.size}/${nodes.size} etapas visitadas`;
+		if (count) count.textContent = `${visited.size + 1}/${nodes.size + 1} etapas visitadas`;
 	}
 	function sourceFor(node) {
 		return node.matches("details")
@@ -1925,6 +1910,7 @@ function initializeGuide() {
 		update(id);
 		updateNavigation();
 		if (!dialog.open) showModalWithTransition(dialog);
+		requestAnimationFrame(resetDialogScroll);
 		closeButton.focus({ preventScroll: true });
 	}
 	dialog.openGuideSection = (id, opener = null) => open(id, opener);
@@ -1976,6 +1962,7 @@ function initializeGuide() {
 		update(nextId);
 		updateNavigation();
 		if (window.location.hash !== `#${nextId}`) window.history.replaceState(window.history.state, "", `#${nextId}`);
+		requestAnimationFrame(resetDialogScroll);
 	}
 	dialog.addEventListener("close", () => {
 		const closing = active;
@@ -2016,6 +2003,12 @@ function initializeGuide() {
 	}
 	document.querySelectorAll("[data-guide-target]").forEach((link) => link.addEventListener("click", (event) => {
 			const id = link.dataset.guideTarget;
+			if (id === "usp") {
+				event.preventDefault();
+				document.querySelector('.case-tabs [data-case="usp"]')?.click();
+				document.querySelector(".drawing-panel")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
+				return;
+			}
 			if (!nodes.has(id)) return;
 			event.preventDefault();
 			open(id, link);
@@ -2029,7 +2022,7 @@ function initializeGuide() {
 		document.querySelector('.guide-links [data-guide-target="resultados"]')?.click();
 	}));
 	const count = element("guide-title")?.closest(".guide-nav")?.querySelector("[data-guide-count]");
-	if (count) count.textContent = `${visited.size}/${nodes.size} etapas visitadas`;
+	if (count) count.textContent = `${visited.size + 1}/${nodes.size + 1} etapas visitadas`;
 	updateNavigation();
 	const initial = window.location.hash.slice(1);
 	if (nodes.has(initial)) open(initial, null, true);

@@ -1,6 +1,6 @@
 # SIICUSP34 — Touring Polygons Problem
 
-Esta é a página interativa do 34º SIICUSP. O visitante explora uma rota por 50
+Esta é a página interativa do 34º SIICUSP. O visitante explora uma rota por mais de 50
 regiões da USP, tenta três desafios, acompanha uma execução comentada do
 algoritmo e consulta os resultados de 558 instâncias da pesquisa. A rota da USP
 é uma demonstração independente do corpus.
@@ -45,13 +45,19 @@ novo endereço impresso.
   contém os registros usados na simulação; `data/challenge-data.js` contém os
   três desafios. Nenhum desses arquivos é refeito ao iniciar o servidor.
 - Para regenerar a demonstração da USP, é preciso ter a suíte local
-  `benchmarks/suites/usp-butanta-50` e o solver C++ compilado. A partir da raiz:
+  `benchmarks/suites/usp-butanta-50`, o solver C++ compilado e um compilador
+  C++20. O script calcula a decomposição convexa ótima na build, usando o
+  pacote C++ do repositório e sem adicionar dependências ao navegador. A partir
+  da raiz:
 
   ```bash
   python3 apps/siicusp34/scripts/build_usp_demo.py --solver .build/unordered/tpp
   ```
 
-- Para verificar a lógica local dos desafios: `node apps/siicusp34/test-solver.mjs`.
+- Os três desafios vêm de
+  `benchmarks/campaigns/SIICUSP34 - Instances/manual-cases.json` e são
+  regenerados com `node apps/siicusp34/scripts/build_challenge_data.mjs`.
+- Para verificar a lógica local dos desafios: `node --test apps/siicusp34/test-solver.mjs`.
 
 As [notas de produto](NOTAS-DE-PRODUTO.md) registram decisões, evidências e
 pendências de apresentação. Para publicar, basta servir o conteúdo desta pasta
