@@ -1,142 +1,79 @@
 # Demonstração da rota da USP
 
-Esta instância didática é independente dos 558 casos do corpus. Não participa das
-estatísticas ou da comparação com Fekete et al. A página reproduz um resultado
-calculado previamente pelo solver C++ e continua estática, sem serviço de mapas.
+A rota é uma demonstração independente dos 558 casos do corpus. O navegador
+reproduz dados e uma solução pré-calculada, sem backend, mapas externos ou
+execução do solver no visitante.
 
-## Modelo e escolha dos alvos
+## Alvos e proveniência
 
-O cenário narrativo é um drone que sai de um ponto junto à entrada principal do
-IME (Bloco B), visita contornos de edifícios da USP e retorna ao mesmo ponto:
-`s = t`. O IME **é um dos 24 alvos**. O ponto de partida e retorno foi derivado
-do nó OSM [`node/6204649436`](https://www.openstreetmap.org/node/6204649436),
-marcado `entrance=main` no contorno do
-[`way/154079142`](https://www.openstreetmap.org/way/154079142), e deslocado
-3 m para fora na direção do centroide à entrada. O exportador confere que o
-ponto está fora do IME; esse deslocamento é uma escolha geométrica ilustrativa,
-não uma indicação de acesso ou operação de drone.
+Os **50 polígonos** vêm da instância local
+`benchmarks/suites/usp-butanta-50/usp-butanta-50.bin`, exportada da camada
+`predios` do GeoPackage `qgis/predios.gpkg` em 23/09/2026. Os contornos foram
+desenhados manualmente no QGIS pelo autor do projeto, sobre um mapa-base OpenStreetMap;
+não são uma exportação oficial de edifícios da USP nem um extrato direto das
+geometrias do OSM. O mapa-base não é incluído na página. A camada original não
+registra licença de redistribuição para os contornos; seu uso nesta publicação
+foi autorizado pelo autor, mas não declaramos uma licença aberta nova.
 
-Os sete prédios da POLI continuam separados. A versão ampla também inclui as
-unidades solicitadas (FEA, ECA, IAG, IFUSP e Geociências) e outros edifícios
-com contornos identificáveis no recorte. Ela foi feita para seleção posterior;
-24 números podem ficar densos em um celular, por isso a camada de rótulos pode
-ser ligada separadamente.
+O arquivo `polygons.csv` da suíte liga cada região ao `fid`, ao identificador
+do QGIS, ao nome e à fonte usada para conferir o nome. Vários rótulos são
+provisórios. Em particular, os IDs `ime-a` e `ime-c` **não confirmam** a
+existência de blocos A e C no IME: a página os apresenta como edifícios
+próximos ao IME ainda sem identificação. O `ime-b` é o alvo destacado junto à
+partida. Há alvos compostos e a Praça dos Bancos, portanto “50 regiões” é
+mais preciso que “50 prédios”. Nenhum contorno deve ser interpretado como
+limite institucional ou representação completa de uma unidade.
 
-**Revisão pendente:** o alvo IME é somente o objeto OSM chamado “Bloco B”;
-os dados desta instância não incluem alvos chamados blocos A ou C do IME.
-O alvo FEA é somente o objeto “FEA 2”, não o conjunto de edifícios da
-faculdade. O desenho do OSM pode diferir do contorno observado no local. Os
-nomes institucionais não devem ser interpretados como limites de cada unidade.
+O binário guarda vértices e uma rota de referência. O exportador confere a
+contagem e a ordem das 50 linhas do CSV, o SHA-256 das fontes e a consistência
+da rota de referência com a execução do solver. O JSON de navegação embutido em
+`usp-demo.js` contém os vértices já projetados, a rota, a ordem, os primeiros
+contatos e a proveniência; é suficiente para publicar a página separadamente
+da suíte e do repositório de benchmarks.
 
-| Alvo | Contorno | Vínculo institucional no recorte |
-| --- | --- | --- |
-| IME · Bloco B | [`way/154079142`](https://www.openstreetmap.org/way/154079142) | área OSM `way/154079145` |
-| Poli · Biênio | [`way/147219057`](https://www.openstreetmap.org/way/147219057) | nome/contorno OSM |
-| Poli · Produção | [`way/147219058`](https://www.openstreetmap.org/way/147219058) | nome/contorno OSM |
-| Poli · Elétrica | [`way/158960184`](https://www.openstreetmap.org/way/158960184) | nome/contorno OSM |
-| Poli · Civil | [`way/158960183`](https://www.openstreetmap.org/way/158960183) | nome/contorno OSM |
-| Poli · Mecânica | [`way/158966883`](https://www.openstreetmap.org/way/158966883) | nome/contorno OSM |
-| Poli · Minas e Petróleo | [`way/158960190`](https://www.openstreetmap.org/way/158960190) | nome/contorno OSM |
-| Poli · Metalurgia | [`way/158960185`](https://www.openstreetmap.org/way/158960185) | nome/contorno OSM |
-| FAU · Vilanova Artigas | [`way/158966879`](https://www.openstreetmap.org/way/158966879) | área OSM `way/153922310` |
-| IFUSP · Alessandro Volta | [`way/322203748`](https://www.openstreetmap.org/way/322203748) | área OSM `way/158789266` |
-| FEA · prédio 2 | [`way/153921989`](https://www.openstreetmap.org/way/153921989) | área OSM `way/158966874` |
-| ECA · Cinema, Rádio e TV | [`way/153921471`](https://www.openstreetmap.org/way/153921471) | área OSM `way/153922309` |
-| IAG · Administração | [`way/401961914`](https://www.openstreetmap.org/way/401961914) | área OSM `way/152732604` |
-| Geociências · edifício | [`way/1447059783`](https://www.openstreetmap.org/way/1447059783) | área OSM `way/154246451` |
-| Biociências · André Dreyfus | [`way/153921991`](https://www.openstreetmap.org/way/153921991) | área OSM `way/158966876` |
-| ICB · prédio I | [`way/153489174`](https://www.openstreetmap.org/way/153489174) | área OSM `way/34381459` |
-| Química · bloco 1 | [`way/152420864`](https://www.openstreetmap.org/way/152420864) | área OSM `way/34317133` |
-| Oceanográfico · edifício | [`way/393899762`](https://www.openstreetmap.org/way/393899762) | área OSM `way/403735379` |
-| Psicologia · bloco D | [`way/153959724`](https://www.openstreetmap.org/way/153959724) | área OSM `way/34382548` |
-| Relações Internacionais | [`way/291407687`](https://www.openstreetmap.org/way/291407687) | nome/contorno OSM |
-| FFLCH · História e Geografia | [`way/44972294`](https://www.openstreetmap.org/way/44972294) | área OSM `way/158966875` |
-| Farmácia · Administração | [`way/152420887`](https://www.openstreetmap.org/way/152420887) | área OSM `way/52050177` |
-| Energia e Ambiente · Alta Tensão | [`way/34317212`](https://www.openstreetmap.org/way/34317212) | área OSM `way/34381700` |
-| Educação · bloco A | [`way/401293199`](https://www.openstreetmap.org/way/401293199) | área OSM `way/34317182` |
+## Formulação e resultado
 
-Os prédios da POLI também foram conferidos com a
-[lista de prédios da escola](https://www.poli.usp.br/a-poli-2/como-chegar/).
-O nome do prédio no OSM e/ou sua posição dentro de uma área mapeada para a
-unidade fundamentam o rótulo. Nas entradas com nome genérico ou sem nome
-próprio, o vínculo é **inferência espacial** e deve ser conferido antes de usar
-o nome como afirmação institucional. A seleção foi cruzada com o
-[mapa da Cidade Universitária divulgado pelo IFUSP](https://portal.if.usp.br/fge/sites/portal.if.usp.br.fge/files/Mapa%20-%20Cidade%20Universitaria.pdf)
-e o [mapa do campus da Prefeitura da USP](https://puspc.usp.br/mobilidade/mapas/).
+As coordenadas da suíte estão em metros no plano tangente WGS84 linearizado em
+23,557° S e 46,732° W. O início e o destino são o mesmo ponto, próximo à
+entrada do IME e fora do contorno `ime-b`. Cada região conta como visitada ao
+ser tocada ou atravessada. O modelo minimiza comprimento euclidiano plano em
+ordem livre; regiões são **alvos, não obstáculos**. Não modela vias, altura,
+pátios, autorização ou condições reais de voo.
 
-## Fonte, licença e transformação
+O exportador chama o solver C++ de ordem livre com até 5.000.000 chamadas e
+60 segundos. Na geração desta página, retornou `termination=optimal`,
+`exact=true`, `LB≈UB≈4919,804690657526 m`, 4.352 chamadas e uma rota de 31
+pontos. O fechamento do gap usa tolerância absoluta de `1e-7 m` e relativa de
+`1e-9` do comprimento; é um resultado **numérico**, não uma prova em
+aritmética exata. O tempo mostrado é de uma execução local em uma thread, não
+uma comparação de desempenho com os 558 casos.
 
-[`usp-footprints.json`](usp-footprints.json) guarda os vértices em longitude e
-latitude WGS84, IDs, versões e datas dos objetos OSM consultados em
-22/09/2026. Dados © contribuidores do OpenStreetMap,
-[ODbL 1.0](https://www.openstreetmap.org/copyright). O recorte transformado
-em [`usp-demo.js`](usp-demo.js) deriva desses dados e mantém a atribuição e
-a licença de dados. A página não consulta tiles, imagens de satélite nem APIs
-em tempo de execução.
+Além de conferir os extremos e o comprimento, o exportador calcula o primeiro
+contato de cada polígono com a rota e exige que todos os 50 sejam visitados na
+ordem reportada pelo solver. O binário e a rota de referência não são alterados.
+Como o percurso é fechado, apresentamos sua orientação inversa, de mesmo
+comprimento, para visitar o IME primeiro na animação. Os contatos e a ordem
+exibidos são recalculados para essa orientação.
 
-O exportador usa um plano tangente WGS84 linearizado em 23,557° S,
-46,732° W. As coordenadas e o comprimento são **metros planos**, não distâncias
-geodésicas. Os vértices não foram simplificados. Os SVGs são uma apresentação
-das mesmas coordenadas. O modelo minimiza o comprimento euclidiano da rota
-fechada, com ordem livre e pontos de contato escolhidos pelo solver.
-Tocar ou atravessar um contorno conta como visita.
-
-Edifícios são **alvos, não obstáculos**. O modelo não representa ruas, paredes,
-altura, zonas de voo, autorização ou segurança de drones. Para os contornos da
-POLI Mecânica e Minas, só o anel exterior dos multipolígonos OSM é usado: os
-pátios internos ficam preenchidos no modelo. Os contatos da rota exportada
-foram conferidos fora desses pátios, mas a idealização permanece.
-
-## Resultado e validação
-
-O exportador [`build_usp_demo.py`](../scripts/build_usp_demo.py) chama o solver
-C++ de ordem livre com teto de 5.000.000 chamadas e 60 s. Nesta geração, o
-solver retornou `termination=optimal`, `exact=true`,
-`LB=6522.836611259418 m` e `UB=6522.836611259418 m`.
-A tolerância de fechamento é `1e-7 + 1e-9 * abs(UB)` metro.
-**“Certificado” é numérico sob essa tolerância**, não uma prova em aritmética
-racional ou intervalar. O exportador recalcula o comprimento e verifica `s=t`,
-a posição do ponto externo, a primeira visita e a interseção da polilinha com
-todos os 24 polígonos a `1e-7` m. O tempo apresentado é de uma execução
-local e não deve ser interpretado como benchmark.
-
-Para regenerar, a partir da raiz do repositório, com o solver compilado:
+Para regenerar os dados estáticos, a partir da raiz do repositório e com o
+solver compilado:
 
 ```bash
 python3 apps/siicusp34/scripts/build_usp_demo.py --solver .build/unordered/tpp
 ```
 
-O JSON exportado registra SHA-256 da fonte, do binário e da entrada do solver,
-além de formulação, projeção, limites e tolerâncias. O exportador também cria
-`usp-preview.svg` e `usp-preview-mobile.svg`, visíveis enquanto os scripts
-estáticos carregam.
+Os arquivos `usp-preview.svg` e `usp-preview-mobile.svg` mostram a mesma rota
+enquanto o JavaScript carrega. Os números de visita ficam ocultos por padrão
+porque 50 rótulos cobririam os polígonos em um celular. A lista de alvos e a
+ordem estão disponíveis em um painel recolhido.
 
-## Como revisar os contornos
+## Revisão antes da publicação
 
-1. No QGIS, crie um projeto em **EPSG:4326 (WGS84)** e carregue uma base com
-   permissão de derivação, por exemplo os dados do OpenStreetMap. Use a imagem
-   do Apple Maps apenas para apontar uma dúvida a conferir; não copie dela
-   vértices ou traçados para a publicação sem licença compatível.
-2. Crie uma camada **GeoJSON de polígonos**, com campos `id`, `label`,
-   `source` e `license`. Use os mesmos IDs de `usp-footprints.json` para
-   substituir os alvos existentes (`ime`, `fea`, `bienio` etc.). Desenhe
-   cada alvo como um único polígono simples, sem buracos e sem auto-interseções.
-   Se a unidade ocupa vários edifícios separados, mantenha alvos separados
-   com IDs distintos; não una tudo por um fecho convexo que inventaria área.
-3. Confira no local ou em fonte institucional autorizada qual edifício cada
-   contorno representa. Para o IME, marque também o ponto proposto para
-   partida/retorno fora do novo contorno; o ponto atual foi construído a partir
-   da entrada no contorno OSM e pode deixar de ser válido após a correção.
-4. Exporte **GeoJSON em EPSG:4326**, preservando os campos e um arquivo de
-   notas com data, fonte, licença, referência e dúvidas de cada alvo. O arquivo
-   pode ser enviado para revisão e conversão à lista `lon_lat` em
-   `usp-footprints.json`. Não arredonde os vértices para a tela.
-5. Antes de publicar, confira orientação, escala, interseções, extremos e
-   rótulos; regenere `usp-demo.js` e os SVGs pelo exportador, que recalcula a
-   solução no C++ e rejeita ausência de certificado numérico ou rota que não
-   visite algum alvo. Atualize os números, a atribuição e esta proveniência.
-
-O formato GeoJSON permite editar os vértices visualmente no QGIS sem mexer no
-arquivo da instância nem na implementação. A escolha de prédio ou área como
-alvo deve ser explícita: trocar o contorno também troca o problema matemático
-e exige nova resolução, mesmo que o mapa pareça semelhante.
+1. Conferir os 50 rótulos no local ou em fonte institucional, sobretudo
+   `ime-a`, `ime-c` e os marcados como provisórios em `polygons.csv`.
+2. Conferir os contornos, a posição de partida e a licença/publicabilidade
+   das geometrias desenhadas a partir do mapa-base.
+3. Caso qualquer vértice ou extremo mude, regenerar a suíte e esta exportação;
+   um novo desenho define outro problema matemático.
+4. Inspecionar o SVG em celular: o recorte amplo favorece contexto do campus,
+   mas reduz a legibilidade de polígonos pequenos sem zoom.

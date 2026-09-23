@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the independent, static USP teaching example from reviewed OSM outlines.
+"""Build the independent, static USP example from the user-drawn 50-region suite.
 
 This is an app-local exporter, not a benchmark entry point. Run from the repository
 root with ``--solver .build/unordered/tpp``. It never changes the 558-case corpus.
@@ -8,36 +8,25 @@ root with ``--solver .build/unordered/tpp``. It never changes the 558-case corpu
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import math
+import struct
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "data/usp-footprints.json"
+REPOSITORY = ROOT.parents[1]
+SUITE = REPOSITORY / "benchmarks/suites/usp-butanta-50"
+SOURCE = SUITE / "usp-butanta-50.bin"
+MAPPING = SUITE / "polygons.csv"
 OUTPUT = ROOT / "data/usp-demo.js"
 PREVIEW = ROOT / "data/usp-preview.svg"
 PREVIEW_MOBILE = ROOT / "data/usp-preview-mobile.svg"
-LATITUDE_ORIGIN = -23.557
-LONGITUDE_ORIGIN = -46.732
 MAX_CALLS = 5_000_000
 MAX_SECONDS = 60
-
-
-def project(lon_lat: list[float]) -> list[float]:
-    """WGS84 tangent-plane linearization, in metres around the Poli/IME area."""
-    lon, lat = lon_lat
-    phi = math.radians(LATITUDE_ORIGIN)
-    eccentricity_squared = 0.0066943799901413165
-    radius = 6_378_137.0
-    denominator = 1 - eccentricity_squared * math.sin(phi) ** 2
-    east_radius = radius / math.sqrt(denominator)
-    north_radius = radius * (1 - eccentricity_squared) / denominator**1.5
-    return [
-        math.radians(lon - LONGITUDE_ORIGIN) * east_radius * math.cos(phi),
-        math.radians(lat - LATITUDE_ORIGIN) * north_radius,
-    ]
 
 
 def centroid(points: list[list[float]]) -> list[float]:
@@ -117,25 +106,32 @@ def first_contact(path: list[list[float]], polygon: list[list[float]], tolerance
 
 
 def build(solver: Path) -> dict:
+    sys.path.insert(0, str(REPOSITORY / "benchmarks/_internal"))
+    from benchmark_cases import read_encoded_cases
+
     source_bytes = SOURCE.read_bytes()
-    source = json.loads(source_bytes)
-    polygons = [[project(point) for point in building["lon_lat"]] for building in source["buildings"]]
-    ime_polygon = polygons[0]
-    ime_center = centroid(ime_polygon)
-    entrance = project(source["depot"]["entrance_lon_lat"])
-    if not any(on_segment(entrance, point, ime_polygon[(index + 1) % len(ime_polygon)], 1e-7) for index, point in enumerate(ime_polygon)):
-        raise ValueError("The mapped entrance is not on the IME footprint")
-    outward = [entrance[axis] - ime_center[axis] for axis in (0, 1)]
-    direction_length = math.hypot(*outward)
-    if direction_length < 1e-9:
-        raise ValueError("IME entrance and centroid coincide")
-    offset = source["depot"]["outside_offset_metres"]
-    if offset <= 0:
-        raise ValueError("The depot offset must be positive")
-    start = [entrance[axis] + offset * outward[axis] / direction_length for axis in (0, 1)]
-    if point_in_polygon(start, ime_polygon, 1e-7):
+    cases = read_encoded_cases(SOURCE)
+    if len(cases) != 1 or cases[0].polygon_count != 50:
+        raise ValueError("Expected one USP suite case with 50 polygons")
+    case = cases[0]
+    with MAPPING.open(encoding="utf-8-sig", newline="") as file:
+        mapping = list(csv.DictReader(file))
+    if len(mapping) != 50 or any(int(row["polygon_index"]) != index for index, row in enumerate(mapping)):
+        raise ValueError("The CSV mapping does not match the 50 polygons")
+    if mapping[0]["qgis_id"] != "ime-b":
+        raise ValueError("The first region must be the IME entrance building")
+    polygons = [[list(point) for point in polygon] for polygon in case.polygons]
+    sx, sy, tx, ty = struct.unpack_from("<dddd", case.data)
+    start, target = [sx, sy], [tx, ty]
+    if math.dist(start, target) > 1e-7:
+        raise ValueError("The USP route must return to its starting point")
+    if point_in_polygon(start, polygons[0], 1e-7):
         raise ValueError("The depot is not outside the IME footprint")
-    target = start
+    position = 40 + sum(8 + 16 * len(polygon) for polygon in polygons)
+    reference_count = struct.unpack_from("<Q", case.data, position)[0]
+    reference_path = [struct.unpack_from("<dd", case.data, position + 8 + 16 * index) for index in range(reference_count)]
+    if len(reference_path) < 2 or math.dist(reference_path[0], start) > 1e-7 or math.dist(reference_path[-1], target) > 1e-7:
+        raise ValueError("The suite reference route does not start and end at the depot")
     lines = [f"{start[0]:.12f} {start[1]:.12f} {target[0]:.12f} {target[1]:.12f} {len(polygons)} {MAX_CALLS} {MAX_SECONDS}"]
     for polygon in polygons:
         lines.append(str(len(polygon)) + " " + " ".join(f"{x:.12f} {y:.12f}" for x, y in polygon))
@@ -153,16 +149,29 @@ def build(solver: Path) -> dict:
     length = sum(math.dist(a, b) for a, b in zip(path, path[1:]))
     if abs(length - upper) > 1e-7 + 1e-9 * abs(upper):
         raise ValueError("Route length differs from the upper bound")
+    reference_length = sum(math.dist(a, b) for a, b in zip(reference_path, reference_path[1:]))
+    if abs(reference_length - upper) > 1e-7 + 1e-9 * abs(upper):
+        raise ValueError("The suite reference route differs from the solver result")
     contacts = [first_contact(path, polygon, 1e-7) for polygon in polygons]
     if any(contact is None for contact in contacts):
-        raise ValueError("The route misses at least one building outline")
+        raise ValueError("The route misses at least one USP region")
     order = sorted(range(len(polygons)), key=lambda index: (contacts[index]["fraction"], index))
     if order != result["order"]:
         raise ValueError(f"First-contact order {order} differs from solver order {result['order']}")
+    # A closed Euclidean tour has the same length in either direction. Present
+    # the IME near the start of the drone story rather than just before return.
+    if order.index(0) > len(order) // 2:
+        path = list(reversed(path))
+        contacts = [first_contact(path, polygon, 1e-7) for polygon in polygons]
+        if any(contact is None for contact in contacts):
+            raise ValueError("Reversing the tour lost a USP region")
+        order = sorted(range(len(polygons)), key=lambda index: (contacts[index]["fraction"], index))
+    if order[0] != 0:
+        raise ValueError("The IME must be the first visited region in the presented tour")
     return {
         "schema_version": 1,
         "case": "usp",
-        "title": "Rota entre edifícios da USP",
+        "title": "Rota entre regiões da USP",
         "corpus": "demonstration",
         "polygons": len(polygons),
         "geometry": {"start": start, "target": target, "polygons": polygons},
@@ -175,10 +184,25 @@ def build(solver: Path) -> dict:
         "termination": "optimal",
         "seconds": result["seconds"],
         "visualization": {"contacts": contacts, "decomposition": []},
-        "buildings": [{"id": building["id"], "label": building["label"], "osm_way": building["osm_way"]} for building in source["buildings"]],
-        "depot": {"label": source["depot"]["label"], "osm_entrance_node": source["depot"]["osm_entrance_node"], "entrance": entrance, "outside_offset_metres": offset},
+        "buildings": [
+            {
+                "id": "ime" if row["qgis_id"] == "ime-b" else row["qgis_id"],
+                "qgis_id": row["qgis_id"],
+                "label": (
+                    "Edifício próximo ao IME 1 · identificação pendente" if row["qgis_id"] == "ime-a" else
+                    "Edifício próximo ao IME 2 · identificação pendente" if row["qgis_id"] == "ime-c" else row["name"]
+                ),
+                "name_status": row["name_status"],
+                "fid": int(row["fid"]),
+            }
+            for row in mapping
+        ],
+        "depot": {"label": "Entrada do IME", "outside_offset_metres": 3},
         "provenance": {
             "source_sha256": hashlib.sha256(source_bytes).hexdigest(),
+            "mapping_sha256": hashlib.sha256(MAPPING.read_bytes()).hexdigest(),
+            "source": "Project-author-drawn QGIS GeoPackage; exported as benchmarks/suites/usp-butanta-50/usp-butanta-50.bin",
+            "source_license": "No redistributable license declared; author authorized this event instance",
             "solver_sha256": hashlib.sha256(solver.read_bytes()).hexdigest(),
             "input_sha256": hashlib.sha256(encoded_input).hexdigest(),
             "projection": "WGS84 local tangent plane at 23.557 S, 46.732 W; metres",

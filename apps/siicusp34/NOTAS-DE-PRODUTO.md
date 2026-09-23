@@ -39,8 +39,10 @@ O fluxo da página após a revisão de setembro de 2026 é:
 A simulação fica na etapa do algoritmo e usa um pseudocódigo didático com
 palavras-chave coloridas e destaque da linha associada ao evento visível.
 O registro não mostra cada instrução executada. A demonstração da USP usa
-contornos OSM provisórios; IME e FEA precisam de revisão manual antes de
-servirem como ilustração cartográfica confiável.
+50 contornos desenhados manualmente pelo usuário no QGIS e exportados da suíte
+local `benchmarks/suites/usp-butanta-50`. Os rótulos e a licença de
+redistribuição das geometrias ainda precisam de revisão; dois IDs próximos ao
+IME não devem ser divulgados como blocos A e C confirmados.
 
 A explicação do algoritmo começa com uma definição curta do TPP de ordem livre,
 segue a busca por ordem parcial, inserção em todas as posições, refinamento em
@@ -59,7 +61,7 @@ Devemos manter os três. Se o primeiro for óbvio demais, o visitante pode concl
 
 As instâncias sintéticas atuais são geradas por `scripts/build_challenge_data.mjs`, independentemente do corpus de 558 casos. Para avaliar a escolha local, parte-se de `S` e escolhe-se a próxima região não visitada mais próxima da anterior. Nos desafios com peças, escolhe-se a peça (e, no terceiro, também a região) mais próxima da escolha anterior. A distância entre os retângulos é a distância euclidiana entre conjuntos, sem usar `T` antes da última visita. O script enumera as 24 ordens, 27 escolhas de peças e 1.944 combinações, calcula cada caminho com o solver local e exige diferença relevante entre a regra local e o menor caminho, alternativas próximas e margens de escolha não microscópicas. A interface mostra a comparação da regra local depois da tentativa do visitante e oferece botões recolhidos como alternativa aos alvos finos do mapa no celular.
 
-O card após o desafio final usa uma contagem **formal** do corpus: para `n` regiões, `n! × ∏ p_i`, onde `p_i` é o número de peças convexas da região `i` na decomposição guardada em `data/event-data.js`. Não é o número de ramos examinados nem de rotas geométricas distintas. As 558 linhas foram conferidas; o caso 1 não tem decomposição armazenada, mas seus 48 polígonos são convexos (`p_i = 1`). O caso 49 tem 60 regiões, produto de peças `≈ 1,8767 × 10^35`, espaço formal `≈ 1,5616 × 10^117` e terminou em 2,473421125 s com uma thread. O maior espaço formal do corpus é o caso 130, `≈ 4,7851 × 10^123`; sua execução terminou em 20.862,645174292 s. O card usa o caso 49 para comparar o espaço formal com uma execução rápida. Sob a hipótese de `10^10` computadores verificando `10^9` combinações por segundo cada, sua enumeração completa levaria `≈ 4,95 × 10^90` anos (ano de 365,25 dias), ou `≈ 9,9 × 10^80` vezes os cerca de 5 bilhões de anos até a fase de gigante vermelha do Sol, conforme a fonte da NASA citada na página. A analogia não sugere que o solver tenha enumerado todas as combinações.
+O card após o desafio final usa uma contagem **formal** do corpus: para `n` regiões, `n! × ∏ p_i`, onde `p_i` é o número de peças convexas da região `i` na decomposição guardada em `data/event-data.js`. Não é o número de ramos examinados nem de rotas geométricas distintas. As 558 linhas foram conferidas; o caso 1 não tem decomposição armazenada, mas seus 48 polígonos são convexos (`p_i = 1`). O caso 49 tem 60 regiões, produto de peças `≈ 1,8767 × 10^35`, espaço formal `≈ 1,5616 × 10^117` e terminou em 2,473421125 s com uma thread. O maior espaço formal do corpus é o caso 130, `≈ 4,7851 × 10^123`; sua execução terminou em 20.862,645174292 s. O card usa o caso 49 para comparar o espaço formal com uma execução rápida. A analogia agora concede um computador a **cada átomo da Terra**, cada um verificando `10^9` combinações por segundo. A massa da Terra (`5,9722 × 10^24 kg`, NASA) dividida pela massa de um próton (`1,67262192595 × 10^-27 kg`, NIST) dá um teto generoso de `3,571 × 10^51` átomos/computadores, pois um átomo tem pelo menos um próton. Mesmo sob esse teto, a enumeração exigiria mais de `1,38 × 10^49` anos (ano de 365,25 dias), mais de `2,77 × 10^39` vezes os cerca de 5 bilhões de anos até a fase de gigante vermelha do Sol, conforme as fontes citadas na página. A analogia não sugere que o solver tenha enumerado todas as combinações.
 
 ## Solução geométrica no navegador
 

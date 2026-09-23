@@ -970,8 +970,8 @@ async function initialize() {
 		if (row.case === "usp") {
 			const next = row.order.find((index) => row.visualization.contacts[index].fraction > fraction + 1e-12);
 			setOutput(element("usp-current-stop"), next === undefined
-				? `Percurso concluído: ${row.polygons} edifícios visitados e retorno ao IME.`
-				: `Próximo edifício: ${row.buildings[next].label}.`);
+				? `Percurso concluído: ${row.polygons} regiões visitadas e retorno ao IME.`
+				: `Próximo alvo: ${row.buildings[next].label}.`);
 		}
 	}
 
@@ -1027,7 +1027,7 @@ async function initialize() {
 		camera();
 		updateLayerNotes();
 		element("map-title").textContent = row.case === "usp"
-			? `Rota fechada do IME por ${row.polygons} edifícios da USP, com gap numérico fechado.`
+			? `Rota fechada do IME por ${row.polygons} regiões da USP, com gap numérico fechado.`
 			: `Caso ${caseLabel(row.case)}: busca concluída para ${row.polygons} regiões.`;
 		drawRoute();
 	}
@@ -1060,7 +1060,7 @@ async function initialize() {
 		element("show-decomposition").disabled = isUsp;
 		if (isUsp) {
 			const itinerary = [
-				`S = T · ${escapeHTML(row.depot.label)} (3 m fora do contorno)`,
+				`S = T · ${escapeHTML(row.depot.label)} (fora do contorno)`,
 				...row.order.map((building, position) => `${position + 1} · ${escapeHTML(row.buildings[building].label)}`),
 				`Retorno · ${escapeHTML(row.depot.label)}`,
 			];
@@ -1597,7 +1597,7 @@ function initializePieceChallenge(combined = false) {
 		const bestSequence = (combined ? best.order : letters.map((_, index) => index)).map(region => `${letters[region]}${best.choices[region] + 1}`).join(" → ");
 		const greedySequence = data.greedy.order.map(region => `${letters[region]}${data.greedy.choices[region] + 1}`).join(" → ");
 		const greedyDescription = combined ? "visitar a próxima região pela peça mais próxima da peça anterior, a partir de S," : "escolher, em cada região da ordem fixa, a peça mais próxima da anterior, a partir de S,";
-		const impact = combined ? '<aside class="challenge-impact"><strong>Achou difícil?</strong> No caso 49, as 60! ordens de visita e as escolhas de peças convexas produzem cerca de 1,6 × 10<sup>117</sup> combinações formais. Nosso solver resolveu o caso em 2,47 s, com uma thread. Mesmo que 10 bilhões de computadores examinassem uma combinação por nanossegundo cada, enumerar todas levaria cerca de 5 × 10<sup>90</sup> anos: quase 10<sup>81</sup> vezes os cerca de 5 bilhões de anos até o Sol se tornar uma gigante vermelha e possivelmente engolir a Terra <a href="#ref-sun">[6]</a>. O solver não enumerou essas combinações; limites geométricos e podas reduziram a busca.</aside>' : "";
+		const impact = combined ? '<aside class="challenge-impact"><strong>Achou difícil?</strong> No caso 49, as 60! ordens e as escolhas de peças convexas produzem cerca de 1,6 × 10<sup>117</sup> combinações formais. Nosso solver resolveu o caso em 2,47 s com uma thread. Imagine <em>cada átomo da Terra</em> como um computador <a href="#ref-atoms">[7]</a>, testando uma combinação por nanossegundo: ainda levaria mais de 10<sup>49</sup> anos para enumerar tudo. Isso é mais de 10<sup>39</sup> vezes os cerca de 5 bilhões de anos até o Sol virar uma gigante vermelha e possivelmente engolir a Terra <a href="#ref-sun">[6]</a>. O solver não enumerou essas combinações; limites geométricos e podas reduziram a busca.</aside>' : "";
 		ui("feedback").innerHTML = compared ? `<strong>${challengeVerdict(selected.length, best.length, "combinações")}</strong>${challengeComparison("Sua escolha", selected.length, `Melhor das ${data.solutions.length.toLocaleString("pt-BR")}`, best.length, combined ? "Solução" : "Peças", chosenSequence, bestSequence)}${challengeGreedyNote(greedy, best, greedyDescription, greedySequence)}${impact}` : "";
 		if (compared) animateChallengeRoute(map);
 	}
