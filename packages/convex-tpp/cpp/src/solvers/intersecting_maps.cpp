@@ -416,9 +416,8 @@ public:
         for(const auto &p:compact) result.push_back(p.external());
         return result;
     }
-    std::vector<DirectionalMapContact> contact_details(bool use_last_contact) {
-        std::vector<Point> path;
-        query_path(target,maps.size(),path);
+    std::vector<DirectionalMapContact> contact_details_from_path(
+            const std::vector<Point> &path,bool use_last_contact) {
         std::vector<DirectionalMapContact> result;
         result.reserve(maps.size());
         if(path.empty()) throw std::runtime_error("Directional map returned an empty path");
@@ -466,21 +465,30 @@ public:
         }
         return result;
     }
+    std::vector<DirectionalMapContact> contact_details(bool use_last_contact) {
+        std::vector<Point> path;
+        query_path(target,maps.size(),path);
+        return contact_details_from_path(path,use_last_contact);
+    }
     std::vector<DirectionalTraceStep> trace() {
         std::vector<DirectionalTraceStep> result;result.reserve(maps.size());
         query_trace(target,maps.size(),result);
         if(result.size()!=maps.size())throw std::runtime_error("Directional trace has wrong cardinality");
         return result;
     }
-    std::vector<Vector2> contacts(bool use_last_contact) {
-        const auto details=contact_details(use_last_contact);
+    std::vector<Vector2> contacts_from_path(const std::vector<Point> &path,bool use_last_contact) {
+        const auto details=contact_details_from_path(path,use_last_contact);
         std::vector<Vector2> result;result.reserve(details.size());
         for(const auto &detail:details)result.push_back(detail.point);
         return result;
     }
+    std::vector<Vector2> contacts(bool use_last_contact) {
+        std::vector<Point> path;
+        query_path(target,maps.size(),path);
+        return contacts_from_path(path,use_last_contact);
+    }
 #ifndef TPP_EXPERIMENT_NATIVE_DOUBLE
-    std::pair<double,double> exact_length_bounds() {
-        std::vector<Point> path;query_path(target,maps.size(),path);
+    std::pair<double,double> exact_length_bounds(const std::vector<Point> &path) {
         constexpr unsigned precision=96;
         const boost::multiprecision::cpp_int scale=boost::multiprecision::cpp_int(1)<<precision;
         Scalar lower=0,upper=0;
@@ -501,8 +509,10 @@ public:
         return {lo,hi};
     }
     RationalMapResult exact_result(bool use_last_contact) {
-        RationalMapResult result;result.contacts=contacts(use_last_contact);
-        std::tie(result.lower_bound,result.upper_bound)=exact_length_bounds();
+        std::vector<Point> path;
+        query_path(target,maps.size(),path);
+        RationalMapResult result;result.contacts=contacts_from_path(path,use_last_contact);
+        std::tie(result.lower_bound,result.upper_bound)=exact_length_bounds(path);
         return result;
     }
 #endif

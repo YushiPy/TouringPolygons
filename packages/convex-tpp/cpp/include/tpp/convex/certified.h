@@ -26,8 +26,8 @@ namespace tpp {
 		double fallback_extended_precision_seconds = 0;
 	};
 
-	// Verifies the geometric oracle against a support-function dual bound.
-	// Uses a smooth interior-point fallback if the certificate does not close.
+	// Delegates to the safe hybrid oracle: exact rational predicates certify the
+	// geometric candidate, with a rational solver fallback when needed.
 	// A finite cutoff allows early return once lower_bound >= cutoff, even if
 	// the primal-dual gap is still open. The returned path remains feasible.
 	CertifiedConvexTppResult tpp_convex_solve_certified(
