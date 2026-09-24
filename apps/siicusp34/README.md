@@ -39,6 +39,26 @@ novo endereço impresso.
 
 ## Dados e manutenção
 
+- `data/sp-bairros-demo.js` e `data/br-estados-demo.js` contêm as instâncias
+  estáticas usadas nos destaques São Paulo e Brasil, com rota e decomposição
+  convexa pré-calculadas. As fontes e os mapeamentos ficam em
+  `benchmarks/suites/sp-bairros` e `benchmarks/suites/br-estados`. Para
+  regenerar São Paulo, execute da raiz do repositório:
+
+  ```bash
+  python3 apps/siicusp34/scripts/build_sp_bairros_demo.py --solver .build/unordered/tpp
+  ```
+
+  Para regenerar a instância brasileira, com o solver C++ compilado e um
+  compilador C++20 disponível, execute da raiz do repositório:
+
+  ```bash
+  python3 apps/siicusp34/scripts/build_br_estados_demo.py --solver .build/unordered/tpp
+  ```
+
+  O script também reconstrói `br-estados.bin` e `polygons.csv` a partir do ZIP
+  oficial mantido em `benchmarks/suites/br-estados/ibge`.
+
 - `data/usp-demo.js` e os SVGs de prévia contêm a rota estática da USP. A
   [proveniência e as limitações](data/USP-DEMO.md) estão documentadas à parte.
 - `data/event-data.js` contém os 558 casos e resultados; `data/trace-data.js`

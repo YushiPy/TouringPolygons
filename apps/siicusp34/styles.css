@@ -2622,7 +2622,7 @@ button.guided-summary {
 		aspect-ratio: 1.3;
 	}
 
-	#route-map.usp-route {
+	#route-map.portrait-route {
 		aspect-ratio: 420 / 440;
 	}
 
@@ -5649,7 +5649,6 @@ details:not(.geometry-tools):not(.guided-section)[open]>summary::after {
 }
 
 .geometry-tools {
-	padding-top: 7px;
 	margin-bottom: 11px;
 }
 .geometry-tools > summary {
@@ -5733,7 +5732,7 @@ details:not(.geometry-tools):not(.guided-section)[open]>summary::after {
 
 /* Publication identity and desktop presentation. */
 .site-header {
-	background: #fff;
+	background: #f5f8fa;
 	border-bottom: 1px solid var(--line);
 }
 .site-frame {
@@ -5831,5 +5830,6 @@ details:not(.geometry-tools):not(.guided-section)[open]>summary::after {
 		max-width: 28ch;
 		font-size: 0.72rem;
 		line-height: 1.25;
+		justify-self: end;
 	}
 }
