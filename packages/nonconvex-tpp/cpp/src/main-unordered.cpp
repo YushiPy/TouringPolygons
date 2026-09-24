@@ -76,7 +76,7 @@ int main(int argc, char **argv) {
 		for (int i = 1; i < argc; ++i) {
 			const std::string flag = argv[i];
 			if (flag == "--help") {
-				std::cout << "Usage: tpp-unordered [--absolute-gap N] [--relative-gap N] [--oracle-relative-gap N] [--bidirectional-initial] [--initial-path] [--trace]\n"
+				std::cout << "Usage: tpp-unordered [--absolute-gap N] [--relative-gap N] [--oracle-relative-gap N] [--dive-interval N] [--bidirectional-initial] [--initial-path] [--trace]\n"
 					<< "stdin: sx sy tx ty polygon_count max_calls max_seconds, then each polygon's vertex count and coordinates. With --initial-path, append path point count and coordinates, including endpoints.\n";
 				return 0;
 			}
@@ -91,6 +91,16 @@ int main(int argc, char **argv) {
 			if (flag == "--initial-path") {
 				if (read_initial_path) throw std::invalid_argument("Repeated --initial-path.");
 				read_initial_path = true;
+				continue;
+			}
+			if (flag == "--dive-interval") {
+				if (++i >= argc) throw std::invalid_argument("Expected a value after --dive-interval.");
+				const std::string value = argv[i];
+				if (value.empty() || value.find_first_not_of("0123456789") != std::string::npos)
+					throw std::invalid_argument("Invalid dive interval: " + value);
+				size_t parsed = 0;
+				options.dive_interval = std::stoull(value, &parsed);
+				if (parsed != value.size()) throw std::invalid_argument("Invalid dive interval: " + value);
 				continue;
 			}
 			if (++i >= argc) throw std::invalid_argument("Expected a value after " + flag);
@@ -142,6 +152,7 @@ int main(int argc, char **argv) {
 			<< ",\"complete_piece_oracle_calls\":" << r.complete_piece_oracle_calls
 			<< ",\"oracle_cutoff_calls\":" << r.oracle_cutoff_calls
 			<< ",\"screened_nodes\":" << r.screened_nodes
+			<< ",\"sibling_bound_prunes\":" << r.sibling_bound_prunes
 			<< ",\"partial_states_created\":" << r.partial_states_created
 			<< ",\"children_generated\":" << r.children_generated
 			<< ",\"children_queued\":" << r.children_queued

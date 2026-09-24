@@ -15,7 +15,7 @@ namespace tpp {
 		double absolute_gap = 1e-7;
 		double relative_gap = 1e-9;
 		double feasibility_tolerance = 1e-8;
-		size_t dive_interval = 128;
+		size_t dive_interval = 1;
 		bool bidirectional_initial_heuristic = false;
 		// A feasible start-to-target path, including both endpoints. When present,
 		// it replaces the initial heuristic and supplies only an upper bound.
@@ -76,6 +76,8 @@ namespace tpp {
 		size_t complete_piece_oracle_calls = 0;
 		size_t oracle_cutoff_calls = 0;
 		size_t screened_nodes = 0;
+		// Generated children skipped before the oracle after a sibling improved the incumbent.
+		size_t sibling_bound_prunes = 0;
 		size_t nodes = 0;
 		size_t partial_states_created = 0;
 		size_t children_generated = 0;

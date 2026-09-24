@@ -32,8 +32,13 @@ A raiz tem sequência vazia e caminho reto entre os extremos.
 5. Se ele não estiver na sequência, inserir seu fecho em cada uma das `m + 1` posições.
 6. Se estiver representado pelo fecho, substituí-lo por cada peça de sua decomposição.
 
-A busca prioriza o menor limite inferior e faz descidas periódicas pelo melhor filho,
-para obter soluções completas cedo. `dive_interval = 0` desativa essas descidas.
+A busca prioriza o menor limite inferior e faz uma descida pelo melhor filho em
+cada expansão (`dive_interval = 1` por padrão), para obter incumbentes cedo.
+`dive_interval = 0` desativa as descidas; a CLI aceita `--dive-interval N`.
+Depois que um filho melhora o incumbente, a busca compara novamente o limite
+inferior dos irmãos ainda não avaliados com o novo corte e dispensa o oráculo
+quando já é impossível melhorar. Isso é seguro porque cada limite inferior
+permanece válido e o incumbente só diminui.
 A solução inicial usa vértices próximos, 2-opt e otimização dos contatos nas arestas.
 Essas heurísticas só fornecem limites superiores. A decomposição é calculada sob demanda.
 Opcionalmente, `options.initial_path` fornece um caminho completo de `start` a
@@ -143,7 +148,7 @@ vertex_count x0 y0 x1 y1 ...
 A saída JSON inclui `path`, `order` (índices a partir de zero, pela primeira visita),
 `lower_bound`, `upper_bound`, `exact`, `termination`, `calls`, `fallback_calls`,
 motivos de fallback, reparações do caminho geométrico, uso de precisão ampliada,
-`nodes`, os dois contadores de
+`nodes`, `sibling_bound_prunes`, os dois contadores de
 ramificação, `peak_queue`, `seconds` e `profile`.
 A API C++ não tem limite de busca por padrão. A CLI exige limites explícitos.
 Com `--initial-path`, a CLI lê após os polígonos a contagem de pontos do caminho

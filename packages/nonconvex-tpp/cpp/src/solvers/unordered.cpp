@@ -475,7 +475,9 @@ namespace tpp {
 				}
 			}
 			for (auto &child : children) {
-				if (!limited()) {
+				const bool pruned_by_new_incumbent = child.bound >= result.upper_bound - gap();
+				if (pruned_by_new_incumbent) ++result.sibling_bound_prunes;
+				if (!pruned_by_new_incumbent && !limited()) {
 					solve(child);
 					std::vector<size_t> child_sequence;
 					for (auto e : child.sequence) child_sequence.push_back(e.polygon);
