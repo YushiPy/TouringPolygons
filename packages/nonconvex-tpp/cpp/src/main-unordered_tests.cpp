@@ -30,6 +30,7 @@ void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
 		|| result.partial_states_created < 1
 		|| result.nodes > result.partial_states_created
 		|| result.children_queued > result.children_generated
+		|| result.sibling_bound_prunes > result.children_generated
 		|| result.insertion_positions_pruned > result.insertion_positions_considered
 		|| result.pruned_nodes > result.pruned_states
 		|| result.pruned_states != result.bound_prunes + result.incumbent_prunes
