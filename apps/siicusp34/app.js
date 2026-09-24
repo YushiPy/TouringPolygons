@@ -930,7 +930,7 @@ async function initialize() {
 		element("zoom-slider").value = String(Math.round(zoom * 10));
 		element("zoom-slider").setAttribute("aria-valuetext", label);
 		element("zoom-level").textContent = label;
-		element("map-navigation").textContent = zoom > 1 ? `Zoom ${label}. A roda ajusta o zoom; volte a 1× para rolar a página.` : "Em 1×, a roda rola a página. Use o controle para ampliar; depois disso, a roda ajusta o zoom.";
+		element("map-navigation").textContent = zoom > 1 ? `Zoom ${label}. A roda ou o gesto de pinch ajustam o zoom; volte a 1× para rolar a página.` : "Em 1×, a roda rola a página. Use o controle ou o pinch na tela ou no trackpad para ampliar; depois disso, a roda ajusta o zoom.";
 	}
 
 	function stop() {
@@ -1168,16 +1168,17 @@ async function initialize() {
 	}
 	let trackpadGesture = null;
 	map.addEventListener("wheel", (event) => {
-		if (trackpadGesture || zoom <= 1 || event.deltaY === 0) return;
+		const trackpadPinch = event.ctrlKey;
+		if (trackpadGesture || (!trackpadPinch && zoom <= 1) || event.deltaY === 0) return;
 		const units = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 480 : 1;
-		const requested = zoom * Math.exp(-event.deltaY * units * (event.ctrlKey ? .01 : .002));
+		const requested = zoom * Math.exp(-event.deltaY * units * (trackpadPinch ? .01 : .002));
+		event.preventDefault();
 		if (requested <= 1) {
 			zoom = 1;
 			pan = [0, 0];
 			draw();
 			return;
 		}
-		event.preventDefault();
 		zoomAt(requested, localPoint(event));
 	}, { passive: false });
 	map.addEventListener("gesturestart", (event) => { event.preventDefault(); trackpadGesture = { zoom, scale: 1 }; }, { passive: false });
@@ -1258,16 +1259,17 @@ async function initialize() {
 			}
 		}
 		traceMap.addEventListener("wheel", (event) => {
-			if (traceTrackpadGesture || traceZoom <= 1 || event.deltaY === 0) return;
+			const trackpadPinch = event.ctrlKey;
+			if (traceTrackpadGesture || (!trackpadPinch && traceZoom <= 1) || event.deltaY === 0) return;
 			const units = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 480 : 1;
-			const requested = traceZoom * Math.exp(-event.deltaY * units * (event.ctrlKey ? .01 : .002));
+			const requested = traceZoom * Math.exp(-event.deltaY * units * (trackpadPinch ? .01 : .002));
+			event.preventDefault();
 			if (requested <= 1) {
 				traceZoom = 1;
 				tracePan = [0, 0];
 				traceCamera();
 				return;
 			}
-			event.preventDefault();
 			traceZoomAt(requested, traceLocalPoint(event));
 		}, { passive: false });
 		traceMap.addEventListener("gesturestart", (event) => { event.preventDefault(); traceTrackpadGesture = { zoom: traceZoom }; }, { passive: false });
