@@ -7,7 +7,7 @@
 	<meta name="theme-color" content="#f5f8fa">
 	<link rel="icon" type="image/svg+xml" href="tpp-icon.svg">
 <title>TPP · SIICUSP34</title>
-	<link rel="stylesheet" href="styles.css?v=20260923-camera-slider1">
+	<link rel="stylesheet" href="styles.css?v=20260924-method-overview1">
 </head>
 <body class="event">
 	<a class="skip-link" href="#explorar">Pular para a demonstração</a>
@@ -69,8 +69,8 @@
 		</details>
 					<section id="metodo" class="method-stage" aria-label="Como o algoritmo resolve">
 			<section class="method-section" aria-labelledby="method-title">
-				<p class="algorithm-lede">O Touring Polygons Problem com ordem livre pede o menor caminho que parte de um ponto inicial, visita um conjunto de polígonos em qualquer ordem e chega a um ponto final. Quando início e fim coincidem, ele generaliza o TSP: os alvos são regiões, não pontos. Na rota da USP, usamos distâncias no plano; os contornos não representam obstáculos ou condições reais de voo. A seguir, mostramos como nosso algoritmo resolve o problema.</p>
-				<div class="method-heading"><p class="eyebrow">COMO A BUSCA FUNCIONA</p><h2 id="method-title">Da primeira rota ao menor caminho</h2><p>Cada nó fixa parte da ordem de visita; limites geométricos indicam quais alternativas ainda podem melhorar a rota.</p></div>
+				<p class="algorithm-lede">O Touring Polygons Problem com ordem livre pede o menor caminho que parte de um ponto inicial, visita um conjunto de polígonos em qualquer ordem e chega a um ponto final. Quando início e fim coincidem, ele generaliza o TSP: consegue tratar não só pontos, mas também regiões poligonais, cujos contornos podem aproximar arbitrariamente bem qualquer curva simples e fechada. A seguir, mostramos como nosso algoritmo resolve este problema.</p>
+				<div class="method-heading"><h2 id="method-title">Um overview do algoritmo</h2></div>
 				<ol class="algorithm-flow">
 					<li><figure><svg viewBox="0 0 240 120" role="img" aria-label="Rota laranja de s até t tocando três regiões verdes A, B e C"><path class="diagram-route" d="M16 88 68 49 128 78 187 46 225 86"/><rect class="diagram-region" x="56" y="36" width="26" height="26" rx="3"/><rect class="diagram-region" x="115" y="65" width="26" height="26" rx="3"/><rect class="diagram-region" x="174" y="33" width="26" height="26" rx="3"/><circle class="diagram-endpoint" cx="16" cy="88" r="5"/><circle class="diagram-endpoint" cx="225" cy="86" r="5"/><text x="6" y="109">s</text><text x="220" y="109">t</text><text x="61" y="55">A</text><text x="120" y="84">B</text><text x="179" y="52">C</text></svg></figure><div><span class="algorithm-step">01 · LIMITE SUPERIOR</span><h3>Começar com uma rota viável</h3><p>Uma heurística escolhe uma ordem e melhora os pontos de contato. O comprimento dessa rota completa é <strong>U</strong>, o melhor valor conhecido até agora.</p></div></li>
 					<li><figure><svg viewBox="0 0 240 120" role="img" aria-label="Sequência parcial de s a A a C a t; região B ainda fora da sequência"><path class="diagram-route" d="M18 88 79 68 163 74 225 88"/><rect class="diagram-region" x="67" y="54" width="25" height="27" rx="3"/><rect class="diagram-region" x="151" y="60" width="25" height="27" rx="3"/><rect class="diagram-remaining" x="111" y="16" width="25" height="27" rx="3"/><circle class="diagram-endpoint" cx="18" cy="88" r="5"/><circle class="diagram-endpoint" cx="225" cy="88" r="5"/><text x="8" y="109">s</text><text x="220" y="109">t</text><text x="73" y="73">A</text><text x="117" y="35">B</text><text x="157" y="79">C</text></svg></figure><div><span class="algorithm-step">02 · NÓ DA BUSCA</span><h3>Guardar uma ordem parcial</h3><p>Cada nó fixa a ordem de apenas algumas regiões. A rota pode atravessar outras incidentalmente; as que faltarem ainda poderão entrar na sequência.</p></div></li>
@@ -197,6 +197,6 @@
 	<script src="data/challenge-data.js?v=20260923-polish6"></script>
 	<script src="data/trace-data.js"></script>
 	<script src="data/event-data.js?v=20260923-polish6"></script>
-	<script type="module" src="app.js?v=20260924-trackpad-pinch"></script>
+	<script type="module" src="app.js?v=20260924-trackpad-pinch-capture"></script>
 </body>
 </html>

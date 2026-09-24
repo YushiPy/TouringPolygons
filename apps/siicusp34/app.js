@@ -1167,6 +1167,7 @@ async function initialize() {
 		draw();
 	}
 	let trackpadGesture = null;
+	// Capture at the SVG root so child polygon targets cannot swallow pinch events.
 	map.addEventListener("wheel", (event) => {
 		const trackpadPinch = event.ctrlKey;
 		if (trackpadGesture || (!trackpadPinch && zoom <= 1) || event.deltaY === 0) return;
@@ -1180,14 +1181,14 @@ async function initialize() {
 			return;
 		}
 		zoomAt(requested, localPoint(event));
-	}, { passive: false });
-	map.addEventListener("gesturestart", (event) => { event.preventDefault(); trackpadGesture = { zoom, scale: 1 }; }, { passive: false });
+	}, { passive: false, capture: true });
+	map.addEventListener("gesturestart", (event) => { event.preventDefault(); trackpadGesture = { zoom, scale: 1 }; }, { passive: false, capture: true });
 	map.addEventListener("gesturechange", (event) => {
 		event.preventDefault();
 		if (!trackpadGesture || !Number.isFinite(event.scale)) return;
 		zoomAt(trackpadGesture.zoom * event.scale, localPoint(event));
-	}, { passive: false });
-	map.addEventListener("gestureend", (event) => { event.preventDefault(); trackpadGesture = null; }, { passive: false });
+	}, { passive: false, capture: true });
+	map.addEventListener("gestureend", (event) => { event.preventDefault(); trackpadGesture = null; }, { passive: false, capture: true });
 	function resetGesture() {
 		const points = [...pointers.values()];
 		if (points.length >= 2) {
@@ -1271,14 +1272,14 @@ async function initialize() {
 				return;
 			}
 			traceZoomAt(requested, traceLocalPoint(event));
-		}, { passive: false });
-		traceMap.addEventListener("gesturestart", (event) => { event.preventDefault(); traceTrackpadGesture = { zoom: traceZoom }; }, { passive: false });
+		}, { passive: false, capture: true });
+		traceMap.addEventListener("gesturestart", (event) => { event.preventDefault(); traceTrackpadGesture = { zoom: traceZoom }; }, { passive: false, capture: true });
 		traceMap.addEventListener("gesturechange", (event) => {
 			event.preventDefault();
 			if (!traceTrackpadGesture || !Number.isFinite(event.scale)) return;
 			traceZoomAt(traceTrackpadGesture.zoom * event.scale, traceLocalPoint(event));
-		}, { passive: false });
-		traceMap.addEventListener("gestureend", (event) => { event.preventDefault(); traceTrackpadGesture = null; }, { passive: false });
+		}, { passive: false, capture: true });
+		traceMap.addEventListener("gestureend", (event) => { event.preventDefault(); traceTrackpadGesture = null; }, { passive: false, capture: true });
 		traceMap.addEventListener("pointerdown", (event) => {
 			if (event.button !== 0) return;
 			if (event.pointerType === "touch" && traceZoom <= 1 && event.isPrimary) return;

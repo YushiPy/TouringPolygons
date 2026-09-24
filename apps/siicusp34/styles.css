@@ -1708,7 +1708,7 @@ table button {
 }
 
 .algorithm-lede {
-	max-width: 76ch;
+	max-width: none;
 	margin: 0 0 32px;
 	font-size: 1.08rem;
 	line-height: 1.6;
@@ -1718,11 +1718,6 @@ table button {
 .method-heading h2 {
 	margin: 5px 0 8px;
 	font-size: clamp(1.55rem, 3vw, 2.25rem);
-}
-
-.method-heading > p:last-child {
-	margin: 0;
-	color: var(--muted);
 }
 
 .algorithm-flow {
@@ -3868,7 +3863,7 @@ thead th[aria-sort="descending"] {
 }
 
 .section-dialog[data-section="metodo"] .guided-panel {
-	padding: 36px;
+	padding: 26px 36px 36px;
 	background: #fff;
 	border-radius: 0 0 12px 12px;
 }
@@ -5232,7 +5227,7 @@ details:not(.geometry-tools):not(.guided-section)[open]>summary::after {
 
 	.section-dialog[data-section="metodo"] .guided-panel {
 		margin-inline: 0;
-		padding: 24px 16px max(24px, env(safe-area-inset-bottom));
+		padding: 14px 16px max(24px, env(safe-area-inset-bottom));
 		border-radius: 0;
 	}
 
