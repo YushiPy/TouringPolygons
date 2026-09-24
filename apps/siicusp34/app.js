@@ -791,9 +791,10 @@ async function initialize() {
 		traceMapContent.setAttribute("transform", `translate(${420 + tracePan[0]} ${240 + tracePan[1]}) scale(${traceZoom}) translate(-420 -240)`);
 		traceMap.classList.toggle("is-zoomed", traceZoom > 1);
 		traceMap.style.touchAction = traceZoom > 1 ? "none" : "pan-y";
-		element("trace-zoom-out").disabled = traceZoom <= 1;
-		element("trace-zoom-in").disabled = traceZoom >= MAX_ZOOM;
-		element("trace-fit-view").disabled = traceZoom <= 1;
+		const label = traceZoom === 1 ? "1×" : `${number(traceZoom, 1)}×`;
+		element("trace-zoom-slider").value = String(Math.round(traceZoom * 10));
+		element("trace-zoom-slider").setAttribute("aria-valuetext", label);
+		element("trace-zoom-level").textContent = label;
 	}
 
 	function drawTrace() {
@@ -925,10 +926,11 @@ async function initialize() {
 		mapContent.setAttribute("transform", `translate(${centerX + pan[0]} ${centerY + pan[1]}) scale(${zoom}) translate(${-centerX} ${-centerY})`);
 		map.classList.toggle("is-zoomed", zoom > 1);
 		map.style.touchAction = zoom > 1 ? "none" : "pan-y";
-		element("zoom-out").disabled = zoom <= 1;
-		element("zoom-in").disabled = zoom >= MAX_ZOOM;
-		element("fit-view").disabled = zoom <= 1;
-		element("map-navigation").textContent = zoom > 1 ? `Zoom ${number(zoom, 1)}×. Arraste para mover ou toque em Redefinir para voltar à rolagem da página.` : "Amplie para mover o desenho. Na visualização ajustada, arraste para continuar rolando a página.";
+		const label = zoom === 1 ? "1×" : `${number(zoom, 1)}×`;
+		element("zoom-slider").value = String(Math.round(zoom * 10));
+		element("zoom-slider").setAttribute("aria-valuetext", label);
+		element("zoom-level").textContent = label;
+		element("map-navigation").textContent = zoom > 1 ? `Zoom ${label}. A roda ajusta o zoom; volte a 1× para rolar a página.` : "Em 1×, a roda rola a página. Use o controle para ampliar; depois disso, a roda ajusta o zoom.";
 	}
 
 	function stop() {
@@ -1147,9 +1149,10 @@ async function initialize() {
 		control.setAttribute("aria-pressed", String(!enabled(id)));
 		drawTrace();
 	}));
-	element("fit-view").addEventListener("click", () => { zoom = 1; pan = [0, 0]; draw(); });
-	element("zoom-out").addEventListener("click", () => zoomAt(zoom / 1.5, [0, 0]));
-	element("zoom-in").addEventListener("click", () => zoomAt(zoom * 1.5, [0, 0]));
+	element("zoom-slider").addEventListener("input", (event) => {
+		const requested = Number(event.currentTarget.value) / 10;
+		zoomAt(requested < zoom && requested <= 1.15 ? 1 : requested, [0, 0]);
+	});
 	const pointers = new Map();
 	let gesture = null;
 	function localPoint(event) {
@@ -1165,11 +1168,17 @@ async function initialize() {
 	}
 	let trackpadGesture = null;
 	map.addEventListener("wheel", (event) => {
-		if (trackpadGesture) return;
+		if (trackpadGesture || zoom <= 1 || event.deltaY === 0) return;
 		const units = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 480 : 1;
-		if (!event.ctrlKey && zoom <= 1 && event.deltaY * units > 0) return;
+		const requested = zoom * Math.exp(-event.deltaY * units * (event.ctrlKey ? .01 : .002));
+		if (requested <= 1) {
+			zoom = 1;
+			pan = [0, 0];
+			draw();
+			return;
+		}
 		event.preventDefault();
-		zoomAt(zoom * Math.exp(-event.deltaY * units * (event.ctrlKey ? .01 : .002)), localPoint(event));
+		zoomAt(requested, localPoint(event));
 	}, { passive: false });
 	map.addEventListener("gesturestart", (event) => { event.preventDefault(); trackpadGesture = { zoom, scale: 1 }; }, { passive: false });
 	map.addEventListener("gesturechange", (event) => {
@@ -1234,13 +1243,10 @@ async function initialize() {
 			tracePan = point.map((value, axis) => value - (value - tracePan[axis]) * traceZoom / previous);
 			traceCamera();
 		}
-		element("trace-fit-view").addEventListener("click", () => {
-			traceZoom = 1;
-			tracePan = [0, 0];
-			traceCamera();
+		element("trace-zoom-slider").addEventListener("input", (event) => {
+			const requested = Number(event.currentTarget.value) / 10;
+			traceZoomAt(requested < traceZoom && requested <= 1.15 ? 1 : requested, [0, 0]);
 		});
-		element("trace-zoom-out").addEventListener("click", () => traceZoomAt(traceZoom / 1.5, [0, 0]));
-		element("trace-zoom-in").addEventListener("click", () => traceZoomAt(traceZoom * 1.5, [0, 0]));
 		function resetTraceGesture() {
 			const points = [...tracePointers.values()];
 			if (points.length >= 2) {
@@ -1252,11 +1258,17 @@ async function initialize() {
 			}
 		}
 		traceMap.addEventListener("wheel", (event) => {
-			if (traceTrackpadGesture) return;
+			if (traceTrackpadGesture || traceZoom <= 1 || event.deltaY === 0) return;
 			const units = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 480 : 1;
-			if (!event.ctrlKey && traceZoom <= 1 && event.deltaY * units > 0) return;
+			const requested = traceZoom * Math.exp(-event.deltaY * units * (event.ctrlKey ? .01 : .002));
+			if (requested <= 1) {
+				traceZoom = 1;
+				tracePan = [0, 0];
+				traceCamera();
+				return;
+			}
 			event.preventDefault();
-			traceZoomAt(traceZoom * Math.exp(-event.deltaY * units * (event.ctrlKey ? .01 : .002)), traceLocalPoint(event));
+			traceZoomAt(requested, traceLocalPoint(event));
 		}, { passive: false });
 		traceMap.addEventListener("gesturestart", (event) => { event.preventDefault(); traceTrackpadGesture = { zoom: traceZoom }; }, { passive: false });
 		traceMap.addEventListener("gesturechange", (event) => {
