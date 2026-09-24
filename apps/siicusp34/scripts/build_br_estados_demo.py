@@ -284,7 +284,7 @@ def load_suite_geometry(tolerance: float) -> tuple[list[dict[str, str]], list[li
 
 	MAPPING.parent.mkdir(parents=True, exist_ok=True)
 	with MAPPING.open("w", encoding="utf-8", newline="") as file:
-		writer = csv.writer(file)
+		writer = csv.writer(file, lineterminator="\n")
 		writer.writerow([
 			"polygon_index", "cd_uf", "sigla_uf", "nome_uf", "source_feature_index",
 			"source_parts_total", "source_vertices_selected_ring", "vertices_binario", "area_km2_ibge",
