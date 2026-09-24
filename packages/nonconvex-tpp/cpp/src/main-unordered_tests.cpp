@@ -85,6 +85,13 @@ void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
 		std::cerr << "Expected " << best << ", got " << result.upper_bound << '\n';
 		throw std::runtime_error("Permutation enumeration mismatch.");
 	}
+	tpp::UnorderedTppSolveOptions root_options;
+	root_options.detour_root = true;
+	const auto detour_result = tpp::tpp_nonconvex_unordered_solve(s, t, polygons, root_options);
+	if (!detour_result.exact || detour_result.lower_bound > best + 1e-6
+		|| detour_result.lower_bound > detour_result.upper_bound + 1e-8
+		|| std::abs(best - detour_result.upper_bound) > 1e-6 * (1 + best))
+		throw std::runtime_error("Detour-root permutation enumeration mismatch.");
 	for (size_t cap : {0, 1, 3, 10}) {
 		tpp::UnorderedTppSolveOptions options;
 		options.max_calls = cap;

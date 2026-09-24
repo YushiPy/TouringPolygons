@@ -76,7 +76,7 @@ int main(int argc, char **argv) {
 		for (int i = 1; i < argc; ++i) {
 			const std::string flag = argv[i];
 			if (flag == "--help") {
-				std::cout << "Usage: tpp-unordered [--absolute-gap N] [--relative-gap N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--bidirectional-initial] [--initial-path] [--trace]\n"
+				std::cout << "Usage: tpp-unordered [--absolute-gap N] [--relative-gap N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--initial-path] [--trace]\n"
 					<< "stdin: sx sy tx ty polygon_count max_calls max_seconds, then each polygon's vertex count and coordinates. With --initial-path, append path point count and coordinates, including endpoints.\n";
 				return 0;
 			}
@@ -86,6 +86,10 @@ int main(int argc, char **argv) {
 			}
 			if (flag == "--endpoint-sum-root") {
 				options.endpoint_sum_root = true;
+				continue;
+			}
+			if (flag == "--detour-root") {
+				options.detour_root = true;
 				continue;
 			}
 			if (flag == "--trace") {

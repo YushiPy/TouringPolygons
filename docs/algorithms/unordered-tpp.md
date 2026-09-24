@@ -35,6 +35,10 @@ A raiz tem sequência vazia e caminho reto entre os extremos.
 A busca prioriza o menor limite inferior e faz uma descida pelo melhor filho em
 cada expansão (`dive_interval = 1` por padrão), para obter incumbentes cedo.
 `dive_interval = 0` desativa as descidas; a CLI aceita `--dive-interval N`.
+Opcionalmente, `--detour-root` escolhe a primeira região pelo maior desvio
+mínimo do caminho reto ao visitar seu fecho convexo; empates favorecem a maior
+distância do caminho ao polígono original. A opção só muda a ordem da busca,
+permanece desativada por padrão e não acrescenta uma condição de poda.
 Depois que um filho melhora o incumbente, a busca compara novamente o limite
 inferior dos irmãos ainda não avaliados com o novo corte e dispensa o oráculo
 quando já é impossível melhorar. Isso é seguro porque cada limite inferior
