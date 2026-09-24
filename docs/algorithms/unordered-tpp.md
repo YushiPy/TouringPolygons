@@ -39,6 +39,10 @@ Depois que um filho melhora o incumbente, a busca compara novamente o limite
 inferior dos irmãos ainda não avaliados com o novo corte e dispensa o oráculo
 quando já é impossível melhorar. Isso é seguro porque cada limite inferior
 permanece válido e o incumbente só diminui.
+Se a candidata geométrica do oráculo convexo não fecha sua certificação, um
+dual racional pode ainda provar que seu nó supera o corte atual. Nesse caso o
+oráculo retorna sem executar o fallback racional completo; o contador
+`oracle_dual_cutoff_prunes` registra essas ocorrências.
 A solução inicial usa vértices próximos, 2-opt e otimização dos contatos nas arestas.
 Essas heurísticas só fornecem limites superiores. A decomposição é calculada sob demanda.
 Opcionalmente, `options.initial_path` fornece um caminho completo de `start` a
@@ -148,7 +152,7 @@ vertex_count x0 y0 x1 y1 ...
 A saída JSON inclui `path`, `order` (índices a partir de zero, pela primeira visita),
 `lower_bound`, `upper_bound`, `exact`, `termination`, `calls`, `fallback_calls`,
 motivos de fallback, reparações do caminho geométrico, uso de precisão ampliada,
-`nodes`, `sibling_bound_prunes`, os dois contadores de
+`nodes`, `sibling_bound_prunes`, `oracle_dual_cutoff_prunes`, os dois contadores de
 ramificação, `peak_queue`, `seconds` e `profile`.
 A API C++ não tem limite de busca por padrão. A CLI exige limites explícitos.
 Com `--initial-path`, a CLI lê após os polígonos a contagem de pontos do caminho

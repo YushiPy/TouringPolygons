@@ -13,6 +13,7 @@ namespace tpp {
 		bool fallback_certificate_gap = false;
 		bool used_extended_precision = false;
 		bool repaired_geometric_path = false;
+		bool dual_cutoff_pruned = false;
 		bool time_limited = false;
 		ConvexFallbackReason fallback_reason = ConvexFallbackReason::None;
 		size_t predicate_exact_evaluations = 0;

@@ -3,6 +3,7 @@
 #include "tpp/convex/detail/rational_disjoint.h"
 #include "tpp/convex/solver.h"
 #include "common.h"
+#include "certified_internal.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
 #include <algorithm>
@@ -777,6 +778,26 @@ ConvexHybridResult tpp_convex_solve_hybrid(const Vector2 &start,const Vector2 &t
     if(result.stats.double_certified && !options.shadow_rational) {
         result.backend=result.stats.disjoint?ConvexHybridBackend::DoubleDisjoint:ConvexHybridBackend::DoubleIntersection;
         set_exact_bounds(result,start,target,exact_contacts);result.stats.total_seconds=elapsed(began);return result;
+    }
+    if(options.mode==ConvexHybridMode::SafeCertified && !options.shadow_rational
+       && std::isfinite(options.cutoff)
+       && exact_contacts.size()==polygons.size()) {
+        const auto candidate_path=reconstruct_convex_polyline(start,target,result.contacts,false);
+        const double rough=certified_detail::dual_bound(candidate_path,input);
+        if(rough>=options.cutoff-1e-7*std::max(1.0,std::abs(options.cutoff))) {
+            const double dual=candidate_dual_lower(start,target,polygons,exact_contacts);
+            if(dual>=options.cutoff) {
+                ConvexHybridResult candidate;
+                set_exact_bounds(candidate,start,target,exact_contacts);
+                result.lower_bound=dual;
+                result.upper_bound=candidate.upper_bound;
+                result.cutoff_pruned=true;
+                result.fallback_reason=ConvexFallbackReason::None;
+                result.backend=result.stats.disjoint?ConvexHybridBackend::DoubleDisjoint:ConvexHybridBackend::DoubleIntersection;
+                result.stats.total_seconds=elapsed(began);
+                return result;
+            }
+        }
     }
     const auto fast_contacts=result.contacts;
     const auto fallback_began=Clock::now();

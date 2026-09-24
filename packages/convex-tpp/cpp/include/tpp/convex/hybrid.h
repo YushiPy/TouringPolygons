@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <array>
+#include <limits>
 #include <vector>
 
 namespace tpp {
@@ -23,6 +24,8 @@ enum class ConvexFallbackReason {
 
 struct ConvexHybridOptions {
     ConvexHybridMode mode = ConvexHybridMode::SafeCertified;
+    // A search may return early with a certified dual bound above this value.
+    double cutoff = std::numeric_limits<double>::infinity();
     bool shadow_rational = false;
     // Callers requesting only a diagnostic length may skip final contact
     // reconstruction. Safe mode always materializes contacts for certification.
@@ -62,6 +65,7 @@ struct ConvexHybridResult {
     bool rejected_double_exact_feasible = false;
     double lower_bound = 0;
     double upper_bound = 0;
+    bool cutoff_pruned = false;
     ConvexHybridBackend backend = ConvexHybridBackend::DoubleDisjoint;
     ConvexFallbackReason fallback_reason = ConvexFallbackReason::None;
     ConvexHybridStats stats;

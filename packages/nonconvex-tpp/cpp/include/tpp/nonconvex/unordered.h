@@ -75,6 +75,7 @@ namespace tpp {
 		size_t complete_order_oracle_calls = 0;
 		size_t complete_piece_oracle_calls = 0;
 		size_t oracle_cutoff_calls = 0;
+		size_t oracle_dual_cutoff_prunes = 0;
 		size_t screened_nodes = 0;
 		// Generated children skipped before the oracle after a sibling improved the incumbent.
 		size_t sibling_bound_prunes = 0;

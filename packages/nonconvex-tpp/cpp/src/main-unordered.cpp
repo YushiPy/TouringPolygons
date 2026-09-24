@@ -151,6 +151,7 @@ int main(int argc, char **argv) {
 			<< ",\"complete_order_oracle_calls\":" << r.complete_order_oracle_calls
 			<< ",\"complete_piece_oracle_calls\":" << r.complete_piece_oracle_calls
 			<< ",\"oracle_cutoff_calls\":" << r.oracle_cutoff_calls
+			<< ",\"oracle_dual_cutoff_prunes\":" << r.oracle_dual_cutoff_prunes
 			<< ",\"screened_nodes\":" << r.screened_nodes
 			<< ",\"sibling_bound_prunes\":" << r.sibling_bound_prunes
 			<< ",\"partial_states_created\":" << r.partial_states_created

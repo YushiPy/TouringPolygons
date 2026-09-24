@@ -247,6 +247,7 @@ namespace tpp {
 				start, target, selected, workspace, tolerance, cutoff, remaining_seconds
 			);
 			result.oracle_cutoff_calls += certified.lower_bound >= cutoff;
+			result.oracle_dual_cutoff_prunes += certified.dual_cutoff_pruned;
 			node.refined = precise || options.oracle_relative_gap == 0;
 			node.path = certified.path;
 			result.fallback_calls += certified.used_fallback;

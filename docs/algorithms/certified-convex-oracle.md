@@ -27,6 +27,14 @@ Polígonos dois a dois disjuntos usam como fallback a recorrência estabelecida
 em aritmética racional. Casos com interseção usam mapas direcionais racionais.
 Uma falha de certificação significa apenas que a candidata rápida não foi
 provada; ela nunca autoriza usar seu comprimento como limite inferior.
+Quando o chamador fornece um corte finito, uma candidata materializada mas
+não certificada pode dispensar o fallback se seu **dual factível em aritmética
+racional** já alcançar o corte. Um dual em `double` serve apenas como filtro
+para decidir se vale calcular o dual racional; ele nunca causa poda sozinho.
+Nesse retorno antecipado, os contatos fornecem um caminho factível para a
+sequência, o limite superior é o comprimento arredondado para cima desse
+caminho e o limite inferior é o dual racional, sem afirmar que a sequência
+foi resolvida até fechar o gap.
 
 As funções `tpp_convex_solve_hybrid_safe` e
 `tpp_convex_solve_length_hybrid_safe` expõem esse contrato. As variantes
