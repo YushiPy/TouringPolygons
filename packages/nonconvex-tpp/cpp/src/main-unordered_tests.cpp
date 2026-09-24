@@ -163,10 +163,39 @@ void check_coordinate_normalization() {
 	}
 }
 
+void check_provided_initial_path() {
+	const Vector2 start{0, 0}, target{10, 0};
+	const std::vector<Polygon> polygons = {{{4, 2}, {6, 2}, {6, 4}, {4, 4}}};
+	const Polygon hint{start, {4, 2}, {6, 2}, target};
+	UnorderedTppSolveOptions options;
+	options.initial_path = hint;
+	options.max_calls = 0;
+	const auto interrupted = tpp_nonconvex_unordered_solve(start, target, polygons, options);
+	if (interrupted.exact || interrupted.termination != UnorderedTppTermination::CallLimit
+		|| interrupted.calls != 0 || interrupted.nodes != 0
+		|| std::abs(interrupted.initial_upper_bound - length(hint)) > 1e-10
+		|| std::abs(interrupted.upper_bound - length(hint)) > 1e-10
+		|| interrupted.lower_bound > 10 + 1e-10)
+		throw std::runtime_error("Provided path was treated as a certificate or was not used.");
+	options.max_calls = 1000;
+	const auto solved = tpp_nonconvex_unordered_solve(start, target, polygons, options);
+	if (!solved.exact || solved.upper_bound > interrupted.upper_bound + 1e-9
+		|| solved.lower_bound > solved.upper_bound + 1e-9)
+		throw std::runtime_error("Search failed with a provided initial path.");
+	for (const Polygon invalid : {Polygon{start, target}, Polygon{{1, 0}, {4, 2}, target}}) {
+		options.initial_path = invalid;
+		try {
+			(void)tpp_nonconvex_unordered_solve(start, target, polygons, options);
+			throw std::runtime_error("Invalid initial path was accepted.");
+		} catch (const std::invalid_argument &) {}
+	}
+}
+
 int main() {
 	try {
 		check_oracle_certificates();
 		check_coordinate_normalization();
+		check_provided_initial_path();
 		check({0, 0}, {10, 0}, {});
 		check({0, 0}, {10, 0}, {{{2, -1}, {3, -1}, {3, 1}, {2, 1}}});
 		check({0, 0}, {0, 0}, {{{2, -1}, {3, -1}, {3, 1}, {2, 1}}});

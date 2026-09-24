@@ -118,8 +118,14 @@ namespace tpp {
 		};
 		result.lower_bound = start.distance_to(target);
 		result.initial_lower_bound = result.lower_bound;
-		improve({start, target}, "direct");
-		if (!std::isfinite(result.upper_bound)) {
+		if (options.initial_path) {
+			improve(*options.initial_path, "provided_initial_path");
+			if (!std::isfinite(result.upper_bound))
+				throw std::invalid_argument("Initial path does not visit every polygon.");
+		} else {
+			improve({start, target}, "direct");
+		}
+		if (!options.initial_path && !std::isfinite(result.upper_bound)) {
 			auto initialize = [&](Vector2 source, Vector2 destination, const std::string &direction) {
 				Polygon initial{source};
 				std::vector<size_t> order;
@@ -557,7 +563,6 @@ namespace tpp {
 			|| !std::isfinite(options.oracle_relative_gap) || options.oracle_relative_gap < 0
 			|| !std::isfinite(options.feasibility_tolerance) || options.feasibility_tolerance <= 0)
 			throw std::invalid_argument("Invalid endpoints or unordered TPP options.");
-
 		Vector2 minimum = start, maximum = start;
 		auto include = [&](Vector2 point) {
 			if (!point.is_finite()) throw std::invalid_argument("Expected finite polygon coordinates.");
@@ -568,6 +573,20 @@ namespace tpp {
 		};
 		include(target);
 		for (const auto &polygon : input) for (auto point : polygon) include(point);
+		if (options.initial_path) {
+			const auto &path = *options.initial_path;
+			if (path.size() < 2 || !std::all_of(path.begin(), path.end(), [](auto point) { return point.is_finite(); })
+				|| path.front().distance_to(start) > options.feasibility_tolerance
+				|| path.back().distance_to(target) > options.feasibility_tolerance)
+				throw std::invalid_argument("Initial path needs finite points and matching endpoints.");
+			auto snapped = path;
+			snapped.front() = start;
+			snapped.back() = target;
+			if (!std::all_of(input.begin(), input.end(), [&](const auto &polygon) {
+				if (polygon.size() < 3) throw std::invalid_argument("Expected finite, nondegenerate simple polygons.");
+				return contact(snapped, polygon, options.feasibility_tolerance).distance <= options.feasibility_tolerance;
+			})) throw std::invalid_argument("Initial path does not visit every polygon.");
+		}
 		const Vector2 center{minimum.x / 2 + maximum.x / 2, minimum.y / 2 + maximum.y / 2};
 		const double scale = std::max(maximum.x - minimum.x, maximum.y - minimum.y);
 		if (!std::isfinite(scale)) throw std::invalid_argument("Coordinate range is too large.");
@@ -577,6 +596,12 @@ namespace tpp {
 		for (auto &polygon : polygons) for (auto &point : polygon) point = normalize(point);
 
 		auto normalized_options = options;
+		if (normalized_options.initial_path) {
+			auto &path = *normalized_options.initial_path;
+			path.front() = start;
+			path.back() = target;
+			for (auto &point : path) point = normalize(point);
+		}
 		normalized_options.absolute_gap /= divisor;
 		const double numerical_floor = 64 * std::numeric_limits<double>::epsilon();
 		normalized_options.feasibility_tolerance = std::max(options.feasibility_tolerance / divisor, numerical_floor);

@@ -36,6 +36,11 @@ A busca prioriza o menor limite inferior e faz descidas periódicas pelo melhor 
 para obter soluções completas cedo. `dive_interval = 0` desativa essas descidas.
 A solução inicial usa vértices próximos, 2-opt e otimização dos contatos nas arestas.
 Essas heurísticas só fornecem limites superiores. A decomposição é calculada sob demanda.
+Opcionalmente, `options.initial_path` fornece um caminho completo de `start` a
+`target`, incluindo ambos os extremos. O solver valida a visita a todas as regiões,
+substitui a heurística inicial e usa somente seu comprimento como limite superior.
+Ele não recebe ordem, limite inferior ou informação de otimalidade desse caminho;
+a árvore e o certificado continuam iguais. Um caminho inválido causa erro.
 
 A árvore integra ordem e peças. Não chama um B&B não convexo completo para cada
 permutação: reutiliza o solver convexo e a interface `decompose_polygon` existentes,
@@ -141,6 +146,9 @@ motivos de fallback, reparações do caminho geométrico, uso de precisão ampli
 `nodes`, os dois contadores de
 ramificação, `peak_queue`, `seconds` e `profile`.
 A API C++ não tem limite de busca por padrão. A CLI exige limites explícitos.
+Com `--initial-path`, a CLI lê após os polígonos a contagem de pontos do caminho
+e seus pares `x y`, incluindo os extremos. Sem essa opção, a entrada antiga e a
+heurística padrão permanecem iguais.
 O limite de tempo é cooperativo: uma chamada geométrica/decomposição já iniciada
 pode excedê-lo; o pré-processamento e partes da heurística inicial também não
 consultam o limite a cada operação. `calls` conta invocações do oráculo convexo certificado, não passos
@@ -174,6 +182,7 @@ em `profile.timing_semantics`.
 
 tpp::UnorderedTppSolveOptions options;
 options.max_seconds = 30;
+// Opcional: options.initial_path = caminho_factivel;
 auto result = tpp::tpp_nonconvex_unordered_solve(start, target, polygons, options);
 ```
 

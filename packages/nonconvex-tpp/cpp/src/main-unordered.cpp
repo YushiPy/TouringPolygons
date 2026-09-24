@@ -72,11 +72,12 @@ int main(int argc, char **argv) {
 		Vector2 start, target;
 		size_t n;
 		tpp::UnorderedTppSolveOptions options;
+		bool read_initial_path = false;
 		for (int i = 1; i < argc; ++i) {
 			const std::string flag = argv[i];
 			if (flag == "--help") {
-				std::cout << "Usage: tpp-unordered [--absolute-gap N] [--relative-gap N] [--oracle-relative-gap N] [--bidirectional-initial] [--trace]\n"
-					<< "stdin: sx sy tx ty polygon_count max_calls max_seconds, then each polygon's vertex count and coordinates.\n";
+				std::cout << "Usage: tpp-unordered [--absolute-gap N] [--relative-gap N] [--oracle-relative-gap N] [--bidirectional-initial] [--initial-path] [--trace]\n"
+					<< "stdin: sx sy tx ty polygon_count max_calls max_seconds, then each polygon's vertex count and coordinates. With --initial-path, append path point count and coordinates, including endpoints.\n";
 				return 0;
 			}
 			if (flag == "--bidirectional-initial") {
@@ -85,6 +86,11 @@ int main(int argc, char **argv) {
 			}
 			if (flag == "--trace") {
 				options.trace = true;
+				continue;
+			}
+			if (flag == "--initial-path") {
+				if (read_initial_path) throw std::invalid_argument("Repeated --initial-path.");
+				read_initial_path = true;
 				continue;
 			}
 			if (++i >= argc) throw std::invalid_argument("Expected a value after " + flag);
@@ -105,6 +111,13 @@ int main(int argc, char **argv) {
 			if (!(std::cin >> m)) throw std::invalid_argument("Expected vertex count.");
 			p.resize(m);
 			for (auto &v : p) if (!(std::cin >> v.x >> v.y)) throw std::invalid_argument("Expected vertex coordinates.");
+		}
+		if (read_initial_path) {
+			size_t count;
+			if (!(std::cin >> count)) throw std::invalid_argument("Expected initial path point count.");
+			options.initial_path.emplace(count);
+			for (auto &point : *options.initial_path)
+				if (!(std::cin >> point.x >> point.y)) throw std::invalid_argument("Expected initial path coordinates.");
 		}
 		const auto r = tpp::tpp_nonconvex_unordered_solve(start, target, polygons, options);
 		const char *termination[] = {"optimal", "call_limit", "time_limit", "numerical_limit"};

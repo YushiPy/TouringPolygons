@@ -72,6 +72,29 @@ python3 benchmarks/tpp.py free-order-run \
   --output benchmarks/results/free-order-dev.jsonl
 ```
 
+Para medir o custo de provar otimalidade quando o incumbente inicial já é bom,
+`free-order-run` aceita `--initial-paths` com um CSV separado por `;` contendo
+`case_index`, `sha256` e `path` (JSON de pontos). O hash de cada instância é
+conferido antes de executar. Exemplo com os caminhos preservados da campanha alemã:
+
+```bash
+python3 benchmarks/tpp.py free-order-run \
+  --suite benchmarks/results-saved/german-comparison/instances.bin \
+  --initial-paths benchmarks/results-saved/german-comparison/ours.csv \
+  --solver .build/unordered/tpp --seconds 21600 --max-calls 100000000 --workers 1 \
+  --output benchmarks/results/german-good-initial.jsonl
+```
+
+Repita sem `--initial-paths`, com os mesmos limites e máquina, gravando em outro
+JSONL. O arquivo `ours.csv` é lido apenas nas colunas de identificação e caminho.
+
+Os caminhos entram apenas como soluções factíveis iniciais. `exact` só é verdadeiro
+quando o solver fecha o gap com os limites inferiores. Compare `profile.search_seconds` e
+`calls` com uma rodada padrão sob a mesma configuração. O tempo de leitura do CSV,
+validação do caminho, preparação da instância e processo não desaparece numa
+aplicação real; por isso, a diferença entre rodadas é um limite otimista para o
+ganho obtido ao melhorar a heurística. Os tempos dependem da máquina e da carga.
+
 Para uma comparação pareada de binários próprios:
 
 ```bash

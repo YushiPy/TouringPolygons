@@ -3,6 +3,7 @@
 #include "vector2.h"
 #include <cstddef>
 #include <limits>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -16,6 +17,9 @@ namespace tpp {
 		double feasibility_tolerance = 1e-8;
 		size_t dive_interval = 128;
 		bool bidirectional_initial_heuristic = false;
+		// A feasible start-to-target path, including both endpoints. When present,
+		// it replaces the initial heuristic and supplies only an upper bound.
+		std::optional<std::vector<Vector2>> initial_path;
 		// Internal relaxations may stop at this relative oracle gap. Feasible
 		// leaves are refined to the requested global gap before certification.
 		double oracle_relative_gap = 1e-6;

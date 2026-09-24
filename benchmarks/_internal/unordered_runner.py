@@ -17,11 +17,14 @@ def encode_instance(
 	polygons: Sequence[Polygon],
 	max_calls: int,
 	max_seconds: float,
+	initial_path: Sequence[Point] | None = None,
 ) -> str:
 	seconds_text = "1e308" if math.isinf(max_seconds) else str(max_seconds)
 	lines = [' '.join(list(map(str, (*start, *target, len(polygons), max_calls))) + [seconds_text])]
 	lines.extend(f'{len(polygon)} ' + ' '.join(str(coordinate) for vertex in polygon for coordinate in vertex)
 		for polygon in polygons)
+	if initial_path is not None:
+		lines.append(f'{len(initial_path)} ' + ' '.join(str(coordinate) for point in initial_path for coordinate in point))
 	return '\n'.join(lines) + '\n'
 
 
@@ -33,10 +36,11 @@ def run_unordered_solver(
 	max_calls: int,
 	max_seconds: float,
 	arguments: Sequence[str] = (),
+	initial_path: Sequence[Point] | None = None,
 ) -> dict:
-	command = [str(solver.resolve()), *arguments]
+	command = [str(solver.resolve()), *arguments, *(['--initial-path'] if initial_path is not None else [])]
 	kwargs = {
-		"input": encode_instance(start, target, polygons, max_calls, max_seconds),
+		"input": encode_instance(start, target, polygons, max_calls, max_seconds, initial_path),
 		"text": True,
 		"capture_output": True,
 	}
