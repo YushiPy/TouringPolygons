@@ -373,6 +373,15 @@ namespace tpp {
 				const double distance = contact(node.path, polygons[j], eps).distance;
 				if (distance > farthest) { farthest = distance; chosen = j; }
 			}
+			if (options.endpoint_sum_root && node.sequence.empty() && chosen != none) {
+				const Polygon start_point_path{start, start}, target_point_path{target, target};
+				double endpoint_sum = -1;
+				for (size_t j = 0; j < n; ++j) {
+					const double score = contact(start_point_path, polygons[j], 0).distance
+						+ contact(target_point_path, polygons[j], 0).distance;
+					if (score > endpoint_sum) { endpoint_sum = score; chosen = j; }
+				}
+			}
 			result.search_visit_check_seconds += duration(visit_began);
 			if (chosen == none) {
 				if (!node.refined && !limited()) {

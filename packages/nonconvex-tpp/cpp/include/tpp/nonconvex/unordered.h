@@ -16,6 +16,8 @@ namespace tpp {
 		double relative_gap = 1e-9;
 		double feasibility_tolerance = 1e-8;
 		size_t dive_interval = 1;
+		// Try Fekete et al.'s endpoint-distance sum for the first branch.
+		bool endpoint_sum_root = false;
 		bool bidirectional_initial_heuristic = false;
 		// A feasible start-to-target path, including both endpoints. When present,
 		// it replaces the initial heuristic and supplies only an upper bound.
