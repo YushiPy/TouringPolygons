@@ -9,6 +9,7 @@
   bottom=2.6cm
 ]{geometry}
 \usepackage{fontspec}
+\usepackage{unicode-math}
 \usepackage[brazilian]{babel}
 \usepackage{graphicx}
 \usepackage{tikz}
@@ -17,6 +18,7 @@
 
 \setmainfont{Arial}
 \setsansfont{Arial}
+\setmathfont{Latin Modern Math}
 \pagestyle{empty}
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{0.34em}
@@ -38,17 +40,17 @@
   \vspace{0.38cm}%
 }
 \newcommand{\Subhead}[1]{%
-  {\sffamily\bfseries\fontsize{30}{35}\selectfont\color{Ink}#1\par}%
+  {\sffamily\bfseries\fontsize{32}{38}\selectfont\color{Ink}#1\par}%
   \vspace{0.14cm}%
 }
 \newcommand{\Stage}[3]{%
   \noindent\begin{minipage}[t]{0.95\linewidth}
     \vspace{0pt}%
-    {\sffamily\bfseries\fontsize{27}{31}\selectfont\color{RouteOrange}#1\quad
+    {\sffamily\bfseries\fontsize{31}{37}\selectfont\color{RouteOrange}#1\quad
       \color{Ink}#2\par}%
-    \vspace{0.04cm}%
-    {\fontsize{28}{33}\selectfont\color{Ink}#3\par}%
-  \end{minipage}\par\vspace{0.20cm}%
+    \vspace{0.08cm}%
+    {\fontsize{31}{38}\selectfont\color{Ink}#3\par}%
+  \end{minipage}\par\vspace{0.40cm}%
 }
 \newlength{\PosterColumnWidth}
 \setlength{\PosterColumnWidth}{0.314\textwidth}
@@ -69,10 +71,10 @@
     Algoritmos exatos para o problema\\[-0.05em]
     de visita de polígonos\par}
   \vspace{0.24cm}
-  {\sffamily\fontsize{33}{39}\selectfont\color{Muted}
-    Ordem livre e regiões não convexas na mesma busca\par}
+  {\sffamily\fontsize{35}{41}\selectfont\color{Muted}
+    Um oráculo convexo e uma busca conjunta por ordem e peças\par}
   \vspace{0.32cm}
-  {\sffamily\fontsize{46}{53}\selectfont\color{Ink}
+  {\sffamily\fontsize{48}{55}\selectfont\color{Ink}
     Gabriel Freire Ushijima\quad\textcolor{Rule}{|}\quad
     Orientador: Ernesto G. Birgin\quad\textcolor{Rule}{|}\quad IME-USP\par}
   \vspace{0.12cm}
@@ -93,7 +95,9 @@
 \noindent\begin{minipage}[t]{0.672\textwidth}
   \vspace{0pt}%
   {\sffamily\bfseries\fontsize{34}{40}\selectfont\color{Ink}
-    Uma rota, 51 regiões do campus Butantã\par}
+    DEMONSTRAÇÃO USP \textcolor{RouteOrange}{≠} CORPUS DE 558 CASOS\par}
+  {\sffamily\fontsize{29}{35}\selectfont\color{Ink}
+    51 regiões do campus Butantã \quad | \quad rota fechada de 4,97 km\par}
   \vspace{0.22cm}
   \centering
   % A rota e as 51 geometrias vêm da demonstração atual do app SIICUSP34.
@@ -1324,7 +1328,12 @@
       (272.313,809.150) --
       (264.302,793.579) --
       (243.676,803.966) -- cycle;
-    \draw[white,line width=5.8mm,line cap=round,line join=round]
+    \draw[Ink,line width=1.7mm] (70,65) -- (361.806,65);
+    \draw[Ink,line width=1.7mm] (70,57) -- (70,73);
+    \draw[Ink,line width=1.7mm] (361.806,57) -- (361.806,73);
+    \node[anchor=south,font=\sffamily\bfseries\fontsize{52}{58}\selectfont]
+      at (215.903,83) {500 m};
+    \draw[white,line width=7.2mm,line cap=round,line join=round]
       plot coordinates {
       (317.652,425.788) (218.614,405.952) (191.392,364.975) (55.837,287.490) (141.476,276.503)
       (429.004,306.497) (445.331,339.269) (491.993,350.150) (581.974,371.133) (624.824,240.081)
@@ -1334,7 +1343,7 @@
       (483.235,706.925) (504.887,743.245) (349.182,839.734) (264.302,793.579) (264.083,691.255)
       (240.104,616.013) (334.963,442.502) (317.652,425.788)
       };
-    \draw[RouteOrange,line width=3.2mm,line cap=round,line join=round]
+    \draw[RouteOrange,line width=4.0mm,line cap=round,line join=round]
       plot coordinates {
       (317.652,425.788) (218.614,405.952) (191.392,364.975) (55.837,287.490) (141.476,276.503)
       (429.004,306.497) (445.331,339.269) (491.993,350.150) (581.974,371.133) (624.824,240.081)
@@ -1349,37 +1358,57 @@
 }
   \raggedright
   \vspace{0.12cm}
-  {\fontsize{23}{28}\selectfont\color{Muted}
+  {\fontsize{24}{30}\selectfont\color{Muted}
     \textcolor{RouteOrange}{\rule{0.8cm}{0.12cm}}\quad rota calculada\hspace{0.6cm}
     \textcolor{ImeGold}{\rule{0.45cm}{0.45cm}}\quad três blocos do IME\hspace{0.45cm}
     \textcolor{RegionMint}{\rule{0.45cm}{0.45cm}}\quad outras 48 regiões\par}
-  \vspace{0.08cm}
-  {\fontsize{22}{27}\selectfont\color{Muted}
-    Demonstração independente do corpus comparado: rota fechada (\textit{s}=\textit{t}), 4,97 km no modelo plano local.\par}
+  \vspace{0.12cm}
+  {\fontsize{24}{30}\selectfont\color{Muted}
+    Círculo branco: \textit{s} = \textit{t}, junto ao IME. Geometrias e rota em projeção métrica local; regiões são alvos, não obstáculos.\par}
 \end{minipage}%
 \hfill
 \begin{minipage}[t]{0.295\textwidth}
   \vspace{0.25cm}%
-  {\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Muted}
-    RESULTADO NO CORPUS\par}
+  {\sffamily\bfseries\fontsize{28}{34}\selectfont\color{Muted}
+    CORPUS EXPERIMENTAL\par}
   \vspace{0.14cm}
-  {\sffamily\bfseries\fontsize{112}{116}\selectfont\color{RouteOrange}
+  {\sffamily\bfseries\fontsize{106}{112}\selectfont\color{RouteOrange}
     558/558\par}
-  \vspace{0.10cm}
-  {\sffamily\bfseries\fontsize{38}{44}\selectfont\color{Ink}
-    ótimos numéricos\par}
-  {\sffamily\fontsize{30}{37}\selectfont\color{Ink}
-    buscas encerradas com o intervalo limite superior–inferior fechado na tolerância do solver.\par}
-  \vspace{0.42cm}
+  \vspace{0.08cm}
+  {\sffamily\bfseries\fontsize{36}{43}\selectfont\color{Ink}
+    buscas certificadas numericamente\par}
+  {\sffamily\fontsize{28}{35}\selectfont\color{Ink}
+    Nosso solver no corpus de Fekete et al.: 558 instâncias com 4–60 regiões. A rota da USP não faz parte dele.\par}
+  \vspace{0.48cm}
   \noindent\rule{\linewidth}{0.55pt}\par
-  \vspace{0.26cm}
-  {\sffamily\bfseries\fontsize{30}{36}\selectfont\color{Ink}
-    558/558 caminhos validados\par}
-  {\fontsize{26}{32}\selectfont\color{Muted}
-    Extremos, visitas às regiões e comprimento passaram na checagem geométrica.\par}
-  \vspace{0.32cm}
-  {\fontsize{24}{30}\selectfont\color{Muted}
-    O resumo submetido apresentou o solver convexo e a busca em ordem fixa; aqui, a extensão também escolhe a ordem de visita.\par}
+  \vspace{0.34cm}
+  {\sffamily\bfseries\fontsize{76}{82}\selectfont\color{RouteOrange}
+    5,11×\par}
+  {\sffamily\bfseries\fontsize{33}{39}\selectfont\color{Ink}
+    speedup mediano\par}
+  {\fontsize{28}{35}\selectfont\color{Ink}
+    Razão entre os tempos totais de Fekete e os nossos, somente nos 550 casos concluídos por ambos.\par}
+  \vspace{0.48cm}
+  \noindent\rule{\linewidth}{0.55pt}\par
+  \vspace{0.34cm}
+  {\sffamily\bfseries\fontsize{29}{36}\selectfont\color{RouteOrange}
+    CONTRIBUIÇÃO\par}
+  {\sffamily\bfseries\fontsize{36}{43}\selectfont\color{Ink}
+    Oráculo convexo certificado + uma única árvore para ordem e peças.\par}
+  {\fontsize{26}{33}\selectfont\color{Muted}
+    O resumo submetido descreveu a busca em ordem fixa; esta é a extensão concluída depois da submissão.\par}
+  \vspace{0.48cm}
+  \noindent\rule{\linewidth}{0.55pt}\par
+  \vspace{0.34cm}
+  {\sffamily\bfseries\fontsize{29}{36}\selectfont\color{RouteOrange}
+    A GEOMETRIA DA USP\par}
+  {\sffamily\bfseries\fontsize{52}{59}\selectfont\color{Ink}
+    39/51\par}
+  {\fontsize{27}{34}\selectfont\color{Ink}
+    regiões da demonstração exigem mais de uma peça convexa: 458 peças ao todo.\par}
+  \vspace{0.30cm}
+  {\fontsize{25}{32}\selectfont\color{Muted}
+    Oráculo inspirado em Dror et al. [2]; decomposição baseada em Greene [3]; inserção e refinamento preguiçoso adaptados de Fekete et al. [1]. A integração é nossa.\par}
 \end{minipage}
 
 \vspace{0.82cm}
@@ -1389,33 +1418,30 @@
 \noindent\begin{minipage}[t]{\PosterColumnWidth}
   \vspace{0pt}%
   \SectionTitle{01}{O problema}
-  {\fontsize{30}{37}\selectfont
-    O \textit{Touring Polygons Problem} (TPP) pede, dados dois pontos \textit{s} e \textit{t} e polígonos-alvo, a polilinha euclidiana mais curta que os conecta e visita todas as regiões.\par}
-  \vspace{0.24cm}
-  \Subhead{Contato define visita}
-  {\fontsize{29}{36}\selectfont
-    Tocar a fronteira ou cruzar o interior conta como visita. A busca escolhe onde tocar cada região e em que ordem percorrê-las.\par}
-  \vspace{0.24cm}
-  \Subhead{Alvos, não obstáculos}
-  {\fontsize{28}{35}\selectfont
-    As regiões não bloqueiam o caminho. A formulação é adequada a roteamento entre áreas de inspeção ou coleta; não modela desvios de edifícios, vias ou condições de voo.\par}
+  {\fontsize{32}{40}\selectfont
+    Dados \textit{s}, \textit{t} e polígonos-alvo, o \textit{Touring Polygons Problem} pede a menor polilinha euclidiana que visita todas as regiões. Aqui, a ordem não é prescrita.\par}
+  \vspace{0.35cm}
+  \Subhead{Duas escolhas combinadas}
+  {\fontsize{32}{40}\selectfont
+    \textbf{Onde} tocar cada região? \textbf{Em que ordem} visitá-las? Tocar a borda ou cruzar o interior conta como visita.\par}
+  \vspace{0.35cm}
+  \Subhead{Objetivo e alcance}
+  {\fontsize{31}{39}\selectfont
+    Resolver as duas escolhas com limites numéricos certificados, mesmo para alvos não convexos. Os polígonos não bloqueiam a rota: o modelo não inclui vias, obstáculos nem condições reais de voo.\par}
 \end{minipage}%
 \hfill
 \begin{minipage}[t]{\PosterColumnWidth}
   \vspace{0pt}%
   \SectionTitle{02}{A busca}
-  {\fontsize{29}{35}\selectfont
-    No Branch and Bound, cada nó relaxa os alvos ausentes por seus fechos convexos. O solver convexo calcula um limite inferior \textit{L}; uma rota viável fornece o limite superior \textit{U}.\par}
-  \vspace{0.22cm}
-  \Stage{1}{Relaxar}{Fechos convexos reduzem as restrições sem perder a validade de \textit{L}.}
-  \Stage{2}{Ramificar}{Inserir o alvo mais distante em todas as posições da ordem parcial.}
-  \Stage{3}{Refinar}{Substituir um fecho por peças convexas até garantir a visita ao polígono original.}
-  \Stage{4}{Podar}{Se \textit{L} ≥ \textit{U} − ε, o ramo não melhora a melhor rota conhecida.}
-  {\fontsize{28}{34}\selectfont
-    Nossa implementação integra ordem e peças numa única árvore: insere o alvo mais distante [1], decompõe regiões convexas [3] e reutiliza o solver convexo [2].\par}
-  \vspace{0.20cm}
-  {\sffamily\bfseries\fontsize{26}{31}\selectfont\color{Muted}
-    O pior caso da busca permanece exponencial.\par}
+  {\fontsize{31}{39}\selectfont
+    O oráculo resolve uma sequência parcial de regiões convexas e fornece um limite inferior \(L\). Uma rota que visita todos os alvos fornece o limite superior \(U\).\par}
+  \vspace{0.28cm}
+  \Stage{1}{Relaxar}{Omitir alvos ainda não inseridos; representar um alvo não convexo por seu fecho.}
+  \Stage{2}{Checar}{Testar a rota parcial contra todos os polígonos originais.}
+  \Stage{3}{Ramificar}{Inserir o alvo não visitado mais distante em todas as posições [1], ou trocar seu fecho por peças convexas.}
+  \Stage{4}{Podar}{Se \(L\geq U-\varepsilon\), o ramo não melhora \(U\) além da tolerância.}
+  {\sffamily\bfseries\fontsize{30}{38}\selectfont\color{Muted}
+    O pior caso permanece exponencial.\par}
 \end{minipage}%
 \hfill
 \begin{minipage}[t]{\PosterColumnWidth}
@@ -1423,23 +1449,26 @@
   \SectionTitle{03}{O experimento}
   {\sffamily\bfseries\fontsize{60}{64}\selectfont\color{RouteOrange}
     477/558\par}
-  {\sffamily\bfseries\fontsize{32}{38}\selectfont\color{Ink}
-    resolvidas em menos de 10 s\par}
-  {\fontsize{27}{33}\selectfont
-    Tempo do solver, com uma thread por instância.\par}
-  \vspace{0.36cm}
+  {\sffamily\bfseries\fontsize{34}{41}\selectfont\color{Ink}
+    casos nossos abaixo de 10 s\par}
+  \vspace{0.38cm}
   {\sffamily\bfseries\fontsize{60}{64}\selectfont\color{RouteOrange}
-    5,11×\par}
-  {\sffamily\bfseries\fontsize{32}{38}\selectfont\color{Ink}
-    speedup mediano\par}
-  {\fontsize{27}{33}\selectfont
-    Razão Fekete / nosso solver nos 550 casos concluídos por ambos. Nosso solver foi mais rápido em 492/550.\par}
-  \vspace{0.28cm}
-  {\fontsize{28}{34}\selectfont\color{Muted}
-    Mesmo corpus (558 instâncias, 4–60 regiões), adaptado a extremos fixos e ordem livre. Uma thread por solver; limite de 6 h por caso. Fekete et al. concluíram 550/558 com gap relativo ≤ 0,1\%.\par}
+    492/550\par}
+  {\sffamily\bfseries\fontsize{34}{41}\selectfont\color{Ink}
+    mais rápidos no conjunto comum\par}
+  \vspace{0.32cm}
+  {\fontsize{30}{38}\selectfont\color{Ink}
+    Ambos resolveram o mesmo problema adaptado: extremos fixos, ordem livre e uma thread por instância.\par}
+  \vspace{0.26cm}
+  {\fontsize{28}{36}\selectfont\color{Muted}
+    Fekete: 437 casos certificados na rodada de 10 s; os outros 121 tiveram até 6 h. Concluiu 550/558 com gap relativo \(\leq0{,}1\%\).\par}
+  {\fontsize{28}{36}\selectfont\color{Muted}
+    Nosso solver: 558/558 com \(U-L\leq10^{-7}+10^{-9}|U|\); os 558 caminhos passaram na checagem geométrica.\par}
   \vspace{0.22cm}
-  {\fontsize{23}{29}\selectfont\color{Muted}
-    “Ótimo” significa fechamento do intervalo entre limites na tolerância numérica configurada.\par}
+  {\sffamily\bfseries\fontsize{29}{37}\selectfont\color{Ink}
+    Neste corpus, a busca fechou um gap mais estrito e foi mais rápida na maioria dos casos.\par}
+  {\fontsize{26}{33}\selectfont\color{Muted}
+    Tempos desta campanha; metadados de hardware e compilação das rodadas não estão preservados com os CSVs.\par}
 \end{minipage}
 
 \vspace{0.78cm}
@@ -1448,14 +1477,14 @@
 
 \noindent\begin{minipage}[t]{0.68\textwidth}
   \vspace{0pt}%
-  {\sffamily\bfseries\fontsize{24}{29}\selectfont\color{RouteOrange}
+  {\sffamily\bfseries\fontsize{28}{34}\selectfont\color{RouteOrange}
     REFERÊNCIAS\par}
-  \vspace{0.12cm}
-  {\fontsize{20}{25}\selectfont\color{Ink}
+  \vspace{0.16cm}
+  {\fontsize{22}{28}\selectfont\color{Ink}
     [1] Fekete, S. P.; Kniep, R.; Krupke, D.; Perk, M. \textit{A Branch-and-Bound Algorithm for the Traveling Salesman Problem with Difficult Neighborhoods}. SoCG, 2026. DOI: 10.4230/LIPIcs.SoCG.2026.46.\par}
-  {\fontsize{20}{25}\selectfont\color{Ink}
+  {\fontsize{22}{28}\selectfont\color{Ink}
     [2] Dror, M.; Efrat, A.; Lubiw, A.; Mitchell, J. S. B. \textit{Touring a Sequence of Polygons}. STOC, 2003. DOI: 10.1145/780542.780612.\par}
-  {\fontsize{20}{25}\selectfont\color{Ink}
+  {\fontsize{22}{28}\selectfont\color{Ink}
     [3] Greene, D. H. \textit{The Decomposition of Polygons into Convex Parts}. In: \textit{Computational Geometry}, 1983.\par}
 \end{minipage}%
 \hfill
@@ -1463,18 +1492,18 @@
   \vspace{0pt}%
   \begin{minipage}[c]{0.39\linewidth}
     \centering
-    \qrcode[level=H,height=5.9cm]{https://yushipy.github.io/TouringPolygons/apps/siicusp34/}
+    \qrcode[level=H,height=6.5cm]{https://yushipy.github.io/TouringPolygons/apps/siicusp34/}
   \end{minipage}%
   \hfill
   \begin{minipage}[c]{0.57\linewidth}
-    {\sffamily\bfseries\fontsize{28}{33}\selectfont\color{Ink}
+    {\sffamily\bfseries\fontsize{30}{36}\selectfont\color{Ink}
       Abra o app do estudo\par}
     \vspace{0.12cm}
-    {\fontsize{24}{30}\selectfont\color{Ink}
-      Veja a rota animada, tente os desafios e explore os 558 casos.\par}
+    {\fontsize{25}{31}\selectfont\color{Ink}
+      Explore a rota, os desafios e os 558 casos.\par}
     \vspace{0.16cm}
-    {\fontsize{19}{23}\selectfont\color{Muted}
-      yushipy.github.io/TouringPolygons/\\apps/siicusp34\par}
+    {\fontsize{22}{27}\selectfont\color{Muted}
+      \href{https://yushipy.github.io/TouringPolygons/apps/siicusp34/}{yushipy.github.io/TouringPolygons/\\apps/siicusp34/}\par}
   \end{minipage}
 \end{minipage}
 
