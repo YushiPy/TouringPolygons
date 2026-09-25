@@ -517,17 +517,18 @@ async function initialize() {
 	drawAlgorithmFigures();
 	const defaultCase = "usp";
 	let row = uspDemo;
-	let traceRow = data.rows.find((item) => item.case === 3)
+	let traceRow = data.rows.find((item) => item.case === 249)
 		|| data.rows.find((item) => item.case === shortTraceCases[0]?.case)
 		|| data.rows[0];
 	let projected, fraction = 1, zoom = 1, frame = 0, playing = false;
 	let routeWidth = 840, routeHeight = 480;
-	let traceEvents = [], traceIndex = 0, traceFrame = null, traceTransition = null, tracePlaying = false;
+	let traceEvents = [], traceIndex = 0, traceTimer = null, tracePlaying = false, tracePlaybackAdvancing = false;
 	let pan = [0, 0], drag = null, traceZoom = 1, tracePan = [0, 0], traceDrag = null;
 	const speeds = [.25, .5, 1, 1.5, 2, 3, 4];
 	let speedIndex = 2;
+	let traceSpeedIndex = 2;
 	let showAllResults = false;
-	const sorting = { picker: { key: "case", descending: false }, result: { key: "case", descending: false } };
+	const sorting = { picker: { key: "case", descending: false }, tracePicker: { key: "case", descending: false }, result: { key: "case", descending: false } };
 	const enabled = (id) => element(id).getAttribute("aria-pressed") === "true";
 	const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 	const mapContent = element("map-content");
@@ -583,6 +584,9 @@ async function initialize() {
 			["trace-previous", "trace-code-previous"],
 			["trace-play", "trace-code-play"],
 			["trace-next", "trace-code-next"],
+			["trace-speed-down", "trace-code-speed-down"],
+			["trace-speed-value", "trace-code-speed-value"],
+			["trace-speed-up", "trace-code-speed-up"],
 		];
 		for (const [sourceId, targetId] of mirrors) {
 			const source = element(sourceId), target = element(targetId);
@@ -641,9 +645,20 @@ async function initialize() {
 		const options = element("trace-picker-options");
 		if (!options) return;
 		const query = element("trace-picker-search")?.value.trim() || "";
-		const rows = shortTraceCases.filter((trace) => !query || caseLabel(trace.case).includes(query));
-		element("trace-picker-count").textContent = `${rows.length} simulações disponíveis`;
-		options.innerHTML = rows.length ? rows.map((trace) => `<button type="button" data-trace-case="${trace.case}" aria-pressed="${trace.case === traceRow.case}"><span><strong>${tracePickerLabel(trace)}</strong><small>Árvore registrada para acompanhar passo a passo</small></span></button>`).join("") : "<p>Nenhuma simulação encontrada. Experimente outro número.</p>";
+		const rows = sortRows(shortTraceCases
+			.filter((trace) => !query || caseLabel(trace.case).includes(query))
+			.map((trace) => ({
+				case: trace.case,
+				polygons: data.rows.find((item) => item.case === trace.case)?.polygons ?? 0,
+				steps: Array.isArray(trace.events) ? filterTraceEvents(trace.events).length : trace.event_count,
+			})), sorting.tracePicker.key, sorting.tracePicker.descending);
+		element("trace-picker-count").textContent = `${rows.length} ${rows.length === 1 ? "simulação disponível" : "simulações disponíveis"}`;
+		options.innerHTML = rows.length ? rows.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Caso </span>${caseLabel(item.case)}</th><td data-label="Regiões">${item.polygons}</td><td data-label="Passos">${item.steps}</td><td class="result-action"><button type="button" data-trace-case="${item.case}" aria-label="Abrir simulação do caso ${item.case + 1}" aria-current="${item.case === traceRow.case}"><span class="picker-action-full">Ver simulação →</span><span class="picker-action-short">Abrir →</span></button></td></tr>`).join("") : '<tr><td colspan="4">Nenhuma simulação encontrada. Experimente outro número.</td></tr>';
+		document.querySelectorAll("[data-trace-picker-column]").forEach((header) => {
+			const active = header.dataset.tracePickerColumn === sorting.tracePicker.key;
+			header.setAttribute("aria-sort", active ? (sorting.tracePicker.descending ? "descending" : "ascending") : "none");
+			header.querySelector(".sort-arrow").textContent = active ? (sorting.tracePicker.descending ? " ↓" : " ↑") : "";
+		});
 	}
 
 	function populateCaseSelect() {
@@ -706,19 +721,33 @@ async function initialize() {
 		renderTracePicker();
 	}
 
-	function cancelTraceFrame() {
-		if (traceFrame !== null) window.cancelAnimationFrame(traceFrame);
-		traceFrame = null;
-	}
-
 	function stopTrace() {
 		if (!hasTraceUI) return;
 		tracePlaying = false;
-		cancelTraceFrame();
-		traceTransition = null;
+		if (traceTimer !== null) window.clearInterval(traceTimer);
+		traceTimer = null;
 		element("trace-play").textContent = "▶ Reproduzir";
 		element("trace-play").setAttribute("aria-pressed", "false");
 		syncExpandedTracePlayback();
+	}
+
+	function scheduleTracePlayback() {
+		if (traceTimer !== null) window.clearInterval(traceTimer);
+		if (!tracePlaying) return;
+		traceTimer = window.setInterval(() => {
+			tracePlaybackAdvancing = true;
+			try { element("trace-next").click(); }
+			finally { tracePlaybackAdvancing = false; }
+		}, 1000 / speeds[traceSpeedIndex]);
+	}
+
+	function setTraceSpeed(index) {
+		traceSpeedIndex = Math.max(0, Math.min(speeds.length - 1, index));
+		element("trace-speed-value").textContent = `${number(speeds[traceSpeedIndex], 2)}×`;
+		element("trace-speed-down").disabled = traceSpeedIndex === 0;
+		element("trace-speed-up").disabled = traceSpeedIndex === speeds.length - 1;
+		syncExpandedTracePlayback();
+		if (tracePlaying) scheduleTracePlayback();
 	}
 
 	function traceCurrentPath(eventIndex = traceIndex) {
@@ -775,11 +804,6 @@ async function initialize() {
 		return path;
 	}
 
-	function traceProjectedPath(index) {
-		const projection = projectedCase(traceRow);
-		return traceCurrentPath(index).map(projection.project);
-	}
-
 	function traceBranchGeometry(event, path, polygons, originalPath, reached) {
 		if (event?.kind !== "branch" || event.reason !== "insertion") return null;
 		const connections = polygons.map((polygon, polygonIndex) => {
@@ -792,99 +816,23 @@ async function initialize() {
 		return { connections, longest, reached };
 	}
 
-	function prepareTraceTransition() {
-		while (traceIndex < traceEvents.length - 1) {
-			const fromPath = traceProjectedPath(traceIndex);
-			const toPath = traceProjectedPath(traceIndex + 1);
-			const from = fromPath.at(-1) || [0, 0];
-			const to = toPath.at(-1) || from;
-			const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
-			if (length <= 1e-7) {
-				traceIndex += 1;
-				continue;
-			}
-			traceTransition = {
-				fromIndex: traceIndex,
-				toIndex: traceIndex + 1,
-				from,
-				to,
-				length,
-				phase: reducedMotion.matches ? "travel" : "preview",
-				elapsed: 0,
-				previewDuration: reducedMotion.matches ? 0 : 240,
-				travelDuration: reducedMotion.matches ? 0 : Math.min(1100, Math.max(520, 280 + length * 1.7)),
-				progress: 0,
-			};
-			drawTrace();
-			return true;
-		}
-		traceTransition = null;
-		drawTrace();
-		return false;
-	}
-
-	function updateTraceAnimationVisuals() {
-		const transition = traceTransition;
-		const route = traceMapContent.querySelector("#trace-active-route");
-		if (!transition || !route || typeof route.getTotalLength !== "function") return;
-		let length;
-		try { length = route.getTotalLength(); } catch { return; }
-		if (!Number.isFinite(length) || length <= 0) return;
-		const progress = Math.max(0, Math.min(1, transition.progress));
-		route.style.strokeDasharray = `${length} ${length}`;
-		route.style.strokeDashoffset = String(length * (1 - progress));
-	}
-
-	function traceAnimationTick(now) {
-		if (!tracePlaying || !traceTransition) return;
-		const transition = traceTransition;
-		if (transition.lastTime === undefined) transition.lastTime = now;
-		transition.elapsed += now - transition.lastTime;
-		transition.lastTime = now;
-		if (transition.phase === "preview" && transition.elapsed >= transition.previewDuration) {
-			transition.phase = "travel";
-			transition.elapsed -= transition.previewDuration;
-		}
-		transition.progress = transition.phase === "travel" ? Math.min(1, transition.elapsed / Math.max(1, transition.travelDuration)) : 0;
-		drawTrace();
-		if (transition.progress >= 1) {
-			traceIndex = transition.toIndex;
-			traceTransition = null;
-			if (!prepareTraceTransition()) {
-				tracePlaying = false;
-				element("trace-play").textContent = "▶ Reproduzir";
-				element("trace-play").setAttribute("aria-pressed", "false");
-				syncExpandedTracePlayback();
-			}
-		}
-		if (tracePlaying) traceFrame = window.requestAnimationFrame(traceAnimationTick);
-	}
-
 	function startTracePlayback() {
 		if (!traceEvents.length) return;
 		if (traceIndex >= traceEvents.length - 1) {
 			traceIndex = 0;
-			traceTransition = null;
 			drawTrace();
 		}
-		if (!traceTransition && !prepareTraceTransition()) return;
 		tracePlaying = true;
 		element("trace-play").textContent = "Ⅱ Pausar";
 		element("trace-play").setAttribute("aria-pressed", "true");
 		syncExpandedTracePlayback();
-		traceTransition.lastTime = performance.now();
-		cancelTraceFrame();
-		traceFrame = window.requestAnimationFrame(traceAnimationTick);
+		scheduleTracePlayback();
 	}
 
 	function toggleTracePlayback() {
 		if (!traceEvents.length) return;
 		if (tracePlaying) {
-			tracePlaying = false;
-			cancelTraceFrame();
-			element("trace-play").textContent = "▶ Reproduzir";
-			element("trace-play").setAttribute("aria-pressed", "false");
-			syncExpandedTracePlayback();
+			stopTrace();
 			return;
 		}
 		startTracePlayback();
@@ -980,7 +928,7 @@ async function initialize() {
 			element("trace-step-title").textContent = "Escolha uma instância didática";
 			element("trace-step-text").textContent = traceRow.case === "usp"
 				? "A rota da USP é uma demonstração própria. Escolha um caso do corpus acima para acompanhar uma execução registrada da busca."
-				: "Os destaques mostram os Casos 02, 04 e 10. O seletor acima inclui qualquer árvore com menos de 200 passos.";
+				: "Os destaques mostram os Casos 02, 250 e 269. O seletor no desenho inclui qualquer árvore com menos de 200 passos.";
 			element("trace-kind").textContent = "PASSO ATUAL";
 			element("trace-sequence").textContent = "—";
 			element("trace-lower-bound").textContent = "—";
@@ -1009,8 +957,6 @@ async function initialize() {
 		const incumbentPath = (traceIncumbentPath(traceIndex) || []).map(projection.project);
 		const isHeuristic = event.kind.startsWith("heuristic_") || (event.kind === "incumbent" && event.source === "heuristic");
 		const showIncumbentRoute = enabled("trace-show-incumbent") && !isHeuristic && incumbentPath.length > 1;
-		const transition = traceTransition?.fromIndex === traceIndex ? traceTransition : null;
-		const movingSegment = transition ? [transition.from, transition.to] : [];
 		const showLabels = enabled("trace-show-labels") && (traceRow.polygons <= 15 || selected.size > 0);
 		const branchGeometry = traceBranchGeometry(event, currentPath, projection.polygons, originalPath, reached);
 		const visibleBranchGeometry = enabled("trace-show-branching") ? branchGeometry : null;
@@ -1023,11 +969,7 @@ async function initialize() {
 			const pointClass = longest ? "trace-branch-point trace-branch-point-longest" : "trace-branch-point";
 			return `<line class="${lineClass}" x1="${connection.first[0]}" y1="${connection.first[1]}" x2="${connection.second[0]}" y2="${connection.second[1]}"/><circle class="${pointClass}" cx="${connection.first[0]}" cy="${connection.first[1]}" r="3.5"/><circle class="${pointClass}" cx="${connection.second[0]}" cy="${connection.second[1]}" r="3.5"/>`;
 		}).join("") || "";
-		const progress = transition?.progress ?? 0;
-		const traveler = transition ? [
-			transition.from[0] + (transition.to[0] - transition.from[0]) * progress,
-			transition.from[1] + (transition.to[1] - transition.from[1]) * progress,
-		] : currentPath.at(-1) || start;
+		const traveler = currentPath.at(-1) || start;
 		traceMapContent.innerHTML = `${traceRow.geometry.polygons.map((polygon, index) => {
 			const branchSelected = branchGeometry?.longest?.polygonIndex === index;
 			const title = `Região ${traceLabel(order, index)}${branchSelected ? "; escolhida para o branching por ser a mais distante" : ""}`;
@@ -1038,10 +980,8 @@ async function initialize() {
 			${branchConnectionLines}
 			${showIncumbentRoute ? `<polyline class="trace-incumbent-route" points="${coordinates(incumbentPath)}"/>` : ""}
 			${currentPath.length > 1 ? `<polyline class="trace-route-completed" points="${coordinates(currentPath)}"/>` : ""}
-			${movingSegment.length > 1 ? `<polyline class="trace-route-preview" points="${coordinates(movingSegment)}"/><polyline id="trace-active-route" class="trace-current-route" points="${coordinates(movingSegment)}"/>` : ""}
 			${showLabels ? projection.polygons.map((polygon, index) => { const center = polygonCentroid(polygon); return `<text class="trace-region-label ${selected.has(index) ? "trace-label-selected" : ""}" x="${center[0]}" y="${center[1]}" text-anchor="middle" dominant-baseline="central">${traceLabel(order, index)}</text>`; }).join("") : ""}
 			<circle class="trace-traveler" cx="${traveler[0]}" cy="${traveler[1]}" r="5"/><circle class="trace-endpoint" cx="${start[0]}" cy="${start[1]}" r="6"/><text class="trace-endpoint-label" x="${start[0] + 13}" y="${start[1] + 4}">s</text><circle class="trace-endpoint trace-target" cx="${target[0]}" cy="${target[1]}" r="6"/><text class="trace-endpoint-label" x="${target[0] + 13}" y="${target[1] + 4}">t</text>`;
-		updateTraceAnimationVisuals();
 		const [title, text] = traceEventCopy(event, trace, branchGeometry);
 		element("trace-kind").textContent = event.kind.replaceAll("_", " ").toUpperCase();
 		element("trace-step-title").textContent = title;
@@ -1062,7 +1002,7 @@ async function initialize() {
 		syncExpandedTracePlayback();
 		const branchCaption = branchGeometry ? " As linhas tracejadas mostram as menores distâncias até as regiões não atingidas; a linha vermelha é a maior e destaca a região escolhida." : "";
 		element("trace-map-caption").textContent = isHeuristic
-			? `Regiões destacadas pertencem à sequência parcial ${traceLabels(order, currentSequence)}. A linha laranja mostra somente o caminho construído até este passo; o trecho mais recente é animado.${branchCaption}`
+			? `Regiões destacadas pertencem à sequência parcial ${traceLabels(order, currentSequence)}. A linha laranja mostra o caminho construído até este passo.${branchCaption}`
 			: `Regiões destacadas pertencem à sequência parcial ${traceLabels(order, currentSequence)}. A linha tracejada mostra o incumbente; a laranja sólida mostra o caminho calculado neste passo.${branchCaption}`;
 		traceCamera();
 		renderTraceTree(trace);
@@ -1079,7 +1019,14 @@ async function initialize() {
 		traceEvents = filterTraceEvents(trace?.events || []);
 		traceIndex = 0;
 		element("trace-case-select").value = shortTraceCases.some((item) => item.case === caseIndex) ? String(caseIndex) : "";
-		element("trace-case-picker-value").textContent = tracePickerLabel(trace);
+		const featured = [1, 249, 268].includes(caseIndex);
+		element("trace-case-picker-value").textContent = "Explorar";
+		element("trace-case-picker-active").hidden = featured;
+		element("trace-case-picker-active").textContent = featured ? "" : `· ${caseLabel(caseIndex)}`;
+		element("trace-case-picker-button").setAttribute("aria-pressed", String(!featured));
+		element("trace-case-picker-button").setAttribute("aria-label", featured
+			? "Explorar simulações curtas do corpus"
+			: `Explorar simulações curtas do corpus; caso ${caseLabel(caseIndex)} selecionado`);
 		document.querySelectorAll(".trace-showcases .example").forEach((button) => {
 			const active = button.dataset.case === String(caseIndex);
 			button.classList.toggle("active", active);
@@ -1088,11 +1035,12 @@ async function initialize() {
 		drawTrace();
 	}
 
-	function advanceTrace(delta) {
+	function advanceTrace(delta, fromPlayback = false) {
 		if (!traceEvents.length) return;
-		stopTrace();
+		if (!fromPlayback) stopTrace();
 		traceIndex = Math.max(0, Math.min(traceEvents.length - 1, traceIndex + delta));
 		drawTrace();
+		if (fromPlayback && traceIndex >= traceEvents.length - 1) stopTrace();
 	}
 
 	function camera() {
@@ -1517,7 +1465,11 @@ async function initialize() {
 	});
 	if (hasTraceUI) {
 		element("trace-previous").addEventListener("click", () => advanceTrace(-1));
-		element("trace-next").addEventListener("click", () => advanceTrace(1));
+		element("trace-next").addEventListener("click", () => advanceTrace(1, tracePlaybackAdvancing));
+		element("trace-speed-down").addEventListener("click", () => setTraceSpeed(traceSpeedIndex - 1));
+		element("trace-speed-up").addEventListener("click", () => setTraceSpeed(traceSpeedIndex + 1));
+		element("trace-code-speed-down").addEventListener("click", () => setTraceSpeed(traceSpeedIndex - 1));
+		element("trace-code-speed-up").addEventListener("click", () => setTraceSpeed(traceSpeedIndex + 1));
 		element("trace-play").addEventListener("click", toggleTracePlayback);
 		element("trace-code-previous").addEventListener("click", () => advanceTrace(-1));
 		element("trace-code-next").addEventListener("click", () => advanceTrace(1));
@@ -1550,12 +1502,26 @@ async function initialize() {
 				}
 			});
 			element("trace-picker-search").addEventListener("input", renderTracePicker);
+			document.querySelectorAll("[data-trace-picker-sort]").forEach((button) => button.addEventListener("click", () => {
+				const key = button.dataset.tracePickerSort;
+				sorting.tracePicker.descending = sorting.tracePicker.key === key ? !sorting.tracePicker.descending : false;
+				sorting.tracePicker.key = key;
+				renderTracePicker();
+			}));
 			element("trace-picker-options").addEventListener("click", (event) => {
 				const button = event.target.closest("[data-trace-case]");
 				if (!button) return;
 				selectTrace(Number(button.dataset.traceCase));
 				tracePickerDialog.close();
 				element("trace-map").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "center" });
+			});
+			element("trace-picker-options").addEventListener("keydown", (event) => {
+				const buttons = [...element("trace-picker-options").querySelectorAll("button")];
+				const index = buttons.indexOf(document.activeElement);
+				if ((event.key === "ArrowDown" || event.key === "ArrowUp") && buttons.length) {
+					event.preventDefault();
+					buttons[(index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length]?.focus();
+				}
 			});
 		}
 	}
