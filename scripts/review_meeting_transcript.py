@@ -37,6 +37,7 @@ REPLACEMENTS = {
 	"branchambão": "Branch and Bound",
 	"Branch & Bond": "Branch and Bound",
 	"Branchenbaum": "Branch and Bound",
+	"branch bound": "Branch and Bound",
 	"incumente": "incumbente",
 	"ultimalidade": "optimalidade",
 	"ultimuloso": "guloso",
@@ -54,6 +55,29 @@ REPLACEMENTS = {
 	"brand tá errado": "branch está errado",
 	"tp convexo": "TPP convexo",
 	"flash convex": "TPP convexo",
+	"grube": "Gurobi",
+	"Groovy": "Gurobi",
+	"barreia logarítmica": "barreira logarítmica",
+	"método de barriga logarítmica": "método de barreira logarítmica",
+	"caso de Junta": "caso disjunto",
+	"não-convexos": "não convexos",
+	"não-convexas": "não convexas",
+	"non-convexos": "não convexos",
+	"non-convexas": "não convexas",
+	"ponto aurístico do ponto inicial": "heurística do ponto inicial",
+	"o heurística do ponto inicial": "a heurística do ponto inicial",
+	"pressão deles": "precisão deles",
+	"cumprimento ótimo": "comprimento ótimo",
+	"espanhar": "falhar",
+	"pulão deles": "solver deles",
+	"enquanto ele usou um Gurobi": "enquanto eles usaram o Gurobi",
+	"etimática racional": "aritmética racional",
+	"conscientes racionais": "coeficientes racionais",
+	"com inteira de precisão ilimitada": "com inteiros de precisão ilimitada",
+	"subprolão convexo": "subproblema convexo",
+	"método laser": "método lazy",
+	"Tanen Zhang": "Tan e Jiang",
+	"CQSP": "SIICUSP",
 	"boundings": "bounds",
 	"bounding": "bounds",
 	"Ciplex": "CPLEX",
@@ -126,6 +150,8 @@ def revise(text: str) -> str:
 	text = re.sub(r"\bpolygon\b", "polígono", text)
 	text = re.sub(r"\bincumbent\b", "incumbente", text)
 	text = re.sub(r"\bBounding\b", "Bounds", text)
+	text = re.sub(r"\bGurovi\b", "Gurobi", text)
+	text = re.sub(r"\bGuroby\b", "Gurobi", text)
 	text = re.sub(r"\bSEGAL\b|\bcegal\b", "CGAL", text)
 	text = re.sub(r"\bDUROR\b|\bDOR\b", "Dror", text)
 	text = re.sub(r"\bBEP(?:I)?\b|\bBeppi\b", "BEPE", text)

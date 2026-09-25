@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the Fekete et al. free-order TSPN solver for up to six hours per case.
+"""Run the Fekete et al. free-order TSPN solver with a per-case time limit.
 
 The campaign reuses cases already certified by the matching 10-second run and
 stores one atomic checkpoint per newly attempted case.  Re-running the same

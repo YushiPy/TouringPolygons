@@ -23,7 +23,7 @@ As famílias internas são:
   geradores canônicos de ordem livre;
 - execução e validação: `benchmark_cases.py`, `unordered_*` e `bench.py`;
 - comparação externa: `tspn_run_comparison.py`, `tspn_oracle_backends.py` e
-  `run_fekete_6h.py`;
+  `run_fekete.py`;
 - conversão: `convert_instances.py`, `convert_tspn_native_instances.py` e
   `normalize_polygon_orientation.py`.
 

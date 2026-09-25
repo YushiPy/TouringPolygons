@@ -106,6 +106,23 @@ python3 benchmarks/tpp.py free-order-ablation \
   --output benchmarks/results/free-order-comparison.jsonl
 ```
 
+Para comparar a tolerância atual do solver com a tolerância equivalente ao
+critério de gap de Fekete (`UB <= 1.001 * LB`):
+
+```bash
+python3 benchmarks/tpp.py compare-gaps \
+  --time-limit 1 --workers 8 --case 0
+```
+
+A campanha fica em `benchmarks/results/free-order-gap-comparison/`. Ela guarda
+checkpoints por instância e configuração em cada conclusão. Repetir o comando
+retoma o trabalho; aumentar `--time-limit` reexecuta somente as instâncias que
+ainda não fecharam o gap no limite anterior. Cada execução do solver usa uma
+thread; `--workers` controla a concorrência entre instâncias. `runs.csv` contém
+todas as tentativas, `comparison.csv` resume o resultado mais recente por caso,
+e `summary.md` compara as duas configurações. Use `--output` para separar outras
+campanhas ou suítes.
+
 Os comandos `generate-free-order-canon`, `summarize-free-order` e
 `free-order-metamorphic` cobrem, respectivamente, a campanha canônica, a
 comparação pareada de resultados e os testes metamórficos.
