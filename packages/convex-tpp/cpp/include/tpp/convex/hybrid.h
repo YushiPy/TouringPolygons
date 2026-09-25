@@ -9,6 +9,8 @@
 
 namespace tpp {
 
+class DynamicConvexTppWorkspace;
+
 enum class ConvexHybridMode { SafeCertified, Unchecked };
 enum class ConvexHybridBackend { DoubleDisjoint, DoubleIntersection, RationalDisjoint, RationalIntersection };
 enum class ConvexFallbackReason {
@@ -97,6 +99,10 @@ ConvexHybridResult tpp_convex_solve_hybrid(
     const Vector2 &start, const Vector2 &target,
     const std::vector<std::vector<Vector2>> &polygons,
     const ConvexHybridOptions &options = {});
+ConvexHybridResult tpp_convex_solve_hybrid(
+    const Vector2 &start, const Vector2 &target,
+    const std::vector<std::vector<Vector2>> &polygons,
+    const ConvexHybridOptions &options, DynamicConvexTppWorkspace &workspace);
 
 std::vector<Vector2> tpp_convex_solve_hybrid_safe(
     const Vector2 &start, const Vector2 &target,

@@ -78,8 +78,10 @@ global. Em cada ramo há no máximo uma inserção e um refinamento por polígon
 ## Certificado convexo e interseções
 
 A API `tpp_convex_solve_certified` delega ao oráculo híbrido seguro descrito em
-[`certified-convex-oracle.md`](certified-convex-oracle.md). O parâmetro `workspace`
-da API ainda não é usado nessa implementação. O oráculo tenta o solver geométrico
+[`certified-convex-oracle.md`](certified-convex-oracle.md). O `workspace` reutiliza
+polígonos já normalizados em aritmética racional entre chamadas da mesma busca;
+as entradas do cache são identificadas e conferidas pelas coordenadas binárias
+completas e seu tamanho é limitado. O oráculo tenta o solver geométrico
 em `double`, reconstrói os contatos e verifica sua proveniência e otimalidade com
 predicados racionais. Se não conseguir certificá-los, resolve a sequência pelo
 fallback racional: recorrência para polígonos disjuntos e mapas direcionais para

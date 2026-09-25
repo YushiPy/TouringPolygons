@@ -13,10 +13,10 @@ namespace tpp {
 		const std::vector<std::vector<Vector2>> &polygons,
 		DynamicConvexTppWorkspace &workspace, double tolerance, double cutoff, double max_seconds
 	) {
-		(void)workspace;(void)tolerance;
+		(void)tolerance;
 		ConvexHybridOptions options;
 		options.cutoff=cutoff;
-		const auto hybrid=tpp_convex_solve_hybrid(start,target,polygons,options);
+		const auto hybrid=tpp_convex_solve_hybrid(start,target,polygons,options,workspace);
 		CertifiedConvexTppResult result;
 		// The unordered solver consumes the explicit contact-coordinate chain;
 		// retain endpoints and all duplicate contacts in this compatibility API.

@@ -42,6 +42,12 @@ As funções `tpp_convex_solve_hybrid_safe` e
 somente para diagnóstico de desempenho e não fornecem um limite seguro para
 branch-and-bound.
 
+A sobrecarga de `tpp_convex_solve_hybrid` que recebe
+`DynamicConvexTppWorkspace` reutiliza polígonos já convertidos e normalizados
+em aritmética racional entre chamadas. O cache confere todas as coordenadas
+binárias antes de reutilizar uma entrada, limita a retenção a 8192 vértices e
+não altera os predicados, os limites ou a escolha do fallback.
+
 ## Casos de fronteira
 
 O localizador de contato trata tangência, passagem por vértice, fechamento
