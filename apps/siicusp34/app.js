@@ -333,6 +333,118 @@ function solveChallengeRoute(start, target, polygons) {
 	return { path, length: pathLength(path) };
 }
 
+function methodDiagramProjector(geometry, polygonIndices, routePaths = [], width = 320, height = 160) {
+	const polygons = polygonIndices.flatMap((index) => geometry.polygons[index] || []);
+	const points = [...polygons, geometry.start, geometry.target, ...routePaths.flat()];
+	const xs = points.map(([x]) => x), ys = points.map(([, y]) => y);
+	const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+	const padding = 24;
+	const scale = Math.min((width - padding * 2) / Math.max(maxX - minX, 1e-9), (height - padding * 2) / Math.max(maxY - minY, 1e-9));
+	const offsetX = (width - (maxX - minX) * scale) / 2;
+	const offsetY = (height - (maxY - minY) * scale) / 2;
+	return ([x, y]) => [+(offsetX + (x - minX) * scale).toFixed(2), +(offsetY + (y - minY) * scale).toFixed(2)];
+}
+
+function methodPolygonMarkup(polygon, project, className = "diagram-region") {
+	return `<polygon class="${className}" points="${coordinates(polygon.map(project))}"/>`;
+}
+
+function methodEndpointMarkup(start, target, project) {
+	const [sx, sy] = project(start), [tx, ty] = project(target);
+	return `<circle class="diagram-endpoint" cx="${sx}" cy="${sy}" r="3.5"/><text class="diagram-point-label" x="${sx - 6}" y="${sy + 12}" text-anchor="middle">s</text><circle class="diagram-endpoint" cx="${tx}" cy="${ty}" r="3.5"/><text class="diagram-point-label" x="${tx + 7}" y="${ty - 4}">t</text>`;
+}
+
+function methodRegionLabelMarkup(polygon, label, project) {
+	const [x, y] = project(polygonCentroid(polygon));
+	return `<text class="diagram-region-label" x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central">${label}</text>`;
+}
+
+function methodFixedOrderRoute(geometry, decomposition, order) {
+	let best = null;
+	function choose(position, selectedPieces) {
+		if (position === order.length) {
+			const route = solveChallengeRoute(geometry.start, geometry.target, selectedPieces.map((piece) => piece.polygon));
+			if (!best || route.length < best.length) best = { ...route, choices: selectedPieces.map((piece) => piece.choice), order: [...order] };
+			return;
+		}
+		const region = order[position];
+		for (let choice = 0; choice < decomposition[region].length; choice += 1) {
+			choose(position + 1, [...selectedPieces, { choice, polygon: decomposition[region][choice] }]);
+		}
+	}
+	choose(0, []);
+	return best;
+}
+
+function drawAlgorithmFigures() {
+	const data = window.TPPChallengeData;
+	if (!data?.geometry || !data.piece_challenge || !data.combined_challenge) return;
+
+	const heuristicFigure = document.getElementById("method-heuristic-diagram");
+	const greedyPath = solveChallengeRoute(data.geometry.start, data.geometry.target,
+		data.greedy.order.map((index) => data.geometry.polygons[index])).path;
+	const optimum = data.solutions[data.reference];
+	const firstProjection = methodDiagramProjector(data.geometry, data.geometry.polygons.map((_, index) => index), [greedyPath, optimum.path]);
+	heuristicFigure.innerHTML = `${data.geometry.polygons.map((polygon) => methodPolygonMarkup(polygon, firstProjection)).join("")}
+		<polyline class="diagram-optimal-route" points="${coordinates(optimum.path.map(firstProjection))}"/>
+		<polyline class="diagram-heuristic-route" points="${coordinates(greedyPath.map(firstProjection))}"/>
+		${methodEndpointMarkup(data.geometry.start, data.geometry.target, firstProjection)}`;
+	const greedyLength = pathLength(greedyPath) * data.meters_per_display_unit;
+	document.getElementById("method-heuristic-length").textContent = `${number(greedyLength, 2)} m`;
+	document.getElementById("method-optimal-length").textContent = `${number(optimum.length, 2)} m`;
+
+	const combined = data.combined_challenge;
+	const geometry = combined.geometry;
+	// Challenge 3 is the full author-drawn five-region instance. This partial node fixes A then B;
+	// its shortest route is recomputed over the convex pieces by the bundled exact solver.
+	const regions = { A: 2, B: 1, C: 4, D: 0, E: 3 };
+	const partialOrder = [regions.A, regions.B];
+	const partial = methodFixedOrderRoute(geometry, combined.pieces, partialOrder);
+	const partialContacts = pathPolygonContacts(partial.path, geometry.polygons);
+	if (!partialContacts[regions.A] || !partialContacts[regions.B] || !partialContacts[regions.C] || partialContacts[regions.D] || partialContacts[regions.E]) {
+		throw new Error("The selected partial-order example no longer visits C without visiting D.");
+	}
+	const partialIndices = geometry.polygons.map((_, index) => index);
+	const partialProjection = methodDiagramProjector(geometry, partialIndices, [partial.path]);
+	const roleByRegion = new Map(Object.entries(regions).map(([label, index]) => [index, label]));
+	const partialClasses = new Map([
+		[regions.A, "diagram-region"], [regions.B, "diagram-region"],
+		[regions.C, "diagram-region diagram-region-incidental"],
+		[regions.D, "diagram-region diagram-region-unvisited"], [regions.E, "diagram-region diagram-region-unvisited"],
+	]);
+	document.getElementById("method-partial-diagram").innerHTML = `${partialIndices.map((index) => methodPolygonMarkup(geometry.polygons[index], partialProjection, partialClasses.get(index))).join("")}
+		<polyline class="diagram-heuristic-route" points="${coordinates(partial.path.map(partialProjection))}"/>
+		${partialIndices.map((index) => methodRegionLabelMarkup(geometry.polygons[index], roleByRegion.get(index), partialProjection)).join("")}
+		${methodEndpointMarkup(geometry.start, geometry.target, partialProjection)}`;
+
+	const selectedRegions = geometry.polygons.map((_, index) => index);
+	const complete = combined.solutions[combined.reference];
+	const completeContacts = pathPolygonContacts(complete.path, geometry.polygons);
+	if (selectedRegions.some((index) => !completeContacts[index])) throw new Error("The full-instance reference route must touch every target region.");
+	const completeProjection = methodDiagramProjector(geometry, selectedRegions, [complete.path]);
+	document.getElementById("method-complete-diagram").innerHTML = `${selectedRegions.map((index) => methodPolygonMarkup(geometry.polygons[index], completeProjection)).join("")}
+		<polyline class="diagram-heuristic-route" points="${coordinates(complete.path.map(completeProjection))}"/>
+		${selectedRegions.map((index) => methodRegionLabelMarkup(geometry.polygons[index], roleByRegion.get(index), completeProjection)).join("")}
+		${methodEndpointMarkup(geometry.start, geometry.target, completeProjection)}`;
+
+	const pieceChallenge = data.piece_challenge;
+	const pieceSolution = pieceChallenge.solutions[pieceChallenge.reference];
+	const pieceGeometry = pieceChallenge.geometry;
+	const pieceIndices = pieceGeometry.polygons.map((_, index) => index);
+	const pieceProjection = methodDiagramProjector(pieceGeometry, pieceIndices, [pieceSolution.path]);
+	const pieceMarkup = pieceChallenge.pieces.flatMap((pieces, regionIndex) => pieces.map((piece, pieceIndex) =>
+		methodPolygonMarkup(piece, pieceProjection, `diagram-piece-fill${pieceIndex === pieceSolution.choices[regionIndex] ? " diagram-piece-chosen" : ""}`))).join("");
+	const cutsMarkup = pieceChallenge.pieces.flatMap((pieces, regionIndex) => decompositionEdges(pieces, pieceGeometry.polygons[regionIndex]).map(([start, end]) => {
+		const [x1, y1] = pieceProjection(start), [x2, y2] = pieceProjection(end);
+		return `<line class="diagram-piece-cut" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+	})).join("");
+	document.getElementById("method-decomposition-diagram").innerHTML = `${pieceMarkup}
+		${pieceGeometry.polygons.map((polygon) => methodPolygonMarkup(polygon, pieceProjection, "diagram-region-outline")).join("")}
+		${cutsMarkup}<polyline class="diagram-heuristic-route" points="${coordinates(pieceSolution.path.map(pieceProjection))}"/>
+		${pieceIndices.map((index) => methodRegionLabelMarkup(pieceGeometry.polygons[index], String.fromCharCode(65 + index), pieceProjection)).join("")}
+		${methodEndpointMarkup(pieceGeometry.start, pieceGeometry.target, pieceProjection)}`;
+}
+
 const TRACE_PATH_EPSILON = 1e-5;
 
 function tracePathsDiffer(left, right, epsilon = TRACE_PATH_EPSILON) {
@@ -402,6 +514,7 @@ async function initialize() {
 		.filter((trace) => trace.omitted_events === 0 && trace.event_count < 200)
 		.sort((a, b) => a.case - b.case);
 	if (data.schema_version !== 1 || !data.rows.length || uspDemo?.schema_version !== 1 || uspDemo.case !== "usp" || spBairrosDemo?.schema_version !== 1 || spBairrosDemo.case !== "sp-bairros" || brEstadosDemo?.schema_version !== 1 || brEstadosDemo.case !== "br-estados") throw new Error("Dados da demonstração indisponíveis.");
+	drawAlgorithmFigures();
 	const defaultCase = "usp";
 	let row = uspDemo;
 	let traceRow = data.rows.find((item) => item.case === 3)
@@ -444,8 +557,45 @@ async function initialize() {
 		[3, "se promissor: enfileirar(filho)"],
 		[0, "retornar (U, L_global, status)"],
 	];
-	if (hasTraceUI) element("trace-code-lines").innerHTML = traceCode.map(([indent, line], index) => `<li data-code-line="${index}" style="--indent:${indent * .85}em"><code>${highlightPseudocode(line)}</code></li>`).join("");
+	if (hasTraceUI) {
+		const renderedCode = traceCode.map(([indent, line], index) => `<li data-code-line="${index}" style="--indent:${indent * .85}em"><code>${highlightPseudocode(line)}</code></li>`).join("");
+		element("trace-code-lines").innerHTML = renderedCode;
+		element("trace-code-expanded-lines").innerHTML = renderedCode;
+		const codeDialog = element("trace-code-dialog");
+		element("expand-trace-code").addEventListener("click", () => {
+			codeDialog.showModal();
+			const activeLine = element("trace-code-expanded-lines").querySelector("[aria-current='step']");
+			if (activeLine) activeLine.scrollIntoView({ block: "center" });
+		});
+		element("trace-code-close").addEventListener("click", () => codeDialog.close());
+		codeDialog.addEventListener("click", (event) => {
+			if (event.target === codeDialog) codeDialog.close();
+		});
+	}
 	let activeCodeLine = -1;
+
+	function syncExpandedTracePlayback() {
+		const mirrors = [
+			["trace-progress", "trace-code-progress"],
+			["trace-kind", "trace-code-kind"],
+			["trace-step-title", "trace-code-step-title"],
+			["trace-step-text", "trace-code-step-text"],
+			["trace-previous", "trace-code-previous"],
+			["trace-play", "trace-code-play"],
+			["trace-next", "trace-code-next"],
+		];
+		for (const [sourceId, targetId] of mirrors) {
+			const source = element(sourceId), target = element(targetId);
+			if (source instanceof HTMLButtonElement) {
+				if (target.textContent !== source.textContent) target.textContent = source.textContent;
+				if (target.disabled !== source.disabled) target.disabled = source.disabled;
+				const pressed = source.getAttribute("aria-pressed");
+				if (pressed !== null && target.getAttribute("aria-pressed") !== pressed) target.setAttribute("aria-pressed", pressed);
+			} else if (target.textContent !== source.textContent) {
+				target.textContent = source.textContent;
+			}
+		}
+	}
 
 	function updateTraceCode(event) {
 		const kind = event?.kind;
@@ -460,17 +610,24 @@ async function initialize() {
 			: kind === "complete" ? 19 : -1;
 		if (line === activeCodeLine) return;
 		activeCodeLine = line;
-		element("trace-code-lines").querySelectorAll("li").forEach((item, index) => {
-			item.classList.toggle("active", index === line);
-			if (index === line) item.setAttribute("aria-current", "step");
-			else item.removeAttribute("aria-current");
-		});
-		if (line >= 0) {
-			const item = element("trace-code-lines").children[line];
-			const viewport = element("trace-code-scroll");
-			const itemBox = item.getBoundingClientRect(), viewportBox = viewport.getBoundingClientRect();
-			if (itemBox.top < viewportBox.top + 8) viewport.scrollTop += itemBox.top - viewportBox.top - 8;
-			else if (itemBox.bottom > viewportBox.bottom - 8) viewport.scrollTop += itemBox.bottom - viewportBox.bottom + 8;
+		const codeViews = [
+			["trace-code-lines", "trace-code-scroll"],
+			["trace-code-expanded-lines", "trace-code-expanded-scroll"],
+		];
+		for (const [listId, viewportId] of codeViews) {
+			const lines = element(listId);
+			lines.querySelectorAll("li").forEach((item, index) => {
+				item.classList.toggle("active", index === line);
+				if (index === line) item.setAttribute("aria-current", "step");
+				else item.removeAttribute("aria-current");
+			});
+			if (line >= 0) {
+				const item = lines.children[line];
+				const viewport = element(viewportId);
+				const itemBox = item.getBoundingClientRect(), viewportBox = viewport.getBoundingClientRect();
+				if (itemBox.top < viewportBox.top + 8) viewport.scrollTop += itemBox.top - viewportBox.top - 8;
+				else if (itemBox.bottom > viewportBox.bottom - 8) viewport.scrollTop += itemBox.bottom - viewportBox.bottom + 8;
+			}
 		}
 	}
 
@@ -561,6 +718,7 @@ async function initialize() {
 		traceTransition = null;
 		element("trace-play").textContent = "▶ Reproduzir";
 		element("trace-play").setAttribute("aria-pressed", "false");
+		syncExpandedTracePlayback();
 	}
 
 	function traceCurrentPath(eventIndex = traceIndex) {
@@ -696,6 +854,7 @@ async function initialize() {
 				tracePlaying = false;
 				element("trace-play").textContent = "▶ Reproduzir";
 				element("trace-play").setAttribute("aria-pressed", "false");
+				syncExpandedTracePlayback();
 			}
 		}
 		if (tracePlaying) traceFrame = window.requestAnimationFrame(traceAnimationTick);
@@ -712,9 +871,23 @@ async function initialize() {
 		tracePlaying = true;
 		element("trace-play").textContent = "Ⅱ Pausar";
 		element("trace-play").setAttribute("aria-pressed", "true");
+		syncExpandedTracePlayback();
 		traceTransition.lastTime = performance.now();
 		cancelTraceFrame();
 		traceFrame = window.requestAnimationFrame(traceAnimationTick);
+	}
+
+	function toggleTracePlayback() {
+		if (!traceEvents.length) return;
+		if (tracePlaying) {
+			tracePlaying = false;
+			cancelTraceFrame();
+			element("trace-play").textContent = "▶ Reproduzir";
+			element("trace-play").setAttribute("aria-pressed", "false");
+			syncExpandedTracePlayback();
+			return;
+		}
+		startTracePlayback();
 	}
 
 	function traceSequence(event) {
@@ -818,6 +991,7 @@ async function initialize() {
 			element("trace-previous").disabled = true;
 			element("trace-next").disabled = true;
 			element("trace-play").disabled = true;
+			syncExpandedTracePlayback();
 			element("trace-tree").innerHTML = '<p class="trace-tree-empty">Selecione um caso com trace disponível.</p>';
 			traceCamera();
 			return;
@@ -885,6 +1059,7 @@ async function initialize() {
 		element("trace-previous").disabled = traceIndex === 0;
 		element("trace-next").disabled = traceIndex === traceEvents.length - 1;
 		element("trace-play").disabled = traceEvents.length < 2;
+		syncExpandedTracePlayback();
 		const branchCaption = branchGeometry ? " As linhas tracejadas mostram as menores distâncias até as regiões não atingidas; a linha vermelha é a maior e destaca a região escolhida." : "";
 		element("trace-map-caption").textContent = isHeuristic
 			? `Regiões destacadas pertencem à sequência parcial ${traceLabels(order, currentSequence)}. A linha laranja mostra somente o caminho construído até este passo; o trecho mais recente é animado.${branchCaption}`
@@ -1343,17 +1518,10 @@ async function initialize() {
 	if (hasTraceUI) {
 		element("trace-previous").addEventListener("click", () => advanceTrace(-1));
 		element("trace-next").addEventListener("click", () => advanceTrace(1));
-		element("trace-play").addEventListener("click", () => {
-			if (!traceEvents.length) return;
-			if (tracePlaying) {
-				tracePlaying = false;
-				cancelTraceFrame();
-				element("trace-play").textContent = "▶ Reproduzir";
-				element("trace-play").setAttribute("aria-pressed", "false");
-				return;
-			}
-			startTracePlayback();
-		});
+		element("trace-play").addEventListener("click", toggleTracePlayback);
+		element("trace-code-previous").addEventListener("click", () => advanceTrace(-1));
+		element("trace-code-next").addEventListener("click", () => advanceTrace(1));
+		element("trace-code-play").addEventListener("click", toggleTracePlayback);
 		element("trace-case-select")?.addEventListener("change", (event) => {
 			if (event.target.value === "") return;
 			selectTrace(Number(event.target.value));
