@@ -85,6 +85,13 @@ void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
 		std::cerr << "Expected " << best << ", got " << result.upper_bound << '\n';
 		throw std::runtime_error("Permutation enumeration mismatch.");
 	}
+	tpp::UnorderedTppSolveOptions root_options;
+	root_options.detour_root = true;
+	const auto detour_result = tpp::tpp_nonconvex_unordered_solve(s, t, polygons, root_options);
+	if (!detour_result.exact || detour_result.lower_bound > best + 1e-6
+		|| detour_result.lower_bound > detour_result.upper_bound + 1e-8
+		|| std::abs(best - detour_result.upper_bound) > 1e-6 * (1 + best))
+		throw std::runtime_error("Detour-root permutation enumeration mismatch.");
 	for (size_t cap : {0, 1, 3, 10}) {
 		tpp::UnorderedTppSolveOptions options;
 		options.max_calls = cap;
@@ -108,6 +115,14 @@ void check_oracle_certificates() {
 		if (r.lower_bound > optimum + 1e-8 || r.upper_bound < optimum - 1e-8
 			|| (r.lower_bound < cutoff && r.upper_bound - r.lower_bound > 1e-7))
 			throw std::runtime_error("Invalid convex cutoff certificate.");
+		if (cutoff == 10.5) {
+			if (!r.dual_cutoff_pruned || r.used_fallback || r.lower_bound < cutoff
+				|| r.path.size() != polygons.size() + 2 || length(r.path) > r.upper_bound + 1e-7)
+				throw std::runtime_error("Expected a feasible early dual cutoff.");
+			for (size_t i = 0; i < polygons.size(); ++i)
+				if (tpp::unordered_detail::contact({r.path[i + 1], r.path[i + 1]}, polygons[i], 1e-8).distance > 1e-8)
+					throw std::runtime_error("Dual cutoff path missed an ordered polygon.");
+		}
 	}
 	const auto interrupted = tpp_convex_solve_certified(
 		s, t, polygons, workspace, 0.0, std::numeric_limits<double>::infinity(), 0.0

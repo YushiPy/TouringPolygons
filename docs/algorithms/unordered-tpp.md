@@ -35,10 +35,18 @@ A raiz tem sequência vazia e caminho reto entre os extremos.
 A busca prioriza o menor limite inferior e faz uma descida pelo melhor filho em
 cada expansão (`dive_interval = 1` por padrão), para obter incumbentes cedo.
 `dive_interval = 0` desativa as descidas; a CLI aceita `--dive-interval N`.
+Opcionalmente, `--detour-root` escolhe a primeira região pelo maior desvio
+mínimo do caminho reto ao visitar seu fecho convexo; empates favorecem a maior
+distância do caminho ao polígono original. A opção só muda a ordem da busca,
+permanece desativada por padrão e não acrescenta uma condição de poda.
 Depois que um filho melhora o incumbente, a busca compara novamente o limite
 inferior dos irmãos ainda não avaliados com o novo corte e dispensa o oráculo
 quando já é impossível melhorar. Isso é seguro porque cada limite inferior
 permanece válido e o incumbente só diminui.
+Se a candidata geométrica do oráculo convexo não fecha sua certificação, um
+dual racional pode ainda provar que seu nó supera o corte atual. Nesse caso o
+oráculo retorna sem executar o fallback racional completo; o contador
+`oracle_dual_cutoff_prunes` registra essas ocorrências.
 A solução inicial usa vértices próximos, 2-opt e otimização dos contatos nas arestas.
 Essas heurísticas só fornecem limites superiores. A decomposição é calculada sob demanda.
 Opcionalmente, `options.initial_path` fornece um caminho completo de `start` a
@@ -69,17 +77,17 @@ global. Em cada ramo há no máximo uma inserção e um refinamento por polígon
 
 ## Certificado convexo e interseções
 
-A API nova `tpp_convex_solve_certified` primeiro chama o solver geométrico com seu
-workspace reutilizável. Recupera contatos na ordem exigida e verifica um limite dual.
-Isso é necessário porque foram encontrados caminhos inviáveis e valores incorretos
-na implementação antiga para algumas sequências com interseções. A proteção vale
-para a nova API; as APIs antigas de ordem fixa não foram redirecionadas.
-
-Quando o caminho geométrico tem um ponto por região, mas a recuperação falha por um
-contato numericamente exterior à fronteira, o certificado tenta deslocar cada ponto
-para o centroide de sua região por fatores `1e-12`, `1e-10` e `1e-8`. O caminho
-reparado ainda passa por `contacts`, pela avaliação primal e pelo limite dual. Se a
-viabilidade ou o gap original não fechar, o fallback permanece obrigatório.
+A API `tpp_convex_solve_certified` delega ao oráculo híbrido seguro descrito em
+[`certified-convex-oracle.md`](certified-convex-oracle.md). O `workspace` reutiliza
+polígonos já normalizados em aritmética racional entre chamadas da mesma busca;
+as entradas do cache são identificadas e conferidas pelas coordenadas binárias
+completas e seu tamanho é limitado. O oráculo tenta o solver geométrico
+em `double`, reconstrói os contatos e verifica sua proveniência e otimalidade com
+predicados racionais. Se não conseguir certificá-los, resolve a sequência pelo
+fallback racional: recorrência para polígonos disjuntos e mapas direcionais para
+polígonos com interseção. Um limite dual racional suficiente também pode encerrar
+a chamada quando existe um corte finito. A proteção vale para essa API; as APIs
+antigas de ordem fixa não foram redirecionadas.
 
 Para regiões convexas $C_1,\ldots,C_m$ e vetores $u_0,\ldots,u_m$ com norma no máximo 1,
 um limite inferior é
@@ -94,14 +102,9 @@ Assim, o comprimento de um caminho retornado pelo solver não é usado automatic
 como limite inferior. Atribuições diferentes de direções em segmentos de comprimento
 zero também são testadas, sempre dentro da bola unitária.
 
-Se o certificado não fechar, um método de pontos interiores resolve a sequência:
-suavização das normas, barreira logarítmica das faces e Newton com Hessiana em blocos
-tridiagonais de dimensão 2. Usa Eigen e, quando necessário, precisão quádrupla em
-software do Boost.Multiprecision. Preserva o melhor primal e o melhor dual entre
-iterações. Não requer Gurobi, CGAL ou outro otimizador comercial.
-
-Os cálculos e certificados são **numéricos**, não provas em aritmética racional ou
-intervalar. `exact` significa que
+O caminho de pontos interiores em `certified_refinement.cpp` permanece no código,
+mas não é chamado por essa API. O fallback ativo usa `boost::multiprecision::cpp_rational`.
+O resultado global ainda emprega tolerâncias de visita e de gap; `exact` significa que
 
 ```
 upper_bound - lower_bound <= absolute_gap + relative_gap * abs(upper_bound)
@@ -147,8 +150,8 @@ vertex_count x0 y0 x1 y1 ...
 
 A saída JSON inclui `path`, `order` (índices a partir de zero, pela primeira visita),
 `lower_bound`, `upper_bound`, `exact`, `termination`, `calls`, `fallback_calls`,
-motivos de fallback, reparações do caminho geométrico, uso de precisão ampliada,
-`nodes`, `sibling_bound_prunes`, os dois contadores de
+motivos de fallback e contadores de diagnóstico,
+`nodes`, `sibling_bound_prunes`, `oracle_dual_cutoff_prunes`, os dois contadores de
 ramificação, `peak_queue`, `seconds` e `profile`.
 A API C++ não tem limite de busca por padrão. A CLI exige limites explícitos.
 Com `--initial-path`, a CLI lê após os polígonos a contagem de pontos do caminho
@@ -156,15 +159,15 @@ e seus pares `x y`, incluindo os extremos. Sem essa opção, a entrada antiga e 
 heurística padrão permanecem iguais.
 O limite de tempo é cooperativo: uma chamada geométrica/decomposição já iniciada
 pode excedê-lo; o pré-processamento e partes da heurística inicial também não
-consultam o limite a cada operação. `calls` conta invocações do oráculo convexo certificado, não passos
-internos de Newton. `termination` distingue `optimal`, `call_limit`, `time_limit`
+consultam o limite a cada operação. `calls` conta invocações do oráculo convexo certificado.
+`termination` distingue `optimal`, `call_limit`, `time_limit`
 e `numerical_limit`.
 
 ### Organização da implementação
 
-- `certified.cpp` orquestra o solver geométrico, a certificação e o fallback.
-- `certified_geometry.cpp` recupera/repara contatos e calcula o limite dual.
-- `certified_refinement.cpp` contém o método de pontos interiores nas duas precisões.
+- `certified.cpp` adapta o resultado do oráculo híbrido para a API usada pela busca.
+- `hybrid.cpp` orquestra o solver geométrico, a certificação e o fallback ativo.
+- `certified_refinement.cpp` contém um método de pontos interiores que não é usado nessa API.
 - `unordered.cpp` contém heurística, branch-and-bound, bounds e instrumentação.
 - `unordered_geometry.cpp` contém operações puras de fecho convexo e contato.
 - `unordered_runner.py` centraliza o protocolo de processo usado pelos benchmarks e
@@ -177,7 +180,7 @@ Em `profile`, pré-processamento, heurística inicial, busca e finalização sã
 superiores disjuntas. O tempo da busca contém oráculo convexo, decomposição,
 verificação de visitas e manutenção exclusiva da busca. O tempo do oráculo é
 inclusivo e contém solver geométrico, verificação inicial do certificado e fallback;
-o fallback contém suas fases em `long double` e precisão ampliada. O total de
+o fallback ativo usa aritmética racional. O total de
 verificação de visitas soma medições nas fases superiores e se sobrepõe a elas,
 portanto não deve ser somado novamente. A semântica também acompanha cada resultado
 em `profile.timing_semantics`.

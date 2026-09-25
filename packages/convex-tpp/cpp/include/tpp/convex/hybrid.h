@@ -4,9 +4,12 @@
 
 #include <cstddef>
 #include <array>
+#include <limits>
 #include <vector>
 
 namespace tpp {
+
+class DynamicConvexTppWorkspace;
 
 enum class ConvexHybridMode { SafeCertified, Unchecked };
 enum class ConvexHybridBackend { DoubleDisjoint, DoubleIntersection, RationalDisjoint, RationalIntersection };
@@ -23,6 +26,8 @@ enum class ConvexFallbackReason {
 
 struct ConvexHybridOptions {
     ConvexHybridMode mode = ConvexHybridMode::SafeCertified;
+    // A search may return early with a certified dual bound above this value.
+    double cutoff = std::numeric_limits<double>::infinity();
     bool shadow_rational = false;
     // Callers requesting only a diagnostic length may skip final contact
     // reconstruction. Safe mode always materializes contacts for certification.
@@ -62,6 +67,7 @@ struct ConvexHybridResult {
     bool rejected_double_exact_feasible = false;
     double lower_bound = 0;
     double upper_bound = 0;
+    bool cutoff_pruned = false;
     ConvexHybridBackend backend = ConvexHybridBackend::DoubleDisjoint;
     ConvexFallbackReason fallback_reason = ConvexFallbackReason::None;
     ConvexHybridStats stats;
@@ -93,6 +99,10 @@ ConvexHybridResult tpp_convex_solve_hybrid(
     const Vector2 &start, const Vector2 &target,
     const std::vector<std::vector<Vector2>> &polygons,
     const ConvexHybridOptions &options = {});
+ConvexHybridResult tpp_convex_solve_hybrid(
+    const Vector2 &start, const Vector2 &target,
+    const std::vector<std::vector<Vector2>> &polygons,
+    const ConvexHybridOptions &options, DynamicConvexTppWorkspace &workspace);
 
 std::vector<Vector2> tpp_convex_solve_hybrid_safe(
     const Vector2 &start, const Vector2 &target,

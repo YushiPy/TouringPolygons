@@ -4,12 +4,14 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
 #include <span>
 #include <stdexcept>
 #include <utility>
 #include <vector>
 
 namespace tpp {
+	struct ConvexHybridCache;
 
 	using Cone = std::pair<Vector2, Vector2>;
 
@@ -34,6 +36,8 @@ namespace tpp {
 		std::vector<size_t> polygon_offsets;
 		std::vector<uint8_t> first_contact;
 		std::vector<Cone> cones;
+		// Prepared exact polygons for repeated safe-hybrid calls in one search.
+		std::shared_ptr<ConvexHybridCache> hybrid_cache;
 
 		void reserve(size_t max_polygons, size_t max_total_vertices);
 		ConvexTppWorkspaceView prepare(size_t polygon_count, size_t total_vertices);

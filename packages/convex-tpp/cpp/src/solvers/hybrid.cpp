@@ -3,14 +3,18 @@
 #include "tpp/convex/detail/rational_disjoint.h"
 #include "tpp/convex/solver.h"
 #include "common.h"
+#include "certified_internal.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
 #include <algorithm>
+#include <bit>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <mutex>
 #include <stdexcept>
+#include <unordered_map>
 
 namespace tpp {
 namespace {
@@ -69,22 +73,24 @@ double elapsed(Clock::time_point began) {
     return std::chrono::duration<double>(Clock::now()-began).count();
 }
 
+Polygon exact_polygon(const std::vector<Vector2> &input) {
+    Polygon p;
+    for(auto v:input) {
+        if(!v.is_finite()) throw std::invalid_argument("Nonfinite polygon coordinate");
+        Point q(v);if(p.empty() || !(p.back()==q))p.push_back(std::move(q));
+    }
+    if(p.size()>1 && p.front()==p.back())p.pop_back();
+    Rational area=0;
+    for(size_t i=0;i<p.size();++i)area+=p[i].cross(p[(i+1)%p.size()]);
+    if(p.size()<3 || area==0)throw std::invalid_argument("Polygon must have positive area");
+    if(area<0)std::reverse(p.begin(),p.end());
+    return p;
+}
+
 std::vector<Polygon> exact_polygons(const std::vector<std::vector<Vector2>> &polygons) {
     std::vector<Polygon> result;
     result.reserve(polygons.size());
-    for(const auto &input:polygons) {
-        Polygon p;
-        for(auto v:input) {
-            if(!v.is_finite()) throw std::invalid_argument("Nonfinite polygon coordinate");
-            Point q(v);if(p.empty() || !(p.back()==q))p.push_back(std::move(q));
-        }
-        if(p.size()>1 && p.front()==p.back())p.pop_back();
-        Rational area=0;
-        for(size_t i=0;i<p.size();++i)area+=p[i].cross(p[(i+1)%p.size()]);
-        if(p.size()<3 || area==0)throw std::invalid_argument("Polygon must have positive area");
-        if(area<0)std::reverse(p.begin(),p.end());
-        result.push_back(std::move(p));
-    }
+    for(const auto &input:polygons) result.push_back(exact_polygon(input));
     return result;
 }
 
@@ -680,6 +686,57 @@ void set_value_bounds(ConvexHybridResult &result,double value) {
 }
 }
 
+struct ConvexHybridCache {
+    struct Entry {
+        std::vector<Vector2> input;
+        Polygon exact;
+    };
+    static constexpr size_t max_vertices=8192; // Bound retained exact geometry.
+    std::unordered_map<std::uint64_t,std::vector<Entry>> entries;
+    size_t vertices=0;
+
+    static std::uint64_t key(const std::vector<Vector2> &input) {
+        std::uint64_t hash=14695981039346656037ULL;
+        auto mix=[&](std::uint64_t value){hash^=value;hash*=1099511628211ULL;};
+        mix(input.size());
+        for(const auto &v:input) {
+            mix(std::bit_cast<std::uint64_t>(v.x));
+            mix(std::bit_cast<std::uint64_t>(v.y));
+        }
+        return hash;
+    }
+    static bool same_input(const std::vector<Vector2> &a,const std::vector<Vector2> &b) {
+        if(a.size()!=b.size())return false;
+        for(size_t i=0;i<a.size();++i)
+            if(std::bit_cast<std::uint64_t>(a[i].x)!=std::bit_cast<std::uint64_t>(b[i].x) ||
+               std::bit_cast<std::uint64_t>(a[i].y)!=std::bit_cast<std::uint64_t>(b[i].y))return false;
+        return true;
+    }
+    Polygon get(const std::vector<Vector2> &input) {
+        const auto hash=key(input);
+        if(const auto it=entries.find(hash);it!=entries.end())
+            for(const auto &entry:it->second)
+                if(same_input(input,entry.input))return entry.exact;
+        Polygon exact=exact_polygon(input);
+        if(input.size()<=max_vertices) {
+            if(vertices+input.size()>max_vertices){entries.clear();vertices=0;}
+            entries[hash].push_back({input,exact});
+            vertices+=input.size();
+        }
+        return exact;
+    }
+};
+
+static std::vector<Polygon> cached_exact_polygons(
+        const std::vector<std::vector<Vector2>> &input,DynamicConvexTppWorkspace &workspace) {
+    // Copies of a workspace keep independent mutable caches.
+    if(!workspace.hybrid_cache || workspace.hybrid_cache.use_count()!=1)
+        workspace.hybrid_cache=std::make_shared<ConvexHybridCache>();
+    std::vector<Polygon> result;result.reserve(input.size());
+    for(const auto &polygon:input)result.push_back(workspace.hybrid_cache->get(polygon));
+    return result;
+}
+
 const char *to_string(ConvexFallbackReason reason) {
     switch(reason) {
         case ConvexFallbackReason::None:return "none";
@@ -702,8 +759,9 @@ std::vector<Vector2> reconstruct_convex_polyline(const Vector2 &start,const Vect
     return result;
 }
 
-ConvexHybridResult tpp_convex_solve_hybrid(const Vector2 &start,const Vector2 &target,
-        const std::vector<std::vector<Vector2>> &input,const ConvexHybridOptions &options) {
+static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &target,
+        const std::vector<std::vector<Vector2>> &input,const ConvexHybridOptions &options,
+        DynamicConvexTppWorkspace *workspace) {
     const auto began=Clock::now();ConvexHybridResult result;
     AggregateRecorder recorder{&result};
     const auto dispatch_began=Clock::now();
@@ -721,7 +779,7 @@ ConvexHybridResult tpp_convex_solve_hybrid(const Vector2 &start,const Vector2 &t
         result.backend=result.stats.disjoint?ConvexHybridBackend::DoubleDisjoint:ConvexHybridBackend::DoubleIntersection;
         set_value_bounds(result,value);result.stats.total_seconds=elapsed(began);return result;
     }
-    const auto polygons=exact_polygons(input);
+    const auto polygons=workspace?cached_exact_polygons(input,*workspace):exact_polygons(input);
     result.stats.disjoint=pairwise_disjoint(polygons);
     result.stats.dispatch_seconds=elapsed(dispatch_began);
     if(input.empty()) {set_bounds(result,start,target);result.stats.total_seconds=elapsed(began);return result;}
@@ -778,6 +836,26 @@ ConvexHybridResult tpp_convex_solve_hybrid(const Vector2 &start,const Vector2 &t
         result.backend=result.stats.disjoint?ConvexHybridBackend::DoubleDisjoint:ConvexHybridBackend::DoubleIntersection;
         set_exact_bounds(result,start,target,exact_contacts);result.stats.total_seconds=elapsed(began);return result;
     }
+    if(options.mode==ConvexHybridMode::SafeCertified && !options.shadow_rational
+       && std::isfinite(options.cutoff)
+       && exact_contacts.size()==polygons.size()) {
+        const auto candidate_path=reconstruct_convex_polyline(start,target,result.contacts,false);
+        const double rough=certified_detail::dual_bound(candidate_path,input);
+        if(rough>=options.cutoff-1e-7*std::max(1.0,std::abs(options.cutoff))) {
+            const double dual=candidate_dual_lower(start,target,polygons,exact_contacts);
+            if(dual>=options.cutoff) {
+                ConvexHybridResult candidate;
+                set_exact_bounds(candidate,start,target,exact_contacts);
+                result.lower_bound=dual;
+                result.upper_bound=candidate.upper_bound;
+                result.cutoff_pruned=true;
+                result.fallback_reason=ConvexFallbackReason::None;
+                result.backend=result.stats.disjoint?ConvexHybridBackend::DoubleDisjoint:ConvexHybridBackend::DoubleIntersection;
+                result.stats.total_seconds=elapsed(began);
+                return result;
+            }
+        }
+    }
     const auto fast_contacts=result.contacts;
     const auto fallback_began=Clock::now();
     double rational_lower_bound=0,rational_upper_bound=0;
@@ -831,6 +909,17 @@ ConvexHybridResult tpp_convex_solve_hybrid(const Vector2 &start,const Vector2 &t
     result.backend=result.stats.disjoint?ConvexHybridBackend::RationalDisjoint:ConvexHybridBackend::RationalIntersection;
     result.lower_bound=rational_lower_bound;result.upper_bound=rational_upper_bound;
     result.stats.total_seconds=elapsed(began);return result;
+}
+
+ConvexHybridResult tpp_convex_solve_hybrid(const Vector2 &start,const Vector2 &target,
+        const std::vector<std::vector<Vector2>> &input,const ConvexHybridOptions &options) {
+    return solve_hybrid_impl(start,target,input,options,nullptr);
+}
+
+ConvexHybridResult tpp_convex_solve_hybrid(const Vector2 &start,const Vector2 &target,
+        const std::vector<std::vector<Vector2>> &input,const ConvexHybridOptions &options,
+        DynamicConvexTppWorkspace &workspace) {
+    return solve_hybrid_impl(start,target,input,options,&workspace);
 }
 
 std::vector<Vector2> tpp_convex_solve_hybrid_safe(const Vector2 &start,const Vector2 &target,

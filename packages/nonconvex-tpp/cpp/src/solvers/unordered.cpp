@@ -247,6 +247,7 @@ namespace tpp {
 				start, target, selected, workspace, tolerance, cutoff, remaining_seconds
 			);
 			result.oracle_cutoff_calls += certified.lower_bound >= cutoff;
+			result.oracle_dual_cutoff_prunes += certified.dual_cutoff_pruned;
 			node.refined = precise || options.oracle_relative_gap == 0;
 			node.path = certified.path;
 			result.fallback_calls += certified.used_fallback;
@@ -367,10 +368,32 @@ namespace tpp {
 			}
 			size_t chosen = none;
 			double farthest = eps;
+			size_t detour_chosen = none;
+			double best_detour = -1, best_detour_distance = -1;
 			const auto visit_began = std::chrono::steady_clock::now();
 			for (size_t j = 0; j < n; ++j) {
 				const double distance = contact(node.path, polygons[j], eps).distance;
 				if (distance > farthest) { farthest = distance; chosen = j; }
+				if (options.detour_root && node.sequence.empty() && distance > eps) {
+					const auto point = best_contact(start, target, hulls[j], hulls[j].front());
+					const double detour = start.distance_to(point) + point.distance_to(target) - result.initial_lower_bound;
+					if (detour > best_detour + 1e-12 || (std::abs(detour - best_detour) <= 1e-12 && distance > best_detour_distance)) {
+						best_detour = detour;
+						best_detour_distance = distance;
+						detour_chosen = j;
+					}
+				}
+			}
+			if (options.detour_root && node.sequence.empty() && chosen != none) {
+				chosen = detour_chosen;
+			} else if (options.endpoint_sum_root && node.sequence.empty() && chosen != none) {
+				const Polygon start_point_path{start, start}, target_point_path{target, target};
+				double endpoint_sum = -1;
+				for (size_t j = 0; j < n; ++j) {
+					const double score = contact(start_point_path, polygons[j], 0).distance
+						+ contact(target_point_path, polygons[j], 0).distance;
+					if (score > endpoint_sum) { endpoint_sum = score; chosen = j; }
+				}
 			}
 			result.search_visit_check_seconds += duration(visit_began);
 			if (chosen == none) {

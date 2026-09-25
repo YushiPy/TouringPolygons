@@ -147,11 +147,23 @@ void deterministic() {
             {box(-2,0,0,2),{{-1e-6,1},{1.999999,0},{1.999999,2}}},
             {{-3,-2},{0,0},{1.6799996719999488,0.15999966400002566},{3,-2}}}}
     };
+    tpp::DynamicConvexTppWorkspace hybrid_workspace;
     for(auto &[name,c]:cases) {
         verify(c,name,name=="floating feasible suboptimal");
         verify_hybrid(c,name);
         try {
             const auto hybrid=tpp::tpp_convex_solve_hybrid(c.start,c.target,c.polygons);
+            if(name=="nested interior reflection" || name=="floating feasible suboptimal" ||
+               name=="three polygons common point") {
+                for(int repeat=0;repeat<2;++repeat) {
+                    const auto cached=tpp::tpp_convex_solve_hybrid(c.start,c.target,c.polygons,
+                        {},hybrid_workspace);
+                    check(cached.contacts==hybrid.contacts && cached.lower_bound==hybrid.lower_bound &&
+                          cached.upper_bound==hybrid.upper_bound && cached.backend==hybrid.backend &&
+                          cached.fallback_reason==hybrid.fallback_reason,
+                          name+" reusable hybrid workspace");
+                }
+            }
             if(name=="identical polygons")
                 check(hybrid.contacts.size()==2 && hybrid.contacts[0]==hybrid.contacts[1],
                       name+" preserves duplicate contacts");
