@@ -510,6 +510,7 @@ async function initialize() {
 	const brEstadosDemo = window.TPPBrEstadosDemo;
 	const tracePayload = window.TPPTraceData || { schema_version: 1, cases: {} };
 	const traces = tracePayload.schema_version === 1 ? (tracePayload.cases || {}) : {};
+	const traceDecompositions = window.TPPTraceDecompositions || {};
 	const shortTraceCases = Object.values(traces)
 		.filter((trace) => trace.omitted_events === 0 && trace.event_count < 200)
 		.sort((a, b) => a.case - b.case);
@@ -578,7 +579,6 @@ async function initialize() {
 	function syncExpandedTracePlayback() {
 		const mirrors = [
 			["trace-progress", "trace-code-progress"],
-			["trace-kind", "trace-code-kind"],
 			["trace-step-title", "trace-code-step-title"],
 			["trace-step-text", "trace-code-step-text"],
 			["trace-previous", "trace-code-previous"],
@@ -639,6 +639,10 @@ async function initialize() {
 		const candidate = data.rows.find((item) => item.case === trace.case);
 		const displayedSteps = Array.isArray(trace.events) ? filterTraceEvents(trace.events).length : trace.event_count;
 		return `Caso ${caseLabel(trace.case)} · ${displayedSteps} passos · ${candidate?.polygons ?? "—"} regiões`;
+	}
+
+	function decompositionForTrace(row) {
+		return traceDecompositions[String(row.case)] || row.visualization?.decomposition || [];
 	}
 
 	function renderTracePicker() {
@@ -735,10 +739,14 @@ async function initialize() {
 		if (traceTimer !== null) window.clearInterval(traceTimer);
 		if (!tracePlaying) return;
 		traceTimer = window.setInterval(() => {
-			tracePlaybackAdvancing = true;
-			try { element("trace-next").click(); }
-			finally { tracePlaybackAdvancing = false; }
+			advanceTraceFromPlayback();
 		}, 1000 / speeds[traceSpeedIndex]);
+	}
+
+	function advanceTraceFromPlayback() {
+		tracePlaybackAdvancing = true;
+		try { element("trace-next").click(); }
+		finally { tracePlaybackAdvancing = false; }
 	}
 
 	function setTraceSpeed(index) {
@@ -826,7 +834,8 @@ async function initialize() {
 		element("trace-play").textContent = "Ⅱ Pausar";
 		element("trace-play").setAttribute("aria-pressed", "true");
 		syncExpandedTracePlayback();
-		scheduleTracePlayback();
+		advanceTraceFromPlayback();
+		if (tracePlaying) scheduleTracePlayback();
 	}
 
 	function toggleTracePlayback() {
@@ -883,9 +892,9 @@ async function initialize() {
 			if (branchConnection && branchGeometry.longest) {
 				const reachedLabels = branchGeometry.reached.map((isReached, index) => isReached ? traceLabel(order, index) : null).filter(Boolean);
 				const reachedText = reachedLabels.length ? `O caminho já atingiu as regiões ${reachedLabels.join(", ")}.` : "O caminho ainda não atingiu nenhum polígono.";
-				return ["Branching", `${reachedText} Para cada região restante, uma linha tracejada mostra a menor distância até o caminho atual. A região ${polygon} é a mais distante (${traceNumber(branchGeometry.longest.distance, 2)}) e por isso é escolhida para gerar alternativas de inserção.`];
+				return ["Ramificação", `${reachedText} Para cada região restante, uma linha tracejada mostra a menor distância até o caminho atual. A região ${polygon} é a mais distante (${traceNumber(branchGeometry.longest.distance, 2)}) e por isso é escolhida para gerar alternativas de inserção.`];
 			}
-			return ["Branching", `A árvore escolhe a região ${polygon} e cria alternativas de inserção${event.reason === "decomposition" ? " ou de peça convexa" : " na ordem"}.`];
+			return ["Ramificação", `A árvore escolhe a região ${polygon} e cria alternativas de inserção${event.reason === "decomposition" ? " ou de peça convexa" : " na ordem"}.`];
 		}
 		if (kind === "child") return [event.pruned ? "Filho podado" : "Filho enfileirado", event.piece === undefined ? (event.pruned ? `A sequência ${selected} tem limite ${traceNumber(event.lower_bound, 4)}, que já não pode melhorar o incumbente.` : `A sequência ${selected} permanece candidata e entra na fila de busca.`) : `A região ${polygon} foi refinada na peça convexa ${Number(event.piece) + 1}; ${event.pruned ? "o filho é podado" : "o filho entra na fila"}.`];
 		if (kind === "prune") return ["Nó podado", event.reason === "incumbent" ? "O caminho encontrado já é tão bom quanto o incumbente." : "O limite inferior excede o melhor caminho conhecido."];
@@ -899,7 +908,7 @@ async function initialize() {
 		const visible = events.length > 42 ? events.slice(-42) : events;
 		element("trace-tree").innerHTML = visible.length ? visible.map((event) => {
 			const sequence = traceLabels(trace.optimal_order || traceRow.order, event.sequence || []);
-			const label = event.kind === "root" ? "Raiz" : event.kind === "expand" ? `Expande ${sequence}` : event.kind === "branch" ? `Branching em ${traceLabel(trace.optimal_order || traceRow.order, event.polygon)}` : event.kind === "child" ? `${event.pruned ? "Poda" : "Fila"}: ${sequence}` : event.kind === "prune" ? `Poda: ${sequence}` : "Busca concluída";
+			const label = event.kind === "root" ? "Raiz" : event.kind === "expand" ? `Expande ${sequence}` : event.kind === "branch" ? `Ramificação em ${traceLabel(trace.optimal_order || traceRow.order, event.polygon)}` : event.kind === "child" ? `${event.pruned ? "Poda" : "Fila"}: ${sequence}` : event.kind === "prune" ? `Poda: ${sequence}` : "Busca concluída";
 			const detail = event.kind === "child" && Number.isFinite(Number(event.lower_bound)) ? `LB ${traceNumber(event.lower_bound, 3)}` : event.kind === "complete" ? `UB ${traceNumber(event.upper_bound ?? trace.summary?.upper_bound, 3)}` : "";
 			const indent = Math.min(Array.isArray(event.sequence) ? event.sequence.length : 0, 8);
 			return `<div class="trace-tree-item ${event.pruned ? "is-pruned" : ""} ${event.kind === "complete" ? "is-complete" : ""}" style="--trace-depth:${indent}"><span>${traceEscape(label)}</span><small>${traceEscape(detail)}</small></div>`;
@@ -929,7 +938,6 @@ async function initialize() {
 			element("trace-step-text").textContent = traceRow.case === "usp"
 				? "A rota da USP é uma demonstração própria. Escolha um caso do corpus acima para acompanhar uma execução registrada da busca."
 				: "Os destaques mostram os Casos 02, 250 e 269. O seletor no desenho inclui qualquer árvore com menos de 200 passos.";
-			element("trace-kind").textContent = "PASSO ATUAL";
 			element("trace-sequence").textContent = "—";
 			element("trace-lower-bound").textContent = "—";
 			element("trace-upper-bound").textContent = "—";
@@ -961,7 +969,7 @@ async function initialize() {
 		const branchGeometry = traceBranchGeometry(event, currentPath, projection.polygons, originalPath, reached);
 		const visibleBranchGeometry = enabled("trace-show-branching") ? branchGeometry : null;
 		const decompositionMarkup = enabled("trace-show-decomposition")
-			? decompositionLinesMarkup(traceRow.visualization?.decomposition, traceRow.geometry.polygons, projection.project)
+			? decompositionLinesMarkup(decompositionForTrace(traceRow), traceRow.geometry.polygons, projection.project)
 			: "";
 		const branchConnectionLines = visibleBranchGeometry?.connections.map((connection) => {
 			const longest = branchGeometry.longest?.polygonIndex === connection.polygonIndex;
@@ -972,7 +980,7 @@ async function initialize() {
 		const traveler = currentPath.at(-1) || start;
 		traceMapContent.innerHTML = `${traceRow.geometry.polygons.map((polygon, index) => {
 			const branchSelected = branchGeometry?.longest?.polygonIndex === index;
-			const title = `Região ${traceLabel(order, index)}${branchSelected ? "; escolhida para o branching por ser a mais distante" : ""}`;
+			const title = `Região ${traceLabel(order, index)}${branchSelected ? "; escolhida para ramificar por ser a mais distante" : ""}`;
 			return `<polygon class="trace-region ${selected.has(index) ? "trace-selected" : ""} ${reached[index] ? "trace-reached" : ""} ${branchSelected ? "trace-branch-selected" : ""}" points="${coordinates(polygon.map(projection.project))}"><title>${title}</title></polygon>`;
 		}).join("")}
 			${enabled("trace-show-hulls") ? traceRow.geometry.polygons.map((polygon) => `<polygon class="trace-hull" points="${coordinates(convexHull(polygon).map(projection.project))}"/>`).join("") : ""}
@@ -983,7 +991,6 @@ async function initialize() {
 			${showLabels ? projection.polygons.map((polygon, index) => { const center = polygonCentroid(polygon); return `<text class="trace-region-label ${selected.has(index) ? "trace-label-selected" : ""}" x="${center[0]}" y="${center[1]}" text-anchor="middle" dominant-baseline="central">${traceLabel(order, index)}</text>`; }).join("") : ""}
 			<circle class="trace-traveler" cx="${traveler[0]}" cy="${traveler[1]}" r="5"/><circle class="trace-endpoint" cx="${start[0]}" cy="${start[1]}" r="6"/><text class="trace-endpoint-label" x="${start[0] + 13}" y="${start[1] + 4}">s</text><circle class="trace-endpoint trace-target" cx="${target[0]}" cy="${target[1]}" r="6"/><text class="trace-endpoint-label" x="${target[0] + 13}" y="${target[1] + 4}">t</text>`;
 		const [title, text] = traceEventCopy(event, trace, branchGeometry);
-		element("trace-kind").textContent = event.kind.replaceAll("_", " ").toUpperCase();
 		element("trace-step-title").textContent = title;
 		element("trace-step-text").textContent = text;
 		element("trace-sequence").textContent = traceLabels(order, currentSequence);
@@ -1015,6 +1022,10 @@ async function initialize() {
 		if (!selected || !traces[String(caseIndex)]) return;
 		stopTrace();
 		traceRow = selected;
+		const decompositionControl = element("trace-show-decomposition");
+		const hasDecomposition = decompositionForTrace(selected).some((pieces) => pieces.length > 1);
+		decompositionControl.disabled = !hasDecomposition;
+		if (!hasDecomposition) decompositionControl.setAttribute("aria-pressed", "false");
 		const trace = traces[String(traceRow.case)];
 		traceEvents = filterTraceEvents(trace?.events || []);
 		traceIndex = 0;

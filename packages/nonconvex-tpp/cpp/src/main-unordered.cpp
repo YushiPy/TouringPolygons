@@ -76,12 +76,20 @@ int main(int argc, char **argv) {
 		for (int i = 1; i < argc; ++i) {
 			const std::string flag = argv[i];
 			if (flag == "--help") {
-				std::cout << "Usage: tpp-unordered [--absolute-gap N] [--relative-gap N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--initial-path] [--trace]\n"
+				std::cout << "Usage: tpp-unordered [--absolute-gap N] [--relative-gap N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace]\n"
 					<< "stdin: sx sy tx ty polygon_count max_calls max_seconds, then each polygon's vertex count and coordinates. With --initial-path, append path point count and coordinates, including endpoints.\n";
 				return 0;
 			}
 			if (flag == "--bidirectional-initial") {
 				options.bidirectional_initial_heuristic = true;
+				continue;
+			}
+			if (flag == "--sampled-perimeter-initial") {
+				options.sampled_perimeter_initial_heuristic = true;
+				continue;
+			}
+			if (flag == "--convex-initial-refinement") {
+				options.convex_initial_refinement = true;
 				continue;
 			}
 			if (flag == "--endpoint-sum-root") {
@@ -145,6 +153,14 @@ int main(int argc, char **argv) {
 			<< ",\"initial_lower_bound\":"; json_double(r.initial_lower_bound);
 		std::cout << ",\"initial_upper_bound\":"; json_double(r.initial_upper_bound);
 		std::cout << ",\"initial_length\":"; json_double(r.initial_length);
+		std::cout << ",\"initial_sampling_work_budget\":" << r.initial_sampling_work_budget
+			<< ",\"initial_sampled_extra_points\":" << r.initial_sampled_extra_points
+			<< ",\"initial_convex_refinement_calls\":" << r.initial_convex_refinement_calls
+			<< ",\"initial_convex_refinement_seconds\":" << r.initial_convex_refinement_seconds
+			<< ",\"initial_convex_refinement_improved\":" << (r.initial_convex_refinement_improved ? "true" : "false")
+			<< ",\"initial_convex_refinement_time_limited\":" << (r.initial_convex_refinement_time_limited ? "true" : "false")
+			<< ",\"initial_convex_refinement_error\":";
+		json_string(r.initial_convex_refinement_error);
 		std::cout << ",\"incumbent_length\":"; json_double(r.incumbent_length);
 		std::cout << ",\"first_best_update_length\":"; json_double(r.first_best_update_length);
 		std::cout << ",\"final_length\":"; json_double(r.final_length);
@@ -189,7 +205,7 @@ int main(int argc, char **argv) {
 			<< ",\"order_space_log2\":" << r.order_space_log2
 			<< ",\"mean_branching_factor\":" << (r.branch_events ? static_cast<double>(r.total_branching) / r.branch_events : 0.0)
 			<< ",\"mean_sequence_depth\":" << (r.sequence_depth_samples ? static_cast<double>(r.sequence_depth_sum) / r.sequence_depth_samples : 0.0)
-			<< ",\"calls_per_expanded_node\":" << (r.nodes ? static_cast<double>(r.calls) / r.nodes : 0.0)
+			<< ",\"calls_per_expanded_node\":" << (r.nodes ? static_cast<double>(r.calls - r.initial_convex_refinement_calls) / r.nodes : 0.0)
 			<< ",\"seconds_per_call\":" << (r.calls ? r.seconds / r.calls : 0.0)
 			<< ",\"decomposition_percent\":" << (r.seconds ? 100.0 * r.decomposition_seconds / r.seconds : 0.0)
 			<< ",\"search_percent\":" << (r.seconds ? 100.0 * r.search_seconds / r.seconds : 0.0)
@@ -210,9 +226,10 @@ int main(int argc, char **argv) {
 			<< ",\"repaired_geometric_path_calls\":" << r.repaired_geometric_path_calls
 			<< ",\"insertion_branches\":" << r.insertion_branches << ",\"decomposition_branches\":" << r.decomposition_branches
 			<< ",\"peak_queue\":" << r.peak_queue
-			<< ",\"profile\":{\"timing_semantics\":\"preprocessing, initial_heuristic, search, and finalization are disjoint top-level phases; initial_heuristic includes heuristic_visit_check; search includes convex_oracle, decomposition, search_visit_check, and exclusive search_maintenance; convex_oracle includes its geometric, certificate, and fallback phases; fallback includes its long_double and extended_precision phases; visit_check is the sum across top-level phases and overlaps them\""
+			<< ",\"profile\":{\"timing_semantics\":\"preprocessing, initial_heuristic, search, and finalization are disjoint top-level phases; initial_heuristic includes heuristic_visit_check and the optional initial convex refinement; search includes convex_oracle, decomposition, search_visit_check, and exclusive search_maintenance; convex_oracle includes its geometric, certificate, and fallback phases; fallback includes its long_double and extended_precision phases; visit_check is the sum across top-level phases and overlaps them\""
 			<< ",\"preprocessing_seconds\":" << r.preprocessing_seconds
 			<< ",\"initial_heuristic_seconds\":" << r.initial_heuristic_seconds
+			<< ",\"initial_convex_refinement_seconds\":" << r.initial_convex_refinement_seconds
 			<< ",\"search_seconds\":" << r.search_seconds
 			<< ",\"finalization_seconds\":" << r.finalization_seconds
 			<< ",\"convex_oracle_seconds\":" << r.convex_oracle_seconds

@@ -25,7 +25,7 @@ void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
 	if (result.fallback_calls != result.fallback_geometric_path_invalid_calls + result.fallback_certificate_gap_calls
 		|| result.extended_precision_calls > result.fallback_calls
 		|| result.repaired_geometric_path_calls > result.calls
-		|| result.calls != result.relaxation_calls + result.refinement_calls
+		|| result.calls != result.relaxation_calls + result.refinement_calls + result.initial_convex_refinement_calls
 		|| result.branch_events != result.insertion_branches + result.decomposition_branches
 		|| result.partial_states_created < 1
 		|| result.nodes > result.partial_states_created
@@ -207,11 +207,47 @@ void check_provided_initial_path() {
 	}
 }
 
+void check_initial_heuristic_strategies() {
+	const Vector2 start{0, 0}, target{20, 0};
+	const std::vector<Polygon> polygons = {
+		{{2, 2}, {4, 2}, {4, 4}, {2, 4}},
+		{{8, -4}, {10, -4}, {10, -2}, {8, -2}},
+		{{14, 1}, {16, 1}, {16, 3}, {14, 3}},
+	};
+	UnorderedTppSolveOptions baseline_options;
+	baseline_options.max_calls = 0;
+	baseline_options.max_seconds = 10;
+	const auto baseline = tpp_nonconvex_unordered_solve(start, target, polygons, baseline_options);
+	if (baseline.initial_upper_bound <= 0 || baseline.initial_convex_refinement_calls != 0)
+		throw std::runtime_error("Initial heuristic baseline was not constructed.");
+
+	for (int mask = 1; mask < 8; ++mask) {
+		UnorderedTppSolveOptions options = baseline_options;
+		options.sampled_perimeter_initial_heuristic = mask & 1;
+		options.convex_initial_refinement = mask & 2;
+		options.bidirectional_initial_heuristic = mask & 4;
+		if (options.convex_initial_refinement) options.max_calls = 1;
+		const auto result = tpp_nonconvex_unordered_solve(start, target, polygons, options);
+		if (result.initial_upper_bound > baseline.initial_upper_bound + 1e-9
+			|| result.calls > options.max_calls
+			|| result.calls != result.relaxation_calls + result.refinement_calls + result.initial_convex_refinement_calls
+			|| result.initial_convex_refinement_calls > size_t(options.convex_initial_refinement)
+			|| (options.sampled_perimeter_initial_heuristic && result.initial_sampling_work_budget <= 0)
+			|| (options.convex_initial_refinement && result.initial_convex_refinement_error.empty()
+				&& result.initial_convex_refinement_calls != 1))
+			throw std::runtime_error("Initial heuristic strategy violated its budget or non-worsening contract.");
+		for (const auto &polygon : polygons)
+			if (unordered_detail::contact(result.path, polygon, 1e-8).distance > 1e-8)
+				throw std::runtime_error("An initial heuristic strategy returned an infeasible path.");
+	}
+}
+
 int main() {
 	try {
 		check_oracle_certificates();
 		check_coordinate_normalization();
 		check_provided_initial_path();
+		check_initial_heuristic_strategies();
 		check({0, 0}, {10, 0}, {});
 		check({0, 0}, {10, 0}, {{{2, -1}, {3, -1}, {3, 1}, {2, 1}}});
 		check({0, 0}, {0, 0}, {{{2, -1}, {3, -1}, {3, 1}, {2, 1}}});

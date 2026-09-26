@@ -47,8 +47,27 @@ Se a candidata geométrica do oráculo convexo não fecha sua certificação, um
 dual racional pode ainda provar que seu nó supera o corte atual. Nesse caso o
 oráculo retorna sem executar o fallback racional completo; o contador
 `oracle_dual_cutoff_prunes` registra essas ocorrências.
-A solução inicial usa vértices próximos, 2-opt e otimização dos contatos nas arestas.
+A solução inicial padrão usa vértices próximos, 2-opt e otimização dos contatos nas arestas.
 Essas heurísticas só fornecem limites superiores. A decomposição é calculada sob demanda.
+As opções experimentais `--sampled-perimeter-initial`, `--convex-initial-refinement`
+e `--bidirectional-initial` ativam, respectivamente, candidatos adicionais espaçados
+no perímetro, um solve convexo certificado para a ordem e as peças visitadas pela melhor
+rota inicial, e uma segunda construção começando do alvo. A amostragem conserva os
+vértices originais, aloca pontos pela razão entre perímetros e usa o mesmo orçamento de
+trabalho do amostrador de ordem fixa (`TPP_APPROX_WORK_BUDGET`, padrão 1.000.000;
+`TPP_APPROX_BUDGET_MODE=adaptive` ativa o fator adaptativo). Para ordem livre, o modelo
+estima o trabalho por todos os pares de regiões. A rota sem amostragem também é mantida
+como candidata, então a amostragem não piora o limite superior inicial.
+
+O refinamento convexo atribui a cada contato da melhor rota uma peça fechada da
+decomposição que contém esse contato e resolve a sequência completa com o oráculo
+certificado. O resultado só substitui a rota se for mais curto e continuar cobrindo os
+polígonos originais. Essa chamada consome o orçamento de chamadas e tem teto de tempo
+igual ao menor entre 1 s, 10% do limite da instância e o tempo restante. A decomposição
+feita nessa etapa fica em cache para a busca. As três opções são desativadas por padrão.
+
+O refinamento geométrico padrão otimiza um contato por vez; ele não equivale a resolver
+conjuntamente a sequência completa com o TPP convexo de ordem fixa.
 Opcionalmente, `options.initial_path` fornece um caminho completo de `start` a
 `target`, incluindo ambos os extremos. O solver valida a visita a todas as regiões,
 substitui a heurística inicial e usa somente seu comprimento como limite superior.
@@ -159,7 +178,9 @@ e seus pares `x y`, incluindo os extremos. Sem essa opção, a entrada antiga e 
 heurística padrão permanecem iguais.
 O limite de tempo é cooperativo: uma chamada geométrica/decomposição já iniciada
 pode excedê-lo; o pré-processamento e partes da heurística inicial também não
-consultam o limite a cada operação. `calls` conta invocações do oráculo convexo certificado.
+consultam o limite a cada operação. `calls` conta invocações do oráculo convexo certificado,
+incluindo o refinamento inicial opcional; `initial_convex_refinement_calls` separa essa
+chamada das chamadas da busca.
 `termination` distingue `optimal`, `call_limit`, `time_limit`
 e `numerical_limit`.
 

@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
+#include <string_view>
 #include <tuple>
 
 namespace {
@@ -27,6 +29,15 @@ namespace {
 }
 
 namespace tpp::unordered_detail {
+	namespace {
+		double polygon_perimeter(const Polygon &polygon) {
+			double perimeter = 0;
+			for (size_t i = 0; i < polygon.size(); ++i)
+				perimeter += polygon[i].distance_to(polygon[(i + 1) % polygon.size()]);
+			return perimeter;
+		}
+	}
+
 	Vector2 best_contact(Vector2 left, Vector2 right, const Polygon &polygon, Vector2 preferred) {
 		if (inside(left, polygon, 0)) return left;
 		if (inside(right, polygon, 0)) return right;
@@ -54,6 +65,87 @@ namespace tpp::unordered_detail {
 		double result = 0;
 		for (size_t i = 1; i < path.size(); ++i) result += path[i - 1].distance_to(path[i]);
 		return result;
+	}
+
+	double perimeter_sampling_work_budget(double log2_complexity) {
+		constexpr double base_budget = 1'000'000.0;
+		constexpr double maximum_adaptive_factor = 8.0;
+		const double complexity = std::isfinite(log2_complexity) ? std::max(0.0, log2_complexity) : 0.0;
+		double budget = base_budget;
+		if (const char *raw_budget = std::getenv("TPP_APPROX_WORK_BUDGET")) {
+			const double parsed_budget = std::atof(raw_budget);
+			if (parsed_budget > 0) budget = parsed_budget;
+		}
+		const char *mode = std::getenv("TPP_APPROX_BUDGET_MODE");
+		if (mode != nullptr && std::string_view(mode) == "adaptive")
+			budget *= std::min(maximum_adaptive_factor, std::exp2(complexity / 32.0));
+		return budget;
+	}
+
+	std::vector<size_t> choose_perimeter_sample_point_counts(
+		const std::vector<Polygon> &polygons, double work_budget,
+		PerimeterSamplingWorkModel model) {
+		std::vector<double> perimeters;
+		perimeters.reserve(polygons.size());
+		for (const auto &polygon : polygons) perimeters.push_back(polygon_perimeter(polygon));
+
+		double weighted_work = 0;
+		if (model == PerimeterSamplingWorkModel::AdjacentPairs) {
+			for (size_t i = 0; i + 1 < perimeters.size(); ++i)
+				weighted_work += perimeters[i] * perimeters[i + 1];
+		} else {
+			for (size_t i = 0; i < perimeters.size(); ++i)
+				for (size_t j = i + 1; j < perimeters.size(); ++j)
+					weighted_work += perimeters[i] * perimeters[j];
+		}
+
+		double scale = 0;
+		if (weighted_work > 0 && std::isfinite(work_budget) && work_budget > 0) {
+			scale = std::sqrt(work_budget / weighted_work);
+		} else if (model == PerimeterSamplingWorkModel::AdjacentPairs
+			&& !perimeters.empty() && perimeters.front() > 0 && std::isfinite(work_budget) && work_budget > 0) {
+			scale = std::sqrt(work_budget) / perimeters.front();
+		}
+
+		std::vector<size_t> counts;
+		counts.reserve(polygons.size());
+		for (size_t i = 0; i < polygons.size(); ++i) {
+			const double requested = std::ceil(perimeters[i] * scale);
+			const size_t requested_count = std::isfinite(requested) && requested > 0
+				? static_cast<size_t>(requested) : 0;
+			counts.push_back(std::max(polygons[i].size(), requested_count));
+		}
+		return counts;
+	}
+
+	Polygon evenly_spaced_perimeter_points(const Polygon &polygon, size_t point_count) {
+		if (polygon.empty() || point_count == 0) return {};
+		const double perimeter = polygon_perimeter(polygon);
+		if (perimeter == 0) return Polygon(point_count, polygon.front());
+
+		Polygon sampled;
+		sampled.reserve(std::max(point_count, polygon.size()));
+		sampled.insert(sampled.end(), polygon.begin(), polygon.end());
+		if (point_count <= polygon.size()) return sampled;
+
+		const size_t extra_point_count = point_count - polygon.size();
+		const double spacing = perimeter / static_cast<double>(extra_point_count);
+		size_t edge_index = 0;
+		double edge_start_distance = 0;
+		double edge_length = polygon[0].distance_to(polygon[1 % polygon.size()]);
+		for (size_t sample_index = 0; sample_index < extra_point_count; ++sample_index) {
+			const double target_distance = spacing * (static_cast<double>(sample_index) + 0.5);
+			while (edge_index + 1 < polygon.size() && edge_start_distance + edge_length < target_distance) {
+				edge_start_distance += edge_length;
+				++edge_index;
+				edge_length = polygon[edge_index].distance_to(polygon[(edge_index + 1) % polygon.size()]);
+			}
+			const auto &a = polygon[edge_index];
+			const auto &b = polygon[(edge_index + 1) % polygon.size()];
+			const double weight = edge_length == 0 ? 0 : (target_distance - edge_start_distance) / edge_length;
+			sampled.push_back(a.lerp(b, weight));
+		}
+		return sampled;
 	}
 
 	Polygon convex_hull(Polygon polygon) {

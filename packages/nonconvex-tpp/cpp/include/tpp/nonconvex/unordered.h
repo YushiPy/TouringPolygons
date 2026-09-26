@@ -21,6 +21,10 @@ namespace tpp {
 		// Start from the region with the largest one-region convex detour.
 		bool detour_root = false;
 		bool bidirectional_initial_heuristic = false;
+		// Add perimeter-spaced candidates using the approximation work budget.
+		bool sampled_perimeter_initial_heuristic = false;
+		// Polish the best initial route with one convex piece per visited region.
+		bool convex_initial_refinement = false;
 		// A feasible start-to-target path, including both endpoints. When present,
 		// it replaces the initial heuristic and supplies only an upper bound.
 		std::optional<std::vector<Vector2>> initial_path;
@@ -130,6 +134,13 @@ namespace tpp {
 		double seconds = 0.0;
 		double preprocessing_seconds = 0.0;
 		double initial_heuristic_seconds = 0.0;
+		double initial_sampling_work_budget = 0.0;
+		size_t initial_sampled_extra_points = 0;
+		size_t initial_convex_refinement_calls = 0;
+		double initial_convex_refinement_seconds = 0.0;
+		bool initial_convex_refinement_improved = false;
+		bool initial_convex_refinement_time_limited = false;
+		std::string initial_convex_refinement_error;
 		double search_seconds = 0.0;
 		double finalization_seconds = 0.0;
 		double convex_oracle_seconds = 0.0;

@@ -116,6 +116,19 @@ namespace tpp {
 				});
 			}
 		};
+		std::vector<std::vector<Polygon>> pieces(n);
+		auto prepare_pieces = [&](size_t polygon_index) {
+			if (!pieces[polygon_index].empty()) return;
+			for (auto piece : decompose_polygon(polygons[polygon_index])) {
+				piece = convex_hull(std::move(piece));
+				if (piece.size() >= 3) pieces[polygon_index].push_back(std::move(piece));
+			}
+			if (pieces[polygon_index].empty()) throw std::runtime_error("Empty convex decomposition.");
+			++result.decomposed_polygons;
+			result.convex_pieces_generated += pieces[polygon_index].size();
+			result.convex_pieces_min = std::min(result.convex_pieces_min, pieces[polygon_index].size());
+			result.convex_pieces_max = std::max(result.convex_pieces_max, pieces[polygon_index].size());
+		};
 		result.lower_bound = start.distance_to(target);
 		result.initial_lower_bound = result.lower_bound;
 		if (options.initial_path) {
@@ -126,7 +139,40 @@ namespace tpp {
 			improve({start, target}, "direct");
 		}
 		if (!options.initial_path && !std::isfinite(result.upper_bound)) {
-			auto initialize = [&](Vector2 source, Vector2 destination, const std::string &direction) {
+			std::vector<Polygon> sampled_polygons;
+			std::vector<size_t> sampled_point_counts;
+			if (options.sampled_perimeter_initial_heuristic) {
+				result.initial_sampling_work_budget = perimeter_sampling_work_budget(result.order_space_log2);
+				sampled_point_counts = choose_perimeter_sample_point_counts(
+					polygons, result.initial_sampling_work_budget, PerimeterSamplingWorkModel::AllPairs);
+				for (size_t i = 0; i < n; ++i)
+					result.initial_sampled_extra_points += sampled_point_counts[i] - polygons[i].size();
+			}
+			bool sampled_polygons_ready = false;
+			auto prepare_sampled_polygons = [&] {
+				if (sampled_polygons_ready || sampled_point_counts.empty()) return;
+				sampled_polygons.reserve(n);
+				for (size_t i = 0; i < n; ++i)
+					sampled_polygons.push_back(evenly_spaced_perimeter_points(polygons[i], sampled_point_counts[i]));
+				sampled_polygons_ready = true;
+			};
+			const bool strategy_enabled = options.sampled_perimeter_initial_heuristic
+				|| options.bidirectional_initial_heuristic || options.convex_initial_refinement;
+			const size_t candidate_count = (1 + size_t(options.sampled_perimeter_initial_heuristic))
+				* (1 + size_t(options.bidirectional_initial_heuristic));
+			const double available_heuristic_seconds = std::max(0.0, options.max_seconds - elapsed());
+			const double candidate_budget = strategy_enabled ? available_heuristic_seconds * 0.5 : available_heuristic_seconds;
+			const auto candidate_budget_started = std::chrono::steady_clock::now();
+			auto candidate_deadline = [&](size_t index) {
+				if (!strategy_enabled || !std::isfinite(candidate_budget))
+					return std::chrono::steady_clock::time_point::max();
+				const double fraction = static_cast<double>(index + 1) / candidate_count;
+				return candidate_budget_started + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+					std::chrono::duration<double>(candidate_budget * fraction));
+			};
+			auto initialize = [&](Vector2 source, Vector2 destination,
+				const std::string &direction, const std::vector<Polygon> &candidate_regions,
+				std::chrono::steady_clock::time_point deadline) {
 				Polygon initial{source};
 				std::vector<size_t> order;
 				std::vector<bool> used(n);
@@ -135,7 +181,7 @@ namespace tpp {
 					double best = std::numeric_limits<double>::infinity();
 					size_t selected = none;
 					Vector2 point;
-					for (size_t j = 0; j < n; ++j) if (!used[j]) for (auto v : polygons[j]) {
+					for (size_t j = 0; j < n; ++j) if (!used[j]) for (auto v : candidate_regions[j]) {
 						const double distance = initial.back().distance_to(v);
 						if (distance < best) { best = distance; selected = j; point = v; }
 					}
@@ -159,9 +205,10 @@ namespace tpp {
 					.length = path_length(initial),
 					.source = direction,
 				});
-				for (size_t pass = 0; pass < 10; ++pass) {
+				for (size_t pass = 0; pass < 10 && std::chrono::steady_clock::now() < deadline; ++pass) {
 					bool changed = false;
-					for (size_t i = 1; i < n; ++i) for (size_t j = i + 1; j <= n; ++j) {
+					for (size_t i = 1; i < n && std::chrono::steady_clock::now() < deadline; ++i)
+					for (size_t j = i + 1; j <= n && std::chrono::steady_clock::now() < deadline; ++j) {
 						const double delta = initial[i - 1].distance_to(initial[j]) + initial[i].distance_to(initial[j + 1])
 							- initial[i - 1].distance_to(initial[i]) - initial[j].distance_to(initial[j + 1]);
 						if (delta < -eps) {
@@ -181,12 +228,14 @@ namespace tpp {
 					});
 					if (!changed) break;
 				}
-				for (size_t pass = 0; pass < 8 && elapsed() < options.max_seconds; ++pass) {
-					for (size_t k = 0; k < n; ++k) {
+				for (size_t pass = 0; pass < 8 && elapsed() < options.max_seconds
+					&& std::chrono::steady_clock::now() < deadline; ++pass) {
+					for (size_t k = 0; k < n && std::chrono::steady_clock::now() < deadline; ++k) {
 						const auto &p = polygons[order[k]];
 						initial[k + 1] = best_contact(initial[k], initial[k + 2], p, initial[k + 1]);
 					}
-					for (size_t i = 1; i < n; ++i) for (size_t j = i + 1; j <= n; ++j) {
+					for (size_t i = 1; i < n && std::chrono::steady_clock::now() < deadline; ++i)
+					for (size_t j = i + 1; j <= n && std::chrono::steady_clock::now() < deadline; ++j) {
 						const double delta = initial[i - 1].distance_to(initial[j]) + initial[i].distance_to(initial[j + 1])
 							- initial[i - 1].distance_to(initial[i]) - initial[j].distance_to(initial[j + 1]);
 						if (delta < -eps) {
@@ -205,13 +254,87 @@ namespace tpp {
 				}
 				return std::pair{std::move(initial), std::move(order)};
 			};
-			auto forward = initialize(start, target, "forward");
-			improve(forward.first, "heuristic", forward.second);
-			if (options.bidirectional_initial_heuristic && elapsed() < options.max_seconds) {
-				auto reverse = initialize(target, start, "reverse");
-				std::reverse(reverse.first.begin(), reverse.first.end());
-				std::reverse(reverse.second.begin(), reverse.second.end());
-				improve(reverse.first, "heuristic_reverse", reverse.second);
+			Polygon best_initial_path;
+			std::vector<size_t> best_initial_order;
+			double best_initial_length = std::numeric_limits<double>::infinity();
+			auto consider = [&](bool reverse, const std::vector<Polygon> &candidate_regions,
+				bool sampled, std::chrono::steady_clock::time_point deadline) {
+				if (std::chrono::steady_clock::now() >= deadline) return;
+				const std::string direction = reverse ? "reverse" : "forward";
+				auto candidate = initialize(reverse ? target : start, reverse ? start : target,
+					direction + (sampled ? "_sampled" : ""), candidate_regions, deadline);
+				if (reverse) {
+					std::reverse(candidate.first.begin(), candidate.first.end());
+					std::reverse(candidate.second.begin(), candidate.second.end());
+				}
+				const double value = path_length(candidate.first);
+				if (std::isfinite(value) && value < best_initial_length && covered(candidate.first)) {
+					best_initial_path = candidate.first;
+					best_initial_order = candidate.second;
+					best_initial_length = value;
+				}
+				improve(candidate.first,
+					sampled ? (reverse ? "heuristic_sampled_reverse" : "heuristic_sampled")
+						: (reverse ? "heuristic_reverse" : "heuristic"),
+					candidate.second);
+			};
+			size_t candidate_index = 0;
+			consider(false, polygons, false, candidate_deadline(candidate_index++));
+			if (options.sampled_perimeter_initial_heuristic) {
+				prepare_sampled_polygons();
+				consider(false, sampled_polygons, true, candidate_deadline(candidate_index++));
+			}
+			if (options.bidirectional_initial_heuristic) {
+				consider(true, polygons, false, candidate_deadline(candidate_index++));
+				if (options.sampled_perimeter_initial_heuristic) {
+					prepare_sampled_polygons();
+					consider(true, sampled_polygons, true, candidate_deadline(candidate_index++));
+				}
+			}
+
+			if (options.convex_initial_refinement && !best_initial_path.empty()
+				&& result.calls < options.max_calls && elapsed() < options.max_seconds) {
+				const auto refinement_began = std::chrono::steady_clock::now();
+				const double total_budget = std::min(1.0, options.max_seconds * 0.1);
+				try {
+					std::vector<Polygon> ordered_pieces;
+					ordered_pieces.reserve(best_initial_order.size());
+					bool assigned = best_initial_path.size() == best_initial_order.size() + 2;
+					for (size_t k = 0; assigned && k < best_initial_order.size(); ++k) {
+						const size_t polygon_index = best_initial_order[k];
+						prepare_pieces(polygon_index);
+						const Polygon point_path{best_initial_path[k + 1], best_initial_path[k + 1]};
+						const auto found = std::find_if(pieces[polygon_index].begin(), pieces[polygon_index].end(),
+							[&](const Polygon &piece) { return contact(point_path, piece, eps).distance <= eps; });
+						if (found == pieces[polygon_index].end()) assigned = false;
+						else ordered_pieces.push_back(*found);
+					}
+						const double preparation_seconds = duration(refinement_began);
+						const double remaining = std::min({total_budget - preparation_seconds,
+						options.max_seconds - elapsed(), total_budget});
+					if (assigned && remaining > 0 && result.calls < options.max_calls) {
+						DynamicConvexTppWorkspace initial_workspace;
+						++result.calls;
+						++result.initial_convex_refinement_calls;
+						const double target_gap = options.absolute_gap
+							+ options.relative_gap * std::abs(best_initial_length);
+						const auto polished = tpp_convex_solve_certified(
+							start, target, ordered_pieces, initial_workspace,
+							std::max(target_gap * 0.25, std::numeric_limits<double>::epsilon()),
+							best_initial_length - target_gap, remaining);
+						result.initial_convex_refinement_time_limited = polished.time_limited;
+						const double polished_length = path_length(polished.path);
+						if (std::isfinite(polished_length) && polished_length < best_initial_length && covered(polished.path)) {
+							best_initial_path = polished.path;
+							best_initial_length = polished_length;
+							result.initial_convex_refinement_improved = true;
+							improve(polished.path, "initial_convex_refinement", best_initial_order);
+						}
+					}
+				} catch (const std::exception &error) {
+					result.initial_convex_refinement_error = error.what();
+				}
+				result.initial_convex_refinement_seconds += duration(refinement_began);
 			}
 		}
 		result.initial_heuristic_seconds = duration(heuristic_began);
@@ -226,7 +349,6 @@ namespace tpp {
 		const auto search_began = std::chrono::steady_clock::now();
 		auto gap = [&] { return options.absolute_gap + options.relative_gap * std::abs(result.upper_bound); };
 		auto limited = [&] { return result.calls >= options.max_calls || elapsed() >= options.max_seconds; };
-		std::vector<std::vector<Polygon>> pieces(n);
 		DynamicConvexTppWorkspace workspace;
 		auto solve = [&](Node &node, bool precise = false) {
 			std::vector<Polygon> selected;
@@ -426,17 +548,9 @@ namespace tpp {
 				++result.decomposition_branches;
 				if (pieces[chosen].empty()) {
 					const auto decomposition_began = std::chrono::steady_clock::now();
-					for (auto piece : decompose_polygon(polygons[chosen])) {
-						piece = convex_hull(std::move(piece));
-						if (piece.size() >= 3) pieces[chosen].push_back(std::move(piece));
-					}
-					++result.decomposed_polygons;
-					result.convex_pieces_generated += pieces[chosen].size();
-					result.convex_pieces_min = std::min(result.convex_pieces_min, pieces[chosen].size());
-					result.convex_pieces_max = std::max(result.convex_pieces_max, pieces[chosen].size());
+					prepare_pieces(chosen);
 					result.decomposition_seconds += duration(decomposition_began);
 				}
-				if (pieces[chosen].empty()) throw std::runtime_error("Empty convex decomposition.");
 				const size_t position = found - node.sequence.begin();
 				result.total_branching += pieces[chosen].size();
 				result.max_observed_branching = std::max(result.max_observed_branching, pieces[chosen].size());

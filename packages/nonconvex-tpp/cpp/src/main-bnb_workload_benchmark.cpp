@@ -2,6 +2,7 @@
 #include "tests.h"
 #include "tpp_convex.h"
 #include "tpp/convex/detail/intersecting_maps.h"
+#include "solvers/unordered_geometry.h"
 
 #include <algorithm>
 #include <array>
@@ -37,9 +38,6 @@ namespace {
 constexpr char NUMBER_SEPARATOR = '_';
 constexpr size_t PROGRESS_BAR_WIDTH = 30;
 constexpr size_t BRANCH_BUCKET_COUNT = 5;
-constexpr double APPROXIMATION_WORK_BUDGET = 1'000'000.0;
-constexpr double APPROXIMATION_ADAPTIVE_MAX_FACTOR = 8.0;
-
 using ConvexSolverFunction = std::vector<Vector2> (*)(
 	const Vector2&,
 	const Vector2&,
@@ -1622,103 +1620,25 @@ double path_length(const Vector2 &start, const Vector2 &target, const vector<Vec
 	return length;
 }
 
-double polygon_perimeter(const vector<Vector2> &polygon) {
-
-	double perimeter = 0.0;
-
-	for (size_t i = 0; i < polygon.size(); i++) {
-		perimeter += polygon[i].distance_to(polygon[(i + 1) % polygon.size()]);
-	}
-
-	return perimeter;
-}
-
 vector<Vector2> make_fixed_edge_sampled_polygon(const vector<Vector2> &polygon, size_t points_per_edge) {
-
-	vector<Vector2> interpolated;
-	interpolated.reserve(polygon.size() * points_per_edge);
-
-	for (size_t i = 0; i < polygon.size(); i++) {
+	vector<Vector2> sampled;
+	sampled.reserve(polygon.size() * points_per_edge);
+	for (size_t i = 0; i < polygon.size(); ++i) {
 		const auto &a = polygon[i];
 		const auto &b = polygon[(i + 1) % polygon.size()];
-
-		for (size_t j = 0; j < points_per_edge; j++) {
-			const double weight = static_cast<double>(j) / static_cast<double>(points_per_edge);
-			interpolated.push_back(a.lerp(b, weight));
-		}
+		for (size_t j = 0; j < points_per_edge; ++j)
+			sampled.push_back(a.lerp(b, static_cast<double>(j) / static_cast<double>(points_per_edge)));
 	}
-
-	return interpolated;
+	return sampled;
 }
 
 vector<Vector2> make_evenly_spaced_polygon(const vector<Vector2> &polygon, size_t point_count) {
-
-	if (polygon.empty() || point_count == 0) {
-		return {};
-	}
-
-	const double perimeter = polygon_perimeter(polygon);
-
-	if (perimeter == 0.0) {
-		return vector<Vector2>(point_count, polygon.front());
-	}
-
-	vector<Vector2> interpolated;
-	interpolated.reserve(point_count);
-
-	for (const auto &vertex : polygon) {
-		interpolated.push_back(vertex);
-	}
-
-	if (point_count <= polygon.size()) {
-		return interpolated;
-	}
-
-	const size_t extra_point_count = point_count - polygon.size();
-	const double spacing = perimeter / static_cast<double>(extra_point_count);
-	size_t edge_index = 0;
-	double edge_start_distance = 0.0;
-	double edge_length = polygon[0].distance_to(polygon[1 % polygon.size()]);
-
-	for (size_t sample_index = 0; sample_index < extra_point_count; sample_index++) {
-		const double target_distance = spacing * (static_cast<double>(sample_index) + 0.5);
-
-		while (edge_index + 1 < polygon.size() && edge_start_distance + edge_length < target_distance) {
-			edge_start_distance += edge_length;
-			edge_index++;
-			edge_length = polygon[edge_index].distance_to(polygon[(edge_index + 1) % polygon.size()]);
-		}
-
-		const auto &a = polygon[edge_index];
-		const auto &b = polygon[(edge_index + 1) % polygon.size()];
-		const double weight = edge_length == 0.0 ? 0.0 : (target_distance - edge_start_distance) / edge_length;
-		interpolated.push_back(a.lerp(b, weight));
-	}
-
-	return interpolated;
+	return tpp::unordered_detail::evenly_spaced_perimeter_points(polygon, point_count);
 }
 
 double approximation_work_budget(double total_combinations) {
-
-	double budget = APPROXIMATION_WORK_BUDGET;
-
-	if (const char *raw_budget = std::getenv("TPP_APPROX_WORK_BUDGET")) {
-		const double parsed_budget = std::atof(raw_budget);
-
-		if (parsed_budget > 0.0) {
-			budget = parsed_budget;
-		}
-	}
-
-	const char *mode = std::getenv("TPP_APPROX_BUDGET_MODE");
-
-	if (mode != nullptr && std::string_view(mode) == "adaptive") {
-		const double complexity = total_combinations > 0.0 ? std::log2(total_combinations) : 0.0;
-		const double factor = std::min(APPROXIMATION_ADAPTIVE_MAX_FACTOR, std::exp2(complexity / 32.0));
-		budget *= factor;
-	}
-
-	return budget;
+	const double complexity = total_combinations > 0.0 ? std::log2(total_combinations) : 0.0;
+	return tpp::unordered_detail::perimeter_sampling_work_budget(complexity);
 }
 
 bool use_legacy_approximation_sampler() {
@@ -1728,37 +1648,8 @@ bool use_legacy_approximation_sampler() {
 }
 
 vector<size_t> choose_approximation_point_counts(const vector<vector<Vector2>> &polygons, double work_budget) {
-
-	vector<double> perimeters;
-	perimeters.reserve(polygons.size());
-
-	for (const auto &polygon : polygons) {
-		perimeters.push_back(polygon_perimeter(polygon));
-	}
-
-	double weighted_work = 0.0;
-
-	for (size_t i = 0; i + 1 < perimeters.size(); i++) {
-		weighted_work += perimeters[i] * perimeters[i + 1];
-	}
-
-	double scale = 1.0;
-
-	if (weighted_work > 0.0) {
-		scale = std::sqrt(work_budget / weighted_work);
-	} else if (!perimeters.empty() && perimeters.front() > 0.0) {
-		scale = std::sqrt(work_budget) / perimeters.front();
-	}
-
-	vector<size_t> point_counts;
-	point_counts.reserve(polygons.size());
-
-	for (size_t i = 0; i < polygons.size(); i++) {
-		const auto requested_count = static_cast<size_t>(std::ceil(perimeters[i] * scale));
-		point_counts.push_back(std::max(polygons[i].size(), requested_count));
-	}
-
-	return point_counts;
+	return tpp::unordered_detail::choose_perimeter_sample_point_counts(
+		polygons, work_budget, tpp::unordered_detail::PerimeterSamplingWorkModel::AdjacentPairs);
 }
 
 vector<Vector2> tpp_approximation(const Vector2 &start, const Vector2 &target, const vector<vector<Vector2>> &polygons) {
