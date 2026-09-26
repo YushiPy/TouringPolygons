@@ -38,18 +38,25 @@ altera o app congelado.
 - A rota da USP é a figura central. As anotações aproveitam sua margem vazia;
   a geometria e sua aparência vêm do JavaScript original do app. A demonstração
   está separada do corpus de 558 casos.
-- O método começa pela escala da enumeração e explica a integração de ordem e
-  peças, a relaxação, os limites e a poda. O exemplo IF → Central → IAG não é
-  usado como prova de corte geométrico.
+- O método começa pela escala da enumeração e ilustra ordem parcial, relaxação,
+  limites, condição de poda e as duas ramificações em uma só árvore. O exemplo
+  IF → Central → IAG não é usado como prova de corte geométrico.
+- A legenda da instância da USP deixa explícito que as regiões são alvos, não
+  obstáculos, e que regras de voo não são modeladas.
 - Os resultados vêm depois do método. Razões, denominadores, protocolo,
   tolerâncias e limitações acompanham os números. “Ótimo” significa fechamento
   numérico dos limites globais e visita verificada.
+- Uma faixa de conclusão resume o alcance dos resultados: limites fechados e
+  visitas validadas nos 558 casos desta campanha, sem generalização para outros
+  corpora.
 - As questões abertas mantêm `s = t` ao propor extremos regionais. Não se
   afirma que extremos independentes resolvam todo o TSPN. Chazelle–Dobkin é
   apresentado como possibilidade de partição com pontos de Steiner, sem
   afirmações sobre inexistência de implementações.
 - O convite é construir uma rota e compará-la com a solução certificada; não
-  sugere superar o ótimo. Referências, contatos, FAPESP e processo foram mantidos.
+  sugere superar o ótimo. E-mails aparecem junto aos nomes no cabeçalho; a logo
+  da FAPESP e o número do processo ficam no alto à direita, logo abaixo da
+  marca do SIICUSP. Referências permanecem no rodapé.
 
 A composição usa texto principal de 30 pt, títulos de seção de 42 pt,
 referências de 22 pt e uma figura a aproximadamente 302 dpi. As decisões de
@@ -67,6 +74,11 @@ respeitando a ordem narrativa escolhida pelo autor.
   diretamente em `ours.csv` e `fekete.csv`.
 - [Dados da demonstração](../../../../../apps/siicusp34/data/USP-DEMO.md) e app:
   51 regiões, 4969,523045289922 m; 186 registros de busca; três desafios.
+- No mapa, as 51! ordens possíveis e o produto das alternativas da decomposição
+  convexa ótima de cada região dão aproximadamente 3,87 × 10^103 combinações
+  formais: 1,55 × 10^66 ordens e 2,49 × 10^37 escolhas de peças. O registro da
+  demonstração informa uma resolução em 8,771744792 s, em uma execução local e
+  uma thread. O solver não enumerou esse espaço.
 - Caso 49 no pôster corresponde a `case_index = 48`, com 60 regiões e tempo
   preservado de 2,473421125 s. A contagem formal foi reconferida chamando a
   biblioteca C++ existente pela interface `apps/siicusp34/scripts/partition_usp.cpp`:
@@ -82,11 +94,16 @@ respeitando a ordem narrativa escolhida pelo autor.
 
 - Compilação XeLaTeX/latexmk concluída; ausência de erros, caixas excedentes e
   caracteres ausentes no log.
-- Inspeção visual da página completa e de recortes ampliados de método,
-  resultados, referências e QR; medidas dos blocos verificadas contra
-  sobreposição e limites da página.
+- Cabeçalho com e-mails logo abaixo dos nomes e FAPESP/processo abaixo da marca
+  SIICUSP, no alto à direita.
+- Inspeção visual da página completa e de recortes ampliados do cabeçalho,
+  quadro combinatório no mapa, método, resultados, referências e QR; medidas
+  dos blocos verificadas contra sobreposição e limites da página.
+- A caixa da instância USP usa os dados registrados em `usp-demo.js`; os
+  números de ordens e de escolhas de peças são contagens formais do espaço,
+  não nós efetivamente visitados pela busca.
 - Uma página A0; todas as fontes incorporadas. Figura da rota: 6048 × 3456,
-  302 dpi; logotipo SIICUSP: 167 dpi; FAPESP: 630 dpi.
+  302 dpi; logos SIICUSP: 119 dpi e FAPESP: 712 dpi no tamanho atual.
 - Captura real do app sem erros de JavaScript; 51 polígonos; rota laranja
   original com `stroke-width: 3px` e sem filtro. Fontes e imagem com hashes.
 - `node --check capture_usp_route.mjs` aprovado.

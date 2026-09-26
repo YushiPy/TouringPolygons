@@ -76,7 +76,7 @@ int main(int argc, char **argv) {
 		for (int i = 1; i < argc; ++i) {
 			const std::string flag = argv[i];
 			if (flag == "--help") {
-				std::cout << "Usage: tpp-unordered [--absolute-gap N] [--relative-gap N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace]\n"
+				std::cout << "Usage: tpp-unordered [--threads N] [--absolute-gap N] [--relative-gap N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace]\n"
 					<< "stdin: sx sy tx ty polygon_count max_calls max_seconds, then each polygon's vertex count and coordinates. With --initial-path, append path point count and coordinates, including endpoints.\n";
 				return 0;
 			}
@@ -117,6 +117,18 @@ int main(int argc, char **argv) {
 				size_t parsed = 0;
 				options.dive_interval = std::stoull(value, &parsed);
 				if (parsed != value.size()) throw std::invalid_argument("Invalid dive interval: " + value);
+				continue;
+			}
+			if (flag == "--threads") {
+				if (++i >= argc) throw std::invalid_argument("Expected a value after --threads.");
+				const std::string value = argv[i];
+				if (value.empty() || value.find_first_not_of("0123456789") != std::string::npos)
+					throw std::invalid_argument("Invalid thread count: " + value);
+				size_t parsed = 0;
+				options.threads = std::stoull(value, &parsed);
+				if (parsed != value.size() || options.threads == 0
+					|| options.threads > static_cast<size_t>(std::numeric_limits<int>::max()))
+					throw std::invalid_argument("Invalid thread count: " + value);
 				continue;
 			}
 			if (++i >= argc) throw std::invalid_argument("Expected a value after " + flag);
@@ -169,7 +181,10 @@ int main(int argc, char **argv) {
 		std::cout << ",\"final_absolute_gap\":"; json_double(r.final_absolute_gap);
 		std::cout << ",\"final_relative_gap\":"; json_double(r.final_relative_gap);
 		std::cout
-			<< ",\"seconds\":" << r.seconds << ",\"calls\":" << r.calls << ",\"nodes\":" << r.nodes
+			<< ",\"seconds\":" << r.seconds << ",\"threads_per_instance\":" << r.threads
+			<< ",\"calls\":" << r.calls << ",\"nodes\":" << r.nodes
+			<< ",\"parallel_oracle_calls\":" << r.parallel_oracle_calls
+			<< ",\"parallel_oracle_batches\":" << r.parallel_oracle_batches
 			<< ",\"relaxation_calls\":" << r.relaxation_calls
 			<< ",\"refinement_calls\":" << r.refinement_calls
 			<< ",\"complete_order_oracle_calls\":" << r.complete_order_oracle_calls
@@ -226,13 +241,14 @@ int main(int argc, char **argv) {
 			<< ",\"repaired_geometric_path_calls\":" << r.repaired_geometric_path_calls
 			<< ",\"insertion_branches\":" << r.insertion_branches << ",\"decomposition_branches\":" << r.decomposition_branches
 			<< ",\"peak_queue\":" << r.peak_queue
-			<< ",\"profile\":{\"timing_semantics\":\"preprocessing, initial_heuristic, search, and finalization are disjoint top-level phases; initial_heuristic includes heuristic_visit_check and the optional initial convex refinement; search includes convex_oracle, decomposition, search_visit_check, and exclusive search_maintenance; convex_oracle includes its geometric, certificate, and fallback phases; fallback includes its long_double and extended_precision phases; visit_check is the sum across top-level phases and overlaps them\""
+			<< ",\"profile\":{\"timing_semantics\":\"preprocessing, initial_heuristic, search, and finalization are disjoint top-level phases; initial_heuristic includes heuristic_visit_check and the optional initial convex refinement; search includes oracle batch wall time, decomposition, search_visit_check, and exclusive search_maintenance; convex_oracle_seconds sums per-call elapsed time and can exceed wall time when child evaluations run concurrently; convex_oracle_wall_seconds counts each batch once; the other convex_oracle counters sum per-call work; fallback includes its long_double and extended_precision phases; visit_check is the sum across top-level phases and overlaps them\""
 			<< ",\"preprocessing_seconds\":" << r.preprocessing_seconds
 			<< ",\"initial_heuristic_seconds\":" << r.initial_heuristic_seconds
 			<< ",\"initial_convex_refinement_seconds\":" << r.initial_convex_refinement_seconds
 			<< ",\"search_seconds\":" << r.search_seconds
 			<< ",\"finalization_seconds\":" << r.finalization_seconds
 			<< ",\"convex_oracle_seconds\":" << r.convex_oracle_seconds
+			<< ",\"convex_oracle_wall_seconds\":" << r.convex_oracle_wall_seconds
 			<< ",\"convex_geometric_solver_seconds\":" << r.convex_geometric_solver_seconds
 			<< ",\"convex_certificate_verification_seconds\":" << r.convex_certificate_verification_seconds
 			<< ",\"convex_contact_materialization_seconds\":" << r.convex_contact_materialization_seconds

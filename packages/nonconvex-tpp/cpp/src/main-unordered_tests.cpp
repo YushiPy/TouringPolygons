@@ -42,7 +42,7 @@ void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
 		|| result.initial_length != result.initial_upper_bound
 		|| result.incumbent_length != result.initial_upper_bound
 		|| !std::isfinite(result.order_space_log2)
-		|| result.convex_oracle_seconds + result.decomposition_seconds + result.search_visit_check_seconds
+		|| result.convex_oracle_wall_seconds + result.decomposition_seconds + result.search_visit_check_seconds
 			+ result.search_maintenance_seconds > result.search_seconds + 1e-9
 		|| result.heuristic_visit_check_seconds + result.search_visit_check_seconds
 			+ result.finalization_visit_check_seconds > result.visit_check_seconds + 1e-9)
@@ -242,12 +242,45 @@ void check_initial_heuristic_strategies() {
 	}
 }
 
+void check_intra_instance_threads() {
+	const Vector2 start{0, 0}, target{28, 0};
+	std::vector<Polygon> polygons;
+	for (size_t i = 0; i < 5; ++i) {
+		Polygon l = {{0, 0}, {2, 0}, {2, .6}, {.6, .6}, {.6, 2}, {0, 2}};
+		for (auto &point : l) point += Vector2{3.0 + 5.0 * i, i % 2 ? -12.0 : 12.0};
+		polygons.push_back(std::move(l));
+	}
+	UnorderedTppSolveOptions options;
+	options.threads = 4;
+	options.relative_gap = 1e-3;
+	options.absolute_gap = 0;
+	options.max_calls = 100000;
+	options.max_seconds = 20;
+	options.sampled_perimeter_initial_heuristic = true;
+	options.convex_initial_refinement = true;
+	options.bidirectional_initial_heuristic = true;
+	const auto result = tpp_nonconvex_unordered_solve(start, target, polygons, options);
+	if (!result.exact || result.threads != options.threads || result.parallel_oracle_calls < 2
+		|| result.parallel_oracle_batches == 0
+		|| result.calls != result.relaxation_calls + result.refinement_calls + result.initial_convex_refinement_calls
+		|| result.upper_bound - result.lower_bound > 1e-3 * std::abs(result.upper_bound) + 1e-10)
+		throw std::runtime_error("Multi-threaded search failed: exact=" + std::to_string(result.exact)
+			+ ", calls=" + std::to_string(result.calls) + ", parallel=" + std::to_string(result.parallel_oracle_calls)
+			+ ", batches=" + std::to_string(result.parallel_oracle_batches)
+			+ ", gap=" + std::to_string(result.upper_bound - result.lower_bound)
+			+ ", termination=" + std::to_string(static_cast<int>(result.termination)));
+	for (const auto &polygon : polygons)
+		if (unordered_detail::contact(result.path, polygon, options.feasibility_tolerance).distance > options.feasibility_tolerance)
+			throw std::runtime_error("Multi-threaded search returned an infeasible path.");
+}
+
 int main() {
 	try {
 		check_oracle_certificates();
 		check_coordinate_normalization();
 		check_provided_initial_path();
 		check_initial_heuristic_strategies();
+		check_intra_instance_threads();
 		check({0, 0}, {10, 0}, {});
 		check({0, 0}, {10, 0}, {{{2, -1}, {3, -1}, {3, 1}, {2, 1}}});
 		check({0, 0}, {0, 0}, {{{2, -1}, {3, -1}, {3, 1}, {2, 1}}});
@@ -271,7 +304,7 @@ int main() {
 			
 			check({-3, -2}, trial % 5 ? Vector2{13, 8} : Vector2{-3, -2}, polygons);
 		}
-		std::cout << "Passed oracle certificate/contact regressions, 86 exhaustive-order cases, and 344 interrupted-search checks.\n";
+		std::cout << "Passed oracle certificate/contact regressions, 86 exhaustive-order cases, 344 interrupted-search checks, and multi-threaded child evaluation.\n";
 	} catch (const std::exception &e) {
 		std::cerr << e.what() << '\n';
 		return 1;

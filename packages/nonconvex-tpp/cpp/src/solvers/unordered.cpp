@@ -7,7 +7,9 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <exception>
 #include <optional>
+#include <omp.h>
 #include <queue>
 #include <stdexcept>
 
@@ -43,12 +45,14 @@ namespace tpp {
 		auto elapsed = [&] { return std::chrono::duration<double>(std::chrono::steady_clock::now() - began).count(); };
 		auto duration = [](auto since) { return std::chrono::duration<double>(std::chrono::steady_clock::now() - since).count(); };
 		UnorderedTppSolveResult result;
+		result.threads = options.threads;
 		const auto preprocessing_began = std::chrono::steady_clock::now();
 		if (!start.is_finite() || !target.is_finite() || std::isnan(options.max_seconds) || options.max_seconds < 0
 			|| !std::isfinite(options.absolute_gap) || options.absolute_gap < 0
 			|| !std::isfinite(options.relative_gap) || options.relative_gap < 0
 			|| !std::isfinite(options.oracle_relative_gap) || options.oracle_relative_gap < 0
-			|| !std::isfinite(options.feasibility_tolerance) || options.feasibility_tolerance <= 0)
+			|| !std::isfinite(options.feasibility_tolerance) || options.feasibility_tolerance <= 0
+			|| options.threads == 0 || options.threads > static_cast<size_t>(std::numeric_limits<int>::max()))
 			throw std::invalid_argument("Invalid endpoints or unordered TPP options.");
 		std::vector<Polygon> polygons = input, hulls;
 		double normalization_error = 0;
@@ -347,12 +351,27 @@ namespace tpp {
 		}
 		phase = Phase::Search;
 		const auto search_began = std::chrono::steady_clock::now();
-		auto gap = [&] { return options.absolute_gap + options.relative_gap * std::abs(result.upper_bound); };
+		auto gap_at = [&](double upper_bound) {
+			return options.absolute_gap + options.relative_gap * std::abs(upper_bound);
+		};
+		auto gap = [&] { return gap_at(result.upper_bound); };
 		auto limited = [&] { return result.calls >= options.max_calls || elapsed() >= options.max_seconds; };
 		DynamicConvexTppWorkspace workspace;
-		auto solve = [&](Node &node, bool precise = false) {
+		std::vector<DynamicConvexTppWorkspace> parallel_workspaces;
+		auto evaluate_oracle = [&](const Node &node, bool precise, double upper_bound,
+			DynamicConvexTppWorkspace &oracle_workspace) {
 			std::vector<Polygon> selected;
 			for (auto e : node.sequence) selected.push_back(e.piece == none ? hulls[e.polygon] : pieces[e.polygon][e.piece]);
+			const double node_gap = options.absolute_gap + options.relative_gap * std::abs(upper_bound);
+			const double tolerance = precise ? node_gap * .25
+				: std::max(node_gap * .25, options.oracle_relative_gap * upper_bound);
+			const double cutoff = upper_bound - node_gap;
+			const double remaining_seconds = std::max(0.0, options.max_seconds - elapsed());
+			return tpp_convex_solve_certified(
+				start, target, selected, oracle_workspace, tolerance, cutoff, remaining_seconds
+			);
+		};
+		auto note_oracle_call = [&](const Node &node, bool precise) {
 			++result.calls;
 			if (precise) ++result.refinement_calls;
 			else ++result.relaxation_calls;
@@ -361,13 +380,9 @@ namespace tpp {
 				if (std::all_of(node.sequence.begin(), node.sequence.end(), [](auto e) { return e.piece != none; }))
 					++result.complete_piece_oracle_calls;
 			}
-			const double tolerance = precise ? gap() * .25
-				: std::max(gap() * .25, options.oracle_relative_gap * result.upper_bound);
-			const double cutoff = result.upper_bound - gap();
-			const double remaining_seconds = std::max(0.0, options.max_seconds - elapsed());
-			const auto certified = tpp_convex_solve_certified(
-				start, target, selected, workspace, tolerance, cutoff, remaining_seconds
-			);
+		};
+		auto record_oracle_result = [&](Node &node, bool precise, double cutoff,
+			const CertifiedConvexTppResult &certified) {
 			result.oracle_cutoff_calls += certified.lower_bound >= cutoff;
 			result.oracle_dual_cutoff_prunes += certified.dual_cutoff_pruned;
 			node.refined = precise || options.oracle_relative_gap == 0;
@@ -412,6 +427,15 @@ namespace tpp {
 				.upper_bound = result.upper_bound,
 				.source = precise ? "refinement" : "convex_relaxation",
 			});
+		};
+		auto solve = [&](Node &node, bool precise = false) {
+			note_oracle_call(node, precise);
+			const double upper_bound = result.upper_bound;
+			const double cutoff = upper_bound - gap_at(upper_bound);
+			const auto oracle_began = std::chrono::steady_clock::now();
+			const auto certified = evaluate_oracle(node, precise, upper_bound, workspace);
+			result.convex_oracle_wall_seconds += duration(oracle_began);
+			record_oracle_result(node, precise, cutoff, certified);
 		};
 		double settled_bound = result.upper_bound;
 		std::priority_queue<Node, std::vector<Node>, Later> queue;
@@ -611,50 +635,100 @@ namespace tpp {
 					++result.partial_states_created;
 				}
 			}
-			for (auto &child : children) {
-				const bool pruned_by_new_incumbent = child.bound >= result.upper_bound - gap();
-				if (pruned_by_new_incumbent) ++result.sibling_bound_prunes;
-				if (!pruned_by_new_incumbent && !limited()) {
-					solve(child);
-					std::vector<size_t> child_sequence;
-					for (auto e : child.sequence) child_sequence.push_back(e.polygon);
-					improve(child.path, "oracle", child_sequence);
+			for (size_t batch_begin = 0; batch_begin < children.size();) {
+				const size_t batch_end = std::min(children.size(), batch_begin + options.threads);
+				const double batch_upper_bound = result.upper_bound;
+				const double batch_cutoff = batch_upper_bound - gap_at(batch_upper_bound);
+				std::vector<size_t> evaluation_children;
+				std::vector<size_t> evaluation_slot(batch_end - batch_begin, none);
+				const size_t available_calls = result.calls < options.max_calls
+					? options.max_calls - result.calls : 0;
+				for (size_t child_index = batch_begin; child_index < batch_end; ++child_index) {
+					if (evaluation_children.size() >= available_calls || limited()) break;
+					if (children[child_index].bound >= batch_cutoff) continue;
+					evaluation_slot[child_index - batch_begin] = evaluation_children.size();
+					evaluation_children.push_back(child_index);
+					note_oracle_call(children[child_index], false);
 				}
-				const bool queued = child.bound < result.upper_bound - gap();
-				const auto child_sequence = [&] {
-					std::vector<size_t> sequence;
-					for (auto e : child.sequence) sequence.push_back(e.polygon);
-					return sequence;
-				}();
-				trace_event({
-					.kind = "child",
-					.node = child.serial,
-					.parent = child.parent,
-					.sequence = child_sequence,
-					.polygon = child.branch_polygon,
-					.piece = child.branch_piece,
-					.position = child.branch_position,
-					.path = child.path,
-					.lower_bound = child.bound,
-					.upper_bound = result.upper_bound,
-					.pruned = !queued,
-					.reason = queued ? "queued" : "bound_after_incumbent",
-				});
-				if (queued) {
-					++result.children_queued;
-					if (diving && (!dive || child.bound < dive->bound)) {
-						if (dive) queue.push(std::move(*dive));
-						dive = std::move(child);
-					} else queue.push(std::move(child));
-				} else {
-					++result.pruned_states;
-					++result.incumbent_prunes;
-					settled_bound = std::min(settled_bound, child.bound);
+
+				std::vector<CertifiedConvexTppResult> certified(evaluation_children.size());
+				if (evaluation_children.size() == 1) {
+					const auto oracle_began = std::chrono::steady_clock::now();
+					certified[0] = evaluate_oracle(children[evaluation_children[0]], false,
+						batch_upper_bound, workspace);
+					result.convex_oracle_wall_seconds += duration(oracle_began);
+				} else if (evaluation_children.size() > 1) {
+					const int worker_count = static_cast<int>(std::min(options.threads, evaluation_children.size()));
+					result.parallel_oracle_batches++;
+					result.parallel_oracle_calls += evaluation_children.size();
+					if (parallel_workspaces.size() < static_cast<size_t>(worker_count))
+						parallel_workspaces.resize(worker_count);
+					std::vector<std::exception_ptr> failures(evaluation_children.size());
+					const auto oracle_batch_began = std::chrono::steady_clock::now();
+#pragma omp parallel for schedule(dynamic) num_threads(worker_count)
+					for (std::ptrdiff_t slot = 0; slot < static_cast<std::ptrdiff_t>(evaluation_children.size()); ++slot) {
+						try {
+							const int worker = omp_get_thread_num();
+							certified[slot] = evaluate_oracle(children[evaluation_children[slot]], false,
+								batch_upper_bound, parallel_workspaces[worker]);
+						} catch (...) {
+							failures[slot] = std::current_exception();
+						}
+					}
+					result.convex_oracle_wall_seconds += duration(oracle_batch_began);
+					for (const auto &failure : failures) if (failure) std::rethrow_exception(failure);
 				}
+
+				for (size_t child_index = batch_begin; child_index < batch_end; ++child_index) {
+					auto &child = children[child_index];
+					const bool pruned_by_new_incumbent = child.bound >= result.upper_bound - gap();
+					if (pruned_by_new_incumbent) ++result.sibling_bound_prunes;
+					const size_t slot = evaluation_slot[child_index - batch_begin];
+					if (slot != none) {
+						record_oracle_result(child, false, batch_cutoff, certified[slot]);
+						if (!pruned_by_new_incumbent) {
+							std::vector<size_t> child_sequence;
+							for (auto e : child.sequence) child_sequence.push_back(e.polygon);
+							improve(child.path, "oracle", child_sequence);
+						}
+					}
+					const bool queued = child.bound < result.upper_bound - gap();
+					const auto child_sequence = [&] {
+						std::vector<size_t> sequence;
+						for (auto e : child.sequence) sequence.push_back(e.polygon);
+						return sequence;
+					}();
+					trace_event({
+						.kind = "child",
+						.node = child.serial,
+						.parent = child.parent,
+						.sequence = child_sequence,
+						.polygon = child.branch_polygon,
+						.piece = child.branch_piece,
+						.position = child.branch_position,
+						.path = child.path,
+						.lower_bound = child.bound,
+						.upper_bound = result.upper_bound,
+						.pruned = !queued,
+						.reason = queued ? "queued" : "bound_after_incumbent",
+					});
+					if (queued) {
+						++result.children_queued;
+						if (diving && (!dive || child.bound < dive->bound)) {
+							if (dive) queue.push(std::move(*dive));
+							dive = std::move(child);
+						} else queue.push(std::move(child));
+					} else {
+						++result.pruned_states;
+						++result.incumbent_prunes;
+						settled_bound = std::min(settled_bound, child.bound);
+					}
+				}
+				batch_begin = batch_end;
 			}
 		}
 		result.search_seconds = duration(search_began);
-		result.search_maintenance_seconds = std::max(0.0, result.search_seconds - result.convex_oracle_seconds
+		result.search_maintenance_seconds = std::max(0.0, result.search_seconds - result.convex_oracle_wall_seconds
 			- result.decomposition_seconds - result.search_visit_check_seconds);
 		phase = Phase::Finalization;
 		const auto finalization_began = std::chrono::steady_clock::now();
@@ -700,7 +774,8 @@ namespace tpp {
 			|| !std::isfinite(options.absolute_gap) || options.absolute_gap < 0
 			|| !std::isfinite(options.relative_gap) || options.relative_gap < 0
 			|| !std::isfinite(options.oracle_relative_gap) || options.oracle_relative_gap < 0
-			|| !std::isfinite(options.feasibility_tolerance) || options.feasibility_tolerance <= 0)
+			|| !std::isfinite(options.feasibility_tolerance) || options.feasibility_tolerance <= 0
+			|| options.threads == 0 || options.threads > static_cast<size_t>(std::numeric_limits<int>::max()))
 			throw std::invalid_argument("Invalid endpoints or unordered TPP options.");
 		Vector2 minimum = start, maximum = start;
 		auto include = [&](Vector2 point) {

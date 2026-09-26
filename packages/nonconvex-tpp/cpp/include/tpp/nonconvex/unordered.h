@@ -12,6 +12,8 @@ namespace tpp {
 	struct UnorderedTppSolveOptions {
 		size_t max_calls = std::numeric_limits<size_t>::max();
 		double max_seconds = std::numeric_limits<double>::infinity();
+		// Number of worker threads for evaluating children of one search node.
+		size_t threads = 1;
 		double absolute_gap = 1e-7;
 		double relative_gap = 1e-9;
 		double feasibility_tolerance = 1e-8;
@@ -77,7 +79,10 @@ namespace tpp {
 		double final_relative_gap = std::numeric_limits<double>::infinity();
 		bool exact = false;
 		UnorderedTppTermination termination = UnorderedTppTermination::NumericalLimit;
+		size_t threads = 1;
 		size_t calls = 0;
+		size_t parallel_oracle_calls = 0;
+		size_t parallel_oracle_batches = 0;
 		size_t relaxation_calls = 0;
 		size_t refinement_calls = 0;
 		size_t complete_order_oracle_calls = 0;
@@ -144,6 +149,9 @@ namespace tpp {
 		double search_seconds = 0.0;
 		double finalization_seconds = 0.0;
 		double convex_oracle_seconds = 0.0;
+		// Sum of wall time across batches; unlike convex_oracle_seconds, parallel
+		// evaluations in one batch are counted once here.
+		double convex_oracle_wall_seconds = 0.0;
 		double convex_geometric_solver_seconds = 0.0;
 		double convex_certificate_verification_seconds = 0.0;
 		double convex_contact_materialization_seconds = 0.0;

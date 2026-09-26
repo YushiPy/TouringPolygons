@@ -35,6 +35,15 @@ A raiz tem sequência vazia e caminho reto entre os extremos.
 A busca prioriza o menor limite inferior e faz uma descida pelo melhor filho em
 cada expansão (`dive_interval = 1` por padrão), para obter incumbentes cedo.
 `dive_interval = 0` desativa as descidas; a CLI aceita `--dive-interval N`.
+O padrão usa uma thread. `--threads N` avalia até `N` filhos irmãos em paralelo
+no oráculo convexo, dentro de uma única instância. Cada worker tem seu próprio
+workspace; limites, incumbentes, fila e traço são atualizados depois que o lote
+termina. O lote usa o incumbente disponível no início, então pode executar
+chamadas que a execução serial dispensaria após uma melhora intermediária; isso
+afeta trabalho e runtime, não a validade dos limites. `parallel_oracle_calls` e
+`parallel_oracle_batches` mostram quando houve paralelismo efetivo. O contador
+`calls` inclui todas as chamadas já lançadas, inclusive as que terminam após o
+limite cooperativo de tempo.
 Opcionalmente, `--detour-root` escolhe a primeira região pelo maior desvio
 mínimo do caminho reto ao visitar seu fecho convexo; empates favorecem a maior
 distância do caminho ao polígono original. A opção só muda a ordem da busca,
@@ -205,12 +214,16 @@ o fallback ativo usa aritmética racional. O total de
 verificação de visitas soma medições nas fases superiores e se sobrepõe a elas,
 portanto não deve ser somado novamente. A semântica também acompanha cada resultado
 em `profile.timing_semantics`.
+Com múltiplas threads, `convex_oracle_seconds` soma a duração individual das
+chamadas e pode exceder o tempo de parede. `convex_oracle_wall_seconds` conta o
+tempo de parede de cada lote uma vez; `search_maintenance_seconds` usa essa medida.
 
 ```cpp
 #include "tpp/nonconvex/unordered.h"
 
 tpp::UnorderedTppSolveOptions options;
 options.max_seconds = 30;
+options.threads = 8; // Até oito filhos do mesmo nó, na mesma instância.
 // Opcional: options.initial_path = caminho_factivel;
 auto result = tpp::tpp_nonconvex_unordered_solve(start, target, polygons, options);
 ```

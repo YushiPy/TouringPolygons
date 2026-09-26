@@ -206,6 +206,18 @@ def point_matches(point: Any, expected: tuple[float, float], tolerance: float = 
 	return math.hypot(x - expected[0], y - expected[1]) <= tolerance
 
 
+def validate_if_available(
+	start: tuple[float, float], target: tuple[float, float],
+	polygons: Sequence[Sequence[Sequence[float]]], points: Sequence[Sequence[float]], tolerance: float,
+) -> dict[str, Any]:
+	try:
+		return validate_path(start, target, polygons, points, tolerance)
+	except ModuleNotFoundError as error:
+		if error.name != 'shapely':
+			raise
+		return {'valid': None, 'reason': 'shapely_unavailable'}
+
+
 def worker(args: argparse.Namespace) -> int:
 	if args.worker_case is None or args.worker_result is None:
 		raise SystemExit("--worker requires --worker-case and --worker-result")
@@ -223,7 +235,13 @@ def worker(args: argparse.Namespace) -> int:
 	spec.loader.exec_module(core)
 	Instance, Point, Polygon = core.Instance, core.Point, core.Polygon
 	branch_and_bound, set_float_parameter = core.branch_and_bound, core.set_float_parameter
-	__version__ = importlib.metadata.version('tspn_bnb2')
+	try:
+		__version__ = importlib.metadata.version('tspn_bnb2')
+	except importlib.metadata.PackageNotFoundError:
+		metadata_path = args.tspn_repo / 'python/tspn_bnb2.egg-info/PKG-INFO'
+		version_line = next((line for line in metadata_path.read_text().splitlines()
+			if line.startswith('Version: ')), None) if metadata_path.exists() else None
+		__version__ = version_line.partition(': ')[2] if version_line else 'unknown'
 
 	encoded = read_cases(args.suite)[args.worker_case]
 	set_float_parameter("FEASIBILITY_TOLERANCE", args.feasibility_tolerance)
@@ -274,14 +292,14 @@ def worker(args: argparse.Namespace) -> int:
 		relative_gap = absolute_gap / length if length > 0 else 0.0
 		points = orient_path(encoded.start, encoded.target, [(point.x, point.y) for point in trajectory])
 		if args.mode == "path":
-			raw_validation = validate_path(
+			raw_validation = validate_if_available(
 				encoded.start, encoded.target, encoded.polygons, points, args.validation_tolerance,
 			)
 			snapped_points = [point[:] for point in points]
 			if len(snapped_points) >= 2:
 				snapped_points[0] = list(encoded.start)
 				snapped_points[-1] = list(encoded.target)
-			snapped_validation = validate_path(
+			snapped_validation = validate_if_available(
 				encoded.start, encoded.target, encoded.polygons, snapped_points, args.validation_tolerance,
 			)
 			is_valid = point_matches(points[0], encoded.start) and point_matches(points[-1], encoded.target)
@@ -393,11 +411,11 @@ def result_row(
 		"target_distance": payload.get("validation", {}).get("target_distance", ""),
 		"max_polygon_distance": payload.get("validation", {}).get("max_polygon_distance", ""),
 		"recomputed_length": payload.get("validation", {}).get("recomputed_length", ""),
-		"raw_polygon_valid": payload.get("validation", {}).get("polygon_valid", ""),
-		"raw_valid": payload.get("validation", {}).get("valid", ""),
+		"raw_polygon_valid": payload.get("validation", {}).get("polygon_valid") if payload.get("validation", {}).get("polygon_valid") is not None else "",
+		"raw_valid": payload.get("validation", {}).get("valid") if payload.get("validation", {}).get("valid") is not None else "",
 		"snapped_max_polygon_distance": payload.get("snapped_validation", {}).get("max_polygon_distance", ""),
 		"snapped_recomputed_length": payload.get("snapped_validation", {}).get("recomputed_length", ""),
-		"snapped_valid": payload.get("snapped_validation", {}).get("valid", ""),
+		"snapped_valid": payload.get("snapped_validation", {}).get("valid") if payload.get("snapped_validation", {}).get("valid") is not None else "",
 	}
 
 
@@ -416,13 +434,15 @@ def run_case(
 
 	with tempfile.TemporaryDirectory(prefix="tspn-comparison-") as temp_dir:
 		result_path = Path(temp_dir) / "result.json"
+		venv_python = Path(sys.prefix) / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+		python_executable = venv_python if venv_python.exists() else Path(sys.executable)
 		cache_dir = args.tspn_repo / ".cache"
 		(cache_dir / "matplotlib").mkdir(parents=True, exist_ok=True)
 		environment = os.environ.copy()
 		environment["MPLCONFIGDIR"] = str(cache_dir / "matplotlib")
 		environment["XDG_CACHE_HOME"] = str(cache_dir)
 		command = [
-			sys.executable, str(Path(__file__).resolve()), "--worker", "--suite", str(args.suite),
+			str(python_executable), str(Path(__file__).resolve()), "--worker", "--suite", str(args.suite),
 			"--tspn-repo", str(args.tspn_repo), "--worker-case", str(index),
 			"--worker-result", str(result_path), "--mode", args.mode,
 			"--time-limit", str(args.time_limit), "--threads", str(args.threads),

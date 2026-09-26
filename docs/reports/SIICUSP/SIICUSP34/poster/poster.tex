@@ -41,12 +41,14 @@
   \fill[white] (0,0) rectangle (84.1,118.9);
   \fill[Ink] (0,0) rectangle (84.1,0.55);
   % Official title, identical to the submitted abstract.
-  \block{event}{3}{2.0}{65}{\tagtext 34º SIICUSP\hspace{0.55cm}/\hspace{0.55cm}INSTITUTO DE MATEMÁTICA E ESTATÍSTICA\hspace{0.35cm}·\hspace{0.35cm}USP}
-  \block{event-logo}{73.4}{1.9}{7.6}{\includegraphics[width=\linewidth]{../resumo/assets/siicusp34-logo-pt.png}}
+  \block{event}{13}{2.0}{57.5}{\tagtext 34º SIICUSP\hspace{0.55cm}/\hspace{0.55cm}INSTITUTO DE MATEMÁTICA E ESTATÍSTICA\hspace{0.35cm}·\hspace{0.35cm}USP}
+  \block{event-logo}{72.1}{1.9}{10.7}{\includegraphics[width=\linewidth]{../resumo/assets/siicusp34-logo-pt.png}}
+  \block{funding-logo}{72.1}{12.75}{10.7}{\includegraphics[width=\linewidth]{figures/fapesp-logo.png}}
+  \block{funding}{72.1}{15.2}{10.7}{\sffamily\fontsize{17}{21}\selectfont\color{Muted}Processo 2025/13861-1}
   \block{title}{3}{4.4}{69.5}{\sffamily\bfseries\fontsize{88}{96}\selectfont\color{Ink}ALGORITMOS EXATOS PARA O\\PROBLEMA DE VISITA DE POLÍGONOS}
   \block{subtitle}{3}{11.9}{78}{\sffamily\fontsize{34}{41}\selectfont\color{Muted}Geometria para escolher onde e em que ordem visitar regiões}
-  \block{author}{3}{14.1}{37}{\sffamily\bfseries\fontsize{48}{55}\selectfont\color{Ink}Gabriel Freire Ushijima}
-  \block{advisor}{42}{14.1}{39.1}{\sffamily\fontsize{38}{50}\selectfont\color{Ink}Orientador: \textbf{Ernesto G. Birgin}}
+  \block{author}{3}{14.1}{37}{\sffamily\bfseries\fontsize{48}{55}\selectfont\color{Ink}Gabriel Freire Ushijima\par\vspace{0.08cm}\mdseries\fontsize{23}{27}\selectfont\color{Muted}\href{mailto:gabriel_ushijima@usp.br}{gabriel\_ushijima@usp.br}}
+  \block{advisor}{42}{14.1}{39.1}{\sffamily\fontsize{38}{50}\selectfont\color{Ink}Orientador: \textbf{Ernesto G. Birgin}\par\vspace{0.08cm}\fontsize{23}{27}\selectfont\color{Muted}\href{mailto:egbirgin@ime.usp.br}{egbirgin@ime.usp.br}}
   \draw[Rule,line width=1.1pt] (3,17.0) -- (81.1,17.0);
   % Motivation; definitions precede both historical steps.
   \block{intro-head}{3}{18.3}{24.4}{\head{01}{A pergunta}}
@@ -67,12 +69,16 @@
   % Labels occupy the empty left margin of the original app viewport.
   \block{map-regions}{4.7}{47.0}{10.1}{\sffamily\bfseries\fontsize{80}{84}\selectfont\color{white}51\par\sffamily\mdseries\fontsize{26}{32}\selectfont regiões}
   \block{map-distance}{4.7}{55.0}{10.1}{\sffamily\bfseries\fontsize{66}{74}\selectfont\color{Route}4,97\par\sffamily\mdseries\fontsize{26}{32}\selectfont\color{white}quilômetros}
-  \block{map-origin}{4.7}{63.0}{9.6}{\sffamily\fontsize{24}{31}\selectfont\color{white}Saída e retorno junto ao IME\par\vspace{0.25cm}$s=t$ fixo}
+  % The dark margin holds the formal search-space counts for this USP instance.
+  \fill[MapDark,opacity=0.97] (4.1,61.8) rectangle (15.2,70.5);
+  \draw[Rule,line width=0.8pt] (4.1,61.8) rectangle (15.2,70.5);
+  \draw[Accent,line width=2pt] (4.1,61.8) -- (7.4,61.8);
+  \block{map-combinations}{4.55}{62.15}{10.4}{\sffamily\bfseries\fontsize{18}{22}\selectfont\color{white}ESPAÇO FORMAL\par\vspace{0.06cm}\sffamily\mdseries\fontsize{19}{24}\selectfont $51!\approx1{,}55\times10^{66}$ ordens\par $\prod_i p_i\approx2{,}49\times10^{37}$\par\sffamily\fontsize{17}{20}\selectfont escolhas de peças convexas\par\vspace{0.08cm}\sffamily\bfseries\fontsize{28}{32}\selectfont\color{Route}$3{,}87\times10^{103}$\par\sffamily\fontsize{17}{21}\selectfont\color{white}combinações formais\par\vspace{0.05cm}\sffamily\fontsize{20}{24}\selectfont Resolvido em \textbf{8,77 s}\par\sffamily\fontsize{15}{18}\selectfont\color{white}Ótimo numérico; uma thread.\par O solver não enumerou esse espaço.}
   \draw[Route,line width=3pt] (3,74.0) -- (4.6,74.0);
   \block{legend-route}{5.1}{73.45}{15.5}{\smalltext Caminho calculado}
   \shade[left color=FirstVisit,right color=LastVisit] (23.6,73.75) rectangle (27.6,74.15);
   \block{legend-order}{28.2}{73.45}{25.6}{\smalltext Primeiras $\to$ últimas visitas}
-  \block{map-caption}{3}{75.7}{50.8}{\smalltext Contornos desenhados pelo autor no QGIS sobre mapa-base público (OpenStreetMap). Incluem IF, IO, FAU, Geociências, Química, FFLCH, IP, ECA, FEA, Poli, Biblioteca Brasiliana, Restaurante Central, Praça dos Bancos e Google.\par\textbf{Demonstração independente do corpus experimental.}}
+  \block{map-caption}{3}{75.7}{50.8}{\smalltext Contornos desenhados pelo autor no QGIS sobre mapa-base público (OpenStreetMap). Incluem IF, IO, FAU, Geociências, Química, FFLCH, IP, ECA, FEA, Poli, Biblioteca Brasiliana, Restaurante Central, Praça dos Bancos e Google.\par\textbf{Demonstração independente do corpus experimental.} Regiões são alvos, não obstáculos; regras de voo não são modeladas.}
   % Brute-force scale, bound comparison, and the two kinds of branching.
   \block{method-head}{56.1}{40.7}{25}{\head{04}{Buscar sem enumerar}}
   \block{brute-force}{56.1}{44.0}{19.5}{\bodytext Força bruta: testar ordens e escolhas de peças convexas. Implementamos \textbf{Greene [4]} para decompor os polígonos.}
@@ -86,14 +92,26 @@
   \block{case-tag}{56.4}{50.1}{23.8}{\tagtext CASO 49\hspace{0.4cm}·\hspace{0.4cm}60 REGIÕES}
   \block{case-equation}{56.4}{51.8}{23.8}{\sffamily\fontsize{37}{44}\selectfont\color{Ink}$60!\prod_i p_i\approx1{,}56\times10^{117}$}
   \block{case-explanation}{56.4}{53.9}{23.8}{\smalltext combinações formais ($p_i$: peças da região $i$).\par\textbf{Resolvido em 2,47 s, com uma thread.}\par O solver não enumerou esse espaço.}
-  \block{branch-and-bound}{56.1}{59.1}{25}{\bodytext No \textbf{branch-and-bound}, cada nó guarda uma ordem parcial e escolhas de fechos ou peças. Omitir visitas e usar fechos convexos relaxa o problema.}
-  \block{lower-bound}{56.1}{65.5}{11.9}{\smalltext\textbf{Solver convexo}\par limite inferior $L$}
-  \block{upper-bound}{69.2}{65.5}{11.9}{\smalltext\textbf{Rota completa}\par incumbente $U$}
-  \draw[Muted,line width=1.4pt,-{Stealth[length=3.5mm]}] (61.8,68.1) -- (61.8,68.7) -- (67.8,68.7) -- (67.8,69.3);
-  \draw[Muted,line width=1.4pt] (74.9,68.1) -- (74.9,68.7) -- (67.8,68.7);
-  \block{prune}{56.1}{69.6}{25}{\centering\sffamily\bfseries\fontsize{39}{47}\selectfont\color{Accent}$L\geq U-\varepsilon\ \Rightarrow\ \text{poda}$}
-  \block{branch}{56.1}{72.2}{25}{\bodytext Sem poda, inserir uma região em cada posição possível ou refinar seu fecho em peças. Integramos ordem e peças em \textbf{uma só árvore}.}
-  \block{method-note}{56.1}{77.9}{25}{\smalltext Inserção e refinamento adaptados de [3]. IF $\to$ Central $\to$ IAG ilustra um desvio; só um limite válido justifica a poda.}
+  \block{branch-and-bound}{56.1}{59.1}{25}{\bodytext Cada nó guarda uma ordem parcial, por exemplo $s\to\mathrm{IF}\to\mathrm{Central}\to t$. Omitir regiões e usar fechos convexos relaxa o problema.}
+  % A valid relaxation supplies L; a complete feasible path supplies U.
+  \fill[Pale] (56.1,64.5) rectangle (68.4,67.5);
+  \draw[Rule,line width=0.8pt] (56.1,64.5) rectangle (68.4,67.5);
+  \fill[Accent!7] (68.9,64.5) rectangle (81.1,67.5);
+  \draw[Rule,line width=0.8pt] (68.9,64.5) rectangle (81.1,67.5);
+  \block{lower-bound}{56.5}{64.9}{11.5}{\tagtext LIMITE INFERIOR\par\smalltext relaxação $L$}
+  \block{upper-bound}{69.3}{64.9}{11.4}{\tagtext ROTA VIÁVEL\par\smalltext incumbente $U$}
+  \draw[Muted,line width=1.4pt,-{Stealth[length=3.5mm]}] (62.25,67.5) -- (62.25,68.2) -- (67.8,68.2) -- (67.8,68.8);
+  \draw[Muted,line width=1.4pt,-{Stealth[length=3.5mm]}] (75.0,67.5) -- (75.0,68.2) -- (67.8,68.2);
+  \fill[Pale] (56.1,68.8) rectangle (81.1,70.7);
+  \block{prune}{56.1}{69.0}{25}{\centering\sffamily\bfseries\fontsize{39}{47}\selectfont\color{Accent}$L\geq U-\varepsilon\ \Rightarrow\ \text{poda}$}
+  \block{branch-label}{56.1}{71.3}{25}{\tagtext Se não puder podar, ramifique:}
+  \fill[Pale] (56.1,72.3) rectangle (68.4,76.1);
+  \draw[Rule,line width=0.8pt] (56.1,72.3) rectangle (68.4,76.1);
+  \fill[Pale] (68.9,72.3) rectangle (81.1,76.1);
+  \draw[Rule,line width=0.8pt] (68.9,72.3) rectangle (81.1,76.1);
+  \block{insert-branch}{56.5}{72.6}{11.5}{\tagtext INSERIR\par\smalltext região em cada posição}
+  \block{refine-branch}{69.3}{72.6}{11.4}{\tagtext REFINAR\par\smalltext fecho em peças convexas}
+  \block{method-note}{56.1}{76.6}{25}{\smalltext Inserção e refinamento adaptados de [3]. IF $\to$ Central $\to$ IAG ilustra um desvio; só um limite válido justifica a poda.}
   % Results follow the method, with denominators and protocol beside each claim.
   \draw[Rule,line width=1.1pt] (3,81.8) -- (81.1,81.8);
   \block{results-head}{3}{82.8}{78.1}{\head{05}{Resultados no corpus de Fekete et al.}}
@@ -104,7 +122,9 @@
   \block{faster}{63.0}{88.2}{18.1}{\metric 492/550\par\vspace{0.2cm}\bodytext\textbf{mais rápidas}\par\smalltext com o nosso solver,\par no conjunto comum}
   \block{protocol}{3}{95.0}{37.9}{\smalltext\textbf{Fekete:} 550/558 concluídas com gap relativo $\leq0{,}1\%$; rodada de 10 s e até 6 h nos remanescentes. Uma campanha; metadados completos de hardware e compilação não foram preservados.}
   \block{certificate}{43.0}{95.0}{38.1}{\smalltext\textbf{Nosso ``ótimo'':} visitas verificadas e limites globais\par $U-L\leq\varepsilon=10^{-7}+10^{-9}|U|$.\par Fechamento numérico, não aritmética exata global. O pior caso da busca permanece exponencial.}
-  \block{visit-audit}{3}{99.0}{78.1}{\sffamily\mdseries\fontsize{23}{28}\selectfont\color{Muted}\textbf{Precisão das visitas:} máximo das distâncias mínimas rota--região $\leq10^{-7}$ nas unidades dos dados: nosso \textbf{558/558}; Fekete \textbf{130/551} trajetórias brutas disponíveis.}
+  \fill[Pale] (3,98.7) rectangle (81.1,101.0);
+  \block{conclusion-label}{3.6}{99.2}{10.4}{\tagtext CONCLUSÃO}
+  \block{conclusion}{15}{98.9}{66.1}{\sffamily\mdseries\fontsize{21}{25}\selectfont\color{Muted}Na campanha medida, limites fecharam e visitas foram validadas a $10^{-7}$ nas unidades dos dados em \textbf{558/558} casos; isso não garante generalização. Fekete: \textbf{130/551} trajetórias disponíveis passaram na mesma tolerância geométrica.}
   % Open questions and invitation to the interactive application.
   \draw[Rule,line width=1.1pt] (3,101.0) -- (81.1,101.0);
   \block{open-head}{3}{102.0}{35}{\head{06}{Questões em aberto}}
@@ -122,9 +142,6 @@
   \block{references-right}{37}{112.2}{28.2}{\sffamily\fontsize{22}{27}\selectfont\color{Muted}
   [4] Greene. \emph{The Decomposition of Polygons into Convex Parts}. Computational Geometry, 1983.\par
   [5] Chazelle; Dobkin. \href{https://doi.org/10.1016/B978-0-444-87806-9.50009-8}{\emph{Optimal Convex Decompositions}}. Computational Geometry, 1985.\par\vspace{0.12cm}
-  \href{mailto:gabriel_ushijima@usp.br}{gabriel\_ushijima@usp.br}\quad\href{mailto:egbirgin@ime.usp.br}{egbirgin@ime.usp.br}\par
   O autor declara não haver conflito de interesses.}
-  \block{funding-logo}{69.0}{113.2}{12.1}{\includegraphics[width=\linewidth]{figures/fapesp-logo.png}}
-  \block{funding}{69.0}{116.5}{12.1}{\sffamily\fontsize{22}{27}\selectfont\color{Muted}Processo 2025/13861-1}
 \end{tikzpicture}
 \end{document}

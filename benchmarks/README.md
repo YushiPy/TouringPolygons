@@ -62,6 +62,22 @@ Uma campanha completa usa:
 python3 benchmarks/tpp.py free-order NOME_DA_CAMPANHA --help
 ```
 
+Para comparar os dois solvers com oito threads dentro de cada instância, sem
+executar instâncias diferentes em paralelo, a campanha aceita:
+
+```bash
+python3 benchmarks/tpp.py free-order german-instances \
+  --solver unordered --solver tspn --workers 1 --threads-per-instance 8 \
+  --max-seconds 21600 --max-calls 10000000 \
+  --absolute-gap 0 --relative-gap 0.001 --eps 0.001 \
+  --sampled-perimeter-initial --convex-initial-refinement --bidirectional-initial
+```
+
+`--workers` controla instâncias simultâneas; `--threads-per-instance` controla
+threads dentro de cada solver. Campanhas com a mesma configuração retomam os
+casos já registrados e guardam `report.json`, os dados externos brutos e
+`comparison.md` em `benchmarks/campaigns/<nome>/results/free-order/`.
+
 Para executar diretamente uma suite binária:
 
 ```bash
@@ -105,6 +121,11 @@ python3 benchmarks/tpp.py free-order-ablation \
   --seconds 3 --repeats 3 \
   --output benchmarks/results/free-order-comparison.jsonl
 ```
+
+Use `--resume` with the same command to reuse exact solver/case results and rerun
+only pairs that did not finish with an optimality proof. The campaign metadata
+must match the existing output; each resume keeps the latest row per pair and
+prints a summary over all preserved results.
 
 Para comparar a tolerância atual do solver com a tolerância equivalente ao
 critério de gap de Fekete (`UB <= 1.001 * LB`):
