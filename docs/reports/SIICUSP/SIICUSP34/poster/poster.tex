@@ -12,7 +12,7 @@
 \setmainfont{Arial}
 \setsansfont{Arial}
 \setmathfont{latinmodern-math.otf}
-\hypersetup{pdftitle={Algoritmo Exatos Para o Problema de Visita de Polígonos},pdfauthor={Gabriel Freire Ushijima; Ernesto G. Birgin},pdfsubject={34º SIICUSP, IME-USP}}
+\hypersetup{pdftitle={Algoritmos Exatos Para o Problema de Visita de Polígonos},pdfauthor={Gabriel Freire Ushijima; Ernesto G. Birgin},pdfsubject={34º SIICUSP, IME-USP}}
 \pagestyle{empty}
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{0.24em}
@@ -42,54 +42,56 @@
 \begin{tikzpicture}[remember picture,overlay,shift={(current page.north west)},x=1cm,y=-1cm]
   \fill[white] (0,0) rectangle (84.1,118.9);
   \fill[Ink] (0,0) rectangle (84.1,0.55);
-  % The IME mark occupies the left column; event and funding marks stack at right.
-  \block{ime-logo}{52.2}{1.25}{9.6}{\centering\includegraphics[height=8.1cm]{figures/ime-usp-vertical-logo.png}}
-  \block{event-logo}{69.3}{1.2}{5.6}{\includegraphics[width=\linewidth]{../resumo/assets/siicusp34-logo-pt.png}}
-  \block{funding-logo}{63.1}{6.9}{18.0}{\includegraphics[width=\linewidth]{figures/fapesp-logo.png}}
-  \block{funding}{63.1}{10.9}{18.0}{\raggedleft\sffamily\fontsize{17}{21}\selectfont\color{Muted}Processo 2025/13861-1\par}
-  \block{title}{3}{4.4}{49.2}{\sffamily\bfseries\fontsize{88}{96}\selectfont\color{Ink}Algoritmo Exatos Para o\\Problema de Visita de Polígonos}
-  \block{subtitle}{3}{11.9}{78}{\sffamily\fontsize{34}{41}\selectfont\color{Muted}Caminhos mínimos para visitar vizinhanças difíceis}
-  \block{author}{3}{14.1}{37}{\sffamily\bfseries\fontsize{48}{55}\selectfont\color{Ink}Gabriel Freire Ushijima\par\vspace{0.08cm}\mdseries\fontsize{23}{27}\selectfont\color{Muted}\href{mailto:gabriel_ushijima@usp.br}{gabriel\_ushijima@usp.br}}
-  \block{advisor}{30}{14.1}{51.1}{\sffamily\bfseries\fontsize{48}{55}\selectfont\color{Ink}Ernesto G. Birgin \mdseries(Orientador)\par\vspace{0.08cm}\fontsize{23}{27}\selectfont\color{Muted}\href{mailto:egbirgin@ime.usp.br}{egbirgin@ime.usp.br}}
+  % Crop the SIICUSP image's white margins so the visible marks align by height.
+  % The IME and SIICUSP marks are both 6.643 cm tall; FAPESP spans their row.
+  \block{ime-logo}{67.686}{3.938}{5.015}{\centering\includegraphics[height=6.643cm]{figures/ime-usp-vertical-logo.png}}
+  \block{event-logo}{73.201}{3.938}{7.899}{\includegraphics[trim={33bp 56bp 33bp 79bp},clip,width=\linewidth]{figures/siicusp34-logo-pt.png}}
+  \block{funding-logo}{67.686}{11.6}{13.414}{\includegraphics[width=\linewidth]{figures/fapesp-logo.png}}
+  \block{funding}{67.686}{15.144}{13.414}{\raggedleft\sffamily\fontsize{17}{21}\selectfont\color{Muted}Processo 2025/13861-1\par}
+  \block{title}{3}{4.4}{49.2}{\sffamily\bfseries\fontsize{88}{96}\selectfont\color{Ink}Algoritmos Exatos Para o\\Problema de Visita de Polígonos}
+  \block{subtitle}{3}{11.3}{49.2}{\sffamily\fontsize{34}{41}\selectfont\color{Muted}Determinando caminhos mínimos para visitar regiões difíceis}
+  \block{author}{3}{13.68}{37}{\sffamily\bfseries\fontsize{48}{55}\selectfont\color{Ink}Gabriel Freire Ushijima\par\vspace{0.08cm}\mdseries\fontsize{23}{27}\selectfont\color{Muted}\href{mailto:gabriel_ushijima@usp.br}{gabriel\_ushijima@usp.br}}
+  \block{advisor}{30}{13.68}{51.1}{\sffamily\bfseries\fontsize{48}{55}\selectfont\color{Ink}Ernesto G. Birgin \mdseries(Orientador)\par\vspace{0.08cm}\fontsize{23}{27}\selectfont\color{Muted}\href{mailto:egbirgin@ime.usp.br}{egbirgin@ime.usp.br}}
   \draw[Rule,line width=1.1pt] (3,17.0) -- (81.1,17.0);
   % Motivation; definitions precede both historical steps.
   \block{intro-head}{3}{18.3}{54.2}{\head{1}{Introdução}}
-  \block{intro}{3}{21.1}{24.4}{\bodytext Suponha que um drone parte da entrada do IME para fotografar institutos e outras regiões da USP. Precisamos escolher \textbf{a ordem das visitas e o ponto de contato} em cada região para minimizar o comprimento do caminho.}
-  \block{intro-project}{3}{26.0}{24.4}{\bodytext Esse problema é exatamente o TPP de ordem livre, o foco desse projeto de pesquisa. Nesse poster buscamos mostrar não só como resolvemos esse problema, mas como, apesar de muitos contratempos, batemos de frente com um grupo de pesquisa alemão que propôs resolver esse mesmo problema.}
-  \draw[Accent,line width=2.2pt] (3,33.2) -- (6,33.2);
-  \block{evolution}{3}{34.1}{24.4}{\smalltext\textbf{Complementando o resumo:} O resumo apresentava o caso não convexo com ordem fixa. Após a submissão, concluímos a extensão para ordem livre.}
-  \block{definitions-head}{59}{18.3}{22.1}{\head{2}{Trabalhos anteriores}}
+  \block{intro}{3}{20.67}{21.96}{\bodytext Suponha que um drone parte da entrada do IME para fotografar institutos e outras regiões da USP. Precisamos escolher \textbf{a ordem das visitas e o ponto de contato} em cada região para minimizar o comprimento do caminho.}
+  \block{intro-project}{3}{25.57}{21.96}{\bodytext Esse problema é exatamente o TPP de ordem livre, o foco desse projeto de pesquisa. Nesse poster buscamos mostrar não só como resolvemos esse problema, mas como, apesar de muitos contratempos, batemos de frente com um grupo de pesquisa alemão que propôs resolver esse mesmo problema.}
+  \draw[Accent,line width=2.2pt] (3,32.77) -- (6,32.77);
+  \block{evolution}{3}{33.67}{21.96}{\smalltext\textbf{Complementando o resumo:} O resumo apresentava o caso não convexo com ordem fixa. Após a submissão, concluímos a extensão para ordem livre.}
+  \draw[Rule,line width=0.8pt] (25.72,20.67) -- (25.72,38.5);
+  \block{definitions-head}{53.66}{18.3}{27.44}{\head{2}{Trabalhos anteriores}}
   % Problem cards retain their type size but use their vertical space better.
-  \block{problem-label}{29.3}{21.15}{27.1}{\sffamily\bfseries\fontsize{23}{28}\selectfont\color{Muted}Problemas}
-  \fill[Pale,rounded corners=0.22cm] (29.3,22.0) rectangle (43.1,28.0);
-  \draw[Rule,line width=1.1pt,rounded corners=0.22cm] (29.3,22.0) rectangle (43.1,28.0);
-  \draw[Accent,line width=2.4pt] (29.75,22.55) -- (29.75,27.45);
-  \fill[Pale,rounded corners=0.22cm] (44.0,22.0) rectangle (57.8,28.0);
-  \draw[Rule,line width=1.1pt,rounded corners=0.22cm] (44.0,22.0) rectangle (57.8,28.0);
-  \draw[Accent,line width=2.4pt] (44.45,22.55) -- (44.45,27.45);
-  \block{tsp}{30.3}{22.5}{12.5}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TSP}\par\vspace{0.18cm}\bodytext Dado um conjunto de pontos, encontrar uma ordenação que minimiza o comprimento do caminho total.}
-  \block{tpp}{44.7}{22.5}{12.5}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TPP}\par\vspace{0.18cm}\bodytext Dados pontos inicial e final e polígonos em ordem, convexos ou não, encontrar o menor caminho que os visita.}
-  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (36.2,28.05) -- (40.4,30.7);
-  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (50.9,28.05) -- (46.7,30.7);
-  \fill[Accent!7,rounded corners=0.24cm] (29.8,31.0) rectangle (57.2,38.0);
-  \draw[Accent!65,line width=1.2pt,rounded corners=0.24cm] (29.8,31.0) rectangle (57.2,38.0);
-  \block{free-order}{30.5}{31.35}{25.9}{{\tagtext TPP de ordem livre: uma generalização dos dois problemas}\par\vspace{0.18cm}\bodytext Dados um ponto inicial, um ponto final e um conjunto de polígonos, determinar a ordem e o menor caminho que visita todos. O TSP é o caso em que os alvos são pontos e a rota é um ciclo sem ponto inicial fixo.\par\vspace{0.16cm}\bodytext\bfseries Esse é o problema que resolvemos.}
+  \block{problem-label}{26.48}{20.72}{24.39}{\sffamily\bfseries\fontsize{23}{28}\selectfont\color{Muted}Problemas}
+  \fill[Pale,rounded corners=0.22cm] (26.48,21.57) rectangle (38.90,27.57);
+  \draw[Rule,line width=1.1pt,rounded corners=0.22cm] (26.48,21.57) rectangle (38.90,27.57);
+  \draw[Accent,line width=2.4pt] (26.885,22.12) -- (26.885,27.02);
+  \fill[Pale,rounded corners=0.22cm] (39.71,21.57) rectangle (52.13,27.57);
+  \draw[Rule,line width=1.1pt,rounded corners=0.22cm] (39.71,21.57) rectangle (52.13,27.57);
+  \draw[Accent,line width=2.4pt] (40.115,22.12) -- (40.115,27.02);
+  \block{tsp}{27.38}{22.07}{11.25}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TSP}\par\vspace{0.18cm}\bodytext Dado um conjunto de pontos, encontrar uma ordenação que minimiza o comprimento do caminho total.}
+  \block{tpp}{40.34}{22.07}{11.25}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TPP}\par\vspace{0.18cm}\bodytext Dados pontos inicial e final e polígonos em ordem, convexos ou não, encontrar o menor caminho que os visita.}
+  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (32.69,27.62) -- (36.47,30.27);
+  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (45.92,27.62) -- (42.14,30.27);
+  \fill[Accent!7,rounded corners=0.24cm] (26.93,30.57) rectangle (51.59,38.5);
+  \draw[Accent!65,line width=1.2pt,rounded corners=0.24cm] (26.93,30.57) rectangle (51.59,38.5);
+  \block{free-order}{27.56}{30.92}{23.31}{{\tagtext TPP de ordem livre: uma generalização dos dois problemas}\par\vspace{0.18cm}\bodytext Dados um ponto inicial, um ponto final e um conjunto de polígonos, determinar a ordem e o menor caminho que visita todos. O TSP é o caso em que os alvos são pontos e a rota é um ciclo sem ponto inicial fixo.\par\vspace{0.16cm}\bodytext\bfseries Esse é o problema que resolvemos.}
   % Keep the papers in their own column under section 2.
-  \draw[Rule,line width=0.8pt] (58.3,21.0) -- (58.3,40.2);
-  \block{papers-column}{59.0}{21.0}{22.1}{
+  \draw[Rule,line width=0.8pt] (52.96,21.0) -- (52.96,40.2);
+  \block{papers-column}{53.66}{20.6}{27.44}{
     \tagtext Um subproblema polinomial\par\vspace{0.02cm}
-    \bodytext Os três problemas são NP-difíceis. No entanto, no TPP (ordem fixa) com polígonos convexos, Dror et al. (2003) deram $O(nk^2\log(n/k))$; Tan e Jiang (2017) melhoraram para $O(nk^2)$. Onde $k$ é o número de polígonos e $n$ a soma dos seus números de vértices.\par\vspace{0.08cm}
-    \tagtext Enumerar as ordens e peças\par\vspace{0.02cm}
-    \bodytext Com o caso convexo resolvido, enumerar ordens e peças convexas, escolher o menor caminho e acelerar a busca com branch and bound. No entanto, Fekete et al. (2026) [3] publicaram essa ideia meses antes.\par\vspace{0.08cm}
-    \tagtext O solver da etapa convexa\par\vspace{0.02cm}
-    \bodytext Parecia o fim. Mas notamos que eles modelaram o subproblema convexo como SOCP (programa cônico de segunda ordem) e usaram Gurobi, solver comercial genérico. Havia uma rota clara de melhora: aplicar nosso solver especializado ao subproblema. Foi exatamente o que fizemos; a seguir, os resultados.}
+    \bodytext Os três problemas são NP-difíceis. No entanto, se os polígonos do TPP (ordem fixa) forem convexos, Dror et al. (2003) descrevem uma solução em tempo $O(nk^2\log(n/k))$, depois melhorada por Tan e Jiang (2017) para $O(nk^2)$. Onde $k$ é o número de polígonos e $n$ a soma dos seus números de vértices.\par\vspace{0.08cm}
+    \tagtext Uma ideia: Enumerar as ordens\par\vspace{0.02cm}
+    \bodytext Com o caso convexo resolvido, uma estratégia viável para o TPP de ordem livre seria enumerar ordens e peças convexas, e então escolher o menor caminho, acelerando a busca com branch and bound. No entanto, Fekete et al. (2026) [3] publicaram essa ideia poucos meses depois de começarmos a explorá-la.\par\vspace{0.08cm}
+    \tagtext Como melhorar o estado da arte?\par\vspace{0.02cm}
+    \bodytext Foi necessário aceitar que não seríamos os primeiros a publicar o método, mas poderíamos publicar uma abordagem melhor. Crucialmente, notamos que eles modelaram o subproblema convexo como SOCP (programa cônico de segunda ordem) e usaram Gurobi, solver comercial genérico. Havia uma rota clara de melhora: aplicar nosso solver especializado ao subproblema. Foi exatamente o que fizemos; a seguir, os resultados.}
   % A single paragraph states what this public instance measures.
   \block{map-head}{3}{40.7}{50.8}{\head{3}{A USP como instância}}
-  \block{usp-map}{3}{44.0}{29.5}{\includegraphics[width=\linewidth]{figures/usp-route-square.png}}
+  \block{usp-map}{3}{43.35}{29.5}{\includegraphics[width=\linewidth]{figures/usp-route-square.png}}
   % Brute-force scale, bound comparison, and the two kinds of branching.
-  \block{usp-context}{3}{73.85}{29.5}{\bodytext Esta instância usa 51 regiões da Cidade Universitária da USP, contornadas no QGIS sobre OpenStreetMap. A rota mede 4,97km.\par Há $51!\approx1{,}55\times10^{66}$ ordens e $\prod_i p_i\approx2{,}49\times10^{37}$ escolhas de peças convexas, ou $3{,}87\times10^{103}$ combinações formais.\par O solver encontrou um ótimo numérico em 8,77 s, explorando apenas 6.003 combinações (chamadas ao oráculo). Regiões são alvos, não obstáculos; regras de voo não são modeladas.}
+  \block{usp-context}{3}{73.2}{29.5}{\bodytext Esta instância usa 51 regiões da Cidade Universitária da USP, contornadas no QGIS sobre OpenStreetMap. A rota mede 4,97km.\par Há $51!\approx1{,}55\times10^{66}$ ordens e $\prod_i p_i\approx2{,}49\times10^{37}$ escolhas de peças convexas, ou $3{,}87\times10^{103}$ combinações formais.\par O solver encontrou um ótimo numérico em 8,77 s, explorando apenas 6.003 combinações (chamadas ao oráculo). Regiões são alvos, não obstáculos; regras de voo não são modeladas.}
   \block{method-head}{35.5}{40.7}{45.6}{\head{4}{Buscar sem enumerar}}
-  \block{brute-force}{35.5}{44.0}{37.8}{\bodytext Força bruta: testar ordens e escolhas de peças convexas. Implementamos \textbf{Greene [4]} para decompor os polígonos.}
+  \block{brute-force}{35.5}{43.35}{37.8}{\bodytext Força bruta: testar ordens e escolhas de peças convexas. Implementamos \textbf{Greene [4]} para decompor os polígonos.}
   % Real polygon and convex decomposition from usp-demo.js, building poli-civil.
   \input{figures/civil-poli-partition.tex}
   \block{partition-label}{75.1}{48.65}{5.9}{\centering\sffamily\fontsize{16}{19}\selectfont\color{Muted}Civil-POLI}
@@ -120,28 +122,28 @@
   % Results follow the method, with denominators and protocol beside each claim.
   \draw[Rule,line width=1.1pt] (3,81.8) -- (81.1,81.8);
   \block{results-head}{3}{82.8}{78.1}{\head{5}{Resultados no corpus de Fekete et al.}}
-  \fill[white,rounded corners=0.30cm] (3,85.4) rectangle (61.6,95.5);
-  \draw[Rule,line width=1.0pt,rounded corners=0.30cm] (3,85.4) rectangle (61.6,95.5);
-  \draw[Route,line width=4.0pt] (3.3,85.45) -- (17.6,85.45);
-  \draw[LastVisit,line width=4.0pt] (17.6,85.45) -- (32.25,85.45);
-  \draw[FirstVisit,line width=4.0pt] (32.25,85.45) -- (46.9,85.45);
-  \draw[Muted,line width=4.0pt] (46.9,85.45) -- (61.3,85.45);
-  \draw[Rule,line width=0.8pt] (17.6,85.8) -- (17.6,95.1);
-  \draw[Rule,line width=0.8pt] (32.25,85.8) -- (32.25,95.1);
-  \draw[Rule,line width=0.8pt] (46.9,85.8) -- (46.9,95.1);
-  \block{speedup}{3.7}{87.0}{13.0}{\metric 5,11×\par\vspace{0.2cm}\bodytext\textbf{Speedup mediano}\par\smalltext Fekete et al. / nosso solver, nas 550 instâncias concluídas por ambos.}
-  \block{solved}{18.3}{87.0}{13.0}{\metric 558 / 558\par\vspace{0.2cm}\bodytext\textbf{Buscas concluídas}\par\smalltext O solver concluiu a busca nos 558 casos.}
-  \block{under-ten}{32.95}{87.0}{13.0}{\metric 477 / 558\par\vspace{0.2cm}\bodytext\textbf{Resolvidas em menos de 10 s}\par\smalltext Tempo de solver em uma thread por instância.}
-  \block{faster}{47.6}{87.0}{13.0}{\metric 492 / 550\par\vspace{0.2cm}\bodytext\textbf{Instâncias mais rápidas}\par\smalltext Nosso solver foi mais rápido no conjunto comum concluído.}
-  \block{result-explanation}{63.1}{85.7}{18.0}{\bodytext Esses resultados dizem respeito às instâncias usadas por Fekete et al. no artigo. Rodamos cada instância por até 6 horas: nosso solver concluiu 558/558, enquanto o de Fekete et al. concluiu 550/558. As comparações de tempo e velocidade usam os 550 casos concluídos por ambos.}
+  \fill[white,rounded corners=0.30cm] (3,85.0) rectangle (61.6,95.1);
+  \draw[Rule,line width=1.0pt,rounded corners=0.30cm] (3,85.0) rectangle (61.6,95.1);
+  \draw[Route,line width=4.0pt] (3.3,85.05) -- (17.6,85.05);
+  \draw[LastVisit,line width=4.0pt] (17.6,85.05) -- (32.25,85.05);
+  \draw[FirstVisit,line width=4.0pt] (32.25,85.05) -- (46.9,85.05);
+  \draw[Muted,line width=4.0pt] (46.9,85.05) -- (61.3,85.05);
+  \draw[Rule,line width=0.8pt] (17.6,85.4) -- (17.6,94.7);
+  \draw[Rule,line width=0.8pt] (32.25,85.4) -- (32.25,94.7);
+  \draw[Rule,line width=0.8pt] (46.9,85.4) -- (46.9,94.7);
+  \block{speedup}{3.7}{86.6}{13.0}{\metric 5,11×\par\vspace{0.2cm}\bodytext\textbf{Speedup mediano}\par\smalltext Fekete et al. / nosso solver, nas 550 instâncias concluídas por ambos.}
+  \block{solved}{18.3}{86.6}{13.0}{\metric 558 / 558\par\vspace{0.2cm}\bodytext\textbf{Buscas concluídas}\par\smalltext O solver concluiu a busca nos 558 casos.}
+  \block{under-ten}{32.95}{86.6}{13.0}{\metric 477 / 558\par\vspace{0.2cm}\bodytext\textbf{Resolvidas em menos de 10 s}\par\smalltext Tempo de solver em uma thread por instância.}
+  \block{faster}{47.6}{86.6}{13.0}{\metric 492 / 550\par\vspace{0.2cm}\bodytext\textbf{Instâncias mais rápidas}\par\smalltext Nosso solver foi mais rápido no conjunto comum concluído.}
+  \block{result-explanation}{63.1}{85.3}{18.0}{\bodytext Esses resultados dizem respeito às instâncias usadas por Fekete et al. no artigo. Rodamos cada instância por até 6 horas: nosso solver concluiu 558/558, enquanto o de Fekete et al. concluiu 550/558. As comparações de tempo e velocidade usam os 550 casos concluídos por ambos.}
   \fill[Pale] (3,96.0) rectangle (81.1,99.0);
   \block{conclusion-label}{3.6}{97.2}{10.4}{\tagtext CONCLUSÃO}
   \block{conclusion}{15}{96.5}{66.1}{\bodymuted Nas próprias instâncias de Fekete, nosso solver demonstrou ser consideravelmente mais rápido, ordens de magnitude mais preciso e autocontido, uma vez que não depende de Gurobi nem CGAL.}
   % Open questions and invitation to the interactive application.
   \draw[Rule,line width=1.1pt] (3,99.0) -- (81.1,99.0);
   \block{open-head}{3}{99.7}{68.5}{\head{6}{Questões em aberto}}
-  \block{open-extremes}{3}{102.4}{34.0}{\bodytext\textbf{Eliminar os extremos:} Atualmente fixamos pontos iniciais e finais, isso permite utilizar o algoritmo de Dror et al. para resolver o subproblema convexo. No entanto, se esses pontos não fossem fornecidos e exigíssemos um tour ao longo dos polígonos, teríamos uma solução para o TSPN.}
-  \block{open-decomposition}{38.0}{102.4}{33.2}{\bodytext\textbf{Melhorar a decomposição convexa:} Atualmente utilizamos o algoritmo de Greene para decomposição convexa, no entanto, Chazelle [5] descreveu um algoritmo nunca implementado que utiliza pontos de Steiner para possivelmente obter uma decomposição convexa com menos peças em tempo polinomial.}
+  \block{open-extremes}{3}{101.94}{34.0}{\bodytext\textbf{Eliminar os extremos:} Atualmente fixamos pontos iniciais e finais, isso permite utilizar o algoritmo de Dror et al. para resolver o subproblema convexo. No entanto, se esses pontos não fossem fornecidos e exigíssemos um tour ao longo dos polígonos, teríamos uma solução para o TSPN.}
+  \block{open-decomposition}{38.0}{101.94}{33.2}{\bodytext\textbf{Melhorar a decomposição convexa:} Atualmente utilizamos o algoritmo de Greene para decomposição convexa, no entanto, Chazelle [5] descreveu um algoritmo nunca implementado que utiliza pontos de Steiner para possivelmente obter uma decomposição convexa com menos peças em tempo polinomial.}
   \block{app-head}{3}{108.3}{18.5}{\head{7}{Tente você mesmo!}}
   \block{app}{21.5}{108.45}{51.5}{\bodytext Teste resolver 3 desafios, observe mais de 500 instâncias, incluindo os estados do Brasil e as subprefeituras de São Paulo e uma simulação passo a passo do algoritmo, além de uma explicação muito mais aprofundada de todas as seções do poster.}
   \block{app-link}{21.5}{111.2}{51.5}{\sffamily\fontsize{18}{21}\selectfont\color{Muted}\href{https://yushipy.github.io/TouringPolygons/apps/siicusp34/}{yushipy.github.io/TouringPolygons/apps/siicusp34/}}

@@ -24,7 +24,7 @@ altera o app congelado.
 
 ## Decisões editoriais
 
-- O título usa a grafia “Algoritmo Exatos Para o Problema de Visita de
+- O título usa a grafia “Algoritmos Exatos Para o Problema de Visita de
   Polígonos”. A primeira seção apresenta a pergunta do drone, resume o caso
   submetido e distingue o TPP da extensão de ordem livre.
 - A primeira seção reúne a introdução e os cards de TSP, TPP e TPP de ordem
@@ -155,3 +155,14 @@ respeitando a ordem narrativa escolhida pelo autor.
 - O cabeçalho usa a marca vertical simplificada oficial do IME à esquerda e as
   marcas SIICUSP e FAPESP empilhadas à direita. O processo FAPESP fica alinhado
   à direita sob a marca.
+
+## Ajustes visuais (27/09/2026)
+
+- O título agora começa com “Algoritmos Exatos”; o subtítulo é “Determinando
+  caminhos mínimos...”. O subtítulo foi aproximado do título.
+- A marca SIICUSP aumentou 25%; SIICUSP e FAPESP agora têm 7 cm de largura. A
+  altura da marca IME é igual à soma das alturas das duas marcas. O processo
+  FAPESP começa uma unidade `em` abaixo de sua marca.
+- O espaço visual entre cada título de seção e o primeiro conteúdo foi reduzido
+  em 30%.
+- O PDF foi recompilado e inspecionado visualmente em uma página A0.
