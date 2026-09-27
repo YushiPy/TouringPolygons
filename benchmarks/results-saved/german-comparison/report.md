@@ -2,6 +2,8 @@
 
 Análise das 558 instâncias, unidas por `case_index` e `sha256`. Os histogramas de tempo incluem todos os tempos registrados; speedup e comprimento usam apenas as 550 instâncias concluídas pelo Fekete.
 
+**Complemento estratificado:** a comparação por origem (OSM, aleatórias e tessellations/Voronoi), faixa de tamanho e sobreposição está em [`analysis/source-stratified-report.md`](analysis/source-stratified-report.md). Os rótulos e medidas por caso estão em [`analysis/instance-classification.csv`](analysis/instance-classification.csv).
+
 ## Resultado principal
 
 | Métrica | Nosso solver | Fekete et al. |

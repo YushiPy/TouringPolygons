@@ -70,6 +70,12 @@ benchmarks/suites/algorithm-dev-v1.bin
 benchmarks/suites/canonical-v1.bin
 
 benchmarks/results-saved/*/analysis
+# Keep the hand-reviewed label recovery and stratified report for this saved
+# campaign; its bulk generated analysis remains ignored.
+!benchmarks/results-saved/german-comparison/analysis/
+benchmarks/results-saved/german-comparison/analysis/*
+!benchmarks/results-saved/german-comparison/analysis/instance-classification.csv
+!benchmarks/results-saved/german-comparison/analysis/source-stratified-report.md
 
 packages/instance-generation/regions/
 packages/convex-tpp/cpp/tests/*_tests.bin
