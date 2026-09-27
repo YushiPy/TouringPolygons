@@ -1,5 +1,5 @@
 {
-  "renderer": "Chromium screenshot of #route-map after apps/siicusp34/app.js executes",
+  "renderer": "Chromium screenshot of #route-map with centered .map-legend after apps/siicusp34/app.js executes",
   "browserVersion": "151.0.7922.34",
   "viewport": {
     "width": 1440,
@@ -8,6 +8,16 @@
   },
   "pixels": {
     "width": 6048,
+    "height": 3456
+  },
+  "squareCropCSS": {
+    "x": 216,
+    "y": 0,
+    "width": 576,
+    "height": 576
+  },
+  "squarePixels": {
+    "width": 3456,
     "height": 3456
   },
   "scene": {
@@ -26,10 +36,11 @@
     "termination": "optimal"
   },
   "sources": {
-    "apps/siicusp34/index.html": "8321c146ff9ee78c59de2e9cbb8c346aa6cebbcfb15c5098965ac5742702c6d4",
-    "apps/siicusp34/app.js": "2934ddee2de4a42262ace02d656340a4f45e2a310e1985e117717a9322825231",
-    "apps/siicusp34/styles.css": "a4d7c7beffc0f10251d310af9d00b596bc58acd086d51e7a0a116eddba4d8477",
+    "apps/siicusp34/index.html": "ddd736d81cd77827e9f0468204c8f1989f1eb079da3db7566ec6c8f3efed17b9",
+    "apps/siicusp34/app.js": "8bc6f3a65a7f5abfdc7c3fd7c73adce2d15da1ae5f243de756152ad3a60a3224",
+    "apps/siicusp34/styles.css": "d5d34dd6eb1ec6609bd9c8c64a84e53ec69ec159a7379889af8893cf40de4d32",
     "apps/siicusp34/data/usp-demo.js": "88db789354c8cf7127762af2e838b21ea3c0615ca98a0241171956608bfc95fc"
   },
-  "imageSha256": "ef0da92253d80d98b1a322e51b5bf7c8e09c5ccee37ed2e1bde13d61449b8e30"
+  "imageSha256": "695a0df39ff4c16a993ef5b6a5482dc6467d3464e5e6ec84579da51d11369c71",
+  "squareImageSha256": "02cc82c9bb2ede9db6d96e1aec0769bb84ecac4a9bfe6e91ecc7506d900b4243"
 }

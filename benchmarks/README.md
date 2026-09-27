@@ -78,6 +78,28 @@ threads dentro de cada solver. Campanhas com a mesma configuração retomam os
 casos já registrados e guardam `report.json`, os dados externos brutos e
 `comparison.md` em `benchmarks/campaigns/<nome>/results/free-order/`.
 
+Para medir o efeito das threads, compare runs de uma thread e multithread dos
+dois solvers. A análise pareia instâncias pelo SHA-256, grava `comparison.csv`,
+`summary.md` e `manifest.json`, e resume speedups apenas quando ambos os runs
+fecharam a tolerância. Os argumentos aceitam CSV, `report.json` ou diretório de
+campanha; o diretório da campanha multithread pode ser usado enquanto o CSV do
+Fekete ainda está sendo preenchido.
+
+```bash
+python3 benchmarks/tpp.py compare-threads \
+  --ours-single benchmarks/results/free-order-gap-6h/runs.csv \
+  --ours-single-variant fekete_gap \
+  --ours-multi benchmarks/campaigns/german-instances/results/free-order/ID_DA_RUN \
+  --fekete-single benchmarks/results-saved/german-comparison/fekete.csv \
+  --fekete-multi benchmarks/campaigns/german-instances/results/free-order/ID_DA_RUN \
+  --output benchmarks/results/thread-scaling/german
+```
+
+O speedup é `tempo(1 thread) / tempo(multithread)`. Diferenças detectáveis de
+limite, gap e workers aparecem no relatório: uma comparação histórica com
+configurações diferentes é indicativa, não uma medição causal do ganho de
+threads.
+
 Para executar diretamente uma suite binária:
 
 ```bash

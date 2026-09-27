@@ -50,6 +50,7 @@ Commands:
   run NAME ARGS...                   Benchmark all campaign inputs, resumably.
   free-order NAME ARGS...            Run/compare free-order endpoint TPP solvers.
   free-order-run ARGS...             Run the free-order solver on a binary suite.
+  compare-threads ARGS...            Compare paired 1-thread and multi-thread runs.
   compare-gaps ARGS...               Compare strict and Fekete-equivalent optimality gaps.
   free-order-sample-sizes ARGS...    Run nested random subsets of one TPP instance.
   inspect-footprints ARGS...         Count and compare QGIS GeoPackage footprints.
@@ -298,6 +299,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 		return free_order_ablation.main(rest)
 	if command == "free-order-run":
 		return command_module("unordered_benchmark", rest)
+	if command == "compare-threads":
+		return command_module("compare_thread_scaling", rest)
 	if command == "compare-gaps":
 		return command_module("free_order_gap_comparison", rest)
 	if command == "free-order-sample-sizes":

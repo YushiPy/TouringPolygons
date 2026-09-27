@@ -49,6 +49,11 @@ from unordered_validation import orient_path, validate_path
 
 _ACTIVE_PROCESSES: set[subprocess.Popen[str]] = set()
 _ACTIVE_PROCESSES_LOCK = threading.Lock()
+# The released pybind11 API still exposes the native limit as a C++ int.  Keep
+# ``-1`` as the public/API value and use the largest representable int only at
+# that ABI boundary when an older binding is in use.  The parent watchdog is
+# disabled for ``-1``, so this is effectively unlimited in practice.
+NATIVE_UNLIMITED_TIME = 2_147_483_647
 
 
 def _stop_process(process: subprocess.Popen[str]) -> None:
@@ -142,7 +147,10 @@ def make_parser() -> argparse.ArgumentParser:
 		"--mode", choices=("path", "cycle"), default="path",
 		help="path keeps encoded start/target; cycle discards them. Polygon order is free in both.",
 	)
-	parser.add_argument("--time-limit", type=int, default=60, help="Seconds per TSPN case.")
+	parser.add_argument(
+		"--time-limit", type=int, default=60,
+		help="Seconds per TSPN case; -1 means no time limit.",
+	)
 	parser.add_argument(
 		"--oracle-backend", choices=("socp", "tpp"), default="socp",
 		help="Ordered-subproblem backend in the oracle-enabled checkout.",
@@ -188,6 +196,10 @@ def finite_number(value: Any) -> float | None:
 	except (TypeError, ValueError):
 		return None
 	return result if math.isfinite(result) else None
+
+
+def time_limit_label(seconds: int) -> str:
+	return "unlimited" if seconds == -1 else f"{seconds}s"
 
 
 def convert_stat(value: Any) -> Any:
@@ -253,11 +265,12 @@ def worker(args: argparse.Namespace) -> int:
 		instance = Instance(polygons, False)
 
 	started = time.perf_counter()
+	native_time_limit = NATIVE_UNLIMITED_TIME if args.time_limit == -1 else args.time_limit
 	options = dict(
 		instance=instance,
 		callback=lambda _: None,
 		initial_solution=None,
-		timelimit=args.time_limit,
+		timelimit=native_time_limit,
 		branching="FarthestPoly",
 		search="DfsBfs",
 		root="LongestEdgePlusFurthestSite",
@@ -460,7 +473,8 @@ def run_case(
 			_ACTIVE_PROCESSES.add(process)
 		try:
 			try:
-				stdout, stderr = process.communicate(timeout=args.time_limit + 120)
+				process_timeout = None if args.time_limit == -1 else args.time_limit + 120
+				stdout, stderr = process.communicate(timeout=process_timeout)
 			except subprocess.TimeoutExpired:
 				_stop_process(process)
 				stdout, stderr = process.communicate()
@@ -518,7 +532,7 @@ def write_summary(csv_path: Path, summary_path: Path, args: argparse.Namespace) 
 		f"# External TSPN {args.mode} comparison", "", f"> {mode_note}", "",
 		"| Configuration | Value |", "|---|---:|", f"| Suite | `{args.suite}` |",
 		f"| Mode | {args.mode} |", f"| Cases recorded | {len(rows)} |",
-		f"| Time limit per case | {args.time_limit}s |",
+		f"| Time limit per case | {time_limit_label(args.time_limit)} |",
 		f"| Solver threads | {'all available' if args.threads == 0 else args.threads} |",
 		f"| Oracle backend | {args.oracle_backend} |",
 		f"| TPP oracle tolerance | {args.oracle_tolerance} |",
@@ -587,8 +601,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 	args.tspn_repo = args.tspn_repo.resolve()
 	if args.worker:
 		return worker(args)
-	if args.time_limit < 1 or args.threads < 0 or args.workers < 1 or args.eps <= 0 or args.feasibility_tolerance <= 0 or args.validation_tolerance <= 0:
-		raise SystemExit("Time, workers, optimality, feasibility, and validation tolerances must be positive; threads must be nonnegative")
+	if args.time_limit == 0 or args.time_limit < -1 or args.threads < 0 or args.workers < 1 or args.eps <= 0 or args.feasibility_tolerance <= 0 or args.validation_tolerance <= 0:
+		raise SystemExit("--time-limit must be -1 or positive; workers, optimality, feasibility, and validation tolerances must be positive; threads must be nonnegative")
 	if not args.suite.exists():
 		raise SystemExit(f"Suite does not exist: {args.suite}")
 	if not (args.tspn_repo / "python/tspn_bnb2").exists():

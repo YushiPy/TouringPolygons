@@ -24,6 +24,11 @@ As famílias internas são:
 - execução e validação: `benchmark_cases.py`, `unordered_*` e `bench.py`;
 - comparação externa: `tspn_run_comparison.py`, `tspn_oracle_backends.py` e
   `run_fekete.py`;
+
+Na comparação com Fekete, `--time-limit -1` significa execução sem limite de
+tempo. O watchdog do processo pai é desativado nesse modo e o valor `-1` é
+mantido nos manifestos e resultados; a conversão para o limite inteiro nativo
+é feita somente dentro do worker, para compatibilidade com bindings antigos.
 - conversão: `convert_instances.py`, `convert_tspn_native_instances.py` e
   `normalize_polygon_orientation.py`.
 

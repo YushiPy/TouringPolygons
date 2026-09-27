@@ -1225,7 +1225,7 @@ async function initialize() {
 					? row.intro
 					: `No Caso ${caseLabel(row.case)}, a rota parte de s, visita ${row.polygons} regiões e chega a t. Veja a solução ótima encontrada para essa instância:`;
 		element("route-endpoint-legend").textContent = isUsp
-			? "Blocos A, B e C do IME dourados · s = t na entrada"
+			? "s partida · t chegada"
 			: isSpBairros ? "s = t · centro da subprefeitura Sé"
 				: isBrEstados ? "s = t · Brasília" : "s partida · t chegada";
 		element("usp-current-stop").hidden = !isUsp;

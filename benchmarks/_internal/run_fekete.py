@@ -48,7 +48,10 @@ def parser() -> argparse.ArgumentParser:
 	result.add_argument("--tspn-repo", type=Path, default=DEFAULT_REPO)
 	result.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
 	result.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
-	result.add_argument("--time-limit", type=int, default=DEFAULT_TIME_LIMIT)
+	result.add_argument(
+		"--time-limit", type=int, default=DEFAULT_TIME_LIMIT,
+		help="Seconds per case; -1 means no time limit.",
+	)
 	result.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
 	result.add_argument("--case", type=int, action="append", help="Run only this case; repeatable.")
 	result.add_argument("--dry-run", action="store_true", help="Validate inputs and show pending work.")
@@ -121,6 +124,10 @@ def atomic_write_csv(path: Path, rows: dict[int, dict[str, Any]]) -> None:
 
 def parse_bool(value: Any) -> bool:
 	return str(value).strip().lower() in {"1", "true", "yes"}
+
+
+def time_limit_label(seconds: int) -> str:
+	return "unlimited" if seconds == -1 else f"{seconds}s"
 
 
 def same_float(value: Any, expected: float) -> bool:
@@ -296,7 +303,9 @@ def write_status(
 	)
 	limits = sum(row.get("status") in {"limit", "process_timeout"} for row in rows.values())
 	errors = sum(row.get("status") == "error" for row in rows.values())
-	limit_label = f"{time_limit / 3600:g} h" if time_limit >= 3600 else f"{time_limit} s"
+	limit_label = "unlimited" if time_limit == -1 else (
+		f"{time_limit / 3600:g} h" if time_limit >= 3600 else f"{time_limit} s"
+	)
 	status = {
 		"updated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
 		"total_cases": total_cases,
@@ -361,8 +370,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 	args.tspn_repo = args.tspn_repo.resolve()
 	args.baseline = args.baseline.resolve()
 	args.output = args.output.resolve()
-	if args.time_limit < 1 or args.workers < 1:
-		raise SystemExit("--time-limit and --workers must be positive")
+	if args.time_limit == 0 or args.time_limit < -1 or args.workers < 1:
+		raise SystemExit("--time-limit must be -1 or positive; --workers must be positive")
 	for required in (args.suite, args.baseline, args.tspn_repo / "python/tspn_bnb2"):
 		if not required.exists():
 			raise SystemExit(f"Required input does not exist: {required}")
@@ -389,10 +398,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 	print(f"Suite: {len(cases)} instances")
 	print(f"Reused from matching 10 s run: {len(seeded)}")
-	print(f"Already checkpointed at {args.time_limit}s: {len(terminal - seeded)}")
+	print(f"Already checkpointed at {time_limit_label(args.time_limit)}: {len(terminal - seeded)}")
 	print(f"Pending in this invocation: {len(pending)}")
 	print(f"Execution: {args.workers} independent workers, 1 solver thread each")
-	print(f"Worst-case remaining wall time: {math.ceil(len(pending) / args.workers) * args.time_limit / 3600:.1f} h")
+	if args.time_limit == -1:
+		print("Worst-case remaining wall time: unbounded (no per-case time limit)")
+	else:
+		print(f"Worst-case remaining wall time: {math.ceil(len(pending) / args.workers) * args.time_limit / 3600:.1f} h")
 	print(f"Output: {args.output}")
 	if args.dry_run:
 		print("Dry run complete; no campaign files were changed.")
