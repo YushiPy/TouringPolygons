@@ -21,8 +21,11 @@ largura da imagem; não há cards laterais sobrepostos ao mapa.
 
 `usp-route-capture.json` registra versão do Chromium, dimensões das duas
 imagens, propriedades da cena, limites da solução e hashes SHA-256 das fontes
-e das imagens. A origem
-dos contornos e a formulação estão em
+e das imagens. No pôster revisado, o texto da instância fica acima do mapa e
+resume as 51 regiões, a rota numericamente ótima de 4,97 km e o tempo registrado
+de 8,77 s; explicita também que as regiões são alvos, não obstáculos, e que as
+regras de voo não são modeladas. A instância da USP é uma demonstração separada
+do corpus de Fekete et al. A origem dos contornos e a formulação estão em
 [`USP-DEMO.md`](../../../../../../apps/siicusp34/data/USP-DEMO.md).
 
 Para refazer a captura, a partir da raiz do repositório:

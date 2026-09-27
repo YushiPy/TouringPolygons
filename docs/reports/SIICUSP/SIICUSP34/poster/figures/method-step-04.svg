@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" class="algorithm-flow" viewBox="0 0 320 160" role="img" aria-label="Rota ótima da mesma instância, agora com os cinco polígonos A, B, C, D e E selecionados"><style>
+svg.algorithm-flow text { fill:#eef8f5; font:700 16px ui-sans-serif, system-ui, sans-serif; }
+.algorithm-flow .diagram-region { fill:#266f66; fill-opacity:.82; stroke:#a8e3d3; stroke-width:1.5; }
+.diagram-heuristic-route,.diagram-optimal-route,.diagram-refined-route { fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.diagram-heuristic-route { stroke:#ffad66; stroke-width:3.3; }
+.diagram-optimal-route { stroke:#f5fbf9; stroke-width:2.7; stroke-dasharray:6 4; }
+.algorithm-flow .diagram-point-label,.algorithm-flow .diagram-polygon-label { font-size:9px; }
+.algorithm-flow .diagram-polygon-label { fill:#f4faf8; paint-order:stroke; stroke:#102c38; stroke-width:2px; }
+.algorithm-flow .diagram-insertion-label { font-size:10px; }
+.diagram-nonconvex-region { fill:#266f66; stroke:#a8e3d3; stroke-width:2; }
+.algorithm-nonconvex-card .diagram-hull { fill:#ffad660e; stroke:#f5fbf9; stroke-width:1.5; stroke-dasharray:5 4; }
+.diagram-refined-route { stroke:#ffad66; stroke-width:3; }
+.diagram-route,.diagram-branch,.diagram-relaxed-route { fill:none; stroke:#ffad66; stroke-width:4; stroke-linecap:round; stroke-linejoin:round; }
+.diagram-branch { stroke-width:2.5; }
+.diagram-relaxed-route { stroke-dasharray:5 4; }
+.diagram-region { fill:#266f66; stroke:#a8e3d3; stroke-width:2; }
+.diagram-remaining { fill:#31535b; stroke:#a8e3d3; stroke-width:2; stroke-dasharray:4 3; }
+.diagram-endpoint { fill:#fff; }
+.diagram-region-label { fill:#f4faf8; font-size:13px !important; paint-order:stroke; stroke:#102c38; stroke-width:2.5px; }
+.diagram-region-incidental { fill:#b39352; stroke:#f4d890; }
+.diagram-region-unvisited { fill:#31535b; stroke:#95aeb2; stroke-dasharray:4 3; }
+.diagram-piece-fill { fill:#398d7d; fill-opacity:.48; stroke:#a8e3d3; stroke-width:1; }
+.diagram-piece-fill:nth-child(even) { fill:#65b3a1; fill-opacity:.34; }
+.diagram-piece-chosen { fill:#ffad66; fill-opacity:.38; }
+.diagram-piece-cut { fill:none; stroke:#d1f3e8; stroke-width:2.1; stroke-dasharray:3 2; stroke-linecap:round; }
+.diagram-region-outline { fill:none; stroke:#a8e3d3; stroke-width:2; }
+.diagram-node { fill:#31535b; stroke:#a8e3d3; stroke-width:2; }
+.diagram-node-child { stroke:#ffad66; }
+.diagram-hull { fill:#ffad661e; stroke:#ffad66; stroke-width:2; stroke-dasharray:5 4; }
+.diagram-piece-one { fill:#266f66; stroke:#a8e3d3; stroke-width:2; }
+.diagram-piece-two { fill:#519b8c; stroke:#a8e3d3; stroke-width:2; }
+.diagram-axis { fill:none; stroke:#c8ded9; stroke-width:2; }
+.diagram-upper { stroke:#8ed5c3; stroke-width:4; }
+.diagram-lower { stroke:#ffad66; stroke-width:4; }
+.legend-line-solid { stroke:#ffad66; stroke-width:3; }
+.legend-line-dashed { stroke:#f5fbf9; stroke-width:3; stroke-dasharray:6 4; }
+.legend-text { fill:#e8f0f2; font:400 10.88px ui-sans-serif, system-ui, sans-serif; }
+</style><polygon class="diagram-region" points="207.38,103.09 185.5,109.29 193.94,123.08 232.54,106.88 216,84.48"/><polygon class="diagram-region" points="87.46,59.32 118.3,76.04 121.06,60.36 133.81,36.41"/><polygon class="diagram-region" points="144.15,37.1 184.12,38.47 226.86,63.11 202.39,24"/><polygon class="diagram-region" points="133.81,113.77 112.27,92.23 116.06,127.9 171.03,136"/><polygon class="diagram-region" points="156.73,53.12 128.3,76.55 152.94,70.35 151.04,83.45 184.12,68.28"/>
+		<polyline class="diagram-heuristic-route" points="193.77,86.55 185.5,109.29 146.25,121.2 130.41,42.79 144.15,37.1 166.2,86.55"/>
+		<text class="diagram-region-label" x="209.96" y="106.64" text-anchor="middle" dominant-baseline="central">D</text><text class="diagram-region-label" x="112.08" y="57.22" text-anchor="middle" dominant-baseline="central">B</text><text class="diagram-region-label" x="194.5" y="38.73" text-anchor="middle" dominant-baseline="central">A</text><text class="diagram-region-label" x="131.93" y="119.66" text-anchor="middle" dominant-baseline="central">E</text><text class="diagram-region-label" x="158.43" y="67.81" text-anchor="middle" dominant-baseline="central">C</text>
+		<circle class="diagram-endpoint" cx="193.77" cy="86.55" r="3.5"/><text class="diagram-point-label" x="187.77" y="98.55" text-anchor="middle">s</text><circle class="diagram-endpoint" cx="166.2" cy="86.55" r="3.5"/><text class="diagram-point-label" x="173.2" y="82.55">t</text></svg>

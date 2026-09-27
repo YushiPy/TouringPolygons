@@ -354,7 +354,11 @@ def save_outputs(
 
 def pending_order(
 	indices: Sequence[int], baseline: dict[int, dict[str, str]], terminal: set[int],
+	preserve_order: bool = False,
 ) -> list[int]:
+	if preserve_order:
+		return [index for index in indices if index not in terminal]
+
 	def key(index: int) -> tuple[float, int, int]:
 		try:
 			gap = float(baseline[index].get("relative_gap", "inf"))
@@ -381,12 +385,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 	cases = comparison.read_cases(args.suite)
 	baseline = load_baseline(args.baseline, cases)
 	if args.case:
-		indices = sorted(set(args.case))
+		# Preserve the user's command-line order while removing duplicates.
+		indices = list(dict.fromkeys(args.case))
 		invalid = [index for index in indices if not 0 <= index < len(cases)]
 		if invalid:
 			raise SystemExit(f"Case indices outside suite: {invalid}")
+		preserve_order = True
 	else:
 		indices = list(range(len(cases)))
+		preserve_order = False
 
 	config = campaign_config(args, binding)
 	versions = solver_versions()
@@ -394,7 +401,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 	checkpoints = load_checkpoints(case_dir, cases, args)
 	rows, seeded = combined_rows(baseline, checkpoints)
 	terminal = {index for index, row in rows.items() if row.get("status") in TERMINAL_STATUSES}
-	pending = pending_order(indices, baseline, terminal)
+	pending = pending_order(indices, baseline, terminal, preserve_order=preserve_order)
 
 	print(f"Suite: {len(cases)} instances")
 	print(f"Reused from matching 10 s run: {len(seeded)}")

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" class="algorithm-flow" viewBox="0 0 320 180" role="img" aria-label="Comparação entre a rota gulosa inicial e a rota ótima da primeira instância do desafio 1"><style>
+svg.algorithm-flow text { fill:#eef8f5; font:700 16px ui-sans-serif, system-ui, sans-serif; }
+.algorithm-flow .diagram-region { fill:#266f66; fill-opacity:.82; stroke:#a8e3d3; stroke-width:1.5; }
+.diagram-heuristic-route,.diagram-optimal-route,.diagram-refined-route { fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.diagram-heuristic-route { stroke:#ffad66; stroke-width:3.3; }
+.diagram-optimal-route { stroke:#f5fbf9; stroke-width:2.7; stroke-dasharray:6 4; }
+.algorithm-flow .diagram-point-label,.algorithm-flow .diagram-polygon-label { font-size:9px; }
+.algorithm-flow .diagram-polygon-label { fill:#f4faf8; paint-order:stroke; stroke:#102c38; stroke-width:2px; }
+.algorithm-flow .diagram-insertion-label { font-size:10px; }
+.diagram-nonconvex-region { fill:#266f66; stroke:#a8e3d3; stroke-width:2; }
+.algorithm-nonconvex-card .diagram-hull { fill:#ffad660e; stroke:#f5fbf9; stroke-width:1.5; stroke-dasharray:5 4; }
+.diagram-refined-route { stroke:#ffad66; stroke-width:3; }
+.diagram-route,.diagram-branch,.diagram-relaxed-route { fill:none; stroke:#ffad66; stroke-width:4; stroke-linecap:round; stroke-linejoin:round; }
+.diagram-branch { stroke-width:2.5; }
+.diagram-relaxed-route { stroke-dasharray:5 4; }
+.diagram-region { fill:#266f66; stroke:#a8e3d3; stroke-width:2; }
+.diagram-remaining { fill:#31535b; stroke:#a8e3d3; stroke-width:2; stroke-dasharray:4 3; }
+.diagram-endpoint { fill:#fff; }
+.diagram-region-label { fill:#f4faf8; font-size:13px !important; paint-order:stroke; stroke:#102c38; stroke-width:2.5px; }
+.diagram-region-incidental { fill:#b39352; stroke:#f4d890; }
+.diagram-region-unvisited { fill:#31535b; stroke:#95aeb2; stroke-dasharray:4 3; }
+.diagram-piece-fill { fill:#398d7d; fill-opacity:.48; stroke:#a8e3d3; stroke-width:1; }
+.diagram-piece-fill:nth-child(even) { fill:#65b3a1; fill-opacity:.34; }
+.diagram-piece-chosen { fill:#ffad66; fill-opacity:.38; }
+.diagram-piece-cut { fill:none; stroke:#d1f3e8; stroke-width:2.1; stroke-dasharray:3 2; stroke-linecap:round; }
+.diagram-region-outline { fill:none; stroke:#a8e3d3; stroke-width:2; }
+.diagram-node { fill:#31535b; stroke:#a8e3d3; stroke-width:2; }
+.diagram-node-child { stroke:#ffad66; }
+.diagram-hull { fill:#ffad661e; stroke:#ffad66; stroke-width:2; stroke-dasharray:5 4; }
+.diagram-piece-one { fill:#266f66; stroke:#a8e3d3; stroke-width:2; }
+.diagram-piece-two { fill:#519b8c; stroke:#a8e3d3; stroke-width:2; }
+.diagram-axis { fill:none; stroke:#c8ded9; stroke-width:2; }
+.diagram-upper { stroke:#8ed5c3; stroke-width:4; }
+.diagram-lower { stroke:#ffad66; stroke-width:4; }
+.legend-line-solid { stroke:#ffad66; stroke-width:3; }
+.legend-line-dashed { stroke:#f5fbf9; stroke-width:3; stroke-dasharray:6 4; }
+svg.algorithm-flow text.legend-text { fill:#e8f0f2; font:400 10.88px ui-sans-serif, system-ui, sans-serif; }
+</style><polygon class="diagram-region" points="132.99,24.06 114.47,41.04 131.27,58.17 142.6,46.01"/><polygon class="diagram-region" points="101.99,87.35 106.93,123.36 157.47,136"/><polygon class="diagram-region" points="144.2,82.95 147.74,100.64 165.43,104.17 168.97,82.95"/><polygon class="diagram-region" points="203.86,24 188.3,39.36 207.39,62.92 218.01,45.23"/><polygon class="diagram-region" points="216.34,100.72 189.1,112.87 215.31,132.79"/>
+		<polyline class="diagram-optimal-route" points="133.15,85.68 113.7,97.61 131.27,58.17 202.28,56.61 189.1,112.87 165.43,104.17 168.64,110.67"/>
+		<polyline class="diagram-heuristic-route" points="133.15,85.68 147.74,100.64 144.61,124.72 189.1,112.87 197.2,50.35 142.6,46.01 168.64,110.67"/>
+		<circle class="diagram-endpoint" cx="133.15" cy="85.68" r="3.5"/><text class="diagram-point-label" x="127.15" y="97.68" text-anchor="middle">s</text><circle class="diagram-endpoint" cx="168.64" cy="110.67" r="3.5"/><text class="diagram-point-label" x="175.64" y="106.67">t</text><line class="legend-line-solid" x1="53" y1="170" x2="73" y2="170"/><text class="legend-text" x="79" y="174">Heurística · 122,65 m</text><line class="legend-line-dashed" x1="190" y1="170" x2="210" y2="170"/><text class="legend-text" x="216" y="174">Ótimo · 100 m</text></svg>

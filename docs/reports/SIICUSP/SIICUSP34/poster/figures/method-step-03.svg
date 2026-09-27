@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" class="algorithm-flow" viewBox="0 0 240 120" role="img" aria-label="Limite inferior certificado L comparado ao limite superior U; quando L alcança U dentro da tolerância, o ramo é podado"><style>
+svg.algorithm-flow text { fill:#eef8f5; font:700 16px ui-sans-serif, system-ui, sans-serif; }
+.algorithm-flow .diagram-region { fill:#266f66; fill-opacity:.82; stroke:#a8e3d3; stroke-width:1.5; }
+.diagram-heuristic-route,.diagram-optimal-route,.diagram-refined-route { fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.diagram-heuristic-route { stroke:#ffad66; stroke-width:3.3; }
+.diagram-optimal-route { stroke:#f5fbf9; stroke-width:2.7; stroke-dasharray:6 4; }
+.algorithm-flow .diagram-point-label,.algorithm-flow .diagram-polygon-label { font-size:9px; }
+.algorithm-flow .diagram-polygon-label { fill:#f4faf8; paint-order:stroke; stroke:#102c38; stroke-width:2px; }
+.algorithm-flow .diagram-insertion-label { font-size:10px; }
+.diagram-nonconvex-region { fill:#266f66; stroke:#a8e3d3; stroke-width:2; }
+.algorithm-nonconvex-card .diagram-hull { fill:#ffad660e; stroke:#f5fbf9; stroke-width:1.5; stroke-dasharray:5 4; }
+.diagram-refined-route { stroke:#ffad66; stroke-width:3; }
+.diagram-route,.diagram-branch,.diagram-relaxed-route { fill:none; stroke:#ffad66; stroke-width:4; stroke-linecap:round; stroke-linejoin:round; }
+.diagram-branch { stroke-width:2.5; }
+.diagram-relaxed-route { stroke-dasharray:5 4; }
+.diagram-region { fill:#266f66; stroke:#a8e3d3; stroke-width:2; }
+.diagram-remaining { fill:#31535b; stroke:#a8e3d3; stroke-width:2; stroke-dasharray:4 3; }
+.diagram-endpoint { fill:#fff; }
+.diagram-region-label { fill:#f4faf8; font-size:13px !important; paint-order:stroke; stroke:#102c38; stroke-width:2.5px; }
+.diagram-region-incidental { fill:#b39352; stroke:#f4d890; }
+.diagram-region-unvisited { fill:#31535b; stroke:#95aeb2; stroke-dasharray:4 3; }
+.diagram-piece-fill { fill:#398d7d; fill-opacity:.48; stroke:#a8e3d3; stroke-width:1; }
+.diagram-piece-fill:nth-child(even) { fill:#65b3a1; fill-opacity:.34; }
+.diagram-piece-chosen { fill:#ffad66; fill-opacity:.38; }
+.diagram-piece-cut { fill:none; stroke:#d1f3e8; stroke-width:2.1; stroke-dasharray:3 2; stroke-linecap:round; }
+.diagram-region-outline { fill:none; stroke:#a8e3d3; stroke-width:2; }
+.diagram-node { fill:#31535b; stroke:#a8e3d3; stroke-width:2; }
+.diagram-node-child { stroke:#ffad66; }
+.diagram-hull { fill:#ffad661e; stroke:#ffad66; stroke-width:2; stroke-dasharray:5 4; }
+.diagram-piece-one { fill:#266f66; stroke:#a8e3d3; stroke-width:2; }
+.diagram-piece-two { fill:#519b8c; stroke:#a8e3d3; stroke-width:2; }
+.diagram-axis { fill:none; stroke:#c8ded9; stroke-width:2; }
+.diagram-upper { stroke:#8ed5c3; stroke-width:4; }
+.diagram-lower { stroke:#ffad66; stroke-width:4; }
+.legend-line-solid { stroke:#ffad66; stroke-width:3; }
+.legend-line-dashed { stroke:#f5fbf9; stroke-width:3; stroke-dasharray:6 4; }
+.legend-text { fill:#e8f0f2; font:400 10.88px ui-sans-serif, system-ui, sans-serif; }
+</style><path class="diagram-axis" d="M18 73H222"/><path class="diagram-axis" d="m215 67 7 6-7 6"/><path class="diagram-upper" d="M102 50V93"/><path class="diagram-lower" d="M168 50V93"/><text x="96" y="40">U</text><text x="163" y="40">L</text><text x="104" y="110">L ≥ U − ε</text></svg>

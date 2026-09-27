@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" class="algorithm-flow algorithm-nonconvex-card" viewBox="0 0 320 160" role="img" aria-label="Instância do desafio 2 com os três polígonos, caminho viável e decomposição em peças convexas"><style>
+svg.algorithm-flow text { fill:#eef8f5; font:700 16px ui-sans-serif, system-ui, sans-serif; }
+.algorithm-flow .diagram-region { fill:#266f66; fill-opacity:.82; stroke:#a8e3d3; stroke-width:1.5; }
+.diagram-heuristic-route,.diagram-optimal-route,.diagram-refined-route { fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.diagram-heuristic-route { stroke:#ffad66; stroke-width:3.3; }
+.diagram-optimal-route { stroke:#f5fbf9; stroke-width:2.7; stroke-dasharray:6 4; }
+.algorithm-flow .diagram-point-label,.algorithm-flow .diagram-polygon-label { font-size:9px; }
+.algorithm-flow .diagram-polygon-label { fill:#f4faf8; paint-order:stroke; stroke:#102c38; stroke-width:2px; }
+.algorithm-flow .diagram-insertion-label { font-size:10px; }
+.diagram-nonconvex-region { fill:#266f66; stroke:#a8e3d3; stroke-width:2; }
+.algorithm-nonconvex-card .diagram-hull { fill:#ffad660e; stroke:#f5fbf9; stroke-width:1.5; stroke-dasharray:5 4; }
+.diagram-refined-route { stroke:#ffad66; stroke-width:3; }
+.diagram-route,.diagram-branch,.diagram-relaxed-route { fill:none; stroke:#ffad66; stroke-width:4; stroke-linecap:round; stroke-linejoin:round; }
+.diagram-branch { stroke-width:2.5; }
+.diagram-relaxed-route { stroke-dasharray:5 4; }
+.diagram-region { fill:#266f66; stroke:#a8e3d3; stroke-width:2; }
+.diagram-remaining { fill:#31535b; stroke:#a8e3d3; stroke-width:2; stroke-dasharray:4 3; }
+.diagram-endpoint { fill:#fff; }
+.diagram-region-label { fill:#f4faf8; font-size:13px !important; paint-order:stroke; stroke:#102c38; stroke-width:2.5px; }
+.diagram-region-incidental { fill:#b39352; stroke:#f4d890; }
+.diagram-region-unvisited { fill:#31535b; stroke:#95aeb2; stroke-dasharray:4 3; }
+.diagram-piece-fill { fill:#398d7d; fill-opacity:.48; stroke:#a8e3d3; stroke-width:1; }
+.diagram-piece-fill:nth-child(even) { fill:#65b3a1; fill-opacity:.34; }
+.diagram-piece-chosen { fill:#ffad66; fill-opacity:.38; }
+.diagram-piece-cut { fill:none; stroke:#d1f3e8; stroke-width:2.1; stroke-dasharray:3 2; stroke-linecap:round; }
+.diagram-region-outline { fill:none; stroke:#a8e3d3; stroke-width:2; }
+.diagram-node { fill:#31535b; stroke:#a8e3d3; stroke-width:2; }
+.diagram-node-child { stroke:#ffad66; }
+.diagram-hull { fill:#ffad661e; stroke:#ffad66; stroke-width:2; stroke-dasharray:5 4; }
+.diagram-piece-one { fill:#266f66; stroke:#a8e3d3; stroke-width:2; }
+.diagram-piece-two { fill:#519b8c; stroke:#a8e3d3; stroke-width:2; }
+.diagram-axis { fill:none; stroke:#c8ded9; stroke-width:2; }
+.diagram-upper { stroke:#8ed5c3; stroke-width:4; }
+.diagram-lower { stroke:#ffad66; stroke-width:4; }
+.legend-line-solid { stroke:#ffad66; stroke-width:3; }
+.legend-line-dashed { stroke:#f5fbf9; stroke-width:3; stroke-dasharray:6 4; }
+.legend-text { fill:#e8f0f2; font:400 10.88px ui-sans-serif, system-ui, sans-serif; }
+</style><polygon class="diagram-piece-fill" points="96,89.45 128.67,110.46 122.21,89.87"/><polygon class="diagram-piece-fill" points="96,89.45 122.21,89.87 125.82,68.23"/><polygon class="diagram-piece-fill" points="145.56,24 96,89.45 125.82,68.23 143.28,55.49"/><polygon class="diagram-piece-fill diagram-piece-chosen" points="169.23,45.97 145.56,24 143.28,55.49"/><polygon class="diagram-piece-fill" points="197.79,86.01 197.92,111.96 224,87.84"/><polygon class="diagram-piece-fill diagram-piece-chosen" points="191.92,53.8 197.79,86.01 224,87.84"/><polygon class="diagram-piece-fill diagram-piece-chosen" points="163.49,113.14 142.23,101.79 157.97,136"/><polygon class="diagram-piece-fill" points="185.27,117.96 163.49,113.14 157.97,136"/>
+		<polygon class="diagram-region-outline" points="169.23,45.97 143.28,55.49 125.82,68.23 122.21,89.87 128.67,110.46 96,89.45 145.56,24"/><polygon class="diagram-region-outline" points="191.92,53.8 197.79,86.01 197.92,111.96 224,87.84"/><polygon class="diagram-region-outline" points="185.27,117.96 163.49,113.14 142.23,101.79 157.97,136"/>
+		<line class="diagram-piece-cut" x1="122.21" y1="89.87" x2="96" y2="89.45"/><line class="diagram-piece-cut" x1="125.82" y1="68.23" x2="96" y2="89.45"/><line class="diagram-piece-cut" x1="143.28" y1="55.49" x2="145.56" y2="24"/><line class="diagram-piece-cut" x1="224" y1="87.84" x2="197.79" y2="86.01"/><line class="diagram-piece-cut" x1="157.97" y1="136" x2="163.49" y2="113.14"/><polyline class="diagram-heuristic-route" points="152.39,80.81 163.97,47.9 194.05,65.5 157.88,110.14 163.88,90.71"/>
+		<text class="diagram-region-label" x="129.73" y="63.88" text-anchor="middle" dominant-baseline="central">A</text><text class="diagram-region-label" x="205.47" y="84.59" text-anchor="middle" dominant-baseline="central">B</text><text class="diagram-region-label" x="161.58" y="119.61" text-anchor="middle" dominant-baseline="central">C</text>
+		<circle class="diagram-endpoint" cx="152.39" cy="80.81" r="3.5"/><text class="diagram-point-label" x="146.39" y="92.81" text-anchor="middle">s</text><circle class="diagram-endpoint" cx="163.88" cy="90.71" r="3.5"/><text class="diagram-point-label" x="170.88" y="86.71">t</text></svg>
