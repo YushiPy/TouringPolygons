@@ -32,9 +32,9 @@ Nem toda reunião precisa conter todos esses arquivos. Reuniões sem gravação,
 
 - `ACOMPANHAMENTO.md`: painel cumulativo com contexto, estado atual, tarefas abertas, atividades concluídas, decisões e próxima reunião.
 - `gravação-vídeo.mov`: gravação original da reunião, incluindo imagem e áudio.
-- `gravação-áudio.m4a`: faixa de áudio extraída do vídeo. Quando o vídeo contém AAC, a extração é feita sem recodificação, evitando perda adicional de qualidade.
+- `gravação-áudio.m4a`: faixa de áudio opcional, caso seja preservada separadamente. A ferramenta local de transcrição usa um WAV temporário e não o mantém como artefato.
 - `transcrição-bruta.txt`: saída direta do Whisper, dividida em segmentos com timestamps. Pode conter erros de reconhecimento, especialmente em nomes próprios e termos técnicos.
-- `transcrição-bruta.json`: representação estruturada da transcrição. Contém o caminho do áudio, o modelo utilizado, o idioma detectado, a duração e os segmentos com tempos inicial e final.
+- `transcrição-bruta.json`: representação estruturada da transcrição. Contém o caminho da mídia de entrada, o modelo utilizado, o idioma detectado, a duração e os segmentos com tempos inicial e final.
 - `transcrição-revisada.txt`: versão com correções contextuais de nomes e vocabulário técnico. Os timestamps são preservados para permitir conferência no áudio.
 - `resumo.md`: síntese privada da reunião, normalmente com pontos discutidos,
   decisões, ações, agenda e contexto administrativo.
@@ -54,4 +54,4 @@ Nem toda reunião precisa conter todos esses arquivos. Reuniões sem gravação,
 - A transcrição revisada não substitui a conferência do áudio em passagens ambíguas.
 - Após cada reunião, o `ACOMPANHAMENTO.md` deve ser atualizado com as novas tarefas, mudanças de estado e decisões duradouras.
 
-Os comandos para gerar o áudio e as transcrições estão documentados em [`../../scripts/README.md`](../../scripts/README.md).
+A ferramenta de transcrição é independente deste repositório. As instruções para revisão contextual da transcrição estão em [`../../scripts/README.md`](../../scripts/README.md).
