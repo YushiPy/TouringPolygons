@@ -52,6 +52,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/${TARGET}.cpp")
     target_compile_options(${PROJECT_NAME} PRIVATE -O3)
     if("${TARGET}" STREQUAL "main-cycle_tests")
         target_compile_definitions(${PROJECT_NAME} PRIVATE
+            TPP_CYCLE_REGRESSION_FILE="${CMAKE_CURRENT_SOURCE_DIR}/tests/cycle_active_contacts.json"
             TPP_CYCLE_REFERENCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../../benchmarks/results-saved/convex-cycle-gurobi-reference-2026-09-25")
     endif()
 endif()

@@ -249,6 +249,31 @@ void references() {
         }
     }
 }
+void active_contact_regressions() {
+    boost::property_tree::ptree input;
+    read_json(TPP_CYCLE_REGRESSION_FILE,input);
+    size_t cases=0;
+    for(const auto &[unused,item]:input.get_child("instances")) {
+        const auto name=item.get<std::string>("name");Polygons p;
+        for(const auto &[key,polygon]:item.get_child("polygons"))p.push_back(points(polygon));
+        const auto r=tpp::tpp_convex_solve_cycle(p);
+        require(solved(r),name+": active contact certificate");
+        require(r.oracle_calls<=2*p.size()+1,name+": bounded construction avoids extensive anchor search");
+        require(tpp::tpp_convex_verify_cycle_certificate(exact(p),r.contacts).status==
+                tpp::ConvexCycleCertificateStatus::Optimal,name+": independent rational verification");
+        const auto d=tpp::tpp_convex_solve_cycle_double(p);
+        const auto c=tpp::tpp_convex_verify_cycle_certificate(p,d.contacts);
+        require(d.status==ConvexCycleStatus::Optimal||d.status==ConvexCycleStatus::FloatingPointLimit,
+                name+": filtered double construction");
+        require(d.rational_anchor_recoveries==0&&d.rational_cycle_recoveries==0,
+                name+": double uses only local feature reconstruction");
+        require((c.status==tpp::ConvexCycleCertificateStatus::Feasible||c.status==tpp::ConvexCycleCertificateStatus::Optimal)&&
+                c.lower_bound<=r.certificate.upper_bound&&r.certificate.lower_bound<=c.upper_bound,
+                name+": independent double feasibility and overlapping bounds");
+        ++cases;
+    }
+    std::cout<<"Active contact regressions: "<<cases<<" rational/double relaxations passed.\n";
+}
 void random_cycles() {
     std::mt19937_64 random(93741);
     std::uniform_real_distribution<double> jitter(-0.3,0.3);
@@ -385,7 +410,7 @@ void intersecting_cycles() {
 } // namespace
 int main() {
     try {
-        known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();
+        known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();active_contact_regressions();
         std::cout<<"Double comparisons: "<<compared_double_cases<<", maximum objective difference="<<largest_double_difference<<", maximum certified gap="<<largest_double_gap<<", local recoveries="<<total_anchor_recoveries<<'\n';
         std::cout<<"Cycle solver tests passed.\n";
         return 0;

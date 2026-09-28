@@ -48,6 +48,10 @@ afeta trabalho e runtime, não a validade dos limites. `parallel_oracle_calls` e
 `parallel_oracle_batches` mostram quando houve paralelismo efetivo. O contador
 `calls` inclui todas as chamadas já lançadas, inclusive as que terminam após o
 limite cooperativo de tempo.
+A região OpenMP fica em uma função separada que não é expandida no chamador,
+para que o caminho serial não inicialize o runtime de threads. Essa função só
+é chamada quando há mais de um oráculo no lote; avaliação e propagação de
+exceções mantêm o mesmo contrato.
 Opcionalmente, `--detour-root` escolhe a primeira região pelo maior desvio
 mínimo do caminho reto ao visitar seu fecho convexo; empates favorecem a maior
 distância do caminho ao polígono original. A opção só muda a ordem da busca,

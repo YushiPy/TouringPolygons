@@ -57,6 +57,18 @@ affine unfolding gives a length `|(A-I)x+c|`. Its squared length is quadratic
 in `t`, so its stationary parameter is obtained rationally. Restoring skipped
 straight-through contacts preserves the visit order.
 
+A contact strictly between its neighbours is straight-through even if it lies
+on the polygon boundary: the two unit directions cancel, so that boundary
+must not introduce a reflection. When unfolding places a contact beyond its
+edge, the proposal pins it to the blocking endpoint and reconstructs the
+remaining chain. Each such pivot adds a vertex pin, hence at most `k` pivots
+occur in one sweep. A constructed chain feeds the next coordinate sweep so
+that restored contacts which now bend can update their active features.
+These are finite feature proposals, shared by both arithmetic types; only the
+independent certificate accepts an optimum. Failure still uses the complete
+boundary reduction. No displacement, convergence epsilon or discretization
+is introduced.
+
 Coincident vertex contacts can trap separate coordinate updates. An additional
 proposal releases them onto their incident edges facing the neighboring
 contacts, then solves those reflection equations together. This changes only
@@ -179,7 +191,8 @@ O(kN+H) stored arithmetic values.
 ```
 
 The optional proposal uses `O(N)` geometric operations per sweep without zero
-blocks, and at most `O(N^2)` for block intersections. Including its certificates,
+blocks, at most `O(k^2)` for endpoint pivots, and at most `O(N^2)` for block
+intersections. Including its certificates,
 its `k+1` sweeps add at most `R=O(k*(N^2+V))` per invocation. It is called before
 the search and at searched contacts, so replacing `C+V+H` by `C+V+H+R` gives a
 conservative bound for the accelerated implementation. The intended practical

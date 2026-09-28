@@ -47,6 +47,10 @@ template<class S> struct CycleRefinement {
         if(crosses&&lo<=hi) {
             const S t=dd==0?S(0):std::clamp(S((old-a).dot(d)/dd),lo,hi);
             const P q=a+d*t;
+            // A contact strictly between its neighbours is straight-through,
+            // even on a polygon edge or vertex. Reflecting at that inactive
+            // boundary creates a spurious bend in the closed construction.
+            if(t>0&&t<1)return {q,-1};
             for(size_t j=0;j<p.size();++j)if(q==p[j])return {q,int(2*j)};
             for(size_t j=0;j<p.size();++j)if((p[(j+1)%p.size()]-p[j]).cross(q-p[j])==0)return {q,int(2*j+1)};
             return {q,-1};
@@ -72,9 +76,18 @@ template<class S> struct CycleRefinement {
         }
         throw std::runtime_error("No representable local cycle contact");
     }
-    static bool close(const Polygons &p,const std::vector<int> &feature,Polygon &q) {
+    static bool close(const Polygons &p,const std::vector<int> &feature,Polygon &q,
+                      std::vector<int> *blocking=nullptr) {
         const size_t k=p.size();std::vector<size_t> pins,edges;
         for(size_t i=0;i<k;++i)if(feature[i]>=0&&feature[i]%2==0)pins.push_back(i);
+        auto on_edge=[&](size_t i,size_t j,const S &t) {
+            if(t>=0&&t<=1)return true;
+            if(blocking) {
+                const size_t vertex=t<0?j:(j+1)%p[i].size();
+                (*blocking)[i]=int(2*vertex);q[i]=p[i][vertex];
+            }
+            return false;
+        };
         auto unfold=[&](P target,const std::vector<size_t> &indices) {
             for(auto it=indices.rbegin();it!=indices.rend();++it) {
                 const size_t i=*it,j=size_t(feature[i])/2;
@@ -94,7 +107,7 @@ template<class S> struct CycleRefinement {
                 const auto point=intersection(current,images[r]-current,p[i][j],e);
                 if(!point)return false;
                 const S t=(*point-p[i][j]).dot(e)/e.dot(e);
-                if(t<0||t>1)return false;
+                if(!on_edge(i,j,t))return false;
                 q[i]=current=*point;
             }
             return true;
@@ -106,7 +119,7 @@ template<class S> struct CycleRefinement {
             const size_t j=size_t(feature[anchor])/2;const P a=p[anchor][j],e=p[anchor][(j+1)%p[anchor].size()]-a;
             const P c=unfold(a,edges)-a,d=unfold(a+e,edges)-(a+e)-c;
             const S dd=d.dot(d);const S t=dd==0?S(1)/2:S(-c.dot(d)/dd);
-            if(t<0||t>1)return false;
+            if(!on_edge(anchor,j,t))return false;
             q[anchor]=a+e*t;pins.push_back(anchor);
         }
         for(size_t r=0;r<pins.size();++r) {
@@ -222,9 +235,23 @@ template<class S> struct CycleRefinement {
             move_zero_blocks(p,q,feature);
             if(submit(q,feature,false))return true;
             Polygon closed=q;
-            if(close(p,feature,closed)&&submit(closed,feature,true))return true;
-            auto released=feature;closed=q;
-            if(release_coincident_vertices(p,q,released)&&close(p,released,closed)&&submit(closed,released,true))return true;
+            auto active=feature;
+            bool constructed=false;
+            // Every successful pivot replaces an edge feature by a vertex.
+            // At most k such changes are possible before a fresh sweep.
+            for(size_t pivot=0;pivot<=k;++pivot) {
+                auto next=active;
+                if(close(p,active,closed,&next)){constructed=true;break;}
+                if(next==active)break;
+                active=std::move(next);
+            }
+            if(constructed&&submit(closed,active,true))return true;
+            auto released=feature;Polygon unpinned=q;
+            if(release_coincident_vertices(p,q,released)&&close(p,released,unpinned)&&submit(unpinned,released,true))return true;
+            // A blocking endpoint or a restored skipped contact may change the
+            // active type. Feed that feasible construction into the next sweep
+            // instead of repeating projections between almost parallel edges.
+            if(constructed){q=std::move(closed);feature=std::move(active);}
             // This is a finite feature proposal, not a convergence tolerance.
             // Failure hands control back to the exact anchored reduction.
             if(!visited.insert(feature).second||visited.size()>=k+1)return false;

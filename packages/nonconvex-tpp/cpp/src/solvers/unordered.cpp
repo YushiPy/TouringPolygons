@@ -35,6 +35,22 @@ namespace {
 			return std::tie(a.bound, a.serial) > std::tie(b.bound, b.serial);
 		}
 	};
+
+	// Keep OpenMP's function-entry initialization out of the serial search.
+	// Inlining this region would make even a zero-oracle solve start its runtime.
+	template<class Evaluate>
+	[[gnu::noinline]] void evaluate_parallel_oracles(std::ptrdiff_t count, int threads, const Evaluate &evaluate) {
+		std::vector<std::exception_ptr> failures(count);
+#pragma omp parallel for schedule(dynamic) num_threads(threads)
+		for (std::ptrdiff_t slot = 0; slot < count; ++slot) {
+			try {
+				evaluate(slot, omp_get_thread_num());
+			} catch (...) {
+				failures[slot] = std::current_exception();
+			}
+		}
+		for (const auto &failure : failures) if (failure) std::rethrow_exception(failure);
+	}
 }
 
 namespace tpp {
@@ -712,20 +728,13 @@ namespace tpp {
 					result.parallel_oracle_calls += evaluation_children.size();
 					if (parallel_workspaces.size() < static_cast<size_t>(worker_count))
 						parallel_workspaces.resize(worker_count);
-					std::vector<std::exception_ptr> failures(evaluation_children.size());
 					const auto oracle_batch_began = std::chrono::steady_clock::now();
-#pragma omp parallel for schedule(dynamic) num_threads(worker_count)
-					for (std::ptrdiff_t slot = 0; slot < static_cast<std::ptrdiff_t>(evaluation_children.size()); ++slot) {
-						try {
-							const int worker = omp_get_thread_num();
+					evaluate_parallel_oracles(static_cast<std::ptrdiff_t>(evaluation_children.size()), worker_count,
+						[&](std::ptrdiff_t slot, int worker) {
 							certified[slot] = evaluate_oracle(children[evaluation_children[slot]], false,
 								batch_upper_bound, parallel_workspaces[worker]);
-						} catch (...) {
-							failures[slot] = std::current_exception();
-						}
-					}
+						});
 					result.convex_oracle_wall_seconds += duration(oracle_batch_began);
-					for (const auto &failure : failures) if (failure) std::rethrow_exception(failure);
 				}
 
 				for (size_t child_index = batch_begin; child_index < batch_end; ++child_index) {
