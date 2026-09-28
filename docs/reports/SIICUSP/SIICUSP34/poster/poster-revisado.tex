@@ -59,24 +59,23 @@
   % Section 1 uses one half-page column; two fixed-order problems lead to free order.
   \block{intro-head}{3}{18.3}{38.2}{\head{1}{Introdução}}
   \block{intro-context}{3}{20.67}{38.2}{\bodytext Suponha que um drone parte da entrada do IME para fotografar institutos e outras regiões da USP. Precisamos escolher \textbf{a ordem das visitas e o ponto de contato} em cada região para minimizar o comprimento do caminho. Esse problema é exatamente o TPP de ordem livre, o foco desse projeto de pesquisa.}
-  \fill[Pale,rounded corners=0.22cm] (3,25.7) rectangle (20.4,30.1);
-  \draw[Rule,line width=1.0pt,rounded corners=0.22cm] (3,25.7) rectangle (20.4,30.1);
+  \fill[Pale,rounded corners=0.22cm] (3,25.7) rectangle (20.4,29.87);
+  \draw[Rule,line width=1.0pt,rounded corners=0.22cm] (3,25.7) rectangle (20.4,29.87);
   \block{tsp}{3.55}{26.2}{16.3}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TSP}\par\vspace{0.10cm}\bodytext Menor ciclo que visita\\um conjunto de pontos.}
-  \fill[Pale,rounded corners=0.22cm] (3,30.6) rectangle (20.4,36.18);
-  \draw[Rule,line width=1.0pt,rounded corners=0.22cm] (3,30.6) rectangle (20.4,36.18);
-  \block{tpp}{3.55}{31.1}{16.3}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TPP}\par\vspace{0.10cm}\bodytext Menor caminho que parte de $s$,\\visita uma sequência de polígonos\\em ordem e chega em $t$.}
-  \fill[Accent!7,rounded corners=0.24cm] (22.8,26.9) rectangle (41.1,34.98);
-  \draw[Accent!65,line width=1.2pt,rounded corners=0.24cm] (22.8,26.9) rectangle (41.1,34.98);
+  \fill[Pale,rounded corners=0.22cm] (3,30.37) rectangle (20.4,35.63);
+  \draw[Rule,line width=1.0pt,rounded corners=0.22cm] (3,30.37) rectangle (20.4,35.63);
+  \block{tpp}{3.55}{30.87}{16.3}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TPP}\par\vspace{0.10cm}\bodytext Menor caminho que parte de $s$,\\visita uma sequência de polígonos\\em ordem e chega em $t$.}
+  \fill[Accent!7,rounded corners=0.24cm] (22.8,26.9) rectangle (41.1,33.33);
+  \draw[Accent!65,line width=1.2pt,rounded corners=0.24cm] (22.8,26.9) rectangle (41.1,33.33);
   \block{free-order}{23.45}{27.4}{17.0}{{\tagtext TPP de ordem livre}\par\vspace{0.14cm}\bodytext Menor caminho que parte de um ponto $s$,\\visita um conjunto de polígonos\\e chega em um ponto $t$.\par\vspace{0.10cm}\bodytext\bfseries Esse é o problema que resolvemos.}
   \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (20.4,27.9) -- (22.7,28.4);
-  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (20.4,33.39) -- (22.7,33.0);
+  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (20.4,33.16) -- (22.7,33.0);
   \block{evolution}{3}{36.6}{38.2}{\smalltext\textbf{Complementando o resumo:} O resumo apresentava o caso não convexo com ordem fixa. Após a submissão, concluímos a extensão para ordem livre.}
 
   % Section 2 presents the polynomial subproblem and the independent research story.
   \block{definitions-head}{42.7}{18.3}{38.4}{\head{2}{Trabalhos anteriores}}
   \block{prior-work}{42.7}{20.38}{38.4}{\tagtext Um subproblema polinomial\par\vspace{0.20cm}\bodytext Os três problemas são NP-difíceis. No entanto, para o TPP com polígonos convexos e ordem fixa, Dror et al. (2003) descrevem um algoritmo em $O(nk^2 \log n)$, depois melhorado por Tan \& Jiang (2017) para $O(nk^2)$. Aqui, $k$ é o número de polígonos e $n$ a soma dos vértices.}
-  \block{competition-story}{42.7}{25.34}{38.4}{\tagtext Duas abordagens\par\vspace{0.20cm}\bodytext Enumerar ordens e peças convexas com branch and bound é uma estratégia natural para o TPP de ordem livre. Fekete et al. [3] também apresentaram um algoritmo concreto: modelam o subproblema convexo como SOCP e o resolvem com Gurobi.\par\vspace{0.40cm}\tagtext Nossa comparação\par\vspace{0.20cm}\bodytext Nosso solver geométrico exato e autocontido, adaptado de Dror et al. e Tan \& Jiang, explora as propriedades do problema sem um solver comercial. Comparamos os métodos nas instâncias do próprio artigo de Fekete et al. para medir eficiência e precisão dos contatos.}
-  \block{practical-applications}{42.7}{35.21}{38.4}{\tagtext Aplicações práticas\par\vspace{0.20cm}\bodytext Pensamos em aplicações como entrega de última milha, vigilância e coleta de dados em agricultura de precisão. Em todos esses cenários, a capacidade dos veículos é uma restrição; por isso, queremos estender o método ao VRP com vizinhanças poligonais.}
+  \block{competition-story}{42.7}{25.34}{38.4}{\tagtext Duas abordagens\par\vspace{0.20cm}\bodytext Enumerar ordens e peças convexas com branch and bound é uma estratégia natural para o TPP de ordem livre. Fekete et al. [3] também apresentaram um algoritmo concreto: modelam o subproblema convexo como SOCP e o resolvem com Gurobi.\par\vspace{0.40cm}\tagtext Nossa comparação\par\vspace{0.20cm}\bodytext Nosso solver geométrico exato e autocontido, adaptado de Dror et al. e Tan \& Jiang, explora as propriedades geométricas do problema sem um solver comercial. Comparamos os métodos nas instâncias do próprio artigo de Fekete et al. para medir eficiência e precisão dos contatos.\par\vspace{0.40cm}\tagtext Aplicações práticas\par\vspace{0.20cm}\bodytext Pensamos em aplicações como entrega de última milha, vigilância e coleta de dados em agricultura de precisão. Em todos esses cenários, a capacidade dos veículos pode ser uma restrição; por isso, queremos estender o método ao VRP com vizinhanças poligonais.}
   % The map now has a concise, concrete caption beneath it.
   \block{map-head}{3}{41.4}{29.5}{\head{3}{A USP como instância}}
   \block{usp-map}{3}{49.3}{29.5}{\includegraphics[width=\linewidth]{figures/usp-route-square.png}}
