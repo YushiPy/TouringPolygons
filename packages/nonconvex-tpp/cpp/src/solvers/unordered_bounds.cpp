@@ -1,4 +1,5 @@
 #include "unordered_bounds.h"
+#include "tpp/convex/rational.h"
 
 #include <algorithm>
 #include <cmath>
@@ -7,8 +8,45 @@
 
 namespace tpp::unordered_detail {
 	std::vector<double> insertion_lower_bounds(const Polygon &contacts,
-		const std::vector<const Polygon *> &regions, const Polygon &inserted) {
+		const std::vector<const Polygon *> &regions, const Polygon &inserted, bool cycle) {
 		const size_t n = regions.size();
+		if (cycle) {
+			if (!n || contacts.size() != n + 1 || inserted.empty())
+				throw std::invalid_argument("Invalid cycle insertion-bound reference.");
+			using R = ConvexRational;
+			using P = ConvexRationalPoint;
+			const P origin(contacts.front());
+			auto direction = [](Vector2 a, Vector2 b) {
+				const P d = P(b) - P(a); const R squared = d.dot(d);
+				if (squared == 0) return P{};
+				double norm = std::hypot(b.x-a.x, b.y-a.y);
+				if (!std::isfinite(norm) || norm == 0) return P{};
+				while (R(norm)*R(norm) < squared) norm = std::nextafter(norm, INFINITY);
+				return d*(R(1)/R(norm));
+			};
+			auto support = [&](const Polygon &polygon, const P &normal) {
+				R value = (P(polygon.front())-origin).dot(normal);
+				for (auto v : polygon) value = std::min(value, (P(v)-origin).dot(normal));
+				return value;
+			};
+			std::vector<P> u; std::vector<R> terms(n); R parent = 0;
+			for (size_t i=0;i<n;++i) u.push_back(direction(contacts[i],contacts[i+1]));
+			for (size_t i=0;i<n;++i) parent += terms[i] = support(*regions[i],u[(i+n-1)%n]-u[i]);
+			std::vector<double> bounds(n);
+			for (size_t i=0;i<n;++i) {
+				const size_t next=(i+1)%n;
+				const auto point=best_contact(contacts[i],contacts[i+1],inserted,inserted.front());
+				const P left=direction(contacts[i],point),right=direction(point,contacts[i+1]);
+				R value=support(inserted,left-right);
+				if (n==1) value+=support(*regions[0],right-left);
+				else value+=parent-terms[i]-terms[next]+support(*regions[i],u[(i+n-1)%n]-left)
+					+support(*regions[next],right-u[next]);
+				value=std::max(R(0),value); double rounded=value.convert_to<double>();
+				while (R(rounded)>value) rounded=std::nextafter(rounded,-INFINITY);
+				bounds[i]=rounded;
+			}
+			return bounds;
+		}
 		if (contacts.size() != n + 2 || inserted.empty())
 			throw std::invalid_argument("Invalid insertion-bound reference path.");
 		const auto start = contacts.front(), target = contacts.back();

@@ -1,0 +1,702 @@
+[
+  {
+    "name": "two_oblique_triangles",
+    "k": 2,
+    "rational_seconds": {
+      "median": 1.7083e-05,
+      "min": 1.5375e-05,
+      "max": 3.4542e-05
+    },
+    "double_seconds": {
+      "median": 1.3375e-05,
+      "min": 1.2292e-05,
+      "max": 1.6417e-05
+    },
+    "gurobi_total_seconds": {
+      "median": 0.000299291,
+      "min": 0.000288042,
+      "max": 0.000391959
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.0002758502960205078,
+      "min": 0.00026488304138183594,
+      "max": 0.00035500526428222656
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 8.881784197001252e-16,
+    "max_double_objective_difference": 0.0,
+    "max_gurobi_objective_difference": 4.427193900369275e-07,
+    "max_rational_recoveries": 0,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 0,
+    "max_rational_cycle_recoveries": 0
+  },
+  {
+    "name": "three_asymmetric_boxes",
+    "k": 3,
+    "rational_seconds": {
+      "median": 6.7125e-05,
+      "min": 6.2792e-05,
+      "max": 0.000183458
+    },
+    "double_seconds": {
+      "median": 4e-05,
+      "min": 3.45e-05,
+      "max": 8.7041e-05
+    },
+    "gurobi_total_seconds": {
+      "median": 0.0003515,
+      "min": 0.00029925,
+      "max": 0.001003292
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.0003218650817871094,
+      "min": 0.0002701282501220703,
+      "max": 0.0009059906005859375
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 1.7763568394002505e-15,
+    "max_double_objective_difference": 0.0,
+    "max_gurobi_objective_difference": 1.0130560248455822e-06,
+    "max_rational_recoveries": 0,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 0,
+    "max_rational_cycle_recoveries": 0
+  },
+  {
+    "name": "four_asymmetric_boxes",
+    "k": 4,
+    "rational_seconds": {
+      "median": 8.5792e-05,
+      "min": 7.7667e-05,
+      "max": 0.000149917
+    },
+    "double_seconds": {
+      "median": 5.2625e-05,
+      "min": 4.7959e-05,
+      "max": 9.3208e-05
+    },
+    "gurobi_total_seconds": {
+      "median": 0.0004085,
+      "min": 0.000342708,
+      "max": 0.000643667
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.000370025634765625,
+      "min": 0.0003108978271484375,
+      "max": 0.0005970001220703125
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 1.7763568394002505e-15,
+    "max_double_objective_difference": 0.0,
+    "max_gurobi_objective_difference": 9.145828521184285e-07,
+    "max_rational_recoveries": 0,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 0,
+    "max_rational_cycle_recoveries": 0
+  },
+  {
+    "name": "five_scattered_quadrilaterals",
+    "k": 5,
+    "rational_seconds": {
+      "median": 0.000288291,
+      "min": 0.000269542,
+      "max": 0.000342167
+    },
+    "double_seconds": {
+      "median": 0.000361292,
+      "min": 0.000338625,
+      "max": 0.000457792
+    },
+    "gurobi_total_seconds": {
+      "median": 0.000445459,
+      "min": 0.000396458,
+      "max": 0.000637333
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.0004019737243652344,
+      "min": 0.0003559589385986328,
+      "max": 0.0005500316619873047
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 3.552713678800501e-15,
+    "max_double_objective_difference": 0.0,
+    "max_gurobi_objective_difference": 5.975594206120149e-07,
+    "max_rational_recoveries": 1,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 1,
+    "max_rational_cycle_recoveries": 0
+  },
+  {
+    "name": "overlap_zero",
+    "k": 2,
+    "rational_seconds": {
+      "median": 1.4917e-05,
+      "min": 1.425e-05,
+      "max": 1.6459e-05
+    },
+    "double_seconds": {
+      "median": 1.0791e-05,
+      "min": 1.0208e-05,
+      "max": 1.1667e-05
+    },
+    "gurobi_total_seconds": {
+      "median": 0.0002225,
+      "min": 0.000215542,
+      "max": 0.000242917
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.00019812583923339844,
+      "min": 0.00019216537475585938,
+      "max": 0.00021600723266601562
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 0,
+    "max_double_objective_difference": 0,
+    "max_gurobi_objective_difference": 0,
+    "max_rational_recoveries": 0,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 0,
+    "max_rational_cycle_recoveries": 0
+  },
+  {
+    "name": "nested_positive",
+    "k": 3,
+    "rational_seconds": {
+      "median": 5.225e-05,
+      "min": 4.85e-05,
+      "max": 7.6167e-05
+    },
+    "double_seconds": {
+      "median": 3.5792e-05,
+      "min": 3.2125e-05,
+      "max": 4.6666e-05
+    },
+    "gurobi_total_seconds": {
+      "median": 0.000314125,
+      "min": 0.000295459,
+      "max": 0.000533875
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.0002810955047607422,
+      "min": 0.00026488304138183594,
+      "max": 0.0004940032958984375
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 0,
+    "max_double_objective_difference": 0,
+    "max_gurobi_objective_difference": 3.3506202257171935e-07,
+    "max_rational_recoveries": 0,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 0,
+    "max_rational_cycle_recoveries": 0
+  },
+  {
+    "name": "subunit_zero_link",
+    "k": 4,
+    "rational_seconds": {
+      "median": 6.2209e-05,
+      "min": 5.4958e-05,
+      "max": 7.7625e-05
+    },
+    "double_seconds": {
+      "median": 3.8833e-05,
+      "min": 3.45e-05,
+      "max": 4.1708e-05
+    },
+    "gurobi_total_seconds": {
+      "median": 0.00035425,
+      "min": 0.000324625,
+      "max": 0.000426458
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.0003180503845214844,
+      "min": 0.00029087066650390625,
+      "max": 0.00038504600524902344
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 8.881784197001252e-16,
+    "max_double_objective_difference": 0.0,
+    "max_gurobi_objective_difference": 2.0764140868934078e-06,
+    "max_rational_recoveries": 0,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 0,
+    "max_rational_cycle_recoveries": 0
+  },
+  {
+    "name": "overlap_positive",
+    "k": 4,
+    "rational_seconds": {
+      "median": 5.8375e-05,
+      "min": 5.4458e-05,
+      "max": 6.9917e-05
+    },
+    "double_seconds": {
+      "median": 3.8083e-05,
+      "min": 3.5083e-05,
+      "max": 4.4167e-05
+    },
+    "gurobi_total_seconds": {
+      "median": 0.000355541,
+      "min": 0.000341125,
+      "max": 0.00051375
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.0003159046173095703,
+      "min": 0.0003058910369873047,
+      "max": 0.0004718303680419922
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 0,
+    "max_double_objective_difference": 0,
+    "max_gurobi_objective_difference": 0,
+    "max_rational_recoveries": 0,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 0,
+    "max_rational_cycle_recoveries": 0
+  },
+  {
+    "name": "nonsmooth_anchor_orthic",
+    "k": 3,
+    "rational_seconds": {
+      "median": 9.15e-05,
+      "min": 8.5583e-05,
+      "max": 0.000127833
+    },
+    "double_seconds": {
+      "median": 0.000168209,
+      "min": 0.000158916,
+      "max": 0.000201833
+    },
+    "gurobi_total_seconds": {
+      "median": 0.000342334,
+      "min": 0.000328709,
+      "max": 0.000564417
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.00030994415283203125,
+      "min": 0.0002989768981933594,
+      "max": 0.0004949569702148438
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 1.7763568394002505e-15,
+    "max_double_objective_difference": 0.0,
+    "max_gurobi_objective_difference": 2.4010372978722216e-07,
+    "max_rational_recoveries": 2,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 2,
+    "max_rational_cycle_recoveries": 0
+  },
+  {
+    "name": "nonrepresentable_common_point",
+    "k": 3,
+    "rational_seconds": {
+      "median": 1.6708e-05,
+      "min": 1.4625e-05,
+      "max": 2.4459e-05
+    },
+    "double_seconds": {
+      "median": 4.3458e-05,
+      "min": 3.85e-05,
+      "max": 0.000146416
+    },
+    "gurobi_total_seconds": {
+      "median": 0.000356417,
+      "min": 0.000336791,
+      "max": 0.000429209
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.00032806396484375,
+      "min": 0.00030994415283203125,
+      "max": 0.00038886070251464844
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 1.5700924586837752e-16,
+    "max_double_objective_difference": 1.5700924586837752e-16,
+    "max_gurobi_objective_difference": 0,
+    "max_rational_recoveries": 1,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 0,
+    "max_rational_cycle_recoveries": 1
+  },
+  {
+    "name": "ring_boxes_8",
+    "k": 8,
+    "rational_seconds": {
+      "median": 0.000276667,
+      "min": 0.000270709,
+      "max": 0.000306959
+    },
+    "double_seconds": {
+      "median": 0.000300208,
+      "min": 0.000274875,
+      "max": 0.000353333
+    },
+    "gurobi_total_seconds": {
+      "median": 0.000541875,
+      "min": 0.0005055,
+      "max": 0.000874625
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.0004799365997314453,
+      "min": 0.00044798851013183594,
+      "max": 0.0007309913635253906
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 7.275957614183426e-12,
+    "max_double_objective_difference": 0.0,
+    "max_gurobi_objective_difference": 3.987930540461093e-06,
+    "max_rational_recoveries": 1,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 1,
+    "max_rational_cycle_recoveries": 0
+  },
+  {
+    "name": "ring_slanted_8",
+    "k": 8,
+    "rational_seconds": {
+      "median": 9.0917e-05,
+      "min": 8.7125e-05,
+      "max": 9.5542e-05
+    },
+    "double_seconds": {
+      "median": 6.3416e-05,
+      "min": 5.9541e-05,
+      "max": 0.000150958
+    },
+    "gurobi_total_seconds": {
+      "median": 0.0006335,
+      "min": 0.000613916,
+      "max": 0.000937875
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.0005769729614257812,
+      "min": 0.00055694580078125,
+      "max": 0.0008759498596191406
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 7.275957614183426e-12,
+    "max_double_objective_difference": 0.0,
+    "max_gurobi_objective_difference": 9.989147656597197e-06,
+    "max_rational_recoveries": 0,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 0,
+    "max_rational_cycle_recoveries": 0
+  },
+  {
+    "name": "ring_boxes_16",
+    "k": 16,
+    "rational_seconds": {
+      "median": 0.000524334,
+      "min": 0.000508375,
+      "max": 0.000695708
+    },
+    "double_seconds": {
+      "median": 0.000575666,
+      "min": 0.000536417,
+      "max": 0.000825667
+    },
+    "gurobi_total_seconds": {
+      "median": 0.000898334,
+      "min": 0.000836166,
+      "max": 0.001151125
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.0007898807525634766,
+      "min": 0.0007369518280029297,
+      "max": 0.0010230541229248047
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 7.275957614183426e-12,
+    "max_double_objective_difference": 0.0,
+    "max_gurobi_objective_difference": 4.833716957364231e-06,
+    "max_rational_recoveries": 1,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 1,
+    "max_rational_cycle_recoveries": 0
+  },
+  {
+    "name": "ring_slanted_16",
+    "k": 16,
+    "rational_seconds": {
+      "median": 0.000173,
+      "min": 0.000168416,
+      "max": 0.000192541
+    },
+    "double_seconds": {
+      "median": 0.000125208,
+      "min": 0.000120916,
+      "max": 0.000147959
+    },
+    "gurobi_total_seconds": {
+      "median": 0.001115875,
+      "min": 0.001059708,
+      "max": 0.001308167
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.0010161399841308594,
+      "min": 0.0009598731994628906,
+      "max": 0.0012099742889404297
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 7.275957614183426e-12,
+    "max_double_objective_difference": 0.0,
+    "max_gurobi_objective_difference": 1.3770033547189087e-05,
+    "max_rational_recoveries": 0,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 0,
+    "max_rational_cycle_recoveries": 0
+  },
+  {
+    "name": "ring_boxes_32",
+    "k": 32,
+    "rational_seconds": {
+      "median": 0.001091792,
+      "min": 0.001055041,
+      "max": 0.001172791
+    },
+    "double_seconds": {
+      "median": 0.001252959,
+      "min": 0.001185417,
+      "max": 0.001448875
+    },
+    "gurobi_total_seconds": {
+      "median": 0.001591333,
+      "min": 0.001474917,
+      "max": 0.0020065
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.0013840198516845703,
+      "min": 0.0012950897216796875,
+      "max": 0.0018079280853271484
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 7.275957614183426e-12,
+    "max_double_objective_difference": 0.0,
+    "max_gurobi_objective_difference": 1.543210237286985e-05,
+    "max_rational_recoveries": 1,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 1,
+    "max_rational_cycle_recoveries": 0
+  },
+  {
+    "name": "ring_slanted_32",
+    "k": 32,
+    "rational_seconds": {
+      "median": 0.000334,
+      "min": 0.000324959,
+      "max": 0.000377583
+    },
+    "double_seconds": {
+      "median": 0.000244542,
+      "min": 0.000223916,
+      "max": 0.000257041
+    },
+    "gurobi_total_seconds": {
+      "median": 0.002084166,
+      "min": 0.001984208,
+      "max": 0.002290958
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.0018870830535888672,
+      "min": 0.0018010139465332031,
+      "max": 0.002093076705932617
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 7.275957614183426e-12,
+    "max_double_objective_difference": 0.0,
+    "max_gurobi_objective_difference": 6.171273707877845e-05,
+    "max_rational_recoveries": 0,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 0,
+    "max_rational_cycle_recoveries": 0
+  },
+  {
+    "name": "ring_boxes_64",
+    "k": 64,
+    "rational_seconds": {
+      "median": 0.002404167,
+      "min": 0.002312625,
+      "max": 0.00270675
+    },
+    "double_seconds": {
+      "median": 0.002808959,
+      "min": 0.002651625,
+      "max": 0.00319425
+    },
+    "gurobi_total_seconds": {
+      "median": 0.003110542,
+      "min": 0.002861542,
+      "max": 0.003567917
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.002721071243286133,
+      "min": 0.002507925033569336,
+      "max": 0.0031909942626953125
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 7.275957614183426e-12,
+    "max_double_objective_difference": 0.0,
+    "max_gurobi_objective_difference": 2.2013657144270837e-05,
+    "max_rational_recoveries": 1,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 1,
+    "max_rational_cycle_recoveries": 0
+  },
+  {
+    "name": "ring_slanted_64",
+    "k": 64,
+    "rational_seconds": {
+      "median": 0.0006485,
+      "min": 0.000611083,
+      "max": 0.000732917
+    },
+    "double_seconds": {
+      "median": 0.000478291,
+      "min": 0.00045775,
+      "max": 0.000497208
+    },
+    "gurobi_total_seconds": {
+      "median": 0.004088417,
+      "min": 0.003956834,
+      "max": 0.004362208
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.0037000179290771484,
+      "min": 0.003609895706176758,
+      "max": 0.003961801528930664
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 7.275957614183426e-12,
+    "max_double_objective_difference": 0.0,
+    "max_gurobi_objective_difference": 3.7847312341909856e-05,
+    "max_rational_recoveries": 0,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 0,
+    "max_rational_cycle_recoveries": 0
+  },
+  {
+    "name": "many_edges_16",
+    "k": 5,
+    "rational_seconds": {
+      "median": 0.000206917,
+      "min": 0.000198333,
+      "max": 0.00025675
+    },
+    "double_seconds": {
+      "median": 0.000129042,
+      "min": 0.000124167,
+      "max": 0.000157041
+    },
+    "gurobi_total_seconds": {
+      "median": 0.000903375,
+      "min": 0.00084475,
+      "max": 0.00114975
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.0008199214935302734,
+      "min": 0.0007660388946533203,
+      "max": 0.0010371208190917969
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 9.313225746154785e-10,
+    "max_double_objective_difference": 0.0,
+    "max_gurobi_objective_difference": 3.654602915048599e-05,
+    "max_rational_recoveries": 0,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 0,
+    "max_rational_cycle_recoveries": 0
+  },
+  {
+    "name": "many_edges_64",
+    "k": 5,
+    "rational_seconds": {
+      "median": 0.000732,
+      "min": 0.000673458,
+      "max": 0.00080975
+    },
+    "double_seconds": {
+      "median": 0.000442583,
+      "min": 0.0004265,
+      "max": 0.000480417
+    },
+    "gurobi_total_seconds": {
+      "median": 0.00275125,
+      "min": 0.00254525,
+      "max": 0.003032
+    },
+    "gurobi_optimize_seconds": {
+      "median": 0.002501964569091797,
+      "min": 0.0023200511932373047,
+      "max": 0.0027818679809570312
+    },
+    "rational_optimal": true,
+    "double_feasible": true,
+    "gurobi_optimal_status": true,
+    "independent_intervals_overlap": true,
+    "max_double_gap": 9.313225746154785e-10,
+    "max_double_objective_difference": 0.0,
+    "max_gurobi_objective_difference": 0.00014714617282152176,
+    "max_rational_recoveries": 0,
+    "max_rational_anchor_recoveries": 0,
+    "max_rational_feature_recoveries": 0,
+    "max_rational_cycle_recoveries": 0
+  }
+]

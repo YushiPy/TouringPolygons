@@ -1,0 +1,15 @@
+[ 10%] Built target tpp_geometry
+[ 15%] Building CXX object CMakeFiles/tpp_directional_double.dir/src/solvers/intersecting_maps.cpp.o
+[ 15%] Built target tpp_directional_double
+[ 25%] Building CXX object CMakeFiles/tpp_convex.dir/src/solvers/binary_search.cpp.o
+[ 25%] Building CXX object CMakeFiles/tpp_convex.dir/src/solvers/cycle.cpp.o
+[ 35%] Building CXX object CMakeFiles/tpp_convex.dir/src/solvers/cycle_certificate.cpp.o
+[ 35%] Building CXX object CMakeFiles/tpp_convex.dir/src/solvers/intersecting_maps.cpp.o
+[ 40%] Building CXX object CMakeFiles/tpp_convex.dir/src/solvers/linear_search.cpp.o
+[ 45%] Building CXX object CMakeFiles/tpp_convex.dir/src/solvers/tan_jiang.cpp.o
+[ 50%] Linking CXX static library libtpp_convex.a
+[ 90%] Built target tpp_convex
+[ 95%] Building CXX object CMakeFiles/tpp-convex.dir/src/main-directional_tests.cpp.o
+[100%] Linking CXX executable tpp-convex
+[100%] Built target tpp-convex
+Checks=1604, failures=0, unresolved=0, hybrid_total_calls=292, hybrid_disjoint_calls=50, certified_double_disjoint_calls=47, hybrid_fast=89, hybrid_fallback=29, hybrid_shadow_mismatch=0, rational_disjoint_directional_recoveries=0, rational_disjoint_fallbacks=1, rational_intersection_fallbacks=65, reasons(locator/contact/membership/local/zero)=16/9/0/21/20

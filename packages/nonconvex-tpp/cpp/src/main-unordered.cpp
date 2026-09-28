@@ -73,13 +73,16 @@ int main(int argc, char **argv) {
 		size_t n;
 		tpp::UnorderedTppSolveOptions options;
 		bool read_initial_path = false;
+		bool cycle = false;
 		for (int i = 1; i < argc; ++i) {
 			const std::string flag = argv[i];
 			if (flag == "--help") {
-				std::cout << "Usage: tpp-unordered [--absolute-gap N] [--relative-gap N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace]\n"
+				std::cout << "Usage: tpp-unordered [--cycle] [--absolute-gap N] [--relative-gap N] [--feasibility-tolerance N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace]\n"
 					<< "stdin: sx sy tx ty polygon_count max_calls max_seconds, then each polygon's vertex count and coordinates. With --initial-path, append path point count and coordinates, including endpoints.\n";
+				std::cout << "--cycle solves TSPN: input endpoints are ignored; output and any initial path must be closed.\n";
 				return 0;
 			}
+			if (flag == "--cycle") {cycle = true; continue;}
 			if (flag == "--bidirectional-initial") {
 				options.bidirectional_initial_heuristic = true;
 				continue;
@@ -126,6 +129,7 @@ int main(int argc, char **argv) {
 			if (parsed != text.size()) throw std::invalid_argument("Invalid numeric option: " + text);
 			if (flag == "--absolute-gap") options.absolute_gap = value;
 			else if (flag == "--relative-gap") options.relative_gap = value;
+			else if (flag == "--feasibility-tolerance") options.feasibility_tolerance = value;
 			else if (flag == "--oracle-relative-gap") options.oracle_relative_gap = value;
 			else throw std::invalid_argument("Unknown option: " + flag);
 		}
@@ -145,9 +149,11 @@ int main(int argc, char **argv) {
 			for (auto &point : *options.initial_path)
 				if (!(std::cin >> point.x >> point.y)) throw std::invalid_argument("Expected initial path coordinates.");
 		}
-		const auto r = tpp::tpp_nonconvex_unordered_solve(start, target, polygons, options);
+		const auto r = cycle ? tpp::tpp_nonconvex_tspn_solve(polygons, options)
+			: tpp::tpp_nonconvex_unordered_solve(start, target, polygons, options);
 		const char *termination[] = {"optimal", "call_limit", "time_limit", "numerical_limit"};
 		std::cout << std::setprecision(17) << "{\"schema_version\":\"free_order_v1\",\"exact\":" << (r.exact ? "true" : "false")
+			<< ",\"mode\":\"" << (cycle?"cycle":"path") << "\""
 			<< ",\"termination\":\"" << termination[static_cast<size_t>(r.termination)] << "\""
 			<< ",\"lower_bound\":" << r.lower_bound << ",\"upper_bound\":" << r.upper_bound
 			<< ",\"initial_lower_bound\":"; json_double(r.initial_lower_bound);

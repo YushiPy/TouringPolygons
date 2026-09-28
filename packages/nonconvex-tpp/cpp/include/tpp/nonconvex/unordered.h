@@ -165,4 +165,11 @@ namespace tpp {
 		const std::vector<std::vector<Vector2>> &polygons,
 		const UnorderedTppSolveOptions &options = {}
 	);
+	// TSPN: free cyclic visit order, no fixed point. The path repeats its first
+	// point at the end. Shares the insertion/decomposition B&B and gap contract
+	// above; convex relaxations use the independently certified cycle solver.
+	UnorderedTppSolveResult tpp_nonconvex_tspn_solve(
+		const std::vector<std::vector<Vector2>> &polygons,
+		const UnorderedTppSolveOptions &options = {}
+	);
 }

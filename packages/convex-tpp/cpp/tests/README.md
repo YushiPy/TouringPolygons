@@ -13,6 +13,13 @@ The script writes generated `.bin` files under `.build/convex-generated-tests/`
 and runs the verifier against both the tracked handwritten fixtures and the
 generated fixtures.
 
+The ordered-cycle optimality certificate has focused tests in
+`src/main-cycle_certificate_tests.cpp`. Configure that executable with
+`-DTARGET=main-cycle_certificate_tests`, build the `tpp-convex` target, then run
+the resulting executable. The tests cover exact small cycles, invalid inputs
+and candidates, primal-dual bounds, and the saved Gurobi references described
+in `benchmarks/results-saved/convex-cycle-gurobi-reference-2026-09-25/`.
+
 ## Test case format
 
 Every file in the `tests` directory with a `.bin` extension contains one or more test cases. Each test case is structured as follows:
@@ -46,3 +53,24 @@ now pass these production checks. Additional closed-degeneracy, continuity,
 workspace, and randomized tests are in `main-directional_tests`. See
 [fixture instructions](../../../../benchmarks/suites/intersection-audit/README.md)
 and [the correction report](../../../../docs/algorithms/intersecting-tpp-correction.md).
+
+## Floating ordered-cycle solvers
+
+`src/main-cycle_tests.cpp` exercises both scalar instantiations of the cycle
+solver and requires an exact support certificate for every rational result.
+It also audits the strict double constructor (recovery disabled) against all
+four saved Gurobi instances: an arithmetic failure must remain explicit and
+must not be labeled optimal. Objective agreement is required for the default
+double backend with counted rational recovery. Tests compare lengths and certified intervals,
+not Gurobi contact coordinates. Configure with `-DTARGET=main-cycle_tests`;
+the campaign path is supplied by CMake, so the executable works from any cwd.
+
+Intersection coverage includes common points, containment, zero-length links,
+an orthic cycle whose anchor endpoints are nonsmooth, cyclic shifts, and 96
+seeded cases compared with the unaccelerated exact boundary search. Selected
+fixtures also force pure-double boundary construction. The certificate suite
+checks 1,040 independent analytical ray-pair cases and variants with longer
+zero blocks. Rational scales beyond the binary64 exponent range are exercised.
+
+See [`docs/algorithms/convex-cycle.md`](../../../../docs/algorithms/convex-cycle.md)
+for the API, exactness proof, complexity and floating-point limitations.

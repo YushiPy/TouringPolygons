@@ -1,0 +1,27 @@
+{
+  "model": "continuous SOCP for a fixed cyclic order of convex polygon regions",
+  "gurobi_version": "13.0.3",
+  "interface": "Gurobi C++ API",
+  "parameters": {
+    "OutputFlag": 0,
+    "Threads": 1,
+    "Method": 2,
+    "NumericFocus": 2,
+    "FeasibilityTol": 1e-9,
+    "OptimalityTol": 1e-9,
+    "BarConvTol": 1e-10,
+    "TimeLimitSeconds": 30
+  },
+  "objective_tolerance_for_future_comparisons": {
+    "absolute": 1e-7,
+    "relative": 1e-8
+  },
+  "interior_contraction": 1e-5,
+  "notes": [
+    "All links include the closing link from P_k to P_1.",
+    "Only OPTIMAL status is suitable as a reference optimum.",
+    "Contact coordinates are floating-point primal solutions, not exact certificates.",
+    "feasible_contacts are contracted toward each polygon centroid to remove tiny boundary violations before exact-rational checking.",
+    "The local license is not part of the campaign."
+  ]
+}

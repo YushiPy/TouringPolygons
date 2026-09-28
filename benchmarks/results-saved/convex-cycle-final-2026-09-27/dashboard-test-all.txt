@@ -1,0 +1,113 @@
+
+> test:all
+> scripts/run-tests.sh
+
+WARN Retry attempt #0. Sleeping 1.538130534s before the next attempt
+WARN Retry attempt #0. Sleeping 1.315366437s before the next attempt
+WARN Retry attempt #0. Sleeping 1.798977034s before the next attempt
+WARN Retry attempt #0. Sleeping 1.189490085s before the next attempt
+WARN Retry attempt #0. Sleeping 1.538860969s before the next attempt
+WARN Retry attempt #0. Sleeping 1.038489571s before the next attempt
+WARN Retry attempt #0. Sleeping 1.488066646s before the next attempt
+WARN Retry attempt #0. Sleeping 1.103170483s before the next attempt
+WARN Retry attempt #0. Sleeping 1.867699646s before the next attempt
+WARN Retry attempt #0. Sleeping 1.425940039s before the next attempt
+WARN Retry attempt #0. Sleeping 1.851110149s before the next attempt
+WARN Retry attempt #0. Sleeping 1.393808227s before the next attempt
+WARN Retry attempt #0. Sleeping 1.707252431s before the next attempt
+WARN Retry attempt #0. Sleeping 1.778619661s before the next attempt
+WARN Retry attempt #0. Sleeping 1.257885547s before the next attempt
+WARN Retry attempt #0. Sleeping 1.339708559s before the next attempt
+WARN Retry attempt #0. Sleeping 1.292152692s before the next attempt
+WARN Retry attempt #0. Sleeping 1.83801992s before the next attempt
+WARN Retry attempt #0. Sleeping 1.225825127s before the next attempt
+WARN Retry attempt #0. Sleeping 1.119665196s before the next attempt
+WARN Retry attempt #0. Sleeping 1.08782039s before the next attempt
+WARN Retry attempt #0. Sleeping 1.138066359s before the next attempt
+WARN Retry attempt #0. Sleeping 1.114823543s before the next attempt
+WARN Retry attempt #0. Sleeping 1.538920765s before the next attempt
+WARN Retry attempt #0. Sleeping 1.770156016s before the next attempt
+WARN Retry attempt #0. Sleeping 1.107802107s before the next attempt
+WARN Retry attempt #0. Sleeping 1.562747812s before the next attempt
+WARN Retry attempt #0. Sleeping 1.563813376s before the next attempt
+WARN Retry attempt #0. Sleeping 1.258583701s before the next attempt
+WARN Retry attempt #0. Sleeping 1.851410099s before the next attempt
+WARN Retry attempt #0. Sleeping 1.253534083s before the next attempt
+WARN Retry attempt #0. Sleeping 1.795866517s before the next attempt
+WARN Retry attempt #0. Sleeping 1.574273359s before the next attempt
+WARN Retry attempt #0. Sleeping 1.114552696s before the next attempt
+WARN Retry attempt #1. Sleeping 2.762083122s before the next attempt
+WARN Retry attempt #1. Sleeping 3.793204468s before the next attempt
+WARN Retry attempt #1. Sleeping 2.667452424s before the next attempt
+WARN Retry attempt #1. Sleeping 2.427464835s before the next attempt
+WARN Retry attempt #1. Sleeping 3.641290752s before the next attempt
+WARN Retry attempt #1. Sleeping 2.051888287s before the next attempt
+WARN Retry attempt #1. Sleeping 2.610801675s before the next attempt
+WARN Retry attempt #1. Sleeping 2.267214849s before the next attempt
+WARN Retry attempt #1. Sleeping 1.648163036s before the next attempt
+WARN Retry attempt #1. Sleeping 3.387391711s before the next attempt
+WARN Retry attempt #1. Sleeping 3.975226285s before the next attempt
+WARN Retry attempt #1. Sleeping 3.185467274s before the next attempt
+WARN Retry attempt #1. Sleeping 1.923814226s before the next attempt
+WARN Retry attempt #1. Sleeping 1.217969071s before the next attempt
+WARN Retry attempt #1. Sleeping 3.793914951s before the next attempt
+WARN Retry attempt #1. Sleeping 1.718921297s before the next attempt
+WARN Retry attempt #1. Sleeping 1.247402909s before the next attempt
+WARN Retry attempt #1. Sleeping 3.266201806s before the next attempt
+WARN Retry attempt #1. Sleeping 2.271712371s before the next attempt
+WARN Retry attempt #1. Sleeping 3.592417388s before the next attempt
+WARN Retry attempt #1. Sleeping 3.697972868s before the next attempt
+WARN Retry attempt #1. Sleeping 2.486459142s before the next attempt
+WARN Retry attempt #1. Sleeping 3.826274497s before the next attempt
+WARN Retry attempt #1. Sleeping 1.317890368s before the next attempt
+WARN Retry attempt #1. Sleeping 1.565308091s before the next attempt
+WARN Retry attempt #1. Sleeping 3.853065181s before the next attempt
+WARN Retry attempt #1. Sleeping 2.668708107s before the next attempt
+WARN Retry attempt #1. Sleeping 1.141574295s before the next attempt
+WARN Retry attempt #1. Sleeping 2.121883527s before the next attempt
+WARN Retry attempt #1. Sleeping 2.10127107s before the next attempt
+WARN Retry attempt #1. Sleeping 1.715580989s before the next attempt
+WARN Retry attempt #1. Sleeping 3.482359976s before the next attempt
+WARN Retry attempt #1. Sleeping 2.524179511s before the next attempt
+WARN Retry attempt #1. Sleeping 3.307357463s before the next attempt
+WARN Retry attempt #2. Sleeping 7.569212894s before the next attempt
+WARN Retry attempt #2. Sleeping 4.04964028s before the next attempt
+WARN Retry attempt #2. Sleeping 3.218329343s before the next attempt
+WARN Retry attempt #2. Sleeping 4.475006716s before the next attempt
+WARN Retry attempt #2. Sleeping 7.102675096s before the next attempt
+WARN Retry attempt #2. Sleeping 3.537910811s before the next attempt
+WARN Retry attempt #2. Sleeping 2.693704417s before the next attempt
+WARN Retry attempt #2. Sleeping 7.375708045s before the next attempt
+WARN Retry attempt #2. Sleeping 6.796275773s before the next attempt
+WARN Retry attempt #2. Sleeping 6.470765911s before the next attempt
+WARN Retry attempt #2. Sleeping 6.793950502s before the next attempt
+WARN Retry attempt #2. Sleeping 6.480843643s before the next attempt
+WARN Retry attempt #2. Sleeping 4.738072859s before the next attempt
+WARN Retry attempt #2. Sleeping 1.615478396s before the next attempt
+WARN Retry attempt #2. Sleeping 6.287300716s before the next attempt
+WARN Retry attempt #2. Sleeping 3.573796951s before the next attempt
+WARN Retry attempt #2. Sleeping 2.15004701s before the next attempt
+WARN Retry attempt #2. Sleeping 3.681449197s before the next attempt
+WARN Retry attempt #2. Sleeping 6.522504618s before the next attempt
+WARN Retry attempt #2. Sleeping 1.356437829s before the next attempt
+WARN Retry attempt #2. Sleeping 1.594919474s before the next attempt
+WARN Retry attempt #2. Sleeping 3.712879255s before the next attempt
+WARN Retry attempt #2. Sleeping 5.90171282s before the next attempt
+WARN Retry attempt #2. Sleeping 1.398907506s before the next attempt
+WARN Retry attempt #2. Sleeping 5.859330215s before the next attempt
+WARN Retry attempt #2. Sleeping 7.549221903s before the next attempt
+WARN Retry attempt #2. Sleeping 2.282433031s before the next attempt
+WARN Retry attempt #2. Sleeping 6.675704287s before the next attempt
+WARN Retry attempt #2. Sleeping 4.724372301s before the next attempt
+WARN Retry attempt #2. Sleeping 7.92712028s before the next attempt
+WARN Retry attempt #2. Sleeping 4.165466657s before the next attempt
+WARN Retry attempt #2. Sleeping 1.37276863s before the next attempt
+error: Failed to download `contourpy==1.3.3`
+  cause: Request failed after 3 retries in 5.4s
+  cause: Failed to fetch: `https://files.pythonhosted.org/packages/fd/e1/3542a9cb596cadd76fcef413f19c79216e002623158befe6daa03dbfa88c/contourpy-1.3.3-cp314-cp314-macosx_11_0_arm64.whl`
+  cause: error sending request for url (https://files.pythonhosted.org/packages/fd/e1/3542a9cb596cadd76fcef413f19c79216e002623158befe6daa03dbfa88c/contourpy-1.3.3-cp314-cp314-macosx_11_0_arm64.whl)
+  cause: client error (Connect)
+  cause: dns error
+  cause: failed to lookup address information: nodename nor servname provided, or not known
+
+hint: `contourpy` (v1.3.3) was included because `tpp-benchmark-dashboard` (v0.1.0) depends on `matplotlib` (v3.11.1) which depends on `contourpy`

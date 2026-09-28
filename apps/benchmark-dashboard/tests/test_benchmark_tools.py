@@ -32,9 +32,29 @@ normalizer = load_module(
 )
 run_generated = load_module("run_generated", REPO_ROOT / "benchmarks/_internal/run_generated.py")
 convert_instances = load_module("convert_instances", REPO_ROOT / "benchmarks/_internal/convert_instances.py")
+unordered_validation = load_module("unordered_validation", SCRIPTS_DIR / "unordered_validation.py")
 
 
 class BenchmarkToolTests(unittest.TestCase):
+    def test_cycle_validation_checks_closure_coverage_and_zero_tours(self) -> None:
+        square = [[0, 0], [1, 0], [1, 1], [0, 1]]
+        crossing = [[-1, 0.5], [2, 0.5], [-1, 0.5]]
+        result = unordered_validation.validate_cycle([square], crossing, 0)
+        self.assertTrue(result['valid'])
+        self.assertTrue(result['exactly_covers'])
+        self.assertEqual(result['recomputed_length'], 6)
+        self.assertFalse(unordered_validation.validate_cycle([square], crossing[:2], 0)['valid'])
+        self.assertTrue(unordered_validation.validate_cycle([square], [[0.5, 0.5]] * 2, 0)['valid'])
+        missing = [[-1, -0.25], [2, -0.25], [-1, -0.25]]
+        self.assertFalse(unordered_validation.validate_cycle([square], missing, 0.1)['valid'])
+        tolerant = unordered_validation.validate_cycle([square], missing, 0.25)
+        self.assertTrue(tolerant['valid'])
+        self.assertFalse(tolerant['exactly_covers'])
+        concave = [[0, 0], [3, 0], [3, 1], [1, 1], [1, 3], [0, 3]]
+        self.assertFalse(unordered_validation.validate_cycle([concave], [[2, 2]] * 2, 0)['valid'])
+        self.assertTrue(unordered_validation.validate_cycle([square[::-1]], [[0, 0]] * 2, 0)['valid'])
+        self.assertFalse(unordered_validation.validate_cycle([square], [], 0)['valid'])
+
     def test_binary_orientation_normalizer_preserves_non_polygon_payload(self) -> None:
         clockwise_square = [(0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]
         ccw_triangle = [(2.0, 0.0), (3.0, 0.0), (2.5, 1.0)]

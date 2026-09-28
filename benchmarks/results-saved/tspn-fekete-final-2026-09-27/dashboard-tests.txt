@@ -1,0 +1,8 @@
+
+> test:all
+> scripts/run-tests.sh
+
+error: Failed to download `ruff==0.16.5`
+  cause: Network connectivity is disabled, but the requested data wasn't found in the cache for: `https://files.pythonhosted.org/packages/46/fd/c8720ca7a090abf0c2fef4abe8a5ef6e5127ed15196d8886ff75a2b370e2/ruff-0.16.5-py3-none-macosx_11_0_arm64.whl`
+
+hint: `ruff` (v0.16.5) was included because `tpp-benchmark-dashboard:dev` (v0.1.0) depends on `ruff`

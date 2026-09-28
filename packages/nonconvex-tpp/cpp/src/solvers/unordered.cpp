@@ -1,5 +1,6 @@
 #include "tpp/nonconvex/unordered.h"
 #include "tpp/convex/certified.h"
+#include "tpp/convex/cycle.h"
 #include "common.h"
 #include "unordered_geometry.h"
 #include "unordered_bounds.h"
@@ -35,9 +36,42 @@ namespace {
 }
 
 namespace tpp {
+	// Adapter only: both topologies use the same search below. No second B&B.
+	static CertifiedConvexTppResult solve_relaxation(bool cycle, const Vector2 &start,
+		const Vector2 &target, const std::vector<Polygon> &regions,
+		DynamicConvexTppWorkspace &workspace, double tolerance, double cutoff, double seconds) {
+		if (!cycle) return tpp_convex_solve_certified(start,target,regions,workspace,tolerance,cutoff,seconds);
+		const auto began=std::chrono::steady_clock::now();
+		CertifiedConvexTppResult out;
+		if (regions.size()<2) {
+			const auto point=regions.empty()?start:regions.front().front();
+			out.path={point,point};return out;
+		}
+		const auto solved=tpp_convex_solve_cycle_double(regions);
+		if (solved.status!=ConvexCycleStatus::Optimal && solved.status!=ConvexCycleStatus::FloatingPointLimit)
+			throw std::runtime_error("Convex cycle oracle failed: "+solved.diagnostic);
+		out.path=solved.contacts;out.path.push_back(out.path.front());
+		out.lower_bound=solved.certificate.lower_bound;out.upper_bound=solved.certificate.upper_bound;
+		out.predicate_exact_evaluations=solved.certificate.exact_predicate_evaluations;
+		out.used_fallback=solved.rational_cycle_recoveries+solved.rational_anchor_recoveries+solved.rational_feature_recoveries>0;
+		if (out.lower_bound<cutoff && out.upper_bound-out.lower_bound>tolerance) {
+			// A rounded optimum may have a weak contact-derived dual. Recover its
+			// global bound while retaining the independently feasible double path.
+			const auto exact=tpp_convex_solve_cycle(regions);
+			if (exact.status!=ConvexCycleStatus::Optimal)
+				throw std::runtime_error("Exact cycle refinement failed: "+exact.diagnostic);
+			out.lower_bound=std::max(out.lower_bound,exact.certificate.lower_bound);
+			out.used_fallback=true;
+		}
+		out.fallback_certificate_gap=out.used_fallback;
+		out.fallback_reason=out.used_fallback?ConvexFallbackReason::LocalOptimality:ConvexFallbackReason::None;
+		out.seconds=std::chrono::duration<double>(std::chrono::steady_clock::now()-began).count();
+		out.geometric_solver_seconds=out.seconds;
+		return out;
+	}
 	static UnorderedTppSolveResult solve_normalized_unordered_tpp(
 		const Vector2 &start, const Vector2 &target, const std::vector<Polygon> &input,
-		const UnorderedTppSolveOptions &options
+		const UnorderedTppSolveOptions &options, bool cycle
 	) {
 		const auto began = std::chrono::steady_clock::now();
 		auto elapsed = [&] { return std::chrono::duration<double>(std::chrono::steady_clock::now() - began).count(); };
@@ -79,7 +113,8 @@ namespace tpp {
 		result.preprocessing_seconds = duration(preprocessing_began);
 		const auto heuristic_began = std::chrono::steady_clock::now();
 		const size_t n = polygons.size();
-		result.order_space_log2 = std::lgamma(static_cast<double>(n) + 1.0) / std::log(2.0);
+		result.order_space_log2 = cycle ? (n<3?0:std::lgamma(static_cast<double>(n))/std::log(2.0)-1)
+			: std::lgamma(static_cast<double>(n) + 1.0) / std::log(2.0);
 		const double eps = options.feasibility_tolerance;
 		enum class Phase { Heuristic, Search, Finalization };
 		Phase phase = Phase::Heuristic;
@@ -198,6 +233,10 @@ namespace tpp {
 					});
 				}
 				initial.push_back(destination);
+				if (cycle) {
+					initial.erase(initial.begin());
+					initial.back()=initial.front();
+				}
 				trace_event({
 					.kind = "heuristic_greedy_complete",
 					.order = order,
@@ -208,12 +247,12 @@ namespace tpp {
 				for (size_t pass = 0; pass < 10 && std::chrono::steady_clock::now() < deadline; ++pass) {
 					bool changed = false;
 					for (size_t i = 1; i < n && std::chrono::steady_clock::now() < deadline; ++i)
-					for (size_t j = i + 1; j <= n && std::chrono::steady_clock::now() < deadline; ++j) {
+					for (size_t j = i + 1; j <= n-size_t(cycle) && std::chrono::steady_clock::now() < deadline; ++j) {
 						const double delta = initial[i - 1].distance_to(initial[j]) + initial[i].distance_to(initial[j + 1])
 							- initial[i - 1].distance_to(initial[i]) - initial[j].distance_to(initial[j + 1]);
 						if (delta < -eps) {
 							std::reverse(initial.begin() + i, initial.begin() + j + 1);
-							std::reverse(order.begin() + i - 1, order.begin() + j);
+							std::reverse(order.begin() + i - size_t(!cycle), order.begin() + j + size_t(cycle));
 							changed = true;
 						}
 					}
@@ -232,15 +271,18 @@ namespace tpp {
 					&& std::chrono::steady_clock::now() < deadline; ++pass) {
 					for (size_t k = 0; k < n && std::chrono::steady_clock::now() < deadline; ++k) {
 						const auto &p = polygons[order[k]];
-						initial[k + 1] = best_contact(initial[k], initial[k + 2], p, initial[k + 1]);
+						if (cycle) {
+							initial[k]=best_contact(initial[(k+n-1)%n],initial[(k+1)%n],p,initial[k]);
+							initial.back()=initial.front();
+						} else initial[k + 1] = best_contact(initial[k], initial[k + 2], p, initial[k + 1]);
 					}
 					for (size_t i = 1; i < n && std::chrono::steady_clock::now() < deadline; ++i)
-					for (size_t j = i + 1; j <= n && std::chrono::steady_clock::now() < deadline; ++j) {
+					for (size_t j = i + 1; j <= n-size_t(cycle) && std::chrono::steady_clock::now() < deadline; ++j) {
 						const double delta = initial[i - 1].distance_to(initial[j]) + initial[i].distance_to(initial[j + 1])
 							- initial[i - 1].distance_to(initial[i]) - initial[j].distance_to(initial[j + 1]);
 						if (delta < -eps) {
 							std::reverse(initial.begin() + i, initial.begin() + j + 1);
-							std::reverse(order.begin() + i - 1, order.begin() + j);
+							std::reverse(order.begin() + i - size_t(!cycle), order.begin() + j + size_t(cycle));
 						}
 					}
 					trace_event({
@@ -265,7 +307,7 @@ namespace tpp {
 					direction + (sampled ? "_sampled" : ""), candidate_regions, deadline);
 				if (reverse) {
 					std::reverse(candidate.first.begin(), candidate.first.end());
-					std::reverse(candidate.second.begin(), candidate.second.end());
+					std::reverse(candidate.second.begin()+size_t(cycle), candidate.second.end());
 				}
 				const double value = path_length(candidate.first);
 				if (std::isfinite(value) && value < best_initial_length && covered(candidate.first)) {
@@ -299,11 +341,11 @@ namespace tpp {
 				try {
 					std::vector<Polygon> ordered_pieces;
 					ordered_pieces.reserve(best_initial_order.size());
-					bool assigned = best_initial_path.size() == best_initial_order.size() + 2;
+					bool assigned = best_initial_path.size() == best_initial_order.size() + 2-size_t(cycle);
 					for (size_t k = 0; assigned && k < best_initial_order.size(); ++k) {
 						const size_t polygon_index = best_initial_order[k];
 						prepare_pieces(polygon_index);
-						const Polygon point_path{best_initial_path[k + 1], best_initial_path[k + 1]};
+						const Polygon point_path{best_initial_path[k + size_t(!cycle)], best_initial_path[k + size_t(!cycle)]};
 						const auto found = std::find_if(pieces[polygon_index].begin(), pieces[polygon_index].end(),
 							[&](const Polygon &piece) { return contact(point_path, piece, eps).distance <= eps; });
 						if (found == pieces[polygon_index].end()) assigned = false;
@@ -318,8 +360,8 @@ namespace tpp {
 						++result.initial_convex_refinement_calls;
 						const double target_gap = options.absolute_gap
 							+ options.relative_gap * std::abs(best_initial_length);
-						const auto polished = tpp_convex_solve_certified(
-							start, target, ordered_pieces, initial_workspace,
+						const auto polished = solve_relaxation(
+							cycle, start, target, ordered_pieces, initial_workspace,
 							std::max(target_gap * 0.25, std::numeric_limits<double>::epsilon()),
 							best_initial_length - target_gap, remaining);
 						result.initial_convex_refinement_time_limited = polished.time_limited;
@@ -365,8 +407,8 @@ namespace tpp {
 				: std::max(gap() * .25, options.oracle_relative_gap * result.upper_bound);
 			const double cutoff = result.upper_bound - gap();
 			const double remaining_seconds = std::max(0.0, options.max_seconds - elapsed());
-			const auto certified = tpp_convex_solve_certified(
-				start, target, selected, workspace, tolerance, cutoff, remaining_seconds
+			const auto certified = solve_relaxation(
+				cycle, start, target, selected, workspace, tolerance, cutoff, remaining_seconds
 			);
 			result.oracle_cutoff_calls += certified.lower_bound >= cutoff;
 			result.oracle_dual_cutoff_prunes += certified.dual_cutoff_pruned;
@@ -415,7 +457,11 @@ namespace tpp {
 		};
 		double settled_bound = result.upper_bound;
 		std::priority_queue<Node, std::vector<Node>, Later> queue;
-		queue.push({{}, {start, target}, result.lower_bound, 0});
+		// Rooting the sequence at region 0 removes rotation, without fixing a
+		// geometric point. A single-region cycle has lower bound zero.
+		std::vector<Element> root_sequence;
+		if (cycle && n) root_sequence.push_back({0});
+		queue.push({root_sequence, {start, target}, result.lower_bound, 0});
 		result.partial_states_created = 1;
 		trace_event({
 			.kind = "root",
@@ -570,14 +616,17 @@ namespace tpp {
 				++result.insertion_branches;
 				std::vector<const Polygon *> regions;
 				for (auto e : node.sequence) regions.push_back(e.piece == none ? &hulls[e.polygon] : &pieces[e.polygon][e.piece]);
-				const auto bounds = insertion_lower_bounds(node.path, regions, hulls[chosen]);
-				const size_t branching = node.sequence.size() + 1;
+				const auto bounds = insertion_lower_bounds(node.path, regions, hulls[chosen], cycle);
+				// At size two the two insertion positions are reversals of the
+				// same unoriented triangle. Later, all cyclic gaps are needed.
+				const size_t branching = cycle ? (node.sequence.size()==2?1:node.sequence.size()) : node.sequence.size()+1;
 				result.total_branching += branching;
 				result.max_observed_branching = std::max(result.max_observed_branching, branching);
-				for (size_t j = 0; j <= node.sequence.size(); ++j) {
+				for (size_t slot = 0; slot < branching; ++slot) {
+					const size_t j=slot+size_t(cycle);
 					++result.insertion_positions_considered;
 					++result.children_generated;
-					const double bound = std::max(node.bound, bounds[j]);
+					const double bound = std::max(node.bound, bounds[slot]);
 					auto sequence = node.sequence;
 					sequence.insert(sequence.begin() + j, {chosen});
 					if (bound >= result.upper_bound - gap()) {
@@ -690,9 +739,9 @@ namespace tpp {
 		return result;
 	}
 
-	UnorderedTppSolveResult tpp_nonconvex_unordered_solve(
+	static UnorderedTppSolveResult solve_unordered(
 		const Vector2 &start, const Vector2 &target, const std::vector<Polygon> &input,
-		const UnorderedTppSolveOptions &options
+		const UnorderedTppSolveOptions &options, bool cycle
 	) {
 		const auto began = std::chrono::steady_clock::now();
 		auto elapsed = [&] { return std::chrono::duration<double>(std::chrono::steady_clock::now() - began).count(); };
@@ -715,12 +764,12 @@ namespace tpp {
 		if (options.initial_path) {
 			const auto &path = *options.initial_path;
 			if (path.size() < 2 || !std::all_of(path.begin(), path.end(), [](auto point) { return point.is_finite(); })
-				|| path.front().distance_to(start) > options.feasibility_tolerance
-				|| path.back().distance_to(target) > options.feasibility_tolerance)
+				|| (cycle ? path.front().distance_to(path.back()) > options.feasibility_tolerance
+					: path.front().distance_to(start) > options.feasibility_tolerance || path.back().distance_to(target) > options.feasibility_tolerance))
 				throw std::invalid_argument("Initial path needs finite points and matching endpoints.");
 			auto snapped = path;
-			snapped.front() = start;
-			snapped.back() = target;
+			if (cycle) snapped.back()=snapped.front();
+			else {snapped.front() = start; snapped.back() = target;}
 			if (!std::all_of(input.begin(), input.end(), [&](const auto &polygon) {
 				if (polygon.size() < 3) throw std::invalid_argument("Expected finite, nondegenerate simple polygons.");
 				return contact(snapped, polygon, options.feasibility_tolerance).distance <= options.feasibility_tolerance;
@@ -737,8 +786,8 @@ namespace tpp {
 		auto normalized_options = options;
 		if (normalized_options.initial_path) {
 			auto &path = *normalized_options.initial_path;
-			path.front() = start;
-			path.back() = target;
+			if (cycle) path.back()=path.front();
+			else {path.front() = start; path.back() = target;}
 			for (auto &point : path) point = normalize(point);
 		}
 		normalized_options.absolute_gap /= divisor;
@@ -747,7 +796,7 @@ namespace tpp {
 		normalized_options.max_seconds = std::max(0.0, options.max_seconds - elapsed());
 		const double normalization_seconds = elapsed();
 		auto result = solve_normalized_unordered_tpp(
-			normalize(start), normalize(target), polygons, normalized_options
+			normalize(start), normalize(target), polygons, normalized_options, cycle
 		);
 		auto scale_length = [&](double &value) {
 			if (std::isfinite(value)) value *= divisor;
@@ -832,5 +881,16 @@ namespace tpp {
 		result.preprocessing_seconds += normalization_seconds;
 		result.seconds = elapsed();
 		return result;
+	}
+
+	UnorderedTppSolveResult tpp_nonconvex_unordered_solve(const Vector2 &start, const Vector2 &target,
+		const std::vector<Polygon> &polygons, const UnorderedTppSolveOptions &options) {
+		return solve_unordered(start,target,polygons,options,false);
+	}
+	UnorderedTppSolveResult tpp_nonconvex_tspn_solve(const std::vector<Polygon> &polygons,
+		const UnorderedTppSolveOptions &options) {
+		if (!polygons.empty() && polygons.front().empty()) throw std::invalid_argument("Empty polygon.");
+		const Vector2 seed=polygons.empty()?Vector2{}:polygons.front().front();
+		return solve_unordered(seed,seed,polygons,options,true);
 	}
 }

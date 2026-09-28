@@ -3,6 +3,10 @@
 Implementação: `packages/nonconvex-tpp/cpp/src/solvers/unordered.cpp`.
 API: `tpp/nonconvex/unordered.h`.
 
+A mesma busca também oferece ciclos sem extremos fixos pela API
+`tpp_nonconvex_tspn_solve`. Formulação, limites cíclicos e contrato de exatidão
+estão documentados em [TSPN](tspn.md).
+
 ## Escopo
 
 Menor caminho euclidiano de um ponto fixo `start` a um ponto fixo `target`, visitando
