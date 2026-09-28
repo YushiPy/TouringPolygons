@@ -55,7 +55,7 @@
   \draw[Rule,line width=1.1pt] (3,17.0) -- (81.1,17.0);
   \draw[Rule,line width=0.8pt] (41.95,18.3) -- (41.95,40.5);
   \draw[Rule,line width=0.8pt] (3,40.5) -- (81.1,40.5);
-  \draw[Rule,line width=0.8pt] (33.25,41.4) -- (33.25,86.55);
+  \draw[Rule,line width=0.8pt] (33.25,41.4) -- (33.25,82.95);
   % Section 1 uses one half-page column; two fixed-order problems lead to free order.
   \block{intro-head}{3}{18.3}{38.2}{\head{1}{Introdução}}
   \block{intro-context}{3}{20.67}{38.2}{\bodytext Suponha que um drone parte da entrada do IME para fotografar institutos e outras regiões da USP. Precisamos escolher \textbf{a ordem das visitas e o ponto de contato} em cada região para minimizar o comprimento do caminho. Esse problema é exatamente o TPP de ordem livre, o foco desse projeto de pesquisa.}
@@ -83,59 +83,59 @@
   \block{usp-context}{3}{43.3}{29.5}{\bodytext Esta instância usa 51 regiões da Cidade Universitária da USP, contornadas manualmente no QGIS sobre OpenStreetMap. O solver encontrou uma rota numericamente ótima, com 4,97 km, em 8,77 s. Regiões são alvos, não obstáculos; regras de voo não são modeladas.}
 
   \block{method-head}{34.0}{41.4}{47.1}{\head{4}{Buscar sem enumerar}}
-  \block{search-principle}{34.0}{43.3}{47.1}{\bodytext\textbf{Como funciona a busca:} Cada nó relaxa os polígonos ainda não visitados: o fecho convexo dá limite inferior e a melhor rota viável, limite superior. Se esses limites não garantem a poda, inserimos uma região ou refinamos sua decomposição convexa.}
+  \block{search-principle}{34.0}{43.3}{47.1}{\bodytext\textbf{Como funciona a busca:} Cada nó relaxa os polígonos ainda não visitados: o fecho convexo dá o limite inferior; a melhor rota viável, o superior. Se os limites não garantem a poda, inserimos uma região ou refinamos sua decomposição convexa. A decomposição segue Greene [4], e as etapas de inserção e refinamento são adaptadas de Fekete et al. [3].}
   % The six figures and captions below are taken from the published app.
   % Row 1: feasible route, partial order, and lower-bound pruning.
-  \fill[white,rounded corners=0.22cm] (34.0,47) rectangle (49.5,65.7);
-  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (34.0,47) rectangle (49.5,65.7);
-  \fill[MapDark] (34.05,47.05) rectangle (49.45,54.15);
-  \block{step1-art}{34.0}{47.15}{15.5}{\centering\includegraphics[height=6.9cm]{figures/method-step-01.png}}
-  \block{step1-title}{34.55}{54.8}{14.4}{\bodytext\bfseries\color{Ink}01 · Encontrar uma rota viável}
-  \block{step1-text}{34.55}{55.95}{14.4}{\bodytext\color{Muted}A heurística gulosa encontra uma rota viável e inicia o incumbente \textbf{$U$}. No desafio 1, ela não encontra o ótimo: a rota tracejada é mais curta e só aparece depois da busca.}
+  \fill[white,rounded corners=0.22cm] (34.0,49) rectangle (49.5,66.3);
+  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (34.0,49) rectangle (49.5,66.3);
+  \fill[MapDark] (34.05,49.05) rectangle (49.45,56.15);
+  \block{step1-art}{34.0}{49.15}{15.5}{\centering\includegraphics[height=6.9cm]{figures/method-step-01.png}}
+  \block{step1-title}{34.55}{56.8}{14.4}{\bodytext\bfseries\color{Ink}01 · Encontrar uma rota viável}
+  \block{step1-text}{34.55}{57.95}{14.4}{\bodytext\color{Muted}A heurística gulosa encontra uma rota viável e inicia o incumbente \textbf{$U$}. No desafio 1, ela não encontra o ótimo: a rota tracejada é mais curta e só aparece depois da busca.}
 
-  \fill[white,rounded corners=0.22cm] (49.8,47) rectangle (65.3,65.7);
-  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (49.8,47) rectangle (65.3,65.7);
-  \fill[MapDark] (49.85,47.05) rectangle (65.25,54.15);
-  \block{step2-art}{49.8}{47.15}{15.5}{\centering\includegraphics[height=6.9cm]{figures/method-step-02.png}}
-  \block{step2-title}{50.35}{54.8}{14.4}{\bodytext\bfseries\color{Ink}02 · Manter ordenações parciais}
-  \block{step2-text}{50.35}{55.95}{14.4}{\bodytext\color{Muted}Com apenas \textbf{A} e \textbf{B} fixados nessa ordem, a rota mínima também toca \textbf{C} por acaso, mas não toca \textbf{D} nem \textbf{E}. Só A e B fazem parte da sequência deste nó.}
+  \fill[white,rounded corners=0.22cm] (49.8,49) rectangle (65.3,66.3);
+  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (49.8,49) rectangle (65.3,66.3);
+  \fill[MapDark] (49.85,49.05) rectangle (65.25,56.15);
+  \block{step2-art}{49.8}{49.15}{15.5}{\centering\includegraphics[height=6.9cm]{figures/method-step-02.png}}
+  \block{step2-title}{50.35}{56.8}{14.4}{\bodytext\bfseries\color{Ink}02 · Manter ordenações parciais}
+  \block{step2-text}{50.35}{57.95}{14.4}{\bodytext\color{Muted}Com apenas \textbf{A} e \textbf{B} fixados nessa ordem, a rota mínima também toca \textbf{C} por acaso, mas não toca \textbf{D} nem \textbf{E}. Só A e B fazem parte da sequência deste nó.}
 
-  \fill[white,rounded corners=0.22cm] (65.6,47) rectangle (81.1,65.7);
-  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (65.6,47) rectangle (81.1,65.7);
-  \fill[MapDark] (65.65,47.05) rectangle (81.05,54.15);
-  \block{step3-art}{65.6}{47.15}{15.5}{\centering\includegraphics[height=6.9cm]{figures/method-step-03.png}}
-  \block{step3-title}{66.15}{54.8}{14.4}{\bodytext\bfseries\color{Ink}03 · Podar pelo limite inferior}
-  \block{step3-text}{66.15}{55.95}{14.4}{\bodytext\color{Muted}Dror et al. descrevem um algoritmo polinomial para alvos convexos disjuntos em ordem fixa. Nosso oráculo fornece um limite inferior certificado \textbf{$L$}; se ele alcança \textbf{$U$}, considerada a tolerância, o ramo não pode melhorar o incumbente.}
+  \fill[white,rounded corners=0.22cm] (65.6,49) rectangle (81.1,66.3);
+  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (65.6,49) rectangle (81.1,66.3);
+  \fill[MapDark] (65.65,49.05) rectangle (81.05,56.15);
+  \block{step3-art}{65.6}{49.15}{15.5}{\centering\includegraphics[height=6.9cm]{figures/method-step-03.png}}
+  \block{step3-title}{66.15}{56.8}{14.4}{\bodytext\bfseries\color{Ink}03 · Podar pelo limite inferior}
+  \block{step3-text}{66.15}{57.95}{14.4}{\bodytext\color{Muted}Dror et al. descrevem um algoritmo polinomial para alvos convexos disjuntos em ordem fixa. Nosso oráculo fornece um limite inferior certificado \textbf{$L$}; se ele alcança \textbf{$U$}, considerada a tolerância, o ramo não pode melhorar o incumbente.}
 
   % Row 2: incumbent update, insertion branching, and convex refinement.
-  \fill[white,rounded corners=0.22cm] (34.0,66.15) rectangle (49.5,83.8);
-  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (34.0,66.15) rectangle (49.5,83.8);
-  \fill[MapDark] (34.05,66.2) rectangle (49.45,73.25);
-  \block{step4-art}{34.0}{66.25}{15.5}{\centering\includegraphics[height=6.9cm]{figures/method-step-04.png}}
-  \block{step4-title}{34.55}{73.95}{14.4}{\bodytext\bfseries\color{Ink}04 · Atualizar o incumbente}
-  \block{step4-text}{34.55}{74.95}{14.4}{\bodytext\color{Muted}Com todos os polígonos da instância incluídos, a rota final visita os cinco. Quando uma rota viável é mais curta que o incumbente atual, atualizamos \textbf{$U$}.}
+  \fill[white,rounded corners=0.22cm] (34.0,66.8) rectangle (49.5,82.95);
+  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (34.0,66.8) rectangle (49.5,82.95);
+  \fill[MapDark] (34.05,66.85) rectangle (49.45,73.9);
+  \block{step4-art}{34.0}{66.9}{15.5}{\centering\includegraphics[height=6.9cm]{figures/method-step-04.png}}
+  \block{step4-title}{34.55}{74.6}{14.4}{\bodytext\bfseries\color{Ink}04 · Atualizar o incumbente}
+  \block{step4-text}{34.55}{75.6}{14.4}{\bodytext\color{Muted}Com todos os polígonos da instância incluídos, a rota final visita os cinco. Quando uma rota viável é mais curta que o incumbente atual, atualizamos \textbf{$U$}.}
 
-  \fill[white,rounded corners=0.22cm] (49.8,66.15) rectangle (65.3,83.8);
-  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (49.8,66.15) rectangle (65.3,83.8);
-  \fill[MapDark] (49.85,66.2) rectangle (65.25,73.25);
-  \block{step5-art}{49.8}{66.25}{15.5}{\centering\includegraphics[height=6.9cm]{figures/method-step-05.png}}
-  \block{step5-title}{50.35}{73.95}{14.4}{\bodytext\bfseries\color{Ink}05 · Gerar as $\mathbf{m + 1}$ inserções}
-  \block{step5-text}{50.35}{74.95}{14.4}{\bodytext\color{Muted}Escolhemos o polígono não visitado mais distante. Com $m$ polígonos na sequência, inserir $P$ gera $m+1$ posições: antes, entre ou depois dos já ordenados.}
+  \fill[white,rounded corners=0.22cm] (49.8,66.8) rectangle (65.3,82.95);
+  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (49.8,66.8) rectangle (65.3,82.95);
+  \fill[MapDark] (49.85,66.85) rectangle (65.25,73.9);
+  \block{step5-art}{49.8}{66.9}{15.5}{\centering\includegraphics[height=6.9cm]{figures/method-step-05.png}}
+  \block{step5-title}{50.35}{74.6}{14.4}{\bodytext\bfseries\color{Ink}05 · Gerar as $\mathbf{m + 1}$ inserções}
+  \block{step5-text}{50.35}{75.6}{14.4}{\bodytext\color{Muted}Escolhemos o polígono não visitado mais distante. Com $m$ polígonos na sequência, inserir $P$ gera $m+1$ posições: antes, entre ou depois dos já ordenados.}
 
-  \fill[white,rounded corners=0.22cm] (65.6,66.15) rectangle (81.1,83.8);
-  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (65.6,66.15) rectangle (81.1,83.8);
-  \fill[MapDark] (65.65,66.2) rectangle (81.05,73.25);
-  \block{step6-art}{65.6}{66.25}{15.5}{\centering\includegraphics[height=6.9cm]{figures/method-step-06.png}}
-  \block{step6-title}{66.15}{73.95}{14.4}{\bodytext\bfseries\color{Ink}06 · Refinar em peças convexas}
-  \block{step6-text}{66.15}{74.95}{14.4}{\bodytext\color{Muted}No desafio 2, os três polígonos são decompostos em peças convexas. Para cada um, a busca ramifica entre as peças; o caminho mostrado toca uma peça de cada polígono.}
-  \block{method-provenance}{34.0}{84.15}{47.1}{\smalltext Decomposição convexa: implementamos Greene [4]. Inserção e refinamento adaptados de Fekete et al. [3].}
+  \fill[white,rounded corners=0.22cm] (65.6,66.8) rectangle (81.1,82.95);
+  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (65.6,66.8) rectangle (81.1,82.95);
+  \fill[MapDark] (65.65,66.85) rectangle (81.05,73.9);
+  \block{step6-art}{65.6}{66.9}{15.5}{\centering\includegraphics[height=6.9cm]{figures/method-step-06.png}}
+  \block{step6-title}{66.15}{74.6}{14.4}{\bodytext\bfseries\color{Ink}06 · Refinar em peças convexas}
+  \block{step6-text}{66.15}{75.6}{14.4}{\bodytext\color{Muted}No desafio 2, os três polígonos são decompostos em peças convexas. Para cada um, a busca ramifica entre as peças; o caminho mostrado toca uma peça de cada polígono.}
 
 
   % Results and the app share the final content row.
-  \draw[Rule,line width=1.1pt] (3,86.9) -- (81.1,86.9);
+  \draw[Rule,line width=1.1pt] (3,83.45) -- (81.1,83.45);
+  \begin{scope}[yshift=3.45cm]
   \block{results-head}{3}{87.7}{46.0}{\head{5}{Resultados no corpus de Fekete et al. e conclusão}}
-  \block{app-head}{52}{87.7}{29.1}{\head{6}{Tente você mesmo!}}
-  \draw[Rule,line width=0.8pt] (50.5,87.7) -- (50.5,111.6);
+  \block{app-head}{50.4}{87.7}{29.1}{\head{6}{Tente você mesmo!}}
+  \draw[Rule,line width=0.8pt] (49.65,87.7) -- (49.65,111.6);
 
   \block{comparison-context}{3}{89.95}{45.9}{\bodytext Comparamos os solvers nas instâncias de Fekete et al. (uma thread; limite de 6 h por caso). Speedup médio aritmético e vitórias consideram os 550 casos concluídos por ambos; a precisão avalia trajetórias disponíveis, com validação geométrica a $10^{-7}$ m.}
   \fill[white,rounded corners=0.30cm] (3,93.55) rectangle (48.9,100.1);
@@ -162,19 +162,19 @@
   \block{conclusion-text}{3.7}{106.8}{44.5}{\bodytext Nas instâncias de Fekete et al., nosso solver certificou o ótimo em 558/558 casos e foi mais rápido em 492 dos 550 concluídos por ambos.}
   \block{contact-summary}{3.7}{109.15}{44.5}{\smalltext P95 da distância mínima entre a rota e cada região visitada: 0 m (nosso, 16.303 visitas); 9,31 μm (Fekete, 15.883).}
 
-  \block{app-intro}{52.7}{91.95}{19.2}{\bodytext Explore as rotas da USP, das 32 subprefeituras de São Paulo e das 27 unidades federativas do Brasil. No web app, a explicação do algoritmo é muito mais aprofundada!}
-  \block{qr}{72.4}{91.8}{8.4}{\qrcode[level=H,height=8.4cm]{https://yushipy.github.io/TouringPolygons/apps/siicusp34/}}
-  \block{app-link}{52.7}{97.6}{19.2}{\sffamily\bfseries\fontsize{22}{26}\selectfont\color{Accent}\href{https://yushipy.github.io/TouringPolygons/apps/siicusp34/}{yushipy.github.io/TouringPolygons/apps/siicusp34/}}
-  \draw[Rule,line width=0.8pt] (66.55,100.6) -- (66.55,108.4);
-  \draw[Rule,line width=0.8pt] (52.7,105.3) -- (80.4,105.3);
-  \block{app-usp-title}{52.7}{100.8}{13.3}{\tagtext USP, SP e Brasil}
-  \block{app-usp-detail}{52.7}{101.8}{13.3}{\bodytext Instâncias separadas do corpus.}
-  \block{app-challenges-title}{67.05}{100.8}{13.3}{\tagtext 3 desafios}
-  \block{app-challenges-detail}{67.05}{101.8}{13.3}{\bodytext Monte você mesmo a rota e tente encontrar o ótimo!}
-  \block{app-corpus-title}{52.7}{105.6}{13.3}{\tagtext 558 instâncias}
-  \block{app-corpus-detail}{52.7}{106.6}{13.3}{\bodytext Explore \textbf{todos} os casos do artigo de Fekete et al.}
-  \block{app-trace-title}{67.05}{105.6}{13.3}{\tagtext Simulação passo a passo}
-  \block{app-trace-detail}{67.05}{106.6}{13.3}{\bodytext Veja uma simulação passo a passo do algoritmo, detalhando cada etapa do algoritmo.}
+  \block{app-intro}{50.525}{89.95}{19.2}{\bodytext Explore as rotas da USP, das 32 subprefeituras de São Paulo e das 27 unidades federativas do Brasil. No web app, a explicação do algoritmo é muito mais aprofundada!}
+  \block{qr}{70.225}{89.95}{8.4}{\qrcode[level=H,height=8.4cm]{https://yushipy.github.io/TouringPolygons/apps/siicusp34/}}
+  \block{app-link}{50.525}{95.6}{19.2}{\sffamily\bfseries\fontsize{22}{26}\selectfont\color{Accent}\href{https://yushipy.github.io/TouringPolygons/apps/siicusp34/}{yushipy.github.io/TouringPolygons/apps/siicusp34/}}
+  \draw[Rule,line width=0.8pt] (64.375,100.6) -- (64.375,108.4);
+  \draw[Rule,line width=0.8pt] (50.525,105.3) -- (78.225,105.3);
+  \block{app-usp-title}{50.525}{100.8}{13.3}{\tagtext USP, SP e Brasil}
+  \block{app-usp-detail}{50.525}{101.8}{13.3}{\bodytext Instâncias separadas do corpus.}
+  \block{app-challenges-title}{64.875}{100.8}{13.3}{\tagtext 3 desafios}
+  \block{app-challenges-detail}{64.875}{101.8}{13.3}{\bodytext Monte você mesmo a rota e tente encontrar o ótimo!}
+  \block{app-corpus-title}{50.525}{105.6}{13.3}{\tagtext 558 instâncias}
+  \block{app-corpus-detail}{50.525}{106.6}{13.3}{\bodytext Explore \textbf{todos} os casos do artigo de Fekete et al.}
+  \block{app-trace-title}{64.875}{105.6}{13.3}{\tagtext Simulação passo a passo}
+  \block{app-trace-detail}{64.875}{106.6}{13.3}{\bodytext Veja uma simulação passo a passo do algoritmo, detalhando cada etapa do algoritmo.}
   % References and credits; the digital PDF keeps live links.
   \draw[Rule,line width=0.8pt] (3,112.1) -- (81.1,112.1);
   \block{references-col-1}{3}{112.6}{24.7}{\sffamily\fontsize{26}{31}\selectfont\color{Muted}\textbf{Referências}\par
@@ -185,5 +185,6 @@
   \block{references-col-3}{56.4}{112.6}{24.7}{\sffamily\fontsize{26}{31}\selectfont\color{Muted}
   [4] Greene. \emph{The Decomposition of Polygons into Convex Parts}. Computational Geometry, 1983.\par\vspace{0.12cm}
   O autor declara não haver conflito de interesses.}
+  \end{scope}
 \end{tikzpicture}
 \end{document}
