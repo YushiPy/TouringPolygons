@@ -117,3 +117,10 @@ bool pairwise_disjoint_unchecked_double(
     const std::vector<std::vector<Vector2>> &polygons);
 
 }
+
+#include "tpp/convex/rational.h"
+namespace tpp::detail {
+ConvexRationalPolygon solve_intersecting_map_contacts_exact(
+    const ConvexRationalPoint &start,const ConvexRationalPoint &target,
+    const ConvexRationalPolygons &polygons);
+}

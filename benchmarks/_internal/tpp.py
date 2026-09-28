@@ -66,6 +66,8 @@ Commands:
   benchmark ARGS...                  Run the canonical algorithm benchmark.
   compare-solvers ARGS...            Compare B&B performance across convex solvers.
   compare-external ARGS...           Run the pinned external solver on a suite.
+  cycle-benchmark ARGS...            Compare certified cycle solvers with Gurobi.
+  tspn-benchmark ARGS...             Compare TSPN B&B against the Fekete SOCP B&B.
   compare-oracles ARGS...            Compare oracle backends inside the external solver.
   run-fekete ARGS...                 Run/resume the long external campaign.
   convert-german ARGS...             Convert the pinned German instance archive.
@@ -331,6 +333,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 		return command_compare_solvers(rest)
 	if command == "compare-external":
 		return command_module("tspn_run_comparison", rest)
+	if command == "cycle-benchmark":
+		return command_module("cycle_benchmark", rest)
+	if command == "tspn-benchmark":
+		return command_module("tspn_benchmark", rest)
 	if command == "compare-oracles":
 		return command_module("tspn_oracle_backends", rest)
 	if command == "run-fekete":

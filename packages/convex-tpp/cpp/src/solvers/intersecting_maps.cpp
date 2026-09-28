@@ -26,6 +26,9 @@ struct Point {
     Point() = default;
     Point(Scalar x_, Scalar y_) : x(std::move(x_)), y(std::move(y_)) {}
     explicit Point(Vector2 p) : x(p.x), y(p.y) {}
+#ifndef TPP_EXPERIMENT_NATIVE_DOUBLE
+    explicit Point(const ConvexRationalPoint &p) : x(p.x),y(p.y) {}
+#endif
     Point operator+(const Point &b) const { return {x+b.x,y+b.y}; }
     Point operator-(const Point &b) const { return {x-b.x,y-b.y}; }
     Point operator-() const { return {-x,-y}; }
@@ -369,11 +372,16 @@ class DirectionalMaps {
 
 public:
     DirectionalMaps(Vector2 s,Vector2 t,const std::vector<std::vector<Vector2>> &polygons,
+                    PreloadPolicy preload,bool assume_disjoint=false)
+        : DirectionalMaps(Point(s),Point(t),polygons,preload,assume_disjoint) {}
+    template<class InputPoint>
+    DirectionalMaps(Point s,Point t,const std::vector<std::vector<InputPoint>> &polygons,
                     PreloadPolicy preload,bool assume_disjoint=false) : start(s),target(t) {
         maps.resize(polygons.size());
         for(size_t i=0;i<polygons.size();++i) {
             auto &p=maps[i].original;
             for(auto v:polygons[i]) {
+                if constexpr(std::is_same_v<InputPoint,Vector2>)
                 if(!std::isfinite(v.x) || !std::isfinite(v.y))
                     throw std::invalid_argument("Nonfinite polygon coordinate");
                 append(p,Point(v));
@@ -417,7 +425,7 @@ public:
         return result;
     }
     std::vector<DirectionalMapContact> contact_details_from_path(
-            const std::vector<Point> &path,bool use_last_contact) {
+            const std::vector<Point> &path,bool use_last_contact,std::vector<Point> *exact_contacts=nullptr) {
         std::vector<DirectionalMapContact> result;
         result.reserve(maps.size());
         if(path.empty()) throw std::runtime_error("Directional map returned an empty path");
@@ -428,6 +436,7 @@ public:
             if(path.size()==1) {
                 if(!inside({path.front(),{}},maps[i].original))
                     throw std::runtime_error("Stationary path misses polygon "+std::to_string(i));
+                if(exact_contacts){exact_contacts->push_back(path.front());continue;}
                 result.push_back({.point=path.front().external(),.segment_start=path.front().external(),
                     .segment_end=path.front().external()});
                 continue;
@@ -448,6 +457,8 @@ public:
                     const bool choose_hi=use_last_contact && hi<Scalar(1);
                     rate=use_last_contact ? std::min(hi,Scalar(1)) : std::max(lo,rate);
                     const auto edge_index=choose_hi?hi_edge:lo_edge;
+                    if(exact_contacts)exact_contacts->push_back(a+direction*rate);
+                    else {
                     DirectionalMapContact detail{.point=(a+direction*rate).external(),
                         .segment_start=a.external(),.segment_end=(a+direction).external()};
                     if(edge_index) {
@@ -456,6 +467,7 @@ public:
                         detail.has_edge=true;
                     }
                     result.push_back(detail);
+                    }
                     found=true;
                     break;
                 }
@@ -488,6 +500,12 @@ public:
         return contacts_from_path(path,use_last_contact);
     }
 #ifndef TPP_EXPERIMENT_NATIVE_DOUBLE
+    ConvexRationalPolygon exact_contacts() {
+        std::vector<Point> path,contacts;query_path(target,maps.size(),path);
+        contact_details_from_path(path,false,&contacts);
+        ConvexRationalPolygon result;for(const auto &q:contacts)result.emplace_back(q.x,q.y);
+        return result;
+    }
     std::pair<double,double> exact_length_bounds(const std::vector<Point> &path) {
         constexpr unsigned precision=96;
         const boost::multiprecision::cpp_int scale=boost::multiprecision::cpp_int(1)<<precision;
@@ -545,6 +563,10 @@ std::vector<DirectionalTraceStep> solve_intersecting_map_trace_unchecked_double(
     return DirectionalMaps(start,target,polygons,preload).trace();
 }
 #else
+ConvexRationalPolygon solve_intersecting_map_contacts_exact(const ConvexRationalPoint &start,
+        const ConvexRationalPoint &target,const ConvexRationalPolygons &polygons) {
+    return DirectionalMaps(Point(start),Point(target),polygons,PreloadPolicy::Lazy).exact_contacts();
+}
 std::vector<Vector2> solve_intersecting_maps(const Vector2 &start,const Vector2 &target,
         const std::vector<std::vector<Vector2>> &polygons,PreloadPolicy preload) {
     return DirectionalMaps(start,target,polygons,preload).solve();
