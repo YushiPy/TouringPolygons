@@ -53,8 +53,9 @@
   \block{author}{3}{13.68}{37}{\sffamily\bfseries\fontsize{48}{55}\selectfont\color{Ink}Gabriel Freire Ushijima\par\vspace{0.08cm}\mdseries\fontsize{23}{27}\selectfont\color{Muted}\href{mailto:gabriel_ushijima@usp.br}{gabriel\_ushijima@usp.br}}
   \block{advisor}{30}{13.68}{51.1}{\sffamily\bfseries\fontsize{48}{55}\selectfont\color{Ink}Ernesto G. Birgin \mdseries(Orientador)\par\vspace{0.08cm}\fontsize{23}{27}\selectfont\color{Muted}\href{mailto:egbirgin@ime.usp.br}{egbirgin@ime.usp.br}}
   \draw[Rule,line width=1.1pt] (3,17.0) -- (81.1,17.0);
-  \draw[Rule,line width=0.8pt] (41.95,18.3) -- (41.95,40.5);
-  \draw[Rule,line width=0.8pt] (3,40.5) -- (81.1,40.5);
+  \draw[Rule,line width=0.8pt] (41.95,18.3) -- (41.95,40.8);
+  \draw[Rule,line width=0.8pt] (3,40.8) -- (81.1,40.8);
+  \begin{scope}[yshift=-0.3cm]
   \draw[Rule,line width=0.8pt] (33.25,41.4) -- (33.25,82.95);
   % Section 1 uses one half-page column; two fixed-order problems lead to free order.
   \block{intro-head}{3}{18.3}{38.2}{\head{1}{Introdução}}
@@ -75,7 +76,7 @@
   % Section 2 presents the polynomial subproblem and the independent research story.
   \block{definitions-head}{42.7}{18.3}{38.4}{\head{2}{Trabalhos anteriores}}
   \block{prior-work}{42.7}{20.38}{38.4}{\tagtext Um subproblema polinomial\par\vspace{0.20cm}\bodytext Os três problemas são NP-difíceis. No entanto, para o TPP com polígonos convexos e ordem fixa, Dror et al. (2003) descrevem um algoritmo em $O(nk^2 \log n)$, depois melhorado por Tan \& Jiang (2017) para $O(nk^2)$. Aqui, $k$ é o número de polígonos e $n$ a soma dos vértices.}
-  \block{competition-story}{42.7}{25.34}{38.4}{\tagtext Duas abordagens\par\vspace{0.20cm}\bodytext Enumerar ordens e peças convexas com branch and bound é uma estratégia natural para o TPP de ordem livre. Fekete et al. [3] também apresentaram um algoritmo concreto: modelam o subproblema convexo como SOCP e o resolvem com Gurobi.\par\vspace{0.40cm}\tagtext Nossa comparação\par\vspace{0.20cm}\bodytext Nosso solver geométrico exato e autocontido, adaptado de Dror et al. e Tan \& Jiang, explora as propriedades geométricas do problema sem um solver comercial. Comparamos os métodos nas instâncias do próprio artigo de Fekete et al. para medir eficiência e precisão dos contatos.\par\vspace{0.40cm}\tagtext Aplicações práticas\par\vspace{0.20cm}\bodytext Pensamos em aplicações como entrega de última milha, vigilância e coleta de dados em agricultura de precisão. Em todos esses cenários, a capacidade dos veículos pode ser uma restrição; por isso, queremos estender o método ao VRP com vizinhanças poligonais.}
+  \block{competition-story}{42.7}{25.24}{38.4}{\tagtext Duas abordagens\par\vspace{0.20cm}\bodytext Enumerar ordens e peças convexas com branch and bound é uma estratégia natural para o TPP de ordem livre. Fekete et al. [3] também apresentaram um algoritmo concreto: modelam o subproblema convexo como SOCP e o resolvem com Gurobi.\par\vspace{0.30cm}\tagtext Nossa comparação\par\vspace{0.20cm}\bodytext Nosso solver geométrico exato e autocontido, adaptado de Dror et al. e Tan \& Jiang, explora as propriedades geométricas do problema sem um solver comercial. Comparamos os métodos nas instâncias do próprio artigo de Fekete et al. para medir eficiência e precisão dos contatos.\par\vspace{0.30cm}\tagtext Aplicações práticas\par\vspace{0.20cm}\bodytext Pensamos em aplicações como entrega de última milha, vigilância e coleta de dados em agricultura de precisão. Em todos esses cenários, a capacidade dos veículos pode ser uma restrição; por isso, queremos estender o método ao VRP com vizinhanças poligonais.}
   % The map now has a concise, concrete caption beneath it.
   \block{map-head}{3}{41.4}{29.5}{\head{3}{A USP como instância}}
   \block{usp-map}{3}{49.3}{29.5}{\includegraphics[width=\linewidth]{figures/usp-route-square.png}}
@@ -136,30 +137,34 @@
   \block{app-head}{50.4}{87.7}{29.1}{\head{6}{Tente você mesmo!}}
   \draw[Rule,line width=0.8pt] (49.65,87.7) -- (49.65,111.6);
 
-  \block{comparison-context}{3}{89.95}{45.9}{\bodytext Comparamos os solvers nas instâncias de Fekete et al. (uma thread; limite de 6 h por caso). Speedup médio aritmético e vitórias consideram os 550 casos concluídos por ambos; a precisão avalia trajetórias disponíveis, com validação geométrica a $10^{-7}$ m.}
+  \block{comparison-context}{3}{89.95}{45.9}{\bodytext Comparamos os solvers nas próprias instâncias do artigo de Fekete et al. (uma thread; limite de 6 h por caso). Speedup e vitórias consideram os 550 casos concluídos por ambos; a validação geométrica usa tolerância de $10^{-7}$ m.}
   \fill[white,rounded corners=0.30cm] (3,93.55) rectangle (48.9,100.1);
   \draw[Rule,line width=1.0pt,rounded corners=0.30cm] (3,93.55) rectangle (48.9,100.1);
-  \draw[Route,line width=4.0pt] (3.3,93.60) -- (17.95,93.60);
-  \draw[LastVisit,line width=4.0pt] (18.65,93.60) -- (33.25,93.60);
-  \draw[Ink,line width=4.0pt] (33.95,93.60) -- (48.6,93.60);
-  \draw[Rule,line width=0.8pt] (18.3,94.0) -- (18.3,99.2);
-  \draw[Rule,line width=0.8pt] (33.6,94.0) -- (33.6,99.2);
-  \block{speedup}{3.7}{94.3}{13.8}{\metric 10,40×\par\vspace{0.12cm}\bodytext\textbf{Speedup médio}\par\smalltext Fekete / nosso.}
-  \block{faster}{18.9}{94.3}{13.9}{\metric 492 / 550\par\vspace{0.12cm}\bodytext\textbf{Casos mais rápidos}\par\smalltext Nosso solver; Fekete venceu nos outros 58.}
-  \block{completion}{34.2}{94.3}{13.9}{\metric 558 / 558\par\vspace{0.12cm}\bodytext\textbf{Ótimos certificados}\par\smalltext Nosso solver. Fekete concluiu 550/558 com gap ≤ 0,1\%.}
+  \draw[Route,line width=4.0pt] (3.3,93.60) -- (14.15,93.60);
+  \draw[LastVisit,line width=4.0pt] (14.75,93.60) -- (25.6,93.60);
+  \draw[Ink,line width=4.0pt] (26.2,93.60) -- (37.05,93.60);
+  \draw[Accent,line width=4.0pt] (37.65,93.60) -- (48.6,93.60);
+  \draw[Rule,line width=0.8pt] (14.475,94.0) -- (14.475,99.65);
+  \draw[Rule,line width=0.8pt] (25.95,94.0) -- (25.95,99.65);
+  \draw[Rule,line width=0.8pt] (37.425,94.0) -- (37.425,99.65);
+  \block{speedup}{3.45}{94.3}{10.575}{\metric 10,40×\par\vspace{0.12cm}\bodytext\textbf{Speedup médio}\par\smalltext Fekete / nosso.}
+  \block{faster}{14.925}{94.3}{10.575}{\metric 492 / 550\par\vspace{0.12cm}\bodytext\textbf{Casos mais rápidos}\par\smalltext Fekete venceu os outros 58.}
+  \block{completion}{26.4}{94.3}{10.575}{\metric 558 / 558\par\vspace{0.12cm}\bodytext\textbf{Ótimos certificados}\par\smalltext Nosso solver.}
+  \block{case49}{37.875}{94.3}{10.575}{\metric 2,47 s\par\vspace{0.12cm}\bodytext\textbf{Caso 49 · 60 regiões}\par\smalltext $1{,}56\times10^{117}$ combinações; busca sem enumeração.}
 
-  \fill[Accent!7,rounded corners=0.20cm] (3,100.45) rectangle (48.9,105.0);
-  \draw[Accent!45,line width=0.8pt,rounded corners=0.20cm] (3,100.45) rectangle (48.9,105.0);
-  \block{case49-title}{3.7}{100.7}{44.5}{\tagtext Caso 49 · 60 regiões}
-  \draw[Rule,line width=0.8pt] (25.95,101.9) -- (25.95,104.7);
-  \block{case49-search-space}{3.7}{101.9}{20.8}{\sffamily\bfseries\fontsize{48}{54}\selectfont\color{Accent}$1{,}56\times10^{117}$\par\vspace{0.02cm}\smalltext combinações formais}
-  \block{case49-runtime}{26.6}{101.9}{21.6}{\sffamily\bfseries\fontsize{48}{54}\selectfont\color{Accent}2,47 s\par\vspace{0.02cm}\smalltext Uma thread; solver não enumerou.}
+  \fill[Pale,rounded corners=0.20cm] (3,100.45) rectangle (48.9,106.75);
+  \draw[Rule,line width=0.8pt,rounded corners=0.20cm] (3,100.45) rectangle (48.9,106.75);
+  \draw[Accent,line width=3.0pt] (3.3,100.5) -- (48.6,100.5);
+  \block{contact-title}{3.7}{100.8}{44.5}{\tagtext Precisão dos contatos · distância mínima à região (P95)}
+  \block{contact-explanation}{3.7}{101.8}{44.5}{\bodytext O P95 é o valor abaixo do qual ficam 95\% das distâncias mínimas entre rota e região; 0 m significa contato.}
+  \draw[Rule,line width=0.8pt] (25.95,103.25) -- (25.95,105.95);
+  \block{contact-ours}{3.7}{103.25}{21.6}{\metric 0 m\par\vspace{0.05cm}\bodytext\textbf{Nosso solver · 16.303 visitas}}
+  \block{contact-fekete}{26.65}{103.25}{21.6}{\metric 9,31 μm\par\vspace{0.05cm}\bodytext\textbf{Fekete et al. · 15.883 visitas}}
 
-  \fill[Pale,rounded corners=0.20cm] (3,105.35) rectangle (48.9,111.6);
-  \draw[Rule,line width=0.8pt,rounded corners=0.20cm] (3,105.35) rectangle (48.9,111.6);
-  \block{conclusion-title}{3.7}{105.7}{44.5}{\tagtext Conclusão}
-  \block{conclusion-text}{3.7}{106.8}{44.5}{\bodytext Nas instâncias de Fekete et al., nosso solver certificou o ótimo em 558/558 casos e foi mais rápido em 492 dos 550 concluídos por ambos.}
-  \block{contact-summary}{3.7}{109.15}{44.5}{\smalltext P95 da distância mínima entre a rota e cada região visitada: 0 m (nosso, 16.303 visitas); 9,31 μm (Fekete, 15.883).}
+  \fill[white,rounded corners=0.20cm] (3,107.1) rectangle (48.9,111.45);
+  \draw[Rule,line width=0.8pt,rounded corners=0.20cm] (3,107.1) rectangle (48.9,111.45);
+  \block{conclusion-title}{3.7}{107.4}{44.5}{\tagtext Conclusão}
+  \block{conclusion-text}{3.7}{108.5}{44.5}{\bodytext Nas instâncias de Fekete et al., nosso solver certificou o ótimo em 558/558 casos e foi mais rápido em 492 dos 550 concluídos por ambos.}
 
   \block{app-intro}{50.525}{89.95}{19.2}{\bodytext Explore as rotas da USP, das 32 subprefeituras de São Paulo e das 27 unidades federativas do Brasil. No web app, a explicação do algoritmo é muito mais aprofundada!}
   \block{qr}{70.225}{89.95}{8.4}{\qrcode[level=H,height=8.4cm]{https://yushipy.github.io/TouringPolygons/apps/siicusp34/}}
@@ -184,6 +189,7 @@
   \block{references-col-3}{56.4}{112.6}{24.7}{\sffamily\fontsize{26}{31}\selectfont\color{Muted}
   [4] Greene. \emph{The Decomposition of Polygons into Convex Parts}. Computational Geometry, 1983.\par\vspace{0.12cm}
   O autor declara não haver conflito de interesses.}
+  \end{scope}
   \end{scope}
 \end{tikzpicture}
 \end{document}
