@@ -144,6 +144,16 @@ def route_polygon_distance(path: Sequence[Point], polygon: Polygon) -> float:
 	return min(segment_segment_distance(a, b, c, d) for a, b in route_segments for c, d in polygon_segments)
 
 
+def bbox_max_side(case: dict[str, Any]) -> float:
+	points = [case["start"], case["target"], *(point for polygon in case["polygons"] for point in polygon)]
+	width = max(point[0] for point in points) - min(point[0] for point in points)
+	height = max(point[1] for point in points) - min(point[1] for point in points)
+	scale = max(width, height)
+	if scale <= 0:
+		raise ValueError("The instance bounding box must have positive extent.")
+	return scale
+
+
 def percentile(values: Sequence[float], fraction: float) -> float | None:
 	if not values:
 		return None
@@ -238,10 +248,18 @@ def build_analysis(args: argparse.Namespace) -> dict[str, Any]:
 	ours_per_polygon_distances = []
 	per_polygon_raw_distances = []
 	per_polygon_snapped_distances = []
+	common_relative_ours_case = []
+	common_relative_raw_case = []
+	common_relative_snapped_case = []
+	common_relative_ours_target = []
+	common_relative_raw_target = []
+	common_relative_snapped_target = []
+	common_target_pairs = 0
 
 	for case_index, case in enumerate(cases):
 		a = ours[case_index]
 		b = fekete[case_index]
+		scale = bbox_max_side(case)
 		ours_seconds = finite(a.get("seconds"))
 		fekete_seconds = finite(b.get("solve_seconds"))
 		if ours_seconds is not None:
@@ -282,16 +300,36 @@ def build_analysis(args: argparse.Namespace) -> dict[str, Any]:
 				continue
 			path_distances[variant] = [route_polygon_distance(path, polygon) for polygon in case["polygons"]]
 		for polygon_index in range(len(case["polygons"])):
+			ours_distance = ours_path_distances[polygon_index] if ours_path_distances else None
+			raw_distance = path_distances["raw"][polygon_index] if path_distances["raw"] else None
+			snapped_distance = path_distances["snapped"][polygon_index] if path_distances["snapped"] else None
 			precision_per_polygon.append({
 				"case_index": case_index,
 				"polygon_index": polygon_index,
-				"ours_distance": ours_path_distances[polygon_index] if ours_path_distances else None,
-				"raw_distance": path_distances["raw"][polygon_index] if path_distances["raw"] else None,
-				"snapped_distance": path_distances["snapped"][polygon_index] if path_distances["snapped"] else None,
+				"bbox_max_side": scale,
+				"ours_distance": ours_distance,
+				"ours_relative_distance": ours_distance / scale if ours_distance is not None else None,
+				"raw_distance": raw_distance,
+				"raw_relative_distance": raw_distance / scale if raw_distance is not None else None,
+				"snapped_distance": snapped_distance,
+				"snapped_relative_distance": snapped_distance / scale if snapped_distance is not None else None,
 			})
 
 		raw_case_max = max(path_distances["raw"], default=None)
 		snapped_case_max = max(path_distances["snapped"], default=None)
+		is_completed = b.get("is_optimal") == "True"
+		if is_completed and ours_path_distances and path_distances["raw"]:
+			ours_relative_targets = [distance / scale for distance in ours_path_distances]
+			raw_relative_targets = [distance / scale for distance in path_distances["raw"]]
+			common_relative_ours_case.append(max(ours_relative_targets))
+			common_relative_raw_case.append(max(raw_relative_targets))
+			common_relative_ours_target.extend(ours_relative_targets)
+			common_relative_raw_target.extend(raw_relative_targets)
+			if path_distances["snapped"]:
+				snapped_relative_targets = [distance / scale for distance in path_distances["snapped"]]
+				common_relative_snapped_case.append(max(snapped_relative_targets))
+				common_relative_snapped_target.extend(snapped_relative_targets)
+			common_target_pairs += len(case["polygons"])
 		if raw_case_max is not None:
 			raw_max_distances.append(raw_case_max)
 			per_polygon_raw_distances.extend(path_distances["raw"])
@@ -299,7 +337,6 @@ def build_analysis(args: argparse.Namespace) -> dict[str, Any]:
 			snapped_max_distances.append(snapped_case_max)
 			per_polygon_snapped_distances.extend(path_distances["snapped"])
 
-		is_completed = b.get("is_optimal") == "True"
 		speedup = fekete_seconds / ours_seconds if is_completed and fekete_seconds and ours_seconds and ours_seconds > 0 else None
 		length_ratio = fekete_length / ours_length if is_completed and fekete_length is not None and ours_length and ours_length > 0 else None
 		if speedup is not None:
@@ -316,9 +353,13 @@ def build_analysis(args: argparse.Namespace) -> dict[str, Any]:
 			"fekete_length": fekete_length,
 			"length_ratio_fekete_over_ours": length_ratio,
 			"ours_max_polygon_distance": max(ours_path_distances, default=None),
+			"bbox_max_side": scale,
+			"ours_max_relative_polygon_distance": max(ours_path_distances, default=0.0) / scale if ours_path_distances else None,
 			"fekete_relative_gap": finite(b.get("relative_gap")),
 			"fekete_raw_max_polygon_distance": raw_case_max,
+			"fekete_raw_max_relative_polygon_distance": raw_case_max / scale if raw_case_max is not None else None,
 			"fekete_snapped_max_polygon_distance": snapped_case_max,
+			"fekete_snapped_max_relative_polygon_distance": snapped_case_max / scale if snapped_case_max is not None else None,
 			"fekete_csv_raw_max_polygon_distance": finite(b.get("max_polygon_distance")),
 			"fekete_csv_snapped_max_polygon_distance": finite(b.get("snapped_max_polygon_distance")),
 		})
@@ -352,6 +393,18 @@ def build_analysis(args: argparse.Namespace) -> dict[str, Any]:
 		"fekete_snapped_per_polygon": precision_summary(per_polygon_snapped_distances),
 		"fekete_raw_max_per_instance": precision_summary(raw_max_distances),
 		"fekete_snapped_max_per_instance": precision_summary(snapped_max_distances),
+		"common_completed_relative": {
+			"definition": "for each of the 550 common completed instances, divide each route-to-target minimum distance by the maximum side of the instance bounding box, then take the worst target per instance; P95 is computed over instances",
+			"scale": "maximum of the bounding-box width and height, including s, t, and every polygon vertex",
+			"common_completed_instances": len(common_relative_ours_case),
+			"common_target_pairs": common_target_pairs,
+			"ours_worst_target_per_instance": numeric_stats(common_relative_ours_case),
+			"fekete_raw_worst_target_per_instance": numeric_stats(common_relative_raw_case),
+			"fekete_snapped_worst_target_per_instance": numeric_stats(common_relative_snapped_case),
+			"ours_per_target": numeric_stats(common_relative_ours_target),
+			"fekete_raw_per_target": numeric_stats(common_relative_raw_target),
+			"fekete_snapped_per_target": numeric_stats(common_relative_snapped_target),
+		},
 	}
 
 	result = {
@@ -458,28 +511,23 @@ def build_markdown(analysis: dict[str, Any]) -> str:
 		"",
 		"## Precisão geométrica",
 		"",
-		"A métrica usada é a distância Euclidiana mínima entre a polilinha completa da trajetória e cada polígono; zero significa que a trajetória toca ou cruza o polígono. A tabela mostra o maior erro por instância e também a distribuição por ponto de visita.",
+		"A distância é a mínima Euclidiana entre a polilinha completa e cada alvo; zero significa contato ou cruzamento. Para comparar os dois solvers sem misturar tamanhos nem conjuntos diferentes, a métrica relativa usa somente os casos concluídos por ambos: para cada alvo, divide-se a distância pelo maior lado da caixa delimitadora da instância (incluindo $s$, $t$ e os vértices); em cada caso, toma-se o pior alvo. O P95 é calculado sobre as 550 instâncias pareadas. As folgas observadas no Fekete são compatíveis com tolerâncias numéricas no subproblema SOCP, mas esta comparação geométrica não identifica sua causa isoladamente.",
+		"",
+		f"O conjunto comum contém {precision['common_completed_relative']['common_completed_instances']} casos e {precision['common_completed_relative']['common_target_pairs']} pares instância-alvo. P95 do pior afastamento relativo por caso: nosso **{compact(precision['common_completed_relative']['ours_worst_target_per_instance']['p95'])}**, Fekete bruto **{compact(precision['common_completed_relative']['fekete_raw_worst_target_per_instance']['p95'])}** e Fekete snapped **{compact(precision['common_completed_relative']['fekete_snapped_worst_target_per_instance']['p95'])}**.",
 		"",
 		markdown_table(
-			["Métrica", "Nosso solver", "Fekete bruta", "Fekete snapped"],
+			["P95 do pior d/B por caso (550 casos)", "Nosso solver", "Fekete bruta", "Fekete snapped"],
 			[
-				["Instâncias com trajetória", precision["ours_max_per_instance"]["stats"]["n"], precision["fekete_raw_max_per_instance"]["stats"]["n"], precision["fekete_snapped_max_per_instance"]["stats"]["n"]],
-				["Mediana do maior erro por instância", compact(precision["ours_max_per_instance"]["stats"]["median"]), compact(precision["fekete_raw_max_per_instance"]["stats"]["median"]), compact(precision["fekete_snapped_max_per_instance"]["stats"]["median"])],
-				["P95 do maior erro por instância", compact(precision["ours_max_per_instance"]["stats"]["p95"]), compact(precision["fekete_raw_max_per_instance"]["stats"]["p95"]), compact(precision["fekete_snapped_max_per_instance"]["stats"]["p95"])],
-				["Instâncias ≤ 1e−7", sum(value <= 1e-7 for value in [row["ours_max_polygon_distance"] for row in rows if row["ours_max_polygon_distance"] is not None]), sum(value <= 1e-7 for value in [row["fekete_raw_max_polygon_distance"] for row in rows if row["fekete_raw_max_polygon_distance"] is not None]), sum(value <= 1e-7 for value in [row["fekete_snapped_max_polygon_distance"] for row in rows if row["fekete_snapped_max_polygon_distance"] is not None])],
-				["Instâncias > 1e−7", analysis["derived"]["ours_max_over_1e-7"], analysis["derived"]["fekete_raw_max_over_1e-7"], analysis["derived"]["fekete_snapped_max_over_1e-7"]],
+				["Valor relativo", compact(precision["common_completed_relative"]["ours_worst_target_per_instance"]["p95"]), compact(precision["common_completed_relative"]["fekete_raw_worst_target_per_instance"]["p95"]), compact(precision["common_completed_relative"]["fekete_snapped_worst_target_per_instance"]["p95"])],
 			],
 		),
 		"",
-		"Por ponto de visita, a mesma métrica tem a seguinte distribuição:",
+		"Como conferência, a P95 agrupada por alvo no mesmo conjunto pareado é:",
 		"",
 		markdown_table(
-			["Métrica", "Nosso solver", "Fekete bruta", "Fekete snapped"],
+			["P95 de d/B por alvo", "Nosso solver", "Fekete bruta", "Fekete snapped"],
 			[
-				["Pontos de visita", precision["ours_per_polygon"]["stats"]["n"], precision["fekete_raw_per_polygon"]["stats"]["n"], precision["fekete_snapped_per_polygon"]["stats"]["n"]],
-				["Mediana da distância", compact(precision["ours_per_polygon"]["stats"]["median"]), compact(precision["fekete_raw_per_polygon"]["stats"]["median"]), compact(precision["fekete_snapped_per_polygon"]["stats"]["median"])],
-				["P95 da distância", compact(precision["ours_per_polygon"]["stats"]["p95"]), compact(precision["fekete_raw_per_polygon"]["stats"]["p95"]), compact(precision["fekete_snapped_per_polygon"]["stats"]["p95"])],
-				["Pontos ≤ 1e−7", precision["ours_per_polygon"]["thresholds"][5]["count"], precision["fekete_raw_per_polygon"]["thresholds"][5]["count"], precision["fekete_snapped_per_polygon"]["thresholds"][5]["count"]],
+				["Valor relativo (n=15.823)", compact(precision["common_completed_relative"]["ours_per_target"]["p95"]), compact(precision["common_completed_relative"]["fekete_raw_per_target"]["p95"]), compact(precision["common_completed_relative"]["fekete_snapped_per_target"]["p95"])],
 			],
 		),
 		"",

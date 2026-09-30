@@ -32,23 +32,14 @@ Nas 550 instâncias concluídas por ambos, a razão comprimento(Fekete)/comprime
 
 ## Precisão geométrica
 
-A métrica usada é a distância Euclidiana mínima entre a polilinha completa da trajetória e cada polígono; zero significa que a trajetória toca ou cruza o polígono. A tabela mostra o maior erro por instância e também a distribuição por ponto de visita.
+A distância geométrica é a mínima entre a polilinha da trajetória e cada alvo; zero significa contato ou cruzamento. A contagem anterior de 16.303 contra 15.883 era o número de pares rota–alvo medidos nas trajetórias disponíveis, não o número de contatos. Ela misturava 558 trajetórias nossas e 551 de Fekete; sete trajetórias ausentes de Fekete, cada uma em um caso com 60 alvos, explicam a diferença líquida de 420 observações. Para comparar os métodos sobre exatamente a mesma amostra, usamos os 550 casos concluídos por ambos: 15.823 pares instância–alvo.
+
+Para cada instância, $B$ é o maior lado da caixa envolvente de $s$, $t$ e todos os vértices. A métrica é o pior afastamento relativo $d/B$ entre seus alvos; reportamos o P95 sobre os 550 casos pareados.
 
 | Métrica | Nosso solver | Fekete bruta | Fekete snapped |
 | --- | --- | --- | --- |
-| Instâncias com trajetória | 558 | 551 | 551 |
-| Mediana do maior erro por instância | 0 | 3.40404e-06 | 3.40404e-06 |
-| P95 do maior erro por instância | 1.13687e-13 | 9.60514e-05 | 9.60514e-05 |
-| Instâncias ≤ 1e−7 | 558 | 130 | 130 |
-| Instâncias > 1e−7 | 0 | 421 | 421 |
+| P95 do pior $d/B$ por caso | $2.51\times10^{-17}$ (≈ 0) | $1.356\times10^{-6}$ | $1.356\times10^{-6}$ |
 
-Por ponto de visita, a mesma métrica tem a seguinte distribuição:
-
-| Métrica | Nosso solver | Fekete bruta | Fekete snapped |
-| --- | --- | --- | --- |
-| Pontos de visita | 16303 | 15883 | 15883 |
-| Mediana da distância | 0 | 0 | 0 |
-| P95 da distância | 0 | 9.31276e-06 | 9.31276e-06 |
-| Pontos ≤ 1e−7 | 16303 | 11715 | 11715 |
+As pequenas folgas são compatíveis com tolerâncias numéricas no subproblema SOCP de Fekete et al., mas a comparação geométrica não isola sua causa.
 
 A comparação de comprimento usa o comprimento recalculado das trajetórias do Fekete e o comprimento final certificado do nosso solver. Como ambos produzem uma solução ótima, pequenas diferenças abaixo de 1 na razão podem ser efeito de arredondamento e tolerância numérica.
