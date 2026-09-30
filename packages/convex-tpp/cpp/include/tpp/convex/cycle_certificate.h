@@ -31,17 +31,20 @@ struct ConvexCycleCertificateResult {
 	std::size_t exact_predicate_evaluations = 0;
     // A finite requested bound was proved without running the KKT test.
     bool optimality_check_skipped = false;
+    bool interval_bounds_used = false;
 };
 
 // Immutable, independently validated geometry. Reusing it skips only input
 // conversion/validation; contact feasibility and optimality are checked anew.
 class ConvexCycleCertificateGeometry {
     ConvexRationalPolygons polygons_;
+    std::vector<std::vector<Vector2>> binary_polygons_;
     friend class ConvexCycleWorkspace;
 public:
     explicit ConvexCycleCertificateGeometry(const ConvexRationalPolygons &);
-    explicit ConvexCycleCertificateGeometry(const std::vector<std::vector<Vector2>> &);
+    explicit ConvexCycleCertificateGeometry(const std::vector<std::vector<Vector2>> &, bool binary_geometry = false);
     const ConvexRationalPolygons &polygons() const { return polygons_; }
+    const std::vector<std::vector<Vector2>> &binary_polygons() const { return binary_polygons_; }
 };
 
 // Per-worker, content-keyed cache. Input mutation or reordering cannot reuse
@@ -49,9 +52,10 @@ public:
 class ConvexCycleWorkspace {
     using Key = std::vector<std::pair<double,double>>;
     std::map<Key,ConvexRationalPolygon> polygons_;
+    std::map<Key,std::vector<Vector2>> binary_polygons_;
 public:
-    ConvexCycleCertificateGeometry prepare(const std::vector<std::vector<Vector2>> &);
-    void clear() { polygons_.clear(); }
+    ConvexCycleCertificateGeometry prepare(const std::vector<std::vector<Vector2>> &, bool binary_geometry = false);
+    void clear() { polygons_.clear(); binary_polygons_.clear(); }
     std::size_t size() const { return polygons_.size(); }
 };
 ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
@@ -59,7 +63,7 @@ ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
     double lower_bound_cutoff = std::numeric_limits<double>::infinity());
 ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
     const ConvexCycleCertificateGeometry &, const std::vector<Vector2> &,
-    double lower_bound_cutoff = std::numeric_limits<double>::infinity());
+    double lower_bound_cutoff = std::numeric_limits<double>::infinity(), bool interval_filter = false);
 
 // Any unit-disk vectors define a valid dual bound, independently of contacts.
 // Invalid dimensions or vectors are rejected, never clipped with a tolerance.
@@ -79,7 +83,7 @@ ConvexRationalPolygon tpp_convex_cycle_dual_directions(
 ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
 	const std::vector<std::vector<Vector2>> &polygons,
 	const std::vector<Vector2> &contacts,
-    double lower_bound_cutoff = std::numeric_limits<double>::infinity()
+    double lower_bound_cutoff = std::numeric_limits<double>::infinity(), bool interval_filter = false
 );
 
 // Same exact predicates, without rounding rational inputs or contacts to double.

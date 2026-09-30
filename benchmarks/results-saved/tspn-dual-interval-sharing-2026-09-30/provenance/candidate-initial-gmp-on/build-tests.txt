@@ -1,0 +1,11 @@
+Candidate V1 build provenance
+Source base: 63a5124d808d00390d94f6e1b91b5041cba2ee85
+Build dir: .build/tspn-dual-interval-sharing-2026-09-30/candidate-gmp-on
+Configuration: Release, TPP_ENABLE_GMP_RATIONAL=ON, AppleClang 21.0.0 (clang-2100.3.34.2), macOS arm64
+Targets: tpp-unordered, tpp-tspn-tests, tpp-unordered-tests
+GMP-on convex tests: TARGET=main-cycle_tests and TARGET=main-cycle_certificate_tests, both Release.
+Frozen native executable SHA-256: 6e9724b988fd314c16e17a53a90f87b239e924a1d8419c6300311ec940b1ffcb
+Tracked source patch SHA-256: 6ebf6b2e03a94cacf4d92a4e7b4d3f03dc0557f9bef10befb9e7273257d4fb0d
+Untracked cycle_interval.h SHA-256: ac4241420084ef1bc5c8b38f2ea6c16df937ef7a5ae33bdc3b356e66dfc6686f
+Build outcomes: all targets compiled. AppleClang reported pre-existing designated-initializer order warnings in unordered.cpp; no errors.
+GMP-on tests: TSPN passed (19 exhaustive cases; 798 option/call-cap comparisons; 38 combined concurrency checks); unordered passed (86 exhaustive-order cases; 344 interrupted-search checks; concurrent child evaluation); cycle passed (96 seeded cases, 5 active-contact/boundary regressions, 67 double comparisons); cycle-certificate passed (1,040 zero-link ray pairs, 269 optimal).

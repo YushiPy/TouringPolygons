@@ -45,6 +45,9 @@ tpp::ConvexCycleDoubleResult compare_double(const Polygons &polygons,const tpp::
     require(result.certificate.upper_bound==certificate.upper_bound,name+": double certificate matches output");
     require(certificate.lower_bound<=exact_result.certificate.upper_bound &&
             exact_result.certificate.lower_bound<=certificate.upper_bound,name+": exact/double intervals overlap");
+    const auto filtered=tpp::tpp_convex_verify_cycle_certificate(polygons,result.contacts,INFINITY,true);
+    require(filtered.status==certificate.status&&filtered.lower_bound<=exact_result.certificate.upper_bound&&
+        filtered.upper_bound>=exact_result.certificate.lower_bound,name+": interval certificate encloses independently solved optimum");
     if(result.status==ConvexCycleStatus::Optimal)
         require(certificate.status==tpp::ConvexCycleCertificateStatus::Optimal,name+": no approximate Optimal status");
     const double difference=std::abs(certificate.upper_bound-exact_result.certificate.upper_bound);

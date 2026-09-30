@@ -1,5 +1,6 @@
 #include "unordered_bounds.h"
 #include "tpp/convex/rational.h"
+#include "tpp/convex/cycle_certificate.h"
 
 #include <algorithm>
 #include <cmath>
@@ -7,6 +8,33 @@
 #include <stdexcept>
 
 namespace tpp::unordered_detail {
+    std::vector<double> cycle_replacement_lower_bounds(const Polygon &contacts,
+        const std::vector<const Polygon *> &regions,const std::vector<Polygon> &pieces,
+        size_t position,const ConvexRationalPolygon &inherited_dual) {
+        const size_t n=regions.size();
+        if(!n||contacts.size()!=n+1||position>=n)throw std::invalid_argument("Invalid replacement-bound reference");
+        using R=ConvexRational;using P=ConvexRationalPoint;
+        const auto u=tpp_convex_cycle_dual_directions(Polygon(contacts.begin(),contacts.end()-1),inherited_dual);
+        const P origin(contacts.front());
+        auto support=[&](const Polygon &p,const P &normal) {
+            if(p.empty())throw std::invalid_argument("Empty replacement region");
+            R value=normal.dot(P(p.front())-origin);
+            for(size_t j=1;j<p.size();++j)value=std::min(value,normal.dot(P(p[j])-origin));
+            return value;
+        };
+        R unchanged=0;
+        for(size_t i=0;i<n;++i)if(i!=position)unchanged+=support(*regions[i],u[(i+n-1)%n]-u[i]);
+        const auto normal=u[(position+n-1)%n]-u[position];
+        std::vector<double> bounds;bounds.reserve(pieces.size());
+        for(const auto &piece:pieces) {
+            const R value=std::max(R(0),R(unchanged+support(piece,normal)));
+            double lower=value.convert_to<double>();
+            if(std::isinf(lower))lower=std::numeric_limits<double>::max();
+            while(R(lower)>value)lower=std::nextafter(lower,-INFINITY);
+            bounds.push_back(lower);
+        }
+        return bounds;
+    }
     std::vector<size_t> canonical_cycle_indices(const std::vector<std::pair<size_t,size_t>> &labels) {
         const size_t n=labels.size();if(!n)return {};
         const size_t first=std::min_element(labels.begin(),labels.end())-labels.begin();

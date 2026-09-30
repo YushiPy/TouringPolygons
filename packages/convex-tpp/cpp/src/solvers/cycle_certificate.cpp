@@ -1,6 +1,7 @@
 #include "tpp/convex/cycle_certificate.h"
 #include "cycle_internal.h"
 #include "cycle_zero_certificate.h"
+#include "cycle_interval.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
 
@@ -8,6 +9,7 @@
 #include <bit>
 #include <cmath>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 
@@ -159,6 +161,62 @@ template<class Contacts> bool cutoff_promising(const std::vector<Polygon> &polyg
     return !std::isfinite(lower)||lower>=cutoff;
 }
 
+using Interval=tpp::detail::CycleInterval;
+struct IntervalPoint {
+    Interval x,y;
+    IntervalPoint() = default;
+    explicit IntervalPoint(Vector2 p):x(p.x),y(p.y) {}
+    IntervalPoint(Interval a,Interval b):x(a),y(b) {}
+    IntervalPoint operator-(const IntervalPoint &p) const {return {x-p.x,y-p.y};}
+    Interval dot(const IntervalPoint &p) const {return x*p.x+y*p.y;}
+    Interval cross(const IntervalPoint &p) const {return x*p.y-y*p.x;}
+};
+struct IntervalBounds {double dual=0,primal_lower=0,primal_upper=0;};
+bool interval_inside(Vector2 q,const std::vector<Vector2> &p,const Polygon &exact,size_t &predicates) {
+    if(p.size()<3) {++predicates;return inside(Point(q),exact);}
+    for(const auto &v:p)if(q==v)return true;
+    std::optional<Point> rational_q;
+    for(size_t i=0;i<p.size();++i) {
+        const size_t next=(i+1)%p.size();
+        const auto cross=(IntervalPoint(p[next])-IntervalPoint(p[i])).cross(IntervalPoint(q)-IntervalPoint(p[i]));
+        if(cross.hi<0)return false;
+        if(cross.lo>=0)continue;
+        if(!rational_q)rational_q.emplace(q);
+        ++predicates;
+        if((exact[next]-exact[i]).cross(*rational_q-exact[i])<0)return false;
+    }
+    return true;
+}
+std::optional<IntervalBounds> interval_cycle_bounds(const std::vector<std::vector<Vector2>> &p,
+                                                    const std::vector<Vector2> &q) {
+    const size_t n=q.size();
+    std::vector<IntervalPoint> directions;directions.reserve(n);
+    Interval length;
+    for(size_t i=0;i<n;++i) {
+        if(q[i]==q[(i+1)%n]) {directions.emplace_back();continue;}
+        const auto d=IntervalPoint(q[(i+1)%n])-IntervalPoint(q[i]);
+        const auto norm=(d.x.square()+d.y.square()).sqrt();
+        if(!norm.finite()||norm.lo<=0)return {};
+        length=length+norm;
+        // The EXACT difference divided by this upper norm is in the unit disk.
+        // These intervals enclose that vector; their endpoints are not the dual.
+        directions.emplace_back(d.x.divided_by(norm.hi),d.y.divided_by(norm.hi));
+    }
+    Interval dual;
+    const IntervalPoint origin(q.front());
+    for(size_t i=0;i<n;++i) {
+        const auto normal=directions[(i+n-1)%n]-directions[i];
+        Interval support(INFINITY);
+        for(const auto &v:p[i]) {
+            const auto term=normal.dot(IntervalPoint(v)-origin);
+            support.lo=std::min(support.lo,term.lo);support.hi=std::min(support.hi,term.hi);
+        }
+        dual=dual+support;
+    }
+    if(!length.finite()||!dual.finite())return {};
+    return IntervalBounds{std::max(0.0,dual.lo),std::max(0.0,length.lo),length.hi};
+}
+
 } // namespace
 
 namespace tpp {
@@ -173,14 +231,19 @@ bool detail::cycle_cutoff_promising(const ConvexRationalPolygons &p,const std::v
 ConvexCycleCertificateGeometry::ConvexCycleCertificateGeometry(const ConvexRationalPolygons &input) {
     for(const auto &p:input) polygons_.push_back(exact_convex_polygon(p));
 }
-ConvexCycleCertificateGeometry::ConvexCycleCertificateGeometry(const std::vector<std::vector<Vector2>> &input) {
+ConvexCycleCertificateGeometry::ConvexCycleCertificateGeometry(const std::vector<std::vector<Vector2>> &input,bool binary_geometry) {
     for(const auto &p:input) {
         Polygon exact;
         for(auto v:p) { if(!v.is_finite())throw std::invalid_argument("Nonfinite polygon");exact.emplace_back(v); }
         polygons_.push_back(exact_convex_polygon(exact));
+        if(binary_geometry) {
+            std::vector<Vector2> binary;
+            for(const auto &v:polygons_.back())binary.push_back(v.external());
+            binary_polygons_.push_back(std::move(binary));
+        }
     }
 }
-ConvexCycleCertificateGeometry ConvexCycleWorkspace::prepare(const std::vector<std::vector<Vector2>> &input) {
+ConvexCycleCertificateGeometry ConvexCycleWorkspace::prepare(const std::vector<std::vector<Vector2>> &input,bool binary_geometry) {
     ConvexCycleCertificateGeometry result(ConvexRationalPolygons{});
     for(const auto &p:input) {
         Key key;
@@ -193,6 +256,15 @@ ConvexCycleCertificateGeometry ConvexCycleWorkspace::prepare(const std::vector<s
             found=polygons_.emplace(std::move(key),std::move(strict.front())).first;
         }
         result.polygons_.push_back(found->second);
+        if(binary_geometry) {
+            auto binary=binary_polygons_.find(found->first);
+            if(binary==binary_polygons_.end()) {
+                std::vector<Vector2> points;
+                for(const auto &v:found->second)points.push_back(v.external());
+                binary=binary_polygons_.emplace(found->first,std::move(points)).first;
+            }
+            result.binary_polygons_.push_back(binary->second);
+        }
     }
     return result;
 }
@@ -224,9 +296,10 @@ double tpp_convex_cycle_dual_bound(const ConvexCycleCertificateGeometry &geometr
     return rounded_lower(std::max(Rational(0),lower));
 }
 
-ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
+static ConvexCycleCertificateResult verify_rational_cycle(
 	const ConvexCycleCertificateGeometry &geometry,
-	const ConvexRationalPolygon &input_contacts, double lower_bound_cutoff) {
+	const ConvexRationalPolygon &input_contacts, double lower_bound_cutoff,
+    const std::optional<IntervalBounds> &bounds = {}, bool membership_checked = false) {
 	const auto &input_polygons=geometry.polygons();
 	ConvexCycleCertificateResult result;
 	if (input_polygons.empty() || std::isnan(lower_bound_cutoff)) return result;
@@ -238,13 +311,14 @@ ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
 	try {
 		const auto &polygons=input_polygons;
 		const auto &contacts=input_contacts;
-		for (std::size_t i = 0; i < contacts.size(); ++i) {
+		for (std::size_t i = 0; !membership_checked && i < contacts.size(); ++i) {
 			if (!inside(contacts[i], polygons[i])) {
 				result.status = ConvexCycleCertificateStatus::InvalidCandidate;
 				return result;
 			}
 		}
 		result.status = ConvexCycleCertificateStatus::Feasible;
+        result.interval_bounds_used=bounds.has_value();
 
 		if (contacts.size() == 1) {
 			result.status = ConvexCycleCertificateStatus::Optimal;
@@ -252,7 +326,7 @@ ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
 			return result;
 		}
 
-        const bool try_bound=cutoff_promising(polygons,contacts,lower_bound_cutoff);
+        const bool try_bound=!bounds&&cutoff_promising(polygons,contacts,lower_bound_cutoff);
         if(try_bound) {
             result.lower_bound=rounded_lower(std::max(Rational(0),dual_lower(contacts,polygons)));
             if(result.lower_bound>=lower_bound_cutoff) {
@@ -263,6 +337,12 @@ ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
         }
         if(detail::cycle_support_certificate(polygons,contacts,result.exact_predicate_evaluations))
             result.status=ConvexCycleCertificateStatus::Optimal;
+
+        if(bounds) {
+            result.lower_bound=result.status==ConvexCycleCertificateStatus::Optimal?bounds->primal_lower:bounds->dual;
+            result.upper_bound=bounds->primal_upper;
+            return result;
+        }
 
 	const Rational upper = primal_upper(contacts);
 	if (result.status == ConvexCycleCertificateStatus::Optimal) {
@@ -286,6 +366,11 @@ ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
 }
 
 ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
+    const ConvexCycleCertificateGeometry &geometry,const ConvexRationalPolygon &contacts,double cutoff) {
+    return verify_rational_cycle(geometry,contacts,cutoff);
+}
+
+ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
         const ConvexRationalPolygons &polygons,const ConvexRationalPolygon &contacts,double lower_bound_cutoff) {
     if(polygons.empty())return {};
     if(polygons.size()!=contacts.size()) { ConvexCycleCertificateResult r;r.status=ConvexCycleCertificateStatus::InvalidCandidate;return r; }
@@ -293,17 +378,47 @@ ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
     catch(const std::exception &) {return {};}
 }
 ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
-        const ConvexCycleCertificateGeometry &geometry,const std::vector<Vector2> &contacts,double lower_bound_cutoff) {
+        const ConvexCycleCertificateGeometry &geometry,const std::vector<Vector2> &contacts,double lower_bound_cutoff,bool interval_filter) {
+    std::optional<IntervalBounds> bounds;
+    bool membership_checked=false;size_t predicates=0;
+    if(geometry.polygons().empty()||std::isnan(lower_bound_cutoff))return {};
+    if(contacts.size()!=geometry.polygons().size()||
+       !std::all_of(contacts.begin(),contacts.end(),[](auto q){return q.is_finite();})) {
+        ConvexCycleCertificateResult r;r.status=ConvexCycleCertificateStatus::InvalidCandidate;return r;
+    }
+    if(interval_filter&&detail::cycle_interval_environment()&&geometry.binary_polygons().size()==contacts.size()) {
+        for(size_t i=0;i<contacts.size();++i)if(!interval_inside(contacts[i],geometry.binary_polygons()[i],geometry.polygons()[i],predicates)) {
+            ConvexCycleCertificateResult r;r.status=ConvexCycleCertificateStatus::InvalidCandidate;
+            r.exact_predicate_evaluations=predicates;return r;
+        }
+        membership_checked=true;
+        bounds=interval_cycle_bounds(geometry.binary_polygons(),contacts);
+        if(contacts.size()>1&&bounds&&std::isfinite(lower_bound_cutoff)&&bounds->dual>=lower_bound_cutoff) {
+            ConvexCycleCertificateResult r;r.status=ConvexCycleCertificateStatus::Feasible;
+            r.lower_bound=bounds->dual;r.upper_bound=bounds->primal_upper;
+            r.optimality_check_skipped=true;r.interval_bounds_used=true;
+            r.exact_predicate_evaluations=predicates;return r;
+        }
+        // An inconclusive cutoff uses the original rational proof. An infinite
+        // cutoff permits interval reporting after exact KKT, never early success.
+        if(bounds&&std::isfinite(lower_bound_cutoff)&&bounds->primal_upper>=lower_bound_cutoff)bounds.reset();
+    }
     ConvexRationalPolygon exact;
     for(auto q:contacts) {
         if(!q.is_finite()) {ConvexCycleCertificateResult r;r.status=ConvexCycleCertificateStatus::InvalidCandidate;return r;}
         exact.emplace_back(q);
     }
-    return tpp_convex_verify_cycle_certificate(geometry,exact,lower_bound_cutoff);
+    auto result=verify_rational_cycle(geometry,exact,lower_bound_cutoff,bounds,membership_checked);
+    result.exact_predicate_evaluations+=predicates;
+    return result;
 }
 
 ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
-    const std::vector<std::vector<Vector2>> &polygons, const std::vector<Vector2> &contacts,double lower_bound_cutoff) {
+    const std::vector<std::vector<Vector2>> &polygons, const std::vector<Vector2> &contacts,double lower_bound_cutoff,bool interval_filter) {
+    if(interval_filter) {
+        try {return tpp_convex_verify_cycle_certificate(ConvexCycleCertificateGeometry(polygons,true),contacts,lower_bound_cutoff,true);}
+        catch(const std::exception &) {return {};}
+    }
     ConvexCycleCertificateResult invalid;
     if (polygons.empty()) return invalid;
     if (contacts.size()!=polygons.size()) {

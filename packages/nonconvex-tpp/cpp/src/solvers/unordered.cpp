@@ -118,6 +118,7 @@ namespace tpp {
         std::vector<int> active_features;
         size_t memo_queries=0,memo_repeated=0,memo_hits=0;
         size_t certificate_cutoff_skips=0,initial_contact_checks=0,initial_contact_accepts=0;
+        size_t certificate_interval_uses=0;
         RelaxationResult() = default;
         RelaxationResult(CertifiedConvexTppResult result):CertifiedConvexTppResult(std::move(result)) {}
     };
@@ -126,7 +127,8 @@ namespace tpp {
 		const Vector2 &target, const std::vector<Polygon> &regions,
 		DynamicConvexTppWorkspace &workspace, double tolerance, double cutoff, double seconds,
 		const Polygon &initial_contacts = {}, ConvexCycleWorkspace *cycle_workspace = nullptr,
-        const std::vector<int> &initial_features = {}, bool retain_features = false, bool bound_first = false) {
+        const std::vector<int> &initial_features = {}, bool retain_features = false, bool bound_first = false,
+        bool interval_certificate = false) {
 		if (!cycle) return tpp_convex_solve_certified(start,target,regions,workspace,tolerance,cutoff,seconds);
 		const auto began=std::chrono::steady_clock::now();
 		RelaxationResult out;
@@ -141,6 +143,7 @@ namespace tpp {
         cycle_options.initial_features=initial_features;
         cycle_options.retain_active_features=retain_features;
         cycle_options.bound_first=bound_first;
+        cycle_options.interval_certificate=interval_certificate;
 		auto solved=tpp_convex_solve_cycle_double(regions,cycle_options);
 		if (solved.status!=ConvexCycleStatus::Optimal && solved.status!=ConvexCycleStatus::FloatingPointLimit
 			&& solved.status!=ConvexCycleStatus::CertifiedBound)
@@ -152,6 +155,7 @@ namespace tpp {
 		out.predicate_exact_evaluations=solved.certificate.exact_predicate_evaluations;
 		out.used_fallback=solved.rational_cycle_recoveries+solved.rational_anchor_recoveries+solved.rational_feature_recoveries>0;
         out.certificate_cutoff_skips=solved.certificate_cutoff_skips;
+        out.certificate_interval_uses=solved.certificate_interval_uses;
         out.initial_contact_checks=solved.initial_contact_checks;out.initial_contact_accepts=solved.initial_contact_accepts;
 		if (out.lower_bound<cutoff && out.upper_bound-out.lower_bound>tolerance) {
 			// A rounded optimum may have a weak contact-derived dual. Recover its
@@ -538,6 +542,22 @@ namespace tpp {
         std::vector<ConvexCycleWorkspace> parallel_cycle_workspaces;
         CycleMemo memo_workspace;
         std::vector<CycleMemo> parallel_memo_workspaces;
+        auto strengthen_shared_bound=[&](Node &node) {
+            if(!cycle||!options.cycle_share_bounds||!control||!control->sharing||node.sequence.size()<2)return;
+            const auto began_bound=std::chrono::steady_clock::now();
+            PortfolioControl::CycleKey key;
+            for(auto e:node.sequence) {
+                std::vector<std::pair<double,double>> coordinates;
+                for(auto v:e.piece==none?hulls[e.polygon]:pieces[e.polygon][e.piece])coordinates.emplace_back(v.x,v.y);
+                key.emplace_back(e.polygon,std::move(coordinates));
+            }
+            const double cutoff=result.upper_bound-gap();
+            const double bound=control->compatible_cycle_bound(key,cutoff,result.cycle_shared_bound_queries,result.cycle_shared_bound_hits);
+            result.cycle_shared_bound_improvements+=bound>node.bound;
+            result.cycle_shared_bound_prunes+=node.bound<cutoff&&bound>=cutoff;
+            node.bound=std::max(node.bound,bound);
+            result.cycle_shared_bound_seconds+=duration(began_bound);
+        };
 		auto evaluate_oracle = [&](const Node &node, bool precise, double upper_bound,
 			DynamicConvexTppWorkspace &oracle_workspace, ConvexCycleWorkspace &cycle_cache, CycleMemo &memo) {
             const auto began_oracle=std::chrono::steady_clock::now();
@@ -548,7 +568,8 @@ namespace tpp {
 				: std::max(node_gap * .25, options.oracle_relative_gap * upper_bound);
 			const double cutoff = upper_bound - node_gap;
 			const double remaining_seconds = std::max(0.0, options.max_seconds - elapsed());
-            const bool cache=cycle&&options.cycle_memo&&selected.size()>1;
+            const bool shared_bounds=cycle&&options.cycle_share_bounds&&control&&control->sharing;
+            const bool cache=cycle&&(options.cycle_memo||shared_bounds)&&selected.size()>1;
             CycleMemo::Key key;std::vector<size_t> order;bool repeated=false;
             const bool shared_cache=cache&&control&&control->sharing;
             PortfolioControl::CycleKey shared_key;
@@ -563,7 +584,7 @@ namespace tpp {
                         for(auto q:selected[i])coordinates.emplace_back(q.x,q.y);
                         shared_key.emplace_back(node.sequence[i].polygon,std::move(coordinates));
                     }
-                    shared_entry=control->find_cycle(shared_key);
+                    if(options.cycle_memo)shared_entry=control->find_cycle(shared_key);
                     if(shared_entry)previous=&*shared_entry;
                 } else if(const auto found=memo.entries.find(key);found!=memo.entries.end())previous=&found->second;
                 repeated=previous!=nullptr;
@@ -574,14 +595,15 @@ namespace tpp {
                         for(size_t i=0;i<order.size();++i)contacts[order[i]]=entry.contacts[i];
                         // Revalidate membership and the candidate independently.
                         // The retained bound was proved for these identical constraints.
-                        const auto check=tpp_convex_verify_cycle_certificate(cycle_cache.prepare(selected),contacts,
-                            options.cycle_bound_first?cutoff:INFINITY);
+                        const auto check=tpp_convex_verify_cycle_certificate(cycle_cache.prepare(selected,options.cycle_interval_certificate),contacts,
+                            (options.cycle_bound_first||options.cycle_interval_certificate)?cutoff:INFINITY,options.cycle_interval_certificate);
                         if(check.status==ConvexCycleCertificateStatus::Optimal||check.status==ConvexCycleCertificateStatus::Feasible) {
                             out.path=contacts;out.path.push_back(contacts.front());
                             out.lower_bound=std::max(entry.lower_bound,check.lower_bound);out.upper_bound=check.upper_bound;
                             out.dual_cutoff_pruned=out.lower_bound>=cutoff;
                             out.predicate_exact_evaluations=check.exact_predicate_evaluations;
                             out.certificate_cutoff_skips=check.optimality_check_skipped;
+                            out.certificate_interval_uses=check.interval_bounds_used;
                             if(entry.features.size()==order.size()) {
                                 out.active_features.resize(order.size());
                                 for(size_t i=0;i<order.size();++i)out.active_features[order[i]]=entry.features[i];
@@ -595,10 +617,11 @@ namespace tpp {
             }
 			auto out=solve_relaxation(
 				cycle, start, target, selected, oracle_workspace, tolerance, cutoff, remaining_seconds, node.warm_start, options.cycle_cache?&cycle_cache:nullptr,
-                options.cycle_active_features?node.active_features:std::vector<int>{}, options.cycle_active_features,options.cycle_bound_first
+                options.cycle_active_features?node.active_features:std::vector<int>{}, options.cycle_active_features,options.cycle_bound_first,
+                options.cycle_interval_certificate
 			);
             if(cache) {
-                out.memo_queries=1;out.memo_repeated=repeated;
+                out.memo_queries=options.cycle_memo;out.memo_repeated=repeated;
                 CycleMemo::Entry entry;entry.lower_bound=out.lower_bound;entry.upper_bound=out.upper_bound;
                 for(size_t i:order)entry.contacts.push_back(out.path[i]);
                 if(out.active_features.size()==order.size())for(size_t i:order)entry.features.push_back(out.active_features[i]);
@@ -629,6 +652,7 @@ namespace tpp {
 			result.oracle_dual_cutoff_prunes += certified.dual_cutoff_pruned;
             result.cycle_memo_queries+=certified.memo_queries;result.cycle_memo_repeated+=certified.memo_repeated;
             result.cycle_memo_hits+=certified.memo_hits;result.cycle_certificate_cutoff_skips+=certified.certificate_cutoff_skips;
+            result.cycle_certificate_interval_uses+=certified.certificate_interval_uses;
             result.cycle_initial_contact_checks+=certified.initial_contact_checks;result.cycle_initial_contact_accepts+=certified.initial_contact_accepts;
 			node.refined = precise || options.oracle_relative_gap == 0;
 			node.path = certified.path;
@@ -738,6 +762,7 @@ namespace tpp {
 			result.sequence_depth_sum += node.sequence.size();
 			++result.sequence_depth_samples;
 			result.max_sequence_depth = std::max(result.max_sequence_depth, node.sequence.size());
+            strengthen_shared_bound(node);
 			if (node.path.empty() && node.bound < result.upper_bound-gap() && !solve(node)) { queue.push(std::move(node));break; }
 			std::vector<size_t> node_sequence;
 			for (auto e : node.sequence) node_sequence.push_back(e.polygon);
@@ -886,12 +911,25 @@ namespace tpp {
 					result.decomposition_seconds += duration(decomposition_began);
 				}
 				const size_t position = found - node.sequence.begin();
+                std::vector<double> replacement_bounds;
+                if(cycle&&options.cycle_dual_screen) {
+                    const auto began_bound=std::chrono::steady_clock::now();
+                    std::vector<const Polygon *> regions;
+                    for(auto e:node.sequence)regions.push_back(e.piece==none?&hulls[e.polygon]:&pieces[e.polygon][e.piece]);
+                    replacement_bounds=cycle_replacement_lower_bounds(node.path,regions,pieces[chosen],position,node.dual);
+                    result.cycle_dual_screen_children+=replacement_bounds.size();
+                    result.cycle_dual_screen_seconds+=duration(began_bound);
+                }
 				result.total_branching += pieces[chosen].size();
 				result.max_observed_branching = std::max(result.max_observed_branching, pieces[chosen].size());
 				for (size_t j = 0; j < pieces[chosen].size(); ++j) {
 					auto sequence = node.sequence;
 					sequence[position].piece = j;
 					Node child{std::move(sequence), {}, node.bound, serial++};
+                    if(!replacement_bounds.empty()) {
+                        child.bound=std::max(child.bound,replacement_bounds[j]);
+                        result.cycle_dual_screen_prunes+=node.bound<result.upper_bound-gap()&&child.bound>=result.upper_bound-gap();
+                    }
 					child.parent = node.serial;
 					child.branch_polygon = chosen;
 					child.branch_piece = j;
@@ -987,6 +1025,7 @@ namespace tpp {
 					? options.max_calls - result.calls : 0;
 				for (size_t child_index = batch_begin; child_index < batch_end; ++child_index) {
 					if ((cycle&&options.cycle_lazy) || evaluation_children.size() >= available_calls || limited()) break;
+                    strengthen_shared_bound(children[child_index]);
 					if (children[child_index].bound >= batch_cutoff) continue;
 					if(!note_oracle_call(children[child_index], false)) break;
 					evaluation_slot[child_index - batch_begin] = evaluation_children.size();
@@ -1331,6 +1370,15 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::learned_branch_decisions);
         sum(&UnorderedTppSolveResult::learned_branch_changes);
         sum(&UnorderedTppSolveResult::cycle_memo_queries);
+        sum(&UnorderedTppSolveResult::cycle_certificate_interval_uses);
+        sum(&UnorderedTppSolveResult::cycle_dual_screen_children);
+        sum(&UnorderedTppSolveResult::cycle_dual_screen_prunes);
+        sum(&UnorderedTppSolveResult::cycle_dual_screen_seconds);
+        sum(&UnorderedTppSolveResult::cycle_shared_bound_queries);
+        sum(&UnorderedTppSolveResult::cycle_shared_bound_hits);
+        sum(&UnorderedTppSolveResult::cycle_shared_bound_improvements);
+        sum(&UnorderedTppSolveResult::cycle_shared_bound_prunes);
+        sum(&UnorderedTppSolveResult::cycle_shared_bound_seconds);
         sum(&UnorderedTppSolveResult::cycle_memo_repeated);
         sum(&UnorderedTppSolveResult::cycle_memo_hits);
         sum(&UnorderedTppSolveResult::cycle_certificate_cutoff_skips);

@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cfenv>
+#include <random>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -71,6 +73,60 @@ void reject_nonconvex_input() {
 	const Polygons polygons{{{0,0},{2,0},{1,0.5},{2,2},{0,2}}, box(4,0,5,1)};
 	const auto result = tpp::tpp_convex_verify_cycle_certificate(polygons, {{0,0},{4,0}});
 	require(result.status == tpp::ConvexCycleCertificateStatus::InvalidInput, "nonconvex polygon is rejected");
+}
+
+void interval_certificates() {
+    using namespace tpp;
+    const Polygons p{box(0,-1,1,1),box(2,-1,3,1)};
+    const Polygon q{{0,0},{3,0}};
+    const auto fast=tpp_convex_verify_cycle_certificate(p,q,1,true);
+    require(fast.interval_bounds_used&&fast.optimality_check_skipped&&fast.status==ConvexCycleCertificateStatus::Feasible&&
+        fast.lower_bound<=2&&fast.lower_bound>=1&&fast.upper_bound>=6,"Interval cutoff is independently certified");
+    const auto full=tpp_convex_verify_cycle_certificate(p,q,INFINITY,true);
+    require(full.interval_bounds_used&&full.status==ConvexCycleCertificateStatus::Feasible&&full.lower_bound<=2&&full.upper_bound>=6,
+        "Interval bounds do not claim KKT optimality");
+    for(double cut:{2.0,std::nextafter(2.0,INFINITY)}) {
+        const auto exact=tpp_convex_verify_cycle_certificate(p,q,cut);
+        const auto filtered=tpp_convex_verify_cycle_certificate(p,q,cut,true);
+        require(exact.status==filtered.status&&exact.lower_bound==filtered.lower_bound&&
+            exact.optimality_check_skipped==filtered.optimality_check_skipped,"Ambiguous cutoff falls back without epsilon");
+    }
+    const auto outside=tpp_convex_verify_cycle_certificate(p,Polygon{{std::nextafter(0.,-INFINITY),0},{3,0}},-1,true);
+    require(outside.status==ConvexCycleCertificateStatus::InvalidCandidate,"One-subnormal membership violation cannot pass interval filter");
+    require(tpp_convex_verify_cycle_certificate(p,q,NAN,true).status==ConvexCycleCertificateStatus::InvalidInput,"Interval filter rejects NaN cutoff");
+    require(tpp_convex_verify_cycle_certificate(p,Polygon{{NAN,0},{3,0}},0,true).status==ConvexCycleCertificateStatus::InvalidCandidate,
+        "Interval filter rejects NaN contacts");
+    const int rounding=std::fegetround();
+    if(std::fesetround(FE_DOWNWARD)==0) {
+        const auto alternate=tpp_convex_verify_cycle_certificate(p,q,1,true);
+        std::fesetround(rounding);
+        require(!alternate.interval_bounds_used&&alternate.lower_bound<=2&&alternate.upper_bound>=6,"Unsupported rounding uses rational certificate");
+    }
+    // Independent exact triangle and support bounds, including random directions,
+    // zero links, cancellation, very small coordinates and norm overflow.
+    std::mt19937 rng(260930);std::uniform_int_distribution<int> coord(-16,16);
+    for(int trial=0;trial<120;++trial) {
+        const double scale=std::ldexp(1.0,trial%4==0?-540:trial%4==1?520:trial%4==2?40:0);
+        Polygons regions;Polygon contacts;
+        for(int i=0;i<2+trial%4;++i) {
+            const double x=coord(rng)*scale,y=coord(rng)*scale;
+            regions.push_back(box(x,y,x+4*scale,y+4*scale));contacts.push_back({x+scale,y+2*scale});
+        }
+        const auto rational=tpp_convex_verify_cycle_certificate(regions,contacts);
+        const auto interval=tpp_convex_verify_cycle_certificate(regions,contacts,INFINITY,true);
+        require(interval.status==rational.status&&interval.lower_bound<=rational.upper_bound&&interval.upper_bound>=rational.upper_bound,
+            "Interval status and primal enclosure agree with rational reference");
+        ConvexRationalPolygons exact;ConvexRationalPolygon exact_q;
+        for(const auto &region:regions) {ConvexRationalPolygon r;for(auto v:region)r.emplace_back(v);exact.push_back(r);}
+        for(auto v:contacts)exact_q.emplace_back(v);
+        const auto reference=tpp_convex_verify_cycle_certificate(exact,exact_q);
+        require(interval.lower_bound<=reference.upper_bound&&interval.upper_bound>=reference.lower_bound,
+            "Interval objective enclosure overlaps exact rational certificate");
+    }
+    // Restricted point/segment geometry and coincident contacts use the same verifier.
+    const Polygons zero{{{0,0}},{{-1,0},{1,0}},box(-1,-1,1,1)};
+    require(tpp_convex_verify_cycle_certificate(zero,Polygon(3,Vector2{}),INFINITY,true).status==ConvexCycleCertificateStatus::Optimal,
+        "Filtered zero-link and degenerate-region certificate");
 }
 
 void gurobi_reference_candidates() {
@@ -182,6 +238,7 @@ void exact_zero_link_ray_pairs() {
 
 int main() {
 	try {
+        interval_certificates();
         {
             using namespace tpp;
             const Polygons p{box(0,-1,1,1),box(2,-1,3,1)};

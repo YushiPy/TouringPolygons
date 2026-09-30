@@ -14,6 +14,11 @@ namespace tpp::unordered_detail {
 	std::vector<double> insertion_lower_bounds(const Polygon &contacts,
 		const std::vector<const Polygon *> &regions, const Polygon &inserted,
 		bool cycle = false, const ConvexRationalPolygon &inherited_dual = {});
+    // Keep the parent's dual directions, replacing only one support term.
+    // Each returned bound is valid even when the old contacts leave the piece.
+    std::vector<double> cycle_replacement_lower_bounds(const Polygon &contacts,
+        const std::vector<const Polygon *> &regions,const std::vector<Polygon> &pieces,
+        size_t position,const ConvexRationalPolygon &inherited_dual = {});
 
     struct OneTreeResult {
         double lower_bound = 0;

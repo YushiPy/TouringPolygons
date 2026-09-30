@@ -149,6 +149,14 @@ because the early dual and extra inherited-contact check also have a cost.
 
 ## Repeated relaxations and prepared certificates
 
+`ConvexCycleDoubleOptions::interval_certificate` enables rigorous binary64
+interval filters inside `tpp_convex_verify_cycle_certificate`. Input membership
+and every inconclusive pruning cutoff retain rational fallback; `Optimal`
+still requires the exact KKT predicate. The rational solver is unchanged.
+Prepared geometry can cache an immutable binary64 view of canonical vertices.
+`certificate_interval_uses` counts candidates whose reporting bounds used the
+filter. See [the interval proof and environment guards](convex-cycle-certificate.md#optional-rigorous-binary64-interval-filter).
+
 `ConvexCycleCertificateGeometry` owns an immutable, independently validated
 copy of its regions. The verifier overload accepting this object still checks
 contact membership and the complete support certificate on every invocation.

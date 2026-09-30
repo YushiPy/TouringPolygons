@@ -171,7 +171,7 @@ pruning bounds for a fixed set of directions.
 ## Independently selectable acceleration experiments
 
 The native CLI and public benchmark command accept repeated
-`--cycle-optimization cache|dual|features|lazy|root|branch|one-tree|learn|memo|bound-first` options. Each changes
+`--cycle-optimization cache|dual|features|lazy|root|branch|one-tree|learn|memo|bound-first|dual-screen|interval|share-bounds` options. Each changes
 the existing solver; none introduces a parallel implementation. They initially
 remain opt-in so that regressions are measurable against the same executable.
 
@@ -210,6 +210,11 @@ remain opt-in so that regressions are measurable against the same executable.
 - `bound-first` checks inherited contacts and a rational dual bound before
   seeking another construction or a complete KKT certificate. The existing
   cutoff propagation remains in effect with either setting.
+- `dual-screen` extends dual reuse to decomposition children, using one new
+  support term per replacement piece before invoking the oracle.
+- `interval` selects the existing certificate's rigorous interval filter.
+- `share-bounds` imports compatible certified subcycle bounds in a sharing
+  portfolio before reserving an oracle call.
 
 All retain the same numerical B&B contract below. The experiment matrix,
 including unsuccessful variants and interrupted runs, belongs to the saved
@@ -352,6 +357,54 @@ independent, disabled by default, and preserve the existing numerical B&B
 contract below. Portfolio counters sum work across the two private searches.
 
 ## Scope of exactness and limits
+
+### Decomposition screening and compatible shared bounds
+
+`cycle_dual_screen` constructs the parent's unit-disk dual directions using
+the existing exact routine. All unchanged polygon support minima are summed
+once; for a replacement piece only its own support term is substituted. This
+does not require the parent's contacts to belong to the new piece. Weak duality
+proves the resulting bound for every candidate in that child. It is maximized
+with the inherited node bound and cannot weaken pruning. Insertion already
+has its own incremental dual screening; this option does not duplicate it.
+For N parent vertices and M vertices across all replacement pieces, the batch
+costs O(N+M+k) rational operations and O(k+b) storage for k visits and b pieces.
+Rational bit sizes remain part of the arithmetic cost. Counters record children,
+prunes and total screening time.
+
+`cycle_share_bounds` uses the existing shared, full-geometry cycle cache. A
+query checks the target key and its k one-region-deleted cyclic subsequences,
+canonicalized under rotation and reversal. Every remaining polygon must match
+by all coordinates. A feasible tour for the target can be shortcut to any such
+subcycle without increasing length (triangle inequality), so a certified
+lower bound for that subcycle also bounds the target. No path is imported by
+this operation and no new candidate requires certification. Published bounds
+come only from certified convex relaxations, never from a node bound that might
+include additional unrepresented constraints. Ordinary memoized candidate
+returns continue to be independently verified.
+
+There is no transfer from a larger constraint set, a different cyclic order,
+or a merely similar polygon. One-deletion lookup deliberately does not search
+all 2^k subsets or assume containment between differently rounded pieces.
+`--portfolio-no-sharing` disables these queries and publications; outside a
+sharing portfolio the option does no work. `memo` is independently selectable.
+Queries happen before oracle reservation and may avoid a call entirely, just
+like insertion screening. Frontier bounds and proof cancellation are unchanged.
+
+The optional bound index interns complete polygon coordinate vectors into
+IDs using exact container equality; it does not use unchecked fingerprints or
+workers' private decomposition IDs. For N target vertices, P distinct polygon
+geometries and M cache entries, one query costs O(N log P + k² log M) in the
+worst case and O(N+k) temporary key storage. Stored compact bounds cost O(Mk)
+plus interned geometry. The existing cap is 4096 cache entries, and eviction
+clears the corresponding bound index. This index is built only when this option
+is queried, leaving ordinary memoization unchanged. A separate mutex protects
+snapshots and bound lookup; search policies
+remain independent. `cycle_shared_bound_queries`, `hits`, `improvements`,
+`prunes` and `seconds` distinguish reuse from its overhead. All three new
+options remain disabled by default pending stratified measurements.
+
+### Existing numerical B&B contract
 
 The convex rational oracle is exact on its input regions, with objective stored
 as a sum of radicals. The complete TSPN B&B retains the existing numerical

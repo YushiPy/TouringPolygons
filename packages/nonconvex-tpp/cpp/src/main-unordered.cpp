@@ -78,7 +78,7 @@ int main(int argc, char **argv) {
 		for (int i = 1; i < argc; ++i) {
 			const std::string flag = argv[i];
 			if (flag == "--help") {
-				std::cout << "Usage: tpp-unordered [--cycle] [--cycle-optimization cache|dual|features|lazy|root|branch|one-tree|learn|memo|bound-first] [--portfolio | --portfolio-no-sharing | --search-strategy best-bound|dfs-bfs] [--threads N] [--absolute-gap N] [--relative-gap N] [--feasibility-tolerance N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace]\n"
+				std::cout << "Usage: tpp-unordered [--cycle] [--cycle-optimization cache|dual|features|lazy|root|branch|one-tree|learn|memo|bound-first|dual-screen|interval|share-bounds] [--portfolio | --portfolio-no-sharing | --search-strategy best-bound|dfs-bfs] [--threads N] [--absolute-gap N] [--relative-gap N] [--feasibility-tolerance N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace]\n"
 					<< "stdin: sx sy tx ty polygon_count max_calls max_seconds, then each polygon's vertex count and coordinates. With --initial-path, append path point count and coordinates, including endpoints.\n";
 				std::cout << "--cycle solves TSPN: input endpoints are ignored; output and any initial path must be closed.\n";
 				return 0;
@@ -97,6 +97,9 @@ int main(int argc, char **argv) {
                 else if(mode=="learn")options.cycle_learned_branching=true;
                 else if(mode=="memo")options.cycle_memo=true;
                 else if(mode=="bound-first")options.cycle_bound_first=true;
+                else if(mode=="dual-screen")options.cycle_dual_screen=true;
+                else if(mode=="interval")options.cycle_interval_certificate=true;
+                else if(mode=="share-bounds")options.cycle_share_bounds=true;
                 else throw std::invalid_argument("Unknown cycle optimization: "+mode);
                 continue;
             }
@@ -238,6 +241,15 @@ int main(int argc, char **argv) {
             << ",\"learned_branch_observations\":" << r.learned_branch_observations
             << ",\"learned_branch_decisions\":" << r.learned_branch_decisions
             << ",\"learned_branch_changes\":" << r.learned_branch_changes
+            << ",\"cycle_certificate_interval_uses\":" << r.cycle_certificate_interval_uses
+            << ",\"cycle_dual_screen_children\":" << r.cycle_dual_screen_children
+            << ",\"cycle_dual_screen_prunes\":" << r.cycle_dual_screen_prunes
+            << ",\"cycle_dual_screen_seconds\":" << r.cycle_dual_screen_seconds
+            << ",\"cycle_shared_bound_queries\":" << r.cycle_shared_bound_queries
+            << ",\"cycle_shared_bound_hits\":" << r.cycle_shared_bound_hits
+            << ",\"cycle_shared_bound_improvements\":" << r.cycle_shared_bound_improvements
+            << ",\"cycle_shared_bound_prunes\":" << r.cycle_shared_bound_prunes
+            << ",\"cycle_shared_bound_seconds\":" << r.cycle_shared_bound_seconds
             << ",\"cycle_memo_queries\":" << r.cycle_memo_queries
             << ",\"cycle_memo_repeated\":" << r.cycle_memo_repeated
             << ",\"cycle_memo_hits\":" << r.cycle_memo_hits

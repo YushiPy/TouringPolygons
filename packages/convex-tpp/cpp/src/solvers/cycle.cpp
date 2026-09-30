@@ -271,13 +271,14 @@ ConvexCycleDoubleResult tpp_convex_solve_cycle_disjoint_double(const std::vector
     const auto k=polygons.size();std::vector<DPolygon> remaining;
     for(std::size_t j=1;j<k;++j)remaining.push_back(polygons[(result.anchor_polygon+j)%k]);
     auto consider=[&](std::vector<Vector2> contacts) {
-        const double cut=options.bound_first?options.lower_bound_cutoff:INFINITY;
-        auto certificate=tpp_convex_verify_cycle_certificate(input,contacts,cut);++result.certificate_checks;
+        const double cut=(options.bound_first||options.interval_certificate)?options.lower_bound_cutoff:INFINITY;
+        auto certificate=tpp_convex_verify_cycle_certificate(input,contacts,cut,options.interval_certificate);++result.certificate_checks;
         if(certificate.status==ConvexCycleCertificateStatus::InvalidCandidate) {
             round_contacts_inward(normalized,contacts);
-            certificate=tpp_convex_verify_cycle_certificate(input,contacts,cut);++result.certificate_checks;
+            certificate=tpp_convex_verify_cycle_certificate(input,contacts,cut,options.interval_certificate);++result.certificate_checks;
         }
         result.certificate_cutoff_skips+=certificate.optimality_check_skipped;
+        result.certificate_interval_uses+=certificate.interval_bounds_used;
         if(certificate.status!=ConvexCycleCertificateStatus::Feasible&&
            certificate.status!=ConvexCycleCertificateStatus::Optimal)
             throw std::runtime_error("Double candidate failed exact feasibility after rounding");
@@ -556,7 +557,7 @@ ConvexCycleDoubleResult tpp_convex_solve_cycle_double(const std::vector<std::vec
     std::optional<ConvexCycleCertificateGeometry> prepared;
     try {
         if(options.workspace) {
-            prepared.emplace(options.workspace->prepare(input));
+            prepared.emplace(options.workspace->prepare(input,options.interval_certificate));
             normalized=prepared->polygons();
         } else {
             for(const auto &poly:input) {
@@ -565,6 +566,7 @@ ConvexCycleDoubleResult tpp_convex_solve_cycle_double(const std::vector<std::vec
                 exact.push_back(std::move(q));
             }
             detail::prepare_cycle_polygons(exact,normalized,false);
+            if(options.interval_certificate)prepared.emplace(input,true);
         }
     } catch(const std::invalid_argument &error){result.diagnostic=error.what();return result;}
     auto verify=[&](const auto &q) {
@@ -576,12 +578,13 @@ ConvexCycleDoubleResult tpp_convex_solve_cycle_double(const std::vector<std::vec
     Kernel::Polygon initial;for(const auto &v:options.initial_contacts)initial.emplace_back(v);
     auto consider=[&](std::vector<Vector2> q) {
         ++result.oracle_calls;++result.certificate_checks;
-        const double cut=options.bound_first?options.lower_bound_cutoff:INFINITY;
-        auto c=prepared?tpp_convex_verify_cycle_certificate(*prepared,q,cut):tpp_convex_verify_cycle_certificate(input,q,cut);
+        const double cut=(options.bound_first||options.interval_certificate)?options.lower_bound_cutoff:INFINITY;
+        auto c=prepared?tpp_convex_verify_cycle_certificate(*prepared,q,cut,options.interval_certificate):tpp_convex_verify_cycle_certificate(input,q,cut,options.interval_certificate);
         if(c.status==ConvexCycleCertificateStatus::InvalidCandidate) {
-            round_contacts_inward(normalized,q);c=prepared?tpp_convex_verify_cycle_certificate(*prepared,q,cut):tpp_convex_verify_cycle_certificate(input,q,cut);++result.certificate_checks;
+            round_contacts_inward(normalized,q);c=prepared?tpp_convex_verify_cycle_certificate(*prepared,q,cut,options.interval_certificate):tpp_convex_verify_cycle_certificate(input,q,cut,options.interval_certificate);++result.certificate_checks;
         }
         result.certificate_cutoff_skips+=c.optimality_check_skipped;
+        result.certificate_interval_uses+=c.interval_bounds_used;
         if(c.status==ConvexCycleCertificateStatus::Optimal||c.status==ConvexCycleCertificateStatus::Feasible) {
             if(c.status==ConvexCycleCertificateStatus::Optimal||c.lower_bound>=options.lower_bound_cutoff||result.contacts.empty()||c.upper_bound<result.certificate.upper_bound||
                (c.upper_bound==result.certificate.upper_bound&&c.lower_bound>result.certificate.lower_bound)) {
@@ -655,6 +658,7 @@ ConvexCycleDoubleResult tpp_convex_solve_cycle_double(const std::vector<std::vec
         if(options.refine_contacts&&detail::prepare_cycle_polygons(normalized,checked)) {
             auto disjoint=tpp_convex_solve_cycle_disjoint_double(input,options);
             disjoint.certificate_cutoff_skips+=result.certificate_cutoff_skips;
+            disjoint.certificate_interval_uses+=result.certificate_interval_uses;
             disjoint.initial_contact_checks+=result.initial_contact_checks;
             disjoint.initial_contact_accepts+=result.initial_contact_accepts;
             return disjoint;

@@ -1,0 +1,94 @@
+{
+  "audit": "cross-run native objective consistency and matched external interval containment",
+  "campaign": "tspn-dual-interval-sharing-2026-09-30",
+  "distinct_case_names": 12,
+  "distinct_input_keys": 12,
+  "fekete_reference_rows_reused": 96,
+  "matched_fekete_interval_contains_native_closed_objective_checks": 60,
+  "matched_fekete_interval_violations": [],
+  "max_matched_fekete_relative_interval_width": 0.019965387654089332,
+  "max_native_closed_objective_relative_spread": 0.0,
+  "max_native_relative_interval_width": 6.119310765997808e-15,
+  "native_closed_rows": 60,
+  "native_interval_contains_known_closed_objective_checks": 60,
+  "native_interval_violations": [],
+  "native_process_timeout_rows": 0,
+  "native_rows": 96,
+  "native_time_limit_rows": 36,
+  "native_valid_rows": 96,
+  "objective_spreads_by_case": [
+    {
+      "closed_objective_count": 18,
+      "k": 39,
+      "max": 560.8323600477294,
+      "min": 560.8323600477294,
+      "name": "large_osm_25-40_sao_paulo_n040_seed7537",
+      "relative_spread": 0.0
+    },
+    {
+      "closed_objective_count": 12,
+      "k": 30,
+      "max": 125.40401753820373,
+      "min": 125.40401753820373,
+      "name": "large_random_25-40_random_mixed_square_n030_seed30019",
+      "relative_spread": 0.0
+    },
+    {
+      "closed_objective_count": 12,
+      "k": 30,
+      "max": 4644.684158987554,
+      "min": 4644.684158987554,
+      "name": "large_tessellation_25-40_uniform-0000030-1",
+      "relative_spread": 0.0
+    },
+    {
+      "closed_objective_count": 3,
+      "k": 5,
+      "max": 74.75092653566176,
+      "min": 74.75092653566176,
+      "name": "holdout_osm_5-10_jakarta_n005_seed7447",
+      "relative_spread": 0.0
+    },
+    {
+      "closed_objective_count": 3,
+      "k": 15,
+      "max": 271.0733199699816,
+      "min": 271.0733199699816,
+      "name": "holdout_osm_11-20_lagos_n015_seed7082",
+      "relative_spread": 0.0
+    },
+    {
+      "closed_objective_count": 3,
+      "k": 10,
+      "max": 94.95701389546645,
+      "min": 94.95701389546645,
+      "name": "holdout_random_5-10_random_mixed_square_n010_seed10013",
+      "relative_spread": 0.0
+    },
+    {
+      "closed_objective_count": 3,
+      "k": 15,
+      "max": 92.66506060463918,
+      "min": 92.66506060463918,
+      "name": "holdout_random_11-20_random_mixed_square_n015_seed15016",
+      "relative_spread": 0.0
+    },
+    {
+      "closed_objective_count": 3,
+      "k": 10,
+      "max": 961.3353185187839,
+      "min": 961.3353185187839,
+      "name": "holdout_tessellation_5-10_uniform-0000010-1",
+      "relative_spread": 0.0
+    },
+    {
+      "closed_objective_count": 3,
+      "k": 20,
+      "max": 22931.151306306987,
+      "min": 22931.151306306987,
+      "name": "holdout_tessellation_11-20_us-night-0000020.instance",
+      "relative_spread": 0.0
+    }
+  ],
+  "tolerance_contract": "Use each run config validation_tolerance (1e-7) times max(1, |known closed native objective|). Native exact-cycle/B&B intervals are checked against cross-run independently validated tour objectives; Fekete rows remain external numerical bounds checked under the same declared native validation tolerance for cross-solver consistency only, not treated as exact rational certificates."
+}

@@ -104,18 +104,22 @@ void check(const Polygons &p) {
             ++portfolio_limited;
         }
     }
-    for(int mode=0;mode<11;++mode) {
+    for(int mode=0;mode<14;++mode) {
         tpp::UnorderedTppSolveOptions optimized;
-        optimized.cycle_cache=mode==0||mode==10;
-        optimized.cycle_dual_reuse=mode==1||mode==10;
-        optimized.cycle_active_features=mode==2||mode==10;
-        optimized.cycle_lazy=mode==3||mode==10;
-        optimized.cycle_separated_root=mode==4||mode==10;
-        optimized.cycle_strong_branching=mode==5||mode==10;
-        optimized.cycle_one_tree=mode==6||mode==10;
-        optimized.cycle_learned_branching=mode==7||mode==10;
-        optimized.cycle_memo=mode==8||mode==10;
-        optimized.cycle_bound_first=mode==9||mode==10;
+        optimized.cycle_cache=mode==0||mode==13;
+        optimized.cycle_dual_reuse=mode==1||mode==13;
+        optimized.cycle_active_features=mode==2||mode==13;
+        optimized.cycle_lazy=mode==3||mode==13;
+        optimized.cycle_separated_root=mode==4||mode==13;
+        optimized.cycle_strong_branching=mode==5||mode==13;
+        optimized.cycle_one_tree=mode==6||mode==13;
+        optimized.cycle_learned_branching=mode==7||mode==13;
+        optimized.cycle_memo=mode==8||mode==13;
+        optimized.cycle_bound_first=mode==9||mode==13;
+        optimized.cycle_dual_screen=mode==10||mode==13;
+        optimized.cycle_interval_certificate=mode==11||mode==13;
+        optimized.cycle_share_bounds=mode==12||mode==13;
+        if(mode==12)optimized.portfolio=true;
         for(size_t cap:{size_t(1),size_t(3),std::numeric_limits<size_t>::max()}) {
             optimized.max_calls=cap;
             const auto run=tpp::tpp_nonconvex_tspn_solve(p,optimized);
@@ -124,7 +128,7 @@ void check(const Polygons &p) {
             if(cap==std::numeric_limits<size_t>::max())require(run.exact&&std::abs(run.upper_bound-upper)<=1e-7+1e-9*upper,
                 "Optimization exhaustive objective mode="+std::to_string(mode));
         }
-        if(mode==10) {
+        if(mode==13) {
             optimized.max_calls=3;optimized.portfolio=true;
             const auto partial=tpp::tpp_nonconvex_tspn_solve(p,optimized);
             require(covered(partial.path,p)&&partial.calls<=3&&partial.lower_bound<=upper+1e-7&&partial.upper_bound>=lower-1e-7,
@@ -189,6 +193,42 @@ void portfolio_protocol() {
         require(!incumbent.find_cycle(changed),"Equal local labels cannot alias different shared geometry");
         PortfolioControl isolated(100,INFINITY,false);isolated.store_cycle(key,shorter);
         require(!isolated.find_cycle(key),"No-sharing also disables relaxation-result exchange");
+        auto extended=key;extended.insert(extended.begin()+1,{7,{{1,4},{2,4},{2,5},{1,5}}});
+        for(int reverse=0;reverse<2;++reverse)for(int rotation=0;rotation<3;++rotation) {
+            size_t queries=0,hits=0;
+            require(incumbent.compatible_cycle_bound(extended,INFINITY,queries,hits)==4&&hits==1,
+                "Certified subcycle bound survives insertion, reversal and rotation");
+            std::rotate(extended.begin(),extended.begin()+1,extended.end());
+            if(rotation==2)std::reverse(extended.begin(),extended.end());
+        }
+        size_t queries=0,hits=0;
+        require(isolated.compatible_cycle_bound(extended,0,queries,hits)==0&&queries==0,
+            "No-sharing disables compatible-bound queries");
+        require(incumbent.compatible_cycle_bound(changed,INFINITY,queries,hits)==0,
+            "Different geometry cannot import a subset bound");
+        std::atomic<bool> bounds_consistent{true};
+        {std::jthread publisher([&]{for(int i=0;i<32;++i)incumbent.store_cycle(key,i%2?shorter:longer);}),
+            reader([&]{for(int i=0;i<32;++i) {
+                size_t q=0,h=0;
+                if(incumbent.compatible_cycle_bound(extended,INFINITY,q,h)!=4)bounds_consistent=false;
+            }});}
+        require(bounds_consistent,"Concurrent interned-bound publication preserves exact geometry IDs and the strongest lower bound");
+        PortfolioControl orders(100,INFINITY,true);
+        auto ordered=extended;ordered.push_back({9,{{6,7}}});
+        Polygons order_regions;Polygon order_contacts;
+        for(const auto &item:ordered) {
+            Polygon region;for(auto [x,y]:item.second)region.push_back({x,y});
+            order_contacts.push_back(region.front());order_regions.push_back(std::move(region));
+        }
+        const auto order_certificate=tpp::tpp_convex_verify_cycle_certificate(order_regions,order_contacts);
+        auto certified_entry=shorter;certified_entry.contacts=order_contacts;
+        certified_entry.lower_bound=order_certificate.lower_bound;certified_entry.upper_bound=order_certificate.upper_bound;
+        orders.store_cycle(PortfolioControl::canonical_key(ordered),certified_entry);
+        auto different=ordered;std::swap(different[1],different[2]);
+        require(orders.compatible_cycle_bound(different,INFINITY,queries,hits)==0,
+            "A different cyclic order cannot import the stronger cycle's bound");
+        require(orders.compatible_cycle_bound(key,INFINITY,queries,hits)==0,
+            "A bound on a larger constraint set cannot flow to a smaller one");
     }
     incumbent.finish_proof(1);incumbent.finish_proof(0);
     require(incumbent.winner==1&&!incumbent.reserve_call(),"First proof stops new oracle calls");
@@ -228,6 +268,34 @@ void insertion_bounds() {
             for(size_t i=0;i<n;++i)dual.emplace_back(tpp::ConvexRational(int(rng()%3)-1)/2,tpp::ConvexRational(int(rng()%3)-1)/2);
             const auto reused=tpp::unordered_detail::insertion_lower_bounds(hints,refs,inserted,true,dual);
             for(size_t i=0;i<n;++i)require(reused[i]>=bounds[i]&&reused[i]<=optima[i],"Inherited subunit dual remains a valid stronger bound");
+        }
+    }
+}
+void replacement_bounds() {
+    using namespace tpp;
+    const Polygons p{box(-4,0,3,3),box(0,4,3,3),box(4,0,3,3)};
+    std::mt19937 rng(260930);std::uniform_int_distribution<int> coord(-8,8);
+    for(size_t n=1;n<=p.size();++n) {
+        Polygons regions(p.begin(),p.begin()+n);std::vector<const Polygon *> refs;
+        for(const auto &r:regions)refs.push_back(&r);
+        for(size_t position=0;position<n;++position) {
+            const auto origin=regions[position].front();
+            const Polygons pieces{box(origin.x,origin.y,1,1),box(origin.x+2,origin.y+2,1,1)};
+            std::vector<double> optima(2,0);
+            for(size_t j=0;j<2&&n>1;++j) {
+                auto child=regions;child[position]=pieces[j];
+                const auto solved=tpp_convex_solve_cycle(child);
+                require(solved.status==ConvexCycleStatus::Optimal,"Replacement exact reference optimum");
+                optima[j]=solved.certificate.upper_bound;
+            }
+            for(size_t trial=0;trial<12;++trial) {
+                Polygon contacts;for(size_t i=0;i<n;++i)contacts.push_back({double(coord(rng)),double(coord(rng))});
+                if(trial%3==0)std::fill(contacts.begin(),contacts.end(),contacts.front());
+                contacts.push_back(contacts.front());
+                ConvexRationalPolygon inherited(n,ConvexRationalPoint{ConvexRational(1)/2,ConvexRational(1)/2});
+                const auto bounds=unordered_detail::cycle_replacement_lower_bounds(contacts,refs,pieces,position,inherited);
+                for(size_t j=0;j<2;++j)require(bounds[j]<=optima[j],"Replacement dual valid for arbitrary and coincident parent contacts");
+            }
         }
     }
 }
@@ -292,6 +360,7 @@ int main() {
         one_tree_bounds();
         portfolio_protocol();
         insertion_bounds();
+        replacement_bounds();
         check({});check({box(0,0)});check({box(0,0,10,10),box(12,4,1,2)});
         require(std::abs(tpp::tpp_nonconvex_tspn_solve({box(0,0,10,10),box(12,4,1,2)}).upper_bound-4)<1e-8,
                 "No artificial fixed endpoint in TSPN");
@@ -310,6 +379,6 @@ int main() {
         bool rejected=false;try {tpp::tpp_nonconvex_tspn_solve({box(0,0)},bad);}catch(const std::invalid_argument&){rejected=true;}
         require(rejected,"Open supplied tour rejected");
         std::cout<<"TSPN tests passed: "<<cases<<" exhaustive cases with 1 and 2 threads, "<<interrupted<<" interrupted searches, "
-                 <<portfolio_cases<<" portfolios, "<<portfolio_limited<<" shared-budget searches, "<<decomposed<<" decomposition cases, "<<parallel_batches<<" concurrent oracle batches, 240 arbitrary-hint plus 240 inherited-dual checks; 627 optimization/call-cap comparisons and 38 combined concurrency checks.\n";
+                 <<portfolio_cases<<" portfolios, "<<portfolio_limited<<" shared-budget searches, "<<decomposed<<" decomposition cases, "<<parallel_batches<<" concurrent oracle batches, 240 arbitrary-hint plus 240 inherited-dual checks; 798 optimization/call-cap comparisons and 38 combined concurrency checks.\n";
     } catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}
 }

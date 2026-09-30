@@ -32,6 +32,7 @@ struct ConvexCycleDoubleResult {
     std::size_t certificate_checks = 0;
     std::size_t certificate_cutoff_skips = 0;
     std::size_t initial_contact_checks = 0, initial_contact_accepts = 0;
+    std::size_t certificate_interval_uses = 0;
     std::size_t rational_anchor_recoveries = 0;
     std::size_t rational_cycle_recoveries = 0;
     std::size_t rational_feature_recoveries = 0;
@@ -61,6 +62,8 @@ struct ConvexCycleDoubleOptions {
     bool retain_active_features = false;
     // Try a certified bound before full KKT, and check inherited contacts first.
     bool bound_first = false;
+    // Outward binary64 interval filters, with exact predicates on ambiguity.
+    bool interval_certificate = false;
 };
 
 // No fixed endpoint, no tolerance or discretization. Input must contain >=2

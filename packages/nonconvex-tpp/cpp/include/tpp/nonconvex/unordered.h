@@ -54,6 +54,9 @@ namespace tpp {
         bool cycle_learned_branching = false;
         bool cycle_memo = false;
         bool cycle_bound_first = false;
+        bool cycle_dual_screen = false;
+        bool cycle_interval_certificate = false;
+        bool cycle_share_bounds = false;
 	};
 
 	enum class UnorderedTppTermination { Optimal, CallLimit, TimeLimit, NumericalLimit, PortfolioStopped };
@@ -128,6 +131,11 @@ namespace tpp {
         size_t learned_branch_observations = 0, learned_branch_decisions = 0, learned_branch_changes = 0;
         size_t cycle_memo_queries = 0, cycle_memo_repeated = 0, cycle_memo_hits = 0;
         size_t cycle_certificate_cutoff_skips = 0, cycle_initial_contact_checks = 0, cycle_initial_contact_accepts = 0;
+        size_t cycle_certificate_interval_uses = 0;
+        size_t cycle_dual_screen_children = 0, cycle_dual_screen_prunes = 0;
+        double cycle_dual_screen_seconds = 0;
+        size_t cycle_shared_bound_queries = 0, cycle_shared_bound_hits = 0, cycle_shared_bound_improvements = 0, cycle_shared_bound_prunes = 0;
+        double cycle_shared_bound_seconds = 0;
 		// Generated children skipped before the oracle after a sibling improved the incumbent.
 		size_t sibling_bound_prunes = 0;
 		size_t nodes = 0;
