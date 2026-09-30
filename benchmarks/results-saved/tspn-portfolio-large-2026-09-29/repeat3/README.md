@@ -1,0 +1,1 @@
+Three repetitions for the preselected OSM k=39 primary case only; same frozen binaries, nominal 10-second solver budget, 15-second process cap. This is a targeted repeat prompted by the first pass, not a post-timing reselection.

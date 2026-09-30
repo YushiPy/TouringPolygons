@@ -78,6 +78,15 @@ tpp::ConvexCycleResult check(const Polygons &polygons, const std::string &name) 
     return result;
 }
 void known_cycles() {
+    // Changing the exact arithmetic backend must not reinterpret binary64
+    // input as a decimal approximation, including subnormal coordinates.
+    using Integer=tpp::ConvexInteger;
+    using Rational=tpp::ConvexRational;
+    const Rational next=Rational(1)+Rational(1)/Rational(Integer(1)<<52);
+    require(Rational(std::nextafter(1.0,2.0))==next,"exact binary64 import above one");
+    require(Rational(std::nextafter(-1.0,-2.0))==-next,"exact negative binary64 import");
+    require(Rational(std::numeric_limits<double>::denorm_min())==Rational(1)/Rational(Integer(1)<<1074),
+            "exact subnormal binary64 import");
     for (std::size_t k=2;k<=5;++k) {
         Polygons polygons;
         for (std::size_t i=0;i<k;++i) polygons.push_back(box(3*i,-1,3*i+1,1));
@@ -134,15 +143,15 @@ void known_cycles() {
     // Exact rational input, beyond binary64's coordinate resolution. Translation must
     // preserve the certificate even when every rounded point would coincide.
     auto rational_input=exact(edge);
-    const R offset=R(boost::multiprecision::cpp_int(1)<<80)+R(1)/7;
+    const R offset=R(tpp::ConvexInteger(1)<<80)+R(1)/7;
     for(auto &polygon:rational_input)for(auto &q:polygon){q.x+=offset;q.y+=offset;}
     const auto translated=tpp::tpp_convex_solve_cycle_disjoint(rational_input);
     require(translated.status==ConvexCycleStatus::Optimal,"rational input needs no floating geometry");
     require(translated.contacts[0]==tpp::ConvexRationalPoint(offset+R(65)/29,offset+R(26)/29),"exact translated contact");
 
     for(int exponent:{-1100,1100}) {
-        const R scale=exponent>0?R(boost::multiprecision::cpp_int(1)<<exponent):
-                                 R(1)/R(boost::multiprecision::cpp_int(1)<<(-exponent));
+        const R scale=exponent>0?R(tpp::ConvexInteger(1)<<exponent):
+                                 R(1)/R(tpp::ConvexInteger(1)<<(-exponent));
         auto scaled=exact(Polygons{box(0,0,1,1),box(3,0,4,1)});
         for(auto &polygon:scaled)for(auto &q:polygon)q=q*scale;
         const auto huge=tpp::tpp_convex_solve_cycle_disjoint(scaled);
@@ -252,7 +261,7 @@ void references() {
 void active_contact_regressions() {
     boost::property_tree::ptree input;
     read_json(TPP_CYCLE_REGRESSION_FILE,input);
-    size_t cases=0;
+    size_t cases=0,cutoffs=0,rational_cutoffs=0;
     for(const auto &[unused,item]:input.get_child("instances")) {
         const auto name=item.get<std::string>("name");Polygons p;
         for(const auto &[key,polygon]:item.get_child("polygons"))p.push_back(points(polygon));
@@ -265,13 +274,58 @@ void active_contact_regressions() {
         const auto c=tpp::tpp_convex_verify_cycle_certificate(p,d.contacts);
         require(d.status==ConvexCycleStatus::Optimal||d.status==ConvexCycleStatus::FloatingPointLimit,
                 name+": filtered double construction");
-        require(d.rational_anchor_recoveries==0&&d.rational_cycle_recoveries==0,
-                name+": double uses only local feature reconstruction");
+        require(d.rational_anchor_recoveries==0&&
+                d.rational_cycle_recoveries<=item.get<size_t>("max_cycle_recoveries",0)&&
+                d.rational_feature_recoveries<=2*(p.size()+1),
+                name+": bounded recovery avoids repeated repairs of double anchors");
+        if(item.get<bool>("retain_exact_bound",false))
+            require(d.certificate.lower_bound>=r.certificate.lower_bound,
+                    name+": exact recovery bound survives rounded zero links");
         require((c.status==tpp::ConvexCycleCertificateStatus::Feasible||c.status==tpp::ConvexCycleCertificateStatus::Optimal)&&
                 c.lower_bound<=r.certificate.upper_bound&&r.certificate.lower_bound<=c.upper_bound,
                 name+": independent double feasibility and overlapping bounds");
+        tpp::ConvexCycleOptions rational_seed;
+        tpp::ConvexCycleDoubleOptions double_seed;
+        for(const auto &polygon:p) {
+            rational_seed.initial_contacts.emplace_back(polygon.front());
+            double_seed.initial_contacts.push_back(polygon.front());
+        }
+        const auto seeded=tpp::tpp_convex_solve_cycle(p,rational_seed);
+        require(solved(seeded)&&seeded.certificate.lower_bound<=r.certificate.upper_bound&&
+                r.certificate.lower_bound<=seeded.certificate.upper_bound,name+": rational seed preserves optimum");
+        const auto floating_seeded=tpp::tpp_convex_solve_cycle_double(p,double_seed);
+        const auto seeded_check=tpp::tpp_convex_verify_cycle_certificate(p,floating_seeded.contacts);
+        require((seeded_check.status==tpp::ConvexCycleCertificateStatus::Optimal||
+                 seeded_check.status==tpp::ConvexCycleCertificateStatus::Feasible)&&
+                seeded_check.lower_bound<=r.certificate.upper_bound&&r.certificate.lower_bound<=seeded_check.upper_bound,
+                name+": double seed preserves certified bounds");
+        double_seed.lower_bound_cutoff=r.certificate.lower_bound/2;
+        const auto cut=tpp::tpp_convex_solve_cycle_double(p,double_seed);
+        require(cut.status==ConvexCycleStatus::CertifiedBound||cut.status==ConvexCycleStatus::Optimal,
+                name+": cutoff has an explicit certified status");
+        const auto cut_check=tpp::tpp_convex_verify_cycle_certificate(p,cut.contacts);
+        require(cut.certificate.lower_bound>=double_seed.lower_bound_cutoff&&
+                cut.certificate.lower_bound<=r.certificate.upper_bound&&r.certificate.lower_bound<=cut_check.upper_bound&&
+                (cut_check.status==tpp::ConvexCycleCertificateStatus::Optimal||cut_check.status==tpp::ConvexCycleCertificateStatus::Feasible),
+                name+": independent cutoff verification");
+        cutoffs+=cut.status==ConvexCycleStatus::CertifiedBound;
+        rational_seed.lower_bound_cutoff=double_seed.lower_bound_cutoff;
+        const auto rational_cut=tpp::tpp_convex_solve_cycle(p,rational_seed);
+        const auto rational_cut_check=tpp::tpp_convex_verify_cycle_certificate(exact(p),rational_cut.contacts);
+        require((rational_cut.status==ConvexCycleStatus::Optimal||rational_cut.status==ConvexCycleStatus::CertifiedBound)&&
+                rational_cut.certificate.lower_bound>=rational_seed.lower_bound_cutoff&&
+                rational_cut.certificate.lower_bound==rational_cut_check.lower_bound&&
+                rational_cut.certificate.lower_bound<=r.certificate.upper_bound&&
+                (rational_cut_check.status==tpp::ConvexCycleCertificateStatus::Optimal||
+                 rational_cut_check.status==tpp::ConvexCycleCertificateStatus::Feasible),name+": independent rational cutoff");
+        rational_cutoffs+=rational_cut.status==ConvexCycleStatus::CertifiedBound;
+        rational_seed.lower_bound_cutoff=std::numeric_limits<double>::quiet_NaN();
+        require(tpp::tpp_convex_solve_cycle(p,rational_seed).status==ConvexCycleStatus::InvalidInput,
+                name+": reject NaN rational cutoff");
         ++cases;
     }
+    require(cutoffs>0,"early certified bound exercised before exact optimality");
+    require(rational_cutoffs>0,"rational recovery can stop at a nonoptimal certified bound");
     std::cout<<"Active contact regressions: "<<cases<<" rational/double relaxations passed.\n";
 }
 void random_cycles() {
@@ -293,7 +347,63 @@ void random_cycles() {
         check(polygons,"random "+std::to_string(k)+"/"+std::to_string(sample));
     }
 }
+void boundary_recovery_regressions() {
+    boost::property_tree::ptree input;read_json(TPP_CYCLE_REGRESSION_FILE,input);
+    for(const auto &[unused,item]:input.get_child("recovery_regressions")) {
+        const auto name=item.get<std::string>("name");Polygons p;
+        for(const auto &[key,polygon]:item.get_child("polygons"))p.push_back(points(polygon));
+        tpp::ConvexCycleOptions exact_options;
+        tpp::ConvexCycleDoubleOptions options;
+        options.initial_contacts=points(item.get_child("initial_contacts"));
+        options.lower_bound_cutoff=item.get<double>("cutoff");
+        for(auto q:options.initial_contacts)exact_options.initial_contacts.emplace_back(q);
+        const auto rational=tpp::tpp_convex_solve_cycle(p,exact_options);
+        require(solved(rational),name+": rational boundary recovery");
+        require(tpp::tpp_convex_verify_cycle_certificate(exact(p),rational.contacts).status==
+                tpp::ConvexCycleCertificateStatus::Optimal,name+": independent rational optimality");
+        auto anchored_options=exact_options;anchored_options.refine_contacts=false;
+        anchored_options.lower_bound_cutoff=rational.certificate.lower_bound/2;
+        const auto anchored_cut=tpp::tpp_convex_solve_cycle(p,anchored_options);
+        const auto anchored_check=tpp::tpp_convex_verify_cycle_certificate(exact(p),anchored_cut.contacts);
+        require((anchored_cut.status==ConvexCycleStatus::CertifiedBound||anchored_cut.status==ConvexCycleStatus::Optimal)&&
+                anchored_cut.certificate.lower_bound>=anchored_options.lower_bound_cutoff&&
+                anchored_cut.certificate.lower_bound==anchored_check.lower_bound&&
+                anchored_cut.certificate.lower_bound<=rational.certificate.upper_bound,
+                name+": boundary prepass respects exact cutoff without refinement");
+        const auto floating=tpp::tpp_convex_solve_cycle_double(p,options);
+        require(floating.status==ConvexCycleStatus::Optimal||floating.status==ConvexCycleStatus::FloatingPointLimit,
+                name+": filtered boundary recovery");
+        const auto verified=tpp::tpp_convex_verify_cycle_certificate(p,floating.contacts);
+        require(verified.status==tpp::ConvexCycleCertificateStatus::Feasible||
+                verified.status==tpp::ConvexCycleCertificateStatus::Optimal,name+": rounded contacts feasible");
+        require(floating.certificate.upper_bound==verified.upper_bound&&
+                floating.certificate.lower_bound>=rational.certificate.lower_bound&&
+                floating.certificate.lower_bound<=rational.certificate.upper_bound&&
+                rational.certificate.lower_bound<=verified.upper_bound,name+": retain independently audited exact bound");
+        const double rounding=128*p.size()*std::numeric_limits<double>::epsilon()*std::max(1.0,verified.upper_bound);
+        require(verified.upper_bound-rational.certificate.upper_bound<=rounding,name+": objective reporting roundoff");
+        if(floating.status==ConvexCycleStatus::Optimal)
+            require(verified.status==tpp::ConvexCycleCertificateStatus::Optimal,name+": no rounded optimality claim");
+    }
+    std::cout<<"Boundary recovery regressions passed.\n";
+}
 void intersecting_cycles() {
+    {
+        // Two touching regions can trap separate coordinate updates at the
+        // top of their shared edge. Their zero-link block must slide jointly.
+        const Polygons p{box(-2,-2,0,2),box(0,-2,2,2),box(-4,4,-3,5),box(-4,-6,-3,-5)};
+        const Polygon seed{{0,2},{0,2},{-3,4},{-3,-5}};
+        tpp::ConvexCycleOptions options;for(auto q:seed)options.initial_contacts.emplace_back(q);
+        const auto r=tpp::tpp_convex_solve_cycle(p,options);
+        require(solved(r)&&r.oracle_calls==1,"shared segment solved by one joint block update");
+        require(r.contacts[0]==tpp::ConvexRationalPoint(0,tpp::ConvexRational(-1)/2)&&r.contacts[1]==r.contacts[0],
+                "shared segment contact is exact");
+        require(tpp::tpp_convex_verify_cycle_certificate(exact(p),r.contacts).status==
+                tpp::ConvexCycleCertificateStatus::Optimal,"shared segment independent certificate");
+        tpp::ConvexCycleDoubleOptions floating;floating.initial_contacts=seed;
+        const auto d=tpp::tpp_convex_solve_cycle_double(p,floating);
+        require(d.status==ConvexCycleStatus::Optimal&&d.oracle_calls==1,"double shares segment block update");
+    }
     std::vector<Polygons> cases{
         {box(0,0,2,2),box(1,1,3,3)},
         {box(0,0,1,1),box(1,0,2,1)},
@@ -350,7 +460,7 @@ void intersecting_cycles() {
     }
     for(int exponent:{-1100,1100}) {
         using R=tpp::ConvexRational;
-        const R scale=exponent>0?R(boost::multiprecision::cpp_int(1)<<exponent):R(1)/R(boost::multiprecision::cpp_int(1)<<(-exponent));
+        const R scale=exponent>0?R(tpp::ConvexInteger(1)<<exponent):R(1)/R(tpp::ConvexInteger(1)<<(-exponent));
         auto scaled=exact(cases[4]);for(auto &p:scaled)for(auto &q:p)q=q*scale;
         const auto result=tpp::tpp_convex_solve_cycle(scaled,{false});
         require(solved(result),"intersecting rational anchors beyond double exponent range: "+result.diagnostic);
@@ -391,14 +501,23 @@ void intersecting_cycles() {
         require(solved(result),"random overlaps "+std::to_string(k)+"/"+std::to_string(sample)+": "+result.diagnostic);
         require(tpp::tpp_convex_verify_cycle_certificate(exact(regions),result.contacts).status==tpp::ConvexCycleCertificateStatus::Optimal,
                 "random overlaps certificate");
+        if(sample==0) {
+            tpp::ConvexCycleOptions warm_options;
+            for(const auto &region:regions)warm_options.initial_contacts.emplace_back(region.front());
+            const auto warm=tpp::tpp_convex_solve_cycle(regions,warm_options);
+            require(solved(warm)&&warm.certificate.lower_bound<=result.certificate.upper_bound&&
+                result.certificate.lower_bound<=warm.certificate.upper_bound,"Warm and cold exact recovery intervals overlap");
+        }
         const auto floating=tpp::tpp_convex_solve_cycle_double(regions);
         require(floating.status==ConvexCycleStatus::Optimal||floating.status==ConvexCycleStatus::FloatingPointLimit,
                 "random overlaps double construction: "+floating.diagnostic);
         const auto certificate=tpp::tpp_convex_verify_cycle_certificate(regions,floating.contacts);
         require(certificate.status==tpp::ConvexCycleCertificateStatus::Optimal||certificate.status==tpp::ConvexCycleCertificateStatus::Feasible,
                 "random overlaps double exact feasibility");
-        require(certificate.upper_bound==floating.certificate.upper_bound&&certificate.lower_bound==floating.certificate.lower_bound,
-                "random overlaps double result carries its own certificate");
+        require(certificate.upper_bound==floating.certificate.upper_bound&&
+                floating.certificate.lower_bound>=certificate.lower_bound&&
+                floating.certificate.lower_bound<=result.certificate.upper_bound,
+                "random overlaps double result retains its independently solved rational lower bound");
         if(floating.status==ConvexCycleStatus::Optimal)require(certificate.status==tpp::ConvexCycleCertificateStatus::Optimal,
                 "random overlaps double Optimal is exact");
         require(std::abs(certificate.upper_bound-result.certificate.upper_bound)<=
@@ -407,10 +526,72 @@ void intersecting_cycles() {
     }
     std::cout<<"Intersecting cycles: closed contacts, containment, subunit zero duals, cyclic shifts and 96 seeded cases passed.\n";
 }
+void prepared_geometry_and_features() {
+    using namespace tpp;
+    Polygons p{box(-5,0,-3,2),box(0,4,2,6),box(5,0,7,2)};
+    ConvexCycleWorkspace workspace;
+    ConvexCycleDoubleOptions options;options.workspace=&workspace;options.retain_active_features=true;
+    for(size_t pass=0;pass<5;++pass) {
+        const auto reference=tpp_convex_solve_cycle(p);
+        const auto result=tpp_convex_solve_cycle_double(p,options);
+        const auto independent=tpp_convex_verify_cycle_certificate(p,result.contacts);
+        const auto prepared=workspace.prepare(p);
+        const auto cached=tpp_convex_verify_cycle_certificate(prepared,result.contacts);
+        require(cached.status==independent.status&&cached.lower_bound==independent.lower_bound&&
+            cached.upper_bound==independent.upper_bound,"Prepared verifier matches independent verifier");
+        require(result.certificate.lower_bound<=reference.certificate.upper_bound&&
+            reference.certificate.lower_bound<=result.certificate.upper_bound,"Cached feature proposal preserves objective interval");
+        options.initial_contacts=result.contacts;options.initial_features=result.active_features;
+        if(pass==0) { // Insert an overlapping region: duplicate the inherited split-link feature.
+            p.insert(p.begin()+1,box(-1,0,1,3));
+            options.initial_contacts.insert(options.initial_contacts.begin()+1,Vector2{0,1});
+            if(!options.initial_features.empty())options.initial_features.insert(options.initial_features.begin()+1,-2);
+        } else if(pass==1) { // Mutate the same container; pointer-keyed caches would be stale.
+            for(auto &v:p[1])v.x+=1;
+            if(!options.initial_features.empty())options.initial_features[1]=-2;
+        } else if(pass==2) {
+            std::reverse(p.begin(),p.end());options.initial_contacts.clear();options.initial_features.clear();
+        } else if(pass==3) {
+            for(auto &poly:p) {std::reverse(poly.begin(),poly.end());poly.push_back(poly.front());}
+            options.initial_features.assign(p.size(),9999); // Bad hints must fall back safely.
+        }
+        ConvexRationalPolygon u(p.size(),ConvexRationalPoint(ConvexRational(1)/2,ConvexRational(1)/2));
+        require(tpp_convex_cycle_dual_bound(workspace.prepare(p),u)==0,"Constant unit-disk field telescopes");
+        u.front()={2,0};bool rejected=false;
+        try{tpp_convex_cycle_dual_bound(workspace.prepare(p),u);}catch(const std::invalid_argument&){rejected=true;}
+        require(rejected,"Uncertified superunit dual is rejected");
+    }
+    require(workspace.size()>p.size(),"Content-keyed cache accounts for mutation and winding");
+    workspace.clear();require(workspace.size()==0,"Explicit workspace lifetime");
+    require(tpp_convex_solve_cycle_double(p).active_features.empty(),"Default solve does not export unused feature metadata");
+    std::cout<<"Prepared geometry, stale/malformed features and dual feasibility tests passed.\n";
+}
+void bound_first_contacts() {
+    using namespace tpp;
+    const Polygons p{box(0,-1,1,1),box(2,-1,3,1)};
+    ConvexCycleDoubleOptions options;options.bound_first=true;options.lower_bound_cutoff=1;
+    options.initial_contacts={{0,0},{3,0}};
+    const auto result=tpp_convex_solve_cycle_double(p,options);
+    const auto check=tpp_convex_verify_cycle_certificate(p,result.contacts);
+    require(result.status==ConvexCycleStatus::CertifiedBound&&result.initial_contact_checks==1&&
+        result.initial_contact_accepts==1&&result.certificate_cutoff_skips==1&&
+        check.status==ConvexCycleCertificateStatus::Feasible&&check.lower_bound>=options.lower_bound_cutoff,
+        "Inherited suboptimal contacts suffice only for an independently verified cutoff");
+    ConvexCycleOptions rational;rational.bound_first=true;rational.lower_bound_cutoff=1;
+    for(auto q:options.initial_contacts)rational.initial_contacts.emplace_back(q);
+    const auto exact=tpp_convex_solve_cycle(p,rational);
+    require(exact.status==ConvexCycleStatus::CertifiedBound&&exact.certificate_cutoff_skips==1,
+        "Rational and double paths share cutoff semantics");
+    options.lower_bound_cutoff=INFINITY;
+    const auto complete=tpp_convex_solve_cycle_double(p,options);
+    require(complete.status==ConvexCycleStatus::Optimal&&complete.certificate.upper_bound==2,
+        "An infinite cutoff still requires the complete optimum");
+}
 } // namespace
 int main() {
     try {
-        known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();active_contact_regressions();
+        bound_first_contacts();
+        prepared_geometry_and_features();known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();active_contact_regressions();boundary_recovery_regressions();
         std::cout<<"Double comparisons: "<<compared_double_cases<<", maximum objective difference="<<largest_double_difference<<", maximum certified gap="<<largest_double_gap<<", local recoveries="<<total_anchor_recoveries<<'\n';
         std::cout<<"Cycle solver tests passed.\n";
         return 0;

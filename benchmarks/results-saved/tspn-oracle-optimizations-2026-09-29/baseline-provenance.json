@@ -1,0 +1,63 @@
+{
+  "campaign": "TSPN portfolio screening on preselected six-case holdout",
+  "date": "2026-09-29",
+  "holdout_selection": "Copied unchanged from benchmarks/results-saved/tspn-socg-stratified-2026-09-28/holdout/selection.json; seeded filename hash, excluding Bangalore, selected before timing.",
+  "base_commit": "b70cda3ca695663a52dd4e77c742d91115c04f02",
+  "fekete_commit": "f4aa78c631545e4e894732a0fe8aef45f455c34c",
+  "fekete_binary_sha256": "2bf7ae099315ccebf7d34e3b84e7164306a8a2a8369241c6af918ff51e64414c",
+  "ours_frozen_binary_path": "/private/tmp/tpp-tspn-unordered-portfolio-2026-09-29",
+  "ours_frozen_binary_sha256": "0a9efa37b50dfef0a234bf67a3ee2fbcac9d17eb2e18aa6e297884c3bc8277f5",
+  "source_patch_sha256": "4bec98d4b4e836f9b29b2e2449178c017368fd425386fa42450cc18fb06bd538",
+  "holdout_inputs_sha256": "159e3da23cdd78b3c96c052d98a415a23272e60d8ca3072003623743e939b4e4",
+  "mode_configs": {
+    "default": {
+      "portfolio_mode": null,
+      "search_strategy": "default",
+      "ours_threads": 1,
+      "fekete_threads": 1,
+      "seconds": 1,
+      "external_process_timeout_seconds": 8.0,
+      "our_relative_gap": 9.99999000001e-07,
+      "fekete_relative_gap": 1e-06,
+      "feasibility_tolerance": 1e-08,
+      "validation_tolerance": 1e-07
+    },
+    "dfs-bfs": {
+      "portfolio_mode": null,
+      "search_strategy": "dfs-bfs",
+      "ours_threads": 1,
+      "fekete_threads": 1,
+      "seconds": 1,
+      "external_process_timeout_seconds": 8.0,
+      "our_relative_gap": 9.99999000001e-07,
+      "fekete_relative_gap": 1e-06,
+      "feasibility_tolerance": 1e-08,
+      "validation_tolerance": 1e-07
+    },
+    "portfolio-no-sharing": {
+      "portfolio_mode": "independent-race",
+      "search_strategy": null,
+      "ours_threads": 2,
+      "fekete_threads": 1,
+      "seconds": 1,
+      "external_process_timeout_seconds": 8.0,
+      "our_relative_gap": 9.99999000001e-07,
+      "fekete_relative_gap": 1e-06,
+      "feasibility_tolerance": 1e-08,
+      "validation_tolerance": 1e-07
+    },
+    "portfolio": {
+      "portfolio_mode": "cooperative",
+      "search_strategy": null,
+      "ours_threads": 2,
+      "fekete_threads": 1,
+      "seconds": 1,
+      "external_process_timeout_seconds": 8.0,
+      "our_relative_gap": 9.99999000001e-07,
+      "fekete_relative_gap": 1e-06,
+      "feasibility_tolerance": 1e-08,
+      "validation_tolerance": 1e-07
+    }
+  },
+  "interpretation": "One repetition per case is a smoke/screening measurement, not a stable performance estimate. Count solved speedups only where both backends returned valid tours and closed the matched gap."
+}

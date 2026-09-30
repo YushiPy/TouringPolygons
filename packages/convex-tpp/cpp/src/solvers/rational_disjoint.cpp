@@ -10,11 +10,11 @@ using Scalar=ConvexRational;
 using Point=ConvexRationalPoint;
 using Polygon=ConvexRationalPolygon;
 static std::pair<double,double> bounds(const std::vector<Point> &path) {
-        constexpr unsigned precision=96;const boost::multiprecision::cpp_int scale=boost::multiprecision::cpp_int(1)<<precision;
+        constexpr unsigned precision=96;const tpp::ConvexInteger scale=tpp::ConvexInteger(1)<<precision;
         Scalar lower=0,upper=0;
         for(size_t i=1;i<path.size();++i){const Point d=path[i]-path[i-1];const Scalar squared=d.dot(d);if(squared==0)continue;
             const auto numerator=boost::multiprecision::numerator(squared),denominator=boost::multiprecision::denominator(squared);
-            const boost::multiprecision::cpp_int scaled=(numerator<<(2*precision))/denominator,root=sqrt(scaled);
+            const tpp::ConvexInteger scaled=(numerator<<(2*precision))/denominator,root=sqrt(scaled);
             lower+=Scalar(root)/Scalar(scale);upper+=Scalar(root+1)/Scalar(scale);}
         double lo=lower.convert_to<double>();while(Scalar(lo)>lower)lo=std::nextafter(lo,-std::numeric_limits<double>::infinity());
         double hi=upper.convert_to<double>();while(Scalar(hi)<upper)hi=std::nextafter(hi,std::numeric_limits<double>::infinity());

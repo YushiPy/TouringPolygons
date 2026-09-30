@@ -1,0 +1,1 @@
+The untracked portfolio overlay `packages/nonconvex-tpp/cpp/src/solvers/unordered_portfolio.h` is included in this campaign at `provenance/source-overlay/unordered_portfolio.h`; SHA-256 1c3fbc3fabfcb1ca538402cf7d9fdcebde1b61e7122bb6b9de3345f4ffcf3a23. It is unchanged in V1/V2 and was copied from the prior campaign's `provenance/v3/source-overlay/`.

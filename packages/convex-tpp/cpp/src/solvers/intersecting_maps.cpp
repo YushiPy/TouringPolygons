@@ -18,7 +18,7 @@ namespace {
 #ifdef TPP_EXPERIMENT_NATIVE_DOUBLE
 using Scalar = NativeDoubleExperimentScalar;
 #else
-using Scalar = boost::multiprecision::cpp_rational;
+using Scalar = tpp::ConvexRational;
 #endif
 
 struct Point {
@@ -508,15 +508,15 @@ public:
     }
     std::pair<double,double> exact_length_bounds(const std::vector<Point> &path) {
         constexpr unsigned precision=96;
-        const boost::multiprecision::cpp_int scale=boost::multiprecision::cpp_int(1)<<precision;
+        const tpp::ConvexInteger scale=tpp::ConvexInteger(1)<<precision;
         Scalar lower=0,upper=0;
         for(size_t i=1;i<path.size();++i) {
             const Point delta=path[i]-path[i-1];const Scalar squared=delta.dot(delta);
             if(squared==0)continue;
             const auto numerator=boost::multiprecision::numerator(squared);
             const auto denominator=boost::multiprecision::denominator(squared);
-            const boost::multiprecision::cpp_int scaled=(numerator<<(2*precision))/denominator;
-            const boost::multiprecision::cpp_int root=sqrt(scaled);
+            const tpp::ConvexInteger scaled=(numerator<<(2*precision))/denominator;
+            const tpp::ConvexInteger root=sqrt(scaled);
             lower+=Scalar(root)/Scalar(scale);
             upper+=Scalar(root+1)/Scalar(scale);
         }

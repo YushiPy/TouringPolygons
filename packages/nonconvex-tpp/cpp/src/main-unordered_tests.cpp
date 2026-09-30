@@ -274,6 +274,49 @@ void check_intra_instance_threads() {
 			throw std::runtime_error("Multi-threaded search returned an infeasible path.");
 }
 
+void check_endpoint_portfolio() {
+	const Vector2 start{0, 0}, target{20, 0};
+	const std::vector<Polygon> polygons = {
+		{{2, 2}, {4, 2}, {4, 4}, {2, 4}},
+		{{8, -4}, {10, -4}, {10, -2}, {8, -2}},
+		{{14, 1}, {16, 1}, {16, 3}, {14, 3}},
+	};
+	UnorderedTppSolveOptions reference_options;
+	reference_options.max_calls = 100000;
+	reference_options.max_seconds = 20;
+	const auto reference = tpp_nonconvex_unordered_solve(start, target, polygons, reference_options);
+	if (!reference.exact) throw std::runtime_error("Endpoint portfolio reference did not close.");
+	for (bool share : {true, false}) {
+		UnorderedTppSolveOptions options = reference_options;
+		options.portfolio = true;
+		options.portfolio_share_incumbents = share;
+		const auto result = tpp_nonconvex_unordered_solve(start, target, polygons, options);
+		if (!result.exact || result.portfolio_workers != 2 || result.portfolio_runs.size() != 2
+			|| result.portfolio_winner >= 2 || result.lower_bound > reference.upper_bound + 1e-7
+			|| result.upper_bound + 1e-7 < reference.lower_bound
+			|| result.calls > options.max_calls)
+			throw std::runtime_error("Endpoint portfolio disagreed with the isolated reference.");
+		for (const auto &polygon : polygons)
+			if (unordered_detail::contact(result.path, polygon, options.feasibility_tolerance).distance
+				> options.feasibility_tolerance)
+				throw std::runtime_error("Endpoint portfolio returned an infeasible path.");
+		if (result.path.size() < 2 || result.path.front() != start || result.path.back() != target)
+			throw std::runtime_error("Endpoint portfolio lost its fixed endpoints.");
+		for (size_t cap : {size_t{0}, size_t{1}, size_t{3}}) {
+			options.max_calls = cap;
+			const auto limited = tpp_nonconvex_unordered_solve(start, target, polygons, options);
+			if (limited.calls > cap || limited.lower_bound > reference.upper_bound + 1e-7
+				|| limited.upper_bound + 1e-7 < reference.lower_bound
+				|| limited.path.size() < 2 || limited.path.front() != start || limited.path.back() != target)
+				throw std::runtime_error("Endpoint portfolio violated its shared call cap or bounds.");
+			for (const auto &polygon : polygons)
+				if (unordered_detail::contact(limited.path, polygon, options.feasibility_tolerance).distance
+					> options.feasibility_tolerance)
+					throw std::runtime_error("Endpoint portfolio cap returned an infeasible path.");
+		}
+	}
+}
+
 int main() {
 	try {
 		check_oracle_certificates();
@@ -281,6 +324,7 @@ int main() {
 		check_provided_initial_path();
 		check_initial_heuristic_strategies();
 		check_intra_instance_threads();
+		check_endpoint_portfolio();
 		check({0, 0}, {10, 0}, {});
 		check({0, 0}, {10, 0}, {{{2, -1}, {3, -1}, {3, 1}, {2, 1}}});
 		check({0, 0}, {0, 0}, {{{2, -1}, {3, -1}, {3, 1}, {2, 1}}});

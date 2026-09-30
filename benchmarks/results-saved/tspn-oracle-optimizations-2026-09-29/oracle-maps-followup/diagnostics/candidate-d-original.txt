@@ -1,0 +1,4 @@
+exit=0
+stdout={"certificate_checks":16,"contacts":19,"diagnostic":"","exact_validation_lower_bound":2.649247476151839,"exact_validation_status":2,"exact_validation_upper_bound":2.741388174055339,"lower_bound":2.7413881740553383,"mode":"original","oracle_calls":10,"rational_anchor_recoveries":0,"rational_cycle_recoveries":1,"rational_feature_recoveries":3,"seconds":0.136764208,"status":3,"upper_bound":2.741388174055339}
+
+stderr=REPLAY_BEGIN mode=original regions=19 cutoff=2.80328

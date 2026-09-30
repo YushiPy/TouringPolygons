@@ -1,0 +1,321 @@
+{
+  "repetitions_per_backend_per_case": 3,
+  "seconds_limit": 1,
+  "external_timeout_seconds": 8,
+  "errors": {},
+  "modes": {
+    "default": {
+      "native_valid_runs": 18,
+      "native_exactly_covers_runs": 6,
+      "native_gap_closed_runs": 18,
+      "fekete_valid_runs": 18,
+      "fekete_exactly_covers_runs": 9,
+      "fekete_gap_closed_runs": 15,
+      "process_timeouts": 0,
+      "errors": 0,
+      "matched_cases": 5,
+      "native_wins_vs_fekete": 4,
+      "median_fekete_over_ours_speedup": 2.2554228364001974,
+      "maximum_native_seconds": 0.099620625,
+      "cases": [
+        {
+          "name": "holdout_osm_5-10_jakarta_n005_seed7447",
+          "ours_median_seconds": 0.00076575,
+          "fekete_median_seconds": 0.001932291,
+          "matched": true,
+          "fekete_over_ours_speedup": 2.5233966699314396
+        },
+        {
+          "name": "holdout_osm_11-20_lagos_n015_seed7082",
+          "ours_median_seconds": 0.0055665,
+          "fekete_median_seconds": 0.009257875,
+          "matched": true,
+          "fekete_over_ours_speedup": 1.6631411120093416
+        },
+        {
+          "name": "holdout_random_5-10_random_mixed_square_n010_seed10013",
+          "ours_median_seconds": 0.002558,
+          "fekete_median_seconds": 0.013830917,
+          "matched": true,
+          "fekete_over_ours_speedup": 5.406926114151681
+        },
+        {
+          "name": "holdout_random_11-20_random_mixed_square_n015_seed15016",
+          "ours_median_seconds": 0.038542791,
+          "fekete_median_seconds": 0.086930291,
+          "matched": true,
+          "fekete_over_ours_speedup": 2.2554228364001974
+        },
+        {
+          "name": "holdout_tessellation_5-10_uniform-0000010-1",
+          "ours_median_seconds": 0.002918041,
+          "fekete_median_seconds": 0.010274625,
+          "matched": false,
+          "fekete_over_ours_speedup": null
+        },
+        {
+          "name": "holdout_tessellation_11-20_us-night-0000020.instance",
+          "ours_median_seconds": 0.0992595,
+          "fekete_median_seconds": 0.081121375,
+          "matched": true,
+          "fekete_over_ours_speedup": 0.8172656017811897
+        }
+      ],
+      "portfolio": null
+    },
+    "dfs-bfs": {
+      "native_valid_runs": 18,
+      "native_exactly_covers_runs": 6,
+      "native_gap_closed_runs": 18,
+      "fekete_valid_runs": 18,
+      "fekete_exactly_covers_runs": 9,
+      "fekete_gap_closed_runs": 15,
+      "process_timeouts": 0,
+      "errors": 0,
+      "matched_cases": 5,
+      "native_wins_vs_fekete": 4,
+      "median_fekete_over_ours_speedup": 3.1586085361787264,
+      "maximum_native_seconds": 0.137866291,
+      "cases": [
+        {
+          "name": "holdout_osm_5-10_jakarta_n005_seed7447",
+          "ours_median_seconds": 0.000356875,
+          "fekete_median_seconds": 0.001897667,
+          "matched": true,
+          "fekete_over_ours_speedup": 5.317455691768827
+        },
+        {
+          "name": "holdout_osm_11-20_lagos_n015_seed7082",
+          "ours_median_seconds": 0.002999,
+          "fekete_median_seconds": 0.009472667,
+          "matched": true,
+          "fekete_over_ours_speedup": 3.1586085361787264
+        },
+        {
+          "name": "holdout_random_5-10_random_mixed_square_n010_seed10013",
+          "ours_median_seconds": 0.002876459,
+          "fekete_median_seconds": 0.013766208,
+          "matched": true,
+          "fekete_over_ours_speedup": 4.785817562496111
+        },
+        {
+          "name": "holdout_random_11-20_random_mixed_square_n015_seed15016",
+          "ours_median_seconds": 0.039964958,
+          "fekete_median_seconds": 0.087747667,
+          "matched": true,
+          "fekete_over_ours_speedup": 2.1956151436465916
+        },
+        {
+          "name": "holdout_tessellation_5-10_uniform-0000010-1",
+          "ours_median_seconds": 0.007770666,
+          "fekete_median_seconds": 0.010312125,
+          "matched": false,
+          "fekete_over_ours_speedup": null
+        },
+        {
+          "name": "holdout_tessellation_11-20_us-night-0000020.instance",
+          "ours_median_seconds": 0.133325167,
+          "fekete_median_seconds": 0.080496208,
+          "matched": true,
+          "fekete_over_ours_speedup": 0.6037585387010991
+        }
+      ],
+      "portfolio": null
+    },
+    "race": {
+      "native_valid_runs": 18,
+      "native_exactly_covers_runs": 6,
+      "native_gap_closed_runs": 18,
+      "fekete_valid_runs": 18,
+      "fekete_exactly_covers_runs": 9,
+      "fekete_gap_closed_runs": 15,
+      "process_timeouts": 0,
+      "errors": 0,
+      "matched_cases": 5,
+      "native_wins_vs_fekete": 4,
+      "median_fekete_over_ours_speedup": 1.9995512065180896,
+      "maximum_native_seconds": 0.127566833,
+      "cases": [
+        {
+          "name": "holdout_osm_5-10_jakarta_n005_seed7447",
+          "ours_median_seconds": 0.000849417,
+          "fekete_median_seconds": 0.00192025,
+          "matched": true,
+          "fekete_over_ours_speedup": 2.260668199482704
+        },
+        {
+          "name": "holdout_osm_11-20_lagos_n015_seed7082",
+          "ours_median_seconds": 0.004935375,
+          "fekete_median_seconds": 0.009318208,
+          "matched": true,
+          "fekete_over_ours_speedup": 1.8880445761466962
+        },
+        {
+          "name": "holdout_random_5-10_random_mixed_square_n010_seed10013",
+          "ours_median_seconds": 0.003697375,
+          "fekete_median_seconds": 0.013757208,
+          "matched": true,
+          "fekete_over_ours_speedup": 3.720804083978498
+        },
+        {
+          "name": "holdout_random_11-20_random_mixed_square_n015_seed15016",
+          "ours_median_seconds": 0.043632541,
+          "fekete_median_seconds": 0.0872455,
+          "matched": true,
+          "fekete_over_ours_speedup": 1.9995512065180896
+        },
+        {
+          "name": "holdout_tessellation_5-10_uniform-0000010-1",
+          "ours_median_seconds": 0.003977292,
+          "fekete_median_seconds": 0.010265292,
+          "matched": false,
+          "fekete_over_ours_speedup": null
+        },
+        {
+          "name": "holdout_tessellation_11-20_us-night-0000020.instance",
+          "ours_median_seconds": 0.12451375,
+          "fekete_median_seconds": 0.080752,
+          "matched": true,
+          "fekete_over_ours_speedup": 0.6485388159942175
+        }
+      ],
+      "portfolio": {
+        "incumbent_publications": 0,
+        "incumbent_imports": 0,
+        "median_proof_seconds": 0.004557458,
+        "median_join_seconds": 0.000240646,
+        "maximum_join_seconds": 0.003157000000000007
+      }
+    },
+    "cooperative": {
+      "native_valid_runs": 18,
+      "native_exactly_covers_runs": 6,
+      "native_gap_closed_runs": 18,
+      "fekete_valid_runs": 18,
+      "fekete_exactly_covers_runs": 9,
+      "fekete_gap_closed_runs": 15,
+      "process_timeouts": 0,
+      "errors": 0,
+      "matched_cases": 5,
+      "native_wins_vs_fekete": 4,
+      "median_fekete_over_ours_speedup": 2.1857849154000575,
+      "maximum_native_seconds": 0.104573042,
+      "cases": [
+        {
+          "name": "holdout_osm_5-10_jakarta_n005_seed7447",
+          "ours_median_seconds": 0.00087175,
+          "fekete_median_seconds": 0.001905458,
+          "matched": true,
+          "fekete_over_ours_speedup": 2.1857849154000575
+        },
+        {
+          "name": "holdout_osm_11-20_lagos_n015_seed7082",
+          "ours_median_seconds": 0.0038365,
+          "fekete_median_seconds": 0.009217416,
+          "matched": true,
+          "fekete_over_ours_speedup": 2.402558582040923
+        },
+        {
+          "name": "holdout_random_5-10_random_mixed_square_n010_seed10013",
+          "ours_median_seconds": 0.003919458,
+          "fekete_median_seconds": 0.013826958,
+          "matched": true,
+          "fekete_over_ours_speedup": 3.5277729726916327
+        },
+        {
+          "name": "holdout_random_11-20_random_mixed_square_n015_seed15016",
+          "ours_median_seconds": 0.043322959,
+          "fekete_median_seconds": 0.087577833,
+          "matched": true,
+          "fekete_over_ours_speedup": 2.021510880639524
+        },
+        {
+          "name": "holdout_tessellation_5-10_uniform-0000010-1",
+          "ours_median_seconds": 0.00367475,
+          "fekete_median_seconds": 0.010371791,
+          "matched": false,
+          "fekete_over_ours_speedup": null
+        },
+        {
+          "name": "holdout_tessellation_11-20_us-night-0000020.instance",
+          "ours_median_seconds": 0.104504417,
+          "fekete_median_seconds": 0.079723542,
+          "matched": true,
+          "fekete_over_ours_speedup": 0.7628724630845028
+        }
+      ],
+      "portfolio": {
+        "incumbent_publications": 52,
+        "incumbent_imports": 24,
+        "median_proof_seconds": 0.0038479795000000002,
+        "median_join_seconds": 0.00018681300000000008,
+        "maximum_join_seconds": 0.0009900829999999958
+      }
+    }
+  },
+  "paired_cooperative_vs_default": [
+    {
+      "name": "holdout_osm_5-10_jakarta_n005_seed7447",
+      "cooperative_speedup_vs_default": 0.8784055061657585
+    },
+    {
+      "name": "holdout_osm_11-20_lagos_n015_seed7082",
+      "cooperative_speedup_vs_default": 1.4509318389156785
+    },
+    {
+      "name": "holdout_random_5-10_random_mixed_square_n010_seed10013",
+      "cooperative_speedup_vs_default": 0.6526412580514959
+    },
+    {
+      "name": "holdout_random_11-20_random_mixed_square_n015_seed15016",
+      "cooperative_speedup_vs_default": 0.8896620150068697
+    },
+    {
+      "name": "holdout_tessellation_5-10_uniform-0000010-1",
+      "cooperative_speedup_vs_default": 0.7940787808694469
+    },
+    {
+      "name": "holdout_tessellation_11-20_us-night-0000020.instance",
+      "cooperative_speedup_vs_default": 0.9498115280620149
+    }
+  ],
+  "cross_mode_interval_intersections": [
+    {
+      "name": "holdout_osm_5-10_jakarta_n005_seed7447",
+      "lower": 74.75092653566176,
+      "upper": 74.75092653566176,
+      "overlap": true
+    },
+    {
+      "name": "holdout_osm_11-20_lagos_n015_seed7082",
+      "lower": 271.0733199699816,
+      "upper": 271.0733199699816,
+      "overlap": true
+    },
+    {
+      "name": "holdout_random_5-10_random_mixed_square_n010_seed10013",
+      "lower": 94.95701389546645,
+      "upper": 94.95701389546645,
+      "overlap": true
+    },
+    {
+      "name": "holdout_random_11-20_random_mixed_square_n015_seed15016",
+      "lower": 92.66506060463915,
+      "upper": 92.66506060463915,
+      "overlap": true
+    },
+    {
+      "name": "holdout_tessellation_5-10_uniform-0000010-1",
+      "lower": 961.3353185187838,
+      "upper": 961.3353185187839,
+      "overlap": true
+    },
+    {
+      "name": "holdout_tessellation_11-20_us-night-0000020.instance",
+      "lower": 22931.151306306983,
+      "upper": 22931.151306306987,
+      "overlap": true
+    }
+  ],
+  "median_cooperative_speedup_vs_default": 0.8840337605863141
+}

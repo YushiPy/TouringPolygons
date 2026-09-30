@@ -48,7 +48,7 @@ void reset_convex_hybrid_aggregate() {std::lock_guard lock(aggregate_mutex);aggr
 ConvexHybridAggregate convex_hybrid_aggregate() {std::lock_guard lock(aggregate_mutex);return aggregate;}
 
 namespace {
-using Rational = boost::multiprecision::cpp_rational;
+using Rational = tpp::ConvexRational;
 using Clock = std::chrono::steady_clock;
 
 struct Point {
@@ -598,7 +598,7 @@ double rational_upper(const Rational &q) {
 void set_exact_bounds(ConvexHybridResult &result,Vector2 start,Vector2 target,
                       const std::vector<Point> &contacts) {
     constexpr unsigned precision=96;
-    const boost::multiprecision::cpp_int scale=boost::multiprecision::cpp_int(1)<<precision;
+    const tpp::ConvexInteger scale=tpp::ConvexInteger(1)<<precision;
     std::vector<Point> chain;chain.reserve(contacts.size()+2);chain.emplace_back(start);
     chain.insert(chain.end(),contacts.begin(),contacts.end());chain.emplace_back(target);
     Rational lower=0,upper=0;
@@ -607,8 +607,8 @@ void set_exact_bounds(ConvexHybridResult &result,Vector2 start,Vector2 target,
         const Rational squared=d.dot(d);if(squared==0)continue;
         const auto numerator=boost::multiprecision::numerator(squared);
         const auto denominator=boost::multiprecision::denominator(squared);
-        const boost::multiprecision::cpp_int scaled=(numerator<<(2*precision))/denominator;
-        const boost::multiprecision::cpp_int root=sqrt(scaled);
+        const tpp::ConvexInteger scaled=(numerator<<(2*precision))/denominator;
+        const tpp::ConvexInteger root=sqrt(scaled);
         lower+=Rational(root)/Rational(scale);upper+=Rational(root+1)/Rational(scale);
     }
     result.lower_bound=rational_lower(lower);result.upper_bound=rational_upper(upper);
@@ -617,10 +617,10 @@ void set_exact_bounds(ConvexHybridResult &result,Vector2 start,Vector2 target,
 Rational sqrt_upper(const Rational &squared) {
     if(squared==0)return 0;
     constexpr unsigned precision=96;
-    const boost::multiprecision::cpp_int scale=boost::multiprecision::cpp_int(1)<<precision;
+    const tpp::ConvexInteger scale=tpp::ConvexInteger(1)<<precision;
     const auto numerator=boost::multiprecision::numerator(squared);
     const auto denominator=boost::multiprecision::denominator(squared);
-    const boost::multiprecision::cpp_int scaled=(numerator<<(2*precision))/denominator;
+    const tpp::ConvexInteger scaled=(numerator<<(2*precision))/denominator;
     return Rational(sqrt(scaled)+1)/Rational(scale);
 }
 

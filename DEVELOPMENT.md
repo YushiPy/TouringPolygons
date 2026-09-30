@@ -12,6 +12,10 @@ git submodule update --init --recursive
 
 O núcleo C++ usa CMake, C++23, Eigen, Boost e CGAL. Gurobi é opcional e serve
 como baseline. O dashboard mantém seus ambientes Python e Node próprios.
+Em builds nativos, GMP acelera a aritmética racional quando disponível.
+`-DTPP_ENABLE_GMP_RATIONAL=OFF` mantém o backend Boost sem biblioteca externa;
+o WASM também usa esse backend. Vincule consumidores ao alvo CMake `tpp_convex`
+para herdar a configuração dos tipos exatos e recompile-os ao trocar de backend.
 
 ## Entradas mantidas
 

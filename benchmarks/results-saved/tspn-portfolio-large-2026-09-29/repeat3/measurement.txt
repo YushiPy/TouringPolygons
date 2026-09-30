@@ -1,0 +1,1 @@
+Runs are sequential, each mode uses repetition count 3 and the same preselected OSM k=39 input. Native and Fekete use one thread each for solo modes; native portfolio modes use two search workers and Fekete one Gurobi thread.

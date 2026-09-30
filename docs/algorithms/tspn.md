@@ -26,14 +26,24 @@ too weak, the rational cycle solve strengthens it. The retained double path is
 independently feasible for the convex regions. No optimization epsilon is added
 to the convex-cycle constructor or its certificate.
 
-The root represents region 0's hull and has bound zero. A single-region relaxed
+Each child seeds the shared convex constructor with its parent's contacts,
+replacing or inserting only the contact of the new region. This is a proposal,
+not a bound: certificates still validate every complete candidate. The oracle
+also receives the incumbent cutoff already used by B&B. A feasible candidate
+whose independently certified lower bound reaches that cutoff returns
+`CertifiedBound`; the node can then be pruned without constructing its exact
+optimum. This is the same bound comparison as pruning after a complete solve,
+with no extra error allowance. Standalone cycle solves default to an infinite
+cutoff and retain their original exact-termination contract.
+
+By default, the root represents region 0's hull and has bound zero. A single-region relaxed
 cycle may be any point in that hull. A vertex seeds the initial feasible
 heuristic; it is never fixed in subsequent relaxations. Rooting at a *region*
 removes cyclic rotation without imposing an artificial depot.
 
 If a missing original region is absent from a sequence of size m, insert its
 hull into every cyclic gap, including the closing edge: m positions rather than
-the m+1 positions of an endpoint path. Region 0 remains first. At m=2 the two
+the m+1 positions of an endpoint path. The root's first region remains first (region 0 with the default strategy). At m=2 the two
 children are reversals of the same triangle; only one is needed. Subsequent
 insertions retain every cyclic gap. If the missing region is already represented
 by its hull, branch over its existing convex decomposition pieces.
@@ -51,6 +61,82 @@ global incumbent.
 As in the endpoint search, crossings of a partial tour and repeated visits to
 one region do not authorize pruning. The existing counterexamples and their
 reasoning still apply.
+
+## Cooperative search portfolio
+
+Set `options.portfolio=true` or use `tpp-unordered --cycle --portfolio` for two
+independent instances of this same B&B. Each has one oracle thread, its own
+frontier, decomposition cache, normalized geometry and oracle workspace. The
+original input is immutable and shared. Leave `options.threads=1`; combining
+sibling parallelism with the portfolio is rejected to avoid silently using
+more than two workers. Native OS threads are used, without CPU affinity.
+WebAssembly rejects this optional mode.
+
+Worker 0 uses the maintained best-bound queue with the configured diving
+interval. Worker 1 uses a DFS/BFS policy inspired by the pinned supplier's
+`strategies/search_strategy.h`: visit the cheapest child depth first, then
+return to the globally cheapest frontier after a pruned or feasible node.
+Children are ordered by bound, relaxed path length, then serial number.
+Comparison is strict; the supplier's approximate-tie threshold is not copied.
+An independent bound index always tracks the minimum over the entire DFS
+frontier, including children whose oracles were deferred by a budget limit.
+
+For cycles, worker 1 starts with a farthest pair of original regions plus the
+region maximizing the sum of its distances to that pair, following the root
+selection described in the supplier's `root_node_strategy.cpp`. There is one
+unoriented cyclic order on three distinct labels. Therefore choosing that
+triple removes neither a geometric constraint nor a class of feasible tours:
+all later cyclic insertion gaps remain represented, and each hull can still
+be refined into its decomposition pieces. Root distance computations only rank
+regions; they are not used as certified lower bounds. No geometric contact is
+fixed. For endpoint paths the second worker uses the endpoint-distance root
+choice in the same existing branching code.
+
+Incumbent publication occurs only after the existing feasibility check. Workers
+share a synchronized path/value snapshot in their identical normalized
+coordinate system, with a fast atomic upper-bound check avoiding a lock when
+there is no improvement. The receiving worker validates the path again before
+adopting it. Updating a feasible upper bound changes pruning strength without
+removing any solution that could improve that bound. There is no new gap,
+feasibility tolerance or discretization.
+
+`max_calls` is a **global** atomic reservation budget, including both workers'
+initial convex polishing calls. `max_seconds` is one common wall deadline.
+A worker requests peer cancellation only after its full solve, including
+original-coordinate feasibility restoration, closes the requested gap. A
+numerical limit, exhausted budget or worker exception is not an optimality
+proof. An exception in one worker is reported in its diagnostics while the
+other can still complete; if both fail, the call throws. Shutdown is cooperative
+between oracle calls: an already running exact solve or decomposition is joined
+before returning. No detached thread outlives its inputs.
+
+Each search covers the complete feasible set. Consequently the maximum of
+its final valid lower bounds is a global lower bound, and the smallest upper
+bound is returned with the corresponding validated path. An interrupted
+portfolio retains this interval and its incomplete termination status.
+`exact` still means the requested numerical B&B gap was closed, not a rational
+zero-error solution of the complete TSPN.
+
+For controlled comparisons, `--search-strategy best-bound` and
+`--search-strategy dfs-bfs` run the policies independently.
+`--portfolio-no-sharing` runs the same two-worker race with incumbent exchange
+disabled; proof cancellation remains active. These flags are mutually
+exclusive with an explicit isolated strategy in the CLI. The Python public
+`tspn-benchmark` command exposes the same switches and records two native
+workers versus one Fekete worker; that is a resource advantage, not a matched
+single-core comparison. The portfolio is opt-in and does not promise to be
+faster than either standalone strategy on every input.
+
+Result telemetry includes `portfolio_runs`, `portfolio_winner`, publication
+and import counts, `portfolio_proof_seconds`, and `portfolio_join_seconds`.
+The main `seconds` includes both startup and joining workers. Work counters
+and phase/oracle times sum worker work and can exceed wall time; `peak_queue`
+is the sum of individual peaks, an upper estimate of simultaneous occupancy.
+Initial-solution metadata and the retained trace belong to the worker supplying
+the returned path, followed by a `portfolio_complete` trace event. On a worker
+exception its partial statistics are unavailable, but reserved calls remain
+included in the global `calls` counter. The winner is absent when neither
+individual worker proves the requested gap.
 
 ## Cyclic insertion bounds
 
@@ -74,6 +160,197 @@ reported result is rounded downward and bounded below by zero. This remains
 valid even when reference contacts are infeasible or coincident. The endpoint
 insertion bound is unchanged.
 
+Within one cyclic sibling set, each polygon vertex is imported and translated
+to the common rational origin once. Proposed insertion contacts and link
+directions are also shared between the ordinary and inherited dual evaluations.
+Only support coefficients differ between these evaluations. This preserves
+the exact support formulas and downward-rounded output while removing repeated
+conversion and contact construction. It does not change branch selection or
+pruning bounds for a fixed set of directions.
+
+## Independently selectable acceleration experiments
+
+The native CLI and public benchmark command accept repeated
+`--cycle-optimization cache|dual|features|lazy|root|branch|one-tree|learn|memo|bound-first` options. Each changes
+the existing solver; none introduces a parallel implementation. They initially
+remain opt-in so that regressions are measurable against the same executable.
+
+- `cache` reuses canonical rational polygons across calls and immutable prepared
+  geometry across candidate checks, with a separate workspace per worker.
+- `dual` transports the parent's rational unit-disk directions. Inserting a
+  region duplicates the split link's direction; replacing a convex piece keeps
+  the same link indices. New nonzero contacts replace their directions, while
+  zero links retain inherited witnesses. Insertion screening takes the maximum
+  of the original and inherited-witness bounds, so screening cannot weaken.
+  The extra rational work and per-frontier-node witness storage can cost more
+  than the saved oracle calls.
+- `features` transports the active vertex/edge tuple with the contacts and marks
+  only the inserted/replaced feature unknown. A local repair and reconstruction
+  precedes the ordinary constructor; every resulting candidate is certified.
+- `lazy` queues children with their already-certified insertion/parent bounds
+  and solves the convex relaxation only when a child is selected for expansion.
+  A newer incumbent may prune it before that call. The global frontier includes
+  these unsolved children, including at interruptions; an unrefined bound is
+  never promoted to an exact relaxation. This is a two-stage bound policy and
+  can delay incumbent discovery compared with evaluating all siblings eagerly.
+- `root` also enables the separated triple root for best-bound search. As with
+  DFS/BFS, all tours contain one unoriented cyclic order on three fixed labels;
+  the reduction loses no tour. Its pairwise region-distance heuristic costs
+  O(n²) geometric distance queries before the search.
+- `branch` compares insertion lower bounds for up to three farthest unvisited
+  regions, choosing the largest minimum child bound. Decomposition branches
+  keep their existing priority. This adds at most three insertion-screening
+  passes per branch; it orders a complete search and is not an extra pruning rule.
+- `one-tree` adds a certified all-region Held–Karp bound, described below.
+- `learn` ranks missing regions using bound gains observed in previous children,
+  without extra oracle calls. It takes precedence over `branch` when both are
+  selected; both remain opt-in.
+- `memo` caches previously certified relaxation results for identical cyclic
+  constraints, with rotation/reversal normalization as described below.
+- `bound-first` checks inherited contacts and a rational dual bound before
+  seeking another construction or a complete KKT certificate. The existing
+  cutoff propagation remains in effect with either setting.
+
+All retain the same numerical B&B contract below. The experiment matrix,
+including unsuccessful variants and interrupted runs, belongs to the saved
+campaign rather than to this algorithm contract.
+
+## All-region one-tree bound
+
+`options.cycle_one_tree` includes every original label, including labels absent
+from the partial cycle. A label denotes its convex hull until the node assigns
+a decomposition piece. For each pair of these convex sets, existing floating
+point projections propose a separating direction. Its norm is bounded above
+and checked with rational arithmetic, giving an exact vector `|u| <= 1`. Then
+
+```
+c_ij = max(0, min_(y in C_j) u dot y - max_(x in C_i) u dot x)
+```
+
+is no greater than any distance between the two regions. Support arithmetic
+is rational; the stored binary64 cost is rounded downward and reimported as
+an exact dyadic rational. Incorrect or degenerate floating proposals can only
+weaken this bound. Intersections, containment and touching require no epsilon.
+
+For arbitrary vertex prices pi, construct a minimum spanning tree on all labels
+except label 0 and add the two cheapest distinct edges incident to label 0,
+using exact weights `c_ij + pi_i + pi_j`. Its weight minus `2 sum_i pi_i` is a
+valid lower bound: every Hamiltonian cycle is such a one-tree, and each cycle
+has degree two at every label. Every feasible geometric tour supplies a visit
+per label; shortcutting these visits and replacing distances by `c_ij` cannot
+increase its length. The graph need not satisfy the triangle inequality.
+For two labels the bound is `2 c_01`; fewer labels give zero.
+
+The bound is maximized with the existing node bound, never added to it.
+Partial-cycle adjacent labels are not forced to be graph edges: future
+insertions may separate them. Thus this bound deliberately relaxes visit order.
+Each evaluated one-tree is safe independently of the price update heuristic.
+At most 32 subgradient iterations propose prices in doubles, interpreted exactly
+for the next tree computation. The iteration count is a work budget, not an
+optimality tolerance. A nearest-neighbor graph tour and at most n improving
+2-opt sweeps supply an ascent target. This graph tour is **not** a feasible
+geometric incumbent: consecutive graph edges may require incompatible contacts.
+It is used only to choose price steps and stop ascent.
+
+Distances and geometry are cached per worker. A bound cache, cleared at 4096
+assignments, is keyed by the complete hull/piece assignment; visit order does
+not affect it. Root computation supplies all insertion descendants with the
+same bound. Only decomposition children need another assignment lookup or
+computation. An interrupted computation returns an already valid bound or
+zero. Caches never contain pointers to temporary polygons.
+
+For polygon sizes m_i and m_j, a new pair uses O(m_i m_j) floating proposal work
+and O(m_i + m_j) rational support work. After pair caching, I tree passes take
+O(I n²) rational arithmetic operations; the graph-tour proposal takes O(n²)
+plus at most O(n³) work for the capped 2-opt sweeps. The working graph occupies
+O(n²) space. These are arithmetic-operation counts, not constant-cost bit
+complexity claims. Touching tessellations can have zero pair distances along
+an entire graph tour, leaving this relaxation weak even when the geometric
+optimum is positive.
+
+`one_tree_calls`, `one_tree_cache_hits`, `one_tree_iterations`,
+`one_tree_distance_queries`, `one_tree_improvements` and `one_tree_seconds`
+separate its cost from convex-oracle work. Portfolio counters sum both workers.
+
+## Branch ranking from observed gains
+
+`options.cycle_learned_branching` maintains an online mean of
+`max(0, child_bound - parent_bound) / missing_region_distance`, separately per
+original region and per branch type (insertion or decomposition). Only ordinary
+child oracle results contribute; a later precision refinement does not train
+the same child twice. Nonfinite observations are ignored. Workers keep separate
+means, so collecting a parallel sibling batch cannot race with another worker.
+
+For an uncovered region with k observations, mix its mean with the global mean
+for the same branch type using weight `k / (k + 4)`. Rank by its current
+missing-region distance times one plus that mixed mean. Four prior observations
+regularize sparse data; this is not an acceptance tolerance. Before any data,
+ranking is the existing farthest-region choice. Ties follow original label order.
+Ranking takes O(n m) work for a partial sequence of length m and O(n) stored
+statistics. It calls no additional convex oracle or insertion-bound evaluator.
+
+All insertion positions and decomposition pieces remain represented, and the
+learned score is never used as a pruning bound. Search coverage and the B&B
+gap contract therefore remain unchanged. `learned_branch_observations`,
+`learned_branch_decisions` and `learned_branch_changes` expose whether it was
+actually exercised. Gains observed on one instance need not predict useful
+branching on another; statistics are reset for every solve.
+
+## Reusing certified relaxations
+
+`options.cycle_memo` caches the complete ordered `(original region, hull/piece)`
+tuple of a convex relaxation. This includes partial B&B sequences: their
+relaxations are themselves closed cycles. Each original label occurs once, so
+starting at the smallest tuple and comparing the forward and reverse sequences
+gives an O(k) canonical key. Distinct piece assignments and non-equivalent visit
+orders have different keys. The search's normalized hulls and lazily prepared
+pieces are immutable for the entire cache lifetime.
+
+A stored path is reused only if its certified bound reaches the current cutoff
+or its certified interval already meets the current oracle accuracy request.
+Contacts and feature hints are permuted back to the requested cyclic order.
+The existing exact certificate independently rechecks the contacts before every
+cache return. A stronger stored lower bound, including one from rational
+recovery, remains valid because the geometric constraints are identical.
+Reversal and rotation preserve the sum of link lengths and feasibility.
+The cache does not transfer a bound to merely similar or differently ordered
+polygons. A tighter request may force another solve.
+
+Outside the cooperative portfolio, each oracle worker owns a separate cache,
+cleared when it reaches 4096 entries and destroyed at the end of the solve.
+Lookup takes O(k log M) tuple comparisons
+for M entries, followed on a hit by the existing O(N+k³) certificate bound;
+storing a result takes O(k) contacts/features plus its key. It saves construction
+work, not independent verification. `calls` still counts relaxation requests,
+including cache hits, so the global call-budget contract is unchanged.
+`cycle_memo_queries`, `cycle_memo_repeated` and `cycle_memo_hits` distinguish
+lookups, retained matching keys, and successfully reused results. Eviction can
+hide repetitions; zero hits in a sample is not proof that none occur elsewhere.
+
+With `portfolio` and incumbent sharing enabled, `memo` also shares these results
+between the two searches. A shared key contains original labels and **complete
+polygon coordinates**, rather than assuming that both workers give a piece the
+same local index. Canonical rotation/reversal is unchanged. A short separate
+mutex protects lookup/publication; a retrieved snapshot is copied under the
+lock and independently certified after releasing it. Concurrent publications
+retain the stronger lower bound and the feasible path with the smaller upper
+bound, always for identical constraints. The shared cache has the same 4096
+entry cap; its keys take O(N) coordinates and lookup O(N log M) comparisons.
+`--portfolio-no-sharing` disables this exchange as well as incumbent exchange.
+All workers still cover their original search space, and reservation/proof
+cancellation rules are unchanged. Performance comparisons must use the same
+two-worker portfolio with and without memoization.
+
+`options.cycle_bound_first` selects the convex solver's early inherited-contact
+and dual-bound checks. A floating support estimate filters unpromising extra
+checks; inaccurate estimates can only change work, never authorize acceptance.
+Any early pruning still requires exact membership and a
+valid rational support bound; no full optimality claim follows from reaching
+the cutoff. `cycle_certificate_cutoff_skips`, `cycle_initial_contact_checks` and
+`cycle_initial_contact_accepts` expose the avoided work. Both new options are
+independent, disabled by default, and preserve the existing numerical B&B
+contract below. Portfolio counters sum work across the two private searches.
+
 ## Scope of exactness and limits
 
 The convex rational oracle is exact on its input regions, with objective stored
@@ -84,6 +361,14 @@ a zero-error rational solution of the complete nonconvex TSPN. Bounds and
 `termination` are returned for time, call and numerical limits. An oracle failure
 does not authorize pruning or a claim of optimality. The time limit is
 cooperative; one already-started cycle solve or decomposition may exceed it.
+
+The incumbent pruning cutoff is preserved when a cycle relaxation enters
+rational recovery, including the adapter's secondary recovery for a wide
+rounded-contact gap. That recovery also receives the already verified contacts
+as a proposal. It may return `CertifiedBound` once the independent global lower
+bound reaches the cutoff; this is sufficient to prune and does not assert an
+exact optimal tour. Default standalone rational cycle solves still require
+the exact optimality certificate.
 
 With n regions, orders contribute at most `(n-1)!/2` unoriented cyclic orders
 for n>=3, and decomposition choices multiply the worst-case search. Each branch

@@ -37,6 +37,7 @@ def run_unordered_solver(
 	max_seconds: float,
 	arguments: Sequence[str] = (),
 	initial_path: Sequence[Point] | None = None,
+	process_timeout: float | None = None,
 ) -> dict:
 	command = [str(solver.resolve()), *arguments, *(['--initial-path'] if initial_path is not None else [])]
 	kwargs = {
@@ -44,7 +45,9 @@ def run_unordered_solver(
 		"text": True,
 		"capture_output": True,
 	}
-	if math.isfinite(max_seconds):
+	if process_timeout is not None:
+		kwargs["timeout"] = process_timeout
+	elif math.isfinite(max_seconds):
 		kwargs["timeout"] = max(30, max_seconds + 30)
 	process = subprocess.run(command, **kwargs)
 	if process.returncode:

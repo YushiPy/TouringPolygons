@@ -48,6 +48,9 @@ target_link_libraries(${PROJECT_NAME} PRIVATE tpp_nonconvex)
 
 target_compile_options(${PROJECT_NAME} PRIVATE -O3)
 
+find_package(Threads REQUIRED)
+target_link_libraries(tpp_nonconvex PUBLIC Threads::Threads)
+
 find_package(OpenMP REQUIRED)
 target_link_libraries(tpp_nonconvex PUBLIC OpenMP::OpenMP_CXX)
 

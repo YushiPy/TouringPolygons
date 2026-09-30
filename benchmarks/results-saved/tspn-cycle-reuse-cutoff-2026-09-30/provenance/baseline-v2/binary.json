@@ -1,0 +1,11 @@
+{
+  "label": "Frozen V2 native baseline",
+  "sha256": "a12e2d4bdace1b0ff09d5d99c37237e838a5be7a520655fc2d19eb5c67777a2e",
+  "path": ".build/tspn-held-karp-learning-2026-09-30/candidate-v2-frozen/tpp-unordered",
+  "source_campaign": "tspn-held-karp-learning-2026-09-30",
+  "source_campaign_config": "runs/large6-v2-cfr-control/config.json",
+  "cycle_optimizations": ["cache", "features", "root"],
+  "one_tree": false,
+  "learned_branching": false,
+  "binary_copied_into_results_saved": false
+}

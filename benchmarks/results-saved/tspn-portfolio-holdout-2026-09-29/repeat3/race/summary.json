@@ -1,0 +1,152 @@
+[
+  {
+    "name": "holdout_osm_5-10_jakarta_n005_seed7447",
+    "k": 5,
+    "source_class": "OSM",
+    "size_band": "5-10",
+    "ours": {
+      "median_seconds": 0.000849417,
+      "valid_runs": 3,
+      "gap_closed_runs": 3,
+      "errors": 0,
+      "timeouts": 0,
+      "median_calls": 4
+    },
+    "fekete": {
+      "median_seconds": 0.00192025,
+      "valid_runs": 3,
+      "gap_closed_runs": 3,
+      "errors": 0,
+      "timeouts": 0,
+      "median_calls": 4
+    },
+    "objective_spread": 1.0218883517154609e-09,
+    "interval_separation": 0,
+    "matched_speedup": 2.260668199482704
+  },
+  {
+    "name": "holdout_osm_11-20_lagos_n015_seed7082",
+    "k": 15,
+    "source_class": "OSM",
+    "size_band": "11-20",
+    "ours": {
+      "median_seconds": 0.004935375,
+      "valid_runs": 3,
+      "gap_closed_runs": 3,
+      "errors": 0,
+      "timeouts": 0,
+      "median_calls": 9
+    },
+    "fekete": {
+      "median_seconds": 0.009318208,
+      "valid_runs": 3,
+      "gap_closed_runs": 3,
+      "errors": 0,
+      "timeouts": 0,
+      "median_calls": 13
+    },
+    "objective_spread": 4.384264684631489e-08,
+    "interval_separation": 0,
+    "matched_speedup": 1.8880445761466962
+  },
+  {
+    "name": "holdout_random_5-10_random_mixed_square_n010_seed10013",
+    "k": 10,
+    "source_class": "random",
+    "size_band": "5-10",
+    "ours": {
+      "median_seconds": 0.003697375,
+      "valid_runs": 3,
+      "gap_closed_runs": 3,
+      "errors": 0,
+      "timeouts": 0,
+      "median_calls": 16
+    },
+    "fekete": {
+      "median_seconds": 0.013757208,
+      "valid_runs": 3,
+      "gap_closed_runs": 3,
+      "errors": 0,
+      "timeouts": 0,
+      "median_calls": 24
+    },
+    "objective_spread": 1.7302568267041352e-09,
+    "interval_separation": 0,
+    "matched_speedup": 3.720804083978498
+  },
+  {
+    "name": "holdout_random_11-20_random_mixed_square_n015_seed15016",
+    "k": 15,
+    "source_class": "random",
+    "size_band": "11-20",
+    "ours": {
+      "median_seconds": 0.043632541,
+      "valid_runs": 3,
+      "gap_closed_runs": 3,
+      "errors": 0,
+      "timeouts": 0,
+      "median_calls": 32
+    },
+    "fekete": {
+      "median_seconds": 0.0872455,
+      "valid_runs": 3,
+      "gap_closed_runs": 3,
+      "errors": 0,
+      "timeouts": 0,
+      "median_calls": 80
+    },
+    "objective_spread": 1.2783800684701419e-09,
+    "interval_separation": 0,
+    "matched_speedup": 1.9995512065180896
+  },
+  {
+    "name": "holdout_tessellation_5-10_uniform-0000010-1",
+    "k": 10,
+    "source_class": "tessellation",
+    "size_band": "5-10",
+    "ours": {
+      "median_seconds": 0.003977292,
+      "valid_runs": 3,
+      "gap_closed_runs": 3,
+      "errors": 0,
+      "timeouts": 0,
+      "median_calls": 14
+    },
+    "fekete": {
+      "median_seconds": 0.010265292,
+      "valid_runs": 3,
+      "gap_closed_runs": 0,
+      "errors": 0,
+      "timeouts": 0,
+      "median_calls": 18
+    },
+    "objective_spread": 1.2755663192365319e-10,
+    "interval_separation": 0,
+    "matched_speedup": null
+  },
+  {
+    "name": "holdout_tessellation_11-20_us-night-0000020.instance",
+    "k": 20,
+    "source_class": "tessellation",
+    "size_band": "11-20",
+    "ours": {
+      "median_seconds": 0.12451375,
+      "valid_runs": 3,
+      "gap_closed_runs": 3,
+      "errors": 0,
+      "timeouts": 0,
+      "median_calls": 138
+    },
+    "fekete": {
+      "median_seconds": 0.080752,
+      "valid_runs": 3,
+      "gap_closed_runs": 3,
+      "errors": 0,
+      "timeouts": 0,
+      "median_calls": 130
+    },
+    "objective_spread": 1.7149432096630335e-08,
+    "interval_separation": 0,
+    "matched_speedup": 0.6485388159942175
+  }
+]

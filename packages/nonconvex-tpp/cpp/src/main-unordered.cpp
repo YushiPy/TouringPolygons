@@ -74,15 +74,45 @@ int main(int argc, char **argv) {
 		tpp::UnorderedTppSolveOptions options;
 		bool read_initial_path = false;
 		bool cycle = false;
+        bool explicit_strategy = false;
 		for (int i = 1; i < argc; ++i) {
 			const std::string flag = argv[i];
 			if (flag == "--help") {
-				std::cout << "Usage: tpp-unordered [--cycle] [--threads N] [--absolute-gap N] [--relative-gap N] [--feasibility-tolerance N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace]\n"
+				std::cout << "Usage: tpp-unordered [--cycle] [--cycle-optimization cache|dual|features|lazy|root|branch|one-tree|learn|memo|bound-first] [--portfolio | --portfolio-no-sharing | --search-strategy best-bound|dfs-bfs] [--threads N] [--absolute-gap N] [--relative-gap N] [--feasibility-tolerance N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace]\n"
 					<< "stdin: sx sy tx ty polygon_count max_calls max_seconds, then each polygon's vertex count and coordinates. With --initial-path, append path point count and coordinates, including endpoints.\n";
 				std::cout << "--cycle solves TSPN: input endpoints are ignored; output and any initial path must be closed.\n";
 				return 0;
 			}
 			if (flag == "--cycle") {cycle = true; continue;}
+            if(flag=="--cycle-optimization") {
+                if(++i>=argc)throw std::invalid_argument("Expected a cycle optimization.");
+                const std::string mode=argv[i];
+                if(mode=="cache")options.cycle_cache=true;
+                else if(mode=="dual")options.cycle_dual_reuse=true;
+                else if(mode=="features")options.cycle_active_features=true;
+                else if(mode=="lazy")options.cycle_lazy=true;
+                else if(mode=="root")options.cycle_separated_root=true;
+                else if(mode=="branch")options.cycle_strong_branching=true;
+                else if(mode=="one-tree")options.cycle_one_tree=true;
+                else if(mode=="learn")options.cycle_learned_branching=true;
+                else if(mode=="memo")options.cycle_memo=true;
+                else if(mode=="bound-first")options.cycle_bound_first=true;
+                else throw std::invalid_argument("Unknown cycle optimization: "+mode);
+                continue;
+            }
+            if(flag=="--portfolio" || flag=="--portfolio-no-sharing") {
+                options.portfolio=true;
+                if(flag=="--portfolio-no-sharing") options.portfolio_share_incumbents=false;
+                continue;
+            }
+            if(flag=="--search-strategy") {
+                if(++i>=argc) throw std::invalid_argument("Expected a search strategy.");
+                const std::string strategy=argv[i];
+                if(strategy=="best-bound") options.search_strategy=tpp::UnorderedSearchStrategy::BestBoundDive;
+                else if(strategy=="dfs-bfs") options.search_strategy=tpp::UnorderedSearchStrategy::DfsBfs;
+                else throw std::invalid_argument("Expected best-bound or dfs-bfs.");
+                explicit_strategy=true;continue;
+            }
 			if (flag == "--bidirectional-initial") {
 				options.bidirectional_initial_heuristic = true;
 				continue;
@@ -145,6 +175,7 @@ int main(int argc, char **argv) {
 			else if (flag == "--oracle-relative-gap") options.oracle_relative_gap = value;
 			else throw std::invalid_argument("Unknown option: " + flag);
 		}
+		if(options.portfolio && explicit_strategy) throw std::invalid_argument("Portfolio selects both strategies; omit --search-strategy.");
 		if (!(std::cin >> start.x >> start.y >> target.x >> target.y >> n >> options.max_calls >> options.max_seconds))
 			throw std::invalid_argument("Expected sx sy tx ty polygon_count max_calls max_seconds.");
 		std::vector<std::vector<Vector2>> polygons(n);
@@ -163,7 +194,7 @@ int main(int argc, char **argv) {
 		}
 		const auto r = cycle ? tpp::tpp_nonconvex_tspn_solve(polygons, options)
 			: tpp::tpp_nonconvex_unordered_solve(start, target, polygons, options);
-		const char *termination[] = {"optimal", "call_limit", "time_limit", "numerical_limit"};
+		const char *termination[] = {"optimal", "call_limit", "time_limit", "numerical_limit", "portfolio_stopped"};
 		std::cout << std::setprecision(17) << "{\"schema_version\":\"free_order_v1\",\"exact\":" << (r.exact ? "true" : "false")
 			<< ",\"mode\":\"" << (cycle?"cycle":"path") << "\""
 			<< ",\"termination\":\"" << termination[static_cast<size_t>(r.termination)] << "\""
@@ -198,6 +229,21 @@ int main(int argc, char **argv) {
 			<< ",\"oracle_cutoff_calls\":" << r.oracle_cutoff_calls
 			<< ",\"oracle_dual_cutoff_prunes\":" << r.oracle_dual_cutoff_prunes
 			<< ",\"screened_nodes\":" << r.screened_nodes
+            << ",\"one_tree_calls\":" << r.one_tree_calls
+            << ",\"one_tree_cache_hits\":" << r.one_tree_cache_hits
+            << ",\"one_tree_iterations\":" << r.one_tree_iterations
+            << ",\"one_tree_distance_queries\":" << r.one_tree_distance_queries
+            << ",\"one_tree_improvements\":" << r.one_tree_improvements
+            << ",\"one_tree_seconds\":" << r.one_tree_seconds
+            << ",\"learned_branch_observations\":" << r.learned_branch_observations
+            << ",\"learned_branch_decisions\":" << r.learned_branch_decisions
+            << ",\"learned_branch_changes\":" << r.learned_branch_changes
+            << ",\"cycle_memo_queries\":" << r.cycle_memo_queries
+            << ",\"cycle_memo_repeated\":" << r.cycle_memo_repeated
+            << ",\"cycle_memo_hits\":" << r.cycle_memo_hits
+            << ",\"cycle_certificate_cutoff_skips\":" << r.cycle_certificate_cutoff_skips
+            << ",\"cycle_initial_contact_checks\":" << r.cycle_initial_contact_checks
+            << ",\"cycle_initial_contact_accepts\":" << r.cycle_initial_contact_accepts
 			<< ",\"sibling_bound_prunes\":" << r.sibling_bound_prunes
 			<< ",\"partial_states_created\":" << r.partial_states_created
 			<< ",\"children_generated\":" << r.children_generated
@@ -272,6 +318,25 @@ int main(int argc, char **argv) {
 		std::cout << "],\"path\":[";
 		for (size_t i = 0; i < r.path.size(); ++i) std::cout << (i ? "," : "") << '[' << r.path[i].x << ',' << r.path[i].y << ']';
 		std::cout << ']';
+        std::cout << ",\"portfolio_workers\":" << r.portfolio_workers
+            << ",\"portfolio_winner\":";json_size(r.portfolio_winner);
+        std::cout << ",\"portfolio_incumbent_publications\":" << r.portfolio_incumbent_publications
+            << ",\"portfolio_incumbent_imports\":" << r.portfolio_incumbent_imports
+            << ",\"portfolio_proof_seconds\":" << r.portfolio_proof_seconds
+            << ",\"portfolio_join_seconds\":" << r.portfolio_join_seconds
+            << ",\"portfolio_runs\":[";
+        for(size_t i=0;i<r.portfolio_runs.size();++i) {
+            const auto &run=r.portfolio_runs[i];
+            if(i)std::cout << ',';
+            std::cout << "{\"strategy\":";json_string(run.strategy);
+            std::cout << ",\"calls\":" << run.calls << ",\"nodes\":" << run.nodes
+                << ",\"incumbent_imports\":" << run.incumbent_imports << ",\"seconds\":" << run.seconds
+                << ",\"lower_bound\":";json_double(run.lower_bound);
+            std::cout << ",\"upper_bound\":";json_double(run.upper_bound);
+            std::cout << ",\"termination\":";json_string(termination[static_cast<size_t>(run.termination)]);
+            std::cout << ",\"error\":";json_string(run.error);std::cout << '}';
+        }
+        std::cout << ']';
 		if (options.trace) {
 			std::cout << ",\"trace\":[";
 			for (size_t i = 0; i < r.trace.size(); ++i) {

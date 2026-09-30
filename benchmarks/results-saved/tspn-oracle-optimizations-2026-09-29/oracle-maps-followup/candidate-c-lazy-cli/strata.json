@@ -1,0 +1,23 @@
+[
+  {
+    "source_class": "OSM",
+    "size_band": "25-40",
+    "cases": 1,
+    "matched_cases": 0,
+    "ours_faster": 0,
+    "median_speedup": null,
+    "mean_speedup": null,
+    "ours": {
+      "valid_runs": 1,
+      "gap_closed_runs": 0,
+      "errors": 0,
+      "timeouts": 0
+    },
+    "fekete": {
+      "valid_runs": 1,
+      "gap_closed_runs": 0,
+      "errors": 0,
+      "timeouts": 0
+    }
+  }
+]

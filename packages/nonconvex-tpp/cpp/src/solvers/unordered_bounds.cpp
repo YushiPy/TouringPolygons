@@ -7,45 +7,82 @@
 #include <stdexcept>
 
 namespace tpp::unordered_detail {
+    std::vector<size_t> canonical_cycle_indices(const std::vector<std::pair<size_t,size_t>> &labels) {
+        const size_t n=labels.size();if(!n)return {};
+        const size_t first=std::min_element(labels.begin(),labels.end())-labels.begin();
+        bool reverse=false;
+        for(size_t i=1;i<n;++i) {
+            const auto &a=labels[(first+i)%n],&b=labels[(first+n-i)%n];
+            if(a!=b){reverse=b<a;break;}
+        }
+        std::vector<size_t> order;order.reserve(n);
+        for(size_t i=0;i<n;++i)order.push_back((first+(reverse?n-i:i))%n);
+        return order;
+    }
 	std::vector<double> insertion_lower_bounds(const Polygon &contacts,
-		const std::vector<const Polygon *> &regions, const Polygon &inserted, bool cycle) {
+		const std::vector<const Polygon *> &regions, const Polygon &inserted, bool cycle, const ConvexRationalPolygon &inherited_dual) {
 		const size_t n = regions.size();
 		if (cycle) {
 			if (!n || contacts.size() != n + 1 || inserted.empty())
 				throw std::invalid_argument("Invalid cycle insertion-bound reference.");
-			using R = ConvexRational;
-			using P = ConvexRationalPoint;
-			const P origin(contacts.front());
-			auto direction = [](Vector2 a, Vector2 b) {
-				const P d = P(b) - P(a); const R squared = d.dot(d);
-				if (squared == 0) return P{};
-				double norm = std::hypot(b.x-a.x, b.y-a.y);
-				if (!std::isfinite(norm) || norm == 0) return P{};
-				while (R(norm)*R(norm) < squared) norm = std::nextafter(norm, INFINITY);
-				return d*(R(1)/R(norm));
-			};
-			auto support = [&](const Polygon &polygon, const P &normal) {
-				R value = (P(polygon.front())-origin).dot(normal);
-				for (auto v : polygon) value = std::min(value, (P(v)-origin).dot(normal));
-				return value;
-			};
-			std::vector<P> u; std::vector<R> terms(n); R parent = 0;
-			for (size_t i=0;i<n;++i) u.push_back(direction(contacts[i],contacts[i+1]));
-			for (size_t i=0;i<n;++i) parent += terms[i] = support(*regions[i],u[(i+n-1)%n]-u[i]);
-			std::vector<double> bounds(n);
-			for (size_t i=0;i<n;++i) {
-				const size_t next=(i+1)%n;
-				const auto point=best_contact(contacts[i],contacts[i+1],inserted,inserted.front());
-				const P left=direction(contacts[i],point),right=direction(point,contacts[i+1]);
-				R value=support(inserted,left-right);
-				if (n==1) value+=support(*regions[0],right-left);
-				else value+=parent-terms[i]-terms[next]+support(*regions[i],u[(i+n-1)%n]-left)
-					+support(*regions[next],right-u[next]);
-				value=std::max(R(0),value); double rounded=value.convert_to<double>();
-				while (R(rounded)>value) rounded=std::nextafter(rounded,-INFINITY);
-				bounds[i]=rounded;
-			}
-			return bounds;
+            if(!inherited_dual.empty()) {
+                if(inherited_dual.size()!=n)throw std::invalid_argument("Inherited dual size mismatch");
+                for(const auto &u:inherited_dual)if(u.dot(u)>1)throw std::invalid_argument("Invalid inherited dual");
+            }
+            using R = ConvexRational;
+            using P = ConvexRationalPoint;
+            const P origin(contacts.front());
+            auto direction = [](Vector2 a, Vector2 b) {
+                const P d = P(b) - P(a); const R squared = d.dot(d);
+                if (squared == 0) return P{};
+                double norm = std::hypot(b.x-a.x, b.y-a.y);
+                if (!std::isfinite(norm) || norm == 0) return P{};
+                while (R(norm)*R(norm) < squared) norm = std::nextafter(norm, INFINITY);
+                return d*(R(1)/R(norm));
+            };
+            // All sibling bounds use the same regions and origin. Import and
+            // translate each vertex once, including across dual alternatives.
+            auto translate = [&](const Polygon &polygon) {
+                ConvexRationalPolygon exact;exact.reserve(polygon.size());
+                for(auto v:polygon)exact.push_back(P(v)-origin);
+                return exact;
+            };
+            ConvexRationalPolygons exact_regions;exact_regions.reserve(n);
+            for(const auto *region:regions)exact_regions.push_back(translate(*region));
+            const auto exact_inserted=translate(inserted);
+            auto support = [](const ConvexRationalPolygon &polygon, const P &normal) {
+                R value = polygon.front().dot(normal);
+                for(size_t j=1;j<polygon.size();++j)value=std::min(value,polygon[j].dot(normal));
+                return value;
+            };
+            std::vector<P> raw,left,right;
+            raw.reserve(n);left.reserve(n);right.reserve(n);
+            for(size_t i=0;i<n;++i) {
+                raw.push_back(direction(contacts[i],contacts[i+1]));
+                const auto point=best_contact(contacts[i],contacts[i+1],inserted,inserted.front());
+                left.push_back(direction(contacts[i],point));
+                right.push_back(direction(point,contacts[i+1]));
+            }
+            std::vector<double> bounds(n);
+            auto evaluate = [&](const std::vector<P> &u,bool extend_zero) {
+                std::vector<R> terms(n);R parent=0;
+                for(size_t i=0;i<n;++i)parent+=terms[i]=support(exact_regions[i],u[(i+n-1)%n]-u[i]);
+                for(size_t i=0;i<n;++i) {
+                    const size_t next=(i+1)%n;
+                    const P &a=extend_zero&&left[i].zero()?u[i]:left[i];
+                    const P &b=extend_zero&&right[i].zero()?u[i]:right[i];
+                    R value=support(exact_inserted,a-b);
+                    if(n==1)value+=support(exact_regions[0],b-a);
+                    else value+=parent-terms[i]-terms[next]+support(exact_regions[i],u[(i+n-1)%n]-a)
+                        +support(exact_regions[next],b-u[next]);
+                    value=std::max(R(0),value);double rounded=value.convert_to<double>();
+                    while(R(rounded)>value)rounded=std::nextafter(rounded,-INFINITY);
+                    bounds[i]=std::max(bounds[i],rounded);
+                }
+            };
+            evaluate(raw,false);
+            if(!inherited_dual.empty())evaluate(inherited_dual,true);
+            return bounds;
 		}
 		if (contacts.size() != n + 2 || inserted.empty())
 			throw std::invalid_argument("Invalid insertion-bound reference path.");
@@ -107,4 +144,151 @@ namespace tpp::unordered_detail {
 		}
 		return bounds;
 	}
+    namespace {
+        using R = ConvexRational;
+        using P = ConvexRationalPoint;
+        double lower_double(const R &value) {
+            double result=value.convert_to<double>();
+            if(std::isinf(result))return result>0?std::numeric_limits<double>::max():result;
+            while(R(result)>value)result=std::nextafter(result,-INFINITY);
+            return result;
+        }
+        R pair_distance_bound(const Polygon &a,const Polygon &b,
+                              const ConvexRationalPolygon &exact_a,const ConvexRationalPolygon &exact_b) {
+            // Existing floating projections propose a direction only. Its unit
+            // norm and separating support gap are independently checked exactly.
+            Vector2 left=a.front(),right=b.front();double best=INFINITY;
+            for(auto v:a) {
+                const auto q=best_contact(v,v,b,b.front());const double d=v.distance_to(q);
+                if(d<best){best=d;left=v;right=q;}
+            }
+            for(auto v:b) {
+                const auto q=best_contact(v,v,a,a.front());const double d=v.distance_to(q);
+                if(d<best){best=d;left=q;right=v;}
+            }
+            if(!left.is_finite()||!right.is_finite())return 0;
+            const P delta=P(right)-P(left);const R squared=delta.dot(delta);
+            double norm=std::hypot(right.x-left.x,right.y-left.y);
+            if(squared==0||norm==0||!std::isfinite(norm))return 0;
+            while(std::isfinite(norm)&&R(norm)*R(norm)<squared)norm=std::nextafter(norm,INFINITY);
+            if(!std::isfinite(norm))return 0;
+            const P unit=delta*(R(1)/R(norm)),origin=exact_a.front();
+            R high=(exact_a.front()-origin).dot(unit),low=(exact_b.front()-origin).dot(unit);
+            for(const auto &v:exact_a)high=std::max(high,(v-origin).dot(unit));
+            for(const auto &v:exact_b)low=std::min(low,(v-origin).dot(unit));
+            // Store a binary64 lower bound, then treat its dyadic value exactly
+            // throughout the graph algorithm. No geometric tolerance is used.
+            return R(lower_double(std::max(R(0),R(low-high))));
+        }
+    }
+
+    OneTreeResult held_karp_bound(const std::vector<std::vector<R>> &costs,
+            double upper_bound,size_t iterations,const std::function<bool()> &stop) {
+        const size_t n=costs.size();OneTreeResult result;
+        for(size_t i=0;i<n;++i) {
+            if(costs[i].size()!=n)throw std::invalid_argument("One-tree matrix must be square");
+            for(size_t j=0;j<i;++j)if(costs[i][j]<0||costs[i][j]!=costs[j][i])
+                throw std::invalid_argument("One-tree matrix must be symmetric and nonnegative");
+        }
+        if(n<2)return result;
+        if(n==2){result.lower_bound=lower_double(R(2)*costs[0][1]);return result;}
+        // A tour in the abstract distance graph is an upper bound for that
+        // graph's optimum, not a feasible TSPN tour. It only controls dual
+        // ascent, and must never be published as a geometric incumbent.
+        std::vector<size_t> tour{0};std::vector<bool> seen(n);seen[0]=true;
+        for(size_t count=1;count<n;++count) {
+            size_t next=n;
+            for(size_t i=1;i<n;++i)if(!seen[i]&&(next==n||costs[tour.back()][i]<costs[tour.back()][next]))next=i;
+            seen[next]=true;tour.push_back(next);
+        }
+        for(size_t pass=0;pass<n;++pass) {
+            bool changed=false;
+            for(size_t i=0;i+2<n;++i)for(size_t j=i+2;j<n;++j) {
+                if(i==0&&j+1==n)continue;
+                if(costs[tour[i]][tour[j]]+costs[tour[i+1]][tour[(j+1)%n]]<
+                   costs[tour[i]][tour[i+1]]+costs[tour[j]][tour[(j+1)%n]]) {
+                    std::reverse(tour.begin()+i+1,tour.begin()+j+1);changed=true;
+                }
+            }
+            if(!changed||(stop&&stop()))break;
+        }
+        R tour_cost=0;for(size_t i=0;i<n;++i)tour_cost+=costs[tour[i]][tour[(i+1)%n]];
+        double graph_upper=tour_cost.convert_to<double>();
+        if(std::isfinite(graph_upper)) {
+            while(std::isfinite(graph_upper)&&R(graph_upper)<tour_cost)
+                graph_upper=std::nextafter(graph_upper,INFINITY);
+            upper_bound=std::min(upper_bound,graph_upper);
+        }
+        std::vector<double> prices(n);R best=0;double scale=1.5;size_t stalled=0;
+        for(size_t pass=0;pass<iterations;++pass) {
+            if(stop&&stop())break;
+            std::vector<R> pi;for(double price:prices)pi.emplace_back(price);
+            auto weight=[&](size_t a,size_t b)->R {return costs[a][b]+pi[a]+pi[b];};
+            std::vector<size_t> degree(n),parent(n,1);
+            std::vector<bool> used(n);std::vector<R> nearest(n);
+            used[0]=used[1]=true;R value=0;
+            for(size_t i=2;i<n;++i)nearest[i]=weight(1,i);
+            for(size_t count=2;count<n;++count) {
+                size_t next=n;
+                for(size_t i=1;i<n;++i)if(!used[i]&&(next==n||nearest[i]<nearest[next]))next=i;
+                value+=nearest[next];++degree[next];++degree[parent[next]];used[next]=true;
+                for(size_t i=1;i<n;++i)if(!used[i]) {
+                    const R candidate=weight(next,i);
+                    if(candidate<nearest[i]){nearest[i]=candidate;parent[i]=next;}
+                }
+            }
+            size_t a=1,b=2;if(weight(0,b)<weight(0,a))std::swap(a,b);
+            for(size_t i=3;i<n;++i) {
+                if(weight(0,i)<weight(0,a)){b=a;a=i;}
+                else if(weight(0,i)<weight(0,b))b=i;
+            }
+            value+=weight(0,a)+weight(0,b);degree[0]=2;++degree[a];++degree[b];
+            for(const auto &price:pi)value-=2*price;
+            ++result.iterations;
+            if(value>best){best=value;stalled=0;}else ++stalled;
+            result.lower_bound=lower_double(best);
+            double norm=0;for(size_t d:degree){const double g=double(d)-2;norm+=g*g;}
+            if(norm==0||result.lower_bound>=upper_bound)break;
+            if(stalled>=8){scale*=.5;stalled=0;}
+            const double step=scale*(upper_bound-result.lower_bound)/norm;
+            if(!std::isfinite(step)||step<=0)break;
+            auto next=prices;bool finite=true;
+            for(size_t i=1;i<n;++i){next[i]+=step*(double(degree[i])-2);finite&=std::isfinite(next[i]);}
+            if(!finite)break;
+            prices=std::move(next);
+        }
+        return result;
+    }
+
+    OneTreeResult CycleOneTreeWorkspace::bound(const std::vector<const Polygon *> &regions,
+            double upper_bound,const std::function<bool()> &stop) {
+        std::vector<size_t> key;key.reserve(regions.size());
+        for(const auto *p:regions) {
+            if(!p||p->empty())throw std::invalid_argument("Empty one-tree region");
+            auto found=ids_.find(p);
+            if(found==ids_.end()) {
+                const size_t id=regions_.size();ConvexRationalPolygon exact;
+                for(auto q:*p){if(!q.is_finite())throw std::invalid_argument("Nonfinite one-tree region");exact.emplace_back(q);}
+                regions_.push_back({p,std::move(exact)});ids_[p]=id;key.push_back(id);
+            } else key.push_back(found->second);
+        }
+        if(auto found=bounds_.find(key);found!=bounds_.end())return {found->second,0,0,true};
+        const size_t n=regions.size();std::vector<std::vector<R>> costs(n,std::vector<R>(n));
+        size_t queries=0;
+        for(size_t i=0;i<n;++i)for(size_t j=0;j<i;++j) {
+            if(stop&&stop())return {0,0,queries,false};
+            const auto edge=std::minmax(key[i],key[j]);const std::pair<size_t,size_t> pair{edge.first,edge.second};
+            auto found=distances_.find(pair);
+            if(found==distances_.end()) {
+                const auto &a=regions_[pair.first],&b=regions_[pair.second];
+                found=distances_.emplace(pair,pair_distance_bound(*a.input,*b.input,a.exact,b.exact)).first;++queries;
+            }
+            costs[i][j]=costs[j][i]=found->second;
+        }
+        auto result=held_karp_bound(costs,upper_bound,32,stop);result.distance_queries=queries;
+        if(bounds_.size()>=4096)bounds_.clear();
+        bounds_.emplace(std::move(key),result.lower_bound);
+        return result;
+    }
+
 }

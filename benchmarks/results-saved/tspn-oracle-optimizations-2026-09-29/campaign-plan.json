@@ -1,0 +1,32 @@
+{
+  "formulation": "TSPN, free cyclic order, no fixed point, closed polygon regions",
+  "initial_repetitions": 1,
+  "initial_solver_seconds": 2,
+  "initial_process_timeout_seconds": 8,
+  "small_cases": "inputs/small-holdout.json",
+  "large_cases": "inputs/large-holdout.json",
+  "native_variants": [
+    {"name": "baseline", "cycle_optimizations": []},
+    {"name": "cache", "cycle_optimizations": ["cache"]},
+    {"name": "dual", "cycle_optimizations": ["dual"]},
+    {"name": "features", "cycle_optimizations": ["features"]},
+    {"name": "lazy", "cycle_optimizations": ["lazy"]},
+    {"name": "root", "cycle_optimizations": ["root"]},
+    {"name": "branch", "cycle_optimizations": ["branch"]},
+    {"name": "combined", "cycle_optimizations": ["cache", "dual", "features", "lazy", "root", "branch"]}
+  ],
+  "fekete": {
+    "backend": "socp",
+    "threads": 1,
+    "relative_gap": 1e-6,
+    "feasibility_tolerance": 1e-8,
+    "validation_tolerance": 1e-7,
+    "reuse_policy": "Reuse existing Fekete rows only when input hashes and all settings match; otherwise measure once."
+  },
+  "promising_variant_followup": {
+    "input": "existing OSM k=39 proof case",
+    "repetitions": 3,
+    "solver_seconds": 10,
+    "process_timeout_seconds": 15
+  }
+}

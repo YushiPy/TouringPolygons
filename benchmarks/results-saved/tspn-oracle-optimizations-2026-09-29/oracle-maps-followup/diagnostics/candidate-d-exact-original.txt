@@ -1,0 +1,4 @@
+exit=0
+stdout={"certificate_checks":53,"contacts":19,"diagnostic":"","internal_lower_bound":2.7413881740553383,"internal_upper_bound":2.7413881740553387,"mode":"exact-original","oracle_calls":53,"original_exact_lower_bound":2.7413881740553383,"original_exact_upper_bound":2.7413881740553387,"original_exact_validation_status":3,"seconds":0.104847209,"status":2}
+
+stderr=EXACT_REPLAY_BEGIN mode=exact-original regions=19

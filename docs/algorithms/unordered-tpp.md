@@ -3,6 +3,12 @@
 Implementação: `packages/nonconvex-tpp/cpp/src/solvers/unordered.cpp`.
 API: `tpp/nonconvex/unordered.h`.
 
+O modo nativo opcional `--portfolio` executa duas buscas independentes com
+incumbente compartilhado, orçamento global de chamadas e encerramento por prova
+do gap. A implementação e o protocolo são comuns ao TPP e ao TSPN; veja
+[portfólio cooperativo](tspn.md#cooperative-search-portfolio). `--threads` deve
+permanecer em 1 nesse modo: o portfólio cria dois workers, um por estratégia.
+
 A mesma busca também oferece ciclos sem extremos fixos pela API
 `tpp_nonconvex_tspn_solve`. Formulação, limites cíclicos e contrato de exatidão
 estão documentados em [TSPN](tspn.md).

@@ -1,0 +1,6 @@
+{
+  "binary": ".build/tspn-oracle-optimization-2026-09-29/candidate-e-build/replay_generated",
+  "sha256": "727bf4ebd8b42770e12f40d94b3250be4bd8a5645d4c06785964d2b75bfca336",
+  "source": "harness.cpp",
+  "candidate_e_binary_sha256": "277452400f5c472919e3acbace5ac03a07abb6d5ec252ee5fd04f8c7d70fb3f2"
+}

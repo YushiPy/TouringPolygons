@@ -1,13 +1,23 @@
 #pragma once
 
 #include "vector2.h"
+#ifdef TPP_USE_GMP_RATIONAL
+#include <boost/multiprecision/gmp.hpp>
+#else
 #include <boost/multiprecision/cpp_int.hpp>
+#endif
 #include <utility>
 #include <type_traits>
 #include <vector>
 
 namespace tpp {
+#ifdef TPP_USE_GMP_RATIONAL
+using ConvexInteger = boost::multiprecision::mpz_int;
+using ConvexRational = boost::multiprecision::mpq_rational;
+#else
+using ConvexInteger = boost::multiprecision::cpp_int;
 using ConvexRational = boost::multiprecision::cpp_rational;
+#endif
 
 // Exact coordinates are part of the result, not rounded binary64 witnesses.
 template<class Scalar>

@@ -1,0 +1,18 @@
+{
+  "baseline_commit": "b70cda3ca695663a52dd4e77c742d91115c04f02",
+  "fekete_commit": "f4aa78c631545e4e894732a0fe8aef45f455c34c",
+  "zip_sha256": "210841184500cb444f332537c4291aeff502dde4e3adc4a4ee307a80db21711f",
+  "zip_entries": 558,
+  "metadata_class_counts": {
+    "OSM": 320,
+    "random": 160,
+    "tessellation": 78
+  },
+  "entries_with_polygon_WKT_hole_ring": 0,
+  "converter": "benchmarks/_internal/convert_instances.py:convert_json_case",
+  "preprocessing_description": "Supplier evaluation/README.md says simplified instances have holes removed, convex hull fill applied, and supersites removed. Selection and k use supplied simplified polygons.",
+  "baseline_binary_sha256": {
+    "tpp-unordered": "be276eef7978a022d976ce22e4d876451ab88c89715771d9e099c88513d84339",
+    "tpp-fekete-cycle": "2bf7ae099315ccebf7d34e3b84e7164306a8a2a8369241c6af918ff51e64414c"
+  }
+}

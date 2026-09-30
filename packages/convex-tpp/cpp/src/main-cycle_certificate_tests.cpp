@@ -182,6 +182,24 @@ void exact_zero_link_ray_pairs() {
 
 int main() {
 	try {
+        {
+            using namespace tpp;
+            const Polygons p{box(0,-1,1,1),box(2,-1,3,1)};
+            const Polygon q{{0,0},{3,0}};
+            const auto full=tpp_convex_verify_cycle_certificate(p,q);
+            const auto cut=tpp_convex_verify_cycle_certificate(p,q,full.lower_bound);
+            require(cut.status==ConvexCycleCertificateStatus::Feasible&&cut.optimality_check_skipped&&
+                cut.exact_predicate_evaluations==0&&cut.lower_bound==full.lower_bound&&cut.upper_bound==full.upper_bound,
+                "A certified cutoff skips KKT without claiming optimality");
+            const auto missed=tpp_convex_verify_cycle_certificate(p,q,std::nextafter(full.lower_bound,INFINITY));
+            require(!missed.optimality_check_skipped&&missed.status==full.status&&missed.lower_bound==full.lower_bound,
+                "One ULP above the bound cannot be accepted by a tolerance");
+            const auto invalid=tpp_convex_verify_cycle_certificate(p,Polygon{{-1,0},{3,0}},-INFINITY);
+            require(invalid.status==ConvexCycleCertificateStatus::InvalidCandidate&&!invalid.optimality_check_skipped,
+                "A requested cutoff cannot bypass exact membership");
+            require(tpp_convex_verify_cycle_certificate(p,q,NAN).status==ConvexCycleCertificateStatus::InvalidInput,
+                "NaN certificate cutoff is rejected");
+        }
         exact_zero_link_ray_pairs();
 		exact_known_cycles();
 		reject_bad_candidates_and_certify_gap();
