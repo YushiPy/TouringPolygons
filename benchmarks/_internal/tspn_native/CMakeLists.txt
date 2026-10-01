@@ -34,3 +34,6 @@ target_link_libraries(tspn_core PRIVATE fmt::fmt nlohmann_json::nlohmann_json Bo
 target_compile_options(tspn_core PRIVATE -O3)
 add_executable(tpp-fekete-cycle main.cpp)
 target_link_libraries(tpp-fekete-cycle PRIVATE tspn_core fmt::fmt nlohmann_json::nlohmann_json CGAL::CGAL)
+enable_testing()
+add_executable(tpp-fekete-termination-test termination_test.cpp)
+add_test(NAME tpp-fekete-termination-test COMMAND tpp-fekete-termination-test)

@@ -1,5 +1,6 @@
 #pragma once
 #include "tpp/convex/rational.h"
+#include "cycle_execution.h"
 #include <algorithm>
 #include <optional>
 #include <stdexcept>
@@ -60,6 +61,7 @@ class Solver {
     std::vector<std::optional<Point>> bends;
 
     Point query(const Point &q,size_t level) {
+        cycle_checkpoint();
         if(level==0)return start;
         if(inside(q,polygons[level-1]))return query(q,level-1);
         const auto location=locate(q,level);
@@ -108,6 +110,7 @@ classified:
                : -1;
     }
     void path_to(const Point &q,size_t level,std::vector<Point> &path) {
+        cycle_checkpoint();
         if(level==0){append(path,start);append(path,q);return;}
         if(inside(q,polygons[level-1])){path_to(q,level-1,path);return;}
         const auto location=locate(q,level);

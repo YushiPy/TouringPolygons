@@ -36,6 +36,21 @@ For nonzero links, each sign is `sign(a/sqrt(A)-b/sqrt(B))` with rational
 of `a*a*B` and `b*b*A`, decide it exactly. No numerical square root or epsilon
 enters the optimality test.
 
+For a nonzero-link contact, membership is checked before the support test.
+The implementation then uses the generators of the polygon's tangent cone:
+the two incident rays at a strict vertex; both directions of the edge and an
+inward normal at an edge-interior or redundant collinear vertex; the whole
+plane in the strict interior. In the edge case, the two opposite inequalities
+are one exact tangency equality. In the interior, equal normalized incoming
+and outgoing directions are necessary and sufficient. A point imposes no
+condition; a segment uses its two endpoint directions. These cones generate
+every feasible displacement, so this is equivalent to the all-vertex
+inequalities above. Exact side predicates still locate the contact; no feature
+hint, interval width or epsilon can accept the certificate. The zero-block
+reachability algorithm below is unchanged. Tests compare this reduction with
+all-vertex radical signs across vertices, edge/interior contacts, collinear
+vertices, point/segment regions and widely scaled rational inputs.
+
 ## Complete zero-block test by disk/cone reachability
 
 Consider a maximal block of `b` coincident contacts between two nonzero links.

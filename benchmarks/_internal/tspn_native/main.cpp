@@ -1,8 +1,25 @@
 // Thin native adapter for the pinned external solver; no external source edits.
 #include "tspn_core/bnb.h"
+#include "termination.h"
 #include <nlohmann/json.hpp>
 #include <chrono>
 #include <iostream>
+
+class ObservedDfsBfs final : public tspn::DfsBfs {
+public:
+    using tspn::DfsBfs::DfsBfs;
+
+    bool has_next() override {
+        const bool result=tspn::DfsBfs::has_next();
+        if(!result)frontier_exhausted_observed_=true;
+        return result;
+    }
+
+    bool frontier_exhausted_observed() const { return frontier_exhausted_observed_; }
+
+private:
+    bool frontier_exhausted_observed_=false;
+};
 
 int main(int argc,char **argv) {
     try {
@@ -37,14 +54,26 @@ int main(int argc,char **argv) {
                 tspn::SocSolver soc(true,"socp");
                 tspn::LongestEdgePlusFurthestSite root(false);
                 tspn::FarthestPoly branching(true,false,1,false,false);
-                tspn::DfsBfs search(false);
+                ObservedDfsBfs search(false);
                 tspn::BranchAndBoundAlgorithm bnb(&instance,root.get_root_node(instance,soc),branching,search);
                 bnb.set_ub_callback(std::bind_front(&tspn::SocSolver::update_cutoff,&soc));
                 soc.set_time_limit(seconds);bnb.optimize(static_cast<int>(seconds),gap,false);
+                // Record exhaustion only when optimize() itself asks the
+                // strategy for another node. A post-run empty frontier alone
+                // cannot distinguish a timeout on the last node from a natural
+                // exhaustion. In the pinned loop gap is checked before timeout.
+                const auto upper=bnb.get_upper_bound();
+                const auto lower=bnb.get_lower_bound();
+                const bool gap_reached=upper <= (1.0+gap)*lower;
+                const auto termination_reason=tspn_adapter::to_string(
+                    tspn_adapter::classify_termination(search.frontier_exhausted_observed(),gap_reached));
+                const bool frontier_has_next=search.has_next();
                 row={{"repeat",repeat},{"lower_bound",bnb.get_lower_bound()},{"upper_bound",bnb.get_upper_bound()},
                      {"statistics",bnb.get_statistics()},{"calls",soc.get_num_calls()},
                      {"oracle_seconds",soc.get_total_solve_nanoseconds()*1e-9},
-                     {"backend","socp"},{"path",nlohmann::json::array()}};
+                     {"backend","socp"},{"termination_reason",termination_reason},
+                     {"frontier_has_next",frontier_has_next},
+                     {"path",nlohmann::json::array()}};
                 if(auto solution=bnb.get_solution()) {
                     const auto &trajectory=solution->get_trajectory();
                     for(const auto &point:trajectory.points)row["path"].push_back({point.get<0>(),point.get<1>()});

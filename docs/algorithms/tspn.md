@@ -106,9 +106,11 @@ A worker requests peer cancellation only after its full solve, including
 original-coordinate feasibility restoration, closes the requested gap. A
 numerical limit, exhausted budget or worker exception is not an optimality
 proof. An exception in one worker is reported in its diagnostics while the
-other can still complete; if both fail, the call throws. Shutdown is cooperative
-between oracle calls: an already running exact solve or decomposition is joined
-before returning. No detached thread outlives its inputs.
+other can still complete; if both fail, the call throws. Shutdown is
+cooperative. Cycle construction, rational recovery and certification check the
+common deadline/cancellation between geometric operations; an individual exact
+arithmetic operation or decomposition still finishes before returning. No
+detached thread outlives its inputs.
 
 Each search covers the complete feasible set. Consequently the maximum of
 its final valid lower bounds is a global lower bound, and the smallest upper
@@ -413,7 +415,14 @@ Its `exact` field means that this requested gap was closed; it does **not** mean
 a zero-error rational solution of the complete nonconvex TSPN. Bounds and
 `termination` are returned for time, call and numerical limits. An oracle failure
 does not authorize pruning or a claim of optimality. The time limit is
-cooperative; one already-started cycle solve or decomposition may exceed it.
+cooperative. Cycle calls check it inside refinement, boundary search, maps and
+certificates. A single arithmetic primitive or a decomposition
+can still exceed it; this is not a hard process deadline. An interrupted
+relaxation retains its completed certified bound and any verified contacts.
+The B&B retains the unfinished node and every unevaluated sibling in its
+frontier, combining inherited bounds with completed certificates. It returns
+the independently validated global incumbent with an incomplete status unless
+those bounds already close the requested numerical gap.
 
 The incumbent pruning cutoff is preserved when a cycle relaxation enters
 rational recovery, including the adapter's secondary recovery for a wide
@@ -465,14 +474,29 @@ The shared B&B exposes `oracle_profiled_calls`, `oracle_max_call_seconds`,
 are ≤10 µs, (10,100] µs, (0.1,1] ms, (1,10] ms, (10,100] ms, (0.1,1] s, >1 s.
 These are reporting bins, not geometric tolerances or stopping criteria.
 They reuse the existing per-call clock and count completed search/refinement
-requests, including memo hits. Initial optional polishing and failed/in-flight
-requests are excluded. Counts sum to `oracle_profiled_calls`; bucket times sum
+requests, including memo hits. Initial optional polishing and failed requests
+are excluded. Cooperatively interrupted calls are included; a hard-killed
+process still has no final counters. Counts sum to `oracle_profiled_calls`; bucket times sum
 to `profile.convex_oracle_seconds`. Portfolio aggregation sums counts and work
 and takes the maximum of the workers' longest calls.
 
 Fallback-attributed time is the **whole call** that used recovery, not exclusive
-rational recovery time. The cycle adapter does not currently separate geometry,
-certificate and recovery subphases; its inherited endpoint subphase counters
-must not be interpreted as such. The benchmark reports total oracle work and
-fallback-attributed work instead. These constant-memory diagnostics do not
-change geometry, pruning, tolerances, or the solver's numerical gap contract.
+rational recovery time. The cycle adapter additionally reports exclusive
+`cycle_construction_seconds`,
+`cycle_certification_seconds`, and `cycle_rational_recovery_seconds`.
+Certification includes all checks, including checks inside rational recovery;
+rational recovery excludes that certification time. Construction includes
+preparation and binary64 proposal work. Their sum is at most the full oracle
+time (adapter overhead remains outside them). Older records lacking these
+fields cannot be retrospectively split into phases. These constant-memory
+diagnostics do not change geometry, pruning, tolerances, or the solver's
+numerical gap contract.
+
+`benchmarks/tpp.py tspn-benchmark --capture-oracles` writes local diagnostic
+JSONL under the campaign's `oracle-captures/`. Each input is flushed before the
+oracle starts, followed by its completed phase timings and bounds. A missing
+end record identifies an in-flight request after a process failure. Capture is
+disabled by default and its I/O overhead makes such runs unsuitable for a
+speedup claim. Captures include the normalized regions, inherited contacts and
+features, incumbent cutoff and remaining budget; they are local campaign data,
+not regression fixtures to archive wholesale.

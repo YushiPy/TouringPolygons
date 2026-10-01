@@ -80,9 +80,14 @@ remaining chain. Each such pivot adds a vertex pin, hence at most `k` pivots
 occur in one sweep. A constructed chain feeds the next coordinate sweep so
 that restored contacts which now bend can update their active features.
 These are finite feature proposals, shared by both arithmetic types; only the
-independent certificate accepts an optimum. Failure still uses the complete
-boundary reduction. No displacement, convergence epsilon or discretization
-is introduced.
+independent certificate accepts an optimum. The rational pass tries the closed
+reflection candidate before certifying its intermediate coordinate-sweep
+contacts: the latter can have much larger denominators. Both proposals remain
+available if the first fails; this ordering is not a convergence criterion.
+One immutable prepared geometry is reused across rational candidate checks,
+while each candidate still receives independent membership and support checks.
+Failure still uses the complete boundary reduction. No displacement,
+convergence epsilon or discretization is introduced.
 
 Coincident vertex contacts can trap separate coordinate updates. An additional
 proposal releases them onto their incident edges facing the neighboring
@@ -371,3 +376,26 @@ rotates, and every campaign saves inputs, individual repetitions, configuration,
 source hashes and analysis. Compare objective values and independently certified
 intervals, not contact coordinates or Gurobi's numerical bound as an exact bound.
 Finite synthetic benchmarks do not establish universal speed dominance.
+
+## Cooperative interruption and exclusive timing
+
+The general rational and binary64 options accept `max_seconds` and an optional
+`stop_requested` callback. The default remains unlimited. A solve checks the
+request between refinement contacts, reflection steps, boundary probes, map
+queries and certificate invocations. Nested rational recovery shares its
+caller's deadline. Interruption bypasses arithmetic-recovery exception handlers
+so it cannot accidentally launch another fallback.
+
+`Interrupted` is distinct from `Optimal`, `CertifiedBound` and arithmetic
+failure. Empty contacts carry an infinite upper bound; otherwise they and the
+attached interval come only from a completed independent certificate. It never certifies an
+unfinished construction. A caller with an inherited lower bound can keep the
+maximum of that bound and the returned certificate. No tolerance, rational
+truncation or acceptance epsilon is introduced. Checkpoints cannot preempt one
+GMP operation or an external decomposition, so this remains a cooperative
+budget, not a guarantee of a hard wall-clock ceiling.
+
+The result exposes exclusive construction, certification and rational-recovery
+seconds. All certificate work is attributed to certification even while called
+from rational recovery. These are diagnostic measurements, never inputs to
+geometric acceptance or a proof of optimality.

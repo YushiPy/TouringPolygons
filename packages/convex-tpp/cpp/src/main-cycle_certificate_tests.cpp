@@ -1,4 +1,5 @@
 #include "tpp/convex/cycle_certificate.h"
+#include "solvers/cycle_zero_certificate.h"
 
 #include <algorithm>
 #include <cmath>
@@ -236,8 +237,45 @@ void exact_zero_link_ray_pairs() {
     std::cout<<"Zero-link ray pairs: "<<cases<<", optimal="<<optimal<<".\n";
 }
 
+void tangent_cone_against_all_vertices() {
+    using namespace tpp;
+    using R=ConvexRational;using P=ConvexRationalPoint;
+    const std::vector<ConvexRationalPolygon> shapes{
+        {{0,0}}, {{0,0},{4,0}},
+        {{0,0},{4,0},{4,3},{0,3}},
+        {{0,0},{2,0},{4,0},{4,1},{4,3},{0,3},{0,1}},
+        {{-4,0},{-2,-3},{2,-3},{4,0},{2,3},{-2,3}}};
+    std::mt19937 random(20261001);size_t checked=0;
+    const R huge=R(ConvexInteger(1)<<250)/R(37);
+    for(const auto &shape:shapes)for(const R &scale:std::vector<R>{R(1),R(1)/huge,huge}) {
+        ConvexRationalPolygon p;
+        for(const auto &v:shape)p.push_back(v*scale+P{R(2)/7,R(-3)/11});
+        ConvexRationalPolygon contacts=p;P center;
+        for(size_t i=0;i<p.size();++i) {
+            contacts.push_back((p[i]+p[(i+1)%p.size()])*R(R(1)/2));center=center+p[i];
+        }
+        contacts.push_back(center*R(R(1)/p.size()));
+        for(const auto &q:contacts)for(size_t sample=0;sample<100;++sample) {
+            auto direction=[&] {
+                P d{R(int(random()%17)-8)/R(13),R(int(random()%17)-8)/R(19)};
+                return d.zero()?P{1,0}:d;
+            };
+            const P before=direction(),after=sample%5==0?before*R(3):direction();
+            const R a2=before.dot(before),b2=after.dot(after);
+            bool all_vertices=true;
+            for(const auto &v:p)
+                all_vertices &= detail::cycle_normalized_difference_sign(before.dot(v-q),a2,after.dot(v-q),b2)>=0;
+            size_t predicates=0;
+            require(detail::cycle_nonzero_contact_support(p,q,before,after,predicates)==all_vertices,
+                "Tangent cone and independent all-vertex support conditions disagree");
+            ++checked;
+        }
+    }
+    std::cout<<"Tangent cone versus all-vertex exact support: "<<checked<<" cases passed.\n";
+}
 int main() {
 	try {
+        tangent_cone_against_all_vertices();
         interval_certificates();
         {
             using namespace tpp;

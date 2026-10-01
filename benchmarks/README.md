@@ -332,9 +332,19 @@ As métricas incluem fases do solver, chamadas/nós, atualizações do incumbent
 qualidade inicial, gap final, decomposição, filas, podas, cache e contatos
 reutilizados. A nova telemetria mede chamada máxima, histogramas de quantidade
 **e tempo** e tempo das chamadas que usaram recuperação racional. Este último
-inclui a chamada inteira, não apenas a recuperação. Os subtempos herdados do
-oráculo de caminho não separam corretamente as fases internas do ciclo; não
-os use para atribuir custo geométrico ou de certificação no TSPN.
+inclui a chamada inteira, não apenas a recuperação. Novas execuções também
+expõem `cycle_construction_seconds`, `cycle_certification_seconds` e
+`cycle_rational_recovery_seconds`, exclusivos. A certificação inclui os testes
+feitos durante a recuperação racional; a recuperação exclui esse custo.
+Registros antigos sem esses campos não permitem reconstruir essa divisão.
+Chamadas interrompidas cooperativamente entram nos contadores; processos
+encerrados à força continuam censurados.
+
+O adaptador Fekete registra `termination_reason` como `gap_criterion`,
+`frontier_exhausted` ou `time_limit`, observando o fluxo do solver fixado.
+`frontier_has_next` registra o estado final separadamente. Uma parada com gap
+aberto e fronteira esgotada não é reclassificada como timeout. Registros antigos
+sem motivo explícito permanecem `unknown`.
 
 Speedups só usam casos em que todas as repetições dos dois solvers validam a
 trajetória, fecham o gap solicitado e têm intervalos reportados compatíveis.
@@ -354,3 +364,32 @@ python3 benchmarks/tpp.py tspn-benchmark --report-only \
 
 Envie a pasta da campanha para análise. Não é necessário enviar builds ou
 arquivos de licença. Os resultados continuam locais e ignorados pelo Git.
+
+
+### Captura e reprodução de chamadas caras
+
+Use uma lista focal de entradas locais, mantendo as opções da campanha:
+
+```bash
+python3 benchmarks/tpp.py tspn-benchmark \
+  --inputs benchmarks/results/focal-inputs.json \
+  --output benchmarks/results/focal-capture \
+  --seconds 10 --external-timeout 15 --repetitions 1 \
+  --cycle-optimization cache --cycle-optimization features \
+  --cycle-optimization root --cycle-optimization interval --capture-oracles
+
+python3 benchmarks/tpp.py cycle-replay \
+  --capture benchmarks/results/focal-capture/oracle-captures/000-0.jsonl \
+  --min-seconds 0.01 --seconds 10 --repetitions 2 \
+  --cache --features --interval --output benchmarks/results/focal-replay
+```
+
+A captura grava e descarrega cada `begin` antes de entrar no oráculo e um
+`end` com seus tempos e limites quando ele retorna. `--call-id ID` também
+seleciona chamadas sem `end`, úteis depois de um timeout firme. Captura e
+replay permanecem locais e ignorados. O I/O da captura não serve para medir
+speedup; use execuções sem captura para comparar o B&B completo. O replay
+reutiliza o adaptador C++ do B&B, incluindo propostas herdadas, corte e eventual
+refinamento racional. Sua verificação independente fica fora do tempo medido.
+Um orçamento de tempo esgotado preserva limites certificados e é reportado
+como incompleto, nunca como ótimo.
