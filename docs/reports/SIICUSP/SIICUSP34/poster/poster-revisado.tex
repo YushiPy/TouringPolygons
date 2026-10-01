@@ -91,48 +91,48 @@
   \block{search-principle}{34.0}{43.3}{47.1}{\bodytext\textbf{Ordenação parcial:} fixamos a ordem de alguns polígonos; os demais serão inseridos depois.\par\textbf{Relaxação convexa:} resolvemos o TPP de ordem fixa para fechos ou peças convexas da sequência; omitir alvos dá o limite inferior $L$ para qualquer extensão.\par\textbf{Árvore de busca:} começa vazia; insere alvos ou refina fechos em peças [3] e poda quando $L$ atinge $U$. \mbox{Decomposição segue Greene [4].}}
   % The six figures and captions below are taken from the published app.
   % Row 1: feasible route, partial order, and lower-bound pruning.
-  \fill[white,rounded corners=0.22cm] (34.0,49) rectangle (49.5,63.1);
-  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (34.0,49) rectangle (49.5,63.1);
+  \fill[white,rounded corners=0.22cm] (34.0,49) rectangle (49.5,62.7);
+  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (34.0,49) rectangle (49.5,62.7);
   \fill[MapDark] (34.05,49.05) rectangle (49.45,57.0);
   \block{step1-art}{34.0}{49.15}{15.5}{\centering\includegraphics[height=7.75cm]{figures/method-step-01.png}}
-  \block{step1-title}{34.55}{58.2}{14.4}{\bodytext\bfseries\color{Ink}01 · Encontrar uma rota viável}
-  \block{step1-text}{34.55}{59.35}{14.4}{\bodytext\color{Muted}Uma heurística gulosa encontra uma rota viável e inicializa o limite superior \textbf{$U$}.}
+  \block{step1-title}{34.55}{57.8}{14.4}{\bodytext\bfseries\color{Ink}01 · Encontrar uma rota viável}
+  \block{step1-text}{34.55}{58.95}{14.4}{\bodytext\color{Muted}Uma heurística gulosa encontra uma rota viável e inicializa o limite superior \textbf{$U$}.}
 
-  \fill[white,rounded corners=0.22cm] (49.8,49) rectangle (65.3,63.1);
-  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (49.8,49) rectangle (65.3,63.1);
+  \fill[white,rounded corners=0.22cm] (49.8,49) rectangle (65.3,62.7);
+  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (49.8,49) rectangle (65.3,62.7);
   \fill[MapDark] (49.85,49.05) rectangle (65.25,57.0);
   \block{step2-art}{49.8}{49.15}{15.5}{\centering\includegraphics[height=7.75cm]{figures/method-step-02.png}}
-  \block{step2-title}{50.35}{58.2}{14.4}{\bodytext\bfseries\color{Ink}02 · Manter ordenações parciais}
-  \block{step2-text}{50.35}{59.35}{14.4}{\bodytext\color{Muted}Na sequência parcial (\textbf{A}, \textbf{B}), a rota pode tocar \textbf{C} incidentalmente; \textbf{D} e \textbf{E} ainda não foram inseridos.}
+  \block{step2-title}{50.35}{57.8}{14.4}{\bodytext\bfseries\color{Ink}02 · Manter ordenações parciais}
+  \block{step2-text}{50.35}{58.95}{14.4}{\bodytext\color{Muted}Na sequência parcial (\textbf{A}, \textbf{B}), a rota pode tocar \textbf{C} incidentalmente; \textbf{D} e \textbf{E} ainda não foram inseridos.}
 
-  \fill[white,rounded corners=0.22cm] (65.6,49) rectangle (81.1,63.1);
-  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (65.6,49) rectangle (81.1,63.1);
+  \fill[white,rounded corners=0.22cm] (65.6,49) rectangle (81.1,62.7);
+  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (65.6,49) rectangle (81.1,62.7);
   \fill[MapDark] (65.65,49.05) rectangle (81.05,57.0);
   \block{step3-art}{65.6}{49.15}{15.5}{\centering\includegraphics[height=7.75cm]{figures/method-step-03.png}}
-  \block{step3-title}{66.15}{58.2}{14.4}{\bodytext\bfseries\color{Ink}03 · Podar pelo limite inferior}
-  \block{step3-text}{66.15}{59.35}{14.4}{\bodytext\color{Muted}Se \textbf{$L$} alcança \textbf{$U$} (com tolerância), o ramo não melhora \textbf{$U$}.}
+  \block{step3-title}{66.15}{57.8}{14.4}{\bodytext\bfseries\color{Ink}03 · Podar pelo limite inferior}
+  \block{step3-text}{66.15}{58.95}{14.4}{\bodytext\color{Muted}Se \textbf{$L$} alcança \textbf{$U$} (com tolerância), o ramo não melhora \textbf{$U$}.}
 
   % Row 2: incumbent update, insertion branching, and convex refinement.
-  \fill[white,rounded corners=0.22cm] (34.0,63.6) rectangle (49.5,77.4);
-  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (34.0,63.6) rectangle (49.5,77.4);
+  \fill[white,rounded corners=0.22cm] (34.0,63.6) rectangle (49.5,77.0);
+  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (34.0,63.6) rectangle (49.5,77.0);
   \fill[MapDark] (34.05,63.65) rectangle (49.45,71.5);
   \block{step4-art}{34.0}{63.7}{15.5}{\centering\includegraphics[height=7.65cm]{figures/method-step-04.png}}
-  \block{step4-title}{34.55}{72.7}{14.4}{\bodytext\bfseries\color{Ink}04 · Atualizar o incumbente}
-  \block{step4-text}{34.55}{73.85}{14.4}{\bodytext\color{Muted}Se a rota visita todos os polígonos originais, é viável; se for menor que \textbf{$U$}, atualizamos \textbf{$U$}.}
+  \block{step4-title}{34.55}{72.3}{14.4}{\bodytext\bfseries\color{Ink}04 · Atualizar o incumbente}
+  \block{step4-text}{34.55}{73.45}{14.4}{\bodytext\color{Muted}Se a rota visita todos os polígonos originais, é viável; se for menor que \textbf{$U$}, atualizamos \textbf{$U$}.}
 
-  \fill[white,rounded corners=0.22cm] (49.8,63.6) rectangle (65.3,77.4);
-  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (49.8,63.6) rectangle (65.3,77.4);
+  \fill[white,rounded corners=0.22cm] (49.8,63.6) rectangle (65.3,77.0);
+  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (49.8,63.6) rectangle (65.3,77.0);
   \fill[MapDark] (49.85,63.65) rectangle (65.25,71.5);
   \block{step5-art}{49.8}{63.7}{15.5}{\centering\includegraphics[height=7.65cm]{figures/method-step-05.png}}
-  \block{step5-title}{50.35}{72.7}{14.4}{\bodytext\bfseries\color{Ink}05 · Gerar as $\mathbf{m + 1}$ inserções}
-  \block{step5-text}{50.35}{73.85}{14.4}{\bodytext\color{Muted}Inserimos o polígono não visitado mais distante da rota em cada uma das $m+1$ posições.}
+  \block{step5-title}{50.35}{72.3}{14.4}{\bodytext\bfseries\color{Ink}05 · Gerar as $\mathbf{m + 1}$ inserções}
+  \block{step5-text}{50.35}{73.45}{14.4}{\bodytext\color{Muted}Inserimos o polígono não visitado mais distante da rota em cada uma das $m+1$ posições.}
 
-  \fill[white,rounded corners=0.22cm] (65.6,63.6) rectangle (81.1,77.4);
-  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (65.6,63.6) rectangle (81.1,77.4);
+  \fill[white,rounded corners=0.22cm] (65.6,63.6) rectangle (81.1,77.0);
+  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (65.6,63.6) rectangle (81.1,77.0);
   \fill[MapDark] (65.65,63.65) rectangle (81.05,71.5);
   \block{step6-art}{65.6}{63.7}{15.5}{\centering\includegraphics[height=7.65cm]{figures/method-step-06.png}}
-  \block{step6-title}{66.15}{72.7}{14.4}{\bodytext\bfseries\color{Ink}06 · Refinar em peças convexas}
-  \block{step6-text}{66.15}{73.85}{14.4}{\bodytext\color{Muted}Se a rota toca o fecho convexo, mas não o polígono, ramificamos entre as peças.}
+  \block{step6-title}{66.15}{72.3}{14.4}{\bodytext\bfseries\color{Ink}06 · Refinar em peças convexas}
+  \block{step6-text}{66.15}{73.45}{14.4}{\bodytext\color{Muted}Se a rota toca o fecho convexo, mas não o polígono, ramificamos entre as peças.}
 
 
   % Results and the app share the final content row.
@@ -141,7 +141,7 @@
   \begin{scope}[yshift=8.9cm]
   \block{results-head}{3}{87.7}{55.6}{\head{5}{Resultados no corpus de Fekete et al. e conclusão}}
   \block{app-head}{60.4}{87.7}{20.5}{\head{6}{Tente você mesmo!}}
-  \draw[Rule,line width=0.8pt] (59.5,87.7) -- (59.5,118.0);
+  \draw[Rule,line width=0.8pt] (59.5,87.7) -- (59.5,119.0);
 
   \block{comparison-context}{3}{89.95}{55.6}{\bodytext Comparamos nas instâncias de Fekete et al. (uma thread; limite de 6 h por caso). Para ambos, “ótimo” significa que o melhor limite superior (rota) está suficientemente próximo do maior limite inferior: gap relativo $10^{-7}$ no nosso solver e $10^{-3}$ em Fekete. Speedup e precisão usam os 550 casos concluídos por ambos.}
   \fill[white,rounded corners=0.30cm] (3,93.55) rectangle (58.6,100.1);
@@ -232,17 +232,18 @@
   \draw[Rule,line width=0.8pt,rounded corners=0.18cm] (60.4,97.4) rectangle (80.9,98.9);
   \block{app-understand-title}{60.8}{97.85}{4.6}{\sffamily\bfseries\fontsize{26}{31}\selectfont\color{Accent}Entenda}
   \block{app-understand-detail}{65.6}{97.85}{15.3}{\sffamily\fontsize{26}{31}\selectfont\color{Ink}Pseudocódigo + busca em etapas}
-  \block{qr}{62.05}{99.3}{17.2}{\qrcode[level=H,height=17.2cm]{https://yushipy.github.io/TouringPolygons/apps/siicusp34/}}
+  % Add another 0.5 cm above and below the QR while preserving its size.
+  \block{qr}{62.05}{99.9}{17.2}{\qrcode[level=H,height=17.2cm]{https://yushipy.github.io/TouringPolygons/apps/siicusp34/}}
   % White-backed TPP mark over the QR center; the QR uses level-H correction.
-  \fill[white,rounded corners=0.2cm] (67.85,105.1) rectangle (73.45,110.7);
-  \begin{scope}[shift={(68.15,105.4)},scale=0.078125]
+  \fill[white,rounded corners=0.2cm] (67.85,105.7) rectangle (73.45,111.3);
+  \begin{scope}[shift={(68.15,106.0)},scale=0.078125]
     \fill[Ink,rounded corners=0.9375cm] (0,0) rectangle (64,64);
     \draw[LogoTeal,line width=8.8pt,join=round] (32,10) -- (53,50) -- (11,50) -- cycle;
     \draw[Route,line width=7.7pt,line cap=round] (10,36) -- (54,29);
     \fill[white] (10,36) circle[radius=4];
     \fill[white] (54,29) circle[radius=4];
   \end{scope}
-  \block{app-link}{60.4}{116.8}{20.5}{\centering\sffamily\bfseries\fontsize{18}{22}\selectfont\color{Accent}\href{https://yushipy.github.io/TouringPolygons/apps/siicusp34/}{yushipy.github.io/TouringPolygons/apps/siicusp34/}}
+  \block{app-link}{60.4}{118.1}{20.5}{\centering\sffamily\bfseries\fontsize{18}{22}\selectfont\color{Accent}\href{https://yushipy.github.io/TouringPolygons/apps/siicusp34/}{yushipy.github.io/TouringPolygons/apps/siicusp34/}}
   \end{scope}
 
   % References and credits; the digital PDF keeps live links.
