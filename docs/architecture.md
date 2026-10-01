@@ -59,8 +59,9 @@ reviewed event export is intentionally produced.
   regeneration commands and provenance belong beside the exporter, not in an
   ad hoc result directory.
 - Durable correctness arguments and algorithm contracts belong in
-  `docs/algorithms/`. Preserved experimental evidence belongs beside its data
-  under `benchmarks/results-saved/` and does not override current contracts.
+  `docs/algorithms/`. `benchmarks/results-saved/` contains compact result
+  summaries and indispensable small fixtures; full experimental data stays in
+  ignored local campaigns and does not override current contracts.
 
 ## Refactoring rules
 

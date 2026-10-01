@@ -1,1 +1,0 @@
-Run with `python3 benchmarks/tpp.py cycle-benchmark --output NEW_DIRECTORY`. Inputs, raw repetitions, build log, configuration, source hashes and analysis are saved together. The earlier 2026-09-25 Gurobi reference campaign is unchanged.

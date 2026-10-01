@@ -1,9 +1,0 @@
-Candidate B bounded replay build
-Target: tpp-unordered
-Source change: cycle_refinement.h Candidate B; source patch/hash alongside this file.
-Build type: Release (-O3 -DNDEBUG), C++26, GMP rational ON, AppleClang 21.
-Configure: cmake -S benchmarks/_internal/tspn_native -B .build/tspn-oracle-optimization-2026-09-29/candidate-b-build -DFEKETE_SOURCE=/Users/gabriel/Documents/Scripts/TouringPolygons/third_party/tspn-socg -DNLOHMANN_INCLUDE_DIR=/Users/gabriel/.conan2/p/nlohmd014ef7748f4b/p/include -DTPP_ENABLE_GMP_RATIONAL=ON
-Build: cmake --build .build/tspn-oracle-optimization-2026-09-29/candidate-b-build --target tpp-unordered -j 2
-Binary SHA-256: 1154c9e27ebba2b5fa4c6319bf37a5d3ce10a5f4b3a3b7cb7d38f97255249a89
-Original captured-relaxation double API replay, 2 s firm cap: timeout.
-Exact rational API replay using rotated warm seed, 2 s firm cap: timeout.

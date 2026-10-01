@@ -11,7 +11,8 @@ implementação importáveis, não uma coleção de comandos independentes.
 - `suites/`: corpora canônicos rastreados e suites derivadas ignoradas;
 - `campaigns/`: entradas e execuções locais reproduzíveis;
 - `results/`: saídas locais e descartáveis;
-- `results-saved/`: campanhas deliberadamente preservadas com dados e análise.
+- `results-saved/`: resumos compactos e fixtures pequenos indispensáveis;
+  dados brutos e campanhas completas ficam locais e ignorados.
 
 Use `python3 benchmarks/tpp.py --help` e acrescente `--help` após um subcomando
 para consultar todos os parâmetros.
@@ -196,18 +197,20 @@ caffeinate -i python3 benchmarks/tpp.py run-fekete --workers 8
 
 ## Preservação de resultados
 
-Resultados novos permanecem ignorados até virarem evidência deliberadamente
-publicada. Uma pasta em `results-saved/` deve conter:
+Resultados e dados brutos novos permanecem locais e ignorados. Em
+`results-saved/`, preserve somente um resumo curto com formulação, população e
+seleção da amostra, orçamento/tolerâncias, métricas agregadas, status de gap e
+exatidão, limitações e hashes/revisões mínimos para identificar a medição.
+Não salve raws por repetição, cópias de polígonos, logs, builds ou patches de
+experimentos. Entradas só ficam no Git quando forem fixtures pequenas exigidas
+por testes ou ferramentas.
 
-- entradas exatas ou uma receita determinística para obtê-las;
-- hashes das entradas, executáveis e revisões relevantes;
-- configuração, formulação, tolerâncias e orçamento;
-- resultados brutos, inclusive falhas e limites;
-- análise reproduzível e limitações conhecidas.
-
-A comparação alemã atual está em
-`results-saved/german-comparison/`; sua análise vive na mesma pasta. Não copie
-uma análise de campanha para `docs/research/`.
+`results-saved/german-comparison/` mantém o corpus completo porque os CSVs e o
+arquivo de instâncias alimentam o material SIICUSP. O fixture pequeno
+`convex-cycle-gurobi-reference-2026-09-25/instances.json` é carregado pelos
+testes e benchmarks de ciclo. Todos os demais resultados ficam em resumos; a
+comparação, tolerâncias e limitações de cada um estão no índice
+`results-saved/README.md`.
 
 ## Interpretação
 

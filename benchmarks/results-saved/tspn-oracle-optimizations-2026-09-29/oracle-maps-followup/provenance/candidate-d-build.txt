@@ -1,8 +1,0 @@
-Candidate D (C-minus-B ablation) bounded build
-Target: tpp-unordered; uninstrumented Release, GMP rational ON, AppleClang 21.
-Candidate B rotation retry is removed; Candidate C precheck in cycle.cpp remains. Source hashes and patch are in candidate-d-source.sha256 and candidate-d-cycle-refinement.patch.
-Configure/build directory: .build/tspn-oracle-optimization-2026-09-29/candidate-d-build
-Binary SHA-256: 75a7259fd915686c846a542d7a9ed0dc43dc2ee1b8b64c105700fe3a8e762d7a
-Captured original relaxation double API: 0.136764208 s, FloatingPointLimit; retained exact bound interval [2.7413881740553383,2.741388174055339], 1 rational cycle recovery and 3 feature recoveries.
-Exact API original ordering: 0.104847209 s, Optimal, independently verified after mapping.
-Exact API half-rotated ordering: 0.02701225 s, Optimal, independently verified after mapping.

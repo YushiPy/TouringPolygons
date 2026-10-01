@@ -79,5 +79,7 @@ cmake --build --preset nonconvex-release -j 4
 ```
 
 Resultados temporais e comparações entre versões não pertencem a este contrato.
-Quando uma campanha precisar ser preservada, seus dados, configuração, análise e
-procedimento de reprodução devem ficar juntos em `benchmarks/results-saved/`.
+`benchmarks/results-saved/` mantém resumos agregados e fixtures mínimos; dados
+brutos, entradas repetidas e procedimentos de campanha completos ficam em
+execuções locais ignoradas. A comparação alemã é a exceção por ser consumida pelo
+material SIICUSP.

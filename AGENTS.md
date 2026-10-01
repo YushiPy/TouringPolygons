@@ -15,9 +15,13 @@ algoritmo envolvido.
   ativo.
 - `benchmarks/tpp.py` é a única CLI pública de benchmark. Reutilize módulos em
   `benchmarks/_internal/` em vez de criar scripts soltos.
-- Campanhas e resultados gerados são locais. Só preserve uma campanha em
-  `benchmarks/results-saved/` com entradas, dados brutos, análise, configuração
-  e proveniência juntas.
+- Campanhas e resultados gerados são locais. `benchmarks/results-saved/`
+  guarda resumos compactos e dados estritamente necessários. Preserve completos
+  apenas `german-comparison` e fixtures pequenos consumidos por testes/apps.
+  Não arquive cópias de entradas, raws por repetição, logs, builds ou patches de
+  experimentos. Resumos registram formulação, orçamento/tolerâncias, resultados,
+  status de exatidão e limitações; os dados brutos ficam em campanhas locais
+  ignoradas.
 - Não adicione builds, ambientes, caches, `node_modules`, WASM gerado,
   campanhas locais ou resultados ad hoc.
 

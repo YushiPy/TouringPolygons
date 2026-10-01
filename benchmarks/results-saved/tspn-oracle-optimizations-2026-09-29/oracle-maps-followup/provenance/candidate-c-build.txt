@@ -1,9 +1,0 @@
-Candidate C bounded build
-Target: tpp-unordered; uninstrumented Release, GMP rational ON, AppleClang 21.
-Candidate B header plus Candidate C precheck in cycle.cpp; see candidate-b-cycle-refinement.patch and candidate-c-cycle.patch/source.sha256.
-Configure/build paths: .build/tspn-oracle-optimization-2026-09-29/candidate-c-build
-Binary SHA-256: 8162f1e2792c218c00684eb8e658a5ddd9a8d23d5d67e7045bfc1d10a12863b0
-Captured relaxation double API: 0.207937791 s, FloatingPointLimit; retained exact certificate interval [2.7413881740553383,2.741388174055339].
-Exact original order API: 0.167338916 s, Optimal; independently verified after mapping to original region order.
-Exact half-rotated order API: 0.050013917 s, Optimal; independently verified after mapping to original region order.
-Public CLI lazy OSM k=39: 2.009670167 s; feasible valid tour, gap open; reused exact-matched Fekete row (2.012912958 s), no Fekete solve.

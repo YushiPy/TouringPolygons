@@ -1,8 +1,0 @@
-{
-  "label": "Candidate E baseline",
-  "binary_sha256": "277452400f5c472919e3acbace5ac03a07abb6d5ec252ee5fd04f8c7d70fb3f2",
-  "binary_path": ".build/tspn-oracle-optimization-2026-09-29/candidate-e-build/touring_polygons/tpp-unordered",
-  "binary_saved_in_campaign": false,
-  "source_hashes": "candidate-e-source-hashes.txt",
-  "build_record": "candidate-e-build.txt"
-}

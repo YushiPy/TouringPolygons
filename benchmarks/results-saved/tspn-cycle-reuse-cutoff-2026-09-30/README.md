@@ -1,5 +1,19 @@
-# TSPN cycle reuse and cutoff follow-up — 2026-09-30
+# TSPN — memo e cutoff certificado (2026-09-30)
 
-This campaign investigates identical relaxation reuse and early stopping once a certified pruning bound suffices. It contains the small6/large6 holdouts, the OSM39 proof case, hash-verified Fekete references, raw runs, configurations, test records, source snapshots, and data audits.
+Tour fechado, ordem livre, sem ponto fixo; gap alvo `1e-6`, factibilidade
+`1e-8`, validação independente `1e-7`. Um tour válido com gap aberto é limite
+de orçamento, não ótimo; bounds Fekete reutilizados são numéricos.
 
-Start with [`analysis.md`](analysis.md), then the per-case screens [`analysis-screen.md`](analysis-screen.md), [`analysis-filtered.md`](analysis-filtered.md), and [`analysis-portfolio.md`](analysis-portfolio.md). See [`STATUS.md`](STATUS.md) for final status and [`campaign-plan.json`](campaign-plan.json) for inputs and run metadata.
+**Memo de uma busca.** Em 6.124 consultas não houve chaves repetidas nem hits.
+`bound-first` registrou podas certificadas por cutoff, mas não mostrou ganho de
+tempo estável; em casos grandes alguns gaps abertos pioraram.
+
+**Portfólio com compartilhamento.** No screen large6, memo obteve 1.341 hits;
+dois dos três casos fechados melhoraram e um ficou praticamente igual. No
+follow-up OSM39 com o mesmo binário, 10 s e três repetições, todas as seis
+execuções foram válidas e fecharam o gap. Mediana caiu de `0,8243 s` para
+`0,7023 s` (14,8%); foram 368, 378 e 376 hits por execução. Evidência restrita
+a esse caso; memo segue opt-in e não teve benefício demonstrado sem sharing.
+
+No conjunto auditado houve 90 trajetórias nativas válidas, 66 gaps fechados e
+zero timeouts de processo; três casos grandes ficaram sem objetivo fechado.

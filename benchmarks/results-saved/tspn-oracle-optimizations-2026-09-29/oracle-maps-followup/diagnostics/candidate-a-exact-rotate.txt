@@ -1,3 +1,0 @@
-timeout after 2s; child terminated
-stdout=None
-stderr=b'EXACT_REPLAY_BEGIN mode=exact-rotate regions=19\n'

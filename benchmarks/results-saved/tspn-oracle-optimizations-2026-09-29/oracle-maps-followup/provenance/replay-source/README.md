@@ -1,3 +1,0 @@
-# Captured-relaxation replay provenance
-
-The literal-fixture harness source removes runtime JSON dependencies and embeds the 19-region fixture for reproducible D/E/v3 relinks. Candidate D’s original replay executable used the JSON harness; its source and local build flags are preserved, but the nlohmann header used at its original build time was absent during this final audit, so the external header path cannot be recreated. The frozen D executable and hash remain available. Candidate E and v3 compile commands are recorded alongside their linked library variant. Runtime data and hashes are in `replay-d/`, `replay-e/`, and `replay-v3/`.

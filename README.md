@@ -73,10 +73,11 @@ python3 benchmarks/tpp.py status smoke
 ```
 
 Use `python3 benchmarks/tpp.py --help` para geração, conjuntos canônicos,
-ordem livre, conversões e comparações externas. Resultados novos são locais por
-padrão; uma campanha só deve ser preservada quando entradas, resultados brutos,
-análise, configuração e proveniência estiverem juntas em
-`benchmarks/results-saved/<campanha>/`.
+ordem livre, conversões e comparações externas. Resultados e dados brutos novos
+são locais por padrão. `benchmarks/results-saved/` mantém resumos concisos e
+fixtures mínimos; `german-comparison` é a exceção com corpus completo porque seus
+arquivos são usados pelo material SIICUSP. Veja seu índice para os resultados
+preservados e os limites de cada comparação.
 
 ## Documentação
 

@@ -1,1 +1,0 @@
-TSPN tests passed: 19 exhaustive cases, 76 interrupted searches, 1 decomposition cases, 240 arbitrary-hint dual checks.

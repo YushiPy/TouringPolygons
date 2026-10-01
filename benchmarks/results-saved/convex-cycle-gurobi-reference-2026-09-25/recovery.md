@@ -1,1 +1,0 @@
-The temporary worktree disappeared. Source edits and the original raw Gurobi JSON were restored from tool-call history on 2026-09-27. The previous source hash manifest could not be recovered; all new measurements have separate provenance.

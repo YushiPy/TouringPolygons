@@ -37,7 +37,9 @@ em vez de criar mais um script executável.
   dela;
 - `benchmarks/suites/`: corpora canônicos rastreados;
 - `benchmarks/campaigns/` e `benchmarks/results/`: trabalho local ignorado;
-- `benchmarks/results-saved/`: campanhas publicadas com evidência completa;
+- `benchmarks/results-saved/`: resumos compactos e fixtures mínimos; dados
+  brutos ficam nas campanhas locais ignoradas, com `german-comparison` como
+  exceção porque o corpus é consumido pelo material SIICUSP;
 - `third_party/`: código externo redistribuível, fixado por submódulo;
 - `docs/algorithms/`: contratos e argumentos de correção duráveis;
 - `docs/reports/`: publicações e relatórios, não dados soltos de benchmark.

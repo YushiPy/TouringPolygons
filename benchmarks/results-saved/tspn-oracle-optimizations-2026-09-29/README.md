@@ -1,18 +1,24 @@
-> **2026-09-30 update:** Candidate E completed the oracle follow-up. Read [the current checkpoint](CHECKPOINT.md) and [the follow-up campaign](oracle-maps-followup/README.md) first. Earlier v3/paused statements below describe the previous checkpoint; the captured lazy timeout has now been resolved on the measured case.
+# TSPN — otimizações do oráculo (2026-09-29/30)
 
-# TSPN optimization checkpoint — 2026-09-29
+**Formulação e contrato.** B&B para tour fechado de polígonos simples, ordem
+livre, sem ponto fixo. Telas principais usaram 2 s de solver e teto de processo
+de 8 s; gap alvo `1e-6`, factibilidade `1e-8`, validação independente `1e-7`.
+Gap numérico fechado não certifica ótimo racional do TSPN completo.
 
-Completed and paused at the user's request. See [CHECKPOINT.md](CHECKPOINT.md)
-for the results, scope of exactness, limitations, test status and reproduction.
+**Resultado.** A shortlist `cache + features + root` (CFR) retornou 12/12
+trajetórias válidas e fechou 9/12 gaps no conjunto pequeno/grande. Nos sete
+casos com ambos os solvers válidos e gap fechado, venceu 7/7, speedup mediano
+`3,686×`. Candidate E fechou OSM39 em 3/3 repetições, mediana `0,736 s`.
+Uma relaxação capturada de 19 regiões passou de mais de 8 s para cerca de
+110 ms; é um caso diagnóstico, não uma garantia para outras entradas.
 
-The selected `cache + features + root` configuration achieved about 5.96x over
-our frozen baseline on OSM39 (three repetitions). On five small cases where
-both solvers closed the requested gap, its median speedup over Fekete was
-5.793746x, with 5/5 wins. This small sample does not establish collection-wide
-performance; root and lazy regressions remain documented.
+**Limites.** OSM50, random59 e tessellation60 permaneceram com gap aberto na
+triagem. `lazy` ainda deixou OSM39 com gap aberto de aproximadamente 8,5% no
+limite de 2 s. A pequena diferença de tempo entre versões não foi atribuída
+causalmente ao algoritmo. Binário Candidate E: SHA-256
+`277452400f5c472919e3acbace5ac03a07abb6d5ec252ee5fd04f8c7d70fb3f2`.
+Builds, matrizes de variantes, patches e execuções completas foram removidos.
 
-Inputs and selection metadata are in `inputs/`; raw data, configs, intervals,
-per-class summaries and repetition timings are in `runs/`. Source/build
-snapshots are in `provenance/`; executables remain in ignored `.build/`.
-[STATUS.md](STATUS.md) and [RESUME.md](RESUME.md) identify the stopping point.
-The initial plan and full variant matrix are retained alongside this report.
+O fixture de regressão da relaxação de 19 regiões está em
+`packages/convex-tpp/cpp/tests/cycle_active_contacts.json`; esta nota mantém o
+resumo e a identificação do experimento que originou a regressão.

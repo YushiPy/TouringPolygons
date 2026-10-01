@@ -585,7 +585,7 @@
     {
       "name": "osm_sao_paulo_39_lazy_relaxation_19",
       "source_case": "large_osm_25-40_sao_paulo_n040_seed7537",
-      "provenance": "Ordered 19-region normalized relaxation captured from lazy B&B; inputs, settings and exact-source provenance are preserved in benchmarks/results-saved/tspn-oracle-optimizations-2026-09-29/oracle-maps-followup/.",
+      "provenance": "Ordered 19-region normalized relaxation captured from lazy B&B; polygon coordinates are embedded in this fixture. Historical measurement context and Candidate E hash are summarized in benchmarks/results-saved/tspn-oracle-optimizations-2026-09-29/README.md; full campaign artifacts were pruned.",
       "polygons": [
         [
           [

@@ -1,2 +1,0 @@
-Zero-link ray pairs: 1040, optimal=269.
-Cycle certificate tests passed.

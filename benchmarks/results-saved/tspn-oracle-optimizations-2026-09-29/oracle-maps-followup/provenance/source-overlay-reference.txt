@@ -1,1 +1,0 @@
-The untracked production overlay packages/nonconvex-tpp/cpp/src/solvers/unordered_portfolio.h is preserved verbatim at ../../provenance/v3/source-overlay/unordered_portfolio.h relative to this file. Its SHA-256 is recorded in candidate-e-source-hashes.txt and in the v3 SHA256SUMS manifest.

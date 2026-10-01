@@ -1,8 +1,0 @@
-Cross-run native objective/bound audit
-
-Unique inputs: 12; closed objectives: 63; closed-objective pair comparisons: 210; closed-objective versus same-input interval checks: 483.
-Contradictions: 0 across 0 inputs. Max same-input closed objective relative spread: 0; max absolute spread: 0.
-Max interval excess before tolerance: 2.84217094304e-14; max closed UB vs independently recomputed validation objective absolute difference: 9.09494701773e-13.
-Tolerance per interval: max(our_absolute_gap, validation_tolerance*scale, our_relative_gap*scale); scale=max(1,abs(objective)); max configured relative gap=9.99999000001e-07; max validation tolerance=1e-07.
-Inputs with no closed objective: large_osm_41-60_toronto_n050_seed4504, large_random_41-60_random_mixed_square_n060_seed60012, large_tessellation_41-60_uniform-0000060-1.
-Full per-input counts and exact intervals are in objective-interval-cross-run-audit.json.
