@@ -295,6 +295,22 @@ primário automaticamente. Não instala dependências nem copia licenças.
 | `quick` | 1 (até 12 casos) | 1 | 3 s | 10 s | 4 min |
 | `overnight` | 8 (até 96 casos) | 2 | 60 s | 75 s | 8 h |
 
+Para o **benchmark completo das 558 instâncias originais** na formulação TSPN
+(tour fechado, ordem livre, sem ponto fixo) contra o SOCP de Fekete, use o
+runner de campanha:
+
+```bash
+scripts/run_tspn_comparison.sh --seconds 60 --external-timeout 75 --repetitions 1
+```
+
+Ele equivale a `python3 benchmarks/tpp.py tspn-benchmark --all
+--instances-zip third_party/tspn-socg/instances/instances_socg_simplified.zip
+--output benchmarks/campaigns/tspn-fekete-comparison-v1 --seconds 60
+--external-timeout 75 --repetitions 1` com os `--cycle-optimization` padrão,
+e retoma registros concluídos ao repetir o comando. O `--all` desativa a
+amostragem estratificada e os filtros de faixa de tamanho, selecionando as
+558 entradas do ZIP sem substituição de reposição.
+
 São 12 estratos: OSM/random/tessellation × 5–10/11–20/21–40/41–60 polígonos.
 A seleção é uniforme sem reposição, com seed 20260930, anterior às medições.
 O perfil rápido é um subconjunto do noturno. Os estratos são intercalados e

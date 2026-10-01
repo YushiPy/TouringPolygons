@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import platform
 from pathlib import Path
 import random
@@ -81,6 +82,31 @@ def select_socg_inputs(archive_path, per_stratum=1, seed=None):
     return selected, counts
 
 
+def select_all_socg_inputs(archive_path):
+    """Select every case in the archive, ignoring strata and size bands."""
+    with zipfile.ZipFile(archive_path) as archive:
+        names = sorted(n for n in archive.namelist() if n.endswith('.json'))
+        selected, counts = [], {}
+        for name in names:
+            payload = archive.read(name)
+            data = json.loads(payload)
+            kind = _socg_class(data.get('meta', {})) or 'unknown'
+            case = convert_json_case(name, payload)
+            k = len(case.polygons)
+            band = next((b for b in SIZE_BANDS if b[0] <= k <= b[1]), None)
+            band_label = f'{band[0]}-{band[1]}' if band else 'out-of-band'
+            key = f'{kind}:{band_label}'
+            counts[key] = counts.get(key, 0) + 1
+            selected.append({
+                'name': Path(name).stem,
+                'source': str(archive_path), 'source_name': name,
+                'source_class': kind, 'size_band': band_label,
+                'polygons': case.polygons, 'meta': case.meta,
+                'vertex_count': sum(map(len, case.polygons)),
+            })
+    return selected, counts
+
+
 def default_inputs():
     reference = ROOT/'benchmarks/results-saved/convex-cycle-gurobi-reference-2026-09-25/instances.json'
     cases = json.loads(reference.read_text())['instances']
@@ -121,6 +147,8 @@ def main(argv=None):
     parser.add_argument('--dry-run',action='store_true',help='Print the selected workload and process-time ceiling without building or running solvers.')
     parser.add_argument('--report-only',action='store_true',help='Regenerate reports from this output directory without building or running solvers.')
     parser.add_argument('--per-stratum',type=int)
+    parser.add_argument('--all',action='store_true',help='Select every case in --instances-zip, ignoring strata and size bands.')
+    parser.add_argument('--solver',choices=('both','ours','fekete'),default='both',help='Which solvers to run; ours needs no Gurobi.')
     parser.add_argument('--external-timeout',type=float,
         help='Firm timeout for each repetition in its own process, for either backend; timeouts are censored.')
     parser.add_argument('--capture-oracles',action='store_true',help='Flush every native oracle input and exclusive phase timing to local JSONL; diagnostic runs include capture overhead.')
@@ -151,7 +179,7 @@ def main(argv=None):
         inputs=json.loads((output/'instances.json').read_text())
         config=json.loads((output/'config.json').read_text())
         expected={(c['name'],digest(c['polygons']),b,r) for c in inputs['instances']
-            for b in ('ours','fekete') for r in range(config['repetitions'])}
+            for b in config.get('solvers',('ours','fekete')) for r in range(config['repetitions'])}
         rows=load_rows(output/'raw.jsonl',expected)
         write_reports(output,inputs,config,rows,'complete' if len(rows)==len(expected) else 'partial')
         return 0
@@ -164,11 +192,17 @@ def main(argv=None):
             args.cycle_optimization=['cache','features','root','interval']
             if args.portfolio or args.portfolio_no_sharing: args.cycle_optimization.append('memo')
     for key,value in defaults.items():
-        if getattr(args,key) is None: setattr(args,key,value)
+        if getattr(args,key) is None:
+            if args.all and key=='per_stratum': continue
+            setattr(args,key,value)
     if args.inputs and args.instances_zip: parser.error('use either --inputs or --instances-zip')
+    if args.all and not args.instances_zip: parser.error('--all requires --instances-zip')
+    if args.all and args.profile: parser.error('--all cannot be combined with --profile')
+    if args.all and args.per_stratum is not None: parser.error('use either --all or --per-stratum')
     if args.search_strategy and (args.portfolio or args.portfolio_no_sharing):
         parser.error('--search-strategy cannot be combined with portfolio options')
-    limits=(args.repetitions,args.seconds,args.relative_gap,args.feasibility_tolerance,args.validation_tolerance,args.external_timeout,args.per_stratum)
+    limits=(args.repetitions,args.seconds,args.relative_gap,args.feasibility_tolerance,args.validation_tolerance,args.external_timeout)
+    if not args.all: limits=limits+(args.per_stratum,)
     if not all(math.isfinite(x) and x>0 for x in limits):
         parser.error('counts, limits and reporting tolerances must be positive')
     continuing=args.resume and (output/'config.json').exists()
@@ -181,17 +215,25 @@ def main(argv=None):
     if args.profile and not (args.instances_zip or args.inputs):
         args.instances_zip=source/'instances/instances_socg_simplified.zip'
     if args.instances_zip:
-        selected,stratum_counts=select_socg_inputs(args.instances_zip.resolve(),args.per_stratum,args.seed)
+        if args.all:
+            selected,stratum_counts=select_all_socg_inputs(args.instances_zip.resolve())
+            selection_policy='all archive cases'
+        else:
+            selected,stratum_counts=select_socg_inputs(args.instances_zip.resolve(),args.per_stratum,args.seed)
+            selection_policy='seeded uniform sample without replacement, interleaved strata' if args.seed is not None else 'lexicographically first'
         inputs={'formulation':'TSPN, free cyclic order, no fixed point, closed polygon regions',
             'selection':{'archive':str(args.instances_zip.resolve()),
                 'archive_sha256':hashlib.sha256(args.instances_zip.read_bytes()).hexdigest(),
-                'policy':'seeded uniform sample without replacement, interleaved strata' if args.seed is not None else 'lexicographically first',
+                'policy':selection_policy,
                 'seed':args.seed,'per_stratum':args.per_stratum,'stratum_counts':stratum_counts},'instances':selected}
     else:
         inputs=json.loads(args.inputs.read_text()) if args.inputs else default_inputs()
     if not inputs['instances'] or len({c['name'] for c in inputs['instances']})!=len(inputs['instances']):
         parser.error('inputs must contain nonempty, uniquely named instances')
-    planned_runs=len(inputs['instances'])*args.repetitions*2
+    enabled_backends=('ours','fekete') if args.solver=='both' else (args.solver,)
+    if args.solver!='both' and args.reference_results:
+        parser.error('--reference-results requires --solver both')
+    planned_runs=len(inputs['instances'])*args.repetitions*len(enabled_backends)
     plan={'profile':args.profile,'cases':len(inputs['instances']),'repetitions':args.repetitions,
         'planned_runs':planned_runs,'solver_seconds_per_run':args.seconds,
         'process_timeout_seconds':args.external_timeout,
@@ -202,28 +244,36 @@ def main(argv=None):
     print(json.dumps(plan,indent=2),flush=True)
     if args.dry_run: return 0
     run_options={k:(str(v.resolve()) if isinstance(v,Path) else v) for k,v in vars(args).items()
-        if k not in ('output','resume','dry_run','report_only','skip_build')}
+        if k not in ('output','resume','dry_run','report_only','skip_build','solver')}
     if continuing:
         previous=json.loads((output/'config.json').read_text())
         if previous.get('run_options')!=run_options:
             parser.error('--resume options differ; repeat the original command with --resume')
         if previous.get('inputs_sha256')!=digest(inputs) or digest(json.loads((output/'instances.json').read_text()))!=digest(inputs):
             parser.error('--resume input manifest changed')
+        if previous.get('solvers',('ours','fekete'))!=list(enabled_backends):
+            parser.error('--resume solver selection changed')
     output.mkdir(parents=True,exist_ok=True)
-    command=['cmake','-S',str(ROOT/'benchmarks/_internal/tspn_native'),'-B',str(args.build_dir),f'-DFEKETE_SOURCE={source}','-DTARGET=main-unordered']
+    fekete_flag='ON' if 'fekete' in enabled_backends else 'OFF'
+    command=['cmake','-S',str(ROOT/'benchmarks/_internal/tspn_native'),'-B',str(args.build_dir),f'-DFEKETE_SOURCE={source}','-DTARGET=main-unordered',f'-DWITH_TSPN_FEKETE={fekete_flag}']
+    if os.environ.get('GUROBI_HOME'):
+        command.append(f'-DGUROBI_HOME={os.environ["GUROBI_HOME"]}')
     # Reuse a locally installed header-only dependency when its Conan package
     # lacks a CMake config. Never write an environment or build into the vendor.
     headers=sorted((Path.home()/'.conan2/p').glob('*/p/include/nlohmann/json.hpp'))
     if headers:command.append(f'-DNLOHMANN_INCLUDE_DIR={headers[0].parents[1]}')
-    commands=[command,['cmake','--build',str(args.build_dir),'--target','tpp-fekete-cycle','tpp-unordered','-j','4']]
+    build_targets=[]
+    if 'fekete' in enabled_backends: build_targets.append('tpp-fekete-cycle')
+    if 'ours' in enabled_backends: build_targets.append('tpp-unordered')
+    commands=[command,['cmake','--build',str(args.build_dir),'--target',*build_targets,'-j','4']]
     if not args.skip_build and not continuing:
         with (output/'build.txt').open('w') as log:
             for cmd in commands:subprocess.run(cmd,cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,check=True)
-    elif args.skip_build and not (args.ours_binary and args.fekete_binary):
-        parser.error('--skip-build requires --ours-binary and --fekete-binary')
+    elif args.skip_build and not all((args.ours_binary if b=='ours' else args.fekete_binary) for b in enabled_backends):
+        parser.error('--skip-build requires --ours-binary and/or --fekete-binary for the enabled solvers')
     if not continuing: atomic_json(output/'instances.json',inputs)
     ours=(args.ours_binary or (args.build_dir/'touring_polygons/tpp-unordered')).resolve()
-    fekete=(args.fekete_binary or (args.build_dir/'tpp-fekete-cycle')).resolve()
+    fekete=(args.fekete_binary or (args.build_dir/'tpp-fekete-cycle')).resolve() if 'fekete' in enabled_backends else None
     runtime=(output/'runtime').resolve()
     runtime.mkdir(parents=True,exist_ok=True)
     gurobi_parameters={} if args.socp_defaults else {'FeasibilityTol':1e-9,'OptimalityTol':1e-9,'BarConvTol':1e-10,'BarQCPConvTol':1e-10}
@@ -244,6 +294,7 @@ def main(argv=None):
     portfolio=args.portfolio or args.portfolio_no_sharing
     config={'run_options':run_options,'inputs_sha256':digest(inputs),'plan':plan,'schema_version':'tspn_campaign_v2','formulation':inputs['formulation'],'repetitions':args.repetitions,'seconds':args.seconds,
         'external_process_timeout_seconds':args.external_timeout,'max_calls':10**8,
+        'solvers':list(enabled_backends),
         'oracle_profile':{'scope':'completed B&B search/refinement requests including memo hits; excludes initial polishing and in-flight calls',
             'histogram_upper_seconds':[1e-5,1e-4,1e-3,1e-2,1e-1,1.0,None],
             'fallback_time':'whole calls using fallback, not exclusive recovery time',
@@ -262,8 +313,8 @@ def main(argv=None):
         'external_spanning_tolerance':spanning,'socp_defaults':args.socp_defaults,
         'timing':'whole native solve incl preprocessing/heuristic/root, B&B, extraction and portfolio cooperative join tail; excludes process startup and warmed Gurobi environment; backend order alternates by case; sequential runs',
         'platform':platform.platform(),'compiler':subprocess.check_output(['c++','--version'],text=True).splitlines()[0],
-        'commands':commands if not args.skip_build else [],'frozen_binaries':{'ours':str(ours),'fekete':str(fekete)},
-        'binary_sha256':{'ours':hashlib.sha256(ours.read_bytes()).hexdigest(),'fekete':hashlib.sha256(fekete.read_bytes()).hexdigest()},
+        'commands':commands if not args.skip_build else [],'frozen_binaries':{b:str(ours if b=='ours' else fekete) for b in enabled_backends},
+        'binary_sha256':{b:hashlib.sha256((ours if b=='ours' else fekete).read_bytes()).hexdigest() for b in enabled_backends},
         'fekete_source':str(source),'fekete_commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=source,text=True).strip(),
         'base_commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
         'source_hash_scope':'Workspace snapshot at measurement; frozen binaries require their own build provenance.',
@@ -321,7 +372,7 @@ def main(argv=None):
     else:
         atomic_json(output/'config.json',config)
     expected={(c['name'],digest(c['polygons']),b,r) for c in inputs['instances']
-        for b in ('ours','fekete') for r in range(args.repetitions)}
+        for b in enabled_backends for r in range(args.repetitions)}
     try:
         rows=load_rows(output/'raw.jsonl',expected) if continuing else []
     except (ValueError,KeyError) as error:
@@ -336,7 +387,7 @@ def main(argv=None):
             for repeat in range(args.repetitions):
                 for index,case in enumerate(inputs['instances']):
                     polygons=case['polygons'];case_digest=digest(polygons)
-                    backends=('ours','fekete') if (index+repeat)%2==0 else ('fekete','ours')
+                    backends=enabled_backends if (index+repeat)%2==0 else tuple(reversed(enabled_backends))
                     for backend in backends:
                         key=(case['name'],case_digest,backend,repeat)
                         if key in completed: continue

@@ -157,11 +157,12 @@ def write_csv(path, rows):
 
 def write_reports(output, inputs, config, rows, status='complete'):
     repetitions = config['repetitions']
+    solvers = tuple(config.get('solvers', ('ours', 'fekete')))
     enriched = [{**r, 'diagnostics': metrics(r, config)} for r in rows]
     write_csv(output / 'runs.csv', [flatten(r) for r in enriched])
     summaries = []
     for case in inputs['instances']:
-        group = {b: [r for r in enriched if r['name'] == case['name'] and r['solver'] == b] for b in ('ours', 'fekete')}
+        group = {b: [r for r in enriched if r['name'] == case['name'] and r['solver'] == b] for b in solvers}
         summary = {'name': case['name'], 'k': len(case['polygons']),
                    'source_class': case.get('source_class'), 'size_band': case.get('size_band')}
         for backend, runs in group.items():
@@ -188,9 +189,9 @@ def write_reports(output, inputs, config, rows, status='complete'):
         summary['interval_separation'] = separation
         # A disjoint pair of reported intervals is evidence to investigate,
         # never a successful matched speed comparison.
-        matched = separation == 0 and all(len(runs) == repetitions and all(
+        matched = (len(solvers) == 2 and separation == 0 and all(len(runs) == repetitions and all(
             r['validation']['valid'] and r['gap_closed'] and 'error' not in r and finite(r.get('seconds'))
-            for r in runs) for runs in group.values())
+            for r in runs) for runs in group.values()))
         summary['matched_speedup'] = ratio(summary['fekete']['median_seconds'], summary['ours']['median_seconds']) if matched else None
         summaries.append(summary)
     atomic_json(output / 'summary.json', summaries)
@@ -202,7 +203,7 @@ def write_reports(output, inputs, config, rows, status='complete'):
         item = {'source_class': kind, 'size_band': band, 'cases': len(cases), 'matched_cases': len(ratios),
                 'ours_faster': sum(v > 1 for v in ratios), 'median_speedup': median(ratios),
                 'mean_speedup': statistics.mean(ratios) if ratios else None}
-        for backend in ('ours', 'fekete'):
+        for backend in solvers:
             item[backend] = {k: sum(r[backend][k] for r in cases) for k in
                              ('runs', 'valid_runs', 'gap_closed_runs', 'errors', 'timeouts', 'open_gap_runs')}
             item[backend]['termination_reasons'] = {reason: sum(
@@ -216,26 +217,38 @@ def write_reports(output, inputs, config, rows, status='complete'):
     atomic_json(output / 'strata.json', strata)
     write_csv(output / 'strata.csv', [flatten(r) for r in strata])
     atomic_json(output / 'progress.json', {'status': status, 'completed_runs': len(rows),
-        'planned_runs': len(inputs['instances']) * repetitions * 2,
+        'planned_runs': len(inputs['instances']) * repetitions * len(solvers),
         'process_timeouts': sum(bool(r.get('timeout')) for r in rows)})
     def show(value, digits=3):
         return f'{value:.{digits}f}' if finite(value) else '—'
-    lines = ['# TSPN benchmark', '', f'Status: {status}; {len(rows)} completed records. Native/Fekete workers: '
-        f'{config["ours_threads"]}/{config["fekete_threads"]}.', '',
+    lines = ['# TSPN benchmark', '', f'Status: {status}; {len(rows)} completed records. Solvers: {", ".join(solvers)}.']
+    if len(solvers) == 2:
+     lines += ['',
         'Speedups require all repetitions to have validated tours, close the requested gap and have overlapping reported intervals. '
         'Process timeouts are censored; numerical/time limits are not optimality proofs. Fekete bounds are numerical. '
         'See config.json for the formulation and existing B&B/validation tolerances.', '',
         '| Class | Polygons | Cases | Matched | Ours faster | Median speedup | Valid O/F | Closed O/F | Open O/F | Timeouts O/F | Errors O/F | Fekete frontier / time / gap / unknown |',
         '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|']
-    for r in strata:
+     for r in strata:
         a, b = r['ours'], r['fekete']
         lines.append(f'| {r["source_class"]} | {r["size_band"]} | {r["cases"]} | {r["matched_cases"]} | '
                      f'{r["ours_faster"]} | {show(r["median_speedup"])} | {a["valid_runs"]}/{b["valid_runs"]} | {a["gap_closed_runs"]}/{b["gap_closed_runs"]} | {a["open_gap_runs"]}/{b["open_gap_runs"]} | {a["timeouts"]}/{b["timeouts"]} | {a["errors"]}/{b["errors"]} | '
                      f'{b["termination_reasons"]["frontier_exhausted"]}/{b["termination_reasons"]["time_limit"]}/{b["termination_reasons"]["gap_criterion"]}/{b["termination_reasons"]["unknown"]} |')
-    lines += ['', '## Native bottlenecks by class and size', '',
+    else:
+     lines += ['',
+        'Process timeouts are censored; numerical/time limits are not optimality proofs. '
+        'See config.json for the formulation and existing B&B/validation tolerances.', '',
+        '| Class | Polygons | Cases | Valid | Closed | Open | Timeouts | Errors |',
+        '|---|---:|---:|---:|---:|---:|---:|---:|']
+     backend = solvers[0]
+     for r in strata:
+        a = r[backend]
+        lines.append(f'| {r["source_class"]} | {r["size_band"]} | {r["cases"]} | {a["valid_runs"]} | {a["gap_closed_runs"]} | {a["open_gap_runs"]} | {a["timeouts"]} | {a["errors"]} |')
+    if 'ours' in solvers:
+     lines += ['', '## Native bottlenecks by class and size', '',
         '| Class | Polygons | Oracle work % | Mean call ms | Max call ms | Fallback call work % | Cycle construction / certification / rational recovery ms | Final gap % |',
         '|---|---:|---:|---:|---:|---:|---:|---:|']
-    for r in strata:
+     for r in strata:
         d = r['ours']['diagnostics']
         def scaled(key, scale):
             value = d.get(key)

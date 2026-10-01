@@ -6,6 +6,7 @@ Esta pasta contém utilitários usados pelo projeto Touring Polygons:
 - `install_dependencies.sh`: prepara as dependências do repositório.
 - `sanity_check.sh`: verifica ferramentas, dependências, geração de instâncias, compilação e testes básicos.
 - `run_comparison.sh`: compila os solvers e executa ou retoma a comparação alemã de ordem livre.
+- `run_tspn_comparison.sh`: compila os solvers e executa ou retoma a campanha TSPN completa (558 casos de Fekete).
 - `verify_unordered.sh`: executa a verificação focada do solver de ordem livre.
 
 ## Comparar os solvers de ordem livre
@@ -69,6 +70,31 @@ começar um relatório novo sem apagar o anterior, use `--force`. Opções como 
 `--threads-per-instance 2`, `--build-jobs 12` e `--campaign outro-nome` podem
 ajustar a execução. O número de tarefas paralelas deve considerar a memória
 disponível; o padrão conservador é um worker.
+
+## Benchmark TSPN completo (558 casos de Fekete)
+
+No laboratório, `scripts/run_tspn_comparison.sh` chama esta CLI para executar
+todas as 558 instâncias do arquivo
+`third_party/tspn-socg/instances/instances_socg_simplified.zip` na formulação
+original (tour fechado, ordem livre, sem ponto fixo), comparando nosso solver
+com o B&B SOCP de Fekete:
+
+```bash
+scripts/run_tspn_comparison.sh --seconds 60 --external-timeout 75 --repetitions 1
+```
+
+Os artefatos ficam em
+`benchmarks/campaigns/tspn-fekete-comparison-v1/`: `raw.jsonl` com a
+telemetria completa (fases do solver, chamadas, nós, limites, heurísticas,
+oráculo de ciclo, etc.), `summary.csv` e `strata.csv` resumidos,
+`analysis.md` e `progress.json`. Os padrões são `--cycle-optimization
+cache,features,root,interval`; repita o mesmo comando para retomar registros
+concluídos. Opções `--portfolio`, `--search-strategy` e `--capture-oracles`
+direcionam para o mesmo CSV bruto. Em máquinas remotas, exporte `GUROBI_HOME`
+quando o Gurobi não estiver no local padrão e rode o setup do Fekete
+(`scripts/run_comparison.sh --setup-only --solver tpp-fekete`) antes da
+primeira execução `--solver both`/`--solver tpp-fekete`. O `--force` move a
+campanha anterior para uma pasta de backup em vez de apagá-la.
 
 ## Revisar uma transcrição
 
