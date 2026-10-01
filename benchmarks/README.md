@@ -223,3 +223,92 @@ No benchmark não convexo, observe principalmente:
 Um caminho factível interrompido por tempo ou chamadas não deve ser rotulado
 como ótimo. Tempos obtidos com números diferentes de workers ou sob contenção
 não são comparações diretas de desempenho.
+
+## Campanhas diagnósticas de TSPN
+
+O subcomando `tspn-benchmark` adapta a instrumentação do TPP de ordem livre ao
+**ciclo fechado sem extremos fixos**, comparando o B&B mantido com o SOCP de
+Fekete. O benchmark de caminho com extremos fixos continua em `free-order-run`.
+Os perfis abaixo usam o ZIP SOCG simplificado, classificação pelos metadados e
+número efetivo de polígonos após simplificação. O ZIP contém 558 entradas;
+360 é o número de instâncias alteradas pelo pré-processamento no artigo.
+
+Execute na raiz do checkout desejado, sem outros benchmarks concorrentes:
+
+```bash
+python3 benchmarks/tpp.py tspn-benchmark --profile quick \
+  --output benchmarks/results/tspn-diagnostic-quick --resume
+
+caffeinate -i python3 benchmarks/tpp.py tspn-benchmark --profile overnight \
+  --output benchmarks/results/tspn-diagnostic-overnight --resume
+```
+
+`caffeinate` é opcional e específico do macOS. A primeira execução compila em
+`.build/tspn-comparison`, fora do submódulo, e usa as dependências e licença
+Gurobi já instaladas. Em worktrees com submódulo vazio, localiza o checkout
+primário automaticamente. Não instala dependências nem copia licenças.
+
+| Perfil | Casos por estrato | Repetições | Limite nativo por execução | Teto de processo | Máximo de processos |
+|---|---:|---:|---:|---:|---:|
+| `quick` | 1 (até 12 casos) | 1 | 3 s | 10 s | 4 min |
+| `overnight` | 8 (até 96 casos) | 2 | 60 s | 75 s | 8 h |
+
+São 12 estratos: OSM/random/tessellation × 5–10/11–20/21–40/41–60 polígonos.
+A seleção é uniforme sem reposição, com seed 20260930, anterior às medições.
+O perfil rápido é um subconjunto do noturno. Os estratos são intercalados e
+uma rodada cobre todos os casos antes de iniciar a próxima repetição. Assim,
+uma interrupção não concentra a amostra em uma única classe. Os tetos da tabela
+somam os limites firmes dos processos; **build, validação e relatórios ficam
+fora desse teto**. Instâncias fáceis podem encerrar a campanha muito antes.
+Não é uma campanha para provar otimalidade de todos os casos grandes.
+
+Ambos os perfis selecionam `cache + features + root + interval`, uma thread por
+solver e execução sequencial. `--portfolio` é opcional, acrescenta `memo` ao
+preset e registra dois workers nativos contra um externo; mantenha esse ensaio
+em outra pasta. `--seconds`, `--external-timeout`, `--per-stratum`,
+`--repetitions`, `--seed` e `--instances-zip` permitem substituir o preset.
+`--dry-run` mostra a seleção e o orçamento sem compilar ou executar solvers.
+
+Cada execução concluída é persistida em `raw.jsonl`. Repetir **o mesmo comando**
+com `--resume` pula registros existentes, inclusive timeouts já observados;
+valida configuração, entradas e hashes dos executáveis, e não recompila.
+Mudanças nos executáveis exigem outra pasta de resultados. Ctrl-C preserva os
+registros completos e gera relatórios parciais; uma gravação final truncada é
+recuperada na retomada. Não execute duas campanhas simultâneas na mesma pasta.
+
+Os artefatos para análise são:
+
+- `instances.json` e `config.json`: entradas, seed, população por estrato,
+  formulação, tolerâncias, configuração, hashes de fontes e executáveis;
+- `raw.jsonl` e `runs.csv`: trajetórias e métricas brutas; o CSV expõe todos os
+  campos escalares e métricas derivadas, sem traços por nó de tamanho ilimitado;
+- `summary.json/csv`, `strata.json/csv`, `analysis.md`: comparações por instância,
+  classe/tamanho e diagnóstico de gargalos;
+- `progress.json`: quantidade de registros concluídos e status.
+
+As métricas incluem fases do solver, chamadas/nós, atualizações do incumbente,
+qualidade inicial, gap final, decomposição, filas, podas, cache e contatos
+reutilizados. A nova telemetria mede chamada máxima, histogramas de quantidade
+**e tempo** e tempo das chamadas que usaram recuperação racional. Este último
+inclui a chamada inteira, não apenas a recuperação. Os subtempos herdados do
+oráculo de caminho não separam corretamente as fases internas do ciclo; não
+os use para atribuir custo geométrico ou de certificação no TSPN.
+
+Speedups só usam casos em que todas as repetições dos dois solvers validam a
+trajetória, fecham o gap solicitado e têm intervalos reportados compatíveis.
+Timeouts de processo são censurados, não recebem um tempo fictício de solução;
+limites nativos mantêm métricas e gap, quando o processo retorna. A razão
+incumbente inicial/final mede melhoria, não garante aproximação enquanto o gap
+estiver aberto. Os limites do baseline SOCP são numéricos. Mantemos gap relativo
+comparável de 1e-6, factibilidade de 1e-8 e validação independente de 1e-7;
+o benchmark não adiciona tolerância ao oráculo convexo certificado.
+
+Para reconstruir relatórios sem executar solvers:
+
+```bash
+python3 benchmarks/tpp.py tspn-benchmark --report-only \
+  --output benchmarks/results/tspn-diagnostic-overnight
+```
+
+Envie a pasta da campanha para análise. Não é necessário enviar builds ou
+arquivos de licença. Os resultados continuam locais e ignorados pelo Git.

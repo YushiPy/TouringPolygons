@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vector2.h"
+#include <array>
 #include <cstddef>
 #include <limits>
 #include <optional>
@@ -195,6 +196,15 @@ namespace tpp {
 		double search_seconds = 0.0;
 		double finalization_seconds = 0.0;
 		double convex_oracle_seconds = 0.0;
+		// Completed search/refinement requests, including memo hits; excludes
+		// optional initial polishing and failed/in-flight requests.
+		size_t oracle_profiled_calls = 0;
+		double oracle_max_call_seconds = 0.0;
+		// Entire calls that used a fallback, NOT exclusive recovery time.
+		double oracle_fallback_call_seconds = 0.0;
+		// Exclusive buckets: <=10us, 100us, 1ms, 10ms, 100ms, 1s, >1s.
+		std::array<size_t, 7> oracle_call_histogram{};
+		std::array<double, 7> oracle_seconds_histogram{};
 		// Sum of wall time across batches; unlike convex_oracle_seconds, parallel
 		// evaluations in one batch are counted once here.
 		double convex_oracle_wall_seconds = 0.0;

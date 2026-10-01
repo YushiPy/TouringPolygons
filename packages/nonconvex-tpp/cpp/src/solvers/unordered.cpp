@@ -679,6 +679,13 @@ namespace tpp {
 			result.oracle_time_limit_calls += certified.time_limited;
 			result.repaired_geometric_path_calls += certified.repaired_geometric_path;
 			result.convex_oracle_seconds += certified.seconds;
+			++result.oracle_profiled_calls;
+			result.oracle_max_call_seconds = std::max(result.oracle_max_call_seconds, certified.seconds);
+			if (certified.used_fallback) result.oracle_fallback_call_seconds += certified.seconds;
+			constexpr std::array<double, 6> timing_bounds{1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1.0};
+			const auto bucket = std::lower_bound(timing_bounds.begin(), timing_bounds.end(), certified.seconds) - timing_bounds.begin();
+			++result.oracle_call_histogram[bucket];
+			result.oracle_seconds_histogram[bucket] += certified.seconds;
 			result.convex_geometric_solver_seconds += certified.geometric_solver_seconds;
 			result.convex_certificate_verification_seconds += certified.certificate_verification_seconds;
 			result.convex_contact_materialization_seconds += certified.contact_materialization_seconds;
@@ -1426,6 +1433,13 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::search_seconds);
         sum(&UnorderedTppSolveResult::finalization_seconds);
         sum(&UnorderedTppSolveResult::convex_oracle_seconds);
+        sum(&UnorderedTppSolveResult::oracle_profiled_calls);
+        sum(&UnorderedTppSolveResult::oracle_fallback_call_seconds);
+        result.oracle_max_call_seconds=std::max(runs[0].oracle_max_call_seconds,runs[1].oracle_max_call_seconds);
+        for(size_t i=0;i<result.oracle_call_histogram.size();++i) {
+            result.oracle_call_histogram[i]=runs[0].oracle_call_histogram[i]+runs[1].oracle_call_histogram[i];
+            result.oracle_seconds_histogram[i]=runs[0].oracle_seconds_histogram[i]+runs[1].oracle_seconds_histogram[i];
+        }
         sum(&UnorderedTppSolveResult::convex_oracle_wall_seconds);
         sum(&UnorderedTppSolveResult::convex_geometric_solver_seconds);
         sum(&UnorderedTppSolveResult::convex_certificate_verification_seconds);

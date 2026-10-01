@@ -456,3 +456,23 @@ hashes, settings, inputs, raw tours, intervals, timings and analysis are saved
 together. Independent tour validation uses binary-rational intersection and
 containment tests plus numerical distance/length diagnostics. Raw feasibility
 and reported gap closure are kept separate; coordinate equality is not required.
+
+## Oracle timing diagnostics
+
+The shared B&B exposes `oracle_profiled_calls`, `oracle_max_call_seconds`,
+`oracle_fallback_call_seconds`, and two fixed-size arrays:
+`oracle_call_histogram` and `oracle_seconds_histogram`. Their exclusive buckets
+are ≤10 µs, (10,100] µs, (0.1,1] ms, (1,10] ms, (10,100] ms, (0.1,1] s, >1 s.
+These are reporting bins, not geometric tolerances or stopping criteria.
+They reuse the existing per-call clock and count completed search/refinement
+requests, including memo hits. Initial optional polishing and failed/in-flight
+requests are excluded. Counts sum to `oracle_profiled_calls`; bucket times sum
+to `profile.convex_oracle_seconds`. Portfolio aggregation sums counts and work
+and takes the maximum of the workers' longest calls.
+
+Fallback-attributed time is the **whole call** that used recovery, not exclusive
+rational recovery time. The cycle adapter does not currently separate geometry,
+certificate and recovery subphases; its inherited endpoint subphase counters
+must not be interpreted as such. The benchmark reports total oracle work and
+fallback-attributed work instead. These constant-memory diagnostics do not
+change geometry, pruning, tolerances, or the solver's numerical gap contract.

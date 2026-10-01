@@ -221,6 +221,9 @@ int main(int argc, char **argv) {
 		std::cout << ",\"final_absolute_gap\":"; json_double(r.final_absolute_gap);
 		std::cout << ",\"final_relative_gap\":"; json_double(r.final_relative_gap);
 		std::cout
+			<< ",\"oracle_profiled_calls\":" << r.oracle_profiled_calls
+			<< ",\"oracle_max_call_seconds\":" << r.oracle_max_call_seconds
+			<< ",\"oracle_fallback_call_seconds\":" << r.oracle_fallback_call_seconds
 			<< ",\"seconds\":" << r.seconds << ",\"threads_per_instance\":" << r.threads
 			<< ",\"calls\":" << r.calls << ",\"nodes\":" << r.nodes
 			<< ",\"parallel_oracle_calls\":" << r.parallel_oracle_calls
@@ -325,7 +328,11 @@ int main(int argc, char **argv) {
 			<< ",\"search_visit_check_seconds\":" << r.search_visit_check_seconds
 			<< ",\"finalization_visit_check_seconds\":" << r.finalization_visit_check_seconds
 			<< ",\"search_maintenance_seconds\":" << r.search_maintenance_seconds << "}"
-			<< ",\"order\":[";
+			<< ",\"oracle_call_histogram\":[";
+		for(size_t i=0;i<r.oracle_call_histogram.size();++i)std::cout << (i?",":"") << r.oracle_call_histogram[i];
+		std::cout << "],\"oracle_seconds_histogram\":[";
+		for(size_t i=0;i<r.oracle_seconds_histogram.size();++i)std::cout << (i?",":"") << r.oracle_seconds_histogram[i];
+		std::cout << "],\"order\":[";
 		for (size_t i = 0; i < r.order.size(); ++i) std::cout << (i ? "," : "") << r.order[i];
 		std::cout << "],\"path\":[";
 		for (size_t i = 0; i < r.path.size(); ++i) std::cout << (i ? "," : "") << '[' << r.path[i].x << ',' << r.path[i].y << ']';

@@ -19,6 +19,19 @@ using Polygon=std::vector<Vector2>;
 using Polygons=std::vector<Polygon>;
 void require(bool condition,const std::string &message) {if(!condition)throw std::runtime_error(message);}
 Polygon box(double x,double y,double w=1,double h=1) {return {{x,y},{x+w,y},{x+w,y+h},{x,y+h}};}
+void check_oracle_profile(const tpp::UnorderedTppSolveResult &r) {
+    const auto calls=std::accumulate(r.oracle_call_histogram.begin(),r.oracle_call_histogram.end(),size_t{0});
+    const auto seconds=std::accumulate(r.oracle_seconds_histogram.begin(),r.oracle_seconds_histogram.end(),0.0);
+    const double tolerance=1e-9*std::max(1.0,r.convex_oracle_seconds);
+    require(calls==r.oracle_profiled_calls,"Oracle timing histogram accounts for every profiled call");
+    require(r.oracle_profiled_calls<=r.calls,"Profiled oracle requests are included in total calls");
+    require(std::isfinite(seconds)&&std::abs(seconds-r.convex_oracle_seconds)<=tolerance,
+        "Oracle timing histogram sums to convex oracle seconds");
+    require(r.oracle_max_call_seconds<=r.convex_oracle_seconds+tolerance,
+        "Maximum oracle call duration is bounded by accumulated time");
+    require(r.oracle_fallback_call_seconds<=r.convex_oracle_seconds+tolerance,
+        "Fallback-attributed complete-call time is bounded by oracle total");
+}
 bool covered(const Polygon &q,const Polygons &p) {
     return q.size()>=2&&q.front()==q.back()&&std::all_of(p.begin(),p.end(),[&](const auto &region) {
         return tpp::unordered_detail::contact(q,region,1e-8).distance<=1e-8;
@@ -52,6 +65,7 @@ size_t cases=0,interrupted=0,decomposed=0,parallel_batches=0,portfolio_cases=0,p
 void check(const Polygons &p) {
     const auto [lower,upper]=enumerate(p);
     const auto r=tpp::tpp_nonconvex_tspn_solve(p);
+    check_oracle_profile(r);
     require(covered(r.path,p),"TSPN output is a feasible closed tour");
     require(r.exact&&r.lower_bound<=upper+1e-7&&r.upper_bound>=lower-1e-7&&
             std::abs(r.upper_bound-upper)<=1e-7+1e-9*upper,"TSPN exhaustive order/piece comparison");
@@ -59,6 +73,7 @@ void check(const Polygons &p) {
     decomposed+=r.decomposition_branches>0;
     tpp::UnorderedTppSolveOptions parallel;parallel.threads=2;
     const auto concurrent=tpp::tpp_nonconvex_tspn_solve(p,parallel);
+    check_oracle_profile(concurrent);
     require(covered(concurrent.path,p)&&concurrent.exact&&concurrent.threads==2&&
             concurrent.lower_bound<=upper+1e-7&&concurrent.upper_bound>=lower-1e-7&&
             std::abs(concurrent.upper_bound-upper)<=1e-7+1e-9*upper,"Parallel TSPN exhaustive comparison");
@@ -66,17 +81,20 @@ void check(const Polygons &p) {
     for(size_t threads:{1,2})for(size_t cap:{0,1,3,10}) {
         tpp::UnorderedTppSolveOptions options;options.max_calls=cap;options.threads=threads;
         const auto limited=tpp::tpp_nonconvex_tspn_solve(p,options);
+        check_oracle_profile(limited);
         require(covered(limited.path,p)&&limited.calls<=cap&&limited.lower_bound<=upper+1e-7&&
                 limited.upper_bound>=lower-1e-7,"Interrupted cycle frontier bounds");++interrupted;
     }
     tpp::UnorderedTppSolveOptions dfs;
     dfs.search_strategy=tpp::UnorderedSearchStrategy::DfsBfs;
     const auto alternative=tpp::tpp_nonconvex_tspn_solve(p,dfs);
+    check_oracle_profile(alternative);
     require(covered(alternative.path,p)&&alternative.exact&&alternative.lower_bound<=upper+1e-7&&
         std::abs(alternative.upper_bound-upper)<=1e-7+1e-9*upper,"DFS/BFS root and frontier exhaustive comparison");
     for(bool sharing:{false,true}) {
         tpp::UnorderedTppSolveOptions options;options.portfolio=true;options.portfolio_share_incumbents=sharing;
         const auto cooperative=tpp::tpp_nonconvex_tspn_solve(p,options);
+        check_oracle_profile(cooperative);
         require(covered(cooperative.path,p)&&cooperative.exact&&cooperative.threads==2&&
             cooperative.portfolio_workers==2&&cooperative.portfolio_runs.size()==2&&
             cooperative.lower_bound<=upper+1e-7&&std::abs(cooperative.upper_bound-upper)<=1e-7+1e-9*upper,
@@ -95,6 +113,7 @@ void check(const Polygons &p) {
         for(size_t cap:{0,1,3,10}) {
             options.max_calls=cap;
             const auto partial=tpp::tpp_nonconvex_tspn_solve(p,options);
+            check_oracle_profile(partial);
             require(covered(partial.path,p)&&partial.calls<=cap&&partial.lower_bound<=upper+1e-7&&
                 partial.upper_bound>=lower-1e-7,"Shared call cap and interrupted portfolio frontier");
             require(partial.calls==partial.portfolio_runs[0].calls+partial.portfolio_runs[1].calls,
