@@ -82,6 +82,7 @@ def _unordered_build_fingerprint() -> str:
 			'CC', 'CXX', 'CFLAGS', 'CXXFLAGS', 'LDFLAGS', 'CMAKE_ARGS',
 			'CMAKE_BUILD_TYPE', 'CMAKE_OSX_ARCHITECTURES', 'MACOSX_DEPLOYMENT_TARGET',
 			'CMAKE_GENERATOR', 'CMAKE_TOOLCHAIN_FILE', 'CMAKE_PREFIX_PATH', 'TPP_EXACT_ARITHMETIC',
+			'TPP_CXX_STANDARD',
 		)
 	}
 	for tool, command in (('c_compiler', os.environ.get('CC', 'cc')),
@@ -121,7 +122,11 @@ def ensure_binary(no_build: bool = False) -> Path:
 	if build_jobs < 1:
 		raise ValueError('TPP_BUILD_JOBS must be a positive integer.')
 	print('Build: configuring free-order solver...', flush=True)
-	subprocess.run(['cmake', '-S', str(ROOT / 'packages/nonconvex-tpp/cpp'), '-B', str(BINARY.parent), '-DTARGET=main-unordered'], check=True)
+	cpp_standard = os.environ.get('TPP_CXX_STANDARD', '26')
+	subprocess.run([
+		'cmake', '-S', str(ROOT / 'packages/nonconvex-tpp/cpp'), '-B', str(BINARY.parent),
+		'-DTARGET=main-unordered', f'-DTPP_CXX_STANDARD={cpp_standard}',
+	], check=True)
 	print(f'Build: compiling free-order solver (up to {build_jobs} jobs)...', flush=True)
 	subprocess.run(['cmake', '--build', str(BINARY.parent), '--target', 'tpp', '--parallel', str(build_jobs)], check=True)
 	if not BINARY.exists():

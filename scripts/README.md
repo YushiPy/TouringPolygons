@@ -30,15 +30,15 @@ aplicados, eles aparecem como alterações locais no submódulo; o commit fixado
 permanece o mesmo. Fingerprints locais fazem o setup pular a resolução Conan e
 a compilação quando as fontes e a configuração não mudaram; um build
 interrompido não é marcado como pronto. O setup testa a configuração e a
-compilação de C++26 antes de construir o solver. No macOS, se o CMake do
-ambiente não reconhecer o AppleClang instalado para `cxx_std_26`, ele tenta o
-LLVM do Homebrew. No Linux, se o compilador padrão não passar a verificação,
-ele tenta GCC 16, 15 e 14 e Clang 20, 19 e 18 que estejam instalados. `CC` e
-`CXX` definidos pelo usuário são respeitados. Depois executa os 558
+compilação de C++23 antes de construir os solvers da campanha. Isso permite
+usar o GCC 13 distribuído com Ubuntu 24.04. Outros targets do repositório
+mantêm C++26 como padrão. No macOS e Linux, se o compilador padrão não passar
+a verificação, o script tenta toolchains compatíveis instalados. `CC` e `CXX`
+definidos pelo usuário são respeitados. Depois executa os 558
 casos do corpus alemão com endpoints fixos e ordem de visita livre, primeiro
 no nosso solver e depois no de Fekete. O
 limite padrão por caso é ilimitado; a configuração padrão usa um caso e uma
-thread por vez. A máquina precisa ter compilador compatível com C++26, OpenMP,
+thread por vez. A máquina precisa ter compilador compatível com C++23, OpenMP,
 Eigen3, headers Boost e uma licença acadêmica válida do Gurobi.
 
 `Ctrl+C` pede encerramento cooperativo ao nosso solver e salva a trajetória

@@ -35,7 +35,7 @@ Options:
   -h, --help                  Show this help
 
 Python 3.12+ is required. Set TPP_PYTHON to select its executable. The host
-needs a C++26-capable compiler, OpenMP, Eigen3, Boost headers, and a valid
+needs a C++23-capable compiler, OpenMP, Eigen3, Boost headers, and a valid
 Gurobi academic license for the Fekete solver.
 EOF
 }
@@ -369,22 +369,21 @@ with gp.Env(empty=True) as environment:
 print(f"Verified Gurobi runtime and license: gurobipy {gp.gurobi.version()}")
 PY
 
-last_cpp26_probe_diagnostic=''
-probe_cpp26_toolchain() {
+last_cpp23_probe_diagnostic=''
+probe_cpp23_toolchain() {
 	local probe_cc="$1"
 	local probe_cxx="$2"
 	local probe_dir status
-	probe_dir="$(mktemp -d "${TMPDIR:-/tmp}/tpp-cxx26-probe.XXXXXX")"
+	probe_dir="$(mktemp -d "${TMPDIR:-/tmp}/tpp-cxx23-probe.XXXXXX")"
 	cat > "$probe_dir/CMakeLists.txt" <<'EOF'
 cmake_minimum_required(VERSION 3.20)
-project(tpp_cpp26_probe LANGUAGES CXX)
-add_executable(tpp_cpp26_probe main.cpp)
-target_compile_features(tpp_cpp26_probe PRIVATE cxx_std_26)
+project(tpp_cpp23_probe LANGUAGES CXX)
+add_executable(tpp_cpp23_probe main.cpp)
+target_compile_features(tpp_cpp23_probe PRIVATE cxx_std_23)
 EOF
 	cat > "$probe_dir/main.cpp" <<'EOF'
 #include <format>
-#include <print>
-int main() { std::println("{}", std::format("{}", 26)); }
+int main() { return std::format("{}", 23) == "23" ? 0 : 1; }
 EOF
 	status=0
 	CC="$probe_cc" CXX="$probe_cxx" cmake -S "$probe_dir" -B "$probe_dir/build" > "$probe_dir/output.log" 2>&1 || status=$?
@@ -392,7 +391,7 @@ EOF
 		CC="$probe_cc" CXX="$probe_cxx" cmake --build "$probe_dir/build" >> "$probe_dir/output.log" 2>&1 || status=$?
 	fi
 	if ((status != 0)); then
-		last_cpp26_probe_diagnostic="C++26 toolchain probe failed for CC=$probe_cc CXX=$probe_cxx
+		last_cpp23_probe_diagnostic="C++23 toolchain probe failed for CC=$probe_cc CXX=$probe_cxx
 $(tail -n 12 "$probe_dir/output.log")"
 		rm -rf "$probe_dir"
 		return 1
@@ -403,17 +402,17 @@ $(tail -n 12 "$probe_dir/output.log")"
 
 if [[ -n "${CXX:-}" ]]; then
 	probe_cc="${CC:-cc}"
-	if ! probe_cpp26_toolchain "$probe_cc" "$CXX"; then
-		printf '%s\n' "$last_cpp26_probe_diagnostic" >&2
-		fail 'the selected CC/CXX toolchain cannot build the project C++26 requirement; choose a compatible compiler or unset CC/CXX for automatic selection'
+	if ! probe_cpp23_toolchain "$probe_cc" "$CXX"; then
+		printf '%s\n' "$last_cpp23_probe_diagnostic" >&2
+		fail 'the selected CC/CXX toolchain cannot build the comparison C++23 requirement; choose a compatible compiler or unset CC/CXX for automatic selection'
 	fi
-	printf 'Verified C++26 toolchain: CC=%s CXX=%s\n' "$probe_cc" "$CXX"
+	printf 'Verified C++23 toolchain: CC=%s CXX=%s\n' "$probe_cc" "$CXX"
 else
 	configured_cc="${CC:-}"
 	default_cc="${CC:-cc}"
 	default_cxx="$(command -v c++ || true)"
 	selected=0
-	if [[ -n "$default_cxx" ]] && probe_cpp26_toolchain "$default_cc" "$default_cxx"; then
+	if [[ -n "$default_cxx" ]] && probe_cpp23_toolchain "$default_cc" "$default_cxx"; then
 		CXX="$default_cxx"
 		CC="$default_cc"
 		selected=1
@@ -454,22 +453,26 @@ else
 			if [[ -z "$candidate_cc" ]]; then
 				candidate_cc="${candidate_c_compilers[$index]}"
 			fi
-			if probe_cpp26_toolchain "$candidate_cc" "$candidate_cxx"; then
+			if probe_cpp23_toolchain "$candidate_cc" "$candidate_cxx"; then
 				CXX="$candidate_cxx"
 				CC="$candidate_cc"
 				selected=1
-				printf 'Default compiler is incompatible with the CMake C++26 feature check; using verified compiler: %s\n' "$CXX"
+				printf 'Default compiler is incompatible with the comparison C++23 check; using verified compiler: %s\n' "$CXX"
 				break
 			fi
 		done
 	fi
 	if ((!selected)); then
-		[[ -z "$last_cpp26_probe_diagnostic" ]] || printf '%s\n' "$last_cpp26_probe_diagnostic" >&2
-		fail 'no usable C++26 compiler found; install a compiler and CMake that support cxx_std_26, or set CC and CXX explicitly'
+		[[ -z "$last_cpp23_probe_diagnostic" ]] || printf '%s\n' "$last_cpp23_probe_diagnostic" >&2
+		fail 'no usable C++23 compiler found; install a compiler and CMake that support cxx_std_23, or set CC and CXX explicitly'
 	fi
 	export CC CXX
-	printf 'Verified C++26 toolchain: CC=%s CXX=%s\n' "$CC" "$CXX"
+	printf 'Verified C++23 toolchain: CC=%s CXX=%s\n' "$CC" "$CXX"
 fi
+
+# This campaign's solver targets only use C++23. Keep the repository's default
+# standard unchanged for other targets, some of which use std::print.
+export TPP_CXX_STANDARD=23
 
 "$external_python" - "$ROOT" <<'PY'
 import pathlib
