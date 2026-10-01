@@ -58,6 +58,8 @@ namespace tpp {
         bool cycle_dual_screen = false;
         bool cycle_interval_certificate = false;
         bool cycle_share_bounds = false;
+        // Diagnostic JSONL, including every in-flight cycle input; empty disables I/O.
+        std::string oracle_capture_file;
 	};
 
 	enum class UnorderedTppTermination { Optimal, CallLimit, TimeLimit, NumericalLimit, PortfolioStopped };
@@ -210,6 +212,8 @@ namespace tpp {
 		double convex_oracle_wall_seconds = 0.0;
 		double convex_geometric_solver_seconds = 0.0;
 		double convex_certificate_verification_seconds = 0.0;
+        // Exclusive cycle work, including cooperatively interrupted requests.
+        double cycle_construction_seconds = 0, cycle_certification_seconds = 0, cycle_rational_recovery_seconds = 0;
 		double convex_contact_materialization_seconds = 0.0;
 		double convex_fallback_seconds = 0.0;
 		double convex_fallback_long_double_seconds = 0.0;

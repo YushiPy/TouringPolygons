@@ -1,5 +1,6 @@
 #pragma once
 #include "cycle_internal.h"
+#include "cycle_execution.h"
 #include <algorithm>
 #include <optional>
 #include <set>
@@ -41,6 +42,7 @@ template<class S> struct CycleRefinement {
         return a+d*((b-a).cross(e)/cross);
     }
     static std::pair<P,int> coordinate(P a,P b,P old,const Polygon &p) {
+        cycle_checkpoint();
         const P d=b-a;const S dd=d.dot(d);S lo=0,hi=1;
         bool crosses=true;
         for(size_t j=0;j<p.size();++j) {
@@ -91,6 +93,7 @@ template<class S> struct CycleRefinement {
     }
     static bool close(const Polygons &p,const std::vector<int> &feature,Polygon &q,
                       std::vector<int> *blocking=nullptr) {
+        cycle_checkpoint();
         const size_t k=p.size();std::vector<size_t> pins,edges;
         for(size_t i=0;i<k;++i)if(feature[i]>=0&&feature[i]%2==0)pins.push_back(i);
         auto on_edge=[&](size_t i,size_t j,const S &t) {
@@ -103,6 +106,7 @@ template<class S> struct CycleRefinement {
         };
         auto unfold=[&](P target,const std::vector<size_t> &indices) {
             for(auto it=indices.rbegin();it!=indices.rend();++it) {
+        cycle_checkpoint();
                 const size_t i=*it,j=size_t(feature[i])/2;
                 target=reflect(target,p[i][j],p[i][(j+1)%p[i].size()]-p[i][j]);
             }
@@ -111,11 +115,13 @@ template<class S> struct CycleRefinement {
         auto trace=[&](size_t begin,size_t end,const std::vector<size_t> &indices) {
             std::vector<P> images(indices.size());P target=q[end];
             for(size_t r=indices.size();r-->0;) {
+        cycle_checkpoint();
                 const size_t i=indices[r],j=size_t(feature[i])/2;
                 target=reflect(target,p[i][j],p[i][(j+1)%p[i].size()]-p[i][j]);images[r]=target;
             }
             P current=q[begin];
             for(size_t r=0;r<indices.size();++r) {
+        cycle_checkpoint();
                 const size_t i=indices[r],j=size_t(feature[i])/2;const P e=p[i][(j+1)%p[i].size()]-p[i][j];
                 const auto point=intersection(current,images[r]-current,p[i][j],e);
                 if(!point)return false;
@@ -151,6 +157,7 @@ template<class S> struct CycleRefinement {
         return true;
     }
     static Polygon intersect(Polygon region,const Polygon &p) {
+        cycle_checkpoint();
         for(size_t j=0;j<p.size()&&!region.empty();++j) {
             Polygon next;const P a=p[j],e=p[(j+1)%p.size()]-a;
             for(size_t r=0;r<region.size();++r) {
@@ -257,10 +264,15 @@ template<class S> struct CycleRefinement {
         }
         std::set<std::vector<int>> visited;
         for(;;) {
+        cycle_checkpoint();
             std::vector<int> feature(k);
             for(size_t i=0;i<k;++i)std::tie(q[i],feature[i])=coordinate(q[(i+k-1)%k],q[(i+1)%k],q[i],p[i]);
             move_zero_blocks(p,q,feature);
-            if(submit(q,feature,false))return true;
+            // Rational coordinate sweeps can carry much larger denominators
+            // than the closed reflection construction. Certify that construction
+            // first; every accepted proposal still uses the same verifier.
+            if constexpr(std::is_same_v<S,double>)
+                if(submit(q,feature,false))return true;
             Polygon closed=q;
             auto active=feature;
             bool constructed=false;
@@ -273,6 +285,8 @@ template<class S> struct CycleRefinement {
                 active=std::move(next);
             }
             if(constructed&&submit(closed,active,true))return true;
+            if constexpr(!std::is_same_v<S,double>)
+                if(submit(q,feature,false))return true;
             auto released=feature;Polygon unpinned=q;
             if(release_coincident_vertices(p,q,released)&&close(p,released,unpinned)&&submit(unpinned,released,true))return true;
             // A blocking endpoint or a restored skipped contact may change the

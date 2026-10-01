@@ -5,6 +5,8 @@
 #include "unordered_geometry.h"
 #include "unordered_bounds.h"
 #include "unordered_portfolio.h"
+#include "unordered_oracle_capture.h"
+#include "unordered_cycle_oracle.h"
 
 #include <algorithm>
 #include <array>
@@ -114,21 +116,13 @@ namespace {
 }
 
 namespace tpp {
-	struct RelaxationResult : CertifiedConvexTppResult {
-        std::vector<int> active_features;
-        size_t memo_queries=0,memo_repeated=0,memo_hits=0;
-        size_t certificate_cutoff_skips=0,initial_contact_checks=0,initial_contact_accepts=0;
-        size_t certificate_interval_uses=0;
-        RelaxationResult() = default;
-        RelaxationResult(CertifiedConvexTppResult result):CertifiedConvexTppResult(std::move(result)) {}
-    };
     // Adapter only: both topologies use the same search below. No second B&B.
-	static RelaxationResult solve_relaxation(bool cycle, const Vector2 &start,
+	RelaxationResult solve_relaxation(bool cycle, const Vector2 &start,
 		const Vector2 &target, const std::vector<Polygon> &regions,
 		DynamicConvexTppWorkspace &workspace, double tolerance, double cutoff, double seconds,
-		const Polygon &initial_contacts = {}, ConvexCycleWorkspace *cycle_workspace = nullptr,
-        const std::vector<int> &initial_features = {}, bool retain_features = false, bool bound_first = false,
-        bool interval_certificate = false) {
+		const Polygon &initial_contacts, ConvexCycleWorkspace *cycle_workspace,
+		const std::vector<int> &initial_features, bool retain_features, bool bound_first,
+		bool interval_certificate, const std::function<bool()> &stop_requested) {
 		if (!cycle) return tpp_convex_solve_certified(start,target,regions,workspace,tolerance,cutoff,seconds);
 		const auto began=std::chrono::steady_clock::now();
 		RelaxationResult out;
@@ -138,6 +132,8 @@ namespace tpp {
 		}
 		ConvexCycleDoubleOptions cycle_options;
 		cycle_options.lower_bound_cutoff=cutoff;
+        cycle_options.max_seconds=seconds;
+        cycle_options.stop_requested=stop_requested;
 		cycle_options.initial_contacts=initial_contacts;
         cycle_options.workspace=cycle_workspace;
         cycle_options.initial_features=initial_features;
@@ -146,27 +142,35 @@ namespace tpp {
         cycle_options.interval_certificate=interval_certificate;
 		auto solved=tpp_convex_solve_cycle_double(regions,cycle_options);
 		if (solved.status!=ConvexCycleStatus::Optimal && solved.status!=ConvexCycleStatus::FloatingPointLimit
-			&& solved.status!=ConvexCycleStatus::CertifiedBound)
+			&& solved.status!=ConvexCycleStatus::CertifiedBound && solved.status!=ConvexCycleStatus::Interrupted)
 			throw std::runtime_error("Convex cycle oracle failed: "+solved.diagnostic);
 		out.active_features=std::move(solved.active_features);
-        out.path=std::move(solved.contacts);out.path.push_back(out.path.front());
-		out.lower_bound=solved.certificate.lower_bound;out.upper_bound=solved.certificate.upper_bound;
+        out.path=std::move(solved.contacts);if(!out.path.empty())out.path.push_back(out.path.front());
+        out.time_limited=solved.status==ConvexCycleStatus::Interrupted;
+        out.cycle_timings=solved.timings;
+		out.lower_bound=solved.certificate.lower_bound;
+        out.upper_bound=out.path.empty()?INFINITY:solved.certificate.upper_bound;
 		out.dual_cutoff_pruned=solved.status==ConvexCycleStatus::CertifiedBound;
 		out.predicate_exact_evaluations=solved.certificate.exact_predicate_evaluations;
 		out.used_fallback=solved.rational_cycle_recoveries+solved.rational_anchor_recoveries+solved.rational_feature_recoveries>0;
         out.certificate_cutoff_skips=solved.certificate_cutoff_skips;
         out.certificate_interval_uses=solved.certificate_interval_uses;
         out.initial_contact_checks=solved.initial_contact_checks;out.initial_contact_accepts=solved.initial_contact_accepts;
-		if (out.lower_bound<cutoff && out.upper_bound-out.lower_bound>tolerance) {
+		if (!out.time_limited && out.lower_bound<cutoff && out.upper_bound-out.lower_bound>tolerance) {
 			// A rounded optimum may have a weak contact-derived dual. Recover its
 			// global bound while retaining the independently feasible double path.
 			ConvexCycleOptions exact_options;exact_options.lower_bound_cutoff=cutoff;
             exact_options.bound_first=bound_first;
+            exact_options.max_seconds=std::max(0.0,seconds-std::chrono::duration<double>(std::chrono::steady_clock::now()-began).count());
+            exact_options.stop_requested=stop_requested;
 			for(size_t i=0;i<regions.size();++i)exact_options.initial_contacts.emplace_back(out.path[i]);
 			const auto exact=tpp_convex_solve_cycle(regions,exact_options);
-			if (exact.status!=ConvexCycleStatus::Optimal&&exact.status!=ConvexCycleStatus::CertifiedBound)
+			if (exact.status!=ConvexCycleStatus::Optimal&&exact.status!=ConvexCycleStatus::CertifiedBound&&exact.status!=ConvexCycleStatus::Interrupted)
 				throw std::runtime_error("Exact cycle refinement failed: "+exact.diagnostic);
 			out.lower_bound=std::max(out.lower_bound,exact.certificate.lower_bound);
+            out.time_limited=exact.status==ConvexCycleStatus::Interrupted;
+            out.cycle_timings.certification_seconds+=exact.timings.certification_seconds;
+            out.cycle_timings.rational_recovery_seconds+=exact.timings.construction_seconds+exact.timings.rational_recovery_seconds;
 			out.dual_cutoff_pruned=exact.status==ConvexCycleStatus::CertifiedBound;
 			out.used_fallback=true;
             out.certificate_cutoff_skips+=exact.certificate_cutoff_skips;
@@ -174,7 +178,9 @@ namespace tpp {
 		out.fallback_certificate_gap=out.used_fallback;
 		out.fallback_reason=out.used_fallback?ConvexFallbackReason::LocalOptimality:ConvexFallbackReason::None;
 		out.seconds=std::chrono::duration<double>(std::chrono::steady_clock::now()-began).count();
-		out.geometric_solver_seconds=out.seconds;
+		out.geometric_solver_seconds=out.cycle_timings.construction_seconds;
+        out.certificate_verification_seconds=out.cycle_timings.certification_seconds;
+        out.fallback_seconds=out.cycle_timings.rational_recovery_seconds;
 		return out;
 	}
 	static UnorderedTppSolveResult solve_normalized_unordered_tpp(
@@ -558,6 +564,7 @@ namespace tpp {
             node.bound=std::max(node.bound,bound);
             result.cycle_shared_bound_seconds+=duration(began_bound);
         };
+        OracleCapture oracle_capture(options.oracle_capture_file);
 		auto evaluate_oracle = [&](const Node &node, bool precise, double upper_bound,
 			DynamicConvexTppWorkspace &oracle_workspace, ConvexCycleWorkspace &cycle_cache, CycleMemo &memo) {
             const auto began_oracle=std::chrono::steady_clock::now();
@@ -615,12 +622,14 @@ namespace tpp {
                     }
                 }
             }
+            const auto capture_id=oracle_capture.begin(node.serial,precise,selected,node.warm_start,node.active_features,cutoff,tolerance,remaining_seconds,options);
 			auto out=solve_relaxation(
 				cycle, start, target, selected, oracle_workspace, tolerance, cutoff, remaining_seconds, node.warm_start, options.cycle_cache?&cycle_cache:nullptr,
                 options.cycle_active_features?node.active_features:std::vector<int>{}, options.cycle_active_features,options.cycle_bound_first,
-                options.cycle_interval_certificate
+                options.cycle_interval_certificate, [control]{return control&&control->proved();}
 			);
-            if(cache) {
+            oracle_capture.end(capture_id,out);
+            if(cache&&!out.path.empty()) {
                 out.memo_queries=options.cycle_memo;out.memo_repeated=repeated;
                 CycleMemo::Entry entry;entry.lower_bound=out.lower_bound;entry.upper_bound=out.upper_bound;
                 for(size_t i:order)entry.contacts.push_back(out.path[i]);
@@ -654,8 +663,8 @@ namespace tpp {
             result.cycle_memo_hits+=certified.memo_hits;result.cycle_certificate_cutoff_skips+=certified.certificate_cutoff_skips;
             result.cycle_certificate_interval_uses+=certified.certificate_interval_uses;
             result.cycle_initial_contact_checks+=certified.initial_contact_checks;result.cycle_initial_contact_accepts+=certified.initial_contact_accepts;
-			node.refined = precise || options.oracle_relative_gap == 0;
-			node.path = certified.path;
+			node.refined = !certified.time_limited && (precise || options.oracle_relative_gap == 0);
+			if(!certified.path.empty())node.path = certified.path;
             node.active_features=options.cycle_active_features?certified.active_features:std::vector<int>{};
             if(cycle&&options.cycle_dual_reuse&&node.path.size()==node.sequence.size()+1) {
                 Polygon contacts(node.path.begin(),node.path.end()-1);
@@ -679,6 +688,9 @@ namespace tpp {
 			result.oracle_time_limit_calls += certified.time_limited;
 			result.repaired_geometric_path_calls += certified.repaired_geometric_path;
 			result.convex_oracle_seconds += certified.seconds;
+            result.cycle_construction_seconds+=certified.cycle_timings.construction_seconds;
+            result.cycle_certification_seconds+=certified.cycle_timings.certification_seconds;
+            result.cycle_rational_recovery_seconds+=certified.cycle_timings.rational_recovery_seconds;
 			++result.oracle_profiled_calls;
 			result.oracle_max_call_seconds = std::max(result.oracle_max_call_seconds, certified.seconds);
 			if (certified.used_fallback) result.oracle_fallback_call_seconds += certified.seconds;
@@ -702,7 +714,7 @@ namespace tpp {
                 }
                 node.learning_pending=false;
             }
-			if (node.path.size() < 2 || !std::all_of(node.path.begin(), node.path.end(), [](auto v) { return v.is_finite(); }))
+			if ((!certified.time_limited && node.path.size() < 2) || !std::all_of(node.path.begin(), node.path.end(), [](auto v) { return v.is_finite(); }))
 				throw std::runtime_error("Convex oracle returned an invalid path.");
 			trace_event({
 				.kind = "oracle",
@@ -728,7 +740,8 @@ namespace tpp {
 			const auto certified = evaluate_oracle(node, precise, upper_bound, workspace, cycle_workspace,memo_workspace);
 			result.convex_oracle_wall_seconds += duration(oracle_began);
 			record_oracle_result(node, precise, cutoff, certified);
-            return true;
+            if(certified.time_limited && !node.path.empty())improve(node.path,"interrupted_oracle");
+            return !certified.time_limited;
 		};
 		double settled_bound = result.upper_bound;
 		const bool dfs=options.search_strategy==UnorderedSearchStrategy::DfsBfs;
@@ -1067,7 +1080,7 @@ namespace tpp {
 					const size_t slot = evaluation_slot[child_index - batch_begin];
 					if (slot != none) {
 						record_oracle_result(child, false, batch_cutoff, certified[slot]);
-						if (!pruned_by_new_incumbent) {
+						if (!pruned_by_new_incumbent && !child.path.empty()) {
 							std::vector<size_t> child_sequence;
 							for (auto e : child.sequence) child_sequence.push_back(e.polygon);
 							improve(child.path, "oracle", child_sequence);
@@ -1434,6 +1447,9 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::finalization_seconds);
         sum(&UnorderedTppSolveResult::convex_oracle_seconds);
         sum(&UnorderedTppSolveResult::oracle_profiled_calls);
+        sum(&UnorderedTppSolveResult::cycle_construction_seconds);
+        sum(&UnorderedTppSolveResult::cycle_certification_seconds);
+        sum(&UnorderedTppSolveResult::cycle_rational_recovery_seconds);
         sum(&UnorderedTppSolveResult::oracle_fallback_call_seconds);
         result.oracle_max_call_seconds=std::max(runs[0].oracle_max_call_seconds,runs[1].oracle_max_call_seconds);
         for(size_t i=0;i<result.oracle_call_histogram.size();++i) {

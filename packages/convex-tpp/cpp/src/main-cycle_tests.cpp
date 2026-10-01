@@ -590,9 +590,67 @@ void bound_first_contacts() {
     require(complete.status==ConvexCycleStatus::Optimal&&complete.certificate.upper_bound==2,
         "An infinite cutoff still requires the complete optimum");
 }
+void cooperative_interruption() {
+    using namespace tpp;
+    const Polygons p{box(-5,0,-3,2),box(0,4,2,6),box(5,0,7,2),box(-1,-3,2,-1)};
+    const auto optimum=tpp_convex_solve_cycle(p);
+    require(optimum.status==ConvexCycleStatus::Optimal,"Interruption reference optimum");
+    bool saw_double_candidate=false,saw_rational_candidate=false;
+    // Interrupt at every checkpoint of this small solve: covers preparation,
+    // candidate verification, active features and nested rational recovery.
+    for(bool rational:{false,true}) {
+        size_t full_checks=0;
+        if(rational) {
+            ConvexCycleOptions o;o.refine_contacts=false;o.stop_requested=[&]{++full_checks;return false;};
+            require(tpp_convex_solve_cycle(p,o).status==ConvexCycleStatus::Optimal,"Callback never requests stop");
+        } else {
+            ConvexCycleDoubleOptions o;o.stop_requested=[&]{++full_checks;return false;};
+            tpp_convex_solve_cycle_double(p,o);
+        }
+        for(size_t limit=1;limit<=full_checks;++limit) {
+            size_t checks=0;
+            auto stop=[&]{return ++checks>=limit;};
+            if(rational) {
+                ConvexCycleOptions o;o.refine_contacts=false;o.stop_requested=stop;
+                const auto r=tpp_convex_solve_cycle(p,o);
+                require(r.status==ConvexCycleStatus::Interrupted,"Rational checkpoint cannot claim completion");
+                if(!r.contacts.empty()) {
+                    saw_rational_candidate=true;
+                    const auto c=tpp_convex_verify_cycle_certificate(exact(p),r.contacts);
+                    require(c.status==ConvexCycleCertificateStatus::Optimal||c.status==ConvexCycleCertificateStatus::Feasible,
+                        "Interrupted rational candidate retains exact membership");
+                    require(r.certificate.lower_bound<=optimum.certificate.upper_bound&&
+                        r.certificate.upper_bound>=optimum.certificate.lower_bound,"Interrupted rational interval encloses optimum");
+                }
+            } else {
+                ConvexCycleDoubleOptions o;o.stop_requested=stop;
+                const auto r=tpp_convex_solve_cycle_double(p,o);
+                require(r.status==ConvexCycleStatus::Interrupted,"Double checkpoint cannot claim completion");
+                if(!r.contacts.empty()) {
+                    saw_double_candidate=true;
+                    const auto c=tpp_convex_verify_cycle_certificate(p,r.contacts);
+                    require(c.status==ConvexCycleCertificateStatus::Optimal||c.status==ConvexCycleCertificateStatus::Feasible,
+                        "Interrupted double candidate retains exact membership");
+                    require(r.certificate.lower_bound<=optimum.certificate.upper_bound&&
+                        r.certificate.upper_bound>=optimum.certificate.lower_bound,"Interrupted double interval encloses optimum");
+                }
+                require(r.timings.construction_seconds>=0&&r.timings.certification_seconds>=0&&
+                    r.timings.rational_recovery_seconds>=0,"Exclusive phase durations remain nonnegative on interruption");
+            }
+        }
+    }
+    require(saw_double_candidate&&saw_rational_candidate,"Interruption exercised previously certified candidates");
+    ConvexCycleDoubleOptions zero;zero.max_seconds=0;
+    const auto empty=tpp_convex_solve_cycle_double(p,zero);
+    require(empty.status==ConvexCycleStatus::Interrupted&&empty.contacts.empty()&&empty.certificate.lower_bound==0&&
+        std::isinf(empty.certificate.upper_bound),
+        "Immediate deadline returns no invented candidate or positive bound");
+    require(tpp_convex_solve_cycle(p).status==ConvexCycleStatus::Optimal,"Cancellation context restored after return");
+}
 } // namespace
 int main() {
     try {
+        cooperative_interruption();
         bound_first_contacts();
         prepared_geometry_and_features();known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();active_contact_regressions();boundary_recovery_regressions();
         std::cout<<"Double comparisons: "<<compared_double_cases<<", maximum objective difference="<<largest_double_difference<<", maximum certified gap="<<largest_double_gap<<", local recoveries="<<total_anchor_recoveries<<'\n';

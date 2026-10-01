@@ -67,6 +67,7 @@ Commands:
   compare-solvers ARGS...            Compare B&B performance across convex solvers.
   compare-external ARGS...           Run the pinned external solver on a suite.
   cycle-benchmark ARGS...            Compare certified cycle solvers with Gurobi.
+  cycle-replay ARGS...               Replay captured convex-cycle oracle calls.
   tspn-benchmark ARGS...             Compare TSPN B&B against the Fekete SOCP B&B.
   compare-oracles ARGS...            Compare oracle backends inside the external solver.
   run-fekete ARGS...                 Run/resume the long external campaign.
@@ -335,6 +336,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 		return command_module("tspn_run_comparison", rest)
 	if command == "cycle-benchmark":
 		return command_module("cycle_benchmark", rest)
+	if command == "cycle-replay":
+		return command_module("cycle_replay", rest)
 	if command == "tspn-benchmark":
 		return command_module("tspn_benchmark", rest)
 	if command == "compare-oracles":

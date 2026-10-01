@@ -1,3 +1,4 @@
+#include "cycle_execution.h"
 #include "tpp/convex/cycle_certificate.h"
 #include "cycle_internal.h"
 #include "cycle_zero_certificate.h"
@@ -101,6 +102,7 @@ double rounded_upper(const Rational &value) {
 Rational primal_upper(const std::vector<Point> &contacts) {
 	Rational upper = 0;
 	for (std::size_t i = 0; i < contacts.size(); ++i) {
+        tpp::detail::cycle_checkpoint();
 		const Point difference = contacts[(i + 1) % contacts.size()] - contacts[i];
 		upper += rational_sqrt_upper(difference.dot(difference));
 	}
@@ -111,6 +113,7 @@ Rational dual_lower(const std::vector<Point> &contacts, const std::vector<Polygo
 	std::vector<Point> directions;
 	directions.reserve(contacts.size());
 	for (std::size_t i = 0; i < contacts.size(); ++i) {
+        tpp::detail::cycle_checkpoint();
 		const Point difference = contacts[(i + 1) % contacts.size()] - contacts[i];
 		const Rational squared = difference.dot(difference);
 		if (squared == 0) {
@@ -121,6 +124,7 @@ Rational dual_lower(const std::vector<Point> &contacts, const std::vector<Polygo
 	}
 	Rational lower = 0;
 	for (std::size_t i = 0; i < contacts.size(); ++i) {
+        tpp::detail::cycle_checkpoint();
 		const Point coefficient = directions[(i + contacts.size() - 1) % contacts.size()] - directions[i];
 		Rational support = coefficient.dot(polygons[i].front());
 		for (std::size_t j = 1; j < polygons[i].size(); ++j)
@@ -312,6 +316,7 @@ static ConvexCycleCertificateResult verify_rational_cycle(
 		const auto &polygons=input_polygons;
 		const auto &contacts=input_contacts;
 		for (std::size_t i = 0; !membership_checked && i < contacts.size(); ++i) {
+            tpp::detail::cycle_checkpoint();
 			if (!inside(contacts[i], polygons[i])) {
 				result.status = ConvexCycleCertificateStatus::InvalidCandidate;
 				return result;
@@ -348,6 +353,7 @@ static ConvexCycleCertificateResult verify_rational_cycle(
 	if (result.status == ConvexCycleCertificateStatus::Optimal) {
 			Rational length_lower = 0;
 			for (std::size_t i = 0; i < contacts.size(); ++i) {
+        tpp::detail::cycle_checkpoint();
 				const Point edge = contacts[(i + 1) % contacts.size()] - contacts[i];
 				length_lower += rational_sqrt_lower(edge.dot(edge));
 			}
@@ -367,11 +373,15 @@ static ConvexCycleCertificateResult verify_rational_cycle(
 
 ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
     const ConvexCycleCertificateGeometry &geometry,const ConvexRationalPolygon &contacts,double cutoff) {
+    detail::CyclePhaseScope certification(detail::CyclePhase::Certification);
+    tpp::detail::cycle_checkpoint();
     return verify_rational_cycle(geometry,contacts,cutoff);
 }
 
 ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
         const ConvexRationalPolygons &polygons,const ConvexRationalPolygon &contacts,double lower_bound_cutoff) {
+    detail::CyclePhaseScope certification(detail::CyclePhase::Certification);
+    tpp::detail::cycle_checkpoint();
     if(polygons.empty())return {};
     if(polygons.size()!=contacts.size()) { ConvexCycleCertificateResult r;r.status=ConvexCycleCertificateStatus::InvalidCandidate;return r; }
     try {return tpp_convex_verify_cycle_certificate(ConvexCycleCertificateGeometry(polygons),contacts,lower_bound_cutoff);}
@@ -379,6 +389,8 @@ ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
 }
 ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
         const ConvexCycleCertificateGeometry &geometry,const std::vector<Vector2> &contacts,double lower_bound_cutoff,bool interval_filter) {
+    detail::CyclePhaseScope certification(detail::CyclePhase::Certification);
+    tpp::detail::cycle_checkpoint();
     std::optional<IntervalBounds> bounds;
     bool membership_checked=false;size_t predicates=0;
     if(geometry.polygons().empty()||std::isnan(lower_bound_cutoff))return {};
@@ -415,6 +427,8 @@ ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
 
 ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(
     const std::vector<std::vector<Vector2>> &polygons, const std::vector<Vector2> &contacts,double lower_bound_cutoff,bool interval_filter) {
+    detail::CyclePhaseScope certification(detail::CyclePhase::Certification);
+    tpp::detail::cycle_checkpoint();
     if(interval_filter) {
         try {return tpp_convex_verify_cycle_certificate(ConvexCycleCertificateGeometry(polygons,true),contacts,lower_bound_cutoff,true);}
         catch(const std::exception &) {return {};}

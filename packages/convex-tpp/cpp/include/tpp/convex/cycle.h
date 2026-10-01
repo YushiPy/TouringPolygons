@@ -1,10 +1,18 @@
 #pragma once
 #include "tpp/convex/cycle_certificate.h"
 #include <limits>
+#include <functional>
 #include <string>
 
 namespace tpp {
-enum class ConvexCycleStatus { InvalidInput, UnsupportedIntersection, Optimal, FloatingPointLimit, OracleFailure, CertifiedBound };
+enum class ConvexCycleStatus { InvalidInput, UnsupportedIntersection, Optimal, FloatingPointLimit, OracleFailure, CertifiedBound, Interrupted };
+
+struct ConvexCycleTimings {
+    // Exclusive work: certification includes checks during rational recovery.
+    double construction_seconds = 0;
+    double certification_seconds = 0;
+    double rational_recovery_seconds = 0;
+};
 
 struct ConvexCycleResult {
     ConvexCycleStatus status = ConvexCycleStatus::InvalidInput;
@@ -18,6 +26,7 @@ struct ConvexCycleResult {
     std::size_t oracle_calls = 0;
     std::size_t certificate_checks = 0;
     std::size_t certificate_cutoff_skips = 0;
+    ConvexCycleTimings timings;
     std::string diagnostic;
 };
 
@@ -36,6 +45,7 @@ struct ConvexCycleDoubleResult {
     std::size_t rational_anchor_recoveries = 0;
     std::size_t rational_cycle_recoveries = 0;
     std::size_t rational_feature_recoveries = 0;
+    ConvexCycleTimings timings;
     std::string diagnostic;
     // A proposal for subsequent solves; never itself a certificate.
     std::vector<int> active_features;
@@ -64,6 +74,10 @@ struct ConvexCycleDoubleOptions {
     bool bound_first = false;
     // Outward binary64 interval filters, with exact predicates on ambiguity.
     bool interval_certificate = false;
+    // Cooperative checkpoints; default standalone solves have no deadline.
+    // Interrupted retains only completed certificates; contacts may be empty.
+    double max_seconds = std::numeric_limits<double>::infinity();
+    std::function<bool()> stop_requested;
 };
 
 // No fixed endpoint, no tolerance or discretization. Input must contain >=2
@@ -93,6 +107,8 @@ struct ConvexCycleOptions {
     // proves that the global lower bound reaches this threshold.
     double lower_bound_cutoff = std::numeric_limits<double>::infinity();
     bool bound_first = false;
+    double max_seconds = std::numeric_limits<double>::infinity();
+    std::function<bool()> stop_requested;
 };
 // General closed convex regions, including touching, overlap and containment.
 // Optimal requires an exact global certificate, including coincident contacts.

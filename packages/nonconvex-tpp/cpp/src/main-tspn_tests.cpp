@@ -4,6 +4,7 @@
 #include "solvers/unordered_geometry.h"
 #include "solvers/unordered_bounds.h"
 #include "solvers/unordered_portfolio.h"
+#include "solvers/unordered_cycle_oracle.h"
 #include <atomic>
 #include <thread>
 #include <algorithm>
@@ -23,6 +24,10 @@ void check_oracle_profile(const tpp::UnorderedTppSolveResult &r) {
     const auto calls=std::accumulate(r.oracle_call_histogram.begin(),r.oracle_call_histogram.end(),size_t{0});
     const auto seconds=std::accumulate(r.oracle_seconds_histogram.begin(),r.oracle_seconds_histogram.end(),0.0);
     const double tolerance=1e-9*std::max(1.0,r.convex_oracle_seconds);
+    const double phases=r.cycle_construction_seconds+r.cycle_certification_seconds+r.cycle_rational_recovery_seconds;
+    require(phases<=r.convex_oracle_seconds+tolerance,"Exclusive cycle work fits accumulated oracle time");
+    require(r.cycle_construction_seconds>=0&&r.cycle_certification_seconds>=0&&r.cycle_rational_recovery_seconds>=0,
+        "Exclusive cycle work remains nonnegative");
     require(calls==r.oracle_profiled_calls,"Oracle timing histogram accounts for every profiled call");
     require(r.oracle_profiled_calls<=r.calls,"Profiled oracle requests are included in total calls");
     require(std::isfinite(seconds)&&std::abs(seconds-r.convex_oracle_seconds)<=tolerance,
@@ -373,9 +378,50 @@ void memo_cycle_keys() {
     changed=input;std::swap(changed[0],changed[1]);
     require(canonical(changed)!=reference,"Memo never aliases a different visit order");
 }
+void cycle_relaxation_interruptions() {
+    const Polygons regions{box(-5,0,2,2),box(0,4,2,2),box(5,0,2,2),box(-1,-3,3,2)};
+    const auto exact=tpp::tpp_convex_solve_cycle(regions);
+    require(exact.status==tpp::ConvexCycleStatus::Optimal,"Adapter interruption fixture has an exact cycle reference");
+    const double exact_lower=exact.certificate.lower_bound,exact_upper=exact.certificate.upper_bound;
+
+    tpp::DynamicConvexTppWorkspace immediate_workspace;
+    const auto immediate=tpp::solve_relaxation(true,{0,0},{0,0},regions,immediate_workspace,
+        1e-7,INFINITY,INFINITY,{},nullptr,{},false,false,false,[]{return true;});
+    require(immediate.time_limited&&immediate.path.empty()&&immediate.lower_bound==0&&
+        std::isinf(immediate.upper_bound),"Immediate cycle stop returns an empty conservative relaxation");
+
+    size_t checkpoints=0;
+    auto count_checkpoints=[&]{++checkpoints;return false;};
+    tpp::DynamicConvexTppWorkspace probe_workspace;
+    const auto probe=tpp::solve_relaxation(true,{0,0},{0,0},regions,probe_workspace,
+        1e-7,INFINITY,INFINITY,{},nullptr,{},false,false,false,count_checkpoints);
+    require(!probe.time_limited&&covered(probe.path,regions)&&checkpoints>1,
+        "Cycle adapter exposes deterministic checkpoints on a complete fixture");
+    const size_t stop_after=checkpoints-1;
+    checkpoints=0;
+    auto stop_during_oracle=[&]{return ++checkpoints>=stop_after;};
+    tpp::DynamicConvexTppWorkspace interrupted_workspace;
+    const auto interrupted_result=tpp::solve_relaxation(true,{0,0},{0,0},regions,interrupted_workspace,
+        1e-7,INFINITY,INFINITY,{},nullptr,{},false,false,false,stop_during_oracle);
+    require(checkpoints==stop_after&&interrupted_result.time_limited,
+        "Cycle stop callback interrupts at a deterministic fixture checkpoint");
+    require(covered(interrupted_result.path,regions)&&std::isfinite(interrupted_result.upper_bound),
+        "Interrupted cycle relaxation retains only a feasible certified path");
+    require(interrupted_result.lower_bound<=exact_upper+1e-7&&interrupted_result.upper_bound>=exact_lower-1e-7&&
+        std::abs(tpp::unordered_detail::path_length(interrupted_result.path)-interrupted_result.upper_bound)<=1e-7,
+        "Interrupted cycle relaxation preserves compatible certified bounds");
+
+    tpp::DynamicConvexTppWorkspace complete_workspace;
+    const auto completed=tpp::solve_relaxation(true,{0,0},{0,0},regions,complete_workspace,
+        1e-7,INFINITY,INFINITY);
+    require(!completed.time_limited&&covered(completed.path,regions)&&
+        completed.lower_bound<=exact_upper+1e-7&&completed.upper_bound>=exact_lower-1e-7,
+        "A fresh default cycle relaxation completes normally after an interrupted call");
+}
 int main() {
     try {
         memo_cycle_keys();
+        cycle_relaxation_interruptions();
         one_tree_bounds();
         portfolio_protocol();
         insertion_bounds();

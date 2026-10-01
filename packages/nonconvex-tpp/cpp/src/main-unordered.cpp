@@ -78,11 +78,15 @@ int main(int argc, char **argv) {
 		for (int i = 1; i < argc; ++i) {
 			const std::string flag = argv[i];
 			if (flag == "--help") {
-				std::cout << "Usage: tpp-unordered [--cycle] [--cycle-optimization cache|dual|features|lazy|root|branch|one-tree|learn|memo|bound-first|dual-screen|interval|share-bounds] [--portfolio | --portfolio-no-sharing | --search-strategy best-bound|dfs-bfs] [--threads N] [--absolute-gap N] [--relative-gap N] [--feasibility-tolerance N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace]\n"
+				std::cout << "Usage: tpp-unordered [--cycle] [--cycle-optimization cache|dual|features|lazy|root|branch|one-tree|learn|memo|bound-first|dual-screen|interval|share-bounds] [--portfolio | --portfolio-no-sharing | --search-strategy best-bound|dfs-bfs] [--threads N] [--absolute-gap N] [--relative-gap N] [--feasibility-tolerance N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace] [--oracle-capture FILE]\n"
 					<< "stdin: sx sy tx ty polygon_count max_calls max_seconds, then each polygon's vertex count and coordinates. With --initial-path, append path point count and coordinates, including endpoints.\n";
 				std::cout << "--cycle solves TSPN: input endpoints are ignored; output and any initial path must be closed.\n";
 				return 0;
 			}
+			if(flag=="--oracle-capture") {
+                if(++i>=argc)throw std::invalid_argument("Expected an oracle capture path.");
+                options.oracle_capture_file=argv[i];continue;
+            }
 			if (flag == "--cycle") {cycle = true; continue;}
             if(flag=="--cycle-optimization") {
                 if(++i>=argc)throw std::invalid_argument("Expected a cycle optimization.");
@@ -316,6 +320,9 @@ int main(int argc, char **argv) {
 			<< ",\"finalization_seconds\":" << r.finalization_seconds
 			<< ",\"convex_oracle_seconds\":" << r.convex_oracle_seconds
 			<< ",\"convex_oracle_wall_seconds\":" << r.convex_oracle_wall_seconds
+            << ",\"cycle_construction_seconds\":" << r.cycle_construction_seconds
+            << ",\"cycle_certification_seconds\":" << r.cycle_certification_seconds
+            << ",\"cycle_rational_recovery_seconds\":" << r.cycle_rational_recovery_seconds
 			<< ",\"convex_geometric_solver_seconds\":" << r.convex_geometric_solver_seconds
 			<< ",\"convex_certificate_verification_seconds\":" << r.convex_certificate_verification_seconds
 			<< ",\"convex_contact_materialization_seconds\":" << r.convex_contact_materialization_seconds

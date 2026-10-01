@@ -1,3 +1,4 @@
+#include "cycle_execution.h"
 #include "tpp/convex/detail/intersecting_maps.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
@@ -157,6 +158,7 @@ class DirectionalMaps {
     }
 
     void build_vertex(size_t i,size_t j) {
+        cycle_checkpoint();
         auto &vertices=maps[i].vertices;
         auto &v=vertices[j];
         if(v.ready) return;
@@ -210,6 +212,7 @@ class DirectionalMaps {
     }
 
     Point virtual_source(const Query &q,size_t level) {
+        cycle_checkpoint();
         if(level==0) return start;
         auto &cache=maps[level-1].last_query;
         if(cache && cache->query==q) return cache->source;
@@ -235,6 +238,7 @@ class DirectionalMaps {
     }
 
     void query_path(const Point &q,size_t level,std::vector<Point> &path) {
+        cycle_checkpoint();
         if(level==0) { append(path,start); append(path,q); return; }
         const auto location=locate({q,{}},level);
         if(location<0) { query_path(q,level-1,path); return; }
@@ -322,6 +326,7 @@ class DirectionalMaps {
 
     void split_boundaries(bool include_previous_intersections) {
         for(size_t i=0;i<maps.size();++i) {
+        cycle_checkpoint();
             auto &map=maps[i];
             for(size_t j=0;j<map.original.size();++j) {
                 const Point a=map.original[j], edge=map.original[(j+1)%map.original.size()]-a;
@@ -379,6 +384,7 @@ public:
                     PreloadPolicy preload,bool assume_disjoint=false) : start(s),target(t) {
         maps.resize(polygons.size());
         for(size_t i=0;i<polygons.size();++i) {
+        cycle_checkpoint();
             auto &p=maps[i].original;
             for(auto v:polygons[i]) {
                 if constexpr(std::is_same_v<InputPoint,Vector2>)
@@ -432,6 +438,7 @@ public:
         size_t segment=path.size()==1 ? 0 : 1;
         Scalar rate=0;
         for(size_t i=0;i<maps.size();++i) {
+        cycle_checkpoint();
             bool found=false;
             if(path.size()==1) {
                 if(!inside({path.front(),{}},maps[i].original))

@@ -123,6 +123,7 @@ def main(argv=None):
     parser.add_argument('--per-stratum',type=int)
     parser.add_argument('--external-timeout',type=float,
         help='Firm timeout for each repetition in its own process, for either backend; timeouts are censored.')
+    parser.add_argument('--capture-oracles',action='store_true',help='Flush every native oracle input and exclusive phase timing to local JSONL; diagnostic runs include capture overhead.')
     parser.add_argument('--ours-binary',type=Path,help='Use a previously frozen native binary.')
     parser.add_argument('--fekete-binary',type=Path,help='Use a previously built external binary.')
     parser.add_argument('--reference-results',type=Path,
@@ -245,13 +246,15 @@ def main(argv=None):
         'external_process_timeout_seconds':args.external_timeout,'max_calls':10**8,
         'oracle_profile':{'scope':'completed B&B search/refinement requests including memo hits; excludes initial polishing and in-flight calls',
             'histogram_upper_seconds':[1e-5,1e-4,1e-3,1e-2,1e-1,1.0,None],
-            'fallback_time':'whole calls using fallback, not exclusive recovery time'},
+            'fallback_time':'whole calls using fallback, not exclusive recovery time',
+            'cycle_phases':'exclusive construction, certification including checks during recovery, and rational recovery excluding certification; completed cooperative interruptions included'},
         'fekete_relative_gap':args.relative_gap,'our_relative_gap':our_relative,'our_absolute_gap':0,
         'feasibility_tolerance':args.feasibility_tolerance,'validation_tolerance':args.validation_tolerance,
         'threads':2 if portfolio else 1,'ours_threads':2 if portfolio else 1,'fekete_threads':1,
         'portfolio_mode':'independent-race' if args.portfolio_no_sharing else ('cooperative' if args.portfolio else None),
         'search_strategy':args.search_strategy or ('default' if not portfolio else None),
         'cycle_optimizations':args.cycle_optimization,
+        'capture_oracles':args.capture_oracles,
         'external_backend':'socp','external_root':'LongestEdgePlusFurthestSite',
         'external_search':'DfsBfs','external_branching':'FarthestPoly','external_rules':[],
         'external_node_simplification':False,'external_decomposition_branch':True,'external_cutoff':True,
@@ -338,6 +341,7 @@ def main(argv=None):
                         key=(case['name'],case_digest,backend,repeat)
                         if key in completed: continue
                         began=time.monotonic()
+                        capture_path=None
                         try:
                             if backend=='fekete':
                                 if reference_rows:
@@ -355,7 +359,16 @@ def main(argv=None):
                                     result=parsed[0] if process.returncode==0 and len(parsed)==1 else {
                                         'error':f'external exit {process.returncode}; complete JSON records: {len(parsed)}'}
                             else:
-                                result=run_unordered_solver(ours,(0,0),(0,0),polygons,10**8,args.seconds,arguments,
+                                run_arguments=list(arguments)
+                                if args.capture_oracles:
+                                    capture_dir=output/'oracle-captures';capture_dir.mkdir(exist_ok=True)
+                                    capture_path=capture_dir/f'{index:03d}-{repeat}.jsonl'
+                                    attempt=1
+                                    while capture_path.exists():
+                                        capture_path=capture_dir/f'{index:03d}-{repeat}-attempt{attempt}.jsonl'
+                                        attempt+=1
+                                    run_arguments+=['--oracle-capture',str(capture_path)]
+                                result=run_unordered_solver(ours,(0,0),(0,0),polygons,10**8,args.seconds,run_arguments,
                                     process_timeout=args.external_timeout)
                         except subprocess.TimeoutExpired:
                             # Never persist commercial startup stderr/license data.
@@ -363,6 +376,8 @@ def main(argv=None):
                                 'timeout_seconds':args.external_timeout}
                         except Exception as error:
                             result={'error':f'{backend} runner failed: {type(error).__name__}'}
+                        if capture_path is not None:
+                            result['oracle_capture_file']=str(capture_path.relative_to(output))
                         if not (backend=='fekete' and reference_rows):
                             result['process_seconds']=time.monotonic()-began
                         row={**result,'name':case['name'],'k':len(polygons),'sha256':case_digest,'solver':backend,'repeat':repeat,
