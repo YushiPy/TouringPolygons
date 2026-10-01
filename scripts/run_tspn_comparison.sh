@@ -376,7 +376,24 @@ for shard in shards:
     raw = shard / 'raw.jsonl'
     if raw.exists():
         rows.extend(line for line in raw.read_text().splitlines() if line.strip())
-(out / 'raw.jsonl').write_text('\n'.join(rows) + ('\n' if rows else ''))
+seen = set()
+unique_rows = []
+duplicates = 0
+for line in rows:
+    try:
+        row = json.loads(line)
+    except ValueError:
+        duplicates += 1
+        continue
+    key = (row.get('name'), row.get('sha256'), row.get('solver'), row.get('repeat'))
+    if key in seen:
+        duplicates += 1
+        continue
+    seen.add(key)
+    unique_rows.append(line)
+if duplicates:
+    print(f'Warning: dropped {duplicates} duplicate/invalid shard rows before merging.')
+(out / 'raw.jsonl').write_text('\n'.join(unique_rows) + ('\n' if unique_rows else ''))
 instances = []
 formulation = None
 for shard in shards:
