@@ -63,24 +63,32 @@ Uma campanha completa usa:
 python3 benchmarks/tpp.py free-order NOME_DA_CAMPANHA --help
 ```
 
-No laboratório, `scripts/run_comparison.sh` prepara o submódulo e o ambiente
-Python, compila os dois solvers e chama esta mesma CLI para executar os 558
-casos alemães. O padrão é ilimitado, com um worker e uma thread por caso;
-os checkpoints ficam localmente em
-`benchmarks/campaigns/german-free-order-comparison-v1/`. Repetir o comando
-reutiliza os builds compatíveis e retoma os casos concluídos. No macOS, se o
-CMake não reconhecer o AppleClang como compatível com C++26, o setup tenta o
-LLVM do Homebrew. No Linux, tenta GCC 16/15/14 e Clang 20/19/18 instalados se
-o compilador padrão não passar a verificação; variáveis `CC` e `CXX` definidas
-pelo usuário são respeitadas. São necessários Python
-3.12+, um compilador compatível com C++26, OpenMP, Eigen3, headers Boost, Git e
-uma licença acadêmica válida do Gurobi.
+No laboratório, `scripts/run_comparison.sh` chama esta CLI para executar os
+558 casos alemães. Selecione os solvers com `--solver tpp-ours`,
+`--solver tpp-fekete` ou `--solver both` (padrão). Uma seleção de solver único
+usa por padrão uma campanha local separada, nomeada pelo solver e pelo número
+de threads por caso; `--campaign` permite escolher outro nome. O script cria a
+pasta da campanha e o manifesto na primeira execução. Repetir o comando retoma
+os casos concluídos. No macOS, se o CMake não reconhecer o AppleClang como
+compatível com C++23, o setup tenta o LLVM do Homebrew. No Linux, tenta GCC
+16/15/14 e Clang 20/19/18 instalados se o compilador padrão não passar a
+verificação; variáveis `CC` e `CXX` definidas pelo usuário são respeitadas.
 
-Rode `scripts/run_comparison.sh --setup-only` para verificar dependências,
-inicializar o runtime/licença do Gurobi e compilar ambos sem iniciar a
-campanha; falhas transitórias de download são repetidas até três vezes.
-O setup usa fingerprints locais e pula Conan/compilação quando as entradas
-não mudaram. Depois, `scripts/run_comparison.sh` inicia ou retoma o trabalho.
+Para executar somente nosso solver com oito threads por instância, use:
+
+```bash
+scripts/run_comparison.sh --solver tpp-ours --threads-per-instance 8
+```
+
+Isso cria a campanha local
+`benchmarks/campaigns/german-free-order-tpp-ours-8threads/`. Esse modo não
+prepara nem verifica Fekete ou a licença Gurobi; reutiliza os pacotes C++ já
+baixados em `third_party/tspn-socg/.conan/release` para compilar nosso solver.
+`--solver tpp-fekete` prepara e valida apenas Fekete e exige licença Gurobi;
+`--solver both` prepara e executa os dois. O comando
+`scripts/run_comparison.sh --setup-only --solver tpp-ours --threads-per-instance 8`
+verifica apenas o setup necessário para nosso solver, sem começar os casos.
+Falhas transitórias de download no setup do Fekete são repetidas até três vezes.
 `Ctrl+C` grava trajetórias incumbentes e limites
 parciais disponíveis, marcando os casos ativos como `interrupted` para serem
 reexecutados ao retomar. Durante o encerramento cooperativo, o runner informa
@@ -92,17 +100,17 @@ executar instâncias diferentes em paralelo, a campanha aceita:
 
 ```bash
 python3 benchmarks/tpp.py free-order german-instances \
-  --solver unordered --solver tspn --workers 1 --threads-per-instance 8 \
+  --solver tpp-ours --solver tpp-fekete --workers 1 --threads-per-instance 8 \
   --max-seconds 21600 --max-calls 10000000 \
   --absolute-gap 0 --relative-gap 0.000999000999000999 --eps 0.001 \
   --sampled-perimeter-initial --convex-initial-refinement --bidirectional-initial
 ```
 
-Os casos pendentes entram em uma fila compartilhada: primeiro os do nosso
-solver em ordem de índice, depois os de Fekete em ordem de índice. `--workers`
+Os casos pendentes entram em uma fila compartilhada: primeiro os casos do tpp-ours
+em ordem de índice, depois os do tpp-fekete em ordem de índice. `--workers`
 controla quantos casos dessa fila podem rodar ao mesmo tempo; quando um worker
-termina um caso nosso, ele já pega o próximo caso de Fekete, mesmo que outro
-worker ainda esteja no nosso solver. `--threads-per-instance` controla as
+termina um caso do tpp-ours, ele já pega o próximo do tpp-fekete, mesmo que
+outro worker ainda esteja no tpp-ours. `--threads-per-instance` controla as
 threads internas de cada caso. O pico é de até
 `--workers × --threads-per-instance` threads de solver. Campanhas compatíveis
 retomam os casos já registrados e guardam `report.json`, o CSV externo bruto e

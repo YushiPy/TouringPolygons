@@ -32,6 +32,18 @@ EXTERNAL_RUNNER = ROOT / 'benchmarks/_internal/tspn_run_comparison.py'
 EXTERNAL_SOURCE = ROOT / 'third_party/tspn-socg'
 DEFAULT_EXTERNAL_EPS = 1e-3
 DEFAULT_OUR_RELATIVE_GAP = DEFAULT_EXTERNAL_EPS / (1 + DEFAULT_EXTERNAL_EPS)
+SOLVER_DISPLAY_NAMES = {'unordered': 'tpp-ours', 'tspn': 'tpp-fekete'}
+SOLVER_ALIASES = {
+	'tpp-ours': 'unordered', 'tpp-fekete': 'tspn',
+	'unordered': 'unordered', 'tspn': 'tspn',
+}
+
+
+def parse_solver_name(value: str) -> str:
+	try:
+		return SOLVER_ALIASES[value]
+	except KeyError as error:
+		raise argparse.ArgumentTypeError('choose tpp-ours or tpp-fekete') from error
 UNORDERED_BUILD_FINGERPRINT = '.tpp-unordered-build-fingerprint'
 BUILD_INPUT_SUFFIXES = {'.cpp', '.cc', '.cxx', '.h', '.hh', '.hpp', '.hxx', '.ipp', '.tpp', '.txt', '.cmake', '.in'}
 
@@ -230,6 +242,7 @@ def write_comparison_summary(path: Path, report: dict, expected_cases: int) -> N
 		for name in ('unordered', 'tspn')
 	}
 	config = report.get('config', {})
+	selected_solvers = config.get('solvers', ['unordered', 'tspn'])
 	time_limit = config.get('max_seconds', 'unknown')
 	time_limit_text = 'unlimited' if time_limit == -1 else f'{time_limit} s'
 	ours_tolerance = config.get('ours_optimality', {})
@@ -238,28 +251,41 @@ def write_comparison_summary(path: Path, report: dict, expected_cases: int) -> N
 	tolerance_matched = float(ours_tolerance.get('absolute_gap', math.nan)) == 0 and eps > 0 and math.isclose(
 		relative_gap, eps / (1 + eps), rel_tol=1e-12, abs_tol=1e-15,
 	)
-	tolerance_note = (
-		'With zero absolute gap, our relative-gap threshold is algebraically equivalent to Fekete’s UB/LB ratio test.'
-		if tolerance_matched else
-		'The two solvers use different stopping thresholds; see the recorded gap parameters.'
-	)
 	lines = [
-		'# Free-order solver comparison', '',
+		'# Free-order TPP campaign results', '',
 		f"- Instances in suite: {expected_cases}",
 		f"- Instance workers: {config.get('instance_workers', 'unknown')} (instances processed concurrently)",
 		f"- Threads per instance: {config.get('threads_per_instance', 'unknown')}",
-		f"- Pending-job order: {config.get('queue_policy', 'unordered cases, then Fekete cases; one shared FIFO worker pool')}",
+		f"- Pending-job order: {config.get('queue_policy', 'solver-major FIFO shared worker pool')}",
 		f'- Per-instance time cap: {time_limit_text}',
-		f"- Our gap: absolute {config.get('ours_optimality', {}).get('absolute_gap', 'unknown')} + relative {config.get('ours_optimality', {}).get('relative_gap', 'unknown')} × |UB|",
-		f"- Fekete tolerance: UB/LB ≤ 1 + {config.get('external_optimality_eps', 'unknown')}",
-		f"- Fekete source revision: `{config.get('external_source_revision', 'unknown')}`; binding SHA-256: `{config.get('external_binding_sha256', 'unknown')}`",
-		f"- Initial strategies: {', '.join(name for name, enabled in config.get('initial_strategies', {}).items() if enabled) or 'none'}", '',
-		tolerance_note,
-		'The runtime ratios below compare the two solver configurations. They do not isolate the speedup from threading, because no single-thread control run is included.', '',
+		f"- Solvers selected: {', '.join(SOLVER_DISPLAY_NAMES[solver] for solver in selected_solvers)}",
+		f"- Initial strategies: {', '.join(name for name, enabled in config.get('initial_strategies', {}).items() if enabled) or 'none'}",
+	]
+	if 'unordered' in selected_solvers:
+		lines.append(f"- tpp-ours gap: absolute {ours_tolerance.get('absolute_gap', 'unknown')} + relative {ours_tolerance.get('relative_gap', 'unknown')} × |UB|")
+	if 'tspn' in selected_solvers:
+		lines.extend([
+			f"- tpp-fekete tolerance: UB/LB ≤ 1 + {config.get('external_optimality_eps', 'unknown')}",
+			f"- tpp-fekete source revision: `{config.get('external_source_revision', 'unknown')}`; binding SHA-256: `{config.get('external_binding_sha256', 'unknown')}`",
+		])
+	if 'unordered' in selected_solvers and 'tspn' in selected_solvers:
+		tolerance_note = (
+			'With zero absolute gap, the tpp-ours relative-gap threshold is algebraically equivalent to the tpp-fekete UB/LB ratio test.'
+			if tolerance_matched else
+			'The two solvers use different stopping thresholds; see the recorded gap parameters.'
+		)
+		lines.extend([
+			tolerance_note,
+			'The runtime ratios compare these solver configurations. They do not isolate the speedup from threading, because no single-thread control run is included.',
+		])
+	lines.extend([
+		'',
 		'| Solver | Recorded cases | Closed requested gap | Independent valid paths | Median solve time | Total solve time |',
 		'|---|---:|---:|---:|---:|---:|',
-	]
-	for solver, label in (('unordered', 'Our solver'), ('tspn', 'Fekete')):
+	])
+	for solver, label in (('unordered', 'tpp-ours'), ('tspn', 'tpp-fekete')):
+		if solver not in selected_solvers:
+			continue
 		group = list(by_solver[solver].values())
 		times = [float(row['seconds']) for row in group if row.get('seconds') is not None]
 		closed = sum(row.get('exact') is True for row in group)
@@ -274,10 +300,10 @@ def write_comparison_summary(path: Path, report: dict, expected_cases: int) -> N
 	if ratios:
 		lines.extend([
 			'', f"Paired runtime data: {len(ratios)} instances.",
-			f"Median our/Fekete runtime ratio: {statistics.median(ratios):.3f}× (below 1 means our solver was faster).",
-			f"Our solver faster: {sum(ratio < 1 for ratio in ratios)}; Fekete faster: {sum(ratio > 1 for ratio in ratios)}; equal: {sum(ratio == 1 for ratio in ratios)}.",
+			f"Median tpp-ours/tpp-fekete runtime ratio: {statistics.median(ratios):.3f}× (below 1 means tpp-ours was faster).",
+			f"tpp-ours faster: {sum(ratio < 1 for ratio in ratios)}; tpp-fekete faster: {sum(ratio > 1 for ratio in ratios)}; equal: {sum(ratio == 1 for ratio in ratios)}.",
 		])
-	if any(row.get('valid') is None for group in by_solver.values() for row in group.values()):
+	if any(row.get('valid') is None for solver in selected_solvers for row in by_solver[solver].values()):
 		lines.extend(['', 'Independent geometric validation was unavailable for some rows because Shapely was not installed in that solver environment. Those rows are marked unknown, not valid.'])
 	reference_path = ROOT / 'benchmarks/results-saved/german-comparison/fekete.csv'
 	if reference_path.exists() and 'tspn' in config.get('solvers', []):
@@ -299,17 +325,17 @@ def write_comparison_summary(path: Path, report: dict, expected_cases: int) -> N
 				speedups = [single / multi for single, multi in thread_pairs]
 				thread_count = config.get('threads_per_instance', 'unknown')
 				lines.extend([
-					'', f"Fekete thread-count control against the saved 1-thread run: {len(thread_pairs)} paired cases, same hashes, eps, and per-instance cap.",
+			'', f"tpp-fekete thread-count control against the saved 1-thread run: {len(thread_pairs)} paired cases, same hashes, eps, and per-instance cap.",
 					f"Median 1-thread/{thread_count}-thread runtime ratio: {statistics.median(speedups):.3f}× (above 1 means the multithreaded run was faster).",
 					f"Multithreaded run faster: {sum(value > 1 for value in speedups)}; 1 thread faster: {sum(value < 1 for value in speedups)}; equal: {sum(value == 1 for value in speedups)}.",
 					'This is a historical paired comparison; machine load and software environment may differ between campaigns.',
 				])
-	our_rows = list(by_solver['unordered'].values())
+	our_rows = list(by_solver['unordered'].values()) if 'unordered' in selected_solvers else []
 	parallel_cases = sum(int(row.get('parallel_oracle_calls', 0) or 0) > 0 for row in our_rows)
 	parallel_calls = sum(int(row.get('parallel_oracle_calls', 0) or 0) for row in our_rows)
 	parallel_batches = sum(int(row.get('parallel_oracle_batches', 0) or 0) for row in our_rows)
 	if our_rows:
-		lines.extend(['', f"Our solver launched parallel oracle batches on {parallel_cases}/{len(our_rows)} completed instances "
+		lines.extend(['', f"tpp-ours launched parallel oracle batches on {parallel_cases}/{len(our_rows)} completed instances "
 			f"({parallel_calls} calls in {parallel_batches} batches)."])
 	lines.extend(['', f"Campaign status: {report.get('status', 'unknown')}.", ''])
 	attempts = report.get('attempts', [])
@@ -325,7 +351,9 @@ def write_comparison_summary(path: Path, report: dict, expected_cases: int) -> N
 def main(argv: list[str] | None = None) -> int:
 	parser = argparse.ArgumentParser(description=__doc__)
 	parser.add_argument('campaign', type=Path)
-	parser.add_argument('--solver', choices=('unordered', 'tspn'), action='append')
+	parser.add_argument('--solver', type=parse_solver_name, action='append',
+		metavar='{tpp-ours,tpp-fekete}',
+		help='Select tpp-ours and/or tpp-fekete; may be repeated (default: tpp-ours).')
 	parser.add_argument('--max-instances', type=int, default=5000)
 	parser.add_argument('--max-calls', type=int, default=1000000)
 	parser.add_argument('--max-seconds', type=float, default=30,
@@ -333,7 +361,7 @@ def main(argv: list[str] | None = None) -> int:
 	parser.add_argument('--threads-per-instance', type=int, default=1,
 		help='Solver threads used inside one instance.')
 	parser.add_argument('--workers', type=int, default=1,
-		help='Concurrent solver-case jobs across the shared unordered-then-Fekete queue.')
+		help='Concurrent cases across the selected solver queue(s).')
 	parser.add_argument('--absolute-gap', type=float, default=0.0)
 	parser.add_argument('--relative-gap', type=float, default=DEFAULT_OUR_RELATIVE_GAP)
 	parser.add_argument('--eps', type=float, default=DEFAULT_EXTERNAL_EPS,
@@ -386,7 +414,8 @@ def main(argv: list[str] | None = None) -> int:
 		external_revision = 'unknown'
 	config = {'visit_order': 'free', 'solvers': solvers,
 		'threads_per_instance': args.threads_per_instance, 'instance_workers': args.workers,
-		'queue_policy': 'solver-major FIFO shared worker pool',
+		'queue_policy': 'solver-major FIFO shared worker pool: ' + ' then '.join(
+			SOLVER_DISPLAY_NAMES[solver] for solver in solvers),
 		'max_calls': args.max_calls, 'max_seconds': args.max_seconds, 'hashes': [c.digest for c in cases],
 		'ours_optimality': {'absolute_gap': args.absolute_gap, 'relative_gap': args.relative_gap},
 		'unordered_binary_sha256': None,
@@ -438,7 +467,7 @@ def main(argv: list[str] | None = None) -> int:
 				resume_path = prior
 	if 'tspn' in solvers and not (external_python.exists() and EXTERNAL_RUNNER.exists()
 		and (external_build / 'python/tspn_bnb2/core').exists()):
-		raise FileNotFoundError('External TSPN Python or built binding is unavailable; use --external-python and --external-build.')
+		raise FileNotFoundError('tpp-fekete Python or built binding is unavailable; use --external-python and --external-build.')
 	if resume_path:
 		run = resume_path.parent
 		report = json.loads(resume_path.read_text())
@@ -449,19 +478,31 @@ def main(argv: list[str] | None = None) -> int:
 	else:
 		run = results / (datetime.now(UTC).strftime('%Y%m%d-%H%M%S-') + uuid.uuid4().hex[:6])
 		run.mkdir(parents=True)
+		notes = [f'Fixed endpoints; free visit order. {args.workers} shared worker(s); {args.threads_per_instance} solver thread(s) per case.',
+			f"Pending cases are queued for {' then '.join(SOLVER_DISPLAY_NAMES[solver] for solver in solvers)} in one FIFO worker pool."]
+		if 'unordered' in solvers:
+			notes.append(f'tpp-ours target gap is {args.absolute_gap:g} + {args.relative_gap:g} × |UB|.')
+		if 'tspn' in solvers:
+			notes.append(f'tpp-fekete accepts UB/LB <= 1 + {args.eps:g}.')
+		if 'unordered' in solvers and 'tspn' in solvers:
+			notes.append(
+				('With zero absolute gap, the configured relative gap is algebraically equivalent to the tpp-fekete UB/LB ratio test.'
+				if args.absolute_gap == 0 and math.isclose(args.relative_gap, args.eps / (1 + args.eps), rel_tol=1e-12, abs_tol=1e-15)
+				else 'The two solvers use different stopping thresholds; both configured criteria are recorded explicitly.')
+			)
+		notes.append(
+			f'Selected solver(s) use feasibility tolerance {args.feasibility_tolerance:g} where their APIs permit it; independent validation uses {args.validation_tolerance:g}.'
+		)
+		if 'tspn' in solvers:
+			notes.extend([
+				'External raw and endpoint-snapped trajectories are reported separately; snapping never changes the declared solver result.',
+				'tpp-fekete uses per-instance child-evaluation threads; tpp-ours uses per-instance sibling-oracle threads. Oracle-call counters are not equivalent units.',
+			f"tpp-fekete source revision: {external_revision}; executed binding SHA-256: {external_binding_sha256 or 'unavailable'}.",
+			])
+		notes.append('Only completed rows with matching campaign configuration and input hashes are reused on resume.')
 		report = {'schema_version': 2, 'key': key, 'config': config, 'visit_order': 'free', 'title': metadata.get('name', campaign.name),
 		'created_at': datetime.now(UTC).isoformat(), 'status': 'running', 'rows': [],
-		'notes': [f'Fixed endpoints; free visit order. {args.workers} shared worker(s); {args.threads_per_instance} solver thread(s) per case.',
-			'Pending cases are queued for our solver first and Fekete second in one FIFO worker pool; a freed worker can start Fekete while another worker is still running our solver.',
-			f'Our target gap is {args.absolute_gap:g} + {args.relative_gap:g} × |UB|. Fekete accepts UB/LB <= 1 + {args.eps:g}.',
-			('With zero absolute gap, the configured relative gap is algebraically equivalent to Fekete’s UB/LB ratio test.'
-				if args.absolute_gap == 0 and math.isclose(args.relative_gap, args.eps / (1 + args.eps), rel_tol=1e-12, abs_tol=1e-15)
-				else 'The two solvers use different stopping thresholds; both configured criteria are recorded explicitly.'),
-			f'Both solvers use feasibility tolerance {args.feasibility_tolerance:g} where their APIs permit it; independent validation uses {args.validation_tolerance:g}.',
-			'External raw and endpoint-snapped trajectories are reported separately; snapping never changes the declared solver result.',
-			'Fekete calls use its per-instance child-evaluation threading; our calls use per-instance sibling-oracle threading. Oracle-call counters are not equivalent units.',
-			f"Fekete source revision: {external_revision}; executed binding SHA-256: {external_binding_sha256 or 'unavailable'}.",
-			'Only completed rows with matching campaign configuration and input hashes are reused on resume.']}
+		'notes': notes}
 	report.setdefault('attempts', [])
 	attempt = {'started_at': datetime.now(UTC).isoformat(), 'finished_at': None,
 		'elapsed_wall_seconds': None, 'status': 'running',
@@ -648,10 +689,11 @@ def main(argv: list[str] | None = None) -> int:
 	jobs = _pending_solver_jobs(len(cases), solvers, successful_pairs())
 	unordered_pending = sum(solver == 'unordered' for solver, _ in jobs)
 	tspn_pending = sum(solver == 'tspn' for solver, _ in jobs)
-	print(f'Queue: unordered={unordered_pending}, Fekete={tspn_pending}, workers={args.workers}, '
+	print(f'Queue: tpp-ours={unordered_pending}, tpp-fekete={tspn_pending}, workers={args.workers}, '
 		f'threads/job={args.threads_per_instance}', flush=True)
 	for solver in solvers:
-		print(f'## {solver}: {sum(item[0] == solver for item in jobs)} pending job(s)', flush=True)
+		label = SOLVER_DISPLAY_NAMES[solver]
+		print(f'## {label}: {sum(item[0] == solver for item in jobs)} pending job(s)', flush=True)
 
 	try:
 		if jobs:
@@ -666,7 +708,9 @@ def main(argv: list[str] | None = None) -> int:
 					commit_job_result(result)
 					job = (result['solver'], result['case'])
 					written_jobs.add(job)
-					print(f'jobs | [free] {completed}/{len(jobs)} | {job[0]} case {job[1] + 1} complete', flush=True)
+					job_status = result['row'].get('status') or result['row'].get('termination') or 'finished'
+					label = SOLVER_DISPLAY_NAMES[job[0]]
+					print(f'jobs | [free] {completed}/{len(jobs)} | {label} case {job[1] + 1} finished ({job_status})', flush=True)
 			except KeyboardInterrupt:
 				previous_sigint_handler = signal.getsignal(signal.SIGINT)
 				forced_shutdown = False
@@ -704,7 +748,7 @@ def main(argv: list[str] | None = None) -> int:
 						commit_job_result(result)
 						written_jobs.add(job)
 						row = result['row']
-						print(f'partial | [free] {job[0]} case {job[1] + 1}: '
+						print(f'partial | [free] {SOLVER_DISPLAY_NAMES[job[0]]} case {job[1] + 1}: '
 							f'{row.get("termination", row.get("status", "interrupted"))}; '
 							f'UB={row.get("upper_bound", "n/a")} LB={row.get("lower_bound", "n/a")}', flush=True)
 				finally:

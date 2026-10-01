@@ -11,6 +11,8 @@ workers=1
 threads_per_instance=1
 build_jobs="${TPP_BUILD_JOBS:-8}"
 campaign_name="german-free-order-comparison-v1"
+solver_choice="both"
+campaign_explicit=0
 max_seconds=-1
 max_calls=100000000
 force=0
@@ -20,23 +22,24 @@ usage() {
 	cat <<'EOF'
 Usage: scripts/run_comparison.sh [options]
 
-Build both free-order solvers, then run or resume the 558-case German
-fixed-endpoint comparison. The default per-instance time limit is unlimited.
+Build the selected solver(s), then run or resume the 558-case German
+fixed-endpoint campaign. The default per-instance time limit is unlimited.
 
 Options:
+  --solver NAME               tpp-ours, tpp-fekete, or both (default: both)
   --workers N                 Concurrent queued solver cases (default: 1)
   --threads-per-instance N    Solver threads per instance (default: 1)
   --build-jobs N              Parallel compiler jobs (default: TPP_BUILD_JOBS or 8)
-  --campaign NAME             Local campaign name (default: german-free-order-comparison-v1)
+  --campaign NAME             Override the selected solver campaign name
   --max-seconds N             Per-instance limit; -1 means unlimited (default: -1)
   --max-calls N               Our solver's call limit (default: 100000000)
-  --setup-only                Check dependencies and compile both solvers, then exit
+  --setup-only                Check selected dependencies/builds, then exit
   --force                     Start a new report instead of resuming/reusing one
   -h, --help                  Show this help
 
-Python 3.12+ is required. Set TPP_PYTHON to select its executable. The host
-needs a C++23-capable compiler, OpenMP, Eigen3, Boost headers, and a valid
-Gurobi academic license for the Fekete solver.
+Python 3.12+ is required. Set TPP_PYTHON to select its executable. Building
+tpp-ours needs a C++23-capable compiler, OpenMP, Eigen3, and Boost headers.
+tpp-fekete also needs a valid Gurobi academic license.
 EOF
 }
 
@@ -47,6 +50,11 @@ fail() {
 
 while (($#)); do
 	case "$1" in
+		--solver)
+			(($# >= 2)) || fail '--solver requires a value'
+			solver_choice="$2"
+			shift 2
+			;;
 		--workers)
 			(($# >= 2)) || fail '--workers requires a value'
 			workers="$2"
@@ -65,6 +73,7 @@ while (($#)); do
 		--campaign)
 			(($# >= 2)) || fail '--campaign requires a value'
 			campaign_name="$2"
+			campaign_explicit=1
 			shift 2
 			;;
 		--max-seconds)
@@ -102,6 +111,20 @@ done
 [[ "$max_calls" =~ ^[1-9][0-9]*$ ]] || fail '--max-calls must be a positive integer'
 [[ "$campaign_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && "$campaign_name" != '.' && "$campaign_name" != '..' ]] \
 	|| fail '--campaign must be a simple name without path separators'
+case "$solver_choice" in
+	tpp-ours|tpp-fekete|both) ;;
+	*) fail '--solver must be tpp-ours, tpp-fekete, or both' ;;
+esac
+if (( ! campaign_explicit )) && [[ "$solver_choice" != both ]]; then
+	campaign_name="german-free-order-${solver_choice}-${threads_per_instance}threads"
+fi
+run_tpp_ours=0
+run_tpp_fekete=0
+case "$solver_choice" in
+	tpp-ours) run_tpp_ours=1 ;;
+	tpp-fekete) run_tpp_fekete=1 ;;
+	both) run_tpp_ours=1; run_tpp_fekete=1 ;;
+esac
 
 command -v git >/dev/null 2>&1 || fail 'git is required'
 
@@ -132,6 +155,11 @@ PY
 [[ "$actual_suite_sha256" == "$EXPECTED_SUITE_SHA256" ]] \
 	|| fail "German suite SHA-256 mismatch: expected $EXPECTED_SUITE_SHA256, got $actual_suite_sha256"
 
+external_venv="$EXTERNAL_SOURCE/.venv"
+external_python="$external_venv/bin/python"
+runner_python="$python_bin"
+
+if ((run_tpp_fekete)); then
 expected_submodule="$(git -C "$ROOT" ls-tree HEAD -- third_party/tspn-socg | awk '$1 == "160000" {print $3}')"
 [[ -n "$expected_submodule" ]] || fail 'third_party/tspn-socg is not pinned as a Git submodule in HEAD'
 external_patches=(
@@ -382,6 +410,25 @@ done
 export CMAKE_PREFIX_PATH="$conan_cmake_prefix${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
 printf 'Reusing Conan C++ dependencies for our solver: %s\n' "$conan_cmake_prefix"
 
+fi
+
+if ((run_tpp_fekete)); then
+	runner_python="$external_python"
+fi
+
+if ((run_tpp_ours && !run_tpp_fekete)); then
+	conan_cmake_prefix="$EXTERNAL_SOURCE/.conan/release"
+	for dependency_config in Eigen3Config.cmake BoostConfig.cmake; do
+		[[ -f "$conan_cmake_prefix/$dependency_config" ]] \
+			|| fail "Cached C++ dependency $dependency_config is missing at $conan_cmake_prefix; prepare the C++ dependencies first."
+	done
+	[[ -f "$conan_cmake_prefix/cgal-config.cmake" || -f "$conan_cmake_prefix/CGALConfig.cmake" ]] \
+		|| fail "Cached CGAL CMake package is missing at $conan_cmake_prefix; prepare the C++ dependencies first."
+	export CMAKE_PREFIX_PATH="$conan_cmake_prefix${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
+	printf 'Using cached C++ dependencies for tpp-ours: %s\n' "$conan_cmake_prefix"
+fi
+
+if ((run_tpp_ours)); then
 last_cpp23_probe_diagnostic=''
 probe_cpp23_toolchain() {
 	local probe_cc="$1"
@@ -487,7 +534,7 @@ fi
 # standard unchanged for other targets, some of which use std::print.
 export TPP_CXX_STANDARD=23
 
-"$external_python" - "$ROOT" <<'PY'
+"$runner_python" - "$ROOT" <<'PY'
 import pathlib
 import sys
 
@@ -500,11 +547,13 @@ print(f"Verified our solver build: {binary}")
 PY
 "$ROOT/.build/unordered/tpp" --help >/dev/null
 
+fi
+
 if ((setup_only)); then
 	printf 'Pinned German suite: %s cases (%s)\n' "$EXPECTED_CASES" "$EXPECTED_SUITE_SHA256"
-	printf 'Fekete revision: %s\n' "$current_submodule"
-	printf 'Setup complete: dependencies verified and both solvers compiled.\n'
-	printf 'Run the comparison with: scripts/run_comparison.sh'
+	if ((run_tpp_fekete)); then printf 'Fekete revision: %s\n' "$current_submodule"; fi
+	printf 'Setup complete for solver selection: %s.\n' "$solver_choice"
+	printf 'Run the campaign with: scripts/run_comparison.sh --solver %s' "$solver_choice"
 	if [[ "$campaign_name" != 'german-free-order-comparison-v1' ]]; then
 		printf ' --campaign %s' "$campaign_name"
 	fi
@@ -520,7 +569,7 @@ fi
 
 campaign_dir="$ROOT/benchmarks/campaigns/$campaign_name"
 mkdir -p "$campaign_dir"
-"$external_python" - "$campaign_dir" "$SUITE" "$campaign_name" "$EXPECTED_SUITE_SHA256" "$EXPECTED_CASES" <<'PY'
+"$runner_python" - "$campaign_dir" "$SUITE" "$campaign_name" "$EXPECTED_SUITE_SHA256" "$EXPECTED_CASES" <<'PY'
 import hashlib
 import json
 import os
@@ -554,7 +603,7 @@ else:
         raise SystemExit(f"Campaign directory has files but no campaign.json; preserving it: {campaign}")
     metadata = {
         "schema_version": 1,
-        "name": f"German 558-case fixed-endpoint free-order comparison ({name})",
+        "name": f"German 558-case fixed-endpoint free-order campaign ({name})",
         "type": "free_order_comparison",
         "inputs": [{"file": relative_suite}],
         "source": {
@@ -569,18 +618,21 @@ else:
 PY
 
 printf 'Pinned German suite: %s cases (%s)\n' "$EXPECTED_CASES" "$EXPECTED_SUITE_SHA256"
-printf 'Fekete revision: %s\n' "$current_submodule"
+if ((run_tpp_fekete)); then printf 'Fekete revision: %s\n' "$current_submodule"; fi
+printf 'Solver selection: %s\n' "$solver_choice"
 printf 'Campaign: %s\n' "$campaign_dir"
 printf 'Run settings: workers=%s, threads/instance=%s, max-seconds=%s, max-calls=%s\n' \
 	"$workers" "$threads_per_instance" "$max_seconds" "$max_calls"
 
-relative_gap="$("$external_python" -c 'eps = 0.001; print(format(eps / (1.0 + eps), ".17g"))')"
-command=("$external_python" "$ROOT/benchmarks/tpp.py" free-order "$campaign_name"
-	--solver unordered --solver tspn --max-instances "$EXPECTED_CASES"
+relative_gap="$("$runner_python" -c 'eps = 0.001; print(format(eps / (1.0 + eps), ".17g"))')"
+command=("$runner_python" "$ROOT/benchmarks/tpp.py" free-order "$campaign_name"
+	--max-instances "$EXPECTED_CASES"
 	--max-calls "$max_calls" --max-seconds "$max_seconds"
 	--threads-per-instance "$threads_per_instance" --workers "$workers"
 	--absolute-gap 0 --relative-gap "$relative_gap" --eps 0.001
 	--feasibility-tolerance 0.001 --validation-tolerance 1e-7)
+if ((run_tpp_ours)); then command+=(--solver tpp-ours); fi
+if ((run_tpp_fekete)); then command+=(--solver tpp-fekete); fi
 if ((force)); then
 	command+=(--force)
 fi
