@@ -42,7 +42,9 @@ double do oráculo TPP embutido. Enquanto aplicados, aparecem como alterações
 locais no submódulo; o commit fixado permanece o mesmo. Fingerprints locais
 fazem o setup pular a resolução Conan e a compilação quando fontes e
 configuração não mudaram. O setup de nosso solver verifica C++23; isso permite
-usar GCC 13 distribuído com Ubuntu 24.04. Outros targets mantêm C++26. No
+usar GCC 13 distribuído com Ubuntu 24.04. Se CMake não estiver no `PATH`, o
+runner reutiliza o CMake do ambiente local do Fekete ou o instala nesse ambiente
+com `pip`, sem `sudo`. Outros targets mantêm C++26. No
 macOS e Linux, se o compilador padrão não passar, o script tenta toolchains
 compatíveis instalados. `CC` e `CXX` definidos pelo usuário são respeitados.
 

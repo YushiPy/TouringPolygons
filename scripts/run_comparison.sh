@@ -38,7 +38,7 @@ Options:
   -h, --help                  Show this help
 
 Python 3.12+ is required. Set TPP_PYTHON to select its executable. Building
-tpp-ours needs a C++23-capable compiler, OpenMP, Eigen3, and Boost headers.
+tpp-ours needs CMake, a C++23-capable compiler, OpenMP, Eigen3, and Boost headers.
 tpp-fekete also needs a valid Gurobi academic license.
 EOF
 }
@@ -429,6 +429,20 @@ if ((run_tpp_ours && !run_tpp_fekete)); then
 fi
 
 if ((run_tpp_ours)); then
+	if [[ -x "$external_venv/bin/cmake" ]]; then
+		export PATH="$external_venv/bin:$PATH"
+	elif ! command -v cmake >/dev/null 2>&1; then
+		if [[ ! -x "$external_python" ]]; then
+			"$python_bin" -m venv "$external_venv"
+		fi
+		printf 'CMake is not on PATH; installing it in the local comparison environment.\n'
+		"$external_python" -m pip install --disable-pip-version-check 'cmake>=3.23,<4' \
+			|| fail "could not install CMake in $external_venv; restore network access or install CMake 3.23+"
+		export PATH="$external_venv/bin:$PATH"
+	fi
+	command -v cmake >/dev/null 2>&1 || fail 'CMake is required to build tpp-ours'
+	printf 'Using CMake: %s\n' "$(command -v cmake)"
+
 last_cpp23_probe_diagnostic=''
 probe_cpp23_toolchain() {
 	local probe_cc="$1"
