@@ -13,6 +13,7 @@ solver_choice="both"
 seconds=60
 external_timeout=75
 repetitions=1
+workers=1
 relative_gap="1e-6"
 cycle_optimizations="cache,features,root,interval"
 portfolio_flag=""
@@ -46,6 +47,8 @@ Options:
   --capture-oracles           Record per-call oracle captures (diagnostic)
   --solver NAME               tpp-ours, tpp-fekete, or both (default: both).
                               tpp-ours does not need Gurobi.
+  --workers N                 Run N parallel case shards (default: 1). Each
+                              instance's real solve keeps 1 thread).
   --force                     Move the existing campaign directory aside
   --setup-only                Check dependencies and exit
   --dry-run                   Print the plan and exit
@@ -98,6 +101,9 @@ while (($#)); do
 		--solver)
 			(($# >= 2)) || fail '--solver requires a value'
 			solver_choice="$2"; shift 2 ;;
+		--workers)
+			(($# >= 2)) || fail '--workers requires a value'
+			workers="$2"; shift 2 ;;
 		--force)
 			force=1; shift ;;
 		--setup-only)
@@ -114,6 +120,7 @@ done
 [[ "$seconds" =~ ^(0\.[0-9]+|[1-9][0-9]*(\.[0-9]+)?)$ ]] || fail '--seconds must be a positive number'
 [[ "$external_timeout" =~ ^(0\.[0-9]+|[1-9][0-9]*(\.[0-9]+)?)$ ]] || fail '--external-timeout must be a positive number'
 [[ "$repetitions" =~ ^[1-9][0-9]*$ ]] || fail '--repetitions must be a positive integer'
+[[ "$workers" =~ ^[1-9][0-9]*$ ]] || fail '--workers must be a positive integer'
 [[ "$campaign_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && "$campaign_name" != '.' && "$campaign_name" != '..' ]] \
 	|| fail '--campaign must be a simple name without path separators'
 case "$search_strategy" in
@@ -195,20 +202,40 @@ fi
 
 output_dir="$ROOT/benchmarks/campaigns/$campaign_name"
 
-# Choose the newest C++ standard the default compiler supports. Remote Ubuntu
-# 24.04 ships GCC 13 (C++23 only); newer toolchains keep the default C++26.
+# Choose the newest C++ standard the default compiler's CMake supports.
+# Remote Ubuntu 24.04 ships GCC 13 (cxx_std_23 only); newer toolchains may
+# accept cxx_std_26. AppleClang's -std=c++26 works while its CMake feature
+# cxx_std_26 is unknown, so probe at the CMake level like run_comparison.sh.
 if [[ -z "${TPP_CXX_STANDARD:-}" ]]; then
-	probe_dir="$(mktemp -d "${TMPDIR:-/tmp}/tpp-cxx-probe.XXXXXX")"
-	printf '#include <format>\nint main(){return std::format("{}",0)=="0"?0:1;}\n' > "$probe_dir/main.cpp"
-	TPP_CXX_STANDARD=""
-	for std_flag in c++26 c++2b; do
-		if "${CXX:-c++}" -std=$std_flag "$probe_dir/main.cpp" -o "$probe_dir/probe" 2>/dev/null && "$probe_dir/probe"; then
-			if [[ "$std_flag" == 'c++26' ]]; then TPP_CXX_STANDARD=26; else TPP_CXX_STANDARD=23; fi
-			break
+	probe_cxx_standard() {
+		local meta="$1" probe_dir status=0
+		probe_dir="$(mktemp -d "${TMPDIR:-/tmp}/tpp-cxx-probe.XXXXXX")"
+		cat > "$probe_dir/CMakeLists.txt" <<EOF
+cmake_minimum_required(VERSION 3.20)
+project(tpp_cxx_probe LANGUAGES CXX)
+add_executable(tpp_cxx_probe main.cpp)
+target_compile_features(tpp_cxx_probe PRIVATE cxx_std_${meta})
+EOF
+		echo '#include <format>
+int main(){return std::format("{}",0)=="0"?0:1;}' > "$probe_dir/main.cpp"
+		cmake -S "$probe_dir" -B "$probe_dir/build" > "$probe_dir/config.log" 2>&1 || status=$?
+		if ((status == 0)); then
+			cmake --build "$probe_dir/build" > "$probe_dir/build.log" 2>&1 || status=$?
 		fi
-	done
-	rm -rf "$probe_dir"
-	[[ -n "$TPP_CXX_STANDARD" ]] || fail 'the default c++ compiler supports neither C++26 nor C++23 std::format; export TPP_CXX_STANDARD and/or CC/CXX, or install a newer toolchain'
+		if ((status == 0)) && "$probe_dir/build/tpp_cxx_probe"; then
+			rm -rf "$probe_dir"
+			return 0
+		fi
+		rm -rf "$probe_dir"
+		return 1
+	}
+	if probe_cxx_standard 26; then
+		TPP_CXX_STANDARD=26
+	elif probe_cxx_standard 23; then
+		TPP_CXX_STANDARD=23
+	else
+		fail 'the default c++ compiler supports neither cxx_std_26 nor cxx_std_23; export TPP_CXX_STANDARD and/or CC/CXX, or install a newer toolchain'
+	fi
 	export TPP_CXX_STANDARD
 	printf 'Detected C++ standard: %s\n' "$TPP_CXX_STANDARD"
 fi
@@ -249,4 +276,124 @@ printf 'Archive: %s cases; campaign: %s\n' "$EXPECTED_CASES" "$output_dir"
 printf 'Settings: seconds=%s, external-timeout=%s, repetitions=%s, gap=%s, portfolio=%s, search=%s, opts=%s\n' \
 	"$seconds" "$external_timeout" "$repetitions" "$relative_gap" "${portfolio_flag:-none}" "${search_strategy:-default}" "$cycle_optimizations"
 
-"$python_bin" "$ROOT/benchmarks/tpp.py" tspn-benchmark "${args[@]}"
+if (( workers == 1 || dry_run )); then
+	"$python_bin" "$ROOT/benchmarks/tpp.py" tspn-benchmark "${args[@]}"
+	exit $?
+fi
+
+# Parallel mode: build once, shard the archive, merge the finished shards.
+fekete_flag=ON
+build_targets=(tpp-fekete-cycle tpp-unordered)
+if [[ "$solver_choice" == 'tpp-ours' ]]; then
+	fekete_flag=OFF; build_targets=(tpp-unordered)
+elif [[ "$solver_choice" == 'tpp-fekete' ]]; then
+	build_targets=(tpp-fekete-cycle)
+fi
+build_dir="$ROOT/.build/tspn-comparison"
+configure_cmd=(cmake -S "$ROOT/benchmarks/_internal/tspn_native" -B "$build_dir"
+	-DFEKETE_SOURCE="$EXTERNAL_SOURCE" -DTARGET=main-unordered
+	-DWITH_TSPN_FEKETE="$fekete_flag" -DTPP_CXX_STANDARD="$TPP_CXX_STANDARD")
+if [[ -n "${GUROBI_HOME:-}" ]]; then configure_cmd+=(-DGUROBI_HOME="$GUROBI_HOME"); fi
+nlohmann_header="$(find "$HOME/.conan2/p" -path '*/p/include/nlohmann/json.hpp' 2>/dev/null | head -1 || true)"
+if [[ -n "$nlohmann_header" ]]; then configure_cmd+=(-DNLOHMANN_INCLUDE_DIR="$(dirname "$(dirname "$nlohmann_header")")"); fi
+printf 'Building shared binaries in %s (%s)\n' "$build_dir" "${build_targets[*]}"
+"${configure_cmd[@]}" > "$output_dir/build.txt" 2>&1 \
+	|| { tail -40 "$output_dir/build.txt" >&2; fail 'configure failed'; }
+cmake --build "$build_dir" --target "${build_targets[@]}" -j "${TPP_BUILD_JOBS:-8}" >> "$output_dir/build.txt" 2>&1 \
+	|| { tail -40 "$output_dir/build.txt" >&2; fail 'build failed'; }
+
+ours_binary="$build_dir/touring_polygons/tpp-unordered"
+fekete_binary="$build_dir/tpp-fekete-cycle"
+"$python_bin" - "$SUITE" "$workers" "$output_dir" "$ROOT" <<'PY'
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[4])
+sys.path.insert(0, str(root / 'benchmarks' / '_internal'))
+import tspn_benchmark
+
+archive = pathlib.Path(sys.argv[1])
+workers = int(sys.argv[2])
+out = pathlib.Path(sys.argv[3])
+cases, counts = tspn_benchmark.select_all_socg_inputs(archive)
+for i in range(workers):
+    shard = [c for idx, c in enumerate(cases) if idx % workers == i]
+    shard_dir = out / f'shard-{i}'
+    shard_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        'formulation': 'TSPN, free cyclic order, no fixed point, closed polygon regions',
+        'selection': {'archive': str(archive), 'policy': 'all archive cases', 'shard': f'{i+1}/{workers}'},
+        'instances': shard,
+    }
+    (shard_dir / 'instances.json').write_text(json.dumps(payload))
+print(f'Shard instances written for {workers} workers: {len(cases)} cases total')
+PY
+
+shard_pids=()
+for ((i=0; i<workers; i++)); do
+	shard_dir="$output_dir/shard-$i"
+	shard_args=(--inputs "$shard_dir/instances.json" --output "$shard_dir"
+		--seconds "$seconds" --external-timeout "$external_timeout"
+		--repetitions "$repetitions" --relative-gap "$relative_gap"
+		--skip-build --build-dir "$build_dir" --ours-binary "$ours_binary")
+	if [[ "$solver_choice" != 'tpp-ours' ]]; then shard_args+=(--fekete-binary "$fekete_binary"); fi
+	if ((${#solver_args[@]} > 0)); then shard_args+=("${solver_args[@]}"); fi
+	if [[ -f "$shard_dir/config.json" ]]; then shard_args+=(--resume); fi
+	if [[ -n "$portfolio_flag" ]]; then shard_args+=("$portfolio_flag"); fi
+	if [[ -n "$search_strategy" ]]; then shard_args+=(--search-strategy "$search_strategy"); fi
+	if ((capture_oracles)); then shard_args+=(--capture-oracles); fi
+	for opt in "${optimizations[@]}"; do
+		opt="${opt// /}"
+		[[ -n "$opt" ]] && shard_args+=(--cycle-optimization "$opt")
+	done
+	echo "Shard $i: ${#shard_args[@]} args; log $shard_dir/run.log"
+	"$python_bin" "$ROOT/benchmarks/tpp.py" tspn-benchmark "${shard_args[@]}" \
+		> "$shard_dir/run.log" 2>&1 &
+	shard_pids+=($!)
+done
+
+rc=0
+for pid in "${shard_pids[@]}"; do
+	wait "$pid" || rc=$?
+done
+if ((rc != 0)); then printf 'Warning: at least one shard exited with status %s; merging available records.\n' "$rc" >&2; fi
+
+"$python_bin" - "$output_dir" "$workers" "$ROOT" <<'PY'
+import json
+import sys
+import pathlib
+
+out = pathlib.Path(sys.argv[1])
+workers = int(sys.argv[2])
+root = pathlib.Path(sys.argv[3])
+sys.path.insert(0, str(root / 'benchmarks' / '_internal'))
+from tspn_diagnostics import digest
+
+shards = [out / f'shard-{i}' for i in range(workers)]
+rows = []
+for shard in shards:
+    raw = shard / 'raw.jsonl'
+    if raw.exists():
+        rows.extend(line for line in raw.read_text().splitlines() if line.strip())
+(out / 'raw.jsonl').write_text('\n'.join(rows) + ('\n' if rows else ''))
+instances = []
+formulation = None
+for shard in shards:
+    payload = json.loads((shard / 'instances.json').read_text())
+    formulation = formulation or payload['formulation']
+    instances.extend(payload['instances'])
+config = json.loads((shards[0] / 'config.json').read_text())
+full = {'formulation': formulation, 'instances': instances,
+        'selection': {'policy': 'all archive cases', 'shards': workers}}
+(out / 'instances.json').write_text(json.dumps(full))
+config['inputs_sha256'] = digest(full)
+config['plan']['cases'] = len(instances)
+config['plan']['planned_runs'] = len(instances) * config['repetitions'] * len(config.get('solvers', ['ours', 'fekete']))
+config['plan']['shards'] = workers
+(out / 'config.json').write_text(json.dumps(config, indent=2) + '\n')
+print(f'Merged {len(rows)} rows from {workers} shards into {out}')
+PY
+if [[ $? -ne 0 ]]; then echo 'Warning: merge failed' >&2; fi
+"$python_bin" "$ROOT/benchmarks/tpp.py" tspn-benchmark --report-only --output "$output_dir" || true
+exit $rc
