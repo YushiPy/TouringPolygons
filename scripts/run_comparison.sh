@@ -24,7 +24,7 @@ Build both free-order solvers, then run or resume the 558-case German
 fixed-endpoint comparison. The default per-instance time limit is unlimited.
 
 Options:
-  --workers N                 Concurrent instances (default: 1)
+  --workers N                 Concurrent queued solver cases (default: 1)
   --threads-per-instance N    Solver threads per instance (default: 1)
   --build-jobs N              Parallel compiler jobs (default: TPP_BUILD_JOBS or 8)
   --campaign NAME             Local campaign name (default: german-free-order-comparison-v1)

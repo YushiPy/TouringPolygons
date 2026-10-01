@@ -65,7 +65,7 @@ python3 benchmarks/tpp.py free-order NOME_DA_CAMPANHA --help
 
 No laboratório, `scripts/run_comparison.sh` prepara o submódulo e o ambiente
 Python, compila os dois solvers e chama esta mesma CLI para executar os 558
-casos alemães. O padrão é ilimitado, com um worker e uma thread por instância;
+casos alemães. O padrão é ilimitado, com um worker e uma thread por caso;
 os checkpoints ficam localmente em
 `benchmarks/campaigns/german-free-order-comparison-v1/`. Repetir o comando
 reutiliza os builds compatíveis e retoma os casos concluídos. No macOS, se o
@@ -98,9 +98,14 @@ python3 benchmarks/tpp.py free-order german-instances \
   --sampled-perimeter-initial --convex-initial-refinement --bidirectional-initial
 ```
 
-`--workers` controla instâncias simultâneas; `--threads-per-instance` controla
-threads dentro de cada solver. Campanhas com a mesma configuração retomam os
-casos já registrados e guardam `report.json`, os dados externos brutos e
+Os casos pendentes entram em uma fila compartilhada: primeiro os do nosso
+solver em ordem de índice, depois os de Fekete em ordem de índice. `--workers`
+controla quantos casos dessa fila podem rodar ao mesmo tempo; quando um worker
+termina um caso nosso, ele já pega o próximo caso de Fekete, mesmo que outro
+worker ainda esteja no nosso solver. `--threads-per-instance` controla as
+threads internas de cada caso. O pico é de até
+`--workers × --threads-per-instance` threads de solver. Campanhas compatíveis
+retomam os casos já registrados e guardam `report.json`, o CSV externo bruto e
 `comparison.md` em `benchmarks/campaigns/<nome>/results/free-order/`.
 
 Para medir o efeito das threads, compare runs de uma thread e multithread dos

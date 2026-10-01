@@ -34,11 +34,13 @@ compilação de C++23 antes de construir os solvers da campanha. Isso permite
 usar o GCC 13 distribuído com Ubuntu 24.04. Outros targets do repositório
 mantêm C++26 como padrão. No macOS e Linux, se o compilador padrão não passar
 a verificação, o script tenta toolchains compatíveis instalados. `CC` e `CXX`
-definidos pelo usuário são respeitados. Depois executa os 558
-casos do corpus alemão com endpoints fixos e ordem de visita livre, primeiro
-no nosso solver e depois no de Fekete. O
-limite padrão por caso é ilimitado; a configuração padrão usa um caso e uma
-thread por vez. A máquina precisa ter compilador compatível com C++23, OpenMP,
+definidos pelo usuário são respeitados. Os 558 casos do corpus alemão, com
+endpoints fixos e ordem de visita livre, entram em uma fila compartilhada:
+primeiro os casos pendentes do nosso solver, depois os de Fekete. Os workers
+consomem a mesma fila; um worker que termina um caso nosso pode começar Fekete
+enquanto outro ainda resolve um caso nosso. O limite padrão por caso é
+ilimitado; a configuração padrão usa um worker e uma thread por caso. A máquina
+precisa ter compilador compatível com C++23, OpenMP,
 Python com suporte a venv/pip, acesso à rede durante a primeira configuração e
 uma licença acadêmica válida do Gurobi. O solver Fekete baixa Eigen3, Boost,
 CGAL e as demais dependências C++ com Conan; o runner reutiliza os pacotes para
@@ -50,6 +52,12 @@ solver terminar a chamada geométrica em andamento; um segundo `Ctrl+C` força o
 encerramento do processo nativo e preserva os checkpoints já gravados. Para o solver Fekete, o runner salva
 periodicamente sua melhor trajetória e os limites conhecidos; interrupções
 ficam marcadas como `interrupted` e são tentadas novamente ao retomar.
+
+Por exemplo, `--workers 2 --threads-per-instance 12` permite até dois casos
+simultâneos, cada um com 12 threads internas. Quando um deles termina um caso
+pendente do nosso solver, passa ao próximo caso de Fekete sem esperar o outro.
+O pico é de até `workers × threads-per-instance` threads de solver. Alterar
+apenas `--workers` retoma os resultados concluídos da mesma campanha.
 
 Resultados e checkpoints ficam localmente em
 `benchmarks/campaigns/german-free-order-comparison-v1/`. Rodar o comando de

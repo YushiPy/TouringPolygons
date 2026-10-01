@@ -85,8 +85,8 @@ def _stop_process(process: subprocess.Popen[str]) -> None:
 def stop_active_processes() -> None:
 	"""Stop all active case workers, for example after Ctrl-C."""
 	global _SHUTDOWN_REQUESTED
-	_SHUTDOWN_REQUESTED = True
 	with _ACTIVE_PROCESSES_LOCK:
+		_SHUTDOWN_REQUESTED = True
 		processes = list(_ACTIVE_PROCESSES)
 	for process in processes:
 		_stop_process(process)
@@ -535,6 +535,13 @@ def run_case(
 	args: argparse.Namespace, index: int, log_file: Any,
 	log_lock: threading.Lock | None = None,
 ) -> dict[str, Any]:
+	if _SHUTDOWN_REQUESTED:
+		return {
+			"status": "interrupted", "is_optimal": False,
+			"is_valid_trajectory": False, "solve_seconds": 0.0,
+			"error": "shutdown requested before solver start",
+		}
+
 	def write_log(text: str) -> None:
 		if log_lock is None:
 			log_file.write(text)
@@ -546,8 +553,12 @@ def run_case(
 
 	with tempfile.TemporaryDirectory(prefix="tspn-comparison-") as temp_dir:
 		result_path = Path(temp_dir) / "result.json"
-		venv_python = Path(sys.prefix) / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-		python_executable = venv_python if venv_python.exists() else Path(sys.executable)
+		configured_python = getattr(args, "worker_python", None)
+		if configured_python:
+			python_executable = Path(configured_python).resolve()
+		else:
+			venv_python = Path(sys.prefix) / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+			python_executable = venv_python if venv_python.exists() else Path(sys.executable)
 		cache_dir = args.tspn_repo / ".cache"
 		(cache_dir / "matplotlib").mkdir(parents=True, exist_ok=True)
 		environment = os.environ.copy()
@@ -564,11 +575,17 @@ def run_case(
 			"--oracle-tolerance", str(args.oracle_tolerance),
 		]
 		started = time.perf_counter()
-		process = subprocess.Popen(
-			command, cwd=PROJECT_ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-			text=True, env=environment, start_new_session=(os.name == "posix"),
-		)
 		with _ACTIVE_PROCESSES_LOCK:
+			if _SHUTDOWN_REQUESTED:
+				return {
+					"status": "interrupted", "is_optimal": False,
+					"is_valid_trajectory": False, "solve_seconds": 0.0,
+					"error": "shutdown requested before solver start",
+				}
+			process = subprocess.Popen(
+				command, cwd=PROJECT_ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+				text=True, env=environment, start_new_session=(os.name == "posix"),
+			)
 			_ACTIVE_PROCESSES.add(process)
 		try:
 			try:

@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import io
 import json
 import math
 import os
@@ -14,6 +15,7 @@ import statistics
 import struct
 import subprocess
 import sys
+import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
@@ -157,12 +159,68 @@ def finite(value: str) -> float | None:
 		return None
 
 
-def optional_bool(value: str | None) -> bool | None:
-	if value == 'True':
+def optional_bool(value: str | bool | None) -> bool | None:
+	if value is True or value == 'True':
 		return True
-	if value == 'False':
+	if value is False or value == 'False':
 		return False
 	return None
+
+
+def _resume_compatible_config(previous: dict, current: dict) -> bool:
+	"""Reuse finished cases across runner-only changes with identical solver settings."""
+	ignored = {
+		'campaign_runner_sha256', 'external_runner_sha256', 'queue_policy',
+		'instance_workers',
+	}
+	previous_identity = {key: value for key, value in previous.items() if key not in ignored}
+	current_identity = {key: value for key, value in current.items() if key not in ignored}
+	return previous_identity == current_identity
+
+
+def _pending_solver_jobs(case_count: int, solvers: list[str], completed: set[tuple[str, int]]) -> list[tuple[str, int]]:
+	"""Order pending work by solver, then by case index, for the shared FIFO pool."""
+	return [
+		(solver, index)
+		for solver in ('unordered', 'tspn') if solver in solvers
+		for index in range(case_count) if (solver, index) not in completed
+	]
+
+
+def _read_complete_csv_rows(path: Path) -> list[dict[str, str]]:
+	"""Read only newline-terminated CSV records while another process may append."""
+	if not path.exists():
+		return []
+	data = path.read_bytes()
+	last_newline = data.rfind(b'\n')
+	if last_newline < 0:
+		return []
+	return list(csv.DictReader(io.StringIO(data[:last_newline + 1].decode('utf-8'))))
+
+
+def _tspn_report_row(external: dict[str, str], cases: list, solver: str = 'tspn') -> dict:
+	index = int(external['case_index'])
+	if not 0 <= index < len(cases):
+		raise ValueError(f'External case index outside suite: {index}')
+	if external['sha256'] != cases[index].digest:
+		raise ValueError(f'External instance hash mismatch for case {index}.')
+	return {
+		'case': index, 'sha256': cases[index].digest, 'geometry_sha256': cases[index].digest,
+		'solver': solver, 'status': external['status'], 'polygons': len(cases[index].polygons),
+		'upper_bound': finite(external.get('upper_bound')), 'lower_bound': finite(external.get('lower_bound')),
+		'seconds': finite(external.get('solve_seconds')),
+		'threads_per_instance': int(external.get('threads') or 0),
+		'calls': finite(external.get('soc_num_calls')), 'exact': optional_bool(external.get('is_optimal')) is True,
+		'path': json.loads(external['trajectory_json']) if external.get('trajectory_json') else None,
+		'endpoint_valid': optional_bool(external.get('is_valid_trajectory')) is True,
+		'valid': optional_bool(external.get('raw_valid')),
+		'endpoint_repaired_valid': optional_bool(external.get('snapped_valid')),
+		'validation': {'start_distance': finite(external.get('start_distance')),
+			'target_distance': finite(external.get('target_distance')),
+			'max_polygon_distance': finite(external.get('max_polygon_distance')),
+			'recomputed_length': finite(external.get('recomputed_length'))},
+		'termination': external.get('status'), 'error': external.get('error') or None,
+	}
 
 
 def write_comparison_summary(path: Path, report: dict, expected_cases: int) -> None:
@@ -190,6 +248,7 @@ def write_comparison_summary(path: Path, report: dict, expected_cases: int) -> N
 		f"- Instances in suite: {expected_cases}",
 		f"- Instance workers: {config.get('instance_workers', 'unknown')} (instances processed concurrently)",
 		f"- Threads per instance: {config.get('threads_per_instance', 'unknown')}",
+		f"- Pending-job order: {config.get('queue_policy', 'unordered cases, then Fekete cases; one shared FIFO worker pool')}",
 		f'- Per-instance time cap: {time_limit_text}',
 		f"- Our gap: absolute {config.get('ours_optimality', {}).get('absolute_gap', 'unknown')} + relative {config.get('ours_optimality', {}).get('relative_gap', 'unknown')} × |UB|",
 		f"- Fekete tolerance: UB/LB ≤ 1 + {config.get('external_optimality_eps', 'unknown')}",
@@ -263,74 +322,6 @@ def write_comparison_summary(path: Path, report: dict, expected_cases: int) -> N
 	path.write_text('\n'.join(lines))
 
 
-def run_external(command: list[str], timeout_seconds: float | None) -> int:
-	process = subprocess.Popen(command, start_new_session=True)
-	interrupted_by_user = False
-	try:
-		returncode = process.wait(timeout=timeout_seconds)
-	except KeyboardInterrupt:
-		interrupted_by_user = True
-		print('Shutting down: saving partial Fekete case results...', file=sys.stderr, flush=True)
-		try:
-			os.killpg(process.pid, signal.SIGINT)
-		except ProcessLookupError:
-			pass
-		previous_sigint_handler = signal.getsignal(signal.SIGINT)
-		forced_shutdown = False
-
-		def force_stop_external_on_second_interrupt(signum, frame) -> None:
-			nonlocal forced_shutdown
-			if forced_shutdown:
-				return
-			forced_shutdown = True
-			print('Second Ctrl+C: asking the Fekete runner to stop; its latest CSV checkpoint will be kept.',
-				file=sys.stderr, flush=True)
-			try:
-				os.killpg(process.pid, signal.SIGTERM)
-			except ProcessLookupError:
-				pass
-
-		signal.signal(signal.SIGINT, force_stop_external_on_second_interrupt)
-		print('Waiting for the Fekete runner to checkpoint. Press Ctrl+C again to stop it.',
-			file=sys.stderr, flush=True)
-		try:
-			try:
-				returncode = process.wait(timeout=30)
-			except subprocess.TimeoutExpired:
-				try:
-					os.killpg(process.pid, signal.SIGTERM)
-				except ProcessLookupError:
-					pass
-				try:
-					returncode = process.wait(timeout=2)
-				except subprocess.TimeoutExpired:
-					try:
-						os.killpg(process.pid, signal.SIGKILL)
-					except ProcessLookupError:
-						pass
-					returncode = process.wait()
-		finally:
-			signal.signal(signal.SIGINT, previous_sigint_handler)
-	except subprocess.TimeoutExpired:
-		try:
-			os.killpg(process.pid, signal.SIGTERM)
-		except ProcessLookupError:
-			pass
-		try:
-			process.wait(timeout=2)
-		except subprocess.TimeoutExpired:
-			try:
-				os.killpg(process.pid, signal.SIGKILL)
-			except ProcessLookupError:
-				pass
-			process.wait()
-		raise
-	if interrupted_by_user or returncode in (130, -signal.SIGINT):
-		return 130
-	if returncode:
-		raise subprocess.CalledProcessError(returncode, command)
-	return 0
-
 def main(argv: list[str] | None = None) -> int:
 	parser = argparse.ArgumentParser(description=__doc__)
 	parser.add_argument('campaign', type=Path)
@@ -342,7 +333,7 @@ def main(argv: list[str] | None = None) -> int:
 	parser.add_argument('--threads-per-instance', type=int, default=1,
 		help='Solver threads used inside one instance.')
 	parser.add_argument('--workers', type=int, default=1,
-		help='Different instances processed concurrently; use 1 for sequential cases.')
+		help='Concurrent solver-case jobs across the shared unordered-then-Fekete queue.')
 	parser.add_argument('--absolute-gap', type=float, default=0.0)
 	parser.add_argument('--relative-gap', type=float, default=DEFAULT_OUR_RELATIVE_GAP)
 	parser.add_argument('--eps', type=float, default=DEFAULT_EXTERNAL_EPS,
@@ -373,7 +364,8 @@ def main(argv: list[str] | None = None) -> int:
 	cases = [case for record in metadata['inputs'] for case in read_encoded_cases(campaign / record['file'])][:args.max_instances]
 	if not cases:
 		parser.error('Campaign has no cases.')
-	solvers = list(dict.fromkeys(args.solver or ['unordered']))
+	requested_solvers = set(args.solver or ['unordered'])
+	solvers = [solver for solver in ('unordered', 'tspn') if solver in requested_solvers]
 	if 'tspn' in solvers and args.max_seconds != int(args.max_seconds):
 		parser.error('The external runner requires an integer time limit in seconds.')
 	initial_strategies = {
@@ -394,6 +386,7 @@ def main(argv: list[str] | None = None) -> int:
 		external_revision = 'unknown'
 	config = {'visit_order': 'free', 'solvers': solvers,
 		'threads_per_instance': args.threads_per_instance, 'instance_workers': args.workers,
+		'queue_policy': 'solver-major FIFO shared worker pool',
 		'max_calls': args.max_calls, 'max_seconds': args.max_seconds, 'hashes': [c.digest for c in cases],
 		'ours_optimality': {'absolute_gap': args.absolute_gap, 'relative_gap': args.relative_gap},
 		'unordered_binary_sha256': None,
@@ -422,11 +415,26 @@ def main(argv: list[str] | None = None) -> int:
 				old = json.loads(prior.read_text())
 			except (OSError, json.JSONDecodeError):
 				continue
-			if old.get('key') == key and old.get('status') == 'completed':
+			compatible = old.get('key') == key or _resume_compatible_config(old.get('config', {}), config)
+			if compatible and (old.get('key') != key or old.get('config') != config):
+				previous_config = old.get('config', {})
+				old.setdefault('configuration_history', []).append({
+					'migrated_at': datetime.now(UTC).isoformat(),
+					'previous_instance_workers': previous_config.get('instance_workers'),
+					'instance_workers': config.get('instance_workers'),
+					'previous_campaign_runner_sha256': previous_config.get('campaign_runner_sha256'),
+					'previous_external_runner_sha256': previous_config.get('external_runner_sha256'),
+				})
+				old['key'] = key
+				old['config'] = config
+				old.setdefault('notes', []).append(
+					'Resumed with the shared FIFO solver-case queue; prior completed rows were kept.')
+				atomic_json(prior, old)
+			if compatible and old.get('status') == 'completed':
 				prior.touch()
 				print(f'Reusing {prior}', flush=True)
 				return 0
-			if old.get('key') == key and resume_path is None:
+			if compatible and resume_path is None:
 				resume_path = prior
 	if 'tspn' in solvers and not (external_python.exists() and EXTERNAL_RUNNER.exists()
 		and (external_build / 'python/tspn_bnb2/core').exists()):
@@ -443,7 +451,8 @@ def main(argv: list[str] | None = None) -> int:
 		run.mkdir(parents=True)
 		report = {'schema_version': 2, 'key': key, 'config': config, 'visit_order': 'free', 'title': metadata.get('name', campaign.name),
 		'created_at': datetime.now(UTC).isoformat(), 'status': 'running', 'rows': [],
-			'notes': [f'Fixed endpoints; free visit order. {args.workers} concurrent instance worker(s); {args.threads_per_instance} solver thread(s) per instance.',
+		'notes': [f'Fixed endpoints; free visit order. {args.workers} shared worker(s); {args.threads_per_instance} solver thread(s) per case.',
+			'Pending cases are queued for our solver first and Fekete second in one FIFO worker pool; a freed worker can start Fekete while another worker is still running our solver.',
 			f'Our target gap is {args.absolute_gap:g} + {args.relative_gap:g} × |UB|. Fekete accepts UB/LB <= 1 + {args.eps:g}.',
 			('With zero absolute gap, the configured relative gap is algebraically equivalent to Fekete’s UB/LB ratio test.'
 				if args.absolute_gap == 0 and math.isclose(args.relative_gap, args.eps / (1 + args.eps), rel_tol=1e-12, abs_tol=1e-15)
@@ -455,7 +464,8 @@ def main(argv: list[str] | None = None) -> int:
 			'Only completed rows with matching campaign configuration and input hashes are reused on resume.']}
 	report.setdefault('attempts', [])
 	attempt = {'started_at': datetime.now(UTC).isoformat(), 'finished_at': None,
-		'elapsed_wall_seconds': None, 'status': 'running'}
+		'elapsed_wall_seconds': None, 'status': 'running',
+		'instance_workers': args.workers, 'threads_per_instance': args.threads_per_instance}
 	report['attempts'].append(attempt)
 	geometry_catalog = {case.digest: case_geometry(case) for case in cases}
 	geometry_dir = run / 'geometry'
@@ -484,177 +494,224 @@ def main(argv: list[str] | None = None) -> int:
 
 	save_checkpoint()
 	interrupted = False
-	try:
-		for solver in solvers:
-			print(f'## {solver}', flush=True)
+	external_runner = None
+	external_cases = []
+	external_args = None
+	external_csv_path = None
+	external_log_file = None
+	external_log_lock = threading.Lock()
+	if 'tspn' in solvers:
+		import tspn_run_comparison as external_runner
+		suite = run / 'input.bin'
+		suite.write_bytes(b''.join(case.data for case in cases))
+		external_cases = external_runner.read_cases(suite)
+		external_root = run / 'external'
+		external_root.mkdir(exist_ok=True)
+		prior_csvs = sorted(external_root.glob('*/*-tspn-path.csv'),
+			key=lambda path: path.stat().st_mtime_ns, reverse=True)
+		if prior_csvs:
+			external_csv_path = prior_csvs[0]
+		else:
+			external_output = external_root / datetime.now(UTC).strftime('%Y%m%d-%H%M%S')
+			external_output.mkdir(parents=True, exist_ok=True)
+			external_csv_path = external_output / f'{suite.stem}-tspn-path.csv'
+			with external_csv_path.open('w', newline='') as file:
+				csv.DictWriter(file, fieldnames=external_runner.RESULT_FIELDS).writeheader()
+		external_log_file = (external_csv_path.parent / 'solver.log').open('a')
+		external_args = argparse.Namespace(
+			suite=suite, tspn_repo=external_build, mode='path', time_limit=int(args.max_seconds),
+			threads=args.threads_per_instance, eps=args.eps,
+			feasibility_tolerance=args.feasibility_tolerance,
+			validation_tolerance=args.validation_tolerance, oracle_backend='socp',
+			oracle_tolerance=1e-7, worker_python=external_python,
+		)
+		for external in _read_complete_csv_rows(external_csv_path):
+			row = _tspn_report_row(external, cases)
+			report['rows'] = [item for item in report['rows']
+				if not (item.get('solver') == 'tspn' and item.get('case') == row['case'])]
+			report['rows'].append(row)
+		if prior_csvs:
+			report['rows'].sort(key=lambda item: (item['case'], solvers.index(item['solver'])))
+			save_checkpoint()
+
+	def upsert_report_row(row: dict) -> None:
+		report['rows'] = [item for item in report['rows']
+			if not (item.get('solver') == row.get('solver') and item.get('case') == row.get('case'))]
+		report['rows'].append(row)
+		report['rows'].sort(key=lambda item: (item['case'], solvers.index(item['solver'])))
+
+	def save_external_csv_row(row: dict) -> None:
+		if external_csv_path is None or external_runner is None:
+			return
+		with external_csv_path.open('a', newline='') as file:
+			csv.DictWriter(file, fieldnames=external_runner.RESULT_FIELDS).writerow(row)
+			file.flush()
+
+	def compact_external_csv() -> None:
+		if external_csv_path is None or external_runner is None:
+			return
+		latest: dict[int, dict[str, str]] = {}
+		for row in _read_complete_csv_rows(external_csv_path):
+			if row.get('case_index', '').isdigit():
+				latest[int(row['case_index'])] = row
+		temporary = external_csv_path.with_suffix(external_csv_path.suffix + '.tmp')
+		with temporary.open('w', newline='') as file:
+			writer = csv.DictWriter(file, fieldnames=external_runner.RESULT_FIELDS)
+			writer.writeheader()
+			for index in sorted(latest):
+				writer.writerow(latest[index])
+		temporary.replace(external_csv_path)
+		external_runner.write_summary(external_csv_path, external_csv_path.with_suffix('.md'), external_args)
+
+	def solve_unordered_case(index: int) -> dict:
+		case = cases[index]
+		geometry = geometry_catalog[case.digest]
+		sx, sy = geometry['start']
+		tx, ty = geometry['target']
+		row = {'case': index, 'sha256': case.digest, 'solver': 'unordered',
+			'polygons': len(case.polygons), 'geometry_sha256': case.digest}
+		try:
+			arguments = ['--threads', str(args.threads_per_instance),
+				'--absolute-gap', str(args.absolute_gap), '--relative-gap', str(args.relative_gap)]
+			if args.sampled_perimeter_initial:
+				arguments.append('--sampled-perimeter-initial')
+			if args.convex_initial_refinement:
+				arguments.append('--convex-initial-refinement')
+			if args.bidirectional_initial:
+				arguments.append('--bidirectional-initial')
+			solver_time_limit = math.inf if args.max_seconds == -1 else args.max_seconds
+			row.update(run_unordered_solver(BINARY, (sx, sy), (tx, ty), case.polygons,
+				args.max_calls, solver_time_limit, arguments=arguments))
+			if row.get('termination') == 'interrupted':
+				row['status'] = 'interrupted'
+			row['visit_order'] = 'free'
+			row['length'] = row.get('upper_bound')
+			if not row.get('path'):
+				row['validation'] = {'valid': None, 'reason': 'no_incumbent_path_before_shutdown'}
+				row['valid'] = None
+				return row
+			try:
+				row['validation'] = validate_path((sx, sy), (tx, ty), case.polygons,
+					row['path'], args.validation_tolerance)
+			except ModuleNotFoundError as error:
+				if error.name != 'shapely':
+					raise
+				row['validation'] = {'valid': None, 'reason': 'shapely_unavailable'}
+			row['valid'] = row['validation']['valid']
+		except (RuntimeError, subprocess.TimeoutExpired) as error:
+			row['error'] = str(error)
+		return row
+
+	def solve_tspn_case(index: int) -> dict:
+		payload = external_runner.run_case(external_args, index, external_log_file, external_log_lock)
+		external_row = external_runner.result_row(external_args, index, external_cases[index], {}, payload)
+		return {'solver': 'tspn', 'case': index, 'row': _tspn_report_row(external_row, cases),
+			'external_row': external_row}
+
+	def dispatch_job(job: tuple[str, int]) -> dict:
+		solver, index = job
+		try:
 			if solver == 'unordered':
-				def solve_case(i: int) -> dict:
-					case = cases[i]
-					geometry = geometry_catalog[case.digest]
-					sx, sy = geometry['start']
-					tx, ty = geometry['target']
-					row = {'case': i, 'sha256': case.digest, 'solver': solver, 'polygons': len(case.polygons),
-						'geometry_sha256': case.digest}
-					try:
-						arguments = ['--threads', str(args.threads_per_instance),
-							'--absolute-gap', str(args.absolute_gap), '--relative-gap', str(args.relative_gap)]
-						if args.sampled_perimeter_initial:
-							arguments.append('--sampled-perimeter-initial')
-						if args.convex_initial_refinement:
-							arguments.append('--convex-initial-refinement')
-						if args.bidirectional_initial:
-							arguments.append('--bidirectional-initial')
-						solver_time_limit = math.inf if args.max_seconds == -1 else args.max_seconds
-						row.update(run_unordered_solver(BINARY, (sx, sy), (tx, ty), case.polygons,
-							args.max_calls, solver_time_limit, arguments=arguments))
-						if row.get('termination') == 'interrupted':
-							row['status'] = 'interrupted'
-						row['visit_order'] = 'free'
-						row['length'] = row.get('upper_bound')
-						if not row.get('path'):
-							row['validation'] = {'valid': None, 'reason': 'no_incumbent_path_before_shutdown'}
-							row['valid'] = None
-							return row
+				return {'solver': solver, 'case': index, 'row': solve_unordered_case(index)}
+			return solve_tspn_case(index)
+		except Exception as error:
+			if solver == 'unordered':
+				return {'solver': solver, 'case': index, 'row': {
+					'case': index, 'sha256': cases[index].digest, 'solver': solver,
+					'polygons': len(cases[index].polygons), 'status': 'error', 'error': str(error)}}
+			payload = {'status': 'error', 'error': str(error), 'solve_seconds': 0.0,
+				'is_optimal': False, 'is_valid_trajectory': False}
+			external_row = external_runner.result_row(external_args, index, external_cases[index], {}, payload)
+		return {'solver': solver, 'case': index,
+			'row': _tspn_report_row(external_row, cases), 'external_row': external_row}
+
+	def dispatch_job_interrupted(job: tuple[str, int], error: Exception) -> dict:
+		solver, index = job
+		message = str(error) or 'solver stopped during shutdown'
+		if solver == 'unordered':
+			return {'solver': solver, 'case': index, 'row': {
+				'case': index, 'sha256': cases[index].digest, 'solver': solver,
+				'polygons': len(cases[index].polygons), 'status': 'interrupted',
+				'termination': 'interrupted', 'error': message}}
+		payload = {'status': 'interrupted', 'error': message, 'solve_seconds': 0.0,
+			'is_optimal': False, 'is_valid_trajectory': False}
+		external_row = external_runner.result_row(external_args, index, external_cases[index], {}, payload)
+		return {'solver': solver, 'case': index,
+			'row': _tspn_report_row(external_row, cases), 'external_row': external_row}
+
+	def commit_job_result(result: dict) -> None:
+		if result['solver'] == 'tspn':
+			save_external_csv_row(result['external_row'])
+		upsert_report_row(result['row'])
+		save_checkpoint()
+
+	jobs = _pending_solver_jobs(len(cases), solvers, successful_pairs())
+	unordered_pending = sum(solver == 'unordered' for solver, _ in jobs)
+	tspn_pending = sum(solver == 'tspn' for solver, _ in jobs)
+	print(f'Queue: unordered={unordered_pending}, Fekete={tspn_pending}, workers={args.workers}, '
+		f'threads/job={args.threads_per_instance}', flush=True)
+	for solver in solvers:
+		print(f'## {solver}: {sum(item[0] == solver for item in jobs)} pending job(s)', flush=True)
+
+	try:
+		if jobs:
+			executor = ThreadPoolExecutor(max_workers=min(args.workers, len(jobs)))
+			futures = {}
+			written_jobs: set[tuple[str, int]] = set()
+			for job in jobs:
+				futures[executor.submit(dispatch_job, job)] = job
+			try:
+				for completed, future in enumerate(as_completed(futures), 1):
+					result = future.result()
+					commit_job_result(result)
+					job = (result['solver'], result['case'])
+					written_jobs.add(job)
+					print(f'jobs | [free] {completed}/{len(jobs)} | {job[0]} case {job[1] + 1} complete', flush=True)
+			except KeyboardInterrupt:
+				previous_sigint_handler = signal.getsignal(signal.SIGINT)
+				forced_shutdown = False
+
+				def force_stop_on_second_interrupt(signum, frame) -> None:
+					nonlocal forced_shutdown
+					if forced_shutdown:
+						return
+					forced_shutdown = True
+					print('Second Ctrl+C: force-stopping active solver processes; saving completed checkpoints.',
+						file=sys.stderr, flush=True)
+					terminate_running_solvers()
+					if external_runner is not None:
+						external_runner.stop_active_processes()
+
+				signal.signal(signal.SIGINT, force_stop_on_second_interrupt)
+				print('Shutting down: asking active solvers to save incumbent paths and bounds...',
+					file=sys.stderr, flush=True)
+				interrupt_running_solvers()
+				if external_runner is not None:
+					external_runner.stop_active_processes()
+				for future in futures:
+					future.cancel()
+				print('Waiting for active solver calls to finish. Press Ctrl+C again to force-stop them.',
+					file=sys.stderr, flush=True)
+				try:
+					executor.shutdown(wait=True, cancel_futures=True)
+					for future, job in futures.items():
+						if future.cancelled() or job in written_jobs:
+							continue
 						try:
-							row['validation'] = validate_path((sx, sy), (tx, ty), case.polygons,
-								row['path'], args.validation_tolerance)
-						except ModuleNotFoundError as error:
-							if error.name != 'shapely':
-								raise
-							row['validation'] = {'valid': None, 'reason': 'shapely_unavailable'}
-						row['valid'] = row['validation']['valid']
-					except (RuntimeError, subprocess.TimeoutExpired) as error:
-						row['error'] = str(error)
-					return row
-
-				pending = [i for i in range(len(cases)) if (solver, i) not in successful_pairs()]
-				with ThreadPoolExecutor(max_workers=min(args.workers, max(1, len(pending)))) as executor:
-					futures = {}
-					written_cases: set[int] = set()
-					for i in pending:
-						print(f'instance | [free] {i + 1}/{len(cases)} queued', flush=True)
-						futures[executor.submit(solve_case, i)] = i
-					try:
-						for completed, future in enumerate(as_completed(futures), 1):
-							row = future.result()
-							written_cases.add(row['case'])
-							report['rows'] = [item for item in report['rows'] if not (item.get('solver') == solver and item.get('case') == row['case'])]
-							report['rows'].append(row)
-							report['rows'].sort(key=lambda item: (item['case'], solvers.index(item['solver'])))
-							save_checkpoint()
-							print(f'cases | [free] {completed}/{len(cases)} | case {row["case"] + 1} complete', flush=True)
-					except KeyboardInterrupt:
-						previous_sigint_handler = signal.getsignal(signal.SIGINT)
-						forced_shutdown = False
-
-						def force_stop_on_second_interrupt(signum, frame) -> None:
-							nonlocal forced_shutdown
-							if forced_shutdown:
-								return
-							forced_shutdown = True
-							print('Second Ctrl+C: force-stopping active solver processes; saving completed checkpoints.',
-								file=sys.stderr, flush=True)
-							terminate_running_solvers()
-
-						signal.signal(signal.SIGINT, force_stop_on_second_interrupt)
-						print('Shutting down: asking active solvers to finish and saving incumbent paths and bounds...',
-							file=sys.stderr, flush=True)
-						interrupt_running_solvers()
-						for future in futures:
-							future.cancel()
-						# Running searches return a partial result after the current oracle call.
-						# A second Ctrl+C terminates an oracle that is taking too long.
-						print('Waiting for active solvers to finish their current oracle call. Press Ctrl+C again to force-stop them.',
-							file=sys.stderr, flush=True)
-						try:
-							executor.shutdown(wait=True, cancel_futures=True)
-							for future, index in futures.items():
-								if future.cancelled() or index in written_cases:
-									continue
-								try:
-									row = future.result()
-								except Exception as error:
-									row = {'case': index, 'sha256': cases[index].digest, 'solver': solver,
-										'polygons': len(cases[index].polygons), 'status': 'interrupted',
-										'termination': 'interrupted', 'error': str(error)}
-								if row.get('error') and row.get('status') is None:
-									row['status'] = 'interrupted'
-									row['termination'] = 'interrupted'
-								report['rows'] = [item for item in report['rows'] if not (item.get('solver') == solver and item.get('case') == index)]
-								report['rows'].append(row)
-								report['rows'].sort(key=lambda item: (item['case'], solvers.index(item['solver'])))
-								save_checkpoint()
-								print(f'partial | [free] case {index + 1}: {row.get("termination", row.get("status", "interrupted"))}; '
-									f'UB={row.get("upper_bound", "n/a")} LB={row.get("lower_bound", "n/a")}', flush=True)
-						finally:
-							signal.signal(signal.SIGINT, previous_sigint_handler)
-						interrupted = True
-
-				if interrupted:
-					break
+							result = future.result()
+						except Exception as error:
+							result = dispatch_job_interrupted(job, error)
+						commit_job_result(result)
+						written_jobs.add(job)
+						row = result['row']
+						print(f'partial | [free] {job[0]} case {job[1] + 1}: '
+							f'{row.get("termination", row.get("status", "interrupted"))}; '
+							f'UB={row.get("upper_bound", "n/a")} LB={row.get("lower_bound", "n/a")}', flush=True)
+				finally:
+					signal.signal(signal.SIGINT, previous_sigint_handler)
+				interrupted = True
 			else:
-				if all((solver, i) in successful_pairs() for i in range(len(cases))):
-					print(f'cases | [free] {len(cases)}/{len(cases)} | resumed', flush=True)
-					continue
-				suite = run / 'input.bin'
-				suite.write_bytes(b''.join(c.data for c in cases))
-				external_root = run / 'external'
-				external_root.mkdir(exist_ok=True)
-				prior_csvs = sorted(external_root.glob('*/*-tspn-path.csv'),
-					key=lambda path: path.stat().st_mtime_ns, reverse=True)
-				resume_csv = prior_csvs[0] if prior_csvs else None
-				completed_external = set()
-				if resume_csv:
-					with resume_csv.open(newline='') as file:
-						completed_external = {int(row['case_index']) for row in csv.DictReader(file)
-							if row.get('status') in {'optimal', 'limit'} and not row.get('error')}
-				pending_external = len(cases) - len(completed_external)
-				external_command = [str(external_python), str(EXTERNAL_RUNNER), '--suite', str(suite), '--mode', 'path',
-					'--tspn-repo', str(external_build),
-					'--threads', str(args.threads_per_instance), '--workers', str(args.workers),
-					'--time-limit', str(int(args.max_seconds)), '--eps', str(args.eps),
-					'--feasibility-tolerance', str(args.feasibility_tolerance),
-					'--validation-tolerance', str(args.validation_tolerance)]
-				if resume_csv:
-					external_command.extend(['--resume', str(resume_csv)])
-				else:
-					external_command.extend(['--output', str(external_root)])
-				external_timeout = None if args.max_seconds == -1 else max(
-					120.0, pending_external * (args.max_seconds + 125.0) + 60.0)
-				external_status = run_external(external_command, external_timeout)
-				if resume_csv:
-					csv_path = resume_csv
-				else:
-					candidates = list(external_root.glob('*/*-tspn-path.csv'))
-					csv_path = max(candidates, key=lambda path: path.stat().st_mtime_ns) if candidates else None
-				if csv_path is not None:
-					with csv_path.open() as file:
-						for external in csv.DictReader(file):
-							i = int(external['case_index'])
-							if external['sha256'] != cases[i].digest:
-								raise ValueError('External instance hash mismatch.')
-							report['rows'] = [item for item in report['rows'] if not (item.get('solver') == solver and item.get('case') == i)]
-							report['rows'].append({'case': i, 'sha256': cases[i].digest, 'geometry_sha256': cases[i].digest, 'solver': solver,
-								'status': external['status'],
-								'polygons': len(cases[i].polygons), 'upper_bound': finite(external['upper_bound']),
-								'lower_bound': finite(external['lower_bound']), 'seconds': finite(external['solve_seconds']),
-								'threads_per_instance': int(external['threads']),
-								'calls': finite(external['soc_num_calls']), 'exact': external['is_optimal'] == 'True',
-								'path': json.loads(external['trajectory_json']) if external.get('trajectory_json') else None,
-								'endpoint_valid': external['is_valid_trajectory'] == 'True',
-								'valid': optional_bool(external.get('raw_valid')),
-								'endpoint_repaired_valid': optional_bool(external.get('snapped_valid')),
-								'validation': {'start_distance': finite(external.get('start_distance')),
-									'target_distance': finite(external.get('target_distance')),
-									'max_polygon_distance': finite(external.get('max_polygon_distance')),
-									'recomputed_length': finite(external.get('recomputed_length'))},
-								'termination': external['status'], 'error': external['error'] or None})
-					save_checkpoint()
-				print(f'cases | [free] {len(cases)}/{len(cases)}', flush=True)
-				if external_status == 130:
-					report['status'] = 'interrupted'
-					interrupted = True
-					break
+				executor.shutdown(wait=True)
 		if not interrupted:
 			complete = len(successful_pairs()) == len(cases) * len(solvers)
 			report['status'] = 'completed' if complete else 'failed'
@@ -663,12 +720,21 @@ def main(argv: list[str] | None = None) -> int:
 	except KeyboardInterrupt:
 		print('Shutting down: recording completed and partial case results...', file=sys.stderr, flush=True)
 		interrupt_running_solvers()
+		if external_runner is not None:
+			external_runner.stop_active_processes()
 		report['status'] = 'interrupted'
 	except Exception as error:
 		report['status'] = 'failed'
 		report['error'] = str(error)
 		raise
 	finally:
+		if external_csv_path is not None:
+			try:
+				compact_external_csv()
+			except Exception as error:
+				report.setdefault('notes', []).append(f'Could not compact the Fekete CSV checkpoint: {error}')
+		if external_log_file is not None:
+			external_log_file.close()
 		finished_at = datetime.now(UTC)
 		attempt['finished_at'] = finished_at.isoformat()
 		attempt['elapsed_wall_seconds'] = (finished_at - datetime.fromisoformat(attempt['started_at'])).total_seconds()
