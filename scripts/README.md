@@ -39,7 +39,10 @@ casos do corpus alemão com endpoints fixos e ordem de visita livre, primeiro
 no nosso solver e depois no de Fekete. O
 limite padrão por caso é ilimitado; a configuração padrão usa um caso e uma
 thread por vez. A máquina precisa ter compilador compatível com C++23, OpenMP,
-Eigen3, headers Boost e uma licença acadêmica válida do Gurobi.
+Python com suporte a venv/pip, acesso à rede durante a primeira configuração e
+uma licença acadêmica válida do Gurobi. O solver Fekete baixa Eigen3, Boost,
+CGAL e as demais dependências C++ com Conan; o runner reutiliza os pacotes para
+compilar nosso solver, sem exigir instalação de headers no sistema.
 
 `Ctrl+C` pede encerramento cooperativo ao nosso solver e salva a trajetória
 incumbente e os limites dos casos ativos. Ele informa que está aguardando o

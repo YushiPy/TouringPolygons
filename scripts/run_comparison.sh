@@ -369,6 +369,19 @@ with gp.Env(empty=True) as environment:
 print(f"Verified Gurobi runtime and license: gurobipy {gp.gurobi.version()}")
 PY
 
+# The Fekete Conan setup provides Eigen3, Boost, and CGAL for its own build.
+# Reuse those generated CMake package configs when configuring our solver so
+# Linux users do not need system-wide development packages.
+conan_cmake_prefix="$EXTERNAL_SOURCE/.conan/release"
+for dependency_config in Eigen3Config.cmake BoostConfig.cmake; do
+	[[ -f "$conan_cmake_prefix/$dependency_config" ]] \
+		|| fail "Fekete Conan setup did not generate $dependency_config in $conan_cmake_prefix"
+done
+[[ -f "$conan_cmake_prefix/cgal-config.cmake" || -f "$conan_cmake_prefix/CGALConfig.cmake" ]] \
+	|| fail "Fekete Conan setup did not generate a CGAL CMake package in $conan_cmake_prefix"
+export CMAKE_PREFIX_PATH="$conan_cmake_prefix${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
+printf 'Reusing Conan C++ dependencies for our solver: %s\n' "$conan_cmake_prefix"
+
 last_cpp23_probe_diagnostic=''
 probe_cpp23_toolchain() {
 	local probe_cc="$1"
