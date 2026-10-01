@@ -204,8 +204,11 @@ pode excedê-lo; o pré-processamento e partes da heurística inicial também n�
 consultam o limite a cada operação. `calls` conta invocações do oráculo convexo certificado,
 incluindo o refinamento inicial opcional; `initial_convex_refinement_calls` separa essa
 chamada das chamadas da busca.
-`termination` distingue `optimal`, `call_limit`, `time_limit`
-e `numerical_limit`.
+`termination` distingue `optimal`, `call_limit`, `time_limit`,
+`numerical_limit` e `interrupted`. `Ctrl+C` no executável nativo solicita uma
+parada cooperativa: a chamada convexa/decomposição em andamento termina, a
+fronteira restante mantém seu limite inferior e o resultado inclui o incumbente
+viável atual e sua trajetória.
 
 ### Organização da implementação
 

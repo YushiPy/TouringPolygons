@@ -1,5 +1,7 @@
 #include "tpp/nonconvex/unordered.h"
+#include <atomic>
 #include <cmath>
+#include <csignal>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -7,6 +9,12 @@
 #include <string>
 
 namespace {
+	std::atomic_flag interrupted = ATOMIC_FLAG_INIT;
+
+	extern "C" void handle_interrupt(int) {
+		interrupted.test_and_set(std::memory_order_relaxed);
+	}
+
 	void json_string(const std::string &value) {
 		std::cout << '"';
 		for (const char character : value) {
@@ -68,6 +76,7 @@ namespace {
 }
 
 int main(int argc, char **argv) {
+	std::signal(SIGINT, handle_interrupt);
 	try {
 		Vector2 start, target;
 		size_t n;
@@ -179,6 +188,7 @@ int main(int argc, char **argv) {
 			else throw std::invalid_argument("Unknown option: " + flag);
 		}
 		if(options.portfolio && explicit_strategy) throw std::invalid_argument("Portfolio selects both strategies; omit --search-strategy.");
+		options.stop_requested = [] { return interrupted.test(std::memory_order_relaxed); };
 		if (!(std::cin >> start.x >> start.y >> target.x >> target.y >> n >> options.max_calls >> options.max_seconds))
 			throw std::invalid_argument("Expected sx sy tx ty polygon_count max_calls max_seconds.");
 		std::vector<std::vector<Vector2>> polygons(n);
@@ -197,7 +207,7 @@ int main(int argc, char **argv) {
 		}
 		const auto r = cycle ? tpp::tpp_nonconvex_tspn_solve(polygons, options)
 			: tpp::tpp_nonconvex_unordered_solve(start, target, polygons, options);
-		const char *termination[] = {"optimal", "call_limit", "time_limit", "numerical_limit", "portfolio_stopped"};
+		const char *termination[] = {"optimal", "call_limit", "time_limit", "numerical_limit", "portfolio_stopped", "interrupted"};
 		std::cout << std::setprecision(17) << "{\"schema_version\":\"free_order_v1\",\"exact\":" << (r.exact ? "true" : "false")
 			<< ",\"mode\":\"" << (cycle?"cycle":"path") << "\""
 			<< ",\"termination\":\"" << termination[static_cast<size_t>(r.termination)] << "\""

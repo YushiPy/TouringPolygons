@@ -1,0 +1,11 @@
+diff --git a/python/tspn_bnb2/core/_tspn_bindings.cpp b/python/tspn_bnb2/core/_tspn_bindings.cpp
+--- a/python/tspn_bnb2/core/_tspn_bindings.cpp
++++ b/python/tspn_bnb2/core/_tspn_bindings.cpp
+@@ -15,6 +15,6 @@
+ #include "tspn_core/utils/geometry.h"
+ #include <boost/geometry.hpp>
+-#include <fmt/core.h>
++#include <fmt/format.h>
+ #include <gurobi_c++.h>
+ #include <iostream>
+ #include <pybind11/functional.h>

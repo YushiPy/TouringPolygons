@@ -516,6 +516,7 @@ namespace tpp {
 		};
 		auto gap = [&] { return gap_at(result.upper_bound); };
 		auto limited = [&] { return result.calls >= options.max_calls || elapsed() >= options.max_seconds
+			|| (options.stop_requested && options.stop_requested())
             || (control && (control->stopped() || control->calls.load(std::memory_order_relaxed)>=control->max_calls)); };
         CycleOneTreeWorkspace one_tree;
         auto strengthen_one_tree = [&](Node &node) {
@@ -1123,6 +1124,7 @@ namespace tpp {
 		result.exact = result.upper_bound - result.lower_bound <= gap();
 		result.termination = result.exact ? UnorderedTppTermination::Optimal
 			: control && control->proved() ? UnorderedTppTermination::PortfolioStopped
+			: (options.stop_requested && options.stop_requested()) ? UnorderedTppTermination::Interrupted
             : (control ? control->calls.load(std::memory_order_relaxed)>=control->max_calls : result.calls >= options.max_calls) ? UnorderedTppTermination::CallLimit
 			: (elapsed() >= options.max_seconds || (control && control->elapsed()>=control->max_seconds)) ? UnorderedTppTermination::TimeLimit
 			: UnorderedTppTermination::NumericalLimit;
@@ -1352,7 +1354,8 @@ namespace tpp {
         result.final_absolute_gap=std::max(0.0,result.upper_bound-result.lower_bound);
         result.final_relative_gap=result.final_absolute_gap/std::max(std::abs(result.upper_bound),1e-30);
         result.exact=result.final_absolute_gap<=options.absolute_gap+options.relative_gap*std::abs(result.upper_bound);
-        result.termination=result.exact?UnorderedTppTermination::Optimal
+		result.termination=result.exact?UnorderedTppTermination::Optimal
+			: options.stop_requested && options.stop_requested()?UnorderedTppTermination::Interrupted
             : control.calls.load(std::memory_order_relaxed)>=options.max_calls?UnorderedTppTermination::CallLimit
             : result.seconds>=options.max_seconds?UnorderedTppTermination::TimeLimit:UnorderedTppTermination::NumericalLimit;
         auto sum=[&](auto member){result.*member=runs[0].*member+runs[1].*member;};

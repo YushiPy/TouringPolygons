@@ -3,6 +3,7 @@
 #include "vector2.h"
 #include <array>
 #include <cstddef>
+#include <functional>
 #include <limits>
 #include <optional>
 #include <string>
@@ -39,6 +40,9 @@ namespace tpp {
 		// Record an explanatory execution trace. Disabled by default so normal
 		// benchmark runs keep the same memory and timing behavior.
 		bool trace = false;
+		// Cooperative interruption checked between search operations. The active
+		// oracle/decomposition call is allowed to finish before the frontier stops.
+		std::function<bool()> stop_requested;
         UnorderedSearchStrategy search_strategy = UnorderedSearchStrategy::BestBoundDive;
         // Two independent searches, one oracle thread each. max_calls is shared;
         // max_seconds is one wall deadline. Requires threads == 1.
@@ -60,7 +64,7 @@ namespace tpp {
         bool cycle_share_bounds = false;
 	};
 
-	enum class UnorderedTppTermination { Optimal, CallLimit, TimeLimit, NumericalLimit, PortfolioStopped };
+	enum class UnorderedTppTermination { Optimal, CallLimit, TimeLimit, NumericalLimit, PortfolioStopped, Interrupted };
 
 	struct UnorderedTppTraceEvent {
 		std::string kind;

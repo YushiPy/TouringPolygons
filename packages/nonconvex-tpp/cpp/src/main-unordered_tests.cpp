@@ -207,6 +207,26 @@ void check_provided_initial_path() {
 	}
 }
 
+void check_cooperative_interruption() {
+	const Vector2 start{0, 0}, target{12, 0};
+	const std::vector<Polygon> polygons = {{{5, 3}, {7, 3}, {7, 5}, {5, 5}}};
+	UnorderedTppSolveOptions options;
+	options.stop_requested = [] { return true; };
+	const auto partial = tpp_nonconvex_unordered_solve(start, target, polygons, options);
+	if (partial.exact || partial.termination != UnorderedTppTermination::Interrupted
+		|| partial.path.size() < 2
+		|| partial.path.front().distance_to(start) > options.feasibility_tolerance
+		|| partial.path.back().distance_to(target) > options.feasibility_tolerance
+		|| !std::isfinite(partial.upper_bound) || partial.lower_bound > partial.upper_bound + 1e-9
+		|| unordered_detail::contact(partial.path, polygons.front(), options.feasibility_tolerance).distance
+			> options.feasibility_tolerance)
+		throw std::runtime_error("Cooperative interruption did not preserve a feasible incumbent and bounds: exact="
+			+ std::to_string(partial.exact) + ", termination="
+			+ std::to_string(static_cast<int>(partial.termination)) + ", path="
+			+ std::to_string(partial.path.size()) + ", LB=" + std::to_string(partial.lower_bound)
+			+ ", UB=" + std::to_string(partial.upper_bound));
+}
+
 void check_initial_heuristic_strategies() {
 	const Vector2 start{0, 0}, target{20, 0};
 	const std::vector<Polygon> polygons = {
@@ -322,6 +342,7 @@ int main() {
 		check_oracle_certificates();
 		check_coordinate_normalization();
 		check_provided_initial_path();
+		check_cooperative_interruption();
 		check_initial_heuristic_strategies();
 		check_intra_instance_threads();
 		check_endpoint_portfolio();

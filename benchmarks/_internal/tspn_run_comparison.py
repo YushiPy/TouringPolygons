@@ -10,6 +10,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import signal
 import statistics
 import struct
@@ -49,6 +50,7 @@ from unordered_validation import orient_path, validate_path
 
 _ACTIVE_PROCESSES: set[subprocess.Popen[str]] = set()
 _ACTIVE_PROCESSES_LOCK = threading.Lock()
+_SHUTDOWN_REQUESTED = False
 # The released pybind11 API still exposes the native limit as a C++ int.  Keep
 # ``-1`` as the public/API value and use the largest representable int only at
 # that ABI boundary when an older binding is in use.  The parent watchdog is
@@ -82,6 +84,8 @@ def _stop_process(process: subprocess.Popen[str]) -> None:
 
 def stop_active_processes() -> None:
 	"""Stop all active case workers, for example after Ctrl-C."""
+	global _SHUTDOWN_REQUESTED
+	_SHUTDOWN_REQUESTED = True
 	with _ACTIVE_PROCESSES_LOCK:
 		processes = list(_ACTIVE_PROCESSES)
 	for process in processes:
@@ -266,9 +270,80 @@ def worker(args: argparse.Namespace) -> int:
 
 	started = time.perf_counter()
 	native_time_limit = NATIVE_UNLIMITED_TIME if args.time_limit == -1 else args.time_limit
+	last_checkpoint: dict[str, Any] = {
+		"upper_bound": math.inf, "written_at": 0.0, "payload": None,
+	}
+	checkpoint_failed = False
+
+	def save_incumbent_checkpoint(context: Any) -> None:
+		"""Persist the best feasible trajectory and current global bound periodically."""
+		now = time.perf_counter()
+		upper = float(context.get_upper_bound())
+		if not math.isfinite(upper):
+			return
+		improved = upper < last_checkpoint["upper_bound"] - 1e-12
+		if not improved and now - last_checkpoint["written_at"] < 30:
+			return
+		incumbent = context.get_best_solution()
+		if incumbent is None:
+			return
+		trajectory = incumbent.get_trajectory()
+		length = float(trajectory.length())
+		if improved or last_checkpoint["payload"] is None:
+			trajectory_points = [(point.x, point.y) for point in trajectory]
+			if args.mode == "path":
+				points = orient_path(encoded.start, encoded.target, trajectory_points)
+				snapped_points = [point[:] for point in points]
+				if len(snapped_points) >= 2:
+					snapped_points[0] = list(encoded.start)
+					snapped_points[-1] = list(encoded.target)
+				is_valid = point_matches(points[0], encoded.start) and point_matches(points[-1], encoded.target)
+			else:
+				points = trajectory_points
+				snapped_points = None
+				is_valid = trajectory.is_tour()
+			last_checkpoint["upper_bound"] = length
+			last_checkpoint["payload"] = {
+				"upper_bound": length,
+				"trajectory": points,
+				"snapped_trajectory": snapped_points,
+				# Full geometric validation is done after a normal solve. Keeping it
+				# out of this callback makes the incumbent snapshot quick to commit.
+				"validation": {},
+				"snapped_validation": {},
+				"is_valid_trajectory": bool(is_valid),
+			}
+		partial = dict(last_checkpoint["payload"])
+		lower = min(length, float(context.get_lower_bound()))
+		absolute_gap = max(0.0, length - lower)
+		partial.update({
+			"status": "interrupted", "termination": "interrupted", "is_optimal": False,
+			"lower_bound": lower, "absolute_gap": absolute_gap,
+			"relative_gap": absolute_gap / length if length > 0 else 0.0,
+			"solve_seconds": now - started,
+			"statistics": {"num_iterations": int(context.num_iterations)},
+			"tspn_version": __version__,
+		})
+		checkpoint_path = args.worker_result
+		checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+		temporary_path = checkpoint_path.with_suffix(checkpoint_path.suffix + ".tmp")
+		temporary_path.write_text(json.dumps(partial, allow_nan=True))
+		os.replace(temporary_path, checkpoint_path)
+		last_checkpoint["written_at"] = now
+
+	def checkpoint_safely(context: Any) -> None:
+		nonlocal checkpoint_failed
+		if checkpoint_failed:
+			return
+		try:
+			save_incumbent_checkpoint(context)
+		except Exception as error:
+			checkpoint_failed = True
+			print(f"Could not save incumbent checkpoint: {error}", file=sys.stderr, flush=True)
+
 	options = dict(
 		instance=instance,
-		callback=lambda _: None,
+		callback=checkpoint_safely,
 		initial_solution=None,
 		timelimit=native_time_limit,
 		branching="FarthestPoly",
@@ -432,6 +507,30 @@ def result_row(
 	}
 
 
+def parse_partial_progress(output: str) -> dict[str, Any]:
+	"""Extract the last flushed Fekete bound line when no incumbent snapshot exists."""
+	number = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
+	pattern = re.compile(
+		r"^\s*(\d+)\s+(" + number + r")\s*\|\s*(" + number
+		+ r")\s*\|\s*(" + number + r")s\s*$", re.MULTILINE,
+	)
+	matches = list(pattern.finditer(output))
+	if not matches:
+		return {}
+	match = matches[-1]
+	iterations, lower, upper, seconds = int(match.group(1)), float(match.group(2)), float(match.group(3)), float(match.group(4))
+	if not all(math.isfinite(value) for value in (lower, upper, seconds)):
+		return {"statistics": {"num_iterations": iterations}, "solve_seconds": seconds}
+	absolute_gap = max(0.0, upper - lower)
+	return {
+		"lower_bound": lower, "upper_bound": upper,
+		"absolute_gap": absolute_gap,
+		"relative_gap": absolute_gap / upper if upper > 0 else 0.0,
+		"solve_seconds": seconds,
+		"statistics": {"num_iterations": iterations},
+	}
+
+
 def run_case(
 	args: argparse.Namespace, index: int, log_file: Any,
 	log_lock: threading.Lock | None = None,
@@ -486,6 +585,21 @@ def run_case(
 
 		write_log(f"\n=== case {index}: exit {process.returncode} ===\n{stdout}{stderr}")
 		if process.returncode != 0:
+			if _SHUTDOWN_REQUESTED:
+				if result_path.exists():
+					payload = json.loads(result_path.read_text())
+				else:
+					payload = {
+						"status": "interrupted", "is_optimal": False,
+						"is_valid_trajectory": False,
+						**parse_partial_progress(stdout + "\n" + stderr),
+					}
+				payload["status"] = "interrupted"
+				payload["is_optimal"] = False
+				payload.setdefault("is_valid_trajectory", False)
+				payload.setdefault("solve_seconds", time.perf_counter() - started)
+				payload["process_seconds"] = time.perf_counter() - started
+				return payload
 			message = stderr.strip().splitlines()
 			return {
 				"status": "error", "solve_seconds": time.perf_counter() - started,
@@ -623,6 +737,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 	pending = [index for index in indices if index not in load_completed(csv_path)]
 
 	write_header = not csv_path.exists() or csv_path.stat().st_size == 0
+	interrupted = False
 	with csv_path.open("a", newline="") as csv_file, log_path.open("a") as log_file:
 		writer = csv.DictWriter(csv_file, fieldnames=RESULT_FIELDS)
 		if write_header:
@@ -630,6 +745,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 		log_lock = threading.Lock()
 		executor = ThreadPoolExecutor(max_workers=min(args.workers, max(1, len(pending))))
 		futures = {}
+		written_cases: set[int] = set()
 		try:
 			futures = {executor.submit(run_case, args, index, log_file, log_lock): index for index in pending}
 			for position, future in enumerate(as_completed(futures), start=1):
@@ -638,18 +754,40 @@ def main(argv: Sequence[str] | None = None) -> int:
 				row = result_row(args, index, encoded, metadata.get(index, {}), future.result())
 				writer.writerow(row)
 				csv_file.flush()
+				written_cases.add(index)
 				print(f"[{position}/{len(pending)}] case {index}: {row['status']} in {row['solve_seconds']}s", flush=True)
 		except KeyboardInterrupt:
+			print("Shutting down: preserving completed cases and current incumbent trajectories...", file=sys.stderr, flush=True)
 			stop_active_processes()
 			for future in futures:
 				future.cancel()
 			executor.shutdown(wait=True, cancel_futures=True)
-			print("Interrupted; completed rows are already saved and --resume will skip them.", file=sys.stderr)
-			return 130
+			for future, index in futures.items():
+				if future.cancelled() or index in written_cases:
+					continue
+				encoded = cases[index]
+				try:
+					payload = future.result()
+				except Exception as error:
+					payload = {"status": "interrupted", "is_optimal": False,
+						"is_valid_trajectory": False, "error": str(error),
+						"solve_seconds": 0.0}
+				row = result_row(args, index, encoded, metadata.get(index, {}), payload)
+				writer.writerow(row)
+				csv_file.flush()
+				written_cases.add(index)
+				print(f"partial case {index}: UB={row['upper_bound'] or 'n/a'} "
+					f"LB={row['lower_bound'] or 'n/a'} trajectory={'saved' if row['trajectory_json'] else 'unavailable'}", flush=True)
+			interrupted = True
 		else:
 			executor.shutdown(wait=True)
 
 	write_summary(csv_path, summary_path, args)
+	if interrupted:
+		print(f"Partial results: {csv_path}")
+		print(f"Solver log: {log_path}")
+		print("Interrupted; --resume skips completed rows and retries interrupted cases.", file=sys.stderr)
+		return 130
 	print(f"Results: {csv_path}")
 	print(f"Summary: {summary_path}")
 	print(f"Solver log: {log_path}")

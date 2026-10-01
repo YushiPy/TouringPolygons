@@ -63,6 +63,30 @@ Uma campanha completa usa:
 python3 benchmarks/tpp.py free-order NOME_DA_CAMPANHA --help
 ```
 
+No laboratório, `scripts/run_comparison.sh` prepara o submódulo e o ambiente
+Python, compila os dois solvers e chama esta mesma CLI para executar os 558
+casos alemães. O padrão é ilimitado, com um worker e uma thread por instância;
+os checkpoints ficam localmente em
+`benchmarks/campaigns/german-free-order-comparison-v1/`. Repetir o comando
+reutiliza os builds compatíveis e retoma os casos concluídos. No macOS, se o
+CMake não reconhecer o AppleClang como compatível com C++26, o setup tenta o
+LLVM do Homebrew. No Linux, tenta GCC 16/15/14 e Clang 20/19/18 instalados se
+o compilador padrão não passar a verificação; variáveis `CC` e `CXX` definidas
+pelo usuário são respeitadas. São necessários Python
+3.12+, um compilador compatível com C++26, OpenMP, Eigen3, headers Boost, Git e
+uma licença acadêmica válida do Gurobi.
+
+Rode `scripts/run_comparison.sh --setup-only` para verificar dependências,
+inicializar o runtime/licença do Gurobi e compilar ambos sem iniciar a
+campanha; falhas transitórias de download são repetidas até três vezes.
+O setup usa fingerprints locais e pula Conan/compilação quando as entradas
+não mudaram. Depois, `scripts/run_comparison.sh` inicia ou retoma o trabalho.
+`Ctrl+C` grava trajetórias incumbentes e limites
+parciais disponíveis, marcando os casos ativos como `interrupted` para serem
+reexecutados ao retomar. Durante o encerramento cooperativo, o runner informa
+que aguarda a chamada geométrica ativa; um segundo `Ctrl+C` força o processo
+nativo a parar e preserva os checkpoints concluídos.
+
 Para comparar os dois solvers com oito threads dentro de cada instância, sem
 executar instâncias diferentes em paralelo, a campanha aceita:
 
@@ -70,7 +94,7 @@ executar instâncias diferentes em paralelo, a campanha aceita:
 python3 benchmarks/tpp.py free-order german-instances \
   --solver unordered --solver tspn --workers 1 --threads-per-instance 8 \
   --max-seconds 21600 --max-calls 10000000 \
-  --absolute-gap 0 --relative-gap 0.001 --eps 0.001 \
+  --absolute-gap 0 --relative-gap 0.000999000999000999 --eps 0.001 \
   --sampled-perimeter-initial --convex-initial-refinement --bidirectional-initial
 ```
 

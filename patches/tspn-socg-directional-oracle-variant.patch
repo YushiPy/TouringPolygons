@@ -1,0 +1,16 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -64,2 +64,12 @@
+ target_link_libraries(tpp_embedded_oracle PUBLIC Eigen3::Eigen Boost::headers)
++add_library(tpp_directional_double OBJECT
++    "${TPP_ORACLE_SOURCE_DIR}/src/solvers/intersecting_maps.cpp")
++target_compile_definitions(tpp_directional_double PRIVATE
++    TPP_EXPERIMENT_NATIVE_DOUBLE=1 TPP_DIRECTIONAL_DOUBLE_VARIANT=1)
++target_include_directories(tpp_directional_double PRIVATE
++    "${TPP_ORACLE_SOURCE_DIR}/include"
++    "${TPP_PACKAGES_DIR}/common-geometry/cpp/include")
++target_link_libraries(tpp_directional_double PRIVATE Eigen3::Eigen Boost::headers)
++target_compile_options(tpp_directional_double PRIVATE -O3)
++target_sources(tpp_embedded_oracle PRIVATE $<TARGET_OBJECTS:tpp_directional_double>)
+ target_compile_options(tpp_embedded_oracle PRIVATE -O3)
