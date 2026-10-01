@@ -1,0 +1,137 @@
+{
+  "archive": "/Users/gabriel/Documents/Scripts/TouringPolygons/third_party/tspn-socg/instances/instances_socg_simplified.zip",
+  "archive_sha256": "210841184500cb444f332537c4291aeff502dde4e3adc4a4ee307a80db21711f",
+  "policy": "Lexicographically first filename per supplier metadata class and post-preprocessing polygon-count band; selection fixed before timing.",
+  "classes": "OSM iff meta.geo_information exists; random iff meta.source=random; tessellation iff meta.source=public_instance_set.",
+  "bands": {
+    "5-10": [
+      5,
+      10
+    ],
+    "11-20": [
+      11,
+      20
+    ],
+    "21-40": [
+      21,
+      40
+    ],
+    "41-60": [
+      41,
+      60
+    ]
+  },
+  "per_stratum": 1,
+  "stratum_counts": {
+    "OSM:5-10": 72,
+    "OSM:11-20": 80,
+    "OSM:21-40": 80,
+    "OSM:41-60": 80,
+    "random:5-10": 40,
+    "random:11-20": 40,
+    "random:21-40": 40,
+    "random:41-60": 40,
+    "tessellation:5-10": 8,
+    "tessellation:11-20": 16,
+    "tessellation:21-40": 29,
+    "tessellation:41-60": 25
+  },
+  "selected_cases": [
+    {
+      "name": "osm_5-10_bangalore_n005_seed1851",
+      "source_name": "bangalore_n005_seed1851.json",
+      "class": "OSM",
+      "band": "5-10",
+      "k": 5,
+      "vertices": 49
+    },
+    {
+      "name": "osm_11-20_bangalore_n015_seed2483",
+      "source_name": "bangalore_n015_seed2483.json",
+      "class": "OSM",
+      "band": "11-20",
+      "k": 15,
+      "vertices": 60
+    },
+    {
+      "name": "osm_21-40_bangalore_n030_seed1038",
+      "source_name": "bangalore_n030_seed1038.json",
+      "class": "OSM",
+      "band": "21-40",
+      "k": 30,
+      "vertices": 122
+    },
+    {
+      "name": "osm_41-60_bangalore_n050_seed1049",
+      "source_name": "bangalore_n050_seed1049.json",
+      "class": "OSM",
+      "band": "41-60",
+      "k": 50,
+      "vertices": 204
+    },
+    {
+      "name": "random_5-10_random_mixed_square_n005_seed5000",
+      "source_name": "random_mixed_square_n005_seed5000.json",
+      "class": "random",
+      "band": "5-10",
+      "k": 5,
+      "vertices": 57
+    },
+    {
+      "name": "random_11-20_random_mixed_square_n015_seed15000",
+      "source_name": "random_mixed_square_n015_seed15000.json",
+      "class": "random",
+      "band": "11-20",
+      "k": 15,
+      "vertices": 162
+    },
+    {
+      "name": "random_21-40_random_mixed_square_n030_seed30000",
+      "source_name": "random_mixed_square_n030_seed30000.json",
+      "class": "random",
+      "band": "21-40",
+      "k": 30,
+      "vertices": 337
+    },
+    {
+      "name": "random_41-60_random_mixed_square_n050_seed50000",
+      "source_name": "random_mixed_square_n050_seed50000.json",
+      "class": "random",
+      "band": "41-60",
+      "k": 48,
+      "vertices": 544
+    },
+    {
+      "name": "tessellation_5-10_euro-night-0000010",
+      "source_name": "euro-night-0000010.json",
+      "class": "tessellation",
+      "band": "5-10",
+      "k": 10,
+      "vertices": 51
+    },
+    {
+      "name": "tessellation_11-20_burma14",
+      "source_name": "burma14.json",
+      "class": "tessellation",
+      "band": "11-20",
+      "k": 14,
+      "vertices": 71
+    },
+    {
+      "name": "tessellation_21-40_euro-night-0000025.instance",
+      "source_name": "euro-night-0000025.instance.json",
+      "class": "tessellation",
+      "band": "21-40",
+      "k": 25,
+      "vertices": 134
+    },
+    {
+      "name": "tessellation_41-60_att48",
+      "source_name": "att48.json",
+      "class": "tessellation",
+      "band": "41-60",
+      "k": 48,
+      "vertices": 264
+    }
+  ]
+}

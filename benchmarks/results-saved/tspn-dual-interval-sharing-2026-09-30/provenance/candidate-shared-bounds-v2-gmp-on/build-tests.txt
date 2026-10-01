@@ -1,0 +1,11 @@
+Candidate V2 build provenance
+Source base: 63a5124d808d00390d94f6e1b91b5041cba2ee85
+V2 delta: lazy interned compatible-bound index in unordered_portfolio.h; V1 single-worker and memo-only paths unchanged.
+Build dir: .build/tspn-dual-interval-sharing-2026-09-30/candidate-gmp-on-v2
+Configuration: Release, TPP_ENABLE_GMP_RATIONAL=ON, AppleClang 21.0.0 (clang-2100.3.34.2), macOS arm64
+Targets: tpp-unordered, tpp-tspn-tests, tpp-unordered-tests
+Frozen native executable SHA-256: be321d7befc4839bd54f76f18acafacc50e57e2b0bd7483ae7e36c608ad28f2d
+Tracked source patch SHA-256: 113e22c6d96941aca75a75fc34cc5f79079718ca39fae9d04fef7454df5247f1
+Untracked cycle_interval.h SHA-256: ac4241420084ef1bc5c8b38f2ea6c16df937ef7a5ae33bdc3b356e66dfc6686f
+Build outcomes: all targets compiled. AppleClang reported pre-existing designated-initializer order warnings in unordered.cpp; no errors.
+GMP-on tests: TSPN passed with the new concurrent publisher/reader test (19 exhaustive cases; 798 option/call-cap comparisons; 38 combined concurrency checks); unordered passed (86 exhaustive-order cases; 344 interrupted-search checks; concurrent child evaluation).

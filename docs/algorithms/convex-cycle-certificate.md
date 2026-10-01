@@ -105,6 +105,26 @@ Bit costs depend on the rational operands, and are not treated as constant.
 `InvalidInput` and `InvalidCandidate` distinguish malformed regions and contacts.
 No interval gap, iteration count, or displayed length controls acceptance.
 
+The verifier overloads optionally accept `lower_bound_cutoff` (default infinity).
+For a finite request they check membership, then use a floating estimate of the
+same support expression to decide whether an early rational test is worth
+trying. That estimate is never returned as a bound and cannot authorize pruning.
+If promising, the same rational unit-disk dual bound is computed before KKT.
+If its downward-rounded lower bound
+reaches the requested cutoff, the verifier returns `Feasible`, the primal upper
+bound, and `optimality_check_skipped=true`. In this case `Feasible` says that
+optimality was not tested, not that it failed. A candidate that does not reach
+the cutoff follows the complete existing test, reusing its computed dual bound
+if KKT fails. A floating false positive costs an unsuccessful rational check;
+a false negative uses the ordinary certificate and construction. Neither can
+change the validity of an accepted bound. Nonfinite estimates defer to the
+exact test, and no epsilon is used in the proposal filter.
+Invalid contacts are rejected even for a negative cutoff, and
+NaN cutoffs are invalid. The default infinity retains the complete test.
+This early return certifies a pruning inequality, never exact optimality; no
+epsilon is added to the comparison. The rational and binary64 overloads share
+this implementation.
+
 For an optimal candidate, lower and upper bounds enclose its actual length.
 For any other feasible candidate, a dual lower bound uses rational vectors of
 norm at most one and polygon support minima; the primal upper bound encloses
@@ -121,3 +141,40 @@ is compared with one. Repeated-region, interior-contact and fixed-contact
 variants check longer zero blocks. General cycle tests also disable the fast
 proposal so the complete anchored search and its restriction certificates run.
 See [the cycle solver](convex-cycle.md) for construction and termination.
+
+## Optional rigorous binary64 interval filter
+
+The binary64 overloads accept `interval_filter=true`; prepared geometry must
+also request its immutable binary64 view. The rational overload stays entirely
+rational. This filter is a part of the existing verifier, not another solver.
+
+Each arithmetic primitive stores a binary64 result and expands it toward both
+infinities with `nextafter`. Volatile stores separate operations and prevent
+FMA contraction or excess-precision intermediates. There is no error epsilon.
+The filter requires IEEE binary64, round-to-nearest and working subnormals;
+fast-math, other rounding modes, unrepresentable norm enclosures and overflow
+fall back to the rational path. No process rounding mode is changed.
+
+Contact halfplane signs are decided by intervals when possible and by the
+original rational determinant otherwise. Boundary ambiguity never accepts an
+outside contact. Point/segment regions use the exact membership predicate.
+For each nonzero link, let `h_i` be an interval upper bound for its norm.
+The **exact** vector `(q_(i+1)-q_i)/h_i` belongs to the unit disk. Interval
+division encloses this vector; it does not treat rounded direction coordinates
+as exact unit vectors. Zero links use zero. Interval polygon support minima,
+summed after a common translation, therefore enclose a valid global dual
+bound. Independently summed norm intervals enclose the candidate length.
+
+If the lower endpoint reaches a finite cutoff, the result is `Feasible`, with
+`optimality_check_skipped=true`. If the cutoff lies between the interval dual
+lower bound and primal upper bound, the rational certificate resolves it. If
+the primal upper bound is already below the cutoff, or no cutoff was requested,
+the full exact KKT predicate still runs and the intervals provide reporting
+bounds. `Optimal` always requires that predicate. `interval_bounds_used` marks
+successful interval reporting; rational recovery remains available.
+
+For N vertices and k contacts, interval membership and bounds cost O(N+k)
+fixed-precision operations and O(k) temporary storage, in addition to exact
+predicates for ambiguous signs and any full KKT/fallback work. The prepared
+binary64 view costs O(N) memory. This changes practical arithmetic costs, not
+the exact solver's worst-case bit complexity or B&B's numerical gap contract.

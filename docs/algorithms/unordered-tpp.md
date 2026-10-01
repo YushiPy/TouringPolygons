@@ -3,6 +3,12 @@
 Implementação: `packages/nonconvex-tpp/cpp/src/solvers/unordered.cpp`.
 API: `tpp/nonconvex/unordered.h`.
 
+O modo nativo opcional `--portfolio` executa duas buscas independentes com
+incumbente compartilhado, orçamento global de chamadas e encerramento por prova
+do gap. A implementação e o protocolo são comuns ao TPP e ao TSPN; veja
+[portfólio cooperativo](tspn.md#cooperative-search-portfolio). `--threads` deve
+permanecer em 1 nesse modo: o portfólio cria dois workers, um por estratégia.
+
 A mesma busca também oferece ciclos sem extremos fixos pela API
 `tpp_nonconvex_tspn_solve`. Formulação, limites cíclicos e contrato de exatidão
 estão documentados em [TSPN](tspn.md).
@@ -48,6 +54,10 @@ afeta trabalho e runtime, não a validade dos limites. `parallel_oracle_calls` e
 `parallel_oracle_batches` mostram quando houve paralelismo efetivo. O contador
 `calls` inclui todas as chamadas já lançadas, inclusive as que terminam após o
 limite cooperativo de tempo.
+A região OpenMP fica em uma função separada que não é expandida no chamador,
+para que o caminho serial não inicialize o runtime de threads. Essa função só
+é chamada quando há mais de um oráculo no lote; avaliação e propagação de
+exceções mantêm o mesmo contrato.
 Opcionalmente, `--detour-root` escolhe a primeira região pelo maior desvio
 mínimo do caminho reto ao visitar seu fecho convexo; empates favorecem a maior
 distância do caminho ao polígono original. A opção só muda a ordem da busca,

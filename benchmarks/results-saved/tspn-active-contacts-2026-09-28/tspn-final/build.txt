@@ -1,0 +1,67 @@
+-- Targeting Unix Makefiles
+-- Using /usr/bin/c++ compiler.
+-- Running in macOS DARWIN_VERSION=25
+-- Boost include dirs: /opt/homebrew/include
+-- Boost libraries:
+-- Configuring done (0.6s)
+-- Generating done (0.1s)
+-- Build files have been written to: /private/tmp/tpp-tspn-comparison-build
+[  5%] Built target tpp_geometry
+[  8%] Built target tpp_directional_double
+[ 50%] Built target tpp_convex
+[ 94%] Built target tspn_core
+[100%] Built target tpp-fekete-cycle
+[  6%] Built target tpp_geometry
+[ 13%] Built target optimal_convex_partition
+[ 17%] Built target tpp_directional_double
+[ 68%] Built target tpp_convex
+[ 72%] Building CXX object touring_polygons/CMakeFiles/tpp_nonconvex.dir/src/solvers/unordered.cpp.o
+/private/tmp/tpp-convex-cycle/packages/nonconvex-tpp/cpp/src/solvers/unordered.cpp:234:74: warning: ISO C++ requires field designators to be specified in declaration order; field 'source' will be initialized after field 'path' [-Wreorder-init-list]
+  234 |                                 trace_event({.kind = "heuristic_start", .source = direction, .path = initial});
+      |                                                                                              ~~~~~~~~^~~~~~~
+/private/tmp/tpp-convex-cycle/packages/nonconvex-tpp/cpp/src/solvers/unordered.cpp:234:55: note: previous initialization for field 'source' is here
+  234 |                                 trace_event({.kind = "heuristic_start", .source = direction, .path = initial});
+      |                                                                                   ^~~~~~~~~
+/private/tmp/tpp-convex-cycle/packages/nonconvex-tpp/cpp/src/solvers/unordered.cpp:283:15: warning: ISO C++ requires field designators to be specified in declaration order; field 'path' will be initialized after field 'pass' [-Wreorder-init-list]
+  283 |                                                 .pass = pass,
+      |                                                 ~~~~~~~~^~~~
+/private/tmp/tpp-convex-cycle/packages/nonconvex-tpp/cpp/src/solvers/unordered.cpp:282:15: note: previous initialization for field 'path' is here
+  282 |                                                 .path = initial,
+      |                                                         ^~~~~~~
+/private/tmp/tpp-convex-cycle/packages/nonconvex-tpp/cpp/src/solvers/unordered.cpp:312:15: warning: ISO C++ requires field designators to be specified in declaration order; field 'path' will be initialized after field 'pass' [-Wreorder-init-list]
+  312 |                                                 .pass = pass,
+      |                                                 ~~~~~~~~^~~~
+/private/tmp/tpp-convex-cycle/packages/nonconvex-tpp/cpp/src/solvers/unordered.cpp:311:15: note: previous initialization for field 'path' is here
+  311 |                                                 .path = initial,
+      |                                                         ^~~~~~~
+/private/tmp/tpp-convex-cycle/packages/nonconvex-tpp/cpp/src/solvers/unordered.cpp:623:16: warning: ISO C++ requires field designators to be specified in declaration order; field 'sequence' will be initialized after field 'polygon' [-Wreorder-init-list]
+  623 |                                 .polygon = chosen,
+      |                                 ~~~~~~~~~~~^~~~~~
+/private/tmp/tpp-convex-cycle/packages/nonconvex-tpp/cpp/src/solvers/unordered.cpp:622:17: note: previous initialization for field 'sequence' is here
+  622 |                                 .sequence = node_sequence,
+      |                                             ^~~~~~~~~~~~~
+/private/tmp/tpp-convex-cycle/packages/nonconvex-tpp/cpp/src/solvers/unordered.cpp:686:19: warning: ISO C++ requires field designators to be specified in declaration order; field 'sequence' will be initialized after field 'polygon' [-Wreorder-init-list]
+  686 |                                                         .polygon = chosen,
+      |                                                         ~~~~~~~~~~~^~~~~~
+/private/tmp/tpp-convex-cycle/packages/nonconvex-tpp/cpp/src/solvers/unordered.cpp:681:20: note: previous initialization for field 'sequence' is here
+  681 |                                                         .sequence = [&] {
+      |                                                                     ^~~~~
+  682 |                                                                 std::vector<size_t> child_sequence;
+      |                                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  683 |                                                                 for (auto e : sequence) child_sequence.push_back(e.polygon);
+      |                                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  684 |                                                                 return child_sequence;
+      |                                                                 ~~~~~~~~~~~~~~~~~~~~~~
+  685 |                                                         }(),
+      |                                                         ~~~
+/private/tmp/tpp-convex-cycle/packages/nonconvex-tpp/cpp/src/solvers/unordered.cpp:764:18: warning: ISO C++ requires field designators to be specified in declaration order; field 'sequence' will be initialized after field 'polygon' [-Wreorder-init-list]
+  764 |                                                 .polygon = child.branch_polygon,
+      |                                                 ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~
+/private/tmp/tpp-convex-cycle/packages/nonconvex-tpp/cpp/src/solvers/unordered.cpp:763:19: note: previous initialization for field 'sequence' is here
+  763 |                                                 .sequence = child_sequence,
+      |                                                             ^~~~~~~~~~~~~~
+6 warnings generated.
+[ 75%] Linking CXX static library libtpp_nonconvex.a
+[ 93%] Built target tpp_nonconvex
+[ 96%] Linking CXX executable tpp-unordered
+[100%] Built target tpp-unordered

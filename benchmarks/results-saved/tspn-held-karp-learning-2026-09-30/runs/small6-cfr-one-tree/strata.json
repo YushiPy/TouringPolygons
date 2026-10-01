@@ -1,0 +1,128 @@
+[
+  {
+    "source_class": "OSM",
+    "size_band": "5-10",
+    "cases": 1,
+    "matched_cases": 1,
+    "ours_faster": 1,
+    "median_speedup": 1.8960195648507336,
+    "mean_speedup": 1.8960195648507336,
+    "ours": {
+      "valid_runs": 1,
+      "gap_closed_runs": 1,
+      "errors": 0,
+      "timeouts": 0
+    },
+    "fekete": {
+      "valid_runs": 1,
+      "gap_closed_runs": 1,
+      "errors": 0,
+      "timeouts": 0
+    }
+  },
+  {
+    "source_class": "OSM",
+    "size_band": "11-20",
+    "cases": 1,
+    "matched_cases": 1,
+    "ours_faster": 1,
+    "median_speedup": 1.9851456082667918,
+    "mean_speedup": 1.9851456082667918,
+    "ours": {
+      "valid_runs": 1,
+      "gap_closed_runs": 1,
+      "errors": 0,
+      "timeouts": 0
+    },
+    "fekete": {
+      "valid_runs": 1,
+      "gap_closed_runs": 1,
+      "errors": 0,
+      "timeouts": 0
+    }
+  },
+  {
+    "source_class": "random",
+    "size_band": "5-10",
+    "cases": 1,
+    "matched_cases": 1,
+    "ours_faster": 1,
+    "median_speedup": 3.2807804381322954,
+    "mean_speedup": 3.2807804381322954,
+    "ours": {
+      "valid_runs": 1,
+      "gap_closed_runs": 1,
+      "errors": 0,
+      "timeouts": 0
+    },
+    "fekete": {
+      "valid_runs": 1,
+      "gap_closed_runs": 1,
+      "errors": 0,
+      "timeouts": 0
+    }
+  },
+  {
+    "source_class": "random",
+    "size_band": "11-20",
+    "cases": 1,
+    "matched_cases": 1,
+    "ours_faster": 1,
+    "median_speedup": 1.8483437712475015,
+    "mean_speedup": 1.8483437712475015,
+    "ours": {
+      "valid_runs": 1,
+      "gap_closed_runs": 1,
+      "errors": 0,
+      "timeouts": 0
+    },
+    "fekete": {
+      "valid_runs": 1,
+      "gap_closed_runs": 1,
+      "errors": 0,
+      "timeouts": 0
+    }
+  },
+  {
+    "source_class": "tessellation",
+    "size_band": "5-10",
+    "cases": 1,
+    "matched_cases": 0,
+    "ours_faster": 0,
+    "median_speedup": null,
+    "mean_speedup": null,
+    "ours": {
+      "valid_runs": 1,
+      "gap_closed_runs": 1,
+      "errors": 0,
+      "timeouts": 0
+    },
+    "fekete": {
+      "valid_runs": 1,
+      "gap_closed_runs": 0,
+      "errors": 0,
+      "timeouts": 0
+    }
+  },
+  {
+    "source_class": "tessellation",
+    "size_band": "11-20",
+    "cases": 1,
+    "matched_cases": 1,
+    "ours_faster": 1,
+    "median_speedup": 1.4770003864953554,
+    "mean_speedup": 1.4770003864953554,
+    "ours": {
+      "valid_runs": 1,
+      "gap_closed_runs": 1,
+      "errors": 0,
+      "timeouts": 0
+    },
+    "fekete": {
+      "valid_runs": 1,
+      "gap_closed_runs": 1,
+      "errors": 0,
+      "timeouts": 0
+    }
+  }
+]

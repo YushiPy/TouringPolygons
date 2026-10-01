@@ -1,0 +1,33 @@
+--- cycle.cpp@candidate-B
++++ cycle.cpp@candidate-C
+@@ -374,6 +374,16 @@
+         Evaluate evaluate,Restricted restricted,Refine refine,Solved solved,
+         size_t &anchor_index,std::string &diagnostic) {
+     using P=ConvexArithmeticPoint<S>;using Polygon=std::vector<P>;const size_t k=p.size();
++    // Check a representative boundary point of every region before spending
++    // unbounded rational reconstruction work on one anchor's first edge.
++    // These are the same anchored problems and exact acceptance conditions as
++    // below; only their order changes. Reuse their contacts in the full search.
++    std::vector<Polygon> first_contacts(k);
++    for(size_t anchor=0;anchor<k;++anchor)try {
++        anchor_index=anchor;
++        first_contacts[anchor]=evaluate(anchor,p[anchor].front());
++        if(solved()||refine(first_contacts[anchor]))return;
++    } catch(const std::runtime_error &error){diagnostic=error.what();}
+     for(size_t anchor=0;anchor<k;++anchor) {
+         anchor_index=anchor;
+         auto derivative=[&](const Polygon &q,const P &e) {
+@@ -397,7 +407,12 @@
+             std::sort(cuts.begin(),cuts.end());cuts.erase(std::unique(cuts.begin(),cuts.end()),cuts.end());
+             std::vector<Polygon> ends(cuts.size());
+             for(size_t r=0;r<cuts.size();++r)try {
+-                ends[r]=evaluate(anchor,a+e*cuts[r]);if(solved()||refine(ends[r]))return;
++                const P point=a+e*cuts[r];
++                if(point==p[anchor].front()&&!first_contacts[anchor].empty())
++                    ends[r]=first_contacts[anchor];
++                else {
++                    ends[r]=evaluate(anchor,point);if(solved()||refine(ends[r]))return;
++                }
+             } catch(const std::runtime_error &error){diagnostic=error.what();}
+             for(size_t r=1;r<cuts.size();++r) {
+                 if(ends[r-1].empty()||ends[r].empty())continue;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vector2.h"
+#include <array>
 #include <cstddef>
 #include <limits>
 #include <optional>
@@ -8,6 +9,8 @@
 #include <vector>
 
 namespace tpp {
+
+	enum class UnorderedSearchStrategy { BestBoundDive, DfsBfs };
 
 	struct UnorderedTppSolveOptions {
 		size_t max_calls = std::numeric_limits<size_t>::max();
@@ -36,9 +39,28 @@ namespace tpp {
 		// Record an explanatory execution trace. Disabled by default so normal
 		// benchmark runs keep the same memory and timing behavior.
 		bool trace = false;
+        UnorderedSearchStrategy search_strategy = UnorderedSearchStrategy::BestBoundDive;
+        // Two independent searches, one oracle thread each. max_calls is shared;
+        // max_seconds is one wall deadline. Requires threads == 1.
+        bool portfolio = false;
+        bool portfolio_share_incumbents = true;
+        // Independently selectable cycle accelerations for reproducible ablation.
+        bool cycle_cache = false;
+        bool cycle_dual_reuse = false;
+        bool cycle_active_features = false;
+        bool cycle_lazy = false;
+        bool cycle_separated_root = false;
+        bool cycle_strong_branching = false;
+        bool cycle_one_tree = false;
+        bool cycle_learned_branching = false;
+        bool cycle_memo = false;
+        bool cycle_bound_first = false;
+        bool cycle_dual_screen = false;
+        bool cycle_interval_certificate = false;
+        bool cycle_share_bounds = false;
 	};
 
-	enum class UnorderedTppTermination { Optimal, CallLimit, TimeLimit, NumericalLimit };
+	enum class UnorderedTppTermination { Optimal, CallLimit, TimeLimit, NumericalLimit, PortfolioStopped };
 
 	struct UnorderedTppTraceEvent {
 		std::string kind;
@@ -59,10 +81,24 @@ namespace tpp {
 		std::string reason;
 	};
 
+    struct UnorderedPortfolioRun {
+        std::string strategy;
+        size_t calls = 0, nodes = 0, incumbent_imports = 0;
+        double lower_bound = 0, upper_bound = std::numeric_limits<double>::infinity();
+        double seconds = 0;
+        UnorderedTppTermination termination = UnorderedTppTermination::NumericalLimit;
+        std::string error;
+    };
+
 	struct UnorderedTppSolveResult {
 		std::vector<Vector2> path;
 		std::vector<size_t> order;
 		std::vector<UnorderedTppTraceEvent> trace;
+        size_t portfolio_workers = 1;
+        size_t portfolio_winner = std::numeric_limits<size_t>::max();
+        size_t portfolio_incumbent_publications = 0, portfolio_incumbent_imports = 0;
+        double portfolio_proof_seconds = 0, portfolio_join_seconds = 0;
+        std::vector<UnorderedPortfolioRun> portfolio_runs;
 		double lower_bound = 0.0;
 		double upper_bound = std::numeric_limits<double>::infinity();
 		double initial_lower_bound = 0.0;
@@ -90,6 +126,17 @@ namespace tpp {
 		size_t oracle_cutoff_calls = 0;
 		size_t oracle_dual_cutoff_prunes = 0;
 		size_t screened_nodes = 0;
+        size_t one_tree_calls = 0, one_tree_cache_hits = 0, one_tree_iterations = 0;
+        size_t one_tree_distance_queries = 0, one_tree_improvements = 0;
+        double one_tree_seconds = 0;
+        size_t learned_branch_observations = 0, learned_branch_decisions = 0, learned_branch_changes = 0;
+        size_t cycle_memo_queries = 0, cycle_memo_repeated = 0, cycle_memo_hits = 0;
+        size_t cycle_certificate_cutoff_skips = 0, cycle_initial_contact_checks = 0, cycle_initial_contact_accepts = 0;
+        size_t cycle_certificate_interval_uses = 0;
+        size_t cycle_dual_screen_children = 0, cycle_dual_screen_prunes = 0;
+        double cycle_dual_screen_seconds = 0;
+        size_t cycle_shared_bound_queries = 0, cycle_shared_bound_hits = 0, cycle_shared_bound_improvements = 0, cycle_shared_bound_prunes = 0;
+        double cycle_shared_bound_seconds = 0;
 		// Generated children skipped before the oracle after a sibling improved the incumbent.
 		size_t sibling_bound_prunes = 0;
 		size_t nodes = 0;
@@ -149,6 +196,15 @@ namespace tpp {
 		double search_seconds = 0.0;
 		double finalization_seconds = 0.0;
 		double convex_oracle_seconds = 0.0;
+		// Completed search/refinement requests, including memo hits; excludes
+		// optional initial polishing and failed/in-flight requests.
+		size_t oracle_profiled_calls = 0;
+		double oracle_max_call_seconds = 0.0;
+		// Entire calls that used a fallback, NOT exclusive recovery time.
+		double oracle_fallback_call_seconds = 0.0;
+		// Exclusive buckets: <=10us, 100us, 1ms, 10ms, 100ms, 1s, >1s.
+		std::array<size_t, 7> oracle_call_histogram{};
+		std::array<double, 7> oracle_seconds_histogram{};
 		// Sum of wall time across batches; unlike convex_oracle_seconds, parallel
 		// evaluations in one batch are counted once here.
 		double convex_oracle_wall_seconds = 0.0;

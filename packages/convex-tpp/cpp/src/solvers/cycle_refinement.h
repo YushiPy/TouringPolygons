@@ -13,6 +13,11 @@ template<class S> struct CycleRefinement {
     using Polygons=std::vector<Polygon>;
     static P reflect(P q,P a,P e) {return a+e*(S(2)*(q-a).dot(e)/e.dot(e))-(q-a);}
     static bool inside(P q,const Polygon &p) {
+        if(p.size()==1)return q==p.front();
+        if(p.size()==2) {
+            const P e=p[1]-p[0],d=q-p[0];
+            return e.cross(d)==0&&d.dot(e)>=0&&d.dot(e)<=e.dot(e);
+        }
         for(size_t i=0;i<p.size();++i)if((p[(i+1)%p.size()]-p[i]).cross(q-p[i])<0)return false;
         return true;
     }
@@ -44,9 +49,21 @@ template<class S> struct CycleRefinement {
             else if(slope>0)lo=std::max(lo,S(-offset/slope));
             else hi=std::min(hi,S(-offset/slope));
         }
+        if(p.size()==2) {
+            // The two opposite edge halfplanes describe the supporting line.
+            // Its endpoint bounds are needed to obtain the closed segment.
+            const P e=p[1]-p[0];const S offset=(a-p[0]).dot(e),slope=d.dot(e),ee=e.dot(e);
+            if(slope==0){if(offset<0||offset>ee)crosses=false;}
+            else if(slope>0){lo=std::max(lo,S(-offset/slope));hi=std::min(hi,S((ee-offset)/slope));}
+            else {lo=std::max(lo,S((ee-offset)/slope));hi=std::min(hi,S(-offset/slope));}
+        }
         if(crosses&&lo<=hi) {
             const S t=dd==0?S(0):std::clamp(S((old-a).dot(d)/dd),lo,hi);
             const P q=a+d*t;
+            // A contact strictly between its neighbours is straight-through,
+            // even on a polygon edge or vertex. Reflecting at that inactive
+            // boundary creates a spurious bend in the closed construction.
+            if(t>0&&t<1)return {q,-1};
             for(size_t j=0;j<p.size();++j)if(q==p[j])return {q,int(2*j)};
             for(size_t j=0;j<p.size();++j)if((p[(j+1)%p.size()]-p[j]).cross(q-p[j])==0)return {q,int(2*j+1)};
             return {q,-1};
@@ -72,9 +89,18 @@ template<class S> struct CycleRefinement {
         }
         throw std::runtime_error("No representable local cycle contact");
     }
-    static bool close(const Polygons &p,const std::vector<int> &feature,Polygon &q) {
+    static bool close(const Polygons &p,const std::vector<int> &feature,Polygon &q,
+                      std::vector<int> *blocking=nullptr) {
         const size_t k=p.size();std::vector<size_t> pins,edges;
         for(size_t i=0;i<k;++i)if(feature[i]>=0&&feature[i]%2==0)pins.push_back(i);
+        auto on_edge=[&](size_t i,size_t j,const S &t) {
+            if(t>=0&&t<=1)return true;
+            if(blocking) {
+                const size_t vertex=t<0?j:(j+1)%p[i].size();
+                (*blocking)[i]=int(2*vertex);q[i]=p[i][vertex];
+            }
+            return false;
+        };
         auto unfold=[&](P target,const std::vector<size_t> &indices) {
             for(auto it=indices.rbegin();it!=indices.rend();++it) {
                 const size_t i=*it,j=size_t(feature[i])/2;
@@ -94,7 +120,7 @@ template<class S> struct CycleRefinement {
                 const auto point=intersection(current,images[r]-current,p[i][j],e);
                 if(!point)return false;
                 const S t=(*point-p[i][j]).dot(e)/e.dot(e);
-                if(t<0||t>1)return false;
+                if(!on_edge(i,j,t))return false;
                 q[i]=current=*point;
             }
             return true;
@@ -106,7 +132,7 @@ template<class S> struct CycleRefinement {
             const size_t j=size_t(feature[anchor])/2;const P a=p[anchor][j],e=p[anchor][(j+1)%p[anchor].size()]-a;
             const P c=unfold(a,edges)-a,d=unfold(a+e,edges)-(a+e)-c;
             const S dd=d.dot(d);const S t=dd==0?S(1)/2:S(-c.dot(d)/dd);
-            if(t<0||t>1)return false;
+            if(!on_edge(anchor,j,t))return false;
             q[anchor]=a+e*t;pins.push_back(anchor);
         }
         for(size_t r=0;r<pins.size();++r) {
@@ -149,7 +175,7 @@ template<class S> struct CycleRefinement {
             if(count>1) {
                 Polygon region=p[start];
                 for(size_t r=1;r<count;++r)region=intersect(std::move(region),p[(start+r)%k]);
-                if(region.size()==1||region.size()>=3) {
+                if(!region.empty()) {
                     const P point=region.size()==1?region.front():coordinate(q[(start+k-1)%k],q[(end+1)%k],q[start],region).first;
                     for(size_t r=0;r<count;++r) {
                         const size_t i=(start+r)%k;q[i]=point;feature[i]=-1;
@@ -185,7 +211,7 @@ template<class S> struct CycleRefinement {
         }
         return changed;
     }
-    template<class Consider> static bool run(const Polygons &p,Consider consider,Polygon q={}) {
+    template<class Consider> static bool run(const Polygons &p,Consider consider,Polygon q={},const std::vector<int> &inherited={}) {
         const size_t k=p.size();
         auto submit=[&](const Polygon &candidate,const std::vector<int> &features,bool closed) {
             if constexpr(std::is_invocable_r_v<bool,Consider,const Polygon&,const std::vector<int>&,bool>)
@@ -215,6 +241,20 @@ template<class S> struct CycleRefinement {
             q.resize(k);
             for(size_t i=0;i<k;++i){for(const auto &v:p[i])q[i]=q[i]+v;q[i]=q[i]*(S(1)/p[i].size());}
         }
+        if(inherited.size()==k) {
+            auto feature=inherited;auto proposal=q;std::vector<bool> repair(k,false);
+            bool valid=true;
+            for(size_t i=0;i<k;++i) {
+                if(feature[i]<-2||feature[i]>=int(2*p[i].size()))valid=false;
+                if(feature[i]==-2)repair[i]=repair[(i+k-1)%k]=repair[(i+1)%k]=true;
+            }
+            if(valid) {
+                for(size_t i=0;i<k;++i)if(feature[i]>=0&&feature[i]%2==0)proposal[i]=p[i][size_t(feature[i])/2];
+                for(size_t i=0;i<k;++i)if(repair[i])
+                    std::tie(proposal[i],feature[i])=coordinate(proposal[(i+k-1)%k],proposal[(i+1)%k],proposal[i],p[i]);
+                if(close(p,feature,proposal)&&submit(proposal,feature,true))return true;
+            }
+        }
         std::set<std::vector<int>> visited;
         for(;;) {
             std::vector<int> feature(k);
@@ -222,9 +262,23 @@ template<class S> struct CycleRefinement {
             move_zero_blocks(p,q,feature);
             if(submit(q,feature,false))return true;
             Polygon closed=q;
-            if(close(p,feature,closed)&&submit(closed,feature,true))return true;
-            auto released=feature;closed=q;
-            if(release_coincident_vertices(p,q,released)&&close(p,released,closed)&&submit(closed,released,true))return true;
+            auto active=feature;
+            bool constructed=false;
+            // Every successful pivot replaces an edge feature by a vertex.
+            // At most k such changes are possible before a fresh sweep.
+            for(size_t pivot=0;pivot<=k;++pivot) {
+                auto next=active;
+                if(close(p,active,closed,&next)){constructed=true;break;}
+                if(next==active)break;
+                active=std::move(next);
+            }
+            if(constructed&&submit(closed,active,true))return true;
+            auto released=feature;Polygon unpinned=q;
+            if(release_coincident_vertices(p,q,released)&&close(p,released,unpinned)&&submit(unpinned,released,true))return true;
+            // A blocking endpoint or a restored skipped contact may change the
+            // active type. Feed that feasible construction into the next sweep
+            // instead of repeating projections between almost parallel edges.
+            if(constructed){q=std::move(closed);feature=std::move(active);}
             // This is a finite feature proposal, not a convergence tolerance.
             // Failure hands control back to the exact anchored reduction.
             if(!visited.insert(feature).second||visited.size()>=k+1)return false;
@@ -232,5 +286,6 @@ template<class S> struct CycleRefinement {
             // an acceptance tolerance: the anchored solver handles the rest.
         }
     }
+
 };
 } // namespace tpp::detail

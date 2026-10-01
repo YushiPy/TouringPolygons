@@ -5,6 +5,25 @@ set(CMAKE_CXX_STANDARD 26)
 
 set(TARGET "main" CACHE STRING "Target to build")
 option(TPP_ENABLE_GUROBI "Build the optional Gurobi baseline solver" OFF)
+option(TPP_ENABLE_GMP_RATIONAL "Use GMP for exact arithmetic when available (native builds)" ON)
+
+# Both backends implement the same unbounded rational operations. Keep the
+# header-only backend available for portable builds, including WebAssembly.
+add_library(tpp_exact_arithmetic INTERFACE)
+if(TPP_ENABLE_GMP_RATIONAL AND NOT EMSCRIPTEN)
+    find_path(TPP_GMP_INCLUDE_DIR gmp.h HINTS /opt/homebrew/include /opt/homebrew/opt/gmp/include)
+    find_library(TPP_GMP_LIBRARY NAMES gmp HINTS /opt/homebrew/lib /opt/homebrew/opt/gmp/lib)
+    if(TPP_GMP_INCLUDE_DIR AND TPP_GMP_LIBRARY)
+        target_compile_definitions(tpp_exact_arithmetic INTERFACE TPP_USE_GMP_RATIONAL=1)
+        target_include_directories(tpp_exact_arithmetic INTERFACE ${TPP_GMP_INCLUDE_DIR})
+        target_link_libraries(tpp_exact_arithmetic INTERFACE ${TPP_GMP_LIBRARY})
+        message(STATUS "TPP exact arithmetic: GMP")
+    else()
+        message(STATUS "GMP unavailable; TPP exact arithmetic: Boost cpp_rational")
+    endif()
+else()
+    message(STATUS "TPP exact arithmetic: Boost cpp_rational")
+endif()
 
 if(NOT TARGET tpp_geometry)
     add_subdirectory(../../common-geometry/cpp tpp_geometry)
@@ -37,11 +56,11 @@ target_compile_definitions(tpp_directional_double PRIVATE
     TPP_EXPERIMENT_NATIVE_DOUBLE=1
     TPP_DIRECTIONAL_DOUBLE_VARIANT=1)
 target_include_directories(tpp_directional_double PRIVATE include)
-target_link_libraries(tpp_directional_double PRIVATE Boost::headers tpp_geometry)
+target_link_libraries(tpp_directional_double PRIVATE Boost::headers tpp_geometry tpp_exact_arithmetic)
 target_compile_options(tpp_directional_double PRIVATE -O3)
 add_library(tpp_convex STATIC ${TPP_CONVEX_SOURCES})
 target_sources(tpp_convex PRIVATE $<TARGET_OBJECTS:tpp_directional_double>)
-target_link_libraries(tpp_convex PRIVATE Eigen3::Eigen PUBLIC Boost::headers)
+target_link_libraries(tpp_convex PRIVATE Eigen3::Eigen PUBLIC Boost::headers tpp_exact_arithmetic)
 target_include_directories(tpp_convex PUBLIC include)
 target_link_libraries(tpp_convex PUBLIC tpp_geometry)
 target_compile_options(tpp_convex PRIVATE -O3)
@@ -52,6 +71,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/${TARGET}.cpp")
     target_compile_options(${PROJECT_NAME} PRIVATE -O3)
     if("${TARGET}" STREQUAL "main-cycle_tests")
         target_compile_definitions(${PROJECT_NAME} PRIVATE
+            TPP_CYCLE_REGRESSION_FILE="${CMAKE_CURRENT_SOURCE_DIR}/tests/cycle_active_contacts.json"
             TPP_CYCLE_REFERENCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../../benchmarks/results-saved/convex-cycle-gurobi-reference-2026-09-25")
     endif()
 endif()

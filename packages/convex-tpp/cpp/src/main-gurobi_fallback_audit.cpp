@@ -1,4 +1,5 @@
 #include "tests.h"
+#include "tpp/convex/rational.h"
 #include "gurobi_c++.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
@@ -19,7 +20,7 @@
 #include <vector>
 
 namespace {
-using Rational=boost::multiprecision::cpp_rational;
+using Rational=tpp::ConvexRational;
 using Polygon=std::vector<Vector2>;
 
 struct Metadata {

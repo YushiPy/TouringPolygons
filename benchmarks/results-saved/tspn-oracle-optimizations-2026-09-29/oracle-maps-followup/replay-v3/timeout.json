@@ -1,0 +1,18 @@
+{
+  "case": "captured ordered 19-region relaxation",
+  "fixture": "benchmarks/results-saved/tspn-oracle-optimizations-2026-09-29/oracle-maps-followup/diagnostics/last-relaxation.json",
+  "fixture_sha256": "eac360b9354f80e2d16f2cceec7e7164298db25c036d4fe377a07e92906f63a3",
+  "variant": "frozen v3, no instrumentation, no cycle flags; current-ABI double replay linked against frozen v3 static libraries",
+  "firm_timeout_seconds": 8,
+  "result": "process exceeded 8s; killed by subprocess.run timeout",
+  "executable_sha256": "d665e3d2346cc662eb9504c8088aa90963171f589ff63bde7a3f36d384a6b433",
+  "linked_frozen_libraries": {
+    "/private/tmp/tpp-tspn-comparison-build/touring_polygons/libtpp_nonconvex.a": "30d40b894ee06f90c150d8cf3c841a61e7f3df82342b7f619509ba59a844d8b2",
+    "/private/tmp/tpp-tspn-comparison-build/touring_polygons/tpp_convex/libtpp_convex.a": "e61745332658442a6fb17408e7f6d254748d72d0b9f02b9e3167c47077f4e744",
+    "/private/tmp/tpp-tspn-comparison-build/touring_polygons/tpp_geometry/libtpp_geometry.a": "53e5228c6e7968f21b6d09ad1bc3f9a0b77086e2c587da7d5a53ff4753e9132e",
+    "/private/tmp/tpp-tspn-comparison-build/touring_polygons/optimal_convex_partition/liboptimal_convex_partition.a": "c60b685fc8ca87f7f694613fa200891e05f5ae5474d42c7d732ebfafb14c2890"
+  },
+  "command": "generated replay harness; original ordering; includes double API and rounded independent certificate validation",
+  "note": "Previous temporary-instrumented v3 run also hit 8s; this is an independent pristine static-library timeout.",
+  "partial_stdout_stderr": "Not captured by subprocess.run timeout exception; timeout status and command are preserved."
+}

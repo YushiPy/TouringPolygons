@@ -1,0 +1,1 @@
+Run `python3 benchmarks/tpp.py tspn-benchmark --output NEW_DIRECTORY`. Inputs, raw runs, configuration, source hashes and analysis are preserved together. The external checkout is read only; its original SOCP backend is selected.

@@ -1,0 +1,14 @@
+# TSPN: maintained B&B versus Fekete SOCP B&B
+
+Times include only completed solver calls; process-censored runs have no solution time. Native time-limit runs report elapsed solver time but do not imply gap closure. See config.json for matched formulation, gap, tolerances and strict Gurobi settings.
+
+| Class | Band | Instance | k | Ours ms / calls / closed | Fekete ms / calls / closed | Valid O/F | Timeouts O/F | Objective spread | Interval separation | Matched speedup |
+|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| OSM | 5-10 | holdout_osm_5-10_jakarta_n005_seed7447 | 5 | 2.030 / 3 / 1 | 2.810 / 4 / 1 | 1 / 1 | 0 / 0 | 1.0218883517154609e-09 | 0 | 1.3847335999944814 |
+| OSM | 11-20 | holdout_osm_11-20_lagos_n015_seed7082 | 15 | 9.335 / 8 / 1 | 12.679 / 13 / 1 | 1 / 1 | 0 / 0 | 4.384259000289603e-08 | 0 | 1.3581926521420005 |
+| random | 5-10 | holdout_random_5-10_random_mixed_square_n010_seed10013 | 10 | 3.349 / 8 / 1 | 13.686 / 24 / 1 | 1 / 1 | 0 / 0 | 1.7302568267041352e-09 | 0 | 4.08632223600274 |
+| random | 11-20 | holdout_random_11-20_random_mixed_square_n015_seed15016 | 15 | 42.267 / 17 / 1 | 79.722 / 80 / 1 | 1 / 1 | 0 / 0 | 1.2783800684701419e-09 | 0 | 1.8861689623691604 |
+| tessellation | 5-10 | holdout_tessellation_5-10_uniform-0000010-1 | 10 | 2.605 / 8 / 1 | 9.276 / 18 / 0 | 1 / 1 | 0 / 0 | 1.2755663192365319e-10 | 0 | None |
+| tessellation | 11-20 | holdout_tessellation_11-20_us-night-0000020.instance | 20 | 70.308 / 78 / 1 | 75.735 / 130 / 1 | 1 / 1 | 0 / 0 | 1.7149432096630335e-08 | 0 | 1.0771800991345286 |
+
+Per-class and size-band aggregates are in strata.json. Speedups require all repetitions of both backends to pass validation and close the matched gap. Calls are B&B relaxations. Gap-closed counts are separate from feasible-tour counts. Bounds from Fekete are numerical, not exact certificates. A time-limited solve can return a feasible tour without closing the requested gap; a process timeout is censored and has no solution time.

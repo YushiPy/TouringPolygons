@@ -1,0 +1,3 @@
+timeout after 2s; child terminated
+stdout=None
+stderr=b'REPLAY_BEGIN mode=original regions=19 cutoff=2.80328\n'

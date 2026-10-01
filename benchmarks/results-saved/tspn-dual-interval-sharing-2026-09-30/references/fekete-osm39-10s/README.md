@@ -1,0 +1,1 @@
+Copied verified Fekete rows for the single OSM k=39 proof fixture from the prior 3-repetition, 10s/15s strict campaign. Input hashes and exact settings are validated by `--reference-results`. No external runs are planned.

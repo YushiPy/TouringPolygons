@@ -34,6 +34,16 @@ introduced into production.
 shared by rational and double. Input validation and the independent certificate
 remain exact in both modes. Rational input never needs a floating construction.
 
+Native CMake builds use GMP's unbounded integers and rationals through the
+same Boost.Multiprecision interface when GMP is available. The aliases
+`ConvexInteger` and `ConvexRational` select the representation; the geometric
+algorithm, support predicates and outward-rounded bounds are unchanged.
+`-DTPP_ENABLE_GMP_RATIONAL=OFF`, missing GMP, and WebAssembly retain the
+header-only `cpp_int`/`cpp_rational` backend. This changes arithmetic bit costs,
+not exactness or the number of geometric operations. The CMake target exports
+the backend definition and dependency to consumers: rebuild the library and
+its consumers together because the exact-coordinate types are part of the ABI.
+
 ## Fast construction by active contacts
 
 For two disjoint regions the optimum is twice their distance. A closest pair
@@ -48,6 +58,11 @@ Start with polygon centroids. A coordinate update minimizes the two incident
 links over its polygon: use a crossing segment when possible, otherwise test
 vertex support and reflected edge contacts. Adjacent coincident contacts can
 move together over the intersection of their regions.
+That intersection may be a point, a segment, or a positive-area polygon.
+For a segment the shared coordinate update also clips by its two endpoints;
+the two edge halfplanes alone describe an unbounded line. This allows a block
+on a common tessellation edge to slide jointly instead of being trapped by
+separate contact updates.
 
 The resulting vertex/edge/straight-through contacts suggest a combinatorial
 path type. If it has fixed vertex contacts, unfold edge reflections between
@@ -56,6 +71,18 @@ each contact edge. With no fixed vertex, choose an anchor edge `x=a+t*e`;
 affine unfolding gives a length `|(A-I)x+c|`. Its squared length is quadratic
 in `t`, so its stationary parameter is obtained rationally. Restoring skipped
 straight-through contacts preserves the visit order.
+
+A contact strictly between its neighbours is straight-through even if it lies
+on the polygon boundary: the two unit directions cancel, so that boundary
+must not introduce a reflection. When unfolding places a contact beyond its
+edge, the proposal pins it to the blocking endpoint and reconstructs the
+remaining chain. Each such pivot adds a vertex pin, hence at most `k` pivots
+occur in one sweep. A constructed chain feeds the next coordinate sweep so
+that restored contacts which now bend can update their active features.
+These are finite feature proposals, shared by both arithmetic types; only the
+independent certificate accepts an optimum. Failure still uses the complete
+boundary reduction. No displacement, convergence epsilon or discretization
+is introduced.
 
 Coincident vertex contacts can trap separate coordinate updates. An additional
 proposal releases them onto their incident edges facing the neighboring
@@ -69,6 +96,99 @@ sooner on a repeated feature tuple. This structural work limit only hands
 control to the anchored search; it never accepts an objective or claims
 convergence. Set `refine_contacts=false` to exercise the unaccelerated general
 boundary reduction. Tests compare both paths.
+
+In the filtered double mode, an exhausted initial feature proposal invokes the
+complete rational reduction before starting double boundary probes. Recovery
+starts from the best already-verified double contacts (or the supplied initial
+hint if no candidate was retained), imported as exact binary rationals. If
+that warm proposal fails, the usual centroid proposal is still attempted before
+entering the complete boundary maps. Both are finite construction passes whose
+candidates use the same exact certificate. This avoids discarding useful
+contacts and avoids repeating rational repairs at hundreds of anchors when the same exact
+reduction can solve the entire cycle. Disabling arithmetic recovery preserves
+the double boundary path. If the rational recovery fails, boundary search
+still runs; the proposal limit never authorizes acceptance.
+
+When an independently verified rational solution or dual bound is exported to binary64, its
+outward-rounded lower bound remains valid for the original input. The double
+result keeps the larger of that bound and the bound obtained by independently
+verifying the exported contacts. Its upper bound still comes from those
+feasible exported contacts. This matters when rounding splits coincident
+contacts and weakens the contact-derived dual. It does not promote the rounded
+contacts to `Optimal`: they may still return `FloatingPointLimit`, or
+`CertifiedBound` when the proven lower bound reaches the caller's cutoff.
+
+Both arithmetic APIs accept optional `initial_contacts` as a proposal for this
+same constructor. Their coordinates supply neither a bound nor a feasibility
+assumption. A wrong proposal still falls back to the complete reduction. The
+general rational and double APIs also accept `lower_bound_cutoff` for B&B callers. Only a
+feasible candidate with an independently certified lower bound at least that
+cutoff can return `CertifiedBound`. This status proves the requested bound,
+not optimality or an arithmetic limit. The default cutoff is infinity, so the
+standalone solver's optimality contract is unchanged. No tolerance is added.
+
+The cutoff is passed through rational recovery as well as the initial double
+construction. A rational recovery may therefore return a certified pruning
+bound before finding its optimum. The double result retains this global lower
+bound when exporting independently feasible contacts, just as it retains an
+exact optimum's lower bound. A bound is never promoted to an optimality claim.
+
+The opt-in `bound_first` experiment also checks supplied initial contacts before
+constructing another candidate when a cheap floating support estimate suggests
+that their exact certificate might reach the cutoff. The estimate only schedules
+an additional check; it is never used to accept, prune, or report a bound.
+It requests the verifier's filtered early dual-bound
+test before KKT. Sufficient bounds return `CertifiedBound`; insufficient bounds
+continue through the full certificate and the ordinary construction. General
+rational recovery receives the same option. The legacy rational disjoint
+fallback still solves its full optimum. `certificate_cutoff_skips` counts
+certificates that avoided KKT, while the double API additionally reports
+`initial_contact_checks` and `initial_contact_accepts`. These counters measure
+actual certificate work; a skipped KKT test alone does not imply a speedup,
+because the early dual and extra inherited-contact check also have a cost.
+
+## Repeated relaxations and prepared certificates
+
+`ConvexCycleDoubleOptions::interval_certificate` enables rigorous binary64
+interval filters inside `tpp_convex_verify_cycle_certificate`. Input membership
+and every inconclusive pruning cutoff retain rational fallback; `Optimal`
+still requires the exact KKT predicate. The rational solver is unchanged.
+Prepared geometry can cache an immutable binary64 view of canonical vertices.
+`certificate_interval_uses` counts candidates whose reporting bounds used the
+filter. See [the interval proof and environment guards](convex-cycle-certificate.md#optional-rigorous-binary64-interval-filter).
+
+`ConvexCycleCertificateGeometry` owns an immutable, independently validated
+copy of its regions. The verifier overload accepting this object still checks
+contact membership and the complete support certificate on every invocation.
+Only input conversion and boundary validation are reused. The ordinary APIs
+remain available for independent verification against the original input.
+
+The general double solver accepts a per-worker `ConvexCycleWorkspace` through
+its options. It caches canonical rational polygons by their complete binary64
+coordinates, never by pointer identity. Mutation, changed winding, and polygon
+reordering therefore cannot reuse the wrong geometry. Lookup costs at most
+O(m log U) scalar comparisons for an m-vertex polygon among U cached polygons;
+assembling an ordered problem still copies O(V) rational coordinates. Repeated
+candidate checks avoid those conversions and validation passes, while retaining
+the certificate's predicate cost. Storage grows with distinct polygon contents;
+`clear()` releases it. B&B workspaces live for one instance and one worker.
+
+`initial_features` is a checked proposal for the same shared refinement kernel.
+Feature ids refer to the canonical boundary: vertex `2*j`, edge `2*j+1`,
+straight-through `-1`, changed contact `-2`. Before a full sweep, it updates the
+changed contacts and their neighbors and attempts to reconstruct the inherited
+feature tuple. Out-of-range hints are ignored; incorrect tuples never bypass
+the verifier. The ordinary constructor and complete fallback remain available.
+This adds one bounded proposal, not a numerical acceptance threshold.
+The result exports feature metadata only with `retain_active_features=true`;
+ordinary solves avoid allocating/copying metadata that their caller will discard.
+
+`tpp_convex_cycle_dual_bound` independently checks rational vector norms and
+computes a downward-rounded support bound. No vector longer than one is
+accepted. `tpp_convex_cycle_dual_directions` normalizes nonzero links with rational
+upper enclosures of their norms and can retain inherited unit-disk vectors at
+zero links. These witnesses prove lower bounds; they are not a replacement for
+the complete zero-link KKT certificate and need not be optimal dual witnesses.
 
 ## General boundary reduction and correctness
 
@@ -90,6 +210,16 @@ contacts at `x`: removing constraints lower-bounds the anchored problem, and
 these zero-cost restored visits attain that bound. The returned fixed-source
 path must pass a certificate with the anchor region replaced by the singleton
 `{x}` before its search direction is used by the rational solver.
+
+Before edge bracketing, the shared search evaluates the first vertex of every
+polygon and attempts the same finite contact reconstruction. It stores these
+anchored contacts for reuse during the full scan. This changes only the order
+of already required boundary queries: a difficult rational stationary parameter
+on the first polygon no longer prevents an easy certificate at another polygon
+from being tried first. If the preliminary queries fail, every split edge and
+its original reconstruction search remain available. Every returned optimum
+still passes the global certificate; a pruning bound needs only the independent
+global dual certificate, not a derivative or anchored optimality claim.
 
 Let `F(x)` be the anchored optimum and `f(t)=F(a+t*e)` on one split segment.
 Partial minimization of a jointly convex sum of norms makes `F` convex and
@@ -179,11 +309,16 @@ O(kN+H) stored arithmetic values.
 ```
 
 The optional proposal uses `O(N)` geometric operations per sweep without zero
-blocks, and at most `O(N^2)` for block intersections. Including its certificates,
+blocks, at most `O(k^2)` for endpoint pivots, and at most `O(N^2)` for block
+intersections. Including its certificates,
 its `k+1` sweeps add at most `R=O(k*(N^2+V))` per invocation. It is called before
 the search and at searched contacts, so replacing `C+V+H` by `C+V+H+R` gives a
 conservative bound for the accelerated implementation. The intended practical
 benefit is obtaining a certificate before most anchored solves are needed.
+
+The preliminary vertex pass adds at most `k*(C+V+R)` operations and `O(k^2)`
+stored contact values, already covered by the bounds above because `A>=k`,
+`H>=1`, and `N>=k`. It changes practical ordering, not worst-case complexity.
 
 For the disjoint fallback, with `m` vertices on the smallest polygon and
 `C_d=O(k*N*log(N/k))`, the boundary part remains

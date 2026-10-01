@@ -1,0 +1,1 @@
+Baseline diagnostic run, before the active-contact fix. Complete inputs, raw measurements, analysis, build log and compiler/source/binary provenance are preserved here. Reproduce at source commit 924e8b6 with `python3 benchmarks/tpp.py cycle-benchmark --inputs instances.json --output NEW_DIRECTORY --repetitions 1`.

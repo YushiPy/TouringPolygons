@@ -7,13 +7,78 @@ import math
 import platform
 from pathlib import Path
 import random
-import statistics
 import subprocess
+import zipfile
+import time
+from tspn_diagnostics import atomic_json, digest, finite, load_rows, row_key, write_reports
 from benchmark_cases import read_encoded_cases
+from convert_instances import convert_json_case
 from unordered_runner import encode_instance, run_unordered_solver
 from unordered_validation import validate_cycle
 
 ROOT = Path(__file__).resolve().parents[2]
+SIZE_BANDS = ((5, 10), (11, 20), (21, 40), (41, 60))
+
+
+def _socg_class(meta):
+    if 'geo_information' in meta:
+        return 'OSM'
+    if meta.get('source') == 'random':
+        return 'random'
+    if meta.get('source') == 'public_instance_set':
+        return 'tessellation'
+    return None
+
+
+def select_socg_inputs(archive_path, per_stratum=1, seed=None):
+    """Sample without replacement per metadata class and actual polygon count.
+
+    seed=None retains the legacy lexical selection for existing campaigns.
+    A seeded selection interleaves strata, so interrupted runs cover all classes.
+    """
+    if per_stratum < 1:
+        raise ValueError('per-stratum must be positive')
+    classes = ('OSM', 'random', 'tessellation')
+    candidates = {(kind, band): [] for kind in classes for band in SIZE_BANDS}
+    with zipfile.ZipFile(archive_path) as archive:
+        names = sorted(n for n in archive.namelist() if n.endswith('.json'))
+        for name in names:
+            payload = archive.read(name)
+            data = json.loads(payload)
+            kind = _socg_class(data.get('meta', {}))
+            if kind is None:
+                continue
+            converted = convert_json_case(name, payload)
+            k = len(converted.polygons)
+            band = next((b for b in SIZE_BANDS if b[0] <= k <= b[1]), None)
+            if band is None:
+                continue
+            candidates[kind, band].append((name, converted))
+        selected = []
+        counts = {}
+        rng = random.Random(seed)
+        groups = []
+        for kind in classes:
+            for band in SIZE_BANDS:
+                items = candidates[kind, band]
+                counts[f'{kind}:{band[0]}-{band[1]}'] = len(items)
+                if seed is not None:
+                    rng.shuffle(items)
+                group = []
+                for name, case in items[:per_stratum]:
+                    group.append({
+                        'name': f'{kind.lower()}_{band[0]}-{band[1]}_{Path(name).stem}',
+                        'source': str(archive_path), 'source_name': name,
+                        'source_class': kind, 'size_band': f'{band[0]}-{band[1]}',
+                        'polygons': case.polygons, 'meta': case.meta,
+                        'vertex_count': sum(map(len, case.polygons)),
+                    })
+                groups.append(group)
+        if seed is None:
+            selected = [case for group in groups for case in group]
+        else:
+            selected = [group[i] for i in range(max(map(len, groups), default=0)) for group in groups if i < len(group)]
+    return selected, counts
 
 
 def default_inputs():
@@ -49,35 +114,116 @@ def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--inputs',type=Path)
+    parser.add_argument('--instances-zip',type=Path,help='Select cases from the simplified SOCG ZIP by metadata class and size band.')
+    parser.add_argument('--profile',choices=('quick','overnight'),help='Balanced seeded SOCG campaign with conservative runtime presets.')
+    parser.add_argument('--seed',type=int,help='Deterministic uniform selection per stratum; profiles default to 20260930.')
+    parser.add_argument('--resume',action='store_true',help='Skip persisted runs after checking settings, inputs and binary hashes. Never rebuild on resume.')
+    parser.add_argument('--dry-run',action='store_true',help='Print the selected workload and process-time ceiling without building or running solvers.')
+    parser.add_argument('--report-only',action='store_true',help='Regenerate reports from this output directory without building or running solvers.')
+    parser.add_argument('--per-stratum',type=int)
+    parser.add_argument('--external-timeout',type=float,
+        help='Firm timeout for each repetition in its own process, for either backend; timeouts are censored.')
+    parser.add_argument('--ours-binary',type=Path,help='Use a previously frozen native binary.')
+    parser.add_argument('--fekete-binary',type=Path,help='Use a previously built external binary.')
+    parser.add_argument('--reference-results',type=Path,
+        help='Reuse Fekete rows from a prior campaign after verifying input hashes and all solver settings match.')
+    parser.add_argument('--skip-build',action='store_true',help='Use the binaries supplied with --ours-binary/--fekete-binary.')
     parser.add_argument('--fekete-source',type=Path)
     parser.add_argument('--build-dir',type=Path,default=ROOT/'.build/tspn-comparison')
-    parser.add_argument('--repetitions',type=int,default=3)
-    parser.add_argument('--seconds',type=int,default=3)
+    parser.add_argument('--repetitions',type=int)
+    parser.add_argument('--seconds',type=int)
+    parser.add_argument('--portfolio',action='store_true',
+        help='Run the cooperative two-search portfolio (two total worker threads).')
+    parser.add_argument('--portfolio-no-sharing',action='store_true',
+        help='Run two independent searches in a two-worker race; implies --portfolio.')
+    parser.add_argument('--search-strategy',choices=('best-bound','dfs-bfs'),
+        help='Run one isolated B&B strategy instead of the default strategy.')
+    parser.add_argument('--cycle-optimization',action='append',choices=('cache','dual','features','lazy','root','branch','one-tree','learn','memo','bound-first','dual-screen','interval','share-bounds'),default=[],
+        help='Enable one native cycle optimization; repeat to combine independently selectable optimizations.')
     parser.add_argument('--relative-gap',type=float,default=1e-6)
     parser.add_argument('--feasibility-tolerance',type=float,default=1e-8)
     parser.add_argument('--validation-tolerance',type=float,default=1e-7)
     parser.add_argument('--socp-defaults',action='store_true',help='Keep original Gurobi and spanning tolerances; otherwise tighten them for the requested feasibility checks.')
     args=parser.parse_args(argv)
-    if min(args.repetitions,args.seconds,args.relative_gap,args.feasibility_tolerance,args.validation_tolerance)<=0:
+    output=args.output.resolve()
+    if args.report_only:
+        inputs=json.loads((output/'instances.json').read_text())
+        config=json.loads((output/'config.json').read_text())
+        expected={(c['name'],digest(c['polygons']),b,r) for c in inputs['instances']
+            for b in ('ours','fekete') for r in range(config['repetitions'])}
+        rows=load_rows(output/'raw.jsonl',expected)
+        write_reports(output,inputs,config,rows,'complete' if len(rows)==len(expected) else 'partial')
+        return 0
+    defaults={'per_stratum':1,'repetitions':3,'seconds':3,'external_timeout':12}
+    if args.profile:
+        defaults.update({'per_stratum':1,'repetitions':1,'seconds':3,'external_timeout':10}
+            if args.profile=='quick' else {'per_stratum':8,'repetitions':2,'seconds':60,'external_timeout':75})
+        if args.seed is None: args.seed=20260930
+        if not args.cycle_optimization:
+            args.cycle_optimization=['cache','features','root','interval']
+            if args.portfolio or args.portfolio_no_sharing: args.cycle_optimization.append('memo')
+    for key,value in defaults.items():
+        if getattr(args,key) is None: setattr(args,key,value)
+    if args.inputs and args.instances_zip: parser.error('use either --inputs or --instances-zip')
+    if args.search_strategy and (args.portfolio or args.portfolio_no_sharing):
+        parser.error('--search-strategy cannot be combined with portfolio options')
+    limits=(args.repetitions,args.seconds,args.relative_gap,args.feasibility_tolerance,args.validation_tolerance,args.external_timeout,args.per_stratum)
+    if not all(math.isfinite(x) and x>0 for x in limits):
         parser.error('counts, limits and reporting tolerances must be positive')
-    output=args.output.resolve();output.mkdir(parents=True,exist_ok=True)
-    if (output/'raw.jsonl').exists():parser.error('choose a new output directory')
+    continuing=args.resume and (output/'config.json').exists()
+    if not continuing and any((output/name).exists() for name in ('raw.jsonl','config.json')):
+        parser.error('choose a new output directory or pass --resume with the same options')
     source=args.fekete_source or ROOT/'third_party/tspn-socg'
     if not (source/'tspn_core/CMakeLists.txt').exists():
         common=Path(subprocess.check_output(['git','rev-parse','--path-format=absolute','--git-common-dir'],cwd=ROOT,text=True).strip())
         source=common.parent/'third_party/tspn-socg'
+    if args.profile and not (args.instances_zip or args.inputs):
+        args.instances_zip=source/'instances/instances_socg_simplified.zip'
+    if args.instances_zip:
+        selected,stratum_counts=select_socg_inputs(args.instances_zip.resolve(),args.per_stratum,args.seed)
+        inputs={'formulation':'TSPN, free cyclic order, no fixed point, closed polygon regions',
+            'selection':{'archive':str(args.instances_zip.resolve()),
+                'archive_sha256':hashlib.sha256(args.instances_zip.read_bytes()).hexdigest(),
+                'policy':'seeded uniform sample without replacement, interleaved strata' if args.seed is not None else 'lexicographically first',
+                'seed':args.seed,'per_stratum':args.per_stratum,'stratum_counts':stratum_counts},'instances':selected}
+    else:
+        inputs=json.loads(args.inputs.read_text()) if args.inputs else default_inputs()
+    if not inputs['instances'] or len({c['name'] for c in inputs['instances']})!=len(inputs['instances']):
+        parser.error('inputs must contain nonempty, uniquely named instances')
+    planned_runs=len(inputs['instances'])*args.repetitions*2
+    plan={'profile':args.profile,'cases':len(inputs['instances']),'repetitions':args.repetitions,
+        'planned_runs':planned_runs,'solver_seconds_per_run':args.seconds,
+        'process_timeout_seconds':args.external_timeout,
+        'maximum_process_hours':planned_runs*args.external_timeout/3600,
+        'note':'sequential runs; ceiling excludes build, validation and reporting',
+        'stratum_population':inputs.get('selection',{}).get('stratum_counts'),
+        'cycle_optimizations':args.cycle_optimization}
+    print(json.dumps(plan,indent=2),flush=True)
+    if args.dry_run: return 0
+    run_options={k:(str(v.resolve()) if isinstance(v,Path) else v) for k,v in vars(args).items()
+        if k not in ('output','resume','dry_run','report_only','skip_build')}
+    if continuing:
+        previous=json.loads((output/'config.json').read_text())
+        if previous.get('run_options')!=run_options:
+            parser.error('--resume options differ; repeat the original command with --resume')
+        if previous.get('inputs_sha256')!=digest(inputs) or digest(json.loads((output/'instances.json').read_text()))!=digest(inputs):
+            parser.error('--resume input manifest changed')
+    output.mkdir(parents=True,exist_ok=True)
     command=['cmake','-S',str(ROOT/'benchmarks/_internal/tspn_native'),'-B',str(args.build_dir),f'-DFEKETE_SOURCE={source}','-DTARGET=main-unordered']
     # Reuse a locally installed header-only dependency when its Conan package
     # lacks a CMake config. Never write an environment or build into the vendor.
     headers=sorted((Path.home()/'.conan2/p').glob('*/p/include/nlohmann/json.hpp'))
     if headers:command.append(f'-DNLOHMANN_INCLUDE_DIR={headers[0].parents[1]}')
     commands=[command,['cmake','--build',str(args.build_dir),'--target','tpp-fekete-cycle','tpp-unordered','-j','4']]
-    with (output/'build.txt').open('w') as log:
-        for cmd in commands:subprocess.run(cmd,cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,check=True)
-    inputs=json.loads(args.inputs.read_text()) if args.inputs else default_inputs()
-    (output/'instances.json').write_text(json.dumps(inputs,indent=2)+'\n')
-    ours=args.build_dir/'touring_polygons/tpp-unordered';fekete=args.build_dir/'tpp-fekete-cycle'
-    runtime=args.build_dir/('fekete-default-runtime' if args.socp_defaults else 'fekete-strict-runtime')
+    if not args.skip_build and not continuing:
+        with (output/'build.txt').open('w') as log:
+            for cmd in commands:subprocess.run(cmd,cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,check=True)
+    elif args.skip_build and not (args.ours_binary and args.fekete_binary):
+        parser.error('--skip-build requires --ours-binary and --fekete-binary')
+    if not continuing: atomic_json(output/'instances.json',inputs)
+    ours=(args.ours_binary or (args.build_dir/'touring_polygons/tpp-unordered')).resolve()
+    fekete=(args.fekete_binary or (args.build_dir/'tpp-fekete-cycle')).resolve()
+    runtime=(output/'runtime').resolve()
     runtime.mkdir(parents=True,exist_ok=True)
     gurobi_parameters={} if args.socp_defaults else {'FeasibilityTol':1e-9,'OptimalityTol':1e-9,'BarConvTol':1e-10,'BarQCPConvTol':1e-10}
     (runtime/'gurobi.env').write_text(''.join(f'{key} {value}\n' for key,value in gurobi_parameters.items()))
@@ -86,73 +232,166 @@ def main(argv=None):
     our_relative=args.relative_gap/(1+args.relative_gap)
     arguments=['--cycle','--absolute-gap','0','--relative-gap',str(our_relative),
         '--feasibility-tolerance',str(args.feasibility_tolerance)]
-    config={'formulation':inputs['formulation'],'repetitions':args.repetitions,'seconds':args.seconds,
+    if args.portfolio_no_sharing:
+        arguments.append('--portfolio-no-sharing')
+    elif args.portfolio:
+        arguments.append('--portfolio')
+    elif args.search_strategy:
+        arguments.extend(['--search-strategy',args.search_strategy])
+    for optimization in args.cycle_optimization:
+        arguments.extend(['--cycle-optimization',optimization])
+    portfolio=args.portfolio or args.portfolio_no_sharing
+    config={'run_options':run_options,'inputs_sha256':digest(inputs),'plan':plan,'schema_version':'tspn_campaign_v2','formulation':inputs['formulation'],'repetitions':args.repetitions,'seconds':args.seconds,
+        'external_process_timeout_seconds':args.external_timeout,'max_calls':10**8,
+        'oracle_profile':{'scope':'completed B&B search/refinement requests including memo hits; excludes initial polishing and in-flight calls',
+            'histogram_upper_seconds':[1e-5,1e-4,1e-3,1e-2,1e-1,1.0,None],
+            'fallback_time':'whole calls using fallback, not exclusive recovery time'},
         'fekete_relative_gap':args.relative_gap,'our_relative_gap':our_relative,'our_absolute_gap':0,
         'feasibility_tolerance':args.feasibility_tolerance,'validation_tolerance':args.validation_tolerance,
-        'threads':1,'external_backend':'socp','external_root':'LongestEdgePlusFurthestSite',
+        'threads':2 if portfolio else 1,'ours_threads':2 if portfolio else 1,'fekete_threads':1,
+        'portfolio_mode':'independent-race' if args.portfolio_no_sharing else ('cooperative' if args.portfolio else None),
+        'search_strategy':args.search_strategy or ('default' if not portfolio else None),
+        'cycle_optimizations':args.cycle_optimization,
+        'external_backend':'socp','external_root':'LongestEdgePlusFurthestSite',
         'external_search':'DfsBfs','external_branching':'FarthestPoly','external_rules':[],
         'external_node_simplification':False,'external_decomposition_branch':True,'external_cutoff':True,
         'external_gurobi_settings':{'Threads':1,'Presolve':0,'SimplexPricing':3,**gurobi_parameters},
         'external_spanning_tolerance':spanning,'socp_defaults':args.socp_defaults,
-        'timing':'whole native solve incl preprocessing/heuristic/root, B&B, extraction; excludes process startup and warmed Gurobi environment; backend order alternates by case; sequential runs',
+        'timing':'whole native solve incl preprocessing/heuristic/root, B&B, extraction and portfolio cooperative join tail; excludes process startup and warmed Gurobi environment; backend order alternates by case; sequential runs',
         'platform':platform.platform(),'compiler':subprocess.check_output(['c++','--version'],text=True).splitlines()[0],
-        'commands':commands,'fekete_source':str(source),'fekete_commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=source,text=True).strip(),
+        'commands':commands if not args.skip_build else [],'frozen_binaries':{'ours':str(ours),'fekete':str(fekete)},
+        'binary_sha256':{'ours':hashlib.sha256(ours.read_bytes()).hexdigest(),'fekete':hashlib.sha256(fekete.read_bytes()).hexdigest()},
+        'fekete_source':str(source),'fekete_commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=source,text=True).strip(),
         'base_commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
-        'source_sha256':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest()
+        'source_hash_scope':'Workspace snapshot at measurement; frozen binaries require their own build provenance.',
+        'workspace_source_sha256':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest()
             for base in (ROOT/'packages/nonconvex-tpp/cpp',ROOT/'packages/convex-tpp/cpp',ROOT/'benchmarks/_internal')
             for p in base.rglob('*') if p.is_file() and (p.suffix in ('.cpp','.h','.py') or p.name=='CMakeLists.txt')},
         'vendor_status':subprocess.check_output(['git','status','--porcelain'],cwd=source,text=True)}
-    (output/'config.json').write_text(json.dumps(config,indent=2)+'\n')
-    rows=[]
-    with (output/'raw.jsonl').open('w') as raw:
-        for index,case in enumerate(inputs['instances']):
-            polygons=case['polygons'];digest=hashlib.sha256(json.dumps(polygons,separators=(',',':')).encode()).hexdigest()
-            for backend in (('ours','fekete') if index%2==0 else ('fekete','ours')):
-                results=[]
-                if backend=='fekete':
-                    try:
-                        process=subprocess.run([str(fekete),str(args.repetitions),str(args.relative_gap),str(args.feasibility_tolerance),str(spanning)],
-                            input=encode_instance((0,0),(0,0),polygons,10**8,args.seconds),text=True,capture_output=True,
-                            timeout=args.repetitions*args.seconds+30,cwd=runtime)
-                        results=[json.loads(line) for line in process.stdout.splitlines() if line.startswith('{')]
-                        error=process.stderr[-2000:] or f'external exit {process.returncode}'
-                    except Exception as e:error=str(e)
-                    results += [{'error':error}]*(args.repetitions-len(results))
-                else:
-                    for repeat in range(args.repetitions):
-                        try:results.append(run_unordered_solver(ours,(0,0),(0,0),polygons,10**8,args.seconds,arguments))
-                        except Exception as e:results.append({'error':str(e)})
-                for repeat,result in enumerate(results):
-                    row={'name':case['name'],'k':len(polygons),'sha256':digest,'solver':backend,'repeat':repeat,**result}
-                    row['validation']=validate_cycle(polygons,row.get('path',[]),args.validation_tolerance)
-                    lo,up=row.get('lower_bound'),row.get('upper_bound')
-                    row['gap_closed']=lo is not None and up is not None and up <= (1+args.relative_gap)*lo
-                    rows.append(row);raw.write(json.dumps(row,allow_nan=False)+'\n');raw.flush()
-                print(f"{index+1}/{len(inputs['instances'])} {case['name']} {backend}: "+
-                    ', '.join(f"{r.get('seconds',0):.4f}s" if 'error' not in r else 'ERROR' for r in results),flush=True)
-    summaries=[]
-    for case in inputs['instances']:
-        group={b:[r for r in rows if r['name']==case['name'] and r['solver']==b] for b in ('ours','fekete')}
-        summary={'name':case['name'],'k':len(case['polygons'])}
-        for b,g in group.items():
-            times=[r['seconds'] for r in g if 'seconds' in r]
-            summary[b]={'median_seconds':statistics.median(times) if times else None,
-                'valid_runs':sum(r['validation']['valid'] for r in g),'gap_closed_runs':sum(r['gap_closed'] for r in g),
-                'errors':sum('error' in r for r in g),
-                'median_calls':statistics.median([r['calls'] for r in g if 'calls' in r]) if times else None}
-        complete=[r for g in group.values() for r in g if r.get('upper_bound') is not None and r.get('lower_bound') is not None]
-        summary['objective_spread']=max(r['upper_bound'] for r in complete)-min(r['upper_bound'] for r in complete) if complete else None
-        summary['interval_separation']=max(0,max(r['lower_bound'] for r in complete)-min(r['upper_bound'] for r in complete)) if complete else None
-        summaries.append(summary)
-    (output/'summary.json').write_text(json.dumps(summaries,indent=2)+'\n')
-    lines=['# TSPN: maintained B&B versus Fekete SOCP B&B','',
-        'Native-call medians in milliseconds; see config.json for matched gap, validation tolerance and timing scope.','',
-        '| Instance | k | Ours ms | Fekete ms | Ours valid/closed | Fekete valid/closed | Objective spread | Interval separation |',
-        '|---|---:|---:|---:|---|---|---:|---:|']
-    for r in summaries:
-        a,b=r['ours'],r['fekete'];times=[f'{1000*x["median_seconds"]:.3f}' if x['median_seconds'] is not None else 'error' for x in (a,b)]
-        lines.append(f'| {r["name"]} | {r["k"]} | {times[0]} | {times[1]} | {a["valid_runs"]}/{a["gap_closed_runs"]} | {b["valid_runs"]}/{b["gap_closed_runs"]} | {r["objective_spread"]} | {r["interval_separation"]} |')
-    lines+=['','Counts refer to repetitions. A numerical bound from the external solver is not an exact certificate. Raw tour validation and claimed optimality are reported separately. Timed-out searches remain in the table; their times are not times to optimality.']
-    (output/'analysis.md').write_text('\n'.join(lines)+'\n')
-    (output/'README.md').write_text('Run `python3 benchmarks/tpp.py tspn-benchmark --output NEW_DIRECTORY`. Inputs, raw runs, configuration, source hashes and analysis are preserved together. The external checkout is read only; its original SOCP backend is selected.\n')
-    return int(any(not r['validation']['valid'] or 'error' in r for r in rows if r['solver']=='ours'))
+    reference_rows={}
+    if args.reference_results:
+        reference_dir=args.reference_results.resolve()
+        reference_config=json.loads((reference_dir/'config.json').read_text())
+        reference_inputs=json.loads((reference_dir/'instances.json').read_text())
+        reference_settings=('repetitions','seconds','external_process_timeout_seconds','fekete_relative_gap',
+            'feasibility_tolerance','validation_tolerance','fekete_threads','external_backend',
+            'external_gurobi_settings','external_spanning_tolerance','socp_defaults',
+            'external_root','external_search','external_branching','external_rules',
+            'external_node_simplification','external_decomposition_branch','external_cutoff')
+        for key in reference_settings:
+            if reference_config.get(key)!=config.get(key):
+                parser.error(f'--reference-results setting mismatch for {key}')
+        if reference_config.get('binary_sha256',{}).get('fekete')!=config['binary_sha256']['fekete']:
+            parser.error('--reference-results Fekete binary hash mismatch')
+        if reference_config.get('fekete_commit')!=config['fekete_commit']:
+            parser.error('--reference-results Fekete source commit mismatch')
+        current_hashes={hashlib.sha256(json.dumps(c['polygons'],separators=(',',':')).encode()).hexdigest()
+            for c in inputs['instances']}
+        reference_hashes={hashlib.sha256(json.dumps(c['polygons'],separators=(',',':')).encode()).hexdigest()
+            for c in reference_inputs['instances']}
+        if current_hashes!=reference_hashes:
+            parser.error('--reference-results inputs do not match')
+        expected_reference_keys={(hashlib.sha256(json.dumps(c['polygons'],separators=(',',':')).encode()).hexdigest(),repeat)
+            for c in inputs['instances'] for repeat in range(args.repetitions)}
+        with (reference_dir/'raw.jsonl').open() as reference_raw:
+            for line in reference_raw:
+                row=json.loads(line)
+                if row.get('solver')=='fekete':
+                    key=(row.get('sha256'),row.get('repeat'))
+                    if key not in expected_reference_keys or key in reference_rows:
+                        parser.error('--reference-results has an unexpected or duplicate Fekete input/repetition row')
+                    reference_rows[key]=row
+        if set(reference_rows)!=expected_reference_keys:
+            parser.error('--reference-results does not contain the exact Fekete input/repetition key set')
+        raw_reference=reference_dir/'raw.jsonl'
+        config['fekete_reference_results']={'path':str(reference_dir),
+            'raw_sha256':hashlib.sha256(raw_reference.read_bytes()).hexdigest(),
+            'config_sha256':hashlib.sha256((reference_dir/'config.json').read_bytes()).hexdigest(),
+            'timing':'reused native-independent Fekete rows; no Fekete solve was performed in this run'}
+        config['fekete_timing']='reused from the verified reference campaign'
+    if continuing:
+        if previous.get('binary_sha256')!=config['binary_sha256']:
+            parser.error('--resume executable changed; use a new output directory')
+        if previous.get('fekete_reference_results')!=config.get('fekete_reference_results'):
+            parser.error('--resume reference results changed')
+        config=previous
+    else:
+        atomic_json(output/'config.json',config)
+    expected={(c['name'],digest(c['polygons']),b,r) for c in inputs['instances']
+        for b in ('ours','fekete') for r in range(args.repetitions)}
+    try:
+        rows=load_rows(output/'raw.jsonl',expected) if continuing else []
+    except (ValueError,KeyError) as error:
+        parser.error(str(error))
+    completed={row_key(r) for r in rows}
+    status='running'
+    write_reports(output,inputs,config,rows,status)
+    try:
+        with (output/'raw.jsonl').open('a') as raw:
+            # Repeat rounds, not all repetitions of one case first: even partial
+            # campaigns cover the strata and both backends before repeating.
+            for repeat in range(args.repetitions):
+                for index,case in enumerate(inputs['instances']):
+                    polygons=case['polygons'];case_digest=digest(polygons)
+                    backends=('ours','fekete') if (index+repeat)%2==0 else ('fekete','ours')
+                    for backend in backends:
+                        key=(case['name'],case_digest,backend,repeat)
+                        if key in completed: continue
+                        began=time.monotonic()
+                        try:
+                            if backend=='fekete':
+                                if reference_rows:
+                                    result={k:v for k,v in reference_rows[(case_digest,repeat)].items()
+                                        if k not in ('name','k','sha256','solver','repeat','validation','gap_closed')}
+                                else:
+                                    process=subprocess.run([str(fekete),'1',str(args.relative_gap),str(args.feasibility_tolerance),str(spanning)],
+                                        input=encode_instance((0,0),(0,0),polygons,10**8,args.seconds),text=True,capture_output=True,
+                                        timeout=args.external_timeout,cwd=runtime)
+                                    parsed=[]
+                                    for line in process.stdout.splitlines():
+                                        if not line.startswith('{'):continue
+                                        try:parsed.append(json.loads(line))
+                                        except json.JSONDecodeError:continue
+                                    result=parsed[0] if process.returncode==0 and len(parsed)==1 else {
+                                        'error':f'external exit {process.returncode}; complete JSON records: {len(parsed)}'}
+                            else:
+                                result=run_unordered_solver(ours,(0,0),(0,0),polygons,10**8,args.seconds,arguments,
+                                    process_timeout=args.external_timeout)
+                        except subprocess.TimeoutExpired:
+                            # Never persist commercial startup stderr/license data.
+                            result={'timeout':True,'error':f'firm process timeout after {args.external_timeout}s',
+                                'timeout_seconds':args.external_timeout}
+                        except Exception as error:
+                            result={'error':f'{backend} runner failed: {type(error).__name__}'}
+                        if not (backend=='fekete' and reference_rows):
+                            result['process_seconds']=time.monotonic()-began
+                        row={**result,'name':case['name'],'k':len(polygons),'sha256':case_digest,'solver':backend,'repeat':repeat,
+                            'source_class':case.get('source_class'),'size_band':case.get('size_band'),
+                            'vertex_count':case.get('vertex_count',sum(map(len,polygons)))}
+                        validation_began=time.monotonic()
+                        row['validation']=validate_cycle(polygons,row.get('path',[]),args.validation_tolerance) if row.get('path') else {'valid':False,'status':'no completed tour'}
+                        row['validation_seconds']=time.monotonic()-validation_began
+                        lo,up=row.get('lower_bound'),row.get('upper_bound')
+                        row['gap_closed']=finite(lo) and finite(up) and 0<=lo<=up and up <= (1+args.relative_gap)*lo
+                        rows.append(row);raw.write(json.dumps(row,allow_nan=False)+'\n');raw.flush()
+                        completed.add(key)
+                        atomic_json(output/'progress.json',{'status':'running','completed_runs':len(rows),
+                            'planned_runs':planned_runs,'process_timeouts':sum(bool(r.get('timeout')) for r in rows)})
+                        outcome='TIMEOUT' if row.get('timeout') else ('ERROR' if 'error' in row else
+                            f"{row.get('seconds',0):.4f}s gap_closed={row['gap_closed']}")
+                        print(f"{len(rows)}/{planned_runs} {case['name']} {backend} repeat={repeat}: {outcome}",flush=True)
+                    if (index+1)%12==0: write_reports(output,inputs,config,rows,status)
+                write_reports(output,inputs,config,rows,status)
+        status='complete'
+    except KeyboardInterrupt:
+        status='interrupted'
+        print('Interrupted; completed records saved. Repeat the command with --resume.',flush=True)
+    finally:
+        write_reports(output,inputs,config,rows,status if status!='running' else 'failed')
+    (output/'README.md').write_text('Resume with the same original tspn-benchmark command plus --resume. '
+        'Regenerate reports with --report-only --output THIS_DIRECTORY. '
+        'Share instances.json, config.json, raw.jsonl and the reports. No commercial logs are saved.\n')
+    if status=='interrupted':return 130
+    # A firm timeout is censored evidence, not a runner failure. Backend errors
+    # and completed invalid tours are failures in either solver.
+    return int(any(not r.get('timeout') and (not r['validation']['valid'] or 'error' in r) for r in rows))

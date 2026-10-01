@@ -1,0 +1,81 @@
+{
+  "archive": "/Users/gabriel/Documents/Scripts/TouringPolygons/third_party/tspn-socg/instances/instances_socg_simplified.zip",
+  "archive_sha256": "210841184500cb444f332537c4291aeff502dde4e3adc4a4ee307a80db21711f",
+  "seed": "tpp-portfolio-large-2026-09-29-v1",
+  "policy": "Within each source class and actual simplified polygon-count band, choose the unmeasured archive entry with the lowest SHA256(seed UTF-8 + NUL + archive filename UTF-8); tie-break by archive filename. Chosen before timing.",
+  "excluded_previously_measured_source_names": [
+    "att48.json",
+    "bangalore_n005_seed1851.json",
+    "bangalore_n015_seed2483.json",
+    "bangalore_n030_seed1038.json",
+    "bangalore_n050_seed1049.json",
+    "burma14.json",
+    "euro-night-0000010.json",
+    "euro-night-0000025.instance.json",
+    "jakarta_n005_seed7447.json",
+    "lagos_n015_seed7082.json",
+    "random_mixed_square_n005_seed5000.json",
+    "random_mixed_square_n010_seed10013.json",
+    "random_mixed_square_n015_seed15000.json",
+    "random_mixed_square_n015_seed15016.json",
+    "random_mixed_square_n030_seed30000.json",
+    "random_mixed_square_n050_seed50000.json",
+    "uniform-0000010-1.json",
+    "us-night-0000020.instance.json"
+  ],
+  "excluded_osm_locality": "bangalore_*",
+  "size_bands": {
+    "25-40": [
+      25,
+      40
+    ],
+    "41-60": [
+      41,
+      60
+    ]
+  },
+  "eligible_candidates_per_stratum": {
+    "OSM:25-40": 76,
+    "OSM:41-60": 76,
+    "random:25-40": 39,
+    "random:41-60": 39,
+    "tessellation:25-40": 27,
+    "tessellation:41-60": 24
+  },
+  "status": "preselected reserve; benchmark only if all six primary native cases finish in under one second",
+  "selected_cases": [
+    {
+      "name": "large_osm_41-60_chicago_n060_seed3685",
+      "source_name": "chicago_n060_seed3685.json",
+      "archive_name": "chicago_n060_seed3685.json",
+      "source_class": "OSM",
+      "size_band": "41-60",
+      "vertex_count": 286,
+      "selection_sha256": "09cba4acc65c9cb587e77fb001bef3f4251e9cbab962f0e3cc8ee740b6579862",
+      "geometry_sha256": "bb4e0298570ea499c6eea8c05fd6989565a0a842bf7e41bdfeb654949e3af7c3",
+      "actual_polygon_count": 60
+    },
+    {
+      "name": "large_random_25-40_random_mixed_square_n040_seed40007",
+      "source_name": "random_mixed_square_n040_seed40007.json",
+      "archive_name": "random_mixed_square_n040_seed40007.json",
+      "source_class": "random",
+      "size_band": "25-40",
+      "vertex_count": 435,
+      "selection_sha256": "087532ccbcc58c2f58b764b6168050f80853506767f06dc12ed92a5f563f5b86",
+      "geometry_sha256": "7ece1394ebad39606c6d9429a7f355ef3acdb665651e9cd4e17a557961e8b919",
+      "actual_polygon_count": 39
+    },
+    {
+      "name": "large_tessellation_25-40_euro-night-0000040",
+      "source_name": "euro-night-0000040.json",
+      "archive_name": "euro-night-0000040.json",
+      "source_class": "tessellation",
+      "size_band": "25-40",
+      "vertex_count": 220,
+      "selection_sha256": "0c2af47110fbdb98581d452bc2a90140a2a3ef2c10deb8737b69de2a29e18ca4",
+      "geometry_sha256": "9c0957644c1fdb9653cc1ba031f51fc58b00d1d9a911aef236f9900211bffaa6",
+      "actual_polygon_count": 40
+    }
+  ]
+}

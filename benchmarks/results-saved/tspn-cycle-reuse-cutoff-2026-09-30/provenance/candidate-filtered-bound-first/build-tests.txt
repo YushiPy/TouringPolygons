@@ -1,0 +1,5 @@
+Filtered candidate build: GMP ON, Release, Apple clang, isolated .build/tspn-cycle-reuse-cutoff-2026-09-30/candidate-filtered-gmp-on.
+Built: tpp-unordered, tpp-tspn-tests, tpp-unordered-tests.
+Also configured and built convex test executable with TARGET=main-cycle_tests (cycle suite) and TARGET=main-cycle_certificate_tests (certificate suite), GMP ON.
+All five GMP-on suites passed. TSPN: 19 exhaustive cases; 152 interrupted searches; 38 portfolios; 152 shared-budget searches; 627 optimization/call-cap comparisons; 38 combined concurrency checks. Unordered: oracle certificate/contact regressions, 86 exhaustive-order cases, 344 interrupted-search checks, multithreaded child evaluation. Cycle: 96 seeded cases, active-contact and boundary-recovery regressions, 67 double comparisons; maximum objective difference 1.4210854715202004e-14 and maximum certified gap 2.1316282072803006e-14. Certificate: 1,040 zero-link ray pairs, 269 optimal.
+Compiler emitted designated-initializer ordering warnings in unordered.cpp; builds succeeded.

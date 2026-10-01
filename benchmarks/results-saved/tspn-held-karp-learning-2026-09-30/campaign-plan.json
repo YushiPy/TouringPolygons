@@ -1,0 +1,201 @@
+{
+  "campaign": "TSPN Held-Karp lower bound and learned branching follow-up",
+  "date": "2026-09-30",
+  "worktree": "/private/tmp/tpp-convex-cycle",
+  "branch": "codex/convex-cycle-disjoint",
+  "baseline_candidate_e_sha256": "277452400f5c472919e3acbace5ac03a07abb6d5ec252ee5fd04f8c7d70fb3f2",
+  "planned_variants": [
+    "CFR baseline",
+    "CFR + one-tree lower bound",
+    "CFR + learned branching",
+    "CFR + both"
+  ],
+  "inputs": {
+    "small": {
+      "path": "inputs/small6.json",
+      "sha256": "159e3da23cdd78b3c96c052d98a415a23272e60d8ca3072003623743e939b4e4",
+      "cases": 6
+    },
+    "large": {
+      "path": "inputs/large6.json",
+      "sha256": "e587c412e56993130bd21e1d89527701f510386ccd9e1670ba3c135034f0a2e0",
+      "cases": 6
+    }
+  },
+  "reference_results": {
+    "small": {
+      "path": "references/fekete-small6",
+      "config_sha256": "4b229c31647d9f7fb477709acde1296c26647289a1ea82c905f23a011d847ac8",
+      "raw_sha256": "495587426e5f3d4adff8914a45ccabe97d8d5f41ae8905a78d9e53932ab4455f",
+      "fekete_binary_sha256": "5fe87f266d1fc568f5b3ea3684c4c6f0af63b1d7b01701afed128ac502f0e8b4",
+      "fekete_commit": "f4aa78c631545e4e894732a0fe8aef45f455c34c",
+      "rows": 6,
+      "repetitions": 1,
+      "settings": {
+        "repetitions": 1,
+        "seconds": 2,
+        "external_process_timeout_seconds": 8.0,
+        "fekete_relative_gap": 1e-06,
+        "feasibility_tolerance": 1e-08,
+        "validation_tolerance": 1e-07,
+        "fekete_threads": 1,
+        "external_backend": "socp",
+        "external_gurobi_settings": {
+          "Threads": 1,
+          "Presolve": 0,
+          "SimplexPricing": 3,
+          "FeasibilityTol": 1e-09,
+          "OptimalityTol": 1e-09,
+          "BarConvTol": 1e-10,
+          "BarQCPConvTol": 1e-10
+        },
+        "external_spanning_tolerance": 1e-09,
+        "socp_defaults": false,
+        "external_root": "LongestEdgePlusFurthestSite",
+        "external_search": "DfsBfs",
+        "external_branching": "FarthestPoly",
+        "external_rules": [],
+        "external_node_simplification": false,
+        "external_decomposition_branch": true,
+        "external_cutoff": true
+      }
+    },
+    "large": {
+      "path": "references/fekete-large6",
+      "config_sha256": "4b229c31647d9f7fb477709acde1296c26647289a1ea82c905f23a011d847ac8",
+      "raw_sha256": "9be0d8791dd430afc7d49afa2f4be447a1b742ba2dee3b592566cd208a75c84e",
+      "fekete_binary_sha256": "5fe87f266d1fc568f5b3ea3684c4c6f0af63b1d7b01701afed128ac502f0e8b4",
+      "fekete_commit": "f4aa78c631545e4e894732a0fe8aef45f455c34c",
+      "rows": 6,
+      "repetitions": 1,
+      "settings": {
+        "repetitions": 1,
+        "seconds": 2,
+        "external_process_timeout_seconds": 8.0,
+        "fekete_relative_gap": 1e-06,
+        "feasibility_tolerance": 1e-08,
+        "validation_tolerance": 1e-07,
+        "fekete_threads": 1,
+        "external_backend": "socp",
+        "external_gurobi_settings": {
+          "Threads": 1,
+          "Presolve": 0,
+          "SimplexPricing": 3,
+          "FeasibilityTol": 1e-09,
+          "OptimalityTol": 1e-09,
+          "BarConvTol": 1e-10,
+          "BarQCPConvTol": 1e-10
+        },
+        "external_spanning_tolerance": 1e-09,
+        "socp_defaults": false,
+        "external_root": "LongestEdgePlusFurthestSite",
+        "external_search": "DfsBfs",
+        "external_branching": "FarthestPoly",
+        "external_rules": [],
+        "external_node_simplification": false,
+        "external_decomposition_branch": true,
+        "external_cutoff": true
+      }
+    }
+  },
+  "common_native_settings": {
+    "repetitions": 1,
+    "seconds": 2,
+    "external_process_timeout_seconds": 8,
+    "threads": 1,
+    "cycle_optimizations": [
+      "cache",
+      "features",
+      "root"
+    ]
+  },
+  "common_fekete_settings": {
+    "repetitions": 1,
+    "seconds": 2,
+    "external_process_timeout_seconds": 8.0,
+    "fekete_relative_gap": 1e-06,
+    "our_relative_gap": 9.99999000001e-07,
+    "our_absolute_gap": 0,
+    "feasibility_tolerance": 1e-08,
+    "validation_tolerance": 1e-07,
+    "threads": 1,
+    "ours_threads": 1,
+    "fekete_threads": 1,
+    "external_backend": "socp",
+    "external_root": "LongestEdgePlusFurthestSite",
+    "external_search": "DfsBfs",
+    "external_branching": "FarthestPoly",
+    "external_rules": [],
+    "external_node_simplification": false,
+    "external_decomposition_branch": true,
+    "external_cutoff": true,
+    "external_gurobi_settings": {
+      "Threads": 1,
+      "Presolve": 0,
+      "SimplexPricing": 3,
+      "FeasibilityTol": 1e-09,
+      "OptimalityTol": 1e-09,
+      "BarConvTol": 1e-10,
+      "BarQCPConvTol": 1e-10
+    },
+    "external_spanning_tolerance": 1e-09,
+    "socp_defaults": false,
+    "fekete_commit": "f4aa78c631545e4e894732a0fe8aef45f455c34c",
+    "binary_sha256": {
+      "ours": "0a9efa37b50dfef0a234bf67a3ee2fbcac9d17eb2e18aa6e297884c3bc8277f5",
+      "fekete": "5fe87f266d1fc568f5b3ea3684c4c6f0af63b1d7b01701afed128ac502f0e8b4"
+    }
+  },
+  "status": "V1 four-variant screen complete; V2 control/one-tree/both screens and OSM39 repeat3 complete; all work finalized",
+  "runtime_plan": "Run each variant on the six small and six large cases sequentially. Keep native time-limit outcomes with validated tours separate from process timeouts and gap closure. Repeat only promising variants/cases up to three times after the screen.",
+  "variant_switches": {
+    "CFR baseline": [
+      "cache",
+      "features",
+      "root"
+    ],
+    "one-tree": [
+      "cache",
+      "features",
+      "root",
+      "one-tree"
+    ],
+    "learn": [
+      "cache",
+      "features",
+      "root",
+      "learn"
+    ],
+    "one-tree+learn": [
+      "cache",
+      "features",
+      "root",
+      "one-tree",
+      "learn"
+    ]
+  },
+  "candidate_one_tree_learn_sha256": "c200491a7f34807f17f3898c182024f87a3464f3fa7bb8bbc24ddac1daf0f4dc",
+  "candidate_one_tree_learn_binary_not_saved_in_campaign": true,
+  "additional_repeat_case": {
+    "input": "inputs/osm39-proof-case.json",
+    "sha256": "675c638d21840d8da2753eec9d98a2bdc7c01806c15dc2b007a0f236b1fdcd0c",
+    "native_variants": [
+      "v2 CFR baseline",
+      "v2 CFR + learn"
+    ],
+    "repetitions": 3,
+    "seconds": 10,
+    "external_process_timeout_seconds": 15,
+    "reference": "references/fekete-osm39-10s",
+    "reference_raw_sha256": "d8fe4cbc917ba64fe7b7ff4088b3a31e0969848ac89bce2c8affbd8c930e2c88"
+  },
+  "candidate_v1_binary_sha256": "c200491a7f34807f17f3898c182024f87a3464f3fa7bb8bbc24ddac1daf0f4dc",
+  "candidate_v1_unordered_bounds_sha256": "e57936d09a88f68a793f16f170117a7204dc8607a3961aad6efdc2b1f62726b1",
+  "candidate_v2_binary_sha256": "a12e2d4bdace1b0ff09d5d99c37237e838a5be7a520655fc2d19eb5c67777a2e",
+  "candidate_v2_unordered_bounds_sha256": "587fab740e2c0905972f49fa47b5044c2765b59b147774c4ec46e51ca36fd798",
+  "final_source_stable": true,
+  "repeat3_results": [
+    "runs/osm39-v2-cfr-10s-repeat3",
+    "runs/osm39-v2-cfr-learn-10s-repeat3"
+  ]
+}

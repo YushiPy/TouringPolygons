@@ -1,0 +1,7 @@
+e587c412e56993130bd21e1d89527701f510386ccd9e1670ba3c135034f0a2e0  benchmarks/results-saved/tspn-oracle-optimizations-2026-09-29/inputs/large-holdout.json
+bcf096b37a8716fecbcf546c1afc575ee4f5d52d6e4a355307b3dd4b5b879d8f  benchmarks/results-saved/tspn-oracle-optimizations-2026-09-29/inputs/large-selection.json
+159e3da23cdd78b3c96c052d98a415a23272e60d8ca3072003623743e939b4e4  benchmarks/results-saved/tspn-oracle-optimizations-2026-09-29/inputs/small-holdout.json
+68601b9bbf22da904b6e9f784daf79d882ade3652a24e09ae5b3e9a27f17d39e  benchmarks/results-saved/tspn-oracle-optimizations-2026-09-29/inputs/small-selection.json
+ca8f301580078c43d963cbeb0209e905b96fdfd84b649433384b0d9230b267fa  benchmarks/results-saved/tspn-oracle-optimizations-2026-09-29/baseline-binary.sha256
+536c0f380780982ded14f5f9f607a2b5d82f1a7ed1358e03db6b99edeb6c8463  benchmarks/results-saved/tspn-oracle-optimizations-2026-09-29/baseline-source-files.sha256
+4bec98d4b4e836f9b29b2e2449178c017368fd425386fa42450cc18fb06bd538  benchmarks/results-saved/tspn-oracle-optimizations-2026-09-29/baseline-source.patch

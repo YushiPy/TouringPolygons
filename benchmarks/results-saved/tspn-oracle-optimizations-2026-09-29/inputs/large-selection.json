@@ -1,0 +1,113 @@
+{
+  "archive": "/Users/gabriel/Documents/Scripts/TouringPolygons/third_party/tspn-socg/instances/instances_socg_simplified.zip",
+  "archive_sha256": "210841184500cb444f332537c4291aeff502dde4e3adc4a4ee307a80db21711f",
+  "seed": "tpp-portfolio-large-2026-09-29-v1",
+  "policy": "Within each source class and actual simplified polygon-count band, choose the unmeasured archive entry with the lowest SHA256(seed UTF-8 + NUL + archive filename UTF-8); tie-break by archive filename. Chosen before timing.",
+  "excluded_previously_measured_source_names": [
+    "att48.json",
+    "bangalore_n005_seed1851.json",
+    "bangalore_n015_seed2483.json",
+    "bangalore_n030_seed1038.json",
+    "bangalore_n050_seed1049.json",
+    "burma14.json",
+    "euro-night-0000010.json",
+    "euro-night-0000025.instance.json",
+    "jakarta_n005_seed7447.json",
+    "lagos_n015_seed7082.json",
+    "random_mixed_square_n005_seed5000.json",
+    "random_mixed_square_n010_seed10013.json",
+    "random_mixed_square_n015_seed15000.json",
+    "random_mixed_square_n015_seed15016.json",
+    "random_mixed_square_n030_seed30000.json",
+    "random_mixed_square_n050_seed50000.json",
+    "uniform-0000010-1.json",
+    "us-night-0000020.instance.json"
+  ],
+  "excluded_osm_locality": "bangalore_*",
+  "size_bands": {
+    "25-40": [
+      25,
+      40
+    ],
+    "41-60": [
+      41,
+      60
+    ]
+  },
+  "eligible_candidates_per_stratum": {
+    "OSM:25-40": 76,
+    "OSM:41-60": 76,
+    "random:25-40": 39,
+    "random:41-60": 39,
+    "tessellation:25-40": 27,
+    "tessellation:41-60": 24
+  },
+  "selected_cases": [
+    {
+      "name": "large_osm_25-40_sao_paulo_n040_seed7537",
+      "source_name": "sao_paulo_n040_seed7537.json",
+      "archive_name": "sao_paulo_n040_seed7537.json",
+      "source_class": "OSM",
+      "size_band": "25-40",
+      "vertex_count": 458,
+      "selection_sha256": "012b2de9d28acd4fd2224852374032fec9b2e70dfb0e3d6f0794076b55864ed0",
+      "geometry_sha256": "418b60cad2ed51c720d4bcd3e21e948585d5df1ef4d80a7937d618ca607156e4",
+      "actual_polygon_count": 39
+    },
+    {
+      "name": "large_osm_41-60_toronto_n050_seed4504",
+      "source_name": "toronto_n050_seed4504.json",
+      "archive_name": "toronto_n050_seed4504.json",
+      "source_class": "OSM",
+      "size_band": "41-60",
+      "vertex_count": 200,
+      "selection_sha256": "091f959c5a67f1c0c0cfa330d8754ebd7663e3887a46b99d08b029fd1df35b6c",
+      "geometry_sha256": "276f5703d4d8bd58e0e6e65236524ecb820ab36c9cb130058d06dabaa91bfa9c",
+      "actual_polygon_count": 50
+    },
+    {
+      "name": "large_random_25-40_random_mixed_square_n030_seed30019",
+      "source_name": "random_mixed_square_n030_seed30019.json",
+      "archive_name": "random_mixed_square_n030_seed30019.json",
+      "source_class": "random",
+      "size_band": "25-40",
+      "vertex_count": 337,
+      "selection_sha256": "078e680a73bdee79861351ebfc6be9a8400500b77cfbc0646ff70adeb1b38aa5",
+      "geometry_sha256": "028f76a7ee4e94d6d8cac37d87a5c39a9d5a9cc1d14069abaa044e00cbd77d6c",
+      "actual_polygon_count": 30
+    },
+    {
+      "name": "large_random_41-60_random_mixed_square_n060_seed60012",
+      "source_name": "random_mixed_square_n060_seed60012.json",
+      "archive_name": "random_mixed_square_n060_seed60012.json",
+      "source_class": "random",
+      "size_band": "41-60",
+      "vertex_count": 663,
+      "selection_sha256": "0409934f721f7a0e142851f6b38b6364e735074eca1ed7b98c250f145a5d2057",
+      "geometry_sha256": "d4c6d34f39d40834cede5a62a528d3135b54ed0a5df4f0aee09640ecde5a5c00",
+      "actual_polygon_count": 59
+    },
+    {
+      "name": "large_tessellation_25-40_uniform-0000030-1",
+      "source_name": "uniform-0000030-1.json",
+      "archive_name": "uniform-0000030-1.json",
+      "source_class": "tessellation",
+      "size_band": "25-40",
+      "vertex_count": 160,
+      "selection_sha256": "01ba274f42fca5c799902f9804a112f2222d9c758e9cad3626da47ba8400d931",
+      "geometry_sha256": "aff4db1b9287da5d53ad969862f10c04a07faea340cc3da62348347b08fdddd6",
+      "actual_polygon_count": 30
+    },
+    {
+      "name": "large_tessellation_41-60_uniform-0000060-1",
+      "source_name": "uniform-0000060-1.json",
+      "archive_name": "uniform-0000060-1.json",
+      "source_class": "tessellation",
+      "size_band": "41-60",
+      "vertex_count": 333,
+      "selection_sha256": "1c835262b5a0117de6df4d5f8131b2d6d2ebd18b5ccbb6342fa629bbc15fef27",
+      "geometry_sha256": "da59596b03d4583db748d75a60721fc43212b69440cd7cd2fce6e56aec8c1278",
+      "actual_polygon_count": 60
+    }
+  ]
+}
