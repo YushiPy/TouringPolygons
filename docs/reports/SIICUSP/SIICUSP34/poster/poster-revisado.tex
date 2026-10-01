@@ -25,6 +25,7 @@
 \definecolor{Route}{HTML}{FFAD66}
 \definecolor{FirstVisit}{HTML}{81D864}
 \definecolor{LastVisit}{HTML}{1F7A73}
+\definecolor{LogoTeal}{HTML}{69D4C6}
 \newsavebox{\posterbox}
 % Named, measured blocks make overflow checks reproducible after each edit.
 \newcommand{\block}[5]{%
@@ -41,7 +42,6 @@
 \begin{document}
 \begin{tikzpicture}[remember picture,overlay,shift={(current page.north west)},x=1cm,y=-1cm]
   \fill[white] (0,0) rectangle (84.1,118.9);
-  \fill[Ink] (0,0) rectangle (84.1,0.55);
   % Crop the SIICUSP image's white margins so the visible marks align by height.
   % The IME and SIICUSP marks are both 6.643 cm tall; FAPESP spans their row.
   \block{ime-logo}{67.686}{3.938}{5.015}{\centering\includegraphics[height=6.643cm]{figures/ime-usp-vertical-logo.png}}
@@ -232,7 +232,16 @@
   \draw[Rule,line width=0.8pt,rounded corners=0.18cm] (60.4,97.4) rectangle (80.9,98.9);
   \block{app-understand-title}{60.8}{97.85}{4.6}{\sffamily\bfseries\fontsize{26}{31}\selectfont\color{Accent}Entenda}
   \block{app-understand-detail}{65.6}{97.85}{15.3}{\sffamily\fontsize{26}{31}\selectfont\color{Ink}Pseudocódigo + busca em etapas}
-  \block{qr}{62.4}{99.6}{16.5}{\qrcode[level=H,height=16.5cm]{https://yushipy.github.io/TouringPolygons/apps/siicusp34/}}
+  \block{qr}{62.05}{99.3}{17.2}{\qrcode[level=H,height=17.2cm]{https://yushipy.github.io/TouringPolygons/apps/siicusp34/}}
+  % Small white-backed TPP mark over the QR center; the QR uses level-H correction.
+  \fill[white,rounded corners=0.16cm] (69.425,106.675) rectangle (71.875,109.125);
+  \begin{scope}[shift={(69.7,106.95)},scale=0.0296875]
+    \fill[Ink,rounded corners=0.356cm] (0,0) rectangle (64,64);
+    \draw[LogoTeal,line width=3.4pt,join=round] (32,10) -- (53,50) -- (11,50) -- cycle;
+    \draw[Route,line width=3.0pt,line cap=round] (10,36) -- (54,29);
+    \fill[white] (10,36) circle[radius=4];
+    \fill[white] (54,29) circle[radius=4];
+  \end{scope}
   \block{app-link}{60.4}{116.8}{20.5}{\centering\sffamily\bfseries\fontsize{18}{22}\selectfont\color{Accent}\href{https://yushipy.github.io/TouringPolygons/apps/siicusp34/}{yushipy.github.io/TouringPolygons/apps/siicusp34/}}
   \end{scope}
 
