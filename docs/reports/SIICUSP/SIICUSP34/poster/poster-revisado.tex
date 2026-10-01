@@ -42,8 +42,9 @@
 \begin{document}
 \begin{tikzpicture}[remember picture,overlay,shift={(current page.north west)},x=1cm,y=-1cm]
   \fill[white] (0,0) rectangle (84.1,118.9);
-  % Crop the SIICUSP image's white margins so the visible marks align by height.
-  % The IME and SIICUSP marks are both 6.643 cm tall; FAPESP spans their row.
+  % Official USP logotype from SCS-USP, at 50% of the IME mark's height.
+  \block{usp-logo}{59.12}{5.59875}{8.166}{\centering\includegraphics[height=3.3215cm]{figures/usp-logo.png}}
+  % The IME and SIICUSP marks retain their original size and positions.
   \block{ime-logo}{67.686}{3.938}{5.015}{\centering\includegraphics[height=6.643cm]{figures/ime-usp-vertical-logo.png}}
   \block{event-logo}{73.201}{3.938}{7.899}{\includegraphics[trim={33bp 56bp 33bp 79bp},clip,width=\linewidth]{figures/siicusp34-logo-pt.png}}
   \block{funding-logo}{67.686}{11.6}{13.414}{\includegraphics[width=\linewidth]{figures/fapesp-logo.png}}
@@ -64,10 +65,10 @@
   \block{intro-context}{3}{20.67}{38.2}{\bodytext Suponha que um drone parte da entrada do IME para fotografar institutos e outras regiões da USP. Precisamos escolher \textbf{a ordem das visitas e o ponto de contato} em cada região para minimizar o comprimento do caminho. Esse problema é exatamente o TPP de ordem livre, o foco desse projeto de pesquisa.}
   \fill[Pale,rounded corners=0.22cm] (3,25.7) rectangle (20.4,29.87);
   \draw[Rule,line width=1.0pt,rounded corners=0.22cm] (3,25.7) rectangle (20.4,29.87);
-  \block{tsp}{3.55}{26.2}{16.3}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TSP}\par\vspace{0.10cm}\bodytext Menor ciclo que visita\\um conjunto de pontos.}
+  \block{tsp}{3.55}{26.2}{16.3}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TSP}\hspace{0.12cm}\raisebox{0.08cm}{{\sffamily\mdseries\fontsize{22}{26}\selectfont\color{Muted}·\hspace{0.12cm}Travelling Salesman Problem}}\par\vspace{0.10cm}\bodytext Menor ciclo que visita\\um conjunto de pontos.}
   \fill[Pale,rounded corners=0.22cm] (3,30.37) rectangle (20.4,35.63);
   \draw[Rule,line width=1.0pt,rounded corners=0.22cm] (3,30.37) rectangle (20.4,35.63);
-  \block{tpp}{3.55}{30.87}{16.3}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TPP}\par\vspace{0.10cm}\bodytext Menor caminho que parte de $s$,\\visita uma sequência de polígonos\\em ordem e chega em $t$.}
+  \block{tpp}{3.55}{30.87}{16.3}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TPP}\hspace{0.12cm}\raisebox{0.08cm}{{\sffamily\mdseries\fontsize{22}{26}\selectfont\color{Muted}·\hspace{0.12cm}Touring Polygons Problem}}\par\vspace{0.10cm}\bodytext Menor caminho que parte de $s$,\\visita uma sequência de polígonos\\em ordem e chega em $t$.}
   \fill[Accent!7,rounded corners=0.24cm] (22.8,26.9) rectangle (41.1,33.33);
   \draw[Accent!65,line width=1.2pt,rounded corners=0.24cm] (22.8,26.9) rectangle (41.1,33.33);
   \block{free-order}{23.45}{27.4}{17.0}{{\tagtext TPP de ordem livre}\par\vspace{0.14cm}\bodytext Menor caminho que parte de um ponto $s$,\\visita um conjunto de polígonos\\e chega em um ponto $t$.\par\vspace{0.10cm}\bodytext\bfseries Esse é o problema que resolvemos.}
