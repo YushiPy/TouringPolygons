@@ -65,12 +65,14 @@ python3 benchmarks/tpp.py free-order NOME_DA_CAMPANHA --help
 
 No laboratório, `scripts/run_comparison.sh` chama esta CLI para executar os
 558 casos alemães. Selecione os solvers com `--solver tpp-ours`,
-`--solver tpp-fekete` ou `--solver both` (padrão). Uma seleção de solver único
-usa por padrão uma campanha local separada, nomeada pelo solver e pelo número
-de threads por caso; `--campaign` permite escolher outro nome. O script cria a
-pasta da campanha e o manifesto na primeira execução. Repetir o comando retoma
-os casos concluídos. No macOS, se o CMake não reconhecer o AppleClang como
-compatível com C++23, o setup tenta o LLVM do Homebrew. No Linux, tenta GCC
+`--solver tpp-fekete` ou `--solver both` (padrão). A pasta da campanha depende
+de `--threads-per-instance`, não de `--workers` nem do solver selecionado:
+uma thread reutiliza `german-free-order-comparison-v1`, e outras contagens usam
+pastas próprias, como `german-free-order-comparison-8threads`. `--campaign`
+permite escolher outro nome. O script cria a pasta e o manifesto na primeira
+	execução; repetir a mesma configuração retoma os casos concluídos. No macOS,
+se o CMake não reconhecer o AppleClang como compatível com C++23, o setup tenta
+o LLVM do Homebrew. No Linux, tenta GCC
 16/15/14 e Clang 20/19/18 instalados se o compilador padrão não passar a
 verificação; variáveis `CC` e `CXX` definidas pelo usuário são respeitadas.
 
@@ -81,7 +83,7 @@ scripts/run_comparison.sh --solver tpp-ours --threads-per-instance 8
 ```
 
 Isso cria a campanha local
-`benchmarks/campaigns/german-free-order-tpp-ours-8threads/`. Esse modo não
+`benchmarks/campaigns/german-free-order-comparison-8threads/`. Esse modo não
 prepara nem verifica Fekete ou a licença Gurobi; reutiliza os pacotes C++ já
 baixados em `third_party/tspn-socg/.conan/release` para compilar nosso solver.
 `--solver tpp-fekete` prepara e valida apenas Fekete e exige licença Gurobi;

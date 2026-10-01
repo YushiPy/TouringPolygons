@@ -30,7 +30,7 @@ Options:
   --workers N                 Concurrent queued solver cases (default: 1)
   --threads-per-instance N    Solver threads per instance (default: 1)
   --build-jobs N              Parallel compiler jobs (default: TPP_BUILD_JOBS or 8)
-  --campaign NAME             Override the selected solver campaign name
+  --campaign NAME             Override the thread-count campaign name
   --max-seconds N             Per-instance limit; -1 means unlimited (default: -1)
   --max-calls N               Our solver's call limit (default: 100000000)
   --setup-only                Check selected dependencies/builds, then exit
@@ -115,8 +115,8 @@ case "$solver_choice" in
 	tpp-ours|tpp-fekete|both) ;;
 	*) fail '--solver must be tpp-ours, tpp-fekete, or both' ;;
 esac
-if (( ! campaign_explicit )) && [[ "$solver_choice" != both ]]; then
-	campaign_name="german-free-order-${solver_choice}-${threads_per_instance}threads"
+if (( ! campaign_explicit )) && ((threads_per_instance != 1)); then
+	campaign_name="german-free-order-comparison-${threads_per_instance}threads"
 fi
 run_tpp_ours=0
 run_tpp_fekete=0

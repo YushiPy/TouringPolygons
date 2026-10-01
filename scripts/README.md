@@ -18,10 +18,13 @@ scripts/run_comparison.sh
 
 Por padrão, `scripts/run_comparison.sh` prepara e executa ambos os solvers.
 Use `--solver tpp-ours`, `--solver tpp-fekete` ou `--solver both` para escolher.
-Com uma seleção de solver único, o runner usa uma campanha local separada,
-com nome formado pelo solver e pelo número de threads por caso; `--campaign`
-pode definir outro nome. A pasta da campanha e seu manifesto são criados na
-primeira execução.
+A pasta da campanha é determinada por `--threads-per-instance`, independente
+do solver selecionado e de `--workers`. Uma thread usa
+`german-free-order-comparison-v1`; outras contagens usam uma pasta própria,
+como `german-free-order-comparison-8threads`. `--campaign` pode definir outro
+nome. O runner cria a pasta e seu manifesto na primeira execução. Repetir a
+configuração reutiliza os resultados; mudar apenas `--workers` também retoma a
+mesma campanha.
 
 O modo `--solver tpp-ours` não prepara nem verifica Fekete ou a licença Gurobi.
 Ele usa os pacotes C++ já baixados em

@@ -180,11 +180,22 @@ def optional_bool(value: str | bool | None) -> bool | None:
 
 
 def _resume_compatible_config(previous: dict, current: dict) -> bool:
-	"""Reuse finished cases across runner-only changes with identical solver settings."""
+	"""Reuse matching per-solver rows when workers or solver selection changes."""
 	ignored = {
 		'campaign_runner_sha256', 'external_runner_sha256', 'queue_policy',
-		'instance_workers',
+		'instance_workers', 'solvers',
 	}
+	current_solvers = set(current.get('solvers', []))
+	if 'unordered' not in current_solvers:
+		ignored.update({
+			'max_calls', 'ours_optimality', 'unordered_binary_sha256',
+			'initial_strategies', 'perimeter_work_budget', 'perimeter_budget_mode',
+		})
+	if 'tspn' not in current_solvers:
+		ignored.update({
+			'external_optimality_eps', 'external_source_revision',
+			'external_binding_sha256', 'external_build_path',
+		})
 	previous_identity = {key: value for key, value in previous.items() if key not in ignored}
 	current_identity = {key: value for key, value in current.items() if key not in ignored}
 	return previous_identity == current_identity
@@ -294,9 +305,12 @@ def write_comparison_summary(path: Path, report: dict, expected_cases: int) -> N
 		lines.append(f"| {label} | {len(group)} | {closed}/{len(group)} | {valid}/{valid_known} known | "
 			f"{statistics.median(times):.3f}s | {sum(times):.3f}s |" if times else
 			f"| {label} | {len(group)} | {closed}/{len(group)} | {valid}/{valid_known} known | n/a | n/a |")
-	paired = [(by_solver['unordered'][i], by_solver['tspn'][i]) for i in sorted(set(by_solver['unordered']) & set(by_solver['tspn']))]
-	ratios = [float(ours['seconds']) / float(fekete['seconds']) for ours, fekete in paired
-		if ours.get('seconds') and fekete.get('seconds') and float(ours['seconds']) > 0 and float(fekete['seconds']) > 0]
+	paired = []
+	ratios = []
+	if 'unordered' in selected_solvers and 'tspn' in selected_solvers:
+		paired = [(by_solver['unordered'][i], by_solver['tspn'][i]) for i in sorted(set(by_solver['unordered']) & set(by_solver['tspn']))]
+		ratios = [float(ours['seconds']) / float(fekete['seconds']) for ours, fekete in paired
+			if ours.get('seconds') and fekete.get('seconds') and float(ours['seconds']) > 0 and float(fekete['seconds']) > 0]
 	if ratios:
 		lines.extend([
 			'', f"Paired runtime data: {len(ratios)} instances.",
@@ -459,12 +473,23 @@ def main(argv: list[str] | None = None) -> int:
 				old.setdefault('notes', []).append(
 					'Resumed with the shared FIFO solver-case queue; prior completed rows were kept.')
 				atomic_json(prior, old)
-			if compatible and old.get('status') == 'completed':
-				prior.touch()
-				print(f'Reusing {prior}', flush=True)
-				return 0
-			if compatible and resume_path is None:
-				resume_path = prior
+		old_rows = old.get('rows', [])
+		old_completed = {
+			(row.get('solver'), int(row.get('case', -1))) for row in old_rows
+			if row.get('solver') in solvers and not row.get('error')
+			and row.get('status') in (None, 'optimal', 'limit')
+		}
+		all_requested_cases_complete = all(
+			(solver, index) in old_completed
+			for solver in solvers for index in range(len(cases))
+		)
+		if compatible and old.get('status') == 'completed' and all_requested_cases_complete:
+			prior.touch()
+			print(f'Reusing {prior}', flush=True)
+			write_comparison_summary(prior.with_name('comparison.md'), old, len(cases))
+			return 0
+		if compatible and resume_path is None:
+			resume_path = prior
 	if 'tspn' in solvers and not (external_python.exists() and EXTERNAL_RUNNER.exists()
 		and (external_build / 'python/tspn_bnb2/core').exists()):
 		raise FileNotFoundError('tpp-fekete Python or built binding is unavailable; use --external-python and --external-build.')
@@ -523,7 +548,8 @@ def main(argv: list[str] | None = None) -> int:
 
 	def successful_pairs() -> set[tuple[str, int]]:
 		return {(row.get('solver'), int(row.get('case', -1))) for row in report['rows']
-			if not row.get('error') and row.get('status') in (None, 'optimal', 'limit')}
+			if row.get('solver') in solvers and not row.get('error')
+			and row.get('status') in (None, 'optimal', 'limit')}
 
 	def save_checkpoint() -> None:
 		report['checkpoint'] = {
