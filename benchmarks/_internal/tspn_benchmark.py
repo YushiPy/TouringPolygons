@@ -258,6 +258,8 @@ def main(argv=None):
     command=['cmake','-S',str(ROOT/'benchmarks/_internal/tspn_native'),'-B',str(args.build_dir),f'-DFEKETE_SOURCE={source}','-DTARGET=main-unordered',f'-DWITH_TSPN_FEKETE={fekete_flag}']
     if os.environ.get('GUROBI_HOME'):
         command.append(f'-DGUROBI_HOME={os.environ["GUROBI_HOME"]}')
+    if os.environ.get('TPP_CXX_STANDARD'):
+        command.append(f'-DTPP_CXX_STANDARD={os.environ["TPP_CXX_STANDARD"]}')
     # Reuse a locally installed header-only dependency when its Conan package
     # lacks a CMake config. Never write an environment or build into the vendor.
     headers=sorted((Path.home()/'.conan2/p').glob('*/p/include/nlohmann/json.hpp'))

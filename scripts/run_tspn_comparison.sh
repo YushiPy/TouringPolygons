@@ -194,6 +194,24 @@ elif ! command -v cmake >/dev/null 2>&1; then
 fi
 
 output_dir="$ROOT/benchmarks/campaigns/$campaign_name"
+
+# Choose the newest C++ standard the default compiler supports. Remote Ubuntu
+# 24.04 ships GCC 13 (C++23 only); newer toolchains keep the default C++26.
+if [[ -z "${TPP_CXX_STANDARD:-}" ]]; then
+	probe_dir="$(mktemp -d "${TMPDIR:-/tmp}/tpp-cxx-probe.XXXXXX")"
+	printf '#include <format>\nint main(){return std::format("{}",0)=="0"?0:1;}\n' > "$probe_dir/main.cpp"
+	TPP_CXX_STANDARD=""
+	for std_flag in c++26 c++2b; do
+		if "${CXX:-c++}" -std=$std_flag "$probe_dir/main.cpp" -o "$probe_dir/probe" 2>/dev/null && "$probe_dir/probe"; then
+			if [[ "$std_flag" == 'c++26' ]]; then TPP_CXX_STANDARD=26; else TPP_CXX_STANDARD=23; fi
+			break
+		fi
+	done
+	rm -rf "$probe_dir"
+	[[ -n "$TPP_CXX_STANDARD" ]] || fail 'the default c++ compiler supports neither C++26 nor C++23 std::format; export TPP_CXX_STANDARD and/or CC/CXX, or install a newer toolchain'
+	export TPP_CXX_STANDARD
+	printf 'Detected C++ standard: %s\n' "$TPP_CXX_STANDARD"
+fi
 if ((force)) && [[ -d "$output_dir" ]]; then
 	backup="$output_dir.previous-$(date +%Y%m%d-%H%M%S)"
 	mv "$output_dir" "$backup"
