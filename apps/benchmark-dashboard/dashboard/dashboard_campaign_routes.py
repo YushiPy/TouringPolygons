@@ -19,7 +19,7 @@ from dashboard.dashboard_models import (
     CreateOsmRequest,
     CreateSyntheticRequest,
     ImportCanonicalRequest,
-    ImportGermanRequest,
+    ImportFeketeRequest,
     LiveSolveRequest,
     ManualCampaignRequest,
     ManualCaseRequest,
@@ -60,7 +60,7 @@ def register_campaign_routes(
     convert_instances_script: Path,
     canonical_suite: Path,
     tracked_nonconvex_suite: Path,
-    german_instances_zip: Path,
+    fekete_instances_zip: Path,
     solver_binary: Path,
 ) -> None:
     router = APIRouter()
@@ -330,15 +330,15 @@ def register_campaign_routes(
             overwrite=request.overwrite,
         )
 
-    @router.post("/api/campaigns/german")
-    async def import_german(request: ImportGermanRequest):
-        if german_instances_zip.exists():
+    @router.post("/api/campaigns/fekete")
+    async def import_fekete(request: ImportFeketeRequest):
+        if fekete_instances_zip.exists():
             completed = run_command(
                 [
                     sys.executable,
                     str(convert_instances_script),
                     "--input",
-                    str(german_instances_zip),
+                    str(fekete_instances_zip),
                     "--output",
                     str(tracked_nonconvex_suite),
                 ]
@@ -346,15 +346,15 @@ def register_campaign_routes(
             if completed.returncode != 0:
                 return JSONResponse({"ok": False, "output": completed.stdout}, status_code=400)
         elif not tracked_nonconvex_suite.exists():
-            raise HTTPException(status_code=404, detail="No German instances zip or converted nonconvex suite exists.")
+            raise HTTPException(status_code=404, detail="No Fekete instances zip or converted nonconvex suite exists.")
         return import_binary_suite(
             name=request.name,
             source_suite=tracked_nonconvex_suite,
-            input_filename="german-instances.bin",
-            campaign_type="german",
+            input_filename="fekete-instances.bin",
+            campaign_type="fekete",
             format_name="socg-simplified",
             overwrite=request.overwrite,
-            extra_generation={"source_zip": str(german_instances_zip) if german_instances_zip.exists() else None},
+            extra_generation={"source_zip": str(fekete_instances_zip) if fekete_instances_zip.exists() else None},
         )
 
     @router.post("/api/campaigns/manual")

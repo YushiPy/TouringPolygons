@@ -26,7 +26,7 @@ or private experiment notes.
 Regenerate the source corpus:
 
 ```bash
-python3 benchmarks/tpp.py convert-german
+python3 benchmarks/tpp.py convert-fekete
 ```
 
 Regenerate the derived development and canonical suites:

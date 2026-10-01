@@ -296,5 +296,5 @@ problema. Os resultados gerados ficam em `benchmarks/results/` e não entram no 
 
 A comparação canônica atual com o solver de Fekete et al. mantém corpus, saídas,
 análise e instruções em
-[`benchmarks/results-saved/german-comparison`](../../benchmarks/results-saved/german-comparison/README.md).
+[`benchmarks/results-saved/fekete-comparison`](../../benchmarks/results-saved/fekete-comparison/README.md).
 Resultados temporais anteriores não fazem parte deste contrato de algoritmo.

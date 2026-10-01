@@ -70,7 +70,7 @@ Commands:
   tspn-benchmark ARGS...             Compare TSPN B&B against the Fekete SOCP B&B.
   compare-oracles ARGS...            Compare oracle backends inside the external solver.
   run-fekete ARGS...                 Run/resume the long external campaign.
-  convert-german ARGS...             Convert the pinned German instance archive.
+  convert-fekete ARGS...             Convert the pinned Fekete instance archive.
   convert-tspn ARGS...               Convert native TSPN result instances.
   normalize ARGS...                  Normalize polygon orientation in a suite.
   split ARGS...                      Split a benchmarked binary by difficulty.
@@ -341,7 +341,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 		return command_module("tspn_oracle_backends", rest)
 	if command == "run-fekete":
 		return command_module("run_fekete", rest)
-	if command == "convert-german":
+	if command == "convert-fekete":
 		return command_module("convert_instances", rest)
 	if command == "convert-tspn":
 		return command_module("convert_tspn_native_instances", rest)

@@ -1,4 +1,4 @@
-# Análise comparativa — German comparison
+# Análise comparativa — Fekete comparison
 
 Análise das 558 instâncias, unidas por `case_index` e `sha256`. Os histogramas de tempo incluem todos os tempos registrados; speedup e comprimento usam apenas as 550 instâncias concluídas pelo Fekete.
 

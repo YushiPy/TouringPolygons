@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export a completed German-corpus JSONL run as an interactive dashboard snapshot."""
+"""Export a completed Fekete-corpus JSONL run as an interactive dashboard snapshot."""
 from __future__ import annotations
 
 import argparse
@@ -59,15 +59,15 @@ def export_dataset(run: Path, suite: Path, output: Path) -> None:
 	results_digest = hashlib.sha256((run / "final.jsonl").read_bytes()).hexdigest()
 	data = {
 		"schema_version": 1,
-		"corpus": "german",
-		"title": "TPP · corpus alemão adaptado · 558 instâncias",
+		"corpus": "fekete",
+		"title": "TPP · corpus de Fekete et al. adaptado · 558 instâncias",
 		"visit_order": "free",
 		"status": "completed",
 		"provenance": {
 			"date": "2026-09-18",
-			"run_id": "german-instances-exact-20260918",
+			"run_id": "fekete-instances-exact-20260918",
 			"revision": "38c3d7c2e6f121e4eb0d77dedeba810c7decaef1",
-			"suite": "german-instances.bin",
+			"suite": "fekete-instances.bin",
 			"suite_sha256": hashlib.sha256(suite.read_bytes()).hexdigest(),
 			"results_sha256": results_digest,
 			"binary_sha256": "a860c5d158804a161ea92011af201b5f1e8d972c2376a27dc66c8a634e099568",
@@ -91,7 +91,7 @@ def export_dataset(run: Path, suite: Path, output: Path) -> None:
 			"certification": "Certificação exata nas buscas concluídas; geometria conferida independentemente.",
 		},
 		"notes": [
-			"Corpus alemão adaptado para caminho com extremos fixos e ordem livre.",
+			"corpus de Fekete et al. adaptado para caminho com extremos fixos e ordem livre.",
 			"A rodada usa 2 s inicialmente e 10 s para os 148 casos que atingiram o primeiro limite.",
 			"Os caminhos são interativos; os resultados não exibem limites numéricos.",
 		],

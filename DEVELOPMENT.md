@@ -38,7 +38,7 @@ em vez de criar mais um script executável.
 - `benchmarks/suites/`: corpora canônicos rastreados;
 - `benchmarks/campaigns/` e `benchmarks/results/`: trabalho local ignorado;
 - `benchmarks/results-saved/`: resumos compactos e fixtures mínimos; dados
-  brutos ficam nas campanhas locais ignoradas, com `german-comparison` como
+  brutos ficam nas campanhas locais ignoradas, com `fekete-comparison` como
   exceção porque o corpus é consumido pelo material SIICUSP;
 - `third_party/`: código externo redistribuível, fixado por submódulo;
 - `docs/algorithms/`: contratos e argumentos de correção duráveis;
@@ -59,7 +59,7 @@ geometria ou solver convexo para pacotes consumidores.
 
 ## Terceiros e privacidade
 
-O fork alemão está em `third_party/tspn-socg` e a coleção da Paula permanece
+O fork do solver de Fekete et al. está em `third_party/tspn-socg` e a coleção da Paula permanece
 local e ignorada em `third_party/paula-tspn`. Regras de licença, reprodução e privacidade estão em
 [`docs/third-party.md`](docs/third-party.md).
 

@@ -132,9 +132,9 @@ A tabela de tempos e as métricas de velocidade usam somente os 550 casos
 concluídos por ambos; a precisão geométrica informa separadamente o tamanho
 das séries de trajetórias disponíveis.
 
-Os caminhos da nova rodada estão em `benchmarks/results-saved/german-comparison/ours.csv` e incluem a trajetória final, a ordem livre e o SHA-256 de cada instância. O app é regenerado por `apps/siicusp34/scripts/build_event_data.py`.
+Os caminhos da nova rodada estão em `benchmarks/results-saved/fekete-comparison/ours.csv` e incluem a trajetória final, a ordem livre e o SHA-256 de cada instância. O app é regenerado por `apps/siicusp34/scripts/build_event_data.py`.
 
-O relatório `touring-polygons-benchmark-report.pdf` mencionado na conversa não serve como comparação com os alemães: a análise interpretada anteriormente comparava variantes internas do nosso solver e, em parte, problemas diferentes. Não reutilizar a afirmação de que “liberar a ordem melhorou 488 de 498 casos” como evidência contra Fekete et al.
+O relatório `touring-polygons-benchmark-report.pdf` mencionado na conversa não serve como comparação com Fekete et al.: a análise interpretada anteriormente comparava variantes internas do nosso solver e, em parte, problemas diferentes. Não reutilizar a afirmação de que “liberar a ordem melhorou 488 de 498 casos” como evidência contra Fekete et al.
 
 A página já usa a rodada salva da campanha. Atualizações dos resultados devem preservar juntos entrada, configuração, dados brutos, análise e proveniência; depois, regenerar `data/event-data.js` e revisar as afirmações públicas.
 

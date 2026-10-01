@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "benchmarks/_internal"))
-sys.path.insert(0, str(ROOT / "benchmarks/results-saved/german-comparison"))
+sys.path.insert(0, str(ROOT / "benchmarks/results-saved/fekete-comparison"))
 
 from analyze import build_analysis, orient_path, route_polygon_distance  # noqa: E402
 from benchmark_cases import read_encoded_cases  # noqa: E402
@@ -246,7 +246,7 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 	})
 	data = {
 		"config": {"solver_threads": 1, "validation_tolerance": 1e-7},
-		"corpus": "german",
+		"corpus": "fekete",
 		"notes": [
 			"Este é o corpus de instâncias usado por Fekete et al. no artigo; a página compara os dois solvers no mesmo problema adaptado, com extremos fixos e ordem livre.",
 			"Nosso solver certificou 558/558 instâncias. No conjunto comum concluído, o speedup mediano Fekete/nosso é {:.2f}×; o solver de Fekete et al. não concluiu 8 instâncias no limite de 6 horas.".format(comparison["median_speedup_fekete_over_ours"]),
@@ -254,7 +254,7 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 		],
 		"provenance": {
 			"date": "2026-09-21",
-			"run_id": "german-comparison-20260921",
+			"run_id": "fekete-comparison-20260921",
 			"ours_csv": str(args.ours),
 			"fekete_csv": str(args.fekete),
 			"binary_sha256": hashlib.sha256(args.instances.read_bytes()).hexdigest(),
@@ -283,9 +283,9 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 
 def main() -> None:
 	parser = argparse.ArgumentParser(description=__doc__)
-	parser.add_argument("--ours", type=Path, default=Path("benchmarks/results-saved/german-comparison/ours.csv"))
-	parser.add_argument("--fekete", type=Path, default=Path("benchmarks/results-saved/german-comparison/fekete.csv"))
-	parser.add_argument("--instances", type=Path, default=Path("benchmarks/results-saved/german-comparison/instances.bin"))
+	parser.add_argument("--ours", type=Path, default=Path("benchmarks/results-saved/fekete-comparison/ours.csv"))
+	parser.add_argument("--fekete", type=Path, default=Path("benchmarks/results-saved/fekete-comparison/fekete.csv"))
+	parser.add_argument("--instances", type=Path, default=Path("benchmarks/results-saved/fekete-comparison/instances.bin"))
 	parser.add_argument("--legacy-event-data", type=Path)
 	parser.add_argument("--output", type=Path, default=Path("apps/siicusp34/data/event-data.js"))
 	args = parser.parse_args()

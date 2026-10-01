@@ -20,17 +20,17 @@ mais de um nucleo a uma instancia. O nosso solver resolveu todas as instancias;
 A análise reproduzível está em `analyze.py`. Para regenerar `analysis/`:
 
 ```bash
-python3 benchmarks/results-saved/german-comparison/analyze.py \
-  --instances benchmarks/results-saved/german-comparison/instances.bin \
-  --ours benchmarks/results-saved/german-comparison/ours.csv \
-  --fekete benchmarks/results-saved/german-comparison/fekete.csv \
-  --output-dir benchmarks/results-saved/german-comparison/analysis
+python3 benchmarks/results-saved/fekete-comparison/analyze.py \
+  --instances benchmarks/results-saved/fekete-comparison/instances.bin \
+  --ours benchmarks/results-saved/fekete-comparison/ours.csv \
+  --fekete benchmarks/results-saved/fekete-comparison/fekete.csv \
+  --output-dir benchmarks/results-saved/fekete-comparison/analysis
 ```
 
 ## Rótulos de origem e sobreposição
 
 `analysis/instance-classification.csv` associa cada caso ao tipo e ao nome de
-origem do corpus alemão, além de registrar contatos entre polígonos, runtimes
+origem do corpus de Fekete et al., além de registrar contatos entre polígonos, runtimes
 e speedup. O relatório estratificado por origem, tamanho e disjunção está em
 `analysis/source-stratified-report.md`. A descrição das classes do corpus vem
 da Seção 4.2 de `docs/bibliography/TSPN-B&B-Michael/original.pdf`.
@@ -42,12 +42,12 @@ de assumir a ordem do ZIP e usa o classificador C++/Boost.Geometry incluído em
 compilador C++17 e os headers Boost.Geometry disponíveis:
 
 ```bash
-python3 benchmarks/results-saved/german-comparison/tools/classify_instances.py \
-  --instances benchmarks/results-saved/german-comparison/instances.bin \
-  --per-instance benchmarks/results-saved/german-comparison/analysis/per-instance.csv \
+python3 benchmarks/results-saved/fekete-comparison/tools/classify_instances.py \
+  --instances benchmarks/results-saved/fekete-comparison/instances.bin \
+  --per-instance benchmarks/results-saved/fekete-comparison/analysis/per-instance.csv \
   --archive third_party/tspn-socg/instances/instances_socg_simplified.zip \
-  --output benchmarks/results-saved/german-comparison/analysis/instance-classification.csv \
-  --report benchmarks/results-saved/german-comparison/analysis/source-stratified-report.md
+  --output benchmarks/results-saved/fekete-comparison/analysis/instance-classification.csv \
+  --report benchmarks/results-saved/fekete-comparison/analysis/source-stratified-report.md
 ```
 
 O solver externo usado na campanha é o submódulo

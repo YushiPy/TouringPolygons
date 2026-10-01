@@ -70,9 +70,9 @@ function challengeComparison(chosenLabel, chosenLength, bestLabel, bestLength, c
 async function initialize() {
 	const data = JSON.parse(element("event-data").textContent);
 	let showBounds = data.rows.some((item) => Number.isFinite(Number(item.lower_bound)) && Number.isFinite(Number(item.upper_bound ?? item.length)));
-	if (!showBounds && data.corpus === "german" && window.location.protocol !== "file:") {
+	if (!showBounds && data.corpus === "fekete" && window.location.protocol !== "file:") {
 		try {
-			const response = await fetch("/static/event/german-instances-exact-20260918-bounds.json");
+			const response = await fetch("/static/event/fekete-instances-exact-20260918-bounds.json");
 			if (response.ok) {
 				const bounds = await response.json();
 				data.rows.forEach((item) => Object.assign(item, bounds.cases?.[String(item.case)] || {}));
@@ -88,14 +88,14 @@ async function initialize() {
 		.filter((trace) => trace.omitted_events === 0 && trace.event_count < 200)
 		.sort((a, b) => a.case - b.case);
 	if (data.schema_version !== 1 || !data.rows.length) throw new Error("Dados da demonstração indisponíveis.");
-	const defaultCase = data.corpus === "german" ? 1 : 2;
+	const defaultCase = data.corpus === "fekete" ? 1 : 2;
 	let row = data.rows.find((item) => item.case === defaultCase) || data.rows[0];
 	let projected, fraction = 1, zoom = 1, frame = 0, playing = false;
 	let traceEvents = [], traceIndex = 0, traceFrame = null, traceTransition = null, tracePlaying = false;
 	let pan = [0, 0], drag = null, traceZoom = 1, tracePan = [0, 0], traceDrag = null;
 	const speeds = [.25, .5, 1, 1.5, 2, 3, 4];
 	let speedIndex = 2;
-	let resultGroup = data.corpus === "german" ? false : null;
+	let resultGroup = data.corpus === "fekete" ? false : null;
 	let showAllResults = false;
 	const sorting = { picker: { key: "case", descending: false }, result: { key: "case", descending: false } };
 	const enabled = (id) => element(id).getAttribute("aria-pressed") === "true";
@@ -595,7 +595,7 @@ async function initialize() {
 			if (active) button.setAttribute("aria-current", "true");
 			else button.removeAttribute("aria-current");
 		});
-		element("drawing-title").textContent = data.corpus === "german" ? `${row.polygons} regiões, caminho registrado` : titles[row.case] || `${row.polygons} regiões, extremos fixos`;
+		element("drawing-title").textContent = data.corpus === "fekete" ? `${row.polygons} regiões, caminho registrado` : titles[row.case] || `${row.polygons} regiões, extremos fixos`;
 		element("speed-value").title = `A 1×, este caso leva ${number(playbackDuration(row.polygons) / 1000, 1)} s para percorrer o caminho.`;
 		element("case-id").textContent = `Caso ${caseLabel(row.case)}`;
 		element("outcome-badge").className = `status ${row.exact ? "certified" : "limited"}`;

@@ -17,7 +17,7 @@ algoritmo envolvido.
   `benchmarks/_internal/` em vez de criar scripts soltos.
 - Campanhas e resultados gerados são locais. `benchmarks/results-saved/`
   guarda resumos compactos e dados estritamente necessários. Preserve completos
-  apenas `german-comparison` e fixtures pequenos consumidos por testes/apps.
+  apenas `fekete-comparison` e fixtures pequenos consumidos por testes/apps.
   Não arquive cópias de entradas, raws por repetição, logs, builds ou patches de
   experimentos. Resumos registram formulação, orçamento/tolerâncias, resultados,
   status de exatidão e limitações; os dados brutos ficam em campanhas locais
@@ -27,7 +27,7 @@ algoritmo envolvido.
 
 ## Terceiros e privacidade
 
-- O fork alemão é o submódulo `third_party/tspn-socg`. Não adicione ao
+- O fork do solver de Fekete et al. é o submódulo `third_party/tspn-socg`. Não adicione ao
   submódulo ambientes, builds, licenças comerciais ou resultados.
 - `third_party/paula-tspn/` é material local sem autorização explícita de redistribuição;
   mantenha-o ignorado.

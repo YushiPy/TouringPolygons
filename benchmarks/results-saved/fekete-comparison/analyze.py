@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Analyze the saved 558-instance German solver comparison.
+"""Analyze the saved 558-instance Fekete solver comparison.
 
 Both current CSVs contain enough information for an independent geometric
 audit: the local solver exports its final free-order path and the Fekete export
@@ -477,7 +477,7 @@ def build_markdown(analysis: dict[str, Any]) -> str:
 	precision = analysis["precision"]
 	rows = analysis["_per_instance"]
 	lines = [
-		"# Análise comparativa — German comparison",
+		"# Análise comparativa — Fekete comparison",
 		"",
 		"Análise das 558 instâncias, unidas por `case_index` e `sha256`. Os histogramas de tempo incluem todos os tempos registrados; speedup e comprimento usam apenas as 550 instâncias concluídas pelo Fekete.",
 		"",
@@ -563,32 +563,32 @@ def build_html(analysis: dict[str, Any]) -> str:
 		},
 	}
 	payload = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
-	return f'''<section id="german-comparison-analysis" aria-labelledby="german-comparison-title">
+	return f'''<section id="fekete-comparison-analysis" aria-labelledby="fekete-comparison-title">
 <style>
-#german-comparison-analysis {{ color: var(--foreground); font-size: var(--font-size-base); }}
-#german-comparison-analysis .analysis-intro {{ margin-bottom: 1rem; }}
-#german-comparison-analysis .viz-grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; margin: 1rem 0 1.5rem; }}
-#german-comparison-analysis .viz-stat {{ min-width: 0; }}
-#german-comparison-analysis .viz-stat-value {{ display: block; font-variant-numeric: tabular-nums; }}
-#german-comparison-analysis .chart-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem 1rem; }}
-#german-comparison-analysis figure {{ margin: 0; min-width: 0; }}
-#german-comparison-analysis figcaption {{ margin-bottom: 0.35rem; font-weight: 500; }}
-#german-comparison-analysis svg {{ display: block; width: 100%; height: auto; overflow: visible; }}
-#german-comparison-analysis .chart-frame {{ fill: none; stroke: var(--border); stroke-width: 1; }}
-#german-comparison-analysis .grid-line {{ stroke: var(--border); stroke-opacity: 0.55; stroke-width: 1; }}
-#german-comparison-analysis .axis-label, #german-comparison-analysis .axis-title {{ fill: var(--foreground); font-size: 12px; }}
-#german-comparison-analysis .muted {{ color: var(--muted-foreground); }}
-#german-comparison-analysis .legend {{ display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0.35rem 0 0; font-size: 12px; }}
-#german-comparison-analysis .legend i {{ display: inline-block; width: 0.65rem; height: 0.65rem; margin-right: 0.25rem; background: var(--swatch); }}
+#fekete-comparison-analysis {{ color: var(--foreground); font-size: var(--font-size-base); }}
+#fekete-comparison-analysis .analysis-intro {{ margin-bottom: 1rem; }}
+#fekete-comparison-analysis .viz-grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; margin: 1rem 0 1.5rem; }}
+#fekete-comparison-analysis .viz-stat {{ min-width: 0; }}
+#fekete-comparison-analysis .viz-stat-value {{ display: block; font-variant-numeric: tabular-nums; }}
+#fekete-comparison-analysis .chart-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem 1rem; }}
+#fekete-comparison-analysis figure {{ margin: 0; min-width: 0; }}
+#fekete-comparison-analysis figcaption {{ margin-bottom: 0.35rem; font-weight: 500; }}
+#fekete-comparison-analysis svg {{ display: block; width: 100%; height: auto; overflow: visible; }}
+#fekete-comparison-analysis .chart-frame {{ fill: none; stroke: var(--border); stroke-width: 1; }}
+#fekete-comparison-analysis .grid-line {{ stroke: var(--border); stroke-opacity: 0.55; stroke-width: 1; }}
+#fekete-comparison-analysis .axis-label, #fekete-comparison-analysis .axis-title {{ fill: var(--foreground); font-size: 12px; }}
+#fekete-comparison-analysis .muted {{ color: var(--muted-foreground); }}
+#fekete-comparison-analysis .legend {{ display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0.35rem 0 0; font-size: 12px; }}
+#fekete-comparison-analysis .legend i {{ display: inline-block; width: 0.65rem; height: 0.65rem; margin-right: 0.25rem; background: var(--swatch); }}
 @media (max-width: 620px) {{
-  #german-comparison-analysis .viz-grid, #german-comparison-analysis .chart-grid {{ grid-template-columns: 1fr 1fr; }}
-  #german-comparison-analysis .chart-grid {{ gap: 1rem 0.5rem; }}
+  #fekete-comparison-analysis .viz-grid, #fekete-comparison-analysis .chart-grid {{ grid-template-columns: 1fr 1fr; }}
+  #fekete-comparison-analysis .chart-grid {{ gap: 1rem 0.5rem; }}
 }}
 @media (max-width: 420px) {{
-  #german-comparison-analysis .viz-grid, #german-comparison-analysis .chart-grid {{ grid-template-columns: 1fr; }}
+  #fekete-comparison-analysis .viz-grid, #fekete-comparison-analysis .chart-grid {{ grid-template-columns: 1fr; }}
 }}
 </style>
-<h2 id="german-comparison-title">Comparação nas 558 instâncias</h2>
+<h2 id="fekete-comparison-title">Comparação nas 558 instâncias</h2>
 <p class="analysis-intro muted">Tempos: todos os registros. Speedup e comprimento: 550 instâncias concluídas por ambos. Precisão: maior distância entre a trajetória completa e cada polígono, com zero como contato ideal.</p>
 <div class="viz-grid">
   <div class="card viz-stat"><span>Certificadas</span><strong class="viz-stat-value">{data['cards']['oursSolved']} <span class="muted">nosso</span></strong><small class="muted">{data['cards']['feketeSolved']} Fekete concluídas</small></div>
@@ -597,12 +597,12 @@ def build_html(analysis: dict[str, Any]) -> str:
 <div class="card viz-stat"><span>Precisão mediana</span><strong class="viz-stat-value">{analysis['precision']['ours_max_per_instance']['stats']['median']:.4g}</strong><small class="muted">maior distância por instância · nosso solver</small></div>
 </div>
 <div class="chart-grid">
-  <figure><figcaption>Histograma dos tempos de execução</figcaption><div id="german-times-legend" class="legend" aria-label="Legenda dos tempos"></div><svg id="german-times-chart" role="img" aria-label="Histograma comparativo dos tempos de execução"><title>Histograma dos tempos de execução</title><desc>Distribuição dos tempos registrados dos dois solvers em nove faixas de tempo.</desc></svg></figure>
-  <figure><figcaption>Speedup nas 550 instâncias concluídas</figcaption><svg id="german-speedup-chart" role="img" aria-label="Histograma do speedup Fekete sobre nosso solver"><title>Histograma do speedup</title><desc>Distribuição de Fekete dividido pelo tempo do nosso solver; valores acima de um favorecem nosso solver.</desc></svg></figure>
-  <figure><figcaption>Razão de comprimento: Fekete / nosso</figcaption><svg id="german-length-chart" role="img" aria-label="Histograma da razão entre comprimentos"><title>Histograma da razão de comprimento</title><desc>Distribuição da razão entre o comprimento recalculado do Fekete e o comprimento final do nosso solver.</desc></svg></figure>
-  <figure><figcaption>Maior distância trajetória–polígono por instância</figcaption><div id="german-precision-legend" class="legend" aria-label="Legenda da precisão"></div><svg id="german-precision-chart" role="img" aria-label="Histograma da maior distância da trajetória do Fekete aos polígonos"><title>Histograma de precisão geométrica</title><desc>Distribuição da maior distância mínima da trajetória do Fekete a qualquer polígono.</desc></svg></figure>
+  <figure><figcaption>Histograma dos tempos de execução</figcaption><div id="fekete-times-legend" class="legend" aria-label="Legenda dos tempos"></div><svg id="fekete-times-chart" role="img" aria-label="Histograma comparativo dos tempos de execução"><title>Histograma dos tempos de execução</title><desc>Distribuição dos tempos registrados dos dois solvers em nove faixas de tempo.</desc></svg></figure>
+  <figure><figcaption>Speedup nas 550 instâncias concluídas</figcaption><svg id="fekete-speedup-chart" role="img" aria-label="Histograma do speedup Fekete sobre nosso solver"><title>Histograma do speedup</title><desc>Distribuição de Fekete dividido pelo tempo do nosso solver; valores acima de um favorecem nosso solver.</desc></svg></figure>
+  <figure><figcaption>Razão de comprimento: Fekete / nosso</figcaption><svg id="fekete-length-chart" role="img" aria-label="Histograma da razão entre comprimentos"><title>Histograma da razão de comprimento</title><desc>Distribuição da razão entre o comprimento recalculado do Fekete e o comprimento final do nosso solver.</desc></svg></figure>
+  <figure><figcaption>Maior distância trajetória–polígono por instância</figcaption><div id="fekete-precision-legend" class="legend" aria-label="Legenda da precisão"></div><svg id="fekete-precision-chart" role="img" aria-label="Histograma da maior distância da trajetória do Fekete aos polígonos"><title>Histograma de precisão geométrica</title><desc>Distribuição da maior distância mínima da trajetória do Fekete a qualquer polígono.</desc></svg></figure>
 </div>
-<figure style="margin-top:1.5rem"><figcaption>Casos dentro das tolerâncias geométricas</figcaption><div id="german-threshold-legend" class="legend" aria-label="Legenda das tolerâncias"></div><svg id="german-threshold-chart" role="img" aria-label="Casos dos dois solvers dentro de tolerâncias de distância"><title>Casos dentro das tolerâncias</title><desc>Contagem cumulativa de instâncias cuja maior distância trajetória–polígono está abaixo de cada tolerância.</desc></svg></figure>
+<figure style="margin-top:1.5rem"><figcaption>Casos dentro das tolerâncias geométricas</figcaption><div id="fekete-threshold-legend" class="legend" aria-label="Legenda das tolerâncias"></div><svg id="fekete-threshold-chart" role="img" aria-label="Casos dos dois solvers dentro de tolerâncias de distância"><title>Casos dentro das tolerâncias</title><desc>Contagem cumulativa de instâncias cuja maior distância trajetória–polígono está abaixo de cada tolerância.</desc></svg></figure>
 <p class="muted">Precisão = distância Euclidiana mínima entre a polilinha completa da trajetória e cada polígono. A série “maior erro” toma o máximo entre os pontos de visita de cada instância.</p>
 <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
 <script>
@@ -632,18 +632,18 @@ def build_html(analysis: dict[str, Any]) -> str:
     root.append('text').attr('class', 'axis-title').attr('data-axis', 'x').attr('x', innerWidth / 2).attr('y', innerHeight + 54).attr('text-anchor', 'middle').text(options.xTitle || 'Faixa');
     root.append('text').attr('class', 'axis-title').attr('data-axis', 'y').attr('transform', 'rotate(-90)').attr('x', -innerHeight / 2).attr('y', -42).attr('text-anchor', 'middle').text('Instâncias');
   }};
-  const timeLegend = document.querySelector('#german-times-legend');
+  const timeLegend = document.querySelector('#fekete-times-legend');
   const addLegend = (selector, series) => {{ const legend = document.querySelector(selector); series.forEach(s => {{ const item = document.createElement('span'); item.innerHTML = `<i style="--swatch:${{s.color}}"></i>${{s.label}}`; legend.appendChild(item); }}); }};
-  addLegend('#german-times-legend', DATA.charts.times);
-  addLegend('#german-precision-legend', DATA.charts.precision);
-  addLegend('#german-threshold-legend', [{{ label: 'Nosso solver', color: 'var(--viz-series-1)' }}, {{ label: 'Fekete et al.', color: 'var(--viz-series-2)' }}]);
-  draw('#german-times-chart', DATA.charts.times, {{ xTitle: 'Tempo de solver' }});
-  draw('#german-speedup-chart', [{{ labels: DATA.charts.speedup[0].labels, counts: DATA.charts.speedup[0].counts, color: 'var(--viz-series-1)' }}], {{ xTitle: 'Fekete / nosso' }});
-  draw('#german-length-chart', [{{ labels: DATA.charts.length[0].labels, counts: DATA.charts.length[0].counts, color: 'var(--viz-series-1)' }}], {{ xTitle: 'Razão de comprimento' }});
-	  draw('#german-precision-chart', [{{ labels: DATA.charts.precision[0].labels, counts: DATA.charts.precision[0].counts, color: 'var(--viz-series-1)' }}, {{ labels: DATA.charts.precision[1].labels, counts: DATA.charts.precision[1].counts, color: 'var(--viz-series-2)' }}], {{ xTitle: 'Maior distância (faixa)' }});
-	  draw('#german-threshold-chart', [{{ labels: DATA.precisionThresholds.labels, counts: DATA.precisionThresholds.ours, color: 'var(--viz-series-1)' }}, {{ labels: DATA.precisionThresholds.labels, counts: DATA.precisionThresholds.fekete, color: 'var(--viz-series-2)' }}], {{ xTitle: 'Tolerância' }});
-	  const redraw = () => {{ draw('#german-times-chart', DATA.charts.times, {{ xTitle: 'Tempo de solver' }}); draw('#german-speedup-chart', [{{ labels: DATA.charts.speedup[0].labels, counts: DATA.charts.speedup[0].counts, color: 'var(--viz-series-1)' }}], {{ xTitle: 'Fekete / nosso' }}); draw('#german-length-chart', [{{ labels: DATA.charts.length[0].labels, counts: DATA.charts.length[0].counts, color: 'var(--viz-series-1)' }}], {{ xTitle: 'Razão de comprimento' }}); draw('#german-precision-chart', [{{ labels: DATA.charts.precision[0].labels, counts: DATA.charts.precision[0].counts, color: 'var(--viz-series-1)' }}, {{ labels: DATA.charts.precision[1].labels, counts: DATA.charts.precision[1].counts, color: 'var(--viz-series-2)' }}], {{ xTitle: 'Maior distância (faixa)' }}); draw('#german-threshold-chart', [{{ labels: DATA.precisionThresholds.labels, counts: DATA.precisionThresholds.ours, color: 'var(--viz-series-1)' }}, {{ labels: DATA.precisionThresholds.labels, counts: DATA.precisionThresholds.fekete, color: 'var(--viz-series-2)' }}], {{ xTitle: 'Tolerância' }}); }};
-	  new ResizeObserver(redraw).observe(document.querySelector('#german-comparison-analysis'));
+  addLegend('#fekete-times-legend', DATA.charts.times);
+  addLegend('#fekete-precision-legend', DATA.charts.precision);
+  addLegend('#fekete-threshold-legend', [{{ label: 'Nosso solver', color: 'var(--viz-series-1)' }}, {{ label: 'Fekete et al.', color: 'var(--viz-series-2)' }}]);
+  draw('#fekete-times-chart', DATA.charts.times, {{ xTitle: 'Tempo de solver' }});
+  draw('#fekete-speedup-chart', [{{ labels: DATA.charts.speedup[0].labels, counts: DATA.charts.speedup[0].counts, color: 'var(--viz-series-1)' }}], {{ xTitle: 'Fekete / nosso' }});
+  draw('#fekete-length-chart', [{{ labels: DATA.charts.length[0].labels, counts: DATA.charts.length[0].counts, color: 'var(--viz-series-1)' }}], {{ xTitle: 'Razão de comprimento' }});
+	  draw('#fekete-precision-chart', [{{ labels: DATA.charts.precision[0].labels, counts: DATA.charts.precision[0].counts, color: 'var(--viz-series-1)' }}, {{ labels: DATA.charts.precision[1].labels, counts: DATA.charts.precision[1].counts, color: 'var(--viz-series-2)' }}], {{ xTitle: 'Maior distância (faixa)' }});
+	  draw('#fekete-threshold-chart', [{{ labels: DATA.precisionThresholds.labels, counts: DATA.precisionThresholds.ours, color: 'var(--viz-series-1)' }}, {{ labels: DATA.precisionThresholds.labels, counts: DATA.precisionThresholds.fekete, color: 'var(--viz-series-2)' }}], {{ xTitle: 'Tolerância' }});
+	  const redraw = () => {{ draw('#fekete-times-chart', DATA.charts.times, {{ xTitle: 'Tempo de solver' }}); draw('#fekete-speedup-chart', [{{ labels: DATA.charts.speedup[0].labels, counts: DATA.charts.speedup[0].counts, color: 'var(--viz-series-1)' }}], {{ xTitle: 'Fekete / nosso' }}); draw('#fekete-length-chart', [{{ labels: DATA.charts.length[0].labels, counts: DATA.charts.length[0].counts, color: 'var(--viz-series-1)' }}], {{ xTitle: 'Razão de comprimento' }}); draw('#fekete-precision-chart', [{{ labels: DATA.charts.precision[0].labels, counts: DATA.charts.precision[0].counts, color: 'var(--viz-series-1)' }}, {{ labels: DATA.charts.precision[1].labels, counts: DATA.charts.precision[1].counts, color: 'var(--viz-series-2)' }}], {{ xTitle: 'Maior distância (faixa)' }}); draw('#fekete-threshold-chart', [{{ labels: DATA.precisionThresholds.labels, counts: DATA.precisionThresholds.ours, color: 'var(--viz-series-1)' }}, {{ labels: DATA.precisionThresholds.labels, counts: DATA.precisionThresholds.fekete, color: 'var(--viz-series-2)' }}], {{ xTitle: 'Tolerância' }}); }};
+	  new ResizeObserver(redraw).observe(document.querySelector('#fekete-comparison-analysis'));
 }})();
 </script>
 </section>\n'''
@@ -651,10 +651,10 @@ def build_html(analysis: dict[str, Any]) -> str:
 
 def main() -> None:
 	parser = argparse.ArgumentParser(description=__doc__)
-	parser.add_argument("--ours", type=Path, default=Path("benchmarks/results-saved/german-comparison/ours.csv"))
-	parser.add_argument("--fekete", type=Path, default=Path("benchmarks/results-saved/german-comparison/fekete.csv"))
-	parser.add_argument("--instances", type=Path, default=Path("benchmarks/results-saved/german-comparison/instances.bin"))
-	parser.add_argument("--output-dir", type=Path, default=Path("benchmarks/results-saved/german-comparison/analysis"))
+	parser.add_argument("--ours", type=Path, default=Path("benchmarks/results-saved/fekete-comparison/ours.csv"))
+	parser.add_argument("--fekete", type=Path, default=Path("benchmarks/results-saved/fekete-comparison/fekete.csv"))
+	parser.add_argument("--instances", type=Path, default=Path("benchmarks/results-saved/fekete-comparison/instances.bin"))
+	parser.add_argument("--output-dir", type=Path, default=Path("benchmarks/results-saved/fekete-comparison/analysis"))
 	parser.add_argument("--html-output", type=Path)
 	args = parser.parse_args()
 	analysis = build_analysis(args)

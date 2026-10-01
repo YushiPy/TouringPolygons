@@ -27,7 +27,7 @@ RESULTS_ROOT = REPO_ROOT / "benchmarks/results"
 JOBS_PATH = APP_ROOT / ".jobs.json"
 CANONICAL_SUITE = REPO_ROOT / "benchmarks/suites/canonical-v1.bin"
 TRACKED_NONCONVEX_SUITE = REPO_ROOT / "benchmarks/suites/nonconvex/test_cases.bin"
-GERMAN_INSTANCES_ZIP = REPO_ROOT / "third_party/tspn-socg/instances/instances_socg_simplified.zip"
+FEKETE_INSTANCES_ZIP = REPO_ROOT / "third_party/tspn-socg/instances/instances_socg_simplified.zip"
 SOLVERS = {
     "linear": "linear_search_lazy",
     "linear_disjoint": "linear_search_disjoint",
@@ -815,18 +815,18 @@ async def offline_editor():
 
 @app.get("/evento")
 async def event_page(request: Request):
-    from dashboard.dashboard_event import german_context
+    from dashboard.dashboard_event import fekete_context
 
-    return templates.TemplateResponse(request, "german.html", german_context())
+    return templates.TemplateResponse(request, "fekete.html", fekete_context())
 
 
 @app.get("/evento/offline", response_class=HTMLResponse)
 async def event_offline(request: Request):
-    from dashboard.dashboard_event import german_context, inline_german_assets
+    from dashboard.dashboard_event import fekete_context, inline_fekete_assets
 
-    html = templates.get_template("german.html").render(request=request, standalone=True, **german_context())
+    html = templates.get_template("fekete.html").render(request=request, standalone=True, **fekete_context())
     return HTMLResponse(
-        inline_german_assets(html), headers={"Content-Disposition": 'attachment; filename="tpp-corpus-alemao-558.html"'}
+        inline_fekete_assets(html), headers={"Content-Disposition": 'attachment; filename="tpp-corpus-fekete-558.html"'}
     )
 
 
@@ -978,7 +978,7 @@ register_campaign_routes(
     convert_instances_script=CONVERT_INSTANCES_SCRIPT,
     canonical_suite=CANONICAL_SUITE,
     tracked_nonconvex_suite=TRACKED_NONCONVEX_SUITE,
-    german_instances_zip=GERMAN_INSTANCES_ZIP,
+    fekete_instances_zip=FEKETE_INSTANCES_ZIP,
     solver_binary=SOLVER_BINARY,
 )
 

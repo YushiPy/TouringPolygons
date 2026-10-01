@@ -10,10 +10,10 @@ from pathlib import Path
 
 DATA_PATH = Path(__file__).resolve().parents[1] / "static/event/siicusp34.json"
 TRACE_PATH = DATA_PATH.with_name("siicusp34-traces.json")
-GERMAN_DATA_PATH = Path(__file__).resolve().parents[1] / "static/event/german-instances-exact-20260918.json"
-GERMAN_BOUNDS_PATH = GERMAN_DATA_PATH.with_name("german-instances-exact-20260918-bounds.json")
-GERMAN_PARTITIONS_PATH = GERMAN_DATA_PATH.with_name("german-instances-exact-20260918-partitions.json")
-GERMAN_TRACE_PATH = GERMAN_DATA_PATH.with_name("german-instances-traces.json")
+FEKETE_DATA_PATH = Path(__file__).resolve().parents[1] / "static/event/fekete-instances-exact-20260918.json"
+FEKETE_BOUNDS_PATH = FEKETE_DATA_PATH.with_name("fekete-instances-exact-20260918-bounds.json")
+FEKETE_PARTITIONS_PATH = FEKETE_DATA_PATH.with_name("fekete-instances-exact-20260918-partitions.json")
+FEKETE_TRACE_PATH = FEKETE_DATA_PATH.with_name("fekete-instances-traces.json")
 # The generated catalog is refreshed whenever the dashboard process reloads.
 
 
@@ -30,14 +30,14 @@ def trace_data() -> dict:
 
 
 @lru_cache(maxsize=2)
-def _german_trace_data_for_mtime(mtime_ns: int) -> dict:
-    return json.loads(GERMAN_TRACE_PATH.read_text())
+def _fekete_trace_data_for_mtime(mtime_ns: int) -> dict:
+    return json.loads(FEKETE_TRACE_PATH.read_text())
 
 
-def german_trace_data() -> dict:
-    if not GERMAN_TRACE_PATH.exists():
+def fekete_trace_data() -> dict:
+    if not FEKETE_TRACE_PATH.exists():
         return {"schema_version": 1, "cases": {}}
-    return _german_trace_data_for_mtime(GERMAN_TRACE_PATH.stat().st_mtime_ns)
+    return _fekete_trace_data_for_mtime(FEKETE_TRACE_PATH.stat().st_mtime_ns)
 
 
 @lru_cache(maxsize=1)
@@ -78,14 +78,14 @@ def visual_data() -> dict:
 
 
 @lru_cache(maxsize=1)
-def german_visual_data() -> dict:
+def fekete_visual_data() -> dict:
     from shapely.geometry import LineString, Point, Polygon
     from shapely.ops import nearest_points
 
-    data = json.loads(GERMAN_DATA_PATH.read_text())
-    bounds = json.loads(GERMAN_BOUNDS_PATH.read_text()).get("cases", {}) if GERMAN_BOUNDS_PATH.exists() else {}
-    partitions = json.loads(GERMAN_PARTITIONS_PATH.read_text())["cases"]
-    data.setdefault("corpus", "german")
+    data = json.loads(FEKETE_DATA_PATH.read_text())
+    bounds = json.loads(FEKETE_BOUNDS_PATH.read_text()).get("cases", {}) if FEKETE_BOUNDS_PATH.exists() else {}
+    partitions = json.loads(FEKETE_PARTITIONS_PATH.read_text())["cases"]
+    data.setdefault("corpus", "fekete")
     for row in data["rows"]:
         row.update(bounds.get(str(row["case"]), {}))
         path = row["path"]
@@ -145,8 +145,8 @@ def event_context() -> dict:
     }
 
 
-def german_context() -> dict:
-    data = german_visual_data()
+def fekete_context() -> dict:
+    data = fekete_visual_data()
     row = next(row for row in data["rows"] if row["case"] == 1)
     points = [point for polygon in row["geometry"]["polygons"] for point in polygon] + row["path"]
     xmin, xmax = min(p[0] for p in points), max(p[0] for p in points)
@@ -160,7 +160,7 @@ def german_context() -> dict:
     return {
         "data": data,
         "challenge": json.loads(DATA_PATH.with_name("siicusp34-challenge.json").read_text()),
-        "traces": german_trace_data(),
+        "traces": fekete_trace_data(),
         "initial": row,
         "polygons": [" ".join(f"{x},{y}" for x, y in map(project, polygon)) for polygon in row["geometry"]["polygons"]],
         "path": " ".join(f"{x},{y}" for x, y in map(project, row["path"])),
@@ -205,5 +205,5 @@ def inline_event_assets(html: str) -> str:
     return _inline_event_assets(html, DATA_PATH, "/static/event/siicusp34.json")
 
 
-def inline_german_assets(html: str) -> str:
-    return _inline_event_assets(html, GERMAN_DATA_PATH, "/static/event/german-instances-exact-20260918.json")
+def inline_fekete_assets(html: str) -> str:
+    return _inline_event_assets(html, FEKETE_DATA_PATH, "/static/event/fekete-instances-exact-20260918.json")

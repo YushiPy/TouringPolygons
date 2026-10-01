@@ -4,8 +4,8 @@ Local FastAPI dashboard for creating, appending, editing, running, comparing, an
 
 ## 34º SIICUSP: visitor experience
 
-The main event page is the adapted German corpus at `/evento`, with the previous SIICUSP
-recorte archived at `/evento/siicusp`. `/evento/alemao` remains an alias for the main
+The main event page is the adapted Fekete corpus at `/evento`, with the previous SIICUSP
+recorte archived at `/evento/siicusp`. `/evento/fekete` remains an alias for the main
 page. The technical workbench remains at `/`, with links to the event pages in its
 header and comparison panel. Start locally:
 
@@ -49,14 +49,14 @@ localhost preview is only for review and is not accessible to event visitors.
 
 Open [the main event demonstration](http://127.0.0.1:8017/evento). It includes:
 
-- all 558 adapted German cases, with shareable `?caso=557` links;
+- all 558 adapted Fekete cases, with shareable `?caso=557` links;
 - path playback and scrubbing with adjustable speed, visit-order labels, subtle
   visited/unvisited colors, contact points, convex decomposition, hulls, zoom and pan;
 - keyboard controls (focus the diagram, then use arrows, `+`, `-`, or `Home`),
   reduced-motion support, responsive layout and a static fallback without JavaScript;
 - separate explanations for certified paths and time limits;
 - filtered results, CSV export and per-case geometry, paths and provenance;
-- an educational solver replay on the current German-corpus page for cases 03, 15,
+- an educational solver replay on the current Fekete-corpus page for cases 03, 15,
   20 and 56, including the initial heuristic, incumbent updates, order branching,
   convex-piece branching, lower-bound pruning and the compact recorded search tree;
 - animated trace playback that progressively draws the current route. The labels in
@@ -98,17 +98,17 @@ Regenerate the archived SIICUSP educational search traces into a new file using
 The exporter runs the solver with `--trace`, keeps the three showcase cases by
 default, and truncates very large traces while preserving the heuristic and final
 search events.
-The current German-page traces are regenerated with
-`.venv/bin/python scripts/export_german_trace.py --output static/event/german-instances-traces.json`;
+The current Fekete-page traces are regenerated with
+`.venv/bin/python scripts/export_fekete_trace.py --output static/event/fekete-instances-traces.json`;
 its default showcase cases are the zero-based solver IDs 2, 14, 19 and 55,
 displayed to visitors as cases 03, 15, 20 and 56.
 Both case lists support ascending/descending sorting. Map controls support pinch
 zoom, focus-based keyboard navigation, touch taps and accessible pressed toggles. The historical 5 September
 comparison remains explicitly labeled as historical in the technical workbench. The
-German event page contains all 558 adapted German instances: 558 valid paths, 475
+Fekete event page contains all 558 adapted Fekete instances: 558 valid paths, 475
 exact certificates and 83 time limits after a two-stage run with up to ten seconds
 for initially unresolved cases. This corpus is an endpoint-path adaptation of the
-German/SO-CG data, so it must not be described as the original closed-tour benchmark
+Fekete/SO-CG data, so it must not be described as the original closed-tour benchmark
 without that qualification.
 
 Rebuild the snapshot from the original audit into a **new** file for review:

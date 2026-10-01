@@ -32,7 +32,7 @@ docs/
 ├── algorithms/             contratos, algoritmos e auditorias atuais
 └── reports/                relatórios do projeto
 packages/                   bibliotecas e solvers mantidos
-third_party/tspn-socg/      fork alemão fixado como submódulo
+third_party/tspn-socg/      fork do solver de Fekete et al. fixado como submódulo
 ```
 
 Veja [`docs/architecture.md`](docs/architecture.md) para responsabilidades e
@@ -75,7 +75,7 @@ python3 benchmarks/tpp.py status smoke
 Use `python3 benchmarks/tpp.py --help` para geração, conjuntos canônicos,
 ordem livre, conversões e comparações externas. Resultados e dados brutos novos
 são locais por padrão. `benchmarks/results-saved/` mantém resumos concisos e
-fixtures mínimos; `german-comparison` é a exceção com corpus completo porque seus
+fixtures mínimos; `fekete-comparison` é a exceção com corpus completo porque seus
 arquivos são usados pelo material SIICUSP. Veja seu índice para os resultados
 preservados e os limites de cada comparação.
 

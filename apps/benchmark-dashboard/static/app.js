@@ -845,16 +845,16 @@ async function importCanonicalSuite() {
 	}
 }
 
-async function importGermanInstances() {
+async function importFeketeInstances() {
 	const output = $("#inspect-output");
 	try {
-		const data = await requestJSON("/api/campaigns/german", {
+		const data = await requestJSON("/api/campaigns/fekete", {
 			method: "POST",
-			body: JSON.stringify({ name: "german-instances", overwrite: campaignExists("german-instances") }),
+			body: JSON.stringify({ name: "fekete-instances", overwrite: campaignExists("fekete-instances") }),
 		});
 		await refresh();
 		switchPanel("inspect-panel");
-		setOutput(output, `Imported German instances as ${data.campaign.name}.`);
+		setOutput(output, `Imported Fekete instances as ${data.campaign.name}.`);
 	} catch (error) {
 		switchPanel("inspect-panel");
 		setOutput(output, error.message);
@@ -1229,7 +1229,7 @@ $("#toggle-results-button")?.addEventListener("click", () => {
 });
 $("#theme-toggle").addEventListener("click", toggleTheme);
 $("#import-canonical-button").addEventListener("click", importCanonicalSuite);
-$("#import-german-button").addEventListener("click", importGermanInstances);
+$("#import-fekete-button").addEventListener("click", importFeketeInstances);
 $("#scan-osm-files").addEventListener("click", scanOsmFiles);
 $("#create-form").addEventListener("submit", createCampaign);
 $("#run-form").addEventListener("submit", runCampaign);

@@ -25,7 +25,7 @@ from unordered_validation import validate_path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_SUITE = ROOT / "benchmarks/suites/german-instances.bin"
+DEFAULT_SUITE = ROOT / "benchmarks/suites/fekete-instances.bin"
 DEFAULT_OUTPUT = ROOT / "benchmarks/results/free-order-gap-comparison"
 MAX_CALLS = 100_000_000
 VALIDATION_TOLERANCE = 1e-7

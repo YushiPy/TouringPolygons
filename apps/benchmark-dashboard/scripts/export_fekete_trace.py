@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export compact educational traces for the current 558-case German page."""
+"""Export compact educational traces for the current 558-case Fekete page."""
 
 from __future__ import annotations
 
@@ -14,12 +14,12 @@ sys.path.insert(0, str(ROOT / "benchmarks/_internal"))
 
 from unordered_runner import run_unordered_solver  # noqa: E402
 
-DEFAULT_DATA = ROOT / "apps/benchmark-dashboard/static/event/german-instances-exact-20260918.json"
+DEFAULT_DATA = ROOT / "apps/benchmark-dashboard/static/event/fekete-instances-exact-20260918.json"
 DEFAULT_SOLVER = ROOT / ".build/unordered/tpp"
 
 
 @dataclass(frozen=True)
-class GermanCase:
+class FeketeCase:
     case_index: int
     digest: str
     start: list[float]
@@ -50,7 +50,7 @@ def compact_event(event: dict) -> dict:
     return {key: event[key] for key in fields if event.get(key) not in (None, [], "")}
 
 
-def export_case(case: GermanCase, solver: Path, max_seconds: float, max_events: int) -> dict:
+def export_case(case: FeketeCase, solver: Path, max_seconds: float, max_events: int) -> dict:
     result = run_unordered_solver(
         solver, case.start, case.target, case.polygons, 10_000_000, max_seconds, arguments=("--trace",)
     )
@@ -97,7 +97,7 @@ def export_case(case: GermanCase, solver: Path, max_seconds: float, max_events: 
 
 
 def export_cases(
-    cases: dict[int, GermanCase],
+    cases: dict[int, FeketeCase],
     indices: list[int],
     solver: Path,
     max_seconds: float,
@@ -119,10 +119,10 @@ def export_cases(
     return traces
 
 
-def load_cases(data_path: Path) -> dict[int, GermanCase]:
+def load_cases(data_path: Path) -> dict[int, FeketeCase]:
     data = json.loads(data_path.read_text())
     return {
-        row["case"]: GermanCase(
+        row["case"]: FeketeCase(
             case_index=row["case"],
             digest=row["sha256"],
             start=row["geometry"]["start"],

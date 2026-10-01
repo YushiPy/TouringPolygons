@@ -49,10 +49,10 @@ python3 benchmarks/tpp.py benchmark \
   --suite benchmarks/suites/algorithm-dev-v1.bin
 ```
 
-Para reconstruir o corpus a partir do arquivo alemão fixado no submódulo:
+Para reconstruir o corpus a partir do arquivo de instâncias fixado no submódulo:
 
 ```bash
-python3 benchmarks/tpp.py convert-german
+python3 benchmarks/tpp.py convert-fekete
 ```
 
 ## Ordem livre
@@ -63,24 +63,34 @@ Uma campanha completa usa:
 python3 benchmarks/tpp.py free-order NOME_DA_CAMPANHA --help
 ```
 
-No laboratório, `scripts/run_comparison.sh` prepara o submódulo e o ambiente
-Python, compila os dois solvers e chama esta mesma CLI para executar os 558
-casos alemães. O padrão é ilimitado, com um worker e uma thread por instância;
-os checkpoints ficam localmente em
-`benchmarks/campaigns/german-free-order-comparison-v1/`. Repetir o comando
-reutiliza os builds compatíveis e retoma os casos concluídos. No macOS, se o
-CMake não reconhecer o AppleClang como compatível com C++26, o setup tenta o
-LLVM do Homebrew. No Linux, tenta GCC 16/15/14 e Clang 20/19/18 instalados se
-o compilador padrão não passar a verificação; variáveis `CC` e `CXX` definidas
-pelo usuário são respeitadas. São necessários Python
-3.12+, um compilador compatível com C++26, OpenMP, Eigen3, headers Boost, Git e
-uma licença acadêmica válida do Gurobi.
+No laboratório, `scripts/run_comparison.sh` chama esta CLI para executar os
+558 casos de Fekete et al. Selecione os solvers com `--solver tpp-ours`,
+`--solver tpp-fekete` ou `--solver both` (padrão). A pasta da campanha depende
+de `--threads-per-instance`, não de `--workers` nem do solver selecionado:
+uma thread reutiliza `fekete-free-order-comparison-v1`, e outras contagens usam
+pastas próprias, como `fekete-free-order-comparison-8threads`. `--campaign`
+permite escolher outro nome. O script cria a pasta e o manifesto na primeira
+execução; repetir a mesma configuração retoma os casos concluídos. No macOS,
+se o CMake não reconhecer o AppleClang como compatível com C++23, o setup tenta
+o LLVM do Homebrew. No Linux, tenta GCC
+16/15/14 e Clang 20/19/18 instalados se o compilador padrão não passar a
+verificação; variáveis `CC` e `CXX` definidas pelo usuário são respeitadas.
 
-Rode `scripts/run_comparison.sh --setup-only` para verificar dependências,
-inicializar o runtime/licença do Gurobi e compilar ambos sem iniciar a
-campanha; falhas transitórias de download são repetidas até três vezes.
-O setup usa fingerprints locais e pula Conan/compilação quando as entradas
-não mudaram. Depois, `scripts/run_comparison.sh` inicia ou retoma o trabalho.
+Para executar somente nosso solver com oito threads por instância, use:
+
+```bash
+scripts/run_comparison.sh --solver tpp-ours --threads-per-instance 8
+```
+
+Isso cria a campanha local
+`benchmarks/campaigns/fekete-free-order-comparison-8threads/`. Esse modo não
+prepara nem verifica Fekete ou a licença Gurobi; reutiliza os pacotes C++ já
+baixados em `third_party/tspn-socg/.conan/release` para compilar nosso solver.
+`--solver tpp-fekete` prepara e valida apenas Fekete e exige licença Gurobi;
+`--solver both` prepara e executa os dois. O comando
+`scripts/run_comparison.sh --setup-only --solver tpp-ours --threads-per-instance 8`
+verifica apenas o setup necessário para nosso solver, sem começar os casos.
+Falhas transitórias de download no setup do Fekete são repetidas até três vezes.
 `Ctrl+C` grava trajetórias incumbentes e limites
 parciais disponíveis, marcando os casos ativos como `interrupted` para serem
 reexecutados ao retomar. Durante o encerramento cooperativo, o runner informa
@@ -91,16 +101,21 @@ Para comparar os dois solvers com oito threads dentro de cada instância, sem
 executar instâncias diferentes em paralelo, a campanha aceita:
 
 ```bash
-python3 benchmarks/tpp.py free-order german-instances \
-  --solver unordered --solver tspn --workers 1 --threads-per-instance 8 \
+python3 benchmarks/tpp.py free-order fekete-instances \
+  --solver tpp-ours --solver tpp-fekete --workers 1 --threads-per-instance 8 \
   --max-seconds 21600 --max-calls 10000000 \
   --absolute-gap 0 --relative-gap 0.000999000999000999 --eps 0.001 \
   --sampled-perimeter-initial --convex-initial-refinement --bidirectional-initial
 ```
 
-`--workers` controla instâncias simultâneas; `--threads-per-instance` controla
-threads dentro de cada solver. Campanhas com a mesma configuração retomam os
-casos já registrados e guardam `report.json`, os dados externos brutos e
+Os casos pendentes entram em uma fila compartilhada: primeiro os casos do tpp-ours
+em ordem de índice, depois os do tpp-fekete em ordem de índice. `--workers`
+controla quantos casos dessa fila podem rodar ao mesmo tempo; quando um worker
+termina um caso do tpp-ours, ele já pega o próximo do tpp-fekete, mesmo que
+outro worker ainda esteja no tpp-ours. `--threads-per-instance` controla as
+threads internas de cada caso. O pico é de até
+`--workers × --threads-per-instance` threads de solver. Campanhas compatíveis
+retomam os casos já registrados e guardam `report.json`, o CSV externo bruto e
 `comparison.md` em `benchmarks/campaigns/<nome>/results/free-order/`.
 
 Para medir o efeito das threads, compare runs de uma thread e multithread dos
@@ -114,10 +129,10 @@ Fekete ainda está sendo preenchido.
 python3 benchmarks/tpp.py compare-threads \
   --ours-single benchmarks/results/free-order-gap-6h/runs.csv \
   --ours-single-variant fekete_gap \
-  --ours-multi benchmarks/campaigns/german-instances/results/free-order/ID_DA_RUN \
-  --fekete-single benchmarks/results-saved/german-comparison/fekete.csv \
-  --fekete-multi benchmarks/campaigns/german-instances/results/free-order/ID_DA_RUN \
-  --output benchmarks/results/thread-scaling/german
+  --ours-multi benchmarks/campaigns/fekete-instances/results/free-order/ID_DA_RUN \
+  --fekete-single benchmarks/results-saved/fekete-comparison/fekete.csv \
+  --fekete-multi benchmarks/campaigns/fekete-instances/results/free-order/ID_DA_RUN \
+  --output benchmarks/results/thread-scaling/fekete
 ```
 
 O speedup é `tempo(1 thread) / tempo(multithread)`. Diferenças detectáveis de
@@ -142,10 +157,10 @@ conferido antes de executar. Exemplo com os caminhos preservados da campanha ale
 
 ```bash
 python3 benchmarks/tpp.py free-order-run \
-  --suite benchmarks/results-saved/german-comparison/instances.bin \
-  --initial-paths benchmarks/results-saved/german-comparison/ours.csv \
+  --suite benchmarks/results-saved/fekete-comparison/instances.bin \
+  --initial-paths benchmarks/results-saved/fekete-comparison/ours.csv \
   --solver .build/unordered/tpp --seconds 21600 --max-calls 100000000 --workers 1 \
-  --output benchmarks/results/german-good-initial.jsonl
+  --output benchmarks/results/fekete-good-initial.jsonl
 ```
 
 Repita sem `--initial-paths`, com os mesmos limites e máquina, gravando em outro
@@ -195,7 +210,7 @@ Os comandos `generate-free-order-canon`, `summarize-free-order` e
 `free-order-metamorphic` cobrem, respectivamente, a campanha canônica, a
 comparação pareada de resultados e os testes metamórficos.
 
-## Solver alemão
+## solver de Fekete et al.
 
 O fork fixado em `third_party/tspn-socg` é uma dependência de comparação, não
 um pacote do projeto. Prepare o ambiente dele conforme
@@ -229,7 +244,7 @@ Não salve raws por repetição, cópias de polígonos, logs, builds ou patches 
 experimentos. Entradas só ficam no Git quando forem fixtures pequenas exigidas
 por testes ou ferramentas.
 
-`results-saved/german-comparison/` mantém o corpus completo porque os CSVs e o
+`results-saved/fekete-comparison/` mantém o corpus completo porque os CSVs e o
 arquivo de instâncias alimentam o material SIICUSP. O fixture pequeno
 `convex-cycle-gurobi-reference-2026-09-25/instances.json` é carregado pelos
 testes e benchmarks de ciclo. Todos os demais resultados ficam em resumos; a

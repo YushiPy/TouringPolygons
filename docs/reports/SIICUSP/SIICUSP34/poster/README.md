@@ -33,7 +33,7 @@ refeita ao compilar.
 
 - A demonstração da USP e seus dados: [`USP-DEMO.md`](../../../../../apps/siicusp34/data/USP-DEMO.md).
 - Os resultados comparativos: campanha preservada em
-  [`benchmarks/results-saved/german-comparison`](../../../../../benchmarks/results-saved/german-comparison/README.md).
+  [`benchmarks/results-saved/fekete-comparison`](../../../../../benchmarks/results-saved/fekete-comparison/README.md).
 - A formulação do TPP de ordem livre: [`unordered-tpp.md`](../../../../algorithms/unordered-tpp.md).
 
 As métricas, tolerâncias e qualificações exibidas são mantidas na fonte do

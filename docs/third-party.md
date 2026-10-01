@@ -1,6 +1,6 @@
 # Repositórios e dados de terceiros
 
-## Solver alemão
+## solver de Fekete et al.
 
 O solver de Fekete, Kniep, Krupke e Perk é distribuído sob a licença MIT. A
 integração modificada é mantida no fork

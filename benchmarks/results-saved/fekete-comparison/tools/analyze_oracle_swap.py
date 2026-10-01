@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a paired report for standalone, German-SOCP, and German-TPP results."""
+"""Build a paired report for standalone, Fekete-SOCP, and Fekete-TPP results."""
 
 from __future__ import annotations
 
@@ -62,18 +62,18 @@ def main(argv: list[str] | None = None) -> int:
 		raise SystemExit("No matching instance hashes")
 	groups = {
 		"Standalone TPP": ([standalone[key] for key in hashes], "seconds", "calls", "exact", "valid"),
-		"German + SOCP": ([socp[key] for key in hashes], "solve_seconds", "soc_num_calls", "is_optimal", "raw_valid"),
-		"German + TPP": ([tpp[key] for key in hashes], "solve_seconds", "soc_num_calls", "is_optimal", "raw_valid"),
+		"Fekete + SOCP": ([socp[key] for key in hashes], "solve_seconds", "soc_num_calls", "is_optimal", "raw_valid"),
+		"Fekete + TPP": ([tpp[key] for key in hashes], "solve_seconds", "soc_num_calls", "is_optimal", "raw_valid"),
 	}
 	summaries = {name: summarize(rows, seconds=seconds, calls=calls, exact=exact, valid=valid)
 		for name, (rows, seconds, calls, exact, valid) in groups.items()}
 	paired_call_hashes = [key for key in hashes if socp[key].get("soc_num_calls") and tpp[key].get("soc_num_calls")]
 	paired = {
-		"standalone_faster_than_german_socp": sum(standalone[key]["seconds"] < float(socp[key]["solve_seconds"]) for key in hashes),
-		"standalone_faster_than_german_tpp": sum(standalone[key]["seconds"] < float(tpp[key]["solve_seconds"]) for key in hashes),
-		"german_tpp_faster_than_german_socp": sum(float(tpp[key]["solve_seconds"]) < float(socp[key]["solve_seconds"]) for key in hashes),
-		"german_tpp_fewer_calls_than_german_socp": sum(int(tpp[key]["soc_num_calls"]) < int(socp[key]["soc_num_calls"]) for key in paired_call_hashes),
-		"german_call_pairs": len(paired_call_hashes),
+		"standalone_faster_than_fekete_socp": sum(standalone[key]["seconds"] < float(socp[key]["solve_seconds"]) for key in hashes),
+		"standalone_faster_than_fekete_tpp": sum(standalone[key]["seconds"] < float(tpp[key]["solve_seconds"]) for key in hashes),
+		"fekete_tpp_faster_than_fekete_socp": sum(float(tpp[key]["solve_seconds"]) < float(socp[key]["solve_seconds"]) for key in hashes),
+		"fekete_tpp_fewer_calls_than_fekete_socp": sum(int(tpp[key]["soc_num_calls"]) < int(socp[key]["soc_num_calls"]) for key in paired_call_hashes),
+		"fekete_call_pairs": len(paired_call_hashes),
 	}
 	data = {"cases": len(hashes), "summaries": summaries, "paired": paired}
 	args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -87,11 +87,11 @@ def main(argv: list[str] | None = None) -> int:
 			f"{summary['total_seconds']:.3f}s | {summary['median_seconds']:.6f}s | "
 			f"{summary['total_calls']} ({summary['call_cases']} cases) | {summary['median_calls']:.1f} |")
 	lines.extend(["", "## Paired outcomes", "",
-		f"- Standalone TPP faster than German + SOCP: {paired['standalone_faster_than_german_socp']}/{len(hashes)}.",
-		f"- Standalone TPP faster than German + TPP: {paired['standalone_faster_than_german_tpp']}/{len(hashes)}.",
-		f"- Inside German search, TPP faster than SOCP: {paired['german_tpp_faster_than_german_socp']}/{len(hashes)}.",
-		f"- Inside German search, TPP used fewer calls: {paired['german_tpp_fewer_calls_than_german_socp']}/{paired['german_call_pairs']} recorded pairs.",
-		"", "Calls are comparable between the two German-search rows because only the oracle backend changes. "
+		f"- Standalone TPP faster than Fekete + SOCP: {paired['standalone_faster_than_fekete_socp']}/{len(hashes)}.",
+		f"- Standalone TPP faster than Fekete + TPP: {paired['standalone_faster_than_fekete_tpp']}/{len(hashes)}.",
+		f"- Inside Fekete search, TPP faster than SOCP: {paired['fekete_tpp_faster_than_fekete_socp']}/{len(hashes)}.",
+		f"- Inside Fekete search, TPP used fewer calls: {paired['fekete_tpp_fewer_calls_than_fekete_socp']}/{paired['fekete_call_pairs']} recorded pairs.",
+		"", "Calls are comparable between the two Fekete-search rows because only the oracle backend changes. "
 		"Standalone calls arise from a different search tree and should not be treated as identical work units.", ""])
 	args.output.write_text("\n".join(lines))
 	print(args.output)

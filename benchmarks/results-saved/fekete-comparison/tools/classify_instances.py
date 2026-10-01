@@ -112,7 +112,7 @@ def canonical_instance(polygons: list[tuple]) -> tuple:
 def run_geometry_classifier(source_entries: list[dict], compiler: str) -> list[dict]:
 	tool_dir = Path(__file__).resolve().parent
 	cpp_source = tool_dir / "classify_geometry.cpp"
-	with tempfile.TemporaryDirectory(prefix="german-classification-") as temp_dir:
+	with tempfile.TemporaryDirectory(prefix="fekete-classification-") as temp_dir:
 		temp = Path(temp_dir)
 		input_path = temp / "polygons.tsv"
 		binary_path = temp / "classify_geometry"
@@ -169,7 +169,7 @@ def source_report(rows: list[dict], archive: Path) -> str:
 	)
 	submodule_commit = commit_result.stdout.strip() if commit_result.returncode == 0 else "indisponível"
 	lines = [
-		"# Análise estratificada — German comparison",
+		"# Análise estratificada — Fekete comparison",
 		"",
 		"## Escopo e rótulos",
 		"",

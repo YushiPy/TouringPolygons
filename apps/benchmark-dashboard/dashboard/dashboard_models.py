@@ -81,8 +81,8 @@ class ImportCanonicalRequest(BaseModel):
     overwrite: bool = False
 
 
-class ImportGermanRequest(BaseModel):
-    name: str = "german-instances"
+class ImportFeketeRequest(BaseModel):
+    name: str = "fekete-instances"
     overwrite: bool = False
 
 

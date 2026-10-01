@@ -34,4 +34,4 @@ mantido nos manifestos e resultados; a conversão para o limite inteiro nativo
 
 Ferramentas exclusivas do SIICUSP ficam em `apps/siicusp34/scripts/`. A análise
 da campanha alemã preservada fica em
-`benchmarks/results-saved/german-comparison/`.
+`benchmarks/results-saved/fekete-comparison/`.

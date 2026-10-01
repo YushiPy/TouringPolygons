@@ -101,12 +101,12 @@ def default_inputs():
                 polygon=box(x,y,2,2) if kind=='boxes' else [[x,y],[x+3,y],[x+3,y+1],[x+1,y+1],[x+1,y+3],[x,y+3]]
                 polygons.append(polygon)
             cases.append({'name':f'seeded_{kind}_{n}','polygons':polygons,'seed':270927})
-    corpus=ROOT/'benchmarks/suites/german-instances.bin'
+    corpus=ROOT/'benchmarks/suites/fekete-instances.bin'
     native=read_encoded_cases(corpus)
     for n in (5,10,15,20):
         selected=[c for c in native if c.polygon_count==n][:2]
-        for c in selected:cases.append({'name':f'german_{c.case_index}_n{n}','polygons':c.polygons,
-            'source':'benchmarks/suites/german-instances.bin','source_case':c.case_index,'source_sha256':c.digest})
+        for c in selected:cases.append({'name':f'fekete_{c.case_index}_n{n}','polygons':c.polygons,
+            'source':'benchmarks/suites/fekete-instances.bin','source_case':c.case_index,'source_sha256':c.digest})
     return {'formulation':'TSPN, free cyclic order, no fixed point, closed polygon regions','instances':cases}
 
 

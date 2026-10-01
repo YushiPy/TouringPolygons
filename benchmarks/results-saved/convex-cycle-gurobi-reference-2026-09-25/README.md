@@ -3,7 +3,7 @@
 `instances.json` contém quatro casos pequenos de polígonos convexos disjuntos,
 na ordem cíclica fixa. O fixture é consumido pelos testes C++ e pelos comandos
 `cycle-benchmark` e `tspn-benchmark`; por isso é o único dado de entrada
-preservado fora de `german-comparison`.
+preservado fora de `fekete-comparison`.
 
 No comparativo independente, os ótimos racionais passaram o certificado exato.
 A maior diferença reportada entre os objetivos C++ e Gurobi foi cerca de

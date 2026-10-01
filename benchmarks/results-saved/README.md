@@ -7,7 +7,7 @@ experimento ficam nos diretórios locais ignorados (`benchmarks/campaigns/` e
 
 | Pasta | Conteúdo preservado |
 |---|---|
-| [german-comparison](german-comparison/README.md) | Comparação completa usada pelo material SIICUSP; CSVs e corpus são dependências do exportador. |
+| [fekete-comparison](fekete-comparison/README.md) | Comparação completa usada pelo material SIICUSP; CSVs e corpus são dependências do exportador. |
 | [convex-cycle-gurobi-reference-2026-09-25](convex-cycle-gurobi-reference-2026-09-25/README.md) | Resumo e `instances.json`, fixture pequeno exigido pelos testes e benchmarks. |
 | [convex-cycle-final-2026-09-27](convex-cycle-final-2026-09-27/README.md) | Resultado final do ciclo convexo sintético; campanhas intermediárias estão consolidadas em uma linha cada. |
 | [tspn-active-contacts-2026-09-28](tspn-active-contacts-2026-09-28/README.md) | Comparação TSPN após correções de contatos ativos. |

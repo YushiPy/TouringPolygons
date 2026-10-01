@@ -1,8 +1,8 @@
 {
   "instances": [
     {
-      "name": "german_2_n5_0,2,4",
-      "source_case": "german_2_n5",
+      "name": "fekete_2_n5_0,2,4",
+      "source_case": "fekete_2_n5",
       "sequence": [
         0,
         2,
@@ -66,8 +66,8 @@
       ]
     },
     {
-      "name": "german_3_n10_0,4,8,9,5,2",
-      "source_case": "german_3_n10",
+      "name": "fekete_3_n10_0,4,8,9,5,2",
+      "source_case": "fekete_3_n10",
       "sequence": [
         0,
         4,
@@ -188,8 +188,8 @@
       ]
     },
     {
-      "name": "german_3_n10_0,4,3,9,8,5,2",
-      "source_case": "german_3_n10",
+      "name": "fekete_3_n10_0,4,3,9,8,5,2",
+      "source_case": "fekete_3_n10",
       "sequence": [
         0,
         4,
@@ -329,8 +329,8 @@
       ]
     },
     {
-      "name": "german_6_n15_0,10,7,8,13",
-      "source_case": "german_6_n15",
+      "name": "fekete_6_n15_0,10,7,8,13",
+      "source_case": "fekete_6_n15",
       "sequence": [
         0,
         10,
@@ -580,7 +580,7 @@
       "retain_exact_bound": true
     }
   ],
-  "provenance": "Convex hulls of fixed-order relaxations encountered by the TSPN B&B on the preserved German corpus. Coordinates normalized using the full source instance bounding box. Source cases and cyclic sequences are included. The tessellation regression is the normalized hull relaxation [0,4,2,3,9,8] of euro-night-0000010 from instances_socg_simplified.zip; it previously triggered 776 rational recoveries in the double anchor search.",
+  "provenance": "Convex hulls of fixed-order relaxations encountered by the TSPN B&B on the preserved Fekete corpus. Coordinates normalized using the full source instance bounding box. Source cases and cyclic sequences are included. The tessellation regression is the normalized hull relaxation [0,4,2,3,9,8] of euro-night-0000010 from instances_socg_simplified.zip; it previously triggered 776 rational recoveries in the double anchor search.",
   "recovery_regressions": [
     {
       "name": "osm_sao_paulo_39_lazy_relaxation_19",

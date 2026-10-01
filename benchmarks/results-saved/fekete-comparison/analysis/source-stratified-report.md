@@ -1,4 +1,4 @@
-# Análise estratificada — German comparison
+# Análise estratificada — Fekete comparison
 
 ## Escopo e rótulos
 

@@ -9,8 +9,8 @@ TSPN completo. Bounds Fekete são numéricos.
 **Resultado.** Os dois solvers retornaram trajetórias válidas em todas as 165
 execuções. O B&B nativo fechou 33/33 gaps e Fekete 25/33. Entre os 25 casos em
 que ambos fecharam o gap, o nativo venceu 17/25, com speedup geométrico mediano
-`1,70×`; não é uma estimativa universal. `german_3_n10` caiu de cerca de
-19,0 s para 15,7 ms após a correção de contatos ativos. O caso `german_6_n15`
+`1,70×`; não é uma estimativa universal. `fekete_3_n10` caiu de cerca de
+19,0 s para 15,7 ms após a correção de contatos ativos. O caso `fekete_6_n15`
 passou de execução com gap aberto para objetivo fechado em cerca de 108 ms.
 
 A otimização reutiliza contatos ativos, mantendo certificado independente e
