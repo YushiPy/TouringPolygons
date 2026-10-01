@@ -331,7 +331,7 @@ namespace tpp {
 				Polygon initial{source};
 				std::vector<size_t> order;
 				std::vector<bool> used(n);
-				trace_event({.kind = "heuristic_start", .source = direction, .path = initial});
+				trace_event({.kind = "heuristic_start", .path = initial, .source = direction});
 				for (size_t k = 0; k < n; ++k) {
 					double best = std::numeric_limits<double>::infinity();
 					size_t selected = none;
@@ -378,9 +378,9 @@ namespace tpp {
 					}
 					trace_event({
 						.kind = "heuristic_2opt",
+						.pass = pass,
 						.order = order,
 						.path = initial,
-						.pass = pass,
 						.length = path_length(initial),
 						.source = direction,
 						.reason = changed ? "changed" : "stable",
@@ -407,9 +407,9 @@ namespace tpp {
 					}
 					trace_event({
 						.kind = "heuristic_contact_pass",
+						.pass = pass,
 						.order = order,
 						.path = initial,
-						.pass = pass,
 						.length = path_length(initial),
 						.source = direction,
 					});
@@ -900,8 +900,8 @@ namespace tpp {
 				.kind = "branch",
 				.node = node.serial,
 				.parent = node.parent,
-				.sequence = node_sequence,
 				.polygon = chosen,
+				.sequence = node_sequence,
 				.lower_bound = node.bound,
 				.upper_bound = result.upper_bound,
 				.reason = std::find_if(node.sequence.begin(), node.sequence.end(), [&](auto e) { return e.polygon == chosen; }) != node.sequence.end()
@@ -972,13 +972,13 @@ namespace tpp {
 						trace_event({
 							.kind = "child",
 							.parent = node.serial,
+							.polygon = chosen,
+							.position = j,
 							.sequence = [&] {
 								std::vector<size_t> child_sequence;
 								for (auto e : sequence) child_sequence.push_back(e.polygon);
 								return child_sequence;
 							}(),
-							.polygon = chosen,
-							.position = j,
 							.lower_bound = bound,
 							.upper_bound = result.upper_bound,
 							.pruned = true,
@@ -1084,10 +1084,10 @@ namespace tpp {
 						.kind = "child",
 						.node = child.serial,
 						.parent = child.parent,
-						.sequence = child_sequence,
 						.polygon = child.branch_polygon,
 						.piece = child.branch_piece,
 						.position = child.branch_position,
+						.sequence = child_sequence,
 						.path = child.path,
 						.lower_bound = child.bound,
 						.upper_bound = result.upper_bound,
