@@ -201,6 +201,19 @@ def _resume_compatible_config(previous: dict, current: dict) -> bool:
 	return previous_identity == current_identity
 
 
+def _find_compatible_report(results: Path, key: str, config: dict) -> tuple[Path, dict] | None:
+	"""Return the newest report that can be resumed with the requested configuration."""
+	for prior in sorted(results.glob('*/report.json'),
+		key=lambda path: path.stat().st_mtime_ns, reverse=True):
+		try:
+			old = json.loads(prior.read_text())
+		except (OSError, json.JSONDecodeError):
+			continue
+		if old.get('key') == key or _resume_compatible_config(old.get('config', {}), config):
+			return prior, old
+	return None
+
+
 def _pending_solver_jobs(case_count: int, solvers: list[str], completed: set[tuple[str, int]]) -> list[tuple[str, int]]:
 	"""Order pending work by solver, then by case index, for the shared FIFO pool."""
 	return [
@@ -453,13 +466,25 @@ def main(argv: list[str] | None = None) -> int:
 	results = campaign / 'results/free-order'
 	resume_path = None
 	if not args.force and results.exists():
-		for prior in sorted(results.glob('*/report.json'), key=lambda path: path.stat().st_mtime_ns, reverse=True):
-			try:
-				old = json.loads(prior.read_text())
-			except (OSError, json.JSONDecodeError):
-				continue
-			compatible = old.get('key') == key or _resume_compatible_config(old.get('config', {}), config)
-			if compatible and (old.get('key') != key or old.get('config') != config):
+		match = _find_compatible_report(results, key, config)
+		if match is not None:
+			prior, old = match
+			old_rows = old.get('rows', [])
+			old_completed = {
+				(row.get('solver'), int(row.get('case', -1))) for row in old_rows
+				if row.get('solver') in solvers and not row.get('error')
+				and row.get('status') in (None, 'optimal', 'limit')
+			}
+			all_requested_cases_complete = all(
+				(solver, index) in old_completed
+				for solver in solvers for index in range(len(cases))
+			)
+			if old.get('status') == 'completed' and all_requested_cases_complete:
+				prior.touch()
+				print(f'Reusing {prior}', flush=True)
+				write_comparison_summary(prior.with_name('comparison.md'), old, len(cases))
+				return 0
+			if old.get('key') != key or old.get('config') != config:
 				previous_config = old.get('config', {})
 				old.setdefault('configuration_history', []).append({
 					'migrated_at': datetime.now(UTC).isoformat(),
@@ -473,22 +498,6 @@ def main(argv: list[str] | None = None) -> int:
 				old.setdefault('notes', []).append(
 					'Resumed with the shared FIFO solver-case queue; prior completed rows were kept.')
 				atomic_json(prior, old)
-		old_rows = old.get('rows', [])
-		old_completed = {
-			(row.get('solver'), int(row.get('case', -1))) for row in old_rows
-			if row.get('solver') in solvers and not row.get('error')
-			and row.get('status') in (None, 'optimal', 'limit')
-		}
-		all_requested_cases_complete = all(
-			(solver, index) in old_completed
-			for solver in solvers for index in range(len(cases))
-		)
-		if compatible and old.get('status') == 'completed' and all_requested_cases_complete:
-			prior.touch()
-			print(f'Reusing {prior}', flush=True)
-			write_comparison_summary(prior.with_name('comparison.md'), old, len(cases))
-			return 0
-		if compatible and resume_path is None:
 			resume_path = prior
 	if 'tspn' in solvers and not (external_python.exists() and EXTERNAL_RUNNER.exists()
 		and (external_build / 'python/tspn_bnb2/core').exists()):

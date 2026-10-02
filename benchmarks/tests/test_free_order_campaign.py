@@ -1,4 +1,5 @@
 import json
+import os
 import struct
 import sys
 import tempfile
@@ -12,7 +13,7 @@ from unittest.mock import patch
 INTERNAL = Path(__file__).resolve().parents[1] / '_internal'
 sys.path.insert(0, str(INTERNAL))
 
-from free_order_campaign import _pending_solver_jobs, _resume_compatible_config
+from free_order_campaign import _find_compatible_report, _pending_solver_jobs, _resume_compatible_config
 import free_order_campaign
 import tspn_run_comparison
 
@@ -39,6 +40,33 @@ class FreeOrderQueueTests(unittest.TestCase):
 		self.assertTrue(_resume_compatible_config(previous, current))
 		current['threads_per_instance'] = 8
 		self.assertFalse(_resume_compatible_config(previous, current))
+
+	def test_resume_selects_newest_compatible_report_not_oldest_report(self):
+		with tempfile.TemporaryDirectory() as temporary:
+			results = Path(temporary)
+			newer = results / 'newer' / 'report.json'
+			older = results / 'older' / 'report.json'
+			newer.parent.mkdir()
+			older.parent.mkdir()
+			current = {
+				'solvers': ['unordered'], 'instance_workers': 8, 'threads_per_instance': 1,
+				'max_calls': 100, 'unordered_binary_sha256': 'same-binary',
+				'campaign_runner_sha256': 'current', 'queue_policy': 'current',
+			}
+			compatible = {
+				**current, 'instance_workers': 2,
+				'campaign_runner_sha256': 'previous', 'queue_policy': 'previous',
+			}
+			incompatible = {**compatible, 'threads_per_instance': 8}
+			newer.write_text(json.dumps({'key': 'old-key', 'config': compatible, 'rows': []}))
+			older.write_text(json.dumps({'key': 'older-key', 'config': incompatible, 'rows': []}))
+			os.utime(newer, ns=(2_000_000_000, 2_000_000_000))
+			os.utime(older, ns=(1_000_000_000, 1_000_000_000))
+
+			match = _find_compatible_report(results, 'current-key', current)
+
+		self.assertIsNotNone(match)
+		self.assertEqual(match[0], newer)
 
 	def test_fekete_starts_from_the_shared_queue_while_our_case_is_still_running(self):
 		with tempfile.TemporaryDirectory() as temporary:
