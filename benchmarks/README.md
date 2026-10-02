@@ -384,6 +384,14 @@ arquivos de licença. Os resultados continuam locais e ignorados pelo Git.
 
 ### Captura e reprodução de chamadas caras
 
+Para comparar alterações internas com trabalho fixo, use
+`tspn-benchmark --solver ours --max-calls N` e um orçamento de tempo suficiente
+para atingir esse limite. O padrão continua em 100 milhões de chamadas.
+Um limite diferente do padrão é exclusivo de `--solver ours`, porque Fekete
+não oferece o mesmo orçamento. Compare instâncias, opções, chamadas, nós,
+limites e trajetórias entre os binários congelados. Um speedup para a mesma
+busca parcial não equivale a um speedup até fechar o gap.
+
 Use uma lista focal de entradas locais, mantendo as opções da campanha:
 
 ```bash

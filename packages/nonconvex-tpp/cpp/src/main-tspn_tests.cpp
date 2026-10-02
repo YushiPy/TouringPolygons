@@ -5,6 +5,7 @@
 #include "solvers/unordered_bounds.h"
 #include "solvers/unordered_portfolio.h"
 #include "solvers/unordered_cycle_oracle.h"
+#include "solvers/unordered_dyadic_support.h"
 #include <atomic>
 #include <thread>
 #include <algorithm>
@@ -295,6 +296,59 @@ void insertion_bounds() {
         }
     }
 }
+void dyadic_support_exactness() {
+    using R=tpp::ConvexRational;
+    using I=tpp::ConvexInteger;
+    using P=tpp::ConvexRationalPoint;
+    using tpp::unordered_detail::DyadicSupportPolygon;
+
+    const double largest=std::numeric_limits<double>::max();
+    const double smallest=std::numeric_limits<double>::denorm_min();
+    const Vector2 origin{-largest,largest};
+    // The exact translated difference between opposite finite extremes is
+    // larger than binary64. Mixing subnormals forces the shared dyadic scale
+    // to retain the full input exponent range.
+    const Polygon extremes{{largest,-largest},{-largest,largest},
+                           {smallest,-smallest},{-smallest,smallest},{0,0}};
+    const DyadicSupportPolygon prepared(extremes,origin);
+    I denominator_x=1;denominator_x<<=240;
+    I denominator_y=1;denominator_y<<=307;
+    const std::vector<P> normals{
+        P{R(0),R(0)},P{R(1),R(0)},P{R(-1),R(0)},P{R(0),R(1)},P{R(0),R(-1)},
+        P{R(7)/R(3),R(-11)/R(5)},
+        P{R(1)/R(denominator_x),R(-3)/R(denominator_y)},
+        P{R(-19)/R(denominator_y),R(23)/R(denominator_x)}};
+    auto compare_all_vertices=[&](const Polygon &polygon,Vector2 center,const P &normal,
+                                  const DyadicSupportPolygon &fast,const std::string &label) {
+        R expected=(P(polygon.front())-P(center)).dot(normal);
+        for(size_t i=1;i<polygon.size();++i)
+            expected=std::min(expected,(P(polygon[i])-P(center)).dot(normal));
+        require(fast.support(normal)==expected,label);
+    };
+    for(const auto &normal:normals)
+        compare_all_vertices(extremes,origin,normal,prepared,"Dyadic support equals exact rational all-vertex minimum");
+
+    const Polygon tied{{-2,-3},{-2,3},{2,-3},{2,3}};
+    const DyadicSupportPolygon tied_prepared(tied,{0,0});
+    compare_all_vertices(tied,{0,0},P{R(1),R(0)},tied_prepared,
+        "Exact integer support preserves tied minima");
+    compare_all_vertices(tied,{0,0},P{R(1)/R(denominator_x),R(1)/R(denominator_x)},tied_prepared,
+        "Common normal denominator is exact");
+
+    std::mt19937 rng(1012026);
+    std::uniform_int_distribution<int> coordinate(-100,100),numerator(-31,31),denominator(1,29);
+    for(size_t trial=0;trial<32;++trial) {
+        const Vector2 center{double(coordinate(rng))/8,double(coordinate(rng))/16};
+        Polygon polygon;
+        for(size_t i=0;i<7;++i)
+            polygon.push_back({double(coordinate(rng))/32,double(coordinate(rng))/64});
+        const DyadicSupportPolygon random_prepared(polygon,center);
+        const P normal{R(numerator(rng))/R(denominator(rng)),
+                       R(numerator(rng))/R(denominator(rng))};
+        compare_all_vertices(polygon,center,normal,random_prepared,
+            "Prepared support matches a direct exact rational scan");
+    }
+}
 void replacement_bounds() {
     using namespace tpp;
     const Polygons p{box(-4,0,3,3),box(0,4,3,3),box(4,0,3,3)};
@@ -425,6 +479,7 @@ int main() {
         one_tree_bounds();
         portfolio_protocol();
         insertion_bounds();
+        dyadic_support_exactness();
         replacement_bounds();
         check({});check({box(0,0)});check({box(0,0,10,10),box(12,4,1,2)});
         require(std::abs(tpp::tpp_nonconvex_tspn_solve({box(0,0,10,10),box(12,4,1,2)}).upper_bound-4)<1e-8,

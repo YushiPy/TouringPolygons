@@ -170,6 +170,21 @@ the exact support formulas and downward-rounded output while removing repeated
 conversion and contact construction. It does not change branch selection or
 pruning bounds for a fixed set of directions.
 
+The support scan represents the exact translated binary64 vertices with a
+common power-of-two denominator `D`: each vertex is `(X/D,Y/D)` with integer
+`X,Y`. Original vertices and the origin are imported exactly, scaled to `D`,
+and subtracted as integers, avoiding per-coordinate rational normalization.
+Thus neither overflow nor rounding of a floating subtraction changes these
+coordinates. For a rational
+normal `(a/b,c/d)`, every support candidate has numerator `X*a*d + Y*c*b`
+over the same positive denominator `D*b*d`. Comparing these integers therefore
+selects exactly the same minimum as the rational dot-product scan. Only the
+minimum is normalized back to a rational. Equal normal denominators are shared
+directly. This is an exact representation change, not coordinate snapping or
+an acceptance tolerance; dual directions, rational sums and downward rounding
+remain unchanged. Tests compare the support value by exact rational equality,
+including subnormals, opposite finite extremes and large rational normals.
+
 ## Independently selectable acceleration experiments
 
 The native CLI and public benchmark command accept repeated

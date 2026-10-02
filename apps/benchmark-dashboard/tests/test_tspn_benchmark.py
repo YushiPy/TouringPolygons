@@ -132,6 +132,62 @@ class TspnCampaignTests(unittest.TestCase):
                 self.assertEqual(benchmark.main(['--output', str(output), '--report-only']), 0)
                 self.assertEqual(json.loads((output / 'progress.json').read_text())['status'], 'complete')
 
+    def test_max_calls_budget_and_legacy_resume_normalization(self):
+        polygon = [[0, 0], [1, 0], [1, 1], [0, 1]]
+        result = dict(seconds=.01, path=[[0, 0], [0, 0]], lower_bound=0., upper_bound=0., calls=7)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'vendor'
+            (source / 'tspn_core').mkdir(parents=True)
+            (source / 'tspn_core/CMakeLists.txt').write_text('')
+            inputs = root / 'inputs.json'
+            inputs.write_text(json.dumps({'formulation': 'TSPN', 'instances': [{'name': 'x', 'polygons': [polygon]}]}))
+            binary = root / 'solver'
+            binary.write_bytes(b'fixed test binary')
+            output = root / 'campaign'
+            args = ['--solver', 'ours', '--inputs', str(inputs), '--output', str(output),
+                    '--fekete-source', str(source), '--skip-build', '--ours-binary', str(binary),
+                    '--seconds', '1', '--repetitions', '1', '--external-timeout', '2', '--max-calls', '7']
+            with patch.object(benchmark.platform, 'platform', return_value='test-platform'), \
+                 patch.object(benchmark.subprocess, 'check_output', return_value='test-provenance\n'), \
+                 patch.object(benchmark, 'run_unordered_solver', return_value=result.copy()) as native, \
+                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(benchmark.main(args), 0)
+                native.assert_called_once()
+                self.assertEqual(native.call_args.args[4], 7)
+                config = json.loads((output / 'config.json').read_text())
+                self.assertEqual(config['max_calls'], 7)
+                self.assertEqual(config['run_options']['max_calls'], 7)
+
+                invalid_cases = [(args + ['--max-calls', '-1'], '--max-calls cannot be negative')]
+                for solver in ('both', 'fekete'):
+                    invalid = list(args)
+                    invalid[invalid.index('ours')] = solver
+                    invalid_cases.append((invalid, 'a nondefault --max-calls requires --solver ours'))
+                for invalid, message in invalid_cases:
+                    stderr = io.StringIO()
+                    with self.assertRaises(SystemExit) as error:
+                        with contextlib.redirect_stderr(stderr): benchmark.main(invalid)
+                    self.assertEqual(error.exception.code, 2)
+                    self.assertIn(message, stderr.getvalue())
+
+                stderr = io.StringIO()
+                with self.assertRaises(SystemExit) as error:
+                    with contextlib.redirect_stderr(stderr):
+                        benchmark.main(args + ['--resume', '--max-calls', '8'])
+                self.assertEqual(error.exception.code, 2)
+                self.assertIn('--resume options differ', stderr.getvalue())
+
+                # Simulate a pre-feature campaign: omitting run_options.max_calls
+                # is equivalent to the historical default, not an option change.
+                config['max_calls'] = 10**8
+                config['run_options'].pop('max_calls')
+                (output / 'config.json').write_text(json.dumps(config))
+                native.reset_mock()
+                default_args = [arg for arg in args if arg not in ('--max-calls', '7')]
+                self.assertEqual(benchmark.main(default_args + ['--resume']), 0)
+                native.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()
