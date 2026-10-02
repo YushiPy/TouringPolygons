@@ -13,7 +13,9 @@ from unittest.mock import patch
 INTERNAL = Path(__file__).resolve().parents[1] / '_internal'
 sys.path.insert(0, str(INTERNAL))
 
-from free_order_campaign import _find_compatible_report, _pending_solver_jobs, _resume_compatible_config
+from free_order_campaign import (
+	_find_compatible_report, _pending_solver_jobs, _resume_compatible_config, _sort_report_rows,
+)
 import free_order_campaign
 import tspn_run_comparison
 
@@ -67,6 +69,20 @@ class FreeOrderQueueTests(unittest.TestCase):
 
 		self.assertIsNotNone(match)
 		self.assertEqual(match[0], newer)
+
+	def test_report_rows_sort_when_only_one_solver_is_selected(self):
+		rows = [
+			{'case': 1, 'solver': 'tspn'},
+			{'case': 0, 'solver': 'tspn'},
+			{'case': 0, 'solver': 'unordered'},
+		]
+
+		_sort_report_rows(rows)
+
+		self.assertEqual(
+			[(row['case'], row['solver']) for row in rows],
+			[(0, 'unordered'), (0, 'tspn'), (1, 'tspn')],
+		)
 
 	def test_fekete_starts_from_the_shared_queue_while_our_case_is_still_running(self):
 		with tempfile.TemporaryDirectory() as temporary:

@@ -214,6 +214,15 @@ def _find_compatible_report(results: Path, key: str, config: dict) -> tuple[Path
 	return None
 
 
+def _sort_report_rows(rows: list[dict]) -> None:
+	"""Sort mixed-solver reports independently of the solver selection for this run."""
+	solver_order = {'unordered': 0, 'tspn': 1}
+	rows.sort(key=lambda row: (
+		int(row.get('case', -1)), solver_order.get(row.get('solver'), len(solver_order)),
+		row.get('solver', ''),
+	))
+
+
 def _pending_solver_jobs(case_count: int, solvers: list[str], completed: set[tuple[str, int]]) -> list[tuple[str, int]]:
 	"""Order pending work by solver, then by case index, for the shared FIFO pool."""
 	return [
@@ -606,15 +615,15 @@ def main(argv: list[str] | None = None) -> int:
 			report['rows'] = [item for item in report['rows']
 				if not (item.get('solver') == 'tspn' and item.get('case') == row['case'])]
 			report['rows'].append(row)
-		if prior_csvs:
-			report['rows'].sort(key=lambda item: (item['case'], solvers.index(item['solver'])))
-			save_checkpoint()
+			if prior_csvs:
+				_sort_report_rows(report['rows'])
+				save_checkpoint()
 
 	def upsert_report_row(row: dict) -> None:
 		report['rows'] = [item for item in report['rows']
 			if not (item.get('solver') == row.get('solver') and item.get('case') == row.get('case'))]
 		report['rows'].append(row)
-		report['rows'].sort(key=lambda item: (item['case'], solvers.index(item['solver'])))
+		_sort_report_rows(report['rows'])
 
 	def save_external_csv_row(row: dict) -> None:
 		if external_csv_path is None or external_runner is None:
