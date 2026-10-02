@@ -33,6 +33,7 @@ EXTERNAL_SOURCE = ROOT / 'third_party/tspn-socg'
 DEFAULT_EXTERNAL_EPS = 1e-3
 DEFAULT_OUR_RELATIVE_GAP = DEFAULT_EXTERNAL_EPS / (1 + DEFAULT_EXTERNAL_EPS)
 SOLVER_DISPLAY_NAMES = {'unordered': 'tpp-ours', 'tspn': 'tpp-fekete'}
+SHUTDOWN_BEFORE_START = 'shutdown requested before solver start'
 SOLVER_ALIASES = {
 	'tpp-ours': 'unordered', 'tpp-fekete': 'tspn',
 	'unordered': 'unordered', 'tspn': 'tspn',
@@ -221,6 +222,13 @@ def _sort_report_rows(rows: list[dict]) -> None:
 		int(row.get('case', -1)), solver_order.get(row.get('solver'), len(solver_order)),
 		row.get('solver', ''),
 	))
+
+
+def _job_was_not_started(result: dict) -> bool:
+	"""Identify shutdown sentinels that must not become checkpoint rows."""
+	if result.get('not_started'):
+		return True
+	return result.get('row', {}).get('error') == SHUTDOWN_BEFORE_START
 
 
 def _pending_solver_jobs(case_count: int, solvers: list[str], completed: set[tuple[str, int]]) -> list[tuple[str, int]]:
@@ -585,6 +593,7 @@ def main(argv: list[str] | None = None) -> int:
 	external_csv_path = None
 	external_log_file = None
 	external_log_lock = threading.Lock()
+	shutdown_requested = threading.Event()
 	if 'tspn' in solvers:
 		import tspn_run_comparison as external_runner
 		suite = run / 'input.bin'
@@ -667,6 +676,8 @@ def main(argv: list[str] | None = None) -> int:
 			solver_time_limit = math.inf if args.max_seconds == -1 else args.max_seconds
 			row.update(run_unordered_solver(BINARY, (sx, sy), (tx, ty), case.polygons,
 				args.max_calls, solver_time_limit, arguments=arguments))
+			if row.get('error') == SHUTDOWN_BEFORE_START:
+				return None
 			if row.get('termination') == 'interrupted':
 				row['status'] = 'interrupted'
 			row['visit_order'] = 'free'
@@ -689,15 +700,22 @@ def main(argv: list[str] | None = None) -> int:
 
 	def solve_tspn_case(index: int) -> dict:
 		payload = external_runner.run_case(external_args, index, external_log_file, external_log_lock)
+		if payload.get('error') == SHUTDOWN_BEFORE_START:
+			return {'solver': 'tspn', 'case': index, 'not_started': True}
 		external_row = external_runner.result_row(external_args, index, external_cases[index], {}, payload)
 		return {'solver': 'tspn', 'case': index, 'row': _tspn_report_row(external_row, cases),
 			'external_row': external_row}
 
 	def dispatch_job(job: tuple[str, int]) -> dict:
 		solver, index = job
+		if shutdown_requested.is_set():
+			return {'solver': solver, 'case': index, 'not_started': True}
 		try:
 			if solver == 'unordered':
-				return {'solver': solver, 'case': index, 'row': solve_unordered_case(index)}
+				row = solve_unordered_case(index)
+				if row is None:
+					return {'solver': solver, 'case': index, 'not_started': True}
+				return {'solver': solver, 'case': index, 'row': row}
 			return solve_tspn_case(index)
 		except Exception as error:
 			if solver == 'unordered':
@@ -773,6 +791,7 @@ def main(argv: list[str] | None = None) -> int:
 				signal.signal(signal.SIGINT, force_stop_on_second_interrupt)
 				print('Shutting down: asking active solvers to save incumbent paths and bounds...',
 					file=sys.stderr, flush=True)
+				shutdown_requested.set()
 				interrupt_running_solvers()
 				if external_runner is not None:
 					external_runner.stop_active_processes()
@@ -789,6 +808,8 @@ def main(argv: list[str] | None = None) -> int:
 							result = future.result()
 						except Exception as error:
 							result = dispatch_job_interrupted(job, error)
+						if _job_was_not_started(result):
+							continue
 						commit_job_result(result)
 						written_jobs.add(job)
 						row = result['row']

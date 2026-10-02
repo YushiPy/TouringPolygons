@@ -14,7 +14,8 @@ INTERNAL = Path(__file__).resolve().parents[1] / '_internal'
 sys.path.insert(0, str(INTERNAL))
 
 from free_order_campaign import (
-	_find_compatible_report, _pending_solver_jobs, _resume_compatible_config, _sort_report_rows,
+	_find_compatible_report, _job_was_not_started, _pending_solver_jobs,
+	_resume_compatible_config, _sort_report_rows,
 )
 import free_order_campaign
 import tspn_run_comparison
@@ -83,6 +84,15 @@ class FreeOrderQueueTests(unittest.TestCase):
 			[(row['case'], row['solver']) for row in rows],
 			[(0, 'unordered'), (0, 'tspn'), (1, 'tspn')],
 		)
+
+	def test_shutdown_skips_jobs_that_never_started_a_solver(self):
+		self.assertTrue(_job_was_not_started({'not_started': True}))
+		self.assertTrue(_job_was_not_started({
+			'row': {'error': 'shutdown requested before solver start'},
+		}))
+		self.assertFalse(_job_was_not_started({
+			'row': {'status': 'interrupted', 'upper_bound': 123.0, 'lower_bound': 100.0},
+		}))
 
 	def test_fekete_starts_from_the_shared_queue_while_our_case_is_still_running(self):
 		with tempfile.TemporaryDirectory() as temporary:
