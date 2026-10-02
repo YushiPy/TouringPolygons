@@ -65,6 +65,7 @@ void run(const ptree &input, std::size_t repeat, double seconds,
 	const bool use_features=json_bool(input,"features",features_default);
 	const bool use_interval=json_bool(input,"interval",interval_default);
 	const bool bound_first=json_bool(input,"bound_first",bound_first_default);
+	const bool proposal_bound=json_bool(input,"proposal_bound",false)&&!precise;
 	const Polygons regions=polygons(input.get_child("polygons"));
 	const auto initial_contacts=contacts(input.get_child("initial_contacts"));
 	const auto initial_features=features(input.get_child("initial_features"));
@@ -75,7 +76,7 @@ void run(const ptree &input, std::size_t repeat, double seconds,
 	tpp::ConvexCycleWorkspace cycle_workspace;
 	const auto solved=tpp::solve_relaxation(true,::Vector2{},::Vector2{},regions,oracle_workspace,
 		tolerance,cutoff,seconds,initial_contacts,use_cache?&cycle_workspace:nullptr,
-		use_features?initial_features:std::vector<int>{},use_features,bound_first,use_interval);
+		use_features?initial_features:std::vector<int>{},use_features,bound_first,use_interval,{},proposal_bound);
 	const double wall_seconds=std::chrono::duration<double>(std::chrono::steady_clock::now()-began).count();
 	std::vector<::Vector2> returned_contacts=solved.path;
 	if(returned_contacts.size()==regions.size()+1&&!returned_contacts.empty()&&
@@ -113,6 +114,7 @@ void run(const ptree &input, std::size_t repeat, double seconds,
 	row.put("gap_satisfied",gap_satisfied);row.put("upper_bound_infinite",std::isinf(upper));
 	row.put("lower_bound",lower);row.put("upper_bound",upper);row.put("lower_bound_cutoff",cutoff);
 	row.put("used_fallback",solved.used_fallback);row.put("dual_cutoff_pruned",solved.dual_cutoff_pruned);
+	row.put("proposal_bound",proposal_bound);row.put("proposal_calls",solved.proposal_calls);row.put("proposal_accepts",solved.proposal_accepts);
 	row.put("independent_certificate_valid",certificate_valid);row.put("intervals_overlap",intervals_overlap);
 	row.add_child("independent_certificate",independent);row.add_child("filtered_certificate",filtered);
 	ptree path;

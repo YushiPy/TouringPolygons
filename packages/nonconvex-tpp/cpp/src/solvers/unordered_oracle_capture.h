@@ -42,6 +42,7 @@ public:
         stream<<",\"cache\":"<<(options.cycle_cache?"true":"false")
               <<",\"features\":"<<(options.cycle_active_features?"true":"false")
               <<",\"interval\":"<<(options.cycle_interval_certificate?"true":"false")
+              <<",\"proposal_bound\":"<<(options.cycle_proposal_bound&&!precise?"true":"false")
               <<",\"bound_first\":"<<(options.cycle_bound_first?"true":"false");
         stream<<"}\n";stream.flush();return id;
     }
@@ -55,6 +56,7 @@ public:
               <<",\"rational_recovery_seconds\":"<<result.cycle_timings.rational_recovery_seconds
               <<",\"lower_bound\":";number(stream,result.lower_bound);
         stream<<",\"upper_bound\":";number(stream,result.upper_bound);
+        stream<<",\"proposal_calls\":"<<result.proposal_calls<<",\"proposal_accepts\":"<<result.proposal_accepts;
         stream<<"}\n";stream.flush();
     }
 };

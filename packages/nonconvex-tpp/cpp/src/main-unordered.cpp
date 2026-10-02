@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
 		for (int i = 1; i < argc; ++i) {
 			const std::string flag = argv[i];
 			if (flag == "--help") {
-				std::cout << "Usage: tpp-unordered [--cycle] [--cycle-optimization cache|dual|features|lazy|root|branch|one-tree|learn|memo|bound-first|dual-screen|interval|share-bounds] [--portfolio | --portfolio-no-sharing | --search-strategy best-bound|dfs-bfs] [--threads N] [--absolute-gap N] [--relative-gap N] [--feasibility-tolerance N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace] [--oracle-capture FILE]\n"
+				std::cout << "Usage: tpp-unordered [--cycle] [--cycle-optimization cache|dual|features|lazy|root|branch|one-tree|learn|memo|bound-first|dual-screen|interval|share-bounds|proposal-bound|primal-starts] [--portfolio | --portfolio-no-sharing | --search-strategy best-bound|dfs-bfs] [--threads N] [--absolute-gap N] [--relative-gap N] [--feasibility-tolerance N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace] [--oracle-capture FILE]\n"
 					<< "stdin: sx sy tx ty polygon_count max_calls max_seconds, then each polygon's vertex count and coordinates. With --initial-path, append path point count and coordinates, including endpoints.\n";
 				std::cout << "--cycle solves TSPN: input endpoints are ignored; output and any initial path must be closed.\n";
 				return 0;
@@ -112,6 +112,8 @@ int main(int argc, char **argv) {
                 else if(mode=="bound-first")options.cycle_bound_first=true;
                 else if(mode=="dual-screen")options.cycle_dual_screen=true;
                 else if(mode=="interval")options.cycle_interval_certificate=true;
+                else if(mode=="proposal-bound")options.cycle_proposal_bound=true;
+                else if(mode=="primal-starts")options.cycle_primal_starts=true;
                 else if(mode=="share-bounds")options.cycle_share_bounds=true;
                 else throw std::invalid_argument("Unknown cycle optimization: "+mode);
                 continue;
@@ -259,6 +261,10 @@ int main(int argc, char **argv) {
             << ",\"learned_branch_decisions\":" << r.learned_branch_decisions
             << ",\"learned_branch_changes\":" << r.learned_branch_changes
             << ",\"cycle_certificate_interval_uses\":" << r.cycle_certificate_interval_uses
+            << ",\"cycle_proposal_calls\":" << r.cycle_proposal_calls
+            << ",\"cycle_proposal_accepts\":" << r.cycle_proposal_accepts
+            << ",\"cycle_primal_start_candidates\":" << r.cycle_primal_start_candidates
+            << ",\"cycle_primal_start_improvements\":" << r.cycle_primal_start_improvements
             << ",\"cycle_dual_screen_children\":" << r.cycle_dual_screen_children
             << ",\"cycle_dual_screen_prunes\":" << r.cycle_dual_screen_prunes
             << ",\"cycle_dual_screen_seconds\":" << r.cycle_dual_screen_seconds

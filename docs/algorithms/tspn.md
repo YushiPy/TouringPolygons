@@ -188,7 +188,7 @@ including subnormals, opposite finite extremes and large rational normals.
 ## Independently selectable acceleration experiments
 
 The native CLI and public benchmark command accept repeated
-`--cycle-optimization cache|dual|features|lazy|root|branch|one-tree|learn|memo|bound-first|dual-screen|interval|share-bounds` options. Each changes
+`--cycle-optimization cache|dual|features|lazy|root|branch|one-tree|learn|memo|bound-first|dual-screen|interval|share-bounds|proposal-bound|primal-starts` options. Each changes
 the existing solver; none introduces a parallel implementation. They initially
 remain opt-in so that regressions are measurable against the same executable.
 
@@ -230,8 +230,28 @@ remain opt-in so that regressions are measurable against the same executable.
 - `dual-screen` extends dual reuse to decomposition children, using one new
   support term per replacement piece before invoking the oracle.
 - `interval` selects the existing certificate's rigorous interval filter.
+- `proposal-bound` first requests the finite floating feature proposal and its
+  independent certificate, without rational reconstruction or boundary search.
+  The B&B adapter accepts its interval only when the lower bound reaches the
+  incumbent cutoff or its width meets the existing `oracle_relative_gap`/node
+  gap request. Otherwise it performs the full cycle solve with the retained
+  contacts and remaining time. Precise leaf requests use the full path directly.
+  This schedules construction effort; it adds no oracle acceptance tolerance.
+  The cycle constructor receives no gap parameter and returns `ProposalLimit`
+  for an exhausted proposal unless an exact optimum or cutoff was certified.
+  A partial result never asserts exact cycle optimality. Any returned lower
+  bound remains valid for all extensions of the node, and the feasible path is
+  checked against all original regions before it can update the incumbent.
+  On interruption between stages, the best completed feasible path and maximum
+  certified lower bound survive; unfinished work remains in the frontier.
 - `share-bounds` imports compatible certified subcycle bounds in a sharing
   portfolio before reserving an oracle call.
+- `primal-starts` diversifies the existing greedy/2-opt/contact initial
+  heuristic from up to seven additional original polygon vertices. All starts
+  share an extra budget capped at 5% of the solve deadline, after retaining the
+  ordinary initial candidate. They reuse the original regions and the existing
+  feasibility checks, and can only supply incumbent upper bounds. They neither
+  restrict the free cyclic order nor alter any convex relaxation or lower bound.
 
 All retain the same numerical B&B contract below. The experiment matrix,
 including unsuccessful variants and interrupted runs, belongs to the saved

@@ -392,6 +392,14 @@ não oferece o mesmo orçamento. Compare instâncias, opções, chamadas, nós,
 limites e trajetórias entre os binários congelados. Um speedup para a mesma
 busca parcial não equivale a um speedup até fechar o gap.
 
+As opções experimentais `--cycle-optimization proposal-bound` e
+`--cycle-optimization primal-starts` controlam, respectivamente, uma fase de
+proposta certificada antes da recuperação completa e partidas adicionais da
+heurística de incumbente. São independentes e desativadas por padrão: medir a
+combinação também é necessário, pois um incumbente inicial melhor não garante
+uma busca mais rápida. O oráculo mantém a certificação exata; a aceitação de um
+intervalo parcial pelo B&B usa somente o contrato numérico já declarado.
+
 Use uma lista focal de entradas locais, mantendo as opções da campanha:
 
 ```bash

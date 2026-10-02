@@ -169,7 +169,7 @@ def main(argv=None):
         help='Run two independent searches in a two-worker race; implies --portfolio.')
     parser.add_argument('--search-strategy',choices=('best-bound','dfs-bfs'),
         help='Run one isolated B&B strategy instead of the default strategy.')
-    parser.add_argument('--cycle-optimization',action='append',choices=('cache','dual','features','lazy','root','branch','one-tree','learn','memo','bound-first','dual-screen','interval','share-bounds'),default=[],
+    parser.add_argument('--cycle-optimization',action='append',choices=('cache','dual','features','lazy','root','branch','one-tree','learn','memo','bound-first','dual-screen','interval','share-bounds','proposal-bound','primal-starts'),default=[],
         help='Enable one native cycle optimization; repeat to combine independently selectable optimizations.')
     parser.add_argument('--relative-gap',type=float,default=1e-6)
     parser.add_argument('--feasibility-tolerance',type=float,default=1e-8)

@@ -5,7 +5,7 @@
 #include <string>
 
 namespace tpp {
-enum class ConvexCycleStatus { InvalidInput, UnsupportedIntersection, Optimal, FloatingPointLimit, OracleFailure, CertifiedBound, Interrupted };
+enum class ConvexCycleStatus { InvalidInput, UnsupportedIntersection, Optimal, FloatingPointLimit, OracleFailure, CertifiedBound, Interrupted, ProposalLimit };
 
 struct ConvexCycleTimings {
     // Exclusive work: certification includes checks during rational recovery.
@@ -74,6 +74,11 @@ struct ConvexCycleDoubleOptions {
     bool bound_first = false;
     // Outward binary64 interval filters, with exact predicates on ambiguity.
     bool interval_certificate = false;
+    // Run only the finite floating feature proposal, without rational recovery
+    // or the complete boundary search. ProposalLimit makes no optimality claim;
+    // contacts/bounds, when present, still have an independent certificate.
+    // No tolerance enters this constructor; the caller decides how to use bounds.
+    bool proposal_only = false;
     // Cooperative checkpoints; default standalone solves have no deadline.
     // Interrupted retains only completed certificates; contacts may be empty.
     double max_seconds = std::numeric_limits<double>::infinity();

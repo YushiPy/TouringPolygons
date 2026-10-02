@@ -197,17 +197,16 @@ Polygon points(const boost::property_tree::ptree &array) {
 }
 void references() {
     using boost::property_tree::ptree;
-    ptree inputs,raw,config;
+    ptree inputs,reference_data;
     const std::string directory=TPP_CYCLE_REFERENCE_DIR;
     read_json(directory+"/instances.json",inputs);
-    read_json(directory+"/raw.json",raw);
-    read_json(directory+"/config.json",config);
+    read_json(directory+"/reference.json",reference_data);
     std::cout<<"name,k,lower,upper,gap,gurobi_objective,error,oracle_calls,milliseconds\n";
     for (const auto &[key,instance]:inputs.get_child("instances")) {
         const auto name=instance.get<std::string>("name");Polygons p;
         for (const auto &[unused,polygon]:instance.get_child("polygons"))p.push_back(points(polygon));
         const ptree *reference=nullptr;
-        for (const auto &[unused,row]:raw.get_child("instances"))
+        for (const auto &[unused,row]:reference_data.get_child("instances"))
             if(row.get<std::string>("name")==name)reference=&row;
         require(reference && reference->get<int>("status")==2,"optimal Gurobi reference found");
         const double objective=reference->get<double>("objective"), bound=reference->get<double>("objective_bound");
@@ -239,8 +238,8 @@ void references() {
         // saved config's intended tolerance is smaller than its observed error
         // on some records. Compare against the independently certified interval.
         const double reference_gap=reference_certificate.upper_bound-reference_certificate.lower_bound;
-        const double tolerance=config.get<double>("objective_tolerance_for_future_comparisons.absolute")+
-            config.get<double>("objective_tolerance_for_future_comparisons.relative")*std::abs(objective);
+        const double tolerance=reference_data.get<double>("comparison_tolerance.absolute")+
+            reference_data.get<double>("comparison_tolerance.relative")*std::abs(objective);
         require(std::abs(result.certificate.upper_bound-objective)<=reference_gap+tolerance,name+": Gurobi objective comparison");
         require(bound<=result.certificate.upper_bound+reference_gap+tolerance && objective>=result.certificate.lower_bound-tolerance,
                 name+": numerical Gurobi bound comparison");
