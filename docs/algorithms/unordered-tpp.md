@@ -202,6 +202,55 @@ global. Em cada ramo há no máximo uma inserção e um refinamento por polígon
 
 ## Consultas de visita preparadas
 
+### Ablações adicionais de runtime
+
+Geometria por referência e cache por segmento são ativados por padrão. As
+demais opções abaixo são experimentais e desativadas. Não mudam os gaps, a
+geometria de entrada ou o critério de factibilidade. As flags
+`--no-borrow-oracle-geometry` e `--no-segment-visit-cache` isolam os dois ganhos.
+
+- `--borrow-oracle-geometry` / `oracle_borrow_geometry` conserva handles
+  imutáveis durante cada chamada e usa referências aos polígonos racionais
+  preparados, dispensando a cópia de seus vértices. A limpeza do cache não
+  invalida esses handles. As versões binárias ainda usam o buffer existente.
+- `--segment-visit-cache` / `segment_visit_cache` reutiliza consultas de
+  segmentos exatamente iguais contra polígonos originais preparados. A chave
+  contém todos os bits dos quatro valores dos extremos, mantendo sua direção.
+  A redução mantém a ordem dos segmentos e compara distâncias quadráticas,
+  preservando empates e a primeira posição de visita. O cache é local à busca,
+  exige geometria preparada imutável e é invalidado quando muda a identidade
+  do polígono ou a tolerância. Retém no máximo 1024 segmentos; os vetores de
+  resultados têm orçamento de 2 MiB, exceto a entrada mínima quando ela sozinha
+  excede esse orçamento. Metadados da tabela ficam fora dessa contagem.
+  `--no-prepared-visits` também desativa esse cache. `segment_visit_queries`
+  e `segment_visit_hits` contam consultas até o término da fase de busca.
+- `--lazy-oracles` / `lazy_oracles` conserva filhos com seus limites de
+  inserção/pai e resolve sua sequência apenas quando o filho é retirado da
+  fronteira. Filhos sem caminho continuam participando do lower bound global;
+  interrupções preservam seus limites. A política pode economizar chamadas e
+  caminhos retidos, mas também ampliar a fronteira e enfraquecer sua prioridade.
+- `--bound-first` / `oracle_bound_first` tenta o corte dual racional de uma
+  candidata já materializada antes do certificado KKT completo. O filtro
+  flutuante só seleciona a tentativa; apenas o dual factível racional causa
+  poda. O retorno conserva os contatos factíveis e os limites dirigidos.
+- `--path-dual-reuse` / `path_dual_reuse` constrói vetores factíveis no disco
+  a partir do caminho do pai e reutiliza-os nos suportes dos filhos. Elos zero
+  podem conservar a direção herdada. Normas e suportes são avaliados em
+  racional e o limite é arredondado para baixo. Esta proposta não retém o
+  testemunho ótimo da propagação de discos/cones: seu custo e sua força são
+  hipóteses a medir, não uma garantia de ganho.
+- `--path-strong-branching` / `path_strong_branching` compara os limites de
+  todas as inserções dos três polígonos ausentes mais distantes e escolhe o
+  candidato com maior mínimo desses limites. Isso só escolhe o ramo completo
+  a expandir; não elimina regiões ou posições sem o teste de bound existente.
+  A seleção pode melhorar ou piorar a trajetória e acrescenta trabalho por nó.
+
+Geometria por referência e cache por segmento devem preservar caminhos,
+limites, contagens e trace sob orçamento de chamadas igual, sem interferência
+do limite de tempo. As demais opções podem mudar a busca: valide cobertura,
+preservação dos limites e o esforço para fechar o mesmo gap. Tempo até um
+teto de chamadas é custo de um trecho de busca, não tempo de solução.
+
 `prepared_visit_queries` (padrão true) prepara uma vez caixas e arestas dos
 polígonos originais, e prepara os segmentos de cada caminho consultado. A
 sobrecarga preparada e a consulta sem preparação compartilham o mesmo

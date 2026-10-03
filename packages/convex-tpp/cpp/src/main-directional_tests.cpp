@@ -53,6 +53,8 @@ void describe(const TestCase &c) {
 
 void dispatch_cache_regressions() {
     tpp::DynamicConvexTppWorkspace cached,uncached;
+    cached.borrow_hybrid_geometry=true;
+    uncached.borrow_hybrid_geometry=false;
     uncached.cache_disjoint_dispatch=false;
     uncached.cache_interval_geometry=false;
     tpp::ConvexHybridOptions options;options.max_gap=1e-6;
@@ -109,7 +111,7 @@ void dispatch_cache_regressions() {
 }
 
 void cached_contact_rotation_regressions() {
-    tpp::DynamicConvexTppWorkspace workspace;
+    tpp::DynamicConvexTppWorkspace workspace;workspace.borrow_hybrid_geometry=true;
     tpp::ConvexHybridOptions options; // Zero gap exercises rational materialization.
     const std::vector<Polygons> inputs{
         {},{box(-1,0,1,2)},

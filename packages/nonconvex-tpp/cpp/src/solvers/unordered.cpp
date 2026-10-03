@@ -288,6 +288,7 @@ namespace tpp {
 			for(const auto &p:polygons)visit_polygons.emplace_back(p);
 		}
 		PreparedContactPath visit_segments;
+        SegmentContactCache segment_cache;
 		Polygon visit_path;
 		bool visit_path_ready=false;
 		std::vector<std::optional<Contact>> visit_contacts(n);
@@ -304,7 +305,7 @@ namespace tpp {
 				++result.visit_query_cache_hits;return *visit_contacts[j];
 			}
 			++result.visit_query_evaluations;
-			const auto found=options.prepared_visit_queries?contact(visit_segments,visit_polygons[j],eps):contact(path,polygons[j],eps);
+			const auto found=options.prepared_visit_queries?(options.segment_visit_cache?segment_cache.query(visit_segments,visit_polygons[j],j,n,eps):contact(visit_segments,visit_polygons[j],eps)):contact(path,polygons[j],eps);
 			if(options.prepared_visit_queries)visit_contacts[j]=found;
 			return found;
 		};
@@ -611,6 +612,8 @@ namespace tpp {
 						DynamicConvexTppWorkspace initial_workspace;
 						initial_workspace.cache_disjoint_dispatch=options.oracle_dispatch_cache;
 						initial_workspace.cache_interval_geometry=options.oracle_interval_geometry_cache;
+                        initial_workspace.borrow_hybrid_geometry=options.oracle_borrow_geometry;
+                        initial_workspace.bound_before_optimality=options.oracle_bound_first;
 						initial_workspace.interpolated_zero_dual=options.interpolated_zero_dual;
 						++result.calls;
 						++result.initial_convex_refinement_calls;
@@ -675,6 +678,8 @@ namespace tpp {
 		DynamicConvexTppWorkspace workspace;
 		workspace.cache_disjoint_dispatch=options.oracle_dispatch_cache;
 		workspace.cache_interval_geometry=options.oracle_interval_geometry_cache;
+        workspace.borrow_hybrid_geometry=options.oracle_borrow_geometry;
+        workspace.bound_before_optimality=options.oracle_bound_first;
 		workspace.interpolated_zero_dual=options.interpolated_zero_dual;
 		std::vector<DynamicConvexTppWorkspace> parallel_workspaces;
         ConvexCycleWorkspace cycle_workspace;
@@ -976,6 +981,10 @@ namespace tpp {
 			}
 			size_t chosen = none;
 			double farthest = eps;
+            if(!cycle&&options.path_dual_reuse) {
+                node.dual=tpp_convex_cycle_dual_directions(node.path);
+                if(!node.dual.empty())node.dual.pop_back();
+            }
             std::vector<std::pair<double,size_t>> branch_candidates;
             std::vector<double> branch_distances(options.cycle_learned_branching?n:0);
 			size_t detour_chosen = none;
@@ -986,7 +995,7 @@ namespace tpp {
 				const double distance = visit_contact(node.path,j).distance;
                 if(options.cycle_learned_branching)branch_distances[j]=distance;
 				if (distance > farthest) { farthest = distance; chosen = j; }
-                if(cycle&&options.cycle_strong_branching&&distance>eps&&
+                if((cycle?options.cycle_strong_branching:options.path_strong_branching)&&distance>eps&&
                    std::none_of(node.sequence.begin(),node.sequence.end(),[&](auto e){return e.polygon==j;}))
                     branch_candidates.emplace_back(distance,j);
 				if (options.detour_root && node.sequence.empty() && distance > eps) {
@@ -1010,7 +1019,7 @@ namespace tpp {
 					if (score > endpoint_sum) { endpoint_sum = score; chosen = j; }
 				}
 			}
-            if(cycle&&options.cycle_strong_branching&&!options.cycle_learned_branching&&chosen!=none&&
+            if((cycle?options.cycle_strong_branching:options.path_strong_branching)&&!options.cycle_learned_branching&&chosen!=none&&
                std::none_of(node.sequence.begin(),node.sequence.end(),[&](auto e){return e.polygon==chosen;})) {
                 std::sort(branch_candidates.begin(),branch_candidates.end(),std::greater<>());
                 std::vector<const Polygon*> regions;
@@ -1018,7 +1027,7 @@ namespace tpp {
                 double strongest=-1;
                 for(size_t i=0;i<std::min(size_t(3),branch_candidates.size());++i) {
                     const size_t candidate=branch_candidates[i].second;
-                    const auto bounds=insertion_lower_bounds(node.path,regions,hulls[candidate],true,node.dual);
+                    const auto bounds=insertion_lower_bounds(node.path,regions,hulls[candidate],cycle,node.dual);
                     const double bound=*std::min_element(bounds.begin(),bounds.end());
                     if(bound>strongest){strongest=bound;chosen=candidate;}
                 }
@@ -1186,7 +1195,7 @@ namespace tpp {
 				const size_t available_calls = result.calls < options.max_calls
 					? options.max_calls - result.calls : 0;
 				for (size_t child_index = batch_begin; child_index < batch_end; ++child_index) {
-					if ((cycle&&options.cycle_lazy) || evaluation_children.size() >= available_calls || limited()) break;
+					if ((cycle?options.cycle_lazy:options.lazy_oracles) || evaluation_children.size() >= available_calls || limited()) break;
                     strengthen_shared_bound(children[child_index]);
 					if (children[child_index].bound >= batch_cutoff) continue;
 					if(!note_oracle_call(children[child_index], false)) break;
@@ -1209,6 +1218,8 @@ namespace tpp {
 					for(auto &worker_workspace:parallel_workspaces) {
 						worker_workspace.cache_disjoint_dispatch=options.oracle_dispatch_cache;
 						worker_workspace.cache_interval_geometry=options.oracle_interval_geometry_cache;
+                        worker_workspace.borrow_hybrid_geometry=options.oracle_borrow_geometry;
+                        worker_workspace.bound_before_optimality=options.oracle_bound_first;
 						worker_workspace.interpolated_zero_dual=options.interpolated_zero_dual;
 					}
 					const auto oracle_batch_began = std::chrono::steady_clock::now();
@@ -1272,6 +1283,7 @@ namespace tpp {
             queue.finish_branch(first_child);
 		}
         queue.report(result);
+        result.segment_visit_queries=segment_cache.queries;result.segment_visit_hits=segment_cache.hits;
 		result.search_seconds = duration(search_began);
 		result.search_maintenance_seconds = std::max(0.0, result.search_seconds - result.convex_oracle_wall_seconds
 			- result.decomposition_seconds - result.search_visit_check_seconds);
@@ -1634,6 +1646,8 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::visit_check_seconds);
 		sum(&UnorderedTppSolveResult::visit_query_evaluations);
 		sum(&UnorderedTppSolveResult::visit_query_cache_hits);
+        sum(&UnorderedTppSolveResult::segment_visit_queries);
+        sum(&UnorderedTppSolveResult::segment_visit_hits);
         sum(&UnorderedTppSolveResult::heuristic_visit_check_seconds);
         sum(&UnorderedTppSolveResult::search_visit_check_seconds);
         sum(&UnorderedTppSolveResult::finalization_visit_check_seconds);

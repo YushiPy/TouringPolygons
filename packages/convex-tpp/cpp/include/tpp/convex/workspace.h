@@ -42,6 +42,9 @@ namespace tpp {
 		bool cache_disjoint_dispatch = true;
 		// Reuse the binary coordinates of the same normalized exact polygons.
 		bool cache_interval_geometry = true;
+		// Borrow immutable exact geometry instead of copying it into each call.
+		bool borrow_hybrid_geometry = true;
+		bool bound_before_optimality = false;
 		// Additional feasible dual proposal for short/coincident contact blocks.
 		bool interpolated_zero_dual = false;
 

@@ -3,6 +3,10 @@
 #include "vector2.h"
 
 #include <cstddef>
+#include <array>
+#include <cstdint>
+#include <optional>
+#include <unordered_map>
 #include <vector>
 
 namespace tpp::unordered_detail {
@@ -11,6 +15,7 @@ namespace tpp::unordered_detail {
 	struct Contact {
 		double distance;
 		double position;
+		double squared_distance = 0;
 	};
 	struct ContactEdge {
 		Vector2 start, end, direction;
@@ -31,6 +36,17 @@ namespace tpp::unordered_detail {
 		std::vector<ContactSegment> segments;
 		explicit PreparedContactPath(const Polygon &path = {});
 		void prepare(const Polygon &path);
+	};
+	class SegmentContactCache {
+		using Key = std::array<uint64_t,4>;
+		struct Hash { size_t operator()(const Key &key) const; };
+		std::unordered_map<Key,std::vector<std::optional<Contact>>,Hash> entries_;
+        std::vector<const PreparedContactPolygon *> polygons_;
+        std::optional<uint64_t> tolerance_bits_;
+	public:
+		size_t queries=0,hits=0;
+		Contact query(const PreparedContactPath &path,const PreparedContactPolygon &polygon,
+			size_t polygon_index,size_t polygon_count,double tolerance);
 	};
 
 	double path_length(const Polygon &path);

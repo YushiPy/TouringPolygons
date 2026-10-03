@@ -96,6 +96,7 @@ int main(int argc, char **argv) {
 				std::cout << "--no-oracle-dispatch-cache repeats exact polygon-pair classification for an ablation.\n";
 				std::cout << "--no-oracle-interval-geometry-cache repeats normalized rational-to-double conversion for an ablation.\n";
 				std::cout << "--no-prepared-visits repeats polygon/path preparation and contact queries for an ablation.\n";
+                std::cout << "TPP ablations: --no-borrow-oracle-geometry, --no-segment-visit-cache; experimental: --lazy-oracles, --bound-first, --path-dual-reuse, --path-strong-branching.\n";
 				std::cout << "--relocate-initial optimizes insertion slots and contacts in the initial route.\n";
 				std::cout << "--interpolated-zero-dual tries a feasible interpolated dual for short contact blocks.\n";
 				return 0;
@@ -116,7 +117,15 @@ int main(int argc, char **argv) {
 			if (flag == "--cycle") {cycle = true; continue;}
 			if (flag == "--no-oracle-dispatch-cache") {options.oracle_dispatch_cache=false;continue;}
 			if (flag == "--no-oracle-interval-geometry-cache") {options.oracle_interval_geometry_cache=false;continue;}
-			if (flag == "--no-prepared-visits") {options.prepared_visit_queries=false;continue;}
+			if (flag == "--borrow-oracle-geometry") {options.oracle_borrow_geometry=true;continue;}
+            if (flag == "--no-borrow-oracle-geometry") {options.oracle_borrow_geometry=false;continue;}
+            if (flag == "--bound-first") {options.oracle_bound_first=true;continue;}
+            if (flag == "--lazy-oracles") {options.lazy_oracles=true;continue;}
+            if (flag == "--segment-visit-cache") {options.segment_visit_cache=true;continue;}
+            if (flag == "--no-segment-visit-cache") {options.segment_visit_cache=false;continue;}
+            if (flag == "--path-dual-reuse") {options.path_dual_reuse=true;continue;}
+            if (flag == "--path-strong-branching") {options.path_strong_branching=true;continue;}
+            if (flag == "--no-prepared-visits") {options.prepared_visit_queries=false;continue;}
 			if (flag == "--relocate-initial") {options.relocate_initial_heuristic=true;continue;}
 			if (flag == "--interpolated-zero-dual") {options.interpolated_zero_dual=true;continue;}
             if(flag=="--cycle-optimization") {
@@ -284,6 +293,8 @@ int main(int argc, char **argv) {
 			<< ",\"oracle_dispatch_pair_queries\":" << r.oracle_dispatch_pair_queries
 			<< ",\"visit_query_evaluations\":" << r.visit_query_evaluations
 			<< ",\"visit_query_cache_hits\":" << r.visit_query_cache_hits
+            << ",\"segment_visit_queries\":" << r.segment_visit_queries
+            << ",\"segment_visit_hits\":" << r.segment_visit_hits
 			<< ",\"initial_relocation_moves\":" << r.initial_relocation_moves
 			<< ",\"initial_relocation_seconds\":" << r.initial_relocation_seconds
 			<< ",\"oracle_dispatch_pair_cache_hits\":" << r.oracle_dispatch_pair_cache_hits

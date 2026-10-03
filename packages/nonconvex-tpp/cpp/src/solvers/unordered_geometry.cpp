@@ -1,4 +1,6 @@
 #include "unordered_geometry.h"
+#include <bit>
+#include <stdexcept>
 
 #include <algorithm>
 #include <cmath>
@@ -201,7 +203,7 @@ namespace tpp::unordered_detail {
 	template<class SegmentAt, class EdgeAt>
 	Contact contact_impl(size_t segment_count, const SegmentAt &segment_at,
 		size_t edge_count, const EdgeAt &edge_at, Vector2 minimum, Vector2 maximum, double tolerance) {
-		Contact best{std::numeric_limits<double>::infinity(), 0};
+		Contact best{std::numeric_limits<double>::infinity(), 0, std::numeric_limits<double>::infinity()};
 		double best_squared = std::numeric_limits<double>::infinity();
 		const double tolerance_squared = tolerance * tolerance;
 		for (size_t i = 0; i < segment_count; ++i) {
@@ -236,6 +238,7 @@ namespace tpp::unordered_detail {
 			if (std::isfinite(first)) return {0, double(i) + first};
 			if (inside_edges(b, edge_count, edge_at, tolerance)) return {0, double(i+1)};
 		}
+		best.squared_distance = best_squared;
 		best.distance = std::sqrt(best_squared);
 		return best;
 	}
@@ -254,4 +257,49 @@ namespace tpp::unordered_detail {
 			polygon.edges.size(),[&](size_t i)->const ContactEdge&{return polygon.edges[i];},
 			polygon.minimum,polygon.maximum,tolerance);
 	}
+    size_t SegmentContactCache::Hash::operator()(const Key &key) const {
+        size_t result=0;
+        for(auto bits:key)result^=std::hash<uint64_t>{}(bits)+0x9e3779b97f4a7c15ULL+(result<<6)+(result>>2);
+        return result;
+    }
+    Contact SegmentContactCache::query(const PreparedContactPath &path,
+            const PreparedContactPolygon &polygon,size_t polygon_index,size_t polygon_count,double tolerance) {
+        if(polygon_index>=polygon_count)throw std::out_of_range("Invalid segment-cache polygon");
+        const auto tolerance_bits=std::bit_cast<uint64_t>(tolerance);
+        if(polygons_.size()!=polygon_count||tolerance_bits_!=tolerance_bits) {
+            entries_.clear();polygons_.assign(polygon_count,nullptr);tolerance_bits_=tolerance_bits;
+        }
+        if(polygons_[polygon_index]!=&polygon) {
+            entries_.clear();polygons_[polygon_index]=&polygon;
+        }
+        const size_t max_entries=std::max(size_t(1),std::min(size_t(1024),
+            size_t(2*1024*1024)/sizeof(std::optional<Contact>)/polygon_count));
+        Contact best{INFINITY,0,INFINITY};
+        for(size_t i=0;i<path.segments.size();++i) {
+            const auto &segment=path.segments[i];
+            const double dx=std::max({0.0,polygon.minimum.x-segment.maximum.x,segment.minimum.x-polygon.maximum.x});
+            const double dy=std::max({0.0,polygon.minimum.y-segment.maximum.y,segment.minimum.y-polygon.maximum.y});
+            if(dx*dx+dy*dy>best.squared_distance)continue;
+            const Key key{std::bit_cast<uint64_t>(segment.start.x),std::bit_cast<uint64_t>(segment.start.y),
+                std::bit_cast<uint64_t>(segment.end.x),std::bit_cast<uint64_t>(segment.end.y)};
+            auto found=entries_.find(key);
+            if(found==entries_.end()) {
+                // Bounded per-search scratch; no polygon/path is retained in nodes.
+                if(entries_.size()>=max_entries)entries_.clear();
+                found=entries_.emplace(key,std::vector<std::optional<Contact>>(polygon_count)).first;
+            }
+            auto &slot=found->second.at(polygon_index);
+            ++queries;
+            if(slot)++hits;
+            else slot=contact_impl(1,[&](size_t)->const ContactSegment&{return segment;},
+                polygon.edges.size(),[&](size_t j)->const ContactEdge&{return polygon.edges[j];},
+                polygon.minimum,polygon.maximum,tolerance);
+            auto candidate=*slot;candidate.position+=double(i);
+            if(candidate.distance==0)return candidate;
+            if(candidate.squared_distance<best.squared_distance)best=candidate;
+        }
+        best.distance=std::sqrt(best.squared_distance);
+        return best;
+    }
+
 }

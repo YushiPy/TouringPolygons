@@ -96,6 +96,19 @@ do cache. O caminho que encerra pelo certificado intervalar não prepara um
 vetor adicional de índices por chamada. A retenção acrescenta um `size_t` por
 entrada e preserva o limite de 8192 vértices; nenhum contato ou ótimo é retido.
 
+`DynamicConvexTppWorkspace::borrow_hybrid_geometry` permite usar referências
+imutáveis aos polígonos racionais preparados. Handles locais conservam os
+objetos durante toda a chamada, inclusive se o cache for limpo ao preparar
+outro polígono. O buffer por valor continua disponível para ablação; coordenadas,
+normalização, predicados e certificados são iguais. A API sem workspace conserva
+seus vetores próprios. A opção é true por padrão; false repete as cópias para ablação.
+
+`bound_before_optimality` permite tentar o corte dual racional antes do KKT
+completo, somente após materializar contatos factíveis. O filtro flutuante não
+é usado para poda. Um corte certificado dispensa apenas a prova de otimalidade
+local; os limites e a factibilidade mantêm o contrato existente. O modo shadow
+conserva seu caminho de validação completo. Essa opção permanece false por padrão.
+
 `dispatch_seconds` inclui preparação/cópias de geometria e classificação de
 disjunção. `proposal_preparation_seconds` separa a preparação dos vértices
 binários e objetos de replay da proposta intervalar. `bound_evaluation_seconds`

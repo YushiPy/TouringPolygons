@@ -6,6 +6,7 @@
 #include "certified_internal.h"
 #include "zero_contact_certificate.h"
 #include "binary_certificate.h"
+#include "polygon_view.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
 #include <algorithm>
@@ -62,6 +63,7 @@ using Clock = std::chrono::steady_clock;
 
 using Point = tpp::ConvexRationalPoint;
 using Polygon=std::vector<Point>;
+using ExactPolygons=detail::PolygonView<Point>;
 enum class ContactFeatureKind { Interior, Edge, Vertex };
 struct ContactFeature { ContactFeatureKind kind=ContactFeatureKind::Interior;size_t index=0; };
 
@@ -134,7 +136,7 @@ bool classify_contact(const Point &q,const Polygon &polygon,ContactFeature &feat
     return true;
 }
 
-bool materialize_path(const std::vector<Point> &path,const std::vector<Polygon> &polygons,
+bool materialize_path(const std::vector<Point> &path,const ExactPolygons &polygons,
                       bool last,std::vector<Point> &contacts,std::vector<ContactFeature> &features) {
     if(path.empty())return false;
     contacts.clear();contacts.reserve(polygons.size());features.clear();features.reserve(polygons.size());
@@ -164,7 +166,7 @@ bool materialize_path(const std::vector<Point> &path,const std::vector<Polygon> 
     return true;
 }
 
-bool materialize(const std::vector<Vector2> &raw_path,const std::vector<Polygon> &polygons,
+bool materialize(const std::vector<Vector2> &raw_path,const ExactPolygons &polygons,
                  bool last,std::vector<Point> &contacts,std::vector<ContactFeature> &features) {
     std::vector<Point> path;path.reserve(raw_path.size());
     for(auto v:raw_path) {
@@ -179,9 +181,9 @@ void append(std::vector<ConvexArithmeticPoint<Scalar>> &path,const ConvexArithme
     if(path.empty()||!(path.back()==p))path.push_back(p);
 }
 
-template<class Scalar>
+template<class Scalar, class Polygons>
 ConvexArithmeticPoint<Scalar> trace_vertex(const detail::DirectionalTraceStep &step,
-        const std::vector<std::vector<ConvexArithmeticPoint<Scalar>>> &polygons) {
+        const Polygons &polygons) {
     using Point=ConvexArithmeticPoint<Scalar>;
     if(!step.vertex_is_edge_intersection)return Point(step.defining_point);
     if(step.level==0||step.level>polygons.size()||step.defining_polygon>=polygons.size())
@@ -198,9 +200,9 @@ ConvexArithmeticPoint<Scalar> trace_vertex(const detail::DirectionalTraceStep &s
     return a+edge*((c-a).cross(other_edge)/denominator);
 }
 
-template<class Scalar>
+template<class Scalar, class Polygons>
 std::vector<ConvexArithmeticPoint<Scalar>> replay_trace(const Vector2 &start,const Vector2 &target,
-        const std::vector<std::vector<ConvexArithmeticPoint<Scalar>>> &polygons,
+        const Polygons &polygons,
         const std::vector<detail::DirectionalTraceStep> &trace,
         std::vector<std::optional<ConvexArithmeticPoint<Scalar>>> &bend_contacts) {
     using Point=ConvexArithmeticPoint<Scalar>;
@@ -216,7 +218,7 @@ std::vector<ConvexArithmeticPoint<Scalar>> replay_trace(const Vector2 &start,con
         const auto &polygon=polygons[level-1];
         if(step.original_edge>=polygon.size())throw std::runtime_error("Directional trace edge out of range");
         if(step.region==detail::DirectionalTraceRegion::Vertex) {
-            const Point vertex=trace_vertex(step,polygons);
+            const Point vertex=trace_vertex<Scalar>(step,polygons);
             bend_contacts[level-1]=vertex;
             self(self,vertex,level-1);append(path,q);return;
         }
@@ -241,7 +243,7 @@ std::vector<ConvexArithmeticPoint<Scalar>> replay_trace(const Vector2 &start,con
 }
 
 std::vector<Point> replay_trace_exact(const Vector2 &start,const Vector2 &target,
-        const std::vector<Polygon> &polygons,const std::vector<detail::DirectionalTraceStep> &trace,
+        const ExactPolygons &polygons,const std::vector<detail::DirectionalTraceStep> &trace,
         std::vector<std::optional<Point>> &bend_contacts) {
     return replay_trace(start,target,polygons,trace,bend_contacts);
 }
@@ -380,7 +382,7 @@ bool logarithmic_clip(const Point &a,const Point &b,const Polygon &polygon,size_
     return true;
 }
 
-bool materialize_trace_path(const std::vector<Point> &path,const std::vector<Polygon> &polygons,
+bool materialize_trace_path(const std::vector<Point> &path,const ExactPolygons &polygons,
         const std::vector<detail::DirectionalTraceStep> &trace,
         const std::vector<std::optional<Point>> &bend_contacts,bool last,
         std::vector<Point> &contacts,std::vector<ContactFeature> &features,
@@ -422,7 +424,7 @@ bool materialize_trace_path(const std::vector<Point> &path,const std::vector<Pol
 }
 
 bool materialize(const std::vector<detail::DirectionalMapContact> &details,
-                 const std::vector<Polygon> &polygons,std::vector<Point> &contacts) {
+                 const ExactPolygons &polygons,std::vector<Point> &contacts) {
     if(details.size()!=polygons.size())return false;
     contacts.clear();contacts.reserve(details.size());
     for(size_t i=0;i<details.size();++i) {
@@ -479,7 +481,7 @@ bool pair_disjoint(const Polygon &a,const Polygon &b,const Bounds &a_bounds,cons
     return true;
 }
 
-bool pairwise_disjoint(const std::vector<Polygon> &polygons,ConvexHybridStats &stats) {
+bool pairwise_disjoint(const ExactPolygons &polygons,ConvexHybridStats &stats) {
     std::vector<Bounds> polygon_bounds;polygon_bounds.reserve(polygons.size());
     for(const auto &p:polygons)polygon_bounds.push_back(bounds(p));
     for(size_t i=0;i<polygons.size();++i)for(size_t j=i+1;j<polygons.size();++j) {
@@ -531,7 +533,7 @@ bool suggests_boundary_disjoint(const std::vector<std::vector<Vector2>> &polygon
 }
 
 std::vector<detail::DirectionalTraceStep> propose_boundary_trace(Vector2 start,Vector2 target,
-        const std::vector<std::vector<Vector2>> &input,const std::vector<Polygon> &polygons,bool contract) {
+        const std::vector<std::vector<Vector2>> &input,const ExactPolygons &polygons,bool contract) {
     auto proposal=input;
     if(contract) {
         proposal.clear();proposal.reserve(polygons.size());
@@ -551,7 +553,7 @@ std::vector<detail::DirectionalTraceStep> propose_boundary_trace(Vector2 start,V
 #endif
 
 ConvexFallbackReason certify(const Vector2 &start,const Vector2 &target,
-        const std::vector<Polygon> &polygons,const std::vector<Point> &contacts,
+        const ExactPolygons &polygons,const std::vector<Point> &contacts,
         const std::vector<ContactFeature> &features,
         std::size_t &exact_predicates,std::size_t &zero_link_witnesses) {
     if(contacts.size()!=polygons.size()||features.size()!=polygons.size())
@@ -679,7 +681,7 @@ Point feasible_unit_direction(const Point &direction) {
 }
 
 double candidate_dual_lower(Vector2 start,Vector2 target,
-        const std::vector<Polygon> &polygons,const std::vector<Point> &contacts) {
+        const ExactPolygons &polygons,const std::vector<Point> &contacts) {
     std::vector<Point> chain;chain.reserve(contacts.size()+2);chain.emplace_back(start);
     chain.insert(chain.end(),contacts.begin(),contacts.end());chain.emplace_back(target);
     std::vector<Point> base;std::vector<bool> zero;
@@ -810,7 +812,7 @@ bool interval_bounds_enabled(const ConvexHybridOptions &options) {
 #elif defined(_MSC_VER)
 __declspec(noinline)
 #endif
-bool try_interval_trace_bound(Vector2 start,Vector2 target,const std::vector<Polygon> &exact,
+bool try_interval_trace_bound(Vector2 start,Vector2 target,const ExactPolygons &exact,
         const std::vector<detail::DirectionalTraceStep> &trace,const ConvexHybridOptions &options,
         ConvexHybridResult &result,const std::vector<std::vector<Vector2>> *prepared_binary=nullptr) {
     result.stats.interval_bounds_attempted=true;
@@ -893,7 +895,7 @@ bool try_interval_trace_bound(Vector2 start,Vector2 target,const std::vector<Pol
 __declspec(noinline)
 #endif
 bool try_interval_boundary_bound(Vector2 start,Vector2 target,
-        const std::vector<std::vector<Vector2>> &input,const std::vector<Polygon> &polygons,
+        const std::vector<std::vector<Vector2>> &input,const ExactPolygons &polygons,
         const ConvexHybridOptions &options,ConvexHybridResult &result,
         const std::vector<std::vector<Vector2>> *prepared_binary=nullptr) {
     {
@@ -921,7 +923,7 @@ bool try_interval_boundary_bound(Vector2 start,Vector2 target,
 __declspec(noinline)
 #endif
 bool recover_touching_disjoint(const Vector2 &start,const Vector2 &target,
-        const std::vector<std::vector<Vector2>> &input,const std::vector<Polygon> &polygons,
+        const std::vector<std::vector<Vector2>> &input,const ExactPolygons &polygons,
         ConvexHybridResult &result,std::vector<Point> &exact_contacts,
         const std::vector<size_t> *prepared_rotations) {
     const bool suggested=[&] {
@@ -1059,21 +1061,26 @@ struct ConvexHybridCache {
     }
 };
 
-static std::vector<Polygon> cached_exact_polygons(
+static ExactPolygons cached_exact_polygons(
         const std::vector<std::vector<Vector2>> &input,DynamicConvexTppWorkspace &workspace,
         ConvexHybridStats &stats,std::vector<std::vector<Vector2>> &binary,
-        std::vector<ConvexHybridCache::Prepared> &selected) {
+        std::vector<ConvexHybridCache::Prepared> &selected,std::vector<Polygon> &owned) {
     // Copies of a workspace keep independent mutable caches.
     if(!workspace.hybrid_cache || workspace.hybrid_cache.use_count()!=1)
         workspace.hybrid_cache=std::make_shared<ConvexHybridCache>();
-    std::vector<Polygon> result;result.reserve(input.size());
+    ExactPolygons result;result.reserve(input.size());
     selected.reserve(input.size());
     // Prepared handles survive an eviction during this call. Pair identities
     // are never recycled, including when a polygon is too large to retain.
     for(const auto &polygon:input)selected.push_back(workspace.hybrid_cache->get(polygon));
     if(workspace.cache_interval_geometry)binary.reserve(input.size());
+    if(!workspace.borrow_hybrid_geometry) {
+        owned.reserve(selected.size());
+        for(const auto &entry:selected)owned.push_back(entry->exact);
+    }
+    size_t index=0;
     for(const auto &entry:selected) {
-        result.push_back(entry->exact);
+        result.push_back(workspace.borrow_hybrid_geometry?entry->exact:owned[index++]);
         if(workspace.cache_interval_geometry)binary.push_back(entry->binary);
     }
     stats.disjoint=workspace.cache_disjoint_dispatch
@@ -1125,7 +1132,9 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
     }
     std::vector<std::vector<Vector2>> binary;
     std::vector<ConvexHybridCache::Prepared> selected;
-    const auto polygons=workspace?cached_exact_polygons(input,*workspace,result.stats,binary,selected):exact_polygons(input);
+    std::vector<Polygon> owned;
+    if(!workspace)owned=exact_polygons(input);
+    const ExactPolygons polygons=workspace?cached_exact_polygons(input,*workspace,result.stats,binary,selected,owned):ExactPolygons(owned);
     const auto *prepared_binary=workspace&&workspace->cache_interval_geometry?&binary:nullptr;
     // Gather the cached indices only when rational materialization is needed.
     // The common interval return does not allocate another per-call vector.
@@ -1184,6 +1193,23 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
         if(options.mode==ConvexHybridMode::Unchecked) {
             result.backend=result.stats.disjoint?ConvexHybridBackend::DoubleDisjoint:ConvexHybridBackend::DoubleIntersection;
             set_bounds(result,start,target);result.stats.total_seconds=elapsed(began);return result;
+        }
+        if(workspace&&workspace->bound_before_optimality&&std::isfinite(options.cutoff)
+                &&options.mode==ConvexHybridMode::SafeCertified&&!options.shadow_rational) {
+            const auto path=reconstruct_convex_polyline(start,target,result.contacts,false);
+            const double rough=[&] {
+                PhaseTimer timer{result.stats.bound_evaluation_seconds};
+                return certified_detail::dual_bound(path,input);
+            }();
+            if(rough>=options.cutoff-1e-7*std::max(1.0,std::abs(options.cutoff))) {
+                const double dual=candidate_dual();
+                if(dual>=options.cutoff) {
+                    set_exact_bounds(result,start,target,exact_contacts);
+                    result.lower_bound=dual;result.cutoff_pruned=true;
+                    result.backend=result.stats.disjoint?ConvexHybridBackend::DoubleDisjoint:ConvexHybridBackend::DoubleIntersection;
+                    result.stats.total_seconds=elapsed(began);return result;
+                }
+            }
         }
         const auto certificate_began=Clock::now();
         result.fallback_reason=certify(start,target,polygons,exact_contacts,contact_features,

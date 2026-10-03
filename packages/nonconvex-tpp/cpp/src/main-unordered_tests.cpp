@@ -51,6 +51,7 @@ void check_prepared_contacts() {
         if(trial%3==0)std::reverse(polygon.begin(),polygon.end());
         if(trial%5==0)polygon.push_back(polygon.front());
         const PreparedContactPolygon prepared_polygon(polygon);
+        SegmentContactCache cache;
         PreparedContactPath prepared_path;
         for(size_t count:{size_t(0),size_t(1),size_t(2),size_t(7)}) {
             Polygon path;
@@ -62,8 +63,49 @@ void check_prepared_contacts() {
                 const auto raw=contact(path,polygon,tolerance),prepared=contact(prepared_path,prepared_polygon,tolerance);
                 if(raw.distance!=prepared.distance||raw.position!=prepared.position)
                     throw std::runtime_error("Prepared contact changed distance or visit position.");
+                // Each cache has one immutable polygon and tolerance. Repeat
+                // paths, shared segments and eviction are exercised separately.
+                SegmentContactCache local;
+                for(size_t repeat=0;repeat<2;++repeat) {
+                    const auto cached=local.query(prepared_path,prepared_polygon,0,1,tolerance);
+                    if(raw.distance!=cached.distance||raw.position!=cached.position)
+                        throw std::runtime_error("Segment cache changed a visit or its tie order");
+                }
                 ++checks;
             }
+        }
+        // Changed paths share an unchanged first segment with earlier calls.
+        Polygon changing{{coordinate(random),coordinate(random)},polygon.front(),{coordinate(random),coordinate(random)}};
+        for(size_t repeat=0;repeat<4;++repeat) {
+            changing.back()={coordinate(random),coordinate(random)};
+            prepared_path.prepare(changing);
+            const auto raw=contact(changing,polygon,1e-8),cached=cache.query(prepared_path,prepared_polygon,0,1,1e-8);
+            if(raw.distance!=cached.distance||raw.position!=cached.position)throw std::runtime_error("Segment reuse changed a visit");
+        }
+    }
+    const Polygon stable{{-1,-1},{2,-1},{2,2},{-1,2}};
+    const PreparedContactPolygon prepared_stable(stable);
+    SegmentContactCache evicting;
+    for(size_t i=0;i<2400;++i) {
+        const Polygon path{{-3,double(i)/100},{3,double(i)/100},{4,4}};
+        const PreparedContactPath prepared(path);
+        const auto raw=contact(path,stable,1e-8),cached=evicting.query(prepared,prepared_stable,0,1,1e-8);
+        if(raw.distance!=cached.distance||raw.position!=cached.position)throw std::runtime_error("Segment eviction changed a contact");
+        ++checks;
+    }
+    // Reusing the scratch object across tolerances, polygon identities and
+    // polygon counts must never reuse a contact from different geometry.
+    const Polygon shifted{{9,9},{12,9},{12,12},{9,12}};
+    const PreparedContactPolygon prepared_shifted(shifted);
+    const Polygon near_path{{-3,-1.0005},{3,-1.0005}};
+    const PreparedContactPath prepared_near(near_path);
+    for(double tolerance:{0.0,0.01,0.0})for(size_t count:{size_t(1),size_t(2)}) {
+        for(const auto *polygon:{&prepared_stable,&prepared_shifted,&prepared_stable}) {
+            const auto raw=contact(prepared_near,*polygon,tolerance);
+            const auto cached=evicting.query(prepared_near,*polygon,0,count,tolerance);
+            if(raw.distance!=cached.distance||raw.position!=cached.position)
+                throw std::runtime_error("Segment cache reused incompatible geometry or tolerance");
+            ++checks;
         }
     }
     std::cout<<"Prepared visits passed "<<checks<<" distance/position comparisons.\n";
@@ -142,6 +184,10 @@ void check_sequence_storage() {
             const auto baseline=solve();
             options.prepared_visit_queries=false;same_search(baseline,solve());
             options.prepared_visit_queries=true;
+            options.segment_visit_cache=true;same_search(baseline,solve());
+            options.segment_visit_cache=false;
+            options.oracle_borrow_geometry=true;same_search(baseline,solve());
+            options.oracle_borrow_geometry=false;
             for(auto caches:{std::pair{false,true},std::pair{true,false},std::pair{false,false}}) {
                 options.oracle_dispatch_cache=caches.first;
                 options.oracle_interval_geometry_cache=caches.second;
@@ -239,6 +285,24 @@ void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
 		std::cerr << "Expected " << best << ", got " << result.upper_bound << '\n';
 		throw std::runtime_error("Permutation enumeration mismatch.");
 	}
+    for(unsigned variant=0;variant<7;++variant) {
+        UnorderedTppSolveOptions candidate;
+        candidate.oracle_borrow_geometry=variant==0||variant==6;
+        candidate.lazy_oracles=variant==1||variant==6;
+        candidate.oracle_bound_first=variant==2||variant==6;
+        candidate.segment_visit_cache=variant==3||variant==6;
+        candidate.path_dual_reuse=variant==4||variant==6;
+        candidate.path_strong_branching=variant==5||variant==6;
+        for(size_t cap:{size_t(0),size_t(1),size_t(3),size_t(10),size_t(1000000)}) {
+            candidate.max_calls=cap;
+            const auto changed=tpp_nonconvex_unordered_solve(s,t,polygons,candidate);
+            if(changed.calls>cap||changed.lower_bound>best+1e-6||changed.upper_bound<best-1e-6
+                ||(cap==1000000&&(!changed.exact||std::abs(changed.upper_bound-best)>1e-6*(1+best))))
+                throw std::runtime_error("Path optimization violated exhaustive bounds or budget");
+            for(const auto &p:polygons)if(unordered_detail::contact(changed.path,p,1e-8).distance>1e-8)
+                throw std::runtime_error("Path optimization returned an infeasible route");
+        }
+    }
 	tpp::UnorderedTppSolveOptions root_options;
 	root_options.detour_root = true;
 	const auto detour_result = tpp::tpp_nonconvex_unordered_solve(s, t, polygons, root_options);

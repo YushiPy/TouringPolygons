@@ -170,6 +170,42 @@ namespace tpp::unordered_detail {
 			else bound += (target - start).dot(right - directions.back());
 			bounds[j] = std::max(start.distance_to(target), double(bound) - safety);
 		}
+        if(!inherited_dual.empty()) {
+            using R=ConvexRational;using P=ConvexRationalPoint;
+            if(inherited_dual.size()!=n+1)throw std::invalid_argument("Invalid path dual size");
+            for(const auto &u:inherited_dual)if(u.dot(u)>1)throw std::invalid_argument("Invalid path dual norm");
+            const P origin(start),destination(target);
+            auto exact_support=[&](const Polygon &polygon,const P &normal) {
+                R value=(P(polygon.front())-origin).dot(normal);
+                for(size_t k=1;k<polygon.size();++k)value=std::min(value,(P(polygon[k])-origin).dot(normal));
+                return value;
+            };
+            auto unit=[](Vector2 a,Vector2 b) {
+                const P delta=P(b)-P(a);const R squared=delta.dot(delta);
+                double norm=std::hypot(b.x-a.x,b.y-a.y);
+                if(squared==0||!std::isfinite(norm)||norm==0)return P{};
+                while(std::isfinite(norm)&&R(norm)*R(norm)<squared)norm=std::nextafter(norm,INFINITY);
+                return std::isfinite(norm)?delta*(R(1)/R(norm)):P{};
+            };
+            std::vector<R> terms(n);R total=(destination-origin).dot(inherited_dual.back());
+            for(size_t i=0;i<n;++i)total+=terms[i]=exact_support(*regions[i],inherited_dual[i]-inherited_dual[i+1]);
+            for(size_t j=0;j<=n;++j) {
+                const auto q=best_contact(contacts[j],contacts[j+1],inserted,inserted.front());
+                auto left=unit(contacts[j],q),right=unit(q,contacts[j+1]);
+                // A zero edge may carry its parent's feasible disk vector.
+                if(left.zero())left=inherited_dual[j];
+                if(right.zero())right=inherited_dual[j];
+                R bound=total+exact_support(inserted,left-right);
+                if(j)bound+=exact_support(*regions[j-1],inherited_dual[j-1]-left)-terms[j-1];
+                if(j<n)bound+=exact_support(*regions[j],right-inherited_dual[j+1])-terms[j];
+                else bound+=(destination-origin).dot(right-inherited_dual.back());
+                bound=std::max(R(0),bound);
+                double lower=bound.convert_to<double>();
+                if(std::isinf(lower))lower=std::numeric_limits<double>::max();
+                while(R(lower)>bound)lower=std::nextafter(lower,-INFINITY);
+                bounds[j]=std::max(bounds[j],lower);
+            }
+        }
 		return bounds;
 	}
     namespace {

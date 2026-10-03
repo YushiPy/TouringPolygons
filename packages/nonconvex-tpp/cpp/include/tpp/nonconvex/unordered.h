@@ -46,6 +46,12 @@ namespace tpp {
 		// Reuse immutable edges/segments and contacts for the last binary path.
 		bool prepared_visit_queries = true;
 		bool interpolated_zero_dual = false;
+        bool oracle_borrow_geometry = true;
+        bool oracle_bound_first = false;
+        bool lazy_oracles = false;
+        bool segment_visit_cache = true;
+        bool path_dual_reuse = false;
+        bool path_strong_branching = false;
 		// Record an explanatory execution trace. Disabled by default so normal
 		// benchmark runs keep the same memory and timing behavior.
 		bool trace = false;
@@ -256,6 +262,7 @@ namespace tpp {
 		double decomposition_seconds = 0.0;
 		double visit_check_seconds = 0.0;
 		size_t visit_query_evaluations = 0, visit_query_cache_hits = 0;
+        size_t segment_visit_queries = 0, segment_visit_hits = 0;
 		double heuristic_visit_check_seconds = 0.0;
 		double search_visit_check_seconds = 0.0;
 		double finalization_visit_check_seconds = 0.0;
