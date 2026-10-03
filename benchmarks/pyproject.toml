@@ -1,0 +1,20 @@
+[project]
+name = "touring-polygons-benchmarks"
+version = "0.1.0"
+description = "Generation, independent validation and orchestration for Touring Polygons benchmarks."
+requires-python = ">=3.12"
+dependencies = [
+	"cmake>=3.23,<4",
+	"matplotlib>=3.11.1,<4",
+	"osmium>=4.3.1,<5",
+	"shapely>=2.1.2,<3",
+]
+
+[dependency-groups]
+dev = ["ruff>=0.16.5,<0.17"]
+
+[tool.uv]
+package = false
+
+[tool.ruff.format]
+indent-style = "tab"

@@ -3,6 +3,7 @@
 #include "cycle_internal.h"
 #include "cycle_zero_certificate.h"
 #include "cycle_interval.h"
+#include "binary_certificate.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
 
@@ -166,30 +167,11 @@ template<class Contacts> bool cutoff_promising(const std::vector<Polygon> &polyg
 }
 
 using Interval=tpp::detail::CycleInterval;
-struct IntervalPoint {
-    Interval x,y;
-    IntervalPoint() = default;
-    explicit IntervalPoint(Vector2 p):x(p.x),y(p.y) {}
-    IntervalPoint(Interval a,Interval b):x(a),y(b) {}
-    IntervalPoint operator-(const IntervalPoint &p) const {return {x-p.x,y-p.y};}
-    Interval dot(const IntervalPoint &p) const {return x*p.x+y*p.y;}
-    Interval cross(const IntervalPoint &p) const {return x*p.y-y*p.x;}
-};
+using IntervalPoint=tpp::detail::IntervalPoint;
 struct IntervalBounds {double dual=0,primal_lower=0,primal_upper=0;};
 bool interval_inside(Vector2 q,const std::vector<Vector2> &p,const Polygon &exact,size_t &predicates) {
     if(p.size()<3) {++predicates;return inside(Point(q),exact);}
-    for(const auto &v:p)if(q==v)return true;
-    std::optional<Point> rational_q;
-    for(size_t i=0;i<p.size();++i) {
-        const size_t next=(i+1)%p.size();
-        const auto cross=(IntervalPoint(p[next])-IntervalPoint(p[i])).cross(IntervalPoint(q)-IntervalPoint(p[i]));
-        if(cross.hi<0)return false;
-        if(cross.lo>=0)continue;
-        if(!rational_q)rational_q.emplace(q);
-        ++predicates;
-        if((exact[next]-exact[i]).cross(*rational_q-exact[i])<0)return false;
-    }
-    return true;
+    return tpp::detail::interval_convex_contains(q,p,exact,predicates);
 }
 std::optional<IntervalBounds> interval_cycle_bounds(const std::vector<std::vector<Vector2>> &p,
                                                     const std::vector<Vector2> &q) {

@@ -3,7 +3,11 @@
 
 #include <boost/multiprecision/cpp_int.hpp>
 #ifdef TPP_EXPERIMENT_NATIVE_DOUBLE
+#ifdef TPP_DIRECTIONAL_FILTERED
+#include "filtered_rational.h"
+#else
 #include "native_double_experiment.h"
+#endif
 #endif
 #include <algorithm>
 #include <cmath>
@@ -17,7 +21,11 @@ namespace tpp::detail {
 namespace {
 
 #ifdef TPP_EXPERIMENT_NATIVE_DOUBLE
+#ifdef TPP_DIRECTIONAL_FILTERED
+using Scalar = FilteredRational;
+#else
 using Scalar = NativeDoubleExperimentScalar;
+#endif
 #else
 using Scalar = tpp::ConvexRational;
 #endif
@@ -546,7 +554,14 @@ public:
 
 }
 
-#if defined(TPP_DIRECTIONAL_DOUBLE_VARIANT)
+#if defined(TPP_DIRECTIONAL_FILTERED)
+std::vector<DirectionalTraceStep> solve_intersecting_map_trace_filtered(
+        const Vector2 &start,const Vector2 &target,const std::vector<std::vector<Vector2>> &polygons,
+        PreloadPolicy preload) {
+    FilteredRational::Scope arithmetic_scope;
+    return DirectionalMaps(start,target,polygons,preload).trace();
+}
+#elif defined(TPP_DIRECTIONAL_DOUBLE_VARIANT)
 std::vector<Vector2> solve_intersecting_maps_unchecked_double(const Vector2 &start,const Vector2 &target,
         const std::vector<std::vector<Vector2>> &polygons,PreloadPolicy preload) {
     return DirectionalMaps(start,target,polygons,preload).solve();

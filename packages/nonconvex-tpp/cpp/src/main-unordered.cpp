@@ -7,6 +7,9 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#if defined(__APPLE__) || defined(__linux__)
+#include <sys/resource.h>
+#endif
 
 namespace {
 	std::atomic_flag interrupted = ATOMIC_FLAG_INIT;
@@ -87,16 +90,35 @@ int main(int argc, char **argv) {
 		for (int i = 1; i < argc; ++i) {
 			const std::string flag = argv[i];
 			if (flag == "--help") {
-				std::cout << "Usage: tpp-unordered [--cycle] [--cycle-optimization cache|dual|features|lazy|root|branch|one-tree|learn|memo|bound-first|dual-screen|interval|share-bounds] [--portfolio | --portfolio-no-sharing | --search-strategy best-bound|dfs-bfs] [--threads N] [--absolute-gap N] [--relative-gap N] [--feasibility-tolerance N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace] [--oracle-capture FILE]\n"
+				std::cout << "Usage: tpp-unordered [--cycle] [--cycle-optimization cache|dual|features|lazy|root|branch|one-tree|learn|memo|bound-first|dual-screen|interval|share-bounds] [--portfolio | --portfolio-no-sharing | --search-strategy best-bound|dfs-bfs] [--sequence-storage native|packed|deltas] [--threads N] [--absolute-gap N] [--relative-gap N] [--feasibility-tolerance N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace] [--oracle-capture FILE]\n"
 					<< "stdin: sx sy tx ty polygon_count max_calls max_seconds, then each polygon's vertex count and coordinates. With --initial-path, append path point count and coordinates, including endpoints.\n";
 				std::cout << "--cycle solves TSPN: input endpoints are ignored; output and any initial path must be closed.\n";
+				std::cout << "--no-oracle-dispatch-cache repeats exact polygon-pair classification for an ablation.\n";
+				std::cout << "--no-oracle-interval-geometry-cache repeats normalized rational-to-double conversion for an ablation.\n";
+				std::cout << "--no-prepared-visits repeats polygon/path preparation and contact queries for an ablation.\n";
+				std::cout << "--relocate-initial optimizes insertion slots and contacts in the initial route.\n";
+				std::cout << "--interpolated-zero-dual tries a feasible interpolated dual for short contact blocks.\n";
 				return 0;
 			}
 			if(flag=="--oracle-capture") {
                 if(++i>=argc)throw std::invalid_argument("Expected an oracle capture path.");
                 options.oracle_capture_file=argv[i];continue;
             }
+            if (flag == "--sequence-storage") {
+                if (++i >= argc) throw std::invalid_argument("Expected a sequence storage mode.");
+                const std::string mode = argv[i];
+                if (mode == "native") options.sequence_storage = tpp::UnorderedSequenceStorage::Native;
+                else if (mode == "packed") options.sequence_storage = tpp::UnorderedSequenceStorage::Packed;
+                else if (mode == "deltas") options.sequence_storage = tpp::UnorderedSequenceStorage::Deltas;
+                else throw std::invalid_argument("Expected native, packed or deltas.");
+                continue;
+            }
 			if (flag == "--cycle") {cycle = true; continue;}
+			if (flag == "--no-oracle-dispatch-cache") {options.oracle_dispatch_cache=false;continue;}
+			if (flag == "--no-oracle-interval-geometry-cache") {options.oracle_interval_geometry_cache=false;continue;}
+			if (flag == "--no-prepared-visits") {options.prepared_visit_queries=false;continue;}
+			if (flag == "--relocate-initial") {options.relocate_initial_heuristic=true;continue;}
+			if (flag == "--interpolated-zero-dual") {options.interpolated_zero_dual=true;continue;}
             if(flag=="--cycle-optimization") {
                 if(++i>=argc)throw std::invalid_argument("Expected a cycle optimization.");
                 const std::string mode=argv[i];
@@ -211,6 +233,17 @@ int main(int argc, char **argv) {
 		}
 		const auto r = cycle ? tpp::tpp_nonconvex_tspn_solve(polygons, options)
 			: tpp::tpp_nonconvex_unordered_solve(start, target, polygons, options);
+        size_t process_peak_rss_bytes = 0;
+#if defined(__APPLE__) || defined(__linux__)
+        rusage usage{};
+        if (getrusage(RUSAGE_SELF,&usage)==0) {
+            process_peak_rss_bytes=static_cast<size_t>(usage.ru_maxrss);
+#ifndef __APPLE__
+            process_peak_rss_bytes*=1024;
+#endif
+        }
+#endif
+        const char *sequence_storage[] = {"native","packed","deltas"};
 		const char *termination[] = {"optimal", "call_limit", "time_limit", "numerical_limit", "portfolio_stopped", "interrupted"};
 		std::cout << std::setprecision(17) << "{\"schema_version\":\"free_order_v1\",\"exact\":" << (r.exact ? "true" : "false")
 			<< ",\"mode\":\"" << (cycle?"cycle":"path") << "\""
@@ -248,6 +281,13 @@ int main(int argc, char **argv) {
 			<< ",\"complete_piece_oracle_calls\":" << r.complete_piece_oracle_calls
 			<< ",\"oracle_cutoff_calls\":" << r.oracle_cutoff_calls
 			<< ",\"oracle_dual_cutoff_prunes\":" << r.oracle_dual_cutoff_prunes
+			<< ",\"oracle_dispatch_pair_queries\":" << r.oracle_dispatch_pair_queries
+			<< ",\"visit_query_evaluations\":" << r.visit_query_evaluations
+			<< ",\"visit_query_cache_hits\":" << r.visit_query_cache_hits
+			<< ",\"initial_relocation_moves\":" << r.initial_relocation_moves
+			<< ",\"initial_relocation_seconds\":" << r.initial_relocation_seconds
+			<< ",\"oracle_dispatch_pair_cache_hits\":" << r.oracle_dispatch_pair_cache_hits
+			<< ",\"oracle_dispatch_pair_exact_checks\":" << r.oracle_dispatch_pair_exact_checks
 			<< ",\"screened_nodes\":" << r.screened_nodes
             << ",\"one_tree_calls\":" << r.one_tree_calls
             << ",\"one_tree_cache_hits\":" << r.one_tree_cache_hits
@@ -317,11 +357,21 @@ int main(int argc, char **argv) {
 			<< ",\"fallback_local_optimality_calls\":" << r.fallback_local_optimality_calls
 			<< ",\"fallback_coincident_contact_calls\":" << r.fallback_coincident_contact_calls
 			<< ",\"predicate_exact_evaluations\":" << r.predicate_exact_evaluations
+			<< ",\"oracle_interval_bound_calls\":" << r.oracle_interval_bound_calls
+			<< ",\"oracle_contracted_bound_calls\":" << r.oracle_contracted_bound_calls
 			<< ",\"extended_precision_calls\":" << r.extended_precision_calls
 			<< ",\"oracle_time_limit_calls\":" << r.oracle_time_limit_calls
 			<< ",\"repaired_geometric_path_calls\":" << r.repaired_geometric_path_calls
 			<< ",\"insertion_branches\":" << r.insertion_branches << ",\"decomposition_branches\":" << r.decomposition_branches
 			<< ",\"peak_queue\":" << r.peak_queue
+            << ",\"sequence_storage\":\"" << sequence_storage[static_cast<size_t>(r.sequence_storage)] << "\""
+            << ",\"node_index_bits\":" << r.node_index_bits
+            << ",\"peak_sequence_storage_bytes\":" << r.peak_sequence_storage_bytes
+            << ",\"peak_frontier_node_bytes\":" << r.peak_frontier_node_bytes
+            << ",\"sequence_history_record_bytes\":" << r.sequence_history_record_bytes
+            << ",\"peak_sequence_records\":" << r.peak_sequence_records
+            << ",\"sequence_reconstructions\":" << r.sequence_reconstructions
+            << ",\"process_peak_rss_bytes\":" << process_peak_rss_bytes
 			<< ",\"profile\":{\"timing_semantics\":\"preprocessing, initial_heuristic, search, and finalization are disjoint top-level phases; initial_heuristic includes heuristic_visit_check and the optional initial convex refinement; search includes oracle batch wall time, decomposition, search_visit_check, and exclusive search_maintenance; convex_oracle_seconds sums per-call elapsed time and can exceed wall time when child evaluations run concurrently; convex_oracle_wall_seconds counts each batch once; the other convex_oracle counters sum per-call work; fallback includes its long_double and extended_precision phases; visit_check is the sum across top-level phases and overlaps them\""
 			<< ",\"preprocessing_seconds\":" << r.preprocessing_seconds
 			<< ",\"initial_heuristic_seconds\":" << r.initial_heuristic_seconds
@@ -334,6 +384,9 @@ int main(int argc, char **argv) {
             << ",\"cycle_certification_seconds\":" << r.cycle_certification_seconds
             << ",\"cycle_rational_recovery_seconds\":" << r.cycle_rational_recovery_seconds
 			<< ",\"convex_geometric_solver_seconds\":" << r.convex_geometric_solver_seconds
+			<< ",\"convex_dispatch_seconds\":" << r.convex_dispatch_seconds
+			<< ",\"convex_bound_evaluation_seconds\":" << r.convex_bound_evaluation_seconds
+			<< ",\"convex_proposal_preparation_seconds\":" << r.convex_proposal_preparation_seconds
 			<< ",\"convex_certificate_verification_seconds\":" << r.convex_certificate_verification_seconds
 			<< ",\"convex_contact_materialization_seconds\":" << r.convex_contact_materialization_seconds
 			<< ",\"convex_fallback_seconds\":" << r.convex_fallback_seconds

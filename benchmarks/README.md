@@ -17,6 +17,34 @@ implementação importáveis, não uma coleção de comandos independentes.
 Use `python3 benchmarks/tpp.py --help` e acrescente `--help` após um subcomando
 para consultar todos os parâmetros.
 
+## Ambiente próprio
+
+Prepare uma vez, a partir da raiz do repositório:
+
+```bash
+python3 benchmarks/tpp.py setup
+```
+
+O comando usa `uv` para criar `benchmarks/.venv` com Python 3.12 e instalar as
+versões fixadas em `benchmarks/uv.lock`: Shapely para validação independente,
+Matplotlib e PyOsmium para geração/visualização, CMake para builds e Ruff para
+verificação das ferramentas. Repetir o comando sincroniza o mesmo ambiente;
+ele não compila nem executa solvers. `uv` é um pré-requisito preparado pelo
+instalador geral `./scripts/install_dependencies.sh`.
+
+Não é necessário ativar a venv: `python3 benchmarks/tpp.py COMANDO` seleciona
+esse Python e coloca suas ferramentas no `PATH`. A CLI pede novo setup se o
+lockfile ou manifesto mudar; não instala dependências durante uma campanha.
+Ajuda e setup funcionam antes de preparar o ambiente. Use `setup --offline`
+quando os pacotes já estiverem em cache, ou `setup --python /caminho/python`
+para escolher outro intérprete compatível. Compilador, Eigen, Boost, OpenMP,
+GMP e CGAL continuam sendo dependências nativas, preparadas separadamente.
+
+O ambiente em `third_party/tspn-socg/.venv` fica restrito aos workers e ao
+binding nativo de Fekete; não é necessário para executar os benchmarks
+próprios com um binário já compilado. Os comandos externos aceitam
+`--external-python` quando esse ambiente está em outro local.
+
 ## Campanha sintética
 
 ```bash
@@ -118,6 +146,18 @@ threads internas de cada caso. O pico é de até
 retomam os casos já registrados e guardam `report.json`, o CSV externo bruto e
 `comparison.md` em `benchmarks/campaigns/<nome>/results/free-order/`.
 
+Se uma campanha falhar por problema no ambiente Python, a retomada reexecuta
+as linhas com erro e preserva as execuções concluídas, incluindo resultados
+parciais por limite de tempo. Para conservar os binários e seus hashes, use
+diretamente `benchmarks/tpp.py free-order` com `--no-build` e os mesmos
+parâmetros da campanha, em vez de repetir o setup dos solvers. Use
+`python3 benchmarks/tpp.py`; a CLI seleciona a entrada da venv própria sem
+resolver seu link para um executável versionado do Homebrew. Trajetórias
+armazenadas sem validação são revalidadas na retomada;
+isso não altera os caminhos nem os tempos registrados. Os ratios no resumo
+exigem que ambos os solvers fechem o gap e que ambos os caminhos originais
+passem na tolerância de validação independente registrada.
+
 Para medir o efeito das threads, compare runs de uma thread e multithread dos
 dois solvers. A análise pareia instâncias pelo SHA-256, grava `comparison.csv`,
 `summary.md` e `manifest.json`, e resume speedups apenas quando ambos os runs
@@ -174,6 +214,33 @@ aplicação real; por isso, a diferença entre rodadas é um limite otimista par
 ganho obtido ao melhorar a heurística. Os tempos dependem da máquina e da carga.
 
 Para uma comparação pareada de binários próprios:
+
+O solver de ordem livre aceita `--sequence-storage native|packed|deltas`.
+Para isolar o cache de despacho exato do oráculo, compare duas variantes do
+mesmo binário e adicione
+`--solver-argument baseline=--no-oracle-dispatch-cache` somente à referência.
+O candidato usa o cache por padrão. O perfil informa o tempo de despacho e
+os acertos nas consultas de pares. Sem corte de tempo, caminhos, limites e
+contagens de busca devem coincidir; ambos mantêm as mesmas tolerâncias.
+O cache de vértices normalizados da proposta intervalar pode ser isolado com
+`--solver-argument baseline=--no-oracle-interval-geometry-cache`;
+`convex_proposal_preparation_seconds` registra essa preparação. Combine os
+dois argumentos na referência para medir o efeito total dos caches, ou use
+uma variante intermediária para separar suas contribuições.
+`--no-prepared-visits` isola a preparação de geometria e o reaproveitamento
+de contatos para o último caminho. Compare `visit_query_evaluations`,
+`visit_query_cache_hits` e `search_visit_check_seconds` junto com a igualdade
+de caminhos/limites/contagens. `--relocate-initial` e
+`--interpolated-zero-dual` são opções experimentais independentes; a primeira
+pode mudar a árvore e a segunda pode fortalecer limites. Nesses ensaios,
+tempo sob um teto de chamadas não é tempo de conclusão: compare gap e status,
+além do custo total e da heurística inicial.
+Para isolar memória, compare esses modos com o mesmo binário usando
+`--solver-argument LABEL=--sequence-storage --solver-argument LABEL=MODO`.
+A CLI de ablação conserva o pico de RSS e os bytes de sequência retornados
+pelo solver e mostra RSS máximo/mediano no resumo. Prefira `--workers 1`
+para esse diagnóstico; resultados limitados por orçamento exigem comparar
+também chamadas e limites, pois podem explorar quantidades diferentes de nós.
 
 ```bash
 python3 benchmarks/tpp.py free-order-ablation \

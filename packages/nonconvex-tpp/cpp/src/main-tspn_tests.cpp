@@ -70,13 +70,20 @@ size_t cases=0,interrupted=0,decomposed=0,parallel_batches=0,portfolio_cases=0,p
 void check(const Polygons &p) {
     const auto [lower,upper]=enumerate(p);
     const auto r=tpp::tpp_nonconvex_tspn_solve(p);
+    for(auto storage:{tpp::UnorderedSequenceStorage::Native,tpp::UnorderedSequenceStorage::Deltas}) {
+        tpp::UnorderedTppSolveOptions options;options.sequence_storage=storage;
+        const auto alternative=tpp::tpp_nonconvex_tspn_solve(p,options);
+        require(alternative.lower_bound==r.lower_bound&&alternative.upper_bound==r.upper_bound
+            &&alternative.calls==r.calls&&alternative.nodes==r.nodes&&alternative.order==r.order,
+            "Cycle sequence storage preserves bounds and search order");
+    }
     check_oracle_profile(r);
     require(covered(r.path,p),"TSPN output is a feasible closed tour");
     require(r.exact&&r.lower_bound<=upper+1e-7&&r.upper_bound>=lower-1e-7&&
             std::abs(r.upper_bound-upper)<=1e-7+1e-9*upper,"TSPN exhaustive order/piece comparison");
     require(r.calls==r.relaxation_calls+r.refinement_calls+r.initial_convex_refinement_calls,"Oracle accounting");
     decomposed+=r.decomposition_branches>0;
-    tpp::UnorderedTppSolveOptions parallel;parallel.threads=2;
+    tpp::UnorderedTppSolveOptions parallel;parallel.threads=2;parallel.sequence_storage=tpp::UnorderedSequenceStorage::Deltas;
     const auto concurrent=tpp::tpp_nonconvex_tspn_solve(p,parallel);
     check_oracle_profile(concurrent);
     require(covered(concurrent.path,p)&&concurrent.exact&&concurrent.threads==2&&
@@ -84,7 +91,7 @@ void check(const Polygons &p) {
             std::abs(concurrent.upper_bound-upper)<=1e-7+1e-9*upper,"Parallel TSPN exhaustive comparison");
     parallel_batches+=concurrent.parallel_oracle_batches;
     for(size_t threads:{1,2})for(size_t cap:{0,1,3,10}) {
-        tpp::UnorderedTppSolveOptions options;options.max_calls=cap;options.threads=threads;
+        tpp::UnorderedTppSolveOptions options;options.max_calls=cap;options.threads=threads;options.sequence_storage=tpp::UnorderedSequenceStorage::Deltas;
         const auto limited=tpp::tpp_nonconvex_tspn_solve(p,options);
         check_oracle_profile(limited);
         require(covered(limited.path,p)&&limited.calls<=cap&&limited.lower_bound<=upper+1e-7&&
@@ -97,7 +104,7 @@ void check(const Polygons &p) {
     require(covered(alternative.path,p)&&alternative.exact&&alternative.lower_bound<=upper+1e-7&&
         std::abs(alternative.upper_bound-upper)<=1e-7+1e-9*upper,"DFS/BFS root and frontier exhaustive comparison");
     for(bool sharing:{false,true}) {
-        tpp::UnorderedTppSolveOptions options;options.portfolio=true;options.portfolio_share_incumbents=sharing;
+        tpp::UnorderedTppSolveOptions options;options.portfolio=true;options.portfolio_share_incumbents=sharing;options.sequence_storage=tpp::UnorderedSequenceStorage::Deltas;
         const auto cooperative=tpp::tpp_nonconvex_tspn_solve(p,options);
         check_oracle_profile(cooperative);
         require(covered(cooperative.path,p)&&cooperative.exact&&cooperative.threads==2&&
@@ -130,6 +137,7 @@ void check(const Polygons &p) {
     }
     for(int mode=0;mode<14;++mode) {
         tpp::UnorderedTppSolveOptions optimized;
+        optimized.sequence_storage=tpp::UnorderedSequenceStorage::Deltas;
         optimized.cycle_cache=mode==0||mode==13;
         optimized.cycle_dual_reuse=mode==1||mode==13;
         optimized.cycle_active_features=mode==2||mode==13;

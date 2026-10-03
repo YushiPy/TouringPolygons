@@ -12,10 +12,31 @@ namespace tpp::unordered_detail {
 		double distance;
 		double position;
 	};
+	struct ContactEdge {
+		Vector2 start, end, direction;
+		double squared;
+		ContactEdge(Vector2 start, Vector2 end);
+	};
+	struct ContactSegment : ContactEdge {
+		Vector2 minimum, maximum;
+		ContactSegment(Vector2 start, Vector2 end);
+	};
+	// Immutable preparation; both overloads below use the same query algorithm.
+	struct PreparedContactPolygon {
+		Vector2 minimum, maximum;
+		std::vector<ContactEdge> edges;
+		explicit PreparedContactPolygon(const Polygon &polygon);
+	};
+	struct PreparedContactPath {
+		std::vector<ContactSegment> segments;
+		explicit PreparedContactPath(const Polygon &path = {});
+		void prepare(const Polygon &path);
+	};
 
 	double path_length(const Polygon &path);
 	Polygon convex_hull(Polygon polygon);
 	Contact contact(const Polygon &path, const Polygon &polygon, double tolerance);
+	Contact contact(const PreparedContactPath &path, const PreparedContactPolygon &polygon, double tolerance);
 	enum class PerimeterSamplingWorkModel { AdjacentPairs, AllPairs };
 	double perimeter_sampling_work_budget(double log2_complexity);
 	std::vector<size_t> choose_perimeter_sample_point_counts(

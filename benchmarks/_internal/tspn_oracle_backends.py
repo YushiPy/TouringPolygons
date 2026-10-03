@@ -9,6 +9,7 @@ import importlib.util
 import json
 import os
 import statistics
+import subprocess
 import struct
 import sys
 import time
@@ -24,6 +25,8 @@ def parser() -> argparse.ArgumentParser:
 	result = argparse.ArgumentParser(description=__doc__)
 	result.add_argument("--suite", type=Path, required=True)
 	result.add_argument("--tspn-repo", type=Path, required=True)
+	result.add_argument("--external-python", type=Path, help="Python for the native external binding; defaults to the repository's .venv.")
+	result.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
 	result.add_argument("--output", type=Path, required=True)
 	result.add_argument("--backend", choices=("socp", "tpp"), action="append")
 	result.add_argument("--repeat", type=int, default=3)
@@ -70,6 +73,13 @@ def main(argv: list[str] | None = None) -> int:
 	args = parser().parse_args(argv)
 	if args.repeat < 1 or args.stride < 1:
 		raise SystemExit("--repeat and --stride must be positive")
+	# Keep native extension loading inside its own Python environment/ABI.
+	python = args.external_python or args.tspn_repo / (".venv/Scripts/python.exe" if os.name == "nt" else ".venv/bin/python")
+	python = python.absolute()  # Do not resolve the interpreter symlink.
+	if not python.is_file():
+		raise SystemExit("External Python missing; prepare Fekete or pass --external-python.")
+	if not args.worker:
+		return subprocess.call([str(python), str(Path(__file__).resolve()), "--worker", *(sys.argv[1:] if argv is None else argv)])
 	backends = args.backend or ["socp", "tpp"]
 	core, bindings = load_core(args.tspn_repo.resolve())
 	cases = read_encoded_cases(args.suite.resolve())

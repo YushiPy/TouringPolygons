@@ -4,6 +4,8 @@
 #include "tpp/convex/solver.h"
 #include "common.h"
 #include "certified_internal.h"
+#include "zero_contact_certificate.h"
+#include "binary_certificate.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
 #include <algorithm>
@@ -28,13 +30,20 @@ struct AggregateRecorder {
         ++aggregate.total_calls;aggregate.disjoint_calls+=r.stats.disjoint;
         aggregate.certified_double_disjoint_calls+=r.backend==ConvexHybridBackend::DoubleDisjoint&&r.stats.double_certified;
         aggregate.certified_double_intersection_calls+=r.backend==ConvexHybridBackend::DoubleIntersection&&r.stats.double_certified;
+        aggregate.interval_bound_calls+=r.stats.interval_bounds_certified;
+        aggregate.interval_contracted_calls+=r.stats.interval_bounds_contracted;
         aggregate.rational_disjoint_fallbacks+=r.backend==ConvexHybridBackend::RationalDisjoint;
         aggregate.rational_disjoint_directional_recoveries+=r.stats.rational_disjoint_directional_recovery;
         aggregate.rational_intersection_fallbacks+=r.backend==ConvexHybridBackend::RationalIntersection;
         ++aggregate.fallback_reasons[static_cast<size_t>(r.fallback_reason)];
         aggregate.predicate_exact_evaluations+=r.stats.predicate_exact_evaluations;
         aggregate.zero_link_witnesses+=r.stats.zero_link_witnesses;
+        aggregate.dispatch_pair_queries+=r.stats.dispatch_pair_queries;
+        aggregate.dispatch_pair_cache_hits+=r.stats.dispatch_pair_cache_hits;
+        aggregate.dispatch_pair_exact_checks+=r.stats.dispatch_pair_exact_checks;
         aggregate.dispatch_seconds+=r.stats.dispatch_seconds;
+        aggregate.bound_evaluation_seconds+=r.stats.bound_evaluation_seconds;
+        aggregate.proposal_preparation_seconds+=r.stats.proposal_preparation_seconds;
         aggregate.double_solver_seconds+=r.stats.double_solver_seconds;
         aggregate.contact_materialization_seconds+=r.stats.contact_materialization_seconds;
         aggregate.certificate_seconds+=r.stats.certificate_seconds;
@@ -51,20 +60,7 @@ namespace {
 using Rational = tpp::ConvexRational;
 using Clock = std::chrono::steady_clock;
 
-struct Point {
-    Rational x=0,y=0;
-    Point()=default;
-    Point(Rational x_,Rational y_):x(std::move(x_)),y(std::move(y_)){}
-    explicit Point(Vector2 p):x(p.x),y(p.y){}
-    Point operator+(const Point &p)const{return{x+p.x,y+p.y};}
-    Point operator-(const Point &p)const{return{x-p.x,y-p.y};}
-    Point operator*(const Rational &s)const{return{x*s,y*s};}
-    Rational cross(const Point &p)const{return x*p.y-y*p.x;}
-    Rational dot(const Point &p)const{return x*p.x+y*p.y;}
-    bool zero()const{return x==0&&y==0;}
-    bool operator==(const Point &)const=default;
-    Vector2 external()const{return{x.convert_to<double>(),y.convert_to<double>()};}
-};
+using Point = tpp::ConvexRationalPoint;
 using Polygon=std::vector<Point>;
 enum class ContactFeatureKind { Interior, Edge, Vertex };
 struct ContactFeature { ContactFeatureKind kind=ContactFeatureKind::Interior;size_t index=0; };
@@ -72,6 +68,12 @@ struct ContactFeature { ContactFeatureKind kind=ContactFeatureKind::Interior;siz
 double elapsed(Clock::time_point began) {
     return std::chrono::duration<double>(Clock::now()-began).count();
 }
+
+struct PhaseTimer {
+    double &seconds;
+    Clock::time_point began=Clock::now();
+    ~PhaseTimer(){seconds+=elapsed(began);}
+};
 
 Polygon exact_polygon(const std::vector<Vector2> &input) {
     Polygon p;
@@ -172,12 +174,15 @@ bool materialize(const std::vector<Vector2> &raw_path,const std::vector<Polygon>
     return materialize_path(path,polygons,last,contacts,features);
 }
 
-void append(std::vector<Point> &path,const Point &p) {
+template<class Scalar>
+void append(std::vector<ConvexArithmeticPoint<Scalar>> &path,const ConvexArithmeticPoint<Scalar> &p) {
     if(path.empty()||!(path.back()==p))path.push_back(p);
 }
 
-Point exact_trace_vertex(const detail::DirectionalTraceStep &step,
-                         const std::vector<Polygon> &polygons) {
+template<class Scalar>
+ConvexArithmeticPoint<Scalar> trace_vertex(const detail::DirectionalTraceStep &step,
+        const std::vector<std::vector<ConvexArithmeticPoint<Scalar>>> &polygons) {
+    using Point=ConvexArithmeticPoint<Scalar>;
     if(!step.vertex_is_edge_intersection)return Point(step.defining_point);
     if(step.level==0||step.level>polygons.size()||step.defining_polygon>=polygons.size())
         throw std::runtime_error("Invalid directional vertex provenance");
@@ -188,14 +193,17 @@ Point exact_trace_vertex(const detail::DirectionalTraceStep &step,
     const Point edge=current[(step.original_edge+1)%current.size()]-a;
     const Point c=other[step.defining_edge];
     const Point other_edge=other[(step.defining_edge+1)%other.size()]-c;
-    const Rational denominator=edge.cross(other_edge);
+    const Scalar denominator=edge.cross(other_edge);
     if(denominator==0)throw std::runtime_error("Parallel directional vertex provenance");
     return a+edge*((c-a).cross(other_edge)/denominator);
 }
 
-std::vector<Point> replay_trace_exact(const Vector2 &start,const Vector2 &target,
-        const std::vector<Polygon> &polygons,const std::vector<detail::DirectionalTraceStep> &trace,
-        std::vector<std::optional<Point>> &bend_contacts) {
+template<class Scalar>
+std::vector<ConvexArithmeticPoint<Scalar>> replay_trace(const Vector2 &start,const Vector2 &target,
+        const std::vector<std::vector<ConvexArithmeticPoint<Scalar>>> &polygons,
+        const std::vector<detail::DirectionalTraceStep> &trace,
+        std::vector<std::optional<ConvexArithmeticPoint<Scalar>>> &bend_contacts) {
+    using Point=ConvexArithmeticPoint<Scalar>;
     if(trace.size()!=polygons.size())throw std::runtime_error("Directional trace cardinality mismatch");
     bend_contacts.assign(polygons.size(),std::nullopt);
     std::vector<Point> path;size_t trace_index=0;
@@ -208,21 +216,21 @@ std::vector<Point> replay_trace_exact(const Vector2 &start,const Vector2 &target
         const auto &polygon=polygons[level-1];
         if(step.original_edge>=polygon.size())throw std::runtime_error("Directional trace edge out of range");
         if(step.region==detail::DirectionalTraceRegion::Vertex) {
-            const Point vertex=exact_trace_vertex(step,polygons);
+            const Point vertex=trace_vertex(step,polygons);
             bend_contacts[level-1]=vertex;
             self(self,vertex,level-1);append(path,q);return;
         }
         const Point a=polygon[step.original_edge];
         const Point edge=polygon[(step.original_edge+1)%polygon.size()]-a;
-        const Point reflected=a+(edge*(2*(q-a).dot(edge)/edge.dot(edge))-(q-a));
+        const Point reflected=a+(edge*(Scalar(2)*(q-a).dot(edge)/edge.dot(edge))-(q-a));
         self(self,reflected,level-1);
         if(path.size()<2)throw std::runtime_error("Exact trace reflection has no incoming segment");
         const Point previous=path[path.size()-2],direction=reflected-previous;
-        const Rational denominator=edge.cross(direction);
+        const Scalar denominator=edge.cross(direction);
         if(denominator==0)throw std::runtime_error("Exact trace reflection is parallel to edge");
-        const Rational t=edge.cross(a-previous)/denominator;
+        const Scalar t=edge.cross(a-previous)/denominator;
         const Point contact=previous+direction*t;
-        const Rational u=(contact-a).dot(edge)/edge.dot(edge);
+        const Scalar u=(contact-a).dot(edge)/edge.dot(edge);
         if(t<0||t>1||u<0||u>1)throw std::runtime_error("Exact trace refolding leaves finite edge");
         bend_contacts[level-1]=contact;
         path.pop_back();append(path,contact);append(path,q);
@@ -230,6 +238,12 @@ std::vector<Point> replay_trace_exact(const Vector2 &start,const Vector2 &target
     replay(replay,Point(target),polygons.size());
     if(trace_index!=trace.size())throw std::runtime_error("Directional trace has unused steps");
     return path;
+}
+
+std::vector<Point> replay_trace_exact(const Vector2 &start,const Vector2 &target,
+        const std::vector<Polygon> &polygons,const std::vector<detail::DirectionalTraceStep> &trace,
+        std::vector<std::optional<Point>> &bend_contacts) {
+    return replay_trace(start,target,polygons,trace,bend_contacts);
 }
 
 bool feature_on_edge(const Point &contact,const Polygon &polygon,size_t edge_index,
@@ -369,14 +383,19 @@ bool logarithmic_clip(const Point &a,const Point &b,const Polygon &polygon,size_
 bool materialize_trace_path(const std::vector<Point> &path,const std::vector<Polygon> &polygons,
         const std::vector<detail::DirectionalTraceStep> &trace,
         const std::vector<std::optional<Point>> &bend_contacts,bool last,
-        std::vector<Point> &contacts,std::vector<ContactFeature> &features) {
+        std::vector<Point> &contacts,std::vector<ContactFeature> &features,
+        const std::vector<size_t> *prepared_rotations=nullptr) {
     if(path.empty()||trace.size()!=polygons.size()||bend_contacts.size()!=polygons.size())return false;
     contacts.clear();features.clear();contacts.reserve(polygons.size());features.reserve(polygons.size());
     if(path.size()==1)return materialize_path(path,polygons,last,contacts,features);
     std::vector<const detail::DirectionalTraceStep*> by_level(polygons.size());
     for(const auto &step:trace)if(step.level&&step.level<=polygons.size())by_level[step.level-1]=&step;
-    std::vector<size_t> rotations;rotations.reserve(polygons.size());
-    for(const auto &polygon:polygons)rotations.push_back(edge_angle_rotation(polygon));
+    std::vector<size_t> imported_rotations;
+    if(!prepared_rotations) {
+        imported_rotations.reserve(polygons.size());
+        for(const auto &polygon:polygons)imported_rotations.push_back(edge_angle_rotation(polygon));
+    }
+    const auto &rotations=prepared_rotations?*prepared_rotations:imported_rotations;
     size_t segment=1;Rational rate=0;
     for(size_t i=0;i<polygons.size();++i) {
         if(bend_contacts[i]) {
@@ -447,30 +466,89 @@ bool bounds_disjoint(const Bounds &a,const Bounds &b) {
     return a.max_x<b.min_x||b.max_x<a.min_x||a.max_y<b.min_y||b.max_y<a.min_y;
 }
 
-bool pairwise_disjoint(const std::vector<Polygon> &polygons) {
-    std::vector<Bounds> polygon_bounds;polygon_bounds.reserve(polygons.size());
-    for(const auto &p:polygons)polygon_bounds.push_back(bounds(p));
-    for(size_t i=0;i<polygons.size();++i)for(size_t j=i+1;j<polygons.size();++j) {
-        if(bounds_disjoint(polygon_bounds[i],polygon_bounds[j]))continue;
-        if(inside(polygons[i].front(),polygons[j]) || inside(polygons[j].front(),polygons[i]))return false;
-        for(size_t e=0;e<polygons[i].size();++e) {
-            Polygon edge_box_points{polygons[i][e],polygons[i][(e+1)%polygons[i].size()]};
-            if(bounds_disjoint(bounds(edge_box_points),polygon_bounds[j]))continue;
-            if(segment_hits(polygons[i][e],polygons[i][(e+1)%polygons[i].size()],polygons[j]))return false;
-        }
+bool pair_disjoint(const Polygon &a,const Polygon &b,const Bounds &a_bounds,const Bounds &b_bounds,
+                   ConvexHybridStats &stats) {
+    if(bounds_disjoint(a_bounds,b_bounds))return true;
+    ++stats.dispatch_pair_exact_checks;
+    if(inside(a.front(),b) || inside(b.front(),a))return false;
+    for(size_t e=0;e<a.size();++e) {
+        Polygon edge_box_points{a[e],a[(e+1)%a.size()]};
+        if(bounds_disjoint(bounds(edge_box_points),b_bounds))continue;
+        if(segment_hits(a[e],a[(e+1)%a.size()],b))return false;
     }
     return true;
 }
 
-int normalized_difference_sign(const Rational &p,const Rational &a2,
-                               const Rational &q,const Rational &b2) {
-    if(p>=0 && q<=0)return p==0&&q==0?0:1;
-    if(p<=0 && q>=0)return p==0&&q==0?0:-1;
-    const Rational left=p*p*b2,right=q*q*a2;
-    if(left==right)return 0;
-    if(p>0)return left>right?1:-1;
-    return left<right?1:-1;
+bool pairwise_disjoint(const std::vector<Polygon> &polygons,ConvexHybridStats &stats) {
+    std::vector<Bounds> polygon_bounds;polygon_bounds.reserve(polygons.size());
+    for(const auto &p:polygons)polygon_bounds.push_back(bounds(p));
+    for(size_t i=0;i<polygons.size();++i)for(size_t j=i+1;j<polygons.size();++j) {
+        ++stats.dispatch_pair_queries;
+        if(!pair_disjoint(polygons[i],polygons[j],polygon_bounds[i],polygon_bounds[j],stats))return false;
+    }
+    return true;
 }
+
+#ifdef TPP_HAS_TOUCHING_DISJOINT
+// A cheap candidate-selection hint only. Roundoff or small area overlaps may
+// pass this test; the original constraints still require an independent proof.
+bool suggests_boundary_disjoint(const std::vector<std::vector<Vector2>> &polygons) {
+    std::vector<int> winding;
+    std::vector<std::array<double,4>> boxes;
+    for(const auto &p:polygons) {
+        int orientation=1;
+        for(size_t i=0;i<p.size();++i) {
+            const double turn=(p[(i+1)%p.size()]-p[i]).cross(p[(i+2)%p.size()]-p[i]);
+            if(turn!=0){orientation=turn>0?1:-1;break;}
+        }
+        winding.push_back(orientation);
+        std::array<double,4> b{p.front().x,p.front().x,p.front().y,p.front().y};
+        for(auto v:p){b[0]=std::min(b[0],v.x);b[1]=std::max(b[1],v.x);
+            b[2]=std::min(b[2],v.y);b[3]=std::max(b[3],v.y);}
+        boxes.push_back(b);
+    }
+    auto separates=[](const auto &a,const auto &b,int orientation) {
+        for(size_t i=0;i<a.size();++i) {
+            const Vector2 edge=a[(i+1)%a.size()]-a[i];bool outside=true;
+            if(edge.x==0&&edge.y==0)continue;
+            for(const auto &v:b) {
+                const Vector2 q=v-a[i];
+                const long double x=(long double)edge.x*q.y,y=(long double)edge.y*q.x;
+                const long double error=64*std::numeric_limits<double>::epsilon()*(std::abs(x)+std::abs(y));
+                if(orientation*(x-y)>error){outside=false;break;}
+            }
+            if(outside)return true;
+        }
+        return false;
+    };
+    for(size_t i=0;i<polygons.size();++i)for(size_t j=i+1;j<polygons.size();++j) {
+        const auto &a=boxes[i],&b=boxes[j];
+        if(a[1]<=b[0]||b[1]<=a[0]||a[3]<=b[2]||b[3]<=a[2])continue;
+        if(!separates(polygons[i],polygons[j],winding[i])&&
+           !separates(polygons[j],polygons[i],winding[j]))return false;
+    }
+    return true;
+}
+
+std::vector<detail::DirectionalTraceStep> propose_boundary_trace(Vector2 start,Vector2 target,
+        const std::vector<std::vector<Vector2>> &input,const std::vector<Polygon> &polygons,bool contract) {
+    auto proposal=input;
+    if(contract) {
+        proposal.clear();proposal.reserve(polygons.size());
+        for(const auto &p:polygons) {
+            std::vector<Vector2> q;Vector2 center{};
+            for(const auto &v:p){q.push_back(v.external());center+=q.back();}
+            center=center/double(q.size());
+            for(auto &v:q)v=v+(center-v)*0x1p-20;
+            proposal.push_back(std::move(q));
+        }
+    }
+    auto trace=detail::solve_binary_search_disjoint_trace_unchecked(start,target,proposal);
+    if(contract)for(auto &step:trace)if(step.region==detail::DirectionalTraceRegion::Vertex)
+        step.defining_point=polygons.at(step.level-1).at(step.original_edge).external();
+    return trace;
+}
+#endif
 
 ConvexFallbackReason certify(const Vector2 &start,const Vector2 &target,
         const std::vector<Polygon> &polygons,const std::vector<Point> &contacts,
@@ -489,7 +567,7 @@ ConvexFallbackReason certify(const Vector2 &start,const Vector2 &target,
         if(incoming.cross(outgoing)==0&&incoming.dot(outgoing)>0)return true;
         const auto check=[&](const Point &feasible) {
             ++exact_predicates;
-            return normalized_difference_sign(incoming.dot(feasible),a2,
+            return detail::convex_normalized_difference_sign(incoming.dot(feasible),a2,
                                                outgoing.dot(feasible),b2)>=0;
         };
         const auto &polygon=polygons[polygon_index];const auto &feature=features[polygon_index];
@@ -502,7 +580,7 @@ ConvexFallbackReason certify(const Vector2 &start,const Vector2 &target,
         const size_t i=feature.index,n=polygon.size();
         const Point tangent=polygon[(i+1)%n]-polygon[i];
         ++exact_predicates;
-        if(normalized_difference_sign(incoming.dot(tangent),a2,
+        if(detail::convex_normalized_difference_sign(incoming.dot(tangent),a2,
                                       outgoing.dot(tangent),b2)!=0)return false;
         for(const Point &vertex:polygon) {
             if(tangent.cross(vertex-polygon[i])==0)continue;
@@ -510,6 +588,7 @@ ConvexFallbackReason certify(const Vector2 &start,const Vector2 &target,
         }
         return false;
     };
+    std::vector<bool> block_certified(contacts.size(),false);
     for(size_t first=0;first<directions.size();) {
         if(!directions[first].zero()){++first;continue;}
         size_t last=first;while(last+1<directions.size()&&directions[last+1].zero())++last;
@@ -518,52 +597,20 @@ ConvexFallbackReason certify(const Vector2 &start,const Vector2 &target,
         if(before&&after&&(before->cross(*after)!=0||before->dot(*after)<=0)) {
             const size_t first_polygon=first-1;
             const size_t last_polygon=std::min(last,polygons.size()-1);
-            struct WitnessNode {Point direction;size_t parent=0;};
-            std::vector<std::vector<WitnessNode>> layers{{WitnessNode{*before,0}}};
-            auto reflect=[](const Point &direction,const Point &edge) {
-                return edge*(2*direction.dot(edge)/edge.dot(edge))-direction;
-            };
-            bool exhausted=false;
-            for(size_t polygon_index=first_polygon;polygon_index<last_polygon;++polygon_index) {
-                std::vector<WitnessNode> next;
-                for(size_t parent=0;parent<layers.back().size();++parent) {
-                    const Point incoming=layers.back()[parent].direction;
-                    std::vector<Point> candidates{incoming,*after};
-                    const auto &polygon=polygons[polygon_index];
-                    const auto &feature=features[polygon_index];
-                    if(feature.kind==ContactFeatureKind::Edge) {
-                        const size_t i=feature.index;
-                        candidates.push_back(reflect(incoming,polygon[(i+1)%polygon.size()]-polygon[i]));
-                    } else if(feature.kind==ContactFeatureKind::Vertex) {
-                        const size_t i=feature.index,n=polygon.size();
-                        candidates.push_back(reflect(incoming,polygon[i]-polygon[(i+n-1)%n]));
-                        candidates.push_back(reflect(incoming,polygon[(i+1)%n]-polygon[i]));
-                    }
-                    for(const Point &outgoing:candidates) {
-                        if(outgoing.zero()||!kkt(polygon_index,incoming,outgoing))continue;
-                        if(std::ranges::any_of(next,[&](const WitnessNode &node){
-                            return node.direction.cross(outgoing)==0&&node.direction.dot(outgoing)>0;
-                        }))continue;
-                        next.push_back({outgoing,parent});
-                        if(next.size()>=256){exhausted=true;break;}
-                    }
-                    if(exhausted)break;
-                }
-                if(next.empty()){exhausted=true;break;}
-                layers.push_back(std::move(next));
-                if(exhausted)break;
+            // Zero links admit the entire unit disk. Propagate the exact
+            // reachable subgradients through every contact in the block,
+            // including both boundary contacts next to nonzero links.
+            // A constant incoming (outgoing) subgradient on all zero links
+            // moves the whole turn to the last (first) contact. The remaining
+            // contacts have zero support difference. These sufficient exact
+            // witnesses are particularly cheap on shared boundary edges.
+            if(!kkt(last_polygon,*before,*after)&&!kkt(first_polygon,*before,*after)) {
+                detail::ConvexDualReachability reachable(*before,exact_predicates);
+                for(size_t i=first_polygon;i<=last_polygon&&!reachable.reaches(*after);++i)
+                    reachable.advance(polygons[i],contacts[i]);
+                if(!reachable.reaches(*after))return ConvexFallbackReason::CoincidentContact;
             }
-            if(exhausted)return ConvexFallbackReason::CoincidentContact;
-            std::optional<size_t> selected;
-            for(size_t i=0;i<layers.back().size();++i)
-                if(kkt(last_polygon,layers.back()[i].direction,*after)){selected=i;break;}
-            if(!selected)return ConvexFallbackReason::CoincidentContact;
-            // Layer one is the first zero-edge direction; walk the exact
-            // predecessor chain backwards to materialize the witness.
-            for(size_t layer=layers.size()-1;layer>0;--layer) {
-                directions[first+layer-1]=layers[layer][*selected].direction;
-                selected=layers[layer][*selected].parent;
-            }
+            for(size_t i=first_polygon;i<=last_polygon;++i)block_certified[i]=true;
         } else {
             const Point witness=before?*before:after?*after:Point{};
             for(size_t j=first;j<=last;++j)directions[j]=witness;
@@ -571,6 +618,7 @@ ConvexFallbackReason certify(const Vector2 &start,const Vector2 &target,
         ++zero_link_witnesses;first=last+1;
     }
     for(size_t i=0;i<contacts.size();++i) {
+        if(block_certified[i])continue;
         const Point incoming=directions[i],outgoing=directions[i+1];
         if(!kkt(i,incoming,outgoing))return ConvexFallbackReason::LocalOptimality;
     }
@@ -596,7 +644,8 @@ double rational_upper(const Rational &q) {
 }
 
 void set_exact_bounds(ConvexHybridResult &result,Vector2 start,Vector2 target,
-                      const std::vector<Point> &contacts) {
+                      const std::vector<Point> &contacts,ConvexHybridStats *stats=nullptr) {
+    PhaseTimer timer{stats?stats->bound_evaluation_seconds:result.stats.bound_evaluation_seconds};
     constexpr unsigned precision=96;
     const tpp::ConvexInteger scale=tpp::ConvexInteger(1)<<precision;
     std::vector<Point> chain;chain.reserve(contacts.size()+2);chain.emplace_back(start);
@@ -675,12 +724,255 @@ double candidate_dual_lower(Vector2 start,Vector2 target,
     return rational_lower(best);
 }
 
+#ifdef TPP_HAS_INTERVAL_PRIMAL_DUAL
+using Interval=detail::CycleInterval;
+using IntervalPoint=detail::IntervalPoint;
+
+// Directions are exact differences of binary inputs divided by a certified
+// upper norm. Their interval enclosures describe one dual-feasible vector;
+// independently selecting interval endpoints would not have this property.
+std::optional<double> interval_dual_lower(const std::vector<Vector2> &chain,
+        const std::vector<std::vector<Vector2>> &polygons,double short_link,bool interpolate) {
+    std::vector<IntervalPoint> base;
+    std::vector<bool> short_links;
+    for(size_t i=1;i<chain.size();++i) {
+        const auto d=IntervalPoint(chain[i])-IntervalPoint(chain[i-1]);
+        const auto norm=(d.x.square()+d.y.square()).sqrt();
+        if(!norm.finite())return {};
+        const bool equal=chain[i]==chain[i-1];
+        short_links.push_back(equal||norm.hi<=short_link);
+        if(equal||norm.hi==0)base.emplace_back();
+        else base.emplace_back(d.x.divided_by(norm.hi),d.y.divided_by(norm.hi));
+    }
+    const IntervalPoint origin(chain.front()),destination(chain.back());
+    const auto direct=destination-origin;
+    const auto direct_norm=(direct.x.square()+direct.y.square()).sqrt();
+    if(!direct_norm.finite())return {};
+    const IntervalPoint direct_unit=direct_norm.hi==0?IntervalPoint{}:
+        IntervalPoint(direct.x.divided_by(direct_norm.hi),direct.y.divided_by(direct_norm.hi));
+    double best=std::max(0.0,direct_norm.lo);
+    // Without short links all four old policies are identical, including
+    // their rounding. Evaluate the common dual just once.
+    const bool any_short=std::any_of(short_links.begin(),short_links.end(),[](bool x){return x;});
+    const int policies=any_short?(interpolate?5:4):1;
+    for(int policy=0;policy<policies;++policy) {
+        auto directions=base;
+        if(policy==4) {
+            for(size_t i=0;i<base.size();) {
+                if(!short_links[i]){++i;continue;}
+                size_t end=i;while(end<base.size()&&short_links[end])++end;
+                const auto left=i?base[i-1]:direct_unit,right=end<base.size()?base[end]:direct_unit;
+                for(size_t j=i;j<end;++j) {
+                    const Interval weight(double(j-i+1)/double(end-i+1));
+                    const auto other=Interval(1)-weight;
+                    // A convex combination of two feasible unit-disk vectors
+                    // stays feasible. Intervals enclose that combination;
+                    // near-coincidence only selects a proposal, never a bound.
+                    directions[j]={other*left.x+weight*right.x,other*left.y+weight*right.y};
+                }
+                i=end;
+            }
+        } else if(policy)for(size_t i=0;i<base.size();++i)if(short_links[i]) {
+            if(policy==3){directions[i]=direct_unit;continue;}
+            std::optional<size_t> left,right;
+            for(size_t j=i;j>0;)if(!short_links[--j]){left=j;break;}
+            for(size_t j=i+1;j<base.size();++j)if(!short_links[j]){right=j;break;}
+            const auto selected=policy==1?(left?left:right):(right?right:left);
+            directions[i]=selected?base[*selected]:direct_unit;
+        }
+        Interval dual=direct.dot(directions.back());
+        for(size_t i=0;i<polygons.size();++i) {
+            const auto normal=directions[i]-directions[i+1];
+            Interval support(INFINITY);
+            for(const auto &v:polygons[i]) {
+                const auto term=normal.dot(IntervalPoint(v)-origin);
+                support.lo=std::min(support.lo,term.lo);
+                support.hi=std::min(support.hi,term.hi);
+            }
+            dual=dual+support;
+        }
+        if(dual.finite())best=std::max(best,dual.lo);
+    }
+    return best;
+}
+
+bool interval_bounds_enabled(const ConvexHybridOptions &options) {
+    return options.mode==ConvexHybridMode::SafeCertified&&!options.shadow_rational&&
+        ((std::isfinite(options.max_gap)&&options.max_gap>0)||std::isfinite(options.cutoff))&&
+        detail::cycle_interval_environment();
+}
+
+// This optional proof works entirely on the original constraints. Neither the
+// trace nor its geometry is trusted. A failed interval proof retains exact
+// replay and the complete original support certificate.
+#if defined(__GNUC__) || defined(__clang__)
+[[gnu::noinline]]
+#elif defined(_MSC_VER)
+__declspec(noinline)
+#endif
+bool try_interval_trace_bound(Vector2 start,Vector2 target,const std::vector<Polygon> &exact,
+        const std::vector<detail::DirectionalTraceStep> &trace,const ConvexHybridOptions &options,
+        ConvexHybridResult &result,const std::vector<std::vector<Vector2>> *prepared_binary=nullptr) {
+    result.stats.interval_bounds_attempted=true;
+    try {
+        std::vector<std::vector<Vector2>> imported_binary;
+        std::vector<std::vector<ConvexArithmeticPoint<double>>> arithmetic;
+        {
+            PhaseTimer timer{result.stats.proposal_preparation_seconds};
+            if(prepared_binary) {
+                arithmetic.reserve(prepared_binary->size());
+                for(const auto &polygon:*prepared_binary) {
+                    arithmetic.emplace_back();arithmetic.back().reserve(polygon.size());
+                    for(const auto &v:polygon)arithmetic.back().emplace_back(v);
+                }
+            } else for(const auto &polygon:exact) {
+                imported_binary.emplace_back();arithmetic.emplace_back();
+                for(const auto &q:polygon) {
+                    imported_binary.back().push_back(q.external());arithmetic.back().emplace_back(q.external());
+                }
+            }
+        }
+        const auto &binary=prepared_binary?*prepared_binary:imported_binary;
+        std::vector<Vector2> chain;
+        {
+            PhaseTimer timer{result.stats.contact_materialization_seconds};
+            std::vector<std::optional<ConvexArithmeticPoint<double>>> bends;
+            const auto path=replay_trace(start,target,arithmetic,trace,bends);
+            std::vector<Vector2> raw;
+            for(const auto &q:path) {const auto v=q.external();if(!v.is_finite())return false;raw.push_back(v);}
+            if(!certified_detail::repair_contacts(raw,binary,chain))return false;
+        }
+        PhaseTimer timer{result.stats.certificate_seconds};
+        const auto seed=chain;
+        for(size_t i=0;i<binary.size();++i) {
+            auto &q=chain[i+1];
+            if(detail::interval_convex_contains(q,binary[i],exact[i],result.stats.predicate_exact_evaluations))continue;
+            Vector2 center{};
+            for(const auto &v:binary[i])center+=v/double(binary[i].size());
+            bool repaired=false;
+            for(double fraction:{0x1p-45,0x1p-40,0x1p-30}) {
+                const auto candidate=q+(center-q)*fraction;
+                if(detail::interval_convex_contains(candidate,binary[i],exact[i],result.stats.predicate_exact_evaluations)) {
+                    q=candidate;repaired=true;break;
+                }
+            }
+            if(!repaired)return false;
+        }
+        Interval length;
+        for(size_t i=1;i<chain.size();++i) {
+            if(chain[i]==chain[i-1])continue;
+            const auto d=IntervalPoint(chain[i])-IntervalPoint(chain[i-1]);
+            length=length+(d.x.square()+d.y.square()).sqrt();
+        }
+        if(!length.finite())return false;
+        // A short-link policy only proposes unit-disk dual vectors; it is
+        // never a test for geometric coincidence or a feasibility tolerance.
+        double proposal_scale=0;
+        for(const auto &v:seed)proposal_scale=std::max({proposal_scale,std::abs(v.x),std::abs(v.y)});
+        const double short_link=std::max(32*std::numeric_limits<double>::epsilon()*proposal_scale,
+            std::isfinite(options.max_gap)&&options.max_gap>0?options.max_gap/(16*double(chain.size())):0);
+        const auto lower=interval_dual_lower(seed,binary,short_link,options.interpolated_zero_dual);
+        if(!lower||*lower>length.hi)return false;
+        const auto gap=Interval(length.hi)-Interval(*lower);
+        const bool cutoff=*lower>=options.cutoff;
+        if(!cutoff&&!(std::isfinite(options.max_gap)&&options.max_gap>0&&gap.hi<=options.max_gap))return false;
+        result.contacts.assign(chain.begin()+1,chain.end()-1);
+        result.lower_bound=*lower;result.upper_bound=length.hi;
+        result.cutoff_pruned=cutoff;
+        result.stats.interval_bounds_certified=true;
+        result.fallback_reason=ConvexFallbackReason::None;
+        result.backend=result.stats.disjoint?ConvexHybridBackend::DoubleDisjoint:ConvexHybridBackend::DoubleIntersection;
+        return true;
+    } catch(const std::exception &) {return false;}
+}
+
+#ifdef TPP_HAS_TOUCHING_DISJOINT
+#if defined(__GNUC__) || defined(__clang__)
+[[gnu::noinline]]
+#elif defined(_MSC_VER)
+__declspec(noinline)
+#endif
+bool try_interval_boundary_bound(Vector2 start,Vector2 target,
+        const std::vector<std::vector<Vector2>> &input,const std::vector<Polygon> &polygons,
+        const ConvexHybridOptions &options,ConvexHybridResult &result,
+        const std::vector<std::vector<Vector2>> *prepared_binary=nullptr) {
+    {
+        PhaseTimer timer{result.stats.dispatch_seconds};
+        if(!suggests_boundary_disjoint(input))return false;
+    }
+    try {
+        const auto trace=[&] {
+            PhaseTimer timer{result.stats.double_solver_seconds};
+            return propose_boundary_trace(start,target,input,polygons,true);
+        }();
+        if(!try_interval_trace_bound(start,target,polygons,trace,options,result,prepared_binary))return false;
+        result.stats.interval_bounds_contracted=true;
+        return true;
+    } catch(const std::exception &) {return false;}
+}
+#endif
+#endif
+
+#ifdef TPP_HAS_TOUCHING_DISJOINT
+// Keep the optional recovery out of the ordinary double/cutoff stack frame.
+#if defined(__GNUC__) || defined(__clang__)
+[[gnu::noinline]]
+#elif defined(_MSC_VER)
+__declspec(noinline)
+#endif
+bool recover_touching_disjoint(const Vector2 &start,const Vector2 &target,
+        const std::vector<std::vector<Vector2>> &input,const std::vector<Polygon> &polygons,
+        ConvexHybridResult &result,std::vector<Point> &exact_contacts,
+        const std::vector<size_t> *prepared_rotations) {
+    const bool suggested=[&] {
+        PhaseTimer timer{result.stats.dispatch_seconds};return suggests_boundary_disjoint(input);
+    }();
+    if(!suggested)return false;
+    result.stats.touching_disjoint_attempted=true;
+    // Contraction only proposes a combinatorial trace, replayed on the
+    // unperturbed polygons. If it fails, try the original closed geometry.
+    for(int attempt=1;attempt>=0&&!result.stats.touching_disjoint_certified;--attempt) {
+        try {
+            auto candidate=[&] {
+                PhaseTimer timer{result.stats.double_solver_seconds};
+                return propose_boundary_trace(start,target,input,polygons,attempt!=0);
+            }();
+            std::vector<Point> contacts;std::vector<ContactFeature> features;
+            std::vector<std::optional<Point>> bends;
+            const bool valid=[&] {
+                PhaseTimer timer{result.stats.contact_materialization_seconds};
+                const auto path=replay_trace_exact(start,target,polygons,candidate,bends);
+                return materialize_trace_path(path,polygons,candidate,bends,true,contacts,features,prepared_rotations);
+            }();
+            if(!valid)continue;
+            const auto certificate_began=Clock::now();
+            const auto reason=certify(start,target,polygons,contacts,features,
+                result.stats.predicate_exact_evaluations,result.stats.zero_link_witnesses);
+            result.stats.certificate_seconds+=elapsed(certificate_began);
+            if(reason==ConvexFallbackReason::None) {
+                exact_contacts=std::move(contacts);
+                result.contacts.clear();for(const auto &q:exact_contacts)result.contacts.push_back(q.external());
+                result.fallback_reason=ConvexFallbackReason::None;
+                result.stats.touching_disjoint_certified=result.stats.double_certified=true;
+                result.stats.touching_disjoint_perturbed=attempt!=0;
+            }
+        } catch(const std::exception &) {
+            // A perturbation is never an optimization bound. Failed
+            // proposals retain the ordinary intersection solver below.
+        }
+    }
+    return result.stats.touching_disjoint_certified;
+}
+#endif
+
 void set_bounds(ConvexHybridResult &result,Vector2 start,Vector2 target) {
+    PhaseTimer timer{result.stats.bound_evaluation_seconds};
     const double value=contact_length(start,target,result.contacts);
     result.lower_bound=std::nextafter(value,-std::numeric_limits<double>::infinity());
     result.upper_bound=std::nextafter(value,std::numeric_limits<double>::infinity());
 }
 void set_value_bounds(ConvexHybridResult &result,double value) {
+    PhaseTimer timer{result.stats.bound_evaluation_seconds};
     result.lower_bound=std::nextafter(value,-std::numeric_limits<double>::infinity());
     result.upper_bound=std::nextafter(value,std::numeric_limits<double>::infinity());
 }
@@ -690,10 +982,26 @@ struct ConvexHybridCache {
     struct Entry {
         std::vector<Vector2> input;
         Polygon exact;
+        std::vector<Vector2> binary;
+        Bounds box;
+        size_t edge_rotation;
+        std::uint64_t id;
     };
     static constexpr size_t max_vertices=8192; // Bound retained exact geometry.
-    std::unordered_map<std::uint64_t,std::vector<Entry>> entries;
+    static constexpr size_t max_pairs=65536;
+    using Pair=std::pair<std::uint64_t,std::uint64_t>;
+    struct PairHash {
+        size_t operator()(const Pair &pair) const {
+            const auto first=std::hash<std::uint64_t>{}(pair.first);
+            const auto second=std::hash<std::uint64_t>{}(pair.second);
+            return first^(second+0x9e3779b97f4a7c15ULL+(first<<6)+(first>>2));
+        }
+    };
+    using Prepared=std::shared_ptr<const Entry>;
+    std::unordered_map<std::uint64_t,std::vector<Prepared>> entries;
+    std::unordered_map<Pair,bool,PairHash> pairs;
     size_t vertices=0;
+    std::uint64_t next_id=0;
 
     static std::uint64_t key(const std::vector<Vector2> &input) {
         std::uint64_t hash=14695981039346656037ULL;
@@ -712,28 +1020,64 @@ struct ConvexHybridCache {
                std::bit_cast<std::uint64_t>(a[i].y)!=std::bit_cast<std::uint64_t>(b[i].y))return false;
         return true;
     }
-    Polygon get(const std::vector<Vector2> &input) {
+    Prepared get(const std::vector<Vector2> &input) {
         const auto hash=key(input);
         if(const auto it=entries.find(hash);it!=entries.end())
             for(const auto &entry:it->second)
-                if(same_input(input,entry.input))return entry.exact;
+                if(same_input(input,entry->input))return entry;
         Polygon exact=exact_polygon(input);
+        if(next_id==std::numeric_limits<std::uint64_t>::max())
+            throw std::overflow_error("Hybrid geometry cache identity overflow");
+        std::vector<Vector2> binary;binary.reserve(exact.size());
+        for(const auto &q:exact)binary.push_back(q.external());
+        auto box=bounds(exact);
+        const size_t rotation=edge_angle_rotation(exact);
+        auto entry=std::make_shared<Entry>(Entry{input,std::move(exact),std::move(binary),std::move(box),rotation,next_id++});
         if(input.size()<=max_vertices) {
-            if(vertices+input.size()>max_vertices){entries.clear();vertices=0;}
-            entries[hash].push_back({input,exact});
+            if(vertices+input.size()>max_vertices){pairs.clear();entries.clear();vertices=0;}
+            entries[hash].push_back(entry);
             vertices+=input.size();
         }
-        return exact;
+        return entry;
+    }
+    bool disjoint(const std::vector<Prepared> &selected,ConvexHybridStats &stats) {
+        for(size_t i=0;i<selected.size();++i)for(size_t j=i+1;j<selected.size();++j) {
+            const auto &a=*selected[i],&b=*selected[j];
+            const Pair key=std::minmax(a.id,b.id);
+            ++stats.dispatch_pair_queries;
+            bool disjoint;
+            if(const auto found=pairs.find(key);found!=pairs.end()) {
+                ++stats.dispatch_pair_cache_hits;disjoint=found->second;
+            } else {
+                disjoint=pair_disjoint(a.exact,b.exact,a.box,b.box,stats);
+                if(pairs.size()>=max_pairs)pairs.clear();
+                pairs.emplace(key,disjoint);
+            }
+            if(!disjoint)return false;
+        }
+        return true;
     }
 };
 
 static std::vector<Polygon> cached_exact_polygons(
-        const std::vector<std::vector<Vector2>> &input,DynamicConvexTppWorkspace &workspace) {
+        const std::vector<std::vector<Vector2>> &input,DynamicConvexTppWorkspace &workspace,
+        ConvexHybridStats &stats,std::vector<std::vector<Vector2>> &binary,
+        std::vector<ConvexHybridCache::Prepared> &selected) {
     // Copies of a workspace keep independent mutable caches.
     if(!workspace.hybrid_cache || workspace.hybrid_cache.use_count()!=1)
         workspace.hybrid_cache=std::make_shared<ConvexHybridCache>();
     std::vector<Polygon> result;result.reserve(input.size());
-    for(const auto &polygon:input)result.push_back(workspace.hybrid_cache->get(polygon));
+    selected.reserve(input.size());
+    // Prepared handles survive an eviction during this call. Pair identities
+    // are never recycled, including when a polygon is too large to retain.
+    for(const auto &polygon:input)selected.push_back(workspace.hybrid_cache->get(polygon));
+    if(workspace.cache_interval_geometry)binary.reserve(input.size());
+    for(const auto &entry:selected) {
+        result.push_back(entry->exact);
+        if(workspace.cache_interval_geometry)binary.push_back(entry->binary);
+    }
+    stats.disjoint=workspace.cache_disjoint_dispatch
+        ?workspace.hybrid_cache->disjoint(selected,stats):pairwise_disjoint(result,stats);
     return result;
 }
 
@@ -779,18 +1123,46 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
         result.backend=result.stats.disjoint?ConvexHybridBackend::DoubleDisjoint:ConvexHybridBackend::DoubleIntersection;
         set_value_bounds(result,value);result.stats.total_seconds=elapsed(began);return result;
     }
-    const auto polygons=workspace?cached_exact_polygons(input,*workspace):exact_polygons(input);
-    result.stats.disjoint=pairwise_disjoint(polygons);
+    std::vector<std::vector<Vector2>> binary;
+    std::vector<ConvexHybridCache::Prepared> selected;
+    const auto polygons=workspace?cached_exact_polygons(input,*workspace,result.stats,binary,selected):exact_polygons(input);
+    const auto *prepared_binary=workspace&&workspace->cache_interval_geometry?&binary:nullptr;
+    // Gather the cached indices only when rational materialization is needed.
+    // The common interval return does not allocate another per-call vector.
+    std::vector<size_t> rotations;
+    auto contact_rotations=[&]() -> const std::vector<size_t>* {
+        if(!workspace)return nullptr;
+        if(rotations.size()!=selected.size()) {
+            rotations.reserve(selected.size());
+            for(const auto &entry:selected)rotations.push_back(entry->edge_rotation);
+        }
+        return &rotations;
+    };
+    if(!workspace)result.stats.disjoint=pairwise_disjoint(polygons,result.stats);
     result.stats.dispatch_seconds=elapsed(dispatch_began);
     if(input.empty()) {set_bounds(result,start,target);result.stats.total_seconds=elapsed(began);return result;}
     std::vector<detail::DirectionalTraceStep> trace;
     std::vector<Point> exact_contacts;std::vector<ContactFeature> contact_features;
+    auto candidate_dual=[&] {
+        PhaseTimer timer{result.stats.bound_evaluation_seconds};
+        return candidate_dual_lower(start,target,polygons,exact_contacts);
+    };
     result.stats.double_attempted=true;
     try {
         const auto solve_began=Clock::now();
         if(result.stats.disjoint)trace=detail::solve_binary_search_disjoint_trace_unchecked(start,target,input);
         else trace=detail::solve_intersecting_map_trace_unchecked_double(start,target,input);
         result.stats.double_solver_seconds=elapsed(solve_began);
+#ifdef TPP_HAS_INTERVAL_PRIMAL_DUAL
+        if(interval_bounds_enabled(options)) {
+            bool accepted=try_interval_trace_bound(start,target,polygons,trace,options,result,prepared_binary);
+#ifdef TPP_HAS_TOUCHING_DISJOINT
+            if(!accepted&&!result.stats.disjoint)
+                accepted=try_interval_boundary_bound(start,target,input,polygons,options,result,prepared_binary);
+#endif
+            if(accepted){result.stats.total_seconds=elapsed(began);return result;}
+        }
+#endif
         const auto contact_began=Clock::now();
         const bool finite=std::ranges::all_of(trace,[](const auto &step){return step.defining_point.is_finite();});
         if(!finite)result.fallback_reason=ConvexFallbackReason::Nonfinite;
@@ -798,10 +1170,10 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
             std::vector<std::optional<Point>> bend_contacts;
             const auto exact_path=replay_trace_exact(start,target,polygons,trace,bend_contacts);
             const bool contacts_valid=materialize_trace_path(exact_path,polygons,trace,bend_contacts,
-                result.stats.disjoint,exact_contacts,contact_features);
+                result.stats.disjoint,exact_contacts,contact_features,contact_rotations());
             if(!contacts_valid)result.fallback_reason=ConvexFallbackReason::ContactConstruction;
         }
-        result.stats.contact_materialization_seconds=elapsed(contact_began);
+        result.stats.contact_materialization_seconds+=elapsed(contact_began);
     } catch(const std::exception &) {
         result.fallback_reason=ConvexFallbackReason::LocatorOrRefoldingException;
     }
@@ -816,7 +1188,7 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
         const auto certificate_began=Clock::now();
         result.fallback_reason=certify(start,target,polygons,exact_contacts,contact_features,
             result.stats.predicate_exact_evaluations,result.stats.zero_link_witnesses);
-        result.stats.certificate_seconds=elapsed(certificate_began);
+        result.stats.certificate_seconds+=elapsed(certificate_began);
         result.stats.double_certified=result.fallback_reason==ConvexFallbackReason::None;
     }
     if(options.retain_rejected_double_candidate && !result.stats.double_certified &&
@@ -827,9 +1199,8 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
             result.rejected_double_exact_feasible&=inside(
                 Point(result.rejected_double_contacts[i]),polygons[i]);
         ConvexHybridResult candidate_bounds;
-        set_exact_bounds(candidate_bounds,start,target,exact_contacts);
-        result.rejected_double_lower_bound=candidate_dual_lower(
-            start,target,polygons,exact_contacts);
+        set_exact_bounds(candidate_bounds,start,target,exact_contacts,&result.stats);
+        result.rejected_double_lower_bound=candidate_dual();
         result.rejected_double_upper_bound=candidate_bounds.upper_bound;
     }
     if(result.stats.double_certified && !options.shadow_rational) {
@@ -840,12 +1211,15 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
        && std::isfinite(options.cutoff)
        && exact_contacts.size()==polygons.size()) {
         const auto candidate_path=reconstruct_convex_polyline(start,target,result.contacts,false);
-        const double rough=certified_detail::dual_bound(candidate_path,input);
+        const double rough=[&] {
+            PhaseTimer timer{result.stats.bound_evaluation_seconds};
+            return certified_detail::dual_bound(candidate_path,input);
+        }();
         if(rough>=options.cutoff-1e-7*std::max(1.0,std::abs(options.cutoff))) {
-            const double dual=candidate_dual_lower(start,target,polygons,exact_contacts);
+            const double dual=candidate_dual();
             if(dual>=options.cutoff) {
                 ConvexHybridResult candidate;
-                set_exact_bounds(candidate,start,target,exact_contacts);
+                set_exact_bounds(candidate,start,target,exact_contacts,&result.stats);
                 result.lower_bound=dual;
                 result.upper_bound=candidate.upper_bound;
                 result.cutoff_pruned=true;
@@ -856,6 +1230,54 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
             }
         }
     }
+#ifdef TPP_HAS_TOUCHING_DISJOINT
+    if(options.mode==ConvexHybridMode::SafeCertified&&!result.stats.double_certified&&!result.stats.disjoint&&
+       recover_touching_disjoint(start,target,input,polygons,result,exact_contacts,contact_rotations())&&!options.shadow_rational) {
+        result.backend=ConvexHybridBackend::DoubleDisjoint;
+        set_exact_bounds(result,start,target,exact_contacts);
+        result.stats.total_seconds=elapsed(began);return result;
+    }
+#endif
+#ifdef TPP_HAS_FILTERED_DIRECTIONAL
+    // Preserve the inexpensive double/cutoff paths. Only a rejected
+    // intersecting proposal pays for the same map's filtered arithmetic.
+    if(!result.stats.double_certified&&!result.stats.disjoint&&options.mode==ConvexHybridMode::SafeCertified) {
+        result.stats.filtered_attempted=true;
+        try {
+            const auto solve_began=Clock::now();
+            const auto filtered=detail::solve_intersecting_map_trace_filtered(start,target,input);
+            result.stats.double_solver_seconds+=elapsed(solve_began);
+            const auto contact_began=Clock::now();
+            std::vector<Point> contacts;
+            std::vector<ContactFeature> features;
+            std::vector<std::optional<Point>> bends;
+            const auto path=replay_trace_exact(start,target,polygons,filtered,bends);
+            const bool valid=materialize_trace_path(path,polygons,filtered,bends,false,contacts,features,contact_rotations());
+            result.stats.contact_materialization_seconds+=elapsed(contact_began);
+            if(valid) {
+                const auto certificate_began=Clock::now();
+                const auto reason=certify(start,target,polygons,contacts,features,
+                    result.stats.predicate_exact_evaluations,result.stats.zero_link_witnesses);
+                result.stats.certificate_seconds+=elapsed(certificate_began);
+                if(reason==ConvexFallbackReason::None) {
+                    exact_contacts=std::move(contacts);
+                    result.contacts.clear();
+                    for(const auto &p:exact_contacts)result.contacts.push_back(p.external());
+                    result.stats.filtered_certified=result.stats.double_certified=true;
+                    result.fallback_reason=ConvexFallbackReason::None;
+                }
+            }
+        } catch(const std::exception &) {
+            // Failed arithmetic or reconstruction retains the original
+            // rejected candidate and the ordinary complete rational recovery.
+        }
+        if(result.stats.filtered_certified&&!options.shadow_rational) {
+            result.backend=ConvexHybridBackend::DoubleIntersection;
+            set_exact_bounds(result,start,target,exact_contacts);
+            result.stats.total_seconds=elapsed(began);return result;
+        }
+    }
+#endif
     const auto fast_contacts=result.contacts;
     const auto fallback_began=Clock::now();
     double rational_lower_bound=0,rational_upper_bound=0;
@@ -890,13 +1312,13 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
     }
     if(options.shadow_rational && result.stats.double_certified) {
         ConvexHybridResult fast_bounds;
-        set_exact_bounds(fast_bounds,start,target,exact_contacts);
+        set_exact_bounds(fast_bounds,start,target,exact_contacts,&result.stats);
         const bool certified_intervals_overlap=
             fast_bounds.lower_bound<=rational_upper_bound &&
             rational_lower_bound<=fast_bounds.upper_bound;
         if(certified_intervals_overlap && !rational_shadow_mismatch) {
             result.contacts=fast_contacts;
-            result.backend=result.stats.disjoint?ConvexHybridBackend::DoubleDisjoint:ConvexHybridBackend::DoubleIntersection;
+            result.backend=(result.stats.disjoint||result.stats.touching_disjoint_certified)?ConvexHybridBackend::DoubleDisjoint:ConvexHybridBackend::DoubleIntersection;
             result.fallback_reason=ConvexFallbackReason::None;
             result.lower_bound=fast_bounds.lower_bound;result.upper_bound=fast_bounds.upper_bound;
             result.stats.total_seconds=elapsed(began);return result;

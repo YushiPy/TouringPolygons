@@ -257,7 +257,7 @@ def _tspn_report_row(external: dict[str, str], cases: list, solver: str = 'tspn'
 		raise ValueError(f'External case index outside suite: {index}')
 	if external['sha256'] != cases[index].digest:
 		raise ValueError(f'External instance hash mismatch for case {index}.')
-	return {
+	row = {
 		'case': index, 'sha256': cases[index].digest, 'geometry_sha256': cases[index].digest,
 		'solver': solver, 'status': external['status'], 'polygons': len(cases[index].polygons),
 		'upper_bound': finite(external.get('upper_bound')), 'lower_bound': finite(external.get('lower_bound')),
@@ -274,6 +274,27 @@ def _tspn_report_row(external: dict[str, str], cases: list, solver: str = 'tspn'
 			'recomputed_length': finite(external.get('recomputed_length'))},
 		'termination': external.get('status'), 'error': external.get('error') or None,
 	}
+	# Earlier workers could lose the virtual environment and export trajectories
+	# without Shapely validation. Recheck those stored paths outside solver timing.
+	if row['valid'] is None and row['path']:
+		geometry = case_geometry(cases[index])
+		tolerance = float(external['validation_tolerance'])
+		try:
+			validation = validate_path(geometry['start'], geometry['target'],
+				cases[index].polygons, row['path'], tolerance)
+			snapped = json.loads(external['snapped_trajectory_json']) if external.get('snapped_trajectory_json') else None
+			snapped_validation = validate_path(geometry['start'], geometry['target'],
+				cases[index].polygons, snapped, tolerance) if snapped else None
+		except ModuleNotFoundError as error:
+			if error.name != 'shapely':
+				raise
+		else:
+			row['valid'] = validation['valid']
+			row['validation'] = {**validation, 'source': 'stored_trajectory_revalidation',
+				'tolerance': tolerance}
+			if snapped_validation is not None:
+				row['endpoint_repaired_valid'] = snapped_validation['valid']
+	return row
 
 
 def write_comparison_summary(path: Path, report: dict, expected_cases: int) -> None:
@@ -317,38 +338,45 @@ def write_comparison_summary(path: Path, report: dict, expected_cases: int) -> N
 		)
 		lines.extend([
 			tolerance_note,
-			'The runtime ratios compare these solver configurations. They do not isolate the speedup from threading, because no single-thread control run is included.',
+			'The runtime ratios compare the recorded solver configurations; they do not control for system load or isolate threading effects.',
 		])
 	lines.extend([
 		'',
-		'| Solver | Recorded cases | Closed requested gap | Independent valid paths | Median solve time | Total solve time |',
-		'|---|---:|---:|---:|---:|---:|',
+		'| Solver | Recorded cases | Errors | Closed requested gap | Independent valid paths | Median solve time | Total solve time |',
+		'|---|---:|---:|---:|---:|---:|---:|',
 	])
 	for solver, label in (('unordered', 'tpp-ours'), ('tspn', 'tpp-fekete')):
 		if solver not in selected_solvers:
 			continue
 		group = list(by_solver[solver].values())
+		recorded = sum(row.get('solver') == solver for row in rows)
+		errors = sum(row.get('solver') == solver and bool(row.get('error')) for row in rows)
 		times = [float(row['seconds']) for row in group if row.get('seconds') is not None]
 		closed = sum(row.get('exact') is True for row in group)
 		valid = sum(row.get('valid') is True for row in group)
 		valid_known = sum(row.get('valid') is not None for row in group)
-		lines.append(f"| {label} | {len(group)} | {closed}/{len(group)} | {valid}/{valid_known} known | "
+		lines.append(f"| {label} | {recorded} | {errors} | {closed}/{recorded} | {valid}/{valid_known} known | "
 			f"{statistics.median(times):.3f}s | {sum(times):.3f}s |" if times else
-			f"| {label} | {len(group)} | {closed}/{len(group)} | {valid}/{valid_known} known | n/a | n/a |")
+			f"| {label} | {recorded} | {errors} | {closed}/{recorded} | {valid}/{valid_known} known | n/a | n/a |")
 	paired = []
 	ratios = []
 	if 'unordered' in selected_solvers and 'tspn' in selected_solvers:
 		paired = [(by_solver['unordered'][i], by_solver['tspn'][i]) for i in sorted(set(by_solver['unordered']) & set(by_solver['tspn']))]
 		ratios = [float(ours['seconds']) / float(fekete['seconds']) for ours, fekete in paired
-			if ours.get('seconds') and fekete.get('seconds') and float(ours['seconds']) > 0 and float(fekete['seconds']) > 0]
+			if ours.get('exact') is True and fekete.get('exact') is True
+			and ours.get('valid') is True and fekete.get('valid') is True
+			and ours.get('seconds') and fekete.get('seconds') and float(ours['seconds']) > 0 and float(fekete['seconds']) > 0]
 	if ratios:
 		lines.extend([
-			'', f"Paired runtime data: {len(ratios)} instances.",
+			'', f"Paired runtime data with both gaps closed and independently valid raw paths: {len(ratios)} instances.",
 			f"Median tpp-ours/tpp-fekete runtime ratio: {statistics.median(ratios):.3f}× (below 1 means tpp-ours was faster).",
 			f"tpp-ours faster: {sum(ratio < 1 for ratio in ratios)}; tpp-fekete faster: {sum(ratio > 1 for ratio in ratios)}; equal: {sum(ratio == 1 for ratio in ratios)}.",
 		])
+	if 'unordered' in selected_solvers and 'tspn' in selected_solvers:
+		lines.extend(['', 'Runtime ratios exclude errors, unfinished gaps, invalid paths, and paths without independent validation. '
+			'A subset of paired cases does not establish the overall corpus speedup.'])
 	if any(row.get('valid') is None for solver in selected_solvers for row in by_solver[solver].values()):
-		lines.extend(['', 'Independent geometric validation was unavailable for some rows because Shapely was not installed in that solver environment. Those rows are marked unknown, not valid.'])
+		lines.extend(['', 'Independent geometric validation is missing for some rows. Those rows are marked unknown, not valid.'])
 	reference_path = ROOT / 'benchmarks/results-saved/fekete-comparison/fekete.csv'
 	if reference_path.exists() and 'tspn' in config.get('solvers', []):
 		with reference_path.open(newline='') as file:
@@ -445,7 +473,9 @@ def main(argv: list[str] | None = None) -> int:
 		'convex_order_refinement': args.convex_initial_refinement,
 		'bidirectional': args.bidirectional_initial,
 	}
-	external_python = args.external_python.resolve()
+	# Preserve the .venv entry point: resolve() bypasses its site-packages and
+	# freezes a versioned Homebrew target that an upgrade can remove mid-campaign.
+	external_python = args.external_python.absolute()
 	external_build = args.external_build.resolve()
 	external_bindings = sorted((external_build / 'python/tspn_bnb2/core').glob('_tspn_bindings*.so'))
 	external_binding_sha256 = None

@@ -154,7 +154,9 @@ def main(argv: list[str] | None = None) -> int:
                 output.flush()
                 if not args.quiet:
                     print(json.dumps({k: row.get(k) for k in
-                                      ('solver', 'suite', 'case', 'repeat', 'seconds', 'initial_upper_bound', 'exact', 'calls', 'valid', 'error')}), flush=True)
+                                      ('solver', 'suite', 'case', 'repeat', 'seconds', 'initial_upper_bound',
+                                       'exact', 'calls', 'process_peak_rss_bytes', 'peak_sequence_storage_bytes',
+                                       'valid', 'error')}), flush=True)
     rows = list(latest_rows.values())
     if args.resume:
         temporary_output = args.output.with_suffix(args.output.suffix + '.tmp')
@@ -165,11 +167,14 @@ def main(argv: list[str] | None = None) -> int:
     for label, _, _, _ in solvers:
         selected = [r for r in rows if r['solver'] == label]
         times = [r['seconds'] for r in selected if 'seconds' in r]
+        peak_rss = [r['process_peak_rss_bytes'] for r in selected if r.get('process_peak_rss_bytes', 0)]
         print(json.dumps({'solver': label, 'runs': len(selected),
                           'exact': sum(bool(r.get('exact')) for r in selected),
                           'invalid_or_error': sum(bool(r.get('error')) or r.get('valid') is False for r in selected),
                           'validation_unavailable': sum(r.get('valid') is None for r in selected),
-                          'seconds': sum(times), 'median_seconds': statistics.median(times) if times else None}))
+                          'seconds': sum(times), 'median_seconds': statistics.median(times) if times else None,
+                          'median_peak_rss_bytes': statistics.median(peak_rss) if peak_rss else None,
+                          'max_peak_rss_bytes': max(peak_rss) if peak_rss else None}))
     return int(any(r.get('error') or r.get('valid') is False for r in rows))
 
 

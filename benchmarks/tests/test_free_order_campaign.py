@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import os
 import struct
@@ -7,7 +9,8 @@ import threading
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 
 INTERNAL = Path(__file__).resolve().parents[1] / '_internal'
@@ -110,6 +113,9 @@ class FreeOrderQueueTests(unittest.TestCase):
 			bindings = build / 'python/tspn_bnb2/core'
 			bindings.mkdir(parents=True)
 			(bindings / '_tspn_bindings_test.so').write_bytes(b'stub binding')
+			venv_python = root / '.venv/bin/python'
+			venv_python.parent.mkdir(parents=True)
+			venv_python.symlink_to(sys.executable)
 			slow_case_started = threading.Event()
 			release_slow_case = threading.Event()
 			fekete_overlapped = threading.Event()
@@ -138,6 +144,7 @@ class FreeOrderQueueTests(unittest.TestCase):
 						active_our_cases -= 1
 
 			def fake_fekete_solver(_args, index, _log_file, _log_lock):
+				self.assertEqual(_args.worker_python, venv_python)
 				self.assertTrue(slow_case_started.is_set())
 				with active_lock:
 					if active_our_cases:
@@ -161,12 +168,138 @@ class FreeOrderQueueTests(unittest.TestCase):
 				status = free_order_campaign.main([
 					str(campaign), '--solver', 'unordered', '--solver', 'tspn',
 					'--threads-per-instance', '1', '--workers', '2', '--max-seconds', '-1',
-					'--max-calls', '100', '--external-python', sys.executable,
+					'--max-calls', '100', '--external-python', str(venv_python),
 					'--external-build', str(build),
 				])
 
 			self.assertEqual(status, 0)
 			self.assertTrue(fekete_overlapped.is_set())
+
+	def test_resume_retries_only_external_errors_and_keeps_time_limited_results(self):
+		with tempfile.TemporaryDirectory() as temporary:
+			root = Path(temporary)
+			campaign = root / 'campaign'
+			campaign.mkdir()
+			(campaign / 'tiny.bin').write_bytes(_two_case_suite())
+			(campaign / 'campaign.json').write_text(json.dumps({
+				'inputs': [{'file': 'tiny.bin'}],
+			}))
+			binary = root / 'tpp'
+			binary.write_bytes(b'frozen test binary')
+			build = root / 'fekete-build'
+			bindings = build / 'python/tspn_bnb2/core'
+			bindings.mkdir(parents=True)
+			(bindings / '_tspn_bindings_test.so').write_bytes(b'frozen test binding')
+			options = [str(campaign), '--solver', 'tpp-ours', '--solver', 'tpp-fekete',
+				'--max-seconds', '3600', '--workers', '2', '--no-build',
+				'--external-python', sys.executable, '--external-build', str(build)]
+			ours = {'exact': True, 'termination': 'optimal', 'seconds': 1,
+				'upper_bound': 10., 'lower_bound': 10., 'path': [[0., 0.], [10., 0.]]}
+			partial = {'status': 'limit', 'is_optimal': False, 'solve_seconds': 3601.,
+				'upper_bound': 11., 'lower_bound': 10., 'trajectory': [[0., 0.], [10., 0.]],
+				'validation': {'valid': True}, 'statistics': {}}
+			failure = {'status': 'error', 'error': 'missing interpreter', 'solve_seconds': 0.}
+			with patch.object(free_order_campaign, 'BINARY', binary), \
+				patch.object(free_order_campaign, 'ensure_binary'), \
+				patch.object(free_order_campaign, 'run_unordered_solver', return_value=ours) as native, \
+				patch.object(free_order_campaign, 'validate_path', return_value={'valid': True}), \
+				patch.object(tspn_run_comparison, 'run_case',
+					side_effect=lambda _args, index, *_rest: partial if index == 0 else failure) as external, \
+				contextlib.redirect_stdout(io.StringIO()):
+				self.assertEqual(free_order_campaign.main(options), 1)
+				native.reset_mock()
+				external.reset_mock()
+				external.side_effect = None
+				external.return_value = {**partial, 'status': 'optimal', 'is_optimal': True,
+					'upper_bound': 10., 'solve_seconds': 2.}
+				self.assertEqual(free_order_campaign.main(options), 0)
+				native.assert_not_called()
+				external.assert_called_once()
+				self.assertEqual(external.call_args.args[1], 1)
+				external.reset_mock()
+				self.assertEqual(free_order_campaign.main(options), 0)
+				external.assert_not_called()
+			report = json.loads(next((campaign / 'results/free-order').glob('*/report.json')).read_text())
+			self.assertEqual(len(report['rows']), 4)
+			preserved = next(row for row in report['rows'] if row['solver'] == 'tspn' and row['case'] == 0)
+			self.assertEqual(preserved['status'], 'limit')
+			self.assertEqual(preserved['seconds'], 3601.)
+
+	def test_revalidate_stored_external_path_without_changing_solver_result(self):
+		with tempfile.TemporaryDirectory() as temporary:
+			suite = Path(temporary) / 'tiny.bin'
+			suite.write_bytes(_two_case_suite())
+			cases = free_order_campaign.read_encoded_cases(suite)
+			# Endpoint drift is above the independent tolerance, while the line
+			# still visits the polygon. Snapping is only a diagnostic candidate.
+			external = {'case_index': '0', 'sha256': cases[0].digest, 'status': 'optimal',
+				'is_optimal': 'True', 'upper_bound': '10', 'lower_bound': '10', 'solve_seconds': '2',
+				'validation_tolerance': '1e-7',
+				'trajectory_json': json.dumps([[0., 1e-5], [0., 1.5], [10., 0.]]),
+				'snapped_trajectory_json': json.dumps([[0., 0.], [0., 1.5], [10., 0.]])}
+			row = free_order_campaign._tspn_report_row(external, cases)
+			self.assertFalse(row['valid'])
+			self.assertTrue(row['endpoint_repaired_valid'])
+			self.assertEqual(row['seconds'], 2.)
+			self.assertTrue(row['exact'])
+			self.assertEqual(row['path'][0], [0., 1e-5])
+			external['raw_valid'] = 'False'
+			with patch.object(free_order_campaign, 'validate_path') as validate:
+				self.assertFalse(free_order_campaign._tspn_report_row(external, cases)['valid'])
+				validate.assert_not_called()
+
+	def test_summary_excludes_unfinished_invalid_unknown_and_error_pairs(self):
+		rows = []
+		for index in range(5):
+			base = {'case': index, 'exact': True, 'valid': True, 'seconds': 1.}
+			rows.append({**base, 'solver': 'unordered'})
+			external = {**base, 'solver': 'tspn', 'seconds': 2.}
+			if index == 1:
+				external['valid'] = False
+			elif index == 2:
+				external['exact'] = False
+			elif index == 3:
+				external['valid'] = None
+			elif index == 4:
+				external['error'] = 'missing interpreter'
+			rows.append(external)
+		with tempfile.TemporaryDirectory() as temporary:
+			path = Path(temporary) / 'comparison.md'
+			free_order_campaign.write_comparison_summary(path, {
+				'rows': rows, 'config': {'solvers': ['unordered', 'tspn']}, 'status': 'failed',
+			}, 5)
+			text = path.read_text()
+			self.assertIn('independently valid raw paths: 1 instances.', text)
+			self.assertIn('| tpp-fekete | 5 | 1 | 3/5 |', text)
+
+
+class ExternalWorkerRuntimeTests(unittest.TestCase):
+	def test_worker_uses_venv_symlink_even_when_its_target_changes(self):
+		with tempfile.TemporaryDirectory() as temporary:
+			root = Path(temporary)
+			link = root / '.venv/bin/python'
+			link.parent.mkdir(parents=True)
+			args = SimpleNamespace(worker_python=link, tspn_repo=root, suite=root / 'tiny.bin',
+				mode='path', time_limit=3600, threads=1, eps=.001, feasibility_tolerance=.001,
+				validation_tolerance=1e-7, oracle_backend='socp', oracle_tolerance=1e-7)
+			for version in ('python-old', 'python-new'):
+				target = root / version
+				target.write_text('test interpreter placeholder')
+				if link.is_symlink():
+					old_target = link.resolve()
+					link.unlink()
+					old_target.unlink()
+				link.symlink_to(target)
+				def fake_spawn(command, **_kwargs):
+					self.assertEqual(command[0], str(link))
+					result_path = Path(command[command.index('--worker-result') + 1])
+					result_path.write_text(json.dumps({'status': 'optimal', 'upper_bound': 10.}))
+					process = Mock(returncode=0)
+					process.communicate.return_value = ('', '')
+					return process
+				with patch.object(tspn_run_comparison.subprocess, 'Popen', side_effect=fake_spawn):
+					result = tspn_run_comparison.run_case(args, 0, io.StringIO())
+				self.assertEqual(result['status'], 'optimal')
 
 def _two_case_suite() -> bytes:
 	encoded = bytearray()

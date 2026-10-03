@@ -51,8 +51,8 @@ cd TouringPolygons
 ```
 
 O instalador é idempotente. Ele instala as dependências de sistema conhecidas,
-sincroniza os ambientes Python e Node do dashboard e instala o Chromium usado
-pelos testes de navegador.
+sincroniza o ambiente Python próprio dos benchmarks e os ambientes Python e
+Node do dashboard, e instala o Chromium usado pelos testes de navegador.
 
 Para verificar um checkout já preparado sem tentar instalar pacotes:
 
@@ -62,7 +62,10 @@ Para verificar um checkout já preparado sem tentar instalar pacotes:
 
 ## Benchmarks
 
-`benchmarks/tpp.py` é a interface pública. Exemplo de campanha sintética:
+`benchmarks/tpp.py` é a interface pública. Para preparar apenas seu ambiente
+Python, execute `python3 benchmarks/tpp.py setup`. A CLI usa
+`benchmarks/.venv` automaticamente, com dependências fixadas em `uv.lock`.
+Exemplo de campanha sintética:
 
 ```bash
 python3 benchmarks/tpp.py create smoke \

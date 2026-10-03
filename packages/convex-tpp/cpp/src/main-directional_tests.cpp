@@ -3,6 +3,8 @@
 #include "tpp/convex/detail/intersecting_maps.h"
 #include "tpp/convex/hybrid.h"
 #include "tpp_convex.h"
+#include "solvers/filtered_rational.h"
+#include "solvers/zero_contact_certificate.h"
 
 #include <algorithm>
 #include <cmath>
@@ -46,6 +48,89 @@ void describe(const TestCase &c) {
         std::cout<<"polygon";
         for(auto v:p)std::cout<<" ("<<v.x<<','<<v.y<<')';
         std::cout<<'\n';
+    }
+}
+
+void dispatch_cache_regressions() {
+    tpp::DynamicConvexTppWorkspace cached,uncached;
+    uncached.cache_disjoint_dispatch=false;
+    uncached.cache_interval_geometry=false;
+    tpp::ConvexHybridOptions options;options.max_gap=1e-6;
+    auto compare=[&](const Polygons &polygons,bool disjoint,Vector2 start=Vector2{-4,-1},Vector2 target=Vector2{4,-1}) {
+        const auto reference=tpp::tpp_convex_solve_hybrid(start,target,polygons,options,uncached);
+        const auto result=tpp::tpp_convex_solve_hybrid(start,target,polygons,options,cached);
+        check(result.stats.disjoint==disjoint && reference.stats.disjoint==disjoint,
+              "cached dispatch preserves exact closed-set intersection");
+        check(result.contacts==reference.contacts && result.lower_bound==reference.lower_bound &&
+              result.upper_bound==reference.upper_bound && result.backend==reference.backend &&
+              result.fallback_reason==reference.fallback_reason,
+              "cached dispatch preserves contacts, bounds and recovery");
+        check(uncached.hybrid_cache && reference.stats.dispatch_pair_cache_hits==0,
+              "dispatch ablation retains geometry without reusing pairs");
+        return result;
+    };
+    const auto a=box(-2,0,0,2),b=box(1,0,2,2);
+    compare({a,b},true);
+    const auto warm=compare({a,b},true);
+    check(warm.stats.dispatch_pair_queries==1 && warm.stats.dispatch_pair_cache_hits==1 &&
+          warm.stats.dispatch_pair_exact_checks==0,"warm pair avoids repeated exact dispatch");
+    check(compare({b,a},true,{5,-2},{-5,-2}).stats.dispatch_pair_cache_hits==1,
+          "pair certificate is independent of order and endpoints");
+    compare({a,box(0,0,2,2)},false); // Shared edge is intersection.
+    check(compare({box(0,0,2,2),a},false).stats.dispatch_pair_cache_hits==1,
+          "intersecting pair certificates are reused too");
+    compare({a,a},false);
+    compare({a,box(-1,1,1,3)},false);
+    compare({box(-2,-2,2,2),box(-1,-1,1,1)},false);
+    compare({box(-2,0,1,2),box(std::nextafter(1.0,2.0),0,2,2)},true);
+    compare({box(-2,0,1,2),box(std::nextafter(1.0,0.0),0,2,2)},false);
+    auto reversed=a;std::reverse(reversed.begin(),reversed.end());
+    compare({reversed,b},true);
+    auto closed=a;closed.push_back(closed.front());compare({closed,b},true);
+    auto copy=cached;
+    const auto detached=tpp::tpp_convex_solve_hybrid({-4,-1},{4,-1},{a,b},options,copy);
+    check(detached.stats.dispatch_pair_cache_hits==0,"copied workspaces detach mutable caches");
+    // Fill past the geometry bound. Handles already selected for the current
+    // call must survive an eviction while the remaining inputs are prepared.
+    cached={};
+    for(size_t i=0;i<2048;++i)
+        tpp::tpp_convex_solve_hybrid({-4,-1},{4,-1},{box(10+double(i),0,11+double(i),2)},options,cached);
+    compare({box(2057,0,2058,2),a,b},true);
+    compare({a,b},true);
+    check(compare({b,a},true).stats.dispatch_pair_cache_hits==1,
+          "eviction keeps new pair identities coherent");
+    // The pair table has a separate bounded capacity. Crossing it preserves
+    // the same exact dispatcher, even while all geometry still fits.
+    Polygons many;
+    for(size_t i=0;i<365;++i)many.push_back(box(3*double(i),0,3*double(i)+1,1));
+    const auto full=compare(many,true,{-2,0},{1098,0});
+    check(full.stats.dispatch_pair_queries==365*364/2,"bounded pair table checks the entire sequence");
+    compare(many,true,{-2,0},{1098,0});
+}
+
+void cached_contact_rotation_regressions() {
+    tpp::DynamicConvexTppWorkspace workspace;
+    tpp::ConvexHybridOptions options; // Zero gap exercises rational materialization.
+    const std::vector<Polygons> inputs{
+        {},{box(-1,0,1,2)},
+        {box(-2,0,-1,2),box(1,0,2,2)},
+        {box(-2,0,0,2),box(0,0,2,2)},
+        {{{-2,0},{0,0},{1,0},{1,2},{-2,2}},
+         {{0,-1},{2,0},{1,3}},box(-1,-1,1,1)}};
+    for(size_t repeat=0;repeat<2;++repeat)for(auto polygons:inputs) {
+        if(repeat) {
+            std::reverse(polygons.begin(),polygons.end());
+            for(auto &p:polygons){std::reverse(p.begin(),p.end());p.push_back(p.front());}
+        }
+        for(double height:{-1.,3.}) {
+            const Vector2 start{-4,height},target{4,height};
+            const auto reference=tpp::tpp_convex_solve_hybrid(start,target,polygons,options);
+            const auto cached=tpp::tpp_convex_solve_hybrid(start,target,polygons,options,workspace);
+            check(cached.contacts==reference.contacts&&cached.lower_bound==reference.lower_bound&&
+                  cached.upper_bound==reference.upper_bound&&cached.backend==reference.backend&&
+                  cached.fallback_reason==reference.fallback_reason,
+                  "cached contact rotations preserve exact uncached reconstruction");
+        }
     }
 }
 Polygon verify(const TestCase &c,const std::string &name,bool oracle=false) {
@@ -111,6 +196,48 @@ void verify_hybrid(const TestCase &c,const std::string &name,bool shadow=true) {
         check(tpp::validate_ordered_path(c.start,c.target,c.polygons,displayed).valid,
               name+" hybrid reconstructed visits");
         check(hybrid.lower_bound<=hybrid.upper_bound,name+" hybrid bounds ordered");
+#ifdef TPP_HAS_INTERVAL_PRIMAL_DUAL
+        tpp::ConvexHybridOptions bounded_options;
+        bounded_options.max_gap=1e-7*std::max(1.0,hybrid.upper_bound);
+        const auto bounded=tpp::tpp_convex_solve_hybrid(c.start,c.target,c.polygons,bounded_options);
+        static tpp::DynamicConvexTppWorkspace bounded_workspace;
+        for(bool cached_binary:{false,true}) {
+            bounded_workspace.cache_interval_geometry=cached_binary;
+            const auto reused=tpp::tpp_convex_solve_hybrid(c.start,c.target,c.polygons,bounded_options,bounded_workspace);
+            check(reused.contacts==bounded.contacts && reused.lower_bound==bounded.lower_bound &&
+                  reused.upper_bound==bounded.upper_bound && reused.backend==bounded.backend &&
+                  reused.stats.interval_bounds_certified==bounded.stats.interval_bounds_certified &&
+                  reused.fallback_reason==bounded.fallback_reason,
+                  name+" cached normalized geometry preserves bounded oracle result");
+        }
+        check(bounded.lower_bound<=hybrid.upper_bound&&bounded.upper_bound>=hybrid.lower_bound,
+              name+" interval bounds enclose the independent exact reference");
+        check(bounded.upper_bound-bounded.lower_bound<=bounded_options.max_gap,
+              name+" bounded oracle respects requested gap");
+        check(bounded.contacts.size()==c.polygons.size(),name+" bounded contacts retain visit order");
+        bounded_options.interpolated_zero_dual=true;
+        const auto interpolated=tpp::tpp_convex_solve_hybrid(c.start,c.target,c.polygons,bounded_options);
+        check(interpolated.lower_bound<=hybrid.upper_bound&&interpolated.upper_bound>=hybrid.lower_bound,
+              name+" interpolated zero dual encloses exact reference");
+        check(interpolated.upper_bound-interpolated.lower_bound<=bounded_options.max_gap,
+              name+" interpolated zero dual respects requested gap");
+        check(tpp::validate_ordered_path(c.start,c.target,c.polygons,
+              tpp::reconstruct_convex_polyline(c.start,c.target,interpolated.contacts,false)).valid,
+              name+" interpolated proposal retains original visits");
+        if(bounded.stats.interval_bounds_certified)for(size_t i=0;i<c.polygons.size();++i) {
+            tpp::ConvexRationalPoint q(bounded.contacts[i]);
+            tpp::ConvexRational area=0;
+            const auto &p=c.polygons[i];
+            for(size_t j=0;j<p.size();++j)area+=tpp::ConvexRationalPoint(p[j]).cross(tpp::ConvexRationalPoint(p[(j+1)%p.size()]));
+            bool belongs=true;
+            for(size_t j=0;j<p.size();++j) {
+                const tpp::ConvexRationalPoint a(p[j]),b(p[(j+1)%p.size()]);
+                const auto side=(b-a).cross(q-a);
+                belongs&=area>0?side>=0:side<=0;
+            }
+            check(belongs,name+" exported interval contact is exactly feasible");
+        }
+#endif
         if(!hybrid.rejected_double_contacts.empty()) {
             check(hybrid.rejected_double_lower_bound<=hybrid.upper_bound,
                   name+" rejected-candidate dual bound safe");
@@ -172,9 +299,15 @@ void deterministic() {
                       && hybrid.contacts[1]==hybrid.contacts[2],
                       name+" preserves all common-point contacts");
             if(name=="floating feasible suboptimal") {
-                check(hybrid.stats.rational_fallback,name+" rejects double candidate");
-                check(hybrid.backend==tpp::ConvexHybridBackend::RationalIntersection,
-                      name+" rational intersection fallback");
+                const double reference=length(c.solution);
+                check(hybrid.lower_bound<=reference+2e-12*reference &&
+                      hybrid.upper_bound>=reference-2e-12*reference,
+                      name+" rejects the suboptimal objective, including filtered construction");
+#ifdef TPP_HAS_FILTERED_DIRECTIONAL
+                check(hybrid.stats.filtered_attempted&&hybrid.stats.filtered_certified&&
+                      !hybrid.stats.rational_fallback,
+                      name+" recovers its combinatorial trace with filtered predicates");
+#endif
             }
         } catch(const std::exception &e) {check(false,name+" hybrid exception: "+e.what());}
         auto reversed=c;
@@ -214,6 +347,177 @@ void deterministic() {
             check(equivalent(),name+" fixed eager workspace");
         }
     }
+}
+
+void normalized_sign_predicates() {
+    using R=tpp::ConvexRational;
+    using I=tpp::ConvexInteger;
+    auto reference=[](const R &p,const R &a2,const R &q,const R &b2) {
+        if(p>=0&&q<=0)return p==0&&q==0?0:1;
+        if(p<=0&&q>=0)return p==0&&q==0?0:-1;
+        const R left=p*p*b2,right=q*q*a2;
+        if(left==right)return 0;
+        return p>0?(left>right?1:-1):(left<right?1:-1);
+    };
+    auto compare=[&](const R &p,const R &a2,const R &q,const R &b2) {
+        check(tpp::detail::convex_normalized_difference_sign(p,a2,q,b2)==reference(p,a2,q,b2),
+              "integer normalized sign agrees with rational products");
+    };
+    std::mt19937 random(20261003);
+    for(size_t trial=0;trial<1200;++trial) {
+        auto fraction=[&] {
+            I numerator=1+random()%1009,denominator=1+random()%1013;
+            numerator<<=random()%601;denominator<<=random()%601;
+            return R(numerator)/R(denominator);
+        };
+        const R p=fraction(),q=fraction(),a2=fraction(),b2=fraction();
+        for(int p_sign:{-1,0,1})for(int q_sign:{-1,0,1})
+            compare(R(p_sign)*p,a2,R(q_sign)*q,b2);
+        const R scale=fraction(),small=R(1)/R(I(1)<<700);
+        // Exact equality and arbitrarily close values on each side must
+        // remain distinct; no epsilon or rounded square root decides them.
+        for(int sign:{-1,1})for(int side:{-1,0,1})
+            compare(R(sign)*p,a2,R(sign)*p*scale*(R(1)+R(side)*small),a2*scale*scale);
+    }
+}
+
+void filtered_predicates() {
+    using F=tpp::detail::FilteredRational;
+    using R=tpp::ConvexRational;
+    const int original_rounding=std::fegetround();
+    std::mt19937 random(20261002);
+    for(int rounding:{FE_TONEAREST,FE_DOWNWARD}) {
+        if(std::fesetround(rounding)!=0)continue;
+        F::Scope scope;
+        check((F(9007199254740992.)+F(1))-F(9007199254740992.)==F(1),
+              "filtered cancellation retains a lost binary64 bit");
+        const double tiny=std::numeric_limits<double>::denorm_min();
+        check(F(tiny)*F(tiny)>F(0),"filtered underflow retains an exact positive sign");
+        const double huge=std::numeric_limits<double>::max();
+        check((F(huge)*F(huge))/(F(huge)*F(huge))==F(1),
+              "filtered overflow resolves through the rational DAG");
+        for(size_t i=0;i<1000;++i) {
+            auto coordinate=[&] {
+                const int exponent=int(random()%1101)-550;
+                return std::ldexp(double(int(random()%15)+1),exponent)*(random()%2?1:-1);
+            };
+            const double a=coordinate(),b=coordinate(),c=coordinate(),d=coordinate();
+            const F A(a),B(b),C(c),D(d);
+            const F left=(A*B-C*D)/(A*A+B*B),right=(A*D+C*B)/(C*C+D*D);
+            const R x=(R(a)*R(b)-R(c)*R(d))/(R(a)*R(a)+R(b)*R(b));
+            const R y=(R(a)*R(d)+R(c)*R(b))/(R(c)*R(c)+R(d)*R(d));
+            check((left<right)==(x<y)&&(left>right)==(x>y)&&
+                  (left==right)==(x==y)&&(left<=right)==(x<=y)&&(left>=right)==(x>=y),
+                  "filtered predicate agrees with independent rational arithmetic");
+        }
+    }
+    std::fesetround(original_rounding);
+}
+
+// The only intermediate subgradient at these two edge-interior contacts is
+// (0,0), strictly inside the disk. Enumerating unit directions cannot certify
+// this optimum. An independent lower bound is |dx| >= 1 before the first
+// contact and |dy| >= 1 after the second contact.
+void coincident_disk_contacts() {
+    for(double scale:{1e-9,1.0,1e9})for(bool clockwise:{false,true}) {
+        TestCase c{{-scale,0},{0,-scale},
+            {box(0,-2*scale,2*scale,2*scale),box(-2*scale,0,2*scale,2*scale)}, {}};
+        for(bool repeated:{false,true}) {
+            auto regions=c.polygons;
+            if(repeated) {
+                regions.insert(regions.begin()+1,regions.front());
+                regions.insert(regions.begin()+2,box(-scale,-scale,scale,scale));
+            }
+            if(clockwise)for(auto &p:regions)std::reverse(p.begin(),p.end());
+            tpp::ConvexHybridOptions options;options.shadow_rational=true;
+            const auto result=tpp::tpp_convex_solve_hybrid(c.start,c.target,regions,options);
+            check(result.stats.double_certified&&!result.stats.rational_fallback,
+                  "interior-disk zero-link witness avoids fallback");
+            check(result.stats.zero_link_witnesses==1,
+                  "one maximal coincident-contact block");
+            check(result.contacts.size()==regions.size()&&
+                  std::ranges::all_of(result.contacts,[](Vector2 q){return q==Vector2{};}),
+                  "disk witness retains every ordered contact");
+            check(result.lower_bound<=2*scale&&result.upper_bound>=2*scale&&
+                  result.upper_bound-result.lower_bound<=1e-12*scale,
+                  "disk certificate encloses independent exact optimum");
+            const auto reverse=tpp::tpp_convex_solve_hybrid(c.target,c.start,
+                Polygons(regions.rbegin(),regions.rend()),options);
+            check(reverse.stats.double_certified&&!reverse.stats.rational_fallback&&
+                  reverse.lower_bound<=2*scale&&reverse.upper_bound>=2*scale,
+                  "reversed endpoint problem certifies the same zero block");
+        }
+    }
+}
+
+// Reduced from the case-451 diagnostic capture (three regions, twelve
+// vertices). Regions 0 and 2 share an edge; the native intersection proposal
+// is feasible but suboptimal. Perturbation supplies only the trace: the
+// certified contacts and reference bounds use the original coordinates.
+void touching_disjoint_recovery() {
+    const TestCase adjacent{{2,-1},{2,1},{box(-1,-2,0,2),box(0,-2,1,2)},{{2,-1},{0,0},{2,1}}};
+    verify(adjacent,"adjacent-edge reflection");
+    verify_hybrid(adjacent,"adjacent-edge reflection");
+    const TestCase fixture{{-.5,-.48688664345128624},{.5,.4868866434512862},{
+        {{-.08158994695989587,.13196831561051192},{.07339897409960683,.14598698349019848},
+         {-.06564341289376201,.18935638398990542}},
+        {{-.3325970104407017,.04044627569758704},{-.40928720204092256,.07285934029040048},
+         {-.5,.0673657112014923}},
+        {{-.1743635331463786,.24816481518664948},{-.13404537698100738,.06623788795487584},
+         {-.08158994695989587,.13196831561051192},{-.06564341289376201,.18935638398990542},
+         {-.07053212110242861,.23717399195248245},{-.1436679489140717,.27098419610361024}}}, {}};
+    for(double scale:{1e-9,1.0,1e9})for(bool clockwise:{false,true}) {
+        auto c=fixture;c.start=c.start*scale;c.target=c.target*scale;
+        for(auto &p:c.polygons) {
+            for(auto &v:p)v=v*scale;
+            if(clockwise)std::reverse(p.begin(),p.end());
+        }
+        verify_hybrid(c,"shared-edge trace recovery");
+        tpp::ConvexHybridOptions options;options.shadow_rational=true;
+        const auto r=tpp::tpp_convex_solve_hybrid(c.start,c.target,c.polygons,options);
+        const auto reference=tpp::detail::solve_intersecting_map_contacts_with_bounds(c.start,c.target,c.polygons,false);
+        check(r.lower_bound<=reference.upper_bound&&r.upper_bound>=reference.lower_bound,
+              "shared-edge recovery agrees with original rational reference");
+#ifdef TPP_HAS_TOUCHING_DISJOINT
+        if(scale==1)check(r.stats.touching_disjoint_attempted&&r.stats.touching_disjoint_certified&&
+            r.stats.touching_disjoint_perturbed&&!r.stats.rational_fallback&&
+            r.fallback_reason==tpp::ConvexFallbackReason::None,
+            "shared-edge contraction avoids directional recovery after exact replay");
+#endif
+        const auto reversed=tpp::tpp_convex_solve_hybrid(c.target,c.start,
+            Polygons(c.polygons.rbegin(),c.polygons.rend()),options);
+        check(reversed.lower_bound<=r.upper_bound&&reversed.upper_bound>=r.lower_bound&&
+              reversed.contacts.size()==c.polygons.size(),"reversed shared-edge sequence preserves certified optimum");
+    }
+}
+
+void interval_bound_regressions() {
+#ifdef TPP_HAS_INTERVAL_PRIMAL_DUAL
+    const TestCase reflection{{2,-1},{2,1},{box(-1,-2,0,2),box(0,-2,1,2)}, {}};
+    const auto exact=tpp::tpp_convex_solve_hybrid(reflection.start,reflection.target,reflection.polygons);
+    check(!exact.stats.interval_bounds_attempted,"default hybrid retains exact-optimality contract");
+    tpp::ConvexHybridOptions options;options.max_gap=1e-8;
+    const auto bounded=tpp::tpp_convex_solve_hybrid(reflection.start,reflection.target,reflection.polygons,options);
+    check(bounded.stats.interval_bounds_certified&&bounded.lower_bound<=exact.upper_bound&&
+          bounded.upper_bound>=exact.lower_bound,"interval proof encloses analytic shared-edge reflection");
+    options.max_gap=0;options.cutoff=4;
+    const auto pruned=tpp::tpp_convex_solve_hybrid(reflection.start,reflection.target,{reflection.polygons.front()},options);
+    check(pruned.cutoff_pruned&&pruned.lower_bound>=4&&pruned.lower_bound<=exact.upper_bound,
+          "interval cutoff with zero allowed gap uses a certified dual");
+    options.cutoff=INFINITY;options.max_gap=1e-18;
+    const auto tight=tpp::tpp_convex_solve_hybrid(reflection.start,reflection.target,reflection.polygons,options);
+    check(!tight.stats.interval_bounds_certified&&tight.stats.double_certified&&
+          tight.lower_bound==exact.lower_bound&&tight.upper_bound==exact.upper_bound,
+          "unrepresentable gap retains original exact certificate");
+    const auto original_rounding=std::fegetround();
+    options.max_gap=1e-7;
+    if(std::fesetround(FE_UPWARD)==0) {
+        const auto unsupported=tpp::tpp_convex_solve_hybrid({-3,0},{3,0},{box(-1,-1,1,1)},options);
+        check(!unsupported.stats.interval_bounds_attempted&&unsupported.lower_bound<=6&&unsupported.upper_bound>=6,
+              "unsupported rounding environment retains rational certificate");
+    }
+    std::fesetround(original_rounding);
+#endif
 }
 
 void adversarial_disjoint() {
@@ -370,13 +674,15 @@ int main(int argc,char **argv) {
         else if(arg=="--corpus"&&i+1<argc)corpora.push_back(argv[++i]);
         else throw std::invalid_argument("Unknown argument: "+arg);
     }
-    deterministic();adversarial_disjoint();continuity();random_boxes(random_count);random_convex(convex_count);
+    normalized_sign_predicates();filtered_predicates();dispatch_cache_regressions();cached_contact_rotation_regressions();deterministic();coincident_disk_contacts();touching_disjoint_recovery();interval_bound_regressions();adversarial_disjoint();continuity();random_boxes(random_count);random_convex(convex_count);
     for(const auto &directory:corpora)corpus(directory);
     const auto aggregate=tpp::convex_hybrid_aggregate();
     std::cout<<"Checks="<<checks<<", failures="<<failures<<", unresolved="<<unresolved
              <<", hybrid_total_calls="<<aggregate.total_calls
              <<", hybrid_disjoint_calls="<<aggregate.disjoint_calls
              <<", certified_double_disjoint_calls="<<aggregate.certified_double_disjoint_calls
+             <<", interval_bound_calls="<<aggregate.interval_bound_calls
+             <<", interval_contracted_calls="<<aggregate.interval_contracted_calls
              <<", hybrid_fast="<<hybrid_fast<<", hybrid_fallback="<<hybrid_fallback
              <<", hybrid_shadow_mismatch="<<hybrid_shadow_mismatch
              <<", rational_disjoint_directional_recoveries="

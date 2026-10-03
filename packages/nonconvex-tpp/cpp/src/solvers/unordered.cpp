@@ -7,15 +7,19 @@
 #include "unordered_portfolio.h"
 #include "unordered_oracle_capture.h"
 #include "unordered_cycle_oracle.h"
+#include "unordered_sequence.h"
 
 #include <algorithm>
 #include <array>
+#include <bit>
+#include <cstdint>
 #include <set>
 #include <thread>
 #include <chrono>
 #include <cmath>
 #include <exception>
 #include <optional>
+#include <memory>
 #include <omp.h>
 #include <queue>
 #include <stdexcept>
@@ -24,9 +28,9 @@ namespace {
 	using namespace tpp::unordered_detail;
 	constexpr size_t none = std::numeric_limits<size_t>::max();
 
-	struct Element { size_t polygon; size_t piece = none; };
+	using Element = SequenceElement;
 	struct Node {
-		std::vector<Element> sequence;
+		NodeSequence sequence;
 		Polygon path;
 		double bound = 0;
 		size_t serial = 0;
@@ -52,25 +56,62 @@ namespace {
     // ordered bound index: its next node need not give the global lower bound.
     class Frontier {
         bool dfs;
-        std::priority_queue<Node,std::vector<Node>,Later> heap;
+        tpp::UnorderedSequenceStorage storage;
+        size_t index_bytes;
+        // Must outlive every queued sequence reference (reverse member order).
+        std::unique_ptr<SequenceHistory> history;
+        std::vector<Node> heap;
         std::vector<Node> stack;
         std::set<std::pair<double,size_t>> bounds;
+        size_t sequence_bytes = 0, dive_bytes = 0;
+        void note_storage() {
+            peak_sequence_bytes=std::max(peak_sequence_bytes,sequence_bytes+dive_bytes+(history?history->reserved_bytes():0));
+            peak_node_bytes=std::max(peak_node_bytes,(dfs?stack.capacity():heap.capacity())*sizeof(Node));
+        }
         static bool descending(const Node &a,const Node &b) {
             return std::tie(a.bound,a.relaxed_length,a.serial)>std::tie(b.bound,b.relaxed_length,b.serial);
         }
     public:
-        explicit Frontier(bool use_dfs):dfs(use_dfs) {}
+        size_t peak_sequence_bytes = 0, peak_node_bytes = 0;
+        Frontier(bool use_dfs,tpp::UnorderedSequenceStorage mode,size_t bytes,size_t polygons)
+            :dfs(use_dfs),storage(mode),index_bytes(bytes) {
+            if(storage==tpp::UnorderedSequenceStorage::Deltas)history=std::make_unique<SequenceHistory>(bytes,polygons);
+        }
         bool empty() const { return dfs?stack.empty():heap.empty(); }
         size_t size() const { return dfs?stack.size():heap.size(); }
-        const Node &top() const { return dfs?stack.back():heap.top(); }
-        double lower_bound() const { return dfs?bounds.begin()->first:heap.top().bound; }
-        void push(Node node) {
-            if(dfs) { bounds.emplace(node.bound,node.serial);stack.push_back(std::move(node)); }
-            else heap.push(std::move(node));
+        void note_dive(size_t bytes) { dive_bytes=bytes;note_storage(); }
+        double lower_bound() const { return dfs?bounds.begin()->first:heap.front().bound; }
+        void freeze_child(Node &node,const SequenceReference &parent) {
+            if(history)node.sequence.save(history->child(parent,node.branch_polygon,node.branch_piece,node.branch_position));
+            else if(storage==tpp::UnorderedSequenceStorage::Packed)node.sequence.pack(index_bytes);
+            note_storage();
         }
-        void pop() {
-            if(dfs) { bounds.erase({stack.back().bound,stack.back().serial});stack.pop_back(); }
-            else heap.pop();
+        void push(Node node,const SequenceReference &parent={}) {
+            if(!node.sequence.stored()) {
+                if(history)node.sequence.save(parent?parent:history->snapshot(node.sequence.elements()));
+                else if(storage==tpp::UnorderedSequenceStorage::Packed)node.sequence.pack(index_bytes);
+            }
+            sequence_bytes+=node.sequence.payload_bytes();
+            if(dfs) { bounds.emplace(node.bound,node.serial);stack.push_back(std::move(node)); }
+            else { heap.push_back(std::move(node));std::push_heap(heap.begin(),heap.end(),Later{}); }
+            note_storage();
+        }
+        Node take() {
+            auto &nodes=dfs?stack:heap;
+            if(dfs)bounds.erase({stack.back().bound,stack.back().serial});
+            else std::pop_heap(heap.begin(),heap.end(),Later{});
+            sequence_bytes-=nodes.back().sequence.payload_bytes();
+            Node node=std::move(nodes.back());nodes.pop_back();return node;
+        }
+        void report(tpp::UnorderedTppSolveResult &result) {
+            note_storage();
+            result.peak_sequence_storage_bytes=peak_sequence_bytes;
+            result.peak_frontier_node_bytes=peak_node_bytes;
+            if(history) {
+                result.sequence_history_record_bytes=history->record_bytes();
+                result.peak_sequence_records=history->peak_live_records;
+                result.sequence_reconstructions=history->reconstructions;
+            }
         }
         void restart() { if(dfs) std::sort(stack.begin(),stack.end(),descending); }
         void finish_branch(size_t first_child) {
@@ -192,6 +233,15 @@ namespace tpp {
 		auto duration = [](auto since) { return std::chrono::duration<double>(std::chrono::steady_clock::now() - since).count(); };
 		UnorderedTppSolveResult result;
 		result.threads = options.threads;
+        result.sequence_storage = options.sequence_storage;
+        size_t input_max_vertices = 0;
+        for (const auto &polygon : input) input_max_vertices = std::max(input_max_vertices,polygon.size());
+        const size_t index_bytes = sequence_index_bytes(input.size(),input_max_vertices);
+        result.node_index_bits = 8*(options.sequence_storage==UnorderedSequenceStorage::Native?sizeof(size_t):index_bytes);
+        switch(options.sequence_storage) {
+            case UnorderedSequenceStorage::Native:case UnorderedSequenceStorage::Packed:case UnorderedSequenceStorage::Deltas:break;
+            default:throw std::invalid_argument("Invalid sequence storage mode.");
+        }
 		const auto preprocessing_began = std::chrono::steady_clock::now();
 		if (!start.is_finite() || !target.is_finite() || std::isnan(options.max_seconds) || options.max_seconds < 0
 			|| !std::isfinite(options.absolute_gap) || options.absolute_gap < 0
@@ -232,11 +282,39 @@ namespace tpp {
 		result.order_space_log2 = cycle ? (n<3?0:std::lgamma(static_cast<double>(n))/std::log(2.0)-1)
 			: std::lgamma(static_cast<double>(n) + 1.0) / std::log(2.0);
 		const double eps = options.feasibility_tolerance;
+		std::vector<PreparedContactPolygon> visit_polygons;
+		if(options.prepared_visit_queries) {
+			visit_polygons.reserve(n);
+			for(const auto &p:polygons)visit_polygons.emplace_back(p);
+		}
+		PreparedContactPath visit_segments;
+		Polygon visit_path;
+		bool visit_path_ready=false;
+		std::vector<std::optional<Contact>> visit_contacts(n);
+		auto begin_visit_queries=[&](const Polygon &path) {
+			if(!options.prepared_visit_queries)return;
+			if(visit_path_ready&&visit_path.size()==path.size()&&std::equal(path.begin(),path.end(),visit_path.begin(),
+				[](auto a,auto b){return std::bit_cast<std::uint64_t>(a.x)==std::bit_cast<std::uint64_t>(b.x)
+					&&std::bit_cast<std::uint64_t>(a.y)==std::bit_cast<std::uint64_t>(b.y);}))return;
+			visit_path=path;visit_segments.prepare(path);visit_path_ready=true;
+			std::fill(visit_contacts.begin(),visit_contacts.end(),std::nullopt);
+		};
+		auto visit_contact=[&](const Polygon &path,size_t j) {
+			if(options.prepared_visit_queries&&visit_contacts[j]) {
+				++result.visit_query_cache_hits;return *visit_contacts[j];
+			}
+			++result.visit_query_evaluations;
+			const auto found=options.prepared_visit_queries?contact(visit_segments,visit_polygons[j],eps):contact(path,polygons[j],eps);
+			if(options.prepared_visit_queries)visit_contacts[j]=found;
+			return found;
+		};
 		enum class Phase { Heuristic, Search, Finalization };
 		Phase phase = Phase::Heuristic;
 		auto covered = [&](const Polygon &path) {
 			const auto check_began = std::chrono::steady_clock::now();
-			const bool covered_result = std::all_of(polygons.begin(), polygons.end(), [&](const auto &p) { return contact(path, p, eps).distance <= eps; });
+			begin_visit_queries(path);
+			bool covered_result=true;
+			for(size_t j=0;j<n;++j)if(!(visit_contact(path,j).distance<=eps)){covered_result=false;break;}
 			const double seconds = duration(check_began);
 			if (phase == Phase::Heuristic) result.heuristic_visit_check_seconds += seconds;
 			else if (phase == Phase::Search) result.search_visit_check_seconds += seconds;
@@ -258,7 +336,7 @@ namespace tpp {
 					if (!std::isfinite(result.first_best_update_length)) result.first_best_update_length = value;
 				}
 				if (!std::isfinite(result.first_incumbent_seconds)) result.first_incumbent_seconds = elapsed();
-				trace_event({
+				if (options.trace) trace_event({
 					.kind = "incumbent",
 					.order = order,
 					.path = path,
@@ -318,7 +396,7 @@ namespace tpp {
 				sampled_polygons_ready = true;
 			};
 			const bool strategy_enabled = options.sampled_perimeter_initial_heuristic
-				|| options.bidirectional_initial_heuristic || options.convex_initial_refinement;
+				|| options.bidirectional_initial_heuristic || options.convex_initial_refinement || options.relocate_initial_heuristic;
 			const size_t candidate_count = (1 + size_t(options.sampled_perimeter_initial_heuristic))
 				* (1 + size_t(options.bidirectional_initial_heuristic));
 			const double available_heuristic_seconds = std::max(0.0, options.max_seconds - elapsed());
@@ -337,7 +415,7 @@ namespace tpp {
 				Polygon initial{source};
 				std::vector<size_t> order;
 				std::vector<bool> used(n);
-				trace_event({.kind = "heuristic_start", .path = initial, .source = direction});
+				if (options.trace) trace_event({.kind = "heuristic_start", .path = initial, .source = direction});
 				for (size_t k = 0; k < n; ++k) {
 					double best = std::numeric_limits<double>::infinity();
 					size_t selected = none;
@@ -349,7 +427,7 @@ namespace tpp {
 					used[selected] = true;
 					order.push_back(selected);
 					initial.push_back(point);
-					trace_event({
+					if (options.trace) trace_event({
 						.kind = "heuristic_greedy_step",
 						.polygon = selected,
 						.order = order,
@@ -363,7 +441,7 @@ namespace tpp {
 					initial.erase(initial.begin());
 					initial.back()=initial.front();
 				}
-				trace_event({
+				if (options.trace) trace_event({
 					.kind = "heuristic_greedy_complete",
 					.order = order,
 					.path = initial,
@@ -382,7 +460,7 @@ namespace tpp {
 							changed = true;
 						}
 					}
-					trace_event({
+					if (options.trace) trace_event({
 						.kind = "heuristic_2opt",
 						.pass = pass,
 						.order = order,
@@ -411,7 +489,7 @@ namespace tpp {
 							std::reverse(order.begin() + i - size_t(!cycle), order.begin() + j + size_t(cycle));
 						}
 					}
-					trace_event({
+					if (options.trace) trace_event({
 						.kind = "heuristic_contact_pass",
 						.pass = pass,
 						.order = order,
@@ -460,6 +538,54 @@ namespace tpp {
 				}
 			}
 
+			if(options.relocate_initial_heuristic&&n>1&&!best_initial_path.empty()) {
+				const auto began=std::chrono::steady_clock::now();
+				const double budget=std::min(0.1,0.05*std::max(0.0,options.max_seconds-elapsed()));
+				const auto deadline=began+std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(budget));
+				auto candidate=best_initial_path;
+				auto order=best_initial_order;
+				size_t moves=0;
+				for(size_t pass=0;pass<4&&std::chrono::steady_clock::now()<deadline;++pass) {
+					bool changed=false;
+					for(size_t k=size_t(cycle);k<n&&std::chrono::steady_clock::now()<deadline;++k) {
+						const size_t index=k+size_t(!cycle),region=order[k];
+						const auto preferred=candidate[index];
+						const double removal=candidate[index-1].distance_to(candidate[index+1])
+							-candidate[index-1].distance_to(preferred)-preferred.distance_to(candidate[index+1]);
+						auto shortened=candidate;shortened.erase(shortened.begin()+index);
+						size_t selected=none;Vector2 point;double best_delta=-eps;
+						for(size_t j=1;j<shortened.size()&&std::chrono::steady_clock::now()<deadline;++j) {
+							const auto q=best_contact(shortened[j-1],shortened[j],polygons[region],preferred);
+							const double delta=removal+shortened[j-1].distance_to(q)+q.distance_to(shortened[j])
+								-shortened[j-1].distance_to(shortened[j]);
+							if(delta<best_delta){best_delta=delta;selected=j;point=q;}
+						}
+						if(selected==none)continue;
+						shortened.insert(shortened.begin()+selected,point);
+						if(!(path_length(shortened)<path_length(candidate)-eps))continue;
+						candidate=std::move(shortened);
+						order.erase(order.begin()+k);order.insert(order.begin()+selected-size_t(!cycle),region);
+						++moves;changed=true;
+					}
+					if(!changed)break;
+					// Reoptimize contacts with a coordinate sweep after moving
+					// regions. Each contact stays in its own original polygon.
+					for(size_t k=0;k<n&&std::chrono::steady_clock::now()<deadline;++k) {
+						const size_t index=k+size_t(!cycle);
+						candidate[index]=best_contact(candidate[cycle?(k+n-1)%n:index-1],
+							candidate[cycle?(k+1)%n:index+1],polygons[order[k]],candidate[index]);
+						if(cycle)candidate.back()=candidate.front();
+					}
+				}
+				const double value=path_length(candidate);
+				if(value<best_initial_length&&covered(candidate)) {
+					best_initial_path=std::move(candidate);best_initial_order=std::move(order);best_initial_length=value;
+					result.initial_relocation_moves=moves;
+					improve(best_initial_path,"initial_relocation",best_initial_order);
+				}
+				result.initial_relocation_seconds=duration(began);
+			}
+
 			if (options.convex_initial_refinement && !best_initial_path.empty()
 				&& result.calls < options.max_calls && elapsed() < options.max_seconds) {
 				const auto refinement_began = std::chrono::steady_clock::now();
@@ -483,6 +609,9 @@ namespace tpp {
 					if (assigned && remaining > 0 && result.calls < options.max_calls
                         && (!control || control->reserve_call())) {
 						DynamicConvexTppWorkspace initial_workspace;
+						initial_workspace.cache_disjoint_dispatch=options.oracle_dispatch_cache;
+						initial_workspace.cache_interval_geometry=options.oracle_interval_geometry_cache;
+						initial_workspace.interpolated_zero_dual=options.interpolated_zero_dual;
 						++result.calls;
 						++result.initial_convex_refinement_calls;
 						const double target_gap = options.absolute_gap
@@ -544,6 +673,9 @@ namespace tpp {
         std::vector<std::array<LearningMean,2>> learned(n);
         std::array<LearningMean,2> prior;
 		DynamicConvexTppWorkspace workspace;
+		workspace.cache_disjoint_dispatch=options.oracle_dispatch_cache;
+		workspace.cache_interval_geometry=options.oracle_interval_geometry_cache;
+		workspace.interpolated_zero_dual=options.interpolated_zero_dual;
 		std::vector<DynamicConvexTppWorkspace> parallel_workspaces;
         ConvexCycleWorkspace cycle_workspace;
         std::vector<ConvexCycleWorkspace> parallel_cycle_workspaces;
@@ -660,6 +792,12 @@ namespace tpp {
 			node.warm_start=Polygon{};
 			result.oracle_cutoff_calls += certified.lower_bound >= cutoff;
 			result.oracle_dual_cutoff_prunes += certified.dual_cutoff_pruned;
+			result.oracle_dispatch_pair_queries += certified.dispatch_pair_queries;
+			result.oracle_dispatch_pair_cache_hits += certified.dispatch_pair_cache_hits;
+			result.oracle_dispatch_pair_exact_checks += certified.dispatch_pair_exact_checks;
+			result.convex_dispatch_seconds += certified.dispatch_seconds;
+			result.convex_bound_evaluation_seconds += certified.bound_evaluation_seconds;
+			result.convex_proposal_preparation_seconds += certified.proposal_preparation_seconds;
             result.cycle_memo_queries+=certified.memo_queries;result.cycle_memo_repeated+=certified.memo_repeated;
             result.cycle_memo_hits+=certified.memo_hits;result.cycle_certificate_cutoff_skips+=certified.certificate_cutoff_skips;
             result.cycle_certificate_interval_uses+=certified.certificate_interval_uses;
@@ -673,6 +811,8 @@ namespace tpp {
             }
             node.relaxed_length = certified.upper_bound;
 			result.fallback_calls += certified.used_fallback;
+			result.oracle_interval_bound_calls += certified.used_interval_bounds;
+			result.oracle_contracted_bound_calls += certified.used_contracted_proposal;
 			result.fallback_geometric_path_invalid_calls += certified.fallback_geometric_path_invalid;
 			result.fallback_certificate_gap_calls += certified.fallback_certificate_gap;
 			switch (certified.fallback_reason) {
@@ -717,7 +857,7 @@ namespace tpp {
             }
 			if ((!certified.time_limited && node.path.size() < 2) || !std::all_of(node.path.begin(), node.path.end(), [](auto v) { return v.is_finite(); }))
 				throw std::runtime_error("Convex oracle returned an invalid path.");
-			trace_event({
+			if (options.trace) trace_event({
 				.kind = "oracle",
 				.node = node.serial,
 				.parent = node.parent,
@@ -746,7 +886,7 @@ namespace tpp {
 		};
 		double settled_bound = result.upper_bound;
 		const bool dfs=options.search_strategy==UnorderedSearchStrategy::DfsBfs;
-        Frontier queue(dfs);
+        Frontier queue(dfs,options.sequence_storage,index_bytes,n);
 		// Rooting the sequence at region 0 removes rotation, without fixing a
 		// geometric point. A single-region cycle has lower bound zero.
 		std::vector<Element> root_sequence;
@@ -758,7 +898,7 @@ namespace tpp {
             /std::max(std::abs(result.initial_upper_bound),1e-30);
         queue.push(std::move(root));
 		result.partial_states_created = 1;
-		trace_event({
+		if (options.trace) trace_event({
 			.kind = "root",
 			.node = 0,
 			.path = {start, target},
@@ -777,17 +917,18 @@ namespace tpp {
 			if (result.upper_bound - result.lower_bound <= gap() || limited()) break;
 			const bool diving = !dfs && (dive.has_value() || (options.dive_interval && result.nodes % options.dive_interval == 0));
 			Node node;
-			if (dive) { node = std::move(*dive); dive.reset(); }
-			else { node = queue.top(); queue.pop(); }
+			if (dive) { queue.note_dive(0);node = std::move(*dive); dive.reset(); }
+			else { node = queue.take(); }
+            const auto sequence_parent = node.sequence.restore(index_bytes);
 			++result.nodes;
 			result.sequence_depth_sum += node.sequence.size();
 			++result.sequence_depth_samples;
 			result.max_sequence_depth = std::max(result.max_sequence_depth, node.sequence.size());
             strengthen_shared_bound(node);
-			if (node.path.empty() && node.bound < result.upper_bound-gap() && !solve(node)) { queue.push(std::move(node));break; }
+			if (node.path.empty() && node.bound < result.upper_bound-gap() && !solve(node)) { queue.push(std::move(node),sequence_parent);break; }
 			std::vector<size_t> node_sequence;
-			for (auto e : node.sequence) node_sequence.push_back(e.polygon);
-			trace_event({
+			if (options.trace) for (auto e : node.sequence) node_sequence.push_back(e.polygon);
+			if (options.trace) trace_event({
 				.kind = "expand",
 				.node = node.serial,
 				.parent = node.parent,
@@ -802,7 +943,7 @@ namespace tpp {
 				++result.bound_prunes;
 				settled_bound = std::min(settled_bound, node.bound);
                 queue.restart();
-				trace_event({
+				if (options.trace) trace_event({
 					.kind = "prune",
 					.node = node.serial,
 					.parent = node.parent,
@@ -821,7 +962,7 @@ namespace tpp {
 				++result.incumbent_prunes;
 				settled_bound = std::min(settled_bound, node.bound);
                 queue.restart();
-				trace_event({
+				if (options.trace) trace_event({
 					.kind = "prune",
 					.node = node.serial,
 					.parent = node.parent,
@@ -840,8 +981,9 @@ namespace tpp {
 			size_t detour_chosen = none;
 			double best_detour = -1, best_detour_distance = -1;
 			const auto visit_began = std::chrono::steady_clock::now();
+			begin_visit_queries(node.path);
 			for (size_t j = 0; j < n; ++j) {
-				const double distance = contact(node.path, polygons[j], eps).distance;
+				const double distance = visit_contact(node.path,j).distance;
                 if(options.cycle_learned_branching)branch_distances[j]=distance;
 				if (distance > farthest) { farthest = distance; chosen = j; }
                 if(cycle&&options.cycle_strong_branching&&distance>eps&&
@@ -900,16 +1042,16 @@ namespace tpp {
 			if (chosen == none) {
                 queue.restart();
 				if (!node.refined && !limited()) {
-					if(!solve(node, true)) { queue.push(std::move(node));break; }
+					if(!solve(node, true)) { queue.push(std::move(node),sequence_parent);break; }
 					improve(node.path, "refinement", node_sequence);
-					queue.push(std::move(node));
+					queue.push(std::move(node),sequence_parent);
 					continue;
 				}
 				// An unresolved numerical oracle gap must remain in the global certificate.
-				queue.push(std::move(node));
+				queue.push(std::move(node),sequence_parent);
 				break;
 			}
-			trace_event({
+			if (options.trace) trace_event({
 				.kind = "branch",
 				.node = node.serial,
 				.parent = node.parent,
@@ -974,22 +1116,21 @@ namespace tpp {
 					++result.insertion_positions_considered;
 					++result.children_generated;
 					const double bound = std::max(node.bound, bounds[slot]);
-					auto sequence = node.sequence;
-					sequence.insert(sequence.begin() + j, {chosen});
 					if (bound >= result.upper_bound - gap()) {
 						++result.screened_nodes;
 						++result.insertion_positions_pruned;
 						++result.pruned_states;
 						++result.bound_prunes;
 						settled_bound = std::min(settled_bound, bound);
-						trace_event({
+						if (options.trace) trace_event({
 							.kind = "child",
 							.parent = node.serial,
 							.polygon = chosen,
 							.position = j,
 							.sequence = [&] {
 								std::vector<size_t> child_sequence;
-								for (auto e : sequence) child_sequence.push_back(e.polygon);
+								for (auto e : node.sequence) child_sequence.push_back(e.polygon);
+                                child_sequence.insert(child_sequence.begin()+j,chosen);
 								return child_sequence;
 							}(),
 							.lower_bound = bound,
@@ -999,7 +1140,7 @@ namespace tpp {
 						});
 						continue;
 					}
-					Node child{std::move(sequence), {}, bound, serial++};
+					Node child{node.sequence.inserted(j,{chosen}), {}, bound, serial++};
 					child.parent = node.serial;
 					child.branch_polygon = chosen;
 					child.branch_position = j;
@@ -1065,6 +1206,11 @@ namespace tpp {
 					result.parallel_oracle_calls += evaluation_children.size();
 					if (parallel_workspaces.size() < static_cast<size_t>(worker_count))
 						{ parallel_workspaces.resize(worker_count);parallel_cycle_workspaces.resize(worker_count);parallel_memo_workspaces.resize(worker_count); }
+					for(auto &worker_workspace:parallel_workspaces) {
+						worker_workspace.cache_disjoint_dispatch=options.oracle_dispatch_cache;
+						worker_workspace.cache_interval_geometry=options.oracle_interval_geometry_cache;
+						worker_workspace.interpolated_zero_dual=options.interpolated_zero_dual;
+					}
 					const auto oracle_batch_began = std::chrono::steady_clock::now();
 					evaluate_parallel_oracles(static_cast<std::ptrdiff_t>(evaluation_children.size()), worker_count,
 						[&](std::ptrdiff_t slot, int worker) {
@@ -1083,17 +1229,17 @@ namespace tpp {
 						record_oracle_result(child, false, batch_cutoff, certified[slot]);
 						if (!pruned_by_new_incumbent && !child.path.empty()) {
 							std::vector<size_t> child_sequence;
-							for (auto e : child.sequence) child_sequence.push_back(e.polygon);
+							if (options.trace) for (auto e : child.sequence) child_sequence.push_back(e.polygon);
 							improve(child.path, "oracle", child_sequence);
 						}
 					}
 					const bool queued = child.bound < result.upper_bound - gap();
 					const auto child_sequence = [&] {
 						std::vector<size_t> sequence;
-						for (auto e : child.sequence) sequence.push_back(e.polygon);
+						if (options.trace) for (auto e : child.sequence) sequence.push_back(e.polygon);
 						return sequence;
 					}();
-					trace_event({
+					if (options.trace) trace_event({
 						.kind = "child",
 						.node = child.serial,
 						.parent = child.parent,
@@ -1109,9 +1255,11 @@ namespace tpp {
 					});
 					if (queued) {
 						++result.children_queued;
+                        queue.freeze_child(child,sequence_parent);
 						if (diving && (!dive || child.bound < dive->bound)) {
-							if (dive) queue.push(std::move(*dive));
+							if (dive) { queue.note_dive(0);queue.push(std::move(*dive)); }
 							dive = std::move(child);
+                            queue.note_dive(dive->sequence.payload_bytes());
 						} else queue.push(std::move(child));
 					} else {
 						++result.pruned_states;
@@ -1123,6 +1271,7 @@ namespace tpp {
 			}
             queue.finish_branch(first_child);
 		}
+        queue.report(result);
 		result.search_seconds = duration(search_began);
 		result.search_maintenance_seconds = std::max(0.0, result.search_seconds - result.convex_oracle_wall_seconds
 			- result.decomposition_seconds - result.search_visit_check_seconds);
@@ -1143,7 +1292,8 @@ namespace tpp {
 			: UnorderedTppTermination::NumericalLimit;
 		std::vector<std::pair<double, size_t>> visits;
 		const auto final_visits_began = std::chrono::steady_clock::now();
-		for (size_t j = 0; j < n; ++j) visits.emplace_back(contact(result.path, polygons[j], eps).position, j);
+		begin_visit_queries(result.path);
+		for (size_t j = 0; j < n; ++j) visits.emplace_back(visit_contact(result.path,j).position, j);
 		result.finalization_visit_check_seconds += duration(final_visits_began);
 		std::sort(visits.begin(), visits.end());
 		for (auto [position, j] : visits) result.order.push_back(j);
@@ -1151,7 +1301,7 @@ namespace tpp {
 		result.visit_check_seconds = result.heuristic_visit_check_seconds + result.search_visit_check_seconds
 			+ result.finalization_visit_check_seconds;
 		result.seconds = elapsed();
-		trace_event({
+		if (options.trace) trace_event({
 			.kind = "complete",
 			.order = result.order,
 			.path = result.path,
@@ -1382,6 +1532,9 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::complete_piece_oracle_calls);
         sum(&UnorderedTppSolveResult::oracle_cutoff_calls);
         sum(&UnorderedTppSolveResult::oracle_dual_cutoff_prunes);
+        sum(&UnorderedTppSolveResult::oracle_dispatch_pair_queries);
+        sum(&UnorderedTppSolveResult::oracle_dispatch_pair_cache_hits);
+        sum(&UnorderedTppSolveResult::oracle_dispatch_pair_exact_checks);
         sum(&UnorderedTppSolveResult::screened_nodes);
         sum(&UnorderedTppSolveResult::one_tree_calls);
         sum(&UnorderedTppSolveResult::one_tree_cache_hits);
@@ -1419,6 +1572,10 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::insertion_positions_pruned);
         sum(&UnorderedTppSolveResult::branch_events);
         sum(&UnorderedTppSolveResult::total_branching);
+        sum(&UnorderedTppSolveResult::peak_sequence_storage_bytes);
+        sum(&UnorderedTppSolveResult::peak_frontier_node_bytes);
+        sum(&UnorderedTppSolveResult::peak_sequence_records);
+        sum(&UnorderedTppSolveResult::sequence_reconstructions);
         sum(&UnorderedTppSolveResult::sequence_depth_sum);
         sum(&UnorderedTppSolveResult::sequence_depth_samples);
         sum(&UnorderedTppSolveResult::incumbent_updates);
@@ -1426,6 +1583,8 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::decomposed_polygons);
         sum(&UnorderedTppSolveResult::convex_pieces_generated);
         sum(&UnorderedTppSolveResult::fallback_calls);
+        sum(&UnorderedTppSolveResult::oracle_interval_bound_calls);
+        sum(&UnorderedTppSolveResult::oracle_contracted_bound_calls);
         sum(&UnorderedTppSolveResult::fallback_geometric_path_invalid_calls);
         sum(&UnorderedTppSolveResult::fallback_certificate_gap_calls);
         sum(&UnorderedTppSolveResult::fallback_locator_exception_calls);
@@ -1442,6 +1601,8 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::decomposition_branches);
         sum(&UnorderedTppSolveResult::preprocessing_seconds);
         sum(&UnorderedTppSolveResult::initial_heuristic_seconds);
+		sum(&UnorderedTppSolveResult::initial_relocation_seconds);
+		sum(&UnorderedTppSolveResult::initial_relocation_moves);
         sum(&UnorderedTppSolveResult::initial_sampled_extra_points);
         sum(&UnorderedTppSolveResult::initial_sampling_work_budget);
         sum(&UnorderedTppSolveResult::initial_convex_refinement_calls);
@@ -1449,6 +1610,9 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::search_seconds);
         sum(&UnorderedTppSolveResult::finalization_seconds);
         sum(&UnorderedTppSolveResult::convex_oracle_seconds);
+        sum(&UnorderedTppSolveResult::convex_dispatch_seconds);
+        sum(&UnorderedTppSolveResult::convex_bound_evaluation_seconds);
+        sum(&UnorderedTppSolveResult::convex_proposal_preparation_seconds);
         sum(&UnorderedTppSolveResult::oracle_profiled_calls);
         sum(&UnorderedTppSolveResult::cycle_construction_seconds);
         sum(&UnorderedTppSolveResult::cycle_certification_seconds);
@@ -1468,6 +1632,8 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::convex_fallback_extended_precision_seconds);
         sum(&UnorderedTppSolveResult::decomposition_seconds);
         sum(&UnorderedTppSolveResult::visit_check_seconds);
+		sum(&UnorderedTppSolveResult::visit_query_evaluations);
+		sum(&UnorderedTppSolveResult::visit_query_cache_hits);
         sum(&UnorderedTppSolveResult::heuristic_visit_check_seconds);
         sum(&UnorderedTppSolveResult::search_visit_check_seconds);
         sum(&UnorderedTppSolveResult::finalization_visit_check_seconds);

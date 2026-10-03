@@ -108,6 +108,13 @@ std::vector<DirectionalTraceStep> solve_intersecting_map_trace_unchecked_double(
     const std::vector<std::vector<Vector2>> &polygons,
     PreloadPolicy preload = PreloadPolicy::Lazy);
 
+// Same directional construction with interval predicates and lazy rational
+// evaluation. Its combinatorial trace still requires the hybrid certificate.
+std::vector<DirectionalTraceStep> solve_intersecting_map_trace_filtered(
+    const Vector2 &start, const Vector2 &target,
+    const std::vector<std::vector<Vector2>> &polygons,
+    PreloadPolicy preload = PreloadPolicy::Lazy);
+
 std::vector<DirectionalTraceStep> solve_binary_search_disjoint_trace_unchecked(
     const Vector2 &start, const Vector2 &target,
     const std::vector<std::vector<Vector2>> &polygons,

@@ -15,4 +15,6 @@ from tpp import main
 
 
 if __name__ == "__main__":
+	from benchmark_environment import enter_environment
+	enter_environment(sys.argv[1:])
 	raise SystemExit(main())

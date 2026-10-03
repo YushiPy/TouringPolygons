@@ -36,6 +36,15 @@ For nonzero links, each sign is `sign(a/sqrt(A)-b/sqrt(B))` with rational
 of `a*a*B` and `b*b*A`, decide it exactly. No numerical square root or epsilon
 enters the optimality test.
 
+The shared normalized-dot predicate clears denominators before that last
+comparison. Write `a=na/da`, `b=nb/db`, `A=nA/dA`, `B=nB/dB`, with all
+denominators positive. It compares the unbounded integers
+`(na*db)^2*nB*dA` and `(nb*da)^2*nA*dB`, and reverses the sign when `a<0`.
+Multiplication by the common positive denominator preserves strict signs and
+exact equality. This avoids gcd normalization of intermediate rational
+products and applies to both GMP and the portable integer backend. The
+fixed-endpoint oracle uses this same predicate, including zero-link blocks.
+
 For a nonzero-link contact, membership is checked before the support test.
 The implementation then uses the generators of the polygon's tangent cone:
 the two incident rays at a strict vertex; both directions of the edge and an
@@ -70,7 +79,8 @@ vectors: unit-only witness enumeration is insufficient. Keeping a vector
 unchanged is always allowed, so the sets grow monotonically; reaching the
 outgoing direction early permits an immediate success.
 
-The implementation in `cycle_zero_certificate.h` represents each reachable
+The shared implementation in `zero_contact_certificate.h`, used by
+`cycle_zero_certificate.h` and the fixed-endpoint hybrid oracle, represents each reachable
 set as the disk intersected with finitely many halfplanes
 
 ```

@@ -93,6 +93,7 @@ echo
 echo "==> Git submodules"
 git submodule update --init --recursive
 
+python3 benchmarks/tpp.py setup
 sync_python_app apps/benchmark-dashboard
 sync_node_app apps/benchmark-dashboard
 

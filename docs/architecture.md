@@ -25,6 +25,12 @@ The C++ targets are the source of truth. Python code under the solver packages
 is retained for experiments, visualization, and historical comparison; it is
 not a second public implementation to extend by default.
 
+The public benchmark CLI owns `benchmarks/.venv`, synchronized from its
+`pyproject.toml` and `uv.lock` by `python3 benchmarks/tpp.py setup`. CLI execution
+selects that interpreter; importing the internal modules from apps retains the
+app's environment. External Fekete workers and native bindings use the external
+repository's Python environment to preserve its dependencies and extension ABI.
+
 ## Application lifecycle
 
 `apps/benchmark-dashboard` is the maintained local application. It owns the

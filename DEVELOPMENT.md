@@ -12,6 +12,13 @@ git submodule update --init --recursive
 
 O núcleo C++ usa CMake, C++23, Eigen, Boost e CGAL. Gurobi é opcional e serve
 como baseline. O dashboard mantém seus ambientes Python e Node próprios.
+Os benchmarks também têm um ambiente independente:
+`python3 benchmarks/tpp.py setup` sincroniza `benchmarks/.venv` a partir de
+`benchmarks/uv.lock`, sem executar solvers. Os demais comandos dessa CLI usam a
+venv automaticamente.
+Para alterar dependências, edite `benchmarks/pyproject.toml`, atualize o lock
+com `uv lock --project benchmarks` e repita o setup. O Python do submódulo
+é reservado aos workers e bindings externos.
 Em builds nativos, GMP acelera a aritmética racional quando disponível.
 `-DTPP_ENABLE_GMP_RATIONAL=OFF` mantém o backend Boost sem biblioteca externa;
 o WASM também usa esse backend. Vincule consumidores ao alvo CMake `tpp_convex`
@@ -81,6 +88,7 @@ Durante refactors das ferramentas de benchmark:
 ```bash
 python3 -m compileall benchmarks/_internal benchmarks/tpp.py \
   apps/siicusp34/scripts
+benchmarks/.venv/bin/python -m unittest discover -s benchmarks/tests
 python3 benchmarks/tpp.py generate-suites
 ```
 

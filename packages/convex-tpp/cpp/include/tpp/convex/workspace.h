@@ -38,6 +38,12 @@ namespace tpp {
 		std::vector<Cone> cones;
 		// Prepared exact polygons for repeated safe-hybrid calls in one search.
 		std::shared_ptr<ConvexHybridCache> hybrid_cache;
+		// Diagnostic ablation: reuse exact geometry, but repeat pair dispatch.
+		bool cache_disjoint_dispatch = true;
+		// Reuse the binary coordinates of the same normalized exact polygons.
+		bool cache_interval_geometry = true;
+		// Additional feasible dual proposal for short/coincident contact blocks.
+		bool interpolated_zero_dual = false;
 
 		void reserve(size_t max_polygons, size_t max_total_vertices);
 		ConvexTppWorkspaceView prepare(size_t polygon_count, size_t total_vertices);

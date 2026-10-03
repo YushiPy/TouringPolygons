@@ -12,6 +12,7 @@
 namespace tpp {
 
 	enum class UnorderedSearchStrategy { BestBoundDive, DfsBfs };
+	enum class UnorderedSequenceStorage { Native, Packed, Deltas };
 
 	struct UnorderedTppSolveOptions {
 		size_t max_calls = std::numeric_limits<size_t>::max();
@@ -31,12 +32,20 @@ namespace tpp {
 		bool sampled_perimeter_initial_heuristic = false;
 		// Polish the best initial route with one convex piece per visited region.
 		bool convex_initial_refinement = false;
+		// Relocate one region at a time and optimize its contact at the new slot.
+		bool relocate_initial_heuristic = false;
 		// A feasible start-to-target path, including both endpoints. When present,
 		// it replaces the initial heuristic and supplies only an upper bound.
 		std::optional<std::vector<Vector2>> initial_path;
 		// Internal relaxations may stop at this relative oracle gap. Feasible
 		// leaves are refined to the requested global gap before certification.
 		double oracle_relative_gap = 1e-6;
+		// Reuse exact pair classification, independent of visit order/endpoints.
+		bool oracle_dispatch_cache = true;
+		bool oracle_interval_geometry_cache = true;
+		// Reuse immutable edges/segments and contacts for the last binary path.
+		bool prepared_visit_queries = true;
+		bool interpolated_zero_dual = false;
 		// Record an explanatory execution trace. Disabled by default so normal
 		// benchmark runs keep the same memory and timing behavior.
 		bool trace = false;
@@ -44,6 +53,9 @@ namespace tpp {
 		// oracle/decomposition call is allowed to finish before the frontier stops.
 		std::function<bool()> stop_requested;
         UnorderedSearchStrategy search_strategy = UnorderedSearchStrategy::BestBoundDive;
+        // Frontier sequences only. Packed automatically selects 8/16/32/64-bit
+        // indices; Deltas retains insertion/piece changes in a recycled arena.
+        UnorderedSequenceStorage sequence_storage = UnorderedSequenceStorage::Packed;
         // Two independent searches, one oracle thread each. max_calls is shared;
         // max_seconds is one wall deadline. Requires threads == 1.
         bool portfolio = false;
@@ -131,6 +143,11 @@ namespace tpp {
 		size_t complete_piece_oracle_calls = 0;
 		size_t oracle_cutoff_calls = 0;
 		size_t oracle_dual_cutoff_prunes = 0;
+		size_t oracle_dispatch_pair_queries = 0;
+		size_t oracle_dispatch_pair_cache_hits = 0;
+		size_t oracle_dispatch_pair_exact_checks = 0;
+		size_t oracle_interval_bound_calls = 0;
+		size_t oracle_contracted_bound_calls = 0;
 		size_t screened_nodes = 0;
         size_t one_tree_calls = 0, one_tree_cache_hits = 0, one_tree_iterations = 0;
         size_t one_tree_distance_queries = 0, one_tree_improvements = 0;
@@ -189,9 +206,20 @@ namespace tpp {
 		size_t insertion_branches = 0;
 		size_t decomposition_branches = 0;
 		size_t peak_queue = 0;
+        size_t node_index_bits = 0;
+        UnorderedSequenceStorage sequence_storage = UnorderedSequenceStorage::Packed;
+        // Reserved sequence buffers/arena bytes, excluding inline node headers,
+        // current siblings, allocator metadata, paths and oracle caches.
+        size_t peak_sequence_storage_bytes = 0;
+        size_t peak_frontier_node_bytes = 0;
+        size_t sequence_history_record_bytes = 0;
+        size_t peak_sequence_records = 0;
+        size_t sequence_reconstructions = 0;
 		double seconds = 0.0;
 		double preprocessing_seconds = 0.0;
 		double initial_heuristic_seconds = 0.0;
+		double initial_relocation_seconds = 0.0;
+		size_t initial_relocation_moves = 0;
 		double initial_sampling_work_budget = 0.0;
 		size_t initial_sampled_extra_points = 0;
 		size_t initial_convex_refinement_calls = 0;
@@ -215,6 +243,9 @@ namespace tpp {
 		// evaluations in one batch are counted once here.
 		double convex_oracle_wall_seconds = 0.0;
 		double convex_geometric_solver_seconds = 0.0;
+		double convex_dispatch_seconds = 0.0;
+		double convex_bound_evaluation_seconds = 0.0;
+		double convex_proposal_preparation_seconds = 0.0;
 		double convex_certificate_verification_seconds = 0.0;
         // Exclusive cycle work, including cooperatively interrupted requests.
         double cycle_construction_seconds = 0, cycle_certification_seconds = 0, cycle_rational_recovery_seconds = 0;
@@ -224,6 +255,7 @@ namespace tpp {
 		double convex_fallback_extended_precision_seconds = 0.0;
 		double decomposition_seconds = 0.0;
 		double visit_check_seconds = 0.0;
+		size_t visit_query_evaluations = 0, visit_query_cache_hits = 0;
 		double heuristic_visit_check_seconds = 0.0;
 		double search_visit_check_seconds = 0.0;
 		double finalization_visit_check_seconds = 0.0;

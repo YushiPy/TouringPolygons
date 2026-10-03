@@ -3,6 +3,7 @@
 #include "common.h"
 #include "solvers/unordered_geometry.h"
 #include "solvers/unordered_bounds.h"
+#include "solvers/unordered_sequence.h"
 #include <functional>
 #include <algorithm>
 #include <cmath>
@@ -14,6 +15,148 @@
 using namespace tpp;
 using Polygon = std::vector<Vector2>;
 
+void same_search(const UnorderedTppSolveResult &a, const UnorderedTppSolveResult &b) {
+    if (a.lower_bound!=b.lower_bound || a.upper_bound!=b.upper_bound || a.exact!=b.exact
+        || a.termination!=b.termination || a.calls!=b.calls || a.nodes!=b.nodes
+        || a.children_generated!=b.children_generated || a.children_queued!=b.children_queued
+        || a.insertion_branches!=b.insertion_branches || a.decomposition_branches!=b.decomposition_branches
+        || a.peak_queue!=b.peak_queue || a.order!=b.order || a.path.size()!=b.path.size()
+        || a.trace.size()!=b.trace.size()) throw std::runtime_error("Sequence storage changed the search.");
+    auto same_path=[](const auto &x,const auto &y) {
+        if(x.size()!=y.size())return false;
+        for(size_t i=0;i<x.size();++i)if(x[i].x!=y[i].x||x[i].y!=y[i].y)return false;
+        return true;
+    };
+    if(!same_path(a.path,b.path))throw std::runtime_error("Sequence storage changed contacts.");
+    for(size_t i=0;i<a.trace.size();++i) {
+        const auto &x=a.trace[i],&y=b.trace[i];
+        if(x.kind!=y.kind||x.node!=y.node||x.parent!=y.parent||x.polygon!=y.polygon||x.piece!=y.piece
+            ||x.position!=y.position||x.pass!=y.pass||x.sequence!=y.sequence||x.order!=y.order
+            ||!same_path(x.path,y.path)||x.lower_bound!=y.lower_bound||x.upper_bound!=y.upper_bound
+            ||x.length!=y.length||x.pruned!=y.pruned||x.source!=y.source||x.reason!=y.reason)
+            throw std::runtime_error("Sequence storage changed the trace.");
+    }
+}
+
+void check_prepared_contacts() {
+    using namespace tpp::unordered_detail;
+    std::mt19937 random(20261003);
+    std::uniform_real_distribution<double> coordinate(-8,8);
+    size_t checks=0;
+    for(size_t trial=0;trial<2000;++trial) {
+        Polygon polygon=trial%2?Polygon{{0,0},{3,0},{3,1},{1,1},{1,3},{0,3}}:
+            Polygon{{-1,-1},{2,-1},{2,2},{-1,2}};
+        const Vector2 shift{coordinate(random),coordinate(random)};
+        for(auto &v:polygon)v+=shift;
+        if(trial%3==0)std::reverse(polygon.begin(),polygon.end());
+        if(trial%5==0)polygon.push_back(polygon.front());
+        const PreparedContactPolygon prepared_polygon(polygon);
+        PreparedContactPath prepared_path;
+        for(size_t count:{size_t(0),size_t(1),size_t(2),size_t(7)}) {
+            Polygon path;
+            for(size_t i=0;i<count;++i)path.push_back({coordinate(random),coordinate(random)});
+            if(count>1&&trial%7==0)path.back()=path.front();
+            if(count>1&&trial%11==0)path.front()=polygon.front();
+            prepared_path.prepare(path);
+            for(double tolerance:{0.0,1e-8,0.01}) {
+                const auto raw=contact(path,polygon,tolerance),prepared=contact(prepared_path,prepared_polygon,tolerance);
+                if(raw.distance!=prepared.distance||raw.position!=prepared.position)
+                    throw std::runtime_error("Prepared contact changed distance or visit position.");
+                ++checks;
+            }
+        }
+    }
+    std::cout<<"Prepared visits passed "<<checks<<" distance/position comparisons.\n";
+}
+
+void check_sequence_storage() {
+    using namespace tpp::unordered_detail;
+    if(sequence_index_bytes(255,257)!=1||sequence_index_bytes(256,3)!=2
+        ||sequence_index_bytes(1,258)!=2||sequence_index_bytes(65535,3)!=2
+        ||sequence_index_bytes(65536,3)!=4||sequence_index_bytes(UINT32_MAX,3)!=4
+        ||sequence_index_bytes(size_t(UINT32_MAX)+1,3)!=8)
+        throw std::runtime_error("Incorrect sequence width boundary.");
+    bool overflow=false;
+    try {encode_sequence_index<uint8_t>(255);}catch(const std::overflow_error &){overflow=true;}
+    if(!overflow||decode_sequence_index(encode_sequence_index<uint8_t>(no_sequence_index))!=no_sequence_index)
+        throw std::runtime_error("Sequence sentinel or overflow failure.");
+    std::mt19937 random(20261002);
+    size_t comparisons=0;
+    for(size_t bytes:{1,2,4,8})for(size_t n:{1,3,60,70})for(size_t root_size:{size_t(0),std::min(n,size_t(3))}) {
+        SequenceHistory arena(bytes,n);
+        std::vector<SequenceElement> root;
+        for(size_t i=0;i<root_size;++i)root.push_back({i});
+        auto root_reference=arena.snapshot(root);
+        using State=std::pair<SequenceReference,std::vector<SequenceElement>>;
+        std::vector<State> states{{root_reference,root}};
+        for(size_t step=0;step<1200;++step) {
+            auto &parent=states[random()%states.size()];
+            auto expected=parent.second;
+            std::vector<size_t> missing;
+            for(size_t i=0;i<n;++i)
+                if(std::none_of(expected.begin(),expected.end(),[&](auto e){return e.polygon==i;}))missing.push_back(i);
+            size_t polygon,piece=no_sequence_index,position;
+            if(!missing.empty()&&(expected.empty()||random()%3)) {
+                polygon=missing[random()%missing.size()];position=random()%(expected.size()+1);
+                expected.insert(expected.begin()+position,{polygon});
+            } else {
+                position=random()%expected.size();polygon=expected[position].polygon;
+                piece=bytes==1?random()%255:bytes==2?size_t(300+random()%100):bytes==4?size_t(70000+random()%100):size_t(UINT32_MAX)+1+random()%100;
+                expected[position].piece=piece;
+            }
+            auto child=arena.child(parent.first,polygon,piece,position);
+            if(child.expand()!=expected)throw std::runtime_error("Delta reconstruction differs from vector edits.");
+            ++comparisons;
+            NodeSequence packed(expected);packed.pack(bytes);
+            packed.restore(bytes);
+            if(packed.elements()!=expected)throw std::runtime_error("Packed indices differ from vector edits.");
+            // Copies, moves, shared ancestors, arbitrary deletion and recycled IDs.
+            states.emplace_back(std::move(child),std::move(expected));
+            if(states.size()>80)states.erase(states.begin()+1+random()%(states.size()-1));
+            if(step%17==0)for(const auto &state:states) {
+                if(state.first.expand()!=state.second)throw std::runtime_error("Recycling damaged a retained ancestor.");
+                ++comparisons;
+            }
+        }
+        states.clear();root_reference={};
+        if(arena.live_records()!=0)throw std::runtime_error("Sequence ancestors leaked after the last owner.");
+        // Force a long history so the >64-position Fenwick reconstruction runs.
+        // A separate arena has its own root and can be destroyed independently.
+        SequenceHistory long_arena(bytes,n);
+        auto tail=long_arena.snapshot({});std::vector<SequenceElement> expected;
+        for(size_t i=0;i<n;++i) {
+            const size_t position=random()%(expected.size()+1);
+            expected.insert(expected.begin()+position,{i});tail=long_arena.child(tail,i,no_sequence_index,position);
+        }
+        if(tail.expand()!=expected)throw std::runtime_error("Long delta history reconstruction failed.");
+        tail={};if(long_arena.live_records()!=0)throw std::runtime_error("Long delta history leaked.");
+    }
+    const std::vector<Polygon> polygons={
+        {{0,0},{3,0},{3,1},{1,1},{1,3},{0,3}},
+        {{5,0},{6,0},{6,1},{5,1}},{{4,5},{5,5},{5,6},{4,6}},{{-2,4},{-1,4},{-1,5},{-2,5}}};
+    for(bool cycle:{false,true})for(auto strategy:{UnorderedSearchStrategy::BestBoundDive,UnorderedSearchStrategy::DfsBfs})
+        for(size_t cap:{0,1,3,10,1000}) {
+            UnorderedTppSolveOptions options;options.trace=true;options.max_calls=cap;options.search_strategy=strategy;
+            options.sequence_storage=UnorderedSequenceStorage::Native;
+            auto solve=[&]{return cycle?tpp_nonconvex_tspn_solve(polygons,options):tpp_nonconvex_unordered_solve({-3,-2},{8,8},polygons,options);};
+            const auto baseline=solve();
+            options.prepared_visit_queries=false;same_search(baseline,solve());
+            options.prepared_visit_queries=true;
+            for(auto caches:{std::pair{false,true},std::pair{true,false},std::pair{false,false}}) {
+                options.oracle_dispatch_cache=caches.first;
+                options.oracle_interval_geometry_cache=caches.second;
+                same_search(baseline,solve());
+            }
+            options.oracle_dispatch_cache=true;
+            options.oracle_interval_geometry_cache=true;
+            for(auto storage:{UnorderedSequenceStorage::Packed,UnorderedSequenceStorage::Deltas}) {
+                options.sequence_storage=storage;const auto result=solve();same_search(baseline,result);
+                if(result.node_index_bits!=8)throw std::runtime_error("Small nodes should use byte indices.");
+            }
+        }
+    std::cout<<"Sequence storage passed "<<comparisons<<" reconstruction/recycling checks, 40 traced storage comparisons and 60 oracle-cache comparisons.\n";
+}
+
 double length(const Polygon &p) {
 	double value = 0;
 	for (size_t i = 1; i < p.size(); ++i) value += p[i - 1].distance_to(p[i]);
@@ -22,9 +165,20 @@ double length(const Polygon &p) {
 
 void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
 	const auto result = tpp::tpp_nonconvex_unordered_solve(s, t, polygons);
+    UnorderedTppSolveOptions uncached;uncached.oracle_dispatch_cache=false;
+    uncached.oracle_interval_geometry_cache=false;
+    uncached.prepared_visit_queries=false;
+    same_search(result,tpp_nonconvex_unordered_solve(s,t,polygons,uncached));
+    for(auto storage:{UnorderedSequenceStorage::Native,UnorderedSequenceStorage::Deltas}) {
+        UnorderedTppSolveOptions options;options.sequence_storage=storage;
+        same_search(result,tpp_nonconvex_unordered_solve(s,t,polygons,options));
+    }
 	if (result.fallback_calls != result.fallback_geometric_path_invalid_calls + result.fallback_certificate_gap_calls
 		|| result.extended_precision_calls > result.fallback_calls
 		|| result.repaired_geometric_path_calls > result.calls
+		|| result.oracle_dispatch_pair_cache_hits > result.oracle_dispatch_pair_queries
+		|| result.oracle_dispatch_pair_exact_checks > result.oracle_dispatch_pair_queries
+		|| result.convex_dispatch_seconds > result.convex_oracle_seconds
 		|| result.calls != result.relaxation_calls + result.refinement_calls + result.initial_convex_refinement_calls
 		|| result.branch_events != result.insertion_branches + result.decomposition_branches
 		|| result.partial_states_created < 1
@@ -97,6 +251,10 @@ void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
 		options.max_calls = cap;
 		if (cap == 10) options.oracle_relative_gap = .01;
 		const auto limited = tpp::tpp_nonconvex_unordered_solve(s, t, polygons, options);
+        for(auto storage:{UnorderedSequenceStorage::Native,UnorderedSequenceStorage::Deltas}) {
+            options.sequence_storage=storage;
+            same_search(limited,tpp_nonconvex_unordered_solve(s,t,polygons,options));
+        }
 		if (limited.calls > cap || limited.lower_bound > best + 1e-6 || limited.upper_bound < best - 1e-6)
 			throw std::runtime_error("Invalid interrupted search bounds.");
 	}
@@ -116,14 +274,26 @@ void check_oracle_certificates() {
 			|| (r.lower_bound < cutoff && r.upper_bound - r.lower_bound > 1e-7))
 			throw std::runtime_error("Invalid convex cutoff certificate.");
 		if (cutoff == 10.5) {
-			if (!r.dual_cutoff_pruned || r.used_fallback || r.lower_bound < cutoff
+			// Complete zero-block certification now proves this candidate
+			// directly; the cutoff must still be met without rational recovery.
+			if (r.used_fallback || r.lower_bound < cutoff
 				|| r.path.size() != polygons.size() + 2 || length(r.path) > r.upper_bound + 1e-7)
-				throw std::runtime_error("Expected a feasible early dual cutoff.");
+				throw std::runtime_error("Expected a certified coincident-contact cutoff.");
 			for (size_t i = 0; i < polygons.size(); ++i)
 				if (tpp::unordered_detail::contact({r.path[i + 1], r.path[i + 1]}, polygons[i], 1e-8).distance > 1e-8)
 					throw std::runtime_error("Dual cutoff path missed an ordered polygon.");
 		}
 	}
+	// This proposal is feasible but suboptimal. The early dual cutoff must
+	// precede filtered construction as well as complete rational recovery.
+	const std::vector<Polygon> suboptimal = {
+		{{-2,0},{0,0},{0,2},{-2,2}},
+		{{-1e-6,1},{1.999999,0},{1.999999,2}}
+	};
+	const auto cut = tpp_convex_solve_certified({-3,-2},{3,-2},suboptimal,workspace,1e-7,0.0);
+	if (!cut.dual_cutoff_pruned || cut.used_fallback || cut.lower_bound < 0
+		|| cut.path.size() != suboptimal.size()+2 || length(cut.path) > cut.upper_bound+1e-7)
+		throw std::runtime_error("Expected a feasible early dual cutoff for a rejected candidate.");
 	const auto interrupted = tpp_convex_solve_certified(
 		s, t, polygons, workspace, 0.0, std::numeric_limits<double>::infinity(), 0.0
 	);
@@ -241,11 +411,12 @@ void check_initial_heuristic_strategies() {
 	if (baseline.initial_upper_bound <= 0 || baseline.initial_convex_refinement_calls != 0)
 		throw std::runtime_error("Initial heuristic baseline was not constructed.");
 
-	for (int mask = 1; mask < 8; ++mask) {
+	for (int mask = 1; mask < 16; ++mask) {
 		UnorderedTppSolveOptions options = baseline_options;
 		options.sampled_perimeter_initial_heuristic = mask & 1;
 		options.convex_initial_refinement = mask & 2;
 		options.bidirectional_initial_heuristic = mask & 4;
+		options.relocate_initial_heuristic = mask & 8;
 		if (options.convex_initial_refinement) options.max_calls = 1;
 		const auto result = tpp_nonconvex_unordered_solve(start, target, polygons, options);
 		if (result.initial_upper_bound > baseline.initial_upper_bound + 1e-9
@@ -260,6 +431,38 @@ void check_initial_heuristic_strategies() {
 			if (unordered_detail::contact(result.path, polygon, 1e-8).distance > 1e-8)
 				throw std::runtime_error("An initial heuristic strategy returned an infeasible path.");
 	}
+}
+
+void check_relocation_and_zero_dual() {
+    std::mt19937 random(20261003);
+    std::uniform_real_distribution<double> coordinate(-5,5);
+    for(size_t trial=0;trial<24;++trial) {
+        std::vector<Polygon> polygons;
+        for(size_t i=0;i<3+trial%4;++i) {
+            const double x=coordinate(random),y=coordinate(random);
+            polygons.push_back({{x,y},{x+1,y},{x+1,y+1},{x,y+1}});
+        }
+        for(bool cycle:{false,true}) {
+            UnorderedTppSolveOptions options;options.max_calls=0;
+            auto solve=[&]{return cycle?tpp_nonconvex_tspn_solve(polygons,options):tpp_nonconvex_unordered_solve({-7,0},{7,0},polygons,options);};
+            const auto base=solve();options.relocate_initial_heuristic=true;
+            const auto moved=solve();
+            if(moved.calls!=0||moved.upper_bound>base.upper_bound+1e-10||moved.order.size()!=polygons.size())
+                throw std::runtime_error("Relocation worsened the initial route or violated its call budget.");
+            for(const auto &p:polygons)if(unordered_detail::contact(moved.path,p,1e-8).distance>1e-8)
+                throw std::runtime_error("Relocation produced an infeasible route.");
+            if((cycle&&moved.path.front()!=moved.path.back())||(!cycle&&(moved.path.front()!=base.path.front()||moved.path.back()!=base.path.back())))
+                throw std::runtime_error("Relocation changed the route endpoints.");
+        }
+    }
+    const std::vector<Polygon> touching={{{0,0},{1,0},{1,1},{0,1}},{{1,0},{2,0},{2,1},{1,1}},{{1,1},{2,1},{2,2},{1,2}}};
+    const auto reference=tpp_nonconvex_unordered_solve({-1,-1},{3,3},touching);
+    for(size_t cap:{0,1,5,10000}) {
+        UnorderedTppSolveOptions options;options.max_calls=cap;options.interpolated_zero_dual=true;
+        const auto result=tpp_nonconvex_unordered_solve({-1,-1},{3,3},touching,options);
+        if(result.calls>cap||result.lower_bound>reference.upper_bound+1e-10||result.upper_bound<reference.lower_bound-1e-10)
+            throw std::runtime_error("Interpolated zero dual violated bounds or its call cap.");
+    }
 }
 
 void check_intra_instance_threads() {
@@ -339,6 +542,8 @@ void check_endpoint_portfolio() {
 
 int main() {
 	try {
+        check_prepared_contacts();check_relocation_and_zero_dual();
+        check_sequence_storage();
 		check_oracle_certificates();
 		check_coordinate_normalization();
 		check_provided_initial_path();

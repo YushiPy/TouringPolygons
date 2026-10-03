@@ -1,5 +1,5 @@
 #pragma once
-#include "tpp/convex/rational.h"
+#include "zero_contact_certificate.h"
 
 namespace tpp::detail {
 // Shares exact halfplanes and winding conventions with rational_disjoint.cpp.
@@ -11,14 +11,9 @@ bool prepare_cycle_polygons(const ConvexRationalPolygons &input,
 bool cycle_cutoff_promising(const ConvexRationalPolygons &,const ConvexRationalPolygon &,double);
 bool cycle_cutoff_promising(const ConvexRationalPolygons &,const std::vector<Vector2> &,double);
 
-// Sign(p/sqrt(a2) - q/sqrt(b2)), without square roots or approximate signs.
+// Shared exact radical sign; kept as the cycle-internal name for callers.
 inline int cycle_normalized_difference_sign(const ConvexRational &p, const ConvexRational &a2,
                                            const ConvexRational &q, const ConvexRational &b2) {
-    if(p>=0 && q<=0)return p==0 && q==0?0:1;
-    if(p<=0 && q>=0)return p==0 && q==0?0:-1;
-    const ConvexRational left=p*p*b2,right=q*q*a2;
-    if(left==right)return 0;
-    if(p>0)return left>right?1:-1;
-    return left<right?1:-1;
+    return convex_normalized_difference_sign(p,a2,q,b2);
 }
 } // namespace tpp::detail

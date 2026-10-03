@@ -146,6 +146,8 @@ def make_parser() -> argparse.ArgumentParser:
 	parser.add_argument("--suite", type=Path, default=DEFAULT_SUITE)
 	parser.add_argument("--metadata", type=Path, help="Suite CSV; defaults beside --suite.")
 	parser.add_argument("--tspn-repo", type=Path, default=DEFAULT_TSPN_REPO)
+	parser.add_argument("--external-python", dest="worker_python", type=Path,
+		help="Python for Fekete workers; defaults to --tspn-repo/.venv when available.")
 	parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
 	parser.add_argument(
 		"--mode", choices=("path", "cycle"), default="path",
@@ -554,8 +556,14 @@ def run_case(
 	with tempfile.TemporaryDirectory(prefix="tspn-comparison-") as temp_dir:
 		result_path = Path(temp_dir) / "result.json"
 		configured_python = getattr(args, "worker_python", None)
+		if configured_python is None:
+			external_python = args.tspn_repo / (".venv/Scripts/python.exe" if os.name == "nt" else ".venv/bin/python")
+			if external_python.is_file():
+				configured_python = external_python
 		if configured_python:
-			python_executable = Path(configured_python).resolve()
+			# Launch through the configured venv/stable symlink on every case.
+			# Resolving it loses the venv and pins a removable Homebrew version.
+			python_executable = Path(configured_python).absolute()
 		else:
 			venv_python = Path(sys.prefix) / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 			python_executable = venv_python if venv_python.exists() else Path(sys.executable)

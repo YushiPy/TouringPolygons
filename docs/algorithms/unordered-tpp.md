@@ -89,6 +89,19 @@ polígonos originais. Essa chamada consome o orçamento de chamadas e tem teto d
 igual ao menor entre 1 s, 10% do limite da instância e o tempo restante. A decomposição
 feita nessa etapa fica em cache para a busca. As três opções são desativadas por padrão.
 
+`--relocate-initial` / `relocate_initial_heuristic` acrescenta até quatro
+varreduras de realocação à melhor candidata inicial. Remove um contato,
+considera todas as posições de reinserção e minimiza o contato da mesma região
+na nova posição com `best_contact`. A redução local seleciona a proposta;
+o comprimento completo precisa diminuir antes de aceitar o movimento.
+Uma varredura de contatos segue cada passe. O caminho final só substitui o
+incumbente se for mais curto e sua cobertura for validada. Extremos do TPP e
+fechamento do TSPN são preservados. O orçamento é o menor entre 100 ms e 5%
+do tempo restante, verificado entre candidatos; não usa chamadas do oráculo.
+A opção é experimental e
+desativada por padrão. `initial_relocation_moves` conta os movimentos da
+candidata aceita, e `initial_relocation_seconds` está incluído na heurística.
+
 O refinamento geométrico padrão otimiza um contato por vez; ele não equivale a resolver
 conjuntamente a sequência completa com o TPP convexo de ordem fixa.
 Opcionalmente, `options.initial_path` fornece um caminho completo de `start` a
@@ -100,6 +113,76 @@ a árvore e o certificado continuam iguais. Um caminho inválido causa erro.
 A árvore integra ordem e peças. Não chama um B&B não convexo completo para cada
 permutação: reutiliza o solver convexo e a interface `decompose_polygon` existentes,
 e combina as duas ramificações na mesma busca.
+
+### Armazenamento das sequências da fronteira
+
+`options.sequence_storage` / `--sequence-storage native|packed|deltas` altera
+somente a representação das sequências retidas. Os oráculos e os irmãos em
+avaliação usam vetores completos de índices `size_t`; a ordem de expansão,
+os cortes, tolerâncias e certificados são os mesmos nos três modos. O padrão
+é `packed`; `deltas` é experimental até uma comparação de tempo e RSS.
+
+`packed` codifica cada par `(polígono, peça)` com índices de 8, 16, 32 ou
+64 bits. A largura é escolhida uma vez por busca pelo número de polígonos e
+pelo limite conservador de `vértices - 2` peças em uma partição por diagonais
+de um polígono simples. Isso mantém a decomposição sob demanda. O maior valor
+da largura é reservado para indicar o fecho convexo: índices reais nunca são
+truncados e toda codificação verifica overflow. Até 255 polígonos e esse
+limite de até 255 peças usam um byte por índice. Uma sequência com 30 entradas
+ocupa 60 bytes de dados nesse caso, contra 480 em uma plataforma com `size_t`
+de 64 bits; a redução de oito vezes vale para os dados da sequência.
+Cabeçalhos dos nós, caminhos e caches continuam consumindo memória.
+Na implementação arm64 atual, o wrapper das representações acrescenta oito
+bytes ao cabeçalho do nó (208 para 216); os três modos usam esse mesmo wrapper.
+
+`deltas` guarda uma referência à sequência ancestral e uma operação:
+inserir um polígono em uma posição, ou atribuir uma peça a um polígono já
+presente. Cada registro tem IDs e contagens de referências de 32 bits,
+independentemente da largura dos índices geométricos. Com índices de oito
+bits um registro ocupa 12 bytes. O registro conserva apenas a sequência,
+sem reter o caminho ou outros campos de um nó ancestral. Ele é criado somente
+para um filho que sobrevive aos cortes e será retido. Uma arena libera cadeias
+sem donos de forma iterativa e reutiliza seus slots; sua capacidade alocada
+permanece disponível até o fim da busca. Overflow dos IDs/contagens causa erro,
+sem wraparound; a arena admite menos de `2^32` registros simultaneamente alocados.
+
+A sequência é reconstruída uma vez ao retirar o nó, antes de chamar o
+oráculo ou gerar irmãos. As operações são lidas da mais recente para a mais
+antiga; cada inserção ocupa a posição correspondente entre os lugares ainda
+vagos, e a atribuição de peça mais recente prevalece. Até 64 entradas, a
+seleção usa uma máscara de bits; sequências maiores usam uma árvore Fenwick.
+A raiz vazia do TPP ou a sequência inicial do TSPN preenche os lugares
+restantes. A reconstrução custa `O(d + k log k + n)` para `d` operações,
+`k` entradas e `n` polígonos, com scratch reutilizado. Em cada ramo do solver
+há no máximo uma inserção e uma atribuição por polígono. O pai reconstruído
+permanece vivo durante a geração dos irmãos, inclusive se uma chamada for
+interrompida ou a busca devolver o nó à fila para refinamento.
+
+Os modos compartilham a mesma implementação do B&B, incluindo DFS/BFS,
+diving, avaliação paralela de irmãos e portfólio. Cada busca do portfólio
+possui sua própria arena. A retirada da fila move os buffers, e uma posição
+de inserção já podada não constrói sequência, salvo se o trace solicitar sua
+descrição. A construção dos filhos reserva o tamanho final para evitar a
+realocação após copiar o vetor do pai.
+
+O JSON informa `sequence_storage`, `node_index_bits`,
+`peak_sequence_storage_bytes`, `peak_frontier_node_bytes`,
+`sequence_history_record_bytes`, `peak_sequence_records` e
+`sequence_reconstructions`. Os bytes de sequência contabilizam buffers/arena
+reservados, incluindo a capacidade livre para reutilização, sem cabeçalhos
+inline, metadados do alocador, vetores temporários de irmãos, caminhos ou
+caches dos oráculos. Os bytes de nós contabilizam a capacidade do vetor da
+fila, sem o índice de limites da DFS. No portfólio, os picos são somados e
+constituem uma estimativa superior à ocupação simultânea dos dois workers.
+`process_peak_rss_bytes` mede o pico do processo CLI em macOS/Linux, incluindo
+caminhos, caches e demais alocações; zero indica métrica indisponível em outras
+plataformas. Esses campos complementam, mas não substituem, a validação dos
+limites e da trajetória retornada.
+
+Deltas podem perder em tempo ou mesmo em memória quando muitos ancestrais
+distintos permanecem vivos. Compare os três modos com o mesmo binário,
+gap, orçamento e política, preferindo um processo por vez para diagnosticar
+RSS e runtime. Não atribua aos deltas o ganho já obtido pela compactação.
 
 Duas podas geométricas rejeitadas e seus fixtures de regressão estão documentados
 em [`unordered-pruning-counterexamples.md`](unordered-pruning-counterexamples.md).
@@ -117,6 +200,24 @@ o ótimo da sequência parcial limita inferiormente qualquer extensão do nó. S
 caminho parcial já visita todos os polígonos originais, ele também é um incumbente
 global. Em cada ramo há no máximo uma inserção e um refinamento por polígono.
 
+## Consultas de visita preparadas
+
+`prepared_visit_queries` (padrão true) prepara uma vez caixas e arestas dos
+polígonos originais, e prepara os segmentos de cada caminho consultado. A
+sobrecarga preparada e a consulta sem preparação compartilham o mesmo
+algoritmo em `unordered_geometry.cpp`, incluindo pertencimento, projeções,
+distâncias, posição de primeira visita e critérios de desempate.
+Além disso, a busca retém os contatos calculados para o último caminho,
+conferindo todos os bits das coordenadas antes de reutilizá-los. Isso evita
+repetir consultas entre a verificação de um incumbente e a escolha do ramo.
+Polígonos e tolerância permanecem constantes durante essa retenção.
+Cada busca/worker do portfólio tem sua própria preparação; ela não é guardada
+nos nós. A memória adicional é linear nos vértices, tamanho do caminho e
+número de polígonos. `--no-prepared-visits` desativa ambos os reaproveitamentos.
+`visit_query_evaluations` e `visit_query_cache_hits` contam consultas executadas
+e reaproveitadas nas fases de cobertura, ramificação e finalização; consultas
+específicas da raiz e decomposição não fazem parte desses contadores.
+
 ## Certificado convexo e interseções
 
 A API `tpp_convex_solve_certified` delega ao oráculo híbrido seguro descrito em
@@ -130,6 +231,24 @@ fallback racional: recorrência para polígonos disjuntos e mapas direcionais pa
 polígonos com interseção. Um limite dual racional suficiente também pode encerrar
 a chamada quando existe um corte finito. A proteção vale para essa API; as APIs
 antigas de ordem fixa não foram redirecionadas.
+
+O despacho entre disjuntos/intersectantes conserva em cache a classificação
+racional de pares já preparados, com as condições e limites de retenção
+descritos no contrato do oráculo. `--no-oracle-dispatch-cache` repete esse
+despacho para comparar runtime no mesmo binário. Isso não modifica a agenda,
+os contatos ou os limites da busca. `oracle_dispatch_pair_queries`,
+`oracle_dispatch_pair_cache_hits` e `oracle_dispatch_pair_exact_checks` ajudam
+a separar reaproveitamento da geometria de mudanças na árvore; o `profile`
+também exporta `convex_dispatch_seconds` e `convex_bound_evaluation_seconds`.
+`--no-oracle-interval-geometry-cache` isola o reaproveitamento dos vértices
+binários normalizados usados na proposta intervalar. Sua preparação aparece
+em `convex_proposal_preparation_seconds`; ambos os caches mantêm o mesmo
+replay, pertencimento e certificado do oráculo seguro.
+
+`--interpolated-zero-dual` ativa uma proposta dual intervalar adicional para
+elos curtos/coincidentes, documentada no contrato do oráculo. Essa opção
+experimental não assume que contatos próximos são iguais, não perturba os
+polígonos e não altera os gaps solicitados. Permanece desativada por padrão.
 
 Para regiões convexas $C_1,\ldots,C_m$ e vetores $u_0,\ldots,u_m$ com norma no máximo 1,
 um limite inferior é

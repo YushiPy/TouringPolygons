@@ -13,9 +13,10 @@ namespace tpp {
 		const std::vector<std::vector<Vector2>> &polygons,
 		DynamicConvexTppWorkspace &workspace, double tolerance, double cutoff, double max_seconds
 	) {
-		(void)tolerance;
 		ConvexHybridOptions options;
 		options.cutoff=cutoff;
+		options.max_gap=tolerance;
+		options.interpolated_zero_dual=workspace.interpolated_zero_dual;
 		const auto hybrid=tpp_convex_solve_hybrid(start,target,polygons,options,workspace);
 		CertifiedConvexTppResult result;
 		// The unordered solver consumes the explicit contact-coordinate chain;
@@ -24,6 +25,8 @@ namespace tpp {
 		result.lower_bound=hybrid.lower_bound;
 		result.upper_bound=hybrid.upper_bound;
 		result.used_fallback=hybrid.stats.rational_fallback;
+		result.used_interval_bounds=hybrid.stats.interval_bounds_certified;
+		result.used_contracted_proposal=hybrid.stats.interval_bounds_contracted;
 		result.dual_cutoff_pruned=hybrid.cutoff_pruned;
 		result.fallback_reason=hybrid.fallback_reason;
 		result.fallback_geometric_path_invalid=result.used_fallback &&
@@ -33,6 +36,12 @@ namespace tpp {
 			 hybrid.fallback_reason==ConvexFallbackReason::MembershipOrOrdering);
 		result.fallback_certificate_gap=result.used_fallback && !result.fallback_geometric_path_invalid;
 		result.predicate_exact_evaluations=hybrid.stats.predicate_exact_evaluations;
+		result.dispatch_pair_queries=hybrid.stats.dispatch_pair_queries;
+		result.dispatch_pair_cache_hits=hybrid.stats.dispatch_pair_cache_hits;
+		result.dispatch_pair_exact_checks=hybrid.stats.dispatch_pair_exact_checks;
+		result.dispatch_seconds=hybrid.stats.dispatch_seconds;
+		result.bound_evaluation_seconds=hybrid.stats.bound_evaluation_seconds;
+		result.proposal_preparation_seconds=hybrid.stats.proposal_preparation_seconds;
 		result.seconds=hybrid.stats.total_seconds;
 		result.geometric_solver_seconds=hybrid.stats.double_solver_seconds;
 		result.contact_materialization_seconds=hybrid.stats.contact_materialization_seconds;

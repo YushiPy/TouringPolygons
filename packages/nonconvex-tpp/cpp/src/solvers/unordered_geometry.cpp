@@ -9,26 +9,59 @@
 
 namespace {
 	using tpp::unordered_detail::Polygon;
+	using tpp::unordered_detail::ContactEdge;
+	using tpp::unordered_detail::ContactSegment;
+	using tpp::unordered_detail::PreparedContactPolygon;
+	using tpp::unordered_detail::PreparedContactPath;
 
-	Vector2 project(Vector2 point, Vector2 start, Vector2 end) {
-		const auto direction = end - start;
-		return start + direction * (direction.length_squared() == 0 ? 0
-			: std::clamp((point - start).dot(direction) / direction.length_squared(), 0.0, 1.0));
+	Vector2 project(Vector2 point, const ContactEdge &edge) {
+		return edge.start + edge.direction * (edge.squared == 0 ? 0
+			: std::clamp((point - edge.start).dot(edge.direction) / edge.squared, 0.0, 1.0));
 	}
 
-	bool inside(Vector2 point, const Polygon &polygon, double tolerance) {
+	template<class EdgeAt>
+	bool inside_edges(Vector2 point, size_t count, const EdgeAt &edge_at, double tolerance) {
 		bool result = false;
-		for (size_t i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++) {
-			const auto a = polygon[j], b = polygon[i];
-			if ((point - project(point, a, b)).length_squared() <= tolerance * tolerance) return true;
+		for (size_t i = 0, j = count - 1; i < count; j = i++) {
+			const auto edge = edge_at(j);
+			const auto a = edge.start, b = edge.end;
+			if ((point - project(point, edge)).length_squared() <= tolerance * tolerance) return true;
 			if ((a.y > point.y) != (b.y > point.y)
 				&& point.x < a.x + (b.x - a.x) * (point.y - a.y) / (b.y - a.y)) result = !result;
 		}
 		return result;
 	}
+	bool inside(Vector2 point, const Polygon &polygon, double tolerance) {
+		return inside_edges(point, polygon.size(), [&](size_t i) {
+			return ContactEdge(polygon[i], polygon[(i+1)%polygon.size()]);
+		}, tolerance);
+	}
 }
 
 namespace tpp::unordered_detail {
+	ContactEdge::ContactEdge(Vector2 a, Vector2 b)
+		:start(a),end(b),direction(b-a),squared(direction.length_squared()) {}
+	ContactSegment::ContactSegment(Vector2 a, Vector2 b):ContactEdge(a,b),
+		minimum{std::min(a.x,b.x),std::min(a.y,b.y)},
+		maximum{std::max(a.x,b.x),std::max(a.y,b.y)} {}
+	PreparedContactPolygon::PreparedContactPolygon(const Polygon &polygon)
+		:minimum(polygon.front()),maximum(polygon.front()) {
+		edges.reserve(polygon.size());
+		for(size_t i=0;i<polygon.size();++i) {
+			const auto p=polygon[i];
+			minimum.x=std::min(minimum.x,p.x);minimum.y=std::min(minimum.y,p.y);
+			maximum.x=std::max(maximum.x,p.x);maximum.y=std::max(maximum.y,p.y);
+			edges.emplace_back(p,polygon[(i+1)%polygon.size()]);
+		}
+	}
+	PreparedContactPath::PreparedContactPath(const Polygon &path) {
+		prepare(path);
+	}
+	void PreparedContactPath::prepare(const Polygon &path) {
+		segments.clear();
+		segments.reserve(path.empty()?0:path.size()-1);
+		for(size_t i=1;i<path.size();++i)segments.emplace_back(path[i-1],path[i]);
+	}
 	namespace {
 		double polygon_perimeter(const Polygon &polygon) {
 			double perimeter = 0;
@@ -165,46 +198,60 @@ namespace tpp::unordered_detail {
 		return hull;
 	}
 
-	Contact contact(const Polygon &path, const Polygon &polygon, double tolerance) {
+	template<class SegmentAt, class EdgeAt>
+	Contact contact_impl(size_t segment_count, const SegmentAt &segment_at,
+		size_t edge_count, const EdgeAt &edge_at, Vector2 minimum, Vector2 maximum, double tolerance) {
 		Contact best{std::numeric_limits<double>::infinity(), 0};
 		double best_squared = std::numeric_limits<double>::infinity();
 		const double tolerance_squared = tolerance * tolerance;
-		Vector2 minimum = polygon.front(), maximum = polygon.front();
-		for (auto p : polygon) {
-			minimum.x = std::min(minimum.x, p.x); minimum.y = std::min(minimum.y, p.y);
-			maximum.x = std::max(maximum.x, p.x); maximum.y = std::max(maximum.y, p.y);
-		}
-		for (size_t i = 1; i < path.size(); ++i) {
-			const auto a = path[i - 1], b = path[i], direction = b - a;
-			const double dx = std::max({0.0, minimum.x - std::max(a.x, b.x), std::min(a.x, b.x) - maximum.x});
-			const double dy = std::max({0.0, minimum.y - std::max(a.y, b.y), std::min(a.y, b.y) - maximum.y});
+		for (size_t i = 0; i < segment_count; ++i) {
+			const auto segment=segment_at(i);
+			const auto a=segment.start,b=segment.end,direction=segment.direction;
+			const double dx = std::max({0.0, minimum.x - segment.maximum.x, segment.minimum.x - maximum.x});
+			const double dy = std::max({0.0, minimum.y - segment.maximum.y, segment.minimum.y - maximum.y});
 			// A segment whose bounding box is farther away than the best actual
 			// contact cannot change either coverage or the closest distance.
 			if (dx * dx + dy * dy > best_squared) continue;
-			if (inside(a, polygon, tolerance)) return {0, double(i - 1)};
+			if (inside_edges(a, edge_count, edge_at, tolerance)) return {0, double(i)};
 			double first = std::numeric_limits<double>::infinity();
-			for (size_t j = 0; j < polygon.size(); ++j) {
-				const auto c = polygon[j], e = polygon[(j + 1) % polygon.size()], edge = e - c;
+			for (size_t j = 0; j < edge_count; ++j) {
+				const auto polygon_edge=edge_at(j);
+				const auto c=polygon_edge.start,e=polygon_edge.end,edge=polygon_edge.direction;
 				const double denominator = direction.cross(edge);
 				if (denominator != 0) {
 					const double t = (c - a).cross(edge) / denominator;
 					const double u = (c - a).cross(direction) / denominator;
 					if (t >= 0 && t <= 1 && u >= 0 && u <= 1) first = std::min(first, t);
 				}
-				for (const auto &[p, q] : {std::pair{a, project(a, c, e)}, std::pair{b, project(b, c, e)},
-					std::pair{project(c, a, b), c}, std::pair{project(e, a, b), e}}) {
+				for (const auto &[p, q] : {std::pair{a, project(a, polygon_edge)}, std::pair{b, project(b, polygon_edge)},
+					std::pair{project(c, segment), c}, std::pair{project(e, segment), e}}) {
 					const double squared = (p - q).length_squared();
 					if (squared <= tolerance_squared || squared < best_squared) {
-						const double t = direction.length_squared() == 0 ? 0 : (p - a).dot(direction) / direction.length_squared();
+						const double t = segment.squared == 0 ? 0 : (p - a).dot(direction) / segment.squared;
 						if (squared <= tolerance_squared) first = std::min(first, t);
-						if (squared < best_squared) { best_squared = squared; best.position = double(i - 1) + t; }
+						if (squared < best_squared) { best_squared = squared; best.position = double(i) + t; }
 					}
 				}
 			}
-			if (std::isfinite(first)) return {0, double(i - 1) + first};
-			if (inside(b, polygon, tolerance)) return {0, double(i)};
+			if (std::isfinite(first)) return {0, double(i) + first};
+			if (inside_edges(b, edge_count, edge_at, tolerance)) return {0, double(i+1)};
 		}
 		best.distance = std::sqrt(best_squared);
 		return best;
+	}
+	Contact contact(const Polygon &path, const Polygon &polygon, double tolerance) {
+		Vector2 minimum=polygon.front(),maximum=polygon.front();
+		for(auto p:polygon) {
+			minimum.x=std::min(minimum.x,p.x);minimum.y=std::min(minimum.y,p.y);
+			maximum.x=std::max(maximum.x,p.x);maximum.y=std::max(maximum.y,p.y);
+		}
+		return contact_impl(path.empty()?0:path.size()-1,
+			[&](size_t i){return ContactSegment(path[i],path[i+1]);},polygon.size(),
+			[&](size_t i){return ContactEdge(polygon[i],polygon[(i+1)%polygon.size()]);},minimum,maximum,tolerance);
+	}
+	Contact contact(const PreparedContactPath &path, const PreparedContactPolygon &polygon, double tolerance) {
+		return contact_impl(path.segments.size(),[&](size_t i)->const ContactSegment&{return path.segments[i];},
+			polygon.edges.size(),[&](size_t i)->const ContactEdge&{return polygon.edges[i];},
+			polygon.minimum,polygon.maximum,tolerance);
 	}
 }

@@ -44,6 +44,7 @@ Common workflow:
   status NAME
 
 Commands:
+  setup ARGS...                     Prepare the locked benchmark Python environment.
   create NAME ARGS...                Create a synthetic benchmark campaign.
   generate ARGS...                   Generate one binary using gen_instances.py options.
   generate-matrix NAME PBF ARGS...   Create a reproducible benchmark campaign.
@@ -288,6 +289,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 		return 0
 
 	command, rest = arguments[0], arguments[1:]
+	if command == "setup":
+		return command_module("benchmark_environment", rest)
 	if command == "create":
 		return command_create(rest)
 	if command == "generate":

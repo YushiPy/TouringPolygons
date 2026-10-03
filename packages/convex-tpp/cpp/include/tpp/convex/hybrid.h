@@ -28,6 +28,9 @@ struct ConvexHybridOptions {
     ConvexHybridMode mode = ConvexHybridMode::SafeCertified;
     // A search may return early with a certified dual bound above this value.
     double cutoff = std::numeric_limits<double>::infinity();
+    // Optional certified primal-dual gap on the original polygons. Zero keeps
+    // the exact-optimality contract; a cutoff may still return a safe bound.
+    double max_gap = 0;
     bool shadow_rational = false;
     // Callers requesting only a diagnostic length may skip final contact
     // reconstruction. Safe mode always materializes contacts for certification.
@@ -35,17 +38,32 @@ struct ConvexHybridOptions {
     // Diagnostic only: preserve a fully materialized double candidate when
     // certification rejects it and safe mode replaces it with rational output.
     bool retain_rejected_double_candidate = false;
+	bool interpolated_zero_dual = false;
 };
 
 struct ConvexHybridStats {
     bool disjoint = false;
     bool double_attempted = false;
     bool double_certified = false;
+    bool interval_bounds_attempted = false;
+    bool interval_bounds_certified = false;
+    bool interval_bounds_contracted = false;
     bool rational_fallback = false;
+    bool filtered_attempted = false;
+    bool filtered_certified = false;
+    bool touching_disjoint_attempted = false;
+    bool touching_disjoint_certified = false;
+    bool touching_disjoint_perturbed = false;
     bool rational_disjoint_directional_recovery = false;
     std::size_t predicate_exact_evaluations = 0;
     std::size_t zero_link_witnesses = 0;
+    std::size_t dispatch_pair_queries = 0;
+    std::size_t dispatch_pair_cache_hits = 0;
+    std::size_t dispatch_pair_exact_checks = 0;
     double dispatch_seconds = 0;
+    double bound_evaluation_seconds = 0;
+    double proposal_preparation_seconds = 0;
+    // Construction time includes the optional filtered directional recovery.
     double double_solver_seconds = 0;
     double contact_materialization_seconds = 0;
     double certificate_seconds = 0;
@@ -78,13 +96,20 @@ struct ConvexHybridAggregate {
     std::size_t disjoint_calls = 0;
     std::size_t certified_double_disjoint_calls = 0;
     std::size_t certified_double_intersection_calls = 0;
+    std::size_t interval_bound_calls = 0;
+    std::size_t interval_contracted_calls = 0;
     std::size_t rational_disjoint_fallbacks = 0;
     std::size_t rational_disjoint_directional_recoveries = 0;
     std::size_t rational_intersection_fallbacks = 0;
     std::array<std::size_t,8> fallback_reasons{};
     std::size_t predicate_exact_evaluations = 0;
     std::size_t zero_link_witnesses = 0;
+    std::size_t dispatch_pair_queries = 0;
+    std::size_t dispatch_pair_cache_hits = 0;
+    std::size_t dispatch_pair_exact_checks = 0;
     double dispatch_seconds = 0;
+    double bound_evaluation_seconds = 0;
+    double proposal_preparation_seconds = 0;
     double double_solver_seconds = 0;
     double contact_materialization_seconds = 0;
     double certificate_seconds = 0;

@@ -142,6 +142,9 @@ fi
 "$python_bin" -c 'import sys; sys.version_info >= (3, 12) or sys.exit("Python 3.12 or newer is required; set TPP_PYTHON to its executable.")' \
 	|| fail 'Python 3.12 or newer is required; set TPP_PYTHON to its executable'
 
+"$python_bin" "$ROOT/benchmarks/tpp.py" setup --python "$python_bin"
+runner_python="$ROOT/benchmarks/.venv/bin/python"
+
 [[ -f "$SUITE" ]] || fail "Fekete suite is missing: $SUITE"
 actual_suite_sha256="$("$python_bin" - "$SUITE" <<'PY'
 import hashlib
@@ -157,7 +160,6 @@ PY
 
 external_venv="$EXTERNAL_SOURCE/.venv"
 external_python="$external_venv/bin/python"
-runner_python="$python_bin"
 
 if ((run_tpp_fekete)); then
 expected_submodule="$(git -C "$ROOT" ls-tree HEAD -- third_party/tspn-socg | awk '$1 == "160000" {print $3}')"
@@ -412,10 +414,6 @@ printf 'Reusing Conan C++ dependencies for our solver: %s\n' "$conan_cmake_prefi
 
 fi
 
-if ((run_tpp_fekete)); then
-	runner_python="$external_python"
-fi
-
 if ((run_tpp_ours && !run_tpp_fekete)); then
 	conan_cmake_prefix="$EXTERNAL_SOURCE/.conan/release"
 	for dependency_config in Eigen3Config.cmake BoostConfig.cmake; do
@@ -429,16 +427,8 @@ if ((run_tpp_ours && !run_tpp_fekete)); then
 fi
 
 if ((run_tpp_ours)); then
-	if [[ -x "$external_venv/bin/cmake" ]]; then
-		export PATH="$external_venv/bin:$PATH"
-	elif ! command -v cmake >/dev/null 2>&1; then
-		if [[ ! -x "$external_python" ]]; then
-			"$python_bin" -m venv "$external_venv"
-		fi
-		printf 'CMake is not on PATH; installing it in the local comparison environment.\n'
-		"$external_python" -m pip install --disable-pip-version-check 'cmake>=3.23,<4' \
-			|| fail "could not install CMake in $external_venv; restore network access or install CMake 3.23+"
-		export PATH="$external_venv/bin:$PATH"
+	if [[ -x "$ROOT/benchmarks/.venv/bin/cmake" ]]; then
+		export PATH="$ROOT/benchmarks/.venv/bin:$PATH"
 	fi
 	command -v cmake >/dev/null 2>&1 || fail 'CMake is required to build tpp-ours'
 	printf 'Using CMake: %s\n' "$(command -v cmake)"

@@ -8,6 +8,9 @@ experimento ficam nos diretórios locais ignorados (`benchmarks/campaigns/` e
 | Pasta | Conteúdo preservado |
 |---|---|
 | [fekete-comparison](fekete-comparison/README.md) | Comparação completa usada pelo material SIICUSP; CSVs e corpus são dependências do exportador. |
+| [tpp-certified-oracle-2026-10-02](tpp-certified-oracle-2026-10-02/README.md) | Recuperação filtrada do oráculo de caminho, amostra pareada de 48 casos e limites da comparação. |
+| [tpp-boundary-disjoint-2026-10-02](tpp-boundary-disjoint-2026-10-02/README.md) | Recuperação de fronteiras compartilhadas por contração/recorrência disjunta, atalhos KKT e resultados por tamanho. |
+| [tpp-interval-bounds-2026-10-02](tpp-interval-bounds-2026-10-02/README.md) | Limites primal-dual antes do replay racional, duas amostras pareadas de 48 casos e três focais repetidos. |
 | [convex-cycle-gurobi-reference-2026-09-25](convex-cycle-gurobi-reference-2026-09-25/README.md) | Resumo e `instances.json`, fixture pequeno exigido pelos testes e benchmarks. |
 | [convex-cycle-final-2026-09-27](convex-cycle-final-2026-09-27/README.md) | Resultado final do ciclo convexo sintético; campanhas intermediárias estão consolidadas em uma linha cada. |
 | [tspn-active-contacts-2026-09-28](tspn-active-contacts-2026-09-28/README.md) | Comparação TSPN após correções de contatos ativos. |

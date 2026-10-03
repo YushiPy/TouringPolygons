@@ -150,6 +150,9 @@ fi
 "$python_bin" -c 'import sys; sys.version_info >= (3, 12) or sys.exit("Python 3.12 or newer is required; set TPP_PYTHON to its executable.")' \
 	|| fail 'Python 3.12 or newer is required; set TPP_PYTHON to its executable'
 
+"$python_bin" "$ROOT/benchmarks/tpp.py" setup --python "$python_bin"
+python_bin="$ROOT/benchmarks/.venv/bin/python"
+
 [[ -f "$SUITE" ]] || fail "Fekete instance archive is missing: $SUITE"
 actual_suite_sha256="$("$python_bin" - "$SUITE" <<'PY'
 import hashlib
@@ -193,10 +196,10 @@ done
 export CMAKE_PREFIX_PATH="$conan_cmake_prefix${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
 printf 'Reusing Conan C++ dependencies: %s\n' "$conan_cmake_prefix"
 
-if [[ -x "$EXTERNAL_SOURCE/.venv/bin/cmake" ]]; then
-	export PATH="$EXTERNAL_SOURCE/.venv/bin:$PATH"
+if [[ -x "$ROOT/benchmarks/.venv/bin/cmake" ]]; then
+	export PATH="$ROOT/benchmarks/.venv/bin:$PATH"
 elif ! command -v cmake >/dev/null 2>&1; then
-	printf 'CMake is not on PATH; install CMake 3.23+ or use the Fekete comparison environment.\n' >&2
+	printf 'CMake is missing; rerun python3 benchmarks/tpp.py setup.\n' >&2
 	exit 2
 fi
 
