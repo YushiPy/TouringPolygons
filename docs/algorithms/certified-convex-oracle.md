@@ -67,6 +67,31 @@ do restante da sequência causa uma limpeza. Entradas grandes demais podem
 participar da chamada, mas não ficam retidas. Copiar um workspace desacopla seu
 cache mutável na chamada seguinte. Cada worker mantém seu próprio workspace.
 
+`TPP_DENSE_PAIR_CACHE`, ativada por padrão, guarda as respostas dos pares cujas
+duas identidades são menores que 256 em uma tabela de bits de 16 KiB por workspace.
+Cada posição tem um bit de presença e um bit de disjunção: uma interseção
+comprovada é distinta de uma consulta ainda não realizada. Identidades maiores
+continuam na tabela de hash; não há limite adicional de polígonos ou peças.
+As chaves continuam ordenadas e as identidades nunca são recicladas. A soma
+dos registros nas duas representações obedece ao mesmo limite de 65536; tanto
+a limpeza por capacidade quanto a limpeza da geometria apagam ambas. Nenhum
+teste geométrico é substituído: mudam somente o armazenamento e a consulta de
+respostas já comprovadas. Consultas, acertos e decisões de despacho devem
+coincidir com a versão que usa somente hash.
+
+`TPP_DENSE_DISJOINT_SUBSETS`, ativada por padrão, usa os bits positivos dessa
+tabela para despachar sequências com pelo menos 12 entradas sem percorrer os
+pares individualmente.
+Uma máscara reúne as identidades da sequência; cada linha precisa conter provas
+de disjunção com todas as outras identidades. Bits positivos são simétricos,
+mas cada par continua contando como um único registro no orçamento do cache.
+Identidades repetidas, maiores que 255, pares desconhecidos ou intersectantes
+fazem a consulta em bloco declinar e mantêm o laço original. O atalho só retorna
+disjunção quando todas as provas já existem. Nesse caso, as estatísticas contam
+as mesmas `n(n-1)/2` consultas lógicas e acertos que o laço teria realizado;
+os testes exatos continuam com a mesma contagem. A opção depende de
+`TPP_DENSE_PAIR_CACHE`; desligá-la preserva somente o armazenamento compacto.
+
 `DynamicConvexTppWorkspace::cache_disjoint_dispatch=false` repete o despacho
 original mantendo o cache de conversão racional. A CLI de ordem livre expõe
 essa ablação como `--no-oracle-dispatch-cache`. Ambos os caminhos precisam

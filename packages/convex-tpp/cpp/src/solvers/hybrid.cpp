@@ -7,6 +7,7 @@
 #include "zero_contact_certificate.h"
 #include "binary_certificate.h"
 #include "polygon_view.h"
+#include "prepared_pair_cache.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
 #include <algorithm>
@@ -1009,18 +1010,10 @@ struct ConvexHybridCache {
 #endif
     };
     static constexpr size_t max_vertices=8192; // Bound retained exact geometry.
-    static constexpr size_t max_pairs=65536;
-    using Pair=std::pair<std::uint64_t,std::uint64_t>;
-    struct PairHash {
-        size_t operator()(const Pair &pair) const {
-            const auto first=std::hash<std::uint64_t>{}(pair.first);
-            const auto second=std::hash<std::uint64_t>{}(pair.second);
-            return first^(second+0x9e3779b97f4a7c15ULL+(first<<6)+(first>>2));
-        }
-    };
+    using Pair=detail::PreparedPairCache::Pair;
     using Prepared=std::shared_ptr<const Entry>;
     std::unordered_map<std::uint64_t,std::vector<Prepared>> entries;
-    std::unordered_map<Pair,bool,PairHash> pairs;
+    detail::PreparedPairCache pairs;
     size_t vertices=0;
     std::uint64_t next_id=0;
 
@@ -1062,17 +1055,24 @@ struct ConvexHybridCache {
         return entry;
     }
     bool disjoint(const std::vector<Prepared> &selected,ConvexHybridStats &stats) {
+#ifdef TPP_HAS_DENSE_DISJOINT_SUBSETS
+        if(selected.size()>=12&&pairs.all_known_disjoint(selected,[](const Prepared &p){return p->id;})) {
+            const auto queries=selected.size()*(selected.size()-1)/2;
+            stats.dispatch_pair_queries+=queries;
+            stats.dispatch_pair_cache_hits+=queries;
+            return true;
+        }
+#endif
         for(size_t i=0;i<selected.size();++i)for(size_t j=i+1;j<selected.size();++j) {
             const auto &a=*selected[i],&b=*selected[j];
             const Pair key=std::minmax(a.id,b.id);
             ++stats.dispatch_pair_queries;
             bool disjoint;
-            if(const auto found=pairs.find(key);found!=pairs.end()) {
-                ++stats.dispatch_pair_cache_hits;disjoint=found->second;
+            if(const auto found=pairs.find(key)) {
+                ++stats.dispatch_pair_cache_hits;disjoint=*found;
             } else {
                 disjoint=pair_disjoint(a.exact,b.exact,a.box,b.box,stats);
-                if(pairs.size()>=max_pairs)pairs.clear();
-                pairs.emplace(key,disjoint);
+                pairs.insert(key,disjoint);
             }
             if(!disjoint)return false;
         }

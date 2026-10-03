@@ -6,6 +6,7 @@
 #include "solvers/filtered_rational.h"
 #include "solvers/binary_certificate.h"
 #include "solvers/zero_contact_certificate.h"
+#include "solvers/prepared_pair_cache.h"
 
 #include <algorithm>
 #include <bit>
@@ -17,6 +18,7 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -149,6 +151,66 @@ void binary_membership_memo_regressions() {
     }
 }
 
+void prepared_pair_cache_regressions() {
+    using Cache=tpp::detail::PreparedPairCache;
+    Cache cache;
+    for(uint64_t b=0;b<Cache::dense_ids;++b)for(uint64_t a=0;a<=b;++a) {
+        const bool value=(a+b)%2==0;
+        cache.insert({a,b},value);
+        check(cache.find({a,b})==std::optional<bool>{value},
+              "pair cache distinguishes an intersecting proof from a miss");
+    }
+    uint64_t next=Cache::dense_ids;
+    while(cache.size()<Cache::capacity)cache.insert({Cache::dense_ids,next++},false);
+    check(cache.find({0,0})==std::optional<bool>{true}&&
+          cache.find({255,255})==std::optional<bool>{true}&&
+          cache.find({256,256})==std::optional<bool>{false},
+          "dense and sparse proofs share the same capacity budget");
+    const uint64_t last=std::numeric_limits<uint64_t>::max();
+    cache.insert({last-1,last},true);
+    check(cache.size()==1&&!cache.find({0,0})&&!cache.find({256,256})&&
+          cache.find({last-1,last})==std::optional<bool>{true},
+          "capacity eviction clears both representations without recycling identities");
+    cache.clear();
+    std::map<Cache::Pair,bool> reference;
+    std::mt19937_64 random(2026100344);
+    for(size_t i=0;i<100000;++i) {
+        const uint64_t a=random()%512,b=random()%512;
+        const Cache::Pair key=std::minmax(a,b);
+        const auto found=reference.find(key);
+        const auto expected=found==reference.end()?std::nullopt:std::optional<bool>{found->second};
+        check(cache.find(key)==expected,"mixed dense/sparse queries match independent map");
+        if(!expected) {
+            const bool value=random()%2;
+            if(reference.size()>=Cache::capacity)reference.clear();
+            reference.emplace(key,value);cache.insert(key,value);
+        }
+        if(i%10007==0){reference.clear();cache.clear();}
+    }
+    check(cache.size()==reference.size(),"pair-cache accounting counts each proof once");
+#ifdef TPP_HAS_DENSE_PAIR_CACHE
+    auto identity=[](uint64_t id){return id;};
+    auto prove=[&](std::vector<uint64_t> ids) {
+        for(size_t i=0;i<ids.size();++i)for(size_t j=i+1;j<ids.size();++j)
+            cache.insert(std::minmax(ids[i],ids[j]),true);
+    };
+    const std::vector<uint64_t> ids{255,0,127,64,63,128,254};
+    cache.clear();prove(ids);
+    check(cache.all_known_disjoint(ids,identity)&&
+          cache.all_known_disjoint(std::vector<uint64_t>{64,0,255},identity),
+          "subset masks certify every stored pair independently of permutation");
+    check(!cache.all_known_disjoint(std::vector<uint64_t>{0,0},identity)&&
+          !cache.all_known_disjoint(std::vector<uint64_t>{0,256},identity)&&
+          !cache.all_known_disjoint(std::vector<uint64_t>{0,1},identity),
+          "duplicates, wide identities and unknown pairs decline subset shortcut");
+    cache.clear();cache.insert({0,255},false);
+    check(!cache.all_known_disjoint(std::vector<uint64_t>{255,0},identity),
+          "intersecting pair declines subset shortcut");
+    cache.clear();
+    check(!cache.all_known_disjoint(ids,identity),"eviction removes symmetric subset proofs");
+#endif
+}
+
 void dispatch_cache_regressions() {
     tpp::DynamicConvexTppWorkspace cached,uncached;
     cached.borrow_hybrid_geometry=true;
@@ -190,6 +252,20 @@ void dispatch_cache_regressions() {
     auto copy=cached;
     const auto detached=tpp::tpp_convex_solve_hybrid({-4,-1},{4,-1},{a,b},options,copy);
     check(detached.stats.dispatch_pair_cache_hits==0,"copied workspaces detach mutable caches");
+    // Exercise the public dispatch shortcut above its small-sequence threshold,
+    // including logical query accounting, reversal and a repeated identity.
+    cached={};
+    Polygons subset;
+    for(size_t i=0;i<13;++i)subset.push_back(box(3*double(i),0,3*double(i)+1,1));
+    compare(subset,true,{-2,-1},{40,-1});
+    const auto subset_warm=compare(subset,true,{-2,-1},{40,-1});
+    check(subset_warm.stats.dispatch_pair_queries==78&&
+          subset_warm.stats.dispatch_pair_cache_hits==78&&
+          subset_warm.stats.dispatch_pair_exact_checks==0,
+          "warm disjoint subset preserves all logical pair queries and hits");
+    auto subset_reverse=subset;std::reverse(subset_reverse.begin(),subset_reverse.end());
+    compare(subset_reverse,true,{40,-1},{-2,-1});
+    subset[7]=subset[6];compare(subset,false,{-2,-1},{40,-1});
     // Fill past the geometry bound. Handles already selected for the current
     // call must survive an eviction while the remaining inputs are prepared.
     cached={};
@@ -774,7 +850,7 @@ int main(int argc,char **argv) {
         else if(arg=="--corpus"&&i+1<argc)corpora.push_back(argv[++i]);
         else throw std::invalid_argument("Unknown argument: "+arg);
     }
-    interval_rounding_regressions();dyadic_orientation_regressions();binary_membership_memo_regressions();normalized_sign_predicates();filtered_predicates();dispatch_cache_regressions();cached_contact_rotation_regressions();deterministic();coincident_disk_contacts();touching_disjoint_recovery();interval_bound_regressions();adversarial_disjoint();continuity();random_boxes(random_count);random_convex(convex_count);
+    interval_rounding_regressions();dyadic_orientation_regressions();binary_membership_memo_regressions();prepared_pair_cache_regressions();normalized_sign_predicates();filtered_predicates();dispatch_cache_regressions();cached_contact_rotation_regressions();deterministic();coincident_disk_contacts();touching_disjoint_recovery();interval_bound_regressions();adversarial_disjoint();continuity();random_boxes(random_count);random_convex(convex_count);
     for(const auto &directory:corpora)corpus(directory);
     const auto aggregate=tpp::convex_hybrid_aggregate();
     std::cout<<"Checks="<<checks<<", failures="<<failures<<", unresolved="<<unresolved
