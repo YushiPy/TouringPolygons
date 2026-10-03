@@ -1,8 +1,10 @@
 #pragma once
 
 #include <algorithm>
+#include <bit>
 #include <cfenv>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 
 namespace tpp::detail {
@@ -16,8 +18,27 @@ struct CycleInterval {
     CycleInterval(double l,double h):lo(l),hi(h) {}
     bool zero() const {return lo==0&&hi==0;}
     bool finite() const {return std::isfinite(lo)&&std::isfinite(hi);}
-    static double down(double x) {return std::isnan(x)?-INFINITY:std::nextafter(x,-INFINITY);}
-    static double up(double x) {return std::isnan(x)?INFINITY:std::nextafter(x,INFINITY);}
+    static double adjacent(double x,bool upward) {
+#ifdef TPP_HAS_FAST_INTERVAL_ROUNDING
+        // IEEE binary64 magnitudes are ordered by their unsigned encoding.
+        // Expand the stored value by exactly one ULP, as nextafter does. This
+        // preserves interval endpoints, not libm's errno/exception-flag effects.
+        static_assert(std::numeric_limits<double>::is_iec559 &&
+                      std::numeric_limits<double>::digits==53 && sizeof(double)==sizeof(uint64_t));
+        auto bits=std::bit_cast<uint64_t>(x);
+        constexpr uint64_t sign=uint64_t(1)<<63,infinity=0x7ff0000000000000ULL;
+        const auto magnitude=bits&~sign;
+        if(magnitude>infinity)return upward?INFINITY:-INFINITY;
+        if(magnitude==0)return std::bit_cast<double>(upward?uint64_t(1):sign|uint64_t(1));
+        if(magnitude==infinity && bool(bits&sign)!=upward)return x;
+        bits+=bool(bits&sign)==upward?uint64_t(-1):uint64_t(1);
+        return std::bit_cast<double>(bits);
+#else
+        return std::isnan(x)?(upward?INFINITY:-INFINITY):std::nextafter(x,upward?INFINITY:-INFINITY);
+#endif
+    }
+    static double down(double x) {return adjacent(x,false);}
+    static double up(double x) {return adjacent(x,true);}
     friend CycleInterval operator+(CycleInterval a,CycleInterval b) {
         if(a.zero())return b;if(b.zero())return a;
         volatile double l=a.lo+b.lo,h=a.hi+b.hi;

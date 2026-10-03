@@ -4,9 +4,12 @@
 #include "tpp/convex/hybrid.h"
 #include "tpp_convex.h"
 #include "solvers/filtered_rational.h"
+#include "solvers/binary_certificate.h"
 #include "solvers/zero_contact_certificate.h"
 
 #include <algorithm>
+#include <bit>
+#include <cfenv>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
@@ -48,6 +51,101 @@ void describe(const TestCase &c) {
         std::cout<<"polygon";
         for(auto v:p)std::cout<<" ("<<v.x<<','<<v.y<<')';
         std::cout<<'\n';
+    }
+}
+
+void interval_rounding_regressions() {
+    using tpp::detail::CycleInterval;
+    std::fenv_t saved;
+    std::fegetenv(&saved);
+    auto compare=[&](uint64_t bits) {
+        const double x=std::bit_cast<double>(bits);
+        const double low=std::isnan(x)?-INFINITY:std::nextafter(x,-INFINITY);
+        const double high=std::isnan(x)?INFINITY:std::nextafter(x,INFINITY);
+        check(std::bit_cast<uint64_t>(CycleInterval::down(x))==std::bit_cast<uint64_t>(low) &&
+              std::bit_cast<uint64_t>(CycleInterval::up(x))==std::bit_cast<uint64_t>(high),
+              "interval expansion matches nextafter bit-for-bit");
+    };
+    for(uint64_t exponent=0;exponent<2048;++exponent) {
+        const uint64_t center=exponent<<52;
+        for(int offset=-3;offset<=3;++offset) {
+            if(offset<0 && center<uint64_t(-offset))continue;
+            const uint64_t bits=center+uint64_t(offset);
+            compare(bits);compare(bits|(uint64_t(1)<<63));
+        }
+    }
+    for(uint64_t bits:{0x000fffffffffffffULL,0x7fefffffffffffffULL,
+                       0x7ff8000000000000ULL,0xfff8000000000000ULL})compare(bits);
+    std::mt19937_64 random(2026100301);
+    for(size_t i=0;i<200000;++i)compare(random());
+    std::fesetenv(&saved);
+}
+
+void dyadic_orientation_regressions() {
+    using P=tpp::ConvexRationalPoint;
+    auto compare=[&](Vector2 a,Vector2 b,Vector2 q) {
+        const auto sign=tpp::detail::dyadic_orientation(a,b,q);
+        if(!sign)return;
+        const auto determinant=(P(b)-P(a)).cross(P(q)-P(a));
+        const int reference=determinant>0?1:determinant<0?-1:0;
+        check(*sign==reference,"bounded dyadic orientation matches exact rational sign");
+    };
+    std::mt19937_64 random(2026100302);
+    std::uniform_real_distribution<double> coordinate(-1,1);
+    for(size_t i=0;i<20000;++i) {
+        const int exponent=int(i%2001)-1000;
+        auto point=[&] {return Vector2{std::ldexp(coordinate(random),exponent),
+                                      std::ldexp(coordinate(random),-exponent)};};
+        const Vector2 a=point(),b=point();
+        Vector2 q=i%4==0?a:i%4==1?(a+b)*.5:point();
+        if(i%4==2)q.x=std::nextafter(q.x,INFINITY);
+        if(i%4==3)q.y=std::nextafter(q.y,-INFINITY);
+        compare(a,b,q);
+    }
+    for(int exponent:{-1074,-1022,-100,0,100,1000}) {
+        const double unit=std::ldexp(1.,exponent);
+        compare({0,0},{unit,0},{0,unit});
+        compare({-unit,0},{unit,0},{0,-unit});
+        compare({0,0},{unit,unit},{unit,unit});
+    }
+#if defined(__SIZEOF_INT128__)
+    const Vector2 a{1,1},b{-1,-1},q{0x1p-8,-0x1p-8};
+    compare(a,b,q);
+    check(tpp::detail::dyadic_orientation(a,b,q).has_value(),"61-bit scaled coordinates use exact integer determinant");
+    check(!tpp::detail::dyadic_orientation(a,b,{0x1p-9,-0x1p-9}),
+          "62-bit scaled coordinates retain rational fallback before overflow");
+    check(tpp::detail::dyadic_orientation({-0.,0.},{1.,0.},{0.,1.})==1,
+          "dyadic orientation supports signed zeros");
+    check(!tpp::detail::dyadic_orientation({std::ldexp(1.,-1000),0},
+          {std::ldexp(1.,1000),0},{0,1}),"wide dyadic exponents retain rational fallback");
+#endif
+    check(!tpp::detail::dyadic_orientation({INFINITY,0},{1,0},{0,1}),
+          "dyadic orientation declines nonfinite inputs");
+}
+
+void binary_membership_memo_regressions() {
+    const Polygon polygon{{0,0},{1,1},{0,1}},shifted{{2,2},{3,3},{2,3}};
+    tpp::ConvexRationalPolygon exact,other;
+    for(auto p:polygon)exact.emplace_back(p);
+    for(auto p:shifted)other.emplace_back(p);
+    tpp::detail::BinaryContactMemo memo;
+    size_t predicates=0;
+    const Vector2 inside{.5,std::nextafter(.5,1.)},outside{.5,std::nextafter(.5,0.)};
+    for(size_t i=0;i<100;++i) {
+        const auto point=i%2?outside:inside;
+        size_t reference_predicates=0;
+        const bool reference=tpp::detail::interval_convex_contains(point,polygon,exact,reference_predicates);
+        check(memo.contains(point,polygon,exact,predicates)==reference,
+              "membership memo preserves accepted and rejected proofs");
+    }
+    check(memo.hits==98,"two membership slots retain proposal and repaired contact");
+    check(!memo.contains(inside,shifted,other,predicates),"membership memo invalidates changed geometry identity");
+    for(size_t i=0;i<20;++i) {
+        const Vector2 point{double(i)/16.,.75};
+        size_t reference_predicates=0;
+        check(memo.contains(point,polygon,exact,predicates)==
+              tpp::detail::interval_convex_contains(point,polygon,exact,reference_predicates),
+              "membership memo eviction preserves proof");
     }
 }
 
@@ -676,7 +774,7 @@ int main(int argc,char **argv) {
         else if(arg=="--corpus"&&i+1<argc)corpora.push_back(argv[++i]);
         else throw std::invalid_argument("Unknown argument: "+arg);
     }
-    normalized_sign_predicates();filtered_predicates();dispatch_cache_regressions();cached_contact_rotation_regressions();deterministic();coincident_disk_contacts();touching_disjoint_recovery();interval_bound_regressions();adversarial_disjoint();continuity();random_boxes(random_count);random_convex(convex_count);
+    interval_rounding_regressions();dyadic_orientation_regressions();binary_membership_memo_regressions();normalized_sign_predicates();filtered_predicates();dispatch_cache_regressions();cached_contact_rotation_regressions();deterministic();coincident_disk_contacts();touching_disjoint_recovery();interval_bound_regressions();adversarial_disjoint();continuity();random_boxes(random_count);random_convex(convex_count);
     for(const auto &directory:corpora)corpus(directory);
     const auto aggregate=tpp::convex_hybrid_aggregate();
     std::cout<<"Checks="<<checks<<", failures="<<failures<<", unresolved="<<unresolved

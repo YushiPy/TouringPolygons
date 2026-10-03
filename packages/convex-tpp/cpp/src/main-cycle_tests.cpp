@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <random>
@@ -200,17 +201,25 @@ void references() {
     ptree inputs,raw,config;
     const std::string directory=TPP_CYCLE_REFERENCE_DIR;
     read_json(directory+"/instances.json",inputs);
-    read_json(directory+"/raw.json",raw);
-    read_json(directory+"/config.json",config);
+    // Only the small input fixture is versioned. Archived external results
+    // remain optional; their absence must not skip the native certificates.
+    const bool has_raw=std::filesystem::is_regular_file(directory+"/raw.json");
+    const bool has_config=std::filesystem::is_regular_file(directory+"/config.json");
+    require(has_raw==has_config,"External cycle reference requires both raw.json and config.json");
+    if(has_raw) {
+        read_json(directory+"/raw.json",raw);
+        read_json(directory+"/config.json",config);
+    } else std::cout<<"Archived Gurobi raw/config absent: external comparisons skipped; native fixture certificates remain enabled.\n";
     std::cout<<"name,k,lower,upper,gap,gurobi_objective,error,oracle_calls,milliseconds\n";
     for (const auto &[key,instance]:inputs.get_child("instances")) {
         const auto name=instance.get<std::string>("name");Polygons p;
         for (const auto &[unused,polygon]:instance.get_child("polygons"))p.push_back(points(polygon));
         const ptree *reference=nullptr;
-        for (const auto &[unused,row]:raw.get_child("instances"))
+        if(has_raw)for (const auto &[unused,row]:raw.get_child("instances"))
             if(row.get<std::string>("name")==name)reference=&row;
-        require(reference && reference->get<int>("status")==2,"optimal Gurobi reference found");
-        const double objective=reference->get<double>("objective"), bound=reference->get<double>("objective_bound");
+        require(!has_raw||(reference && reference->get<int>("status")==2),"optimal Gurobi reference found");
+        const double objective=reference?reference->get<double>("objective"):NAN;
+        const double bound=reference?reference->get<double>("objective_bound"):NAN;
         const auto began=std::chrono::steady_clock::now();
         const auto result=check(p,name);
         const auto strict=tpp::tpp_convex_solve_cycle_disjoint_double(p,{false});
@@ -231,20 +240,22 @@ void references() {
         }
         std::cout<<"strict_double,"<<name<<",status="<<int(strict.status)<<",diagnostic="<<strict.diagnostic<<'\n';
         const double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-began).count();
-        const auto reference_certificate=tpp::tpp_convex_verify_cycle_certificate(p,points(reference->get_child("feasible_contacts")));
-        require(reference_certificate.status==tpp::ConvexCycleCertificateStatus::Feasible,"reference independently certified");
-        require(result.certificate.lower_bound<=reference_certificate.upper_bound && reference_certificate.lower_bound<=result.certificate.upper_bound,
-                name+": independent certified intervals overlap");
-        // Gurobi's reported equality of objective and bound is numerical. The
-        // saved config's intended tolerance is smaller than its observed error
-        // on some records. Compare against the independently certified interval.
-        const double reference_gap=reference_certificate.upper_bound-reference_certificate.lower_bound;
-        const double tolerance=config.get<double>("objective_tolerance_for_future_comparisons.absolute")+
-            config.get<double>("objective_tolerance_for_future_comparisons.relative")*std::abs(objective);
-        require(std::abs(result.certificate.upper_bound-objective)<=reference_gap+tolerance,name+": Gurobi objective comparison");
-        require(bound<=result.certificate.upper_bound+reference_gap+tolerance && objective>=result.certificate.lower_bound-tolerance,
-                name+": numerical Gurobi bound comparison");
-        require(std::abs(result.certificate.upper_bound-objective)<2e-6,name+": objective regression tolerance");
+        if(reference) {
+            const auto reference_certificate=tpp::tpp_convex_verify_cycle_certificate(p,points(reference->get_child("feasible_contacts")));
+            require(reference_certificate.status==tpp::ConvexCycleCertificateStatus::Feasible,"reference independently certified");
+            require(result.certificate.lower_bound<=reference_certificate.upper_bound && reference_certificate.lower_bound<=result.certificate.upper_bound,
+                    name+": independent certified intervals overlap");
+            // Gurobi's reported equality of objective and bound is numerical. The
+            // saved config's intended tolerance is smaller than its observed error
+            // on some records. Compare against the independently certified interval.
+            const double reference_gap=reference_certificate.upper_bound-reference_certificate.lower_bound;
+            const double tolerance=config.get<double>("objective_tolerance_for_future_comparisons.absolute")+
+                config.get<double>("objective_tolerance_for_future_comparisons.relative")*std::abs(objective);
+            require(std::abs(result.certificate.upper_bound-objective)<=reference_gap+tolerance,name+": Gurobi objective comparison");
+            require(bound<=result.certificate.upper_bound+reference_gap+tolerance && objective>=result.certificate.lower_bound-tolerance,
+                    name+": numerical Gurobi bound comparison");
+            require(std::abs(result.certificate.upper_bound-objective)<2e-6,name+": objective regression tolerance");
+        }
         std::cout<<std::setprecision(17)<<name<<','<<p.size()<<','<<result.certificate.lower_bound<<','<<result.certificate.upper_bound<<','
                  <<result.certificate.upper_bound-result.certificate.lower_bound<<','<<objective<<','<<result.certificate.upper_bound-objective<<','
                  <<result.oracle_calls<<','<<ms<<'\n';

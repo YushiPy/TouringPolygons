@@ -563,10 +563,20 @@ ConvexFallbackReason certify(const Vector2 &start,const Vector2 &target,
     std::vector<Point> directions;directions.reserve(chain.size()-1);
     for(size_t i=1;i<chain.size();++i)directions.push_back(chain[i]-chain[i-1]);
     auto kkt=[&](size_t polygon_index,const Point &incoming,const Point &outgoing) {
+#ifdef TPP_HAS_KKT_STRAIGHT_FIRST
+        // The zero vector and a straight positive turn are decided before
+        // forming rational squared norms. These are the same exact predicates.
+        const bool a_zero=incoming.zero(),b_zero=outgoing.zero();
+        if(a_zero&&b_zero)return true;
+        if(a_zero||b_zero)return false;
+        if(incoming.cross(outgoing)==0&&incoming.dot(outgoing)>0)return true;
+        const Rational a2=incoming.dot(incoming),b2=outgoing.dot(outgoing);
+#else
         const Rational a2=incoming.dot(incoming),b2=outgoing.dot(outgoing);
         if(a2==0&&b2==0)return true;
         if(a2==0||b2==0)return false;
         if(incoming.cross(outgoing)==0&&incoming.dot(outgoing)>0)return true;
+#endif
         const auto check=[&](const Point &feasible) {
             ++exact_predicates;
             return detail::convex_normalized_difference_sign(incoming.dot(feasible),a2,
@@ -814,7 +824,8 @@ __declspec(noinline)
 #endif
 bool try_interval_trace_bound(Vector2 start,Vector2 target,const ExactPolygons &exact,
         const std::vector<detail::DirectionalTraceStep> &trace,const ConvexHybridOptions &options,
-        ConvexHybridResult &result,const std::vector<std::vector<Vector2>> *prepared_binary=nullptr) {
+        ConvexHybridResult &result,const std::vector<std::vector<Vector2>> *prepared_binary=nullptr,
+        const std::vector<detail::BinaryContactMemo*> *prepared_memos=nullptr) {
     result.stats.interval_bounds_attempted=true;
     try {
         std::vector<std::vector<Vector2>> imported_binary;
@@ -848,13 +859,17 @@ bool try_interval_trace_bound(Vector2 start,Vector2 target,const ExactPolygons &
         const auto seed=chain;
         for(size_t i=0;i<binary.size();++i) {
             auto &q=chain[i+1];
-            if(detail::interval_convex_contains(q,binary[i],exact[i],result.stats.predicate_exact_evaluations))continue;
+            auto contains=[&](Vector2 point) {
+                return prepared_memos?(*prepared_memos)[i]->contains(point,binary[i],exact[i],result.stats.predicate_exact_evaluations)
+                    :detail::interval_convex_contains(point,binary[i],exact[i],result.stats.predicate_exact_evaluations);
+            };
+            if(contains(q))continue;
             Vector2 center{};
             for(const auto &v:binary[i])center+=v/double(binary[i].size());
             bool repaired=false;
             for(double fraction:{0x1p-45,0x1p-40,0x1p-30}) {
                 const auto candidate=q+(center-q)*fraction;
-                if(detail::interval_convex_contains(candidate,binary[i],exact[i],result.stats.predicate_exact_evaluations)) {
+                if(contains(candidate)) {
                     q=candidate;repaired=true;break;
                 }
             }
@@ -897,7 +912,8 @@ __declspec(noinline)
 bool try_interval_boundary_bound(Vector2 start,Vector2 target,
         const std::vector<std::vector<Vector2>> &input,const ExactPolygons &polygons,
         const ConvexHybridOptions &options,ConvexHybridResult &result,
-        const std::vector<std::vector<Vector2>> *prepared_binary=nullptr) {
+        const std::vector<std::vector<Vector2>> *prepared_binary=nullptr,
+        const std::vector<detail::BinaryContactMemo*> *prepared_memos=nullptr) {
     {
         PhaseTimer timer{result.stats.dispatch_seconds};
         if(!suggests_boundary_disjoint(input))return false;
@@ -907,7 +923,7 @@ bool try_interval_boundary_bound(Vector2 start,Vector2 target,
             PhaseTimer timer{result.stats.double_solver_seconds};
             return propose_boundary_trace(start,target,input,polygons,true);
         }();
-        if(!try_interval_trace_bound(start,target,polygons,trace,options,result,prepared_binary))return false;
+        if(!try_interval_trace_bound(start,target,polygons,trace,options,result,prepared_binary,prepared_memos))return false;
         result.stats.interval_bounds_contracted=true;
         return true;
     } catch(const std::exception &) {return false;}
@@ -988,6 +1004,9 @@ struct ConvexHybridCache {
         Bounds box;
         size_t edge_rotation;
         std::uint64_t id;
+#ifdef TPP_HAS_MEMO_BINARY_MEMBERSHIP
+        mutable detail::BinaryContactMemo membership;
+#endif
     };
     static constexpr size_t max_vertices=8192; // Bound retained exact geometry.
     static constexpr size_t max_pairs=65536;
@@ -1136,6 +1155,16 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
     if(!workspace)owned=exact_polygons(input);
     const ExactPolygons polygons=workspace?cached_exact_polygons(input,*workspace,result.stats,binary,selected,owned):ExactPolygons(owned);
     const auto *prepared_binary=workspace&&workspace->cache_interval_geometry?&binary:nullptr;
+    std::vector<detail::BinaryContactMemo*> membership_memos;
+#if defined(TPP_HAS_MEMO_BINARY_MEMBERSHIP) && defined(TPP_HAS_INTERVAL_PRIMAL_DUAL)
+    // The memo retains the canonical exact polygon's identity. Per-call
+    // owning copies are deliberately excluded from this persistent scratch.
+    if(workspace&&workspace->borrow_hybrid_geometry&&interval_bounds_enabled(options)) {
+        membership_memos.reserve(selected.size());
+        for(const auto &entry:selected)membership_memos.push_back(&entry->membership);
+    }
+#endif
+    const auto *prepared_memos=membership_memos.empty()?nullptr:&membership_memos;
     // Gather the cached indices only when rational materialization is needed.
     // The common interval return does not allocate another per-call vector.
     std::vector<size_t> rotations;
@@ -1164,10 +1193,10 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
         result.stats.double_solver_seconds=elapsed(solve_began);
 #ifdef TPP_HAS_INTERVAL_PRIMAL_DUAL
         if(interval_bounds_enabled(options)) {
-            bool accepted=try_interval_trace_bound(start,target,polygons,trace,options,result,prepared_binary);
+            bool accepted=try_interval_trace_bound(start,target,polygons,trace,options,result,prepared_binary,prepared_memos);
 #ifdef TPP_HAS_TOUCHING_DISJOINT
             if(!accepted&&!result.stats.disjoint)
-                accepted=try_interval_boundary_bound(start,target,input,polygons,options,result,prepared_binary);
+                accepted=try_interval_boundary_bound(start,target,input,polygons,options,result,prepared_binary,prepared_memos);
 #endif
             if(accepted){result.stats.total_seconds=elapsed(began);return result;}
         }

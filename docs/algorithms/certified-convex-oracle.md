@@ -122,6 +122,59 @@ por chamada; os tempos dos workers podem exceder o tempo de parede do lote.
 
 ## Encerramento por limites primal-dual intervalares
 
+### Aritmética e reutilização de pertencimento
+
+As opções CMake `TPP_FAST_INTERVAL_ROUNDING`, `TPP_DYADIC_MEMBERSHIP` e
+`TPP_MEMO_BINARY_MEMBERSHIP` permitem ablar três otimizações internas do mesmo
+certificado, ativadas por padrão. `OFF` em cada opção conserva sua implementação
+anterior. Não mudam os gaps, contatos, cutoffs ou condições de aceitação.
+
+`TPP_FAST_INTERVAL_ROUNDING` expande um double armazenado para seu vizinho
+IEEE binary64 por manipulação da representação inteira. Magnitudes positivas
+são ordenadas por seus bits; para negativos, a ordem se inverte. Zeros,
+subnormais, infinitos e NaNs recebem o mesmo extremo de `CycleInterval::down/up`
+anterior. A comparação de regressão verifica igualdade bit a bit com
+`std::nextafter` ao redor de todas as transições de expoente e em amostras de
+representações. São preservados os valores dos intervalos, não os efeitos de
+libm em `errno` e flags de exceção flutuante; o certificado não os consulta.
+As operações continuam armazenadas antes da expansão, e o teste de ambiente
+de arredondamento/subnormais continua exigido para a prova intervalar.
+
+`TPP_DYADIC_MEMBERSHIP` trata orientações ambíguas de contatos binários como
+determinantes de inteiros escalados. Cada coordenada binary64 finita é um
+inteiro assinado vezes uma potência de dois. Escalar cada eixo por sua menor
+potência conserva o sinal do determinante. O caminho curto só opera quando
+as três coordenadas de cada eixo têm no máximo 61 bits de magnitude: as
+diferenças têm no máximo 62 bits e o determinante tem magnitude menor que
+`2^125`, cabendo em `__int128` assinado. O guard é verificado antes de shifts
+ou produtos. Exponentes mais distantes e compiladores sem esse tipo conservam
+a comparação racional original. Orientações zero continuam zero, sem epsilon.
+
+`TPP_MEMO_BINARY_MEMBERSHIP` guarda até dois resultados de pertencimento por
+entrada de geometria preparada, incluindo recusas e reparos aceitos. A chave
+contém os bits completos das duas coordenadas e a identidade da geometria
+racional imutável. Handles locais conservam as entradas durante a chamada;
+evicção destrói também seus resultados e a cópia de workspace continua
+desacoplando o cache mutável. Cada worker tem seu workspace. A API sem workspace
+ou com `borrow_hybrid_geometry=false` repete a prova. Geometria binária e racional
+precisam representar a mesma fronteira imutável. Há armazenamento constante por
+entrada, sem tabela de caminhos e sem estado adicional nos nós de B&B. O dual e
+o objetivo de cada sequência continuam calculados a cada chamada. A contagem de
+predicados exatos passa a refletir os testes efetivamente executados em misses do memo.
+
+As três otimizações devem preservar bit a bit contatos e limites e, sob o
+mesmo orçamento de chamadas sem interferência temporal, decisões da busca.
+Contagens de trabalho físico podem diminuir por reutilização de provas.
+
+`TPP_KKT_STRAIGHT_FIRST` é experimental e permanece `OFF` por padrão; muda
+somente a ordem dos testes exatos no KKT local.
+Um vetor racional tem norma quadrática zero exatamente quando ambas as
+coordenadas são zero. Dois vetores não nulos com produto vetorial zero e
+produto escalar positivo têm a mesma direção normalizada; sua diferença de
+suporte é zero em qualquer polígono. Essas decisões podem ocorrer antes de
+calcular as normas quadráticas racionais. Os outros contatos e os blocos de
+elos zero conservam o certificado completo existente.
+
 `TPP_INTERVAL_PRIMAL_DUAL=ON` (padrão CMake) permite tentar um certificado
 barato antes do replay racional. `ConvexHybridOptions::max_gap` é zero por
 padrão: a API híbrida sem opções preserva seu contrato de otimalidade exata.
