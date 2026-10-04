@@ -557,6 +557,81 @@ void normalized_sign_predicates() {
     }
 }
 
+void homogeneous_zero_dual_regressions() {
+    using R=tpp::ConvexRational;
+    using I=tpp::ConvexInteger;
+    using P=tpp::ConvexRationalPoint;
+    std::mt19937 random(2026100345);
+    for(size_t trial=0;trial<1500;++trial) {
+        auto fraction=[&] {
+            const I a=int(random()%101)-50,b=1+random()%103;
+            return R(a)/R(b);
+        };
+        const R scale=R(I(1)<<(trial%121))/R(I(1)<<((trial*7)%127));
+        const P q{fraction(),fraction()};
+        P incoming{fraction()*scale,fraction()*scale},outgoing{fraction()*scale,fraction()*scale};
+        if(incoming.zero())incoming.x=scale;
+        if(outgoing.zero())outgoing.y=scale;
+        size_t rational_count=0,integer_count=0;
+        tpp::detail::BasicConvexDualReachability<R> rational(incoming,rational_count);
+        tpp::detail::BasicConvexDualReachability<I> integer(incoming,integer_count);
+        auto compare=[&] {
+            const bool a=rational.reaches(outgoing),b=integer.reaches(outgoing);
+            check(a==b&&rational_count==integer_count,
+                  "homogeneous disk/cone propagation preserves answer and predicate order");
+        };
+        compare();
+        for(size_t step=0;step<7;++step) {
+            P u{fraction()*scale,fraction()*scale};if(u.zero())u.x=scale;
+            const P v{-u.y,u.x};
+            tpp::ConvexRationalPolygon polygon;
+            switch((trial+step)%7) {
+                case 0:polygon={q,q+u,q+v};break; // Vertex cone.
+                case 1:polygon={q-u,q+u,q+u+v,q-u+v};break; // Edge interior.
+                case 2:polygon={q-u-v,q+u-v,q+u+v,q-u+v};break; // Strict interior.
+                case 3:polygon={q,q+u};break; // Segment endpoint.
+                case 4:polygon={q-u,q+u};break; // Segment interior.
+                case 5:polygon={q-u,q,q+u,q+u+v,q-u+v};break; // Redundant collinear vertex.
+                default:polygon={q};break; // Whole unit disk after fixed contact.
+            }
+            rational.advance(polygon,q);integer.advance(polygon,q);compare();
+        }
+    }
+    // Large irrelevant scales must disappear without truncating genuinely
+    // large coprime coordinates, changing signs, or rejecting the zero vector.
+    const I huge=I(1)<<2048;
+    for(int x:{-1,0,1})for(int y:{-1,0,1}) {
+        const tpp::detail::ConvexHomogeneousDirection p{I(x)*huge,I(y)*huge};
+        const auto reduced=tpp::detail::convex_reduce_direction(p);
+        check(reduced.x==x&&reduced.y==y,"homogeneous gcd reduction preserves signed ray");
+    }
+    const tpp::detail::ConvexHomogeneousDirection coprime{huge,huge+1};
+    check(tpp::detail::convex_reduce_direction(coprime)==coprime,
+          "homogeneous gcd trigger retains unbounded coprime coordinates");
+    // No fixed-point reset: keep propagating across a long sequence of
+    // almost parallel edges and segments, including very large input scales.
+    for(size_t trial=0;trial<8;++trial) {
+        const R scale=trial%2?R(huge):R(1)/R(huge);
+        const R tilt=R(1)/R(I(1)<<80);
+        const P q{R(2)/R(7),-R(3)/R(11)},incoming{scale,scale*tilt};
+        size_t rational_count=0,integer_count=0;
+        tpp::detail::BasicConvexDualReachability<R> rational(incoming,rational_count);
+        tpp::detail::BasicConvexDualReachability<I> integer(incoming,integer_count);
+        for(size_t step=0;step<128;++step) {
+            const P u{scale,scale*tilt*R(int(step%3)-1)},v{-u.y,u.x};
+            const tpp::ConvexRationalPolygon polygon=trial%2
+                ?tpp::ConvexRationalPolygon{q-u,q+u}
+                :tpp::ConvexRationalPolygon{q-u,q+u,q+u+v,q-u+v};
+            rational.advance(polygon,q);integer.advance(polygon,q);
+            for(const P &outgoing:{incoming,-incoming,u,v}) {
+                const bool a=rational.reaches(outgoing),b=integer.reaches(outgoing);
+                check(a==b&&rational_count==integer_count,
+                      "long homogeneous contact block agrees with rational propagation");
+            }
+        }
+    }
+}
+
 void filtered_predicates() {
     using F=tpp::detail::FilteredRational;
     using R=tpp::ConvexRational;
@@ -850,7 +925,7 @@ int main(int argc,char **argv) {
         else if(arg=="--corpus"&&i+1<argc)corpora.push_back(argv[++i]);
         else throw std::invalid_argument("Unknown argument: "+arg);
     }
-    interval_rounding_regressions();dyadic_orientation_regressions();binary_membership_memo_regressions();prepared_pair_cache_regressions();normalized_sign_predicates();filtered_predicates();dispatch_cache_regressions();cached_contact_rotation_regressions();deterministic();coincident_disk_contacts();touching_disjoint_recovery();interval_bound_regressions();adversarial_disjoint();continuity();random_boxes(random_count);random_convex(convex_count);
+    interval_rounding_regressions();dyadic_orientation_regressions();binary_membership_memo_regressions();prepared_pair_cache_regressions();normalized_sign_predicates();homogeneous_zero_dual_regressions();filtered_predicates();dispatch_cache_regressions();cached_contact_rotation_regressions();deterministic();coincident_disk_contacts();touching_disjoint_recovery();interval_bound_regressions();adversarial_disjoint();continuity();random_boxes(random_count);random_convex(convex_count);
     for(const auto &directory:corpora)corpus(directory);
     const auto aggregate=tpp::convex_hybrid_aggregate();
     std::cout<<"Checks="<<checks<<", failures="<<failures<<", unresolved="<<unresolved

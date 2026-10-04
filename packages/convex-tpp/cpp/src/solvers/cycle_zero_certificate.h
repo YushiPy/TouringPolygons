@@ -5,7 +5,7 @@
 #include <stdexcept>
 
 namespace tpp::detail {
-// Complete planar disk/cone reachability: O(b^3 + N_block) rational operations
+// Complete planar disk/cone reachability: O(b^3 + N_block) exact operations
 // and O(b) stored halfplanes for b coincident contacts. No dual sampling or cap.
 inline bool cycle_zero_block_certificate(const ConvexRationalPolygons &polygons,
         const ConvexRationalPolygon &q,const std::vector<size_t> &block,

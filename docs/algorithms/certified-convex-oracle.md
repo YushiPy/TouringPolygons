@@ -27,6 +27,18 @@ A validação segura:
 6. usa o solver racional correspondente quando a recuperação também não pode
    ser certificada.
 
+`TPP_HOMOGENEOUS_ZERO_DUAL`, ativada por padrão, representa direções e normais
+da propagação dual de contatos coincidentes com inteiros arbitrários, no mesmo
+algoritmo de disco/cones usado pelo certificado de ciclos. Eliminar
+denominadores positivos e fatores comuns preserva as direções unitárias e
+todos os sinais exatos. Reflexões também são calculadas até um fator positivo,
+dispensando divisões racionais intermediárias. Coordenadas de polígonos e
+contatos continuam racionais; pertencimento, limites, ordem dos predicados e
+critérios de aceitação não mudam. `OFF` conserva a representação racional para ablação.
+A redução por MDC é acionada por magnitudes a partir de `2^512`, sem limitar
+inteiros coprimos ou precisão. A prova da equivalência e a cobertura dos testes
+estão em [convex-cycle-certificate.md](convex-cycle-certificate.md).
+
 Polígonos dois a dois disjuntos usam como fallback a recorrência estabelecida
 em aritmética racional. Casos com interseção usam mapas direcionais racionais.
 Uma falha de certificação significa apenas que a candidata rápida não foi

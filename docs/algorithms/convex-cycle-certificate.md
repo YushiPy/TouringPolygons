@@ -111,6 +111,28 @@ invariants make this representation exact and computable rationally.
    and support comparisons use the exact normalized-dot sign above. The maximum
    therefore supplies another rational direction for the new halfplane.
 
+`TPP_HOMOGENEOUS_ZERO_DUAL`, enabled by default, selects unbounded integer
+coordinates for the directions and halfplane normals in this same propagation
+algorithm. For a rational vector `(nx/dx, ny/dy)`, with positive denominators,
+the integer vector `(nx*dy, ny*dx)` is a positive multiple of it; equal
+denominators can be omitted directly. A positive rescaling of `d` leaves
+`d/|d|` unchanged,
+and a positive rescaling of `n` multiplies both sides of its halfplane
+inequality equally. Tangent-cone signs, containment, and support comparisons
+therefore use the same exact conditions. The reflected integer direction is
+`2*n*(n dot d)-d*(n dot n)`, a positive `(n dot n)` multiple of the rational
+reflection above. The normalized-dot comparison uses integer products directly.
+
+Input conversion and reflections remove a positive common divisor when either
+coordinate has magnitude at least `2^512`. This threshold only triggers an
+exact gcd reduction; it is not a bound on coefficient size or a precision
+limit. Coprime coordinates remain unbounded. Rational polygon coordinates and
+contacts, active-edge classification, predicate order, interruption checks,
+and acceptance criteria are unchanged. Turning the option off instantiates
+the same algorithm with rational directions for ablation. Differential tests
+cover rational scales, vertices, edges, interiors, points, segments, redundant
+vertices, and long contact blocks without fixed-point resets.
+
 At an interior polygon contact the normal cone is zero and the set stays
 unchanged. At a fixed point it becomes the whole disk. Segment endpoints and
 interiors give a tangent ray or line, respectively, and follow the same update.
