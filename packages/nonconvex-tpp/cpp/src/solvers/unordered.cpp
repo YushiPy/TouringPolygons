@@ -1,5 +1,6 @@
 #include "tpp/nonconvex/unordered.h"
 #include "tpp/convex/certified.h"
+#include "tpp/convex/dual.h"
 #include "tpp/convex/cycle.h"
 #include "common.h"
 #include "unordered_geometry.h"
@@ -680,11 +681,16 @@ namespace tpp {
 		workspace.cache_interval_geometry=options.oracle_interval_geometry_cache;
         workspace.borrow_hybrid_geometry=options.oracle_borrow_geometry;
         workspace.bound_before_optimality=options.oracle_bound_first;
+        workspace.retain_binary_dual=!cycle&&options.path_certificate_dual;
 		workspace.interpolated_zero_dual=options.interpolated_zero_dual;
 		std::vector<DynamicConvexTppWorkspace> parallel_workspaces;
         ConvexCycleWorkspace cycle_workspace;
         std::vector<ConvexCycleWorkspace> parallel_cycle_workspaces;
         CycleMemo memo_workspace;
+        // Per-search bounded retention, never an extra vector in every node.
+        // Keys are immutable node serials; no sequence/geometry is inferred.
+        std::unordered_map<size_t,Polygon> path_dual_cache;
+        size_t path_dual_bytes=0;
         std::vector<CycleMemo> parallel_memo_workspaces;
         auto strengthen_shared_bound=[&](Node &node) {
             if(!cycle||!options.cycle_share_bounds||!control||!control->sharing||node.sequence.size()<2)return;
@@ -793,7 +799,7 @@ namespace tpp {
             return true;
 		};
 		auto record_oracle_result = [&](Node &node, bool precise, double cutoff,
-			const RelaxationResult &certified) {
+			RelaxationResult &certified) {
 			node.warm_start=Polygon{};
 			result.oracle_cutoff_calls += certified.lower_bound >= cutoff;
 			result.oracle_dual_cutoff_prunes += certified.dual_cutoff_pruned;
@@ -851,6 +857,20 @@ namespace tpp {
 			result.convex_fallback_long_double_seconds += certified.fallback_long_double_seconds;
 			result.convex_fallback_extended_precision_seconds += certified.fallback_extended_precision_seconds;
 			node.bound = std::max(node.bound, certified.lower_bound);
+            if(!cycle&&options.path_certificate_dual&&!certified.binary_dual.empty()&&node.bound<cutoff) {
+                const size_t bytes=certified.binary_dual.capacity()*sizeof(Vector2);
+                constexpr size_t budget=2*1024*1024;
+                if(bytes<=budget) {
+                    if(path_dual_cache.size()>=4096||path_dual_bytes+bytes>budget) {
+                        path_dual_cache.clear();path_dual_bytes=0;++result.path_dual_cache_evictions;
+                    }
+                    auto &entry=path_dual_cache[node.serial];
+                    path_dual_bytes-=entry.capacity()*sizeof(Vector2);
+                    entry=std::move(certified.binary_dual);path_dual_bytes+=entry.capacity()*sizeof(Vector2);
+                    ++result.path_dual_retained;
+                    result.path_dual_peak_bytes=std::max(result.path_dual_peak_bytes,path_dual_bytes);
+                }
+            }
             if(cycle&&options.cycle_learned_branching&&node.learning_pending) {
                 const double gain=std::max(0.0,node.bound-node.learning_parent_bound)/node.learning_distance;
                 if(std::isfinite(gain)) {
@@ -883,7 +903,7 @@ namespace tpp {
 			const double upper_bound = result.upper_bound;
 			const double cutoff = upper_bound - gap_at(upper_bound);
 			const auto oracle_began = std::chrono::steady_clock::now();
-			const auto certified = evaluate_oracle(node, precise, upper_bound, workspace, cycle_workspace,memo_workspace);
+			auto certified = evaluate_oracle(node, precise, upper_bound, workspace, cycle_workspace,memo_workspace);
 			result.convex_oracle_wall_seconds += duration(oracle_began);
 			record_oracle_result(node, precise, cutoff, certified);
             if(certified.time_limited && !node.path.empty())improve(node.path,"interrupted_oracle");
@@ -931,6 +951,14 @@ namespace tpp {
 			result.max_sequence_depth = std::max(result.max_sequence_depth, node.sequence.size());
             strengthen_shared_bound(node);
 			if (node.path.empty() && node.bound < result.upper_bound-gap() && !solve(node)) { queue.push(std::move(node),sequence_parent);break; }
+            Polygon parent_binary_dual;
+            if(!cycle&&options.path_certificate_dual) {
+                if(auto found=path_dual_cache.find(node.serial);found!=path_dual_cache.end()) {
+                    path_dual_bytes-=found->second.capacity()*sizeof(Vector2);
+                    parent_binary_dual=std::move(found->second);path_dual_cache.erase(found);
+                    ++result.path_dual_cache_hits;
+                }
+            }
 			std::vector<size_t> node_sequence;
 			if (options.trace) for (auto e : node.sequence) node_sequence.push_back(e.polygon);
 			if (options.trace) trace_event({
@@ -1114,7 +1142,23 @@ namespace tpp {
 				++result.insertion_branches;
 				std::vector<const Polygon *> regions;
 				for (auto e : node.sequence) regions.push_back(e.piece == none ? &hulls[e.polygon] : &pieces[e.polygon][e.piece]);
-				const auto bounds = insertion_lower_bounds(node.path, regions, hulls[chosen], cycle, node.dual);
+                const bool screen_dual=!cycle&&options.path_certificate_dual&&
+                    parent_binary_dual.size()==node.sequence.size()+1;
+                Polygon proposals;
+				auto bounds = insertion_lower_bounds(node.path, regions, hulls[chosen], cycle,
+                    node.dual,screen_dual?&proposals:nullptr);
+                if(screen_dual) {
+                    const auto began_screen=std::chrono::steady_clock::now();
+                    const auto inherited=tpp_convex_binary_dual_insertion_bounds(start,target,node.path,regions,
+                        hulls[chosen],proposals,parent_binary_dual);
+                    for(size_t j=0;j<inherited.size();++j) {
+                        ++result.path_dual_screen_children;
+                        const double cutoff=result.upper_bound-gap();
+                        result.path_dual_screen_prunes+=std::max(node.bound,bounds[j])<cutoff&&inherited[j]>=cutoff;
+                        bounds[j]=std::max(bounds[j],inherited[j]);
+                    }
+                    result.path_dual_screen_seconds+=duration(began_screen);
+                }
 				// At size two the two insertion positions are reversals of the
 				// same unoriented triangle. Later, all cyclic gaps are needed.
 				const size_t branching = cycle ? (node.sequence.size()==2?1:node.sequence.size()) : node.sequence.size()+1;
@@ -1220,6 +1264,7 @@ namespace tpp {
 						worker_workspace.cache_interval_geometry=options.oracle_interval_geometry_cache;
                         worker_workspace.borrow_hybrid_geometry=options.oracle_borrow_geometry;
                         worker_workspace.bound_before_optimality=options.oracle_bound_first;
+                        worker_workspace.retain_binary_dual=!cycle&&options.path_certificate_dual;
 						worker_workspace.interpolated_zero_dual=options.interpolated_zero_dual;
 					}
 					const auto oracle_batch_began = std::chrono::steady_clock::now();
@@ -1573,6 +1618,13 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::cycle_initial_contact_checks);
         sum(&UnorderedTppSolveResult::cycle_initial_contact_accepts);
         sum(&UnorderedTppSolveResult::sibling_bound_prunes);
+        sum(&UnorderedTppSolveResult::path_dual_retained);
+        sum(&UnorderedTppSolveResult::path_dual_cache_hits);
+        sum(&UnorderedTppSolveResult::path_dual_cache_evictions);
+        sum(&UnorderedTppSolveResult::path_dual_peak_bytes);
+        sum(&UnorderedTppSolveResult::path_dual_screen_children);
+        sum(&UnorderedTppSolveResult::path_dual_screen_prunes);
+        sum(&UnorderedTppSolveResult::path_dual_screen_seconds);
         sum(&UnorderedTppSolveResult::partial_states_created);
         sum(&UnorderedTppSolveResult::children_generated);
         sum(&UnorderedTppSolveResult::children_queued);

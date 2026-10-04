@@ -3,9 +3,11 @@
 #include "common.h"
 #include "solvers/unordered_geometry.h"
 #include "solvers/unordered_bounds.h"
+#include "tpp/convex/dual.h"
 #include "solvers/unordered_sequence.h"
 #include <functional>
 #include <algorithm>
+#include <cfenv>
 #include <cmath>
 #include <iostream>
 #include <numeric>
@@ -285,7 +287,7 @@ void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
 		std::cerr << "Expected " << best << ", got " << result.upper_bound << '\n';
 		throw std::runtime_error("Permutation enumeration mismatch.");
 	}
-    for(unsigned variant=0;variant<7;++variant) {
+    for(unsigned variant=0;variant<8;++variant) {
         UnorderedTppSolveOptions candidate;
         candidate.oracle_borrow_geometry=variant==0||variant==6;
         candidate.lazy_oracles=variant==1||variant==6;
@@ -293,6 +295,7 @@ void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
         candidate.segment_visit_cache=variant==3||variant==6;
         candidate.path_dual_reuse=variant==4||variant==6;
         candidate.path_strong_branching=variant==5||variant==6;
+        candidate.path_certificate_dual=variant==7;
         for(size_t cap:{size_t(0),size_t(1),size_t(3),size_t(10),size_t(1000000)}) {
             candidate.max_calls=cap;
             const auto changed=tpp_nonconvex_unordered_solve(s,t,polygons,candidate);
@@ -337,6 +340,17 @@ void check_oracle_certificates() {
 		if (r.lower_bound > optimum + 1e-8 || r.upper_bound < optimum - 1e-8
 			|| (r.lower_bound < cutoff && r.upper_bound - r.lower_bound > 1e-7))
 			throw std::runtime_error("Invalid convex cutoff certificate.");
+        workspace.retain_binary_dual=true;
+        const auto retained=tpp_convex_solve_certified(s,t,polygons,workspace,1e-7,cutoff);
+        workspace.retain_binary_dual=false;
+        if(retained.path!=r.path||retained.lower_bound!=r.lower_bound||retained.upper_bound!=r.upper_bound)
+            throw std::runtime_error("Retaining a binary dual changed oracle bounds or contacts");
+        if(!retained.binary_dual.empty()&&retained.binary_dual.size()!=polygons.size()+1)
+            throw std::runtime_error("Invalid retained dual dimension");
+        for(auto u:retained.binary_dual) {
+            const ConvexRationalPoint exact(u);
+            if(exact.dot(exact)>1)throw std::runtime_error("Retained binary dual leaves the unit disk");
+        }
 		if (cutoff == 10.5) {
 			// Complete zero-block certification now proves this candidate
 			// directly; the cutoff must still be met without rational recovery.
@@ -380,7 +394,38 @@ void check_oracle_certificates() {
 		const auto bounds = unordered_detail::insertion_lower_bounds(q, {&polygons[0], &polygons[1]}, inserted);
 		for (size_t j = 0; j < bounds.size(); ++j) if (bounds[j] > optima[j] + 1e-8)
 			throw std::runtime_error("Invalid incremental insertion bound.");
+        Polygon dual,proposals;
+        for(size_t j=0;j<3;++j) {
+            dual.push_back({coordinate(rng)/200,coordinate(rng)/200});
+            proposals.push_back(trial%3==0?q[j]:trial%3==1?Vector2{coordinate(rng),coordinate(rng)}:
+                unordered_detail::best_contact(q[j],q[j+1],inserted,inserted.front()));
+        }
+        const auto certified=tpp_convex_binary_dual_insertion_bounds(s,t,q,{&polygons[0],&polygons[1]},inserted,proposals,dual);
+        if(certified.size()!=3)throw std::runtime_error("Binary dual screening unexpectedly declined");
+        for(size_t j=0;j<3;++j)if(certified[j]>optima[j]+1e-8)
+            throw std::runtime_error("Binary dual insertion exceeded exact optimum");
+        dual[trial%3]={2,0};
+        if(!tpp_convex_binary_dual_insertion_bounds(s,t,q,{&polygons[0],&polygons[1]},inserted,proposals,dual).empty())
+            throw std::runtime_error("Invalid dual hint authorized screening");
 	}
+    const Polygon hint{s,{6,2},{4,2},t},proposals{{5,-1},{5,-1},{5,-1}};
+    Polygon dual(3,{.25,.25});
+    // Even a barely exterior binary vector must decline; pruning never uses
+    // a tolerance for membership of the dual unit disk.
+    for(auto invalid:{Vector2{std::nextafter(1.0,INFINITY),0},
+            Vector2{1,std::numeric_limits<double>::denorm_min()},Vector2{NAN,0}}) {
+        dual[1]=invalid;
+        if(!tpp_convex_binary_dual_insertion_bounds(s,t,hint,{&polygons[0],&polygons[1]},inserted,proposals,dual).empty())
+            throw std::runtime_error("Exterior or nonfinite dual authorized screening");
+    }
+    dual[1]={.25,.25};
+    const int rounding=std::fegetround();
+    if(std::fesetround(FE_UPWARD)==0) {
+        const bool declined=tpp_convex_binary_dual_insertion_bounds(s,t,hint,
+            {&polygons[0],&polygons[1]},inserted,proposals,dual).empty();
+        std::fesetround(rounding);
+        if(!declined)throw std::runtime_error("Unsupported rounding authorized screening");
+    }
 	const Polygon rectangle{{4, 2}, {6, 2}, {6, 4}, {4, 4}};
 	const auto point = unordered_detail::best_contact(s, t, rectangle, rectangle.front());
 	if (point.distance_to({5, 2}) > 1e-12)

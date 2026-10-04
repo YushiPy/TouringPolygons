@@ -6,6 +6,7 @@
 namespace tpp {
 	struct CertifiedConvexTppResult {
 		std::vector<Vector2> path;
+        std::vector<Vector2> binary_dual;
 		double lower_bound = 0;
 		double upper_bound = 0;
 		bool used_fallback = false;

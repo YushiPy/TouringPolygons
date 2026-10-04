@@ -58,6 +58,29 @@ As funções `tpp_convex_solve_hybrid_safe` e
 somente para diagnóstico de desempenho e não fornecem um limite seguro para
 branch-and-bound.
 
+`retain_binary_dual`, desativada por padrão, exporta uma proposta dual do
+certificado intervalar quando há elos nulos ou curtos. A seleção converte cada
+intervalo em um vetor binário específico e prova, por um limite superior
+intervalar de sua norma quadrática, que ele pertence ao disco unitário.
+Quando necessário, contrai a proposta; falhar nessa prova exporta zero.
+Esses vetores não precisam atingir o limite do certificado KKT, cujo teste
+completo prova existência e não devolve o testemunho. Retê-los não modifica
+o caminho, os limites ou a decisão de aceitação da chamada original.
+
+`tpp_convex_binary_dual_insertion_bounds` avalia esses duais em todas as
+inserções de uma região, com intervalos arredondados para fora. Escrevendo
+`u_0,...,u_n` para vetores de norma no máximo um, o limite é
+`(t-s)·u_n + sum_i min_{x em P_i} (x-s)·(u_i-u_{i+1})`.
+Inserir uma região altera apenas seus dois vetores incidentes e os suportes
+dos vizinhos. Os demais termos são reutilizados, sem assumir que os contatos
+ótimos dos filhos ficam parados. Os contatos fornecidos só propõem direções
+novas; podem ser inviáveis. Normas e suportes precisam ser comprovados nos
+dados binários originais; não se usa uma tolerância para o disco. Um vetor
+cuja norma não seja comprovada, ou um ambiente sem arredondamento suportado,
+retorna uma tentativa vazia. Assim, o valor binário sem certificado continua
+sem autorização para poda; um limite intervalar certificado tem seu próprio
+contrato de validade.
+
 A sobrecarga de `tpp_convex_solve_hybrid` que recebe
 `DynamicConvexTppWorkspace` reutiliza polígonos já convertidos e normalizados
 em aritmética racional entre chamadas. O cache confere todas as coordenadas

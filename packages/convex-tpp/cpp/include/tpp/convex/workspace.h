@@ -47,6 +47,7 @@ namespace tpp {
 		bool bound_before_optimality = false;
 		// Additional feasible dual proposal for short/coincident contact blocks.
 		bool interpolated_zero_dual = false;
+        bool retain_binary_dual = false;
 
 		void reserve(size_t max_polygons, size_t max_total_vertices);
 		ConvexTppWorkspaceView prepare(size_t polygon_count, size_t total_vertices);

@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
 				std::cout << "--no-oracle-dispatch-cache repeats exact polygon-pair classification for an ablation.\n";
 				std::cout << "--no-oracle-interval-geometry-cache repeats normalized rational-to-double conversion for an ablation.\n";
 				std::cout << "--no-prepared-visits repeats polygon/path preparation and contact queries for an ablation.\n";
-                std::cout << "TPP ablations: --no-borrow-oracle-geometry, --no-segment-visit-cache; experimental: --lazy-oracles, --bound-first, --path-dual-reuse, --path-strong-branching.\n";
+                std::cout << "TPP ablations: --no-borrow-oracle-geometry, --no-segment-visit-cache; experimental: --lazy-oracles, --bound-first, --path-dual-reuse, --path-certificate-dual, --path-strong-branching.\n";
 				std::cout << "--relocate-initial optimizes insertion slots and contacts in the initial route.\n";
 				std::cout << "--interpolated-zero-dual tries a feasible interpolated dual for short contact blocks.\n";
 				return 0;
@@ -124,6 +124,7 @@ int main(int argc, char **argv) {
             if (flag == "--segment-visit-cache") {options.segment_visit_cache=true;continue;}
             if (flag == "--no-segment-visit-cache") {options.segment_visit_cache=false;continue;}
             if (flag == "--path-dual-reuse") {options.path_dual_reuse=true;continue;}
+            if (flag == "--path-certificate-dual") {options.path_certificate_dual=true;continue;}
             if (flag == "--path-strong-branching") {options.path_strong_branching=true;continue;}
             if (flag == "--no-prepared-visits") {options.prepared_visit_queries=false;continue;}
 			if (flag == "--relocate-initial") {options.relocate_initial_heuristic=true;continue;}
@@ -300,6 +301,13 @@ int main(int argc, char **argv) {
 			<< ",\"oracle_dispatch_pair_cache_hits\":" << r.oracle_dispatch_pair_cache_hits
 			<< ",\"oracle_dispatch_pair_exact_checks\":" << r.oracle_dispatch_pair_exact_checks
 			<< ",\"screened_nodes\":" << r.screened_nodes
+            << ",\"path_dual_retained\":" << r.path_dual_retained
+            << ",\"path_dual_cache_hits\":" << r.path_dual_cache_hits
+            << ",\"path_dual_cache_evictions\":" << r.path_dual_cache_evictions
+            << ",\"path_dual_screen_children\":" << r.path_dual_screen_children
+            << ",\"path_dual_screen_prunes\":" << r.path_dual_screen_prunes
+            << ",\"path_dual_peak_bytes\":" << r.path_dual_peak_bytes
+            << ",\"path_dual_screen_seconds\":" << r.path_dual_screen_seconds
             << ",\"one_tree_calls\":" << r.one_tree_calls
             << ",\"one_tree_cache_hits\":" << r.one_tree_cache_hits
             << ",\"one_tree_iterations\":" << r.one_tree_iterations

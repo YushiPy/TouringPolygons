@@ -17,13 +17,15 @@ namespace tpp {
 		options.cutoff=cutoff;
 		options.max_gap=tolerance;
 		options.interpolated_zero_dual=workspace.interpolated_zero_dual;
-		const auto hybrid=tpp_convex_solve_hybrid(start,target,polygons,options,workspace);
+        options.retain_binary_dual=workspace.retain_binary_dual;
+		auto hybrid=tpp_convex_solve_hybrid(start,target,polygons,options,workspace);
 		CertifiedConvexTppResult result;
 		// The unordered solver consumes the explicit contact-coordinate chain;
 		// retain endpoints and all duplicate contacts in this compatibility API.
 		result.path=reconstruct_convex_polyline(start,target,hybrid.contacts,false);
 		result.lower_bound=hybrid.lower_bound;
 		result.upper_bound=hybrid.upper_bound;
+        result.binary_dual=std::move(hybrid.binary_dual);
 		result.used_fallback=hybrid.stats.rational_fallback;
 		result.used_interval_bounds=hybrid.stats.interval_bounds_certified;
 		result.used_contracted_proposal=hybrid.stats.interval_bounds_contracted;

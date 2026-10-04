@@ -51,6 +51,7 @@ namespace tpp {
         bool lazy_oracles = false;
         bool segment_visit_cache = true;
         bool path_dual_reuse = false;
+        bool path_certificate_dual = false;
         bool path_strong_branching = false;
 		// Record an explanatory execution trace. Disabled by default so normal
 		// benchmark runs keep the same memory and timing behavior.
@@ -155,6 +156,10 @@ namespace tpp {
 		size_t oracle_interval_bound_calls = 0;
 		size_t oracle_contracted_bound_calls = 0;
 		size_t screened_nodes = 0;
+        size_t path_dual_retained = 0, path_dual_cache_hits = 0, path_dual_cache_evictions = 0;
+        size_t path_dual_screen_children = 0, path_dual_screen_prunes = 0;
+        size_t path_dual_peak_bytes = 0;
+        double path_dual_screen_seconds = 0;
         size_t one_tree_calls = 0, one_tree_cache_hits = 0, one_tree_iterations = 0;
         size_t one_tree_distance_queries = 0, one_tree_improvements = 0;
         double one_tree_seconds = 0;

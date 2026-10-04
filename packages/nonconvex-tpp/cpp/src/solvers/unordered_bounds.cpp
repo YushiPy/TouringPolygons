@@ -48,7 +48,8 @@ namespace tpp::unordered_detail {
         return order;
     }
 	std::vector<double> insertion_lower_bounds(const Polygon &contacts,
-		const std::vector<const Polygon *> &regions, const Polygon &inserted, bool cycle, const ConvexRationalPolygon &inherited_dual) {
+		const std::vector<const Polygon *> &regions, const Polygon &inserted, bool cycle,
+        const ConvexRationalPolygon &inherited_dual, Polygon *insertion_contacts) {
 		const size_t n = regions.size();
 		if (cycle) {
 			if (!n || contacts.size() != n + 1 || inserted.empty())
@@ -159,8 +160,10 @@ namespace tpp::unordered_detail {
 		for (auto v : inserted) scale = std::max(scale, start.distance_to(v));
 		const double safety = 1e-12 * scale * (n + 2);
 		std::vector<double> bounds(n + 1);
+        if(insertion_contacts){insertion_contacts->clear();insertion_contacts->reserve(n+1);}
 		for (size_t j = 0; j <= n; ++j) {
 			const auto point = best_contact(contacts[j], contacts[j + 1], inserted, inserted.front());
+            if(insertion_contacts)insertion_contacts->push_back(point);
 			const auto left = direction(point - contacts[j]), right = direction(contacts[j + 1] - point);
 			long double bound = value + support(inserted, left - right);
 			// Inserting one region changes just its own support term and those

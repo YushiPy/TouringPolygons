@@ -39,6 +39,7 @@ struct ConvexHybridOptions {
     // certification rejects it and safe mode replaces it with rational output.
     bool retain_rejected_double_candidate = false;
 	bool interpolated_zero_dual = false;
+    bool retain_binary_dual = false;
 };
 
 struct ConvexHybridStats {
@@ -75,6 +76,9 @@ struct ConvexHybridResult {
     // Exactly one contact per input polygon. Endpoints are never included
     // implicitly and duplicate contacts are retained.
     std::vector<Vector2> contacts;
+    // Optional feasible binary disk vectors from the interval dual proposal.
+    // They need not attain the returned (possibly exact KKT) lower bound.
+    std::vector<Vector2> binary_dual;
     std::vector<Vector2> rejected_double_contacts;
     // Diagnostic certified bounds for the internally exact-replayed candidate.
     // The lower bound is a feasible convex-dual value; the upper bound is its

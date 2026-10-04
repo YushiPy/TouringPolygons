@@ -11,9 +11,11 @@ namespace tpp::unordered_detail {
     std::vector<size_t> canonical_cycle_indices(const std::vector<std::pair<size_t,size_t>> &);
 	// Lower bounds for all insertion positions. References may be infeasible;
 	// only the fixed endpoints and the ordered region definitions matter.
+	// Optional insertion_contacts receives the existing open-path proposals.
 	std::vector<double> insertion_lower_bounds(const Polygon &contacts,
 		const std::vector<const Polygon *> &regions, const Polygon &inserted,
-		bool cycle = false, const ConvexRationalPolygon &inherited_dual = {});
+		bool cycle = false, const ConvexRationalPolygon &inherited_dual = {},
+        Polygon *insertion_contacts = nullptr);
     // Keep the parent's dual directions, replacing only one support term.
     // Each returned bound is valid even when the old contacts leave the piece.
     std::vector<double> cycle_replacement_lower_bounds(const Polygon &contacts,

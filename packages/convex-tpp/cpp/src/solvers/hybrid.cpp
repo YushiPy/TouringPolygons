@@ -6,6 +6,7 @@
 #include "certified_internal.h"
 #include "zero_contact_certificate.h"
 #include "binary_certificate.h"
+#include "binary_dual.h"
 #include "polygon_view.h"
 #include "prepared_pair_cache.h"
 
@@ -745,7 +746,8 @@ using IntervalPoint=detail::IntervalPoint;
 // upper norm. Their interval enclosures describe one dual-feasible vector;
 // independently selecting interval endpoints would not have this property.
 std::optional<double> interval_dual_lower(const std::vector<Vector2> &chain,
-        const std::vector<std::vector<Vector2>> &polygons,double short_link,bool interpolate) {
+        const std::vector<std::vector<Vector2>> &polygons,double short_link,bool interpolate,
+        std::vector<Vector2> *retained=nullptr) {
     std::vector<IntervalPoint> base;
     std::vector<bool> short_links;
     for(size_t i=1;i<chain.size();++i) {
@@ -767,6 +769,13 @@ std::optional<double> interval_dual_lower(const std::vector<Vector2> &chain,
     // Without short links all four old policies are identical, including
     // their rounding. Evaluate the common dual just once.
     const bool any_short=std::any_of(short_links.begin(),short_links.end(),[](bool x){return x;});
+    // The usual nonzero-link directions are already proposed by insertion
+    // screening. Retain only the ambiguous short-link case, where the
+    // certificate's alternative directions can add information.
+    if(retained)retained->clear();
+    if(!any_short)retained=nullptr;
+    std::vector<IntervalPoint> best_directions;
+    if(retained)best_directions.assign(base.size(),direct_unit);
     const int policies=any_short?(interpolate?5:4):1;
     for(int policy=0;policy<policies;++policy) {
         auto directions=base;
@@ -804,7 +813,14 @@ std::optional<double> interval_dual_lower(const std::vector<Vector2> &chain,
             }
             dual=dual+support;
         }
-        if(dual.finite())best=std::max(best,dual.lo);
+        if(dual.finite()&&dual.lo>best) {
+            best=dual.lo;
+            if(retained)best_directions=std::move(directions);
+        }
+    }
+    if(retained) {
+        retained->clear();retained->reserve(best_directions.size());
+        for(const auto &u:best_directions)retained->push_back(detail::binary_dual_vector(u));
     }
     return best;
 }
@@ -889,7 +905,8 @@ bool try_interval_trace_bound(Vector2 start,Vector2 target,const ExactPolygons &
         for(const auto &v:seed)proposal_scale=std::max({proposal_scale,std::abs(v.x),std::abs(v.y)});
         const double short_link=std::max(32*std::numeric_limits<double>::epsilon()*proposal_scale,
             std::isfinite(options.max_gap)&&options.max_gap>0?options.max_gap/(16*double(chain.size())):0);
-        const auto lower=interval_dual_lower(seed,binary,short_link,options.interpolated_zero_dual);
+        const auto lower=interval_dual_lower(seed,binary,short_link,options.interpolated_zero_dual,
+            options.retain_binary_dual?&result.binary_dual:nullptr);
         if(!lower||*lower>length.hi)return false;
         const auto gap=Interval(length.hi)-Interval(*lower);
         const bool cutoff=*lower>=options.cutoff;

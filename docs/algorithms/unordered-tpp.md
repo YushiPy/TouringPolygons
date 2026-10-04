@@ -239,6 +239,22 @@ geometria de entrada ou o critério de factibilidade. As flags
   racional e o limite é arredondado para baixo. Esta proposta não retém o
   testemunho ótimo da propagação de discos/cones: seu custo e sua força são
   hipóteses a medir, não uma garantia de ganho.
+- `--path-certificate-dual` / `path_certificate_dual` conserva vetores binários
+  factíveis já propostos pelo certificado intervalar, somente quando existem
+  elos nulos ou curtos. A proximidade seleciona uma proposta; não identifica
+  contatos nem autoriza uma poda. Cada vetor exportado passa por uma prova
+  intervalar de norma no máximo um. O limite de cada inserção reutiliza os
+  suportes inalterados e avalia os termos novos com intervalos arredondados
+  para fora, usando os polígonos originais. Uma aritmética não suportada ou
+  uma norma não comprovada dispensa essa tentativa. O cache local usa o serial
+  imutável do nó, no máximo 4096 entradas e 2 MiB de capacidade dos vetores;
+  metadados da tabela ficam fora desse orçamento. Limpar o cache só perde uma
+  oportunidade de poda. Nenhum vetor adicional é armazenado no próprio nó.
+  Esta opção não extrai o testemunho ótimo do certificado KKT de discos/cones;
+  seu dual pode ser mais fraco que o limite retornado pelo oráculo. Os
+  contadores `path_dual_screen_children` e `path_dual_screen_prunes` registram
+  avaliações e podas adicionais no corte corrente; não demonstram ganho de
+  tempo, que exige medir o encerramento com o mesmo gap.
 - `--path-strong-branching` / `path_strong_branching` compara os limites de
   todas as inserções dos três polígonos ausentes mais distantes e escolhe o
   candidato com maior mínimo desses limites. Isso só escolhe o ramo completo
