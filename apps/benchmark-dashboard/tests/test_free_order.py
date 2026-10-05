@@ -114,7 +114,7 @@ class FreeOrderTests(unittest.TestCase):
                 json.dumps({"name": "resume", "inputs": [{"file": "inputs/cases.bin"}]})
             )
 
-            def solve(_binary, start, target, _polygons, _calls, _seconds, arguments=()):
+            def solve(_binary, start, target, _polygons, _calls, _seconds, arguments=(), **_progress):
                 self.assertEqual(arguments[:2], ["--threads", "2"])
                 return {
                     "path": [list(start), list(target)],

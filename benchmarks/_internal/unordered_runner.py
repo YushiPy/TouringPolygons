@@ -8,7 +8,7 @@ import signal
 import subprocess
 import threading
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
 Point = Sequence[float]
 Polygon = Sequence[Point]
@@ -69,6 +69,55 @@ def encode_instance(
 	return '\n'.join(lines) + '\n'
 
 
+class _StreamedProcess:
+	"""Feed a solver its input and read both its streams, handing progress lines to a callback.
+
+	The solver reports on stderr as one JSON object per line starting with
+	{"progress"; any other stderr text is kept for error messages. A failing
+	callback never affects the run.
+	"""
+
+	def __init__(self, process: subprocess.Popen, text: str, on_progress: Callable[[dict], None]) -> None:
+		self.process = process
+		self.stdout: list[str] = []
+		self.stderr: list[str] = []
+		self.threads = [
+			threading.Thread(target=self._write, args=(text,), daemon=True),
+			threading.Thread(target=lambda: self.stdout.append(process.stdout.read()), daemon=True),
+			threading.Thread(target=self._read_stderr, args=(on_progress,), daemon=True),
+		]
+		for thread in self.threads:
+			thread.start()
+
+	def _write(self, text: str) -> None:
+		try:
+			self.process.stdin.write(text)
+			self.process.stdin.close()
+		except (BrokenPipeError, OSError, ValueError):
+			pass
+
+	def _read_stderr(self, on_progress: Callable[[dict], None]) -> None:
+		for line in self.process.stderr:
+			if line.startswith('{"progress"'):
+				try:
+					on_progress(json.loads(line))
+				except Exception:
+					pass
+			else:
+				self.stderr.append(line)
+
+	def wait(self, timeout: float | None) -> None:
+		self.process.wait(timeout=timeout)
+
+	def finish(self) -> tuple[str, str]:
+		self.process.wait()
+		for thread in self.threads:
+			thread.join()
+		for stream in (self.process.stdout, self.process.stderr):
+			stream.close()
+		return ''.join(self.stdout), ''.join(self.stderr)
+
+
 def run_unordered_solver(
 	solver: Path,
 	start: Point,
@@ -79,8 +128,15 @@ def run_unordered_solver(
 	arguments: Sequence[str] = (),
 	initial_path: Sequence[Point] | None = None,
 	process_timeout: float | None = None,
+	progress: Callable[[dict], None] | None = None,
+	progress_interval: float | None = None,
 ) -> dict:
+	"""Run the solver; with ``progress`` and a positive ``progress_interval`` (seconds), call
+	``progress`` with each periodic status the solver prints while it searches."""
+	streaming = progress is not None and bool(progress_interval) and progress_interval > 0
 	command = [str(solver.resolve()), *arguments, *(['--initial-path'] if initial_path is not None else [])]
+	if streaming:
+		command += ['--progress-interval', str(progress_interval)]
 	if process_timeout is None and math.isfinite(max_seconds):
 		process_timeout = max(30, max_seconds + 30)
 	with _ACTIVE_PROCESSES_LOCK:
@@ -91,22 +147,29 @@ def run_unordered_solver(
 			text=True, start_new_session=(os.name == 'posix'),
 		)
 		_ACTIVE_PROCESSES.add(process)
+	text = encode_instance(start, target, polygons, max_calls, max_seconds, initial_path)
+	streams = _StreamedProcess(process, text, progress) if streaming else None
+
+	def drain() -> tuple[str, str]:
+		return streams.finish() if streams else process.communicate()
+
 	try:
 		try:
-			stdout, stderr = process.communicate(
-				encode_instance(start, target, polygons, max_calls, max_seconds, initial_path),
-				timeout=process_timeout,
-			)
+			if streams:
+				streams.wait(process_timeout)
+				stdout, stderr = streams.finish()
+			else:
+				stdout, stderr = process.communicate(text, timeout=process_timeout)
 		except KeyboardInterrupt:
 			interrupt_running_solvers()
-			process.communicate()
+			drain()
 			raise
 		except subprocess.TimeoutExpired:
 			if os.name == 'posix':
 				os.killpg(process.pid, signal.SIGKILL)
 			else:
 				process.kill()
-			process.communicate()
+			drain()
 			raise
 	finally:
 		with _ACTIVE_PROCESSES_LOCK:

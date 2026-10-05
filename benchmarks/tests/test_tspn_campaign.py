@@ -79,6 +79,23 @@ class CommandTests(unittest.TestCase):
 			["cache", "memo"],
 		)
 
+	def test_the_progress_interval_reaches_the_engine_and_must_not_be_negative(self):
+		arguments = campaign.engine_arguments(
+			campaign.parse_options(["--progress-interval", "15"])
+		)
+		self.assertEqual(arguments[arguments.index("--progress-interval") + 1], "15")
+		self.assertEqual(campaign.parse_options([]).progress_interval, "60")
+		self.assertEqual(
+			campaign.parse_options(["--progress-interval", "0"]).progress_interval, "0"
+		)
+		with self.assertRaises(SystemExit):
+			campaign.parse_options(["--progress-interval", "-1"])
+
+	def test_the_native_binary_is_where_the_shared_build_writes_it(self):
+		self.assertEqual(
+			campaign.binaries(Path("/b"))["ours"], Path("/b/bin/tpp-unordered")
+		)
+
 	def test_both_solvers_omit_the_solver_flag(self):
 		self.assertNotIn(
 			"--solver", campaign.engine_arguments(campaign.parse_options([]))

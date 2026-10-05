@@ -14,6 +14,26 @@ namespace tpp {
 	enum class UnorderedSearchStrategy { BestBoundDive, DfsBfs };
 	enum class UnorderedSequenceStorage { Native, Packed, Deltas };
 
+	// A snapshot of a running search, for long-run monitoring. Reading it never
+	// changes the search.
+	struct UnorderedTppProgress {
+		// 0 unless the portfolio runs two searches; each reports on its own.
+		size_t worker = 0;
+		double elapsed_seconds = 0.0;
+		double lower_bound = 0.0;
+		double upper_bound = std::numeric_limits<double>::infinity();
+		// Oracle calls, summed over both portfolio workers.
+		size_t calls = 0;
+		size_t nodes = 0;
+		// Frontier nodes and dive chains still to expand, and their peak so far.
+		size_t open_nodes = 0;
+		size_t peak_open_nodes = 0;
+		size_t pruned_nodes = 0;
+		// Deepest partial visiting sequence expanded so far.
+		size_t max_sequence_depth = 0;
+		size_t region_count = 0;
+	};
+
 	struct UnorderedTppSolveOptions {
 		size_t max_calls = std::numeric_limits<size_t>::max();
 		double max_seconds = std::numeric_limits<double>::infinity();
@@ -81,6 +101,14 @@ namespace tpp {
 		// Cooperative interruption checked between search operations. The active
 		// oracle/decomposition call is allowed to finish before the frontier stops.
 		std::function<bool()> stop_requested;
+		// Periodic status for long runs: `progress` is called from the search loop
+		// at most every `progress_interval_seconds` (checked between search
+		// operations, so a single long oracle call delays it). Disabled when the
+		// interval is not positive or no callback is set. With the portfolio, both
+		// searches call it from their own threads.
+		double progress_interval_seconds = 0.0;
+		std::function<void(const UnorderedTppProgress &)> progress;
+		size_t progress_worker = 0;
         UnorderedSearchStrategy search_strategy = UnorderedSearchStrategy::BestBoundDive;
         // Frontier sequences only. Packed automatically selects 8/16/32/64-bit
         // indices; Deltas retains insertion/piece changes in a recycled arena.

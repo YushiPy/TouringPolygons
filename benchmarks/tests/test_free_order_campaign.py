@@ -122,7 +122,7 @@ class FreeOrderQueueTests(unittest.TestCase):
 			active_our_cases = 0
 			active_lock = threading.Lock()
 
-			def fake_our_solver(_binary, _start, _target, polygons, _max_calls, _seconds, arguments=()):
+			def fake_our_solver(_binary, _start, _target, polygons, _max_calls, _seconds, arguments=(), **_progress):
 				nonlocal active_our_cases
 				index = int(polygons[0][0][0] // 10)
 				with active_lock:

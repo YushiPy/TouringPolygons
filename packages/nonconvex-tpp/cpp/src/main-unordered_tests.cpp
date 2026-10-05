@@ -6,6 +6,7 @@
 #include "tpp/convex/dual.h"
 #include "solvers/unordered_sequence.h"
 #include <functional>
+#include <mutex>
 #include <algorithm>
 #include <cfenv>
 #include <cmath>
@@ -523,6 +524,70 @@ void check_cooperative_interruption() {
 			+ ", UB=" + std::to_string(partial.upper_bound));
 }
 
+void check_progress_reports() {
+	// Progress reporting only observes the search: results are identical with and
+	// without it, in original units even when the solver normalizes coordinates.
+	const std::vector<Polygon> polygons = {
+		{{0, 0}, {2, 0}, {2, .6}, {.6, .6}, {.6, 2}, {0, 2}},
+		{{5, 3}, {7, 3}, {7, 5}, {5, 5}},
+		{{9, 0}, {11, 0}, {11, 2}, {9, 2}},
+		{{3, 7}, {5, 7}, {5, 9}, {3, 9}},
+	};
+	for (const double factor : {1.0, 1e6}) {
+		auto scaled = polygons;
+		for (auto &polygon : scaled) for (auto &point : polygon) point = point * factor;
+		for (const bool cycle : {false, true}) {
+			UnorderedTppSolveOptions options;
+			auto solve = [&](const UnorderedTppSolveOptions &used) {
+				return cycle ? tpp_nonconvex_tspn_solve(scaled, used)
+					: tpp_nonconvex_unordered_solve({-3 * factor, -2 * factor}, {13 * factor, 8 * factor}, scaled, used);
+			};
+			const auto silent = solve(options);
+			std::vector<UnorderedTppProgress> reports;
+			options.progress_interval_seconds = 1e-9;  // report at every search iteration
+			options.progress = [&](const UnorderedTppProgress &report) { reports.push_back(report); };
+			const auto observed = solve(options);
+			same_search(silent, observed);
+			if (reports.empty()) throw std::runtime_error("Progress was never reported.");
+			size_t previous_calls = 0;
+			double previous_time = 0;
+			for (const auto &report : reports) {
+				if (report.worker != 0 || report.region_count != scaled.size()
+					|| report.calls < previous_calls || report.elapsed_seconds < previous_time
+					|| report.lower_bound > report.upper_bound * (1 + 1e-9) + 1e-9
+					// Reported bracket must contain the final answer, in original units.
+					|| report.upper_bound < observed.upper_bound * (1 - 1e-9)
+					|| report.lower_bound > observed.upper_bound * (1 + 1e-9))
+					throw std::runtime_error("Progress report is inconsistent with the final result.");
+				previous_calls = report.calls;
+				previous_time = report.elapsed_seconds;
+			}
+			// Disabled by a zero interval or a missing callback.
+			options.progress_interval_seconds = 0;
+			size_t calls = 0;
+			options.progress = [&](const UnorderedTppProgress &) { ++calls; };
+			(void)solve(options);
+			options.progress_interval_seconds = 1;
+			options.progress = nullptr;
+			(void)solve(options);
+			if (calls) throw std::runtime_error("Progress was reported although disabled.");
+		}
+	}
+	// Both portfolio searches report from their own threads.
+	UnorderedTppSolveOptions options;
+	options.portfolio = true;
+	options.progress_interval_seconds = 1e-9;
+	std::mutex lock;
+	std::vector<size_t> workers;
+	options.progress = [&](const UnorderedTppProgress &report) {
+		const std::scoped_lock guard(lock);
+		workers.push_back(report.worker);
+	};
+	(void)tpp_nonconvex_tspn_solve(polygons, options);
+	if (workers.empty() || std::any_of(workers.begin(), workers.end(), [](size_t worker) { return worker > 1; }))
+		throw std::runtime_error("Portfolio progress reports are inconsistent.");
+}
+
 void check_initial_heuristic_strategies() {
 	const Vector2 start{0, 0}, target{20, 0};
 	const std::vector<Polygon> polygons = {
@@ -724,6 +789,7 @@ int main() {
 		check_coordinate_normalization();
 		check_provided_initial_path();
 		check_cooperative_interruption();
+		check_progress_reports();
 		check_initial_heuristic_strategies();
 		check_intra_instance_threads();
 		check_endpoint_portfolio();

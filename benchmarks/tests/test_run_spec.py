@@ -267,6 +267,25 @@ class CommandTests(unittest.TestCase):
 					else [],
 				)
 
+	def test_progress_interval_defaults_on_and_zero_turns_it_off(self):
+		for problem in ("free-order", "tspn"):
+			values = values_for(problem, campaign="c")
+			self.assertEqual(values["progress_interval"], 60)
+			self.assertNotIn("--progress-interval", run_spec.to_cli(values))
+			self.assertEqual(
+				run_spec.validate({**values, "progress_interval": 0}),
+				[] if problem == "tspn" else run_spec.validate(values),
+			)
+			self.assertTrue(run_spec.validate({**values, "progress_interval": -1}))
+		self.assertNotIn("progress_interval", run_spec.default_values("fixed-order"))
+		legacy = run_spec.to_legacy(values_for("tspn", progress_interval=0))[1]
+		self.assertEqual(legacy[legacy.index("--progress-interval") + 1], "0")
+		self.assertEqual(tspn_campaign.parse_options(legacy).progress_interval, "0")
+		free = run_spec.to_legacy(
+			values_for("free-order", campaign="c", progress_interval=15)
+		)[1]
+		self.assertEqual(free[free.index("--progress-interval") + 1], "15")
+
 	def test_inapplicable_or_invalid_options_are_rejected(self):
 		for argv in (
 			["--problem", "tspn", "--threads", "2"],

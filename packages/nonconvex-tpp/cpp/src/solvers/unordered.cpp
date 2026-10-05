@@ -779,6 +779,7 @@ namespace tpp {
 						auto sub = options;
 						sub.window_lns = false;
 						sub.trace = false;
+						sub.progress = nullptr;  // a sub-search must not report as the main one
 						sub.portfolio = false;
 						sub.threads = 1;
 						sub.initial_path = window;
@@ -1142,6 +1143,26 @@ namespace tpp {
 		// Parallel rounds batch several best-bound nodes so that every thread has
 		// oracles to evaluate; sibling batches alone rarely exceed one survivor.
 		const size_t nodes_per_round = options.parallel_nodes && !dfs ? std::max<size_t>(1, options.threads) : 1;
+		double next_progress_report = 0.0;
+		auto report_progress = [&] {
+			if (!options.progress || !(options.progress_interval_seconds > 0)) return;
+			const double now = elapsed();
+			if (now < next_progress_report) return;
+			next_progress_report = now + options.progress_interval_seconds;
+			options.progress({
+				.worker = options.progress_worker,
+				.elapsed_seconds = now,
+				.lower_bound = result.lower_bound,
+				.upper_bound = result.upper_bound,
+				.calls = control ? control->calls.load(std::memory_order_relaxed) : result.calls,
+				.nodes = result.nodes,
+				.open_nodes = queue.size() + dives.size(),
+				.peak_open_nodes = result.peak_queue,
+				.pruned_nodes = result.pruned_nodes,
+				.max_sequence_depth = result.max_sequence_depth,
+				.region_count = n,
+			});
+		};
 		while (!queue.empty() || !dives.empty()) {
             import_incumbent();
 			// Resume the LNS after a new incumbent, or in bursts once half of its
@@ -1152,6 +1173,7 @@ namespace tpp {
 				window_lns();
 			result.peak_queue = std::max(result.peak_queue, queue.size() + dives.size());
 			result.lower_bound = std::min(result.upper_bound, frontier_bound());
+			report_progress();
 			if (result.upper_bound - result.lower_bound <= gap() || limited()) break;
 			// A round expands up to nodes_per_round frontier nodes serially and
 			// then evaluates all their children's oracles together. One node per
@@ -1741,6 +1763,14 @@ namespace tpp {
 			for (auto &point : path) point = normalize(point);
 		}
 		normalized_options.absolute_gap /= divisor;
+		if (options.progress) {
+			// The search runs on normalized coordinates; report original lengths.
+			normalized_options.progress = [report = options.progress, divisor](UnorderedTppProgress progress) {
+				if (std::isfinite(progress.lower_bound)) progress.lower_bound *= divisor;
+				if (std::isfinite(progress.upper_bound)) progress.upper_bound *= divisor;
+				report(progress);
+			};
+		}
 		const double numerical_floor = 64 * std::numeric_limits<double>::epsilon();
 		normalized_options.feasibility_tolerance = std::max(options.feasibility_tolerance / divisor, numerical_floor);
 		normalized_options.max_seconds = std::max(0.0, options.max_seconds - elapsed());
@@ -1874,6 +1904,7 @@ namespace tpp {
             try {
                 auto local=options;
                 local.portfolio=false;
+                local.progress_worker=index;
                 local.search_strategy=index==0?UnorderedSearchStrategy::BestBoundDive:UnorderedSearchStrategy::DfsBfs;
                 if(index==1 && !cycle) local.endpoint_sum_root=true;
                 local.max_seconds=std::max(0.0,options.max_seconds-control.elapsed());

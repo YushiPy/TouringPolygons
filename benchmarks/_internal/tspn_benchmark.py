@@ -15,6 +15,7 @@ from tspn_diagnostics import atomic_json, digest, finite, load_rows, row_key, wr
 import native_build
 from benchmark_cases import read_encoded_cases
 from convert_instances import convert_json_case
+from live_progress import LiveStatus
 from unordered_runner import encode_instance, run_unordered_solver
 from unordered_validation import validate_cycle
 
@@ -190,6 +191,8 @@ def main(argv=None):
         help='Run one isolated B&B strategy instead of the default strategy.')
     parser.add_argument('--cycle-optimization',action='append',choices=('cache','dual','features','lazy','root','branch','one-tree','learn','memo','bound-first','dual-screen','interval','share-bounds','proposal-bound','primal-starts'),default=[],
         help='Enable one native cycle optimization; repeat to combine independently selectable optimizations.')
+    parser.add_argument('--progress-interval',type=float,default=60.0,
+        help='Seconds between status lines (bounds, calls, queue) of the running tpp-ours instance, also kept in live.json for `tpp.py live`; 0 disables.')
     parser.add_argument('--relative-gap',type=float,default=1e-6)
     parser.add_argument('--feasibility-tolerance',type=float,default=1e-8)
     parser.add_argument('--validation-tolerance',type=float,default=1e-7)
@@ -223,6 +226,7 @@ def main(argv=None):
     if args.search_strategy and (args.portfolio or args.portfolio_no_sharing):
         parser.error('--search-strategy cannot be combined with portfolio options')
     if args.max_calls < 0: parser.error('--max-calls cannot be negative')
+    if not math.isfinite(args.progress_interval) or args.progress_interval < 0: parser.error('--progress-interval must be 0 or positive')
     if args.max_calls != 10**8 and args.solver != 'ours':
         parser.error('a nondefault --max-calls requires --solver ours; Fekete has no matching call budget')
     limits=(args.repetitions,args.seconds,args.relative_gap,args.feasibility_tolerance,args.validation_tolerance,args.external_timeout)
@@ -268,7 +272,7 @@ def main(argv=None):
     print(json.dumps(plan,indent=2),flush=True)
     if args.dry_run: return 0
     run_options={k:(str(v.resolve()) if isinstance(v,Path) else v) for k,v in vars(args).items()
-        if k not in ('output','resume','dry_run','report_only','skip_build','solver')}
+        if k not in ('output','resume','dry_run','report_only','skip_build','solver','progress_interval')}
     if continuing:
         previous=json.loads((output/'config.json').read_text())
         previous_options=dict(previous.get('run_options',{}))
@@ -287,7 +291,7 @@ def main(argv=None):
     elif args.skip_build and not all((args.ours_binary if b=='ours' else args.fekete_binary) for b in enabled_backends):
         parser.error('--skip-build requires --ours-binary and/or --fekete-binary for the enabled solvers')
     if not continuing: atomic_json(output/'instances.json',inputs)
-    ours=(args.ours_binary or (args.build_dir/'touring_polygons/tpp-unordered')).resolve()
+    ours=(args.ours_binary or (args.build_dir/'bin/tpp-unordered')).resolve()
     fekete=(args.fekete_binary or (args.build_dir/'tpp-fekete-cycle')).resolve() if 'fekete' in enabled_backends else None
     runtime=(output/'runtime').resolve()
     runtime.mkdir(parents=True,exist_ok=True)
@@ -395,6 +399,7 @@ def main(argv=None):
     completed={row_key(r) for r in rows}
     status='running'
     write_reports(output,inputs,config,rows,status)
+    live=LiveStatus(output/'live.json' if args.progress_interval>0 else None)
     try:
         with (output/'raw.jsonl').open('a') as raw:
             # Repeat rounds, not all repetitions of one case first: even partial
@@ -434,8 +439,14 @@ def main(argv=None):
                                         capture_path=capture_dir/f'{index:03d}-{repeat}-attempt{attempt}.jsonl'
                                         attempt+=1
                                     run_arguments+=['--oracle-capture',str(capture_path)]
-                                result=run_unordered_solver(ours,(0,0),(0,0),polygons,args.max_calls,args.seconds,run_arguments,
-                                    process_timeout=args.external_timeout)
+                                live_key=f"{case['name']}-{repeat}"
+                                report=live.reporter(live_key,f"tspn {index+1}/{len(inputs['instances'])} {case['name']}",
+                                    max_seconds=args.seconds,max_calls=args.max_calls,target_gap=our_relative)
+                                try:
+                                    result=run_unordered_solver(ours,(0,0),(0,0),polygons,args.max_calls,args.seconds,run_arguments,
+                                        process_timeout=args.external_timeout,progress=report,progress_interval=args.progress_interval)
+                                finally:
+                                    live.finish(live_key)
                         except subprocess.TimeoutExpired:
                             # Never persist commercial startup stderr/license data.
                             result={'timeout':True,'error':f'firm process timeout after {args.external_timeout}s',
