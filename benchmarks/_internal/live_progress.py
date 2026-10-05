@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import signal
 import socket
 import threading
 import time
@@ -25,6 +26,7 @@ from pathlib import Path
 WINDOW = 12  # reports kept per running instance for trend and estimate
 WRITE_EVERY_SECONDS = 5.0
 LIVE_FILE = "live.json"
+JOURNAL_FILE = "progress.jsonl"  # every report, appended: survives a crash and a lost terminal
 
 
 def clock(seconds: float) -> str:
@@ -128,6 +130,7 @@ class LiveStatus:
 		self, path: Path | None = None, echo: Callable[[str], None] | None = None
 	) -> None:
 		self.path = path
+		self.journal = path.with_name(JOURNAL_FILE) if path is not None else None
 		self.echo = echo or (lambda line: print(line, flush=True))
 		self.lock = threading.Lock()
 		self.running: dict[str, dict] = {}
@@ -141,6 +144,7 @@ class LiveStatus:
 		max_seconds: float | None = None,
 		max_calls: int | None = None,
 		target_gap: float | None = None,
+		stop_signal: int = signal.SIGINT,
 	) -> Callable[[dict], None]:
 		"""A callback for ``run_unordered_solver(progress=...)`` that tracks one instance."""
 		entry = {
@@ -151,6 +155,8 @@ class LiveStatus:
 			"max_seconds": max_seconds,
 			"max_calls": max_calls,
 			"target_gap": target_gap,
+			"pid": None,
+			"stop_signal": signal.Signals(stop_signal).name,
 		}
 		with self.lock:
 			self.running[key] = entry
@@ -163,10 +169,24 @@ class LiveStatus:
 
 		return report
 
-	def finish(self, key: str) -> None:
+	def set_pid(self, key: str, pid: int) -> None:
+		"""Record the solver process of ``key`` so ``tpp.py stop`` can ask it to stop."""
 		with self.lock:
-			self.running.pop(key, None)
+			if key in self.running:
+				self.running[key]["pid"] = pid
+
+	def last(self, key: str) -> dict | None:
+		"""The latest combined report of ``key`` while it is still running."""
+		with self.lock:
+			entry = self.running.get(key)
+			return dict(entry["latest"]) if entry and entry.get("latest") else None
+
+	def finish(self, key: str) -> dict | None:
+		"""Forget ``key`` and return its last combined report (the partial result if the solver died)."""
+		with self.lock:
+			entry = self.running.pop(key, None)
 			self._write(force=True)
+			return dict(entry["latest"]) if entry and entry.get("latest") else None
 
 	def _update(self, key: str, entry: dict, raw: dict) -> None:
 		with self.lock:
@@ -184,8 +204,20 @@ class LiveStatus:
 			record["reported_at"] = time.time()
 			entry["latest"] = record
 			line = describe(entry["label"], record)
+			self._journal(entry["label"], record)
 			self._write()
 		self.echo(line)
+
+	def _journal(self, label: str, record: dict) -> None:
+		if self.journal is None:
+			return
+		keep = ("elapsed_seconds", "lower_bound", "upper_bound", "gap", "calls", "nodes", "open_nodes")
+		line = {"at": round(time.time(), 3), "label": label, **{name: record.get(name) for name in keep}}
+		try:
+			with self.journal.open("a") as handle:
+				handle.write(json.dumps(line, allow_nan=False, default=str) + "\n")
+		except (OSError, ValueError):
+			pass
 
 	def close(self) -> None:
 		"""The run ended normally: drop the snapshot. After a crash it stays, and ``tpp.py live``
@@ -212,6 +244,8 @@ class LiveStatus:
 						"key": key,
 						"label": entry["label"],
 						"started_at": entry["started_at"],
+						"child_pid": entry.get("pid"),
+						"stop_signal": entry.get("stop_signal"),
 						**latest,
 					}
 				)
@@ -325,6 +359,36 @@ def read_status(
 				)
 			)
 	return entries, hidden
+
+
+def running_children(root: Path) -> list[dict]:
+	"""Solver processes of live runs on this machine that ``tpp.py stop`` can ask to stop."""
+	children = []
+	for path in find_snapshots(root):
+		try:
+			data = json.loads(path.read_text())
+		except (OSError, ValueError):
+			continue
+		if data.get("host") not in (None, socket.gethostname()) or not _alive(data.get("pid"), data.get("host")):
+			continue
+		for record in data.get("running", []):
+			if isinstance(record.get("child_pid"), int):
+				children.append({"run": path.parent.name, **record})
+	return children
+
+
+def stop_child(child: dict) -> bool:
+	"""Send the instance's stop signal (SIGINT for tpp-ours, SIGTERM for Fekete) to its process group."""
+	number = getattr(signal, child.get("stop_signal") or "SIGINT", signal.SIGINT)
+	for send, target in ((os.killpg, child["child_pid"]), (os.kill, child["child_pid"])):
+		try:
+			send(target, number)
+			return True
+		except ProcessLookupError:
+			return False
+		except OSError:
+			continue
+	return False
 
 
 def render_snapshots(root: Path, **options) -> list[str]:

@@ -145,7 +145,11 @@ function reportStatus(report) {
 
 function resultPill(row) {
 	if (!row) return '<span class="table-status">n/a</span>';
-	if (row.error) return `<span class="table-status is-error" title="${escapeHTML(row.error)}">Error</span>`;
+	if (row.error) {
+		const label = { killed: "Killed", memory_limit: "Memory", interrupted: "Stopped" }[row.status] || "Error";
+		const bounds = row.lower_bound != null && row.upper_bound != null ? ` · LB ${row.lower_bound.toPrecision(6)} / UB ${row.upper_bound.toPrecision(6)}` : "";
+		return `<span class="table-status is-error" title="${escapeHTML(row.error + bounds)}">${label}</span>`;
+	}
 	if (row.exact) return '<span class="table-status is-solved">Solved</span>';
 	return `<span class="table-status is-open">${escapeHTML(row.termination || "Open")}</span>`;
 }

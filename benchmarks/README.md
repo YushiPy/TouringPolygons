@@ -41,6 +41,18 @@ a interface, então a ajuda não diverge do comportamento. `--no-resume` reinici
 reexecuta (`--force`) em ordem fixa e livre e move a campanha TSPN para o lado.
 Os subcomandos antigos continuam disponíveis.
 
+### Rodar só alguns casos
+
+Na ordem livre, `--cases LISTA` (campo "Cases" no `scripts/benchmark.sh`) executa apenas
+os casos nomeados, numerados **a partir de 1**, como o `tpp.py live`, o `tpp.py stop` e o
+resumo do relatório os mostram: `--cases 65,66,130-131`. A seleção não faz parte da
+configuração da campanha: os resultados entram na execução compatível mais recente, então
+uma rodada seguinte sem `--cases` ainda completa o resto. O `status` da rodada olha só
+os casos escolhidos e o resumo avisa quando a última tentativa rodou um subconjunto
+(`selected_cases` no `report.json`, índices a partir de 0). Para refazer o que não
+terminou, também basta repetir o mesmo comando: a retomada já executa apenas os pares
+solver/caso sem resultado válido. O TSPN e a ordem fixa não têm essa opção.
+
 ## Acompanhar uma execução longa
 
 Enquanto uma instância roda, o solver de ordem livre e o TSPN (`tpp-ours`)
@@ -77,6 +89,37 @@ execução termina. Snapshots deixados por processos que já não existem nesta 
 quantos; `--include-gone` os mantém e mostra. Snapshots de outra máquina
 (workspace compartilhado) nunca são apagados. Se o terminal for fechado, o shell costuma matar a
 execução; para execuções longas, inicie-a em `tmux`/`screen` ou com `nohup`.
+
+### Quando um solver é interrompido, morto ou fica sem memória
+
+Cada report também é **anexado** a `results/EXECUÇÃO/progress.jsonl` (tempo, LB, UB,
+gap, chamadas), que sobrevive a um terminal perdido, ao pai morto e ao fim da
+execução: dá o histórico de convergência de cada caso. Além disso, o resultado parcial
+vai para o relatório mesmo que o solver não termine:
+
+| O que aconteceu | `status` da linha | O que fica registrado |
+|---|---|---|
+| `tpp.py stop` (SIGINT no tpp-ours, SIGTERM no Fekete) ou Ctrl+C | `interrupted` | incumbente (caminho), LB e UB |
+| processo morto por sinal (SIGKILL, OOM killer) | `killed` | LB, UB, tempo e chamadas do último report; no Fekete também o último incumbente que ele havia gravado |
+| acima do limite de memória (`--max-memory-gb`) | `memory_limit` | incumbente, LB e UB (o solver é parado, não morto) |
+
+Esses casos contam como erro de solver (`completed_with_errors`) e a retomada os
+refaz do zero, pois nenhum solver continua de um estado salvo; o parcial serve
+para saber onde parou e estimar o tempo que faltava.
+
+Para parar só algumas instâncias, sem encerrar a execução:
+
+```bash
+python3 benchmarks/tpp.py stop                # lista as instâncias em execução e seus pids
+python3 benchmarks/tpp.py stop --case 130     # o número mostrado por `live` (free case 130/558)
+python3 benchmarks/tpp.py stop --all
+```
+
+`--max-memory-gb N` (campo "Memory limit (GB)" no `scripts/benchmark.sh`) confere a
+memória residente de cada solver a cada 5 s e o interrompe com SIGINT/SIGTERM
+antes que o sistema o mate. O limite vale por instância, não pelo total. Para a
+execução sobreviver ao terminal fechado, inicie-a com `tpp.py jobs start`, `tmux`
+ou `nohup`.
 
 O `live` avisa quando uma instância deixa de reportar (uma chamada longa ao
 oráculo ou um solver travado). O relatório só observa a busca: o resultado, as chamadas e
@@ -290,7 +333,8 @@ Uma campanha completa usa:
 python3 benchmarks/tpp.py free-order NOME_DA_CAMPANHA --help
 ```
 
-No laboratório, `scripts/run_comparison.sh` chama esta CLI para executar os
+No laboratório, `python3 benchmarks/tpp.py free-compare` (atalho:
+`scripts/run_comparison.sh`) prepara o ambiente e chama esta CLI para executar os
 558 casos de Fekete et al. Selecione os solvers com `--solver tpp-ours`,
 `--solver tpp-fekete` ou `--solver both` (padrão). A pasta da campanha depende
 de `--threads-per-instance`, não de `--workers` nem do solver selecionado:
@@ -306,7 +350,7 @@ verificação; variáveis `CC` e `CXX` definidas pelo usuário são respeitadas.
 Para executar somente nosso solver com oito threads por instância, use:
 
 ```bash
-scripts/run_comparison.sh --solver tpp-ours --threads-per-instance 8
+python3 benchmarks/tpp.py free-compare --solver tpp-ours --threads-per-instance 8
 ```
 
 Isso cria a campanha local
@@ -315,9 +359,22 @@ prepara nem verifica Fekete ou a licença Gurobi; reutiliza os pacotes C++ já
 baixados em `third_party/tspn-socg/.conan/release` para compilar nosso solver.
 `--solver tpp-fekete` prepara e valida apenas Fekete e exige licença Gurobi;
 `--solver both` prepara e executa os dois. O comando
-`scripts/run_comparison.sh --setup-only --solver tpp-ours --threads-per-instance 8`
+`python3 benchmarks/tpp.py free-compare --setup-only --solver tpp-ours --threads-per-instance 8`
 verifica apenas o setup necessário para nosso solver, sem começar os casos.
 Falhas transitórias de download no setup do Fekete são repetidas até três vezes.
+
+O setup de Fekete inicializa o submódulo `third_party/tspn-socg` na revisão fixada
+pelo repositório, prepara o ambiente Python 3.12+ dele e compila o binding C++. Dois
+patches versionados (`patches/tspn-socg-*.patch`) corrigem o header de `fmt` e compilam
+as variantes racional e double do oráculo TPP embutido; enquanto aplicados, aparecem
+como alterações locais no submódulo, e qualquer outra alteração faz o setup parar sem
+tocá-la. Um fingerprint local (fontes do Fekete e do nosso C++ embutido, perfil Conan,
+CMake e compilador) faz o setup pular a resolução Conan e a compilação quando nada
+mudou. Nosso solver exige C++23, então o GCC 13 do Ubuntu 24.04 serve. Em máquinas
+remotas, exporte `GUROBI_HOME` se o Gurobi não estiver no local padrão e rode
+`python3 benchmarks/tpp.py free-compare --setup-only --solver tpp-fekete` antes da
+primeira execução com o Fekete. `--build-jobs N` (ou `TPP_BUILD_JOBS`) controla a
+compilação paralela.
 `Ctrl+C` grava trajetórias incumbentes e limites
 parciais disponíveis, marcando os casos ativos como `interrupted` para serem
 reexecutados ao retomar. Durante o encerramento cooperativo, o runner informa

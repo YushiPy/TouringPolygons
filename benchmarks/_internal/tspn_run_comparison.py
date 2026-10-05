@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import workspace
+from process_guard import MemoryGuard
 from typing import Any, Sequence
 
 
@@ -95,6 +96,8 @@ def stop_active_processes() -> None:
 
 
 ERROR_TAIL_LINES = 10  # stderr lines kept when a worker fails
+_NUMBER = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+|inf)(?:[eE][+-]?\d+)?"
+_TRACE_LINE = re.compile(r"^\s*(\d+)\s+(" + _NUMBER + r")\s*\|\s*(" + _NUMBER + r")\s*\|\s*(" + _NUMBER + r")s\s*$")
 
 
 @dataclass(frozen=True)
@@ -538,10 +541,76 @@ def parse_partial_progress(output: str) -> dict[str, Any]:
 	}
 
 
+class _Streams:
+	"""Read the worker's two streams while it runs, handing Fekete's bound lines to a callback.
+
+	The solver prints ``iteration LB | UB | seconds`` lines; with a ``progress`` callback each
+	one (at most once per ``interval`` seconds) is reported as it arrives, instead of only after
+	the process exits. Everything read is kept for the log and for partial results.
+	"""
+
+	def __init__(self, process: subprocess.Popen, progress: Any, interval: float) -> None:
+		self.process, self.progress, self.interval = process, progress, interval
+		self.stdout: list[str] = []
+		self.stderr: list[str] = []
+		self.last_report = 0.0
+		self.threads = [
+			threading.Thread(target=self._read_stdout, daemon=True),
+			threading.Thread(target=lambda: self.stderr.extend(process.stderr), daemon=True),
+		]
+		for thread in self.threads:
+			thread.start()
+
+	def _read_stdout(self) -> None:
+		for line in self.process.stdout:
+			self.stdout.append(line)
+			if self.progress is not None:
+				self._report(line)
+
+	def _report(self, line: str) -> None:
+		now = time.monotonic()
+		if self.last_report and now - self.last_report < self.interval:
+			return
+		match = _TRACE_LINE.match(line)
+		if not match:
+			return
+		iterations, lower, upper, seconds = int(match[1]), float(match[2]), float(match[3]), float(match[4])
+		self.last_report = now
+		try:
+			self.progress({
+				"worker": 0, "elapsed_seconds": seconds,
+				"lower_bound": lower if math.isfinite(lower) else None,
+				"upper_bound": upper if math.isfinite(upper) else None,
+				"calls": iterations, "nodes": iterations, "open_nodes": 0, "max_sequence_depth": 0,
+			})
+		except Exception:
+			pass
+
+	def wait(self, timeout: float | None) -> None:
+		self.process.wait(timeout=timeout)
+
+	def finish(self) -> tuple[str, str]:
+		self.process.wait()
+		for thread in self.threads:
+			thread.join()
+		for stream in (self.process.stdout, self.process.stderr):
+			stream.close()
+		return "".join(self.stdout), "".join(self.stderr)
+
+
 def run_case(
 	args: argparse.Namespace, index: int, log_file: Any,
 	log_lock: threading.Lock | None = None,
+	progress: Any = None, progress_interval: float = 60.0,
+	on_start: Any = None, max_memory_bytes: int | None = None, on_memory_limit: Any = None,
 ) -> dict[str, Any]:
+	"""Solve one case in an isolated worker process.
+
+	``progress`` receives the solver's periodic bound line; ``on_start`` its pid. Above
+	``max_memory_bytes`` the worker is asked to stop (SIGTERM), so it reports what it has. When the
+	worker dies anyway (SIGKILL, out of memory), the row keeps the last incumbent checkpoint
+	and bounds it had written, with ``status`` ``killed``.
+	"""
 	if _SHUTDOWN_REQUESTED:
 		return {
 			"status": "interrupted", "is_optimal": False,
@@ -600,41 +669,67 @@ def run_case(
 				text=True, env=environment, start_new_session=(os.name == "posix"),
 			)
 			_ACTIVE_PROCESSES.add(process)
+		if on_start is not None:
+			try:
+				on_start(process.pid)
+			except Exception:
+				pass
+		guard = (
+			MemoryGuard(process.pid, max_memory_bytes, signal.SIGTERM, on_memory_limit)
+			if max_memory_bytes else None
+		)
+		streams = _Streams(process, progress, progress_interval)
 		try:
 			try:
 				process_timeout = None if args.time_limit == -1 else args.time_limit + 120
-				stdout, stderr = process.communicate(timeout=process_timeout)
+				streams.wait(process_timeout)
+				stdout, stderr = streams.finish()
 			except subprocess.TimeoutExpired:
 				_stop_process(process)
-				stdout, stderr = process.communicate()
+				stdout, stderr = streams.finish()
 				write_log(f"\n=== case {index}: process timeout ===\n{stdout}{stderr}")
 				return {"status": "process_timeout", "solve_seconds": time.perf_counter() - started}
 		finally:
+			if guard is not None:
+				guard.close()
 			with _ACTIVE_PROCESSES_LOCK:
 				_ACTIVE_PROCESSES.discard(process)
 
 		write_log(f"\n=== case {index}: exit {process.returncode} ===\n{stdout}{stderr}")
 		if process.returncode != 0:
-			if _SHUTDOWN_REQUESTED:
-				if result_path.exists():
+			elapsed = time.perf_counter() - started
+			# The worker keeps its latest incumbent and bounds in result_path while it searches, so
+			# whatever ended it (shutdown, a signal, the memory guard) leaves a partial result.
+			payload: dict[str, Any] = {}
+			if result_path.exists():
+				try:
 					payload = json.loads(result_path.read_text())
-				else:
-					payload = {
-						"status": "interrupted", "is_optimal": False,
-						"is_valid_trajectory": False,
-						**parse_partial_progress(stdout + "\n" + stderr),
-					}
+				except ValueError:
+					payload = {}
+			if not payload:
+				payload = parse_partial_progress(stdout + "\n" + stderr)
+			payload.setdefault("is_valid_trajectory", False)
+			payload["is_optimal"] = False
+			payload["process_seconds"] = elapsed
+			payload.setdefault("solve_seconds", elapsed)
+			if _SHUTDOWN_REQUESTED:
 				payload["status"] = "interrupted"
-				payload["is_optimal"] = False
-				payload.setdefault("is_valid_trajectory", False)
-				payload.setdefault("solve_seconds", time.perf_counter() - started)
-				payload["process_seconds"] = time.perf_counter() - started
 				return payload
 			message = stderr.strip().splitlines()
-			return {
-				"status": "error", "solve_seconds": time.perf_counter() - started,
-				"error": "\n".join(message[-ERROR_TAIL_LINES:]) if message else f"worker exited {process.returncode}",
-			}
+			tail = "\n".join(message[-ERROR_TAIL_LINES:])
+			if guard is not None and guard.triggered:
+				payload["status"] = "memory_limit"
+				payload["error"] = f"stopped above the memory limit ({max_memory_bytes / 2**30:g} GiB)"
+			elif process.returncode in (-signal.SIGTERM, -signal.SIGINT):
+				payload["status"] = "interrupted"
+				payload["error"] = f"stopped by {signal.Signals(-process.returncode).name}"
+			elif process.returncode < 0:
+				payload["status"] = "killed"
+				payload["error"] = f"worker killed by {signal.Signals(-process.returncode).name}" + (f": {tail}" if tail else "")
+			else:
+				payload["status"] = "error"
+				payload["error"] = tail or f"worker exited {process.returncode}"
+			return payload
 		if not result_path.exists():
 			return {"status": "error", "error": "worker produced no result"}
 		payload = json.loads(result_path.read_text())

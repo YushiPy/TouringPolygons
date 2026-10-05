@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PROJECT = ROOT / "benchmarks"
 VENV = PROJECT / ".venv"
 READY = VENV / ".tpp-environment-ready"
-STANDALONE_COMMANDS = {"setup", "doctor", "ls", "workspace", "remote", "jobs", "tui", "live", "help"}
+STANDALONE_COMMANDS = {"setup", "doctor", "ls", "workspace", "remote", "jobs", "tui", "live", "stop", "help"}
 
 
 def environment_fingerprint() -> str:

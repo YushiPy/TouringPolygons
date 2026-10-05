@@ -22,6 +22,8 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
 import workspace
+from case_selection import CHARACTERS as CASE_CHARACTERS
+from case_selection import parse_case_selection
 
 FIXED, FREE, TSPN = "fixed-order", "free-order", "tspn"
 PROBLEMS = {
@@ -214,6 +216,17 @@ FIELDS: tuple[Field, ...] = (
 		},
 	),
 	Field(
+		"max_memory",
+		"Memory limit (GB)",
+		NUMBER,
+		{
+			FREE: Spec(
+				None,
+				help="Ask an instance to stop (it returns its incumbent and bounds) when it uses more memory than this; empty means no limit.",
+			),
+		},
+	),
+	Field(
 		"progress_interval",
 		"Progress report (s)",
 		NUMBER,
@@ -244,6 +257,17 @@ FIELDS: tuple[Field, ...] = (
 				UNLIMITED,
 				unlimited=True,
 				help="Only the first N instances; -1 means all.",
+			),
+		},
+	),
+	Field(
+		"cases",
+		"Cases",
+		TEXT,
+		{
+			FREE: Spec(
+				None,
+				help="Only these cases, numbered from 1 as `tpp.py live` shows them, e.g. 65,66,130-131; empty means all.",
 			),
 		},
 	),
@@ -518,6 +542,8 @@ def evaluate(text: str) -> int | float:
 
 def allowed_characters(item: Field, problem: str) -> str | None:
 	"""Characters worth typing into a field, or None when anything goes."""
+	if item.key == "cases":
+		return CASE_CHARACTERS
 	return MATH_CHARACTERS if kind_of(item, problem) in (INTEGER, NUMBER) else None
 
 
@@ -541,6 +567,15 @@ def instance_limit(values: Mapping[str, object]) -> int | None:
 	if not counts:
 		return None
 	return sum(counts) if values["problem"] == FREE else max(counts)
+
+
+def case_limit(values: Mapping[str, object]) -> int | None:
+	"""How many cases ``Cases`` may name: the campaign's, cut by ``Max instances``."""
+	total = instance_limit(values)
+	cap = values.get("max_instances")
+	if total is not None and isinstance(cap, int) and cap != UNLIMITED:
+		return min(total, cap)
+	return total
 
 
 def parse_value(
@@ -569,6 +604,11 @@ def parse_value(
 		if limit is not None and value != UNLIMITED and value > limit:
 			raise ValueError(f"the campaign has only {limit} instance(s)")
 		return value
+	if item.key == "cases":
+		if text == "":
+			return None
+		parse_case_selection(text, limit)  # raises ValueError when it is not a valid selection
+		return text
 	if kind == MULTI:
 		names = tuple(entry.strip() for entry in text.split(",") if entry.strip())
 		unknown = [entry for entry in names if entry not in spec.choices]
@@ -637,6 +677,11 @@ def validate(values: Mapping[str, object]) -> list[str]:
 				errors.append(f"{item.label}: the campaign has only {limit} instance(s)")
 		if kind == CHOICE and value not in spec.choices:
 			errors.append(f"{item.label}: invalid choice {value!r}")
+		if item.key == "cases" and value:
+			try:
+				parse_case_selection(str(value), case_limit(values))
+			except ValueError as error:
+				errors.append(f"{item.label}: {error}")
 	if problem == TSPN:
 		if (
 			values.get("oracle_calls") != DEFAULT_CALLS
@@ -816,6 +861,8 @@ def to_legacy(values: Mapping[str, object]) -> tuple[str, list[str]]:
 		_flag(arguments, "--threads-per-instance", values["threads"])
 		_flag(arguments, "--workers", values["workers"])
 		_flag(arguments, "--progress-interval", values["progress_interval"])
+		_flag(arguments, "--max-memory-gb", values["max_memory"])
+		_flag(arguments, "--cases", values["cases"])
 		if values["max_instances"] != UNLIMITED:
 			_flag(arguments, "--max-instances", values["max_instances"])
 		else:

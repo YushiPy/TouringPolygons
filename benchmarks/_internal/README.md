@@ -19,9 +19,11 @@ Ao adicionar um fluxo de benchmark:
 As famílias internas são:
 
 - campanhas: `create_synthetic_campaign.py`, `run_generated.py`,
-  `free_order_campaign.py` e `tspn_campaign.py` (preparação, build único,
-  shards e fusão da campanha TSPN completa; o motor por caso é
-  `tspn_benchmark.py`);
+  `free_order_campaign.py`, `free_order_comparison.py` (`free-compare`: setup do
+  Fekete e do nosso solver, campanha dos 558 casos; `fekete_fingerprint.py` decide
+  se o binding precisa ser recompilado) e `tspn_campaign.py` (preparação, build
+  único, shards e fusão da campanha TSPN completa; o motor por caso é
+  `tspn_benchmark.py`); `process_guard.py` limita a memória de um solver;
 - interface de comando: `run_spec.py` descreve cada opção uma vez (problemas em
   que vale, padrões, validação) e traduz para os módulos acima; `bench` (em
   `tpp.py`) e `benchmark_tui.py` só consomem esse esquema. Uma opção nova entra
