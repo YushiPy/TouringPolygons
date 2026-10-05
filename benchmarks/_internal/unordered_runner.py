@@ -10,12 +10,22 @@ import threading
 from pathlib import Path
 from typing import Callable, Sequence
 
+from process_guard import MemoryGuard
+
 Point = Sequence[float]
 Polygon = Sequence[Point]
 
 _ACTIVE_PROCESSES: set[subprocess.Popen[str]] = set()
 _ACTIVE_PROCESSES_LOCK = threading.Lock()
 _SHUTDOWN_REQUESTED = False
+
+
+class SolverKilled(RuntimeError):
+	"""The solver process died from a signal (SIGKILL from the user or the out-of-memory killer...)."""
+
+	def __init__(self, message: str, signal_number: int) -> None:
+		super().__init__(message)
+		self.signal_number = signal_number
 
 
 def interrupt_running_solvers() -> None:
@@ -130,9 +140,16 @@ def run_unordered_solver(
 	process_timeout: float | None = None,
 	progress: Callable[[dict], None] | None = None,
 	progress_interval: float | None = None,
+	on_start: Callable[[int], None] | None = None,
+	max_memory_bytes: int | None = None,
+	on_memory_limit: Callable[[int], None] | None = None,
 ) -> dict:
 	"""Run the solver; with ``progress`` and a positive ``progress_interval`` (seconds), call
-	``progress`` with each periodic status the solver prints while it searches."""
+	``progress`` with each periodic status the solver prints while it searches.
+
+	``on_start`` receives the solver's pid. ``max_memory_bytes`` asks the solver to stop (SIGINT, so it
+	returns its incumbent and bounds) when its resident memory passes the limit; ``on_memory_limit``
+	is told how much it used. A solver killed by a signal raises ``SolverKilled``."""
 	streaming = progress is not None and bool(progress_interval) and progress_interval > 0
 	command = [str(solver.resolve()), *arguments, *(['--initial-path'] if initial_path is not None else [])]
 	if streaming:
@@ -147,6 +164,16 @@ def run_unordered_solver(
 			text=True, start_new_session=(os.name == 'posix'),
 		)
 		_ACTIVE_PROCESSES.add(process)
+	if on_start is not None:
+		try:
+			on_start(process.pid)
+		except Exception:
+			pass
+	guard = (
+		MemoryGuard(process.pid, max_memory_bytes, signal.SIGINT, on_memory_limit)
+		if max_memory_bytes
+		else None
+	)
 	text = encode_instance(start, target, polygons, max_calls, max_seconds, initial_path)
 	streams = _StreamedProcess(process, text, progress) if streaming else None
 
@@ -172,8 +199,13 @@ def run_unordered_solver(
 			drain()
 			raise
 	finally:
+		if guard is not None:
+			guard.close()
 		with _ACTIVE_PROCESSES_LOCK:
 			_ACTIVE_PROCESSES.discard(process)
+	if process.returncode and process.returncode < 0:
+		name = signal.Signals(-process.returncode).name
+		raise SolverKilled(f'solver killed by {name}' + (f': {stderr.strip()}' if stderr.strip() else ''), -process.returncode)
 	if process.returncode:
 		raise RuntimeError(stderr.strip() or 'Free-order solver failed.')
 	return json.loads(stdout)

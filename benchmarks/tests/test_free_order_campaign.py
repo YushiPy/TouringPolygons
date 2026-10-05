@@ -144,7 +144,7 @@ class FreeOrderQueueTests(unittest.TestCase):
 					with active_lock:
 						active_our_cases -= 1
 
-			def fake_fekete_solver(_args, index, _log_file, _log_lock):
+			def fake_fekete_solver(_args, index, _log_file, _log_lock, **_options):
 				self.assertEqual(_args.worker_python, venv_python)
 				self.assertTrue(slow_case_started.is_set())
 				with active_lock:
@@ -205,7 +205,7 @@ class FreeOrderQueueTests(unittest.TestCase):
 				patch.object(free_order_campaign, 'run_unordered_solver', return_value=ours) as native, \
 				patch.object(free_order_campaign, 'validate_path', return_value={'valid': True}), \
 				patch.object(tspn_run_comparison, 'run_case',
-					side_effect=lambda _args, index, *_rest: partial if index == 0 else failure) as external, \
+					side_effect=lambda _args, index, *_rest, **_options: partial if index == 0 else failure) as external, \
 				contextlib.redirect_stdout(io.StringIO()):
 				self.assertEqual(free_order_campaign.main(options), 2)  # solver error, not a campaign failure
 				native.reset_mock()
@@ -297,8 +297,8 @@ class ExternalWorkerRuntimeTests(unittest.TestCase):
 					self.assertEqual(command[0], str(link))
 					result_path = Path(command[command.index('--worker-result') + 1])
 					result_path.write_text(json.dumps({'status': 'optimal', 'upper_bound': 10.}))
-					process = Mock(returncode=0)
-					process.communicate.return_value = ('', '')
+					process = Mock(returncode=0, stdout=io.StringIO(''), stderr=io.StringIO(''))
+					process.wait.return_value = 0
 					return process
 				with patch.object(tspn_run_comparison.subprocess, 'Popen', side_effect=fake_spawn):
 					result = tspn_run_comparison.run_case(args, 0, io.StringIO())
@@ -326,7 +326,7 @@ class SingleReportFileTests(unittest.TestCase):
 		return {'status': 'optimal', 'exact': True, 'termination': 'optimal', 'seconds': 0.1,
 			'upper_bound': 10.0, 'lower_bound': 10.0, 'path': [[0.0, 0.0], [10.0, 0.0]]}
 
-	def fekete(self, args, index, _log_file, _log_lock):
+	def fekete(self, args, index, _log_file, _log_lock, **_options):
 		self.fekete_calls.append((args.suite, index))
 		return {'status': 'optimal', 'is_optimal': True, 'is_valid_trajectory': True,
 			'lower_bound': 10.0, 'upper_bound': 10.0, 'absolute_gap': 0.0, 'relative_gap': 0.0,

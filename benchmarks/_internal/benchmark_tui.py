@@ -219,6 +219,8 @@ class App:
 			return "unlimited"
 		if item.key == "campaign" and not value:
 			return "<choose a campaign>"
+		if item.key == "max_memory" and value is None:
+			return "no limit"
 		if item.key == "max_instances":
 			total = run_spec.instance_limit(self.session.values)
 			if total is not None:

@@ -245,6 +245,48 @@ def command_live(argv: Sequence[str]) -> int:
 		return 0
 
 
+def command_stop(argv: Sequence[str]) -> int:
+	"""Ask chosen running instances to stop; each one reports its incumbent and bounds as it ends."""
+	import argparse
+
+	import live_progress
+
+	parser = argparse.ArgumentParser(
+		prog="tpp.py stop",
+		description="Stop some running instances, not the whole run. They return their incumbent and bounds "
+		"(recorded in the report as interrupted) and the rest keep going. Without --case/--pid/--all it only lists "
+		"what can be stopped.",
+	)
+	parser.add_argument("path", nargs="?", help="a campaign NAME or a directory; default: the whole workspace")
+	parser.add_argument("--case", type=int, action="append", default=[], metavar="N",
+		help="the case number shown by `tpp.py live` (free case N/TOTAL); repeatable")
+	parser.add_argument("--pid", type=int, action="append", default=[], help="a solver pid shown by this command")
+	parser.add_argument("--all", action="store_true", help="every running instance")
+	args = parser.parse_args(list(argv))
+	root = workspace.campaign_path(args.path) if args.path else workspace.root()
+	children = live_progress.running_children(root)
+	if not children:
+		print(f"No running instance can be stopped under {root}.")
+		return 0
+	chosen = [
+		child for child in children
+		if args.all or child["child_pid"] in args.pid
+		or any(f"case {number}/" in child["label"] for number in args.case)
+	]
+	if not (args.all or args.pid or args.case):
+		for child in children:
+			print(f"pid {child['child_pid']:>7}  [{child['run']}] {child['label']}  ({child['stop_signal']})")
+		print("Choose with --case N, --pid P or --all.")
+		return 0
+	if not chosen:
+		print("Nothing matches; run `tpp.py stop` without options to see what is running.")
+		return 1
+	for child in chosen:
+		sent = live_progress.stop_child(child)
+		print(f"{'asked to stop' if sent else 'already finished'}: pid {child['child_pid']} [{child['run']}] {child['label']}")
+	return 0
+
+
 def command_report(argv: Sequence[str]) -> int:
 	import free_order_campaign
 
@@ -296,6 +338,8 @@ GROUPS: dict[str, dict[str, Command]] = {
 	"Workspace": {
 		"live": Command("[PATH] [--once]", "Follow bounds, gap, calls and queue of running instances (from live.json).",
 			lambda argv: command_live(argv)),
+		"stop": Command("[PATH] [--case N|--pid P|--all]", "Stop some running instances (they report incumbent and bounds); lists them without options.",
+			lambda argv: command_stop(argv)),
 		"ls": Command("[campaigns|runs|experiments]", "List local campaigns, runs and experiments.",
 			lambda argv: command_module("workspace", ["list", *argv])),
 		"workspace": Command("list|migrate|path", "Manage the local workspace (TPP_WORKSPACE).", module("workspace")),
@@ -357,7 +401,7 @@ GROUPS: dict[str, dict[str, Command]] = {
 }
 COMMANDS = {name: command for group in GROUPS.values() for name, command in group.items()}
 # Commands that only read or prepare state are not journaled.
-UNJOURNALED = {"setup", "doctor", "ls", "workspace", "status", "jobs", "remote", "live"}
+UNJOURNALED = {"setup", "doctor", "ls", "workspace", "status", "jobs", "remote", "live", "stop"}
 
 
 def print_help() -> None:

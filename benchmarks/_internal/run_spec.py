@@ -214,6 +214,17 @@ FIELDS: tuple[Field, ...] = (
 		},
 	),
 	Field(
+		"max_memory",
+		"Memory limit (GB)",
+		NUMBER,
+		{
+			FREE: Spec(
+				None,
+				help="Ask an instance to stop (it returns its incumbent and bounds) when it uses more memory than this; empty means no limit.",
+			),
+		},
+	),
+	Field(
 		"progress_interval",
 		"Progress report (s)",
 		NUMBER,
@@ -816,6 +827,7 @@ def to_legacy(values: Mapping[str, object]) -> tuple[str, list[str]]:
 		_flag(arguments, "--threads-per-instance", values["threads"])
 		_flag(arguments, "--workers", values["workers"])
 		_flag(arguments, "--progress-interval", values["progress_interval"])
+		_flag(arguments, "--max-memory-gb", values["max_memory"])
 		if values["max_instances"] != UNLIMITED:
 			_flag(arguments, "--max-instances", values["max_instances"])
 		else:

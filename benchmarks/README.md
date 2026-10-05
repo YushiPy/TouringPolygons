@@ -78,6 +78,37 @@ quantos; `--include-gone` os mantém e mostra. Snapshots de outra máquina
 (workspace compartilhado) nunca são apagados. Se o terminal for fechado, o shell costuma matar a
 execução; para execuções longas, inicie-a em `tmux`/`screen` ou com `nohup`.
 
+### Quando um solver é interrompido, morto ou fica sem memória
+
+Cada report também é **anexado** a `results/EXECUÇÃO/progress.jsonl` (tempo, LB, UB,
+gap, chamadas), que sobrevive a um terminal perdido, ao pai morto e ao fim da
+execução: dá o histórico de convergência de cada caso. Além disso, o resultado parcial
+vai para o relatório mesmo que o solver não termine:
+
+| O que aconteceu | `status` da linha | O que fica registrado |
+|---|---|---|
+| `tpp.py stop` (SIGINT no tpp-ours, SIGTERM no Fekete) ou Ctrl+C | `interrupted` | incumbente (caminho), LB e UB |
+| processo morto por sinal (SIGKILL, OOM killer) | `killed` | LB, UB, tempo e chamadas do último report; no Fekete também o último incumbente que ele havia gravado |
+| acima do limite de memória (`--max-memory-gb`) | `memory_limit` | incumbente, LB e UB (o solver é parado, não morto) |
+
+Esses casos contam como erro de solver (`completed_with_errors`) e a retomada os
+refaz do zero, pois nenhum solver continua de um estado salvo; o parcial serve
+para saber onde parou e estimar o tempo que faltava.
+
+Para parar só algumas instâncias, sem encerrar a execução:
+
+```bash
+python3 benchmarks/tpp.py stop                # lista as instâncias em execução e seus pids
+python3 benchmarks/tpp.py stop --case 130     # o número mostrado por `live` (free case 130/558)
+python3 benchmarks/tpp.py stop --all
+```
+
+`--max-memory-gb N` (campo "Memory limit (GB)" no `scripts/benchmark.sh`) confere a
+memória residente de cada solver a cada 5 s e o interrompe com SIGINT/SIGTERM
+antes que o sistema o mate. O limite vale por instância, não pelo total. Para a
+execução sobreviver ao terminal fechado, inicie-a com `tpp.py jobs start`, `tmux`
+ou `nohup`.
+
 O `live` avisa quando uma instância deixa de reportar (uma chamada longa ao
 oráculo ou um solver travado). O relatório só observa a busca: o resultado, as chamadas e
 os nós são idênticos com ele ligado ou desligado (há teste C++ para isso). O

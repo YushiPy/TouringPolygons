@@ -208,8 +208,8 @@ class BenchmarkEnvironmentTests(unittest.TestCase):
 			self.assertEqual(command[0], str(python))
 			output = Path(command[command.index("--worker-result") + 1])
 			output.write_text('{"status": "optimal"}')
-			process = Mock(returncode=0)
-			process.communicate.return_value = ("", "")
+			process = Mock(returncode=0, stdout=io.StringIO(""), stderr=io.StringIO(""))
+			process.wait.return_value = 0
 			return process
 
 		with (
