@@ -491,14 +491,9 @@ def main(argv: list[str] | None = None) -> int:
 		'instance_workers': args.workers, 'threads_per_instance': args.threads_per_instance,
 		'machine': workspace.machine_state(), 'git': workspace.git_state(), 'origin': workspace.origin()}
 	report['attempts'].append(attempt)
+	# Geometry is not stored per run: rows reference an instance by its hash and the
+	# campaign's input .bin is the single copy (the dashboard resolves hashes there).
 	geometry_catalog = {case.digest: case_geometry(case) for case in cases}
-	geometry_dir = run / 'geometry'
-	geometry_dir.mkdir(exist_ok=True)
-	for digest, geometry in geometry_catalog.items():
-		path = geometry_dir / f'{digest}.json'
-		if not path.exists():
-			atomic_json(path, geometry)
-	atomic_json(run / 'geometry.json', {'schema_version': 2, 'hashes': list(geometry_catalog)})
 	for row in report['rows']:
 		if row.get('geometry'):
 			row['geometry_sha256'] = row.get('sha256')

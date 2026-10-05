@@ -19,7 +19,7 @@ if str(SCRIPTS) not in sys.path:
 
 import workspace  # noqa: E402
 from benchmark_cases import read_encoded_cases  # noqa: E402
-from free_order_campaign import ensure_binary  # noqa: E402
+from free_order_campaign import case_geometry, ensure_binary  # noqa: E402
 from unordered_runner import run_unordered_solver  # noqa: E402
 
 _build_lock = threading.Lock()
@@ -70,7 +70,33 @@ def _latest_free_report(campaign: Path) -> Path | None:
     return files[0] if files else None
 
 
+_campaign_geometry_cache: dict[Path, tuple[tuple, dict[str, dict]]] = {}
+
+
+def _campaign_geometry(campaign: Path) -> dict[str, dict]:
+    """Geometry of every instance in the campaign's input files, by instance hash.
+
+    Runs reference instances by hash and keep no copy: the input .bin is the only copy.
+    """
+    try:
+        metadata = json.loads((campaign / "campaign.json").read_text())
+    except (OSError, ValueError):
+        return {}
+    files = [campaign / record["file"] for record in metadata.get("inputs", []) if record.get("file")]
+    stamp = tuple((path, path.stat().st_mtime_ns, path.stat().st_size) for path in files if path.is_file())
+    cached = _campaign_geometry_cache.get(campaign)
+    if cached is not None and cached[0] == stamp:
+        return cached[1]
+    index = {}
+    for path, _, _ in stamp:
+        for case in read_encoded_cases(path):
+            index[case.digest] = case_geometry(case)
+    _campaign_geometry_cache[campaign] = (stamp, index)
+    return index
+
+
 def _geometry_index(report_path: Path) -> tuple[set[str], dict[str, dict]]:
+    """Hashes and geometry kept next to a report by older runs (newer runs keep none)."""
     path = report_path.with_name("geometry.json")
     hashes = {item.stem for item in report_path.with_name("geometry").glob("*.json")}
     if not path.exists():
@@ -80,9 +106,12 @@ def _geometry_index(report_path: Path) -> tuple[set[str], dict[str, dict]]:
     return hashes | set(data.get("hashes", [])) | set(legacy), legacy
 
 
-def _geometry_for_hash(report_path: Path, digest: str | None) -> dict | None:
+def _geometry_for_hash(campaign: Path, report_path: Path, digest: str | None) -> dict | None:
     if not digest:
         return None
+    geometry = _campaign_geometry(campaign).get(digest)
+    if geometry is not None:
+        return geometry
     path = report_path.with_name("geometry") / f"{digest}.json"
     if path.exists():
         return json.loads(path.read_text())
@@ -116,7 +145,7 @@ def free_results(campaign: Path, *, endpoint: str = "") -> dict:
         }
     report = json.loads(report_path.read_text())
     report["path"] = str(report_path.relative_to(campaign))
-    report["geometry_catalog"] = list(_geometry_index(report_path)[0])
+    report["geometry_catalog"] = list(_geometry_index(report_path)[0] | set(_campaign_geometry(campaign)))
     return _compact_report(report, endpoint)
 
 
@@ -130,7 +159,7 @@ def free_result_case(campaign: Path, case_index: int) -> dict:
         raise HTTPException(404, "The requested case is absent from the latest report.")
     geometry = next((row.get("geometry") for row in rows if row.get("geometry")), None)
     geometry_hash = next((row.get("geometry_sha256") or row.get("sha256") for row in rows), None)
-    geometry = geometry or _geometry_for_hash(report_path, geometry_hash)
+    geometry = geometry or _geometry_for_hash(campaign, report_path, geometry_hash)
     if geometry:
         for row in rows:
             row["geometry"] = geometry

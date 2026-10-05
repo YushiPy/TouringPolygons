@@ -13,7 +13,7 @@ from fastapi import HTTPException
 from test_api_integration import endpoint
 
 import main
-from dashboard.dashboard_free_order import free_command, free_result_case, free_results
+from dashboard.dashboard_free_order import _campaign_geometry, free_command, free_result_case, free_results
 from dashboard.dashboard_models import CompareSolversRequest, LiveSolveRequest, RunCampaignRequest
 
 
@@ -142,9 +142,26 @@ class FreeOrderTests(unittest.TestCase):
             self.assertEqual(len(resumed["rows"]), 2)
             self.assertEqual(resumed["checkpoint"]["completed_pairs"], 2)
             self.assertNotIn("geometry", resumed["rows"][0])
-            self.assertTrue((report_path.parent / "geometry.json").exists())
-            self.assertEqual(len(list((report_path.parent / "geometry").glob("*.json"))), 2)
+            # A run keeps no copy of the geometry: rows carry the instance hash and the
+            # dashboard resolves it from the campaign's input file.
+            self.assertFalse((report_path.parent / "geometry.json").exists())
+            self.assertFalse((report_path.parent / "geometry").exists())
             self.assertEqual(free_result_case(campaign, 1)["rows"][0]["geometry"]["target"], [2.0, 0.0])
+            summary = free_results(campaign, endpoint="/detail")
+            self.assertTrue(all(row["visualization_available"] for row in summary["rows"]))
+
+    def test_geometry_is_resolved_from_the_campaign_input_and_follows_edits(self):
+        with tempfile.TemporaryDirectory() as directory:
+            campaign = Path(directory)
+            inputs = campaign / "inputs/cases.bin"
+            main.write_binary_cases(inputs, [((0, 0), (1, 0), [])])
+            (campaign / "campaign.json").write_text(json.dumps({"inputs": [{"file": "inputs/cases.bin"}]}))
+            first = _campaign_geometry(campaign)
+            self.assertEqual([g["target"] for g in first.values()], [[1.0, 0.0]])
+            main.write_binary_cases(inputs, [((0, 0), (1, 0), []), ((0, 0), (5, 0), [])])
+            second = _campaign_geometry(campaign)
+            self.assertEqual(sorted(g["target"][0] for g in second.values()), [1.0, 5.0])
+            self.assertEqual(_campaign_geometry(campaign / "missing"), {})
 
     def test_editor_dispatches_free_order_without_fixed_solver(self):
         solve = endpoint("/api/editor/solve", "POST")
