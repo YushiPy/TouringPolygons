@@ -23,6 +23,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import native_build
+import run_layout
 import tspn_benchmark
 
 import workspace
@@ -481,17 +482,6 @@ def shard_arguments(
 # --- execution --------------------------------------------------------------
 
 
-def move_aside(output: Path) -> Path | None:
-	if not output.is_dir():
-		return None
-	backup = output.with_name(
-		f"{output.name}.previous-{time.strftime('%Y%m%d-%H%M%S')}"
-	)
-	output.rename(backup)
-	print(f"Moved existing campaign to {backup}")
-	return backup
-
-
 def build_native(options: Options, output: Path) -> None:
 	output.mkdir(parents=True, exist_ok=True)
 	commands = tspn_benchmark.native_build_commands(
@@ -640,7 +630,6 @@ def describe(options: Options) -> str:
 
 
 def run(options: Options) -> int:
-	output = options.output
 	changes = prepare_environment(options, probe_toolchain=not options.dry_run)
 	if options.setup_only:
 		print(
@@ -649,8 +638,8 @@ def run(options: Options) -> int:
 		)
 		print(f"Run with: tpp.py tspn-compare --campaign {options.campaign}")
 		return 0
-	if options.force and not options.dry_run:
-		move_aside(output)
+	# A run of its own in results/<run-id>/; --force starts a new one instead of resuming.
+	output = run_layout.tspn_run_directory(options.output, new=options.force)
 	print(f"Archive: {EXPECTED_CASES} cases; campaign: {output}")
 	print(describe(options))
 	if options.dry_run:

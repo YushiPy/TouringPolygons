@@ -669,9 +669,12 @@ def output_location(values: Mapping[str, object]) -> str:
 	campaign = values.get("campaign")
 	if not campaign:
 		return "(choose a campaign)"
-	if values["problem"] == TSPN:
-		return str(workspace.campaigns_dir() / str(campaign))
-	return str(workspace.campaign_path(str(campaign)) / "results" / "<run>")
+	root = (
+		workspace.campaigns_dir() / str(campaign)
+		if values["problem"] == TSPN
+		else workspace.campaign_path(str(campaign))
+	)
+	return str(root / "results" / "<run>")
 
 
 # --- the canonical command line ---------------------------------------------

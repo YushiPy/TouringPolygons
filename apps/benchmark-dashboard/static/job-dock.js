@@ -20,7 +20,7 @@ export function dismissFinishedJobForPanel(state, panelId, renderJobDock) {
 
 function jobDockStatusIcon(job) {
 	const state = jobTerminalState(job);
-	if (state === "failed" || state === "canceled") {
+	if (state === "failed" || state === "canceled" || state === "completed_with_errors") {
 		return `<span class="job-dock-warning" aria-hidden="true">${warningIconSVG()}</span>`;
 	}
 	return '<span class="job-dock-check" aria-hidden="true">✓</span>';
@@ -49,7 +49,7 @@ export function createJobDock({ requestJSON, state, switchPanel }) {
 		item.classList.toggle("is-completed", jobTerminalState(job) === "completed");
 		item.classList.toggle("is-failed", jobTerminalState(job) === "failed");
 		item.classList.toggle("is-canceled", jobTerminalState(job) === "canceled");
-		item.querySelector("[data-job-dock-status]").textContent = `${jobKindLabel(job)} ${active ? "running..." : job.status}`;
+		item.querySelector("[data-job-dock-status]").textContent = `${jobKindLabel(job)} ${active ? "running..." : job.status.replaceAll("_", " ")}`;
 		item.querySelector("[data-job-dock-campaign]").textContent = job.campaign || "-";
 		item.querySelector("[data-job-dock-progress]").textContent = `${jobProgressLabel(job)} | ${formatElapsed((job.finished_at || Date.now() / 1000) - (job.started_at || Date.now() / 1000))}`;
 	}

@@ -3,7 +3,9 @@
 Every run of a campaign has its own directory under ``results/``:
 
 - free-order runs keep one file, ``report.json`` (plus ``live.json`` while they run);
-- fixed-order runs keep ``run-index.csv`` and the per-input ``.csv``/``.md``/``.log``/``.done`` files.
+- fixed-order runs keep ``run-index.csv`` and the per-input ``.csv``/``.md``/``.log``/``.done`` files;
+- TSPN runs (``tpp.py tspn-compare``) keep ``config.json``, ``raw.jsonl``, the reports and, with
+  ``--workers``, ``shard-N/`` directories.
 
 The kind is told by what a run directory holds, not by its path. Earlier checkouts
 kept free-order runs in ``results/free-order/<run-id>/`` and fixed-order files
@@ -24,6 +26,7 @@ from pathlib import Path
 RESULTS = "results"
 FREE_ORDER_REPORT = "report.json"
 FIXED_ORDER_INDEX = "run-index.csv"
+TSPN_CONFIG = "config.json"
 LEGACY_FREE_ORDER_DIRECTORY = "free-order"
 # Derived artifacts that are not runs and stay beside them.
 NOT_RUNS = {"comparisons", LEGACY_FREE_ORDER_DIRECTORY}
@@ -104,6 +107,31 @@ def latest_fixed_order_index(campaign: Path) -> Path:
 	return latest_fixed_order_directory(campaign) / FIXED_ORDER_INDEX
 
 
+# --- TSPN ---------------------------------------------------------------------
+
+
+def tspn_runs(campaign: Path) -> list[Path]:
+	"""TSPN run directories, newest first. A sharded run that stopped before merging has only shard-N/config.json."""
+	return _newest_first(
+		list({*_run_directories(campaign, TSPN_CONFIG), *_run_directories(campaign, f"shard-0/{TSPN_CONFIG}")})
+	)
+
+
+def tspn_run_directory(campaign: Path, *, new: bool) -> Path:
+	"""Where a ``tspn-compare`` run goes: a fresh ``results/<run-id>/``, or the one to resume.
+
+	A campaign folder that predates this layout (``config.json`` directly in it) is resumed
+	in place until ``workspace migrate-results`` moves it.
+	"""
+	if not new:
+		runs = tspn_runs(campaign)
+		if runs:
+			return runs[0]
+		if (campaign / TSPN_CONFIG).is_file():
+			return campaign
+	return results_dir(campaign) / new_run_id()
+
+
 # --- migration ----------------------------------------------------------------
 
 
@@ -112,7 +140,7 @@ def _is_run_entry(path: Path) -> bool:
 		path.is_dir()
 		and any(
 			(path / marker).is_file()
-			for marker in (FREE_ORDER_REPORT, FIXED_ORDER_INDEX)
+			for marker in (FREE_ORDER_REPORT, FIXED_ORDER_INDEX, TSPN_CONFIG)
 		)
 	)
 
@@ -132,6 +160,7 @@ def migrate(
 	"""
 	actions: list[str] = []
 	results = results_dir(campaign)
+	actions.extend(_migrate_tspn(campaign, dry_run=dry_run))
 	if not results.is_dir():
 		return actions
 
@@ -175,6 +204,26 @@ def migrate(
 				rewrite_paths(target, [(str(results), str(target))])
 			_repoint_campaign_runs(campaign, run_id)
 	return actions
+
+
+def _migrate_tspn(campaign: Path, *, dry_run: bool) -> list[str]:
+	"""A TSPN campaign folder written before the layout (config.json + raw.jsonl at its top) becomes one run."""
+	config = campaign / TSPN_CONFIG
+	if not config.is_file() or (campaign / "campaign.json").exists():
+		return []
+	run_id = (
+		datetime.fromtimestamp(config.stat().st_mtime, UTC).strftime("%Y%m%d-%H%M%S-")
+		+ "legacy"
+	)
+	target = results_dir(campaign) / run_id
+	if target.exists():
+		return [f"SKIP {campaign.name}: {target.relative_to(campaign)} already exists"]
+	items = [child for child in sorted(campaign.iterdir()) if child.name != RESULTS]
+	if not dry_run:
+		target.mkdir(parents=True)
+		for child in items:
+			child.rename(target / child.name)
+	return [f"move {len(items)} TSPN item(s) of {campaign.name}/ -> {target.relative_to(campaign)}"]
 
 
 def _repoint_campaign_runs(campaign: Path, run_id: str) -> None:

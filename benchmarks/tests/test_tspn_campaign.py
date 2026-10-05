@@ -162,16 +162,6 @@ class ShardTests(unittest.TestCase):
 				(4, 4, 2),
 			)
 
-	def test_move_aside_keeps_the_previous_campaign(self):
-		with tempfile.TemporaryDirectory() as directory:
-			output = Path(directory) / "c"
-			output.mkdir()
-			(output / "raw.jsonl").write_text("x")
-			backup = campaign.move_aside(output)
-			self.assertFalse(output.exists())
-			self.assertEqual((backup / "raw.jsonl").read_text(), "x")
-			self.assertIsNone(campaign.move_aside(output))
-
 
 class PreflightTests(unittest.TestCase):
 	def test_suite_hash_mismatch_is_fatal(self):

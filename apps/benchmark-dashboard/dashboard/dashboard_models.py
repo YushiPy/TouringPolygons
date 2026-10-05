@@ -183,6 +183,10 @@ class Job:
             return "canceled"
         if self.returncode == 0:
             return "completed"
+        # tpp.py free-order exits with 2 when every case ran but a solver failed on some (the
+        # report was written); argparse also uses 2, but then there is no "Report:" line.
+        if self.returncode == 2 and any(line.startswith("Report: ") for line in self.output.splitlines()):
+            return "completed_with_errors"
         return "failed"
 
     def snapshot(self) -> dict[str, Any]:

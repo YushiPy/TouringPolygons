@@ -212,16 +212,17 @@ def command_live(argv: Sequence[str]) -> int:
 	parser.add_argument("--stale-after", type=float, default=300.0, metavar="SECONDS",
 		help="flag an instance that has not reported for this long")
 	parser.add_argument("--include-gone", action="store_true",
-		help="also show snapshots left by processes that no longer exist")
+		help="show snapshots left by processes that no longer exist instead of deleting them")
 	args = parser.parse_args(list(argv))
 	root = workspace.campaign_path(args.path) if args.path else workspace.root()
-	options = {"stale_after": args.stale_after, "show_idle": bool(args.path), "show_gone": args.include_gone}
+	options = {"stale_after": args.stale_after, "show_idle": bool(args.path), "show_gone": args.include_gone,
+		"remove_gone": not args.include_gone}
 
 	entries, hidden = live_progress.read_status(root, **options)
 	for _, _, line in entries:
 		print(line, flush=True)
 	if hidden:
-		print(f"({hidden} snapshot(s) of finished or dead processes hidden; --include-gone shows them)", flush=True)
+		print(f"(removed {hidden} stale snapshot(s) left by processes that no longer exist; --include-gone keeps and shows them)", flush=True)
 	if args.once:
 		if not entries:
 			print(f"No running instance reports status under {root}.", flush=True)

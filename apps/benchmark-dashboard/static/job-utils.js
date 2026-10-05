@@ -32,6 +32,9 @@ export function jobTerminalState(job) {
 	if (job.status === "completed") {
 		return "completed";
 	}
+	if (job.status === "completed_with_errors") {
+		return "completed_with_errors";
+	}
 	return "running";
 }
 
