@@ -153,10 +153,38 @@ class LiveStatusTests(unittest.TestCase):
 			self.assertEqual(live.render_snapshots(root, now=now + 10), [])
 			entries, hidden = live.read_status(root, now=now + 10)
 			self.assertEqual((entries, hidden), ([], 1))
+			self.assertTrue((root / "run" / "live.json").exists())
+			self.assertTrue((root / "run" / "live.json").exists())
 			self.assertIn(
 				"no longer running",
 				live.render_snapshots(root, now=now + 10, show_gone=True)[0],
 			)
+
+	def test_dead_snapshots_are_deleted_only_when_they_belong_to_this_machine(self):
+		with tempfile.TemporaryDirectory() as directory:
+			root = Path(directory)
+			for name, host in (("mine", live.socket.gethostname()), ("theirs", "another-machine")):
+				(root / name).mkdir()
+				(root / name / "live.json").write_text(
+					json.dumps({"updated_at": time.time(), "pid": 2**22 + 7, "host": host, "running": []})
+				)
+			_, removed = live.read_status(root, remove_gone=True, show_idle=False)
+			self.assertEqual(removed, 1)
+			self.assertFalse((root / "mine" / "live.json").exists())
+			self.assertTrue((root / "theirs" / "live.json").exists())
+
+	def test_dead_snapshots_are_deleted_only_when_they_belong_to_this_machine(self):
+		with tempfile.TemporaryDirectory() as directory:
+			root = Path(directory)
+			for name, host in (("mine", live.socket.gethostname()), ("theirs", "another-machine")):
+				(root / name).mkdir()
+				(root / name / "live.json").write_text(
+					json.dumps({"updated_at": time.time(), "pid": 2**22 + 7, "host": host, "running": []})
+				)
+			_, removed = live.read_status(root, remove_gone=True, show_idle=False)
+			self.assertEqual(removed, 1)
+			self.assertFalse((root / "mine" / "live.json").exists())
+			self.assertTrue((root / "theirs" / "live.json").exists())
 
 	def test_idle_snapshots_are_hidden_unless_asked_for(self):
 		with tempfile.TemporaryDirectory() as directory:

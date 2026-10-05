@@ -72,9 +72,10 @@ python3 benchmarks/tpp.py live --once     # imprime o estado atual e sai
 
 o `live` imprime o estado de cada instância e **continua rodando**, mostrando
 cada novo report assim que ele chega (Ctrl+C para sair), e avisa quando uma
-execução termina. Snapshots deixados por processos que já não existem (execução
-morta ou terminal fechado) ficam ocultos, com uma linha avisando quantos;
-`--include-gone` os mostra. Se o terminal for fechado, o shell costuma matar a
+execução termina. Snapshots deixados por processos que já não existem nesta máquina
+(execução morta ou terminal fechado) são apagados, com uma linha avisando
+quantos; `--include-gone` os mantém e mostra. Snapshots de outra máquina
+(workspace compartilhado) nunca são apagados. Se o terminal for fechado, o shell costuma matar a
 execução; para execuções longas, inicie-a em `tmux`/`screen` ou com `nohup`.
 
 O `live` avisa quando uma instância deixa de reportar (uma chamada longa ao
@@ -115,7 +116,8 @@ workspace/
 Dentro de uma campanha, **toda execução tem a própria pasta**
 `results/<AAAAMMDD-HHMMSS-id>/`, qualquer que seja o problema: a ordem livre
 guarda um único `report.json`; a ordem fixa guarda `run-index.csv` e os
-`.csv`/`.md`/`.log`/`.done` de cada entrada. O tipo é dado pelo que a pasta
+`.csv`/`.md`/`.log`/`.done` de cada entrada; o TSPN guarda `config.json`,
+`raw.jsonl`, os relatórios e os `shard-N/`. O tipo é dado pelo que a pasta
 contém, não pelo caminho. Repetir um comando com as mesmas configurações
 continua a execução mais recente (ordem fixa: se o que ela terminou usou as
 mesmas configurações e o mesmo binário); configurações diferentes ou
@@ -587,9 +589,10 @@ O script é um atalho para `python3 benchmarks/tpp.py tspn-compare`, que faz tod
 a preparação: confere o SHA-256 do ZIP e a revisão fixada do submódulo, valida as
 dependências Conan, escolhe o padrão C++ e compila uma vez. Depois executa
 `tspn-benchmark --all --instances-zip …/instances_socg_simplified.zip --output
-benchmarks/workspace/campaigns/tspn-fekete-comparison-v1` com os
+benchmarks/workspace/campaigns/NOME/results/<execução>` com os
 `--cycle-optimization` padrão, e retoma registros concluídos ao repetir o
-comando. Com `--workers N`, divide os casos em N shards (cada solve continua com
+comando (continua a execução mais recente da campanha; `--no-resume` abre uma
+nova pasta e mantém a anterior). Com `--workers N`, divide os casos em N shards (cada solve continua com
 uma thread), executa-os em paralelo e funde `raw.jsonl`, configuração e
 relatórios. `--setup-only` só verifica o ambiente e `--dry-run` mostra o plano. O `--all` desativa a
 amostragem estratificada e os filtros de faixa de tamanho, selecionando as
@@ -614,9 +617,9 @@ em outra pasta. `--seconds`, `--external-timeout`, `--per-stratum`,
 Cada execução concluída é persistida em `raw.jsonl`. Repetir **o mesmo comando**
 com `--resume` pula registros existentes, inclusive timeouts já observados;
 valida configuração, entradas e hashes dos executáveis, e não recompila.
-Mudanças nos executáveis exigem outra pasta de resultados. Ctrl-C preserva os
+Mudanças nos executáveis exigem uma nova execução (`--no-resume`). Ctrl-C preserva os
 registros completos e gera relatórios parciais; uma gravação final truncada é
-recuperada na retomada. Não execute duas campanhas simultâneas na mesma pasta.
+recuperada na retomada. Não execute duas campanhas simultâneas com o mesmo nome.
 
 Os artefatos para análise são:
 

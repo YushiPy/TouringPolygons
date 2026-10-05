@@ -86,7 +86,7 @@ scripts/run_tspn_comparison.sh --seconds 60 --external-timeout 75 --repetitions 
 ```
 
 Os artefatos ficam em
-`benchmarks/workspace/campaigns/tspn-fekete-comparison-v1/`: `raw.jsonl` com a
+`benchmarks/workspace/campaigns/NOME/results/<execução>/`: `raw.jsonl` com a
 telemetria completa (fases do solver, chamadas, nós, limites, heurísticas,
 oráculo de ciclo, etc.), `summary.csv` e `strata.csv` resumidos,
 `analysis.md` e `progress.json`. Os padrões são `--cycle-optimization

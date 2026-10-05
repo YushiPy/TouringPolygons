@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import socket
 import threading
 import time
 from collections import deque
@@ -214,7 +215,12 @@ class LiveStatus:
 						**latest,
 					}
 				)
-		return {"updated_at": time.time(), "pid": os.getpid(), "running": running}
+		return {
+			"updated_at": time.time(),
+			"pid": os.getpid(),
+			"host": socket.gethostname(),
+			"running": running,
+		}
 
 	def _write(self, force: bool = False) -> None:
 		if self.path is None or (
@@ -249,9 +255,9 @@ def find_snapshots(root: Path) -> list[Path]:
 	return sorted(found)
 
 
-def _alive(pid: object) -> bool:
+def _alive(pid: object, host: object = None) -> bool:
 	"""True unless ``pid`` is known to be gone (a snapshot from another machine counts as alive)."""
-	if not isinstance(pid, int):
+	if not isinstance(pid, int) or (host and host != socket.gethostname()):
 		return True
 	try:
 		os.kill(pid, 0)
@@ -269,12 +275,14 @@ def read_status(
 	stale_after: float = 300.0,
 	show_idle: bool = True,
 	show_gone: bool = False,
+	remove_gone: bool = False,
 ) -> tuple[list[tuple[str, float, str]], int]:
 	"""What the live snapshots under ``root`` say now.
 
 	Returns ``(entries, hidden)``: one ``(identity, reported_at, line)`` per running
 	instance, and how many snapshots were left out because the process that wrote
-	them is gone (killed, crashed or finished without cleaning up) unless ``show_gone``.
+	them is gone (killed, crashed or finished without cleaning up) unless ``show_gone``;
+	with ``remove_gone`` those files are also deleted.
 	"""
 	now = time.time() if now is None else now
 	entries: list[tuple[str, float, str]] = []
@@ -286,7 +294,14 @@ def read_status(
 			continue
 		age = now - data.get("updated_at", now)
 		running = data.get("running", [])
-		gone = not _alive(data.get("pid"))
+		gone = not _alive(data.get("pid"), data.get("host"))
+		if gone and remove_gone:
+			try:
+				path.unlink()
+			except OSError:
+				pass
+			hidden += 1
+			continue
 		if gone and not show_gone:
 			hidden += 1
 			continue
