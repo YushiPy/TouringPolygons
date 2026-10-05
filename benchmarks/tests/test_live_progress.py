@@ -150,8 +150,12 @@ class LiveStatusTests(unittest.TestCase):
 			data = json.loads((root / "run" / "live.json").read_text())
 			data["pid"] = 2**22 + 12345
 			(root / "run" / "live.json").write_text(json.dumps(data))
+			self.assertEqual(live.render_snapshots(root, now=now + 10), [])
+			entries, hidden = live.read_status(root, now=now + 10)
+			self.assertEqual((entries, hidden), ([], 1))
 			self.assertIn(
-				"no longer running", live.render_snapshots(root, now=now + 10)[0]
+				"no longer running",
+				live.render_snapshots(root, now=now + 10, show_gone=True)[0],
 			)
 
 	def test_idle_snapshots_are_hidden_unless_asked_for(self):

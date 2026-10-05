@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import json
 import math
 import re
 import shlex
@@ -520,7 +521,31 @@ def allowed_characters(item: Field, problem: str) -> str | None:
 	return MATH_CHARACTERS if kind_of(item, problem) in (INTEGER, NUMBER) else None
 
 
-def parse_value(item: Field, problem: str, text: str) -> object:
+def instance_limit(values: Mapping[str, object]) -> int | None:
+	"""How many instances the chosen campaign lets ``Max instances`` pick, or None when unknown.
+
+	Free-order runs take the first N of all the campaign's instances; fixed-order runs
+	apply N to each input file, so the largest file sets the limit.
+	"""
+	if values.get("problem") not in (FIXED, FREE) or not values.get("campaign"):
+		return None
+	try:
+		metadata = json.loads(
+			(
+				workspace.campaign_path(str(values["campaign"])) / workspace.CAMPAIGN_FILE
+			).read_text()
+		)
+		counts = [int(record["instances"]) for record in metadata["inputs"]]
+	except (OSError, ValueError, KeyError, TypeError):
+		return None
+	if not counts:
+		return None
+	return sum(counts) if values["problem"] == FREE else max(counts)
+
+
+def parse_value(
+	item: Field, problem: str, text: str, limit: int | None = None
+) -> object:
 	"""Turn text typed by a user (or found on a command line) into a valid field value.
 
 	Numeric fields accept arithmetic expressions. A value outside the field's
@@ -541,6 +566,8 @@ def parse_value(item: Field, problem: str, text: str) -> object:
 			value = int(value)
 		if (problem_error := range_error(spec, kind, value)) is not None:
 			raise ValueError(problem_error)
+		if limit is not None and value != UNLIMITED and value > limit:
+			raise ValueError(f"the campaign has only {limit} instance(s)")
 		return value
 	if kind == MULTI:
 		names = tuple(entry.strip() for entry in text.split(",") if entry.strip())
@@ -601,6 +628,13 @@ def validate(values: Mapping[str, object]) -> list[str]:
 		elif kind in (INTEGER, NUMBER) and value is not None:
 			if (message := range_error(spec, kind, value)) is not None:
 				errors.append(f"{item.label}: {message}")
+			elif (
+				item.key == "max_instances"
+				and value != UNLIMITED
+				and (limit := instance_limit(values)) is not None
+				and value > limit
+			):
+				errors.append(f"{item.label}: the campaign has only {limit} instance(s)")
 		if kind == CHOICE and value not in spec.choices:
 			errors.append(f"{item.label}: invalid choice {value!r}")
 	if problem == TSPN:

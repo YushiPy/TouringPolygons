@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import tempfile
@@ -210,6 +211,31 @@ class ValidationTests(unittest.TestCase):
 				values_for("tspn", portfolio="cooperative", search_strategy="dfs-bfs")
 			)
 		)
+
+
+class InstanceLimitTests(unittest.TestCase):
+	def campaign(self, directory, counts):
+		path = Path(directory) / "campaigns" / "sample"
+		path.mkdir(parents=True)
+		inputs = [{"file": f"inputs/{i}.bin", "instances": n} for i, n in enumerate(counts)]
+		(path / "campaign.json").write_text(json.dumps({"inputs": inputs}))
+
+	def test_limit_follows_the_campaign(self):
+		with tempfile.TemporaryDirectory() as directory:
+			self.campaign(directory, [300, 200])
+			with patch.dict(os.environ, {"TPP_WORKSPACE": directory}):
+				free = values_for("free-order", campaign="sample")
+				fixed = values_for("fixed-order", campaign="sample")
+				self.assertEqual(run_spec.instance_limit(free), 500)
+				self.assertEqual(run_spec.instance_limit(fixed), 300)
+				self.assertEqual(run_spec.instance_limit(values_for("free-order")), None)
+				item = run_spec.BY_KEY["max_instances"]
+				self.assertEqual(run_spec.parse_value(item, "free-order", "500", 500), 500)
+				with self.assertRaises(ValueError):
+					run_spec.parse_value(item, "free-order", "501", 500)
+				self.assertEqual(run_spec.validate({**free, "max_instances": 500}), [])
+				self.assertTrue(run_spec.validate({**free, "max_instances": 501}))
+				self.assertEqual(run_spec.validate({**free, "max_instances": -1}), [])
 
 
 class CommandTests(unittest.TestCase):
