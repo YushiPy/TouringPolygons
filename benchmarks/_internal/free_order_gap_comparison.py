@@ -22,11 +22,12 @@ import free_order_campaign
 from benchmark_cases import EncodedCase, read_encoded_cases
 from unordered_runner import run_unordered_solver
 from unordered_validation import validate_path
+import workspace
 
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SUITE = ROOT / "benchmarks/suites/fekete-instances.bin"
-DEFAULT_OUTPUT = ROOT / "benchmarks/results/free-order-gap-comparison"
+DEFAULT_OUTPUT = workspace.run_path("free-order-gap-comparison")
 MAX_CALLS = 100_000_000
 VALIDATION_TOLERANCE = 1e-7
 FEKETE_GAP = 0.001

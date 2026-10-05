@@ -3,9 +3,9 @@
 Generate non-convex TPP benchmark instances from OSM building footprints.
 
 Example:
-    python3 packages/instance-generation/source/gen_instances.py sp-city.osm.pbf \
-        --output-bin benchmarks/results/osm_buildings.bin \
-        --preview packages/instance-generation/source/osm_buildings.png \
+    python3 benchmarks/tpp.py generate sp-city.osm.pbf \
+        --output-bin osm_buildings.bin \
+        --preview osm_buildings.png \
         --instances 100 \
         --polygons-per-instance 8 \
         --seed 42

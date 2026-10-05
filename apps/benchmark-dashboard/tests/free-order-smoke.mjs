@@ -36,8 +36,8 @@ try {
 	await page.locator('#free-reference-report [data-free-sort-key="polygons"]').click();
 	assert.equal(await page.locator('#free-reference-report [data-sort-column="polygons"]').getAttribute("aria-sort"), "ascending");
 	assert.equal(await page.locator('#free-reference-report [data-free-detail="0"] [data-free-progress]').inputValue(), "370");
-	await mkdir("../../benchmarks/results/unordered/dashboard", { recursive: true });
-	await page.screenshot({ path: "../../benchmarks/results/unordered/dashboard/reference.png", fullPage: true });
+	await mkdir("../../benchmarks/workspace/runs/unordered/dashboard", { recursive: true });
+	await page.screenshot({ path: "../../benchmarks/workspace/runs/unordered/dashboard/reference.png", fullPage: true });
 	await page.locator("#free-reference-report [data-free-results] > summary").click();
 	await page.locator("#show-free-reference").click();
 	assert.equal(await page.locator("#free-reference-report [data-free-results]").getAttribute("open"), null);

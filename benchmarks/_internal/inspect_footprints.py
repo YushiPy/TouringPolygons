@@ -7,15 +7,15 @@ import json
 import math
 import sqlite3
 import struct
-import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
+import workspace
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INPUT = REPO_ROOT / "benchmarks/suites/usp-butanta-50/qgis/predios.gpkg"
-DEFAULT_BASELINE = REPO_ROOT / "benchmarks/campaigns/usp-campus-85"
+DEFAULT_BASELINE = workspace.local_data("usp-campus-85")
 LATITUDE_ORIGIN = -23.557
 LONGITUDE_ORIGIN = -46.732
 ENVELOPE_BYTES = {0: 0, 1: 32, 2: 48, 3: 48, 4: 64}

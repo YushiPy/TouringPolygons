@@ -9,6 +9,9 @@ import math
 import struct
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+
+import native_build
+import workspace
 from benchmark_cases import EncodedCase, read_encoded_cases
 from unordered_runner import run_unordered_solver
 from unordered_validation import validate_path
@@ -49,7 +52,7 @@ def read_initial_paths(path: Path, cases: list[EncodedCase]) -> dict[int, list[l
 def main(argv: list[str] | None = None) -> int:
 	parser = argparse.ArgumentParser(description=__doc__)
 	parser.add_argument('--suite', type=Path, default=ROOT / 'benchmarks/suites/algorithm-dev-v1.bin')
-	parser.add_argument('--solver', type=Path, default=ROOT / '.build/unordered/tpp')
+	parser.add_argument('--solver', type=Path, default=native_build.tool_path("tpp-unordered"))
 	parser.add_argument('--seconds', type=float, default=5)
 	parser.add_argument('--max-calls', type=int, default=10000000)
 	parser.add_argument('--workers', type=int, default=1)
@@ -107,13 +110,22 @@ def main(argv: list[str] | None = None) -> int:
 		return row
 
 	mode = 'a' if args.resume else 'w'
-	with args.output.open(mode) as file, ThreadPoolExecutor(max_workers=min(args.workers, max(1, len(cases)))) as executor:
+	with workspace.recorded_run(args.output.parent, kind='free-order-run', manifest_name=args.output.name + '.run.json',
+			tools=[args.solver], inputs=[args.suite], parameters=workspace.jsonable(vars(args))), \
+		args.output.open(mode) as file, ThreadPoolExecutor(max_workers=min(args.workers, max(1, len(cases)))) as executor:
 		futures = [executor.submit(solve, case) for case in cases]
-		for future in as_completed(futures):
-			row = future.result()
-			file.write(json.dumps(row) + '\n')
-			file.flush()
-			print(json.dumps({k: v for k, v in row.items() if k not in ('path', 'order', 'sha256')}), flush=True)
+		try:
+			for future in as_completed(futures):
+				row = future.result()
+				file.write(json.dumps(row) + '\n')
+				file.flush()
+				print(json.dumps({k: v for k, v in row.items() if k not in ('path', 'order', 'sha256')}), flush=True)
+		except KeyboardInterrupt:
+			# Do not start queued cases; completed rows are kept for --resume.
+			for future in futures:
+				future.cancel()
+			print('Interrupted; rerun with --resume to continue.', flush=True)
+			raise
 	return 0
 
 

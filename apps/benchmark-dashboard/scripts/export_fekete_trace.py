@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT / "benchmarks/_internal"))
 from unordered_runner import run_unordered_solver  # noqa: E402
 
 DEFAULT_DATA = ROOT / "apps/benchmark-dashboard/static/event/fekete-instances-exact-20260918.json"
-DEFAULT_SOLVER = ROOT / ".build/unordered/tpp"
+DEFAULT_SOLVER = ROOT / ".build/tools/bin/tpp-unordered"
 
 
 @dataclass(frozen=True)

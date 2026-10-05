@@ -15,7 +15,9 @@ algoritmo envolvido.
   ativo.
 - `benchmarks/tpp.py` é a única CLI pública de benchmark. Reutilize módulos em
   `benchmarks/_internal/` em vez de criar scripts soltos.
-- Campanhas e resultados gerados são locais. `benchmarks/results-saved/`
+- Campanhas e resultados gerados são locais e ficam em `benchmarks/workspace/`
+  (caminhos via `benchmarks/_internal/workspace.py`; binários via
+  `native_build.py`). `benchmarks/results-saved/`
   guarda resumos compactos e dados estritamente necessários. Preserve completos
   apenas `fekete-comparison` e fixtures pequenos consumidos por testes/apps.
   Não arquive cópias de entradas, raws por repetição, logs, builds ou patches de
@@ -39,7 +41,7 @@ algoritmo envolvido.
 
 - Preserve mudanças locais não relacionadas e examine o estado do Git antes
   de operações destrutivas.
-- Refatorações amplas usam branch `codex/<descrição>` e exigem revisão do diff,
+- Refatorações amplas usam uma branch com nome descritivo e exigem revisão do diff,
   dos arquivos removidos e dos testes.
 - Análises de benchmark pertencem à campanha; conclusões duráveis sobre
   contratos e correção pertencem a `docs/algorithms/`.

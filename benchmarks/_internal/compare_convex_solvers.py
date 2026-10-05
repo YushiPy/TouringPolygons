@@ -15,10 +15,11 @@ from pathlib import Path
 from typing import Sequence
 
 import bench
+import workspace
 
 
 DEFAULT_SUITE = bench.REPO_ROOT / "benchmarks/suites/canonical-v1.bin"
-DEFAULT_OUTPUT = bench.REPO_ROOT / "benchmarks/results/solver-comparison"
+DEFAULT_OUTPUT = workspace.run_path("solver-comparison")
 TARGET = "main-bnb_workload_benchmark"
 
 
@@ -58,16 +59,6 @@ def selected_solvers(names: Sequence[str]) -> list[SolverConfig]:
 	return [by_name[name] for name in names]
 
 
-def cmake_configure_command(enable_gurobi: bool) -> list[str]:
-	return [
-		"cmake",
-		"--preset",
-		bench.BUILD_PRESET,
-		f"-DTARGET={TARGET}",
-		f"-DTPP_ENABLE_GUROBI={'ON' if enable_gurobi else 'OFF'}",
-	]
-
-
 def run_command(command: list[str], *, env: dict[str, str] | None = None) -> int:
 	print("+", " ".join(command), flush=True)
 	return subprocess.run(command, cwd=bench.REPO_ROOT, env=env, check=False).returncode
@@ -102,9 +93,11 @@ def parse_count(value: str) -> int:
 	return int(match.group(0).replace("_", "")) if match else 0
 
 
-def build_benchmark_command(args: argparse.Namespace, suite: Path, csv_output: Path, summary_output: Path) -> list[str]:
+def build_benchmark_command(
+	args: argparse.Namespace, suite: Path, csv_output: Path, summary_output: Path, binary: Path | None = None
+) -> list[str]:
 	command = [
-		str(bench.TARGET_BINARY),
+		str(binary or bench.TARGET_BINARY),
 		str(suite),
 		str(args.max_polygons),
 		str(args.max_instances),
@@ -206,13 +199,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 		print("Warning: gurobi selected without --max-seconds; a single SOCP call can run for a long time.", flush=True)
 	enable_gurobi = any(solver.enable_gurobi for solver in solvers)
 
-	if not args.no_build:
-		configure_status = run_command(cmake_configure_command(enable_gurobi))
-		if configure_status != 0:
-			return configure_status
-		build_status = run_command(["cmake", "--build", "--preset", bench.BUILD_PRESET])
-		if build_status != 0:
-			return build_status
+	binary = bench.ensure_target(TARGET, no_build=args.no_build, enable_gurobi=enable_gurobi)
 
 	timestamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
 	run_dir = args.output.resolve() / timestamp
@@ -232,7 +219,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 		if status == "completed":
 			solver_env = env.copy()
 			solver_env["TPP_BENCH_SOLVER"] = solver.name
-			command = build_benchmark_command(args, suite, csv_output, summary_output)
+			command = build_benchmark_command(args, suite, csv_output, summary_output, binary)
 			run_status = run_command(command, env=solver_env)
 			if run_status != 0:
 				status = f"benchmark failed ({run_status})"

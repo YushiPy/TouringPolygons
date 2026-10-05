@@ -60,11 +60,16 @@ apps/benchmark-dashboard/.jobs.json
 # Retired visualizer-server local data (source removed from the repository)
 apps/visualizer-server/
 
-benchmarks/campaigns/
-benchmarks/generated-runs/
-benchmarks/results/
-benchmarks/splits/
-benchmarks/suite-results/
+# Local benchmark workspace (campaigns, runs, experiments, jobs, OSM regions).
+# The legacy locations may remain as compatibility symlinks after migration.
+benchmarks/workspace/
+/benchmarks/campaigns
+/benchmarks/generated-runs
+/benchmarks/results
+/benchmarks/splits
+/benchmarks/suite-results
+# Provenance stamp written into checkouts copied by `tpp.py remote push`.
+/.tpp-source.json
 
 benchmarks/suites/algorithm-dev-v1.bin
 benchmarks/suites/canonical-v1.bin
@@ -77,7 +82,6 @@ benchmarks/results-saved/fekete-comparison/analysis/*
 !benchmarks/results-saved/fekete-comparison/analysis/instance-classification.csv
 !benchmarks/results-saved/fekete-comparison/analysis/source-stratified-report.md
 
-packages/instance-generation/regions/
 packages/convex-tpp/cpp/tests/*_tests.bin
 !packages/convex-tpp/cpp/tests/basic_tests.bin
 !packages/convex-tpp/cpp/tests/edge_cases.bin

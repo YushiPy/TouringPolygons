@@ -8,8 +8,6 @@ import io
 import json
 import math
 import os
-import shlex
-import shutil
 import signal
 import statistics
 import struct
@@ -21,12 +19,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
 
+import native_build
+import workspace
 from benchmark_cases import read_encoded_cases
 from unordered_runner import interrupt_running_solvers, run_unordered_solver, terminate_running_solvers
 from unordered_validation import validate_path
 
 ROOT = Path(__file__).resolve().parents[2]
-BINARY = ROOT / '.build/unordered/tpp'
+BINARY = native_build.tool_path('tpp-unordered')
 EXTERNAL_PYTHON = ROOT / 'third_party/tspn-socg/.venv/bin/python'
 EXTERNAL_RUNNER = ROOT / 'benchmarks/_internal/tspn_run_comparison.py'
 EXTERNAL_SOURCE = ROOT / 'third_party/tspn-socg'
@@ -45,112 +45,8 @@ def parse_solver_name(value: str) -> str:
 		return SOLVER_ALIASES[value]
 	except KeyError as error:
 		raise argparse.ArgumentTypeError('choose tpp-ours or tpp-fekete') from error
-UNORDERED_BUILD_FINGERPRINT = '.tpp-unordered-build-fingerprint'
-BUILD_INPUT_SUFFIXES = {'.cpp', '.cc', '.cxx', '.h', '.hh', '.hpp', '.hxx', '.ipp', '.tpp', '.txt', '.cmake', '.in'}
-
-
-def _build_cache_matches_checkout(build_dir: Path) -> bool:
-	cache = build_dir / 'CMakeCache.txt'
-	if not cache.exists():
-		return True
-	values = {}
-	try:
-		for line in cache.read_text().splitlines():
-			for name in (
-				'CMAKE_HOME_DIRECTORY', 'CMAKE_CACHEFILE_DIR',
-				'CMAKE_C_COMPILER', 'CMAKE_CXX_COMPILER',
-			):
-				if line.startswith(f'{name}:'):
-					values[name] = line.split('=', 1)[1]
-	except OSError:
-		return False
-	source_dir = (ROOT / 'packages/nonconvex-tpp/cpp').resolve()
-	if values.get('CMAKE_HOME_DIRECTORY') != str(source_dir) or values.get('CMAKE_CACHEFILE_DIR') != str(build_dir.resolve()):
-		return False
-	for name, env_name in (('CMAKE_C_COMPILER', 'CC'), ('CMAKE_CXX_COMPILER', 'CXX')):
-		configured = os.environ.get(env_name)
-		if not configured:
-			continue
-		try:
-			command = shlex.split(configured)
-			expected = shutil.which(command[0]) if command else None
-			if not expected or Path(expected).resolve() != Path(values.get(name, '')).resolve():
-				return False
-		except (OSError, ValueError):
-			return False
-	return True
-
-
-def _unordered_build_fingerprint() -> str:
-	digest = hashlib.sha256()
-	for package in ('common-geometry', 'convex-tpp', 'nonconvex-tpp', 'optimal-convex-partition'):
-		source_root = ROOT / 'packages' / package / 'cpp'
-		for path in sorted(source_root.rglob('*')):
-			if not path.is_file() or path.suffix.lower() not in BUILD_INPUT_SUFFIXES:
-				continue
-			digest.update(path.relative_to(ROOT).as_posix().encode())
-			digest.update(b'\0')
-			digest.update(path.read_bytes())
-			digest.update(b'\0')
-	build_configuration = {
-		name: os.environ.get(name, '') for name in (
-			'CC', 'CXX', 'CFLAGS', 'CXXFLAGS', 'LDFLAGS', 'CMAKE_ARGS',
-			'CMAKE_BUILD_TYPE', 'CMAKE_OSX_ARCHITECTURES', 'MACOSX_DEPLOYMENT_TARGET',
-			'CMAKE_GENERATOR', 'CMAKE_TOOLCHAIN_FILE', 'CMAKE_PREFIX_PATH', 'TPP_EXACT_ARITHMETIC',
-			'TPP_CXX_STANDARD',
-		)
-	}
-	for tool, command in (('c_compiler', os.environ.get('CC', 'cc')),
-		('cxx_compiler', os.environ.get('CXX', 'c++')), ('cmake', 'cmake')):
-		try:
-			version = subprocess.run(shlex.split(command) + ['--version'], capture_output=True, text=True)
-			build_configuration[f'{tool}_version'] = (version.stdout + version.stderr).splitlines()[:2]
-		except (OSError, ValueError):
-			build_configuration[f'{tool}_version'] = command
-	digest.update(json.dumps(build_configuration, sort_keys=True).encode())
-	return digest.hexdigest()
-
-
 def ensure_binary(no_build: bool = False) -> Path:
-	if no_build:
-		if not BINARY.exists():
-			raise FileNotFoundError('Build the free-order solver before using --no-build.')
-		return BINARY
-	cache_matches = _build_cache_matches_checkout(BINARY.parent)
-	if not cache_matches:
-		print('Build: discarding a relocated or incompatible CMake build cache...', flush=True)
-		shutil.rmtree(BINARY.parent)
-	fingerprint = _unordered_build_fingerprint()
-	fingerprint_path = BINARY.parent / UNORDERED_BUILD_FINGERPRINT
-	if BINARY.exists() and (BINARY.parent / 'CMakeCache.txt').exists() and cache_matches:
-		try:
-			if fingerprint_path.read_text().strip() == fingerprint:
-				print('Build: free-order solver is up to date.', flush=True)
-				return BINARY
-		except OSError:
-			pass
-	build_jobs_text = os.environ.get('TPP_BUILD_JOBS', '8')
-	try:
-		build_jobs = int(build_jobs_text)
-	except ValueError as error:
-		raise ValueError('TPP_BUILD_JOBS must be a positive integer.') from error
-	if build_jobs < 1:
-		raise ValueError('TPP_BUILD_JOBS must be a positive integer.')
-	print('Build: configuring free-order solver...', flush=True)
-	cpp_standard = os.environ.get('TPP_CXX_STANDARD', '26')
-	subprocess.run([
-		'cmake', '-S', str(ROOT / 'packages/nonconvex-tpp/cpp'), '-B', str(BINARY.parent),
-		'-DTARGET=main-unordered', f'-DTPP_CXX_STANDARD={cpp_standard}',
-	], check=True)
-	print(f'Build: compiling free-order solver (up to {build_jobs} jobs)...', flush=True)
-	subprocess.run(['cmake', '--build', str(BINARY.parent), '--target', 'tpp', '--parallel', str(build_jobs)], check=True)
-	if not BINARY.exists():
-		raise FileNotFoundError(f'Build succeeded without producing the solver binary: {BINARY}')
-	temporary_fingerprint = fingerprint_path.with_suffix('.tmp')
-	temporary_fingerprint.write_text(fingerprint + '\n')
-	temporary_fingerprint.replace(fingerprint_path)
-	print('Build: complete.', flush=True)
-	return BINARY
+	return native_build.ensure_tool('tpp-unordered', no_build=no_build)
 
 
 def atomic_json(path: Path, data: dict) -> None:
@@ -459,7 +355,7 @@ def main(argv: list[str] | None = None) -> int:
 		or not math.isfinite(args.feasibility_tolerance) or args.feasibility_tolerance <= 0
 		or not math.isfinite(args.validation_tolerance) or args.validation_tolerance <= 0):
 		parser.error('Expected positive time (or -1 for unlimited), thread, worker, and tolerance values; gaps may be zero.')
-	campaign = args.campaign if args.campaign.is_absolute() or args.campaign.parent != Path('.') else ROOT / 'benchmarks/campaigns' / args.campaign
+	campaign = workspace.campaign_path(args.campaign)
 	metadata = json.loads((campaign / 'campaign.json').read_text())
 	cases = [case for record in metadata['inputs'] for case in read_encoded_cases(campaign / record['file'])][:args.max_instances]
 	if not cases:
@@ -587,7 +483,8 @@ def main(argv: list[str] | None = None) -> int:
 	report.setdefault('attempts', [])
 	attempt = {'started_at': datetime.now(UTC).isoformat(), 'finished_at': None,
 		'elapsed_wall_seconds': None, 'status': 'running',
-		'instance_workers': args.workers, 'threads_per_instance': args.threads_per_instance}
+		'instance_workers': args.workers, 'threads_per_instance': args.threads_per_instance,
+		'machine': workspace.machine_state(), 'git': workspace.git_state(), 'origin': workspace.origin()}
 	report['attempts'].append(attempt)
 	geometry_catalog = {case.digest: case_geometry(case) for case in cases}
 	geometry_dir = run / 'geometry'

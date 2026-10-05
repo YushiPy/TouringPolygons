@@ -22,8 +22,16 @@ REPO_ROOT = APP_ROOT.parents[1]
 WASM_STATIC_ROOT = APP_ROOT / "static/wasm"
 BENCHMARK_CLI = REPO_ROOT / "benchmarks/tpp.py"
 CONVERT_INSTANCES_SCRIPT = REPO_ROOT / "benchmarks/_internal/convert_instances.py"
-CAMPAIGNS_ROOT = REPO_ROOT / "benchmarks/campaigns"
-RESULTS_ROOT = REPO_ROOT / "benchmarks/results"
+INTERNAL_ROOT = REPO_ROOT / "benchmarks/_internal"
+if str(INTERNAL_ROOT) not in sys.path:
+    sys.path.insert(0, str(INTERNAL_ROOT))
+import native_build  # noqa: E402
+import workspace  # noqa: E402
+
+# Jobs started here record "dashboard" as their origin in run.json/campaign.json.
+os.environ.setdefault("TPP_ORIGIN", "dashboard")
+CAMPAIGNS_ROOT = workspace.campaigns_dir()
+RESULTS_ROOT = workspace.runs_dir()
 JOBS_PATH = APP_ROOT / ".jobs.json"
 CANONICAL_SUITE = REPO_ROOT / "benchmarks/suites/canonical-v1.bin"
 TRACKED_NONCONVEX_SUITE = REPO_ROOT / "benchmarks/suites/nonconvex/test_cases.bin"
@@ -42,8 +50,7 @@ SOLVERS = {
     "binary_search_eager": "binary_search_eager",
     "tan_jiang": "tan_jiang",
 }
-SOLVER_BINARY = REPO_ROOT / ".build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp"
-SOLVER_BUILD_CACHE = REPO_ROOT / ".build/nonconvex-release/CMakeCache.txt"
+SOLVER_BINARY = native_build.tool_path("tpp-visualizer-solve")
 OSM_SEARCH_ROOTS = [
     REPO_ROOT,
     Path.home() / "Downloads",
@@ -377,6 +384,7 @@ def create_manual_campaign_data(path: Path) -> None:
         "schema_version": 1,
         "name": path.name,
         "type": "manual",
+        "origin": workspace.origin(),
         "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "generation": {
             "instances": 0,
@@ -546,6 +554,7 @@ def campaign_summary(path: Path) -> dict[str, Any]:
         "name": data.get("name", path.name),
         "order": data.get("display_order"),
         "type": data.get("type", "osm" if data.get("source") else "unknown"),
+        "origin": data.get("origin", "unknown"),
         "path": str(path),
         "created_utc": data.get("created_utc"),
         "generation": data.get("generation", {}),
@@ -580,60 +589,8 @@ def run_command(command: list[str]) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _cmake_cache_matches_checkout(build_dir: Path, source_dir: Path) -> bool:
-    cache = build_dir / "CMakeCache.txt"
-    if not cache.exists():
-        return True
-    values: dict[str, str] = {}
-    try:
-        for line in cache.read_text().splitlines():
-            for key in ("CMAKE_HOME_DIRECTORY:INTERNAL=", "CMAKE_CACHEFILE_DIR:INTERNAL="):
-                if line.startswith(key):
-                    values[key.split(":", 1)[0]] = line[len(key) :]
-    except OSError:
-        return False
-    return values.get("CMAKE_HOME_DIRECTORY") == str(source_dir.resolve()) and values.get("CMAKE_CACHEFILE_DIR") == str(
-        build_dir.resolve()
-    )
-
-
 def ensure_live_solver_binary() -> None:
-    configured_target = None
-    build_dir = SOLVER_BUILD_CACHE.parent
-    if not _cmake_cache_matches_checkout(build_dir, REPO_ROOT):
-        print("Build: discarding a relocated native solver cache.", flush=True)
-        shutil.rmtree(build_dir)
-    elif SOLVER_BUILD_CACHE.exists():
-        for line in SOLVER_BUILD_CACHE.read_text().splitlines():
-            if line.startswith("TARGET:STRING="):
-                configured_target = line.split("=", 1)[1]
-                break
-
-    if SOLVER_BINARY.exists() and configured_target == "main-visualizer_solve":
-        return
-
-    subprocess.run(
-        [
-            "cmake",
-            "--preset",
-            "nonconvex-release",
-            "-DTARGET=main-visualizer_solve",
-            "-DTPP_ENABLE_GUROBI=OFF",
-        ],
-        cwd=REPO_ROOT,
-        check=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    subprocess.run(
-        ["cmake", "--build", "--preset", "nonconvex-release"],
-        cwd=REPO_ROOT,
-        check=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
+    native_build.ensure_tool("tpp-visualizer-solve", quiet=True)
 
 
 def live_solver_input(case: CaseData, max_calls: int, max_seconds: float) -> str:
@@ -705,6 +662,7 @@ def import_binary_suite(
         "schema_version": 1,
         "name": path.name,
         "type": campaign_type,
+        "origin": workspace.origin(),
         "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "generation": generation,
         "inputs": [

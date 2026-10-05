@@ -6,16 +6,81 @@ implementação importáveis, não uma coleção de comandos independentes.
 
 ## Organização
 
-- `tpp.py`: CLI estável;
+- `tpp.py`: CLI estável; `python3 benchmarks/tpp.py --help` lista os comandos
+  agrupados por tarefa;
 - `_internal/`: implementação da CLI;
 - `suites/`: corpora canônicos rastreados e suites derivadas ignoradas;
-- `campaigns/`: entradas e execuções locais reproduzíveis;
-- `results/`: saídas locais e descartáveis;
 - `results-saved/`: resumos compactos e fixtures pequenos indispensáveis;
-  dados brutos e campanhas completas ficam locais e ignorados.
+- `workspace/`: **todo** dado gerado localmente (ignorado pelo Git).
 
-Use `python3 benchmarks/tpp.py --help` e acrescente `--help` após um subcomando
-para consultar todos os parâmetros.
+### Workspace
+
+Tudo o que a CLI, o dashboard ou uma máquina remota produzem fica em um único
+diretório, `benchmarks/workspace/` (ou `$TPP_WORKSPACE`, por exemplo um disco
+de scratch com mais cota):
+
+```text
+workspace/
+├── campaigns/<nome>/        conjuntos de instâncias com campaign.json e suas
+│                            execuções retomáveis (results/)
+├── campaigns/<nome>@<host>/ campanhas trazidas de outra máquina
+├── runs/<nome>/             saídas de comandos sem campanha (suites, ablações,
+│                            comparações)
+├── experiments/<nome>/      investigações manuais: notas, logs, dados ad hoc
+├── jobs/<id>/               execuções destacadas (job.json, output.log)
+├── regions/                 extratos OpenStreetMap (.osm.pbf) e caches
+└── history.jsonl            uma linha por comando executado
+```
+
+`campaign.json` registra `origin` (`cli`, `dashboard` ou `remote:<host>`).
+Cada execução grava `run.json` com comando, máquina (host, CPU, memória,
+carga), revisão Git e hashes de binários e entradas; retomadas acrescentam
+tentativas. `python3 benchmarks/tpp.py ls` lista tudo com tipo, origem e
+status. Checkouts antigos são migrados por
+`python3 benchmarks/tpp.py workspace migrate` (`--dry-run` mostra o plano),
+que deixa `benchmarks/campaigns` e `benchmarks/results` como links de
+compatibilidade.
+
+### Binários nativos
+
+`python3 benchmarks/tpp.py build [FERRAMENTA...]` compila em `.build/tools/bin/`
+(ou `.build/tools-gurobi/bin/`). Cada `src/main-*.cpp` é um alvo próprio
+(`tpp-unordered`, `tpp-bnb-workload-benchmark`, `tpp-convex-…`; veja
+`build --list`), então comandos diferentes nunca reconfiguram nem sobrescrevem o
+binário uns dos outros, e builds concorrentes esperam um lock. `doctor` verifica
+compilador, Eigen/Boost, Gurobi e ferramentas já compiladas.
+
+## Outras máquinas (rede IME)
+
+Localmente bastam `ssh` e `rsync`. A máquina remota precisa de Python 3.12+ com
+`uv` (instalável em `~/.local/bin` sem root), CMake (vem da venv) e um
+compilador C++23 (por exemplo `g++-14`). Eigen e Boost são usados só como
+headers: sem pacotes do sistema, `--fetch-deps` baixa versões fixadas (com
+SHA-256 conferido) para `.cache/deps` do checkout remoto. CGAL e GMP são
+opcionais. Nada usa sudo.
+
+```bash
+python3 benchmarks/tpp.py remote push USUARIO@MAQUINA --campaign NOME
+python3 benchmarks/tpp.py remote setup USUARIO@MAQUINA --fetch-deps
+python3 benchmarks/tpp.py remote run USUARIO@MAQUINA -- \
+  free-order NOME --threads-per-instance 8 --max-seconds 3600
+python3 benchmarks/tpp.py remote jobs USUARIO@MAQUINA            # lista
+python3 benchmarks/tpp.py remote jobs USUARIO@MAQUINA log ID -f  # acompanha
+python3 benchmarks/tpp.py remote pull USUARIO@MAQUINA NOME
+```
+
+`push` envia os arquivos rastreados do working tree (inclusive alterações não
+commitadas) e um carimbo `.tpp-source.json` com revisão, estado sujo e hash do
+diff, que substitui o Git nos `run.json` remotos. `--with-external` inclui o
+submódulo de Fekete. `--dir` e `--workspace` escolhem os diretórios remotos e
+ficam lembrados em `workspace/remotes.json`. `run` inicia um job destacado:
+ele sobrevive ao fim da sessão SSH; `jobs … stop ID` envia Ctrl+C, que os
+runners tratam gravando checkpoint, e `--force` encerra. `pull` traz campanhas
+e runs como `NOME@MAQUINA`, reescrevendo caminhos absolutos remotos, e o
+dashboard as mostra junto das locais.
+
+O mesmo mecanismo de jobs funciona localmente, para campanhas longas:
+`python3 benchmarks/tpp.py jobs start -- run NOME --threads 8`.
 
 ## Ambiente próprio
 
@@ -58,13 +123,13 @@ alternativas para a mesma região.
 ```bash
 python3 benchmarks/tpp.py convert-paula paula-center
 python3 benchmarks/tpp.py free-order-run \
-  --suite benchmarks/campaigns/paula-center/inputs/paula-center.bin \
-  --solver .build/unordered/tpp --seconds 30 --max-calls 1000000 \
-  --output benchmarks/campaigns/paula-center/run.jsonl
+  --suite benchmarks/workspace/campaigns/paula-center/inputs/paula-center.bin \
+  --solver .build/tools/bin/tpp-unordered --seconds 30 --max-calls 1000000 \
+  --output benchmarks/workspace/campaigns/paula-center/run.jsonl
 python3 benchmarks/tpp.py verify-socp \
-  --solver .build/unordered/tpp \
-  --manifest benchmarks/campaigns/paula-center/paula-manifest.json \
-  --output benchmarks/campaigns/paula-center/verification \
+  --solver .build/tools/bin/tpp-unordered \
+  --manifest benchmarks/workspace/campaigns/paula-center/paula-manifest.json \
+  --output benchmarks/workspace/campaigns/paula-center/verification \
   --reference-python third_party/tspn-socg/.venv/bin/python
 ```
 
@@ -94,14 +159,14 @@ python3 benchmarks/tpp.py run smoke \
 python3 benchmarks/tpp.py status smoke
 ```
 
-A campanha fica em `benchmarks/campaigns/smoke/` com manifesto, entradas,
+A campanha fica em `benchmarks/workspace/campaigns/smoke/` com manifesto, entradas,
 preview e resultados. Execuções concluídas são reutilizadas ao retomar.
 
 Para gerar uma matriz baseada em OpenStreetMap:
 
 ```bash
 python3 benchmarks/tpp.py generate-matrix sao-paulo \
-  packages/instance-generation/regions/sao-paulo.osm.pbf \
+  benchmarks/workspace/regions/sao-paulo.osm.pbf \
   --instances 100 --sample-size 40 --seed 42
 ```
 
@@ -150,7 +215,7 @@ scripts/run_comparison.sh --solver tpp-ours --threads-per-instance 8
 ```
 
 Isso cria a campanha local
-`benchmarks/campaigns/fekete-free-order-comparison-8threads/`. Esse modo não
+`benchmarks/workspace/campaigns/fekete-free-order-comparison-8threads/`. Esse modo não
 prepara nem verifica Fekete ou a licença Gurobi; reutiliza os pacotes C++ já
 baixados em `third_party/tspn-socg/.conan/release` para compilar nosso solver.
 `--solver tpp-fekete` prepara e valida apenas Fekete e exige licença Gurobi;
@@ -183,7 +248,7 @@ outro worker ainda esteja no tpp-ours. `--threads-per-instance` controla as
 threads internas de cada caso. O pico é de até
 `--workers × --threads-per-instance` threads de solver. Campanhas compatíveis
 retomam os casos já registrados e guardam `report.json`, o CSV externo bruto e
-`comparison.md` em `benchmarks/campaigns/<nome>/results/free-order/`.
+`comparison.md` em `benchmarks/workspace/campaigns/<nome>/results/free-order/`.
 
 Se uma campanha falhar por problema no ambiente Python, a retomada reexecuta
 as linhas com erro e preserva as execuções concluídas, incluindo resultados
@@ -206,12 +271,12 @@ Fekete ainda está sendo preenchido.
 
 ```bash
 python3 benchmarks/tpp.py compare-threads \
-  --ours-single benchmarks/results/free-order-gap-6h/runs.csv \
+  --ours-single benchmarks/workspace/runs/free-order-gap-6h/runs.csv \
   --ours-single-variant fekete_gap \
-  --ours-multi benchmarks/campaigns/fekete-instances/results/free-order/ID_DA_RUN \
+  --ours-multi benchmarks/workspace/campaigns/fekete-instances/results/free-order/ID_DA_RUN \
   --fekete-single benchmarks/results-saved/fekete-comparison/fekete.csv \
-  --fekete-multi benchmarks/campaigns/fekete-instances/results/free-order/ID_DA_RUN \
-  --output benchmarks/results/thread-scaling/fekete
+  --fekete-multi benchmarks/workspace/campaigns/fekete-instances/results/free-order/ID_DA_RUN \
+  --output benchmarks/workspace/runs/thread-scaling/fekete
 ```
 
 O speedup é `tempo(1 thread) / tempo(multithread)`. Diferenças detectáveis de
@@ -224,9 +289,9 @@ Para executar diretamente uma suite binária:
 ```bash
 python3 benchmarks/tpp.py free-order-run \
   --suite benchmarks/suites/algorithm-dev-v1.bin \
-  --solver .build/unordered/tpp \
+  --solver .build/tools/bin/tpp-unordered \
   --seconds 3 --max-calls 10000000 --workers 4 \
-  --output benchmarks/results/free-order-dev.jsonl
+  --output benchmarks/workspace/runs/free-order-dev.jsonl
 ```
 
 Para medir o custo de provar otimalidade quando o incumbente inicial já é bom,
@@ -238,8 +303,8 @@ conferido antes de executar. Exemplo com os caminhos preservados da campanha ale
 python3 benchmarks/tpp.py free-order-run \
   --suite benchmarks/results-saved/fekete-comparison/instances.bin \
   --initial-paths benchmarks/results-saved/fekete-comparison/ours.csv \
-  --solver .build/unordered/tpp --seconds 21600 --max-calls 100000000 --workers 1 \
-  --output benchmarks/results/fekete-good-initial.jsonl
+  --solver .build/tools/bin/tpp-unordered --seconds 21600 --max-calls 100000000 --workers 1 \
+  --output benchmarks/workspace/runs/fekete-good-initial.jsonl
 ```
 
 Repita sem `--initial-paths`, com os mesmos limites e máquina, gravando em outro
@@ -287,7 +352,7 @@ python3 benchmarks/tpp.py free-order-ablation \
   --solver baseline=.build/unordered-baseline/tpp \
   --solver candidate=.build/unordered-candidate/tpp \
   --seconds 3 --repeats 3 \
-  --output benchmarks/results/free-order-comparison.jsonl
+  --output benchmarks/workspace/runs/free-order-comparison.jsonl
 ```
 
 Use `--resume` with the same command to reuse exact solver/case results and rerun
@@ -303,7 +368,7 @@ python3 benchmarks/tpp.py compare-gaps \
   --time-limit 1 --workers 8 --case 0
 ```
 
-A campanha fica em `benchmarks/results/free-order-gap-comparison/`. Ela guarda
+A campanha fica em `benchmarks/workspace/runs/free-order-gap-comparison/`. Ela guarda
 checkpoints por instância e configuração em cada conclusão. Repetir o comando
 retoma o trabalho; aumentar `--time-limit` reexecuta somente as instâncias que
 ainda não fecharam o gap no limite anterior. Cada execução do solver usa uma
@@ -333,7 +398,7 @@ A campanha longa e retomável usa:
 python3 benchmarks/tpp.py run-fekete --workers 8
 ```
 
-Ela grava checkpoints em `benchmarks/results/fekete-free-order-6h/`. No macOS,
+Ela grava checkpoints em `benchmarks/workspace/runs/fekete-free-order-6h/`. No macOS,
 uma execução não supervisionada pode ser iniciada com:
 
 ```bash
@@ -385,10 +450,10 @@ Execute na raiz do checkout desejado, sem outros benchmarks concorrentes:
 
 ```bash
 python3 benchmarks/tpp.py tspn-benchmark --profile quick \
-  --output benchmarks/results/tspn-diagnostic-quick --resume
+  --output benchmarks/workspace/runs/tspn-diagnostic-quick --resume
 
 caffeinate -i python3 benchmarks/tpp.py tspn-benchmark --profile overnight \
-  --output benchmarks/results/tspn-diagnostic-overnight --resume
+  --output benchmarks/workspace/runs/tspn-diagnostic-overnight --resume
 ```
 
 `caffeinate` é opcional e específico do macOS. A primeira execução compila em
@@ -411,7 +476,7 @@ scripts/run_tspn_comparison.sh --seconds 60 --external-timeout 75 --repetitions 
 
 Ele equivale a `python3 benchmarks/tpp.py tspn-benchmark --all
 --instances-zip third_party/tspn-socg/instances/instances_socg_simplified.zip
---output benchmarks/campaigns/tspn-fekete-comparison-v1 --seconds 60
+--output benchmarks/workspace/campaigns/tspn-fekete-comparison-v1 --seconds 60
 --external-timeout 75 --repetitions 1` com os `--cycle-optimization` padrão,
 e retoma registros concluídos ao repetir o comando. O `--all` desativa a
 amostragem estratificada e os filtros de faixa de tamanho, selecionando as
@@ -481,7 +546,7 @@ Para reconstruir relatórios sem executar solvers:
 
 ```bash
 python3 benchmarks/tpp.py tspn-benchmark --report-only \
-  --output benchmarks/results/tspn-diagnostic-overnight
+  --output benchmarks/workspace/runs/tspn-diagnostic-overnight
 ```
 
 Envie a pasta da campanha para análise. Não é necessário enviar builds ou
@@ -510,16 +575,16 @@ Use uma lista focal de entradas locais, mantendo as opções da campanha:
 
 ```bash
 python3 benchmarks/tpp.py tspn-benchmark \
-  --inputs benchmarks/results/focal-inputs.json \
-  --output benchmarks/results/focal-capture \
+  --inputs benchmarks/workspace/runs/focal-inputs.json \
+  --output benchmarks/workspace/runs/focal-capture \
   --seconds 10 --external-timeout 15 --repetitions 1 \
   --cycle-optimization cache --cycle-optimization features \
   --cycle-optimization root --cycle-optimization interval --capture-oracles
 
 python3 benchmarks/tpp.py cycle-replay \
-  --capture benchmarks/results/focal-capture/oracle-captures/000-0.jsonl \
+  --capture benchmarks/workspace/runs/focal-capture/oracle-captures/000-0.jsonl \
   --min-seconds 0.01 --seconds 10 --repetitions 2 \
-  --cache --features --interval --output benchmarks/results/focal-replay
+  --cache --features --interval --output benchmarks/workspace/runs/focal-replay
 ```
 
 A captura grava e descarrega cada `begin` antes de entrar no oráculo e um

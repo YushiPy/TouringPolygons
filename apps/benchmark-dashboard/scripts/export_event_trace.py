@@ -14,8 +14,8 @@ sys.path.insert(0, str(ROOT / "benchmarks/_internal"))
 from benchmark_cases import read_encoded_cases  # noqa: E402
 from unordered_runner import run_unordered_solver  # noqa: E402
 
-DEFAULT_SUITE = ROOT / "benchmarks/results/unordered/siicusp34-20260906-200122/inputs/algorithm-dev-v1.bin"
-DEFAULT_SOLVER = ROOT / ".build/unordered/tpp"
+DEFAULT_SUITE = ROOT / "benchmarks/workspace/runs/unordered/siicusp34-20260906-200122/inputs/algorithm-dev-v1.bin"
+DEFAULT_SOLVER = ROOT / ".build/tools/bin/tpp-unordered"
 
 
 def compact_event(event: dict) -> dict:

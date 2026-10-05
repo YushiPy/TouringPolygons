@@ -408,15 +408,14 @@ ponto interior, podem lançar exceção sem devolver caminho e limites.
 Na raiz do projeto:
 
 ```bash
-brew install eigen boost
-cmake -S packages/nonconvex-tpp/cpp -B .build/unordered -DTARGET=main-unordered
-cmake --build .build/unordered --target tpp tpp-unordered-tests -j 8
-.build/unordered/tpp < packages/nonconvex-tpp/cpp/tests/unordered-example.txt
+python3 benchmarks/tpp.py build tpp-unordered tpp-unordered-tests
+.build/tools/bin/tpp-unordered < packages/nonconvex-tpp/cpp/tests/unordered-example.txt
 ```
 
 São mantidos os requisitos de compilador e OpenMP do projeto. Eigen e Boost são
-dependências de headers do certificado. Também existe o target `tpp-unordered`,
-que permite construir o executável em uma configuração usada por outros targets.
+dependências de headers do certificado (`build --fetch-deps` as obtém sem root).
+O modo antigo `-DTARGET=main-unordered`, que gera o executável `tpp`, continua
+disponível.
 
 Formato de entrada por espaços/brancos:
 
@@ -486,7 +485,7 @@ auto result = tpp::tpp_nonconvex_unordered_solve(start, target, polygons, option
 ```bash
 scripts/verify_unordered.sh
 python3 benchmarks/tpp.py free-order-run \
-  --seconds 2 --output benchmarks/results/unordered/dev.jsonl
+  --seconds 2 --output benchmarks/workspace/runs/unordered/dev.jsonl
 ```
 
 O teste C++ enumera todas as ordens e todas as combinações de peças de 86 instâncias,
@@ -515,8 +514,8 @@ third_party/tspn-socg/.venv/bin/python \
   benchmarks/tpp.py compare-external \
   --mode path --threads 1 --time-limit 2 --eps 0.000001
 python3 benchmarks/tpp.py summarize-external \
-  benchmarks/results/unordered/dev.jsonl EXTERNAL_RESULTS.csv \
-  --output benchmarks/results/unordered/comparison
+  benchmarks/workspace/runs/unordered/dev.jsonl EXTERNAL_RESULTS.csv \
+  --output benchmarks/workspace/runs/unordered/comparison
 ```
 
 O adaptador externo exporta a trajetória bruta e uma candidata diagnóstica com
@@ -526,7 +525,7 @@ viabilidade bruta e viabilidade após encaixe são campos separados. O resumo ex
 hashes iguais e modo `path`. A dificuldade original da suíte se refere
 a ordem fixa, não necessariamente à dificuldade com ordem livre. Não se deve comparar
 o antigo benchmark de ordem fixa com o externo de ordem livre como se fossem o mesmo
-problema. Os resultados gerados ficam em `benchmarks/results/` e não entram no Git.
+problema. Os resultados gerados ficam em `benchmarks/workspace/` e não entram no Git.
 
 ## Benchmark preservado
 

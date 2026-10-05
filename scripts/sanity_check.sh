@@ -146,10 +146,9 @@ ensure_dependencies
 run_step python3 benchmarks/tpp.py generate-suites
 run_step packages/convex-tpp/cpp/run_generated_tests.sh
 
-run_step cmake --preset nonconvex-release -DTARGET=main-bnb_workload_benchmark
-run_step cmake --build --preset nonconvex-release
+run_step python3 benchmarks/tpp.py build tpp-bnb-workload-benchmark
 
-benchmark_dir="benchmarks/results/sanity"
+benchmark_dir="${TPP_WORKSPACE:-benchmarks/workspace}/runs/sanity"
 mkdir -p "$benchmark_dir"
 timestamp="$(date +%Y%m%d-%H%M%S)"
 csv_output="$benchmark_dir/dev-${timestamp}.csv"
@@ -158,7 +157,7 @@ summary_output="$benchmark_dir/dev-${timestamp}.md"
 echo
 echo "==> Non-convex benchmark smoke run"
 benchmark_command=(
-	.build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp
+	.build/tools/bin/tpp-bnb-workload-benchmark
 	benchmarks/suites/algorithm-dev-v1.bin
 	-1 "$benchmark_instances" "$benchmark_max_calls" -1 1
 	"$csv_output" "$summary_output"

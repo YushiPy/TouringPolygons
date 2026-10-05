@@ -115,7 +115,7 @@ Rebuild the snapshot from the original audit into a **new** file for review:
 
 ```bash
 .venv/bin/python scripts/export_event.py \
-	--run ../../benchmarks/results/unordered/siicusp34-20260906-200122 \
+	--run ../../benchmarks/workspace/runs/unordered/siicusp34-20260906-200122 \
 	--output /tmp/siicusp34-reviewed.json
 ```
 
@@ -244,7 +244,7 @@ The modal title shows the campaign/test-case name on the first line and the sele
 
 ## Notes
 
-Campaign data lives under `benchmarks/campaigns`. Benchmark outputs live under `benchmarks/results`.
+Campaign data lives under `benchmarks/workspace/campaigns` and benchmark outputs under `benchmarks/workspace/runs` (see `benchmarks/README.md`). Campaigns created here record `"origin": "dashboard"`.
 
 Generated and imported campaigns can be inspected and edited through the same case API. Saving edits updates the canonical manual case JSON and campaign metadata; preview images and the solver compatibility binary are regenerated lazily when requested.
 
@@ -294,9 +294,9 @@ Choose `Fixed order` or `Free order` in Benchmark, Comparison, or Cases. The sel
 
 Free-order campaigns currently run with one worker. An empty time limit means 30 seconds per instance. Comparison supports `Our TPP B&B` and `External TSPN`; the external checkout and its Python environment must be installed, and its time limit must be an integer number of seconds. The fixed-order editor uses the optional WASM solver when available and falls back to the local fixed-order API otherwise. Rebuild the browser solver with `bash wasm/build.sh`; generated files under `static/wasm/` remain ignored.
 
-Reports include per-instance bounds, gaps, timing, termination, and our saved paths and first-visit orders. Results are saved separately under `benchmarks/campaigns/<campaign>/results/free-order/<run>/report.json`. Matching completed configurations are reused unless forced. They never populate fixed-order summary files.
+Reports include per-instance bounds, gaps, timing, termination, and our saved paths and first-visit orders. Results are saved separately under `benchmarks/workspace/campaigns/<campaign>/results/free-order/<run>/report.json`. Matching completed configurations are reused unless forced. They never populate fixed-order summary files.
 
-In Comparison, click `Show recorded free-order comparison (60 instances)` to inspect the measured development suite, including numerical tolerances and endpoint validation differences. This requires the local artifacts under `benchmarks/results/unordered/final-dev.jsonl` and `benchmarks/results/tspn-socg`; those benchmark artifacts are not tracked in Git.
+In Comparison, click `Show recorded free-order comparison (60 instances)` to inspect the measured development suite, including numerical tolerances and endpoint validation differences. This requires the local artifacts under `benchmarks/workspace/runs/unordered/final-dev.jsonl` and `benchmarks/workspace/runs/tspn-socg`; those benchmark artifacts are not tracked in Git.
 
 The same campaign runner is available from the repository root:
 

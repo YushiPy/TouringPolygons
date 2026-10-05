@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PROJECT = ROOT / "benchmarks"
 VENV = PROJECT / ".venv"
 READY = VENV / ".tpp-environment-ready"
+STANDALONE_COMMANDS = {"setup", "doctor", "ls", "workspace", "remote", "jobs", "help"}
 
 
 def environment_fingerprint() -> str:
@@ -51,7 +52,8 @@ def runtime_environment() -> dict[str, str]:
 
 def enter_environment(argv: Sequence[str]) -> None:
 	"""Use the project's interpreter without installing anything during a run."""
-	if not argv or argv[0] == "setup" or any(flag in argv for flag in ("--help", "-h")):
+	# Standard-library-only commands also work before setup (e.g. on a fresh lab machine).
+	if not argv or argv[0] in STANDALONE_COMMANDS or any(flag in argv for flag in ("--help", "-h")):
 		return
 	python = environment_python()
 	if not python.is_file() or not environment_ready():

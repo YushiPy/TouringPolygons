@@ -65,7 +65,7 @@ O pico é de até `workers × threads-per-instance` threads de solver. Alterar
 apenas `--workers` retoma os resultados concluídos da mesma campanha.
 
 Resultados e checkpoints ficam localmente em
-`benchmarks/campaigns/fekete-free-order-comparison-v1/`. Rodar o comando de
+`benchmarks/workspace/campaigns/fekete-free-order-comparison-v1/`. Rodar o comando de
 novo reutiliza builds compatíveis sem alterações e retoma a campanha compatível. Para
 começar um relatório novo sem apagar o anterior, use `--force`. Opções como `--workers 2`,
 `--threads-per-instance 2`, `--build-jobs 12` e `--campaign outro-nome` podem
@@ -85,7 +85,7 @@ scripts/run_tspn_comparison.sh --seconds 60 --external-timeout 75 --repetitions 
 ```
 
 Os artefatos ficam em
-`benchmarks/campaigns/tspn-fekete-comparison-v1/`: `raw.jsonl` com a
+`benchmarks/workspace/campaigns/tspn-fekete-comparison-v1/`: `raw.jsonl` com a
 telemetria completa (fases do solver, chamadas, nós, limites, heurísticas,
 oráculo de ciclo, etc.), `summary.csv` e `strata.csv` resumidos,
 `analysis.md` e `progress.json`. Os padrões são `--cycle-optimization

@@ -40,20 +40,20 @@ class BenchmarkToolTests(unittest.TestCase):
         square = [[0, 0], [1, 0], [1, 1], [0, 1]]
         crossing = [[-1, 0.5], [2, 0.5], [-1, 0.5]]
         result = unordered_validation.validate_cycle([square], crossing, 0)
-        self.assertTrue(result['valid'])
-        self.assertTrue(result['exactly_covers'])
-        self.assertEqual(result['recomputed_length'], 6)
-        self.assertFalse(unordered_validation.validate_cycle([square], crossing[:2], 0)['valid'])
-        self.assertTrue(unordered_validation.validate_cycle([square], [[0.5, 0.5]] * 2, 0)['valid'])
+        self.assertTrue(result["valid"])
+        self.assertTrue(result["exactly_covers"])
+        self.assertEqual(result["recomputed_length"], 6)
+        self.assertFalse(unordered_validation.validate_cycle([square], crossing[:2], 0)["valid"])
+        self.assertTrue(unordered_validation.validate_cycle([square], [[0.5, 0.5]] * 2, 0)["valid"])
         missing = [[-1, -0.25], [2, -0.25], [-1, -0.25]]
-        self.assertFalse(unordered_validation.validate_cycle([square], missing, 0.1)['valid'])
+        self.assertFalse(unordered_validation.validate_cycle([square], missing, 0.1)["valid"])
         tolerant = unordered_validation.validate_cycle([square], missing, 0.25)
-        self.assertTrue(tolerant['valid'])
-        self.assertFalse(tolerant['exactly_covers'])
+        self.assertTrue(tolerant["valid"])
+        self.assertFalse(tolerant["exactly_covers"])
         concave = [[0, 0], [3, 0], [3, 1], [1, 1], [1, 3], [0, 3]]
-        self.assertFalse(unordered_validation.validate_cycle([concave], [[2, 2]] * 2, 0)['valid'])
-        self.assertTrue(unordered_validation.validate_cycle([square[::-1]], [[0, 0]] * 2, 0)['valid'])
-        self.assertFalse(unordered_validation.validate_cycle([square], [], 0)['valid'])
+        self.assertFalse(unordered_validation.validate_cycle([concave], [[2, 2]] * 2, 0)["valid"])
+        self.assertTrue(unordered_validation.validate_cycle([square[::-1]], [[0, 0]] * 2, 0)["valid"])
+        self.assertFalse(unordered_validation.validate_cycle([square], [], 0)["valid"])
 
     def test_binary_orientation_normalizer_preserves_non_polygon_payload(self) -> None:
         clockwise_square = [(0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]

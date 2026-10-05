@@ -60,7 +60,9 @@ reviewed event export is intentionally produced.
 ## Generated and local boundaries
 
 - `.build*/`, virtual environments, caches, node modules, WASM binaries, and
-  benchmark campaign outputs are local/generated.
+  the benchmark workspace (`benchmarks/workspace/`: campaigns, runs,
+  experiments, jobs, OSM regions) are local/generated. Native tools are built
+  as named targets in `.build/tools` by `benchmarks/_internal/native_build.py`.
 - `benchmarks/suites/` contains only small or canonical tracked inputs.
 - `apps/benchmark-dashboard/static/event/` contains reviewed event snapshots;
   regeneration commands and provenance belong beside the exporter, not in an

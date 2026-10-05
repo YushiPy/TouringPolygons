@@ -10,15 +10,18 @@ import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+import native_build
 from typing import Any
 
 from inspect_footprints import project_wgs84, read_layer
 from unordered_runner import run_unordered_solver
+import workspace
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INPUT = REPO_ROOT / "benchmarks/suites/usp-butanta-50/qgis/predios.gpkg"
-DEFAULT_SOLVER = REPO_ROOT / ".build/unordered/tpp"
+DEFAULT_SOLVER = native_build.tool_path("tpp-unordered")
 SOURCE_DATA = REPO_ROOT / "apps/siicusp34/data/usp-footprints.json"
 DEFAULT_MAX_CALLS = 1_000_000
 
@@ -197,7 +200,7 @@ def main(argv: list[str] | None = None) -> int:
 		output_path = args.output.expanduser().resolve()
 	else:
 		timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
-		output_path = REPO_ROOT / "benchmarks/results" / f"usp-footprints-{timestamp}.json"
+		output_path = workspace.runs_dir() / f"usp-footprints-{timestamp}.json"
 	output_path.parent.mkdir(parents=True, exist_ok=True)
 	output = {
 		"input": str(input_path),

@@ -7,85 +7,19 @@ import csv
 import shutil
 import sys
 import textwrap
+import time
 from collections import Counter
-from pathlib import Path
-from typing import Sequence
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-CAMPAIGNS_ROOT = REPO_ROOT / "benchmarks/campaigns"
-GENERATOR_SOURCE = REPO_ROOT / "packages/instance-generation/source"
+import workspace
 
 
 def load_generation_modules():
-	if str(GENERATOR_SOURCE) not in sys.path:
-		sys.path.insert(0, str(GENERATOR_SOURCE))
-
 	import gen_instances
 	import generate_benchmark_matrix
 
 	return gen_instances, generate_benchmark_matrix
-
-
-def resolve_campaign(value: str) -> Path:
-	path = Path(value)
-	if path.is_absolute() or path.parent != Path("."):
-		return path.resolve()
-	return (CAMPAIGNS_ROOT / path).resolve()
-
-
-def print_help() -> None:
-	print(
-		"""usage: python3 benchmarks/tpp.py COMMAND [arguments]
-
-Common workflow:
-  create NAME --vertices 8 --polygons 20 --instances 100
-  run NAME --threads 8 --max-calls 1000000 --max-seconds 30
-  status NAME
-
-Commands:
-  setup ARGS...                     Prepare the locked benchmark Python environment.
-  create NAME ARGS...                Create a synthetic benchmark campaign.
-  generate ARGS...                   Generate one binary using gen_instances.py options.
-  generate-matrix NAME PBF ARGS...   Create a reproducible benchmark campaign.
-  run NAME ARGS...                   Benchmark all campaign inputs, resumably.
-  free-order NAME ARGS...            Run/compare free-order endpoint TPP solvers.
-  free-order-run ARGS...             Run the free-order solver on a binary suite.
-  compare-threads ARGS...            Compare paired 1-thread and multi-thread runs.
-  compare-gaps ARGS...               Compare strict and Fekete-equivalent optimality gaps.
-  free-order-sample-sizes ARGS...    Run nested random subsets of one TPP instance.
-  inspect-footprints ARGS...         Count and compare QGIS GeoPackage footprints.
-  solve-footprints ARGS...          Solve the polygons currently drawn in a GeoPackage.
-  free-order-ablation ARGS...        Compare solver binaries on identical cases.
-  free-order-metamorphic ARGS...     Run metamorphic free-order checks.
-  generate-free-order-canon ARGS...  Generate the diagnostic/canon campaign.
-  summarize-free-order ARGS...       Compare completed canon runs.
-  summarize-external ARGS...         Compare our run with an external run.
-  status NAME                        Show generation and benchmark progress.
-  generate-suites ARGS...            Generate dev/canonical suites from tracked corpus.
-  build-suites ARGS...               Select fixed development and canonical suites.
-  benchmark ARGS...                  Run the canonical algorithm benchmark.
-  compare-solvers ARGS...            Compare B&B performance across convex solvers.
-  compare-external ARGS...           Run the pinned external solver on a suite.
-  cycle-benchmark ARGS...            Compare certified cycle solvers with Gurobi.
-  cycle-replay ARGS...               Replay captured convex-cycle oracle calls.
-  tspn-benchmark ARGS...             Compare TSPN B&B against the Fekete SOCP B&B.
-  compare-oracles ARGS...            Compare oracle backends inside the external solver.
-  run-fekete ARGS...                 Run/resume the long external campaign.
-  convert-fekete ARGS...             Convert the pinned Fekete instance archive.
-  convert-paula NAME ARGS...         Import 235 Paula cases with a bbox-center depot.
-  verify-socp ARGS...                Independently verify small endpoint TPP cases.
-  convert-tspn ARGS...               Convert native TSPN result instances.
-  normalize ARGS...                  Normalize polygon orientation in a suite.
-  split ARGS...                      Split a benchmarked binary by difficulty.
-  list-groups ARGS...                List groups from a difficulty split.
-  run-groups ARGS...                 Benchmark selected difficulty groups.
-
-Campaigns created from a simple NAME live under benchmarks/campaigns/NAME.
-Pass a path instead of NAME to use another location. Add --help after a command
-to see that command's detailed options.
-"""
-	)
 
 
 def command_create(argv: Sequence[str]) -> int:
@@ -95,7 +29,7 @@ def command_create(argv: Sequence[str]) -> int:
 				"""\
 				usage: python3 benchmarks/tpp.py create NAME [options]
 
-				Creates benchmarks/campaigns/NAME with a synthetic .bin input, preview image,
+				Creates benchmarks/workspace/campaigns/NAME with a synthetic .bin input, preview image,
 				and campaign metadata. Add --help after NAME to see generation options.
 
 				Examples:
@@ -107,7 +41,7 @@ def command_create(argv: Sequence[str]) -> int:
 		return 0
 
 	name, rest = argv[0], list(argv[1:])
-	campaign = resolve_campaign(name)
+	campaign = workspace.campaign_path(name)
 	if rest and rest[0] in {"-h", "--help"}:
 		import create_synthetic_campaign
 		try:
@@ -137,7 +71,7 @@ def command_generate_matrix(argv: Sequence[str]) -> int:
 	if len(argv) < 2:
 		raise SystemExit("generate-matrix requires a campaign NAME and input .osm.pbf")
 
-	campaign = resolve_campaign(argv[0])
+	campaign = workspace.campaign_path(argv[0])
 	input_pbf = argv[1]
 	forwarded = list(argv[2:])
 	campaign_file = campaign / "campaign.json"
@@ -172,7 +106,7 @@ def command_run(argv: Sequence[str]) -> int:
 			return int(error.code or 0)
 		return 0
 
-	campaign = resolve_campaign(argv[0])
+	campaign = workspace.campaign_path(argv[0])
 	campaign_file = campaign / "campaign.json"
 	if not campaign_file.exists():
 		raise SystemExit(f"Not a campaign (missing campaign.json): {campaign}")
@@ -191,7 +125,7 @@ def command_status(argv: Sequence[str]) -> int:
 		print("usage: python3 benchmarks/tpp.py status NAME")
 		return 0 if argv and argv[0] in {"-h", "--help"} else 2
 
-	campaign = resolve_campaign(argv[0])
+	campaign = workspace.campaign_path(argv[0])
 	campaign_file = campaign / "campaign.json"
 	if not campaign_file.exists():
 		raise SystemExit(f"Not a campaign (missing campaign.json): {campaign}")
@@ -257,114 +191,147 @@ def command_legacy(command: str, argv: Sequence[str]) -> int:
 	return bench.main([mapping[command], *argv])
 
 
-def command_build_suites(argv: Sequence[str]) -> int:
-	import build_algorithm_suites
-	return build_algorithm_suites.main(argv)
-
-
-def command_generate_suites(argv: Sequence[str]) -> int:
-	import generate_algorithm_suites
-	return generate_algorithm_suites.main(argv)
-
-
-def command_benchmark(argv: Sequence[str]) -> int:
-	import run_algorithm_benchmark
-	return run_algorithm_benchmark.main(argv)
-
-
-def command_compare_solvers(argv: Sequence[str]) -> int:
-	import compare_convex_solvers
-	return compare_convex_solvers.main(argv)
-
-
 def command_module(module_name: str, argv: Sequence[str]) -> int:
-	"""Invoke one internal command while keeping this file as the public CLI."""
+	"""Invoke one internal command while keeping tpp.py as the public CLI."""
 	module = __import__(module_name)
 	result = module.main(list(argv))
 	return int(result or 0)
 
 
+def module(name: str) -> Callable[[Sequence[str]], int]:
+	return lambda argv: command_module(name, argv)
+
+
+@dataclass(frozen=True)
+class Command:
+	usage: str
+	summary: str
+	run: Callable[[Sequence[str]], int]
+
+
+GROUPS: dict[str, dict[str, Command]] = {
+	"Setup and build": {
+		"setup": Command("ARGS...", "Prepare the locked benchmark Python environment.", module("benchmark_environment")),
+		"doctor": Command("", "Check compiler, Eigen/Boost, Gurobi and built tools on this machine.",
+			lambda argv: command_module("native_build", ["--doctor", *argv])),
+		"build": Command("[TOOL...]", "Build native tools into .build/tools (--list, --fetch-deps, --gurobi).",
+			module("native_build")),
+	},
+	"Workspace": {
+		"ls": Command("[campaigns|runs|experiments]", "List local campaigns, runs and experiments.",
+			lambda argv: command_module("workspace", ["list", *argv])),
+		"workspace": Command("list|migrate|path", "Manage the local workspace (TPP_WORKSPACE).", module("workspace")),
+	},
+	"Campaigns (instance sets + resumable runs)": {
+		"create": Command("NAME ARGS...", "Create a synthetic benchmark campaign.", lambda argv: command_create(argv)),
+		"generate-matrix": Command("NAME PBF ARGS...", "Create a reproducible OpenStreetMap campaign.",
+			lambda argv: command_generate_matrix(argv)),
+		"convert-paula": Command("NAME ARGS...", "Import 235 Paula cases with a bbox-center depot.", module("convert_paula")),
+		"status": Command("NAME", "Show generation and benchmark progress.", lambda argv: command_status(argv)),
+		"run": Command("NAME ARGS...", "Fixed-order B&B over all campaign inputs, resumably.", lambda argv: command_run(argv)),
+		"free-order": Command("NAME ARGS...", "Free-order campaign with our and/or Fekete's solver.", module("free_order_campaign")),
+	},
+	"Suites and direct runs": {
+		"generate": Command("ARGS...", "Generate one binary from an OSM extract.", lambda argv: command_generate(argv)),
+		"generate-suites": Command("ARGS...", "Generate dev/canonical suites from the tracked corpus.", module("generate_algorithm_suites")),
+		"build-suites": Command("ARGS...", "Select fixed development and canonical suites.", module("build_algorithm_suites")),
+		"benchmark": Command("ARGS...", "Run the canonical fixed-order algorithm benchmark.", module("run_algorithm_benchmark")),
+		"free-order-run": Command("ARGS...", "Run the free-order solver on a binary suite.", module("unordered_benchmark")),
+		"free-order-sample-sizes": Command("ARGS...", "Run nested random subsets of one instance.", module("free_order_sample_sizes")),
+		"free-order-metamorphic": Command("ARGS...", "Run metamorphic free-order checks.", module("free_order_metamorphic")),
+		"generate-free-order-canon": Command("ARGS...", "Generate the diagnostic/canon campaign.", module("generate_free_order_canon")),
+		"inspect-footprints": Command("ARGS...", "Count and compare QGIS GeoPackage footprints.", module("inspect_footprints")),
+		"solve-footprints": Command("ARGS...", "Solve the polygons drawn in a GeoPackage.", module("solve_footprints")),
+		"normalize": Command("ARGS...", "Normalize polygon orientation in a suite.", module("normalize_polygon_orientation")),
+	},
+	"Comparisons and summaries": {
+		"compare-solvers": Command("ARGS...", "Compare B&B performance across convex solvers.", module("compare_convex_solvers")),
+		"compare-threads": Command("ARGS...", "Compare paired 1-thread and multi-thread runs.", module("compare_thread_scaling")),
+		"compare-gaps": Command("ARGS...", "Compare strict and Fekete-equivalent optimality gaps.", module("free_order_gap_comparison")),
+		"free-order-ablation": Command("ARGS...", "Compare solver binaries on identical cases.", module("free_order_ablation")),
+		"summarize-free-order": Command("ARGS...", "Compare completed canon runs.", module("summarize_free_order_canon")),
+		"summarize-external": Command("ARGS...", "Compare our run with an external run.", module("summarize_unordered")),
+		"cycle-benchmark": Command("ARGS...", "Compare certified cycle solvers with Gurobi.", module("cycle_benchmark")),
+		"cycle-replay": Command("ARGS...", "Replay captured convex-cycle oracle calls.", module("cycle_replay")),
+	},
+	"External solver (Fekete et al.)": {
+		"compare-external": Command("ARGS...", "Run the pinned external solver on a suite.", module("tspn_run_comparison")),
+		"compare-oracles": Command("ARGS...", "Compare oracle backends inside the external solver.", module("tspn_oracle_backends")),
+		"run-fekete": Command("ARGS...", "Run/resume the long external campaign.", module("run_fekete")),
+		"tspn-benchmark": Command("ARGS...", "Compare TSPN B&B against the Fekete SOCP B&B.", module("tspn_benchmark")),
+		"convert-fekete": Command("ARGS...", "Convert the pinned Fekete instance archive.", module("convert_instances")),
+		"convert-tspn": Command("ARGS...", "Convert native TSPN result instances.", module("convert_tspn_native_instances")),
+		"verify-socp": Command("ARGS...", "Independently verify small endpoint TPP cases.", module("verify_socp")),
+	},
+	"Background jobs and other machines": {
+		"jobs": Command("start|list|log|stop", "Run a command detached from the terminal; follow or stop it.", module("jobs")),
+		"remote": Command("ACTION HOST ...", "Push the checkout, run, follow and pull results over SSH.", module("remote")),
+	},
+	"Difficulty splits (legacy)": {
+		"split": Command("ARGS...", "Split a benchmarked binary by difficulty.", lambda argv: command_legacy("split", argv)),
+		"list-groups": Command("ARGS...", "List groups from a difficulty split.", lambda argv: command_legacy("list-groups", argv)),
+		"run-groups": Command("ARGS...", "Benchmark selected difficulty groups.", lambda argv: command_legacy("run-groups", argv)),
+	},
+}
+COMMANDS = {name: command for group in GROUPS.values() for name, command in group.items()}
+# Commands that only read or prepare state are not journaled.
+UNJOURNALED = {"setup", "doctor", "ls", "workspace", "status", "jobs", "remote"}
+
+
+def print_help() -> None:
+	lines = [
+		"usage: python3 benchmarks/tpp.py COMMAND [arguments]",
+		"",
+		"Typical workflow:",
+		"  doctor                                   check this machine",
+		"  create NAME --vertices 8 --polygons 20 --instances 100",
+		"  run NAME --threads 8 --max-calls 1000000 --max-seconds 30",
+		"  status NAME",
+		"  ls                                       everything in the workspace",
+	]
+	for group, commands in GROUPS.items():
+		lines += ["", f"{group}:"]
+		for name, command in commands.items():
+			lines.append(f"  {(name + ' ' + command.usage).rstrip():<40} {command.summary}")
+	lines += [
+		"",
+		f"Generated data lives in the workspace ({workspace.root()});",
+		"set TPP_WORKSPACE to move it. A bare campaign NAME means workspace/campaigns/NAME;",
+		"pass a path instead to use another location. Add --help after a command for details.",
+	]
+	print("\n".join(lines))
+
+
 def main(argv: Sequence[str] | None = None) -> int:
 	arguments = list(sys.argv[1:] if argv is None else argv)
-	if not arguments or arguments[0] in {"-h", "--help"}:
+	if not arguments or arguments[0] in {"-h", "--help", "help"}:
 		print_help()
 		return 0
 
-	command, rest = arguments[0], arguments[1:]
-	if command == "setup":
-		return command_module("benchmark_environment", rest)
-	if command == "create":
-		return command_create(rest)
-	if command == "generate":
-		return command_generate(rest)
-	if command == "generate-matrix":
-		return command_generate_matrix(rest)
-	if command == "free-order":
-		import free_order_campaign
-		return free_order_campaign.main(rest)
-	if command == "free-order-ablation":
-		import free_order_ablation
-		return free_order_ablation.main(rest)
-	if command == "free-order-run":
-		return command_module("unordered_benchmark", rest)
-	if command == "compare-threads":
-		return command_module("compare_thread_scaling", rest)
-	if command == "compare-gaps":
-		return command_module("free_order_gap_comparison", rest)
-	if command == "free-order-sample-sizes":
-		return command_module("free_order_sample_sizes", rest)
-	if command == "inspect-footprints":
-		return command_module("inspect_footprints", rest)
-	if command == "solve-footprints":
-		return command_module("solve_footprints", rest)
-	if command == "free-order-metamorphic":
-		return command_module("free_order_metamorphic", rest)
-	if command == "generate-free-order-canon":
-		return command_module("generate_free_order_canon", rest)
-	if command == "summarize-free-order":
-		return command_module("summarize_free_order_canon", rest)
-	if command == "summarize-external":
-		return command_module("summarize_unordered", rest)
-	if command == "run":
-		return command_run(rest)
-	if command == "status":
-		return command_status(rest)
-	if command == "generate-suites":
-		return command_generate_suites(rest)
-	if command == "build-suites":
-		return command_build_suites(rest)
-	if command == "benchmark":
-		return command_benchmark(rest)
-	if command == "compare-solvers":
-		return command_compare_solvers(rest)
-	if command == "compare-external":
-		return command_module("tspn_run_comparison", rest)
-	if command == "cycle-benchmark":
-		return command_module("cycle_benchmark", rest)
-	if command == "cycle-replay":
-		return command_module("cycle_replay", rest)
-	if command == "tspn-benchmark":
-		return command_module("tspn_benchmark", rest)
-	if command == "compare-oracles":
-		return command_module("tspn_oracle_backends", rest)
-	if command == "run-fekete":
-		return command_module("run_fekete", rest)
-	if command == "convert-fekete":
-		return command_module("convert_instances", rest)
-	if command == "convert-paula":
-		return command_module("convert_paula", rest)
-	if command == "verify-socp":
-		return command_module("verify_socp", rest)
-	if command == "convert-tspn":
-		return command_module("convert_tspn_native_instances", rest)
-	if command == "normalize":
-		return command_module("normalize_polygon_orientation", rest)
-	if command in {"split", "list-groups", "run-groups"}:
-		return command_legacy(command, rest)
-
-	print(f"Unknown command: {command}\n", file=sys.stderr)
-	print_help()
-	return 2
+	name, rest = arguments[0], arguments[1:]
+	command = COMMANDS.get(name)
+	if command is None:
+		print(f"Unknown command: {name}\n", file=sys.stderr)
+		print_help()
+		return 2
+	if name in UNJOURNALED or any(flag in rest for flag in ("-h", "--help")):
+		return command.run(rest)
+	started = time.monotonic()
+	exit_code: int | None = None
+	try:
+		exit_code = command.run(rest)
+		return exit_code
+	except SystemExit as error:
+		exit_code = error.code if isinstance(error.code, int) else 1
+		raise
+	except KeyboardInterrupt:
+		exit_code = 130
+		raise
+	except Exception:
+		exit_code = 1
+		raise
+	finally:
+		workspace.append_history(arguments, exit_code, time.monotonic() - started)
 
 
 if __name__ == "__main__":

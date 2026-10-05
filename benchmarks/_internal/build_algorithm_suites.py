@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
+import workspace
 from benchmark_cases import (
 	EncodedCase,
 	case_has_intersecting_hulls,
@@ -22,7 +23,7 @@ from benchmark_cases import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_CAMPAIGN = REPO_ROOT / "benchmarks/campaigns/sao-paulo"
+DEFAULT_CAMPAIGN = workspace.local_data("sao-paulo")
 DEFAULT_OUTPUT = REPO_ROOT / "benchmarks/suites"
 
 
