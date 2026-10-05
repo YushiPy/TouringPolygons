@@ -1,7 +1,7 @@
 # Intersecting convex TPP audit fixtures
 
 `Wrong1.bin` contains only the `Wrong1` geometry exported from
-`benchmarks/campaigns/Cool Instances/manual-cases.json`, in the existing convex
+`benchmarks/workspace/campaigns/Cool Instances/manual-cases.json`, in the existing convex
 TPP test format (little-endian doubles and 64-bit counts). The original mixed
 vertex orientations are deliberately preserved. No background image, map state,
 other campaign case, or run history is included.

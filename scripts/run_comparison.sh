@@ -549,7 +549,7 @@ from free_order_campaign import ensure_binary
 binary = ensure_binary()
 print(f"Verified our solver build: {binary}")
 PY
-"$ROOT/.build/unordered/tpp" --help >/dev/null
+"$ROOT/.build/tools/bin/tpp-unordered" --help >/dev/null
 
 fi
 
@@ -571,7 +571,7 @@ if ((setup_only)); then
 	exit 0
 fi
 
-campaign_dir="$ROOT/benchmarks/campaigns/$campaign_name"
+campaign_dir="${TPP_WORKSPACE:-$ROOT/benchmarks/workspace}/campaigns/$campaign_name"
 mkdir -p "$campaign_dir"
 "$runner_python" - "$campaign_dir" "$SUITE" "$campaign_name" "$EXPECTED_SUITE_SHA256" "$EXPECTED_CASES" <<'PY'
 import hashlib

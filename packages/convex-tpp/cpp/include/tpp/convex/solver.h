@@ -3,7 +3,7 @@
 
 #include "tpp/convex/options.h"
 #include "tpp/convex/workspace.h"
-#include "vector2.h"
+#include "tpp/geometry/vec2.h"
 
 #include <vector>
 #include <functional>

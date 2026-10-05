@@ -17,6 +17,7 @@ SCRIPTS = ROOT / "benchmarks/_internal"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
+import workspace  # noqa: E402
 from benchmark_cases import read_encoded_cases  # noqa: E402
 from free_order_campaign import ensure_binary  # noqa: E402
 from unordered_runner import run_unordered_solver  # noqa: E402
@@ -137,7 +138,7 @@ def free_result_case(campaign: Path, case_index: int) -> dict:
 
 
 def _recorded_results_full(*, include_geometry: bool = True) -> dict:
-    path = ROOT / "benchmarks/results/unordered/final-dev.jsonl"
+    path = workspace.run_path("unordered") / "final-dev.jsonl"
     if not path.exists():
         return {
             "visit_order": "free",
@@ -154,7 +155,7 @@ def _recorded_results_full(*, include_geometry: bool = True) -> dict:
             if index < len(cases) and cases[index].digest == row["sha256"]:
                 coords = struct.unpack_from("<dddd", cases[index].data)
                 row["geometry"] = {"start": coords[:2], "target": coords[2:], "polygons": cases[index].polygons}
-    external_files = sorted((ROOT / "benchmarks/results/tspn-socg").glob("*/*-tspn-path.csv"))
+    external_files = sorted(workspace.run_path("tspn-socg").glob("*/*-tspn-path.csv"))
     own_hashes = {r["case"]: r["sha256"] for r in rows}
     if external_files:
         with external_files[-1].open() as file:

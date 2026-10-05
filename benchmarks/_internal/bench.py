@@ -10,17 +10,21 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+import native_build
+import workspace
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-BUILD_PRESET = "nonconvex-release"
-TARGET_BINARY = REPO_ROOT / ".build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp"
-BUILD_DIR = REPO_ROOT / ".build/nonconvex-release"
-CMAKE_CACHE = BUILD_DIR / "CMakeCache.txt"
+# Legacy CMake target names (src/main-*.cpp) mapped to the shared named tools.
+TOOLS = {
+	"main-bnb_workload_benchmark": "tpp-bnb-workload-benchmark",
+	"main-split_benchmark_cases": "tpp-split-benchmark-cases",
+}
+TARGET_BINARY = native_build.tool_path(TOOLS["main-bnb_workload_benchmark"])
 DEFAULT_INPUT = REPO_ROOT / "benchmarks/suites/canonical-v1.bin"
-DEFAULT_RESULTS = REPO_ROOT / "benchmarks/results/results.csv"
-DEFAULT_SPLITS = REPO_ROOT / "benchmarks/results/splits"
-DEFAULT_RUNS = REPO_ROOT / "benchmarks/results/runs"
+DEFAULT_RESULTS = workspace.run_path("results.csv")
+DEFAULT_SPLITS = workspace.run_path("splits")
+DEFAULT_RUNS = workspace.run_path("runs")
 
 
 def run_command(command: list[str], *, env: dict[str, str] | None = None) -> None:
@@ -28,53 +32,9 @@ def run_command(command: list[str], *, env: dict[str, str] | None = None) -> Non
 	subprocess.run(command, cwd=REPO_ROOT, env=env, check=True)
 
 
-def configured_target() -> str | None:
-	if not CMAKE_CACHE.exists():
-		return None
-
-	for line in CMAKE_CACHE.read_text().splitlines():
-		if line.startswith("TARGET:STRING="):
-			return line.split("=", 1)[1]
-
-	return None
-
-
-def configured_bool(name: str) -> bool | None:
-	if not CMAKE_CACHE.exists():
-		return None
-
-	for line in CMAKE_CACHE.read_text().splitlines():
-		if line.startswith(f"{name}:BOOL="):
-			return line.split("=", 1)[1].upper() in {"1", "ON", "TRUE", "YES"}
-
-	return None
-
-
-def ensure_target(target: str, *, no_build: bool = False, enable_gurobi: bool = False) -> None:
-	if no_build:
-		if not TARGET_BINARY.exists():
-			raise SystemExit(f"Binary does not exist and --no-build was passed: {TARGET_BINARY}")
-		current_target = configured_target()
-
-		if current_target is not None and current_target != target:
-			raise SystemExit(f"Configured target is {current_target}, but {target} is required. Drop --no-build once to rebuild.")
-		if enable_gurobi and configured_bool("TPP_ENABLE_GUROBI") is not True:
-			raise SystemExit("Configured binary does not have Gurobi enabled. Drop --no-build once to rebuild with Gurobi.")
-
-		return
-
-	if configured_target() != target or configured_bool("TPP_ENABLE_GUROBI") != enable_gurobi or not TARGET_BINARY.exists():
-		run_command([
-			"cmake",
-			"--preset",
-			BUILD_PRESET,
-			f"-DTARGET={target}",
-			f"-DTPP_ENABLE_GUROBI={'ON' if enable_gurobi else 'OFF'}",
-		])
-	else:
-		print(f"+ cmake target already configured: {target}", flush=True)
-
-	run_command(["cmake", "--build", "--preset", BUILD_PRESET])
+def ensure_target(target: str, *, no_build: bool = False, enable_gurobi: bool = False) -> Path:
+	"""Build (if needed) and return one benchmark tool; tools never overwrite each other."""
+	return native_build.ensure_tool(TOOLS[target], gurobi=enable_gurobi, no_build=no_build)
 
 
 def load_index(path: Path) -> dict:
@@ -169,17 +129,14 @@ def combine_group_files(index: dict, groups: list[str], splits_dir: Path, output
 
 
 def command_split(args: argparse.Namespace) -> None:
-	ensure_target("main-split_benchmark_cases", no_build=args.no_build)
+	binary = ensure_target("main-split_benchmark_cases", no_build=args.no_build)
 	args.output.mkdir(parents=True, exist_ok=True)
 	run_command([
-		str(TARGET_BINARY),
+		str(binary),
 		str(args.input),
 		str(args.csv),
 		str(args.output),
 	])
-
-	if not args.no_restore:
-		ensure_target("main-bnb_workload_benchmark", no_build=args.no_build)
 
 
 def command_list(args: argparse.Namespace) -> None:
@@ -219,7 +176,7 @@ def command_run(args: argparse.Namespace) -> None:
 	if not groups:
 		raise SystemExit("No groups selected.")
 
-	ensure_target("main-bnb_workload_benchmark", no_build=args.no_build, enable_gurobi=args.solver == "gurobi")
+	binary = ensure_target("main-bnb_workload_benchmark", no_build=args.no_build, enable_gurobi=args.solver == "gurobi")
 	timestamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
 	run_dir = args.output / timestamp
 	run_dir.mkdir(parents=True, exist_ok=True)
@@ -240,7 +197,7 @@ def command_run(args: argparse.Namespace) -> None:
 
 			print(f"\n## {group_name}", flush=True)
 			command = [
-				str(TARGET_BINARY),
+				str(binary),
 				str(input_file),
 				str(args.max_polygons),
 				str(args.max_instances),
@@ -269,7 +226,7 @@ def command_run(args: argparse.Namespace) -> None:
 
 		print(f"\n## {name}", flush=True)
 		command = [
-			str(TARGET_BINARY),
+			str(binary),
 			str(input_file),
 			str(args.max_polygons),
 			str(args.max_instances),
@@ -300,7 +257,7 @@ def make_parser() -> argparse.ArgumentParser:
 	split_parser.add_argument("--csv", type=Path, default=DEFAULT_RESULTS)
 	split_parser.add_argument("--output", type=Path, default=DEFAULT_SPLITS)
 	split_parser.add_argument("--no-build", action="store_true", help="Use the existing binary without configuring or building.")
-	split_parser.add_argument("--no-restore", action="store_true", help="Do not restore the build target to the benchmark runner after splitting.")
+	split_parser.add_argument("--no-restore", action="store_true", help="Accepted for compatibility; tools no longer share one binary.")
 	split_parser.set_defaults(func=command_split)
 
 	list_parser = subparsers.add_parser("list", help="List benchmark groups from an instances.json file.")

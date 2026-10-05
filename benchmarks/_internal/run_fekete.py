@@ -26,13 +26,14 @@ from pathlib import Path
 from typing import Any, Sequence
 
 import tspn_run_comparison as comparison
+import workspace
 
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SUITE = ROOT / "benchmarks/suites/fekete-instances.bin"
 DEFAULT_REPO = ROOT / "third_party/tspn-socg"
 DEFAULT_BASELINE = ROOT / "benchmarks/results-saved/fekete-comparison/fekete.csv"
-DEFAULT_OUTPUT = ROOT / "benchmarks/results/fekete-free-order-6h/final.csv"
+DEFAULT_OUTPUT = workspace.run_path("fekete-free-order-6h") / "final.csv"
 DEFAULT_TIME_LIMIT = 6 * 60 * 60
 DEFAULT_WORKERS = 8
 EPS = 0.001

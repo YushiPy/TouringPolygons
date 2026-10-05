@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vector2.h"
+#include "tpp/geometry/vec2.h"
 #ifdef TPP_USE_GMP_RATIONAL
 #include <boost/multiprecision/gmp.hpp>
 #else

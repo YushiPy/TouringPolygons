@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vector2.h"
+#include "tpp/geometry/vec2.h"
 
 #include <cstddef>
 #include <array>
@@ -16,6 +16,9 @@ namespace tpp::unordered_detail {
 		double distance;
 		double position;
 		double squared_distance = 0;
+		// Closest point of the region found for a positive distance. Any point
+		// of the region bounds later distances from above (visit anchors).
+		Vector2 polygon_point{};
 	};
 	struct ContactEdge {
 		Vector2 start, end, direction;
@@ -53,6 +56,9 @@ namespace tpp::unordered_detail {
 	Polygon convex_hull(Polygon polygon);
 	Contact contact(const Polygon &path, const Polygon &polygon, double tolerance);
 	Contact contact(const PreparedContactPath &path, const PreparedContactPolygon &polygon, double tolerance);
+	// Distance from a point to a prepared path, with the projection used by
+	// contact(); an upper bound for the path's distance to any region holding it.
+	double path_point_distance(const PreparedContactPath &path, Vector2 point);
 	enum class PerimeterSamplingWorkModel { AdjacentPairs, AllPairs };
 	double perimeter_sampling_work_budget(double log2_complexity);
 	std::vector<size_t> choose_perimeter_sample_point_counts(

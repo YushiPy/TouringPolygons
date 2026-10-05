@@ -18,6 +18,9 @@ import time
 from collections.abc import Sequence
 from pathlib import Path
 
+import native_build
+import workspace
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -258,14 +261,14 @@ def worker(request: Path, output: Path) -> int:
 
 def main(argv: Sequence[str] | None = None) -> int:
 	parser = argparse.ArgumentParser(description=__doc__)
-	parser.add_argument("--solver", type=Path, default=ROOT / ".build/unordered/tpp")
+	parser.add_argument("--solver", type=Path, default=native_build.tool_path("tpp-unordered"))
 	parser.add_argument(
 		"--reference-python",
 		type=Path,
 		default=ROOT / "third_party/tspn-socg/.venv/bin/python",
 	)
 	parser.add_argument(
-		"--output", type=Path, default=ROOT / "benchmarks/campaigns/socp-verification"
+		"--output", type=Path, default=workspace.run_path("socp-verification")
 	)
 	parser.add_argument("--manifest", type=Path)
 	parser.add_argument(

@@ -12,6 +12,8 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+
+import workspace
 from typing import Sequence
 
 
@@ -360,6 +362,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 		"schema_version": 1,
 		"name": campaign.name,
 		"type": "synthetic",
+		"origin": workspace.origin(),
 		"created_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
 		"git_revision": git_revision(repo_root),
 		"git_dirty": git_is_dirty(repo_root),

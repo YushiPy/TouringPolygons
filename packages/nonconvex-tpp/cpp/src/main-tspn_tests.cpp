@@ -1,6 +1,6 @@
 #include "tpp/nonconvex/unordered.h"
 #include "tpp/convex/cycle.h"
-#include "common.h"
+#include "tpp/nonconvex/decomposition.h"
 #include "solvers/unordered_geometry.h"
 #include "solvers/unordered_bounds.h"
 #include "solvers/unordered_portfolio.h"

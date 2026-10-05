@@ -2,7 +2,7 @@
 #include "tpp/convex/detail/intersecting_maps.h"
 #include "tpp/convex/solver.h"
 #include "tpp/convex/workspace.h"
-#include "vector2.h"
+#include "tpp/geometry/vec2.h"
 
 #include <emscripten/emscripten.h>
 

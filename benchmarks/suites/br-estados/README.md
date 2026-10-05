@@ -61,12 +61,12 @@ para a formulação e suas limitações.
 
 ## Reprodução
 
-Com o solver em `.build/unordered/tpp` e um compilador C++20, execute na raiz do
+Com o solver em `.build/tools/bin/tpp-unordered` e um compilador C++20, execute na raiz do
 repositório:
 
 ```bash
 python3 apps/siicusp34/scripts/build_br_estados_demo.py \
-  --solver .build/unordered/tpp
+  --solver .build/tools/bin/tpp-unordered
 ```
 
 O script lê o ZIP, reconstrói `polygons.csv` e `br-estados.bin`, calcula a rota

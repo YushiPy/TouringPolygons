@@ -43,7 +43,9 @@ em vez de criar mais um script executável.
 - `apps/`: aplicações; ferramentas exclusivas de uma aplicação ficam dentro
   dela;
 - `benchmarks/suites/`: corpora canônicos rastreados;
-- `benchmarks/campaigns/` e `benchmarks/results/`: trabalho local ignorado;
+- `benchmarks/workspace/` (ou `$TPP_WORKSPACE`): todo trabalho local ignorado —
+  campanhas da CLI, do dashboard e de outras máquinas, runs, experimentos,
+  jobs e regiões OSM; veja `benchmarks/README.md`;
 - `benchmarks/results-saved/`: resumos compactos e fixtures mínimos; dados
   brutos ficam nas campanhas locais ignoradas, com `fekete-comparison` como
   exceção porque o corpus é consumido pelo material SIICUSP;

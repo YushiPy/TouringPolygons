@@ -12,6 +12,22 @@ namespace tpp::unordered_detail {
 	// Lower bounds for all insertion positions. References may be infeasible;
 	// only the fixed endpoints and the ordered region definitions matter.
 	// Optional insertion_contacts receives the existing open-path proposals.
+	// Open-path insertion bounds split in two: the node's dual directions and
+	// supports (independent of the inserted region) and the per-region bounds.
+	// insertion_lower_bounds without an inherited dual is their composition.
+	struct PathInsertionDual {
+		std::vector<Vector2> directions;
+		std::vector<double> supports;
+		long double value = 0;
+		double scale = 1;
+	};
+	PathInsertionDual path_insertion_dual(const Polygon &contacts, const std::vector<const Polygon *> &regions);
+	// One position of path_insertion_bounds, with identical arithmetic.
+	double path_insertion_bound_at(const PathInsertionDual &dual, const Polygon &contacts,
+		const std::vector<const Polygon *> &regions, const Polygon &inserted, size_t position,
+		Vector2 *insertion_contact = nullptr);
+	std::vector<double> path_insertion_bounds(const PathInsertionDual &dual, const Polygon &contacts,
+		const std::vector<const Polygon *> &regions, const Polygon &inserted, Polygon *insertion_contacts = nullptr);
 	std::vector<double> insertion_lower_bounds(const Polygon &contacts,
 		const std::vector<const Polygon *> &regions, const Polygon &inserted,
 		bool cycle = false, const ConvexRationalPolygon &inherited_dual = {},

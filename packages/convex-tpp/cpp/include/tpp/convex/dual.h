@@ -1,5 +1,5 @@
 #pragma once
-#include "vector2.h"
+#include "tpp/geometry/vec2.h"
 #include <vector>
 
 namespace tpp {

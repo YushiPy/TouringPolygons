@@ -27,7 +27,8 @@ benchmarks/
 ├── tpp.py                  única CLI pública de benchmarks
 ├── _internal/              implementação importável da CLI
 ├── suites/                 conjuntos de entrada canônicos
-└── results-saved/          campanhas deliberadamente preservadas
+├── results-saved/          campanhas deliberadamente preservadas
+└── workspace/              dados locais gerados (ignorado; ver benchmarks/README.md)
 docs/
 ├── algorithms/             contratos, algoritmos e auditorias atuais
 └── reports/                relatórios do projeto

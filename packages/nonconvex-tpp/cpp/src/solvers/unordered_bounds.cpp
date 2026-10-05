@@ -48,6 +48,101 @@ namespace tpp::unordered_detail {
         for(size_t i=0;i<n;++i)order.push_back((first+(reverse?n-i:i))%n);
         return order;
     }
+	PathInsertionDual path_insertion_dual(const Polygon &contacts, const std::vector<const Polygon *> &regions) {
+		const size_t n = regions.size();
+		if (contacts.size() != n + 2)
+			throw std::invalid_argument("Invalid insertion-bound reference path.");
+		const auto start = contacts.front(), target = contacts.back();
+		auto direction = [](Vector2 delta) {
+			const double length = delta.length();
+			return length == 0 ? Vector2{} : delta / length;
+		};
+		auto support = [&](const Polygon &polygon, Vector2 normal) {
+			double value = std::numeric_limits<double>::infinity();
+			for (auto vertex : polygon) value = std::min(value, (vertex - start).dot(normal));
+			return value;
+		};
+		std::vector<Vector2> raw;
+		for (size_t i = 0; i <= n; ++i) raw.push_back(direction(contacts[i + 1] - contacts[i]));
+		PathInsertionDual dual;
+		dual.directions = raw;
+		dual.supports.assign(n, 0);
+		dual.value = -std::numeric_limits<long double>::infinity();
+		// A zero-length segment admits any unit-ball dual vector. Try the raw
+		// vector and both neighboring extensions once for the entire sibling set.
+		for (int fill = 0; fill < 3; ++fill) {
+			auto candidate = raw;
+			if (fill) {
+				Vector2 previous;
+				for (size_t k = 0; k <= n; ++k) {
+					const size_t i = fill == 1 ? k : n - k;
+					if (candidate[i].length_squared() == 0) candidate[i] = previous;
+					else previous = candidate[i];
+				}
+				for (size_t k = 0; k <= n; ++k) {
+					const size_t i = fill == 1 ? n - k : k;
+					if (candidate[i].length_squared() == 0) candidate[i] = previous;
+					else previous = candidate[i];
+				}
+			}
+			std::vector<double> terms(n);
+			long double bound = (target - start).dot(candidate.back());
+			for (size_t i = 0; i < n; ++i) {
+				terms[i] = support(*regions[i], candidate[i] - candidate[i + 1]);
+				bound += terms[i];
+			}
+			if (bound > dual.value) { dual.value = bound; dual.directions = std::move(candidate); dual.supports = std::move(terms); }
+		}
+		dual.scale = std::max(1.0, start.distance_to(target));
+		for (auto region : regions) for (auto v : *region) dual.scale = std::max(dual.scale, start.distance_to(v));
+		return dual;
+	}
+
+	double path_insertion_bound_at(const PathInsertionDual &dual, const Polygon &contacts,
+		const std::vector<const Polygon *> &regions, const Polygon &inserted, size_t j, Vector2 *insertion_contact) {
+		const size_t n = regions.size();
+		if (contacts.size() != n + 2 || inserted.empty() || dual.directions.size() != n + 1 || j > n)
+			throw std::invalid_argument("Invalid insertion-bound reference path.");
+		const auto start = contacts.front(), target = contacts.back();
+		auto direction = [](Vector2 delta) {
+			const double length = delta.length();
+			return length == 0 ? Vector2{} : delta / length;
+		};
+		auto support = [&](const Polygon &polygon, Vector2 normal) {
+			double value = std::numeric_limits<double>::infinity();
+			for (auto vertex : polygon) value = std::min(value, (vertex - start).dot(normal));
+			return value;
+		};
+		const auto &directions = dual.directions;
+		const auto &supports = dual.supports;
+		double scale = dual.scale;
+		for (auto v : inserted) scale = std::max(scale, start.distance_to(v));
+		const double safety = 1e-12 * scale * (n + 2);
+		const auto point = best_contact(contacts[j], contacts[j + 1], inserted, inserted.front());
+		if (insertion_contact) *insertion_contact = point;
+		const auto left = direction(point - contacts[j]), right = direction(contacts[j + 1] - point);
+		long double bound = dual.value + support(inserted, left - right);
+		// Inserting one region changes just its own support term and those
+		// of its two neighbors. All other terms are reused from the parent.
+		if (j) bound += support(*regions[j - 1], directions[j - 1] - left) - supports[j - 1];
+		if (j < n) bound += support(*regions[j], right - directions[j + 1]) - supports[j];
+		else bound += (target - start).dot(right - directions.back());
+		return std::max(start.distance_to(target), double(bound) - safety);
+	}
+
+	std::vector<double> path_insertion_bounds(const PathInsertionDual &dual, const Polygon &contacts,
+		const std::vector<const Polygon *> &regions, const Polygon &inserted, Polygon *insertion_contacts) {
+		const size_t n = regions.size();
+		std::vector<double> bounds(n + 1);
+        if(insertion_contacts){insertion_contacts->clear();insertion_contacts->reserve(n+1);}
+		for (size_t j = 0; j <= n; ++j) {
+			Vector2 point;
+			bounds[j] = path_insertion_bound_at(dual, contacts, regions, inserted, j, &point);
+            if(insertion_contacts)insertion_contacts->push_back(point);
+		}
+		return bounds;
+	}
+
 	std::vector<double> insertion_lower_bounds(const Polygon &contacts,
 		const std::vector<const Polygon *> &regions, const Polygon &inserted, bool cycle,
         const ConvexRationalPolygon &inherited_dual, Polygon *insertion_contacts) {
@@ -108,64 +203,8 @@ namespace tpp::unordered_detail {
 		}
 		if (contacts.size() != n + 2 || inserted.empty())
 			throw std::invalid_argument("Invalid insertion-bound reference path.");
+		auto bounds = path_insertion_bounds(path_insertion_dual(contacts, regions), contacts, regions, inserted, insertion_contacts);
 		const auto start = contacts.front(), target = contacts.back();
-		auto direction = [](Vector2 delta) {
-			const double length = delta.length();
-			return length == 0 ? Vector2{} : delta / length;
-		};
-		auto support = [&](const Polygon &polygon, Vector2 normal) {
-			double value = std::numeric_limits<double>::infinity();
-			for (auto vertex : polygon) value = std::min(value, (vertex - start).dot(normal));
-			return value;
-		};
-		std::vector<Vector2> raw;
-		for (size_t i = 0; i <= n; ++i) raw.push_back(direction(contacts[i + 1] - contacts[i]));
-		std::vector<Vector2> directions = raw;
-		std::vector<double> supports(n);
-		long double value = -std::numeric_limits<long double>::infinity();
-		// A zero-length segment admits any unit-ball dual vector. Try the raw
-		// vector and both neighboring extensions once for the entire sibling set.
-		for (int fill = 0; fill < 3; ++fill) {
-			auto candidate = raw;
-			if (fill) {
-				Vector2 previous;
-				for (size_t k = 0; k <= n; ++k) {
-					const size_t i = fill == 1 ? k : n - k;
-					if (candidate[i].length_squared() == 0) candidate[i] = previous;
-					else previous = candidate[i];
-				}
-				for (size_t k = 0; k <= n; ++k) {
-					const size_t i = fill == 1 ? n - k : k;
-					if (candidate[i].length_squared() == 0) candidate[i] = previous;
-					else previous = candidate[i];
-				}
-			}
-			std::vector<double> terms(n);
-			long double bound = (target - start).dot(candidate.back());
-			for (size_t i = 0; i < n; ++i) {
-				terms[i] = support(*regions[i], candidate[i] - candidate[i + 1]);
-				bound += terms[i];
-			}
-			if (bound > value) { value = bound; directions = std::move(candidate); supports = std::move(terms); }
-		}
-		double scale = std::max(1.0, start.distance_to(target));
-		for (auto region : regions) for (auto v : *region) scale = std::max(scale, start.distance_to(v));
-		for (auto v : inserted) scale = std::max(scale, start.distance_to(v));
-		const double safety = 1e-12 * scale * (n + 2);
-		std::vector<double> bounds(n + 1);
-        if(insertion_contacts){insertion_contacts->clear();insertion_contacts->reserve(n+1);}
-		for (size_t j = 0; j <= n; ++j) {
-			const auto point = best_contact(contacts[j], contacts[j + 1], inserted, inserted.front());
-            if(insertion_contacts)insertion_contacts->push_back(point);
-			const auto left = direction(point - contacts[j]), right = direction(contacts[j + 1] - point);
-			long double bound = value + support(inserted, left - right);
-			// Inserting one region changes just its own support term and those
-			// of its two neighbors. All other terms are reused from the parent.
-			if (j) bound += support(*regions[j - 1], directions[j - 1] - left) - supports[j - 1];
-			if (j < n) bound += support(*regions[j], right - directions[j + 1]) - supports[j];
-			else bound += (target - start).dot(right - directions.back());
-			bounds[j] = std::max(start.distance_to(target), double(bound) - safety);
-		}
         if(!inherited_dual.empty()) {
             using R=ConvexRational;using P=ConvexRationalPoint;
             if(inherited_dual.size()!=n+1)throw std::invalid_argument("Invalid path dual size");

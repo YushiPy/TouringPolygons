@@ -1,6 +1,6 @@
 # Instance Generation
 
-`source/gen_instances.py` generates non-convex TPP benchmark inputs from OSM building footprints.
+`benchmarks/_internal/gen_instances.py` (`tpp.py generate`) generates non-convex TPP benchmark inputs from OSM building footprints.
 
 The primary output is a binary test-case stream compatible with the non-convex C++ `load_test_cases()` / `encode_test()` format. The generator also writes a preview image for visual inspection and a small manifest with generation metadata.
 
@@ -11,7 +11,7 @@ in the `.osm.pbf` format. Open the continent and country pages, then download th
 smallest extract containing the desired area. For example, Brazil and its regions are
 available from the [Brazil download page](https://download.geofabrik.de/south-america/brazil.html).
 
-Store downloaded files under `packages/instance-generation/regions/`, which is
+Store downloaded files under `benchmarks/workspace/regions/`, which is
 ignored by Git:
 
 ### Ready-to-paste downloads
@@ -19,7 +19,7 @@ ignored by Git:
 Create the local data directory:
 
 ```bash
-mkdir -p packages/instance-generation/regions
+mkdir -p benchmarks/workspace/regions
 ```
 
 Download Southeast Brazil:
@@ -27,7 +27,7 @@ Download Southeast Brazil:
 ```bash
 curl --fail --location --continue-at - \
   https://download.geofabrik.de/south-america/brazil/sudeste-latest.osm.pbf \
-  -o packages/instance-generation/regions/sudeste-latest.osm.pbf
+  -o benchmarks/workspace/regions/sudeste-latest.osm.pbf
 ```
 
 Download Portugal:
@@ -35,7 +35,7 @@ Download Portugal:
 ```bash
 curl --fail --location --continue-at - \
   https://download.geofabrik.de/europe/portugal-latest.osm.pbf \
-  -o packages/instance-generation/regions/portugal-latest.osm.pbf
+  -o benchmarks/workspace/regions/portugal-latest.osm.pbf
 ```
 
 Download California:
@@ -43,7 +43,7 @@ Download California:
 ```bash
 curl --fail --location --continue-at - \
   https://download.geofabrik.de/north-america/us/california-latest.osm.pbf \
-  -o packages/instance-generation/regions/california-latest.osm.pbf
+  -o benchmarks/workspace/regions/california-latest.osm.pbf
 ```
 
 `--continue-at -` resumes a partial download when the command is run again. The
@@ -62,8 +62,8 @@ Then extract a city or neighborhood using a bounding box:
 ```bash
 osmium extract \
   --bbox MIN_LONGITUDE,MIN_LATITUDE,MAX_LONGITUDE,MAX_LATITUDE \
-  packages/instance-generation/regions/sudeste-latest.osm.pbf \
-  --output packages/instance-generation/regions/sao-paulo.osm.pbf \
+  benchmarks/workspace/regions/sudeste-latest.osm.pbf \
+  --output benchmarks/workspace/regions/sao-paulo.osm.pbf \
   --overwrite
 ```
 
@@ -85,8 +85,8 @@ Extract the SÃ£o Paulo metropolitan area from the Southeast Brazil file:
 ```bash
 osmium extract \
   --bbox -46.83,-24.01,-46.36,-23.35 \
-  packages/instance-generation/regions/sudeste-latest.osm.pbf \
-  --output packages/instance-generation/regions/sao-paulo.osm.pbf \
+  benchmarks/workspace/regions/sudeste-latest.osm.pbf \
+  --output benchmarks/workspace/regions/sao-paulo.osm.pbf \
   --overwrite
 ```
 
@@ -95,8 +95,8 @@ Extract the Lisbon metropolitan area from the Portugal file:
 ```bash
 osmium extract \
   --bbox -9.30,38.65,-9.00,38.85 \
-  packages/instance-generation/regions/portugal-latest.osm.pbf \
-  --output packages/instance-generation/regions/lisbon.osm.pbf \
+  benchmarks/workspace/regions/portugal-latest.osm.pbf \
+  --output benchmarks/workspace/regions/lisbon.osm.pbf \
   --overwrite
 ```
 
@@ -105,8 +105,8 @@ Extract San Francisco from the California file:
 ```bash
 osmium extract \
   --bbox -122.52,37.70,-122.35,37.84 \
-  packages/instance-generation/regions/california-latest.osm.pbf \
-  --output packages/instance-generation/regions/san-francisco.osm.pbf \
+  benchmarks/workspace/regions/california-latest.osm.pbf \
+  --output benchmarks/workspace/regions/san-francisco.osm.pbf \
   --overwrite
 ```
 
@@ -114,10 +114,10 @@ Generate a small solver-ready grid dataset from any cropped file, for example SÃ
 Paulo:
 
 ```bash
-python3 packages/instance-generation/source/gen_instances.py \
-  packages/instance-generation/regions/sao-paulo.osm.pbf \
-  --output-bin benchmarks/results/sao-paulo-grid.bin \
-  --preview benchmarks/results/sao-paulo-grid.png \
+python3 benchmarks/tpp.py generate \
+  benchmarks/workspace/regions/sao-paulo.osm.pbf \
+  --output-bin benchmarks/workspace/runs/sao-paulo-grid.bin \
+  --preview benchmarks/workspace/runs/sao-paulo-grid.png \
   --instances 100 \
   --polygons-per-instance 20 \
   --layout grid \
@@ -130,9 +130,9 @@ python3 packages/instance-generation/source/gen_instances.py \
 ## Usage
 
 ```bash
-python3 packages/instance-generation/source/gen_instances.py packages/instance-generation/regions/sao-paulo.osm.pbf \
-  --output-bin benchmarks/results/osm_buildings.bin \
-  --preview packages/instance-generation/source/osm_buildings.png \
+python3 benchmarks/tpp.py generate benchmarks/workspace/regions/sao-paulo.osm.pbf \
+  --output-bin benchmarks/workspace/runs/osm_buildings.bin \
+  --preview osm_buildings.png \
   --instances 100 \
   --polygons-per-instance 8 \
   --seed 42
@@ -177,9 +177,9 @@ The default normalization is per-instance centering in projected meters. This ke
 The current non-convex C++ solver cannot handle touching or intersecting polygons. Real OSM buildings often share walls or nearly touch, so use grid layout for solver-ready benchmark inputs:
 
 ```bash
-python3 packages/instance-generation/source/gen_instances.py packages/instance-generation/regions/sao-paulo.osm.pbf \
-  --output-bin benchmarks/results/osm_buildings_grid.bin \
-  --preview packages/instance-generation/source/osm_buildings_grid.png \
+python3 benchmarks/tpp.py generate benchmarks/workspace/regions/sao-paulo.osm.pbf \
+  --output-bin benchmarks/workspace/runs/osm_buildings_grid.bin \
+  --preview osm_buildings_grid.png \
   --instances 100 \
   --polygons-per-instance 8 \
   --layout grid \
@@ -194,8 +194,8 @@ Grid layout keeps each sampled building's footprint shape, scales all selected f
 To mix complex non-convex buildings with many-vertex convex polygons:
 
 ```bash
-python3 packages/instance-generation/source/gen_instances.py sp-city.osm.pbf \
-  --output-bin benchmarks/results/osm_buildings_grid_convex50.bin \
+python3 benchmarks/tpp.py generate sp-city.osm.pbf \
+  --output-bin benchmarks/workspace/runs/osm_buildings_grid_convex50.bin \
   --instances 100 \
   --polygons-per-instance 50 \
   --layout grid \
@@ -216,7 +216,7 @@ The grid preview intentionally shows only the first 50 cases when many instances
 
 ## Batch Matrix
 
-`source/generate_benchmark_matrix.py` creates a sweep of binary inputs. It loads the OSM building cache and builds the candidate polygon pool once, then reuses it for every generated binary.
+`benchmarks/_internal/generate_benchmark_matrix.py` (`tpp.py generate-matrix`) creates a sweep of binary inputs. It loads the OSM building cache and builds the candidate polygon pool once, then reuses it for every generated binary.
 
 Current default sweep:
 
@@ -231,7 +231,7 @@ For new experiments, use the campaign entry point. It stores the binaries outsid
 
 ```bash
 python3 benchmarks/tpp.py generate-matrix sao-paulo \
-  packages/instance-generation/regions/sao-paulo.osm.pbf \
+  benchmarks/workspace/regions/sao-paulo.osm.pbf \
   --instances 100 \
   --sample-size 40 \
   --seed 42
@@ -240,18 +240,18 @@ python3 benchmarks/tpp.py generate-matrix sao-paulo \
 The lower-level matrix script remains available for producing binaries in an explicitly selected directory:
 
 ```bash
-python3 packages/instance-generation/source/generate_benchmark_matrix.py \
-  packages/instance-generation/regions/sao-paulo.osm.pbf \
-  --output-dir benchmarks/campaigns/sao-paulo/inputs \
+benchmarks/.venv/bin/python benchmarks/_internal/generate_benchmark_matrix.py \
+  benchmarks/workspace/regions/sao-paulo.osm.pbf \
+  --output-dir benchmarks/workspace/campaigns/sao-paulo/inputs \
   --instances 100
 ```
 
 To sample a smaller subset from the full matrix:
 
 ```bash
-python3 packages/instance-generation/source/generate_benchmark_matrix.py \
-  packages/instance-generation/regions/sao-paulo.osm.pbf \
-  --output-dir benchmarks/campaigns/sao-paulo/inputs \
+benchmarks/.venv/bin/python benchmarks/_internal/generate_benchmark_matrix.py \
+  benchmarks/workspace/regions/sao-paulo.osm.pbf \
+  --output-dir benchmarks/workspace/campaigns/sao-paulo/inputs \
   --instances 100 \
   --sample-size 40 \
   --seed 42
@@ -260,8 +260,8 @@ python3 packages/instance-generation/source/generate_benchmark_matrix.py \
 Preview the commands without generating files:
 
 ```bash
-python3 packages/instance-generation/source/generate_benchmark_matrix.py \
-  packages/instance-generation/regions/sao-paulo.osm.pbf \
+benchmarks/.venv/bin/python benchmarks/_internal/generate_benchmark_matrix.py \
+  benchmarks/workspace/regions/sao-paulo.osm.pbf \
   --dry-run
 ```
 
@@ -271,7 +271,7 @@ Generated binaries can be passed directly to the benchmark runner:
 
 ```bash
 python3 benchmarks/tpp.py run-groups \
-  --index benchmarks/results/splits/instances.json \
+  --index benchmarks/workspace/runs/splits/instances.json \
   --group under_100ms
 ```
 
@@ -279,13 +279,13 @@ To classify a newly generated binary by difficulty, first benchmark it and then 
 
 ```bash
 ./.build/nonconvex-release/packages/nonconvex-tpp/cpp/tpp \
-  benchmarks/results/osm_buildings.bin \
+  benchmarks/workspace/runs/osm_buildings.bin \
   -1 -1 1000000 -1 1 \
-  benchmarks/results/osm_buildings.csv \
-  benchmarks/results/osm_buildings.md
+  benchmarks/workspace/runs/osm_buildings.csv \
+  benchmarks/workspace/runs/osm_buildings.md
 
 python3 benchmarks/tpp.py split \
-  --input benchmarks/results/osm_buildings.bin \
-  --csv benchmarks/results/osm_buildings.csv \
-  --output benchmarks/results/osm_building_splits
+  --input benchmarks/workspace/runs/osm_buildings.bin \
+  --csv benchmarks/workspace/runs/osm_buildings.csv \
+  --output benchmarks/workspace/runs/osm_building_splits
 ```

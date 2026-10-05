@@ -63,7 +63,7 @@ export function compareCommandFromForm(form = document.querySelector("#compare-f
 	const values = formData(form);
 	if (values.visit_order === "free") return freeCommand(form, values, true);
 	const solvers = [...form.querySelectorAll('input[name="solvers"]:checked')].map((input) => input.value);
-	const inputDir = shellQuote(`benchmarks/campaigns/${values.name}/inputs`);
+	const inputDir = shellQuote(`benchmarks/workspace/campaigns/${values.name}/inputs`);
 	const command = [
 		"python3",
 		"benchmarks/tpp.py",
@@ -71,7 +71,7 @@ export function compareCommandFromForm(form = document.querySelector("#compare-f
 		"--suite",
 		`$(find ${inputDir} -name '*.bin' | sort | head -n 1)`,
 		"--output",
-		`benchmarks/campaigns/${values.name}/results/comparisons`,
+		`benchmarks/workspace/campaigns/${values.name}/results/comparisons`,
 		"--max-calls",
 		values.max_calls || "1000000",
 	];

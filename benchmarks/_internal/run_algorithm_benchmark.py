@@ -11,10 +11,11 @@ from pathlib import Path
 from typing import Sequence
 
 import bench
+import workspace
 
 
 DEFAULT_SUITE = bench.REPO_ROOT / "benchmarks/suites/canonical-v1.bin"
-DEFAULT_OUTPUT = bench.REPO_ROOT / "benchmarks/results/suite-results"
+DEFAULT_OUTPUT = workspace.run_path("suite-results")
 
 
 def make_parser() -> argparse.ArgumentParser:
@@ -38,7 +39,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 	if args.threads is not None and args.threads < 1:
 		raise SystemExit("--threads must be at least 1")
 
-	bench.ensure_target("main-bnb_workload_benchmark", no_build=args.no_build, enable_gurobi=args.solver == "gurobi")
+	binary = bench.ensure_target("main-bnb_workload_benchmark", no_build=args.no_build, enable_gurobi=args.solver == "gurobi")
 	timestamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
 	run_dir = args.output.resolve() / timestamp
 	run_dir.mkdir(parents=True, exist_ok=True)
@@ -53,13 +54,17 @@ def main(argv: Sequence[str] | None = None) -> int:
 	if args.solver is not None:
 		env["TPP_BENCH_SOLVER"] = args.solver
 	command = [
-		str(bench.TARGET_BINARY), str(suite), "-1", "-1", str(args.max_calls), "-1",
+		str(binary), str(suite), "-1", "-1", str(args.max_calls), "-1",
 	]
 	if args.max_seconds is not None:
 		command.append(str(float(args.max_seconds)))
 	command.extend([str(args.repeat_count), str(csv_output), str(summary_output)])
 	print("+", " ".join(command), flush=True)
-	completed = subprocess.run(command, cwd=bench.REPO_ROOT, env=env, check=False)
+	with workspace.recorded_run(run_dir, kind="algorithm-benchmark", tools=[binary], inputs=[suite],
+			parameters=workspace.jsonable(vars(args))) as attempt:
+		completed = subprocess.run(command, cwd=bench.REPO_ROOT, env=env, check=False)
+		if completed.returncode:
+			attempt["status"] = f"exit {completed.returncode}"
 	if completed.returncode != 0:
 		return completed.returncode
 

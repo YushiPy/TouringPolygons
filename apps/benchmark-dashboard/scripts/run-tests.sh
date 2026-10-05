@@ -64,9 +64,8 @@ if [[ "${RUN_BROWSER:-0}" == "1" ]]; then
 fi
 
 cd "${REPO_ROOT}"
-cmake --preset convex-release -DTARGET=main-intersection_tests
-cmake --build --preset convex-release
-./.build/convex-release/packages/convex-tpp/cpp/tpp-convex
+python3 benchmarks/tpp.py build tpp-convex-intersection-tests
+./.build/tools/bin/tpp-convex-intersection-tests
 git diff --check
 
 python_unittest_count="$(extract_unittest_count "${python_unittest_log}")"

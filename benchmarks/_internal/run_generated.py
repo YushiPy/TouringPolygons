@@ -14,10 +14,12 @@ from pathlib import Path
 from typing import Sequence
 
 import bench
+import native_build
+import workspace
 
 
-DEFAULT_INPUT = bench.REPO_ROOT / "benchmarks/campaigns"
-DEFAULT_OUTPUT = bench.REPO_ROOT / "benchmarks/results/generated-runs"
+DEFAULT_INPUT = workspace.campaigns_dir()
+DEFAULT_OUTPUT = workspace.run_path("generated-runs")
 
 
 @dataclass
@@ -65,9 +67,9 @@ def output_paths(input_file: Path, input_root: Path, output_root: Path) -> tuple
 	)
 
 
-def completion_signature(args: argparse.Namespace, input_file: Path) -> dict:
+def completion_signature(args: argparse.Namespace, input_file: Path, binary: Path | None = None) -> dict:
 	input_stat = input_file.stat()
-	binary_stat = bench.TARGET_BINARY.stat()
+	binary_stat = (binary or bench.TARGET_BINARY).stat()
 	return {
 		"input_size": input_stat.st_size,
 		"input_mtime_ns": input_stat.st_mtime_ns,
@@ -191,7 +193,7 @@ def run_batch(args: argparse.Namespace) -> int:
 			print(input_file.relative_to(input_root), flush=True)
 		return 0
 
-	bench.ensure_target("main-bnb_workload_benchmark", no_build=args.no_build, enable_gurobi=args.solver == "gurobi")
+	binary = bench.ensure_target("main-bnb_workload_benchmark", no_build=args.no_build, enable_gurobi=args.solver == "gurobi")
 	env = os.environ.copy()
 	if args.threads is not None:
 		env["TPP_BENCH_THREADS"] = str(args.threads)
@@ -214,7 +216,7 @@ def run_batch(args: argparse.Namespace) -> int:
 		summary_output = result.summary_output
 		log_output = result.log_output
 		completion_marker = result.completion_marker
-		signature = completion_signature(args, input_file)
+		signature = completion_signature(args, input_file, binary)
 
 		if not args.force and marker_matches(completion_marker, signature) and csv_output.exists() and summary_output.exists():
 			print(f"[{number}/{len(input_files)}] skip {input_file.name} (already complete)", flush=True)
@@ -230,7 +232,7 @@ def run_batch(args: argparse.Namespace) -> int:
 		completion_marker.unlink(missing_ok=True)
 
 		command = [
-			str(bench.TARGET_BINARY),
+			str(binary),
 			str(input_file),
 			str(args.max_polygons),
 			str(args.max_instances),
@@ -293,7 +295,16 @@ def run_batch(args: argparse.Namespace) -> int:
 
 def main(argv: Sequence[str] | None = None) -> int:
 	args = make_parser().parse_args(argv)
-	return run_batch(args)
+	if args.dry_run:
+		return run_batch(args)
+	with workspace.recorded_run(args.output.resolve(), kind="fixed-order-campaign",
+			parameters=workspace.jsonable(vars(args))) as attempt:
+		result = run_batch(args)
+		binary = native_build.tool_path(bench.TOOLS["main-bnb_workload_benchmark"], gurobi=args.solver == "gurobi")
+		attempt["tools"] = {str(binary): workspace.file_sha256(binary)}
+		if result:
+			attempt["status"] = f"exit {result}"
+		return result
 
 
 if __name__ == "__main__":

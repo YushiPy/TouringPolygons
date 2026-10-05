@@ -127,7 +127,32 @@ int main(int argc, char **argv) {
             if (flag == "--path-certificate-dual") {options.path_certificate_dual=true;continue;}
             if (flag == "--path-strong-branching") {options.path_strong_branching=true;continue;}
             if (flag == "--no-prepared-visits") {options.prepared_visit_queries=false;continue;}
+            if (flag == "--no-visit-upper-bounds") {options.visit_upper_bounds=false;continue;}
 			if (flag == "--relocate-initial") {options.relocate_initial_heuristic=true;continue;}
+			if (flag == "--insertion-lookahead") {
+				if(++i>=argc)throw std::invalid_argument("Expected a candidate count.");
+				options.insertion_lookahead=std::stoul(argv[i]);
+				continue;
+			}
+			if (flag == "--parallel-nodes") {options.parallel_nodes=true;continue;}
+			if (flag == "--window-lns") {options.window_lns=true;continue;}
+			if (flag == "--window-lns-size") {
+				if(++i>=argc)throw std::invalid_argument("Expected a window size.");
+				options.window_lns_size=std::stoul(argv[i]);
+				if(options.window_lns_size<2)throw std::invalid_argument("Window size must be at least 2.");
+				continue;
+			}
+			if (flag == "--window-lns-max-size") {
+				if(++i>=argc)throw std::invalid_argument("Expected a window size.");
+				options.window_lns_max_size=std::stoul(argv[i]);
+				continue;
+			}
+			if (flag == "--window-lns-fraction") {
+				if(++i>=argc)throw std::invalid_argument("Expected a time fraction.");
+				options.window_lns_time_fraction=std::stod(argv[i]);
+				if(!(options.window_lns_time_fraction>=0&&options.window_lns_time_fraction<=1))throw std::invalid_argument("Fraction must be in [0,1].");
+				continue;
+			}
 			if (flag == "--interpolated-zero-dual") {options.interpolated_zero_dual=true;continue;}
             if(flag=="--cycle-optimization") {
                 if(++i>=argc)throw std::invalid_argument("Expected a cycle optimization.");
@@ -300,6 +325,17 @@ int main(int argc, char **argv) {
             << ",\"segment_visit_hits\":" << r.segment_visit_hits
 			<< ",\"initial_relocation_moves\":" << r.initial_relocation_moves
 			<< ",\"initial_relocation_seconds\":" << r.initial_relocation_seconds
+			<< ",\"visit_bound_skips\":" << r.visit_bound_skips
+			<< ",\"lookahead_candidates\":" << r.lookahead_candidates
+			<< ",\"lookahead_prunes\":" << r.lookahead_prunes
+			<< ",\"lookahead_changes\":" << r.lookahead_changes
+			<< ",\"lookahead_seconds\":" << r.lookahead_seconds
+			<< ",\"window_lns_rounds\":" << r.window_lns_rounds
+			<< ",\"window_lns_subproblems\":" << r.window_lns_subproblems
+			<< ",\"window_lns_improvements\":" << r.window_lns_improvements
+			<< ",\"window_lns_calls\":" << r.window_lns_calls
+			<< ",\"window_lns_seconds\":" << r.window_lns_seconds
+			<< ",\"window_lns_gain\":" << r.window_lns_gain
 			<< ",\"oracle_dispatch_pair_cache_hits\":" << r.oracle_dispatch_pair_cache_hits
 			<< ",\"oracle_dispatch_pair_exact_checks\":" << r.oracle_dispatch_pair_exact_checks
 			<< ",\"screened_nodes\":" << r.screened_nodes

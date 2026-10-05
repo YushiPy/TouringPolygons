@@ -30,7 +30,7 @@ Usage: scripts/run_tspn_comparison.sh [options]
 Build the solvers, then run or resume the 558-case Fekete TSPN campaign
 (closed tour, free cyclic order, no fixed point) comparing our solver with
 the pinned Fekete SOCP B&B. Results go to
-benchmarks/campaigns/tspn-fekete-comparison-v1/ (raw JSONL, summary CSV,
+benchmarks/workspace/campaigns/tspn-fekete-comparison-v1/ (raw JSONL, summary CSV,
 per-stratum CSV, progress.json and analysis.md report).
 
 Options:
@@ -203,7 +203,7 @@ elif ! command -v cmake >/dev/null 2>&1; then
 	exit 2
 fi
 
-output_dir="$ROOT/benchmarks/campaigns/$campaign_name"
+output_dir="${TPP_WORKSPACE:-$ROOT/benchmarks/workspace}/campaigns/$campaign_name"
 
 # Choose the newest C++ standard the default compiler's CMake supports.
 # Remote Ubuntu 24.04 ships GCC 13 (cxx_std_23 only); newer toolchains may

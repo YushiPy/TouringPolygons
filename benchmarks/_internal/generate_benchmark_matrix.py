@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Sequence
 
 import gen_instances
+import workspace
 
 
 DEFAULT_POLYGON_COUNTS = [1, 3, 5, 10, 20, 30, 40, 50]
@@ -37,7 +38,7 @@ def format_number(value: float) -> str:
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 	parser = argparse.ArgumentParser(description="Generate a benchmark matrix of TPP instance binaries.")
 	parser.add_argument("input_pbf", type=Path, help="Input .osm.pbf file.")
-	parser.add_argument("--output-dir", type=Path, default=Path("benchmarks/campaigns/generated/inputs"), help="Directory for generated .bin files.")
+	parser.add_argument("--output-dir", type=Path, default=workspace.campaign_path("generated") / "inputs", help="Directory for generated .bin files.")
 	parser.add_argument("--instances", type=int, default=100, help="Instances per generated binary.")
 	parser.add_argument("--seed", type=int, default=42, help="Base random seed.")
 	parser.add_argument("--sample-size", type=int, default=0, help="Randomly sample this many jobs from the full matrix. Defaults to all jobs.")
@@ -267,6 +268,7 @@ def write_campaign(
 	data = {
 		"schema_version": 1,
 		"name": campaign_file.parent.name,
+		"origin": workspace.origin(),
 		"created_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
 		"git_revision": git_revision(),
 		"git_dirty": git_is_dirty(),

@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import free_order_campaign
+import native_build
 from fastapi import HTTPException
 from test_api_integration import endpoint
 
@@ -22,9 +23,9 @@ class FreeOrderTests(unittest.TestCase):
             build_dir = Path(directory)
             (build_dir / "CMakeCache.txt").write_text(
                 "CMAKE_HOME_DIRECTORY:INTERNAL=/old/checkout/packages/nonconvex-tpp/cpp\n"
-                "CMAKE_CACHEFILE_DIR:INTERNAL=/old/checkout/.build/unordered\n"
+                "CMAKE_CACHEFILE_DIR:INTERNAL=/old/checkout/.build/tools\n"
             )
-            self.assertFalse(free_order_campaign._build_cache_matches_checkout(build_dir))
+            self.assertFalse(native_build.cache_matches_checkout(build_dir))
 
     def test_fixed_order_remains_the_default(self):
         self.assertEqual(RunCampaignRequest(name="sample").visit_order, "fixed")

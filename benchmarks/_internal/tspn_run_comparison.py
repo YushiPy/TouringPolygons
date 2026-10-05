@@ -23,13 +23,15 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
+
+import workspace
 from typing import Any, Sequence
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SUITE = PROJECT_ROOT / "benchmarks/suites/algorithm-dev-v1.bin"
 DEFAULT_TSPN_REPO = PROJECT_ROOT / "third_party/tspn-socg"
-DEFAULT_OUTPUT = PROJECT_ROOT / "benchmarks/results/tspn-socg"
+DEFAULT_OUTPUT = workspace.run_path("tspn-socg")
 RESULT_FIELDS = [
 	"case_index", "difficulty", "sha256", "mode", "polygons", "vertices", "status",
 	"is_optimal", "is_valid_trajectory", "lower_bound", "upper_bound", "absolute_gap",

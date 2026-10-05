@@ -1,5 +1,5 @@
 
-#include "common.h"
+#include "tpp/geometry/common.h"
 #include "tpp_convex.h"
 
 #include "gurobi_c++.h"

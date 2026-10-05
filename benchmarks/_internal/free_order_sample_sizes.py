@@ -9,16 +9,18 @@ import json
 import math
 import random
 import subprocess
-import sys
 import time
 from pathlib import Path
+
+import native_build
 from typing import Any
 
 from unordered_runner import run_unordered_solver
+import workspace
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_INPUT = REPO_ROOT / "benchmarks/campaigns/usp-campus-85/instance.txt"
+DEFAULT_INPUT = workspace.local_data("usp-campus-85") / "instance.txt"
 DEFAULT_SIZES = (10, 20, 30, 40, 50, 60, 70, 80)
 SUMMARY_FIELDS = (
 	"sample_size",
@@ -173,8 +175,8 @@ def make_parser() -> argparse.ArgumentParser:
 		)
 	)
 	parser.add_argument("--input", type=Path, default=DEFAULT_INPUT, help=f"instância TPP em texto (padrão: {DEFAULT_INPUT})")
-	parser.add_argument("--solver", type=Path, default=REPO_ROOT / ".build/unordered/tpp", help="executável C++ de ordem livre")
-	parser.add_argument("--output", type=Path, help="pasta local de saída; por padrão, benchmarks/results/<instância>-sample-sizes-seed-<seed>")
+	parser.add_argument("--solver", type=Path, default=native_build.tool_path("tpp-unordered"), help="executável C++ de ordem livre")
+	parser.add_argument("--output", type=Path, help="pasta local de saída; por padrão, benchmarks/workspace/runs/<instância>-sample-sizes-seed-<seed>")
 	parser.add_argument("--sizes", type=parse_sizes, default=DEFAULT_SIZES, help="tamanhos crescentes separados por vírgula (padrão: 10,20,30,40,50,60,70,80)")
 	parser.add_argument("--seed", type=int, default=1, help="semente da permutação aleatória (padrão: 1)")
 	parser.add_argument("--seconds", type=parse_positive_float, default=5.0, help="limite de tempo por tamanho, em segundos (padrão: 5)")
@@ -203,7 +205,7 @@ def main(argv: list[str] | None = None) -> int:
 		parser.error(f"a maior amostra solicitada ({args.sizes[-1]}) excede os {len(polygons)} polígonos da instância")
 
 	output_dir = args.output.expanduser().resolve() if args.output else (
-		REPO_ROOT / "benchmarks/results" / f"{input_path.stem}-sample-sizes-seed-{args.seed}"
+		workspace.runs_dir() / f"{input_path.stem}-sample-sizes-seed-{args.seed}"
 	)
 	config = {
 		"input_path": str(input_path),

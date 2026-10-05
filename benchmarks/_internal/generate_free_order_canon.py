@@ -9,23 +9,21 @@ import dataclasses
 import datetime as dt
 import hashlib
 import json
-import math
 import random
 import shutil
 import struct
 import subprocess
-import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+import workspace
 from typing import Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-GENERATOR_SOURCE = REPO_ROOT / "packages/instance-generation/source"
-DEFAULT_REGION = REPO_ROOT / "packages/instance-generation/regions/sao-paulo.osm.pbf"
-DEFAULT_OUTPUT = REPO_ROOT / "benchmarks/campaigns/free-order-canon-v1"
+DEFAULT_REGION = workspace.regions_dir() / "sao-paulo.osm.pbf"
+DEFAULT_OUTPUT = workspace.campaign_path("free-order-canon-v1")
 
-sys.path.insert(0, str(GENERATOR_SOURCE))
 import gen_instances as gen
 
 
