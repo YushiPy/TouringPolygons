@@ -21,6 +21,15 @@ nas campanhas locais (`benchmarks/workspace/`).
 - Teto medido do lado primal: partir do caminho ótimo deu 1,9× (mediana) nos
   casos resolvidos em 1 s e certificou 30 casos a mais
   (`runs/german-initial-bound-1s`, 2026-09-24, gap 1e-9).
+- O custo do oráculo tem cauda pesada (05/10, caso 417, `5adad03`+limites de
+  visita): 5% das chamadas passam de 1 ms e somam 84% do tempo do oráculo.
+  São chamadas cuja candidata `double` intersectante é rejeitada e que a
+  recuperação filtrada certifica (13.642 de 282.459, todas certificadas). Nas
+  entradas dessas chamadas há quase sempre polígonos com vértices exatamente
+  compartilhados (59 de 60 amostras); o traço `double` nunca coincidiu com o
+  filtrado. Depois das mudanças de 05/10, só o mapa filtrado ainda soma
+  23–29% das amostras em 417/419; a recuperação inteira (mapa, replay e
+  certificado) é ~50% do oráculo no 417.
 
 ## Protocolo padrão
 
@@ -70,6 +79,18 @@ sob teto de chamadas é custo de um trecho de busca, não tempo de solução;
 | Rodadas paralelas com um único mergulho | paralelismo | 4–5× mais chamadas, 2,5× mais lento | rejeitado (corrigido) | idem |
 | LNS exata por janelas (`--window-lns`) | UB | sobre os limites de visita: +9% (difícil), +3% (validação), +1% (Dubai); pior caso −11% em caso de 0,2 s | opcional (OFF) | idem |
 | Rodadas paralelas de nós com mergulhos múltiplos (`--parallel-nodes`) | paralelismo | 8 threads: até 2,06× (419), ~1× em casos de visita; +7–24% sobre `--threads` de irmãos | opcional (OFF) | idem |
+| Arena por thread para os nós de `FilteredRational` (sem `shared_ptr`) | custo/chamada | busca idêntica; recuperação filtrada 1,69× (156) | **ativo** | este documento, oráculo 2026-10-05 |
+| Sinais de predicados do mapa filtrado só por intervalos, DAG sob demanda | custo/chamada | busca idêntica; filtrado +12% sobre a arena; com ela 1,158× (difícil, 1 rep.) | **ativo** | idem |
+| KKT do certificado em inteiros homogêneos, sem MDC | custo/chamada | busca e contagem de predicados idênticas; oráculo 1,10–1,19× | **ativo** | idem |
+| Sinais homogêneos na materialização (`logarithmic_clip`, `support_max`, `feature_on_edge`) | custo/chamada | busca idêntica; oráculo 1,04–1,08× | **ativo** | idem |
+| `set_exact_bounds` com pisos e soma inteiros | custo/chamada | mesmo racional; oráculo 1,02–1,04× | **ativo** | idem |
+| Caixa por polígono antes do teste aresta a aresta do mapa direcional | custo/chamada | mesmos pares; oráculo 1,11× (156), neutro (213) | **ativo** | idem |
+| Estado thread-local único no filtrado | custo/chamada | neutro (0,99×) | rejeitado | idem |
+| Reter 64 blocos da arena em vez de 16 | memória/tempo | neutro (0,997×) | rejeitado | idem |
+| Reuso de prefixo dos mapas filtrados entre chamadas | custo/chamada | só 22% dos níveis compartilhados; 55% das chamadas sem prefixo | descartado por medição | idem |
+| Memo de resultados por entrada idêntica do oráculo | chamadas | 0 repetições em 75.746 chamadas (156, 213) | descartado por medição | idem |
+| Pular o replay exato da candidata `double` rejeitada | custo/chamada | muda decisões: perde o corte dual da candidata e traços distintos podem ambos certificar | descartado por análise | idem |
+| Proposta `double` sobre polígonos contraídos 2⁻²⁰ antes do filtrado (intersectantes) | custo/chamada | aceita 22% (368/1641); oráculo 0,92× | rejeitado | idem |
 
 ## Detalhes das tentativas de 2026-10-05
 
@@ -132,3 +153,56 @@ voltam ao nível serial; com 8 threads: 419 2,06×, 557 1,54×, 417 1,36×, mas
 (`--threads 8`), +7–24%. A eficiência por núcleo é baixa (contenção de alocação
 GMP, caches por thread frios); para campanhas, instâncias paralelas com uma
 thread continuam mais eficientes.
+
+## Oráculo convexo — tentativas de 2026-10-05
+
+Mesma campanha local (`experiments/free-order-perf-20261005`, arquivos
+`oracle-*`); resumo em
+[`results-saved/tpp-oracle-exact-arithmetic-2026-10-05`](../../benchmarks/results-saved/tpp-oracle-exact-arithmetic-2026-10-05/README.md).
+Referência: binário `final` da rodada anterior (limites de visita ativos).
+Todas as mudanças ativas preservam a busca: caminho, ordem, limites, chamadas,
+nós e contadores coincidem em todas as 222 execuções (37 casos, 3 repetições).
+Confirmação: difícil 1,302× (média geométrica; 0,990–2,056×; 466 → 295 s);
+validação 1,339× (0,983–2,069×; 234 → 176 s).
+
+### Diagnóstico
+
+Perfis `sample` (419, 557, 417) e contadores novos do agregado do oráculo
+(`TPP_HYBRID_AGGREGATE=1`). No 419, metade das amostras estava na recuperação
+filtrada (`solve_intersecting_map_trace_filtered`); dentro dela, ~70% eram
+`malloc`/`free`/contagem de referências dos nós `shared_ptr` do DAG e só ~6%
+GMP. No 417 ela somava 30,0 dos 43,4 s do oráculo. No 156 cada recuperação
+criava ~22 mil nós e ~800 avaliações racionais exatas. Os motivos de rejeição
+da candidata `double` eram localizador (370), construção (87), otimalidade
+local (586) e contatos coincidentes (598) em 1641 chamadas, sempre com
+divergência do traço filtrado, em geral a 7 ou mais níveis do topo.
+
+Depois da arena, o racional exato passou a dominar (~42% do tempo no 417), e
+nele a normalização por MDC (`hgcd2`, `div2`, `gcd_22`). Os testes do KKT e da
+materialização são sinais invariantes a escalas positivas; por isso foram
+levados a inteiros homogêneos sem mudar nenhuma decisão.
+
+### Rejeitadas ou descartadas
+
+- **Estado thread-local único** e **64 blocos retidos**: neutros.
+- **Reuso de prefixo dos mapas filtrados**: o mapa do nível *i* depende só de
+  `start` e dos polígonos 0..*i*, mas chamadas filtradas consecutivas
+  compartilham só 22% dos níveis.
+- **Memo de entradas idênticas**: nenhuma sequência se repete.
+- **Pular o replay da candidata rejeitada**: o replay também alimenta o corte
+  dual da candidata; além disso, traços distintos podem ser ambos ótimos.
+- **Proposta contraída para intersectantes**: separa os vértices
+  compartilhados, mas o traço contraído raramente é o traço ótimo do original
+  (22%), e a tentativa extra custa mais do que economiza.
+
+### Paralelismo
+
+Com `--threads 8 --parallel-nodes` (156, 417; bateria), os lotes têm em média
+6,4 chamadas, mas a razão CPU/parede do oráculo é só 1,7–2,3: a chamada mais
+lenta do lote (cauda acima de 1 ms) dita o tempo de parede. A soma do tempo
+de CPU do oráculo também sobe com oito threads (417: +18% na referência, +33%
+no candidato; 156: +40% e +58%). Oito threads aceleram 1,32–1,38× a
+referência e 1,25–1,30× o candidato; contra a referência com oito threads, o
+candidato com oito threads é 1,37× (156) e 1,68× (417) mais rápido. O gargalo principal é
+desequilíbrio de carga entre chamadas, não contenção de alocação; rodadas que
+não esperem o oráculo mais lento mudariam a busca e não foram tentadas.

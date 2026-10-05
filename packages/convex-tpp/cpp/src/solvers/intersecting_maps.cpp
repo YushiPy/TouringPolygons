@@ -54,6 +54,32 @@ struct Point {
 
 int sign(const Scalar &a) { return a>0 ? 1 : a<0 ? -1 : 0; }
 
+// Sign of a predicate written once over a generic arithmetic `lift`. Filtered
+// arithmetic first evaluates only its intervals; the expression DAG is built,
+// exactly as before, when they leave the sign open.
+template<class Build> int sign_of(const Build &build) {
+#ifdef TPP_DIRECTIONAL_FILTERED
+    if(Scalar::filtering())
+        if(const auto decided=build([](const Scalar &v){return Scalar::Virtual(v);}).sign()) return *decided;
+#endif
+    return sign(build([](const Scalar &v) -> const Scalar & {return v;}));
+}
+int cross_sign(const Point &a,const Point &b) {
+    return sign_of([&](auto lift){return lift(a.x)*lift(b.y)-lift(a.y)*lift(b.x);});
+}
+int dot_sign(const Point &a,const Point &b) {
+    return sign_of([&](auto lift){return lift(a.x)*lift(b.x)+lift(a.y)*lift(b.y);});
+}
+// sign(axis.cross(p-origin)) and sign(axis.dot(p-origin)).
+int offset_cross_sign(const Point &axis,const Point &p,const Point &origin) {
+    return sign_of([&](auto lift){
+        return lift(axis.x)*(lift(p.y)-lift(origin.y))-lift(axis.y)*(lift(p.x)-lift(origin.x));});
+}
+int offset_dot_sign(const Point &axis,const Point &p,const Point &origin) {
+    return sign_of([&](auto lift){
+        return lift(axis.x)*(lift(p.x)-lift(origin.x))+lift(axis.y)*(lift(p.y)-lift(origin.y));});
+}
+
 struct Query {
     Point point, side;
     // Lexicographic secondary directions disambiguate a query that lies on
@@ -65,23 +91,23 @@ struct Query {
 
 // Exact sign at q + epsilon*d, for positive infinitesimal epsilon.
 int cross_sign(const Point &axis, const Query &q, const Point &origin, bool break_ties=true) {
-    const int constant = sign(axis.cross(q.point-origin));
+    const int constant = offset_cross_sign(axis,q.point,origin);
     if(constant) return constant;
-    const int first=sign(axis.cross(q.side));
+    const int first=cross_sign(axis,q.side);
     if(first || !break_ties) return first;
-    const int second=sign(axis.cross(q.tie1));
-    return second ? second : sign(axis.cross(q.tie2));
+    const int second=cross_sign(axis,q.tie1);
+    return second ? second : cross_sign(axis,q.tie2);
 }
 int dot_sign(const Point &axis, const Query &q, const Point &origin) {
-    const int constant = sign(axis.dot(q.point-origin));
+    const int constant = offset_dot_sign(axis,q.point,origin);
     if(constant) return constant;
-    const int first=sign(axis.dot(q.side));
+    const int first=dot_sign(axis,q.side);
     if(first) return first;
-    const int second=sign(axis.dot(q.tie1));
-    return second ? second : sign(axis.dot(q.tie2));
+    const int second=dot_sign(axis,q.tie1);
+    return second ? second : dot_sign(axis,q.tie2);
 }
 bool same_direction(const Point &a,const Point &b) {
-    return a.cross(b)==0 && a.dot(b)>0;
+    return cross_sign(a,b)==0 && dot_sign(a,b)>0;
 }
 Point reflect_direction(const Point &v,const Point &edge) {
     return edge*(2*v.dot(edge)/edge.dot(edge))-v;
@@ -119,6 +145,8 @@ struct Bounds {
 struct Map {
     std::vector<Point> original;
     std::vector<Bounds> edge_bounds;
+    // Union of edge_bounds: an edge box disjoint from it misses every edge box.
+    std::optional<Bounds> bounds;
     std::vector<Point> membership_corners;
     std::vector<Vertex> vertices;
     size_t segment_end=0;
@@ -136,7 +164,7 @@ class DirectionalMaps {
             if(q.side.zero()) return true;
             if(polygon.size()==1) return false;
             const Point edge=polygon[1]-polygon[0];
-            if(edge.cross(q.side)!=0) return false;
+            if(cross_sign(edge,q.side)!=0) return false;
             const Scalar position=edge.dot(q.point-polygon[0]),direction=edge.dot(q.side);
             return (position!=0 || direction>=0) &&
                 (position!=edge.dot(edge) || direction<=0);
@@ -157,7 +185,7 @@ class DirectionalMaps {
         if(same_direction(r1,r2))
             return cross_sign(r1,q,v)==0 && dot_sign(r1,q,v)>=0;
         const bool c1=cross_sign(r1,q,v)>=0, c2=cross_sign(r2,q,v)<=0;
-        return r1.cross(r2)>=0 ? c1 && c2 : c1 || c2;
+        return cross_sign(r1,r2)>=0 ? c1 && c2 : c1 || c2;
     }
 
     // The existing binary locator's chord predicate, evaluated on symbolic
@@ -167,13 +195,13 @@ class DirectionalMaps {
         if(v1==v2) return in_cone(q,v1,r1,r2);
         const Point dv=v2-v1;
         if(same_direction(r1,dv) || same_direction(r2,-dv)) return false;
-        if(dv.cross(r1)<0) {
-            if(dv.cross(r2)<0)
+        if(cross_sign(dv,r1)<0) {
+            if(cross_sign(dv,r2)<0)
                 return cross_sign(r1,q,v1)>=0 && cross_sign(r2,q,v2)<=0
                     && cross_sign(dv,q,v1)<=0;
             return cross_sign(dv,q,v1)<0 ? cross_sign(r1,q,v1)>=0 : cross_sign(r2,q,v2)<=0;
         }
-        if(dv.cross(r2)<0)
+        if(cross_sign(dv,r2)<0)
             return cross_sign(dv,q,v2)<0 ? cross_sign(r2,q,v2)<=0 : cross_sign(r1,q,v1)>=0;
         return cross_sign(r1,q,v1)>=0 || cross_sign(r2,q,v2)<=0 || cross_sign(dv,q,v1)<=0;
     }
@@ -189,7 +217,7 @@ class DirectionalMaps {
             const Point source=virtual_source({v.point,side},i);
             Point incoming=v.point-source;
             if(incoming.zero()) incoming=side;
-            reflects=edge.cross(incoming)>0;
+            reflects=cross_sign(edge,incoming)>0;
             return reflects ? reflect_direction(incoming,edge) : incoming;
         };
         v.before_ray=outgoing(before-v.point,v.point-before,v.before_reflects);
@@ -421,6 +449,7 @@ class DirectionalMaps {
                 };
                 collinear_point(start);
                 if(include_previous_intersections) for(size_t h=0;h<i;++h) {
+                    if(map.edge_bounds[j].disjoint(*maps[h].bounds)) continue;
                     const auto &previous=maps[h].original;
                     for(size_t k=0;k<previous.size();++k) {
                         // Bounds use the original binary-double coordinates,
@@ -482,7 +511,13 @@ public:
             // corners from the auxiliary O(log m) closed-membership fan.
             for(size_t j=0;j<p.size();++j) {
                 const Point before=p[(j+p.size()-1)%p.size()],after=p[(j+1)%p.size()];
-                maps[i].edge_bounds.emplace_back(p[j].external(),after.external());
+                const Bounds &edge=maps[i].edge_bounds.emplace_back(p[j].external(),after.external());
+                auto &all=maps[i].bounds;
+                if(!all) all=edge;
+                else {
+                    all->min_x=std::min(all->min_x,edge.min_x);all->max_x=std::max(all->max_x,edge.max_x);
+                    all->min_y=std::min(all->min_y,edge.min_y);all->max_y=std::max(all->max_y,edge.max_y);
+                }
                 if(p.size()<=2 || (p[j]-before).cross(after-p[j])!=0)
                     maps[i].membership_corners.push_back(p[j]);
             }

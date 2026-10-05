@@ -1,7 +1,9 @@
 #include "tpp/nonconvex/unordered.h"
+#include "tpp/convex/hybrid.h"
 #include <atomic>
 #include <cmath>
 #include <csignal>
+#include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <mutex>
@@ -525,6 +527,25 @@ int main(int argc, char **argv) {
 			std::cout << ']';
 		}
 		std::cout << "}\n";
+		// Diagnostic oracle phase counters on stderr; stdout stays unchanged.
+		if (std::getenv("TPP_HYBRID_AGGREGATE")) {
+			const auto h = tpp::convex_hybrid_aggregate();
+			std::cerr << "{\"hybrid_aggregate\":1,\"calls\":" << h.total_calls << ",\"disjoint\":" << h.disjoint_calls
+				<< ",\"double_disjoint\":" << h.certified_double_disjoint_calls
+				<< ",\"double_intersection\":" << h.certified_double_intersection_calls
+				<< ",\"interval\":" << h.interval_bound_calls << ",\"interval_contracted\":" << h.interval_contracted_calls
+				<< ",\"cutoff_pruned\":" << h.cutoff_pruned_calls
+				<< ",\"touching_attempts\":" << h.touching_disjoint_attempts << ",\"touching_certified\":" << h.touching_disjoint_certified
+				<< ",\"filtered_attempts\":" << h.filtered_attempts << ",\"filtered_certified\":" << h.filtered_certified
+				<< ",\"rational_disjoint\":" << h.rational_disjoint_fallbacks << ",\"rational_intersection\":" << h.rational_intersection_fallbacks
+				<< ",\"fallback_reasons\":[";
+			for (size_t i = 0; i < h.fallback_reasons.size(); ++i) std::cerr << (i ? "," : "") << h.fallback_reasons[i];
+			std::cerr << "],\"dispatch_s\":" << h.dispatch_seconds << ",\"proposal_s\":" << h.proposal_preparation_seconds
+				<< ",\"bound_s\":" << h.bound_evaluation_seconds << ",\"construction_s\":" << h.double_solver_seconds
+				<< ",\"materialization_s\":" << h.contact_materialization_seconds << ",\"certificate_s\":" << h.certificate_seconds
+				<< ",\"touching_s\":" << h.touching_disjoint_seconds << ",\"filtered_s\":" << h.filtered_seconds << ",\"rejected_replay_s\":" << h.rejected_replay_seconds
+				<< ",\"rational_s\":" << h.rational_fallback_seconds << ",\"total_s\":" << h.total_seconds << "}\n";
+		}
 	} catch (const std::exception &e) {
 		std::cerr << e.what() << '\n';
 		return 1;
