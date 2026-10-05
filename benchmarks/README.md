@@ -45,6 +45,45 @@ binding nativo de Fekete; não é necessário para executar os benchmarks
 próprios com um binário já compilado. Os comandos externos aceitam
 `--external-python` quando esse ambiente está em outro local.
 
+## Instâncias locais de Paula
+
+O importador considera exclusivamente os 235 arquivos de `npol-le-100`:
+45 de `gtsplib` e 190 de `momlib`. Conserva coordenadas, regiões e ordem do arquivo,
+e acrescenta `start == target` no centro da bbox global. É TPP com depot fixo;
+os ótimos de ciclo livre publicados no paper não são ótimos de referência para
+essa formulação. Pontos e segmentos usam um e dois vértices, respectivamente.
+Polígonos não convexos são tratados pela decomposição existente, com peças
+alternativas para a mesma região.
+
+```bash
+python3 benchmarks/tpp.py convert-paula paula-center
+python3 benchmarks/tpp.py free-order-run \
+  --suite benchmarks/campaigns/paula-center/inputs/paula-center.bin \
+  --solver .build/unordered/tpp --seconds 30 --max-calls 1000000 \
+  --output benchmarks/campaigns/paula-center/run.jsonl
+python3 benchmarks/tpp.py verify-socp \
+  --solver .build/unordered/tpp \
+  --manifest benchmarks/campaigns/paula-center/paula-manifest.json \
+  --output benchmarks/campaigns/paula-center/verification \
+  --reference-python third_party/tspn-socg/.venv/bin/python
+```
+
+O manifesto associa cada caso ao arquivo original e seu SHA-256, à bbox e aos
+extremos adicionados. Os dados de terceiros e toda a campanha derivada devem
+permanecer locais e ignorados, pois não há autorização de redistribuição.
+
+A referência SOCP requer um Python com Gurobi licenciado e Shapely >= 2.1;
+`--reference-python` seleciona esse ambiente, sem mudar as dependências do solver.
+Executa 32 casos sintéticos e, com o manifesto, 12 subconjuntos determinísticos
+de até três regiões. Seleciona regiões curtas e casos de menor custo de enumeração,
+conservando o depot do caso original. **Esses subconjuntos não são as instâncias
+completas.** `--subset-size 0` pede instâncias completas, sujeito ao limite de
+20.000 folhas; a enumeração cresce com ordens e peças, não apenas com regiões.
+Veja o [contrato e as tolerâncias](../docs/algorithms/unordered-tpp.md#referência-independente-socp).
+`verification.json` registra resultados, status numérico da referência e as
+validações independentes dos caminhos. Uma execução curta de `free-order-run`
+pode terminar por tempo/chamadas; consulte `exact`, limites e `termination`.
+
 ## Campanha sintética
 
 ```bash

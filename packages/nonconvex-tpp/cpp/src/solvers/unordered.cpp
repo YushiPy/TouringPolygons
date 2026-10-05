@@ -266,11 +266,11 @@ namespace tpp {
 				normalization_error += 2 * p.front().distance_to(p.back());
 				p.pop_back();
 			}
-			if (p.size() < 3 || !std::all_of(p.begin(), p.end(), [](auto v) { return v.is_finite(); }))
-				throw std::invalid_argument("Expected finite, nondegenerate simple polygons.");
+			if (p.empty() || (cycle && p.size() < 3) || !std::all_of(p.begin(), p.end(), [](auto v) { return v.is_finite(); }))
+				throw std::invalid_argument("Expected finite points, segments or simple polygons (positive area for cycles).");
 			double area = 0;
 			for (size_t i = 0; i < p.size(); ++i) area += (p[i] - p[0]).cross(p[(i + 1) % p.size()] - p[0]);
-			if (area == 0) throw std::invalid_argument("Zero-area polygon.");
+			if (p.size() >= 3 && area == 0) throw std::invalid_argument("Zero-area polygon.");
 			if (area < 0) std::reverse(p.begin(), p.end());
 			hulls.push_back(convex_hull(p));
 			result.polygon_vertices_total += p.size();
@@ -360,6 +360,10 @@ namespace tpp {
 		std::vector<std::vector<Polygon>> pieces(n);
 		auto prepare_pieces = [&](size_t polygon_index) {
 			if (!pieces[polygon_index].empty()) return;
+			if (polygons[polygon_index].size() <= 2) {
+				pieces[polygon_index].push_back(polygons[polygon_index]);
+				return;
+			}
 			for (auto piece : decompose_polygon(polygons[polygon_index])) {
 				piece = convex_hull(std::move(piece));
 				if (piece.size() >= 3) pieces[polygon_index].push_back(std::move(piece));
@@ -1403,7 +1407,7 @@ namespace tpp {
 			if (cycle) snapped.back()=snapped.front();
 			else {snapped.front() = start; snapped.back() = target;}
 			if (!std::all_of(input.begin(), input.end(), [&](const auto &polygon) {
-				if (polygon.size() < 3) throw std::invalid_argument("Expected finite, nondegenerate simple polygons.");
+				if (polygon.empty() || (cycle && polygon.size() < 3)) throw std::invalid_argument("Expected nonempty regions (positive-area polygons for cycles).");
 				return contact(snapped, polygon, options.feasibility_tolerance).distance <= options.feasibility_tolerance;
 			})) throw std::invalid_argument("Initial path does not visit every polygon.");
 		}
@@ -1446,14 +1450,35 @@ namespace tpp {
 			std::fma(point.x, divisor, center.x),
 			std::fma(point.y, divisor, center.y),
 		};
+		// The affine round trip may move a fixed endpoint by an ulp. Restore
+		// the actual input endpoints and account for that displacement in bounds.
+		double endpoint_correction=0;
+		if(!cycle && result.path.size()>=2) {
+			endpoint_correction=result.path.front().distance_to(start)+result.path.back().distance_to(target);
+			if(endpoint_correction>0)endpoint_correction=std::nextafter(endpoint_correction,std::numeric_limits<double>::infinity());
+			result.path.front()=start; result.path.back()=target;
+			if(endpoint_correction>0) {
+				auto upper=[&](double &v) {if(std::isfinite(v))v=std::nextafter(v+endpoint_correction,std::numeric_limits<double>::infinity());};
+				result.lower_bound=std::max(start.distance_to(target),std::nextafter(result.lower_bound-endpoint_correction,-std::numeric_limits<double>::infinity()));
+				result.initial_lower_bound=std::max(start.distance_to(target),std::nextafter(result.initial_lower_bound-endpoint_correction,-std::numeric_limits<double>::infinity()));
+				upper(result.upper_bound); upper(result.initial_upper_bound); upper(result.initial_length);
+				upper(result.incumbent_length); upper(result.first_best_update_length);
+			}
+		}
 		for (auto &event : result.trace) {
 			for (auto &point : event.path) point = {
 				std::fma(point.x, divisor, center.x),
 				std::fma(point.y, divisor, center.y),
 			};
+			if(!cycle && event.path.size()>=2) {event.path.front()=start; event.path.back()=target;}
 			if (std::isfinite(event.lower_bound)) event.lower_bound *= divisor;
 			if (std::isfinite(event.upper_bound)) event.upper_bound *= divisor;
 			if (std::isfinite(event.length)) event.length *= divisor;
+			if(endpoint_correction>0) {
+				if(std::isfinite(event.lower_bound))event.lower_bound=std::max(start.distance_to(target),std::nextafter(event.lower_bound-endpoint_correction,-std::numeric_limits<double>::infinity()));
+				if(std::isfinite(event.upper_bound))event.upper_bound=std::nextafter(event.upper_bound+endpoint_correction,std::numeric_limits<double>::infinity());
+				if(std::isfinite(event.length) && event.path.size()>=2)event.length=path_length(event.path);
+			}
 		}
 		auto covered = [&](const Polygon &path) {
 			return std::all_of(input.begin(), input.end(), [&](const auto &polygon) {
@@ -1497,6 +1522,11 @@ namespace tpp {
 			for (auto [position, index] : visits) result.order.push_back(index);
 		}
 		result.final_length = result.upper_bound;
+		if(endpoint_correction>0) {
+			result.exact=result.upper_bound-result.lower_bound<=options.absolute_gap+options.relative_gap*std::abs(result.upper_bound);
+			if(result.exact)result.termination=UnorderedTppTermination::Optimal;
+			else if(result.termination==UnorderedTppTermination::Optimal)result.termination=UnorderedTppTermination::NumericalLimit;
+		}
 		result.final_absolute_gap = std::max(0.0, result.upper_bound - result.lower_bound);
 		result.final_relative_gap = result.final_absolute_gap / std::max(std::abs(result.upper_bound), 1e-30);
 		if (options.trace) {

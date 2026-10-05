@@ -21,7 +21,8 @@ enum class ConvexFallbackReason {
     MembershipOrOrdering,
     LocalOptimality,
     CoincidentContact,
-    ShadowMismatch
+    ShadowMismatch,
+    LowerDimensionalRegion
 };
 
 struct ConvexHybridOptions {
@@ -105,7 +106,7 @@ struct ConvexHybridAggregate {
     std::size_t rational_disjoint_fallbacks = 0;
     std::size_t rational_disjoint_directional_recoveries = 0;
     std::size_t rational_intersection_fallbacks = 0;
-    std::array<std::size_t,8> fallback_reasons{};
+    std::array<std::size_t,9> fallback_reasons{};
     std::size_t predicate_exact_evaluations = 0;
     std::size_t zero_link_witnesses = 0;
     std::size_t dispatch_pair_queries = 0;

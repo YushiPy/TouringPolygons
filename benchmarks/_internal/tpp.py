@@ -73,6 +73,8 @@ Commands:
   compare-oracles ARGS...            Compare oracle backends inside the external solver.
   run-fekete ARGS...                 Run/resume the long external campaign.
   convert-fekete ARGS...             Convert the pinned Fekete instance archive.
+  convert-paula NAME ARGS...         Import 235 Paula cases with a bbox-center depot.
+  verify-socp ARGS...                Independently verify small endpoint TPP cases.
   convert-tspn ARGS...               Convert native TSPN result instances.
   normalize ARGS...                  Normalize polygon orientation in a suite.
   split ARGS...                      Split a benchmarked binary by difficulty.
@@ -349,6 +351,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 		return command_module("run_fekete", rest)
 	if command == "convert-fekete":
 		return command_module("convert_instances", rest)
+	if command == "convert-paula":
+		return command_module("convert_paula", rest)
+	if command == "verify-socp":
+		return command_module("verify_socp", rest)
 	if command == "convert-tspn":
 		return command_module("convert_tspn_native_instances", rest)
 	if command == "normalize":

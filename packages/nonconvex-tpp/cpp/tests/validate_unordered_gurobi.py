@@ -6,11 +6,10 @@ Requires gurobipy (licensed) and shapely. The production solver requires neither
 from __future__ import annotations
 
 import argparse
-import itertools
 import json
-import math
 import random
 import subprocess
+import sys
 from pathlib import Path
 
 import gurobipy as gp
@@ -19,42 +18,16 @@ from shapely.geometry import LineString, Polygon
 Point = tuple[float, float]
 
 
-def baseline(start: Point, target: Point, rectangles: list[list[tuple[float, float, float, float]]], env: gp.Env) -> tuple[float, float]:
-	lower = upper = math.inf
-	for order in itertools.permutations(range(len(rectangles))):
-		for selection in itertools.product(*(rectangles[i] for i in order)):
-			with gp.Model(env=env) as model:
-				model.Params.Threads = 1
-				model.Params.BarQCPConvTol = 1e-8
-				model.Params.FeasibilityTol = 1e-9
-				x = [start[0]]
-				y = [start[1]]
-				for xmin, ymin, xmax, ymax in selection:
-					x.append(model.addVar(lb=xmin, ub=xmax))
-					y.append(model.addVar(lb=ymin, ub=ymax))
-				x.append(target[0])
-				y.append(target[1])
-				cost = []
-				for i in range(len(x) - 1):
-					dx = model.addVar(lb=-gp.GRB.INFINITY)
-					dy = model.addVar(lb=-gp.GRB.INFINITY)
-					d = model.addVar(lb=0)
-					model.addConstr(dx == x[i + 1] - x[i])
-					model.addConstr(dy == y[i + 1] - y[i])
-					model.addQConstr(dx * dx + dy * dy <= d * d)
-					cost.append(d)
-				model.setObjective(gp.quicksum(cost))
-				model.optimize()
-				if model.Status != gp.GRB.OPTIMAL:
-					model.Params.BarQCPConvTol = 1e-6
-					model.Params.NumericFocus = 3
-					model.reset()
-					model.optimize()
-				if model.Status != gp.GRB.OPTIMAL:
-					raise RuntimeError(f'Baseline status {model.Status}')
-				upper = min(upper, model.ObjVal)
-				lower = min(lower, model.ObjBound)
-	return lower, upper
+# Reuse the independent reference exposed through benchmarks/tpp.py verify-socp.
+sys.path.insert(0, str(Path(__file__).resolve().parents[4] / 'benchmarks/_internal'))
+from verify_socp import baseline as convex_combination_baseline
+
+
+def baseline(start: Point, target: Point, rectangles, env: gp.Env) -> tuple[float, float]:
+	pieces = [[[(xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax)]
+		for xmin, ymin, xmax, ymax in alternatives] for alternatives in rectangles]
+	result = convex_combination_baseline(start, target, pieces, env)
+	return result['lower'], result['upper']
 
 
 def main() -> None:

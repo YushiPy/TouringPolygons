@@ -186,6 +186,7 @@ namespace tpp::unordered_detail {
 	Polygon convex_hull(Polygon polygon) {
 		std::sort(polygon.begin(), polygon.end(), [](auto a, auto b) { return std::tie(a.x, a.y) < std::tie(b.x, b.y); });
 		polygon.erase(std::unique(polygon.begin(), polygon.end(), [](auto a, auto b) { return a.x == b.x && a.y == b.y; }), polygon.end());
+		if (polygon.size() <= 2) return polygon;
 		Polygon hull;
 		for (auto vertex : polygon) {
 			while (hull.size() > 1 && (hull.back() - hull[hull.size() - 2]).cross(vertex - hull.back()) <= 0) hull.pop_back();

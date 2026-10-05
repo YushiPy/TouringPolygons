@@ -1,5 +1,6 @@
 #include "cycle_execution.h"
 #include "tpp/convex/detail/intersecting_maps.h"
+#include "tpp/convex/detail/closed_regions.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
 #ifdef TPP_EXPERIMENT_NATIVE_DOUBLE
@@ -10,6 +11,7 @@
 #endif
 #endif
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <optional>
 #include <stdexcept>
@@ -119,6 +121,7 @@ struct Map {
     std::vector<Bounds> edge_bounds;
     std::vector<Point> membership_corners;
     std::vector<Vertex> vertices;
+    size_t segment_end=0;
     struct CachedQuery { Query query; Point source; };
     std::optional<CachedQuery> last_query;
 };
@@ -128,6 +131,16 @@ class DirectionalMaps {
     std::vector<Map> maps;
 
     static bool inside(const Query &q,const std::vector<Point> &polygon) {
+        if(polygon.size()<=2) {
+            if(!closed_region_contains(q.point,polygon)) return false;
+            if(q.side.zero()) return true;
+            if(polygon.size()==1) return false;
+            const Point edge=polygon[1]-polygon[0];
+            if(edge.cross(q.side)!=0) return false;
+            const Scalar position=edge.dot(q.point-polygon[0]),direction=edge.dot(q.side);
+            return (position!=0 || direction>=0) &&
+                (position!=edge.dot(edge) || direction<=0);
+        }
         const auto &origin=polygon.front();
         if(cross_sign(polygon[1]-origin,q,origin,false)<0 ||
            cross_sign(polygon.back()-origin,q,origin,false)>0) return false;
@@ -184,10 +197,62 @@ class DirectionalMaps {
         v.ready=true;
     }
 
+    // A segment has no polygonal interior/fan: its two boundary edges overlap.
+    // Locate its contact by the monotone one-dimensional directional derivative
+    // of D_previous(z)+|z-q|, on the existing split boundary. Comparing opposite
+    // signed normalized dot products uses squared rational quantities only.
+    // Carry the symbolic query through this comparison, including both ties.
+    int segment_derivative(const Query &q,size_t level,const Point &v,const Point &edge,bool right) {
+        const Point incoming=v-virtual_source({v,right?edge:-edge},level-1);
+        if(incoming.zero()) return right?1:-1;
+        const Scalar a=incoming.dot(edge),squared=incoming.dot(incoming);
+        const std::array<Point,4> outgoing{v-q.point,-q.side,-q.tie1,-q.tie2};
+        std::array<Scalar,4> b;
+        for(size_t i=0;i<4;++i)b[i]=outgoing[i].dot(edge);
+        int bs=0;
+        for(const auto &coefficient:b)if((bs=sign(coefficient)))break;
+        const int as=sign(a);
+        if(!as)return bs;
+        if(!bs || as==bs)return as;
+        std::array<Scalar,7> difference{};
+        for(size_t i=0;i<4;++i)for(size_t j=0;j<4;++j)
+            difference[i+j]+=a*a*outgoing[i].dot(outgoing[j])-squared*b[i]*b[j];
+        for(const auto &coefficient:difference)
+            if(const int s=sign(coefficient))return as*s;
+        return 0;
+    }
+
+    long long locate_segment(const Query &q,size_t level) {
+        auto &map=maps[level-1];
+        const Point edge=map.original[1]-map.original[0];
+        // The forward boundary is sorted by its segment parameter; the first
+        // vertex of the reverse boundary supplies the final endpoint.
+        const size_t end=map.segment_end;
+        auto derivative=[&](size_t j,bool right) {
+            return segment_derivative(q,level,map.vertices[j].point,edge,right);
+        };
+        if(derivative(0,true)>=0)return 0;
+        if(derivative(end,false)<=0)return static_cast<long long>(2*end);
+        size_t left=0,right=end;
+        while(left+1<right) {
+            const size_t mid=left+(right-left)/2;
+            if(derivative(mid,true)>=0)right=mid;
+            else left=mid;
+        }
+        if(derivative(right,false)<=0)return static_cast<long long>(2*right);
+        const Point v=map.vertices[left].point;
+        const Point source=virtual_source({v,edge},level-1);
+        const int source_side=sign(edge.cross(source-v));
+        const int query_side=cross_sign(edge,q,v);
+        return source_side*query_side>0 ? static_cast<long long>(2*left+1) : -1;
+    }
+
     // -1: crossing; 2*j: vertex; 2*j+1: reflection on the following pseudo-edge.
     long long locate(const Query &q,size_t level) {
         auto &map=maps[level-1];
+        if(map.original.size()==1) return 0;
         if(inside(q,map.membership_corners)) return -1;
+        if(map.original.size()==2) return locate_segment(q,level);
         const size_t i=level-1, n=map.vertices.size();
         auto cone=[&](size_t j) {
             build_vertex(i,j);
@@ -209,7 +274,8 @@ class DirectionalMaps {
         const auto &a=map.vertices[left], &b=map.vertices[(left+1)%n];
         // A failed locator is exposed, never repaired by a scan or another solver.
         if(!in_edge_plus(q,a.point,b.point,a.after_ray,b.before_ray))
-            throw std::runtime_error("Directional map locator invariant failed at level "+std::to_string(level));
+            throw std::runtime_error("Directional map locator invariant failed at level "+std::to_string(level)
+                +" ("+std::to_string(map.original.size())+" region vertices, "+std::to_string(n)+" split vertices)");
         if(a.after_reflects!=b.before_reflects &&
            (b.point-a.point).cross(a.after_ray)!=0 &&
            (b.point-a.point).cross(b.before_ray)!=0)
@@ -336,7 +402,13 @@ class DirectionalMaps {
         for(size_t i=0;i<maps.size();++i) {
         cycle_checkpoint();
             auto &map=maps[i];
+            if(map.original.size()==1) {
+                Vertex v; v.point=map.original.front(); v.definition.point=v.point;
+                map.vertices.push_back(std::move(v));
+                continue;
+            }
             for(size_t j=0;j<map.original.size();++j) {
+                if(map.original.size()==2 && j==1)map.segment_end=map.vertices.size();
                 const Point a=map.original[j], edge=map.original[(j+1)%map.original.size()]-a;
                 struct Split { Scalar parameter; Vertex::Definition definition; };
                 std::vector<Split> splits{{Scalar(0),Vertex::Definition{.point=a}}};
@@ -403,14 +475,15 @@ public:
             if(p.size()>1 && p.front()==p.back()) p.pop_back();
             Scalar area=0;
             for(size_t j=0;j<p.size();++j) area+=p[j].cross(p[(j+1)%p.size()]);
-            if(p.size()<3 || area==0) throw std::invalid_argument("Polygon must have positive area");
+            if(p.empty() || (p.size()>=3 && area==0))
+                throw std::invalid_argument("Expected a point, segment or positive-area polygon");
             if(area<0) std::reverse(p.begin(),p.end());
             // Keep original edge provenance, but omit straight intermediate
             // corners from the auxiliary O(log m) closed-membership fan.
             for(size_t j=0;j<p.size();++j) {
                 const Point before=p[(j+p.size()-1)%p.size()],after=p[(j+1)%p.size()];
                 maps[i].edge_bounds.emplace_back(p[j].external(),after.external());
-                if((p[j]-before).cross(after-p[j])!=0)
+                if(p.size()<=2 || (p[j]-before).cross(after-p[j])!=0)
                     maps[i].membership_corners.push_back(p[j]);
             }
         }
@@ -460,7 +533,9 @@ public:
                 const Point a=path[segment-1], direction=path[segment]-a;
                 Scalar lo=rate,hi=1;
                 std::optional<size_t> lo_edge,hi_edge;
-                for(size_t j=0;j<maps[i].original.size();++j) {
+                if(maps[i].original.size()<=2) {
+                    if(!clip_closed_region(a,a+direction,maps[i].original,rate,lo,hi)) hi=-1;
+                } else for(size_t j=0;j<maps[i].original.size();++j) {
                     const Point v=maps[i].original[j];
                     const Point edge=maps[i].original[(j+1)%maps[i].original.size()]-v;
                     const Scalar constant=edge.cross(a-v),slope=edge.cross(direction);

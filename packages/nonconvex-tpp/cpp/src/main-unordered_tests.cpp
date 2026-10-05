@@ -649,10 +649,60 @@ void check_endpoint_portfolio() {
 	}
 }
 
+void check_lower_dimensional_regions() {
+    struct Case { Vector2 start,target; std::vector<Polygon> regions; double optimum; };
+    const std::vector<Case> cases{
+        {{0,0},{0,0},{{{2,1}}},2*std::sqrt(5.)},
+        {{0,0},{0,0},{{{2,-1},{2,1}}},4},
+        {{0,0},{0,0},{{{-2,0},{2,0}},{{0,-2},{0,2}}},0},
+        {{0,0},{0,0},{{{1,0},{3,0}},{{2,0},{4,0}}},4},
+        {{-1,1},{2,1},{{{0,0}},{{1,0},{2,0}}},1+2*std::sqrt(2.)},
+        {{0,0},{0,0},{{{2,1}},{{2,1}},{{2,-1}}},2+2*std::sqrt(5.)},
+        {{0,0},{0,0},{{{4,1}},{{2,-1},{2,2}},{{1,-1},{3,-1},{2,1}}},2*std::sqrt(17.)},
+    };
+    for(const auto &c:cases) {
+        check(c.start,c.target,c.regions);
+        for(size_t threads:{size_t(1),size_t(2)}) {
+            UnorderedTppSolveOptions options; options.threads=threads;
+            const auto result=tpp_nonconvex_unordered_solve(c.start,c.target,c.regions,options);
+            if(!result.exact || std::abs(result.upper_bound-c.optimum)>1e-7
+                || result.lower_bound>c.optimum+1e-7)
+                throw std::runtime_error("Point/segment analytic optimum mismatch.");
+            options.initial_path=result.path;
+            const auto supplied=tpp_nonconvex_unordered_solve(c.start,c.target,c.regions,options);
+            if(!supplied.exact || std::abs(supplied.upper_bound-c.optimum)>1e-7)
+                throw std::runtime_error("Point/segment initial path rejected or changed optimum.");
+        }
+        UnorderedTppSolveOptions heuristic;
+        heuristic.sampled_perimeter_initial_heuristic=true;
+        heuristic.convex_initial_refinement=true;
+        heuristic.bidirectional_initial_heuristic=true;
+        heuristic.relocate_initial_heuristic=true;
+        heuristic.trace=true;
+        const auto polished=tpp_nonconvex_unordered_solve(c.start,c.target,c.regions,heuristic);
+        if(!polished.exact || std::abs(polished.upper_bound-c.optimum)>1e-7
+            || !polished.initial_convex_refinement_error.empty())
+            throw std::runtime_error("Point/segment heuristic options failed.");
+    }
+    // Check fixed-order contact materialization when a point lies beyond the
+    // supporting line's finite segment, and when the prefix is collinear.
+    DynamicConvexTppWorkspace workspace;
+    const auto fixed=tpp_convex_solve_certified({-1,1},{2,1},{{{0,0}},{{1,0},{2,0}}},workspace,0);
+    if(fixed.path.size()!=4 || fixed.path[2]!=Vector2{1,0}
+        || std::abs(fixed.upper_bound-(1+2*std::sqrt(2.)))>1e-12)
+        throw std::runtime_error("Segment endpoint directional derivative regression.");
+    bool rejected=false;
+    try {tpp_nonconvex_unordered_solve({0,0},{1,0},{{{0,1},{1,1},{2,1}}});}
+    catch(const std::invalid_argument &){rejected=true;}
+    if(!rejected)throw std::runtime_error("Collinear polygon must use the segment representation.");
+    std::cout<<"Passed seven analytic point/segment cases, initial paths and two-thread checks.\n";
+}
+
 int main() {
 	try {
         check_prepared_contacts();check_relocation_and_zero_dual();
         check_sequence_storage();
+		check_lower_dimensional_regions();
 		check_oracle_certificates();
 		check_coordinate_normalization();
 		check_provided_initial_path();

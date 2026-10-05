@@ -1,5 +1,6 @@
 #include "tpp/convex/hybrid.h"
 #include "tpp/convex/detail/intersecting_maps.h"
+#include "tpp/convex/cycle_certificate.h"
 #include "tpp/convex/detail/rational_disjoint.h"
 #include "tpp/convex/solver.h"
 #include "common.h"
@@ -79,7 +80,7 @@ struct PhaseTimer {
     ~PhaseTimer(){seconds+=elapsed(began);}
 };
 
-Polygon exact_polygon(const std::vector<Vector2> &input) {
+Polygon exact_polygon(const std::vector<Vector2> &input, bool allow_degenerate=false) {
     Polygon p;
     for(auto v:input) {
         if(!v.is_finite()) throw std::invalid_argument("Nonfinite polygon coordinate");
@@ -88,7 +89,8 @@ Polygon exact_polygon(const std::vector<Vector2> &input) {
     if(p.size()>1 && p.front()==p.back())p.pop_back();
     Rational area=0;
     for(size_t i=0;i<p.size();++i)area+=p[i].cross(p[(i+1)%p.size()]);
-    if(p.size()<3 || area==0)throw std::invalid_argument("Polygon must have positive area");
+    if(p.empty() || ((!allow_degenerate || p.size()>=3) && (p.size()<3 || area==0)))
+        throw std::invalid_argument("Expected a point, segment or positive-area polygon");
     if(area<0)std::reverse(p.begin(),p.end());
     return p;
 }
@@ -1134,6 +1136,7 @@ const char *to_string(ConvexFallbackReason reason) {
         case ConvexFallbackReason::LocalOptimality:return "local_optimality";
         case ConvexFallbackReason::CoincidentContact:return "coincident_contact";
         case ConvexFallbackReason::ShadowMismatch:return "shadow_mismatch";
+        case ConvexFallbackReason::LowerDimensionalRegion:return "lower_dimensional_region";
     }
     return "unknown";
 }
@@ -1152,6 +1155,43 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
     const auto began=Clock::now();ConvexHybridResult result;
     AggregateRecorder recorder{&result};
     const auto dispatch_began=Clock::now();
+    const bool has_degenerate=std::any_of(input.begin(),input.end(),[](const auto &p) {
+        size_t count=0;
+        for(size_t i=0;i<p.size();++i)
+            if(i==0 || p[i]!=p[i-1]) ++count;
+        if(p.size()>1 && p.front()==p.back()) --count;
+        return count<3;
+    });
+    if(has_degenerate) {
+        // Use the existing exact directional construction for lower-dimensional
+        // regions. Its result must pass the independent cyclic KKT verifier.
+        // Singleton endpoints make the closing edge constant, so optimality of
+        // this augmented cycle is equivalent to fixed-endpoint TPP optimality.
+        ConvexRationalPolygons polygons;
+        for(const auto &p:input) polygons.push_back(exact_polygon(p,true));
+        result.stats.dispatch_seconds=elapsed(dispatch_began);
+        const auto solve_began=Clock::now();
+        const auto contacts=detail::solve_intersecting_map_contacts_exact(Point(start),Point(target),polygons);
+        result.stats.rational_fallback_seconds=elapsed(solve_began);
+        ConvexRationalPolygons anchored{{Point(start)}};
+        anchored.insert(anchored.end(),polygons.begin(),polygons.end());
+        anchored.push_back({Point(target)});
+        ConvexRationalPolygon chain{Point(start)};
+        chain.insert(chain.end(),contacts.begin(),contacts.end()); chain.emplace_back(target);
+        const auto certificate_began=Clock::now();
+        const auto certificate=tpp_convex_verify_cycle_certificate(anchored,chain);
+        result.stats.certificate_seconds=elapsed(certificate_began);
+        result.stats.predicate_exact_evaluations=certificate.exact_predicate_evaluations;
+        if(certificate.status!=ConvexCycleCertificateStatus::Optimal)
+            throw std::runtime_error("Degenerate-region directional construction failed its optimality certificate");
+        result.backend=ConvexHybridBackend::RationalIntersection;
+        result.stats.rational_fallback=true;
+        result.fallback_reason=ConvexFallbackReason::LowerDimensionalRegion;
+        for(const auto &q:contacts) result.contacts.emplace_back(q.x.convert_to<double>(),q.y.convert_to<double>());
+        set_exact_bounds(result,start,target,contacts);
+        result.stats.total_seconds=elapsed(began);
+        return result;
+    }
     if(options.mode==ConvexHybridMode::Unchecked&&!options.materialize_contacts) {
         result.stats.disjoint=detail::pairwise_disjoint_unchecked_double(input);
         result.stats.dispatch_seconds=elapsed(dispatch_began);
