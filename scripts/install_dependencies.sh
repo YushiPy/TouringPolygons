@@ -12,7 +12,8 @@ for argument in "$@"; do
 			cat <<'EOF'
 Usage: scripts/install_dependencies.sh [--solvers-only]
 
-Install what the project needs. With --solvers-only (alias --no-web) only what the
+Install what the project needs, never with sudo (Homebrew on macOS needs none; on Linux
+missing system packages are only listed). With --solvers-only (alias --no-web) only what the
 two solvers and the benchmark CLI need is installed: no Node.js, no dashboard
 environment, no npm packages and no Playwright browser.
 EOF
@@ -56,28 +57,24 @@ install_system_dependencies() {
 	fi
 
 	if have apt-get; then
+		# Nothing is installed with sudo here: only what cannot be had without root is reported.
+		# CMake and Ninja come from the Python environments; Eigen and Boost headers come from
+		# Fekete's Conan setup or `tpp.py build --fetch-deps`.
 		local packages=()
 		have python3 || packages+=(python3)
 		have git || packages+=(git)
 		python3 -c 'import venv, ensurepip' >/dev/null 2>&1 || packages+=(python3-venv)
-		have cmake || packages+=(cmake)
 		have c++ || packages+=(build-essential)
 		if (( web )); then have node || packages+=(nodejs npm); fi
-		[[ -f /usr/include/eigen3/Eigen/Core ]] || packages+=(libeigen3-dev)
-		[[ -f /usr/include/boost/multiprecision/cpp_bin_float.hpp ]] || packages+=(libboost-dev)
-		ldconfig -p 2>/dev/null | grep -q libomp || packages+=(libomp-dev)
-
 		if (( ${#packages[@]} > 0 )); then
-			echo "+ sudo apt-get update"
-			sudo apt-get update
-			echo "+ sudo apt-get install -y ${packages[*]}"
-			sudo apt-get install -y "${packages[@]}"
-		else
-			echo "System dependencies: already installed"
+			echo "Missing system packages: ${packages[*]}" >&2
+			echo "This script never uses sudo. Ask an administrator to install them (Debian/Ubuntu: sudo apt-get install ${packages[*]})." >&2
+			exit 1
 		fi
+		echo "System tools: present (a C++23 compiler such as g++ 13 or newer is also required; checked by the build)"
 
 		if ! have uv; then
-			echo "uv is required. Install it from https://docs.astral.sh/uv/ and rerun this script." >&2
+			echo "uv is required and installs in your home directory without root: see https://docs.astral.sh/uv/ and rerun this script." >&2
 			exit 1
 		fi
 		return
