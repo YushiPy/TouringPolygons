@@ -38,6 +38,8 @@ namespace tpp {
 	// certified primal-dual gap; otherwise exact optimality is required.
 	// Interval bounds use exact predicates on ambiguity, with rational recovery
 	// when the candidate cannot meet the requested gap or cutoff.
+	// Point and finite segment regions use rational directional construction
+	// followed by the exact KKT certificate with singleton endpoint anchors.
 	// A finite cutoff allows early return once lower_bound >= cutoff, even if
 	// the primal-dual gap is still open. The returned path remains feasible.
 	CertifiedConvexTppResult tpp_convex_solve_certified(

@@ -16,10 +16,59 @@ estão documentados em [TSPN](tspn.md).
 ## Escopo
 
 Menor caminho euclidiano de um ponto fixo `start` a um ponto fixo `target`, visitando
-cada polígono simples, sem ordem prescrita. São permitidos polígonos não convexos,
+cada região, sem ordem prescrita. Uma região pode ser um ponto (um vértice),
+um segmento fechado e finito (dois vértices) ou um polígono simples de área positiva.
+São permitidos polígonos não convexos,
 interseções, contatos de borda, extremos no interior dos polígonos e `start == target`.
 Polígonos com buracos não são representáveis nesta API. As fronteiras não são obstáculos.
 O pior caso continua exponencial.
+
+Pontos e segmentos são regiões convexas de dimensão zero e um, sem espessamento
+artificial. O fecho convexo conserva essas dimensões, e a verificação de visita
+inclui os extremos finitos dos segmentos. Uma lista de três ou mais vértices
+colineares continua inválida; represente-a explicitamente com dois extremos.
+A API de ciclo livre conserva seu contrato de polígonos de área positiva.
+
+Quando uma sequência contém pontos ou segmentos, o oráculo convexo usa a
+construção direcional racional existente. Um ponto impõe um contato obrigatório.
+Para segmentos, a busca binária nos vértices de subdivisão usa a derivada
+monótona de $D_{anterior}(z)+\|z-q\|$ ao longo do segmento. Comparações entre
+produtos escalares normalizados são decididas por sinais e quadrados racionais,
+incluindo os limites simbólicos incidentes. Esse localizador trata a fronteira
+de dimensão um, cujas duas arestas coincidem, sem aplicar o leque de um polígono
+de área positiva. O clipping impõe a reta suporte **e** os limites dos extremos.
+
+Os contatos passam pelo certificado KKT cíclico existente, acrescentando
+regiões singleton para `start` e `target`. A aresta de fechamento tem comprimento
+constante, portanto a otimalidade desse ciclo implica a otimalidade do caminho
+com extremos fixos. Somente `Optimal` permite usar o comprimento como limite
+inferior; falha do certificado lança exceção. Os limites retornados são calculados
+diretamente sobre o caminho, com arredondamento para fora. As estatísticas
+identificam essa escolha como `lower_dimensional_region`.
+
+As peças da decomposição de um polígono não convexo permanecem **alternativas de
+uma única região**: basta visitar uma peça. Esse contrato cobre os polígonos
+simples do corpus de Paula. A entrada atual não representa uma união arbitrária
+de componentes desconectados nem polígonos com buracos.
+
+### Referência independente SOCP
+
+`benchmarks/tpp.py verify-socp` enumera todas as permutações de uma instância
+pequena e todas as escolhas de peças convexas. Para cada escolha, modela
+$p_i=\sum_v\lambda_{iv}v$, $\lambda_{iv}\ge0$, $\sum_v\lambda_{iv}=1$, e
+$\|p_{i+1}-p_i\|_2\le d_i$, minimizando $\sum_i d_i$ com extremos fixos.
+O mesmo modelo cobre pontos, segmentos e polígonos convexos. Polígonos não
+convexos são triangulados independentemente por Shapely/GEOS; a união das
+triangulações é verificada contra a região original. Não se usa o particionador
+C++ nem seu oráculo para construir a referência.
+
+A comparação exige status numérico ótimo em **todas** as folhas SOCP e valida
+ambos os caminhos contra as regiões originais. O relatório registra tolerâncias
+e modelos enumerados. O padrão compara objetivos com `2e-6 * (1 + objetivo)`;
+Gurobi usa tolerância de factibilidade `1e-9` e de barreira QCP `1e-9`, com uma
+segunda tentativa `1e-7` em caso de status não ótimo. Isso é verificação numérica
+independente, não prova em aritmética exata. O certificado racional do C++ e o
+critério global de gap descrito abaixo continuam definindo sua exatidão.
 
 A implementação adapta as ideias de inserção do polígono mais distante e refinamento
 preguiçoso do trabalho de Fekete, Kniep, Krupke e Perk, estudadas no checkout local
@@ -277,6 +326,9 @@ Vértices consecutivos separados por até `1e-4` da tolerância de visita são u
 o limite inferior final desconta duas vezes a soma dos deslocamentos removidos.
 Isso evita peças espúrias quase degeneradas, como as produzidas por dois vértices
 que diferem por aproximadamente `3e-15` na instância 57 da suíte de desenvolvimento.
+Após a normalização afim, os extremos exportados são restaurados aos valores de
+entrada. Se a conversão de volta deslocou um extremo, os limites são alargados
+pela soma desses deslocamentos e o status de gap é recalculado.
 
 Uma falha em fechar o certificado numérico não autoriza declarar otimalidade.
 O resultado recebe `numerical_limit`, preservando caminho e limites. Nos limites

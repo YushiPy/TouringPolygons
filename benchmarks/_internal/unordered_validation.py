@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import math
-from fractions import Fraction
 from collections.abc import Sequence
+from fractions import Fraction
 
 Point = tuple[float, float]
 
@@ -25,6 +25,7 @@ def validate_path(
 	tolerance: float,
 ) -> dict[str, float | bool]:
 	from shapely.geometry import LineString, Polygon
+	from shapely.geometry import Point as ShapelyPoint
 
 	points = [[float(point[0]), float(point[1])] for point in path]
 	if len(points) < 2:
@@ -40,7 +41,11 @@ def validate_path(
 	line = LineString(points)
 	start_distance = math.dist(points[0], start)
 	target_distance = math.dist(points[-1], target)
-	max_polygon_distance = max((line.distance(Polygon(polygon)) for polygon in polygons), default=0.0)
+	def region_geometry(polygon):
+		if len(polygon) == 1: return ShapelyPoint(polygon[0])
+		if len(polygon) == 2: return LineString(polygon)
+		return Polygon(polygon)
+	max_polygon_distance = max((line.distance(region_geometry(polygon)) for polygon in polygons), default=0.0)
 	endpoint_valid = start_distance <= tolerance and target_distance <= tolerance
 	polygon_valid = max_polygon_distance <= tolerance
 	return {
