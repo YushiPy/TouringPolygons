@@ -361,7 +361,7 @@ def verify_conan(backends: Sequence[str]) -> Path:
 	if not prefix.is_dir():
 		fail(
 			f"Conan C++ dependencies not found at {prefix}\n"
-			"Run scripts/run_comparison.sh --setup-only --solver tpp-fekete first to prepare Fekete."
+			"Run tpp.py free-compare --setup-only --solver tpp-fekete first to prepare Fekete."
 		)
 	for alternatives in conan_packages(backends):
 		if not any((prefix / name).is_file() for name in alternatives):

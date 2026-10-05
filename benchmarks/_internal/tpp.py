@@ -352,6 +352,8 @@ GROUPS: dict[str, dict[str, Command]] = {
 		"status": Command("NAME", "Show generation and benchmark progress.", lambda argv: command_status(argv)),
 		"run": Command("NAME ARGS...", "Fixed-order B&B over all campaign inputs, resumably.", lambda argv: command_run(argv)),
 		"free-order": Command("NAME ARGS...", "Free-order campaign with our and/or Fekete's solver.", module("free_order_campaign")),
+		"free-compare": Command("[--solver S] ...", "Set up and run/resume the 558-case Fekete free-order comparison (checks, builds, campaign).",
+			module("free_order_comparison")),
 		"report": Command("PATH", "Print the comparison of a free-order run (campaign NAME, run directory or report.json).",
 			lambda argv: command_report(argv)),
 	},

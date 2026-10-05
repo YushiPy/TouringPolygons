@@ -333,7 +333,8 @@ Uma campanha completa usa:
 python3 benchmarks/tpp.py free-order NOME_DA_CAMPANHA --help
 ```
 
-No laboratório, `scripts/run_comparison.sh` chama esta CLI para executar os
+No laboratório, `python3 benchmarks/tpp.py free-compare` (atalho:
+`scripts/run_comparison.sh`) prepara o ambiente e chama esta CLI para executar os
 558 casos de Fekete et al. Selecione os solvers com `--solver tpp-ours`,
 `--solver tpp-fekete` ou `--solver both` (padrão). A pasta da campanha depende
 de `--threads-per-instance`, não de `--workers` nem do solver selecionado:
@@ -349,7 +350,7 @@ verificação; variáveis `CC` e `CXX` definidas pelo usuário são respeitadas.
 Para executar somente nosso solver com oito threads por instância, use:
 
 ```bash
-scripts/run_comparison.sh --solver tpp-ours --threads-per-instance 8
+python3 benchmarks/tpp.py free-compare --solver tpp-ours --threads-per-instance 8
 ```
 
 Isso cria a campanha local
@@ -358,9 +359,22 @@ prepara nem verifica Fekete ou a licença Gurobi; reutiliza os pacotes C++ já
 baixados em `third_party/tspn-socg/.conan/release` para compilar nosso solver.
 `--solver tpp-fekete` prepara e valida apenas Fekete e exige licença Gurobi;
 `--solver both` prepara e executa os dois. O comando
-`scripts/run_comparison.sh --setup-only --solver tpp-ours --threads-per-instance 8`
+`python3 benchmarks/tpp.py free-compare --setup-only --solver tpp-ours --threads-per-instance 8`
 verifica apenas o setup necessário para nosso solver, sem começar os casos.
 Falhas transitórias de download no setup do Fekete são repetidas até três vezes.
+
+O setup de Fekete inicializa o submódulo `third_party/tspn-socg` na revisão fixada
+pelo repositório, prepara o ambiente Python 3.12+ dele e compila o binding C++. Dois
+patches versionados (`patches/tspn-socg-*.patch`) corrigem o header de `fmt` e compilam
+as variantes racional e double do oráculo TPP embutido; enquanto aplicados, aparecem
+como alterações locais no submódulo, e qualquer outra alteração faz o setup parar sem
+tocá-la. Um fingerprint local (fontes do Fekete e do nosso C++ embutido, perfil Conan,
+CMake e compilador) faz o setup pular a resolução Conan e a compilação quando nada
+mudou. Nosso solver exige C++23, então o GCC 13 do Ubuntu 24.04 serve. Em máquinas
+remotas, exporte `GUROBI_HOME` se o Gurobi não estiver no local padrão e rode
+`python3 benchmarks/tpp.py free-compare --setup-only --solver tpp-fekete` antes da
+primeira execução com o Fekete. `--build-jobs N` (ou `TPP_BUILD_JOBS`) controla a
+compilação paralela.
 `Ctrl+C` grava trajetórias incumbentes e limites
 parciais disponíveis, marcando os casos ativos como `interrupted` para serem
 reexecutados ao retomar. Durante o encerramento cooperativo, o runner informa

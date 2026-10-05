@@ -4,6 +4,24 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
+web=1
+for argument in "$@"; do
+	case "$argument" in
+		--solvers-only|--no-web) web=0 ;;
+		-h|--help)
+			cat <<'EOF'
+Usage: scripts/install_dependencies.sh [--solvers-only]
+
+Install what the project needs. With --solvers-only (alias --no-web) only what the
+two solvers and the benchmark CLI need is installed: no Node.js, no dashboard
+environment, no npm packages and no Playwright browser.
+EOF
+			exit 0
+			;;
+		*) echo "Unknown option: $argument (see --help)" >&2; exit 2 ;;
+	esac
+done
+
 have() {
 	command -v "$1" >/dev/null 2>&1
 }
@@ -23,7 +41,7 @@ install_system_dependencies() {
 		have python3 || formulae+=(python)
 		have cmake || formulae+=(cmake)
 		have uv || formulae+=(uv)
-		if ! have node || ! have npm; then formulae+=(node); fi
+		if (( web )) && { ! have node || ! have npm; }; then formulae+=(node); fi
 		for formula in libomp eigen boost; do
 			brew --prefix "$formula" >/dev/null 2>&1 || formulae+=("$formula")
 		done
@@ -40,9 +58,11 @@ install_system_dependencies() {
 	if have apt-get; then
 		local packages=()
 		have python3 || packages+=(python3)
+		have git || packages+=(git)
+		python3 -c 'import venv, ensurepip' >/dev/null 2>&1 || packages+=(python3-venv)
 		have cmake || packages+=(cmake)
 		have c++ || packages+=(build-essential)
-		have node || packages+=(nodejs npm)
+		if (( web )); then have node || packages+=(nodejs npm); fi
 		[[ -f /usr/include/eigen3/Eigen/Core ]] || packages+=(libeigen3-dev)
 		[[ -f /usr/include/boost/multiprecision/cpp_bin_float.hpp ]] || packages+=(libboost-dev)
 		ldconfig -p 2>/dev/null | grep -q libomp || packages+=(libomp-dev)
@@ -94,15 +114,26 @@ echo "==> Git submodules"
 git submodule update --init --recursive
 
 python3 benchmarks/tpp.py setup
-sync_python_app apps/benchmark-dashboard
-sync_node_app apps/benchmark-dashboard
 
-echo
-echo "==> Playwright Chromium"
-(
-	cd apps/benchmark-dashboard
-	npx playwright install chromium
-)
+if (( web )); then
+	sync_python_app apps/benchmark-dashboard
+	sync_node_app apps/benchmark-dashboard
 
-echo
-echo "All project dependencies are installed."
+	echo
+	echo "==> Playwright Chromium"
+	(
+		cd apps/benchmark-dashboard
+		npx playwright install chromium
+	)
+
+	echo
+	echo "All project dependencies are installed."
+else
+	echo
+	echo "==> Check"
+	python3 benchmarks/tpp.py doctor || true
+	echo
+	echo "Solver dependencies are installed (web dependencies skipped)."
+	echo "Next: python3 benchmarks/tpp.py free-compare --setup-only --solver both"
+	echo "      (builds both solvers; Fekete also needs a valid Gurobi license)."
+fi
