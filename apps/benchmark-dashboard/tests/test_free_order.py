@@ -36,7 +36,7 @@ class FreeOrderTests(unittest.TestCase):
         request = RunCampaignRequest(
             name="sample",
             visit_order="free",
-            solver="unordered",
+            solver="tpp-ours",
             threads=4,
             max_calls="10",
             max_seconds="2",
@@ -47,7 +47,7 @@ class FreeOrderTests(unittest.TestCase):
         self.assertEqual(command[2:4], ["free-order", "/tmp/sample"])
         self.assertIn("--no-build", command)
         self.assertIn("--force", command)
-        self.assertEqual(command[command.index("--solver") + 1], "unordered")
+        self.assertEqual(command[command.index("--solver") + 1], "tpp-ours")
         self.assertEqual(command[command.index("--threads") + 1], "4")
 
     def test_rejects_wrong_solver_and_invalid_limits(self):
@@ -58,7 +58,7 @@ class FreeOrderTests(unittest.TestCase):
                 )
         with self.assertRaises(HTTPException):
             free_command(
-                CompareSolversRequest(name="a", solvers=["unordered", "tspn"], max_seconds="0.5"),
+                CompareSolversRequest(name="a", solvers=["tpp-ours", "tpp-fekete"], max_seconds="0.5"),
                 Path("/tmp/a"),
                 Path("/tmp/tpp.py"),
                 comparison=True,
@@ -72,8 +72,8 @@ class FreeOrderTests(unittest.TestCase):
             self.assertEqual(free_results(root)["rows"], [])
             run = root / "results/free-order/test"
             run.mkdir(parents=True)
-            (run / "report.json").write_text('{"visit_order":"free","rows":[{"solver":"unordered"}]}')
-            self.assertEqual(free_results(root)["rows"][0]["solver"], "unordered")
+            (run / "report.json").write_text('{"visit_order":"free","rows":[{"solver":"tpp-ours"}]}')
+            self.assertEqual(free_results(root)["rows"][0]["solver"], "tpp-ours")
 
     def test_free_report_defers_and_hydrates_visualization_data(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -89,7 +89,7 @@ class FreeOrderTests(unittest.TestCase):
                         "rows": [
                             {
                                 "case": 0,
-                                "solver": "unordered",
+                                "solver": "tpp-ours",
                                 "sha256": "digest",
                                 "geometry_sha256": "digest",
                                 "path": [[0, 0], [2, 0]],
@@ -199,7 +199,7 @@ class FreeOrderTests(unittest.TestCase):
         result = asyncio.run(main.get_free_reference())
         if not result["rows"]:
             self.skipTest("Local recorded benchmark is absent.")
-        ours = {r["case"]: r for r in result["rows"] if r["solver"] == "unordered"}
+        ours = {r["case"]: r for r in result["rows"] if r["solver"] == "tpp-ours"}
         for row in result["rows"]:
             self.assertEqual(row["sha256"], ours[row["case"]]["sha256"])
         self.assertEqual(len(ours), 60)
@@ -211,7 +211,7 @@ class FreeOrderTests(unittest.TestCase):
 
         async def run():
             return await main.run_campaign(
-                RunCampaignRequest(name="sample", visit_order="free", solver="unordered", threads=4, max_seconds="2")
+                RunCampaignRequest(name="sample", visit_order="free", solver="tpp-ours", threads=4, max_seconds="2")
             )
 
         with (

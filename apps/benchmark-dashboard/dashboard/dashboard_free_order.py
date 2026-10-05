@@ -20,7 +20,14 @@ if str(SCRIPTS) not in sys.path:
 import run_layout  # noqa: E402
 import workspace  # noqa: E402
 from benchmark_cases import read_encoded_cases  # noqa: E402
-from free_order_campaign import case_geometry, ensure_binary  # noqa: E402
+from free_order_campaign import (  # noqa: E402
+    FEKETE,
+    OURS,
+    SOLVER_ALIASES,
+    case_geometry,
+    ensure_binary,
+    normalize_report_solvers,
+)
 from unordered_runner import run_unordered_solver  # noqa: E402
 
 _build_lock = threading.Lock()
@@ -29,9 +36,9 @@ _VISUALIZATION_FIELDS = ("geometry", "path")
 
 
 def free_command(request, campaign: Path, cli: Path, *, comparison: bool = False) -> list[str]:
-    solvers = request.solvers if comparison else [request.solver or "unordered"]
-    if not solvers or any(s not in {"unordered", "tspn"} for s in solvers):
-        raise HTTPException(400, "Free order requires Unordered TPP B&B or External TSPN.")
+    solvers = [SOLVER_ALIASES.get(s, s) for s in (request.solvers if comparison else [request.solver or OURS])]
+    if not solvers or any(s not in {OURS, FEKETE} for s in solvers):
+        raise HTTPException(400, "Free order requires tpp-ours or tpp-fekete.")
     try:
         seconds = float(request.max_seconds or 30)
         calls = int(request.max_calls)
@@ -40,8 +47,8 @@ def free_command(request, campaign: Path, cli: Path, *, comparison: bool = False
     if not math.isfinite(seconds) or seconds <= 0 or calls < 0:
         raise HTTPException(400, "Seconds must be positive and calls nonnegative.")
     threads = request.threads or 1
-    if "tspn" in solvers and seconds != int(seconds):
-        raise HTTPException(400, "External TSPN requires whole seconds.")
+    if FEKETE in solvers and seconds != int(seconds):
+        raise HTTPException(400, "tpp-fekete requires whole seconds.")
     command = [
         sys.executable,
         str(cli),
@@ -141,7 +148,7 @@ def free_results(campaign: Path, *, endpoint: str = "") -> dict:
             "rows": [],
             "notes": ["No free-order run for this campaign yet."],
         }
-    report = json.loads(report_path.read_text())
+    report = normalize_report_solvers(json.loads(report_path.read_text()))
     report["path"] = str(report_path.relative_to(campaign))
     report["geometry_catalog"] = list(_geometry_index(report_path)[0] | set(_campaign_geometry(campaign)))
     return _compact_report(report, endpoint)
@@ -151,7 +158,7 @@ def free_result_case(campaign: Path, case_index: int) -> dict:
     report_path = _latest_free_report(campaign)
     if report_path is None:
         raise HTTPException(404, "No free-order report exists for this campaign.")
-    report = json.loads(report_path.read_text())
+    report = normalize_report_solvers(json.loads(report_path.read_text()))
     rows = [deepcopy(row) for row in report.get("rows", []) if int(row.get("case", -1)) == case_index]
     if not rows:
         raise HTTPException(404, "The requested case is absent from the latest report.")
@@ -173,7 +180,7 @@ def _recorded_results_full(*, include_geometry: bool = True) -> dict:
             "title": "Recorded comparison",
             "notes": ["Recorded results are not installed in this checkout."],
         }
-    rows = [dict(json.loads(line), solver="unordered") for line in path.read_text().splitlines()]
+    rows = [dict(json.loads(line), solver=OURS) for line in path.read_text().splitlines()]
     suite = ROOT / "benchmarks/suites/algorithm-dev-v1.bin"
     if suite.exists() and include_geometry:
         cases = read_encoded_cases(suite)
@@ -194,7 +201,7 @@ def _recorded_results_full(*, include_geometry: bool = True) -> dict:
                     {
                         "case": index,
                         "sha256": external["sha256"],
-                        "solver": "tspn",
+                        "solver": FEKETE,
                         "polygons": int(external["polygons"]),
                         "seconds": float(external["solve_seconds"]),
                         "lower_bound": float(external["lower_bound"]),
@@ -212,7 +219,7 @@ def _recorded_results_full(*, include_geometry: bool = True) -> dict:
         "status": "completed",
         "config": {"threads": 1, "max_seconds": 2},
         "rows": rows,
-        "geometry_catalog": [row["sha256"] for row in rows if row["solver"] == "unordered"] if suite.exists() else [],
+        "geometry_catalog": [row["sha256"] for row in rows if row["solver"] == OURS] if suite.exists() else [],
         "notes": [
             "60 matched instances; fixed endpoints; one worker; 2 seconds per instance.",
             "Our optimality tolerance: 1e-7 + 1e-9 × UB; external: 1e-6 relative, geometry tolerance 0.001.",

@@ -301,7 +301,7 @@ In Comparison, click `Show recorded free-order comparison (60 instances)` to ins
 The same campaign runner is available from the repository root:
 
 ```bash
-apps/benchmark-dashboard/.venv/bin/python benchmarks/tpp.py free-order CAMPAIGN --solver unordered --solver tspn --max-seconds 2
+apps/benchmark-dashboard/.venv/bin/python benchmarks/tpp.py free-order CAMPAIGN --solver tpp-ours --solver tpp-fekete --max-seconds 2
 ```
 
 The additional browser test exercises mode switching, the saved comparison, a live free-order solve, a campaign run, and an actual external comparison. Start the dashboard, then run:

@@ -35,12 +35,22 @@ EXTERNAL_RUNNER = ROOT / 'benchmarks/_internal/tspn_run_comparison.py'
 EXTERNAL_SOURCE = ROOT / 'third_party/tspn-socg'
 DEFAULT_EXTERNAL_EPS = 1e-3
 DEFAULT_OUR_RELATIVE_GAP = DEFAULT_EXTERNAL_EPS / (1 + DEFAULT_EXTERNAL_EPS)
-SOLVER_DISPLAY_NAMES = {'unordered': 'tpp-ours', 'tspn': 'tpp-fekete'}
+OURS, FEKETE = 'tpp-ours', 'tpp-fekete'
+SOLVER_DISPLAY_NAMES = {OURS: OURS, FEKETE: FEKETE}
 SHUTDOWN_BEFORE_START = 'shutdown requested before solver start'
-SOLVER_ALIASES = {
-	'tpp-ours': 'unordered', 'tpp-fekete': 'tspn',
-	'unordered': 'unordered', 'tspn': 'tspn',
-}
+# Reports written before the solvers were named tpp-ours/tpp-fekete call them unordered/tspn.
+SOLVER_ALIASES = {OURS: OURS, FEKETE: FEKETE, 'unordered': OURS, 'tspn': FEKETE}
+
+
+def normalize_report_solvers(report: dict) -> dict:
+	"""Rename the solvers of an older report in place (config.solvers and each row)."""
+	config = report.get('config')
+	if isinstance(config, dict) and 'solvers' in config:
+		config['solvers'] = [SOLVER_ALIASES.get(name, name) for name in config['solvers']]
+	for row in report.get('rows', []):
+		if row.get('solver') in SOLVER_ALIASES:
+			row['solver'] = SOLVER_ALIASES[row['solver']]
+	return report
 
 
 def parse_solver_name(value: str) -> str:
@@ -86,12 +96,12 @@ def _resume_compatible_config(previous: dict, current: dict) -> bool:
 		'instance_workers', 'solvers',
 	}
 	current_solvers = set(current.get('solvers', []))
-	if 'unordered' not in current_solvers:
+	if OURS not in current_solvers:
 		ignored.update({
 			'max_calls', 'ours_optimality', 'unordered_binary_sha256',
 			'initial_strategies', 'perimeter_work_budget', 'perimeter_budget_mode',
 		})
-	if 'tspn' not in current_solvers:
+	if FEKETE not in current_solvers:
 		ignored.update({
 			'external_optimality_eps', 'external_source_revision',
 			'external_binding_sha256', 'external_build_path',
@@ -105,7 +115,7 @@ def _find_compatible_report(results: Path, key: str, config: dict) -> tuple[Path
 	"""Return the newest report that can be resumed with the requested configuration."""
 	for prior in run_layout.free_order_reports_in(results):
 		try:
-			old = json.loads(prior.read_text())
+			old = normalize_report_solvers(json.loads(prior.read_text()))
 		except (OSError, json.JSONDecodeError):
 			continue
 		if old.get('key') == key or _resume_compatible_config(old.get('config', {}), config):
@@ -113,9 +123,37 @@ def _find_compatible_report(results: Path, key: str, config: dict) -> tuple[Path
 	return None
 
 
+# report['status']: how the campaign ended, apart from how each solver did.
+#   completed              every case ran and no solver failed
+#   completed_with_errors  every case was attempted but a solver failed on some (see solver_errors)
+#   interrupted            stopped by the user (resumable)
+#   failed                 the campaign itself broke (an exception, or cases that never ran)
+EXIT_CODES = {'completed': 0, 'completed_with_errors': 2, 'interrupted': 130}
+
+
+def _final_status(
+	rows: list[dict], succeeded: set[tuple[str, int]], case_count: int, solvers: list[str]
+) -> tuple[str, dict]:
+	"""Status of a run that was not interrupted, and the failing case indices per solver."""
+	attempted = {(row.get('solver'), int(row.get('case', -1))) for row in rows}
+	errors: dict[str, dict] = {}
+	for row in rows:
+		pair = (row.get('solver'), int(row.get('case', -1)))
+		if row.get('solver') in solvers and pair not in succeeded:
+			entry = errors.setdefault(row['solver'], {'cases': [], 'first_error': None})
+			entry['cases'].append(pair[1])
+			entry['first_error'] = entry['first_error'] or row.get('error') or row.get('status')
+	for entry in errors.values():
+		entry['cases'].sort()
+	if len(succeeded) == case_count * len(solvers):
+		return 'completed', {}
+	every_pair_attempted = all((solver, index) in attempted for solver in solvers for index in range(case_count))
+	return ('completed_with_errors' if errors and every_pair_attempted else 'failed'), errors
+
+
 def _sort_report_rows(rows: list[dict]) -> None:
 	"""Sort mixed-solver reports independently of the solver selection for this run."""
-	solver_order = {'unordered': 0, 'tspn': 1}
+	solver_order = {OURS: 0, FEKETE: 1}
 	rows.sort(key=lambda row: (
 		int(row.get('case', -1)), solver_order.get(row.get('solver'), len(solver_order)),
 		row.get('solver', ''),
@@ -133,7 +171,7 @@ def _pending_solver_jobs(case_count: int, solvers: list[str], completed: set[tup
 	"""Order pending work by solver, then by case index, for the shared FIFO pool."""
 	return [
 		(solver, index)
-		for solver in ('unordered', 'tspn') if solver in solvers
+		for solver in (OURS, FEKETE) if solver in solvers
 		for index in range(case_count) if (solver, index) not in completed
 	]
 
@@ -184,7 +222,7 @@ def external_telemetry(external: dict) -> dict:
 	return telemetry
 
 
-def _tspn_report_row(external: dict[str, str], cases: list, solver: str = 'tspn') -> dict:
+def _tspn_report_row(external: dict[str, str], cases: list, solver: str = FEKETE) -> dict:
 	index = int(external['case_index'])
 	if not 0 <= index < len(cases):
 		raise ValueError(f'External case index outside suite: {index}')
@@ -236,10 +274,10 @@ def render_comparison_summary(report: dict, expected_cases: int) -> str:
 	rows = report.get('rows', [])
 	by_solver = {
 		name: {int(row['case']): row for row in rows if row.get('solver') == name and not row.get('error')}
-		for name in ('unordered', 'tspn')
+		for name in (OURS, FEKETE)
 	}
 	config = report.get('config', {})
-	selected_solvers = config.get('solvers', ['unordered', 'tspn'])
+	selected_solvers = config.get('solvers', [OURS, FEKETE])
 	time_limit = config.get('max_seconds', 'unknown')
 	time_limit_text = 'unlimited' if time_limit == -1 else f'{time_limit} s'
 	ours_tolerance = config.get('ours_optimality', {})
@@ -258,14 +296,14 @@ def render_comparison_summary(report: dict, expected_cases: int) -> str:
 		f"- Solvers selected: {', '.join(SOLVER_DISPLAY_NAMES[solver] for solver in selected_solvers)}",
 		f"- Initial strategies: {', '.join(name for name, enabled in config.get('initial_strategies', {}).items() if enabled) or 'none'}",
 	]
-	if 'unordered' in selected_solvers:
+	if OURS in selected_solvers:
 		lines.append(f"- tpp-ours gap: absolute {ours_tolerance.get('absolute_gap', 'unknown')} + relative {ours_tolerance.get('relative_gap', 'unknown')} × |UB|")
-	if 'tspn' in selected_solvers:
+	if FEKETE in selected_solvers:
 		lines.extend([
 			f"- tpp-fekete tolerance: UB/LB ≤ 1 + {config.get('external_optimality_eps', 'unknown')}",
 			f"- tpp-fekete source revision: `{config.get('external_source_revision', 'unknown')}`; binding SHA-256: `{config.get('external_binding_sha256', 'unknown')}`",
 		])
-	if 'unordered' in selected_solvers and 'tspn' in selected_solvers:
+	if OURS in selected_solvers and FEKETE in selected_solvers:
 		tolerance_note = (
 			'With zero absolute gap, the tpp-ours relative-gap threshold is algebraically equivalent to the tpp-fekete UB/LB ratio test.'
 			if tolerance_matched else
@@ -280,7 +318,7 @@ def render_comparison_summary(report: dict, expected_cases: int) -> str:
 		'| Solver | Recorded cases | Errors | Closed requested gap | Independent valid paths | Median solve time | Total solve time |',
 		'|---|---:|---:|---:|---:|---:|---:|',
 	])
-	for solver, label in (('unordered', 'tpp-ours'), ('tspn', 'tpp-fekete')):
+	for solver, label in ((OURS, 'tpp-ours'), (FEKETE, 'tpp-fekete')):
 		if solver not in selected_solvers:
 			continue
 		group = list(by_solver[solver].values())
@@ -295,8 +333,8 @@ def render_comparison_summary(report: dict, expected_cases: int) -> str:
 			f"| {label} | {recorded} | {errors} | {closed}/{recorded} | {valid}/{valid_known} known | n/a | n/a |")
 	paired = []
 	ratios = []
-	if 'unordered' in selected_solvers and 'tspn' in selected_solvers:
-		paired = [(by_solver['unordered'][i], by_solver['tspn'][i]) for i in sorted(set(by_solver['unordered']) & set(by_solver['tspn']))]
+	if OURS in selected_solvers and FEKETE in selected_solvers:
+		paired = [(by_solver[OURS][i], by_solver[FEKETE][i]) for i in sorted(set(by_solver[OURS]) & set(by_solver[FEKETE]))]
 		ratios = [float(ours['seconds']) / float(fekete['seconds']) for ours, fekete in paired
 			if ours.get('exact') is True and fekete.get('exact') is True
 			and ours.get('valid') is True and fekete.get('valid') is True
@@ -307,13 +345,13 @@ def render_comparison_summary(report: dict, expected_cases: int) -> str:
 			f"Median tpp-ours/tpp-fekete runtime ratio: {statistics.median(ratios):.3f}× (below 1 means tpp-ours was faster).",
 			f"tpp-ours faster: {sum(ratio < 1 for ratio in ratios)}; tpp-fekete faster: {sum(ratio > 1 for ratio in ratios)}; equal: {sum(ratio == 1 for ratio in ratios)}.",
 		])
-	if 'unordered' in selected_solvers and 'tspn' in selected_solvers:
+	if OURS in selected_solvers and FEKETE in selected_solvers:
 		lines.extend(['', 'Runtime ratios exclude errors, unfinished gaps, invalid paths, and paths without independent validation. '
 			'A subset of paired cases does not establish the overall corpus speedup.'])
 	if any(row.get('valid') is None for solver in selected_solvers for row in by_solver[solver].values()):
 		lines.extend(['', 'Independent geometric validation is missing for some rows. Those rows are marked unknown, not valid.'])
 	reference_path = ROOT / 'benchmarks/results-saved/fekete-comparison/fekete.csv'
-	if reference_path.exists() and 'tspn' in config.get('solvers', []):
+	if reference_path.exists() and FEKETE in config.get('solvers', []):
 		with reference_path.open(newline='') as file:
 			reference_rows = {int(row['case_index']): row for row in csv.DictReader(file)}
 		hashes = config.get('hashes', [])
@@ -326,7 +364,7 @@ def render_comparison_summary(report: dict, expected_cases: int) -> str:
 		)
 		if compatible_reference:
 			thread_pairs = [(float(reference_rows[i]['solve_seconds']), float(row['seconds']))
-				for i, row in by_solver['tspn'].items() if row.get('seconds') is not None
+				for i, row in by_solver[FEKETE].items() if row.get('seconds') is not None
 				and float(reference_rows[i]['solve_seconds']) > 0 and float(row['seconds']) > 0]
 			if thread_pairs:
 				speedups = [single / multi for single, multi in thread_pairs]
@@ -337,14 +375,24 @@ def render_comparison_summary(report: dict, expected_cases: int) -> str:
 					f"Multithreaded run faster: {sum(value > 1 for value in speedups)}; 1 thread faster: {sum(value < 1 for value in speedups)}; equal: {sum(value == 1 for value in speedups)}.",
 					'This is a historical paired comparison; machine load and software environment may differ between campaigns.',
 				])
-	our_rows = list(by_solver['unordered'].values()) if 'unordered' in selected_solvers else []
+	our_rows = list(by_solver[OURS].values()) if OURS in selected_solvers else []
 	parallel_cases = sum(int(row.get('parallel_oracle_calls', 0) or 0) > 0 for row in our_rows)
 	parallel_calls = sum(int(row.get('parallel_oracle_calls', 0) or 0) for row in our_rows)
 	parallel_batches = sum(int(row.get('parallel_oracle_batches', 0) or 0) for row in our_rows)
 	if our_rows:
 		lines.extend(['', f"tpp-ours launched parallel oracle batches on {parallel_cases}/{len(our_rows)} completed instances "
 			f"({parallel_calls} calls in {parallel_batches} batches)."])
-	lines.extend(['', f"Campaign status: {report.get('status', 'unknown')}.", ''])
+	status = report.get('status', 'unknown')
+	lines.extend(['', f"Campaign status: {status.replace('_', ' ')}.", ''])
+	for solver, entry in report.get('solver_errors', {}).items():
+		first = str(entry.get('first_error') or '').strip().splitlines()
+		lines.append(
+			f"- {SOLVER_DISPLAY_NAMES.get(solver, solver)} failed on {len(entry['cases'])} case(s) "
+			f"(case index {', '.join(map(str, entry['cases'][:10]))}"
+			f"{', ...' if len(entry['cases']) > 10 else ''})" + (f": {first[0]}" if first else '')
+		)
+	if report.get('solver_errors'):
+		lines.append('')
 	attempts = report.get('attempts', [])
 	if attempts:
 		latest = attempts[-1]
@@ -407,9 +455,9 @@ def main(argv: list[str] | None = None) -> int:
 	cases = [case for record in metadata['inputs'] for case in read_encoded_cases(campaign / record['file'])][:args.max_instances]
 	if not cases:
 		parser.error('Campaign has no cases.')
-	requested_solvers = set(args.solver or ['unordered'])
-	solvers = [solver for solver in ('unordered', 'tspn') if solver in requested_solvers]
-	if 'tspn' in solvers and args.max_seconds != int(args.max_seconds):
+	requested_solvers = set(args.solver or [OURS])
+	solvers = [solver for solver in (OURS, FEKETE) if solver in requested_solvers]
+	if FEKETE in solvers and args.max_seconds != int(args.max_seconds):
 		parser.error('The external runner requires an integer time limit in seconds.')
 	initial_strategies = {
 		'sampled_perimeter': args.sampled_perimeter_initial,
@@ -449,7 +497,7 @@ def main(argv: list[str] | None = None) -> int:
 	if args.dry_run:
 		print(json.dumps(config, indent=2))
 		return 0
-	if 'unordered' in solvers:
+	if OURS in solvers:
 		ensure_binary(args.no_build)
 		config['unordered_binary_sha256'] = hashlib.sha256(BINARY.read_bytes()).hexdigest()
 	key = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
@@ -488,14 +536,15 @@ def main(argv: list[str] | None = None) -> int:
 					'Resumed with the shared FIFO solver-case queue; prior completed rows were kept.')
 				atomic_json(prior, old)
 			resume_path = prior
-	if 'tspn' in solvers and not (external_python.exists() and EXTERNAL_RUNNER.exists()
+	if FEKETE in solvers and not (external_python.exists() and EXTERNAL_RUNNER.exists()
 		and (external_build / 'python/tspn_bnb2/core').exists()):
 		raise FileNotFoundError('tpp-fekete Python or built binding is unavailable; use --external-python and --external-build.')
 	if resume_path:
 		run = resume_path.parent
-		report = json.loads(resume_path.read_text())
+		report = normalize_report_solvers(json.loads(resume_path.read_text()))
 		report['status'] = 'running'
 		report.pop('error', None)
+		report.pop('solver_errors', None)
 		report['resumed_at'] = datetime.now(UTC).isoformat()
 		print(f'Resuming checkpoint: {resume_path}', flush=True)
 	else:
@@ -503,11 +552,11 @@ def main(argv: list[str] | None = None) -> int:
 		run.mkdir(parents=True)
 		notes = [f'Fixed endpoints; free visit order. {args.workers} shared worker(s); {args.threads_per_instance} solver thread(s) per case.',
 			f"Pending cases are queued for {' then '.join(SOLVER_DISPLAY_NAMES[solver] for solver in solvers)} in one FIFO worker pool."]
-		if 'unordered' in solvers:
+		if OURS in solvers:
 			notes.append(f'tpp-ours target gap is {args.absolute_gap:g} + {args.relative_gap:g} × |UB|.')
-		if 'tspn' in solvers:
+		if FEKETE in solvers:
 			notes.append(f'tpp-fekete accepts UB/LB <= 1 + {args.eps:g}.')
-		if 'unordered' in solvers and 'tspn' in solvers:
+		if OURS in solvers and FEKETE in solvers:
 			notes.append(
 				('With zero absolute gap, the configured relative gap is algebraically equivalent to the tpp-fekete UB/LB ratio test.'
 				if args.absolute_gap == 0 and math.isclose(args.relative_gap, args.eps / (1 + args.eps), rel_tol=1e-12, abs_tol=1e-15)
@@ -516,7 +565,7 @@ def main(argv: list[str] | None = None) -> int:
 		notes.append(
 			f'Selected solver(s) use feasibility tolerance {args.feasibility_tolerance:g} where their APIs permit it; independent validation uses {args.validation_tolerance:g}.'
 		)
-		if 'tspn' in solvers:
+		if FEKETE in solvers:
 			notes.extend([
 				'External raw and endpoint-snapped trajectories are reported separately; snapping never changes the declared solver result.',
 				'tpp-fekete uses per-instance child-evaluation threads; tpp-ours uses per-instance sibling-oracle threads. Oracle-call counters are not equivalent units.',
@@ -562,7 +611,7 @@ def main(argv: list[str] | None = None) -> int:
 	external_log_lock = threading.Lock()
 	external_suite_dir = None
 	shutdown_requested = threading.Event()
-	if 'tspn' in solvers:
+	if FEKETE in solvers:
 		import tspn_run_comparison as external_runner
 		# The Fekete runner reads instances by index from an input file: use the campaign's own .bin
 		# when it is the only input (the instances are a prefix of it), else a temporary concatenation.
@@ -588,7 +637,7 @@ def main(argv: list[str] | None = None) -> int:
 		if legacy_csvs:
 			known = {(item.get('solver'), item.get('case')) for item in report['rows']}
 			imported = [row for row in (_tspn_report_row(external, cases) for external in _read_complete_csv_rows(legacy_csvs[0]))
-				if ('tspn', row['case']) not in known]
+				if (FEKETE, row['case']) not in known]
 			if imported:
 				report['rows'].extend(imported)
 				_sort_report_rows(report['rows'])
@@ -609,7 +658,7 @@ def main(argv: list[str] | None = None) -> int:
 		geometry = geometry_catalog[case.digest]
 		sx, sy = geometry['start']
 		tx, ty = geometry['target']
-		row = {'case': index, 'sha256': case.digest, 'solver': 'unordered',
+		row = {'case': index, 'sha256': case.digest, 'solver': OURS,
 			'polygons': len(case.polygons), 'geometry_sha256': case.digest}
 		try:
 			arguments = ['--threads', str(args.threads_per_instance),
@@ -655,9 +704,9 @@ def main(argv: list[str] | None = None) -> int:
 	def solve_tspn_case(index: int) -> dict:
 		payload = external_runner.run_case(external_args, index, external_log_file, external_log_lock)
 		if payload.get('error') == SHUTDOWN_BEFORE_START:
-			return {'solver': 'tspn', 'case': index, 'not_started': True}
+			return {'solver': FEKETE, 'case': index, 'not_started': True}
 		external_row = external_runner.result_row(external_args, index, external_cases[index], {}, payload)
-		return {'solver': 'tspn', 'case': index, 'row': _tspn_report_row(external_row, cases),
+		return {'solver': FEKETE, 'case': index, 'row': _tspn_report_row(external_row, cases),
 			'external_row': external_row}
 
 	def dispatch_job(job: tuple[str, int]) -> dict:
@@ -665,14 +714,14 @@ def main(argv: list[str] | None = None) -> int:
 		if shutdown_requested.is_set():
 			return {'solver': solver, 'case': index, 'not_started': True}
 		try:
-			if solver == 'unordered':
+			if solver == OURS:
 				row = solve_unordered_case(index)
 				if row is None:
 					return {'solver': solver, 'case': index, 'not_started': True}
 				return {'solver': solver, 'case': index, 'row': row}
 			return solve_tspn_case(index)
 		except Exception as error:
-			if solver == 'unordered':
+			if solver == OURS:
 				return {'solver': solver, 'case': index, 'row': {
 					'case': index, 'sha256': cases[index].digest, 'solver': solver,
 					'polygons': len(cases[index].polygons), 'status': 'error', 'error': str(error)}}
@@ -685,7 +734,7 @@ def main(argv: list[str] | None = None) -> int:
 	def dispatch_job_interrupted(job: tuple[str, int], error: Exception) -> dict:
 		solver, index = job
 		message = str(error) or 'solver stopped during shutdown'
-		if solver == 'unordered':
+		if solver == OURS:
 			return {'solver': solver, 'case': index, 'row': {
 				'case': index, 'sha256': cases[index].digest, 'solver': solver,
 				'polygons': len(cases[index].polygons), 'status': 'interrupted',
@@ -701,8 +750,8 @@ def main(argv: list[str] | None = None) -> int:
 		save_checkpoint()
 
 	jobs = _pending_solver_jobs(len(cases), solvers, successful_pairs())
-	unordered_pending = sum(solver == 'unordered' for solver, _ in jobs)
-	tspn_pending = sum(solver == 'tspn' for solver, _ in jobs)
+	unordered_pending = sum(solver == OURS for solver, _ in jobs)
+	tspn_pending = sum(solver == FEKETE for solver, _ in jobs)
 	print(f'Queue: tpp-ours={unordered_pending}, tpp-fekete={tspn_pending}, workers={args.workers}, '
 		f'threads/job={args.threads_per_instance}', flush=True)
 	for solver in solvers:
@@ -774,8 +823,11 @@ def main(argv: list[str] | None = None) -> int:
 			else:
 				executor.shutdown(wait=True)
 		if not interrupted:
-			complete = len(successful_pairs()) == len(cases) * len(solvers)
-			report['status'] = 'completed' if complete else 'failed'
+			report['status'], report['solver_errors'] = _final_status(
+				report['rows'], successful_pairs(), len(cases), solvers
+			)
+			if not report['solver_errors']:
+				del report['solver_errors']
 		else:
 			report['status'] = 'interrupted'
 	except KeyboardInterrupt:
@@ -800,8 +852,8 @@ def main(argv: list[str] | None = None) -> int:
 		attempt['status'] = report['status'] if report['status'] != 'running' else 'interrupted'
 		save_checkpoint()
 	print(f'Report: {run / "report.json"}', flush=True)
-	print(f'Summary: tpp.py report {run / "report.json"}', flush=True)
-	return 130 if report['status'] == 'interrupted' else int(report['status'] != 'completed')
+	print(f'Read it with: python3 benchmarks/tpp.py report {run / "report.json"}', flush=True)
+	return EXIT_CODES.get(report['status'], 1)
 
 
 def latest_report(path: Path) -> Path:
@@ -822,7 +874,7 @@ def report_main(argv: list[str] | None = None) -> int:
 	parser.add_argument('path', help='a campaign NAME, a run directory or a report.json')
 	args = parser.parse_args(argv)
 	report_path = latest_report(workspace.campaign_path(args.path))
-	report = json.loads(report_path.read_text())
+	report = normalize_report_solvers(json.loads(report_path.read_text()))
 	expected = len(report.get('config', {}).get('hashes') or []) or 1 + max((int(row['case']) for row in report.get('rows', [])), default=-1)
 	print(render_comparison_summary(report, expected))
 	return 0

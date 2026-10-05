@@ -168,7 +168,7 @@ class JobController:
             next_instance = min(job.progress_total, job.progress_completed + 1)
             job.current_item = f"instance {next_instance}/{job.progress_total}"
         if job.kind == "comparison" and job.solver_progress_total is not None:
-            known_solvers = set(self.solvers.values()) | {"unordered", "tspn"}
+            known_solvers = set(self.solvers.values()) | {"tpp-ours", "tpp-fekete", "unordered", "tspn"}
             solvers = [
                 match.group(1).strip()
                 for match in SOLVER_SECTION_PATTERN.finditer(output)
