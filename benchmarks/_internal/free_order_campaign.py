@@ -22,6 +22,7 @@ from pathlib import Path
 
 import native_build
 import run_layout
+from case_selection import describe_selection, parse_case_selection
 import workspace
 from benchmark_cases import read_encoded_cases
 from live_progress import LiveStatus
@@ -137,22 +138,26 @@ EXIT_CODES = {'completed': 0, 'completed_with_errors': 2, 'interrupted': 130}
 
 
 def _final_status(
-	rows: list[dict], succeeded: set[tuple[str, int]], case_count: int, solvers: list[str]
+	rows: list[dict], succeeded: set[tuple[str, int]], cases, solvers: list[str]
 ) -> tuple[str, dict]:
-	"""Status of a run that was not interrupted, and the failing case indices per solver."""
+	"""Status of a run that was not interrupted, and the failing case indices per solver.
+
+	``cases`` is how many cases there are, or the indices that were asked for (``--cases``);
+	rows of other cases, from earlier runs, do not count."""
+	indices = set(range(cases) if isinstance(cases, int) else cases)
 	attempted = {(row.get('solver'), int(row.get('case', -1))) for row in rows}
 	errors: dict[str, dict] = {}
 	for row in rows:
 		pair = (row.get('solver'), int(row.get('case', -1)))
-		if row.get('solver') in solvers and pair not in succeeded:
+		if row.get('solver') in solvers and pair[1] in indices and pair not in succeeded:
 			entry = errors.setdefault(row['solver'], {'cases': [], 'first_error': None})
 			entry['cases'].append(pair[1])
 			entry['first_error'] = entry['first_error'] or row.get('error') or row.get('status')
 	for entry in errors.values():
 		entry['cases'].sort()
-	if len(succeeded) == case_count * len(solvers):
+	if all((solver, index) in succeeded for solver in solvers for index in indices):
 		return 'completed', {}
-	every_pair_attempted = all((solver, index) in attempted for solver in solvers for index in range(case_count))
+	every_pair_attempted = all((solver, index) in attempted for solver in solvers for index in indices)
 	return ('completed_with_errors' if errors and every_pair_attempted else 'failed'), errors
 
 
@@ -181,12 +186,15 @@ def _job_was_not_started(result: dict) -> bool:
 	return result.get('row', {}).get('error') == SHUTDOWN_BEFORE_START
 
 
-def _pending_solver_jobs(case_count: int, solvers: list[str], completed: set[tuple[str, int]]) -> list[tuple[str, int]]:
-	"""Order pending work by solver, then by case index, for the shared FIFO pool."""
+def _pending_solver_jobs(cases, solvers: list[str], completed: set[tuple[str, int]]) -> list[tuple[str, int]]:
+	"""Order pending work by solver, then by case index, for the shared FIFO pool.
+
+	``cases`` is how many cases there are, or the indices to run (``--cases``)."""
+	indices = range(cases) if isinstance(cases, int) else cases
 	return [
 		(solver, index)
 		for solver in (OURS, FEKETE) if solver in solvers
-		for index in range(case_count) if (solver, index) not in completed
+		for index in indices if (solver, index) not in completed
 	]
 
 
@@ -398,12 +406,16 @@ def render_comparison_summary(report: dict, expected_cases: int) -> str:
 			f"({parallel_calls} calls in {parallel_batches} batches)."])
 	status = report.get('status', 'unknown')
 	lines.extend(['', f"Campaign status: {status.replace('_', ' ')}.", ''])
+	if report.get('selected_cases'):
+		lines.append(
+			f"- Latest attempt ran only {len(report['selected_cases'])} of {expected_cases} case(s) (--cases): "
+			f"{describe_selection(report['selected_cases'])}."
+		)
 	for solver, entry in report.get('solver_errors', {}).items():
 		first = str(entry.get('first_error') or '').strip().splitlines()
 		lines.append(
 			f"- {SOLVER_DISPLAY_NAMES.get(solver, solver)} failed on {len(entry['cases'])} case(s) "
-			f"(case index {', '.join(map(str, entry['cases'][:10]))}"
-			f"{', ...' if len(entry['cases']) > 10 else ''})" + (f": {first[0]}" if first else '')
+			f"(case {describe_selection(entry['cases'])}, numbered as in `tpp.py live`)" + (f": {first[0]}" if first else '')
 		)
 	if report.get('solver_errors'):
 		lines.append('')
@@ -448,6 +460,9 @@ def main(argv: list[str] | None = None) -> int:
 		help='Python environment for Fekete; defaults to the submodule .venv.')
 	parser.add_argument('--external-build', type=Path, default=EXTERNAL_SOURCE,
 		help='Fekete source/build tree containing the compiled Python binding.')
+	parser.add_argument('--cases', metavar='LIST',
+		help='run only these cases, numbered from 1 as `tpp.py live` shows them (for example 65,66,130-131); '
+			'results join the compatible earlier run, so resuming later still covers the rest')
 	parser.add_argument('--max-memory-gb', type=float, default=None, metavar='GB',
 		help='ask a solver to stop (it returns its incumbent and bounds) when it uses more than this much memory; default: no limit')
 	parser.add_argument('--progress-interval', type=float, default=60.0,
@@ -472,6 +487,13 @@ def main(argv: list[str] | None = None) -> int:
 	cases = [case for record in metadata['inputs'] for case in read_encoded_cases(campaign / record['file'])][:args.max_instances]
 	if not cases:
 		parser.error('Campaign has no cases.')
+	if args.cases is not None:
+		try:
+			selected = parse_case_selection(args.cases, len(cases))
+		except ValueError as error:
+			parser.error(f'--cases: {error}')
+	else:
+		selected = list(range(len(cases)))
 	requested_solvers = set(args.solver or [OURS])
 	solvers = [solver for solver in (OURS, FEKETE) if solver in requested_solvers]
 	if FEKETE in solvers and args.max_seconds != int(args.max_seconds):
@@ -532,7 +554,7 @@ def main(argv: list[str] | None = None) -> int:
 			}
 			all_requested_cases_complete = all(
 				(solver, index) in old_completed
-				for solver in solvers for index in range(len(cases))
+				for solver in solvers for index in selected
 			)
 			if old.get('status') == 'completed' and all_requested_cases_complete:
 				prior.touch()
@@ -668,6 +690,10 @@ def main(argv: list[str] | None = None) -> int:
 		report['rows'].append(row)
 		_sort_report_rows(report['rows'])
 
+	if args.cases is not None:
+		report['selected_cases'] = selected
+	else:
+		report.pop('selected_cases', None)
 	live = LiveStatus(run / 'live.json' if args.progress_interval > 0 else None)
 	max_memory_bytes = int(args.max_memory_gb * 2**30) if args.max_memory_gb else None
 
@@ -793,7 +819,7 @@ def main(argv: list[str] | None = None) -> int:
 		upsert_report_row(result['row'])
 		save_checkpoint()
 
-	jobs = _pending_solver_jobs(len(cases), solvers, successful_pairs())
+	jobs = _pending_solver_jobs(selected, solvers, successful_pairs())
 	unordered_pending = sum(solver == OURS for solver, _ in jobs)
 	tspn_pending = sum(solver == FEKETE for solver, _ in jobs)
 	print(f'Queue: tpp-ours={unordered_pending}, tpp-fekete={tspn_pending}, workers={args.workers}, '
@@ -868,7 +894,7 @@ def main(argv: list[str] | None = None) -> int:
 				executor.shutdown(wait=True)
 		if not interrupted:
 			report['status'], report['solver_errors'] = _final_status(
-				report['rows'], successful_pairs(), len(cases), solvers
+				report['rows'], successful_pairs(), selected, solvers
 			)
 			if not report['solver_errors']:
 				del report['solver_errors']

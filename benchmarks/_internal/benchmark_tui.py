@@ -221,6 +221,14 @@ class App:
 			return "<choose a campaign>"
 		if item.key == "max_memory" and value is None:
 			return "no limit"
+		if item.key == "cases":
+			if not value:
+				return "all"
+			try:
+				count = len(run_spec.parse_case_selection(str(value), run_spec.case_limit(self.session.values)))
+			except ValueError:
+				return str(value)
+			return f"{value}  ({count} case{'s' if count != 1 else ''})"
 		if item.key == "max_instances":
 			total = run_spec.instance_limit(self.session.values)
 			if total is not None:
@@ -368,16 +376,20 @@ class App:
 
 	def _preview(self, item: run_spec.Field, entered: str) -> str:
 		"""What the typed text means, e.g. ``= 1e-7`` for ``10 ** -7``."""
-		return "= " + run_spec.format_value(
-			run_spec.parse_value(item, self.problem, entered, self._limit(item))
-		)
+		value = run_spec.parse_value(item, self.problem, entered, self._limit(item))
+		if item.key == "cases":
+			if value is None:
+				return "= all cases"
+			count = len(run_spec.parse_case_selection(str(value)))
+			return f"= {count} case{'s' if count != 1 else ''}"
+		return "= " + run_spec.format_value(value)
 
 	def _limit(self, item: run_spec.Field) -> int | None:
-		return (
-			run_spec.instance_limit(self.session.values)
-			if item.key == "max_instances"
-			else None
-		)
+		if item.key == "max_instances":
+			return run_spec.instance_limit(self.session.values)
+		if item.key == "cases":
+			return run_spec.case_limit(self.session.values)
+		return None
 
 	def _commit_text(self, item: run_spec.Field, entered: str) -> bool:
 		try:

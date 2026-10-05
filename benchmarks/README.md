@@ -41,6 +41,18 @@ a interface, então a ajuda não diverge do comportamento. `--no-resume` reinici
 reexecuta (`--force`) em ordem fixa e livre e move a campanha TSPN para o lado.
 Os subcomandos antigos continuam disponíveis.
 
+### Rodar só alguns casos
+
+Na ordem livre, `--cases LISTA` (campo "Cases" no `scripts/benchmark.sh`) executa apenas
+os casos nomeados, numerados **a partir de 1**, como o `tpp.py live`, o `tpp.py stop` e o
+resumo do relatório os mostram: `--cases 65,66,130-131`. A seleção não faz parte da
+configuração da campanha: os resultados entram na execução compatível mais recente, então
+uma rodada seguinte sem `--cases` ainda completa o resto. O `status` da rodada olha só
+os casos escolhidos e o resumo avisa quando a última tentativa rodou um subconjunto
+(`selected_cases` no `report.json`, índices a partir de 0). Para refazer o que não
+terminou, também basta repetir o mesmo comando: a retomada já executa apenas os pares
+solver/caso sem resultado válido. O TSPN e a ordem fixa não têm essa opção.
+
 ## Acompanhar uma execução longa
 
 Enquanto uma instância roda, o solver de ordem livre e o TSPN (`tpp-ours`)

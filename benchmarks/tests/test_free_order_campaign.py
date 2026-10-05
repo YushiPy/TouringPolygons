@@ -450,7 +450,7 @@ class FinalStatusTests(unittest.TestCase):
 		}
 		text = free_order_campaign.render_comparison_summary(report, 3)
 		self.assertIn('Campaign status: completed with errors.', text)
-		self.assertIn('tpp-fekete failed on 1 case(s) (case index 42): invalid model status: 3.', text)
+		self.assertIn('tpp-fekete failed on 1 case(s) (case 43, numbered as in `tpp.py live`): invalid model status: 3.', text)
 
 
 class SolverNamesTests(unittest.TestCase):
