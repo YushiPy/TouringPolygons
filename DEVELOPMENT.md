@@ -29,6 +29,7 @@ para herdar a configuração dos tipos exatos e recompile-os ao trocar de backen
 - `CMakePresets.json`: presets dos solvers C++;
 - `apps/benchmark-dashboard`: aplicação principal e WASM opcional;
 - `benchmarks/tpp.py`: única CLI pública de geração e benchmarks;
+- `scripts/benchmark.sh`: interface de terminal que monta um comando `tpp.py bench`;
 - `scripts/sanity_check.sh`: validação ampla de um checkout;
 - `scripts/verify_unordered.sh`: verificação focada no solver de ordem livre.
 
