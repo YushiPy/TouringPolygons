@@ -15,6 +15,7 @@ from typing import Sequence
 
 import bench
 import native_build
+import run_layout
 import workspace
 
 
@@ -293,10 +294,31 @@ def run_batch(args: argparse.Namespace) -> int:
 	return 1 if failed_count else 0
 
 
+def choose_run_directory(args: argparse.Namespace) -> Path:
+	"""The directory of this run inside the campaign's ``results/``.
+
+	The newest fixed-order run is continued when its finished inputs were produced with
+	these same settings (or none finished); otherwise, and with ``--force``, a new
+	``results/<run-id>/`` starts, so earlier results are never overwritten.
+	"""
+	campaign = args.campaign_file.resolve().parent
+	if not args.force:
+		input_root, input_files = discover_inputs(args.input.resolve(), args.pattern)
+		binary = bench.ensure_target("main-bnb_workload_benchmark", no_build=args.no_build, enable_gurobi=args.solver == "gurobi")
+		for candidate in run_layout.fixed_order_runs(campaign)[:1]:
+			markers = [(input_file, output_paths(input_file, input_root, candidate)[3]) for input_file in input_files]
+			if all(not marker.exists() or marker_matches(marker, completion_signature(args, input_file, binary))
+					for input_file, marker in markers):
+				return candidate
+	return run_layout.results_dir(campaign) / run_layout.new_run_id()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
 	args = make_parser().parse_args(argv)
 	if args.dry_run:
 		return run_batch(args)
+	if args.campaign_file is not None and args.output.resolve() == run_layout.results_dir(args.campaign_file.resolve().parent):
+		args.output = choose_run_directory(args)
 	with workspace.recorded_run(args.output.resolve(), kind="fixed-order-campaign",
 			parameters=workspace.jsonable(vars(args))) as attempt:
 		result = run_batch(args)

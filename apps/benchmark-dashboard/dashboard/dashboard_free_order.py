@@ -17,6 +17,7 @@ SCRIPTS = ROOT / "benchmarks/_internal"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
+import run_layout  # noqa: E402
 import workspace  # noqa: E402
 from benchmark_cases import read_encoded_cases  # noqa: E402
 from free_order_campaign import case_geometry, ensure_binary  # noqa: E402
@@ -64,10 +65,7 @@ def free_command(request, campaign: Path, cli: Path, *, comparison: bool = False
 
 
 def _latest_free_report(campaign: Path) -> Path | None:
-    files = sorted(
-        (campaign / "results/free-order").glob("*/report.json"), key=lambda p: p.stat().st_mtime_ns, reverse=True
-    )
-    return files[0] if files else None
+    return run_layout.latest_free_order_report(campaign)
 
 
 _campaign_geometry_cache: dict[Path, tuple[tuple, dict[str, dict]]] = {}

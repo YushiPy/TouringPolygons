@@ -13,6 +13,7 @@ from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
+import run_layout
 import workspace
 
 
@@ -162,7 +163,7 @@ def command_status(argv: Sequence[str]) -> int:
 	if source:
 		print(f"Source:   {source}")
 
-	index_path = campaign / "results/run-index.csv"
+	index_path = run_layout.latest_fixed_order_index(campaign)
 	if not index_path.exists():
 		print("Benchmark: not started")
 		return 0

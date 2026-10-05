@@ -61,7 +61,7 @@ gap continue caindo no mesmo ritmo, o que o branch and bound muitas vezes não f
 Trate-a como um palpite; LB, UB e a tendência da fila são os sinais confiáveis.
 
 Os mesmos dados ficam em `live.json` (no diretório da execução: a campanha
-TSPN, ou `results/free-order/EXECUÇÃO/`), reescrito de forma atômica. De outro
+TSPN, ou `results/EXECUÇÃO/`), reescrito de forma atômica. De outro
 terminal:
 
 ```bash
@@ -95,7 +95,7 @@ de scratch com mais cota):
 ```text
 workspace/
 ├── campaigns/<nome>/        conjuntos de instâncias com campaign.json e suas
-│                            execuções retomáveis (results/)
+│                            execuções em results/<execução>/ (ver abaixo)
 ├── campaigns/<nome>@<host>/ campanhas trazidas de outra máquina
 ├── runs/<nome>/             saídas de comandos sem campanha (suites, ablações,
 │                            comparações)
@@ -104,6 +104,19 @@ workspace/
 ├── regions/                 extratos OpenStreetMap (.osm.pbf) e caches
 └── history.jsonl            uma linha por comando executado
 ```
+
+Dentro de uma campanha, **toda execução tem a própria pasta**
+`results/<AAAAMMDD-HHMMSS-id>/`, qualquer que seja o problema: a ordem livre
+guarda um único `report.json`; a ordem fixa guarda `run-index.csv` e os
+`.csv`/`.md`/`.log`/`.done` de cada entrada. O tipo é dado pelo que a pasta
+contém, não pelo caminho. Repetir um comando com as mesmas configurações
+continua a execução mais recente (ordem fixa: se o que ela terminou usou as
+mesmas configurações e o mesmo binário); configurações diferentes ou
+`--no-resume` abrem uma pasta nova e nunca sobrescrevem a anterior.
+`results/comparisons/` guarda comparações derivadas, não execuções. Campanhas
+criadas antes (`results/free-order/<execução>/` e arquivos soltos em `results/`)
+continuam sendo lidas; `python3 benchmarks/tpp.py workspace migrate-results
+[--dry-run]` as move para o formato atual.
 
 `campaign.json` registra `origin` (`cli`, `dashboard` ou `remote:<host>`).
 Cada execução grava `run.json` com comando, máquina (host, CPU, memória,
@@ -321,7 +334,7 @@ outro worker ainda esteja no tpp-ours. `--threads-per-instance` controla as
 threads internas de cada caso. O pico é de até
 `--workers × --threads-per-instance` threads de solver. Campanhas compatíveis
 retomam os casos já registrados e guardam um único arquivo por execução,
-`report.json`, em `benchmarks/workspace/campaigns/<nome>/results/free-order/<execução>/`.
+`report.json`, em `benchmarks/workspace/campaigns/<nome>/results/<execução>/`.
 Ele reúne a configuração, as linhas dos dois solvers e, nas do Fekete, a
 telemetria completa do runner externo (`external`: iterações, ramificações,
 chamadas e tempos SOCP...). A geometria não é copiada: as linhas guardam o hash
@@ -354,9 +367,9 @@ ainda está em andamento (em execuções antigas, usa o CSV parcial do Fekete).
 python3 benchmarks/tpp.py compare-threads \
   --ours-single benchmarks/workspace/runs/free-order-gap-6h/runs.csv \
   --ours-single-variant fekete_gap \
-  --ours-multi benchmarks/workspace/campaigns/fekete-instances/results/free-order/ID_DA_RUN \
+  --ours-multi benchmarks/workspace/campaigns/fekete-tpp_free_order/results/ID_DA_RUN \
   --fekete-single benchmarks/results-saved/fekete-comparison/fekete.csv \
-  --fekete-multi benchmarks/workspace/campaigns/fekete-instances/results/free-order/ID_DA_RUN \
+  --fekete-multi benchmarks/workspace/campaigns/fekete-tpp_free_order/results/ID_DA_RUN \
   --output benchmarks/workspace/runs/thread-scaling/fekete
 ```
 

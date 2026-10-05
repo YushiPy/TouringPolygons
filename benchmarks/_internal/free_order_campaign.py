@@ -16,12 +16,12 @@ import subprocess
 import sys
 import tempfile
 import threading
-import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
 
 import native_build
+import run_layout
 import workspace
 from benchmark_cases import read_encoded_cases
 from live_progress import LiveStatus
@@ -103,8 +103,7 @@ def _resume_compatible_config(previous: dict, current: dict) -> bool:
 
 def _find_compatible_report(results: Path, key: str, config: dict) -> tuple[Path, dict] | None:
 	"""Return the newest report that can be resumed with the requested configuration."""
-	for prior in sorted(results.glob('*/report.json'),
-		key=lambda path: path.stat().st_mtime_ns, reverse=True):
+	for prior in run_layout.free_order_reports_in(results):
 		try:
 			old = json.loads(prior.read_text())
 		except (OSError, json.JSONDecodeError):
@@ -389,7 +388,7 @@ def main(argv: list[str] | None = None) -> int:
 		help='Fekete source/build tree containing the compiled Python binding.')
 	parser.add_argument('--progress-interval', type=float, default=60.0,
 		help='Seconds between status lines (bounds, calls, queue) of each running tpp-ours instance, also kept in '
-			'results/free-order/RUN/live.json for `tpp.py live`; 0 disables.')
+			'results/RUN/live.json for `tpp.py live`; 0 disables.')
 	parser.add_argument('--no-build', action='store_true')
 	parser.add_argument('--force', action='store_true')
 	parser.add_argument('--dry-run', action='store_true')
@@ -454,7 +453,7 @@ def main(argv: list[str] | None = None) -> int:
 		ensure_binary(args.no_build)
 		config['unordered_binary_sha256'] = hashlib.sha256(BINARY.read_bytes()).hexdigest()
 	key = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
-	results = campaign / 'results/free-order'
+	results = run_layout.results_dir(campaign)
 	resume_path = None
 	if not args.force and results.exists():
 		match = _find_compatible_report(results, key, config)
@@ -500,7 +499,7 @@ def main(argv: list[str] | None = None) -> int:
 		report['resumed_at'] = datetime.now(UTC).isoformat()
 		print(f'Resuming checkpoint: {resume_path}', flush=True)
 	else:
-		run = results / (datetime.now(UTC).strftime('%Y%m%d-%H%M%S-') + uuid.uuid4().hex[:6])
+		run = results / run_layout.new_run_id()
 		run.mkdir(parents=True)
 		notes = [f'Fixed endpoints; free visit order. {args.workers} shared worker(s); {args.threads_per_instance} solver thread(s) per case.',
 			f"Pending cases are queued for {' then '.join(SOLVER_DISPLAY_NAMES[solver] for solver in solvers)} in one FIFO worker pool."]
@@ -811,7 +810,7 @@ def latest_report(path: Path) -> Path:
 		return path
 	if (path / 'report.json').is_file():
 		return path / 'report.json'
-	reports = sorted((path / 'results/free-order').glob('*/report.json'), key=lambda item: item.stat().st_mtime_ns, reverse=True)
+	reports = run_layout.free_order_reports(path)
 	if not reports:
 		raise SystemExit(f'No free-order report found under {path}')
 	return reports[0]

@@ -4,6 +4,8 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
+import run_layout
+
 from dashboard.dashboard_files import (
     FILE_CACHE_LIMIT,
     file_signature,
@@ -23,7 +25,7 @@ def parse_float(value: str | None) -> float:
 
 
 def completed_instance_count(path: Path, run_index: dict[str, Any] | None = None) -> int:
-    index = run_index or read_run_index(path / "results/run-index.csv")
+    index = run_index or read_run_index(run_layout.latest_fixed_order_index(path))
     csv_paths: list[Path] = []
     for run_row in index["rows"]:
         if run_row.get("status") != "completed":
@@ -37,7 +39,7 @@ def completed_instance_count(path: Path, run_index: dict[str, Any] | None = None
         csv_paths.append(csv_path)
 
     signature_parts: list[tuple[str, int, int]] = []
-    run_index_path = path / "results/run-index.csv"
+    run_index_path = run_layout.latest_fixed_order_index(path)
     if run_index_path.exists():
         mtime, size = file_signature(run_index_path)
         signature_parts.append((str(run_index_path), mtime, size))
@@ -101,7 +103,7 @@ def parse_markdown_tables(text: str) -> list[dict[str, Any]]:
 
 
 def summary_files(path: Path) -> list[Path]:
-    results_dir = path / "results"
+    results_dir = run_layout.latest_fixed_order_directory(path)
     if not results_dir.exists():
         return []
     return sorted(

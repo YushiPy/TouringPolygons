@@ -8,6 +8,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import run_layout
 from fastapi import APIRouter, BackgroundTasks, FastAPI, HTTPException
 
 JobMap = dict[str, Any]
@@ -108,7 +109,7 @@ def register_support_routes(
     @router.get("/api/campaigns/{name}/logs")
     async def get_campaign_logs(name: str):
         path = campaign_path(name)
-        results_dir = path / "results"
+        results_dir = run_layout.latest_fixed_order_directory(path)
         logs = []
         log_paths = sorted(results_dir.rglob("*.log")) if results_dir.exists() else []
         for log_path in log_paths:

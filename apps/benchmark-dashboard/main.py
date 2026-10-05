@@ -26,6 +26,7 @@ INTERNAL_ROOT = REPO_ROOT / "benchmarks/_internal"
 if str(INTERNAL_ROOT) not in sys.path:
     sys.path.insert(0, str(INTERNAL_ROOT))
 import native_build  # noqa: E402
+import run_layout  # noqa: E402
 import workspace  # noqa: E402
 
 # Jobs started here record "dashboard" as their origin in run.json/campaign.json.
@@ -448,7 +449,7 @@ def find_osm_files() -> list[dict[str, Any]]:
 def benchmarked_instances(path: Path, *, limit: int = 200) -> list[dict[str, Any]]:
     data = read_json(path / "campaign.json")
     previews = result_preview_list(path, data)
-    index = read_run_index(path / "results/run-index.csv")
+    index = read_run_index(run_layout.latest_fixed_order_index(path))
     instances: list[dict[str, Any]] = []
     for run_row in index["rows"]:
         if run_row.get("status") != "completed":
@@ -513,7 +514,7 @@ def solution_preview_path(path: Path, csv_path: Path, case_index: int, repeat_in
     if solution_path.exists():
         return solution_path
 
-    results_dir = path / "results"
+    results_dir = run_layout.latest_fixed_order_directory(path)
     matches = (
         sorted(results_dir.glob(f"*-solutions/case-{case_index:04}-repeat-{repeat:03}.svg"))
         if results_dir.exists()
@@ -547,7 +548,7 @@ def campaign_summary(path: Path) -> dict[str, Any]:
         if data.get("type") == "manual"
         else any((path / record["file"]).exists() for record in inputs if isinstance(record.get("file"), str))
     )
-    run_index = read_run_index(path / "results/run-index.csv")
+    run_index = read_run_index(run_layout.latest_fixed_order_index(path))
     total_instances = total_instance_count(data)
     completed_instances = completed_instance_count(path, run_index)
     return {

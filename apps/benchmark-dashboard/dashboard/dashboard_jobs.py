@@ -12,6 +12,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import run_layout
+
 from dashboard.dashboard_models import Job
 
 PROGRESS_PATTERN = re.compile(r"cases\s+\|\s+\[[^\]]*\]\s+(\d+)\s*/\s*(\d+)")
@@ -116,7 +118,7 @@ class JobController:
         if job.campaign is None or job.kind != "run" or job.status != "running" or "free-order" in job.command:
             return
         path = self.campaign_path(job.campaign)
-        index = self.read_run_index(path / "results/run-index.csv")
+        index = self.read_run_index(run_layout.latest_fixed_order_index(path))
         for run_row in reversed(index["rows"]):
             if run_row.get("action") != "running":
                 continue

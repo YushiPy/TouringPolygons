@@ -220,7 +220,7 @@ class FreeOrderQueueTests(unittest.TestCase):
 				external.reset_mock()
 				self.assertEqual(free_order_campaign.main(options), 0)
 				external.assert_not_called()
-			report = json.loads(next((campaign / 'results/free-order').glob('*/report.json')).read_text())
+			report = json.loads(next((campaign / 'results').glob('*/report.json')).read_text())
 			self.assertEqual(len(report['rows']), 4)
 			preserved = next(row for row in report['rows'] if row['solver'] == 'tspn' and row['case'] == 0)
 			self.assertEqual(preserved['status'], 'limit')
@@ -344,7 +344,7 @@ class SingleReportFileTests(unittest.TestCase):
 				'--external-build', str(self.build), *extra])
 
 	def run_directory(self):
-		return next((self.campaign / 'results/free-order').iterdir())
+		return next((self.campaign / 'results').iterdir())
 
 	def test_a_finished_run_leaves_only_the_report(self):
 		self.assertEqual(self.run_main(), 0)

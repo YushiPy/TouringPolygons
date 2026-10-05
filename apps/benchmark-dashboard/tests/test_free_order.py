@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -105,6 +106,19 @@ class FreeOrderTests(unittest.TestCase):
             self.assertEqual(detail["rows"][0]["geometry"], geometry)
             self.assertEqual(detail["rows"][0]["path"], [[0, 0], [2, 0]])
 
+    def test_runs_are_read_from_the_current_and_the_legacy_layout_newest_first(self):
+        with tempfile.TemporaryDirectory() as directory:
+            campaign = Path(directory)
+            legacy = campaign / "results/free-order/old"
+            current = campaign / "results/new"
+            for run, solver in ((legacy, "legacy"), (current, "current")):
+                run.mkdir(parents=True)
+                (run / "report.json").write_text(json.dumps({"visit_order": "free", "rows": [{"solver": solver}]}))
+            os.utime(legacy / "report.json", (1, 1))
+            self.assertEqual(free_results(campaign)["rows"][0]["solver"], "current")
+            (current / "report.json").unlink()
+            self.assertEqual(free_results(campaign)["rows"][0]["solver"], "legacy")
+
     def test_free_campaign_resumes_missing_checkpoint_rows(self):
         with tempfile.TemporaryDirectory() as directory:
             campaign = Path(directory)
@@ -130,7 +144,8 @@ class FreeOrderTests(unittest.TestCase):
                 patch.object(free_order_campaign, "run_unordered_solver", side_effect=solve) as solver,
             ):
                 self.assertEqual(free_order_campaign.main([str(campaign), "--threads", "2"]), 0)
-                report_path = next((campaign / "results/free-order").glob("*/report.json"))
+                report_path = next((campaign / "results").glob("*/report.json"))
+                self.assertFalse((campaign / "results/free-order").exists())
                 report = json.loads(report_path.read_text())
                 report["rows"] = [row for row in report["rows"] if row["case"] == 0]
                 report["status"] = "failed"

@@ -140,12 +140,12 @@ FIELDS: tuple[Field, ...] = (
 			FIXED: Spec(
 				None,
 				kind=CAMPAIGN,
-				help="Instance set under workspace/campaigns; results go to its results/ folder.",
+				help="Instance set under workspace/campaigns; each run is stored in results/<run>.",
 			),
 			FREE: Spec(
 				None,
 				kind=CAMPAIGN,
-				help="Instance set under workspace/campaigns; results go to results/free-order.",
+				help="Instance set under workspace/campaigns; each run is stored in results/<run>.",
 			),
 			TSPN: Spec(
 				TSPN_CAMPAIGN,
@@ -637,8 +637,7 @@ def output_location(values: Mapping[str, object]) -> str:
 		return "(choose a campaign)"
 	if values["problem"] == TSPN:
 		return str(workspace.campaigns_dir() / str(campaign))
-	suffix = "results" if values["problem"] == FIXED else "results/free-order"
-	return str(workspace.campaign_path(str(campaign)) / suffix)
+	return str(workspace.campaign_path(str(campaign)) / "results" / "<run>")
 
 
 # --- the canonical command line ---------------------------------------------

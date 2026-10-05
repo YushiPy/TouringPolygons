@@ -232,7 +232,7 @@ class LiveStatus:
 			pass
 
 
-MAX_DEPTH = 6  # workspace/campaigns/NAME/results/free-order/RUN/live.json
+MAX_DEPTH = 6  # workspace/campaigns/NAME/results/RUN/live.json
 
 
 def find_snapshots(root: Path) -> list[Path]:
