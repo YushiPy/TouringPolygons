@@ -320,7 +320,7 @@ ConvexCycleDoubleResult tpp_convex_solve_cycle_disjoint_double(const std::vector
             ++result.oracle_calls;
             std::vector<Vector2> candidate;for(const auto &v:q)candidate.push_back(v.external());
             consider(candidate);if(solved())return true;
-            if(closed&&options.recover_arithmetic_failures) {
+            if(closed&&options.recover_arithmetic_failures&&!options.proposal_only) {
                 detail::CyclePhaseScope recovery(detail::CyclePhase::RationalRecovery);
                 ++result.rational_feature_recoveries;
                 ConvexRationalPolygon lifted;for(auto v:candidate)lifted.emplace_back(v);
@@ -342,6 +342,11 @@ ConvexCycleDoubleResult tpp_convex_solve_cycle_disjoint_double(const std::vector
         // recovery enabled, use the complete exact reduction now instead of
         // repeating rational repairs at many double anchor probes.
     } catch(const std::exception &error){result.diagnostic=error.what();}
+    if(options.proposal_only) {
+        result.status=ConvexCycleStatus::ProposalLimit;
+        if(result.contacts.empty())result.certificate.upper_bound=INFINITY;
+        return result;
+    }
     if(options.refine_contacts&&options.recover_arithmetic_failures)try {
         if(recover_cycle())return result;
     } catch(const std::exception &error){result.diagnostic=error.what();}
@@ -653,7 +658,7 @@ ConvexCycleDoubleResult tpp_convex_solve_cycle_double(const std::vector<std::vec
         auto joint=p.front();
         for(size_t i=1;i<p.size()&&!joint.empty();++i)joint=Kernel::intersect(std::move(joint),p[i]);
         if(!joint.empty()&&consider(std::vector<Vector2>(p.size(),joint.front().external())))return result;
-        if(options.recover_arithmetic_failures) {
+        if(options.recover_arithmetic_failures&&!options.proposal_only) {
             // A common point may exist but have no binary64 representation.
             // Resolve that zero-cycle feature before attempting anchor search.
             const auto exact_joint=common_region(normalized);
@@ -670,7 +675,7 @@ ConvexCycleDoubleResult tpp_convex_solve_cycle_double(const std::vector<std::vec
             if(options.retain_active_features)candidate_features=features;
             std::vector<Vector2> candidate;for(const auto &v:q)candidate.push_back(v.external());
             if(consider(candidate))return true;
-            if(closed&&options.recover_arithmetic_failures) {
+            if(closed&&options.recover_arithmetic_failures&&!options.proposal_only) {
                 // Filtered construction: reconstruct just the proposed feature
                 // tuple, not a second optimization search. Its certificate
                 // distinguishes rounding limits from a wrong active feature.
@@ -692,6 +697,11 @@ ConvexCycleDoubleResult tpp_convex_solve_cycle_double(const std::vector<std::vec
         };
         try {if(options.refine_contacts&&Kernel::run(p,refine_candidate,initial,options.initial_features))return result;}
         catch(const std::exception &error){result.diagnostic=error.what();}
+        if(options.proposal_only) {
+            result.status=ConvexCycleStatus::ProposalLimit;
+            if(result.contacts.empty())result.certificate.upper_bound=INFINITY;
+            return result;
+        }
         ConvexRationalPolygons checked;
         if(options.refine_contacts&&detail::prepare_cycle_polygons(normalized,checked)) {
             auto disjoint=tpp_convex_solve_cycle_disjoint_double(input,options);
@@ -745,6 +755,11 @@ ConvexCycleDoubleResult tpp_convex_solve_cycle_double(const std::vector<std::vec
             result.anchor_polygon,result.diagnostic);
         if(result.status==ConvexCycleStatus::Optimal||result.status==ConvexCycleStatus::FloatingPointLimit||result.status==ConvexCycleStatus::CertifiedBound)return result;
     } catch(const std::exception &error){result.diagnostic=error.what();}
+    if(options.proposal_only) {
+        result.status=ConvexCycleStatus::ProposalLimit;
+        if(result.contacts.empty())result.certificate.upper_bound=INFINITY;
+        return result;
+    }
     try {
         if(options.recover_arithmetic_failures) {
             if(!recover_cycle())result.status=ConvexCycleStatus::OracleFailure;

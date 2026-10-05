@@ -161,13 +161,15 @@ def main(argv=None):
     parser.add_argument('--build-dir',type=Path,default=ROOT/'.build/tspn-comparison')
     parser.add_argument('--repetitions',type=int)
     parser.add_argument('--seconds',type=int)
+    parser.add_argument('--max-calls',type=int,default=10**8,
+        help='Native oracle call budget for fixed-work comparisons; a nondefault value requires --solver ours.')
     parser.add_argument('--portfolio',action='store_true',
         help='Run the cooperative two-search portfolio (two total worker threads).')
     parser.add_argument('--portfolio-no-sharing',action='store_true',
         help='Run two independent searches in a two-worker race; implies --portfolio.')
     parser.add_argument('--search-strategy',choices=('best-bound','dfs-bfs'),
         help='Run one isolated B&B strategy instead of the default strategy.')
-    parser.add_argument('--cycle-optimization',action='append',choices=('cache','dual','features','lazy','root','branch','one-tree','learn','memo','bound-first','dual-screen','interval','share-bounds'),default=[],
+    parser.add_argument('--cycle-optimization',action='append',choices=('cache','dual','features','lazy','root','branch','one-tree','learn','memo','bound-first','dual-screen','interval','share-bounds','proposal-bound','primal-starts'),default=[],
         help='Enable one native cycle optimization; repeat to combine independently selectable optimizations.')
     parser.add_argument('--relative-gap',type=float,default=1e-6)
     parser.add_argument('--feasibility-tolerance',type=float,default=1e-8)
@@ -201,6 +203,9 @@ def main(argv=None):
     if args.all and args.per_stratum is not None: parser.error('use either --all or --per-stratum')
     if args.search_strategy and (args.portfolio or args.portfolio_no_sharing):
         parser.error('--search-strategy cannot be combined with portfolio options')
+    if args.max_calls < 0: parser.error('--max-calls cannot be negative')
+    if args.max_calls != 10**8 and args.solver != 'ours':
+        parser.error('a nondefault --max-calls requires --solver ours; Fekete has no matching call budget')
     limits=(args.repetitions,args.seconds,args.relative_gap,args.feasibility_tolerance,args.validation_tolerance,args.external_timeout)
     if not args.all: limits=limits+(args.per_stratum,)
     if not all(math.isfinite(x) and x>0 for x in limits):
@@ -247,7 +252,9 @@ def main(argv=None):
         if k not in ('output','resume','dry_run','report_only','skip_build','solver')}
     if continuing:
         previous=json.loads((output/'config.json').read_text())
-        if previous.get('run_options')!=run_options:
+        previous_options=dict(previous.get('run_options',{}))
+        previous_options.setdefault('max_calls',10**8)
+        if previous_options!=run_options:
             parser.error('--resume options differ; repeat the original command with --resume')
         if previous.get('inputs_sha256')!=digest(inputs) or digest(json.loads((output/'instances.json').read_text()))!=digest(inputs):
             parser.error('--resume input manifest changed')
@@ -295,7 +302,7 @@ def main(argv=None):
         arguments.extend(['--cycle-optimization',optimization])
     portfolio=args.portfolio or args.portfolio_no_sharing
     config={'run_options':run_options,'inputs_sha256':digest(inputs),'plan':plan,'schema_version':'tspn_campaign_v2','formulation':inputs['formulation'],'repetitions':args.repetitions,'seconds':args.seconds,
-        'external_process_timeout_seconds':args.external_timeout,'max_calls':10**8,
+        'external_process_timeout_seconds':args.external_timeout,'max_calls':args.max_calls,
         'solvers':list(enabled_backends),
         'oracle_profile':{'scope':'completed B&B search/refinement requests including memo hits; excludes initial polishing and in-flight calls',
             'histogram_upper_seconds':[1e-5,1e-4,1e-3,1e-2,1e-1,1.0,None],
@@ -421,7 +428,7 @@ def main(argv=None):
                                         capture_path=capture_dir/f'{index:03d}-{repeat}-attempt{attempt}.jsonl'
                                         attempt+=1
                                     run_arguments+=['--oracle-capture',str(capture_path)]
-                                result=run_unordered_solver(ours,(0,0),(0,0),polygons,10**8,args.seconds,run_arguments,
+                                result=run_unordered_solver(ours,(0,0),(0,0),polygons,args.max_calls,args.seconds,run_arguments,
                                     process_timeout=args.external_timeout)
                         except subprocess.TimeoutExpired:
                             # Never persist commercial startup stderr/license data.

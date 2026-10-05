@@ -80,6 +80,12 @@ namespace tpp {
         bool cycle_bound_first = false;
         bool cycle_dual_screen = false;
         bool cycle_interval_certificate = false;
+        // Try a finite floating proposal before exact recovery. Its certified
+        // interval must meet the existing oracle gap or pruning cutoff.
+        bool cycle_proposal_bound = false;
+        // Diversify the existing greedy/2-opt/contact heuristic from up to
+        // seven additional original vertices; only validated upper bounds.
+        bool cycle_primal_starts = false;
         bool cycle_share_bounds = false;
         // Diagnostic JSONL, including every in-flight cycle input; empty disables I/O.
         std::string oracle_capture_file;
@@ -167,6 +173,8 @@ namespace tpp {
         size_t cycle_memo_queries = 0, cycle_memo_repeated = 0, cycle_memo_hits = 0;
         size_t cycle_certificate_cutoff_skips = 0, cycle_initial_contact_checks = 0, cycle_initial_contact_accepts = 0;
         size_t cycle_certificate_interval_uses = 0;
+        size_t cycle_proposal_calls = 0, cycle_proposal_accepts = 0;
+        size_t cycle_primal_start_candidates = 0, cycle_primal_start_improvements = 0;
         size_t cycle_dual_screen_children = 0, cycle_dual_screen_prunes = 0;
         double cycle_dual_screen_seconds = 0;
         size_t cycle_shared_bound_queries = 0, cycle_shared_bound_hits = 0, cycle_shared_bound_improvements = 0, cycle_shared_bound_prunes = 0;

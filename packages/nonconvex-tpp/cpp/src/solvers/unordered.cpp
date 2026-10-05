@@ -164,7 +164,7 @@ namespace tpp {
 		DynamicConvexTppWorkspace &workspace, double tolerance, double cutoff, double seconds,
 		const Polygon &initial_contacts, ConvexCycleWorkspace *cycle_workspace,
 		const std::vector<int> &initial_features, bool retain_features, bool bound_first,
-		bool interval_certificate, const std::function<bool()> &stop_requested) {
+		bool interval_certificate, const std::function<bool()> &stop_requested, bool proposal_bound) {
 		if (!cycle) return tpp_convex_solve_certified(start,target,regions,workspace,tolerance,cutoff,seconds);
 		const auto began=std::chrono::steady_clock::now();
 		RelaxationResult out;
@@ -182,9 +182,11 @@ namespace tpp {
         cycle_options.retain_active_features=retain_features;
         cycle_options.bound_first=bound_first;
         cycle_options.interval_certificate=interval_certificate;
+		cycle_options.proposal_only=proposal_bound;
 		auto solved=tpp_convex_solve_cycle_double(regions,cycle_options);
 		if (solved.status!=ConvexCycleStatus::Optimal && solved.status!=ConvexCycleStatus::FloatingPointLimit
-			&& solved.status!=ConvexCycleStatus::CertifiedBound && solved.status!=ConvexCycleStatus::Interrupted)
+			&& solved.status!=ConvexCycleStatus::CertifiedBound && solved.status!=ConvexCycleStatus::Interrupted
+            && solved.status!=ConvexCycleStatus::ProposalLimit)
 			throw std::runtime_error("Convex cycle oracle failed: "+solved.diagnostic);
 		out.active_features=std::move(solved.active_features);
         out.path=std::move(solved.contacts);if(!out.path.empty())out.path.push_back(out.path.front());
@@ -198,6 +200,35 @@ namespace tpp {
         out.certificate_cutoff_skips=solved.certificate_cutoff_skips;
         out.certificate_interval_uses=solved.certificate_interval_uses;
         out.initial_contact_checks=solved.initial_contact_checks;out.initial_contact_accepts=solved.initial_contact_accepts;
+		out.proposal_calls=proposal_bound;
+        if(proposal_bound && solved.status==ConvexCycleStatus::ProposalLimit &&
+           (out.path.empty() || (out.lower_bound<cutoff && out.upper_bound-out.lower_bound>tolerance))) {
+            // The proposal is only a source of certified bounds. An insufficient
+            // interval requests the unchanged full solve, with the shared deadline.
+            Polygon warm=out.path;
+            if(!warm.empty())warm.pop_back();else warm=initial_contacts;
+            auto full=solve_relaxation(cycle,start,target,regions,workspace,tolerance,cutoff,
+                std::max(0.0,seconds-std::chrono::duration<double>(std::chrono::steady_clock::now()-began).count()),
+                warm,cycle_workspace,out.active_features,retain_features,bound_first,interval_certificate,stop_requested,false);
+            if(!out.path.empty() && (full.path.empty() || out.upper_bound<full.upper_bound)) {
+                full.path=std::move(out.path);full.upper_bound=out.upper_bound;
+                full.active_features=std::move(out.active_features);
+            }
+            full.lower_bound=std::max(full.lower_bound,out.lower_bound);
+            full.predicate_exact_evaluations+=out.predicate_exact_evaluations;
+            full.certificate_cutoff_skips+=out.certificate_cutoff_skips;
+            full.certificate_interval_uses+=out.certificate_interval_uses;
+            full.initial_contact_checks+=out.initial_contact_checks;full.initial_contact_accepts+=out.initial_contact_accepts;
+            full.cycle_timings.construction_seconds+=out.cycle_timings.construction_seconds;
+            full.cycle_timings.certification_seconds+=out.cycle_timings.certification_seconds;
+            full.cycle_timings.rational_recovery_seconds+=out.cycle_timings.rational_recovery_seconds;
+            full.proposal_calls=1;
+            full.geometric_solver_seconds=full.cycle_timings.construction_seconds;
+            full.certificate_verification_seconds=full.cycle_timings.certification_seconds;
+            full.fallback_seconds=full.cycle_timings.rational_recovery_seconds;
+            full.seconds=std::chrono::duration<double>(std::chrono::steady_clock::now()-began).count();
+            return full;
+        }
 		if (!out.time_limited && out.lower_bound<cutoff && out.upper_bound-out.lower_bound>tolerance) {
 			// A rounded optimum may have a weak contact-derived dual. Recover its
 			// global bound while retaining the independently feasible double path.
@@ -218,6 +249,7 @@ namespace tpp {
             out.certificate_cutoff_skips+=exact.certificate_cutoff_skips;
 		}
 		out.fallback_certificate_gap=out.used_fallback;
+        out.proposal_accepts=proposal_bound&&!out.time_limited&&!out.used_fallback;
 		out.fallback_reason=out.used_fallback?ConvexFallbackReason::LocalOptimality:ConvexFallbackReason::None;
 		out.seconds=std::chrono::duration<double>(std::chrono::steady_clock::now()-began).count();
 		out.geometric_solver_seconds=out.cycle_timings.construction_seconds;
@@ -510,10 +542,10 @@ namespace tpp {
 			std::vector<size_t> best_initial_order;
 			double best_initial_length = std::numeric_limits<double>::infinity();
 			auto consider = [&](bool reverse, const std::vector<Polygon> &candidate_regions,
-				bool sampled, std::chrono::steady_clock::time_point deadline) {
+				bool sampled, std::chrono::steady_clock::time_point deadline, std::optional<Vector2> seed = std::nullopt) {
 				if (std::chrono::steady_clock::now() >= deadline) return;
-				const std::string direction = reverse ? "reverse" : "forward";
-				auto candidate = initialize(reverse ? target : start, reverse ? start : target,
+				const std::string direction = seed ? "cycle_multistart" : reverse ? "reverse" : "forward";
+				auto candidate = initialize(seed.value_or(reverse ? target : start), reverse ? start : target,
 					direction + (sampled ? "_sampled" : ""), candidate_regions, deadline);
 				if (reverse) {
 					std::reverse(candidate.first.begin(), candidate.first.end());
@@ -526,7 +558,7 @@ namespace tpp {
 					best_initial_length = value;
 				}
 				improve(candidate.first,
-					sampled ? (reverse ? "heuristic_sampled_reverse" : "heuristic_sampled")
+					seed ? "heuristic_multistart" : sampled ? (reverse ? "heuristic_sampled_reverse" : "heuristic_sampled")
 						: (reverse ? "heuristic_reverse" : "heuristic"),
 					candidate.second);
 			};
@@ -591,7 +623,23 @@ namespace tpp {
 				}
 				result.initial_relocation_seconds=duration(began);
 			}
-
+            if(cycle&&options.cycle_primal_starts&&n>1) {
+                // Diversify cyclic orders, using the maintained constructor and
+                // local search. Seeds are original vertices, never a discretized
+                // relaxation. Keep the baseline candidate before these attempts.
+                const size_t starts=std::min(n,size_t(8));
+                const double allowance=std::max(0.0,std::min(options.max_seconds-elapsed(),options.max_seconds*.05));
+                const auto deadline=std::isfinite(allowance)?std::chrono::steady_clock::now()+
+                    std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(allowance)):
+                    std::chrono::steady_clock::time_point::max();
+                for(size_t i=1;i<starts&&std::chrono::steady_clock::now()<deadline;++i) {
+                    if((options.stop_requested&&options.stop_requested())||(control&&control->stopped()))break;
+                    const double previous=result.upper_bound;
+                    ++result.cycle_primal_start_candidates;
+                    consider(false,polygons,false,deadline,polygons[i*n/starts].front());
+                    result.cycle_primal_start_improvements+=result.upper_bound<previous;
+                }
+            }
 			if (options.convex_initial_refinement && !best_initial_path.empty()
 				&& result.calls < options.max_calls && elapsed() < options.max_seconds) {
 				const auto refinement_began = std::chrono::steady_clock::now();
@@ -774,7 +822,8 @@ namespace tpp {
 			auto out=solve_relaxation(
 				cycle, start, target, selected, oracle_workspace, tolerance, cutoff, remaining_seconds, node.warm_start, options.cycle_cache?&cycle_cache:nullptr,
                 options.cycle_active_features?node.active_features:std::vector<int>{}, options.cycle_active_features,options.cycle_bound_first,
-                options.cycle_interval_certificate, [control]{return control&&control->proved();}
+                options.cycle_interval_certificate, [control]{return control&&control->proved();},
+                options.cycle_proposal_bound&&!precise
 			);
             oracle_capture.end(capture_id,out);
             if(cache&&!out.path.empty()) {
@@ -816,6 +865,7 @@ namespace tpp {
             result.cycle_memo_queries+=certified.memo_queries;result.cycle_memo_repeated+=certified.memo_repeated;
             result.cycle_memo_hits+=certified.memo_hits;result.cycle_certificate_cutoff_skips+=certified.certificate_cutoff_skips;
             result.cycle_certificate_interval_uses+=certified.certificate_interval_uses;
+            result.cycle_proposal_calls+=certified.proposal_calls;result.cycle_proposal_accepts+=certified.proposal_accepts;
             result.cycle_initial_contact_checks+=certified.initial_contact_checks;result.cycle_initial_contact_accepts+=certified.initial_contact_accepts;
 			node.refined = !certified.time_limited && (precise || options.oracle_relative_gap == 0);
 			if(!certified.path.empty())node.path = certified.path;
@@ -1634,6 +1684,10 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::learned_branch_changes);
         sum(&UnorderedTppSolveResult::cycle_memo_queries);
         sum(&UnorderedTppSolveResult::cycle_certificate_interval_uses);
+        sum(&UnorderedTppSolveResult::cycle_proposal_calls);
+        sum(&UnorderedTppSolveResult::cycle_proposal_accepts);
+        sum(&UnorderedTppSolveResult::cycle_primal_start_candidates);
+        sum(&UnorderedTppSolveResult::cycle_primal_start_improvements);
         sum(&UnorderedTppSolveResult::cycle_dual_screen_children);
         sum(&UnorderedTppSolveResult::cycle_dual_screen_prunes);
         sum(&UnorderedTppSolveResult::cycle_dual_screen_seconds);

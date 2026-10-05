@@ -19,6 +19,7 @@ struct RelaxationResult : CertifiedConvexTppResult {
 	std::size_t memo_queries = 0, memo_repeated = 0, memo_hits = 0;
 	std::size_t certificate_cutoff_skips = 0, initial_contact_checks = 0, initial_contact_accepts = 0;
 	std::size_t certificate_interval_uses = 0;
+	std::size_t proposal_calls = 0, proposal_accepts = 0;
 	ConvexCycleTimings cycle_timings;
 	RelaxationResult() = default;
 	RelaxationResult(CertifiedConvexTppResult result) : CertifiedConvexTppResult(std::move(result)) {}
@@ -29,6 +30,6 @@ RelaxationResult solve_relaxation(bool cycle, const Vector2 &start, const Vector
 	double tolerance, double cutoff, double seconds, const std::vector<Vector2> &initial_contacts = {},
 	ConvexCycleWorkspace *cycle_workspace = nullptr, const std::vector<int> &initial_features = {},
 	bool retain_features = false, bool bound_first = false, bool interval_certificate = false,
-	const std::function<bool()> &stop_requested = {});
+	const std::function<bool()> &stop_requested = {}, bool proposal_bound = false);
 
 } // namespace tpp

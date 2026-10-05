@@ -13,11 +13,11 @@ from tspn_diagnostics import atomic_json, digest
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "benchmarks/_internal/cycle_replay"
-INTEGER_FIELDS = {"call_id", "repeat"}
+INTEGER_FIELDS = {"call_id", "repeat", "proposal_calls", "proposal_accepts"}
 NUMBER_FIELDS = {"capture_tolerance", "deadline_seconds", "wall_seconds",
 	"construction_seconds", "certification_seconds", "rational_recovery_seconds", "lower_bound",
 	"upper_bound", "lower_bound_cutoff"}
-BOOLEAN_FIELDS = {"precise", "cache", "features", "interval", "bound_first", "used_fallback",
+BOOLEAN_FIELDS = {"precise", "cache", "features", "interval", "bound_first", "proposal_bound", "used_fallback",
 	"dual_cutoff_pruned", "gap_satisfied", "upper_bound_infinite", "independent_certificate_valid",
 	"intervals_overlap", "interval_bounds_used"}
 
@@ -187,9 +187,12 @@ def main(argv=None) -> int:
 	input_path = output / "calls.jsonl"
 	input_path.write_text("".join(json.dumps(record, separators=(",", ":")) + "\n" for record in selected))
 	defaults = {"cache": args.cache, "features": args.features, "interval": args.interval,
-		"bound_first": args.bound_first}
-	options_by_call = {str(record["id"]): {key: bool(record.get(key, value)) for key, value in defaults.items()}
+		"bound_first": args.bound_first, "proposal_bound": False}
+	options_by_call = {str(record["id"]): {key: _boolean(record.get(key, value)) for key, value in defaults.items()}
 		for record in selected}
+	for record in selected:
+		if _boolean(record.get("precise", False)):
+			options_by_call[str(record["id"])]["proposal_bound"] = False
 	binary = args.binary.resolve() if args.binary else (args.build_dir.resolve() / "tpp-cycle-replay")
 	commands = []
 	if not args.skip_build and not args.binary:

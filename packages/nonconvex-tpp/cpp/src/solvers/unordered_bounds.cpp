@@ -1,4 +1,5 @@
 #include "unordered_bounds.h"
+#include "unordered_dyadic_support.h"
 #include "tpp/convex/rational.h"
 #include "tpp/convex/cycle_certificate.h"
 
@@ -60,7 +61,6 @@ namespace tpp::unordered_detail {
             }
             using R = ConvexRational;
             using P = ConvexRationalPoint;
-            const P origin(contacts.front());
             auto direction = [](Vector2 a, Vector2 b) {
                 const P d = P(b) - P(a); const R squared = d.dot(d);
                 if (squared == 0) return P{};
@@ -69,20 +69,13 @@ namespace tpp::unordered_detail {
                 while (R(norm)*R(norm) < squared) norm = std::nextafter(norm, INFINITY);
                 return d*(R(1)/R(norm));
             };
-            // All sibling bounds use the same regions and origin. Import and
-            // translate each vertex once, including across dual alternatives.
-            auto translate = [&](const Polygon &polygon) {
-                ConvexRationalPolygon exact;exact.reserve(polygon.size());
-                for(auto v:polygon)exact.push_back(P(v)-origin);
-                return exact;
-            };
-            ConvexRationalPolygons exact_regions;exact_regions.reserve(n);
-            for(const auto *region:regions)exact_regions.push_back(translate(*region));
-            const auto exact_inserted=translate(inserted);
-            auto support = [](const ConvexRationalPolygon &polygon, const P &normal) {
-                R value = polygon.front().dot(normal);
-                for(size_t j=1;j<polygon.size();++j)value=std::min(value,polygon[j].dot(normal));
-                return value;
+            // Reuse exact dyadic geometry across all support queries and dual
+            // alternatives; normalize only the winning integer dot product.
+            std::vector<DyadicSupportPolygon> exact_regions;exact_regions.reserve(n);
+            for(const auto *region:regions)exact_regions.emplace_back(*region,contacts.front());
+            const DyadicSupportPolygon exact_inserted(inserted,contacts.front());
+            auto support = [](const DyadicSupportPolygon &polygon, const P &normal) {
+                return polygon.support(normal);
             };
             std::vector<P> raw,left,right;
             raw.reserve(n);left.reserve(n);right.reserve(n);

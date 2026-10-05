@@ -5,6 +5,7 @@
 #include "solvers/unordered_bounds.h"
 #include "solvers/unordered_portfolio.h"
 #include "solvers/unordered_cycle_oracle.h"
+#include "solvers/unordered_dyadic_support.h"
 #include <atomic>
 #include <thread>
 #include <algorithm>
@@ -135,7 +136,7 @@ void check(const Polygons &p) {
             ++portfolio_limited;
         }
     }
-    for(int mode=0;mode<14;++mode) {
+    for(int mode=0;mode<16;++mode) {
         tpp::UnorderedTppSolveOptions optimized;
         optimized.sequence_storage=tpp::UnorderedSequenceStorage::Deltas;
         optimized.cycle_cache=mode==0||mode==13;
@@ -151,10 +152,13 @@ void check(const Polygons &p) {
         optimized.cycle_dual_screen=mode==10||mode==13;
         optimized.cycle_interval_certificate=mode==11||mode==13;
         optimized.cycle_share_bounds=mode==12||mode==13;
+        optimized.cycle_proposal_bound=mode==14||mode==13;
+        optimized.cycle_primal_starts=mode==15||mode==13;
         if(mode==12)optimized.portfolio=true;
         for(size_t cap:{size_t(1),size_t(3),std::numeric_limits<size_t>::max()}) {
             optimized.max_calls=cap;
             const auto run=tpp::tpp_nonconvex_tspn_solve(p,optimized);
+            check_oracle_profile(run);
             require(covered(run.path,p)&&run.calls<=cap&&run.lower_bound<=upper+1e-7&&run.upper_bound>=lower-1e-7,
                 "Optimization frontier certificate mode="+std::to_string(mode));
             if(cap==std::numeric_limits<size_t>::max())require(run.exact&&std::abs(run.upper_bound-upper)<=1e-7+1e-9*upper,
@@ -303,6 +307,59 @@ void insertion_bounds() {
         }
     }
 }
+void dyadic_support_exactness() {
+    using R=tpp::ConvexRational;
+    using I=tpp::ConvexInteger;
+    using P=tpp::ConvexRationalPoint;
+    using tpp::unordered_detail::DyadicSupportPolygon;
+
+    const double largest=std::numeric_limits<double>::max();
+    const double smallest=std::numeric_limits<double>::denorm_min();
+    const Vector2 origin{-largest,largest};
+    // The exact translated difference between opposite finite extremes is
+    // larger than binary64. Mixing subnormals forces the shared dyadic scale
+    // to retain the full input exponent range.
+    const Polygon extremes{{largest,-largest},{-largest,largest},
+                           {smallest,-smallest},{-smallest,smallest},{0,0}};
+    const DyadicSupportPolygon prepared(extremes,origin);
+    I denominator_x=1;denominator_x<<=240;
+    I denominator_y=1;denominator_y<<=307;
+    const std::vector<P> normals{
+        P{R(0),R(0)},P{R(1),R(0)},P{R(-1),R(0)},P{R(0),R(1)},P{R(0),R(-1)},
+        P{R(7)/R(3),R(-11)/R(5)},
+        P{R(1)/R(denominator_x),R(-3)/R(denominator_y)},
+        P{R(-19)/R(denominator_y),R(23)/R(denominator_x)}};
+    auto compare_all_vertices=[&](const Polygon &polygon,Vector2 center,const P &normal,
+                                  const DyadicSupportPolygon &fast,const std::string &label) {
+        R expected=(P(polygon.front())-P(center)).dot(normal);
+        for(size_t i=1;i<polygon.size();++i)
+            expected=std::min(expected,(P(polygon[i])-P(center)).dot(normal));
+        require(fast.support(normal)==expected,label);
+    };
+    for(const auto &normal:normals)
+        compare_all_vertices(extremes,origin,normal,prepared,"Dyadic support equals exact rational all-vertex minimum");
+
+    const Polygon tied{{-2,-3},{-2,3},{2,-3},{2,3}};
+    const DyadicSupportPolygon tied_prepared(tied,{0,0});
+    compare_all_vertices(tied,{0,0},P{R(1),R(0)},tied_prepared,
+        "Exact integer support preserves tied minima");
+    compare_all_vertices(tied,{0,0},P{R(1)/R(denominator_x),R(1)/R(denominator_x)},tied_prepared,
+        "Common normal denominator is exact");
+
+    std::mt19937 rng(1012026);
+    std::uniform_int_distribution<int> coordinate(-100,100),numerator(-31,31),denominator(1,29);
+    for(size_t trial=0;trial<32;++trial) {
+        const Vector2 center{double(coordinate(rng))/8,double(coordinate(rng))/16};
+        Polygon polygon;
+        for(size_t i=0;i<7;++i)
+            polygon.push_back({double(coordinate(rng))/32,double(coordinate(rng))/64});
+        const DyadicSupportPolygon random_prepared(polygon,center);
+        const P normal{R(numerator(rng))/R(denominator(rng)),
+                       R(numerator(rng))/R(denominator(rng))};
+        compare_all_vertices(polygon,center,normal,random_prepared,
+            "Prepared support matches a direct exact rational scan");
+    }
+}
 void replacement_bounds() {
     using namespace tpp;
     const Polygons p{box(-4,0,3,3),box(0,4,3,3),box(4,0,3,3)};
@@ -426,13 +483,141 @@ void cycle_relaxation_interruptions() {
         completed.lower_bound<=exact_upper+1e-7&&completed.upper_bound>=exact_lower-1e-7,
         "A fresh default cycle relaxation completes normally after an interrupted call");
 }
+void cycle_proposal_bound_contract() {
+    const Polygons regions{box(-5,0,2,2),box(0,4,2,2),box(5,0,2,2),box(-1,-3,3,2)};
+    const auto exact=tpp::tpp_convex_solve_cycle(regions);
+    require(exact.status==tpp::ConvexCycleStatus::Optimal,"Proposal-bound fixture has an exact cycle reference");
+    tpp::ConvexCycleDoubleOptions disjoint_options;disjoint_options.proposal_only=true;
+    const auto disjoint=tpp::tpp_convex_solve_cycle_disjoint_double(regions,disjoint_options);
+    require((disjoint.status==tpp::ConvexCycleStatus::Optimal||disjoint.status==tpp::ConvexCycleStatus::ProposalLimit)&&
+        disjoint.rational_feature_recoveries==0&&disjoint.rational_cycle_recoveries==0&&disjoint.rational_anchor_recoveries==0,
+        "Disjoint finite proposal cannot launch rational recovery or claim unchecked optimality");
+    disjoint_options.refine_contacts=false;
+    const auto empty_proposal=tpp::tpp_convex_solve_cycle_disjoint_double(regions,disjoint_options);
+    require(empty_proposal.status==tpp::ConvexCycleStatus::ProposalLimit&&empty_proposal.contacts.empty()&&
+        empty_proposal.certificate.lower_bound==0&&std::isinf(empty_proposal.certificate.upper_bound),
+        "Empty proposal carries a conservative interval rather than a zero-cost feasible claim");
+
+    tpp::ConvexCycleDoubleOptions interrupted_options;
+    interrupted_options.proposal_only=true;
+    interrupted_options.stop_requested=[]{return true;};
+    const auto interrupted=tpp::tpp_convex_solve_cycle_double(regions,interrupted_options);
+    require(interrupted.status==tpp::ConvexCycleStatus::Interrupted,
+        "A canceled finite proposal remains Interrupted rather than ProposalLimit");
+    require(interrupted.contacts.empty()||
+        (interrupted.certificate.lower_bound<=exact.certificate.upper_bound&&
+         interrupted.certificate.upper_bound>=exact.certificate.lower_bound),
+        "Interrupted proposal exposes only compatible certified bounds");
+
+    // Pick a fixture where the finite proposal pass itself has a certified,
+    // small but not necessarily closed interval. That makes both the accepted
+    // and full-recovery adapter paths observable without timing assumptions.
+    const std::vector<Polygons> proposal_fixtures{
+        regions,
+        {{{0,0},{3,0},{2.5,1.5},{0.2,2}},{{6,1},{8,0.5},{9,2.5},{6.5,3}},
+         {{11,-1},{13,0},{12.5,2},{10.5,1.5}},{{5,-5},{7,-5.5},{8,-3.5},{5.5,-3}}},
+        {{{-3,0},{0,-1},{1,2},{-2,3}},{{4,1},{7,0},{8,3},{5,4}},
+         {{10,-2},{13,-1},{12,2},{9,1}},{{4,-5},{7,-4},{6,-1},{3,-2}}}
+    };
+    Polygons accepted_regions, fallback_regions;
+    size_t proposal_checkpoints=0;
+    for(const auto &fixture:proposal_fixtures) {
+        tpp::ConvexCycleDoubleOptions options;options.proposal_only=true;
+        size_t checks=0;options.stop_requested=[&]{++checks;return false;};
+        const auto proposal=tpp::tpp_convex_solve_cycle_double(fixture,options);
+        if(proposal.status!=tpp::ConvexCycleStatus::ProposalLimit||proposal.contacts.empty())continue;
+        const double gap=proposal.certificate.upper_bound-proposal.certificate.lower_bound;
+        if(accepted_regions.empty()&&gap>=0.0&&gap<=1e-6)accepted_regions=fixture;
+        if(fallback_regions.empty()&&gap>0.0) {
+            fallback_regions=fixture;proposal_checkpoints=checks;
+        }
+    }
+    require(!accepted_regions.empty()&&!fallback_regions.empty(),
+        "Fixtures exercise a certified ProposalLimit at both loose and strict declared gaps");
+
+    tpp::DynamicConvexTppWorkspace accepted_workspace;
+    const auto accepted=tpp::solve_relaxation(true,{0,0},{0,0},accepted_regions,accepted_workspace,
+        1e-6,INFINITY,INFINITY,{},nullptr,{},false,false,false,{},true);
+    require(accepted.proposal_calls==1&&accepted.proposal_accepts==1&&!accepted.used_fallback&&
+        !accepted.time_limited&&covered(accepted.path,accepted_regions)&&
+        accepted.upper_bound-accepted.lower_bound<=1e-6,
+        "A certified ProposalLimit meeting the declared tolerance is accepted without rational recovery");
+    require(accepted.cycle_timings.rational_recovery_seconds==0.0,
+        "Accepted double-only proposal performs no rational recovery");
+
+    tpp::DynamicConvexTppWorkspace workspace;
+    const auto tight=tpp::solve_relaxation(true,{0,0},{0,0},regions,workspace,
+        0.0,INFINITY,INFINITY,{},nullptr,{},false,false,false,{},true);
+    require(tight.proposal_calls==1&&tight.proposal_accepts<=tight.proposal_calls,
+        "Tight-bound adapter records one finite proposal and no phantom acceptance");
+    require(covered(tight.path,regions)&&
+        std::abs(tpp::unordered_detail::path_length(tight.path)-tight.upper_bound)<=1e-7&&
+        tight.lower_bound<=exact.certificate.upper_bound+1e-7&&
+        tight.upper_bound>=exact.certificate.lower_bound-1e-7,
+        "Proposal plus any required complete recovery preserves a feasible path and valid interval");
+    if(tight.proposal_accepts) {
+        require(tight.dual_cutoff_pruned||tight.upper_bound-tight.lower_bound<=0.0,
+            "Proposal is accepted only when its certified interval meets the declared tolerance or cutoff");
+    } else if(!tight.time_limited) {
+        tpp::DynamicConvexTppWorkspace full_workspace;
+        const auto full=tpp::solve_relaxation(true,{0,0},{0,0},regions,full_workspace,
+            0.0,INFINITY,INFINITY);
+        const double equivalence_tolerance=1e-7*std::max(1.0,full.upper_bound);
+        require(tight.used_fallback||
+            (std::abs(tight.lower_bound-full.lower_bound)<=equivalence_tolerance&&
+             std::abs(tight.upper_bound-full.upper_bound)<=equivalence_tolerance),
+            "Unaccepted proposal recovers or matches the complete adapter's certified bounds");
+    }
+
+    size_t stage_checks=0;
+    auto stop_at_full_phase=[&]{return ++stage_checks>proposal_checkpoints;};
+    tpp::DynamicConvexTppWorkspace interrupted_workspace;
+    const auto between_phases=tpp::solve_relaxation(true,{0,0},{0,0},fallback_regions,interrupted_workspace,
+        0.0,INFINITY,INFINITY,{},nullptr,{},false,false,false,stop_at_full_phase,true);
+    require(between_phases.time_limited&&between_phases.proposal_calls==1&&between_phases.proposal_accepts==0&&
+        covered(between_phases.path,fallback_regions)&&std::isfinite(between_phases.upper_bound),
+        "Cancellation at the full-phase boundary preserves the certified proposal path");
+    const auto fallback_exact=tpp::tpp_convex_solve_cycle(fallback_regions);
+    require(fallback_exact.status==tpp::ConvexCycleStatus::Optimal,
+        "Interrupted full-phase fixture has an exact cycle reference");
+    require(between_phases.lower_bound<=fallback_exact.certificate.upper_bound+1e-7&&
+        between_phases.upper_bound>=fallback_exact.certificate.lower_bound-1e-7,
+        "Cancellation between proposal and recovery retains compatible bounds");
+
+    const auto [enumerated_lower,enumerated_upper]=enumerate(regions);
+    tpp::UnorderedTppSolveOptions no_calls;
+    no_calls.max_calls=0;
+    const auto baseline_start=tpp::tpp_nonconvex_tspn_solve(regions,no_calls);
+    no_calls.cycle_primal_starts=true;
+    const auto primal_start=tpp::tpp_nonconvex_tspn_solve(regions,no_calls);
+    require(covered(baseline_start.path,regions)&&covered(primal_start.path,regions)&&
+        baseline_start.calls==0&&primal_start.calls==0&&
+        primal_start.upper_bound<=baseline_start.upper_bound+1e-7&&
+        primal_start.cycle_primal_start_candidates>0,
+        "Optional primal starts preserve a feasible zero-call incumbent and improve or retain its bound");
+
+    tpp::UnorderedTppSolveOptions options;
+    options.cycle_proposal_bound=true;
+    options.cycle_primal_starts=true;
+    const auto searched=tpp::tpp_nonconvex_tspn_solve(regions,options);
+    require(searched.cycle_proposal_calls>0&&searched.cycle_proposal_accepts<=searched.cycle_proposal_calls,
+        "B&B routes relaxation calls through the opt-in proposal-bound adapter");
+    require(searched.cycle_primal_start_candidates>0,
+        "Combined proposal-bound and primal-start options exercise the primal candidate generator");
+    require(searched.exact&&covered(searched.path,regions)&&
+        searched.lower_bound<=enumerated_upper+1e-7&&searched.upper_bound>=enumerated_lower-1e-7&&
+        std::abs(searched.upper_bound-enumerated_upper)<=1e-7+1e-9*enumerated_upper,
+        "Proposal-bound B&B retains exact exhaustive order/piece result");
+}
 int main() {
     try {
         memo_cycle_keys();
         cycle_relaxation_interruptions();
+        cycle_proposal_bound_contract();
         one_tree_bounds();
         portfolio_protocol();
         insertion_bounds();
+        dyadic_support_exactness();
         replacement_bounds();
         check({});check({box(0,0)});check({box(0,0,10,10),box(12,4,1,2)});
         require(std::abs(tpp::tpp_nonconvex_tspn_solve({box(0,0,10,10),box(12,4,1,2)}).upper_bound-4)<1e-8,
@@ -452,6 +637,6 @@ int main() {
         bool rejected=false;try {tpp::tpp_nonconvex_tspn_solve({box(0,0)},bad);}catch(const std::invalid_argument&){rejected=true;}
         require(rejected,"Open supplied tour rejected");
         std::cout<<"TSPN tests passed: "<<cases<<" exhaustive cases with 1 and 2 threads, "<<interrupted<<" interrupted searches, "
-                 <<portfolio_cases<<" portfolios, "<<portfolio_limited<<" shared-budget searches, "<<decomposed<<" decomposition cases, "<<parallel_batches<<" concurrent oracle batches, 240 arbitrary-hint plus 240 inherited-dual checks; 798 optimization/call-cap comparisons and 38 combined concurrency checks.\n";
+                 <<portfolio_cases<<" portfolios, "<<portfolio_limited<<" shared-budget searches, "<<decomposed<<" decomposition cases, "<<parallel_batches<<" concurrent oracle batches, 240 arbitrary-hint plus 240 inherited-dual checks; 912 optimization/call-cap comparisons and 38 combined concurrency checks.\n";
     } catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}
 }

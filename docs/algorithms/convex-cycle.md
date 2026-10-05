@@ -102,6 +102,16 @@ control to the anchored search; it never accepts an objective or claims
 convergence. Set `refine_contacts=false` to exercise the unaccelerated general
 boundary reduction. Tests compare both paths.
 
+The binary64 options also expose `proposal_only`, a separate finite-work
+request used by the B&B adapter. It stops after the floating feature proposals,
+without rational reconstruction or boundary search. `ProposalLimit` reports
+that this requested phase ended; it does not assert optimality, convergence,
+or that a feasible candidate was found. Every retained candidate and bound
+still has a completed independent certificate. `Optimal` and `CertifiedBound`
+keep their exact tests, and default standalone solves keep the complete path.
+No tolerance is supplied to the constructor. The caller can use the certified
+interval or request the complete solve when it needs a stronger bound.
+
 In the filtered double mode, an exhausted initial feature proposal invokes the
 complete rational reduction before starting double boundary probes. Recovery
 starts from the best already-verified double contacts (or the supplied initial
