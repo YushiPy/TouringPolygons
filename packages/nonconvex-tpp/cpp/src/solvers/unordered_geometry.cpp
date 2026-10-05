@@ -232,7 +232,7 @@ namespace tpp::unordered_detail {
 					if (squared <= tolerance_squared || squared < best_squared) {
 						const double t = segment.squared == 0 ? 0 : (p - a).dot(direction) / segment.squared;
 						if (squared <= tolerance_squared) first = std::min(first, t);
-						if (squared < best_squared) { best_squared = squared; best.position = double(i) + t; }
+						if (squared < best_squared) { best_squared = squared; best.position = double(i) + t; best.polygon_point = q; }
 					}
 				}
 			}
@@ -257,6 +257,11 @@ namespace tpp::unordered_detail {
 		return contact_impl(path.segments.size(),[&](size_t i)->const ContactSegment&{return path.segments[i];},
 			polygon.edges.size(),[&](size_t i)->const ContactEdge&{return polygon.edges[i];},
 			polygon.minimum,polygon.maximum,tolerance);
+	}
+	double path_point_distance(const PreparedContactPath &path, Vector2 point) {
+		double best = std::numeric_limits<double>::infinity();
+		for (const auto &segment : path.segments) best = std::min(best, (project(point, segment) - point).length_squared());
+		return std::sqrt(best);
 	}
     size_t SegmentContactCache::Hash::operator()(const Key &key) const {
         size_t result=0;

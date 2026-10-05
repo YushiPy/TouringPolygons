@@ -45,6 +45,10 @@ namespace tpp {
 		bool oracle_interval_geometry_cache = true;
 		// Reuse immutable edges/segments and contacts for the last binary path.
 		bool prepared_visit_queries = true;
+		// Skip exact contacts of regions that cannot be the farthest (or among
+		// the lookahead candidates): a point of each region from its previous
+		// contact bounds its distance from above. Same branching decisions.
+		bool visit_upper_bounds = true;
 		bool interpolated_zero_dual = false;
         bool oracle_borrow_geometry = true;
         bool oracle_bound_first = false;
@@ -53,6 +57,24 @@ namespace tpp {
         bool path_dual_reuse = false;
         bool path_certificate_dual = false;
         bool path_strong_branching = false;
+        // Experimental exact large-neighbourhood search (open paths only).
+        // Windows of `window_lns_size` consecutive incumbent contacts are
+        // re-solved by this same B&B with both window endpoints fixed, after the
+        // initial heuristic and whenever the search finds a better incumbent.
+        // Only upper bounds change; all LNS oracle calls count in `calls` and
+        // the LNS uses at most `window_lns_time_fraction` of the elapsed time.
+        // Experimental: screen this many farthest absent regions with the dual
+        // insertion bounds; prune the node if one has no admissible position.
+        // Branching is unchanged. Zero disables (default).
+        size_t insertion_lookahead = 0;
+        // Experimental: with threads > 1, expand up to `threads` best-bound
+        // nodes per round and evaluate all their children in parallel, instead
+        // of parallelizing only the siblings of one node (best-bound search only).
+        bool parallel_nodes = false;
+        bool window_lns = false;
+        size_t window_lns_size = 8;
+        size_t window_lns_max_size = 32;
+        double window_lns_time_fraction = 0.1;
 		// Record an explanatory execution trace. Disabled by default so normal
 		// benchmark runs keep the same memory and timing behavior.
 		bool trace = false;
@@ -239,6 +261,19 @@ namespace tpp {
 		double initial_heuristic_seconds = 0.0;
 		double initial_relocation_seconds = 0.0;
 		size_t initial_relocation_moves = 0;
+		// Exact window LNS: sweeps, solved windows, accepted improvements,
+		// oracle calls spent inside windows and total length removed.
+		size_t visit_bound_skips = 0;
+		size_t lookahead_candidates = 0;
+		size_t lookahead_prunes = 0;
+		size_t lookahead_changes = 0;
+		double lookahead_seconds = 0.0;
+		size_t window_lns_rounds = 0;
+		size_t window_lns_subproblems = 0;
+		size_t window_lns_improvements = 0;
+		size_t window_lns_calls = 0;
+		double window_lns_seconds = 0.0;
+		double window_lns_gain = 0.0;
 		double initial_sampling_work_budget = 0.0;
 		size_t initial_sampled_extra_points = 0;
 		size_t initial_convex_refinement_calls = 0;

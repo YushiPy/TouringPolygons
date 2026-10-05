@@ -287,8 +287,17 @@ void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
 		std::cerr << "Expected " << best << ", got " << result.upper_bound << '\n';
 		throw std::runtime_error("Permutation enumeration mismatch.");
 	}
-    for(unsigned variant=0;variant<8;++variant) {
+    for(unsigned variant=0;variant<13;++variant) {
         UnorderedTppSolveOptions candidate;
+        // Parallel node rounds (and with the LNS) keep the same guarantees.
+        candidate.parallel_nodes=variant>=11;
+        candidate.threads=variant>=11?3:1;
+        // Exact window LNS (smallest windows, to exercise splicing) and the
+        // insertion lookahead must preserve bounds, budget and optimality.
+        candidate.window_lns=variant==8||variant==10||variant==12;
+        candidate.window_lns_size=2;
+        candidate.window_lns_max_size=4;
+        candidate.insertion_lookahead=variant>=9?8:0;
         candidate.oracle_borrow_geometry=variant==0||variant==6;
         candidate.lazy_oracles=variant==1||variant==6;
         candidate.oracle_bound_first=variant==2||variant==6;
@@ -305,6 +314,14 @@ void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
             for(const auto &p:polygons)if(unordered_detail::contact(changed.path,p,1e-8).distance>1e-8)
                 throw std::runtime_error("Path optimization returned an infeasible route");
         }
+    }
+    // Anchor upper bounds only skip exact contacts; the search must not change,
+    // with and without the lookahead's K-candidate threshold.
+    for(size_t lookahead:{size_t(0),size_t(3)}) {
+        UnorderedTppSolveOptions bounded,unbounded;
+        bounded.insertion_lookahead=unbounded.insertion_lookahead=lookahead;
+        unbounded.visit_upper_bounds=false;
+        same_search(tpp_nonconvex_unordered_solve(s,t,polygons,bounded),tpp_nonconvex_unordered_solve(s,t,polygons,unbounded));
     }
 	tpp::UnorderedTppSolveOptions root_options;
 	root_options.detour_root = true;

@@ -2,12 +2,12 @@
 
 Esta pasta guarda um resumo compacto dos resultados, não cópias de campanhas.
 Execuções completas, entradas repetidas, trajetórias, logs, builds e patches de
-experimento ficam nos diretórios locais ignorados (`benchmarks/campaigns/` e
-`benchmarks/results/`).
+experimento ficam nos diretórios locais ignorados (`benchmarks/workspace/`).
 
 | Pasta | Conteúdo preservado |
 |---|---|
 | [fekete-comparison](fekete-comparison/README.md) | Comparação completa usada pelo material SIICUSP; CSVs e corpus são dependências do exportador. |
+| [tpp-visit-bounds-lns-2026-10-05](tpp-visit-bounds-lns-2026-10-05/README.md) | Limites de visita por âncora (busca idêntica, 1,22–1,29×) e LNS exata opcional. |
 | [tpp-certified-oracle-2026-10-02](tpp-certified-oracle-2026-10-02/README.md) | Recuperação filtrada do oráculo de caminho, amostra pareada de 48 casos e limites da comparação. |
 | [tpp-boundary-disjoint-2026-10-02](tpp-boundary-disjoint-2026-10-02/README.md) | Recuperação de fronteiras compartilhadas por contração/recorrência disjunta, atalhos KKT e resultados por tamanho. |
 | [tpp-interval-bounds-2026-10-02](tpp-interval-bounds-2026-10-02/README.md) | Limites primal-dual antes do replay racional, duas amostras pareadas de 48 casos e três focais repetidos. |

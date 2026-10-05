@@ -325,6 +325,9 @@ namespace tpp {
 		Polygon visit_path;
 		bool visit_path_ready=false;
 		std::vector<std::optional<Contact>> visit_contacts(n);
+		// One point of each region near recent paths (initially a vertex).
+		std::vector<Vector2> visit_anchors;
+		for (const auto &p : polygons) visit_anchors.push_back(p.front());
 		auto begin_visit_queries=[&](const Polygon &path) {
 			if(!options.prepared_visit_queries)return;
 			if(visit_path_ready&&visit_path.size()==path.size()&&std::equal(path.begin(),path.end(),visit_path.begin(),
@@ -340,15 +343,25 @@ namespace tpp {
 			++result.visit_query_evaluations;
 			const auto found=options.prepared_visit_queries?(options.segment_visit_cache?segment_cache.query(visit_segments,visit_polygons[j],j,n,eps):contact(visit_segments,visit_polygons[j],eps)):contact(path,polygons[j],eps);
 			if(options.prepared_visit_queries)visit_contacts[j]=found;
+			if(found.distance>0)visit_anchors[j]=found.polygon_point;
 			return found;
+		};
+		// Upper bound of the current path's distance to region j (exact if known).
+		auto visit_distance_upper=[&](size_t j) {
+			return visit_contacts[j]?visit_contacts[j]->distance:path_point_distance(visit_segments,visit_anchors[j]);
 		};
 		enum class Phase { Heuristic, Search, Finalization };
 		Phase phase = Phase::Heuristic;
+		// Most paths checked during the search are partial; the region found
+		// uncovered last time usually still is, so test it first. Only the
+		// boolean is used, so the order does not affect any decision.
+		size_t uncovered_hint = 0;
 		auto covered = [&](const Polygon &path) {
 			const auto check_began = std::chrono::steady_clock::now();
 			begin_visit_queries(path);
 			bool covered_result=true;
-			for(size_t j=0;j<n;++j)if(!(visit_contact(path,j).distance<=eps)){covered_result=false;break;}
+			if(n&&options.visit_upper_bounds&&!(visit_contact(path,uncovered_hint).distance<=eps))covered_result=false;
+			else for(size_t j=0;j<n;++j)if(!(visit_contact(path,j).distance<=eps)){covered_result=false;uncovered_hint=j;break;}
 			const double seconds = duration(check_began);
 			if (phase == Phase::Heuristic) result.heuristic_visit_check_seconds += seconds;
 			else if (phase == Phase::Search) result.search_visit_check_seconds += seconds;
@@ -691,6 +704,127 @@ namespace tpp {
 				result.initial_convex_refinement_seconds += duration(refinement_began);
 			}
 		}
+		// Exact window LNS. A window is a run of consecutive incumbent contacts
+		// between two fixed points a and b. The regions it must visit are those
+		// not already visited by the fixed path outside it; the same B&B solves
+		// that small fixed-endpoint TPP, seeded with the current window as its
+		// incumbent. A strictly shorter window is spliced in and the whole path
+		// is revalidated by improve(), so only upper bounds can change.
+		// The sweep is resumable: its width and next window survive between
+		// calls, so a stalled search keeps spending its accumulated budget. A new
+		// incumbent restarts the sweep at the last successful width; a complete
+		// sweep at the largest width without improvement (and without truncated
+		// subproblems) exhausts the neighbourhood of the current incumbent.
+		struct WindowLnsState {
+			size_t first = 1, width = 0, success_width = 0;
+			double upper_bound = std::numeric_limits<double>::infinity();
+			bool exhausted = false, truncated = false;
+			double retry_at = 0;  // backoff after an unsuccessful truncated sweep
+		} lns;
+		lns.width = lns.success_width = std::max<size_t>(2, options.window_lns_size);
+		const size_t lns_max_width = std::max(lns.width, std::min(options.window_lns_max_size, n));
+		// Proportional budget: total LNS time stays within the requested fraction
+		// of the time spent so far (at least of 0.5 s), so easy instances pay
+		// little and long searches keep improving the incumbent.
+		auto window_lns_allowance = [&] {
+			return options.window_lns_time_fraction * std::max(0.5, elapsed()) - result.window_lns_seconds;
+		};
+		auto window_lns = [&] {
+			if (cycle || !options.window_lns || n < 3 || result.path.size() < 3 || !std::isfinite(result.upper_bound)) return;
+			if (result.upper_bound < lns.upper_bound) {
+				lns = {.first = 1, .width = lns.success_width, .success_width = lns.success_width, .upper_bound = result.upper_bound};
+			}
+			if (lns.exhausted) {
+				// Truncated subproblems may hide improvements: retry with the larger
+				// budget available after the elapsed time has doubled.
+				if (!(lns.retry_at > 0 && elapsed() >= lns.retry_at)) return;
+				lns.exhausted = false;lns.retry_at = 0;lns.first = 1;
+			}
+			const double allowance = window_lns_allowance();
+			if (!(allowance > 0)) return;
+			const auto began = std::chrono::steady_clock::now();
+			auto remaining = [&] { return std::min(allowance - duration(began), options.max_seconds - elapsed()); };
+			auto stopped = [&] {
+				return remaining() <= 0 || result.calls >= options.max_calls
+					|| (options.stop_requested && options.stop_requested()) || (control && control->stopped());
+			};
+			while (!stopped() && !lns.exhausted) {
+				const Polygon path = result.path;
+				const size_t interior = path.size() - 2;
+				if (lns.first == 1) ++result.window_lns_rounds;
+				bool improved = false;
+				// Half-overlapping windows over the incumbent's interior contacts.
+				for (; lns.first <= interior && !stopped(); lns.first += std::max<size_t>(1, lns.width / 2)) {
+					const size_t first = lns.first, width = lns.width;
+					const size_t last = std::min(first + width - 1, interior);
+					const Polygon left(path.begin(), path.begin() + first);
+					const Polygon right(path.begin() + last + 1, path.end());
+					const Polygon window(path.begin() + first - 1, path.begin() + last + 2);
+					std::vector<Polygon> regions;
+					for (size_t j = 0; j < n; ++j) {
+						const bool outside = (left.size() > 1 && contact(left, polygons[j], eps).distance <= eps)
+							|| (right.size() > 1 && contact(right, polygons[j], eps).distance <= eps);
+						if (!outside) regions.push_back(polygons[j]);
+					}
+					// Incidental visits can make a window larger than its contacts;
+					// keep each subproblem small enough to stay cheap.
+					if (regions.size() > width + width / 2) continue;
+					const double window_length = path_length(window);
+					Polygon replacement;
+					double replacement_length = window_length;
+					if (regions.empty()) {
+						replacement = {window.front(), window.back()};
+						replacement_length = path_length(replacement);
+					} else {
+						auto sub = options;
+						sub.window_lns = false;
+						sub.trace = false;
+						sub.portfolio = false;
+						sub.threads = 1;
+						sub.initial_path = window;
+						sub.max_seconds = std::max(0.0, std::min(remaining(), 0.25 * allowance));
+						sub.max_calls = std::min<size_t>(options.max_calls - result.calls, 20000);
+						try {
+							++result.window_lns_subproblems;
+							const auto solved = solve_normalized_unordered_tpp(window.front(), window.back(), regions, sub, false, nullptr);
+							result.calls += solved.calls;
+							result.window_lns_calls += solved.calls;
+							lns.truncated |= !solved.exact;
+							if (solved.path.size() >= 2) { replacement = solved.path; replacement_length = solved.upper_bound; }
+						} catch (const std::exception &) {
+							lns.truncated = true;
+							continue;  // A failed subproblem only loses this improvement attempt.
+						}
+					}
+					if (replacement.empty() || !(replacement_length < window_length - std::max(eps, 1e-12 * window_length))) continue;
+					Polygon candidate = left;
+					candidate.insert(candidate.end(), replacement.begin() + 1, replacement.end() - 1);
+					candidate.insert(candidate.end(), right.begin(), right.end());
+					const double before = result.upper_bound;
+					improve(candidate, "window_lns");
+					if (result.upper_bound < before) {
+						++result.window_lns_improvements;
+						result.window_lns_gain += before - result.upper_bound;
+						lns = {.first = 1, .width = width, .success_width = width, .upper_bound = result.upper_bound};
+						improved = true;
+						break;  // Indices changed; restart the sweep on the new incumbent.
+					}
+				}
+				if (improved || lns.first <= interior) continue;  // restarted, or out of budget
+				// A complete sweep without improvement: grow, or stop at the top.
+				if (lns.width >= lns_max_width) {
+					lns.exhausted = true;
+					lns.retry_at = lns.truncated ? 2 * std::max(0.5, elapsed()) : 0;
+					lns.truncated = false;
+					lns.first = 1;
+				} else {
+					lns.width = std::min(lns_max_width, lns.width + std::max<size_t>(1, lns.width / 2));
+					lns.first = 1;
+				}
+			}
+			result.window_lns_seconds += duration(began);
+		};
+		window_lns();
 		import_incumbent();
 		result.initial_heuristic_seconds = duration(heuristic_began);
 		result.initial_upper_bound = result.upper_bound;
@@ -985,18 +1119,51 @@ namespace tpp {
 			.upper_bound = result.upper_bound,
 		});
 		size_t serial = 1;
-		std::optional<Node> dive;
-		auto frontier_bound = [&] {
-			return std::min(queue.empty() ? result.upper_bound : queue.lower_bound(), dive ? dive->bound : result.upper_bound);
+		// Active dive chains: at most one per node expanded in a round (one in
+		// the serial search). Each continues from the best child of its node.
+		std::vector<Node> dives;
+		auto note_dives = [&] {
+			size_t bytes = 0;
+			for (const auto &d : dives) bytes += d.sequence.payload_bytes();
+			queue.note_dive(bytes);
 		};
-		while (!queue.empty() || dive) {
+		auto frontier_bound = [&] {
+			double bound = queue.empty() ? result.upper_bound : queue.lower_bound();
+			for (const auto &d : dives) bound = std::min(bound, d.bound);
+			return std::min(bound, result.upper_bound);
+		};
+		struct Family {
+			std::vector<Node> children;
+			SequenceReference parent;
+			bool diving = false;
+			size_t first_child = 0;
+			std::optional<Node> dive;
+		};
+		// Parallel rounds batch several best-bound nodes so that every thread has
+		// oracles to evaluate; sibling batches alone rarely exceed one survivor.
+		const size_t nodes_per_round = options.parallel_nodes && !dfs ? std::max<size_t>(1, options.threads) : 1;
+		while (!queue.empty() || !dives.empty()) {
             import_incumbent();
-			result.peak_queue = std::max(result.peak_queue, queue.size() + size_t(dive.has_value()));
+			// Resume the LNS after a new incumbent, or in bursts once half of its
+			// proportional budget is available, so subproblems are not starved.
+			if (options.window_lns && (result.upper_bound < lns.upper_bound
+				|| ((!lns.exhausted || (lns.retry_at > 0 && elapsed() >= lns.retry_at))
+					&& window_lns_allowance() >= std::max(0.02, 0.5 * options.window_lns_time_fraction * elapsed()))))
+				window_lns();
+			result.peak_queue = std::max(result.peak_queue, queue.size() + dives.size());
 			result.lower_bound = std::min(result.upper_bound, frontier_bound());
 			if (result.upper_bound - result.lower_bound <= gap() || limited()) break;
-			const bool diving = !dfs && (dive.has_value() || (options.dive_interval && result.nodes % options.dive_interval == 0));
+			// A round expands up to nodes_per_round frontier nodes serially and
+			// then evaluates all their children's oracles together. One node per
+			// round is the classic best-bound search. No popped node stays in
+			// flight across rounds, so the frontier bound remains a certificate.
+			std::vector<Family> families;
+			bool stop_search = false;
+			for (size_t round_slot = 0; round_slot < nodes_per_round; ++round_slot) {
+			if (round_slot && ((queue.empty() && dives.empty()) || limited())) break;
+			const bool diving = !dfs && (!dives.empty() || (options.dive_interval && result.nodes % options.dive_interval == 0));
 			Node node;
-			if (dive) { queue.note_dive(0);node = std::move(*dive); dive.reset(); }
+			if (!dives.empty()) { node = std::move(dives.back()); dives.pop_back(); note_dives(); }
 			else { node = queue.take(); }
             const auto sequence_parent = node.sequence.restore(index_bytes);
 			++result.nodes;
@@ -1004,7 +1171,7 @@ namespace tpp {
 			++result.sequence_depth_samples;
 			result.max_sequence_depth = std::max(result.max_sequence_depth, node.sequence.size());
             strengthen_shared_bound(node);
-			if (node.path.empty() && node.bound < result.upper_bound-gap() && !solve(node)) { queue.push(std::move(node),sequence_parent);break; }
+			if (node.path.empty() && node.bound < result.upper_bound-gap() && !solve(node)) { queue.push(std::move(node),sequence_parent);stop_search=true;break; }
             Polygon parent_binary_dual;
             if(!cycle&&options.path_certificate_dual) {
                 if(auto found=path_dual_cache.find(node.serial);found!=path_dual_cache.end()) {
@@ -1073,11 +1240,42 @@ namespace tpp {
 			double best_detour = -1, best_detour_distance = -1;
 			const auto visit_began = std::chrono::steady_clock::now();
 			begin_visit_queries(node.path);
-			for (size_t j = 0; j < n; ++j) {
+			// Exact contacts are needed only for regions that can still become the
+			// farthest, or one of the K lookahead candidates (strict comparisons
+			// keep the first index on ties). A small relative margin absorbs
+			// rounding between the anchor bound and the exact contact.
+			const bool bound_visits = options.prepared_visit_queries && options.visit_upper_bounds
+				&& !node.sequence.empty() && !options.cycle_learned_branching
+				&& !(cycle?options.cycle_strong_branching:options.path_strong_branching);
+			const size_t kept_candidates = !cycle && options.insertion_lookahead ? options.insertion_lookahead : 1;
+			std::vector<char> present;
+			if (bound_visits && kept_candidates > 1) {
+				present.assign(n, 0);
+				for (auto e : node.sequence) present[e.polygon] = 1;
+			}
+			std::priority_queue<double, std::vector<double>, std::greater<>> kept_distances;
+			// With bounds, visit regions by decreasing upper bound so the farthest
+			// is found first and the threshold rises at once. Ties keep the
+			// smallest index, exactly like the plain index-order scan below.
+			std::vector<std::pair<double,size_t>> scan;
+			scan.reserve(n);
+			for (size_t j = 0; j < n; ++j) scan.emplace_back(bound_visits ? visit_distance_upper(j) : 0.0, j);
+			if (bound_visits) std::stable_sort(scan.begin(), scan.end(), [](const auto &a, const auto &b) { return a.first > b.first; });
+			for (const auto &[upper, j] : scan) {
+				if (bound_visits) {
+					double threshold = farthest;
+					if (kept_candidates > 1 && !present[j])
+						threshold = std::min(threshold, kept_distances.size() < kept_candidates ? eps : kept_distances.top());
+					if (upper * (1 + 1e-9) < threshold) { ++result.visit_bound_skips; continue; }
+				}
 				const double distance = visit_contact(node.path,j).distance;
+				if (bound_visits && kept_candidates > 1 && !present[j] && distance > eps) {
+					kept_distances.push(distance);
+					if (kept_distances.size() > kept_candidates) kept_distances.pop();
+				}
                 if(options.cycle_learned_branching)branch_distances[j]=distance;
-				if (distance > farthest) { farthest = distance; chosen = j; }
-                if((cycle?options.cycle_strong_branching:options.path_strong_branching)&&distance>eps&&
+				if (distance > farthest || (distance == farthest && chosen != none && j < chosen)) { farthest = distance; chosen = j; }
+                if(((cycle?options.cycle_strong_branching:options.path_strong_branching)||(!cycle&&options.insertion_lookahead))&&distance>eps&&
                    std::none_of(node.sequence.begin(),node.sequence.end(),[&](auto e){return e.polygon==j;}))
                     branch_candidates.emplace_back(distance,j);
 				if (options.detour_root && node.sequence.empty() && distance > eps) {
@@ -1115,6 +1313,57 @@ namespace tpp {
                 }
             }
 
+            // Insertion lookahead: dual insertion bounds are analytic, so screen the
+            // K farthest absent regions instead of only the farthest one. A region
+            // with no admissible position proves the whole node cannot improve the
+            // incumbent.
+            std::vector<double> lookahead_bounds;
+            if(!cycle&&options.insertion_lookahead&&chosen!=none&&!branch_candidates.empty()&&
+               std::none_of(node.sequence.begin(),node.sequence.end(),[&](auto e){return e.polygon==chosen;})) {
+                const auto began_lookahead=std::chrono::steady_clock::now();
+                std::sort(branch_candidates.begin(),branch_candidates.end(),std::greater<>());
+                std::vector<const Polygon*> regions;
+                for(auto e:node.sequence)regions.push_back(e.piece==none?&hulls[e.polygon]:&pieces[e.polygon][e.piece]);
+                const double cutoff=result.upper_bound-gap();
+                // The node's dual directions do not depend on the candidate.
+                const auto node_dual=node.dual.empty()?path_insertion_dual(node.path,regions):PathInsertionDual{};
+                size_t best_count=none;double best_minimum=-INFINITY,dead_minimum=-INFINITY;bool dead=false;
+                for(size_t i=0;i<std::min(options.insertion_lookahead,branch_candidates.size());++i) {
+                    const size_t candidate=branch_candidates[i].second;
+                    if(candidate!=chosen&&node.dual.empty()) {
+                        // A region is dead only if every position is inadmissible:
+                        // test the path segment nearest to it first and stop there.
+                        const auto nearest=static_cast<size_t>(std::clamp(visit_contact(node.path,candidate).position,0.0,double(regions.size())));
+                        ++result.lookahead_candidates;
+                        if(std::max(node.bound,path_insertion_bound_at(node_dual,node.path,regions,hulls[candidate],nearest))<cutoff)continue;
+                    }
+                    auto bounds=node.dual.empty()?path_insertion_bounds(node_dual,node.path,regions,hulls[candidate])
+                        :insertion_lower_bounds(node.path,regions,hulls[candidate],false,node.dual);
+                    size_t admissible=0;double minimum=INFINITY;
+                    for(auto &bound:bounds) {
+                        bound=std::max(node.bound,bound);
+                        minimum=std::min(minimum,bound);
+                        admissible+=bound<cutoff;
+                    }
+                    ++result.lookahead_candidates;
+                    if(!admissible){dead=true;dead_minimum=std::max(dead_minimum,minimum);continue;}
+                    // Branching stays on the farthest region: changing it to the most
+                    // constrained one grew the tree (screen of 2026-10-05).
+                    if(candidate==chosen){best_count=admissible;best_minimum=minimum;lookahead_bounds=std::move(bounds);}
+                }
+                result.lookahead_seconds+=duration(began_lookahead);
+                if(dead) {
+                    // Every completion inserts each dead region somewhere, so the
+                    // largest of their position minima bounds the whole subtree.
+                    ++result.lookahead_prunes;++result.pruned_nodes;++result.pruned_states;++result.bound_prunes;
+                    settled_bound=std::min(settled_bound,dead_minimum);
+                    result.search_visit_check_seconds+=duration(visit_began);
+                    queue.restart();
+                    continue;
+                }
+                result.lookahead_changes+=chosen!=branch_candidates.front().second;
+            }
+
             if(cycle&&options.cycle_learned_branching&&chosen!=none) {
                 const size_t geometric=chosen;double best_score=-1;
                 for(size_t j=0;j<n;++j)if(branch_distances[j]>eps) {
@@ -1133,13 +1382,14 @@ namespace tpp {
 			if (chosen == none) {
                 queue.restart();
 				if (!node.refined && !limited()) {
-					if(!solve(node, true)) { queue.push(std::move(node),sequence_parent);break; }
+					if(!solve(node, true)) { queue.push(std::move(node),sequence_parent);stop_search=true;break; }
 					improve(node.path, "refinement", node_sequence);
 					queue.push(std::move(node),sequence_parent);
 					continue;
 				}
 				// An unresolved numerical oracle gap must remain in the global certificate.
 				queue.push(std::move(node),sequence_parent);
+				stop_search=true;
 				break;
 			}
 			if (options.trace) trace_event({
@@ -1199,7 +1449,8 @@ namespace tpp {
                 const bool screen_dual=!cycle&&options.path_certificate_dual&&
                     parent_binary_dual.size()==node.sequence.size()+1;
                 Polygon proposals;
-				auto bounds = insertion_lower_bounds(node.path, regions, hulls[chosen], cycle,
+				auto bounds = !lookahead_bounds.empty()&&!screen_dual ? std::move(lookahead_bounds)
+                    : insertion_lower_bounds(node.path, regions, hulls[chosen], cycle,
                     node.dual,screen_dual?&proposals:nullptr);
                 if(screen_dual) {
                     const auto began_screen=std::chrono::steady_clock::now();
@@ -1282,10 +1533,18 @@ namespace tpp {
 				if (inserting) child.warm_start.insert(child.warm_start.begin()+position,contact);
 				else child.warm_start[position]=contact;
 			}
-			const size_t first_child=queue.size();
-			for (size_t batch_begin = 0; batch_begin < children.size();) {
+			families.push_back({std::move(children), sequence_parent, diving, queue.size()});
+			}
+			// All children of this round, in expansion order.
+			std::vector<std::pair<size_t,size_t>> round_children;
+			for (size_t f = 0; f < families.size(); ++f)
+				for (size_t c = 0; c < families[f].children.size(); ++c) round_children.emplace_back(f, c);
+			auto child_at = [&](size_t index) -> Node & {
+				return families[round_children[index].first].children[round_children[index].second];
+			};
+			for (size_t batch_begin = 0; batch_begin < round_children.size();) {
 				import_incumbent();
-				const size_t batch_end = std::min(children.size(), batch_begin + options.threads);
+				const size_t batch_end = std::min(round_children.size(), batch_begin + options.threads);
 				const double batch_upper_bound = result.upper_bound;
 				const double batch_cutoff = batch_upper_bound - gap_at(batch_upper_bound);
 				std::vector<size_t> evaluation_children;
@@ -1294,9 +1553,9 @@ namespace tpp {
 					? options.max_calls - result.calls : 0;
 				for (size_t child_index = batch_begin; child_index < batch_end; ++child_index) {
 					if ((cycle?options.cycle_lazy:options.lazy_oracles) || evaluation_children.size() >= available_calls || limited()) break;
-                    strengthen_shared_bound(children[child_index]);
-					if (children[child_index].bound >= batch_cutoff) continue;
-					if(!note_oracle_call(children[child_index], false)) break;
+                    strengthen_shared_bound(child_at(child_index));
+					if (child_at(child_index).bound >= batch_cutoff) continue;
+					if(!note_oracle_call(child_at(child_index), false)) break;
 					evaluation_slot[child_index - batch_begin] = evaluation_children.size();
 					evaluation_children.push_back(child_index);
 				}
@@ -1304,7 +1563,7 @@ namespace tpp {
 				std::vector<RelaxationResult> certified(evaluation_children.size());
 				if (evaluation_children.size() == 1) {
 					const auto oracle_began = std::chrono::steady_clock::now();
-					certified[0] = evaluate_oracle(children[evaluation_children[0]], false,
+					certified[0] = evaluate_oracle(child_at(evaluation_children[0]), false,
 						batch_upper_bound, workspace, cycle_workspace,memo_workspace);
 					result.convex_oracle_wall_seconds += duration(oracle_began);
 				} else if (evaluation_children.size() > 1) {
@@ -1324,14 +1583,15 @@ namespace tpp {
 					const auto oracle_batch_began = std::chrono::steady_clock::now();
 					evaluate_parallel_oracles(static_cast<std::ptrdiff_t>(evaluation_children.size()), worker_count,
 						[&](std::ptrdiff_t slot, int worker) {
-							certified[slot] = evaluate_oracle(children[evaluation_children[slot]], false,
+							certified[slot] = evaluate_oracle(child_at(evaluation_children[slot]), false,
 								batch_upper_bound, parallel_workspaces[worker], parallel_cycle_workspaces[worker],parallel_memo_workspaces[worker]);
 						});
 					result.convex_oracle_wall_seconds += duration(oracle_batch_began);
 				}
 
 				for (size_t child_index = batch_begin; child_index < batch_end; ++child_index) {
-					auto &child = children[child_index];
+					auto &family = families[round_children[child_index].first];
+					auto &child = child_at(child_index);
 					const bool pruned_by_new_incumbent = child.bound >= result.upper_bound - gap();
 					if (pruned_by_new_incumbent) ++result.sibling_bound_prunes;
 					const size_t slot = evaluation_slot[child_index - batch_begin];
@@ -1365,11 +1625,10 @@ namespace tpp {
 					});
 					if (queued) {
 						++result.children_queued;
-                        queue.freeze_child(child,sequence_parent);
-						if (diving && (!dive || child.bound < dive->bound)) {
-							if (dive) { queue.note_dive(0);queue.push(std::move(*dive)); }
-							dive = std::move(child);
-                            queue.note_dive(dive->sequence.payload_bytes());
+                        queue.freeze_child(child,family.parent);
+						if (family.diving && (!family.dive || child.bound < family.dive->bound)) {
+							if (family.dive) queue.push(std::move(*family.dive));
+							family.dive = std::move(child);
 						} else queue.push(std::move(child));
 					} else {
 						++result.pruned_states;
@@ -1379,7 +1638,12 @@ namespace tpp {
 				}
 				batch_begin = batch_end;
 			}
-            queue.finish_branch(first_child);
+            for (auto &family : families) {
+				queue.finish_branch(family.first_child);
+				if (family.dive) dives.push_back(std::move(*family.dive));
+			}
+			note_dives();
+            if (stop_search) break;
 		}
         queue.report(result);
         result.segment_visit_queries=segment_cache.queries;result.segment_visit_hits=segment_cache.hits;
@@ -1751,6 +2015,17 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::initial_heuristic_seconds);
 		sum(&UnorderedTppSolveResult::initial_relocation_seconds);
 		sum(&UnorderedTppSolveResult::initial_relocation_moves);
+        sum(&UnorderedTppSolveResult::visit_bound_skips);
+        sum(&UnorderedTppSolveResult::lookahead_candidates);
+        sum(&UnorderedTppSolveResult::lookahead_prunes);
+        sum(&UnorderedTppSolveResult::lookahead_changes);
+        sum(&UnorderedTppSolveResult::lookahead_seconds);
+        sum(&UnorderedTppSolveResult::window_lns_rounds);
+        sum(&UnorderedTppSolveResult::window_lns_subproblems);
+        sum(&UnorderedTppSolveResult::window_lns_improvements);
+        sum(&UnorderedTppSolveResult::window_lns_calls);
+        sum(&UnorderedTppSolveResult::window_lns_seconds);
+        sum(&UnorderedTppSolveResult::window_lns_gain);
         sum(&UnorderedTppSolveResult::initial_sampled_extra_points);
         sum(&UnorderedTppSolveResult::initial_sampling_work_budget);
         sum(&UnorderedTppSolveResult::initial_convex_refinement_calls);

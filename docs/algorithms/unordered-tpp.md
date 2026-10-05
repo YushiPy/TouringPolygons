@@ -332,6 +332,53 @@ número de polígonos. `--no-prepared-visits` desativa ambos os reaproveitamento
 e reaproveitadas nas fases de cobertura, ramificação e finalização; consultas
 específicas da raiz e decomposição não fazem parte desses contadores.
 
+### Limites superiores de visita
+
+`visit_upper_bounds` (padrão true; `--no-visit-upper-bounds` para ablação)
+evita contatos exatos de regiões que não podem mudar a ramificação. Cada região
+guarda uma âncora: o ponto da região mais próximo do caminho no seu último
+contato exato positivo (inicialmente o primeiro vértice). Como a âncora
+pertence à região, a distância do caminho atual até ela limita superiormente a
+distância do caminho à região, com custo linear no número de segmentos. Na
+escolha do polígono mais distante, as regiões são percorridas por limite
+superior decrescente e só recebem contato exato quando esse limite, com folga
+relativa de `1e-9` para arredondamento, ainda alcança o máximo corrente. Com o
+lookahead, o limiar é o K-ésimo maior contato exato dos candidatos ausentes.
+O desempate pelo menor índice é reproduzido, então polígono escolhido, ordem
+dos candidatos, caminhos, limites e contagens são idênticos aos da varredura
+completa; o teste `same_search` compara as duas. A checagem de cobertura testa
+primeiro a última região encontrada descoberta, o que não muda seu resultado.
+`visit_bound_skips` conta os contatos evitados. A raiz, o branching aprendido
+e o strong branching usam a varredura completa.
+
+### Opções experimentais de 2026-10-05
+
+Desativadas por padrão; resultados e decisão em
+[`unordered-tpp-experiments.md`](unordered-tpp-experiments.md).
+
+- `--window-lns` / `window_lns`: LNS exata por janelas. Uma janela é uma
+  sequência de contatos consecutivos do incumbente entre dois pontos fixos `a`
+  e `b`; as regiões não visitadas pelo restante fixo do caminho formam um TPP
+  de extremos fixos resolvido por esta mesma busca, partindo da janela atual
+  como incumbente. Uma janela estritamente menor é emendada e o caminho inteiro
+  é revalidado por `improve`, portanto só o limite superior pode mudar. A
+  largura começa em `window_lns_size` e cresce 50% a cada varredura sem melhora,
+  até `window_lns_max_size`. O tempo total respeita
+  `window_lns_time_fraction` do tempo decorrido (mínimo 0,5 s), em rajadas,
+  com recuo exponencial após vizinhanças esgotadas. As chamadas do oráculo da
+  LNS entram em `calls` e em `window_lns_calls`.
+- `--insertion-lookahead K`: avalia os limites duais de inserção dos K
+  polígonos ausentes mais distantes. Se algum não tem posição admissível, o nó
+  inteiro é podado, com o maior mínimo desses candidatos como limite
+  liquidado; a ramificação continua no mais distante. Para candidatos que não
+  são o escolhido, a posição do segmento mais próximo é testada primeiro e a
+  avaliação para na primeira posição admissível.
+- `--parallel-nodes` (com `--threads N`): cada rodada expande até N nós da
+  busca de melhor limite, cada um seguindo seu próprio mergulho, e avalia os
+  oráculos de todos os filhos juntos. Nenhum nó fica em voo entre rodadas,
+  portanto o limite da fronteira continua sendo um certificado. Com uma thread
+  a busca é idêntica à serial.
+
 ## Certificado convexo e interseções
 
 A API `tpp_convex_solve_certified` delega ao oráculo híbrido seguro descrito em
