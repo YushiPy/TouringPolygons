@@ -1,7 +1,7 @@
 
-#include "vector2.h"
+#include "tpp/geometry/vec2.h"
 #include "tests.h"
-#include "common.h"
+#include "tpp/nonconvex/decomposition.h"
 #include "tpp_convex.h"
 
 #include <vector>

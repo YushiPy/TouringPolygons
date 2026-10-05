@@ -1,6 +1,6 @@
 
-#include "vector2.h"
-#include "common.h"
+#include "tpp/geometry/vec2.h"
+#include "tpp/geometry/common.h"
 #include "tests.h"
 
 // Math for generating random test cases and verifying solutions.

@@ -1,6 +1,6 @@
 
-#include "vector2.h"
-#include "common.h"
+#include "tpp/geometry/vec2.h"
+#include "tpp/nonconvex/decomposition.h"
 
 #include <optimal_convex_partition/optimal_convex_partition.h>
 

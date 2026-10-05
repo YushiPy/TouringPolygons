@@ -1,5 +1,5 @@
 #include "tpp/nonconvex/solver.h"
-#include "vector2.h"
+#include "tpp/geometry/vec2.h"
 
 #include <exception>
 #include <iomanip>

@@ -2,7 +2,7 @@
 #include "tpp/convex/certified.h"
 #include "tpp/convex/dual.h"
 #include "tpp/convex/cycle.h"
-#include "common.h"
+#include "tpp/nonconvex/decomposition.h"
 #include "unordered_geometry.h"
 #include "unordered_bounds.h"
 #include "unordered_portfolio.h"

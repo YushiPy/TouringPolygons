@@ -82,7 +82,6 @@ packages/convex-tpp/cpp/tests/*_tests.bin
 !packages/convex-tpp/cpp/tests/basic_tests.bin
 !packages/convex-tpp/cpp/tests/edge_cases.bin
 packages/nonconvex-tpp/cpp/tests/generated/
-packages/nonconvex-tpp/python/instances*.zip
 
 # Third-party papers and local TeX conversions
 docs/bibliography/**/*.pdf

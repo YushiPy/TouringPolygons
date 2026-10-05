@@ -21,9 +21,10 @@ both variants that matter to the project:
 - free visit order, using insertion/decomposition branching and the certified
   convex oracle.
 
-The C++ targets are the source of truth. Python code under the solver packages
-is retained for experiments, visualization, and historical comparison; it is
-not a second public implementation to extend by default.
+The C++ targets are the only solver implementations. The former Python
+prototypes under `packages/convex-tpp/python` and `packages/nonconvex-tpp/python`
+were removed in October 2026; they remain available in Git history. Python is
+used only for benchmark tooling, independent validation and the dashboard.
 
 The public benchmark CLI owns `benchmarks/.venv`, synchronized from its
 `pyproject.toml` and `uv.lock` by `python3 benchmarks/tpp.py setup`. CLI execution

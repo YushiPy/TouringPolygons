@@ -1,4 +1,4 @@
-#include "common.h"
+#include "tpp/nonconvex/decomposition.h"
 #include "tests.h"
 
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>

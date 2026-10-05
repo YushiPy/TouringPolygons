@@ -9,8 +9,8 @@ Lecture Notes in Computer Science(), vol 10185. Springer, Cham.
 https://doi.org/10.1007/978-3-319-55911-7_44
 */
 
-#include "vector2.h"
-#include "common.h"
+#include "tpp/geometry/vec2.h"
+#include "tpp/geometry/common.h"
 #include "tpp_convex_common.h"
 #include "tpp_convex.h"
 

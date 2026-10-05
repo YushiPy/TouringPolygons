@@ -1,4 +1,4 @@
-#include "common.h"
+#include "tpp/nonconvex/decomposition.h"
 #include "tpp/convex/solver.h"
 #include "tpp/nonconvex/solver.h"
 

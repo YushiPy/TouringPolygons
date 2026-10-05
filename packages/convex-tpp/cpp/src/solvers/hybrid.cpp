@@ -3,7 +3,7 @@
 #include "tpp/convex/cycle_certificate.h"
 #include "tpp/convex/detail/rational_disjoint.h"
 #include "tpp/convex/solver.h"
-#include "common.h"
+#include "tpp/geometry/common.h"
 #include "certified_internal.h"
 #include "zero_contact_certificate.h"
 #include "binary_certificate.h"

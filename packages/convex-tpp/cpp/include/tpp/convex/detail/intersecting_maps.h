@@ -1,7 +1,7 @@
 #pragma once
 
 #include "tpp/convex/options.h"
-#include "vector2.h"
+#include "tpp/geometry/vec2.h"
 #include <vector>
 
 namespace tpp::detail {

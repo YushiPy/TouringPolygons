@@ -1,5 +1,5 @@
 
-#include "common.h"
+#include "tpp/nonconvex/decomposition.h"
 #include "tests.h"
 #include "tpp_convex.h"
 

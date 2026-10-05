@@ -1,6 +1,6 @@
 #include "tpp/nonconvex/unordered.h"
 #include "tpp/convex/certified.h"
-#include "common.h"
+#include "tpp/nonconvex/decomposition.h"
 #include "solvers/unordered_geometry.h"
 #include "solvers/unordered_bounds.h"
 #include "tpp/convex/dual.h"

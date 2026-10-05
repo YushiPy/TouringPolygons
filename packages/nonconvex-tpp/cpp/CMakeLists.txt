@@ -37,8 +37,6 @@ endif()
 
 file(GLOB_RECURSE TPP_NONCONVEX_SOURCES CONFIGURE_DEPENDS src/*.cpp)
 list(FILTER TPP_NONCONVEX_SOURCES EXCLUDE REGEX "src/main.*\\.cpp")
-list(FILTER TPP_NONCONVEX_SOURCES EXCLUDE REGEX "src/tpp_convex\\.cpp")
-list(FILTER TPP_NONCONVEX_SOURCES EXCLUDE REGEX "src/vector2\\.cpp")
 
 add_library(tpp_nonconvex STATIC ${TPP_NONCONVEX_SOURCES})
 target_include_directories(tpp_nonconvex PUBLIC include)
