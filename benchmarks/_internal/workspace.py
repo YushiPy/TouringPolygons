@@ -439,6 +439,23 @@ def command_migrate(args: argparse.Namespace) -> int:
 	return 0
 
 
+def command_migrate_results(args: argparse.Namespace) -> int:
+	"""Move every campaign's runs to results/<run>/ (see run_layout)."""
+	import run_layout
+
+	campaigns = sorted(path for path in campaigns_dir().iterdir() if (path / CAMPAIGN_FILE).exists()) if campaigns_dir().is_dir() else []
+	total = 0
+	for campaign in campaigns:
+		actions = run_layout.migrate(campaign, dry_run=args.dry_run, rewrite_paths=rewrite_paths)
+		if actions:
+			print(f"{campaign.name}:")
+			for action in actions:
+				print(f"  {'would ' if args.dry_run else ''}{action}")
+		total += len(actions)
+	print(("Would apply" if args.dry_run else "Applied") + f" {total} change(s) in {len(campaigns)} campaign(s)." if total else "Every campaign already uses results/<run>/.")
+	return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
 	parser = argparse.ArgumentParser(prog="tpp.py workspace", description=__doc__.split("\n\n")[0])
 	sub = parser.add_subparsers(dest="action")
@@ -451,6 +468,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 	migrate.add_argument("--include", action="append", default=[], metavar="DIR",
 		help="also move this repository directory into experiments/ (repeatable)")
 	migrate.set_defaults(func=command_migrate)
+	layout = sub.add_parser("migrate-results", help="move each campaign's runs to results/<run>/")
+	layout.add_argument("--dry-run", action="store_true", help="only print the moves")
+	layout.set_defaults(func=command_migrate_results)
 	where = sub.add_parser("path", help="print the workspace root")
 	where.set_defaults(func=lambda _args: print(root()) or 0)
 	args = parser.parse_args(argv)

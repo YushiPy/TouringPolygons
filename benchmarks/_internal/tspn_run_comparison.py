@@ -94,6 +94,9 @@ def stop_active_processes() -> None:
 		_stop_process(process)
 
 
+ERROR_TAIL_LINES = 10  # stderr lines kept when a worker fails
+
+
 @dataclass(frozen=True)
 class EncodedCase:
 	data: bytes
@@ -630,7 +633,7 @@ def run_case(
 			message = stderr.strip().splitlines()
 			return {
 				"status": "error", "solve_seconds": time.perf_counter() - started,
-				"error": message[-1] if message else f"worker exited {process.returncode}",
+				"error": "\n".join(message[-ERROR_TAIL_LINES:]) if message else f"worker exited {process.returncode}",
 			}
 		if not result_path.exists():
 			return {"status": "error", "error": "worker produced no result"}

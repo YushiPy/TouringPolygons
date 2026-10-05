@@ -61,17 +61,24 @@ gap continue caindo no mesmo ritmo, o que o branch and bound muitas vezes não f
 Trate-a como um palpite; LB, UB e a tendência da fila são os sinais confiáveis.
 
 Os mesmos dados ficam em `live.json` (no diretório da execução: a campanha
-TSPN, ou `results/free-order/EXECUÇÃO/`), reescrito de forma atômica. De outro
-terminal:
+TSPN, ou `results/EXECUÇÃO/`), reescrito de forma atômica a cada ~5 s. Ele não
+depende do terminal que iniciou a execução: de qualquer outro terminal,
 
 ```bash
 python3 benchmarks/tpp.py live            # tudo o que está rodando no workspace
-python3 benchmarks/tpp.py live NOME -f    # uma campanha, atualizando a cada 10 s
+python3 benchmarks/tpp.py live NOME       # só uma campanha
+python3 benchmarks/tpp.py live --once     # imprime o estado atual e sai
 ```
 
+o `live` imprime o estado de cada instância e **continua rodando**, mostrando
+cada novo report assim que ele chega (Ctrl+C para sair), e avisa quando uma
+execução termina. Snapshots deixados por processos que já não existem (execução
+morta ou terminal fechado) ficam ocultos, com uma linha avisando quantos;
+`--include-gone` os mostra. Se o terminal for fechado, o shell costuma matar a
+execução; para execuções longas, inicie-a em `tmux`/`screen` ou com `nohup`.
+
 O `live` avisa quando uma instância deixa de reportar (uma chamada longa ao
-oráculo ou um solver travado) e quando o processo que escrevia o arquivo já não
-existe nesta máquina. O relatório só observa a busca: o resultado, as chamadas e
+oráculo ou um solver travado). O relatório só observa a busca: o resultado, as chamadas e
 os nós são idênticos com ele ligado ou desligado (há teste C++ para isso). O
 estado vem do laço do branch and bound, então uma única chamada muito longa
 atrasa a próxima linha. Execuções iniciadas com um binário anterior a este
@@ -95,7 +102,7 @@ de scratch com mais cota):
 ```text
 workspace/
 ├── campaigns/<nome>/        conjuntos de instâncias com campaign.json e suas
-│                            execuções retomáveis (results/)
+│                            execuções em results/<execução>/ (ver abaixo)
 ├── campaigns/<nome>@<host>/ campanhas trazidas de outra máquina
 ├── runs/<nome>/             saídas de comandos sem campanha (suites, ablações,
 │                            comparações)
@@ -104,6 +111,19 @@ workspace/
 ├── regions/                 extratos OpenStreetMap (.osm.pbf) e caches
 └── history.jsonl            uma linha por comando executado
 ```
+
+Dentro de uma campanha, **toda execução tem a própria pasta**
+`results/<AAAAMMDD-HHMMSS-id>/`, qualquer que seja o problema: a ordem livre
+guarda um único `report.json`; a ordem fixa guarda `run-index.csv` e os
+`.csv`/`.md`/`.log`/`.done` de cada entrada. O tipo é dado pelo que a pasta
+contém, não pelo caminho. Repetir um comando com as mesmas configurações
+continua a execução mais recente (ordem fixa: se o que ela terminou usou as
+mesmas configurações e o mesmo binário); configurações diferentes ou
+`--no-resume` abrem uma pasta nova e nunca sobrescrevem a anterior.
+`results/comparisons/` guarda comparações derivadas, não execuções. Campanhas
+criadas antes (`results/free-order/<execução>/` e arquivos soltos em `results/`)
+continuam sendo lidas; `python3 benchmarks/tpp.py workspace migrate-results
+[--dry-run]` as move para o formato atual.
 
 `campaign.json` registra `origin` (`cli`, `dashboard` ou `remote:<host>`).
 Cada execução grava `run.json` com comando, máquina (host, CPU, memória,
@@ -320,8 +340,24 @@ termina um caso do tpp-ours, ele já pega o próximo do tpp-fekete, mesmo que
 outro worker ainda esteja no tpp-ours. `--threads-per-instance` controla as
 threads internas de cada caso. O pico é de até
 `--workers × --threads-per-instance` threads de solver. Campanhas compatíveis
-retomam os casos já registrados e guardam `report.json`, o CSV externo bruto e
-`comparison.md` em `benchmarks/workspace/campaigns/<nome>/results/free-order/`.
+retomam os casos já registrados e guardam um único arquivo por execução,
+`report.json`, em `benchmarks/workspace/campaigns/<nome>/results/<execução>/`.
+Ele reúne a configuração, as linhas dos dois solvers e, nas do Fekete, a
+telemetria completa do runner externo (`external`: iterações, ramificações,
+chamadas e tempos SOCP...). A geometria não é copiada: as linhas guardam o hash
+da instância e o `.bin` da campanha é a única cópia. O resumo comparativo é
+calculado sob demanda por `python3 benchmarks/tpp.py report <campanha|execução>`.
+Execuções feitas antes dessa mudança (com `external/*.csv`, `geometry/` e
+`comparison.md`) continuam legíveis, e retomar uma delas importa o CSV antigo
+apenas para as linhas que o relatório não tem.
+
+O `status` do `report.json` diz como a campanha terminou, separado de como cada
+solver foi: `completed` (todos os casos rodaram sem erro), `completed_with_errors`
+(todos foram tentados, mas um solver falhou em alguns; `solver_errors` lista, por
+solver, os casos e o primeiro erro, e a CLI sai com código 2), `interrupted`
+(parada pelo usuário, retomável, código 130) e `failed` (a própria campanha
+quebrou: exceção ou casos que nunca rodaram, código 1). Retomar reexecuta só os
+casos com erro.
 
 Se uma campanha falhar por problema no ambiente Python, a retomada reexecuta
 as linhas com erro e preserva as execuções concluídas, incluindo resultados
@@ -339,16 +375,16 @@ Para medir o efeito das threads, compare runs de uma thread e multithread dos
 dois solvers. A análise pareia instâncias pelo SHA-256, grava `comparison.csv`,
 `summary.md` e `manifest.json`, e resume speedups apenas quando ambos os runs
 fecharam a tolerância. Os argumentos aceitam CSV, `report.json` ou diretório de
-campanha; o diretório da campanha multithread pode ser usado enquanto o CSV do
-Fekete ainda está sendo preenchido.
+campanha; o diretório da campanha multithread pode ser usado enquanto a execução
+ainda está em andamento (em execuções antigas, usa o CSV parcial do Fekete).
 
 ```bash
 python3 benchmarks/tpp.py compare-threads \
   --ours-single benchmarks/workspace/runs/free-order-gap-6h/runs.csv \
   --ours-single-variant fekete_gap \
-  --ours-multi benchmarks/workspace/campaigns/fekete-instances/results/free-order/ID_DA_RUN \
+  --ours-multi benchmarks/workspace/campaigns/fekete-tpp_free_order/results/ID_DA_RUN \
   --fekete-single benchmarks/results-saved/fekete-comparison/fekete.csv \
-  --fekete-multi benchmarks/workspace/campaigns/fekete-instances/results/free-order/ID_DA_RUN \
+  --fekete-multi benchmarks/workspace/campaigns/fekete-tpp_free_order/results/ID_DA_RUN \
   --output benchmarks/workspace/runs/thread-scaling/fekete
 ```
 

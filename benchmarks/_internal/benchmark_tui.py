@@ -219,12 +219,23 @@ class App:
 			return "unlimited"
 		if item.key == "campaign" and not value:
 			return "<choose a campaign>"
+		if item.key == "max_instances":
+			total = run_spec.instance_limit(self.session.values)
+			if total is not None:
+				if value == run_spec.UNLIMITED:
+					return f"all ({total})"
+				return f"{run_spec.format_value(value)} of {total}"
 		return run_spec.format_value(value)
 
 	def help_text(self) -> str:
 		kind, target = self.current()
 		if kind == "field":
-			return target.spec(self.problem).help
+			text = target.spec(self.problem).help
+			if target.key == "max_instances":
+				total = run_spec.instance_limit(self.session.values)
+				if total is not None:
+					text += f" This campaign has {total}."
+			return text
 		return {
 			"run": "Runs the command now in this terminal.",
 			"copy": "Copies the command, prints it and exits.",
@@ -356,12 +367,19 @@ class App:
 	def _preview(self, item: run_spec.Field, entered: str) -> str:
 		"""What the typed text means, e.g. ``= 1e-7`` for ``10 ** -7``."""
 		return "= " + run_spec.format_value(
-			run_spec.parse_value(item, self.problem, entered)
+			run_spec.parse_value(item, self.problem, entered, self._limit(item))
+		)
+
+	def _limit(self, item: run_spec.Field) -> int | None:
+		return (
+			run_spec.instance_limit(self.session.values)
+			if item.key == "max_instances"
+			else None
 		)
 
 	def _commit_text(self, item: run_spec.Field, entered: str) -> bool:
 		try:
-			value = run_spec.parse_value(item, self.problem, entered)
+			value = run_spec.parse_value(item, self.problem, entered, self._limit(item))
 		except ValueError as error:
 			self.popup.error = str(error)
 			return False

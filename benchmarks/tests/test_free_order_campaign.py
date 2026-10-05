@@ -1,4 +1,5 @@
 import contextlib
+import csv
 import io
 import json
 import os
@@ -26,15 +27,15 @@ import tspn_run_comparison
 
 class FreeOrderQueueTests(unittest.TestCase):
 	def test_pending_jobs_are_solver_major_and_skip_completed_pairs(self):
-		completed = {('unordered', 0), ('tspn', 0), ('tspn', 2)}
+		completed = {('tpp-ours', 0), ('tpp-fekete', 0), ('tpp-fekete', 2)}
 		self.assertEqual(
-			_pending_solver_jobs(4, ['tspn', 'unordered'], completed),
-			[('unordered', 1), ('unordered', 2), ('unordered', 3), ('tspn', 1), ('tspn', 3)],
+			_pending_solver_jobs(4, ['tpp-fekete', 'tpp-ours'], completed),
+			[('tpp-ours', 1), ('tpp-ours', 2), ('tpp-ours', 3), ('tpp-fekete', 1), ('tpp-fekete', 3)],
 		)
 
 	def test_resume_allows_worker_and_runner_changes_but_not_solver_changes(self):
 		previous = {
-			'solvers': ['unordered', 'tspn'], 'instance_workers': 1,
+			'solvers': ['tpp-ours', 'tpp-fekete'], 'instance_workers': 1,
 			'threads_per_instance': 12, 'max_calls': 100_000_000,
 			'campaign_runner_sha256': 'old-runner', 'external_runner_sha256': 'old-external',
 			'queue_policy': 'solver phases',
@@ -55,7 +56,7 @@ class FreeOrderQueueTests(unittest.TestCase):
 			newer.parent.mkdir()
 			older.parent.mkdir()
 			current = {
-				'solvers': ['unordered'], 'instance_workers': 8, 'threads_per_instance': 1,
+				'solvers': ['tpp-ours'], 'instance_workers': 8, 'threads_per_instance': 1,
 				'max_calls': 100, 'unordered_binary_sha256': 'same-binary',
 				'campaign_runner_sha256': 'current', 'queue_policy': 'current',
 			}
@@ -76,16 +77,16 @@ class FreeOrderQueueTests(unittest.TestCase):
 
 	def test_report_rows_sort_when_only_one_solver_is_selected(self):
 		rows = [
-			{'case': 1, 'solver': 'tspn'},
-			{'case': 0, 'solver': 'tspn'},
-			{'case': 0, 'solver': 'unordered'},
+			{'case': 1, 'solver': 'tpp-fekete'},
+			{'case': 0, 'solver': 'tpp-fekete'},
+			{'case': 0, 'solver': 'tpp-ours'},
 		]
 
 		_sort_report_rows(rows)
 
 		self.assertEqual(
 			[(row['case'], row['solver']) for row in rows],
-			[(0, 'unordered'), (0, 'tspn'), (1, 'tspn')],
+			[(0, 'tpp-ours'), (0, 'tpp-fekete'), (1, 'tpp-fekete')],
 		)
 
 	def test_shutdown_skips_jobs_that_never_started_a_solver(self):
@@ -166,7 +167,7 @@ class FreeOrderQueueTests(unittest.TestCase):
 				patch.object(free_order_campaign, 'validate_path', return_value={'valid': True}), \
 				patch.object(tspn_run_comparison, 'run_case', side_effect=fake_fekete_solver):
 				status = free_order_campaign.main([
-					str(campaign), '--solver', 'unordered', '--solver', 'tspn',
+					str(campaign), '--solver', 'tpp-ours', '--solver', 'tpp-fekete',
 					'--threads-per-instance', '1', '--workers', '2', '--max-seconds', '-1',
 					'--max-calls', '100', '--external-python', str(venv_python),
 					'--external-build', str(build),
@@ -206,7 +207,7 @@ class FreeOrderQueueTests(unittest.TestCase):
 				patch.object(tspn_run_comparison, 'run_case',
 					side_effect=lambda _args, index, *_rest: partial if index == 0 else failure) as external, \
 				contextlib.redirect_stdout(io.StringIO()):
-				self.assertEqual(free_order_campaign.main(options), 1)
+				self.assertEqual(free_order_campaign.main(options), 2)  # solver error, not a campaign failure
 				native.reset_mock()
 				external.reset_mock()
 				external.side_effect = None
@@ -219,11 +220,13 @@ class FreeOrderQueueTests(unittest.TestCase):
 				external.reset_mock()
 				self.assertEqual(free_order_campaign.main(options), 0)
 				external.assert_not_called()
-			report = json.loads(next((campaign / 'results/free-order').glob('*/report.json')).read_text())
+			report = json.loads(next((campaign / 'results').glob('*/report.json')).read_text())
 			self.assertEqual(len(report['rows']), 4)
-			preserved = next(row for row in report['rows'] if row['solver'] == 'tspn' and row['case'] == 0)
+			preserved = next(row for row in report['rows'] if row['solver'] == 'tpp-fekete' and row['case'] == 0)
 			self.assertEqual(preserved['status'], 'limit')
 			self.assertEqual(preserved['seconds'], 3601.)
+			self.assertEqual(report['status'], 'completed')
+			self.assertNotIn('solver_errors', report)
 
 	def test_revalidate_stored_external_path_without_changing_solver_result(self):
 		with tempfile.TemporaryDirectory() as temporary:
@@ -252,8 +255,8 @@ class FreeOrderQueueTests(unittest.TestCase):
 		rows = []
 		for index in range(5):
 			base = {'case': index, 'exact': True, 'valid': True, 'seconds': 1.}
-			rows.append({**base, 'solver': 'unordered'})
-			external = {**base, 'solver': 'tspn', 'seconds': 2.}
+			rows.append({**base, 'solver': 'tpp-ours'})
+			external = {**base, 'solver': 'tpp-fekete', 'seconds': 2.}
 			if index == 1:
 				external['valid'] = False
 			elif index == 2:
@@ -266,7 +269,7 @@ class FreeOrderQueueTests(unittest.TestCase):
 		with tempfile.TemporaryDirectory() as temporary:
 			path = Path(temporary) / 'comparison.md'
 			free_order_campaign.write_comparison_summary(path, {
-				'rows': rows, 'config': {'solvers': ['unordered', 'tspn']}, 'status': 'failed',
+				'rows': rows, 'config': {'solvers': ['tpp-ours', 'tpp-fekete']}, 'status': 'failed',
 			}, 5)
 			text = path.read_text()
 			self.assertIn('independently valid raw paths: 1 instances.', text)
@@ -300,6 +303,172 @@ class ExternalWorkerRuntimeTests(unittest.TestCase):
 				with patch.object(tspn_run_comparison.subprocess, 'Popen', side_effect=fake_spawn):
 					result = tspn_run_comparison.run_case(args, 0, io.StringIO())
 				self.assertEqual(result['status'], 'optimal')
+
+class SingleReportFileTests(unittest.TestCase):
+	"""A run is one report.json: Fekete telemetry inside, nothing else to keep in sync."""
+
+	def setUp(self):
+		self.directory = tempfile.TemporaryDirectory()
+		self.addCleanup(self.directory.cleanup)
+		root = Path(self.directory.name)
+		self.campaign = root / 'campaign'
+		self.campaign.mkdir()
+		(self.campaign / 'tiny.bin').write_bytes(_two_case_suite())
+		(self.campaign / 'campaign.json').write_text(json.dumps({'inputs': [{'file': 'tiny.bin'}]}))
+		self.binary = root / 'tpp'
+		self.binary.write_bytes(b'stub')
+		self.build = root / 'fekete-build'
+		(self.build / 'python/tspn_bnb2/core').mkdir(parents=True)
+		(self.build / 'python/tspn_bnb2/core/_tspn_bindings_test.so').write_bytes(b'stub')
+		self.fekete_calls = []
+
+	def ours(self, *_args, **_options):
+		return {'status': 'optimal', 'exact': True, 'termination': 'optimal', 'seconds': 0.1,
+			'upper_bound': 10.0, 'lower_bound': 10.0, 'path': [[0.0, 0.0], [10.0, 0.0]]}
+
+	def fekete(self, args, index, _log_file, _log_lock):
+		self.fekete_calls.append((args.suite, index))
+		return {'status': 'optimal', 'is_optimal': True, 'is_valid_trajectory': True,
+			'lower_bound': 10.0, 'upper_bound': 10.0, 'absolute_gap': 0.0, 'relative_gap': 0.0,
+			'solve_seconds': 0.2, 'trajectory': [[0.0, 0.0], [10.0, 0.0]],
+			'snapped_trajectory': [[0.0, 0.0], [10.0, 0.0]],
+			'validation': {'valid': True}, 'snapped_validation': {'valid': True},
+			'statistics': {'num_iterations': 7, 'num_branches': 3, 'soc_num_calls': 42, 'soc_total_seconds': 0.5}}
+
+	def run_main(self, *extra):
+		with patch.object(free_order_campaign, 'BINARY', self.binary), \
+			patch.object(free_order_campaign, 'ensure_binary'), \
+			patch.object(free_order_campaign, 'run_unordered_solver', side_effect=self.ours), \
+			patch.object(free_order_campaign, 'validate_path', return_value={'valid': True}), \
+			patch.object(tspn_run_comparison, 'run_case', side_effect=self.fekete):
+			return free_order_campaign.main([str(self.campaign), '--solver', 'tpp-ours', '--solver', 'tpp-fekete',
+				'--max-seconds', '60', '--no-build', '--external-python', sys.executable,
+				'--external-build', str(self.build), *extra])
+
+	def run_directory(self):
+		return next((self.campaign / 'results').iterdir())
+
+	def test_a_finished_run_leaves_only_the_report(self):
+		self.assertEqual(self.run_main(), 0)
+		self.assertEqual(sorted(path.name for path in self.run_directory().iterdir()), ['report.json'])
+
+	def test_fekete_rows_carry_their_telemetry_without_duplicating_the_path(self):
+		self.run_main()
+		report = json.loads((self.run_directory() / 'report.json').read_text())
+		row = next(item for item in report['rows'] if item['solver'] == 'tpp-fekete')
+		self.assertEqual(row['calls'], 42)
+		external = row['external']
+		self.assertEqual((external['num_iterations'], external['num_branches'], external['soc_total_seconds']), (7, 3, 0.5))
+		self.assertEqual(external['snapped_trajectory'], [[0.0, 0.0], [10.0, 0.0]])
+		self.assertNotIn('trajectory_json', external)
+		self.assertNotIn('case_index', external)
+		json.dumps(report, allow_nan=False)
+
+	def test_the_fekete_runner_reads_the_campaign_input_directly(self):
+		self.run_main()
+		self.assertEqual({suite.resolve() for suite, _ in self.fekete_calls}, {(self.campaign / 'tiny.bin').resolve()})
+
+	def test_several_input_files_use_a_temporary_suite_that_is_removed(self):
+		(self.campaign / 'more.bin').write_bytes(_two_case_suite())
+		(self.campaign / 'campaign.json').write_text(json.dumps({'inputs': [{'file': 'tiny.bin'}, {'file': 'more.bin'}]}))
+		self.run_main()
+		suites = {suite for suite, _ in self.fekete_calls}
+		self.assertEqual(len(suites), 1)
+		self.assertNotIn((self.campaign / 'tiny.bin').resolve(), {suite.resolve() for suite in suites})
+		self.assertFalse(next(iter(suites)).exists())
+		self.assertEqual(sorted(path.name for path in self.run_directory().iterdir()), ['report.json'])
+
+	def test_resuming_a_legacy_run_imports_its_csv_instead_of_solving_again(self):
+		self.run_main()
+		run = self.run_directory()
+		report = json.loads((run / 'report.json').read_text())
+		legacy_rows = [item for item in report['rows'] if item['solver'] == 'tpp-fekete']
+		report['rows'] = [item for item in report['rows'] if item['solver'] != 'tpp-fekete']
+		report['status'] = 'interrupted'
+		(run / 'report.json').write_text(json.dumps(report))
+		suite = self.campaign / 'tiny.bin'
+		cases = tspn_run_comparison.read_cases(suite)
+		namespace = SimpleNamespace(mode='path', time_limit=60, threads=1, eps=0.001, oracle_backend='socp',
+			feasibility_tolerance=1e-8, validation_tolerance=1e-7)
+		(run / 'external/20260926-000000').mkdir(parents=True)
+		csv_path = run / 'external/20260926-000000/tiny-tspn-path.csv'
+		with csv_path.open('w', newline='') as file:
+			writer = csv.DictWriter(file, fieldnames=tspn_run_comparison.RESULT_FIELDS)
+			writer.writeheader()
+			for index in range(2):
+				writer.writerow(tspn_run_comparison.result_row(namespace, index, cases[index], {}, self.fekete(
+					SimpleNamespace(suite=suite), index, None, None)))
+		self.fekete_calls.clear()
+		self.assertEqual(self.run_main(), 0)
+		self.assertEqual(self.fekete_calls, [])
+		resumed = json.loads((run / 'report.json').read_text())
+		restored = sorted((item for item in resumed['rows'] if item['solver'] == 'tpp-fekete'), key=lambda item: item['case'])
+		self.assertEqual([item['case'] for item in restored], [0, 1])
+		self.assertEqual(restored[0]['external']['num_iterations'], 7)
+		self.assertEqual(restored[0]['upper_bound'], legacy_rows[0]['upper_bound'])
+		self.assertTrue(any('legacy CSV' in note for note in resumed['notes']))
+
+	def test_the_summary_is_computed_on_demand_from_the_report(self):
+		self.run_main()
+		output = io.StringIO()
+		with contextlib.redirect_stdout(output):
+			self.assertEqual(free_order_campaign.report_main([str(self.run_directory())]), 0)
+		self.assertIn('Free-order TPP campaign results', output.getvalue())
+		self.assertIn('Instances in suite: 2', output.getvalue())
+
+
+class FinalStatusTests(unittest.TestCase):
+	solvers = ['tpp-ours', 'tpp-fekete']
+
+	def rows(self, *failed):
+		return [
+			{'solver': solver, 'case': case, **({'error': 'boom\nGurobi status 3'} if (solver, case) in failed else {})}
+			for solver in self.solvers for case in range(3)
+		]
+
+	def status(self, rows):
+		ok = {(r['solver'], r['case']) for r in rows if not r.get('error')}
+		return free_order_campaign._final_status(rows, ok, 3, self.solvers)
+
+	def test_clean_run_is_completed(self):
+		self.assertEqual(self.status(self.rows()), ('completed', {}))
+
+	def test_a_solver_error_names_the_solver_and_is_not_a_campaign_failure(self):
+		status, errors = self.status(self.rows(('tpp-fekete', 1)))
+		self.assertEqual(status, 'completed_with_errors')
+		self.assertEqual(list(errors), ['tpp-fekete'])
+		self.assertEqual(errors['tpp-fekete']['cases'], [1])
+
+	def test_cases_that_never_ran_fail_the_campaign(self):
+		rows = [row for row in self.rows() if row['case'] != 2]
+		self.assertEqual(self.status(rows)[0], 'failed')
+
+	def test_summary_reports_which_solver_failed(self):
+		report = {
+			'config': {'solvers': self.solvers}, 'rows': [], 'status': 'completed_with_errors',
+			'solver_errors': {'tpp-fekete': {'cases': [42], 'first_error': 'invalid model status: 3.'}},
+		}
+		text = free_order_campaign.render_comparison_summary(report, 3)
+		self.assertIn('Campaign status: completed with errors.', text)
+		self.assertIn('tpp-fekete failed on 1 case(s) (case index 42): invalid model status: 3.', text)
+
+
+class SolverNamesTests(unittest.TestCase):
+	def test_older_reports_are_renamed_on_read(self):
+		report = {
+			'config': {'solvers': ['unordered', 'tspn']},
+			'rows': [{'solver': 'unordered'}, {'solver': 'tspn'}, {'solver': 'tpp-ours'}],
+		}
+		free_order_campaign.normalize_report_solvers(report)
+		self.assertEqual(report['config']['solvers'], ['tpp-ours', 'tpp-fekete'])
+		self.assertEqual(
+			[row['solver'] for row in report['rows']], ['tpp-ours', 'tpp-fekete', 'tpp-ours']
+		)
+
+	def test_solver_option_still_accepts_the_old_names(self):
+		self.assertEqual(free_order_campaign.parse_solver_name('unordered'), 'tpp-ours')
+		self.assertEqual(free_order_campaign.parse_solver_name('tspn'), 'tpp-fekete')
+
 
 def _two_case_suite() -> bytes:
 	encoded = bytearray()

@@ -47,7 +47,7 @@ def export_dataset(run: Path) -> dict:
         case = cases[row["case"]]
         coordinates = struct.unpack_from("<dddd", case.data)
         row["geometry"] = {"start": coordinates[:2], "target": coordinates[2:], "polygons": case.polygons}
-        row["solver"] = "unordered"
+        row["solver"] = "tpp-ours"
         row["endpoint_valid"] = row["validation"]["endpoint_valid"]
     summary.pop("source")
     summary["exact_certified"] = summary.pop("numerically_certified")

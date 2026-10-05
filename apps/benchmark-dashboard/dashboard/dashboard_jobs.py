@@ -12,6 +12,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import run_layout
+
 from dashboard.dashboard_models import Job
 
 PROGRESS_PATTERN = re.compile(r"cases\s+\|\s+\[[^\]]*\]\s+(\d+)\s*/\s*(\d+)")
@@ -116,7 +118,7 @@ class JobController:
         if job.campaign is None or job.kind != "run" or job.status != "running" or "free-order" in job.command:
             return
         path = self.campaign_path(job.campaign)
-        index = self.read_run_index(path / "results/run-index.csv")
+        index = self.read_run_index(run_layout.latest_fixed_order_index(path))
         for run_row in reversed(index["rows"]):
             if run_row.get("action") != "running":
                 continue
@@ -166,7 +168,7 @@ class JobController:
             next_instance = min(job.progress_total, job.progress_completed + 1)
             job.current_item = f"instance {next_instance}/{job.progress_total}"
         if job.kind == "comparison" and job.solver_progress_total is not None:
-            known_solvers = set(self.solvers.values()) | {"unordered", "tspn"}
+            known_solvers = set(self.solvers.values()) | {"tpp-ours", "tpp-fekete", "unordered", "tspn"}
             solvers = [
                 match.group(1).strip()
                 for match in SOLVER_SECTION_PATTERN.finditer(output)

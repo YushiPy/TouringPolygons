@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -13,7 +14,7 @@ from fastapi import HTTPException
 from test_api_integration import endpoint
 
 import main
-from dashboard.dashboard_free_order import free_command, free_result_case, free_results
+from dashboard.dashboard_free_order import _campaign_geometry, free_command, free_result_case, free_results
 from dashboard.dashboard_models import CompareSolversRequest, LiveSolveRequest, RunCampaignRequest
 
 
@@ -35,7 +36,7 @@ class FreeOrderTests(unittest.TestCase):
         request = RunCampaignRequest(
             name="sample",
             visit_order="free",
-            solver="unordered",
+            solver="tpp-ours",
             threads=4,
             max_calls="10",
             max_seconds="2",
@@ -46,7 +47,7 @@ class FreeOrderTests(unittest.TestCase):
         self.assertEqual(command[2:4], ["free-order", "/tmp/sample"])
         self.assertIn("--no-build", command)
         self.assertIn("--force", command)
-        self.assertEqual(command[command.index("--solver") + 1], "unordered")
+        self.assertEqual(command[command.index("--solver") + 1], "tpp-ours")
         self.assertEqual(command[command.index("--threads") + 1], "4")
 
     def test_rejects_wrong_solver_and_invalid_limits(self):
@@ -57,7 +58,7 @@ class FreeOrderTests(unittest.TestCase):
                 )
         with self.assertRaises(HTTPException):
             free_command(
-                CompareSolversRequest(name="a", solvers=["unordered", "tspn"], max_seconds="0.5"),
+                CompareSolversRequest(name="a", solvers=["tpp-ours", "tpp-fekete"], max_seconds="0.5"),
                 Path("/tmp/a"),
                 Path("/tmp/tpp.py"),
                 comparison=True,
@@ -71,8 +72,8 @@ class FreeOrderTests(unittest.TestCase):
             self.assertEqual(free_results(root)["rows"], [])
             run = root / "results/free-order/test"
             run.mkdir(parents=True)
-            (run / "report.json").write_text('{"visit_order":"free","rows":[{"solver":"unordered"}]}')
-            self.assertEqual(free_results(root)["rows"][0]["solver"], "unordered")
+            (run / "report.json").write_text('{"visit_order":"free","rows":[{"solver":"tpp-ours"}]}')
+            self.assertEqual(free_results(root)["rows"][0]["solver"], "tpp-ours")
 
     def test_free_report_defers_and_hydrates_visualization_data(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -88,7 +89,7 @@ class FreeOrderTests(unittest.TestCase):
                         "rows": [
                             {
                                 "case": 0,
-                                "solver": "unordered",
+                                "solver": "tpp-ours",
                                 "sha256": "digest",
                                 "geometry_sha256": "digest",
                                 "path": [[0, 0], [2, 0]],
@@ -104,6 +105,19 @@ class FreeOrderTests(unittest.TestCase):
             detail = free_result_case(campaign, 0)
             self.assertEqual(detail["rows"][0]["geometry"], geometry)
             self.assertEqual(detail["rows"][0]["path"], [[0, 0], [2, 0]])
+
+    def test_runs_are_read_from_the_current_and_the_legacy_layout_newest_first(self):
+        with tempfile.TemporaryDirectory() as directory:
+            campaign = Path(directory)
+            legacy = campaign / "results/free-order/old"
+            current = campaign / "results/new"
+            for run, solver in ((legacy, "legacy"), (current, "current")):
+                run.mkdir(parents=True)
+                (run / "report.json").write_text(json.dumps({"visit_order": "free", "rows": [{"solver": solver}]}))
+            os.utime(legacy / "report.json", (1, 1))
+            self.assertEqual(free_results(campaign)["rows"][0]["solver"], "current")
+            (current / "report.json").unlink()
+            self.assertEqual(free_results(campaign)["rows"][0]["solver"], "legacy")
 
     def test_free_campaign_resumes_missing_checkpoint_rows(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -130,7 +144,8 @@ class FreeOrderTests(unittest.TestCase):
                 patch.object(free_order_campaign, "run_unordered_solver", side_effect=solve) as solver,
             ):
                 self.assertEqual(free_order_campaign.main([str(campaign), "--threads", "2"]), 0)
-                report_path = next((campaign / "results/free-order").glob("*/report.json"))
+                report_path = next((campaign / "results").glob("*/report.json"))
+                self.assertFalse((campaign / "results/free-order").exists())
                 report = json.loads(report_path.read_text())
                 report["rows"] = [row for row in report["rows"] if row["case"] == 0]
                 report["status"] = "failed"
@@ -142,9 +157,26 @@ class FreeOrderTests(unittest.TestCase):
             self.assertEqual(len(resumed["rows"]), 2)
             self.assertEqual(resumed["checkpoint"]["completed_pairs"], 2)
             self.assertNotIn("geometry", resumed["rows"][0])
-            self.assertTrue((report_path.parent / "geometry.json").exists())
-            self.assertEqual(len(list((report_path.parent / "geometry").glob("*.json"))), 2)
+            # A run keeps no copy of the geometry: rows carry the instance hash and the
+            # dashboard resolves it from the campaign's input file.
+            self.assertFalse((report_path.parent / "geometry.json").exists())
+            self.assertFalse((report_path.parent / "geometry").exists())
             self.assertEqual(free_result_case(campaign, 1)["rows"][0]["geometry"]["target"], [2.0, 0.0])
+            summary = free_results(campaign, endpoint="/detail")
+            self.assertTrue(all(row["visualization_available"] for row in summary["rows"]))
+
+    def test_geometry_is_resolved_from_the_campaign_input_and_follows_edits(self):
+        with tempfile.TemporaryDirectory() as directory:
+            campaign = Path(directory)
+            inputs = campaign / "inputs/cases.bin"
+            main.write_binary_cases(inputs, [((0, 0), (1, 0), [])])
+            (campaign / "campaign.json").write_text(json.dumps({"inputs": [{"file": "inputs/cases.bin"}]}))
+            first = _campaign_geometry(campaign)
+            self.assertEqual([g["target"] for g in first.values()], [[1.0, 0.0]])
+            main.write_binary_cases(inputs, [((0, 0), (1, 0), []), ((0, 0), (5, 0), [])])
+            second = _campaign_geometry(campaign)
+            self.assertEqual(sorted(g["target"][0] for g in second.values()), [1.0, 5.0])
+            self.assertEqual(_campaign_geometry(campaign / "missing"), {})
 
     def test_editor_dispatches_free_order_without_fixed_solver(self):
         solve = endpoint("/api/editor/solve", "POST")
@@ -167,7 +199,7 @@ class FreeOrderTests(unittest.TestCase):
         result = asyncio.run(main.get_free_reference())
         if not result["rows"]:
             self.skipTest("Local recorded benchmark is absent.")
-        ours = {r["case"]: r for r in result["rows"] if r["solver"] == "unordered"}
+        ours = {r["case"]: r for r in result["rows"] if r["solver"] == "tpp-ours"}
         for row in result["rows"]:
             self.assertEqual(row["sha256"], ours[row["case"]]["sha256"])
         self.assertEqual(len(ours), 60)
@@ -179,7 +211,7 @@ class FreeOrderTests(unittest.TestCase):
 
         async def run():
             return await main.run_campaign(
-                RunCampaignRequest(name="sample", visit_order="free", solver="unordered", threads=4, max_seconds="2")
+                RunCampaignRequest(name="sample", visit_order="free", solver="tpp-ours", threads=4, max_seconds="2")
             )
 
         with (

@@ -13,6 +13,7 @@ from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
+import run_layout
 import workspace
 
 
@@ -162,7 +163,7 @@ def command_status(argv: Sequence[str]) -> int:
 	if source:
 		print(f"Source:   {source}")
 
-	index_path = campaign / "results/run-index.csv"
+	index_path = run_layout.latest_fixed_order_index(campaign)
 	if not index_path.exists():
 		print("Benchmark: not started")
 		return 0
@@ -193,32 +194,60 @@ def command_bench(argv: Sequence[str]) -> int:
 
 
 def command_live(argv: Sequence[str]) -> int:
-	"""Show what the running instances report: bounds, gap, calls, queue."""
+	"""Follow what the running instances report (bounds, gap, calls, queue) until interrupted."""
 	import argparse
+	from pathlib import Path
 
 	import live_progress
 
 	parser = argparse.ArgumentParser(
 		prog="tpp.py live",
-		description="Live status of running benchmark instances, read from the live.json files that the runs keep up to date.",
+		description="Live status of running benchmark instances, read from the live.json files that the runs keep up to date. "
+		"It keeps running and prints each new report as it arrives; press Ctrl+C to stop.",
 	)
 	parser.add_argument("path", nargs="?", help="a campaign NAME or a directory; default: the whole workspace")
-	parser.add_argument("-f", "--follow", action="store_true", help="refresh until interrupted")
-	parser.add_argument("--every", type=float, default=10.0, metavar="SECONDS", help="refresh period for --follow")
+	parser.add_argument("--once", action="store_true", help="print the current status and exit")
+	parser.add_argument("-f", "--follow", action="store_true", help=argparse.SUPPRESS)  # following is the default
+	parser.add_argument("--every", type=float, default=2.0, metavar="SECONDS", help="how often to look for new reports")
 	parser.add_argument("--stale-after", type=float, default=300.0, metavar="SECONDS",
 		help="flag an instance that has not reported for this long")
+	parser.add_argument("--include-gone", action="store_true",
+		help="also show snapshots left by processes that no longer exist")
 	args = parser.parse_args(list(argv))
 	root = workspace.campaign_path(args.path) if args.path else workspace.root()
-	while True:
-		lines = live_progress.render_snapshots(root, stale_after=args.stale_after, show_idle=bool(args.path))
-		print("\n".join(lines) if lines else f"No running instance reports status under {root}.", flush=True)
-		if not args.follow:
-			return 0
-		try:
-			time.sleep(max(1.0, args.every))
-		except KeyboardInterrupt:
-			return 0
-		print()
+	options = {"stale_after": args.stale_after, "show_idle": bool(args.path), "show_gone": args.include_gone}
+
+	entries, hidden = live_progress.read_status(root, **options)
+	for _, _, line in entries:
+		print(line, flush=True)
+	if hidden:
+		print(f"({hidden} snapshot(s) of finished or dead processes hidden; --include-gone shows them)", flush=True)
+	if args.once:
+		if not entries:
+			print(f"No running instance reports status under {root}.", flush=True)
+		return 0
+	if not entries:
+		print(f"Waiting for a running instance to report under {root} (Ctrl+C to stop)...", flush=True)
+	seen = {identity: reported for identity, reported, _ in entries}
+	try:
+		while True:
+			time.sleep(max(0.5, args.every))
+			entries, _ = live_progress.read_status(root, **options)
+			current = {identity for identity, _, _ in entries}
+			for identity in seen.keys() - current:
+				print(f"[{Path(identity.rsplit(':', 1)[0]).parent.name}] finished or stopped reporting", flush=True)
+			for identity, reported, line in entries:
+				if seen.get(identity) != reported:
+					print(line, flush=True)
+			seen = {identity: reported for identity, reported, _ in entries}
+	except KeyboardInterrupt:
+		return 0
+
+
+def command_report(argv: Sequence[str]) -> int:
+	import free_order_campaign
+
+	return free_order_campaign.report_main(list(argv))
 
 
 def command_legacy(command: str, argv: Sequence[str]) -> int:
@@ -264,7 +293,7 @@ GROUPS: dict[str, dict[str, Command]] = {
 			module("native_build")),
 	},
 	"Workspace": {
-		"live": Command("[PATH] [-f]", "Live bounds, gap, calls and queue of running instances (from live.json).",
+		"live": Command("[PATH] [--once]", "Follow bounds, gap, calls and queue of running instances (from live.json).",
 			lambda argv: command_live(argv)),
 		"ls": Command("[campaigns|runs|experiments]", "List local campaigns, runs and experiments.",
 			lambda argv: command_module("workspace", ["list", *argv])),
@@ -278,6 +307,8 @@ GROUPS: dict[str, dict[str, Command]] = {
 		"status": Command("NAME", "Show generation and benchmark progress.", lambda argv: command_status(argv)),
 		"run": Command("NAME ARGS...", "Fixed-order B&B over all campaign inputs, resumably.", lambda argv: command_run(argv)),
 		"free-order": Command("NAME ARGS...", "Free-order campaign with our and/or Fekete's solver.", module("free_order_campaign")),
+		"report": Command("PATH", "Print the comparison of a free-order run (campaign NAME, run directory or report.json).",
+			lambda argv: command_report(argv)),
 	},
 	"Suites and direct runs": {
 		"generate": Command("ARGS...", "Generate one binary from an OSM extract.", lambda argv: command_generate(argv)),

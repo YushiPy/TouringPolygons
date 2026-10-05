@@ -145,14 +145,14 @@ function resultPill(row) {
 export function renderFreeOrderReport(root, report) {
 	root.classList.remove("is-hidden");
 	const rows = report?.rows || [];
-	const solvers = ["unordered", "tspn"].filter((solver) => rows.some((row) => row.solver === solver));
-	const labels = { unordered: "Our TPP B&B", tspn: "External TSPN" };
+	const solvers = ["tpp-ours", "tpp-fekete"].filter((solver) => rows.some((row) => row.solver === solver));
+	const labels = { "tpp-ours": "tpp-ours", "tpp-fekete": "tpp-fekete" };
 	const groups = new Map();
 	for (const row of rows) {
 		if (!groups.has(row.case)) groups.set(row.case, {});
 		groups.get(row.case)[row.solver] = row;
 	}
-	const failures = rows.filter((row) => row.solver === "tspn" && row.endpoint_valid === false).length;
+	const failures = rows.filter((row) => row.solver === "tpp-fekete" && row.endpoint_valid === false).length;
 	const reportKey = report?.path || report?.title || "empty";
 	let state = reportStates.get(root);
 	if (!state || state.reportKey !== reportKey) state = { reportKey, sortKey: "case", descending: false, tableOpen: true, openCases: new Set(), viewers: new Map(), stops: [], windowStart: 0, windowSize: 100 };
@@ -166,7 +166,7 @@ export function renderFreeOrderReport(root, report) {
 			const summary = freeOrderSummary(rows, solver);
 			return `<section class="report-panel"><h4>${labels[solver]}</h4><strong class="free-solved">${summary.solved} / ${summary.count}</strong><p>Optimal within configured tolerance</p>
 				<p>Total solve time <b>${number(summary.seconds, 2)} s</b> · Mean gap <b>${percent(summary.gap)}</b></p>
-				<p>${summary.errors} errors${solver === "unordered" ? ` · ${rows.filter((row) => row.solver === solver && row.valid === true).length} independently validated paths` : ` · ${failures} endpoint check failures`}</p></section>`;
+				<p>${summary.errors} errors${solver === "tpp-ours" ? ` · ${rows.filter((row) => row.solver === solver && row.valid === true).length} independently validated paths` : ` · ${failures} endpoint check failures`}</p></section>`;
 		}).join("")}</div>
 		<details class="free-notes" open><summary>Method and numerical tolerances</summary>${(report?.notes || []).map((note) => `<p>${escapeHTML(note)}</p>`).join("")}</details>
 		${report?.error ? `<p role="alert">${escapeHTML(report.error)}</p>` : ""}
@@ -190,8 +190,8 @@ export function renderFreeOrderReport(root, report) {
 		const tbody = root.querySelector("tbody");
 		if (!tbody) return;
 		const value = ([index, pair]) => {
-			const ours = pair.unordered;
-			if (state.sortKey === "polygons") return ours?.polygons ?? pair.tspn?.polygons ?? 0;
+			const ours = pair["tpp-ours"];
+			if (state.sortKey === "polygons") return ours?.polygons ?? pair["tpp-fekete"]?.polygons ?? 0;
 			if (state.sortKey === "time") return ours?.seconds ?? Infinity;
 			if (state.sortKey === "gap") return relativeGap(ours) ?? Infinity;
 			if (state.sortKey === "result") return ours?.exact && !ours?.error ? 0 : 1;
@@ -210,7 +210,7 @@ export function renderFreeOrderReport(root, report) {
 			windowControls.querySelector('[data-free-window-step="1"]').disabled = state.windowStart + state.windowSize >= ordered.length;
 		}
 		tbody.innerHTML = visible.map(([index, pair]) => {
-			const ours = pair.unordered, external = pair.tspn, key = String(index), isOpen = state.openCases.has(key);
+			const ours = pair["tpp-ours"], external = pair["tpp-fekete"], key = String(index), isOpen = state.openCases.has(key);
 			const viewerState = state.viewers.get(key) || initialViewerState();
 			state.viewers.set(key, viewerState);
 			return `<tr class="free-result-row ${isOpen ? "is-open" : ""}"><td><button type="button" class="free-view-path" data-free-case="${index}" aria-label="${isOpen ? "Hide" : "View"} path for case ${Number(index) + 1}" aria-expanded="${isOpen}"><span>${Number(index) + 1}</span><small>${isOpen ? "Hide" : "View"} path</small></button></td><td>${ours?.polygons ?? external?.polygons ?? ""}</td>
@@ -229,7 +229,7 @@ export function renderFreeOrderReport(root, report) {
 				state.openCases.delete(key);
 			} else {
 				const pair = groups.get(Number(key)) || groups.get(key);
-				const candidate = pair?.unordered || pair?.tspn;
+				const candidate = pair?.["tpp-ours"] || pair?.["tpp-fekete"];
 				if (candidate && (!candidate.geometry || !candidate.path) && candidate.visualization_available && report.visualization_endpoint) {
 					button.disabled = true;
 					button.querySelector("small").textContent = "Loading…";
@@ -253,7 +253,7 @@ export function renderFreeOrderReport(root, report) {
 			if (!detail) continue;
 			const pair = groups.get(Number(key)) || groups.get(key);
 			const viewer = detail.querySelector("[data-free-path-viewer]");
-			if (viewer && pair) state.stops.push(setupPathViewer(viewer, pair.unordered || pair.tspn, state.viewers.get(key)));
+			if (viewer && pair) state.stops.push(setupPathViewer(viewer, pair["tpp-ours"] || pair["tpp-fekete"], state.viewers.get(key)));
 		}
 	};
 

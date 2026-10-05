@@ -10,6 +10,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import run_layout
 from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 
@@ -160,7 +161,7 @@ def register_campaign_routes(
     @router.get("/api/campaigns/{name}/solution-preview/{case_index}")
     async def get_solution_preview(name: str, case_index: int, repeat_index: int = 0):
         path = campaign_path(name)
-        index = read_run_index(path / "results/run-index.csv")
+        index = read_run_index(run_layout.latest_fixed_order_index(path))
         for run_row in reversed(index["rows"]):
             csv_value = run_row.get("csv_output", "")
             if not csv_value:

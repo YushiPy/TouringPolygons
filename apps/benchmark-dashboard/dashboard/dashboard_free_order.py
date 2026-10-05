@@ -17,9 +17,17 @@ SCRIPTS = ROOT / "benchmarks/_internal"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
+import run_layout  # noqa: E402
 import workspace  # noqa: E402
 from benchmark_cases import read_encoded_cases  # noqa: E402
-from free_order_campaign import ensure_binary  # noqa: E402
+from free_order_campaign import (  # noqa: E402
+    FEKETE,
+    OURS,
+    SOLVER_ALIASES,
+    case_geometry,
+    ensure_binary,
+    normalize_report_solvers,
+)
 from unordered_runner import run_unordered_solver  # noqa: E402
 
 _build_lock = threading.Lock()
@@ -28,9 +36,9 @@ _VISUALIZATION_FIELDS = ("geometry", "path")
 
 
 def free_command(request, campaign: Path, cli: Path, *, comparison: bool = False) -> list[str]:
-    solvers = request.solvers if comparison else [request.solver or "unordered"]
-    if not solvers or any(s not in {"unordered", "tspn"} for s in solvers):
-        raise HTTPException(400, "Free order requires Unordered TPP B&B or External TSPN.")
+    solvers = [SOLVER_ALIASES.get(s, s) for s in (request.solvers if comparison else [request.solver or OURS])]
+    if not solvers or any(s not in {OURS, FEKETE} for s in solvers):
+        raise HTTPException(400, "Free order requires tpp-ours or tpp-fekete.")
     try:
         seconds = float(request.max_seconds or 30)
         calls = int(request.max_calls)
@@ -39,8 +47,8 @@ def free_command(request, campaign: Path, cli: Path, *, comparison: bool = False
     if not math.isfinite(seconds) or seconds <= 0 or calls < 0:
         raise HTTPException(400, "Seconds must be positive and calls nonnegative.")
     threads = request.threads or 1
-    if "tspn" in solvers and seconds != int(seconds):
-        raise HTTPException(400, "External TSPN requires whole seconds.")
+    if FEKETE in solvers and seconds != int(seconds):
+        raise HTTPException(400, "tpp-fekete requires whole seconds.")
     command = [
         sys.executable,
         str(cli),
@@ -64,13 +72,36 @@ def free_command(request, campaign: Path, cli: Path, *, comparison: bool = False
 
 
 def _latest_free_report(campaign: Path) -> Path | None:
-    files = sorted(
-        (campaign / "results/free-order").glob("*/report.json"), key=lambda p: p.stat().st_mtime_ns, reverse=True
-    )
-    return files[0] if files else None
+    return run_layout.latest_free_order_report(campaign)
+
+
+_campaign_geometry_cache: dict[Path, tuple[tuple, dict[str, dict]]] = {}
+
+
+def _campaign_geometry(campaign: Path) -> dict[str, dict]:
+    """Geometry of every instance in the campaign's input files, by instance hash.
+
+    Runs reference instances by hash and keep no copy: the input .bin is the only copy.
+    """
+    try:
+        metadata = json.loads((campaign / "campaign.json").read_text())
+    except (OSError, ValueError):
+        return {}
+    files = [campaign / record["file"] for record in metadata.get("inputs", []) if record.get("file")]
+    stamp = tuple((path, path.stat().st_mtime_ns, path.stat().st_size) for path in files if path.is_file())
+    cached = _campaign_geometry_cache.get(campaign)
+    if cached is not None and cached[0] == stamp:
+        return cached[1]
+    index = {}
+    for path, _, _ in stamp:
+        for case in read_encoded_cases(path):
+            index[case.digest] = case_geometry(case)
+    _campaign_geometry_cache[campaign] = (stamp, index)
+    return index
 
 
 def _geometry_index(report_path: Path) -> tuple[set[str], dict[str, dict]]:
+    """Hashes and geometry kept next to a report by older runs (newer runs keep none)."""
     path = report_path.with_name("geometry.json")
     hashes = {item.stem for item in report_path.with_name("geometry").glob("*.json")}
     if not path.exists():
@@ -80,9 +111,12 @@ def _geometry_index(report_path: Path) -> tuple[set[str], dict[str, dict]]:
     return hashes | set(data.get("hashes", [])) | set(legacy), legacy
 
 
-def _geometry_for_hash(report_path: Path, digest: str | None) -> dict | None:
+def _geometry_for_hash(campaign: Path, report_path: Path, digest: str | None) -> dict | None:
     if not digest:
         return None
+    geometry = _campaign_geometry(campaign).get(digest)
+    if geometry is not None:
+        return geometry
     path = report_path.with_name("geometry") / f"{digest}.json"
     if path.exists():
         return json.loads(path.read_text())
@@ -114,9 +148,9 @@ def free_results(campaign: Path, *, endpoint: str = "") -> dict:
             "rows": [],
             "notes": ["No free-order run for this campaign yet."],
         }
-    report = json.loads(report_path.read_text())
+    report = normalize_report_solvers(json.loads(report_path.read_text()))
     report["path"] = str(report_path.relative_to(campaign))
-    report["geometry_catalog"] = list(_geometry_index(report_path)[0])
+    report["geometry_catalog"] = list(_geometry_index(report_path)[0] | set(_campaign_geometry(campaign)))
     return _compact_report(report, endpoint)
 
 
@@ -124,13 +158,13 @@ def free_result_case(campaign: Path, case_index: int) -> dict:
     report_path = _latest_free_report(campaign)
     if report_path is None:
         raise HTTPException(404, "No free-order report exists for this campaign.")
-    report = json.loads(report_path.read_text())
+    report = normalize_report_solvers(json.loads(report_path.read_text()))
     rows = [deepcopy(row) for row in report.get("rows", []) if int(row.get("case", -1)) == case_index]
     if not rows:
         raise HTTPException(404, "The requested case is absent from the latest report.")
     geometry = next((row.get("geometry") for row in rows if row.get("geometry")), None)
     geometry_hash = next((row.get("geometry_sha256") or row.get("sha256") for row in rows), None)
-    geometry = geometry or _geometry_for_hash(report_path, geometry_hash)
+    geometry = geometry or _geometry_for_hash(campaign, report_path, geometry_hash)
     if geometry:
         for row in rows:
             row["geometry"] = geometry
@@ -146,7 +180,7 @@ def _recorded_results_full(*, include_geometry: bool = True) -> dict:
             "title": "Recorded comparison",
             "notes": ["Recorded results are not installed in this checkout."],
         }
-    rows = [dict(json.loads(line), solver="unordered") for line in path.read_text().splitlines()]
+    rows = [dict(json.loads(line), solver=OURS) for line in path.read_text().splitlines()]
     suite = ROOT / "benchmarks/suites/algorithm-dev-v1.bin"
     if suite.exists() and include_geometry:
         cases = read_encoded_cases(suite)
@@ -167,7 +201,7 @@ def _recorded_results_full(*, include_geometry: bool = True) -> dict:
                     {
                         "case": index,
                         "sha256": external["sha256"],
-                        "solver": "tspn",
+                        "solver": FEKETE,
                         "polygons": int(external["polygons"]),
                         "seconds": float(external["solve_seconds"]),
                         "lower_bound": float(external["lower_bound"]),
@@ -185,7 +219,7 @@ def _recorded_results_full(*, include_geometry: bool = True) -> dict:
         "status": "completed",
         "config": {"threads": 1, "max_seconds": 2},
         "rows": rows,
-        "geometry_catalog": [row["sha256"] for row in rows if row["solver"] == "unordered"] if suite.exists() else [],
+        "geometry_catalog": [row["sha256"] for row in rows if row["solver"] == OURS] if suite.exists() else [],
         "notes": [
             "60 matched instances; fixed endpoints; one worker; 2 seconds per instance.",
             "Our optimality tolerance: 1e-7 + 1e-9 × UB; external: 1e-6 relative, geometry tolerance 0.001.",

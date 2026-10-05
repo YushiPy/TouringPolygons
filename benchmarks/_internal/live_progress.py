@@ -186,6 +186,17 @@ class LiveStatus:
 			self._write()
 		self.echo(line)
 
+	def close(self) -> None:
+		"""The run ended normally: drop the snapshot. After a crash it stays, and ``tpp.py live``
+		flags it as belonging to a process that is gone."""
+		with self.lock:
+			self.running.clear()
+		if self.path is not None:
+			try:
+				self.path.unlink()
+			except OSError:
+				pass
+
 	def snapshot(self) -> dict:
 		with self.lock:
 			return self._snapshot()
@@ -221,7 +232,7 @@ class LiveStatus:
 			pass
 
 
-MAX_DEPTH = 6  # workspace/campaigns/NAME/results/free-order/RUN/live.json
+MAX_DEPTH = 6  # workspace/campaigns/NAME/results/RUN/live.json
 
 
 def find_snapshots(root: Path) -> list[Path]:
@@ -251,16 +262,23 @@ def _alive(pid: object) -> bool:
 	return True
 
 
-def render_snapshots(
+def read_status(
 	root: Path,
 	*,
 	now: float | None = None,
 	stale_after: float = 300.0,
 	show_idle: bool = True,
-) -> list[str]:
-	"""Readable lines for the live snapshots under ``root``; flags runs that stopped reporting."""
+	show_gone: bool = False,
+) -> tuple[list[tuple[str, float, str]], int]:
+	"""What the live snapshots under ``root`` say now.
+
+	Returns ``(entries, hidden)``: one ``(identity, reported_at, line)`` per running
+	instance, and how many snapshots were left out because the process that wrote
+	them is gone (killed, crashed or finished without cleaning up) unless ``show_gone``.
+	"""
 	now = time.time() if now is None else now
-	lines = []
+	entries: list[tuple[str, float, str]] = []
+	hidden = 0
 	for path in find_snapshots(root):
 		try:
 			data = json.loads(path.read_text())
@@ -268,13 +286,15 @@ def render_snapshots(
 			continue
 		age = now - data.get("updated_at", now)
 		running = data.get("running", [])
+		gone = not _alive(data.get("pid"))
+		if gone and not show_gone:
+			hidden += 1
+			continue
 		if not running:
 			if show_idle:
-				lines.append(
-					f"{path.parent.name}: nothing running (last update {clock(age)} ago)"
-				)
+				line = f"{path.parent.name}: nothing running (last update {clock(age)} ago)"
+				entries.append((f"{path}:idle", data.get("updated_at", now), line))
 			continue
-		gone = not _alive(data.get("pid"))
 		for record in running:
 			silent = now - record.get("reported_at", now)
 			note = ""
@@ -282,7 +302,16 @@ def render_snapshots(
 				note = f"  !! process {data['pid']} is no longer running on this machine (finished, stopped or crashed)"
 			elif silent > stale_after:
 				note = f"  !! no report for {clock(silent)}: a long oracle call, or the solver is stuck"
-			lines.append(
-				describe(f"{path.parent.name} {record['label']}", record) + note
+			entries.append(
+				(
+					f"{path}:{record['key']}",
+					record.get("reported_at", now),
+					describe(f"{path.parent.name} {record['label']}", record) + note,
+				)
 			)
-	return lines
+	return entries, hidden
+
+
+def render_snapshots(root: Path, **options) -> list[str]:
+	"""Readable lines for the live snapshots under ``root``; flags runs that stopped reporting."""
+	return [line for _, _, line in read_status(root, **options)[0]]

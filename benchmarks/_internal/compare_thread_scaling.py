@@ -126,12 +126,23 @@ def csv_rows(path: Path) -> list[dict[str, Any]]:
         return list(csv.DictReader(file, delimiter=delimiter))
 
 
+# Older reports call the solvers unordered/tspn; newer ones tpp-ours/tpp-fekete.
+SOLVER_NAMES = {
+    "unordered": {"unordered", "tpp-ours"},
+    "tspn": {"tspn", "tpp-fekete"},
+}
+
+
+def solver_names(solver: str) -> set[str]:
+    return SOLVER_NAMES.get(solver.lower(), {solver.lower()})
+
+
 def report_has_solver(path: Path, solver: str) -> bool:
     try:
         rows, _ = json_rows(path)
     except (OSError, ValueError, json.JSONDecodeError):
         return False
-    return any(str(row.get("solver", "")).lower() == solver.lower() for row in rows)
+    return any(str(row.get("solver", "")).lower() in solver_names(solver) for row in rows)
 
 
 def latest_file(paths: Iterable[Path]) -> Path | None:
@@ -287,7 +298,7 @@ def load_dataset(
     chosen: dict[int, tuple[str, int, Result]] = {}
     for position, row in enumerate(rows):
         row_solver = str(row.get("solver", "")).strip().lower()
-        if row_solver and row_solver != solver.lower():
+        if row_solver and row_solver not in solver_names(solver):
             continue
         row_variant = str(row.get("variant", "")).strip()
         if variant is not None and row_variant and row_variant != variant:

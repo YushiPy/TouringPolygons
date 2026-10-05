@@ -294,14 +294,14 @@ Choose `Fixed order` or `Free order` in Benchmark, Comparison, or Cases. The sel
 
 Free-order campaigns currently run with one worker. An empty time limit means 30 seconds per instance. Comparison supports `Our TPP B&B` and `External TSPN`; the external checkout and its Python environment must be installed, and its time limit must be an integer number of seconds. The fixed-order editor uses the optional WASM solver when available and falls back to the local fixed-order API otherwise. Rebuild the browser solver with `bash wasm/build.sh`; generated files under `static/wasm/` remain ignored.
 
-Reports include per-instance bounds, gaps, timing, termination, and our saved paths and first-visit orders. Results are saved separately under `benchmarks/workspace/campaigns/<campaign>/results/free-order/<run>/report.json`. Matching completed configurations are reused unless forced. They never populate fixed-order summary files.
+Reports include per-instance bounds, gaps, timing, termination, and our saved paths and first-visit orders. Results are saved separately under `benchmarks/workspace/campaigns/<campaign>/results/<run>/report.json`. Matching completed configurations are reused unless forced. They never populate fixed-order summary files.
 
 In Comparison, click `Show recorded free-order comparison (60 instances)` to inspect the measured development suite, including numerical tolerances and endpoint validation differences. This requires the local artifacts under `benchmarks/workspace/runs/unordered/final-dev.jsonl` and `benchmarks/workspace/runs/tspn-socg`; those benchmark artifacts are not tracked in Git.
 
 The same campaign runner is available from the repository root:
 
 ```bash
-apps/benchmark-dashboard/.venv/bin/python benchmarks/tpp.py free-order CAMPAIGN --solver unordered --solver tspn --max-seconds 2
+apps/benchmark-dashboard/.venv/bin/python benchmarks/tpp.py free-order CAMPAIGN --solver tpp-ours --solver tpp-fekete --max-seconds 2
 ```
 
 The additional browser test exercises mode switching, the saved comparison, a live free-order solve, a campaign run, and an actual external comparison. Start the dashboard, then run:
