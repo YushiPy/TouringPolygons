@@ -11,8 +11,10 @@ import os
 import signal
 import statistics
 import struct
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -148,6 +150,41 @@ def _read_complete_csv_rows(path: Path) -> list[dict[str, str]]:
 	return list(csv.DictReader(io.StringIO(data[:last_newline + 1].decode('utf-8'))))
 
 
+# Columns of the Fekete runner that the row already holds under other names.
+_EXTERNAL_REPORTED_ELSEWHERE = {
+	'case_index', 'sha256', 'mode', 'polygons', 'status', 'is_optimal', 'is_valid_trajectory', 'lower_bound',
+	'upper_bound', 'solve_seconds', 'time_limit_seconds', 'threads', 'trajectory_json', 'snapped_trajectory_json',
+	'start_distance', 'target_distance', 'max_polygon_distance', 'recomputed_length', 'error',
+}
+
+
+def _typed(value):
+	"""A runner value (a CSV string or a Python value) as JSON-safe: numbers, booleans, text or None."""
+	if value is None or value == '' or isinstance(value, bool):
+		return None if value in (None, '') else value
+	if isinstance(value, (int, float)):
+		return value if math.isfinite(value) else None
+	text = str(value)
+	if text in ('True', 'False'):
+		return text == 'True'
+	for convert in (int, float):
+		try:
+			number = convert(text)
+		except ValueError:
+			continue
+		return number if math.isfinite(number) else None
+	return text
+
+
+def external_telemetry(external: dict) -> dict:
+	"""What the Fekete runner measured beyond the row's own fields (iterations, branches, SOCP
+	calls and times...), so the report is the only record of a run."""
+	telemetry = {key: _typed(value) for key, value in external.items() if key not in _EXTERNAL_REPORTED_ELSEWHERE}
+	if external.get('snapped_trajectory_json'):
+		telemetry['snapped_trajectory'] = json.loads(external['snapped_trajectory_json'])
+	return telemetry
+
+
 def _tspn_report_row(external: dict[str, str], cases: list, solver: str = 'tspn') -> dict:
 	index = int(external['case_index'])
 	if not 0 <= index < len(cases):
@@ -170,6 +207,7 @@ def _tspn_report_row(external: dict[str, str], cases: list, solver: str = 'tspn'
 			'max_polygon_distance': finite(external.get('max_polygon_distance')),
 			'recomputed_length': finite(external.get('recomputed_length'))},
 		'termination': external.get('status'), 'error': external.get('error') or None,
+		'external': external_telemetry(external),
 	}
 	# Earlier workers could lose the virtual environment and export trajectories
 	# without Shapely validation. Recheck those stored paths outside solver timing.
@@ -194,7 +232,8 @@ def _tspn_report_row(external: dict[str, str], cases: list, solver: str = 'tspn'
 	return row
 
 
-def write_comparison_summary(path: Path, report: dict, expected_cases: int) -> None:
+def render_comparison_summary(report: dict, expected_cases: int) -> str:
+	"""The markdown comparison of a run, computed from its report.json."""
 	rows = report.get('rows', [])
 	by_solver = {
 		name: {int(row['case']): row for row in rows if row.get('solver') == name and not row.get('error')}
@@ -314,7 +353,11 @@ def write_comparison_summary(path: Path, report: dict, expected_cases: int) -> N
 		elapsed = latest.get('elapsed_wall_seconds')
 		elapsed_text = f'{elapsed:.1f}s wall time' if isinstance(elapsed, (int, float)) else 'elapsed time unavailable'
 		lines.extend([f"Latest attempt: {latest.get('started_at', 'unknown')} to {finished} ({elapsed_text}; {latest.get('status', 'unknown')}).", ''])
-	path.write_text('\n'.join(lines))
+	return '\n'.join(lines)
+
+
+def write_comparison_summary(path: Path, report: dict, expected_cases: int) -> None:
+	path.write_text(render_comparison_summary(report, expected_cases))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -430,7 +473,6 @@ def main(argv: list[str] | None = None) -> int:
 			if old.get('status') == 'completed' and all_requested_cases_complete:
 				prior.touch()
 				print(f'Reusing {prior}', flush=True)
-				write_comparison_summary(prior.with_name('comparison.md'), old, len(cases))
 				return 0
 			if old.get('key') != key or old.get('config') != config:
 				previous_config = old.get('config', {})
@@ -517,28 +559,23 @@ def main(argv: list[str] | None = None) -> int:
 	external_runner = None
 	external_cases = []
 	external_args = None
-	external_csv_path = None
 	external_log_file = None
 	external_log_lock = threading.Lock()
+	external_suite_dir = None
 	shutdown_requested = threading.Event()
 	if 'tspn' in solvers:
 		import tspn_run_comparison as external_runner
-		suite = run / 'input.bin'
-		suite.write_bytes(b''.join(case.data for case in cases))
-		external_cases = external_runner.read_cases(suite)
-		external_root = run / 'external'
-		external_root.mkdir(exist_ok=True)
-		prior_csvs = sorted(external_root.glob('*/*-tspn-path.csv'),
-			key=lambda path: path.stat().st_mtime_ns, reverse=True)
-		if prior_csvs:
-			external_csv_path = prior_csvs[0]
+		# The Fekete runner reads instances by index from an input file: use the campaign's own .bin
+		# when it is the only input (the instances are a prefix of it), else a temporary concatenation.
+		input_files = [campaign / record['file'] for record in metadata['inputs']]
+		if len(input_files) == 1:
+			suite = input_files[0]
 		else:
-			external_output = external_root / datetime.now(UTC).strftime('%Y%m%d-%H%M%S')
-			external_output.mkdir(parents=True, exist_ok=True)
-			external_csv_path = external_output / f'{suite.stem}-tspn-path.csv'
-			with external_csv_path.open('w', newline='') as file:
-				csv.DictWriter(file, fieldnames=external_runner.RESULT_FIELDS).writeheader()
-		external_log_file = (external_csv_path.parent / 'solver.log').open('a')
+			external_suite_dir = tempfile.mkdtemp(prefix='tpp-suite-')
+			suite = Path(external_suite_dir) / 'input.bin'
+			suite.write_bytes(b''.join(case.data for case in cases))
+		external_cases = external_runner.read_cases(suite)
+		external_log_file = open(os.devnull, 'w')  # per-case errors are kept in the report rows
 		external_args = argparse.Namespace(
 			suite=suite, tspn_repo=external_build, mode='path', time_limit=int(args.max_seconds),
 			threads=args.threads_per_instance, eps=args.eps,
@@ -546,13 +583,18 @@ def main(argv: list[str] | None = None) -> int:
 			validation_tolerance=args.validation_tolerance, oracle_backend='socp',
 			oracle_tolerance=1e-7, worker_python=external_python,
 		)
-		for external in _read_complete_csv_rows(external_csv_path):
-			row = _tspn_report_row(external, cases)
-			report['rows'] = [item for item in report['rows']
-				if not (item.get('solver') == 'tspn' and item.get('case') == row['case'])]
-			report['rows'].append(row)
-			if prior_csvs:
+		# Runs from before the report held the Fekete telemetry kept a CSV of their own: import the
+		# rows the report lacks, so those instances are not solved again.
+		legacy_csvs = sorted((run / 'external').glob('*/*-tspn-path.csv'), key=lambda path: path.stat().st_mtime_ns, reverse=True)
+		if legacy_csvs:
+			known = {(item.get('solver'), item.get('case')) for item in report['rows']}
+			imported = [row for row in (_tspn_report_row(external, cases) for external in _read_complete_csv_rows(legacy_csvs[0]))
+				if ('tspn', row['case']) not in known]
+			if imported:
+				report['rows'].extend(imported)
 				_sort_report_rows(report['rows'])
+				report.setdefault('notes', []).append(
+					f'Imported {len(imported)} Fekete row(s) from the legacy CSV {legacy_csvs[0].relative_to(run)}.')
 				save_checkpoint()
 
 	def upsert_report_row(row: dict) -> None:
@@ -560,29 +602,6 @@ def main(argv: list[str] | None = None) -> int:
 			if not (item.get('solver') == row.get('solver') and item.get('case') == row.get('case'))]
 		report['rows'].append(row)
 		_sort_report_rows(report['rows'])
-
-	def save_external_csv_row(row: dict) -> None:
-		if external_csv_path is None or external_runner is None:
-			return
-		with external_csv_path.open('a', newline='') as file:
-			csv.DictWriter(file, fieldnames=external_runner.RESULT_FIELDS).writerow(row)
-			file.flush()
-
-	def compact_external_csv() -> None:
-		if external_csv_path is None or external_runner is None:
-			return
-		latest: dict[int, dict[str, str]] = {}
-		for row in _read_complete_csv_rows(external_csv_path):
-			if row.get('case_index', '').isdigit():
-				latest[int(row['case_index'])] = row
-		temporary = external_csv_path.with_suffix(external_csv_path.suffix + '.tmp')
-		with temporary.open('w', newline='') as file:
-			writer = csv.DictWriter(file, fieldnames=external_runner.RESULT_FIELDS)
-			writer.writeheader()
-			for index in sorted(latest):
-				writer.writerow(latest[index])
-		temporary.replace(external_csv_path)
-		external_runner.write_summary(external_csv_path, external_csv_path.with_suffix('.md'), external_args)
 
 	live = LiveStatus(run / 'live.json' if args.progress_interval > 0 else None)
 
@@ -679,8 +698,6 @@ def main(argv: list[str] | None = None) -> int:
 			'row': _tspn_report_row(external_row, cases), 'external_row': external_row}
 
 	def commit_job_result(result: dict) -> None:
-		if result['solver'] == 'tspn':
-			save_external_csv_row(result['external_row'])
 		upsert_report_row(result['row'])
 		save_checkpoint()
 
@@ -773,22 +790,43 @@ def main(argv: list[str] | None = None) -> int:
 		report['error'] = str(error)
 		raise
 	finally:
-		if external_csv_path is not None:
-			try:
-				compact_external_csv()
-			except Exception as error:
-				report.setdefault('notes', []).append(f'Could not compact the Fekete CSV checkpoint: {error}')
 		if external_log_file is not None:
 			external_log_file.close()
+		if external_suite_dir is not None:
+			shutil.rmtree(external_suite_dir, ignore_errors=True)
+		live.close()
 		finished_at = datetime.now(UTC)
 		attempt['finished_at'] = finished_at.isoformat()
 		attempt['elapsed_wall_seconds'] = (finished_at - datetime.fromisoformat(attempt['started_at'])).total_seconds()
 		attempt['status'] = report['status'] if report['status'] != 'running' else 'interrupted'
 		save_checkpoint()
-		write_comparison_summary(run / 'comparison.md', report, len(cases))
 	print(f'Report: {run / "report.json"}', flush=True)
-	print(f'Comparison: {run / "comparison.md"}', flush=True)
+	print(f'Summary: tpp.py report {run / "report.json"}', flush=True)
 	return 130 if report['status'] == 'interrupted' else int(report['status'] != 'completed')
+
+
+def latest_report(path: Path) -> Path:
+	"""report.json of a run directory, of a campaign's newest free-order run, or the file itself."""
+	if path.is_file():
+		return path
+	if (path / 'report.json').is_file():
+		return path / 'report.json'
+	reports = sorted((path / 'results/free-order').glob('*/report.json'), key=lambda item: item.stat().st_mtime_ns, reverse=True)
+	if not reports:
+		raise SystemExit(f'No free-order report found under {path}')
+	return reports[0]
+
+
+def report_main(argv: list[str] | None = None) -> int:
+	"""Print the markdown comparison of a run; it is computed from report.json, never stored."""
+	parser = argparse.ArgumentParser(prog='tpp.py report', description=report_main.__doc__)
+	parser.add_argument('path', help='a campaign NAME, a run directory or a report.json')
+	args = parser.parse_args(argv)
+	report_path = latest_report(workspace.campaign_path(args.path))
+	report = json.loads(report_path.read_text())
+	expected = len(report.get('config', {}).get('hashes') or []) or 1 + max((int(row['case']) for row in report.get('rows', [])), default=-1)
+	print(render_comparison_summary(report, expected))
+	return 0
 
 
 if __name__ == '__main__':

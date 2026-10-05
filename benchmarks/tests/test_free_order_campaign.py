@@ -1,4 +1,5 @@
 import contextlib
+import csv
 import io
 import json
 import os
@@ -300,6 +301,119 @@ class ExternalWorkerRuntimeTests(unittest.TestCase):
 				with patch.object(tspn_run_comparison.subprocess, 'Popen', side_effect=fake_spawn):
 					result = tspn_run_comparison.run_case(args, 0, io.StringIO())
 				self.assertEqual(result['status'], 'optimal')
+
+class SingleReportFileTests(unittest.TestCase):
+	"""A run is one report.json: Fekete telemetry inside, nothing else to keep in sync."""
+
+	def setUp(self):
+		self.directory = tempfile.TemporaryDirectory()
+		self.addCleanup(self.directory.cleanup)
+		root = Path(self.directory.name)
+		self.campaign = root / 'campaign'
+		self.campaign.mkdir()
+		(self.campaign / 'tiny.bin').write_bytes(_two_case_suite())
+		(self.campaign / 'campaign.json').write_text(json.dumps({'inputs': [{'file': 'tiny.bin'}]}))
+		self.binary = root / 'tpp'
+		self.binary.write_bytes(b'stub')
+		self.build = root / 'fekete-build'
+		(self.build / 'python/tspn_bnb2/core').mkdir(parents=True)
+		(self.build / 'python/tspn_bnb2/core/_tspn_bindings_test.so').write_bytes(b'stub')
+		self.fekete_calls = []
+
+	def ours(self, *_args, **_options):
+		return {'status': 'optimal', 'exact': True, 'termination': 'optimal', 'seconds': 0.1,
+			'upper_bound': 10.0, 'lower_bound': 10.0, 'path': [[0.0, 0.0], [10.0, 0.0]]}
+
+	def fekete(self, args, index, _log_file, _log_lock):
+		self.fekete_calls.append((args.suite, index))
+		return {'status': 'optimal', 'is_optimal': True, 'is_valid_trajectory': True,
+			'lower_bound': 10.0, 'upper_bound': 10.0, 'absolute_gap': 0.0, 'relative_gap': 0.0,
+			'solve_seconds': 0.2, 'trajectory': [[0.0, 0.0], [10.0, 0.0]],
+			'snapped_trajectory': [[0.0, 0.0], [10.0, 0.0]],
+			'validation': {'valid': True}, 'snapped_validation': {'valid': True},
+			'statistics': {'num_iterations': 7, 'num_branches': 3, 'soc_num_calls': 42, 'soc_total_seconds': 0.5}}
+
+	def run_main(self, *extra):
+		with patch.object(free_order_campaign, 'BINARY', self.binary), \
+			patch.object(free_order_campaign, 'ensure_binary'), \
+			patch.object(free_order_campaign, 'run_unordered_solver', side_effect=self.ours), \
+			patch.object(free_order_campaign, 'validate_path', return_value={'valid': True}), \
+			patch.object(tspn_run_comparison, 'run_case', side_effect=self.fekete):
+			return free_order_campaign.main([str(self.campaign), '--solver', 'tpp-ours', '--solver', 'tpp-fekete',
+				'--max-seconds', '60', '--no-build', '--external-python', sys.executable,
+				'--external-build', str(self.build), *extra])
+
+	def run_directory(self):
+		return next((self.campaign / 'results/free-order').iterdir())
+
+	def test_a_finished_run_leaves_only_the_report(self):
+		self.assertEqual(self.run_main(), 0)
+		self.assertEqual(sorted(path.name for path in self.run_directory().iterdir()), ['report.json'])
+
+	def test_fekete_rows_carry_their_telemetry_without_duplicating_the_path(self):
+		self.run_main()
+		report = json.loads((self.run_directory() / 'report.json').read_text())
+		row = next(item for item in report['rows'] if item['solver'] == 'tspn')
+		self.assertEqual(row['calls'], 42)
+		external = row['external']
+		self.assertEqual((external['num_iterations'], external['num_branches'], external['soc_total_seconds']), (7, 3, 0.5))
+		self.assertEqual(external['snapped_trajectory'], [[0.0, 0.0], [10.0, 0.0]])
+		self.assertNotIn('trajectory_json', external)
+		self.assertNotIn('case_index', external)
+		json.dumps(report, allow_nan=False)
+
+	def test_the_fekete_runner_reads_the_campaign_input_directly(self):
+		self.run_main()
+		self.assertEqual({suite.resolve() for suite, _ in self.fekete_calls}, {(self.campaign / 'tiny.bin').resolve()})
+
+	def test_several_input_files_use_a_temporary_suite_that_is_removed(self):
+		(self.campaign / 'more.bin').write_bytes(_two_case_suite())
+		(self.campaign / 'campaign.json').write_text(json.dumps({'inputs': [{'file': 'tiny.bin'}, {'file': 'more.bin'}]}))
+		self.run_main()
+		suites = {suite for suite, _ in self.fekete_calls}
+		self.assertEqual(len(suites), 1)
+		self.assertNotIn((self.campaign / 'tiny.bin').resolve(), {suite.resolve() for suite in suites})
+		self.assertFalse(next(iter(suites)).exists())
+		self.assertEqual(sorted(path.name for path in self.run_directory().iterdir()), ['report.json'])
+
+	def test_resuming_a_legacy_run_imports_its_csv_instead_of_solving_again(self):
+		self.run_main()
+		run = self.run_directory()
+		report = json.loads((run / 'report.json').read_text())
+		legacy_rows = [item for item in report['rows'] if item['solver'] == 'tspn']
+		report['rows'] = [item for item in report['rows'] if item['solver'] != 'tspn']
+		report['status'] = 'interrupted'
+		(run / 'report.json').write_text(json.dumps(report))
+		suite = self.campaign / 'tiny.bin'
+		cases = tspn_run_comparison.read_cases(suite)
+		namespace = SimpleNamespace(mode='path', time_limit=60, threads=1, eps=0.001, oracle_backend='socp',
+			feasibility_tolerance=1e-8, validation_tolerance=1e-7)
+		(run / 'external/20260926-000000').mkdir(parents=True)
+		csv_path = run / 'external/20260926-000000/tiny-tspn-path.csv'
+		with csv_path.open('w', newline='') as file:
+			writer = csv.DictWriter(file, fieldnames=tspn_run_comparison.RESULT_FIELDS)
+			writer.writeheader()
+			for index in range(2):
+				writer.writerow(tspn_run_comparison.result_row(namespace, index, cases[index], {}, self.fekete(
+					SimpleNamespace(suite=suite), index, None, None)))
+		self.fekete_calls.clear()
+		self.assertEqual(self.run_main(), 0)
+		self.assertEqual(self.fekete_calls, [])
+		resumed = json.loads((run / 'report.json').read_text())
+		restored = sorted((item for item in resumed['rows'] if item['solver'] == 'tspn'), key=lambda item: item['case'])
+		self.assertEqual([item['case'] for item in restored], [0, 1])
+		self.assertEqual(restored[0]['external']['num_iterations'], 7)
+		self.assertEqual(restored[0]['upper_bound'], legacy_rows[0]['upper_bound'])
+		self.assertTrue(any('legacy CSV' in note for note in resumed['notes']))
+
+	def test_the_summary_is_computed_on_demand_from_the_report(self):
+		self.run_main()
+		output = io.StringIO()
+		with contextlib.redirect_stdout(output):
+			self.assertEqual(free_order_campaign.report_main([str(self.run_directory())]), 0)
+		self.assertIn('Free-order TPP campaign results', output.getvalue())
+		self.assertIn('Instances in suite: 2', output.getvalue())
+
 
 def _two_case_suite() -> bytes:
 	encoded = bytearray()

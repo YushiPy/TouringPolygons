@@ -186,6 +186,17 @@ class LiveStatus:
 			self._write()
 		self.echo(line)
 
+	def close(self) -> None:
+		"""The run ended normally: drop the snapshot. After a crash it stays, and ``tpp.py live``
+		flags it as belonging to a process that is gone."""
+		with self.lock:
+			self.running.clear()
+		if self.path is not None:
+			try:
+				self.path.unlink()
+			except OSError:
+				pass
+
 	def snapshot(self) -> dict:
 		with self.lock:
 			return self._snapshot()

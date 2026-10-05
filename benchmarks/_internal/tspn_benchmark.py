@@ -479,6 +479,7 @@ def main(argv=None):
         status='interrupted'
         print('Interrupted; completed records saved. Repeat the command with --resume.',flush=True)
     finally:
+        live.close()
         write_reports(output,inputs,config,rows,status if status!='running' else 'failed')
     (output/'README.md').write_text('Resume with the same original tspn-benchmark command plus --resume. '
         'Regenerate reports with --report-only --output THIS_DIRECTORY. '

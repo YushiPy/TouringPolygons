@@ -113,6 +113,17 @@ class LiveStatusTests(unittest.TestCase):
 			status.finish("a")
 			self.assertEqual(json.loads(path.read_text())["running"], [])
 
+	def test_close_removes_the_snapshot_of_a_finished_run(self):
+		with tempfile.TemporaryDirectory() as directory:
+			path = Path(directory) / "live.json"
+			status = live.LiveStatus(path, echo=lambda line: None)
+			status.reporter("a", "x")(report())
+			status.finish("a")
+			self.assertTrue(path.exists())
+			status.close()
+			self.assertFalse(path.exists())
+			status.close()  # idempotent
+
 	def test_a_broken_report_or_unwritable_snapshot_never_raises(self):
 		status = live.LiveStatus(
 			Path("/nonexistent-directory/live.json"), echo=lambda line: None

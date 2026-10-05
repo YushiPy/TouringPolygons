@@ -320,8 +320,16 @@ termina um caso do tpp-ours, ele já pega o próximo do tpp-fekete, mesmo que
 outro worker ainda esteja no tpp-ours. `--threads-per-instance` controla as
 threads internas de cada caso. O pico é de até
 `--workers × --threads-per-instance` threads de solver. Campanhas compatíveis
-retomam os casos já registrados e guardam `report.json`, o CSV externo bruto e
-`comparison.md` em `benchmarks/workspace/campaigns/<nome>/results/free-order/`.
+retomam os casos já registrados e guardam um único arquivo por execução,
+`report.json`, em `benchmarks/workspace/campaigns/<nome>/results/free-order/<execução>/`.
+Ele reúne a configuração, as linhas dos dois solvers e, nas do Fekete, a
+telemetria completa do runner externo (`external`: iterações, ramificações,
+chamadas e tempos SOCP...). A geometria não é copiada: as linhas guardam o hash
+da instância e o `.bin` da campanha é a única cópia. O resumo comparativo é
+calculado sob demanda por `python3 benchmarks/tpp.py report <campanha|execução>`.
+Execuções feitas antes dessa mudança (com `external/*.csv`, `geometry/` e
+`comparison.md`) continuam legíveis, e retomar uma delas importa o CSV antigo
+apenas para as linhas que o relatório não tem.
 
 Se uma campanha falhar por problema no ambiente Python, a retomada reexecuta
 as linhas com erro e preserva as execuções concluídas, incluindo resultados
@@ -339,8 +347,8 @@ Para medir o efeito das threads, compare runs de uma thread e multithread dos
 dois solvers. A análise pareia instâncias pelo SHA-256, grava `comparison.csv`,
 `summary.md` e `manifest.json`, e resume speedups apenas quando ambos os runs
 fecharam a tolerância. Os argumentos aceitam CSV, `report.json` ou diretório de
-campanha; o diretório da campanha multithread pode ser usado enquanto o CSV do
-Fekete ainda está sendo preenchido.
+campanha; o diretório da campanha multithread pode ser usado enquanto a execução
+ainda está em andamento (em execuções antigas, usa o CSV parcial do Fekete).
 
 ```bash
 python3 benchmarks/tpp.py compare-threads \
