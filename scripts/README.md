@@ -6,7 +6,7 @@ atalhos `.sh` abaixo só preparam o Python do `tpp.py` e o chamam.
 
 | Script | O que faz |
 |---|---|
-| `install_dependencies.sh` | prepara as dependências do repositório (sistema, Python, Node) |
+| `install_dependencies.sh` | prepara as dependências do repositório, **sem sudo** (Homebrew no macOS; no Linux só lista os pacotes de sistema que faltam). `--solvers-only` pula Node, dashboard e Playwright |
 | `sanity_check.sh` | verifica ferramentas, dependências, geração de instâncias, compilação e testes básicos |
 | `verify_unordered.sh` | compila e executa a verificação focada do solver de ordem livre |
 | `benchmark.sh` | atalho para `tpp.py tui`: monta (e imprime, copia ou executa) um comando de benchmark |

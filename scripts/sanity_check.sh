@@ -63,19 +63,16 @@ install_with_homebrew() {
 	brew install "${packages[@]}"
 }
 
-install_with_apt() {
+# Nothing here is installed with sudo: on Linux the missing system packages are only listed.
+report_missing_packages() {
 	local packages=("$@")
 	if (( ${#packages[@]} == 0 )); then
 		return
 	fi
-	if ! have apt-get; then
-		echo "Missing apt-get; install these dependencies manually: ${packages[*]}" >&2
-		exit 1
-	fi
-	echo "+ sudo apt-get update"
-	sudo apt-get update
-	echo "+ sudo apt-get install -y ${packages[*]}"
-	sudo apt-get install -y "${packages[@]}"
+	echo "Missing system packages: ${packages[*]}" >&2
+	echo "This script never uses sudo. Ask an administrator to install them (on Debian/Ubuntu: sudo apt-get install ${packages[*]})." >&2
+	echo "Eigen and Boost headers do not need root: python3 benchmarks/tpp.py build --fetch-deps" >&2
+	exit 1
 }
 
 ensure_dependencies() {
@@ -131,7 +128,7 @@ ensure_dependencies() {
 				*) apt_packages+=("$item") ;;
 			esac
 		done
-		install_with_apt "${apt_packages[@]}"
+		report_missing_packages "${apt_packages[@]}"
 	fi
 }
 
