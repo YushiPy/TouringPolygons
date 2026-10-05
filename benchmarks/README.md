@@ -363,6 +363,10 @@ baixados em `third_party/tspn-socg/.conan/release` para compilar nosso solver.
 verifica apenas o setup necessário para nosso solver, sem começar os casos.
 Falhas transitórias de download no setup do Fekete são repetidas até três vezes.
 
+Para apenas criar a campanha dos 558 casos (sem compilar nem rodar nada), por exemplo
+para usar `tpp.py free-order NOME --cases ...` diretamente, use
+`python3 benchmarks/tpp.py free-compare --campaign-only [--campaign NOME]`.
+
 O setup de Fekete inicializa o submódulo `third_party/tspn-socg` na revisão fixada
 pelo repositório, prepara o ambiente Python 3.12+ dele e compila o binding C++. Dois
 patches versionados (`patches/tspn-socg-*.patch`) corrigem o header de `fmt` e compilam

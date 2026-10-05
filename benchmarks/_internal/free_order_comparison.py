@@ -298,6 +298,9 @@ def build_parser() -> argparse.ArgumentParser:
 	parser.add_argument("--max-seconds", type=time_limit, default=-1, help="per-instance limit; -1 means unlimited (default: -1)")
 	parser.add_argument("--max-calls", type=positive_integer, default=100_000_000, help="our solver's call limit")
 	parser.add_argument("--setup-only", action="store_true", help="check the selected dependencies and builds, then exit")
+	parser.add_argument("--campaign-only", action="store_true",
+		help="only create (or check) the campaign for the pinned Fekete suite, with no build or run; "
+		"then use `tpp.py free-order NAME ...` yourself")
 	parser.add_argument("--force", action="store_true", help="start a new report instead of resuming/reusing one")
 	return parser
 
@@ -315,6 +318,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 		fail("git is required")
 
 	verify_suite()
+	if args.campaign_only:
+		campaign = ensure_campaign(name)
+		print(f"Campaign ready: {campaign} ({EXPECTED_CASES} cases, suite {EXPECTED_SUITE_SHA256})")
+		print(f"Run it with: python3 benchmarks/tpp.py free-order {name} --solver tpp-ours [--cases LIST] --max-seconds -1 ...")
+		return 0
 	revision = ""
 	if run_fekete:
 		revision = prepare_submodule()

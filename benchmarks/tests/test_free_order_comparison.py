@@ -63,6 +63,17 @@ class SetupFlowTests(unittest.TestCase):
 		self.assertEqual(self.run_main("--solver", "tpp-fekete"), (0, ["submodule", "fekete", "conan"]))
 		self.assertEqual(self.run_main(), (0, ["submodule", "fekete", "conan", "ours"]))
 
+	def test_campaign_only_creates_the_campaign_without_building_anything(self):
+		with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"TPP_WORKSPACE": directory}), patch.object(
+			comparison, "prepare_submodule"
+		) as submodule, patch.object(comparison, "build_fekete") as fekete, patch.object(
+			comparison, "build_ours"
+		) as ours, patch("builtins.print"):
+			self.assertEqual(comparison.main(["--campaign-only", "--campaign", "only"]), 0)
+			self.assertTrue((Path(directory) / "campaigns/only/campaign.json").is_file())
+		for step in (submodule, fekete, ours):
+			step.assert_not_called()
+
 	def test_the_campaign_name_follows_the_thread_count_unless_given(self):
 		captured = []
 		with patch.object(comparison, "verify_suite"), patch.object(comparison, "use_conan_packages"), patch.object(
