@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import csv
+import shlex
 import shutil
 import sys
 import textwrap
@@ -181,6 +182,16 @@ def command_status(argv: Sequence[str]) -> int:
 	return 0
 
 
+def command_bench(argv: Sequence[str]) -> int:
+	"""Run any benchmark from the canonical options defined in run_spec."""
+	import run_spec
+
+	values = run_spec.from_cli(list(argv))
+	name, arguments = run_spec.to_legacy(values)
+	print(f"+ tpp.py {name} {shlex.join(arguments)}", file=sys.stderr, flush=True)
+	return COMMANDS[name].run(arguments)
+
+
 def command_legacy(command: str, argv: Sequence[str]) -> int:
 	import bench
 	mapping = {
@@ -210,6 +221,12 @@ class Command:
 
 
 GROUPS: dict[str, dict[str, Command]] = {
+	"Run a benchmark": {
+		"bench": Command("--problem P [options]", "Run fixed-order TPP, free-order TPP or TSPN from one set of options "
+			"(build the command with scripts/benchmark.sh).", lambda argv: command_bench(argv)),
+		"tui": Command("", "Build a bench command interactively, then print, copy or run it (scripts/benchmark.sh).",
+			module("benchmark_tui")),
+	},
 	"Setup and build": {
 		"setup": Command("ARGS...", "Prepare the locked benchmark Python environment.", module("benchmark_environment")),
 		"doctor": Command("", "Check compiler, Eigen/Boost, Gurobi and built tools on this machine.",
@@ -258,6 +275,8 @@ GROUPS: dict[str, dict[str, Command]] = {
 		"compare-external": Command("ARGS...", "Run the pinned external solver on a suite.", module("tspn_run_comparison")),
 		"compare-oracles": Command("ARGS...", "Compare oracle backends inside the external solver.", module("tspn_oracle_backends")),
 		"run-fekete": Command("ARGS...", "Run/resume the long external campaign.", module("run_fekete")),
+		"tspn-compare": Command("[--campaign NAME] ...", "Run/resume the full 558-case TSPN campaign (checks, build, shards, report).",
+			module("tspn_campaign")),
 		"tspn-benchmark": Command("ARGS...", "Compare TSPN B&B against the Fekete SOCP B&B.", module("tspn_benchmark")),
 		"convert-fekete": Command("ARGS...", "Convert the pinned Fekete instance archive.", module("convert_instances")),
 		"convert-tspn": Command("ARGS...", "Convert native TSPN result instances.", module("convert_tspn_native_instances")),

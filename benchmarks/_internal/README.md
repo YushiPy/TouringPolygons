@@ -18,8 +18,14 @@ Ao adicionar um fluxo de benchmark:
 
 As famílias internas são:
 
-- campanhas: `create_synthetic_campaign.py`, `run_generated.py` e
-  `free_order_campaign.py`;
+- campanhas: `create_synthetic_campaign.py`, `run_generated.py`,
+  `free_order_campaign.py` e `tspn_campaign.py` (preparação, build único,
+  shards e fusão da campanha TSPN completa; o motor por caso é
+  `tspn_benchmark.py`);
+- interface de comando: `run_spec.py` descreve cada opção uma vez (problemas em
+  que vale, padrões, validação) e traduz para os módulos acima; `bench` (em
+  `tpp.py`) e `benchmark_tui.py` só consomem esse esquema. Uma opção nova entra
+  em `run_spec.FIELDS` e nos adaptadores `to_legacy`, não na interface;
 - suites: `generate_algorithm_suites.py`, `build_algorithm_suites.py` e os
   geradores canônicos de ordem livre;
 - execução e validação: `benchmark_cases.py`, `unordered_*` e `bench.py`;

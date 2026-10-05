@@ -5,8 +5,9 @@ Esta pasta contém utilitários usados pelo projeto Touring Polygons:
 - `review_meeting_transcript.py`: aplica correções contextuais recorrentes à transcrição bruta deste projeto.
 - `install_dependencies.sh`: prepara as dependências do repositório.
 - `sanity_check.sh`: verifica ferramentas, dependências, geração de instâncias, compilação e testes básicos.
+- `benchmark.sh`: interface de terminal que monta (e imprime, copia ou executa) um comando `tpp.py bench`.
 - `run_comparison.sh`: compila os solvers e executa ou retoma a comparação alemã de ordem livre.
-- `run_tspn_comparison.sh`: compila os solvers e executa ou retoma a campanha TSPN completa (558 casos de Fekete).
+- `run_tspn_comparison.sh`: atalho para `tpp.py tspn-compare`, que prepara, compila e executa ou retoma a campanha TSPN completa (558 casos de Fekete).
 - `verify_unordered.sh`: executa a verificação focada do solver de ordem livre.
 
 ## Comparar os solvers de ordem livre
@@ -74,7 +75,7 @@ disponível; o padrão conservador é um worker.
 
 ## Benchmark TSPN completo (558 casos de Fekete)
 
-No laboratório, `scripts/run_tspn_comparison.sh` chama esta CLI para executar
+No laboratório, `scripts/run_tspn_comparison.sh` chama `tpp.py tspn-compare` para executar
 todas as 558 instâncias do arquivo
 `third_party/tspn-socg/instances/instances_socg_simplified.zip` na formulação
 original (tour fechado, ordem livre, sem ponto fixo), comparando nosso solver

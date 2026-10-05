@@ -4,6 +4,43 @@
 conversão e comparação. Os módulos de `benchmarks/_internal/` são detalhes de
 implementação importáveis, não uma coleção de comandos independentes.
 
+## Montar e executar um benchmark
+
+`scripts/benchmark.sh` abre uma interface de terminal (stdlib, sem dependências)
+que monta o comando por você: navegue com as setas, edite um campo com Enter
+(seletor para opções finitas, texto para números e caminhos) e, ao terminar,
+imprima, copie para a área de transferência ou execute o comando. Os últimos
+valores e presets nomeados ficam em `benchmarks/workspace/tui-state.json`.
+
+Nos campos numéricos só é possível digitar números e `+ - * / ** ( )`; o valor
+pode ser uma expressão (`10 ** -7`, `1 / 100`, `(10 - 5) * 2 / 3`), com
+pré-visualização do resultado, e um valor fora do intervalo do campo (por exemplo
+negativo, exceto `-1` onde significa "sem limite") não é aceito. A expressão é
+interpretada, nunca executada, com limite de tamanho para expoentes. `Delete` ou
+`Backspace` sobre um campo apaga o valor e abre a edição; `Shift+Enter` faz o
+mesmo nos terminais que o distinguem de Enter (kitty, WezTerm, Ghostty, iTerm2 com
+CSI u, com `TPP_TUI_KITTY_KEYS=1`), e `Alt+Enter` funciona na maioria dos demais.
+Se alguma tecla não responder, `scripts/benchmark.sh --debug-keys` mostra o que o
+terminal envia.
+
+O comando produzido é `python3 benchmarks/tpp.py bench --problem P [opções]`.
+Há três problemas, executados pelos módulos já existentes:
+
+| `--problem` | Executa | Instâncias |
+|---|---|---|
+| `fixed-order` | `run` (B&B de ordem fixa) | campanha `--campaign` |
+| `free-order` | `free-order` (nosso solver e/ou Fekete) | campanha `--campaign` |
+| `tspn` | `tspn-compare` (ciclo fechado, 558 casos de Fekete) | ZIP fixo da Fekete |
+
+As opções comuns têm um único nome (`--time-limit`, `--oracle-calls`,
+`--threads`, `--workers`, `--repetitions`, `--resume/--no-resume`, `--dry-run`,
+etc.). Cada uma só vale para os problemas em que existe, e o padrão pode variar
+por problema (por exemplo, 60 s no TSPN, o protocolo da campanha). `bench --help`
+lista tudo; ele é gerado do mesmo esquema (`_internal/run_spec.py`) que alimenta
+a interface, então a ajuda não diverge do comportamento. `--no-resume` reinicia:
+reexecuta (`--force`) em ordem fixa e livre e move a campanha TSPN para o lado.
+Os subcomandos antigos continuam disponíveis.
+
 ## Organização
 
 - `tpp.py`: CLI estável; `python3 benchmarks/tpp.py --help` lista os comandos
@@ -474,11 +511,15 @@ runner de campanha:
 scripts/run_tspn_comparison.sh --seconds 60 --external-timeout 75 --repetitions 1
 ```
 
-Ele equivale a `python3 benchmarks/tpp.py tspn-benchmark --all
---instances-zip third_party/tspn-socg/instances/instances_socg_simplified.zip
---output benchmarks/workspace/campaigns/tspn-fekete-comparison-v1 --seconds 60
---external-timeout 75 --repetitions 1` com os `--cycle-optimization` padrão,
-e retoma registros concluídos ao repetir o comando. O `--all` desativa a
+O script é um atalho para `python3 benchmarks/tpp.py tspn-compare`, que faz toda
+a preparação: confere o SHA-256 do ZIP e a revisão fixada do submódulo, valida as
+dependências Conan, escolhe o padrão C++ e compila uma vez. Depois executa
+`tspn-benchmark --all --instances-zip …/instances_socg_simplified.zip --output
+benchmarks/workspace/campaigns/tspn-fekete-comparison-v1` com os
+`--cycle-optimization` padrão, e retoma registros concluídos ao repetir o
+comando. Com `--workers N`, divide os casos em N shards (cada solve continua com
+uma thread), executa-os em paralelo e funde `raw.jsonl`, configuração e
+relatórios. `--setup-only` só verifica o ambiente e `--dry-run` mostra o plano. O `--all` desativa a
 amostragem estratificada e os filtros de faixa de tamanho, selecionando as
 558 entradas do ZIP sem substituição de reposição.
 

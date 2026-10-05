@@ -12,6 +12,7 @@ import subprocess
 import zipfile
 import time
 from tspn_diagnostics import atomic_json, digest, finite, load_rows, row_key, write_reports
+import native_build
 from benchmark_cases import read_encoded_cases
 from convert_instances import convert_json_case
 from unordered_runner import encode_instance, run_unordered_solver
@@ -134,6 +135,24 @@ def default_inputs():
         for c in selected:cases.append({'name':f'fekete_{c.case_index}_n{n}','polygons':c.polygons,
             'source':'benchmarks/suites/fekete-instances.bin','source_case':c.case_index,'source_sha256':c.digest})
     return {'formulation':'TSPN, free cyclic order, no fixed point, closed polygon regions','instances':cases}
+
+
+def native_build_commands(build_dir,source,backends):
+    """CMake configure and build commands for the TSPN comparison binaries."""
+    fekete_flag='ON' if 'fekete' in backends else 'OFF'
+    command=['cmake','-S',str(ROOT/'benchmarks/_internal/tspn_native'),'-B',str(build_dir),f'-DFEKETE_SOURCE={source}','-DTARGET=main-unordered',f'-DWITH_TSPN_FEKETE={fekete_flag}']
+    if os.environ.get('GUROBI_HOME'):
+        command.append(f'-DGUROBI_HOME={os.environ["GUROBI_HOME"]}')
+    if os.environ.get('TPP_CXX_STANDARD'):
+        command.append(f'-DTPP_CXX_STANDARD={os.environ["TPP_CXX_STANDARD"]}')
+    # Reuse a locally installed header-only dependency when its Conan package
+    # lacks a CMake config. Never write an environment or build into the vendor.
+    headers=sorted((Path.home()/'.conan2/p').glob('*/p/include/nlohmann/json.hpp'))
+    if headers:command.append(f'-DNLOHMANN_INCLUDE_DIR={headers[0].parents[1]}')
+    targets=[]
+    if 'fekete' in backends: targets.append('tpp-fekete-cycle')
+    if 'ours' in backends: targets.append('tpp-unordered')
+    return [command,['cmake','--build',str(build_dir),'--target',*targets,'-j',str(native_build.build_jobs())]]
 
 
 def main(argv=None):
@@ -261,20 +280,7 @@ def main(argv=None):
         if previous.get('solvers',('ours','fekete'))!=list(enabled_backends):
             parser.error('--resume solver selection changed')
     output.mkdir(parents=True,exist_ok=True)
-    fekete_flag='ON' if 'fekete' in enabled_backends else 'OFF'
-    command=['cmake','-S',str(ROOT/'benchmarks/_internal/tspn_native'),'-B',str(args.build_dir),f'-DFEKETE_SOURCE={source}','-DTARGET=main-unordered',f'-DWITH_TSPN_FEKETE={fekete_flag}']
-    if os.environ.get('GUROBI_HOME'):
-        command.append(f'-DGUROBI_HOME={os.environ["GUROBI_HOME"]}')
-    if os.environ.get('TPP_CXX_STANDARD'):
-        command.append(f'-DTPP_CXX_STANDARD={os.environ["TPP_CXX_STANDARD"]}')
-    # Reuse a locally installed header-only dependency when its Conan package
-    # lacks a CMake config. Never write an environment or build into the vendor.
-    headers=sorted((Path.home()/'.conan2/p').glob('*/p/include/nlohmann/json.hpp'))
-    if headers:command.append(f'-DNLOHMANN_INCLUDE_DIR={headers[0].parents[1]}')
-    build_targets=[]
-    if 'fekete' in enabled_backends: build_targets.append('tpp-fekete-cycle')
-    if 'ours' in enabled_backends: build_targets.append('tpp-unordered')
-    commands=[command,['cmake','--build',str(args.build_dir),'--target',*build_targets,'-j','4']]
+    commands=native_build_commands(args.build_dir,source,enabled_backends)
     if not args.skip_build and not continuing:
         with (output/'build.txt').open('w') as log:
             for cmd in commands:subprocess.run(cmd,cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,check=True)
