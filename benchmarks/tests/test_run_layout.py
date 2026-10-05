@@ -152,6 +152,54 @@ class MigrationTests(unittest.TestCase):
 		self.assertEqual(recorded, f"results/{run.name}/run-index.csv")
 
 
+class TspnRunDirectoryTests(unittest.TestCase):
+	def setUp(self):
+		self.directory = tempfile.TemporaryDirectory()
+		self.addCleanup(self.directory.cleanup)
+		self.campaign = Path(self.directory.name) / "tspn-run"
+		self.campaign.mkdir()
+
+	def test_a_new_campaign_gets_a_run_directory_inside_results(self):
+		run = run_layout.tspn_run_directory(self.campaign, new=False)
+		self.assertEqual(run.parent, self.campaign / "results")
+
+	def test_the_newest_run_is_resumed_and_force_starts_another(self):
+		old = touch_run(self.campaign / "results" / "20260101-000000-aaaaaa", "config.json", 10)
+		new = touch_run(self.campaign / "results" / "20260102-000000-bbbbbb", "config.json", 100)
+		self.assertEqual(run_layout.tspn_run_directory(self.campaign, new=False), new)
+		forced = run_layout.tspn_run_directory(self.campaign, new=True)
+		self.assertNotIn(forced, (old, new))
+		self.assertEqual(forced.parent, self.campaign / "results")
+
+	def test_a_sharded_run_that_never_merged_is_still_resumable(self):
+		run = touch_run(self.campaign / "results" / "r1" / "shard-0", "config.json").parent
+		self.assertEqual(run_layout.tspn_run_directory(self.campaign, new=False), run)
+
+	def test_a_campaign_folder_from_before_the_layout_is_resumed_in_place(self):
+		(self.campaign / "config.json").write_text("{}")
+		self.assertEqual(run_layout.tspn_run_directory(self.campaign, new=False), self.campaign)
+		self.assertEqual(
+			run_layout.tspn_run_directory(self.campaign, new=True).parent, self.campaign / "results"
+		)
+
+	def test_migration_moves_the_old_folder_into_one_run(self):
+		(self.campaign / "config.json").write_text("{}")
+		(self.campaign / "raw.jsonl").write_text("x")
+		(self.campaign / "shard-0").mkdir()
+		actions = run_layout.migrate(self.campaign)
+		self.assertEqual(len(actions), 1)
+		(run,) = run_layout.tspn_runs(self.campaign)
+		self.assertEqual((run / "raw.jsonl").read_text(), "x")
+		self.assertTrue((run / "shard-0").is_dir())
+		self.assertFalse((self.campaign / "config.json").exists())
+		self.assertEqual(run_layout.migrate(self.campaign), [])
+
+	def test_an_instance_campaign_is_not_mistaken_for_a_tspn_folder(self):
+		(self.campaign / "campaign.json").write_text("{}")
+		(self.campaign / "config.json").write_text("{}")
+		self.assertEqual(run_layout.migrate(self.campaign), [])
+
+
 class FixedOrderRunDirectoryTests(unittest.TestCase):
 	def setUp(self):
 		self.directory = tempfile.TemporaryDirectory()

@@ -135,6 +135,14 @@ function setupPathViewer(root, row, viewerState) {
 	return stop;
 }
 
+function reportStatus(report) {
+	if (!report?.status) return "No run";
+	const failures = Object.entries(report.solver_errors || {}).map(
+		([solver, entry]) => `${solver} failed on ${entry.cases.length} case${entry.cases.length === 1 ? "" : "s"}`,
+	);
+	return [report.status.replaceAll("_", " "), ...failures].join(" · ");
+}
+
 function resultPill(row) {
 	if (!row) return '<span class="table-status">n/a</span>';
 	if (row.error) return `<span class="table-status is-error" title="${escapeHTML(row.error)}">Error</span>`;
@@ -160,7 +168,7 @@ export function renderFreeOrderReport(root, report) {
 	state.stops = [];
 	reportStates.set(root, state);
 	root.innerHTML = `<header class="report-header"><div><h3>${escapeHTML(report?.title || "Free-order results")}</h3>
-		<p>Free visit order · fixed endpoints · ${escapeHTML(report?.status || "No run")}</p></div>
+		<p>Free visit order · fixed endpoints · ${escapeHTML(reportStatus(report))}</p></div>
 		<button type="button" class="secondary" data-free-export>Export CSV</button></header>
 		<div class="free-summary">${solvers.map((solver) => {
 			const summary = freeOrderSummary(rows, solver);

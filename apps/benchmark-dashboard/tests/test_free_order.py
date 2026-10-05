@@ -15,7 +15,16 @@ from test_api_integration import endpoint
 
 import main
 from dashboard.dashboard_free_order import _campaign_geometry, free_command, free_result_case, free_results
-from dashboard.dashboard_models import CompareSolversRequest, LiveSolveRequest, RunCampaignRequest
+from dashboard.dashboard_models import CompareSolversRequest, Job, LiveSolveRequest, RunCampaignRequest
+
+
+class JobStatusTests(unittest.TestCase):
+    def test_a_solver_error_is_told_apart_from_a_failed_command(self):
+        done = dict(id="j", command=["tpp.py"], kind="comparison")
+        self.assertEqual(Job(**done, returncode=0).status, "completed")
+        self.assertEqual(Job(**done, returncode=2, output="Report: /x/report.json\n").status, "completed_with_errors")
+        self.assertEqual(Job(**done, returncode=2, output="usage: tpp.py\nerror: bad option\n").status, "failed")
+        self.assertEqual(Job(**done, returncode=1, output="Report: /x/report.json\n").status, "failed")
 
 
 class FreeOrderTests(unittest.TestCase):
