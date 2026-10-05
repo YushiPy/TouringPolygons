@@ -70,6 +70,12 @@ struct ConvexHybridStats {
     double contact_materialization_seconds = 0;
     double certificate_seconds = 0;
     double rational_fallback_seconds = 0;
+    // Inclusive wall time of the touching-disjoint and filtered recoveries.
+    double touching_disjoint_seconds = 0;
+    double filtered_seconds = 0;
+    // Exact replay, materialization and certificate of a rejected double
+    // candidate (intersecting dispatch only); included in their phase totals.
+    double rejected_replay_seconds = 0;
     double total_seconds = 0;
 };
 
@@ -119,6 +125,14 @@ struct ConvexHybridAggregate {
     double contact_materialization_seconds = 0;
     double certificate_seconds = 0;
     double rational_fallback_seconds = 0;
+    std::size_t cutoff_pruned_calls = 0;
+    std::size_t touching_disjoint_attempts = 0;
+    std::size_t touching_disjoint_certified = 0;
+    std::size_t filtered_attempts = 0;
+    std::size_t filtered_certified = 0;
+    double touching_disjoint_seconds = 0;
+    double filtered_seconds = 0;
+    double rejected_replay_seconds = 0;
     double total_seconds = 0;
 };
 

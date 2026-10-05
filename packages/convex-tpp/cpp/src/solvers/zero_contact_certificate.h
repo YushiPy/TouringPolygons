@@ -38,6 +38,20 @@ inline int convex_normalized_difference_sign(const ConvexRational &p, const Conv
     return left<right?1:-1;
 }
 
+// The same sign for integer positive multiples of the rational vectors:
+// p and q share the factor of their common feasible vector, while a2 (b2)
+// carries the squared factor of p's (q's) direction, so each normalized
+// quotient is unchanged.
+inline int convex_normalized_difference_sign_integer(const ConvexInteger &p, const ConvexInteger &a2,
+                                                     const ConvexInteger &q, const ConvexInteger &b2) {
+    if(p>=0 && q<=0)return p==0 && q==0?0:1;
+    if(p<=0 && q>=0)return p==0 && q==0?0:-1;
+    const ConvexInteger left=p*p*b2,right=q*q*a2;
+    if(left==right)return 0;
+    if(p>0)return left>right?1:-1;
+    return left<right?1:-1;
+}
+
 // Reachable subgradients at a zero-link block. R is the unit disk intersected
 // with halfplanes n.u <= n.d/|d|. Every extreme point of R lies on the circle:
 // adding a cone retains only old extreme points, and clipping by the disk

@@ -180,6 +180,15 @@ desse certificado. O perfil exportado pelo B&B usa
 `convex_bound_evaluation_seconds`, somando trabalho
 por chamada; os tempos dos workers podem exceder o tempo de parede do lote.
 
+`ConvexHybridAggregate` também conta cortes duais, tentativas e sucessos das
+recuperações de fronteira disjunta e filtrada, e mede o tempo inclusivo de
+cada recuperação (`touching_disjoint_seconds`, `filtered_seconds`) e o do
+replay exato, materialização e certificado de uma candidata intersectante
+rejeitada (`rejected_replay_seconds`, já contido nos totais por fase). Com
+`TPP_HYBRID_AGGREGATE=1`, `tpp-unordered` imprime esses agregados numa linha
+JSON em stderr ao terminar; stdout não muda. São diagnósticos de perfil, sem
+efeito no oráculo.
+
 ## Encerramento por limites primal-dual intervalares
 
 ### Aritmética e reutilização de pertencimento
@@ -330,6 +339,20 @@ uma poda. Uma falha em qualquer etapa mantém a recuperação racional completa.
 Essa mudança não acrescenta tolerância de otimização nem muda o critério de
 encerramento do B&B.
 
+Os nós do DAG são imutáveis e ficam numa arena por thread, liberada quando
+termina o `FilteredRational::Scope` mais externo; não há alocação nem contagem
+de referências por operação. Valores não podem sobreviver a esse escopo; a
+única entrada, `solve_intersecting_map_trace_filtered`, destrói o mapa antes.
+A arena retém até 16 blocos de 4096 nós para a chamada seguinte.
+
+Predicados de sinal do mapa (`cross_sign`, `dot_sign`, `same_direction`, cones
+e pseudo-arestas) avaliam primeiro só os intervalos da expressão, sem criar
+nós (`FilteredRational::Virtual`). Cada operador repete os atalhos e as
+expansões de `operation()`, e um intermediário nunca compartilha nó com outro
+valor; assim o intervalo é bit a bit o que o DAG teria e decide exatamente as
+mesmas comparações. Se ele não decide, o DAG é construído como antes e avaliado
+exatamente. Decisões, avaliações exatas e traço exportado não mudam.
+
 `filtered_attempted` e `filtered_certified` identificam essa recuperação nas
 estatísticas do híbrido. O backend `DoubleIntersection` continua indicando uma
 candidata reconstruída e certificada, inclusive quando recuperada pelo filtro.
@@ -338,6 +361,28 @@ Os tempos de construção, materialização e certificado somam ambas as tentati
 O DAG é local à chamada e descartado ao retornar. Seu custo e memória dependem
 da quantidade de operações e do tamanho dos operandos racionais; não há uma
 garantia de speedup para toda instância.
+
+### Predicados racionais sem normalização
+
+O certificado KKT, a materialização dos contatos (`logarithmic_clip`,
+`support_max`, `feature_on_edge`) e `set_exact_bounds` usam pontos racionais
+em forma homogênea inteira `(x/w, y/w)`, `w > 0`, e diferenças como múltiplos
+inteiros positivos do vetor racional, sem MDC por operação. Os testes são
+sinais de produtos vetoriais e escalares, testes de vetor nulo e a comparação
+`u.f/|u|` contra `v.f/|v|` (`convex_normalized_difference_sign_integer`), todos
+invariantes a escalas positivas separadas de cada direção e do vetor factível.
+O parâmetro `u` de uma aresta pertence a `[0,1]` exatamente quando
+`(q-a).e >= 0` e `(q-b).e <= 0`. Em `set_exact_bounds`, cada termo
+`floor(sqrt(floor(|d|^2 2^192)))` é calculado com `|D|^2/w^2` para `D = w d`,
+e as somas de termos com denominador `2^96` são formadas uma vez: o racional
+final é o mesmo. A propagação pelo disco nos blocos de elos nulos continua
+recebendo as direções racionais originais. Contatos, cortes e pontos
+construídos continuam racionais. Decisões, contagens de predicados e limites
+são idênticos aos da versão racional.
+
+No mapa direcional, a caixa de cada polígono (união das caixas das arestas)
+descarta de uma vez as arestas cuja caixa é disjunta dela; são exatamente os
+pares que o teste aresta a aresta já descartava.
 
 ## Recuperação de contatos de fronteira com a recorrência disjunta
 

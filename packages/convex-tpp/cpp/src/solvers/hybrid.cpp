@@ -52,6 +52,14 @@ struct AggregateRecorder {
         aggregate.contact_materialization_seconds+=r.stats.contact_materialization_seconds;
         aggregate.certificate_seconds+=r.stats.certificate_seconds;
         aggregate.rational_fallback_seconds+=r.stats.rational_fallback_seconds;
+        aggregate.cutoff_pruned_calls+=r.cutoff_pruned;
+        aggregate.touching_disjoint_attempts+=r.stats.touching_disjoint_attempted;
+        aggregate.touching_disjoint_certified+=r.stats.touching_disjoint_certified;
+        aggregate.filtered_attempts+=r.stats.filtered_attempted;
+        aggregate.filtered_certified+=r.stats.filtered_certified;
+        aggregate.touching_disjoint_seconds+=r.stats.touching_disjoint_seconds;
+        aggregate.filtered_seconds+=r.stats.filtered_seconds;
+        aggregate.rejected_replay_seconds+=r.stats.rejected_replay_seconds;
         aggregate.total_seconds+=r.stats.total_seconds;
     }
 };
@@ -252,19 +260,49 @@ std::vector<Point> replay_trace_exact(const Vector2 &start,const Vector2 &target
     return replay_trace(start,target,polygons,trace,bend_contacts);
 }
 
+// Sign predicates on rational points: a point is (x/w,y/w) with a positive
+// integer w, and a difference is a positive integer multiple of the rational
+// vector, without gcd normalization. Signs of crosses and dots, zero tests and
+// norm-normalized comparisons are invariant under such positive scalings.
+struct HomogeneousPoint {ConvexInteger x,y,w;};
+using Direction=detail::ConvexHomogeneousDirection;
+HomogeneousPoint homogeneous(const Point &p) {
+    using boost::multiprecision::numerator;
+    using boost::multiprecision::denominator;
+    const auto &dx=denominator(p.x),&dy=denominator(p.y);
+    if(dx==dy)return {numerator(p.x),numerator(p.y),dx};
+    return {numerator(p.x)*dy,numerator(p.y)*dx,dx*dy};
+}
+Direction scaled_difference(const HomogeneousPoint &b,const HomogeneousPoint &a) {
+    if(a.w==b.w)return {b.x-a.x,b.y-a.y};
+    return {b.x*a.w-a.x*b.w,b.y*a.w-a.y*b.w};
+}
+
+int scaled_cross_sign(const Direction &a,const Direction &b) {
+    return ConvexInteger(a.x*b.y-a.y*b.x).sign();
+}
+int scaled_dot_sign(const Direction &a,const Direction &b) {
+    return ConvexInteger(a.x*b.x+a.y*b.y).sign();
+}
+
 bool feature_on_edge(const Point &contact,const Polygon &polygon,size_t edge_index,
                      ContactFeature &feature) {
     if(edge_index>=polygon.size())return false;
     const size_t n=polygon.size(),next=(edge_index+1)%n;
-    const Point edge=polygon[next]-polygon[edge_index];
-    if(edge.cross(contact-polygon[edge_index])!=0)return false;
-    const Rational u=(contact-polygon[edge_index]).dot(edge)/edge.dot(edge);
-    if(u<0||u>1)return false;
+    // The edge parameter u=(contact-a).edge/edge.edge lies in [0,1] exactly
+    // when (contact-a).edge>=0 and (contact-b).edge<=0.
+    const HomogeneousPoint a=homogeneous(polygon[edge_index]),b=homogeneous(polygon[next]),
+        q=homogeneous(contact);
+    const Direction edge=scaled_difference(b,a);
+    if(scaled_cross_sign(edge,scaled_difference(q,a))!=0)return false;
+    if(scaled_dot_sign(scaled_difference(q,a),edge)<0||scaled_dot_sign(scaled_difference(q,b),edge)>0)return false;
     const std::optional<size_t> vertex=contact==polygon[edge_index]
         ?std::optional<size_t>(edge_index):contact==polygon[next]?std::optional<size_t>(next):std::nullopt;
     if(vertex) {
         const size_t i=*vertex;
-        if((polygon[i]-polygon[(i+n-1)%n]).cross(polygon[(i+1)%n]-polygon[i])!=0) {
+        const HomogeneousPoint &corner=i==edge_index?a:b;
+        if(scaled_cross_sign(scaled_difference(corner,homogeneous(polygon[(i+n-1)%n])),
+                             scaled_difference(homogeneous(polygon[(i+1)%n]),corner))!=0) {
             feature={ContactFeatureKind::Vertex,i};return true;
         }
     }
@@ -298,15 +336,22 @@ size_t edge_angle_rotation(const Polygon &polygon) {
     }
     return result;
 }
-size_t support_max(const Polygon &polygon,const Point &direction,size_t rotation) {
+int polar_half(const Direction &v) {return v.y<0||(v.y==0&&v.x<0);}
+bool polar_less(const Direction &a,const Direction &b) {
+    const int ah=polar_half(a),bh=polar_half(b);
+    return ah!=bh?ah<bh:scaled_cross_sign(a,b)>0;
+}
+// Polar order and half-planes depend only on directions, so positive integer
+// multiples of the rational edges and query select the same vertex.
+size_t support_max(const Polygon &polygon,const Direction &direction,size_t rotation) {
     // Along a CCW convex boundary, edge polar angles are sorted cyclically.
     // The maximum of <direction,p> starts where the edge derivative changes
     // from positive to nonpositive: angle(direction)+pi/2.
-    const Point key{-direction.y,direction.x};const size_t n=polygon.size();
+    const Direction key{-direction.y,direction.x};const size_t n=polygon.size();
     size_t left=0,right=n;
     while(left<right) {
         const size_t mid=left+(right-left)/2,index=(rotation+mid)%n;
-        const Point edge=polygon[(index+1)%n]-polygon[index];
+        const Direction edge=scaled_difference(homogeneous(polygon[(index+1)%n]),homogeneous(polygon[index]));
         if(polar_less(edge,key))left=mid+1;else right=mid;
     }
     return (rotation+(left==n?0:left))%n;
@@ -318,9 +363,12 @@ bool logarithmic_clip(const Point &a,const Point &b,const Polygon &polygon,size_
         Rational floor,Rational &lo,Rational &hi,ContactFeature &lo_feature,ContactFeature &hi_feature) {
     const Point direction=b-a;if(direction.zero())return false;
     const size_t n=polygon.size();
-    auto side=[&](size_t i){return direction.cross(polygon[i]-a);};
-    const size_t maximum=support_max(polygon,Point{-direction.y,direction.x},rotation);
-    const size_t minimum=support_max(polygon,Point{direction.y,-direction.x},rotation);
+    const HomogeneousPoint origin=homogeneous(a);
+    const Direction scaled=scaled_difference(homogeneous(b),origin);
+    // Only the sign of direction x (polygon[i]-a) is used.
+    auto side=[&](size_t i){return scaled_cross_sign(scaled,scaled_difference(homogeneous(polygon[i]),origin));};
+    const size_t maximum=support_max(polygon,Direction{-scaled.y,scaled.x},rotation);
+    const size_t minimum=support_max(polygon,Direction{scaled.y,-scaled.x},rotation);
     if(side(minimum)>0||side(maximum)<0)return false;
     std::vector<BoundaryHit> hits;hits.reserve(4);
     auto add=[&](const Point &point,size_t edge) {
@@ -329,7 +377,7 @@ bool logarithmic_clip(const Point &a,const Point &b,const Polygon &polygon,size_
         for(const auto &hit:hits)if(hit.point==point)return;
         hits.push_back({point,edge,rate});
     };
-    const Rational minimum_side=side(minimum),maximum_side=side(maximum);
+    const int minimum_side=side(minimum),maximum_side=side(maximum);
     if(minimum_side==0||maximum_side==0) {
         // The line supports the polygon.  Its intersection is a vertex or a
         // contiguous collinear boundary run; locate both ends of that run.
@@ -362,7 +410,7 @@ bool logarithmic_clip(const Point &a,const Point &b,const Polygon &polygon,size_
             if(reached)right=mid;else left=mid+1;
         }
         const size_t v=(start+left)%n,u=(v+n-1)%n;
-        const Rational fu=side(u),fv=side(v);
+        const int fu=side(u),fv=side(v);
         if(fu==0)add(polygon[u],u);
         if(fv==0)add(polygon[v],u);
         if(fu*fv<0) {
@@ -562,45 +610,56 @@ ConvexFallbackReason certify(const Vector2 &start,const Vector2 &target,
         std::size_t &exact_predicates,std::size_t &zero_link_witnesses) {
     if(contacts.size()!=polygons.size()||features.size()!=polygons.size())
         return ConvexFallbackReason::ContactConstruction;
-    std::vector<Point> chain;chain.reserve(contacts.size()+2);
-    chain.emplace_back(start);chain.insert(chain.end(),contacts.begin(),contacts.end());chain.emplace_back(target);
-    std::vector<Point> directions;directions.reserve(chain.size()-1);
-    for(size_t i=1;i<chain.size();++i)directions.push_back(chain[i]-chain[i-1]);
-    auto kkt=[&](size_t polygon_index,const Point &incoming,const Point &outgoing) {
+    std::vector<HomogeneousPoint> chain;chain.reserve(contacts.size()+2);
+    chain.push_back(homogeneous(Point(start)));
+    for(const auto &contact:contacts)chain.push_back(homogeneous(contact));
+    chain.push_back(homogeneous(Point(target)));
+    std::vector<Direction> directions;directions.reserve(chain.size()-1);
+    for(size_t i=1;i<chain.size();++i)directions.push_back(scaled_difference(chain[i],chain[i-1]));
+    // The disk propagation consumes the original rational link directions.
+    auto rational_direction=[&](size_t link) {
+        const Point before=link?contacts[link-1]:Point(start);
+        const Point after=link<contacts.size()?contacts[link]:Point(target);
+        return Point(after-before);
+    };
+    auto kkt=[&](size_t polygon_index,const Direction &incoming,const Direction &outgoing) {
 #ifdef TPP_HAS_KKT_STRAIGHT_FIRST
         // The zero vector and a straight positive turn are decided before
-        // forming rational squared norms. These are the same exact predicates.
+        // forming squared norms. These are the same exact predicates.
         const bool a_zero=incoming.zero(),b_zero=outgoing.zero();
         if(a_zero&&b_zero)return true;
         if(a_zero||b_zero)return false;
         if(incoming.cross(outgoing)==0&&incoming.dot(outgoing)>0)return true;
-        const Rational a2=incoming.dot(incoming),b2=outgoing.dot(outgoing);
+        const ConvexInteger a2=incoming.dot(incoming),b2=outgoing.dot(outgoing);
 #else
-        const Rational a2=incoming.dot(incoming),b2=outgoing.dot(outgoing);
+        const ConvexInteger a2=incoming.dot(incoming),b2=outgoing.dot(outgoing);
         if(a2==0&&b2==0)return true;
         if(a2==0||b2==0)return false;
         if(incoming.cross(outgoing)==0&&incoming.dot(outgoing)>0)return true;
 #endif
-        const auto check=[&](const Point &feasible) {
+        const HomogeneousPoint &contact=chain[polygon_index+1];
+        const auto check=[&](const Direction &feasible) {
             ++exact_predicates;
-            return detail::convex_normalized_difference_sign(incoming.dot(feasible),a2,
+            return detail::convex_normalized_difference_sign_integer(incoming.dot(feasible),a2,
                                                outgoing.dot(feasible),b2)>=0;
         };
         const auto &polygon=polygons[polygon_index];const auto &feature=features[polygon_index];
         if(feature.kind==ContactFeatureKind::Interior)return false;
         if(feature.kind==ContactFeatureKind::Vertex) {
             const size_t i=feature.index,n=polygon.size();
-            return check(polygon[(i+n-1)%n]-contacts[polygon_index])
-                &&check(polygon[(i+1)%n]-contacts[polygon_index]);
+            return check(scaled_difference(homogeneous(polygon[(i+n-1)%n]),contact))
+                &&check(scaled_difference(homogeneous(polygon[(i+1)%n]),contact));
         }
         const size_t i=feature.index,n=polygon.size();
-        const Point tangent=polygon[(i+1)%n]-polygon[i];
+        const HomogeneousPoint origin=homogeneous(polygon[i]);
+        const Direction tangent=scaled_difference(homogeneous(polygon[(i+1)%n]),origin);
         ++exact_predicates;
-        if(detail::convex_normalized_difference_sign(incoming.dot(tangent),a2,
+        if(detail::convex_normalized_difference_sign_integer(incoming.dot(tangent),a2,
                                       outgoing.dot(tangent),b2)!=0)return false;
         for(const Point &vertex:polygon) {
-            if(tangent.cross(vertex-polygon[i])==0)continue;
-            return check(vertex-contacts[polygon_index]);
+            const HomogeneousPoint corner=homogeneous(vertex);
+            if(tangent.cross(scaled_difference(corner,origin))==0)continue;
+            return check(scaled_difference(corner,contact));
         }
         return false;
     };
@@ -608,8 +667,8 @@ ConvexFallbackReason certify(const Vector2 &start,const Vector2 &target,
     for(size_t first=0;first<directions.size();) {
         if(!directions[first].zero()){++first;continue;}
         size_t last=first;while(last+1<directions.size()&&directions[last+1].zero())++last;
-        const Point *before=first?&directions[first-1]:nullptr;
-        const Point *after=last+1<directions.size()?&directions[last+1]:nullptr;
+        const Direction *before=first?&directions[first-1]:nullptr;
+        const Direction *after=last+1<directions.size()?&directions[last+1]:nullptr;
         if(before&&after&&(before->cross(*after)!=0||before->dot(*after)<=0)) {
             const size_t first_polygon=first-1;
             const size_t last_polygon=std::min(last,polygons.size()-1);
@@ -621,21 +680,22 @@ ConvexFallbackReason certify(const Vector2 &start,const Vector2 &target,
             // contacts have zero support difference. These sufficient exact
             // witnesses are particularly cheap on shared boundary edges.
             if(!kkt(last_polygon,*before,*after)&&!kkt(first_polygon,*before,*after)) {
-                detail::ConvexDualReachability reachable(*before,exact_predicates);
-                for(size_t i=first_polygon;i<=last_polygon&&!reachable.reaches(*after);++i)
+                const Point incoming=rational_direction(first-1),outgoing=rational_direction(last+1);
+                detail::ConvexDualReachability reachable(incoming,exact_predicates);
+                for(size_t i=first_polygon;i<=last_polygon&&!reachable.reaches(outgoing);++i)
                     reachable.advance(polygons[i],contacts[i]);
-                if(!reachable.reaches(*after))return ConvexFallbackReason::CoincidentContact;
+                if(!reachable.reaches(outgoing))return ConvexFallbackReason::CoincidentContact;
             }
             for(size_t i=first_polygon;i<=last_polygon;++i)block_certified[i]=true;
         } else {
-            const Point witness=before?*before:after?*after:Point{};
+            const Direction witness=before?*before:after?*after:Direction{};
             for(size_t j=first;j<=last;++j)directions[j]=witness;
         }
         ++zero_link_witnesses;first=last+1;
     }
     for(size_t i=0;i<contacts.size();++i) {
         if(block_certified[i])continue;
-        const Point incoming=directions[i],outgoing=directions[i+1];
+        const Direction &incoming=directions[i],&outgoing=directions[i+1];
         if(!kkt(i,incoming,outgoing))return ConvexFallbackReason::LocalOptimality;
     }
     return ConvexFallbackReason::None;
@@ -664,18 +724,22 @@ void set_exact_bounds(ConvexHybridResult &result,Vector2 start,Vector2 target,
     PhaseTimer timer{stats?stats->bound_evaluation_seconds:result.stats.bound_evaluation_seconds};
     constexpr unsigned precision=96;
     const tpp::ConvexInteger scale=tpp::ConvexInteger(1)<<precision;
-    std::vector<Point> chain;chain.reserve(contacts.size()+2);chain.emplace_back(start);
-    chain.insert(chain.end(),contacts.begin(),contacts.end());chain.emplace_back(target);
-    Rational lower=0,upper=0;
+    // Each link contributes floor(sqrt(floor(|d|^2 2^192)))/2^96 to the lower
+    // and one more unit to the upper sum. |d|^2=|D|^2/w^2 for the integer
+    // multiple D=w*d, so the floors are computed without normalizing |d|^2,
+    // and the sums of fixed-denominator terms are formed once.
+    std::vector<HomogeneousPoint> chain;chain.reserve(contacts.size()+2);
+    chain.push_back(homogeneous(Point(start)));
+    for(const auto &contact:contacts)chain.push_back(homogeneous(contact));
+    chain.push_back(homogeneous(Point(target)));
+    tpp::ConvexInteger roots=0;std::size_t links=0;
     for(size_t i=1;i<chain.size();++i) {
-        const Point d=chain[i]-chain[i-1];
-        const Rational squared=d.dot(d);if(squared==0)continue;
-        const auto numerator=boost::multiprecision::numerator(squared);
-        const auto denominator=boost::multiprecision::denominator(squared);
-        const tpp::ConvexInteger scaled=(numerator<<(2*precision))/denominator;
-        const tpp::ConvexInteger root=sqrt(scaled);
-        lower+=Rational(root)/Rational(scale);upper+=Rational(root+1)/Rational(scale);
+        const Direction d=scaled_difference(chain[i],chain[i-1]);
+        const tpp::ConvexInteger squared=d.dot(d);if(squared==0)continue;
+        const tpp::ConvexInteger factor=chain[i].w==chain[i-1].w?chain[i].w:tpp::ConvexInteger(chain[i].w*chain[i-1].w);
+        roots+=sqrt(tpp::ConvexInteger((squared<<(2*precision))/(factor*factor)));++links;
     }
+    const Rational lower=Rational(roots)/Rational(scale),upper=Rational(roots+links)/Rational(scale);
     result.lower_bound=rational_lower(lower);result.upper_bound=rational_upper(upper);
 }
 
@@ -1243,6 +1307,7 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
         return candidate_dual_lower(start,target,polygons,exact_contacts);
     };
     result.stats.double_attempted=true;
+    std::optional<Clock::time_point> replay_began;
     try {
         const auto solve_began=Clock::now();
         if(result.stats.disjoint)trace=detail::solve_binary_search_disjoint_trace_unchecked(start,target,input);
@@ -1258,6 +1323,7 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
             if(accepted){result.stats.total_seconds=elapsed(began);return result;}
         }
 #endif
+        replay_began=Clock::now();
         const auto contact_began=Clock::now();
         const bool finite=std::ranges::all_of(trace,[](const auto &step){return step.defining_point.is_finite();});
         if(!finite)result.fallback_reason=ConvexFallbackReason::Nonfinite;
@@ -1303,6 +1369,8 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
         result.stats.certificate_seconds+=elapsed(certificate_began);
         result.stats.double_certified=result.fallback_reason==ConvexFallbackReason::None;
     }
+    if(replay_began&&!result.stats.double_certified&&!result.stats.disjoint)
+        result.stats.rejected_replay_seconds=elapsed(*replay_began);
     if(options.retain_rejected_double_candidate && !result.stats.double_certified &&
        result.contacts.size()==input.size()) {
         result.rejected_double_contacts=result.contacts;
@@ -1344,7 +1412,9 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
     }
 #ifdef TPP_HAS_TOUCHING_DISJOINT
     if(options.mode==ConvexHybridMode::SafeCertified&&!result.stats.double_certified&&!result.stats.disjoint&&
-       recover_touching_disjoint(start,target,input,polygons,result,exact_contacts,contact_rotations())&&!options.shadow_rational) {
+       [&]{PhaseTimer timer{result.stats.touching_disjoint_seconds};
+           return recover_touching_disjoint(start,target,input,polygons,result,exact_contacts,contact_rotations());}()
+       &&!options.shadow_rational) {
         result.backend=ConvexHybridBackend::DoubleDisjoint;
         set_exact_bounds(result,start,target,exact_contacts);
         result.stats.total_seconds=elapsed(began);return result;
@@ -1355,6 +1425,7 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
     // intersecting proposal pays for the same map's filtered arithmetic.
     if(!result.stats.double_certified&&!result.stats.disjoint&&options.mode==ConvexHybridMode::SafeCertified) {
         result.stats.filtered_attempted=true;
+        PhaseTimer filtered_timer{result.stats.filtered_seconds};
         try {
             const auto solve_began=Clock::now();
             const auto filtered=detail::solve_intersecting_map_trace_filtered(start,target,input);
