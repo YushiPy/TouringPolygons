@@ -41,6 +41,42 @@ a interface, então a ajuda não diverge do comportamento. `--no-resume` reinici
 reexecuta (`--force`) em ordem fixa e livre e move a campanha TSPN para o lado.
 Os subcomandos antigos continuam disponíveis.
 
+## Acompanhar uma execução longa
+
+Enquanto uma instância roda, o solver de ordem livre e o TSPN (`tpp-ours`)
+imprimem a cada `--progress-interval` segundos (padrão 60; 0 desliga; campo
+"Progress report" no `scripts/benchmark.sh`) uma linha como
+
+```text
+[free case 1/2 tpp-ours] 00:00:06  LB 107.06  UB 136.957  gap 21.8%  calls 318,871  nodes 45,932  open 269,361 (growing)  time limit 43% used
+```
+
+Nela estão o tempo decorrido, o limite inferior (LB) e o superior (UB), o gap
+relativo `(UB - LB) / UB`, as chamadas ao oráculo e os nós explorados, a fila
+(`open`, com a tendência: crescendo, estável ou diminuindo) e a fração usada dos
+limites de tempo e de chamadas. Com `--portfolio` as duas buscas são combinadas
+(melhor LB e melhor UB). Quando o gap vem diminuindo, aparece também uma
+estimativa de quando o gap-alvo seria atingido. Ela é **otimista** (supõe que o
+gap continue caindo no mesmo ritmo, o que o branch and bound muitas vezes não faz).
+Trate-a como um palpite; LB, UB e a tendência da fila são os sinais confiáveis.
+
+Os mesmos dados ficam em `live.json` (no diretório da execução: a campanha
+TSPN, ou `results/free-order/EXECUÇÃO/`), reescrito de forma atômica. De outro
+terminal:
+
+```bash
+python3 benchmarks/tpp.py live            # tudo o que está rodando no workspace
+python3 benchmarks/tpp.py live NOME -f    # uma campanha, atualizando a cada 10 s
+```
+
+O `live` avisa quando uma instância deixa de reportar (uma chamada longa ao
+oráculo ou um solver travado) e quando o processo que escrevia o arquivo já não
+existe nesta máquina. O relatório só observa a busca: o resultado, as chamadas e
+os nós são idênticos com ele ligado ou desligado (há teste C++ para isso). O
+estado vem do laço do branch and bound, então uma única chamada muito longa
+atrasa a próxima linha. Execuções iniciadas com um binário anterior a este
+recurso não reportam nada. A ordem fixa (`run`) ainda não tem relatório periódico.
+
 ## Organização
 
 - `tpp.py`: CLI estável; `python3 benchmarks/tpp.py --help` lista os comandos

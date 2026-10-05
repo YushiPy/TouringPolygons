@@ -74,6 +74,7 @@ class Options:
 	search_strategy: str | None = None
 	capture_oracles: bool = False
 	max_calls: int = DEFAULT_MAX_CALLS
+	progress_interval: str = "60"
 	force: bool = False
 	setup_only: bool = False
 	dry_run: bool = False
@@ -101,6 +102,16 @@ def relative_gap(value: str) -> str:
 		number = 0.0
 	if not 0 < number < 1:
 		raise argparse.ArgumentTypeError("must be greater than 0 and less than 1")
+	return value
+
+
+def non_negative_number(value: str) -> str:
+	try:
+		number = float(value)
+	except ValueError:
+		number = -1.0
+	if not 0 <= number < float("inf"):
+		raise argparse.ArgumentTypeError("must be 0 or a positive number")
 	return value
 
 
@@ -200,6 +211,12 @@ def build_parser() -> argparse.ArgumentParser:
 		help="our solver's oracle-call budget; a non-default value requires --solver tpp-ours",
 	)
 	parser.add_argument(
+		"--progress-interval",
+		type=non_negative_number,
+		default="60",
+		help="seconds between status lines of each running tpp-ours instance (also in live.json, see tpp.py live); 0 disables",
+	)
+	parser.add_argument(
 		"--workers",
 		type=positive_integer,
 		default=1,
@@ -244,6 +261,7 @@ def parse_options(argv: Sequence[str]) -> Options:
 		search_strategy=args.search_strategy,
 		capture_oracles=args.capture_oracles,
 		max_calls=args.max_calls,
+		progress_interval=args.progress_interval,
 		force=args.force,
 		setup_only=args.setup_only,
 		dry_run=args.dry_run,
@@ -408,6 +426,7 @@ def engine_arguments(options: Options) -> list[str]:
 		arguments.append("--capture-oracles")
 	if options.max_calls != DEFAULT_MAX_CALLS:
 		arguments += ["--max-calls", str(options.max_calls)]
+	arguments += ["--progress-interval", options.progress_interval]
 	for optimization in options.cycle_optimizations:
 		arguments += ["--cycle-optimization", optimization]
 	return arguments
@@ -431,7 +450,7 @@ def single_arguments(options: Options, output: Path) -> list[str]:
 
 def binaries(build_dir: Path = BUILD_DIR) -> dict[str, Path]:
 	return {
-		"ours": build_dir / "touring_polygons/tpp-unordered",
+		"ours": build_dir / "bin/tpp-unordered",
 		"fekete": build_dir / "tpp-fekete-cycle",
 	}
 

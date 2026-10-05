@@ -213,6 +213,23 @@ FIELDS: tuple[Field, ...] = (
 		},
 	),
 	Field(
+		"progress_interval",
+		"Progress report (s)",
+		NUMBER,
+		{
+			FREE: Spec(
+				60,
+				lower_inclusive=True,
+				help="Seconds between status lines (bounds, calls, queue) of each running instance; 0 turns them off.",
+			),
+			TSPN: Spec(
+				60,
+				lower_inclusive=True,
+				help="Seconds between status lines (bounds, calls, queue) of each running instance; 0 turns them off.",
+			),
+		},
+	),
+	Field(
 		"max_instances",
 		"Max instances",
 		INTEGER,
@@ -431,6 +448,8 @@ def range_error(spec: Spec, kind: str, value: int | float) -> str | None:
 		start = "at least 0" if spec.lower_inclusive else "greater than 0"
 		return f"must be {start} and less than {format_value(spec.upper)}"
 	noun = "whole number" if kind == INTEGER else "number"
+	if spec.lower_inclusive:
+		return f"must be 0 or a positive {noun}"
 	return f"must be a positive {noun}" + (
 		" or -1 (no limit)" if spec.unlimited else ""
 	)
@@ -760,6 +779,7 @@ def to_legacy(values: Mapping[str, object]) -> tuple[str, list[str]]:
 		_flag(arguments, "--max-seconds", values["time_limit"])
 		_flag(arguments, "--threads-per-instance", values["threads"])
 		_flag(arguments, "--workers", values["workers"])
+		_flag(arguments, "--progress-interval", values["progress_interval"])
 		if values["max_instances"] != UNLIMITED:
 			_flag(arguments, "--max-instances", values["max_instances"])
 		else:
@@ -792,6 +812,7 @@ def to_legacy(values: Mapping[str, object]) -> tuple[str, list[str]]:
 	if values["oracle_calls"] != DEFAULT_CALLS:
 		_flag(arguments, "--max-calls", values["oracle_calls"])
 	_flag(arguments, "--workers", values["workers"])
+	_flag(arguments, "--progress-interval", values["progress_interval"])
 	if not values["resume"]:
 		arguments.append("--force")
 	if values["dry_run"]:

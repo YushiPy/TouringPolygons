@@ -192,6 +192,35 @@ def command_bench(argv: Sequence[str]) -> int:
 	return COMMANDS[name].run(arguments)
 
 
+def command_live(argv: Sequence[str]) -> int:
+	"""Show what the running instances report: bounds, gap, calls, queue."""
+	import argparse
+
+	import live_progress
+
+	parser = argparse.ArgumentParser(
+		prog="tpp.py live",
+		description="Live status of running benchmark instances, read from the live.json files that the runs keep up to date.",
+	)
+	parser.add_argument("path", nargs="?", help="a campaign NAME or a directory; default: the whole workspace")
+	parser.add_argument("-f", "--follow", action="store_true", help="refresh until interrupted")
+	parser.add_argument("--every", type=float, default=10.0, metavar="SECONDS", help="refresh period for --follow")
+	parser.add_argument("--stale-after", type=float, default=300.0, metavar="SECONDS",
+		help="flag an instance that has not reported for this long")
+	args = parser.parse_args(list(argv))
+	root = workspace.campaign_path(args.path) if args.path else workspace.root()
+	while True:
+		lines = live_progress.render_snapshots(root, stale_after=args.stale_after, show_idle=bool(args.path))
+		print("\n".join(lines) if lines else f"No running instance reports status under {root}.", flush=True)
+		if not args.follow:
+			return 0
+		try:
+			time.sleep(max(1.0, args.every))
+		except KeyboardInterrupt:
+			return 0
+		print()
+
+
 def command_legacy(command: str, argv: Sequence[str]) -> int:
 	import bench
 	mapping = {
@@ -235,6 +264,8 @@ GROUPS: dict[str, dict[str, Command]] = {
 			module("native_build")),
 	},
 	"Workspace": {
+		"live": Command("[PATH] [-f]", "Live bounds, gap, calls and queue of running instances (from live.json).",
+			lambda argv: command_live(argv)),
 		"ls": Command("[campaigns|runs|experiments]", "List local campaigns, runs and experiments.",
 			lambda argv: command_module("workspace", ["list", *argv])),
 		"workspace": Command("list|migrate|path", "Manage the local workspace (TPP_WORKSPACE).", module("workspace")),
@@ -294,7 +325,7 @@ GROUPS: dict[str, dict[str, Command]] = {
 }
 COMMANDS = {name: command for group in GROUPS.values() for name, command in group.items()}
 # Commands that only read or prepare state are not journaled.
-UNJOURNALED = {"setup", "doctor", "ls", "workspace", "status", "jobs", "remote"}
+UNJOURNALED = {"setup", "doctor", "ls", "workspace", "status", "jobs", "remote", "live"}
 
 
 def print_help() -> None:

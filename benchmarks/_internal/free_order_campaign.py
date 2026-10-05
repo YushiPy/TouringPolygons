@@ -22,6 +22,7 @@ from pathlib import Path
 import native_build
 import workspace
 from benchmark_cases import read_encoded_cases
+from live_progress import LiveStatus
 from unordered_runner import interrupt_running_solvers, run_unordered_solver, terminate_running_solvers
 from unordered_validation import validate_path
 
@@ -343,12 +344,16 @@ def main(argv: list[str] | None = None) -> int:
 		help='Python environment for Fekete; defaults to the submodule .venv.')
 	parser.add_argument('--external-build', type=Path, default=EXTERNAL_SOURCE,
 		help='Fekete source/build tree containing the compiled Python binding.')
+	parser.add_argument('--progress-interval', type=float, default=60.0,
+		help='Seconds between status lines (bounds, calls, queue) of each running tpp-ours instance, also kept in '
+			'results/free-order/RUN/live.json for `tpp.py live`; 0 disables.')
 	parser.add_argument('--no-build', action='store_true')
 	parser.add_argument('--force', action='store_true')
 	parser.add_argument('--dry-run', action='store_true')
 	args = parser.parse_args(argv)
 	if ((args.max_seconds != -1 and (not math.isfinite(args.max_seconds) or args.max_seconds <= 0)) or args.max_calls < 0
 		or args.max_instances < 1 or args.threads_per_instance < 1 or args.workers < 1
+		or not math.isfinite(args.progress_interval) or args.progress_interval < 0
 		or not math.isfinite(args.absolute_gap) or args.absolute_gap < 0
 		or not math.isfinite(args.relative_gap) or args.relative_gap < 0
 		or not math.isfinite(args.eps) or args.eps <= 0
@@ -584,6 +589,8 @@ def main(argv: list[str] | None = None) -> int:
 		temporary.replace(external_csv_path)
 		external_runner.write_summary(external_csv_path, external_csv_path.with_suffix('.md'), external_args)
 
+	live = LiveStatus(run / 'live.json' if args.progress_interval > 0 else None)
+
 	def solve_unordered_case(index: int) -> dict:
 		case = cases[index]
 		geometry = geometry_catalog[case.digest]
@@ -601,8 +608,15 @@ def main(argv: list[str] | None = None) -> int:
 			if args.bidirectional_initial:
 				arguments.append('--bidirectional-initial')
 			solver_time_limit = math.inf if args.max_seconds == -1 else args.max_seconds
-			row.update(run_unordered_solver(BINARY, (sx, sy), (tx, ty), case.polygons,
-				args.max_calls, solver_time_limit, arguments=arguments))
+			key = f'unordered-{index}'
+			report = live.reporter(key, f'free case {index + 1}/{len(cases)} tpp-ours', max_seconds=solver_time_limit,
+				max_calls=args.max_calls, target_gap=args.relative_gap)
+			try:
+				row.update(run_unordered_solver(BINARY, (sx, sy), (tx, ty), case.polygons,
+					args.max_calls, solver_time_limit, arguments=arguments,
+					progress=report, progress_interval=args.progress_interval))
+			finally:
+				live.finish(key)
 			if row.get('error') == SHUTDOWN_BEFORE_START:
 				return None
 			if row.get('termination') == 'interrupted':

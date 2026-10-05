@@ -4,6 +4,8 @@
 #include <csignal>
 #include <iomanip>
 #include <iostream>
+#include <mutex>
+#include <sstream>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -16,6 +18,28 @@ namespace {
 
 	extern "C" void handle_interrupt(int) {
 		interrupted.test_and_set(std::memory_order_relaxed);
+	}
+
+	// One JSON line per report on stderr (stdout carries only the final result).
+	// The portfolio's two searches report concurrently, so lines are written whole.
+	void print_progress(const tpp::UnorderedTppProgress &p) {
+		static std::mutex lock;
+		std::ostringstream line;
+		line.precision(12);
+		auto number = [&](const char *name, double value) {
+			line << ",\"" << name << "\":";
+			if (std::isfinite(value)) line << value;
+			else line << "null";
+		};
+		line << "{\"progress\":1,\"worker\":" << p.worker;
+		number("elapsed_seconds", p.elapsed_seconds);
+		number("lower_bound", p.lower_bound);
+		number("upper_bound", p.upper_bound);
+		line << ",\"calls\":" << p.calls << ",\"nodes\":" << p.nodes << ",\"open_nodes\":" << p.open_nodes
+			<< ",\"peak_open_nodes\":" << p.peak_open_nodes << ",\"pruned_nodes\":" << p.pruned_nodes
+			<< ",\"max_sequence_depth\":" << p.max_sequence_depth << ",\"regions\":" << p.region_count << "}\n";
+		const std::scoped_lock guard(lock);
+		std::cerr << line.str() << std::flush;
 	}
 
 	void json_string(const std::string &value) {
@@ -90,7 +114,7 @@ int main(int argc, char **argv) {
 		for (int i = 1; i < argc; ++i) {
 			const std::string flag = argv[i];
 			if (flag == "--help") {
-				std::cout << "Usage: tpp-unordered [--cycle] [--cycle-optimization cache|dual|features|lazy|root|branch|one-tree|learn|memo|bound-first|dual-screen|interval|share-bounds|proposal-bound|primal-starts] [--portfolio | --portfolio-no-sharing | --search-strategy best-bound|dfs-bfs] [--sequence-storage native|packed|deltas] [--threads N] [--absolute-gap N] [--relative-gap N] [--feasibility-tolerance N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace] [--oracle-capture FILE]\n"
+				std::cout << "Usage: tpp-unordered [--cycle] [--cycle-optimization cache|dual|features|lazy|root|branch|one-tree|learn|memo|bound-first|dual-screen|interval|share-bounds|proposal-bound|primal-starts] [--portfolio | --portfolio-no-sharing | --search-strategy best-bound|dfs-bfs] [--sequence-storage native|packed|deltas] [--threads N] [--absolute-gap N] [--relative-gap N] [--feasibility-tolerance N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace] [--oracle-capture FILE] [--progress-interval SECONDS]\n"
 					<< "stdin: sx sy tx ty polygon_count max_calls max_seconds, then each polygon's vertex count and coordinates. With --initial-path, append path point count and coordinates, including endpoints.\n";
 				std::cout << "--cycle solves TSPN: input endpoints are ignored; output and any initial path must be closed.\n";
 				std::cout << "--no-oracle-dispatch-cache repeats exact polygon-pair classification for an ablation.\n";
@@ -248,6 +272,11 @@ int main(int argc, char **argv) {
 			else if (flag == "--relative-gap") options.relative_gap = value;
 			else if (flag == "--feasibility-tolerance") options.feasibility_tolerance = value;
 			else if (flag == "--oracle-relative-gap") options.oracle_relative_gap = value;
+			else if (flag == "--progress-interval") {
+				if (!std::isfinite(value) || value <= 0) throw std::invalid_argument("--progress-interval must be positive.");
+				options.progress_interval_seconds = value;
+				options.progress = print_progress;
+			}
 			else throw std::invalid_argument("Unknown option: " + flag);
 		}
 		if(options.portfolio && explicit_strategy) throw std::invalid_argument("Portfolio selects both strategies; omit --search-strategy.");
