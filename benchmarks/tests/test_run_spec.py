@@ -256,6 +256,37 @@ class UnlimitedCallsTests(unittest.TestCase):
 		self.assertEqual(line.split()[5], str(2**64 - 1))
 
 
+class DetachTests(unittest.TestCase):
+	def test_detach_is_an_option_of_every_problem_and_off_by_default(self):
+		for problem in ("fixed-order", "free-order", "tspn"):
+			values = values_for(problem)
+			self.assertIs(values["detach"], False)
+			self.assertNotIn("--detach", run_spec.to_cli(values))
+			self.assertIn("--detach", run_spec.to_cli({**values, "detach": True}))
+
+	def test_the_job_gets_an_english_name_from_the_problem_and_campaign(self):
+		self.assertEqual(run_spec.job_label(values_for("free-order", campaign="fekete-tpp_free_order")), "free-order-fekete-tpp_free_order")
+		self.assertEqual(run_spec.job_label(values_for("free-order", campaign="my run/2")), "free-order-my-run-2")
+
+	def test_bench_with_detach_starts_a_job_with_the_same_command_minus_detach(self):
+		import jobs
+
+		started = []
+		with patch.object(jobs, "command_start", side_effect=lambda args: started.append(args) or 0), tempfile.TemporaryDirectory() as directory, patch.dict(
+			os.environ, {"TPP_WORKSPACE": directory}
+		):
+			campaign = Path(directory) / "campaigns" / "c"
+			campaign.mkdir(parents=True)
+			(campaign / "campaign.json").write_text("{}")
+			code = tpp.command_bench(["--problem", "free-order", "--campaign", "c", "--cases", "2,1", "--detach"])
+		self.assertEqual(code, 0)
+		(job,) = started
+		self.assertEqual(job.name, "free-order-c")
+		self.assertEqual(job.command[0], "bench")
+		self.assertNotIn("--detach", job.command)
+		self.assertEqual(job.command[job.command.index("--cases") + 1], "2,1")
+
+
 class CommandTests(unittest.TestCase):
 	def test_cli_omits_defaults_and_round_trips(self):
 		for problem, changes in (

@@ -188,6 +188,13 @@ def command_bench(argv: Sequence[str]) -> int:
 	import run_spec
 
 	values = run_spec.from_cli(list(argv))
+	if values.get("detach") and not values.get("dry_run"):
+		import argparse
+
+		import jobs
+
+		command = ["bench", *run_spec.to_cli({**values, "detach": False})]
+		return jobs.command_start(argparse.Namespace(name=run_spec.job_label(values), command=command))
 	name, arguments = run_spec.to_legacy(values)
 	print(f"+ tpp.py {name} {shlex.join(arguments)}", file=sys.stderr, flush=True)
 	return COMMANDS[name].run(arguments)

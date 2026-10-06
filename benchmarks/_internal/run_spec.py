@@ -416,6 +416,16 @@ FIELDS: tuple[Field, ...] = (
 		},
 	),
 	Field(
+		"detach",
+		"Run detached",
+		BOOL,
+		everywhere(
+			default=False,
+			help="Start the run as a background job that survives a closed terminal or a lost SSH "
+			"connection; follow it with `tpp.py jobs log JOB --follow`.",
+		),
+	),
+	Field(
 		"dry_run",
 		"Dry run",
 		BOOL,
@@ -751,6 +761,12 @@ def to_cli(values: Mapping[str, object]) -> list[str]:
 		else:
 			arguments += [item.flag, format_value(value, compact=True)]
 	return arguments
+
+
+def job_label(values: Mapping[str, object]) -> str:
+	"""Name of the background job for these values: the problem and campaign, safe for a file name."""
+	text = f"{values['problem']}-{values.get('campaign') or 'run'}"
+	return re.sub(r"[^A-Za-z0-9._-]+", "-", text).strip("-")
 
 
 def command_line(values: Mapping[str, object]) -> str:

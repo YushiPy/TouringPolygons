@@ -121,8 +121,12 @@ python3 benchmarks/tpp.py stop --all
 `--max-memory-gb N` (campo "Memory limit (GB)" no `scripts/benchmark.sh`) confere a
 memória residente de cada solver a cada 5 s e o interrompe com SIGINT/SIGTERM
 antes que o sistema o mate. O limite vale por instância, não pelo total. Para a
-execução sobreviver ao terminal fechado, inicie-a com `tpp.py jobs start`, `tmux`
-ou `nohup`.
+execução sobreviver ao terminal fechado ou a uma conexão SSH perdida, acrescente
+`--detach` ao `tpp.py bench` (campo "Run detached" no `scripts/benchmark.sh`): a
+rodada vira um job em segundo plano, nomeado `<problema>-<campanha>`, e a CLI imprime
+seu ID. Acompanhe com `tpp.py jobs list`, `tpp.py jobs log ID --follow` e
+`tpp.py live`; interrompa com `tpp.py jobs stop ID`. (`tpp.py jobs start --name X -- COMANDO`
+continua disponível para outros comandos; `tmux` e `nohup` também servem.)
 
 O `live` avisa quando uma instância deixa de reportar (uma chamada longa ao
 oráculo ou um solver travado). O relatório só observa a busca: o resultado, as chamadas e
