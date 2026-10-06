@@ -85,7 +85,7 @@ Três abas (`Tab` ou `1`-`3`): **Jobs** (status e comando dos jobs `--detach`), 
 (LB, UB, gap, chamadas e fila de cada instância; `s` interrompe só aquela) e **Logs** (saídas
 de jobs, `solver.log`, `progress.jsonl`, do mais recente ao mais antigo). `Enter` abre o log da
 linha, acompanhando o final (`↑↓`/`PgUp`/`PgDn` rolam, `f` volta a acompanhar, `q` volta);
-`s` interrompe o job ou a instância (com confirmação), `K` mata um job, `r` atualiza, `q` sai.
+`c` escolhe os casos a mostrar em Instances (`131,558` ou `4-6`; vazio mostra todos); `s` interrompe o job ou a instância (com confirmação), `K` mata um job, `r` atualiza, `q` sai.
 
 Os mesmos dados ficam em `live.json` (no diretório da execução: a campanha
 TSPN, ou `results/EXECUÇÃO/`), reescrito de forma atômica a cada ~5 s. Ele não

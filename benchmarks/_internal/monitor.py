@@ -140,7 +140,7 @@ def print_overview(root: Path, cases: Sequence[int] = ()) -> None:
 
 # --- curses ------------------------------------------------------------------
 
-HELP = "Tab/1-3 switch  ↑↓ move  Enter log  s stop  K kill (jobs)  r refresh  q quit"
+HELP = "Tab/1-3 switch  ↑↓ move  Enter log  s stop  K kill (jobs)  c case filter  r refresh  q quit"
 
 
 def clip(window, y: int, text: str, attr: int = 0) -> None:
@@ -195,8 +195,42 @@ def confirm(screen, question: str) -> bool:
 	return screen.getch() in (ord("y"), ord("Y"))
 
 
+def ask(screen, prompt: str) -> str:
+	"""One line of text typed at the bottom of the screen (Esc cancels with an empty answer)."""
+	height, _ = screen.getmaxyx()
+	text = ""
+	screen.timeout(-1)
+	curses.curs_set(1)
+	try:
+		while True:
+			clip(screen, height - 1, " " * (screen.getmaxyx()[1] - 1))
+			clip(screen, height - 1, f" {prompt}{text}", curses.A_REVERSE)
+			screen.refresh()
+			key = screen.getch()
+			if key in (10, 13, curses.KEY_ENTER):
+				return text
+			if key == 27:
+				return ""
+			if key in (curses.KEY_BACKSPACE, 127, 8):
+				text = text[:-1]
+			elif 32 <= key < 127:
+				text += chr(key)
+	finally:
+		curses.curs_set(0)
+
+
+def parse_cases(text: str) -> list[int]:
+	"""'131, 558 4-6' -> [131, 558, 4, 5, 6]; raises ValueError on anything else."""
+	numbers: list[int] = []
+	for part in text.replace(",", " ").split():
+		low, _, high = part.partition("-")
+		numbers += range(int(low), int(high or low) + 1)
+	return numbers
+
+
 def run_screen(screen, root: Path, interval: float, cases: Sequence[int] = ()) -> None:
 	curses.curs_set(0)
+	cases = list(cases)
 	tab, selected, message = 0, [0, 0, 0], ""
 	data: dict[str, list[Row]] = {}
 	refreshed = 0.0
@@ -212,6 +246,8 @@ def run_screen(screen, root: Path, interval: float, cases: Sequence[int] = ()) -
 			f"[{label} {len(data[label])}]" if index == tab else f" {label} {len(data[label])} "
 			for index, label in enumerate(TABS)
 		)
+		if cases:
+			headline += f"   case filter: {','.join(str(number) for number in cases)}"
 		clip(screen, 0, " " + headline, curses.A_REVERSE)
 		page = max(1, height - 6)
 		start = min(max(0, selected[tab] - page // 2), max(0, len(rows) - page))
@@ -244,6 +280,12 @@ def run_screen(screen, root: Path, interval: float, cases: Sequence[int] = ()) -
 			selected[tab] = max(0, selected[tab] - 1)
 		elif key in (curses.KEY_DOWN, ord("j")):
 			selected[tab] += 1
+		elif key == ord("c"):
+			try:
+				cases = parse_cases(ask(screen, "Cases to show (e.g. 131,558 or 4-6; empty = all): "))
+				tab, refreshed = 1, 0.0
+			except ValueError:
+				message = "Not a list of case numbers."
 		elif key in (ord("r"),):
 			refreshed = 0.0
 		elif rows and key in (10, 13, curses.KEY_ENTER, ord("l")):

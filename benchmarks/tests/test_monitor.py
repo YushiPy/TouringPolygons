@@ -65,6 +65,12 @@ class MonitorDataTests(unittest.TestCase):
 			entries, _ = live_progress.read_status(root, cases=[3])
 			self.assertEqual(len(entries), 1)
 
+	def test_parse_cases(self):
+		self.assertEqual(monitor.parse_cases("131, 558 4-6"), [131, 558, 4, 5, 6])
+		self.assertEqual(monitor.parse_cases(""), [])
+		with self.assertRaises(ValueError):
+			monitor.parse_cases("abc")
+
 	def test_jobs_listed_with_status_and_stoppable(self):
 		with tempfile.TemporaryDirectory() as folder:
 			job = Path(folder) / "20260101-000000-demo"
