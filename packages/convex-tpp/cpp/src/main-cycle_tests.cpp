@@ -648,8 +648,35 @@ void cooperative_interruption() {
     require(tpp_convex_solve_cycle(p).status==ConvexCycleStatus::Optimal,"Cancellation context restored after return");
 }
 } // namespace
+// Points and segments are closed convex regions of the general cycle API.
+void degenerate_regions() {
+    auto solve=[](const Polygons &p,double expected,const std::string &name) {
+        const auto r=tpp::tpp_convex_solve_cycle(p);
+        require(solved(r),name+": status "+std::to_string(int(r.status))+" "+r.diagnostic);
+        const auto c=tpp::tpp_convex_verify_cycle_certificate(exact(p),r.contacts);
+        require(c.status==tpp::ConvexCycleCertificateStatus::Optimal,name+": independent certificate");
+        if(!std::isnan(expected))require(std::abs(r.certificate.upper_bound-expected)<=1e-12*(1+expected),name+": objective");
+        tpp::ConvexCycleDoubleOptions options;
+        const auto d=tpp::tpp_convex_solve_cycle_double(p,options);
+        require(d.status==ConvexCycleStatus::Optimal||d.status==ConvexCycleStatus::FloatingPointLimit,name+": double status");
+        const double value=std::isnan(expected)?r.certificate.upper_bound:expected;
+        require(d.certificate.lower_bound<=value+1e-9&&d.certificate.upper_bound>=value-1e-9,name+": double bounds");
+    };
+    solve({{{0,0},{4,0}},{{0,3},{4,3}}},6,"parallel segments");
+    solve({{{0,0},{4,0}},{{2,5}}},10,"segment and point");
+    solve({{{1,1}},{{4,5}}},10,"two points");
+    solve({{{0,0},{4,4}},{{0,4},{4,0}},box(1,1,3,3)},0,"crossing segments in a box");
+    solve({{{0,0},{4,0}},{{2,-1},{2,1}},{{2,0}}},0,"common point of segments and a point");
+    // A segment touching a box corner and a distant point: the shared corner
+    // is not common to all three regions (regression for the common-region
+    // clip, which treated the point and the segment's line as unbounded).
+    solve({box(5,-5,7,-3),{{6,-1},{7,-3}},{{-2,3}}},NAN,"touching segment and far point");
+    solve({{{0,0},{2,0}},{{5,0},{7,0}},{{3,2}}},std::sqrt(5.0)+3+std::sqrt(8.0),"collinear segments and a point");
+}
+
 int main() {
     try {
+        degenerate_regions();
         cooperative_interruption();
         bound_first_contacts();
         prepared_geometry_and_features();known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();active_contact_regressions();boundary_recovery_regressions();

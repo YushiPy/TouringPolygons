@@ -137,6 +137,8 @@ namespace tpp {
         // seven additional original vertices; only validated upper bounds.
         bool cycle_primal_starts = false;
         bool cycle_share_bounds = false;
+        // TSPN with a point region: solve the closed endpoint path through it.
+        bool cycle_point_anchor = true;
         // Diagnostic JSONL, including every in-flight cycle input; empty disables I/O.
         std::string oracle_capture_file;
 	};
@@ -256,6 +258,9 @@ namespace tpp {
 		size_t convex_pieces_min = std::numeric_limits<size_t>::max();
 		size_t convex_pieces_max = 0;
 		size_t polygon_vertices_total = 0;
+		// TSPN only: index of the point region the tour was anchored at (the
+		// cycle was solved as a closed endpoint path through it), or max.
+		size_t cycle_point_anchor = std::numeric_limits<size_t>::max();
 		size_t polygon_vertices_min = std::numeric_limits<size_t>::max();
 		size_t polygon_vertices_max = 0;
 		double order_space_log2 = 0.0;

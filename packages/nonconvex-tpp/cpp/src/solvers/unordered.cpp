@@ -241,6 +241,19 @@ namespace tpp {
 			if (exact.status!=ConvexCycleStatus::Optimal&&exact.status!=ConvexCycleStatus::CertifiedBound&&exact.status!=ConvexCycleStatus::Interrupted)
 				throw std::runtime_error("Exact cycle refinement failed: "+exact.diagnostic);
 			out.lower_bound=std::max(out.lower_bound,exact.certificate.lower_bound);
+			if(exact.status==ConvexCycleStatus::Optimal&&exact.contacts.size()==regions.size()) {
+				// Rounded double contacts can stay far from the optimum, notably on
+				// points and segments, which have no interior to round into. The
+				// exact optimum's rounded contacts are then a better path; like any
+				// relaxation path it is only used through the B&B's own visit checks.
+				Polygon rounded;rounded.reserve(regions.size()+1);
+				for(const auto &q:exact.contacts)rounded.push_back(q.external());
+				rounded.push_back(rounded.front());
+				const double length=path_length(rounded);
+				if(std::isfinite(length)&&(out.path.empty()||length<path_length(out.path))) {
+					out.path=std::move(rounded);out.upper_bound=std::max(length,out.lower_bound);
+				}
+			}
             out.time_limited=exact.status==ConvexCycleStatus::Interrupted;
             out.cycle_timings.certification_seconds+=exact.timings.certification_seconds;
             out.cycle_timings.rational_recovery_seconds+=exact.timings.construction_seconds+exact.timings.rational_recovery_seconds;
@@ -298,8 +311,8 @@ namespace tpp {
 				normalization_error += 2 * p.front().distance_to(p.back());
 				p.pop_back();
 			}
-			if (p.empty() || (cycle && p.size() < 3) || !std::all_of(p.begin(), p.end(), [](auto v) { return v.is_finite(); }))
-				throw std::invalid_argument("Expected finite points, segments or simple polygons (positive area for cycles).");
+			if (p.empty() || !std::all_of(p.begin(), p.end(), [](auto v) { return v.is_finite(); }))
+				throw std::invalid_argument("Expected finite points, segments or simple polygons.");
 			double area = 0;
 			for (size_t i = 0; i < p.size(); ++i) area += (p[i] - p[0]).cross(p[(i + 1) % p.size()] - p[0]);
 			if (p.size() >= 3 && area == 0) throw std::invalid_argument("Zero-area polygon.");
@@ -1743,7 +1756,7 @@ namespace tpp {
 			if (cycle) snapped.back()=snapped.front();
 			else {snapped.front() = start; snapped.back() = target;}
 			if (!std::all_of(input.begin(), input.end(), [&](const auto &polygon) {
-				if (polygon.empty() || (cycle && polygon.size() < 3)) throw std::invalid_argument("Expected nonempty regions (positive-area polygons for cycles).");
+				if (polygon.empty()) throw std::invalid_argument("Expected nonempty regions.");
 				return contact(snapped, polygon, options.feasibility_tolerance).distance <= options.feasibility_tolerance;
 			})) throw std::invalid_argument("Initial path does not visit every polygon.");
 		}
@@ -2116,6 +2129,48 @@ namespace tpp {
 	UnorderedTppSolveResult tpp_nonconvex_tspn_solve(const std::vector<Polygon> &polygons,
 		const UnorderedTppSolveOptions &options) {
 		if (!polygons.empty() && polygons.front().empty()) throw std::invalid_argument("Empty polygon.");
+		// A tour visits every point region, so it passes through the point.
+		// Rotated to start there it is a closed endpoint path p -> p through
+		// the other regions, of the same length, and every such path is a tour.
+		// The endpoint search, which also accepts points and segments, therefore
+		// solves these instances exactly; the others keep the positive-area
+		// cycle contract below.
+		std::optional<size_t> anchor;
+		for(size_t i=0;i<polygons.size()&&!anchor;++i)
+			if(!polygons[i].empty()&&polygons[i].front().is_finite()&&std::all_of(polygons[i].begin(),polygons[i].end(),
+				[&](Vector2 v){return v.x==polygons[i].front().x&&v.y==polygons[i].front().y;}))anchor=i;
+		if(anchor&&polygons.size()>=2&&options.cycle_point_anchor) {
+			const Vector2 point=polygons[*anchor].front();
+			std::vector<Polygon> rest;rest.reserve(polygons.size()-1);
+			for(size_t i=0;i<polygons.size();++i)if(i!=*anchor)rest.push_back(polygons[i]);
+			auto anchored=options;
+			if(options.initial_path) {
+				// Rotate the closed initial tour so that it starts and ends at the point.
+				const auto &tour=*options.initial_path;
+				if(tour.size()<2||tour.front().distance_to(tour.back())>options.feasibility_tolerance)
+					throw std::invalid_argument("Initial path needs finite points and matching endpoints.");
+				const Polygon single{point};
+				std::optional<size_t> through;
+				for(size_t i=0;i+1<tour.size()&&!through;++i)
+					if(contact(Polygon{tour[i],tour[i+1]},single,options.feasibility_tolerance).distance<=options.feasibility_tolerance)through=i;
+				if(!through)throw std::invalid_argument("Initial path does not visit every polygon.");
+				Polygon rotated{point};
+				for(size_t i=*through+1;i+1<tour.size();++i)rotated.push_back(tour[i]);
+				for(size_t i=0;i<=*through;++i)rotated.push_back(tour[i]);
+				rotated.push_back(point);
+				anchored.initial_path=std::move(rotated);
+			}
+			auto result=options.portfolio?solve_portfolio(point,point,rest,anchored,false)
+				:solve_unordered(point,point,rest,anchored,false);
+			auto remap=[&](std::vector<size_t> &indices) {
+				for(auto &j:indices)if(j<rest.size()&&j>=*anchor)++j;
+			};
+			remap(result.order);
+			result.order.insert(result.order.begin(),*anchor);
+			for(auto &event:result.trace){remap(event.sequence);remap(event.order);}
+			result.cycle_point_anchor=*anchor;
+			return result;
+		}
 		const Vector2 seed=polygons.empty()?Vector2{}:polygons.front().front();
 		return options.portfolio?solve_portfolio(seed,seed,polygons,options,true)
             :solve_unordered(seed,seed,polygons,options,true);

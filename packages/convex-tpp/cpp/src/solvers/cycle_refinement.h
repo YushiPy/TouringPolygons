@@ -156,8 +156,45 @@ template<class S> struct CycleRefinement {
         }
         return true;
     }
+    // Keeps the part of a closed convex region where normal.(x-a) >= 0.
+    static Polygon clip(Polygon region,const P &a,const P &normal) {
+        Polygon next;
+        for(size_t r=0;r<region.size();++r) {
+            const P u=region[r],v=region[(r+1)%region.size()];
+            const S su=normal.dot(u-a),sv=normal.dot(v-a);
+            if(su>=0 && (next.empty()||!(next.back()==u)))next.push_back(u);
+            if((su<0&&sv>0)||(su>0&&sv<0))next.push_back(u+(v-u)*(su/(su-sv)));
+        }
+        if(next.size()>1&&next.front()==next.back())next.pop_back();
+        return next;
+    }
+    // Intersection of two closed convex regions; p may also be a point or a
+    // segment, whose edge halfplanes alone would describe all or a whole line.
     static Polygon intersect(Polygon region,const Polygon &p) {
         cycle_checkpoint();
+        if(p.size()==1) {
+            if(region.empty())return region;
+            const P c=p.front();
+            Polygon point{c};
+            for(size_t j=0;j<region.size()&&region.size()>2;++j) {
+                const P a=region[j],e=region[(j+1)%region.size()]-a;
+                if(e.cross(c-a)<0)return {};
+            }
+            if(region.size()==1&&!(region.front()==c))return {};
+            if(region.size()==2) {
+                const P a=region[0],e=region[1]-a;
+                if(e.cross(c-a)!=0||e.dot(c-a)<0||e.dot(c-region[1])>0)return {};
+            }
+            return point;
+        }
+        if(p.size()==2) {
+            const P a=p[0],b=p[1],e=b-a,left{-e.y,e.x};
+            for(const auto &[origin,normal]:{std::pair{a,left},std::pair{a,P{e.y,-e.x}},std::pair{a,e},std::pair{b,P{-e.x,-e.y}}}) {
+                if(region.empty())break;
+                region=clip(std::move(region),origin,normal);
+            }
+            return region;
+        }
         for(size_t j=0;j<p.size()&&!region.empty();++j) {
             Polygon next;const P a=p[j],e=p[(j+1)%p.size()]-a;
             for(size_t r=0;r<region.size();++r) {

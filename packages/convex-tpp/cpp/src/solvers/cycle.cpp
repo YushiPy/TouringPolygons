@@ -210,6 +210,9 @@ ConvexCycleResult tpp_convex_solve_cycle_disjoint(const std::vector<std::vector<
 
 namespace {
 bool rational_inside(const Point &q,const ConvexRationalPolygon &p) {
+    // Points and segments have no area: their edge halfplanes alone accept
+    // the whole plane or a whole line.
+    if(p.size()<=2)return detail::CycleRefinement<R>::inside(q,p);
     for(std::size_t j=0;j<p.size();++j)
         if((p[(j+1)%p.size()]-p[j]).cross(q-p[j])<0)return false;
     return true;
@@ -415,6 +418,8 @@ void search_intersecting_boundaries(const std::vector<std::vector<ConvexArithmet
     for(size_t anchor=0;anchor<k;++anchor) {
         detail::cycle_checkpoint();
         anchor_index=anchor;
+        // A point region is its own only anchor, already evaluated above.
+        if(p[anchor].size()<2)continue;
         auto derivative=[&](const Polygon &q,const P &e) {
             size_t before=(anchor+k-1)%k,after=(anchor+1)%k;
             while(before!=anchor&&q[before]==q[anchor])before=(before+k-1)%k;
