@@ -135,9 +135,10 @@
 \begin{tikzpicture}[remember picture,overlay]
   \fill[white] (current page.south west) rectangle (current page.north east);
   \slidetitle{Solver melhorado: mediana de \hi 40,8$\times$ \ink mais rápido}
-  \node[anchor=north west,inner sep=0] at ([xshift=0.9cm,yshift=-2.55cm]current page.north west) {%
+  \node[anchor=north west,inner sep=0] at ([xshift=0.9cm,yshift=-2.5cm]current page.north west) {%
   \begin{tikzpicture}
-  \begin{axis}[ybar stacked,bar width=26pt,width=15.4cm,height=9.5cm,
+  % largura do eixo 13,2 cm / 4,2 unidades = 3,143 cm por unidade log10; cada bin (0,25) = 22,27 pt
+  \begin{axis}[ybar stacked,scale only axis,bar width=22.27pt,width=13.2cm,height=8.3cm,
       xlabel={Speedup = tempo de Fekete et al. / nosso tempo},ylabel={Instâncias},
       label style={font=\sffamily\sz{20}{22}},tick label style={font=\sffamily\sz{20}{22}},xlabel style={yshift=-6pt},
       xmin=-0.6,xmax=3.6,ymin=0,ymax=165,
