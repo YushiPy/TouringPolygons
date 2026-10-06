@@ -25,9 +25,8 @@
 \definecolor{Teal}{HTML}{1F7A73}
 \definecolor{MapDark}{HTML}{102C38}
 \definecolor{Route}{HTML}{FFAD66}
-\definecolor{Blue}{HTML}{2B5FA8}
-\definecolor{LetA}{HTML}{2B5FA8}\definecolor{LetB}{HTML}{1F7A73}\definecolor{LetC}{HTML}{5C9E31}
-\definecolor{RouA}{HTML}{E8B100}\definecolor{RouB}{HTML}{E26A12}\definecolor{RouC}{HTML}{B3261E}
+\definecolor{LetA}{HTML}{3C9F90}\definecolor{LetB}{HTML}{1F7A73}\definecolor{LetC}{HTML}{142D38}
+\definecolor{RouA}{HTML}{F59A4A}\definecolor{RouB}{HTML}{E27A33}\definecolor{RouC}{HTML}{C2501A}
 \newcommand{\rampbar}[3]{\begin{tikzpicture}\begin{scope}\clip[rounded corners=3pt] (0,0) rectangle (2.4,0.3);
   \foreach \k in {0,...,11}{\pgfmathsetmacro{\p}{\k*100/11}\fill[#2!\p!#1] (\k*0.1,0) rectangle (\k*0.1+0.11,0.3);\fill[#3!\p!#2] (1.2+\k*0.1,0) rectangle (1.2+\k*0.1+0.11,0.3);}
   \end{scope}\end{tikzpicture}}
@@ -92,7 +91,7 @@
     \draw[Muted,line width=3pt] ($(c)+(-0.55,0.55)$)--($(c)+(0.55,-0.55)$);
     \draw[Muted,line width=3pt] ($(a2)+(-0.55,-0.55)$)--($(a2)+(0.55,0.55)$);
     \draw[Muted,line width=3pt] ($(a2)+(-0.55,0.55)$)--($(a2)+(0.55,-0.55)$);
-    \node[anchor=north west,text width=10cm,inner sep=0] at (0,-7.0) {\sz{22}{26}\muted $L$: limite inferior · $U$: melhor rota viável\par\sz{20}{24}\muted Ilustrativo: ramos riscados são podados.};
+    \node[anchor=north west,text width=6.4cm,inner sep=0] at (4.3,-4.9) {\sz{22}{26}\muted $L$: limite inferior\par $U$: melhor rota viável\par\vspace{3pt}\sz{18}{21}Exemplo ilustrativo};
   \end{scope}
   % três passos
   \begin{scope}[shift={([xshift=12.6cm,yshift=-3.6cm]current page.north west)}]
@@ -130,7 +129,7 @@
     \addlegendentry{OSM: 306/312}
     \addplot[only marks,mark=square*,Accent,fill opacity=0.55,draw opacity=0.9] coordinates {\datarandom};
     \addlegendentry{Aleatórias: 148/160}
-    \addplot[only marks,mark=triangle*,Blue,mark size=3pt,fill opacity=0.55,draw opacity=0.9] coordinates {\datavoronoi};
+    \addplot[only marks,mark=triangle*,Ink,mark size=3pt,fill opacity=0.55,draw opacity=0.9] coordinates {\datavoronoi};
     \addlegendentry{Voronoi: 38/78}
   \end{loglogaxis}
   \end{tikzpicture}};

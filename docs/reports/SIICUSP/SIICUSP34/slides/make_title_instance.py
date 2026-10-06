@@ -129,8 +129,9 @@ def main():
     write_tex(pts, res["path"], start, (minx, miny, maxx, maxy), res["order"])
 
 
-LETTER_RAMP = ["2B5FA8", "1F7A73", "5C9E31"]          # first -> last visited region
-ROUTE_RAMP = ["E8B100", "E26A12", "B3261E"]           # start -> end of the route
+# Deck palette: one teal family for the letters, one orange family for the route.
+LETTER_RAMP = ["3C9F90", "1F7A73", "142D38"]          # first -> last visited region
+ROUTE_RAMP = ["F59A4A", "E27A33", "C2501A"]           # start -> end of the route
 
 
 def ramp(stops, t):
