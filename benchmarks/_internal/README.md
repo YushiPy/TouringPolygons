@@ -30,7 +30,8 @@ As famílias internas são:
   em `run_spec.FIELDS` e nos adaptadores `to_legacy`, não na interface;
 - suites: `generate_algorithm_suites.py`, `build_algorithm_suites.py` e os
   geradores canônicos de ordem livre;
-- execução e validação: `benchmark_cases.py`, `unordered_*` e `bench.py`;
+- execução e validação: `benchmark_cases.py`, `unordered_*`, `bench.py` e
+  `cpu_affinity.py` (fixação de cada solver em núcleos P próprios no Linux);
 - comparação externa: `tspn_run_comparison.py`, `tspn_oracle_backends.py` e
   `run_fekete.py`;
 

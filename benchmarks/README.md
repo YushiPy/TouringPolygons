@@ -390,6 +390,19 @@ baixados em `third_party/tspn-socg/.conan/release` para compilar nosso solver.
 verifica apenas o setup necessário para nosso solver, sem começar os casos.
 Falhas transitórias de download no setup do Fekete são repetidas até três vezes.
 
+No Linux, `free-order` e `free-compare` fixam cada thread de solver num núcleo
+físico próprio (`--cpu-affinity auto`, padrão; `off` desativa). Em CPUs híbridas
+da Intel (como o i9-12900K da dantzig) os núcleos de performance vêm de
+`/sys/devices/cpu_core/cpus`; cada processo fica preso aos dois hyperthreads do
+seu núcleo, e os núcleos P menos carregados são usados primeiro. Não é possível
+reservar núcleos contra outros usuários: o runner avisa no início se há menos
+núcleos P que `workers × threads` (e sugere `--workers`) ou se alguns já estão
+ocupados, avisa quando um caso precisa de um núcleo E, compartilhado ou ocupado,
+e grava em cada linha `cpu_affinity` (CPUs, se eram P e a carga alheia medida
+nelas durante o caso). O `summary.md` conta esses casos. Para ver a detecção e o
+plano sem rodar nada: `python3 benchmarks/_internal/cpu_affinity.py WORKERS
+[THREADS]`. No macOS a opção não tem efeito.
+
 Para apenas criar a campanha dos 558 casos (sem compilar nem rodar nada), por exemplo
 para usar `tpp.py free-order NOME --cases ...` diretamente, use
 `python3 benchmarks/tpp.py free-compare --campaign-only [--campaign NOME]`.
