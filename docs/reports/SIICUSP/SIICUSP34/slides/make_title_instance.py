@@ -162,11 +162,11 @@ def write_tex(pts, path, start, bounds, order):
             a = (x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n)
             b = (x0 + (x1 - x0) * (k + 1) / n, y0 + (y1 - y0) * (k + 1) / n)
             pieces.append((a, b, total)); total += math.dist(a, b)
-    out.append("\\draw[white,line width=3.4pt,line cap=round,line join=round] " + " ".join(
-        f"({a[0]:.4f},{a[1]:.4f})--({b[0]:.4f},{b[1]:.4f})" for a, b, _ in pieces) + ";")
+    out.append("\\begin{scope}[transparency group,opacity=0.7]")   # alpha applies to the route as a whole
     for a, b, t0 in pieces:
         c = ramp(ROUTE_RAMP, (t0 + math.dist(a, b) / 2) / total)
-        out.append(f"\\draw[color={rgb(c)},line width=1.9pt,line cap=round] ({a[0]:.4f},{a[1]:.4f})--({b[0]:.4f},{b[1]:.4f});")
+        out.append(f"\\draw[color={rgb(c)},line width=2.2pt,line cap=butt] ({a[0]:.4f},{a[1]:.4f})--({b[0]:.4f},{b[1]:.4f});")
+    out.append("\\end{scope}")
     out.append(f"\\fill[white,draw=Ink,line width=1.2pt] ({start[0]:.4f},{start[1]:.4f}) circle (0.045);")
     out.append("\\end{scope}")
     (HERE / "title-art.tex").write_text("\n".join(out) + "\n")

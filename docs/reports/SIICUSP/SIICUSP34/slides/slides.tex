@@ -26,6 +26,11 @@
 \definecolor{MapDark}{HTML}{102C38}
 \definecolor{Route}{HTML}{FFAD66}
 \definecolor{Blue}{HTML}{2B5FA8}
+\definecolor{LetA}{HTML}{2B5FA8}\definecolor{LetB}{HTML}{1F7A73}\definecolor{LetC}{HTML}{5C9E31}
+\definecolor{RouA}{HTML}{E8B100}\definecolor{RouB}{HTML}{E26A12}\definecolor{RouC}{HTML}{B3261E}
+\newcommand{\rampbar}[3]{\begin{tikzpicture}\begin{scope}\clip[rounded corners=3pt] (0,0) rectangle (2.4,0.3);
+  \foreach \k in {0,...,11}{\pgfmathsetmacro{\p}{\k*100/11}\fill[#2!\p!#1] (\k*0.1,0) rectangle (\k*0.1+0.11,0.3);\fill[#3!\p!#2] (1.2+\k*0.1,0) rectangle (1.2+\k*0.1+0.11,0.3);}
+  \end{scope}\end{tikzpicture}}
 % Tamanhos escritos em pt de um slide de 33,87 cm (padrão PowerPoint 16:9); a página
 % tem 25,4 cm, então escalamos por 0,75 para que a legibilidade equivalha ao guia do IME.
 \newcommand{\sz}[2]{\fontsize{\dimexpr0.75pt*#1\relax}{\dimexpr0.75pt*#2\relax}\selectfont}
@@ -54,7 +59,8 @@
     {\bfseries\sz{30}{34}\hi Qual é o menor caminho que toca as 52 letras do título?};
   \node[anchor=north west,inner sep=0,text width=17cm] at ([xshift=1.2cm,yshift=-11.55cm]current page.north west)
     {\sffamily\sz{24}{28}\bfseries\ink Gabriel Freire Ushijima\ \ {\mdseries\muted · Orientador: Ernesto G. Birgin}};
-  \node[anchor=south west,inner sep=0] at ([xshift=1.2cm,yshift=0.3cm]current page.south west) {\sffamily\sz{16}{19}\muted Letras: azul (1ª visita) → verde (última) · rota: amarelo (início) → vermelho (fim) · ótimo certificado};
+  \node[anchor=south west,inner sep=0] at ([xshift=1.2cm,yshift=0.3cm]current page.south west) {\sffamily\sz{20}{24}\muted\rampbar{LetA}{LetB}{LetC}\ \ Letras: 1ª → última visita};
+  \node[anchor=south west,inner sep=0] at ([xshift=10.4cm,yshift=0.3cm]current page.south west) {\sffamily\sz{20}{24}\muted\rampbar{RouA}{RouB}{RouC}\ \ Rota: início → fim};
   \node[anchor=south east,inner sep=0] at ([xshift=-1.0cm,yshift=0.25cm]current page.south east) {\includegraphics[height=0.85cm]{../poster/figures/fapesp-logo.png}};
 \end{tikzpicture}
 \newpage
