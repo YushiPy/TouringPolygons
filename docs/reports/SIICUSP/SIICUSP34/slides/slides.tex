@@ -161,28 +161,29 @@
 \end{tikzpicture}
 \newpage
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 5. QR
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 5. Convite ao pôster e ao app
 \begin{tikzpicture}[remember picture,overlay]
   \fill[white] (current page.south west) rectangle (current page.north east);
-  \slidetitle{Explore você mesmo}
-  \node[anchor=north west,inner sep=0,text width=13.6cm] at ([xshift=1.2cm,yshift=-2.8cm]current page.north west) {%
-    \sz{26}{32}\ink\textbf{Resolva} desafios interativos\par\vspace{0.2cm}
-    \sz{26}{32}\ink\textbf{Investigue} os 558 casos\par\vspace{0.2cm}
-    \sz{26}{32}\ink\textbf{Entenda} a busca, passo a passo\par\vspace{0.7cm}
-    \bfseries\sz{24}{28}\ink Limitações\par\vspace{2pt}\mdseries\sz{22}{26}\muted Pior caso exponencial; regiões são alvos, não obstáculos.\par\vspace{0.3cm}
-    \bfseries\sz{24}{28}\ink Próximo passo\par\vspace{2pt}\mdseries\sz{22}{26}\muted Roteirização de veículos com vizinhanças poligonais.};
-  \node[anchor=north east,inner sep=0] (qr) at ([xshift=-1.6cm,yshift=-2.5cm]current page.north east) {\qrcode[level=H,height=8.4cm]{\appurl}};
+  \slidetitle{Venha ver o pôster}
+  \node[anchor=north west,inner sep=0,text width=13.6cm] at ([xshift=1.2cm,yshift=-3.0cm]current page.north west) {%
+    \foreach \n/\q in {1/{Por que um solver geométrico exato supera um solver genérico?},
+                       2/{Em quais tipos de instância vencemos menos?},
+                       3/{Como a busca evita testar $10^{117}$ combinações?}} {%
+      \parbox[t]{1.1cm}{\bfseries\sz{34}{38}\hi\n}\parbox[t]{12.3cm}{\sz{26}{31}\ink\q}\par\vspace{0.7cm}}};
+  \node[anchor=north,inner sep=0,text width=8.4cm,align=center] at ([xshift=-5.4cm,yshift=-2.55cm]current page.north east)
+    {\sffamily\bfseries\sz{22}{26}\ink Para ir além, no app:\par\mdseries\sz{20}{24}\muted centenas de instâncias e a simulação passo a passo da busca};
+  \node[anchor=north,inner sep=0] (qr) at ([xshift=-5.4cm,yshift=-4.7cm]current page.north east) {\qrcode[level=H,height=6.8cm]{\appurl}};
   % marca do app sobre o centro do QR (nível H de correção), como no pôster
   \begin{scope}[shift={(qr.center)}]
-    \fill[white,rounded corners=2pt] (-1.38,-1.38) rectangle (1.38,1.38);
-    \begin{scope}[shift={(-1.25,-1.25)},scale=0.0390625]
+    \fill[white,rounded corners=2pt] (-1.12,-1.12) rectangle (1.12,1.12);
+    \begin{scope}[shift={(-1.0,-1.0)},scale=0.03125]
       \fill[Ink,rounded corners=2.5] (0,0) rectangle (64,64);
       \draw[Teal!60!white,line width=4.4pt,line join=round] (32,54) -- (53,14) -- (11,14) -- cycle;
       \draw[Route,line width=3.85pt,line cap=round] (10,28) -- (54,35);
       \fill[white] (10,28) circle[radius=4]; \fill[white] (54,35) circle[radius=4];
     \end{scope}
   \end{scope}
-  \node[anchor=north,inner sep=0,text width=8.6cm,align=center] at ([yshift=-0.1cm]qr.south) {\vspace{0.15cm}\sffamily\bfseries\sz{18}{21}\hi yushipy.github.io/TouringPolygons/\\apps/siicusp34/};
+  \node[anchor=north,inner sep=0,text width=8.6cm,align=center] at ([yshift=-0.1cm]qr.south) {\vspace{0.1cm}\sffamily\bfseries\sz{18}{21}\hi yushipy.github.io/TouringPolygons/\\apps/siicusp34/};
   \footerbar{5}
 \end{tikzpicture}
 \end{document}

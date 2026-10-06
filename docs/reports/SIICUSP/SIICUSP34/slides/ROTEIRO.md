@@ -23,9 +23,10 @@ mais rápidos em 492 de 550. Depois da submissão melhorei o solver: agora a med
 contra 550. O histograma mostra o speedup de cada instância em escala logarítmica: nenhuma fica à esquerda de 1×.
 Mesma tolerância de 0,1 % nos dois, sem limite de tempo, uma thread.
 
-**Slide 5 (~15 s).** Limitações: o pior caso continua exponencial e as regiões são
-alvos, não obstáculos. Próximo passo: roteirização de veículos. Escaneiem o QR code
-para resolver desafios e investigar os 558 casos.
+**Slide 5 (~15 s).** Se ficou curioso, venha ver o pôster: lá explico por que um
+solver geométrico exato supera um solver genérico, em quais tipos de instância
+vencemos menos e como a busca evita testar 10^117 combinações. E, para ir além,
+o QR code leva ao app, com centenas de instâncias e a simulação passo a passo.
 
 ## Perguntas prováveis
 - *Por que os números mudaram desde o pôster?* Melhorei o solver depois de enviar o pôster. A campanha nova rodou na dantzig (i9-12900K), sem limite de tempo; o pôster usava a campanha anterior, com teto de 6 h. Os dois resultados estão preservados em `benchmarks/results-saved`.

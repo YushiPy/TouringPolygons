@@ -11,7 +11,7 @@ pouco texto, uma figura grande por slide, fundo claro, tamanhos equivalentes a
 | 2 | O problema: dados (s, t, P₁…Pₖ) e objetivo, com a instância da USP e a rota ótima |
 | 3 | Método: árvore de busca com limite inferior (solver convexo), ramificar e podar |
 | 4 | Resultados atualizados (dantzig, 2026-10-06): histograma log do speedup (Fekete/nosso) nos 550 casos comuns, por tipo de instância, com os números do pôster ao lado |
-| 5 | Chamada para o QR code (com a marca do app), limitações e próximo passo |
+| 5 | Convite ao pôster (três perguntas que ele responde) e QR code do app (com a marca do app) |
 
 São cinco slides (o plano de trabalho previa quatro); a capa, o slide 2 e o slide 5 são curtos.
 O roteiro cronometrável está em [`ROTEIRO.md`](ROTEIRO.md).
