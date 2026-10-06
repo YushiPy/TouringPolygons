@@ -33,6 +33,27 @@ def rss_bytes(pid: int) -> int | None:
 		return None
 
 
+def descendants(pid: int) -> list[int]:
+	"""Every process below ``pid``, whatever its process group or session (solver workers start their own)."""
+	try:
+		table = subprocess.run(["ps", "-A", "-o", "pid=,ppid="], capture_output=True, text=True, timeout=10).stdout
+	except (OSError, subprocess.SubprocessError):
+		return []
+	children: dict[int, list[int]] = {}
+	for line in table.splitlines():
+		try:
+			child, parent = (int(value) for value in line.split())
+		except ValueError:
+			continue
+		children.setdefault(parent, []).append(child)
+	found, pending = [], [pid]
+	while pending:
+		for child in children.get(pending.pop(), []):
+			found.append(child)
+			pending.append(child)
+	return found
+
+
 class MemoryGuard:
 	"""Polls one process; above ``limit_bytes`` it sends ``stop_signal`` to the process group once."""
 

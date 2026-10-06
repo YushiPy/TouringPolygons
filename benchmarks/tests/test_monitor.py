@@ -83,5 +83,31 @@ class MonitorDataTests(unittest.TestCase):
 				self.assertIn("not running", monitor.stop_row(rows[0]))
 
 
+class KillTests(unittest.TestCase):
+	def test_force_stop_kills_workers_in_their_own_session(self):
+		import subprocess
+		import sys
+
+		import process_guard
+
+		worker_code = "import subprocess,sys,time;subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)'],start_new_session=True);time.sleep(60)"
+		parent = subprocess.Popen([sys.executable, "-c", worker_code], process_group=0)
+		try:
+			time.sleep(1.0)
+			below = process_guard.descendants(parent.pid)
+			self.assertEqual(len(below), 1)
+			with tempfile.TemporaryDirectory() as folder:
+				job = Path(folder) / "j"
+				job.mkdir()
+				jobs._write(job, {"id": "j", "child_pid": parent.pid, "supervisor_pid": os.getpid(), "exit_code": None})
+				self.assertIn("SIGKILL", jobs.request_stop(job, force=True))
+			parent.wait(timeout=5)
+			time.sleep(0.5)
+			with self.assertRaises(ProcessLookupError):
+				os.kill(below[0], 0)
+		finally:
+			parent.kill()
+
+
 if __name__ == "__main__":
 	unittest.main()

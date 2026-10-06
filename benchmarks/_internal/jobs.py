@@ -19,6 +19,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
+import process_guard
 import workspace
 
 CLI = workspace.ROOT / "benchmarks/tpp.py"
@@ -185,7 +186,15 @@ def request_stop(job: Path, force: bool = False) -> str:
 	if status(data) != "running" or not _alive(pid):
 		return f"Job is not running ({status(data)})."
 	sent = signal.SIGKILL if force else signal.SIGINT
+	# Solver workers run in their own session, so the group signal does not reach them;
+	# a kill must also take every descendant, or they keep running as orphans.
+	workers = process_guard.descendants(pid) if force else []
 	os.killpg(pid, sent)
+	for worker in workers:
+		try:
+			os.kill(worker, sent)
+		except OSError:
+			pass
 	message = f"Sent {sent.name} to {data['id']} (pid {pid})."
 	if not force:
 		message += "\nThe runner checkpoints and exits; use --force if it does not stop."
