@@ -6,6 +6,9 @@
 #else
 #include <boost/multiprecision/cpp_int.hpp>
 #endif
+#include <bit>
+#include <cmath>
+#include <cstdint>
 #include <utility>
 #include <type_traits>
 #include <vector>
@@ -18,6 +21,32 @@ using ConvexRational = boost::multiprecision::mpq_rational;
 using ConvexInteger = boost::multiprecision::cpp_int;
 using ConvexRational = boost::multiprecision::cpp_rational;
 #endif
+
+// Round to the nearest double, ties to even: the value Boost's convert_to
+// returns. mpq_get_d truncates toward zero; in the normal range the result is
+// that value or its neighbour away from zero, chosen by an exact comparison
+// with their midpoint. Thread-local scratch rationals keep their storage.
+inline double convex_nearest_double(const ConvexRational &q) {
+#ifdef TPP_USE_GMP_RATIONAL
+    const double toward=mpq_get_d(q.backend().data());
+    if(std::isnormal(toward)) {
+        const double away=std::nextafter(toward,toward>0?INFINITY:-INFINITY);
+        if(std::isfinite(away)) {
+            thread_local ConvexRational midpoint,other;
+            midpoint=toward;
+            if(q==midpoint)return toward;
+            other=away;
+            mpq_add(midpoint.backend().data(),midpoint.backend().data(),other.backend().data());
+            mpq_div_2exp(midpoint.backend().data(),midpoint.backend().data(),1);
+            const int beyond=q.compare(midpoint)*(toward>0?1:-1);
+            if(beyond<0)return toward;
+            if(beyond>0)return away;
+            return std::bit_cast<std::uint64_t>(toward)&1?away:toward;
+        }
+    }
+#endif
+    return q.template convert_to<double>();
+}
 
 // Exact coordinates are part of the result, not rounded binary64 witnesses.
 template<class Scalar>
@@ -37,6 +66,7 @@ struct ConvexArithmeticPoint {
     // Presentation only: this conversion need not preserve boundary membership.
     Vector2 external() const {
         if constexpr (std::is_same_v<Scalar,double>) return {x,y};
+        else if constexpr (std::is_same_v<Scalar,ConvexRational>) return {convex_nearest_double(x),convex_nearest_double(y)};
         else return {x.template convert_to<double>(),y.template convert_to<double>()};
     }
 };

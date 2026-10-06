@@ -427,9 +427,12 @@ class DirectionalMaps {
     }
 
     void split_boundaries(bool include_previous_intersections) {
+        struct Split { Scalar parameter; Vertex::Definition definition; };
+        std::vector<Split> splits;  // reused across edges
         for(size_t i=0;i<maps.size();++i) {
         cycle_checkpoint();
             auto &map=maps[i];
+            map.vertices.reserve(map.original.size());
             if(map.original.size()==1) {
                 Vertex v; v.point=map.original.front(); v.definition.point=v.point;
                 map.vertices.push_back(std::move(v));
@@ -438,8 +441,8 @@ class DirectionalMaps {
             for(size_t j=0;j<map.original.size();++j) {
                 if(map.original.size()==2 && j==1)map.segment_end=map.vertices.size();
                 const Point a=map.original[j], edge=map.original[(j+1)%map.original.size()]-a;
-                struct Split { Scalar parameter; Vertex::Definition definition; };
-                std::vector<Split> splits{{Scalar(0),Vertex::Definition{.point=a}}};
+                splits.clear();
+                splits.push_back({Scalar(0),Vertex::Definition{.point=a}});
                 auto add=[&](const Scalar &t,Vertex::Definition definition) {
                     if(t>=0 && t<1) splits.push_back({t,std::move(definition)});
                 };
@@ -495,6 +498,9 @@ public:
         for(size_t i=0;i<polygons.size();++i) {
         cycle_checkpoint();
             auto &p=maps[i].original;
+            p.reserve(polygons[i].size());
+            maps[i].edge_bounds.reserve(polygons[i].size());
+            maps[i].membership_corners.reserve(polygons[i].size());
             for(auto v:polygons[i]) {
                 if constexpr(std::is_same_v<InputPoint,Vector2>)
                 if(!std::isfinite(v.x) || !std::isfinite(v.y))
