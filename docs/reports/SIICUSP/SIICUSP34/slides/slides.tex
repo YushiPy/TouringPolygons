@@ -25,12 +25,9 @@
 \definecolor{Rule}{HTML}{C5D3CF}
 \definecolor{Teal}{HTML}{1F7A73}
 \definecolor{MapDark}{HTML}{102C38}
-\definecolor{Route}{HTML}{FFAD66}
-\definecolor{LetA}{HTML}{3C9F90}\definecolor{LetB}{HTML}{1F7A73}\definecolor{LetC}{HTML}{142D38}
-\definecolor{RouA}{HTML}{F59A4A}\definecolor{RouB}{HTML}{E27A33}\definecolor{RouC}{HTML}{C2501A}
-\newcommand{\rampbar}[3]{\begin{tikzpicture}\begin{scope}\clip[rounded corners=3pt] (0,0) rectangle (2.4,0.3);
-  \foreach \k in {0,...,11}{\pgfmathsetmacro{\p}{\k*100/11}\fill[#2!\p!#1] (\k*0.1,0) rectangle (\k*0.1+0.11,0.3);\fill[#3!\p!#2] (1.2+\k*0.1,0) rectangle (1.2+\k*0.1+0.11,0.3);}
-  \end{scope}\end{tikzpicture}}
+\definecolor{Route}{HTML}{F59A4A}
+
+
 % Tamanhos escritos em pt de um slide de 33,87 cm (padrão PowerPoint 16:9); a página
 % tem 25,4 cm, então escalamos por 0,75 para que a legibilidade equivalha ao guia do IME.
 \newcommand{\sz}[2]{\fontsize{\dimexpr0.75pt*#1\relax}{\dimexpr0.75pt*#2\relax}\selectfont}
@@ -51,17 +48,13 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 1. Capa
 % O título é uma instância de TPP: cada letra é uma região; a rota é o caminho
 % mínimo que toca todas (make_title_instance.py).
-\newcommand{\legendgroup}[6]{\parbox{3.5cm}{\sffamily\bfseries\sz{22}{26}\ink #1\par\vspace{3pt}%
-  \resizebox{3.5cm}{!}{\rampbar{#2}{#3}{#4}}\par\vspace{2pt}\sffamily\mdseries\sz{20}{24}\muted\hbox to 3.5cm{#5\hfill #6}}}
 \begin{tikzpicture}[remember picture,overlay]
   \fill[white] (current page.south west) rectangle (current page.north east);
-  \node[anchor=north west,inner sep=0] at ([xshift=5.3cm,yshift=-0.9cm]current page.north west) {%
-    \begin{tikzpicture}[x=1.78cm,y=1.78cm]\input{title-art-body}\end{tikzpicture}};
-  \node[anchor=north west,inner sep=0] at ([xshift=1.0cm,yshift=-2.6cm]current page.north west) {\legendgroup{Regiões}{LetA}{LetB}{LetC}{1ª visita}{última}};
-  \node[anchor=north west,inner sep=0] at ([xshift=1.0cm,yshift=-4.9cm]current page.north west) {\legendgroup{Rota}{RouA}{RouB}{RouC}{início}{fim}};
-  \node[anchor=north west,inner sep=0,text width=22cm] at ([xshift=1.2cm,yshift=-9.6cm]current page.north west)
+  \node[anchor=north,inner sep=0] at ([yshift=-0.9cm]current page.north) {%
+    \begin{tikzpicture}[x=1.95cm,y=1.95cm]\input{title-art-body}\end{tikzpicture}};
+  \node[anchor=north west,inner sep=0,text width=22cm] at ([xshift=1.2cm,yshift=-10.2cm]current page.north west)
     {\bfseries\sz{32}{36}\hi Qual é o menor caminho que visita todas as regiões?};
-  \node[anchor=north west,inner sep=0,text width=14cm] at ([xshift=1.2cm,yshift=-11.3cm]current page.north west)
+  \node[anchor=north west,inner sep=0,text width=14cm] at ([xshift=1.2cm,yshift=-11.8cm]current page.north west)
     {\sffamily\bfseries\sz{26}{30}\ink Gabriel Freire Ushijima\par\vspace{2pt}\mdseries\sz{22}{26}\muted Orientador: Ernesto G. Birgin · IME-USP};
   \node[anchor=south east,inner sep=0,align=right] at ([xshift=-1.0cm,yshift=0.4cm]current page.south east) {\parbox{4.6cm}{\raggedleft\includegraphics[width=3.8cm]{../poster/figures/fapesp-logo.png}\par\vspace{3pt}\sffamily\sz{16}{19}\muted Processo 2025/13861-1}};
 \end{tikzpicture}
@@ -185,7 +178,7 @@
     \begin{scope}[shift={(-1.25,-1.25)},scale=0.0390625]
       \fill[Ink,rounded corners=2.5] (0,0) rectangle (64,64);
       \draw[Teal!60!white,line width=4.4pt,line join=round] (32,54) -- (53,14) -- (11,14) -- cycle;
-      \draw[RouA,line width=3.85pt,line cap=round] (10,28) -- (54,35);
+      \draw[Route,line width=3.85pt,line cap=round] (10,28) -- (54,35);
       \fill[white] (10,28) circle[radius=4]; \fill[white] (54,35) circle[radius=4];
     \end{scope}
   \end{scope}
