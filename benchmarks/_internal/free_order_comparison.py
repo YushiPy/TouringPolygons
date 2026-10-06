@@ -307,6 +307,8 @@ def build_parser() -> argparse.ArgumentParser:
 	parser.add_argument("--campaign-only", action="store_true",
 		help="only create (or check) the campaign for the pinned Fekete suite, with no build or run; "
 		"then use `tpp.py free-order NAME ...` yourself")
+	parser.add_argument("--cpu-affinity", choices=("auto", "p-cores", "off"), default="auto",
+		help="pin each solver thread to its own performance core on Linux, warning when that is not possible (default: auto)")
 	parser.add_argument("--force", action="store_true", help="start a new report instead of resuming/reusing one")
 	return parser
 
@@ -359,6 +361,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 		"--max-seconds", str(args.max_seconds), "--threads-per-instance", str(args.threads_per_instance),
 		"--workers", str(args.workers), "--absolute-gap", "0", "--relative-gap", format(EPS / (1.0 + EPS), ".17g"),
 		"--eps", str(EPS), "--feasibility-tolerance", "0.001", "--validation-tolerance", "1e-7",
+		"--cpu-affinity", args.cpu_affinity,
 	]
 	if run_ours:
 		command += ["--solver", "tpp-ours"]

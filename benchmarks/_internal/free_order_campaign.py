@@ -20,6 +20,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
 
+import cpu_affinity
 import native_build
 import run_layout
 from case_selection import describe_selection, parse_case_selection
@@ -404,6 +405,12 @@ def render_comparison_summary(report: dict, expected_cases: int) -> str:
 	if our_rows:
 		lines.extend(['', f"tpp-ours launched parallel oracle batches on {parallel_cases}/{len(our_rows)} completed instances "
 			f"({parallel_calls} calls in {parallel_batches} batches)."])
+	placed = [row['cpu_affinity'] for row in rows if isinstance(row.get('cpu_affinity'), dict)]
+	if placed:
+		off_p = sum(not item.get('performance') or bool(item.get('note')) for item in placed)
+		loaded = sum(item.get('other_load', 0) > cpu_affinity.BUSY_FRACTION for item in placed)
+		lines.extend(['', f"CPU pinning: {len(placed)} solver run(s) pinned to whole cores; {off_p} not on their own "
+			f"performance core, {loaded} with other load above {cpu_affinity.BUSY_FRACTION:.0%} of a CPU on their core."])
 	status = report.get('status', 'unknown')
 	lines.extend(['', f"Campaign status: {status.replace('_', ' ')}.", ''])
 	if report.get('selected_cases'):
@@ -474,6 +481,9 @@ def main(argv: list[str] | None = None) -> int:
 	parser.add_argument('--progress-interval', type=float, default=60.0,
 		help='Seconds between status lines (bounds, calls, queue) of each running tpp-ours instance, also kept in '
 			'results/RUN/live.json for `tpp.py live`; 0 disables.')
+	parser.add_argument('--cpu-affinity', choices=cpu_affinity.MODES, default='auto',
+		help='pin each solver thread to its own performance core on Linux and warn when that is not possible '
+		'(auto: when supported; off: let the OS schedule; default: auto)')
 	parser.add_argument('--no-build', action='store_true')
 	parser.add_argument('--force', action='store_true')
 	parser.add_argument('--dry-run', action='store_true')
@@ -709,6 +719,14 @@ def main(argv: list[str] | None = None) -> int:
 		report.pop('selected_cases', None)
 	live = LiveStatus(run / 'live.json' if args.progress_interval > 0 else None)
 	max_memory_bytes = int(args.max_memory_gb * 2**30) if args.max_memory_gb else None
+	cores = cpu_affinity.CorePool(args.workers, args.threads_per_instance, args.cpu_affinity)
+	attempt['cpu_affinity'] = cores.describe()
+
+	def started(key: str, lease):
+		def on_start(pid: int) -> None:
+			live.set_pid(key, pid)
+			cores.pin(pid, lease)
+		return on_start
 
 	def solve_unordered_case(index: int) -> dict:
 		case = cases[index]
@@ -731,11 +749,12 @@ def main(argv: list[str] | None = None) -> int:
 			report = live.reporter(key, f'free case {index + 1}/{len(cases)} tpp-ours', max_seconds=solver_time_limit,
 				max_calls=args.max_calls, target_gap=args.relative_gap)
 			memory_use: list[int] = []
+			lease = cores.acquire()
 			try:
 				row.update(run_unordered_solver(BINARY, (sx, sy), (tx, ty), case.polygons,
 					args.max_calls, solver_time_limit, arguments=arguments,
 					progress=report, progress_interval=args.progress_interval,
-					on_start=lambda pid: live.set_pid(key, pid),
+					on_start=started(key, lease),
 					max_memory_bytes=max_memory_bytes, on_memory_limit=memory_use.append))
 			except (RuntimeError, subprocess.TimeoutExpired) as error:
 				# The solver died (a signal, a crash): keep the last bounds it reported.
@@ -747,6 +766,8 @@ def main(argv: list[str] | None = None) -> int:
 				raise
 			finally:
 				live.finish(key)
+				if (placement := cores.release(lease)) is not None:
+					row['cpu_affinity'] = placement
 			if memory_use:
 				row['status'] = row['termination'] = 'memory_limit'
 				row['error'] = f'stopped above the memory limit ({args.max_memory_gb:g} GB)'
@@ -777,20 +798,25 @@ def main(argv: list[str] | None = None) -> int:
 		report = live.reporter(key, f'free case {index + 1}/{len(cases)} tpp-fekete',
 			max_seconds=None if args.max_seconds == -1 else float(args.max_seconds),
 			target_gap=args.eps / (1 + args.eps), stop_signal=signal.SIGTERM)
+		lease = cores.acquire()
+		placement = None
 		try:
 			payload = external_runner.run_case(
 				external_args, index, external_log_file, external_log_lock,
 				progress=report if args.progress_interval > 0 else None,
 				progress_interval=args.progress_interval,
-				on_start=lambda pid: live.set_pid(key, pid),
+				on_start=started(key, lease),
 				max_memory_bytes=max_memory_bytes)
 		finally:
 			live.finish(key)
+			placement = cores.release(lease)
 		if payload.get('error') == SHUTDOWN_BEFORE_START:
 			return {'solver': FEKETE, 'case': index, 'not_started': True}
 		external_row = external_runner.result_row(external_args, index, external_cases[index], {}, payload)
-		return {'solver': FEKETE, 'case': index, 'row': _tspn_report_row(external_row, cases),
-			'external_row': external_row}
+		row = _tspn_report_row(external_row, cases)
+		if placement is not None:
+			row['cpu_affinity'] = placement
+		return {'solver': FEKETE, 'case': index, 'row': row, 'external_row': external_row}
 
 	def dispatch_job(job: tuple[str, int]) -> dict:
 		solver, index = job

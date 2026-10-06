@@ -236,6 +236,18 @@ FIELDS: tuple[Field, ...] = (
 		},
 	),
 	Field(
+		"cpu_affinity",
+		"CPU pinning",
+		CHOICE,
+		{
+			FREE: Spec(
+				"auto",
+				("auto", "p-cores", "off"),
+				help="Pin each solver thread to its own performance core on Linux, warning when there are not enough idle ones.",
+			),
+		},
+	),
+	Field(
 		"progress_interval",
 		"Progress report (s)",
 		NUMBER,
@@ -900,6 +912,8 @@ def to_legacy(values: Mapping[str, object]) -> tuple[str, list[str]]:
 		_flag(arguments, "--workers", values["workers"])
 		_flag(arguments, "--progress-interval", values["progress_interval"])
 		_flag(arguments, "--max-memory-gb", values["max_memory"])
+		if values["cpu_affinity"] != "auto":
+			_flag(arguments, "--cpu-affinity", values["cpu_affinity"])
 		_flag(arguments, "--cases", values["cases"])
 		if values["max_instances"] != UNLIMITED:
 			_flag(arguments, "--max-instances", values["max_instances"])
