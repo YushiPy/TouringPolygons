@@ -21,6 +21,7 @@
 \definecolor{Muted}{HTML}{47616A}
 \definecolor{Accent}{HTML}{C2501A}
 \definecolor{Pale}{HTML}{EEF4F1}
+\definecolor{GoldText}{HTML}{9A6B12}
 \definecolor{Rule}{HTML}{C5D3CF}
 \definecolor{Teal}{HTML}{1F7A73}
 \definecolor{MapDark}{HTML}{102C38}
@@ -78,10 +79,10 @@
     {\sz{22}{27}\muted Visitar é tocar a borda ou atravessar. A ordem e os pontos de contato são escolha nossa.\par}};
   \node[anchor=north east,inner sep=0] at ([xshift=-1.1cm,yshift=-2.55cm]current page.north east) {%
     \begin{tikzpicture}[x=9.4cm,y=9.4cm]\fill[Pale,rounded corners=0.35cm] (-0.05,-0.05) rectangle (1.12,1.05);\input{usp-art-body}
-      \node[anchor=south east,inner sep=1pt,font=\sffamily\bfseries\sz{24}{28},text=Ink] (st) at (0.1,0.78) {$s=t$};\draw[Muted,line width=0.8pt] (st.south east)--(\uspsx,\uspsy);
+      \node[anchor=south west,inner sep=1pt,font=\sffamily\bfseries\sz{24}{28},text=Ink] (st) at (0.035,0.80) {$s=t$};\draw[Muted,line width=0.8pt] (st.south east)--(\uspsx,\uspsy);
     \end{tikzpicture}};
   \node[anchor=south west,inner sep=0,text width=11.5cm] at ([xshift=1.2cm,yshift=1.5cm]current page.south west)
-    {\sz{24}{28}\ink\textbf{Exemplo:} um drone no IME e 51 regiões da USP. Rota ótima: \textbf{4,97 km}.};
+    {\sz{24}{28}\ink\textbf{Exemplo:} um drone no {\bfseries\color{GoldText}IME} e 51 regiões da USP. Rota ótima: \textbf{4,97 km}.};
   \footerbar{2}
 \end{tikzpicture}
 \newpage
