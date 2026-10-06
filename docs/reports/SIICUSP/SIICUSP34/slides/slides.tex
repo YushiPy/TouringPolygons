@@ -143,21 +143,23 @@
       xmin=-0.6,xmax=3.6,ymin=0,ymax=165,
       xtick={0,1,2,3},xticklabels={$1\times$,$10\times$,$100\times$,$1000\times$},
       ytick={0,40,80,120,160},ymajorgrids=true,grid style={Rule,line width=0.5pt},axis line style={Ink},
-      legend style={at={(0.98,0.86)},anchor=north east,font=\sffamily\sz{20}{23},draw=Rule,fill=white,fill opacity=0.92,text opacity=1,legend cell align=left,row sep=1pt},
+      legend style={at={(0.98,0.74)},anchor=north east,font=\sffamily\sz{20}{23},draw=Rule,fill=white,fill opacity=0.92,text opacity=1,legend cell align=left,row sep=1pt},
       every axis plot/.append style={draw=white,line width=0.6pt}]
     \addplot[fill=Teal] coordinates {\histOSM};          \addlegendentry{OSM (313)}
     \addplot[fill=Accent] coordinates {\histrandom};     \addlegendentry{Aleatórias (159)}
     \addplot[fill=Ink] coordinates {\histvoronoi};       \addlegendentry{Voronoi (78)}
     \draw[Muted,dashed,line width=1.4pt] (axis cs:0,0) -- (axis cs:0,165);
     \draw[Accent,line width=2.2pt] (axis cs:\histmedian,0) -- (axis cs:\histmedian,148);
-    \node[anchor=south,font=\sffamily\bfseries\sz{20}{23},text=Accent,inner sep=2pt] at (axis cs:\histmedian,148) {mediana $40{,}8\times$};
+    \node[anchor=south east,font=\sffamily\bfseries\sz{20}{23},text=Accent,inner sep=2pt] at (axis cs:\histmedian,146) {mediana $40{,}8\times$};
+    \draw[Ink,dashed,line width=2.2pt] (axis cs:\histmean,0) -- (axis cs:\histmean,148);
+    \node[anchor=south west,font=\sffamily\bfseries\sz{20}{23},text=Ink,inner sep=2pt] at (axis cs:\histmean,146) {média $106{,}7\times$};
     \node[rotate=90,font=\sffamily\sz{18}{21},text=Muted,inner sep=0] at (axis cs:-0.3,62) {Fekete mais rápido: 0};
   \end{axis}
   \end{tikzpicture}};
   \node[anchor=north west,inner sep=0,text width=7.8cm] at ([xshift=16.6cm,yshift=-2.7cm]current page.north west)
     {{\bfseries\sz{50}{52}\hi 550/550}\par{\sz{22}{26}\ink\bfseries casos mais rápidos\par\mdseries\muted (pôster: 492/550)}\par\vspace{0.4cm}
      {\bfseries\sz{50}{52}\hi 558/558}\par{\sz{22}{26}\ink\bfseries ótimos certificados\par\mdseries\muted (Fekete et al.: 550/558)}\par\vspace{0.4cm}
-     {\bfseries\sz{50}{52}\hi 40,8$\times$}\par{\sz{22}{26}\ink\bfseries mediana do speedup\par\mdseries\muted (pôster: média 10,4$\times$, mediana 5,1$\times$)}};
+     {\bfseries\sz{50}{52}\hi 40,8$\times$}\par{\sz{22}{26}\ink\bfseries mediana do speedup\par\mdseries\muted (média: 106,7$\times$)\par\sz{18}{21}Pôster: mediana 5,1$\times$, média 10,4$\times$}};
   \node[anchor=south west,inner sep=0,text width=22.8cm] at ([xshift=1.2cm,yshift=1.3cm]current page.south west)
     {\sffamily\sz{16}{19}\muted Solver atualizado após o pôster. 550 casos fechados por ambos, uma thread, sem limite de tempo, gap relativo alvo de 0,1\,\% nos dois. Máquina: Intel i9-12900K.};
   \footerbar{4}
