@@ -56,10 +56,10 @@
   \fill[white] (current page.south west) rectangle (current page.north east);
   \node[anchor=north west,inner sep=0] at ([xshift=5.3cm,yshift=-0.9cm]current page.north west) {%
     \begin{tikzpicture}[x=1.78cm,y=1.78cm]\input{title-art-body}\end{tikzpicture}};
-  \node[anchor=north west,inner sep=0] at ([xshift=1.0cm,yshift=-2.6cm]current page.north west) {\legendgroup{Letras}{LetA}{LetB}{LetC}{1ª visita}{última}};
+  \node[anchor=north west,inner sep=0] at ([xshift=1.0cm,yshift=-2.6cm]current page.north west) {\legendgroup{Regiões}{LetA}{LetB}{LetC}{1ª visita}{última}};
   \node[anchor=north west,inner sep=0] at ([xshift=1.0cm,yshift=-4.9cm]current page.north west) {\legendgroup{Rota}{RouA}{RouB}{RouC}{início}{fim}};
   \node[anchor=north west,inner sep=0,text width=22cm] at ([xshift=1.2cm,yshift=-9.6cm]current page.north west)
-    {\bfseries\sz{32}{36}\hi Qual é o menor caminho que toca as 52 letras do título?};
+    {\bfseries\sz{32}{36}\hi Qual é o menor caminho que visita todas as regiões?};
   \node[anchor=north west,inner sep=0,text width=14cm] at ([xshift=1.2cm,yshift=-11.3cm]current page.north west)
     {\sffamily\bfseries\sz{26}{30}\ink Gabriel Freire Ushijima\par\vspace{2pt}\mdseries\sz{22}{26}\muted Orientador: Ernesto G. Birgin · IME-USP};
   \node[anchor=south east,inner sep=0,align=right] at ([xshift=-1.0cm,yshift=0.4cm]current page.south east) {\parbox{4.6cm}{\raggedleft\includegraphics[width=3.8cm]{../poster/figures/fapesp-logo.png}\par\vspace{3pt}\sffamily\sz{16}{19}\muted Processo 2025/13861-1}};
@@ -169,17 +169,25 @@
 \begin{tikzpicture}[remember picture,overlay]
   \fill[white] (current page.south west) rectangle (current page.north east);
   \slidetitle{Explore você mesmo}
-  \node[anchor=north west,inner sep=0,text width=14.6cm] at ([xshift=1.2cm,yshift=-2.8cm]current page.north west) {%
+  \node[anchor=north west,inner sep=0,text width=13.6cm] at ([xshift=1.2cm,yshift=-2.8cm]current page.north west) {%
     \sz{26}{32}\ink\textbf{Resolva} desafios interativos\par\vspace{0.2cm}
     \sz{26}{32}\ink\textbf{Investigue} os 558 casos\par\vspace{0.2cm}
     \sz{26}{32}\ink\textbf{Entenda} a busca, passo a passo\par\vspace{0.7cm}
     \bfseries\sz{24}{28}\ink Limitações\par\vspace{2pt}\mdseries\sz{22}{26}\muted Pior caso exponencial; regiões são alvos, não obstáculos.\par\vspace{0.3cm}
     \bfseries\sz{24}{28}\ink Próximo passo\par\vspace{2pt}\mdseries\sz{22}{26}\muted Roteirização de veículos com vizinhanças poligonais.};
-  \node[anchor=north east,inner sep=0] at ([xshift=-1.6cm,yshift=-2.7cm]current page.north east) {\qrcode[level=H,height=7.4cm]{\appurl}};
-  \node[anchor=north,inner sep=0,text width=7.6cm,align=center] at ([xshift=-5.3cm,yshift=-10.25cm]current page.north east) {\sffamily\bfseries\sz{18}{21}\hi yushipy.github.io/TouringPolygons/\\apps/siicusp34/};
-  \node[anchor=south west,inner sep=0,text width=14cm] at ([xshift=1.2cm,yshift=1.45cm]current page.south west)
-    {\sz{16}{19}\muted Gabriel Freire Ushijima · gabriel\_ushijima@usp.br\par Ernesto G. Birgin · egbirgin@ime.usp.br\par O autor declara não haver conflito de interesses.};
-  \node[anchor=south east,inner sep=0] at ([xshift=-1.2cm,yshift=1.45cm]current page.south east) {\includegraphics[height=1.15cm]{../poster/figures/fapesp-logo.png}};
+  \node[anchor=north east,inner sep=0] (qr) at ([xshift=-1.6cm,yshift=-2.5cm]current page.north east) {\qrcode[level=H,height=8.4cm]{\appurl}};
+  % marca do app sobre o centro do QR (nível H de correção), como no pôster
+  \begin{scope}[shift={(qr.center)}]
+    \fill[white,rounded corners=2pt] (-1.38,-1.38) rectangle (1.38,1.38);
+    \begin{scope}[shift={(-1.25,-1.25)},scale=0.0390625]
+      \fill[Ink,rounded corners=2.5] (0,0) rectangle (64,64);
+      \draw[Teal!60!white,line width=4.4pt,line join=round] (32,54) -- (53,14) -- (11,14) -- cycle;
+      \draw[RouA,line width=3.85pt,line cap=round] (10,28) -- (54,35);
+      \fill[white] (10,28) circle[radius=4]; \fill[white] (54,35) circle[radius=4];
+    \end{scope}
+  \end{scope}
+  \node[anchor=north,inner sep=0,text width=8.6cm,align=center] at ([yshift=-0.1cm]qr.south) {\vspace{0.15cm}\sffamily\bfseries\sz{18}{21}\hi yushipy.github.io/TouringPolygons/\\apps/siicusp34/};
+  \node[anchor=south west,inner sep=0] at ([xshift=1.2cm,yshift=1.5cm]current page.south west) {\parbox{5cm}{\includegraphics[height=1.15cm]{../poster/figures/fapesp-logo.png}\par\vspace{2pt}\sffamily\sz{16}{19}\muted Processo 2025/13861-1}};
   \footerbar{5}
 \end{tikzpicture}
 \end{document}
