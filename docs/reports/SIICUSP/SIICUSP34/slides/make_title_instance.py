@@ -1,7 +1,9 @@
 """Prototype: the paper title as a TPP instance (one region per glyph component).
 
-Glyph outlines come from Arial Bold; holes (a, e, o, g, P...) are joined to the
-outside by a thin slit so each region is a simple polygon, as the solver requires.
+Glyph outlines come from Arial Bold. The solver only sees each component's outer
+contour: a path touches a filled glyph exactly when it touches its outer contour
+(entering the hole means crossing the contour first), so counters (a, e, o, g, P...)
+cannot change the optimal route. The slide still draws the glyphs with their holes.
 Needs fontTools and shapely (any venv). Writes title-instance.json, title-art.tex.
 
     python3 make_title_instance.py --solver ../../../../../.build/unordered/tpp
@@ -54,29 +56,6 @@ def glyph_shape(font, name):
     return shape
 
 
-def slit_open(poly, width):
-    """Join every hole to the outside with a thin straight slit -> simple polygon."""
-    for hole in list(poly.interiors):
-        hp = Polygon(hole)
-        c = hp.representative_point()
-        best = None
-        minx, miny, maxx, maxy = poly.bounds
-        far = max(maxx - minx, maxy - miny) * 2
-        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            line = box(0, -width / 2, far, width / 2)
-            if dx == -1: line = affinity.rotate(line, 180, origin=(0, 0))
-            if dy == 1: line = affinity.rotate(line, 90, origin=(0, 0))
-            if dy == -1: line = affinity.rotate(line, -90, origin=(0, 0))
-            line = affinity.translate(line, c.x, c.y)
-            cut = poly.difference(line)
-            if isinstance(cut, Polygon) and not cut.interiors:
-                loss = poly.area - cut.area
-                if best is None or loss < best[0]: best = (loss, cut)
-        if best is None: raise ValueError("no slit works")
-        poly = best[1]
-    return poly
-
-
 def build():
     font = TTFont(FONT); cmap = font.getBestCmap(); hmtx = font["hmtx"]
     upm = font["head"].unitsPerEm
@@ -99,9 +78,8 @@ def build():
         y -= upm * 1.18
     polys = []
     for li, ch, part in comps:
-        if part.interiors: part = slit_open(part, upm * 0.022)
         part = part.simplify(upm * SIMPLIFY, preserve_topology=True)
-        if not part.is_valid or part.interiors: raise ValueError(f"bad glyph {ch}")
+        if not part.is_valid: raise ValueError(f"bad glyph {ch}")
         polys.append((li, ch, orient(part, 1.0)))
     return polys, upm
 
@@ -113,6 +91,7 @@ def main():
     polys, upm = build()
     s = 1 / upm * 1.0                       # 1 em = 1 unit
     pts = [[(x * s, y * s) for x, y in list(p.exterior.coords)[:-1]] for _, _, p in polys]
+    holes = [[[(x * s, y * s) for x, y in list(r.coords)[:-1]] for r in p.interiors] for _, _, p in polys]
     minx = min(x for p in pts for x, _ in p); maxx = max(x for p in pts for x, _ in p)
     miny = min(y for p in pts for _, y in p); maxy = max(y for p in pts for _, y in p)
     start = (minx - 0.45, (miny + maxy) / 2)
@@ -126,7 +105,7 @@ def main():
                "path": res["path"], "order": res["order"], "termination": res["termination"],
                "lower_bound": res["lower_bound"], "upper_bound": res["upper_bound"],
                "bounds": [minx, miny, maxx, maxy]}, open(HERE / "title-instance.json", "w"))
-    write_tex(pts, res["path"], start, (minx, miny, maxx, maxy), res["order"])
+    write_tex(pts, holes, res["path"], start, (minx, miny, maxx, maxy), res["order"])
 
 
 # Deck palette: one teal family for the letters, one orange family for the route.
@@ -145,7 +124,7 @@ def rgb(c):
     return "{rgb,255:red,%d;green,%d;blue,%d}" % c
 
 
-def write_tex(pts, path, start, bounds, order):
+def write_tex(pts, holes, path, start, bounds, order):
     """TikZ scope in em units: letters coloured by visit order, route by progress."""
     minx, miny, maxx, maxy = bounds
     rank = {region: k for k, region in enumerate(order)}
@@ -154,7 +133,9 @@ def write_tex(pts, path, start, bounds, order):
            "\\begin{scope}[shift={(%.4f,%.4f)}]" % (-start[0] + 0.02, -miny)]
     for i, p in enumerate(pts):
         c = ramp(LETTER_RAMP, rank[i] / max(len(order) - 1, 1))
-        out.append(f"\\fill[color={rgb(c)}] " + " -- ".join(f"({x:.4f},{y:.4f})" for x, y in p) + " -- cycle;")
+        rings = [p] + holes[i]
+        out.append(f"\\fill[color={rgb(c)},even odd rule] " + " ".join(
+            " -- ".join(f"({x:.4f},{y:.4f})" for x, y in r) + " -- cycle" for r in rings) + ";")
     # route: cut into short pieces, each coloured by the length travelled so far
     pieces, total = [], 0.0
     for (x0, y0), (x1, y1) in zip(path, path[1:]):
