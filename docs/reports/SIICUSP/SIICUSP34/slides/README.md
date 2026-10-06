@@ -1,0 +1,30 @@
+# Slides — 34º SIICUSP
+
+Quatro slides 16:9 para o pitch de 2 minutos, seguindo o
+[guia de slides do IME](https://www.ime.usp.br/~kon/guia-slides-ime.html):
+pouco texto, uma figura grande por slide, fundo claro, tamanhos equivalentes a
+≥ 24 pt em slide de 33,87 cm e financiamento FAPESP visível.
+
+| # | Tempo | Conteúdo |
+| --- | --- | --- |
+| 1 | ~20 s | Pergunta do drone + rota ótima da USP (51 regiões, 4,97 km) |
+| 2 | ~35 s | Árvore de busca: limite inferior pelo solver convexo, ramificar, podar |
+| 3 | ~40 s | Gráfico único: tempo nosso × Fekete et al. nos 550 casos comuns |
+| 4 | ~25 s | Matriz ordem fixa/livre × convexo/não convexo, limitações, próximo passo, QR |
+
+O roteiro cronometrável está em [`ROTEIRO.md`](ROTEIRO.md).
+
+## Compilar
+
+```sh
+python3 make_scatter_data.py   # só se a campanha de Fekete mudar
+mkdir -p /tmp/siicusp34-slides
+latexmk -xelatex -interaction=nonstopmode -halt-on-error \
+  -outdir=/tmp/siicusp34-slides slides.tex
+cp /tmp/siicusp34-slides/slides.pdf slides.pdf
+```
+
+Requer XeLaTeX, Arial e os pacotes `pgfplots`, `qrcode` e `adjustbox`.
+O mapa vem de `../poster/figures/usp-route-square.png`; os números vêm do pôster
+e de `benchmarks/results-saved/fekete-comparison`. `scatter-data.tex` é gerado
+por `make_scatter_data.py`.
