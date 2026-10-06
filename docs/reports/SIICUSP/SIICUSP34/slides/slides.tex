@@ -44,22 +44,17 @@
 \sffamily\raggedright\hyphenpenalty=10000\exhyphenpenalty=10000\tolerance=9999
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 1. Problema
+% O título é uma instância de TPP: cada letra é uma região; a rota é o caminho
+% mínimo que toca todas (make_title_instance.py).
 \begin{tikzpicture}[remember picture,overlay]
   \fill[white] (current page.south west) rectangle (current page.north east);
-  \node[anchor=north west,inner sep=0,text width=11.4cm] at ([xshift=1.2cm,yshift=-0.8cm]current page.north west)
-    {\bfseries\sz{44}{48}\ink Algoritmos Exatos Para o Problema de Visita de Polígonos};
-  \node[anchor=north west,inner sep=0,text width=11.4cm] at ([xshift=1.2cm,yshift=-5.6cm]current page.north west)
-    {\sz{30}{35}\ink Um drone sai do \textbf{IME} e precisa fotografar \textbf{51 regiões} da USP.\par\vspace{0.35cm}
-     {\bfseries\hi Qual é o menor caminho?}};
-  \node[anchor=north west,inner sep=0,text width=11.4cm] at ([xshift=1.2cm,yshift=-8.7cm]current page.north west)
-    {\sz{24}{29}\muted Basta \emph{tocar} cada região; a ordem das visitas também é nossa escolha.};
-  \node[anchor=north east,inner sep=0] (map) at ([xshift=-1.0cm,yshift=-0.75cm]current page.north east)
-    {\adjustbox{trim=0 {.085\height} 0 0,clip}{\includegraphics[width=12.4cm]{../poster/figures/usp-route-square.png}}};
-  \node[anchor=north east,inner sep=0.15cm,fill=MapDark,text=white] at (map.south east)
-    {\sffamily\bfseries\sz{22}{26}Rota ótima: 4,97 km};
-  \node[anchor=north west,inner sep=0,text width=10.5cm] at ([xshift=1.2cm,yshift=-11.0cm]current page.north west)
-    {\sffamily\sz{24}{28}\bfseries\ink Gabriel Freire Ushijima\par\mdseries\sz{20}{24}\muted Orientador: Ernesto G. Birgin};
-  \node[anchor=south west,inner sep=0] at ([xshift=1.2cm,yshift=0.3cm]current page.south west) {\sffamily\sz{16}{19}\muted IME-USP · 34º SIICUSP};
+  \node[anchor=north,inner sep=0] at ([yshift=-0.8cm]current page.north) {%
+    \begin{tikzpicture}[x=1.98cm,y=1.98cm]\input{title-art-body}\end{tikzpicture}};
+  \node[anchor=north west,inner sep=0,text width=21cm] at ([xshift=1.2cm,yshift=-10.15cm]current page.north west)
+    {\bfseries\sz{30}{34}\hi Qual é o menor caminho que toca as 52 letras do título?};
+  \node[anchor=north west,inner sep=0,text width=17cm] at ([xshift=1.2cm,yshift=-11.55cm]current page.north west)
+    {\sffamily\sz{24}{28}\bfseries\ink Gabriel Freire Ushijima\ \ {\mdseries\muted · Orientador: Ernesto G. Birgin}};
+  \node[anchor=south west,inner sep=0] at ([xshift=1.2cm,yshift=0.3cm]current page.south west) {\sffamily\sz{16}{19}\muted IME-USP · 34º SIICUSP · instância demonstrativa: rota ótima numericamente certificada};
   \node[anchor=south east,inner sep=0] at ([xshift=-1.0cm,yshift=0.25cm]current page.south east) {\includegraphics[height=0.85cm]{../poster/figures/fapesp-logo.png}};
 \end{tikzpicture}
 \newpage

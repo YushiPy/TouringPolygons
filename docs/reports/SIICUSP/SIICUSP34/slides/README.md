@@ -28,3 +28,19 @@ Requer XeLaTeX, Arial e os pacotes `pgfplots`, `qrcode` e `adjustbox`.
 O mapa vem de `../poster/figures/usp-route-square.png`; os números vêm do pôster
 e de `benchmarks/results-saved/fekete-comparison`. `scatter-data.tex` é gerado
 por `make_scatter_data.py`.
+
+## Título como instância (slide 1, protótipo)
+
+O título do slide 1 é uma instância de TPP: cada componente conexa de glifo
+(Arial Bold) é uma região e a rota laranja é o caminho mínimo de ordem livre que
+as toca, com `s = t` à esquerda. Buracos das letras são ligados ao exterior por
+uma fenda fina para manter polígonos simples. São 52 regiões e 1078 vértices;
+o solver (`.build/unordered/tpp`) certificou o ótimo (gap numérico ≤ 1e-7) em
+cerca de 1 minuto. É uma demonstração, não um resultado de desempenho.
+
+```sh
+# precisa de fontTools e shapely em qualquer venv
+python3 make_title_instance.py --solver ../../../../../.build/unordered/tpp
+# regenera title-instance.json e title-art.tex; title-art-body.tex é a
+# versão sem as duas primeiras linhas (\def) de title-art.tex
+```
