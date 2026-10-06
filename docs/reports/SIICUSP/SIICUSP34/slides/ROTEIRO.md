@@ -19,8 +19,8 @@ fixa; depois da submissão, estendemos para ordem livre.
 **Slide 4 (~35 s).** Comparamos com o algoritmo de Fekete e colaboradores, que usa
 Gurobi, nas 558 instâncias do artigo deles. No pôster a média era 10,4× e éramos
 mais rápidos em 492 de 550. Depois da submissão melhorei o solver: agora a mediana
-é 40,8×, somos mais rápidos nos 550 casos que ambos resolvem, e provamos 558 ótimos
-contra 550. O histograma mostra o speedup de cada instância em escala logarítmica: nenhuma fica à esquerda de 1×.
+é 40,8×, e somos mais rápidos nos 550 casos que ambos resolvem. Também provamos
+558 ótimos contra 550 (está na nota de rodapé). O histograma mostra o speedup de cada instância em escala logarítmica: nenhuma fica à esquerda de 1×.
 Mesma tolerância de 0,1 % nos dois, sem limite de tempo, uma thread.
 
 **Slide 5 (~15 s).** Se ficou curioso, venha ver o pôster: lá explico por que um
