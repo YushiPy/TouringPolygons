@@ -112,6 +112,16 @@ git submodule update --init --recursive
 
 python3 benchmarks/tpp.py setup
 
+# Eigen and Boost headers: without system packages (no root), fetch the pinned releases
+# (SHA-256 checked) into .cache/deps, where the build finds them.
+if [[ "$(uname -s)" != "Darwin" ]] \
+	&& { [[ ! -f /usr/include/eigen3/Eigen/Core && ! -f /usr/local/include/eigen3/Eigen/Core ]] \
+		|| [[ ! -f /usr/include/boost/multiprecision/cpp_bin_float.hpp && ! -f /usr/local/include/boost/multiprecision/cpp_bin_float.hpp ]]; }; then
+	echo
+	echo "==> Eigen/Boost headers (no system packages found; fetching pinned releases, no root needed)"
+	python3 benchmarks/tpp.py build --fetch-deps
+fi
+
 if (( web )); then
 	sync_python_app apps/benchmark-dashboard
 	sync_node_app apps/benchmark-dashboard

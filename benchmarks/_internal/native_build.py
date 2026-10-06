@@ -274,8 +274,13 @@ def ensure_tools(
 				print(f"Build: configuring {directory} "
 					f"({Path(wanted['toolchain']['CXX']).name}, C++{wanted['toolchain']['TPP_CXX_STANDARD']})", flush=True)
 			environment = os.environ | {key: wanted["toolchain"][key] for key in ("CC", "CXX")}
-			subprocess.run(["cmake", "-S", wanted["source"], "-B", str(directory), *wanted["arguments"]],
-				env=environment, check=True, stdout=output)
+			try:
+				subprocess.run(["cmake", "-S", wanted["source"], "-B", str(directory), *wanted["arguments"]],
+					env=environment, check=True, stdout=output)
+			except subprocess.CalledProcessError:
+				print("\nIf the error says Eigen or Boost was not found and you cannot install system packages "
+					"(no root needed for this): python3 benchmarks/tpp.py build --fetch-deps", file=sys.stderr)
+				raise
 			directory.mkdir(parents=True, exist_ok=True)
 			(directory / CONFIG_FILE).write_text(json.dumps(wanted, indent=2) + "\n")
 		subprocess.run(["cmake", "--build", str(directory), "--parallel", str(build_jobs()), "--target", *tools],
