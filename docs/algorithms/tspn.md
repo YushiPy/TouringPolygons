@@ -485,6 +485,19 @@ exponential; the convex oracle's operation/bit complexity is documented in
 [convex-cycle.md](convex-cycle.md). Cyclic dual screening reuses all unchanged
 supports and avoids solving children already excluded by their lower bound.
 
+## Evaluation on GTSP-derived instances with points and segments
+
+Paula's corpus (GTSP-Lib/MOM-Lib clusters turned into nonconvex polygons,
+points and segments; local, not redistributable) exposed four defects that the
+OSM/random/tessellation suite never reached: cycles rejected points and
+segments; the common-region clip and anchored membership treated a point or a
+segment as the whole plane or line; rounded double contacts on degenerate
+regions left a relaxation gap the search could not close; and a block of
+coincident contacts whose optimum is a crossing of two edges was unrepresentable
+by vertex/edge features, so the rational boundary bisection ran until its
+deadline. All are fixed, with regression tests that need no third-party data.
+Results and protocol: [`tspn-paula-cycle-2026-10-06`](../../benchmarks/results-saved/README.md#tspn-paula-cycle-2026-10-06).
+
 ## Use and validation
 
 ```cpp

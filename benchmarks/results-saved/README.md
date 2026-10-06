@@ -90,6 +90,37 @@ antes de medir, medida uma vez).
   multiplica os speedups históricos. Registro das tentativas:
   [`unordered-tpp-experiments.md`](../../docs/algorithms/unordered-tpp-experiments.md).
 
+## tspn-paula-cycle-2026-10-06
+
+TSPN de ciclo livre (sem depósito) nas 235 instâncias `npol <= 100` da coleção
+local da Paula (GTSP-Lib/MOM-Lib convertidas, polígonos não convexos, 66 com
+pontos e 40 só com segmentos além de polígonos), contra o Fekete et al. fixado
+e as referências do rascunho do paper (CPLEX MIQCP, 1 h, nas 87 com até 15
+polígonos; comprimento euclidiano do tour ótimo do GTSP, factível nas 235 e
+portanto limite superior). Protocolo TSPN mantido: 60 s, gap relativo 1e-6,
+uma thread, otimizações de ciclo `cache,features,root,interval`, Gurobi com
+tolerâncias apertadas; nosso solver e o Fekete em execuções separadas (às vezes
+simultâneas, um processo cada), macOS arm64 na bateria. Os dados e a campanha
+são locais (sem autorização de redistribuição).
+
+- **Antes**: o modo ciclo rejeitava pontos e segmentos (106/235 instâncias).
+- **Depois** (`paula-tspn-evaluation`): 235/235 tours válidos, **197** com gap
+  fechado; Fekete 213 válidos, **124** fechados. Nos 213 comuns: ambos 124, só
+  nós 59, só Fekete 0; tempo 7,0× menor (média geométrica; 0,57–344×).
+- CPLEX: nas 80 instâncias que ele provou ótimas, nosso valor difere no máximo
+  3,2e-5 (dentro da tolerância dele); nas 7 que ele deixou abertas após 1 h
+  (gaps 11–89%), provamos o ótimo em < 0,05 s.
+- Correções exigidas pelo corpus: pontos e segmentos no oráculo de ciclo;
+  âncora de ponto (45 vs 42 fechadas, 2,67× sem ela); contatos exatos da
+  recuperação como caminho (o gap de relaxação de `numerical_limit`); e pino
+  de canto da região comum (uma relaxação de 4 regiões passou de > 60 s a
+  6 ms; 10i400-206 e 10i45-18 de abertas a 0,57 s e 0,24 s).
+- Regressão SoCG (48 casos, 4 por estrato, 60 s): 47/47 fechados em ambos, 42
+  buscas idênticas, as 6 diferentes com menos chamadas; 1,09× geométrico.
+- Limitações: uma repetição; 38 instâncias abertas (42–100 polígonos, sobretudo
+  com pontos ou de 100 regiões), onde o Fekete também não fecha; os resultados
+  do ILS da Paula não estão no rascunho e não foram comparados.
+
 ## tpp-oracle-allocation-2026-10-06
 
 `main` (`7f4c8dd`) × branch `oracle-shared-vertex-speedup`; mesmo protocolo
