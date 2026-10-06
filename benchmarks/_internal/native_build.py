@@ -365,7 +365,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 	parser.add_argument("--list", action="store_true", help="list buildable tools")
 	parser.add_argument("--gurobi", action="store_true", help="build with the Gurobi baseline enabled")
 	parser.add_argument("--fetch-deps", action="store_true",
-		help="download pinned Eigen/Boost headers into .cache/deps when they are not installed")
+		help="download pinned Eigen/Boost headers into .cache/deps when they are not installed (then build only the tools you name)")
 	parser.add_argument("--doctor", action="store_true", help="check compilers and dependencies")
 	args = parser.parse_args(argv)
 	if args.list:
@@ -377,9 +377,23 @@ def main(argv: Sequence[str] | None = None) -> int:
 		return doctor()
 	if args.fetch_deps:
 		fetch_header_dependencies(list(HEADER_DEPENDENCIES))
-	tools = args.tools or ["tpp-unordered", "tpp-bnb-workload-benchmark"]
-	for path in ensure_tools(tools, gurobi=args.gurobi):
+		if not args.tools:
+			print("Headers ready; build with: python3 benchmarks/tpp.py build [TOOL...]")
+			return 0
+	if args.tools:
+		for path in ensure_tools(args.tools, gurobi=args.gurobi):
+			print(path)
+		return 0
+	# Default set: the free-order solver is required; the fixed-order benchmark uses <print>, which
+	# needs GCC 14 or newer, so on an older compiler it is skipped instead of failing the build.
+	for path in ensure_tools(["tpp-unordered"], gurobi=args.gurobi):
 		print(path)
+	try:
+		for path in ensure_tools(["tpp-bnb-workload-benchmark"], gurobi=args.gurobi):
+			print(path)
+	except subprocess.CalledProcessError:
+		print("\nSkipped tpp-bnb-workload-benchmark (the fixed-order benchmark): it did not compile with this "
+			"compiler, usually because <print> needs GCC 14+. Free-order and TSPN runs do not use it.", file=sys.stderr)
 	return 0
 
 
