@@ -12,6 +12,9 @@ from typing import Callable, Sequence
 
 from process_guard import MemoryGuard
 
+# The solver reads max_calls as an unsigned 64-bit number; -1 ("no limit") is sent as its largest value.
+UNLIMITED_CALLS = 2**64 - 1
+
 Point = Sequence[float]
 Polygon = Sequence[Point]
 
@@ -71,7 +74,8 @@ def encode_instance(
 	initial_path: Sequence[Point] | None = None,
 ) -> str:
 	seconds_text = "1e308" if math.isinf(max_seconds) else str(max_seconds)
-	lines = [' '.join(list(map(str, (*start, *target, len(polygons), max_calls))) + [seconds_text])]
+	calls = UNLIMITED_CALLS if max_calls < 0 else max_calls
+	lines = [' '.join(list(map(str, (*start, *target, len(polygons), calls))) + [seconds_text])]
 	lines.extend(f'{len(polygon)} ' + ' '.join(str(coordinate) for vertex in polygon for coordinate in vertex)
 		for polygon in polygons)
 	if initial_path is not None:

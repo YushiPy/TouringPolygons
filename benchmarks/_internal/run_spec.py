@@ -187,11 +187,20 @@ FIELDS: tuple[Field, ...] = (
 		"Oracle calls limit (per instance)",
 		INTEGER,
 		{
-			FIXED: Spec(DEFAULT_CALLS, help="Cap on convex-oracle calls per instance."),
-			FREE: Spec(DEFAULT_CALLS, help="Cap on convex-oracle calls per instance."),
+			FIXED: Spec(
+				DEFAULT_CALLS,
+				unlimited=True,
+				help="Cap on convex-oracle calls per instance; -1 means no limit.",
+			),
+			FREE: Spec(
+				DEFAULT_CALLS,
+				unlimited=True,
+				help="Cap on convex-oracle calls per instance; -1 means no limit.",
+			),
 			TSPN: Spec(
 				DEFAULT_CALLS,
-				help="Our solver's call budget; a non-default value requires solver tpp-ours.",
+				unlimited=True,
+				help="Our solver's call budget (-1: no limit); a non-default value requires solver tpp-ours.",
 			),
 		},
 	),

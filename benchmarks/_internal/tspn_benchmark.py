@@ -182,7 +182,7 @@ def main(argv=None):
     parser.add_argument('--repetitions',type=int)
     parser.add_argument('--seconds',type=int)
     parser.add_argument('--max-calls',type=int,default=10**8,
-        help='Native oracle call budget for fixed-work comparisons; a nondefault value requires --solver ours.')
+        help='Native oracle call budget for fixed-work comparisons (-1 means no limit); a nondefault value requires --solver ours.')
     parser.add_argument('--portfolio',action='store_true',
         help='Run the cooperative two-search portfolio (two total worker threads).')
     parser.add_argument('--portfolio-no-sharing',action='store_true',
@@ -225,7 +225,7 @@ def main(argv=None):
     if args.all and args.per_stratum is not None: parser.error('use either --all or --per-stratum')
     if args.search_strategy and (args.portfolio or args.portfolio_no_sharing):
         parser.error('--search-strategy cannot be combined with portfolio options')
-    if args.max_calls < 0: parser.error('--max-calls cannot be negative')
+    if args.max_calls < -1: parser.error('--max-calls must be -1 (no limit), 0 or positive')
     if not math.isfinite(args.progress_interval) or args.progress_interval < 0: parser.error('--progress-interval must be 0 or positive')
     if args.max_calls != 10**8 and args.solver != 'ours':
         parser.error('a nondefault --max-calls requires --solver ours; Fekete has no matching call budget')

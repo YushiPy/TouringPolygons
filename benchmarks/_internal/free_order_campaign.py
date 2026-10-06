@@ -440,7 +440,7 @@ def main(argv: list[str] | None = None) -> int:
 		metavar='{tpp-ours,tpp-fekete}',
 		help='Select tpp-ours and/or tpp-fekete; may be repeated (default: tpp-ours).')
 	parser.add_argument('--max-instances', type=int, default=5000)
-	parser.add_argument('--max-calls', type=int, default=1000000)
+	parser.add_argument('--max-calls', type=int, default=1000000, help='oracle-call cap per instance; -1 means no limit')
 	parser.add_argument('--max-seconds', type=float, default=30,
 		help='Maximum seconds per instance; -1 means unlimited.')
 	parser.add_argument('--threads-per-instance', type=int, default=1,
@@ -472,7 +472,7 @@ def main(argv: list[str] | None = None) -> int:
 	parser.add_argument('--force', action='store_true')
 	parser.add_argument('--dry-run', action='store_true')
 	args = parser.parse_args(argv)
-	if ((args.max_seconds != -1 and (not math.isfinite(args.max_seconds) or args.max_seconds <= 0)) or args.max_calls < 0
+	if ((args.max_seconds != -1 and (not math.isfinite(args.max_seconds) or args.max_seconds <= 0)) or args.max_calls < -1
 		or args.max_instances < 1 or args.threads_per_instance < 1 or args.workers < 1
 		or not math.isfinite(args.progress_interval) or args.progress_interval < 0
 		or (args.max_memory_gb is not None and not (math.isfinite(args.max_memory_gb) and args.max_memory_gb > 0))

@@ -199,7 +199,7 @@ class LiveStatus:
 				record["time_used"] = min(
 					1.0, record["elapsed_seconds"] / entry["max_seconds"]
 				)
-			if entry["max_calls"] and entry["max_calls"] < 10**15:
+			if entry["max_calls"] and 0 < entry["max_calls"] < 10**15:
 				record["calls_used"] = min(1.0, record["calls"] / entry["max_calls"])
 			record["reported_at"] = time.time()
 			entry["latest"] = record

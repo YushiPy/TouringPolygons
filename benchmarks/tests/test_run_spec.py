@@ -133,7 +133,7 @@ class ExpressionTests(unittest.TestCase):
 			(limit, "fixed-order", "0"),
 			(limit, "tspn", "-1"),
 			(calls, "tspn", "2.5"),
-			(calls, "tspn", "-1"),
+			(calls, "tspn", "-2"),
 			(workers, "tspn", "0"),
 			(gap, "tspn", "0"),
 			(gap, "tspn", "1 - 1"),
@@ -236,6 +236,24 @@ class InstanceLimitTests(unittest.TestCase):
 				self.assertEqual(run_spec.validate({**free, "max_instances": 500}), [])
 				self.assertTrue(run_spec.validate({**free, "max_instances": 501}))
 				self.assertEqual(run_spec.validate({**free, "max_instances": -1}), [])
+
+
+class UnlimitedCallsTests(unittest.TestCase):
+	def test_minus_one_means_no_call_limit_in_every_problem(self):
+		item = run_spec.BY_KEY["oracle_calls"]
+		for problem in ("fixed-order", "free-order", "tspn"):
+			self.assertEqual(run_spec.parse_value(item, problem, "-1"), -1)
+			with self.assertRaises(ValueError):
+				run_spec.parse_value(item, problem, "-2")
+		values = values_for("free-order", campaign="x", oracle_calls=-1)
+		self.assertEqual(run_spec.to_legacy(values)[1][run_spec.to_legacy(values)[1].index("--max-calls") + 1], "-1")
+		self.assertEqual(run_spec.validate(values_for("tspn", oracle_calls=-1, solver="tpp-ours")), [])
+
+	def test_the_solver_is_sent_its_largest_count_for_no_limit(self):
+		import unordered_runner
+
+		line = unordered_runner.encode_instance((0, 0), (1, 0), [[(0, 0), (1, 0), (0, 1)]], -1, 5).splitlines()[0]
+		self.assertEqual(line.split()[5], str(2**64 - 1))
 
 
 class CommandTests(unittest.TestCase):

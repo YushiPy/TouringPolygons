@@ -215,7 +215,7 @@ class App:
 		value = self.session.values.get(item.key)
 		if item.key == "problem":
 			return run_spec.PROBLEMS[value]
-		if item.key == "time_limit" and value == run_spec.UNLIMITED:
+		if item.key in ("time_limit", "oracle_calls") and value == run_spec.UNLIMITED:
 			return "unlimited"
 		if item.key == "campaign" and not value:
 			return "<choose a campaign>"

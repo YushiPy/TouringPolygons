@@ -122,6 +122,12 @@ def positive_integer(value: str) -> int:
 	return int(value)
 
 
+def calls_limit(value: str) -> int:
+	if value != "-1" and not re.fullmatch(r"[1-9][0-9]*", value):
+		raise argparse.ArgumentTypeError("must be -1 (no limit) or a positive integer")
+	return int(value)
+
+
 def campaign_name(value: str) -> str:
 	if not NAME_PATTERN.match(value) or value in {".", ".."}:
 		raise argparse.ArgumentTypeError(
@@ -207,9 +213,9 @@ def build_parser() -> argparse.ArgumentParser:
 	)
 	parser.add_argument(
 		"--max-calls",
-		type=positive_integer,
+		type=calls_limit,
 		default=DEFAULT_MAX_CALLS,
-		help="our solver's oracle-call budget; a non-default value requires --solver tpp-ours",
+		help="our solver's oracle-call budget (-1: no limit); a non-default value requires --solver tpp-ours",
 	)
 	parser.add_argument(
 		"--progress-interval",

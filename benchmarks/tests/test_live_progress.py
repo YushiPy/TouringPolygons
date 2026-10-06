@@ -133,6 +133,12 @@ class LiveStatusTests(unittest.TestCase):
 		callback(report())
 		status.finish("a")
 
+	def test_no_call_limit_is_never_reported_as_a_fraction_used(self):
+		status = live.LiveStatus(None, echo=lambda line: None)
+		callback = status.reporter("a", "x", max_calls=-1)
+		callback(report())
+		self.assertNotIn("calls_used", status.last("a"))
+
 	def test_snapshots_flag_silent_and_vanished_runs(self):
 		with tempfile.TemporaryDirectory() as directory:
 			root = Path(directory)

@@ -35,7 +35,9 @@ Há três problemas, executados pelos módulos já existentes:
 As opções comuns têm um único nome (`--time-limit`, `--oracle-calls`,
 `--threads`, `--workers`, `--repetitions`, `--resume/--no-resume`, `--dry-run`,
 etc.). Cada uma só vale para os problemas em que existe, e o padrão pode variar
-por problema (por exemplo, 60 s no TSPN, o protocolo da campanha). `bench --help`
+por problema (por exemplo, 60 s no TSPN, o protocolo da campanha). Os limites de
+tempo (`--time-limit`) e de chamadas ao oráculo (`--oracle-calls`) aceitam `-1` para
+"sem limite". `bench --help`
 lista tudo; ele é gerado do mesmo esquema (`_internal/run_spec.py`) que alimenta
 a interface, então a ajuda não diverge do comportamento. `--no-resume` reinicia:
 reexecuta (`--force`) em ordem fixa e livre e move a campanha TSPN para o lado.

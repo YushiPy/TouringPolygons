@@ -283,6 +283,12 @@ def time_limit(text: str) -> int:
 	return int(text)
 
 
+def calls_limit(text: str) -> int:
+	if text != "-1" and not re.fullmatch(r"[1-9][0-9]*", text):
+		raise argparse.ArgumentTypeError("must be -1 (no limit) or a positive integer")
+	return int(text)
+
+
 def build_parser() -> argparse.ArgumentParser:
 	parser = argparse.ArgumentParser(
 		prog="tpp.py free-compare",
@@ -296,7 +302,7 @@ def build_parser() -> argparse.ArgumentParser:
 		help="parallel compiler jobs (default: TPP_BUILD_JOBS or 8)")
 	parser.add_argument("--campaign", help="override the thread-count campaign name")
 	parser.add_argument("--max-seconds", type=time_limit, default=-1, help="per-instance limit; -1 means unlimited (default: -1)")
-	parser.add_argument("--max-calls", type=positive_integer, default=100_000_000, help="our solver's call limit")
+	parser.add_argument("--max-calls", type=calls_limit, default=100_000_000, help="our solver's call limit; -1 means no limit")
 	parser.add_argument("--setup-only", action="store_true", help="check the selected dependencies and builds, then exit")
 	parser.add_argument("--campaign-only", action="store_true",
 		help="only create (or check) the campaign for the pinned Fekete suite, with no build or run; "
