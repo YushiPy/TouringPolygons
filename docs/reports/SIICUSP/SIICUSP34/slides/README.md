@@ -5,14 +5,16 @@ Quatro slides 16:9 para o pitch de 2 minutos, seguindo o
 pouco texto, uma figura grande por slide, fundo claro, tamanhos equivalentes a
 ≥ 24 pt em slide de 33,87 cm e financiamento FAPESP visível.
 
-| # | Tempo | Conteúdo |
-| --- | --- | --- |
-| 1 | ~20 s | Pergunta do drone + rota ótima da USP (51 regiões, 4,97 km) |
-| 2 | ~35 s | Árvore de busca: limite inferior pelo solver convexo, ramificar, podar |
-| 3 | ~40 s | Gráfico único: tempo nosso × Fekete et al. nos 550 casos comuns |
-| 4 | ~25 s | Matriz ordem fixa/livre × convexo/não convexo, limitações, próximo passo, QR |
+| # | Conteúdo |
+| --- | --- |
+| 1 | Capa: título como instância de TPP (letras = regiões, rota ótima), pergunta, autor, orientador, FAPESP e processo |
+| 2 | O problema: dados (s, t, P₁…Pₖ) e objetivo, com a instância da USP e a rota ótima |
+| 3 | Método: árvore de busca com limite inferior (solver convexo), ramificar e podar |
+| 4 | Resultados: gráfico único, tempo nosso × Fekete et al. nos 550 casos comuns |
+| 5 | Chamada para o QR code, limitações, próximo passo e contatos |
 
-O roteiro cronometrável está em [`ROTEIRO.md`](ROTEIRO.md).
+São cinco slides (o plano de trabalho previa quatro); a capa, o slide 2 e o slide 5 são curtos.
+O roteiro ainda reflete a versão de quatro slides e precisa ser atualizado. O roteiro cronometrável está em [`ROTEIRO.md`](ROTEIRO.md).
 
 ## Compilar
 
@@ -46,3 +48,5 @@ python3 make_title_instance.py --solver ../../../../../.build/unordered/tpp
 # regenera title-instance.json e title-art.tex; title-art-body.tex é a
 # versão sem as duas primeiras linhas (\def) de title-art.tex
 ```
+
+`make_usp_art.py` redesenha a instância da USP (dados de `apps/siicusp34/data/usp-demo.js`, somente leitura) com a paleta do deck; `palette.py` guarda as rampas de cor.

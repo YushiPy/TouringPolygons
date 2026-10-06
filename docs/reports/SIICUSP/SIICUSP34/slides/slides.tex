@@ -40,37 +40,49 @@
 % Rodapé comum: financiamento e número do slide
 \newcommand{\footerbar}[1]{%
   \draw[Rule,line width=0.8pt] ([xshift=1.2cm,yshift=1.15cm]current page.south west) -- ([xshift=-1.2cm,yshift=1.15cm]current page.south east);
-  \node[anchor=south west,inner sep=0] at ([xshift=1.2cm,yshift=0.3cm]current page.south west) {\sffamily\sz{16}{19}\muted 34º SIICUSP · IME-USP · FAPESP, processo 2025/13861-1};
-  \node[anchor=south east,inner sep=0] at ([xshift=-1.2cm,yshift=0.3cm]current page.south east) {\sffamily\sz{16}{19}\muted #1\,/\,4};}
+  \node[anchor=south west,inner sep=0] at ([xshift=1.2cm,yshift=0.3cm]current page.south west) {\sffamily\sz{16}{19}\muted 34º SIICUSP · IME-USP};
+  \node[anchor=south east,inner sep=0] at ([xshift=-1.2cm,yshift=0.3cm]current page.south east) {\sffamily\sz{16}{19}\muted #1\,/\,5};}
 \newcommand{\slidetitle}[1]{%
   \node[anchor=north west,inner sep=0,text width=21.5cm] at ([xshift=1.2cm,yshift=-0.75cm]current page.north west) {\sffamily\bfseries\sz{36}{40}\ink #1};}
 \begin{document}
 \sffamily\raggedright\hyphenpenalty=10000\exhyphenpenalty=10000\tolerance=9999
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 1. Problema
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 1. Capa
 % O título é uma instância de TPP: cada letra é uma região; a rota é o caminho
 % mínimo que toca todas (make_title_instance.py).
 \newcommand{\legendgroup}[6]{\parbox{3.5cm}{\sffamily\bfseries\sz{22}{26}\ink #1\par\vspace{3pt}%
   \resizebox{3.5cm}{!}{\rampbar{#2}{#3}{#4}}\par\vspace{2pt}\sffamily\mdseries\sz{20}{24}\muted\hbox to 3.5cm{#5\hfill #6}}}
 \begin{tikzpicture}[remember picture,overlay]
   \fill[white] (current page.south west) rectangle (current page.north east);
-  \node[anchor=north west,inner sep=0] at ([xshift=4.9cm,yshift=-1.4cm]current page.north west) {%
-    \begin{tikzpicture}[x=1.3cm,y=1.3cm]\input{title-art-body}\end{tikzpicture}};
-  \node[anchor=north west,inner sep=0] at ([xshift=17.3cm,yshift=-1.3cm]current page.north west) {%
-    \begin{tikzpicture}[x=6.6cm,y=6.6cm]\input{usp-art-body}\end{tikzpicture}};
-  \node[anchor=north,inner sep=0] at ([xshift=10.9cm,yshift=-8.0cm]current page.north west) {\sffamily\sz{20}{24}\muted 52 letras do título};
-  \node[anchor=north,inner sep=0] at ([xshift=20.8cm,yshift=-8.0cm]current page.north west) {\sffamily\sz{20}{24}\muted 51 regiões da USP};
-  \node[anchor=north west,inner sep=0] at ([xshift=1.0cm,yshift=-3.1cm]current page.north west) {\legendgroup{Regiões}{LetA}{LetB}{LetC}{1ª visita}{última}};
-  \node[anchor=north west,inner sep=0] at ([xshift=1.0cm,yshift=-5.4cm]current page.north west) {\legendgroup{Rota}{RouA}{RouB}{RouC}{início}{fim}};
-  % pergunta e autores
-  \node[anchor=north west,inner sep=0,text width=22cm] at ([xshift=1.2cm,yshift=-9.1cm]current page.north west)
-    {\bfseries\sz{32}{36}\hi Qual é o menor caminho que toca todas as regiões?};
-  \node[anchor=north west,inner sep=0,text width=14cm] at ([xshift=1.2cm,yshift=-11.4cm]current page.north west)
+  \node[anchor=north west,inner sep=0] at ([xshift=5.3cm,yshift=-0.9cm]current page.north west) {%
+    \begin{tikzpicture}[x=1.78cm,y=1.78cm]\input{title-art-body}\end{tikzpicture}};
+  \node[anchor=north west,inner sep=0] at ([xshift=1.0cm,yshift=-2.6cm]current page.north west) {\legendgroup{Letras}{LetA}{LetB}{LetC}{1ª visita}{última}};
+  \node[anchor=north west,inner sep=0] at ([xshift=1.0cm,yshift=-4.9cm]current page.north west) {\legendgroup{Rota}{RouA}{RouB}{RouC}{início}{fim}};
+  \node[anchor=north west,inner sep=0,text width=22cm] at ([xshift=1.2cm,yshift=-9.6cm]current page.north west)
+    {\bfseries\sz{32}{36}\hi Qual é o menor caminho que toca as 52 letras do título?};
+  \node[anchor=north west,inner sep=0,text width=14cm] at ([xshift=1.2cm,yshift=-11.3cm]current page.north west)
     {\sffamily\bfseries\sz{26}{30}\ink Gabriel Freire Ushijima\par\vspace{2pt}\mdseries\sz{22}{26}\muted Orientador: Ernesto G. Birgin · IME-USP};
-  % logos
-  \node[anchor=south east,inner sep=0] at ([xshift=-1.0cm,yshift=0.45cm]current page.south east) {%
-    \includegraphics[width=2.5cm]{../poster/figures/usp-logo.png}\hspace{0.45cm}\includegraphics[height=1.3cm]{../poster/figures/ime-usp-vertical-logo.png}\hspace{0.45cm}\includegraphics[trim={33bp 56bp 33bp 79bp},clip,height=1.3cm]{../poster/figures/siicusp34-logo-pt.png}\hspace{0.45cm}\raisebox{0.25cm}{\includegraphics[width=2.6cm]{../poster/figures/fapesp-logo.png}}};
-  \node[anchor=south east,inner sep=0] at ([xshift=-1.0cm,yshift=-0.0cm]current page.south east) {\sffamily\sz{14}{16}\muted Processo FAPESP 2025/13861-1};
+  \node[anchor=south east,inner sep=0,align=right] at ([xshift=-1.0cm,yshift=0.4cm]current page.south east) {\parbox{4.6cm}{\raggedleft\includegraphics[width=3.8cm]{../poster/figures/fapesp-logo.png}\par\vspace{3pt}\sffamily\sz{16}{19}\muted Processo 2025/13861-1}};
+\end{tikzpicture}
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 2. O problema
+\begin{tikzpicture}[remember picture,overlay]
+  \fill[white] (current page.south west) rectangle (current page.north east);
+  \slidetitle{O Problema de Visita de Polígonos}
+  \node[anchor=north west,inner sep=0,text width=10.6cm] at ([xshift=1.2cm,yshift=-2.9cm]current page.north west) {%
+    {\bfseries\sz{28}{32}\hi Dados}\par\vspace{2pt}
+    {\sz{26}{31}\ink um ponto inicial $s$, um ponto final $t$ e polígonos $P_1,\dots,P_k$ no plano\par}\vspace{0.55cm}
+    {\bfseries\sz{28}{32}\hi Objetivo}\par\vspace{2pt}
+    {\sz{26}{31}\ink o caminho de $s$ a $t$ de \textbf{menor comprimento} que \textbf{toca} cada $P_i$\par}\vspace{0.55cm}
+    {\sz{22}{27}\muted Visitar é tocar a borda ou atravessar. A ordem e os pontos de contato são escolha nossa.\par}};
+  \node[anchor=north east,inner sep=0] at ([xshift=-1.1cm,yshift=-2.55cm]current page.north east) {%
+    \begin{tikzpicture}[x=9.4cm,y=9.4cm]\input{usp-art-body}
+      \node[anchor=south east,inner sep=1pt,font=\sffamily\bfseries\sz{24}{28},text=Ink] (st) at (0.1,0.78) {$s=t$};\draw[Muted,line width=0.8pt] (st.south east)--(\uspsx,\uspsy);
+    \end{tikzpicture}};
+  \node[anchor=south west,inner sep=0,text width=11.5cm] at ([xshift=1.2cm,yshift=1.5cm]current page.south west)
+    {\sz{24}{28}\ink\textbf{Exemplo:} um drone no IME e 51 regiões da USP. Rota ótima: \textbf{4,97 km}.};
+  \footerbar{2}
 \end{tikzpicture}
 \newpage
 
@@ -114,7 +126,7 @@
   \end{scope}
   \node[anchor=south west,inner sep=0.2cm,fill=Pale,text width=21.9cm] at ([xshift=1.2cm,yshift=1.3cm]current page.south west)
     {\sz{25}{29}\ink\bfseries Caso com 60 regiões: \hi$10^{117}$ combinações \ink\mdseries→ \bfseries 2,47 s\mdseries\ para provar o ótimo.};
-  \footerbar{2}
+  \footerbar{3}
 \end{tikzpicture}
 \newpage
 
@@ -149,34 +161,25 @@
      {\sz{22}{26}\ink Abaixo da diagonal, nosso solver é mais rápido. \textbf{Em Voronoi, Fekete et al. vence 40 de 78.}}};
   \node[anchor=south west,inner sep=0,text width=22.5cm] at ([xshift=1.2cm,yshift=1.3cm]current page.south west)
     {\sffamily\sz{16}{19}\muted 550 casos concluídos por ambos; corpus de Fekete et al.; uma thread; limite de 6\,h. Ótimo: gap relativo $10^{-7}$ (nosso) e $10^{-3}$ (Fekete).};
-  \footerbar{3}
+  \footerbar{4}
 \end{tikzpicture}
 \newpage
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 4. Conclusão
-\begin{tikzpicture}[remember picture,overlay,
-    cellh/.style={font=\sffamily\bfseries\sz{22}{25},text=Ink},
-    cell/.style={rectangle,draw=Rule,line width=1pt,minimum width=5.6cm,minimum height=3.0cm,align=center,inner sep=4pt,font=\sffamily\sz{22}{25},text=Ink}]
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 5. QR
+\begin{tikzpicture}[remember picture,overlay]
   \fill[white] (current page.south west) rectangle (current page.north east);
-  \slidetitle{Geometria exata guia a busca combinatória}
-  \begin{scope}[shift={([xshift=1.2cm,yshift=-3.5cm]current page.north west)}]
-    \node[cellh,anchor=south] at (4.2,0.05) {Convexos};
-    \node[cellh,anchor=south] at (9.9,0.05) {Não convexos};
-    \node[cellh,anchor=east,align=right] at (1.1,-1.5) {Ordem\\fixa};
-    \node[cellh,anchor=east,align=right] at (1.1,-4.5) {Ordem\\livre};
-    \node[cell,fill=Pale] at (4.2,-1.5) {Polinomial\\\muted\sz{20}{23}Dror et al.; Tan \& Jiang};
-    \node[cell,fill=Teal!14,draw=Teal] at (9.9,-1.5) {NP-difícil\\\bfseries B\&B\\\mdseries\muted\sz{20}{23}resumo submetido};
-    \node[cell,fill=Teal!14,draw=Teal] at (4.2,-4.5) {NP-difícil\\\bfseries B\&B};
-    \node[cell,fill=Teal!14,draw=Accent,line width=2.4pt] at (9.9,-4.5) {NP-difícil\\\bfseries B\&B\\\hi\sz{20}{23}\bfseries novo desde o resumo};
-  \end{scope}
-  \node[anchor=north west,inner sep=0,text width=8.4cm] at ([xshift=15.4cm,yshift=-3.3cm]current page.north west)
-    {\bfseries\sz{26}{30}\ink Limitações\par\vspace{2pt}\mdseries\sz{23}{27}\muted Pior caso exponencial. Regiões são alvos, não obstáculos.\par\vspace{0.45cm}
-     \bfseries\sz{26}{30}\ink Próximo passo\par\vspace{2pt}\mdseries\sz{23}{27}\muted Roteirização de veículos com vizinhanças poligonais.};
-  \node[anchor=north east,inner sep=0] (qr) at ([xshift=-1.2cm,yshift=-8.3cm]current page.north east) {\qrcode[level=H,height=3.6cm]{\appurl}};
-  \node[anchor=east,inner sep=0,text width=4.9cm,align=right] at ([xshift=-0.3cm]qr.west) {\bfseries\sz{26}{30}\hi Explore a USP e os 558 casos};
-  \node[anchor=south west,inner sep=0] at ([xshift=1.2cm,yshift=1.45cm]current page.south west) {\includegraphics[height=1.25cm]{../poster/figures/fapesp-logo.png}};
-  \node[anchor=south west,inner sep=0,text width=14cm] at ([xshift=9.2cm,yshift=1.45cm]current page.south west)
-    {\sz{18}{21}\muted Gabriel Freire Ushijima · gabriel\_ushijima@usp.br\par Ernesto G. Birgin · egbirgin@ime.usp.br\par O autor declara não haver conflito de interesses.};
-  \footerbar{4}
+  \slidetitle{Explore você mesmo}
+  \node[anchor=north west,inner sep=0,text width=14.6cm] at ([xshift=1.2cm,yshift=-2.8cm]current page.north west) {%
+    \sz{26}{32}\ink\textbf{Resolva} desafios interativos\par\vspace{0.2cm}
+    \sz{26}{32}\ink\textbf{Investigue} os 558 casos\par\vspace{0.2cm}
+    \sz{26}{32}\ink\textbf{Entenda} a busca, passo a passo\par\vspace{0.7cm}
+    \bfseries\sz{24}{28}\ink Limitações\par\vspace{2pt}\mdseries\sz{22}{26}\muted Pior caso exponencial; regiões são alvos, não obstáculos.\par\vspace{0.3cm}
+    \bfseries\sz{24}{28}\ink Próximo passo\par\vspace{2pt}\mdseries\sz{22}{26}\muted Roteirização de veículos com vizinhanças poligonais.};
+  \node[anchor=north east,inner sep=0] at ([xshift=-1.6cm,yshift=-2.7cm]current page.north east) {\qrcode[level=H,height=7.4cm]{\appurl}};
+  \node[anchor=north,inner sep=0,text width=7.6cm,align=center] at ([xshift=-5.3cm,yshift=-10.25cm]current page.north east) {\sffamily\bfseries\sz{18}{21}\hi yushipy.github.io/TouringPolygons/\\apps/siicusp34/};
+  \node[anchor=south west,inner sep=0,text width=14cm] at ([xshift=1.2cm,yshift=1.45cm]current page.south west)
+    {\sz{16}{19}\muted Gabriel Freire Ushijima · gabriel\_ushijima@usp.br\par Ernesto G. Birgin · egbirgin@ime.usp.br\par O autor declara não haver conflito de interesses.};
+  \node[anchor=south east,inner sep=0] at ([xshift=-1.2cm,yshift=1.45cm]current page.south east) {\includegraphics[height=1.15cm]{../poster/figures/fapesp-logo.png}};
+  \footerbar{5}
 \end{tikzpicture}
 \end{document}

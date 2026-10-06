@@ -15,7 +15,7 @@ x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
 k = 1 / (y1 - y0)                                # height = 1 unit; width = aspect
 rank = {r: i for i, r in enumerate(demo["order"])}
 f = lambda x, y: f"({(x - x0) * k:.4f},{(y - y0) * k:.4f})"
-out = [f"\\def\\uspaspect{{{(x1 - x0) * k:.4f}}}"]
+out = [f"\\def\\uspaspect{{{(x1 - x0) * k:.4f}}}\\def\\uspsx{{{(start[0] - x0) * k:.4f}}}\\def\\uspsy{{{(start[1] - y0) * k:.4f}}}"]
 for i, p in enumerate(polys):
     c = ramp(LETTER_RAMP, rank[i] / (len(polys) - 1))
     out.append(f"\\fill[color={rgb(c)}] " + " -- ".join(f(x, y) for x, y in p) + " -- cycle;")
