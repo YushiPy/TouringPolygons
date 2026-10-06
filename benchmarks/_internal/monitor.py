@@ -28,6 +28,7 @@ LOG_DEPTH = 9
 LOG_LIMIT = 200
 TAIL_BYTES = 256 * 1024
 TABS = ("Jobs", "Instances", "Logs")
+DEFAULT_TARGET_GAP = 0.001 / 1.001  # the gap both solvers are asked for unless told otherwise
 
 
 @dataclass
@@ -125,21 +126,33 @@ def format_report(record: dict) -> str:
 	bounds = "  ".join(f"{name} {value:<12.8g}" if value is not None else f"{name} {'-':<12}"
 		for name, value in (("LB", lower), ("UB", upper)))
 	gap_text = f"gap {100 * gap:6.3g}%" if gap is not None else f"gap {'-':>6} "
-	return f"{at}  {elapsed:>9}  {bounds}  {gap_text}  {work}"
+	remaining = record.get("remaining_seconds")
+	if remaining is not None and isinstance(record.get("at"), (int, float)):
+		finish = time.strftime("%d/%m %H:%M", time.localtime(record["at"] + remaining))
+		eta = f"  ETA ~{live_progress.clock(remaining)} ({finish})"
+	else:
+		eta = "  ETA -"
+	return f"{at}  {elapsed:>9}  {bounds}  {gap_text}  {work}{eta}"
 
 
 def instance_lines(journal: Path | None, label: str, max_bytes: int = 4 * TAIL_BYTES) -> list[str]:
 	"""Only the reports of one instance, from the run's shared progress journal."""
 	if journal is None:
 		return ["(no progress journal for this run)"]
-	lines = []
+	lines, window = [], []
 	for raw in tail(journal, max_bytes):
 		try:
 			record = json.loads(raw)
 		except ValueError:
 			continue
-		if record.get("label") == label:
-			lines.append(format_report(record))
+		if record.get("label") != label:
+			continue
+		if "remaining_seconds" not in record:
+			# Journals written before the estimate was recorded: recompute it like `live` does
+			# (last WINDOW reports), towards the default 0.1% gap target.
+			window = (window + [{**record, "open_nodes": record.get("open_nodes")}])[-live_progress.WINDOW:]
+			record = {**record, "remaining_seconds": live_progress.estimate(window, record.get("target_gap") or DEFAULT_TARGET_GAP)["remaining_seconds"]}
+		lines.append(format_report(record))
 	return lines or [f"(no reports from {label} yet)"]
 
 

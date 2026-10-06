@@ -217,15 +217,17 @@ class LiveStatus:
 			record["reported_at"] = time.time()
 			entry["latest"] = record
 			line = describe(entry["label"], record)
-			self._journal(entry["label"], record)
+			self._journal(entry["label"], record, entry["target_gap"])
 			self._write()
 		self.echo(line)
 
-	def _journal(self, label: str, record: dict) -> None:
+	def _journal(self, label: str, record: dict, target_gap: float | None = None) -> None:
 		if self.journal is None:
 			return
 		keep = ("elapsed_seconds", "lower_bound", "upper_bound", "gap", "calls", "nodes", "open_nodes")
-		line = {"at": round(time.time(), 3), "label": label, **{name: record.get(name) for name in keep}}
+		line = {"at": round(time.time(), 3), "label": label, **{name: record.get(name) for name in keep},
+			"remaining_seconds": (record.get("estimate") or {}).get("remaining_seconds"),
+			"target_gap": target_gap}
 		try:
 			with self.journal.open("a") as handle:
 				handle.write(json.dumps(line, allow_nan=False, default=str) + "\n")

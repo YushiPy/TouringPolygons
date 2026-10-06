@@ -71,9 +71,12 @@ relativo `(UB - LB) / UB`, as chamadas ao oráculo e os nós explorados, a fila
 (`open`, com a tendência: crescendo, estável ou diminuindo) e a fração usada dos
 limites de tempo e de chamadas. Com `--portfolio` as duas buscas são combinadas
 (melhor LB e melhor UB). Quando o gap vem diminuindo, aparece também uma
-estimativa de quando o gap-alvo seria atingido. Ela é **otimista** (supõe que o
-gap continue caindo no mesmo ritmo, o que o branch and bound muitas vezes não faz).
-Trate-a como um palpite; LB, UB e a tendência da fila são os sinais confiáveis.
+estimativa de quando o gap-alvo seria atingido (supõe que o gap continue caindo no mesmo
+ritmo). Medida contra 40 casos do Fekete que fecharam (1.197 reports, 100 s a 11,8 h), ela
+subestima muito nos primeiros ~10% da execução, fica entre ½× e 2× do tempo restante em
+80–90% dos reports entre 10% e 50%, e depois da metade tende a superestimar (mediana ~1,6–2×;
+em casos isolados até 5×). Use-a como ordem de grandeza e ignore-a em casos que acabaram de
+começar; LB, UB e a tendência da fila são os sinais mais confiáveis.
 
 Para uma visão única de tudo (jobs, instâncias rodando e logs), use a tela interativa:
 
@@ -84,8 +87,9 @@ python3 benchmarks/tpp.py monitor          # curses; `--once` imprime o mesmo re
 Três abas (`Tab` ou `1`-`3`): **Jobs** (status e comando dos jobs `--detach`), **Instances**
 (LB, UB, gap, chamadas e fila de cada instância; `s` interrompe só aquela) e **Logs** (saídas
 de jobs, `solver.log`, `progress.jsonl`, do mais recente ao mais antigo). `Enter` abre o log da
-linha (em Instances, só os reports daquela instância: hora, tempo, LB, UB, gap e
-iterações/chamadas), acompanhando o final (`↑↓`/`PgUp`/`PgDn` rolam, `f` volta a acompanhar, `q` volta);
+linha (em Instances, só os reports daquela instância: hora, tempo, LB, UB, gap,
+iterações/chamadas e a previsão de término `ETA ~tempo (dia hora)`; veja o aviso sobre a
+precisão dela acima), acompanhando o final (`↑↓`/`PgUp`/`PgDn` rolam, `f` volta a acompanhar, `q` volta);
 `c` escolhe os casos a mostrar em Instances (`131,558` ou `4-6`; vazio mostra todos); `s` interrompe o job ou a instância (com confirmação), `K` mata o job ou a instância (SIGINT em todos os processos descendentes, 8 s de espera para reportarem e depois SIGKILL em quem sobrou e no pai), `r` atualiza, `q` sai.
 
 Os mesmos dados ficam em `live.json` (no diretório da execução: a campanha

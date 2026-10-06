@@ -85,6 +85,21 @@ class MonitorDataTests(unittest.TestCase):
 			self.assertIn("no reports", monitor.instance_lines(journal, "free case 7/558 tpp-fekete")[0])
 			self.assertIn("UB -", monitor.instance_lines(journal, "free case 66/558 tpp-fekete")[0])
 
+	def test_instance_view_includes_the_recorded_or_recomputed_estimate(self):
+		with tempfile.TemporaryDirectory() as folder:
+			journal = Path(folder) / "progress.jsonl"
+			base = {"label": "free case 1/9 tpp-fekete", "calls": 1, "nodes": None, "open_nodes": None, "lower_bound": 1.0, "upper_bound": 2.0}
+			recorded = {**base, "at": 1791296872.0, "elapsed_seconds": 10.0, "gap": 0.5, "remaining_seconds": 3900.0, "target_gap": 0.001}
+			journal.write_text(json.dumps(recorded) + "\n")
+			self.assertIn("ETA ~01:05:00", monitor.instance_lines(journal, base["label"])[0])
+			# an older journal without the field: recomputed from the gap falling geometrically
+			old = [{**base, "at": 1791296872.0 + 60 * k, "elapsed_seconds": 60.0 * k, "gap": 0.5 / 2 ** k} for k in range(4)]
+			journal.write_text("".join(json.dumps(record) + "\n" for record in old))
+			lines = monitor.instance_lines(journal, base["label"])
+			self.assertIn("ETA -", lines[0])  # one report: no trend yet
+			self.assertIn("ETA ~", lines[-1])
+			self.assertNotIn("ETA -", lines[-1])
+
 	def test_parse_cases(self):
 		self.assertEqual(monitor.parse_cases("131, 558 4-6"), [131, 558, 4, 5, 6])
 		self.assertEqual(monitor.parse_cases(""), [])
