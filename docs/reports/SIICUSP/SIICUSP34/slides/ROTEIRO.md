@@ -1,32 +1,35 @@
-# Roteiro de 2 minutos (~270 palavras)
+# Roteiro de 2 minutos (cinco slides, ~270 palavras)
 
-**Slide 1 (~20 s).** Imagine um drone que sai do IME e precisa fotografar 51
-regiões da USP. Qual é o menor caminho? Ele não precisa passar por pontos
-fixos: basta tocar cada região, e a ordem das visitas também é escolha nossa.
-Esse é o Problema de Visita de Polígonos, e esta é a rota ótima que calculamos:
-4,97 quilômetros.
+**Slide 1 (~15 s).** Qual é o menor caminho que visita todas estas regiões? Aqui
+as regiões são as letras do título, e o caminho colorido é a solução ótima, do
+começo ao fim. Sou o Gabriel, orientado pelo Ernesto Birgin, com bolsa da FAPESP.
 
-**Slide 2 (~35 s).** Testar todas as rotas é impossível. Nosso método monta a
-rota aos poucos, numa árvore de busca. Em cada nó, um solver geométrico exato
-para o caso convexo calcula um limite inferior L. Ramificamos inserindo o
-próximo polígono em cada posição ou refinando em peças convexas. Se L já é
-pelo menos o de uma rota viável U, o ramo inteiro é descartado. Num caso com 60
-regiões, são 10^117 combinações; resolvemos em 2,47 segundos.
+**Slide 2 (~25 s).** Formalmente: dados um ponto inicial s, um final t e polígonos
+P₁ a Pₖ, queremos o caminho de s a t de menor comprimento que toca cada
+polígono. Não escolhemos só a ordem, mas também onde tocar. Por exemplo, um drone
+sai do IME e fotografa 51 regiões da USP: a rota ótima tem 4,97 quilômetros.
 
-**Slide 3 (~40 s).** Comparamos com o algoritmo de Fekete e colaboradores, que
-usa o solver comercial Gurobi, nas 558 instâncias do artigo deles, com uma
-thread. Cada ponto é uma instância; abaixo da diagonal, somos mais rápidos.
-Em média, 10,4 vezes mais rápidos, e vencemos em 492 de 550 casos. Provamos
-558 ótimos; eles, 550. A ressalva: nas instâncias Voronoi eles ganham em 40 de
-78.
+**Slide 3 (~30 s).** Testar todas as rotas é impossível, então montamos a rota
+numa árvore de busca. Em cada nó, um solver geométrico exato para o caso convexo
+dá um limite inferior L. Ramificamos inserindo o próximo polígono ou refinando em
+peças convexas. Se L já supera uma rota viável U, descartamos o ramo. Um caso com
+60 regiões tem 10^117 combinações; resolvemos em 2,47 s. O resumo cobria ordem
+fixa; depois da submissão, estendemos para ordem livre.
 
-**Slide 4 (~25 s).** O ponto central é usar geometria exata dentro de uma busca
-combinatória. O resumo cobria ordem fixa; depois da submissão estendemos para
-ordem livre. Limitações: o pior caso continua exponencial e regiões são alvos,
-não obstáculos. Próximo passo: roteirização de veículos. Escaneiem o QR code
-para explorar. Agradeço à FAPESP pelo apoio.
+**Slide 4 (~35 s).** Comparamos com o algoritmo de Fekete e colaboradores, que usa
+Gurobi, nas 558 instâncias do artigo deles. No pôster a média era 10,4× e éramos
+mais rápidos em 492 de 550. Depois da submissão melhorei o solver: agora a mediana
+é 40,8×, somos mais rápidos nos 550 casos que ambos resolvem, e provamos 558 ótimos
+contra 550. Cada ponto é uma instância; abaixo da diagonal, somos mais rápidos.
+Mesma tolerância de 0,1 % nos dois, sem limite de tempo, uma thread.
+
+**Slide 5 (~15 s).** Limitações: o pior caso continua exponencial e as regiões são
+alvos, não obstáculos. Próximo passo: roteirização de veículos. Escaneiem o QR code
+para resolver desafios e investigar os 558 casos.
 
 ## Perguntas prováveis
-- *O que significa "ótimo"?* Gap relativo 1e-7 no nosso solver (1e-3 em Fekete); certificado numérico, não prova racional.
-- *Por que perde em Voronoi?* Polígonos adjacentes: a relaxação convexa é fraca e a poda ajuda menos.
-- *10,4× é média de quê?* Média aritmética das razões tempo Fekete / nosso tempo, nos 550 casos concluídos por ambos.
+- *Por que os números mudaram desde o pôster?* Melhorei o solver depois de enviar o pôster. A campanha nova rodou na dantzig (i9-12900K), sem limite de tempo; o pôster usava a campanha anterior, com teto de 6 h. Os dois resultados estão preservados em `benchmarks/results-saved`.
+- *O que significa "ótimo"?* Gap relativo fechado na tolerância: 0,1 % nos dois solvers nesta campanha. É certificado numérico, não prova racional.
+- *Mediana ou média?* A mediana (40,8×) resiste a valores extremos; a média geométrica é 49,0× e a aritmética 106,7×. O pôster usava a média aritmética (10,4×; mediana 5,1× nos mesmos dados).
+- *E os 8 casos em aberto do Fekete?* Foram interrompidos manualmente depois de dias; nosso solver os resolveu (o maior leva 722 s). Ficam fora da comparação de tempo.
+- *Por que as letras valem como instância?* Tocar uma letra equivale a tocar seu contorno externo, então os buracos não alteram a rota ótima.

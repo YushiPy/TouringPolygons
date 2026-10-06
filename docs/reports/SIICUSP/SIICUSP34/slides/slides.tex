@@ -40,7 +40,7 @@
 % Rodapé comum: financiamento e número do slide
 \newcommand{\footerbar}[1]{%
   \draw[Rule,line width=0.8pt] ([xshift=1.2cm,yshift=1.15cm]current page.south west) -- ([xshift=-1.2cm,yshift=1.15cm]current page.south east);
-  \node[anchor=south west,inner sep=0] at ([xshift=1.2cm,yshift=0.3cm]current page.south west) {\sffamily\sz{16}{19}\muted 34º SIICUSP · IME-USP};
+  \node[anchor=south west,inner sep=0] at ([xshift=1.2cm,yshift=0.3cm]current page.south west) {\sffamily\sz{16}{19}\muted Gabriel Freire Ushijima · Algoritmos Exatos Para o Problema de Visita de Polígonos};
   \node[anchor=south east,inner sep=0] at ([xshift=-1.2cm,yshift=0.3cm]current page.south east) {\sffamily\sz{16}{19}\muted #1\,/\,5};}
 \newcommand{\slidetitle}[1]{%
   \node[anchor=north west,inner sep=0,text width=21.5cm] at ([xshift=1.2cm,yshift=-0.75cm]current page.north west) {\sffamily\bfseries\sz{36}{40}\ink #1};}
@@ -130,37 +130,37 @@
 \end{tikzpicture}
 \newpage
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 3. Resultado
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 4. Resultado
 \input{scatter-data}
 \begin{tikzpicture}[remember picture,overlay]
   \fill[white] (current page.south west) rectangle (current page.north east);
-  \slidetitle{Em média, \hi 10,4$\times$ mais rápido \ink que o estado da arte}
+  \slidetitle{Solver melhorado: mediana de \hi 40,8$\times$ \ink mais rápido}
   \node[anchor=north west,inner sep=0] at ([xshift=0.9cm,yshift=-2.55cm]current page.north west) {%
   \begin{tikzpicture}
-  \begin{loglogaxis}[width=15.4cm,height=9.9cm,
+  \begin{loglogaxis}[width=15.2cm,height=9.5cm,
       xlabel={Tempo de Fekete et al. (s)},ylabel={Nosso tempo (s)},
       label style={font=\sffamily\sz{20}{22}},tick label style={font=\sffamily\sz{20}{22}},
-      xmin=1e-3,xmax=3e4,ymin=1e-5,ymax=3e4,
-      xtick={1e-2,1,1e2,1e4},ytick={1e-4,1e-2,1,1e2,1e4},
+      xmin=1e-3,xmax=1e5,ymin=5e-5,ymax=1e3,
+      xtick={1e-2,1,1e2,1e4},ytick={1e-4,1e-2,1,1e2},
       grid=major,grid style={Rule,line width=0.5pt},axis line style={Ink},
       legend style={at={(0.02,0.98)},anchor=north west,font=\sffamily\sz{20}{23},draw=Rule,fill=white,fill opacity=0.92,text opacity=1,legend cell align=left,row sep=1pt},
       every axis plot/.append style={mark size=2pt}]
-    \addplot[Ink,line width=1.6pt,mark=none,dashed,domain=1e-5:3e4] {x};
+    \addplot[Ink,line width=1.6pt,mark=none,dashed,domain=5e-5:1e5] {x};
     \addlegendentry{mesmo tempo}
     \addplot[only marks,mark=*,Teal,fill opacity=0.55,draw opacity=0.9] coordinates {\dataOSM};
-    \addlegendentry{OSM: 306/312}
+    \addlegendentry{OSM (313)}
     \addplot[only marks,mark=square*,Accent,fill opacity=0.55,draw opacity=0.9] coordinates {\datarandom};
-    \addlegendentry{Aleatórias: 148/160}
+    \addlegendentry{Aleatórias (159)}
     \addplot[only marks,mark=triangle*,Ink,mark size=3pt,fill opacity=0.55,draw opacity=0.9] coordinates {\datavoronoi};
-    \addlegendentry{Voronoi: 38/78}
+    \addlegendentry{Voronoi (78)}
   \end{loglogaxis}
   \end{tikzpicture}};
-  \node[anchor=north west,inner sep=0,text width=7.6cm] at ([xshift=16.6cm,yshift=-2.8cm]current page.north west)
-    {{\bfseries\sz{54}{56}\hi 492/550}\par{\sz{24}{28}\ink\bfseries casos em que somos mais rápidos}\par\vspace{0.45cm}
-     {\bfseries\sz{54}{56}\hi 558/558}\par{\sz{24}{28}\ink\bfseries ótimos certificados\par\mdseries\muted (Fekete et al.: 550/558)}\par\vspace{0.45cm}
-     {\sz{22}{26}\ink Abaixo da diagonal, nosso solver é mais rápido. \textbf{Em Voronoi, Fekete et al. vence 40 de 78.}}};
-  \node[anchor=south west,inner sep=0,text width=22.5cm] at ([xshift=1.2cm,yshift=1.3cm]current page.south west)
-    {\sffamily\sz{16}{19}\muted 550 casos concluídos por ambos; corpus de Fekete et al.; uma thread; limite de 6\,h. Ótimo: gap relativo $10^{-7}$ (nosso) e $10^{-3}$ (Fekete).};
+  \node[anchor=north west,inner sep=0,text width=7.8cm] at ([xshift=16.6cm,yshift=-2.7cm]current page.north west)
+    {{\bfseries\sz{50}{52}\hi 550/550}\par{\sz{22}{26}\ink\bfseries casos mais rápidos\par\mdseries\muted (pôster: 492/550)}\par\vspace{0.4cm}
+     {\bfseries\sz{50}{52}\hi 558/558}\par{\sz{22}{26}\ink\bfseries ótimos certificados\par\mdseries\muted (Fekete et al.: 550/558)}\par\vspace{0.4cm}
+     {\bfseries\sz{50}{52}\hi 40,8$\times$}\par{\sz{22}{26}\ink\bfseries mediana do speedup\par\mdseries\muted (pôster: média 10,4$\times$, mediana 5,1$\times$)}};
+  \node[anchor=south west,inner sep=0,text width=22.8cm] at ([xshift=1.2cm,yshift=1.3cm]current page.south west)
+    {\sffamily\sz{16}{19}\muted Solver atualizado após o pôster. 550 casos fechados por ambos, uma thread, sem limite de tempo, gap relativo alvo de 0,1\,\% nos dois. Máquina: Intel i9-12900K.};
   \footerbar{4}
 \end{tikzpicture}
 \newpage
@@ -187,7 +187,6 @@
     \end{scope}
   \end{scope}
   \node[anchor=north,inner sep=0,text width=8.6cm,align=center] at ([yshift=-0.1cm]qr.south) {\vspace{0.15cm}\sffamily\bfseries\sz{18}{21}\hi yushipy.github.io/TouringPolygons/\\apps/siicusp34/};
-  \node[anchor=south west,inner sep=0] at ([xshift=1.2cm,yshift=1.5cm]current page.south west) {\parbox{5cm}{\includegraphics[height=1.15cm]{../poster/figures/fapesp-logo.png}\par\vspace{2pt}\sffamily\sz{16}{19}\muted Processo 2025/13861-1}};
   \footerbar{5}
 \end{tikzpicture}
 \end{document}

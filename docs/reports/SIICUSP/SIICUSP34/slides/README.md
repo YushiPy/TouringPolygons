@@ -10,16 +10,16 @@ pouco texto, uma figura grande por slide, fundo claro, tamanhos equivalentes a
 | 1 | Capa: título como instância de TPP (letras = regiões, rota ótima), pergunta, autor, orientador, FAPESP e processo |
 | 2 | O problema: dados (s, t, P₁…Pₖ) e objetivo, com a instância da USP e a rota ótima |
 | 3 | Método: árvore de busca com limite inferior (solver convexo), ramificar e podar |
-| 4 | Resultados: gráfico único, tempo nosso × Fekete et al. nos 550 casos comuns |
-| 5 | Chamada para o QR code, limitações, próximo passo e contatos |
+| 4 | Resultados atualizados (dantzig, 2026-10-06): gráfico único, tempo nosso × Fekete et al. nos 550 casos comuns, com os números do pôster ao lado |
+| 5 | Chamada para o QR code (com a marca do app), limitações e próximo passo |
 
 São cinco slides (o plano de trabalho previa quatro); a capa, o slide 2 e o slide 5 são curtos.
-O roteiro ainda reflete a versão de quatro slides e precisa ser atualizado. O roteiro cronometrável está em [`ROTEIRO.md`](ROTEIRO.md).
+O roteiro cronometrável está em [`ROTEIRO.md`](ROTEIRO.md).
 
 ## Compilar
 
 ```sh
-python3 make_scatter_data.py   # só se a campanha de Fekete mudar
+python3 make_scatter_data.py   # só se a campanha mudar (free-order-dantzig-2026-10-06)
 mkdir -p /tmp/siicusp34-slides
 latexmk -xelatex -interaction=nonstopmode -halt-on-error \
   -outdir=/tmp/siicusp34-slides slides.tex
