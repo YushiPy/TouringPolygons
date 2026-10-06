@@ -348,6 +348,18 @@ class SingleReportFileTests(unittest.TestCase):
 	def run_directory(self):
 		return next((self.campaign / 'results').iterdir())
 
+	def test_failed_start_leaves_the_report_it_would_resume_untouched(self):
+		"""Fekete missing: the attempt fails before it can rewrite the config of an earlier run."""
+		with contextlib.redirect_stdout(io.StringIO()):
+			self.assertEqual(self.run_main(), 0)
+		report = self.run_directory() / 'report.json'
+		before = report.read_bytes()
+		with patch.object(free_order_campaign, 'BINARY', self.binary), patch.object(free_order_campaign, 'ensure_binary'), \
+			self.assertRaises(FileNotFoundError):
+			free_order_campaign.main([str(self.campaign), '--solver', 'tpp-fekete', '--max-seconds', '60', '--no-build',
+				'--external-python', str(self.build / 'no-python'), '--external-build', str(self.build)])
+		self.assertEqual(report.read_bytes(), before)
+
 	def test_a_finished_run_leaves_only_the_report(self):
 		self.assertEqual(self.run_main(), 0)
 		self.assertEqual(sorted(path.name for path in self.run_directory().iterdir()), ['report.json'])

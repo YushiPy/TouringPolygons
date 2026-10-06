@@ -541,6 +541,10 @@ def main(argv: list[str] | None = None) -> int:
 	if OURS in solvers:
 		ensure_binary(args.no_build)
 		config['unordered_binary_sha256'] = hashlib.sha256(BINARY.read_bytes()).hexdigest()
+	# Before anything is written: a failed start must not rewrite the config of a report it would resume.
+	if FEKETE in solvers and not (external_python.exists() and EXTERNAL_RUNNER.exists()
+		and (external_build / 'python/tspn_bnb2/core').exists()):
+		raise FileNotFoundError('tpp-fekete Python or built binding is unavailable; use --external-python and --external-build.')
 	key = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
 	results = run_layout.results_dir(campaign)
 	resume_path = None
@@ -577,9 +581,6 @@ def main(argv: list[str] | None = None) -> int:
 					'Resumed with the shared FIFO solver-case queue; prior completed rows were kept.')
 				atomic_json(prior, old)
 			resume_path = prior
-	if FEKETE in solvers and not (external_python.exists() and EXTERNAL_RUNNER.exists()
-		and (external_build / 'python/tspn_bnb2/core').exists()):
-		raise FileNotFoundError('tpp-fekete Python or built binding is unavailable; use --external-python and --external-build.')
 	if resume_path:
 		run = resume_path.parent
 		report = normalize_report_solvers(json.loads(resume_path.read_text()))
