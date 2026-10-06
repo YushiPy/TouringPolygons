@@ -10,8 +10,14 @@ The maintained C++ APIs in `tpp/convex/cycle.h`, exported by `tpp_convex.h`, are
 They minimize `sum_i |q_(i+1)-q_i|` with one contact in each polygon in the
 supplied cyclic order. Endpoints are free; the closing link is included and
 the cycle may cross itself. The general APIs accept touching, overlap and
-containment. Inputs need at least two positive-area convex polygons, in either
-winding, optionally with redundant collinear/closing vertices. There is no
+containment. Inputs need at least two closed convex regions: points (one
+vertex), segments (two vertices) or positive-area convex polygons in either
+winding, optionally with redundant collinear/closing vertices. Points and
+segments never take the disjoint fast path. The common-region clip bounds a
+segment by its supporting line **and** its endpoints and tests a point by
+membership (their edge halfplanes alone would describe a line or the plane);
+the anchored search uses the same membership, and a point anchor is its own
+only anchor. The `_disjoint` variants keep their positive-area contract. There is no
 optimization epsilon or spatial discretization.
 
 ## Existing core and shared arithmetic

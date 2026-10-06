@@ -27,7 +27,13 @@ Pontos e segmentos são regiões convexas de dimensão zero e um, sem espessamen
 artificial. O fecho convexo conserva essas dimensões, e a verificação de visita
 inclui os extremos finitos dos segmentos. Uma lista de três ou mais vértices
 colineares continua inválida; represente-a explicitamente com dois extremos.
-A API de ciclo livre conserva seu contrato de polígonos de área positiva.
+A API de ciclo livre (TSPN) aceita as mesmas regiões. Um tour passa por toda
+região-ponto; girado para começar nela, é um caminho fechado de extremos
+`start = target = p` pelas demais regiões, de mesmo comprimento, e todo caminho
+assim é um tour. Por isso uma instância com ponto é resolvida exatamente por esta
+busca de extremos (`cycle_point_anchor`, `--no-cycle-point-anchor` desliga).
+Sem ponto, segmentos vão ao oráculo de ciclo convexo (veja
+[convex-cycle.md](convex-cycle.md)).
 
 Quando uma sequência contém pontos ou segmentos, o oráculo convexo usa a
 construção direcional racional existente. Um ponto impõe um contato obrigatório.
