@@ -90,6 +90,23 @@ antes de medir, medida uma vez).
   multiplica os speedups históricos. Registro das tentativas:
   [`unordered-tpp-experiments.md`](../../docs/algorithms/unordered-tpp-experiments.md).
 
+## tpp-oracle-allocation-2026-10-06
+
+`main` (`7f4c8dd`) × branch `oracle-shared-vertex-speedup`; mesmo protocolo
+(gap relativo 0,000999, gap absoluto 0, 1e8 chamadas, 600 s, uma thread,
+variantes intercaladas, três repetições; macOS arm64/GMP, na bateria: só as
+razões valem). Mudanças que preservam a busca: sinais da materialização
+decididos antes por intervalos `double` (inteiros homogêneos só quando o sinal
+fica aberto), vetores do mapa direcional reaproveitados/reservados, valores
+exatos do DAG filtrado atribuídos em posições retidas da arena e conversão
+racional → `double` com o mesmo arredondamento do Boost (10⁷ casos, inclusive
+empates, idênticos bit a bit). Difícil (19): **1,142×** geométrico (mediana
+1,120; 0,999–1,414; 283 → 236 s); validação (18): **1,164×** (mediana 1,167;
+0,987–1,444; 176 → 143 s). Gap fechado em 222/222 execuções e 144 campos
+determinísticos idênticos ao `main`; testes nativos também sob ASan/UBSan.
+Limitações: uma máquina, na bateria; o conjunto difícil e o caso 417 orientaram
+o desenvolvimento.
+
 ## tpp-oracle-exact-arithmetic-2026-10-05
 
 Binário `final` anterior × branch `free-order-oracle-perf`; mesmo protocolo (na

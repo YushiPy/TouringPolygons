@@ -34,10 +34,13 @@ class FilteredRational {
     // reference counting; the DAG, intervals and evaluations are unchanged.
     // Values must therefore not outlive the outermost Scope that created them.
     class Arena {
-        static constexpr std::size_t chunk_nodes=4096, retained_chunks=16;
+        static constexpr std::size_t chunk_nodes=4096, retained_chunks=16, retained_exact=4096;
         std::vector<std::unique_ptr<std::byte[]>> chunks;
         std::size_t current=std::size_t(-1),used=chunk_nodes;
+        // Exact values are assigned in place, so retained slots reuse their
+        // limb storage across expressions; a deque keeps references stable.
         std::deque<ConvexRational> exact;
+        std::size_t exact_used=0;
     public:
         std::size_t depth=0;
         template<class... A> const Node *make(A&&... arguments) {
@@ -49,10 +52,14 @@ class FilteredRational {
             }
             return ::new(chunks[current].get()+sizeof(Node)*used++) Node(std::forward<A>(arguments)...);
         }
-        const ConvexRational *keep(ConvexRational value) {return &exact.emplace_back(std::move(value));}
+        ConvexRational &slot() {
+            if(exact_used==exact.size())exact.emplace_back();
+            return exact[exact_used++];
+        }
         // Retain a bounded amount of node storage for the next expression.
         void reset() {
-            exact.clear();
+            if(exact.size()>retained_exact)exact.resize(retained_exact);
+            exact_used=0;
             if(chunks.size()>retained_chunks)chunks.resize(retained_chunks);
             current=std::size_t(-1);used=chunk_nodes;
         }
@@ -149,7 +156,10 @@ public:
     FilteredRational():FilteredRational(0.0) {}
     FilteredRational(double value):node(arena().make(value)) {}
     template<class T> T convert_to()const {
-        if(node->cached)return node->cached->template convert_to<T>();
+        if(node->cached) {
+            if constexpr(std::is_same_v<T,double>)return convex_nearest_double(*node->cached);
+            else return node->cached->template convert_to<T>();
+        }
         return static_cast<T>(node->approximate);
     }
     FilteredRational operator+(const FilteredRational &b)const{return operation(Op::Add,*this,b);}
@@ -168,13 +178,15 @@ public:
 
 inline const ConvexRational &FilteredRational::Node::exact()const {
     if(!cached) {
+        ConvexRational &value=arena().slot();
         switch(op) {
-            case Op::Literal: cached=arena().keep(ConvexRational(approximate));break;
-            case Op::Add: cached=arena().keep(a->exact()+b->exact());break;
-            case Op::Subtract: cached=arena().keep(a->exact()-b->exact());break;
-            case Op::Multiply: cached=arena().keep(a->exact()*b->exact());break;
-            case Op::Divide: cached=arena().keep(a->exact()/b->exact());break;
+            case Op::Literal: value=approximate;break;
+            case Op::Add: value=a->exact()+b->exact();break;
+            case Op::Subtract: value=a->exact()-b->exact();break;
+            case Op::Multiply: value=a->exact()*b->exact();break;
+            case Op::Divide: value=a->exact()/b->exact();break;
         }
+        cached=&value;
     }
     return *cached;
 }

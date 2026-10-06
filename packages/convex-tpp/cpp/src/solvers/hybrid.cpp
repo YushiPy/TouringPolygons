@@ -285,24 +285,89 @@ int scaled_dot_sign(const Direction &a,const Direction &b) {
     return ConvexInteger(a.x*b.x+a.y*b.y).sign();
 }
 
+// Binary64 filter for the signs above. mpq_get_d truncates toward zero, so a
+// nonzero rational lies within one ulp of it; zero stays an exact point and
+// is the only way an enclosure becomes zero(). Undecided signs, and every sign
+// when the filter is unavailable, fall back to the homogeneous integers.
+detail::CycleInterval enclose(const Rational &q) {
+    if(q.is_zero())return {};
+#ifdef TPP_USE_GMP_RATIONAL
+    static const bool filtered=detail::cycle_interval_environment();
+    if(filtered) {
+        const double d=mpq_get_d(q.backend().data());
+        if(std::isfinite(d))return {detail::CycleInterval::down(d),detail::CycleInterval::up(d)};
+    }
+#endif
+    return {-INFINITY,INFINITY};
+}
+std::optional<int> certain_sign(const detail::CycleInterval &v) {
+    if(v.zero())return 0;
+    if(v.lo>0)return 1;
+    if(v.hi<0)return -1;
+    return std::nullopt;
+}
+detail::CycleInterval negated(const detail::CycleInterval &v) {return {-v.hi,-v.lo};}
+
+// A positive integer multiple of head-tail, turned counterclockwise by
+// quarter turns. Its integers are built only when an enclosure is undecided.
+struct SignDirection {
+    detail::IntervalPoint box;
+    const Point *head=nullptr,*tail=nullptr;
+    int turns=0;
+    mutable std::optional<Direction> integers;
+    const Direction &exact() const {
+        if(!integers) {
+            Direction d=scaled_difference(homogeneous(*head),homogeneous(*tail));
+            for(int i=0;i<turns;++i)d=Direction{-d.y,d.x};
+            integers=std::move(d);
+        }
+        return *integers;
+    }
+    SignDirection left() const {
+        SignDirection turned{{negated(box.y),box.x},head,tail,(turns+1)%4};
+        if(integers)turned.integers=Direction{-integers->y,integers->x};
+        return turned;
+    }
+    SignDirection right() const {return left().left().left();}
+};
+detail::IntervalPoint enclose(const Point &p) {return {enclose(p.x),enclose(p.y)};}
+SignDirection difference(const Point &head,const detail::IntervalPoint &head_box,
+                         const Point &tail,const detail::IntervalPoint &tail_box) {
+    return {head_box-tail_box,&head,&tail};
+}
+SignDirection difference(const Point &head,const Point &tail) {
+    return difference(head,enclose(head),tail,enclose(tail));
+}
+int cross_sign(const SignDirection &a,const SignDirection &b) {
+    if(const auto sign=certain_sign(a.box.cross(b.box)))return *sign;
+    return scaled_cross_sign(a.exact(),b.exact());
+}
+int dot_sign(const SignDirection &a,const SignDirection &b) {
+    if(const auto sign=certain_sign(a.box.dot(b.box)))return *sign;
+    return scaled_dot_sign(a.exact(),b.exact());
+}
+
 bool feature_on_edge(const Point &contact,const Polygon &polygon,size_t edge_index,
                      ContactFeature &feature) {
     if(edge_index>=polygon.size())return false;
     const size_t n=polygon.size(),next=(edge_index+1)%n;
-    // The edge parameter u=(contact-a).edge/edge.edge lies in [0,1] exactly
-    // when (contact-a).edge>=0 and (contact-b).edge<=0.
-    const HomogeneousPoint a=homogeneous(polygon[edge_index]),b=homogeneous(polygon[next]),
-        q=homogeneous(contact);
-    const Direction edge=scaled_difference(b,a);
-    if(scaled_cross_sign(edge,scaled_difference(q,a))!=0)return false;
-    if(scaled_dot_sign(scaled_difference(q,a),edge)<0||scaled_dot_sign(scaled_difference(q,b),edge)>0)return false;
-    const std::optional<size_t> vertex=contact==polygon[edge_index]
-        ?std::optional<size_t>(edge_index):contact==polygon[next]?std::optional<size_t>(next):std::nullopt;
-    if(vertex) {
+    const Point &a=polygon[edge_index],&b=polygon[next];
+    const std::optional<size_t> vertex=contact==a
+        ?std::optional<size_t>(edge_index):contact==b?std::optional<size_t>(next):std::nullopt;
+    // An endpoint lies on its edge. Otherwise the edge parameter
+    // u=(contact-a).edge/edge.edge lies in [0,1] exactly when
+    // (contact-a).edge>=0 and (contact-b).edge<=0.
+    if(!vertex) {
+        const detail::IntervalPoint a_box=enclose(a),b_box=enclose(b),q_box=enclose(contact);
+        const SignDirection edge=difference(b,b_box,a,a_box),from_a=difference(contact,q_box,a,a_box);
+        if(cross_sign(edge,from_a)!=0)return false;
+        if(dot_sign(from_a,edge)<0||dot_sign(difference(contact,q_box,b,b_box),edge)>0)return false;
+    } else {
         const size_t i=*vertex;
-        const HomogeneousPoint &corner=i==edge_index?a:b;
-        if(scaled_cross_sign(scaled_difference(corner,homogeneous(polygon[(i+n-1)%n])),
-                             scaled_difference(homogeneous(polygon[(i+1)%n]),corner))!=0) {
+        const Point &corner=polygon[i];
+        const detail::IntervalPoint corner_box=enclose(corner);
+        if(cross_sign(difference(corner,corner_box,polygon[(i+n-1)%n],enclose(polygon[(i+n-1)%n])),
+                      difference(polygon[(i+1)%n],enclose(polygon[(i+1)%n]),corner,corner_box))!=0) {
             feature={ContactFeatureKind::Vertex,i};return true;
         }
     }
@@ -336,23 +401,29 @@ size_t edge_angle_rotation(const Polygon &polygon) {
     }
     return result;
 }
-int polar_half(const Direction &v) {return v.y<0||(v.y==0&&v.x<0);}
-bool polar_less(const Direction &a,const Direction &b) {
+int polar_half(const SignDirection &v) {
+    auto component=[&](const detail::CycleInterval &box,bool y) {
+        if(const auto sign=certain_sign(box))return *sign;
+        return (y?v.exact().y:v.exact().x).sign();
+    };
+    const int y=component(v.box.y,true);
+    return y<0||(y==0&&component(v.box.x,false)<0);
+}
+bool polar_less(const SignDirection &a,const SignDirection &b) {
     const int ah=polar_half(a),bh=polar_half(b);
-    return ah!=bh?ah<bh:scaled_cross_sign(a,b)>0;
+    return ah!=bh?ah<bh:cross_sign(a,b)>0;
 }
 // Polar order and half-planes depend only on directions, so positive integer
 // multiples of the rational edges and query select the same vertex.
-size_t support_max(const Polygon &polygon,const Direction &direction,size_t rotation) {
+size_t support_max(const Polygon &polygon,const SignDirection &direction,size_t rotation) {
     // Along a CCW convex boundary, edge polar angles are sorted cyclically.
     // The maximum of <direction,p> starts where the edge derivative changes
     // from positive to nonpositive: angle(direction)+pi/2.
-    const Direction key{-direction.y,direction.x};const size_t n=polygon.size();
+    const SignDirection key=direction.left();const size_t n=polygon.size();
     size_t left=0,right=n;
     while(left<right) {
         const size_t mid=left+(right-left)/2,index=(rotation+mid)%n;
-        const Direction edge=scaled_difference(homogeneous(polygon[(index+1)%n]),homogeneous(polygon[index]));
-        if(polar_less(edge,key))left=mid+1;else right=mid;
+        if(polar_less(difference(polygon[(index+1)%n],polygon[index]),key))left=mid+1;else right=mid;
     }
     return (rotation+(left==n?0:left))%n;
 }
@@ -363,12 +434,12 @@ bool logarithmic_clip(const Point &a,const Point &b,const Polygon &polygon,size_
         Rational floor,Rational &lo,Rational &hi,ContactFeature &lo_feature,ContactFeature &hi_feature) {
     const Point direction=b-a;if(direction.zero())return false;
     const size_t n=polygon.size();
-    const HomogeneousPoint origin=homogeneous(a);
-    const Direction scaled=scaled_difference(homogeneous(b),origin);
+    const detail::IntervalPoint origin=enclose(a);
+    const SignDirection scaled=difference(b,enclose(b),a,origin);
     // Only the sign of direction x (polygon[i]-a) is used.
-    auto side=[&](size_t i){return scaled_cross_sign(scaled,scaled_difference(homogeneous(polygon[i]),origin));};
-    const size_t maximum=support_max(polygon,Direction{-scaled.y,scaled.x},rotation);
-    const size_t minimum=support_max(polygon,Direction{scaled.y,-scaled.x},rotation);
+    auto side=[&](size_t i){return cross_sign(scaled,difference(polygon[i],enclose(polygon[i]),a,origin));};
+    const size_t maximum=support_max(polygon,scaled.left(),rotation);
+    const size_t minimum=support_max(polygon,scaled.right(),rotation);
     if(side(minimum)>0||side(maximum)<0)return false;
     std::vector<BoundaryHit> hits;hits.reserve(4);
     auto add=[&](const Point &point,size_t edge) {
@@ -709,12 +780,12 @@ double contact_length(Vector2 start,Vector2 target,const std::vector<Vector2> &c
 }
 
 double rational_lower(const Rational &q) {
-    double d=q.convert_to<double>();
+    double d=convex_nearest_double(q);
     while(Rational(d)>q)d=std::nextafter(d,-std::numeric_limits<double>::infinity());
     return d;
 }
 double rational_upper(const Rational &q) {
-    double d=q.convert_to<double>();
+    double d=convex_nearest_double(q);
     while(Rational(d)<q)d=std::nextafter(d,std::numeric_limits<double>::infinity());
     return d;
 }
@@ -1251,7 +1322,7 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
         result.backend=ConvexHybridBackend::RationalIntersection;
         result.stats.rational_fallback=true;
         result.fallback_reason=ConvexFallbackReason::LowerDimensionalRegion;
-        for(const auto &q:contacts) result.contacts.emplace_back(q.x.convert_to<double>(),q.y.convert_to<double>());
+        for(const auto &q:contacts) result.contacts.push_back(q.external());
         set_exact_bounds(result,start,target,contacts);
         result.stats.total_seconds=elapsed(began);
         return result;
