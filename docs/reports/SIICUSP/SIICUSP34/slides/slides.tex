@@ -50,17 +50,24 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 1. Problema
 % O título é uma instância de TPP: cada letra é uma região; a rota é o caminho
 % mínimo que toca todas (make_title_instance.py).
+\newcommand{\legendgroup}[6]{\parbox{3.5cm}{\sffamily\bfseries\sz{22}{26}\ink #1\par\vspace{3pt}%
+  \resizebox{3.5cm}{!}{\rampbar{#2}{#3}{#4}}\par\vspace{2pt}\sffamily\mdseries\sz{20}{24}\muted\hbox to 3.5cm{#5\hfill #6}}}
 \begin{tikzpicture}[remember picture,overlay]
   \fill[white] (current page.south west) rectangle (current page.north east);
-  \node[anchor=north,inner sep=0] at ([yshift=-0.8cm]current page.north) {%
-    \begin{tikzpicture}[x=1.98cm,y=1.98cm]\input{title-art-body}\end{tikzpicture}};
-  \node[anchor=north west,inner sep=0,text width=21cm] at ([xshift=1.2cm,yshift=-10.15cm]current page.north west)
+  \node[anchor=north west,inner sep=0] at ([xshift=5.0cm,yshift=-1.4cm]current page.north west) {%
+    \begin{tikzpicture}[x=1.57cm,y=1.57cm]\input{title-art-body}\end{tikzpicture}};
+  \node[anchor=north west,inner sep=0] at ([xshift=1.0cm,yshift=-3.1cm]current page.north west) {\legendgroup{Letras}{LetA}{LetB}{LetC}{1ª visita}{última}};
+  \node[anchor=north west,inner sep=0] at ([xshift=1.0cm,yshift=-5.4cm]current page.north west) {\legendgroup{Rota}{RouA}{RouB}{RouC}{início}{fim}};
+  % logos à direita
+  \node[anchor=north,inner sep=0] at ([xshift=-2.55cm,yshift=-0.9cm]current page.north east) {\includegraphics[width=3.4cm]{../poster/figures/usp-logo.png}};
+  \node[anchor=north,inner sep=0] at ([xshift=-2.55cm,yshift=-2.7cm]current page.north east) {\includegraphics[height=2.4cm]{../poster/figures/ime-usp-vertical-logo.png}};
+  \node[anchor=north,inner sep=0] at ([xshift=-2.55cm,yshift=-5.5cm]current page.north east) {\includegraphics[trim={33bp 56bp 33bp 79bp},clip,width=3.0cm]{../poster/figures/siicusp34-logo-pt.png}};
+  \node[anchor=north,inner sep=0,align=center] at ([xshift=-2.55cm,yshift=-8.3cm]current page.north east) {\parbox{4.4cm}{\centering\includegraphics[width=3.4cm]{../poster/figures/fapesp-logo.png}\par\vspace{2pt}\sffamily\sz{16}{19}\muted Processo 2025/13861-1}};
+  % pergunta e autores, com mais espaço
+  \node[anchor=north west,inner sep=0,text width=21cm] at ([xshift=1.2cm,yshift=-10.4cm]current page.north west)
     {\bfseries\sz{30}{34}\hi Qual é o menor caminho que toca as 52 letras do título?};
-  \node[anchor=north west,inner sep=0,text width=17cm] at ([xshift=1.2cm,yshift=-11.55cm]current page.north west)
-    {\sffamily\sz{24}{28}\bfseries\ink Gabriel Freire Ushijima\ \ {\mdseries\muted · Orientador: Ernesto G. Birgin}};
-  \node[anchor=south west,inner sep=0] at ([xshift=1.2cm,yshift=0.3cm]current page.south west) {\sffamily\sz{20}{24}\muted\rampbar{LetA}{LetB}{LetC}\ \ Letras: 1ª → última visita};
-  \node[anchor=south west,inner sep=0] at ([xshift=10.4cm,yshift=0.3cm]current page.south west) {\sffamily\sz{20}{24}\muted\rampbar{RouA}{RouB}{RouC}\ \ Rota: início → fim};
-  \node[anchor=south east,inner sep=0] at ([xshift=-1.0cm,yshift=0.25cm]current page.south east) {\includegraphics[height=0.85cm]{../poster/figures/fapesp-logo.png}};
+  \node[anchor=north west,inner sep=0,text width=17cm] at ([xshift=1.2cm,yshift=-11.8cm]current page.north west)
+    {\sffamily\bfseries\sz{26}{30}\ink Gabriel Freire Ushijima\par\vspace{2pt}\mdseries\sz{22}{26}\muted Orientador: Ernesto G. Birgin · IME-USP};
 \end{tikzpicture}
 \newpage
 
