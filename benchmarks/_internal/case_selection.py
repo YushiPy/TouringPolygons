@@ -9,16 +9,17 @@ _ITEM = re.compile(r"^(\d+)(?:-(\d+))?$")
 
 
 def parse_case_selection(text: str, total: int | None = None) -> list[int]:
-	"""The 0-based indices a selection names, sorted and without repeats.
+	"""The 0-based indices a selection names, in the order typed and without repeats.
 
-	Items are numbers or inclusive ranges (``130``, ``64-66``) separated by commas or spaces.
+	Items are numbers or inclusive ranges (``130``, ``64-66``) separated by commas or spaces;
+	a run solves them in this order, so ``131,66`` starts with 131.
 	Numbers start at 1, the numbering of ``tpp.py live`` and ``tpp.py stop``. With ``total``,
 	a number past the campaign's last case is rejected.
 	"""
 	items = [item for item in re.split(r"[,\s]+", text.strip()) if item]
 	if not items:
 		raise ValueError("name at least one case, such as 65,66,130-131")
-	selected: set[int] = set()
+	selected: dict[int, None] = {}
 	for item in items:
 		match = _ITEM.match(item)
 		if not match:
@@ -29,8 +30,8 @@ def parse_case_selection(text: str, total: int | None = None) -> list[int]:
 			raise ValueError(f"{item!r}: cases are numbered from 1 and ranges go upwards")
 		if total is not None and last > total:
 			raise ValueError(f"case {last} does not exist: the campaign has {total}")
-		selected.update(range(first - 1, last))
-	return sorted(selected)
+		selected.update(dict.fromkeys(range(first - 1, last)))
+	return list(selected)
 
 
 def describe_selection(indices: list[int], limit: int = 12) -> str:

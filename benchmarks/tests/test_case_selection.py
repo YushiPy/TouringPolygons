@@ -28,8 +28,10 @@ def three_case_suite() -> bytes:
 
 
 class ParsingTests(unittest.TestCase):
-	def test_numbers_and_ranges_are_one_based_sorted_and_unique(self):
+	def test_numbers_and_ranges_are_one_based_unique_and_keep_the_typed_order(self):
 		self.assertEqual(parse_case_selection("65, 66,130-131 66"), [64, 65, 129, 130])
+		self.assertEqual(parse_case_selection("131,558,66,131"), [130, 557, 65])
+		self.assertEqual(parse_case_selection("10-12,3"), [9, 10, 11, 2])
 		self.assertEqual(parse_case_selection("3"), [2])
 		self.assertEqual(describe_selection([64, 65, 129]), "65, 66, 130")
 
@@ -95,12 +97,12 @@ class CampaignTests(unittest.TestCase):
 
 	def test_only_the_chosen_cases_run_and_a_later_run_finishes_the_rest_in_the_same_report(self):
 		self.assertEqual(self.run_main("--cases", "3,1"), 0)
-		self.assertEqual(sorted(self.solved), [0.0, 20.0])
+		self.assertEqual(self.solved, [20.0, 0.0])  # the order typed, not the campaign's
 		report = self.report()
-		self.assertEqual((report["status"], report["selected_cases"]), ("completed", [0, 2]))
+		self.assertEqual((report["status"], report["selected_cases"]), ("completed", [2, 0]))
 		self.assertEqual(sorted(row["case"] for row in report["rows"]), [0, 2])
 		text = free_order_campaign.render_comparison_summary(report, 3)
-		self.assertIn("Latest attempt ran only 2 of 3 case(s) (--cases): 1, 3.", text)
+		self.assertIn("Latest attempt ran only 2 of 3 case(s) (--cases): 3, 1.", text)
 
 		self.solved.clear()
 		self.assertEqual(self.run_main(), 0)  # no selection: resume covers what is missing

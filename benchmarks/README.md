@@ -47,7 +47,8 @@ Os subcomandos antigos continuam disponíveis.
 
 Na ordem livre, `--cases LISTA` (campo "Cases" no `scripts/benchmark.sh`) executa apenas
 os casos nomeados, numerados **a partir de 1**, como o `tpp.py live`, o `tpp.py stop` e o
-resumo do relatório os mostram: `--cases 65,66,130-131`. A seleção não faz parte da
+resumo do relatório os mostram: `--cases 65,66,130-131`. Eles rodam **na ordem digitada** (`--cases 131,66` começa
+pelo 131), sem repetições. A seleção não faz parte da
 configuração da campanha: os resultados entram na execução compatível mais recente, então
 uma rodada seguinte sem `--cases` ainda completa o resto. O `status` da rodada olha só
 os casos escolhidos e o resumo avisa quando a última tentativa rodou um subconjunto
