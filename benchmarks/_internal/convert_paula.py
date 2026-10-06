@@ -64,9 +64,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 	parser.add_argument("campaign", nargs="?", default="paula-center")
 	parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
 	args = parser.parse_args(argv)
-	from tpp import resolve_campaign
+	import workspace
 
-	campaign = resolve_campaign(args.campaign)
+	campaign = workspace.campaign_path(args.campaign)
 	source = args.source.resolve()
 	paths = sorted(source.rglob("*.dat"))
 	if len(paths) != 235:
