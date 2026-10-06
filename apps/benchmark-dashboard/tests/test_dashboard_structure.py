@@ -54,7 +54,8 @@ class DashboardStructureTests(unittest.TestCase):
         app = (event_root / "app.js").read_text()
         solver = (event_root / "tpp-solver.js").read_text()
 
-        self.assertIn('<script type="module" src="app.js"></script>', index)
+        # The frozen page versions its module URL for cache busting.
+        self.assertRegex(index, r'<script type="module" src="app\.js(\?v=[^"]*)?"></script>')
         self.assertIn('from "./tpp-solver.js"', app)
         self.assertIn("solveChallengeRoute", app)
         self.assertIn("export function tppSolveConvex", solver)

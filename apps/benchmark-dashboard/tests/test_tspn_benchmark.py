@@ -235,7 +235,7 @@ class TspnCampaignTests(unittest.TestCase):
                 self.assertEqual(config["max_calls"], 7)
                 self.assertEqual(config["run_options"]["max_calls"], 7)
 
-                invalid_cases = [(args + ["--max-calls", "-1"], "--max-calls cannot be negative")]
+                invalid_cases = [(args + ["--max-calls", "-2"], "--max-calls must be -1 (no limit), 0 or positive")]
                 for solver in ("both", "fekete"):
                     invalid = list(args)
                     invalid[invalid.index("ours")] = solver

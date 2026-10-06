@@ -77,7 +77,7 @@ em++ \
 	"$repo_root/packages/convex-tpp/cpp/src/solvers/intersecting_maps.cpp" \
 	"$repo_root/packages/convex-tpp/cpp/src/solvers/linear_search.cpp" \
 	"$repo_root/packages/convex-tpp/cpp/src/solvers/tan_jiang.cpp" \
-	"$repo_root/packages/nonconvex-tpp/cpp/src/common.cpp" \
+	"$repo_root/packages/nonconvex-tpp/cpp/src/decomposition.cpp" \
 	"$repo_root/packages/nonconvex-tpp/cpp/src/solvers/bnb.cpp" \
 	"$repo_root/packages/optimal-convex-partition/cpp/src/optimal_convex_partition.cpp" \
 	-sMODULARIZE=1 \
