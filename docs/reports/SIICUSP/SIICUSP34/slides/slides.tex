@@ -40,7 +40,8 @@
 % Rodapé comum: financiamento e número do slide
 \newcommand{\footerbar}[1]{%
   \draw[Rule,line width=0.8pt] ([xshift=1.2cm,yshift=1.15cm]current page.south west) -- ([xshift=-1.2cm,yshift=1.15cm]current page.south east);
-  \node[anchor=south west,inner sep=0] at ([xshift=1.2cm,yshift=0.3cm]current page.south west) {\sffamily\sz{16}{19}\muted Gabriel Freire Ushijima · Algoritmos Exatos Para o Problema de Visita de Polígonos};
+  \node[anchor=south west,inner sep=0] at ([xshift=1.2cm,yshift=0.3cm]current page.south west) {\sffamily\sz{16}{19}\muted Gabriel Freire Ushijima};
+  \node[anchor=south,inner sep=0] at ([yshift=0.3cm]current page.south) {\sffamily\sz{16}{19}\muted Algoritmos Exatos Para o Problema de Visita de Polígonos};
   \node[anchor=south east,inner sep=0] at ([xshift=-1.2cm,yshift=0.3cm]current page.south east) {\sffamily\sz{16}{19}\muted #1\,/\,5};}
 \newcommand{\slidetitle}[1]{%
   \node[anchor=north west,inner sep=0,text width=21.5cm] at ([xshift=1.2cm,yshift=-0.75cm]current page.north west) {\sffamily\bfseries\sz{36}{40}\ink #1};}
