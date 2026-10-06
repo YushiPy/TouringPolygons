@@ -35,8 +35,8 @@ O título do slide 1 é uma instância de TPP: cada componente conexa de glifo
 (Arial Bold) é uma região e a rota laranja é o caminho mínimo de ordem livre que
 as toca, com `s = t` à esquerda. O solver recebe só o contorno externo de cada
 componente: tocar o glifo equivale a tocar seu contorno externo, então os buracos
-(a, e, o, g, P…) não alteram a rota; o slide os desenha normalmente. As letras são coloridas pela ordem de visita (azul → verde) e a rota pelo
-progresso (amarelo → vermelho). São 52 regiões e 1380 vértices (curvas com
+(a, e, o, g, P…) não alteram a rota; o slide os desenha normalmente. As letras são coloridas pela ordem de visita (teal claro → azul-petróleo) e a rota pelo
+progresso (laranja claro → escuro). São 52 regiões e 1380 vértices (curvas com
 tolerância de 0,003 em); o solver (`.build/unordered/tpp`) certificou o ótimo
 (gap numérico ≤ 1e-7) em cerca de 1 min. É uma demonstração, não um resultado de desempenho.
 
