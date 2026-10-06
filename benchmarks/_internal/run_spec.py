@@ -337,6 +337,19 @@ FIELDS: tuple[Field, ...] = (
 		},
 	),
 	Field(
+		"gurobi_feasibility_tol",
+		"Gurobi FeasibilityTol",
+		NUMBER,
+		{
+			FREE: Spec(
+				None,
+				upper=1,  # the narrower 1e-9..1e-2 range is checked by the campaign runner
+				help="tpp-fekete: Gurobi FeasibilityTol for its SOCPs, 1e-9 to 1e-2; empty keeps Gurobi's default (1e-6), "
+				"as in the original solver. Fekete's own FEASIBILITY_TOLERANCE is not exposed: it must move together with SPANNING_TOLERANCE.",
+			),
+		},
+	),
+	Field(
 		"external_timeout",
 		"Watchdog timeout (s)",
 		NUMBER,
@@ -891,6 +904,7 @@ def to_legacy(values: Mapping[str, object]) -> tuple[str, list[str]]:
 		if values["max_instances"] != UNLIMITED:
 			_flag(arguments, "--max-instances", values["max_instances"])
 		_flag(arguments, "--relative-gap", values["relative_gap"])
+		_flag(arguments, "--gurobi-feasibility-tol", values["gurobi_feasibility_tol"])
 		if not values["rebuild"]:
 			arguments.append("--no-build")
 		if not values["resume"]:

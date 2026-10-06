@@ -256,6 +256,22 @@ class UnlimitedCallsTests(unittest.TestCase):
 		self.assertEqual(line.split()[5], str(2**64 - 1))
 
 
+class GurobiFeasibilityTests(unittest.TestCase):
+	def legacy(self, **overrides):
+		return run_spec.to_legacy(values_for("free-order", **overrides))[1]
+
+	def test_unset_by_default_so_the_original_gurobi_default_applies(self):
+		self.assertNotIn("--gurobi-feasibility-tol", self.legacy())
+
+	def test_passed_on_when_set_and_only_for_free_order(self):
+		arguments = self.legacy(gurobi_feasibility_tol=1e-7)
+		self.assertEqual(arguments[arguments.index("--gurobi-feasibility-tol") + 1], "1e-7")
+		self.assertNotIn("gurobi_feasibility_tol", run_spec.to_cli(values_for("fixed-order")).__str__())
+
+	def test_fekete_own_feasibility_tolerance_is_not_exposed(self):
+		self.assertNotIn("--feasibility-tolerance", self.legacy())
+
+
 class DetachTests(unittest.TestCase):
 	def test_detach_is_an_option_of_every_problem_and_off_by_default(self):
 		for problem in ("fixed-order", "free-order", "tspn"):

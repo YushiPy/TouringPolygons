@@ -202,6 +202,27 @@ class FeketeWorkerTests(unittest.TestCase):
 			return process
 		return patch.object(tspn_run_comparison.subprocess, "Popen", side_effect=fake)
 
+	def test_gurobi_feasibility_tol_reaches_the_worker_as_a_gurobi_env_file_in_its_directory(self):
+		seen = {}
+
+		def fake(command, **kwargs):
+			environment_file = Path(kwargs["cwd"]) / "gurobi.env"
+			seen["cwd"] = kwargs["cwd"]
+			seen["content"] = environment_file.read_text() if environment_file.exists() else None
+			process = Mock(returncode=-9, stdout=io.StringIO(""), stderr=io.StringIO(""), pid=999999)
+			process.wait.return_value = -9
+			return process
+
+		with tempfile.TemporaryDirectory() as directory:
+			for tolerance, expected in ((1e-7, "FeasibilityTol 1e-07\n"), (None, None)):
+				arguments = self.args(Path(directory))
+				arguments.gurobi_feasibility_tol = tolerance
+				with patch.object(tspn_run_comparison.subprocess, "Popen", side_effect=fake):
+					tspn_run_comparison.run_case(arguments, 0, io.StringIO())
+				self.assertEqual(seen["content"], expected)
+				if tolerance is None:
+					self.assertEqual(Path(seen["cwd"]), tspn_run_comparison.PROJECT_ROOT)
+
 	def test_a_killed_worker_keeps_the_incumbent_checkpoint_it_had_written(self):
 		with tempfile.TemporaryDirectory() as directory:
 			checkpoint = {"status": "interrupted", "lower_bound": 2713.99, "upper_bound": 2719.56,

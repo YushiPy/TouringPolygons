@@ -180,6 +180,11 @@ def make_parser() -> argparse.ArgumentParser:
 	)
 	parser.add_argument("--eps", type=float, default=0.001)
 	parser.add_argument("--feasibility-tolerance", type=float, default=0.001)
+	parser.add_argument(
+		"--gurobi-feasibility-tol", type=float, default=None, metavar="TOL",
+		help="Gurobi FeasibilityTol (1e-9 to 1e-2) for the SOCPs, written to a gurobi.env in the worker's directory; "
+		"default: Gurobi's own (1e-6), which is what the original Fekete code uses.",
+	)
 	parser.add_argument("--validation-tolerance", type=float, default=1e-7)
 	parser.add_argument("--max-instances", type=int, default=-1)
 	parser.add_argument(
@@ -646,9 +651,16 @@ def run_case(
 		environment = os.environ.copy()
 		environment["MPLCONFIGDIR"] = str(cache_dir / "matplotlib")
 		environment["XDG_CACHE_HOME"] = str(cache_dir)
+		gurobi_tolerance = getattr(args, "gurobi_feasibility_tol", None)
+		worker_directory = PROJECT_ROOT
+		if gurobi_tolerance is not None:
+			# Gurobi reads gurobi.env from the working directory when Fekete creates its environment
+			# (tspn_core/soc.cpp `GRBEnv env;`); this sets FeasibilityTol without patching the solver.
+			(Path(temp_dir) / "gurobi.env").write_text(f"FeasibilityTol {gurobi_tolerance!r}\n")
+			worker_directory = Path(temp_dir)
 		command = [
-			str(python_executable), str(Path(__file__).resolve()), "--worker", "--suite", str(args.suite),
-			"--tspn-repo", str(args.tspn_repo), "--worker-case", str(index),
+			str(python_executable), str(Path(__file__).resolve()), "--worker", "--suite", str(Path(args.suite).absolute()),
+			"--tspn-repo", str(Path(args.tspn_repo).absolute()), "--worker-case", str(index),
 			"--worker-result", str(result_path), "--mode", args.mode,
 			"--time-limit", str(args.time_limit), "--threads", str(args.threads),
 			"--eps", str(args.eps), "--feasibility-tolerance", str(args.feasibility_tolerance),
@@ -665,7 +677,7 @@ def run_case(
 					"error": "shutdown requested before solver start",
 				}
 			process = subprocess.Popen(
-				command, cwd=PROJECT_ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+				command, cwd=worker_directory, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
 				text=True, env=environment, start_new_session=(os.name == "posix"),
 			)
 			_ACTIVE_PROCESSES.add(process)

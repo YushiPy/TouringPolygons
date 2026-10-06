@@ -110,7 +110,7 @@ def _resume_compatible_config(previous: dict, current: dict) -> bool:
 	if FEKETE not in current_solvers:
 		ignored.update({
 			'external_optimality_eps', 'external_source_revision',
-			'external_binding_sha256', 'external_build_path',
+			'external_binding_sha256', 'external_build_path', 'gurobi_feasibility_tol',
 		})
 	previous_identity = {key: value for key, value in previous.items() if key not in ignored}
 	current_identity = {key: value for key, value in current.items() if key not in ignored}
@@ -457,6 +457,8 @@ def main(argv: list[str] | None = None) -> int:
 	# Fekete's own FEASIBILITY_TOLERANCE (its library default, which its published evaluation scripts never
 	# change). It is also the distance within which its B&B accepts a relaxed tour as covering a polygon, and
 	# its SPANNING_TOLERANCE (0.0009) is meant to stay just below it, so do not tighten it for a comparison.
+	parser.add_argument('--gurobi-feasibility-tol', type=float, default=None, metavar='TOL',
+		help="Gurobi FeasibilityTol (1e-9 to 1e-2) for Fekete's SOCPs; default: Gurobi's own, as in the original solver")
 	parser.add_argument('--feasibility-tolerance', type=float, default=1e-3,
 		help='tpp-fekete FEASIBILITY_TOLERANCE; default is the original solver default')
 	parser.add_argument('--validation-tolerance', type=float, default=1e-7)
@@ -484,8 +486,9 @@ def main(argv: list[str] | None = None) -> int:
 		or not math.isfinite(args.relative_gap) or args.relative_gap < 0
 		or not math.isfinite(args.eps) or args.eps <= 0
 		or not math.isfinite(args.feasibility_tolerance) or args.feasibility_tolerance <= 0
+		or (args.gurobi_feasibility_tol is not None and not 1e-9 <= args.gurobi_feasibility_tol <= 1e-2)
 		or not math.isfinite(args.validation_tolerance) or args.validation_tolerance <= 0):
-		parser.error('Expected positive time (or -1 for unlimited), thread, worker, and tolerance values; gaps may be zero.')
+		parser.error('Expected positive time (or -1 for unlimited), thread, worker, and tolerance values (--gurobi-feasibility-tol: 1e-9 to 1e-2); gaps may be zero.')
 	campaign = workspace.campaign_path(args.campaign)
 	metadata = json.loads((campaign / 'campaign.json').read_text())
 	cases = [case for record in metadata['inputs'] for case in read_encoded_cases(campaign / record['file'])]
@@ -539,6 +542,8 @@ def main(argv: list[str] | None = None) -> int:
 		'perimeter_budget_mode': os.environ.get('TPP_APPROX_BUDGET_MODE', 'fixed'),
 		'solver_feasibility_tolerance': args.feasibility_tolerance,
 		'independent_validation_tolerance': args.validation_tolerance}
+	if args.gurobi_feasibility_tol is not None and FEKETE in solvers:
+		config['gurobi_feasibility_tol'] = args.gurobi_feasibility_tol  # absent = Gurobi's default, so older runs stay compatible
 	if args.dry_run:
 		print(json.dumps(config, indent=2))
 		return 0
@@ -674,6 +679,7 @@ def main(argv: list[str] | None = None) -> int:
 			suite=suite, tspn_repo=external_build, mode='path', time_limit=int(args.max_seconds),
 			threads=args.threads_per_instance, eps=args.eps,
 			feasibility_tolerance=args.feasibility_tolerance,
+			gurobi_feasibility_tol=args.gurobi_feasibility_tol,
 			validation_tolerance=args.validation_tolerance, oracle_backend='socp',
 			oracle_tolerance=1e-7, worker_python=external_python,
 		)

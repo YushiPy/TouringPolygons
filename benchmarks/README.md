@@ -131,6 +131,13 @@ python3 benchmarks/tpp.py stop --case 130     # o número mostrado por `live` (f
 python3 benchmarks/tpp.py stop --all
 ```
 
+`--gurobi-feasibility-tol X` (campo "Gurobi FeasibilityTol", vazio por padrão) define o
+`FeasibilityTol` do Gurobi (de 1e-9 a 1e-2) nas relaxações SOCP do Fekete. Vazio mantém o
+padrão do Gurobi (1e-6), que é o que o código original usa. O valor vai para um
+`gurobi.env` no diretório de trabalho de cada worker, sem alterar o solver. Mudá-lo cria uma
+run separada. O `FEASIBILITY_TOLERANCE` do próprio Fekete (0,001) não é exposto: ele precisa
+mudar junto com o `SPANNING_TOLERANCE` (0,0009) e foge da configuração original.
+
 `--max-memory-gb N` (campo "Memory limit (GB)" no `scripts/benchmark.sh`) confere a
 memória residente de cada solver a cada 5 s e o interrompe com SIGINT/SIGTERM
 antes que o sistema o mate. O limite vale por instância, não pelo total. Para a

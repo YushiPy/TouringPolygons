@@ -348,11 +348,21 @@ class SingleReportFileTests(unittest.TestCase):
 	def run_directory(self):
 		return next((self.campaign / 'results').iterdir())
 
-	def test_fekete_feasibility_tolerance_defaults_to_the_original_solver_value(self):
+	def dry_run_config(self, *extra):
 		with contextlib.redirect_stdout(io.StringIO()) as printed:
 			free_order_campaign.main([str(self.campaign), '--solver', 'tpp-fekete', '--dry-run', '--no-build',
-				'--external-python', sys.executable, '--external-build', str(self.build)])
-		self.assertEqual(json.loads(printed.getvalue())['solver_feasibility_tolerance'], 0.001)
+				'--external-python', sys.executable, '--external-build', str(self.build), *extra])
+		return json.loads(printed.getvalue())
+
+	def test_fekete_tolerances_default_to_the_original_solver_values(self):
+		config = self.dry_run_config()
+		self.assertEqual(config['solver_feasibility_tolerance'], 0.001)
+		self.assertNotIn('gurobi_feasibility_tol', config)  # absent = Gurobi's default, older runs stay compatible
+
+	def test_gurobi_feasibility_tol_is_recorded_when_set_and_range_checked(self):
+		self.assertEqual(self.dry_run_config('--gurobi-feasibility-tol', '1e-7')['gurobi_feasibility_tol'], 1e-7)
+		with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+			self.dry_run_config('--gurobi-feasibility-tol', '0.5')
 
 	def test_failed_start_leaves_the_report_it_would_resume_untouched(self):
 		"""Fekete missing: the attempt fails before it can rewrite the config of an earlier run."""
