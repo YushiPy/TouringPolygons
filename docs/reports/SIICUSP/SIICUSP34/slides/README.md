@@ -34,9 +34,10 @@ por `make_scatter_data.py`.
 O título do slide 1 é uma instância de TPP: cada componente conexa de glifo
 (Arial Bold) é uma região e a rota laranja é o caminho mínimo de ordem livre que
 as toca, com `s = t` à esquerda. Buracos das letras são ligados ao exterior por
-uma fenda fina para manter polígonos simples. São 52 regiões e 1078 vértices;
-o solver (`.build/unordered/tpp`) certificou o ótimo (gap numérico ≤ 1e-7) em
-cerca de 1 minuto. É uma demonstração, não um resultado de desempenho.
+uma fenda fina para manter polígonos simples. As letras são coloridas pela ordem de visita (azul → verde) e a rota pelo
+progresso (amarelo → vermelho). São 52 regiões e 1840 vértices (curvas com
+tolerância de 0,003 em); o solver (`.build/unordered/tpp`) certificou o ótimo
+(gap numérico ≤ 1e-7) em cerca de 90 s. É uma demonstração, não um resultado de desempenho.
 
 ```sh
 # precisa de fontTools e shapely em qualquer venv
