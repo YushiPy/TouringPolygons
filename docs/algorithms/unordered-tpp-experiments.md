@@ -91,6 +91,11 @@ sob teto de chamadas é custo de um trecho de busca, não tempo de solução;
 | Memo de resultados por entrada idêntica do oráculo | chamadas | 0 repetições em 75.746 chamadas (156, 213) | descartado por medição | idem |
 | Pular o replay exato da candidata `double` rejeitada | custo/chamada | muda decisões: perde o corte dual da candidata e traços distintos podem ambos certificar | descartado por análise | idem |
 | Proposta `double` sobre polígonos contraídos 2⁻²⁰ antes do filtrado (intersectantes) | custo/chamada | aceita 22% (368/1641); oráculo 0,92× | rejeitado | idem |
+| Sinais da materialização primeiro por intervalos `double`, inteiros homogêneos só se o sinal fica aberto | custo/chamada | busca idêntica; materialização 6,9 → 5,0 s (417); 1,048× (difícil, 1 rep.) | **ativo** | [`tpp-oracle-allocation-2026-10-06`](../../benchmarks/results-saved/README.md#tpp-oracle-allocation-2026-10-06) |
+| Buffer de divisões reaproveitado e vetores reservados no mapa direcional | custo/chamada | busca idêntica; construção 10,2 → 8,8 s (417); +3,5% (difícil, 1 rep.) | **ativo** | idem |
+| Valores exatos do DAG filtrado em posições retidas da arena (atribuição no lugar) | custo/chamada | busca idêntica; filtrado 10,7 → 9,2 s (417); +2,5% (difícil, 1 rep.) | **ativo** | idem |
+| Conversão racional → `double` por truncamento + comparação com o ponto médio | custo/chamada | idêntica ao Boost em 10⁷ casos; +2,9% (difícil, 1 rep.) | **ativo** | idem |
+| Consulta de visita interrompida quando a distância parcial já é menor que a mais distante | custo/nó | busca idêntica; só −6% de consultas por segmento; neutra no 417 | rejeitado | idem |
 
 ## Detalhes das tentativas de 2026-10-05
 
@@ -206,3 +211,29 @@ referência e 1,25–1,30× o candidato; contra a referência com oito threads, 
 candidato com oito threads é 1,37× (156) e 1,68× (417) mais rápido. O gargalo principal é
 desequilíbrio de carga entre chamadas, não contenção de alocação; rodadas que
 não esperem o oráculo mais lento mudariam a busca e não foram tentadas.
+
+## Oráculo convexo — alocação e conversões (2026-10-06)
+
+Branch `oracle-shared-vertex-speedup`, campanha local
+`experiments/free-order-perf-20261005` (arquivos `mem-*`; binários
+`sign-filter`, `map-buffers`, `exact-slots`, `nearest-double`, `visit-abort`).
+Referência: `main` (`7f4c8dd`). Resumo:
+[`results-saved/tpp-oracle-allocation-2026-10-06`](../../benchmarks/results-saved/README.md#tpp-oracle-allocation-2026-10-06).
+
+- **Perfil do 417 no `main`**: `malloc`/`free` somavam ~25% das amostras;
+  `homogeneous`/`scaled_difference` da materialização alocavam inteiros GMP em
+  todo teste de sinal, o construtor do mapa `double` alocava um vetor por
+  aresta (no macOS o `free` de blocos grandes aparecia como
+  `mach_absolute_time`), e o `reset` da arena liberava cada racional exato.
+- **Ativas** (busca idêntica em 222/222 execuções; confirmação com três
+  repetições): difícil **1,142×**, validação **1,164×**. Etapas na triagem de
+  uma repetição: intervalos na materialização 1,048×, buffers do mapa 1,085×,
+  posições retidas 1,112×, conversão +2,9% sobre esta.
+- **Rejeitada**: interromper a consulta de visita assim que a distância
+  parcial fica abaixo da mais distante. É segura (a distância final só pode
+  diminuir e a comparação é estrita), mas a varredura ordenada por limite
+  superior já pula quase tudo; economizou 6% das consultas e nada de tempo.
+- **Onde está o tempo agora (417)**: recuperação filtrada ~31% do oráculo,
+  materialização ~16% (sobretudo aritmética racional de pontos), limite
+  intervalar ~14% (laços sobre todos os vértices), certificado ~10%, mapa
+  `double` ~9%. Fora do oráculo, consultas de visita ~8%.

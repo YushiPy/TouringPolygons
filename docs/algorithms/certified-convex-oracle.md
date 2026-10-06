@@ -380,6 +380,17 @@ recebendo as direções racionais originais. Contatos, cortes e pontos
 construídos continuam racionais. Decisões, contagens de predicados e limites
 são idênticos aos da versão racional.
 
+Na materialização, cada sinal é decidido antes por um intervalo binary64:
+`mpq_get_d` trunca em direção a zero, então um racional não nulo fica a menos
+de um ulp do valor convertido, e zero continua um ponto exato. Só quando o
+intervalo não decide o sinal os inteiros homogêneos são formados. Um contato
+igual a um extremo da aresta pertence a ela sem teste. A conversão
+racional → `double` dos resultados (`convex_nearest_double`) trunca, compara
+com o ponto médio do vizinho e arredonda para o par em empate: o mesmo valor do
+`convert_to` do Boost, sem alocar. Os valores exatos do DAG filtrado são
+atribuídos em posições retidas da arena, que reaproveitam sua memória entre
+recuperações.
+
 No mapa direcional, a caixa de cada polígono (união das caixas das arestas)
 descarta de uma vez as arestas cuja caixa é disjunta dela; são exatamente os
 pares que o teste aresta a aresta já descartava.
