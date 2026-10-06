@@ -215,6 +215,8 @@ def command_live(argv: Sequence[str]) -> int:
 	parser.add_argument("path", nargs="?", help="a campaign NAME or a directory; default: the whole workspace")
 	parser.add_argument("--once", action="store_true", help="print the current status and exit")
 	parser.add_argument("-f", "--follow", action="store_true", help=argparse.SUPPRESS)  # following is the default
+	parser.add_argument("--case", type=int, action="append", default=[], metavar="N",
+		help="only this case number (as shown in the output); repeatable")
 	parser.add_argument("--every", type=float, default=2.0, metavar="SECONDS", help="how often to look for new reports")
 	parser.add_argument("--stale-after", type=float, default=300.0, metavar="SECONDS",
 		help="flag an instance that has not reported for this long")
@@ -223,7 +225,7 @@ def command_live(argv: Sequence[str]) -> int:
 	args = parser.parse_args(list(argv))
 	root = workspace.campaign_path(args.path) if args.path else workspace.root()
 	options = {"stale_after": args.stale_after, "show_idle": bool(args.path), "show_gone": args.include_gone,
-		"remove_gone": not args.include_gone}
+		"remove_gone": not args.include_gone, "cases": args.case}
 
 	entries, hidden = live_progress.read_status(root, **options)
 	for _, _, line in entries:
@@ -345,7 +347,7 @@ GROUPS: dict[str, dict[str, Command]] = {
 	"Workspace": {
 		"monitor": Command("[PATH] [--once]", "Interactive screen: jobs, running instances and logs (stop, follow).",
 			module("monitor")),
-		"live": Command("[PATH] [--once]", "Follow bounds, gap, calls and queue of running instances (from live.json).",
+		"live": Command("[PATH] [--case N] [--once]", "Follow bounds, gap, calls and queue of running instances (from live.json).",
 			lambda argv: command_live(argv)),
 		"stop": Command("[PATH] [--case N|--pid P|--all]", "Stop some running instances (they report incumbent and bounds); lists them without options.",
 			lambda argv: command_stop(argv)),

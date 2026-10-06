@@ -15,12 +15,13 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import signal
 import socket
 import threading
 import time
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 WINDOW = 12  # reports kept per running instance for trend and estimate
@@ -44,6 +45,17 @@ def gap_fraction(lower: float | None, upper: float | None) -> float | None:
 	return max(0.0, (upper - lower) / upper)
 
 
+def _total(values) -> int | None:
+	"""Sum of the counters; None when no solver reports it (Fekete's trace has no node counts)."""
+	known = [value for value in values if value is not None]
+	return sum(known) if known else None
+
+
+def case_number(label: str) -> int | None:
+	match = re.search(r"case (\d+)/", label)
+	return int(match[1]) if match else None
+
+
 def combine(workers: dict[int, dict]) -> dict:
 	"""One status from the portfolio's searches: any worker's lower bound is valid, so the
 	best lower and upper bounds win; work counters add up (calls are already shared)."""
@@ -59,8 +71,8 @@ def combine(workers: dict[int, dict]) -> dict:
 			default=None,
 		),
 		"calls": max(r["calls"] for r in reports),
-		"nodes": sum(r["nodes"] for r in reports),
-		"open_nodes": sum(r["open_nodes"] for r in reports),
+		"nodes": _total(r.get("nodes") for r in reports),
+		"open_nodes": _total(r.get("open_nodes") for r in reports),
 		"max_sequence_depth": max(r["max_sequence_depth"] for r in reports),
 		"regions": reports[0].get("regions"),
 		"searches": len(reports),
@@ -106,9 +118,10 @@ def describe(label: str, record: dict) -> str:
 	gap = record.get("gap")
 	if gap is not None:
 		parts.append(f"gap {100 * gap:.3g}%")
-	parts.append(
-		f"calls {record['calls']:,}  nodes {record['nodes']:,}  open {record['open_nodes']:,}"
-	)
+	if record.get("nodes") is None:
+		parts.append(f"iterations {record['calls']:,}")
+	else:
+		parts.append(f"calls {record['calls']:,}  nodes {record['nodes']:,}  open {record['open_nodes']:,}")
 	trend = record.get("estimate", {})
 	if trend.get("queue"):
 		parts[-1] += f" ({trend['queue']})"
@@ -310,6 +323,7 @@ def read_status(
 	show_idle: bool = True,
 	show_gone: bool = False,
 	remove_gone: bool = False,
+	cases: Sequence[int] = (),
 ) -> tuple[list[tuple[str, float, str]], int]:
 	"""What the live snapshots under ``root`` say now.
 
@@ -340,11 +354,13 @@ def read_status(
 			hidden += 1
 			continue
 		if not running:
-			if show_idle:
+			if show_idle and not cases:
 				line = f"{path.parent.name}: nothing running (last update {clock(age)} ago)"
 				entries.append((f"{path}:idle", data.get("updated_at", now), line))
 			continue
 		for record in running:
+			if cases and case_number(record["label"]) not in cases:
+				continue
 			silent = now - record.get("reported_at", now)
 			note = ""
 			if gone:

@@ -47,6 +47,24 @@ class MonitorDataTests(unittest.TestCase):
 				self.assertIn("4242", monitor.stop_row(rows[0]))
 				stop.assert_called_once()
 
+	def test_case_filter_and_fekete_counters(self):
+		record = {"key": "1", "label": "free case 3/9 tpp-fekete", "elapsed_seconds": 5, "calls": 2000, "nodes": None,
+			"open_nodes": None, "lower_bound": 1.0, "upper_bound": 2.0, "reported_at": time.time()}
+		other = {**record, "key": "2", "label": "free case 4/9 tpp-fekete"}
+		with tempfile.TemporaryDirectory() as folder:
+			root = Path(folder)
+			(root / "r").mkdir()
+			(root / "r" / "live.json").write_text(json.dumps(
+				{"pid": os.getpid(), "host": None, "updated_at": time.time(), "running": [record, other]}))
+			self.assertEqual(len(monitor.collect_instances(root)), 2)
+			rows = monitor.collect_instances(root, cases=[4])
+			self.assertEqual(len(rows), 1)
+			self.assertIn("case 4/9", rows[0].text)
+			self.assertIn("iterations 2,000", rows[0].text)
+			self.assertNotIn("open", rows[0].text)
+			entries, _ = live_progress.read_status(root, cases=[3])
+			self.assertEqual(len(entries), 1)
+
 	def test_jobs_listed_with_status_and_stoppable(self):
 		with tempfile.TemporaryDirectory() as folder:
 			job = Path(folder) / "20260101-000000-demo"

@@ -95,6 +95,7 @@ depende do terminal que iniciou a execução: de qualquer outro terminal,
 python3 benchmarks/tpp.py live            # tudo o que está rodando no workspace
 python3 benchmarks/tpp.py live NOME       # só uma campanha
 python3 benchmarks/tpp.py live --once     # imprime o estado atual e sai
+python3 benchmarks/tpp.py live --case 131  # só o caso 131 (repetível; também em `monitor --case`)
 ```
 
 o `live` imprime o estado de cada instância e **continua rodando**, mostrando

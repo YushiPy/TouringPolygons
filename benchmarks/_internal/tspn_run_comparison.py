@@ -581,7 +581,7 @@ class _Streams:
 				"worker": 0, "elapsed_seconds": seconds,
 				"lower_bound": lower if math.isfinite(lower) else None,
 				"upper_bound": upper if math.isfinite(upper) else None,
-				"calls": iterations, "nodes": iterations, "open_nodes": 0, "max_sequence_depth": 0,
+				"calls": iterations, "nodes": None, "open_nodes": None, "max_sequence_depth": 0,
 			})
 		except Exception:
 			pass

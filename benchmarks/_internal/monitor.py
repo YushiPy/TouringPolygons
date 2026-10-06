@@ -55,7 +55,7 @@ def collect_jobs() -> list[Row]:
 	return rows
 
 
-def collect_instances(root: Path) -> list[Row]:
+def collect_instances(root: Path, cases: Sequence[int] = ()) -> list[Row]:
 	rows = []
 	now = time.time()
 	for path in live_progress.find_snapshots(root):
@@ -67,6 +67,8 @@ def collect_instances(root: Path) -> list[Row]:
 			continue
 		journal = path.with_name(live_progress.JOURNAL_FILE)
 		for record in data.get("running", []):
+			if cases and live_progress.case_number(record["label"]) not in cases:
+				continue
 			line = live_progress.describe(f"{path.parent.name} {record['label']}", record)
 			silent = now - record.get("reported_at", now)
 			rows.append(Row(line, line + f"\nlast report {age(silent)} ago; solver pid {record.get('child_pid')}"
@@ -112,8 +114,8 @@ def tail(path: Path, max_bytes: int = TAIL_BYTES) -> list[str]:
 	return lines[1:] if size > max_bytes and lines else lines
 
 
-def snapshot(root: Path) -> dict[str, list[Row]]:
-	return {"Jobs": collect_jobs(), "Instances": collect_instances(root), "Logs": collect_logs(root)}
+def snapshot(root: Path, cases: Sequence[int] = ()) -> dict[str, list[Row]]:
+	return {"Jobs": collect_jobs(), "Instances": collect_instances(root, cases), "Logs": collect_logs(root)}
 
 
 def stop_row(row: Row, force: bool = False) -> str:
@@ -125,8 +127,8 @@ def stop_row(row: Row, force: bool = False) -> str:
 	return "Nothing to stop here."
 
 
-def print_overview(root: Path) -> None:
-	data = snapshot(root)
+def print_overview(root: Path, cases: Sequence[int] = ()) -> None:
+	data = snapshot(root, cases)
 	for tab in ("Jobs", "Instances"):
 		print(f"== {tab} ({len(data[tab])})")
 		for row in data[tab]:
@@ -193,14 +195,14 @@ def confirm(screen, question: str) -> bool:
 	return screen.getch() in (ord("y"), ord("Y"))
 
 
-def run_screen(screen, root: Path, interval: float) -> None:
+def run_screen(screen, root: Path, interval: float, cases: Sequence[int] = ()) -> None:
 	curses.curs_set(0)
 	tab, selected, message = 0, [0, 0, 0], ""
 	data: dict[str, list[Row]] = {}
 	refreshed = 0.0
 	while True:
 		if time.time() - refreshed >= interval:
-			data, refreshed = snapshot(root), time.time()
+			data, refreshed = snapshot(root, cases), time.time()
 		name = TABS[tab]
 		rows = data[name]
 		selected[tab] = min(selected[tab], max(0, len(rows) - 1))
@@ -264,11 +266,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 	parser = argparse.ArgumentParser(prog="tpp.py monitor", description=__doc__.split("\n\n")[0])
 	parser.add_argument("path", nargs="?", help="a campaign NAME or a directory; default: the whole workspace")
 	parser.add_argument("--once", action="store_true", help="print the overview as text and exit")
+	parser.add_argument("--case", type=int, action="append", default=[], metavar="N",
+		help="show only this case number in Instances; repeatable")
 	parser.add_argument("--every", type=float, default=2.0, metavar="SECONDS", help="refresh interval")
 	args = parser.parse_args(list(argv if argv is not None else []))
 	root = workspace.campaign_path(args.path) if args.path else workspace.root()
 	if args.once or not os.isatty(1):
-		print_overview(root)
+		print_overview(root, args.case)
 		return 0
-	curses.wrapper(run_screen, root, max(0.5, args.every))
+	curses.wrapper(run_screen, root, max(0.5, args.every), args.case)
 	return 0
