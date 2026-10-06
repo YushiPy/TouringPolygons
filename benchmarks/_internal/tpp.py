@@ -343,6 +343,8 @@ GROUPS: dict[str, dict[str, Command]] = {
 			module("native_build")),
 	},
 	"Workspace": {
+		"monitor": Command("[PATH] [--once]", "Interactive screen: jobs, running instances and logs (stop, follow).",
+			module("monitor")),
 		"live": Command("[PATH] [--once]", "Follow bounds, gap, calls and queue of running instances (from live.json).",
 			lambda argv: command_live(argv)),
 		"stop": Command("[PATH] [--case N|--pid P|--all]", "Stop some running instances (they report incumbent and bounds); lists them without options.",
@@ -410,7 +412,7 @@ GROUPS: dict[str, dict[str, Command]] = {
 }
 COMMANDS = {name: command for group in GROUPS.values() for name, command in group.items()}
 # Commands that only read or prepare state are not journaled.
-UNJOURNALED = {"setup", "doctor", "ls", "workspace", "status", "jobs", "remote", "live", "stop"}
+UNJOURNALED = {"setup", "doctor", "ls", "workspace", "status", "jobs", "remote", "live", "stop", "monitor"}
 
 
 def print_help() -> None:

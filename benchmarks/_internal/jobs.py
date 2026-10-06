@@ -178,18 +178,22 @@ def command_log(args: argparse.Namespace) -> int:
 		return 0  # stop following; the job keeps running
 
 
-def command_stop(args: argparse.Namespace) -> int:
-	job = resolve(args.job)
+def request_stop(job: Path, force: bool = False) -> str:
+	"""Interrupt (or kill) a running job's process group; returns a message for the user."""
 	data = _read(job)
 	pid = data.get("child_pid")
 	if status(data) != "running" or not _alive(pid):
-		print(f"Job is not running ({status(data)}).")
-		return 0
-	sent = signal.SIGKILL if args.force else signal.SIGINT
+		return f"Job is not running ({status(data)})."
+	sent = signal.SIGKILL if force else signal.SIGINT
 	os.killpg(pid, sent)
-	print(f"Sent {sent.name} to {data['id']} (pid {pid}).")
-	if not args.force:
-		print("The runner checkpoints and exits; use --force if it does not stop.")
+	message = f"Sent {sent.name} to {data['id']} (pid {pid})."
+	if not force:
+		message += "\nThe runner checkpoints and exits; use --force if it does not stop."
+	return message
+
+
+def command_stop(args: argparse.Namespace) -> int:
+	print(request_stop(resolve(args.job), args.force))
 	return 0
 
 

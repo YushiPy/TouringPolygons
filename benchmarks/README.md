@@ -75,6 +75,18 @@ estimativa de quando o gap-alvo seria atingido. Ela é **otimista** (supõe que 
 gap continue caindo no mesmo ritmo, o que o branch and bound muitas vezes não faz).
 Trate-a como um palpite; LB, UB e a tendência da fila são os sinais confiáveis.
 
+Para uma visão única de tudo (jobs, instâncias rodando e logs), use a tela interativa:
+
+```bash
+python3 benchmarks/tpp.py monitor          # curses; `--once` imprime o mesmo resumo como texto
+```
+
+Três abas (`Tab` ou `1`-`3`): **Jobs** (status e comando dos jobs `--detach`), **Instances**
+(LB, UB, gap, chamadas e fila de cada instância; `s` interrompe só aquela) e **Logs** (saídas
+de jobs, `solver.log`, `progress.jsonl`, do mais recente ao mais antigo). `Enter` abre o log da
+linha, acompanhando o final (`↑↓`/`PgUp`/`PgDn` rolam, `f` volta a acompanhar, `q` volta);
+`s` interrompe o job ou a instância (com confirmação), `K` mata um job, `r` atualiza, `q` sai.
+
 Os mesmos dados ficam em `live.json` (no diretório da execução: a campanha
 TSPN, ou `results/EXECUÇÃO/`), reescrito de forma atômica a cada ~5 s. Ele não
 depende do terminal que iniciou a execução: de qualquer outro terminal,

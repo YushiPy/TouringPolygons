@@ -40,7 +40,7 @@ mantido nos manifestos e resultados; a conversão para o limite inteiro nativo
 é feita somente dentro do worker, para compatibilidade com bindings antigos.
 - infraestrutura: `workspace.py` (caminhos, proveniência, migração),
   `run_layout.py` (onde ficam as execuções de uma campanha: `results/<execução>/`),
-  `native_build.py` (alvos nativos e dependências), `jobs.py` e `remote.py`;
+  `native_build.py` (alvos nativos e dependências), `jobs.py`, `monitor.py` (tela curses sobre jobs, `live.json` e logs) e `remote.py`;
 - conversão: `convert_instances.py`, `convert_tspn_native_instances.py` e
   `normalize_polygon_orientation.py`.
 
