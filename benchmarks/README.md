@@ -610,9 +610,11 @@ por testes ou ferramentas.
 `results-saved/fekete-comparison/` mantém o corpus completo porque os CSVs e o
 arquivo de instâncias alimentam o material SIICUSP. O fixture pequeno
 `convex-cycle-gurobi-reference-2026-09-25/instances.json` é carregado pelos
-testes e benchmarks de ciclo. Todos os demais resultados ficam em resumos; a
-comparação, tolerâncias e limitações de cada um estão no índice
-`results-saved/README.md`.
+testes e benchmarks de ciclo, e `free-order-dantzig-2026-10-06/per-case.csv`
+guarda uma linha por caso da comparação mais recente. Todos os demais resultados
+ficam em seções do índice `results-saved/README.md` (uma por tentativa, com
+comparação, tolerâncias e limitações); pastas que teriam só um README não são
+criadas.
 
 ## Interpretação
 

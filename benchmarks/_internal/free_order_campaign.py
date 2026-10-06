@@ -454,7 +454,11 @@ def main(argv: list[str] | None = None) -> int:
 	parser.add_argument('--sampled-perimeter-initial', action='store_true')
 	parser.add_argument('--convex-initial-refinement', action='store_true')
 	parser.add_argument('--bidirectional-initial', action='store_true')
-	parser.add_argument('--feasibility-tolerance', type=float, default=1e-8)
+	# Fekete's own FEASIBILITY_TOLERANCE (its library default, which its published evaluation scripts never
+	# change). It is also the distance within which its B&B accepts a relaxed tour as covering a polygon, and
+	# its SPANNING_TOLERANCE (0.0009) is meant to stay just below it, so do not tighten it for a comparison.
+	parser.add_argument('--feasibility-tolerance', type=float, default=1e-3,
+		help='tpp-fekete FEASIBILITY_TOLERANCE; default is the original solver default')
 	parser.add_argument('--validation-tolerance', type=float, default=1e-7)
 	parser.add_argument('--external-python', type=Path, default=EXTERNAL_PYTHON,
 		help='Python environment for Fekete; defaults to the submodule .venv.')
@@ -605,7 +609,7 @@ def main(argv: list[str] | None = None) -> int:
 				else 'The two solvers use different stopping thresholds; both configured criteria are recorded explicitly.')
 			)
 		notes.append(
-			f'Selected solver(s) use feasibility tolerance {args.feasibility_tolerance:g} where their APIs permit it; independent validation uses {args.validation_tolerance:g}.'
+			f'tpp-fekete uses FEASIBILITY_TOLERANCE {args.feasibility_tolerance:g} (original default 0.001; SPANNING_TOLERANCE stays at its default); independent validation uses {args.validation_tolerance:g}.'
 		)
 		if FEKETE in solvers:
 			notes.extend([

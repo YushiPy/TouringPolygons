@@ -348,6 +348,12 @@ class SingleReportFileTests(unittest.TestCase):
 	def run_directory(self):
 		return next((self.campaign / 'results').iterdir())
 
+	def test_fekete_feasibility_tolerance_defaults_to_the_original_solver_value(self):
+		with contextlib.redirect_stdout(io.StringIO()) as printed:
+			free_order_campaign.main([str(self.campaign), '--solver', 'tpp-fekete', '--dry-run', '--no-build',
+				'--external-python', sys.executable, '--external-build', str(self.build)])
+		self.assertEqual(json.loads(printed.getvalue())['solver_feasibility_tolerance'], 0.001)
+
 	def test_failed_start_leaves_the_report_it_would_resume_untouched(self):
 		"""Fekete missing: the attempt fails before it can rewrite the config of an earlier run."""
 		with contextlib.redirect_stdout(io.StringIO()):

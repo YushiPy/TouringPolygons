@@ -50,10 +50,10 @@ sob teto de chamadas é custo de um trecho de busca, não tempo de solução;
 
 | Estratégia | Alvo | Resultado | Status | Evidência |
 |---|---|---|---|---|
-| Limites intervalares antes do replay racional | custo/chamada | 1,71× (86 pares) | **ativo** | `results-saved/tpp-interval-bounds-2026-10-02` |
-| Recuperação racional filtrada sob demanda | custo/chamada | 1,21× | **ativo** | `results-saved/tpp-certified-oracle-2026-10-02` |
+| Limites intervalares antes do replay racional | custo/chamada | 1,71× (86 pares) | **ativo** | [`tpp-interval-bounds-2026-10-02`](../../benchmarks/results-saved/README.md#tpp-interval-bounds-2026-10-02) |
+| Recuperação racional filtrada sob demanda | custo/chamada | 1,21× | **ativo** | [`tpp-certified-oracle-2026-10-02`](../../benchmarks/results-saved/README.md#tpp-certified-oracle-2026-10-02) |
 | Construção filtrada em todas as chamadas | custo/chamada | piorou casos já certificados | rejeitado | idem |
-| Contração 2⁻²⁰ para fronteiras compartilhadas | custo/chamada | 1,015× (1,23× Voronoi 11+) | **ativo** | `results-saved/tpp-boundary-disjoint-2026-10-02` |
+| Contração 2⁻²⁰ para fronteiras compartilhadas | custo/chamada | 1,015× (1,23× Voronoi 11+) | **ativo** | [`tpp-boundary-disjoint-2026-10-02`](../../benchmarks/results-saved/README.md#tpp-boundary-disjoint-2026-10-02) |
 | Recorrência disjunta antes da construção | custo/chamada | custo extra em casos fáceis | rejeitado | idem |
 | Cache de pares do despacho + geometria intervalar | custo/chamada | 1,26–4,69× (teto de chamadas) | **ativo** | experimento local `tpp-runtime-20261003` |
 | Geometria racional emprestada + cache por segmento | custo/chamada | 1,04–2,17× | **ativo** | `tpp-runtime-next-20261003` |
@@ -70,7 +70,7 @@ sob teto de chamadas é custo de um trecho de busca, não tempo de solução;
 | Armazenamento `packed`/`deltas` da fronteira | memória | mesma busca; `packed` padrão | **ativo** (`packed`) | `tpp-memory-20261002` |
 | Poda por cruzamento em relaxação parcial | árvore | **inválida** | proibida | [`unordered-pruning-counterexamples.md`](unordered-pruning-counterexamples.md) |
 | Poda de reentrada no mesmo polígono | árvore | **inválida** | proibida | idem |
-| One-tree e branching aprendido (TSPN) | árvore (ciclo) | sem ganho | rejeitado (OFF) | `results-saved/tspn-held-karp-learning-2026-09-30` |
+| One-tree e branching aprendido (TSPN) | árvore (ciclo) | sem ganho | rejeitado (OFF) | [`tspn-held-karp-learning-2026-09-30`](../../benchmarks/results-saved/README.md#tspn-held-karp-learning-2026-09-30) |
 | Lookahead *first-fail* (ramificar no polígono mais restrito) | árvore | 2–8× mais lento; árvore cresce | rejeitado (removido) | este documento, 2026-10-05 |
 | Lookahead só de poda, avaliação completa | árvore | −5…−20% chamadas, tempo neutro | substituído | idem |
 | Lookahead só de poda com saída antecipada (`--insertion-lookahead K`) | árvore | 1,04× sozinho; 0,92× sobre os limites de visita | rejeitado (OFF) | idem |
@@ -96,7 +96,7 @@ sob teto de chamadas é custo de um trecho de busca, não tempo de solução;
 
 Campanha local `experiments/free-order-perf-20261005` (comandos, seleções e
 hashes); resumo preservado em
-[`results-saved/tpp-visit-bounds-lns-2026-10-05`](../../benchmarks/results-saved/tpp-visit-bounds-lns-2026-10-05/README.md).
+[`results-saved/tpp-visit-bounds-lns-2026-10-05`](../../benchmarks/results-saved/README.md#tpp-visit-bounds-lns-2026-10-05).
 Baseline: commit `5adad03`.
 
 ### Limites superiores de visita — ativo
@@ -158,7 +158,7 @@ thread continuam mais eficientes.
 
 Mesma campanha local (`experiments/free-order-perf-20261005`, arquivos
 `oracle-*`); resumo em
-[`results-saved/tpp-oracle-exact-arithmetic-2026-10-05`](../../benchmarks/results-saved/tpp-oracle-exact-arithmetic-2026-10-05/README.md).
+[`results-saved/tpp-oracle-exact-arithmetic-2026-10-05`](../../benchmarks/results-saved/README.md#tpp-oracle-exact-arithmetic-2026-10-05).
 Referência: binário `final` da rodada anterior (limites de visita ativos).
 Todas as mudanças ativas preservam a busca: caminho, ordem, limites, chamadas,
 nós e contadores coincidem em todas as 222 execuções (37 casos, 3 repetições).
