@@ -65,6 +65,26 @@ class MonitorDataTests(unittest.TestCase):
 			entries, _ = live_progress.read_status(root, cases=[3])
 			self.assertEqual(len(entries), 1)
 
+	def test_instance_view_shows_only_the_reports_of_that_instance(self):
+		with tempfile.TemporaryDirectory() as folder:
+			journal = Path(folder) / "progress.jsonl"
+			records = [
+				{"at": 1791296872.4, "label": "free case 131/558 tpp-fekete", "elapsed_seconds": 34.0, "lower_bound": 2341.5,
+					"upper_bound": 2754.1, "gap": 0.15, "calls": 2000, "nodes": None, "open_nodes": None},
+				{"at": 1791296873.4, "label": "free case 66/558 tpp-fekete", "elapsed_seconds": 1.0, "lower_bound": 1091.0,
+					"upper_bound": None, "gap": None, "calls": 1, "nodes": None, "open_nodes": None},
+				{"at": 1791296900.4, "label": "free case 131/558 tpp-fekete", "elapsed_seconds": 61.0, "lower_bound": 2404.2,
+					"upper_bound": 2727.4, "gap": 0.118, "calls": 4000, "nodes": None, "open_nodes": None},
+			]
+			journal.write_text("".join(json.dumps(record) + "\n" for record in records) + "not json\n")
+			lines = monitor.instance_lines(journal, "free case 131/558 tpp-fekete")
+			self.assertEqual(len(lines), 2)
+			self.assertIn("iterations 2,000", lines[0])
+			self.assertIn("gap   11.8%", lines[1])
+			self.assertTrue(all("1091" not in line for line in lines))
+			self.assertIn("no reports", monitor.instance_lines(journal, "free case 7/558 tpp-fekete")[0])
+			self.assertIn("UB -", monitor.instance_lines(journal, "free case 66/558 tpp-fekete")[0])
+
 	def test_parse_cases(self):
 		self.assertEqual(monitor.parse_cases("131, 558 4-6"), [131, 558, 4, 5, 6])
 		self.assertEqual(monitor.parse_cases(""), [])

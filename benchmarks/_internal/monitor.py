@@ -115,6 +115,34 @@ def tail(path: Path, max_bytes: int = TAIL_BYTES) -> list[str]:
 	return lines[1:] if size > max_bytes and lines else lines
 
 
+def format_report(record: dict) -> str:
+	"""One journal record as a readable line: wall-clock time, elapsed, bounds, gap and work done."""
+	at = time.strftime("%H:%M:%S", time.localtime(record["at"])) if isinstance(record.get("at"), (int, float)) else "--:--:--"
+	lower, upper, gap = record.get("lower_bound"), record.get("upper_bound"), record.get("gap")
+	work = (f"iterations {record['calls']:,}" if record.get("nodes") is None
+		else f"calls {record['calls']:,}  nodes {record['nodes']:,}  open {(record.get('open_nodes') or 0):,}")
+	elapsed = live_progress.clock(record.get("elapsed_seconds") or 0)
+	bounds = "  ".join(f"{name} {value:<12.8g}" if value is not None else f"{name} {'-':<12}"
+		for name, value in (("LB", lower), ("UB", upper)))
+	gap_text = f"gap {100 * gap:6.3g}%" if gap is not None else f"gap {'-':>6} "
+	return f"{at}  {elapsed:>9}  {bounds}  {gap_text}  {work}"
+
+
+def instance_lines(journal: Path | None, label: str, max_bytes: int = 4 * TAIL_BYTES) -> list[str]:
+	"""Only the reports of one instance, from the run's shared progress journal."""
+	if journal is None:
+		return ["(no progress journal for this run)"]
+	lines = []
+	for raw in tail(journal, max_bytes):
+		try:
+			record = json.loads(raw)
+		except ValueError:
+			continue
+		if record.get("label") == label:
+			lines.append(format_report(record))
+	return lines or [f"(no reports from {label} yet)"]
+
+
 def snapshot(root: Path, cases: Sequence[int] = ()) -> dict[str, list[Row]]:
 	return {"Jobs": collect_jobs(), "Instances": collect_instances(root, cases), "Logs": collect_logs(root)}
 
@@ -156,12 +184,14 @@ def clip(window, y: int, text: str, attr: int = 0) -> None:
 			pass
 
 
-def view_log(screen, path: Path, title: str) -> None:
-	"""Scrollable log; follows the end until the user scrolls up (f resumes)."""
+def view_log(screen, path: Path, title: str, read_lines=None) -> None:
+	"""Scrollable log; follows the end until the user scrolls up (f resumes).
+
+	``read_lines`` replaces reading ``path`` (used to show the lines of one instance only)."""
 	follow, offset = True, 0
 	screen.timeout(1000)
 	while True:
-		lines = tail(path)
+		lines = read_lines() if read_lines is not None else tail(path)
 		height, width = screen.getmaxyx()
 		page = max(1, height - 2)
 		top = max(0, len(lines) - page)
@@ -294,7 +324,11 @@ def run_screen(screen, root: Path, interval: float, cases: Sequence[int] = ()) -
 			refreshed = 0.0
 		elif rows and key in (10, 13, curses.KEY_ENTER, ord("l")):
 			row = rows[selected[tab]]
-			if row.log is not None and row.log.exists():
+			if row.child is not None and row.log is not None and row.log.exists():
+				label = row.child["label"]
+				view_log(screen, row.log, f"{label}   (run {row.child['run']})",
+					lambda journal=row.log, label=label: instance_lines(journal, label))
+			elif row.log is not None and row.log.exists():
 				view_log(screen, row.log, str(row.log))
 			else:
 				message = "No log file for this row yet."
