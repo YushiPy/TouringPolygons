@@ -12,6 +12,7 @@ import os
 import signal
 import subprocess
 import threading
+import time
 from collections.abc import Callable
 
 POLL_SECONDS = 5.0
@@ -52,6 +53,52 @@ def descendants(pid: int) -> list[int]:
 			found.append(child)
 			pending.append(child)
 	return found
+
+
+def alive(pid: int) -> bool:
+	"""True while ``pid`` runs; an exited process waiting to be reaped (zombie) does not count."""
+	try:
+		os.kill(pid, 0)
+	except ProcessLookupError:
+		return False
+	except PermissionError:
+		return True
+	try:
+		state = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True, timeout=5).stdout
+	except (OSError, subprocess.SubprocessError):
+		return True
+	return bool(state.strip()) and not state.strip().startswith("Z")
+
+
+def _send(pid: int, number: int) -> None:
+	try:
+		os.kill(pid, number)
+	except OSError:
+		pass
+
+
+def kill_tree(pid: int, grace: float = 8.0) -> list[int]:
+	"""Stop ``pid`` and everything below it: SIGINT to every descendant, a grace period for them to
+	report and exit, SIGKILL for any left, and only then SIGKILL for ``pid`` and its process group.
+
+	Solver workers run in their own session, so a group signal alone never reaches them. Returns
+	the descendants that needed SIGKILL.
+	"""
+	below = descendants(pid)
+	for child in below:
+		_send(child, signal.SIGINT)
+	deadline = time.monotonic() + grace
+	while time.monotonic() < deadline and any(alive(child) for child in below):
+		time.sleep(0.2)
+	stubborn = [child for child in descendants(pid) + below if alive(child)]
+	for child in dict.fromkeys(stubborn):
+		_send(child, signal.SIGKILL)
+	try:
+		os.killpg(pid, signal.SIGKILL)
+	except OSError:
+		pass
+	_send(pid, signal.SIGKILL)
+	return list(dict.fromkeys(stubborn))
 
 
 class MemoryGuard:

@@ -20,6 +20,7 @@ from pathlib import Path
 
 import jobs
 import live_progress
+import process_guard
 import workspace
 
 LOG_NAMES = {"solver.log", "run.log", "output.log", "stderr.log", "stdout.log", live_progress.JOURNAL_FILE}
@@ -121,6 +122,9 @@ def snapshot(root: Path, cases: Sequence[int] = ()) -> dict[str, list[Row]]:
 def stop_row(row: Row, force: bool = False) -> str:
 	if row.job is not None:
 		return jobs.request_stop(row.job, force)
+	if row.child is not None and force:
+		stubborn = process_guard.kill_tree(row.child["child_pid"])
+		return f"Killed pid {row.child['child_pid']} (SIGINT first{', then SIGKILL' if stubborn else ''})."
 	if row.child is not None:
 		sent = live_progress.stop_child(row.child)
 		return f"Asked pid {row.child['child_pid']} to stop; it reports its incumbent and bounds." if sent else "Already finished."
@@ -140,7 +144,7 @@ def print_overview(root: Path, cases: Sequence[int] = ()) -> None:
 
 # --- curses ------------------------------------------------------------------
 
-HELP = "Tab/1-3 switch  ↑↓ move  Enter log  s stop  K kill (jobs)  c case filter  r refresh  q quit"
+HELP = "Tab/1-3 switch  ↑↓ move  Enter log  s stop  K kill  c case filter  r refresh  q quit"
 
 
 def clip(window, y: int, text: str, attr: int = 0) -> None:
@@ -299,6 +303,8 @@ def run_screen(screen, root: Path, interval: float, cases: Sequence[int] = ()) -
 			force = key == ord("K")
 			if row.job is None and row.child is None:
 				message = "Nothing to stop here (use the Jobs or Instances tab)."
+			elif force and not confirm(screen, f"Kill {row.detail.splitlines()[0][:60]}? SIGINT to its processes, then SIGKILL"):
+				pass
 			elif confirm(screen, f"{'Kill' if force else 'Stop'} {row.detail.splitlines()[0][:60]}?"):
 				message = stop_row(row, force).splitlines()[0]
 				refreshed = 0.0

@@ -185,16 +185,12 @@ def request_stop(job: Path, force: bool = False) -> str:
 	pid = data.get("child_pid")
 	if status(data) != "running" or not _alive(pid):
 		return f"Job is not running ({status(data)})."
-	sent = signal.SIGKILL if force else signal.SIGINT
-	# Solver workers run in their own session, so the group signal does not reach them;
-	# a kill must also take every descendant, or they keep running as orphans.
-	workers = process_guard.descendants(pid) if force else []
+	if force:
+		stubborn = process_guard.kill_tree(pid)
+		return (f"Killed {data['id']} (pid {pid}): SIGINT to its processes first, then SIGKILL"
+			f"{f' ({len(stubborn)} needed it)' if stubborn else ''}.")
+	sent = signal.SIGINT
 	os.killpg(pid, sent)
-	for worker in workers:
-		try:
-			os.kill(worker, sent)
-		except OSError:
-			pass
 	message = f"Sent {sent.name} to {data['id']} (pid {pid})."
 	if not force:
 		message += "\nThe runner checkpoints and exits; use --force if it does not stop."
@@ -233,7 +229,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 	log.set_defaults(func=command_log)
 	stop = sub.add_parser("stop", help="interrupt a job (checkpointing runners stop cleanly)")
 	stop.add_argument("job")
-	stop.add_argument("--force", action="store_true", help="kill instead of interrupting")
+	stop.add_argument("--force", action="store_true", help="SIGINT every process of the job, then SIGKILL what is left")
 	stop.set_defaults(func=command_stop)
 	args = parser.parse_args(arguments)
 	return int(args.func(args) or 0)

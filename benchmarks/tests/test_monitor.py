@@ -109,5 +109,36 @@ class KillTests(unittest.TestCase):
 			parent.kill()
 
 
+class KillTreeTests(unittest.TestCase):
+	def test_children_get_sigint_first_and_stubborn_ones_sigkill(self):
+		import subprocess
+		import sys
+
+		import process_guard
+
+		with tempfile.TemporaryDirectory() as folder:
+			marker = Path(folder) / "polite-got-sigint"
+			polite = (f"import signal,sys,time,pathlib;"
+				f"signal.signal(signal.SIGINT,lambda *a:(pathlib.Path({str(marker)!r}).write_text('x'),sys.exit(0)));time.sleep(60)")
+			stubborn = "import signal,time;signal.signal(signal.SIGINT,signal.SIG_IGN);time.sleep(60)"
+			parent_code = ("import subprocess,sys,time;"
+				f"subprocess.Popen([sys.executable,'-c',{polite!r}],start_new_session=True);"
+				f"subprocess.Popen([sys.executable,'-c',{stubborn!r}],start_new_session=True);time.sleep(60)")
+			parent = subprocess.Popen([sys.executable, "-c", parent_code], process_group=0)
+			try:
+				time.sleep(1.5)
+				below = process_guard.descendants(parent.pid)
+				self.assertEqual(len(below), 2)
+				needed = process_guard.kill_tree(parent.pid, grace=1.5)
+				parent.wait(timeout=5)
+				time.sleep(0.5)
+				self.assertTrue(marker.exists(), "the polite child must see SIGINT before any SIGKILL")
+				self.assertEqual(len(needed), 1)
+				for pid in below:
+					self.assertFalse(process_guard.alive(pid))
+			finally:
+				parent.kill()
+
+
 if __name__ == "__main__":
 	unittest.main()
