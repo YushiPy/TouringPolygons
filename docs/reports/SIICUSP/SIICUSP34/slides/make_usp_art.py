@@ -1,10 +1,11 @@
 """TikZ drawing of the USP demonstration (apps/siicusp34/data/usp-demo.js, read-only),
 re-coloured with the deck palette. Writes usp-art-body.tex (unit: 1 = full height)."""
-import json, math
+import json, math, sys
 from pathlib import Path
 from palette import LETTER_RAMP, ROUTE_RAMP, ramp, rgb
 
 HERE = Path(__file__).parent
+STYLE = sys.argv[1] if len(sys.argv) > 1 else 'dark'
 SRC = HERE.parents[4] / "apps/siicusp34/data/usp-demo.js"
 text = SRC.read_text()
 demo = json.loads(text[text.index("=") + 1:].rstrip().rstrip(";"))
@@ -18,7 +19,11 @@ f = lambda x, y: f"({(x - x0) * k:.4f},{(y - y0) * k:.4f})"
 out = [f"\\def\\uspaspect{{{(x1 - x0) * k:.4f}}}\\def\\uspsx{{{(start[0] - x0) * k:.4f}}}\\def\\uspsy{{{(start[1] - y0) * k:.4f}}}"]
 for i, p in enumerate(polys):
     c = ramp(LETTER_RAMP, rank[i] / (len(polys) - 1))
-    out.append(f"\\fill[color={rgb(c)}] " + " -- ".join(f(x, y) for x, y in p) + " -- cycle;")
+    ink = (0x14, 0x2D, 0x38)
+    # outline variant: 'dark' = same hue mixed with ink; 'light' = lighter
+    lite = (tuple(round(v * 0.55 + i * 0.45) for v, i in zip(c, ink)) if STYLE == 'dark'
+            else tuple(round(v + (255 - v) * 0.55) for v in c))
+    out.append(f"\\filldraw[fill={rgb(c)},draw={rgb(lite)},line width=0.7pt,line join=round] " + " -- ".join(f(x, y) for x, y in p) + " -- cycle;")
 pieces, total = [], 0.0
 for (ax, ay), (bx, by) in zip(path, path[1:]):
     n = max(1, math.ceil(math.hypot(bx - ax, by - ay) * k / 0.03))
