@@ -110,6 +110,23 @@ class CampaignTests(unittest.TestCase):
 		self.assertEqual(sorted(row["case"] for row in report["rows"]), [0, 1, 2])
 		self.assertNotIn("selected_cases", report)
 
+	def test_max_instances_defaults_to_all_cases_and_accepts_minus_one(self):
+		self.assertEqual(self.run_main(), 0)
+		self.assertEqual(len(self.report()["rows"]), 3)
+		self.solved.clear()
+		self.assertEqual(self.run_main("--max-instances", "-1", "--force"), 0)
+		self.assertEqual(len(self.solved), 3)
+		with self.assertRaises(SystemExit), patch("sys.stderr", io.StringIO()):
+			self.run_main("--max-instances", "0")
+
+	def test_the_command_built_by_the_interface_leaves_max_instances_out_when_unlimited(self):
+		values = run_spec.default_values("free-order")
+		values.update(campaign="x", cases="2")
+		self.assertNotIn("--max-instances", run_spec.to_legacy(values)[1])
+		values["max_instances"] = 2
+		arguments = run_spec.to_legacy(values)[1]
+		self.assertEqual(arguments[arguments.index("--max-instances") + 1], "2")
+
 	def test_a_selection_past_the_last_case_is_refused(self):
 		with self.assertRaises(SystemExit), patch("sys.stderr", io.StringIO()) as error:
 			self.run_main("--cases", "4")

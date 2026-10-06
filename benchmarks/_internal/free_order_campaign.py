@@ -439,7 +439,7 @@ def main(argv: list[str] | None = None) -> int:
 	parser.add_argument('--solver', type=parse_solver_name, action='append',
 		metavar='{tpp-ours,tpp-fekete}',
 		help='Select tpp-ours and/or tpp-fekete; may be repeated (default: tpp-ours).')
-	parser.add_argument('--max-instances', type=int, default=5000)
+	parser.add_argument('--max-instances', type=int, default=-1, help='use only the first N cases of the campaign; -1 (the default) means all')
 	parser.add_argument('--max-calls', type=int, default=1000000, help='oracle-call cap per instance; -1 means no limit')
 	parser.add_argument('--max-seconds', type=float, default=30,
 		help='Maximum seconds per instance; -1 means unlimited.')
@@ -473,7 +473,7 @@ def main(argv: list[str] | None = None) -> int:
 	parser.add_argument('--dry-run', action='store_true')
 	args = parser.parse_args(argv)
 	if ((args.max_seconds != -1 and (not math.isfinite(args.max_seconds) or args.max_seconds <= 0)) or args.max_calls < -1
-		or args.max_instances < 1 or args.threads_per_instance < 1 or args.workers < 1
+		or args.max_instances == 0 or args.max_instances < -1 or args.threads_per_instance < 1 or args.workers < 1
 		or not math.isfinite(args.progress_interval) or args.progress_interval < 0
 		or (args.max_memory_gb is not None and not (math.isfinite(args.max_memory_gb) and args.max_memory_gb > 0))
 		or not math.isfinite(args.absolute_gap) or args.absolute_gap < 0
@@ -484,7 +484,9 @@ def main(argv: list[str] | None = None) -> int:
 		parser.error('Expected positive time (or -1 for unlimited), thread, worker, and tolerance values; gaps may be zero.')
 	campaign = workspace.campaign_path(args.campaign)
 	metadata = json.loads((campaign / 'campaign.json').read_text())
-	cases = [case for record in metadata['inputs'] for case in read_encoded_cases(campaign / record['file'])][:args.max_instances]
+	cases = [case for record in metadata['inputs'] for case in read_encoded_cases(campaign / record['file'])]
+	if args.max_instances != -1:
+		cases = cases[:args.max_instances]
 	if not cases:
 		parser.error('Campaign has no cases.')
 	if args.cases is not None:

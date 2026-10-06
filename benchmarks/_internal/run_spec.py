@@ -874,8 +874,6 @@ def to_legacy(values: Mapping[str, object]) -> tuple[str, list[str]]:
 		_flag(arguments, "--cases", values["cases"])
 		if values["max_instances"] != UNLIMITED:
 			_flag(arguments, "--max-instances", values["max_instances"])
-		else:
-			arguments += ["--max-instances", "1000000000"]
 		_flag(arguments, "--relative-gap", values["relative_gap"])
 		if not values["rebuild"]:
 			arguments.append("--no-build")
