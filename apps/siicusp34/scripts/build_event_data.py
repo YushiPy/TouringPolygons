@@ -152,6 +152,19 @@ def overlay_campaign(path: Path, ours: dict[int, dict[str, str]], fekete: dict[i
 			fekete[index].update(is_optimal="False", status="open", solve_seconds="")
 
 
+def speedup_histogram(path: Path) -> dict[str, object]:
+	"""Log10 histogram of Fekete/ours speedups, stacked by instance family (cases closed by both)."""
+	low, step, count = 0.5, 0.25, 12
+	families: dict[str, list[int]] = {}
+	with path.open(newline="", encoding="utf-8") as file:
+		for row in csv.DictReader(file):
+			if row["fekete_status"] != "optimal":
+				continue
+			bin_index = int((math.log10(float(row["fekete_over_ours"])) - low) // step)
+			families.setdefault(row["source"], [0] * count)[min(max(bin_index, 0), count - 1)] += 1
+	return {"log10_low": low, "log10_step": step, "families": families}
+
+
 def read_legacy_decompositions(path: Path | None) -> dict[int, tuple[tuple[tuple[float, float], ...], tuple[tuple[tuple[float, float], ...], ...]]]:
 	if path is None:
 		return {}
@@ -278,6 +291,8 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 			"fekete_raw_instances_at_1e-7": precision["fekete_raw_max_per_instance"]["thresholds"][5]["count"],
 		},
 	})
+	if args.campaign:
+		comparison["speedup_histogram"] = speedup_histogram(args.campaign)
 	data = {
 		"config": {"solver_threads": 1, "validation_tolerance": 1e-7},
 		"corpus": "fekete",

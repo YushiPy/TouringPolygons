@@ -672,6 +672,56 @@ async function initialize() {
 		select.innerHTML = data.rows.map((item) => `<option value="${item.case}">Caso ${caseLabel(item.case)} · ${item.polygons} regiões</option>`).join("");
 	}
 
+	function renderSpeedupChart(comparison) {
+		const panel = element("speedup-panel");
+		const host = element("speedup-chart");
+		const histogram = comparison.speedup_histogram;
+		if (!panel || !host || !histogram?.families) return;
+		panel.hidden = false;
+		const measured = Math.round(host.clientWidth);
+		if (!host.dataset.observed && "ResizeObserver" in window) {
+			host.dataset.observed = "true";
+			new ResizeObserver(() => { if (Math.abs(Math.round(host.clientWidth) - Number(host.dataset.width || 0)) > 8) renderSpeedupChart(comparison); }).observe(host);
+		}
+		host.dataset.width = String(measured);
+		const families = [["OSM", "OSM", "#1f7a73"], ["random", "Aleatórias", "#c2501a"], ["tessellation", "Voronoi", "#142d38"]]
+			.filter(([key]) => histogram.families[key]);
+		const { log10_low: low, log10_step: step } = histogram;
+		const bins = histogram.families[families[0][0]].length;
+		const totals = Array.from({ length: bins }, (_, index) => families.reduce((sum, [key]) => sum + histogram.families[key][index], 0));
+		const yMax = Math.ceil(Math.max(...totals) / 20) * 20;
+		const width = Math.max(300, measured || 900), narrow = width < 560, height = narrow ? 330 : 400, left = narrow ? 44 : 58, right = 14, top = 34, bottom = narrow ? 62 : 56;
+		const xMax = low + bins * step;
+		const x = (log) => left + (log / xMax) * (width - left - right);
+		const y = (count) => top + (1 - count / yMax) * (height - top - bottom);
+		const ticksY = Array.from({ length: yMax / 20 + 1 }, (_, index) => index * 20);
+		let svg = `<svg viewBox="0 0 ${width} ${height}" focusable="false" aria-hidden="true">`;
+		for (const tick of ticksY) svg += `<line class="grid" x1="${left}" x2="${width - right}" y1="${y(tick)}" y2="${y(tick)}"/><text class="tick" x="${left - 10}" y="${y(tick) + 4}" text-anchor="end">${tick}</text>`;
+		for (let power = 0; power <= Math.floor(xMax); power += 1) svg += `<line class="tick-mark" x1="${x(power)}" x2="${x(power)}" y1="${height - bottom}" y2="${height - bottom + 6}"/><text class="tick" x="${x(power)}" y="${height - bottom + 24}" text-anchor="middle">${number(10 ** power, 0)}×</text>`;
+		svg += `<line class="axis" x1="${left}" x2="${width - right}" y1="${height - bottom}" y2="${height - bottom}"/>`;
+		for (let index = 0; index < bins; index += 1) {
+			let base = 0;
+			const x0 = x(low + index * step) + 1, w = x(low + (index + 1) * step) - x(low + index * step) - 2;
+			for (const [key, label, color] of families) {
+				const count = histogram.families[key][index];
+				if (!count) continue;
+				svg += `<rect x="${x0}" y="${y(base + count)}" width="${w}" height="${y(base) - y(base + count)}" fill="${color}"><title>${label}: ${count} instâncias entre ${number(10 ** (low + index * step), 1)}× e ${number(10 ** (low + (index + 1) * step), 1)}×</title></rect>`;
+				base += count;
+			}
+		}
+		svg += `<line class="zero" x1="${x(0)}" x2="${x(0)}" y1="${top}" y2="${height - bottom}"/>`;
+		svg += `<text class="zero-label" transform="translate(${x(0) + 16} ${(top + height - bottom) / 2}) rotate(-90)" text-anchor="middle">${narrow ? "Fekete mais rápido: 0" : "Fekete mais rápido: 0 casos"}</text>`;
+		const median = Number(comparison.median_speedup_fekete_over_ours), mean = Number(comparison.mean_speedup_fekete_over_ours);
+		svg += `<line class="median" x1="${x(Math.log10(median))}" x2="${x(Math.log10(median))}" y1="${top - 6}" y2="${height - bottom}"/><text class="median-label" x="${x(Math.log10(median)) - 8}" y="${top - 10}" text-anchor="end">mediana ${number(median, 1)}×</text>`;
+		svg += `<line class="mean" x1="${x(Math.log10(mean))}" x2="${x(Math.log10(mean))}" y1="${top - 6}" y2="${height - bottom}"/><text class="mean-label" x="${x(Math.log10(mean)) + 8}" y="${top - 10}" text-anchor="start">média ${number(mean, 1)}×</text>`;
+		svg += `<text class="axis-title" x="${(left + width - right) / 2}" y="${height - 10}" text-anchor="middle">${narrow ? "Speedup (Fekete ÷ nosso), escala log" : "Speedup (tempo do Fekete et al. ÷ nosso), escala logarítmica"}</text>`;
+		svg += `<text class="axis-title" transform="translate(14 ${(top + height - bottom) / 2}) rotate(-90)" text-anchor="middle">Instâncias</text></svg>`;
+		const legend = [...families].reverse().map(([key, label, color]) => `<span><i style="background:${color}"></i>${label} (${histogram.families[key].reduce((a, b) => a + b, 0)})</span>`).join("");
+		host.innerHTML = svg + `<div class="speedup-legend">${legend}</div>`;
+		element("speedup-chart-summary").textContent = `Histograma do speedup em escala logarítmica para ${comparison.common_completed} instâncias: mediana ${number(median, 1)}×, média ${number(mean, 1)}×, nosso solver mais rápido em todas.`;
+		panel.hidden = false;
+	}
+
 	function updateResultSummary() {
 		const summary = data.summary || {};
 		const comparison = data.comparison || {};
@@ -691,6 +741,7 @@ async function initialize() {
 		if (underTenElement) underTenElement.innerHTML = `${underTen}<span>/ ${cases}</span>`;
 		if (speedupElement && Number.isFinite(meanSpeedup)) speedupElement.textContent = `${number(meanSpeedup, 0)}×`;
 		if (fasterElement) fasterElement.innerHTML = `${Number(comparison.ours_faster_count || 0)}<span>/ ${common}</span>`;
+		renderSpeedupChart(comparison);
 		const note = element("result-benchmark-note");
 		if (note) note.textContent = `Esses resultados dizem respeito às instâncias usadas por Fekete et al. no artigo. Rodamos cada instância em uma thread, sem limite de tempo: nosso solver concluiu ${certified}/${cases}, enquanto o de Fekete et al. concluiu ${comparison.fekete_completed ?? "—"}/${cases}. As comparações de tempo e velocidade usam os ${common} casos concluídos por ambos.`;
 		const setText = (id, value) => { const target = element(id); if (target) target.textContent = value; };
@@ -2119,7 +2170,7 @@ function initializeGuide() {
 		content.append(source);
 		resetDialogScroll();
 		dialog.dataset.section = id;
-		eyebrow.textContent = `ETAPA ${copy[id][0]} de 6`;
+		eyebrow.textContent = `ETAPA ${copy[id][0]} de ${ids.length}`;
 		title.textContent = copy[id][1];
 		subtitle.textContent = copy[id][2];
 		update(id);
@@ -2170,7 +2221,7 @@ function initializeGuide() {
 		content.append(source);
 		resetDialogScroll();
 		dialog.dataset.section = nextId;
-		eyebrow.textContent = `ETAPA ${copy[nextId][0]} de 6`;
+		eyebrow.textContent = `ETAPA ${copy[nextId][0]} de ${ids.length}`;
 		title.textContent = copy[nextId][1];
 		subtitle.textContent = copy[nextId][2];
 		update(previous.id);

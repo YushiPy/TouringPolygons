@@ -6339,3 +6339,50 @@ details:not(.geometry-tools):not(.guided-section)[open]>summary::after {
 		justify-self: end;
 	}
 }
+
+.speedup-panel {
+	margin-top: 26px;
+}
+
+.speedup-panel[hidden] {
+	display: none;
+}
+
+.speedup-chart svg {
+	display: block;
+	width: 100%;
+	height: auto;
+	margin-top: 8px;
+	font-family: inherit;
+}
+
+.speedup-chart .grid { stroke: #e3ebe8; stroke-width: 1; }
+.speedup-chart .axis { stroke: #47616a; stroke-width: 1.5; }
+.speedup-chart .tick-mark { stroke: #47616a; stroke-width: 1.5; }
+.speedup-chart .tick { fill: #47616a; font-size: 13px; }
+.speedup-chart .axis-title { fill: #47616a; font-size: 14px; }
+.speedup-chart .zero { stroke: #47616a; stroke-width: 1.5; stroke-dasharray: 5 4; }
+.speedup-chart .zero-label { fill: #47616a; font-size: 13px; }
+.speedup-chart .median { stroke: #142d38; stroke-width: 2.5; stroke-dasharray: 7 5; }
+.speedup-chart .median-label { fill: #142d38; font-size: 15px; font-weight: 700; }
+.speedup-chart .mean { stroke: #c2501a; stroke-width: 3; }
+.speedup-chart .mean-label { fill: #c2501a; font-size: 15px; font-weight: 700; }
+
+.speedup-legend {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 6px 18px;
+	margin-top: 4px;
+	color: #47616a;
+	font-size: 0.875rem;
+}
+
+.speedup-legend i {
+	display: inline-block;
+	width: 12px;
+	height: 12px;
+	margin-right: 6px;
+	border-radius: 2px;
+	vertical-align: -1px;
+}
