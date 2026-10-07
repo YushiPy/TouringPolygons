@@ -1975,11 +1975,11 @@ function initializeDisclosures() {
 
 function initializeGuide() {
 	const copy = {
-		desafio: ["2", "Tente você mesmo!", "Escolha a ordem de visita e compare com o solver."],
-		metodo: ["3", "Como o algoritmo resolve", "Rota inicial, ramificações, limites e uma execução passo a passo."],
-		historia: ["4", "Trabalhos anteriores", "Uma linha do tempo do TPP até este solver autocontido."],
-		resultados: ["5", "O que melhoramos", "Compare os resultados deste solver com os anteriores."],
-		contato: ["6", "Fale com o autor", "Comentários, dúvidas ou uma conversa sobre a pesquisa."],
+		desafio: ["1", "Tente você mesmo!", "Escolha a ordem de visita e compare com o solver."],
+		metodo: ["2", "Como o algoritmo resolve", "Rota inicial, ramificações, limites e uma execução passo a passo."],
+		historia: ["3", "Trabalhos anteriores", "Uma linha do tempo do TPP até este solver autocontido."],
+		resultados: ["4", "O que melhoramos", "Compare os resultados deste solver com os anteriores."],
+		contato: ["5", "Fale com o autor", "Comentários, dúvidas ou uma conversa sobre a pesquisa."],
 	};
 	const ids = ["desafio", "metodo", "historia", "resultados", "contato"];
 	const nodes = new Map();
@@ -2051,7 +2051,7 @@ function initializeGuide() {
 		try { localStorage.setItem(storageKey, JSON.stringify([...visited])); } catch { /* Private browsing can reject storage. */ }
 		update(id);
 		const count = element("guide-title")?.closest(".guide-nav")?.querySelector("[data-guide-count]");
-		if (count) count.textContent = `${visited.size + 1}/${nodes.size + 1} etapas visitadas`;
+		if (count) count.textContent = `${visited.size}/${nodes.size} etapas visitadas`;
 	}
 	function sourceFor(node) {
 		return node.matches("details")
@@ -2200,12 +2200,6 @@ function initializeGuide() {
 	}
 	document.querySelectorAll("[data-guide-target]").forEach((link) => link.addEventListener("click", (event) => {
 			const id = link.dataset.guideTarget;
-			if (id === "usp") {
-				event.preventDefault();
-				document.querySelector('.case-tabs [data-case="usp"]')?.click();
-				document.querySelector(".drawing-panel")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
-				return;
-			}
 			if (!nodes.has(id)) return;
 			event.preventDefault();
 			open(id, link);
@@ -2219,7 +2213,7 @@ function initializeGuide() {
 		document.querySelector('.guide-links [data-guide-target="resultados"]')?.click();
 	}));
 	const count = element("guide-title")?.closest(".guide-nav")?.querySelector("[data-guide-count]");
-	if (count) count.textContent = `${visited.size + 1}/${nodes.size + 1} etapas visitadas`;
+	if (count) count.textContent = `${visited.size}/${nodes.size} etapas visitadas`;
 	updateNavigation();
 	const initial = window.location.hash.slice(1);
 	if (nodes.has(initial)) open(initial, null, true);
