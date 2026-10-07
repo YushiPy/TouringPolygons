@@ -311,6 +311,14 @@ const visitorRows = (rows, query) => {
 };
 const MAX_ZOOM = 8;
 
+function closeOnBackdropClick(dialog) {
+	dialog.addEventListener("click", (event) => {
+		if (event.target !== dialog) return;
+		const box = dialog.getBoundingClientRect();
+		if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.close();
+	});
+}
+
 function showModalWithTransition(dialog) {
 	if (!dialog || dialog.open) return;
 	dialog.classList.remove("is-entering");
@@ -1698,6 +1706,7 @@ async function initialize() {
 		element("play-route").focus({ preventScroll: true });
 	}
 	element("close-case").addEventListener("click", () => element("case-dialog").close());
+	closeOnBackdropClick(element("case-dialog"));
 	function setSpeed(index) {
 		speedIndex = Math.max(0, Math.min(speeds.length - 1, index));
 		element("speed-value").textContent = `${number(speeds[speedIndex], 2)}×`;
@@ -1730,10 +1739,7 @@ async function initialize() {
 		element("case-picker-button").setAttribute("aria-expanded", "false");
 		element("case-picker-button").focus({ preventScroll: true });
 	});
-	picker.addEventListener("click", (event) => { if (event.target === picker) {
-		const box = picker.getBoundingClientRect();
-		if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) picker.close();
-	} });
+	closeOnBackdropClick(picker);
 	element("picker-search").addEventListener("input", renderPicker);
 	element("picker-options").addEventListener("click", (event) => {
 		const button = event.target.closest("[data-pick-case]");
