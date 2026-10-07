@@ -6386,3 +6386,86 @@ details:not(.geometry-tools):not(.guided-section)[open]>summary::after {
 	border-radius: 2px;
 	vertical-align: -1px;
 }
+
+.speedup-chart { position: relative; }
+.speedup-chart .median, .speedup-chart .mean, .speedup-chart .median-label, .speedup-chart .mean-label, .speedup-chart .zero, .speedup-chart .zero-label { pointer-events: none; }
+.speedup-bin { cursor: pointer; outline: none; }
+.speedup-bin .bar { transition: opacity 120ms ease; }
+.speedup-chart:has(.speedup-bin.is-active) .speedup-bin:not(.is-active) .bar { opacity: 0.45; }
+.speedup-bin:focus-visible .hit { stroke: #1f7a73; stroke-width: 2; }
+
+.speedup-popover {
+	position: absolute;
+	z-index: 5;
+	max-height: 300px;
+	overflow: auto;
+	padding: 12px 14px 10px;
+	border: 1px solid var(--line);
+	border-radius: 10px;
+	background: #fff;
+	box-shadow: 0 10px 30px #142d3838;
+	overscroll-behavior: contain;
+}
+
+.speedup-popover[hidden] { display: none; }
+
+.speedup-popover header {
+	display: flex;
+	align-items: baseline;
+	gap: 10px;
+	margin-bottom: 6px;
+	color: #142d38;
+}
+
+.speedup-popover header span { color: #47616a; font-size: 0.85rem; }
+
+.speedup-popover-close {
+	margin-left: auto;
+	width: 28px;
+	height: 28px;
+	border: 0;
+	border-radius: 6px;
+	background: transparent;
+	color: #47616a;
+	font-size: 1.2rem;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.speedup-popover-close:hover { background: #eef4f1; }
+
+.speedup-popover h4 {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 10px 0 6px;
+	font-size: 0.85rem;
+	color: #142d38;
+}
+
+.speedup-popover h4 i { width: 10px; height: 10px; border-radius: 2px; }
+.speedup-popover h4 small { color: #47616a; font-weight: 500; }
+
+.speedup-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.speedup-chips button {
+	min-width: 40px;
+	padding: 4px 7px;
+	border: 1px solid #c5d3cf;
+	border-radius: 6px;
+	background: #f6faf8;
+	color: #142d38;
+	font: inherit;
+	font-size: 0.8rem;
+	font-variant-numeric: tabular-nums;
+	cursor: pointer;
+}
+
+.speedup-chips button:hover, .speedup-chips button:focus-visible {
+	border-color: #1f7a73;
+	background: #e3f1ee;
+	outline: none;
+}
+
+.speedup-hint { margin: 6px 0 0; color: #47616a; font-size: 0.82rem; text-align: right; }
+.speedup-popover header strong { white-space: nowrap; }

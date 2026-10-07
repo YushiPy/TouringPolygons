@@ -154,16 +154,24 @@ def overlay_campaign(path: Path, ours: dict[int, dict[str, str]], fekete: dict[i
 
 
 def speedup_histogram(path: Path) -> dict[str, object]:
-	"""Log10 histogram of Fekete/ours speedups, stacked by instance family (cases closed by both)."""
+	"""Log10 histogram of Fekete/ours speedups, stacked by instance family (cases closed by both).
+
+	``cases`` lists, per family and bin, ``[case_index, speedup]`` pairs (fastest first)."""
 	low, step, count = 0.5, 0.25, 12
 	families: dict[str, list[int]] = {}
+	cases: dict[str, list[list[list[float]]]] = {}
 	with path.open(newline="", encoding="utf-8") as file:
 		for row in csv.DictReader(file):
 			if row["fekete_status"] != "optimal":
 				continue
-			bin_index = int((math.log10(float(row["fekete_over_ours"])) - low) // step)
-			families.setdefault(row["source"], [0] * count)[min(max(bin_index, 0), count - 1)] += 1
-	return {"log10_low": low, "log10_step": step, "families": families}
+			ratio = float(row["fekete_over_ours"])
+			bin_index = min(max(int((math.log10(ratio) - low) // step), 0), count - 1)
+			families.setdefault(row["source"], [0] * count)[bin_index] += 1
+			cases.setdefault(row["source"], [[] for _ in range(count)])[bin_index].append([int(row["case"]) - 1, ratio])
+	for per_bin in cases.values():
+		for pairs in per_bin:
+			pairs.sort(key=lambda pair: -pair[1])
+	return {"log10_low": low, "log10_step": step, "families": families, "cases": cases}
 
 
 def read_legacy_decompositions(path: Path | None) -> dict[int, tuple[tuple[tuple[float, float], ...], tuple[tuple[tuple[float, float], ...], ...]]]:

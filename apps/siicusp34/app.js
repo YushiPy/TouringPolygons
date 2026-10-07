@@ -695,19 +695,24 @@ async function initialize() {
 		const x = (log) => left + (log / xMax) * (width - left - right);
 		const y = (count) => top + (1 - count / yMax) * (height - top - bottom);
 		const ticksY = Array.from({ length: yMax / 20 + 1 }, (_, index) => index * 20);
-		let svg = `<svg viewBox="0 0 ${width} ${height}" focusable="false" aria-hidden="true">`;
+		let svg = `<svg viewBox="0 0 ${width} ${height}" focusable="false">`;
 		for (const tick of ticksY) svg += `<line class="grid" x1="${left}" x2="${width - right}" y1="${y(tick)}" y2="${y(tick)}"/><text class="tick" x="${left - 10}" y="${y(tick) + 4}" text-anchor="end">${tick}</text>`;
 		for (let power = 0; power <= Math.floor(xMax); power += 1) svg += `<line class="tick-mark" x1="${x(power)}" x2="${x(power)}" y1="${height - bottom}" y2="${height - bottom + 6}"/><text class="tick" x="${x(power)}" y="${height - bottom + 24}" text-anchor="middle">${number(10 ** power, 0)}×</text>`;
 		svg += `<line class="axis" x1="${left}" x2="${width - right}" y1="${height - bottom}" y2="${height - bottom}"/>`;
+		const binRange = (index) => `${number(10 ** (low + index * step), 1)}× a ${number(10 ** (low + (index + 1) * step), 1)}×`;
 		for (let index = 0; index < bins; index += 1) {
+			if (!totals[index]) continue;
 			let base = 0;
 			const x0 = x(low + index * step) + 1, w = x(low + (index + 1) * step) - x(low + index * step) - 2;
-			for (const [key, label, color] of families) {
+			svg += `<g class="speedup-bin" data-bin="${index}" tabindex="0" role="button" aria-haspopup="dialog" aria-label="Faixa ${binRange(index)}: ${totals[index]} instâncias. Enter para listar.">`;
+			svg += `<rect class="hit" x="${x0 - 1}" y="${top}" width="${w + 2}" height="${height - top - bottom}" fill="transparent"/>`;
+			for (const [key, , color] of families) {
 				const count = histogram.families[key][index];
 				if (!count) continue;
-				svg += `<rect x="${x0}" y="${y(base + count)}" width="${w}" height="${y(base) - y(base + count)}" fill="${color}"><title>${label}: ${count} instâncias entre ${number(10 ** (low + index * step), 1)}× e ${number(10 ** (low + (index + 1) * step), 1)}×</title></rect>`;
+				svg += `<rect class="bar" x="${x0}" y="${y(base + count)}" width="${w}" height="${y(base) - y(base + count)}" fill="${color}"/>`;
 				base += count;
 			}
+			svg += "</g>";
 		}
 		svg += `<line class="zero" x1="${x(0)}" x2="${x(0)}" y1="${top}" y2="${height - bottom}"/>`;
 		svg += `<text class="zero-label" transform="translate(${x(0) + 16} ${(top + height - bottom) / 2}) rotate(-90)" text-anchor="middle">${narrow ? "Fekete mais rápido: 0" : "Fekete mais rápido: 0 casos"}</text>`;
@@ -717,7 +722,51 @@ async function initialize() {
 		svg += `<text class="axis-title" x="${(left + width - right) / 2}" y="${height - 10}" text-anchor="middle">${narrow ? "Speedup (Fekete ÷ nosso), escala log" : "Speedup (tempo do Fekete et al. ÷ nosso), escala logarítmica"}</text>`;
 		svg += `<text class="axis-title" transform="translate(14 ${(top + height - bottom) / 2}) rotate(-90)" text-anchor="middle">Instâncias</text></svg>`;
 		const legend = [...families].reverse().map(([key, label, color]) => `<span><i style="background:${color}"></i>${label} (${histogram.families[key].reduce((a, b) => a + b, 0)})</span>`).join("");
-		host.innerHTML = svg + `<div class="speedup-legend">${legend}</div>`;
+		host.innerHTML = svg + `<div class="speedup-legend">${legend}</div><div class="speedup-popover" role="dialog" aria-label="Instâncias da faixa" hidden></div><p class="speedup-hint">Passe o mouse (ou toque) numa barra para ver as instâncias da faixa e clique num caso para abri-lo no mapa.</p>`;
+		const popover = host.querySelector(".speedup-popover");
+		let pinned = null, shown = null, hideTimer = 0;
+		const hide = () => { clearTimeout(hideTimer); popover.hidden = true; shown = null; pinned = null; host.querySelectorAll(".speedup-bin.is-active").forEach((node) => node.classList.remove("is-active")); };
+		const show = (index, pin) => {
+			clearTimeout(hideTimer);
+			if (pinned !== null && !pin) return;
+			if (shown !== index) {
+				popover.innerHTML = `<header><strong>${binRange(index)}</strong><span>${totals[index]} instâncias</span><button type="button" class="speedup-popover-close" aria-label="Fechar">×</button></header>` + [...families].reverse().map(([key, label, color]) => {
+					const list = histogram.cases?.[key]?.[index] || [];
+					if (!list.length) return "";
+					return `<section><h4><i style="background:${color}"></i>${label} <small>${list.length}</small></h4><div class="speedup-chips">${list.map(([caseIndex, ratio]) => `<button type="button" data-open-speedup-case="${caseIndex}" title="Caso ${caseLabel(caseIndex)} · ${number(ratio, 1)}×">${caseLabel(caseIndex)}</button>`).join("")}</div></section>`;
+				}).join("");
+				host.querySelectorAll(".speedup-bin").forEach((node) => node.classList.toggle("is-active", Number(node.dataset.bin) === index));
+				popover.hidden = false;
+				shown = index;
+				const hostWidth = host.clientWidth, popoverWidth = Math.min(300, hostWidth - 16);
+				popover.style.width = `${popoverWidth}px`;
+				const center = x(low + (index + 0.5) * step);
+				const leftSide = center > hostWidth / 2;
+				popover.style.left = `${Math.max(8, Math.min(hostWidth - popoverWidth - 8, narrow ? (hostWidth - popoverWidth) / 2 : leftSide ? center - popoverWidth - 40 : center + 40))}px`;
+				popover.style.top = `${top + 6}px`;
+			}
+			if (pin) pinned = index;
+		};
+		const scheduleHide = () => { if (pinned === null) { clearTimeout(hideTimer); hideTimer = setTimeout(hide, 280); } };
+		host.querySelectorAll(".speedup-bin").forEach((node) => {
+			const index = Number(node.dataset.bin);
+			node.addEventListener("pointerenter", (event) => { if (event.pointerType === "mouse") show(index, false); });
+			node.addEventListener("pointerleave", (event) => { if (event.pointerType === "mouse") scheduleHide(); });
+			node.addEventListener("click", () => { pinned = null; shown = null; show(index, true); });
+			node.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); pinned = null; shown = null; show(index, true); popover.querySelector("[data-open-speedup-case]")?.focus(); } });
+		});
+		popover.addEventListener("pointerenter", () => clearTimeout(hideTimer));
+		popover.addEventListener("pointerleave", (event) => { if (event.pointerType === "mouse") scheduleHide(); });
+		popover.addEventListener("click", (event) => {
+			if (event.target.closest(".speedup-popover-close")) { hide(); return; }
+			const chip = event.target.closest("[data-open-speedup-case]");
+			if (!chip) return;
+			const caseIndex = Number(chip.dataset.openSpeedupCase);
+			hide();
+			openCaseOnMap(caseIndex, host);
+		});
+		host.addEventListener("keydown", (event) => { if (event.key === "Escape" && !popover.hidden) { event.stopPropagation(); const bin = host.querySelector(".speedup-bin.is-active"); hide(); bin?.focus(); } });
+		document.addEventListener("pointerdown", (event) => { if (!popover.hidden && pinned !== null && !host.contains(event.target)) hide(); });
 		element("speedup-chart-summary").textContent = `Histograma do speedup em escala logarítmica para ${comparison.common_completed} instâncias: mediana ${number(median, 1)}×, média ${number(mean, 1)}×, nosso solver mais rápido em todas.`;
 		panel.hidden = false;
 	}
@@ -1627,12 +1676,15 @@ async function initialize() {
 		}
 		const button = event.target.closest("[data-open-case]");
 		if (!button) return;
-		returnContext = { top: window.scrollY, control: button };
-		selectCase(Number(button.dataset.openCase));
+		openCaseOnMap(Number(button.dataset.openCase), button);
+	});
+	function openCaseOnMap(caseIndex, control) {
+		returnContext = { top: window.scrollY, control };
+		selectCase(caseIndex);
 		element("context-return").hidden = false;
 		element("section-dialog")?.closeGuideSection?.();
 		showMap(true);
-	});
+	}
 	element("context-return").addEventListener("click", () => {
 		if (!returnContext) return;
 		const destination = returnContext;
