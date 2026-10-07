@@ -52,4 +52,4 @@ python3 make_title_instance.py --solver ../../../../../.build/unordered/tpp
 `make_usp_art.py` redesenha a instância da USP (dados de `apps/siicusp34/data/usp-demo.js`, somente leitura) com a paleta do deck; `palette.py` guarda as rampas de cor.
 
 `make_trace_art.py` desenha a árvore do slide 3 a partir de um rastro real: caso 17 do corpus (conferido por SHA-256) e `apps/siicusp34/data/trace-data.js`, ambos somente leitura.
-No slide 3 os comprimentos são relativos à rota ótima (=1). O ramo descartado mostra o comprimento exato da melhor rota para aquela ordem (1,42), calculado por varredura de fronteira; o solver o podou antes, com uma cota mais fraca (1,39, não exibida).
+No slide 3 os comprimentos são relativos à rota ótima (=1). A rota inicial é a do vizinho mais próximo registrada no rastro real (1,26); o ramo descartado mostra o comprimento exato da melhor rota para aquela ordem (1,42).

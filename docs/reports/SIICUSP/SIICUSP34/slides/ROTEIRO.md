@@ -10,12 +10,13 @@ Escolhemos a ordem e onde tocar. Por exemplo, um drone sai do IME e precisa pass
 por 51 regiões da USP: são cerca de 10^104 rotas possíveis, testar todas é
 inviável, e o nosso solver acha a ótima em 0,23 segundos.
 
-**Slide 3 (~30 s).** Como? Numa busca em que descartamos ramos inteiros. Em um
-exemplo real de 5 regiões: estimamos o caminho mais curto possível, acrescentamos
-uma região por vez, e abandonamos o ramo que já passa da melhor rota conhecida.
-Na instância de 60 regiões, a força bruta precisaria de 10^117 cálculos, uns 10^100
-anos; nosso método faz cerca de 1,4 mil cálculos, em 0,1 segundo. O resumo cobria
-ordem fixa; depois da submissão, estendemos para ordem livre.
+**Slide 3 (~30 s).** Como? Numa busca que descarta ramos inteiros. Num exemplo real
+de 5 regiões: um método rápido, o vizinho mais próximo, dá uma rota 26 % mais longa
+que a ótima, mas já serve de referência. Montamos rotas região a região, e uma rota
+parcial que já passa da melhor conhecida é abandonada com todos os seus
+desdobramentos. Na instância de 60 regiões, a força bruta precisaria de 10^117
+cálculos, uns 10^100 anos; nosso método faz cerca de 1,4 mil, em 0,1 segundo. O
+resumo cobria ordem fixa; depois da submissão, estendemos para ordem livre.
 
 **Slide 4 (~35 s).** Comparamos com Fekete e colaboradores, um grupo alemão que
 publicou este ano uma solução com solver genérico, o Gurobi; a nossa é um solver

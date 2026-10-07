@@ -25,7 +25,8 @@ events = trace["events"]
 node = {e["node"]: e for e in events if e["kind"] == "oracle"}
 root = next(e for e in events if e["kind"] == "root")
 pruned = next(e for e in events if e["kind"] == "child" and e.get("pruned") and e["reason"] == "bound")
-U = next(e for e in events if e["kind"] == "complete")["upper_bound"]
+greedy = next(e for e in events if e["kind"] == "heuristic_greedy_complete")   # nearest-neighbour route
+U = greedy["length"]                                                              # best known route at the start
 print("U", U, "root L", root["lower_bound"], "node1", node[1]["lower_bound"],
       "pruned", pruned["lower_bound"], pruned["sequence"], "node2", node[2]["lower_bound"], node[2]["sequence"])
 
@@ -76,9 +77,9 @@ assert length_c >= pruned["lower_bound"] - 1e-6      # the solver pruned with a 
 br = lambda v, n: f"{v:.{n}f}".replace(".", "{,}")      # decimal comma inside math
 OPT = node[2]["lower_bound"]                              # all lengths shown relative to the optimum
 lines = [f"\\def\\traceU{{{br(U / OPT, 2)}}}",
-         f"\\def\\traceLroot{{{br(root['lower_bound'] / OPT, 2)}}}\\def\\traceLb{{{br(node[1]['lower_bound'] / OPT, 2)}}}"
+         f"\\def\\traceLroot{{{br(greedy['length'] / OPT, 2)}}}\\def\\traceLb{{{br(node[1]['lower_bound'] / OPT, 2)}}}"
          f"\\def\\traceLc{{{br(length_c / OPT, 2)}}}\\def\\traceLd{{{br(node[2]['lower_bound'] / OPT, 2)}}}"]
-lines += mini("miniRoot", set(), root["path"])
+lines += mini("miniRoot", set(), greedy["path"], incidental=set(range(5)))   # the initial route touches everything
 lines += mini("miniB", set(node[1]["sequence"]), node[1]["path"])
 lines += mini("miniC", set(pruned["sequence"]), path_c, style="Muted,dashed")
 lines += mini("miniD", set(node[2]["sequence"]), node[2]["path"], incidental={0, 1, 2})   # touched on the way
