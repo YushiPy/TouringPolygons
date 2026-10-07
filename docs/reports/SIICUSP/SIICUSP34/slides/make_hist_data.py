@@ -25,8 +25,12 @@ for fam in ("OSM", "random", "tessellation"):
 ratios = [float(r["fekete_over_ours"]) for r in rows]
 med = statistics.median(ratios)
 out.append(f"\\def\\histmedian{{{math.log10(med):.4f}}}")
+out.append(f"\\def\\histmediantext{{{med:.1f}}}".replace(".", "{,}"))
 mean = statistics.mean(ratios)
 out.append(f"\\def\\histmean{{{math.log10(mean):.4f}}}  % média aritmética {mean:.1f}x")
+out.append(f"\\def\\histmeantext{{{mean:.1f}}}\\def\\histcount{{{len(rows)}}}".replace(".", "{,}"))
+for fam, tag in (('OSM', 'OSM'), ('random', 'RANDOM'), ('tessellation', 'VORONOI')):
+    out.append(f"\\def\\histn{tag}{{{sum(r['source'] == fam for r in rows)}}}")
 for fam in ("OSM", "random", "tessellation"):
     g = [float(r["fekete_over_ours"]) for r in rows if r["source"] == fam]
     out.append(f"% mediana {fam}: {statistics.median(g):.1f}x")

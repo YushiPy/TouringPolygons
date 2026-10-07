@@ -134,7 +134,7 @@
 \input{hist-data}
 \begin{tikzpicture}[remember picture,overlay]
   \fill[white] (current page.south west) rectangle (current page.north east);
-  \slidetitle{Solver melhorado: mediana de \hi 40,8$\times$ \ink mais rápido}
+  \slidetitle{Solver melhorado: em média, \hi 109$\times$ \ink mais rápido}
   \node[anchor=north west,inner sep=0,text width=22.8cm] at ([xshift=1.2cm,yshift=-1.95cm]current page.north west) {\sffamily\sz{20}{24}\muted Comparação com \textbf{Fekete et al.} (grupo da TU Braunschweig, Alemanha, 2026), que usam um solver genérico (Gurobi). O nosso é um solver geométrico exato.};
   \node[anchor=north west,inner sep=0] at ([xshift=0.9cm,yshift=-3.25cm]current page.north west) {%
   \begin{tikzpicture}
@@ -151,22 +151,22 @@
     \addplot[fill=Ink] coordinates {\histvoronoi};
     % legenda própria, na ordem visual do gráfico (Voronoi em cima), com quadrados da altura do texto
     \node[anchor=north east,draw=Rule,fill=white,fill opacity=0.92,text opacity=1,inner sep=5pt,font=\sffamily\sz{20}{23},align=left] at (rel axis cs:0.985,0.76) {%
-      \tikz[x=1cm,y=1cm,baseline=-0.6ex]\fill[Ink] (0,-0.2) rectangle (0.5,0.3);\ Voronoi (78)\\[2pt]
-      \tikz[x=1cm,y=1cm,baseline=-0.6ex]\fill[Accent] (0,-0.2) rectangle (0.5,0.3);\ Aleatórias (159)\\[2pt]
-      \tikz[x=1cm,y=1cm,baseline=-0.6ex]\fill[Teal] (0,-0.2) rectangle (0.5,0.3);\ OSM (313)};
+      \tikz[x=1cm,y=1cm,baseline=-0.6ex]\fill[Ink] (0,-0.2) rectangle (0.5,0.3);\ Voronoi (\histnVORONOI)\\[2pt]
+      \tikz[x=1cm,y=1cm,baseline=-0.6ex]\fill[Accent] (0,-0.2) rectangle (0.5,0.3);\ Aleatórias (\histnRANDOM)\\[2pt]
+      \tikz[x=1cm,y=1cm,baseline=-0.6ex]\fill[Teal] (0,-0.2) rectangle (0.5,0.3);\ OSM (\histnOSM)};
     \draw[Muted,dashed,line width=1.4pt] (axis cs:0,0) -- (axis cs:0,165);
-    \draw[Accent,line width=2.2pt] (axis cs:\histmedian,0) -- (axis cs:\histmedian,148);
-    \node[anchor=south east,font=\sffamily\bfseries\sz{20}{23},text=Accent,inner sep=2pt] at (axis cs:\histmedian,146) {mediana $40{,}8\times$};
-    \draw[Ink,dashed,line width=2.2pt] (axis cs:\histmean,0) -- (axis cs:\histmean,148);
-    \node[anchor=south west,font=\sffamily\bfseries\sz{20}{23},text=Ink,inner sep=2pt] at (axis cs:\histmean,146) {média $106{,}7\times$};
+    \draw[Ink,dashed,line width=2.2pt] (axis cs:\histmedian,0) -- (axis cs:\histmedian,148);
+    \node[anchor=south east,font=\sffamily\bfseries\sz{20}{23},text=Ink,inner sep=2pt] at (axis cs:\histmedian,146) {mediana $\histmediantext\times$};
+    \draw[Accent,line width=2.4pt] (axis cs:\histmean,0) -- (axis cs:\histmean,148);
+    \node[anchor=south west,font=\sffamily\bfseries\sz{20}{23},text=Accent,inner sep=2pt] at (axis cs:\histmean,146) {média $\histmeantext\times$};
     \node[anchor=center,rotate=90,font=\sffamily\sz{18}{21},text=Muted,inner sep=0] at (axis cs:-0.3,82) {\hbox to 4cm{\hss Fekete mais rápido: 0\hss}};
   \end{axis}
   \end{tikzpicture}};
   \node[anchor=north west,inner sep=0,text width=5.4cm] at ([xshift=19.3cm,yshift=-3.3cm]current page.north west)
-    {{\bfseries\sz{60}{62}\hi 40,8$\times$}\par\vspace{2pt}{\sz{24}{28}\ink\bfseries mediana do speedup\par\vspace{0.25cm}\mdseries\muted (média: 106,7$\times$)}\par\vspace{0.7cm}
-     {\sz{18}{22}\muted No pôster: mediana 5,1$\times$, média 10,4$\times$}};
+    {{\bfseries\sz{60}{62}\hi 109$\times$}\par\vspace{2pt}{\sz{24}{28}\ink\bfseries média do speedup\par\vspace{0.25cm}\mdseries\muted (mediana: \histmediantext$\times$)}\par\vspace{0.7cm}
+     {\sz{18}{22}\muted No pôster: média 10,4$\times$}};
   \node[anchor=south west,inner sep=0,text width=22.8cm] at ([xshift=1.2cm,yshift=1.3cm]current page.south west)
-    {\sffamily\sz{16}{19}\muted Solver atualizado após o pôster. 550 casos fechados por ambos (ótimos certificados: nosso 558/558, Fekete et al. 550/558), uma thread, sem limite de tempo, gap relativo alvo de 0,1\,\% nos dois. Máquina: Intel i9-12900K.};
+    {\sffamily\sz{16}{19}\muted Solver atualizado após o pôster. \histcount\ casos fechados por ambos (ótimos certificados: nosso 558/558, Fekete et al. 552/558), uma thread, sem limite de tempo, gap relativo alvo de 0,1\,\% nos dois. Máquina: Intel i9-12900K.};
   \footerbar{4}
 \end{tikzpicture}
 \newpage
