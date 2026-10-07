@@ -502,6 +502,15 @@ lookahead, DFS/BFS, primal starts and exact LNS did not close more; graph
 relaxations with region-to-region distances (Held–Karp) or per-region triple
 costs are weaker than the existing insertion relaxations even at the optimal
 order, so neither was implemented.
+On those open instances the deliverable is a good tour, not a certificate. The
+draft's appendix reports, per instance, the best of ten runs of Paula's
+ILS-BCD (each up to 1,200 s of CPU). The optional initial ILS
+(`--primal-ils F`, [`unordered-tpp.md`](unordered-tpp.md#busca-local-iterada-inicial-2026-10-07))
+reproduces her neighbourhoods and acceptance and adds what a coordinate descent
+cannot do: windows of eight consecutive regions are re-solved exactly, order
+and contacts, by this branch and bound between fixed contacts. That step is
+what closes the gap on the instances with heavily overlapping polygons, where
+consecutive contacts coincide.
 Results and protocol: [`tspn-paula-cycle-2026-10-06`](../../benchmarks/results-saved/README.md#tspn-paula-cycle-2026-10-06).
 
 ## Use and validation

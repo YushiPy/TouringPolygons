@@ -55,10 +55,45 @@ namespace tpp {
 		// Relocate one region at a time and optimize its contact at the new slot.
 		bool relocate_initial_heuristic = false;
 		// Iterated local search on the initial tour before the B&B, for this
-		// fraction of the remaining time (0 disables): contact sweeps, 2-opt and
-		// single-region relocation, double-bridge perturbation, record-to-record
-		// acceptance. It only supplies validated upper bounds.
+		// fraction of the remaining time (0 disables). Local search: contact
+		// sweeps, 2-opt and Or-opt; perturbation: double bridges; tours near the
+		// best are reoptimized exactly in windows. It only supplies validated
+		// upper bounds. The defaults below were chosen on Paula's TSPN instances
+		// (docs/algorithms/unordered-tpp.md).
 		double primal_ils_fraction = 0.0;
+		// Or-opt: relocate blocks of 1..L consecutive regions (L = 1 is
+		// single-region relocation), optionally also reversed.
+		size_t primal_ils_block = 3;
+		bool primal_ils_reverse = false;
+		// Or-opt candidate lists: only gaps next to one of the K regions
+		// closest to a block end are tried (0: every gap).
+		size_t primal_ils_candidates = 10;
+		// Also swap pairs of non-adjacent regions in the local search.
+		bool primal_ils_swap = false;
+		// Random double-bridge moves applied per perturbation.
+		size_t primal_ils_kicks = 1;
+		// Threshold acceptance with restarts (Paula's ILS-BCD): accept within
+		// eta of the best, eta *= 0.95 after every 10 iterations without a new
+		// best, and below 1e-4 reset eta to 0.01 and the current tour to the
+		// best. Off: record-to-record slack of 2% shrinking linearly with time.
+		bool primal_ils_reheat = true;
+		// Reoptimize tours within this fraction of the best (0: only new best
+		// tours, and only by primal_ils_reorder).
+		double primal_ils_polish = 0.01;
+		// Reoptimize windows of this many consecutive regions, order and
+		// contacts, with this exact search between the fixed contacts around
+		// them, half a window apart (0: off).
+		size_t primal_ils_reorder = 8;
+		// Without primal_ils_reorder, polish contacts only (fixed order, exact
+		// convex oracle on the pieces holding them) in windows of this many
+		// regions; 0 polishes the whole tour at once.
+		size_t primal_ils_window = 0;
+		// Stop the ILS after this many consecutive iterations without a new
+		// best tour (0: only the time fraction stops it). Required for the ILS
+		// to run without a time limit.
+		size_t primal_ils_stagnation = 0;
+		// Added to the ILS random seed (independent runs).
+		uint64_t primal_ils_seed = 0;
 		// A feasible start-to-target path, including both endpoints. When present,
 		// it replaces the initial heuristic and supplies only an upper bound.
 		std::optional<std::vector<Vector2>> initial_path;
@@ -301,6 +336,12 @@ namespace tpp {
 		size_t initial_relocation_moves = 0;
 		size_t primal_ils_iterations = 0, primal_ils_improvements = 0;
 		double primal_ils_seconds = 0.0;
+		size_t primal_ils_polish_calls = 0, primal_ils_polish_improvements = 0;
+		double primal_ils_polish_seconds = 0.0;
+		// (seconds, length) of every accepted incumbent, in order.
+		std::vector<std::pair<double, double>> incumbent_history;
+		size_t primal_ils_reorder_calls = 0, primal_ils_reorder_improvements = 0;
+		double primal_ils_reorder_seconds = 0.0;
 		// Exact window LNS: sweeps, solved windows, accepted improvements,
 		// oracle calls spent inside windows and total length removed.
 		size_t visit_bound_skips = 0;

@@ -388,18 +388,51 @@ Desativadas por padrão; resultados e decisão em
 ### Busca local iterada inicial (2026-10-07)
 
 `--primal-ils F` / `primal_ils_fraction` (desligada, `F = 0`): antes do B&B,
-gasta a fração `F` do tempo restante numa busca local iterada sobre o melhor
-caminho inicial, com um contato por região. A busca local alterna varreduras de
-contatos (`best_contact` de cada região entre os vizinhos), 2-opt e realocação
-de uma região para o melhor intervalo. A perturbação é um *double bridge*, e a
-aceitação é *record-to-record* com folga de 2% que cai linearmente a zero. A
-semente é fixa (depende só de `n`). Cada contato fica no polígono original da
-sua região; mesmo assim, todo tour melhor passa por `covered` e `improve`.
-Portanto só o limite superior muda, e o LB e o certificado do B&B continuam
-valendo. Vale para caminho e ciclo com `n >= 4`. Telemetria:
-`primal_ils_iterations`, `primal_ils_improvements` e `primal_ils_seconds`.
-Avaliada até agora só no TSPN das instâncias da Paula
-([`tspn-paula-cycle-2026-10-06`](../../benchmarks/results-saved/README.md#tspn-paula-cycle-2026-10-06)).
+gasta a fração `F` do tempo restante numa busca local iterada (ILS) sobre o
+melhor caminho inicial, com um contato por região. Só o limite superior muda:
+todo tour melhor passa por `covered` e `improve`, e o LB e o certificado do B&B
+continuam valendo. Vale para caminho e ciclo com `n >= 4`; a semente é fixa
+(depende só de `n`). Componentes e padrões (escolhidos nas instâncias da Paula,
+ver abaixo):
+
+- **Busca local**, repetida até não melhorar: varredura de contatos
+  (`best_contact` de cada região entre os vizinhos, o mesmo subproblema do BCD
+  da Paula), 2-opt com contatos fixos e Or-opt com blocos de 1 a
+  `primal_ils_block = 3` regiões; os contatos das pontas do bloco são
+  reotimizados no novo intervalo. Listas de candidatos
+  (`primal_ils_candidates = 10`): o Or-opt só tenta intervalos vizinhos de uma
+  das 10 regiões mais próximas (distância entre fronteiras) de uma ponta do
+  bloco, ~5× mais iterações por segundo em 100 regiões.
+- **Perturbação**: `primal_ils_kicks = 1` *double bridge* aleatório.
+- **Aceitação** (`primal_ils_reheat`, ligada): a da Paula, com limiar η
+  relativo ao melhor tour, η₀ = 0,01, η ← 0,95 η a cada 10 iterações sem novo
+  melhor e reaquecimento (η = η₀, tour corrente = melhor) abaixo de 1e-4.
+  `--primal-ils-record` volta à folga *record-to-record* de 2% que cai com o
+  tempo.
+- **Reotimização exata por janelas** (`primal_ils_reorder = 8`): todo tour a
+  até `primal_ils_polish = 1%` do melhor tem janelas de 8 posições
+  consecutivas, a meia janela uma da outra, resolvidas por este mesmo B&B de
+  ordem livre entre os contatos fixos vizinhos (gap 1e-9, até 20 mil chamadas
+  e 0,5 s por janela), com a janela atual como caminho inicial. Com polígonos
+  sobrepostos o caminho da janela pode visitar várias regiões num só contato
+  ou ao longo de um segmento; cada região recebe então o primeiro toque ao
+  longo do caminho, na ordem desses toques, o que preserva o comprimento.
+  É isto que a descida por coordenadas (e o BCD da Paula) não consegue: ela
+  estaciona quando contatos consecutivos coincidem. Sem `reorder`,
+  `primal_ils_window` faz só o polimento de contatos com o oráculo convexo
+  exato de ordem fixa (o tour inteiro de 100 regiões passa de 10 min por
+  chamada; janelas de 8 custam milissegundos).
+- **Parada**: a fração do tempo, ou `primal_ils_stagnation` iterações sem novo
+  melhor (necessária sem limite de tempo).
+
+Opções testadas e deixadas desligadas: swap de duas regiões (pior),
+5 *double bridges* por perturbação (neutro), Or-opt com inversão (não
+testado isoladamente) e polimento só de contatos (pior que o reordenamento).
+Telemetria: `primal_ils_iterations`, `primal_ils_improvements`,
+`primal_ils_seconds`, `primal_ils_polish_*`, `primal_ils_reorder_*` e
+`incumbent_history` (tempo e comprimento normalizado de cada incumbente).
+Avaliação:
+[`tspn-paula-cycle-2026-10-06`](../../benchmarks/results-saved/README.md#tspn-paula-cycle-2026-10-06).
 
 ## Certificado convexo e interseções
 
