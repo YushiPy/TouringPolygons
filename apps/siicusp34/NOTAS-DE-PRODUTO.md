@@ -119,16 +119,18 @@ Pontos que devem ser respeitados:
 - Multithreading interno não deve ser usado como argumento principal de desempenho, pois aumentar núcleos seria uma forma fácil e potencialmente enganosa de melhorar o número.
 - Devem ser publicados hardware, limite de tempo, tolerância de gap, número de threads, versão/revisão e critérios de término e limites numéricos.
 - “Exato” e “gap menor ou igual a 0,1%” não são a mesma coisa e devem aparecer separados.
-- Resultados parciais da campanha de seis horas não devem ser apresentados como resultado final.
+- Resultados parciais da campanha parcial não devem ser apresentados como resultado final.
 
 Resultados publicados na versão atual:
 
 - nosso solver: 558/558 instâncias concluídas com `termination=optimal` e gap dentro das tolerâncias declaradas;
-- 477/558 instâncias do nosso solver foram resolvidas em menos de 10 segundos;
-- no conjunto comum concluído, o speedup mediano Fekete/nosso é 5,11× e nosso solver é mais rápido em 492/550 casos;
-- solver de Fekete et al.: 550/558 concluídas; 8 instâncias não foram concluídas no limite de seis horas.
+- 545/558 instâncias do nosso solver foram resolvidas em menos de 10 segundos;
+- no conjunto comum concluído, o speedup médio Fekete/nosso é 112× (mediana 41×, média geométrica 50×) e nosso solver é mais rápido em 553/553 casos;
+- solver de Fekete et al.: 553/558 concluídas; 5 instâncias foram interrompidas manualmente depois de dias sem fechar o gap.
 
-A tabela de tempos e as métricas de velocidade usam somente os 550 casos
+Os tempos vêm da campanha `benchmarks/results-saved/free-order-dantzig-2026-10-06` (uma thread por instância, sem limite de tempo; ver as limitações no README dessa pasta). Caminhos, comprimentos e limites por caso continuam os da rodada `fekete-comparison`, mesmas instâncias; `build_event_data.py --campaign` sobrepõe tempos, chamadas e status do Fekete.
+
+A tabela de tempos e as métricas de velocidade usam somente os 553 casos
 concluídos por ambos; a precisão geométrica informa separadamente o tamanho
 das séries de trajetórias disponíveis.
 

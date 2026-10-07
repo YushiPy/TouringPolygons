@@ -35,28 +35,36 @@ avaliação do artigo não alteram). Dados por caso:
 
 | | Nosso solver | Fekete |
 |---|---:|---:|
-| Casos com gap fechado | **558/558** | **550/558** |
-| Soma dos tempos nos 550 casos fechados por ambos | 345 s | 172.667 s (maior: caso 231, 49.896 s ≈ 13,9 h) |
+| Casos com gap fechado | **558/558** | **553/558** |
+| Soma dos tempos nos 553 casos fechados por ambos | 580 s | 329.791 s (maior: caso 558, 91.145 s ≈ 25,3 h) |
 | Soma dos tempos nos 558 casos | 1.899 s (maior: caso 130, 722 s) | — |
 
-Nos 550 casos fechados por ambos, o nosso solver foi mais rápido em **550/550**
-(menor razão 3,4×, caso 452). Razão Fekete/nosso: média geométrica **49,0×**,
-mediana 40,8×. Por fonte: OSM (313) 71,2×; aleatórias (159) 39,2×; tessellation
-(78) 17,3×. Por número de polígonos: 5–10 (128) 20,9×; 11–20 (136) 38,2×; 21–40
-(149) 63,0×; 41–60 (137) 106,0×. Todas as 558 trajetórias nossas validaram.
+Nos 553 casos fechados por ambos, o nosso solver foi mais rápido em **553/553**; nos 5 abertos o Fekete ficou pelo menos 6 h (21.657–21.720 s na campanha de teto de 6 h, `fekete-comparison`) sem fechar, contra no máximo 722 s do nosso, logo o nosso foi mais rápido também neles (**558/558**, com essa ressalva de censura)
+(menor razão 3,4×, caso 452; maior 2.265×). Razão Fekete/nosso: média aritmética
+**111,6×**, média geométrica 49,8×, mediana **41,3×**. Por fonte (média
+geométrica): OSM (315) 72,6×; aleatórias (160) 39,6×; tessellation (78) 17,3×.
+Por número de polígonos: 4–10 (128) 20,9×; 11–20 (136) 38,2×; 21–40 (149) 63,0×;
+41–60 (140) 110,4×. Todas as 558 trajetórias nossas validaram.
 Nosso solver no `470a0c9` × a campanha anterior dele na mesma pasta: 26.116 s →
 1.899 s no total (5,6× geométrico).
 
-**Casos em aberto no Fekete (8):** 65, 66, 130, 131, 420, 493, 542, 558
-(numeração a partir de 1). Foram interrompidos manualmente depois de dias sem
-fechar o gap (o tempo por caso não foi gravado nessa versão). Os limites
-parciais do Fekete são compatíveis com o ótimo do nosso solver (LB do Fekete ≤
-nosso UB e UB do Fekete ≥ nosso LB). Na antiga comparação (`fekete-comparison`,
-teto de 6 h) os abertos eram 65, 66, 130, 131, 231, 493, 542 e 558: o 231 fechou
-aqui em 13,9 h e o 420 ficou aberto. O caso 131 chegou a fechar em 42.500 s em
-2026-10-06, mas com `FEASIBILITY_TOLERANCE` 1e-8 e `SPANNING_TOLERANCE` 0,0009
-(nunca ajustada junto, apesar de a biblioteca recomendá-la logo abaixo da
-primeira); não é a configuração original e ficou fora da comparação.
+**Casos em aberto no Fekete (5):** 65, 66, 130, 493, 542 (numeração a partir
+de 1). Foram interrompidos manualmente depois de dias sem fechar o gap (o tempo por
+caso não foi gravado nessa versão). Os limites parciais do Fekete são compatíveis
+com o ótimo do nosso solver (LB do Fekete ≤ nosso UB e UB do Fekete ≥ nosso LB).
+Na antiga comparação (`fekete-comparison`, teto de 6 h) os abertos eram 65, 66, 130,
+131, 231, 493, 542 e 558: o 231 fechou aqui em 13,9 h. Uma nova execução do Fekete
+nos 8 casos então abertos (revisão `7f4c8dd`, 4 casos em paralelo nos núcleos de
+desempenho, configuração original: `FEASIBILITY_TOLERANCE` 0,001, gap relativo
+0,1%) fechou o **131 em 41.347 s (≈ 11,5 h; nosso solver 29,5 s)**, o **420 em
+24.631 s (≈ 6,8 h; nosso 144,2 s)** e, depois de mais tempo, o **558 em 91.145 s
+(≈ 25,3 h; nosso 60,8 s)**; as razões são 1.403×, 170,8× e 1.499×. Os caminhos
+do Fekete nesses três casos não passam na validação a 1e-7 (`valid=false`, desvio
+de cobertura da ordem de 4e-6 no 131), como esperado com a tolerância de 1e-3. Uma
+execução anterior do 131 fechou em 42.500 s, mas com `FEASIBILITY_TOLERANCE` 1e-8 e
+`SPANNING_TOLERANCE` 0,0009 (nunca ajustada junto, apesar de a biblioteca
+recomendá-la logo abaixo da primeira); não é a configuração original e ficou fora
+da comparação.
 
 **Limitações — leia antes de citar a razão.**
 - A campanha do Fekete é de 2 de outubro, com 8 casos em paralelo na máquina; o
@@ -65,7 +73,7 @@ primeira); não é a configuração original e ficou fora da comparação.
 - Os caminhos do Fekete dessa campanha não têm validação independente
   registrada (`valid` ausente), só `endpoint_valid`; com a tolerância de
   cobertura de 1e-3 do Fekete, a validação a 1e-7 pode não passar em todos.
-- Os 8 casos abertos do Fekete são censurados: as razões os excluem e, portanto,
+- Os 6 casos abertos do Fekete são censurados: as razões os excluem e, portanto,
   **subestimam** a vantagem. Uma afirmação para publicação exige reexecutar o
   Fekete, na configuração original, no mesmo ambiente.
 - `exact=true` é fechamento do gap configurado, não otimalidade algébrica.
