@@ -1334,7 +1334,7 @@ async function initialize() {
 		element("case-picker-button").setAttribute("aria-label", featured
 			? "Explorar os 558 casos"
 			: `Explorar os 558 casos; caso ${caseLabel(row.case)} selecionado`);
-		document.querySelectorAll(".explorer .example").forEach((button) => {
+		document.querySelectorAll("#rota-usp .example").forEach((button) => {
 			const active = button.dataset.case === String(row.case);
 			button.classList.toggle("active", active);
 			button.setAttribute("aria-pressed", String(active));
@@ -1360,6 +1360,7 @@ async function initialize() {
 		element("show-decomposition").disabled = !row.visualization.decomposition?.some((pieces) => pieces.length > 1);
 		element("speed-value").title = `A 1×, este caso leva ${number(playbackDuration(row) / 1000, 1)} s para percorrer o caminho.`;
 		element("case-time").textContent = formatDuration(row.seconds);
+		element("case-dialog-title").textContent = typeof row.case === "number" ? `Caso ${caseLabel(row.case)} · ${row.polygons} regiões` : row.title;
 		if (updateURL && window.location.protocol !== "file:") {
 			const url = new URL(window.location.href);
 			url.searchParams.set("caso", row.case);
@@ -1383,6 +1384,7 @@ async function initialize() {
 	updateResultSummary();
 	populateTracePicker();
 	function showMap(focusPlayback = false) {
+		if (element("rota-usp").closest("dialog")) return;
 		document.querySelector(".drawing-panel").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "start" });
 		if (focusPlayback) element("play-route").focus({ preventScroll: true });
 	}
@@ -1665,7 +1667,6 @@ async function initialize() {
 	}
 	document.addEventListener("visibilitychange", () => { if (document.hidden) { stop(); stopTrace(); } });
 	reducedMotion.addEventListener("change", stop);
-	let returnContext = null;
 	element("result-rows").addEventListener("click", (event) => {
 		const toggle = event.target.closest("[data-toggle-results]");
 		if (toggle) {
@@ -1679,39 +1680,24 @@ async function initialize() {
 		openCaseOnMap(Number(button.dataset.openCase), button);
 	});
 	function openCaseOnMap(caseIndex, control) {
-		returnContext = { top: window.scrollY, control };
-		selectCase(caseIndex);
-		element("context-return").hidden = false;
-		element("section-dialog")?.closeGuideSection?.();
-		showMap(true);
-	}
-	element("context-return").addEventListener("click", () => {
-		if (!returnContext) return;
-		const destination = returnContext;
-		returnContext = null;
-		element("context-return").hidden = true;
-		const start = window.scrollY;
-		const finish = () => {
-			const sectionDialog = element("section-dialog");
-			if (sectionDialog?.openGuideSection) sectionDialog.openGuideSection("resultados", destination.control);
-			else destination.control.focus({ preventScroll: true });
-		};
-		if (reducedMotion.matches || Math.abs(start - destination.top) < 2) {
-			window.scrollTo({ top: destination.top, behavior: "instant" });
-			finish();
-			return;
+		const dialog = element("case-dialog");
+		if (!dialog.open) {
+			// The explorer card itself moves into the overlay, so every control and the renderer keep working.
+			const panel = element("rota-usp");
+			const home = { parent: panel.parentNode, next: panel.nextSibling, previous: row.case };
+			element("case-dialog-content").append(panel);
+			dialog.addEventListener("close", () => {
+				stop();
+				home.parent.insertBefore(panel, home.next);
+				selectCase(home.previous, false);
+				control?.focus({ preventScroll: true });
+			}, { once: true });
+			showModalWithTransition(dialog);
 		}
-		window.scrollTo({ top: start, behavior: "instant" });
-		const started = performance.now();
-		const animate = (now) => {
-			const progress = Math.min(1, (now - started) / 260);
-			const eased = 1 - (1 - progress) ** 3;
-			window.scrollTo(0, start + (destination.top - start) * eased);
-			if (progress < 1) requestAnimationFrame(animate);
-			else finish();
-		};
-		requestAnimationFrame(animate);
-	});
+		selectCase(caseIndex, false);
+		element("play-route").focus({ preventScroll: true });
+	}
+	element("close-case").addEventListener("click", () => element("case-dialog").close());
 	function setSpeed(index) {
 		speedIndex = Math.max(0, Math.min(speeds.length - 1, index));
 		element("speed-value").textContent = `${number(speeds[speedIndex], 2)}×`;
@@ -2237,12 +2223,6 @@ function initializeGuide() {
 		requestAnimationFrame(resetDialogScroll);
 		closeButton.focus({ preventScroll: true });
 	}
-	dialog.openGuideSection = (id, opener = null) => open(id, opener);
-	dialog.closeGuideSection = () => {
-		if (!active) return;
-		if (window.location.hash === `#${active.id}`) clearHash();
-		dialog.close();
-	};
 	function navigateFrom(currentId, delta, navigationState = null) {
 		const currentIndex = ids.indexOf(currentId);
 		const nextId = ids[currentIndex + delta];

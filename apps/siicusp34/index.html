@@ -7,7 +7,7 @@
 	<meta name="theme-color" content="#f5f8fa">
 	<link rel="icon" type="image/svg+xml" href="tpp-icon.svg">
 <title>TPP · SIICUSP34</title>
-	<link rel="stylesheet" href="styles.css?v=20261007-hist7">
+	<link rel="stylesheet" href="styles.css?v=20261007-overlay">
 </head>
 <body class="event">
 	<a class="skip-link" href="#explorar">Pular para a demonstração</a>
@@ -184,7 +184,6 @@
 			</section>
 		</details>
 	</main>
-	<button id="context-return" class="context-return" type="button" hidden>← Voltar aos resultados</button>
 			<dialog id="references-dialog" class="references-dialog" aria-labelledby="references-title">
 			<header><div><p class="eyebrow">FONTES E CONTEXTO</p><h2 id="references-title">Referências</h2></div><button id="references-close" type="button" aria-label="Fechar referências">×</button></header>
 			<ol>
@@ -196,6 +195,10 @@
 				<li id="ref-sun"><span>[6]</span><p>NASA Science. <cite>Finding Life Beyond Earth: What Comes Next?</cite>, 2023. <a href="https://science.nasa.gov/universe/search-for-life/finding-life-beyond-earth-what-comes-next/" target="_blank" rel="noopener noreferrer">Acessar fonte ↗</a></p></li>
 				<li id="ref-atoms"><span>[7]</span><p>Limite para a analogia: massa da Terra (NASA) dividida pela massa de um próton (NIST) dá menos de 3,6 × 10<sup>51</sup> átomos. <a href="https://nssdc.gsfc.nasa.gov/planetary/factsheet/earthfact.html" target="_blank" rel="noopener noreferrer">Massa da Terra ↗</a> · <a href="https://physics.nist.gov/cuu/pdf/all.pdf" target="_blank" rel="noopener noreferrer">Massa do próton ↗</a></p></li>
 			</ol>
+		</dialog>
+		<dialog id="case-dialog" class="section-dialog" aria-labelledby="case-dialog-title">
+			<header class="section-dialog-header"><div><p class="eyebrow">INSTÂNCIA</p><h2 id="case-dialog-title">Caso</h2></div><nav class="section-dialog-nav" aria-label="Fechar"><button id="close-case" class="section-dialog-nav-button" type="button" aria-label="Fechar instância">×</button></nav></header>
+			<div id="case-dialog-content" class="section-dialog-content"></div>
 		</dialog>
 		<dialog id="section-dialog" class="section-dialog" aria-labelledby="section-dialog-title">
 			<header class="section-dialog-header"><div><p id="section-dialog-eyebrow" class="eyebrow">ETAPA DO PROJETO</p><h2 id="section-dialog-title">Seção</h2><p id="section-dialog-subtitle"></p></div><nav class="section-dialog-nav" aria-label="Navegação entre etapas"><button id="previous-section" class="section-dialog-nav-button" type="button" aria-label="Etapa anterior" title="Etapa anterior" disabled>←</button><button id="next-section" class="section-dialog-nav-button" type="button" aria-label="Próxima etapa" title="Próxima etapa">→</button><button id="close-section" class="section-dialog-nav-button" type="button" aria-label="Fechar seção">×</button></nav></header>
@@ -209,6 +212,6 @@
 	<script src="data/trace-data.js"></script>
 	<script src="data/event-data.js?v=20261007-hist6"></script>
 	<script src="data/trace-decomposition.js?v=20260925-trace-decomposition"></script>
-	<script type="module" src="app.js?v=20261007-hist6"></script>
+	<script type="module" src="app.js?v=20261007-overlay"></script>
 </body>
 </html>

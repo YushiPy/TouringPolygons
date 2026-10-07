@@ -5153,22 +5153,6 @@ thead th.sort-active {
 	box-shadow: inset 3px 0 #347261;
 }
 
-.context-return {
-	position: fixed;
-	z-index: 9;
-	left: 16px;
-	bottom: calc(20px + env(safe-area-inset-bottom));
-	min-height: 46px;
-	padding: 10px 16px;
-	border: 1px solid #98bdb2;
-	border-radius: 999px;
-	background: #f5faf8f2;
-	color: #28574c;
-	font-weight: 700;
-	box-shadow: 0 5px 20px #102c3830;
-	backdrop-filter: blur(8px);
-}
-
 .challenge-section {
 	padding: 0;
 	border: 0;
@@ -5729,13 +5713,6 @@ details:not(.geometry-tools):not(.guided-section)[open]>summary::after {
 	.geometry-tools>summary::after {
 		grid-column: 2;
 		grid-row: 1 / span 2;
-	}
-
-	.context-return {
-		max-width: calc(100vw - 150px);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
 	}
 
 	.section-dialog {
