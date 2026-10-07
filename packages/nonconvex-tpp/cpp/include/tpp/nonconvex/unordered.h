@@ -59,6 +59,34 @@ namespace tpp {
 		// single-region relocation, double-bridge perturbation, record-to-record
 		// acceptance. It only supplies validated upper bounds.
 		double primal_ils_fraction = 0.0;
+		// Or-opt in the ILS: relocate blocks of 1..L consecutive regions
+		// (L = 1 is single-region relocation), optionally also reversed.
+		size_t primal_ils_block = 1;
+		bool primal_ils_reverse = false;
+		// Random double-bridge moves applied per ILS perturbation.
+		size_t primal_ils_kicks = 1;
+		// Threshold acceptance with restarts (Paula's ILS-BCD): accept within
+		// eta of the best, eta *= 0.95 after every 10 iterations without a new
+		// best, and below 1e-4 reset eta to 0.01 and the current tour to the
+		// best. Off: record-to-record slack of 2% shrinking linearly with time.
+		bool primal_ils_reheat = false;
+		// Polish ILS tours within this fraction of the best with the exact
+		// convex oracle on the convex pieces holding their contacts (0: off).
+		double primal_ils_polish = 0.0;
+		// Polish in windows of this many consecutive regions with fixed
+		// contacts around them (path oracle), half a window apart; 0 polishes
+		// the whole tour at once.
+		size_t primal_ils_window = 0;
+		// Or-opt candidate lists: only gaps next to one of the K regions
+		// closest to a block end are tried (0: every gap).
+		size_t primal_ils_candidates = 0;
+		// Also swap pairs of non-adjacent regions in the ILS local search.
+		bool primal_ils_swap = false;
+		// Reoptimize windows of this many consecutive regions (order and
+		// contacts) with this exact search between the fixed contacts around
+		// them, half a window apart (0: off): on each new best ILS tour, or,
+		// with primal_ils_polish, instead of the fixed-order polish.
+		size_t primal_ils_reorder = 0;
 		// A feasible start-to-target path, including both endpoints. When present,
 		// it replaces the initial heuristic and supplies only an upper bound.
 		std::optional<std::vector<Vector2>> initial_path;
@@ -301,6 +329,12 @@ namespace tpp {
 		size_t initial_relocation_moves = 0;
 		size_t primal_ils_iterations = 0, primal_ils_improvements = 0;
 		double primal_ils_seconds = 0.0;
+		size_t primal_ils_polish_calls = 0, primal_ils_polish_improvements = 0;
+		double primal_ils_polish_seconds = 0.0;
+		// (seconds, length) of every accepted incumbent, in order.
+		std::vector<std::pair<double, double>> incumbent_history;
+		size_t primal_ils_reorder_calls = 0, primal_ils_reorder_improvements = 0;
+		double primal_ils_reorder_seconds = 0.0;
 		// Exact window LNS: sweeps, solved windows, accepted improvements,
 		// oracle calls spent inside windows and total length removed.
 		size_t visit_bound_skips = 0;

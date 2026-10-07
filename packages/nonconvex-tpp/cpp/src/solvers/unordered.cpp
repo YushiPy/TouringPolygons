@@ -392,6 +392,7 @@ namespace tpp {
 				result.upper_bound = value;
                 if(control) control->publish(path,value);
 				++result.incumbent_updates;
+				result.incumbent_history.emplace_back(elapsed(), value);
 				if (phase == Phase::Search) {
 					++result.best_updates;
 					if (!std::isfinite(result.first_best_update_length)) result.first_best_update_length = value;
@@ -689,6 +690,35 @@ namespace tpp {
 					return path;
 				};
 				auto measure=[&](Tour &t){t.length=path_length(as_path(t));};
+				// Candidate lists: near[r*n+s] marks the K regions closest to r by
+				// boundary distance; the Or-opt only tries gaps next to them.
+				std::vector<char> near;
+				if(options.primal_ils_candidates>0&&options.primal_ils_candidates+1<n) {
+					auto segment_distance=[](Vector2 p,Vector2 a,Vector2 b) {
+						const auto edge=b-a;const double squared=edge.length_squared();
+						const double rate=squared==0?0:std::clamp((p-a).dot(edge)/squared,0.0,1.0);
+						return p.distance_to(a+rate*edge);
+					};
+					auto region_distance=[&](const Polygon &x,const Polygon &y) {
+						double d=std::numeric_limits<double>::infinity();
+						for(auto [from,to]:{std::pair{&x,&y},std::pair{&y,&x}})
+							for(const auto &q:*from)for(size_t j=0;j<to->size();++j)
+								d=std::min(d,segment_distance(q,(*to)[j],(*to)[(j+1)%to->size()]));
+						if(x.size()>2&&contact(Polygon{y.front(),y.front()},x,0).distance<=0)d=0;
+						if(y.size()>2&&contact(Polygon{x.front(),x.front()},y,0).distance<=0)d=0;
+						return d;
+					};
+					std::vector<double> distance(n*n,0);
+					for(size_t r=0;r<n;++r)for(size_t q=r+1;q<n;++q)distance[r*n+q]=distance[q*n+r]=region_distance(polygons[r],polygons[q]);
+					near.assign(n*n,0);
+					std::vector<size_t> others;
+					for(size_t r=0;r<n;++r) {
+						others.clear();for(size_t q=0;q<n;++q)if(q!=r)others.push_back(q);
+						std::partial_sort(others.begin(),others.begin()+options.primal_ils_candidates,others.end(),
+							[&](size_t x,size_t y){return distance[r*n+x]<distance[r*n+y];});
+						for(size_t i=0;i<options.primal_ils_candidates;++i)near[r*n+others[i]]=1;
+					}
+				}
 				auto local_search=[&](Tour &t) {
 					for(size_t round=0;round<64&&running();++round) {
 						bool changed=false;
@@ -707,34 +737,196 @@ namespace tpp {
 								changed=true;
 							}
 						}
-						// Relocate one region to its best gap with an exact contact.
-						for(size_t k=0;k<n&&running();++k) {
-							const Vector2 a=before(t,k),b=after(t,k),q=t.point[k];
-							const double removal=a.distance_to(b)-a.distance_to(q)-q.distance_to(b);
-							const size_t region=t.order[k];
-							Tour shortened=t;shortened.order.erase(shortened.order.begin()+k);shortened.point.erase(shortened.point.begin()+k);
-							const size_t m=n-1;
-							size_t chosen=none;Vector2 point;double best_delta=-tolerance;
+						// Or-opt: move the block of positions k..k+l-1 to its best gap,
+						// optionally reversed; the contacts at both block ends are
+						// reoptimized for the new neighbours (one contact when l = 1).
+						const size_t longest=std::min(options.primal_ils_block,n-2);
+						for(size_t l=1;l<=longest;++l)for(size_t k=0;k+l<=n&&running();++k) {
+							const Vector2 a=before(t,k),b=after(t,k+l-1);
+							double inside=0;for(size_t i=k+1;i<k+l;++i)inside+=t.point[i-1].distance_to(t.point[i]);
+							const double removal=a.distance_to(b)-a.distance_to(t.point[k])-t.point[k+l-1].distance_to(b)-inside;
+							Tour rest;
+							rest.order.assign(t.order.begin(),t.order.begin()+k);rest.order.insert(rest.order.end(),t.order.begin()+k+l,t.order.end());
+							rest.point.assign(t.point.begin(),t.point.begin()+k);rest.point.insert(rest.point.end(),t.point.begin()+k+l,t.point.end());
+							const size_t m=n-l;
+							size_t chosen=none;bool chosen_reversed=false;Polygon chosen_points;double best_delta=-tolerance;
 							for(size_t gap=0;gap<=m;++gap) {
 								if(cycle&&gap==m)break;
-								const Vector2 u=gap==0?(cycle?shortened.point[m-1]:start):shortened.point[gap-1];
-								const Vector2 v=gap==m?target:shortened.point[gap];
-								const auto c=best_contact(u,v,polygons[region],q);
-								const double delta=removal+u.distance_to(c)+c.distance_to(v)-u.distance_to(v);
-								if(delta<best_delta){best_delta=delta;chosen=gap;point=c;}
+								if(!near.empty()) {
+									const size_t first=t.order[k],last=t.order[k+l-1];
+									auto close=[&](size_t position) {
+										if(position>=m)return false;
+										const size_t region=rest.order[position];
+										return near[first*n+region]||near[last*n+region];
+									};
+									const size_t left=gap==0?(cycle?m-1:none):gap-1;
+									if(!close(left)&&!close(gap))continue;
+								}
+								const Vector2 u=gap==0?(cycle?rest.point[m-1]:start):rest.point[gap-1];
+								const Vector2 v=gap==m?target:rest.point[gap];
+								for(int reversed=0;reversed<=int(options.primal_ils_reverse&&l>1);++reversed) {
+									Polygon block(t.point.begin()+k,t.point.begin()+k+l);
+									std::vector<size_t> regions(t.order.begin()+k,t.order.begin()+k+l);
+									if(reversed){std::reverse(block.begin(),block.end());std::reverse(regions.begin(),regions.end());}
+									if(l==1)block[0]=best_contact(u,v,polygons[regions[0]],block[0]);
+									else {
+										block[0]=best_contact(u,block[1],polygons[regions[0]],block[0]);
+										block[l-1]=best_contact(block[l-2],v,polygons[regions[l-1]],block[l-1]);
+									}
+									double moved=0;for(size_t i=1;i<l;++i)moved+=block[i-1].distance_to(block[i]);
+									const double delta=removal+u.distance_to(block[0])+moved+block[l-1].distance_to(v)-u.distance_to(v);
+									if(delta<best_delta){best_delta=delta;chosen=gap;chosen_reversed=reversed;chosen_points=block;}
+								}
 							}
 							if(chosen==none)continue;
-							shortened.order.insert(shortened.order.begin()+chosen,region);
-							shortened.point.insert(shortened.point.begin()+chosen,point);
-							t=std::move(shortened);changed=true;
+							std::vector<size_t> regions(t.order.begin()+k,t.order.begin()+k+l);
+							if(chosen_reversed)std::reverse(regions.begin(),regions.end());
+							rest.order.insert(rest.order.begin()+chosen,regions.begin(),regions.end());
+							rest.point.insert(rest.point.begin()+chosen,chosen_points.begin(),chosen_points.end());
+							t=std::move(rest);changed=true;
+						}
+						// Swap two non-adjacent regions, each with an exact contact
+						// between its new neighbours.
+						if(options.primal_ils_swap)for(size_t i=0;i<n&&running();++i)for(size_t j=i+2;j<n;++j) {
+							if(cycle&&i==0&&j==n-1)continue;
+							const size_t left=cycle?(i+n-1)%n:i==0?none:i-1;
+							const size_t right=cycle?(i+1)%n:i+1;
+							if(!near.empty()) {
+								const size_t region=t.order[j];
+								if(!(left!=none&&near[region*n+t.order[left]])&&!near[region*n+t.order[right]])continue;
+							}
+							const Vector2 a=before(t,i),b=after(t,i),c=before(t,j),d=after(t,j);
+							const Vector2 x=best_contact(a,b,polygons[t.order[j]],t.point[j]);
+							const Vector2 y=best_contact(c,d,polygons[t.order[i]],t.point[i]);
+							const double delta=a.distance_to(x)+x.distance_to(b)+c.distance_to(y)+y.distance_to(d)
+								-a.distance_to(t.point[i])-t.point[i].distance_to(b)-c.distance_to(t.point[j])-t.point[j].distance_to(d);
+							if(delta<-tolerance) {
+								std::swap(t.order[i],t.order[j]);t.point[i]=x;t.point[j]=y;changed=true;
+							}
 						}
 						measure(t);
 						if(!changed)break;
 					}
 				};
+				// Exact contacts for the tour's order on the convex pieces that hold
+				// its current contacts; only a strictly shorter tour is kept.
+				DynamicConvexTppWorkspace polish_workspace;
+				polish_workspace.cache_disjoint_dispatch=options.oracle_dispatch_cache;
+				polish_workspace.cache_interval_geometry=options.oracle_interval_geometry_cache;
+				polish_workspace.borrow_hybrid_geometry=options.oracle_borrow_geometry;
+				polish_workspace.bound_before_optimality=options.oracle_bound_first;
+				polish_workspace.interpolated_zero_dual=options.interpolated_zero_dual;
+				auto piece_holding=[&](size_t region,Vector2 point)->const Polygon * {
+					prepare_pieces(region);
+					const Polygon point_path{point,point};
+					for(const auto &piece:pieces[region])if(contact(point_path,piece,eps).distance<=eps)return &piece;
+					return nullptr;
+				};
+				// Exact contacts for consecutive positions first..first+count-1 of the
+				// tour's order, between the fixed contacts around them (the whole cycle
+				// when count = n), on the convex pieces holding their current contacts.
+				auto polish_positions=[&](Tour &t,size_t first,size_t count) {
+					const bool whole=count==n;
+					std::vector<Polygon> ordered;ordered.reserve(count);Polygon current_points;
+					for(size_t i=0;i<count;++i) {
+						const size_t k=(first+i)%n;
+						const auto piece=piece_holding(t.order[k],t.point[k]);
+						if(!piece)return;
+						ordered.push_back(*piece);current_points.push_back(t.point[k]);
+					}
+					const Vector2 a=whole?start:before(t,first),b=whole?target:after(t,(first+count-1)%n);
+					double old_length=whole?t.length:a.distance_to(current_points.front())+current_points.back().distance_to(b);
+					if(!whole)for(size_t i=1;i<count;++i)old_length+=current_points[i-1].distance_to(current_points[i]);
+					if(result.calls>=options.max_calls||(control&&!control->reserve_call()))return;
+					++result.calls;++result.primal_ils_polish_calls;
+					const auto polish_began=std::chrono::steady_clock::now();
+					try {
+						const double remaining=std::chrono::duration<double>(deadline-polish_began).count();
+						const bool polish_cycle=whole&&cycle;
+						const auto polished=solve_relaxation(polish_cycle,a,b,ordered,polish_workspace,
+							std::max(1e-9*old_length,std::numeric_limits<double>::epsilon()),old_length,std::min(1.0,remaining),
+							polish_cycle?current_points:Polygon{});
+						const double length=path_length(polished.path);
+						const size_t offset=size_t(!polish_cycle);
+						if(polished.path.size()==count+2-size_t(polish_cycle)&&std::isfinite(length)&&length<old_length*(1-1e-12)) {
+							for(size_t i=0;i<count;++i)t.point[(first+i)%n]=polished.path[offset+i];
+							measure(t);++result.primal_ils_polish_improvements;
+						}
+					} catch(const std::exception &) {}
+					result.primal_ils_polish_seconds+=duration(polish_began);
+				};
+				// Exact free-order reoptimization of positions first..first+count-1
+				// between the fixed contacts around them: the same B&B on the
+				// window's regions, with the window as initial path.
+				auto reorder_positions=[&](Tour &t,size_t first,size_t count) {
+					std::vector<Polygon> regions;regions.reserve(count);
+					std::vector<size_t> indices;indices.reserve(count);
+					Polygon window{before(t,first)};
+					for(size_t i=0;i<count;++i) {
+						const size_t k=(first+i)%n;
+						regions.push_back(polygons[t.order[k]]);indices.push_back(t.order[k]);window.push_back(t.point[k]);
+					}
+					window.push_back(after(t,(first+count-1)%n));
+					const double old_length=path_length(window);
+					auto sub=options;
+					sub.primal_ils_fraction=0;sub.window_lns=false;sub.trace=false;sub.progress=nullptr;
+					sub.portfolio=false;sub.threads=1;sub.initial_path=window;
+					// The window is a small part of the tour: close its own gap tightly.
+					sub.relative_gap=1e-9;sub.absolute_gap=1e-9*t.length;
+					sub.max_seconds=std::max(0.0,std::min(0.5,std::chrono::duration<double>(deadline-std::chrono::steady_clock::now()).count()));
+					if(!(sub.max_seconds>0)||result.calls>=options.max_calls)return;
+					sub.max_calls=std::min<size_t>(options.max_calls-result.calls,20000);
+					const auto reorder_began=std::chrono::steady_clock::now();
+					try {
+						const auto solved=solve_normalized_unordered_tpp(window.front(),window.back(),regions,sub,false,nullptr);
+						result.calls+=solved.calls;++result.primal_ils_reorder_calls;
+						if(solved.path.size()>=2&&solved.upper_bound<old_length*(1-1e-12)) {
+							// The new window path may visit several regions with one contact (or
+							// along a segment): give each region its first touch along the path and
+							// visit them in that order, which keeps the length of the path.
+							std::vector<std::pair<double,size_t>> touches;touches.reserve(count);
+							Polygon touch_points(count);
+							bool assigned=true;
+							for(size_t i=0;i<count&&assigned;++i) {
+								const auto c=contact(solved.path,regions[i],eps);
+								if(!(c.distance<=eps)){assigned=false;break;}
+								const size_t segment=std::min<size_t>(size_t(std::floor(c.position)),solved.path.size()-2);
+								const double rate=std::clamp(c.position-double(segment),0.0,1.0);
+								touch_points[i]=solved.path[segment]+rate*(solved.path[segment+1]-solved.path[segment]);
+								touches.emplace_back(c.position,i);
+							}
+							if(assigned) {
+								std::stable_sort(touches.begin(),touches.end());
+								Tour changed=t;
+								for(size_t i=0;i<count;++i) {
+									const size_t k=(first+i)%n;
+									changed.order[k]=indices[touches[i].second];changed.point[k]=touch_points[touches[i].second];
+								}
+								measure(changed);
+								if(changed.length<t.length*(1-1e-12)){t=std::move(changed);++result.primal_ils_reorder_improvements;}
+							}
+						}
+					} catch(const std::exception &) {}
+					result.primal_ils_reorder_seconds+=duration(reorder_began);
+				};
+				auto reorder=[&](Tour &t) {
+					const size_t width=options.primal_ils_reorder;
+					if(width<2||width+2>n)return;
+					const size_t step=std::max<size_t>(1,width/2),last=cycle?n:n-width+1;
+					for(size_t first=0;first<last&&running();first+=step)reorder_positions(t,first,width);
+				};
+				auto polish=[&](Tour &t) {
+					if(!(options.primal_ils_polish>0)||!running())return;
+					if(options.primal_ils_reorder>=2){reorder(t);return;}
+					const size_t width=options.primal_ils_window;
+					if(width==0||width+2>n){polish_positions(t,0,n);return;}
+					const size_t step=std::max<size_t>(1,width/2),last=cycle?n:n-width+1;
+					for(size_t first=0;first<last&&running();first+=step)polish_positions(t,first,width);
+				};
 				Tour current;current.order=best_initial_order;
 				current.point.assign(best_initial_path.begin()+size_t(!cycle),best_initial_path.begin()+size_t(!cycle)+n);
 				local_search(current);
+				polish(current);
 				Tour best=current;
 				if(best.length<best_initial_length&&covered(as_path(best))) {
 					best_initial_path=as_path(best);best_initial_order=best.order;best_initial_length=best.length;
@@ -742,21 +934,33 @@ namespace tpp {
 				}
 				std::mt19937_64 random(0x9e3779b97f4a7c15ULL^n);
 				const double total=std::max(1e-9,budget);
+				double eta=0.01;size_t stagnation=0;
 				while(running()) {
 					++result.primal_ils_iterations;
-					// Double bridge: A B C D -> A C B D on positions.
-					std::uniform_int_distribution<size_t> cut(1,n-1);
-					std::array<size_t,3> c{cut(random),cut(random),cut(random)};std::sort(c.begin(),c.end());
-					if(c[0]==c[1]||c[1]==c[2])continue;
-					Tour trial;trial.order.reserve(n);trial.point.reserve(n);
-					for(auto [from,to]:{std::pair{size_t(0),c[0]},std::pair{c[1],c[2]},std::pair{c[0],c[1]},std::pair{c[2],n}})
-						for(size_t k=from;k<to;++k){trial.order.push_back(current.order[k]);trial.point.push_back(current.point[k]);}
+					// Double bridges: A B C D -> A C B D on positions.
+					Tour trial=current;
+					for(size_t kick=0;kick<options.primal_ils_kicks;) {
+						std::uniform_int_distribution<size_t> cut(1,n-1);
+						std::array<size_t,3> c{cut(random),cut(random),cut(random)};std::sort(c.begin(),c.end());
+						if(c[0]==c[1]||c[1]==c[2])continue;
+						Tour bridged;bridged.order.reserve(n);bridged.point.reserve(n);
+						for(auto [from,to]:{std::pair{size_t(0),c[0]},std::pair{c[1],c[2]},std::pair{c[0],c[1]},std::pair{c[2],n}})
+							for(size_t k=from;k<to;++k){bridged.order.push_back(trial.order[k]);bridged.point.push_back(trial.point[k]);}
+						trial=std::move(bridged);++kick;
+					}
 					local_search(trial);
-					// Record-to-record: accept within a slack that shrinks to zero.
-					const double progress=std::min(1.0,duration(began)/total);
-					if(trial.length<best.length*(1+0.02*(1-progress)))current=trial;
+					if(trial.length<best.length*(1+options.primal_ils_polish))polish(trial);
+					if(options.primal_ils_reheat) {
+						if(trial.length<current.length||trial.length<=best.length*(1+eta))current=trial;
+						if(trial.length>=best.length*(1-1e-12)&&++stagnation%10==0&&(eta*=0.95)<1e-4){eta=0.01;current=best;}
+					} else {
+						// Record-to-record: accept within a slack that shrinks to zero.
+						const double progress=std::min(1.0,duration(began)/total);
+						if(trial.length<best.length*(1+0.02*(1-progress)))current=trial;
+					}
 					if(trial.length<best.length*(1-1e-12)) {
-						best=trial;
+						if(!(options.primal_ils_polish>0))reorder(trial);
+						best=trial;stagnation=0;
 						if(best.length<best_initial_length&&covered(as_path(best))) {
 							best_initial_path=as_path(best);best_initial_order=best.order;best_initial_length=best.length;
 							improve(best_initial_path,"primal_ils",best_initial_order);++result.primal_ils_improvements;

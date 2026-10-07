@@ -83,11 +83,15 @@ void check(const Polygons &p) {
     check_oracle_profile(r);
     require(covered(r.path,p),"TSPN output is a feasible closed tour");
     {
-        tpp::UnorderedTppSolveOptions ils;ils.primal_ils_fraction=0.02;ils.max_seconds=2;
-        const auto searched=tpp::tpp_nonconvex_tspn_solve(p,ils);
-        require(covered(searched.path,p)&&searched.exact&&std::abs(searched.upper_bound-upper)<=1e-7+1e-9*upper,
-                "Primal ILS keeps a feasible tour and the exhaustive optimum");
-        ils_iterations+=searched.primal_ils_iterations;
+        for(size_t block:{size_t(1),size_t(3)}) {
+            tpp::UnorderedTppSolveOptions ils;ils.primal_ils_fraction=0.02;ils.max_seconds=2;
+            ils.primal_ils_block=block;ils.primal_ils_reverse=block>1;ils.primal_ils_kicks=block>1?3:1;
+            ils.primal_ils_reheat=block>1;ils.primal_ils_polish=block>1?0.05:0;ils.primal_ils_window=block>1?3:0;
+            const auto searched=tpp::tpp_nonconvex_tspn_solve(p,ils);
+            require(covered(searched.path,p)&&searched.exact&&std::abs(searched.upper_bound-upper)<=1e-7+1e-9*upper,
+                    "Primal ILS keeps a feasible tour and the exhaustive optimum");
+            ils_iterations+=searched.primal_ils_iterations;
+        }
     }
     require(r.exact&&r.lower_bound<=upper+1e-7&&r.upper_bound>=lower-1e-7&&
             std::abs(r.upper_bound-upper)<=1e-7+1e-9*upper,"TSPN exhaustive order/piece comparison");

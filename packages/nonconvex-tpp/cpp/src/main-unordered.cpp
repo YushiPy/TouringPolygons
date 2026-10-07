@@ -125,6 +125,7 @@ int main(int argc, char **argv) {
                 std::cout << "TPP ablations: --no-borrow-oracle-geometry, --no-segment-visit-cache, --no-cycle-point-anchor; experimental: --lazy-oracles, --bound-first, --path-dual-reuse, --path-certificate-dual, --path-strong-branching.\n";
 				std::cout << "--relocate-initial optimizes insertion slots and contacts in the initial route.\n";
 				std::cout << "--primal-ils F spends fraction F of the time on an iterated local search for the initial tour.\n";
+				std::cout << "--primal-ils-block L relocates blocks of up to L regions in it (default 1); --primal-ils-reverse also inserts them reversed; --primal-ils-kicks K applies K double bridges per perturbation (default 1); --primal-ils-reheat uses threshold acceptance with restarts; --primal-ils-polish F polishes tours within F of the best with the exact convex oracle, in windows of --primal-ils-window W regions (0: whole tour); --primal-ils-candidates K limits Or-opt gaps to the K closest regions; --primal-ils-swap adds the swap neighbourhood; --primal-ils-reorder W reoptimizes windows of W regions exactly on each new best.\n";
 				std::cout << "--interpolated-zero-dual tries a feasible interpolated dual for short contact blocks.\n";
 				return 0;
 			}
@@ -161,6 +162,37 @@ int main(int argc, char **argv) {
 				if (++i >= argc) throw std::invalid_argument("Expected a time fraction after --primal-ils.");
 				options.primal_ils_fraction=std::stod(argv[i]);
 				if (!(options.primal_ils_fraction>=0&&options.primal_ils_fraction<1)) throw std::invalid_argument("--primal-ils needs a fraction in [0,1).");
+				continue;
+			}
+			if (flag == "--primal-ils-block" || flag == "--primal-ils-kicks") {
+				if (++i >= argc) throw std::invalid_argument("Expected a count after "+flag+".");
+				const size_t value=std::stoul(argv[i]);
+				if (value==0) throw std::invalid_argument(flag+" needs a positive count.");
+				(flag=="--primal-ils-block"?options.primal_ils_block:options.primal_ils_kicks)=value;
+				continue;
+			}
+			if (flag == "--primal-ils-reverse") {options.primal_ils_reverse=true;continue;}
+			if (flag == "--primal-ils-reheat") {options.primal_ils_reheat=true;continue;}
+			if (flag == "--primal-ils-swap") {options.primal_ils_swap=true;continue;}
+			if (flag == "--primal-ils-candidates") {
+				if (++i >= argc) throw std::invalid_argument("Expected a count after --primal-ils-candidates.");
+				options.primal_ils_candidates=std::stoul(argv[i]);
+				continue;
+			}
+			if (flag == "--primal-ils-reorder") {
+				if (++i >= argc) throw std::invalid_argument("Expected a count after --primal-ils-reorder.");
+				options.primal_ils_reorder=std::stoul(argv[i]);
+				continue;
+			}
+			if (flag == "--primal-ils-window") {
+				if (++i >= argc) throw std::invalid_argument("Expected a count after --primal-ils-window.");
+				options.primal_ils_window=std::stoul(argv[i]);
+				continue;
+			}
+			if (flag == "--primal-ils-polish") {
+				if (++i >= argc) throw std::invalid_argument("Expected a fraction after --primal-ils-polish.");
+				options.primal_ils_polish=std::stod(argv[i]);
+				if (!(options.primal_ils_polish>=0)) throw std::invalid_argument("--primal-ils-polish needs a nonnegative fraction.");
 				continue;
 			}
 			if (flag == "--insertion-lookahead") {
@@ -367,6 +399,18 @@ int main(int argc, char **argv) {
 			<< ",\"primal_ils_iterations\":" << r.primal_ils_iterations
 			<< ",\"primal_ils_improvements\":" << r.primal_ils_improvements
 			<< ",\"primal_ils_seconds\":" << r.primal_ils_seconds
+			<< ",\"primal_ils_polish_calls\":" << r.primal_ils_polish_calls
+			<< ",\"primal_ils_polish_improvements\":" << r.primal_ils_polish_improvements
+			<< ",\"primal_ils_polish_seconds\":" << r.primal_ils_polish_seconds
+			<< ",\"primal_ils_reorder_calls\":" << r.primal_ils_reorder_calls
+			<< ",\"incumbent_history\":[" << [&] {
+				std::ostringstream history;history.precision(17);
+				for(size_t i=0;i<r.incumbent_history.size();++i)
+					history<<(i?",":"")<<"["<<r.incumbent_history[i].first<<","<<r.incumbent_history[i].second<<"]";
+				return history.str();
+			}() << "]"
+			<< ",\"primal_ils_reorder_improvements\":" << r.primal_ils_reorder_improvements
+			<< ",\"primal_ils_reorder_seconds\":" << r.primal_ils_reorder_seconds
 			<< ",\"visit_bound_skips\":" << r.visit_bound_skips
 			<< ",\"lookahead_candidates\":" << r.lookahead_candidates
 			<< ",\"lookahead_prunes\":" << r.lookahead_prunes
