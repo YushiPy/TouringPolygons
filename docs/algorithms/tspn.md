@@ -496,6 +496,12 @@ regions left a relaxation gap the search could not close; and a block of
 coincident contacts whose optimum is a crossing of two edges was unrepresentable
 by vertex/edge features, so the rational boundary bisection ran until its
 deadline. All are fixed, with regression tests that need no third-party data.
+Above about 40 regions these TSPLIB-like instances remain open for every
+method tried (ours, Fekete, the paper's CPLEX model). Stronger branching,
+lookahead, DFS/BFS, primal starts and exact LNS did not close more; graph
+relaxations with region-to-region distances (Held–Karp) or per-region triple
+costs are weaker than the existing insertion relaxations even at the optimal
+order, so neither was implemented.
 Results and protocol: [`tspn-paula-cycle-2026-10-06`](../../benchmarks/results-saved/README.md#tspn-paula-cycle-2026-10-06).
 
 ## Use and validation
