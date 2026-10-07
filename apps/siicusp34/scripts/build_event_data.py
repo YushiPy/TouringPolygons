@@ -134,7 +134,7 @@ def overlay_campaign(path: Path, ours: dict[int, dict[str, str]], fekete: dict[i
 	"""Replace timings, calls and Fekete status by the per-case campaign CSV.
 
 	Paths, lengths and bounds stay from the earlier run (same instances); only the
-	timing comparison comes from the newer campaign. Our seconds are recovered from
+	timing comparison comes from the newer campaign. Cases the new Fekete run left open keep the 6 h time of the earlier run as a lower bound. Our seconds are recovered from
 	the unrounded Fekete/ours ratio when the Fekete run closed the gap.
 	"""
 	with path.open(newline="", encoding="utf-8") as file:
@@ -149,7 +149,8 @@ def overlay_campaign(path: Path, ours: dict[int, dict[str, str]], fekete: dict[i
 				ours[index]["seconds"] = repr(float(row["fekete_seconds"]) / float(row["fekete_over_ours"]))
 			fekete[index].update(is_optimal="True", status="optimal", solve_seconds=row["fekete_seconds"], lower_bound=row["fekete_lb"], upper_bound=row["fekete_ub"])
 		else:
-			fekete[index].update(is_optimal="False", status="open", solve_seconds="")
+			# Censored: keeps the time of the earlier 6 h run, a lower bound for Fekete's real time.
+			fekete[index].update(is_optimal="False", status="open")
 
 
 def speedup_histogram(path: Path) -> dict[str, object]:
@@ -244,6 +245,12 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 		"ours_faster_count": sum(value > 1 for value in common),
 		"common_completed": len(common),
 	}
+	# Cases Fekete never closed: its recorded time is only a lower bound, still above ours.
+	censored = [(float(fekete[index]["solve_seconds"]), row["seconds"]) for index, row in enumerate(rows) if not as_bool(fekete[index]["is_optimal"])]
+	comparison["censored_ours_faster_count"] = sum(lower > ours_seconds for lower, ours_seconds in censored)
+	comparison["censored_count"] = len(censored)
+	comparison["censored_fekete_min_seconds"] = min(lower for lower, _ in censored) if censored else None
+	comparison["censored_ours_max_seconds"] = max(ours_seconds for _, ours_seconds in censored) if censored else None
 	analysis_ours, analysis_fekete = args.ours, args.fekete
 	with tempfile.TemporaryDirectory() as temporary:
 		if args.campaign:

@@ -18,8 +18,8 @@ Isso vale também para a ordem livre, novidade desde o resumo.
 **Slide 4 (~30 s).** Comparamos com Fekete e colaboradores, um grupo alemão que
 usa um solver genérico, o Gurobi, nas 558 instâncias do artigo deles. No pôster, a
 média era 10 vezes. Depois da submissão melhorei o solver: agora a média é 109
-vezes mais rápido, e somos mais rápidos em todas as 552 instâncias que ambos
-resolvem. Também provamos 558 ótimos, contra 552.
+vezes mais rápido, e somos mais rápidos nas 558 instâncias: em 552 medimos o
+speedup, e nas outras 6 o Fekete nem terminou. Também provamos 558 ótimos, contra 552.
 
 **Slide 5 (~15 s).** Venham ao pôster: lá explico por que o solver geométrico
 vence, onde ganhamos menos e como a busca evita as 10^117 combinações. E o QR code

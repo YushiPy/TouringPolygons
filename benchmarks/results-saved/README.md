@@ -39,7 +39,7 @@ avaliação do artigo não alteram). Dados por caso:
 | Soma dos tempos nos 552 casos fechados por ambos | 519 s | 238.645 s (maior: caso 231, 49.896 s ≈ 13,9 h) |
 | Soma dos tempos nos 558 casos | 1.899 s (maior: caso 130, 722 s) | — |
 
-Nos 552 casos fechados por ambos, o nosso solver foi mais rápido em **552/552**
+Nos 552 casos fechados por ambos, o nosso solver foi mais rápido em **552/552**; nos 6 abertos o Fekete ficou pelo menos 6 h (21.657–21.720 s na campanha de teto de 6 h, `fekete-comparison`) sem fechar, contra no máximo 722 s do nosso, logo o nosso foi mais rápido também neles (**558/558**, com essa ressalva de censura)
 (menor razão 3,4×, caso 452; maior 2.265×). Razão Fekete/nosso: média aritmética
 **109,1×**, média geométrica 49,5×, mediana **41,1×**. Por fonte (média
 geométrica): OSM (314) 71,9×; aleatórias (160) 39,6×; tessellation (78) 17,3×.

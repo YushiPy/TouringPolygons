@@ -740,10 +740,16 @@ async function initialize() {
 		if (certifiedElement) certifiedElement.innerHTML = `${certified}<span>/ ${cases}</span>`;
 		if (underTenElement) underTenElement.innerHTML = `${underTen}<span>/ ${cases}</span>`;
 		if (speedupElement && Number.isFinite(meanSpeedup)) speedupElement.textContent = `${number(meanSpeedup, 0)}×`;
-		if (fasterElement) fasterElement.innerHTML = `${Number(comparison.ours_faster_count || 0)}<span>/ ${common}</span>`;
+		const censored = Number(comparison.censored_count || 0);
+		const fasterTotal = Number(comparison.ours_faster_count || 0) + Number(comparison.censored_ours_faster_count || 0);
+		if (fasterElement) fasterElement.innerHTML = `${fasterTotal}<span>/ ${common + censored}</span>`;
+		const fasterNote = element("result-faster-note");
+		if (fasterNote) fasterNote.textContent = censored
+			? `Nos ${common} casos fechados por ambos e nos ${censored} em que o Fekete et al. não terminou (mais de ${formatDuration(comparison.censored_fekete_min_seconds)} cada, contra no máximo ${formatDuration(comparison.censored_ours_max_seconds)} do nosso).`
+			: "Nosso solver foi mais rápido no conjunto comum concluído.";
 		renderSpeedupChart(comparison);
 		const note = element("result-benchmark-note");
-		if (note) note.textContent = `Esses resultados dizem respeito às instâncias usadas por Fekete et al. no artigo. Rodamos cada instância em uma thread, sem limite de tempo: nosso solver concluiu ${certified}/${cases}, enquanto o de Fekete et al. concluiu ${comparison.fekete_completed ?? "—"}/${cases}. As comparações de tempo e velocidade usam os ${common} casos concluídos por ambos.`;
+		if (note) note.textContent = `Esses resultados dizem respeito às instâncias usadas por Fekete et al. no artigo. Rodamos cada instância em uma thread, sem limite de tempo: nosso solver concluiu ${certified}/${cases}, enquanto o de Fekete et al. concluiu ${comparison.fekete_completed ?? "—"}/${cases}. As comparações de tempo e velocidade usam os ${common} casos concluídos por ambos.${censored ? ` Nos ${censored} restantes só sabemos que o Fekete et al. leva mais tempo que o nosso solver; por isso a média e a mediana do speedup subestimam a vantagem.` : ""}`;
 		const setText = (id, value) => { const target = element(id); if (target) target.textContent = value; };
 		const duration = (value) => formatDuration(value);
 		const hours = (value) => Number.isFinite(Number(value)) ? `${number(Number(value), 2)} h` : "—";
