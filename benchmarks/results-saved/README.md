@@ -140,24 +140,42 @@ são locais (sem autorização de redistribuição).
   (dois elos saindo do mesmo ponto) 0,73–0,94 mesmo na ordem ótima; o LB do B&B
   já alcança 0,72–0,98. Nenhuma foi adotada.
 - Limitações: uma repetição; 38 instâncias abertas (42–100 polígonos, sobretudo
-  com pontos ou de 100 regiões), onde o Fekete também não fecha; os resultados
-  do ILS da Paula não estão no rascunho (nem no PDF) e não foram comparados.
+  com pontos ou de 100 regiões), onde o Fekete também não fecha. Os resultados
+  do ILS da Paula vieram no rascunho de 2026-10-07 (abaixo); tempos de CPU em
+  máquinas diferentes, e o tempo dela é o da execução inteira, não o de achar
+  o melhor tour (em média 23 s contra 214 s).
 - TPP com depósito no centro da bbox (`convert-paula`, mesmo binário, 60 s,
   gap 1e-6): 196 fechadas contra 197 do TSPN, 2× mais rápido onde ambos fecham,
   mesma fronteira (0 de 22 acima de 60 polígonos).
-- Qualidade do UB nas abertas, sem certificado (2026-10-07, ε = 0,001). Como
-  os resultados do ILS da Paula não estão disponíveis, o tour do GTSP serve de
-  substituto. O B&B quase não melhora o UB entre 60 e 600 s. Com 600 s (parcial,
-  21 de 38 instâncias), as 4 de 45–60 polígonos ficam em 0,993–0,998 do tour
-  do GTSP; as 17 de 64–100 ficam em 0,990–1,039, 12 acima de 1; a LNS por
-  janelas tira até 2,5 pontos percentuais nas de 64–99 e nada nas de 100. Gap do B&B aos 600 s:
-  2–35%. A **busca local iterada** opcional (`--primal-ils 0.5`, 60 s,
-  5 instâncias) levou 80rd400 de 1,035 a 0,998, 100pr1002 de 1,010 a 0,996 e
-  64lin318 a 0,999; manteve 50kroA100 (0,999) e 100i1000-410 (1,006, polígonos
-  muito sobrepostos). No 56a280, o B&B sozinho em 60 s achou 0,993 ou 1,006
-  conforme a carga da máquina; com ILS, 0,993 (UB/LB 1,021 contra o LB de
-  600 s). Opção desligada por padrão; a avaliação de 600 s nas 38 abertas ainda
-  está em andamento.
+- **Contra o ILS-BCD da Paula** (rascunho de 2026-10-07, tabela do apêndice:
+  melhor de 10 execuções por instância, cada uma até 3.000 iterações sem melhora
+  ou 1.200 s de CPU, com comprimentos em duas casas; outra máquina). Nas 197 que
+  fechamos, os tours coincidem: com gap 1e-6, nosso valor e o dela diferem no
+  máximo 0,003% (arredondamento dela) e o tour dela fica no máximo 0,0024%
+  acima do nosso LB, ou seja, nosso certificado mostra que ela acha o ótimo.
+  Nosso tempo para fechar é 1.150× menor que o tempo médio de uma execução dela
+  (média geométrica; ≤ 15 polígonos 3.600×, 16–40 680×, 41–60 97×, mínimo 6×;
+  lemos a coluna de CPU da tabela como a média por execução).
+- **Nas 38 abertas, com a busca local iterada opcional** (`--primal-ils 0.95`,
+  padrões validados: Or-opt de até 3, listas de 10 candidatos, aceitação com
+  reaquecimento dela e reotimização exata de janelas de 8 regiões pelo próprio
+  B&B; ver `docs/algorithms/unordered-tpp.md`). Seleção: 19 instâncias de
+  desenvolvimento e 19 de validação sorteadas por tamanho antes de medir; na
+  validação (60 s, uma execução) a média geométrica do nosso tour sobre o dela
+  foi 1,0020 sem a reotimização exata, 1,0007 com polimento só de contatos e
+  **1,00015** com ela (17/19 empates). Avaliação (300 s, uma execução, semente
+  0): **33/38** chegam ao tour dela (comprimento ≤ o dela + 0,005), em mediana
+  352× antes do tempo médio de uma execução dela (média geométrica 287×,
+  mínimo 7×; tipicamente 0,1–30 s); as 5 restantes ficam 0,05–0,37% acima
+  do melhor dela, nunca acima do pior dos 10 dela e no máximo 0,2% acima da
+  média deles. Com 10 sementes de 120 s nessas 5, o melhor nosso empata com o
+  melhor dela em 4; 100i1000-410 fica 0,19% acima. Todos os tours validaram.
+  O B&B sozinho (600 s, com ou sem LNS) ficava até 4% acima dela nas de 100
+  regiões. Gap certificado aos 600 s nas abertas: 2–35% (o LB é o limite).
+- No TPP de ordem livre com extremos fixos (corpus do Fekete, 11 casos
+  difíceis, `--primal-ils 0.5 --primal-ils-stagnation 200`) o ILS não acelera
+  o B&B: 0,07–0,82× nos que fecham em até 3 s e 0,91× e 0,99× nos de 16 e 51 s,
+  apesar do UB inicial melhor. Fica desligado por padrão.
 
 ## tpp-oracle-allocation-2026-10-06
 
