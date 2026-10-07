@@ -43,7 +43,8 @@ function formatDuration(value) {
 	const seconds = Number(value);
 	if (!Number.isFinite(seconds)) return "—";
 	if (seconds < 0.001) return "< 0,001 s";
-	if (seconds < 60) return `${number(seconds, 3)} s`;
+	if (seconds < 1) return `${number(seconds, 3)} s`;
+	if (seconds < 60) return `${number(seconds, 2)} s`;
 	const minutes = seconds / 60;
 	if (minutes < 60) return `${number(minutes, 2)} min`;
 	return `${number(minutes / 60, 2)} horas`;
