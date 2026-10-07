@@ -134,7 +134,7 @@
 \input{hist-data}
 \begin{tikzpicture}[remember picture,overlay]
   \fill[white] (current page.south west) rectangle (current page.north east);
-  \slidetitle{Solver melhorado: em média, \hi 109$\times$ \ink mais rápido}
+  \slidetitle{Solver melhorado: em média, \hi 112$\times$ \ink mais rápido}
   \node[anchor=north west,inner sep=0,text width=22.8cm] at ([xshift=1.2cm,yshift=-1.95cm]current page.north west) {\sffamily\sz{20}{24}\muted Comparação com \textbf{Fekete et al.} (grupo da TU Braunschweig, Alemanha, 2026), que usam um solver genérico (Gurobi). O nosso é um solver geométrico exato.};
   \node[anchor=north west,inner sep=0] at ([xshift=0.9cm,yshift=-3.25cm]current page.north west) {%
   \begin{tikzpicture}
@@ -163,10 +163,10 @@
   \end{axis}
   \end{tikzpicture}};
   \node[anchor=north west,inner sep=0,text width=5.4cm] at ([xshift=19.3cm,yshift=-3.3cm]current page.north west)
-    {{\bfseries\sz{60}{62}\hi 109$\times$}\par\vspace{2pt}{\sz{24}{28}\ink\bfseries média do speedup\par\vspace{0.25cm}\mdseries\muted (mediana: \histmediantext$\times$)}\par\vspace{0.7cm}
+    {{\bfseries\sz{60}{62}\hi 112$\times$}\par\vspace{2pt}{\sz{24}{28}\ink\bfseries média do speedup\par\vspace{0.25cm}\mdseries\muted (mediana: \histmediantext$\times$)}\par\vspace{0.7cm}
      {\sz{18}{22}\muted No pôster: média 10,4$\times$}};
   \node[anchor=south west,inner sep=0,text width=22.8cm] at ([xshift=1.2cm,yshift=1.3cm]current page.south west)
-    {\sffamily\sz{16}{19}\muted Solver atualizado após o pôster. \histcount\ casos fechados por ambos; nos 6 restantes o Fekete et al. não terminou (nosso solver é mais rápido nos 558). Uma thread, sem limite de tempo, gap alvo de 0,1\,\%. Intel i9-12900K.};
+    {\sffamily\sz{16}{19}\muted Solver atualizado após o pôster. \histcount\ casos fechados por ambos; nos 5 restantes o Fekete et al. não terminou (nosso solver é mais rápido nos 558). Uma thread, sem limite de tempo, gap alvo de 0,1\,\%. Intel i9-12900K.};
   \footerbar{4}
 \end{tikzpicture}
 \newpage

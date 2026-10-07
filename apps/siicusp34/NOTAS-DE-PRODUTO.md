@@ -125,12 +125,12 @@ Resultados publicados na versão atual:
 
 - nosso solver: 558/558 instâncias concluídas com `termination=optimal` e gap dentro das tolerâncias declaradas;
 - 545/558 instâncias do nosso solver foram resolvidas em menos de 10 segundos;
-- no conjunto comum concluído, o speedup médio Fekete/nosso é 109× (mediana 41×, média geométrica 49×) e nosso solver é mais rápido em 552/552 casos;
-- solver de Fekete et al.: 552/558 concluídas; 6 instâncias foram interrompidas manualmente depois de dias sem fechar o gap.
+- no conjunto comum concluído, o speedup médio Fekete/nosso é 112× (mediana 41×, média geométrica 50×) e nosso solver é mais rápido em 553/553 casos;
+- solver de Fekete et al.: 553/558 concluídas; 5 instâncias foram interrompidas manualmente depois de dias sem fechar o gap.
 
 Os tempos vêm da campanha `benchmarks/results-saved/free-order-dantzig-2026-10-06` (uma thread por instância, sem limite de tempo; ver as limitações no README dessa pasta). Caminhos, comprimentos e limites por caso continuam os da rodada `fekete-comparison`, mesmas instâncias; `build_event_data.py --campaign` sobrepõe tempos, chamadas e status do Fekete.
 
-A tabela de tempos e as métricas de velocidade usam somente os 552 casos
+A tabela de tempos e as métricas de velocidade usam somente os 553 casos
 concluídos por ambos; a precisão geométrica informa separadamente o tamanho
 das séries de trajetórias disponíveis.
 

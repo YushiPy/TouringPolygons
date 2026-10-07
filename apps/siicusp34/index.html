@@ -132,7 +132,7 @@
 					<p>Passamos os meses seguintes refinando essa especialização:</p>
 					<ul>
 						<li><strong>Exatidão:</strong> nossa versão de alta precisão reduz o erro geométrico em várias ordens de grandeza. Com aritmética racional, também conseguimos erro exatamente zero, ao custo de mais tempo.</li>
-						<li><strong>Velocidade:</strong> o solver convexo especializado é medido em microssegundos nos subproblemas, no lugar de chamadas de otimização genérica em milissegundos. Na campanha completa, nos próprios casos de teste de Fekete et al., obtivemos um speedup médio de <strong>109×</strong> (mediana de 41×) no tempo total, no conjunto comum concluído.</li>
+						<li><strong>Velocidade:</strong> o solver convexo especializado é medido em microssegundos nos subproblemas, no lugar de chamadas de otimização genérica em milissegundos. Na campanha completa, nos próprios casos de teste de Fekete et al., obtivemos um speedup médio de <strong>112×</strong> (mediana de 41×) no tempo total, no conjunto comum concluído.</li>
 						<li><strong>Busca:</strong> refinamos o branch-and-bound e preservamos a avaliação lazy. A campanha abaixo usa o solver completo, com essa busca refinada.</li>
 						<li><strong>Autonomia:</strong> nossa implementação do solver convexo de Dror elimina a necessidade de usar Gurobi, enquanto a implementação do algoritmo de Greene elimina a necessidade de usar CGAL — ambas ferramentas com uso comercial restrito.</li>
 					</ul>
@@ -146,12 +146,12 @@
 				<div class="result-cards">
 					<article><strong id="result-certified">558<span>/ 558</span></strong><h3>Buscas concluídas</h3><p>O solver concluiu a busca nos 558 casos.</p></article>
 					<article><strong id="result-under-10">545<span>/ 558</span></strong><h3>Resolvidas em menos de 10 s</h3><p>Tempo de solver em uma thread por instância.</p></article>
-					<article><strong id="result-speedup">109×</strong><h3>Speedup médio</h3><p>Fekete et al. / nosso solver, nas 552 instâncias concluídas por ambos.</p></article>
-					<article><strong id="result-faster">558<span>/ 558</span></strong><h3>Instâncias mais rápidas</h3><p id="result-faster-note">Nos 552 casos fechados por ambos e nos 6 em que o Fekete et al. não terminou (mais de 6,02 horas cada, contra no máximo 12,03 min do nosso).</p></article>
+					<article><strong id="result-speedup">112×</strong><h3>Speedup médio</h3><p>Fekete et al. / nosso solver, nas 553 instâncias concluídas por ambos.</p></article>
+					<article><strong id="result-faster">558<span>/ 558</span></strong><h3>Instâncias mais rápidas</h3><p id="result-faster-note">Nos 553 casos fechados por ambos e nos 5 em que o Fekete et al. não terminou (mais de 6,02 horas cada, contra no máximo 12,03 min do nosso).</p></article>
 				</div>
-				<p id="result-benchmark-note" class="results-benchmark-note">Esses resultados dizem respeito às instâncias usadas por Fekete et al. no artigo. Rodamos cada instância em uma thread, sem limite de tempo: nosso solver concluiu 558/558, enquanto o de Fekete et al. concluiu 552/558. As comparações de tempo e velocidade usam os 552 casos concluídos por ambos.</p>
+				<p id="result-benchmark-note" class="results-benchmark-note">Esses resultados dizem respeito às instâncias usadas por Fekete et al. no artigo. Rodamos cada instância em uma thread, sem limite de tempo: nosso solver concluiu 558/558, enquanto o de Fekete et al. concluiu 553/558. As comparações de tempo e velocidade usam os 553 casos concluídos por ambos.</p>
 				<article class="comparison-panel speedup-panel" id="speedup-panel" hidden>
-					<div class="comparison-panel-heading"><p class="eyebrow">DISTRIBUIÇÃO DO SPEEDUP</p><h3>Em quantas vezes nosso solver foi mais rápido, caso a caso</h3><p>Cada barra conta instâncias cujo speedup (tempo do Fekete et al. ÷ nosso) cai na faixa indicada, em escala logarítmica. Nenhuma instância fica à esquerda de 1×. Os 6 casos em que o Fekete et al. não terminou ficam fora do gráfico, pois não há speedup medido.</p></div>
+					<div class="comparison-panel-heading"><p class="eyebrow">DISTRIBUIÇÃO DO SPEEDUP</p><h3>Em quantas vezes nosso solver foi mais rápido, caso a caso</h3><p>Cada barra conta instâncias cujo speedup (tempo do Fekete et al. ÷ nosso) cai na faixa indicada, em escala logarítmica. Nenhuma instância fica à esquerda de 1×. Os 5 casos em que o Fekete et al. não terminou ficam fora do gráfico, pois não há speedup medido.</p></div>
 					<div id="speedup-chart" class="speedup-chart" role="group" aria-labelledby="speedup-chart-summary" tabindex="-1"></div>
 					<p id="speedup-chart-summary" class="sr-only"></p>
 				</article>
@@ -210,7 +210,7 @@
 	<script src="data/br-estados-demo.js?v=20260923-br-estados1"></script>
 	<script src="data/challenge-data.js?v=20260923-polish6"></script>
 	<script src="data/trace-data.js"></script>
-	<script src="data/event-data.js?v=20261007-hist6"></script>
+	<script src="data/event-data.js?v=20261007-c553"></script>
 	<script src="data/trace-decomposition.js?v=20260925-trace-decomposition"></script>
 	<script type="module" src="app.js?v=20261007-backdrop"></script>
 </body>
