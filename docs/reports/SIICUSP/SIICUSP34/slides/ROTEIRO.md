@@ -1,35 +1,29 @@
-# Roteiro de 2 minutos (cinco slides, ~270 palavras)
+# Roteiro de 2 minutos (cinco slides, ~250 palavras, ~1 min 45 s a 140 palavras por minuto)
 
 **Slide 1 (~15 s).** Qual é o menor caminho que visita todas estas regiões? Aqui
-as regiões são as letras do título, e o caminho colorido é a solução ótima, do
-começo ao fim. Sou o Gabriel, orientado pelo Ernesto Birgin, com bolsa da FAPESP.
+elas são as letras do título, e a rota colorida é a solução ótima. Sou o Gabriel,
+orientado pelo Ernesto Birgin, com bolsa da FAPESP.
 
-**Slide 2 (~25 s).** O problema: dados um ponto inicial s, um final t e polígonos
-P₁ a Pₖ, queremos o caminho de s a t de menor comprimento que toca cada polígono.
-Escolhemos a ordem e onde tocar. Por exemplo, um drone sai do IME e precisa passar
-por 51 regiões da USP: são cerca de 10^104 rotas possíveis, testar todas é
-inviável, e o nosso solver acha a ótima em 0,23 segundos.
+**Slide 2 (~20 s).** Formalmente: dados um ponto inicial, um final e vários
+polígonos, queremos o menor caminho que toca todos. Por exemplo, um drone do IME e
+51 regiões da USP: cerca de 10^104 rotas possíveis, inviável testar todas. Nosso
+solver acha a ótima em 0,23 segundos.
 
-**Slide 3 (~30 s).** Como? Numa busca que descarta ramos inteiros. Num exemplo real
-de 5 regiões: um método rápido, o vizinho mais próximo, dá uma rota 26 % mais longa
-que a ótima, mas já serve de referência. Montamos rotas região a região, e uma rota
-parcial que já passa da melhor conhecida é abandonada com todos os seus
-desdobramentos. Na instância de 60 regiões, a força bruta precisaria de 10^117
-cálculos, uns 10^100 anos; nosso método faz cerca de 1,4 mil, em 0,1 segundo. O
-resumo cobria ordem fixa; depois da submissão, estendemos para ordem livre.
+**Slide 3 (~25 s).** Como? Começamos com uma rota rápida, o vizinho mais próximo,
+só como referência. Depois montamos rotas região por região e abandonamos qualquer
+rota parcial já pior que a melhor conhecida. Na instância de 60 regiões, a força
+bruta precisaria de 10^117 cálculos; nós fazemos cerca de 1,4 mil, em 0,1 segundo.
+Isso vale também para a ordem livre, novidade desde o resumo.
 
-**Slide 4 (~35 s).** Comparamos com Fekete e colaboradores, um grupo alemão que
-publicou este ano uma solução com solver genérico, o Gurobi; a nossa é um solver
-geométrico exato. Usamos as 558 instâncias do artigo deles. No pôster a média era 10,4× e éramos
-mais rápidos em 492 de 550. Depois da submissão melhorei o solver: agora a mediana
-é 40,8×, e somos mais rápidos nos 550 casos que ambos resolvem. Também provamos
-558 ótimos contra 550 (está na nota de rodapé). O histograma mostra o speedup de cada instância em escala logarítmica: nenhuma fica à esquerda de 1×.
-Mesma tolerância de 0,1 % nos dois, sem limite de tempo, uma thread.
+**Slide 4 (~30 s).** Comparamos com Fekete e colaboradores, um grupo alemão que
+usa um solver genérico, o Gurobi, nas 558 instâncias do artigo deles. No pôster, a
+média era 10 vezes. Depois da submissão melhorei o solver: agora a mediana é 40,8
+vezes mais rápido, e somos mais rápidos em todas as 550 instâncias que ambos
+resolvem. Também provamos 558 ótimos, contra 550.
 
-**Slide 5 (~15 s).** Se ficou curioso, venha ver o pôster: lá explico por que um
-solver geométrico exato supera um solver genérico, em quais tipos de instância
-vencemos menos e como a busca evita testar 10^117 combinações. E, para ir além,
-o QR code leva ao app, com centenas de instâncias e a simulação passo a passo.
+**Slide 5 (~15 s).** Venham ao pôster: lá explico por que o solver geométrico
+vence, onde ganhamos menos e como a busca evita as 10^117 combinações. E o QR code
+leva ao app, com centenas de instâncias e a simulação da busca.
 
 ## Perguntas prováveis
 - *Por que os números mudaram desde o pôster?* Melhorei o solver depois de enviar o pôster. A campanha nova rodou na dantzig (i9-12900K), sem limite de tempo; o pôster usava a campanha anterior, com teto de 6 h. Os dois resultados estão preservados em `benchmarks/results-saved`.
