@@ -1729,16 +1729,6 @@ details[open] summary {
 	margin: 0;
 }
 
-
-
-
-
-
-
-
-
-
-
 .results-benchmark-note {
 	margin: 18px 0 0;
 	color: var(--muted);
@@ -1750,6 +1740,7 @@ details[open] summary {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 16px;
+	align-items: start;
 	margin-top: 26px;
 }
 
@@ -2903,11 +2894,6 @@ button.guided-summary {
 		display: block;
 	}
 
-
-
-
-
-
 	.method-steps {
 		gap: 24px;
 	}
@@ -3088,11 +3074,6 @@ button.guided-summary {
 	.comparison-dashboard {
 		grid-template-columns: 1fr;
 	}
-
-
-
-
-
 
 	.table-controls {
 		gap: 8px;
