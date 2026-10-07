@@ -137,6 +137,19 @@ são locais (sem autorização de redistribuição).
 - TPP com depósito no centro da bbox (`convert-paula`, mesmo binário, 60 s,
   gap 1e-6): 196 fechadas contra 197 do TSPN, 2× mais rápido onde ambos fecham,
   mesma fronteira (0 de 22 acima de 60 polígonos).
+- Qualidade do UB nas abertas, sem certificado (2026-10-07, ε = 0,001). Como
+  os resultados do ILS da Paula não estão disponíveis, o tour do GTSP serve de
+  substituto. O B&B quase não melhora o UB entre 60 e 600 s. Com 600 s (parcial,
+  21 de 38 instâncias), as 4 de 45–60 polígonos ficam em 0,993–0,998 do tour
+  do GTSP; as 17 de 64–100 ficam em 0,990–1,039, 12 acima de 1; a LNS por
+  janelas tira até 2,5 pontos percentuais nas de 64–99 e nada nas de 100. Gap do B&B aos 600 s:
+  2–35%. A **busca local iterada** opcional (`--primal-ils 0.5`, 60 s,
+  5 instâncias) levou 80rd400 de 1,035 a 0,998, 100pr1002 de 1,010 a 0,996 e
+  64lin318 a 0,999; manteve 50kroA100 (0,999) e 100i1000-410 (1,006, polígonos
+  muito sobrepostos). No 56a280, o B&B sozinho em 60 s achou 0,993 ou 1,006
+  conforme a carga da máquina; com ILS, 0,993 (UB/LB 1,021 contra o LB de
+  600 s). Opção desligada por padrão; a avaliação de 600 s nas 38 abertas ainda
+  está em andamento.
 
 ## tpp-oracle-allocation-2026-10-06
 
