@@ -80,46 +80,41 @@
 \end{tikzpicture}
 \newpage
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 2. Método
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 3. Método (busca real: caso 17, 5 regiões)
+\input{trace-art}
+\newcommand{\mapbox}[2]{\scalebox{1.0}{\begin{tikzpicture}\draw[#2,rounded corners=3pt,fill=white] (-0.15,-0.15) rectangle (4.55,2.13);\begin{scope}#1\end{scope}\end{tikzpicture}}}
+\newcommand{\stepdot}[1]{\node[circle,fill=Accent,text=white,minimum size=0.85cm,inner sep=0,font=\sffamily\bfseries\sz{22}{24}] at #1}
 \begin{tikzpicture}[remember picture,overlay,
-    nd/.style={circle,draw=Ink,line width=1.4pt,minimum size=1.7cm,inner sep=0,fill=white,font=\sffamily\bfseries\sz{24}{26}},
-    ok/.style={nd,draw=Teal,fill=Teal!14},
-    cut/.style={nd,draw=Muted!70,fill=Rule!50,text=Muted},
-    ed/.style={line width=1.4pt,Ink},
-    lab/.style={font=\sffamily\sz{20}{23},inner sep=1pt}]
+    mframe/.style={draw=Rule,line width=1.2pt},
+    mok/.style={draw=Teal,line width=2.4pt},
+    mcut/.style={draw=Muted!60,line width=1.2pt,dashed},
+    ed/.style={line width=1.4pt,Ink,-{Stealth[length=3mm]}},
+    trcap/.style={font=\sffamily\sz{20}{24},inner sep=0,align=center}]
   \fill[white] (current page.south west) rectangle (current page.north east);
   \slidetitle{Como evitar testar todas as rotas?}
-  % árvore de busca
-  \begin{scope}[shift={([xshift=1.2cm,yshift=-3.2cm]current page.north west)}]
-    \node[nd] (r) at (4.4,-0.8) {A};
-    \node[ok] (a) at (1.6,-3.25) {AB};
-    \node[ok] (b) at (4.4,-3.25) {BA};
-    \node[cut] (c) at (7.2,-3.25) {AC};
-    \node[ok] (a1) at (0.2,-5.7) {ACB};
-    \node[cut] (a2) at (3.0,-5.7) {ABC};
-    \draw[ed] (r)--(a); \draw[ed] (r)--(b); \draw[ed,Muted!70,dashed] (r)--(c);
-    \draw[ed] (a)--(a1); \draw[ed,Muted!70,dashed] (a)--(a2);
-    \node[lab,anchor=west,Teal] at ([xshift=0.1cm]a.east) {\ };
-    \node[lab,anchor=north,Muted] at ([yshift=-0.05cm]c.south) {\bfseries\sz{22}{25}$L\ge U$};
-    \node[lab,anchor=north,Muted] at ([yshift=-0.05cm]a2.south) {\bfseries\sz{22}{25}$L\ge U$};
-    \node[font=\sffamily\bfseries\sz{40}{40},Muted!80] at ([xshift=0.0cm]c.center) {\ };
-    \draw[Muted,line width=3pt] ($(c)+(-0.55,-0.55)$)--($(c)+(0.55,0.55)$);
-    \draw[Muted,line width=3pt] ($(c)+(-0.55,0.55)$)--($(c)+(0.55,-0.55)$);
-    \draw[Muted,line width=3pt] ($(a2)+(-0.55,-0.55)$)--($(a2)+(0.55,0.55)$);
-    \draw[Muted,line width=3pt] ($(a2)+(-0.55,0.55)$)--($(a2)+(0.55,-0.55)$);
-    \node[anchor=north west,text width=6.4cm,inner sep=0] at (4.3,-4.9) {\sz{22}{26}\muted $L$: limite inferior\par $U$: melhor rota viável\par\vspace{3pt}\sz{18}{21}Exemplo ilustrativo};
-  \end{scope}
-  % três passos
-  \begin{scope}[shift={([xshift=12.6cm,yshift=-3.6cm]current page.north west)}]
-    \foreach \n/\h/\t [count=\i from 0] in {1/{Limite inferior $L$}/{O solver convexo exato resolve uma versão relaxada da sequência parcial.},
-                                           2/{Ramificar}/{Inserir o próximo polígono em cada posição, ou refinar o fecho convexo em peças.},
-                                           3/{Podar}/{Se $L\ge U$, a rota viável $U$ já vence todo o ramo.}} {
-      \node[circle,fill=Accent,text=white,minimum size=1.15cm,inner sep=0,font=\sffamily\bfseries\sz{26}{28}] at (0.575,{-0.6-\i*2.95}) {\n};
-      \node[anchor=north west,inner sep=0,text width=10.0cm] at (1.5,{0.0-\i*2.95}) {\bfseries\sz{28}{32}\ink \h\par\vspace{2pt}\sz{23}{27}\muted\mdseries \t};
-    }
-  \end{scope}
+  % árvore real, da esquerda para a direita: raiz -> [4] -> {[3,4] podado, [4,3] ótimo}
+  \node[anchor=north west,inner sep=0] (nr) at ([xshift=1.0cm,yshift=-5.0cm]current page.north west) {\mapbox{\miniRoot}{mframe}};
+  \node[anchor=north west,inner sep=0] (nb) at ([xshift=6.4cm,yshift=-5.0cm]current page.north west) {\mapbox{\miniB}{mframe}};
+  \node[anchor=north west,inner sep=0] (nc) at ([xshift=11.8cm,yshift=-2.8cm]current page.north west) {\mapbox{\miniC}{mcut}};
+  \node[anchor=north west,inner sep=0] (nd) at ([xshift=11.8cm,yshift=-7.2cm]current page.north west) {\mapbox{\miniD}{mok}};
+  \node[trcap,anchor=north,text=Ink] at ([yshift=-3pt]nr.south) {$L=\traceLroot$};
+  \node[trcap,anchor=north,text=Ink] at ([yshift=-3pt]nb.south) {$L=\traceLb$};
+  \node[trcap,anchor=north,text=Muted] at ([yshift=-3pt]nc.south) {$L=\traceLc\ \ge U$: \textbf{poda}};
+  \node[trcap,anchor=north,text=Accent] at ([yshift=-3pt]nd.south) {\bfseries $L=\traceLd = U$: ótimo};
+  \draw[ed] (nr.east) -- (nb.west);
+  \draw[ed] (nb.east) -- (nc.west);
+  \draw[ed] (nb.east) -- (nd.west);
+  \stepdot{(nr.north west)} {1};
+  \stepdot{(nb.north west)} {2};
+  \stepdot{(nc.north west)} {3};
+  % texto: três passos em linguagem simples
+  \foreach \h/\t [count=\i from 0] in {{Estimar}/{Sem visitar nada, o menor caminho é a reta de $s$ a $t$: $L=\traceLroot$.},
+                                       {Ramificar}/{Inserir uma região faz o limite $L$ subir. Testamos cada posição.},
+                                       {Podar}/{Se $L$ passa da melhor rota viável ($U=\traceU$), o ramo some.}} {
+    \node[anchor=north west,inner sep=0,text width=6.9cm] at ([xshift=17.5cm,yshift={-2.8cm-\i*2.9cm}]current page.north west) {\bfseries\sz{26}{30}\hi \the\numexpr\i+1\relax\ \ink\h\par\vspace{2pt}\sz{21}{25}\muted\mdseries \t};
+  }
   \node[anchor=south west,inner sep=0.2cm,fill=Pale,text width=21.9cm] at ([xshift=1.2cm,yshift=1.3cm]current page.south west)
-    {\sz{25}{29}\ink\bfseries Caso com 60 regiões: \hi$10^{117}$ combinações \ink\mdseries→ \bfseries 2,47 s\mdseries\ para provar o ótimo.};
+    {\sz{23}{27}\ink\bfseries Aqui: 120 ordens, 2 chamadas ao solver convexo. \mdseries Caso com 60 regiões: \hi$10^{117}$ combinações \ink→ \bfseries 0,1 s\mdseries.};
   \footerbar{3}
 \end{tikzpicture}
 \newpage
@@ -138,11 +133,15 @@
       xmin=-0.6,xmax=3.6,ymin=0,ymax=165,
       xtick={0,1,2,3},xticklabels={$1\times$,$10\times$,$100\times$,$1000\times$},
       ytick={0,40,80,120,160},ymajorgrids=true,grid style={Rule,line width=0.5pt},axis line style={Ink},
-      legend style={at={(0.98,0.74)},anchor=north east,font=\sffamily\sz{20}{23},draw=Rule,fill=white,fill opacity=0.92,text opacity=1,legend cell align=left,row sep=1pt},
       every axis plot/.append style={draw=white,line width=0.6pt}]
-    \addplot[fill=Teal] coordinates {\histOSM};          \addlegendentry{OSM (313)}
-    \addplot[fill=Accent] coordinates {\histrandom};     \addlegendentry{Aleatórias (159)}
-    \addplot[fill=Ink] coordinates {\histvoronoi};       \addlegendentry{Voronoi (78)}
+    \addplot[fill=Teal] coordinates {\histOSM};
+    \addplot[fill=Accent] coordinates {\histrandom};
+    \addplot[fill=Ink] coordinates {\histvoronoi};
+    % legenda própria, na ordem visual do gráfico (Voronoi em cima), com quadrados da altura do texto
+    \node[anchor=north east,draw=Rule,fill=white,fill opacity=0.92,text opacity=1,inner sep=5pt,font=\sffamily\sz{20}{23},align=left] at (rel axis cs:0.985,0.76) {%
+      \tikz[x=1cm,y=1cm,baseline=-0.6ex]\fill[Ink] (0,-0.2) rectangle (0.5,0.3);\ Voronoi (78)\\[2pt]
+      \tikz[x=1cm,y=1cm,baseline=-0.6ex]\fill[Accent] (0,-0.2) rectangle (0.5,0.3);\ Aleatórias (159)\\[2pt]
+      \tikz[x=1cm,y=1cm,baseline=-0.6ex]\fill[Teal] (0,-0.2) rectangle (0.5,0.3);\ OSM (313)};
     \draw[Muted,dashed,line width=1.4pt] (axis cs:0,0) -- (axis cs:0,165);
     \draw[Accent,line width=2.2pt] (axis cs:\histmedian,0) -- (axis cs:\histmedian,148);
     \node[anchor=south east,font=\sffamily\bfseries\sz{20}{23},text=Accent,inner sep=2pt] at (axis cs:\histmedian,146) {mediana $40{,}8\times$};

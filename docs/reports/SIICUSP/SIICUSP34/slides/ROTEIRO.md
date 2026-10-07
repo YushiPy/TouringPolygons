@@ -9,11 +9,12 @@ P₁ a Pₖ, queremos o caminho de s a t de menor comprimento que toca cada
 polígono. Não escolhemos só a ordem, mas também onde tocar. Por exemplo, um drone
 sai do IME e fotografa 51 regiões da USP: a rota ótima tem 4,97 quilômetros.
 
-**Slide 3 (~30 s).** Testar todas as rotas é impossível, então montamos a rota
-numa árvore de busca. Em cada nó, um solver geométrico exato para o caso convexo
-dá um limite inferior L. Ramificamos inserindo o próximo polígono ou refinando em
-peças convexas. Se L já supera uma rota viável U, descartamos o ramo. Um caso com
-60 regiões tem 10^117 combinações; resolvemos em 2,47 s. O resumo cobria ordem
+**Slide 3 (~30 s).** Testar todas as rotas é impossível: só com 5 regiões já são
+120 ordens. Começamos sem visitar nada: o menor caminho é a reta de s a t, que é um
+limite inferior L. Inserir uma região faz L subir. Uma ordem cujo L passa da melhor
+rota viável U é descartada sem ser explorada. Neste exemplo real, duas chamadas ao
+solver convexo bastam: a segunda já toca todas as regiões e prova o ótimo. Num caso
+com 60 regiões são 10^117 combinações, resolvido em 0,1 s. O resumo cobria ordem
 fixa; depois da submissão, estendemos para ordem livre.
 
 **Slide 4 (~35 s).** Comparamos com o algoritmo de Fekete e colaboradores, que usa

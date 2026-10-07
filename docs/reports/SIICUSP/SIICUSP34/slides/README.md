@@ -9,7 +9,7 @@ pouco texto, uma figura grande por slide, fundo claro, tamanhos equivalentes a
 | --- | --- |
 | 1 | Capa: título como instância de TPP (letras = regiões, rota ótima), pergunta, autor, orientador, FAPESP e processo |
 | 2 | O problema: dados (s, t, P₁…Pₖ) e objetivo, com a instância da USP e a rota ótima |
-| 3 | Método: árvore de busca com limite inferior (solver convexo), ramificar e podar |
+| 3 | Método: busca real (caso 17 do corpus, 5 regiões) com mapas de cada nó, limite inferior L, ramificar e podar |
 | 4 | Resultados atualizados (dantzig, 2026-10-06): histograma log do speedup (Fekete/nosso) nos 550 casos comuns, por tipo de instância, com os números do pôster ao lado |
 | 5 | Convite ao pôster (três perguntas que ele responde) e QR code do app (com a marca do app) |
 
@@ -50,3 +50,5 @@ python3 make_title_instance.py --solver ../../../../../.build/unordered/tpp
 ```
 
 `make_usp_art.py` redesenha a instância da USP (dados de `apps/siicusp34/data/usp-demo.js`, somente leitura) com a paleta do deck; `palette.py` guarda as rampas de cor.
+
+`make_trace_art.py` desenha a árvore do slide 3 a partir de um rastro real: caso 17 do corpus (conferido por SHA-256) e `apps/siicusp34/data/trace-data.js`, ambos somente leitura.
