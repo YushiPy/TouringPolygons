@@ -502,11 +502,9 @@ input[type="checkbox"] {
 }
 
 .map-legend {
-	position: absolute;
+	position: relative;
 	z-index: 4;
-	left: 50%;
-	bottom: 0;
-	transform: translateX(-50%);
+	margin: 0 auto;
 	display: flex;
 	align-items: center;
 	justify-content: center;
