@@ -6446,3 +6446,38 @@ details:not(.geometry-tools):not(.guided-section)[open]>summary::after {
 
 .speedup-hint { margin: 6px 0 0; color: #47616a; font-size: 0.82rem; text-align: right; }
 .speedup-popover header strong { white-space: nowrap; }
+
+/* Instance overlay: compact, all navy, without the explorer tabs (it hosts the explorer card) */
+.section-dialog.case-dialog {
+	background: var(--navy);
+	color: #f0f6f8;
+}
+
+.case-dialog .section-dialog-header {
+	border-bottom-color: #ffffff24;
+	background: transparent;
+	backdrop-filter: none;
+}
+
+.case-dialog .section-dialog-header .eyebrow { color: #8fd3c5; }
+.case-dialog .section-dialog-header h2 { color: #f0f6f8; }
+
+.case-dialog .section-dialog-nav-button {
+	border-color: #ffffff30;
+	background: #ffffff14;
+	color: #f0f6f8;
+}
+
+.case-dialog .drawing-panel {
+	border-radius: 0;
+	box-shadow: none;
+}
+
+.case-dialog .case-tabs { display: none; }
+
+@media (min-width: 851px) {
+	.section-dialog.case-dialog {
+		width: min(720px, calc(100% - 48px));
+		max-height: min(760px, calc(100dvh - 48px));
+	}
+}
