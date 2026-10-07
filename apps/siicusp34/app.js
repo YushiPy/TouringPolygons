@@ -1186,12 +1186,30 @@ async function initialize() {
 		drawRoute();
 	}
 
+	const seenTabsKey = "tpp-siicusp34-seen-cases";
+	let seenTabs = new Set();
+	try { seenTabs = new Set(JSON.parse(localStorage.getItem(seenTabsKey) || "[]")); } catch { /* Storage can be unavailable. */ }
+	function markTabSeen(key) {
+		if (key !== "sp-bairros" && key !== "br-estados") return;
+		seenTabs.add(key);
+		try { localStorage.setItem(seenTabsKey, JSON.stringify([...seenTabs])); } catch { /* Private browsing can reject storage. */ }
+	}
+	function updateNewTabs() {
+		document.querySelectorAll('.case-tabs .example[data-case="sp-bairros"], .case-tabs .example[data-case="br-estados"]').forEach((button) => {
+			const unseen = !seenTabs.has(button.dataset.case);
+			button.classList.toggle("is-new", unseen);
+			const label = button.dataset.case === "sp-bairros" ? "São Paulo" : "Brasil";
+			button.setAttribute("aria-label", unseen ? `${label} (ainda não visto)` : label);
+		});
+	}
 	function selectCase(index, updateURL = true) {
 		const selected = index === "usp" ? uspDemo
 			: index === "sp-bairros" ? spBairrosDemo
 				: index === "br-estados" ? brEstadosDemo
 					: data.rows.find((item) => item.case === index);
 		if (!selected) return false;
+		markTabSeen(index);
+		updateNewTabs();
 		stop();
 		stopTrace();
 		row = selected;

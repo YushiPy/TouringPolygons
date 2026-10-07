@@ -290,6 +290,27 @@ nav a:hover {
 	transition: background-color 180ms ease, color 180ms ease, transform 180ms ease;
 }
 
+.case-tabs .example.is-new strong::after {
+	content: "";
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	margin-left: 6px;
+	border-radius: 50%;
+	background: #ffb35c;
+	box-shadow: 0 0 0 0 #ffb35c99;
+	vertical-align: 0.1em;
+	animation: new-tab-pulse 2.2s ease-out infinite;
+}
+
+@keyframes new-tab-pulse {
+	70%, 100% { box-shadow: 0 0 0 7px #ffb35c00; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.case-tabs .example.is-new strong::after { animation: none; }
+}
+
 .case-tabs .example:hover,
 .case-tabs #case-picker-button:hover {
 	background: #ffffff12;
