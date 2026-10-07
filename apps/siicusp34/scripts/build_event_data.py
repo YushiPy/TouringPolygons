@@ -9,6 +9,7 @@ import json
 import math
 import statistics
 import struct
+import tempfile
 import sys
 from collections import Counter
 from pathlib import Path
@@ -129,6 +130,28 @@ def read_csv(path: Path, delimiter: str) -> dict[int, dict[str, str]]:
 		return {int(row["case_index"]): row for row in csv.DictReader(file, delimiter=delimiter)}
 
 
+def overlay_campaign(path: Path, ours: dict[int, dict[str, str]], fekete: dict[int, dict[str, str]]) -> None:
+	"""Replace timings, calls and Fekete status by the per-case campaign CSV.
+
+	Paths, lengths and bounds stay from the earlier run (same instances); only the
+	timing comparison comes from the newer campaign. Our seconds are recovered from
+	the unrounded Fekete/ours ratio when the Fekete run closed the gap.
+	"""
+	with path.open(newline="", encoding="utf-8") as file:
+		campaign = {int(row["case"]) - 1: row for row in csv.DictReader(file)}
+	for index, row in campaign.items():
+		if row["ours_gap_closed"] != "True":
+			raise ValueError(f"Case {index + 1} is not closed in {path}")
+		ours[index]["seconds"] = row["ours_seconds"]
+		ours[index]["calls"] = row["ours_calls"]
+		if row["fekete_status"] == "optimal":
+			if row["fekete_over_ours"]:
+				ours[index]["seconds"] = repr(float(row["fekete_seconds"]) / float(row["fekete_over_ours"]))
+			fekete[index].update(is_optimal="True", status="optimal", solve_seconds=row["fekete_seconds"], lower_bound=row["fekete_lb"], upper_bound=row["fekete_ub"])
+		else:
+			fekete[index].update(is_optimal="False", status="open", solve_seconds="")
+
+
 def read_legacy_decompositions(path: Path | None) -> dict[int, tuple[tuple[tuple[float, float], ...], tuple[tuple[tuple[float, float], ...], ...]]]:
 	if path is None:
 		return {}
@@ -150,6 +173,8 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 	cases = read_encoded_cases(args.instances)
 	ours = read_csv(args.ours, ";")
 	fekete = read_csv(args.fekete, ",")
+	if args.campaign:
+		overlay_campaign(args.campaign, ours, fekete)
 	legacy_decompositions = read_legacy_decompositions(args.legacy_event_data)
 	if set(ours) != set(range(len(cases))) or set(fekete) != set(ours):
 		raise ValueError("Expected the same 558 case indices in both CSVs and instances.bin")
@@ -200,13 +225,22 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 	]
 	comparison = {
 		"fekete_completed": sum(as_bool(row["is_optimal"]) for row in fekete.values()),
-		"fekete_time_limit_seconds": 21600,
 		"fekete_unresolved": sum(not as_bool(row["is_optimal"]) for row in fekete.values()),
 		"median_speedup_fekete_over_ours": statistics.median(common),
+		"mean_speedup_fekete_over_ours": statistics.fmean(common),
 		"ours_faster_count": sum(value > 1 for value in common),
 		"common_completed": len(common),
 	}
-	analysis = build_analysis(argparse.Namespace(ours=args.ours, fekete=args.fekete, instances=args.instances))
+	analysis_ours, analysis_fekete = args.ours, args.fekete
+	with tempfile.TemporaryDirectory() as temporary:
+		if args.campaign:
+			analysis_ours, analysis_fekete = Path(temporary) / "ours.csv", Path(temporary) / "fekete.csv"
+			for target, table, delimiter in ((analysis_ours, ours, ";"), (analysis_fekete, fekete, ",")):
+				with target.open("w", newline="", encoding="utf-8") as file:
+					writer = csv.DictWriter(file, fieldnames=list(next(iter(table.values()))), delimiter=delimiter, lineterminator="\n")
+					writer.writeheader()
+					writer.writerows(table[index] for index in sorted(table))
+		analysis = build_analysis(argparse.Namespace(ours=analysis_ours, fekete=analysis_fekete, instances=args.instances))
 	time = analysis["time_seconds"]
 	speedup = analysis["speedup"]
 	length = analysis["length"]
@@ -249,12 +283,13 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 		"corpus": "fekete",
 		"notes": [
 			"Este é o corpus de instâncias usado por Fekete et al. no artigo; a página compara os dois solvers no mesmo problema adaptado, com extremos fixos e ordem livre.",
-			"Nosso solver certificou 558/558 instâncias. No conjunto comum concluído, o speedup mediano Fekete/nosso é {:.2f}×; o solver de Fekete et al. não concluiu 8 instâncias no limite de 6 horas.".format(comparison["median_speedup_fekete_over_ours"]),
+			"Nosso solver certificou 558/558 instâncias. No conjunto comum concluído, o speedup médio Fekete/nosso é {:.1f}× (mediana {:.1f}×); o solver de Fekete et al. fechou o gap em {}/{} instâncias.".format(comparison["mean_speedup_fekete_over_ours"], comparison["median_speedup_fekete_over_ours"], comparison["fekete_completed"], len(rows)),
 			"Os caminhos e pontos de contato são os exportados pela rodada final.",
 		],
 		"provenance": {
-			"date": "2026-09-21",
-			"run_id": "fekete-comparison-20260921",
+			"date": "2026-10-07" if args.campaign else "2026-09-21",
+			"run_id": "free-order-dantzig-2026-10-06" if args.campaign else "fekete-comparison-20260921",
+			"timings_from": str(args.campaign) if args.campaign else None,
 			"ours_csv": str(args.ours),
 			"fekete_csv": str(args.fekete),
 			"binary_sha256": hashlib.sha256(args.instances.read_bytes()).hexdigest(),
@@ -286,6 +321,7 @@ def main() -> None:
 	parser.add_argument("--ours", type=Path, default=Path("benchmarks/results-saved/fekete-comparison/ours.csv"))
 	parser.add_argument("--fekete", type=Path, default=Path("benchmarks/results-saved/fekete-comparison/fekete.csv"))
 	parser.add_argument("--instances", type=Path, default=Path("benchmarks/results-saved/fekete-comparison/instances.bin"))
+	parser.add_argument("--campaign", type=Path, help="per-case CSV whose timings and Fekete status replace those of --ours/--fekete")
 	parser.add_argument("--legacy-event-data", type=Path)
 	parser.add_argument("--output", type=Path, default=Path("apps/siicusp34/data/event-data.js"))
 	args = parser.parse_args()

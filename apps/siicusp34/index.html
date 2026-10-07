@@ -133,8 +133,8 @@
 					<p>Passamos os meses seguintes refinando essa especialização:</p>
 					<ul>
 						<li><strong>Exatidão:</strong> nossa versão de alta precisão reduz o erro geométrico em várias ordens de grandeza. Com aritmética racional, também conseguimos erro exatamente zero, ao custo de mais tempo.</li>
-						<li><strong>Velocidade:</strong> o solver convexo especializado é medido em microssegundos nos subproblemas, no lugar de chamadas de otimização genérica em milissegundos. Na campanha completa, nos próprios casos de teste de Fekete et al., obtivemos um speedup mediano de <strong>5,11×</strong> no tempo total, no conjunto comum concluído.</li>
-						<li><strong>Busca:</strong> refinamos o branch-and-bound e preservamos a avaliação lazy. Em testes anteriores, observamos que a nossa busca também superava a alternativa de Fekete et al.; esse resultado específico ainda não faz parte da campanha reproduzida abaixo.</li>
+						<li><strong>Velocidade:</strong> o solver convexo especializado é medido em microssegundos nos subproblemas, no lugar de chamadas de otimização genérica em milissegundos. Na campanha completa, nos próprios casos de teste de Fekete et al., obtivemos um speedup médio de <strong>109×</strong> (mediana de 41×) no tempo total, no conjunto comum concluído.</li>
+						<li><strong>Busca:</strong> refinamos o branch-and-bound e preservamos a avaliação lazy. A campanha abaixo usa o solver completo, com essa busca refinada.</li>
 						<li><strong>Autonomia:</strong> nossa implementação do solver convexo de Dror elimina a necessidade de usar Gurobi, enquanto a implementação do algoritmo de Greene elimina a necessidade de usar CGAL — ambas ferramentas com uso comercial restrito.</li>
 					</ul>
 					<p class="research-story-result">Nos testes desta campanha, a combinação se mostrou mais rápida, mais precisa e mais robusta neste conjunto de instâncias. A comparação deve ser lida nesse escopo experimental — não como uma promessa universal para toda variante do TSPN.</p>
@@ -146,11 +146,11 @@
 			<section id="resultados" class="results-section" aria-label="Comparação experimental">
 				<div class="result-cards">
 					<article><strong id="result-certified">558<span>/ 558</span></strong><h3>Buscas concluídas</h3><p>O solver concluiu a busca nos 558 casos.</p></article>
-					<article><strong id="result-under-10">477<span>/ 558</span></strong><h3>Resolvidas em menos de 10 s</h3><p>Tempo de solver em uma thread por instância.</p></article>
-					<article><strong id="result-speedup">5,11×</strong><h3>Speedup mediano</h3><p>Fekete et al. / nosso solver, nas 550 instâncias concluídas por ambos.</p></article>
-					<article><strong id="result-faster">492<span>/ 550</span></strong><h3>Instâncias mais rápidas</h3><p>Nosso solver foi mais rápido no conjunto comum concluído.</p></article>
+					<article><strong id="result-under-10">545<span>/ 558</span></strong><h3>Resolvidas em menos de 10 s</h3><p>Tempo de solver em uma thread por instância.</p></article>
+					<article><strong id="result-speedup">109×</strong><h3>Speedup médio</h3><p>Fekete et al. / nosso solver, nas 552 instâncias concluídas por ambos.</p></article>
+					<article><strong id="result-faster">552<span>/ 552</span></strong><h3>Instâncias mais rápidas</h3><p>Nosso solver foi mais rápido no conjunto comum concluído.</p></article>
 				</div>
-				<p id="result-benchmark-note" class="results-benchmark-note">Esses resultados dizem respeito às instâncias usadas por Fekete et al. no artigo. Rodamos cada instância por até 6 horas: nosso solver concluiu 558/558, enquanto o de Fekete et al. concluiu 550/558. As comparações de tempo e velocidade usam os 550 casos concluídos por ambos.</p>
+				<p id="result-benchmark-note" class="results-benchmark-note">Esses resultados dizem respeito às instâncias usadas por Fekete et al. no artigo. Rodamos cada instância em uma thread, sem limite de tempo: nosso solver concluiu 558/558, enquanto o de Fekete et al. concluiu 552/558. As comparações de tempo e velocidade usam os 552 casos concluídos por ambos.</p>
 				<div class="comparison-dashboard" aria-label="Métricas comparativas da campanha">
 					<article class="comparison-panel">
 						<div class="comparison-panel-heading"><p class="eyebrow">TEMPO DE EXECUÇÃO</p><h3>Quanto tempo cada solver levou?</h3></div>
@@ -159,7 +159,7 @@
 					</article>
 					<article class="comparison-panel">
 						<div class="comparison-panel-heading"><p class="eyebrow">SPEEDUP</p><h3>A vantagem aparece na maioria dos casos</h3></div>
-						<dl class="comparison-stat-list comparison-speedup-list"><div><dt>Speedup mediano</dt><dd id="comparison-speedup-median">—</dd></div><div><dt>Média geométrica</dt><dd id="comparison-speedup-geometric">—</dd></div><div><dt>Nosso solver mais rápido</dt><dd id="comparison-speedup-ours-faster">—</dd></div><div><dt>Fekete mais rápido</dt><dd id="comparison-speedup-fekete-faster">—</dd></div></dl>
+						<dl class="comparison-stat-list comparison-speedup-list"><div><dt>Speedup médio</dt><dd id="comparison-speedup-mean">—</dd></div><div><dt>Speedup mediano</dt><dd id="comparison-speedup-median">—</dd></div><div><dt>Média geométrica</dt><dd id="comparison-speedup-geometric">—</dd></div><div><dt>Nosso solver mais rápido</dt><dd id="comparison-speedup-ours-faster">—</dd></div><div><dt>Fekete mais rápido</dt><dd id="comparison-speedup-fekete-faster">—</dd></div></dl>
 					</article>
 					<article class="comparison-panel">
 						<div class="comparison-panel-heading"><p class="eyebrow">PRECISÃO GEOMÉTRICA</p><h3>O caminho realmente toca as regiões?</h3><p>Distância mínima entre a polilinha completa e cada polígono; o ideal é zero.</p></div>

@@ -678,6 +678,7 @@ async function initialize() {
 		const certified = Number(summary.exact_certified || 0);
 		const underTen = Number(summary.resolved_under_10_seconds || 0);
 		const medianSpeedup = Number(comparison.median_speedup_fekete_over_ours);
+		const meanSpeedup = Number(comparison.mean_speedup_fekete_over_ours);
 		const common = Number(comparison.common_completed || 0);
 		const comparisonTime = comparison.time || {};
 		const comparisonPrecision = comparison.precision || {};
@@ -687,10 +688,10 @@ async function initialize() {
 		const fasterElement = element("result-faster");
 		if (certifiedElement) certifiedElement.innerHTML = `${certified}<span>/ ${cases}</span>`;
 		if (underTenElement) underTenElement.innerHTML = `${underTen}<span>/ ${cases}</span>`;
-		if (speedupElement && Number.isFinite(medianSpeedup)) speedupElement.textContent = `${number(medianSpeedup, 2)}×`;
+		if (speedupElement && Number.isFinite(meanSpeedup)) speedupElement.textContent = `${number(meanSpeedup, 0)}×`;
 		if (fasterElement) fasterElement.innerHTML = `${Number(comparison.ours_faster_count || 0)}<span>/ ${common}</span>`;
 		const note = element("result-benchmark-note");
-		if (note) note.textContent = `Esses resultados dizem respeito às instâncias usadas por Fekete et al. no artigo. Rodamos cada instância por até 6 horas: nosso solver concluiu ${certified}/${cases}, enquanto o de Fekete et al. concluiu ${comparison.fekete_completed ?? "—"}/${cases}. As comparações de tempo e velocidade usam os ${common} casos concluídos por ambos.`;
+		if (note) note.textContent = `Esses resultados dizem respeito às instâncias usadas por Fekete et al. no artigo. Rodamos cada instância em uma thread, sem limite de tempo: nosso solver concluiu ${certified}/${cases}, enquanto o de Fekete et al. concluiu ${comparison.fekete_completed ?? "—"}/${cases}. As comparações de tempo e velocidade usam os ${common} casos concluídos por ambos.`;
 		const setText = (id, value) => { const target = element(id); if (target) target.textContent = value; };
 		const duration = (value) => formatDuration(value);
 		const hours = (value) => Number.isFinite(Number(value)) ? `${number(Number(value), 2)} h` : "—";
@@ -701,7 +702,8 @@ async function initialize() {
 		setText("comparison-time-fekete-mean", duration(comparisonTime.common_fekete_mean_seconds));
 		setText("comparison-time-ours-total", hours(comparisonTime.common_ours_total_hours));
 		setText("comparison-time-fekete-total", hours(comparisonTime.common_fekete_total_hours));
-				setText("comparison-speedup-median", Number.isFinite(medianSpeedup) ? `${number(medianSpeedup, 2)}×` : "—");
+		setText("comparison-speedup-mean", Number.isFinite(meanSpeedup) ? `${number(meanSpeedup, 1)}×` : "—");
+		setText("comparison-speedup-median", Number.isFinite(medianSpeedup) ? `${number(medianSpeedup, 2)}×` : "—");
 		setText("comparison-speedup-geometric", Number.isFinite(Number(comparison.geometric_mean_speedup)) ? `${number(comparison.geometric_mean_speedup, 2)}×` : "—");
 		setText("comparison-speedup-ours-faster", fraction(comparison.ours_faster_count, common));
 		setText("comparison-speedup-fekete-faster", fraction(comparison.fekete_faster_count, common));
