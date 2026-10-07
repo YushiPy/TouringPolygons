@@ -1,0 +1,198 @@
+\documentclass[aspectratio=169]{article}
+\usepackage[paperwidth=25.4cm,paperheight=14.2875cm,margin=0cm]{geometry}
+\usepackage{fontspec}
+\usepackage{unicode-math}
+\usepackage[brazilian]{babel}
+\usepackage{graphicx}
+\usepackage{adjustbox}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes.geometric,fit}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{qrcode}
+\usepackage[hidelinks]{hyperref}
+\setmainfont{Arial}
+\setsansfont{Arial}
+\setmathfont{latinmodern-math.otf}
+\hypersetup{pdftitle={Algoritmos Exatos Para o Problema de Visita de Polígonos},pdfauthor={Gabriel Freire Ushijima; Ernesto G. Birgin},pdfsubject={34º SIICUSP, IME-USP}}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\definecolor{Ink}{HTML}{142D38}
+\definecolor{Muted}{HTML}{47616A}
+\definecolor{Accent}{HTML}{C2501A}
+\definecolor{Pale}{HTML}{EEF4F1}
+\definecolor{GoldText}{HTML}{9A6B12}
+\definecolor{Rule}{HTML}{C5D3CF}
+\definecolor{Teal}{HTML}{1F7A73}
+\definecolor{MapDark}{HTML}{102C38}
+\definecolor{Route}{HTML}{F59A4A}
+
+
+% Tamanhos escritos em pt de um slide de 33,87 cm (padrão PowerPoint 16:9); a página
+% tem 25,4 cm, então escalamos por 0,75 para que a legibilidade equivalha ao guia do IME.
+\newcommand{\sz}[2]{\fontsize{\dimexpr0.75pt*#1\relax}{\dimexpr0.75pt*#2\relax}\selectfont}
+\newcommand{\ink}{\color{Ink}}
+\newcommand{\muted}{\color{Muted}}
+\newcommand{\hi}{\color{Accent}}
+\newcommand{\appurl}{https://yushipy.github.io/TouringPolygons/apps/siicusp34/}
+% Rodapé comum: financiamento e número do slide
+\newcommand{\footerbar}[1]{%
+  \draw[Rule,line width=0.8pt] ([xshift=1.2cm,yshift=1.15cm]current page.south west) -- ([xshift=-1.2cm,yshift=1.15cm]current page.south east);
+  % três blocos com espaços iguais entre eles (\hfill reparte o excedente igualmente)
+  \node[anchor=south west,inner sep=0] at ([xshift=1.2cm,yshift=0.3cm]current page.south west) {\sffamily\sz{16}{19}\muted\hbox to 23cm{Gabriel Freire Ushijima\hfill Algoritmos Exatos Para o Problema de Visita de Polígonos\hfill #1\,/\,5}};}
+\newcommand{\slidetitle}[1]{%
+  \node[anchor=north west,inner sep=0,text width=21.5cm] at ([xshift=1.2cm,yshift=-0.75cm]current page.north west) {\sffamily\bfseries\sz{36}{40}\ink #1};}
+\begin{document}
+\sffamily\raggedright\hyphenpenalty=10000\exhyphenpenalty=10000\tolerance=9999
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 1. Capa
+% O título é uma instância de TPP: cada letra é uma região; a rota é o caminho
+% mínimo que toca todas (make_title_instance.py).
+\begin{tikzpicture}[remember picture,overlay]
+  \fill[white] (current page.south west) rectangle (current page.north east);
+  \node[anchor=north,inner sep=0] at ([yshift=-0.9cm]current page.north) {%
+    \begin{tikzpicture}[x=1.95cm,y=1.95cm]\input{title-art-body}\end{tikzpicture}};
+  \node[anchor=north west,inner sep=0,text width=22cm] at ([xshift=1.2cm,yshift=-10.2cm]current page.north west)
+    {\bfseries\sz{32}{36}\hi Qual é o menor caminho que visita todas as regiões?};
+  \node[anchor=north west,inner sep=0,text width=14cm] at ([xshift=1.2cm,yshift=-11.8cm]current page.north west)
+    {\sffamily\bfseries\sz{26}{30}\ink Gabriel Freire Ushijima\par\vspace{2pt}\mdseries\sz{22}{26}\muted Orientador: Ernesto G. Birgin · IME-USP};
+  \node[anchor=south east,inner sep=0,align=right] at ([xshift=-1.0cm,yshift=0.4cm]current page.south east) {\parbox{4.6cm}{\raggedleft\includegraphics[width=3.8cm]{../poster/figures/fapesp-logo.png}\par\vspace{3pt}\sffamily\sz{16}{19}\muted Processo 2025/13861-1}};
+\end{tikzpicture}
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 2. O problema
+\begin{tikzpicture}[remember picture,overlay]
+  \fill[white] (current page.south west) rectangle (current page.north east);
+  \slidetitle{O Problema de Visita de Polígonos}
+  \node[anchor=north west,inner sep=0,text width=10.6cm] at ([xshift=1.2cm,yshift=-2.6cm]current page.north west) {%
+    {\bfseries\sz{28}{32}\hi Dados}\par\vspace{2pt}
+    {\sz{26}{31}\ink um ponto inicial $s$, um ponto final $t$ e polígonos $P_1,\dots,P_k$ no plano\par}\vspace{0.55cm}
+    {\bfseries\sz{28}{32}\hi Objetivo}\par\vspace{2pt}
+    {\sz{26}{31}\ink o caminho de $s$ a $t$ de \textbf{menor comprimento} que \textbf{toca} cada $P_i$\par}};
+  \node[anchor=north east,inner sep=0] at ([xshift=-1.1cm,yshift=-2.45cm]current page.north east) {%
+    \begin{tikzpicture}[x=9.4cm,y=9.4cm]\fill[Pale,rounded corners=0.35cm] (-0.05,-0.05) rectangle (1.12,1.05);\input{usp-art-body}
+      \node[anchor=south west,inner sep=1pt,font=\sffamily\bfseries\sz{24}{28},text=Ink] (st) at (0.035,0.80) {$s=t$};\draw[Muted,line width=0.8pt] (st.south east)--(\uspsx,\uspsy);
+    \end{tikzpicture}};
+  \node[anchor=south west,inner sep=0.28cm,fill=Pale,rounded corners=4pt,text width=11.0cm] at ([xshift=1.2cm,yshift=1.6cm]current page.south west)
+    {\sz{20}{24}\muted\textbf{Exemplo:} drone do {\bfseries\color{GoldText}IME} e 51 regiões da USP\par\vspace{0.12cm}
+     {\bfseries\sz{32}{36}\hi $\approx 10^{104}$ rotas possíveis}\par{\sz{22}{26}\ink Testar todas é inviável.\par}\vspace{0.1cm}
+     {\sz{24}{28}\ink Nosso solver: rota ótima em \textbf{0,23 s}\par}};
+  \footerbar{2}
+\end{tikzpicture}
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 3. Método (busca real: caso 17, 5 regiões)
+\input{trace-art}
+\newcommand{\mapbox}[2]{\scalebox{0.85}{\begin{tikzpicture}\draw[#2,rounded corners=3pt,fill=white] (-0.15,-0.15) rectangle (4.55,2.13);\begin{scope}#1\end{scope}\end{tikzpicture}}}
+\newcommand{\stepdot}[1]{\node[circle,fill=Accent,text=white,minimum size=0.8cm,inner sep=0,font=\sffamily\bfseries\sz{22}{24}] at #1}
+\begin{tikzpicture}[remember picture,overlay,
+    mframe/.style={draw=Rule,line width=1.2pt},
+    mok/.style={draw=Teal,line width=2.4pt},
+    mcut/.style={draw=Muted!60,line width=1.2pt,dashed},
+    ed/.style={line width=1.4pt,Ink,-{Stealth[length=3mm]}},
+    trcap/.style={font=\sffamily\sz{20}{24},inner sep=0,align=center}]
+  \fill[white] (current page.south west) rectangle (current page.north east);
+  \slidetitle{Branch \& bound: como podar a busca?}
+  % busca real (caso de 5 regiões): raiz -> um passo -> {descartado, ótimo}
+  \node[anchor=north west,inner sep=0] (nr) at ([xshift=1.0cm,yshift=-4.2cm]current page.north west) {\mapbox{\miniRoot}{mframe}};
+  \node[anchor=north west,inner sep=0] (nb) at ([xshift=5.9cm,yshift=-4.2cm]current page.north west) {\mapbox{\miniB}{mframe}};
+  \node[anchor=north west,inner sep=0] (nc) at ([xshift=10.8cm,yshift=-2.55cm]current page.north west) {\mapbox{\miniC}{mcut}};
+  \node[anchor=north west,inner sep=0] (nd) at ([xshift=10.8cm,yshift=-5.9cm]current page.north west) {\mapbox{\miniD}{mok}};
+  \node[trcap,anchor=north,text=Ink] at ([yshift=-3pt]nr.south) {$\traceLroot$: rota inicial};
+  \node[trcap,anchor=north,text=Ink] at ([yshift=-3pt]nb.south) {$\ge\traceLb$};
+  \node[trcap,anchor=north,text=Muted] at ([yshift=-3pt]nc.south) {$\traceLc$: descartado};
+  \node[trcap,anchor=north,text=Accent] at ([yshift=-3pt]nd.south) {\bfseries $\traceLd$: rota ótima};
+  \draw[ed] (nr.east) -- (nb.west);
+  \draw[ed] (nb.east) -- (nc.west);
+  \draw[ed] (nb.east) -- (nd.west);
+  \stepdot{(nr.north west)} {1};
+  \stepdot{(nb.north west)} {2};
+  \stepdot{(nc.north west)} {3};
+  \node[anchor=north west,inner sep=0,font=\sffamily\sz{16}{19},text=Muted] at ([xshift=1.0cm,yshift=-8.3cm]current page.north west) {Comprimentos relativos ao da rota ótima ($=1$)};
+  % texto: três passos em linguagem simples
+  \foreach \h/\t [count=\i from 0] in {{Rota inicial}/{Vizinho mais próximo: rápido, mas não ótimo ($\traceLroot$).},
+                                       {Acrescentar}/{Região por região. O mínimo da rota parcial só cresce.},
+                                       {Descartar}/{Rota parcial pior que a melhor conhecida: ramo abandonado.}} {    \node[anchor=north west,inner sep=0,text width=7.9cm] at ([xshift=16.4cm,yshift={-2.35cm-\i*2.2cm}]current page.north west) {\bfseries\sz{26}{30}\hi \the\numexpr\i+1\relax\ \ink\h\par\vspace{2pt}\sz{21}{25}\muted\mdseries \t};
+  }
+  % força bruta × nosso método (instância de 60 regiões)
+  \draw[Rule,line width=0.8pt] ([xshift=1.2cm,yshift=-9.35cm]current page.north west) -- ([xshift=-1.2cm,yshift=-9.35cm]current page.north east);
+  \node[anchor=north west,inner sep=0,font=\sffamily\sz{19}{22},text=Muted] at ([xshift=9.2cm,yshift=-9.7cm]current page.north west) {Cálculos};
+  \node[anchor=north west,inner sep=0,font=\sffamily\sz{19}{22},text=Muted] at ([xshift=1.2cm,yshift=-9.7cm]current page.north west) {Instância de 60 regiões};
+  \node[anchor=north west,inner sep=0,font=\sffamily\sz{19}{22},text=Muted] at ([xshift=17.9cm,yshift=-9.7cm]current page.north west) {Tempo};
+  \node[anchor=north west,inner sep=0,font=\sffamily\bfseries\sz{26}{30},text=Muted] at ([xshift=1.2cm,yshift=-10.6cm]current page.north west) {Força bruta};
+  \node[anchor=north west,inner sep=0,font=\sffamily\bfseries\sz{26}{30},text=Muted] at ([xshift=9.2cm,yshift=-10.6cm]current page.north west) {$\approx 10^{117}$};
+  \node[anchor=north west,inner sep=0,font=\sffamily\bfseries\sz{26}{30},text=Muted] at ([xshift=17.9cm,yshift=-10.6cm]current page.north west) {$\approx 10^{100}$ anos$^{*}$};
+  \node[anchor=north west,inner sep=0,font=\sffamily\bfseries\sz{28}{32},text=Teal] at ([xshift=1.2cm,yshift=-11.55cm]current page.north west) {Nosso método};
+  \node[anchor=north west,inner sep=0,font=\sffamily\bfseries\sz{28}{32},text=Teal] at ([xshift=9.2cm,yshift=-11.55cm]current page.north west) {$\approx$ 1,4 mil};
+  \node[anchor=north west,inner sep=0,font=\sffamily\bfseries\sz{28}{32},text=Accent] at ([xshift=17.9cm,yshift=-11.55cm]current page.north west) {0,1 s};
+  \node[anchor=north west,inner sep=0,font=\sffamily\sz{14}{16},text=Muted] at ([xshift=1.2cm,yshift=-12.5cm]current page.north west) {* supondo 1 bilhão de rotas testadas por segundo (a idade do universo é $\approx 10^{10}$ anos)};
+  \footerbar{3}
+\end{tikzpicture}
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 4. Resultado
+\input{hist-data}
+\begin{tikzpicture}[remember picture,overlay]
+  \fill[white] (current page.south west) rectangle (current page.north east);
+  \slidetitle{Solver melhorado: em média, \hi 112$\times$ \ink mais rápido}
+  \node[anchor=north west,inner sep=0,text width=22.8cm] at ([xshift=1.2cm,yshift=-1.95cm]current page.north west) {\sffamily\sz{20}{24}\muted Comparação com \textbf{Fekete et al.} (grupo da TU Braunschweig, Alemanha, 2026), que usam um solver genérico (Gurobi). O nosso é um solver geométrico exato.};
+  \node[anchor=north west,inner sep=0] at ([xshift=0.9cm,yshift=-3.25cm]current page.north west) {%
+  \begin{tikzpicture}
+  % largura do eixo 15,5 cm / 4,2 unidades = 3,69 cm por unidade log10; cada bin (0,25) = 26,15 pt
+  \begin{axis}[ybar stacked,scale only axis,bar width=26.15pt,width=15.5cm,height=6.8cm,
+      xlabel={Speedup = tempo de Fekete et al. / nosso tempo},ylabel={Instâncias},
+      label style={font=\sffamily\sz{20}{22}},tick label style={font=\sffamily\sz{20}{22}},xticklabel style={yshift=-6pt},yticklabel style={xshift=-6pt},xlabel style={yshift=-18pt},ylabel style={yshift=16pt},
+      xmin=-0.6,xmax=3.6,ymin=0,ymax=165,
+      xtick={0,1,2,3},xticklabels={$1\times$,$10\times$,$100\times$,$1000\times$},
+      ytick={0,40,80,120,160},ymajorgrids=true,grid style={Rule,line width=0.5pt},axis line style={Ink},
+      every axis plot/.append style={draw=white,line width=0.6pt}]
+    \addplot[fill=Teal] coordinates {\histOSM};
+    \addplot[fill=Accent] coordinates {\histrandom};
+    \addplot[fill=Ink] coordinates {\histvoronoi};
+    % legenda própria, na ordem visual do gráfico (Voronoi em cima), com quadrados da altura do texto
+    \node[anchor=north east,draw=Rule,fill=white,fill opacity=0.92,text opacity=1,inner sep=5pt,font=\sffamily\sz{20}{23},align=left] at (rel axis cs:0.985,0.76) {%
+      \tikz[x=1cm,y=1cm,baseline=-0.6ex]\fill[Ink] (0,-0.2) rectangle (0.5,0.3);\ Voronoi (\histnVORONOI)\\[2pt]
+      \tikz[x=1cm,y=1cm,baseline=-0.6ex]\fill[Accent] (0,-0.2) rectangle (0.5,0.3);\ Aleatórias (\histnRANDOM)\\[2pt]
+      \tikz[x=1cm,y=1cm,baseline=-0.6ex]\fill[Teal] (0,-0.2) rectangle (0.5,0.3);\ OSM (\histnOSM)};
+    \draw[Muted,dashed,line width=1.4pt] (axis cs:0,0) -- (axis cs:0,165);
+    \draw[Ink,dashed,line width=2.2pt] (axis cs:\histmedian,0) -- (axis cs:\histmedian,148);
+    \node[anchor=south east,font=\sffamily\bfseries\sz{20}{23},text=Ink,inner sep=2pt] at (axis cs:\histmedian,146) {mediana $\histmediantext\times$};
+    \draw[Accent,line width=2.4pt] (axis cs:\histmean,0) -- (axis cs:\histmean,148);
+    \node[anchor=south west,font=\sffamily\bfseries\sz{20}{23},text=Accent,inner sep=2pt] at (axis cs:\histmean,146) {média $\histmeantext\times$};
+    \node[anchor=center,rotate=90,font=\sffamily\sz{18}{21},text=Muted,inner sep=0] at (axis cs:-0.3,82) {\hbox to 4cm{\hss Fekete mais rápido: 0\hss}};
+  \end{axis}
+  \end{tikzpicture}};
+  \node[anchor=north west,inner sep=0,text width=5.4cm] at ([xshift=19.3cm,yshift=-3.3cm]current page.north west)
+    {{\bfseries\sz{60}{62}\hi 112$\times$}\par\vspace{2pt}{\sz{24}{28}\ink\bfseries média do speedup\par\vspace{0.25cm}\mdseries\muted (mediana: \histmediantext$\times$)}\par\vspace{0.7cm}
+     {\sz{18}{22}\muted No pôster: média 10,4$\times$}};
+  \node[anchor=south west,inner sep=0,text width=22.8cm] at ([xshift=1.2cm,yshift=1.3cm]current page.south west)
+    {\sffamily\sz{16}{19}\muted Solver atualizado após o pôster. \histcount\ casos fechados por ambos; nos 5 restantes o Fekete et al. não terminou (nosso solver é mais rápido nos 558). Uma thread, sem limite de tempo, gap alvo de 0,1\,\%. Intel i9-12900K.};
+  \footerbar{4}
+\end{tikzpicture}
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 5. Convite ao pôster e ao app
+\begin{tikzpicture}[remember picture,overlay]
+  \fill[white] (current page.south west) rectangle (current page.north east);
+  \slidetitle{Venha ver o pôster}
+  \node[anchor=north west,inner sep=0,text width=13.6cm] at ([xshift=1.2cm,yshift=-3.0cm]current page.north west) {%
+    \foreach \n/\q in {1/{Por que nosso solver geométrico exato vence o solver genérico (Gurobi) de Fekete et al.?},
+                       2/{Em quais tipos de instância vencemos menos?},
+                       3/{Como a busca evita testar $10^{117}$ combinações?}} {%
+      \parbox[t]{1.1cm}{\bfseries\sz{34}{38}\hi\n}\parbox[t]{12.3cm}{\sz{26}{31}\ink\q}\par\vspace{0.7cm}}};
+  \node[anchor=north,inner sep=0,text width=8.4cm,align=center] at ([xshift=-5.4cm,yshift=-2.55cm]current page.north east)
+    {\sffamily\bfseries\sz{22}{26}\ink Para ir além, no app:\par\mdseries\sz{20}{24}\muted centenas de instâncias e a simulação passo a passo da busca};
+  \node[anchor=north,inner sep=0] (qr) at ([xshift=-5.4cm,yshift=-4.55cm]current page.north east) {\qrcode[level=H,height=7.9cm]{\appurl}};
+  % marca do app sobre o centro do QR (nível H de correção), como no pôster
+  \begin{scope}[shift={(qr.center)}]
+    \fill[white,rounded corners=2pt] (-1.3,-1.3) rectangle (1.3,1.3);
+    \begin{scope}[shift={(-1.16,-1.16)},scale=0.03625]
+      \fill[Ink,rounded corners=2.5] (0,0) rectangle (64,64);
+      \draw[Teal!60!white,line width=4.4pt,line join=round] (32,54) -- (53,14) -- (11,14) -- cycle;
+      \draw[Route,line width=3.85pt,line cap=round] (10,28) -- (54,35);
+      \fill[white] (10,28) circle[radius=4]; \fill[white] (54,35) circle[radius=4];
+    \end{scope}
+  \end{scope}
+  \footerbar{5}
+\end{tikzpicture}
+\end{document}

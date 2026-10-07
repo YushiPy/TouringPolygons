@@ -43,7 +43,8 @@ function formatDuration(value) {
 	const seconds = Number(value);
 	if (!Number.isFinite(seconds)) return "—";
 	if (seconds < 0.001) return "< 0,001 s";
-	if (seconds < 60) return `${number(seconds, 3)} s`;
+	if (seconds < 1) return `${number(seconds, 3)} s`;
+	if (seconds < 60) return `${number(seconds, 2)} s`;
 	const minutes = seconds / 60;
 	if (minutes < 60) return `${number(minutes, 2)} min`;
 	return `${number(minutes / 60, 2)} horas`;
@@ -309,6 +310,14 @@ const visitorRows = (rows, query) => {
 	return rows.filter((row) => (requestedCase !== null && row.case === requestedCase) || caseLabel(row.case).includes(term));
 };
 const MAX_ZOOM = 8;
+
+function closeOnBackdropClick(dialog) {
+	dialog.addEventListener("click", (event) => {
+		if (event.target !== dialog) return;
+		const box = dialog.getBoundingClientRect();
+		if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.close();
+	});
+}
 
 function showModalWithTransition(dialog) {
 	if (!dialog || dialog.open) return;
@@ -671,6 +680,105 @@ async function initialize() {
 		select.innerHTML = data.rows.map((item) => `<option value="${item.case}">Caso ${caseLabel(item.case)} · ${item.polygons} regiões</option>`).join("");
 	}
 
+	function renderSpeedupChart(comparison) {
+		const panel = element("speedup-panel");
+		const host = element("speedup-chart");
+		const histogram = comparison.speedup_histogram;
+		if (!panel || !host || !histogram?.families) return;
+		panel.hidden = false;
+		const measured = Math.round(host.clientWidth);
+		if (!host.dataset.observed && "ResizeObserver" in window) {
+			host.dataset.observed = "true";
+			new ResizeObserver(() => { if (Math.abs(Math.round(host.clientWidth) - Number(host.dataset.width || 0)) > 8) renderSpeedupChart(comparison); }).observe(host);
+		}
+		host.dataset.width = String(measured);
+		const families = [["OSM", "OSM", "#1f7a73"], ["random", "Aleatórias", "#c2501a"], ["tessellation", "Voronoi", "#142d38"]]
+			.filter(([key]) => histogram.families[key]);
+		const { log10_low: low, log10_step: step } = histogram;
+		const bins = histogram.families[families[0][0]].length;
+		const totals = Array.from({ length: bins }, (_, index) => families.reduce((sum, [key]) => sum + histogram.families[key][index], 0));
+		const yMax = Math.ceil(Math.max(...totals) / 20) * 20;
+		const width = Math.max(300, measured || 900), narrow = width < 560, height = narrow ? 330 : 400, left = narrow ? 44 : 58, right = 14, top = 34, bottom = narrow ? 62 : 56;
+		const xMax = low + bins * step;
+		const x = (log) => left + (log / xMax) * (width - left - right);
+		const y = (count) => top + (1 - count / yMax) * (height - top - bottom);
+		const ticksY = Array.from({ length: yMax / 20 + 1 }, (_, index) => index * 20);
+		let svg = `<svg viewBox="0 0 ${width} ${height}" focusable="false">`;
+		for (const tick of ticksY) svg += `<line class="grid" x1="${left}" x2="${width - right}" y1="${y(tick)}" y2="${y(tick)}"/><text class="tick" x="${left - 10}" y="${y(tick) + 4}" text-anchor="end">${tick}</text>`;
+		for (let power = 0; power <= Math.floor(xMax); power += 1) svg += `<line class="tick-mark" x1="${x(power)}" x2="${x(power)}" y1="${height - bottom}" y2="${height - bottom + 6}"/><text class="tick" x="${x(power)}" y="${height - bottom + 24}" text-anchor="middle">${number(10 ** power, 0)}×</text>`;
+		svg += `<line class="axis" x1="${left}" x2="${width - right}" y1="${height - bottom}" y2="${height - bottom}"/>`;
+		const binRange = (index) => `${number(10 ** (low + index * step), 1)}× a ${number(10 ** (low + (index + 1) * step), 1)}×`;
+		for (let index = 0; index < bins; index += 1) {
+			if (!totals[index]) continue;
+			let base = 0;
+			const x0 = x(low + index * step) + 1, w = x(low + (index + 1) * step) - x(low + index * step) - 2;
+			svg += `<g class="speedup-bin" data-bin="${index}" tabindex="0" role="button" aria-haspopup="dialog" aria-label="Faixa ${binRange(index)}: ${totals[index]} instâncias. Enter para listar.">`;
+			svg += `<rect class="hit" x="${x0 - 1}" y="${top}" width="${w + 2}" height="${height - top - bottom}" fill="transparent"/>`;
+			for (const [key, , color] of families) {
+				const count = histogram.families[key][index];
+				if (!count) continue;
+				svg += `<rect class="bar" x="${x0}" y="${y(base + count)}" width="${w}" height="${y(base) - y(base + count)}" fill="${color}"/>`;
+				base += count;
+			}
+			svg += "</g>";
+		}
+		svg += `<line class="zero" x1="${x(0)}" x2="${x(0)}" y1="${top}" y2="${height - bottom}"/>`;
+		svg += `<text class="zero-label" transform="translate(${x(0) + 16} ${(top + height - bottom) / 2}) rotate(-90)" text-anchor="middle">${narrow ? "Fekete mais rápido: 0" : "Fekete mais rápido: 0 casos"}</text>`;
+		const median = Number(comparison.median_speedup_fekete_over_ours), mean = Number(comparison.mean_speedup_fekete_over_ours);
+		svg += `<line class="median" x1="${x(Math.log10(median))}" x2="${x(Math.log10(median))}" y1="${top - 6}" y2="${height - bottom}"/><text class="median-label" x="${x(Math.log10(median)) - 8}" y="${top - 10}" text-anchor="end">mediana ${number(median, 1)}×</text>`;
+		svg += `<line class="mean" x1="${x(Math.log10(mean))}" x2="${x(Math.log10(mean))}" y1="${top - 6}" y2="${height - bottom}"/><text class="mean-label" x="${x(Math.log10(mean)) + 8}" y="${top - 10}" text-anchor="start">média ${number(mean, 1)}×</text>`;
+		svg += `<text class="axis-title" x="${(left + width - right) / 2}" y="${height - 10}" text-anchor="middle">${narrow ? "Speedup (Fekete ÷ nosso), escala log" : "Speedup (tempo do Fekete et al. ÷ nosso), escala logarítmica"}</text>`;
+		svg += `<text class="axis-title" transform="translate(14 ${(top + height - bottom) / 2}) rotate(-90)" text-anchor="middle">Instâncias</text></svg>`;
+		const legend = [...families].reverse().map(([key, label, color]) => `<span><i style="background:${color}"></i>${label} (${histogram.families[key].reduce((a, b) => a + b, 0)})</span>`).join("");
+		host.innerHTML = svg + `<div class="speedup-legend">${legend}</div><div class="speedup-popover" role="dialog" aria-label="Instâncias da faixa" hidden></div><p class="speedup-hint">Passe o mouse (ou toque) numa barra para ver as instâncias da faixa e clique num caso para abri-lo no mapa.</p>`;
+		const popover = host.querySelector(".speedup-popover");
+		let pinned = null, shown = null, hideTimer = 0;
+		const hide = () => { clearTimeout(hideTimer); popover.hidden = true; shown = null; pinned = null; host.querySelectorAll(".speedup-bin.is-active").forEach((node) => node.classList.remove("is-active")); };
+		const show = (index, pin) => {
+			clearTimeout(hideTimer);
+			if (pinned !== null && !pin) return;
+			if (shown !== index) {
+				popover.innerHTML = `<header><strong>${binRange(index)}</strong><span>${totals[index]} instâncias</span><button type="button" class="speedup-popover-close" aria-label="Fechar">×</button></header>` + [...families].reverse().map(([key, label, color]) => {
+					const list = histogram.cases?.[key]?.[index] || [];
+					if (!list.length) return "";
+					return `<section><h4><i style="background:${color}"></i>${label} <small>${list.length}</small></h4><div class="speedup-chips">${list.map(([caseIndex, ratio]) => `<button type="button" data-open-speedup-case="${caseIndex}" title="Caso ${caseLabel(caseIndex)} · ${number(ratio, 1)}×">${caseLabel(caseIndex)}</button>`).join("")}</div></section>`;
+				}).join("");
+				host.querySelectorAll(".speedup-bin").forEach((node) => node.classList.toggle("is-active", Number(node.dataset.bin) === index));
+				popover.hidden = false;
+				shown = index;
+				const hostWidth = host.clientWidth, popoverWidth = Math.min(300, hostWidth - 16);
+				popover.style.width = `${popoverWidth}px`;
+				const center = x(low + (index + 0.5) * step);
+				const leftSide = center > hostWidth / 2;
+				popover.style.left = `${Math.max(8, Math.min(hostWidth - popoverWidth - 8, narrow ? (hostWidth - popoverWidth) / 2 : leftSide ? center - popoverWidth - 40 : center + 40))}px`;
+				popover.style.top = `${top + 6}px`;
+			}
+			if (pin) pinned = index;
+		};
+		const scheduleHide = () => { if (pinned === null) { clearTimeout(hideTimer); hideTimer = setTimeout(hide, 280); } };
+		host.querySelectorAll(".speedup-bin").forEach((node) => {
+			const index = Number(node.dataset.bin);
+			node.addEventListener("pointerenter", (event) => { if (event.pointerType === "mouse") show(index, false); });
+			node.addEventListener("pointerleave", (event) => { if (event.pointerType === "mouse") scheduleHide(); });
+			node.addEventListener("click", () => { pinned = null; shown = null; show(index, true); });
+			node.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); pinned = null; shown = null; show(index, true); popover.querySelector("[data-open-speedup-case]")?.focus(); } });
+		});
+		popover.addEventListener("pointerenter", () => clearTimeout(hideTimer));
+		popover.addEventListener("pointerleave", (event) => { if (event.pointerType === "mouse") scheduleHide(); });
+		popover.addEventListener("click", (event) => {
+			if (event.target.closest(".speedup-popover-close")) { hide(); return; }
+			const chip = event.target.closest("[data-open-speedup-case]");
+			if (!chip) return;
+			const caseIndex = Number(chip.dataset.openSpeedupCase);
+			hide();
+			openCaseOnMap(caseIndex, host);
+		});
+		host.addEventListener("keydown", (event) => { if (event.key === "Escape" && !popover.hidden) { event.stopPropagation(); const bin = host.querySelector(".speedup-bin.is-active"); hide(); bin?.focus(); } });
+		document.addEventListener("pointerdown", (event) => { if (!popover.hidden && pinned !== null && !host.contains(event.target)) hide(); });
+		element("speedup-chart-summary").textContent = `Histograma do speedup em escala logarítmica para ${comparison.common_completed} instâncias: mediana ${number(median, 1)}×, média ${number(mean, 1)}×, nosso solver mais rápido em todas.`;
+		panel.hidden = false;
+	}
+
 	function updateResultSummary() {
 		const summary = data.summary || {};
 		const comparison = data.comparison || {};
@@ -678,6 +786,7 @@ async function initialize() {
 		const certified = Number(summary.exact_certified || 0);
 		const underTen = Number(summary.resolved_under_10_seconds || 0);
 		const medianSpeedup = Number(comparison.median_speedup_fekete_over_ours);
+		const meanSpeedup = Number(comparison.mean_speedup_fekete_over_ours);
 		const common = Number(comparison.common_completed || 0);
 		const comparisonTime = comparison.time || {};
 		const comparisonPrecision = comparison.precision || {};
@@ -687,10 +796,17 @@ async function initialize() {
 		const fasterElement = element("result-faster");
 		if (certifiedElement) certifiedElement.innerHTML = `${certified}<span>/ ${cases}</span>`;
 		if (underTenElement) underTenElement.innerHTML = `${underTen}<span>/ ${cases}</span>`;
-		if (speedupElement && Number.isFinite(medianSpeedup)) speedupElement.textContent = `${number(medianSpeedup, 2)}×`;
-		if (fasterElement) fasterElement.innerHTML = `${Number(comparison.ours_faster_count || 0)}<span>/ ${common}</span>`;
+		if (speedupElement && Number.isFinite(meanSpeedup)) speedupElement.textContent = `${number(meanSpeedup, 0)}×`;
+		const censored = Number(comparison.censored_count || 0);
+		const fasterTotal = Number(comparison.ours_faster_count || 0) + Number(comparison.censored_ours_faster_count || 0);
+		if (fasterElement) fasterElement.innerHTML = `${fasterTotal}<span>/ ${common + censored}</span>`;
+		const fasterNote = element("result-faster-note");
+		if (fasterNote) fasterNote.textContent = censored
+			? `Nos ${common} casos fechados por ambos e nos ${censored} em que o Fekete et al. não terminou (mais de ${formatDuration(comparison.censored_fekete_min_seconds)} cada, contra no máximo ${formatDuration(comparison.censored_ours_max_seconds)} do nosso).`
+			: "Nosso solver foi mais rápido no conjunto comum concluído.";
+		renderSpeedupChart(comparison);
 		const note = element("result-benchmark-note");
-		if (note) note.textContent = `Esses resultados dizem respeito às instâncias usadas por Fekete et al. no artigo. Rodamos cada instância por até 6 horas: nosso solver concluiu ${certified}/${cases}, enquanto o de Fekete et al. concluiu ${comparison.fekete_completed ?? "—"}/${cases}. As comparações de tempo e velocidade usam os ${common} casos concluídos por ambos.`;
+		if (note) note.textContent = `Esses resultados dizem respeito às instâncias usadas por Fekete et al. no artigo. Rodamos cada instância em uma thread, sem limite de tempo: nosso solver concluiu ${certified}/${cases}, enquanto o de Fekete et al. concluiu ${comparison.fekete_completed ?? "—"}/${cases}. As comparações de tempo e velocidade usam os ${common} casos concluídos por ambos.${censored ? ` Nos ${censored} restantes só sabemos que o Fekete et al. leva mais tempo que o nosso solver; por isso a média e a mediana do speedup subestimam a vantagem.` : ""}`;
 		const setText = (id, value) => { const target = element(id); if (target) target.textContent = value; };
 		const duration = (value) => formatDuration(value);
 		const hours = (value) => Number.isFinite(Number(value)) ? `${number(Number(value), 2)} h` : "—";
@@ -701,7 +817,8 @@ async function initialize() {
 		setText("comparison-time-fekete-mean", duration(comparisonTime.common_fekete_mean_seconds));
 		setText("comparison-time-ours-total", hours(comparisonTime.common_ours_total_hours));
 		setText("comparison-time-fekete-total", hours(comparisonTime.common_fekete_total_hours));
-				setText("comparison-speedup-median", Number.isFinite(medianSpeedup) ? `${number(medianSpeedup, 2)}×` : "—");
+		setText("comparison-speedup-mean", Number.isFinite(meanSpeedup) ? `${number(meanSpeedup, 1)}×` : "—");
+		setText("comparison-speedup-median", Number.isFinite(medianSpeedup) ? `${number(medianSpeedup, 2)}×` : "—");
 		setText("comparison-speedup-geometric", Number.isFinite(Number(comparison.geometric_mean_speedup)) ? `${number(comparison.geometric_mean_speedup, 2)}×` : "—");
 		setText("comparison-speedup-ours-faster", fraction(comparison.ours_faster_count, common));
 		setText("comparison-speedup-fekete-faster", fraction(comparison.fekete_faster_count, common));
@@ -1183,12 +1300,30 @@ async function initialize() {
 		drawRoute();
 	}
 
+	const seenTabsKey = "tpp-siicusp34-seen-cases";
+	let seenTabs = new Set();
+	try { seenTabs = new Set(JSON.parse(localStorage.getItem(seenTabsKey) || "[]")); } catch { /* Storage can be unavailable. */ }
+	function markTabSeen(key) {
+		if (key !== "sp-bairros" && key !== "br-estados") return;
+		seenTabs.add(key);
+		try { localStorage.setItem(seenTabsKey, JSON.stringify([...seenTabs])); } catch { /* Private browsing can reject storage. */ }
+	}
+	function updateNewTabs() {
+		document.querySelectorAll('.case-tabs .example[data-case="sp-bairros"], .case-tabs .example[data-case="br-estados"]').forEach((button) => {
+			const unseen = !seenTabs.has(button.dataset.case);
+			button.classList.toggle("is-new", unseen);
+			const label = button.dataset.case === "sp-bairros" ? "São Paulo" : "Brasil";
+			button.setAttribute("aria-label", unseen ? `${label} (ainda não visto)` : label);
+		});
+	}
 	function selectCase(index, updateURL = true) {
 		const selected = index === "usp" ? uspDemo
 			: index === "sp-bairros" ? spBairrosDemo
 				: index === "br-estados" ? brEstadosDemo
 					: data.rows.find((item) => item.case === index);
 		if (!selected) return false;
+		markTabSeen(index);
+		updateNewTabs();
 		stop();
 		stopTrace();
 		row = selected;
@@ -1207,7 +1342,7 @@ async function initialize() {
 		element("case-picker-button").setAttribute("aria-label", featured
 			? "Explorar os 558 casos"
 			: `Explorar os 558 casos; caso ${caseLabel(row.case)} selecionado`);
-		document.querySelectorAll(".explorer .example").forEach((button) => {
+		document.querySelectorAll("#rota-usp .example").forEach((button) => {
 			const active = button.dataset.case === String(row.case);
 			button.classList.toggle("active", active);
 			button.setAttribute("aria-pressed", String(active));
@@ -1233,6 +1368,7 @@ async function initialize() {
 		element("show-decomposition").disabled = !row.visualization.decomposition?.some((pieces) => pieces.length > 1);
 		element("speed-value").title = `A 1×, este caso leva ${number(playbackDuration(row) / 1000, 1)} s para percorrer o caminho.`;
 		element("case-time").textContent = formatDuration(row.seconds);
+		element("case-dialog-title").textContent = typeof row.case === "number" ? `Caso ${caseLabel(row.case)} · ${row.polygons} regiões` : row.title;
 		if (updateURL && window.location.protocol !== "file:") {
 			const url = new URL(window.location.href);
 			url.searchParams.set("caso", row.case);
@@ -1256,6 +1392,7 @@ async function initialize() {
 	updateResultSummary();
 	populateTracePicker();
 	function showMap(focusPlayback = false) {
+		if (element("rota-usp").closest("dialog")) return;
 		document.querySelector(".drawing-panel").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "start" });
 		if (focusPlayback) element("play-route").focus({ preventScroll: true });
 	}
@@ -1538,7 +1675,6 @@ async function initialize() {
 	}
 	document.addEventListener("visibilitychange", () => { if (document.hidden) { stop(); stopTrace(); } });
 	reducedMotion.addEventListener("change", stop);
-	let returnContext = null;
 	element("result-rows").addEventListener("click", (event) => {
 		const toggle = event.target.closest("[data-toggle-results]");
 		if (toggle) {
@@ -1549,39 +1685,28 @@ async function initialize() {
 		}
 		const button = event.target.closest("[data-open-case]");
 		if (!button) return;
-		returnContext = { top: window.scrollY, control: button };
-		selectCase(Number(button.dataset.openCase));
-		element("context-return").hidden = false;
-		element("section-dialog")?.closeGuideSection?.();
-		showMap(true);
+		openCaseOnMap(Number(button.dataset.openCase), button);
 	});
-	element("context-return").addEventListener("click", () => {
-		if (!returnContext) return;
-		const destination = returnContext;
-		returnContext = null;
-		element("context-return").hidden = true;
-		const start = window.scrollY;
-		const finish = () => {
-			const sectionDialog = element("section-dialog");
-			if (sectionDialog?.openGuideSection) sectionDialog.openGuideSection("resultados", destination.control);
-			else destination.control.focus({ preventScroll: true });
-		};
-		if (reducedMotion.matches || Math.abs(start - destination.top) < 2) {
-			window.scrollTo({ top: destination.top, behavior: "instant" });
-			finish();
-			return;
+	function openCaseOnMap(caseIndex, control) {
+		const dialog = element("case-dialog");
+		if (!dialog.open) {
+			// The explorer card itself moves into the overlay, so every control and the renderer keep working.
+			const panel = element("rota-usp");
+			const home = { parent: panel.parentNode, next: panel.nextSibling, previous: row.case };
+			element("case-dialog-content").append(panel);
+			dialog.addEventListener("close", () => {
+				stop();
+				home.parent.insertBefore(panel, home.next);
+				selectCase(home.previous, false);
+				control?.focus({ preventScroll: true });
+			}, { once: true });
+			showModalWithTransition(dialog);
 		}
-		window.scrollTo({ top: start, behavior: "instant" });
-		const started = performance.now();
-		const animate = (now) => {
-			const progress = Math.min(1, (now - started) / 260);
-			const eased = 1 - (1 - progress) ** 3;
-			window.scrollTo(0, start + (destination.top - start) * eased);
-			if (progress < 1) requestAnimationFrame(animate);
-			else finish();
-		};
-		requestAnimationFrame(animate);
-	});
+		selectCase(caseIndex, false);
+		element("play-route").focus({ preventScroll: true });
+	}
+	element("close-case").addEventListener("click", () => element("case-dialog").close());
+	closeOnBackdropClick(element("case-dialog"));
 	function setSpeed(index) {
 		speedIndex = Math.max(0, Math.min(speeds.length - 1, index));
 		element("speed-value").textContent = `${number(speeds[speedIndex], 2)}×`;
@@ -1614,10 +1739,7 @@ async function initialize() {
 		element("case-picker-button").setAttribute("aria-expanded", "false");
 		element("case-picker-button").focus({ preventScroll: true });
 	});
-	picker.addEventListener("click", (event) => { if (event.target === picker) {
-		const box = picker.getBoundingClientRect();
-		if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) picker.close();
-	} });
+	closeOnBackdropClick(picker);
 	element("picker-search").addEventListener("input", renderPicker);
 	element("picker-options").addEventListener("click", (event) => {
 		const button = event.target.closest("[data-pick-case]");
@@ -1972,11 +2094,11 @@ function initializeDisclosures() {
 
 function initializeGuide() {
 	const copy = {
-		desafio: ["2", "Tente você mesmo!", "Escolha a ordem de visita e compare com o solver."],
-		metodo: ["3", "Como o algoritmo resolve", "Rota inicial, ramificações, limites e uma execução passo a passo."],
-		historia: ["4", "Trabalhos anteriores", "Uma linha do tempo do TPP até este solver autocontido."],
-		resultados: ["5", "O que melhoramos", "Compare os resultados deste solver com os anteriores."],
-		contato: ["6", "Fale com o autor", "Comentários, dúvidas ou uma conversa sobre a pesquisa."],
+		desafio: ["1", "Tente você mesmo!", "Escolha a ordem de visita e compare com o solver."],
+		metodo: ["2", "Como o algoritmo resolve", "Rota inicial, ramificações, limites e uma execução passo a passo."],
+		historia: ["3", "Trabalhos anteriores", "Uma linha do tempo do TPP até este solver autocontido."],
+		resultados: ["4", "O que melhoramos", "Compare os resultados deste solver com os anteriores."],
+		contato: ["5", "Fale com o autor", "Comentários, dúvidas ou uma conversa sobre a pesquisa."],
 	};
 	const ids = ["desafio", "metodo", "historia", "resultados", "contato"];
 	const nodes = new Map();
@@ -2048,7 +2170,7 @@ function initializeGuide() {
 		try { localStorage.setItem(storageKey, JSON.stringify([...visited])); } catch { /* Private browsing can reject storage. */ }
 		update(id);
 		const count = element("guide-title")?.closest(".guide-nav")?.querySelector("[data-guide-count]");
-		if (count) count.textContent = `${visited.size + 1}/${nodes.size + 1} etapas visitadas`;
+		if (count) count.textContent = `${visited.size}/${nodes.size} etapas visitadas`;
 	}
 	function sourceFor(node) {
 		return node.matches("details")
@@ -2098,7 +2220,7 @@ function initializeGuide() {
 		content.append(source);
 		resetDialogScroll();
 		dialog.dataset.section = id;
-		eyebrow.textContent = `ETAPA ${copy[id][0]} de 6`;
+		eyebrow.textContent = `ETAPA ${copy[id][0]} de ${ids.length}`;
 		title.textContent = copy[id][1];
 		subtitle.textContent = copy[id][2];
 		update(id);
@@ -2107,12 +2229,6 @@ function initializeGuide() {
 		requestAnimationFrame(resetDialogScroll);
 		closeButton.focus({ preventScroll: true });
 	}
-	dialog.openGuideSection = (id, opener = null) => open(id, opener);
-	dialog.closeGuideSection = () => {
-		if (!active) return;
-		if (window.location.hash === `#${active.id}`) clearHash();
-		dialog.close();
-	};
 	function navigateFrom(currentId, delta, navigationState = null) {
 		const currentIndex = ids.indexOf(currentId);
 		const nextId = ids[currentIndex + delta];
@@ -2149,7 +2265,7 @@ function initializeGuide() {
 		content.append(source);
 		resetDialogScroll();
 		dialog.dataset.section = nextId;
-		eyebrow.textContent = `ETAPA ${copy[nextId][0]} de 6`;
+		eyebrow.textContent = `ETAPA ${copy[nextId][0]} de ${ids.length}`;
 		title.textContent = copy[nextId][1];
 		subtitle.textContent = copy[nextId][2];
 		update(previous.id);
@@ -2197,12 +2313,6 @@ function initializeGuide() {
 	}
 	document.querySelectorAll("[data-guide-target]").forEach((link) => link.addEventListener("click", (event) => {
 			const id = link.dataset.guideTarget;
-			if (id === "usp") {
-				event.preventDefault();
-				document.querySelector('.case-tabs [data-case="usp"]')?.click();
-				document.querySelector(".drawing-panel")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
-				return;
-			}
 			if (!nodes.has(id)) return;
 			event.preventDefault();
 			open(id, link);
@@ -2216,7 +2326,7 @@ function initializeGuide() {
 		document.querySelector('.guide-links [data-guide-target="resultados"]')?.click();
 	}));
 	const count = element("guide-title")?.closest(".guide-nav")?.querySelector("[data-guide-count]");
-	if (count) count.textContent = `${visited.size + 1}/${nodes.size + 1} etapas visitadas`;
+	if (count) count.textContent = `${visited.size}/${nodes.size} etapas visitadas`;
 	updateNavigation();
 	const initial = window.location.hash.slice(1);
 	if (nodes.has(initial)) open(initial, null, true);
