@@ -90,6 +90,67 @@ antes de medir, medida uma vez).
   multiplica os speedups históricos. Registro das tentativas:
   [`unordered-tpp-experiments.md`](../../docs/algorithms/unordered-tpp-experiments.md).
 
+## tspn-paula-cycle-2026-10-06
+
+TSPN de ciclo livre (sem depósito) nas 235 instâncias `npol <= 100` da coleção
+local da Paula (GTSP-Lib/MOM-Lib convertidas, polígonos não convexos, 66 com
+pontos e 40 só com segmentos além de polígonos), contra o Fekete et al. fixado
+e as referências do rascunho do paper (CPLEX MIQCP, 1 h, nas 87 com até 15
+polígonos; comprimento euclidiano do tour ótimo do GTSP, factível nas 235 e
+portanto limite superior). Protocolo TSPN mantido: 60 s, gap relativo 1e-6,
+uma thread, otimizações de ciclo `cache,features,root,interval`, Gurobi com
+tolerâncias apertadas; nosso solver e o Fekete em execuções separadas (às vezes
+simultâneas, um processo cada), macOS arm64 na bateria. Os dados e a campanha
+são locais (sem autorização de redistribuição).
+
+- **Antes**: o modo ciclo rejeitava pontos e segmentos (106/235 instâncias).
+- **Depois** (`paula-tspn-evaluation`): 235/235 tours válidos, **197** com gap
+  fechado; Fekete 213 válidos, **124** fechados. Nos 213 comuns: ambos 124, só
+  nós 59, só Fekete 0; tempo 7,0× menor (média geométrica; 0,57–344×).
+- CPLEX: nas 80 instâncias que ele provou ótimas, nosso valor difere no máximo
+  3,2e-5 (dentro da tolerância dele); nas 7 que ele deixou abertas após 1 h
+  (gaps 11–89%), provamos o ótimo em < 0,05 s.
+- Correções exigidas pelo corpus: pontos e segmentos no oráculo de ciclo;
+  âncora de ponto (45 vs 42 fechadas, 2,67× sem ela); contatos exatos da
+  recuperação como caminho (o gap de relaxação de `numerical_limit`); e pino
+  de canto da região comum (uma relaxação de 4 regiões passou de > 60 s a
+  6 ms; 10i400-206 e 10i45-18 de abertas a 0,57 s e 0,24 s).
+- Regressão SoCG (48 casos, 4 por estrato, 60 s): 47/47 fechados em ambos, 42
+  buscas idênticas, as 6 diferentes com menos chamadas; 1,09× geométrico.
+- Mesmo gap da campanha alemã (ε = 0,001, 60 s): nós 197 fechadas (235 válidas),
+  Fekete 172 (216 válidas); onde ambos fecham, 7,5× geométrico (≤ 15 polígonos
+  7,2×, 16–40 8,2×, 41–60 5,8×). Com 600 s para o Fekete nas 10 instâncias de
+  41–60 que só nós fechamos em 60 s: ≥ 12,1× (4,1–34,8×; uma falha e um tour
+  inválido dele). A vantagem é menor que nas instâncias alemãs (49×) porque o
+  limite de 60 s corta justamente os casos longos, e acima de 60 polígonos
+  nenhum dos dois fecha.
+- Direções testadas nas 36 de 41–60 polígonos (60 s, ε = 0,001; base fecha 20):
+  ramificação forte (ciclo 16, caminho 17), lookahead 8 (20), DFS/BFS (19), ciclo
+  sem âncora com ramificação forte (13), partidas primais (20) e LNS exata (20;
+  UB médio 0,998 do tour do GTSP contra 1,001). Fora do solver, Held–Karp com
+  distâncias entre regiões dá 0,22–0,81 do tour do GTSP e um limite por triplas
+  (dois elos saindo do mesmo ponto) 0,73–0,94 mesmo na ordem ótima; o LB do B&B
+  já alcança 0,72–0,98. Nenhuma foi adotada.
+- Limitações: uma repetição; 38 instâncias abertas (42–100 polígonos, sobretudo
+  com pontos ou de 100 regiões), onde o Fekete também não fecha; os resultados
+  do ILS da Paula não estão no rascunho (nem no PDF) e não foram comparados.
+- TPP com depósito no centro da bbox (`convert-paula`, mesmo binário, 60 s,
+  gap 1e-6): 196 fechadas contra 197 do TSPN, 2× mais rápido onde ambos fecham,
+  mesma fronteira (0 de 22 acima de 60 polígonos).
+- Qualidade do UB nas abertas, sem certificado (2026-10-07, ε = 0,001). Como
+  os resultados do ILS da Paula não estão disponíveis, o tour do GTSP serve de
+  substituto. O B&B quase não melhora o UB entre 60 e 600 s. Com 600 s (parcial,
+  21 de 38 instâncias), as 4 de 45–60 polígonos ficam em 0,993–0,998 do tour
+  do GTSP; as 17 de 64–100 ficam em 0,990–1,039, 12 acima de 1; a LNS por
+  janelas tira até 2,5 pontos percentuais nas de 64–99 e nada nas de 100. Gap do B&B aos 600 s:
+  2–35%. A **busca local iterada** opcional (`--primal-ils 0.5`, 60 s,
+  5 instâncias) levou 80rd400 de 1,035 a 0,998, 100pr1002 de 1,010 a 0,996 e
+  64lin318 a 0,999; manteve 50kroA100 (0,999) e 100i1000-410 (1,006, polígonos
+  muito sobrepostos). No 56a280, o B&B sozinho em 60 s achou 0,993 ou 1,006
+  conforme a carga da máquina; com ILS, 0,993 (UB/LB 1,021 contra o LB de
+  600 s). Opção desligada por padrão; a avaliação de 600 s nas 38 abertas ainda
+  está em andamento.
+
 ## tpp-oracle-allocation-2026-10-06
 
 `main` (`7f4c8dd`) × branch `oracle-shared-vertex-speedup`; mesmo protocolo

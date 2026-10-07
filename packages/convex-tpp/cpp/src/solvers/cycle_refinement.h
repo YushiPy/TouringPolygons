@@ -12,6 +12,9 @@ template<class S> struct CycleRefinement {
     using P=ConvexArithmeticPoint<S>;
     using Polygon=std::vector<P>;
     using Polygons=std::vector<Polygon>;
+    // Feature of a contact fixed at its current point (a corner of a common
+    // region shared by a block of coincident contacts); see move_zero_blocks.
+    static constexpr int kFixed=-3;
     static P reflect(P q,P a,P e) {return a+e*(S(2)*(q-a).dot(e)/e.dot(e))-(q-a);}
     static bool inside(P q,const Polygon &p) {
         if(p.size()==1)return q==p.front();
@@ -95,7 +98,8 @@ template<class S> struct CycleRefinement {
                       std::vector<int> *blocking=nullptr) {
         cycle_checkpoint();
         const size_t k=p.size();std::vector<size_t> pins,edges;
-        for(size_t i=0;i<k;++i)if(feature[i]>=0&&feature[i]%2==0)pins.push_back(i);
+        // Vertex features pin a contact at that vertex; kFixed pins it at q[i].
+        for(size_t i=0;i<k;++i)if((feature[i]>=0&&feature[i]%2==0)||feature[i]==kFixed)pins.push_back(i);
         auto on_edge=[&](size_t i,size_t j,const S &t) {
             if(t>=0&&t<=1)return true;
             if(blocking) {
@@ -147,8 +151,8 @@ template<class S> struct CycleRefinement {
             if(!trace(begin,end,edges))return false;
         }
         // Restore skipped straight-through contacts in their original order.
-        for(size_t begin=0;begin<k;++begin)if(feature[begin]>=0) {
-            size_t end=(begin+1)%k;while(feature[end]<0)end=(end+1)%k;
+        for(size_t begin=0;begin<k;++begin)if(feature[begin]>=0||feature[begin]==kFixed) {
+            size_t end=(begin+1)%k;while(feature[end]<0&&feature[end]!=kFixed)end=(end+1)%k;
             P current=q[begin];
             for(size_t i=(begin+1)%k;i!=end;i=(i+1)%k) {
                 q[i]=coordinate(current,q[end],q[i],p[i]).first;current=q[i];
@@ -156,8 +160,45 @@ template<class S> struct CycleRefinement {
         }
         return true;
     }
+    // Keeps the part of a closed convex region where normal.(x-a) >= 0.
+    static Polygon clip(Polygon region,const P &a,const P &normal) {
+        Polygon next;
+        for(size_t r=0;r<region.size();++r) {
+            const P u=region[r],v=region[(r+1)%region.size()];
+            const S su=normal.dot(u-a),sv=normal.dot(v-a);
+            if(su>=0 && (next.empty()||!(next.back()==u)))next.push_back(u);
+            if((su<0&&sv>0)||(su>0&&sv<0))next.push_back(u+(v-u)*(su/(su-sv)));
+        }
+        if(next.size()>1&&next.front()==next.back())next.pop_back();
+        return next;
+    }
+    // Intersection of two closed convex regions; p may also be a point or a
+    // segment, whose edge halfplanes alone would describe all or a whole line.
     static Polygon intersect(Polygon region,const Polygon &p) {
         cycle_checkpoint();
+        if(p.size()==1) {
+            if(region.empty())return region;
+            const P c=p.front();
+            Polygon point{c};
+            for(size_t j=0;j<region.size()&&region.size()>2;++j) {
+                const P a=region[j],e=region[(j+1)%region.size()]-a;
+                if(e.cross(c-a)<0)return {};
+            }
+            if(region.size()==1&&!(region.front()==c))return {};
+            if(region.size()==2) {
+                const P a=region[0],e=region[1]-a;
+                if(e.cross(c-a)!=0||e.dot(c-a)<0||e.dot(c-region[1])>0)return {};
+            }
+            return point;
+        }
+        if(p.size()==2) {
+            const P a=p[0],b=p[1],e=b-a,left{-e.y,e.x};
+            for(const auto &[origin,normal]:{std::pair{a,left},std::pair{a,P{e.y,-e.x}},std::pair{a,e},std::pair{b,P{-e.x,-e.y}}}) {
+                if(region.empty())break;
+                region=clip(std::move(region),origin,normal);
+            }
+            return region;
+        }
         for(size_t j=0;j<p.size()&&!region.empty();++j) {
             Polygon next;const P a=p[j],e=p[(j+1)%p.size()]-a;
             for(size_t r=0;r<region.size();++r) {
@@ -183,12 +224,20 @@ template<class S> struct CycleRefinement {
                 Polygon region=p[start];
                 for(size_t r=1;r<count;++r)region=intersect(std::move(region),p[(start+r)%k]);
                 if(!region.empty()) {
-                    const P point=region.size()==1?region.front():coordinate(q[(start+k-1)%k],q[(end+1)%k],q[start],region).first;
+                    // A corner of the common region (e.g. two crossing edges)
+                    // pins the whole block there, although it need not be a
+                    // vertex of any one region: reflecting at both edges would
+                    // never reconstruct it.
+                    bool corner=region.size()==1;P point=region.front();
+                    if(!corner) {
+                        const auto [found,kind]=coordinate(q[(start+k-1)%k],q[(end+1)%k],q[start],region);
+                        point=found;corner=kind>=0&&kind%2==0;
+                    }
                     for(size_t r=0;r<count;++r) {
-                        const size_t i=(start+r)%k;q[i]=point;feature[i]=-1;
+                        const size_t i=(start+r)%k;q[i]=point;feature[i]=corner?kFixed:-1;
                         for(size_t j=0;j<p[i].size();++j) {
                             if(q[i]==p[i][j]){feature[i]=int(2*j);break;}
-                            if((p[i][(j+1)%p[i].size()]-p[i][j]).cross(q[i]-p[i][j])==0)feature[i]=int(2*j+1);
+                            if(!corner&&(p[i][(j+1)%p[i].size()]-p[i][j]).cross(q[i]-p[i][j])==0)feature[i]=int(2*j+1);
                         }
                     }
                 }

@@ -122,8 +122,9 @@ int main(int argc, char **argv) {
 				std::cout << "--no-oracle-dispatch-cache repeats exact polygon-pair classification for an ablation.\n";
 				std::cout << "--no-oracle-interval-geometry-cache repeats normalized rational-to-double conversion for an ablation.\n";
 				std::cout << "--no-prepared-visits repeats polygon/path preparation and contact queries for an ablation.\n";
-                std::cout << "TPP ablations: --no-borrow-oracle-geometry, --no-segment-visit-cache; experimental: --lazy-oracles, --bound-first, --path-dual-reuse, --path-certificate-dual, --path-strong-branching.\n";
+                std::cout << "TPP ablations: --no-borrow-oracle-geometry, --no-segment-visit-cache, --no-cycle-point-anchor; experimental: --lazy-oracles, --bound-first, --path-dual-reuse, --path-certificate-dual, --path-strong-branching.\n";
 				std::cout << "--relocate-initial optimizes insertion slots and contacts in the initial route.\n";
+				std::cout << "--primal-ils F spends fraction F of the time on an iterated local search for the initial tour.\n";
 				std::cout << "--interpolated-zero-dual tries a feasible interpolated dual for short contact blocks.\n";
 				return 0;
 			}
@@ -149,12 +150,19 @@ int main(int argc, char **argv) {
             if (flag == "--lazy-oracles") {options.lazy_oracles=true;continue;}
             if (flag == "--segment-visit-cache") {options.segment_visit_cache=true;continue;}
             if (flag == "--no-segment-visit-cache") {options.segment_visit_cache=false;continue;}
+            if (flag == "--no-cycle-point-anchor") {options.cycle_point_anchor=false;continue;}
             if (flag == "--path-dual-reuse") {options.path_dual_reuse=true;continue;}
             if (flag == "--path-certificate-dual") {options.path_certificate_dual=true;continue;}
             if (flag == "--path-strong-branching") {options.path_strong_branching=true;continue;}
             if (flag == "--no-prepared-visits") {options.prepared_visit_queries=false;continue;}
             if (flag == "--no-visit-upper-bounds") {options.visit_upper_bounds=false;continue;}
 			if (flag == "--relocate-initial") {options.relocate_initial_heuristic=true;continue;}
+			if (flag == "--primal-ils") {
+				if (++i >= argc) throw std::invalid_argument("Expected a time fraction after --primal-ils.");
+				options.primal_ils_fraction=std::stod(argv[i]);
+				if (!(options.primal_ils_fraction>=0&&options.primal_ils_fraction<1)) throw std::invalid_argument("--primal-ils needs a fraction in [0,1).");
+				continue;
+			}
 			if (flag == "--insertion-lookahead") {
 				if(++i>=argc)throw std::invalid_argument("Expected a candidate count.");
 				options.insertion_lookahead=std::stoul(argv[i]);
@@ -356,6 +364,9 @@ int main(int argc, char **argv) {
             << ",\"segment_visit_hits\":" << r.segment_visit_hits
 			<< ",\"initial_relocation_moves\":" << r.initial_relocation_moves
 			<< ",\"initial_relocation_seconds\":" << r.initial_relocation_seconds
+			<< ",\"primal_ils_iterations\":" << r.primal_ils_iterations
+			<< ",\"primal_ils_improvements\":" << r.primal_ils_improvements
+			<< ",\"primal_ils_seconds\":" << r.primal_ils_seconds
 			<< ",\"visit_bound_skips\":" << r.visit_bound_skips
 			<< ",\"lookahead_candidates\":" << r.lookahead_candidates
 			<< ",\"lookahead_prunes\":" << r.lookahead_prunes
@@ -428,6 +439,7 @@ int main(int argc, char **argv) {
 			<< ",\"convex_pieces_min\":"; json_size(r.convex_pieces_min);
 		std::cout << ",\"convex_pieces_max\":" << r.convex_pieces_max
 			<< ",\"polygon_vertices_total\":" << r.polygon_vertices_total;
+		std::cout << ",\"cycle_point_anchor\":"; json_size(r.cycle_point_anchor);
 		std::cout << ",\"polygon_vertices_min\":"; json_size(r.polygon_vertices_min);
 		std::cout << ",\"polygon_vertices_max\":" << r.polygon_vertices_max
 			<< ",\"order_space_log2\":" << r.order_space_log2

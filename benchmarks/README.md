@@ -303,6 +303,12 @@ python3 benchmarks/tpp.py verify-socp \
   --reference-python third_party/tspn-socg/.venv/bin/python
 ```
 
+Para comparar com o paper, que resolve o TSPN de ciclo livre, use as mesmas
+regiões sem depósito em `tspn-benchmark --inputs` (JSON com `instances`, cada uma
+com `name` e `polygons`); o modo ciclo aceita pontos e segmentos. Resumo da
+campanha de 2026-10-06 em
+[`results-saved/README.md`](results-saved/README.md#tspn-paula-cycle-2026-10-06).
+
 O manifesto associa cada caso ao arquivo original e seu SHA-256, à bbox e aos
 extremos adicionados. Os dados de terceiros e toda a campanha derivada devem
 permanecer locais e ignorados, pois não há autorização de redistribuição.

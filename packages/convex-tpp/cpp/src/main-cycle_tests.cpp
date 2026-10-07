@@ -648,8 +648,68 @@ void cooperative_interruption() {
     require(tpp_convex_solve_cycle(p).status==ConvexCycleStatus::Optimal,"Cancellation context restored after return");
 }
 } // namespace
+// Points and segments are closed convex regions of the general cycle API.
+void degenerate_regions() {
+    auto solve=[](const Polygons &p,double expected,const std::string &name) {
+        const auto r=tpp::tpp_convex_solve_cycle(p);
+        require(solved(r),name+": status "+std::to_string(int(r.status))+" "+r.diagnostic);
+        const auto c=tpp::tpp_convex_verify_cycle_certificate(exact(p),r.contacts);
+        require(c.status==tpp::ConvexCycleCertificateStatus::Optimal,name+": independent certificate");
+        if(!std::isnan(expected))require(std::abs(r.certificate.upper_bound-expected)<=1e-12*(1+expected),name+": objective");
+        tpp::ConvexCycleDoubleOptions options;
+        const auto d=tpp::tpp_convex_solve_cycle_double(p,options);
+        require(d.status==ConvexCycleStatus::Optimal||d.status==ConvexCycleStatus::FloatingPointLimit,name+": double status");
+        const double value=std::isnan(expected)?r.certificate.upper_bound:expected;
+        require(d.certificate.lower_bound<=value+1e-9&&d.certificate.upper_bound>=value-1e-9,name+": double bounds");
+    };
+    solve({{{0,0},{4,0}},{{0,3},{4,3}}},6,"parallel segments");
+    solve({{{0,0},{4,0}},{{2,5}}},10,"segment and point");
+    solve({{{1,1}},{{4,5}}},10,"two points");
+    solve({{{0,0},{4,4}},{{0,4},{4,0}},box(1,1,3,3)},0,"crossing segments in a box");
+    solve({{{0,0},{4,0}},{{2,-1},{2,1}},{{2,0}}},0,"common point of segments and a point");
+    // A segment touching a box corner and a distant point: the shared corner
+    // is not common to all three regions (regression for the common-region
+    // clip, which treated the point and the segment's line as unbounded).
+    solve({box(5,-5,7,-3),{{6,-1},{7,-3}},{{-2,3}}},NAN,"touching segment and far point");
+    solve({{{0,0},{2,0}},{{5,0},{7,0}},{{3,2}}},std::sqrt(5.0)+3+std::sqrt(8.0),"collinear segments and a point");
+}
+
+// Two overlapping neighbours whose shared optimal contact is a crossing of
+// their edges, a corner of the common region but no vertex of either polygon.
+// Feature reflection alone never reconstructs it; the rational boundary
+// bisection then ran until its deadline (Paula's 10i400-206, 4 regions).
+void common_region_corners() {
+    std::mt19937 rng(20261006);std::uniform_real_distribution<double> unit(-1,1);
+    size_t corners=0,cases=0;
+    auto polygon=[](double cx,double cy,double r,double turn) {
+        Polygon q;for(int i=0;i<5;++i){const double a=turn+i*2*M_PI/5;q.push_back({cx+r*std::cos(a),cy+r*std::sin(a)});}
+        return q;
+    };
+    for(int trial=0;trial<200;++trial) {
+        // Both other regions lie above the overlapping pair, so the tour
+        // reaches up into it: the top of their lens is an edge crossing.
+        const double gap=0.2+0.6*std::abs(unit(rng));
+        const Polygons p{polygon(-0.5+unit(rng),6+unit(rng),0.5,unit(rng)),polygon(-gap,0,1,unit(rng)),
+                         polygon(gap,0.3*unit(rng),1,unit(rng)),polygon(0.5+unit(rng),6+unit(rng),0.5,unit(rng))};
+        const auto exact_result=tpp::tpp_convex_solve_cycle(p);
+        require(solved(exact_result),"common-region corner: rational status "+std::to_string(int(exact_result.status))+" "+exact_result.diagnostic);
+        const auto floating=tpp::tpp_convex_solve_cycle_double(p);
+        require(floating.status==ConvexCycleStatus::Optimal||floating.status==ConvexCycleStatus::FloatingPointLimit,
+                "common-region corner: double status");
+        require(floating.certificate.lower_bound<=exact_result.certificate.upper_bound+1e-9&&
+                floating.certificate.upper_bound>=exact_result.certificate.lower_bound-1e-9,"common-region corner: bounds");
+        const auto &q=exact_result.contacts;const auto rational=exact(p);
+        auto vertex=[&](size_t i){return std::find(rational[i].begin(),rational[i].end(),q[i])!=rational[i].end();};
+        corners+=q[1]==q[2]&&!vertex(1)&&!vertex(2)&&!(q[0]==q[1])&&!(q[2]==q[3]);++cases;
+    }
+    require(corners>0,"common-region corner optima exercised");
+    std::cout<<"Common-region corners: "<<corners<<" of "<<cases<<" optima at an edge crossing\n";
+}
+
 int main() {
     try {
+        degenerate_regions();
+        common_region_corners();
         cooperative_interruption();
         bound_first_contacts();
         prepared_geometry_and_features();known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();active_contact_regressions();boundary_recovery_regressions();

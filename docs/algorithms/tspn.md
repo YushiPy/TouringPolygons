@@ -1,9 +1,14 @@
 # TSPN with the maintained insertion/decomposition branch and bound
 
 `tpp_nonconvex_tspn_solve(polygons, options)` in `tpp/nonconvex/unordered.h`
-minimizes a closed Euclidean tour visiting all supplied simple polygons, with
-free cyclic order and no prescribed geometric point. Regions may be nonconvex,
-overlap, touch or contain each other. Polygon holes are not represented by this
+minimizes a closed Euclidean tour visiting all supplied regions, with free
+cyclic order and no prescribed geometric point. A region is a point (one
+vertex), a closed segment (two vertices) or a simple polygon of positive area;
+polygons may be nonconvex, and regions may overlap, touch or contain each other.
+With a point region the tour is solved as the closed endpoint path through
+that point (see [the endpoint algorithm](unordered-tpp.md#escopo));
+`result.cycle_point_anchor` names that region. Otherwise points and segments
+are convex pieces of the cycle oracle. Polygon holes are not represented by this
 API. The returned `path` repeats its first point at the end. With zero or one
 region the optimum is zero.
 
@@ -465,7 +470,13 @@ rounded-contact gap. That recovery also receives the already verified contacts
 as a proposal. It may return `CertifiedBound` once the independent global lower
 bound reaches the cutoff; this is sufficient to prune and does not assert an
 exact optimal tour. Default standalone rational cycle solves still require
-the exact optimality certificate.
+the exact optimality certificate. When that secondary recovery is optimal, its
+contacts rounded to binary64 replace a longer double path. Rounded double
+contacts can stay well above the relaxation optimum on points and segments,
+which have no interior to round into; the search then kept a node whose path
+covered every region but whose gap never closed (`numerical_limit`). The
+replacement path is used like any relaxation path, only through the B&B's own
+visit checks and length.
 
 With n regions, orders contribute at most `(n-1)!/2` unoriented cyclic orders
 for n>=3, and decomposition choices multiply the worst-case search. Each branch
@@ -473,6 +484,25 @@ contains at most one insertion and one refinement per region. The search remains
 exponential; the convex oracle's operation/bit complexity is documented in
 [convex-cycle.md](convex-cycle.md). Cyclic dual screening reuses all unchanged
 supports and avoids solving children already excluded by their lower bound.
+
+## Evaluation on GTSP-derived instances with points and segments
+
+Paula's corpus (GTSP-Lib/MOM-Lib clusters turned into nonconvex polygons,
+points and segments; local, not redistributable) exposed four defects that the
+OSM/random/tessellation suite never reached: cycles rejected points and
+segments; the common-region clip and anchored membership treated a point or a
+segment as the whole plane or line; rounded double contacts on degenerate
+regions left a relaxation gap the search could not close; and a block of
+coincident contacts whose optimum is a crossing of two edges was unrepresentable
+by vertex/edge features, so the rational boundary bisection ran until its
+deadline. All are fixed, with regression tests that need no third-party data.
+Above about 40 regions these TSPLIB-like instances remain open for every
+method tried (ours, Fekete, the paper's CPLEX model). Stronger branching,
+lookahead, DFS/BFS, primal starts and exact LNS did not close more; graph
+relaxations with region-to-region distances (Held–Karp) or per-region triple
+costs are weaker than the existing insertion relaxations even at the optimal
+order, so neither was implemented.
+Results and protocol: [`tspn-paula-cycle-2026-10-06`](../../benchmarks/results-saved/README.md#tspn-paula-cycle-2026-10-06).
 
 ## Use and validation
 

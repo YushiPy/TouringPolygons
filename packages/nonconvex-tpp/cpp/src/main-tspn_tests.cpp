@@ -47,6 +47,7 @@ std::pair<double,double> enumerate(const Polygons &p) {
     if(p.size()<2)return {0,0};
     std::vector<std::vector<Polygon>> pieces;
     for(auto region:p) {
+        if(region.size()<=2){pieces.push_back({region});continue;}  // point or segment
         double area=0;for(size_t i=0;i<region.size();++i)area+=region[i].cross(region[(i+1)%region.size()]);
         if(area<0)std::reverse(region.begin(),region.end());
         pieces.push_back(tpp::decompose_polygon(region));
@@ -58,7 +59,7 @@ std::pair<double,double> enumerate(const Polygons &p) {
         std::function<void(size_t)> visit=[&](size_t i) {
             if(i==p.size()) {
                 const auto r=tpp::tpp_convex_solve_cycle(selected);
-                require(r.status==tpp::ConvexCycleStatus::Optimal,"Enumeration cycle oracle: "+r.diagnostic);
+                if(r.status!=tpp::ConvexCycleStatus::Optimal){std::string shape;for(const auto &q:selected){shape+="[";for(auto v:q)shape+="("+std::to_string(v.x)+","+std::to_string(v.y)+")";shape+="]";}throw std::runtime_error("Enumeration cycle oracle: status "+std::to_string(int(r.status))+" sizes "+shape+r.diagnostic);}
                 lower=std::min(lower,r.certificate.lower_bound);upper=std::min(upper,r.certificate.upper_bound);return;
             }
             for(const auto &piece:pieces[order[i]]){selected.push_back(piece);visit(i+1);selected.pop_back();}
@@ -67,6 +68,7 @@ std::pair<double,double> enumerate(const Polygons &p) {
     } while(std::next_permutation(order.begin()+1,order.end()));
     return {lower,upper};
 }
+size_t ils_iterations=0;
 size_t cases=0,interrupted=0,decomposed=0,parallel_batches=0,portfolio_cases=0,portfolio_limited=0;
 void check(const Polygons &p) {
     const auto [lower,upper]=enumerate(p);
@@ -80,6 +82,13 @@ void check(const Polygons &p) {
     }
     check_oracle_profile(r);
     require(covered(r.path,p),"TSPN output is a feasible closed tour");
+    {
+        tpp::UnorderedTppSolveOptions ils;ils.primal_ils_fraction=0.02;ils.max_seconds=2;
+        const auto searched=tpp::tpp_nonconvex_tspn_solve(p,ils);
+        require(covered(searched.path,p)&&searched.exact&&std::abs(searched.upper_bound-upper)<=1e-7+1e-9*upper,
+                "Primal ILS keeps a feasible tour and the exhaustive optimum");
+        ils_iterations+=searched.primal_ils_iterations;
+    }
     require(r.exact&&r.lower_bound<=upper+1e-7&&r.upper_bound>=lower-1e-7&&
             std::abs(r.upper_bound-upper)<=1e-7+1e-9*upper,"TSPN exhaustive order/piece comparison");
     require(r.calls==r.relaxation_calls+r.refinement_calls+r.initial_convex_refinement_calls,"Oracle accounting");
@@ -626,12 +635,40 @@ int main() {
         check({box(0,0),box(5,0),box(5,5),box(0,5)});
         check({{{0,0},{6,0},{6,6},{4,6},{4,2},{2,2},{2,6},{0,6}},box(2.5,3,1,1)});
         check({{{0,0},{3,0},{3,1},{1,1},{1,3},{0,3}},box(5,0),box(4,5),box(-2,4)});
+        // Points and segments: a point region anchors the tour (closed endpoint
+        // search); segment-only instances use the convex cycle oracle directly.
+        const Polygon point_region{{3,3}};
+        check({point_region,box(0,0),box(6,0),box(3,6)});
+        require(tpp::tpp_nonconvex_tspn_solve({box(0,0),point_region,box(6,0)}).cycle_point_anchor==1,
+                "A point region anchors the tour");
+        check({{{1.5,.5}},box(0,0,3,3),{{-2,5},{4,6}}});
+        check({{{0,0},{4,0}},box(6,2),box(-3,5),{{2,8},{5,9}}});
+        check({{{0,-2},{0,4}},box(-1,0,2,2),{{3,1},{3,1}},{{5,-1},{7,3}}});
+        check({{{0,0},{4,4}},{{0,4},{4,0}},{{2,2}}});
+        require(tpp::tpp_nonconvex_tspn_solve({{{0,0},{4,0}},{{0,3},{4,3}}}).cycle_point_anchor==std::numeric_limits<size_t>::max()
+                &&std::abs(tpp::tpp_nonconvex_tspn_solve({{{0,0},{4,0}},{{0,3},{4,3}}}).upper_bound-6)<1e-9,
+                "Two parallel segments: twice their distance, no anchor");
+        tpp::UnorderedTppSolveOptions hinted;hinted.initial_path=Polygon{{0,0},{3,3},{6,0},{6.5,0.5},{3,6},{0,0}};
+        const auto anchored_hint=tpp::tpp_nonconvex_tspn_solve({point_region,box(0,0),box(6,0),box(3,6)},hinted);
+        require(anchored_hint.exact&&covered(anchored_hint.path,{point_region,box(0,0),box(6,0),box(3,6)}),
+                "A closed initial tour is rotated to the point anchor");
         std::mt19937 rng(260927);std::uniform_int_distribution<int> coord(-6,6);
+        for(size_t trial=0;trial<10;++trial) {
+            Polygons p;
+            for(size_t i=0;i<3+trial%3;++i) {
+                const int x=coord(rng),y=coord(rng);
+                if(i%3==0)p.push_back(box(x,y,2,2));
+                else if(i%3==1)p.push_back({{double(x),double(y)},{double(x+coord(rng)%3+1),double(y+coord(rng)%3)}});
+                else p.push_back(trial%2?Polygon{{double(x),double(y)}}:box(x,y,1,1));
+            }
+            check(p);
+        }
         for(size_t trial=0;trial<12;++trial) {
             Polygons p;for(size_t i=0;i<2+trial%4;++i)p.push_back(box(coord(rng),coord(rng),2,2));
             check(p);
         }
         require(decomposed>0,"Nonconvex decomposition branching exercised");
+        require(ils_iterations>0,"Primal ILS exercised");
         require(parallel_batches>0,"Concurrent cyclic oracle batches exercised");
         tpp::UnorderedTppSolveOptions bad;bad.initial_path=Polygon{{0,0},{1,0}};
         bool rejected=false;try {tpp::tpp_nonconvex_tspn_solve({box(0,0)},bad);}catch(const std::invalid_argument&){rejected=true;}

@@ -39,13 +39,18 @@ RationalDisjointExactResult solve_rational_disjoint_exact(const Point &start,con
 
 bool prepare_cycle_polygons(const ConvexRationalPolygons &input,ConvexRationalPolygons &normalized,bool check_disjoint) {
     normalized.clear();normalized.reserve(input.size());
+    bool degenerate=false;
     for(const auto &source:input) {
         Polygon p;
         for(const auto &q:source)if(p.empty()||!(p.back()==q))p.push_back(q);
         if(p.size()>1&&p.front()==p.back())p.pop_back();
+        if(p.empty())throw std::invalid_argument("Empty cycle region");
+        // Points and segments are closed convex regions of dimension zero and
+        // one. They never take the disjoint fast path below, which needs area.
+        if(p.size()<=2){degenerate=true;normalized.push_back(std::move(p));continue;}
         Scalar area=0;
         for(size_t i=0;i<p.size();++i)area+=p[i].cross(p[(i+1)%p.size()]);
-        if(p.size()<3||area==0)throw std::invalid_argument("Cycle polygon must have positive area");
+        if(area==0)throw std::invalid_argument("Cycle polygon must be a point, a segment or have positive area");
         if(area<0)std::reverse(p.begin(),p.end());
         Polygon strict;size_t winding=0;
         for(size_t i=0;i<p.size();++i) {
@@ -63,7 +68,7 @@ bool prepare_cycle_polygons(const ConvexRationalPolygons &input,ConvexRationalPo
         if(strict.size()<3)throw std::invalid_argument("Degenerate cycle polygon");
         normalized.push_back(std::move(strict));
     }
-    if(!check_disjoint)return false;
+    if(!check_disjoint||degenerate)return false;
     // Strict separating-axis test; closed touching is deliberately rejected.
     auto separated=[](const Polygon &a,const Polygon &b) {
         for(size_t i=0;i<a.size();++i) {

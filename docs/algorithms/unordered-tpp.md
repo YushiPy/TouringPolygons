@@ -27,7 +27,13 @@ Pontos e segmentos são regiões convexas de dimensão zero e um, sem espessamen
 artificial. O fecho convexo conserva essas dimensões, e a verificação de visita
 inclui os extremos finitos dos segmentos. Uma lista de três ou mais vértices
 colineares continua inválida; represente-a explicitamente com dois extremos.
-A API de ciclo livre conserva seu contrato de polígonos de área positiva.
+A API de ciclo livre (TSPN) aceita as mesmas regiões. Um tour passa por toda
+região-ponto; girado para começar nela, é um caminho fechado de extremos
+`start = target = p` pelas demais regiões, de mesmo comprimento, e todo caminho
+assim é um tour. Por isso uma instância com ponto é resolvida exatamente por esta
+busca de extremos (`cycle_point_anchor`, `--no-cycle-point-anchor` desliga).
+Sem ponto, segmentos vão ao oráculo de ciclo convexo (veja
+[convex-cycle.md](convex-cycle.md)).
 
 Quando uma sequência contém pontos ou segmentos, o oráculo convexo usa a
 construção direcional racional existente. Um ponto impõe um contato obrigatório.
@@ -378,6 +384,22 @@ Desativadas por padrão; resultados e decisão em
   oráculos de todos os filhos juntos. Nenhum nó fica em voo entre rodadas,
   portanto o limite da fronteira continua sendo um certificado. Com uma thread
   a busca é idêntica à serial.
+
+### Busca local iterada inicial (2026-10-07)
+
+`--primal-ils F` / `primal_ils_fraction` (desligada, `F = 0`): antes do B&B,
+gasta a fração `F` do tempo restante numa busca local iterada sobre o melhor
+caminho inicial, com um contato por região. A busca local alterna varreduras de
+contatos (`best_contact` de cada região entre os vizinhos), 2-opt e realocação
+de uma região para o melhor intervalo. A perturbação é um *double bridge*, e a
+aceitação é *record-to-record* com folga de 2% que cai linearmente a zero. A
+semente é fixa (depende só de `n`). Cada contato fica no polígono original da
+sua região; mesmo assim, todo tour melhor passa por `covered` e `improve`.
+Portanto só o limite superior muda, e o LB e o certificado do B&B continuam
+valendo. Vale para caminho e ciclo com `n >= 4`. Telemetria:
+`primal_ils_iterations`, `primal_ils_improvements` e `primal_ils_seconds`.
+Avaliada até agora só no TSPN das instâncias da Paula
+([`tspn-paula-cycle-2026-10-06`](../../benchmarks/results-saved/README.md#tspn-paula-cycle-2026-10-06)).
 
 ## Certificado convexo e interseções
 

@@ -54,6 +54,11 @@ namespace tpp {
 		bool convex_initial_refinement = false;
 		// Relocate one region at a time and optimize its contact at the new slot.
 		bool relocate_initial_heuristic = false;
+		// Iterated local search on the initial tour before the B&B, for this
+		// fraction of the remaining time (0 disables): contact sweeps, 2-opt and
+		// single-region relocation, double-bridge perturbation, record-to-record
+		// acceptance. It only supplies validated upper bounds.
+		double primal_ils_fraction = 0.0;
 		// A feasible start-to-target path, including both endpoints. When present,
 		// it replaces the initial heuristic and supplies only an upper bound.
 		std::optional<std::vector<Vector2>> initial_path;
@@ -137,6 +142,8 @@ namespace tpp {
         // seven additional original vertices; only validated upper bounds.
         bool cycle_primal_starts = false;
         bool cycle_share_bounds = false;
+        // TSPN with a point region: solve the closed endpoint path through it.
+        bool cycle_point_anchor = true;
         // Diagnostic JSONL, including every in-flight cycle input; empty disables I/O.
         std::string oracle_capture_file;
 	};
@@ -256,6 +263,9 @@ namespace tpp {
 		size_t convex_pieces_min = std::numeric_limits<size_t>::max();
 		size_t convex_pieces_max = 0;
 		size_t polygon_vertices_total = 0;
+		// TSPN only: index of the point region the tour was anchored at (the
+		// cycle was solved as a closed endpoint path through it), or max.
+		size_t cycle_point_anchor = std::numeric_limits<size_t>::max();
 		size_t polygon_vertices_min = std::numeric_limits<size_t>::max();
 		size_t polygon_vertices_max = 0;
 		double order_space_log2 = 0.0;
@@ -289,6 +299,8 @@ namespace tpp {
 		double initial_heuristic_seconds = 0.0;
 		double initial_relocation_seconds = 0.0;
 		size_t initial_relocation_moves = 0;
+		size_t primal_ils_iterations = 0, primal_ils_improvements = 0;
+		double primal_ils_seconds = 0.0;
 		// Exact window LNS: sweeps, solved windows, accepted improvements,
 		// oracle calls spent inside windows and total length removed.
 		size_t visit_bound_skips = 0;
