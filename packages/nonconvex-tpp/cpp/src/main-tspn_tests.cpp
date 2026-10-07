@@ -68,6 +68,7 @@ std::pair<double,double> enumerate(const Polygons &p) {
     } while(std::next_permutation(order.begin()+1,order.end()));
     return {lower,upper};
 }
+size_t ils_iterations=0;
 size_t cases=0,interrupted=0,decomposed=0,parallel_batches=0,portfolio_cases=0,portfolio_limited=0;
 void check(const Polygons &p) {
     const auto [lower,upper]=enumerate(p);
@@ -81,6 +82,13 @@ void check(const Polygons &p) {
     }
     check_oracle_profile(r);
     require(covered(r.path,p),"TSPN output is a feasible closed tour");
+    {
+        tpp::UnorderedTppSolveOptions ils;ils.primal_ils_fraction=0.02;ils.max_seconds=2;
+        const auto searched=tpp::tpp_nonconvex_tspn_solve(p,ils);
+        require(covered(searched.path,p)&&searched.exact&&std::abs(searched.upper_bound-upper)<=1e-7+1e-9*upper,
+                "Primal ILS keeps a feasible tour and the exhaustive optimum");
+        ils_iterations+=searched.primal_ils_iterations;
+    }
     require(r.exact&&r.lower_bound<=upper+1e-7&&r.upper_bound>=lower-1e-7&&
             std::abs(r.upper_bound-upper)<=1e-7+1e-9*upper,"TSPN exhaustive order/piece comparison");
     require(r.calls==r.relaxation_calls+r.refinement_calls+r.initial_convex_refinement_calls,"Oracle accounting");
@@ -660,6 +668,7 @@ int main() {
             check(p);
         }
         require(decomposed>0,"Nonconvex decomposition branching exercised");
+        require(ils_iterations>0,"Primal ILS exercised");
         require(parallel_batches>0,"Concurrent cyclic oracle batches exercised");
         tpp::UnorderedTppSolveOptions bad;bad.initial_path=Polygon{{0,0},{1,0}};
         bool rejected=false;try {tpp::tpp_nonconvex_tspn_solve({box(0,0)},bad);}catch(const std::invalid_argument&){rejected=true;}

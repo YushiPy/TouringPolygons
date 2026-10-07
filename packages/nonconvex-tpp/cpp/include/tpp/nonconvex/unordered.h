@@ -54,6 +54,11 @@ namespace tpp {
 		bool convex_initial_refinement = false;
 		// Relocate one region at a time and optimize its contact at the new slot.
 		bool relocate_initial_heuristic = false;
+		// Iterated local search on the initial tour before the B&B, for this
+		// fraction of the remaining time (0 disables): contact sweeps, 2-opt and
+		// single-region relocation, double-bridge perturbation, record-to-record
+		// acceptance. It only supplies validated upper bounds.
+		double primal_ils_fraction = 0.0;
 		// A feasible start-to-target path, including both endpoints. When present,
 		// it replaces the initial heuristic and supplies only an upper bound.
 		std::optional<std::vector<Vector2>> initial_path;
@@ -294,6 +299,8 @@ namespace tpp {
 		double initial_heuristic_seconds = 0.0;
 		double initial_relocation_seconds = 0.0;
 		size_t initial_relocation_moves = 0;
+		size_t primal_ils_iterations = 0, primal_ils_improvements = 0;
+		double primal_ils_seconds = 0.0;
 		// Exact window LNS: sweeps, solved windows, accepted improvements,
 		// oracle calls spent inside windows and total length removed.
 		size_t visit_bound_skips = 0;
