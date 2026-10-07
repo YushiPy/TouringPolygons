@@ -64,26 +64,27 @@
 \begin{tikzpicture}[remember picture,overlay]
   \fill[white] (current page.south west) rectangle (current page.north east);
   \slidetitle{O Problema de Visita de Polígonos}
-  \node[anchor=north west,inner sep=0,text width=10.6cm] at ([xshift=1.2cm,yshift=-2.9cm]current page.north west) {%
+  \node[anchor=north west,inner sep=0,text width=10.6cm] at ([xshift=1.2cm,yshift=-2.6cm]current page.north west) {%
     {\bfseries\sz{28}{32}\hi Dados}\par\vspace{2pt}
     {\sz{26}{31}\ink um ponto inicial $s$, um ponto final $t$ e polígonos $P_1,\dots,P_k$ no plano\par}\vspace{0.55cm}
     {\bfseries\sz{28}{32}\hi Objetivo}\par\vspace{2pt}
-    {\sz{26}{31}\ink o caminho de $s$ a $t$ de \textbf{menor comprimento} que \textbf{toca} cada $P_i$\par}\vspace{0.55cm}
-    {\sz{22}{27}\muted Visitar é tocar a borda ou atravessar. A ordem e os pontos de contato são escolha nossa.\par}};
+    {\sz{26}{31}\ink o caminho de $s$ a $t$ de \textbf{menor comprimento} que \textbf{toca} cada $P_i$\par}};
   \node[anchor=north east,inner sep=0] at ([xshift=-1.1cm,yshift=-2.55cm]current page.north east) {%
     \begin{tikzpicture}[x=9.4cm,y=9.4cm]\fill[Pale,rounded corners=0.35cm] (-0.05,-0.05) rectangle (1.12,1.05);\input{usp-art-body}
       \node[anchor=south west,inner sep=1pt,font=\sffamily\bfseries\sz{24}{28},text=Ink] (st) at (0.035,0.80) {$s=t$};\draw[Muted,line width=0.8pt] (st.south east)--(\uspsx,\uspsy);
     \end{tikzpicture}};
-  \node[anchor=south west,inner sep=0,text width=11.5cm] at ([xshift=1.2cm,yshift=1.5cm]current page.south west)
-    {\sz{24}{28}\ink\textbf{Exemplo:} um drone no {\bfseries\color{GoldText}IME} e 51 regiões da USP. Rota ótima: \textbf{4,97 km}.};
+  \node[anchor=south west,inner sep=0.28cm,fill=Pale,rounded corners=4pt,text width=11.0cm] at ([xshift=1.2cm,yshift=1.4cm]current page.south west)
+    {\sz{20}{24}\muted\textbf{Exemplo:} drone do {\bfseries\color{GoldText}IME} e 51 regiões da USP\par\vspace{0.12cm}
+     {\bfseries\sz{32}{36}\hi $\approx 10^{104}$ rotas possíveis}\par{\sz{22}{26}\ink Testar todas é inviável.\par}\vspace{0.1cm}
+     {\sz{24}{28}\ink Nosso solver: rota ótima em \textbf{0,23 s}\par}};
   \footerbar{2}
 \end{tikzpicture}
 \newpage
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 3. Método (busca real: caso 17, 5 regiões)
 \input{trace-art}
-\newcommand{\mapbox}[2]{\scalebox{1.0}{\begin{tikzpicture}\draw[#2,rounded corners=3pt,fill=white] (-0.15,-0.15) rectangle (4.55,2.13);\begin{scope}#1\end{scope}\end{tikzpicture}}}
-\newcommand{\stepdot}[1]{\node[circle,fill=Accent,text=white,minimum size=0.85cm,inner sep=0,font=\sffamily\bfseries\sz{22}{24}] at #1}
+\newcommand{\mapbox}[2]{\scalebox{0.85}{\begin{tikzpicture}\draw[#2,rounded corners=3pt,fill=white] (-0.15,-0.15) rectangle (4.55,2.13);\begin{scope}#1\end{scope}\end{tikzpicture}}}
+\newcommand{\stepdot}[1]{\node[circle,fill=Accent,text=white,minimum size=0.8cm,inner sep=0,font=\sffamily\bfseries\sz{22}{24}] at #1}
 \begin{tikzpicture}[remember picture,overlay,
     mframe/.style={draw=Rule,line width=1.2pt},
     mok/.style={draw=Teal,line width=2.4pt},
@@ -92,15 +93,15 @@
     trcap/.style={font=\sffamily\sz{20}{24},inner sep=0,align=center}]
   \fill[white] (current page.south west) rectangle (current page.north east);
   \slidetitle{Como evitar testar todas as rotas?}
-  % árvore real, da esquerda para a direita: raiz -> [4] -> {[3,4] podado, [4,3] ótimo}
-  \node[anchor=north west,inner sep=0] (nr) at ([xshift=1.0cm,yshift=-5.0cm]current page.north west) {\mapbox{\miniRoot}{mframe}};
-  \node[anchor=north west,inner sep=0] (nb) at ([xshift=6.4cm,yshift=-5.0cm]current page.north west) {\mapbox{\miniB}{mframe}};
-  \node[anchor=north west,inner sep=0] (nc) at ([xshift=11.8cm,yshift=-2.8cm]current page.north west) {\mapbox{\miniC}{mcut}};
-  \node[anchor=north west,inner sep=0] (nd) at ([xshift=11.8cm,yshift=-7.2cm]current page.north west) {\mapbox{\miniD}{mok}};
-  \node[trcap,anchor=north,text=Ink] at ([yshift=-3pt]nr.south) {$L=\traceLroot$};
-  \node[trcap,anchor=north,text=Ink] at ([yshift=-3pt]nb.south) {$L=\traceLb$};
-  \node[trcap,anchor=north,text=Muted] at ([yshift=-3pt]nc.south) {$L=\traceLc\ \ge U$: \textbf{poda}};
-  \node[trcap,anchor=north,text=Accent] at ([yshift=-3pt]nd.south) {\bfseries $L=\traceLd = U$: ótimo};
+  % busca real (caso de 5 regiões): raiz -> um passo -> {descartado, ótimo}
+  \node[anchor=north west,inner sep=0] (nr) at ([xshift=1.0cm,yshift=-4.2cm]current page.north west) {\mapbox{\miniRoot}{mframe}};
+  \node[anchor=north west,inner sep=0] (nb) at ([xshift=5.9cm,yshift=-4.2cm]current page.north west) {\mapbox{\miniB}{mframe}};
+  \node[anchor=north west,inner sep=0] (nc) at ([xshift=10.8cm,yshift=-2.55cm]current page.north west) {\mapbox{\miniC}{mcut}};
+  \node[anchor=north west,inner sep=0] (nd) at ([xshift=10.8cm,yshift=-5.9cm]current page.north west) {\mapbox{\miniD}{mok}};
+  \node[trcap,anchor=north,text=Ink] at ([yshift=-3pt]nr.south) {$\ge\traceLroot$};
+  \node[trcap,anchor=north,text=Ink] at ([yshift=-3pt]nb.south) {$\ge\traceLb$};
+  \node[trcap,anchor=north,text=Muted] at ([yshift=-3pt]nc.south) {$\ge\traceLc$: descartado};
+  \node[trcap,anchor=north,text=Accent] at ([yshift=-3pt]nd.south) {\bfseries $\traceLd$: rota ótima};
   \draw[ed] (nr.east) -- (nb.west);
   \draw[ed] (nb.east) -- (nc.west);
   \draw[ed] (nb.east) -- (nd.west);
@@ -108,13 +109,23 @@
   \stepdot{(nb.north west)} {2};
   \stepdot{(nc.north west)} {3};
   % texto: três passos em linguagem simples
-  \foreach \h/\t [count=\i from 0] in {{Estimar}/{Sem visitar nada, o menor caminho é a reta de $s$ a $t$: $L=\traceLroot$.},
-                                       {Ramificar}/{Inserir uma região faz o limite $L$ subir. Testamos cada posição.},
-                                       {Podar}/{Se $L$ passa da melhor rota viável ($U=\traceU$), o ramo some.}} {
-    \node[anchor=north west,inner sep=0,text width=6.9cm] at ([xshift=17.5cm,yshift={-2.8cm-\i*2.9cm}]current page.north west) {\bfseries\sz{26}{30}\hi \the\numexpr\i+1\relax\ \ink\h\par\vspace{2pt}\sz{21}{25}\muted\mdseries \t};
+  \foreach \h/\t [count=\i from 0] in {{Estimar}/{O caminho mais curto possível, mesmo sem visitar tudo.},
+                                       {Acrescentar}/{Uma região por vez, em cada posição possível.},
+                                       {Descartar}/{Se a estimativa já passa da melhor rota conhecida ($\traceU$), o ramo todo é abandonado.}} {
+    \node[anchor=north west,inner sep=0,text width=7.9cm] at ([xshift=16.4cm,yshift={-2.4cm-\i*2.25cm}]current page.north west) {\bfseries\sz{26}{30}\hi \the\numexpr\i+1\relax\ \ink\h\par\vspace{2pt}\sz{21}{25}\muted\mdseries \t};
   }
-  \node[anchor=south west,inner sep=0.2cm,fill=Pale,text width=21.9cm] at ([xshift=1.2cm,yshift=1.3cm]current page.south west)
-    {\sz{23}{27}\ink\bfseries Aqui: 120 ordens, 2 chamadas ao solver convexo. \mdseries Caso com 60 regiões: \hi$10^{117}$ combinações \ink→ \bfseries 0,1 s\mdseries.};
+  % força bruta × nosso método (instância de 60 regiões)
+  \draw[Rule,line width=0.8pt] ([xshift=1.2cm,yshift=-9.5cm]current page.north west) -- ([xshift=-1.2cm,yshift=-9.5cm]current page.north east);
+  \node[anchor=north west,inner sep=0,font=\sffamily\sz{19}{22},text=Muted] at ([xshift=9.2cm,yshift=-9.55cm]current page.north west) {Cálculos};
+  \node[anchor=north west,inner sep=0,font=\sffamily\sz{19}{22},text=Muted] at ([xshift=1.2cm,yshift=-9.55cm]current page.north west) {Instância de 60 regiões};
+  \node[anchor=north west,inner sep=0,font=\sffamily\sz{19}{22},text=Muted] at ([xshift=17.9cm,yshift=-9.55cm]current page.north west) {Tempo};
+  \node[anchor=north west,inner sep=0,font=\sffamily\bfseries\sz{26}{30},text=Muted] at ([xshift=1.2cm,yshift=-10.25cm]current page.north west) {Força bruta};
+  \node[anchor=north west,inner sep=0,font=\sffamily\bfseries\sz{26}{30},text=Muted] at ([xshift=9.2cm,yshift=-10.25cm]current page.north west) {$\approx 10^{117}$};
+  \node[anchor=north west,inner sep=0,font=\sffamily\bfseries\sz{26}{30},text=Muted] at ([xshift=17.9cm,yshift=-10.25cm]current page.north west) {$\approx 10^{100}$ anos$^{*}$};
+  \node[anchor=north west,inner sep=0,font=\sffamily\bfseries\sz{28}{32},text=Teal] at ([xshift=1.2cm,yshift=-11.35cm]current page.north west) {Nosso método};
+  \node[anchor=north west,inner sep=0,font=\sffamily\bfseries\sz{28}{32},text=Teal] at ([xshift=9.2cm,yshift=-11.35cm]current page.north west) {$\approx$ 1,4 mil};
+  \node[anchor=north west,inner sep=0,font=\sffamily\bfseries\sz{28}{32},text=Accent] at ([xshift=17.9cm,yshift=-11.35cm]current page.north west) {0,1 s};
+  \node[anchor=south west,inner sep=0,font=\sffamily\sz{14}{16},text=Muted] at ([xshift=1.2cm,yshift=1.25cm]current page.south west) {* supondo 1 bilhão de rotas testadas por segundo (a idade do universo é $\approx 10^{10}$ anos)};
   \footerbar{3}
 \end{tikzpicture}
 \newpage
@@ -124,10 +135,11 @@
 \begin{tikzpicture}[remember picture,overlay]
   \fill[white] (current page.south west) rectangle (current page.north east);
   \slidetitle{Solver melhorado: mediana de \hi 40,8$\times$ \ink mais rápido}
-  \node[anchor=north west,inner sep=0] at ([xshift=0.9cm,yshift=-2.3cm]current page.north west) {%
+  \node[anchor=north west,inner sep=0,text width=22.8cm] at ([xshift=1.2cm,yshift=-1.95cm]current page.north west) {\sffamily\sz{20}{24}\muted Comparação com \textbf{Fekete et al.} (grupo da TU Braunschweig, Alemanha, 2026), que usam um solver genérico (Gurobi). O nosso é um solver geométrico exato.};
+  \node[anchor=north west,inner sep=0] at ([xshift=0.9cm,yshift=-3.25cm]current page.north west) {%
   \begin{tikzpicture}
   % largura do eixo 15,5 cm / 4,2 unidades = 3,69 cm por unidade log10; cada bin (0,25) = 26,15 pt
-  \begin{axis}[ybar stacked,scale only axis,bar width=26.15pt,width=15.5cm,height=7.9cm,
+  \begin{axis}[ybar stacked,scale only axis,bar width=26.15pt,width=15.5cm,height=6.8cm,
       xlabel={Speedup = tempo de Fekete et al. / nosso tempo},ylabel={Instâncias},
       label style={font=\sffamily\sz{20}{22}},tick label style={font=\sffamily\sz{20}{22}},xticklabel style={yshift=-6pt},yticklabel style={xshift=-6pt},xlabel style={yshift=-18pt},ylabel style={yshift=16pt},
       xmin=-0.6,xmax=3.6,ymin=0,ymax=165,
@@ -147,7 +159,7 @@
     \node[anchor=south east,font=\sffamily\bfseries\sz{20}{23},text=Accent,inner sep=2pt] at (axis cs:\histmedian,146) {mediana $40{,}8\times$};
     \draw[Ink,dashed,line width=2.2pt] (axis cs:\histmean,0) -- (axis cs:\histmean,148);
     \node[anchor=south west,font=\sffamily\bfseries\sz{20}{23},text=Ink,inner sep=2pt] at (axis cs:\histmean,146) {média $106{,}7\times$};
-    \node[rotate=90,font=\sffamily\sz{18}{21},text=Muted,inner sep=0] at (axis cs:-0.3,62) {Fekete mais rápido: 0};
+    \node[rotate=90,font=\sffamily\sz{18}{21},text=Muted,inner sep=0] at (axis cs:-0.3,80) {Fekete mais rápido: 0};
   \end{axis}
   \end{tikzpicture}};
   \node[anchor=north west,inner sep=0,text width=5.4cm] at ([xshift=19.3cm,yshift=-3.3cm]current page.north west)
@@ -164,7 +176,7 @@
   \fill[white] (current page.south west) rectangle (current page.north east);
   \slidetitle{Venha ver o pôster}
   \node[anchor=north west,inner sep=0,text width=13.6cm] at ([xshift=1.2cm,yshift=-3.0cm]current page.north west) {%
-    \foreach \n/\q in {1/{Por que um solver geométrico exato supera um solver genérico?},
+    \foreach \n/\q in {1/{Por que nosso solver geométrico exato vence o solver genérico (Gurobi) de Fekete et al.?},
                        2/{Em quais tipos de instância vencemos menos?},
                        3/{Como a busca evita testar $10^{117}$ combinações?}} {%
       \parbox[t]{1.1cm}{\bfseries\sz{34}{38}\hi\n}\parbox[t]{12.3cm}{\sz{26}{31}\ink\q}\par\vspace{0.7cm}}};

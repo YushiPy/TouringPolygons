@@ -4,21 +4,22 @@
 as regiões são as letras do título, e o caminho colorido é a solução ótima, do
 começo ao fim. Sou o Gabriel, orientado pelo Ernesto Birgin, com bolsa da FAPESP.
 
-**Slide 2 (~25 s).** Formalmente: dados um ponto inicial s, um final t e polígonos
-P₁ a Pₖ, queremos o caminho de s a t de menor comprimento que toca cada
-polígono. Não escolhemos só a ordem, mas também onde tocar. Por exemplo, um drone
-sai do IME e fotografa 51 regiões da USP: a rota ótima tem 4,97 quilômetros.
+**Slide 2 (~25 s).** O problema: dados um ponto inicial s, um final t e polígonos
+P₁ a Pₖ, queremos o caminho de s a t de menor comprimento que toca cada polígono.
+Escolhemos a ordem e onde tocar. Por exemplo, um drone sai do IME e precisa passar
+por 51 regiões da USP: são cerca de 10^104 rotas possíveis, testar todas é
+inviável, e o nosso solver acha a ótima em 0,23 segundos.
 
-**Slide 3 (~30 s).** Testar todas as rotas é impossível: só com 5 regiões já são
-120 ordens. Começamos sem visitar nada: o menor caminho é a reta de s a t, que é um
-limite inferior L. Inserir uma região faz L subir. Uma ordem cujo L passa da melhor
-rota viável U é descartada sem ser explorada. Neste exemplo real, duas chamadas ao
-solver convexo bastam: a segunda já toca todas as regiões e prova o ótimo. Num caso
-com 60 regiões são 10^117 combinações, resolvido em 0,1 s. O resumo cobria ordem
-fixa; depois da submissão, estendemos para ordem livre.
+**Slide 3 (~30 s).** Como? Numa busca em que descartamos ramos inteiros. Em um
+exemplo real de 5 regiões: estimamos o caminho mais curto possível, acrescentamos
+uma região por vez, e abandonamos o ramo que já passa da melhor rota conhecida.
+Na instância de 60 regiões, a força bruta precisaria de 10^117 cálculos, uns 10^100
+anos; nosso método faz cerca de 1,4 mil cálculos, em 0,1 segundo. O resumo cobria
+ordem fixa; depois da submissão, estendemos para ordem livre.
 
-**Slide 4 (~35 s).** Comparamos com o algoritmo de Fekete e colaboradores, que usa
-Gurobi, nas 558 instâncias do artigo deles. No pôster a média era 10,4× e éramos
+**Slide 4 (~35 s).** Comparamos com Fekete e colaboradores, um grupo alemão que
+publicou este ano uma solução com solver genérico, o Gurobi; a nossa é um solver
+geométrico exato. Usamos as 558 instâncias do artigo deles. No pôster a média era 10,4× e éramos
 mais rápidos em 492 de 550. Depois da submissão melhorei o solver: agora a mediana
 é 40,8×, e somos mais rápidos nos 550 casos que ambos resolvem. Também provamos
 558 ótimos contra 550 (está na nota de rodapé). O histograma mostra o speedup de cada instância em escala logarítmica: nenhuma fica à esquerda de 1×.
