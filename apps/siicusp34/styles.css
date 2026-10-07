@@ -6219,7 +6219,11 @@ details:not(.geometry-tools):not(.guided-section)[open]>summary::after {
 }
 
 .speedup-panel {
-	margin-top: 26px;
+	margin-top: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
 }
 
 .speedup-panel[hidden] {
