@@ -171,18 +171,17 @@
       \parbox[t]{1.1cm}{\bfseries\sz{34}{38}\hi\n}\parbox[t]{12.3cm}{\sz{26}{31}\ink\q}\par\vspace{0.7cm}}};
   \node[anchor=north,inner sep=0,text width=8.4cm,align=center] at ([xshift=-5.4cm,yshift=-2.55cm]current page.north east)
     {\sffamily\bfseries\sz{22}{26}\ink Para ir além, no app:\par\mdseries\sz{20}{24}\muted centenas de instâncias e a simulação passo a passo da busca};
-  \node[anchor=north,inner sep=0] (qr) at ([xshift=-5.4cm,yshift=-4.7cm]current page.north east) {\qrcode[level=H,height=6.8cm]{\appurl}};
+  \node[anchor=north,inner sep=0] (qr) at ([xshift=-5.4cm,yshift=-4.55cm]current page.north east) {\qrcode[level=H,height=7.9cm]{\appurl}};
   % marca do app sobre o centro do QR (nível H de correção), como no pôster
   \begin{scope}[shift={(qr.center)}]
-    \fill[white,rounded corners=2pt] (-1.12,-1.12) rectangle (1.12,1.12);
-    \begin{scope}[shift={(-1.0,-1.0)},scale=0.03125]
+    \fill[white,rounded corners=2pt] (-1.3,-1.3) rectangle (1.3,1.3);
+    \begin{scope}[shift={(-1.16,-1.16)},scale=0.03625]
       \fill[Ink,rounded corners=2.5] (0,0) rectangle (64,64);
       \draw[Teal!60!white,line width=4.4pt,line join=round] (32,54) -- (53,14) -- (11,14) -- cycle;
       \draw[Route,line width=3.85pt,line cap=round] (10,28) -- (54,35);
       \fill[white] (10,28) circle[radius=4]; \fill[white] (54,35) circle[radius=4];
     \end{scope}
   \end{scope}
-  \node[anchor=north,inner sep=0,text width=8.6cm,align=center] at ([yshift=-0.1cm]qr.south) {\vspace{0.1cm}\sffamily\bfseries\sz{18}{21}\hi yushipy.github.io/TouringPolygons/\\apps/siicusp34/};
   \footerbar{5}
 \end{tikzpicture}
 \end{document}
