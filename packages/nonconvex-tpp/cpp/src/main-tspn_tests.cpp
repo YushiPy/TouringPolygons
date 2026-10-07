@@ -87,6 +87,8 @@ void check(const Polygons &p) {
             tpp::UnorderedTppSolveOptions ils;ils.primal_ils_fraction=0.02;ils.max_seconds=2;
             ils.primal_ils_block=block;ils.primal_ils_reverse=block>1;ils.primal_ils_kicks=block>1?3:1;
             ils.primal_ils_reheat=block>1;ils.primal_ils_polish=block>1?0.05:0;ils.primal_ils_window=block>1?3:0;
+            if(block>1){ils.max_seconds=std::numeric_limits<double>::infinity();ils.primal_ils_stagnation=100;}
+            ils.primal_ils_swap=block>1;ils.primal_ils_candidates=block>1?2:0;ils.primal_ils_reorder=block>1&&p.size()%2?3:0;
             const auto searched=tpp::tpp_nonconvex_tspn_solve(p,ils);
             require(covered(searched.path,p)&&searched.exact&&std::abs(searched.upper_bound-upper)<=1e-7+1e-9*upper,
                     "Primal ILS keeps a feasible tour and the exhaustive optimum");

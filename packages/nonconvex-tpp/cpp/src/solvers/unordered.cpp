@@ -675,8 +675,10 @@ namespace tpp {
 				// all regions; improve() still validates coverage and length.
 				const auto began=std::chrono::steady_clock::now();
 				const double budget=options.primal_ils_fraction*std::max(0.0,options.max_seconds-elapsed());
-				const auto deadline=began+std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-					std::chrono::duration<double>(std::isfinite(budget)?budget:0.0));
+				// Without a time limit the ILS needs its stagnation stop.
+				const auto deadline=std::isfinite(budget)
+					?began+std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(budget))
+					:options.primal_ils_stagnation>0?std::chrono::steady_clock::time_point::max():began;
 				auto running=[&]{return std::chrono::steady_clock::now()<deadline
 					&&!(options.stop_requested&&options.stop_requested())&&!(control&&control->stopped());};
 				struct Tour {std::vector<size_t> order;Polygon point;double length=0;};
@@ -932,10 +934,12 @@ namespace tpp {
 					best_initial_path=as_path(best);best_initial_order=best.order;best_initial_length=best.length;
 					improve(best_initial_path,"primal_ils",best_initial_order);++result.primal_ils_improvements;
 				}
-				std::mt19937_64 random(0x9e3779b97f4a7c15ULL^n);
+				std::mt19937_64 random((0x9e3779b97f4a7c15ULL^n)+options.primal_ils_seed);
 				const double total=std::max(1e-9,budget);
 				double eta=0.01;size_t stagnation=0;
-				while(running()) {
+				size_t last_best_iteration=0;
+				while(running()&&!(options.primal_ils_stagnation>0
+					&&result.primal_ils_iterations-last_best_iteration>=options.primal_ils_stagnation)) {
 					++result.primal_ils_iterations;
 					// Double bridges: A B C D -> A C B D on positions.
 					Tour trial=current;
@@ -960,7 +964,7 @@ namespace tpp {
 					}
 					if(trial.length<best.length*(1-1e-12)) {
 						if(!(options.primal_ils_polish>0))reorder(trial);
-						best=trial;stagnation=0;
+						best=trial;stagnation=0;last_best_iteration=result.primal_ils_iterations;
 						if(best.length<best_initial_length&&covered(as_path(best))) {
 							best_initial_path=as_path(best);best_initial_order=best.order;best_initial_length=best.length;
 							improve(best_initial_path,"primal_ils",best_initial_order);++result.primal_ils_improvements;

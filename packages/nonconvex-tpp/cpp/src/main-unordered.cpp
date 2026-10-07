@@ -124,8 +124,7 @@ int main(int argc, char **argv) {
 				std::cout << "--no-prepared-visits repeats polygon/path preparation and contact queries for an ablation.\n";
                 std::cout << "TPP ablations: --no-borrow-oracle-geometry, --no-segment-visit-cache, --no-cycle-point-anchor; experimental: --lazy-oracles, --bound-first, --path-dual-reuse, --path-certificate-dual, --path-strong-branching.\n";
 				std::cout << "--relocate-initial optimizes insertion slots and contacts in the initial route.\n";
-				std::cout << "--primal-ils F spends fraction F of the time on an iterated local search for the initial tour.\n";
-				std::cout << "--primal-ils-block L relocates blocks of up to L regions in it (default 1); --primal-ils-reverse also inserts them reversed; --primal-ils-kicks K applies K double bridges per perturbation (default 1); --primal-ils-reheat uses threshold acceptance with restarts; --primal-ils-polish F polishes tours within F of the best with the exact convex oracle, in windows of --primal-ils-window W regions (0: whole tour); --primal-ils-candidates K limits Or-opt gaps to the K closest regions; --primal-ils-swap adds the swap neighbourhood; --primal-ils-reorder W reoptimizes windows of W regions exactly on each new best.\n";
+				std::cout << "--primal-ils F spends fraction F of the time on an iterated local search for the initial tour; tuning (defaults in unordered.h): --primal-ils-block L (Or-opt blocks), --primal-ils-reverse, --primal-ils-candidates K (0: all gaps), --primal-ils-swap, --primal-ils-kicks K, --primal-ils-record (record-to-record instead of reheating), --primal-ils-polish F (0: new bests only), --primal-ils-reorder W (exact windows, 0: off), --primal-ils-window W (contact-only polish without reorder), --primal-ils-stagnation N, --primal-ils-seed S.\n";
 				std::cout << "--interpolated-zero-dual tries a feasible interpolated dual for short contact blocks.\n";
 				return 0;
 			}
@@ -173,10 +172,21 @@ int main(int argc, char **argv) {
 			}
 			if (flag == "--primal-ils-reverse") {options.primal_ils_reverse=true;continue;}
 			if (flag == "--primal-ils-reheat") {options.primal_ils_reheat=true;continue;}
+			if (flag == "--primal-ils-record") {options.primal_ils_reheat=false;continue;}
 			if (flag == "--primal-ils-swap") {options.primal_ils_swap=true;continue;}
 			if (flag == "--primal-ils-candidates") {
 				if (++i >= argc) throw std::invalid_argument("Expected a count after --primal-ils-candidates.");
 				options.primal_ils_candidates=std::stoul(argv[i]);
+				continue;
+			}
+			if (flag == "--primal-ils-seed") {
+				if (++i >= argc) throw std::invalid_argument("Expected a seed after --primal-ils-seed.");
+				options.primal_ils_seed=std::stoull(argv[i]);
+				continue;
+			}
+			if (flag == "--primal-ils-stagnation") {
+				if (++i >= argc) throw std::invalid_argument("Expected a count after --primal-ils-stagnation.");
+				options.primal_ils_stagnation=std::stoul(argv[i]);
 				continue;
 			}
 			if (flag == "--primal-ils-reorder") {
