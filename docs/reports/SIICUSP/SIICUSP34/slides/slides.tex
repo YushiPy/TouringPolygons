@@ -100,7 +100,7 @@
   \node[anchor=north west,inner sep=0] (nd) at ([xshift=10.8cm,yshift=-5.9cm]current page.north west) {\mapbox{\miniD}{mok}};
   \node[trcap,anchor=north,text=Ink] at ([yshift=-3pt]nr.south) {$\ge\traceLroot$};
   \node[trcap,anchor=north,text=Ink] at ([yshift=-3pt]nb.south) {$\ge\traceLb$};
-  \node[trcap,anchor=north,text=Muted] at ([yshift=-3pt]nc.south) {$\ge\traceLc$: descartado};
+  \node[trcap,anchor=north,text=Muted] at ([yshift=-3pt]nc.south) {$\traceLc$: descartado};
   \node[trcap,anchor=north,text=Accent] at ([yshift=-3pt]nd.south) {\bfseries $\traceLd$: rota ótima};
   \draw[ed] (nr.east) -- (nb.west);
   \draw[ed] (nb.east) -- (nc.west);
@@ -108,6 +108,7 @@
   \stepdot{(nr.north west)} {1};
   \stepdot{(nb.north west)} {2};
   \stepdot{(nc.north west)} {3};
+  \node[anchor=north west,inner sep=0,font=\sffamily\sz{16}{19},text=Muted] at ([xshift=1.0cm,yshift=-8.3cm]current page.north west) {Comprimentos relativos ao da rota ótima ($=1$)};
   % texto: três passos em linguagem simples
   \foreach \h/\t [count=\i from 0] in {{Estimar}/{O caminho mais curto possível, mesmo sem visitar tudo.},
                                        {Acrescentar}/{Uma região por vez, em cada posição possível.},
