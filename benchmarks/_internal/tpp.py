@@ -386,6 +386,8 @@ GROUPS: dict[str, dict[str, Command]] = {
 		"compare-threads": Command("ARGS...", "Compare paired 1-thread and multi-thread runs.", module("compare_thread_scaling")),
 		"compare-gaps": Command("ARGS...", "Compare strict and Fekete-equivalent optimality gaps.", module("free_order_gap_comparison")),
 		"free-order-ablation": Command("ARGS...", "Compare solver binaries on identical cases.", module("free_order_ablation")),
+		"free-order-history": Command("[--plan] [--detach]", "Build the 09-21..10-06 free-order revisions and attribute the speedup step by step.",
+			module("free_order_history")),
 		"summarize-free-order": Command("ARGS...", "Compare completed canon runs.", module("summarize_free_order_canon")),
 		"summarize-external": Command("ARGS...", "Compare our run with an external run.", module("summarize_unordered")),
 		"cycle-benchmark": Command("ARGS...", "Compare certified cycle solvers with Gurobi.", module("cycle_benchmark")),
