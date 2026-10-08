@@ -92,6 +92,58 @@ abertas por tamanho e as 25 restantes são de validação. Dados locais:
   racional (ver o contrato). O LB continua sendo o gargalo: 34 das 38 seguem
   abertas aos 600 s, com até 20% de gap nas instâncias de 61–100 regiões.
 
+## free-order-history-2026-10-07
+
+**Formulação.** Mesmo problema e corpus de `free-order-dantzig-2026-10-06`. São
+12 revisões do nosso solver, de `bb1c44a` (base de `fekete-comparison`, 21/09) a
+`8f8241a` (`main` de 06/10), compiladas com o mesmo GCC/C++23 e rodadas por
+`tpp.py free-order-history` (revisão `2e80f4e`) na dantzig (i9-12900K). Amostra
+estratificada de 36 casos: 3/4/5 por fonte nas faixas de 11–20/21–40/41–60
+polígonos, em quantis do tempo de 21/09, excluídos os casos com mais de 60 s em
+21/09 e os com menos de 2 ms em 06/10. Três repetições, uma thread, revisões
+intercaladas por caso, 4 casos simultâneos, cada solver num núcleo P fixo,
+gap `UB ≤ 1,001·LB` (absoluto 0), validação independente 1e-7. As revisões
+anteriores a 01/10 receberam só edições de build: C++26→C++23 e ordem dos
+inicializadores designados, idêntica ao `7c6e29c`.
+
+**Resultado.** As 1296 execuções fecharam o gap e validaram. As chamadas ao
+oráculo foram idênticas entre repetições. Ganho em média geométrica das medianas
+por caso:
+
+| Etapa | Commit | Sobre a anterior | Menos chamadas | Chamadas mais baratas | Parcela do ganho (log) | Sobre 21/09 |
+|---|---|---:|---:|---:|---:|---:|
+| Mergulho a cada expansão + poda de irmãos | `e3ac002` | 1,34× | 1,34× | 1,00× | 9% | 1,34× |
+| Corte dual certificado | `3e1b4eb` | 1,06× | 1,00× | 1,06× | 2% | 1,41× |
+| Cache de polígonos exatos | `0447f77` | 1,11× | 1,00× | 1,11× | 3% | 1,58× |
+| Ciclos certificados no B&B compartilhado | `924e8b6` | 1,05× | 1,00× | 1,05× | 1% | 1,65× |
+| GMP no lugar de `cpp_rational` | `63a5124` | 1,67× | 1,00× | 1,67× | 16% | 2,75× |
+| Certificados intervalares rigorosos | `e759fca` | 1,00× | 1,00× | 1,00× | 0% | 2,76× |
+| Limites intervalares + recuperação filtrada + cache de pares | `d004d64` | 3,89× | 0,99× | 3,93× | 42% | 10,7× |
+| Geometria emprestada, cache por segmento, provas compactas | `31a208b` | 1,59× | 1,00× | 1,59× | 14% | 17,1× |
+| Limites de visita por âncora | `f4c99cb` | 1,08× | 1,00× | 1,08× | 2% | 18,4× |
+| Arena e KKT em inteiros homogêneos (solver de 06/10) | `82cb31e` | 1,26× | 1,00× | 1,26× | 7% | 23,2× |
+| Alocação e conversões | `8f8241a` | 1,10× | 1,00× | 1,10× | 3% | 25,6× |
+
+No total, `bb1c44a` → `8f8241a` deu **25,6×** (IC 95% por bootstrap nos casos:
+22,3–29,5×), com 1,33× menos chamadas e 19,3× menos tempo por chamada. Cerca de
+91% do ganho em escala logarítmica veio do custo por chamada. Por faixa:
+11–20 deu 18,0×, 21–40 deu 27,7× e 41–60 deu 29,8×. A divisão por data ficou
+assim: de 21/09 a `e759fca` (02/10), 2,76× (1,34× em chamadas, 2,06× por
+chamada); de `e759fca` a `82cb31e`, 8,4×, todo por chamada. A rodada local de
+02/10 (`fekete-full-1h-8workers-20261002`) não usou `e759fca` puro: suas linhas
+trazem `oracle_interval_bound_calls`, contador que só existe a partir de
+`d004d64`. Isso explica a divisão antiga, de 4,5× por chamada até 02/10.
+
+**Limitações.** A dantzig estava carregada (load average ~19). Em quase todas
+as execuções, o outro hyperthread do núcleo estava ocupado, o que infla os
+tempos absolutos: os de 06/10 ficaram 1,27× mais lentos que na comparação de
+06/10. As razões ficaram estáveis: entre repetições, cada etapa variou no máximo
+±4%, e o total ficou em 25,4×, 26,4× e 25,6×. A amostra exclui os casos acima de
+60 s em 21/09, onde o ganho tende a ser maior. Os ganhos por etapa são
+sequenciais e dependem das etapas anteriores. O checkout da dantzig estava sujo
+(`dirty`). Dados brutos em `experiments/free-order-history` do workspace da
+dantzig.
+
 ## free-order-dantzig-2026-10-06
 
 **Formulação.** TPP euclidiano de ordem livre, extremos fixos, polígonos simples;

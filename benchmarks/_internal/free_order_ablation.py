@@ -17,6 +17,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+import cpu_affinity
 from benchmark_cases import read_encoded_cases
 from unordered_runner import run_unordered_solver
 from unordered_validation import validate_path
@@ -32,6 +33,8 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument('--repeats', type=int, default=1)
     parser.add_argument('--workers', type=int, default=1,
                         help='Concurrent instances; solver variants for one case remain sequential.')
+    parser.add_argument('--cpu-affinity', choices=cpu_affinity.MODES, default='off',
+                        help='Pin each solver process to a whole idle performance core (Linux; see cpu_affinity.py).')
     parser.add_argument('--resume', action='store_true',
                         help='Reuse exact rows already present in --output and rerun unfinished solver/case pairs.')
     parser.add_argument('--relative-gap', type=float)
@@ -83,6 +86,9 @@ def main(argv: list[str] | None = None) -> int:
         'case': args.case, 'limit': args.limit, 'stride': args.stride,
         'timing': 'Solver variants for each case run sequentially; independent cases use the requested worker count. Solver seconds excludes process startup and independent validation.',
     }
+    if args.cpu_affinity != 'off':
+        # Only recorded when used, so earlier outputs stay resumable.
+        metadata['cpu_affinity'] = args.cpu_affinity
     metadata_path = args.output.with_suffix('.meta.json')
     latest_rows: dict[tuple[str, int, str, int], dict] = {}
     if args.resume and args.output.exists():
@@ -107,6 +113,8 @@ def main(argv: list[str] | None = None) -> int:
         cases = cases[::args.stride][:args.limit]
         jobs.extend((suite, case) for case in cases)
 
+    cores = cpu_affinity.CorePool(args.workers, 1, args.cpu_affinity)
+
     def run_case(suite, case):
         case_rows = []
         coordinates = struct.unpack_from('<dddd', case.data)
@@ -121,12 +129,18 @@ def main(argv: list[str] | None = None) -> int:
                 row = {'suite': str(suite), 'case': case.case_index, 'sha256': case.digest,
                        'solver': label, 'binary_sha256': digest, 'repeat': repeat,
                        'polygons': case.polygon_count, 'workers': args.workers}
+                lease = cores.acquire()
                 began = time.perf_counter()
                 try:
-                    row.update(run_unordered_solver(binary, coordinates[:2], coordinates[2:],
-                                                    case.polygons, args.max_calls, args.seconds,
-                                                    [*solver_arguments, *specific_arguments]))
-                    row['process_seconds'] = time.perf_counter() - began
+                    try:
+                        row.update(run_unordered_solver(binary, coordinates[:2], coordinates[2:],
+                                                        case.polygons, args.max_calls, args.seconds,
+                                                        [*solver_arguments, *specific_arguments],
+                                                        on_start=lambda pid: cores.pin(pid, lease)))
+                    finally:
+                        row['process_seconds'] = time.perf_counter() - began
+                        if lease is not None:
+                            row['cpu'] = cores.release(lease)
                     try:
                         row['validation'] = validate_path(coordinates[:2], coordinates[2:],
                                                           case.polygons, row['path'], 1e-7)

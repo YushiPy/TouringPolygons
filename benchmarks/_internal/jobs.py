@@ -71,7 +71,10 @@ def resolve(name: str) -> Path:
 	job = jobs_dir() / name
 	if not (job / "job.json").exists():
 		matches = sorted(jobs_dir().glob(f"*{name}*")) if jobs_dir().exists() else []
-		if len(matches) != 1:
+		if len(matches) > 1:
+			listing = "\n".join(f"  {match.name}" for match in matches)
+			raise SystemExit(f"Job {name!r} is ambiguous; use one of:\n{listing}")
+		if not matches:
 			raise SystemExit(f"Unknown job {name!r}; see 'tpp.py jobs list'.")
 		job = matches[0]
 	return job

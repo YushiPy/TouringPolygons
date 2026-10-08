@@ -581,7 +581,31 @@ python3 benchmarks/tpp.py free-order-ablation \
 Use `--resume` with the same command to reuse exact solver/case results and rerun
 only pairs that did not finish with an optimality proof. The campaign metadata
 must match the existing output; each resume keeps the latest row per pair and
-prints a summary over all preserved results.
+prints a summary over all preserved results. `--cpu-affinity p-cores` fixa cada
+processo do solver num núcleo de performance livre (Linux).
+
+### Ganho por revisão (21/09 → 06/10)
+
+`free-order-history` compila, via `git archive` e sem tocar no checkout, as 12
+revisões listadas em `benchmarks/_internal/free_order_history.py` (de `bb1c44a`,
+base da comparação `fekete-comparison`, até a `main` de 06/10). Em seguida roda
+todas com `free-order-ablation` numa amostra estratificada de 36 casos (11–60
+polígonos, 3 repetições, gap `UB ≤ 1,001·LB`, uma thread, variantes intercaladas,
+cada solver num núcleo P fixo). Por fim escreve `summary.md`, que atribui o ganho
+a cada etapa e o divide entre menos chamadas ao oráculo e chamadas mais baratas.
+Na dantzig, a partir de um clone completo:
+
+```bash
+python3 benchmarks/tpp.py free-order-history --detach
+```
+
+Use `--plan` para ver revisões, casos e tempo estimado sem rodar nada, e
+`--workers 1` para um único processo. Repetir o comando retoma a execução. Para
+compilar no GCC/C++23, as revisões anteriores a 01/10 recebem duas edições só
+de build, registradas em `plan.json`: o padrão C++26 passa a C++23, e os
+inicializadores designados dos eventos de traço são postos na ordem de
+declaração, como fez `7c6e29c`. Dados ficam em
+`workspace/experiments/free-order-history/`.
 
 Para comparar a tolerância atual do solver com a tolerância equivalente ao
 critério de gap de Fekete (`UB <= 1.001 * LB`):
