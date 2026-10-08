@@ -112,7 +112,11 @@ certificado (135.743 de 27,9 M chamadas).
   afirmação provadamente falsa (até 3,2% acima; caso 132: LB 14.197,9 com um
   caminho de 13.753,7). Em **44 casos (7,9%) o caminho final está mais de 0,1%
   acima do ótimo certificado** (mediana 0,24%, máximo 3,27%). A causa é a poda
-  com valores superestimados, que descarta a ordem ótima. Por fonte: aleatórias
+  com valores superestimados, que descarta a ordem ótima. Por geometria
+  (Shapely, polígonos originais): disjuntos 0/179 (incluindo 19 com fechos
+  convexos que se cruzam), só toques 20/231, sobreposição com área 26/148;
+  todos os erros estão em instâncias com polígonos que se tocam ou se cruzam.
+  Por fonte: aleatórias
   25/160, tesselação 12/78, OSM 7/320. Por tamanho: 4–10 1/128, 11–20 7/136,
   21–40 11/149, 41–60 25/145.
 - **Velocidade.** Certificado/sem certificado (média geométrica): 1,26× nos
