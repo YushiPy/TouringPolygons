@@ -48,6 +48,14 @@ namespace tpp {
 		// Additional feasible dual proposal for short/coincident contact blocks.
 		bool interpolated_zero_dual = false;
         bool retain_binary_dual = false;
+		// Experimental: try tpp_convex_solve_float_certified first in the
+		// certified API (positive gap or finite cutoff); any open call falls
+		// back to the hybrid oracle.
+		bool float_oracle = false;
+		// Experimental: keep the hybrid interval proof, but replace everything
+		// after it (exact replay, KKT, filtered and rational recovery) with the
+		// float oracle's polish; open calls still finish in the hybrid oracle.
+		bool float_recovery = false;
 
 		void reserve(size_t max_polygons, size_t max_total_vertices);
 		ConvexTppWorkspaceView prepare(size_t polygon_count, size_t total_vertices);

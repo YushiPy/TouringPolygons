@@ -11,6 +11,8 @@ namespace tpp {
 		double upper_bound = 0;
 		bool used_fallback = false;
 		bool used_interval_bounds = false;
+		bool used_float_oracle = false;
+		bool float_oracle_fallback = false;
 		bool used_contracted_proposal = false;
 		bool fallback_geometric_path_invalid = false;
 		bool fallback_certificate_gap = false;

@@ -41,6 +41,9 @@ struct ConvexHybridOptions {
     bool retain_rejected_double_candidate = false;
 	bool interpolated_zero_dual = false;
     bool retain_binary_dual = false;
+    // Experimental: when the interval primal-dual proof is enabled but fails,
+    // return before any exact replay or recovery (stopped_after_interval).
+    bool stop_after_interval = false;
 };
 
 struct ConvexHybridStats {
@@ -97,6 +100,7 @@ struct ConvexHybridResult {
     double lower_bound = 0;
     double upper_bound = 0;
     bool cutoff_pruned = false;
+    bool stopped_after_interval = false;
     ConvexHybridBackend backend = ConvexHybridBackend::DoubleDisjoint;
     ConvexFallbackReason fallback_reason = ConvexFallbackReason::None;
     ConvexHybridStats stats;

@@ -111,6 +111,12 @@ namespace tpp {
 		// contact bounds its distance from above. Same branching decisions.
 		bool visit_upper_bounds = true;
 		bool interpolated_zero_dual = false;
+		// Experimental fixed-endpoint oracle without rational arithmetic
+		// (tpp_convex_solve_float_certified); open calls use the hybrid oracle.
+		bool float_oracle = false;
+		// Experimental: hybrid interval proof first, float polish instead of
+		// the exact replay and recoveries.
+		bool float_recovery = false;
         bool oracle_borrow_geometry = true;
         bool oracle_bound_first = false;
         bool lazy_oracles = false;
@@ -187,6 +193,11 @@ namespace tpp {
         bool cycle_point_anchor = true;
         // Diagnostic JSONL, including every in-flight cycle input; empty disables I/O.
         std::string oracle_capture_file;
+        // Sampling for long runs: keep every k-th call (0: none) plus the calls
+        // that took at least this long. The defaults keep every call, written
+        // before it runs; any sampling writes a call only after it returns.
+        std::size_t oracle_capture_every = 1;
+        double oracle_capture_min_seconds = 0;
 	};
 
 	enum class UnorderedTppTermination { Optimal, CallLimit, TimeLimit, NumericalLimit, PortfolioStopped, Interrupted };
@@ -258,6 +269,8 @@ namespace tpp {
 		size_t oracle_dispatch_pair_cache_hits = 0;
 		size_t oracle_dispatch_pair_exact_checks = 0;
 		size_t oracle_interval_bound_calls = 0;
+		size_t oracle_float_calls = 0;
+		size_t oracle_float_fallbacks = 0;
 		size_t oracle_contracted_bound_calls = 0;
 		size_t screened_nodes = 0;
         size_t path_dual_retained = 0, path_dual_cache_hits = 0, path_dual_cache_evictions = 0;

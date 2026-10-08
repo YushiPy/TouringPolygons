@@ -1392,6 +1392,9 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
                 accepted=try_interval_boundary_bound(start,target,input,polygons,options,result,prepared_binary,prepared_memos);
 #endif
             if(accepted){result.stats.total_seconds=elapsed(began);return result;}
+            if(options.stop_after_interval) {
+                result.stopped_after_interval=true;result.stats.total_seconds=elapsed(began);return result;
+            }
         }
 #endif
         replay_began=Clock::now();
@@ -1408,6 +1411,11 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
         result.stats.contact_materialization_seconds+=elapsed(contact_began);
     } catch(const std::exception &) {
         result.fallback_reason=ConvexFallbackReason::LocatorOrRefoldingException;
+#ifdef TPP_HAS_INTERVAL_PRIMAL_DUAL
+        if(options.stop_after_interval&&interval_bounds_enabled(options)&&!replay_began) {
+            result.stopped_after_interval=true;result.stats.total_seconds=elapsed(began);return result;
+        }
+#endif
     }
     if(options.mode==ConvexHybridMode::Unchecked&&result.fallback_reason!=ConvexFallbackReason::None)
         throw std::runtime_error(std::string("Unchecked convex solve failed: ")+to_string(result.fallback_reason));
@@ -1585,6 +1593,34 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
     result.backend=result.stats.disjoint?ConvexHybridBackend::RationalDisjoint:ConvexHybridBackend::RationalIntersection;
     result.lower_bound=rational_lower_bound;result.upper_bound=rational_upper_bound;
     result.stats.total_seconds=elapsed(began);return result;
+}
+
+namespace detail {
+// Binary64 only: dispatch, directional trace, replay and geometric repair.
+// Nothing here is certified; the float oracle proves its own bounds.
+std::vector<Vector2> double_candidate_chain(const Vector2 &start,const Vector2 &target,
+        const std::vector<std::vector<Vector2>> &polygons) {
+    const auto trace=pairwise_disjoint_unchecked_double(polygons)
+        ?solve_binary_search_disjoint_trace_unchecked(start,target,polygons)
+        :solve_intersecting_map_trace_unchecked_double(start,target,polygons);
+    std::vector<std::vector<ConvexArithmeticPoint<double>>> arithmetic;
+    arithmetic.reserve(polygons.size());
+    for(const auto &polygon:polygons) {
+        arithmetic.emplace_back();arithmetic.back().reserve(polygon.size());
+        for(const auto &v:polygon)arithmetic.back().emplace_back(v);
+    }
+    std::vector<std::optional<ConvexArithmeticPoint<double>>> bends;
+    const auto path=replay_trace(start,target,arithmetic,trace,bends);
+    std::vector<Vector2> raw;raw.reserve(path.size());
+    for(const auto &q:path) {
+        const auto v=q.external();
+        if(!v.is_finite())throw std::runtime_error("Nonfinite double candidate");
+        raw.push_back(v);
+    }
+    std::vector<Vector2> chain;
+    if(!certified_detail::repair_contacts(raw,polygons,chain))throw std::runtime_error("Double candidate repair failed");
+    return chain;
+}
 }
 
 ConvexHybridResult tpp_convex_solve_hybrid(const Vector2 &start,const Vector2 &target,

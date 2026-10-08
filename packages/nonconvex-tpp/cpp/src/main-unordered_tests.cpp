@@ -1,5 +1,7 @@
 #include "tpp/nonconvex/unordered.h"
 #include "tpp/convex/certified.h"
+#include "tpp/convex/float_oracle.h"
+#include "tpp/convex/hybrid.h"
 #include "tpp/nonconvex/decomposition.h"
 #include "solvers/unordered_geometry.h"
 #include "solvers/unordered_bounds.h"
@@ -13,6 +15,7 @@
 #include <iostream>
 #include <numeric>
 #include <random>
+#include <sstream>
 #include <stdexcept>
 
 using namespace tpp;
@@ -660,6 +663,65 @@ void check_relocation_and_zero_dual() {
     }
 }
 
+// The float oracle must bracket the exact optimum with proved bounds, and both
+// experimental modes must close the global gap with routes the hybrid accepts.
+void check_float_oracle() {
+    std::mt19937 rng(20261008);
+    std::uniform_real_distribution<double> offset(-1, 1);
+    std::vector<std::vector<Polygon>> instances = {
+        {{{0,0},{1,0},{1,1},{0,1}},{{1,0},{2,0},{2,1},{1,1}},{{1,1},{2,1},{2,2},{1,2}}},
+        {{{0,0},{2,0},{2,2},{0,2}},{{2,2},{4,2},{4,4},{2,4}},{{2,0},{4,0},{4,2},{2,2}}},
+    };
+    for (size_t trial = 0; trial < 40; ++trial) {
+        std::vector<Polygon> polygons;
+        for (size_t i = 0; i < 3 + trial % 4; ++i) {
+            Polygon p = trial % 2 ? Polygon{{0,0},{2,0},{2,2},{0,2}} : Polygon{{0,0},{2,0},{1,1.5}};
+            const Vector2 shift{1.7 * double(i % 3) + offset(rng), 1.7 * double(i / 3) + offset(rng)};
+            for (auto &v : p) v += shift;
+            if (trial % 3 == 0) std::reverse(p.begin(), p.end());
+            polygons.push_back(std::move(p));
+        }
+        instances.push_back(std::move(polygons));
+    }
+    for (size_t index = 0; index < instances.size(); ++index) {
+        const auto &polygons = instances[index];
+        const Vector2 start{-2, -1}, target = index % 3 ? Vector2{7, 6} : Vector2{-2, -1};
+        const auto exact = tpp_convex_solve_hybrid(start, target, polygons);
+        for (double gap : {1e-3, 1e-7}) {
+            ConvexFloatOracleOptions options;options.max_gap = gap;
+            const auto bounds = tpp_convex_solve_float_certified(start, target, polygons, options);
+            // Bounds must always bracket the optimum; closing is required at the
+            // search's tolerance scale. A much tighter gap may stay open (the
+            // search then falls back to the hybrid oracle).
+            const bool closed = bounds.status == ConvexFloatOracleStatus::GapClosed;
+            if ((gap >= 1e-3 && !closed) || bounds.contacts.size() != polygons.size()
+                || bounds.lower_bound > exact.upper_bound || bounds.upper_bound < exact.lower_bound
+                || (closed && bounds.upper_bound - bounds.lower_bound > gap))
+                { std::ostringstream message; message.precision(17);
+                  message << "Float oracle bounds do not bracket the optimum (instance " << index << ", gap " << gap << "): status "
+                      << to_string(bounds.status) << " L " << bounds.lower_bound << " U " << bounds.upper_bound
+                      << " exact [" << exact.lower_bound << ", " << exact.upper_bound << "] contacts " << bounds.contacts.size()
+                      << " newton " << bounds.newton_iterations << " trace_failed " << bounds.trace_failed;
+                  throw std::runtime_error(message.str()); }
+            for (size_t i = 0; i < polygons.size(); ++i)
+                if (unordered_detail::contact(Polygon{bounds.contacts[i], bounds.contacts[i]}, polygons[i], 0).distance > 0)
+                    throw std::runtime_error("Float oracle contact outside its polygon.");
+        }
+        UnorderedTppSolveOptions reference_options;reference_options.relative_gap = 1e-3;reference_options.absolute_gap = 0;
+        const auto reference = tpp_nonconvex_unordered_solve(start, target, polygons, reference_options);
+        for (int mode = 0; mode < 2; ++mode) {
+            auto options = reference_options;
+            (mode ? options.float_recovery : options.float_oracle) = true;
+            const auto result = tpp_nonconvex_unordered_solve(start, target, polygons, options);
+            if (!result.exact || result.lower_bound > reference.upper_bound + 1e-12 || reference.lower_bound > result.upper_bound + 1e-12)
+                throw std::runtime_error("Float oracle search disagrees with the hybrid search (instance " + std::to_string(index) + ").");
+            for (const auto &polygon : polygons)
+                if (unordered_detail::contact(result.path, polygon, options.feasibility_tolerance).distance > options.feasibility_tolerance)
+                    throw std::runtime_error("Float oracle search returned an infeasible path.");
+        }
+    }
+}
+
 void check_intra_instance_threads() {
 	const Vector2 start{0, 0}, target{28, 0};
 	std::vector<Polygon> polygons;
@@ -796,6 +858,7 @@ int main() {
 		check_progress_reports();
 		check_initial_heuristic_strategies();
 		check_intra_instance_threads();
+		check_float_oracle();
 		check_endpoint_portfolio();
 		check({0, 0}, {10, 0}, {});
 		check({0, 0}, {10, 0}, {{{2, -1}, {3, -1}, {3, 1}, {2, 1}}});
