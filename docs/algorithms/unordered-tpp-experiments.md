@@ -97,6 +97,15 @@ sob teto de chamadas é custo de um trecho de busca, não tempo de solução;
 | Valores exatos do DAG filtrado em posições retidas da arena (atribuição no lugar) | custo/chamada | busca idêntica; filtrado 10,7 → 9,2 s (417); +2,5% (difícil, 1 rep.) | **ativo** | idem |
 | Conversão racional → `double` por truncamento + comparação com o ponto médio | custo/chamada | idêntica ao Boost em 10⁷ casos; +2,9% (difícil, 1 rep.) | **ativo** | idem |
 | Consulta de visita interrompida quando a distância parcial já é menor que a mais distante | custo/nó | busca idêntica; só −6% de consultas por segmento; neutra no 417 | rejeitado | idem |
+| Limite de inserções múltiplas (`--multi-insertion-bound`), caminho e ciclo | LB (TSPN Paula) | validação (25 abertas, 120 s, 3 rep.): +10,7% do gap (24/24 melhoram; +52,5% com `lazy` sem mergulhos); 197 fechadas: mesmos ótimos, 1,03× | opcional (OFF) | [`tspn-paula-lower-bound-2026-10-07`](../../benchmarks/results-saved/README.md#tspn-paula-lower-bound-2026-10-07) |
+| Inserções múltiplas só com alternância (`π = 1/2`) | LB | 50rat99, 30 s: 0,840 → 0,855 (LB/UB) | substituído pelos cortes por largura | este documento, 2026-10-07 |
+| Inserções múltiplas com todas as lacunas e cortes por largura | LB | 50rat99, 30 s: 0,855 → 0,866 | **na opção** | idem |
+| Preços também em ordem decrescente (melhor das duas) | LB | 4.000 chamadas: 0,8089 → 0,8105 (50rat99), 0,8079 → 0,8087 (100i1500); dobra a precificação | rejeitado | idem |
+| Árvores de segmento na precificação | custo do limite | mesma busca (teto de chamadas); custo igual nestes tamanhos | **na opção** (`O(m·k·log m)`) | idem |
+| Ganhos do ciclo com contato barato (vértice mais próximo do ponto médio) e `best_contact` só nas 3 lacunas mais baratas; lacunas que não podem baixar o preço puladas | custo do limite | 100i1500 (`lazy`, 4.000 chamadas): limite 0,75 → 0,68 s em 3,0 s (~2,5% do total), LB praticamente igual | não adotado (ganho pequeno; manteve o binário validado) | este documento, 2026-10-07 |
+| `lazy` + sem mergulhos com incumbente do ILS | LB (TSPN Paula) | validação: +47,0% do gap (24/24); 197 fechadas 1,19× (com inserções múltiplas 1,23×, sem regressão > 1,5×) | opcional (OFF) | [`tspn-paula-lower-bound-2026-10-07`](../../benchmarks/results-saved/README.md#tspn-paula-lower-bound-2026-10-07) |
+| `--insertion-lookahead 8` sobre inserções múltiplas + `lazy` sem mergulhos | LB | igual sem ele (13 abertas) | rejeitado | idem |
+| One-tree, strong branching, `bound-first`, `dual`+`dual-screen` nas abertas da Paula | LB | +0,5%, −7%, +0,5%, +0,4% do gap | rejeitados | idem |
 
 ## Detalhes das tentativas de 2026-10-05
 
@@ -238,3 +247,35 @@ Referência: `main` (`7f4c8dd`). Resumo:
   materialização ~16% (sobretudo aritmética racional de pontos), limite
   intervalar ~14% (laços sobre todos os vértices), certificado ~10%, mapa
   `double` ~9%. Fora do oráculo, consultas de visita ~8%.
+
+## Limite inferior nas abertas da Paula (2026-10-07)
+
+Branch `tspn-lower-bound`, campanha local
+`campaigns/paula-tspn-cycle-20261006/screen/lb`; resumo em
+[`results-saved/tspn-paula-lower-bound-2026-10-07`](../../benchmarks/results-saved/README.md#tspn-paula-lower-bound-2026-10-07).
+Todas as variantes partem do mesmo incumbente (melhor tour do ILS), então só
+o LB difere.
+
+- **Diagnóstico.** Os fechos convexos quase não se sobrepõem, então a
+  decomposição não é o gargalo: o gargalo é a ordem. A fronteira tem
+  profundidade média ~15. Dobrar o tempo fecha ~1/3 do gap restante. Num nó de
+  11 regiões, a soma das inserções mais baratas das ausentes cobria quase todo
+  o gap até o UB, mas o branching só vê uma região por vez.
+- **Inserções múltiplas.** A primeira versão, só com lacunas alternadas
+  (`π = 1/2`), perdia metade da soma. Na segunda, a perda por adjacência é a
+  largura da região compartilhada, e os cortes por largura deixaram o termo
+  extra em ~0,7 da soma de preços. A ordem gulosa decrescente quase não muda
+  nada. No ciclo de 100 polígonos, o limite custa ~5% do tempo com mergulhos
+  e ~20% com `lazy`, sobretudo em `best_contact` e na precificação (no caminho
+  com pontos, ~1–2% e ~12%).
+- **`lazy` e mergulhos.** Antes eram rejeitados porque atrasavam o
+  incumbente. Com o incumbente vindo do ILS, viraram os maiores ganhos de LB, e
+  mesmo sem ILS aceleram as 197 fechadas (1,19×).
+- **Rejeitados:** one-tree, strong branching, `bound-first`,
+  `dual`+`dual-screen` e `--insertion-lookahead 8` (este fechou o 49lin318 na
+  triagem, mas não acrescenta nada sobre `mln`), além dos preços em ordem
+  decrescente e dos ganhos com contato barato (ver a tabela).
+- **Ainda não tentado:** limites por filho, com a região escolhida fixada na
+  sua lacuna dentro da mesma precificação (k precificações por nó), e um
+  oráculo `double` com certificado para pontos e segmentos no caminho (hoje
+  toda chamada é racional).

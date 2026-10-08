@@ -513,6 +513,19 @@ what closes the gap on the instances with heavily overlapping polygons, where
 consecutive contacts coincide.
 Results and protocol: [`tspn-paula-cycle-2026-10-06`](../../benchmarks/results-saved/README.md#tspn-paula-cycle-2026-10-06).
 
+With that incumbent the certificate is limited by the lower bound alone.
+`--multi-insertion-bound` raises every expanded node's bound with the
+insertion gains of all absent regions under the node's contact-direction
+dual. Gains of non-adjacent gaps add, adjacent gaps lose at most the width of
+their shared region, and a covering dual prices the worst assignment of
+regions to gaps. It works for cycles and anchored paths, and its argument is
+in [`unordered-tpp.md`](unordered-tpp.md#limite-de-inserções-múltiplas-2026-10-07).
+Once the incumbent is near-optimal, diving and eager child evaluation stop
+paying for themselves, so the lower bound also rises with
+`--cycle-optimization lazy --lazy-oracles --dive-interval 0`. All three stay
+opt-in. Measurements:
+[`tspn-paula-lower-bound-2026-10-07`](../../benchmarks/results-saved/README.md#tspn-paula-lower-bound-2026-10-07).
+
 ## Use and validation
 
 ```cpp
