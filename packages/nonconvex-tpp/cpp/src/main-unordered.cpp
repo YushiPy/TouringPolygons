@@ -533,6 +533,12 @@ int main(int argc, char **argv) {
 			<< ",\"oracle_interval_bound_calls\":" << r.oracle_interval_bound_calls
 			<< ",\"oracle_float_calls\":" << r.oracle_float_calls
 			<< ",\"oracle_float_fallbacks\":" << r.oracle_float_fallbacks
+			<< ",\"oracle_rational_calls\":" << r.oracle_rational_calls
+			<< ",\"oracle_exact_replay_calls\":" << r.oracle_exact_replay_calls
+			<< ",\"oracle_filtered_calls\":" << r.oracle_filtered_calls
+			<< ",\"oracle_touching_calls\":" << r.oracle_touching_calls
+			<< ",\"rational_membership_predicates\":" << r.rational_membership_predicates
+			<< ",\"exact_polygon_preparations\":" << r.exact_polygon_preparations
 			<< ",\"oracle_contracted_bound_calls\":" << r.oracle_contracted_bound_calls
 			<< ",\"extended_precision_calls\":" << r.extended_precision_calls
 			<< ",\"oracle_time_limit_calls\":" << r.oracle_time_limit_calls

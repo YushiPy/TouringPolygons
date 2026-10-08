@@ -61,6 +61,8 @@ struct ConvexHybridStats {
     bool touching_disjoint_perturbed = false;
     bool rational_disjoint_directional_recovery = false;
     std::size_t predicate_exact_evaluations = 0;
+    // Polygons converted to exact rationals in this call (workspace cache misses).
+    std::size_t exact_polygon_preparations = 0;
     std::size_t zero_link_witnesses = 0;
     std::size_t dispatch_pair_queries = 0;
     std::size_t dispatch_pair_cache_hits = 0;

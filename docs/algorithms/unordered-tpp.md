@@ -617,6 +617,18 @@ replay exato e das recuperações racionais
 `oracle_float_calls` conta as chamadas fechadas por ele e
 `oracle_float_fallbacks`, as que ficaram abertas e terminaram no oráculo
 híbrido. `--no-float-recovery` restaura o fluxo anterior para ablações.
+No modo caminho, cada chamada fecha de exatamente um jeito:
+`calls = oracle_interval_bound_calls + oracle_float_calls + oracle_rational_calls`.
+As racionais se dividem em `oracle_exact_replay_calls` (replay exato e KKT),
+`oracle_filtered_calls`, `oracle_touching_calls` e `fallback_calls` (solver
+racional completo). Fora delas, `rational_membership_predicates` conta os sinais
+de pertencimento que nem intervalos nem o determinante inteiro decidiram, e
+`exact_polygon_preparations` conta os polígonos convertidos para racional no
+cache do workspace (uma vez por polígono e por worker). No ciclo,
+`oracle_rational_calls` conta as chamadas com recuperação racional.
+Exemplo (caso 156): padrão com 0 chamadas racionais, 4 sinais racionais e 70
+preparações; `--no-float-recovery` com 3.318 chamadas racionais (1.677 replay,
+1.641 filtradas).
 `--oracle-capture FILE` grava as chamadas do oráculo em JSONL;
 `--oracle-capture-every K` e `--oracle-capture-min-seconds S` amostram
 execuções longas, e `tpp-convex-path-oracle-replay` reexecuta as chamadas

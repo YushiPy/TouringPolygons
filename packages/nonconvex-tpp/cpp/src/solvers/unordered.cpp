@@ -198,6 +198,7 @@ namespace tpp {
 		out.dual_cutoff_pruned=solved.status==ConvexCycleStatus::CertifiedBound;
 		out.predicate_exact_evaluations=solved.certificate.exact_predicate_evaluations;
 		out.used_fallback=solved.rational_cycle_recoveries+solved.rational_anchor_recoveries+solved.rational_feature_recoveries>0;
+		out.used_rational=out.used_fallback;
         out.certificate_cutoff_skips=solved.certificate_cutoff_skips;
         out.certificate_interval_uses=solved.certificate_interval_uses;
         out.initial_contact_checks=solved.initial_contact_checks;out.initial_contact_accepts=solved.initial_contact_accepts;
@@ -1337,6 +1338,12 @@ namespace tpp {
 			result.oracle_interval_bound_calls += certified.used_interval_bounds;
 			result.oracle_float_calls += certified.used_float_oracle;
 			result.oracle_float_fallbacks += certified.float_oracle_fallback;
+			result.oracle_rational_calls += certified.used_rational;
+			result.oracle_exact_replay_calls += certified.used_exact_replay;
+			result.oracle_filtered_calls += certified.used_filtered_recovery;
+			result.oracle_touching_calls += certified.used_touching_recovery;
+			result.rational_membership_predicates += certified.rational_membership_predicates;
+			result.exact_polygon_preparations += certified.exact_polygon_preparations;
 			result.oracle_contracted_bound_calls += certified.used_contracted_proposal;
 			result.fallback_geometric_path_invalid_calls += certified.fallback_geometric_path_invalid;
 			result.fallback_certificate_gap_calls += certified.fallback_certificate_gap;
@@ -2381,6 +2388,12 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::oracle_interval_bound_calls);
         sum(&UnorderedTppSolveResult::oracle_float_calls);
         sum(&UnorderedTppSolveResult::oracle_float_fallbacks);
+        sum(&UnorderedTppSolveResult::oracle_rational_calls);
+        sum(&UnorderedTppSolveResult::oracle_exact_replay_calls);
+        sum(&UnorderedTppSolveResult::oracle_filtered_calls);
+        sum(&UnorderedTppSolveResult::oracle_touching_calls);
+        sum(&UnorderedTppSolveResult::rational_membership_predicates);
+        sum(&UnorderedTppSolveResult::exact_polygon_preparations);
         sum(&UnorderedTppSolveResult::oracle_contracted_bound_calls);
         sum(&UnorderedTppSolveResult::fallback_geometric_path_invalid_calls);
         sum(&UnorderedTppSolveResult::fallback_certificate_gap_calls);

@@ -1189,11 +1189,12 @@ struct ConvexHybridCache {
                std::bit_cast<std::uint64_t>(a[i].y)!=std::bit_cast<std::uint64_t>(b[i].y))return false;
         return true;
     }
-    Prepared get(const std::vector<Vector2> &input) {
+    Prepared get(const std::vector<Vector2> &input,std::size_t &prepared) {
         const auto hash=key(input);
         if(const auto it=entries.find(hash);it!=entries.end())
             for(const auto &entry:it->second)
                 if(same_input(input,entry->input))return entry;
+        ++prepared;
         Polygon exact=exact_polygon(input);
         if(next_id==std::numeric_limits<std::uint64_t>::max())
             throw std::overflow_error("Hybrid geometry cache identity overflow");
@@ -1246,7 +1247,7 @@ static ExactPolygons cached_exact_polygons(
     selected.reserve(input.size());
     // Prepared handles survive an eviction during this call. Pair identities
     // are never recycled, including when a polygon is too large to retain.
-    for(const auto &polygon:input)selected.push_back(workspace.hybrid_cache->get(polygon));
+    for(const auto &polygon:input)selected.push_back(workspace.hybrid_cache->get(polygon,stats.exact_polygon_preparations));
     if(workspace.cache_interval_geometry)binary.reserve(input.size());
     if(!workspace.borrow_hybrid_geometry) {
         owned.reserve(selected.size());

@@ -715,6 +715,12 @@ void check_float_oracle() {
             const auto result = tpp_nonconvex_unordered_solve(start, target, polygons, options);
             if (!result.exact || result.lower_bound > reference.upper_bound + 1e-12 || reference.lower_bound > result.upper_bound + 1e-12)
                 throw std::runtime_error("Float oracle search disagrees with the hybrid search (instance " + std::to_string(index) + ").");
+            // Every path-oracle call closes in exactly one way.
+            for (const auto *run : {&result, &reference})
+                if (run->oracle_interval_bound_calls + run->oracle_float_calls + run->oracle_rational_calls != run->calls
+                    || run->oracle_exact_replay_calls + run->oracle_filtered_calls + run->oracle_touching_calls + run->fallback_calls
+                        != run->oracle_rational_calls)
+                    throw std::runtime_error("Oracle call counters do not add up (instance " + std::to_string(index) + ").");
             for (const auto &polygon : polygons)
                 if (unordered_detail::contact(result.path, polygon, options.feasibility_tolerance).distance > options.feasibility_tolerance)
                     throw std::runtime_error("Float oracle search returned an infeasible path.");

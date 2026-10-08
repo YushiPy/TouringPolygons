@@ -1,5 +1,6 @@
 #include "tpp/convex/certified.h"
 #include "certified_internal.h"
+#include "binary_certificate.h"
 #include "tpp/convex/float_oracle.h"
 
 #include <algorithm>
@@ -15,6 +16,8 @@ namespace tpp {
 		const std::vector<std::vector<Vector2>> &polygons,
 		DynamicConvexTppWorkspace &workspace, double tolerance, double cutoff, double max_seconds
 	) {
+		const auto rational_predicates_before=detail::rational_membership_predicates;
+		size_t exact_preparations=0;
 		bool float_fallback=false;
 		const bool bounded=tolerance>0||std::isfinite(cutoff);
 		std::optional<ConvexHybridResult> interval_only;
@@ -25,6 +28,7 @@ namespace tpp {
 			first.interpolated_zero_dual=workspace.interpolated_zero_dual;
 			first.retain_binary_dual=workspace.retain_binary_dual;
 			interval_only=tpp_convex_solve_hybrid(start,target,polygons,first,workspace);
+			exact_preparations+=interval_only->stats.exact_polygon_preparations;
 		}
 		if(interval_only&&interval_only->stopped_after_interval) {
 			ConvexFloatOracleOptions float_options;
@@ -44,6 +48,8 @@ namespace tpp {
 				result.certificate_verification_seconds=attempt.trace_certificate_seconds;
 				result.time_limited=max_seconds<=0.0;
 				if(interval_only)result.seconds+=interval_only->stats.total_seconds;
+				result.rational_membership_predicates=detail::rational_membership_predicates-rational_predicates_before;
+				result.exact_polygon_preparations=exact_preparations;
 				return result;
 			}
 			float_fallback=true;
@@ -53,8 +59,9 @@ namespace tpp {
 		options.max_gap=tolerance;
 		options.interpolated_zero_dual=workspace.interpolated_zero_dual;
         options.retain_binary_dual=workspace.retain_binary_dual;
-		auto hybrid=interval_only&&!interval_only->stopped_after_interval?std::move(*interval_only)
-			:tpp_convex_solve_hybrid(start,target,polygons,options,workspace);
+		const bool reuse=interval_only&&!interval_only->stopped_after_interval;
+		auto hybrid=reuse?std::move(*interval_only):tpp_convex_solve_hybrid(start,target,polygons,options,workspace);
+		if(!reuse)exact_preparations+=hybrid.stats.exact_polygon_preparations;
 		CertifiedConvexTppResult result;
 		// The unordered solver consumes the explicit contact-coordinate chain;
 		// retain endpoints and all duplicate contacts in this compatibility API.
@@ -65,6 +72,13 @@ namespace tpp {
 		result.used_fallback=hybrid.stats.rational_fallback;
 		result.used_interval_bounds=hybrid.stats.interval_bounds_certified;
 		result.float_oracle_fallback=float_fallback;
+		result.used_rational=!hybrid.stats.interval_bounds_certified;
+		result.used_filtered_recovery=hybrid.stats.filtered_certified;
+		result.used_touching_recovery=hybrid.stats.touching_disjoint_certified;
+		result.used_exact_replay=result.used_rational&&!hybrid.stats.rational_fallback
+			&&!result.used_filtered_recovery&&!result.used_touching_recovery;
+		result.rational_membership_predicates=detail::rational_membership_predicates-rational_predicates_before;
+		result.exact_polygon_preparations=exact_preparations;
 		result.used_contracted_proposal=hybrid.stats.interval_bounds_contracted;
 		result.dual_cutoff_pruned=hybrid.cutoff_pruned;
 		result.fallback_reason=hybrid.fallback_reason;

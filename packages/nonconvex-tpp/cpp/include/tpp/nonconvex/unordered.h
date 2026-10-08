@@ -270,6 +270,15 @@ namespace tpp {
 		size_t oracle_interval_bound_calls = 0;
 		size_t oracle_float_calls = 0;
 		size_t oracle_float_fallbacks = 0;
+		// Calls closed by an exact-rational stage (paths: exact replay/KKT,
+		// filtered recovery, touching-disjoint recovery, full fallback =
+		// fallback_calls); for cycles, calls with a rational recovery.
+		size_t oracle_rational_calls = 0;
+		size_t oracle_exact_replay_calls = 0;
+		size_t oracle_filtered_calls = 0;
+		size_t oracle_touching_calls = 0;
+		size_t rational_membership_predicates = 0;
+		size_t exact_polygon_preparations = 0;
 		size_t oracle_contracted_bound_calls = 0;
 		size_t screened_nodes = 0;
         size_t path_dual_retained = 0, path_dual_cache_hits = 0, path_dual_cache_evictions = 0;
