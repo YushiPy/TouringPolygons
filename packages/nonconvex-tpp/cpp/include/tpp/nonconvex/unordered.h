@@ -3,6 +3,7 @@
 #include "tpp/geometry/vec2.h"
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <limits>
 #include <optional>
