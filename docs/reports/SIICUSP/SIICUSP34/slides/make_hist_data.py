@@ -29,6 +29,7 @@ out.append(f"\\def\\histmediantext{{{med:.1f}}}".replace(".", "{,}"))
 mean = statistics.mean(ratios)
 out.append(f"\\def\\histmean{{{math.log10(mean):.4f}}}  % média aritmética {mean:.1f}x")
 out.append(f"\\def\\histmeantext{{{mean:.1f}}}\\def\\histcount{{{len(rows)}}}".replace(".", "{,}"))
+out.append("\\def\\histmintext{" + f"{min(ratios):.1f}".replace(".", "{,}") + "}\\def\\histmaxtext{" + f"{max(ratios):,.0f}".replace(",", ".") + "}")
 for fam, tag in (('OSM', 'OSM'), ('random', 'RANDOM'), ('tessellation', 'VORONOI')):
     out.append(f"\\def\\histn{tag}{{{sum(r['source'] == fam for r in rows)}}}")
 for fam in ("OSM", "random", "tessellation"):

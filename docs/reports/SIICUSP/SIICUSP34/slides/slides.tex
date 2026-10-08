@@ -76,7 +76,7 @@
   \node[anchor=south west,inner sep=0.28cm,fill=Pale,rounded corners=4pt,text width=11.0cm] at ([xshift=1.2cm,yshift=1.6cm]current page.south west)
     {\sz{20}{24}\muted\textbf{Exemplo:} drone do {\bfseries\color{GoldText}IME} e 51 regiões da USP\par\vspace{0.12cm}
      {\bfseries\sz{32}{36}\hi $\approx 10^{104}$ rotas possíveis}\par{\sz{22}{26}\ink Testar todas é inviável.\par}\vspace{0.1cm}
-     {\sz{24}{28}\ink Nosso solver: rota ótima em \textbf{0,23 s}\par}};
+     {\sz{24}{28}\ink Nosso solver: rota ótima em \textbf{$<0{,}5$ s}\par}};
   \footerbar{2}
 \end{tikzpicture}
 \newpage
@@ -164,6 +164,7 @@
   \end{tikzpicture}};
   \node[anchor=north west,inner sep=0,text width=5.4cm] at ([xshift=19.3cm,yshift=-3.3cm]current page.north west)
     {{\bfseries\sz{60}{62}\hi 112$\times$}\par\vspace{2pt}{\sz{24}{28}\ink\bfseries média do speedup\par\vspace{0.25cm}\mdseries\muted (mediana: \histmediantext$\times$)}\par\vspace{0.7cm}
+     {\sz{20}{24}\ink\bfseries Mais rápido em todas as instâncias:\par\mdseries de \histmintext$\times$ a \histmaxtext$\times$}\par\vspace{0.5cm}
      {\sz{18}{22}\muted No pôster: média 10,4$\times$}};
   \node[anchor=south west,inner sep=0,text width=22.8cm] at ([xshift=1.2cm,yshift=1.3cm]current page.south west)
     {\sffamily\sz{16}{19}\muted Solver atualizado após o pôster. \histcount\ casos fechados por ambos; nos 5 restantes o Fekete et al. não terminou (nosso solver é mais rápido nos 558). Uma thread, sem limite de tempo, gap alvo de 0,1\,\%. Intel i9-12900K.};
@@ -177,7 +178,7 @@
   \slidetitle{Venha ver o pôster}
   \node[anchor=north west,inner sep=0,text width=13.6cm] at ([xshift=1.2cm,yshift=-3.0cm]current page.north west) {%
     \foreach \n/\q in {1/{Por que nosso solver geométrico exato vence o solver genérico (Gurobi) de Fekete et al.?},
-                       2/{Em quais tipos de instância vencemos menos?},
+                       2/{Em quais tipos de instância vencemos menos e mais?},
                        3/{Como a busca evita testar $10^{117}$ combinações?}} {%
       \parbox[t]{1.1cm}{\bfseries\sz{34}{38}\hi\n}\parbox[t]{12.3cm}{\sz{26}{31}\ink\q}\par\vspace{0.7cm}}};
   \node[anchor=north,inner sep=0,text width=8.4cm,align=center] at ([xshift=-5.4cm,yshift=-2.55cm]current page.north east)
