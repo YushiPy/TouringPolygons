@@ -31,6 +31,24 @@ nas campanhas locais (`benchmarks/workspace/`).
   23–29% das amostras em 417/419; a recuperação inteira (mapa, replay e
   certificado) é ~50% do oráculo no 417.
 
+## Ganho acumulado por revisão (21/09 → 06/10)
+
+Medição limpa (`tpp.py free-order-history`): mesma máquina e compilador para as
+12 revisões, 36 casos estratificados e 3 repetições. Resumo em
+[`free-order-history-2026-10-07`](../../benchmarks/results-saved/README.md#free-order-history-2026-10-07).
+De `bb1c44a` a `8f8241a`: 25,6× (1,33× menos chamadas, 19,3× por chamada).
+Parcelas do ganho em escala log:
+
+- **Oráculo, 03/10 (`d004d64`), 42%:** limites intervalares, recuperação
+  filtrada e cache de pares.
+- **GMP, 30/09, 16%:** substituiu o `cpp_rational` do Boost.
+- **Geometria, 03/10, 14%.**
+- **Busca, 23/09, 9%:** mergulho a cada expansão e poda de irmãos. É a única
+  etapa que reduz chamadas.
+- **Aritmética homogênea e arena, 05/10, 7%.**
+- **Demais etapas:** ≤ 3% cada. Os certificados intervalares rigorosos
+  (`e759fca`) não mudam o tempo.
+
 ## Protocolo padrão
 
 `benchmarks/tpp.py free-order-ablation`, corpus
