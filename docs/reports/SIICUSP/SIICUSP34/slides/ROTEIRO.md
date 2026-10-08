@@ -12,7 +12,7 @@ solver acha a ótima em 0,23 segundos.
 **Slide 3 (~25 s).** Como? Com branch and bound. Começamos com uma rota rápida, o vizinho mais próximo,
 só como referência. Depois montamos rotas região por região e abandonamos qualquer
 rota parcial já pior que a melhor conhecida. Na instância de 60 regiões, a força
-bruta precisaria de 10^117 cálculos; nós fazemos cerca de 1,4 mil, em 0,1 segundo.
+bruta precisaria de 10^117 cálculos; nós fazemos cerca de 2 mil, em 0,1 segundo.
 Isso vale também para a ordem livre, novidade desde o resumo.
 
 **Slide 4 (~30 s).** Comparamos com Fekete e colaboradores, um grupo alemão que
