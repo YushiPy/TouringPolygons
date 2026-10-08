@@ -151,7 +151,7 @@ void check(const Polygons &p) {
             ++portfolio_limited;
         }
     }
-    for(int mode=0;mode<16;++mode) {
+    for(int mode=0;mode<18;++mode) {
         tpp::UnorderedTppSolveOptions optimized;
         optimized.sequence_storage=tpp::UnorderedSequenceStorage::Deltas;
         optimized.cycle_cache=mode==0||mode==13;
@@ -169,6 +169,8 @@ void check(const Polygons &p) {
         optimized.cycle_share_bounds=mode==12||mode==13;
         optimized.cycle_proposal_bound=mode==14||mode==13;
         optimized.cycle_primal_starts=mode==15||mode==13;
+        optimized.multi_insertion_bound=mode>=16||mode==13;
+        if(mode==17){optimized.cycle_lazy=true;optimized.dive_interval=0;}
         if(mode==12)optimized.portfolio=true;
         for(size_t cap:{size_t(1),size_t(3),std::numeric_limits<size_t>::max()}) {
             optimized.max_calls=cap;
@@ -319,6 +321,71 @@ void insertion_bounds() {
             for(size_t i=0;i<n;++i)dual.emplace_back(tpp::ConvexRational(int(rng()%3)-1)/2,tpp::ConvexRational(int(rng()%3)-1)/2);
             const auto reused=tpp::unordered_detail::insertion_lower_bounds(hints,refs,inserted,true,dual);
             for(size_t i=0;i<n;++i)require(reused[i]>=bounds[i]&&reused[i]<=optima[i],"Inherited subunit dual remains a valid stronger bound");
+        }
+    }
+}
+// The multi-insertion bound must stay below the optimum of every completion
+// of a partial order, for arbitrary reference contacts (including coincident
+// ones). Completions are enumerated: every interleaving of the missing regions
+// into the fixed order, each solved exactly by the convex cycle oracle.
+size_t multi_insertion_checks=0;
+void multi_insertion_bounds() {
+    std::mt19937 rng(71007);std::uniform_int_distribution<int> coord(-8,8),kind(0,2);
+    auto region=[&] {
+        const double x=coord(rng),y=coord(rng);
+        switch(kind(rng)) {
+            case 0: return Polygon{{x,y}};
+            case 1: return Polygon{{x,y},{x+1+double(rng()%3),y+double(rng()%3)}};
+            default: return box(x,y,1+double(rng()%2),1);
+        }
+    };
+    auto optimum=[&](const Polygons &order) {
+        const auto r=tpp::tpp_convex_solve_cycle(order);
+        require(r.status==tpp::ConvexCycleStatus::Optimal,"Multi-insertion reference optimum");
+        return r.certificate.lower_bound;
+    };
+    for(size_t trial=0;trial<60;++trial) {
+        const bool path=trial%2;
+        const size_t fixed=path?1+trial%3:3+trial%2,absent=2+trial%2;
+        Polygons sequence,missing;
+        for(size_t i=0;i<fixed;++i)sequence.push_back(region());
+        for(size_t i=0;i<absent;++i)missing.push_back(region());
+        const Vector2 start{double(coord(rng)),double(coord(rng))};
+        const Vector2 target=trial%4==1?start:Vector2{double(coord(rng)),double(coord(rng))};
+        // Smallest completion: interleave the missing regions (in every order)
+        // into the fixed sequence; an open path is the cycle through the two
+        // endpoint singletons minus the constant closing edge.
+        double best=INFINITY;
+        std::vector<size_t> perm(absent);std::iota(perm.begin(),perm.end(),0);
+        do {
+            std::function<void(size_t,size_t,Polygons&)> place=[&](size_t a,size_t b,Polygons &built) {
+                if(a==fixed&&b==absent) {
+                    Polygons cycle=built;
+                    if(path){cycle.insert(cycle.begin(),Polygon{start});cycle.push_back(Polygon{target});}
+                    best=std::min(best,optimum(cycle)-(path?start.distance_to(target):0.0));
+                    return;
+                }
+                // Cycles keep region 0 first (rotation); paths are open.
+                if(a<fixed&&(path||a>0||b==0)){built.push_back(sequence[a]);place(a+1,b,built);built.pop_back();}
+                if(b<absent&&(path||a>0)){built.push_back(missing[perm[b]]);place(a,b+1,built);built.pop_back();}
+            };
+            Polygons built;place(0,0,built);
+        } while(std::next_permutation(perm.begin(),perm.end()));
+        std::vector<const Polygon*> refs,absent_refs;
+        for(const auto &r:sequence)refs.push_back(&r);
+        for(const auto &r:missing)absent_refs.push_back(&r);
+        std::uniform_real_distribution<double> pos(-10,10);
+        for(size_t hint=0;hint<6;++hint) {
+            Polygon contacts;
+            if(path)contacts.push_back(start);
+            for(size_t i=0;i<fixed;++i)contacts.push_back(hint==0?sequence[i].front():Vector2{pos(rng),pos(rng)});
+            if(hint%3==2)std::fill(contacts.begin()+path,contacts.end(),contacts[path]);
+            contacts.push_back(path?target:contacts.front());
+            const double bound=path
+                ?tpp::unordered_detail::path_multi_insertion_bound(tpp::unordered_detail::path_insertion_dual(contacts,refs),contacts,refs,absent_refs)
+                :tpp::unordered_detail::cycle_multi_insertion_bound(contacts,refs,absent_refs);
+            require(bound<=best+1e-9*(1+best),"Multi-insertion bound below every completion ("+std::string(path?"path":"cycle")+")");
+            ++multi_insertion_checks;
         }
     }
 }
@@ -632,6 +699,7 @@ int main() {
         one_tree_bounds();
         portfolio_protocol();
         insertion_bounds();
+        multi_insertion_bounds();
         dyadic_support_exactness();
         replacement_bounds();
         check({});check({box(0,0)});check({box(0,0,10,10),box(12,4,1,2)});
@@ -680,6 +748,6 @@ int main() {
         bool rejected=false;try {tpp::tpp_nonconvex_tspn_solve({box(0,0)},bad);}catch(const std::invalid_argument&){rejected=true;}
         require(rejected,"Open supplied tour rejected");
         std::cout<<"TSPN tests passed: "<<cases<<" exhaustive cases with 1 and 2 threads, "<<interrupted<<" interrupted searches, "
-                 <<portfolio_cases<<" portfolios, "<<portfolio_limited<<" shared-budget searches, "<<decomposed<<" decomposition cases, "<<parallel_batches<<" concurrent oracle batches, 240 arbitrary-hint plus 240 inherited-dual checks; 912 optimization/call-cap comparisons and 38 combined concurrency checks.\n";
+                 <<portfolio_cases<<" portfolios, "<<portfolio_limited<<" shared-budget searches, "<<decomposed<<" decomposition cases, "<<parallel_batches<<" concurrent oracle batches, 240 arbitrary-hint plus 240 inherited-dual checks; 1026 optimization/call-cap comparisons, "<<multi_insertion_checks<<" multi-insertion bound checks and 38 combined concurrency checks.\n";
     } catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}
 }

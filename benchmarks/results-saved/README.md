@@ -19,6 +19,79 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## tspn-paula-lower-bound-2026-10-07
+
+**Formulação.** O mesmo TSPN de ciclo livre e o mesmo protocolo da seção
+[`tspn-paula-cycle-2026-10-06`](#tspn-paula-cycle-2026-10-06): gap relativo
+1e-6, uma thread, `cache,features,root,interval`, macOS arm64 na tomada,
+8 processos simultâneos (10 na rodada de 600 s), um por execução. As variantes
+de uma mesma instância rodam juntas. Alvo: o limite inferior (LB) nas 38
+abertas. Para medir só o LB, as variantes partem do mesmo incumbente
+(`--initial-path`): o melhor tour de uma execução de 120 s de
+`--primal-ils 0.95`, que empata com o melhor da Paula em 32 das 38. A métrica é
+a fração do gap da base que a variante fecha, `(LB_v - LB_b)/(UB - LB_b)`.
+Seleção feita antes de medir: as 13 de desenvolvimento são uma a cada três
+abertas por tamanho e as 25 restantes são de validação. Dados locais:
+`campaigns/paula-tspn-cycle-20261006/screen/lb`.
+
+- **Diagnóstico.** Nas abertas, os fechos convexos quase não se tocam e o
+  polígono cobre 80–90% do seu fecho, então o gargalo é combinatório. A
+  fronteira tem profundidade média de ~15 regiões. Mais tempo ajuda pouco:
+  dobrar o tempo fecha ~1/3 do gap restante (42rat99: 0,891 → 0,914 → 0,935
+  em 30/60/120 s). Com `sample`, o oráculo leva > 95% do tempo, quase todo em
+  aritmética racional; no caminho com pontos, toda chamada usa a construção
+  racional.
+- **Opções existentes (triagem, 13 de desenvolvimento, 120 s).** Sem
+  mergulhos: +29%. `lazy` (filhos na fila com o limite de inserção e oráculo
+  só quando saem): +29%. `--insertion-lookahead 8`: +9%. One-tree, `dual` com
+  `dual-screen` e `bound-first`: ~0. Strong branching: −7%. Com o incumbente do
+  ILS, os mergulhos e a avaliação imediata dos filhos deixam de compensar.
+- **Limite de inserções múltiplas** (`--multi-insertion-bound`, novo; contrato
+  em [`unordered-tpp.md`](../../docs/algorithms/unordered-tpp.md#limite-de-inserções-múltiplas-2026-10-07)).
+  Na triagem: +20% sozinho, +59% com `lazy` sem mergulhos (contra +51% sem
+  ele). Com `--insertion-lookahead 8` por cima, nada muda. Precificar também em
+  ordem decrescente rende +0,2% de LB pelo dobro do custo (rejeitado).
+- **Validação (25 instâncias, 120 s, três repetições; mediana por
+  instância).** As três repetições diferem em no máximo
+  0,0015 de LB/UB. 50pcb442 fecha em todas as variantes; nas outras 24:
+
+  | Variante | LB/UB médio | Gap fechado: média / mediana / mín–máx | Melhora em |
+  |---|---:|---:|---:|
+  | base | 0,854 | — | — |
+  | `m` (`--multi-insertion-bound`) | 0,868 | 10,7% / 8,6% / 4,5–42% | 24/24 |
+  | `ln` (`lazy` sem mergulhos) | 0,917 | 47,0% / 44,4% / 34–73% | 24/24 |
+  | `mln` (os dois) | **0,924** | **52,5% / 47,3% / 36–82%** | 24/24 |
+
+  O limite novo ajuda mais quando há pontos (50kroB100: 42% sozinho) e menos
+  nos ciclos de 100 polígonos (5–9%).
+- **197 fechadas** (60 s, sem tour inicial, uma repetição; correção e
+  regressão): base 196, `m` 197, `ln` 196, `mln` 197 fechadas. Nenhum ótimo
+  diverge e nenhum LB passa do ótimo da base. Em média geométrica, `m` é
+  1,03×, `ln` 1,19× e `mln` 1,23× mais rápido que a base; nenhuma instância
+  ficou mais de 1,5× (+0,05 s) mais lenta. Soma dos tempos: 311 → 257 s.
+- **Pipeline completo nas 38 (600 s, `--primal-ils 0.5`, uma repetição).**
+  Mesmas condições para as duas configurações (10 processos), sem tour
+  fornecido. Antes é `--primal-ils 0.5`; agora é ele mais
+  `--multi-insertion-bound --cycle-optimization lazy --lazy-oracles
+  --dive-interval 0`.
+
+  | | Antes | Agora |
+  |---|---:|---:|
+  | Gap certificado: mín / mediana / máx | 0 / 11,0% / 32,2% | 0 / **5,7%** / **20,5%** |
+  | Mediana em ≤ 60 / 61–99 / 100 polígonos | 5,2% / 18,9% / 14,1% | 0,9% / 8,7% / 8,0% |
+  | Gap fechado (1e-6) | 3 | 4 (+49gil262-7x7) |
+  | Tour ≤ melhor da Paula + 0,005 | 33 | 34 |
+
+  Nas 35 que a configuração antiga não fecha, a nova fecha 36–100% do gap
+  restante (mediana 53%) e melhora todas. Os tours são os mesmos, salvo o
+  ruído do ILS: 100i3000-803 empatou com a Paula desta vez. Todos os tours
+  validaram. Abaixo de 0,4% ficam também 42rat99-6x7 (0,19%), 50lin318 (0,14%)
+  e 50kroB100 (0,35%).
+- **Limitações.** Uma máquina, com 8 a 10 processos simultâneos. A triagem
+  orientou a escolha. O limite novo usa binary64 com margem, não aritmética
+  racional (ver o contrato). O LB continua sendo o gargalo: 34 das 38 seguem
+  abertas aos 600 s, com até 20% de gap nas instâncias de 61–100 regiões.
+
 ## free-order-dantzig-2026-10-06
 
 **Formulação.** TPP euclidiano de ordem livre, extremos fixos, polígonos simples;
@@ -171,7 +244,9 @@ são locais (sem autorização de redistribuição).
   média deles. Com 10 sementes de 120 s nessas 5, o melhor nosso empata com o
   melhor dela em 4; 100i1000-410 fica 0,19% acima. Todos os tours validaram.
   O B&B sozinho (600 s, com ou sem LNS) ficava até 4% acima dela nas de 100
-  regiões. Gap certificado aos 600 s nas abertas: 2–35% (o LB é o limite).
+  regiões. Gap certificado aos 600 s nas abertas: 2–35% (o LB é o limite;
+  caiu para 0–20%, mediana 5,7%, em
+  [`tspn-paula-lower-bound-2026-10-07`](#tspn-paula-lower-bound-2026-10-07)).
 - No TPP de ordem livre com extremos fixos (corpus do Fekete, 11 casos
   difíceis, `--primal-ils 0.5 --primal-ils-stagnation 200`) o ILS não acelera
   o B&B: 0,07–0,82× nos que fecham em até 3 s e 0,91× e 0,99× nos de 16 e 51 s,

@@ -128,6 +128,11 @@ namespace tpp {
         // insertion bounds; prune the node if one has no admissible position.
         // Branching is unchanged. Zero disables (default).
         size_t insertion_lookahead = 0;
+        // Experimental: raise each expanded node's bound with the insertion
+        // gains of all absent regions under the node's contact-direction dual,
+        // priced over every assignment of regions to gaps (paths and cycles;
+        // see docs/algorithms/unordered-tpp.md).
+        bool multi_insertion_bound = false;
         // Experimental: with threads > 1, expand up to `threads` best-bound
         // nodes per round and evaluate all their children in parallel, instead
         // of parallelizing only the siblings of one node (best-bound search only).
@@ -350,6 +355,11 @@ namespace tpp {
 		size_t lookahead_prunes = 0;
 		size_t lookahead_changes = 0;
 		double lookahead_seconds = 0.0;
+		size_t multi_insertion_calls = 0;
+		size_t multi_insertion_improvements = 0;
+		size_t multi_insertion_prunes = 0;
+		double multi_insertion_seconds = 0.0;
+		double multi_insertion_gain = 0.0;
 		size_t window_lns_rounds = 0;
 		size_t window_lns_subproblems = 0;
 		size_t window_lns_improvements = 0;

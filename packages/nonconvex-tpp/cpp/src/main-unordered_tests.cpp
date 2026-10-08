@@ -288,7 +288,7 @@ void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
 		std::cerr << "Expected " << best << ", got " << result.upper_bound << '\n';
 		throw std::runtime_error("Permutation enumeration mismatch.");
 	}
-    for(unsigned variant=0;variant<13;++variant) {
+    for(unsigned variant=0;variant<15;++variant) {
         UnorderedTppSolveOptions candidate;
         // Parallel node rounds (and with the LNS) keep the same guarantees.
         candidate.parallel_nodes=variant>=11;
@@ -306,6 +306,10 @@ void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
         candidate.path_dual_reuse=variant==4||variant==6;
         candidate.path_strong_branching=variant==5||variant==6;
         candidate.path_certificate_dual=variant==7;
+        // Multi-insertion node bounds, alone and with lazy oracles, no dives
+        // and the lookahead.
+        candidate.multi_insertion_bound=variant>=13;
+        if(variant==14){candidate.lazy_oracles=true;candidate.dive_interval=0;candidate.insertion_lookahead=8;}
         for(size_t cap:{size_t(0),size_t(1),size_t(3),size_t(10),size_t(1000000)}) {
             candidate.max_calls=cap;
             const auto changed=tpp_nonconvex_unordered_solve(s,t,polygons,candidate);

@@ -98,36 +98,292 @@ namespace tpp::unordered_detail {
 		return dual;
 	}
 
+	namespace {
+		// The three support terms that inserting one region at gap j changes:
+		// its own term and the replaced terms of its two neighbors.
+		struct PathInsertionTerms { double inserted = 0, before = 0, after = 0; Vector2 contact; };
+		PathInsertionTerms path_insertion_terms(const PathInsertionDual &dual, const Polygon &contacts,
+			const std::vector<const Polygon *> &regions, const Polygon &inserted, size_t j) {
+			const size_t n = regions.size();
+			const auto start = contacts.front(), target = contacts.back();
+			auto direction = [](Vector2 delta) {
+				const double length = delta.length();
+				return length == 0 ? Vector2{} : delta / length;
+			};
+			auto support = [&](const Polygon &polygon, Vector2 normal) {
+				double value = std::numeric_limits<double>::infinity();
+				for (auto vertex : polygon) value = std::min(value, (vertex - start).dot(normal));
+				return value;
+			};
+			const auto &directions = dual.directions;
+			const auto &supports = dual.supports;
+			PathInsertionTerms terms;
+			terms.contact = best_contact(contacts[j], contacts[j + 1], inserted, inserted.front());
+			const auto left = direction(terms.contact - contacts[j]), right = direction(contacts[j + 1] - terms.contact);
+			terms.inserted = support(inserted, left - right);
+			if (j) terms.before = support(*regions[j - 1], directions[j - 1] - left) - supports[j - 1];
+			if (j < n) terms.after = support(*regions[j], right - directions[j + 1]) - supports[j];
+			else terms.after = (target - start).dot(right - directions.back());
+			return terms;
+		}
+	}
+
 	double path_insertion_bound_at(const PathInsertionDual &dual, const Polygon &contacts,
 		const std::vector<const Polygon *> &regions, const Polygon &inserted, size_t j, Vector2 *insertion_contact) {
 		const size_t n = regions.size();
 		if (contacts.size() != n + 2 || inserted.empty() || dual.directions.size() != n + 1 || j > n)
 			throw std::invalid_argument("Invalid insertion-bound reference path.");
 		const auto start = contacts.front(), target = contacts.back();
+		double scale = dual.scale;
+		for (auto v : inserted) scale = std::max(scale, start.distance_to(v));
+		const double safety = 1e-12 * scale * (n + 2);
+		const auto terms = path_insertion_terms(dual, contacts, regions, inserted, j);
+		if (insertion_contact) *insertion_contact = terms.contact;
+		long double bound = dual.value + terms.inserted;
+		// Inserting one region changes just its own support term and those
+		// of its two neighbors. All other terms are reused from the parent.
+		if (j) bound += terms.before;
+		bound += terms.after;
+		return std::max(start.distance_to(target), double(bound) - safety);
+	}
+
+	namespace {
+		// Shared by open paths and cycles. gain[r * gaps + j] >= 0 is the dual
+		// gain when region r is the only visit added to gap j; width[j] is the
+		// width of the region between gaps j and j+1 (cyclically when cyclic)
+		// along its parent normal.
+		//
+		// Every completion puts each missing region in some gap, and
+		// shortcutting a gap to one of its regions keeps a valid dual. Let w_j
+		// be the largest gain in gap j. Gains of non-adjacent gaps change
+		// disjoint support terms, so they add up. When gaps j and j+1 both
+		// change, the shared region's term is support(R, X + Y - Z), where X and
+		// Y are the two changed summands and Z its parent normal; this is at
+		// least support(X) + support(Y) - max_R Z.v, so relative to the
+		// separate gains it loses at most the width of R along Z (zero for a
+		// point). Hence, for any random set I of gaps with marginals pi_j, the
+		// dual value is at least
+		//   D + sum_j pi_j w_j - sum_j P(j, j+1 in I) width_j.
+		// Prices p_r with sum_{r: gain[r][j] <= t} p_r <= pi_j t for every gap
+		// j and threshold t give pi_j w_j >= the prices assigned to j, so the
+		// first sum is at least sum_r p_r for every completion. Prices are set
+		// greedily, regions with the smallest cheapest weighted gain first.
+		long double multi_insertion_extra(const std::vector<long double> &gain, size_t m, size_t gaps,
+			const std::vector<long double> &width, bool cyclic) {
+			long double single = 0;
+			for (size_t r = 0; r < m; ++r)
+				single = std::max(single, *std::min_element(gain.begin() + r * gaps, gain.begin() + (r + 1) * gaps));
+			std::vector<std::vector<size_t>> sorted(gaps);
+			std::vector<std::vector<size_t>> rank(gaps, std::vector<size_t>(m));
+			for (size_t j = 0; j < gaps; ++j) {
+				auto &order = sorted[j];
+				order.resize(m);
+				for (size_t r = 0; r < m; ++r) order[r] = r;
+				std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) { return gain[a * gaps + j] < gain[b * gaps + j]; });
+				for (size_t s = 0; s < m; ++s) rank[j][order[s]] = s;
+			}
+			// Per gap, the slack weight_j * gain(s) - prefix_j(s) of the s-th
+			// smallest gain, with range addition and range minimum.
+			struct SlackTree {
+				size_t size = 0;
+				std::vector<long double> low, pending;
+				void build(const std::vector<long double> &values) {
+					size = values.size();
+					low.assign(4 * size, 0);
+					pending.assign(4 * size, 0);
+					build(1, 0, size, values);
+				}
+				void build(size_t node, size_t a, size_t b, const std::vector<long double> &values) {
+					if (b - a == 1) { low[node] = values[a]; return; }
+					const size_t mid = (a + b) / 2;
+					build(2 * node, a, mid, values);
+					build(2 * node + 1, mid, b, values);
+					low[node] = std::min(low[2 * node], low[2 * node + 1]);
+				}
+				void add(size_t from, long double value, size_t node, size_t a, size_t b) {
+					if (b <= from) return;
+					if (from <= a) { low[node] += value; pending[node] += value; return; }
+					const size_t mid = (a + b) / 2;
+					add(from, value, 2 * node, a, mid);
+					add(from, value, 2 * node + 1, mid, b);
+					low[node] = std::min(low[2 * node], low[2 * node + 1]) + pending[node];
+				}
+				long double minimum(size_t from, size_t node, size_t a, size_t b) const {
+					if (b <= from) return std::numeric_limits<long double>::infinity();
+					if (from <= a) return low[node];
+					const size_t mid = (a + b) / 2;
+					return std::min(minimum(from, 2 * node, a, mid), minimum(from, 2 * node + 1, mid, b)) + pending[node];
+				}
+				void add(size_t from, long double value) { add(from, value, 1, 0, size); }
+				long double minimum(size_t from) const { return minimum(from, 1, 0, size); }
+			};
+			std::vector<SlackTree> slack(gaps);
+			auto price = [&](const std::vector<long double> &weight) {
+				std::vector<long double> values(m);
+				for (size_t j = 0; j < gaps; ++j) {
+					for (size_t s = 0; s < m; ++s) values[s] = weight[j] * gain[sorted[j][s] * gaps + j];
+					slack[j].build(values);
+				}
+				std::vector<size_t> by_cheapest(m);
+				std::vector<long double> cheapest(m, std::numeric_limits<long double>::infinity());
+				for (size_t r = 0; r < m; ++r) {
+					by_cheapest[r] = r;
+					for (size_t j = 0; j < gaps; ++j) cheapest[r] = std::min(cheapest[r], weight[j] * gain[r * gaps + j]);
+				}
+				std::stable_sort(by_cheapest.begin(), by_cheapest.end(), [&](size_t a, size_t b) { return cheapest[a] < cheapest[b]; });
+				long double total = 0;
+				for (size_t r : by_cheapest) {
+					long double p = cheapest[r];
+					for (size_t j = 0; j < gaps && p > 0; ++j) p = std::min(p, slack[j].minimum(rank[j][r]));
+					if (!(p > 0)) continue;
+					total += p;
+					for (size_t j = 0; j < gaps; ++j) slack[j].add(rank[j][r], -p);
+				}
+				return total;
+			};
+			const size_t pairs = width.size();
+			// Gaps next to a cut region alternate within their run (pi = 1/2);
+			// cut regions never pay, and a kept region pays its width times the
+			// probability that both its gaps are in I (1, 1/2 or 0). When every
+			// gap of an odd cycle alternates, one pair must coincide: it is put
+			// where it pays least, half the time.
+			auto evaluate = [&](const std::vector<char> &cut) {
+				std::vector<long double> weight(gaps, 1);
+				for (size_t i = 0; i < pairs; ++i) if (cut[i]) weight[i] = weight[(i + 1) % gaps] = 0.5L;
+				long double paid = 0;
+				bool all_half = true;
+				for (auto w : weight) all_half = all_half && w < 1;
+				for (size_t i = 0; i < pairs; ++i) if (!cut[i]) {
+					const bool left = weight[i] < 1, right = weight[(i + 1) % gaps] < 1;
+					paid += left && right ? 0 : left || right ? width[i] / 2 : width[i];
+				}
+				if (cyclic && all_half && gaps % 2) paid += *std::min_element(width.begin(), width.end()) / 2;
+				return price(weight) - paid;
+			};
+			// No cut prices like pi = 1; cutting everything halves those prices.
+			const long double none = evaluate(std::vector<char>(pairs, 0));
+			long double all_widths = 0;
+			for (auto c : width) all_widths += c;
+			// none + all_widths is the unweighted price sum; halving it is the
+			// pure alternation (pi = 1/2 everywhere).
+			const long double alternating = (none + all_widths) / 2
+				- (cyclic && gaps % 2 ? *std::min_element(width.begin(), width.end()) / 2 : 0);
+			long double extra = std::max({single, none, alternating});
+			std::vector<long double> positive;
+			for (auto c : width) if (c > 0) positive.push_back(c);
+			std::sort(positive.begin(), positive.end());
+			if (!positive.empty()) for (long double tau : {0.0L, positive[positive.size() / 2]}) {
+				std::vector<char> cut(pairs);
+				for (size_t i = 0; i < pairs; ++i) cut[i] = width[i] > tau;
+				extra = std::max(extra, evaluate(cut));
+			}
+			return extra;
+		}
+	}
+
+	double path_multi_insertion_bound(const PathInsertionDual &dual, const Polygon &contacts,
+		const std::vector<const Polygon *> &regions, const std::vector<const Polygon *> &missing) {
+		const size_t n = regions.size(), gaps = n + 1, m = missing.size();
+		if (contacts.size() != n + 2 || dual.directions.size() != n + 1)
+			throw std::invalid_argument("Invalid multi-insertion reference path.");
+		const auto start = contacts.front();
+		if (!m || !std::isfinite(double(dual.value))) return -std::numeric_limits<double>::infinity();
+		// Keeping the parent directions in a gap is always allowed, hence the
+		// clamp at zero.
+		std::vector<long double> gain(m * gaps);
+		double scale = dual.scale;
+		for (size_t r = 0; r < m; ++r) {
+			if (missing[r]->empty()) throw std::invalid_argument("Empty missing region");
+			for (auto v : *missing[r]) scale = std::max(scale, start.distance_to(v));
+			for (size_t j = 0; j < gaps; ++j) {
+				const auto terms = path_insertion_terms(dual, contacts, regions, *missing[r], j);
+				long double value = terms.inserted;
+				if (j) value += terms.before;
+				value += terms.after;
+				gain[r * gaps + j] = value > 0 ? value : 0;
+			}
+		}
+		// Region i lies between gaps i and i+1; the endpoints are fixed points.
+		std::vector<long double> width(n);
+		for (size_t i = 0; i < n; ++i) {
+			const auto normal = dual.directions[i] - dual.directions[i + 1];
+			double low = std::numeric_limits<double>::infinity(), high = -low;
+			for (auto v : *regions[i]) { const double value = (v - start).dot(normal); low = std::min(low, value); high = std::max(high, value); }
+			width[i] = std::max(0.0, high - low);
+		}
+		const long double extra = multi_insertion_extra(gain, m, gaps, width, false);
+		// Each gain has the rounding of one insertion bound; prices are sums
+		// and differences of at most m of them.
+		const double safety = 1e-12 * scale * double(n + 2) * double(m + 2);
+		return double(dual.value + extra) - safety;
+	}
+
+	double cycle_multi_insertion_bound(const Polygon &contacts, const std::vector<const Polygon *> &regions,
+		const std::vector<const Polygon *> &missing) {
+		const size_t k = regions.size(), m = missing.size();
+		if (contacts.size() != k + 1) throw std::invalid_argument("Invalid multi-insertion reference cycle.");
+		if (k < 3 || !m) return -std::numeric_limits<double>::infinity();
+		const auto origin = contacts.front();
 		auto direction = [](Vector2 delta) {
 			const double length = delta.length();
 			return length == 0 ? Vector2{} : delta / length;
 		};
 		auto support = [&](const Polygon &polygon, Vector2 normal) {
 			double value = std::numeric_limits<double>::infinity();
-			for (auto vertex : polygon) value = std::min(value, (vertex - start).dot(normal));
+			for (auto vertex : polygon) value = std::min(value, (vertex - origin).dot(normal));
 			return value;
 		};
-		const auto &directions = dual.directions;
-		const auto &supports = dual.supports;
-		double scale = dual.scale;
-		for (auto v : inserted) scale = std::max(scale, start.distance_to(v));
-		const double safety = 1e-12 * scale * (n + 2);
-		const auto point = best_contact(contacts[j], contacts[j + 1], inserted, inserted.front());
-		if (insertion_contact) *insertion_contact = point;
-		const auto left = direction(point - contacts[j]), right = direction(contacts[j + 1] - point);
-		long double bound = dual.value + support(inserted, left - right);
-		// Inserting one region changes just its own support term and those
-		// of its two neighbors. All other terms are reused from the parent.
-		if (j) bound += support(*regions[j - 1], directions[j - 1] - left) - supports[j - 1];
-		if (j < n) bound += support(*regions[j], right - directions[j + 1]) - supports[j];
-		else bound += (target - start).dot(right - directions.back());
-		return std::max(start.distance_to(target), double(bound) - safety);
+		// Link i runs from region i to region i+1. As for open paths, a
+		// zero-length link takes a neighboring direction (any unit-ball vector
+		// is a valid dual); keep the best of the three fills.
+		std::vector<Vector2> raw(k), u(k);
+		for (size_t i = 0; i < k; ++i) raw[i] = direction(contacts[(i + 1) % k] - contacts[i]);
+		std::vector<double> s(k);
+		long double value = -std::numeric_limits<long double>::infinity();
+		for (int fill = 0; fill < 3; ++fill) {
+			auto candidate = raw;
+			if (fill) for (int pass = 0; pass < 2; ++pass) {
+				Vector2 previous;
+				for (size_t step = 0; step < 2 * k; ++step) {
+					const size_t i = fill == 1 ? step % k : (2 * k - 1 - step) % k;
+					if (candidate[i].length_squared() == 0) candidate[i] = previous;
+					else previous = candidate[i];
+				}
+			}
+			std::vector<double> terms(k);
+			long double total = 0;
+			for (size_t i = 0; i < k; ++i) { terms[i] = support(*regions[i], candidate[(i + k - 1) % k] - candidate[i]); total += terms[i]; }
+			if (total > value) { value = total; u = std::move(candidate); s = std::move(terms); }
+		}
+		double scale = 1;
+		for (auto region : regions) for (auto v : *region) scale = std::max(scale, origin.distance_to(v));
+		std::vector<long double> gain(m * k);
+		for (size_t r = 0; r < m; ++r) {
+			const Polygon &inserted = *missing[r];
+			if (inserted.empty()) throw std::invalid_argument("Empty missing region");
+			for (auto v : inserted) scale = std::max(scale, origin.distance_to(v));
+			for (size_t j = 0; j < k; ++j) {
+				const size_t next = (j + 1) % k;
+				const auto point = best_contact(contacts[j], contacts[next], inserted, inserted.front());
+				const auto left = direction(point - contacts[j]), right = direction(contacts[next] - point);
+				long double g = support(inserted, left - right);
+				g += support(*regions[j], u[(j + k - 1) % k] - left) - s[j];
+				g += support(*regions[next], right - u[next]) - s[next];
+				gain[r * k + j] = g > 0 ? g : 0;
+			}
+		}
+		// Gaps j and j+1 share region j+1.
+		std::vector<long double> width(k);
+		for (size_t j = 0; j < k; ++j) {
+			const size_t i = (j + 1) % k;
+			const auto normal = u[j] - u[i];
+			double low = std::numeric_limits<double>::infinity(), high = -low;
+			for (auto v : *regions[i]) { const double x = (v - origin).dot(normal); low = std::min(low, x); high = std::max(high, x); }
+			width[j] = std::max(0.0, high - low);
+		}
+		const long double extra = multi_insertion_extra(gain, m, k, width, true);
+		const double safety = 1e-12 * scale * double(k + 2) * double(m + 2);
+		return double(value + extra) - safety;
 	}
 
 	std::vector<double> path_insertion_bounds(const PathInsertionDual &dual, const Polygon &contacts,

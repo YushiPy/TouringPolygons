@@ -26,6 +26,15 @@ namespace tpp::unordered_detail {
 	double path_insertion_bound_at(const PathInsertionDual &dual, const Polygon &contacts,
 		const std::vector<const Polygon *> &regions, const Polygon &inserted, size_t position,
 		Vector2 *insertion_contact = nullptr);
+	// Valid for every completion of the node: the dual value plus the larger
+	// of the best single-region insertion gain and half of a covering-dual sum
+	// of the gains of all missing regions (hull or piece of each).
+	double path_multi_insertion_bound(const PathInsertionDual &dual, const Polygon &contacts,
+		const std::vector<const Polygon *> &regions, const std::vector<const Polygon *> &missing);
+	// The same bound for a partial cycle (contacts closed, at least three
+	// regions), with its own contact-direction dual in binary64.
+	double cycle_multi_insertion_bound(const Polygon &contacts, const std::vector<const Polygon *> &regions,
+		const std::vector<const Polygon *> &missing);
 	std::vector<double> path_insertion_bounds(const PathInsertionDual &dual, const Polygon &contacts,
 		const std::vector<const Polygon *> &regions, const Polygon &inserted, Polygon *insertion_contacts = nullptr);
 	std::vector<double> insertion_lower_bounds(const Polygon &contacts,

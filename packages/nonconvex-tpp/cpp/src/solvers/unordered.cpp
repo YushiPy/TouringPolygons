@@ -1570,6 +1570,32 @@ namespace tpp {
 				});
 				continue;
 			}
+            if(options.multi_insertion_bound) {
+                // Valid for the whole subtree, so children inherit it.
+                const auto began_multi=std::chrono::steady_clock::now();
+                std::vector<const Polygon *> regions,missing;
+                std::vector<char> in_sequence(n,0);
+                for(auto e:node.sequence) {
+                    regions.push_back(e.piece==none?&hulls[e.polygon]:&pieces[e.polygon][e.piece]);
+                    in_sequence[e.polygon]=1;
+                }
+                for(size_t j=0;j<n;++j)if(!in_sequence[j])missing.push_back(&hulls[j]);
+                ++result.multi_insertion_calls;
+                const double bound=cycle?cycle_multi_insertion_bound(node.path,regions,missing)
+                    :path_multi_insertion_bound(path_insertion_dual(node.path,regions),node.path,regions,missing);
+                result.multi_insertion_seconds+=duration(began_multi);
+                if(bound>node.bound) {
+                    ++result.multi_insertion_improvements;
+                    result.multi_insertion_gain+=bound-node.bound;
+                    node.bound=bound;
+                }
+                if(node.bound>=result.upper_bound-gap()) {
+                    ++result.multi_insertion_prunes;++result.pruned_nodes;++result.pruned_states;++result.bound_prunes;
+                    settled_bound=std::min(settled_bound,node.bound);
+                    queue.restart();
+                    continue;
+                }
+            }
 			size_t chosen = none;
 			double farthest = eps;
             if(!cycle&&options.path_dual_reuse) {
@@ -2371,6 +2397,11 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::lookahead_prunes);
         sum(&UnorderedTppSolveResult::lookahead_changes);
         sum(&UnorderedTppSolveResult::lookahead_seconds);
+        sum(&UnorderedTppSolveResult::multi_insertion_calls);
+        sum(&UnorderedTppSolveResult::multi_insertion_improvements);
+        sum(&UnorderedTppSolveResult::multi_insertion_prunes);
+        sum(&UnorderedTppSolveResult::multi_insertion_seconds);
+        sum(&UnorderedTppSolveResult::multi_insertion_gain);
         sum(&UnorderedTppSolveResult::window_lns_rounds);
         sum(&UnorderedTppSolveResult::window_lns_subproblems);
         sum(&UnorderedTppSolveResult::window_lns_improvements);

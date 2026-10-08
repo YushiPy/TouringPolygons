@@ -434,6 +434,75 @@ Telemetria: `primal_ils_iterations`, `primal_ils_improvements`,
 Avaliação:
 [`tspn-paula-cycle-2026-10-06`](../../benchmarks/results-saved/README.md#tspn-paula-cycle-2026-10-06).
 
+### Limite de inserções múltiplas (2026-10-07)
+
+`--multi-insertion-bound` / `multi_insertion_bound` (desligado): ao expandir
+um nó, eleva seu limite com os ganhos de inserção de **todas** as regiões
+ausentes, não só da escolhida. Vale para caminho e ciclo e é herdado pelos
+filhos, pois vale para toda a subárvore. Se alcança o corte, o nó é podado sem
+chamar o oráculo.
+
+Seja `S` a sequência parcial do nó, com os contatos `q_i` do caminho relaxado,
+e `u_i` as direções unitárias dos elos (um elo de comprimento zero recebe a
+direção vizinha, como em `path_insertion_dual`). Pela dualidade fraca, cada
+elo cumpre `ℓ ≥ u·(b - a)`, e somando obtém-se
+`D(u) = Σ_i min_{v∈C_i} (u_{i-1} - u_i)·v` (com os termos fixos dos extremos
+no caminho). Toda completação do nó mantém `S` nessa ordem e põe cada região
+ausente `r` em alguma lacuna `j`. Atalhar o trecho da lacuna até uma única
+região `r` não aumenta o comprimento (desigualdade triangular), e nesse trecho
+`|x_r - q_j| + |q_{j+1} - x_r| ≥ a·(x_r - q_j) + b·(q_{j+1} - x_r)` para as
+direções `a`, `b` de `q_j` e `q_{j+1}` até o contato heurístico
+`best_contact`. Trocar `u_j` por `(a, b)` muda só três termos: o de `r` e os
+das duas regiões vizinhas. O ganho `g_{rj} ≥ 0` é essa diferença; ele é
+truncado em zero porque manter `u_j` é sempre permitido.
+
+- **Soma.** Lacunas não adjacentes mudam termos disjuntos, então seus ganhos
+  se somam. Quando duas lacunas adjacentes mudam, o termo da região `R`
+  compartilhada vira `suporte(R, X + Y - Z)`, com `Z` a normal do pai. Isso é
+  pelo menos `suporte(X) + suporte(Y) - max_R Z·v`, ou seja, perde no máximo
+  a largura `c` de `R` ao longo de `Z` (zero para um ponto). Para qualquer
+  conjunto aleatório `I` de lacunas com marginais `π_j`, o valor dual é pelo
+  menos `D + Σ_j π_j w_j - Σ P(j, j+1 ∈ I) c`, onde `w_j` é o maior ganho entre
+  as regiões postas na lacuna `j`.
+- **Cobertura.** O adversário escolhe a lacuna de cada região ausente. Preços
+  `p_r ≥ 0` com `Σ_{r: g_{rj} ≤ t} p_r ≤ π_j t` para toda lacuna `j` e todo
+  limiar `t` dão `π_j w_j ≥ Σ_{r em j} p_r`, logo `Σ_j π_j w_j ≥ Σ_r p_r` para
+  qualquer completação. Os preços são gulosos: as regiões em ordem crescente
+  do menor ganho ponderado recebem a maior folga restante. Árvores de segmento
+  por lacuna mantêm `π_j g_j(s) - prefixo_j(s)` com soma em intervalo e mínimo,
+  em `O(m·k·log m)` por estratégia.
+- **Estratégias.** O limite é `D` mais o maior entre: o maior ganho mínimo de
+  uma única região; todas as lacunas (`π = 1`, toda adjacência paga `c`); a
+  alternância pura (`π = 1/2`, sem pares; num ciclo ímpar um par coincide
+  metade das vezes, no `c` mínimo); e "cortes" nas regiões com `c > τ`, para
+  `τ = 0` e para a mediana. As lacunas vizinhas de um corte alternam dentro da
+  sua sequência (`π = 1/2`), e uma região mantida paga `c`, `c/2` ou 0 conforme
+  quantas das suas lacunas alternam.
+- **Aritmética.** É binary64, como os limites de inserção do caminho
+  (`path_insertion_bound_at`), com margem subtraída de
+  `1e-12·escala·(k+2)·(m+2)`, onde a escala é a maior distância à origem. Os
+  ganhos são somas de poucos produtos escalares e os preços são somas e
+  diferenças de até `m` ganhos. O erro de arredondamento fica ordens de
+  grandeza abaixo da margem, mas isto não é a prova racional dos limites de
+  inserção do ciclo. Direções de norma levemente acima de 1 por arredondamento
+  afetam no máximo `ε` vezes o comprimento.
+- **Custo.** `O(m·k)` contatos `best_contact` e suportes por nó expandido, mais
+  três precificações. Com mergulhos, isso é ~5% do tempo no ciclo de 100
+  polígonos e ~1–2% no caminho com pontos. Com `lazy`, que faz uma chamada do
+  oráculo por nó, sobe para ~20% e ~12% (`sample`: `best_contact` e as árvores
+  de segmento).
+- **Telemetria:** `multi_insertion_calls`, `_improvements`, `_prunes`,
+  `_seconds` e `_gain` (soma das elevações).
+
+Testes: `tpp-tspn-tests` compara o limite com o ótimo exaustivo de todas as
+completações de 60 sequências parciais aleatórias (pontos, segmentos e
+caixas; caminho e ciclo; contatos arbitrários e coincidentes; 360
+verificações, 87 delas a menos de 20% do ótimo) e acrescenta dois modos às
+comparações exaustivas da busca (sozinho, e com `lazy` sem mergulhos). Em
+`tpp-unordered-tests`, dois modos novos fazem o mesmo para o caminho. Os
+testes passam também sob ASan/UBSan. Avaliação:
+[`tspn-paula-lower-bound-2026-10-07`](../../benchmarks/results-saved/README.md#tspn-paula-lower-bound-2026-10-07).
+
 ## Certificado convexo e interseções
 
 A API `tpp_convex_solve_certified` delega ao oráculo híbrido seguro descrito em

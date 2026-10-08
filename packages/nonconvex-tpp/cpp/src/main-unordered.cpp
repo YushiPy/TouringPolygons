@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
 				std::cout << "--no-oracle-dispatch-cache repeats exact polygon-pair classification for an ablation.\n";
 				std::cout << "--no-oracle-interval-geometry-cache repeats normalized rational-to-double conversion for an ablation.\n";
 				std::cout << "--no-prepared-visits repeats polygon/path preparation and contact queries for an ablation.\n";
-                std::cout << "TPP ablations: --no-borrow-oracle-geometry, --no-segment-visit-cache, --no-cycle-point-anchor; experimental: --lazy-oracles, --bound-first, --path-dual-reuse, --path-certificate-dual, --path-strong-branching.\n";
+                std::cout << "TPP ablations: --no-borrow-oracle-geometry, --no-segment-visit-cache, --no-cycle-point-anchor; experimental: --lazy-oracles, --bound-first, --path-dual-reuse, --path-certificate-dual, --path-strong-branching, --multi-insertion-bound (paths and cycles).\n";
 				std::cout << "--relocate-initial optimizes insertion slots and contacts in the initial route.\n";
 				std::cout << "--primal-ils F spends fraction F of the time on an iterated local search for the initial tour; tuning (defaults in unordered.h): --primal-ils-block L (Or-opt blocks), --primal-ils-reverse, --primal-ils-candidates K (0: all gaps), --primal-ils-swap, --primal-ils-kicks K, --primal-ils-record (record-to-record instead of reheating), --primal-ils-polish F (0: new bests only), --primal-ils-reorder W (exact windows, 0: off), --primal-ils-window W (contact-only polish without reorder), --primal-ils-stagnation N, --primal-ils-seed S.\n";
 				std::cout << "--interpolated-zero-dual tries a feasible interpolated dual for short contact blocks.\n";
@@ -210,6 +210,7 @@ int main(int argc, char **argv) {
 				options.insertion_lookahead=std::stoul(argv[i]);
 				continue;
 			}
+			if (flag == "--multi-insertion-bound") {options.multi_insertion_bound=true;continue;}
 			if (flag == "--parallel-nodes") {options.parallel_nodes=true;continue;}
 			if (flag == "--window-lns") {options.window_lns=true;continue;}
 			if (flag == "--window-lns-size") {
@@ -426,6 +427,11 @@ int main(int argc, char **argv) {
 			<< ",\"lookahead_prunes\":" << r.lookahead_prunes
 			<< ",\"lookahead_changes\":" << r.lookahead_changes
 			<< ",\"lookahead_seconds\":" << r.lookahead_seconds
+			<< ",\"multi_insertion_calls\":" << r.multi_insertion_calls
+			<< ",\"multi_insertion_improvements\":" << r.multi_insertion_improvements
+			<< ",\"multi_insertion_prunes\":" << r.multi_insertion_prunes
+			<< ",\"multi_insertion_seconds\":" << r.multi_insertion_seconds
+			<< ",\"multi_insertion_gain\":" << r.multi_insertion_gain
 			<< ",\"window_lns_rounds\":" << r.window_lns_rounds
 			<< ",\"window_lns_subproblems\":" << r.window_lns_subproblems
 			<< ",\"window_lns_improvements\":" << r.window_lns_improvements
