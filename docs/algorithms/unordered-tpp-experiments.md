@@ -123,6 +123,8 @@ sob teto de chamadas é custo de um trecho de busca, não tempo de solução;
 | Ganhos do ciclo com contato barato (vértice mais próximo do ponto médio) e `best_contact` só nas 3 lacunas mais baratas; lacunas que não podem baixar o preço puladas | custo do limite | 100i1500 (`lazy`, 4.000 chamadas): limite 0,75 → 0,68 s em 3,0 s (~2,5% do total), LB praticamente igual | não adotado (ganho pequeno; manteve o binário validado) | este documento, 2026-10-07 |
 | `lazy` + sem mergulhos com incumbente do ILS | LB (TSPN Paula) | validação: +47,0% do gap (24/24); 197 fechadas 1,19× (com inserções múltiplas 1,23×, sem regressão > 1,5×) | opcional (OFF) | [`tspn-paula-lower-bound-2026-10-07`](../../benchmarks/results-saved/README.md#tspn-paula-lower-bound-2026-10-07) |
 | `--insertion-lookahead 8` sobre inserções múltiplas + `lazy` sem mergulhos | LB | igual sem ele (13 abertas) | rejeitado | idem |
+| Oráculo só em ponto flutuante (`--float-oracle`): traço `double` + limites intervalares + polimento de barreira | custo/chamada | 0 fallbacks em 6,6 M chamadas; difícil 1,32× (0,76–3,37×), validação 1,54× (0,81–4,24×); 15–25% mais lento onde só há chamadas baratas (sem caches) | opcional (OFF) | [`tpp-float-oracle-2026-10-08`](../../benchmarks/results-saved/README.md#tpp-float-oracle-2026-10-08) |
+| Prova intervalar do híbrido + polimento no lugar do replay exato e das recuperações (`--float-recovery`) | custo/chamada | difícil 1,47× (0,97–3,23×), validação 1,68× (0,99–4,00×); 222/222 fecharam e validaram | opcional (OFF), candidato a padrão | idem |
 | One-tree, strong branching, `bound-first`, `dual`+`dual-screen` nas abertas da Paula | LB | +0,5%, −7%, +0,5%, +0,4% do gap | rejeitados | idem |
 
 ## Detalhes das tentativas de 2026-10-05
@@ -297,3 +299,32 @@ o LB difere.
   sua lacuna dentro da mesma precificação (k precificações por nó), e um
   oráculo `double` com certificado para pontos e segmentos no caminho (hoje
   toda chamada é racional).
+
+## Oráculo sem aritmética racional (2026-10-08)
+
+Branch `oracle-float-polish`; contrato em
+[`certified-convex-oracle.md`](certified-convex-oracle.md#oráculo-em-ponto-flutuante-experimental-2026-10-08);
+campanha local `experiments/float-oracle`. Motivação: o B&B pede a cada
+chamada uma tolerância de `0,25 × gap do nó` (~2,5×10⁻⁴·UB com o gap de 0,1%).
+A aritmética racional só é necessária para provar a estrutura combinatória
+exata (gap zero). Degenerescências como vértices compartilhados mudam a
+estrutura, não o valor ótimo.
+
+- **Replay de chamadas capturadas** (`--oracle-capture-every`, todas as
+  chamadas acima de 0,5 ms mais uma amostra uniforme; 156 completo, 417
+  completo, 419 com 60 s). 55.454 chamadas: todas fecharam só com ponto
+  flutuante, sem par de limites incompatível com o oráculo híbrido. Nas que o
+  híbrido resolve pela recuperação filtrada, mediana de 597 → 102 µs
+  (24 iterações de Newton). Oráculo estimado na execução inteira: 1,6× (156),
+  2,2× (417), 3,0× (419).
+- **Critério de parada do Newton.** Com μ pequeno, a Hessiana da barreira
+  esconde resíduos grandes no decremento de Newton, e o dual sai dele. O limite
+  `−slope < 10⁻³μ` deixava o dual 10⁻⁴ abaixo do ótimo; `10⁻¹⁰μ`, mais aceitar
+  o passo de Newton quando a melhora fica abaixo da resolução da função
+  objetivo, deixa 5×10⁻⁷ e acelerou o replay (417: 7,6 → 1,3 s).
+- **Ponta a ponta** (binário `d854b27`, protocolo padrão, 2 repetições,
+  variantes intercaladas): ver a tabela. O modo só em ponto flutuante perde
+  apenas onde o híbrido já é barato, porque refaz por chamada a normalização e
+  o pertencimento que o híbrido guarda no workspace. Próximo passo: caches no
+  oráculo em ponto flutuante e medição no corpus completo.
+

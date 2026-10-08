@@ -92,6 +92,45 @@ abertas por tamanho e as 25 restantes são de validação. Dados locais:
   racional (ver o contrato). O LB continua sendo o gargalo: 34 das 38 seguem
   abertas aos 600 s, com até 20% de gap nas instâncias de 61–100 regiões.
 
+## tpp-float-oracle-2026-10-08
+
+**Formulação.** TPP de ordem livre com extremos fixos, corpus
+`fekete-comparison/instances.bin`; protocolo padrão de
+`docs/algorithms/unordered-tpp-experiments.md`: gap `UB ≤ 1,001·LB`
+(absoluto 0), uma thread, um processo por vez, variantes intercaladas por caso,
+duas repetições, validação Shapely 1e-7, teto de 900 s (nenhum caso chegou
+perto). Mesmo binário (`d854b27`, branch `oracle-float-polish`, macOS arm64,
+AppleClang, C++23, GMP), com três configurações do oráculo convexo: híbrido
+atual, `--float-oracle` (só ponto flutuante) e `--float-recovery` (prova
+intervalar do híbrido e polimento em ponto flutuante no lugar do replay exato e
+das recuperações). Conjuntos: difícil (19, seed 20261005) e validação
+(18, seed 20261006), os mesmos de 05/10.
+
+**Resultado.** As 222 execuções fecharam o gap e validaram o caminho. Com
+`--float-oracle`, 6,6 M chamadas por repetição usaram só ponto flutuante, com 0
+fallbacks ao híbrido. Média geométrica das medianas por caso:
+
+| Conjunto | Híbrido → `--float-oracle` | Híbrido → `--float-recovery` | Soma dos tempos (híbrido / float / recovery) |
+|---|---:|---:|---:|
+| Difícil (19) | 1,32× (0,76–3,37×) | **1,47×** (0,97–3,23×) | 150,5 / 105,6 / 95,5 s |
+| Validação (18) | 1,54× (0,81–4,24×) | **1,68×** (0,99–4,00×) | 91,2 / 62,0 / 53,6 s |
+
+As duas repetições diferem em menos de 0,5% nas médias. Os maiores ganhos estão
+nos casos dominados pela cauda de chamadas caras (215: 4,0×; 540, 461, 214:
+~3,2×; 419: 2,6–2,8×). `--float-oracle` fica 15–25% mais lento nos casos em que
+quase toda chamada já fecha pela prova intervalar do híbrido (63, 95, 97, 173,
+476, 65); `--float-recovery` não perde em nenhum caso além do ruído
+(mínimo 0,97×). Replay de 55.454 chamadas capturadas (156, 417, 419): todas
+fecharam em ponto flutuante, sem limites incompatíveis com o híbrido.
+
+**Limitações.** Uma máquina (Mac, sem isolamento térmico). Os tempos
+absolutos variaram ~1,5× entre sessões, mas as razões intercaladas ficaram
+estáveis (1,33×/1,34× em sessões diferentes). O conjunto difícil orientou o
+desenvolvimento; a validação foi medida uma única vez. Não houve medição no
+corpus completo nem na dantzig. Os limites são rigorosos no ambiente IEEE
+binary64 verificado por `cycle_interval_environment()`; gaps muito mais
+apertados que os do B&B podem ficar abertos e cair no híbrido.
+
 ## free-order-history-2026-10-07
 
 **Formulação.** Mesmo problema e corpus de `free-order-dantzig-2026-10-06`. São

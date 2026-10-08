@@ -487,6 +487,59 @@ duplicados, orientação invertida, polígonos repetidos, extremos estacionário
 tangência, sobreposição colinear, polígonos finos ou quase colineares e escalas
 de coordenadas muito pequenas e muito grandes.
 
+## Oráculo em ponto flutuante (experimental, 2026-10-08)
+
+`tpp_convex_solve_float_certified` (`tpp/convex/float_oracle.h`,
+`solvers/float_oracle.cpp`) atende ao mesmo contrato de limites do
+oráculo certificado com gap positivo ou cutoff finito, sem aritmética racional.
+Ele não prova otimalidade algébrica; para gap zero continua valendo o oráculo
+híbrido. Etapas:
+
+1. **Limite superior.** Cada contato precisa ser provado dentro do polígono
+   original (fechado; o mesmo conjunto convexo em ordem anti-horária, sem
+   vértices consecutivos repetidos). Os sinais vêm primeiro de intervalos e, se
+   o intervalo contém zero, do determinante exato em inteiros de 128 bits
+   (`dyadic_orientation`). Um sinal não provado conta como "fora"; o contato é
+   então movido uma fração `2^-45 … 2^-10` em direção à média dos vértices e
+   testado de novo. `U` é o comprimento da cadeia somado com arredondamento
+   para cima.
+2. **Limite inferior.** `L = D(u)`, o mesmo dual da seção anterior, avaliado com
+   intervalos. Cada `u_i` proposto é trocado por um vetor binário cuja norma é
+   provada `≤ 1` (`binary_dual_vector`), ou por zero. Pela dualidade fraca,
+   `D(u) ≤ OPT` para quaisquer vetores no disco; nada depende de a proposta ser
+   boa.
+3. **Propostas.** Primeiro o traço direcional em `double` (despacho, mapa,
+   replay e reparo em binary64, sem predicados exatos), com os duais das
+   direções dos elos. Elos de comprimento até `max_gap/(16·(m+2))` emprestam a
+   direção de um vizinho ou de `start→target`, como no certificado intervalar.
+   Se os limites não fecham, um método de barreira logarítmica (Newton sobre os
+   comprimentos suavizados `sqrt(|d|²+μ²)`, sistema tridiagonal por blocos 2×2)
+   parte da candidata e propõe contatos estritamente interiores e os duais
+   `u_i = d_i/sqrt(|d_i|²+μ²)`. No minimizador da barreira,
+   `u_i − u_{i+1} = Σ_f (μ/folga_f)·n_f`, e então
+   `D(u) ≥ comprimento − μ·(elos + faces)` (em coordenadas escaladas). Isso dá
+   o último nível `μ = gap/(2·escala·(elos+faces))`. Cada nível oferece seus
+   limites, que só entram depois das provas 1 e 2.
+4. **Estado.** `GapClosed` (`U−L ≤ max_gap`, subtração dirigida),
+   `CutoffReached` (`L ≥ cutoff`), `Open` ou `Unsupported` (região com menos de
+   três vértices distintos ou área nula, ambiente de arredondamento sem
+   suporte). `Open` e `Unsupported` devolvem limites válidos, mas o chamador
+   precisa do oráculo híbrido para fechar.
+
+No B&B, `--float-oracle` tenta este oráculo primeiro em
+`tpp_convex_solve_certified`. `--float-recovery` mantém a prova intervalar do
+híbrido (com seus caches) e, se ela falha, usa o polimento no lugar de tudo o
+que vem depois (replay exato, KKT, recuperações filtrada e racional;
+`ConvexHybridOptions::stop_after_interval`). Nos dois modos, uma chamada
+`Open` termina no oráculo híbrido. Ambos ficam desligados por padrão.
+
+Limitação: com gaps muito menores que os do B&B (por exemplo `1e-7` absoluto
+em comprimentos ~10), o Newton em binary64 pode parar antes de fechar
+(`check_float_oracle` aceita `Open` nesse caso, mas exige que os limites
+cerquem o ótimo exato). `tpp-convex-path-oracle-replay` reexecuta chamadas
+capturadas com `tpp-unordered --oracle-capture` nos dois oráculos e acusa
+qualquer par de limites incompatível.
+
 ## Validação
 
 ```bash
