@@ -135,7 +135,8 @@ int main(int argc,char **argv) {
             std::cout<<",\"base\":{\"seconds\":";json(std::cout,base_seconds);
             if(base_failed)std::cout<<",\"error\":\""<<base_error<<"\"";
             else {
-                std::cout<<",\"path\":\""<<hybrid_path(base)<<"\",\"cutoff_pruned\":"<<(base.cutoff_pruned?"true":"false")
+                std::cout<<",\"path\":\""<<hybrid_path(base)<<"\",\"disjoint\":"<<(base.stats.disjoint?"true":"false")
+                    <<",\"cutoff_pruned\":"<<(base.cutoff_pruned?"true":"false")
                     <<",\"lower_bound\":";json(std::cout,base.lower_bound);
                 std::cout<<",\"upper_bound\":";json(std::cout,base.upper_bound);
                 std::cout<<",\"filtered_seconds\":"<<base.stats.filtered_seconds<<",\"rational_seconds\":"<<base.stats.rational_fallback_seconds;
