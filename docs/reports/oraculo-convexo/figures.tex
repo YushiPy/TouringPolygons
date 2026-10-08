@@ -262,7 +262,7 @@
 % Dispersão: razão por caso (referência/padrão), pares com a mesma carga.
 \newcommand{\figdispersao}{%
 \begin{tikzpicture}
-\begin{axis}[width=\linewidth,height=66mm,xmode=log,ymode=log,
+\begin{axis}[width=\linewidth,height=66mm,xmode=log,ymode=log,log basis x=10,log basis y=10,
   xmin=1e-3,xmax=1500,ymin=.45,ymax=5,
   xlabel={tempo da referência (\texttt{-{}-no-float-recovery}), s},
   ylabel={referência / padrão},label style={font=\small},
