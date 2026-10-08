@@ -818,7 +818,6 @@ namespace tpp {
 				polish_workspace.borrow_hybrid_geometry=options.oracle_borrow_geometry;
 				polish_workspace.bound_before_optimality=options.oracle_bound_first;
 				polish_workspace.interpolated_zero_dual=options.interpolated_zero_dual;
-				polish_workspace.float_oracle=options.float_oracle;
 				polish_workspace.float_recovery=options.float_recovery;
 				auto piece_holding=[&](size_t region,Vector2 point)->const Polygon * {
 					prepare_pieces(region);
@@ -1003,7 +1002,6 @@ namespace tpp {
                         initial_workspace.borrow_hybrid_geometry=options.oracle_borrow_geometry;
                         initial_workspace.bound_before_optimality=options.oracle_bound_first;
 						initial_workspace.interpolated_zero_dual=options.interpolated_zero_dual;
-						initial_workspace.float_oracle=options.float_oracle;
 						initial_workspace.float_recovery=options.float_recovery;
 						++result.calls;
 						++result.initial_convex_refinement_calls;
@@ -1194,7 +1192,6 @@ namespace tpp {
         workspace.bound_before_optimality=options.oracle_bound_first;
         workspace.retain_binary_dual=!cycle&&options.path_certificate_dual;
 		workspace.interpolated_zero_dual=options.interpolated_zero_dual;
-		workspace.float_oracle=options.float_oracle;
 		workspace.float_recovery=options.float_recovery;
 		std::vector<DynamicConvexTppWorkspace> parallel_workspaces;
         ConvexCycleWorkspace cycle_workspace;
@@ -1955,7 +1952,6 @@ namespace tpp {
                         worker_workspace.bound_before_optimality=options.oracle_bound_first;
                         worker_workspace.retain_binary_dual=!cycle&&options.path_certificate_dual;
 						worker_workspace.interpolated_zero_dual=options.interpolated_zero_dual;
-						worker_workspace.float_oracle=options.float_oracle;
 						worker_workspace.float_recovery=options.float_recovery;
 					}
 					const auto oracle_batch_began = std::chrono::steady_clock::now();

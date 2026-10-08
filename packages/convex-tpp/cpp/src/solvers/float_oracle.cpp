@@ -165,8 +165,9 @@ struct Polish {
 };
 
 std::optional<Polish> interior_point(Vector2 start,Vector2 target,const std::vector<Polygon> &polygons,
-        const Polygon *warm,double gap,double cutoff,std::size_t max_iterations,
+        const Polygon *warm,double gap,double cutoff,const ConvexFloatOracleOptions &options,
         const std::function<bool(const Polish&)> &done) {
+    const std::size_t max_iterations=options.max_newton_iterations;
     const size_t n=polygons.size();
     double scale=std::max(std::abs(target.x-start.x),std::abs(target.y-start.y));
     for(const auto &p:polygons)for(const auto &v:p)scale=std::max({scale,std::abs(v.x-start.x),std::abs(v.y-start.y)});
@@ -188,7 +189,7 @@ std::optional<Polish> interior_point(Vector2 start,Vector2 target,const std::vec
         face_count+=faces[i].size();
         const auto center=local(vertex_mean(p));
         x[i+1]=center;
-        if(warm&&warm->size()==n)x[i+1]=center+(local((*warm)[i])-center)*(1-0x1p-7);
+        if(warm&&warm->size()==n)x[i+1]=center+(local((*warm)[i])-center)*(1-options.warm_interior_fraction);
     }
     auto slack=[&](size_t i,const Face &f,const std::vector<Vector2> &z){return f.normal.dot(z[i+1])-f.offset;};
     for(size_t i=0;i<n;++i)for(const auto &f:faces[i])if(!(slack(i,f,x)>0)) {
@@ -222,7 +223,7 @@ std::optional<Polish> interior_point(Vector2 start,Vector2 target,const std::vec
         return M2{m.d/det,-m.b/det,-m.c/det,m.a/det};
     };
     Polish polish;
-    double mu=warm?std::max(mu_end,std::min(1e-3,mu_end*1e4)):1e-1;
+    double mu=warm?std::max(mu_end,std::min(1e-3,mu_end*options.warm_mu_ratio)):1e-1;
     std::vector<M2> diagonal(n),off(n),factor(n),inverses(n);
     std::vector<Vector2> gradient(n),rhs(n),step(n),trial;
     for(;;mu=std::max(mu_end,mu*.1)) {
@@ -326,8 +327,11 @@ ConvexFloatOracleResult tpp_convex_solve_float_certified(const Vector2 &start,co
     };
     // 1. The binary64 directional trace (no exact predicates, no certification).
     std::optional<Polygon> candidate;
-    result.trace_attempted=true;
-    {
+    if(options.initial_contacts&&options.initial_contacts->size()==polygons.size()
+            &&std::all_of(options.initial_contacts->begin(),options.initial_contacts->end(),[](Vector2 q){return q.is_finite();}))
+        candidate=*options.initial_contacts;
+    else {
+        result.trace_attempted=true;
         const auto trace_began=Clock::now();
         try {
             const auto chain=detail::double_candidate_chain(start,target,polygons);
@@ -360,7 +364,7 @@ ConvexFloatOracleResult tpp_convex_solve_float_certified(const Vector2 &start,co
         const auto polish_began=Clock::now();
         const double gap=options.max_gap>0?options.max_gap:0;
         const auto polished=interior_point(start,target,polygons,candidate?&*candidate:nullptr,gap,options.cutoff,
-            options.max_newton_iterations,[&](const Polish &level) {
+            options,[&](const Polish &level) {
                 bounds.offer_lower(dual_lower(start,target,polygons,level.duals));
                 Polygon proved=level.contacts;
                 bool feasible=true;

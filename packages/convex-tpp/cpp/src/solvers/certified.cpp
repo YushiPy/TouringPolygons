@@ -18,18 +18,20 @@ namespace tpp {
 		bool float_fallback=false;
 		const bool bounded=tolerance>0||std::isfinite(cutoff);
 		std::optional<ConvexHybridResult> interval_only;
-		if(workspace.float_recovery&&!workspace.float_oracle&&bounded) {
+		// The polish proposes no retained interval dual; keep that diagnostic exact.
+		if(workspace.float_recovery&&bounded&&!workspace.retain_binary_dual) {
 			ConvexHybridOptions first;
 			first.cutoff=cutoff;first.max_gap=tolerance;first.stop_after_interval=true;
 			first.interpolated_zero_dual=workspace.interpolated_zero_dual;
 			first.retain_binary_dual=workspace.retain_binary_dual;
 			interval_only=tpp_convex_solve_hybrid(start,target,polygons,first,workspace);
 		}
-		const bool try_float=bounded&&(workspace.float_oracle||(interval_only&&interval_only->stopped_after_interval));
-		if(try_float) {
+		if(interval_only&&interval_only->stopped_after_interval) {
 			ConvexFloatOracleOptions float_options;
 			float_options.cutoff=cutoff;float_options.max_gap=tolerance;
-			float_options.certify_trace=workspace.float_oracle;
+			float_options.certify_trace=false; // the interval proof already tried the trace
+			if(interval_only&&interval_only->interval_seed.size()==polygons.size())
+				float_options.initial_contacts=&interval_only->interval_seed;
 			const auto attempt=tpp_convex_solve_float_certified(start,target,polygons,float_options);
 			if(attempt.status==ConvexFloatOracleStatus::GapClosed||attempt.status==ConvexFloatOracleStatus::CutoffReached) {
 				CertifiedConvexTppResult result;

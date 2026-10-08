@@ -123,8 +123,10 @@ sob teto de chamadas é custo de um trecho de busca, não tempo de solução;
 | Ganhos do ciclo com contato barato (vértice mais próximo do ponto médio) e `best_contact` só nas 3 lacunas mais baratas; lacunas que não podem baixar o preço puladas | custo do limite | 100i1500 (`lazy`, 4.000 chamadas): limite 0,75 → 0,68 s em 3,0 s (~2,5% do total), LB praticamente igual | não adotado (ganho pequeno; manteve o binário validado) | este documento, 2026-10-07 |
 | `lazy` + sem mergulhos com incumbente do ILS | LB (TSPN Paula) | validação: +47,0% do gap (24/24); 197 fechadas 1,19× (com inserções múltiplas 1,23×, sem regressão > 1,5×) | opcional (OFF) | [`tspn-paula-lower-bound-2026-10-07`](../../benchmarks/results-saved/README.md#tspn-paula-lower-bound-2026-10-07) |
 | `--insertion-lookahead 8` sobre inserções múltiplas + `lazy` sem mergulhos | LB | igual sem ele (13 abertas) | rejeitado | idem |
-| Oráculo só em ponto flutuante (`--float-oracle`): traço `double` + limites intervalares + polimento de barreira | custo/chamada | 0 fallbacks em 6,6 M chamadas; difícil 1,32× (0,76–3,37×), validação 1,54× (0,81–4,24×); 15–25% mais lento onde só há chamadas baratas (sem caches) | opcional (OFF) | [`tpp-float-oracle-2026-10-08`](../../benchmarks/results-saved/README.md#tpp-float-oracle-2026-10-08) |
-| Prova intervalar do híbrido + polimento no lugar do replay exato e das recuperações (`--float-recovery`) | custo/chamada | difícil 1,47× (0,97–3,23×), validação 1,68× (0,99–4,00×); 222/222 fecharam e validaram | opcional (OFF), candidato a padrão | idem |
+| Oráculo só em ponto flutuante antes da prova intervalar: traço `double` + limites intervalares + polimento de barreira | custo/chamada | 0 fallbacks em 6,6 M chamadas; difícil 1,32× (0,76–3,37×), validação 1,54× (0,81–4,24×); 15–25% mais lento onde só há chamadas baratas (sem caches) | dominado; removido da busca (API mantida) | [`tpp-float-oracle-2026-10-08`](../../benchmarks/results-saved/README.md#tpp-float-oracle-2026-10-08) |
+| Prova intervalar do híbrido + polimento no lugar do replay exato e das recuperações (`float_recovery`) | custo/chamada | difícil 1,47× (0,97–3,23×), validação 1,68× (0,99–4,00×); 222/222 fecharam e validaram | **ativo** (padrão; `--no-float-recovery`) | idem |
+| Polimento a partir dos contatos da prova intervalar (`interval_seed`) em vez de recalcular traço, despacho e reparo | custo/chamada | sobre o recovery anterior: difícil 1,466 → 1,495×, validação 1,676 → 1,716× | **ativo** | idem |
+| Ponto de partida do polimento: μ inicial 10²–10⁴ × o final; fração para o interior 2⁻⁷ ou 2⁻¹² | custo/chamada | replay (156/417/419): 4,1–4,3×, 5,4–5,7×, 4,8–4,9× em todas as combinações | neutro; mantido 10⁴ e 2⁻⁷ | este documento, 2026-10-08 |
 | One-tree, strong branching, `bound-first`, `dual`+`dual-screen` nas abertas da Paula | LB | +0,5%, −7%, +0,5%, +0,4% do gap | rejeitados | idem |
 
 ## Detalhes das tentativas de 2026-10-05
@@ -324,7 +326,13 @@ estrutura, não o valor ótimo.
   objetivo, deixa 5×10⁻⁷ e acelerou o replay (417: 7,6 → 1,3 s).
 - **Ponta a ponta** (binário `d854b27`, protocolo padrão, 2 repetições,
   variantes intercaladas): ver a tabela. O modo só em ponto flutuante perde
-  apenas onde o híbrido já é barato, porque refaz por chamada a normalização e
-  o pertencimento que o híbrido guarda no workspace. Próximo passo: caches no
-  oráculo em ponto flutuante e medição no corpus completo.
-
+  apenas onde o híbrido já é barato, porque refaz por chamada a normalização, o
+  despacho e o pertencimento que o híbrido guarda no workspace (perfil do 476:
+  subtrações e produtos intervalares, despacho par a par, `malloc`). Ele seria
+  uma segunda implementação da prova intervalar sem cache. Por isso a busca usa
+  a prova do híbrido e só troca o que vem depois dela.
+- **Padrão** (`float_recovery`, polimento a partir de `interval_seed`; uma
+  repetição contra `--no-float-recovery`): difícil 1,495× (0,99–3,57×;
+  149 → 94 s), validação 1,716× (0,98–4,46×; 90 → 52 s), 74/74 fecharam e
+  validaram; 279.509 chamadas fechadas pelo polimento, 0 fallbacks.
+- **Pendente:** corpus completo na dantzig com núcleos fixos.

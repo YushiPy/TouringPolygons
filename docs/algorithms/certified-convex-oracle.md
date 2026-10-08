@@ -526,12 +526,23 @@ híbrido. Etapas:
    suporte). `Open` e `Unsupported` devolvem limites válidos, mas o chamador
    precisa do oráculo híbrido para fechar.
 
-No B&B, `--float-oracle` tenta este oráculo primeiro em
-`tpp_convex_solve_certified`. `--float-recovery` mantém a prova intervalar do
-híbrido (com seus caches) e, se ela falha, usa o polimento no lugar de tudo o
-que vem depois (replay exato, KKT, recuperações filtrada e racional;
-`ConvexHybridOptions::stop_after_interval`). Nos dois modos, uma chamada
-`Open` termina no oráculo híbrido. Ambos ficam desligados por padrão.
+No B&B de ordem livre, `DynamicConvexTppWorkspace::float_recovery` vem ligado
+(`UnorderedTppSolveOptions::float_recovery`; `--no-float-recovery` desliga).
+Com gap positivo ou cutoff finito, `tpp_convex_solve_certified` roda o híbrido
+com `ConvexHybridOptions::stop_after_interval`: a prova intervalar e seus caches
+ficam iguais. Se ela falha, o polimento parte dos contatos que ela tentou
+(`interval_seed`) no lugar de tudo o que vem depois (replay exato, KKT,
+recuperações filtrada e racional). Uma chamada que ele deixa `Open` termina no
+oráculo híbrido completo. Gap zero e `retain_binary_dual` mantêm o fluxo exato.
+Assim, a aritmética racional sai do caminho por chamada: fica na preparação de
+cada polígono (uma vez por busca), nos sinais de pertencimento que nem intervalos
+nem o determinante inteiro decidem, e no fallback.
+
+Chamar o oráculo em ponto flutuante antes da prova intervalar (com o próprio
+certificado do traço) também funciona, mas é dominado: refaz por chamada a
+normalização, o despacho e o pertencimento que o híbrido guarda em cache
+(15–25% mais lento onde quase toda chamada fecha pela prova intervalar). Esse
+modo saiu da busca; a API continua disponível.
 
 Limitação: com gaps muito menores que os do B&B (por exemplo `1e-7` absoluto
 em comprimentos ~10), o Newton em binary64 pode parar antes de fechar

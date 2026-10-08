@@ -708,10 +708,10 @@ void check_float_oracle() {
                     throw std::runtime_error("Float oracle contact outside its polygon.");
         }
         UnorderedTppSolveOptions reference_options;reference_options.relative_gap = 1e-3;reference_options.absolute_gap = 0;
+        reference_options.float_recovery = false;
         const auto reference = tpp_nonconvex_unordered_solve(start, target, polygons, reference_options);
-        for (int mode = 0; mode < 2; ++mode) {
-            auto options = reference_options;
-            (mode ? options.float_recovery : options.float_oracle) = true;
+        {
+            auto options = reference_options;options.float_recovery = true;
             const auto result = tpp_nonconvex_unordered_solve(start, target, polygons, options);
             if (!result.exact || result.lower_bound > reference.upper_bound + 1e-12 || reference.lower_bound > result.upper_bound + 1e-12)
                 throw std::runtime_error("Float oracle search disagrees with the hybrid search (instance " + std::to_string(index) + ").");

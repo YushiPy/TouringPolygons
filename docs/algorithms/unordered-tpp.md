@@ -610,6 +610,17 @@ pode excedê-lo; o pré-processamento e partes da heurística inicial também n�
 consultam o limite a cada operação. `calls` conta invocações do oráculo convexo certificado,
 incluindo o refinamento inicial opcional; `initial_convex_refinement_calls` separa essa
 chamada das chamadas da busca.
+Com gap positivo ou cutoff finito, uma chamada cuja prova intervalar falha usa o
+polimento em ponto flutuante de `tpp_convex_solve_float_certified` no lugar do
+replay exato e das recuperações racionais
+([contrato](certified-convex-oracle.md#oráculo-em-ponto-flutuante-experimental-2026-10-08)).
+`oracle_float_calls` conta as chamadas fechadas por ele e
+`oracle_float_fallbacks`, as que ficaram abertas e terminaram no oráculo
+híbrido. `--no-float-recovery` restaura o fluxo anterior para ablações.
+`--oracle-capture FILE` grava as chamadas do oráculo em JSONL;
+`--oracle-capture-every K` e `--oracle-capture-min-seconds S` amostram
+execuções longas, e `tpp-convex-path-oracle-replay` reexecuta as chamadas
+capturadas nos dois oráculos.
 `termination` distingue `optimal`, `call_limit`, `time_limit`,
 `numerical_limit` e `interrupted`. `Ctrl+C` no executável nativo solicita uma
 parada cooperativa: a chamada convexa/decomposição em andamento termina, a

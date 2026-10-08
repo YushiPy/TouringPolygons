@@ -101,6 +101,9 @@ struct ConvexHybridResult {
     double upper_bound = 0;
     bool cutoff_pruned = false;
     bool stopped_after_interval = false;
+    // With stop_after_interval: the binary64 contacts the interval proof tried
+    // (one per polygon, not certified), for a caller's own polish.
+    std::vector<Vector2> interval_seed;
     ConvexHybridBackend backend = ConvexHybridBackend::DoubleDisjoint;
     ConvexFallbackReason fallback_reason = ConvexFallbackReason::None;
     ConvexHybridStats stats;

@@ -23,7 +23,14 @@ struct ConvexFloatOracleOptions {
     // False: the trace only warm-starts the polish (its bounds were already
     // tried by the caller, e.g. the hybrid interval proof).
     bool certify_trace = true;
+    // Optional candidate (one contact per polygon) used instead of computing
+    // the binary64 trace; it is only a proposal.
+    const std::vector<Vector2> *initial_contacts = nullptr;
     std::size_t max_newton_iterations = 600;
+    // Warm start: the first barrier level is warm_mu_ratio times the final
+    // one, and each contact moves this fraction toward its polygon's mean.
+    double warm_mu_ratio = 1e4;
+    double warm_interior_fraction = 0x1p-7;
 };
 
 enum class ConvexFloatOracleStatus { GapClosed, CutoffReached, Open, Unsupported };

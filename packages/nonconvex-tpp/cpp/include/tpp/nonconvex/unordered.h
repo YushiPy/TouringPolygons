@@ -111,12 +111,11 @@ namespace tpp {
 		// contact bounds its distance from above. Same branching decisions.
 		bool visit_upper_bounds = true;
 		bool interpolated_zero_dual = false;
-		// Experimental fixed-endpoint oracle without rational arithmetic
-		// (tpp_convex_solve_float_certified); open calls use the hybrid oracle.
-		bool float_oracle = false;
-		// Experimental: hybrid interval proof first, float polish instead of
-		// the exact replay and recoveries.
-		bool float_recovery = false;
+		// Fixed-endpoint oracle calls: when the interval proof fails, a binary64
+		// interior-point polish with interval-certified bounds replaces the
+		// exact replay and recoveries (DynamicConvexTppWorkspace::float_recovery);
+		// rational arithmetic remains for open calls and zero gaps.
+		bool float_recovery = true;
         bool oracle_borrow_geometry = true;
         bool oracle_bound_first = false;
         bool lazy_oracles = false;

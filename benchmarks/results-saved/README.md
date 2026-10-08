@@ -123,6 +123,15 @@ quase toda chamada já fecha pela prova intervalar do híbrido (63, 95, 97, 173,
 (mínimo 0,97×). Replay de 55.454 chamadas capturadas (156, 417, 419): todas
 fecharam em ponto flutuante, sem limites incompatíveis com o híbrido.
 
+**Padrão adotado.** A busca passou a usar o recovery por padrão, com o polimento
+partindo dos contatos que a prova intervalar tentou, e o modo só em ponto
+flutuante saiu dela. Confirmação com o binário da branch (uma repetição,
+`--no-float-recovery` como referência): difícil **1,495×** (0,99–3,57×;
+149,4 → 93,8 s), validação **1,716×** (0,98–4,46×; 89,9 → 51,9 s), 74/74
+fecharam e validaram, 279.509 chamadas fechadas pelo polimento e 0 fallbacks ao
+racional. No replay, o ponto de partida do polimento (μ inicial 10²–10⁴ × o
+final; fração para o interior 2⁻⁷ ou 2⁻¹²) não mudou o tempo.
+
 **Limitações.** Uma máquina (Mac, sem isolamento térmico). Os tempos
 absolutos variaram ~1,5× entre sessões, mas as razões intercaladas ficaram
 estáveis (1,33×/1,34× em sessões diferentes). O conjunto difícil orientou o

@@ -1011,6 +1011,7 @@ bool try_interval_trace_bound(Vector2 start,Vector2 target,const ExactPolygons &
         }
         PhaseTimer timer{result.stats.certificate_seconds};
         const auto seed=chain;
+        if(options.stop_after_interval)result.interval_seed.assign(chain.begin()+1,chain.end()-1);
         for(size_t i=0;i<binary.size();++i) {
             auto &q=chain[i+1];
             auto contains=[&](Vector2 point) {
