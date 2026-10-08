@@ -335,4 +335,8 @@ estrutura, não o valor ótimo.
   repetição contra `--no-float-recovery`): difícil 1,495× (0,99–3,57×;
   149 → 94 s), validação 1,716× (0,98–4,46×; 90 → 52 s), 74/74 fecharam e
   validaram; 279.509 chamadas fechadas pelo polimento, 0 fallbacks.
-- **Pendente:** corpus completo na dantzig com núcleos fixos.
+- **Corpus completo na dantzig** (558 casos, `ded35f2`, máquina compartilhada;
+  [`float-recovery-dantzig-2026-10-08`](../../benchmarks/results-saved/README.md#float-recovery-dantzig-2026-10-08)):
+  1116/1116 fecharam e validaram; 0 chamadas racionais em 27,5 M (379.405 pelo
+  polimento) contra 470.841 na referência. Com a mesma carga nas duas variantes,
+  1,51× nos casos ≥ 0,1 s (mín. 0,97×) e 1,65× na soma dos tempos.

@@ -92,6 +92,49 @@ abertas por tamanho e as 25 restantes são de validação. Dados locais:
   racional (ver o contrato). O LB continua sendo o gargalo: 34 das 38 seguem
   abertas aos 600 s, com até 20% de gap nas instâncias de 61–100 regiões.
 
+## float-recovery-dantzig-2026-10-08
+
+**Formulação.** Os 558 casos de `fekete-comparison/instances.bin`, gap
+`UB ≤ 1,001·LB` (absoluto 0), validação Shapely 1e-7, sem limite de chamadas,
+teto de 3600 s. Binário da branch `oracle-float-polish` (`ded35f2`, GCC,
+C++23) na dantzig (i9-12900K). Duas variantes do mesmo binário: padrão
+(polimento em ponto flutuante após a prova intervalar) × `--no-float-recovery`
+(replay exato e recuperações racionais). Uma repetição, as duas variantes em
+sequência por caso, 4 casos simultâneos, cada solver fixado num núcleo P.
+A máquina tinha outros usuários (load average ~7): em 171 casos as duas
+variantes rodaram com o hyperthread vizinho ocupado, em 327 com ele livre e em
+60 com cargas diferentes.
+
+**Resultado.** 1116/1116 execuções fecharam o gap e validaram.
+- **Aritmética racional.** Padrão: **0 chamadas racionais** em 27,5 M
+  chamadas (27,15 M pela prova intervalar, 379.405 pelo polimento, 0 fallbacks),
+  12.984 sinais de pertencimento decididos em racional (em 85 casos) e 16.360
+  conversões de polígonos para o cache. Referência: 470.841 chamadas racionais
+  (262.444 replay exato/KKT, 155.575 filtradas, 52.822 fronteira disjunta).
+- **Efeito da carga.** Nos casos de busca idêntica (nenhuma chamada no
+  polimento, ≥ 10 ms), a razão é 0,997 (n = 8) e 1,001 (n = 54) com a mesma
+  carga nas duas variantes, e 0,84 ou 1,38 com cargas diferentes. Os 60 pares
+  com cargas diferentes ficam fora das razões abaixo. Eles incluem o caso 129
+  (Dubai, 707 → 978 s com a mesma busca), que sozinho inverte a soma bruta dos
+  tempos (1832 → 1910 s).
+- **Ganho com a mesma carga** (média geométrica referência/padrão):
+
+  | Casos | n | Todos | Só os que usaram o polimento |
+  |---|---:|---:|---:|
+  | referência ≥ 1 ms | 330 | 1,37× (mín. 0,54×) | 1,59× (n = 213) |
+  | referência ≥ 0,1 s | 125 | **1,51×** (mín. 0,97×) | 1,77× (n = 90) |
+  | referência ≥ 1 s | 40 | **1,52×** (mín. 0,98×) | 1,85× (n = 27) |
+
+  Soma dos tempos dos 498 pares com a mesma carga: 468,8 → 283,7 s (1,65×).
+  Por número de polígonos (≥ 1 ms): 11–20 1,34×, 21–40 1,32×, 41–60 1,44×.
+  As seis razões abaixo de 0,9 são casos de 1–13 ms, quatro deles com busca
+  idêntica: ruído na escala de milissegundos.
+
+**Limitações.** Máquina compartilhada e uma única repetição: só as razões com a
+mesma carga são confiáveis, e a medição limpa (máquina ociosa, `--workers 1`)
+continua pendente. O checkout da dantzig estava marcado como sujo. Dados brutos
+em `experiments/float-recovery-dantzig` do workspace da dantzig.
+
 ## tpp-float-oracle-2026-10-08
 
 **Formulação.** TPP de ordem livre com extremos fixos, corpus
