@@ -126,7 +126,7 @@ int main(int argc, char **argv) {
 				std::cout << "--relocate-initial optimizes insertion slots and contacts in the initial route.\n";
 				std::cout << "--primal-ils F spends fraction F of the time on an iterated local search for the initial tour; tuning (defaults in unordered.h): --primal-ils-block L (Or-opt blocks), --primal-ils-reverse, --primal-ils-candidates K (0: all gaps), --primal-ils-swap, --primal-ils-kicks K, --primal-ils-record (record-to-record instead of reheating), --primal-ils-polish F (0: new bests only), --primal-ils-reorder W (exact windows, 0: off), --primal-ils-window W (contact-only polish without reorder), --primal-ils-stagnation N, --primal-ils-seed S.\n";
 				std::cout << "--interpolated-zero-dual tries a feasible interpolated dual for short contact blocks.\n";
-				std::cout << "--no-float-recovery (ablation) restores the exact replay and rational recoveries after a failed interval proof; by default a binary64 interior-point polish with interval-certified bounds replaces them, and only calls it leaves open use rational arithmetic.\n";
+				std::cout << "--no-float-recovery (ablation) restores the exact replay and rational recoveries after a failed interval proof; by default a binary64 interior-point polish with interval-certified bounds replaces them, and only calls it leaves open use rational arithmetic. --trust-double (diagnostic, unsafe) uses the uncertified binary64 trace length as both oracle bounds, as a numerical solver would.\n";
 				return 0;
 			}
 			if(flag=="--oracle-capture") {
@@ -240,6 +240,7 @@ int main(int argc, char **argv) {
 			if (flag == "--interpolated-zero-dual") {options.interpolated_zero_dual=true;continue;}
 			if (flag == "--float-recovery") {options.float_recovery=true;continue;}
 			if (flag == "--no-float-recovery") {options.float_recovery=false;continue;}
+			if (flag == "--trust-double") {options.trust_double=true;continue;}
             if(flag=="--cycle-optimization") {
                 if(++i>=argc)throw std::invalid_argument("Expected a cycle optimization.");
                 const std::string mode=argv[i];
@@ -534,6 +535,7 @@ int main(int argc, char **argv) {
 			<< ",\"oracle_float_calls\":" << r.oracle_float_calls
 			<< ",\"oracle_float_fallbacks\":" << r.oracle_float_fallbacks
 			<< ",\"oracle_rational_calls\":" << r.oracle_rational_calls
+			<< ",\"oracle_trusted_calls\":" << r.oracle_trusted_calls
 			<< ",\"oracle_exact_replay_calls\":" << r.oracle_exact_replay_calls
 			<< ",\"oracle_filtered_calls\":" << r.oracle_filtered_calls
 			<< ",\"oracle_touching_calls\":" << r.oracle_touching_calls

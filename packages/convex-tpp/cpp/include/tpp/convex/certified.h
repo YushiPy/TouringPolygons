@@ -17,6 +17,7 @@ namespace tpp {
 		// the interval proof and the binary64 polish. Breakdown below; the full
 		// rational solve is used_fallback.
 		bool used_rational = false;
+		bool used_trusted_double = false;
 		bool used_exact_replay = false;
 		bool used_filtered_recovery = false;
 		bool used_touching_recovery = false;

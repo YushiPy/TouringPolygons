@@ -116,6 +116,10 @@ namespace tpp {
 		// exact replay and recoveries (DynamicConvexTppWorkspace::float_recovery);
 		// rational arithmetic remains for open calls and zero gaps.
 		bool float_recovery = true;
+		// Diagnostic only, unsafe: fixed-endpoint oracle values are the
+		// uncertified binary64 trace length (no lower-bound proof), to measure
+		// the cost of certification against numerical solvers.
+		bool trust_double = false;
         bool oracle_borrow_geometry = true;
         bool oracle_bound_first = false;
         bool lazy_oracles = false;
@@ -274,6 +278,7 @@ namespace tpp {
 		// filtered recovery, touching-disjoint recovery, full fallback =
 		// fallback_calls); for cycles, calls with a rational recovery.
 		size_t oracle_rational_calls = 0;
+		size_t oracle_trusted_calls = 0;
 		size_t oracle_exact_replay_calls = 0;
 		size_t oracle_filtered_calls = 0;
 		size_t oracle_touching_calls = 0;

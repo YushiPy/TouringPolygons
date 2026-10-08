@@ -16,6 +16,18 @@ namespace tpp {
 		const std::vector<std::vector<Vector2>> &polygons,
 		DynamicConvexTppWorkspace &workspace, double tolerance, double cutoff, double max_seconds
 	) {
+		if(workspace.trust_double) {
+			CertifiedConvexTppResult trusted;
+			std::vector<Vector2> contacts;double length=0;
+			if(tpp_convex_solve_double_trusted(start,target,polygons,contacts,length)) {
+				trusted.path=reconstruct_convex_polyline(start,target,contacts,false);
+				trusted.lower_bound=trusted.upper_bound=length;
+				trusted.dual_cutoff_pruned=length>=cutoff;
+				trusted.used_trusted_double=true;
+				trusted.time_limited=max_seconds<=0.0;
+				return trusted;
+			}
+		}
 		const auto rational_predicates_before=detail::rational_membership_predicates;
 		size_t exact_preparations=0;
 		bool float_fallback=false;

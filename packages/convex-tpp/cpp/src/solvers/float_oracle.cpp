@@ -301,6 +301,24 @@ const char *to_string(ConvexFloatOracleStatus status) {
     return "unknown";
 }
 
+bool tpp_convex_solve_double_trusted(const Vector2 &start,const Vector2 &target,
+        const std::vector<std::vector<Vector2>> &input,std::vector<Vector2> &contacts,double &length) {
+    std::vector<Polygon> polygons;polygons.reserve(input.size());
+    for(const auto &p:input) {
+        auto normalized=counter_clockwise(p);
+        if(!normalized)return false;
+        polygons.push_back(std::move(*normalized));
+    }
+    try {
+        const auto chain=detail::double_candidate_chain(start,target,polygons);
+        if(chain.size()!=polygons.size()+2)return false;
+        contacts.assign(chain.begin()+1,chain.end()-1);
+        length=0;
+        for(size_t i=1;i<chain.size();++i)length+=(chain[i]-chain[i-1]).length();
+        return std::isfinite(length);
+    } catch(const std::exception &) {return false;}
+}
+
 ConvexFloatOracleResult tpp_convex_solve_float_certified(const Vector2 &start,const Vector2 &target,
         const std::vector<std::vector<Vector2>> &input,const ConvexFloatOracleOptions &options) {
     const auto began=Clock::now();

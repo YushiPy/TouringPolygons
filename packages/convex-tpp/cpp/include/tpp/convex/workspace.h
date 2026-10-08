@@ -54,6 +54,9 @@ namespace tpp {
 		// tpp_convex_solve_float_certified; open calls still finish in the
 		// hybrid oracle. Off here; the unordered search turns it on.
 		bool float_recovery = false;
+		// Diagnostic only (unsafe): take the uncertified binary64 trace length
+		// as both bounds, as a numerical solver would; see --trust-double.
+		bool trust_double = false;
 
 		void reserve(size_t max_polygons, size_t max_total_vertices);
 		ConvexTppWorkspaceView prepare(size_t polygon_count, size_t total_vertices);

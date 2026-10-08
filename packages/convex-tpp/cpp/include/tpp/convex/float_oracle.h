@@ -54,4 +54,11 @@ ConvexFloatOracleResult tpp_convex_solve_float_certified(
 
 const char *to_string(ConvexFloatOracleStatus status);
 
+// Diagnostic only, never a bound: the binary64 directional trace, replayed and
+// repaired, with its plain floating-point length. A wrong sign decision can make
+// it suboptimal (too long) or slightly infeasible; nothing is certified. Returns
+// false when the trace fails. Used to measure what certification costs.
+bool tpp_convex_solve_double_trusted(const Vector2 &start, const Vector2 &target,
+    const std::vector<std::vector<Vector2>> &polygons, std::vector<Vector2> &contacts, double &length);
+
 }

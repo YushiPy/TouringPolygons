@@ -92,6 +92,42 @@ abertas por tamanho e as 25 restantes são de validação. Dados locais:
   racional (ver o contrato). O LB continua sendo o gargalo: 34 das 38 seguem
   abertas aos 600 s, com até 20% de gap nas instâncias de 61–100 regiões.
 
+## trust-double-2026-10-08
+
+**Pergunta.** O que acontece se o nosso solver jogar "nos termos do Fekete", isto
+é, aceitar valores numéricos sem prova? **Formulação.** Os 558 casos de
+`fekete-comparison/instances.bin`, gap `UB ≤ 1,001·LB`, validação Shapely 1e-7.
+Mesmo binário (branch `oracle-float-polish`, macOS arm64), duas variantes
+intercaladas por caso, 4 casos simultâneos, uma repetição: padrão certificado ×
+`--trust-double`. Esta opção é de diagnóstico e insegura: o oráculo de caminho
+devolve o caminho do traço em `double` (replay e reparo, sem certificado), e o
+comprimento dele vale como limite inferior e superior. Os limites de inserção e
+de visita continuam rigorosos. Se o traço falha, a chamada usa o oráculo
+certificado (135.743 de 27,9 M chamadas).
+
+**Resultado.**
+- **Correção.** As 558 execuções sem certificado declararam o gap fechado e
+  devolveram caminhos viáveis (Shapely). Mas em **46 casos o limite inferior
+  declarado passa do comprimento de um caminho viável conhecido**, uma
+  afirmação provadamente falsa (até 3,2% acima; caso 132: LB 14.197,9 com um
+  caminho de 13.753,7). Em **44 casos (7,9%) o caminho final está mais de 0,1%
+  acima do ótimo certificado** (mediana 0,24%, máximo 3,27%). A causa é a poda
+  com valores superestimados, que descarta a ordem ótima. Por fonte: aleatórias
+  25/160, tesselação 12/78, OSM 7/320. Por tamanho: 4–10 1/128, 11–20 7/136,
+  21–40 11/149, 41–60 25/145.
+- **Velocidade.** Certificado/sem certificado (média geométrica): 1,26× nos
+  casos ≥ 1 ms (n = 344), 1,18× nos ≥ 0,1 s e 1,21× nos ≥ 1 s. Soma dos
+  tempos: 746 → 728 s (os casos longos são dominados por consultas de visita).
+
+**Leitura.** A certificação custa ~20% do tempo e evita respostas erradas em
+~8% dos casos. A comparação com o Fekete continua a favor dele, porque ele não
+paga por garantias. Mas "confiar" não é uma alternativa equivalente para o nosso
+solver: o erro de um algoritmo combinatório com uma decisão errada é
+descontínuo (pontos percentuais), enquanto o de um solver cônico numérico
+cresce suavemente com a tolerância. **Limitações.** Uma máquina compartilhada
+com 4 processos, uma repetição; os erros dependem só da aritmética e se repetem.
+Dados em `experiments/trust-double` do workspace local.
+
 ## float-recovery-dantzig-2026-10-08
 
 **Formulação.** Os 558 casos de `fekete-comparison/instances.bin`, gap

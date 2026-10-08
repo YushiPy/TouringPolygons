@@ -820,6 +820,7 @@ namespace tpp {
 				polish_workspace.bound_before_optimality=options.oracle_bound_first;
 				polish_workspace.interpolated_zero_dual=options.interpolated_zero_dual;
 				polish_workspace.float_recovery=options.float_recovery;
+				polish_workspace.trust_double=options.trust_double;
 				auto piece_holding=[&](size_t region,Vector2 point)->const Polygon * {
 					prepare_pieces(region);
 					const Polygon point_path{point,point};
@@ -1004,6 +1005,7 @@ namespace tpp {
                         initial_workspace.bound_before_optimality=options.oracle_bound_first;
 						initial_workspace.interpolated_zero_dual=options.interpolated_zero_dual;
 						initial_workspace.float_recovery=options.float_recovery;
+						initial_workspace.trust_double=options.trust_double;
 						++result.calls;
 						++result.initial_convex_refinement_calls;
 						const double target_gap = options.absolute_gap
@@ -1194,6 +1196,7 @@ namespace tpp {
         workspace.retain_binary_dual=!cycle&&options.path_certificate_dual;
 		workspace.interpolated_zero_dual=options.interpolated_zero_dual;
 		workspace.float_recovery=options.float_recovery;
+		workspace.trust_double=options.trust_double;
 		std::vector<DynamicConvexTppWorkspace> parallel_workspaces;
         ConvexCycleWorkspace cycle_workspace;
         std::vector<ConvexCycleWorkspace> parallel_cycle_workspaces;
@@ -1339,6 +1342,7 @@ namespace tpp {
 			result.oracle_float_calls += certified.used_float_oracle;
 			result.oracle_float_fallbacks += certified.float_oracle_fallback;
 			result.oracle_rational_calls += certified.used_rational;
+			result.oracle_trusted_calls += certified.used_trusted_double;
 			result.oracle_exact_replay_calls += certified.used_exact_replay;
 			result.oracle_filtered_calls += certified.used_filtered_recovery;
 			result.oracle_touching_calls += certified.used_touching_recovery;
@@ -1960,6 +1964,7 @@ namespace tpp {
                         worker_workspace.retain_binary_dual=!cycle&&options.path_certificate_dual;
 						worker_workspace.interpolated_zero_dual=options.interpolated_zero_dual;
 						worker_workspace.float_recovery=options.float_recovery;
+						worker_workspace.trust_double=options.trust_double;
 					}
 					const auto oracle_batch_began = std::chrono::steady_clock::now();
 					evaluate_parallel_oracles(static_cast<std::ptrdiff_t>(evaluation_children.size()), worker_count,
@@ -2389,6 +2394,7 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::oracle_float_calls);
         sum(&UnorderedTppSolveResult::oracle_float_fallbacks);
         sum(&UnorderedTppSolveResult::oracle_rational_calls);
+        sum(&UnorderedTppSolveResult::oracle_trusted_calls);
         sum(&UnorderedTppSolveResult::oracle_exact_replay_calls);
         sum(&UnorderedTppSolveResult::oracle_filtered_calls);
         sum(&UnorderedTppSolveResult::oracle_touching_calls);
