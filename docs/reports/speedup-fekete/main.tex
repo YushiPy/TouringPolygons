@@ -1,0 +1,186 @@
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[brazilian]{babel}
+\usepackage{amsmath}
+\usepackage{newpxtext,newpxmath}
+\usepackage[a4paper,margin=22mm,headheight=15pt,headsep=8mm,footskip=11mm]{geometry}
+\usepackage{xcolor,graphicx,booktabs,array,caption,fancyhdr,enumitem}
+\usepackage{tikz,pgfplots}
+\usepackage[most]{tcolorbox}
+\usepackage[hidelinks]{hyperref}
+\pgfplotsset{compat=1.18}
+\makeatletter\g@addto@macro\UrlBreaks{\do\-}\makeatother
+\usetikzlibrary{arrows.meta}
+
+\definecolor{ink}{HTML}{223247}
+\definecolor{navy}{HTML}{274568}
+\definecolor{quiet}{HTML}{617384}
+% Paletas categóricas validadas (dataviz, modo claro): uma por gráfico, para que
+% a cor não sugira correspondência entre fonte e geometria.
+\definecolor{fOSM}{HTML}{2A78D6}
+\definecolor{fAle}{HTML}{EB6834}
+\definecolor{fVor}{HTML}{1BAF7A}
+\definecolor{gDis}{HTML}{4A3AA7}
+\definecolor{gToq}{HTML}{E87BA4}
+\definecolor{gSob}{HTML}{008300}
+
+\captionsetup{font=small,labelfont={bf,color=navy},labelsep=colon}
+\pagestyle{fancy}\fancyhf{}
+\renewcommand{\headrulewidth}{.4pt}
+\fancyhead[L]{\small\sffamily\color{ink}SPEEDUP SOBRE O SOLVER DE FEKETE ET AL.}
+\fancyhead[R]{\small\sffamily\color{quiet}TouringPolygons}
+\fancyfoot[L]{\small\color{quiet}9 de outubro de 2026}
+\fancyfoot[R]{\small\color{quiet}\thepage}
+\setlength{\parindent}{0pt}\setlength{\parskip}{5pt}
+\newcommand{\sect}[1]{\par\medskip{\color{navy}\large\bfseries #1\par}\smallskip}
+\newcommand{\vez}{\ensuremath{\times}}
+
+% Opções dos dois eixos (inline: um estilo com ymode é aplicado tarde demais).
+\pgfplotsset{pts/.style={only marks,color=#1,mark=*,mark size=1.15pt,mark options={draw=none,fill=#1,fill opacity=.45},forget plot},
+  band/.style={#1,line width=1.5pt,mark=*,mark size=2.4pt,mark options={draw=white,line width=.8pt,fill=#1},forget plot}}
+\tikzset{endlab/.style={font=\scriptsize\bfseries,text=ink,anchor=west}}
+
+\input{dados}
+
+\begin{document}
+
+{\color{navy}\LARGE\bfseries Speedup sobre o solver de Fekete et al.\par}
+\vspace{2pt}
+{\color{quiet}\large por fonte e por geometria das instâncias, e onde o polimento é usado\par}
+\vspace{10pt}
+
+\begin{tcolorbox}[colback=navy!4,colframe=navy!35,boxrule=.5pt,arc=2pt,left=8pt,right=8pt,top=5pt,bottom=5pt]
+\small Nos 553 casos do corpus de Fekete et al.\ que o solver deles fecha, o nosso foi mais rápido em todos, com razão mínima de 8,7\vez{} e média geométrica de 65,4\vez. A vantagem cresce com o número de polígonos. Por fonte, a média geométrica é de 81,7\vez{} nas instâncias OSM, 66,8\vez{} nas aleatórias e 25,6\vez{} nas Voronoi. Por geometria, 77,4\vez{} nas disjuntas, 74,1\vez{} nas com sobreposição de área e 52,9\vez{} nas que só se tocam; esta última média é puxada para baixo pelas Voronoi, já que as OSM que só se tocam ficam em 77,4\vez. Das 27,5 milhões de chamadas ao oráculo convexo, 1,38\% foram ao polimento por pontos interiores, cerca de um terço de cada fonte, quase todas em instâncias com toques ou sobreposição.
+\end{tcolorbox}
+
+\sect{1\quad Speedup por fonte das instâncias}
+\begin{figure}[ht]\centering
+\begin{tikzpicture}
+\begin{axis}[width=.97\linewidth,height=88mm,ymode=log,log basis y=10,
+  xmin=3,xmax=66,ymin=.8,ymax=4000,
+  ytick={1,2,5,10,20,50,100,200,500,1000,2000},
+  yticklabels={1\vez,2\vez,5\vez,10\vez,20\vez,50\vez,100\vez,200\vez,500\vez,1.000\vez,2.000\vez},
+  xtick={5,10,...,60},xlabel={número de polígonos},ylabel={razão de tempo Fekete / nosso},
+  label style={font=\small},tick label style={font=\scriptsize},
+  axis lines*=left,ymajorgrids,grid style={quiet!18},
+  legend style={font=\scriptsize,draw=none,at={(.5,-.17)},anchor=north,legend columns=4,
+    /tikz/every even column/.append style={column sep=6pt}},
+  every axis plot/.append style={line join=round}]
+\addlegendimage{only marks,color=fOSM,mark=*,mark size=2pt,mark options={draw=none,fill=fOSM}}\addlegendentry{OSM}
+\addlegendimage{only marks,color=fAle,mark=*,mark size=2pt,mark options={draw=none,fill=fAle}}\addlegendentry{Aleatórias}
+\addlegendimage{only marks,color=fVor,mark=*,mark size=2pt,mark options={draw=none,fill=fVor}}\addlegendentry{Voronoi / tessellation}
+\addlegendimage{ink,line width=1.5pt}\addlegendentry{média geométrica por faixa}
+\addplot[pts=fOSM] table[x=x,y=razao,restrict expr to domain={\thisrow{fonte}}{0:0}] {\dadospontos};
+\addplot[pts=fAle] table[x=x,y=razao,restrict expr to domain={\thisrow{fonte}}{1:1}] {\dadospontos};
+\addplot[pts=fVor] table[x=x,y=razao,restrict expr to domain={\thisrow{fonte}}{2:2}] {\dadospontos};
+\addplot[band=fOSM] table[x=n,y=g] {\dadosfontea};
+\addplot[band=fAle] table[x=n,y=g] {\dadosfonteb};
+\addplot[band=fVor] table[x=n,y=g] {\dadosfontec};
+\addplot[quiet,dashed,line width=.6pt,forget plot] coordinates {(3,1) (66,1)};
+\node[font=\scriptsize,text=quiet,anchor=south east] at (axis cs:66,1) {empate, 1\vez};
+\node[endlab] at (axis cs:61.4,349.3) {349\vez};
+\node[endlab] at (axis cs:61.4,155.1) {155\vez};
+\node[endlab] at (axis cs:61.4,38.2) {38,2\vez};
+\end{axis}
+\end{tikzpicture}
+\caption{Razão entre o tempo do solver de Fekete et al.\ e o nosso, por caso (pontos, com pequeno deslocamento horizontal para não se sobreporem) e média geométrica por faixa de 10 polígonos (linhas, no número médio de polígonos da faixa). Escala vertical logarítmica; acima de 1\vez{} o nosso é mais rápido. 553 casos.}\label{fig:fonte}
+\end{figure}
+
+\begin{table}[ht]\centering\footnotesize\setlength{\tabcolsep}{4.2pt}
+\begin{tabular}{@{}lrrrrrrrr@{}}\toprule
+& & \multicolumn{4}{c}{Razão Fekete / nosso} & \multicolumn{3}{c}{Instâncias por geometria}\\\cmidrule(lr){3-6}\cmidrule(l){7-9}
+Fonte & Casos & média geom. & mediana & mínimo & máximo & disjuntas & só toques & sobreposição\\\midrule
+OSM & 315 & 81,7\vez & 78,5\vez & 9,8\vez & 2.302\vez & 158 & 153 & 9\\
+Aleatórias & 160 & 66,8\vez & 62,4\vez & 20,3\vez & 861\vez & 21 & 0 & 139\\
+Voronoi / tessellation & 78 & 25,6\vez & 26,0\vez & 8,7\vez & 105\vez & 0 & 78 & 0\\\midrule
+Total & 553 & 65,4\vez & 57,6\vez & 8,7\vez & 2.302\vez & 179 & 231 & 148\\\bottomrule
+\end{tabular}
+\caption{Speedup por fonte nos casos que os dois solvers fecham. As colunas de geometria contam todas as 558 instâncias, incluindo as 5 OSM que o solver de Fekete et al.\ não fechou.}\label{tab:fonte}
+\end{table}
+
+\clearpage
+\sect{2\quad Speedup por geometria}
+A geometria vem dos polígonos originais de cada instância, classificados com Shapely: \emph{disjuntas} não têm nenhum par de polígonos que se toque; \emph{só toques} têm pares que compartilham fronteira, sem área em comum; \emph{sobreposição} têm ao menos um par com área em comum.
+
+\begin{figure}[ht]\centering
+\begin{tikzpicture}
+\begin{axis}[width=.97\linewidth,height=88mm,ymode=log,log basis y=10,
+  xmin=3,xmax=66,ymin=.8,ymax=4000,
+  ytick={1,2,5,10,20,50,100,200,500,1000,2000},
+  yticklabels={1\vez,2\vez,5\vez,10\vez,20\vez,50\vez,100\vez,200\vez,500\vez,1.000\vez,2.000\vez},
+  xtick={5,10,...,60},xlabel={número de polígonos},ylabel={razão de tempo Fekete / nosso},
+  label style={font=\small},tick label style={font=\scriptsize},
+  axis lines*=left,ymajorgrids,grid style={quiet!18},
+  legend style={font=\scriptsize,draw=none,at={(.5,-.17)},anchor=north,legend columns=4,
+    /tikz/every even column/.append style={column sep=6pt}},
+  every axis plot/.append style={line join=round}]
+\addlegendimage{only marks,color=gDis,mark=*,mark size=2pt,mark options={draw=none,fill=gDis}}\addlegendentry{Disjuntas}
+\addlegendimage{only marks,color=gToq,mark=*,mark size=2pt,mark options={draw=none,fill=gToq}}\addlegendentry{Só toques de fronteira}
+\addlegendimage{only marks,color=gSob,mark=*,mark size=2pt,mark options={draw=none,fill=gSob}}\addlegendentry{Sobreposição com área}
+\addlegendimage{ink,line width=1.5pt}\addlegendentry{média geométrica por faixa}
+\addplot[pts=gDis] table[x=x,y=razao,restrict expr to domain={\thisrow{geom}}{0:0}] {\dadospontos};
+\addplot[pts=gToq] table[x=x,y=razao,restrict expr to domain={\thisrow{geom}}{1:1}] {\dadospontos};
+\addplot[pts=gSob] table[x=x,y=razao,restrict expr to domain={\thisrow{geom}}{2:2}] {\dadospontos};
+\addplot[band=gDis] table[x=n,y=g] {\dadosgeoma};
+\addplot[band=gToq] table[x=n,y=g] {\dadosgeomb};
+\addplot[band=gSob] table[x=n,y=g] {\dadosgeomc};
+\addplot[quiet,dashed,line width=.6pt,forget plot] coordinates {(3,1) (66,1)};
+\node[font=\scriptsize,text=quiet,anchor=south east] at (axis cs:66,1) {empate, 1\vez};
+\node[endlab] at (axis cs:61.4,639.9) {640\vez};
+\node[endlab,yshift=5pt] at (axis cs:61.4,154.6) {155\vez};
+\node[endlab,yshift=-5pt] at (axis cs:61.4,135.9) {136\vez};
+\end{axis}
+\end{tikzpicture}
+\caption{O mesmo gráfico da Figura~\ref{fig:fonte}, com as instâncias agrupadas pela geometria dos polígonos originais. 553 casos.}\label{fig:geometria}
+\end{figure}
+
+\begin{table}[ht]\centering\footnotesize\setlength{\tabcolsep}{4.2pt}
+\begin{tabular}{@{}lrrrrrrrr@{}}\toprule
+& & \multicolumn{4}{c}{Razão Fekete / nosso} & \multicolumn{3}{c}{Instâncias por fonte}\\\cmidrule(lr){3-6}\cmidrule(l){7-9}
+Geometria & Casos & média geom. & mediana & mínimo & máximo & OSM & aleatórias & Voronoi\\\midrule
+Disjuntas & 178 & 77,4\vez & 62,8\vez & 10,2\vez & 2.302\vez & 158 & 21 & 0\\
+Só toques de fronteira & 227 & 52,9\vez & 42,0\vez & 8,7\vez & 2.011\vez & 153 & 0 & 78\\
+Sobreposição com área & 148 & 74,1\vez & 72,6\vez & 24,6\vez & 861\vez & 9 & 139 & 0\\\bottomrule
+\end{tabular}
+\caption{Speedup por geometria nos casos que os dois solvers fecham. As colunas de fonte contam todas as 558 instâncias.}\label{tab:geometria}
+\end{table}
+
+A geometria sozinha não explica a diferença entre as classes. Dentro das instâncias que só se tocam, as 149 OSM fechadas pelos dois têm média geométrica de 77,4\vez, perto das OSM disjuntas (84,2\vez, 157 casos); o que puxa a média do grupo para baixo são as 78 Voronoi (25,6\vez). As aleatórias disjuntas, só 21 casos e todos pequenos (5,7 polígonos em média), ficam em 41,2\vez.
+
+\clearpage
+\sect{3\quad Onde o polimento por pontos interiores é usado}
+Na rodada completa, o oráculo convexo foi chamado 27.525.200 vezes nas 558 instâncias. A prova intervalar fechou 27.145.795 chamadas, e as outras 379.405 (1,38\%) foram ao polimento por pontos interiores, que fechou todas; nenhuma chamada precisou do fluxo exato, em aritmética racional.
+
+\begin{table}[ht]\centering\footnotesize
+\begin{tabular}{@{}lrrrrr@{}}\toprule
+& Casos & Chamadas & Polimento & \% das chamadas da classe & Parcela do polimento\\\midrule
+\multicolumn{6}{@{}l}{\itshape Por fonte}\\
+OSM & 320 & 26.199.008 & 119.919 & 0,46\% & 31,6\%\\
+Aleatórias & 160 & 1.042.580 & 136.470 & 13,09\% & 36,0\%\\
+Voronoi / tessellation & 78 & 283.612 & 123.016 & 43,37\% & 32,4\%\\\midrule
+\multicolumn{6}{@{}l}{\itshape Por geometria}\\
+Disjuntas & 179 & 11.560.574 & 7 & 0,00006\% & 0,002\%\\
+Só toques de fronteira & 231 & 14.841.127 & 239.704 & 1,62\% & 63,2\%\\
+Sobreposição com área & 148 & 1.123.499 & 139.694 & 12,43\% & 36,8\%\\\midrule
+Total & 558 & 27.525.200 & 379.405 & 1,38\% & 100\%\\\bottomrule
+\end{tabular}
+\caption{Chamadas ao oráculo convexo e ao polimento, por classe. ``\% das chamadas da classe'': fração das chamadas daquela classe que foram ao polimento; ``parcela do polimento'': fração do total de 379.405.}\label{tab:polimento}
+\end{table}
+
+\begin{itemize}[leftmargin=*,itemsep=2pt]
+\item \textbf{Por fonte, cerca de um terço cada.} O peso dentro de cada fonte, porém, é muito diferente: as OSM fazem 95\% de todas as chamadas, e quase todas fecham na prova intervalar; nas Voronoi, 43\% das chamadas vão ao polimento.
+\item \textbf{A geometria decide.} Nas 179 instâncias disjuntas, só 7 chamadas foram ao polimento. Com polígonos disjuntos, a construção em \texttt{double} quase sempre acerta e a prova intervalar fecha; é nos toques e nas sobreposições que aparecem os empates exatos e os contatos coincidentes.
+\item \textbf{As chamadas se concentram.} Dez casos somam 75\% das chamadas ao polimento; só o caso 420 (aleatório, com sobreposição) tem 22\%.
+\end{itemize}
+
+\sect{4\quad Dados e limitações}
+\begin{itemize}[leftmargin=*,itemsep=2pt]\small\sloppy
+\item \textbf{Problema.} TPP de ordem livre com extremos fixos, nas 558 instâncias do corpus de Fekete et al.\ (\nolinkurl{benchmarks/results-saved/fekete-comparison/instances.bin}). Os dois solvers param com gap relativo de 0,1\% (\(U\le1{,}001\,L\)), uma thread por caso. ``Fechou'' quer dizer gap fechado, não ótimo algébrico.
+\item \textbf{Nosso solver.} Padrão atual (prova intervalar e polimento em ponto flutuante, com o fluxo exato como reserva), rodada de 08/10 na dantzig (Intel i9-12900K), binário \texttt{ded35f2}, 4 casos simultâneos com a máquina compartilhada (\emph{load average} em torno de 7). Fechou e validou os 558 casos (Shapely, tolerância \(10^{-7}\)). As contagens de chamadas são dessa mesma rodada.
+\item \textbf{Solver de Fekete et al.} Configuração original (\texttt{FEASIBILITY\_TOLERANCE} \(10^{-3}\)), campanha de 02/10 na mesma máquina, com vários casos em paralelo; três casos (131, 420 e 558) vêm de uma execução posterior. Fechou 553 casos; os 5 restantes (65, 66, 130, 493 e 542, todos OSM) ficaram dias sem fechar e estão fora dos gráficos e das razões, o que subestima a vantagem. Os caminhos dessa campanha não têm validação independente registrada.
+\item \textbf{Comparação.} Os tempos não vêm de uma rodada lado a lado; os casos de poucos milissegundos são os mais sensíveis a carga e a diferenças de ambiente. Uma afirmação para publicação exige rodar os dois solvers juntos, no mesmo ambiente.
+\item \textbf{Fontes dos dados} (em \nolinkurl{benchmarks/results-saved}, salvo indicação). Tempos do Fekete: \nolinkurl{free-order-dantzig-2026-10-06/per-case.csv}. Fonte e geometria: \nolinkurl{fekete-comparison/analysis/instance-classification.csv}. Nossos tempos e chamadas: campanha local \nolinkurl{float-recovery-dantzig}, resumida na seção \nolinkurl{float-recovery-dantzig-2026-10-08} do \nolinkurl{README.md}.
+\end{itemize}
+
+\end{document}
