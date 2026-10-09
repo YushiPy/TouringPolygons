@@ -79,7 +79,8 @@ fechado, com limites provados; não é ótimo algébrico. Dados locais:
 as tolerâncias de 2,5e-7 relativo dos refinamentos, e o oráculo deixa de ser
 o gargalo. No ciclo, o tempo restante vai para a triagem de inserções, que
 ainda é racional: no caso 39 da SoCG, `insertion_lower_bounds` leva ~60% das
-amostras e o oráculo, ~13%.
+amostras e o oráculo, ~13%. Próximas direções em
+[`tspn.md`](../../docs/algorithms/tspn.md#next-directions-2026-10-09).
 
 **Limitações.** Uma repetição, num Mac pessoal sem isolamento de carga; nos
 casos de milissegundos as razões são ruído. Razões com a referência perto dos

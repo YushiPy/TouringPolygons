@@ -541,6 +541,64 @@ paying for themselves, so the lower bound also rises with
 opt-in. Measurements:
 [`tspn-paula-lower-bound-2026-10-07`](../../benchmarks/results-saved/README.md#tspn-paula-lower-bound-2026-10-07).
 
+## Next directions (2026-10-09)
+
+After the binary64 cycle oracle and the point/segment branch of the path
+oracle ([measurements](../../benchmarks/results-saved/README.md#tspn-cycle-float-2026-10-08)),
+the oracle is no longer the bottleneck: on the SoCG regression it takes 2.8 of
+23.5 s, and 6 of 64.9 M calls on Paula's collection still use rational
+arithmetic. In order of expected value:
+
+1. **Cyclic insertion screening in binary64.** `insertion_lower_bounds` (cycle
+   branch, `unordered_bounds.cpp`) computes every insertion bound with exact
+   rationals (`DyadicSupportPolygon`, GMP); a `sample` profile of SoCG case 39
+   puts ~60% of the solve there and ~13% in the oracle, and Paula's cycle
+   instances gain only 4× against 69× for the point-anchored ones. Port it to
+   directed-rounding intervals as `tpp_convex_binary_dual_insertion_bounds`
+   does for paths (disk-proved directions, enclosed supports, lower endpoint),
+   keeping the rational version as reference and as fallback outside the
+   interval environment. The same applies to `cycle_replacement_lower_bounds`
+   (`dual-screen`) and `tpp_convex_cycle_dual_directions` (`dual`).
+2. **Proofs instead of margins in the binary64 insertion bounds.**
+   `path_insertion_bound_at` (the default path screening, so also every
+   point-anchored TSPN), `path_multi_insertion_bound` and
+   `cycle_multi_insertion_bound` subtract a fixed `1e-12*scale*(n+2)` (times
+   `(m+2)` for the multiple-insertion bounds) instead of proving the rounding
+   error, and their directions are normalized in plain binary64. No wrong prune
+   has been observed, but these are the remaining pruning bounds without a
+   proof. The interval machinery of the oracles (`float_proof.h`) would make
+   them proved at a similar cost; this is a soundness item, independent of speed.
+3. **Re-tune the search for a cheap oracle.** Per call the oracle went from
+   ~735 to ~13 µs on Paula's collection, so the trade-offs behind the defaults
+   and the opt-in experiments changed: eager versus `lazy` evaluation, diving,
+   `branch`, `--insertion-lookahead`, `--multi-insertion-bound`, and the
+   probably obsolete `bound-first`, `proposal-bound` and `interval` (the last
+   now only affects the exact path). Repeat the
+   [`tspn-paula-lower-bound-2026-10-07`](../../benchmarks/results-saved/README.md#tspn-paula-lower-bound-2026-10-07)
+   protocol on the 28 instances still open after 60 s.
+4. **Feature hints after a polish closure.** A call closed by the polish
+   returns no `active_features`, so with `features` its children start the
+   construction without the inherited tuple. Deriving a tuple from the
+   polished contacts (active barrier faces) would restore the warm start; it is
+   a proposal only, and polish closures are ~10% of the calls on the SoCG
+   regression.
+5. **Binary64 reuse checks.** Memo and `share-bounds` hits still recheck the
+   stored contacts with the exact certificate, and binary64 segment contacts
+   (approximations of exact segment points) fail that membership test, so
+   they are never reused. Re-proving with the cycle interval proof would remove
+   this rational work; only matters with `memo` or the portfolio.
+6. **Calls the polish leaves open.** On Paula's collection, 3 path calls with
+   points or segments (80rd400) stayed open at the B&B gap and went to the exact flow.
+   Candidates: an active-set step that solves the detected reflection
+   equations in binary64 before the proof, or compensated residuals in the
+   last Newton level. Low priority at 3 in 65 M calls.
+7. **Measurement and records.** Repeat the A/B on an idle machine (dantzig, one
+   process, repetitions); run the full 558-case path corpus once with this
+   binary (the identity check covered 40 cases); check that
+   `tpp-convex-path-oracle-replay` accepts calls with points and segments; and
+   update the "Alcance" limitation of `docs/reports/oraculo-convexo`, which
+   still says that the cycle oracle and degenerate regions use rational stages.
+
 ## Use and validation
 
 ```cpp
