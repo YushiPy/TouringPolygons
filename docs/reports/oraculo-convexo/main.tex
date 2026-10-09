@@ -67,7 +67,9 @@
 
 \theoremstyle{plain}\newtheorem{proposicao}{Proposição}
 \theoremstyle{definition}\newtheorem{definicao}{Definição}
+\theoremstyle{plain}\newtheorem{teorema}{Teorema}
 \crefname{proposicao}{Proposição}{Proposições}
+\crefname{teorema}{Teorema}{Teoremas}
 \crefname{definicao}{Definição}{Definições}
 \crefname{algorithm}{Algoritmo}{Algoritmos}
 \crefname{figure}{Figura}{Figuras}
@@ -129,10 +131,10 @@
 {\color{quiet}8 de outubro de 2026\par}
 \vspace{14mm}
 \begin{tcolorbox}[colback=navy!3,colframe=navy!40,boxrule=.5pt,arc=2pt,left=8pt,right=8pt,top=6pt,bottom=6pt]
-\textbf{Resumo.} O solver exato do TPP de ordem livre com extremos fixos explora ordens de visita por \emph{branch-and-bound}. Em cada nó, um \emph{oráculo convexo} resolve o subproblema de ordem fixa e devolve um limite inferior, que decide as podas, e um caminho viável. Este relatório descreve o oráculo por inteiro: o algoritmo de mapas de último passo de Dror et al.\ e a nossa adaptação para polígonos com interseção; por que esse algoritmo não pode ser simplesmente executado em ponto flutuante; e a certificação que adotamos, que prova \(L\le\OPT\le U\) com arredondamento dirigido em \texttt{binary64}, recorrendo a um método de pontos interiores quando o caminho combinatório não basta. A aritmética racional ficou restrita à preparação dos polígonos, a sinais raros e a um fallback que não foi acionado: nos 558 casos do corpus de Fekete et al., nenhuma das 27,5 milhões de chamadas ao oráculo usou uma etapa racional, contra 470.841 na versão anterior, e a busca ficou cerca de 1,5 vez mais rápida nos casos acima de 0,1 s, com todos os caminhos validados. Medimos também o custo da garantia: confiar no comprimento em ponto flutuante seria só 1,2 vez mais rápido e erraria o ótimo em 8\% das instâncias.
+\textbf{Resumo.} O solver exato do TPP de ordem livre com extremos fixos explora ordens de visita por \emph{branch-and-bound}. Em cada nó, um \emph{oráculo convexo} resolve o subproblema de ordem fixa e devolve um limite inferior, que decide as podas, e um caminho viável. Este relatório descreve o oráculo por inteiro: o algoritmo de mapas de último passo de Dror et al.\ e a nossa adaptação para polígonos com interseção; por que esse algoritmo não pode ser simplesmente executado em ponto flutuante; e a certificação que adotamos, que prova \(L\le\OPT\le U\) com arredondamento dirigido em \texttt{binary64}, recorrendo a um método de pontos interiores quando o caminho combinatório não basta. Todo limite devolvido é provado sobre os polígonos de entrada, sem depender da correção da construção dos mapas. A aritmética racional ficou restrita à preparação dos polígonos, a sinais raros e a um fallback que não foi acionado: nos 558 casos do corpus de Fekete et al., nenhuma das 27,5 milhões de chamadas ao oráculo usou uma etapa racional, contra 470.841 na versão anterior, e a busca ficou cerca de 1,5 vez mais rápida nos casos acima de 0,1 s, com todos os caminhos validados. Medimos também o custo da garantia: confiar no comprimento em ponto flutuante seria só 1,2 vez mais rápido e erraria o ótimo em 8\% das instâncias.
 \end{tcolorbox}
 \vfill
-{\small\color{quiet}Código descrito: branch \code{oracle-float-polish} (commit \code{1785323} e anteriores). Este documento complementa o tutorial \emph{A tutorial on fixed-order convex touring polygons and directional last-step maps}~\cite{tutorial}, que detalha a construção dos mapas.\par}
+{\small\color{quiet}Código descrito: branch \code{oracle-float-polish} (commit \code{bd66d70} e anteriores). Este documento complementa o tutorial \emph{A tutorial on fixed-order convex touring polygons and directional last-step maps}~\cite{tutorial}, que detalha a construção dos mapas.\par}
 \end{titlepage}
 
 \pagenumbering{roman}
@@ -161,7 +163,7 @@ A busca poda um nó quando seu limite inferior é pelo menos o comprimento do in
 \item O algoritmo de mapas de último passo (\cref{sec:mapas}), que resolve o subproblema de ordem fixa em aritmética exata, e o estado da sua justificativa para polígonos com interseção.
 \item Por que esse algoritmo é sensível à aritmética: suas decisões são sinais de determinantes, e um sinal errado tem consequências pequenas com polígonos disjuntos e potencialmente grandes com polígonos que se tocam (\cref{sec:aritmetica}).
 \item A certificação primal-dual em ponto flutuante (\cref{sec:certificado}) e o polimento por pontos interiores que a completa (\cref{sec:polimento}).
-\item O oráculo completo, com o fallback exato (\cref{sec:oraculo}), e as medições (\cref{sec:medicoes}).
+\item O oráculo completo, com o fallback exato e o teorema de correção dos limites (\cref{sec:oraculo}), e as medições (\cref{sec:medicoes}).
 \end{enumerate}
 
 %==========================================================================
@@ -251,7 +253,7 @@ Com interseções, a construção muda em pontos essenciais~\cite{tutorial,corre
 O mesmo arquivo-fonte (\path{intersecting_maps.cpp}) é compilado três vezes, com três tipos numéricos: \texttt{double}, racional filtrado (intervalos com avaliação exata sob demanda) e racional exato (\code{boost::multiprecision} ou GMP).
 
 \begin{cuidado}[Estado da justificativa]
-Para polígonos disjuntos, o algoritmo é o de Dror et al., que tem prova publicada; a implementação foi extensamente testada, e o tutorial registra que um detalhe dela (a classificação direta das regiões de atravessar) tem apoio empírico, não prova. Para polígonos com interseção, a nossa construção é uma adaptação, e o tutorial~\cite{tutorial} registra uma \emph{obrigação de prova em aberto}: mostrar que os eventos de divisão bastam, que cada pseudoaresta tem tipo de contato homogêneo, que as regiões aparecem na ordem circular que a busca binária supõe e que os desempates simbólicos são coerentes em todos os casos degenerados. Há certificados exatos para exemplos particulares e validações extensas~\cite{correcao}, mas não um teorema geral. A certificação das \cref{sec:certificado,sec:polimento} \emph{não depende} dessa prova: os limites \(L\) e \(U\) são provados diretamente sobre os polígonos de entrada, qualquer que seja o caminho proposto. A exceção é o último recurso do fluxo exato (\cref{sec:oraculo}), que aceita sem certificado o comprimento do caminho construído; ele não foi acionado em nenhuma das medições deste relatório.
+Para polígonos disjuntos, o algoritmo é o de Dror et al., que tem prova publicada; a implementação foi extensamente testada, e o tutorial registra que um detalhe dela (a classificação direta das regiões de atravessar) tem apoio empírico, não prova. Para polígonos com interseção, a nossa construção é uma adaptação, e o tutorial~\cite{tutorial} registra uma \emph{obrigação de prova em aberto}: mostrar que os eventos de divisão bastam, que cada pseudoaresta tem tipo de contato homogêneo, que as regiões aparecem na ordem circular que a busca binária supõe e que os desempates simbólicos são coerentes em todos os casos degenerados. Há certificados exatos para exemplos particulares e validações extensas~\cite{correcao}, mas não um teorema geral. A certificação das \cref{sec:certificado,sec:polimento} \emph{não depende} dessa prova: os limites \(L\) e \(U\) são provados diretamente sobre os polígonos de entrada, qualquer que seja o caminho proposto. Desde 08/10, isso vale também para o último recurso do fluxo exato, cujo caminho passa por um verificador exato; o \cref{teo:correcao} reúne o argumento.
 \end{cuidado}
 
 %==========================================================================
@@ -316,7 +318,7 @@ Para todo vetor \(u\) com \(\norm u\le1\) e todo \(d\), vale \(\norm d\ge u\cdot
 \]
 A igualdade à direita é só um reagrupamento por ponto (os termos em \(s\) se cancelam em soma telescópica). Os contatos ótimos \(p_i\) são desconhecidos, mas estão em \(P_i\); trocando cada termo pelo pior caso no polígono obtemos uma cota que vale para \emph{todos} os caminhos viáveis, inclusive o ótimo:
 
-\begin{definicao}[Limite dual]
+\begin{definicao}[Limite dual]\label{def:dual}
 Para \(u_0,\dots,u_m\in\R^2\) com \(\norm{u_i}\le1\),
 \begin{equation}\label{eq:dual}
 D(u)=(t-s)\cdot u_m+\sum_{i=1}^m\;\min_{v\in P_i}\,(v-s)\cdot(u_{i-1}-u_i)\;\le\;\OPT.
@@ -481,11 +483,42 @@ A \cref{fig:fluxo} e o \cref{alg:oraculo} mostram como as peças se encaixam no 
 
 \paragraph{Proposta contraída} Quando a primeira prova falha num caso com interseção e uma heurística indica contato de fronteiras, o oráculo tenta uma segunda proposta: contrai cada região por \(2^{-20}\) em direção ao seu centro, resolve o caso disjunto resultante e remapeia o traço para os polígonos originais. A prova é sempre feita nos polígonos originais.
 
-\paragraph{O fluxo exato} Permanece como estava: reproduz o traço em racional, materializa os contatos e verifica as condições KKT com inteiros exatos, incluindo uma propagação em disco e cone para blocos de contatos coincidentes~\cite{certificadociclo}; se não certificar, tenta um corte dual racional (quando há corte finito), uma recuperação por contração para fronteiras que se tocam, a recuperação filtrada e, por fim, o solver racional completo. Todos os passos, menos o último, só devolvem limites certificados. O solver racional completo devolve como \(L\) e \(U\) o comprimento exato do caminho que constrói, sem certificado independente; é o único ponto do oráculo em que os limites dependem da correção da construção: do teorema de Dror et al.\ e da implementação, para polígonos disjuntos, e da obrigação em aberto da \cref{sec:intersecao}, para polígonos com interseção. Nas 1.116 execuções da rodada completa (\cref{sec:medicoes}), nenhuma chamada chegou a ele: no padrão atual, nenhuma chamada usou o fluxo exato e, na variante anterior, as 470.841 chamadas que o usaram foram todas certificadas nos passos anteriores (divisão na \cref{tab:dantzig}). Os limites exatos usam raízes quadradas em ponto fixo de 96 bits, arredondadas para fora. O fluxo exato também é o caminho para gap zero, que o polimento não atende, e para regiões degeneradas (pontos e segmentos).
+\paragraph{O fluxo exato} Reproduz o traço em racional, materializa os contatos e verifica as condições KKT com inteiros exatos, incluindo uma propagação em disco e cone para blocos de contatos coincidentes~\cite{certificadociclo}; se não certificar, tenta um corte dual racional (quando há corte finito), uma recuperação por contração para fronteiras que se tocam, a recuperação filtrada e, por fim, o solver racional completo. Os limites exatos usam raízes quadradas em ponto fixo de 96 bits, arredondadas para fora. O fluxo exato também é o caminho para gap zero, que o polimento não atende, e para regiões degeneradas (pontos e segmentos).
+
+\paragraph{O último recurso} Até 08/10, o solver racional completo devolvia como \(L\) e \(U\) o comprimento exato do caminho que constrói, sem certificado independente; era o único ponto do oráculo em que os limites dependiam da correção da construção. Agora os contatos exatos desse caminho passam pelo verificador KKT exato de ciclos~\cite{certificadociclo}, aplicado ao ciclo que fecha o caminho de \(t\) de volta a \(s\), com os extremos como regiões de um ponto. Se a verificação falhar, o oráculo devolve como \(U\) o comprimento do caminho e como \(L\) o valor \(D(u)\) com as direções do próprio caminho, possivelmente com gap aberto, e o contador \code{oracle\_unverified\_fallbacks} registra o evento; contatos fora dos polígonos causam exceção. O caminho das regiões degeneradas, que antes causava exceção quando a verificação falhava, segue o mesmo procedimento. Nas 1.116 execuções da rodada completa (\cref{sec:medicoes}), nenhuma chamada chegou ao último recurso: no padrão atual, nenhuma chamada usou o fluxo exato e, na variante anterior, as 470.841 chamadas que o usaram foram certificadas nos passos anteriores (divisão na \cref{tab:dantzig}). Nos 3.200 casos aleatórios da suíte de testes (3.000 com caixas de coordenadas inteiras e 200 com polígonos convexos), um modo de diagnóstico executa o último recurso em toda chamada, e todos os caminhos passaram na verificação.
 
 \paragraph{Onde ainda há aritmética racional} Na conversão de cada região para o cache (16.360 conversões nos 558 casos), nos sinais de pertencimento que nem intervalos nem inteiros de 128 bits decidem (12.984 nos 558 casos, em 85 deles) e no fluxo exato, que não foi acionado.
 
-\paragraph{Contadores} A saída de \code{tpp-unordered} classifica cada chamada do modo caminho de exatamente uma forma: \code{oracle\_interval\_bound\_calls} (prova intervalar) \(+\) \code{oracle\_float\_calls} (polimento) \(+\) \code{oracle\_rational\_calls} \(=\) \code{calls}; as racionais se dividem em replay exato, filtradas, por contração e solver completo. \code{rational\_membership\_predicates} e \code{exact\_polygon\_preparations} contam os dois usos restantes.
+\paragraph{Contadores} A saída de \code{tpp-unordered} classifica cada chamada do modo caminho de exatamente uma forma: \code{oracle\_interval\_bound\_calls} (prova intervalar) \(+\) \code{oracle\_float\_calls} (polimento) \(+\) \code{oracle\_rational\_calls} \(=\) \code{calls}; as racionais se dividem em replay exato, filtradas, por contração e solver completo, e \code{oracle\_unverified\_fallbacks} conta as verificações do solver completo que falharam. \code{rational\_membership\_predicates} e \code{exact\_polygon\_preparations} contam os dois usos restantes.
+
+\subsection{Correção dos limites}\label{sec:correcao}
+O resultado abaixo junta as peças das seções anteriores. Ele segue o modelo dos \emph{algoritmos certificadores}~\cite{certificadores}: a construção só propõe, e um verificador simples decide o que chega à busca.
+
+\begin{teorema}\label{teo:correcao}
+Sejam \(s,t\in\R^2\) e \(P_1,\dots,P_m\) polígonos convexos fechados (pontos e segmentos inclusive), com coordenadas \texttt{binary64}. Suponha que, sempre que o teste de ambiente da \cref{sec:intervalos} aceita, as operações básicas de \texttt{binary64} sigam o IEEE~754 com arredondamento ao mais próximo. Se o oráculo devolve \((L,U)\), então
+\[
+L\;\le\;\OPT\;\le\;U,
+\]
+e \(U\) limita o comprimento de um caminho viável construído pelo oráculo. Isso vale quaisquer que sejam as decisões dos mapas de último passo, em \texttt{double} ou em racional; em particular, não depende da obrigação de prova da \cref{sec:intersecao}.
+\end{teorema}
+
+\begin{proof}
+O oráculo devolve limites em três tipos de ponto.
+
+\emph{(a) \Cref{alg:prova}}, aplicado ao traço, à proposta contraída ou ao resultado do polimento. Cada sinal de pertencimento é decidido por intervalos que contêm o valor exato (\cref{sec:intervalos}) ou por um cálculo exato do determinante (em inteiros ou, no oráculo híbrido, em racional); se o pertencimento de algum contato não é provado, \(U=+\infty\). Caso contrário, a poligonal \(s,p_1,\dots,p_m,t\) é viável, e seu comprimento não passa do extremo superior da soma intervalar; logo \(\OPT\le U\). Cada \(u_i\) tem \(\norm{u_i}\le1\) provado, então \(D(u)\le\OPT\) pela \cref{def:dual}, e o extremo inferior do intervalo que contém \(D(u)\) não passa de \(D(u)\). Como todo caminho de \(s\) a \(t\) mede pelo menos \(\norm{t-s}\), o extremo inferior do intervalo de \(\norm{t-s}\) também é cota inferior. Logo \(L\le\OPT\).
+
+\emph{(b) Certificado KKT exato}: replay exato, recuperação por contração, recuperação filtrada e último recurso verificado. Os contatos \(p_i\) são racionais, obtidos por recortes exatos do caminho contra cada \(P_i\), ou têm o pertencimento provado pelo verificador. Com \(d_i=p_{i+1}-p_i\), o verificador prova, em aritmética exata, que existem \(u_0,\dots,u_m\), com \(u_i=d_i/\norm{d_i}\) se \(d_i\ne0\) e \(\norm{u_i}\le1\) se \(d_i=0\), tais que \((v-p_i)\cdot(u_{i-1}-u_i)\ge0\) para todo vértice \(v\) de \(P_i\) (portanto, por linearidade, para todo \(v\in P_i\)). Então o mínimo de cada termo de \eqref{eq:dual} é atingido em \(p_i\), e a identidade da \cref{sec:inferior} dá
+\[
+D(u)=\sum_{i=0}^m u_i\cdot d_i=\sum_{i=0}^m\norm{d_i}=\ell,
+\]
+o comprimento do caminho, porque \(u_i\cdot d_i=\norm{d_i}\) quando \(d_i\ne0\) e ambos os lados valem zero quando \(d_i=0\). Pela dualidade fraca, \(\ell=D(u)\le\OPT\le\ell\): o caminho é ótimo. Os limites devolvidos são somas de raízes em ponto fixo arredondadas para baixo e para cima, logo \(L\le\ell=\OPT\le U\). Sem regiões (\(m=0\)), \(\OPT=\norm{t-s}\) é cercado da mesma forma. No último recurso e nas regiões degeneradas, o verificador é o de ciclos, aplicado ao ciclo \(s,p_1,\dots,p_m,t\) com as regiões \(\{s\},P_1,\dots,P_m,\{t\}\): todo ciclo viável desse problema mede o mesmo que um caminho viável mais a constante \(\norm{t-s}\), então o ciclo é ótimo se e só se o caminho é.
+
+\emph{(c) Corte dual racional e último recurso sem certificado.} \(U\) é, como em (b), o comprimento arredondado para cima de um caminho cujos contatos racionais estão comprovadamente em seus polígonos. \(L\) é o maior entre os valores de \(D(u)\) calculados exatamente em racional para algumas escolhas de \(u\), e um limite racional de \(\norm{t-s}\), arredondado para baixo. As escolhas usam \(u_i=d_i/N_i\), com \(N_i\ge\norm{d_i}\) um limite superior racional da raiz; nos segmentos de comprimento zero, usam o vetor nulo, o vetor de um vizinho ou a direção de \(s\) para \(t\) dividida da mesma forma. Todos têm \(\norm{u_i}\le1\), logo \(L\le\OPT\) como em (a).
+
+Nos três casos, \(L\le\OPT\le U\). Nenhum passo usou a otimalidade do caminho proposto, só sua viabilidade, provada diretamente; a otimalidade, quando afirmada, vem do certificado em (b).
+\end{proof}
+
+O teorema garante que todo limite devolvido é verdadeiro, não que a chamada feche o gap. Se a construção errar e o polimento não convergir, a chamada pode ficar aberta. Numa folha (ordem completa), a busca mantém o limite desse nó no seu limite inferior global e termina sem declarar o gap fechado (\code{termination} igual a \code{numerical\_limit}). É aí que entram a obrigação de prova da \cref{sec:intersecao} e a convergência do polimento: na eficiência e na garantia de fechar, não na correção. Na busca, o limite de um nó vale para todas as suas extensões, porque omitir regiões e trocar uma região pelo seu fecho convexo só relaxam o problema~\cite{ordemlivre}; assim, um gap que a busca declara fechado é verdadeiro. Por fim, o teorema trata do procedimento descrito neste relatório; a correspondência com o código foi conferida por leitura e por testes, não por verificação formal.
 
 %==========================================================================
 \section{Medições}\label{sec:medicoes}
@@ -540,7 +573,7 @@ Na comparação de 06/10 na dantzig (binário \code{470a0c9}, anterior ao padrã
 %==========================================================================
 \section{Limitações e questões em aberto}
 \begin{itemize}[leftmargin=*,itemsep=2pt]
-\item \textbf{Prova da construção com interseção.} A obrigação de prova registrada no tutorial continua em aberto. Os limites certificados não dependem dela. Dependem dela os limites do último recurso do fluxo exato (que não foi acionado), a garantia de que o fluxo exato fecha qualquer gap, inclusive zero, e a qualidade do traço em \texttt{double}, da qual depende a eficiência. Se também esse último recurso tivesse de passar pela verificação KKT exata, e o oráculo devolvesse só limites certificados quando ela falhasse, os limites ficariam independentes dessa prova em todos os casos, ao custo de, nesses casos, a chamada não fechar o gap.
+\item \textbf{Prova da construção com interseção.} A obrigação de prova registrada no tutorial continua em aberto. Pelo \cref{teo:correcao}, os limites não dependem dela; dependem dela a garantia de que o fluxo exato fecha qualquer gap, inclusive zero, e a qualidade do traço em \texttt{double}, da qual depende a eficiência.
 \item \textbf{Ambiente.} A prova intervalar supõe IEEE \texttt{binary64} com arredondamento ao mais próximo e raiz quadrada corretamente arredondada; o código verifica o ambiente e cai no fluxo exato se ele não for suportado.
 \item \textbf{Gaps apertados.} Com tolerâncias muito menores que as da busca, o polimento pode não fechar; a chamada usa o fluxo exato.
 \item \textbf{Alcance.} O padrão vale para o oráculo de caminho. O oráculo de ciclo do TSPN e as regiões degeneradas (pontos e segmentos) ainda usam etapas racionais; estender o polimento a ciclos é o passo seguinte mais promissor.
@@ -570,7 +603,8 @@ Na comparação de 06/10 na dantzig (binário \code{470a0c9}, anterior ao padrã
 \begin{tabular}{@{}>{\raggedright\arraybackslash}p{42mm}>{\raggedright\arraybackslash}p{103mm}@{}}\toprule
 Peça & Onde (\path{packages/convex-tpp/cpp/src/solvers/}, salvo indicação)\\\midrule
 Oráculo de caminho & \code{tpp\_convex\_solve\_certified} em \path{certified.cpp}\\
-Fluxo híbrido e exato & \code{solve\_hybrid\_impl}, \code{try\_interval\_trace\_bound}, \code{certify}, \code{set\_exact\_bounds} em \path{hybrid.cpp}\\
+Fluxo híbrido e exato & \code{solve\_hybrid\_impl}, \code{try\_interval\_trace\_bound}, \code{certify}, \code{set\_exact\_bounds}, \code{set\_verified\_bounds} em \path{hybrid.cpp}\\
+Verificador KKT de ciclos & \code{tpp\_convex\_verify\_cycle\_certificate} em \path{cycle_certificate.cpp}\\
 Polimento & \code{tpp\_convex\_solve\_float\_certified} em \path{float_oracle.cpp}\\
 Mapas direcionais & \path{intersecting_maps.cpp} (três tipos numéricos)\\
 Caso disjunto & \code{SolutionBinarySearchDisjoint} em \path{binary_search.cpp}\\
@@ -590,6 +624,8 @@ Replay de chamadas & \path{main-path_oracle_replay.cpp}; captura com \code{-{}-o
 \bibitem{correcao} TouringPolygons. \emph{Corrected directional last-step maps}, 13 de setembro de 2026. \path{docs/algorithms/intersecting-tpp-correction.md}.
 \bibitem{auditoria} TouringPolygons. \emph{Intersecting convex TPP: mathematical audit}, 13 de setembro de 2026. \path{docs/algorithms/intersecting-tpp-audit.md}.
 \bibitem{certificadociclo} TouringPolygons. \emph{Convex cycle certificate}. \path{docs/algorithms/convex-cycle-certificate.md}.
+\bibitem{certificadores} R.~M. McConnell, K.~Mehlhorn, S.~Näher e P.~Schweitzer. \emph{Certifying algorithms}. Computer Science Review 5(2):119--161, 2011.
+\bibitem{ordemlivre} TouringPolygons. \emph{TPP não convexo com ordem livre}, seção ``Por que a ramificação é completa''. \path{docs/algorithms/unordered-tpp.md}.
 \bibitem{experimentos} TouringPolygons. \emph{Estratégias de performance do TPP de ordem livre}. \path{docs/algorithms/unordered-tpp-experiments.md}.
 \bibitem{historico} TouringPolygons. Seções \code{free-order-history-2026-10-07}, \code{tpp-float-oracle-2026-10-08}, \code{float-recovery-dantzig-2026-10-08} e \code{trust-double-2026-10-08} de \path{benchmarks/results-saved/README.md}.
 \end{thebibliography}
