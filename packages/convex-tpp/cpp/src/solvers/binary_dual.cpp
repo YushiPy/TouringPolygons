@@ -1,66 +1,15 @@
 #include "tpp/convex/dual.h"
 #include "binary_dual.h"
 #include <algorithm>
-#include <array>
 #include <stdexcept>
 
 namespace tpp {
 namespace {
 using I=detail::CycleInterval;using P=detail::IntervalPoint;
 using Region=std::vector<Vector2>;
-double down(double x) {return std::isfinite(x)?I::down(x):x;}
-double up(double x) {return std::isfinite(x)?I::up(x):x;}
-// Bounds of min over the region of (v-o).(a-b), and an upper bound of the
-// region's width along a-b, for binary64 a, b, o and vertices. Each value
-// t = dx*nx + dy*ny (dx = v.x-o.x, nx = a.x-b.x, ...) is plain binary64; in
-// the standard model (each operation has relative error at most u = 2^-53,
-// plus 2^-1075 absolute for an underflowing product; a fused multiply-add is
-// no less accurate) it is within 4.0000001u(|dx||nx| + |dy||ny|) + 2^-1074 of
-// the exact value. E below exceeds that for every vertex: 2^-50 = 8u covers
-// the factor and the rounding of E itself, with mx, my the largest computed
-// coordinate differences.
-struct Support { double lower=-INFINITY, upper=INFINITY, width=INFINITY; };
-template<bool Width=false,class Vertices>
-Support support_bounds(const Vertices &p,Vector2 o,Vector2 a,Vector2 b) {
-    const double nx=a.x-b.x,ny=a.y-b.y;
-    // Equal vectors (a straight or doubly zero visit): every term is 0.
-    if(nx==0&&ny==0)return {0,0,0};
-    double low=INFINITY,high=-INFINITY,mx=0,my=0;
-    for(const auto &v:p) {
-        const double dx=v.x-o.x,dy=v.y-o.y,t=dx*nx+dy*ny;
-        low=std::min(low,t);
-        if constexpr(Width)high=std::max(high,t);
-        mx=std::max(mx,std::abs(dx));my=std::max(my,std::abs(dy));
-    }
-    const double error=0x1p-50*(mx*std::abs(nx)+my*std::abs(ny))+0x1p-1070;
-    if(!std::isfinite(low)||!std::isfinite(error))return {};
-    Support result{down(low-error),up(low+error)};
-    // A point has width exactly zero (the pricing treats zero widths apart).
-    if constexpr(Width)if(std::isfinite(high))result.width=std::size(p)==1?0:std::max(0.0,up(up(high-low)+2*error));
-    return result;
-}
-Support support_bounds(const Region &p,Vector2 o,Vector2 a,Vector2 b) {
-    if(p.empty())throw std::invalid_argument("Empty binary dual region");
-    return support_bounds<false>(p,o,a,b);
-}
-Support point_bounds(Vector2 v,Vector2 o,Vector2 a,Vector2 b) {
-    return support_bounds<false>(std::array<Vector2,1>{v},o,a,b);
-}
-// A unit-disk vector along b-a (zero for a zero link or an unproved norm).
-// It is shortened by 2^-49 so that, in the standard model, a computed
-// squared norm at most 1-2^-50 proves the exact one at most 1; the interval
-// check is the fallback. Rounding only changes which feasible vector is used.
-Vector2 unit_direction(Vector2 a,Vector2 b) {
-    const double dx=b.x-a.x,dy=b.y-a.y,r=std::sqrt(dx*dx+dy*dy);
-    if(!(r>0)||!std::isfinite(r))return {};
-    const double scale=(1-0x1p-49)/r;
-    Vector2 q{dx*scale,dy*scale};
-    for(int attempt=0;attempt<4;++attempt) {
-        if(q.x*q.x+q.y*q.y<=1-0x1p-50||detail::binary_dual_feasible(q))return q;
-        q={q.x*(1-0x1p-50),q.y*(1-0x1p-50)};
-    }
-    return {};
-}
+using detail::Support;using detail::support_bounds;using detail::point_bounds;using detail::unit_direction;
+double down(double x) {return detail::below(x);}
+double up(double x) {return detail::above(x);}
 // Zero links take the previous nonzero vector in the scan order (both
 // directions, so every zero link of a chain with one nonzero link is filled).
 std::vector<Vector2> filled(std::vector<Vector2> u,bool forward,bool cyclic) {

@@ -260,12 +260,16 @@ describe the stage. The default `max_gap=0` keeps every previous contract.
    `t` in `[0,1]`, is carried as an interval box; in a polygon every edge
    sign is decided exactly, and an unproved contact moves toward the vertex
    mean by `2^-45, 2^-40, 2^-30, 2^-20, 2^-10, 2^-6, 2^-3, 1/2, 1`. `U` is the
-   upper end of the interval sum of the link lengths between boxes. `L` is the
-   lower end of the interval enclosure of
-   `D(u)=sum_i min_(v in P_i) (v-r).(u_(i-1)-u_i)` for each proposed `u`,
-   rounded to binary vectors proved to lie in the unit disk
+   upper end of the interval sum of the link lengths between boxes. `L` is a
+   lower bound of `D(u)=sum_i min_(v in P_i) (v-r).(u_(i-1)-u_i)` for each
+   proposed `u`, rounded to binary vectors proved to lie in the unit disk
    (`binary_dual_vector`), with `r` the mean of the regions' vertex means; and
-   `L >= 0`. For construction candidates, links no longer than
+   `L >= 0`. Since 2026-10-09 each support is the binary64 minimum widened by
+   an a priori bound of its rounding error (`support_bounds`, `binary_dual.h`;
+   proof in [unordered-tpp.md](unordered-tpp.md#certificado-convexo-e-interseções)),
+   which costs about a third of the interval enclosure, and edge signs in
+   polygons try a static orientation filter before the interval and the
+   integer determinant. For construction candidates, links no longer than
    `max(32*eps*scale, max_gap/(16k))` get four proposals: their own
    directions, the nearest long link's on either side (cyclically), or zero.
    The polish proposes its smoothed directions. Lengths only select
@@ -320,10 +324,13 @@ summing and regrouping by contact gives `sum_i q_i.(u_(i-1)-u_i)`. The
 coefficients `u_(i-1)-u_i` sum to zero exactly, so this equals
 `sum_i (q_i-r).(u_(i-1)-u_i) >= sum_i min_(v in P_i) (v-r).(u_(i-1)-u_i) = D(u)`,
 and the minimum of a linear function over a convex polygon, a segment or a
-point is attained at a vertex. Hence `D(u) <= OPT`. Every vertex term is
-enclosed by intervals; taking the minimum of the lower ends gives a value
-`<=` the exact minimum, and the lower end of the interval sum is `<= D(u)`.
-`OPT >= 0` trivially. Hence `L <= OPT`.
+point is attained at a vertex. Hence `D(u) <= OPT`. Every computed vertex term
+is within `E` of its exact value (standard model with gradual underflow; `E`
+as in `support_bounds`), so the computed minimum minus `E`, rounded down, is
+`<=` the exact minimum, and the sum of these terms, rounded down one value per
+addition, is `<= D(u)`. `OPT >= 0` trivially. Hence `L <= OPT`. (A filter
+sign in (b) is decided only when the computed determinant exceeds its own a
+priori error bound, so it is the exact sign.)
 
 (d) The stage reports closure only with a finite `U` from (b), so a closed
 result always has a feasible cycle, as `CertifiedBound` requires. In
