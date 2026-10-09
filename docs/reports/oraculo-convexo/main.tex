@@ -54,7 +54,7 @@
 \pagestyle{fancy}\fancyhf{}
 \fancyhead[L]{\small\sffamily\color{navy}O ORÁCULO CONVEXO CERTIFICADO}
 \fancyhead[R]{\small\sffamily\color{quiet}TouringPolygons}
-\fancyfoot[L]{\small\color{quiet}Relatório técnico, 8 de outubro de 2026}
+\fancyfoot[L]{\small\color{quiet}Relatório técnico, 9 de outubro de 2026}
 \fancyfoot[R]{\small\color{navy}\thepage}
 \renewcommand{\headrulewidth}{.4pt}
 
@@ -128,7 +128,7 @@
 {\color{good}\Large Mapas de último passo, certificação primal-dual em ponto flutuante e medições\par}
 \vspace{10mm}
 {\large Gabriel Freire Ushijima\par}
-{\color{quiet}8 de outubro de 2026\par}
+{\color{quiet}9 de outubro de 2026\par}
 \vspace{14mm}
 \begin{tcolorbox}[colback=navy!3,colframe=navy!40,boxrule=.5pt,arc=2pt,left=8pt,right=8pt,top=6pt,bottom=6pt]
 \textbf{Resumo.} O solver exato do TPP de ordem livre com extremos fixos explora ordens de visita por \emph{branch-and-bound}. Em cada nó, um \emph{oráculo convexo} resolve o subproblema de ordem fixa e devolve um limite inferior, que decide as podas, e um caminho viável. Este relatório descreve o oráculo por inteiro: o algoritmo de mapas de último passo de Dror et al.\ e a nossa adaptação para polígonos com interseção; por que esse algoritmo não pode ser simplesmente executado em ponto flutuante; e a certificação que adotamos, que prova \(L\le\OPT\le U\) com arredondamento dirigido em \texttt{binary64}, recorrendo a um método de pontos interiores quando o caminho combinatório não basta. Todo limite devolvido é provado sobre os polígonos de entrada, sem depender da correção da construção dos mapas. A aritmética racional ficou restrita à preparação dos polígonos, a sinais raros e a um fallback que não foi acionado: nos 558 casos do corpus de Fekete et al., nenhuma das 27,5 milhões de chamadas ao oráculo usou uma etapa racional, contra 470.841 na versão anterior, e a busca ficou cerca de 1,5 vez mais rápida nos casos acima de 0,1 s, com todos os caminhos validados. Medimos também o custo da garantia: confiar no comprimento em ponto flutuante seria só 1,2 vez mais rápido e erraria o ótimo em 8\% das instâncias.
@@ -386,14 +386,27 @@ e então \(D(u)=10\) exatamente. As políticas da \cref{sec:politicas} não cheg
 
 %==========================================================================
 \section{Polimento por pontos interiores}\label{sec:polimento}
-Quando a prova da seção anterior não fecha, precisamos de um caminho melhor ou de vetores \(u\) melhores, ou dos dois. O polimento resolve aproximadamente o próprio problema \eqref{eq:primal} com um método contínuo, que não toma decisões de sinal, e cujo subproduto são vetores duais quase ótimos, inclusive nos segmentos de comprimento zero.
+Quando a prova da seção anterior não fecha, precisamos de um caminho melhor ou de vetores \(u\) melhores, ou dos dois. O polimento resolve aproximadamente o próprio problema \eqref{eq:primal} com um método contínuo, que não toma decisões de sinal, e cujo subproduto são vetores duais quase ótimos, inclusive nos segmentos de comprimento zero. Esta seção apresenta a ideia, a formulação, a garantia que orienta a escolha do parâmetro \(\mu\), as contas de cada passo, a sequência de níveis e um exemplo acompanhado passo a passo com o oráculo real.
+
+\subsection{A ideia}\label{sec:polimento-ideia}
+O problema \eqref{eq:primal} é convexo, mas tem duas dificuldades para um método que usa derivadas. A função objetivo não é diferenciável quando um segmento tem comprimento zero: \(\norm d\) tem um bico em \(d=0\), e esse é exatamente o caso dos contatos coincidentes (\cref{sec:coincidentes}). E as restrições \(p_i\in P_i\) têm bordas: o ótimo costuma estar numa aresta ou num vértice. O polimento troca o problema por uma família de problemas suaves e sem restrições, indexada por um parâmetro \(\mu>0\), com três ingredientes.
+\begin{description}[leftmargin=0pt,itemsep=1pt,font=\bfseries\color{navy}]
+\item[Suavização.] Cada norma \(\norm d\) vira \(\sqrt{\norm d^2+\mu^2}\), que é diferenciável em toda parte e erra pouco: \(\norm d\le\sqrt{\norm d^2+\mu^2}\le\norm d+\mu\). Num segmento nulo não há mais direção a escolher: o gradiente \(d/\sqrt{\norm d^2+\mu^2}\) vale zero ali e varia continuamente em volta.
+\item[Barreira logarítmica.] Cada aresta de \(P_i\), escrita como uma desigualdade \(n_f\cdot x\ge o_f\), entra como um termo \(-\mu\log(n_f\cdot x_i-o_f)\), finito dentro do polígono e infinito na borda. Os iterados ficam, portanto, estritamente dentro dos polígonos, e todo caminho intermediário é viável. Perto de uma aresta que o ótimo usa, a barreira mantém o contato a uma distância proporcional a \(\mu\).
+\item[Newton com continuação.] Para \(\mu\) fixo, a função resultante \(f_\mu\) é suave e estritamente convexa e tem um único minimizador \(x(\mu)\), para o qual o método de Newton converge muito rápido (quadraticamente, perto dele). O conjunto dos \(x(\mu)\), \(\mu>0\), é o \emph{caminho central}. O polimento resolve uma sequência decrescente \(\mu_0>\mu_1>\cdots\), partindo cada nível do resultado do anterior, que já está perto do novo minimizador.
+\end{description}
+Quando \(\mu\to0\), o comprimento de \(x(\mu)\) tende a \(\OPT\) (a \cref{prop:barreira} diz com que velocidade) e, como os polígonos são compactos, todo ponto limite de \(x(\mu)\) é uma solução ótima. A \cref{fig:central} mostra o caminho central no exemplo do quadrado da \cref{sec:exquadrado}. Por simetria, o contato desce pela reta \(x=2\) até a solução \((2,1)\), e os dois limites se aproximam do ótimo em ritmos diferentes: \(U-\OPT\) cai proporcionalmente a \(\mu\) (o contato fica a uma altura proporcional a \(\mu\) acima da aresta, e o comprimento cresce linearmente com essa altura), enquanto \(\OPT-L\) cai proporcionalmente a \(\mu^2\). Os dois ficam bem abaixo da cota da \cref{prop:barreira}.
+
+\begin{figure}[ht]\centering\figcentral
+\caption{O caminho central no exemplo do quadrado (\(s=(0,0)\), \(t=(4,0)\), \(P=[1,3]\times[1,2]\), \(\OPT=2\sqrt5\)). (a) Os minimizadores \(x(\mu)\) de \(f_\mu\) para \(\mu\) de \(1\) a \(10^{-5}\), em coordenadas escaladas (\(\sigma=4\)); tracejado, o caminho de \(\mu=10^{-1}\); ao fundo, o caminho ótimo. (b) Distância dos limites ao ótimo, com \(U\) o comprimento de \(x(\mu)\) e \(L=D(u)\) com as direções suavizadas; a cota da \cref{prop:barreira} é \(\sigma\mu(m+1+F)=24\mu\). Minimizadores e limites calculados à parte, com 50 dígitos. Na busca, este exemplo nem chega ao polimento: a prova intervalar o fecha.}\label{fig:central}
+\end{figure}
 
 \subsection{O problema com barreira}
-Em coordenadas \(x=(p-s)/\sigma\) (origem em \(s\) e escala \(\sigma\) igual à maior diferença de coordenada em relação a \(s\)), cada aresta de \(P_i\) dá uma restrição \(n_f\cdot x_i\ge o_f\) com normal interna unitária \(n_f\). Para \(\mu>0\), minimizamos
+Em coordenadas \(x=(p-s)/\sigma\) (origem em \(s\) e escala \(\sigma\) igual à maior diferença de coordenada, em relação a \(s\), entre \(t\) e os vértices), cada aresta \(f\) de \(P_i\) dá uma restrição \(n_f\cdot x_i\ge o_f\) com normal interna unitária \(n_f\); \(F_i\) é o conjunto dessas arestas, sem as de comprimento zero. A escala deixa as coordenadas com ordem de grandeza 1, de modo que \(\mu\) tem o mesmo significado em qualquer instância; uma perda \(\mu\) em coordenadas escaladas é uma perda \(\sigma\mu\) nas originais. Para \(\mu>0\), minimizamos
 \begin{equation}\label{eq:barreira}
 f_\mu(x)=\sum_{i=0}^m\sqrt{\norm{x_{i+1}-x_i}^2+\mu^2}\;-\;\mu\sum_{i=1}^m\sum_{f\in F_i}\log\bigl(n_f\cdot x_i-o_f\bigr),
 \end{equation}
-com \(x_0=0\) e \(x_{m+1}=(t-s)/\sigma\) fixos. O primeiro termo suaviza as normas (é diferenciável mesmo com segmentos nulos), e o segundo mantém cada contato estritamente dentro do seu polígono. Escrevendo \(d_i=x_{i+1}-x_i\), definimos as \emph{direções suavizadas}
+com \(x_0=0\) e \(x_{m+1}=(t-s)/\sigma\) fixos. Escrevemos \(d_i=x_{i+1}-x_i\) para os segmentos e \(\eta_f=n_f\cdot x_i-o_f>0\) para a folga da aresta \(f\in F_i\), e definimos as \emph{direções suavizadas}
 \begin{equation}\label{eq:usuave}
 u_i=\frac{d_i}{\sqrt{\norm{d_i}^2+\mu^2}},\qquad \norm{u_i}<1 .
 \end{equation}
@@ -403,6 +416,8 @@ Para segmentos longos, \(u_i\) é praticamente a direção do segmento; para seg
 \caption{Norma da direção suavizada \(u=d/\sqrt{\norm d^2+\mu^2}\) em função de \(\norm d/\mu\): perto de 1 para segmentos longos, abaixo de 1 para segmentos curtos e nula para segmentos de comprimento zero.}\label{fig:norma}
 \end{figure}
 
+A função \(f_\mu\) está definida no produto dos interiores dos polígonos, um conjunto limitado, e tende a \(+\infty\) perto da borda dele (alguma folga vai a zero); logo tem minimizador. Ela também é estritamente convexa: cada \(\sqrt{\norm d^2+\mu^2}\) é convexo, e a barreira de cada polígono tem hessiana \(\sum_f(\mu/\eta_f^2)\,n_fn_f^{\top}\), definida positiva porque as normais de um polígono de área positiva geram o plano. O minimizador \(x(\mu)\) é, portanto, único.
+
 \subsection{Por que o polimento produz um bom limite inferior}
 \begin{proposicao}\label{prop:barreira}
 Se \(x\) é ponto estacionário de \(f_\mu\) e \(u\) é dado por \eqref{eq:usuave}, então, em coordenadas escaladas,
@@ -411,21 +426,41 @@ D(u)\;\ge\;\sum_{i=0}^m\norm{x_{i+1}-x_i}\;-\;\mu\,(m+1+F),\qquad F=\textstyle\s
 \]
 \end{proposicao}
 \begin{proof}
-A derivada de \eqref{eq:barreira} em relação a \(x_i\) (\(1\le i\le m\)) é \(u_{i-1}-u_i-\sum_{f\in F_i}\lambda_fn_f\), com \(\lambda_f=\mu/(n_f\cdot x_i-o_f)>0\). Na estacionariedade, \(u_{i-1}-u_i=\sum_f\lambda_fn_f\). Para todo \(v\in P_i\), \(n_f\cdot v\ge o_f\), logo
+A derivada de \eqref{eq:barreira} em relação a \(x_i\) (\(1\le i\le m\)) é \(u_{i-1}-u_i-\sum_{f\in F_i}\lambda_fn_f\), com \(\lambda_f=\mu/\eta_f>0\). Na estacionariedade, \(u_{i-1}-u_i=\sum_f\lambda_fn_f\). Para todo \(v\in P_i\), \(n_f\cdot v\ge o_f\), logo
 \[
-v\cdot(u_{i-1}-u_i)\ge\sum_f\lambda_fo_f=\sum_f\lambda_f\bigl(n_f\cdot x_i-(n_f\cdot x_i-o_f)\bigr)=x_i\cdot(u_{i-1}-u_i)-\mu\abs{F_i}.
+v\cdot(u_{i-1}-u_i)\ge\sum_f\lambda_fo_f=\sum_f\lambda_f\bigl(n_f\cdot x_i-\eta_f\bigr)=x_i\cdot(u_{i-1}-u_i)-\mu\abs{F_i}.
 \]
 Somando sobre \(i\) e somando \(x_{m+1}\cdot u_m\), o lado direito telescopa para \(\sum_{i=0}^mu_i\cdot d_i-\mu F\) (com \(x_0=0\)). Por fim, \(u_i\cdot d_i=\norm{d_i}^2/\sqrt{\norm{d_i}^2+\mu^2}\ge\norm{d_i}-\mu\).
 \end{proof}
+Os números \(\lambda_f=\mu/\eta_f\) funcionam como multiplicadores das arestas. A estacionariedade diz que \(u_{i-1}-u_i\) é uma combinação não negativa das normais internas de \(P_i\), que é a condição de otimalidade da \cref{sec:politicas}, mas com todas as arestas participando, cada uma com peso \(\lambda_f\), e com \(\lambda_f\eta_f=\mu\) no lugar da folga complementar exata \(\lambda_f\eta_f=0\). Quando \(\mu\) diminui, as arestas longe do contato ficam com peso pequeno, e o par \((x,u)\) fica cada vez mais perto de satisfazer as condições exatas.
+
 Em coordenadas originais a perda é \(\sigma\mu(m+1+F)\). Isso diz quanto \(\mu\) precisa diminuir: para um gap alvo \(\tau\), basta \(\mu_{\text{fim}}=\tau/\bigl(2\sigma(m+1+F)\bigr)\). A proposição é só uma justificativa da escolha de \(\mu\): os limites usados são sempre os da prova intervalar (\cref{alg:prova}), aplicada aos contatos e aos vetores que o polimento produz. Um ponto não estacionário ou um erro numérico apenas enfraquece \(L\).
 
-\subsection{O passo de Newton}
-O gradiente de \eqref{eq:barreira} em \(x_i\) envolve só \(x_{i-1}\), \(x_i\) e \(x_{i+1}\); a hessiana é, portanto, \emph{tridiagonal por blocos} \(2\times2\). O bloco do segmento \(d_i\) é \((I-u_iu_i^{\top})/\sqrt{\norm{d_i}^2+\mu^2}\), que entra positivo nos blocos diagonais dos dois extremos e negativo no bloco fora da diagonal; cada face soma \((\mu/s_f^2)\,n_fn_f^\top\) ao bloco diagonal do seu contato (\(s_f\) é a folga), e somamos \(10^{-14}I\) por estabilidade. O sistema de Newton se resolve por eliminação de blocos em \(O(m)\) operações. A busca linear é de Armijo (decréscimo suficiente com constante \(0{,}01\), passo cortado pela metade), mantendo todas as folgas positivas.
+\subsection{As contas de cada passo}
+O gradiente de \eqref{eq:barreira} em relação a \(x_i\) é
+\[
+\nabla_{x_i}f_\mu=u_{i-1}-u_i-\sum_{f\in F_i}\frac{\mu}{\eta_f}\,n_f,\qquad 1\le i\le m,
+\]
+e só envolve \(x_{i-1}\), \(x_i\) e \(x_{i+1}\). A hessiana é, portanto, \emph{tridiagonal por blocos} \(2\times2\):
+\[
+H_{ii}=A_{i-1}+A_i+\sum_{f\in F_i}\frac{\mu}{\eta_f^2}\,n_fn_f^{\top},\qquad H_{i,i+1}=H_{i+1,i}=-A_i,\qquad A_i=\frac{I-u_iu_i^{\top}}{\sqrt{\norm{d_i}^2+\mu^2}}.
+\]
+Como \(\norm{u_i}<1\), cada \(A_i\) é definida positiva. A contribuição de um segmento à forma quadrática \(\Delta x^{\top}H\Delta x\) é \((\Delta x_{i+1}-\Delta x_i)^{\top}A_i(\Delta x_{i+1}-\Delta x_i)\ge0\), e a da barreira de cada polígono é definida positiva; logo \(H\) é definida positiva, e a direção de Newton \(\Delta x=-H^{-1}\nabla f_\mu\) é sempre de descida. Somamos \(10^{-14}I\) a cada bloco diagonal por segurança numérica.
 
-Dois detalhes numéricos importam. Primeiro, o critério de parada de cada nível exige um decremento de Newton muito pequeno, \(-g^\top\Delta x<10^{-10}\mu\): com \(\mu\) pequeno a hessiana da barreira é grande e esconde resíduos de estacionariedade que estragariam o dual; um critério de \(10^{-3}\mu\) deixava o limite inferior \(10^{-4}\) abaixo do ótimo num teste em que o critério atual o deixa \(5\times10^{-7}\) abaixo. Segundo, perto da convergência a melhora prevista pode ficar abaixo da resolução de \(f_\mu\) em \texttt{binary64}, e o teste de Armijo deixa de enxergar progresso; quando isso acontece (\(-g^\top\Delta x\le64\,\epsilon_{\text{mach}}\abs{f_\mu}\)), aceitamos o maior passo da sequência \(1,\frac12,\frac14,\dots\) que mantém o ponto estritamente viável.
+O sistema \(H\Delta x=-\nabla f_\mu\) se resolve por eliminação de blocos, a versão por blocos do algoritmo de Thomas para sistemas tridiagonais. Com \(\tilde H_1=H_{11}\) e \(\tilde g_1=-\nabla_{x_1}f_\mu\),
+\[
+\tilde H_i=H_{ii}-H_{i,i-1}\tilde H_{i-1}^{-1}H_{i-1,i},\qquad \tilde g_i=-\nabla_{x_i}f_\mu-H_{i,i-1}\tilde H_{i-1}^{-1}\tilde g_{i-1}\qquad(i=2,\dots,m),
+\]
+e depois, de trás para frente, \(\Delta x_m=\tilde H_m^{-1}\tilde g_m\) e \(\Delta x_i=\tilde H_i^{-1}(\tilde g_i-H_{i,i+1}\Delta x_{i+1})\). São \(m\) inversões de matrizes \(2\times2\); montar o gradiente e a hessiana percorre cada segmento e cada aresta uma vez. Cada passo custa, portanto, \(O(m+F)\) operações em \texttt{binary64}. Se um bloco pivô sair singular ou não finito, o nível termina.
+
+A quantidade \(\delta=-\nabla f_\mu^{\top}\Delta x=\nabla f_\mu^{\top}H^{-1}\nabla f_\mu\), o quadrado do \emph{decremento de Newton}, mede a distância ao minimizador do nível: perto dele, \(f_\mu(x)-f_\mu(x(\mu))\approx\delta/2\). A busca linear testa \(\alpha=1,\frac12,\frac14,\dots\) e aceita o primeiro passo com \(f_\mu(x+\alpha\Delta x)\le f_\mu(x)-0{,}01\,\alpha\,\delta\) (condição de Armijo). Como \(f_\mu=+\infty\) fora dos polígonos, um passo que sai de algum deles é rejeitado automaticamente. Se \(\alpha\) ficar abaixo de \(10^{-12}\), o nível termina.
+
+Dois detalhes numéricos importam. Primeiro, o critério de parada de cada nível exige um decremento muito pequeno, \(\delta<10^{-10}\mu\): com \(\mu\) pequeno a hessiana da barreira é grande e esconde resíduos de estacionariedade que estragariam o dual; um critério de \(10^{-3}\mu\) deixava o limite inferior \(10^{-4}\) abaixo do ótimo num teste em que o critério atual o deixa \(5\times10^{-7}\) abaixo. Segundo, perto da convergência a melhora prevista pode ficar abaixo da resolução de \(f_\mu\) em \texttt{binary64}, e o teste de Armijo deixa de enxergar progresso; quando isso acontece (\(\delta\le64\,\epsilon_{\text{mach}}\abs{f_\mu}\)), aceitamos o maior passo da sequência \(1,\frac12,\frac14,\dots\) que mantém o ponto estritamente viável.
 
 \subsection{Níveis de barreira e ponto de partida}
-O polimento parte da proposta que a prova intervalar tentou: cada contato é puxado uma fração \(2^{-7}\) em direção à média dos vértices do seu polígono, para ficar estritamente interior. Começa em \(\mu_0=\max(\mu_{\text{fim}},\min(10^{-3},10^4\mu_{\text{fim}}))\) (ou \(0{,}1\) sem proposta) e divide \(\mu\) por 10 a cada nível. Ao fim de cada nível, os contatos e os vetores \eqref{eq:usuave} passam pela prova (\cref{alg:prova}); o polimento termina assim que ela fecha, depois do nível \(\mu_{\text{fim}}\), ou após 600 iterações de Newton. Num teste de replay, variar a razão inicial entre \(10^2\) e \(10^4\) e a fração entre \(2^{-12}\) e \(2^{-7}\) não mudou o tempo; o ponto de partida não é o gargalo.
+O último nível vem da \cref{prop:barreira} com margem de 2: com \(\mu_{\text{fim}}=\max\bigl(10^{-15},\tau/(2\sigma(m+1+F))\bigr)\), a perda garantida nesse nível é no máximo \(\tau/2\) (salvo quando o piso \(10^{-15}\) vale). No modo padrão da busca, o polimento parte dos contatos que a prova intervalar do oráculo híbrido tentou; chamado diretamente, sem o híbrido antes (como faz a ferramenta de replay por padrão), parte do traço em \texttt{double}. Em ambos os casos, cada contato é puxado uma fração \(2^{-7}\) em direção à média dos vértices do seu polígono, para ficar estritamente interior (se ainda assim ficar fora, usa a própria média). O polimento começa em \(\mu_0=\max(\mu_{\text{fim}},\min(10^{-3},10^4\mu_{\text{fim}}))\) (ou \(0{,}1\) sem proposta) e divide \(\mu\) por 10 a cada nível.
+
+Ao fim de cada nível, os contatos e os vetores \eqref{eq:usuave} passam pela prova (\cref{alg:prova}): o limite inferior usa só os vetores suavizados, arredondados para \texttt{binary64} com a norma provada, e o superior, os contatos com pertencimento provado. Os limites se acumulam entre os níveis: \(L\) é o maior inferior e \(U\) o menor superior obtidos. O polimento termina assim que eles fecham, depois do nível \(\mu_{\text{fim}}\), ou ao fim de um orçamento de 600 passos de Newton, somados em todos os níveis. Num teste de replay, variar a razão inicial entre \(10^2\) e \(10^4\) e a fração entre \(2^{-12}\) e \(2^{-7}\) não mudou o tempo; o ponto de partida não é o gargalo.
 
 \begin{algorithm}[ht]\small
 \caption{Polimento por pontos interiores (\code{tpp\_convex\_solve\_float\_certified}).}\label{alg:polimento}
@@ -435,22 +470,49 @@ O polimento parte da proposta que a prova intervalar tentou: cada contato é pux
   \State $x_i\gets\bar v_i+(1-2^{-7})(\text{proposta}_i-\bar v_i)$, em coordenadas escaladas
   \State $\mu_{\text{fim}}\gets\max\bigl(10^{-15},\tau/(2\sigma(m+1+F))\bigr)$; $\mu\gets\mu_0$
   \Loop
-    \While{iterações $<600$}
-      \State resolva o sistema de Newton tridiagonal por blocos $\to\Delta x$
-      \IfThen{$-g^\top\Delta x<10^{-10}\mu$}{\textbf{interrompa}}
+    \While{passos $<600$}
+      \State resolva o sistema de Newton tridiagonal por blocos $\to\Delta x$; $\delta\gets-\nabla f_\mu^{\top}\Delta x$
+      \IfThen{$\delta<10^{-10}\mu$}{\textbf{interrompa}}
       \State busca linear (Armijo, ou passo viável se abaixo da resolução); $x\gets x+\alpha\Delta x$
     \EndWhile
-    \State $(L,U)\gets$ \Call{ProvaLimites}{$s,t,P,\;s+\sigma x,\;u(x,\mu)$}\Comment{\cref{alg:prova}}
+    \State $(L,U)\gets$ \Call{ProvaLimites}{$s,t,P,\;s+\sigma x,\;u(x,\mu)$}\Comment{\cref{alg:prova}; acumula}
     \IfThen{$L\ge c$ \textbf{ou} $U-L\le\tau$}{\Return \textsc{fechado}$(L,U)$}
-    \IfThen{$\mu\le\mu_{\text{fim}}$ \textbf{ou} iterações $\ge600$}{\Return \textsc{aberto}$(L,U)$}
+    \IfThen{$\mu\le\mu_{\text{fim}}$ \textbf{ou} passos $\ge600$}{\Return \textsc{aberto}$(L,U)$}
     \State $\mu\gets\max(\mu_{\text{fim}},\mu/10)$
   \EndLoop
 \EndFunction
 \end{algorithmic}
 \end{algorithm}
 
+\subsection{Um exemplo passo a passo}\label{sec:polimento-exemplo}
+Acompanhamos o polimento no exemplo \(t_A\) da \cref{sec:coincidentes} com o oráculo real, no modo padrão da busca e com a tolerância que a busca usaria, \(\tau\approx0{,}0025\). A prova intervalar não fecha (o melhor limite das políticas é o trivial, \(\norm{t_A-s}=\sqrt{50}\)), e o polimento recebe a semente dela: os dois contatos em \(j\), a menos de \(2\times10^{-13}\). Aqui \(\sigma=13\), \(m=2\) e \(F=8\), logo \(\mu_{\text{fim}}=\tau/(2\cdot13\cdot11)\approx8{,}7\times10^{-6}\) e \(\mu_0=10^{-3}\). Puxados uma fração \(2^{-7}\) em direção às médias dos vértices, \((3,0)\) e \((0;\,4{,}5)\), os contatos partem de \((0{,}0234;\,0)\) e \((0;\,0{,}0352)\).
+
+\begin{table}[ht]\centering\small
+\begin{tabular}{@{}cccccc@{}}\toprule
+Nível & \(\mu\) & passos & \(L\) & \(U\) & \(U-L\)\\\midrule
+1 & \(10^{-3}\) & 1–6 & 9,99391 & 10,02921 & 0,0353\\
+2 & \(10^{-4}\) & 7–12 & 9,99942 & 10,00294 & 0,00352\\
+3 & \(10^{-5}\) & 13–19 & 9,99994 & 10,00029 & 0,000352\\\bottomrule
+\end{tabular}
+\caption{O polimento no exemplo \(t_A\) (\(\OPT=10\), \(\tau\approx0{,}0025\)): limites provados ao fim de cada nível. O terceiro nível fecha o gap.}\label{tab:polimento}
+\end{table}
+
+A \cref{fig:polimento} mostra cada passo. Em cada nível, de um a três passos iniciais são encurtados pela busca linear (\(\alpha\) entre \(\frac1{32}\) e \(\frac12\)); depois o passo inteiro é aceito, e o decremento cai no regime quadrático do método de Newton, cada valor aproximadamente proporcional ao quadrado do anterior (no primeiro nível, \(3{,}5\times10^{-6}\), \(2{,}6\times10^{-8}\) e \(1{,}7\times10^{-12}\)). Os níveis terminam depois de 6, 6 e 7 passos, quando o decremento fica abaixo de \(10^{-10}\mu\).
+
+Os contatos se aproximam de \(j\) cerca de dez vezes a cada nível (ficam a distâncias da ordem de \(10^{-2}\), \(10^{-3}\) e \(10^{-4}\) dele) e continuam separados um do outro: \(\norm{x_2-x_1}=1{,}75\times10^{-2}\), \(1{,}77\times10^{-3}\) e \(1{,}77\times10^{-4}\) ao fim dos três níveis, em coordenadas originais. É essa separação, proporcional a \(\mu\), que dá ao segmento entre eles uma direção suavizada de norma menor que 1: \(u_1\) converge para \((\tfrac1{10},\tfrac45)\), o vetor exato da \cref{sec:coincidentes}, a distâncias \(7\times10^{-3}\), \(7\times10^{-4}\) e \(7\times10^{-5}\) dele ao fim dos três níveis. No começo do terceiro nível, \(u_1\) chega a apontar para o lado oposto (passos 13 e 14), porque os dois contatos trocam brevemente de posição; esses passos passam pela condição de Armijo, e o nível termina de novo junto do vetor certo.
+
+Ao fim de cada nível, a prova dá um \(U-L\) dez vezes menor (\cref{tab:polimento}); o terceiro valor fica abaixo de \(\tau\), e o polimento termina com 19 passos. Nesta instância, a cota da \cref{prop:barreira} é \(\sigma\mu(m+1+F)=143\mu\), isto é, \(0{,}143\), \(0{,}0143\) e \(0{,}00143\) nos três níveis, cerca de quatro vezes os valores observados. Para conferir o oráculo, calculamos à parte, com 50 dígitos, o minimizador exato de \(f_\mu\) para \(\mu=10^{-5}\): o último iterado coincide com ele até \(9\times10^{-11}\) nas coordenadas, e \(u_1\) até \(2\times10^{-11}\).
+
+Chamado diretamente, sem o híbrido antes, o polimento parte do traço em \texttt{double}, cujo caminho já dá \(U=10\) com pertencimento provado; aí o segundo nível basta (12 passos). No modo padrão, a prova intervalar não repassa esse \(U\) ao polimento, que precisa produzir o seu; aproveitá-lo é uma melhoria possível, ainda não medida.
+
+\begin{figure}[ht]\centering\figpolimento
+\caption{O polimento no exemplo \(t_A\), com o oráculo real. (a) O vetor \(u_1\) do segmento entre os dois contatos a cada passo de Newton; ele termina junto de \((\tfrac1{10},\tfrac45)\), dentro do círculo unitário. \(u_0\) e \(u_2\) são praticamente as direções dos segmentos externos. (b) O decremento \(\delta\) a cada passo, por nível; os círculos vazados marcam os passos encurtados pela busca linear (\(\alpha<1\)), e as linhas tracejadas, o critério de parada \(10^{-10}\mu\).}\label{fig:polimento}
+\end{figure}
+
 \subsection{Comportamento observado}
-No exemplo \(t_A\) da \cref{sec:coincidentes}, com a tolerância que a busca usaria (\(\tau\approx0{,}0025\)), a prova intervalar falha e o polimento fecha em 19 iterações de Newton e 3 níveis de barreira, com \(L=9{,}99994\) e \(U=10{,}00029\). Nas chamadas reais dos casos 156, 417 e 419 que chegaram ao polimento, a mediana foi de 28 a 29 iterações de Newton e 3 níveis (máximo de 60 iterações), e nenhuma ficou aberta. Com gaps muito mais apertados que os da busca (por exemplo \(10^{-7}\) absoluto em comprimentos da ordem de 10), o método pode parar antes de fechar; os limites continuam válidos e a chamada vai para o fluxo exato. Essa é uma limitação da natureza do método, não da implementação: a resolução de \texttt{binary64} limita a precisão do ponto estacionário.
+Nas chamadas reais dos casos 156, 417 e 419, reproduzidas num Mac no modo padrão, 42.227 das 55.454 chamadas capturadas chegaram ao polimento, e nenhuma ficou aberta. A mediana por caso foi de 28 a 29 passos de Newton e 3 níveis (máximo de 60 passos e 5 níveis), com mediana de 21 polígonos por chamada. O polimento levou 61\,µs por chamada na mediana (90\% abaixo de 91\,µs), cerca de 2\,µs por passo. Nas mesmas chamadas, o oráculo híbrido com o fluxo exato, o padrão anterior, levou 480\,µs na mediana (em 98\% delas, terminando na recuperação filtrada), e a etapa em ponto flutuante inteira, com a prova intervalar que vem antes, foi 5,4 vezes mais rápida (mediana das razões por chamada; tempos mínimos de três repetições, com a máquina compartilhada).
+
+Com gaps muito mais apertados que os da busca (por exemplo \(10^{-7}\) absoluto em comprimentos da ordem de 10), o método pode parar antes de fechar; os limites continuam válidos e a chamada vai para o fluxo exato. Essa é uma limitação da natureza do método, não da implementação: a resolução de \texttt{binary64} limita a precisão do ponto estacionário.
 
 %==========================================================================
 \section{O oráculo completo}\label{sec:oraculo}
@@ -594,7 +656,10 @@ Na comparação de 06/10 na dantzig (binário \code{470a0c9}, anterior ao padrã
 \(u_i\) & vetor dual do segmento \(i\), \(\norm{u_i}\le1\)\\
 \(D(u)\) & limite dual \eqref{eq:dual}\\
 \(\mu,\sigma\) & parâmetro de barreira e escala do polimento\\
-\(F_i\) & faces (arestas) de \(P_i\); \(F=\sum_i\abs{F_i}\)\\\bottomrule
+\(F_i\) & faces (arestas) de \(P_i\); \(F=\sum_i\abs{F_i}\)\\
+\(\eta_f,\lambda_f\) & folga da aresta \(f\) no polimento e seu multiplicador \(\mu/\eta_f\)\\
+\(x(\mu)\) & minimizador de \(f_\mu\) (caminho central)\\
+\(\delta\) & quadrado do decremento de Newton, \(-\nabla f_\mu^{\top}\Delta x\)\\\bottomrule
 \end{tabular}
 \end{center}
 
