@@ -728,6 +728,69 @@ void check_float_oracle() {
     }
 }
 
+// Points and segments: the fixed-endpoint float oracle proposes from the cycle
+// construction and polishes segment parameters; bounds must bracket the exact
+// optimum, and searches with and without it must agree.
+void check_float_degenerate() {
+    std::mt19937 rng(20261009);
+    std::uniform_real_distribution<double> unit(-1, 1);
+    size_t closed_calls = 0, polish_calls = 0;
+    for (size_t trial = 0; trial < 40; ++trial) {
+        std::vector<Polygon> polygons;
+        for (size_t i = 0; i < 3 + trial % 4; ++i) {
+            const Vector2 c{3 * unit(rng), 3 * unit(rng)};
+            const int kind = int(i + trial) % 3;
+            if (kind == 0) polygons.push_back({c});
+            else if (kind == 1) polygons.push_back({c, c + Vector2{2 * unit(rng), 2 * unit(rng)}});
+            else polygons.push_back({c, c + Vector2{1.2, 0.1}, c + Vector2{0.4, 1.1}});
+        }
+        const Vector2 start{-4, -1}, target = trial % 3 ? Vector2{4, 3} : start;
+        const auto exact = tpp_convex_solve_hybrid(start, target, polygons);
+        for (double gap : {1e-3, 1e-6}) {
+            ConvexFloatOracleOptions options; options.max_gap = gap * std::max(1.0, exact.upper_bound);
+            const auto bounds = tpp_convex_solve_float_certified(start, target, polygons, options);
+            const bool closed = bounds.status == ConvexFloatOracleStatus::GapClosed;
+            if (bounds.status == ConvexFloatOracleStatus::Unsupported || bounds.lower_bound > exact.upper_bound
+                || bounds.upper_bound < exact.lower_bound || (closed && bounds.upper_bound - bounds.lower_bound > options.max_gap))
+                throw std::runtime_error("Degenerate float oracle bounds do not bracket the optimum (trial " + std::to_string(trial) + ").");
+            if (!closed) continue;
+            ++closed_calls; polish_calls += bounds.polish_closed;
+            for (size_t i = 0; i < polygons.size(); ++i) {
+                const auto &p = polygons[i]; const auto q = bounds.contacts[i];
+                if (p.size() == 2) {
+                    const Vector2 e = p[1] - p[0], d = q - p[0];
+                    const double eps = std::numeric_limits<double>::epsilon(), t = d.dot(e) / e.dot(e);
+                    if (std::abs(e.cross(d)) > 64 * eps * e.length() * 8 || t < -64 * eps || t > 1 + 64 * eps)
+                        throw std::runtime_error("Degenerate float oracle segment contact off its segment.");
+                } else if (unordered_detail::contact(Polygon{q, q}, p, 0).distance > 0)
+                    throw std::runtime_error("Degenerate float oracle contact outside its region.");
+            }
+        }
+        UnorderedTppSolveOptions reference_options; reference_options.relative_gap = 1e-6; reference_options.absolute_gap = 0;
+        reference_options.float_degenerate = false;
+        auto options = reference_options; options.float_degenerate = true;
+        const auto reference = tpp_nonconvex_unordered_solve(start, target, polygons, reference_options);
+        const auto result = tpp_nonconvex_unordered_solve(start, target, polygons, options);
+        if (!result.exact || result.lower_bound > reference.upper_bound + 1e-12 || reference.lower_bound > result.upper_bound + 1e-12)
+            throw std::runtime_error("Degenerate float search disagrees with the exact flow (trial " + std::to_string(trial) + ").");
+        for (const auto *run : {&result, &reference})
+            if (run->oracle_interval_bound_calls + run->oracle_float_calls + run->oracle_rational_calls != run->calls)
+                throw std::runtime_error("Degenerate oracle call counters do not add up.");
+        if (result.calls && result.oracle_rational_calls == result.calls)
+            throw std::runtime_error("Degenerate float search never closed in binary64 (trial " + std::to_string(trial) + ").");
+        for (const auto &polygon : polygons)
+            if (unordered_detail::contact(result.path, polygon, options.feasibility_tolerance).distance > options.feasibility_tolerance)
+                throw std::runtime_error("Degenerate float search returned an infeasible path.");
+        // The TSPN with a point region is solved as a path through it.
+        const auto tour_reference = tpp_nonconvex_tspn_solve(polygons, reference_options);
+        const auto tour = tpp_nonconvex_tspn_solve(polygons, options);
+        if (!tour.exact || tour.lower_bound > tour_reference.upper_bound + 1e-12 || tour_reference.lower_bound > tour.upper_bound + 1e-12)
+            throw std::runtime_error("Degenerate float TSPN disagrees with the exact flow (trial " + std::to_string(trial) + ").");
+    }
+    if (!closed_calls || !polish_calls) throw std::runtime_error("Degenerate float oracle was not exercised.");
+    std::cout << "Degenerate float oracle: " << closed_calls << " closed calls, " << polish_calls << " by the polish.\n";
+}
+
 void check_intra_instance_threads() {
 	const Vector2 start{0, 0}, target{28, 0};
 	std::vector<Polygon> polygons;
@@ -865,6 +928,7 @@ int main() {
 		check_initial_heuristic_strategies();
 		check_intra_instance_threads();
 		check_float_oracle();
+		check_float_degenerate();
 		check_endpoint_portfolio();
 		check({0, 0}, {10, 0}, {});
 		check({0, 0}, {10, 0}, {{{2, -1}, {3, -1}, {3, 1}, {2, 1}}});

@@ -54,7 +54,8 @@ public:
               <<",\"features\":"<<(options.cycle_active_features?"true":"false")
               <<",\"interval\":"<<(options.cycle_interval_certificate?"true":"false")
               <<",\"proposal_bound\":"<<(options.cycle_proposal_bound&&!precise?"true":"false")
-              <<",\"bound_first\":"<<(options.cycle_bound_first?"true":"false");
+              <<",\"bound_first\":"<<(options.cycle_bound_first?"true":"false")
+              <<",\"float\":"<<(options.cycle_float_oracle?"true":"false");
         stream<<"}\n";
         if(sampling())pending.emplace(id,buffer.str());else stream.flush();
         return id;

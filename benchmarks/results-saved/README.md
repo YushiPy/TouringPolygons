@@ -19,6 +19,77 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## tspn-cycle-float-2026-10-08
+
+**Pergunta.** O oráculo de ciclo do TSPN pode fechar o gap pedido em binary64,
+com limites provados, como o oráculo de caminho já faz? E as regiões que são
+pontos ou segmentos? **Formulação.** TSPN de ciclo livre, gap relativo 1e-6
+(`UB ≤ (1+1e-6)·LB`, absoluto 0) e, à parte, 1e-3; 60 s por execução, uma
+thread por instância, um processo por vez, `cache,features,root,interval`.
+Mesmo binário (`7cb5c29`, branch `cycle-float-oracle`; macOS arm64, AppleClang,
+C++23, GMP), duas variantes intercaladas por caso (a ordem alterna):
+referência `--no-cycle-float --no-float-degenerate` (o fluxo exato de antes) ×
+padrão (estágio binary64 do ciclo e regiões degeneradas no oráculo de caminho;
+contrato e prova em
+[`convex-cycle.md`](../../docs/algorithms/convex-cycle.md#binary64-stage-with-a-requested-gap-2026-10-08)).
+Tours validados de forma independente (`validate_cycle`, 1e-7). Conjuntos: a
+regressão SoCG de [`tspn-paula-cycle-2026-10-06`](#tspn-paula-cycle-2026-10-06)
+(48 casos, 4 por estrato, seed 20260930) e a coleção da Paula inteira (235
+instâncias; local, sem autorização de redistribuição). "Fechou" é gap numérico
+fechado, com limites provados; não é ótimo algébrico. Dados locais:
+`campaigns/cycle-float-oracle-20261008`.
+
+**Resultado.**
+- **SoCG, 1e-6.** 48/48 fecharam e validaram nas duas variantes. No padrão,
+  nenhuma das 134.300 chamadas ao oráculo usou aritmética racional: 120.734
+  fecharam pela prova intervalar de um candidato da construção e 13.566 pelo
+  polimento (toda tentativa de polimento fechou, com 28 iterações de Newton em
+  média). Na referência, as 137.781 chamadas usaram o certificado exato e
+  104.505 delas, recuperação racional. Tempo total 131,1 → 23,5 s; oráculo
+  109,9 → 2,8 s (referência: construção 18,8 s, certificação exata 58,5 s,
+  recuperação 32,6 s; padrão: construção 1,2 s, provas intervalares 1,0 s,
+  polimento 0,6 s). Média geométrica das razões de tempo: 6,7× nos casos
+  ≥ 0,1 s (n = 19, mín. 2,3×) e 7,3× nos ≥ 1 s (n = 12). O caso mais longo
+  (`random_41-60` de 60 regiões) leva 59,0 s na referência (numa rodada
+  anterior, parou nos 60 s) e 8,8 s no padrão.
+- **SoCG, 1e-3.** 48/48 nas duas variantes; 0 chamadas racionais em 124.978
+  (11.331 pelo polimento, 17 iterações em média); 6,8× nos casos ≥ 0,1 s
+  (n = 19, mín. 2,3×); oráculo 99,6 → 2,3 s.
+- **Por chamada.** Replay das 11.411 chamadas capturadas dos casos 02, 11 e 19
+  (`cycle-replay --float on|off`): nenhum par de intervalos incompatível,
+  todos os contatos aprovados pelo verificador exato independente, todas as
+  chamadas fechadas em binary64. Mediana por chamada: 12–20 µs contra
+  560–910 µs.
+- **Paula, 235 instâncias.** Fecharam 207 no padrão e 197 na referência: 10
+  só no padrão (53gil262, 60pr299, 84fl417, 42rat99-6x7, 49gil262-7x7,
+  49lin318-7x7, 50a280, 50kroB100, 50lin105 e 50pcb442), nenhuma só na
+  referência; as 470 execuções validaram. Nos 65 casos fechados pelas duas com
+  a referência ≥ 0,1 s: 16,2× (1,5–101×), soma 335,4 → 43,2 s. As 66
+  instâncias com ponto são resolvidas como caminho pela âncora, e antes toda
+  chamada delas ia ao fluxo exato: 69,5× (n = 32, 41–101×). As 169 de ciclo:
+  4,0× (n = 33, 1,5–87×), com a triagem de inserções dominando o tempo que
+  sobra. Nas 28 abertas nas duas, o padrão faz de 3 a 130× mais chamadas no mesmo
+  tempo e reduz o gap relativo em todas (mediana 0,214 → 0,117; LB 7% maior
+  na mediana, 4–18%). Chamadas: 64,9 M no padrão, das quais 6 racionais (3
+  interrompidas pelo prazo de 60 s e 3 que o polimento deixou abertas, em
+  80rd400); 3,35 M na referência, 3,30 M delas racionais. Tempo médio por
+  chamada: 735 → 13 µs.
+
+**Leitura.** O estágio binary64 fecha praticamente toda chamada, inclusive com
+as tolerâncias de 2,5e-7 relativo dos refinamentos, e o oráculo deixa de ser
+o gargalo. No ciclo, o tempo restante vai para a triagem de inserções, que
+ainda é racional: no caso 39 da SoCG, `insertion_lower_bounds` leva ~60% das
+amostras e o oráculo, ~13%. Próximas direções em
+[`tspn.md`](../../docs/algorithms/tspn.md#next-directions-2026-10-09).
+
+**Limitações.** Uma repetição, num Mac pessoal sem isolamento de carga; nos
+casos de milissegundos as razões são ruído. Razões com a referência perto dos
+60 s são limites inferiores do ganho. Só a configuração do protocolo
+(`cache,features,root,interval`) foi medida; `memo`, `share-bounds` e o
+portfólio continuam verificando reúsos com o certificado exato. Com um gap
+muito mais apertado que o do B&B, o polimento pode ficar aberto (ver o
+contrato), e a chamada usa o fluxo exato.
+
 ## tspn-paula-lower-bound-2026-10-07
 
 **Formulação.** O mesmo TSPN de ciclo livre e o mesmo protocolo da seção

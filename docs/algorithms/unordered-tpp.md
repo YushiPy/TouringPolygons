@@ -628,8 +628,12 @@ KKT é necessário e suficiente, um valor diferente de zero indica um caminho n�
 ótimo da construção (ou um erro do verificador), a investigar. Fora delas, `rational_membership_predicates` conta os sinais
 de pertencimento que nem intervalos nem o determinante inteiro decidiram, e
 `exact_polygon_preparations` conta os polígonos convertidos para racional no
-cache do workspace (uma vez por polígono e por worker). No ciclo,
-`oracle_rational_calls` conta as chamadas com recuperação racional.
+cache do workspace (uma vez por polígono e por worker). No ciclo vale a mesma
+partição: prova intervalar de um candidato da construção, polimento ou fluxo
+exato ([estágio binary64 do ciclo](convex-cycle.md#binary64-stage-with-a-requested-gap-2026-10-08));
+`fallback_calls` conta as chamadas com recuperação racional. Chamadas com pontos
+ou segmentos no modo caminho também tentam o oráculo em ponto flutuante antes do
+fluxo exato (`--no-float-degenerate` desliga).
 Exemplo (caso 156): padrão com 0 chamadas racionais, 4 sinais racionais e 70
 preparações; `--no-float-recovery` com 3.318 chamadas racionais (1.677 replay,
 1.641 filtradas).

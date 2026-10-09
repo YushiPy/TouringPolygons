@@ -1,4 +1,5 @@
 #include "tpp/convex/cycle.h"
+#include "tpp/convex/float_oracle.h"
 #include "tpp/convex/detail/rational_disjoint.h"
 #include "tpp/convex/detail/intersecting_maps.h"
 #include "cycle_internal.h"
@@ -582,13 +583,11 @@ ConvexCycleResult tpp_convex_solve_cycle(const std::vector<std::vector<Vector2>>
     }
     return tpp_convex_solve_cycle(exact,options);
 }
-ConvexCycleDoubleResult tpp_convex_solve_cycle_double(const std::vector<std::vector<Vector2>> &input,
-        const ConvexCycleDoubleOptions &options) {
-    ConvexCycleDoubleResult result;
-    return detail::run_cycle_execution(result,options,[&]() -> ConvexCycleDoubleResult {
-    if(input.size()<2)return result;
-    if(std::isnan(options.lower_bound_cutoff)||(!options.initial_contacts.empty()&&options.initial_contacts.size()!=input.size())||
-       !std::all_of(options.initial_contacts.begin(),options.initial_contacts.end(),[](auto q){return q.is_finite();}))return result;
+namespace {
+// The exact path: binary64 construction whose candidates pass the exact
+// certificate, with counted rational recoveries and the boundary search.
+ConvexCycleDoubleResult solve_cycle_double_exact(ConvexCycleDoubleResult &result,
+        const std::vector<std::vector<Vector2>> &input,const ConvexCycleDoubleOptions &options) {
     ConvexRationalPolygons exact,normalized;
     std::optional<ConvexCycleCertificateGeometry> prepared;
     try {
@@ -773,7 +772,59 @@ ConvexCycleDoubleResult tpp_convex_solve_cycle_double(const std::vector<std::vec
     } catch(const std::exception &error){result.status=ConvexCycleStatus::OracleFailure;result.diagnostic=error.what();return result;}
     result.status=result.contacts.empty()?ConvexCycleStatus::OracleFailure:ConvexCycleStatus::FloatingPointLimit;
     return result;
+}
+} // namespace
 
+ConvexCycleDoubleResult tpp_convex_solve_cycle_double(const std::vector<std::vector<Vector2>> &input,
+        const ConvexCycleDoubleOptions &options) {
+    ConvexCycleDoubleResult result;
+    return detail::run_cycle_execution(result,options,[&]() -> ConvexCycleDoubleResult {
+    if(input.size()<2)return result;
+    if(std::isnan(options.lower_bound_cutoff)||std::isnan(options.max_gap)||
+       (!options.initial_contacts.empty()&&options.initial_contacts.size()!=input.size())||
+       !std::all_of(options.initial_contacts.begin(),options.initial_contacts.end(),[](auto q){return q.is_finite();}))return result;
+    // Binary64 stage: no rational preparation, no exact KKT and no recovery
+    // when its proved interval closes the requested gap or reaches the cutoff.
+    double float_lower=0;
+    if(options.max_gap>0) {
+        ConvexCycleFloatOptions stage_options;
+        stage_options.cutoff=options.lower_bound_cutoff;stage_options.max_gap=options.max_gap;
+        stage_options.polish=options.float_polish;
+        if(!options.initial_contacts.empty())stage_options.initial_contacts=&options.initial_contacts;
+        if(!options.initial_features.empty())stage_options.initial_features=&options.initial_features;
+        const auto stage=tpp_convex_solve_cycle_float_certified(input,stage_options);
+        result.float_candidates=stage.candidates;result.float_polish_attempted=stage.polish_attempted;
+        result.float_newton_iterations=stage.newton_iterations;result.float_barrier_levels=stage.barrier_levels;
+        const bool closed=stage.status==ConvexFloatOracleStatus::GapClosed||stage.status==ConvexFloatOracleStatus::CutoffReached;
+        if(closed||stage.interrupted) {
+            result.contacts=stage.contacts;
+            result.certificate.status=ConvexCycleCertificateStatus::Feasible;
+            result.certificate.lower_bound=stage.lower_bound;
+            result.certificate.upper_bound=stage.upper_bound;
+            result.certificate.optimality_check_skipped=result.certificate.interval_bounds_used=true;
+        }
+        if(closed) {
+            result.float_interval_closed=stage.construction_closed;result.float_polish_closed=stage.polish_closed;
+            result.status=stage.lower_bound>=options.lower_bound_cutoff?ConvexCycleStatus::CertifiedBound:ConvexCycleStatus::GapClosed;
+            if(options.retain_active_features)result.active_features=stage.active_features;
+            return result;
+        }
+        if(stage.interrupted)throw detail::CycleInterrupted{};
+        if(stage.status==ConvexFloatOracleStatus::Open)float_lower=stage.lower_bound;
+    }
+    try {
+        auto out=solve_cycle_double_exact(result,input,options);
+        // A proved bound of the same constraints; it never promotes Optimal.
+        if(float_lower>out.certificate.lower_bound&&out.status!=ConvexCycleStatus::Optimal) {
+            out.certificate.lower_bound=float_lower;
+            if(out.status==ConvexCycleStatus::FloatingPointLimit&&float_lower>=options.lower_bound_cutoff)
+                out.status=ConvexCycleStatus::CertifiedBound;
+        }
+        return out;
+    } catch(const detail::CycleInterrupted &) {
+        result.certificate.lower_bound=std::max(result.certificate.lower_bound,float_lower);
+        throw;
+    }
     });
 }
 } // namespace tpp

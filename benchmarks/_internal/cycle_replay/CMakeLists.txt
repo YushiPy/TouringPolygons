@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 project(tpp_cycle_replay LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 26)
+set(TPP_CXX_STANDARD 26 CACHE STRING "C++ standard used by the maintained TPP packages")
+set(CMAKE_CXX_STANDARD ${TPP_CXX_STANDARD})
 set(CMAKE_BUILD_TYPE Release)
 get_filename_component(TPP_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
 set(TPP_ENABLE_GUROBI OFF CACHE BOOL "The replay runner does not use Gurobi" FORCE)

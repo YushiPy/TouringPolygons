@@ -54,6 +54,49 @@ ConvexFloatOracleResult tpp_convex_solve_float_certified(
 
 const char *to_string(ConvexFloatOracleStatus status);
 
+// The same oracle for an ordered convex cycle (no fixed endpoint, closing link
+// included): two or more closed convex regions, each a point, a segment or a
+// polygon of positive area. Proposals come from the shared binary64 cycle
+// construction (cycle_refinement.h) and, if their bounds do not close, from
+// an interior-point polish of the cyclic chain. Bounds are proved on the
+// input regions with directed rounding: U encloses the length of a cycle of
+// proved contacts, L = D(u) for disk vectors u. No rational arithmetic is
+// used; an undecided normalization or membership sign returns Unsupported or
+// an open interval, never an unproved bound. Needs max_gap > 0 or a finite cutoff.
+struct ConvexCycleFloatOptions {
+    double cutoff = std::numeric_limits<double>::infinity();
+    double max_gap = 0;
+    bool construct = true;
+    bool polish = true;
+    // Proposals only: the construction's starting contacts and feature hints.
+    const std::vector<Vector2> *initial_contacts = nullptr;
+    const std::vector<int> *initial_features = nullptr;
+    std::size_t max_newton_iterations = 600;
+    double warm_mu_ratio = 1e4;
+    double warm_interior_fraction = 0x1p-7;
+};
+
+struct ConvexCycleFloatResult {
+    // One contact per region when upper_bound is finite: inside a polygon or
+    // at a point (proved), or a binary64 approximation of the exact segment
+    // point a+t(b-a) that the upper bound encloses.
+    std::vector<Vector2> contacts;
+    double lower_bound = 0;
+    double upper_bound = std::numeric_limits<double>::infinity();
+    ConvexFloatOracleStatus status = ConvexFloatOracleStatus::Open;
+    bool construction_closed = false, polish_attempted = false, polish_closed = false;
+    // The cooperative cycle deadline stopped the stage; bounds stay proved.
+    bool interrupted = false;
+    // Feature tuple of the construction candidate that closed (a proposal).
+    std::vector<int> active_features;
+    std::size_t candidates = 0, newton_iterations = 0, barrier_levels = 0;
+    double total_seconds = 0;
+};
+
+ConvexCycleFloatResult tpp_convex_solve_cycle_float_certified(
+    const std::vector<std::vector<Vector2>> &polygons,
+    const ConvexCycleFloatOptions &options = {});
+
 // Diagnostic only, never a bound: the binary64 directional trace, replayed and
 // repaired, with its plain floating-point length. A wrong sign decision can make
 // it suboptimal (too long) or slightly infeasible; nothing is certified. Returns

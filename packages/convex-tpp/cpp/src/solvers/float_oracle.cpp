@@ -1,5 +1,8 @@
 #include "tpp/convex/float_oracle.h"
 #include "binary_dual.h"
+#include "float_chain.h"
+#include "float_proof.h"
+#include "cycle_refinement.h"
 
 #include <algorithm>
 #include <array>
@@ -38,26 +41,8 @@ std::optional<Polygon> counter_clockwise(const Polygon &input) {
     return p;
 }
 
-// Proof that q lies in the closed CCW polygon: an interval sign first, the
-// exact integer determinant when the interval straddles zero. Unknown is "no".
-bool proved_inside(Vector2 q,const Polygon &p) {
-    if(!q.is_finite())return false;
-    for(size_t i=0;i<p.size();++i) {
-        const auto &a=p[i],&b=p[(i+1)%p.size()];
-        const auto side=(IntervalPoint(b)-IntervalPoint(a)).cross(IntervalPoint(q)-IntervalPoint(a));
-        if(side.hi<0)return false;
-        if(side.lo>=0)continue;
-        const auto sign=detail::dyadic_orientation(a,b,q);
-        if(!sign||*sign<0)return false;
-    }
-    return true;
-}
-
-Vector2 vertex_mean(const Polygon &p) {
-    Vector2 c{};
-    for(const auto &v:p)c+=v/double(p.size());
-    return c;
-}
+using detail::proved_inside;
+using detail::vertex_mean;
 
 // Moves an unproved contact a tiny fraction toward the vertex mean. The
 // length bound is computed afterwards, so the move only costs bound quality.
@@ -153,10 +138,9 @@ std::vector<std::vector<Vector2>> chain_duals(const Polygon &chain,double short_
     return policies;
 }
 
-struct Face {Vector2 normal;double offset;};
-
-// Log-barrier Newton method on the smoothed lengths, in coordinates relative
-// to start divided by scale. At a barrier minimizer the smoothed directions
+// Log-barrier Newton method on the smoothed lengths (float_chain.h), in
+// coordinates relative to start divided by scale, with start and target as
+// fixed nodes of an open chain. At a barrier minimizer the smoothed directions
 // satisfy u_i - u_{i+1} = sum (mu/slack) n_f, so D(u) >= length - mu*(links+faces)
 // (scaled); the stopping level follows from the requested gap.
 struct Polish {
@@ -167,127 +151,158 @@ struct Polish {
 std::optional<Polish> interior_point(Vector2 start,Vector2 target,const std::vector<Polygon> &polygons,
         const Polygon *warm,double gap,double cutoff,const ConvexFloatOracleOptions &options,
         const std::function<bool(const Polish&)> &done) {
-    const std::size_t max_iterations=options.max_newton_iterations;
     const size_t n=polygons.size();
     double scale=std::max(std::abs(target.x-start.x),std::abs(target.y-start.y));
     for(const auto &p:polygons)for(const auto &v:p)scale=std::max({scale,std::abs(v.x-start.x),std::abs(v.y-start.y)});
     if(!(scale>0)||!std::isfinite(scale))return {};
     auto local=[&](Vector2 v){return Vector2{(v.x-start.x)/scale,(v.y-start.y)/scale};};
-    std::vector<std::vector<Face>> faces(n);size_t face_count=0;
-    std::vector<Vector2> x(n+2);
-    x.front()={0,0};x.back()=local(target);
+    using Kind=detail::ChainNode::Kind;
+    std::vector<detail::ChainNode> nodes(n+2);
+    nodes.front()={.kind=Kind::Fixed,.offset={0,0}};
+    nodes.back()={.kind=Kind::Fixed,.offset=local(target)};
+    size_t face_count=0;
     for(size_t i=0;i<n;++i) {
         const auto &p=polygons[i];
+        auto &node=nodes[i+1];
         for(size_t j=0;j<p.size();++j) {
             const auto a=local(p[j]),b=local(p[(j+1)%p.size()]);
             Vector2 normal{a.y-b.y,b.x-a.x};
             const double length=normal.length();
             if(!(length>0))continue;
             normal=normal/length;
-            faces[i].push_back({normal,normal.dot(a)});
+            node.faces.push_back({normal,normal.dot(a)});
         }
-        face_count+=faces[i].size();
+        face_count+=node.faces.size();
         const auto center=local(vertex_mean(p));
-        x[i+1]=center;
-        if(warm&&warm->size()==n)x[i+1]=center+(local((*warm)[i])-center)*(1-options.warm_interior_fraction);
-    }
-    auto slack=[&](size_t i,const Face &f,const std::vector<Vector2> &z){return f.normal.dot(z[i+1])-f.offset;};
-    for(size_t i=0;i<n;++i)for(const auto &f:faces[i])if(!(slack(i,f,x)>0)) {
-        x[i+1]=local(vertex_mean(polygons[i]));
-        for(const auto &g:faces[i])if(!(slack(i,g,x)>0))return {};
-        break;
+        node.y=center;
+        if(warm&&warm->size()==n)node.y=center+(local((*warm)[i])-center)*(1-options.warm_interior_fraction);
+        auto feasible=[&]{return std::all_of(node.faces.begin(),node.faces.end(),[&](const auto &f){return f.normal.dot(node.y)-f.offset>0;});};
+        if(!feasible()) {
+            node.y=center;
+            if(!feasible())return {};
+        }
     }
     const double constraints=double(n+1+face_count);
     const double target_gap=gap>0?gap:1e-9*std::max(1.0,std::abs(cutoff));
     const double mu_end=std::max(1e-15,.5*target_gap/(scale*constraints));
-    auto objective=[&](const std::vector<Vector2> &z,double mu)->double {
-        double value=0;
-        for(size_t i=1;i<z.size();++i) {
-            const auto d=z[i]-z[i-1];value+=std::sqrt(d.dot(d)+mu*mu);
-        }
-        for(size_t i=0;i<n;++i)for(const auto &f:faces[i]) {
-            const double s=slack(i,f,z);
-            if(!(s>0))return INFINITY;
-            value-=mu*std::log(s);
-        }
-        return value;
-    };
-    struct M2 {double a=0,b=0,c=0,d=0;}; // [[a b] [c d]]
-    auto add=[](M2 &m,const M2 &h){m.a+=h.a;m.b+=h.b;m.c+=h.c;m.d+=h.d;};
-    auto mul=[](const M2 &m,const M2 &h){return M2{m.a*h.a+m.b*h.c,m.a*h.b+m.b*h.d,m.c*h.a+m.d*h.c,m.c*h.b+m.d*h.d};};
-    auto apply=[](const M2 &m,Vector2 v){return Vector2{m.a*v.x+m.b*v.y,m.c*v.x+m.d*v.y};};
-    auto transpose=[](const M2 &m){return M2{m.a,m.c,m.b,m.d};};
-    auto inverse=[](const M2 &m)->std::optional<M2> {
-        const double det=m.a*m.d-m.b*m.c;
-        if(!(std::abs(det)>0)||!std::isfinite(det))return {};
-        return M2{m.d/det,-m.b/det,-m.c/det,m.a/det};
-    };
+    const double mu=warm?std::max(mu_end,std::min(1e-3,mu_end*options.warm_mu_ratio)):1e-1;
     Polish polish;
-    double mu=warm?std::max(mu_end,std::min(1e-3,mu_end*options.warm_mu_ratio)):1e-1;
-    std::vector<M2> diagonal(n),off(n),factor(n),inverses(n);
-    std::vector<Vector2> gradient(n),rhs(n),step(n),trial;
-    for(;;mu=std::max(mu_end,mu*.1)) {
-        ++polish.levels;
-        for(;polish.iterations<max_iterations;++polish.iterations) {
-            std::fill(diagonal.begin(),diagonal.end(),M2{});std::fill(off.begin(),off.end(),M2{});
-            std::fill(gradient.begin(),gradient.end(),Vector2{});
-            for(size_t i=0;i<=n;++i) {
-                const auto d=x[i+1]-x[i];
-                const double norm=std::sqrt(d.dot(d)+mu*mu);
-                const Vector2 g=d/norm;
-                const M2 h{(1-g.x*g.x)/norm,-g.x*g.y/norm,-g.x*g.y/norm,(1-g.y*g.y)/norm};
-                if(i>0){gradient[i-1]-=g;add(diagonal[i-1],h);}
-                if(i<n){gradient[i]+=g;add(diagonal[i],h);}
-                if(i>0&&i<n)off[i]=M2{-h.a,-h.b,-h.c,-h.d};
-            }
-            for(size_t i=0;i<n;++i) {
-                for(const auto &f:faces[i]) {
-                    const double s=slack(i,f,x),w=mu/(s*s);
-                    gradient[i]-=f.normal*(mu/s);
-                    add(diagonal[i],M2{w*f.normal.x*f.normal.x,w*f.normal.x*f.normal.y,w*f.normal.x*f.normal.y,w*f.normal.y*f.normal.y});
-                }
-                diagonal[i].a+=1e-14;diagonal[i].d+=1e-14;
-            }
-            bool singular=false;
-            for(size_t i=0;i<n;++i) {
-                rhs[i]=gradient[i]*-1.0;
-                if(i) {
-                    factor[i]=mul(off[i],inverses[i-1]);
-                    const auto correction=mul(factor[i],transpose(off[i]));
-                    diagonal[i].a-=correction.a;diagonal[i].b-=correction.b;diagonal[i].c-=correction.c;diagonal[i].d-=correction.d;
-                    rhs[i]-=apply(factor[i],rhs[i-1]);
-                }
-                const auto inv=inverse(diagonal[i]);
-                if(!inv){singular=true;break;}
-                inverses[i]=*inv;
-            }
-            if(singular)break;
-            for(size_t i=n;i-->0;)
-                step[i]=apply(inverses[i],rhs[i]-(i+1<n?apply(transpose(off[i+1]),step[i+1]):Vector2{}));
-            double slope=0;
-            for(size_t i=0;i<n;++i)slope+=gradient[i].dot(step[i]);
-            if(!std::isfinite(slope)||slope>=0||-slope<1e-10*mu)break;
-            const double before=objective(x,mu);
-            // Below the objective's resolution Armijo cannot see progress;
-            // near convergence the feasible Newton step is then taken as is.
-            const bool resolved=-slope>64*std::numeric_limits<double>::epsilon()*std::abs(before);
-            double alpha=1;trial=x;
-            for(;alpha>1e-12;alpha*=.5) {
-                for(size_t i=0;i<n;++i)trial[i+1]=x[i+1]+step[i]*alpha;
-                const double after=objective(trial,mu);
-                if(resolved?after<=before+.01*alpha*slope:std::isfinite(after))break;
-            }
-            if(alpha<=1e-12)break;
-            x.swap(trial);
-        }
-        polish.contacts.clear();polish.duals.clear();
-        for(size_t i=1;i<=n;++i)polish.contacts.push_back({start.x+scale*x[i].x,start.y+scale*x[i].y});
-        for(size_t i=0;i<=n;++i) {
-            const auto d=x[i+1]-x[i];
-            polish.duals.push_back(d/std::sqrt(d.dot(d)+mu*mu));
-        }
-        if(done(polish)||mu<=mu_end||polish.iterations>=max_iterations)return polish;
+    const auto stats=detail::chain_interior_point(nodes,false,mu,mu_end,options.max_newton_iterations,
+        [&](const detail::ChainLevel &level) {
+            polish.contacts.clear();
+            for(size_t i=1;i<=n;++i)polish.contacts.push_back({start.x+scale*level.points[i].x,start.y+scale*level.points[i].y});
+            polish.duals=level.duals;
+            return done(polish);
+        });
+    if(!stats)return {};
+    polish.iterations=stats->iterations;polish.levels=stats->levels;
+    return polish;
+}
+}
+
+namespace {
+// Points and segments (fewer than three distinct vertices), with positive-area
+// polygons alongside. The directional trace needs areas, so proposals come
+// from the shared cycle construction on {s}, P_1, ..., P_m, {t}: its closing
+// link is constant, so its cycle optima are the path optima. Proofs are the
+// same as below, with segment contacts enclosed (float_proof.h).
+ConvexFloatOracleResult solve_degenerate_path(Vector2 start,Vector2 target,const std::vector<Polygon> &input,
+        const ConvexFloatOracleOptions &options,ConvexFloatOracleResult result) {
+    using Kernel=detail::CycleRefinement<double>;
+    const size_t m=input.size();
+    std::vector<Polygon> regions;regions.reserve(m);
+    for(const auto &p:input) {
+        auto normalized=detail::binary_region(p);
+        if(!normalized){result.status=ConvexFloatOracleStatus::Unsupported;return result;}
+        regions.push_back(std::move(*normalized));
     }
+    double lower=direct_lower(start,target),upper=INFINITY;
+    Polygon best;
+    auto closed=[&] {
+        if(!std::isfinite(upper))return false;
+        if(lower>=options.cutoff)return true;
+        return options.max_gap>0&&(Interval(upper)-Interval(lower)).hi<=options.max_gap;
+    };
+    auto prove=[&](const Polygon &contacts,const std::vector<std::vector<Vector2>> &duals) {
+        for(const auto &u:duals)lower=std::max(lower,dual_lower(start,target,regions,u));
+        std::vector<IntervalPoint> boxes{IntervalPoint(start)};Polygon points;
+        for(size_t i=0;i<m;++i) {
+            const auto proved=detail::prove_contact(contacts[i],regions[i]);
+            if(!proved)return closed();
+            boxes.push_back(proved->box);points.push_back(proved->point);
+        }
+        boxes.emplace_back(target);
+        const double length=detail::enclosed_length_upper(boxes,false);
+        if(length<upper){upper=length;best=std::move(points);}
+        return closed();
+    };
+    auto prove_chain=[&](const Polygon &contacts) {
+        Polygon chain{start};chain.insert(chain.end(),contacts.begin(),contacts.end());chain.push_back(target);
+        double scale=0;
+        for(const auto &v:chain)scale=std::max({scale,std::abs(v.x),std::abs(v.y)});
+        const double short_link=std::max(32*std::numeric_limits<double>::epsilon()*scale,
+            options.max_gap>0?options.max_gap/(16*double(chain.size())):0);
+        return prove(contacts,chain_duals(chain,short_link));
+    };
+    auto finish=[&](ConvexFloatOracleStatus status) {
+        result.contacts=best;result.lower_bound=lower;result.upper_bound=upper;result.status=status;return result;
+    };
+    auto done=[&]{return finish(lower>=options.cutoff?ConvexFloatOracleStatus::CutoffReached:ConvexFloatOracleStatus::GapClosed);};
+    std::optional<Polygon> seed;
+    const auto trace_began=Clock::now();
+    result.trace_attempted=true;
+    if(options.initial_contacts&&options.initial_contacts->size()==m)seed=*options.initial_contacts;
+    else try {
+        Kernel::Polygons cycle;cycle.push_back({Kernel::P(start)});
+        for(const auto &region:regions) {
+            Kernel::Polygon q;for(const auto &v:region)q.emplace_back(v);cycle.push_back(std::move(q));
+        }
+        cycle.push_back({Kernel::P(target)});
+        Polygon last;
+        const bool accepted=Kernel::run(cycle,[&](const Kernel::Polygon &candidate) {
+            Polygon contacts;
+            for(size_t i=1;i<=m;++i)contacts.push_back(candidate[i].external());
+            const double before=upper;
+            const bool finished=prove_chain(contacts);
+            if(upper<before)seed=best;
+            last=std::move(contacts);
+            return finished;
+        });
+        if(!seed&&!last.empty())seed=last;
+        result.trace_seconds=since(trace_began);
+        if(accepted){result.trace_closed=true;return done();}
+    } catch(const std::exception &) {result.trace_seconds=since(trace_began);}
+    result.trace_failed=!seed;
+    if(options.initial_contacts&&seed&&options.certify_trace&&prove_chain(*seed)){result.trace_closed=true;return done();}
+    if(options.polish) {
+        result.polish_attempted=true;
+        const auto polish_began=Clock::now();
+        double scale=std::max(std::abs(target.x-start.x),std::abs(target.y-start.y));
+        for(const auto &p:regions)for(const auto &v:p)scale=std::max({scale,std::abs(v.x-start.x),std::abs(v.y-start.y)});
+        if(scale>0&&std::isfinite(scale)) {
+            using Kind=detail::ChainNode::Kind;
+            std::vector<detail::ChainNode> nodes{{.kind=Kind::Fixed,.offset={0,0}}};
+            size_t faces=0;
+            for(size_t i=0;i<m;++i) {
+                nodes.push_back(detail::region_node(regions[i],start,scale,seed?&(*seed)[i]:nullptr,options.warm_interior_fraction));
+                faces+=nodes.back().faces.size();
+            }
+            nodes.push_back({.kind=Kind::Fixed,.offset={(target.x-start.x)/scale,(target.y-start.y)/scale}});
+            const double target_gap=options.max_gap>0?options.max_gap:1e-9*std::max(1.0,std::abs(options.cutoff));
+            const double mu_end=std::max(1e-15,.5*target_gap/(scale*double(m+1+faces)));
+            const double mu=seed?std::max(mu_end,std::min(1e-3,mu_end*options.warm_mu_ratio)):1e-1;
+            const auto stats=detail::chain_interior_point(nodes,false,mu,mu_end,options.max_newton_iterations,
+                [&](const detail::ChainLevel &level) {
+                    Polygon contacts;
+                    for(size_t i=0;i<m;++i)contacts.push_back(detail::region_contact(regions[i],level,i+1,start,scale));
+                    return prove(contacts,{level.duals});
+                });
+            if(stats){result.newton_iterations=stats->iterations;result.barrier_levels=stats->levels;}
+        }
+        result.polish_seconds=since(polish_began);
+        if(closed()){result.polish_closed=true;return done();}
+    }
+    return finish(ConvexFloatOracleStatus::Open);
 }
 }
 
@@ -329,7 +344,13 @@ ConvexFloatOracleResult tpp_convex_solve_float_certified(const Vector2 &start,co
     std::vector<Polygon> polygons;polygons.reserve(input.size());
     for(const auto &p:input) {
         auto normalized=counter_clockwise(p);
-        if(!normalized)return finish(ConvexFloatOracleStatus::Unsupported);
+        if(!normalized) {
+            // Fewer than three distinct vertices (or no area): points and
+            // segments take their own proposals; other inputs are unsupported.
+            auto degenerate=solve_degenerate_path(start,target,input,options,result);
+            degenerate.total_seconds=since(began);
+            return degenerate;
+        }
         polygons.push_back(std::move(*normalized));
     }
     Bounds bounds;

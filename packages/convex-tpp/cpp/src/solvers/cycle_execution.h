@@ -8,14 +8,14 @@ namespace tpp::detail {
 // Deliberately separate from construction exceptions: a budget interruption
 // must escape every arithmetic-recovery catch without restarting more work.
 struct CycleInterrupted {};
-enum class CyclePhase { Construction, Certification, RationalRecovery };
+enum class CyclePhase { Construction, Certification, RationalRecovery, IntervalProof, Polish };
 struct CycleExecution {
     using Clock = std::chrono::steady_clock;
     Clock::time_point began = Clock::now(), since = began;
     double max_seconds;
     const std::function<bool()> &stop;
     CyclePhase phase = CyclePhase::Construction;
-    std::array<double,3> seconds{};
+    std::array<double,5> seconds{};
     void account() {
         const auto now=Clock::now();
         seconds[static_cast<size_t>(phase)]+=std::chrono::duration<double>(now-since).count();
@@ -57,7 +57,7 @@ Result run_cycle_execution(Result &result,const Options &options,Run run) {
         result.diagnostic="Cooperative cycle interruption; only completed certificates retained";
     }
     work.account();
-    result.timings={work.seconds[0],work.seconds[1],work.seconds[2]};
+    result.timings={work.seconds[0],work.seconds[1],work.seconds[2],work.seconds[3],work.seconds[4]};
     return std::move(result);
 }
 } // namespace tpp::detail

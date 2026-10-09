@@ -33,8 +33,32 @@ namespace tpp {
 		bool float_fallback=false;
 		const bool bounded=tolerance>0||std::isfinite(cutoff);
 		std::optional<ConvexHybridResult> interval_only;
+		const bool degenerate=std::any_of(polygons.begin(),polygons.end(),[](const auto &p) {
+			size_t count=0;
+			for(size_t i=0;i<p.size();++i)if(i==0||p[i]!=p[i-1])++count;
+			if(p.size()>1&&p.front()==p.back())--count;
+			return count<3;
+		});
+		if(degenerate&&workspace.float_recovery&&workspace.float_degenerate&&bounded&&!workspace.retain_binary_dual) {
+			ConvexFloatOracleOptions float_options;
+			float_options.cutoff=cutoff;float_options.max_gap=tolerance;
+			const auto attempt=tpp_convex_solve_float_certified(start,target,polygons,float_options);
+			if(attempt.status==ConvexFloatOracleStatus::GapClosed||attempt.status==ConvexFloatOracleStatus::CutoffReached) {
+				CertifiedConvexTppResult result;
+				result.path=reconstruct_convex_polyline(start,target,attempt.contacts,false);
+				result.lower_bound=attempt.lower_bound;result.upper_bound=attempt.upper_bound;
+				result.dual_cutoff_pruned=attempt.lower_bound>=cutoff;
+				result.used_interval_bounds=attempt.trace_closed;
+				result.used_float_oracle=attempt.polish_closed;
+				result.seconds=attempt.total_seconds;
+				result.geometric_solver_seconds=attempt.trace_seconds+attempt.polish_seconds;
+				result.time_limited=max_seconds<=0.0;
+				return result;
+			}
+			float_fallback=true;
+		}
 		// The polish proposes no retained interval dual; keep that diagnostic exact.
-		if(workspace.float_recovery&&bounded&&!workspace.retain_binary_dual) {
+		if(!degenerate&&workspace.float_recovery&&bounded&&!workspace.retain_binary_dual) {
 			ConvexHybridOptions first;
 			first.cutoff=cutoff;first.max_gap=tolerance;first.stop_after_interval=true;
 			first.interpolated_zero_dual=workspace.interpolated_zero_dual;

@@ -165,13 +165,14 @@ namespace tpp {
 		DynamicConvexTppWorkspace &workspace, double tolerance, double cutoff, double seconds,
 		const Polygon &initial_contacts, ConvexCycleWorkspace *cycle_workspace,
 		const std::vector<int> &initial_features, bool retain_features, bool bound_first,
-		bool interval_certificate, const std::function<bool()> &stop_requested, bool proposal_bound) {
+		bool interval_certificate, const std::function<bool()> &stop_requested, bool proposal_bound, bool float_oracle) {
 		if (!cycle) return tpp_convex_solve_certified(start,target,regions,workspace,tolerance,cutoff,seconds);
 		const auto began=std::chrono::steady_clock::now();
 		RelaxationResult out;
 		if (regions.size()<2) {
+			// The relaxed cycle is one point: zero, with no arithmetic stage.
 			const auto point=regions.empty()?start:regions.front().front();
-			out.path={point,point};return out;
+			out.path={point,point};out.used_interval_bounds=true;return out;
 		}
 		ConvexCycleDoubleOptions cycle_options;
 		cycle_options.lower_bound_cutoff=cutoff;
@@ -184,11 +185,18 @@ namespace tpp {
         cycle_options.bound_first=bound_first;
         cycle_options.interval_certificate=interval_certificate;
 		cycle_options.proposal_only=proposal_bound;
+		// A positive tolerance first tries the binary64 stage; GapClosed and its
+		// CertifiedBound are proved on these regions without rational arithmetic.
+		cycle_options.max_gap=float_oracle&&tolerance>0?tolerance:0;
 		auto solved=tpp_convex_solve_cycle_double(regions,cycle_options);
 		if (solved.status!=ConvexCycleStatus::Optimal && solved.status!=ConvexCycleStatus::FloatingPointLimit
 			&& solved.status!=ConvexCycleStatus::CertifiedBound && solved.status!=ConvexCycleStatus::Interrupted
-            && solved.status!=ConvexCycleStatus::ProposalLimit)
+            && solved.status!=ConvexCycleStatus::ProposalLimit && solved.status!=ConvexCycleStatus::GapClosed)
 			throw std::runtime_error("Convex cycle oracle failed: "+solved.diagnostic);
+		out.used_interval_bounds=solved.float_interval_closed;
+		out.used_float_oracle=solved.float_polish_closed;
+		out.polish_attempted=solved.float_polish_attempted;
+		out.polish_newton_iterations=solved.float_newton_iterations;
 		out.active_features=std::move(solved.active_features);
         out.path=std::move(solved.contacts);if(!out.path.empty())out.path.push_back(out.path.front());
         out.time_limited=solved.status==ConvexCycleStatus::Interrupted;
@@ -198,7 +206,9 @@ namespace tpp {
 		out.dual_cutoff_pruned=solved.status==ConvexCycleStatus::CertifiedBound;
 		out.predicate_exact_evaluations=solved.certificate.exact_predicate_evaluations;
 		out.used_fallback=solved.rational_cycle_recoveries+solved.rational_anchor_recoveries+solved.rational_feature_recoveries>0;
-		out.used_rational=out.used_fallback;
+		// Every call that the binary64 stage did not close reached the exact
+		// path (exact certificates at least) or was interrupted before closing.
+		out.used_rational=!out.used_interval_bounds&&!out.used_float_oracle;
         out.certificate_cutoff_skips=solved.certificate_cutoff_skips;
         out.certificate_interval_uses=solved.certificate_interval_uses;
         out.initial_contact_checks=solved.initial_contact_checks;out.initial_contact_accepts=solved.initial_contact_accepts;
@@ -211,7 +221,7 @@ namespace tpp {
             if(!warm.empty())warm.pop_back();else warm=initial_contacts;
             auto full=solve_relaxation(cycle,start,target,regions,workspace,tolerance,cutoff,
                 std::max(0.0,seconds-std::chrono::duration<double>(std::chrono::steady_clock::now()-began).count()),
-                warm,cycle_workspace,out.active_features,retain_features,bound_first,interval_certificate,stop_requested,false);
+                warm,cycle_workspace,out.active_features,retain_features,bound_first,interval_certificate,stop_requested,false,float_oracle);
             if(!out.path.empty() && (full.path.empty() || out.upper_bound<full.upper_bound)) {
                 full.path=std::move(out.path);full.upper_bound=out.upper_bound;
                 full.active_features=std::move(out.active_features);
@@ -224,6 +234,9 @@ namespace tpp {
             full.cycle_timings.construction_seconds+=out.cycle_timings.construction_seconds;
             full.cycle_timings.certification_seconds+=out.cycle_timings.certification_seconds;
             full.cycle_timings.rational_recovery_seconds+=out.cycle_timings.rational_recovery_seconds;
+            full.cycle_timings.interval_proof_seconds+=out.cycle_timings.interval_proof_seconds;
+            full.cycle_timings.polish_seconds+=out.cycle_timings.polish_seconds;
+            full.polish_attempted|=out.polish_attempted;full.polish_newton_iterations+=out.polish_newton_iterations;
             full.proposal_calls=1;
             full.geometric_solver_seconds=full.cycle_timings.construction_seconds;
             full.certificate_verification_seconds=full.cycle_timings.certification_seconds;
@@ -253,7 +266,9 @@ namespace tpp {
 				rounded.push_back(rounded.front());
 				const double length=path_length(rounded);
 				if(std::isfinite(length)&&(out.path.empty()||length<path_length(out.path))) {
-					out.path=std::move(rounded);out.upper_bound=std::max(length,out.lower_bound);
+					// The certified bound is the exact optimum's outward-rounded
+					// length; the rounded contacts only represent that cycle.
+					out.path=std::move(rounded);out.upper_bound=std::max(exact.certificate.upper_bound,out.lower_bound);
 				}
 			}
             out.time_limited=exact.status==ConvexCycleStatus::Interrupted;
@@ -819,7 +834,7 @@ namespace tpp {
 				polish_workspace.borrow_hybrid_geometry=options.oracle_borrow_geometry;
 				polish_workspace.bound_before_optimality=options.oracle_bound_first;
 				polish_workspace.interpolated_zero_dual=options.interpolated_zero_dual;
-				polish_workspace.float_recovery=options.float_recovery;
+				polish_workspace.float_recovery=options.float_recovery;polish_workspace.float_degenerate=options.float_degenerate;
 				polish_workspace.trust_double=options.trust_double;
 				auto piece_holding=[&](size_t region,Vector2 point)->const Polygon * {
 					prepare_pieces(region);
@@ -850,7 +865,7 @@ namespace tpp {
 						const bool polish_cycle=whole&&cycle;
 						const auto polished=solve_relaxation(polish_cycle,a,b,ordered,polish_workspace,
 							std::max(1e-9*old_length,std::numeric_limits<double>::epsilon()),old_length,std::min(1.0,remaining),
-							polish_cycle?current_points:Polygon{});
+							polish_cycle?current_points:Polygon{},nullptr,{},false,false,false,{},false,options.cycle_float_oracle);
 						const double length=path_length(polished.path);
 						const size_t offset=size_t(!polish_cycle);
 						if(polished.path.size()==count+2-size_t(polish_cycle)&&std::isfinite(length)&&length<old_length*(1-1e-12)) {
@@ -1004,7 +1019,7 @@ namespace tpp {
                         initial_workspace.borrow_hybrid_geometry=options.oracle_borrow_geometry;
                         initial_workspace.bound_before_optimality=options.oracle_bound_first;
 						initial_workspace.interpolated_zero_dual=options.interpolated_zero_dual;
-						initial_workspace.float_recovery=options.float_recovery;
+						initial_workspace.float_recovery=options.float_recovery;initial_workspace.float_degenerate=options.float_degenerate;
 						initial_workspace.trust_double=options.trust_double;
 						++result.calls;
 						++result.initial_convex_refinement_calls;
@@ -1013,7 +1028,8 @@ namespace tpp {
 						const auto polished = solve_relaxation(
 							cycle, start, target, ordered_pieces, initial_workspace,
 							std::max(target_gap * 0.25, std::numeric_limits<double>::epsilon()),
-							best_initial_length - target_gap, remaining);
+							best_initial_length - target_gap, remaining, {}, nullptr, {}, false, false, false, {}, false,
+							options.cycle_float_oracle);
 						result.initial_convex_refinement_time_limited = polished.time_limited;
 						const double polished_length = path_length(polished.path);
 						if (std::isfinite(polished_length) && polished_length < best_initial_length && covered(polished.path)) {
@@ -1195,7 +1211,7 @@ namespace tpp {
         workspace.bound_before_optimality=options.oracle_bound_first;
         workspace.retain_binary_dual=!cycle&&options.path_certificate_dual;
 		workspace.interpolated_zero_dual=options.interpolated_zero_dual;
-		workspace.float_recovery=options.float_recovery;
+		workspace.float_recovery=options.float_recovery;workspace.float_degenerate=options.float_degenerate;
 		workspace.trust_double=options.trust_double;
 		std::vector<DynamicConvexTppWorkspace> parallel_workspaces;
         ConvexCycleWorkspace cycle_workspace;
@@ -1274,6 +1290,7 @@ namespace tpp {
                                 for(size_t i=0;i<order.size();++i)out.active_features[order[i]]=entry.features[i];
                             }
                             out.memo_queries=out.memo_repeated=out.memo_hits=1;
+                            out.used_rational=true; // the exact certificate rechecked it
                             out.seconds=duration(began_oracle);out.geometric_solver_seconds=out.seconds;
                             return out;
                         }
@@ -1285,7 +1302,7 @@ namespace tpp {
 				cycle, start, target, selected, oracle_workspace, tolerance, cutoff, remaining_seconds, node.warm_start, options.cycle_cache?&cycle_cache:nullptr,
                 options.cycle_active_features?node.active_features:std::vector<int>{}, options.cycle_active_features,options.cycle_bound_first,
                 options.cycle_interval_certificate, [control]{return control&&control->proved();},
-                options.cycle_proposal_bound&&!precise
+                options.cycle_proposal_bound&&!precise, options.cycle_float_oracle
 			);
             oracle_capture.end(capture_id,out);
             if(cache&&!out.path.empty()) {
@@ -1369,6 +1386,10 @@ namespace tpp {
             result.cycle_construction_seconds+=certified.cycle_timings.construction_seconds;
             result.cycle_certification_seconds+=certified.cycle_timings.certification_seconds;
             result.cycle_rational_recovery_seconds+=certified.cycle_timings.rational_recovery_seconds;
+            result.cycle_interval_proof_seconds+=certified.cycle_timings.interval_proof_seconds;
+            result.cycle_polish_seconds+=certified.cycle_timings.polish_seconds;
+            result.cycle_polish_calls+=certified.polish_attempted;
+            result.cycle_polish_newton_iterations+=certified.polish_newton_iterations;
 			++result.oracle_profiled_calls;
 			result.oracle_max_call_seconds = std::max(result.oracle_max_call_seconds, certified.seconds);
 			if (certified.used_fallback) result.oracle_fallback_call_seconds += certified.seconds;
@@ -1964,7 +1985,7 @@ namespace tpp {
                         worker_workspace.bound_before_optimality=options.oracle_bound_first;
                         worker_workspace.retain_binary_dual=!cycle&&options.path_certificate_dual;
 						worker_workspace.interpolated_zero_dual=options.interpolated_zero_dual;
-						worker_workspace.float_recovery=options.float_recovery;
+						worker_workspace.float_recovery=options.float_recovery;worker_workspace.float_degenerate=options.float_degenerate;
 						worker_workspace.trust_double=options.trust_double;
 					}
 					const auto oracle_batch_began = std::chrono::steady_clock::now();
@@ -2451,6 +2472,10 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::cycle_construction_seconds);
         sum(&UnorderedTppSolveResult::cycle_certification_seconds);
         sum(&UnorderedTppSolveResult::cycle_rational_recovery_seconds);
+        sum(&UnorderedTppSolveResult::cycle_interval_proof_seconds);
+        sum(&UnorderedTppSolveResult::cycle_polish_seconds);
+        sum(&UnorderedTppSolveResult::cycle_polish_calls);
+        sum(&UnorderedTppSolveResult::cycle_polish_newton_iterations);
         sum(&UnorderedTppSolveResult::oracle_fallback_call_seconds);
         result.oracle_max_call_seconds=std::max(runs[0].oracle_max_call_seconds,runs[1].oracle_max_call_seconds);
         for(size_t i=0;i<result.oracle_call_histogram.size();++i) {

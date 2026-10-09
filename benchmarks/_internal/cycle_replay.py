@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import platform
 import subprocess
 from pathlib import Path
@@ -156,6 +157,8 @@ def main(argv=None) -> int:
 	parser.add_argument("--features", action="store_true")
 	parser.add_argument("--interval", action="store_true")
 	parser.add_argument("--bound-first", action="store_true")
+	parser.add_argument("--float", choices=("capture", "on", "off"), default="capture",
+		help="Binary64 stage of the cycle oracle: as recorded in each captured call (absent: off), or forced.")
 	args = parser.parse_args(argv)
 	if (not math.isfinite(args.seconds) or args.seconds <= 0 or args.repetitions < 1 or
 		(args.min_seconds is not None and (not math.isfinite(args.min_seconds) or args.min_seconds < 0))):
@@ -193,11 +196,15 @@ def main(argv=None) -> int:
 	for record in selected:
 		if _boolean(record.get("precise", False)):
 			options_by_call[str(record["id"])]["proposal_bound"] = False
+		options_by_call[str(record["id"])]["float"] = (_boolean(record.get("float", False))
+			if args.float == "capture" else args.float == "on")
 	binary = args.binary.resolve() if args.binary else (args.build_dir.resolve() / "tpp-cycle-replay")
 	commands = []
 	if not args.skip_build and not args.binary:
 		configure = ["cmake", "-S", str(SOURCE), "-B", str(args.build_dir.resolve()),
 			"-DCMAKE_BUILD_TYPE=Release", "-DTPP_ENABLE_GUROBI=OFF"]
+		if os.environ.get("TPP_CXX_STANDARD"):
+			configure.append(f"-DTPP_CXX_STANDARD={os.environ['TPP_CXX_STANDARD']}")
 		commands = [configure, ["cmake", "--build", str(args.build_dir.resolve()), "--target", "tpp-cycle-replay", "-j", "4"]]
 		with (output / "build.log").open("w") as log:
 			for command in commands:
@@ -213,7 +220,8 @@ def main(argv=None) -> int:
 		"timing": "whole shared convex-cycle adapter call; each replay starts with a fresh workspace, so prepared-geometry cache is cold unlike repeated calls in a B&B worker; independent feasible-contact and interval certificates run outside timing; a solver deadline interruption is incomplete, not a process failure"}
 	atomic_json(output / "config.json", config)
 	command = [str(binary), str(input_path), str(args.seconds), str(args.repetitions),
-		str(int(args.cache)), str(int(args.features)), str(int(args.interval)), str(int(args.bound_first))]
+		str(int(args.cache)), str(int(args.features)), str(int(args.interval)), str(int(args.bound_first)),
+		{"capture": "-1", "on": "1", "off": "0"}[args.float]]
 	try:
 		process = subprocess.run(command, cwd=ROOT, capture_output=True, text=True,
 			timeout=args.seconds * args.repetitions * len(selected) + 30)

@@ -18,7 +18,10 @@ segment by its supporting line **and** its endpoints and tests a point by
 membership (their edge halfplanes alone would describe a line or the plane);
 the anchored search uses the same membership, and a point anchor is its own
 only anchor. The `_disjoint` variants keep their positive-area contract. There is no
-optimization epsilon or spatial discretization.
+optimization epsilon or spatial discretization. A caller that only needs bounds
+within a gap can request it with `ConvexCycleDoubleOptions::max_gap`; the
+[binary64 stage](#binary64-stage-with-a-requested-gap-2026-10-08) then proves
+them without rational arithmetic and returns `GapClosed`, never `Optimal`.
 
 ## Existing core and shared arithmetic
 
@@ -210,6 +213,204 @@ accepted. `tpp_convex_cycle_dual_directions` normalizes nonzero links with ratio
 upper enclosures of their norms and can retain inherited unit-disk vectors at
 zero links. These witnesses prove lower bounds; they are not a replacement for
 the complete zero-link KKT certificate and need not be optimal dual witnesses.
+
+## Binary64 stage with a requested gap (2026-10-08)
+
+`tpp_convex_solve_cycle_float_certified` (`tpp/convex/float_oracle.h`,
+`solvers/cycle_float_oracle.cpp`) is the cycle version of the fixed-endpoint
+floating-point oracle ([certified-convex-oracle.md](certified-convex-oracle.md#oráculo-em-ponto-flutuante-experimental-2026-10-08)).
+It proves `L <= OPT <= U` on the input regions with directed rounding in
+binary64 and never uses rational arithmetic. It needs `max_gap > 0` or a
+finite cutoff, and it closes only when a cycle of proved contacts exists and
+`U-L <= max_gap` (directed subtraction) or `L >= cutoff`. Algebraic optimality
+and zero gaps stay with the exact path.
+
+`tpp_convex_solve_cycle_double` runs it first when `max_gap > 0`. A closed
+stage returns `GapClosed`, or `CertifiedBound` when `L` reaches the cutoff,
+with `certificate.status=Feasible`, `optimality_check_skipped=true`, no exact
+KKT test, no rational preparation and no recovery. Otherwise the existing
+exact path runs unchanged, and the result keeps the larger of its lower bound
+and the stage's (both bound the same optimum; `Optimal` is never promoted or
+demoted). An interruption during the stage returns `Interrupted` with the
+stage's proved bounds. `float_interval_closed`, `float_polish_closed`,
+`float_polish_attempted`, `float_candidates`, `float_newton_iterations` and
+the exclusive `timings.interval_proof_seconds` and `timings.polish_seconds`
+describe the stage. The default `max_gap=0` keeps every previous contract.
+
+### Steps
+
+1. **Normalization.** Each region is normalized in binary64 to the set that
+   `prepare_cycle_polygons` describes: consecutive and closing duplicates
+   removed; one vertex is a point, two a segment; otherwise every turn
+   `orient(p_(i-1),p_i,p_(i+1))` is decided exactly (an interval that excludes
+   zero, else the 128-bit integer determinant `dyadic_orientation`), all
+   turns must have one sign (reversed if negative), the boundary must wind
+   once, collinear vertices must not backtrack (interval dot product) and are
+   removed. An undecided sign or an invalid region returns `Unsupported`,
+   and the exact path then reports the input as before.
+2. **Proposals.** A common point of all regions (binary64 clipping, the zero
+   cycle); every candidate of the shared construction kernel
+   `CycleRefinement<double>` (the same feature sweeps and closed reflections
+   as the exact path, seeded with the inherited contacts and features); and,
+   if no candidate closes, the polish below. Proposals are never trusted.
+3. **Proof** (the cycle analogue of `ProvaLimites`). Membership: a point is its
+   own contact; on a segment `[a,b]`, a binary64 contact is accepted if it is
+   exactly on the segment, otherwise `t=clamp((q-a).(b-a)/|b-a|^2,0,1)` and
+   the exact point `a+t(b-a)`, which lies on the segment for every binary64
+   `t` in `[0,1]`, is carried as an interval box; in a polygon every edge
+   sign is decided exactly, and an unproved contact moves toward the vertex
+   mean by `2^-45, 2^-40, 2^-30, 2^-20, 2^-10, 2^-6, 2^-3, 1/2, 1`. `U` is the
+   upper end of the interval sum of the link lengths between boxes. `L` is the
+   lower end of the interval enclosure of
+   `D(u)=sum_i min_(v in P_i) (v-r).(u_(i-1)-u_i)` for each proposed `u`,
+   rounded to binary vectors proved to lie in the unit disk
+   (`binary_dual_vector`), with `r` the mean of the regions' vertex means; and
+   `L >= 0`. For construction candidates, links no longer than
+   `max(32*eps*scale, max_gap/(16k))` get four proposals: their own
+   directions, the nearest long link's on either side (cyclically), or zero.
+   The polish proposes its smoothed directions. Lengths only select
+   proposals; no length is used as a tolerance or as a lower bound.
+4. **Polish.** A log-barrier Newton method on the smoothed cycle length (see
+   the proposition below), in coordinates `x=(p-r)/sigma` with `sigma` the
+   largest coordinate difference from `r`. A polygon contact is a free 2D
+   variable with a barrier per edge; a segment contact is `x=a+t*e` with the
+   barrier `-mu*(log t+log(1-t))`; a point is fixed. It starts from the
+   candidate with the smallest proved `U` (else the last candidate, else the
+   inherited contacts), pulled `2^-7` toward the vertex mean or the segment
+   midpoint, at `mu_0=max(mu_end,min(1e-3,1e4*mu_end))` (`0.1` without a
+   seed), divides `mu` by 10 per level down to
+   `mu_end=max(1e-15, max_gap/(2*sigma*(k+F)))`, and stops after 600 Newton
+   iterations. Each level's contacts and directions go through step 3.
+   Line search, stopping test and the step taken below the objective's
+   resolution are those of the fixed-endpoint polish; both use the same
+   chain kernel (`float_chain.h`).
+
+### Correctness of the bounds
+
+**Theorem.** Let `P_1,...,P_k` (`k >= 2`) be closed convex regions with
+binary64 coordinates, each a point, a segment or a polygon of positive area.
+Suppose that whenever `cycle_interval_environment()` accepts, binary64
+operations follow IEEE 754 with round-to-nearest. If the stage returns
+`(L,U)`, in any status, then `L <= OPT <= U`. When `U` is finite, it bounds the
+length of a cycle of exact points `z_i in P_i`; the returned contacts are those
+points, except on a segment, where they are binary64 approximations of them
+(`a+t*(b-a)` evaluated in binary64, within a few units in the last place).
+This holds whatever the construction kernel and the polish propose.
+
+*Proof.* (a) Normalization decides each turn sign from an interval that
+contains its exact value or from an exact integer determinant, and accepts
+exactly the boundaries that `prepare_cycle_polygons` accepts (one turn sign,
+one winding, no backtracking). Removing collinear vertices does not change
+the set. So each normalized region is the input region.
+
+(b) Each contact box contains an exact point of its region: a point region's
+own point; a binary64 point proved on a segment by an exact zero orientation
+and two nonnegative dot-product intervals, or `a+t(b-a)` with binary64
+`t in [0,1]`, enclosed by interval operations; a binary64 point all of whose
+edge signs are proved nonnegative in a counter-clockwise convex polygon. If
+some contact has no proof, `U` is not updated. Otherwise the exact points
+form a feasible cycle, and each link length lies in the interval
+`sqrt(dx^2+dy^2)` of the difference of its boxes (a link between two equal
+binary points is exactly zero). The upper end of the interval sum bounds the
+feasible cycle's length, hence `OPT`.
+
+(c) Each `u_i` is a binary vector whose squared norm has an interval upper end
+`<= 1`, or zero. For any feasible cycle `q`, `|q_(i+1)-q_i| >= u_i.(q_(i+1)-q_i)`;
+summing and regrouping by contact gives `sum_i q_i.(u_(i-1)-u_i)`. The
+coefficients `u_(i-1)-u_i` sum to zero exactly, so this equals
+`sum_i (q_i-r).(u_(i-1)-u_i) >= sum_i min_(v in P_i) (v-r).(u_(i-1)-u_i) = D(u)`,
+and the minimum of a linear function over a convex polygon, a segment or a
+point is attained at a vertex. Hence `D(u) <= OPT`. Every vertex term is
+enclosed by intervals; taking the minimum of the lower ends gives a value
+`<=` the exact minimum, and the lower end of the interval sum is `<= D(u)`.
+`OPT >= 0` trivially. Hence `L <= OPT`.
+
+(d) The stage reports closure only with a finite `U` from (b), so a closed
+result always has a feasible cycle, as `CertifiedBound` requires. In
+`tpp_convex_solve_cycle_double`, an open stage contributes only its `L`, and
+the exact path's bounds keep their own certificate contract. In all cases
+`L <= OPT <= U`. No step used the optimality of a proposal. ∎
+
+The theorem says the returned bounds are true, not that the stage closes.
+It does not depend on the correctness of the construction kernel, of the
+directional maps or of the polish. The correspondence between this proof and
+the code was checked by reading and by tests, not by formal verification.
+
+### Why the polish produces good lower bounds
+
+**Proposition.** In scaled coordinates, let polygon `i` have faces
+`n_f.x >= o_f` (unit inward normals), let a segment have `x=a+t*e` with faces
+`t >= 0` and `-t >= -1`, and let a point be fixed. For `mu > 0` let
+`f_mu(y) = sum_(i=1..k) sqrt(|x_(i+1)-x_i|^2+mu^2) - mu*sum_i sum_(f in F_i) log(n_f.y_i-o_f)`,
+with `x_(k+1)=x_1`. If `y` is a stationary point and
+`u_i=d_i/sqrt(|d_i|^2+mu^2)` with `d_i=x_(i+1)-x_i`, then
+`D(u) >= sum_i |d_i| - mu*(k+F)`, where `F=sum_i |F_i|` (two per segment, none
+per point). In original coordinates the loss is `sigma*mu*(k+F)`.
+
+*Proof.* Let `n_i=u_(i-1)-u_i` and write `x_i=c_i+B_i y_i` (`B_i` the identity
+for a polygon, the column `e` for a segment). The derivative of `f_mu` in
+`y_i` is `B_i^T n_i - sum_f lambda_f n_f` with `lambda_f=mu/(n_f.y_i-o_f) > 0`,
+so it vanishes at the stationary point. Any `v in P_i` is `v=c_i+B_i w` with
+`n_f.w >= o_f`, and then
+`v.n_i - x_i.n_i = (w-y_i).B_i^T n_i = sum_f lambda_f n_f.(w-y_i) >= -sum_f lambda_f (n_f.y_i-o_f) = -mu*|F_i|`.
+A fixed point has `v=x_i`, a zero difference. Summing over `i`,
+`D(u) >= sum_i x_i.n_i - mu*F`, and the cyclic regrouping of (c) gives
+`sum_i x_i.(u_(i-1)-u_i) = sum_i u_i.d_i`. Finally
+`u_i.d_i = |d_i|^2/sqrt(|d_i|^2+mu^2) >= |d_i|-mu`. The reference `r` drops out
+because the `n_i` sum to zero. ∎
+
+This only justifies `mu_end` (half the requested gap at exact stationarity);
+the returned bounds are always those of step 3. The same argument with fixed
+start and target nodes and an open chain gives the fixed-endpoint bound
+`D(u) >= length - mu*(m+1+F)` with the same face count for points and
+segments; the fixed-endpoint oracle uses it for regions with points or
+segments.
+
+### Newton system
+
+The gradient in `y_i` involves only its two neighbours, so the Hessian is
+block tridiagonal with 2×2 blocks in the order of the variable nodes. The link
+from `x_i` to `x_(i+1)` adds `(I-u_i u_i^T)/sqrt(|d_i|^2+mu^2)`, projected by
+`B_i` and `B_(i+1)`, to the two diagonal blocks and minus that to their
+coupling; each face adds `(mu/s_f^2) n_f n_f^T`; every block gets `1e-14 I`,
+and a segment's unused second component a unit diagonal (its step is zero).
+A fixed node is not a variable: it
+decouples its neighbours, and a cycle with a fixed node is ordered from the
+node after it, so its Hessian is block tridiagonal. Without fixed nodes the
+closing link couples the first and last variables. The solver then
+eliminates the first `k-1` blocks for the right-hand side and the two columns
+of the last block column (`T [z W] = [r b]`), solves the 2×2 Schur complement
+`A_k - b^T W` for the last variable and back-substitutes. Each iteration costs
+`O(k+F)` operations, like the open chain. The barrier keeps the Hessian
+positive definite, so the elimination needs no pivoting.
+
+### Complexity and limits
+
+Normalization costs `O(N)` exact-sign predicates for `N` input vertices, each
+proof `O(N+k)` interval operations, each Newton iteration `O(k+F)`, and at most
+600 iterations run; the construction kernel keeps its own bound. Points and
+segments need no special exact handling. With gaps far tighter than the
+B&B's, binary64 can stop the polish before it closes (a subnormal `max_gap`
+in the tests); its bounds stay valid and the exact path runs. On a segment,
+contacts approximate exact segment points to a few units in the last place;
+the exact path's segment contacts are also rounded when exported. The
+environment check is the one of the interval certificate.
+
+A construction detail found while testing: `CycleRefinement::coordinate`
+treated a point region as the whole plane (its zero-length edges give no
+halfplanes) and proposed points beside it. The exact certificate always
+rejected those proposals; the kernel now returns the point itself (vertex
+feature 0).
+
+Tests: `binary64_stage` in `main-cycle_tests.cpp` checks, against the
+rational solver, every interval of the stage (with and without the
+construction, at relative gaps `1e-3`, `1e-6` and `1e-9`, and with a cutoff)
+on segments, points, touching tessellations, shared-edge blocks, nesting,
+crossing and 60 random mixed cases; the named cases close by the interval
+proof (collinear boxes), by the polish (the report's coincident-contact
+instance `t_A` as a cycle with points), stay open and fall back to the exact
+path (subnormal gap), and reach a cutoff. Measurements:
+[`tspn-cycle-float-2026-10-08`](../../benchmarks/results-saved/README.md#tspn-cycle-float-2026-10-08).
 
 ## General boundary reduction and correctness
 

@@ -54,6 +54,11 @@ namespace tpp {
 		// tpp_convex_solve_float_certified; open calls still finish in the
 		// hybrid oracle. Off here; the unordered search turns it on.
 		bool float_recovery = false;
+		// With float_recovery: calls with points or segments (which the
+		// interval proof and the trace do not handle) also try the binary64
+		// oracle first, with cycle-construction proposals; open calls finish
+		// in the exact flow as before. Off here; the unordered search turns it on.
+		bool float_degenerate = false;
 		// Diagnostic only (unsafe): take the uncertified binary64 trace length
 		// as both bounds, as a numerical solver would; see --trust-double.
 		bool trust_double = false;
