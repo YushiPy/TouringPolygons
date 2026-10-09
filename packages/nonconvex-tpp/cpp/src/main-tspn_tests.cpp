@@ -735,8 +735,37 @@ void cycle_proposal_bound_contract() {
         std::abs(searched.upper_bound-enumerated_upper)<=1e-7+1e-9*enumerated_upper,
         "Proposal-bound B&B retains exact exhaustive order/piece result");
 }
+// A frontier budget smaller than one node discards half of the frontier on
+// every push. The bounds must still enclose the optimum, and a closed gap
+// must agree with the unbudgeted search.
+size_t frontier_budget_checks=0;
+void frontier_budget() {
+    std::mt19937 rng(91026);std::uniform_int_distribution<int> coord(0,30);
+    size_t trims=0;
+    for(size_t trial=0;trial<12;++trial) {
+        Polygons p;
+        for(size_t i=0;i<8+trial%4;++i)p.push_back(box(coord(rng),coord(rng),1+rng()%3,1+rng()%2));
+        if(trial%3==0)p.push_back({{double(coord(rng)),double(coord(rng))}});
+        tpp::UnorderedTppSolveOptions exact;exact.max_frontier_bytes=0;exact.relative_gap=1e-9;
+        const auto reference=tpp::tpp_nonconvex_tspn_solve(p,exact);
+        require(reference.exact,"Unbudgeted reference closes");
+        tpp::UnorderedTppSolveOptions tight=exact;tight.max_frontier_bytes=1;
+        const auto bounded=tpp::tpp_nonconvex_tspn_solve(p,tight);
+        require(covered(bounded.path,p),"Budgeted search keeps a feasible tour");
+        require(bounded.lower_bound<=reference.upper_bound+1e-9*(1+reference.upper_bound),"Budgeted lower bound stays below the optimum");
+        require(bounded.upper_bound>=reference.lower_bound-1e-9*(1+reference.lower_bound),"Budgeted upper bound stays above the optimum");
+        trims+=bounded.frontier_trims;
+        require(bounded.exact==(bounded.termination==tpp::UnorderedTppTermination::Optimal),"Budget termination is consistent");
+        require(bounded.exact||bounded.termination==tpp::UnorderedTppTermination::MemoryLimit,"An open budgeted search reports MemoryLimit");
+        require(!bounded.exact||bounded.lower_bound<=bounded.frontier_discarded_bound||!std::isfinite(bounded.frontier_discarded_bound)
+            ||bounded.frontier_discarded_bound>=bounded.upper_bound-1e-9*bounded.upper_bound-1e-7,"A closed gap is not capped by discarded nodes");
+        ++frontier_budget_checks;
+    }
+    require(trims>0,"A one-byte budget trims the frontier");
+}
 int main() {
     try {
+        frontier_budget();
         memo_cycle_keys();
         cycle_relaxation_interruptions();
         cycle_proposal_bound_contract();
@@ -792,6 +821,6 @@ int main() {
         bool rejected=false;try {tpp::tpp_nonconvex_tspn_solve({box(0,0)},bad);}catch(const std::invalid_argument&){rejected=true;}
         require(rejected,"Open supplied tour rejected");
         std::cout<<"TSPN tests passed: "<<cases<<" exhaustive cases with 1 and 2 threads, "<<interrupted<<" interrupted searches, "
-                 <<portfolio_cases<<" portfolios, "<<portfolio_limited<<" shared-budget searches, "<<decomposed<<" decomposition cases, "<<parallel_batches<<" concurrent oracle batches, 240 arbitrary-hint plus 240 inherited-dual checks; 1026 optimization/call-cap comparisons, "<<multi_insertion_checks<<" multi-insertion bound checks and 38 combined concurrency checks.\n";
+                 <<portfolio_cases<<" portfolios, "<<portfolio_limited<<" shared-budget searches, "<<decomposed<<" decomposition cases, "<<parallel_batches<<" concurrent oracle batches, 240 arbitrary-hint plus 240 inherited-dual checks; 1026 optimization/call-cap comparisons, "<<multi_insertion_checks<<" multi-insertion bound checks, "<<frontier_budget_checks<<" frontier-budget searches and 38 combined concurrency checks.\n";
     } catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}
 }

@@ -66,23 +66,51 @@ namespace {
         std::vector<Node> stack;
         std::set<std::pair<double,size_t>> bounds;
         size_t sequence_bytes = 0, dive_bytes = 0;
+        // Heap-allocated payload of the queued nodes (capacities plus an
+        // allocator word per block), for the memory budget.
+        size_t payload_bytes = 0, budget = 0;
+        double discarded = std::numeric_limits<double>::infinity();
+        static size_t payload(const Node &node) {
+            auto block=[](size_t bytes){return bytes?bytes+16:0;};
+            return block(node.path.capacity()*sizeof(Vector2))+block(node.warm_start.capacity()*sizeof(Vector2))
+                +block(node.active_features.capacity()*sizeof(int))+block(node.dual.capacity()*sizeof(tpp::ConvexRationalPoint));
+        }
+        size_t frontier_bytes() const {
+            return (dfs?stack.capacity():heap.capacity())*sizeof(Node)+payload_bytes+sequence_bytes;
+        }
         void note_storage() {
             peak_sequence_bytes=std::max(peak_sequence_bytes,sequence_bytes+dive_bytes+(history?history->reserved_bytes():0));
             peak_node_bytes=std::max(peak_node_bytes,(dfs?stack.capacity():heap.capacity())*sizeof(Node));
+            peak_bytes=std::max(peak_bytes,frontier_bytes());
+        }
+        // Keep the best-bound half; the discarded nodes' smallest bound stays
+        // a valid floor for every completion they represented.
+        void trim() {
+            const size_t keep=heap.size()/2;
+            auto order=[](const Node &a,const Node &b){return std::tie(a.bound,a.serial)<std::tie(b.bound,b.serial);};
+            std::nth_element(heap.begin(),heap.begin()+keep,heap.end(),order);
+            discarded=std::min(discarded,heap[keep].bound);
+            for(auto it=heap.begin()+keep;it!=heap.end();++it) {
+                sequence_bytes-=it->sequence.payload_bytes();payload_bytes-=payload(*it);
+            }
+            discarded_nodes+=heap.size()-keep;++trims;
+            heap.erase(heap.begin()+keep,heap.end());heap.shrink_to_fit();
+            std::make_heap(heap.begin(),heap.end(),Later{});
         }
         static bool descending(const Node &a,const Node &b) {
             return std::tie(a.bound,a.relaxed_length,a.serial)>std::tie(b.bound,b.relaxed_length,b.serial);
         }
     public:
-        size_t peak_sequence_bytes = 0, peak_node_bytes = 0;
-        Frontier(bool use_dfs,tpp::UnorderedSequenceStorage mode,size_t bytes,size_t polygons)
-            :dfs(use_dfs),storage(mode),index_bytes(bytes) {
+        size_t peak_sequence_bytes = 0, peak_node_bytes = 0, peak_bytes = 0, trims = 0, discarded_nodes = 0;
+        Frontier(bool use_dfs,tpp::UnorderedSequenceStorage mode,size_t bytes,size_t polygons,size_t max_bytes=0)
+            :dfs(use_dfs),storage(mode),index_bytes(bytes),budget(max_bytes) {
             if(storage==tpp::UnorderedSequenceStorage::Deltas)history=std::make_unique<SequenceHistory>(bytes,polygons);
         }
         bool empty() const { return dfs?stack.empty():heap.empty(); }
         size_t size() const { return dfs?stack.size():heap.size(); }
         void note_dive(size_t bytes) { dive_bytes=bytes;note_storage(); }
-        double lower_bound() const { return dfs?bounds.begin()->first:heap.front().bound; }
+        double lower_bound() const { return std::min(dfs?bounds.begin()->first:heap.front().bound,discarded); }
+        double discarded_bound() const { return discarded; }
         void freeze_child(Node &node,const SequenceReference &parent) {
             if(history)node.sequence.save(history->child(parent,node.branch_polygon,node.branch_piece,node.branch_position));
             else if(storage==tpp::UnorderedSequenceStorage::Packed)node.sequence.pack(index_bytes);
@@ -93,22 +121,25 @@ namespace {
                 if(history)node.sequence.save(parent?parent:history->snapshot(node.sequence.elements()));
                 else if(storage==tpp::UnorderedSequenceStorage::Packed)node.sequence.pack(index_bytes);
             }
-            sequence_bytes+=node.sequence.payload_bytes();
+            sequence_bytes+=node.sequence.payload_bytes();payload_bytes+=payload(node);
             if(dfs) { bounds.emplace(node.bound,node.serial);stack.push_back(std::move(node)); }
             else { heap.push_back(std::move(node));std::push_heap(heap.begin(),heap.end(),Later{}); }
             note_storage();
+            if(!dfs&&budget&&heap.size()>1&&frontier_bytes()>budget)trim();
         }
         Node take() {
             auto &nodes=dfs?stack:heap;
             if(dfs)bounds.erase({stack.back().bound,stack.back().serial});
             else std::pop_heap(heap.begin(),heap.end(),Later{});
-            sequence_bytes-=nodes.back().sequence.payload_bytes();
+            sequence_bytes-=nodes.back().sequence.payload_bytes();payload_bytes-=payload(nodes.back());
             Node node=std::move(nodes.back());nodes.pop_back();return node;
         }
         void report(tpp::UnorderedTppSolveResult &result) {
             note_storage();
             result.peak_sequence_storage_bytes=peak_sequence_bytes;
             result.peak_frontier_node_bytes=peak_node_bytes;
+            result.peak_frontier_bytes=peak_bytes;result.frontier_trims=trims;
+            result.frontier_discarded_nodes=discarded_nodes;result.frontier_discarded_bound=discarded;
             if(history) {
                 result.sequence_history_record_bytes=history->record_bytes();
                 result.peak_sequence_records=history->peak_live_records;
@@ -1461,7 +1492,7 @@ namespace tpp {
 		};
 		double settled_bound = result.upper_bound;
 		const bool dfs=options.search_strategy==UnorderedSearchStrategy::DfsBfs;
-        Frontier queue(dfs,options.sequence_storage,index_bytes,n);
+        Frontier queue(dfs,options.sequence_storage,index_bytes,n,options.max_frontier_bytes);
 		// Rooting the sequence at region 0 removes rotation, without fixing a
 		// geometric point. A single-region cycle has lower bound zero.
 		std::vector<Element> root_sequence;
@@ -1490,7 +1521,7 @@ namespace tpp {
 			queue.note_dive(bytes);
 		};
 		auto frontier_bound = [&] {
-			double bound = queue.empty() ? result.upper_bound : queue.lower_bound();
+			double bound = std::min(queue.empty() ? result.upper_bound : queue.lower_bound(), queue.discarded_bound());
 			for (const auto &d : dives) bound = std::min(bound, d.bound);
 			return std::min(bound, result.upper_bound);
 		};
@@ -2079,6 +2110,7 @@ namespace tpp {
 			: (options.stop_requested && options.stop_requested()) ? UnorderedTppTermination::Interrupted
             : (control ? control->calls.load(std::memory_order_relaxed)>=control->max_calls : result.calls >= options.max_calls) ? UnorderedTppTermination::CallLimit
 			: (elapsed() >= options.max_seconds || (control && control->elapsed()>=control->max_seconds)) ? UnorderedTppTermination::TimeLimit
+			: queue.empty() && dives.empty() && std::isfinite(queue.discarded_bound()) ? UnorderedTppTermination::MemoryLimit
 			: UnorderedTppTermination::NumericalLimit;
 		std::vector<std::pair<double, size_t>> visits;
 		const auto final_visits_began = std::chrono::steady_clock::now();
@@ -2183,6 +2215,7 @@ namespace tpp {
 		scale_length(result.first_best_update_length);
 		scale_length(result.final_length);
 		scale_length(result.final_absolute_gap);
+		scale_length(result.frontier_discarded_bound);
 		for (auto &point : result.path) point = {
 			std::fma(point.x, divisor, center.x),
 			std::fma(point.y, divisor, center.y),
@@ -2410,6 +2443,10 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::total_branching);
         sum(&UnorderedTppSolveResult::peak_sequence_storage_bytes);
         sum(&UnorderedTppSolveResult::peak_frontier_node_bytes);
+        sum(&UnorderedTppSolveResult::peak_frontier_bytes);
+        sum(&UnorderedTppSolveResult::frontier_trims);
+        sum(&UnorderedTppSolveResult::frontier_discarded_nodes);
+        result.frontier_discarded_bound=std::min(runs[0].frontier_discarded_bound,runs[1].frontier_discarded_bound);
         sum(&UnorderedTppSolveResult::peak_sequence_records);
         sum(&UnorderedTppSolveResult::sequence_reconstructions);
         sum(&UnorderedTppSolveResult::sequence_depth_sum);

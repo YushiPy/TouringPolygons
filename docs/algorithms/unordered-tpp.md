@@ -234,6 +234,38 @@ caminhos, caches e demais alocações; zero indica métrica indisponível em out
 plataformas. Esses campos complementam, mas não substituem, a validação dos
 limites e da trajetória retornada.
 
+### Orçamento de memória da fronteira (2026-10-09)
+
+Com o oráculo binary64, a fronteira de melhor limite cresce na mesma
+proporção que a vazão. Em 100pr1002 (Paula, ciclo ancorado num ponto), 60 s
+chegam a 4,2 M nós e ~3–3,8 GB de RSS, ~700 B por nó: o caminho do oráculo, as
+features e o cabeçalho. Uma rodada de 600 s não caberia na memória, e oito
+processos de 120 s já faziam um Mac de 24 GB usar swap. A rodada passava de
+120 s para até 166 s, ao liberar uma fronteira paginada.
+
+`options.max_frontier_bytes` / `--max-frontier-mib N` (padrão 4096; 0
+desliga) limita a estimativa de bytes da fronteira de melhor limite: a
+capacidade do vetor de nós, as capacidades dos vetores de cada nó com uma
+palavra do alocador por bloco, e as sequências. Ao passar do limite num
+`push`, a metade com os maiores limites (ordem `(bound, serial)`, por
+`nth_element`) é descartada. O menor limite descartado, `D`, passa a ser um
+piso do limite inferior global: `LB = min(fronteira, D, ...)`.
+
+Isso continua válido. Toda completação representada por um nó descartado
+custa ao menos o limite dele, que é pelo menos `D`. A busca abaixo do limite
+fica inalterada, bit a bit. O piso só pesa se o LB alcançar `D` antes de o
+incumbente cair até `D + gap`; se a fila esvaziar assim, a busca termina com
+`memory_limit` (`UnorderedTppTermination::MemoryLimit`), que não é ótimo. A
+DFS (`--search-strategy dfs-bfs`) não é limitada.
+
+Em 100pr1002 com 1 GiB, 60 s: 4 cortes descartam 2,47 M nós, o RSS cai de
+3,8 para 1,3 GB, `D = 66404` fica muito acima do LB (60351), e o término volta
+a ser 60,2 s. O JSON informa `peak_frontier_bytes`, `frontier_trims`,
+`frontier_discarded_nodes` e `frontier_discarded_bound`, este nas
+coordenadas de entrada, como diagnóstico. Testes: `tpp-tspn-tests` resolve
+12 instâncias com um orçamento de 1 byte (descarte a cada `push`) e confere
+que os limites cercam o ótimo da busca sem orçamento.
+
 Deltas podem perder em tempo ou mesmo em memória quando muitos ancestrais
 distintos permanecem vivos. Compare os três modos com o mesmo binário,
 gap, orçamento e política, preferindo um processo por vez para diagnosticar

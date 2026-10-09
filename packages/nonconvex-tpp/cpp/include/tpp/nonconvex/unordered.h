@@ -168,6 +168,14 @@ namespace tpp {
 		std::function<void(const UnorderedTppProgress &)> progress;
 		size_t progress_worker = 0;
         UnorderedSearchStrategy search_strategy = UnorderedSearchStrategy::BestBoundDive;
+        // Memory budget of the best-bound frontier (nodes, their paths and
+        // proposals, sequences), estimated from capacities. When it is
+        // exceeded, the half of the frontier with the largest bounds is
+        // discarded and the smallest discarded bound becomes a floor of the
+        // reported lower bound (still valid). Below the budget the search is
+        // unchanged; zero disables it. The search ends with MemoryLimit if it
+        // exhausts the kept nodes before closing the gap.
+        size_t max_frontier_bytes = size_t(4) << 30;
         // Frontier sequences only. Packed automatically selects 8/16/32/64-bit
         // indices; Deltas retains insertion/piece changes in a recycled arena.
         UnorderedSequenceStorage sequence_storage = UnorderedSequenceStorage::Packed;
@@ -217,7 +225,7 @@ namespace tpp {
         double oracle_capture_min_seconds = 0;
 	};
 
-	enum class UnorderedTppTermination { Optimal, CallLimit, TimeLimit, NumericalLimit, PortfolioStopped, Interrupted };
+	enum class UnorderedTppTermination { Optimal, CallLimit, TimeLimit, NumericalLimit, PortfolioStopped, Interrupted, MemoryLimit };
 
 	struct UnorderedTppTraceEvent {
 		std::string kind;
@@ -375,6 +383,10 @@ namespace tpp {
         // current siblings, allocator metadata, paths and oracle caches.
         size_t peak_sequence_storage_bytes = 0;
         size_t peak_frontier_node_bytes = 0;
+        // Frontier memory budget: peak estimated bytes, trims, discarded
+        // nodes and the smallest discarded bound (infinite if none).
+        size_t peak_frontier_bytes = 0, frontier_trims = 0, frontier_discarded_nodes = 0;
+        double frontier_discarded_bound = std::numeric_limits<double>::infinity();
         size_t sequence_history_record_bytes = 0;
         size_t peak_sequence_records = 0;
         size_t sequence_reconstructions = 0;
