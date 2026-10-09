@@ -194,6 +194,11 @@ namespace tpp {
         // polish. Calls it leaves open use the unchanged exact path; zero gaps
         // always do. False restores the exact path for every call (ablation).
         bool cycle_float_oracle = true;
+        // Cycle insertion screening with binary64 directions proved in the unit
+        // disk and directed-rounding supports
+        // (tpp_convex_binary_cycle_insertion_bounds). False uses the exact
+        // rational bounds (ablation); an inherited dual always does.
+        bool cycle_binary_insertion = true;
         // Try a finite floating proposal before exact recovery. Its certified
         // interval must meet the existing oracle gap or pruning cutoff.
         bool cycle_proposal_bound = false;
@@ -393,6 +398,10 @@ namespace tpp {
 		size_t lookahead_prunes = 0;
 		size_t lookahead_changes = 0;
 		double lookahead_seconds = 0.0;
+		// Insertion screening of the branched region (all positions of one
+		// expansion, including the inherited path dual screen).
+		size_t insertion_bound_calls = 0;
+		double insertion_bound_seconds = 0.0;
 		size_t multi_insertion_calls = 0;
 		size_t multi_insertion_improvements = 0;
 		size_t multi_insertion_prunes = 0;

@@ -316,13 +316,54 @@ void insertion_bounds() {
             if(trial%3==0)std::fill(hints.begin(),hints.end(),hints.front());
             hints.push_back(hints.front());
             const auto bounds=tpp::unordered_detail::insertion_lower_bounds(hints,refs,inserted,true);
-            for(size_t i=0;i<n;++i)require(bounds[i]<=optima[i],"Rational cyclic dual bound, including closing edge");
+            const auto exact=tpp::unordered_detail::rational_cycle_insertion_bounds(hints,refs,inserted);
+            for(size_t i=0;i<n;++i) {
+                require(bounds[i]<=optima[i]&&exact[i]<=optima[i],"Cyclic dual bound, including closing edge");
+                require(std::abs(bounds[i]-exact[i])<=1e-12*(1+exact[i]),"Binary64 cyclic insertion bound matches the rational one");
+            }
             tpp::ConvexRationalPolygon dual;
             for(size_t i=0;i<n;++i)dual.emplace_back(tpp::ConvexRational(int(rng()%3)-1)/2,tpp::ConvexRational(int(rng()%3)-1)/2);
             const auto reused=tpp::unordered_detail::insertion_lower_bounds(hints,refs,inserted,true,dual);
-            for(size_t i=0;i<n;++i)require(reused[i]>=bounds[i]&&reused[i]<=optima[i],"Inherited subunit dual remains a valid stronger bound");
+            for(size_t i=0;i<n;++i)require(reused[i]>=exact[i]&&reused[i]<=optima[i],"Inherited subunit dual remains a valid stronger bound");
         }
     }
+    // Points, segments and polygons, arbitrary and coincident contacts: the
+    // binary64 bounds stay below every child optimum and within rounding of
+    // the exact rational bounds.
+    std::uniform_int_distribution<int> coord(-8,8),kind(0,2);
+    auto region=[&] {
+        const double x=coord(rng)+0.125*(rng()%8),y=coord(rng)-0.0625*(rng()%16);
+        switch(kind(rng)) {
+            case 0: return Polygon{{x,y}};
+            case 1: return Polygon{{x,y},{x+1+double(rng()%3)/3,y+double(rng()%3)/7}};
+            default: return box(x,y,0.5+double(rng()%3),1.0/3);
+        }
+    };
+    size_t compared=0;
+    for(size_t trial=0;trial<120;++trial) {
+        const size_t n=1+trial%5;
+        Polygons regions;for(size_t i=0;i<n;++i)regions.push_back(region());
+        const auto added=region();
+        std::vector<const Polygon*> refs;for(const auto &r:regions)refs.push_back(&r);
+        for(size_t hint=0;hint<4;++hint) {
+            Polygon contacts;
+            for(size_t i=0;i<n;++i)contacts.push_back(hint==0?regions[i].front():Vector2{pos(rng),pos(rng)});
+            if(hint==3)std::fill(contacts.begin(),contacts.end(),contacts.front());
+            contacts.push_back(contacts.front());
+            const auto bounds=tpp::unordered_detail::insertion_lower_bounds(contacts,refs,added,true);
+            const auto exact=tpp::unordered_detail::rational_cycle_insertion_bounds(contacts,refs,added);
+            for(size_t i=0;i<n;++i) {
+                require(std::abs(bounds[i]-exact[i])<=1e-12*(1+exact[i]),"Binary64 cyclic insertion bound matches the rational one (points, segments)");
+                if(hint)continue;
+                auto child=regions;child.insert(child.begin()+i+1,added);
+                const auto solved=tpp::tpp_convex_solve_cycle(child);
+                require(solved.status==tpp::ConvexCycleStatus::Optimal,"Insertion reference optimum");
+                require(bounds[i]<=solved.certificate.upper_bound,"Binary64 cyclic insertion bound below the child optimum");
+                ++compared;
+            }
+        }
+    }
+    require(compared>=300,"Insertion bounds compared with child optima");
 }
 // The multi-insertion bound must stay below the optimum of every completion
 // of a partial order, for arbitrary reference contacts (including coincident
@@ -342,7 +383,7 @@ void multi_insertion_bounds() {
     auto optimum=[&](const Polygons &order) {
         const auto r=tpp::tpp_convex_solve_cycle(order);
         require(r.status==tpp::ConvexCycleStatus::Optimal,"Multi-insertion reference optimum");
-        return r.certificate.lower_bound;
+        return r.certificate.upper_bound;
     };
     for(size_t trial=0;trial<60;++trial) {
         const bool path=trial%2;
@@ -362,7 +403,10 @@ void multi_insertion_bounds() {
                 if(a==fixed&&b==absent) {
                     Polygons cycle=built;
                     if(path){cycle.insert(cycle.begin(),Polygon{start});cycle.push_back(Polygon{target});}
-                    best=std::min(best,optimum(cycle)-(path?start.distance_to(target):0.0));
+                    // Upper bounds of the completion optima (closing link
+                    // subtracted with a lower bound of its length).
+                    const double closing=path?tpp::tpp_convex_distance_lower(start,target):0.0;
+                    best=std::min(best,std::nextafter(optimum(cycle)-closing,INFINITY));
                     return;
                 }
                 // Cycles keep region 0 first (rotation); paths are open.
@@ -384,7 +428,7 @@ void multi_insertion_bounds() {
             const double bound=path
                 ?tpp::unordered_detail::path_multi_insertion_bound(tpp::unordered_detail::path_insertion_dual(contacts,refs),contacts,refs,absent_refs)
                 :tpp::unordered_detail::cycle_multi_insertion_bound(contacts,refs,absent_refs);
-            require(bound<=best+1e-9*(1+best),"Multi-insertion bound below every completion ("+std::string(path?"path":"cycle")+")");
+            require(bound<=best,"Multi-insertion bound below every completion ("+std::string(path?"path":"cycle")+")");
             ++multi_insertion_checks;
         }
     }

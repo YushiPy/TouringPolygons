@@ -371,7 +371,10 @@ namespace tpp {
 				++result.visit_query_cache_hits;return *visit_contacts[j];
 			}
 			++result.visit_query_evaluations;
-			const auto found=options.prepared_visit_queries?(options.segment_visit_cache?segment_cache.query(visit_segments,visit_polygons[j],j,n,eps):contact(visit_segments,visit_polygons[j],eps)):contact(path,polygons[j],eps);
+			// The anchor is a point of region j, so its distance bounds the
+			// region's from above and lets the scan skip far segments.
+			const auto found=options.prepared_visit_queries?(options.segment_visit_cache?segment_cache.query(visit_segments,visit_polygons[j],j,n,eps,
+				options.visit_upper_bounds?path_point_distance(visit_segments,visit_anchors[j]):INFINITY):contact(visit_segments,visit_polygons[j],eps)):contact(path,polygons[j],eps);
 			if(options.prepared_visit_queries)visit_contacts[j]=found;
 			if(found.distance>0)visit_anchors[j]=found.polygon_point;
 			return found;
@@ -1713,7 +1716,8 @@ namespace tpp {
                 double strongest=-1;
                 for(size_t i=0;i<std::min(size_t(3),branch_candidates.size());++i) {
                     const size_t candidate=branch_candidates[i].second;
-                    const auto bounds=insertion_lower_bounds(node.path,regions,hulls[candidate],cycle,node.dual);
+                    const auto bounds=insertion_lower_bounds(node.path,regions,hulls[candidate],cycle,node.dual,
+                        nullptr,options.cycle_binary_insertion);
                     const double bound=*std::min_element(bounds.begin(),bounds.end());
                     if(bound>strongest){strongest=bound;chosen=candidate;}
                 }
@@ -1855,9 +1859,11 @@ namespace tpp {
                 const bool screen_dual=!cycle&&options.path_certificate_dual&&
                     parent_binary_dual.size()==node.sequence.size()+1;
                 Polygon proposals;
+                const auto began_insertion=std::chrono::steady_clock::now();
+                ++result.insertion_bound_calls;
 				auto bounds = !lookahead_bounds.empty()&&!screen_dual ? std::move(lookahead_bounds)
                     : insertion_lower_bounds(node.path, regions, hulls[chosen], cycle,
-                    node.dual,screen_dual?&proposals:nullptr);
+                    node.dual,screen_dual?&proposals:nullptr,options.cycle_binary_insertion);
                 if(screen_dual) {
                     const auto began_screen=std::chrono::steady_clock::now();
                     const auto inherited=tpp_convex_binary_dual_insertion_bounds(start,target,node.path,regions,
@@ -1870,6 +1876,7 @@ namespace tpp {
                     }
                     result.path_dual_screen_seconds+=duration(began_screen);
                 }
+                result.insertion_bound_seconds+=duration(began_insertion);
 				// At size two the two insertion positions are reversals of the
 				// same unoriented triangle. Later, all cyclic gaps are needed.
 				const size_t branching = cycle ? (node.sequence.size()==2?1:node.sequence.size()) : node.sequence.size()+1;
@@ -2447,6 +2454,8 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::lookahead_prunes);
         sum(&UnorderedTppSolveResult::lookahead_changes);
         sum(&UnorderedTppSolveResult::lookahead_seconds);
+        sum(&UnorderedTppSolveResult::insertion_bound_calls);
+        sum(&UnorderedTppSolveResult::insertion_bound_seconds);
         sum(&UnorderedTppSolveResult::multi_insertion_calls);
         sum(&UnorderedTppSolveResult::multi_insertion_improvements);
         sum(&UnorderedTppSolveResult::multi_insertion_prunes);

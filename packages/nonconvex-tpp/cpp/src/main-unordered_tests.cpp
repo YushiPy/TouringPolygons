@@ -77,6 +77,16 @@ void check_prepared_contacts() {
                     if(raw.distance!=cached.distance||raw.position!=cached.position)
                         throw std::runtime_error("Segment cache changed a visit or its tie order");
                 }
+                // Any point of the polygon bounds the distance and prunes the
+                // scan without changing the contact.
+                if(!path.empty())for(const auto &anchor:{polygon.front(),polygon[polygon.size()/2],
+                        0.5*(polygon[0]+polygon[1%polygon.size()])}) {
+                    SegmentContactCache pruned;
+                    const auto bounded=pruned.query(prepared_path,prepared_polygon,0,1,tolerance,
+                        path_point_distance(prepared_path,anchor));
+                    if(raw.distance!=bounded.distance||raw.position!=bounded.position)
+                        throw std::runtime_error("Anchor-bounded segment scan changed a visit or its tie order");
+                }
                 ++checks;
             }
         }
@@ -417,7 +427,8 @@ void check_oracle_certificates() {
 		Polygon q{s, {coordinate(rng), coordinate(rng)}, {coordinate(rng), coordinate(rng)}, t};
 		if (trial % 3 == 0) q[2] = q[1];
 		const auto bounds = unordered_detail::insertion_lower_bounds(q, {&polygons[0], &polygons[1]}, inserted);
-		for (size_t j = 0; j < bounds.size(); ++j) if (bounds[j] > optima[j] + 1e-8)
+		// Proved bounds: no tolerance against the proved upper bounds.
+		for (size_t j = 0; j < bounds.size(); ++j) if (bounds[j] > optima[j])
 			throw std::runtime_error("Invalid incremental insertion bound.");
         Polygon dual,proposals;
         for(size_t j=0;j<3;++j) {
@@ -450,6 +461,13 @@ void check_oracle_certificates() {
             {&polygons[0],&polygons[1]},inserted,proposals,dual).empty();
         std::fesetround(rounding);
         if(!declined)throw std::runtime_error("Unsupported rounding authorized screening");
+        // The node dual declines too; the insertion bounds keep only the
+        // endpoint distance.
+        std::fesetround(FE_UPWARD);
+        const auto weak=unordered_detail::insertion_lower_bounds(hint,{&polygons[0],&polygons[1]},inserted);
+        std::fesetround(rounding);
+        for(size_t j=0;j<weak.size();++j)if(weak[j]>s.distance_to(t))
+            throw std::runtime_error("Unsupported rounding kept a dual insertion bound");
     }
 	const Polygon rectangle{{4, 2}, {6, 2}, {6, 4}, {4, 4}};
 	const auto point = unordered_detail::best_contact(s, t, rectangle, rectangle.front());

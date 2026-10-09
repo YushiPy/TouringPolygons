@@ -478,14 +478,21 @@ truncado em zero porque manter `u_j` é sempre permitido.
   `τ = 0` e para a mediana. As lacunas vizinhas de um corte alternam dentro da
   sua sequência (`π = 1/2`), e uma região mantida paga `c`, `c/2` ou 0 conforme
   quantas das suas lacunas alternam.
-- **Aritmética.** É binary64, como os limites de inserção do caminho
-  (`path_insertion_bound_at`), com margem subtraída de
-  `1e-12·escala·(k+2)·(m+2)`, onde a escala é a maior distância à origem. Os
-  ganhos são somas de poucos produtos escalares e os preços são somas e
-  diferenças de até `m` ganhos. O erro de arredondamento fica ordens de
-  grandeza abaixo da margem, mas isto não é a prova racional dos limites de
-  inserção do ciclo. Direções de norma levemente acima de 1 por arredondamento
-  afetam no máximo `ε` vezes o comprimento.
+- **Aritmética (provada desde 2026-10-09).** `D` vem cercado do dual
+  provado do nó (ver *Prova em binary64*). Cada ganho é o extremo inferior do
+  cerco de `tpp_convex_binary_insertion_gain`, e cada largura, um limite
+  superior. Um elo novo de comprimento zero pode ficar nulo ou receber `u_j`;
+  vale o que dá o ganho maior, e ambos são factíveis. Os preços gulosos são só
+  propostas e são encolhidos `(4m+16)·2^-53` em termos relativos. Cada vetor
+  de preços é conferido contra todas as restrições `Σ_{r: g_{rj} ≤ t} p_r ≤ π_j t`,
+  com somas de prefixo arredondadas para cima. Se alguma falha, os preços são
+  reescalados pelo maior fator que as cumpre e conferidos de novo, ou
+  descartados. A soma é arredondada para baixo, e as larguras pagas, para
+  cima. Antes, o limite subtraía uma margem fixa de `1e-12·escala·(k+2)·(m+2)`.
+  Em 4.000 nós aleatórios (caminho e ciclo, com pontos, segmentos e polígonos
+  e elos zero), o limite novo coincide com o antigo até 1e-9 relativo. Com
+  limite de chamadas, as buscas da Paula ficam praticamente iguais, a ~15% a
+  mais de tempo por chamada da opção.
 - **Custo.** `O(m·k)` contatos `best_contact` e suportes por nó expandido, mais
   três precificações. Com mergulhos, isso é ~5% do tempo no ciclo de 100
   polígonos e ~1–2% no caminho com pontos. Com `lazy`, que faz uma chamada do
@@ -548,6 +555,38 @@ Assim, o comprimento de um caminho retornado pelo solver não é usado automatic
 como limite inferior. Atribuições diferentes de direções em segmentos de comprimento
 zero também são testadas, sempre dentro da bola unitária.
 
+**Prova em binary64 (2026-10-09).** Os limites de inserção do caminho
+(`path_insertion_dual`/`path_insertion_bound_at`, a triagem padrão) e os de
+inserções múltiplas não subtraem mais uma margem fixa. Eles usam
+`tpp_convex_binary_path_dual`, `tpp_convex_binary_cycle_dual` e
+`tpp_convex_binary_insertion_gain`, de `tpp/convex/dual.h`:
+
+- **Direções.** Cada `u_i` é o vetor binary64 do elo, encurtado por `2^-49`.
+  No modelo padrão (erro relativo de cada operação até `u = 2^-53`, mais
+  `2^-1075` absoluto num produto com underflow), um quadrado da norma
+  calculado até `1 - 2^-50` prova que a norma exata é no máximo 1. Se o teste
+  falha, a prova vem dos quadrados intervalares de `binary_dual_feasible`. Um
+  vetor não provado vira zero, que é sempre factível.
+- **Suportes.** Para cada vértice, `t = dx·nx + dy·ny` (`dx = v.x - o.x`,
+  `nx = a.x - b.x`) é calculado em binary64 e fica a no máximo
+  `4,0000001·u·(|dx||nx| + |dy||ny|) + 2^-1074` do valor exato. Um FMA não
+  piora isso. O mínimo calculado, alargado por
+  `E = 2^-50·(mx·|nx| + my·|ny|) + 2^-1070`, onde `mx` e `my` são as maiores
+  diferenças calculadas, cerca o suporte exato. Uma normal exatamente nula dá
+  suporte e largura exatamente zero, e um ponto tem largura zero.
+- **Somas.** As somas são arredondadas para fora, um valor representável por
+  operação. O piso `|t - s|` vem de uma raiz intervalar.
+- **Ambiente.** Fora do ambiente intervalar (arredondamento não ao mais
+  próximo, flush-to-zero, fast-math), o dual é inválido e cada limite se reduz
+  ao piso, o que é válido e fraco.
+
+O limite de erro *a priori* substitui os intervalos dirigidos só porque é
+cerca de 4× mais barato nos suportes. A mesma aritmética prova a triagem de
+inserção do ciclo (`tpp_convex_binary_cycle_insertion_bounds`; ver
+[`tspn.md`](tspn.md#cyclic-insertion-bounds)). Nos 40 casos do corpus de caminhos
+(`--stride 14`, gap 1e-3), as buscas ficam idênticas às da versão com margem
+(mesmas chamadas e nós) e o tempo total sobe 1,5%.
+
 O caminho de pontos interiores em `certified_refinement.cpp` permanece no código,
 mas não é chamado por essa API. O fallback ativo usa `boost::multiprecision::cpp_rational`.
 O resultado global ainda emprega tolerâncias de visita e de gap; `exact` significa que
@@ -557,7 +596,8 @@ upper_bound - lower_bound <= absolute_gap + relative_gap * abs(upper_bound)
 ```
 
 Os padrões são `absolute_gap = 1e-7`, `relative_gap = 1e-9` e tolerância de visita
-`1e-8`, nas unidades das coordenadas. Há margem de arredondamento no dual.
+`1e-8`, nas unidades das coordenadas. O dual não usa margem de arredondamento
+(ver acima).
 Vértices consecutivos separados por até `1e-4` da tolerância de visita são unidos;
 o limite inferior final desconta duas vezes a soma dos deslocamentos removidos.
 Isso evita peças espúrias quase degeneradas, como as produzidas por dois vértices

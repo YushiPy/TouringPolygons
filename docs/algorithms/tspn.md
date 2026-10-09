@@ -175,6 +175,31 @@ reported result is rounded downward and bounded below by zero. This remains
 valid even when reference contacts are infeasible or coincident. The endpoint
 insertion bound is unchanged.
 
+**Binary64 screening (default since 2026-10-09).** Without an inherited dual
+(`dual` off, the protocol configuration), `insertion_lower_bounds` evaluates
+the same formula with `tpp_convex_binary_cycle_insertion_bounds`
+(`tpp/convex/dual.h`). Each link direction, and each direction to and from the
+proposed contact, is a binary64 vector shortened by `2^-49` whose norm is
+proved at most one. A computed squared norm at most `1-2^-50` proves it in the
+standard model; otherwise the interval squares of `binary_dual_feasible` do,
+and an unproved vector becomes zero. Every support is the plain binary64
+minimum widened by an a priori bound of its rounding error, and sums are
+rounded outward. The proof is in
+[`unordered-tpp.md`](unordered-tpp.md#certificado-convexo-e-interseções).
+Each bound is therefore a weak-duality value on the child cycle, exactly like
+the rational one, with slightly different vectors; it is not a tolerance.
+The rational evaluation below is kept: it is the test reference, the
+evaluation with an inherited rational dual, and the fallback outside the
+interval environment. `--no-cycle-binary-insertion` /
+`cycle_binary_insertion = false` restores it for ablation.
+
+On the SoCG regression this removes the remaining rational hot spot: the
+search is unchanged (the same calls in 48/48 cases) and the screening time
+drops from 22.4 to 0.6 s (results in
+[`tspn-cycle-insertion-binary64-2026-10-09`](../../benchmarks/results-saved/README.md#tspn-cycle-insertion-binary64-2026-10-09)).
+`insertion_bound_calls` and `insertion_bound_seconds` measure the screening of
+the branched region (one call per insertion expansion).
+
 Within one cyclic sibling set, each polygon vertex is imported and translated
 to the common rational origin once. Proposed insertion contacts and link
 directions are also shared between the ordinary and inherited dual evaluations.

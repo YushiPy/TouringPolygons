@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <array>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <unordered_map>
 #include <vector>
@@ -48,8 +49,14 @@ namespace tpp::unordered_detail {
         std::optional<uint64_t> tolerance_bits_;
 	public:
 		size_t queries=0,hits=0;
+		// upper_distance, when finite, is an upper bound of the path's
+		// distance to the polygon (e.g. path_point_distance to one of its
+		// points). Segments whose boxes lie beyond it, with a rounding margin,
+		// cannot hold the closest or a touching contact and are skipped; the
+		// result is the one of a full scan.
 		Contact query(const PreparedContactPath &path,const PreparedContactPolygon &polygon,
-			size_t polygon_index,size_t polygon_count,double tolerance);
+			size_t polygon_index,size_t polygon_count,double tolerance,
+			double upper_distance=std::numeric_limits<double>::infinity());
 	};
 
 	double path_length(const Polygon &path);
