@@ -57,6 +57,10 @@ inline std::optional<int> dyadic_orientation(Vector2 a,Vector2 b,Vector2 q) {
 #endif
 }
 
+// Membership signs that needed rational arithmetic (neither intervals nor the
+// 128-bit determinant decided them), per thread; callers read differences.
+inline thread_local std::size_t rational_membership_predicates=0;
+
 // Binary and exact polygons must describe the same CCW convex boundary.
 // An ambiguous interval sign uses only the original binary rational inputs.
 inline bool interval_convex_contains(Vector2 q,const std::vector<Vector2> &p,
@@ -77,6 +81,7 @@ inline bool interval_convex_contains(Vector2 q,const std::vector<Vector2> &p,
             continue;
         }
 #endif
+        ++rational_membership_predicates;
         if(!rational_q)rational_q.emplace(q);
         if((exact[next]-exact[i]).cross(*rational_q-exact[i])<0)return false;
     }

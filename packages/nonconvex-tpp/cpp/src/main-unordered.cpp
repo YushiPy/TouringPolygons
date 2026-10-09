@@ -116,7 +116,7 @@ int main(int argc, char **argv) {
 		for (int i = 1; i < argc; ++i) {
 			const std::string flag = argv[i];
 			if (flag == "--help") {
-				std::cout << "Usage: tpp-unordered [--cycle] [--cycle-optimization cache|dual|features|lazy|root|branch|one-tree|learn|memo|bound-first|dual-screen|interval|share-bounds|proposal-bound|primal-starts] [--portfolio | --portfolio-no-sharing | --search-strategy best-bound|dfs-bfs] [--sequence-storage native|packed|deltas] [--threads N] [--absolute-gap N] [--relative-gap N] [--feasibility-tolerance N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace] [--oracle-capture FILE] [--progress-interval SECONDS]\n"
+				std::cout << "Usage: tpp-unordered [--cycle] [--cycle-optimization cache|dual|features|lazy|root|branch|one-tree|learn|memo|bound-first|dual-screen|interval|share-bounds|proposal-bound|primal-starts] [--portfolio | --portfolio-no-sharing | --search-strategy best-bound|dfs-bfs] [--sequence-storage native|packed|deltas] [--threads N] [--absolute-gap N] [--relative-gap N] [--feasibility-tolerance N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace] [--oracle-capture FILE [--oracle-capture-every K] [--oracle-capture-min-seconds S]] [--progress-interval SECONDS]\n"
 					<< "stdin: sx sy tx ty polygon_count max_calls max_seconds, then each polygon's vertex count and coordinates. With --initial-path, append path point count and coordinates, including endpoints.\n";
 				std::cout << "--cycle solves TSPN: input endpoints are ignored; output and any initial path must be closed.\n";
 				std::cout << "--no-oracle-dispatch-cache repeats exact polygon-pair classification for an ablation.\n";
@@ -126,11 +126,18 @@ int main(int argc, char **argv) {
 				std::cout << "--relocate-initial optimizes insertion slots and contacts in the initial route.\n";
 				std::cout << "--primal-ils F spends fraction F of the time on an iterated local search for the initial tour; tuning (defaults in unordered.h): --primal-ils-block L (Or-opt blocks), --primal-ils-reverse, --primal-ils-candidates K (0: all gaps), --primal-ils-swap, --primal-ils-kicks K, --primal-ils-record (record-to-record instead of reheating), --primal-ils-polish F (0: new bests only), --primal-ils-reorder W (exact windows, 0: off), --primal-ils-window W (contact-only polish without reorder), --primal-ils-stagnation N, --primal-ils-seed S.\n";
 				std::cout << "--interpolated-zero-dual tries a feasible interpolated dual for short contact blocks.\n";
+				std::cout << "--no-float-recovery (ablation) restores the exact replay and rational recoveries after a failed interval proof; by default a binary64 interior-point polish with interval-certified bounds replaces them, and only calls it leaves open use rational arithmetic. --trust-double (diagnostic, unsafe) uses the uncertified binary64 trace length as both oracle bounds, as a numerical solver would.\n";
 				return 0;
 			}
 			if(flag=="--oracle-capture") {
                 if(++i>=argc)throw std::invalid_argument("Expected an oracle capture path.");
                 options.oracle_capture_file=argv[i];continue;
+            }
+            if(flag=="--oracle-capture-every"||flag=="--oracle-capture-min-seconds") {
+                if(++i>=argc)throw std::invalid_argument("Expected a value after "+flag);
+                if(flag=="--oracle-capture-every")options.oracle_capture_every=std::stoull(argv[i]);
+                else options.oracle_capture_min_seconds=std::stod(argv[i]);
+                continue;
             }
             if (flag == "--sequence-storage") {
                 if (++i >= argc) throw std::invalid_argument("Expected a sequence storage mode.");
@@ -231,6 +238,9 @@ int main(int argc, char **argv) {
 				continue;
 			}
 			if (flag == "--interpolated-zero-dual") {options.interpolated_zero_dual=true;continue;}
+			if (flag == "--float-recovery") {options.float_recovery=true;continue;}
+			if (flag == "--no-float-recovery") {options.float_recovery=false;continue;}
+			if (flag == "--trust-double") {options.trust_double=true;continue;}
             if(flag=="--cycle-optimization") {
                 if(++i>=argc)throw std::invalid_argument("Expected a cycle optimization.");
                 const std::string mode=argv[i];
@@ -512,6 +522,7 @@ int main(int argc, char **argv) {
 			<< ",\"solver_seconds\":" << r.seconds
 			<< ",\"bnb_seconds\":" << r.search_seconds
 			<< ",\"fallback_calls\":" << r.fallback_calls
+			<< ",\"oracle_unverified_fallbacks\":" << r.oracle_unverified_fallbacks
 			<< ",\"fallback_geometric_path_invalid_calls\":" << r.fallback_geometric_path_invalid_calls
 			<< ",\"fallback_certificate_gap_calls\":" << r.fallback_certificate_gap_calls
 			<< ",\"fallback_locator_exception_calls\":" << r.fallback_locator_exception_calls
@@ -522,6 +533,15 @@ int main(int argc, char **argv) {
 			<< ",\"fallback_coincident_contact_calls\":" << r.fallback_coincident_contact_calls
 			<< ",\"predicate_exact_evaluations\":" << r.predicate_exact_evaluations
 			<< ",\"oracle_interval_bound_calls\":" << r.oracle_interval_bound_calls
+			<< ",\"oracle_float_calls\":" << r.oracle_float_calls
+			<< ",\"oracle_float_fallbacks\":" << r.oracle_float_fallbacks
+			<< ",\"oracle_rational_calls\":" << r.oracle_rational_calls
+			<< ",\"oracle_trusted_calls\":" << r.oracle_trusted_calls
+			<< ",\"oracle_exact_replay_calls\":" << r.oracle_exact_replay_calls
+			<< ",\"oracle_filtered_calls\":" << r.oracle_filtered_calls
+			<< ",\"oracle_touching_calls\":" << r.oracle_touching_calls
+			<< ",\"rational_membership_predicates\":" << r.rational_membership_predicates
+			<< ",\"exact_polygon_preparations\":" << r.exact_polygon_preparations
 			<< ",\"oracle_contracted_bound_calls\":" << r.oracle_contracted_bound_calls
 			<< ",\"extended_precision_calls\":" << r.extended_precision_calls
 			<< ",\"oracle_time_limit_calls\":" << r.oracle_time_limit_calls

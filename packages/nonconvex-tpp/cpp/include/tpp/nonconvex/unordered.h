@@ -111,6 +111,15 @@ namespace tpp {
 		// contact bounds its distance from above. Same branching decisions.
 		bool visit_upper_bounds = true;
 		bool interpolated_zero_dual = false;
+		// Fixed-endpoint oracle calls: when the interval proof fails, a binary64
+		// interior-point polish with interval-certified bounds replaces the
+		// exact replay and recoveries (DynamicConvexTppWorkspace::float_recovery);
+		// rational arithmetic remains for open calls and zero gaps.
+		bool float_recovery = true;
+		// Diagnostic only, unsafe: fixed-endpoint oracle values are the
+		// uncertified binary64 trace length (no lower-bound proof), to measure
+		// the cost of certification against numerical solvers.
+		bool trust_double = false;
         bool oracle_borrow_geometry = true;
         bool oracle_bound_first = false;
         bool lazy_oracles = false;
@@ -187,6 +196,11 @@ namespace tpp {
         bool cycle_point_anchor = true;
         // Diagnostic JSONL, including every in-flight cycle input; empty disables I/O.
         std::string oracle_capture_file;
+        // Sampling for long runs: keep every k-th call (0: none) plus the calls
+        // that took at least this long. The defaults keep every call, written
+        // before it runs; any sampling writes a call only after it returns.
+        std::size_t oracle_capture_every = 1;
+        double oracle_capture_min_seconds = 0;
 	};
 
 	enum class UnorderedTppTermination { Optimal, CallLimit, TimeLimit, NumericalLimit, PortfolioStopped, Interrupted };
@@ -258,6 +272,18 @@ namespace tpp {
 		size_t oracle_dispatch_pair_cache_hits = 0;
 		size_t oracle_dispatch_pair_exact_checks = 0;
 		size_t oracle_interval_bound_calls = 0;
+		size_t oracle_float_calls = 0;
+		size_t oracle_float_fallbacks = 0;
+		// Calls closed by an exact-rational stage (paths: exact replay/KKT,
+		// filtered recovery, touching-disjoint recovery, full fallback =
+		// fallback_calls); for cycles, calls with a rational recovery.
+		size_t oracle_rational_calls = 0;
+		size_t oracle_trusted_calls = 0;
+		size_t oracle_exact_replay_calls = 0;
+		size_t oracle_filtered_calls = 0;
+		size_t oracle_touching_calls = 0;
+		size_t rational_membership_predicates = 0;
+		size_t exact_polygon_preparations = 0;
 		size_t oracle_contracted_bound_calls = 0;
 		size_t screened_nodes = 0;
         size_t path_dual_retained = 0, path_dual_cache_hits = 0, path_dual_cache_evictions = 0;
@@ -311,6 +337,9 @@ namespace tpp {
 		size_t polygon_vertices_max = 0;
 		double order_space_log2 = 0.0;
 		size_t fallback_calls = 0;
+		// Full rational solves whose path failed the exact KKT certificate; their
+		// bounds remain certified but need not close the gap.
+		size_t oracle_unverified_fallbacks = 0;
 		size_t fallback_geometric_path_invalid_calls = 0;
 		size_t fallback_certificate_gap_calls = 0;
 		size_t fallback_locator_exception_calls = 0;

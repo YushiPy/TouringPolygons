@@ -23,6 +23,12 @@
 #include <stdexcept>
 #include <string>
 
+namespace tpp::detail {
+bool verified_rational_contact_bounds(const Vector2 &start,const Vector2 &target,
+        const std::vector<std::vector<Vector2>> &polygons,const ConvexRationalPolygon &contacts,
+        double &lower_bound,double &upper_bound);
+}
+
 namespace {
 using Polygon=std::vector<Vector2>;
 using Polygons=std::vector<Polygon>;
@@ -368,6 +374,8 @@ void verify_hybrid(const TestCase &c,const std::string &name,bool shadow=true) {
             std::cout<<"CONTACT_FALLBACK "<<name<<'\n';describe(c);
         }
         check(hybrid.contacts.size()==c.polygons.size(),name+" hybrid exact-k contacts");
+        // Shadow mode always runs the full rational solve.
+        check(!hybrid.stats.rational_fallback_unverified,name+" rational construction passes exact KKT");
         const auto displayed=tpp::reconstruct_convex_polyline(c.start,c.target,hybrid.contacts);
         check(tpp::validate_ordered_path(c.start,c.target,c.polygons,displayed).valid,
               name+" hybrid reconstructed visits");
@@ -771,6 +779,34 @@ void interval_bound_regressions() {
 #endif
 }
 
+// A rational construction's contacts are trusted only with the exact KKT
+// certificate. Optimum 2*sqrt(2): s=(-1,0) -> (0,1) -> t=(1,0), above which
+// lies the square [-1,1]x[1,2].
+void unverified_rational_contacts() {
+    const Vector2 s{-1,0},t{1,0};const Polygons square{box(-1,1,1,2)};
+    const double optimum=2*std::sqrt(2.);
+    double lower=0,upper=0;
+    using Exact=tpp::ConvexRationalPolygon;using P=tpp::ConvexRationalPoint;
+    check(tpp::detail::verified_rational_contact_bounds(s,t,square,Exact{P(Vector2{0,1})},lower,upper)&&
+          lower<=optimum&&optimum<=upper&&upper-lower<=1e-15,"optimal rational contacts are certified");
+    // A feasible corner contact is longer: sqrt(5)+1. Its length stays an
+    // upper bound and its own directions give a weaker certified dual.
+    const bool optimal=tpp::detail::verified_rational_contact_bounds(s,t,square,Exact{P(Vector2{1,1})},lower,upper);
+    check(!optimal&&lower<=optimum&&upper>=std::sqrt(5.)+1&&lower>0,
+          "suboptimal rational contacts return only certified bounds");
+    bool rejected=false;
+    try {tpp::detail::verified_rational_contact_bounds(s,t,square,Exact{P(Vector2{0,0})},lower,upper);}
+    catch(const std::runtime_error &){rejected=true;}
+    check(rejected,"infeasible rational contacts are rejected");
+    const auto empty=tpp::tpp_convex_solve_hybrid(Vector2{0,0},Vector2{3,4},Polygons{});
+    check(empty.lower_bound<=5&&5<=empty.upper_bound&&empty.upper_bound-empty.lower_bound<=1e-14,
+          "empty sequence encloses |t-s| exactly");
+    // Two coincident contacts: the zero link needs the disk witness.
+    const Polygons twice{box(-1,1,1,2),box(-1,1,1,2)};
+    check(tpp::detail::verified_rational_contact_bounds(s,t,twice,Exact{P(Vector2{0,1}),P(Vector2{0,1})},lower,upper)&&
+          lower<=optimum&&optimum<=upper,"coincident optimal rational contacts are certified");
+}
+
 void adversarial_disjoint() {
     std::vector<std::pair<std::string,TestCase>> cases={
         {"disjoint exit contact",{{-3,0},{3,0},{box(-1,-1,1,1)}, {}}},
@@ -925,7 +961,7 @@ int main(int argc,char **argv) {
         else if(arg=="--corpus"&&i+1<argc)corpora.push_back(argv[++i]);
         else throw std::invalid_argument("Unknown argument: "+arg);
     }
-    interval_rounding_regressions();dyadic_orientation_regressions();binary_membership_memo_regressions();prepared_pair_cache_regressions();normalized_sign_predicates();homogeneous_zero_dual_regressions();filtered_predicates();dispatch_cache_regressions();cached_contact_rotation_regressions();deterministic();coincident_disk_contacts();touching_disjoint_recovery();interval_bound_regressions();adversarial_disjoint();continuity();random_boxes(random_count);random_convex(convex_count);
+    interval_rounding_regressions();dyadic_orientation_regressions();binary_membership_memo_regressions();prepared_pair_cache_regressions();normalized_sign_predicates();homogeneous_zero_dual_regressions();filtered_predicates();dispatch_cache_regressions();cached_contact_rotation_regressions();deterministic();coincident_disk_contacts();touching_disjoint_recovery();interval_bound_regressions();unverified_rational_contacts();adversarial_disjoint();continuity();random_boxes(random_count);random_convex(convex_count);
     for(const auto &directory:corpora)corpus(directory);
     const auto aggregate=tpp::convex_hybrid_aggregate();
     std::cout<<"Checks="<<checks<<", failures="<<failures<<", unresolved="<<unresolved
@@ -936,6 +972,7 @@ int main(int argc,char **argv) {
              <<", interval_contracted_calls="<<aggregate.interval_contracted_calls
              <<", hybrid_fast="<<hybrid_fast<<", hybrid_fallback="<<hybrid_fallback
              <<", hybrid_shadow_mismatch="<<hybrid_shadow_mismatch
+             <<", unverified_rational_fallbacks="<<aggregate.unverified_rational_fallbacks
              <<", rational_disjoint_directional_recoveries="
              <<aggregate.rational_disjoint_directional_recoveries
              <<", rational_disjoint_fallbacks="<<aggregate.rational_disjoint_fallbacks

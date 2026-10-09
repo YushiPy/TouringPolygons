@@ -11,9 +11,24 @@ namespace tpp {
 		double upper_bound = 0;
 		bool used_fallback = false;
 		bool used_interval_bounds = false;
+		bool used_float_oracle = false;
+		bool float_oracle_fallback = false;
+		// Closed by a stage that needs exact rational arithmetic: anything but
+		// the interval proof and the binary64 polish. Breakdown below; the full
+		// rational solve is used_fallback.
+		bool used_rational = false;
+		bool used_trusted_double = false;
+		bool used_exact_replay = false;
+		bool used_filtered_recovery = false;
+		bool used_touching_recovery = false;
+		size_t rational_membership_predicates = 0;
+		size_t exact_polygon_preparations = 0;
 		bool used_contracted_proposal = false;
 		bool fallback_geometric_path_invalid = false;
 		bool fallback_certificate_gap = false;
+		// The full rational solve failed the exact KKT certificate: the bounds
+		// are its certified length and dual, possibly with an open gap.
+		bool fallback_unverified = false;
 		bool used_extended_precision = false;
 		bool repaired_geometric_path = false;
 		bool dual_cutoff_pruned = false;

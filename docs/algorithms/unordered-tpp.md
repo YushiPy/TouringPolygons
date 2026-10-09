@@ -610,6 +610,33 @@ pode excedê-lo; o pré-processamento e partes da heurística inicial também n�
 consultam o limite a cada operação. `calls` conta invocações do oráculo convexo certificado,
 incluindo o refinamento inicial opcional; `initial_convex_refinement_calls` separa essa
 chamada das chamadas da busca.
+Com gap positivo ou cutoff finito, uma chamada cuja prova intervalar falha usa o
+polimento em ponto flutuante de `tpp_convex_solve_float_certified` no lugar do
+replay exato e das recuperações racionais
+([contrato](certified-convex-oracle.md#oráculo-em-ponto-flutuante-experimental-2026-10-08)).
+`oracle_float_calls` conta as chamadas fechadas por ele e
+`oracle_float_fallbacks`, as que ficaram abertas e terminaram no oráculo
+híbrido. `--no-float-recovery` restaura o fluxo anterior para ablações.
+No modo caminho, cada chamada fecha de exatamente um jeito:
+`calls = oracle_interval_bound_calls + oracle_float_calls + oracle_rational_calls`.
+As racionais se dividem em `oracle_exact_replay_calls` (replay exato e KKT),
+`oracle_filtered_calls`, `oracle_touching_calls` e `fallback_calls` (solver
+racional completo). `oracle_unverified_fallbacks` conta as chamadas do solver
+racional completo cujo caminho não passou no certificado KKT exato: elas
+devolvem só limites certificados, possivelmente com gap aberto. Como o teste
+KKT é necessário e suficiente, um valor diferente de zero indica um caminho não
+ótimo da construção (ou um erro do verificador), a investigar. Fora delas, `rational_membership_predicates` conta os sinais
+de pertencimento que nem intervalos nem o determinante inteiro decidiram, e
+`exact_polygon_preparations` conta os polígonos convertidos para racional no
+cache do workspace (uma vez por polígono e por worker). No ciclo,
+`oracle_rational_calls` conta as chamadas com recuperação racional.
+Exemplo (caso 156): padrão com 0 chamadas racionais, 4 sinais racionais e 70
+preparações; `--no-float-recovery` com 3.318 chamadas racionais (1.677 replay,
+1.641 filtradas).
+`--oracle-capture FILE` grava as chamadas do oráculo em JSONL;
+`--oracle-capture-every K` e `--oracle-capture-min-seconds S` amostram
+execuções longas, e `tpp-convex-path-oracle-replay` reexecuta as chamadas
+capturadas nos dois oráculos.
 `termination` distingue `optimal`, `call_limit`, `time_limit`,
 `numerical_limit` e `interrupted`. `Ctrl+C` no executável nativo solicita uma
 parada cooperativa: a chamada convexa/decomposição em andamento termina, a

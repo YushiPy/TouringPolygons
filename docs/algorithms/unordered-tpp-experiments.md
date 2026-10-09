@@ -123,6 +123,12 @@ sob teto de chamadas é custo de um trecho de busca, não tempo de solução;
 | Ganhos do ciclo com contato barato (vértice mais próximo do ponto médio) e `best_contact` só nas 3 lacunas mais baratas; lacunas que não podem baixar o preço puladas | custo do limite | 100i1500 (`lazy`, 4.000 chamadas): limite 0,75 → 0,68 s em 3,0 s (~2,5% do total), LB praticamente igual | não adotado (ganho pequeno; manteve o binário validado) | este documento, 2026-10-07 |
 | `lazy` + sem mergulhos com incumbente do ILS | LB (TSPN Paula) | validação: +47,0% do gap (24/24); 197 fechadas 1,19× (com inserções múltiplas 1,23×, sem regressão > 1,5×) | opcional (OFF) | [`tspn-paula-lower-bound-2026-10-07`](../../benchmarks/results-saved/README.md#tspn-paula-lower-bound-2026-10-07) |
 | `--insertion-lookahead 8` sobre inserções múltiplas + `lazy` sem mergulhos | LB | igual sem ele (13 abertas) | rejeitado | idem |
+| Oráculo só em ponto flutuante antes da prova intervalar: traço `double` + limites intervalares + polimento de barreira | custo/chamada | 0 fallbacks em 6,6 M chamadas; difícil 1,32× (0,76–3,37×), validação 1,54× (0,81–4,24×); 15–25% mais lento onde só há chamadas baratas (sem caches) | dominado; removido da busca (API mantida) | [`tpp-float-oracle-2026-10-08`](../../benchmarks/results-saved/README.md#tpp-float-oracle-2026-10-08) |
+| Prova intervalar do híbrido + polimento no lugar do replay exato e das recuperações (`float_recovery`) | custo/chamada | difícil 1,47× (0,97–3,23×), validação 1,68× (0,99–4,00×); 222/222 fecharam e validaram | **ativo** (padrão; `--no-float-recovery`) | idem |
+| Polimento a partir dos contatos da prova intervalar (`interval_seed`) em vez de recalcular traço, despacho e reparo | custo/chamada | sobre o recovery anterior: difícil 1,466 → 1,495×, validação 1,676 → 1,716× | **ativo** | idem |
+| Confiar no traço `double` sem certificado (`--trust-double`, diagnóstico) | custo/chamada | 1,26× (≥ 1 ms), 1,18× (≥ 0,1 s); 46/558 casos com LB declarado acima de um caminho viável e 44/558 com o caminho final > 0,1% acima do ótimo (até 3,3%) | **inválido**; só diagnóstico | [`trust-double-2026-10-08`](../../benchmarks/results-saved/README.md#trust-double-2026-10-08) |
+| Verificar com KKT exato o caminho do solver racional completo (último recurso) | correção | 48/48 pares idênticos em 24 casos (nós, chamadas, limites, contadores); último recurso nunca acionado | **ativo** | [`verified-fallback-2026-10-08`](../../benchmarks/results-saved/README.md#verified-fallback-2026-10-08) |
+| Ponto de partida do polimento: μ inicial 10²–10⁴ × o final; fração para o interior 2⁻⁷ ou 2⁻¹² | custo/chamada | replay (156/417/419): 4,1–4,3×, 5,4–5,7×, 4,8–4,9× em todas as combinações | neutro; mantido 10⁴ e 2⁻⁷ | este documento, 2026-10-08 |
 | One-tree, strong branching, `bound-first`, `dual`+`dual-screen` nas abertas da Paula | LB | +0,5%, −7%, +0,5%, +0,4% do gap | rejeitados | idem |
 
 ## Detalhes das tentativas de 2026-10-05
@@ -297,3 +303,42 @@ o LB difere.
   sua lacuna dentro da mesma precificação (k precificações por nó), e um
   oráculo `double` com certificado para pontos e segmentos no caminho (hoje
   toda chamada é racional).
+
+## Oráculo sem aritmética racional (2026-10-08)
+
+Branch `oracle-float-polish`; contrato em
+[`certified-convex-oracle.md`](certified-convex-oracle.md#oráculo-em-ponto-flutuante-experimental-2026-10-08);
+campanha local `experiments/float-oracle`. Motivação: o B&B pede a cada
+chamada uma tolerância de `0,25 × gap do nó` (~2,5×10⁻⁴·UB com o gap de 0,1%).
+A aritmética racional só é necessária para provar a estrutura combinatória
+exata (gap zero). Degenerescências como vértices compartilhados mudam a
+estrutura, não o valor ótimo.
+
+- **Replay de chamadas capturadas** (`--oracle-capture-every`, todas as
+  chamadas acima de 0,5 ms mais uma amostra uniforme; 156 completo, 417
+  completo, 419 com 60 s). 55.454 chamadas: todas fecharam só com ponto
+  flutuante, sem par de limites incompatível com o oráculo híbrido. Nas que o
+  híbrido resolve pela recuperação filtrada, mediana de 597 → 102 µs
+  (24 iterações de Newton). Oráculo estimado na execução inteira: 1,6× (156),
+  2,2× (417), 3,0× (419).
+- **Critério de parada do Newton.** Com μ pequeno, a Hessiana da barreira
+  esconde resíduos grandes no decremento de Newton, e o dual sai dele. O limite
+  `−slope < 10⁻³μ` deixava o dual 10⁻⁴ abaixo do ótimo; `10⁻¹⁰μ`, mais aceitar
+  o passo de Newton quando a melhora fica abaixo da resolução da função
+  objetivo, deixa 5×10⁻⁷ e acelerou o replay (417: 7,6 → 1,3 s).
+- **Ponta a ponta** (binário `d854b27`, protocolo padrão, 2 repetições,
+  variantes intercaladas): ver a tabela. O modo só em ponto flutuante perde
+  apenas onde o híbrido já é barato, porque refaz por chamada a normalização, o
+  despacho e o pertencimento que o híbrido guarda no workspace (perfil do 476:
+  subtrações e produtos intervalares, despacho par a par, `malloc`). Ele seria
+  uma segunda implementação da prova intervalar sem cache. Por isso a busca usa
+  a prova do híbrido e só troca o que vem depois dela.
+- **Padrão** (`float_recovery`, polimento a partir de `interval_seed`; uma
+  repetição contra `--no-float-recovery`): difícil 1,495× (0,99–3,57×;
+  149 → 94 s), validação 1,716× (0,98–4,46×; 90 → 52 s), 74/74 fecharam e
+  validaram; 279.509 chamadas fechadas pelo polimento, 0 fallbacks.
+- **Corpus completo na dantzig** (558 casos, `ded35f2`, máquina compartilhada;
+  [`float-recovery-dantzig-2026-10-08`](../../benchmarks/results-saved/README.md#float-recovery-dantzig-2026-10-08)):
+  1116/1116 fecharam e validaram; 0 chamadas racionais em 27,5 M (379.405 pelo
+  polimento) contra 470.841 na referência. Com a mesma carga nas duas variantes,
+  1,51× nos casos ≥ 0,1 s (mín. 0,97×) e 1,65× na soma dos tempos.

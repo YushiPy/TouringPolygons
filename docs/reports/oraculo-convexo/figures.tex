@@ -1,0 +1,296 @@
+% Figuras do relatório. Desenhos geométricos usam a mesma escala nos dois
+% eixos e coordenadas exatas dos exemplos do texto; os esquemas (fluxo,
+% decisão de sinal, visão geral) estão marcados como tais nas legendas.
+\tikzset{coordgrid/.style={draw=quiet!22,line width=.25pt},
+  dualvec/.style={draw=pThree,line width=1.1pt,-{Latex[length=2.4mm]}},
+  diffvec/.style={draw=quiet,dashed,line width=.8pt,-{Latex[length=2mm]}},
+  box/.style={draw=navy!70,fill=white,rounded corners=2pt,align=center,
+    font=\small,inner sep=5pt,minimum height=9mm},
+  decision/.style={draw=pTwo,fill=pTwo!8,rounded corners=2pt,align=center,
+    font=\small,inner sep=4pt},
+  okbox/.style={draw=good,fill=good!9,rounded corners=2pt,align=center,
+    font=\small,inner sep=4pt},
+  flow/.style={-{Latex[length=2.2mm]},draw=ink,line width=.7pt}}
+
+% ---------------------------------------------------------------------------
+% Visão geral: o oráculo dentro do branch-and-bound (esquema).
+\newcommand{\figvisaogeral}{%
+\begin{tikzpicture}[node distance=7mm and 9mm]
+\node[box,minimum width=32mm] (no) {nó da árvore\\[1pt]
+  \footnotesize sequência parcial \((P_{\sigma_1},\dots,P_{\sigma_m})\)};
+\node[box,right=8mm of no,minimum width=38mm,draw=good,line width=.9pt] (or)
+  {\textbf{oráculo convexo}\\[1pt]\footnotesize ordem fixa, extremos \(s,t\)\\
+   \footnotesize tolerância \(\tau\), corte \(c\)};
+\node[box,above right=2mm and 9mm of or,minimum width=36mm] (lb)
+  {limite inferior \(L\)\\[1pt]\footnotesize \(L\le \mathrm{OPT}\): decide a \textbf{poda}};
+\node[box,below right=2mm and 9mm of or,minimum width=36mm] (ub)
+  {caminho viável e \(U\)\\[1pt]\footnotesize \(\mathrm{OPT}\le U\): candidato a \textbf{incumbente}};
+\draw[flow] (no)--(or);
+\draw[flow] (or.east)--++(5mm,0)|-(lb.west);
+\draw[flow] (or.east)--++(5mm,0)|-(ub.west);
+\end{tikzpicture}}
+
+% ---------------------------------------------------------------------------
+% Mapa de último passo de um polígono (geometria do tutorial direcional,
+% verificada por força bruta numa grade de 5.117 pontos).
+\newcommand{\figmapa}{%
+\begin{tikzpicture}[scale=1.12]
+\begin{scope}
+  \clip (-4,-2.4) rectangle (4,4.4);
+  \fill[bad!17] (-4,-2.4)--(4,-2.4)--(4,-2)--(0,0)--(-4,-2)--cycle;
+  \fill[bad!17] (-4,4.4)--(4,4.4)--(4,4)--(0,2)--(-4,4)--cycle;
+  \fill[pTwo!22] (-4,-2)--(0,0)--(0,2)--(-4,4)--cycle;
+  \fill[good!16] (0,0)--(4,-2)--(4,4)--(0,2)--cycle;
+  \draw[polyA,fill=pOne!27] (0,0) rectangle (2,2);
+  \draw[aux,line width=.9pt] (-4,-2)--(0,0)--(4,-2);
+  \draw[aux,line width=.9pt] (-4,4)--(0,2)--(4,4);
+  \draw[very thick,navy] (0,0)--(0,2);
+\end{scope}
+\draw[navy!45] (-4,-2.4) rectangle (4,4.4);
+\fill[ink] (-2,1) circle (2.3pt);
+\node[smalllabel,above left] at (-2.05,1.05) {\(s=(-2,1)\)};
+\node[smalllabel] at (1,1.25) {\(P_1\)};
+\node[smalllabel,font=\footnotesize\bfseries,text=ink] at (0,3.15) {dobra em \((0,2)\)};
+\node[smalllabel,font=\footnotesize\bfseries,text=ink] at (0,-1.3) {dobra em \((0,0)\)};
+\node[smalllabel,font=\footnotesize\bfseries,text=ink] at (-2.3,-.45) {reflexão na aresta esquerda};
+\node[smalllabel,font=\footnotesize\bfseries,text=ink] at (2.6,.4) {atravessa};
+\node[smalllabel,above right] at (0.04,0.04) {\((0,0)\)};
+\node[smalllabel,below right] at (0.04,1.96) {\((0,2)\)};
+\draw[good,-Latex,line width=.8pt] (-2,1)--(3,1);
+\draw[pTwo,-Latex,line width=.8pt] (-2,1)--(0,.6);
+\draw[pTwo,-Latex,line width=.8pt] (0,.6)--(-3,0);
+\draw[bad,-Latex,line width=.8pt] (-2,1)--(0,2);
+\draw[bad,-Latex,line width=.8pt] (0,2)--(1,4);
+\draw[bad,-Latex,line width=.8pt] (-2,1)--(0,0);
+\draw[bad,-Latex,line width=.8pt] (0,0)--(1,-2);
+\foreach \x/\y/\lab in {3/1/A,-3/0/R,1/4/S,1/-2/I}
+  {\fill[ink] (\x,\y) circle (2.2pt);
+   \node[smalllabel,right] at (\x+.08,\y) {\(q_{\lab}\)};}
+\end{tikzpicture}}
+
+% ---------------------------------------------------------------------------
+% Desdobramento por reflexão (exemplo exato do tutorial direcional).
+\newcommand{\figdesdobra}{%
+\begin{tikzpicture}[scale=.9]
+\begin{scope}
+  \draw[coordgrid] (-3,-1) grid[step=.5] (3,3);
+  \draw[polyA] (0,0) rectangle (2,2);
+  \draw[very thick,navy] (0,0)--(0,2);
+  \draw[route,-Latex] (-2,1)--(0,1/3);
+  \draw[route,-Latex] (0,1/3)--(-1,0);
+  \fill[ink] (-2,1) circle (1.8pt);
+  \fill[ink] (-1,0) circle (1.8pt);
+  \fill[good] (0,1/3) circle (2.2pt);
+  \node[smalllabel,above left] at (-2,1) {\(s\)};
+  \node[smalllabel,below] at (-1,-.08) {\(q\)};
+  \node[smalllabel,right] at (.08,.38) {\(c\)};
+  \node[smalllabel] at (1.1,1.1) {\(P\)};
+  \node[font=\scriptsize\bfseries,color=navy] at (0,-1.5) {(a) caminho físico};
+\end{scope}
+\begin{scope}[xshift=7.2cm]
+  \draw[coordgrid] (-3,-1) grid[step=.5] (3,3);
+  \draw[very thick,navy] (0,0)--(0,2);
+  \draw[route,-Latex] (-2,1)--(1,0);
+  \draw[wrong] (-1,0)--(1,0);
+  \fill[ink] (-2,1) circle (1.8pt);
+  \fill[bad] (-1,0) circle (1.8pt);
+  \fill[good] (0,1/3) circle (2.2pt);
+  \fill[ink] (1,0) circle (1.8pt);
+  \node[smalllabel,above left] at (-2,1) {\(s\)};
+  \node[smalllabel,below] at (-1,-.08) {\(q\)};
+  \node[smalllabel,right] at (.08,.38) {\(c\)};
+  \node[smalllabel,below] at (1,-.08) {\(q'\)};
+  \node[font=\scriptsize\bfseries,color=navy] at (0,-1.5) {(b) segmento desdobrado};
+\end{scope}
+\end{tikzpicture}}
+
+% ---------------------------------------------------------------------------
+% Decisão de sinal: intervalo e determinante inteiro (esquema).
+\newcommand{\figsinal}{%
+\begin{tikzpicture}[x=10mm,y=8mm]
+\foreach \yy/\lo/\hi/\col/\txt in
+  {0/1.1/2.4/good/{\(\ell>0\): sinal \(+\) provado},
+   -1/-2.6/-1.2/good/{\(h<0\): sinal \(-\) provado},
+   -2/-.9/.7/pTwo/{\(\ell\le0\le h\): intervalo inconclusivo}}{
+  \draw[quiet!60] (-3,\yy)--(3,\yy);
+  \draw[ink,line width=.5pt] (0,\yy-.18)--(0,\yy+.18);
+  \draw[\col,line width=3.2pt] (\lo,\yy)--(\hi,\yy);
+  \node[font=\scriptsize,anchor=west,text=ink] at (3.2,\yy) {\txt};}
+\node[font=\scriptsize,text=quiet] at (0,.42) {\(0\)};
+\node[font=\scriptsize,text=quiet,anchor=east] at (-3.1,0) {\([\ell,h]\ni\det\)};
+\draw[flow] (5.4,-2.35)--(5.4,-3.05);
+\node[box,font=\scriptsize,anchor=north] at (5.4,-3.1)
+  {determinante exato em inteiros de 128 bits\\(coordenadas binary64 como inteiros\\vezes uma potência de dois comum)};
+\end{tikzpicture}}
+
+% ---------------------------------------------------------------------------
+% Exemplo do certificado: quadrado [1,3]x[1,2], s=(0,0), t=(4,0).
+\newcommand{\figquadrado}{%
+\begin{tikzpicture}[scale=1.08]
+\begin{scope}
+  \draw[coordgrid] (-.5,-.5) grid[step=.5] (4.5,2.5);
+  \draw[polyA] (1,1) rectangle (3,2);
+  \draw[aux] (2,1)--(4,2);
+  \fill[quiet] (4,2) circle (1.5pt);
+  \node[smalllabel,above] at (4,2.05) {\(t'=(4,2)\)};
+  \draw[route,-Latex] (0,0)--(2,1);
+  \draw[route,-Latex] (2,1)--(4,0);
+  \draw[dualvec] (.75,.05)--++(0.894*.8,0.447*.8);
+  \draw[dualvec] (2.6,.45)--++(0.894*.8,-0.447*.8);
+  \node[font=\scriptsize,text=pThree,below right] at (1.05,.1) {\(u_0\)};
+  \node[font=\scriptsize,text=pThree,below left] at (2.95,.3) {\(u_1\)};
+  \fill[ink] (0,0) circle (1.8pt); \fill[ink] (4,0) circle (1.8pt);
+  \fill[good] (2,1) circle (2.1pt);
+  \node[smalllabel,below] at (0,-.06) {\(s\)};
+  \node[smalllabel,below] at (4,-.06) {\(t\)};
+  \node[smalllabel,above] at (2,1.04) {\((2,1)\)};
+  \node[smalllabel] at (2,1.6) {\(P\)};
+  \node[font=\scriptsize\bfseries,color=navy] at (2,-.95)
+    {(a) caminho ótimo: \(L=U=2\sqrt5\approx4{,}4721\)};
+\end{scope}
+\begin{scope}[xshift=5.9cm]
+  \draw[coordgrid] (-.5,-.5) grid[step=.5] (4.5,2.5);
+  \draw[polyA] (1,1) rectangle (3,2);
+  \draw[wrong,-Latex] (0,0)--(3,1);
+  \draw[wrong,-Latex] (3,1)--(4,0);
+  \draw[route,line width=.8pt,opacity=.45] (0,0)--(2,1)--(4,0);
+  \fill[ink] (0,0) circle (1.8pt); \fill[ink] (4,0) circle (1.8pt);
+  \fill[bad] (3,1) circle (2.1pt);
+  \node[smalllabel,below] at (0,-.06) {\(s\)};
+  \node[smalllabel,below] at (4,-.06) {\(t\)};
+  \node[smalllabel,above] at (3,1.04) {\((3,1)\)};
+  \node[smalllabel] at (2,1.6) {\(P\)};
+  \node[font=\scriptsize\bfseries,color=navy] at (2,-.95)
+    {(b) dobra errada: \(L\approx4{,}0933\le\mathrm{OPT}\le U\approx4{,}5765\)};
+\end{scope}
+\end{tikzpicture}}
+
+% ---------------------------------------------------------------------------
+% Contatos coincidentes: alvo t_A do relatório do contraexemplo.
+\newcommand{\figcoincidente}{%
+\begin{tikzpicture}
+\begin{scope}[scale=.29]
+  \draw[coordgrid] (-9,-7) grid[step=1] (9,10);
+  \draw[polyB] (-8,-4)--(8,4)--(8,9)--(-8,9)--cycle;
+  \draw[polyA,fill opacity=.55] (0,-6) rectangle (6,6);
+  \draw[very thick,navy] (0,-6)--(0,6);
+  \draw[very thick,pTwo!80!black] (-8,-4)--(8,4);
+  \draw[route,-Latex] (-3,-4)--(0,0);
+  \draw[route,-Latex] (0,0)--(4,-3);
+  \fill[ink] (-3,-4) circle (5pt); \fill[ink] (4,-3) circle (5pt);
+  \fill[good] (0,0) circle (6pt);
+  \node[smalllabel,below left] at (-3,-4) {\(s=(-3,-4)\)};
+  \node[smalllabel,below right] at (4,-3) {\(t_A=(4,-3)\)};
+  \node[smalllabel,above left] at (0,0) {\(j=(0,0)\)};
+  \node[smalllabel] at (3.4,-4.6) {\(P_1\)};
+  \node[smalllabel] at (-3,6.6) {\(P_2\)};
+  \node[font=\scriptsize\bfseries,color=navy] at (0,-8.6) {(a) caminho ótimo, comprimento \(10\)};
+\end{scope}
+\begin{scope}[xshift=8.4cm,yshift=1.15cm,scale=1.45]
+  \draw[quiet!55] (0,0) circle (1);
+  \draw[quiet!40] (-1.2,0)--(1.2,0); \draw[quiet!40] (0,-1.2)--(0,1.2);
+  \draw[dualvec] (0,0)--(.6,.8);
+  \draw[dualvec] (0,0)--(.8,-.6);
+  \draw[dualvec,draw=bad] (0,0)--(.1,.8);
+  \draw[diffvec] (.1,.8)--(.6,.8);
+  \draw[diffvec] (.8,-.6)--(.1,.8);
+  \node[font=\scriptsize,text=pThree,right] at (.64,.84) {\(u_0=(\tfrac35,\tfrac45)\)};
+  \node[font=\scriptsize,text=pThree,right] at (.84,-.62) {\(u_2=(\tfrac45,-\tfrac35)\)};
+  \node[font=\scriptsize,text=bad,left] at (.06,.84) {\(u_1=(\tfrac1{10},\tfrac45)\)};
+  \node[font=\scriptsize,text=quiet,above] at (.35,1.02) {\(u_0-u_1=(\tfrac12,0)\)};
+  \draw[quiet!70,line width=.3pt] (.35,1.04)--(.35,.82);
+  \node[font=\scriptsize,text=quiet,right,align=left] at (.5,.18) {\(u_1-u_2\)\\\(=\tfrac7{10}(-1,2)\)};
+  \node[font=\scriptsize\bfseries,color=navy,align=center] at (.1,-1.62)
+    {(b) vetores duais; \(\lVert u_1\rVert=\sqrt{13/20}<1\)};
+\end{scope}
+\end{tikzpicture}}
+
+% ---------------------------------------------------------------------------
+% Norma das direções suavizadas usadas pelo polimento.
+\newcommand{\fignorma}{%
+\begin{tikzpicture}
+\begin{axis}[width=74mm,height=44mm,xmin=0,xmax=6,ymin=0,ymax=1.08,
+  xlabel={\(\lVert d\rVert/\mu\)},ylabel={\(\lVert u\rVert\)},ylabel style={rotate=-90},
+  axis lines=left,tick label style={font=\scriptsize},label style={font=\small},
+  grid=major,grid style={quiet!18}]
+\addplot[good,line width=1.2pt,domain=0:6,samples=120] {x/sqrt(x^2+1)};
+\addplot[quiet,dashed,domain=0:6] {1};
+\end{axis}
+\end{tikzpicture}}
+
+% ---------------------------------------------------------------------------
+% Fluxo do oráculo com as frações observadas nos 558 casos (dantzig).
+\newcommand{\figfluxo}{%
+\begin{tikzpicture}[node distance=6mm]
+\node[box,minimum width=62mm] (tr) {\textbf{1.} traço em \texttt{double}\\\footnotesize mapa de último passo (disjunto ou com interseção)};
+\node[box,below=of tr,minimum width=62mm] (pv) {\textbf{2.} prova intervalar: \(U\) (pertencimento + comprimento)\\\footnotesize e \(L=D(u)\) com \(u\) = direções do caminho};
+\node[decision,below=of pv] (d1) {\(U-L\le\tau\) ou \(L\ge c\)?};
+\node[box,below=9mm of d1,minimum width=62mm] (po) {\textbf{3.} polimento por pontos interiores\\\footnotesize cada nível de barreira refaz a prova do passo 2};
+\node[decision,below=of po] (d2) {\(U-L\le\tau\) ou \(L\ge c\)?};
+\node[box,below=9mm of d2,minimum width=62mm,draw=bad] (ex) {\textbf{4.} fluxo exato (racional)\\\footnotesize replay, KKT, recuperações, solver racional};
+\node[okbox,right=16mm of d1,minimum width=34mm] (a1) {aceita\\\footnotesize\(98{,}62\%\) das chamadas};
+\node[okbox,right=16mm of d2,minimum width=34mm] (a2) {aceita\\\footnotesize\(1{,}38\%\) das chamadas};
+\node[okbox,right=16mm of ex,minimum width=34mm,draw=quiet,fill=quiet!6] (a3) {aceita\\\footnotesize\(0\) chamadas};
+\draw[flow] (tr)--(pv); \draw[flow] (pv)--(d1);
+\draw[flow] (d1)--node[font=\scriptsize,above]{sim} (a1);
+\draw[flow] (d1)--node[font=\scriptsize,right]{não} (po);
+\draw[flow] (po)--(d2);
+\draw[flow] (d2)--node[font=\scriptsize,above]{sim} (a2);
+\draw[flow] (d2)--node[font=\scriptsize,right]{não} (ex);
+\draw[flow] (ex)--(a3);
+\end{tikzpicture}}
+
+% ---------------------------------------------------------------------------
+% Evolução 21/09 -> 06/10 (ganho acumulado sobre 21/09, mesma máquina).
+\newcommand{\fighistorico}{%
+\begin{tikzpicture}
+\begin{axis}[width=\linewidth,height=58mm,ybar,bar width=7.5pt,
+  ymode=log,log basis y=10,ymin=0.8,ymax=40,
+  xtick=data,xticklabels from table={\dadoshistorico}{rotulo},
+  xticklabel style={font=\scriptsize,rotate=45,anchor=east},
+  ytick={1,2,5,10,20},yticklabels={1×,2×,5×,10×,20×},
+  tick label style={font=\scriptsize},ylabel={ganho acumulado},label style={font=\small},
+  axis lines*=left,ymajorgrids,grid style={quiet!18},
+  nodes near coords={\pgfmathprintnumber[fixed,precision=1,use comma]{\pgfplotspointmeta}},
+  nodes near coords style={font=\tiny,text=ink},point meta=rawy,
+  enlarge x limits=.05]
+\addplot[fill=pOne!70,draw=pOne] table[x=idx,y=acumulado] {\dadoshistorico};
+\end{axis}
+\end{tikzpicture}}
+
+% ---------------------------------------------------------------------------
+% Dispersão: razão por caso (referência/padrão), pares com a mesma carga.
+\newcommand{\figdispersao}{%
+\begin{tikzpicture}
+\begin{axis}[width=\linewidth,height=66mm,xmode=log,ymode=log,log basis x=10,log basis y=10,
+  xmin=1e-3,xmax=1500,ymin=.45,ymax=5,
+  xlabel={tempo da referência (\texttt{-{}-no-float-recovery}), s},
+  ylabel={referência / padrão},label style={font=\small},
+  tick label style={font=\scriptsize},
+  ytick={.5,1,2,4},yticklabels={{0,5×},{1×},{2×},{4×}},
+  axis lines*=left,grid=major,grid style={quiet!16},
+  legend style={font=\scriptsize,draw=quiet!40,at={(.5,1.02)},anchor=south,legend columns=2}]
+\addplot[only marks,mark=*,mark size=1.3pt,quiet!70,fill opacity=.6,draw opacity=.6]
+  table[x=ref,y=razao,restrict expr to domain={\thisrow{polimento}}{0:0}] {\dadosdispersao};
+\addlegendentry{sem chamadas ao polimento}
+\addplot[only marks,mark=*,mark size=1.3pt,good,fill opacity=.6,draw opacity=.6]
+  table[x=ref,y=razao,restrict expr to domain={\thisrow{polimento}}{1:1}] {\dadosdispersao};
+\addlegendentry{com chamadas ao polimento}
+\addplot[ink,dashed,line width=.6pt,domain=1e-3:1500] {1};
+\end{axis}
+\end{tikzpicture}}
+
+% ---------------------------------------------------------------------------
+% Experimento sem certificado: fração de instâncias com erro, por geometria.
+\newcommand{\figconfianca}{%
+\begin{tikzpicture}
+\begin{axis}[width=96mm,height=40mm,xbar,bar width=9pt,xmin=0,xmax=22,
+  symbolic y coords={sobreposicao,toque,disjuntos},ytick=data,
+  yticklabels={{sobreposição com área (148)},{só toques (231)},{disjuntos (179)}},
+  tick label style={font=\scriptsize},xlabel={instâncias com erro (\%)},label style={font=\small},
+  axis lines*=left,xmajorgrids,grid style={quiet!18},enlarge y limits=.3,
+  nodes near coords={\pgfmathprintnumber[fixed,precision=1,use comma]{\pgfplotspointmeta}\,\%},
+  nodes near coords style={font=\scriptsize,text=ink},point meta=x]
+\addplot[fill=bad!65,draw=bad] coordinates {(17.57,sobreposicao) (8.66,toque) (0,disjuntos)};
+\end{axis}
+\end{tikzpicture}}

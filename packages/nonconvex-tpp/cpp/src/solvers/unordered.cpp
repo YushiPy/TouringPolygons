@@ -198,6 +198,7 @@ namespace tpp {
 		out.dual_cutoff_pruned=solved.status==ConvexCycleStatus::CertifiedBound;
 		out.predicate_exact_evaluations=solved.certificate.exact_predicate_evaluations;
 		out.used_fallback=solved.rational_cycle_recoveries+solved.rational_anchor_recoveries+solved.rational_feature_recoveries>0;
+		out.used_rational=out.used_fallback;
         out.certificate_cutoff_skips=solved.certificate_cutoff_skips;
         out.certificate_interval_uses=solved.certificate_interval_uses;
         out.initial_contact_checks=solved.initial_contact_checks;out.initial_contact_accepts=solved.initial_contact_accepts;
@@ -818,6 +819,8 @@ namespace tpp {
 				polish_workspace.borrow_hybrid_geometry=options.oracle_borrow_geometry;
 				polish_workspace.bound_before_optimality=options.oracle_bound_first;
 				polish_workspace.interpolated_zero_dual=options.interpolated_zero_dual;
+				polish_workspace.float_recovery=options.float_recovery;
+				polish_workspace.trust_double=options.trust_double;
 				auto piece_holding=[&](size_t region,Vector2 point)->const Polygon * {
 					prepare_pieces(region);
 					const Polygon point_path{point,point};
@@ -1001,6 +1004,8 @@ namespace tpp {
                         initial_workspace.borrow_hybrid_geometry=options.oracle_borrow_geometry;
                         initial_workspace.bound_before_optimality=options.oracle_bound_first;
 						initial_workspace.interpolated_zero_dual=options.interpolated_zero_dual;
+						initial_workspace.float_recovery=options.float_recovery;
+						initial_workspace.trust_double=options.trust_double;
 						++result.calls;
 						++result.initial_convex_refinement_calls;
 						const double target_gap = options.absolute_gap
@@ -1190,6 +1195,8 @@ namespace tpp {
         workspace.bound_before_optimality=options.oracle_bound_first;
         workspace.retain_binary_dual=!cycle&&options.path_certificate_dual;
 		workspace.interpolated_zero_dual=options.interpolated_zero_dual;
+		workspace.float_recovery=options.float_recovery;
+		workspace.trust_double=options.trust_double;
 		std::vector<DynamicConvexTppWorkspace> parallel_workspaces;
         ConvexCycleWorkspace cycle_workspace;
         std::vector<ConvexCycleWorkspace> parallel_cycle_workspaces;
@@ -1215,7 +1222,7 @@ namespace tpp {
             node.bound=std::max(node.bound,bound);
             result.cycle_shared_bound_seconds+=duration(began_bound);
         };
-        OracleCapture oracle_capture(options.oracle_capture_file);
+        OracleCapture oracle_capture(options.oracle_capture_file,options.oracle_capture_every,options.oracle_capture_min_seconds);
 		auto evaluate_oracle = [&](const Node &node, bool precise, double upper_bound,
 			DynamicConvexTppWorkspace &oracle_workspace, ConvexCycleWorkspace &cycle_cache, CycleMemo &memo) {
             const auto began_oracle=std::chrono::steady_clock::now();
@@ -1273,7 +1280,7 @@ namespace tpp {
                     }
                 }
             }
-            const auto capture_id=oracle_capture.begin(node.serial,precise,selected,node.warm_start,node.active_features,cutoff,tolerance,remaining_seconds,options);
+            const auto capture_id=oracle_capture.begin(node.serial,precise,start,target,selected,node.warm_start,node.active_features,cutoff,tolerance,remaining_seconds,options);
 			auto out=solve_relaxation(
 				cycle, start, target, selected, oracle_workspace, tolerance, cutoff, remaining_seconds, node.warm_start, options.cycle_cache?&cycle_cache:nullptr,
                 options.cycle_active_features?node.active_features:std::vector<int>{}, options.cycle_active_features,options.cycle_bound_first,
@@ -1331,7 +1338,17 @@ namespace tpp {
             }
             node.relaxed_length = certified.upper_bound;
 			result.fallback_calls += certified.used_fallback;
+			result.oracle_unverified_fallbacks += certified.fallback_unverified;
 			result.oracle_interval_bound_calls += certified.used_interval_bounds;
+			result.oracle_float_calls += certified.used_float_oracle;
+			result.oracle_float_fallbacks += certified.float_oracle_fallback;
+			result.oracle_rational_calls += certified.used_rational;
+			result.oracle_trusted_calls += certified.used_trusted_double;
+			result.oracle_exact_replay_calls += certified.used_exact_replay;
+			result.oracle_filtered_calls += certified.used_filtered_recovery;
+			result.oracle_touching_calls += certified.used_touching_recovery;
+			result.rational_membership_predicates += certified.rational_membership_predicates;
+			result.exact_polygon_preparations += certified.exact_polygon_preparations;
 			result.oracle_contracted_bound_calls += certified.used_contracted_proposal;
 			result.fallback_geometric_path_invalid_calls += certified.fallback_geometric_path_invalid;
 			result.fallback_certificate_gap_calls += certified.fallback_certificate_gap;
@@ -1947,6 +1964,8 @@ namespace tpp {
                         worker_workspace.bound_before_optimality=options.oracle_bound_first;
                         worker_workspace.retain_binary_dual=!cycle&&options.path_certificate_dual;
 						worker_workspace.interpolated_zero_dual=options.interpolated_zero_dual;
+						worker_workspace.float_recovery=options.float_recovery;
+						worker_workspace.trust_double=options.trust_double;
 					}
 					const auto oracle_batch_began = std::chrono::steady_clock::now();
 					evaluate_parallel_oracles(static_cast<std::ptrdiff_t>(evaluation_children.size()), worker_count,
@@ -2372,7 +2391,17 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::decomposed_polygons);
         sum(&UnorderedTppSolveResult::convex_pieces_generated);
         sum(&UnorderedTppSolveResult::fallback_calls);
+        sum(&UnorderedTppSolveResult::oracle_unverified_fallbacks);
         sum(&UnorderedTppSolveResult::oracle_interval_bound_calls);
+        sum(&UnorderedTppSolveResult::oracle_float_calls);
+        sum(&UnorderedTppSolveResult::oracle_float_fallbacks);
+        sum(&UnorderedTppSolveResult::oracle_rational_calls);
+        sum(&UnorderedTppSolveResult::oracle_trusted_calls);
+        sum(&UnorderedTppSolveResult::oracle_exact_replay_calls);
+        sum(&UnorderedTppSolveResult::oracle_filtered_calls);
+        sum(&UnorderedTppSolveResult::oracle_touching_calls);
+        sum(&UnorderedTppSolveResult::rational_membership_predicates);
+        sum(&UnorderedTppSolveResult::exact_polygon_preparations);
         sum(&UnorderedTppSolveResult::oracle_contracted_bound_calls);
         sum(&UnorderedTppSolveResult::fallback_geometric_path_invalid_calls);
         sum(&UnorderedTppSolveResult::fallback_certificate_gap_calls);

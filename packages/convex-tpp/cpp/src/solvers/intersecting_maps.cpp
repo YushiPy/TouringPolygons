@@ -631,9 +631,9 @@ public:
         return contacts_from_path(path,use_last_contact);
     }
 #ifndef TPP_EXPERIMENT_NATIVE_DOUBLE
-    ConvexRationalPolygon exact_contacts() {
+    ConvexRationalPolygon exact_contacts(bool use_last_contact=false) {
         std::vector<Point> path,contacts;query_path(target,maps.size(),path);
-        contact_details_from_path(path,false,&contacts);
+        contact_details_from_path(path,use_last_contact,&contacts);
         ConvexRationalPolygon result;for(const auto &q:contacts)result.emplace_back(q.x,q.y);
         return result;
     }
@@ -704,6 +704,10 @@ std::vector<DirectionalTraceStep> solve_intersecting_map_trace_unchecked_double(
 ConvexRationalPolygon solve_intersecting_map_contacts_exact(const ConvexRationalPoint &start,
         const ConvexRationalPoint &target,const ConvexRationalPolygons &polygons) {
     return DirectionalMaps(Point(start),Point(target),polygons,PreloadPolicy::Lazy).exact_contacts();
+}
+ConvexRationalPolygon solve_disjoint_map_contacts_exact(const ConvexRationalPoint &start,
+        const ConvexRationalPoint &target,const ConvexRationalPolygons &polygons) {
+    return DirectionalMaps(Point(start),Point(target),polygons,PreloadPolicy::Lazy,true).exact_contacts(true);
 }
 std::vector<Vector2> solve_intersecting_maps(const Vector2 &start,const Vector2 &target,
         const std::vector<std::vector<Vector2>> &polygons,PreloadPolicy preload) {

@@ -41,6 +41,9 @@ struct ConvexHybridOptions {
     bool retain_rejected_double_candidate = false;
 	bool interpolated_zero_dual = false;
     bool retain_binary_dual = false;
+    // Experimental: when the interval primal-dual proof is enabled but fails,
+    // return before any exact replay or recovery (stopped_after_interval).
+    bool stop_after_interval = false;
 };
 
 struct ConvexHybridStats {
@@ -57,7 +60,12 @@ struct ConvexHybridStats {
     bool touching_disjoint_certified = false;
     bool touching_disjoint_perturbed = false;
     bool rational_disjoint_directional_recovery = false;
+    // The rational construction's contacts failed the exact KKT certificate;
+    // the bounds are then its certified length and dual, with an open gap.
+    bool rational_fallback_unverified = false;
     std::size_t predicate_exact_evaluations = 0;
+    // Polygons converted to exact rationals in this call (workspace cache misses).
+    std::size_t exact_polygon_preparations = 0;
     std::size_t zero_link_witnesses = 0;
     std::size_t dispatch_pair_queries = 0;
     std::size_t dispatch_pair_cache_hits = 0;
@@ -97,6 +105,10 @@ struct ConvexHybridResult {
     double lower_bound = 0;
     double upper_bound = 0;
     bool cutoff_pruned = false;
+    bool stopped_after_interval = false;
+    // With stop_after_interval: the binary64 contacts the interval proof tried
+    // (one per polygon, not certified), for a caller's own polish.
+    std::vector<Vector2> interval_seed;
     ConvexHybridBackend backend = ConvexHybridBackend::DoubleDisjoint;
     ConvexFallbackReason fallback_reason = ConvexFallbackReason::None;
     ConvexHybridStats stats;
@@ -112,6 +124,7 @@ struct ConvexHybridAggregate {
     std::size_t rational_disjoint_fallbacks = 0;
     std::size_t rational_disjoint_directional_recoveries = 0;
     std::size_t rational_intersection_fallbacks = 0;
+    std::size_t unverified_rational_fallbacks = 0;
     std::array<std::size_t,9> fallback_reasons{};
     std::size_t predicate_exact_evaluations = 0;
     std::size_t zero_link_witnesses = 0;

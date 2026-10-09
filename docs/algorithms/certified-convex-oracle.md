@@ -25,7 +25,8 @@ A validação segura:
 5. tenta recuperar uma candidata rejeitada de polígonos intersectantes com
    predicados filtrados do mesmo mapa direcional;
 6. usa o solver racional correspondente quando a recuperação também não pode
-   ser certificada.
+   ser certificada, e verifica o caminho dele com o certificado KKT exato de
+   ciclos (detalhes abaixo).
 
 `TPP_HOMOGENEOUS_ZERO_DUAL`, ativada por padrão, representa direções e normais
 da propagação dual de contatos coincidentes com inteiros arbitrários, no mesmo
@@ -41,6 +42,21 @@ estão em [convex-cycle-certificate.md](convex-cycle-certificate.md).
 
 Polígonos dois a dois disjuntos usam como fallback a recorrência estabelecida
 em aritmética racional. Casos com interseção usam mapas direcionais racionais.
+Desde 2026-10-08 o caminho desse último recurso também é verificado: os
+contatos exatos passam pelo certificado KKT exato de ciclos
+(`tpp_convex_verify_cycle_certificate`) nos polígonos originais, ancorados nos
+extremos como no caso de regiões degeneradas, de modo que a aresta de
+fechamento é constante e a otimalidade do ciclo equivale à do caminho. Com o
+certificado, os limites encerram o comprimento exato. Sem ele, o comprimento
+continua sendo limite superior, o limite inferior passa a ser o dual factível
+racional das direções do próprio caminho, e `rational_fallback_unverified`
+fica verdadeiro; a chamada pode então não fechar o gap, e a busca registra esse
+gap em vez de podar com um valor não provado. Contatos fora dos polígonos
+causam exceção. Assim, nenhum limite devolvido depende da correção das
+construções (Dror et al. para disjuntos, a adaptação com interseção, cuja
+obrigação de prova está em [intersecting-tpp-correction.md](intersecting-tpp-correction.md)).
+Regiões degeneradas usam o mesmo procedimento; antes, um caminho não
+certificado causava exceção.
 Uma falha de certificação significa apenas que a candidata rápida não foi
 provada; ela nunca autoriza usar seu comprimento como limite inferior.
 Quando o chamador fornece um corte finito, uma candidata materializada mas
@@ -486,6 +502,70 @@ As suítes focadas devem continuar cobrindo cardinalidade dos contatos, contatos
 duplicados, orientação invertida, polígonos repetidos, extremos estacionários,
 tangência, sobreposição colinear, polígonos finos ou quase colineares e escalas
 de coordenadas muito pequenas e muito grandes.
+
+## Oráculo em ponto flutuante (experimental, 2026-10-08)
+
+`tpp_convex_solve_float_certified` (`tpp/convex/float_oracle.h`,
+`solvers/float_oracle.cpp`) atende ao mesmo contrato de limites do
+oráculo certificado com gap positivo ou cutoff finito, sem aritmética racional.
+Ele não prova otimalidade algébrica; para gap zero continua valendo o oráculo
+híbrido. Etapas:
+
+1. **Limite superior.** Cada contato precisa ser provado dentro do polígono
+   original (fechado; o mesmo conjunto convexo em ordem anti-horária, sem
+   vértices consecutivos repetidos). Os sinais vêm primeiro de intervalos e, se
+   o intervalo contém zero, do determinante exato em inteiros de 128 bits
+   (`dyadic_orientation`). Um sinal não provado conta como "fora"; o contato é
+   então movido uma fração `2^-45 … 2^-10` em direção à média dos vértices e
+   testado de novo. `U` é o comprimento da cadeia somado com arredondamento
+   para cima.
+2. **Limite inferior.** `L = D(u)`, o mesmo dual da seção anterior, avaliado com
+   intervalos. Cada `u_i` proposto é trocado por um vetor binário cuja norma é
+   provada `≤ 1` (`binary_dual_vector`), ou por zero. Pela dualidade fraca,
+   `D(u) ≤ OPT` para quaisquer vetores no disco; nada depende de a proposta ser
+   boa.
+3. **Propostas.** Primeiro o traço direcional em `double` (despacho, mapa,
+   replay e reparo em binary64, sem predicados exatos), com os duais das
+   direções dos elos. Elos de comprimento até `max_gap/(16·(m+2))` emprestam a
+   direção de um vizinho ou de `start→target`, como no certificado intervalar.
+   Se os limites não fecham, um método de barreira logarítmica (Newton sobre os
+   comprimentos suavizados `sqrt(|d|²+μ²)`, sistema tridiagonal por blocos 2×2)
+   parte da candidata e propõe contatos estritamente interiores e os duais
+   `u_i = d_i/sqrt(|d_i|²+μ²)`. No minimizador da barreira,
+   `u_i − u_{i+1} = Σ_f (μ/folga_f)·n_f`, e então
+   `D(u) ≥ comprimento − μ·(elos + faces)` (em coordenadas escaladas). Isso dá
+   o último nível `μ = gap/(2·escala·(elos+faces))`. Cada nível oferece seus
+   limites, que só entram depois das provas 1 e 2.
+4. **Estado.** `GapClosed` (`U−L ≤ max_gap`, subtração dirigida),
+   `CutoffReached` (`L ≥ cutoff`), `Open` ou `Unsupported` (região com menos de
+   três vértices distintos ou área nula, ambiente de arredondamento sem
+   suporte). `Open` e `Unsupported` devolvem limites válidos, mas o chamador
+   precisa do oráculo híbrido para fechar.
+
+No B&B de ordem livre, `DynamicConvexTppWorkspace::float_recovery` vem ligado
+(`UnorderedTppSolveOptions::float_recovery`; `--no-float-recovery` desliga).
+Com gap positivo ou cutoff finito, `tpp_convex_solve_certified` roda o híbrido
+com `ConvexHybridOptions::stop_after_interval`: a prova intervalar e seus caches
+ficam iguais. Se ela falha, o polimento parte dos contatos que ela tentou
+(`interval_seed`) no lugar de tudo o que vem depois (replay exato, KKT,
+recuperações filtrada e racional). Uma chamada que ele deixa `Open` termina no
+oráculo híbrido completo. Gap zero e `retain_binary_dual` mantêm o fluxo exato.
+Assim, a aritmética racional sai do caminho por chamada: fica na preparação de
+cada polígono (uma vez por busca), nos sinais de pertencimento que nem intervalos
+nem o determinante inteiro decidem, e no fallback.
+
+Chamar o oráculo em ponto flutuante antes da prova intervalar (com o próprio
+certificado do traço) também funciona, mas é dominado: refaz por chamada a
+normalização, o despacho e o pertencimento que o híbrido guarda em cache
+(15–25% mais lento onde quase toda chamada fecha pela prova intervalar). Esse
+modo saiu da busca; a API continua disponível.
+
+Limitação: com gaps muito menores que os do B&B (por exemplo `1e-7` absoluto
+em comprimentos ~10), o Newton em binary64 pode parar antes de fechar
+(`check_float_oracle` aceita `Open` nesse caso, mas exige que os limites
+cerquem o ótimo exato). `tpp-convex-path-oracle-replay` reexecuta chamadas
+capturadas com `tpp-unordered --oracle-capture` nos dois oráculos e acusa
+qualquer par de limites incompatível.
 
 ## Validação
 

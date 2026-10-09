@@ -92,6 +92,159 @@ abertas por tamanho e as 25 restantes são de validação. Dados locais:
   racional (ver o contrato). O LB continua sendo o gargalo: 34 das 38 seguem
   abertas aos 600 s, com até 20% de gap nas instâncias de 61–100 regiões.
 
+## verified-fallback-2026-10-08
+
+**Mudança.** O último recurso do oráculo de caminho (solver racional completo)
+devolvia como LB e UB o comprimento do próprio caminho, sem certificado. Agora
+os contatos exatos passam pelo certificado KKT exato de ciclos; se ele falha, o
+oráculo devolve UB = comprimento e LB = dual das direções do caminho (contador
+`oracle_unverified_fallbacks`). **Verificação.** (1) Suíte direcional com 3.000
+caixas inteiras e 200 polígonos convexos aleatórios, em que o modo de
+diagnóstico `shadow_rational` executa o último recurso em toda chamada:
+484.502 checagens, 0 falhas, 0 verificações falhas. (2) Mesmo Mac, binário
+anterior (`739aacb`) × novo, 24 casos de `fekete-comparison/instances.bin`
+(0,05–1,5 s na dantzig, todos com chamadas racionais na variante
+`--no-float-recovery`), gap `UB ≤ 1,001·LB`, nas duas variantes: 48 pares com
+nós, chamadas, limites e todos os contadores idênticos, 96/96 execuções
+fechadas e validadas; 11.477 chamadas racionais na variante sem polimento,
+nenhuma no último recurso. **Leitura.** Sem efeito de desempenho, porque o
+último recurso não foi acionado em nenhuma medição (0 nas 1.116 execuções de
+`float-recovery-dantzig-2026-10-08`); o ganho é de correção: nenhum limite
+devolvido depende da construção dos mapas. **Limitações.** Uma repetição e
+poucos casos, suficientes para mostrar identidade, não para medir tempo. Dados
+em `experiments/verified-fallback-check` do workspace local.
+
+## trust-double-2026-10-08
+
+**Pergunta.** O que acontece se o nosso solver jogar "nos termos do Fekete", isto
+é, aceitar valores numéricos sem prova? **Formulação.** Os 558 casos de
+`fekete-comparison/instances.bin`, gap `UB ≤ 1,001·LB`, validação Shapely 1e-7.
+Mesmo binário (branch `oracle-float-polish`, macOS arm64), duas variantes
+intercaladas por caso, 4 casos simultâneos, uma repetição: padrão certificado ×
+`--trust-double`. Esta opção é de diagnóstico e insegura: o oráculo de caminho
+devolve o caminho do traço em `double` (replay e reparo, sem certificado), e o
+comprimento dele vale como limite inferior e superior. Os limites de inserção e
+de visita continuam rigorosos. Se o traço falha, a chamada usa o oráculo
+certificado (135.743 de 27,9 M chamadas).
+
+**Resultado.**
+- **Correção.** As 558 execuções sem certificado declararam o gap fechado e
+  devolveram caminhos viáveis (Shapely). Mas em **46 casos o limite inferior
+  declarado passa do comprimento de um caminho viável conhecido**, uma
+  afirmação provadamente falsa (até 3,2% acima; caso 132: LB 14.197,9 com um
+  caminho de 13.753,7). Em **44 casos (7,9%) o caminho final está mais de 0,1%
+  acima do ótimo certificado** (mediana 0,24%, máximo 3,27%). A causa é a poda
+  com valores superestimados, que descarta a ordem ótima. Por geometria
+  (Shapely, polígonos originais): disjuntos 0/179 (incluindo 19 com fechos
+  convexos que se cruzam), só toques 20/231, sobreposição com área 26/148;
+  todos os erros estão em instâncias com polígonos que se tocam ou se cruzam.
+  Por fonte: aleatórias
+  25/160, tesselação 12/78, OSM 7/320. Por tamanho: 4–10 1/128, 11–20 7/136,
+  21–40 11/149, 41–60 25/145.
+- **Velocidade.** Certificado/sem certificado (média geométrica): 1,26× nos
+  casos ≥ 1 ms (n = 344), 1,18× nos ≥ 0,1 s e 1,21× nos ≥ 1 s. Soma dos
+  tempos: 746 → 728 s (os casos longos são dominados por consultas de visita).
+
+**Leitura.** A certificação custa ~20% do tempo e evita respostas erradas em
+~8% dos casos. A comparação com o Fekete continua a favor dele, porque ele não
+paga por garantias. Mas "confiar" não é uma alternativa equivalente para o nosso
+solver: o erro de um algoritmo combinatório com uma decisão errada é
+descontínuo (pontos percentuais), enquanto o de um solver cônico numérico
+cresce suavemente com a tolerância. **Limitações.** Uma máquina compartilhada
+com 4 processos, uma repetição; os erros dependem só da aritmética e se repetem.
+Dados em `experiments/trust-double` do workspace local.
+
+## float-recovery-dantzig-2026-10-08
+
+**Formulação.** Os 558 casos de `fekete-comparison/instances.bin`, gap
+`UB ≤ 1,001·LB` (absoluto 0), validação Shapely 1e-7, sem limite de chamadas,
+teto de 3600 s. Binário da branch `oracle-float-polish` (`ded35f2`, GCC,
+C++23) na dantzig (i9-12900K). Duas variantes do mesmo binário: padrão
+(polimento em ponto flutuante após a prova intervalar) × `--no-float-recovery`
+(replay exato e recuperações racionais). Uma repetição, as duas variantes em
+sequência por caso, 4 casos simultâneos, cada solver fixado num núcleo P.
+A máquina tinha outros usuários (load average ~7): em 171 casos as duas
+variantes rodaram com o hyperthread vizinho ocupado, em 327 com ele livre e em
+60 com cargas diferentes.
+
+**Resultado.** 1116/1116 execuções fecharam o gap e validaram.
+- **Aritmética racional.** Padrão: **0 chamadas racionais** em 27,5 M
+  chamadas (27,15 M pela prova intervalar, 379.405 pelo polimento, 0 fallbacks),
+  12.984 sinais de pertencimento decididos em racional (em 85 casos) e 16.360
+  conversões de polígonos para o cache. Referência: 470.841 chamadas racionais
+  (262.444 replay exato/KKT, 155.575 filtradas, 52.822 fronteira disjunta).
+- **Efeito da carga.** Nos casos de busca idêntica (nenhuma chamada no
+  polimento, ≥ 10 ms), a razão é 0,997 (n = 8) e 1,001 (n = 54) com a mesma
+  carga nas duas variantes, e 0,84 ou 1,38 com cargas diferentes. Os 60 pares
+  com cargas diferentes ficam fora das razões abaixo. Eles incluem o caso 129
+  (Dubai, 707 → 978 s com a mesma busca), que sozinho inverte a soma bruta dos
+  tempos (1832 → 1910 s).
+- **Ganho com a mesma carga** (média geométrica referência/padrão):
+
+  | Casos | n | Todos | Só os que usaram o polimento |
+  |---|---:|---:|---:|
+  | referência ≥ 1 ms | 330 | 1,37× (mín. 0,54×) | 1,59× (n = 213) |
+  | referência ≥ 0,1 s | 125 | **1,51×** (mín. 0,97×) | 1,77× (n = 90) |
+  | referência ≥ 1 s | 40 | **1,52×** (mín. 0,98×) | 1,85× (n = 27) |
+
+  Soma dos tempos dos 498 pares com a mesma carga: 468,8 → 283,7 s (1,65×).
+  Por número de polígonos (≥ 1 ms): 11–20 1,34×, 21–40 1,32×, 41–60 1,44×.
+  As seis razões abaixo de 0,9 são casos de 1–13 ms, quatro deles com busca
+  idêntica: ruído na escala de milissegundos.
+
+**Limitações.** Máquina compartilhada e uma única repetição: só as razões com a
+mesma carga são confiáveis, e a medição limpa (máquina ociosa, `--workers 1`)
+continua pendente. O checkout da dantzig estava marcado como sujo. Dados brutos
+em `experiments/float-recovery-dantzig` do workspace da dantzig.
+
+## tpp-float-oracle-2026-10-08
+
+**Formulação.** TPP de ordem livre com extremos fixos, corpus
+`fekete-comparison/instances.bin`; protocolo padrão de
+`docs/algorithms/unordered-tpp-experiments.md`: gap `UB ≤ 1,001·LB`
+(absoluto 0), uma thread, um processo por vez, variantes intercaladas por caso,
+duas repetições, validação Shapely 1e-7, teto de 900 s (nenhum caso chegou
+perto). Mesmo binário (`d854b27`, branch `oracle-float-polish`, macOS arm64,
+AppleClang, C++23, GMP), com três configurações do oráculo convexo: híbrido
+atual, `--float-oracle` (só ponto flutuante) e `--float-recovery` (prova
+intervalar do híbrido e polimento em ponto flutuante no lugar do replay exato e
+das recuperações). Conjuntos: difícil (19, seed 20261005) e validação
+(18, seed 20261006), os mesmos de 05/10.
+
+**Resultado.** As 222 execuções fecharam o gap e validaram o caminho. Com
+`--float-oracle`, 6,6 M chamadas por repetição usaram só ponto flutuante, com 0
+fallbacks ao híbrido. Média geométrica das medianas por caso:
+
+| Conjunto | Híbrido → `--float-oracle` | Híbrido → `--float-recovery` | Soma dos tempos (híbrido / float / recovery) |
+|---|---:|---:|---:|
+| Difícil (19) | 1,32× (0,76–3,37×) | **1,47×** (0,97–3,23×) | 150,5 / 105,6 / 95,5 s |
+| Validação (18) | 1,54× (0,81–4,24×) | **1,68×** (0,99–4,00×) | 91,2 / 62,0 / 53,6 s |
+
+As duas repetições diferem em menos de 0,5% nas médias. Os maiores ganhos estão
+nos casos dominados pela cauda de chamadas caras (215: 4,0×; 540, 461, 214:
+~3,2×; 419: 2,6–2,8×). `--float-oracle` fica 15–25% mais lento nos casos em que
+quase toda chamada já fecha pela prova intervalar do híbrido (63, 95, 97, 173,
+476, 65); `--float-recovery` não perde em nenhum caso além do ruído
+(mínimo 0,97×). Replay de 55.454 chamadas capturadas (156, 417, 419): todas
+fecharam em ponto flutuante, sem limites incompatíveis com o híbrido.
+
+**Padrão adotado.** A busca passou a usar o recovery por padrão, com o polimento
+partindo dos contatos que a prova intervalar tentou, e o modo só em ponto
+flutuante saiu dela. Confirmação com o binário da branch (uma repetição,
+`--no-float-recovery` como referência): difícil **1,495×** (0,99–3,57×;
+149,4 → 93,8 s), validação **1,716×** (0,98–4,46×; 89,9 → 51,9 s), 74/74
+fecharam e validaram, 279.509 chamadas fechadas pelo polimento e 0 fallbacks ao
+racional. No replay, o ponto de partida do polimento (μ inicial 10²–10⁴ × o
+final; fração para o interior 2⁻⁷ ou 2⁻¹²) não mudou o tempo.
+
+**Limitações.** Uma máquina (Mac, sem isolamento térmico). Os tempos
+absolutos variaram ~1,5× entre sessões, mas as razões intercaladas ficaram
+estáveis (1,33×/1,34× em sessões diferentes). O conjunto difícil orientou o
+desenvolvimento; a validação foi medida uma única vez. Não houve medição no
+corpus completo nem na dantzig. Os limites são rigorosos no ambiente IEEE
+binary64 verificado por `cycle_interval_environment()`; gaps muito mais
+apertados que os do B&B podem ficar abertos e cair no híbrido.
+
 ## free-order-history-2026-10-07
 
 **Formulação.** Mesmo problema e corpus de `free-order-dantzig-2026-10-06`. São

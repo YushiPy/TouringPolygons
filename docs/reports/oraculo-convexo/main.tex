@@ -1,0 +1,632 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[brazilian]{babel}
+\usepackage{mathtools,amsthm}
+\usepackage{newpxtext,newpxmath}
+\usepackage{booktabs,array,microtype,siunitx}
+\usepackage[dvipsnames]{xcolor}
+\usepackage[a4paper,margin=25mm,headheight=15pt,headsep=8mm,footskip=11mm]{geometry}
+\usepackage{tikz,pgfplots,pgfplotstable}
+\usetikzlibrary{arrows.meta,calc,positioning}
+\pgfplotsset{compat=1.18,/pgf/number format/use comma}
+\usepackage{caption,subcaption,fancyhdr,enumitem,needspace,float}
+\usepackage{titlesec,setspace}
+\usepackage[most]{tcolorbox}
+\usepackage{algorithm,algpseudocode}
+\usepackage[hidelinks]{hyperref}
+\usepackage[nameinlink,noabbrev]{cleveref}
+% Âncoras distintas para as linhas de cada algoritmo.
+\makeatletter\newcounter{algorithmicH}\let\oldalgorithmic\algorithmic
+\renewcommand{\algorithmic}{\stepcounter{algorithmicH}\oldalgorithmic}
+\renewcommand{\theHALG@line}{ALG@line.\thealgorithmicH.\arabic{ALG@line}}\makeatother
+\hypersetup{colorlinks=true,linkcolor=MidnightBlue,urlcolor=MidnightBlue,citecolor=MidnightBlue,
+  pdftitle={O oráculo convexo certificado do TPP de ordem livre},
+  pdfauthor={Gabriel Freire Ushijima}}
+\sisetup{output-decimal-marker={,},group-separator={.},group-minimum-digits=4}
+
+% Paleta compartilhada com o tutorial dos mapas direcionais.
+\definecolor{ink}{HTML}{223247}
+\definecolor{navy}{HTML}{274568}
+\definecolor{pOne}{HTML}{3677AD}
+\definecolor{pTwo}{HTML}{C78A24}
+\definecolor{pThree}{HTML}{6A4C9C}
+\definecolor{good}{HTML}{007E72}
+\definecolor{bad}{HTML}{B53E62}
+\definecolor{quiet}{HTML}{617384}
+\color{ink}
+\tikzset{>=Latex,polyA/.style={draw=pOne,fill=pOne!9,line width=.9pt},
+  polyB/.style={draw=pTwo,fill=pTwo!10,line width=.9pt},
+  route/.style={draw=good,line width=1.4pt},wrong/.style={draw=bad,dashed,line width=1pt},
+  aux/.style={draw=quiet,dashed,line width=.8pt},
+  smalllabel/.style={font=\scriptsize,fill=white,fill opacity=.9,text opacity=1,inner sep=1pt}}
+
+\setlength{\parindent}{0pt}\setlength{\parskip}{6.5pt}
+\setlength{\emergencystretch}{2em}
+\setstretch{1.07}
+\captionsetup{font=small,labelfont={bf,color=navy},skip=6pt}
+\titleformat{\section}{\Large\bfseries\color{navy}}{\thesection}{.7em}{}
+\titleformat{\subsection}{\large\bfseries\color{good}}{\thesubsection}{.6em}{}
+\titleformat{\paragraph}[runin]{\bfseries\color{navy}}{}{}{}[.]
+\titlespacing*{\section}{0pt}{20pt plus 4pt minus 3pt}{8pt}
+\titlespacing*{\subsection}{0pt}{14pt plus 4pt minus 2pt}{5pt}
+\titlespacing*{\paragraph}{0pt}{5pt plus 2pt}{.6em}
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\small\sffamily\color{navy}O ORÁCULO CONVEXO CERTIFICADO}
+\fancyhead[R]{\small\sffamily\color{quiet}TouringPolygons}
+\fancyfoot[L]{\small\color{quiet}Relatório técnico, 8 de outubro de 2026}
+\fancyfoot[R]{\small\color{navy}\thepage}
+\renewcommand{\headrulewidth}{.4pt}
+
+\newtcolorbox{ideia}[1][]{colback=good!5,colframe=good!70!black,boxrule=.6pt,arc=2pt,
+  left=6pt,right=6pt,top=4pt,bottom=4pt,fonttitle=\bfseries\small,title={#1}}
+\newtcolorbox{fonte}{colback=navy!4,colframe=navy!35,boxrule=.4pt,arc=2pt,
+  left=6pt,right=6pt,top=3pt,bottom=3pt,fontupper=\small}
+\newtcolorbox{cuidado}[1][]{colback=bad!4,colframe=bad!60,boxrule=.6pt,arc=2pt,
+  left=6pt,right=6pt,top=4pt,bottom=4pt,fonttitle=\bfseries\small,title={#1}}
+
+\theoremstyle{plain}\newtheorem{proposicao}{Proposição}
+\theoremstyle{definition}\newtheorem{definicao}{Definição}
+\theoremstyle{plain}\newtheorem{teorema}{Teorema}
+\crefname{proposicao}{Proposição}{Proposições}
+\crefname{teorema}{Teorema}{Teoremas}
+\crefname{definicao}{Definição}{Definições}
+\crefname{algorithm}{Algoritmo}{Algoritmos}
+\crefname{figure}{Figura}{Figuras}
+\crefname{table}{Tabela}{Tabelas}
+\crefname{section}{Seção}{Seções}
+\crefname{subsection}{Seção}{Seções}
+\crefname{appendix}{Apêndice}{Apêndices}
+\crefname{equation}{Equação}{Equações}
+\creflabelformat{equation}{#2(#1)#3}
+\AtBeginDocument{\renewcommand{\crefpairconjunction}{ e }\renewcommand{\crefmiddleconjunction}{, }%
+  \renewcommand{\creflastconjunction}{ e }\renewcommand{\crefpairgroupconjunction}{ e }%
+  \renewcommand{\crefmiddlegroupconjunction}{, }\renewcommand{\creflastgroupconjunction}{ e }}
+
+\floatname{algorithm}{Algoritmo}
+\algrenewcommand\algorithmicif{\textbf{se}}
+\algrenewcommand\algorithmicthen{\textbf{então}}
+\algrenewcommand\algorithmicelse{\textbf{senão}}
+\algrenewcommand\algorithmicend{\textbf{fim}}
+\algrenewcommand\algorithmicfor{\textbf{para}}
+\algrenewcommand\algorithmicdo{\textbf{faça}}
+\algrenewcommand\algorithmicwhile{\textbf{enquanto}}
+\algrenewcommand\algorithmicreturn{\textbf{devolva}}
+\algrenewcommand\algorithmicfunction{\textbf{função}}
+\algrenewcommand\algorithmicrequire{\textbf{Entrada:}}
+\algrenewcommand\algorithmicensure{\textbf{Saída:}}
+\algrenewtext{EndIf}{\textbf{fim se}}
+\algrenewtext{EndFor}{\textbf{fim para}}
+\algrenewtext{EndWhile}{\textbf{fim enquanto}}
+\algrenewtext{EndFunction}{\textbf{fim função}}
+\algrenewcommand\algorithmicloop{\textbf{repita}}
+\algrenewtext{EndLoop}{\textbf{fim repita}}
+\algnewcommand{\IfThen}[2]{\State \algorithmicif\ #1\ \algorithmicthen\ #2}
+\algnewcommand{\ForOne}[2]{\State \algorithmicfor\ #1\ \algorithmicdo\ #2}
+\algrenewcommand{\algorithmiccomment}[1]{\hfill{\color{quiet}\(\triangleright\) #1}}
+
+\newcommand{\R}{\mathbb R}
+\newcommand{\norm}[1]{\lVert#1\rVert}
+\newcommand{\abs}[1]{\lvert#1\rvert}
+\newcommand{\OPT}{\mathrm{OPT}}
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\fl}{\mathrm{fl}}
+\DeclareMathOperator{\sinal}{sinal}
+
+\input{figures.tex}
+\input{dados.tex}
+
+\begin{document}
+\pagenumbering{Alph}
+
+\begin{titlepage}
+\vspace*{18mm}
+{\color{quiet}\sffamily\small TouringPolygons --- relatório técnico\par}
+\vspace{6mm}
+{\color{navy}\bfseries\fontsize{24}{29}\selectfont O oráculo convexo certificado\par}
+\vspace{3mm}
+{\color{good}\Large Mapas de último passo, certificação primal-dual em ponto flutuante e medições\par}
+\vspace{10mm}
+{\large Gabriel Freire Ushijima\par}
+{\color{quiet}8 de outubro de 2026\par}
+\vspace{14mm}
+\begin{tcolorbox}[colback=navy!3,colframe=navy!40,boxrule=.5pt,arc=2pt,left=8pt,right=8pt,top=6pt,bottom=6pt]
+\textbf{Resumo.} O solver exato do TPP de ordem livre com extremos fixos explora ordens de visita por \emph{branch-and-bound}. Em cada nó, um \emph{oráculo convexo} resolve o subproblema de ordem fixa e devolve um limite inferior, que decide as podas, e um caminho viável. Este relatório descreve o oráculo por inteiro: o algoritmo de mapas de último passo de Dror et al.\ e a nossa adaptação para polígonos com interseção; por que esse algoritmo não pode ser simplesmente executado em ponto flutuante; e a certificação que adotamos, que prova \(L\le\OPT\le U\) com arredondamento dirigido em \texttt{binary64}, recorrendo a um método de pontos interiores quando o caminho combinatório não basta. Todo limite devolvido é provado sobre os polígonos de entrada, sem depender da correção da construção dos mapas. A aritmética racional ficou restrita à preparação dos polígonos, a sinais raros e a um fallback que não foi acionado: nos 558 casos do corpus de Fekete et al., nenhuma das 27,5 milhões de chamadas ao oráculo usou uma etapa racional, contra 470.841 na versão anterior, e a busca ficou cerca de 1,5 vez mais rápida nos casos acima de 0,1 s, com todos os caminhos validados. Medimos também o custo da garantia: confiar no comprimento em ponto flutuante seria só 1,2 vez mais rápido e erraria o ótimo em 8\% das instâncias.
+\end{tcolorbox}
+\vfill
+{\small\color{quiet}Código descrito: branch \code{oracle-float-polish} (commit \code{bd66d70} e anteriores). Este documento complementa o tutorial \emph{A tutorial on fixed-order convex touring polygons and directional last-step maps}~\cite{tutorial}, que detalha a construção dos mapas.\par}
+\end{titlepage}
+
+\pagenumbering{roman}
+\setcounter{tocdepth}{2}
+{\small\setlength{\parskip}{0pt}\tableofcontents}
+\clearpage
+\pagenumbering{arabic}
+
+%==========================================================================
+\section{Introdução}
+
+\subsection{O problema e o papel do oráculo}
+No \emph{Touring Polygons Problem} (TPP) de ordem livre com extremos fixos, recebemos pontos \(s,t\in\R^2\) e polígonos simples \(Q_1,\dots,Q_n\), e procuramos o caminho mais curto que sai de \(s\), passa por todos os polígonos em alguma ordem e termina em \(t\). Os polígonos não são obstáculos: o caminho pode atravessá-los. O nosso solver é um \emph{branch-and-bound} sobre ordens de visita. Cada nó da árvore corresponde a uma sequência parcial de regiões convexas (fechos convexos ou peças convexas dos polígonos), e o subproblema associado é o \emph{TPP de ordem fixa}: o caminho mais curto de \(s\) a \(t\) que visita essas regiões nessa ordem. Por ser uma relaxação (exige menos visitas), o ótimo desse subproblema é um limite inferior para todas as ordens completas que estendem o nó.
+
+Quem resolve o subproblema é o \emph{oráculo convexo}. Ele é chamado dezenas de milhões de vezes numa campanha: 27,5 milhões de vezes nos 558 casos do corpus de Fekete et al.~\cite{fekete}. Sua saída tem dois papéis bem diferentes (\cref{fig:visaogeral}): o limite inferior decide as podas, e o caminho pode virar o novo incumbente.
+
+\begin{figure}[ht]\centering\figvisaogeral
+\caption{Esquema: o oráculo dentro do \emph{branch-and-bound}. O limite inferior \(L\) é usado para podar; o caminho, depois de uma verificação de visitas, pode substituir o incumbente.}\label{fig:visaogeral}
+\end{figure}
+
+\subsection{Por que a garantia importa}
+A busca poda um nó quando seu limite inferior é pelo menos o comprimento do incumbente menos a tolerância global. Se o oráculo \emph{superestimar} o limite inferior, um nó pode ser podado sem merecer e, se a ordem ótima estiver nele, ela é perdida sem aviso. Um caminho viável qualquer nunca é mais curto que o ótimo; por isso o comprimento de um caminho calculado é, por natureza, um limite \emph{superior}, e usá-lo como limite inferior só é seguro se o caminho for comprovadamente ótimo. A \cref{sec:confiar} mede o que acontece quando ignoramos isso: em 46 dos 558 casos a busca declara um limite inferior acima do comprimento de um caminho viável conhecido.
+
+\subsection{O que este relatório mostra}
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+\item O algoritmo de mapas de último passo (\cref{sec:mapas}), que resolve o subproblema de ordem fixa em aritmética exata, e o estado da sua justificativa para polígonos com interseção.
+\item Por que esse algoritmo é sensível à aritmética: suas decisões são sinais de determinantes, e um sinal errado tem consequências pequenas com polígonos disjuntos e potencialmente grandes com polígonos que se tocam (\cref{sec:aritmetica}).
+\item A certificação primal-dual em ponto flutuante (\cref{sec:certificado}) e o polimento por pontos interiores que a completa (\cref{sec:polimento}).
+\item O oráculo completo, com o fallback exato e o teorema de correção dos limites (\cref{sec:oraculo}), e as medições (\cref{sec:medicoes}).
+\end{enumerate}
+
+%==========================================================================
+\section{O subproblema de ordem fixa}\label{sec:subproblema}
+
+\subsection{Formulação}
+Sejam \(s,t\in\R^2\) e \(P_1,\dots,P_m\) polígonos convexos fechados de área positiva. Um caminho viável é uma poligonal que sai de \(s\), termina em \(t\) e tem parâmetros \(0\le\tau_1\le\dots\le\tau_m\le1\) com \(\gamma(\tau_i)\in P_i\). As desigualdades não são estritas: duas visitas consecutivas podem acontecer no mesmo ponto, e as regiões podem se sobrepor, se tocar ou conter umas às outras. Escolhendo um ponto de contato \(p_i\in P_i\) por visita, o problema é
+\begin{equation}\label{eq:primal}
+\OPT=\min_{p_1\in P_1,\dots,p_m\in P_m}\;\sum_{i=0}^{m}\norm{p_{i+1}-p_i},\qquad p_0=s,\;p_{m+1}=t.
+\end{equation}
+A função objetivo é convexa (soma de normas de funções afins) e o domínio \(P_1\times\dots\times P_m\) é convexo e compacto; portanto o mínimo existe e todo mínimo local é global. Para \(m=0\), \(\OPT=\norm{t-s}\).
+
+O valor ótimo é contínuo nos dados: se cada polígono for substituído por outro a distância de Hausdorff no máximo \(\varepsilon\) e os extremos se moverem no máximo \(\varepsilon\), o valor ótimo muda no máximo \(2(m+1)\varepsilon\). Basta mover cada ponto de contato ótimo para o ponto mais próximo do novo polígono: os dois extremos de cada um dos \(m+1\) segmentos se movem no máximo \(\varepsilon\), e o argumento vale nos dois sentidos. Já os \emph{pontos} de contato ótimos não precisam ser únicos nem contínuos: se o segmento de \(s\) a \(t\) atravessa \(P_1\cap P_2\), os dois contatos podem deslizar ao longo dele sem mudar o comprimento.
+
+\subsection{O contrato do oráculo dentro da busca}\label{sec:contrato}
+Para cada nó, a busca chama o oráculo com a sequência de regiões, uma tolerância \(\tau\) e um corte \(c\). Com gap global absoluto \(g_a\) e relativo \(g_r\) e incumbente de comprimento \(U^\star\), o gap do nó é \(g=g_a+g_r\abs{U^\star}\); a chamada usa a tolerância \(\tau=g/4\) nas chamadas de refinamento e \(\tau=\max(g/4,\;\rho\,U^\star)\) nas demais, com \(\rho=10^{-6}\) (\code{oracle\_relative\_gap}), e o corte \(c=U^\star-g\). Nas campanhas deste relatório, \(g_a=0\) e \(g_r=1/1001\), o que torna o critério global equivalente a \(U\le1{,}001\,L\); assim, nos dois tipos de chamada, \(\tau=g/4\approx2{,}5\times10^{-4}\,U^\star\).
+
+\begin{table}[ht]\centering\small
+\begin{tabular}{@{}p{30mm}p{110mm}@{}}\toprule
+Entrada & \(s,t\); regiões convexas \(P_1,\dots,P_m\); tolerância \(\tau>0\); corte \(c\).\\
+Saída & \(L\le\OPT\le U\) e um caminho viável de comprimento \(\le U\), com \(U-L\le\tau\) ou \(L\ge c\).\\
+Uso de \(L\) & \(L_{\text{nó}}\gets\max(L_{\text{nó}},L)\); o nó é podado se \(L_{\text{nó}}\ge U^\star-g\).\\
+Uso do caminho & se uma verificação independente mostra que ele visita todas as regiões da instância (tolerância \(10^{-8}\)) e é mais curto que o incumbente, vira o incumbente.\\\bottomrule
+\end{tabular}
+\caption{Contrato do oráculo convexo como é usado pela busca de ordem livre.}\label{tab:contrato}
+\end{table}
+
+\begin{fonte}
+\textbf{No código.} \code{solve\_normalized\_unordered\_tpp} em \path{packages/nonconvex-tpp/cpp/src/solvers/unordered.cpp}: \code{evaluate\_oracle} calcula \(\tau\) e \(c\); \code{record\_oracle\_result} atualiza o limite do nó; \code{improve} aceita incumbentes depois da verificação de visitas \code{covered}. O oráculo de caminho é \code{tpp\_convex\_solve\_certified} (\path{packages/convex-tpp/cpp/src/solvers/certified.cpp}).
+\end{fonte}
+
+%==========================================================================
+\section{Mapas de último passo}\label{sec:mapas}
+Esta seção resume o algoritmo exato. O tutorial~\cite{tutorial} traz a construção completa, com pseudocódigo linha a linha e exemplos executados.
+
+\subsection{A recorrência}
+Seja \(F_i(q)\) o comprimento do caminho mais curto de \(s\) até \(q\) que visita \(P_1,\dots,P_i\) em ordem. Então
+\begin{equation}\label{eq:recorrencia}
+F_0(q)=\norm{q-s},\qquad F_i(q)=\min_{x\in P_i}\bigl(F_{i-1}(x)+\norm{q-x}\bigr),
+\end{equation}
+e \(\OPT=F_m(t)\). O algoritmo de Dror, Efrat, Lubiw e Mitchell~\cite{dror} não tabela \(F_i\): ele constrói, para cada \(i\), um \emph{mapa de último passo}, uma subdivisão do plano que diz qual é a última ação de um caminho ótimo até \(q\). As ações são três (\cref{fig:mapa}):
+\begin{description}[leftmargin=0pt,itemsep=1pt,font=\bfseries\color{navy}]
+\item[Atravessar.] O caminho ótimo para o prefixo anterior já visita \(P_i\) (em particular, se \(q\in P_i\)); então \(F_i(q)=F_{i-1}(q)\).
+\item[Dobrar num vértice \(v\).] O último contato é o vértice \(v\): \(F_i(q)=F_{i-1}(v)+\norm{q-v}\).
+\item[Refletir numa aresta \(e\).] O último contato está no interior relativo de \(e\), com ângulos iguais de chegada e saída. Refletindo \(q\) na reta suporte de \(e\), o caminho vira um segmento reto até o ponto refletido \(q'\) (\cref{fig:desdobra}): \(F_i(q)=F_{i-1}(q')\), desde que o segmento recursivo corte a aresta \emph{finita}.
+\end{description}
+
+\begin{figure}[ht]\centering\figmapa
+\caption{Mapa de último passo completo para \(s=(-2,1)\) e o quadrado \(P_1=[0,2]^2\), na janela mostrada. Verde: atravessar; ocre: refletir na aresta esquerda; rosa: dobrar num vértice. Os raios tracejados são as fronteiras exatas; cada ponto \(q_\ast\) mostra um caminho ótimo da sua região. Geometria do tutorial~\cite{tutorial}; conferimos a classificação por força bruta em 5.117 pontos de uma grade, sem divergências.}\label{fig:mapa}
+\end{figure}
+
+\begin{figure}[ht]\centering\figdesdobra
+\caption{Desdobramento. Com \(P=[0,2]^2\), \(s=(-2,1)\) e \(q=(-1,0)\), refletir \(q\) na reta \(x=0\) dá \(q'=(1,0)\); o segmento \(sq'\) corta a aresta esquerda em \(c=(0,1/3)\), e o caminho \(s\to c\to q\) tem comprimento \(\norm{q'-s}=\sqrt{10}\). Exemplo exato do tutorial~\cite{tutorial}.}\label{fig:desdobra}
+\end{figure}
+
+\subsection{A consulta recursiva}
+Com os mapas prontos, o caminho até um ponto \(q\) sai de uma recursão que desce os níveis (\cref{alg:consulta}). Uma reflexão transforma o ponto consultado; ao voltar da recursão, o último segmento é ``redobrado'' sobre a aresta. A sequência de decisões tomadas (que região, em que nível) é o \emph{traço}; ele determina o caminho, e é o que o oráculo produz em \texttt{double} e certifica depois.
+
+\begin{algorithm}[ht]\small
+\caption{Consulta do caminho ótimo até \(q\) no nível \(i\) (esquema; versão completa no tutorial~\cite{tutorial}).}\label{alg:consulta}
+\begin{algorithmic}[1]
+\Function{Consulta}{$q,i$}
+  \IfThen{$i=0$}{\Return $[s,q]$}
+  \State $a\gets$ \Call{Localiza}{$q,i$}\Comment{sinais de determinantes}
+  \If{$a=$ atravessar} \Return \Call{Consulta}{$q,i-1$}
+  \ElsIf{$a=$ dobrar em $v$} \Return \Call{Consulta}{$v,i-1$} seguido de $q$
+  \Else\Comment{refletir na aresta $e$}
+    \State $C\gets$ \Call{Consulta}{$R_e(q),i-1$}
+    \State substitua o último segmento de $C$ pelo par (contato em $e$, $q$)\Comment{exige contato na aresta finita}
+    \State \Return $C$
+  \EndIf
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Polígonos disjuntos}
+Para polígonos dois a dois disjuntos, Dror et al.\ mostram que as regiões de cada mapa formam um leque em volta da fronteira do polígono, alternando cones de vértice e regiões de aresta, mais a região de atravessar. Cada cone de vértice é delimitado por dois raios, um por aresta incidente: a direção de chegada do caminho anterior ao vértice, refletida nessa aresta quando o contato nela é de primeira visita, ou continuada caso contrário. A localização de \(q\) é uma busca binária na ordem circular desses raios. No código, a classe \code{SolutionBinarySearchDisjoint} implementa essa busca em \texttt{double}.
+
+\subsection{Polígonos com interseção}\label{sec:intersecao}
+Com interseções, a construção muda em pontos essenciais~\cite{tutorial,correcao}:
+\begin{itemize}[leftmargin=*,itemsep=1pt]
+\item a fronteira de \(P_i\) é cortada onde cruza fronteiras de polígonos anteriores, criando \emph{pseudovértices}: pontos calculados, não dados de entrada;
+\item ``primeiro contato'' passa a significar o primeiro contato \emph{depois} de satisfeitas as visitas anteriores, e a região de atravessar inclui pontos dentro de \(P_i\) já alcançados pelo prefixo anterior;
+\item num pseudovértice, os dois raios do cone vêm de limites incidentes distintos (um de cada lado), e não podem ser inferidos só do caminho até o ponto; o tutorial mostra um contraexemplo exato à regra publicada por Tan e Jiang~\cite{tanjiang} que ignora isso;
+\item empates exatos (um ponto exatamente sobre um raio ou sobre a extensão de um raio) são resolvidos por \emph{perturbação simbólica}: a consulta é tratada como \(q+\varepsilon d+\varepsilon^2e_1+\varepsilon^3e_2\) com \(\varepsilon\to0^+\), e um sinal é o do primeiro coeficiente não nulo.
+\end{itemize}
+O mesmo arquivo-fonte (\path{intersecting_maps.cpp}) é compilado três vezes, com três tipos numéricos: \texttt{double}, racional filtrado (intervalos com avaliação exata sob demanda) e racional exato (\code{boost::multiprecision} ou GMP).
+
+\begin{cuidado}[Estado da justificativa]
+Para polígonos disjuntos, o algoritmo é o de Dror et al., que tem prova publicada; a implementação foi extensamente testada, e o tutorial registra que um detalhe dela (a classificação direta das regiões de atravessar) tem apoio empírico, não prova. Para polígonos com interseção, a nossa construção é uma adaptação, e o tutorial~\cite{tutorial} registra uma \emph{obrigação de prova em aberto}: mostrar que os eventos de divisão bastam, que cada pseudoaresta tem tipo de contato homogêneo, que as regiões aparecem na ordem circular que a busca binária supõe e que os desempates simbólicos são coerentes em todos os casos degenerados. Há certificados exatos para exemplos particulares e validações extensas~\cite{correcao}, mas não um teorema geral. A certificação das \cref{sec:certificado,sec:polimento} \emph{não depende} dessa prova: os limites \(L\) e \(U\) são provados diretamente sobre os polígonos de entrada, qualquer que seja o caminho proposto. Desde 08/10, isso vale também para o último recurso do fluxo exato, cujo caminho passa por um verificador exato; o \cref{teo:correcao} reúne o argumento.
+\end{cuidado}
+
+%==========================================================================
+\section{Por que a aritmética importa}\label{sec:aritmetica}
+
+\subsection{As decisões são sinais}
+Localizar um ponto no mapa, cortar uma aresta, ordenar eventos ao longo dela ou escolher um lado num empate: todas essas decisões são sinais de expressões como o determinante de orientação
+\begin{equation}\label{eq:orient}
+\operatorname{orient}(a,b,q)=\det\begin{pmatrix}b_x-a_x & q_x-a_x\\ b_y-a_y & q_y-a_y\end{pmatrix},
+\end{equation}
+avaliadas em pontos que podem ser dados de entrada ou pontos construídos (reflexões, interseções de retas). Em aritmética exata, o algoritmo toma a decisão certa sempre que a construção está correta. Em \texttt{binary64}, cada operação erra por até meia unidade na última casa, e o sinal calculado pode diferir do verdadeiro quando o valor verdadeiro está perto de zero, ou é exatamente zero.
+
+\subsection{Polígonos disjuntos: um erro troca vizinhos que concordam na fronteira}
+Com polígonos disjuntos, não há eventos de divisão: o mapa de cada polígono usa só os seus vértices e arestas e os raios que chegam do mapa anterior. As decisões cujo sinal fica perto de zero escolhem entre alternativas que coincidem no limite. Ao localizar um ponto perto da fronteira entre duas regiões \emph{vizinhas}, as duas ações dão o mesmo caminho na fronteira: refletir na aresta exatamente na sua extremidade é o mesmo que dobrar no vértice (na \cref{fig:mapa}, o raio que separa a região de reflexão da região ``dobra em \((0,0)\)''). Ao construir um raio cuja direção de chegada é quase paralela à aresta, refletir e continuar dão quase o mesmo raio. Em ambos os casos, um erro na ordem do arredondamento muda o caminho por pouco. Esta explicação é qualitativa, não um teorema; a \cref{sec:evidencias} mostra que ela é coerente com as medições.
+
+\subsection{Polígonos que se tocam: empates exatos na construção}
+Com interseções, a própria \emph{construção} do mapa decide sinais entre pontos calculados a partir de polígonos diferentes. No nosso corpus, polígonos vizinhos compartilham vértices e arestas exatamente (prédios do OpenStreetMap com paredes em comum, células de tesselação). Pseudovértices, vértices originais e raios então coincidem exatamente, e muitos determinantes valem \emph{exatamente} zero. A perturbação simbólica só desempata corretamente se souber que o primeiro termo é zero; em \texttt{double}, um zero calculado aparece como \(\pm10^{-17}\) e o desempate é pulado. Uma decisão errada aqui pode produzir um mapa com estrutura errada (raios em ordem trocada, uma região com a ação errada, um polígono tido como já visitado), e o caminho pode sair errado longe de qualquer fronteira. A auditoria de 13/09 registrou um caso desse tipo, uma classificação de ``atravessar'' falsa~\cite{auditoria}.
+
+\subsection{Evidências}\label{sec:evidencias}
+Duas medições independentes sustentam essa explicação.
+\begin{itemize}[leftmargin=*,itemsep=2pt]
+\item \textbf{Replay de chamadas reais.} Capturamos 55.454 chamadas dos casos 156, 417 e 419 (todas as que levaram mais de 0,5 ms e uma amostra uniforme das demais) e as reexecutamos no oráculo exato anterior. As 8.256 chamadas com regiões disjuntas fecharam todas pela prova barata da \cref{sec:certificado}; das 47.198 com interseção ou toque, 42.227 precisaram de uma etapa racional. (A amostra superrepresenta chamadas lentas; o contraste, não as proporções, é o resultado.)
+\item \textbf{Confiar no \texttt{double}} (\cref{sec:confiar}). Todos os 46 casos em que a busca sem certificado erra têm polígonos que se tocam ou se sobrepõem; nos 179 casos com polígonos disjuntos não houve erro.
+\end{itemize}
+
+\subsection{A solução anterior: certificar em aritmética exata}
+Antes do padrão atual, o caminho em \texttt{double} era aceito de duas formas. A primeira, desde 03/10, é a prova intervalar da \cref{sec:certificado}, que fecha a grande maioria das chamadas. Quando ela falhava, o oráculo reproduzia o traço em aritmética racional exata e verificava as condições de otimalidade (KKT) com inteiros exatos; se isso também falhava, recorria a recuperações racionais: uma reconstrução do mapa com predicados filtrados (intervalos, com avaliação exata só dos sinais indecisos) e, em último caso, o solver racional completo. Era correto, mas caro: num replay do caso 156, as chamadas resolvidas pela recuperação filtrada tinham mediana de cerca de 600 µs, e no caso 417 as 5\% de chamadas acima de 1 ms somavam 84\% do tempo do oráculo~\cite{experimentos}.
+
+%==========================================================================
+\section{Certificação primal-dual em ponto flutuante}\label{sec:certificado}
+A ideia central é não perguntar se o algoritmo acertou, e sim se os limites que conseguimos \emph{provar} já estão próximos o bastante. Um caminho proposto, venha de onde vier, fornece dois números com garantia matemática: um limite superior (\cref{sec:superior}) e um limite inferior (\cref{sec:inferior}). Se a proposta estiver errada, o intervalo \([L,U]\) fica largo; nunca fica errado.
+
+\subsection{Aritmética intervalar com arredondamento dirigido}\label{sec:intervalos}
+Usamos intervalos \([\ell,h]\) de números \texttt{binary64}. Cada operação (\(+,-,\times\), divisão por positivo, quadrado, raiz quadrada) é calculada com arredondamento ao mais próximo, e o resultado é alargado de uma unidade na última casa para cada lado. Como cada operação básica IEEE 754 erra no máximo meia unidade, o intervalo resultante contém o valor exato. As variáveis intermediárias são \code{volatile} para impedir que o compilador funda operações ou use precisão estendida. A prova só é usada se o ambiente for IEEE \texttt{binary64} com arredondamento ao mais próximo, sem \emph{fast-math} e sem descarte de subnormais; caso contrário, o oráculo usa o fluxo exato.
+
+\begin{fonte}
+\textbf{No código.} \code{CycleInterval} e \code{cycle\_interval\_environment} em \path{packages/convex-tpp/cpp/src/solvers/cycle_interval.h}.
+\end{fonte}
+
+\subsection{Limite superior: um caminho provadamente viável}\label{sec:superior}
+O comprimento de um caminho só é limite superior se o caminho for viável. Antes de somar, provamos que cada contato \(p_i\) está no polígono fechado \(P_i\) (em sentido anti-horário): para cada aresta \((a,b)\), o sinal de \(\operatorname{orient}(a,b,p_i)\) precisa ser \(\ge0\). A decisão de cada sinal segue a \cref{fig:sinal}:
+\begin{enumerate}[leftmargin=*,itemsep=1pt]
+\item avaliamos \eqref{eq:orient} em intervalos; se o intervalo não contém zero, o sinal está provado;
+\item caso contrário, calculamos o determinante \emph{exatamente} em inteiros: escrevemos as coordenadas de cada eixo como inteiros vezes uma potência de dois comum; se todos cabem em 61 bits de magnitude, as diferenças cabem em 62 e o determinante em um inteiro de 128 bits;
+\item só se isso também não for possível (escalas muito diferentes), o sinal fica sem prova.
+\end{enumerate}
+Um contato cujo pertencimento não foi provado é movido uma pequena fração (\(2^{-45},2^{-40},2^{-30},\dots\)) em direção à média dos vértices do polígono e testado de novo; esse movimento só aumenta \(U\) por um valor desprezível. Por fim, \(U\) é o extremo superior da soma intervalar dos comprimentos dos segmentos.
+
+\begin{figure}[ht]\centering\figsinal
+\caption{Esquema da decisão de um sinal no teste de pertencimento. Nenhuma tolerância é usada: ou o sinal é provado, ou o contato é tratado como não provado.}\label{fig:sinal}
+\end{figure}
+
+\begin{fonte}
+\textbf{No código.} \code{dyadic\_orientation} e \code{interval\_convex\_contains} em \path{binary_certificate.h}; o oráculo híbrido ainda tem um terceiro estágio, racional, para os sinais que o determinante inteiro não decide; o polimento (\cref{sec:polimento}) não o usa e move o contato.
+\end{fonte}
+
+\subsection{Limite inferior: dualidade fraca}\label{sec:inferior}
+Para todo vetor \(u\) com \(\norm u\le1\) e todo \(d\), vale \(\norm d\ge u\cdot d\): a projeção de um segmento numa direção não é maior que o segmento. Escolhendo um vetor \(u_i\) por segmento do caminho e somando,
+\[
+\sum_{i=0}^m\norm{p_{i+1}-p_i}\;\ge\;\sum_{i=0}^m u_i\cdot(p_{i+1}-p_i)
+\;=\;(t-s)\cdot u_m+\sum_{i=1}^m (p_i-s)\cdot(u_{i-1}-u_i).
+\]
+A igualdade à direita é só um reagrupamento por ponto (os termos em \(s\) se cancelam em soma telescópica). Os contatos ótimos \(p_i\) são desconhecidos, mas estão em \(P_i\); trocando cada termo pelo pior caso no polígono obtemos uma cota que vale para \emph{todos} os caminhos viáveis, inclusive o ótimo:
+
+\begin{definicao}[Limite dual]\label{def:dual}
+Para \(u_0,\dots,u_m\in\R^2\) com \(\norm{u_i}\le1\),
+\begin{equation}\label{eq:dual}
+D(u)=(t-s)\cdot u_m+\sum_{i=1}^m\;\min_{v\in P_i}\,(v-s)\cdot(u_{i-1}-u_i)\;\le\;\OPT.
+\end{equation}
+\end{definicao}
+O mínimo de uma função linear num polígono convexo é atingido num vértice, então cada termo é um mínimo sobre os vértices. O problema dual é maximizar \(D(u)\) sujeito a \(\norm{u_i}\le1\), um problema cônico de segunda ordem; como o problema primal é convexo, vale a dualidade forte e o máximo é \(\OPT\). Mas \emph{nunca resolvemos} o problema dual: avaliamos \(D\) num \(u\) escolhido, e a validade vem só da dualidade fraca.
+
+Para que a avaliação seja uma prova, cada \(u_i\) precisa ter norma comprovadamente \(\le1\). Há duas formas no código. A prova do oráculo híbrido usa o vetor exato \(d/N\), em que \(d\) é a diferença exata entre dois pontos \texttt{binary64} e \(N\) é um limite superior provado de \(\norm d\), e carrega esse vetor como um intervalo que o contém. O polimento arredonda o vetor proposto para \texttt{binary64} e prova sua norma com intervalos; se a prova falha, o vetor é reduzido e testado de novo, e em último caso usa-se o vetor nulo, que é sempre viável. Em ambos, \(D(u)\) é avaliado em intervalos e \(L\) é o extremo inferior. O limite trivial \(L\ge\norm{t-s}\) também é usado.
+
+\begin{fonte}
+\textbf{No código.} \code{binary\_dual\_vector} em \path{binary_dual.h}; a avaliação de \(D\) está em \code{interval\_dual\_lower} (\path{hybrid.cpp}) e em \code{dual\_lower} (\path{float_oracle.cpp}).
+\end{fonte}
+
+\subsection{Um exemplo: o quadrado}\label{sec:exquadrado}
+Sejam \(s=(0,0)\), \(t=(4,0)\) e \(P=[1,3]\times[1,2]\) (\cref{fig:quadrado}). Refletindo \(t\) na reta \(y=1\) obtemos \(t'=(4,2)\); o segmento \(st'\) corta \(y=1\) em \((2,1)\), dentro da aresta, e o caminho \(s\to(2,1)\to t\) tem comprimento \(\norm{t'}=2\sqrt5\), logo \(U=2\sqrt5\). Com as direções dos dois segmentos, \(u_0=(2,1)/\sqrt5\) e \(u_1=(2,-1)/\sqrt5\):
+\[
+(t-s)\cdot u_1=\tfrac{8}{\sqrt5},\qquad u_0-u_1=\bigl(0,\tfrac{2}{\sqrt5}\bigr),\qquad
+\min_{v\in P}v\cdot(u_0-u_1)=\tfrac{2}{\sqrt5}\ \text{(na aresta }y=1\text{)},
+\]
+e \(D(u)=10/\sqrt5=2\sqrt5\). Os dois limites coincidem: está provado que \(\OPT=2\sqrt5\).
+
+Suponha agora que um sinal errado faça o algoritmo dobrar no vértice \((3,1)\). Esse caminho existe, então \(U=\sqrt{10}+\sqrt2\approx4{,}5765\). Com as suas direções, \(u_0=(3,1)/\sqrt{10}\) e \(u_1=(1,-1)/\sqrt2\), obtemos \(D(u)\approx4{,}0933\). Os dois números continuam verdadeiros (\(4{,}0933\le2\sqrt5\le4{,}5765\)), mas o intervalo tem largura \(0{,}48\), cerca de 10\% do comprimento, muito acima de qualquer tolerância da busca: o erro foi \emph{detectado}, sem que tivéssemos de saber que sinal saiu errado.
+
+\begin{figure}[ht]\centering\figquadrado
+\caption{O certificado no exemplo do quadrado. (a) Caminho ótimo e as direções \(u_0,u_1\) dos seus segmentos; o segmento tracejado é o desdobramento até \(t'\). (b) Um caminho errado ainda dá limites válidos, mas distantes: \(U-L\approx0{,}48\). Valores conferidos em aritmética exata; o oráculo real fecha o caso (a) na prova intervalar com \(U-L\approx3\times10^{-14}\).}\label{fig:quadrado}
+\end{figure}
+
+\subsection{De onde vêm os vetores \texorpdfstring{\(u\)}{u}}\label{sec:politicas}
+Se o caminho é ótimo e não tem segmentos de comprimento zero, as direções dos seus segmentos são exatamente a melhor escolha: a condição de otimalidade em cada contato (a ``lei da reflexão'' numa aresta, ou a condição de cone num vértice) diz que \(u_{i-1}-u_i\) é uma combinação não negativa das normais internas das arestas de \(P_i\) que contêm o contato (zero se o contato é interior). Então o mínimo em \eqref{eq:dual} é atingido no próprio contato, e \(D(u)\) é o comprimento. Na prática, a prova intervalar usa as direções do caminho proposto e trata à parte os segmentos \emph{curtos}: os de comprimento até
+\[
+\max\bigl(32\,\epsilon_{\text{mach}}\cdot \text{escala},\;\tau/(16\,(m+2))\bigr),
+\]
+onde a escala é a maior coordenada em valor absoluto do caminho proposto. Para esses segmentos, a direção é pouco confiável ou não existe, e o oráculo testa quatro políticas: manter as próprias direções do caminho (o vetor nulo nos segmentos de comprimento exatamente zero); nos segmentos curtos, emprestar a direção do segmento não curto mais próximo à esquerda (ou, faltando, à direita); o inverso; ou usar a direção de \(s\) para \(t\). Uma quinta política, que interpola as direções vizinhas, existe como opção desligada. Cada política dá um \(u\) viável e, portanto, um \(D(u)\) válido; fica o maior. O comprimento do segmento serve só para escolher propostas; ele nunca é usado como tolerância nem para declarar que dois contatos coincidem.
+
+\subsection{Contatos coincidentes: quando nenhuma direção serve}\label{sec:coincidentes}
+Quando dois contatos consecutivos coincidem, o segmento entre eles tem comprimento zero e não tem direção, e o vetor certo pode nem ter norma 1. O exemplo a seguir é o alvo \(t_A\) do relatório do contraexemplo~\cite{contraexemplo}, com certificado exato (\cref{fig:coincidente}): \(s=(-3,-4)\), \(t_A=(4,-3)\), \(P_1=[0,6]\times[-6,6]\) e \(P_2\) o quadrilátero de vértices \((-8,-4),(8,4),(8,9),(-8,9)\). O caminho ótimo é \(s\to j\to t_A\) com \(j=(0,0)\), comprimento \(5+5=10\), e visita \(P_1\) e \(P_2\) no mesmo ponto \(j\).
+
+Para que os dois termos de \eqref{eq:dual} sejam mínimos em \(j\), \(u_0-u_1\) precisa ser um múltiplo não negativo da normal interna da aresta esquerda de \(P_1\), \((1,0)\), e \(u_1-u_2\) um múltiplo não negativo da normal interna da aresta inferior de \(P_2\), proporcional a \((-1,2)\). Com \(u_0=(3/5,4/5)\) e \(u_2=(4/5,-3/5)\), as duas condições juntas forçam
+\[
+u_1=\bigl(\tfrac1{10},\tfrac45\bigr),\qquad u_0-u_1=\bigl(\tfrac12,0\bigr),\qquad u_1-u_2=\tfrac7{10}(-1,2),\qquad \norm{u_1}=\sqrt{13/20}\approx0{,}806,
+\]
+e então \(D(u)=10\) exatamente. As políticas da \cref{sec:politicas} não chegam lá, mesmo partindo do caminho ótimo: manter o vetor nulo dá \(D=1{,}2\), emprestar \(u_0\) dá \(D=6\), emprestar \(u_2\) dá \(D=0{,}4\), e a direção de \(s\) para \(t_A\) dá um valor negativo, todos abaixo do limite trivial \(\norm{t_A-s}=\sqrt{50}\approx7{,}07\). O melhor limite das políticas fica a cerca de 29\% do ótimo. É exatamente o tipo de chamada que o oráculo antigo resolvia com o certificado exato, e que hoje vai para o polimento da próxima seção.
+
+\begin{figure}[ht]\centering\figcoincidente
+\caption{Contatos coincidentes. (a) Instância \(t_A\)~\cite{contraexemplo}: o caminho ótimo visita \(P_1\) (azul) e \(P_2\) (ocre) no mesmo ponto \(j\); as arestas ativas estão destacadas. (b) Os vetores duais no círculo unitário: \(u_0\) e \(u_2\) são as direções dos segmentos; o vetor do segmento de comprimento zero, \(u_1\), fica dentro do círculo e é determinado pelas normais das duas arestas (diferenças tracejadas).}\label{fig:coincidente}
+\end{figure}
+
+\begin{algorithm}[ht]\small
+\caption{Prova dos limites para uma proposta (contatos \(p_1,\dots,p_m\) e vetores \(u_0,\dots,u_m\)).}\label{alg:prova}
+\begin{algorithmic}[1]
+\Function{ProvaLimites}{$s,t,P,p,u$}
+  \For{$i=1,\dots,m$}
+    \If{não \Call{PertenceProvado}{$p_i,P_i$}}\Comment{intervalos, depois inteiros de 128 bits}
+      \State tente $p_i\gets p_i+\theta(\bar v_i-p_i)$ para $\theta=2^{-45},2^{-40},\dots$\Comment{$\bar v_i$: média dos vértices}
+      \State \textbf{se} nenhum $p_i$ foi provado \textbf{então} $U\gets+\infty$
+    \EndIf
+  \EndFor
+  \State $U\gets$ extremo superior de $\sum_i\norm{p_{i+1}-p_i}$ em intervalos (se finito)
+  \ForOne{$i=0,\dots,m$}{$u_i\gets$ vetor com $\norm{u_i}\le1$ provado}
+  \State $L\gets\max\bigl(\text{extremo inferior de }D(u),\ \text{extremo inferior de }\norm{t-s}\bigr)$
+  \State \Return $(L,U)$\Comment{fecha se $L\ge c$ ou $U-L\le\tau$ (subtração dirigida)}
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+%==========================================================================
+\section{Polimento por pontos interiores}\label{sec:polimento}
+Quando a prova da seção anterior não fecha, precisamos de um caminho melhor ou de vetores \(u\) melhores, ou dos dois. O polimento resolve aproximadamente o próprio problema \eqref{eq:primal} com um método contínuo, que não toma decisões de sinal, e cujo subproduto são vetores duais quase ótimos, inclusive nos segmentos de comprimento zero.
+
+\subsection{O problema com barreira}
+Em coordenadas \(x=(p-s)/\sigma\) (origem em \(s\) e escala \(\sigma\) igual à maior diferença de coordenada em relação a \(s\)), cada aresta de \(P_i\) dá uma restrição \(n_f\cdot x_i\ge o_f\) com normal interna unitária \(n_f\). Para \(\mu>0\), minimizamos
+\begin{equation}\label{eq:barreira}
+f_\mu(x)=\sum_{i=0}^m\sqrt{\norm{x_{i+1}-x_i}^2+\mu^2}\;-\;\mu\sum_{i=1}^m\sum_{f\in F_i}\log\bigl(n_f\cdot x_i-o_f\bigr),
+\end{equation}
+com \(x_0=0\) e \(x_{m+1}=(t-s)/\sigma\) fixos. O primeiro termo suaviza as normas (é diferenciável mesmo com segmentos nulos), e o segundo mantém cada contato estritamente dentro do seu polígono. Escrevendo \(d_i=x_{i+1}-x_i\), definimos as \emph{direções suavizadas}
+\begin{equation}\label{eq:usuave}
+u_i=\frac{d_i}{\sqrt{\norm{d_i}^2+\mu^2}},\qquad \norm{u_i}<1 .
+\end{equation}
+Para segmentos longos, \(u_i\) é praticamente a direção do segmento; para segmentos curtos, sua norma cai suavemente até zero (\cref{fig:norma}). É isso que permite representar vetores como o \(u_1\) da \cref{sec:coincidentes}.
+
+\begin{figure}[ht]\centering\fignorma
+\caption{Norma da direção suavizada \(u=d/\sqrt{\norm d^2+\mu^2}\) em função de \(\norm d/\mu\): perto de 1 para segmentos longos, abaixo de 1 para segmentos curtos e nula para segmentos de comprimento zero.}\label{fig:norma}
+\end{figure}
+
+\subsection{Por que o polimento produz um bom limite inferior}
+\begin{proposicao}\label{prop:barreira}
+Se \(x\) é ponto estacionário de \(f_\mu\) e \(u\) é dado por \eqref{eq:usuave}, então, em coordenadas escaladas,
+\[
+D(u)\;\ge\;\sum_{i=0}^m\norm{x_{i+1}-x_i}\;-\;\mu\,(m+1+F),\qquad F=\textstyle\sum_i\abs{F_i}.
+\]
+\end{proposicao}
+\begin{proof}
+A derivada de \eqref{eq:barreira} em relação a \(x_i\) (\(1\le i\le m\)) é \(u_{i-1}-u_i-\sum_{f\in F_i}\lambda_fn_f\), com \(\lambda_f=\mu/(n_f\cdot x_i-o_f)>0\). Na estacionariedade, \(u_{i-1}-u_i=\sum_f\lambda_fn_f\). Para todo \(v\in P_i\), \(n_f\cdot v\ge o_f\), logo
+\[
+v\cdot(u_{i-1}-u_i)\ge\sum_f\lambda_fo_f=\sum_f\lambda_f\bigl(n_f\cdot x_i-(n_f\cdot x_i-o_f)\bigr)=x_i\cdot(u_{i-1}-u_i)-\mu\abs{F_i}.
+\]
+Somando sobre \(i\) e somando \(x_{m+1}\cdot u_m\), o lado direito telescopa para \(\sum_{i=0}^mu_i\cdot d_i-\mu F\) (com \(x_0=0\)). Por fim, \(u_i\cdot d_i=\norm{d_i}^2/\sqrt{\norm{d_i}^2+\mu^2}\ge\norm{d_i}-\mu\).
+\end{proof}
+Em coordenadas originais a perda é \(\sigma\mu(m+1+F)\). Isso diz quanto \(\mu\) precisa diminuir: para um gap alvo \(\tau\), basta \(\mu_{\text{fim}}=\tau/\bigl(2\sigma(m+1+F)\bigr)\). A proposição é só uma justificativa da escolha de \(\mu\): os limites usados são sempre os da prova intervalar (\cref{alg:prova}), aplicada aos contatos e aos vetores que o polimento produz. Um ponto não estacionário ou um erro numérico apenas enfraquece \(L\).
+
+\subsection{O passo de Newton}
+O gradiente de \eqref{eq:barreira} em \(x_i\) envolve só \(x_{i-1}\), \(x_i\) e \(x_{i+1}\); a hessiana é, portanto, \emph{tridiagonal por blocos} \(2\times2\). O bloco do segmento \(d_i\) é \((I-u_iu_i^{\top})/\sqrt{\norm{d_i}^2+\mu^2}\), que entra positivo nos blocos diagonais dos dois extremos e negativo no bloco fora da diagonal; cada face soma \((\mu/s_f^2)\,n_fn_f^\top\) ao bloco diagonal do seu contato (\(s_f\) é a folga), e somamos \(10^{-14}I\) por estabilidade. O sistema de Newton se resolve por eliminação de blocos em \(O(m)\) operações. A busca linear é de Armijo (decréscimo suficiente com constante \(0{,}01\), passo cortado pela metade), mantendo todas as folgas positivas.
+
+Dois detalhes numéricos importam. Primeiro, o critério de parada de cada nível exige um decremento de Newton muito pequeno, \(-g^\top\Delta x<10^{-10}\mu\): com \(\mu\) pequeno a hessiana da barreira é grande e esconde resíduos de estacionariedade que estragariam o dual; um critério de \(10^{-3}\mu\) deixava o limite inferior \(10^{-4}\) abaixo do ótimo num teste em que o critério atual o deixa \(5\times10^{-7}\) abaixo. Segundo, perto da convergência a melhora prevista pode ficar abaixo da resolução de \(f_\mu\) em \texttt{binary64}, e o teste de Armijo deixa de enxergar progresso; quando isso acontece (\(-g^\top\Delta x\le64\,\epsilon_{\text{mach}}\abs{f_\mu}\)), aceitamos o maior passo da sequência \(1,\frac12,\frac14,\dots\) que mantém o ponto estritamente viável.
+
+\subsection{Níveis de barreira e ponto de partida}
+O polimento parte da proposta que a prova intervalar tentou: cada contato é puxado uma fração \(2^{-7}\) em direção à média dos vértices do seu polígono, para ficar estritamente interior. Começa em \(\mu_0=\max(\mu_{\text{fim}},\min(10^{-3},10^4\mu_{\text{fim}}))\) (ou \(0{,}1\) sem proposta) e divide \(\mu\) por 10 a cada nível. Ao fim de cada nível, os contatos e os vetores \eqref{eq:usuave} passam pela prova (\cref{alg:prova}); o polimento termina assim que ela fecha, depois do nível \(\mu_{\text{fim}}\), ou após 600 iterações de Newton. Num teste de replay, variar a razão inicial entre \(10^2\) e \(10^4\) e a fração entre \(2^{-12}\) e \(2^{-7}\) não mudou o tempo; o ponto de partida não é o gargalo.
+
+\begin{algorithm}[ht]\small
+\caption{Polimento por pontos interiores (\code{tpp\_convex\_solve\_float\_certified}).}\label{alg:polimento}
+\begin{algorithmic}[1]
+\Function{Polimento}{$s,t,P,\tau,c,\text{proposta}$}
+  \State normalize cada $P_i$ (sentido anti-horário, sem vértices repetidos); falha se área nula
+  \State $x_i\gets\bar v_i+(1-2^{-7})(\text{proposta}_i-\bar v_i)$, em coordenadas escaladas
+  \State $\mu_{\text{fim}}\gets\max\bigl(10^{-15},\tau/(2\sigma(m+1+F))\bigr)$; $\mu\gets\mu_0$
+  \Loop
+    \While{iterações $<600$}
+      \State resolva o sistema de Newton tridiagonal por blocos $\to\Delta x$
+      \IfThen{$-g^\top\Delta x<10^{-10}\mu$}{\textbf{interrompa}}
+      \State busca linear (Armijo, ou passo viável se abaixo da resolução); $x\gets x+\alpha\Delta x$
+    \EndWhile
+    \State $(L,U)\gets$ \Call{ProvaLimites}{$s,t,P,\;s+\sigma x,\;u(x,\mu)$}\Comment{\cref{alg:prova}}
+    \IfThen{$L\ge c$ \textbf{ou} $U-L\le\tau$}{\Return \textsc{fechado}$(L,U)$}
+    \IfThen{$\mu\le\mu_{\text{fim}}$ \textbf{ou} iterações $\ge600$}{\Return \textsc{aberto}$(L,U)$}
+    \State $\mu\gets\max(\mu_{\text{fim}},\mu/10)$
+  \EndLoop
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Comportamento observado}
+No exemplo \(t_A\) da \cref{sec:coincidentes}, com a tolerância que a busca usaria (\(\tau\approx0{,}0025\)), a prova intervalar falha e o polimento fecha em 19 iterações de Newton e 3 níveis de barreira, com \(L=9{,}99994\) e \(U=10{,}00029\). Nas chamadas reais dos casos 156, 417 e 419 que chegaram ao polimento, a mediana foi de 28 a 29 iterações de Newton e 3 níveis (máximo de 60 iterações), e nenhuma ficou aberta. Com gaps muito mais apertados que os da busca (por exemplo \(10^{-7}\) absoluto em comprimentos da ordem de 10), o método pode parar antes de fechar; os limites continuam válidos e a chamada vai para o fluxo exato. Essa é uma limitação da natureza do método, não da implementação: a resolução de \texttt{binary64} limita a precisão do ponto estacionário.
+
+%==========================================================================
+\section{O oráculo completo}\label{sec:oraculo}
+A \cref{fig:fluxo} e o \cref{alg:oraculo} mostram como as peças se encaixam no padrão atual (\code{float\_recovery}).
+
+\begin{figure}[ht]\centering\figfluxo
+\caption{Esquema do fluxo de uma chamada, com as frações observadas nas 27.525.200 chamadas dos 558 casos (dantzig, binário \code{ded35f2}).}\label{fig:fluxo}
+\end{figure}
+
+\begin{algorithm}[ht]\small
+\caption{Oráculo de ordem fixa no padrão atual (\code{tpp\_convex\_solve\_certified}).}\label{alg:oraculo}
+\begin{algorithmic}[1]
+\Function{Oráculo}{$s,t,P,\tau,c$}
+  \IfThen{alguma região tem menos de três vértices distintos}{\Return fluxo exato}
+  \State classifique os pares de regiões (disjuntas ou não) com o cache do \emph{workspace}
+  \State traço em \texttt{double}: busca binária (disjuntos) ou mapas direcionais (interseção)
+  \State $(L,U)\gets$ \Call{ProvaLimites}{traço refeito e reparado em \texttt{double}, direções e políticas}
+  \If{não fechou, há interseção e uma heurística indica contato de fronteiras}
+    \State refaça a prova com a proposta dos polígonos contraídos por $2^{-20}$
+  \EndIf
+  \IfThen{fechou}{\Return $(L,U)$}
+  \State $(L,U)\gets$ \Call{Polimento}{$s,t,P,\tau,c$, contatos que a prova tentou}
+  \IfThen{fechou}{\Return $(L,U)$}
+  \State \Return fluxo exato: replay racional + KKT; corte dual racional; recuperações; solver racional
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Classificação e caches} Cada \emph{workspace} (um por thread da busca) converte uma região, na primeira vez que a vê, para a representação exata e para a forma \texttt{binary64} normalizada, e guarda as duas (até 8.192 vértices; acima disso o cache é esvaziado). A classificação de cada par como disjunto ou não usa testes exatos na primeira consulta e também fica guardada. Contatos de aresta ou vértice contam como interseção.
+
+\paragraph{Proposta contraída} Quando a primeira prova falha num caso com interseção e uma heurística indica contato de fronteiras, o oráculo tenta uma segunda proposta: contrai cada região por \(2^{-20}\) em direção ao seu centro, resolve o caso disjunto resultante e remapeia o traço para os polígonos originais. A prova é sempre feita nos polígonos originais.
+
+\paragraph{O fluxo exato} Reproduz o traço em racional, materializa os contatos e verifica as condições KKT com inteiros exatos, incluindo uma propagação em disco e cone para blocos de contatos coincidentes~\cite{certificadociclo}; se não certificar, tenta um corte dual racional (quando há corte finito), uma recuperação por contração para fronteiras que se tocam, a recuperação filtrada e, por fim, o solver racional completo. Os limites exatos usam raízes quadradas em ponto fixo de 96 bits, arredondadas para fora. O fluxo exato também é o caminho para gap zero, que o polimento não atende, e para regiões degeneradas (pontos e segmentos).
+
+\paragraph{O último recurso} Até 08/10, o solver racional completo devolvia como \(L\) e \(U\) o comprimento exato do caminho que constrói, sem certificado independente; era o único ponto do oráculo em que os limites dependiam da correção da construção. Agora os contatos exatos desse caminho passam pelo verificador KKT exato de ciclos~\cite{certificadociclo}, aplicado ao ciclo que fecha o caminho de \(t\) de volta a \(s\), com os extremos como regiões de um ponto. Se a verificação falhar, o oráculo devolve como \(U\) o comprimento do caminho e como \(L\) o valor \(D(u)\) com as direções do próprio caminho, possivelmente com gap aberto, e o contador \code{oracle\_unverified\_fallbacks} registra o evento; contatos fora dos polígonos causam exceção. O caminho das regiões degeneradas, que antes causava exceção quando a verificação falhava, segue o mesmo procedimento. Nas 1.116 execuções da rodada completa (\cref{sec:medicoes}), nenhuma chamada chegou ao último recurso: no padrão atual, nenhuma chamada usou o fluxo exato e, na variante anterior, as 470.841 chamadas que o usaram foram certificadas nos passos anteriores (divisão na \cref{tab:dantzig}). Nos 3.200 casos aleatórios da suíte de testes (3.000 com caixas de coordenadas inteiras e 200 com polígonos convexos), um modo de diagnóstico executa o último recurso em toda chamada, e todos os caminhos passaram na verificação.
+
+\paragraph{Onde ainda há aritmética racional} Na conversão de cada região para o cache (16.360 conversões nos 558 casos), nos sinais de pertencimento que nem intervalos nem inteiros de 128 bits decidem (12.984 nos 558 casos, em 85 deles) e no fluxo exato, que não foi acionado.
+
+\paragraph{Contadores} A saída de \code{tpp-unordered} classifica cada chamada do modo caminho de exatamente uma forma: \code{oracle\_interval\_bound\_calls} (prova intervalar) \(+\) \code{oracle\_float\_calls} (polimento) \(+\) \code{oracle\_rational\_calls} \(=\) \code{calls}; as racionais se dividem em replay exato, filtradas, por contração e solver completo, e \code{oracle\_unverified\_fallbacks} conta as verificações do solver completo que falharam. \code{rational\_membership\_predicates} e \code{exact\_polygon\_preparations} contam os dois usos restantes.
+
+\subsection{Correção dos limites}\label{sec:correcao}
+O resultado abaixo junta as peças das seções anteriores. Ele segue o modelo dos \emph{algoritmos certificadores}~\cite{certificadores}: a construção só propõe, e um verificador simples decide o que chega à busca.
+
+\begin{teorema}\label{teo:correcao}
+Sejam \(s,t\in\R^2\) e \(P_1,\dots,P_m\) polígonos convexos fechados (pontos e segmentos inclusive), com coordenadas \texttt{binary64}. Suponha que, sempre que o teste de ambiente da \cref{sec:intervalos} aceita, as operações básicas de \texttt{binary64} sigam o IEEE~754 com arredondamento ao mais próximo. Se o oráculo devolve \((L,U)\), então
+\[
+L\;\le\;\OPT\;\le\;U,
+\]
+e \(U\) limita o comprimento de um caminho viável construído pelo oráculo. Isso vale quaisquer que sejam as decisões dos mapas de último passo, em \texttt{double} ou em racional; em particular, não depende da obrigação de prova da \cref{sec:intersecao}.
+\end{teorema}
+
+\begin{proof}
+O oráculo devolve limites em três tipos de ponto.
+
+\emph{(a) \Cref{alg:prova}}, aplicado ao traço, à proposta contraída ou ao resultado do polimento. Cada sinal de pertencimento é decidido por intervalos que contêm o valor exato (\cref{sec:intervalos}) ou por um cálculo exato do determinante (em inteiros ou, no oráculo híbrido, em racional); se o pertencimento de algum contato não é provado, \(U=+\infty\). Caso contrário, a poligonal \(s,p_1,\dots,p_m,t\) é viável, e seu comprimento não passa do extremo superior da soma intervalar; logo \(\OPT\le U\). Cada \(u_i\) tem \(\norm{u_i}\le1\) provado, então \(D(u)\le\OPT\) pela \cref{def:dual}, e o extremo inferior do intervalo que contém \(D(u)\) não passa de \(D(u)\). Como todo caminho de \(s\) a \(t\) mede pelo menos \(\norm{t-s}\), o extremo inferior do intervalo de \(\norm{t-s}\) também é cota inferior. Logo \(L\le\OPT\).
+
+\emph{(b) Certificado KKT exato}: replay exato, recuperação por contração, recuperação filtrada e último recurso verificado. Os contatos \(p_i\) são racionais, obtidos por recortes exatos do caminho contra cada \(P_i\), ou têm o pertencimento provado pelo verificador. Com \(d_i=p_{i+1}-p_i\), o verificador prova, em aritmética exata, que existem \(u_0,\dots,u_m\), com \(u_i=d_i/\norm{d_i}\) se \(d_i\ne0\) e \(\norm{u_i}\le1\) se \(d_i=0\), tais que \((v-p_i)\cdot(u_{i-1}-u_i)\ge0\) para todo vértice \(v\) de \(P_i\) (portanto, por linearidade, para todo \(v\in P_i\)). Então o mínimo de cada termo de \eqref{eq:dual} é atingido em \(p_i\), e a identidade da \cref{sec:inferior} dá
+\[
+D(u)=\sum_{i=0}^m u_i\cdot d_i=\sum_{i=0}^m\norm{d_i}=\ell,
+\]
+o comprimento do caminho, porque \(u_i\cdot d_i=\norm{d_i}\) quando \(d_i\ne0\) e ambos os lados valem zero quando \(d_i=0\). Pela dualidade fraca, \(\ell=D(u)\le\OPT\le\ell\): o caminho é ótimo. Os limites devolvidos são somas de raízes em ponto fixo arredondadas para baixo e para cima, logo \(L\le\ell=\OPT\le U\). Sem regiões (\(m=0\)), \(\OPT=\norm{t-s}\) é cercado da mesma forma. No último recurso e nas regiões degeneradas, o verificador é o de ciclos, aplicado ao ciclo \(s,p_1,\dots,p_m,t\) com as regiões \(\{s\},P_1,\dots,P_m,\{t\}\): todo ciclo viável desse problema mede o mesmo que um caminho viável mais a constante \(\norm{t-s}\), então o ciclo é ótimo se e só se o caminho é.
+
+\emph{(c) Corte dual racional e último recurso sem certificado.} \(U\) é, como em (b), o comprimento arredondado para cima de um caminho cujos contatos racionais estão comprovadamente em seus polígonos. \(L\) é o maior entre os valores de \(D(u)\) calculados exatamente em racional para algumas escolhas de \(u\), e um limite racional de \(\norm{t-s}\), arredondado para baixo. As escolhas usam \(u_i=d_i/N_i\), com \(N_i\ge\norm{d_i}\) um limite superior racional da raiz; nos segmentos de comprimento zero, usam o vetor nulo, o vetor de um vizinho ou a direção de \(s\) para \(t\) dividida da mesma forma. Todos têm \(\norm{u_i}\le1\), logo \(L\le\OPT\) como em (a).
+
+Nos três casos, \(L\le\OPT\le U\). Nenhum passo usou a otimalidade do caminho proposto, só sua viabilidade, provada diretamente; a otimalidade, quando afirmada, vem do certificado em (b).
+\end{proof}
+
+O teorema garante que todo limite devolvido é verdadeiro, não que a chamada feche o gap. Se a construção errar e o polimento não convergir, a chamada pode ficar aberta. Numa folha (ordem completa), a busca mantém o limite desse nó no seu limite inferior global e termina sem declarar o gap fechado (\code{termination} igual a \code{numerical\_limit}). É aí que entram a obrigação de prova da \cref{sec:intersecao} e a convergência do polimento: na eficiência e na garantia de fechar, não na correção. Na busca, o limite de um nó vale para todas as suas extensões, porque omitir regiões e trocar uma região pelo seu fecho convexo só relaxam o problema~\cite{ordemlivre}; assim, um gap que a busca declara fechado é verdadeiro. Por fim, o teorema trata do procedimento descrito neste relatório; a correspondência com o código foi conferida por leitura e por testes, não por verificação formal.
+
+%==========================================================================
+\section{Medições}\label{sec:medicoes}
+Todas as medições usam o corpus de 558 instâncias de Fekete et al.~\cite{fekete} (\path{benchmarks/results-saved/fekete-comparison/instances.bin}), gap global \(U\le1{,}001L\) (absoluto zero), uma thread por instância e validação independente dos caminhos com Shapely (tolerância \(10^{-7}\)). ``Fechou'' significa gap fechado, não ótimo algébrico. Ganhos são médias geométricas de razões de tempo por caso. Os resumos e as limitações de cada campanha estão em \path{benchmarks/results-saved/README.md}; os dados brutos ficam nas campanhas locais.
+
+\subsection{A evolução de 21/09 a 06/10}
+Compilamos 12 revisões do solver e as rodamos na mesma máquina (dantzig, Intel i9-12900K) em 36 casos estratificados, com 3 repetições~\cite{historico}. Do binário de 21/09 ao de 06/10, o ganho foi de 25,6× (IC 95\% por \emph{bootstrap} nos casos: 22,3–29,5×), dos quais 1,33× vêm de menos chamadas ao oráculo e 19,3× de chamadas mais baratas (\cref{fig:historico}). A maior etapa isolada (3,9×) foi a introdução dos limites intervalares e da recuperação filtrada em 03/10; a troca do racional do Boost pelo GMP rendeu 1,7×. A amostra exclui os casos que levavam mais de 60 s em 21/09.
+
+\begin{figure}[ht]\centering\fighistorico
+\caption{Ganho acumulado sobre o binário de 21/09, mesma máquina e mesmos 36 casos. Rótulos com ``a/b'' distinguem dois commits do mesmo dia (03/10: limites intervalares e recuperação filtrada; geometria emprestada; 05/10: limites de visita; aritmética exata homogênea).}\label{fig:historico}
+\end{figure}
+
+\subsection{O polimento no lugar das etapas racionais}
+\paragraph{Replay} Nas 55.454 chamadas capturadas dos casos 156, 417 e 419 (\cref{sec:evidencias}), o oráculo em ponto flutuante fechou todas, sem nenhum par de limites incompatível com o oráculo exato (isto é, nunca \(L_{\text{float}}>U_{\text{exato}}\) nem \(L_{\text{exato}}>U_{\text{float}}\)). Nos casos mais difíceis, o polimento entrou em 5–14\% das chamadas e ocupou 15–34\% do tempo do oráculo; uma chamada que fecha pela prova intervalar custa da ordem de 10 µs, e uma que vai ao polimento, 65–92 µs (medianas, Mac M4 Pro).
+
+\paragraph{Ablação no Mac} Comparando o padrão com \code{-{}-no-float-recovery} (mesmo binário, variantes intercaladas por caso, uma repetição), o ganho foi de 1,50× (0,99–3,57×) no conjunto difícil de 19 casos e de 1,72× (0,98–4,46×) no conjunto de validação de 18 casos, sorteado antes de medir. As 74 execuções fecharam e validaram, com 279.509 chamadas resolvidas pelo polimento e nenhuma no fluxo exato.
+
+\paragraph{Corpus completo na dantzig} A \cref{tab:dantzig} resume a rodada nos 558 casos. A máquina estava compartilhada (\emph{load average} em torno de 7), e em 60 casos as duas variantes rodaram com cargas diferentes no núcleo; nos casos em que as duas fizeram exatamente a mesma busca, a razão foi 1,00 com cargas iguais e chegou a 1,38 com cargas diferentes. Por isso as razões consideram só os 498 pares com a mesma carga (\cref{fig:dispersao}).
+
+\begin{table}[ht]\centering\small
+\begin{tabular}{@{}lrr@{}}\toprule
+& Padrão & \code{-{}-no-float-recovery}\\\midrule
+Execuções que fecharam e validaram & 558/558 & 558/558\\
+Chamadas ao oráculo & \num{27525200} & \num{27777587}\\
+\quad fechadas pela prova intervalar & \num{27145795} & \num{27306746}\\
+\quad fechadas pelo polimento & \num{379405} & ---\\
+\quad com etapa racional & \textbf{0} & \num{470841}\\
+Sinais de pertencimento decididos em racional & \num{12984} & \num{13128}\\\midrule
+Ganho, casos \(\ge0{,}1\) s (125 pares) & \multicolumn{2}{c}{1,51× (mín. 0,97×)}\\
+Ganho, casos \(\ge1\) s (40 pares) & \multicolumn{2}{c}{1,52× (mín. 0,98×)}\\
+Soma dos tempos (498 pares) & \multicolumn{2}{c}{468,8 s \(\to\) 283,7 s (1,65×)}\\\bottomrule
+\end{tabular}
+\caption{Corpus completo na dantzig, binário \code{ded35f2}, 4 casos simultâneos com o solver fixado em núcleos de performance, uma repetição. As 470.841 chamadas racionais da referência foram 262.444 de replay exato e KKT, 155.575 de recuperação filtrada e 52.822 de recuperação por contração.}\label{tab:dantzig}
+\end{table}
+
+\begin{figure}[ht]\centering\figdispersao
+\caption{Razão de tempo por caso (referência/padrão), nos 330 pares com a mesma carga e referência de pelo menos 1 ms. Média geométrica: 1,59× nos 213 casos em que o polimento foi usado e 1,04× nos 117 em que não foi (nesses, a busca é a mesma e a diferença é ruído). As razões abaixo de 0,9 são casos de 1 a 13 ms.}\label{fig:dispersao}
+\end{figure}
+
+\subsection{O custo da garantia}\label{sec:confiar}
+Para medir o que a certificação custa e o que ela evita, criamos uma opção de diagnóstico, \code{-{}-trust-double}, em que o oráculo devolve o caminho do traço em \texttt{double} e usa o seu comprimento como limite inferior e superior, como faria um solver numérico. Rodamos os 558 casos no Mac, intercalando essa variante com a certificada.
+
+A busca sem certificado declarou o gap fechado nos 558 casos, e todos os seus caminhos passaram na validação geométrica. Mas, comparando com os resultados certificados: em 46 casos o limite inferior declarado ficou acima do comprimento de um caminho viável conhecido (até 3,2\% acima, uma afirmação provadamente falsa), e em 44 casos (7,9\%) o caminho final ficou mais de 0,1\% acima do ótimo certificado (mediana de 0,24\%, máximo de 3,3\%). A causa são podas com valores superestimados. Todos esses casos têm polígonos que se tocam ou se sobrepõem (\cref{fig:confianca}). Em troca, a variante sem certificado foi apenas 1,26× mais rápida nos casos acima de 1 ms e 1,18× nos acima de 0,1 s.
+
+\begin{figure}[ht]\centering\figconfianca
+\caption{Fração de instâncias em que a busca sem certificado erra (limite inferior falso ou caminho fora do gap), por geometria dos polígonos originais (classificação com Shapely; entre parênteses, o número de instâncias).}\label{fig:confianca}
+\end{figure}
+
+\subsection{Comparação com Fekete et al.}
+Na comparação de 06/10 na dantzig (binário \code{470a0c9}, anterior ao padrão atual), o nosso solver fechou os 558 casos e o de Fekete et al.~\cite{fekete} fechou 553 (os outros cinco ficaram dias sem fechar); nos 553, o nosso foi mais rápido em todos, com razão mediana de 41,3× e média geométrica de 49,8×. A comparação não é igual por igual, e a diferença favorece o outro solver: os limites dele são numéricos (tolerâncias do Gurobi), sem garantia, e, na configuração original, ele considera um polígono visitado quando a distância do caminho até ele é no máximo \(10^{-3}\) nas unidades da instância (\code{FEASIBILITY\_TOLERANCE}), enquanto os nossos contatos são provados dentro dos polígonos e os caminhos são validados a \(10^{-7}\). Pela \cref{sec:confiar}, remover a nossa certificação aumentaria a vantagem em só cerca de 20\%, e ao preço de respostas erradas.
+
+%==========================================================================
+\section{Limitações e questões em aberto}
+\begin{itemize}[leftmargin=*,itemsep=2pt]
+\item \textbf{Prova da construção com interseção.} A obrigação de prova registrada no tutorial continua em aberto. Pelo \cref{teo:correcao}, os limites não dependem dela; dependem dela a garantia de que o fluxo exato fecha qualquer gap, inclusive zero, e a qualidade do traço em \texttt{double}, da qual depende a eficiência.
+\item \textbf{Ambiente.} A prova intervalar supõe IEEE \texttt{binary64} com arredondamento ao mais próximo e raiz quadrada corretamente arredondada; o código verifica o ambiente e cai no fluxo exato se ele não for suportado.
+\item \textbf{Gaps apertados.} Com tolerâncias muito menores que as da busca, o polimento pode não fechar; a chamada usa o fluxo exato.
+\item \textbf{Alcance.} O padrão vale para o oráculo de caminho. O oráculo de ciclo do TSPN e as regiões degeneradas (pontos e segmentos) ainda usam etapas racionais; estender o polimento a ciclos é o passo seguinte mais promissor.
+\item \textbf{Medições.} A rodada completa na dantzig foi feita com a máquina compartilhada e uma repetição, e só as razões com a mesma carga são confiáveis; falta uma medição com a máquina ociosa e um processo por vez. Os conjuntos difícil e de validação têm 19 e 18 casos.
+\end{itemize}
+
+%==========================================================================
+\appendix
+\section{Notação}
+\begin{center}\small
+\begin{tabular}{@{}ll@{}}\toprule
+\(s,t\) & extremos do caminho\\
+\(P_1,\dots,P_m\) & regiões convexas na ordem de visita\\
+\(p_i\) & contato com \(P_i\); \(p_0=s\), \(p_{m+1}=t\)\\
+\(\OPT\) & comprimento ótimo do subproblema de ordem fixa\\
+\(L,U\) & limites inferior e superior provados\\
+\(\tau,c\) & tolerância e corte de uma chamada\\
+\(u_i\) & vetor dual do segmento \(i\), \(\norm{u_i}\le1\)\\
+\(D(u)\) & limite dual \eqref{eq:dual}\\
+\(\mu,\sigma\) & parâmetro de barreira e escala do polimento\\
+\(F_i\) & faces (arestas) de \(P_i\); \(F=\sum_i\abs{F_i}\)\\\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Guia do código}
+\begin{center}\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{42mm}>{\raggedright\arraybackslash}p{103mm}@{}}\toprule
+Peça & Onde (\path{packages/convex-tpp/cpp/src/solvers/}, salvo indicação)\\\midrule
+Oráculo de caminho & \code{tpp\_convex\_solve\_certified} em \path{certified.cpp}\\
+Fluxo híbrido e exato & \code{solve\_hybrid\_impl}, \code{try\_interval\_trace\_bound}, \code{certify}, \code{set\_exact\_bounds}, \code{set\_verified\_bounds} em \path{hybrid.cpp}\\
+Verificador KKT de ciclos & \code{tpp\_convex\_verify\_cycle\_certificate} em \path{cycle_certificate.cpp}\\
+Polimento & \code{tpp\_convex\_solve\_float\_certified} em \path{float_oracle.cpp}\\
+Mapas direcionais & \path{intersecting_maps.cpp} (três tipos numéricos)\\
+Caso disjunto & \code{SolutionBinarySearchDisjoint} em \path{binary_search.cpp}\\
+Intervalos e sinais & \path{cycle_interval.h}, \path{binary_certificate.h}, \path{binary_dual.h}\\
+Uso na busca & \path{packages/nonconvex-tpp/cpp/src/solvers/unordered.cpp}\\
+Replay de chamadas & \path{main-path_oracle_replay.cpp}; captura com \code{-{}-oracle-capture}\\\bottomrule
+\end{tabular}
+\end{center}
+
+\clearpage
+\begin{thebibliography}{9}\small\raggedright
+\bibitem{dror} M.~Dror, A.~Efrat, A.~Lubiw e J.~S.~B. Mitchell. \emph{Touring a sequence of polygons}. Proceedings of STOC 2003, pp.~473--482. \href{https://doi.org/10.1145/780542.780612}{doi:10.1145/780542.780612}.
+\bibitem{tanjiang} X.~Tan e B.~Jiang. \emph{Efficient algorithms for touring a sequence of convex polygons and related problems}. TAMC 2017, LNCS 10185, pp.~614--627. \href{https://doi.org/10.1007/978-3-319-55911-7_44}{doi:10.1007/978-3-319-55911-7\_44}.
+\bibitem{fekete} S.~P. Fekete, R.~Kniep, D.~Krupke e M.~Perk. \emph{A branch-and-bound algorithm for the traveling salesman problem with difficult neighborhoods}. SoCG 2026 (versão anterior no EuroCG 2025). Solver usado: fork em \path{third_party/tspn-socg}.
+\bibitem{tutorial} TouringPolygons. \emph{A tutorial on fixed-order convex touring polygons and directional last-step maps}, 2026. \path{docs/reports/directional-tpp-tutorial/main.tex}.
+\bibitem{contraexemplo} TouringPolygons. \emph{A counterexample to the stated pseudo-vertex construction for intersecting convex polygon tours}, 2026. \path{docs/reports/intersection-counterexample/report.tex}.
+\bibitem{correcao} TouringPolygons. \emph{Corrected directional last-step maps}, 13 de setembro de 2026. \path{docs/algorithms/intersecting-tpp-correction.md}.
+\bibitem{auditoria} TouringPolygons. \emph{Intersecting convex TPP: mathematical audit}, 13 de setembro de 2026. \path{docs/algorithms/intersecting-tpp-audit.md}.
+\bibitem{certificadociclo} TouringPolygons. \emph{Convex cycle certificate}. \path{docs/algorithms/convex-cycle-certificate.md}.
+\bibitem{certificadores} R.~M. McConnell, K.~Mehlhorn, S.~Näher e P.~Schweitzer. \emph{Certifying algorithms}. Computer Science Review 5(2):119--161, 2011.
+\bibitem{ordemlivre} TouringPolygons. \emph{TPP não convexo com ordem livre}, seção ``Por que a ramificação é completa''. \path{docs/algorithms/unordered-tpp.md}.
+\bibitem{experimentos} TouringPolygons. \emph{Estratégias de performance do TPP de ordem livre}. \path{docs/algorithms/unordered-tpp-experiments.md}.
+\bibitem{historico} TouringPolygons. Seções \code{free-order-history-2026-10-07}, \code{tpp-float-oracle-2026-10-08}, \code{float-recovery-dantzig-2026-10-08} e \code{trust-double-2026-10-08} de \path{benchmarks/results-saved/README.md}.
+\end{thebibliography}
+\end{document}

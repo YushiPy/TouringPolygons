@@ -48,6 +48,15 @@ namespace tpp {
 		// Additional feasible dual proposal for short/coincident contact blocks.
 		bool interpolated_zero_dual = false;
         bool retain_binary_dual = false;
+		// With a positive gap or a finite cutoff, keep the hybrid interval
+		// proof but replace everything after it (exact replay, KKT, filtered
+		// and rational recovery) with the binary64 polish of
+		// tpp_convex_solve_float_certified; open calls still finish in the
+		// hybrid oracle. Off here; the unordered search turns it on.
+		bool float_recovery = false;
+		// Diagnostic only (unsafe): take the uncertified binary64 trace length
+		// as both bounds, as a numerical solver would; see --trust-double.
+		bool trust_double = false;
 
 		void reserve(size_t max_polygons, size_t max_total_vertices);
 		ConvexTppWorkspaceView prepare(size_t polygon_count, size_t total_vertices);
