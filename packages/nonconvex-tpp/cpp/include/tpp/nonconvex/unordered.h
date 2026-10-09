@@ -337,6 +337,9 @@ namespace tpp {
 		size_t polygon_vertices_max = 0;
 		double order_space_log2 = 0.0;
 		size_t fallback_calls = 0;
+		// Full rational solves whose path failed the exact KKT certificate; their
+		// bounds remain certified but need not close the gap.
+		size_t oracle_unverified_fallbacks = 0;
 		size_t fallback_geometric_path_invalid_calls = 0;
 		size_t fallback_certificate_gap_calls = 0;
 		size_t fallback_locator_exception_calls = 0;

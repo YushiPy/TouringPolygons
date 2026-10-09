@@ -100,6 +100,7 @@ namespace tpp {
 			 hybrid.fallback_reason==ConvexFallbackReason::ContactConstruction ||
 			 hybrid.fallback_reason==ConvexFallbackReason::MembershipOrOrdering);
 		result.fallback_certificate_gap=result.used_fallback && !result.fallback_geometric_path_invalid;
+		result.fallback_unverified=hybrid.stats.rational_fallback_unverified;
 		result.predicate_exact_evaluations=hybrid.stats.predicate_exact_evaluations;
 		result.dispatch_pair_queries=hybrid.stats.dispatch_pair_queries;
 		result.dispatch_pair_cache_hits=hybrid.stats.dispatch_pair_cache_hits;

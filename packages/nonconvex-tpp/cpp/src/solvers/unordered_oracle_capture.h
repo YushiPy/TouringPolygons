@@ -80,6 +80,7 @@ public:
         stream<<",\"proposal_calls\":"<<result.proposal_calls<<",\"proposal_accepts\":"<<result.proposal_accepts
               <<",\"used_interval_bounds\":"<<(result.used_interval_bounds?"true":"false")
               <<",\"used_fallback\":"<<(result.used_fallback?"true":"false")
+              <<",\"fallback_unverified\":"<<(result.fallback_unverified?"true":"false")
               <<",\"dual_cutoff_pruned\":"<<(result.dual_cutoff_pruned?"true":"false")
               <<",\"fallback_reason\":"<<static_cast<int>(result.fallback_reason);
         stream<<"}\n";stream.flush();

@@ -621,7 +621,11 @@ No modo caminho, cada chamada fecha de exatamente um jeito:
 `calls = oracle_interval_bound_calls + oracle_float_calls + oracle_rational_calls`.
 As racionais se dividem em `oracle_exact_replay_calls` (replay exato e KKT),
 `oracle_filtered_calls`, `oracle_touching_calls` e `fallback_calls` (solver
-racional completo). Fora delas, `rational_membership_predicates` conta os sinais
+racional completo). `oracle_unverified_fallbacks` conta as chamadas do solver
+racional completo cujo caminho não passou no certificado KKT exato: elas
+devolvem só limites certificados, possivelmente com gap aberto. Como o teste
+KKT é necessário e suficiente, um valor diferente de zero indica um caminho não
+ótimo da construção (ou um erro do verificador), a investigar. Fora delas, `rational_membership_predicates` conta os sinais
 de pertencimento que nem intervalos nem o determinante inteiro decidiram, e
 `exact_polygon_preparations` conta os polígonos convertidos para racional no
 cache do workspace (uma vez por polígono e por worker). No ciclo,

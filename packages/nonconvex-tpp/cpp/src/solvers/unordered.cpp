@@ -1338,6 +1338,7 @@ namespace tpp {
             }
             node.relaxed_length = certified.upper_bound;
 			result.fallback_calls += certified.used_fallback;
+			result.oracle_unverified_fallbacks += certified.fallback_unverified;
 			result.oracle_interval_bound_calls += certified.used_interval_bounds;
 			result.oracle_float_calls += certified.used_float_oracle;
 			result.oracle_float_fallbacks += certified.float_oracle_fallback;
@@ -2390,6 +2391,7 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::decomposed_polygons);
         sum(&UnorderedTppSolveResult::convex_pieces_generated);
         sum(&UnorderedTppSolveResult::fallback_calls);
+        sum(&UnorderedTppSolveResult::oracle_unverified_fallbacks);
         sum(&UnorderedTppSolveResult::oracle_interval_bound_calls);
         sum(&UnorderedTppSolveResult::oracle_float_calls);
         sum(&UnorderedTppSolveResult::oracle_float_fallbacks);

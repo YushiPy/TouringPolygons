@@ -26,6 +26,9 @@ namespace tpp {
 		bool used_contracted_proposal = false;
 		bool fallback_geometric_path_invalid = false;
 		bool fallback_certificate_gap = false;
+		// The full rational solve failed the exact KKT certificate: the bounds
+		// are its certified length and dual, possibly with an open gap.
+		bool fallback_unverified = false;
 		bool used_extended_precision = false;
 		bool repaired_geometric_path = false;
 		bool dual_cutoff_pruned = false;

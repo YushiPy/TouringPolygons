@@ -25,7 +25,8 @@ A validação segura:
 5. tenta recuperar uma candidata rejeitada de polígonos intersectantes com
    predicados filtrados do mesmo mapa direcional;
 6. usa o solver racional correspondente quando a recuperação também não pode
-   ser certificada.
+   ser certificada, e verifica o caminho dele com o certificado KKT exato de
+   ciclos (detalhes abaixo).
 
 `TPP_HOMOGENEOUS_ZERO_DUAL`, ativada por padrão, representa direções e normais
 da propagação dual de contatos coincidentes com inteiros arbitrários, no mesmo
@@ -41,6 +42,21 @@ estão em [convex-cycle-certificate.md](convex-cycle-certificate.md).
 
 Polígonos dois a dois disjuntos usam como fallback a recorrência estabelecida
 em aritmética racional. Casos com interseção usam mapas direcionais racionais.
+Desde 2026-10-08 o caminho desse último recurso também é verificado: os
+contatos exatos passam pelo certificado KKT exato de ciclos
+(`tpp_convex_verify_cycle_certificate`) nos polígonos originais, ancorados nos
+extremos como no caso de regiões degeneradas, de modo que a aresta de
+fechamento é constante e a otimalidade do ciclo equivale à do caminho. Com o
+certificado, os limites encerram o comprimento exato. Sem ele, o comprimento
+continua sendo limite superior, o limite inferior passa a ser o dual factível
+racional das direções do próprio caminho, e `rational_fallback_unverified`
+fica verdadeiro; a chamada pode então não fechar o gap, e a busca registra esse
+gap em vez de podar com um valor não provado. Contatos fora dos polígonos
+causam exceção. Assim, nenhum limite devolvido depende da correção das
+construções (Dror et al. para disjuntos, a adaptação com interseção, cuja
+obrigação de prova está em [intersecting-tpp-correction.md](intersecting-tpp-correction.md)).
+Regiões degeneradas usam o mesmo procedimento; antes, um caminho não
+certificado causava exceção.
 Uma falha de certificação significa apenas que a candidata rápida não foi
 provada; ela nunca autoriza usar seu comprimento como limite inferior.
 Quando o chamador fornece um corte finito, uma candidata materializada mas

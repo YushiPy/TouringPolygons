@@ -522,6 +522,7 @@ int main(int argc, char **argv) {
 			<< ",\"solver_seconds\":" << r.seconds
 			<< ",\"bnb_seconds\":" << r.search_seconds
 			<< ",\"fallback_calls\":" << r.fallback_calls
+			<< ",\"oracle_unverified_fallbacks\":" << r.oracle_unverified_fallbacks
 			<< ",\"fallback_geometric_path_invalid_calls\":" << r.fallback_geometric_path_invalid_calls
 			<< ",\"fallback_certificate_gap_calls\":" << r.fallback_certificate_gap_calls
 			<< ",\"fallback_locator_exception_calls\":" << r.fallback_locator_exception_calls

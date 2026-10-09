@@ -92,6 +92,28 @@ abertas por tamanho e as 25 restantes são de validação. Dados locais:
   racional (ver o contrato). O LB continua sendo o gargalo: 34 das 38 seguem
   abertas aos 600 s, com até 20% de gap nas instâncias de 61–100 regiões.
 
+## verified-fallback-2026-10-08
+
+**Mudança.** O último recurso do oráculo de caminho (solver racional completo)
+devolvia como LB e UB o comprimento do próprio caminho, sem certificado. Agora
+os contatos exatos passam pelo certificado KKT exato de ciclos; se ele falha, o
+oráculo devolve UB = comprimento e LB = dual das direções do caminho (contador
+`oracle_unverified_fallbacks`). **Verificação.** (1) Suíte direcional com 3.000
+caixas inteiras e 200 polígonos convexos aleatórios, em que o modo de
+diagnóstico `shadow_rational` executa o último recurso em toda chamada:
+484.502 checagens, 0 falhas, 0 verificações falhas. (2) Mesmo Mac, binário
+anterior (`739aacb`) × novo, 24 casos de `fekete-comparison/instances.bin`
+(0,05–1,5 s na dantzig, todos com chamadas racionais na variante
+`--no-float-recovery`), gap `UB ≤ 1,001·LB`, nas duas variantes: 48 pares com
+nós, chamadas, limites e todos os contadores idênticos, 96/96 execuções
+fechadas e validadas; 11.477 chamadas racionais na variante sem polimento,
+nenhuma no último recurso. **Leitura.** Sem efeito de desempenho, porque o
+último recurso não foi acionado em nenhuma medição (0 nas 1.116 execuções de
+`float-recovery-dantzig-2026-10-08`); o ganho é de correção: nenhum limite
+devolvido depende da construção dos mapas. **Limitações.** Uma repetição e
+poucos casos, suficientes para mostrar identidade, não para medir tempo. Dados
+em `experiments/verified-fallback-check` do workspace local.
+
 ## trust-double-2026-10-08
 
 **Pergunta.** O que acontece se o nosso solver jogar "nos termos do Fekete", isto

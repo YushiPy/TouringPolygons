@@ -46,7 +46,7 @@ const char *hybrid_path(const tpp::ConvexHybridResult &r) {
     if(s.interval_bounds_certified)return s.interval_bounds_contracted?"interval_contracted":"interval";
     if(s.touching_disjoint_certified)return "touching_disjoint";
     if(s.filtered_certified)return "filtered";
-    if(s.rational_fallback)return "rational";
+    if(s.rational_fallback)return s.rational_fallback_unverified?"rational_unverified":"rational";
     if(r.cutoff_pruned)return "dual_cutoff";
     if(s.double_certified)return "double_kkt";
     return "other";

@@ -60,6 +60,9 @@ struct ConvexHybridStats {
     bool touching_disjoint_certified = false;
     bool touching_disjoint_perturbed = false;
     bool rational_disjoint_directional_recovery = false;
+    // The rational construction's contacts failed the exact KKT certificate;
+    // the bounds are then its certified length and dual, with an open gap.
+    bool rational_fallback_unverified = false;
     std::size_t predicate_exact_evaluations = 0;
     // Polygons converted to exact rationals in this call (workspace cache misses).
     std::size_t exact_polygon_preparations = 0;
@@ -121,6 +124,7 @@ struct ConvexHybridAggregate {
     std::size_t rational_disjoint_fallbacks = 0;
     std::size_t rational_disjoint_directional_recoveries = 0;
     std::size_t rational_intersection_fallbacks = 0;
+    std::size_t unverified_rational_fallbacks = 0;
     std::array<std::size_t,9> fallback_reasons{};
     std::size_t predicate_exact_evaluations = 0;
     std::size_t zero_link_witnesses = 0;

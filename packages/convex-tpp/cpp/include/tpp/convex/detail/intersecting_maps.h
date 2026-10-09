@@ -130,4 +130,8 @@ namespace tpp::detail {
 ConvexRationalPolygon solve_intersecting_map_contacts_exact(
     const ConvexRationalPoint &start,const ConvexRationalPoint &target,
     const ConvexRationalPolygons &polygons);
+// Exact contacts of solve_disjoint_map_contacts (last contact on each visit).
+ConvexRationalPolygon solve_disjoint_map_contacts_exact(
+    const ConvexRationalPoint &start,const ConvexRationalPoint &target,
+    const ConvexRationalPolygons &polygons);
 }

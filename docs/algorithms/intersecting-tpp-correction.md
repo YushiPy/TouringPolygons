@@ -216,6 +216,16 @@ nevertheless overstate the result to label this an independently proved,
 universally correct implementation or to claim literal fidelity to Tan and
 Jiang's incorrect local rule.
 
+**Update, 8 October 2026.** The certified hybrid oracle no longer trusts this
+construction: every bound it returns is proved on the original polygons, by
+the interval primal-dual certificate or by the exact KKT certificate. This now
+includes the final complete rational solve. Its exact contacts pass the KKT
+certificate; when that fails, the oracle returns only the path's length and
+its own dual bound, which remain valid. The open obligations above
+therefore affect whether the oracle closes its gap and how fast it does so,
+not the correctness of its bounds
+([certified-convex-oracle.md](certified-convex-oracle.md)).
+
 ## Complexity and performance
 
 Write N for the total original vertices, k for the number of polygons, and M

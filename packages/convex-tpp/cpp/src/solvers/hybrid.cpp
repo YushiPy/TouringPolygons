@@ -39,6 +39,7 @@ struct AggregateRecorder {
         aggregate.rational_disjoint_fallbacks+=r.backend==ConvexHybridBackend::RationalDisjoint;
         aggregate.rational_disjoint_directional_recoveries+=r.stats.rational_disjoint_directional_recovery;
         aggregate.rational_intersection_fallbacks+=r.backend==ConvexHybridBackend::RationalIntersection;
+        aggregate.unverified_rational_fallbacks+=r.stats.rational_fallback_unverified;
         ++aggregate.fallback_reasons[static_cast<size_t>(r.fallback_reason)];
         aggregate.predicate_exact_evaluations+=r.stats.predicate_exact_evaluations;
         aggregate.zero_link_witnesses+=r.stats.zero_link_witnesses;
@@ -875,6 +876,33 @@ double candidate_dual_lower(Vector2 start,Vector2 target,
     return rational_lower(best);
 }
 
+// A rational construction's contacts are accepted as optimal only with the
+// exact cyclic KKT certificate on the original polygons. Singleton endpoint
+// anchors make the closing edge constant, so this is fixed-endpoint
+// optimality. Otherwise their length is still an upper bound and their
+// directions a feasible dual: the bounds stay certified and the gap stays
+// visible. Returns whether the certificate held.
+bool set_verified_bounds(ConvexHybridResult &result,Vector2 start,Vector2 target,
+        const ExactPolygons &polygons,const std::vector<Point> &contacts) {
+    ConvexRationalPolygons anchored{{Point(start)}};
+    for(const auto &polygon:polygons)anchored.push_back(polygon);
+    anchored.push_back({Point(target)});
+    ConvexRationalPolygon chain{Point(start)};
+    chain.insert(chain.end(),contacts.begin(),contacts.end());chain.emplace_back(target);
+    const auto certificate_began=Clock::now();
+    const auto certificate=tpp_convex_verify_cycle_certificate(anchored,chain);
+    result.stats.certificate_seconds+=elapsed(certificate_began);
+    result.stats.predicate_exact_evaluations+=certificate.exact_predicate_evaluations;
+    if(certificate.status!=ConvexCycleCertificateStatus::Optimal&&certificate.status!=ConvexCycleCertificateStatus::Feasible)
+        throw std::runtime_error("Rational construction returned contacts outside their polygons");
+    set_exact_bounds(result,start,target,contacts);
+    if(certificate.status==ConvexCycleCertificateStatus::Optimal)return true;
+    result.stats.rational_fallback_unverified=true;
+    PhaseTimer timer{result.stats.bound_evaluation_seconds};
+    result.lower_bound=candidate_dual_lower(start,target,polygons,contacts);
+    return false;
+}
+
 #ifdef TPP_HAS_INTERVAL_PRIMAL_DUAL
 using Interval=detail::CycleInterval;
 using IntervalPoint=detail::IntervalPoint;
@@ -1310,22 +1338,11 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
         const auto solve_began=Clock::now();
         const auto contacts=detail::solve_intersecting_map_contacts_exact(Point(start),Point(target),polygons);
         result.stats.rational_fallback_seconds=elapsed(solve_began);
-        ConvexRationalPolygons anchored{{Point(start)}};
-        anchored.insert(anchored.end(),polygons.begin(),polygons.end());
-        anchored.push_back({Point(target)});
-        ConvexRationalPolygon chain{Point(start)};
-        chain.insert(chain.end(),contacts.begin(),contacts.end()); chain.emplace_back(target);
-        const auto certificate_began=Clock::now();
-        const auto certificate=tpp_convex_verify_cycle_certificate(anchored,chain);
-        result.stats.certificate_seconds=elapsed(certificate_began);
-        result.stats.predicate_exact_evaluations=certificate.exact_predicate_evaluations;
-        if(certificate.status!=ConvexCycleCertificateStatus::Optimal)
-            throw std::runtime_error("Degenerate-region directional construction failed its optimality certificate");
+        set_verified_bounds(result,start,target,ExactPolygons(polygons),contacts);
         result.backend=ConvexHybridBackend::RationalIntersection;
         result.stats.rational_fallback=true;
         result.fallback_reason=ConvexFallbackReason::LowerDimensionalRegion;
         for(const auto &q:contacts) result.contacts.push_back(q.external());
-        set_exact_bounds(result,start,target,contacts);
         result.stats.total_seconds=elapsed(began);
         return result;
     }
@@ -1372,7 +1389,8 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
     };
     if(!workspace)result.stats.disjoint=pairwise_disjoint(polygons,result.stats);
     result.stats.dispatch_seconds=elapsed(dispatch_began);
-    if(input.empty()) {set_bounds(result,start,target);result.stats.total_seconds=elapsed(began);return result;}
+    // OPT=|t-s|; enclose the radical exactly rather than trust a library root.
+    if(input.empty()) {set_exact_bounds(result,start,target,{});result.stats.total_seconds=elapsed(began);return result;}
     std::vector<detail::DirectionalTraceStep> trace;
     std::vector<Point> exact_contacts;std::vector<ContactFeature> contact_features;
     auto candidate_dual=[&] {
@@ -1544,32 +1562,45 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
 #endif
     const auto fast_contacts=result.contacts;
     const auto fallback_began=Clock::now();
-    double rational_lower_bound=0,rational_upper_bound=0;
+    // The constructions receive the binary input, as their public entry
+    // points do; certification uses the normalized exact polygons.
+    ConvexRationalPolygons rational_input;rational_input.reserve(input.size());
+    for(const auto &p:input){ConvexRationalPolygon q;q.reserve(p.size());for(auto v:p)q.emplace_back(v);rational_input.push_back(std::move(q));}
+    ConvexRationalPolygon rational_contacts;
     if(result.stats.disjoint) {
         try {
-            const auto rational=detail::solve_rational_disjoint(start,target,input);
-            result.contacts=rational.contacts;rational_lower_bound=rational.lower_bound;rational_upper_bound=rational.upper_bound;
+            rational_contacts=detail::solve_rational_disjoint_exact(Point(start),Point(target),rational_input).contacts;
         } catch(const std::exception &) {
             // Coincident contacts and a few boundary degeneracies make the
             // established cone recurrence undefined.  The exact directional
-            // construction remains a proof-grade recovery for those cases.
-            const auto rational=detail::solve_disjoint_map_contacts_with_bounds(start,target,input);
-            result.contacts=rational.contacts;rational_lower_bound=rational.lower_bound;rational_upper_bound=rational.upper_bound;
+            // construction remains a recovery for those cases.
+            rational_contacts=detail::solve_disjoint_map_contacts_exact(Point(start),Point(target),rational_input);
             result.stats.rational_disjoint_directional_recovery=true;
         }
-    } else {
-        const auto rational=detail::solve_intersecting_map_contacts_with_bounds(start,target,input,false);
-        result.contacts=rational.contacts;rational_lower_bound=rational.lower_bound;rational_upper_bound=rational.upper_bound;
-    }
+    } else rational_contacts=detail::solve_intersecting_map_contacts_exact(Point(start),Point(target),rational_input);
     result.stats.rational_fallback_seconds=elapsed(fallback_began);
+    ConvexHybridResult rational_bounds;
+    set_verified_bounds(rational_bounds,start,target,polygons,rational_contacts);
+    result.stats.rational_fallback_unverified=rational_bounds.stats.rational_fallback_unverified;
+    result.stats.certificate_seconds+=rational_bounds.stats.certificate_seconds;
+    result.stats.bound_evaluation_seconds+=rational_bounds.stats.bound_evaluation_seconds;
+    result.stats.predicate_exact_evaluations+=rational_bounds.stats.predicate_exact_evaluations;
+    double rational_lower_bound=rational_bounds.lower_bound,rational_upper_bound=rational_bounds.upper_bound;
+    result.contacts.clear();for(const auto &q:rational_contacts)result.contacts.push_back(q.external());
     bool rational_shadow_mismatch=false;
     if(options.shadow_rational && result.stats.disjoint &&
        !result.stats.rational_disjoint_directional_recovery) {
-        const auto oracle=detail::solve_disjoint_map_contacts_with_bounds(start,target,input);
+        // Diagnostic comparison of the two disjoint constructions by path
+        // length. On a mismatch the directional path is reported, as before,
+        // with its own verified bounds.
+        const auto oracle_contacts=detail::solve_disjoint_map_contacts_exact(Point(start),Point(target),rational_input);
+        ConvexHybridResult oracle;set_exact_bounds(oracle,start,target,oracle_contacts);
         rational_shadow_mismatch=
             rational_upper_bound<oracle.lower_bound || oracle.upper_bound<rational_lower_bound;
         if(rational_shadow_mismatch) {
-            result.contacts=oracle.contacts;
+            set_verified_bounds(oracle,start,target,polygons,oracle_contacts);
+            result.stats.rational_fallback_unverified=oracle.stats.rational_fallback_unverified;
+            result.contacts.clear();for(const auto &q:oracle_contacts)result.contacts.push_back(q.external());
             rational_lower_bound=oracle.lower_bound;
             rational_upper_bound=oracle.upper_bound;
         }
@@ -1598,6 +1629,19 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
 }
 
 namespace detail {
+// Test hook: the bounds the hybrid returns for exact contacts proposed by a
+// rational construction, and whether the exact KKT certificate held.
+bool verified_rational_contact_bounds(const Vector2 &start,const Vector2 &target,
+        const std::vector<std::vector<Vector2>> &polygons,const ConvexRationalPolygon &contacts,
+        double &lower_bound,double &upper_bound) {
+    std::vector<Polygon> exact;exact.reserve(polygons.size());
+    for(const auto &p:polygons)exact.push_back(exact_polygon(p,true));
+    ConvexHybridResult result;
+    const bool optimal=set_verified_bounds(result,start,target,ExactPolygons(exact),contacts);
+    lower_bound=result.lower_bound;upper_bound=result.upper_bound;
+    return optimal;
+}
+
 // Binary64 only: dispatch, directional trace, replay and geometric repair.
 // Nothing here is certified; the float oracle proves its own bounds.
 std::vector<Vector2> double_candidate_chain(const Vector2 &start,const Vector2 &target,
