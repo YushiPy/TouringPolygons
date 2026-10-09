@@ -83,18 +83,32 @@ namespace {
             peak_node_bytes=std::max(peak_node_bytes,(dfs?stack.capacity():heap.capacity())*sizeof(Node));
             peak_bytes=std::max(peak_bytes,frontier_bytes());
         }
-        // Keep the best-bound half; the discarded nodes' smallest bound stays
-        // a valid floor for every completion they represented.
+        // First drop the proposals (path, warm start, features, dual) of all
+        // but the best-bound quarter: a node without a path is solved again
+        // when it is taken, so this loses only work. If that frees too little,
+        // also discard the worse half; the discarded nodes' smallest bound
+        // stays a valid floor for every completion they represented.
         void trim() {
-            const size_t keep=heap.size()/2;
             auto order=[](const Node &a,const Node &b){return std::tie(a.bound,a.serial)<std::tie(b.bound,b.serial);};
-            std::nth_element(heap.begin(),heap.begin()+keep,heap.end(),order);
-            discarded=std::min(discarded,heap[keep].bound);
-            for(auto it=heap.begin()+keep;it!=heap.end();++it) {
-                sequence_bytes-=it->sequence.payload_bytes();payload_bytes-=payload(*it);
+            const size_t full=heap.size()/4;
+            std::nth_element(heap.begin(),heap.begin()+full,heap.end(),order);
+            for(auto it=heap.begin()+full;it!=heap.end();++it) {
+                if(!payload(*it))continue;
+                payload_bytes-=payload(*it);++stripped_nodes;
+                Polygon{}.swap(it->path);Polygon{}.swap(it->warm_start);
+                std::vector<int>{}.swap(it->active_features);tpp::ConvexRationalPolygon{}.swap(it->dual);
             }
-            discarded_nodes+=heap.size()-keep;++trims;
-            heap.erase(heap.begin()+keep,heap.end());heap.shrink_to_fit();
+            ++strips;
+            if(4*frontier_bytes()>3*budget) {
+                const size_t keep=heap.size()/2;
+                std::nth_element(heap.begin(),heap.begin()+keep,heap.end(),order);
+                discarded=std::min(discarded,heap[keep].bound);
+                for(auto it=heap.begin()+keep;it!=heap.end();++it) {
+                    sequence_bytes-=it->sequence.payload_bytes();payload_bytes-=payload(*it);
+                }
+                discarded_nodes+=heap.size()-keep;++trims;
+                heap.erase(heap.begin()+keep,heap.end());heap.shrink_to_fit();
+            }
             std::make_heap(heap.begin(),heap.end(),Later{});
         }
         static bool descending(const Node &a,const Node &b) {
@@ -102,6 +116,7 @@ namespace {
         }
     public:
         size_t peak_sequence_bytes = 0, peak_node_bytes = 0, peak_bytes = 0, trims = 0, discarded_nodes = 0;
+        size_t strips = 0, stripped_nodes = 0;
         Frontier(bool use_dfs,tpp::UnorderedSequenceStorage mode,size_t bytes,size_t polygons,size_t max_bytes=0)
             :dfs(use_dfs),storage(mode),index_bytes(bytes),budget(max_bytes) {
             if(storage==tpp::UnorderedSequenceStorage::Deltas)history=std::make_unique<SequenceHistory>(bytes,polygons);
@@ -140,6 +155,7 @@ namespace {
             result.peak_frontier_node_bytes=peak_node_bytes;
             result.peak_frontier_bytes=peak_bytes;result.frontier_trims=trims;
             result.frontier_discarded_nodes=discarded_nodes;result.frontier_discarded_bound=discarded;
+            result.frontier_strips=strips;result.frontier_stripped_nodes=stripped_nodes;
             if(history) {
                 result.sequence_history_record_bytes=history->record_bytes();
                 result.peak_sequence_records=history->peak_live_records;
@@ -2446,6 +2462,8 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::peak_frontier_bytes);
         sum(&UnorderedTppSolveResult::frontier_trims);
         sum(&UnorderedTppSolveResult::frontier_discarded_nodes);
+        sum(&UnorderedTppSolveResult::frontier_strips);
+        sum(&UnorderedTppSolveResult::frontier_stripped_nodes);
         result.frontier_discarded_bound=std::min(runs[0].frontier_discarded_bound,runs[1].frontier_discarded_bound);
         sum(&UnorderedTppSolveResult::peak_sequence_records);
         sum(&UnorderedTppSolveResult::sequence_reconstructions);

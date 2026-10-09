@@ -170,7 +170,9 @@ namespace tpp {
         UnorderedSearchStrategy search_strategy = UnorderedSearchStrategy::BestBoundDive;
         // Memory budget of the best-bound frontier (nodes, their paths and
         // proposals, sequences), estimated from capacities. When it is
-        // exceeded, the half of the frontier with the largest bounds is
+        // exceeded, all but the best-bound quarter lose their path and
+        // proposals (they are solved again when taken); if the estimate is
+        // still above 3/4 of the budget, the half with the largest bounds is
         // discarded and the smallest discarded bound becomes a floor of the
         // reported lower bound (still valid). Below the budget the search is
         // unchanged; zero disables it. The search ends with MemoryLimit if it
@@ -383,9 +385,11 @@ namespace tpp {
         // current siblings, allocator metadata, paths and oracle caches.
         size_t peak_sequence_storage_bytes = 0;
         size_t peak_frontier_node_bytes = 0;
-        // Frontier memory budget: peak estimated bytes, trims, discarded
-        // nodes and the smallest discarded bound (infinite if none).
-        size_t peak_frontier_bytes = 0, frontier_trims = 0, frontier_discarded_nodes = 0;
+        // Frontier memory budget: peak estimated bytes; strips and the nodes
+        // whose proposals they dropped (solved again when taken); trims,
+        // discarded nodes and the smallest discarded bound (infinite if none).
+        size_t peak_frontier_bytes = 0, frontier_strips = 0, frontier_stripped_nodes = 0;
+        size_t frontier_trims = 0, frontier_discarded_nodes = 0;
         double frontier_discarded_bound = std::numeric_limits<double>::infinity();
         size_t sequence_history_record_bytes = 0;
         size_t peak_sequence_records = 0;

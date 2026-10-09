@@ -247,9 +247,16 @@ processos de 120 s já faziam um Mac de 24 GB usar swap. A rodada passava de
 desliga) limita a estimativa de bytes da fronteira de melhor limite: a
 capacidade do vetor de nós, as capacidades dos vetores de cada nó com uma
 palavra do alocador por bloco, e as sequências. Ao passar do limite num
-`push`, a metade com os maiores limites (ordem `(bound, serial)`, por
-`nth_element`) é descartada. O menor limite descartado, `D`, passa a ser um
-piso do limite inferior global: `LB = min(fronteira, D, ...)`.
+`push`, o corte tem dois níveis, na ordem `(bound, serial)`, por
+`nth_element`:
+
+1. **Despir.** Todos os nós, menos o quarto de menor limite, perdem o caminho,
+   o ponto de partida, as features e o dual. Isso só perde trabalho: um nó sem
+   caminho é resolvido de novo quando sai da fila, como os filhos de `lazy`.
+   O nó fica com o cabeçalho e a sequência, ~230 B contra ~550–800 B.
+2. **Descartar**, só se a estimativa continuar acima de 3/4 do limite. A
+   metade com os maiores limites sai da fila, e o menor limite descartado,
+   `D`, vira um piso do limite inferior global: `LB = min(fronteira, D, ...)`.
 
 Isso continua válido. Toda completação representada por um nó descartado
 custa ao menos o limite dele, que é pelo menos `D`. A busca abaixo do limite
@@ -258,11 +265,16 @@ incumbente cair até `D + gap`; se a fila esvaziar assim, a busca termina com
 `memory_limit` (`UnorderedTppTermination::MemoryLimit`), que não é ótimo. A
 DFS (`--search-strategy dfs-bfs`) não é limitada.
 
-Em 100pr1002 com 1 GiB, 60 s: 4 cortes descartam 2,47 M nós, o RSS cai de
-3,8 para 1,3 GB, `D = 66404` fica muito acima do LB (60351), e o término volta
-a ser 60,2 s. O JSON informa `peak_frontier_bytes`, `frontier_trims`,
-`frontier_discarded_nodes` e `frontier_discarded_bound`, este nas
-coordenadas de entrada, como diagnóstico. Testes: `tpp-tspn-tests` resolve
+Na primeira versão, que só descartava, `lazy` em 45ts225 (1,5 GiB, 120 s)
+descartou metade da fila com `D` logo acima do resto. A busca esgotou os nós
+mantidos em 44 s e parou aberta, com LB/UB 0,989, enquanto a base fecha em
+56 s. Despindo primeiro, a mesma execução despe 1,15 M nós, não descarta
+nenhum e fecha em 67 s. Em 100pr1002 com 1 GiB e 60 s, só descartando, 4
+cortes tiraram 2,47 M nós, o RSS caiu de 3,8 para 1,3 GB, `D = 66404` ficou
+muito acima do LB (60351), e o término voltou a ser 60,2 s. O JSON informa
+`peak_frontier_bytes`, `frontier_strips`, `frontier_stripped_nodes`,
+`frontier_trims`, `frontier_discarded_nodes` e `frontier_discarded_bound`,
+este nas coordenadas de entrada, como diagnóstico. Testes: `tpp-tspn-tests` resolve
 12 instâncias com um orçamento de 1 byte (descarte a cada `push`) e confere
 que os limites cercam o ótimo da busca sem orçamento.
 
