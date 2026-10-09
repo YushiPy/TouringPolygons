@@ -116,6 +116,9 @@ namespace tpp {
 		// exact replay and recoveries (DynamicConvexTppWorkspace::float_recovery);
 		// rational arithmetic remains for open calls and zero gaps.
 		bool float_recovery = true;
+		// With float_recovery, fixed-endpoint calls with points or segments also
+		// try the binary64 oracle first (DynamicConvexTppWorkspace::float_degenerate).
+		bool float_degenerate = true;
 		// Diagnostic only, unsafe: fixed-endpoint oracle values are the
 		// uncertified binary64 trace length (no lower-bound proof), to measure
 		// the cost of certification against numerical solvers.
@@ -185,6 +188,12 @@ namespace tpp {
         bool cycle_bound_first = false;
         bool cycle_dual_screen = false;
         bool cycle_interval_certificate = false;
+        // Cycle oracle calls with a positive gap first try the binary64 stage
+        // (ConvexCycleDoubleOptions::max_gap): the construction's candidates
+        // with bounds proved by directed rounding, then the interior-point
+        // polish. Calls it leaves open use the unchanged exact path; zero gaps
+        // always do. False restores the exact path for every call (ablation).
+        bool cycle_float_oracle = true;
         // Try a finite floating proposal before exact recovery. Its certified
         // interval must meet the existing oracle gap or pruning cutoff.
         bool cycle_proposal_bound = false;
@@ -424,6 +433,9 @@ namespace tpp {
 		double convex_certificate_verification_seconds = 0.0;
         // Exclusive cycle work, including cooperatively interrupted requests.
         double cycle_construction_seconds = 0, cycle_certification_seconds = 0, cycle_rational_recovery_seconds = 0;
+        // Binary64 stage of the cycle oracle: interval proofs, polish Newton work.
+        double cycle_interval_proof_seconds = 0, cycle_polish_seconds = 0;
+        size_t cycle_polish_calls = 0, cycle_polish_newton_iterations = 0;
 		double convex_contact_materialization_seconds = 0.0;
 		double convex_fallback_seconds = 0.0;
 		double convex_fallback_long_double_seconds = 0.0;

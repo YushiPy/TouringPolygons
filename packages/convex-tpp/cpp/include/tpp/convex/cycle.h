@@ -5,13 +5,19 @@
 #include <string>
 
 namespace tpp {
-enum class ConvexCycleStatus { InvalidInput, UnsupportedIntersection, Optimal, FloatingPointLimit, OracleFailure, CertifiedBound, Interrupted, ProposalLimit };
+// GapClosed: binary64 bounds proved on the input close the requested
+// max_gap, without the exact KKT test; it does not assert exact optimality.
+enum class ConvexCycleStatus { InvalidInput, UnsupportedIntersection, Optimal, FloatingPointLimit, OracleFailure, CertifiedBound, Interrupted, ProposalLimit, GapClosed };
 
 struct ConvexCycleTimings {
     // Exclusive work: certification includes checks during rational recovery.
     double construction_seconds = 0;
     double certification_seconds = 0;
     double rational_recovery_seconds = 0;
+    // Binary64 stage (max_gap > 0): interval proofs, and the polish's Newton
+    // iterations (its proofs count as interval proofs).
+    double interval_proof_seconds = 0;
+    double polish_seconds = 0;
 };
 
 struct ConvexCycleResult {
@@ -45,6 +51,10 @@ struct ConvexCycleDoubleResult {
     std::size_t rational_anchor_recoveries = 0;
     std::size_t rational_cycle_recoveries = 0;
     std::size_t rational_feature_recoveries = 0;
+    // Binary64 stage (max_gap > 0): closed by an interval proof of a
+    // construction candidate, or by the polish; otherwise the exact path ran.
+    bool float_interval_closed = false, float_polish_attempted = false, float_polish_closed = false;
+    std::size_t float_candidates = 0, float_newton_iterations = 0, float_barrier_levels = 0;
     ConvexCycleTimings timings;
     std::string diagnostic;
     // A proposal for subsequent solves; never itself a certificate.
@@ -79,6 +89,15 @@ struct ConvexCycleDoubleOptions {
     // contacts/bounds, when present, still have an independent certificate.
     // No tolerance enters this constructor; the caller decides how to use bounds.
     bool proposal_only = false;
+    // A positive gap first runs tpp_convex_solve_cycle_float_certified: the
+    // same binary64 construction, bounds proved with directed rounding and,
+    // if needed, an interior-point polish. GapClosed (or CertifiedBound) is
+    // returned when U-L <= max_gap (or L >= cutoff); its contacts are proved
+    // in their polygons and points, and on a segment they round an exact
+    // segment point whose cycle U bounds. Otherwise the exact path below runs
+    // unchanged and keeps the larger proved lower bound. Zero keeps it off.
+    double max_gap = 0;
+    bool float_polish = true;
     // Cooperative checkpoints; default standalone solves have no deadline.
     // Interrupted retains only completed certificates; contacts may be empty.
     double max_seconds = std::numeric_limits<double>::infinity();

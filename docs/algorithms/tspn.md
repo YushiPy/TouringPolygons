@@ -25,11 +25,19 @@ default remains one thread.
 
 A node stores a partial cyclic sequence. Each entry represents either an
 original region's convex hull or one convex decomposition piece. Its relaxation
-uses `tpp_convex_solve_cycle_double`, including the exact independent certificate
-and counted rational recoveries. If the contact-derived lower bound remains
-too weak, the rational cycle solve strengthens it. The retained double path is
-independently feasible for the convex regions. No optimization epsilon is added
-to the convex-cycle constructor or its certificate.
+uses `tpp_convex_solve_cycle_double` with the call's tolerance as `max_gap`
+(`options.cycle_float_oracle`, on by default; `--no-cycle-float` disables it).
+Its [binary64 stage](convex-cycle.md#binary64-stage-with-a-requested-gap-2026-10-08)
+proves `L <= OPT <= U` with directed rounding, from the shared construction and,
+if needed, an interior-point polish, and returns `GapClosed` or `CertifiedBound`
+without rational arithmetic. A call it leaves open, and every zero-gap call,
+uses the exact path: the exact independent certificate and counted rational
+recoveries; if the contact-derived lower bound remains too weak, the rational
+cycle solve strengthens it. The retained path is independently feasible for
+the convex regions, except that a segment contact is the binary64 rounding of
+an exact segment point (the B&B uses paths only through its own visit checks
+and lengths). No optimization epsilon is added to the convex-cycle
+constructor or its certificate; the gap is the B&B's own oracle request.
 
 Each child seeds the shared convex constructor with its parent's contacts,
 replacing or inserting only the contact of the new region. This is a proposal,
@@ -476,7 +484,9 @@ contacts can stay well above the relaxation optimum on points and segments,
 which have no interior to round into; the search then kept a node whose path
 covered every region but whose gap never closed (`numerical_limit`). The
 replacement path is used like any relaxation path, only through the B&B's own
-visit checks and length.
+visit checks and length. Its upper bound is the exact optimum's outward-rounded
+length (since 2026-10-08; before, the plain binary64 length of the rounded
+contacts, which was not a proved bound).
 
 With n regions, orders contribute at most `(n-1)!/2` unoriented cyclic orders
 for n>=3, and decomposition choices multiply the worst-case search. Each branch
@@ -502,6 +512,11 @@ lookahead, DFS/BFS, primal starts and exact LNS did not close more; graph
 relaxations with region-to-region distances (Held–Karp) or per-region triple
 costs are weaker than the existing insertion relaxations even at the optimal
 order, so neither was implemented.
+With a point region the tour is an endpoint path, and its oracle calls contain
+points and segments; since 2026-10-08 they also try the fixed-endpoint binary64
+oracle first (`options.float_degenerate`, `--no-float-degenerate` disables it;
+[contract](certified-convex-oracle.md#oráculo-em-ponto-flutuante-experimental-2026-10-08)),
+and cycle calls with segments use the binary64 stage above.
 On those open instances the deliverable is a good tour, not a certificate. The
 draft's appendix reports, per instance, the best of ten runs of Paula's
 ILS-BCD (each up to 1,200 s of CPU). The optional initial ILS
@@ -570,7 +585,17 @@ and takes the maximum of the workers' longest calls.
 Fallback-attributed time is the **whole call** that used recovery, not exclusive
 rational recovery time. The cycle adapter additionally reports exclusive
 `cycle_construction_seconds`,
-`cycle_certification_seconds`, and `cycle_rational_recovery_seconds`.
+`cycle_certification_seconds`, `cycle_rational_recovery_seconds`, and for the
+binary64 stage `cycle_interval_proof_seconds` and `cycle_polish_seconds`
+(construction inside the stage counts as construction). As in the path mode,
+each cycle call closes in exactly one way:
+`calls = oracle_interval_bound_calls + oracle_float_calls + oracle_rational_calls`,
+the binary64 stage by an interval proof of a construction candidate, by the
+polish, or neither (the exact path, an interruption, or a memo hit rechecked by
+the exact certificate; a relaxation with fewer than two regions counts as an
+interval closure). `fallback_calls` still counts calls with a rational
+recovery; `cycle_polish_calls` and `cycle_polish_newton_iterations` count polish
+attempts and their iterations.
 Certification includes all checks, including checks inside rational recovery;
 rational recovery excludes that certification time. Construction includes
 preparation and binary64 proposal work. Their sum is at most the full oracle

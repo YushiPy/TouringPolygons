@@ -46,6 +46,9 @@ template<class S> struct CycleRefinement {
     }
     static std::pair<P,int> coordinate(P a,P b,P old,const Polygon &p) {
         cycle_checkpoint();
+        // A point's zero-length "edges" give no halfplanes: its only contact
+        // is the point itself, a vertex feature.
+        if(p.size()==1)return {p.front(),0};
         const P d=b-a;const S dd=d.dot(d);S lo=0,hi=1;
         bool crosses=true;
         for(size_t j=0;j<p.size();++j) {

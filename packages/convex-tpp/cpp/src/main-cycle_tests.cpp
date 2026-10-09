@@ -1,4 +1,5 @@
 #include "tpp_convex.h"
+#include "tpp/convex/float_oracle.h"
 
 #include <boost/property_tree/json_parser.hpp>
 #include <algorithm>
@@ -706,8 +707,180 @@ void common_region_corners() {
     std::cout<<"Common-region corners: "<<corners<<" of "<<cases<<" optima at an edge crossing\n";
 }
 
+// Binary64 stage of the cycle oracle: tpp_convex_solve_cycle_float_certified
+// and ConvexCycleDoubleOptions::max_gap. Every interval must contain the exact
+// rational optimum, closed calls meet their gap, and contacts are feasible
+// (on a segment: the rounding of an exact segment point).
+struct FloatStageCounts {size_t interval=0,polish=0,open=0,checks=0,double_closed=0,double_exact=0;} float_counts;
+bool float_closed(const tpp::ConvexCycleFloatResult &r) {
+    return r.status==tpp::ConvexFloatOracleStatus::GapClosed||r.status==tpp::ConvexFloatOracleStatus::CutoffReached;
+}
+void require_float_contacts(const Polygons &p,const std::vector<Vector2> &q,const std::string &name) {
+    require(q.size()==p.size(),name+": one contact per region");
+    for(size_t i=0;i<p.size();++i) {
+        Polygon region;
+        for(auto v:p[i])if(region.empty()||!(v==region.back()))region.push_back(v);
+        while(region.size()>1&&region.front()==region.back())region.pop_back();
+        if(region.size()==2) {
+            const auto a=region[0],e=region[1]-region[0],d=q[i]-a;
+            const double size=std::max({std::abs(a.x),std::abs(a.y),std::abs(q[i].x),std::abs(q[i].y),e.length()});
+            const double t=d.dot(e)/e.dot(e),eps=std::numeric_limits<double>::epsilon();
+            require(std::abs(e.cross(d))<=16*eps*size*e.length()&&t>=-16*eps&&t<=1+16*eps,name+": segment contact rounds a segment point");
+            continue;
+        }
+        const auto single=tpp::tpp_convex_verify_cycle_certificate(Polygons{p[i],p[i]},std::vector<Vector2>{q[i],q[i]});
+        require(single.status==tpp::ConvexCycleCertificateStatus::Optimal||single.status==tpp::ConvexCycleCertificateStatus::Feasible,
+                name+": contact exactly inside its region");
+    }
+}
+void check_float_stage(const Polygons &p,const std::string &name) {
+    const auto exact_result=tpp::tpp_convex_solve_cycle(p);
+    require(solved(exact_result),name+": rational reference "+exact_result.diagnostic);
+    const double lower=exact_result.certificate.lower_bound,upper=exact_result.certificate.upper_bound;
+    const double scale=std::max(1.0,upper);
+    for(double relative:{1e-3,1e-6,1e-9})for(bool construct:{true,false}) {
+        tpp::ConvexCycleFloatOptions options;options.max_gap=relative*scale;options.construct=construct;
+        const auto r=tpp::tpp_convex_solve_cycle_float_certified(p,options);
+        const std::string label=name+" (gap "+std::to_string(relative)+(construct?"":", polish only")+")";
+        require(r.status!=tpp::ConvexFloatOracleStatus::Unsupported,label+": supported input");
+        require(r.lower_bound<=upper&&lower<=r.upper_bound,label+": float interval contains the exact optimum");
+        ++float_counts.checks;
+        if(!float_closed(r)){++float_counts.open;continue;}
+        require(r.upper_bound-r.lower_bound<=options.max_gap,label+": closed gap");
+        require(r.construction_closed!=r.polish_closed,label+": one closing stage");
+        require(construct||r.polish_closed,label+": no construction when disabled");
+        (r.construction_closed?float_counts.interval:float_counts.polish)++;
+        require_float_contacts(p,r.contacts,label);
+    }
+    // A cutoff below the optimum, no gap: closing needs proved contacts too.
+    if(lower>0) {
+        tpp::ConvexCycleFloatOptions options;options.cutoff=0.9*lower;
+        const auto r=tpp::tpp_convex_solve_cycle_float_certified(p,options);
+        require(r.lower_bound<=upper&&lower<=r.upper_bound,name+" (cutoff): interval contains the optimum");
+        if(float_closed(r)) {
+            require(r.status==tpp::ConvexFloatOracleStatus::CutoffReached&&r.lower_bound>=options.cutoff&&std::isfinite(r.upper_bound),
+                    name+" (cutoff): reached with a proved cycle");
+            require_float_contacts(p,r.contacts,name+" (cutoff)");
+        }
+    }
+    // The same stage inside the double API, then the exact path when it is open.
+    for(double relative:{1e-6,1e-300}) {
+        tpp::ConvexCycleDoubleOptions options;options.max_gap=relative*scale;
+        const auto d=tpp::tpp_convex_solve_cycle_double(p,options);
+        require(d.certificate.lower_bound<=upper&&lower<=d.certificate.upper_bound,name+": double API interval contains the optimum");
+        if(d.status==ConvexCycleStatus::GapClosed) {
+            ++float_counts.double_closed;
+            require(d.float_interval_closed||d.float_polish_closed,name+": GapClosed names its stage");
+            require(d.rational_cycle_recoveries+d.rational_anchor_recoveries+d.rational_feature_recoveries==0&&
+                    d.certificate_checks==0,name+": GapClosed uses no exact certificate");
+            require(d.certificate.upper_bound-d.certificate.lower_bound<=options.max_gap,name+": GapClosed meets max_gap");
+            require_float_contacts(p,d.contacts,name);
+        } else {
+            ++float_counts.double_exact;
+            require(d.status==ConvexCycleStatus::Optimal||d.status==ConvexCycleStatus::FloatingPointLimit,
+                    name+": open binary64 stage falls back to the exact path: "+std::to_string(int(d.status))+" "+d.diagnostic);
+            require(!d.float_interval_closed&&!d.float_polish_closed,name+": exact result is not a binary64 closure");
+        }
+    }
+}
+void binary64_stage() {
+    // Disjoint boxes on a line: the construction's candidate closes by the
+    // interval proof, without polish or exact arithmetic.
+    {
+        const Polygons p{box(0,-1,1,1),box(6,-1,7,1),box(3,-1,4,1)};
+        tpp::ConvexCycleFloatOptions options;options.max_gap=1e-6;
+        const auto r=tpp::tpp_convex_solve_cycle_float_certified(p,options);
+        require(r.status==tpp::ConvexFloatOracleStatus::GapClosed&&r.construction_closed&&!r.polish_attempted,
+                "collinear boxes close by the interval proof");
+        require(r.lower_bound<=10&&r.upper_bound>=10&&r.upper_bound-r.lower_bound<1e-12,"collinear boxes enclose 2*5");
+    }
+    // Instance t_A of the report as a cycle: points s and t, and an optimum
+    // visiting P1 and P2 at the same point j=(0,0). The zero link's dual has
+    // norm sqrt(13/20) < 1, out of reach of the short-link policies; the
+    // smoothed directions of the polish represent it.
+    {
+        const Polygons p{{{-3,-4}},box(0,-6,6,6),{{-8,-4},{8,4},{8,9},{-8,9}},{{4,-3}}};
+        const double optimum=10+std::sqrt(50.0);
+        for(bool construct:{true,false}) {
+            tpp::ConvexCycleFloatOptions options;options.max_gap=1e-6*optimum;options.construct=construct;
+            const auto r=tpp::tpp_convex_solve_cycle_float_certified(p,options);
+            require(r.status==tpp::ConvexFloatOracleStatus::GapClosed&&r.polish_closed,"t_A cycle closes by the polish");
+            require(r.lower_bound<=optimum&&r.upper_bound>=optimum,"t_A cycle bounds enclose the optimum");
+            require(r.contacts[0]==Vector2{-3,-4}&&r.contacts[3]==Vector2{4,-3},"t_A points are fixed contacts");
+        }
+        // No binary64 interval this tight: the exact path certifies it.
+        tpp::ConvexCycleFloatOptions tight;tight.max_gap=1e-300;
+        const auto open=tpp::tpp_convex_solve_cycle_float_certified(p,tight);
+        require(open.status==tpp::ConvexFloatOracleStatus::Open&&open.lower_bound<=optimum&&open.upper_bound>=optimum,
+                "t_A cycle stays open at a subnormal gap, with valid bounds");
+        tpp::ConvexCycleDoubleOptions fallback;fallback.max_gap=1e-300;
+        const auto exact_path=tpp::tpp_convex_solve_cycle_double(p,fallback);
+        require(exact_path.status==ConvexCycleStatus::Optimal&&!exact_path.float_interval_closed&&!exact_path.float_polish_closed&&
+                exact_path.certificate.lower_bound>=open.lower_bound,"t_A cycle falls back to the exact certificate");
+        // A cutoff below the optimum is reached by the proved lower bound.
+        tpp::ConvexCycleDoubleOptions cut;cut.max_gap=1e-300;cut.lower_bound_cutoff=0.999*optimum;
+        const auto pruned=tpp::tpp_convex_solve_cycle_double(p,cut);
+        require(pruned.status==ConvexCycleStatus::CertifiedBound&&pruned.float_polish_closed&&
+                pruned.certificate.lower_bound>=cut.lower_bound_cutoff&&pruned.certificate.lower_bound<=optimum,
+                "t_A cycle cutoff reached by the binary64 lower bound");
+    }
+    // A zero cycle: a common point of all regions.
+    {
+        tpp::ConvexCycleFloatOptions options;options.max_gap=1e-9;
+        const auto r=tpp::tpp_convex_solve_cycle_float_certified({box(0,0,2,2),box(1,1,3,3),box(1,-1,4,1.5)},options);
+        require(r.status==tpp::ConvexFloatOracleStatus::GapClosed&&r.upper_bound<=1e-9&&r.lower_bound==0,"zero cycle closes");
+    }
+    // An invalid region is never normalized in binary64.
+    {
+        tpp::ConvexCycleFloatOptions options;options.max_gap=1;
+        require(tpp::tpp_convex_solve_cycle_float_certified({{{0,0},{2,0},{1,0.5},{2,2},{0,2}},box(3,0,4,1)},options).status==
+                tpp::ConvexFloatOracleStatus::Unsupported,"nonconvex region unsupported");
+        require(tpp::tpp_convex_solve_cycle_float_certified({{{0,0},{1,0},{2,0}},box(3,0,4,1)},options).status==
+                tpp::ConvexFloatOracleStatus::Unsupported,"collinear polygon unsupported");
+    }
+    // Differential checks against the rational solver.
+    const std::vector<std::pair<std::string,Polygons>> named{
+        {"parallel segments",{{{0,0},{4,0}},{{0,3},{4,3}}}},
+        {"segment and point",{{{0,0},{4,0}},{{2,5}}}},
+        {"two points",{{{1,1}},{{4,5}}}},
+        {"segment, box and point",{{{0,0},{4,1}},box(5,3,6,5),{{-2,4}}}},
+        {"collinear segments and a point",{{{0,0},{2,0}},{{5,0},{7,0}},{{3,2}}}},
+        {"oblique segments",{{{0.1,0.3},{2.7,1.9}},{{4.2,-1.3},{3.3,2.2}},{{1.7,4.1},{-0.6,3.3}},box(-2,-1,-1,0.5)}},
+        {"touching tessellation",{box(0,0,1,1),box(1,0,2,1),box(2,0,3,1),box(1,1,2,2),box(0,3,1,4),box(2.5,3,3,3.5)}},
+        {"shared edge block",{box(-2,-2,0,2),box(0,-2,2,2),box(-4,4,-3,5),box(-4,-6,-3,-5)}},
+        {"nested",{box(-10,-10,10,10),box(-4,0,-3,1),box(3,0,4,1)}},
+        {"overlapping chain",{box(-3,-1,-2,0),box(0,-2,2,2),box(-2,-2,2,0),box(-1,-3,3,0),box(0,2,1,3)}},
+        {"crossing",{box(-4,-4,-3,-3),box(3,3,4,4),box(-4,3,-3,4),box(3,-4,4,-3)}},
+    };
+    for(const auto &[name,p]:named)check_float_stage(p,name);
+    std::mt19937_64 random(20261008);
+    std::uniform_real_distribution<double> unit(-1,1);
+    auto polygon=[&](Vector2 c,double r,int sides,double turn) {
+        Polygon q;for(int i=0;i<sides;++i){const double a=turn+i*2*M_PI/sides;q.push_back({c.x+r*std::cos(a),c.y+r*std::sin(a)});}
+        return q;
+    };
+    for(int sample=0;sample<60;++sample) {
+        const size_t k=2+sample%7;
+        Polygons p;
+        for(size_t i=0;i<k;++i) {
+            // Mostly overlapping or touching neighbours, some points and segments.
+            const Vector2 c{3*unit(random),3*unit(random)};
+            const int kind=int(random()%8);
+            if(kind==0)p.push_back({c});
+            else if(kind==1)p.push_back({c,c+Vector2{2*unit(random),2*unit(random)}});
+            else p.push_back(polygon(c,0.5+std::abs(unit(random)),3+int(random()%5),unit(random)));
+        }
+        check_float_stage(p,"random binary64 "+std::to_string(sample));
+    }
+    require(float_counts.interval>0&&float_counts.polish>0&&float_counts.open>0&&float_counts.double_closed>0&&float_counts.double_exact>0,
+            "binary64 stage exercised interval proofs, polish, open calls and both double API outcomes");
+    std::cout<<"Binary64 cycle stage: "<<float_counts.checks<<" calls, interval="<<float_counts.interval<<", polish="<<float_counts.polish
+             <<", open="<<float_counts.open<<"; double API closed="<<float_counts.double_closed<<", exact="<<float_counts.double_exact<<'\n';
+}
+
 int main() {
     try {
+        binary64_stage();
         degenerate_regions();
         common_region_corners();
         cooperative_interruption();

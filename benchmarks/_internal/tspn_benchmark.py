@@ -191,6 +191,8 @@ def main(argv=None):
         help='Run one isolated B&B strategy instead of the default strategy.')
     parser.add_argument('--cycle-optimization',action='append',choices=('cache','dual','features','lazy','root','branch','one-tree','learn','memo','bound-first','dual-screen','interval','share-bounds','proposal-bound','primal-starts'),default=[],
         help='Enable one native cycle optimization; repeat to combine independently selectable optimizations.')
+    parser.add_argument('--oracle-ablation',action='append',choices=('no-cycle-float','no-float-degenerate'),default=[],
+        help='Native oracle ablation, for A/B runs of one binary: send cycle calls (no-cycle-float), or path calls with points or segments (no-float-degenerate), straight to the exact path.')
     parser.add_argument('--progress-interval',type=float,default=60.0,
         help='Seconds between status lines (bounds, calls, queue) of the running tpp-ours instance, also kept in live.json for `tpp.py live`; 0 disables.')
     parser.add_argument('--relative-gap',type=float,default=1e-6)
@@ -310,6 +312,7 @@ def main(argv=None):
         arguments.extend(['--search-strategy',args.search_strategy])
     for optimization in args.cycle_optimization:
         arguments.extend(['--cycle-optimization',optimization])
+    arguments.extend('--'+ablation for ablation in args.oracle_ablation)
     portfolio=args.portfolio or args.portfolio_no_sharing
     config={'run_options':run_options,'inputs_sha256':digest(inputs),'plan':plan,'schema_version':'tspn_campaign_v2','formulation':inputs['formulation'],'repetitions':args.repetitions,'seconds':args.seconds,
         'external_process_timeout_seconds':args.external_timeout,'max_calls':args.max_calls,
@@ -324,6 +327,7 @@ def main(argv=None):
         'portfolio_mode':'independent-race' if args.portfolio_no_sharing else ('cooperative' if args.portfolio else None),
         'search_strategy':args.search_strategy or ('default' if not portfolio else None),
         'cycle_optimizations':args.cycle_optimization,
+        'oracle_ablations':args.oracle_ablation,
         'capture_oracles':args.capture_oracles,
         'external_backend':'socp','external_root':'LongestEdgePlusFurthestSite',
         'external_search':'DfsBfs','external_branching':'FarthestPoly','external_rules':[],

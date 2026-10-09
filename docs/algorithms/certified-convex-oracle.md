@@ -537,10 +537,28 @@ híbrido. Etapas:
    o último nível `μ = gap/(2·escala·(elos+faces))`. Cada nível oferece seus
    limites, que só entram depois das provas 1 e 2.
 4. **Estado.** `GapClosed` (`U−L ≤ max_gap`, subtração dirigida),
-   `CutoffReached` (`L ≥ cutoff`), `Open` ou `Unsupported` (região com menos de
-   três vértices distintos ou área nula, ambiente de arredondamento sem
-   suporte). `Open` e `Unsupported` devolvem limites válidos, mas o chamador
-   precisa do oráculo híbrido para fechar.
+   `CutoffReached` (`L ≥ cutoff`), `Open` ou `Unsupported` (polígono de área
+   nula ou não convexo, sinal de normalização indecidido, ambiente de
+   arredondamento sem suporte). `Open` e `Unsupported` devolvem limites
+   válidos, mas o chamador precisa do oráculo híbrido para fechar.
+
+**Pontos e segmentos (2026-10-08).** Uma região com menos de três vértices
+distintos não tem traço direcional. As regiões são então normalizadas com os
+sinais de giro decididos exatamente (`binary_region`), as propostas vêm da
+construção de ciclo compartilhada (`CycleRefinement<double>`) aplicada a
+`{s}, P_1, …, P_m, {t}` (o elo de fechamento é constante, então os ótimos do
+ciclo são os do caminho) e o polimento usa a cadeia aberta com `s` e `t` fixos,
+cada ponto fixo e cada segmento parametrizado por `t ∈ [0,1]` com barreira em
+`t` e `1−t`. A prova é a de cima: um ponto é o próprio contato; num segmento,
+o ponto exato `a+t(b−a)` (que está no segmento para todo `t` binário em
+`[0,1]`) é carregado como caixa intervalar, e `U` soma os comprimentos entre
+caixas; o contato devolvido é o arredondamento desse ponto. A proposição da
+barreira vale com dois termos de barreira por segmento e nenhum por ponto
+(prova em [convex-cycle.md](convex-cycle.md#why-the-polish-produces-good-lower-bounds)).
+Fechar exige um caminho de contatos provados (`U` finito). No B&B,
+`DynamicConvexTppWorkspace::float_degenerate` (`UnorderedTppSolveOptions::float_degenerate`,
+ligado; `--no-float-degenerate` desliga) manda essas chamadas para este oráculo
+antes do fluxo exato, que continua sendo o destino das que ficam abertas.
 
 No B&B de ordem livre, `DynamicConvexTppWorkspace::float_recovery` vem ligado
 (`UnorderedTppSolveOptions::float_recovery`; `--no-float-recovery` desliga).
