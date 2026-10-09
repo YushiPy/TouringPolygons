@@ -500,7 +500,7 @@ namespace tpp {
 			result.convex_pieces_min = std::min(result.convex_pieces_min, pieces[polygon_index].size());
 			result.convex_pieces_max = std::max(result.convex_pieces_max, pieces[polygon_index].size());
 		};
-		result.lower_bound = start.distance_to(target);
+		result.lower_bound = tpp_convex_distance_lower(start, target);
 		result.initial_lower_bound = result.lower_bound;
 		if (options.initial_path) {
 			improve(*options.initial_path, "provided_initial_path");
@@ -2116,7 +2116,7 @@ namespace tpp {
 		phase = Phase::Finalization;
 		const auto finalization_began = std::chrono::steady_clock::now();
 		result.lower_bound = std::min({result.upper_bound, settled_bound, frontier_bound()});
-		result.lower_bound = std::max(start.distance_to(target), result.lower_bound - normalization_error);
+		result.lower_bound = std::max(tpp_convex_distance_lower(start, target), result.lower_bound - normalization_error);
 		result.final_absolute_gap = std::max(0.0, result.upper_bound - result.lower_bound);
 		result.final_relative_gap = result.final_absolute_gap / std::max(std::abs(result.upper_bound), 1e-30);
 		result.final_length = result.upper_bound;
@@ -2245,8 +2245,8 @@ namespace tpp {
 			result.path.front()=start; result.path.back()=target;
 			if(endpoint_correction>0) {
 				auto upper=[&](double &v) {if(std::isfinite(v))v=std::nextafter(v+endpoint_correction,std::numeric_limits<double>::infinity());};
-				result.lower_bound=std::max(start.distance_to(target),std::nextafter(result.lower_bound-endpoint_correction,-std::numeric_limits<double>::infinity()));
-				result.initial_lower_bound=std::max(start.distance_to(target),std::nextafter(result.initial_lower_bound-endpoint_correction,-std::numeric_limits<double>::infinity()));
+				result.lower_bound=std::max(tpp_convex_distance_lower(start,target),std::nextafter(result.lower_bound-endpoint_correction,-std::numeric_limits<double>::infinity()));
+				result.initial_lower_bound=std::max(tpp_convex_distance_lower(start,target),std::nextafter(result.initial_lower_bound-endpoint_correction,-std::numeric_limits<double>::infinity()));
 				upper(result.upper_bound); upper(result.initial_upper_bound); upper(result.initial_length);
 				upper(result.incumbent_length); upper(result.first_best_update_length);
 			}
@@ -2261,7 +2261,7 @@ namespace tpp {
 			if (std::isfinite(event.upper_bound)) event.upper_bound *= divisor;
 			if (std::isfinite(event.length)) event.length *= divisor;
 			if(endpoint_correction>0) {
-				if(std::isfinite(event.lower_bound))event.lower_bound=std::max(start.distance_to(target),std::nextafter(event.lower_bound-endpoint_correction,-std::numeric_limits<double>::infinity()));
+				if(std::isfinite(event.lower_bound))event.lower_bound=std::max(tpp_convex_distance_lower(start,target),std::nextafter(event.lower_bound-endpoint_correction,-std::numeric_limits<double>::infinity()));
 				if(std::isfinite(event.upper_bound))event.upper_bound=std::nextafter(event.upper_bound+endpoint_correction,std::numeric_limits<double>::infinity());
 				if(std::isfinite(event.length) && event.path.size()>=2)event.length=path_length(event.path);
 			}
