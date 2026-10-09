@@ -132,7 +132,7 @@
 					<p>Passamos os meses seguintes refinando essa especialização:</p>
 					<ul>
 						<li><strong>Exatidão:</strong> nossa versão de alta precisão reduz o erro geométrico em várias ordens de grandeza. Com aritmética racional, também conseguimos erro exatamente zero, ao custo de mais tempo.</li>
-						<li><strong>Velocidade:</strong> o solver convexo especializado é medido em microssegundos nos subproblemas, no lugar de chamadas de otimização genérica em milissegundos. Na campanha completa, nos próprios casos de teste de Fekete et al., obtivemos um speedup médio de <strong>112×</strong> (mediana de 41×) no tempo total, no conjunto comum concluído.</li>
+						<li><strong>Velocidade:</strong> o solver convexo especializado é medido em microssegundos nos subproblemas, no lugar de chamadas de otimização genérica em milissegundos. Na campanha completa, nos próprios casos de teste de Fekete et al., obtivemos um speedup médio de <strong>123×</strong> (mediana de 58×) no tempo total, no conjunto comum concluído.</li>
 						<li><strong>Busca:</strong> refinamos o branch-and-bound e preservamos a avaliação lazy. A campanha abaixo usa o solver completo, com essa busca refinada.</li>
 						<li><strong>Autonomia:</strong> nossa implementação do solver convexo de Dror elimina a necessidade de usar Gurobi, enquanto a implementação do algoritmo de Greene elimina a necessidade de usar CGAL — ambas ferramentas com uso comercial restrito.</li>
 					</ul>
@@ -148,7 +148,7 @@
 					<div id="speedup-chart" class="speedup-chart" role="group" aria-labelledby="speedup-chart-summary" tabindex="-1"></div>
 					<p id="speedup-chart-summary" class="sr-only"></p>
 				</article>
-				<p id="result-benchmark-note" class="results-benchmark-note">Esses resultados dizem respeito às instâncias usadas por Fekete et al. no artigo. Rodamos cada instância em uma thread, sem limite de tempo: nosso solver concluiu 558/558, enquanto o de Fekete et al. concluiu 553/558. As comparações de tempo e velocidade usam os 553 casos concluídos por ambos.</p>
+				<p id="result-benchmark-note" class="results-benchmark-note">Esses resultados dizem respeito às instâncias usadas por Fekete et al. no artigo. Rodamos cada instância em uma thread (Fekete et al. sem limite de tempo; o nosso com teto de 1 h, que nenhum caso atingiu): nosso solver concluiu 558/558, enquanto o de Fekete et al. concluiu 553/558. As comparações de tempo e velocidade usam os 553 casos concluídos por ambos.</p>
 				<div class="comparison-dashboard" aria-label="Métricas comparativas da campanha">
 					<article class="comparison-panel">
 						<div class="comparison-panel-heading"><h3>Quanto tempo cada solver levou?</h3></div>
@@ -204,8 +204,8 @@
 	<script src="data/br-estados-demo.js?v=20260923-br-estados1"></script>
 	<script src="data/challenge-data.js?v=20260923-polish6"></script>
 	<script src="data/trace-data.js"></script>
-	<script src="data/event-data.js?v=20261007-c553"></script>
+	<script src="data/event-data.js?v=20261009-float"></script>
 	<script src="data/trace-decomposition.js?v=20260925-trace-decomposition"></script>
-	<script type="module" src="app.js?v=20261007-nocards"></script>
+	<script type="module" src="app.js?v=20261009-float"></script>
 </body>
 </html>

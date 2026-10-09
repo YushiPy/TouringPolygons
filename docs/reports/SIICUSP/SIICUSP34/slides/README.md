@@ -10,7 +10,7 @@ pouco texto, uma figura grande por slide, fundo claro, tamanhos equivalentes a
 | 1 | Capa: título como instância de TPP (letras = regiões, rota ótima), pergunta, autor, orientador, FAPESP e processo |
 | 2 | O problema: dados (s, t, P₁…Pₖ) e objetivo, com a instância da USP e a rota ótima |
 | 3 | Método: busca real (caso 17 do corpus, 5 regiões) com mapas de cada nó, limite inferior L, ramificar e podar |
-| 4 | Resultados atualizados (dantzig, 2026-10-06): histograma log do speedup (Fekete/nosso) nos 550 casos comuns, por tipo de instância, com os números do pôster ao lado |
+| 4 | Resultados atualizados (dantzig; nossos tempos de 2026-10-08, Fekete de 2026-10-02): histograma log do speedup (Fekete/nosso) nos 553 casos comuns, por tipo de instância, com os números do pôster ao lado |
 | 5 | Convite ao pôster (três perguntas que ele responde) e QR code do app (com a marca do app) |
 
 São cinco slides (o plano de trabalho previa quatro); a capa, o slide 2 e o slide 5 são curtos.
@@ -19,7 +19,7 @@ O roteiro cronometrável está em [`ROTEIRO.md`](ROTEIRO.md).
 ## Compilar
 
 ```sh
-python3 make_hist_data.py   # só se a campanha mudar (free-order-dantzig-2026-10-06)
+python3 make_hist_data.py   # só se a campanha mudar (float-recovery-dantzig-2026-10-08)
 mkdir -p /tmp/siicusp34-slides
 latexmk -xelatex -interaction=nonstopmode -halt-on-error \
   -outdir=/tmp/siicusp34-slides slides.tex
@@ -28,7 +28,7 @@ cp /tmp/siicusp34-slides/slides.pdf slides.pdf
 
 Requer XeLaTeX, Arial e os pacotes `pgfplots`, `qrcode` e `adjustbox`.
 O mapa vem de `../poster/figures/usp-route-square.png`; os números vêm do pôster
-e de `benchmarks/results-saved/fekete-comparison`. `hist-data.tex` é gerado
+e de `benchmarks/results-saved/float-recovery-dantzig-2026-10-08/per-case.csv`. `hist-data.tex` é gerado
 por `make_hist_data.py`.
 
 ## Título como instância (slide 1, protótipo)

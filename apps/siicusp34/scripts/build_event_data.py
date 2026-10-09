@@ -317,8 +317,9 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 			"Os caminhos e pontos de contato são os exportados pela rodada final.",
 		],
 		"provenance": {
-			"date": "2026-10-07" if args.campaign else "2026-09-21",
-			"run_id": "free-order-dantzig-2026-10-06" if args.campaign else "fekete-comparison-20260921",
+			# The campaign folder is named <run>-<YYYY-MM-DD>, the date of our timings.
+			"date": args.campaign.parent.name[-10:] if args.campaign else "2026-09-21",
+			"run_id": args.campaign.parent.name if args.campaign else "fekete-comparison-20260921",
 			"timings_from": str(args.campaign) if args.campaign else None,
 			"ours_csv": str(args.ours),
 			"fekete_csv": str(args.fekete),

@@ -9,7 +9,8 @@ Pastas com dados:
 | Pasta | Conteúdo |
 |---|---|
 | [fekete-comparison](fekete-comparison/README.md) | Comparação original (558 casos, nosso solver antigo × Fekete et al., teto de 6 h, uma thread por caso, até 10 processos em paralelo) usada pelo material SIICUSP; CSVs e corpus são dependências do exportador. |
-| [free-order-dantzig-2026-10-06](free-order-dantzig-2026-10-06/per-case.csv) | Nova comparação na dantzig (nosso solver atual × Fekete), uma linha por caso; resumo [abaixo](#free-order-dantzig-2026-10-06). |
+| [float-recovery-dantzig-2026-10-08](float-recovery-dantzig-2026-10-08/per-case.csv) | Comparação com o Fekete usando nossos tempos da rodada de 08/10 (polimento em ponto flutuante), uma linha por caso, no mesmo formato da de 06/10; usada pelo material SIICUSP; resumo [abaixo](#float-recovery-dantzig-2026-10-08). |
+| [free-order-dantzig-2026-10-06](free-order-dantzig-2026-10-06/per-case.csv) | Comparação na dantzig (nosso solver de 06/10 × Fekete), uma linha por caso; resumo [abaixo](#free-order-dantzig-2026-10-06). |
 | [convex-cycle-gurobi-reference-2026-09-25](convex-cycle-gurobi-reference-2026-09-25/README.md) | `instances.json`, fixture pequeno exigido pelos testes e benchmarks. |
 
 Todo o restante está resumido neste arquivo, uma seção por tentativa, na ordem
@@ -262,6 +263,23 @@ variantes rodaram com o hyperthread vizinho ocupado, em 327 com ele livre e em
   Por número de polígonos (≥ 1 ms): 11–20 1,34×, 21–40 1,32×, 41–60 1,44×.
   As seis razões abaixo de 0,9 são casos de 1–13 ms, quatro deles com busca
   idêntica: ruído na escala de milissegundos.
+
+**Comparação com o Fekete.** Os tempos da variante padrão, com os do Fekete de
+[`free-order-dantzig-2026-10-06`](#free-order-dantzig-2026-10-06) (campanha de
+02/10, não lado a lado), estão em
+[`float-recovery-dantzig-2026-10-08/per-case.csv`](float-recovery-dantzig-2026-10-08/per-case.csv),
+com as mesmas colunas da tabela de 06/10 (casos numerados a partir de 1; acima,
+`caso 129` usa a numeração a partir de 0 e é o caso 130). Nos 553 casos fechados
+pelos dois, a razão Fekete/nosso tem média aritmética **122,6×**, mediana
+**57,6×** e média geométrica 65,4× (06/10: 111,6×, 41,3× e 49,8×); mínimo 8,7×
+(caso 452, antes 3,4×) e máximo 2.302× (caso 174). Por fonte (média
+geométrica): OSM 81,7×, aleatórias 66,8×, tessellation 25,6×. Por número de
+polígonos: 4–10 29,1×; 11–20 49,9×; 21–40 77,1×; 41–60 149,8×. Nos três casos
+que o Fekete fechou depois (131, 420, 558) o nosso levou 22,6 s, 44,9 s e
+46,8 s. Nos 5 abertos do Fekete, o nosso levou de 77 s a 978 s (caso 130, com
+carga maior que na variante de referência, que levou 707 s com a mesma busca).
+Os tempos absolutos dessa rodada têm a carga da máquina compartilhada e tendem a
+subestimar a razão.
 
 **Limitações.** Máquina compartilhada e uma única repetição: só as razões com a
 mesma carga são confiáveis, e a medição limpa (máquina ociosa, `--workers 1`)

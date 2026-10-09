@@ -6,6 +6,6 @@
 
 **Slide 3 (~25 s).** Como? Com branch and bound. A gente monta as rotas região por região, até aí, nada melhor que força bruta, no entanto, se notarmos que uma ordenação, mesmo incompleta, está pior que a melhor rota encontrada até agora, a gente descarta ela. Numa instância de 60 regiões, a força bruta precisaria de 10^117 cálculos, isso levaria 10^100 anos pra terminar; nós fazemos cerca de 2 mil, em 0,1 segundo.
 
-**Slide 4 (~30 s).** Afinal, essa abordagem é boa? Comparamos com Fekete e colaboradores, um grupo alemão que publicou ainda esse ano, usando um solver genérico, o Gurobi, nas 558 instâncias do próprio artigo deles. No pôster, a média ainda era de 10 vezes. Depois da submissão melhorei o solver: agora a média é 112 vezes mais rápido, e somos mais rápidos em todas as instâncias, no pior dos casos 3x e no melhor, 2000x.
+**Slide 4 (~30 s).** Afinal, essa abordagem é boa? Comparamos com Fekete e colaboradores, um grupo alemão que publicou ainda esse ano, usando um solver genérico, o Gurobi, nas 558 instâncias do próprio artigo deles. No pôster, a média ainda era de 10 vezes. Depois da submissão melhorei o solver: agora a média é 123 vezes mais rápido, e somos mais rápidos em todas as instâncias, no pior dos casos 9x e no melhor, 2300x.
 
 **Slide 5 (~12 s).** Venham ao pôster, onde explico por que nosso solver vence, onde ganhamos menos e mais, e como a busca evita as 10^117 combinações. O QR code leva ao app, com centenas de instâncias e simulações passo a passo da busca.

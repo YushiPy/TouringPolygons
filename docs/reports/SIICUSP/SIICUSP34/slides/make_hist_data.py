@@ -1,14 +1,14 @@
-"""Gera hist-data.tex (barras do slide 4) a partir da comparação na dantzig,
-benchmarks/results-saved/free-order-dantzig-2026-10-06/per-case.csv.
+"""Gera hist-data.tex (barras do slide 4) a partir da comparação na dantzig (nossos tempos de 08/10),
+benchmarks/results-saved/float-recovery-dantzig-2026-10-08/per-case.csv.
 Histograma do speedup Fekete/nosso em escala log10, empilhado por tipo de instância.
-Só entram os casos que ambos os solvers fecharam (550 de 558)."""
+Só entram os casos que ambos os solvers fecharam (553 de 558)."""
 import csv
 import math
 import statistics
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[5]
-src = root / "benchmarks/results-saved/free-order-dantzig-2026-10-06/per-case.csv"
+src = root / "benchmarks/results-saved/float-recovery-dantzig-2026-10-08/per-case.csv"
 rows = [r for r in csv.DictReader(src.open()) if r["fekete_status"] == "optimal"]
 LO, STEP, N = 0.5, 0.25, 12            # bins em log10(speedup): 10^0.5 .. 10^3.5
 out = []
