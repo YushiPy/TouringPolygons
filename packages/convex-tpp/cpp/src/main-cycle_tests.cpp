@@ -710,7 +710,7 @@ void common_region_corners() {
 // Binary64 stage of the cycle oracle: tpp_convex_solve_cycle_float_certified
 // and ConvexCycleDoubleOptions::max_gap. Every interval must contain the exact
 // rational optimum, closed calls meet their gap, and contacts are feasible
-// (on a segment: the rounding of an exact segment point).
+// (on a segment: within rounding error of an exact segment point).
 struct FloatStageCounts {size_t interval=0,polish=0,open=0,checks=0,double_closed=0,double_exact=0;} float_counts;
 bool float_closed(const tpp::ConvexCycleFloatResult &r) {
     return r.status==tpp::ConvexFloatOracleStatus::GapClosed||r.status==tpp::ConvexFloatOracleStatus::CutoffReached;

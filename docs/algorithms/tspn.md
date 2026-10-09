@@ -34,8 +34,8 @@ without rational arithmetic. A call it leaves open, and every zero-gap call,
 uses the exact path: the exact independent certificate and counted rational
 recoveries; if the contact-derived lower bound remains too weak, the rational
 cycle solve strengthens it. The retained path is independently feasible for
-the convex regions, except that a segment contact is the binary64 rounding of
-an exact segment point (the B&B uses paths only through its own visit checks
+the convex regions, except that a segment contact is a binary64 approximation
+of an exact segment point (the B&B uses paths only through its own visit checks
 and lengths). No optimization epsilon is added to the convex-cycle
 constructor or its certificate; the gap is the B&B's own oracle request.
 

@@ -78,7 +78,7 @@ struct ConvexCycleFloatOptions {
 
 struct ConvexCycleFloatResult {
     // One contact per region when upper_bound is finite: inside a polygon or
-    // at a point (proved), or the binary64 rounding of the exact segment
+    // at a point (proved), or a binary64 approximation of the exact segment
     // point a+t(b-a) that the upper bound encloses.
     std::vector<Vector2> contacts;
     double lower_bound = 0;

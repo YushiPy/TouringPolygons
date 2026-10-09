@@ -93,8 +93,8 @@ struct ConvexCycleDoubleOptions {
     // same binary64 construction, bounds proved with directed rounding and,
     // if needed, an interior-point polish. GapClosed (or CertifiedBound) is
     // returned when U-L <= max_gap (or L >= cutoff); its contacts are proved
-    // in their polygons and points, and on a segment they round an exact
-    // segment point whose cycle U bounds. Otherwise the exact path below runs
+    // in their polygons and points, and on a segment they approximate an
+    // exact segment point whose cycle U bounds. Otherwise the exact path runs
     // unchanged and keeps the larger proved lower bound. Zero keeps it off.
     double max_gap = 0;
     bool float_polish = true;

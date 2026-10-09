@@ -292,9 +292,10 @@ binary64 coordinates, each a point, a segment or a polygon of positive area.
 Suppose that whenever `cycle_interval_environment()` accepts, binary64
 operations follow IEEE 754 with round-to-nearest. If the stage returns
 `(L,U)`, in any status, then `L <= OPT <= U`. When `U` is finite, it bounds the
-length of a cycle of exact points `z_i in P_i` whose binary64 roundings are the
-returned contacts (equal to them except on a segment). This holds whatever
-the construction kernel and the polish propose.
+length of a cycle of exact points `z_i in P_i`; the returned contacts are those
+points, except on a segment, where they are binary64 approximations of them
+(`a+t*(b-a)` evaluated in binary64, within a few units in the last place).
+This holds whatever the construction kernel and the polish propose.
 
 *Proof.* (a) Normalization decides each turn sign from an interval that
 contains its exact value or from an exact integer determinant, and accepts
@@ -391,9 +392,9 @@ proof `O(N+k)` interval operations, each Newton iteration `O(k+F)`, and at most
 segments need no special exact handling. With gaps far tighter than the
 B&B's, binary64 can stop the polish before it closes (a subnormal `max_gap`
 in the tests); its bounds stay valid and the exact path runs. On a segment,
-contacts are roundings of exact segment points; the exact path's segment
-contacts are also rounded when exported. The environment check is the one of
-the interval certificate.
+contacts approximate exact segment points to a few units in the last place;
+the exact path's segment contacts are also rounded when exported. The
+environment check is the one of the interval certificate.
 
 A construction detail found while testing: `CycleRefinement::coordinate`
 treated a point region as the whole plane (its zero-length edges give no

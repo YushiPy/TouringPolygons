@@ -552,7 +552,8 @@ cada ponto fixo e cada segmento parametrizado por `t ∈ [0,1]` com barreira em
 `t` e `1−t`. A prova é a de cima: um ponto é o próprio contato; num segmento,
 o ponto exato `a+t(b−a)` (que está no segmento para todo `t` binário em
 `[0,1]`) é carregado como caixa intervalar, e `U` soma os comprimentos entre
-caixas; o contato devolvido é o arredondamento desse ponto. A proposição da
+caixas; o contato devolvido é uma aproximação binary64 desse ponto
+(`a+t·(b−a)` calculado em binary64, a poucas unidades na última casa). A proposição da
 barreira vale com dois termos de barreira por segmento e nenhum por ponto
 (prova em [convex-cycle.md](convex-cycle.md#why-the-polish-produces-good-lower-bounds)).
 Fechar exige um caminho de contatos provados (`U` finito). No B&B,
