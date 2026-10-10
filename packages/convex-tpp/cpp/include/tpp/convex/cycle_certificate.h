@@ -6,6 +6,8 @@
 #include <cstddef>
 #include <vector>
 #include <map>
+#include <optional>
+#include <unordered_map>
 #include <utility>
 #include <limits>
 
@@ -53,9 +55,17 @@ class ConvexCycleWorkspace {
     using Key = std::vector<std::pair<double,double>>;
     std::map<Key,ConvexRationalPolygon> polygons_;
     std::map<Key,std::vector<Vector2>> binary_polygons_;
+    // Binary64 regions of the float cycle stage, keyed by bit pattern.
+    struct BitsHash { std::size_t operator()(const std::vector<Vector2> &) const; };
+    struct BitsEqual { bool operator()(const std::vector<Vector2> &, const std::vector<Vector2> &) const; };
+    std::unordered_map<std::vector<Vector2>,std::optional<std::vector<Vector2>>,BitsHash,BitsEqual> float_regions_;
 public:
     ConvexCycleCertificateGeometry prepare(const std::vector<std::vector<Vector2>> &, bool binary_geometry = false);
-    void clear() { polygons_.clear(); binary_polygons_.clear(); }
+    // The normalized region of the binary64 cycle stage (nothing when its
+    // signs are undecided or the region is not convex), computed once per
+    // distinct input. The reference stays valid until the next call.
+    const std::optional<std::vector<Vector2>> &float_region(const std::vector<Vector2> &);
+    void clear() { polygons_.clear(); binary_polygons_.clear(); float_regions_.clear(); }
     std::size_t size() const { return polygons_.size(); }
 };
 ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(

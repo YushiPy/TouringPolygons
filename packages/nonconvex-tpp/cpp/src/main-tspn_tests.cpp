@@ -316,13 +316,54 @@ void insertion_bounds() {
             if(trial%3==0)std::fill(hints.begin(),hints.end(),hints.front());
             hints.push_back(hints.front());
             const auto bounds=tpp::unordered_detail::insertion_lower_bounds(hints,refs,inserted,true);
-            for(size_t i=0;i<n;++i)require(bounds[i]<=optima[i],"Rational cyclic dual bound, including closing edge");
+            const auto exact=tpp::unordered_detail::rational_cycle_insertion_bounds(hints,refs,inserted);
+            for(size_t i=0;i<n;++i) {
+                require(bounds[i]<=optima[i]&&exact[i]<=optima[i],"Cyclic dual bound, including closing edge");
+                require(std::abs(bounds[i]-exact[i])<=1e-12*(1+exact[i]),"Binary64 cyclic insertion bound matches the rational one");
+            }
             tpp::ConvexRationalPolygon dual;
             for(size_t i=0;i<n;++i)dual.emplace_back(tpp::ConvexRational(int(rng()%3)-1)/2,tpp::ConvexRational(int(rng()%3)-1)/2);
             const auto reused=tpp::unordered_detail::insertion_lower_bounds(hints,refs,inserted,true,dual);
-            for(size_t i=0;i<n;++i)require(reused[i]>=bounds[i]&&reused[i]<=optima[i],"Inherited subunit dual remains a valid stronger bound");
+            for(size_t i=0;i<n;++i)require(reused[i]>=exact[i]&&reused[i]<=optima[i],"Inherited subunit dual remains a valid stronger bound");
         }
     }
+    // Points, segments and polygons, arbitrary and coincident contacts: the
+    // binary64 bounds stay below every child optimum and within rounding of
+    // the exact rational bounds.
+    std::uniform_int_distribution<int> coord(-8,8),kind(0,2);
+    auto region=[&] {
+        const double x=coord(rng)+0.125*(rng()%8),y=coord(rng)-0.0625*(rng()%16);
+        switch(kind(rng)) {
+            case 0: return Polygon{{x,y}};
+            case 1: return Polygon{{x,y},{x+1+double(rng()%3)/3,y+double(rng()%3)/7}};
+            default: return box(x,y,0.5+double(rng()%3),1.0/3);
+        }
+    };
+    size_t compared=0;
+    for(size_t trial=0;trial<120;++trial) {
+        const size_t n=1+trial%5;
+        Polygons regions;for(size_t i=0;i<n;++i)regions.push_back(region());
+        const auto added=region();
+        std::vector<const Polygon*> refs;for(const auto &r:regions)refs.push_back(&r);
+        for(size_t hint=0;hint<4;++hint) {
+            Polygon contacts;
+            for(size_t i=0;i<n;++i)contacts.push_back(hint==0?regions[i].front():Vector2{pos(rng),pos(rng)});
+            if(hint==3)std::fill(contacts.begin(),contacts.end(),contacts.front());
+            contacts.push_back(contacts.front());
+            const auto bounds=tpp::unordered_detail::insertion_lower_bounds(contacts,refs,added,true);
+            const auto exact=tpp::unordered_detail::rational_cycle_insertion_bounds(contacts,refs,added);
+            for(size_t i=0;i<n;++i) {
+                require(std::abs(bounds[i]-exact[i])<=1e-12*(1+exact[i]),"Binary64 cyclic insertion bound matches the rational one (points, segments)");
+                if(hint)continue;
+                auto child=regions;child.insert(child.begin()+i+1,added);
+                const auto solved=tpp::tpp_convex_solve_cycle(child);
+                require(solved.status==tpp::ConvexCycleStatus::Optimal,"Insertion reference optimum");
+                require(bounds[i]<=solved.certificate.upper_bound,"Binary64 cyclic insertion bound below the child optimum");
+                ++compared;
+            }
+        }
+    }
+    require(compared>=300,"Insertion bounds compared with child optima");
 }
 // The multi-insertion bound must stay below the optimum of every completion
 // of a partial order, for arbitrary reference contacts (including coincident
@@ -342,7 +383,7 @@ void multi_insertion_bounds() {
     auto optimum=[&](const Polygons &order) {
         const auto r=tpp::tpp_convex_solve_cycle(order);
         require(r.status==tpp::ConvexCycleStatus::Optimal,"Multi-insertion reference optimum");
-        return r.certificate.lower_bound;
+        return r.certificate.upper_bound;
     };
     for(size_t trial=0;trial<60;++trial) {
         const bool path=trial%2;
@@ -362,7 +403,10 @@ void multi_insertion_bounds() {
                 if(a==fixed&&b==absent) {
                     Polygons cycle=built;
                     if(path){cycle.insert(cycle.begin(),Polygon{start});cycle.push_back(Polygon{target});}
-                    best=std::min(best,optimum(cycle)-(path?start.distance_to(target):0.0));
+                    // Upper bounds of the completion optima (closing link
+                    // subtracted with a lower bound of its length).
+                    const double closing=path?tpp::tpp_convex_distance_lower(start,target):0.0;
+                    best=std::min(best,std::nextafter(optimum(cycle)-closing,INFINITY));
                     return;
                 }
                 // Cycles keep region 0 first (rotation); paths are open.
@@ -384,7 +428,7 @@ void multi_insertion_bounds() {
             const double bound=path
                 ?tpp::unordered_detail::path_multi_insertion_bound(tpp::unordered_detail::path_insertion_dual(contacts,refs),contacts,refs,absent_refs)
                 :tpp::unordered_detail::cycle_multi_insertion_bound(contacts,refs,absent_refs);
-            require(bound<=best+1e-9*(1+best),"Multi-insertion bound below every completion ("+std::string(path?"path":"cycle")+")");
+            require(bound<=best,"Multi-insertion bound below every completion ("+std::string(path?"path":"cycle")+")");
             ++multi_insertion_checks;
         }
     }
@@ -691,8 +735,37 @@ void cycle_proposal_bound_contract() {
         std::abs(searched.upper_bound-enumerated_upper)<=1e-7+1e-9*enumerated_upper,
         "Proposal-bound B&B retains exact exhaustive order/piece result");
 }
+// A frontier budget smaller than one node discards half of the frontier on
+// every push. The bounds must still enclose the optimum, and a closed gap
+// must agree with the unbudgeted search.
+size_t frontier_budget_checks=0;
+void frontier_budget() {
+    std::mt19937 rng(91026);std::uniform_int_distribution<int> coord(0,30);
+    size_t trims=0;
+    for(size_t trial=0;trial<12;++trial) {
+        Polygons p;
+        for(size_t i=0;i<8+trial%4;++i)p.push_back(box(coord(rng),coord(rng),1+rng()%3,1+rng()%2));
+        if(trial%3==0)p.push_back({{double(coord(rng)),double(coord(rng))}});
+        tpp::UnorderedTppSolveOptions exact;exact.max_frontier_bytes=0;exact.relative_gap=1e-9;
+        const auto reference=tpp::tpp_nonconvex_tspn_solve(p,exact);
+        require(reference.exact,"Unbudgeted reference closes");
+        tpp::UnorderedTppSolveOptions tight=exact;tight.max_frontier_bytes=1;
+        const auto bounded=tpp::tpp_nonconvex_tspn_solve(p,tight);
+        require(covered(bounded.path,p),"Budgeted search keeps a feasible tour");
+        require(bounded.lower_bound<=reference.upper_bound+1e-9*(1+reference.upper_bound),"Budgeted lower bound stays below the optimum");
+        require(bounded.upper_bound>=reference.lower_bound-1e-9*(1+reference.lower_bound),"Budgeted upper bound stays above the optimum");
+        trims+=bounded.frontier_trims;
+        require(bounded.exact==(bounded.termination==tpp::UnorderedTppTermination::Optimal),"Budget termination is consistent");
+        require(bounded.exact||bounded.termination==tpp::UnorderedTppTermination::MemoryLimit,"An open budgeted search reports MemoryLimit");
+        require(!bounded.exact||bounded.lower_bound<=bounded.frontier_discarded_bound||!std::isfinite(bounded.frontier_discarded_bound)
+            ||bounded.frontier_discarded_bound>=bounded.upper_bound-1e-9*bounded.upper_bound-1e-7,"A closed gap is not capped by discarded nodes");
+        ++frontier_budget_checks;
+    }
+    require(trims>0,"A one-byte budget trims the frontier");
+}
 int main() {
     try {
+        frontier_budget();
         memo_cycle_keys();
         cycle_relaxation_interruptions();
         cycle_proposal_bound_contract();
@@ -748,6 +821,6 @@ int main() {
         bool rejected=false;try {tpp::tpp_nonconvex_tspn_solve({box(0,0)},bad);}catch(const std::invalid_argument&){rejected=true;}
         require(rejected,"Open supplied tour rejected");
         std::cout<<"TSPN tests passed: "<<cases<<" exhaustive cases with 1 and 2 threads, "<<interrupted<<" interrupted searches, "
-                 <<portfolio_cases<<" portfolios, "<<portfolio_limited<<" shared-budget searches, "<<decomposed<<" decomposition cases, "<<parallel_batches<<" concurrent oracle batches, 240 arbitrary-hint plus 240 inherited-dual checks; 1026 optimization/call-cap comparisons, "<<multi_insertion_checks<<" multi-insertion bound checks and 38 combined concurrency checks.\n";
+                 <<portfolio_cases<<" portfolios, "<<portfolio_limited<<" shared-budget searches, "<<decomposed<<" decomposition cases, "<<parallel_batches<<" concurrent oracle batches, 240 arbitrary-hint plus 240 inherited-dual checks; 1026 optimization/call-cap comparisons, "<<multi_insertion_checks<<" multi-insertion bound checks, "<<frontier_budget_checks<<" frontier-budget searches and 38 combined concurrency checks.\n";
     } catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}
 }

@@ -140,6 +140,7 @@ def termination_reason(row):
             'call_limit': 'call_limit',
             'numerical_limit': 'numerical_limit',
             'portfolio_stopped': 'portfolio_stopped',
+            'memory_limit': 'memory_limit',
         }.get(native, 'unknown')
     reason = row.get('termination_reason')
     return reason if reason in {'frontier_exhausted', 'time_limit', 'gap_criterion'} else 'unknown'
@@ -180,7 +181,7 @@ def write_reports(output, inputs, config, rows, status='complete'):
                     for k in dict.fromkeys(k for r in runs for k in r['diagnostics'])},
                 'termination_reasons': {reason: sum(termination_reason(r) == reason for r in runs)
                     for reason in ('frontier_exhausted', 'time_limit', 'gap_criterion',
-                        'call_limit', 'numerical_limit', 'portfolio_stopped', 'process_timeout', 'error', 'unknown')},
+                        'call_limit', 'numerical_limit', 'portfolio_stopped', 'memory_limit', 'process_timeout', 'error', 'unknown')},
             }
         bounded = [r for runs in group.values() for r in runs if r['validation']['valid'] and
                    finite(r.get('upper_bound')) and finite(r.get('lower_bound')) and 'error' not in r]
@@ -209,7 +210,7 @@ def write_reports(output, inputs, config, rows, status='complete'):
             item[backend]['termination_reasons'] = {reason: sum(
                 r[backend]['termination_reasons'][reason] for r in cases)
                 for reason in ('frontier_exhausted', 'time_limit', 'gap_criterion',
-                    'call_limit', 'numerical_limit', 'portfolio_stopped', 'process_timeout', 'error', 'unknown')}
+                    'call_limit', 'numerical_limit', 'portfolio_stopped', 'memory_limit', 'process_timeout', 'error', 'unknown')}
             # Median of case medians: no overweighting a partly repeated case.
             item[backend]['diagnostics'] = {k: median(r[backend]['median_diagnostics'].get(k) for r in cases)
                 for k in dict.fromkeys(k for r in cases for k in r[backend]['median_diagnostics'])}

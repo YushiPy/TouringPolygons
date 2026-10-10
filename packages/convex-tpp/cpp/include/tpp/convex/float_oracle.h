@@ -63,6 +63,7 @@ const char *to_string(ConvexFloatOracleStatus status);
 // proved contacts, L = D(u) for disk vectors u. No rational arithmetic is
 // used; an undecided normalization or membership sign returns Unsupported or
 // an open interval, never an unproved bound. Needs max_gap > 0 or a finite cutoff.
+class ConvexCycleWorkspace;
 struct ConvexCycleFloatOptions {
     double cutoff = std::numeric_limits<double>::infinity();
     double max_gap = 0;
@@ -74,6 +75,8 @@ struct ConvexCycleFloatOptions {
     std::size_t max_newton_iterations = 600;
     double warm_mu_ratio = 1e4;
     double warm_interior_fraction = 0x1p-7;
+    // Optional per-worker cache of the normalized regions.
+    ConvexCycleWorkspace *workspace = nullptr;
 };
 
 struct ConvexCycleFloatResult {

@@ -168,6 +168,16 @@ namespace tpp {
 		std::function<void(const UnorderedTppProgress &)> progress;
 		size_t progress_worker = 0;
         UnorderedSearchStrategy search_strategy = UnorderedSearchStrategy::BestBoundDive;
+        // Memory budget of the best-bound frontier (nodes, their paths and
+        // proposals, sequences), estimated from capacities. When it is
+        // exceeded, all but the best-bound quarter lose their path and
+        // proposals (they are solved again when taken); if the estimate is
+        // still above 3/4 of the budget, the half with the largest bounds is
+        // discarded and the smallest discarded bound becomes a floor of the
+        // reported lower bound (still valid). Below the budget the search is
+        // unchanged; zero disables it. The search ends with MemoryLimit if it
+        // exhausts the kept nodes before closing the gap.
+        size_t max_frontier_bytes = size_t(4) << 30;
         // Frontier sequences only. Packed automatically selects 8/16/32/64-bit
         // indices; Deltas retains insertion/piece changes in a recycled arena.
         UnorderedSequenceStorage sequence_storage = UnorderedSequenceStorage::Packed;
@@ -194,6 +204,11 @@ namespace tpp {
         // polish. Calls it leaves open use the unchanged exact path; zero gaps
         // always do. False restores the exact path for every call (ablation).
         bool cycle_float_oracle = true;
+        // Cycle insertion screening with binary64 directions proved in the unit
+        // disk and directed-rounding supports
+        // (tpp_convex_binary_cycle_insertion_bounds). False uses the exact
+        // rational bounds (ablation); an inherited dual always does.
+        bool cycle_binary_insertion = true;
         // Try a finite floating proposal before exact recovery. Its certified
         // interval must meet the existing oracle gap or pruning cutoff.
         bool cycle_proposal_bound = false;
@@ -212,7 +227,7 @@ namespace tpp {
         double oracle_capture_min_seconds = 0;
 	};
 
-	enum class UnorderedTppTermination { Optimal, CallLimit, TimeLimit, NumericalLimit, PortfolioStopped, Interrupted };
+	enum class UnorderedTppTermination { Optimal, CallLimit, TimeLimit, NumericalLimit, PortfolioStopped, Interrupted, MemoryLimit };
 
 	struct UnorderedTppTraceEvent {
 		std::string kind;
@@ -370,6 +385,12 @@ namespace tpp {
         // current siblings, allocator metadata, paths and oracle caches.
         size_t peak_sequence_storage_bytes = 0;
         size_t peak_frontier_node_bytes = 0;
+        // Frontier memory budget: peak estimated bytes; strips and the nodes
+        // whose proposals they dropped (solved again when taken); trims,
+        // discarded nodes and the smallest discarded bound (infinite if none).
+        size_t peak_frontier_bytes = 0, frontier_strips = 0, frontier_stripped_nodes = 0;
+        size_t frontier_trims = 0, frontier_discarded_nodes = 0;
+        double frontier_discarded_bound = std::numeric_limits<double>::infinity();
         size_t sequence_history_record_bytes = 0;
         size_t peak_sequence_records = 0;
         size_t sequence_reconstructions = 0;
@@ -393,6 +414,10 @@ namespace tpp {
 		size_t lookahead_prunes = 0;
 		size_t lookahead_changes = 0;
 		double lookahead_seconds = 0.0;
+		// Insertion screening of the branched region (all positions of one
+		// expansion, including the inherited path dual screen).
+		size_t insertion_bound_calls = 0;
+		double insertion_bound_seconds = 0.0;
 		size_t multi_insertion_calls = 0;
 		size_t multi_insertion_improvements = 0;
 		size_t multi_insertion_prunes = 0;

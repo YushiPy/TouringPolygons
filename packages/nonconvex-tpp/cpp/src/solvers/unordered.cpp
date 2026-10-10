@@ -21,6 +21,7 @@
 #include <cmath>
 #include <exception>
 #include <optional>
+#include <deque>
 #include <memory>
 #include <omp.h>
 #include <queue>
@@ -62,27 +63,72 @@ namespace {
         size_t index_bytes;
         // Must outlive every queued sequence reference (reverse member order).
         std::unique_ptr<SequenceHistory> history;
-        std::vector<Node> heap;
-        std::vector<Node> stack;
+        // Deques grow by blocks: a large frontier never holds a reallocated
+        // copy of itself (a vector briefly needs three times its size).
+        std::deque<Node> heap;
+        std::deque<Node> stack;
         std::set<std::pair<double,size_t>> bounds;
         size_t sequence_bytes = 0, dive_bytes = 0;
+        // Heap-allocated payload of the queued nodes (capacities plus an
+        // allocator word per block), for the memory budget.
+        size_t payload_bytes = 0, budget = 0;
+        double discarded = std::numeric_limits<double>::infinity();
+        static size_t payload(const Node &node) {
+            auto block=[](size_t bytes){return bytes?bytes+16:0;};
+            return block(node.path.capacity()*sizeof(Vector2))+block(node.warm_start.capacity()*sizeof(Vector2))
+                +block(node.active_features.capacity()*sizeof(int))+block(node.dual.capacity()*sizeof(tpp::ConvexRationalPoint));
+        }
+        size_t frontier_bytes() const {
+            return (dfs?stack.size():heap.size())*sizeof(Node)+payload_bytes+sequence_bytes;
+        }
         void note_storage() {
             peak_sequence_bytes=std::max(peak_sequence_bytes,sequence_bytes+dive_bytes+(history?history->reserved_bytes():0));
-            peak_node_bytes=std::max(peak_node_bytes,(dfs?stack.capacity():heap.capacity())*sizeof(Node));
+            peak_node_bytes=std::max(peak_node_bytes,(dfs?stack.size():heap.size())*sizeof(Node));
+            peak_bytes=std::max(peak_bytes,frontier_bytes());
+        }
+        // First drop the proposals (path, warm start, features, dual) of all
+        // but the best-bound quarter: a node without a path is solved again
+        // when it is taken, so this loses only work. If that frees too little,
+        // also discard the worse half; the discarded nodes' smallest bound
+        // stays a valid floor for every completion they represented.
+        void trim() {
+            auto order=[](const Node &a,const Node &b){return std::tie(a.bound,a.serial)<std::tie(b.bound,b.serial);};
+            const size_t full=heap.size()/4;
+            std::nth_element(heap.begin(),heap.begin()+full,heap.end(),order);
+            for(auto it=heap.begin()+full;it!=heap.end();++it) {
+                if(!payload(*it))continue;
+                payload_bytes-=payload(*it);++stripped_nodes;
+                Polygon{}.swap(it->path);Polygon{}.swap(it->warm_start);
+                std::vector<int>{}.swap(it->active_features);tpp::ConvexRationalPolygon{}.swap(it->dual);
+            }
+            ++strips;
+            if(4*frontier_bytes()>3*budget) {
+                const size_t keep=heap.size()/2;
+                std::nth_element(heap.begin(),heap.begin()+keep,heap.end(),order);
+                discarded=std::min(discarded,heap[keep].bound);
+                for(auto it=heap.begin()+keep;it!=heap.end();++it) {
+                    sequence_bytes-=it->sequence.payload_bytes();payload_bytes-=payload(*it);
+                }
+                discarded_nodes+=heap.size()-keep;++trims;
+                heap.erase(heap.begin()+keep,heap.end());heap.shrink_to_fit();
+            }
+            std::make_heap(heap.begin(),heap.end(),Later{});
         }
         static bool descending(const Node &a,const Node &b) {
             return std::tie(a.bound,a.relaxed_length,a.serial)>std::tie(b.bound,b.relaxed_length,b.serial);
         }
     public:
-        size_t peak_sequence_bytes = 0, peak_node_bytes = 0;
-        Frontier(bool use_dfs,tpp::UnorderedSequenceStorage mode,size_t bytes,size_t polygons)
-            :dfs(use_dfs),storage(mode),index_bytes(bytes) {
+        size_t peak_sequence_bytes = 0, peak_node_bytes = 0, peak_bytes = 0, trims = 0, discarded_nodes = 0;
+        size_t strips = 0, stripped_nodes = 0;
+        Frontier(bool use_dfs,tpp::UnorderedSequenceStorage mode,size_t bytes,size_t polygons,size_t max_bytes=0)
+            :dfs(use_dfs),storage(mode),index_bytes(bytes),budget(max_bytes) {
             if(storage==tpp::UnorderedSequenceStorage::Deltas)history=std::make_unique<SequenceHistory>(bytes,polygons);
         }
         bool empty() const { return dfs?stack.empty():heap.empty(); }
         size_t size() const { return dfs?stack.size():heap.size(); }
         void note_dive(size_t bytes) { dive_bytes=bytes;note_storage(); }
-        double lower_bound() const { return dfs?bounds.begin()->first:heap.front().bound; }
+        double lower_bound() const { return std::min(dfs?bounds.begin()->first:heap.front().bound,discarded); }
+        double discarded_bound() const { return discarded; }
         void freeze_child(Node &node,const SequenceReference &parent) {
             if(history)node.sequence.save(history->child(parent,node.branch_polygon,node.branch_piece,node.branch_position));
             else if(storage==tpp::UnorderedSequenceStorage::Packed)node.sequence.pack(index_bytes);
@@ -93,22 +139,26 @@ namespace {
                 if(history)node.sequence.save(parent?parent:history->snapshot(node.sequence.elements()));
                 else if(storage==tpp::UnorderedSequenceStorage::Packed)node.sequence.pack(index_bytes);
             }
-            sequence_bytes+=node.sequence.payload_bytes();
+            sequence_bytes+=node.sequence.payload_bytes();payload_bytes+=payload(node);
             if(dfs) { bounds.emplace(node.bound,node.serial);stack.push_back(std::move(node)); }
             else { heap.push_back(std::move(node));std::push_heap(heap.begin(),heap.end(),Later{}); }
             note_storage();
+            if(!dfs&&budget&&heap.size()>1&&frontier_bytes()>budget)trim();
         }
         Node take() {
             auto &nodes=dfs?stack:heap;
             if(dfs)bounds.erase({stack.back().bound,stack.back().serial});
             else std::pop_heap(heap.begin(),heap.end(),Later{});
-            sequence_bytes-=nodes.back().sequence.payload_bytes();
+            sequence_bytes-=nodes.back().sequence.payload_bytes();payload_bytes-=payload(nodes.back());
             Node node=std::move(nodes.back());nodes.pop_back();return node;
         }
         void report(tpp::UnorderedTppSolveResult &result) {
             note_storage();
             result.peak_sequence_storage_bytes=peak_sequence_bytes;
             result.peak_frontier_node_bytes=peak_node_bytes;
+            result.peak_frontier_bytes=peak_bytes;result.frontier_trims=trims;
+            result.frontier_discarded_nodes=discarded_nodes;result.frontier_discarded_bound=discarded;
+            result.frontier_strips=strips;result.frontier_stripped_nodes=stripped_nodes;
             if(history) {
                 result.sequence_history_record_bytes=history->record_bytes();
                 result.peak_sequence_records=history->peak_live_records;
@@ -371,7 +421,10 @@ namespace tpp {
 				++result.visit_query_cache_hits;return *visit_contacts[j];
 			}
 			++result.visit_query_evaluations;
-			const auto found=options.prepared_visit_queries?(options.segment_visit_cache?segment_cache.query(visit_segments,visit_polygons[j],j,n,eps):contact(visit_segments,visit_polygons[j],eps)):contact(path,polygons[j],eps);
+			// The anchor is a point of region j, so its distance bounds the
+			// region's from above and lets the scan skip far segments.
+			const auto found=options.prepared_visit_queries?(options.segment_visit_cache?segment_cache.query(visit_segments,visit_polygons[j],j,n,eps,
+				options.visit_upper_bounds?path_point_distance(visit_segments,visit_anchors[j]):INFINITY):contact(visit_segments,visit_polygons[j],eps)):contact(path,polygons[j],eps);
 			if(options.prepared_visit_queries)visit_contacts[j]=found;
 			if(found.distance>0)visit_anchors[j]=found.polygon_point;
 			return found;
@@ -450,7 +503,7 @@ namespace tpp {
 			result.convex_pieces_min = std::min(result.convex_pieces_min, pieces[polygon_index].size());
 			result.convex_pieces_max = std::max(result.convex_pieces_max, pieces[polygon_index].size());
 		};
-		result.lower_bound = start.distance_to(target);
+		result.lower_bound = tpp_convex_distance_lower(start, target);
 		result.initial_lower_bound = result.lower_bound;
 		if (options.initial_path) {
 			improve(*options.initial_path, "provided_initial_path");
@@ -1458,7 +1511,7 @@ namespace tpp {
 		};
 		double settled_bound = result.upper_bound;
 		const bool dfs=options.search_strategy==UnorderedSearchStrategy::DfsBfs;
-        Frontier queue(dfs,options.sequence_storage,index_bytes,n);
+        Frontier queue(dfs,options.sequence_storage,index_bytes,n,options.max_frontier_bytes);
 		// Rooting the sequence at region 0 removes rotation, without fixing a
 		// geometric point. A single-region cycle has lower bound zero.
 		std::vector<Element> root_sequence;
@@ -1487,7 +1540,7 @@ namespace tpp {
 			queue.note_dive(bytes);
 		};
 		auto frontier_bound = [&] {
-			double bound = queue.empty() ? result.upper_bound : queue.lower_bound();
+			double bound = std::min(queue.empty() ? result.upper_bound : queue.lower_bound(), queue.discarded_bound());
 			for (const auto &d : dives) bound = std::min(bound, d.bound);
 			return std::min(bound, result.upper_bound);
 		};
@@ -1713,7 +1766,8 @@ namespace tpp {
                 double strongest=-1;
                 for(size_t i=0;i<std::min(size_t(3),branch_candidates.size());++i) {
                     const size_t candidate=branch_candidates[i].second;
-                    const auto bounds=insertion_lower_bounds(node.path,regions,hulls[candidate],cycle,node.dual);
+                    const auto bounds=insertion_lower_bounds(node.path,regions,hulls[candidate],cycle,node.dual,
+                        nullptr,options.cycle_binary_insertion);
                     const double bound=*std::min_element(bounds.begin(),bounds.end());
                     if(bound>strongest){strongest=bound;chosen=candidate;}
                 }
@@ -1855,9 +1909,11 @@ namespace tpp {
                 const bool screen_dual=!cycle&&options.path_certificate_dual&&
                     parent_binary_dual.size()==node.sequence.size()+1;
                 Polygon proposals;
+                const auto began_insertion=std::chrono::steady_clock::now();
+                ++result.insertion_bound_calls;
 				auto bounds = !lookahead_bounds.empty()&&!screen_dual ? std::move(lookahead_bounds)
                     : insertion_lower_bounds(node.path, regions, hulls[chosen], cycle,
-                    node.dual,screen_dual?&proposals:nullptr);
+                    node.dual,screen_dual?&proposals:nullptr,options.cycle_binary_insertion);
                 if(screen_dual) {
                     const auto began_screen=std::chrono::steady_clock::now();
                     const auto inherited=tpp_convex_binary_dual_insertion_bounds(start,target,node.path,regions,
@@ -1870,6 +1926,7 @@ namespace tpp {
                     }
                     result.path_dual_screen_seconds+=duration(began_screen);
                 }
+                result.insertion_bound_seconds+=duration(began_insertion);
 				// At size two the two insertion positions are reversals of the
 				// same unoriented triangle. Later, all cyclic gaps are needed.
 				const size_t branching = cycle ? (node.sequence.size()==2?1:node.sequence.size()) : node.sequence.size()+1;
@@ -2062,7 +2119,7 @@ namespace tpp {
 		phase = Phase::Finalization;
 		const auto finalization_began = std::chrono::steady_clock::now();
 		result.lower_bound = std::min({result.upper_bound, settled_bound, frontier_bound()});
-		result.lower_bound = std::max(start.distance_to(target), result.lower_bound - normalization_error);
+		result.lower_bound = std::max(tpp_convex_distance_lower(start, target), result.lower_bound - normalization_error);
 		result.final_absolute_gap = std::max(0.0, result.upper_bound - result.lower_bound);
 		result.final_relative_gap = result.final_absolute_gap / std::max(std::abs(result.upper_bound), 1e-30);
 		result.final_length = result.upper_bound;
@@ -2072,6 +2129,7 @@ namespace tpp {
 			: (options.stop_requested && options.stop_requested()) ? UnorderedTppTermination::Interrupted
             : (control ? control->calls.load(std::memory_order_relaxed)>=control->max_calls : result.calls >= options.max_calls) ? UnorderedTppTermination::CallLimit
 			: (elapsed() >= options.max_seconds || (control && control->elapsed()>=control->max_seconds)) ? UnorderedTppTermination::TimeLimit
+			: queue.empty() && dives.empty() && std::isfinite(queue.discarded_bound()) ? UnorderedTppTermination::MemoryLimit
 			: UnorderedTppTermination::NumericalLimit;
 		std::vector<std::pair<double, size_t>> visits;
 		const auto final_visits_began = std::chrono::steady_clock::now();
@@ -2176,6 +2234,7 @@ namespace tpp {
 		scale_length(result.first_best_update_length);
 		scale_length(result.final_length);
 		scale_length(result.final_absolute_gap);
+		scale_length(result.frontier_discarded_bound);
 		for (auto &point : result.path) point = {
 			std::fma(point.x, divisor, center.x),
 			std::fma(point.y, divisor, center.y),
@@ -2189,8 +2248,8 @@ namespace tpp {
 			result.path.front()=start; result.path.back()=target;
 			if(endpoint_correction>0) {
 				auto upper=[&](double &v) {if(std::isfinite(v))v=std::nextafter(v+endpoint_correction,std::numeric_limits<double>::infinity());};
-				result.lower_bound=std::max(start.distance_to(target),std::nextafter(result.lower_bound-endpoint_correction,-std::numeric_limits<double>::infinity()));
-				result.initial_lower_bound=std::max(start.distance_to(target),std::nextafter(result.initial_lower_bound-endpoint_correction,-std::numeric_limits<double>::infinity()));
+				result.lower_bound=std::max(tpp_convex_distance_lower(start,target),std::nextafter(result.lower_bound-endpoint_correction,-std::numeric_limits<double>::infinity()));
+				result.initial_lower_bound=std::max(tpp_convex_distance_lower(start,target),std::nextafter(result.initial_lower_bound-endpoint_correction,-std::numeric_limits<double>::infinity()));
 				upper(result.upper_bound); upper(result.initial_upper_bound); upper(result.initial_length);
 				upper(result.incumbent_length); upper(result.first_best_update_length);
 			}
@@ -2205,7 +2264,7 @@ namespace tpp {
 			if (std::isfinite(event.upper_bound)) event.upper_bound *= divisor;
 			if (std::isfinite(event.length)) event.length *= divisor;
 			if(endpoint_correction>0) {
-				if(std::isfinite(event.lower_bound))event.lower_bound=std::max(start.distance_to(target),std::nextafter(event.lower_bound-endpoint_correction,-std::numeric_limits<double>::infinity()));
+				if(std::isfinite(event.lower_bound))event.lower_bound=std::max(tpp_convex_distance_lower(start,target),std::nextafter(event.lower_bound-endpoint_correction,-std::numeric_limits<double>::infinity()));
 				if(std::isfinite(event.upper_bound))event.upper_bound=std::nextafter(event.upper_bound+endpoint_correction,std::numeric_limits<double>::infinity());
 				if(std::isfinite(event.length) && event.path.size()>=2)event.length=path_length(event.path);
 			}
@@ -2403,6 +2462,12 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::total_branching);
         sum(&UnorderedTppSolveResult::peak_sequence_storage_bytes);
         sum(&UnorderedTppSolveResult::peak_frontier_node_bytes);
+        sum(&UnorderedTppSolveResult::peak_frontier_bytes);
+        sum(&UnorderedTppSolveResult::frontier_trims);
+        sum(&UnorderedTppSolveResult::frontier_discarded_nodes);
+        sum(&UnorderedTppSolveResult::frontier_strips);
+        sum(&UnorderedTppSolveResult::frontier_stripped_nodes);
+        result.frontier_discarded_bound=std::min(runs[0].frontier_discarded_bound,runs[1].frontier_discarded_bound);
         sum(&UnorderedTppSolveResult::peak_sequence_records);
         sum(&UnorderedTppSolveResult::sequence_reconstructions);
         sum(&UnorderedTppSolveResult::sequence_depth_sum);
@@ -2447,6 +2512,8 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::lookahead_prunes);
         sum(&UnorderedTppSolveResult::lookahead_changes);
         sum(&UnorderedTppSolveResult::lookahead_seconds);
+        sum(&UnorderedTppSolveResult::insertion_bound_calls);
+        sum(&UnorderedTppSolveResult::insertion_bound_seconds);
         sum(&UnorderedTppSolveResult::multi_insertion_calls);
         sum(&UnorderedTppSolveResult::multi_insertion_improvements);
         sum(&UnorderedTppSolveResult::multi_insertion_prunes);

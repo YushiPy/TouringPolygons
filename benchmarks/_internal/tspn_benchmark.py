@@ -191,8 +191,8 @@ def main(argv=None):
         help='Run one isolated B&B strategy instead of the default strategy.')
     parser.add_argument('--cycle-optimization',action='append',choices=('cache','dual','features','lazy','root','branch','one-tree','learn','memo','bound-first','dual-screen','interval','share-bounds','proposal-bound','primal-starts'),default=[],
         help='Enable one native cycle optimization; repeat to combine independently selectable optimizations.')
-    parser.add_argument('--oracle-ablation',action='append',choices=('no-cycle-float','no-float-degenerate'),default=[],
-        help='Native oracle ablation, for A/B runs of one binary: send cycle calls (no-cycle-float), or path calls with points or segments (no-float-degenerate), straight to the exact path.')
+    parser.add_argument('--oracle-ablation',action='append',choices=('no-cycle-float','no-float-degenerate','no-cycle-binary-insertion'),default=[],
+        help='Native ablation, for A/B runs of one binary: send cycle calls (no-cycle-float), or path calls with points or segments (no-float-degenerate), straight to the exact path; compute the cyclic insertion screening with exact rationals (no-cycle-binary-insertion).')
     parser.add_argument('--progress-interval',type=float,default=60.0,
         help='Seconds between status lines (bounds, calls, queue) of the running tpp-ours instance, also kept in live.json for `tpp.py live`; 0 disables.')
     parser.add_argument('--relative-gap',type=float,default=1e-6)

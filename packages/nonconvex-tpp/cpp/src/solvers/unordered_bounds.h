@@ -2,6 +2,7 @@
 
 #include "unordered_geometry.h"
 #include "tpp/convex/rational.h"
+#include "tpp/convex/dual.h"
 #include <functional>
 #include <map>
 
@@ -15,14 +16,13 @@ namespace tpp::unordered_detail {
 	// Open-path insertion bounds split in two: the node's dual directions and
 	// supports (independent of the inserted region) and the per-region bounds.
 	// insertion_lower_bounds without an inherited dual is their composition.
-	struct PathInsertionDual {
-		std::vector<Vector2> directions;
-		std::vector<double> supports;
-		long double value = 0;
-		double scale = 1;
-	};
+	// The node's contact-direction dual, proved (tpp_convex_binary_path_dual).
+	// Invalid only without the binary64 interval environment; the bounds then
+	// reduce to the endpoint distance.
+	using PathInsertionDual = ConvexBinaryChainDual;
 	PathInsertionDual path_insertion_dual(const Polygon &contacts, const std::vector<const Polygon *> &regions);
-	// One position of path_insertion_bounds, with identical arithmetic.
+	// One position of path_insertion_bounds, with identical arithmetic: the
+	// enclosed dual value plus the enclosed gain, rounded down.
 	double path_insertion_bound_at(const PathInsertionDual &dual, const Polygon &contacts,
 		const std::vector<const Polygon *> &regions, const Polygon &inserted, size_t position,
 		Vector2 *insertion_contact = nullptr);
@@ -32,7 +32,7 @@ namespace tpp::unordered_detail {
 	double path_multi_insertion_bound(const PathInsertionDual &dual, const Polygon &contacts,
 		const std::vector<const Polygon *> &regions, const std::vector<const Polygon *> &missing);
 	// The same bound for a partial cycle (contacts closed, at least three
-	// regions), with its own contact-direction dual in binary64.
+	// regions), with its own proved contact-direction dual.
 	double cycle_multi_insertion_bound(const Polygon &contacts, const std::vector<const Polygon *> &regions,
 		const std::vector<const Polygon *> &missing);
 	std::vector<double> path_insertion_bounds(const PathInsertionDual &dual, const Polygon &contacts,
@@ -40,7 +40,13 @@ namespace tpp::unordered_detail {
 	std::vector<double> insertion_lower_bounds(const Polygon &contacts,
 		const std::vector<const Polygon *> &regions, const Polygon &inserted,
 		bool cycle = false, const ConvexRationalPolygon &inherited_dual = {},
-        Polygon *insertion_contacts = nullptr);
+        Polygon *insertion_contacts = nullptr, bool binary_cycle = true);
+    // The exact rational cycle branch of insertion_lower_bounds: the reference
+    // for its binary64 interval version and the fallback for an inherited
+    // rational dual or an unsupported floating-point environment.
+    std::vector<double> rational_cycle_insertion_bounds(const Polygon &contacts,
+        const std::vector<const Polygon *> &regions, const Polygon &inserted,
+        const ConvexRationalPolygon &inherited_dual = {});
     // Keep the parent's dual directions, replacing only one support term.
     // Each returned bound is valid even when the old contacts leave the piece.
     std::vector<double> cycle_replacement_lower_bounds(const Polygon &contacts,

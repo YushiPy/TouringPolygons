@@ -1,10 +1,13 @@
 #include "tpp/convex/float_oracle.h"
+#include "tpp/convex/cycle_certificate.h"
 #include "cycle_execution.h"
 #include "cycle_refinement.h"
 #include "float_chain.h"
 #include "float_proof.h"
 
 #include <algorithm>
+#include <bit>
+#include <cstdint>
 #include <chrono>
 #include <cmath>
 #include <limits>
@@ -62,6 +65,23 @@ struct CycleBounds {
 
 } // namespace
 
+std::size_t ConvexCycleWorkspace::BitsHash::operator()(const std::vector<Vector2> &p) const {
+    std::size_t h=p.size();
+    for(const auto &v:p)for(double c:{v.x,v.y})
+        h^=std::hash<std::uint64_t>{}(std::bit_cast<std::uint64_t>(c))+0x9e3779b97f4a7c15ULL+(h<<6)+(h>>2);
+    return h;
+}
+bool ConvexCycleWorkspace::BitsEqual::operator()(const std::vector<Vector2> &a,const std::vector<Vector2> &b) const {
+    return a.size()==b.size()&&std::equal(a.begin(),a.end(),b.begin(),[](Vector2 p,Vector2 q) {
+        return std::bit_cast<std::uint64_t>(p.x)==std::bit_cast<std::uint64_t>(q.x)&&
+               std::bit_cast<std::uint64_t>(p.y)==std::bit_cast<std::uint64_t>(q.y);});
+}
+const std::optional<std::vector<Vector2>> &ConvexCycleWorkspace::float_region(const std::vector<Vector2> &p) {
+    if(auto found=float_regions_.find(p);found!=float_regions_.end())return found->second;
+    if(float_regions_.size()>=(std::size_t(1)<<16))float_regions_.clear();
+    return float_regions_.emplace(p,detail::binary_region(p)).first->second;
+}
+
 ConvexCycleFloatResult tpp_convex_solve_cycle_float_certified(const std::vector<std::vector<Vector2>> &input,
         const ConvexCycleFloatOptions &options) {
     const auto began=Clock::now();
@@ -72,6 +92,12 @@ ConvexCycleFloatResult tpp_convex_solve_cycle_float_certified(const std::vector<
        !(options.max_gap>0||std::isfinite(options.cutoff)))return finish(ConvexFloatOracleStatus::Unsupported);
     std::vector<Region> regions;regions.reserve(k);
     for(const auto &p:input) {
+        if(options.workspace) {
+            const auto &normalized=options.workspace->float_region(p);
+            if(!normalized)return finish(ConvexFloatOracleStatus::Unsupported);
+            regions.push_back(*normalized);
+            continue;
+        }
         auto normalized=detail::binary_region(p);
         if(!normalized)return finish(ConvexFloatOracleStatus::Unsupported);
         regions.push_back(std::move(*normalized));

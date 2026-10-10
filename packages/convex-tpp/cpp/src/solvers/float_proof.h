@@ -67,6 +67,15 @@ inline bool proved_inside(Vector2 q,const FloatRegion &p) {
     if(!q.is_finite())return false;
     for(size_t i=0;i<p.size();++i) {
         const auto &a=p[i],&b=p[(i+1)%p.size()];
+        // Static filter first: in the standard model the binary64
+        // determinant is within 2^-50(|l|+|r|) + 2^-1069 of the exact one
+        // (Shewchuk's orient2d bound is 3.0000001u(|l|+|r|) without underflow).
+        const double l=(b.x-a.x)*(q.y-a.y),r=(b.y-a.y)*(q.x-a.x),det=l-r;
+        const double bound=0x1p-50*(std::abs(l)+std::abs(r))+0x1p-1069;
+        if(std::isfinite(det)&&std::isfinite(bound)) {
+            if(det>bound)continue;
+            if(det<-bound)return false;
+        }
         const auto side=(IntervalPoint(b)-IntervalPoint(a)).cross(IntervalPoint(q)-IntervalPoint(a));
         if(side.hi<0)return false;
         if(side.lo>=0)continue;
@@ -141,28 +150,21 @@ inline double enclosed_length_upper(const std::vector<IntervalPoint> &boxes,bool
 // = sum_i q_i.(u_(i-1)-u_i) >= sum_i min_{v in P_i} (v-r).(u_(i-1)-u_i) for
 // every feasible cycle q and any reference r (the coefficients sum to zero).
 // Each proposal is replaced by a binary vector proved to lie in the disk (or
-// zero), and the sum is enclosed with directed rounding.
+// zero). Each support is the binary64 minimum widened by its a priori
+// rounding-error bound (support_bounds, binary_dual.h), and the sum is
+// rounded down one value per addition.
 inline double cycle_dual_lower(const std::vector<FloatRegion> &regions,const std::vector<Vector2> &proposal,Vector2 reference) {
     const size_t k=regions.size();
     if(proposal.size()!=k||!reference.is_finite())return -INFINITY;
-    std::vector<IntervalPoint> u;u.reserve(k);
-    for(const auto &v:proposal) {
-        if(!v.is_finite()){u.emplace_back();continue;}
-        u.emplace_back(binary_dual_vector(IntervalPoint(v)));
-    }
-    const IntervalPoint origin(reference);
-    CycleInterval dual;
+    std::vector<Vector2> u;u.reserve(k);
+    for(const auto &v:proposal)u.push_back(v.is_finite()?binary_dual_vector(IntervalPoint(v)):Vector2{});
+    double dual=0;
     for(size_t i=0;i<k;++i) {
-        const auto normal=u[(i+k-1)%k]-u[i];
-        CycleInterval support(INFINITY);
-        for(const auto &v:regions[i]) {
-            const auto term=normal.dot(IntervalPoint(v)-origin);
-            support.lo=std::min(support.lo,term.lo);
-            support.hi=std::min(support.hi,term.hi);
-        }
-        dual=dual+support;
+        const double term=support_bounds<false>(regions[i],reference,u[(i+k-1)%k],u[i]).lower;
+        if(!std::isfinite(term))return -INFINITY;
+        dual=dual==0||term==0?dual+term:below(dual+term);
     }
-    return dual.finite()?dual.lo:-INFINITY;
+    return dual;
 }
 
 // Link directions of a closed chain of representatives. Links no longer than

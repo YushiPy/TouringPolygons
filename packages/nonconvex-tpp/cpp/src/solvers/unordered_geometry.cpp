@@ -269,7 +269,8 @@ namespace tpp::unordered_detail {
         return result;
     }
     Contact SegmentContactCache::query(const PreparedContactPath &path,
-            const PreparedContactPolygon &polygon,size_t polygon_index,size_t polygon_count,double tolerance) {
+            const PreparedContactPolygon &polygon,size_t polygon_index,size_t polygon_count,double tolerance,
+            double upper_distance) {
         if(polygon_index>=polygon_count)throw std::out_of_range("Invalid segment-cache polygon");
         const auto tolerance_bits=std::bit_cast<uint64_t>(tolerance);
         if(polygons_.size()!=polygon_count||tolerance_bits_!=tolerance_bits) {
@@ -281,11 +282,17 @@ namespace tpp::unordered_detail {
         const size_t max_entries=std::max(size_t(1),std::min(size_t(1024),
             size_t(2*1024*1024)/sizeof(std::optional<Contact>)/polygon_count));
         Contact best{INFINITY,0,INFINITY};
+        // The margin dwarfs the rounding of both distances, so the skipped
+        // segments are farther than every closest or touching one.
+        const double scale=std::max({std::abs(polygon.minimum.x),std::abs(polygon.minimum.y),
+            std::abs(polygon.maximum.x),std::abs(polygon.maximum.y)});
+        const double limit=upper_distance*(1+1e-9)+tolerance+1e-12*scale;
+        const double limit_squared=std::isfinite(limit)?limit*limit:INFINITY;
         for(size_t i=0;i<path.segments.size();++i) {
             const auto &segment=path.segments[i];
             const double dx=std::max({0.0,polygon.minimum.x-segment.maximum.x,segment.minimum.x-polygon.maximum.x});
             const double dy=std::max({0.0,polygon.minimum.y-segment.maximum.y,segment.minimum.y-polygon.maximum.y});
-            if(dx*dx+dy*dy>best.squared_distance)continue;
+            if(dx*dx+dy*dy>std::min(best.squared_distance,limit_squared))continue;
             const Key key{std::bit_cast<uint64_t>(segment.start.x),std::bit_cast<uint64_t>(segment.start.y),
                 std::bit_cast<uint64_t>(segment.end.x),std::bit_cast<uint64_t>(segment.end.y)};
             auto found=entries_.find(key);
