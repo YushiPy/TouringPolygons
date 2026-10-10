@@ -21,6 +21,7 @@
 #include <cmath>
 #include <exception>
 #include <optional>
+#include <deque>
 #include <memory>
 #include <omp.h>
 #include <queue>
@@ -62,8 +63,10 @@ namespace {
         size_t index_bytes;
         // Must outlive every queued sequence reference (reverse member order).
         std::unique_ptr<SequenceHistory> history;
-        std::vector<Node> heap;
-        std::vector<Node> stack;
+        // Deques grow by blocks: a large frontier never holds a reallocated
+        // copy of itself (a vector briefly needs three times its size).
+        std::deque<Node> heap;
+        std::deque<Node> stack;
         std::set<std::pair<double,size_t>> bounds;
         size_t sequence_bytes = 0, dive_bytes = 0;
         // Heap-allocated payload of the queued nodes (capacities plus an
@@ -76,11 +79,11 @@ namespace {
                 +block(node.active_features.capacity()*sizeof(int))+block(node.dual.capacity()*sizeof(tpp::ConvexRationalPoint));
         }
         size_t frontier_bytes() const {
-            return (dfs?stack.capacity():heap.capacity())*sizeof(Node)+payload_bytes+sequence_bytes;
+            return (dfs?stack.size():heap.size())*sizeof(Node)+payload_bytes+sequence_bytes;
         }
         void note_storage() {
             peak_sequence_bytes=std::max(peak_sequence_bytes,sequence_bytes+dive_bytes+(history?history->reserved_bytes():0));
-            peak_node_bytes=std::max(peak_node_bytes,(dfs?stack.capacity():heap.capacity())*sizeof(Node));
+            peak_node_bytes=std::max(peak_node_bytes,(dfs?stack.size():heap.size())*sizeof(Node));
             peak_bytes=std::max(peak_bytes,frontier_bytes());
         }
         // First drop the proposals (path, warm start, features, dual) of all

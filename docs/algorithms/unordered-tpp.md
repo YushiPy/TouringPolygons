@@ -226,8 +226,8 @@ O JSON informa `sequence_storage`, `node_index_bits`,
 `sequence_reconstructions`. Os bytes de sequência contabilizam buffers/arena
 reservados, incluindo a capacidade livre para reutilização, sem cabeçalhos
 inline, metadados do alocador, vetores temporários de irmãos, caminhos ou
-caches dos oráculos. Os bytes de nós contabilizam a capacidade do vetor da
-fila, sem o índice de limites da DFS. No portfólio, os picos são somados e
+caches dos oráculos. Os bytes de nós contabilizam os nós da fila (um `deque`
+desde 2026-10-09), sem o índice de limites da DFS. No portfólio, os picos são somados e
 constituem uma estimativa superior à ocupação simultânea dos dois workers.
 `process_peak_rss_bytes` mede o pico do processo CLI em macOS/Linux, incluindo
 caminhos, caches e demais alocações; zero indica métrica indisponível em outras
@@ -244,9 +244,11 @@ processos de 120 s já faziam um Mac de 24 GB usar swap. A rodada passava de
 120 s para até 166 s, ao liberar uma fronteira paginada.
 
 `options.max_frontier_bytes` / `--max-frontier-mib N` (padrão 4096; 0
-desliga) limita a estimativa de bytes da fronteira de melhor limite: a
-capacidade do vetor de nós, as capacidades dos vetores de cada nó com uma
-palavra do alocador por bloco, e as sequências. Ao passar do limite num
+desliga) limita a estimativa de bytes da fronteira de melhor limite: os nós
+da fila, as capacidades dos vetores de cada nó com uma palavra do alocador
+por bloco, e as sequências. A fila é um `deque`, que cresce por blocos. Um
+vetor realocado convivia brevemente com a cópia, e o RSS chegava a ~1,8× o
+limite (100pr1002, 1 GiB: 1,78 → 1,33 GB). Ao passar do limite num
 `push`, o corte tem dois níveis, na ordem `(bound, serial)`, por
 `nth_element`:
 
