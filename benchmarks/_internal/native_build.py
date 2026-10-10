@@ -49,6 +49,23 @@ HEADER_DEPENDENCIES = {
 	},
 }
 
+# Pinned GNU releases (checksums of the Homebrew formulae) built into .cache/deps when a Linux
+# machine has no GMP headers: GMP is static, and m4 is only needed to configure GMP.
+SOURCE_DEPENDENCIES = {
+	"m4": {
+		"version": "1.4.21",
+		"urls": ("https://ftp.gnu.org/gnu/m4/m4-1.4.21.tar.xz", "https://ftpmirror.gnu.org/m4/m4-1.4.21.tar.xz"),
+		"sha256": "f25c6ab51548a73a75558742fb031e0625d6485fe5f9155949d6486a2408ab66",
+		"marker": "bin/m4",
+	},
+	"gmp": {
+		"version": "6.3.0",
+		"urls": ("https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz", "https://ftpmirror.gnu.org/gmp/gmp-6.3.0.tar.xz"),
+		"sha256": "a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898",
+		"marker": "lib/libgmp.a",
+	},
+}
+
 
 def tool_name(package: str, source: Path) -> str:
 	"""Mirror the CMake naming rule: main-foo_bar.cpp -> tpp[-convex]-foo-bar."""
@@ -192,6 +209,8 @@ def configuration(*, gurobi: bool, toolchain: dict[str, str] | None = None) -> d
 		arguments.append(f"-DGUROBI_HOME={home}")
 	for variable, directory in sorted(header_dependency_dirs().items()):
 		arguments.append(f"-D{variable}={directory}")
+	if (gmp := source_dependency_prefix("gmp")) is not None:
+		arguments += [f"-DTPP_GMP_INCLUDE_DIR={gmp / 'include'}", f"-DTPP_GMP_LIBRARY={gmp / 'lib/libgmp.a'}"]
 	arguments.extend(shlex.split(os.environ.get("TPP_CMAKE_ARGS", "")))
 	return {
 		"source": str(SOURCE.resolve()),
@@ -325,6 +344,97 @@ def fetch_header_dependencies(names: Sequence[str]) -> int:
 	return 0
 
 
+def source_dependency_prefix(name: str) -> Path | None:
+	"""Install prefix of a source dependency already built into .cache/deps, if any."""
+	spec = SOURCE_DEPENDENCIES[name]
+	prefix = DEPS_ROOT / name / spec["version"]
+	return prefix if (prefix / spec["marker"]).exists() else None
+
+
+def system_gmp_available(cc: str = "cc") -> bool:
+	"""True when the C compiler finds gmp.h and links -lgmp without extra paths."""
+	with tempfile.TemporaryDirectory(prefix="tpp-gmp-probe-") as directory:
+		source = Path(directory) / "probe.c"
+		source.write_text("#include <gmp.h>\nint main(void) { mpz_t x; mpz_init_set_ui(x, 3); mpz_clear(x); return 0; }\n")
+		result = subprocess.run([cc, str(source), "-lgmp", "-o", str(Path(directory) / "probe")],
+			capture_output=True, check=False)
+		return result.returncode == 0
+
+
+def build_uses_gmp(directory: Path | None = None) -> bool | None:
+	"""Whether a configured build links GMP (None before the first configure)."""
+	cache = (directory or build_directory()) / "CMakeCache.txt"
+	try:
+		lines = cache.read_text().splitlines()
+	except OSError:
+		return None
+	values = [line.split("=", 1)[1] for line in lines if line.startswith("TPP_GMP_LIBRARY:")]
+	return bool(values) and not values[0].endswith("NOTFOUND")
+
+
+def _build_source_dependency(name: str, work: Path, configure: Sequence[str], environment: dict[str, str],
+		check: bool = False) -> Path:
+	import hashlib
+	import tarfile
+	import urllib.request
+
+	spec = SOURCE_DEPENDENCIES[name]
+	prefix = DEPS_ROOT / name / spec["version"]
+	archive = work / Path(spec["urls"][0]).name
+	for url in spec["urls"]:
+		try:
+			print(f"{name}: downloading {url}", flush=True)
+			with urllib.request.urlopen(url, timeout=60) as response, archive.open("wb") as file:
+				shutil.copyfileobj(response, file)
+			break
+		except OSError as error:
+			print(f"{name}: download failed ({error})", flush=True)
+	else:
+		raise SystemExit(f"{name}: no source URL could be downloaded.")
+	digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+	if digest != spec["sha256"]:
+		raise SystemExit(f"{name}: SHA-256 mismatch ({digest}); refusing to use the download.")
+	with tarfile.open(archive) as bundle:
+		bundle.extractall(work, filter="data")
+	source = work / f"{name}-{spec['version']}"
+	log = work / f"{name}.log"
+	steps = [["./configure", f"--prefix={prefix}", *configure], ["make", f"-j{build_jobs()}"]]
+	if check:
+		steps.append(["make", f"-j{build_jobs()}", "check"])
+	steps.append(["make", "install"])
+	for step in steps:
+		print(f"{name}: {' '.join(step[:2])}", flush=True)
+		with log.open("a") as output:
+			result = subprocess.run(step, cwd=source, env=environment, stdout=output, stderr=subprocess.STDOUT, check=False)
+		if result.returncode:
+			print("\n".join(log.read_text().splitlines()[-30:]), file=sys.stderr)
+			raise SystemExit(f"{name}: '{' '.join(step)}' failed")
+	return prefix
+
+
+def build_gmp() -> Path:
+	"""Build the pinned GMP as a static library into .cache/deps/gmp (no root), with its test suite.
+
+	m4 is built first when the machine has none (GMP's configure needs it). GMP 6.3.0
+	predates C23, the default of GCC 15, so its C code is compiled as gnu17.
+	"""
+	if (prefix := source_dependency_prefix("gmp")) is not None:
+		print(f"gmp: already built in {prefix}")
+		return prefix
+	DEPS_ROOT.mkdir(parents=True, exist_ok=True)
+	environment = dict(os.environ)
+	with tempfile.TemporaryDirectory(dir=DEPS_ROOT, prefix="build-") as directory:
+		work = Path(directory)
+		if not shutil.which("m4"):
+			m4 = source_dependency_prefix("m4") or _build_source_dependency("m4", work, [], environment)
+			environment["PATH"] = f"{m4 / 'bin'}{os.pathsep}{environment.get('PATH', '')}"
+		environment["CFLAGS"] = "-O2 -std=gnu17 -fPIC"
+		prefix = _build_source_dependency("gmp", work, ["--disable-shared", "--enable-static", "--with-pic"],
+			environment, check=True)
+	print(f"gmp: installed in {prefix}")
+	return prefix
+
+
 def doctor() -> int:
 	"""Report what this machine can build and run, without changing anything."""
 	ok = True
@@ -347,6 +457,9 @@ def doctor() -> int:
 	headers = header_dependency_dirs()
 	for name, spec in HEADER_DEPENDENCIES.items():
 		report(f"{name} (fetched)", str(headers[spec["cmake"]]) if spec["cmake"] in headers else None, required=False)
+	gmp = source_dependency_prefix("gmp")
+	report("gmp (built)", str(gmp) if gmp else None, required=False)
+	report("gmp in tools build", {True: "yes", False: "no (Boost cpp_rational)"}.get(build_uses_gmp()), required=False)
 	home = gurobi_home()
 	report("gurobi", str(home) if home and home.exists() else None, required=False)
 	for directory in (build_directory(), build_directory(gurobi=True)):
@@ -366,6 +479,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 	parser.add_argument("--gurobi", action="store_true", help="build with the Gurobi baseline enabled")
 	parser.add_argument("--fetch-deps", action="store_true",
 		help="download pinned Eigen/Boost headers into .cache/deps when they are not installed (then build only the tools you name)")
+	parser.add_argument("--fetch-gmp", action="store_true",
+		help="build the pinned GMP (and m4 if missing) into .cache/deps when the system has no GMP headers")
 	parser.add_argument("--doctor", action="store_true", help="check compilers and dependencies")
 	args = parser.parse_args(argv)
 	if args.list:
@@ -375,10 +490,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 		return 0
 	if args.doctor:
 		return doctor()
+	if args.fetch_gmp:
+		build_gmp()
 	if args.fetch_deps:
 		fetch_header_dependencies(list(HEADER_DEPENDENCIES))
+	if args.fetch_deps or args.fetch_gmp:
 		if not args.tools:
-			print("Headers ready; build with: python3 benchmarks/tpp.py build [TOOL...]")
+			print("Dependencies ready; build with: python3 benchmarks/tpp.py build [TOOL...]")
 			return 0
 	if args.tools:
 		for path in ensure_tools(args.tools, gurobi=args.gurobi):

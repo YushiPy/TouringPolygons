@@ -552,6 +552,9 @@ and contacts, by this branch and bound between fixed contacts. That step is
 what closes the gap on the instances with heavily overlapping polygons, where
 consecutive contacts coincide.
 Results and protocol: [`tspn-paula-cycle-2026-10-06`](../../benchmarks/results-saved/README.md#tspn-paula-cycle-2026-10-06).
+`tpp.py paula-campaign` repeats her ten-seed protocol with this ILS on the
+instances still open, then runs the B&B from the best tour
+([`benchmarks/README.md`](../../benchmarks/README.md#campanha-longa-de-tspn-nas-instâncias-da-paula)).
 
 With that incumbent the certificate is limited by the lower bound alone.
 `--multi-insertion-bound` raises every expanded node's bound with the

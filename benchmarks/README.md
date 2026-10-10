@@ -313,6 +313,39 @@ O manifesto associa cada caso ao arquivo original e seu SHA-256, à bbox e aos
 extremos adicionados. Os dados de terceiros e toda a campanha derivada devem
 permanecer locais e ignorados, pois não há autorização de redistribuição.
 
+### Campanha longa de TSPN nas instâncias da Paula
+
+`tpp.py paula-campaign` (atalho `scripts/run_paula_campaign.sh`) roda, nas
+regiões dos arquivos sem depósito (tour fechado, ordem livre), o protocolo da
+tabela do apêndice do rascunho com o nosso solver: por padrão 10 execuções da
+ILS por instância com sementes distintas (`--primal-ils-seed`), de até 1.200 s
+cada, e depois 4 h de B&B (`lazy`, sem mergulhos) a partir do menor tour válido.
+O padrão `--instances open` seleciona as 21 instâncias que nenhuma execução
+certificou até 2026-10-09; `all` ou uma lista separada por vírgulas também
+servem. Cada execução é um processo de uma thread, fixado num núcleo físico no
+Linux; todo tour é validado contra as regiões originais. O relatório
+(`report.md`/`report.json` na campanha) compara o melhor tour, a média e o tempo
+até o melhor dela com a tabela do rascunho (`--reference`, opcional), e declara
+formulação, tolerâncias, exatidão e limitações.
+
+Numa máquina de laboratório, sem sudo:
+
+```bash
+rsync -a third_party/paula-tspn/ HOST:TouringPolygons/third_party/paula-tspn/   # a partir de quem tem os dados
+scripts/run_paula_campaign.sh --detach
+```
+
+O atalho instala o `uv` em `~/.local/bin` se faltar, prepara `benchmarks/.venv`
+(de onde vem o CMake), baixa os headers fixados de Eigen/Boost quando o sistema
+não os tem e, se não houver GMP, compila o GMP fixado (com `make check`, e o m4
+se preciso) em `.cache/deps` (também via `tpp.py build --fetch-gmp`). Em seguida
+compila o solver, roda uma vez por build os testes do oráculo de ciclo e do
+TSPN e inicia um job desanexado. Acompanhe com `tpp.py jobs log JOB --follow` e
+`tpp.py live CAMPANHA`; `--report` reescreve e mostra o relatório; repetir o
+comando retoma, refazendo só as execuções interrompidas. A campanha guarda um
+protocolo fixo (só o número de sementes pode crescer) e recusa misturar
+binários diferentes sem `--allow-new-binary`.
+
 A referência SOCP requer um Python com Gurobi licenciado e Shapely >= 2.1;
 `--reference-python` seleciona esse ambiente, sem mudar as dependências do solver.
 Executa 32 casos sintéticos e, com o manifesto, 12 subconjuntos determinísticos
