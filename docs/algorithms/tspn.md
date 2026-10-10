@@ -566,63 +566,72 @@ paying for themselves, so the lower bound also rises with
 opt-in. Measurements:
 [`tspn-paula-lower-bound-2026-10-07`](../../benchmarks/results-saved/README.md#tspn-paula-lower-bound-2026-10-07).
 
+**Revised 2026-10-09.** With the binary64 oracle and screening, the node
+count limits the lower bound, and the multi-insertion bound (`O(m·k)` gains
+per node) no longer pays: on the 25 validation instances `lazy` without dives
+closes 39.5% of the base gap and adding `--multi-insertion-bound` only 11.5%.
+The recommended pipeline for a certificate on Paula's open instances is
+`--primal-ils 0.5 --cycle-optimization lazy --lazy-oracles --dive-interval 0`.
+At 600 s on the 38 instances open at 60 s, it reaches a median certified gap
+of 2.7% (5.7% on 2026-10-07) and closes 17 (4). Without a supplied or ILS
+incumbent the defaults (eager evaluation with dives) stay better. See
+[`tspn-search-retune-2026-10-09`](../../benchmarks/results-saved/README.md#tspn-search-retune-2026-10-09).
+
 ## Next directions (2026-10-09)
 
-After the binary64 cycle oracle and the point/segment branch of the path
-oracle ([measurements](../../benchmarks/results-saved/README.md#tspn-cycle-float-2026-10-08)),
-the oracle is no longer the bottleneck: on the SoCG regression it takes 2.8 of
-23.5 s, and 6 of 64.9 M calls on Paula's collection still use rational
-arithmetic. In order of expected value:
+Done in this round, from the list after the binary64 cycle oracle:
 
-1. **Cyclic insertion screening in binary64.** `insertion_lower_bounds` (cycle
-   branch, `unordered_bounds.cpp`) computes every insertion bound with exact
-   rationals (`DyadicSupportPolygon`, GMP); a `sample` profile of SoCG case 39
-   puts ~60% of the solve there and ~13% in the oracle, and Paula's cycle
-   instances gain only 4× against 69× for the point-anchored ones. Port it to
-   directed-rounding intervals as `tpp_convex_binary_dual_insertion_bounds`
-   does for paths (disk-proved directions, enclosed supports, lower endpoint),
-   keeping the rational version as reference and as fallback outside the
-   interval environment. The same applies to `cycle_replacement_lower_bounds`
-   (`dual-screen`) and `tpp_convex_cycle_dual_directions` (`dual`).
-2. **Proofs instead of margins in the binary64 insertion bounds.**
-   `path_insertion_bound_at` (the default path screening, so also every
-   point-anchored TSPN), `path_multi_insertion_bound` and
-   `cycle_multi_insertion_bound` subtract a fixed `1e-12*scale*(n+2)` (times
-   `(m+2)` for the multiple-insertion bounds) instead of proving the rounding
-   error, and their directions are normalized in plain binary64. No wrong prune
-   has been observed, but these are the remaining pruning bounds without a
-   proof. The interval machinery of the oracles (`float_proof.h`) would make
-   them proved at a similar cost; this is a soundness item, independent of speed.
-3. **Re-tune the search for a cheap oracle.** Per call the oracle went from
-   ~735 to ~13 µs on Paula's collection, so the trade-offs behind the defaults
-   and the opt-in experiments changed: eager versus `lazy` evaluation, diving,
-   `branch`, `--insertion-lookahead`, `--multi-insertion-bound`, and the
-   probably obsolete `bound-first`, `proposal-bound` and `interval` (the last
-   now only affects the exact path). Repeat the
-   [`tspn-paula-lower-bound-2026-10-07`](../../benchmarks/results-saved/README.md#tspn-paula-lower-bound-2026-10-07)
-   protocol on the 28 instances still open after 60 s.
-4. **Feature hints after a polish closure.** A call closed by the polish
-   returns no `active_features`, so with `features` its children start the
-   construction without the inherited tuple. Deriving a tuple from the
-   polished contacts (active barrier faces) would restore the warm start; it is
-   a proposal only, and polish closures are ~10% of the calls on the SoCG
-   regression.
-5. **Binary64 reuse checks.** Memo and `share-bounds` hits still recheck the
-   stored contacts with the exact certificate, and binary64 segment contacts
-   (approximations of exact segment points) fail that membership test, so
-   they are never reused. Re-proving with the cycle interval proof would remove
-   this rational work; only matters with `memo` or the portfolio.
-6. **Calls the polish leaves open.** On Paula's collection, 3 path calls with
-   points or segments (80rd400) stayed open at the B&B gap and went to the exact flow.
-   Candidates: an active-set step that solves the detected reflection
-   equations in binary64 before the proof, or compensated residuals in the
-   last Newton level. Low priority at 3 in 65 M calls.
-7. **Measurement and records.** Repeat the A/B on an idle machine (dantzig, one
-   process, repetitions); run the full 558-case path corpus once with this
-   binary (the identity check covered 40 cases); check that
-   `tpp-convex-path-oracle-replay` accepts calls with points and segments; and
-   update the "Alcance" limitation of `docs/reports/oraculo-convexo`, which
-   still says that the cycle oracle and degenerate regions use rational stages.
+- **Cyclic insertion screening in binary64** (item 1):
+  `tpp_convex_binary_cycle_insertion_bounds`, the same search in 48/48 SoCG
+  cases, screening 22.4 → 0.15 s. The inherited rational dual (`dual`) and
+  `dual-screen` stay rational; both are off and showed no gain.
+- **Proofs instead of margins** (item 2): path insertion, multi-insertion
+  and the endpoint floor are proved (contract in
+  [`unordered-tpp.md`](unordered-tpp.md#certificado-convexo-e-interseções)).
+  Every pruning bound of the free-order B&B is now rational, interval or
+  backed by an a priori rounding-error bound.
+- **Re-tune** (item 3): with an ILS incumbent, `lazy` without dives raises
+  the lower bound most, and the multi-insertion bound no longer pays (see
+  [`tspn-search-retune-2026-10-09`](../../benchmarks/results-saved/README.md#tspn-search-retune-2026-10-09)).
+- **Records** (item 7): the report's "Alcance" is updated, and
+  `tpp-convex-path-oracle-replay` accepts calls with points and segments
+  (50lin105: 5,051 sampled calls, all closed in binary64, no incompatible
+  bounds).
+- **New:** the binary64 proofs in the cycle oracle use the a priori error bound
+  (1.29× on SoCG), and the best-bound frontier has a memory budget. The
+  frontier now grows ~50× faster than before, and 60 s of 100pr1002 reached
+  3–3.8 GB.
+
+Open, in order of expected value:
+
+1. **Frontier memory per node.** Long runs are now bounded by memory, not by
+   the oracle. A queued node costs ~216 B of header (64-bit indices, the
+   learning fields, an empty rational dual), ~16 B per contact of its path and
+   the features. Above the budget, nodes are stripped and solved again, or
+   discarded. Shrinking the header (32-bit indices, rarely used fields moved
+   out) and keeping paths in an arena would roughly double the nodes per
+   budget. Chunked node storage would also remove the transient 3× of a
+   vector reallocation, a 1.3 → 1.8 GB RSS peak at a 1 GiB budget.
+2. **Cost of the multi-insertion bound.** Its `O(m·k)` gains per node
+   (`best_contact` plus three supports each) now cost more than the node's
+   oracle calls; on the closed instances it is 3–5× slower. Incremental gains
+   (cache per region and gap of the parent's contacts) or evaluating it only
+   at nodes near the frontier minimum could make it pay again.
+3. **The oracle is again most of the time.** SoCG: 1.8 of 2.7 s
+   (construction 0.8, polish 0.6, proofs 0.4). Visit checks take ~20% on the
+   largest cases. Polish iterations and the construction kernel are the
+   remaining constant factors.
+4. **`memo` and `share-bounds`.** A hit rechecks the stored contacts with the
+   exact certificate (rational), which now costs more than solving the call
+   again (~13 µs), and binary64 segment contacts are never reused. Measure the
+   portfolio without `memo`, then drop it from the portfolio defaults or
+   re-prove hits with the binary64 cycle proof.
+5. **Feature hints after a polish closure** (item 4). Low value now: the
+   construction is 0.8 of 2.7 s on SoCG, and ~10% of calls close by the polish.
+6. **Calls the polish leaves open:** 3 in 99 M on Paula's collection (80rd400).
+7. **Measurements.** Repeat on an idle machine (dantzig, one process,
+   repetitions) and run the full 558-case path corpus once with this binary
+   (the identity checks covered 40 cases).
 
 ## Use and validation
 

@@ -19,6 +19,136 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## tspn-search-retune-2026-10-09
+
+**Pergunta.** Com o oráculo ~50× mais barato e a triagem em binary64, as
+escolhas de busca de [`tspn-paula-lower-bound-2026-10-07`](#tspn-paula-lower-bound-2026-10-07)
+ainda valem? **Formulação.** Mesmo protocolo daquela seção: TSPN de ciclo
+livre, gap 1e-6, uma thread, `cache,features,root,interval`. Nas triagens,
+as variantes partem do mesmo incumbente (`--initial-path`, o tour de 120 s de
+`--primal-ils 0.95`), e a métrica é a fração do gap da base que a variante
+fecha. As 13 de desenvolvimento e as 25 de validação são as mesmas de
+2026-10-07. Binários `e2d1898` (triagem) e `7c29102` (validação, 209
+fechadas, pipeline), com a mesma busca abaixo do orçamento de memória.
+macOS arm64, 6–8 processos simultâneos com `--max-frontier-mib 1536`. Nenhuma
+rodada relatada terminou por memória. Dados locais:
+`campaigns/cycle-insertion-binary64-20261009/retune`.
+
+**Resultado.**
+- **Memória.** A fronteira passou a crescer na mesma proporção que a vazão.
+  Em 100pr1002, 60 s chegam a 4,2 M nós e 3,0–3,8 GB. A primeira triagem
+  (8 processos de 120 s) fez a máquina de 24 GB usar swap, e rodadas
+  terminaram até 46 s depois do prazo. Ela foi descartada. Daí o orçamento de
+  memória da fronteira (contrato em
+  [`unordered-tpp.md`](../../docs/algorithms/unordered-tpp.md#orçamento-de-memória-da-fronteira-2026-10-09)).
+  Na versão que só descartava nós, `lazy` parou aberto em 45ts225 (LB/UB
+  0,989 aos 44 s); despindo primeiro, fecha em 67 s. Com fila em `deque`, o
+  pico de RSS de 100pr1002 (30 s, sem orçamento) cai de 2,39 para 1,58 GB.
+- **Triagem (13 de desenvolvimento, 120 s).** `ln` (`lazy` sem mergulhos):
+  +29% do gap da base (6/1). Só sem mergulhos: +15%. Inserções múltiplas:
+  −69% sozinhas, −12,5% com `ln` e −17% sem mergulhos; elas também deixam
+  as que fecham 3–5× mais lentas (60pr299: 18 → 85 s). Strong branching
+  (`branch`) piora também (−4 a −8%, na primeira triagem).
+- **Validação (25, 120 s).** `ln`: +39,5% do gap da base (mediana 37%,
+  27–70%), melhor em 17/17 das abertas. LB/UB médio 0,935 → 0,958. Fecha as
+  mesmas 8, 5–30% mais devagar. Só sem mergulhos: +23% (17/17). `mln`: +11,5%
+  (13/4).
+- **Sem tour inicial (209 fechadas, 60 s).** A base fecha as 209. `ln`
+  também, a 0,79× em média geométrica (n = 27 com a base ≥ 0,1 s). Só sem
+  mergulhos fica a 0,20× e perde 6. Sem um incumbente bom, os mergulhos
+  continuam necessários.
+- **Pipeline completo (38 abertas aos 60 s, 600 s, `--primal-ils 0.5`).**
+  Mesmo protocolo de 2026-10-07, 8 processos.
+
+  | | 2026-10-07 (`mln`, binário antigo) | `ln` (`7c29102`) | mesmo binário, `mln` |
+  |---|---:|---:|---:|
+  | Gap certificado: mediana / média / máx. | 5,7% / 6,2% / 20,5% | **2,7% / 3,9% / 18,5%** | 3,9% / 4,4% / 19,2% |
+  | Mediana em ≤ 60 / 61–99 / 100 regiões | 0,9% / 8,7% / 8,0% | 0% / 6,0% / 5,6% | — |
+  | Gap fechado (1e-6) | 4 | **17** | 14 |
+  | Tour ≤ melhor da Paula + 0,005 | 34 | 33 | 32 |
+
+  Contra 2026-10-07, `ln` reduz o gap nas 34 que estavam abertas (fecha 59%
+  do gap restante em média, mediana 49%, mínimo 10%). Os tours são os mesmos,
+  salvo o ruído do ILS (um fica 0,08% mais longo). Todos validaram.
+
+**Leitura.** Com o oráculo barato, o que limita o LB é o número de nós
+expandidos, e qualquer custo por nó pesa mais. As inserções múltiplas, que
+custam `O(m·k)` por nó, deixam de compensar, e a configuração recomendada
+para o LB com incumbente do ILS passa a ser `--primal-ils 0.5
+--cycle-optimization lazy --lazy-oracles --dive-interval 0`, sem
+`--multi-insertion-bound`. Os padrões não mudam: sem tour inicial, os
+mergulhos e a avaliação imediata dos filhos continuam melhores.
+
+**Limitações.** Uma repetição por variante, 6–8 processos simultâneos (a
+mesma carga para as variantes de uma mesma rodada); a comparação com
+2026-10-07 junta binário, máquina e momento diferentes, e o ILS tem ruído. O
+`run_lb.py` desta campanha não guardava os contadores do orçamento; nas
+rodadas de 600 s, o RSS por processo ficou em 2,3–2,7 GB com 1,5 GiB de
+orçamento, antes da fila em `deque`, sem swap.
+
+## tspn-cycle-insertion-binary64-2026-10-09
+
+**Pergunta.** Com o oráculo de ciclo em binary64, a triagem de inserções do
+ciclo, ainda racional, passou a dominar o tempo. Ela pode ser provada em
+binary64? E os limites de inserção do caminho e de inserções múltiplas, que
+subtraíam uma margem fixa, podem virar limites provados sem custo?
+**Formulação.** O mesmo TSPN de ciclo livre e o mesmo protocolo de
+[`tspn-cycle-float-2026-10-08`](#tspn-cycle-float-2026-10-08): gap relativo
+1e-6, 60 s, uma thread, um processo por vez, `cache,features,root,interval`,
+tours validados (`validate_cycle`, 1e-7). Variantes intercaladas por caso:
+`main` (binário `7cb5c29`, a `main` de antes) × `6ab9504` (triagem binary64,
+limites de caminho e de inserções múltiplas provados, cache das regiões
+normalizadas, poda das consultas de visita), e no SoCG também
+`--no-cycle-binary-insertion` do mesmo binário (só a triagem racional) e
+`7326d8d` (provas do oráculo com limite de erro *a priori*). Contratos e
+provas em
+[`unordered-tpp.md`](../../docs/algorithms/unordered-tpp.md#certificado-convexo-e-interseções),
+[`tspn.md`](../../docs/algorithms/tspn.md#cyclic-insertion-bounds) e
+[`convex-cycle.md`](../../docs/algorithms/convex-cycle.md#correctness-of-the-bounds).
+"Fechou" é gap numérico fechado com limites provados, não ótimo algébrico.
+Dados locais: `campaigns/cycle-insertion-binary64-20261009`.
+
+**Resultado.**
+- **SoCG (48 casos).** As três variantes fazem a mesma busca (mesmas chamadas
+  nos 48), e todas fecham e validam. Tempo total: 26,6 s (`main`), 26,0 s (só
+  a triagem racional) e 3,5 s (`6ab9504`). A triagem cai de 22,4 para 0,15 s.
+  `main` → `6ab9504`: 5,9× em média geométrica nos casos ≥ 0,1 s (n = 11,
+  2,5–16×) e 9,2× nos ≥ 1 s (n = 5). O caso mais longo
+  (`random_41-60`, 60 regiões) cai de 9,8 para 1,2 s. Com `7326d8d`, as provas
+  intervalares do oráculo caem de 1,08 para 0,37 s e o total, de 3,5 para
+  2,7 s (1,29× nos casos ≥ 0,1 s, n = 8). Os limites mudam no último bit, e 6
+  dos 48 casos fazem buscas um pouco diferentes (134.300 → 134.174 chamadas).
+- **Paula (235 instâncias, `main` × `6ab9504`).** Fecham 209 contra 207:
+  56a280 (14,9 s) e 50lin318 (11,8 s) passam a fechar, e nenhuma deixa de
+  fechar. As 470 execuções validam. Nas 169 de ciclo: 11,5× nos 23 casos
+  fechados pelas duas com a referência ≥ 0,1 s (4,7–18,9×), soma 71,8 → 5,9 s.
+  Nas 14 abertas nas duas, o novo faz 4,4× mais chamadas (3,9–5,1×), e o gap
+  relativo mediano cai de 0,152 para 0,113 (todas menores; LB 3,8% maior na
+  mediana, 3,3–6,4%). As 66 com ponto, resolvidas como caminho, não mudam
+  (1,01×), como esperado. Chamadas racionais: 7 de 99,1 M (3 que o polimento
+  deixa abertas em 80rd400 e 4 interrompidas pelo prazo).
+- **Caminho (40 casos do corpus, `--stride 14`, gap 1e-3).** Com os limites
+  provados, as buscas ficam idênticas às da `main` (mesmas chamadas e nós em
+  40/40). O tempo total cai de 9,25 para 8,61 s com `7326d8d`, pelo filtro
+  estático de orientação; sem ele, sobe 1,5%.
+- **Inserções múltiplas (opção).** Em 4.000 nós aleatórios, o limite provado
+  coincide com o antigo, com margem, até 1e-9 relativo. Com limite de 20.000
+  chamadas em cinco instâncias da Paula, as buscas ficam praticamente iguais,
+  a ~15% de tempo a mais.
+
+**Leitura.** A triagem racional era o último gargalo do ciclo. Provada em
+binary64, ela custa menos que as consultas de visita, e o oráculo volta a
+dominar (1,8 dos 2,7 s no SoCG). Os limites de poda do B&B deixam de depender
+de margens: todos são provados (racionais, intervalos ou limite de erro *a
+priori*). Nas abertas, o ganho de vazão vira LB, mas não fecha o gap: o
+gargalo continua combinatório.
+
+**Limitações.** Uma repetição num Mac pessoal; o SoCG e a Paula rodaram com
+um processo por vez, sem outro trabalho pesado. Nos casos de milissegundos,
+as razões são ruído. A Paula foi medida com `6ab9504`, sem o ganho do
+oráculo de `7326d8d`. Com `dual` (dual herdado racional), a triagem continua
+racional, assim como `dual-screen`.
+
 ## tspn-cycle-float-2026-10-08
 
 **Pergunta.** O oráculo de ciclo do TSPN pode fechar o gap pedido em binary64,
