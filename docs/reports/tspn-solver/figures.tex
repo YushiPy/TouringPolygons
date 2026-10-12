@@ -1,0 +1,278 @@
+% Figuras do relatório. Desenhos geométricos usam a mesma escala nos dois
+% eixos e as coordenadas exatas dos exemplos do texto (conferidas com o solver);
+% os esquemas estão marcados como tais nas legendas.
+\tikzset{coordgrid/.style={draw=quiet!22,line width=.25pt},
+  polyC/.style={draw=pThree,fill=pThree!9,line width=.9pt},
+  polyD/.style={draw=good,fill=good!9,line width=.9pt},
+  dualvec/.style={draw=pThree,line width=1.1pt,-{Latex[length=2.4mm]}},
+  coefvec/.style={draw=bad,line width=1.1pt,-{Latex[length=2.4mm]}},
+  parent/.style={draw=quiet,dashed,line width=1pt},
+  box/.style={draw=navy!70,fill=white,rounded corners=2pt,align=center,
+    font=\small,inner sep=5pt,minimum height=9mm},
+  okbox/.style={draw=good,fill=good!9,rounded corners=2pt,align=center,
+    font=\small,inner sep=4pt},
+  flow/.style={-{Latex[length=2.2mm]},draw=ink,line width=.7pt},
+  region/.style={draw=pOne,fill=pOne!9,line width=.8pt},
+  contact/.style={fill=ink},
+  gapmark/.style={draw=bad,line width=1.2pt}}
+
+% ---------------------------------------------------------------------------
+% Visão geral (esquema).
+\newcommand{\figvisaogeral}{%
+\begin{tikzpicture}[node distance=6mm and 7mm]
+\node[box,minimum width=30mm] (ils) {\textbf{ILS} (opcional)\\[1pt]\footnotesize ordem + um contato\\\footnotesize por região};
+\node[box,right=9mm of ils,minimum width=34mm] (inc) {incumbente \(U^\star\)\\[1pt]\footnotesize tour validado};
+\node[box,below=8mm of ils,minimum width=30mm] (fr) {fronteira\\[1pt]\footnotesize sequências parciais\\\footnotesize por limite inferior};
+\node[box,right=9mm of fr,minimum width=34mm] (ex) {expansão do nó\\[1pt]\footnotesize região mais distante:\\\footnotesize inserir ou refinar};
+\node[box,right=9mm of ex,minimum width=34mm] (tr) {\textbf{triagem}\\[1pt]\footnotesize limites de inserção\\\footnotesize (dual do pai)};
+\node[box,below=8mm of tr,minimum width=34mm,draw=good,line width=.9pt] (or) {\textbf{oráculo de ciclo}\\[1pt]\footnotesize ordem fixa, regiões convexas\\\footnotesize \(L\le\mathrm{OPT}\le U\)};
+\draw[flow] (ils)--(inc);
+\draw[flow] (fr)--(ex);
+\draw[flow] (ex)--(tr);
+\draw[flow] (tr)--node[right,font=\scriptsize,text=quiet]{filhos não podados}(or);
+\draw[flow] (or.west)-|node[pos=.25,below,font=\scriptsize,text=quiet]{limite \(L\) do filho}(fr.south);
+\draw[flow] (or.north east)--++(4mm,0)|-node[pos=.75,above,font=\scriptsize,text=quiet]{tour que cobre tudo}(inc.east);
+\draw[flow,dashed] (inc.south)--node[right,font=\scriptsize,text=quiet]{corte \(U^\star-g\)}(ex.north);
+\end{tikzpicture}}
+
+% ---------------------------------------------------------------------------
+% Exemplo das três caixas: ciclo ótimo e coeficientes do certificado dual.
+\newcommand{\figtrescaixas}{%
+\begin{tikzpicture}[scale=.62]
+\begin{scope}
+  \draw[coordgrid] (-3.5,-1.5) grid (3.5,4.5);
+  \draw[polyA] (-3,-1) rectangle (-2,1);
+  \draw[polyB] (2,-1) rectangle (3,1);
+  \draw[polyC] (-1,3) rectangle (1,4);
+  \draw[route,-{Latex[length=2.4mm]}] (-2,1)--(2,1);
+  \draw[route,-{Latex[length=2.4mm]}] (2,1)--(0,3);
+  \draw[route,-{Latex[length=2.4mm]}] (0,3)--(-2,1);
+  \foreach \p in {(-2,1),(2,1),(0,3)} \fill[contact] \p circle (3pt);
+  \node[smalllabel] at (-2.5,-.3) {\(P_1\)};
+  \node[smalllabel] at (2.5,-.3) {\(P_2\)};
+  \node[smalllabel] at (0,3.6) {\(P_3\)};
+  \node[smalllabel,above left] at (-2,1.05) {\(p_1\)};
+  \node[smalllabel,above right] at (2,1.05) {\(p_2\)};
+  \node[smalllabel,below] at (0,2.9) {\(p_3\)};
+  \node[smalllabel,below] at (0,.95) {\(u_1\)};
+  \node[smalllabel,right] at (1.05,2.05) {\(u_2\)};
+  \node[smalllabel,left] at (-1.05,2.05) {\(u_3\)};
+  \node[font=\scriptsize\bfseries,color=navy] at (0,-2.2) {(a) ciclo ótimo, comprimento \(4+4\sqrt2\)};
+\end{scope}
+\begin{scope}[xshift=8.6cm]
+  \draw[coordgrid] (-3.5,-1.5) grid (3.5,4.5);
+  \draw[polyA] (-3,-1) rectangle (-2,1);
+  \draw[polyB] (2,-1) rectangle (3,1);
+  \draw[polyC] (-1,3) rectangle (1,4);
+  \draw[parent] (-2,1)--(2,1)--(0,3)--cycle;
+  \draw[coefvec] (-2,1)--++(-1.2071,-0.5);
+  \draw[coefvec] (2,1)--++(1.2071,-0.5);
+  \draw[coefvec] (0,3)--++(0,1);
+  \foreach \p in {(-2,1),(2,1),(0,3)} \fill[contact] \p circle (3pt);
+  \node[smalllabel,left] at (-3.2,.5) {\(c_1\)};
+  \node[smalllabel,right] at (3.2,.5) {\(c_2\)};
+  \node[smalllabel,right] at (.08,4.1) {\(c_3\)};
+  \node[font=\scriptsize\bfseries,color=navy] at (0,-2.2) {(b) \(c_i=u_{i-1}-u_i\) (escala \(1/\sqrt2\))};
+\end{scope}
+\end{tikzpicture}}
+
+% ---------------------------------------------------------------------------
+% Função âncora sobre a aresta inferior de P_3.
+\newcommand{\figancora}{%
+\begin{tabular}{@{}c@{\hspace{9mm}}c@{}}
+\begin{tikzpicture}[scale=.62,baseline=(current bounding box.south)]
+  \draw[coordgrid] (-3.5,-1.5) grid (3.5,4.5);
+  \draw[polyA] (-3,-1) rectangle (-2,1);
+  \draw[polyB] (2,-1) rectangle (3,1);
+  \draw[polyC] (-1,3) rectangle (1,4);
+  \draw[draw=navy,line width=2.2pt] (-1,3)--(1,3);
+  \draw[parent] (-2,1)--(2,1)--(0,3)--cycle;
+  \draw[route,-{Latex[length=2.4mm]}] (0.6,3)--(-2,1);
+  \draw[route,-{Latex[length=2.4mm]}] (-2,1)--(2,1);
+  \draw[route,-{Latex[length=2.4mm]}] (2,1)--(0.6,3);
+  \fill[bad] (0.6,3) circle (3.2pt);
+  \node[smalllabel,right] at (1.1,3.15) {\(x=(t,3)\)};
+  \node[smalllabel] at (-2.5,-.3) {\(P_1\)};
+  \node[smalllabel] at (2.5,-.3) {\(P_2\)};
+  \node[smalllabel] at (0,3.6) {\(P_3\)};
+  \node[smalllabel,text=navy,below] at (-.55,2.92) {\(e\)};
+\end{tikzpicture}
+&
+\begin{tikzpicture}[baseline=(current bounding box.south)]
+\begin{axis}[width=74mm,height=52mm,
+  xmin=-1.08,xmax=1.08,ymin=9.6,ymax=9.92,xlabel={\(t\)},ylabel={\(F(t)\)},
+  xtick={-1,-0.5,0,0.5,1},ytick={9.6,9.7,9.8,9.9},
+  yticklabel style={/pgf/number format/fixed,/pgf/number format/precision=1},
+  tick label style={font=\scriptsize},label style={font=\small},
+  axis lines=left,grid=major,grid style={quiet!18}]
+  \addplot[navy,line width=1.1pt,domain=-1:1,samples=101] {sqrt((x+2)^2+4)+4+sqrt((2-x)^2+4)};
+  \addplot[only marks,mark=*,mark size=1.8pt,good] coordinates {(0,9.656854)};
+  \addplot[only marks,mark=*,mark size=1.8pt,bad] coordinates {(0.6,9.721555)};
+  \addplot[pTwo,dashed,line width=.9pt,domain=-1:-0.7] {9.841619-0.384900*(x+1)};
+  \addplot[pTwo,dashed,line width=.9pt,domain=0.7:1] {9.841619+0.384900*(x-1)};
+  \node[font=\scriptsize,anchor=north] at (axis cs:0,9.651) {\(4+4\sqrt2\)};
+  \node[font=\scriptsize,anchor=west] at (axis cs:-1.02,9.895) {\(f'(-1)<0\)};
+  \node[font=\scriptsize,anchor=east] at (axis cs:1.02,9.895) {\(f'(1)>0\)};
+\end{axis}
+\end{tikzpicture}\\[2pt]
+{\scriptsize\bfseries\color{navy}(a) caminho ancorado em \(x\), \(t=0{,}6\)} &
+{\scriptsize\bfseries\color{navy}(b) \(F\) ao longo de \(e\)}
+\end{tabular}}
+
+% ---------------------------------------------------------------------------
+% Posições de inserção: caminho com extremos fixos e ciclo (esquema).
+\newcommand{\figlacunas}{%
+\begin{tikzpicture}[x=9mm,y=9mm]
+\begin{scope}
+  \fill[ink] (0,0) circle (2.4pt) node[below=2pt,font=\scriptsize] {\(s\)};
+  \fill[ink] (8,0) circle (2.4pt) node[below=2pt,font=\scriptsize] {\(t\)};
+  \foreach \x/\l in {2/1,4/2,6/3}{\draw[region] (\x,0) circle (.42);\node[font=\scriptsize] at (\x,0) {\(P_{\l}\)};}
+  \foreach \a/\b in {0/1.58,2.42/3.58,4.42/5.58,6.42/8}{\draw[route] (\a,0)--(\b,0);}
+  \foreach \x/\l in {1/0,3/1,5/2,7/3}{\draw[gapmark] (\x,-.22)--(\x,.22);\node[font=\scriptsize,text=bad] at (\x,.5) {\(\l\)};}
+  \node[font=\scriptsize\bfseries,color=navy] at (4,-1.3) {(a) caminho: \(m+1=4\) posições};
+\end{scope}
+\begin{scope}[xshift=10.5cm]
+  \foreach \ang/\l in {90/1,210/2,330/3}{\draw[region] (\ang:1.6) circle (.42);\node[font=\scriptsize] at (\ang:1.6) {\(P_{\l}\)};}
+  \draw[route] (90:1.6) ++(250:.42) -- ($(210:1.6)+(50:.42)$);
+  \draw[route] (210:1.6) ++(-10:.42) -- ($(330:1.6)+(190:.42)$);
+  \draw[route] (330:1.6) ++(130:.42) -- ($(90:1.6)+(-70:.42)$);
+  \foreach \ang/\l in {150/1,270/2,30/3}{\draw[gapmark] (\ang:.68)--(\ang:1.12);\node[font=\scriptsize,text=bad] at (\ang:1.38) {\(\l\)};}
+  \node[font=\scriptsize\bfseries,color=navy] at (0,-1.98) {(b) ciclo: \(m=3\) posições};
+\end{scope}
+\end{tikzpicture}}
+
+% ---------------------------------------------------------------------------
+% Limite de inserção: o pai (três caixas) e a caixa R inserida na lacuna 1.
+\newcommand{\figinsercao}{%
+\begin{tikzpicture}[scale=.62]
+\begin{scope}
+  \draw[coordgrid] (-3.5,-3.5) grid (3.5,4.5);
+  \draw[polyA] (-3,-1) rectangle (-2,1);
+  \draw[polyB] (2,-1) rectangle (3,1);
+  \draw[polyC] (-1,3) rectangle (1,4);
+  \draw[polyD] (-0.5,-3) rectangle (0.5,-2);
+  \draw[parent] (-2,1)--(2,1)--(0,3)--cycle;
+  \draw[dualvec] (-2,1)--(0,-2);
+  \draw[dualvec] (0,-2)--(2,1);
+  \foreach \p in {(-2,1),(2,1),(0,3)} \fill[contact] \p circle (3pt);
+  \fill[bad] (0,-2) circle (3.2pt);
+  \node[smalllabel] at (-2.5,-.3) {\(P_1\)};
+  \node[smalllabel] at (2.5,-.3) {\(P_2\)};
+  \node[smalllabel] at (0,3.6) {\(P_3\)};
+  \node[smalllabel] at (0,-2.6) {\(R\)};
+  \node[smalllabel,left] at (-2.05,1.15) {\(q_1\)};
+  \node[smalllabel,right] at (2.05,1.15) {\(q_2\)};
+  \node[smalllabel,right] at (.12,-1.75) {\(c\)};
+  \node[smalllabel,left] at (-1.05,-.5) {\(a\)};
+  \node[smalllabel,right] at (1.05,-.5) {\(b\)};
+  \node[font=\scriptsize\bfseries,color=navy] at (0,-4.2) {(a) dual do pai e contato proposto};
+\end{scope}
+\begin{scope}[xshift=8.6cm]
+  \draw[coordgrid] (-3.5,-3.5) grid (3.5,4.5);
+  \draw[polyA] (-3,-1) rectangle (-2,1);
+  \draw[polyB] (2,-1) rectangle (3,1);
+  \draw[polyC] (-1,3) rectangle (1,4);
+  \draw[polyD] (-0.5,-3) rectangle (0.5,-2);
+  \draw[route,-{Latex[length=2.4mm]}] (-2,0.5)--(0,-2);
+  \draw[route,-{Latex[length=2.4mm]}] (0,-2)--(2,0.5);
+  \draw[route,-{Latex[length=2.4mm]}] (2,0.5)--(0,3);
+  \draw[route,-{Latex[length=2.4mm]}] (0,3)--(-2,0.5);
+  \foreach \p in {(-2,0.5),(0,-2),(2,0.5),(0,3)} \fill[contact] \p circle (3pt);
+  \node[font=\scriptsize\bfseries,color=navy] at (0,-4.2) {(b) ótimo do filho, \(2\sqrt{41}\)};
+\end{scope}
+\end{tikzpicture}}
+
+% ---------------------------------------------------------------------------
+% Piso da fronteira: o limite inferior congela quando a memória acaba.
+\newcommand{\figpiso}{%
+\begin{tikzpicture}
+\begin{axis}[width=118mm,height=58mm,xmin=0,xmax=300,ymin=3.4,ymax=8,
+  xlabel={tempo de B\&B (s)},ylabel={gap certificado (\%)},
+  xtick={0,60,120,180,240,300},tick label style={font=\scriptsize},label style={font=\small},
+  axis lines=left,grid=major,grid style={quiet!18},
+  legend style={font=\scriptsize,draw=none,fill=white,fill opacity=.9,text opacity=1,at={(.98,.96)},anchor=north east}]
+  \addplot[bad,line width=1.1pt,mark=*,mark size=1.2pt] table[x=t,y=small]{\dadospiso};
+  \addplot[good,line width=1.1pt,mark=*,mark size=1.2pt] table[x=t,y=large]{\dadospiso};
+  \legend{fronteira de 256 MiB,fronteira de 6 GiB}
+\end{axis}
+\end{tikzpicture}}
+
+% ---------------------------------------------------------------------------
+% O subproblema de um contato: a mesma fórmula para reflexão e cruzamento.
+\newcommand{\figmelhorcontato}{%
+\begin{tikzpicture}[scale=.78]
+\begin{scope}
+  \draw[coordgrid] (-.5,-.5) grid (6.5,3.5);
+  \draw[quiet,dashed] (-.5,2)--(6.5,2);
+  \draw[draw=navy,line width=2.2pt] (1,2)--(5,2);
+  \draw[route,-{Latex[length=2.4mm]}] (0,0)--(4,2);
+  \draw[route,-{Latex[length=2.4mm]}] (4,2)--(6,1);
+  \draw[wrong] (4,2)--(6,3);
+  \draw[aux] (0,0)--(0,2);\draw[aux] (6,1)--(6,2);
+  \fill[ink] (0,0) circle (2.4pt);\fill[ink] (6,1) circle (2.4pt);\fill[quiet] (6,3) circle (2pt);
+  \fill[bad] (4,2) circle (2.8pt);
+  \node[smalllabel,below] at (0,-.05) {\(\ell\)};
+  \node[smalllabel,below] at (6,.95) {\(r\)};
+  \node[smalllabel,right] at (6.05,3) {\(r'\)};
+  \node[smalllabel,above] at (4,2.08) {\(p=(4,2)\)};
+  \node[smalllabel,left] at (-.05,1) {\(h_\ell=2\)};
+  \node[smalllabel,right] at (6.05,1.5) {\(h_r=1\)};
+  \node[smalllabel,text=navy] at (2,2.3) {aresta};
+  \node[font=\scriptsize\bfseries,color=navy] at (3,-1.2) {(a) mesmo lado: reflexão};
+\end{scope}
+\begin{scope}[xshift=8.2cm]
+  \draw[coordgrid] (-.5,-.5) grid (6.5,3.5);
+  \draw[quiet,dashed] (-.5,2)--(6.5,2);
+  \draw[draw=navy,line width=2.2pt] (1,2)--(5,2);
+  \draw[route,-{Latex[length=2.4mm]}] (0,0)--(4,2);
+  \draw[route,-{Latex[length=2.4mm]}] (4,2)--(6,3);
+  \draw[aux] (0,0)--(0,2);\draw[aux] (6,3)--(6,2);
+  \fill[ink] (0,0) circle (2.4pt);\fill[ink] (6,3) circle (2.4pt);
+  \fill[bad] (4,2) circle (2.8pt);
+  \node[smalllabel,below] at (0,-.05) {\(\ell\)};
+  \node[smalllabel,right] at (6.05,3) {\(r\)};
+  \node[smalllabel,below] at (4,1.92) {\(p=(4,2)\)};
+  \node[smalllabel,left] at (-.05,1) {\(h_\ell=2\)};
+  \node[smalllabel,right] at (6.05,2.5) {\(h_r=1\)};
+  \node[font=\scriptsize\bfseries,color=navy] at (3,-1.2) {(b) lados opostos: cruzamento};
+\end{scope}
+\end{tikzpicture}}
+
+% ---------------------------------------------------------------------------
+% A armadilha da descida por coordenadas: contatos coincidentes.
+\newcommand{\figarmadilha}{%
+\begin{tikzpicture}[scale=.82]
+  \draw[coordgrid] (-.5,-.8) grid (6.5,3.8);
+  \draw[polyA,fill opacity=.85] (1,1) rectangle (4,3);
+  \draw[polyB,fill opacity=.6] (2,1) rectangle (5,3);
+  \draw[wrong,-{Latex[length=2.2mm]}] (0,0)--(4,3);
+  \draw[wrong,-{Latex[length=2.2mm]}] (4,3)--(6,0);
+  \draw[route,-{Latex[length=2.4mm]}] (0,0)--(3,1);
+  \draw[route,-{Latex[length=2.4mm]}] (3,1)--(6,0);
+  \fill[ink] (0,0) circle (2.4pt);\fill[ink] (6,0) circle (2.4pt);
+  \fill[bad] (4,3) circle (2.8pt);\fill[good] (3,1) circle (2.8pt);
+  \node[smalllabel,below left] at (0,0) {\(a\)};
+  \node[smalllabel,below right] at (6,0) {\(b\)};
+  \node[smalllabel,above] at (4,3.08) {\(z=(4,3)\)};
+  \node[smalllabel,below] at (3,.9) {\((3,1)\)};
+  \node[smalllabel] at (1.5,2.6) {\(P\)};
+  \node[smalllabel] at (4.6,2.6) {\(Q\)};
+\end{tikzpicture}}
+
+% ---------------------------------------------------------------------------
+% Reotimização exata por janela (esquema).
+\newcommand{\figjanela}{%
+\begin{tikzpicture}
+  \def\n{16}
+  \foreach \i in {0,...,15}{
+    \pgfmathsetmacro{\ang}{90-360*\i/\n}
+    \coordinate (c\i) at (\ang:2.2);}
+  \foreach \i [evaluate=\i as \j using {int(mod(\i+1,16))}] in {0,...,15}{\draw[route] (c\i)--(c\j);}
+  \foreach \i in {2,...,9}{\draw[region,fill=pTwo!18,draw=pTwo] (c\i) circle (.2);}
+  \foreach \i in {0,1,10,11,12,13,14,15}{\draw[region] (c\i) circle (.2);}
+  \fill[ink] (c1) circle (2.4pt);\fill[ink] (c10) circle (2.4pt);
+  \node[font=\scriptsize,anchor=south] at ($(c1)+(0,.25)$) {contato fixo};
+  \node[font=\scriptsize,anchor=north] at ($(c10)+(0,-.25)$) {contato fixo};
+  \node[font=\scriptsize,align=center,text=pTwo!80!black] at (2.3,-2.8) {janela de 8 posições:\\ B\&B de ordem livre entre os fixos};
+  \node[font=\scriptsize,align=center,text=quiet] at (0,0) {resto do tour\\ inalterado};
+\end{tikzpicture}}

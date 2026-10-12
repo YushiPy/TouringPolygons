@@ -267,6 +267,38 @@ incumbente cair até `D + gap`; se a fila esvaziar assim, a busca termina com
 `memory_limit` (`UnorderedTppTermination::MemoryLimit`), que não é ótimo. A
 DFS (`--search-strategy dfs-bfs`) não é limitada.
 
+**Propostas compartilhadas e parada no piso (2026-10-12).** No ciclo, cada
+filho recebia uma cópia dos contatos do pai (o ponto de partida do oráculo) e
+das suas features, com o contato e a marca da posição nova: `O(m)` por filho e
+`O(m²)` por expansão, que ficam na fila com os filhos de `lazy`. Agora os
+irmãos compartilham uma cópia imutável (`ParentProposal`), e cada filho guarda
+só o seu contato novo; o ponto de partida e as features são montados na
+chamada, idênticos aos de antes. A memória das cópias compartilhadas entra no
+orçamento uma vez por família, por um contador atômico. A busca fica idêntica
+(mesmas chamadas, nós e limites em 6/6 instâncias de 100 regiões, `lazy` e
+padrão, e na regressão SoCG de 48 casos), e a fronteira de `lazy` cai de
+870–950 para 300–350 B por nó. Na política padrão, os nós da fila já estão
+resolvidos e guardam o próprio caminho, e o nó cresce 8 B.
+
+Também desde 2026-10-12, o caminho, as features e o dual de um nó são um
+`CompactVector`: um ponteiro de 8 B, nulo enquanto vazio, como nos filhos de
+`lazy` e nos nós despidos. O cabeçalho cai de 224 para 168 B e, na fila de
+`lazy`, um nó de caminho ancorado num ponto vai de ~253 para ~197 B e um de
+ciclo de ~340 para ~285 B (busca idêntica). Um nó resolvido da política padrão
+cresce ~4%, pelo objeto de cada vetor alocado. Os filhos de ciclo reaproveitam
+o contato que a triagem de inserção já propôs para a sua lacuna (os mesmos
+vizinhos e a mesma região), e a chamada do oráculo monta a sequência de regiões
+num buffer por thread em vez de copiar os polígonos a cada vez. Com o cache
+direto acima e a ordenação parcial da varredura, `lazy` sem mergulhos fica
+1,33–1,36× mais rápido em ciclos de 100 regiões e 1,13–1,18× nos caminhos
+ancorados (300 mil chamadas, um processo por vez, buscas idênticas), 1,06× no
+corpus de caminhos (40/40 idênticos) e 1,04× no SoCG (48/48).
+
+A busca também para, com `memory_limit`, quando todo nó aberto já tem limite
+pelo menos `D`: o LB global é então `D`, e nenhuma expansão pode subi-lo. Antes
+ela continuava até o prazo ou até esvaziar a fila. Em 88pr439 (Armijo, 22 GiB),
+o LB congelou aos 7.200 s e a execução seguiu por mais uma hora sem mudar.
+
 Na primeira versão, que só descartava, `lazy` em 45ts225 (1,5 GiB, 120 s)
 descartou metade da fila com `D` logo acima do resto. A busca esgotou os nós
 mantidos em 44 s e parou aberta, com LB/UB 0,989, enquanto a base fecha em
@@ -320,9 +352,12 @@ geometria de entrada ou o critério de factibilidade. As flags
   A redução mantém a ordem dos segmentos e compara distâncias quadráticas,
   preservando empates e a primeira posição de visita. O cache é local à busca,
   exige geometria preparada imutável e é invalidado quando muda a identidade
-  do polígono ou a tolerância. Retém no máximo 1024 segmentos; os vetores de
-  resultados têm orçamento de 2 MiB, exceto a entrada mínima quando ela sozinha
-  excede esse orçamento. Metadados da tabela ficam fora dessa contagem.
+  do polígono ou a tolerância. Desde 2026-10-12 é uma tabela de mapeamento
+  direto, com uma posição por par (segmento, polígono) e cerca de 64 posições
+  por região (1.024 a 32.768, 80 B cada), alocada uma vez por busca: um par que
+  colide sobrescreve a posição. Antes, cada segmento novo alocava e zerava um
+  vetor com uma posição por região, e a tabela inteira era esvaziada ao encher;
+  em 100i2500-708 o acerto passa de 12% a 43%, e em 88pr439 de 32% a 76%.
   `--no-prepared-visits` também desativa esse cache. `segment_visit_queries`
   e `segment_visit_hits` contam consultas até o término da fase de busca.
 - `--lazy-oracles` / `lazy_oracles` conserva filhos com seus limites de
@@ -401,7 +436,12 @@ dos candidatos, caminhos, limites e contagens são idênticos aos da varredura
 completa; o teste `same_search` compara as duas. A checagem de cobertura testa
 primeiro a última região encontrada descoberta, o que não muda seu resultado.
 `visit_bound_skips` conta os contatos evitados. A raiz, o branching aprendido
-e o strong branching usam a varredura completa.
+e o strong branching usam a varredura completa. Sem lookahead, só se ordenam
+(desde 2026-10-12) as regiões cujo limite alcança o contato exato da região
+de maior limite, que é a primeira da ordem e só faz o máximo crescer: as demais
+seriam puladas de qualquer forma, então visitas, ordem e contagens são as
+mesmas. Antes, as 100 regiões de uma instância eram ordenadas em cada nó
+(~7% do tempo).
 
 ### Opções experimentais de 2026-10-05
 

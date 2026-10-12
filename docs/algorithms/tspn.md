@@ -608,7 +608,15 @@ Done in this round, from the list after the binary64 cycle oracle:
 Open, in order of expected value:
 
 1. **Frontier memory per node.** Long runs are now bounded by memory, not by
-   the oracle. A queued node costs ~216 B of header (64-bit indices, the
+   the oracle. (2026-10-12: siblings now share one copy of the parent's
+   contacts and features as their starting proposal, so a queued `lazy` cycle
+   child drops from ~900 to ~300 B with an identical search, and a search stops
+   with `memory_limit` as soon as its bound is frozen at the discarded floor;
+   see [`unordered-tpp.md`](unordered-tpp.md#orçamento-de-memória-da-fronteira-2026-10-09).
+   On Armijo, the six instances certified on 2026-10-11 needed frontiers of
+   3.9–14.7 GiB, and the two left open stopped at 22 GiB. The node header is
+   now 168 B instead of 224, with its path, features and dual behind one
+   pointer each.) A queued node costs ~216 B of header (64-bit indices, the
    learning fields, an empty rational dual), ~16 B per contact of its path and
    the features. Above the budget, nodes are stripped and solved again, or
    discarded. Shrinking the header (32-bit indices, rarely used fields moved
@@ -620,7 +628,13 @@ Open, in order of expected value:
    oracle calls; on the closed instances it is 3–5× slower. Incremental gains
    (cache per region and gap of the parent's contacts) or evaluating it only
    at nodes near the frontier minimum could make it pay again.
-3. **The oracle is again most of the time.** SoCG: 1.8 of 2.7 s
+3. **The oracle is again most of the time.** (2026-10-12, `lazy` on Paula's
+   100-region cycles: visit checks 38%, oracle 37%, search maintenance 25%
+   before the changes above; sorting all regions per node, the segment cache's
+   allocations and repeated polygon copies are gone, 1.33–1.36× with identical
+   searches. Two attempts were slower and dropped: stopping the visit bounds
+   early against a floor, and a box test in the point-to-path distance; both
+   break the vectorized loop.) SoCG: 1.8 of 2.7 s
    (construction 0.8, polish 0.6, proofs 0.4). Visit checks take ~20% on the
    largest cases. Polish iterations and the construction kernel are the
    remaining constant factors.

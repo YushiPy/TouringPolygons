@@ -1,0 +1,31 @@
+% Dados das figuras de medição. Origem de cada tabela no comentário acima dela;
+% formulação, protocolo e limitações das campanhas em
+% benchmarks/results-saved/README.md.
+
+% Piso da fronteira (10/10/2026, Mac M4 Pro, binário 0722d66): 100i1000-410
+% (coleção da Paula), B&B de 300 s com --cycle-optimization lazy --lazy-oracles
+% --dive-interval 0, a partir do mesmo tour (5.427,10), gap relativo 1e-6 e
+% cache,features,root,interval; as duas fronteiras rodaram juntas, um
+% processo cada. Gap = 1 - LB/UB em %, lido dos relatórios de progresso de 15 s.
+\pgfplotstableread{
+t     small  large
+15    7.56   7.48
+30    6.55   6.46
+45    6.00   5.89
+60    5.63   5.50
+75    5.35   5.20
+90    5.12   4.96
+105   4.92   4.76
+120   4.88   4.58
+135   4.88   4.43
+150   4.88   4.29
+165   4.88   4.17
+180   4.88   4.03
+195   4.88   3.96
+210   4.88   3.90
+225   4.88   3.85
+240   4.88   3.79
+255   4.88   3.74
+270   4.88   3.69
+285   4.88   3.64
+}\dadospiso

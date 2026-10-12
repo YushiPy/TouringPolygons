@@ -19,6 +19,95 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## tspn-frontier-compact-2026-10-12
+
+**Pergunta.** As rodadas longas da armijo
+([abaixo](#tspn-paula-long-armijo-2026-10-11)) mostraram que a memória da
+fronteira limitava o LB. Quanto se ganha em memória e tempo por nó sem mudar a
+busca? **Formulação.** TSPN de ciclo livre, gap relativo 1e-6,
+`cache,features,root,interval`. `lazy` sem mergulhos a partir do melhor tour
+da campanha da armijo, com 300 mil chamadas (orçamento fixo: as buscas são
+comparáveis nó a nó), um processo por vez, mediana de 3 repetições com a ordem
+alternada; também a regressão SoCG (48 casos, padrão, 60 s) e o corpus de
+caminhos (40 casos, `--stride 14`, gap 1e-3). `main` (`0722d66`) × branch
+`frontier-compact`. macOS arm64 (M4 Pro). Contratos em
+[`unordered-tpp.md`](../../docs/algorithms/unordered-tpp.md#orçamento-de-memória-da-fronteira-2026-10-09).
+
+**Resultado.**
+- **Perfil** (`main`, 100i2500-708, 60 s): verificação de visitas 38%,
+  oráculo 37% (construção 24%), manutenção da busca 25%. Por tempo próprio:
+  consultas de contato 18,5%, limites das regiões 10,4%, alocação ~14%,
+  ordenação de todas as regiões a cada nó ~7%, `best_contact` ~6%.
+- **Memória** da fila de `lazy` (bytes por nó no pico): ciclos de 100 regiões
+  870–950 → 286 (100i2500-708) e 238 (100pr1002); caminhos ancorados num
+  ponto 253 → 197 (88pr439) e 252 → 196 (64lin318). Na política padrão, +4%.
+- **Tempo** (300 mil chamadas): 100i2500-708 7,73 → 5,68 s (1,36×), 100pr1002
+  8,07 → 6,05 s (1,33×), 100i3000-803 7,59 → 5,58 s (1,36×), 88pr439 5,30 →
+  4,50 s (1,18×), 64lin318 6,08 → 5,36 s (1,13×). SoCG 1,04× (48/48), corpus de
+  caminhos 1,06× (40/40, todos válidos).
+- **Identidade:** mesmas chamadas, nós, limites e contadores de visita em todas
+  as comparações. Testes nativos também sob ASan/UBSan, e o solver
+  instrumentado com fronteira de 16 MiB (despir e descartar a cada poucos nós).
+- **Descartados:** parar os limites de visita contra um piso (0,82–0,94×) e um
+  teste de caixa na distância ponto-caminho (0,75–0,8×), que quebram o laço
+  vetorizado; blocos maiores no Or-opt da ILS (6 sementes × 120 s nas 5
+  instâncias em que nem toda semente chega à Paula: 11 sementes chegam com o
+  bloco 3 do padrão, 12 com 8, 8 com 16).
+
+**Leitura.** Com o mesmo orçamento, uma fronteira de ciclo guarda ~3× mais nós
+e uma de caminho ~1,3×, e cada nó custa 13–36% menos tempo. A busca agora para
+com `memory_limit` quando o LB congela no piso dos descartados.
+
+**Limitações.** Um Mac, execuções curtas (≤ 8 s); em rodadas de horas o ganho
+de memória vale enquanto a fronteira não está despida.
+
+## tspn-paula-long-armijo-2026-10-11
+
+**Pergunta.** Nas 21 instâncias da Paula que nenhuma rodada tinha certificado
+até 2026-10-09, a ILS com 10 sementes alcança o melhor tour dela, e um B&B
+longo com muita memória certifica alguma? **Formulação.** TSPN de ciclo livre,
+gap relativo 1e-6, `cache,features,root,interval`, tours validados
+(`validate_cycle`, 1e-7). `tpp.py paula-campaign` com o solver de `0722d66`, na
+armijo (AMD Ryzen 7 9700X, 8 núcleos, 128 GB, Linux), um processo de uma thread
+fixado por núcleo físico. ILS: 10 sementes × 1.200 s por instância
+(`--primal-ils 0.99`), 8 simultâneas. B&B: 4 h a partir do melhor tour
+(`lazy` sem mergulhos) nas 8 instâncias com gap ≤ 5%, 4 simultâneas com
+fronteira de 22 GiB. Referência: melhor, média e pior de 10 execuções do
+ILS-BCD na tabela do apêndice do rascunho (comprimentos com 2 casas, outra
+máquina). Dados locais: `campaigns/paula-long-v1`.
+
+**Resultado.**
+- **B&B:** 6 das 8 fecharam: 100i2500-708 (22 min), 100i2000-604 (27 min),
+  100i1000-410 (29 min), 72vm1084-8x9 (44 min), 64lin318 (46 min) e 50eil101
+  (78 min), com picos de fronteira de 3,9 a 14,7 GiB (~1 KB por nó nos ciclos
+  de 100 regiões). 88pr439 e 100i3000-803 pararam por memória aos 22 GiB, com
+  gaps de 0,83% e 0,70%. Em 100i1000-410, o B&B achou aos 1.757 s um tour
+  0,19% mais curto que o da ILS, igual ao melhor da Paula, e provou que ele é
+  ótimo.
+- **Coleção inteira**, juntando todas as rodadas: 220 de 235 certificadas
+  (eram 214); nas 15 abertas, gap provado de 0,70% a 18,5% (mediana 7,7%).
+- **Tours:** o nosso melhor empata com o melhor dela nas 21 e nunca fica acima
+  (nas certificadas, o dela é ótimo). Execução média contra execução média: 2
+  melhores (100i3000-803, 100pcb1173), 16 iguais, 3 piores (100i1000-410,
+  100i2000-604, 100rat783-10x10). Sementes que alcançam o melhor dela: 10/10
+  em 16 instâncias; 100rat783-10x10 9/10, 100pcb1173 7/10, 100i2000-604 4/10,
+  100C10k.0 2/10 e 100i1000-410 0/10 (todas a +0,19%). Tempo mediano até o
+  melhor dela, entre as sementes que chegam: até 27 s em 18 instâncias, 63 s em
+  100vm1084 e 215 s em 100i3000-803.
+
+**Leitura.** Nas que fecharam, a memória era o limite: as rodadas de 600 s
+com 1,5 GiB tinham parado em gaps de 2,4% a 4,3%. O LB congela quando o mínimo
+da fronteira alcança o piso dos nós descartados (88pr439 aos 7.200 s, e a
+execução seguiu por mais uma hora), o que motivou
+[`tspn-frontier-compact-2026-10-12`](#tspn-frontier-compact-2026-10-12). Em
+100i1000-410, o ótimo difere do tour da ILS sobretudo por um trecho de ~16
+regiões em outra posição, fora do alcance do Or-opt e das janelas; só o B&B o
+encontrou.
+
+**Limitações.** Uma execução de B&B por instância, com 4 a 8 processos
+simultâneos (tempos conservadores). A comparação com a Paula usa a tabela
+dela: outra máquina, tempo de CPU por execução e comprimentos com 2 casas.
+
 ## tspn-search-retune-2026-10-09
 
 **Pergunta.** Com o oráculo ~50× mais barato e a triagem em binary64, as

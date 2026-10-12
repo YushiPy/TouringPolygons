@@ -43,10 +43,18 @@ namespace tpp::unordered_detail {
 	};
 	class SegmentContactCache {
 		using Key = std::array<uint64_t,4>;
-		struct Hash { size_t operator()(const Key &key) const; };
-		std::unordered_map<Key,std::vector<std::optional<Contact>>,Hash> entries_;
+		// Direct-mapped: each (segment, polygon) pair has one slot, and a
+		// colliding pair overwrites it. Sized once per search; no allocation
+		// per query and no wholesale eviction.
+		struct Entry {
+			Key segment{};
+			size_t polygon = std::numeric_limits<size_t>::max();
+			Contact contact{0, 0};
+		};
+		std::vector<Entry> table_;
         std::vector<const PreparedContactPolygon *> polygons_;
         std::optional<uint64_t> tolerance_bits_;
+		void invalidate();
 	public:
 		size_t queries=0,hits=0;
 		// upper_distance, when finite, is an upper bound of the path's

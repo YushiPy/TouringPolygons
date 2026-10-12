@@ -263,10 +263,8 @@ namespace tpp::unordered_detail {
 		for (const auto &segment : path.segments) best = std::min(best, (project(point, segment) - point).length_squared());
 		return std::sqrt(best);
 	}
-    size_t SegmentContactCache::Hash::operator()(const Key &key) const {
-        size_t result=0;
-        for(auto bits:key)result^=std::hash<uint64_t>{}(bits)+0x9e3779b97f4a7c15ULL+(result<<6)+(result>>2);
-        return result;
+    void SegmentContactCache::invalidate() {
+        for(auto &entry:table_)entry.polygon=std::numeric_limits<size_t>::max();
     }
     Contact SegmentContactCache::query(const PreparedContactPath &path,
             const PreparedContactPolygon &polygon,size_t polygon_index,size_t polygon_count,double tolerance,
@@ -274,13 +272,16 @@ namespace tpp::unordered_detail {
         if(polygon_index>=polygon_count)throw std::out_of_range("Invalid segment-cache polygon");
         const auto tolerance_bits=std::bit_cast<uint64_t>(tolerance);
         if(polygons_.size()!=polygon_count||tolerance_bits_!=tolerance_bits) {
-            entries_.clear();polygons_.assign(polygon_count,nullptr);tolerance_bits_=tolerance_bits;
+            // About 64 slots per region, 1,024 to 32,768 in all (80 B each).
+            const size_t slots=std::bit_ceil(std::clamp<size_t>(64*polygon_count,1024,32768));
+            if(table_.size()!=slots)table_.assign(slots,Entry{});
+            else invalidate();
+            polygons_.assign(polygon_count,nullptr);tolerance_bits_=tolerance_bits;
         }
         if(polygons_[polygon_index]!=&polygon) {
-            entries_.clear();polygons_[polygon_index]=&polygon;
+            invalidate();polygons_[polygon_index]=&polygon;
         }
-        const size_t max_entries=std::max(size_t(1),std::min(size_t(1024),
-            size_t(2*1024*1024)/sizeof(std::optional<Contact>)/polygon_count));
+        const size_t mask=table_.size()-1;
         Contact best{INFINITY,0,INFINITY};
         // The margin dwarfs the rounding of both distances, so the skipped
         // segments are farther than every closest or touching one.
@@ -295,19 +296,21 @@ namespace tpp::unordered_detail {
             if(dx*dx+dy*dy>std::min(best.squared_distance,limit_squared))continue;
             const Key key{std::bit_cast<uint64_t>(segment.start.x),std::bit_cast<uint64_t>(segment.start.y),
                 std::bit_cast<uint64_t>(segment.end.x),std::bit_cast<uint64_t>(segment.end.y)};
-            auto found=entries_.find(key);
-            if(found==entries_.end()) {
-                // Bounded per-search scratch; no polygon/path is retained in nodes.
-                if(entries_.size()>=max_entries)entries_.clear();
-                found=entries_.emplace(key,std::vector<std::optional<Contact>>(polygon_count)).first;
+            uint64_t hash=polygon_index*0x9e3779b97f4a7c15ULL;
+            for(auto bits:key) {
+                hash^=bits+0x9e3779b97f4a7c15ULL+(hash<<6)+(hash>>2);
+                hash*=0xff51afd7ed558ccdULL;hash^=hash>>33;
             }
-            auto &slot=found->second.at(polygon_index);
+            auto &entry=table_[hash&mask];
             ++queries;
-            if(slot)++hits;
-            else slot=contact_impl(1,[&](size_t)->const ContactSegment&{return segment;},
-                polygon.edges.size(),[&](size_t j)->const ContactEdge&{return polygon.edges[j];},
-                polygon.minimum,polygon.maximum,tolerance);
-            auto candidate=*slot;candidate.position+=double(i);
+            if(entry.polygon==polygon_index&&entry.segment==key)++hits;
+            else {
+                entry.segment=key;entry.polygon=polygon_index;
+                entry.contact=contact_impl(1,[&](size_t)->const ContactSegment&{return segment;},
+                    polygon.edges.size(),[&](size_t j)->const ContactEdge&{return polygon.edges[j];},
+                    polygon.minimum,polygon.maximum,tolerance);
+            }
+            auto candidate=entry.contact;candidate.position+=double(i);
             if(candidate.distance==0)return candidate;
             if(candidate.squared_distance<best.squared_distance)best=candidate;
         }
