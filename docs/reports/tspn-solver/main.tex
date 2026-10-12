@@ -1,0 +1,623 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[brazilian]{babel}
+\usepackage{mathtools,amsthm}
+\usepackage{newpxtext,newpxmath}
+\usepackage{booktabs,array,microtype,siunitx}
+\usepackage[dvipsnames]{xcolor}
+\usepackage[a4paper,margin=25mm,headheight=15pt,headsep=8mm,footskip=11mm]{geometry}
+\usepackage{tikz,pgfplots,pgfplotstable}
+\usetikzlibrary{arrows.meta,calc,positioning}
+\pgfplotsset{compat=1.18,/pgf/number format/use comma}
+\usepackage{caption,subcaption,fancyhdr,enumitem,needspace,float}
+\usepackage{titlesec,setspace}
+\usepackage[most]{tcolorbox}
+\usepackage{algorithm,algpseudocode}
+\usepackage[hidelinks]{hyperref}
+\usepackage[nameinlink,noabbrev]{cleveref}
+% Âncoras distintas para as linhas de cada algoritmo.
+\makeatletter\newcounter{algorithmicH}\let\oldalgorithmic\algorithmic
+\renewcommand{\algorithmic}{\stepcounter{algorithmicH}\oldalgorithmic}
+\renewcommand{\theHALG@line}{ALG@line.\thealgorithmicH.\arabic{ALG@line}}\makeatother
+\hypersetup{colorlinks=true,linkcolor=MidnightBlue,urlcolor=MidnightBlue,citecolor=MidnightBlue,
+  pdftitle={O solver do TSPN: ciclo convexo, branch-and-bound e busca local},
+  pdfauthor={Gabriel Freire Ushijima}}
+\sisetup{output-decimal-marker={,},group-separator={.},group-minimum-digits=4}
+
+% Paleta compartilhada com o relatório do oráculo convexo.
+\definecolor{ink}{HTML}{223247}
+\definecolor{navy}{HTML}{274568}
+\definecolor{pOne}{HTML}{3677AD}
+\definecolor{pTwo}{HTML}{C78A24}
+\definecolor{pThree}{HTML}{6A4C9C}
+\definecolor{good}{HTML}{007E72}
+\definecolor{bad}{HTML}{B53E62}
+\definecolor{quiet}{HTML}{617384}
+\color{ink}
+\tikzset{>=Latex,polyA/.style={draw=pOne,fill=pOne!9,line width=.9pt},
+  polyB/.style={draw=pTwo,fill=pTwo!10,line width=.9pt},
+  route/.style={draw=good,line width=1.4pt},wrong/.style={draw=bad,dashed,line width=1pt},
+  aux/.style={draw=quiet,dashed,line width=.8pt},
+  smalllabel/.style={font=\scriptsize,fill=white,fill opacity=.9,text opacity=1,inner sep=1pt}}
+
+\setlength{\parindent}{0pt}\setlength{\parskip}{6.5pt}
+\setlength{\emergencystretch}{2em}
+\setstretch{1.07}
+\captionsetup{font=small,labelfont={bf,color=navy},skip=6pt}
+\titleformat{\section}{\Large\bfseries\color{navy}}{\thesection}{.7em}{}
+\titleformat{\subsection}{\large\bfseries\color{good}}{\thesubsection}{.6em}{}
+\titleformat{\paragraph}[runin]{\bfseries\color{navy}}{}{}{}[.]
+\titlespacing*{\section}{0pt}{20pt plus 4pt minus 3pt}{8pt}
+\titlespacing*{\subsection}{0pt}{14pt plus 4pt minus 2pt}{5pt}
+\titlespacing*{\paragraph}{0pt}{5pt plus 2pt}{.6em}
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\small\sffamily\color{navy}O SOLVER DO TSPN}
+\fancyhead[R]{\small\sffamily\color{quiet}TouringPolygons}
+\fancyfoot[L]{\small\color{quiet}Relatório técnico, 10 de outubro de 2026}
+\fancyfoot[R]{\small\color{navy}\thepage}
+\renewcommand{\headrulewidth}{.4pt}
+
+\newtcolorbox{ideia}[1][]{colback=good!5,colframe=good!70!black,boxrule=.6pt,arc=2pt,
+  left=6pt,right=6pt,top=4pt,bottom=4pt,fonttitle=\bfseries\small,title={#1}}
+\newtcolorbox{fonte}{colback=navy!4,colframe=navy!35,boxrule=.4pt,arc=2pt,
+  left=6pt,right=6pt,top=3pt,bottom=3pt,fontupper=\small}
+\newtcolorbox{cuidado}[1][]{colback=bad!4,colframe=bad!60,boxrule=.6pt,arc=2pt,
+  left=6pt,right=6pt,top=4pt,bottom=4pt,fonttitle=\bfseries\small,title={#1}}
+
+\theoremstyle{plain}\newtheorem{proposicao}{Proposição}
+\theoremstyle{definition}\newtheorem{definicao}{Definição}
+\theoremstyle{plain}\newtheorem{teorema}{Teorema}
+\theoremstyle{plain}\newtheorem{lema}{Lema}
+\crefname{proposicao}{Proposição}{Proposições}
+\crefname{teorema}{Teorema}{Teoremas}
+\crefname{lema}{Lema}{Lemas}
+\crefname{definicao}{Definição}{Definições}
+\crefname{algorithm}{Algoritmo}{Algoritmos}
+\crefname{figure}{Figura}{Figuras}
+\crefname{table}{Tabela}{Tabelas}
+\crefname{section}{Seção}{Seções}
+\crefname{subsection}{Seção}{Seções}
+\crefname{appendix}{Apêndice}{Apêndices}
+\crefname{equation}{Equação}{Equações}
+\creflabelformat{equation}{#2(#1)#3}
+\AtBeginDocument{\renewcommand{\crefpairconjunction}{ e }\renewcommand{\crefmiddleconjunction}{, }%
+  \renewcommand{\creflastconjunction}{ e }\renewcommand{\crefpairgroupconjunction}{ e }%
+  \renewcommand{\crefmiddlegroupconjunction}{, }\renewcommand{\creflastgroupconjunction}{ e }}
+
+\floatname{algorithm}{Algoritmo}
+\algrenewcommand\algorithmicif{\textbf{se}}
+\algrenewcommand\algorithmicthen{\textbf{então}}
+\algrenewcommand\algorithmicelse{\textbf{senão}}
+\algrenewcommand\algorithmicend{\textbf{fim}}
+\algrenewcommand\algorithmicfor{\textbf{para}}
+\algrenewcommand\algorithmicdo{\textbf{faça}}
+\algrenewcommand\algorithmicwhile{\textbf{enquanto}}
+\algrenewcommand\algorithmicreturn{\textbf{devolva}}
+\algrenewcommand\algorithmicfunction{\textbf{função}}
+\algrenewcommand\algorithmicrequire{\textbf{Entrada:}}
+\algrenewcommand\algorithmicensure{\textbf{Saída:}}
+\algrenewtext{EndIf}{\textbf{fim se}}
+\algrenewtext{EndFor}{\textbf{fim para}}
+\algrenewtext{EndWhile}{\textbf{fim enquanto}}
+\algrenewtext{EndFunction}{\textbf{fim função}}
+\algrenewcommand\algorithmicloop{\textbf{repita}}
+\algrenewtext{EndLoop}{\textbf{fim repita}}
+\algnewcommand{\IfThen}[2]{\State \algorithmicif\ #1\ \algorithmicthen\ #2}
+\algnewcommand{\ForOne}[2]{\State \algorithmicfor\ #1\ \algorithmicdo\ #2}
+\algrenewcommand{\algorithmiccomment}[1]{\hfill{\color{quiet}\(\triangleright\) #1}}
+
+\newcommand{\R}{\mathbb R}
+\newcommand{\norm}[1]{\lVert#1\rVert}
+\newcommand{\abs}[1]{\lvert#1\rvert}
+\newcommand{\OPT}{\mathrm{OPT}}
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\fl}{\mathrm{fl}}
+\newcommand{\supp}{\mathrm{S}}
+\DeclareMathOperator{\dist}{dist}
+
+\input{figures.tex}
+\input{dados.tex}
+
+\begin{document}
+\pagenumbering{Alph}
+
+\begin{titlepage}
+\vspace*{18mm}
+{\color{quiet}\sffamily\small TouringPolygons --- relatório técnico\par}
+\vspace{6mm}
+{\color{navy}\bfseries\fontsize{24}{29}\selectfont O solver do TSPN\par}
+\vspace{3mm}
+{\color{good}\Large O ciclo convexo de ordem fixa, o branch-and-bound de inserções e a busca local iterada\par}
+\vspace{10mm}
+{\large Gabriel Freire Ushijima\par}
+{\color{quiet}10 de outubro de 2026\par}
+\vspace{14mm}
+\begin{tcolorbox}[colback=navy!3,colframe=navy!40,boxrule=.5pt,arc=2pt,left=8pt,right=8pt,top=6pt,bottom=6pt]
+\textbf{Resumo.} O TSPN pede o tour fechado mais curto que visita regiões do plano (pontos, segmentos e polígonos simples, possivelmente não convexos e sobrepostos) em qualquer ordem e sem ponto de partida. Nosso solver é o mesmo \emph{branch-and-bound} do TPP de ordem livre, com quatro mudanças: a topologia (ciclo em vez de caminho), o subproblema de cada nó (um ciclo de ordem fixa por regiões convexas, que não tem origem), a triagem dos filhos (limites de inserção tirados do dual do pai e provados em \texttt{binary64}) e uma busca local iterada que alimenta o incumbente. Este relatório explica as três peças supondo conhecido o TPP de ordem livre: como o ciclo de ordem fixa se reduz a caminhos ancorados na fronteira de um polígono; como a certificação primal-dual em ponto flutuante se adapta ao ciclo; por que um ponto na instância transforma o TSPN num TPP; como o dual do pai limita os filhos sem resolvê-los; e como a busca local combina vizinhanças clássicas com reotimização exata por janelas. Nas medições, a regressão de 48 casos SoCG caiu de 131 para 2,7 s, e nas 235 instâncias da Paula temos 220 ótimos certificados, nunca com um tour pior que o melhor dela; nas 15 restantes, o limite inferior é limitado pela memória da fronteira, que reduzimos em seguida.
+\end{tcolorbox}
+\vfill
+{\small\color{quiet}Código descrito: \code{main} em \code{0722d66}, mais a campanha \code{paula-campaign} e a fronteira compacta de 12/10 (branches \code{paula-long-campaign} e \code{frontier-compact}). Este documento pressupõe o relatório \emph{O oráculo convexo certificado}~\cite{oraculo} e o algoritmo de ordem livre~\cite{ordemlivre}; o que já está lá é só resumido.\par}
+\end{titlepage}
+
+\pagenumbering{roman}
+\setcounter{tocdepth}{2}
+{\small\setlength{\parskip}{0pt}\tableofcontents}
+\clearpage
+\pagenumbering{arabic}
+
+%==========================================================================
+\section{Introdução}
+
+\subsection{O problema}
+Recebemos regiões fechadas \(R_1,\dots,R_n\subset\R^2\). Cada uma é um ponto (um vértice), um segmento fechado (dois vértices) ou um polígono simples de área positiva, convexo ou não; as regiões podem se sobrepor, se tocar ou conter umas às outras. Um \emph{tour} é uma poligonal fechada que passa por todas as regiões; queremos o mais curto. Não há depósito nem ordem prescrita, e o tour pode se cruzar. Com \(n\le1\) o ótimo é zero.
+
+É o mesmo problema que Fekete et al.~\cite{fekete} resolvem por \emph{branch-and-bound}, e o mesmo do rascunho da Paula~\cite{paula}, que o ataca com uma busca local iterada (ILS-BCD) e um modelo MIQCP para o CPLEX. A coleção dela, 235 instâncias tiradas da GTSP-Lib e da MOM-Lib, é a nossa principal referência de avaliação.
+
+\subsection{O que muda em relação ao TPP de ordem livre}
+O leitor já conhece o solver do TPP de ordem livre com extremos fixos~\cite{ordemlivre,oraculo}: um nó guarda uma sequência parcial de regiões convexas (fechos ou peças da decomposição); o oráculo resolve o caminho de \(s\) a \(t\) por essa sequência; a região original mais distante do caminho relaxado é inserida em todas as posições ou refinada em peças. O TSPN usa \emph{essa mesma busca}: ela tem uma opção de topologia, e não existe um segundo \emph{branch-and-bound}. A \cref{tab:diferencas} resume o que muda.
+
+\begin{table}[ht]\centering\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{32mm}>{\raggedright\arraybackslash}p{50mm}>{\raggedright\arraybackslash}p{62mm}@{}}\toprule
+& TPP de ordem livre & TSPN\\\midrule
+Extremos & \(s,t\) fixos & nenhum; o tour é fechado\\
+Raiz & sequência vazia, caminho reto \(s\to t\) & uma região (ou três, com \code{root}); \cref{sec:raiz}\\
+Posições de inserção & \(m+1\) para \(m\) regiões & \(m\), incluindo o elo de fechamento; com \(m=2\), só uma\\
+Subproblema do nó & caminho de ordem fixa: mapas de Dror com origem \(s\) & ciclo de ordem fixa, sem origem: \cref{sec:ciclo}\\
+Limite dual & \((t-s)\cdot u_m+\sum_i\supp_i\) & só os termos de suporte, invariante por translação\\
+Triagem dos filhos & limite de inserção do caminho & limite de inserção do ciclo, em \texttt{binary64}: \cref{sec:insercao}\\
+Instância com um ponto & --- & o tour passa pelo ponto: vira TPP de \(p\) a \(p\) (\cref{sec:ancora})\\
+Limite superior & guloso, 2-opt, varredura de contatos & os mesmos e, opcionalmente, a ILS (\cref{sec:ils})\\\bottomrule
+\end{tabular}
+\caption{O que o TSPN reaproveita e o que muda. Fila, mergulhos, decomposição preguiçosa, escolha da região, verificação de visitas e contabilidade da fronteira são compartilhados.}\label{tab:diferencas}
+\end{table}
+
+\subsection{Visão geral e roteiro}
+A \cref{fig:visaogeral} mostra as peças. A \cref{sec:ciclo} trata do oráculo de ciclo: a formulação, o certificado dual, a redução à fronteira que substitui a origem que falta, a construção rápida que fecha quase todas as chamadas e o estágio \texttt{binary64}. A \cref{sec:bnb} trata da busca: âncora de ponto, raiz, ramificação, limites de inserção, política de busca e memória da fronteira. A \cref{sec:ils} trata da ILS. As \cref{sec:medicoes,sec:limites} trazem medições e limitações.
+
+\begin{figure}[ht]\centering\figvisaogeral
+\caption{Esquema do solver. A ILS só fornece incumbentes; a triagem poda filhos antes do oráculo; o oráculo devolve o limite do filho e um tour relaxado, que vira incumbente se visitar todas as regiões originais.}\label{fig:visaogeral}
+\end{figure}
+
+%==========================================================================
+\section{O ciclo de ordem fixa por regiões convexas}\label{sec:ciclo}
+
+\subsection{Formulação}
+Sejam \(P_1,\dots,P_k\) (\(k\ge2\)) regiões convexas fechadas: pontos, segmentos ou polígonos convexos de área positiva. Um ciclo viável escolhe um contato \(p_i\in P_i\) por região; os índices são cíclicos, com \(p_{k+1}=p_1\). O problema é
+\begin{equation}\label{eq:ciclo}
+\OPT=\min_{p_1\in P_1,\dots,p_k\in P_k}\;\sum_{i=1}^{k}\norm{p_{i+1}-p_i}.
+\end{equation}
+Como no caminho, a função objetivo é convexa e o domínio é um produto de convexos compactos: o mínimo existe e todo mínimo local é global. Algumas propriedades que o caminho não tem, ou tem de outro jeito:
+\begin{itemize}[leftmargin=*,itemsep=1pt]
+\item \(\OPT=0\) se e só se \(P_1\cap\dots\cap P_k\ne\emptyset\): um ciclo de comprimento zero é um único ponto comum.
+\item Rotacionar ou inverter a ordem não muda o problema; não há um ``primeiro'' contato.
+\item Com \(k=2\), \(\OPT=2\dist(P_1,P_2)\).
+\item Os contatos ótimos não precisam ser únicos. No exemplo da \cref{sec:insercao}, o ótimo do filho forma uma família de paralelogramos de mesmo comprimento.
+\item O valor ótimo é contínuo nos dados: mover cada região no máximo \(\varepsilon\) (em distância de Hausdorff) muda \(\OPT\) no máximo \(2k\varepsilon\).
+\end{itemize}
+
+\paragraph{Exemplo} Sejam \(P_1=[-3,-2]\times[-1,1]\), \(P_2=[2,3]\times[-1,1]\) e \(P_3=[-1,1]\times[3,4]\), nessa ordem (\cref{fig:trescaixas}). O elo \(P_1\to P_2\) mede pelo menos 4, e fica com 4 se os dois contatos tiverem a mesma ordenada; os outros dois elos encurtam quando os contatos sobem. O ótimo usa os cantos \(p_1=(-2,1)\) e \(p_2=(2,1)\) e o ponto \(p_3=(0,3)\) da aresta inferior de \(P_3\), com \(\OPT=4+2\sqrt8=4+4\sqrt2\approx9{,}6569\). O solver dá o mesmo valor.
+
+\begin{figure}[ht]\centering\figtrescaixas
+\caption{O exemplo das três caixas. (a) O ciclo ótimo e as direções \(u_i\) dos seus elos. (b) Os coeficientes \(c_i=u_{i-1}-u_i\) do certificado dual em cada contato. Cada um é uma combinação não negativa das normais internas das arestas que contêm o contato, por isso o mínimo de \(v\mapsto v\cdot c_i\) em \(P_i\) é atingido no próprio contato.}\label{fig:trescaixas}
+\end{figure}
+
+\subsection{O certificado dual do ciclo}\label{sec:dualciclo}
+Para vetores \(u_1,\dots,u_k\) com \(\norm{u_i}\le1\), um por elo, a desigualdade \(\norm d\ge u\cdot d\) somada em volta do ciclo dá, para qualquer ciclo viável \(q\),
+\[
+\sum_{i=1}^k\norm{q_{i+1}-q_i}\;\ge\;\sum_{i=1}^k u_i\cdot(q_{i+1}-q_i)\;=\;\sum_{i=1}^k q_i\cdot(u_{i-1}-u_i),
+\]
+reagrupando por contato. Os coeficientes \(c_i=u_{i-1}-u_i\) somam exatamente zero, então podemos subtrair de todos os contatos um mesmo ponto de referência \(r\) sem mudar a soma.
+
+\begin{definicao}[Limite dual do ciclo]\label{def:dualciclo}
+Para \(\norm{u_i}\le1\) e qualquer \(r\in\R^2\),
+\begin{equation}\label{eq:dualciclo}
+D(u)=\sum_{i=1}^k\;\min_{v\in P_i}\,(v-r)\cdot(u_{i-1}-u_i)\;\le\;\OPT .
+\end{equation}
+\end{definicao}
+
+Comparando com o caminho~\cite{oraculo}, sumiu o termo \((t-s)\cdot u_m\) dos extremos, e com ele a dependência de uma origem. O valor de \(D\) não depende de \(r\); o código usa a média das médias de vértices das regiões, para que os produtos escalares fiquem pequenos e o erro de arredondamento também. Cada mínimo é atingido num vértice, inclusive num segmento (dois vértices) e num ponto (um).
+
+No exemplo, as direções do ciclo ótimo são \(u_1=(1,0)\), \(u_2=(-1,1)/\sqrt2\) e \(u_3=(-1,-1)/\sqrt2\). Com \(r=0\):
+\[
+\begin{array}{lll}
+c_1=u_3-u_1=\bigl(-1-\tfrac1{\sqrt2},-\tfrac1{\sqrt2}\bigr), & \min_{P_1} v\cdot c_1 \text{ em } (-2,1): & 2+\tfrac1{\sqrt2},\\[3pt]
+c_2=u_1-u_2=\bigl(1+\tfrac1{\sqrt2},-\tfrac1{\sqrt2}\bigr), & \min_{P_2} v\cdot c_2 \text{ em } (2,1): & 2+\tfrac1{\sqrt2},\\[3pt]
+c_3=u_2-u_3=(0,\sqrt2), & \min_{P_3} v\cdot c_3 \text{ na aresta } y=3: & 3\sqrt2,
+\end{array}
+\]
+e \(D(u)=4+\sqrt2+3\sqrt2=4+4\sqrt2\). O limite inferior alcança o comprimento: está provado que o ciclo é ótimo.
+
+\paragraph{Quando o certificado é exato} O argumento da \cref{fig:trescaixas}(b) vale em geral: se cada \(c_i\) satisfaz \(c_i\cdot(v-p_i)\ge0\) para todo \(v\in P_i\), então \(D(u)\) é o comprimento do ciclo \(p\), que portanto é ótimo. Para elos de comprimento positivo, \(u_i\) é forçado: é a direção do elo. Num elo de comprimento zero, qualquer \(\norm{u_i}\le1\) é admissível, e o certificado exato decide se existe uma escolha que satisfaz todas as condições do bloco de contatos coincidentes, com a mesma propagação disco/cone do oráculo de caminho~\cite{oraculo,certificadociclo}. A condição é necessária e suficiente (é a condição de otimalidade convexa do problema), e o verificador \code{tpp\_convex\_verify\_cycle\_certificate} a testa em aritmética exata. No estágio \texttt{binary64} (\cref{sec:binary64}), não se testa otimalidade: só se avalia \(D(u)\) com arredondamento dirigido, para um \(u\) proposto.
+
+\subsection{O obstáculo: não há origem}
+O algoritmo de mapas de último passo de Dror et al.~\cite{dror} calcula caminhos mais curtos \emph{a partir de uma origem fixa}: \(F_0(q)=\norm{q-s}\) é o primeiro nível da recorrência. No ciclo, a origem natural seria um contato ótimo, que é justamente o que não sabemos. Precisamos então de duas coisas: um conjunto finito de ``lugares'' onde procurar a origem, garantidamente com um contato ótimo; e um jeito de procurar nele sem enumerar pontos. A primeira vem da proposição abaixo; a segunda, da convexidade da função âncora (\cref{sec:funcaoancora}).
+
+\begin{proposicao}[Basta a fronteira]\label{prop:fronteira}
+Se \(P_1\cap\dots\cap P_k=\emptyset\), todo ciclo ótimo tem algum contato na fronteira de alguma região. (Um ponto ou um segmento é a sua própria fronteira.)
+\end{proposicao}
+\begin{proof}
+Suponha um ciclo ótimo com todos os contatos no interior das suas regiões. Agrupe os contatos consecutivos coincidentes em blocos maximais. Como o comprimento é positivo (as regiões não têm ponto comum), há pelo menos dois blocos, e cada bloco tem um elo de entrada e um de saída de comprimento positivo, com direções \(u_{\text{in}}\) e \(u_{\text{out}}\). Transladar o bloco inteiro por um vetor pequeno mantém a viabilidade, porque todos os contatos estão em interiores; o gradiente do comprimento nessa translação é \(u_{\text{in}}-u_{\text{out}}\), e a otimalidade exige que ele seja zero. Então todos os elos positivos têm a mesma direção \(u\), e a soma dos vetores dos elos é \((\sum_i\norm{d_i})\,u\ne0\). Mas a soma dos elos de um ciclo fechado é zero: contradição.
+\end{proof}
+
+A proposição fala de \emph{alguma} região, não de uma região escolhida. Uma região que contém outra pode não ter contato ótimo na sua fronteira, e escolher só ela estaria errado. Por isso o fluxo exato varre as fronteiras de todas as regiões. No caso de polígonos dois a dois disjuntos, basta o menor: um contato interior fica entre dois vizinhos exteriores, em linha reta, e pode deslizar até a fronteira sem mudar o comprimento.
+
+\subsection{A função âncora}\label{sec:funcaoancora}
+Divida cada aresta nos pontos em que ela cruza as fronteiras das outras regiões. Num trecho aberto dessa subdivisão, o conjunto de regiões que contêm o ponto não muda. Para \(x\) na fronteira de \(P_j\), seja \(F(x)\) o comprimento do caminho mais curto que sai de \(x\), visita \(P_{j+1},\dots,P_k,P_1,\dots,P_{j-1}\) nessa ordem e volta a \(x\). É um TPP de ordem fixa com \(s=t=x\), que o oráculo de caminho resolve. Pela \cref{prop:fronteira}, o mínimo de \(F\) sobre todas as fronteiras é \(\OPT\).
+
+\begin{proposicao}[Convexidade da âncora]\label{prop:ancora}
+Num trecho \(x=a+t\,e\) da subdivisão, \(f(t)=F(a+te)\) é convexa e 2-Lipschitz. No interior do trecho, \(f\) é derivável e
+\begin{equation}\label{eq:derivada}
+f'(t)=(u_{\text{in}}-u_{\text{out}})\cdot e,
+\end{equation}
+onde \(u_{\text{in}}\) é a direção do último elo positivo que chega a \(x\) e \(u_{\text{out}}\) a do primeiro que sai.
+\end{proposicao}
+\begin{proof}[Ideia da prova]
+A soma de normas é conjuntamente convexa em \((x,p)\), e a minimização parcial em \(p\) preserva convexidade; mover \(x\) por \(\delta\) muda os dois elos incidentes em no máximo \(\norm\delta\) cada. As regiões que contêm \(x\) podem ser visitadas em \(x\) sem custo; elas formam um prefixo e um sufixo da ordem que não mudam no trecho, então os elos incidentes que ``contam'' ligam \(x\) a regiões que não o contêm e têm comprimento positivo. Duas soluções ótimas não podem ter direções diferentes nesses elos (igualdade na desigualdade triangular força direções iguais), o que dá a derivada única. A prova completa está em~\cite{ciclo}.
+\end{proof}
+
+\paragraph{Exemplo} Na aresta inferior \(e\) de \(P_3\) do exemplo, \(x=(t,3)\) com \(t\in[-1,1]\). De \(x\), o caminho visita \(P_1\) e \(P_2\) e volta. Os contatos ficam nos cantos \((-2,1)\) e \((2,1)\): o elo do meio mede pelo menos 4, e cada canto é o ponto da sua caixa mais próximo de \(x\). Então
+\[
+F(t)=\sqrt{(t+2)^2+4}+4+\sqrt{(2-t)^2+4},\qquad
+f'(t)=\frac{t+2}{\sqrt{(t+2)^2+4}}-\frac{2-t}{\sqrt{(2-t)^2+4}},
+\]
+que é exatamente \eqref{eq:derivada} com \(u_{\text{in}}=(t-2,2)/\norm{\cdot}\) e \(u_{\text{out}}=(-2-t,-2)/\norm{\cdot}\). A derivada vale \(\mp0{,}3849\) nas pontas e zero em \(t=0\), onde \(F=4+4\sqrt2\) (\cref{fig:ancora}).
+
+\begin{figure}[ht]\centering\figancora
+\caption{A função âncora. (a) O caminho ancorado em \(x=(0{,}6;3)\): sai de \(x\), visita \(P_1\) e \(P_2\) e volta, com comprimento \(F(0{,}6)\approx9{,}7216\); tracejado, o ciclo ótimo. (b) \(F\) é convexa ao longo da aresta, com derivada negativa na ponta esquerda e positiva na direita; o mínimo, em \(t=0\), é \(\OPT\).}\label{fig:ancora}
+\end{figure}
+
+\paragraph{A busca exata} Em cada trecho, o fluxo exato testa primeiro as duas pontas: cada ponta é testada contra o problema global e contra o problema restrito em que a região da âncora é só o trecho fechado; o certificado completo trata as pontas não suaves. Se nenhuma ponta resolve, a convexidade garante derivada negativa à esquerda e positiva à direita, e uma bissecção no sinal de \eqref{eq:derivada} encontra o ponto estacionário. Para terminar em aritmética exata, o código reconstrói, por frações contínuas, o racional mais simples do intervalo: num tipo combinatório fixo, o comprimento desdobrado é uma soma de distâncias a imagens racionais, ou \(\norm{(A-I)x+c}\) com \(A,c\) racionais, cujo quadrado é quadrático no parâmetro da aresta; o minimizador é racional, com algum denominador \(Q\). Um intervalo de largura menor que \(1/Q^2\) contém um único racional de denominador até \(Q\), e então a bissecção seguida da reconstrução acha o minimizador em \(O(1+\log Q)\) passos. A largura do intervalo nunca é um critério de aceitação: só o certificado global aceita.
+
+\begin{algorithm}[ht]\small
+\caption{Redução à fronteira (fluxo exato; esquema).}\label{alg:fronteira}
+\begin{algorithmic}[1]
+\Function{CicloExato}{$P_1,\dots,P_k$}
+  \IfThen{$\bigcap_i P_i\ne\emptyset$}{\Return o ciclo zero num ponto comum}
+  \State tente as propostas da construção rápida (\cref{sec:rapida}); se uma passa no certificado, \Return
+  \For{cada trecho $[a,a+e]$ das fronteiras subdivididas}
+    \For{cada ponta $x$}
+      \State resolva o caminho ancorado ($s=t=x$, mapas de Dror); \IfThen{certificado global ou restrito passa}{use $x$}
+    \EndFor
+    \State bissecção no sinal de $(u_{\text{in}}-u_{\text{out}})\cdot e$; reconstrução do racional mais simples
+    \IfThen{o certificado global aceita o ciclo}{\Return ele}
+  \EndFor
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{O caminho rápido: contatos ativos}\label{sec:rapida}
+A redução à fronteira é o último recurso, não o caminho usual. Quase toda chamada fecha antes, com uma \emph{proposta de tipo combinatório}: para cada contato, se ele está num vértice, no interior de uma aresta ou ``atravessando'' a região (em linha reta entre os vizinhos).
+
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+\item \textbf{Varreduras de coordenada.} Partindo dos centroides (ou dos contatos herdados do pai, \cref{sec:relaxacao}), cada contato minimiza os seus dois elos com os vizinhos fixos: atravessa se o segmento entre os vizinhos cruza a região; senão, testa os vértices e as reflexões nas arestas. Contatos consecutivos coincidentes podem se mover juntos sobre a interseção das suas regiões (um ponto, um segmento ou um polígono), o que tira blocos de arestas compartilhadas de armadilhas como a da \cref{sec:janelas}.
+\item \textbf{Solução fechada do tipo.} Com contatos fixos em vértices (``pinos''), as reflexões entre dois pinos consecutivos se desdobram num segmento reto, cuja interseção com cada aresta dá os contatos. No exemplo, o contato de \(P_3\) fica entre os pinos \((2,1)\) e \((-2,1)\); refletindo \((-2,1)\) na reta \(y=3\) obtemos \((-2,5)\), e o segmento de \((2,1)\) a \((-2,5)\) corta \(y=3\) em \((0,3)\). Sem pinos, ancora-se numa aresta \(x=a+te\): o desdobramento dá um comprimento \(\norm{(A-I)x+c}\), cujo quadrado é quadrático em \(t\), e o ponto estacionário é racional.
+\item \textbf{Pivôs.} Se o desdobramento põe um contato fora da sua aresta, ele é preso à ponta que bloqueia e a cadeia é refeita; cada pivô acrescenta um pino, então há no máximo \(k\) por varredura. O tipo resultante alimenta a varredura seguinte, até \(k+1\) varreduras ou um tipo repetido.
+\end{enumerate}
+Toda proposta passa pelo certificado; um tipo errado nunca autoriza \code{Optimal}. O núcleo é o mesmo nas duas aritméticas (\code{CycleRefinement<Scalar>}). Um tipo vindo do pai (opção \code{features}, usada nas campanhas) é reparado só nos contatos que mudaram, antes da varredura completa.
+
+\subsection{O estágio em \texttt{binary64}}\label{sec:binary64}
+Desde 08/10, uma chamada com gap pedido \(\tau>0\) ou corte finito tenta primeiro um estágio que prova \(L\le\OPT\le U\) com arredondamento dirigido em \texttt{binary64}, sem aritmética racional. É a versão de ciclo do oráculo de caminho, e reaproveita as suas peças~\cite{oraculo}.
+
+\paragraph{Normalização} Cada região é normalizada em \texttt{binary64} para o mesmo conjunto que o fluxo exato aceitaria: duplicatas removidas, um vértice é um ponto, dois são um segmento; nos polígonos, cada sinal de curva é decidido exatamente (intervalo que exclui zero, senão o determinante inteiro de 128 bits), a fronteira precisa girar uma vez e vértices colineares são removidos. Um sinal indeciso devolve \code{Unsupported}, e a chamada vai para o fluxo exato.
+
+\paragraph{Propostas} Um ponto comum de todas as regiões (o ciclo zero), cada candidato do núcleo de construção em \texttt{double} e, se nenhum fecha, o polimento abaixo. Nenhuma proposta é confiada.
+
+\paragraph{Limite superior} Cada contato precisa estar provadamente na sua região: num ponto, é o próprio ponto; num segmento \([a,b]\), um contato que não está exatamente nele vira o ponto exato \(a+t(b-a)\), com \(t\in[0,1]\) em \texttt{binary64}, carregado como uma caixa intervalar; num polígono, cada sinal de aresta é decidido por um filtro estático, por intervalo ou pelo determinante inteiro. Um contato não provado é puxado para a média dos vértices (\(2^{-45},2^{-40},\dots,1\)) e testado de novo. \(U\) é o extremo superior da soma intervalar dos elos.
+
+\paragraph{Limite inferior} \(L=\max(0,D(u))\) para cada \(u\) proposto, avaliado de modo que o valor calculado nunca passe do exato. Cada vetor é arredondado para \texttt{binary64} e tem norma provada \(\le1\). Cada suporte é o mínimo em \texttt{binary64} alargado por um limite \emph{a priori} do seu erro de arredondamento (\cref{lem:apriori}, na \cref{sec:insercao}), e as somas são arredondadas para baixo. Os elos curtos, de comprimento até \(\max(32\epsilon\cdot\text{escala},\tau/(16k))\), recebem quatro propostas: a própria direção, a do elo longo mais próximo de cada lado (ciclicamente) ou zero. O comprimento serve só para escolher propostas; nunca é tolerância.
+
+\paragraph{Polimento} Se nenhum candidato fecha o gap, um método de Newton com barreira logarítmica minimiza o comprimento suavizado
+\[
+f_\mu(y)=\sum_{i=1}^k\sqrt{\norm{x_{i+1}-x_i}^2+\mu^2}\;-\;\mu\sum_i\sum_{f\in F_i}\log(n_f\cdot y_i-o_f),
+\]
+em coordenadas escaladas, com uma barreira por aresta (num segmento \(x=a+te\), a barreira é \(-\mu(\log t+\log(1-t))\); um ponto é fixo). Num ponto estacionário, com \(u_i=d_i/\sqrt{\norm{d_i}^2+\mu^2}\), vale
+\begin{equation}\label{eq:perdabarreira}
+D(u)\;\ge\;\sum_i\norm{d_i}-\mu\,(k+F),\qquad F=\textstyle\sum_i\abs{F_i},
+\end{equation}
+a mesma proposição do caminho, com \(k\) elos no lugar de \(m+1\). Ela só justifica a escolha de \(\mu\) final (metade do gap pedido); os limites devolvidos são sempre os da prova acima. O sistema de Newton é tridiagonal por blocos \(2\times2\), como no caminho, exceto pelo elo de fechamento, que acopla a primeira e a última variável. O solver elimina os \(k-1\) primeiros blocos para o lado direito e para as duas colunas do último bloco, resolve o complemento de Schur \(2\times2\) da última variável e faz a substituição de volta: \(O(k+F)\) operações por iteração, sem pivoteamento (a barreira mantém a hessiana definida positiva).
+
+\begin{teorema}[Correção dos limites do estágio]\label{teo:binary64}
+Se o ambiente é IEEE \texttt{binary64} com arredondamento ao mais próximo (o código verifica), os limites \((L,U)\) devolvidos pelo estágio satisfazem \(L\le\OPT\le U\), qualquer que seja a proposta. Com \(U\) finito, ele limita o comprimento de um ciclo de pontos exatos \(z_i\in P_i\).
+\end{teorema}
+\begin{proof}[Ideia da prova]
+A normalização aceita exatamente as regiões que o fluxo exato aceita e não muda os conjuntos. Cada caixa de contato contém um ponto exato da sua região, então os pontos formam um ciclo viável, e a soma intervalar limita o seu comprimento por cima. Cada \(u_i\) tem norma provada \(\le1\), e cada termo de \eqref{eq:dualciclo} é limitado por baixo pelo mínimo calculado menos o erro \emph{a priori}; a soma arredondada para baixo é \(\le D(u)\le\OPT\). Nenhum passo usa a otimalidade da proposta. A prova completa está em~\cite{ciclo}.
+\end{proof}
+
+\subsection{O oráculo completo e o seu contrato}\label{sec:oraculociclo}
+O \cref{alg:oraculo} junta as peças. A busca chama \code{tpp\_convex\_solve\_cycle\_double} com o gap \(\tau\) e o corte \(c\) da mesma regra do caminho~\cite{oraculo}: \(\tau=\max(g/4,\rho\,U^\star)\) nas chamadas comuns e \(g/4\) nos refinamentos, com \(g\) o gap do nó e \(\rho=10^{-6}\), e \(c=U^\star-g\). Um estágio fechado devolve \code{GapClosed} (ou \code{CertifiedBound}, se \(L\ge c\)) sem teste KKT e sem nenhuma etapa racional. Um estágio aberto passa ao fluxo exato, e o resultado fica com o maior dos dois limites inferiores (ambos limitam o mesmo ótimo).
+
+\begin{algorithm}[ht]\small
+\caption{O oráculo de ciclo como a busca o chama (esquema).}\label{alg:oraculo}
+\begin{algorithmic}[1]
+\Function{Ciclo}{$P_1,\dots,P_k$; contatos e tipo herdados; $\tau$; $c$}
+  \If{$\tau>0$ ou $c<\infty$}\Comment{estágio \texttt{binary64}}
+    \State normalize; proponha (ponto comum, construção, depois polimento)
+    \For{cada proposta}
+      \State prove $U$ (contatos nas regiões) e $L$ (\eqref{eq:dualciclo} com erro \emph{a priori})
+      \IfThen{$U-L\le\tau$ ou $L\ge c$}{\Return $(L,U)$, caminho}
+    \EndFor
+  \EndIf
+  \State fluxo exato: construção racional, certificado KKT, redução à fronteira (\cref{alg:fronteira})
+  \State \Return o maior $L$ e o caminho de menor $U$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+Há ainda um passo no adaptador da busca (\code{solve\_relaxation}): se o intervalo devolvido continua mais largo que \(\tau\) e abaixo do corte, o ciclo é resolvido de novo em aritmética racional, partindo dos contatos já verificados. Isso importa em pontos e segmentos, que não têm interior para onde arredondar: contatos arredondados podem ficar bem acima do ótimo da relaxação, e antes a busca guardava nós cujo gap nunca fechava. Na coleção da Paula, chamadas que chegam a qualquer etapa racional são raras: 7 em 99,1 milhões (3 que o polimento deixa abertas e 4 interrompidas pelo prazo).
+
+\begin{cuidado}[O que depende do quê]
+Como no caminho, os limites não dependem da correção da construção: nem dos mapas de último passo com interseção (cuja prova geral continua em aberto~\cite{tutorial}), nem do núcleo de contatos ativos, nem do polimento. Desses depende que o oráculo \emph{feche} o gap pedido, e quanto tempo isso leva; um erro neles alarga o intervalo, mas nunca o torna falso.
+\end{cuidado}
+
+\subsection{Pontos e segmentos}
+As instâncias da Paula têm pontos (clusters de um elemento) e segmentos. Eles entram no ciclo como regiões convexas sem interior, com três cuidados. Na interseção comum, um segmento é limitado pela sua reta \emph{e} pelos seus extremos, e um ponto é testado por pertencimento: os semiplanos das ``arestas'' de um segmento descrevem uma reta infinita, e os de um ponto, o plano inteiro. Os contatos num segmento são carregados como \(a+t(b-a)\) com \(t\) em \texttt{binary64}, o que os mantém no segmento exato. E a construção devolve o próprio ponto como contato de uma região-ponto: uma versão anterior tratava o ponto como o plano inteiro e propunha contatos ao lado dele, que o certificado sempre rejeitava.
+
+%==========================================================================
+\section{O branch-and-bound}\label{sec:bnb}
+
+\subsection{Uma busca, duas topologias}
+\code{tpp\_nonconvex\_tspn\_solve} chama a mesma função de busca do TPP de ordem livre (\code{solve\_normalized\_unordered\_tpp}) com uma flag de ciclo. Um nó guarda uma sequência cíclica parcial; cada elemento é o fecho convexo de uma região original ou uma peça da sua decomposição. O limite do nó é o ótimo da relaxação (o ciclo de ordem fixa por esses convexos) ou, antes de resolvê-la, o limite herdado e o da triagem. Fila de melhor limite, mergulhos, decomposição sob demanda, escolha da região mais distante, verificação de visitas, normalização afim e contabilidade da fronteira são os mesmos. Esta seção descreve só o que muda; o contrato completo está em~\cite{tspnmd}.
+
+\subsection{Quando há um ponto, o TSPN vira TPP}\label{sec:ancora}
+\begin{proposicao}[Âncora de ponto]\label{prop:ancoraponto}
+Se \(R_a=\{p\}\) é um ponto, o TSPN de \(R_1,\dots,R_n\) tem o mesmo valor que o TPP de ordem livre de \(p\) a \(p\) pelas outras regiões, e os ótimos se correspondem.
+\end{proposicao}
+\begin{proof}
+Todo tour passa por \(p\). Rotacionado para começar e terminar em \(p\), ele é um caminho de \(p\) a \(p\) que visita as outras regiões, com o mesmo comprimento. Reciprocamente, todo caminho de \(p\) a \(p\) que visita as outras regiões é um tour fechado que visita todas, inclusive \(R_a\).
+\end{proof}
+Então, quando há um ponto (66 das 235 instâncias da Paula, entre elas 6 das 15 ainda abertas), o solver usa o TPP de ordem livre com \(s=t=p\), inteiro: o oráculo de caminho com extremos fixos, as \(m+1\) posições de inserção e o limite de inserção do caminho. Um tour inicial fornecido é rotacionado para começar no ponto. Na campanha de 06/10, a âncora fechou 45 instâncias com ponto contra 42 sem ela, e foi 2,67 vezes mais rápida. O resto desta seção trata do caso sem pontos.
+
+\subsection{A raiz}\label{sec:raiz}
+Por padrão, a raiz é o fecho da região 0, com limite zero. Um ciclo por uma só região é qualquer ponto dela; fixar a região 0 como ``primeira'' elimina a simetria de rotação sem impor um ponto artificial, porque todo tour visita a região 0 em algum lugar e pode ser lido a partir dessa visita.
+
+Com a opção \code{root} (usada nas campanhas), a raiz é uma tripla separada: o par de regiões mais distantes entre si, \(a\) e \(b\), e a região \(c\) que maximiza \(\dist(a,c)+\dist(b,c)\). Começar com três regiões não perde nenhum tour: há uma só ordem cíclica não orientada de três rótulos, e todas as inserções seguintes continuam representadas. As distâncias só ordenam; não são limites. A vantagem é começar com um ciclo que já tem comprimento, em vez de limite zero.
+
+\subsection{Ramificação}\label{sec:ramificacao}
+Como no caminho, a busca escolhe a região original não visitada mais distante do tour relaxado. Se ela não está na sequência, o seu fecho é inserido em cada posição cíclica, inclusive no elo de fechamento: \(m\) posições, contra \(m+1\) no caminho (\cref{fig:lacunas}). Com \(m=2\), os dois filhos são reversões do mesmo triângulo, e só um é gerado; a reversão preserva comprimento e visitas. Se o fecho já está na sequência, ele é substituído por cada peça da decomposição convexa.
+
+\begin{figure}[ht]\centering\figlacunas
+\caption{Posições de inserção (esquema). (a) No caminho, os extremos são distintos e há \(m+1\) lacunas. (b) No ciclo, o elo de fechamento é uma lacuna como as outras, e há \(m\).}\label{fig:lacunas}
+\end{figure}
+
+\paragraph{Por que a ramificação é completa} Fixe um tour viável e uma visita a cada região já representada; a visita à região 0 serve de origem. As visitas às regiões representadas ocorrem numa ordem cíclica, e a visita à região nova cai em alguma das lacunas dessa ordem, inclusive a de fechamento. Uma visita a uma região não convexa pertence a alguma peça. Omitir regiões e trocar regiões pelos fechos relaxa o problema, então o ótimo de cada relaxação limita por baixo todas as completações do nó. Como no caminho, cruzamentos do tour parcial e visitas repetidas a uma região não autorizam poda; os contraexemplos registrados continuam valendo~\cite{contraexemplos}.
+
+\subsection{A relaxação e os incumbentes}\label{sec:relaxacao}
+Cada filho recebe como ponto de partida os contatos do pai, com o contato da região nova dado por \code{best\_contact} entre os dois vizinhos (\cref{sec:melhorcontato}) e, com \code{features}, o tipo combinatório do pai com a posição nova marcada como desconhecida. Isso é só proposta; o certificado valida tudo. O oráculo também recebe o corte do incumbente: um filho cujo limite certificado alcança o corte volta com \code{CertifiedBound} e é podado sem que se construa o seu ótimo. Um tour relaxado que visita todas as regiões originais (verificação de visitas com tolerância \(10^{-8}\)) é um incumbente global.
+
+\subsection{A triagem por limites de inserção}\label{sec:insercao}
+Esta é a peça que mais pesou no desempenho recente. A ideia: o dual do pai já é quase um dual do filho. Inserir uma região numa lacuna muda só três termos de \eqref{eq:dualciclo}, então o limite do filho sai de algumas operações sobre os vértices de três regiões, sem chamar o oráculo.
+
+\paragraph{A conta} Seja \(q_1,\dots,q_m\) o tour relaxado do pai, \(u_1,\dots,u_m\) as direções dos seus elos (\(u_j\) vai de \(q_j\) a \(q_{j+1}\); um elo de comprimento zero recebe a direção de um vizinho) e \(D_{\text{pai}}=\sum_i\supp_i(u_{i-1}-u_i)\), com \(\supp_i(c)=\min_{v\in P_i}(v-r)\cdot c\). Para inserir a região \(R\) na lacuna \(j\), entre \(q_j\) e \(q_{j+1}\), escolhemos um contato proposto \(c=\code{best\_contact}(q_j,q_{j+1},R)\) e as direções \(a\) de \(q_j\) a \(c\) e \(b\) de \(c\) a \(q_{j+1}\). O filho tem \(m+1\) elos; usamos para ele as direções do pai, trocando \(u_j\) pelo par \((a,b)\). Então
+\begin{equation}\label{eq:insercao}
+D_{\text{filho}}=D_{\text{pai}}
+\;-\;\supp_j(u_{j-1}-u_j)-\supp_{j+1}(u_j-u_{j+1})
+\;+\;\supp_j(u_{j-1}-a)+\supp_R(a-b)+\supp_{j+1}(b-u_{j+1}).
+\end{equation}
+Por dualidade fraca, \(D_{\text{filho}}\) limita por baixo o ótimo de \emph{qualquer} completação do filho, por pior que seja o contato proposto: a escolha de \(c\) só afeta a força do limite. O limite do filho é \(\max(L_{\text{pai}},D_{\text{filho}})\), e um filho com limite \(\ge U^\star-g\) é descartado antes do oráculo. Os suportes que não mudam são somados uma vez para todos os irmãos.
+
+\paragraph{Exemplo} Inserimos \(R=[-0{,}5;0{,}5]\times[-3,-2]\) na lacuna entre \(P_1\) e \(P_2\) do exemplo das três caixas (\cref{fig:insercao}). Os contatos do pai são \(q_1=(-2,1)\) e \(q_2=(2,1)\), e o contato proposto é \(c=(0,-2)\), o ponto do topo de \(R\) que minimiza \(\norm{q_1-c}+\norm{c-q_2}\). Então \(a=(2,-3)/\sqrt{13}\) e \(b=(2,3)/\sqrt{13}\), e os termos de \eqref{eq:insercao} estão na \cref{tab:insercao}.
+\begin{table}[ht]\centering\small
+\begin{tabular}{@{}lccc@{}}\toprule
+termo & coeficiente & mínimo em & valor\\\midrule
+\(\supp_1(u_3-a)\) & \((-1{,}2618;\;0{,}1249)\) & \((-2,-1)\) & \(2{,}3987\)\\
+\(\supp_R(a-b)\) & \((0;\;-1{,}6641)\) & aresta \(y=-2\) & \(3{,}3282\)\\
+\(\supp_2(b-u_2)\) & \((1{,}2618;\;0{,}1249)\) & \((2,-1)\) & \(2{,}3987\)\\
+\(\supp_3(u_2-u_3)\) (inalterado) & \((0;\;1{,}4142)\) & aresta \(y=3\) & \(4{,}2426\)\\\bottomrule
+\end{tabular}
+\caption{Os termos de \eqref{eq:insercao} no exemplo, com \(r=0\): três suportes mudam e um é herdado do pai.}\label{tab:insercao}
+\end{table}
+
+A soma dá \(D_{\text{filho}}\approx12{,}3682\), contra \(D_{\text{pai}}=4+4\sqrt2\approx9{,}6569\); o ganho, \(2{,}7113\), mede o desvio necessário para passar por \(R\) a partir dessa lacuna. O ótimo do filho, conferido pelo solver, é \(2\sqrt{41}\approx12{,}8062\): o limite de inserção fica 3,4\% abaixo dele, sem nenhuma chamada ao oráculo. Se o incumbente fosse menor que 12,37, o filho seria podado ali mesmo.
+
+\begin{figure}[ht]\centering\figinsercao
+\caption{O limite de inserção. (a) O ciclo do pai (tracejado), a caixa \(R\) inserida na lacuna entre \(P_1\) e \(P_2\), o contato proposto \(c\) e as direções \(a,b\) que substituem \(u_1\). O limite resultante é \(12{,}3682\). (b) Um ótimo do filho, de comprimento \(2\sqrt{41}\approx12{,}8062\). Este é o ótimo simétrico; o solver devolveu outro do mesmo comprimento, da mesma família de paralelogramos.}\label{fig:insercao}
+\end{figure}
+
+\paragraph{A prova em \texttt{binary64}} Até 09/10, \eqref{eq:insercao} era avaliada em aritmética racional, com direções racionais de norma provada; depois que o oráculo passou a \texttt{binary64}, essa triagem dominava o tempo. Hoje ela é provada em \texttt{binary64} com três ingredientes:
+\begin{itemize}[leftmargin=*,itemsep=2pt]
+\item \textbf{Direções.} Cada vetor é a direção calculada em \texttt{binary64}, encurtada por \(2^{-49}\). Um quadrado da norma calculado até \(1-2^{-50}\) prova que a norma exata é no máximo 1 (\cref{lem:apriori}); se não, quadrados intervalares decidem; um vetor não provado vira zero, que é sempre viável. Um elo novo de comprimento zero pode ficar nulo ou herdar \(u_j\); vale o que der o ganho maior.
+\item \textbf{Suportes.} Cada suporte é o mínimo calculado alargado pelo erro \emph{a priori} do lema abaixo; uma normal exatamente nula dá suporte exatamente zero.
+\item \textbf{Somas.} Arredondadas para fora, um valor representável por operação; o ganho é o extremo inferior do seu intervalo.
+\end{itemize}
+
+\begin{lema}[Erro \emph{a priori} de um termo de suporte]\label{lem:apriori}
+No modelo padrão de arredondamento (erro relativo até \(\mathbf u=2^{-53}\) por operação, com \emph{underflow} gradual), com \(v\), \(o\) e \(n\) em \texttt{binary64} e \(d=v-o\) calculado em \texttt{binary64}, o valor calculado de \(t=d_x n_x+d_y n_y\) está a no máximo \(4{,}0000001\,\mathbf u\,(\abs{d_x}\abs{n_x}+\abs{d_y}\abs{n_y})+2^{-1074}\) do valor exato de \((v-o)\cdot n\), inclusive se o compilador usar FMA. Então o mínimo calculado sobre os vértices, menos \(E=2^{-50}(m_x\abs{n_x}+m_y\abs{n_y})+2^{-1070}\), com \(m_x,m_y\) as maiores diferenças calculadas, é no máximo o suporte exato.
+\end{lema}
+O lema troca intervalos dirigidos por uma única correção por suporte, três a quatro vezes mais barata, e a prova está em~\cite{ordemlivre}. O resultado é um limite de dualidade fraca para o filho, como o racional, com vetores ligeiramente diferentes; não é uma tolerância. Na regressão SoCG, a busca ficou idêntica (as mesmas chamadas nos 48 casos) e a triagem caiu de 22,4 para 0,15 s.
+
+\begin{ideia}[Limite de inserções múltiplas (opcional)]
+A triagem acima olha uma região de cada vez. A opção \code{-{}-multi-insertion-bound} eleva o limite de um nó com os ganhos de \emph{todas} as regiões ausentes: lacunas não adjacentes mudam termos disjuntos e os ganhos se somam; duas lacunas adjacentes perdem no máximo a largura da região que compartilham na direção do pai. Um dual de cobertura atribui preços às regiões, de modo que, qualquer que seja a lacuna em que cada uma acabe, a soma dos preços é paga; os preços gulosos são conferidos com somas arredondadas para cima antes de valer. É provado em \texttt{binary64} como a triagem, mas custa \(O(m\,k)\) contatos e suportes por nó; desde que o oráculo ficou barato, ele não compensa no tempo e está desligado. Com a memória como limite (\cref{sec:memoria}), vale reavaliá-lo.
+\end{ideia}
+
+\subsection{A política de busca}\label{sec:politica}
+\paragraph{Padrão: melhor limite com mergulhos} A fila expande o nó de menor limite, e a cada expansão mergulha pelo melhor filho até uma folha (\code{dive\_interval} 1), para achar incumbentes cedo. Os filhos que passam pela triagem são resolvidos logo (avaliação imediata), em ordem; com \code{-{}-threads N}, até \(N\) irmãos em paralelo. É a política que fecha as instâncias fáceis: 209 das 235 da Paula em 60 s, sem tour inicial.
+
+\paragraph{Preguiçosa, para o limite inferior} Com \code{-{}-cycle-optimization lazy} (ciclos) e \code{-{}-lazy-oracles} (caminhos ancorados num ponto), os filhos entram na fila com o limite da triagem, e o oráculo só é chamado quando um deles é escolhido para expansão; um incumbente melhor pode podá-lo antes. Isso economiza chamadas, mas atrasa os incumbentes. Com um incumbente bom vindo da ILS, os mergulhos também deixam de pagar, e a combinação \code{-{}-primal-ils 0.5 -{}-cycle-optimization lazy -{}-lazy-oracles -{}-dive-interval 0} é a que mais sobe o limite inferior: nas 38 instâncias abertas aos 60 s, 600 s dão gap mediano de 2,7\% e fecham 17. Sem incumbente, a política padrão continua melhor: em 60 s, a preguiçosa sem mergulhos também fecha as 209, mas 0,79 vez a velocidade da padrão em média geométrica, e só tirar os mergulhos perde 6.
+
+\paragraph{Portfólio} \code{-{}-portfolio} roda duas buscas completas em paralelo: a de melhor limite e uma DFS/BFS inspirada no solver de Fekete et al., que desce pelo filho mais barato e volta ao melhor nó da fronteira depois de uma poda. Elas trocam incumbentes validados, e o maior dos dois limites inferiores é global. É opcional.
+
+\subsection{A memória da fronteira}\label{sec:memoria}
+Com o oráculo em \texttt{binary64}, a fronteira de melhor limite cresce na proporção da vazão: em 100pr1002, 60 s chegam a 4,2 milhões de nós e 3–3,8 GB. Desde 09/10 há um orçamento (\code{-{}-max-frontier-mib}, padrão 4 GiB) com dois níveis. Ao passar do limite, todos os nós menos o quarto de menor limite perdem caminho, contatos e tipo, que são recalculados se o nó sair da fila (``despir''). Se isso não basta, a metade de maior limite é descartada, e o menor limite descartado, \(D\), vira um piso do limite inferior global: \(L=\min(\text{fronteira},D)\). Isso é válido, porque toda completação de um nó descartado custa pelo menos \(D\).
+
+O piso tem uma consequência que só medimos em 10/10 (\cref{fig:piso}): quando o mínimo da fronteira alcança \(D\), o limite inferior \emph{congela}, e o resto da execução não pode mais subi-lo. Com 256 MiB, 100i1000-410 congela aos 2 min em 4,88\%; com 6 GiB, no mesmo tempo, continua caindo até 3,64\% aos 5 min. Nessas condições, um oráculo mais rápido só enche a fronteira mais cedo e congela no mesmo valor; o que ajuda é mais memória por execução, menos memória por nó, ou não perder os nós descartados (\cref{sec:limites}).
+
+Na armijo (128 GB), com 22 GiB por execução e 4 h, seis das oito instâncias abertas com gap até 5\% fecharam, em 22 a 78 min, com picos de fronteira de 3,9 a 14,7 GiB; as rodadas anteriores, com 1,5 GiB, tinham congelado em 2,4–4,3\%. Isso levou a três mudanças de 12/10, que não alteram a busca. Os irmãos compartilham uma única cópia dos contatos e do tipo combinatório do pai, em vez de cada um copiá-los como ponto de partida, e cada filho guarda só o seu contato novo; o caminho, as features e o dual do nó passam a custar um ponteiro enquanto vazios. Um nó de ciclo na fila de \code{lazy} cai de \(\approx\)900 para \(\approx\)285 B, e um de caminho ancorado, de 253 para 197 B. E a busca para com \code{memory\_limit} assim que o limite congela no piso, em vez de rodar até o prazo.
+
+\begin{figure}[ht]\centering\figpiso
+\caption{O piso da fronteira. O mesmo B\&B (preguiçoso, sem mergulhos, a partir do mesmo tour) em 100i1000-410, com dois orçamentos. Com 256 MiB, o limite inferior para de subir aos 120 s; com 6 GiB (pico de 5 GiB), continua. Dados em \code{dados.tex}.}\label{fig:piso}
+\end{figure}
+
+\subsection{O contrato numérico}
+A busca trabalha em coordenadas normalizadas (centro e divisor), e os limites voltam às coordenadas de entrada com o erro da normalização descontado. Um resultado \code{exact} significa que o gap pedido fechou, \(U-L\le g_a+g_r\abs U\), com limites provados das relaxações e verificação de visitas com tolerância \(10^{-8}\); não é uma solução racional sem erro do TSPN não convexo completo. As campanhas usam \(g_a=0\) e \(g_r=10^{-6}\), e cada tour devolvido é validado de forma independente, com testes de interseção e pertencimento em racionais binários (\code{validate\_cycle}, tolerância \(10^{-7}\)). Limites de tempo, de chamadas e de memória devolvem o incumbente e os limites com um status incompleto (\code{time\_limit}, \code{call\_limit}, \code{memory\_limit}); nenhum deles é chamado de ótimo.
+
+%==========================================================================
+\section{A busca local iterada}\label{sec:ils}
+
+\subsection{Para que serve}
+A ILS (\code{-{}-primal-ils F}) gasta a fração \(F\) do tempo restante procurando um bom tour antes do \emph{branch-and-bound}. Ela só mexe no limite superior: todo tour que ela encontra passa pela mesma verificação de visitas e de comprimento, e o limite inferior e o certificado continuam os do B\&B. Serve em dois casos: nas instâncias grandes, onde o B\&B não fecha e o que se entrega é um bom tour com gap provado; e na política preguiçosa, que precisa de um incumbente bom desde o início. No TPP de ordem livre com extremos fixos, ela não acelerou o B\&B e fica desligada.
+
+\subsection{Representação}
+Um tour é uma ordem das \(n\) regiões originais e um contato por região, \emph{dentro da própria região original}, que pode ser não convexa. Todo movimento mantém essa invariante, então todo tour é viável por construção; mesmo assim, só um tour validado vira incumbente.
+
+\subsection{O subproblema de um contato}\label{sec:melhorcontato}
+Quase todo movimento termina reotimizando contatos com os vizinhos fixos: dado \(\ell\) e \(r\), achar \(p\in P\) que minimiza \(\norm{\ell-p}+\norm{p-r}\). É o mesmo subproblema da descida por coordenadas (BCD) da Paula~\cite{paula}. A função \code{best\_contact} o resolve assim: se \(\ell\) ou \(r\) está em \(P\), devolve esse ponto (custo \(\norm{\ell-r}\), o mínimo possível); senão, para cada aresta, calcula o melhor ponto da aresta e fica com o melhor.
+
+\begin{proposicao}[Uma fórmula para reflexão e cruzamento]\label{prop:melhorcontato}
+Seja uma aresta \([a',a'+e]\) e sejam \(h_\ell,h_r\) as distâncias de \(\ell\) e \(r\) à reta da aresta, com \(h_\ell+h_r>0\). O ponto da reta que minimiza \(\norm{\ell-p}+\norm{p-r}\) tem como parâmetro a média das projeções de \(\ell\) e \(r\) com pesos \(h_r/(h_\ell+h_r)\) e \(h_\ell/(h_\ell+h_r)\), tanto com \(\ell\) e \(r\) do mesmo lado da reta (reflexão) quanto em lados opostos (cruzamento). Limitado a \([0,1]\), esse parâmetro dá o melhor ponto da aresta.
+\end{proposicao}
+\begin{proof}
+Em lados opostos, o mínimo é o cruzamento do segmento \(\ell r\) com a reta. Do mesmo lado, refletindo \(r\) na reta, o mínimo é o cruzamento do segmento de \(\ell\) ao refletido. Nos dois casos, o ponto divide o segmento de \(\ell\) ao alvo (\(r\) ou o refletido) na razão \(h_\ell:h_r\), por semelhança de triângulos, e a projeção na reta é linear; daí os pesos. A função é convexa no parâmetro, então limitar o minimizador irrestrito ao intervalo dá o minimizador restrito.
+\end{proof}
+Com \(\ell=(0,0)\), \(r=(6,1)\) e a aresta de \((1,2)\) a \((5,2)\), \(h_\ell=2\) e \(h_r=1\), e o ponto é \((4,2)\); com \(r=(6,3)\), do outro lado, o ponto é o mesmo (\cref{fig:melhorcontato}). A rotina é exata (em aritmética exata) também para polígonos não convexos: a função é convexa no plano, e se o seu mínimo em \(P\) estivesse no interior de \(P\) seria um mínimo local, portanto global, e estaria no segmento \(\ell r\), que não toca \(P\) nesse caso. Logo o mínimo está na fronteira, e cada aresta é tratada exatamente.
+
+\begin{figure}[ht]\centering\figmelhorcontato
+\caption{O subproblema de um contato numa aresta horizontal. (a) Com \(\ell\) e \(r\) do mesmo lado, o melhor ponto é o da reflexão (tracejado: o refletido \(r'\)). (b) Em lados opostos, é o cruzamento. A mesma média ponderada das projeções, com pesos dados por \(h_\ell=2\) e \(h_r=1\), dá \(p=(4,2)\) nos dois casos.}\label{fig:melhorcontato}
+\end{figure}
+
+\subsection{Solução inicial}
+A heurística inicial é a mesma do B\&B sem ILS. A partir de um vértice da região 0, escolhe sempre o vértice mais próximo de uma região ainda não visitada; aplica até 10 passadas de 2-opt; depois, até 8 passadas alternando uma varredura de \code{best\_contact} em todos os contatos e um 2-opt. A ILS parte do melhor tour assim obtido.
+
+\subsection{A busca local}
+O \cref{alg:ils} mostra o laço. A busca local repete, até não melhorar (no máximo 64 rodadas):
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+\item \textbf{Varredura de contatos.} Cada contato vira \code{best\_contact} entre os seus vizinhos.
+\item \textbf{2-opt.} Inverte as posições \(i..j\) com os contatos fixos, se isso encurta o tour.
+\item \textbf{Or-opt.} Move um bloco de 1 a 3 posições consecutivas para a melhor lacuna; os contatos das pontas do bloco são reotimizados para os novos vizinhos (um contato, se o bloco tem uma posição). Com listas de candidatos, só se tentam lacunas vizinhas de uma das 10 regiões mais próximas (distância entre fronteiras) de uma ponta do bloco; isso dá cerca de 5 vezes mais iterações por segundo em 100 regiões.
+\end{enumerate}
+A troca de duas regiões existe como opção (\code{-{}-primal-ils-swap}) e foi pior.
+
+\subsection{Perturbação e aceitação}
+A perturbação é uma \emph{double bridge} aleatória nas posições (\(ABCD\to ACBD\)), seguida da busca local. A aceitação é a da Paula: o tour tentado substitui o corrente se for melhor que ele ou estiver a no máximo \(\eta\) acima do melhor, em termos relativos; \(\eta\) começa em \(0{,}01\), é multiplicado por \(0{,}95\) a cada 10 iterações sem novo melhor e, abaixo de \(10^{-4}\), volta a \(0{,}01\), com o corrente voltando ao melhor (reaquecimento). A semente depende de \(n\) e de \code{-{}-primal-ils-seed}, então execuções com sementes diferentes são independentes.
+
+\begin{algorithm}[ht]\small
+\caption{A ILS (esquema; padrões entre parênteses).}\label{alg:ils}
+\begin{algorithmic}[1]
+\Function{ILS}{tour inicial $T$; prazo}
+  \State \Call{BuscaLocal}{$T$}; \Call{Janelas}{$T$}; $T^\star\gets T$; $\eta\gets0{,}01$
+  \While{houver tempo}
+    \State $T'\gets$ \Call{DoubleBridge}{$T$}; \Call{BuscaLocal}{$T'$}
+    \IfThen{$\abs{T'}<(1+0{,}01)\abs{T^\star}$}{\Call{Janelas}{$T'$}}\Comment{reotimização exata, janelas de 8}
+    \IfThen{$\abs{T'}<\abs T$ ou $\abs{T'}\le(1+\eta)\abs{T^\star}$}{$T\gets T'$}
+    \If{$\abs{T'}<\abs{T^\star}$} $T^\star\gets T'$; publique $T^\star$ como incumbente
+    \Else{} a cada 10 sem melhora, $\eta\gets0{,}95\,\eta$; se $\eta<10^{-4}$: $\eta\gets0{,}01$, $T\gets T^\star$
+    \EndIf
+  \EndWhile
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{A armadilha da descida por coordenadas e as janelas exatas}\label{sec:janelas}
+A varredura de contatos (e o BCD da Paula) estaciona quando contatos consecutivos coincidem. O exemplo da \cref{fig:armadilha} mostra por quê. Sejam \(a=(0,0)\), \(b=(6,0)\), \(P=[1,4]\times[1,3]\) e \(Q=[2,5]\times[1,3]\), visitadas nessa ordem entre \(a\) e \(b\).
+
+\begin{proposicao}[Todo ponto comum é um mínimo coordenada a coordenada]\label{prop:armadilha}
+Se \(z\in P\cap Q\), os contatos \(p=q=z\) não melhoram por nenhuma reotimização de um contato só.
+\end{proposicao}
+\begin{proof}
+Com \(q=z\) fixo, \(\norm{a-p}+\norm{p-z}\ge\norm{a-z}\) para todo \(p\), com igualdade em \(p=z\in P\). O mesmo vale para \(q\) com \(p=z\) fixo.
+\end{proof}
+Em \(z=(4,3)\), o comprimento é \(5+\sqrt{13}\approx8{,}606\). O ótimo passa por \((3,1)\in P\cap Q\) e mede \(2\sqrt{10}\approx6{,}325\), 36\% menos: todo caminho de \(a\) a \(b\) que chega a \(y\ge1\) mede pelo menos isso (reflita \(b\) na reta \(y=1\)). O B\&B de ordem livre, com extremos \(a\) e \(b\), acha esse ótimo. O rascunho da Paula prova que o BCD chega ao mínimo global sob duas hipóteses, regiões convexas e regiões consecutivas que não se tocam; as instâncias dela têm polígonos não convexos e muito sobrepostos.
+
+\begin{figure}[ht]\centering\figarmadilha
+\caption{A armadilha. Com os dois contatos em \(z=(4,3)\in P\cap Q\) (tracejado, \(5+\sqrt{13}\)), nenhuma reotimização de um contato só melhora o caminho. O ótimo (verde, \(2\sqrt{10}\)) move os dois contatos juntos até \((3,1)\).}\label{fig:armadilha}
+\end{figure}
+
+\paragraph{As janelas} Por isso a ILS tem uma etapa que a BCD não tem. Todo tour a até 1\% do melhor tem janelas de 8 posições consecutivas, a meia janela uma da outra, resolvidas \emph{exatamente} (ordem e contatos) pelo próprio B\&B de ordem livre, com os contatos fixos vizinhos como extremos \(s\) e \(t\) e as regiões originais da janela (\cref{fig:janela}). Cada janela usa gap \(10^{-9}\), até 20 mil chamadas e 0,5 s, e parte da janela atual como caminho inicial. Com regiões sobrepostas, o caminho novo pode visitar várias regiões num mesmo ponto ou ao longo de um segmento; cada região recebe o primeiro toque ao longo do caminho, na ordem desses toques, o que preserva o comprimento. A janela só é aceita se encurtar o tour. Nas 19 instâncias de validação (60 s, uma execução), a razão média geométrica entre o nosso tour e o melhor dela foi 1,0020 sem esta etapa, 1,0007 com um polimento só de contatos e 1,00015 com as janelas.
+
+\begin{figure}[ht]\centering\figjanela
+\caption{Reotimização por janela (esquema). As 8 posições da janela são resolvidas pelo B\&B de ordem livre entre os dois contatos fixos; o resto do tour não muda.}\label{fig:janela}
+\end{figure}
+
+\subsection{Relação com o ILS-BCD da Paula}
+A \cref{tab:paula} compara as duas buscas componente a componente. A nossa reproduz o núcleo da dela (o subproblema de um contato, as listas de candidatos, a \emph{double bridge} e a aceitação com reaquecimento), tem menos vizinhanças e acrescenta as janelas exatas, que são o que fecha a diferença nas instâncias com regiões muito sobrepostas.
+
+\begin{table}[ht]\centering\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{33mm}>{\raggedright\arraybackslash}p{55mm}>{\raggedright\arraybackslash}p{56mm}@{}}\toprule
+Componente & ILS-BCD (Paula) & a nossa ILS\\\midrule
+Contatos & BCD: um contato por vez, subproblema exato & o mesmo subproblema (\code{best\_contact}), mais janelas exatas\\
+Vizinhanças & VND com 2-opt, 3-opt, troca, inserção, realocação de blocos com inversão, Balas--Simonetti e Gutin & 2-opt, Or-opt de 1 a 3 com contatos das pontas reotimizados; troca opcional\\
+Listas de candidatos & sim & sim (10 regiões por distância entre fronteiras)\\
+Perturbação & \emph{double bridge} (e outra, se estagnar) & uma \emph{double bridge}\\
+Aceitação & limiar \(\eta\) relativo ao melhor, com reaquecimento & a mesma\\
+Parada & 3.000 iterações sem melhora ou 1.200 s de CPU & fração do tempo ou \code{-{}-primal-ils-stagnation}\\
+Saída & o melhor tour & o melhor tour, e o B\&B certifica ou limita o gap\\\bottomrule
+\end{tabular}
+\caption{O que a nossa ILS reproduz da dela e o que difere. A nossa não tem 3-opt completo, Balas--Simonetti nem Gutin; tem as janelas exatas.}\label{tab:paula}
+\end{table}
+
+\subsection{Como a ILS e o B\&B se combinam}
+A ILS roda antes da busca e publica cada novo melhor como incumbente; o B\&B começa com esse corte. Num tour inicial fornecido (\code{-{}-initial-path}), o solver valida a visita a todas as regiões e usa só o comprimento. A campanha \code{paula-campaign} separa as duas fases: 10 execuções da ILS por instância, com sementes distintas, e depois o B\&B a partir do melhor tour, com o orçamento de memória concentrado em poucas execuções (\cref{sec:memoria}).
+
+%==========================================================================
+\section{Medições}\label{sec:medicoes}
+Os resumos, protocolos e limitações estão em \path{benchmarks/results-saved/README.md}~\cite{resultados}; aqui ficam os números que situam as peças. Todas as rodadas são TSPN de ciclo livre com gap relativo \(10^{-6}\), uma thread por instância e \code{cache,features,root,interval}, num Mac (Apple M4 Pro), com tours validados de forma independente. ``Fechou'' é gap numérico fechado com limites provados, não ótimo algébrico.
+
+\paragraph{Regressão SoCG (48 casos, 4 por estrato)} O tempo total caiu de 131,1 s (fluxo exato, 08/10) para 23,5 s com o estágio \texttt{binary64} do oráculo (26,6 s na rodada de 09/10), 3,5 s com a triagem em \texttt{binary64} e 2,7 s com as provas pelo erro \emph{a priori}. Nas 134.300 chamadas do padrão de 08/10, nenhuma usou aritmética racional: 120.734 fecharam pela prova de um candidato da construção e 13.566 pelo polimento. Num replay de 11.411 chamadas, a mediana por chamada foi de 12–20~µs, contra 560–910~µs no fluxo exato.
+
+\paragraph{Coleção da Paula (235 instâncias)} Em 60 s, sem tour inicial, fecharam 197 com o fluxo exato, 207 com o estágio \texttt{binary64} e 209 com a triagem em \texttt{binary64}. O pipeline de 600 s (ILS e B\&B preguiçoso sem mergulhos) fechou 17 das 38 abertas na versão de 07/10, e a campanha longa na armijo (\cref{sec:memoria}) fechou mais 6: somando todas as rodadas, 220 ótimos certificados. Nas 15 restantes (75 a 100 regiões), o gap provado vai de 0,70\% a 18,5\% (mediana 7,7\%), em parte medido com fronteiras de 1,5 GiB e, portanto, limitado pela memória.
+
+\paragraph{Contra as outras abordagens} Na mesma coleção, o solver de Fekete et al.\ fechou 124 instâncias contra as nossas 197 (06/10), e onde ambos fecham fomos 7,0 vezes mais rápidos em média geométrica. O CPLEX do rascunho, com 1 h, provou 80 das 87 instâncias de até 15 regiões; nas 80, o nosso valor difere do dele no máximo \(3{,}2\times10^{-5}\), e as 7 que ele deixou abertas nós provamos em menos de 0,05 s. Contra o ILS-BCD da Paula (melhor de 10 execuções, outra máquina): em todas as instâncias que certificamos, o melhor tour dela é ótimo, a menos do arredondamento em duas casas, e nas 15 abertas o nosso melhor tour empata com o dela. Em 100i1000-410, as 10 sementes da nossa ILS pararam 0,19\% acima; foi o B\&B que achou o tour dela e provou que é ótimo.
+
+%==========================================================================
+\section{Limitações e questões em aberto}\label{sec:limites}
+\begin{itemize}[leftmargin=*,itemsep=2pt]
+\item \textbf{Instâncias grandes.} Acima de cerca de 60 regiões, nem nós, nem Fekete, nem o modelo do CPLEX fecham as instâncias da Paula. Ramificação forte, \emph{lookahead}, DFS/BFS, partidas primais e LNS exata não fecharam mais; relaxações em grafo (Held--Karp com distâncias entre regiões, custos por triplas) são mais fracas que as de inserção mesmo na ordem ótima.
+\item \textbf{O piso da fronteira.} O limite inferior congela quando o mínimo da fronteira alcança o piso dos nós descartados (\cref{fig:piso}), e a execução continua sem poder subi-lo. Desde 12/10, a execução termina quando isso acontece, e o nó custa menos (\cref{sec:memoria}). A correção estrutural continua em aberto: não perder os nós descartados, gravando-os em disco ou reexplorando as suas regiões por busca em profundidade limitada pelo piso.
+\item \textbf{A ILS.} Não tem garantia. Em 100i1000-410, as 10 sementes de 1.200 s param 0,19\% acima do ótimo, que difere do tour delas sobretudo por um trecho de \(\approx\)16 regiões em outra posição; blocos maiores no Or-opt não ajudaram. Faltam vizinhanças dela (3-opt, Balas--Simonetti) e uma comparação na mesma máquina, com o mesmo orçamento.
+\item \textbf{Exatidão.} ``Ótimo certificado'' quer dizer gap \(10^{-6}\) fechado com limites provados das relaxações e verificação de visitas com tolerância; não é um ótimo racional exato do problema não convexo. A prova geral da construção com interseção continua em aberto~\cite{tutorial}; os limites não dependem dela.
+\item \textbf{Medições.} Uma máquina, uma repetição por variante, várias execuções simultâneas em algumas rodadas; nos casos de milissegundos, as razões são ruído.
+\end{itemize}
+
+%==========================================================================
+\appendix
+\section{Notação}
+\begin{center}\small
+\begin{tabular}{@{}ll@{}}\toprule
+\(R_1,\dots,R_n\) & regiões da instância (pontos, segmentos, polígonos simples)\\
+\(P_1,\dots,P_k\) & regiões convexas de uma relaxação, na ordem cíclica\\
+\(p_i,q_i\) & contato com \(P_i\); índices cíclicos, \(p_{k+1}=p_1\)\\
+\(d_i,u_i\) & elo \(p_{i+1}-p_i\) e o seu vetor dual, \(\norm{u_i}\le1\)\\
+\(c_i\) & coeficiente \(u_{i-1}-u_i\) do contato \(i\)\\
+\(\supp_i(c)\) & suporte \(\min_{v\in P_i}(v-r)\cdot c\)\\
+\(D(u)\) & limite dual do ciclo \eqref{eq:dualciclo}\\
+\(F(x)\), \(f(t)\) & função âncora e a sua restrição a um trecho de aresta\\
+\(\tau,c,g\) & gap e corte de uma chamada; gap do nó\\
+\(U^\star\) & comprimento do incumbente\\
+\(D\) (fronteira) & menor limite descartado, piso do limite inferior global\\
+\(\mu,F\) & parâmetro de barreira; número total de faces\\
+\(\eta\) & limiar de aceitação da ILS\\\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Guia do código}
+\begin{center}\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{42mm}>{\raggedright\arraybackslash}p{103mm}@{}}\toprule
+Peça & Onde\\\midrule
+Entrada e âncora de ponto & \code{tpp\_nonconvex\_tspn\_solve} em \path{packages/nonconvex-tpp/cpp/src/solvers/unordered.cpp}\\
+Busca (as duas topologias) & \code{solve\_normalized\_unordered\_tpp}, \code{separated\_cycle\_root} e a classe \code{Frontier} (orçamento de memória), no mesmo arquivo\\
+Adaptador do oráculo & \code{solve\_relaxation}, no mesmo arquivo\\
+ILS & bloco \code{primal\_ils} de \code{solve\_normalized\_unordered\_tpp}; \code{best\_contact} em \path{unordered_geometry.cpp}\\
+Triagem e inserções múltiplas & \code{insertion\_lower\_bounds}, \code{cycle\_multi\_insertion\_bound} em \path{unordered_bounds.cpp}\\
+Dual em \texttt{binary64} & \code{tpp\_convex\_binary\_cycle\_dual}, \code{tpp\_convex\_binary\_insertion\_gain}, \code{tpp\_convex\_binary\_cycle\_insertion\_bounds} em \path{packages/convex-tpp/cpp/src/solvers/binary_dual.cpp}; suportes em \path{binary_dual.h}\\
+Oráculo de ciclo & \code{tpp\_convex\_solve\_cycle\_double} e \code{tpp\_convex\_solve\_cycle} em \path{cycle.cpp}; construção em \path{cycle_refinement.h}\\
+Estágio \texttt{binary64} & \code{tpp\_convex\_solve\_cycle\_float\_certified} em \path{cycle_float_oracle.cpp}; provas em \path{float_proof.h}; polimento em \path{float_chain.h}\\
+Certificado exato & \code{tpp\_convex\_verify\_cycle\_certificate} em \path{cycle_certificate.cpp}; blocos de elos zero em \path{zero_contact_certificate.h}\\
+Campanha da Paula & \path{benchmarks/_internal/paula_campaign.py} (\code{tpp.py paula-campaign})\\\bottomrule
+\end{tabular}
+\end{center}
+
+\clearpage
+\begin{thebibliography}{9}\small\raggedright
+\bibitem{dror} M.~Dror, A.~Efrat, A.~Lubiw e J.~S.~B. Mitchell. \emph{Touring a sequence of polygons}. Proceedings of STOC 2003, pp.~473--482. \href{https://doi.org/10.1145/780542.780612}{doi:10.1145/780542.780612}.
+\bibitem{fekete} S.~P. Fekete, R.~Kniep, D.~Krupke e M.~Perk. \emph{A branch-and-bound algorithm for the traveling salesman problem with difficult neighborhoods}. SoCG 2026 (versão anterior no EuroCG 2025). Solver usado: fork em \path{third_party/tspn-socg}.
+\bibitem{paula} Rascunho do artigo sobre o TSPN com vizinhanças poligonais não convexas (ILS-BCD e modelo MIQCP), versão de 07/10/2026. Material local, sem autorização de redistribuição.
+\bibitem{oraculo} TouringPolygons. \emph{O oráculo convexo certificado}, relatório técnico, 9 de outubro de 2026. \path{docs/reports/oraculo-convexo/main.tex}.
+\bibitem{ordemlivre} TouringPolygons. \emph{TPP não convexo com ordem livre}. \path{docs/algorithms/unordered-tpp.md}; o \cref{lem:apriori} está na seção ``Certificado convexo e interseções''.
+\bibitem{ciclo} TouringPolygons. \emph{Exact ordered cycles through closed convex polygons}. \path{docs/algorithms/convex-cycle.md}.
+\bibitem{certificadociclo} TouringPolygons. \emph{Exact certificate for an ordered convex cycle}. \path{docs/algorithms/convex-cycle-certificate.md}.
+\bibitem{tspnmd} TouringPolygons. \emph{TSPN with the maintained insertion/decomposition branch and bound}. \path{docs/algorithms/tspn.md}.
+\bibitem{tutorial} TouringPolygons. \emph{A tutorial on fixed-order convex touring polygons and directional last-step maps}, 2026. \path{docs/reports/directional-tpp-tutorial/main.tex}.
+\bibitem{contraexemplos} TouringPolygons. \emph{Unordered pruning counterexamples}. \path{docs/algorithms/unordered-pruning-counterexamples.md}.
+\bibitem{resultados} TouringPolygons. Seções \code{tspn-paula-cycle-2026-10-06}, \code{tspn-paula-lower-bound-2026-10-07}, \code{tspn-cycle-float-2026-10-08}, \code{tspn-cycle-insertion-binary64-2026-10-09} e \code{tspn-search-retune-2026-10-09} de \path{benchmarks/results-saved/README.md}.
+\end{thebibliography}
+\end{document}
