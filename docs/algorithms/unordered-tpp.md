@@ -267,6 +267,24 @@ incumbente cair até `D + gap`; se a fila esvaziar assim, a busca termina com
 `memory_limit` (`UnorderedTppTermination::MemoryLimit`), que não é ótimo. A
 DFS (`--search-strategy dfs-bfs`) não é limitada.
 
+**Propostas compartilhadas e parada no piso (2026-10-12).** No ciclo, cada
+filho recebia uma cópia dos contatos do pai (o ponto de partida do oráculo) e
+das suas features, com o contato e a marca da posição nova: `O(m)` por filho e
+`O(m²)` por expansão, que ficam na fila com os filhos de `lazy`. Agora os
+irmãos compartilham uma cópia imutável (`ParentProposal`), e cada filho guarda
+só o seu contato novo; o ponto de partida e as features são montados na
+chamada, idênticos aos de antes. A memória das cópias compartilhadas entra no
+orçamento uma vez por família, por um contador atômico. A busca fica idêntica
+(mesmas chamadas, nós e limites em 6/6 instâncias de 100 regiões, `lazy` e
+padrão, e na regressão SoCG de 48 casos), e a fronteira de `lazy` cai de
+870–950 para 300–350 B por nó. Na política padrão, os nós da fila já estão
+resolvidos e guardam o próprio caminho, e o nó cresce 8 B.
+
+A busca também para, com `memory_limit`, quando todo nó aberto já tem limite
+pelo menos `D`: o LB global é então `D`, e nenhuma expansão pode subi-lo. Antes
+ela continuava até o prazo ou até esvaziar a fila. Em 88pr439 (Armijo, 22 GiB),
+o LB congelou aos 7.200 s e a execução seguiu por mais uma hora sem mudar.
+
 Na primeira versão, que só descartava, `lazy` em 45ts225 (1,5 GiB, 120 s)
 descartou metade da fila com `D` logo acima do resto. A busca esgotou os nós
 mantidos em 44 s e parou aberta, com LB/UB 0,989, enquanto a base fecha em

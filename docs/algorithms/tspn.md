@@ -605,7 +605,13 @@ Done in this round, from the list after the binary64 cycle oracle:
 Open, in order of expected value:
 
 1. **Frontier memory per node.** Long runs are now bounded by memory, not by
-   the oracle. A queued node costs ~216 B of header (64-bit indices, the
+   the oracle. (2026-10-12: siblings now share one copy of the parent's
+   contacts and features as their starting proposal, so a queued `lazy` cycle
+   child drops from ~900 to ~300 B with an identical search, and a search stops
+   with `memory_limit` as soon as its bound is frozen at the discarded floor;
+   see [`unordered-tpp.md`](unordered-tpp.md#orçamento-de-memória-da-fronteira-2026-10-09).
+   On Armijo, the six instances certified on 2026-10-11 needed frontiers of
+   3.9–14.7 GiB, and the two left open stopped at 22 GiB.) A queued node costs ~216 B of header (64-bit indices, the
    learning fields, an empty rational dual), ~16 B per contact of its path and
    the features. Above the budget, nodes are stripped and solved again, or
    discarded. Shrinking the header (32-bit indices, rarely used fields moved
