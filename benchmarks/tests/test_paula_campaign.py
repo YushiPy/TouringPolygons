@@ -119,7 +119,7 @@ class ProtocolTests(unittest.TestCase):
 
 class SchedulerTests(unittest.TestCase):
 	def test_ils_first_and_bnb_after_its_instance(self):
-		scheduler = campaign.Scheduler([("a", 0), ("b", 0), ("a", 1)], ["a", "b"])
+		scheduler = campaign.Scheduler([("a", 0), ("b", 0), ("a", 1)], [("a", 0), ("b", 0)])
 		first, second, third = scheduler.next(), scheduler.next(), scheduler.next()
 		self.assertEqual([first, second, third], [("ils", "a", 0), ("ils", "b", 0), ("ils", "a", 1)])
 		scheduler.done(second)
@@ -135,7 +135,7 @@ class SchedulerTests(unittest.TestCase):
 		self.assertIsNone(scheduler.next())
 
 	def test_stop_releases_waiting_workers(self):
-		scheduler = campaign.Scheduler([("a", 0)], ["a"])
+		scheduler = campaign.Scheduler([("a", 0)], [("a", 2)])
 		scheduler.next()
 		received = []
 		waiter = threading.Thread(target=lambda: received.append(scheduler.next()))
@@ -143,6 +143,22 @@ class SchedulerTests(unittest.TestCase):
 		scheduler.stop()
 		waiter.join(timeout=5)
 		self.assertEqual(received, [None])
+
+
+class RepeatTests(unittest.TestCase):
+	def test_repeated_bnb_gets_the_next_attempt(self):
+		with tempfile.TemporaryDirectory() as directory:
+			output = Path(directory)
+			rows = [{"phase": "bnb", "name": "x", "seed": 0, "complete": True},
+				{"phase": "bnb", "name": "x", "seed": 1, "complete": False}]
+			(output / campaign.RUNS_FILE).write_text("".join(json.dumps(row) + "\n" for row in rows))
+			args = campaign.build_parser().parse_args(["--campaign", str(output), "--phases", "bnb", "--repeat-bnb",
+				"--instances", "x", "--dry-run"])
+			with patch.object(campaign, "load_instances", return_value={"x": {"polygons": [], "sha256": ""}}), \
+					patch.object(campaign, "select", return_value=["x"]), patch("builtins.print") as printed:
+				campaign.run(args, [])
+			plan = " ".join(str(call.args[0]) for call in printed.call_args_list)
+			self.assertIn("1 B&B runs", plan)
 
 
 class LocalGmpTests(unittest.TestCase):

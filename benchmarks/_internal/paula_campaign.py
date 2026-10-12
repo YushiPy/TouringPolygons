@@ -425,10 +425,10 @@ def run_solver_tests(tools: Sequence[Path]) -> None:
 
 
 class Scheduler:
-	"""ILS runs first, seed by seed so every instance gets runs early; an instance's B&B is
-	released once none of its ILS runs is queued or running."""
+	"""ILS runs first, seed by seed so every instance gets runs early; an instance's B&B
+	attempt is released once none of its ILS runs is queued or running."""
 
-	def __init__(self, ils: Sequence[tuple[str, int]], bnb: Sequence[str]) -> None:
+	def __init__(self, ils: Sequence[tuple[str, int]], bnb: Sequence[tuple[str, int]]) -> None:
 		self.ils = deque(ils)
 		self.bnb = list(bnb)
 		self.outstanding: dict[str, int] = {}
@@ -443,10 +443,10 @@ class Scheduler:
 				if self.ils:
 					name, seed = self.ils.popleft()
 					return ("ils", name, seed)
-				ready = next((name for name in self.bnb if not self.outstanding.get(name)), None)
+				ready = next((item for item in self.bnb if not self.outstanding.get(item[0])), None)
 				if ready is not None:
 					self.bnb.remove(ready)
-					return ("bnb", ready, 0)
+					return ("bnb", *ready)
 				if not self.bnb:
 					return None
 				self.condition.wait()
@@ -492,6 +492,8 @@ def build_parser() -> argparse.ArgumentParser:
 	parser.add_argument("--cpu-affinity", choices=cpu_affinity.MODES, default="auto")
 	parser.add_argument("--ils-args", default="", help="extra solver flags for ILS runs (part of the protocol)")
 	parser.add_argument("--bnb-args", default="", help="extra solver flags for B&B runs (part of the protocol)")
+	parser.add_argument("--repeat-bnb", action="store_true",
+		help="run one more B&B attempt per selected instance, from its best tour (resumes an interrupted one)")
 	parser.add_argument("--allow-new-binary", action="store_true",
 		help="resume with a solver binary different from the one of earlier runs (each row records its binary)")
 	parser.add_argument("--verbose", action="store_true", help="print every progress report of the running solvers")
@@ -559,7 +561,15 @@ def run(args: argparse.Namespace, argv: Sequence[str]) -> int:
 	done = completed(rows)
 	ils = [(name, seed) for seed in range(args.seeds) for name in selection
 		if "ils" in phases and ("ils", name, seed) not in done]
-	bnb = [name for name in selection if "bnb" in phases and ("bnb", name, 0) not in done]
+	def attempt(name: str) -> int:
+		"""B&B rows use the seed field as an attempt number."""
+		if not args.repeat_bnb:
+			return 0
+		finished = [row["seed"] for row in rows if row.get("phase") == "bnb" and row.get("name") == name and row.get("complete")]
+		return max(finished) + 1 if finished else 0
+
+	bnb = [(name, attempt(name)) for name in selection
+		if "bnb" in phases and ("bnb", name, attempt(name)) not in done]
 	hours = (len(ils) * args.ils_seconds + len(bnb) * args.bnb_seconds) / workers / 3600
 	print(f"Campaign: {output}")
 	print(f"Instances: {len(selection)} ({args.instances}); seeds: {args.seeds}; phases: {','.join(sorted(phases))}")
@@ -607,7 +617,8 @@ def run(args: argparse.Namespace, argv: Sequence[str]) -> int:
 			finished[0] += 1
 			write_report(output, rows, selection, reference, protocol)
 			paula = reference.get(row["name"], {}).get("best")
-			parts = [f"[{finished[0]}/{total}] {row['phase']} {row['name']}" + (f" seed {row['seed']}" if row["phase"] == "ils" else "")]
+			label = f" seed {row['seed']}" if row["phase"] == "ils" else f" attempt {row['seed']}" if row["seed"] else ""
+			parts = [f"[{finished[0]}/{total}] {row['phase']} {row['name']}{label}"]
 			if "error" in row:
 				parts.append(f"ERROR {row['error']}")
 			if finite(row.get("length")):
@@ -640,7 +651,7 @@ def run(args: argparse.Namespace, argv: Sequence[str]) -> int:
 			row["initial_length"] = start["length"] if start else None
 			row["initial_from"] = f"{start['phase']} seed {start['seed']}" if start else None
 		key = f"{phase}-{name}-{seed}"
-		report = live.reporter(key, f"{phase} {name}" + (f" seed {seed}" if phase == "ils" else ""),
+		report = live.reporter(key, f"{phase} {name}" + (f" seed {seed}" if phase == "ils" else f" attempt {seed}" if seed else ""),
 			max_seconds=seconds, target_gap=RELATIVE_GAP)
 		lease = pool.acquire()
 		memory_hits: list[int] = []

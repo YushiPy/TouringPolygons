@@ -344,7 +344,10 @@ TSPN e inicia um job desanexado. Acompanhe com `tpp.py jobs log JOB --follow` e
 `tpp.py live CAMPANHA`; `--report` reescreve e mostra o relatório; repetir o
 comando retoma, refazendo só as execuções interrompidas. A campanha guarda um
 protocolo fixo (só o número de sementes pode crescer) e recusa misturar
-binários diferentes sem `--allow-new-binary`.
+binários diferentes sem `--allow-new-binary`. `--phases bnb --repeat-bnb` faz
+mais uma tentativa de B&B por instância a partir do melhor tour (por exemplo
+com mais memória, `--workers` e `--frontier-mib`), e o relatório fica com o
+maior limite inferior de todas as tentativas.
 
 A referência SOCP requer um Python com Gurobi licenciado e Shapely >= 2.1;
 `--reference-python` seleciona esse ambiente, sem mudar as dependências do solver.
