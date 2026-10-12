@@ -12,7 +12,8 @@ namespace tpp::unordered_detail {
     std::vector<size_t> canonical_cycle_indices(const std::vector<std::pair<size_t,size_t>> &);
 	// Lower bounds for all insertion positions. References may be infeasible;
 	// only the fixed endpoints and the ordered region definitions matter.
-	// Optional insertion_contacts receives the existing open-path proposals.
+	// Optional insertion_contacts receives the existing open-path proposals, and
+	// for a cycle screened in binary64 the proposed contact of each gap.
 	// Open-path insertion bounds split in two: the node's dual directions and
 	// supports (independent of the inserted region) and the per-region bounds.
 	// insertion_lower_bounds without an inherited dual is their composition.
