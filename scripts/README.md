@@ -12,6 +12,7 @@ atalhos `.sh` abaixo só preparam o Python do `tpp.py` e o chamam.
 | `benchmark.sh` | atalho para `tpp.py tui`: monta (e imprime, copia ou executa) um comando de benchmark |
 | `run_comparison.sh` | atalho para `tpp.py free-compare`: prepara e executa/retoma a comparação de ordem livre com os 558 casos de Fekete |
 | `run_tspn_comparison.sh` | atalho para `tpp.py tspn-compare`: prepara e executa/retoma a campanha TSPN completa |
+| `run_paula_campaign.sh` | atalho para `tpp.py paula-campaign`: prepara tudo sem sudo (uv, headers, GMP, solver e seus testes) e executa/retoma a campanha longa de ILS + B&B nas instâncias da Paula (`--detach`, `--report`) |
 | `review_meeting_transcript.py` | revisão contextual de transcrições de reunião (abaixo) |
 
 Os atalhos aceitam as mesmas opções dos subcomandos (`scripts/run_comparison.sh --help`).

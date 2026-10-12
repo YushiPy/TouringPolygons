@@ -360,6 +360,8 @@ GROUPS: dict[str, dict[str, Command]] = {
 		"generate-matrix": Command("NAME PBF ARGS...", "Create a reproducible OpenStreetMap campaign.",
 			lambda argv: command_generate_matrix(argv)),
 		"convert-paula": Command("NAME ARGS...", "Import 235 Paula cases with a bbox-center depot.", module("convert_paula")),
+		"paula-campaign": Command("[--detach] ...", "Long TSPN campaign on Paula's cases: seeded ILS runs, then a certifying B&B (resumable).",
+			module("paula_campaign")),
 		"status": Command("NAME", "Show generation and benchmark progress.", lambda argv: command_status(argv)),
 		"run": Command("NAME ARGS...", "Fixed-order B&B over all campaign inputs, resumably.", lambda argv: command_run(argv)),
 		"free-order": Command("NAME ARGS...", "Free-order campaign with our and/or Fekete's solver.", module("free_order_campaign")),
