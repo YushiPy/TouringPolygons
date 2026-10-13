@@ -19,6 +19,106 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## tspn-frontier-completion-2026-10-13
+
+**Pergunta.** Na armijo, as 13 instâncias abertas congelaram no piso dos nós
+descartados ([abaixo](#tspn-paula-long-armijo-2026-10-13)). Uma busca que
+passa do orçamento pode continuar completa, sem perder nós, e quanto o nó ainda
+encolhe sem mudar a busca? **Formulação.** TSPN de ciclo livre, gap relativo
+1e-6, `cache,features,root,interval`, `lazy` sem mergulhos a partir do melhor
+tour (da campanha da armijo, ou da rodada de 600 s de 2026-10-09 para 50gil262
+e 45ts225). `main` (`95b81cb`) × branch `frontier-completion`. macOS arm64
+(M4 Pro), várias execuções simultâneas, com outros programas abertos.
+Contratos em
+[`unordered-tpp.md`](../../docs/algorithms/unordered-tpp.md#orçamento-de-memória-da-fronteira-2026-10-09).
+
+**Resultado.**
+- **Nó de 96 B** (antes 168): buscas idênticas (chamadas, nós, limites e
+  contadores de visita) em 6/6 instâncias de 100 regiões com `lazy` e 300 mil
+  chamadas, em 4/4 na política padrão com 30 mil, na regressão SoCG (48/48,
+  2,75 contra 2,76 s, todos válidos) e no corpus de caminhos (40/40,
+  `--stride 14`, gap 1e-3, todos exatos). Bytes por nó no pico, com
+  `lazy`: caminhos ancorados 195–197 → 123–125, ciclos 251–297 → 179–225. Com
+  1,5 M chamadas, o RSS de 75lin105 cai de 1,74 para 1,08 GB, e o de
+  100prb1173-10x10 de 2,23 para 1,69 GB, no mesmo tempo; com
+  `--sequence-storage deltas`, para 0,93 e 1,57 GB. Na política padrão, um
+  caminho resolvido ganha ~24 B.
+- **Completar** com 8 MiB: 50gil262 fecha com os mesmos 2.425.412 nós da busca
+  sem limite, em 53,7 s contra 63,3 s (RSS 14 contra 145 MiB), e 45ts225 com
+  3.889.590 nós contra 3.889.597, em 46,1 s contra 58,8 s (RSS 16 contra 788
+  MiB). A pilha nunca passou de 55 nós. Descartando, com os mesmos 8 MiB, as
+  duas param com `memory_limit` em 5,7% e 7,8%. Em 100i2500-708 (três processos,
+  sem paginar), os mesmos 22.587.951 nós levam 620,9 s sem limite (pico de
+  9,88 M nós, RSS 4,77 GB), 515,3 s com 1 GiB (RSS 1,23 GB) e 446,1 s com 128 MiB
+  (RSS 170 MB, pilha de até 66 nós).
+- **LB sem fechar** (120 s): 75lin105 fica com gap 5,89% sem limite, 9,05%
+  com 512 MiB e 11,57% com 128 MiB; 100prb1173-10x10, 5,30%, 8,00% e 10,17%.
+  A pilha chegou a 63–119 nós.
+- **Testes:** `tpp-tspn-tests` (12 instâncias com orçamento de 1 byte: ao
+  completar, padrão e `lazy`, fecham no ótimo sem orçamento; ao descartar, os
+  limites cercam o ótimo) e `tpp-unordered-tests`, também sob ASan/UBSan, e o
+  solver instrumentado com 4 MiB em 50gil262 por 240 s (1,09 M nós, `packed` e
+  `deltas`).
+
+**Leitura.** Com o incumbente ótimo, as duas ordens abrem os mesmos nós, e
+terminar subárvores é mais rápido por nó: a pilha fica no cache, e a fila
+grande não. A memória deixa de ser o limite de uma certificação; o tempo
+passa a ser. Uma execução que não fecha tem LB pior que uma fila sem limite
+no mesmo tempo, porque o LB sobe uma subárvore por vez; as campanhas reportam
+o maior LB de todas as execuções.
+
+**Limitações.** Um Mac com outros programas, uma repetição. Uma primeira
+rodada de 100i2500-708 e 100i2000-604 com 6 processos paginou e foi
+descartada; as contagens de nós em 120 s (75lin105: 6,65 M com 512 MiB contra
+5,41 M sem limite) também vêm de 6 processos e são só indicativas. Um incumbente subótimo faria a
+busca em profundidade abrir nós que a de melhor limite poderia evitar.
+
+## tspn-paula-long-armijo-2026-10-13
+
+**Pergunta.** Com a fronteira compacta e a parada no piso
+([`tspn-frontier-compact-2026-10-12`](#tspn-frontier-compact-2026-10-12)),
+quanto mais o B&B certifica nas 15 instâncias da Paula ainda abertas?
+**Formulação.** A mesma de
+[`tspn-paula-long-armijo-2026-10-11`](#tspn-paula-long-armijo-2026-10-11):
+TSPN de ciclo livre, gap relativo 1e-6, `cache,features,root,interval`,
+`lazy` sem mergulhos a partir do melhor tour válido, até 4 h, tours validados
+(`validate_cycle`, 1e-7). Solver de `95b81cb` (`frontier-compact`), na armijo,
+um processo de uma thread por núcleo físico. Duas rodadas de
+`paula-campaign --phases bnb`: 88pr439 e 100i3000-803 (`--repeat-bnb`, segunda
+tentativa) com 2 processos e 50 GiB de fronteira cada; depois as outras 13
+(primeira tentativa) com 4 processos e 22 GiB cada. Dados locais:
+`campaigns/paula-long-v1`.
+
+**Resultado.**
+- **Certificadas:** 88pr439 em 10.753 s (241 M nós, pico de 101 M na fila e
+  20,2 GiB) e 100i3000-803 em 7.536 s (144 M nós, 62,7 M e 34,5 GiB). Na
+  tentativa anterior, com 22 GiB e o nó antigo, tinham parado em 0,83% e 0,70%.
+- **As outras 13** pararam com `memory_limit`, com o LB congelado no piso dos
+  descartados, entre 2.844 e 7.955 s; sem a parada no piso teriam seguido até
+  as 4 h (a rodada levou 4,5 h em vez de ~16 h). Gap provado (antes → agora):
+  81vm1084-9x9 5,98 → 1,45%, 100prb1173-10x10 5,59 → 1,70%, 75lin105 5,89 →
+  1,72%, 100rat783-10x10 5,27 → 1,92%, 100vm1084 6,22 → 2,41%, 100C10k.0 7,66
+  → 3,71%, 100nrw1379 7,80 → 3,89%, 80rd400 8,77 → 4,59%, 100rat783 10,79 →
+  7,01%, 89pcb442 12,27 → 8,10%, 100pcb1173 12,23 → 8,18%, 100pr1002 12,67 →
+  8,42% e 99d493 18,51 → 14,63%.
+- **Coleção inteira**, juntando todas as rodadas: 222 de 235 certificadas
+  (eram 220); nas 13 abertas, gap de 1,45% a 14,63% (mediana 3,89%; era 7,7%).
+- **Tours:** nenhum B&B encurtou o tour inicial; os 235 melhores continuam
+  empatados com o melhor da Paula, todos válidos.
+- **Descarte:** as 13 descartaram 82 M (100prb1173-10x10) a 1,69 bilhão
+  (99d493) de nós, contra 60–127 M expandidos. Antes de congelar, o gap caía
+  ~0,7–0,9 ponto por duplicação do tempo (75lin105: 4,07% aos 600 s, 3,16% aos
+  1.200 s, 2,28% aos 2.400 s).
+
+**Leitura.** A memória continuava sendo o limite, e os nós descartados, que
+teriam de ser resolvidos para certificar, eram a maior parte do trabalho
+restante. Isso motivou
+[`tspn-frontier-completion-2026-10-13`](#tspn-frontier-completion-2026-10-13).
+
+**Limitações.** Uma tentativa por instância nesta rodada, 2 ou 4 processos
+simultâneos. Os LBs reportados são de execuções com descarte; uma execução que
+termina subárvores tem LB pior no mesmo tempo, e o relatório usa o maior.
+
 ## tspn-frontier-compact-2026-10-12
 
 **Pergunta.** As rodadas longas da armijo

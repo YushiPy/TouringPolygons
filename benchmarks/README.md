@@ -343,11 +343,20 @@ compila o solver, roda uma vez por build os testes do oráculo de ciclo e do
 TSPN e inicia um job desanexado. Acompanhe com `tpp.py jobs log JOB --follow` e
 `tpp.py live CAMPANHA`; `--report` reescreve e mostra o relatório; repetir o
 comando retoma, refazendo só as execuções interrompidas. A campanha guarda um
-protocolo fixo (só o número de sementes pode crescer) e recusa misturar
+protocolo fixo (só o número de sementes e o limite do B&B, `--bnb-seconds`,
+podem mudar; cada linha registra o seu `seconds_limit`) e recusa misturar
 binários diferentes sem `--allow-new-binary`. `--phases bnb --repeat-bnb` faz
 mais uma tentativa de B&B por instância a partir do melhor tour (por exemplo
-com mais memória, `--workers` e `--frontier-mib`), e o relatório fica com o
-maior limite inferior de todas as tentativas.
+com outro prazo, `--workers` e `--frontier-mib`), e o relatório fica com o
+maior limite inferior de todas as tentativas. Desde 2026-10-13, um B&B que
+passa de `--frontier-mib` termina subárvores em profundidade em vez de
+descartar nós: ele fecha ou chega ao prazo, nunca a `memory_limit`, e o limite
+de memória só decide quanto da busca segue a ordem de melhor limite. Com o
+incumbente ótimo os nós são os mesmos, e um limite pequeno é o mais rápido para
+certificar (100i2500-708: 446 s com 128 MiB, 621 s sem limite). Uma
+tentativa que não fecha tem um LB pior que o de uma fila sem limite no mesmo
+tempo, mas o relatório usa o maior LB de todas
+([detalhes](../docs/algorithms/unordered-tpp.md#orçamento-de-memória-da-fronteira-2026-10-09)).
 
 A referência SOCP requer um Python com Gurobi licenciado e Shapely >= 2.1;
 `--reference-python` seleciona esse ambiente, sem mudar as dependências do solver.

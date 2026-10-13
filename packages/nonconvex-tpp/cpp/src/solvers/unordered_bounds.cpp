@@ -388,10 +388,7 @@ namespace tpp::unordered_detail {
                 Polygon proposals;proposals.reserve(n);
                 for(size_t i=0;i<n;++i)proposals.push_back(best_contact(contacts[i],contacts[i+1],inserted,inserted.front()));
                 auto bounds=tpp_convex_binary_cycle_insertion_bounds(cycle_contacts,regions,inserted,proposals);
-                if(!bounds.empty()) {
-                    if(insertion_contacts)*insertion_contacts=std::move(proposals);
-                    return bounds;
-                }
+                if(!bounds.empty())return bounds;
             }
             return rational_cycle_insertion_bounds(contacts,regions,inserted,inherited_dual);
 		}

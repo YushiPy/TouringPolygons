@@ -607,22 +607,22 @@ Done in this round, from the list after the binary64 cycle oracle:
 
 Open, in order of expected value:
 
-1. **Frontier memory per node.** Long runs are now bounded by memory, not by
-   the oracle. (2026-10-12: siblings now share one copy of the parent's
-   contacts and features as their starting proposal, so a queued `lazy` cycle
-   child drops from ~900 to ~300 B with an identical search, and a search stops
-   with `memory_limit` as soon as its bound is frozen at the discarded floor;
-   see [`unordered-tpp.md`](unordered-tpp.md#orçamento-de-memória-da-fronteira-2026-10-09).
-   On Armijo, the six instances certified on 2026-10-11 needed frontiers of
-   3.9–14.7 GiB, and the two left open stopped at 22 GiB. The node header is
-   now 168 B instead of 224, with its path, features and dual behind one
-   pointer each.) A queued node costs ~216 B of header (64-bit indices, the
-   learning fields, an empty rational dual), ~16 B per contact of its path and
-   the features. Above the budget, nodes are stripped and solved again, or
-   discarded. Shrinking the header (32-bit indices, rarely used fields moved
-   out) and keeping paths in an arena would roughly double the nodes per
-   budget. Chunked node storage would also remove the transient 3× of a
-   vector reallocation, a 1.3 → 1.8 GB RSS peak at a 1 GiB budget.
+1. **Frontier memory.** (Done 2026-10-13.) Past the budget, the best-bound
+   search now takes its best node and finishes that node's subtree depth first
+   instead of discarding the worse half, so memory no longer ends a search: it
+   closes or reaches its time limit, and the stack holds ~30–120 nodes. With an
+   optimal incumbent both orders open the same nodes, and the depth-first
+   part is faster per node (100i2500-708: the same 22,587,951 nodes in 621 s
+   unbounded, 515 s at 1 GiB and 446 s at 128 MiB). The node header is 96 B instead of 168 (rare fields
+   behind one pointer, 32-bit branch indices, the child's new contact
+   recomputed), with identical searches. See
+   [`unordered-tpp.md`](unordered-tpp.md#orçamento-de-memória-da-fronteira-2026-10-09).
+   What remains: an unfinished run's lower bound rises one subtree at a time,
+   so it is weaker than an unbounded best-first bound at the same time (75lin105
+   at 120 s: 9.05% at 512 MiB against 5.89%); campaigns keep the largest bound
+   of any run. A certificate is now bounded by throughput, and `lazy` solves
+   one node at a time: finishing different subtrees on different threads would
+   use all cores on one instance.
 2. **Cost of the multi-insertion bound.** Its `O(m·k)` gains per node
    (`best_contact` plus three supports each) now cost more than the node's
    oracle calls; on the closed instances it is 3–5× slower. Incremental gains

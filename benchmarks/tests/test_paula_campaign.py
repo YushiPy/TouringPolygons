@@ -104,13 +104,14 @@ class ReportTests(unittest.TestCase):
 
 
 class ProtocolTests(unittest.TestCase):
-	def test_only_the_number_of_seeds_may_change(self):
+	def test_only_the_seeds_and_the_bnb_limit_may_change(self):
 		parser = campaign.build_parser()
 		with tempfile.TemporaryDirectory() as directory:
 			output = Path(directory)
 			first = campaign.protocol_of(parser.parse_args([]))
 			(output / campaign.PROTOCOL_FILE).write_text(json.dumps(first))
 			campaign.check_protocol(output, campaign.protocol_of(parser.parse_args(["--seeds", "20"])))
+			campaign.check_protocol(output, campaign.protocol_of(parser.parse_args(["--bnb-seconds", "86400"])))
 			with self.assertRaises(SystemExit):
 				campaign.check_protocol(output, campaign.protocol_of(parser.parse_args(["--ils-seconds", "60"])))
 			with self.assertRaises(SystemExit):

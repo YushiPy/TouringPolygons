@@ -248,19 +248,22 @@ desliga) limita a estimativa de bytes da fronteira de melhor limite: os nós
 da fila, as capacidades dos vetores de cada nó com uma palavra do alocador
 por bloco, e as sequências. A fila é um `deque`, que cresce por blocos. Um
 vetor realocado convivia brevemente com a cópia, e o RSS chegava a ~1,8× o
-limite (100pr1002, 1 GiB: 1,78 → 1,33 GB). Ao passar do limite num
-`push`, o corte tem dois níveis, na ordem `(bound, serial)`, por
-`nth_element`:
+limite (100pr1002, 1 GiB: 1,78 → 1,33 GB). Ao passar do limite, há dois
+passos, na ordem `(bound, serial)`, por `nth_element`:
 
 1. **Despir.** Todos os nós, menos o quarto de menor limite, perdem o caminho,
    o ponto de partida, as features e o dual. Isso só perde trabalho: um nó sem
    caminho é resolvido de novo quando sai da fila, como os filhos de `lazy`.
    O nó fica com o cabeçalho e a sequência, ~230 B contra ~550–800 B.
-2. **Descartar**, só se a estimativa continuar acima de 3/4 do limite. A
+2. **Completar** (padrão desde 2026-10-13, `--frontier-overflow complete`):
+   a fila para de crescer, e a busca termina subárvores em profundidade (ver
+   abaixo). Nada se perde, e a busca continua completa.
+   **Descartar** (`--frontier-overflow discard`, a política anterior, para
+   comparação), só se a estimativa continuar acima de 3/4 do limite. A
    metade com os maiores limites sai da fila, e o menor limite descartado,
    `D`, vira um piso do limite inferior global: `LB = min(fronteira, D, ...)`.
 
-Isso continua válido. Toda completação representada por um nó descartado
+O descarte continua válido. Toda completação representada por um nó descartado
 custa ao menos o limite dele, que é pelo menos `D`. A busca abaixo do limite
 fica inalterada, bit a bit. O piso só pesa se o LB alcançar `D` antes de o
 incumbente cair até `D + gap`; se a fila esvaziar assim, a busca termina com
@@ -285,19 +288,21 @@ Também desde 2026-10-12, o caminho, as features e o dual de um nó são um
 `lazy` e nos nós despidos. O cabeçalho cai de 224 para 168 B e, na fila de
 `lazy`, um nó de caminho ancorado num ponto vai de ~253 para ~197 B e um de
 ciclo de ~340 para ~285 B (busca idêntica). Um nó resolvido da política padrão
-cresce ~4%, pelo objeto de cada vetor alocado. Os filhos de ciclo reaproveitam
+cresce ~4%, pelo objeto de cada vetor alocado. Os filhos de ciclo reaproveitavam
 o contato que a triagem de inserção já propôs para a sua lacuna (os mesmos
-vizinhos e a mesma região), e a chamada do oráculo monta a sequência de regiões
+vizinhos e a mesma região; desde 2026-10-13 a chamada o recalcula, ver abaixo),
+e a chamada do oráculo monta a sequência de regiões
 num buffer por thread em vez de copiar os polígonos a cada vez. Com o cache
 direto acima e a ordenação parcial da varredura, `lazy` sem mergulhos fica
 1,33–1,36× mais rápido em ciclos de 100 regiões e 1,13–1,18× nos caminhos
 ancorados (300 mil chamadas, um processo por vez, buscas idênticas), 1,06× no
 corpus de caminhos (40/40 idênticos) e 1,04× no SoCG (48/48).
 
-A busca também para, com `memory_limit`, quando todo nó aberto já tem limite
-pelo menos `D`: o LB global é então `D`, e nenhuma expansão pode subi-lo. Antes
-ela continuava até o prazo ou até esvaziar a fila. Em 88pr439 (Armijo, 22 GiB),
-o LB congelou aos 7.200 s e a execução seguiu por mais uma hora sem mudar.
+Com o descarte, a busca também para, com `memory_limit`, quando todo nó aberto
+já tem limite pelo menos `D`: o LB global é então `D`, e nenhuma expansão pode
+subi-lo. Antes ela continuava até o prazo ou até esvaziar a fila. Em 88pr439
+(Armijo, 22 GiB), o LB congelou aos 7.200 s e a execução seguiu por mais uma
+hora sem mudar.
 
 Na primeira versão, que só descartava, `lazy` em 45ts225 (1,5 GiB, 120 s)
 descartou metade da fila com `D` logo acima do resto. A busca esgotou os nós
@@ -308,9 +313,66 @@ cortes tiraram 2,47 M nós, o RSS caiu de 3,8 para 1,3 GB, `D = 66404` ficou
 muito acima do LB (60351), e o término voltou a ser 60,2 s. O JSON informa
 `peak_frontier_bytes`, `frontier_strips`, `frontier_stripped_nodes`,
 `frontier_trims`, `frontier_discarded_nodes` e `frontier_discarded_bound`,
-este nas coordenadas de entrada, como diagnóstico. Testes: `tpp-tspn-tests` resolve
-12 instâncias com um orçamento de 1 byte (descarte a cada `push`) e confere
-que os limites cercam o ótimo da busca sem orçamento.
+este nas coordenadas de entrada, como diagnóstico, e também
+`frontier_completions`, `frontier_completion_nodes` e `peak_completion_stack`.
+Testes: `tpp-tspn-tests` resolve 12 instâncias com um orçamento de 1 byte. Ao
+completar, com a política padrão e com `lazy`, a busca precisa fechar no ótimo
+da busca sem orçamento, sem descartar nada. Ao descartar (a cada `push`), os
+limites precisam cercar esse ótimo.
+
+**Completar subárvores em vez de descartar (2026-10-13).** Na Armijo
+(2026-10-13, 22 GiB), as 13 instâncias abertas da Paula congelaram no piso
+`D` em 0,8–2,2 h, e o descarte jogou fora até 15 vezes os nós expandidos
+(99d493: 1,69 bilhão descartados para 115 milhões expandidos). Toda essa
+fila teria de ser resolvida para certificar, e o descarte a perdia.
+Agora, com a estimativa acima do limite, `take()` tira o melhor nó da fila e
+termina a sua subárvore em profundidade, na mesma pilha da DFS: até ela
+esvaziar, todo nó sai dela e todo filho entra nela, com o melhor filho no
+topo. Uma poda não reordena a pilha (como na DFS/BFS), então ela tem no
+máximo profundidade × ramificação nós: 28–119 nas medições abaixo. Com espaço
+de novo, a busca de melhor limite continua; a fila fica no limite. O LB global
+é o mínimo da fila e da pilha, então continua um certificado, e a busca
+termina com ótimo ou no prazo, nunca com `memory_limit`. Despir passa a rodar
+só quando pode liberar um quarto do limite, porque a fila fica no limite e uma
+passada por ela custa `O(N)`. Mergulhos não começam dentro de uma subárvore.
+
+Com o incumbente ótimo, a busca de melhor limite e a de profundidade abrem os
+mesmos nós (todos os de limite abaixo do corte), e só a ordem muda. Com
+`lazy` a partir do melhor tour, 8 MiB fecham 50gil262 com os mesmos 2.425.412
+nós da busca sem limite, em 54 s em vez de 63 s (RSS 14 contra 145 MiB), e
+45ts225 com 3.889.590 nós contra 3.889.597, em 46 s em vez de 59 s (RSS 16
+contra 788 MiB). Em 100i2500-708 (100 regiões, fechada na armijo em 1.319 s),
+os mesmos 22.587.951 nós levam 621 s sem limite (RSS 4,8 GB), 515 s com 1 GiB
+(1,2 GB) e 446 s com 128 MiB (170 MB). A pilha é pequena e quente no cache,
+enquanto uma fila de milhões de nós custa faltas de cache em cada `pop_heap` e
+na proposta do pai. Para certificar, um limite pequeno é o mais rápido.
+
+O custo é o LB de uma execução que não termina. Enquanto a subárvore do melhor
+nó está aberta, os irmãos rasos dela seguram o mínimo da pilha, e o LB sobe
+uma subárvore inteira por vez, não um nó. Em 120 s, 75lin105 fica com gap
+5,89% sem limite, 9,05% com 512 MiB e 11,57% com 128 MiB (100prb1173-10x10:
+5,30%, 8,00%, 10,17%). Não há como evitar isso com memória limitada: subir o
+LB exige fechar o nó de menor limite, e fechá-lo sem guardar os filhos exige
+terminar a subárvore. Como cada LB de uma execução vale sozinho, uma campanha
+reporta o maior LB entre as execuções (o do descarte, por exemplo) e usa a
+completação para certificar.
+
+O nó também encolheu de 168 para 96 B. Os campos que só nós resolvidos ou
+opções usam (features, dual, comprimento relaxado, os dois campos do
+aprendizado e o pai, que só o trace lê) ficam atrás de um ponteiro, nulo nos
+filhos de `lazy`. Os índices de região, peça e posição têm 32 bits. O contato
+novo de um filho de ciclo não é guardado: a chamada o recalcula com
+`best_contact` entre os vizinhos da proposta do pai, a mesma conta da triagem
+de inserção. A busca fica idêntica (6/6 instâncias de 100 regiões em `lazy`,
+300 mil chamadas, 4/4 na política padrão, 48/48 no SoCG e 40/40 no corpus de
+caminhos). Na fila de `lazy`, um nó de
+caminho ancorado cai de ~197 para ~125 B e um de ciclo de ~250–300 para
+~180–225 B; o RSS de 75lin105 com 1,5 M chamadas cai de 1,74 para 1,08 GB, e o
+de 100prb1173-10x10 de 2,23 para 1,69 GB, no mesmo tempo. Na política padrão, um
+caminho resolvido ganha ~24 B (o ponteiro e o comprimento relaxado). Com
+`--sequence-storage deltas`, 75lin105 cai a 0,93 GB e 100prb1173-10x10 a 1,57
+GB; a arena dos deltas agora entra na estimativa do limite (antes ficava de
+fora).
 
 Deltas podem perder em tempo ou mesmo em memória quando muitos ancestrais
 distintos permanecem vivos. Compare os três modos com o mesmo binário,
