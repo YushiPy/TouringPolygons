@@ -89,7 +89,8 @@ REFERENCE_ROW = re.compile(
 KEEP = (
 	"lower_bound", "upper_bound", "termination", "exact", "seconds", "nodes", "calls", "peak_queue",
 	"peak_frontier_bytes", "frontier_strips", "frontier_trims", "frontier_discarded_nodes",
-	"frontier_discarded_bound", "incumbent_updates", "first_incumbent_seconds", "primal_ils_iterations",
+	"frontier_discarded_bound", "frontier_completions", "frontier_completion_nodes", "peak_completion_stack",
+	"incumbent_updates", "first_incumbent_seconds", "primal_ils_iterations",
 	"primal_ils_improvements", "primal_ils_seconds", "primal_ils_reorder_calls",
 	"primal_ils_reorder_improvements", "path",
 )
@@ -263,6 +264,7 @@ def summarize(rows: Sequence[dict], selection: Sequence[str], reference: dict, p
 			"with_tour": sum(item["best"] is not None for item in instances),
 			"ils_runs": sum(item["ils_runs"] for item in instances),
 			"bnb_done": sum(item["bnb_done"] for item in instances),
+			"bnb_limits": sorted({row["seconds_limit"] for row in rows if row.get("phase") == "bnb" and row.get("seconds_limit")}),
 			"certified": sum(item["certified"] for item in instances),
 			"median_gap": statistics.median(gaps) if gaps else None,
 			"vs_paula_best": {key: sum(item["vs_paula_best"] == key for item in compared) for key in ("better", "equal", "worse")},
@@ -288,7 +290,8 @@ def markdown(report: dict, machines: Sequence[str], has_reference: bool) -> str:
 		"`npol-le-100` files (points, segments, simple polygons, possibly nonconvex and overlapping).",
 		"",
 		f"**Protocol.** ILS: {protocol['seeds']} seeds per instance, each run at most {protocol['ils_seconds']:g} s "
-		f"(`{' '.join(protocol['ils_arguments'])}`). B&B: {protocol['bnb_seconds']:g} s from the shortest valid tour "
+		f"(`{' '.join(protocol['ils_arguments'])}`). B&B: "
+		f"{' or '.join(f'{limit:g}' for limit in summary.get('bnb_limits') or [protocol['bnb_seconds']])} s per attempt, from the shortest valid tour "
 		f"(`{' '.join(protocol['bnb_arguments'])}`). Common flags: `{' '.join(protocol['base_arguments'])}`. "
 		"One single-threaded process per run, pinned to a whole core on Linux; several runs at a time.",
 		"",
@@ -519,14 +522,19 @@ def protocol_of(args: argparse.Namespace) -> dict:
 	}
 
 
+# May change between invocations: more seeds, and longer (or shorter) B&B attempts,
+# whose limit each row records as seconds_limit. Every B&B bound is valid alone.
+FLEXIBLE_PROTOCOL = ("seeds", "bnb_seconds")
+
+
 def check_protocol(output: Path, protocol: dict) -> None:
-	"""A campaign keeps one protocol; only the number of seeds may grow."""
+	"""A campaign keeps one protocol; only the number of seeds and the B&B limit may change."""
 	path = output / PROTOCOL_FILE
 	try:
 		previous = json.loads(path.read_text())
 	except (OSError, ValueError):
 		return
-	fixed = {key: value for key, value in protocol.items() if key != "seeds"}
+	fixed = {key: value for key, value in protocol.items() if key not in FLEXIBLE_PROTOCOL}
 	if {key: previous.get(key) for key in fixed} != fixed:
 		fail(f"{output} was started with another protocol ({path}); use a new --campaign.")
 
