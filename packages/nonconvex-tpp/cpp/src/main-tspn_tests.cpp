@@ -735,13 +735,15 @@ void cycle_proposal_bound_contract() {
         std::abs(searched.upper_bound-enumerated_upper)<=1e-7+1e-9*enumerated_upper,
         "Proposal-bound B&B retains exact exhaustive order/piece result");
 }
-// A frontier budget smaller than one node discards half of the frontier on
-// every push. The bounds must still enclose the optimum, and a closed gap
-// must agree with the unbudgeted search.
+// A frontier budget smaller than one node overflows on every push. Finishing
+// subtrees depth first must still close the gap at the unbudgeted optimum, by
+// default and with lazy children (shared proposals). Discarding instead halves
+// the frontier on every push: the bounds must still enclose the optimum, and a
+// closed gap must agree with the unbudgeted search.
 size_t frontier_budget_checks=0;
 void frontier_budget() {
     std::mt19937 rng(91026);std::uniform_int_distribution<int> coord(0,30);
-    size_t trims=0;
+    size_t trims=0,completions=0;
     for(size_t trial=0;trial<12;++trial) {
         Polygons p;
         for(size_t i=0;i<8+trial%4;++i)p.push_back(box(coord(rng),coord(rng),1+rng()%3,1+rng()%2));
@@ -749,7 +751,20 @@ void frontier_budget() {
         tpp::UnorderedTppSolveOptions exact;exact.max_frontier_bytes=0;exact.relative_gap=1e-9;
         const auto reference=tpp::tpp_nonconvex_tspn_solve(p,exact);
         require(reference.exact,"Unbudgeted reference closes");
+        for(const bool lazy:{false,true}) {
+            tpp::UnorderedTppSolveOptions finish=exact;finish.max_frontier_bytes=1;
+            finish.cycle_lazy=finish.lazy_oracles=lazy;
+            const auto finished=tpp::tpp_nonconvex_tspn_solve(p,finish);
+            require(finished.exact&&finished.termination==tpp::UnorderedTppTermination::Optimal,"Finishing subtrees closes the gap");
+            require(covered(finished.path,p),"Finishing subtrees keeps a feasible tour");
+            require(std::abs(finished.upper_bound-reference.upper_bound)<=1e-8*(1+reference.upper_bound),
+                "Finishing subtrees reaches the unbudgeted optimum");
+            require(finished.frontier_discarded_nodes==0&&!std::isfinite(finished.frontier_discarded_bound),"Finishing subtrees discards nothing");
+            completions+=finished.frontier_completions;
+            ++frontier_budget_checks;
+        }
         tpp::UnorderedTppSolveOptions tight=exact;tight.max_frontier_bytes=1;
+        tight.frontier_overflow=tpp::UnorderedFrontierOverflow::Discard;
         const auto bounded=tpp::tpp_nonconvex_tspn_solve(p,tight);
         require(covered(bounded.path,p),"Budgeted search keeps a feasible tour");
         require(bounded.lower_bound<=reference.upper_bound+1e-9*(1+reference.upper_bound),"Budgeted lower bound stays below the optimum");
@@ -762,6 +777,7 @@ void frontier_budget() {
         ++frontier_budget_checks;
     }
     require(trims>0,"A one-byte budget trims the frontier");
+    require(completions>0,"A one-byte budget finishes subtrees depth first");
 }
 int main() {
     try {

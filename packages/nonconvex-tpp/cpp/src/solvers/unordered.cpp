@@ -95,38 +95,105 @@ namespace {
 			return data_ ? sizeof(std::vector<T>) + 16 + (data_->capacity() ? data_->capacity() * sizeof(T) + 16 : 0) : 0;
 		}
 	};
+	// A heap-allocated T behind one pointer, null while unused, that copies
+	// deeply. Readers of an empty box see a default T.
+	template<class T> class Box {
+		std::unique_ptr<T> data_;
+		static const T &none() { static const T empty; return empty; }
+	public:
+		Box() = default;
+		Box(const Box &other) : data_(other.data_ ? std::make_unique<T>(*other.data_) : nullptr) {}
+		Box(Box &&) noexcept = default;
+		Box &operator=(const Box &other) { if (this != &other) data_ = other.data_ ? std::make_unique<T>(*other.data_) : nullptr; return *this; }
+		Box &operator=(Box &&) noexcept = default;
+		explicit operator bool() const { return bool(data_); }
+		const T &get() const { return data_ ? *data_ : none(); }
+		T &edit() { if (!data_) data_ = std::make_unique<T>(); return *data_; }
+		void reset() { data_.reset(); }
+		size_t heap_bytes() const { return data_ ? data_->heap_bytes() : 0; }
+	};
+	// A region, piece or position index stored in 32 bits that reads back as
+	// size_t, with `none` preserved.
+	class SmallIndex {
+		uint32_t value_ = UINT32_MAX;
+	public:
+		SmallIndex() = default;
+		SmallIndex(size_t value) : value_(value == none ? UINT32_MAX : static_cast<uint32_t>(value)) {
+			if (value != none && value >= UINT32_MAX) throw std::overflow_error("Branch index exceeds 32 bits.");
+		}
+		operator size_t() const { return value_ == UINT32_MAX ? none : size_t(value_); }
+	};
+	// What only solved nodes or optional features use. The queued children of
+	// `lazy` leave it null, so their header is 96 B instead of 168.
+	struct NodeExtras {
+		std::vector<int> active_features;
+		std::vector<tpp::ConvexRationalPoint> dual;
+		double relaxed_length = std::numeric_limits<double>::infinity();
+		double learning_parent_bound = 0, learning_distance = 0;
+		// Parent serial, kept for the trace only.
+		size_t parent = none;
+		bool scalars_default() const {
+			return relaxed_length == std::numeric_limits<double>::infinity() && learning_parent_bound == 0
+				&& learning_distance == 0 && parent == none;
+		}
+		// The struct and each vector buffer, with an allocator word per block.
+		size_t heap_bytes() const {
+			return sizeof(NodeExtras) + 16 + (active_features.capacity() ? active_features.capacity() * sizeof(int) + 16 : 0)
+				+ (dual.capacity() ? dual.capacity() * sizeof(tpp::ConvexRationalPoint) + 16 : 0);
+		}
+	};
 	struct Node {
 		NodeSequence sequence;
 		CompactVector<Vector2> path;
 		double bound = 0;
 		size_t serial = 0;
-		bool refined = false;
-        bool learning_pending = false;
-		size_t parent = none;
-		size_t branch_polygon = none;
-		size_t branch_piece = none;
-		size_t branch_position = none;
-		// Starting proposal of an unsolved child (released once it is solved).
+		// Starting proposal of an unsolved child (released once it is solved). Its
+		// new contact is not stored: starting_proposal() derives it again.
 		std::shared_ptr<const ParentProposal> proposal;
-		Vector2 proposal_contact;
-        double relaxed_length = std::numeric_limits<double>::infinity();
-        CompactVector<int> active_features;
-        CompactVector<tpp::ConvexRationalPoint> dual;
-        double learning_parent_bound = 0, learning_distance = 0;
+		Box<NodeExtras> extras;
+		SmallIndex branch_polygon, branch_piece, branch_position;
+		bool refined = false;
+		bool learning_pending = false;
+		const std::vector<int> &active_features() const { return extras.get().active_features; }
+		const std::vector<tpp::ConvexRationalPoint> &dual() const { return extras.get().dual; }
+		double relaxed_length() const { return extras.get().relaxed_length; }
+		size_t parent() const { return extras.get().parent; }
+		void set_active_features(std::vector<int> features) {
+			if (extras || !features.empty()) extras.edit().active_features = std::move(features);
+		}
+		void set_dual(std::vector<tpp::ConvexRationalPoint> directions) {
+			if (extras || !directions.empty()) extras.edit().dual = std::move(directions);
+		}
+		// Drop what solving the node again recomputes: features, dual and the
+		// relaxed length (it orders only depth-first siblings, never stripped).
+		// The learning observation and the trace parent stay.
+		void strip_extras() {
+			if (!extras) return;
+			auto &x = extras.edit();
+			x.active_features = {};x.dual = {};x.relaxed_length = std::numeric_limits<double>::infinity();
+			if (x.scalars_default()) extras.reset();
+		}
 	};
 	// The starting contacts and feature hints of a node: its parent's, with the
 	// new contact inserted at its branch position (or the refined piece's
-	// contact replaced). A solved node proposes nothing but its own features.
-	std::pair<Polygon, std::vector<int>> starting_proposal(const Node &node) {
-		if (!node.proposal) return {Polygon{}, node.active_features.get()};
+	// contact replaced). The new contact is best_contact() between the two
+	// neighbours, as the insertion screening proposed it for that gap. A solved
+	// node proposes nothing but its own features.
+	std::pair<Polygon, std::vector<int>> starting_proposal(const Node &node, const std::vector<Polygon> &hulls,
+		const std::vector<std::vector<Polygon>> &pieces) {
+		if (!node.proposal) return {Polygon{}, node.active_features()};
 		Polygon contacts = node.proposal->contacts;
 		std::vector<int> features = node.proposal->features;
-		const size_t position = node.branch_position;
-		if (node.branch_piece == none) {
-			contacts.insert(contacts.begin() + position, node.proposal_contact);
+		const size_t m = contacts.size(), position = node.branch_position;
+		const bool inserting = node.branch_piece == none;
+		const auto &region = inserting ? hulls[node.branch_polygon] : pieces[node.branch_polygon][node.branch_piece];
+		const auto contact = best_contact(contacts[(position + m - 1) % m], contacts[(position + size_t(!inserting)) % m],
+			region, region.front());
+		if (inserting) {
+			contacts.insert(contacts.begin() + position, contact);
 			if (!features.empty()) features.insert(features.begin() + position, -2);
 		} else {
-			contacts[position] = node.proposal_contact;
+			contacts[position] = contact;
 			if (!features.empty()) features[position] = -2;
 		}
 		return {std::move(contacts), std::move(features)};
@@ -139,8 +206,18 @@ namespace {
 
     // One frontier abstraction for both policies. The DFS stack has a separate
     // ordered bound index: its next node need not give the global lower bound.
+    // Past its memory budget, the best-bound frontier stops growing: it takes
+    // its best node and finishes that node's subtree depth first on the same
+    // stack, whose size is bounded by the depth times the branching. The
+    // global lower bound is the minimum over the queue and the stack, so it
+    // stays a certificate and the search stays complete. (The older policy,
+    // kept for comparison, discards the worse half and keeps its floor.)
     class Frontier {
         bool dfs;
+        bool complete = true;
+        // The node in hand belongs to a subtree being finished depth first:
+        // its children go to the stack.
+        bool deep = false;
         tpp::UnorderedSequenceStorage storage;
         size_t index_bytes;
         // Must outlive every queued sequence reference (reverse member order).
@@ -156,32 +233,37 @@ namespace {
         size_t payload_bytes = 0, budget = 0;
         double discarded = std::numeric_limits<double>::infinity();
         static size_t payload(const Node &node) {
-            return node.path.heap_bytes()+node.active_features.heap_bytes()+node.dual.heap_bytes();
+            return node.path.heap_bytes()+node.extras.heap_bytes();
         }
         size_t frontier_bytes() const {
-            return (dfs?stack.size():heap.size())*sizeof(Node)+payload_bytes+sequence_bytes+proposals->load(std::memory_order_relaxed);
+            return (heap.size()+stack.size())*sizeof(Node)+payload_bytes+sequence_bytes+proposals->load(std::memory_order_relaxed)
+                +(history?history->reserved_bytes():0);
         }
+        bool over_budget() const { return budget&&frontier_bytes()>budget; }
         void note_storage() {
             peak_sequence_bytes=std::max(peak_sequence_bytes,sequence_bytes+dive_bytes+(history?history->reserved_bytes():0));
-            peak_node_bytes=std::max(peak_node_bytes,(dfs?stack.size():heap.size())*sizeof(Node));
+            peak_node_bytes=std::max(peak_node_bytes,(heap.size()+stack.size())*sizeof(Node));
             peak_bytes=std::max(peak_bytes,frontier_bytes());
+            if(!dfs)peak_completion_stack=std::max(peak_completion_stack,stack.size());
         }
         // First drop the proposals (path, starting proposal, features, dual) of all
         // but the best-bound quarter: a node without a path is solved again
-        // when it is taken, so this loses only work. If that frees too little,
-        // also discard the worse half; the discarded nodes' smallest bound
-        // stays a valid floor for every completion they represented.
+        // when it is taken, so this loses only work. With the discarding
+        // policy, if that frees too little, also discard the worse half; the
+        // discarded nodes' smallest bound stays a valid floor for every
+        // completion they represented.
         void trim() {
             auto order=[](const Node &a,const Node &b){return std::tie(a.bound,a.serial)<std::tie(b.bound,b.serial);};
             const size_t full=heap.size()/4;
             std::nth_element(heap.begin(),heap.begin()+full,heap.end(),order);
             for(auto it=heap.begin()+full;it!=heap.end();++it) {
-                if(!payload(*it))continue;
+                if(it->path.empty()&&it->active_features().empty()&&it->dual().empty())continue;
                 payload_bytes-=payload(*it);++stripped_nodes;
-                it->path.reset();it->proposal.reset();it->active_features.reset();it->dual.reset();
+                it->path.reset();it->proposal.reset();it->strip_extras();
+                payload_bytes+=payload(*it);
             }
             ++strips;
-            if(4*frontier_bytes()>3*budget) {
+            if(!complete&&4*frontier_bytes()>3*budget) {
                 const size_t keep=heap.size()/2;
                 std::nth_element(heap.begin(),heap.begin()+keep,heap.end(),order);
                 discarded=std::min(discarded,heap[keep].bound);
@@ -194,21 +276,32 @@ namespace {
             std::make_heap(heap.begin(),heap.end(),Later{});
         }
         static bool descending(const Node &a,const Node &b) {
-            return std::tie(a.bound,a.relaxed_length,a.serial)>std::tie(b.bound,b.relaxed_length,b.serial);
+            return std::make_tuple(a.bound,a.relaxed_length(),a.serial)>std::make_tuple(b.bound,b.relaxed_length(),b.serial);
         }
     public:
         // Live bytes of the shared starting proposals (ParentProposal::ledger).
         const std::shared_ptr<std::atomic<size_t>> proposals = std::make_shared<std::atomic<size_t>>(0);
         size_t peak_sequence_bytes = 0, peak_node_bytes = 0, peak_bytes = 0, trims = 0, discarded_nodes = 0;
-        size_t strips = 0, stripped_nodes = 0;
-        Frontier(bool use_dfs,tpp::UnorderedSequenceStorage mode,size_t bytes,size_t polygons,size_t max_bytes=0)
-            :dfs(use_dfs),storage(mode),index_bytes(bytes),budget(max_bytes) {
+        size_t strips = 0, stripped_nodes = 0, completions = 0, completion_nodes = 0, peak_completion_stack = 0;
+        Frontier(bool use_dfs,tpp::UnorderedSequenceStorage mode,size_t bytes,size_t polygons,size_t max_bytes=0,bool complete_overflow=true)
+            :dfs(use_dfs),complete(complete_overflow),storage(mode),index_bytes(bytes),budget(max_bytes) {
             if(storage==tpp::UnorderedSequenceStorage::Deltas)history=std::make_unique<SequenceHistory>(bytes,polygons);
         }
-        bool empty() const { return dfs?stack.empty():heap.empty(); }
-        size_t size() const { return dfs?stack.size():heap.size(); }
+        bool empty() const { return heap.empty()&&stack.empty(); }
+        size_t size() const { return heap.size()+stack.size(); }
+        // Where the children of the node in hand will start on the stack.
+        size_t branch_mark() const { return stack.size(); }
+        // True while the best-bound search finishes a subtree depth first.
+        bool finishing() const { return !dfs&&deep; }
+        // A node taken from outside the frontier (a dive) is not in a subtree.
+        void leave_subtree() { if(!dfs)deep=false; }
         void note_dive(size_t bytes) { dive_bytes=bytes;note_storage(); }
-        double lower_bound() const { return std::min(dfs?bounds.begin()->first:heap.front().bound,discarded); }
+        double lower_bound() const {
+            double bound=discarded;
+            if(!heap.empty())bound=std::min(bound,heap.front().bound);
+            if(!bounds.empty())bound=std::min(bound,bounds.begin()->first);
+            return bound;
+        }
         double discarded_bound() const { return discarded; }
         void freeze_child(Node &node,const SequenceReference &parent) {
             if(history)node.sequence.save(history->child(parent,node.branch_polygon,node.branch_piece,node.branch_position));
@@ -221,14 +314,25 @@ namespace {
                 else if(storage==tpp::UnorderedSequenceStorage::Packed)node.sequence.pack(index_bytes);
             }
             sequence_bytes+=node.sequence.payload_bytes();payload_bytes+=payload(node);
-            if(dfs) { bounds.emplace(node.bound,node.serial);stack.push_back(std::move(node)); }
+            if(dfs||deep) { bounds.emplace(node.bound,node.serial);stack.push_back(std::move(node)); }
             else { heap.push_back(std::move(node));std::push_heap(heap.begin(),heap.end(),Later{}); }
             note_storage();
-            if(!dfs&&budget&&heap.size()>1&&frontier_bytes()>budget)trim();
+            // Finishing subtrees keeps the queue at the budget, so a strip (one
+            // pass over the queue) runs only when it can free a quarter of it.
+            if(!dfs&&!deep&&heap.size()>1&&over_budget()&&(!complete||4*payload_bytes>=budget))trim();
         }
+        // Past the budget, the best queued node is taken as the root of a
+        // subtree finished depth first: until the stack empties, every node
+        // comes from it and every child goes to it.
         Node take() {
-            auto &nodes=dfs?stack:heap;
-            if(dfs)bounds.erase({stack.back().bound,stack.back().serial});
+            if(!dfs) {
+                const bool seed=stack.empty()&&complete&&over_budget();
+                deep=!stack.empty()||seed;
+                completions+=seed;completion_nodes+=deep;
+            }
+            const bool from_stack=!stack.empty();
+            auto &nodes=from_stack?stack:heap;
+            if(from_stack)bounds.erase({stack.back().bound,stack.back().serial});
             else std::pop_heap(heap.begin(),heap.end(),Later{});
             sequence_bytes-=nodes.back().sequence.payload_bytes();payload_bytes-=payload(nodes.back());
             Node node=std::move(nodes.back());nodes.pop_back();return node;
@@ -240,15 +344,20 @@ namespace {
             result.peak_frontier_bytes=peak_bytes;result.frontier_trims=trims;
             result.frontier_discarded_nodes=discarded_nodes;result.frontier_discarded_bound=discarded;
             result.frontier_strips=strips;result.frontier_stripped_nodes=stripped_nodes;
+            result.frontier_completions=completions;result.frontier_completion_nodes=completion_nodes;
+            result.peak_completion_stack=peak_completion_stack;
             if(history) {
                 result.sequence_history_record_bytes=history->record_bytes();
                 result.peak_sequence_records=history->peak_live_records;
                 result.sequence_reconstructions=history->reconstructions;
             }
         }
+        // The DFS/BFS strategy jumps to the best open node after a prune; a
+        // subtree being finished stays depth first, so its stack stays small.
         void restart() { if(dfs) std::sort(stack.begin(),stack.end(),descending); }
+        // The best child on top of the stack.
         void finish_branch(size_t first_child) {
-            if(dfs) std::sort(stack.begin()+first_child,stack.end(),descending);
+            if(dfs||deep) std::sort(stack.begin()+std::min(first_child,stack.size()),stack.end(),descending);
         }
     };
 
@@ -1437,7 +1546,7 @@ namespace tpp {
                     }
                 }
             }
-            const auto [warm_start,feature_hints]=starting_proposal(node);
+            const auto [warm_start,feature_hints]=starting_proposal(node,hulls,pieces);
             const auto capture_id=oracle_capture.begin(node.serial,precise,start,target,selected,warm_start,feature_hints,cutoff,tolerance,remaining_seconds,options);
 			auto out=solve_relaxation(
 				cycle, start, target, selected, oracle_workspace, tolerance, cutoff, remaining_seconds, warm_start, options.cycle_cache?&cycle_cache:nullptr,
@@ -1489,12 +1598,12 @@ namespace tpp {
             result.cycle_initial_contact_checks+=certified.initial_contact_checks;result.cycle_initial_contact_accepts+=certified.initial_contact_accepts;
 			node.refined = !certified.time_limited && (precise || options.oracle_relative_gap == 0);
 			if(!certified.path.empty())node.path = certified.path;
-            node.active_features=options.cycle_active_features?certified.active_features:std::vector<int>{};
+            node.set_active_features(options.cycle_active_features?certified.active_features:std::vector<int>{});
             if(cycle&&options.cycle_dual_reuse&&node.path.size()==node.sequence.size()+1) {
                 Polygon contacts(node.path.begin(),node.path.end()-1);
-                node.dual=tpp_convex_cycle_dual_directions(contacts,node.dual);
+                node.set_dual(tpp_convex_cycle_dual_directions(contacts,node.dual()));
             }
-            node.relaxed_length = certified.upper_bound;
+            if (node.extras || certified.upper_bound != std::numeric_limits<double>::infinity()) node.extras.edit().relaxed_length = certified.upper_bound;
 			result.fallback_calls += certified.used_fallback;
 			result.oracle_unverified_fallbacks += certified.fallback_unverified;
 			result.oracle_interval_bound_calls += certified.used_interval_bounds;
@@ -1560,7 +1669,7 @@ namespace tpp {
                 }
             }
             if(cycle&&options.cycle_learned_branching&&node.learning_pending) {
-                const double gain=std::max(0.0,node.bound-node.learning_parent_bound)/node.learning_distance;
+                const double gain=std::max(0.0,node.bound-node.extras.get().learning_parent_bound)/node.extras.get().learning_distance;
                 if(std::isfinite(gain)) {
                     const size_t kind=node.branch_piece!=none;
                     learned[node.branch_polygon][kind].observe(gain);prior[kind].observe(gain);
@@ -1573,7 +1682,7 @@ namespace tpp {
 			if (options.trace) trace_event({
 				.kind = "oracle",
 				.node = node.serial,
-				.parent = node.parent,
+				.parent = node.parent(),
 				.sequence = [&] {
 					std::vector<size_t> sequence;
 					for (auto e : node.sequence) sequence.push_back(e.polygon);
@@ -1599,7 +1708,8 @@ namespace tpp {
 		};
 		double settled_bound = result.upper_bound;
 		const bool dfs=options.search_strategy==UnorderedSearchStrategy::DfsBfs;
-        Frontier queue(dfs,options.sequence_storage,index_bytes,n,options.max_frontier_bytes);
+        Frontier queue(dfs,options.sequence_storage,index_bytes,n,options.max_frontier_bytes,
+            options.frontier_overflow==UnorderedFrontierOverflow::Complete);
 		// Rooting the sequence at region 0 removes rotation, without fixing a
 		// geometric point. A single-region cycle has lower bound zero.
 		std::vector<Element> root_sequence;
@@ -1666,7 +1776,6 @@ namespace tpp {
 		// Scratch of the farthest-region scan, reused by every expansion.
 		std::vector<std::pair<double,size_t>> scan;
 		std::vector<double> scan_uppers;
-		Polygon cycle_proposals;
 		while (!queue.empty() || !dives.empty()) {
             import_incumbent();
 			// Resume the LNS after a new incumbent, or in bursts once half of its
@@ -1693,10 +1802,12 @@ namespace tpp {
 			bool stop_search = false;
 			for (size_t round_slot = 0; round_slot < nodes_per_round; ++round_slot) {
 			if (round_slot && ((queue.empty() && dives.empty()) || limited())) break;
-			const bool diving = !dfs && (!dives.empty() || (options.dive_interval && result.nodes % options.dive_interval == 0));
+			bool diving = !dfs && (!dives.empty() || (options.dive_interval && result.nodes % options.dive_interval == 0));
 			Node node;
-			if (!dives.empty()) { node = std::move(dives.back()); dives.pop_back(); note_dives(); }
+			if (!dives.empty()) { node = std::move(dives.back()); dives.pop_back(); note_dives(); queue.leave_subtree(); }
 			else { node = queue.take(); }
+			// A subtree being finished is already depth first; no dive leaves it.
+			diving = diving && !queue.finishing();
             const auto sequence_parent = node.sequence.restore(index_bytes);
 			++result.nodes;
 			result.sequence_depth_sum += node.sequence.size();
@@ -1717,7 +1828,7 @@ namespace tpp {
 			if (options.trace) trace_event({
 				.kind = "expand",
 				.node = node.serial,
-				.parent = node.parent,
+				.parent = node.parent(),
 				.sequence = node_sequence,
 				.path = node.path,
 				.lower_bound = node.bound,
@@ -1732,7 +1843,7 @@ namespace tpp {
 				if (options.trace) trace_event({
 					.kind = "prune",
 					.node = node.serial,
-					.parent = node.parent,
+					.parent = node.parent(),
 					.sequence = node_sequence,
 					.lower_bound = node.bound,
 					.upper_bound = result.upper_bound,
@@ -1751,7 +1862,7 @@ namespace tpp {
 				if (options.trace) trace_event({
 					.kind = "prune",
 					.node = node.serial,
-					.parent = node.parent,
+					.parent = node.parent(),
 					.sequence = node_sequence,
 					.lower_bound = node.bound,
 					.upper_bound = result.upper_bound,
@@ -1789,8 +1900,9 @@ namespace tpp {
 			size_t chosen = none;
 			double farthest = eps;
             if(!cycle&&options.path_dual_reuse) {
-                node.dual=tpp_convex_cycle_dual_directions(node.path);
-                if(!node.dual.empty())node.dual.pop_back();
+                auto directions=tpp_convex_cycle_dual_directions(node.path);
+                if(!directions.empty())directions.pop_back();
+                node.set_dual(std::move(directions));
             }
             std::vector<std::pair<double,size_t>> branch_candidates;
             std::vector<double> branch_distances(options.cycle_learned_branching?n:0);
@@ -1890,7 +2002,7 @@ namespace tpp {
                 double strongest=-1;
                 for(size_t i=0;i<std::min(size_t(3),branch_candidates.size());++i) {
                     const size_t candidate=branch_candidates[i].second;
-                    const auto bounds=insertion_lower_bounds(node.path,regions,hulls[candidate],cycle,node.dual,
+                    const auto bounds=insertion_lower_bounds(node.path,regions,hulls[candidate],cycle,node.dual(),
                         nullptr,options.cycle_binary_insertion);
                     const double bound=*std::min_element(bounds.begin(),bounds.end());
                     if(bound>strongest){strongest=bound;chosen=candidate;}
@@ -1910,19 +2022,19 @@ namespace tpp {
                 for(auto e:node.sequence)regions.push_back(e.piece==none?&hulls[e.polygon]:&pieces[e.polygon][e.piece]);
                 const double cutoff=result.upper_bound-gap();
                 // The node's dual directions do not depend on the candidate.
-                const auto node_dual=node.dual.empty()?path_insertion_dual(node.path,regions):PathInsertionDual{};
+                const auto node_dual=node.dual().empty()?path_insertion_dual(node.path,regions):PathInsertionDual{};
                 size_t best_count=none;double best_minimum=-INFINITY,dead_minimum=-INFINITY;bool dead=false;
                 for(size_t i=0;i<std::min(options.insertion_lookahead,branch_candidates.size());++i) {
                     const size_t candidate=branch_candidates[i].second;
-                    if(candidate!=chosen&&node.dual.empty()) {
+                    if(candidate!=chosen&&node.dual().empty()) {
                         // A region is dead only if every position is inadmissible:
                         // test the path segment nearest to it first and stop there.
                         const auto nearest=static_cast<size_t>(std::clamp(visit_contact(node.path,candidate).position,0.0,double(regions.size())));
                         ++result.lookahead_candidates;
                         if(std::max(node.bound,path_insertion_bound_at(node_dual,node.path,regions,hulls[candidate],nearest))<cutoff)continue;
                     }
-                    auto bounds=node.dual.empty()?path_insertion_bounds(node_dual,node.path,regions,hulls[candidate])
-                        :insertion_lower_bounds(node.path,regions,hulls[candidate],false,node.dual);
+                    auto bounds=node.dual().empty()?path_insertion_bounds(node_dual,node.path,regions,hulls[candidate])
+                        :insertion_lower_bounds(node.path,regions,hulls[candidate],false,node.dual());
                     size_t admissible=0;double minimum=INFINITY;
                     for(auto &bound:bounds) {
                         bound=std::max(node.bound,bound);
@@ -1979,7 +2091,7 @@ namespace tpp {
 			if (options.trace) trace_event({
 				.kind = "branch",
 				.node = node.serial,
-				.parent = node.parent,
+				.parent = node.parent(),
 				.polygon = chosen,
 				.sequence = node_sequence,
 				.lower_bound = node.bound,
@@ -2004,7 +2116,7 @@ namespace tpp {
                     const auto began_bound=std::chrono::steady_clock::now();
                     std::vector<const Polygon *> regions;
                     for(auto e:node.sequence)regions.push_back(e.piece==none?&hulls[e.polygon]:&pieces[e.polygon][e.piece]);
-                    replacement_bounds=cycle_replacement_lower_bounds(node.path,regions,pieces[chosen],position,node.dual);
+                    replacement_bounds=cycle_replacement_lower_bounds(node.path,regions,pieces[chosen],position,node.dual());
                     result.cycle_dual_screen_children+=replacement_bounds.size();
                     result.cycle_dual_screen_seconds+=duration(began_bound);
                 }
@@ -2018,7 +2130,7 @@ namespace tpp {
                         child.bound=std::max(child.bound,replacement_bounds[j]);
                         result.cycle_dual_screen_prunes+=node.bound<result.upper_bound-gap()&&child.bound>=result.upper_bound-gap();
                     }
-					child.parent = node.serial;
+					if (options.trace) child.extras.edit().parent = node.serial;
 					child.branch_polygon = chosen;
 					child.branch_piece = j;
 					child.branch_position = position;
@@ -2035,10 +2147,9 @@ namespace tpp {
                 Polygon proposals;
                 const auto began_insertion=std::chrono::steady_clock::now();
                 ++result.insertion_bound_calls;
-				cycle_proposals.clear();
 				auto bounds = !lookahead_bounds.empty()&&!screen_dual ? std::move(lookahead_bounds)
                     : insertion_lower_bounds(node.path, regions, hulls[chosen], cycle,
-                    node.dual,screen_dual?&proposals:cycle?&cycle_proposals:nullptr,options.cycle_binary_insertion);
+                    node.dual(),screen_dual?&proposals:nullptr,options.cycle_binary_insertion);
                 if(screen_dual) {
                     const auto began_screen=std::chrono::steady_clock::now();
                     const auto inherited=tpp_convex_binary_dual_insertion_bounds(start,target,node.path,regions,
@@ -2087,7 +2198,7 @@ namespace tpp {
 						continue;
 					}
 					Node child{node.sequence.inserted(j,{chosen}), {}, bound, serial++};
-					child.parent = node.serial;
+					if (options.trace) child.extras.edit().parent = node.serial;
 					child.branch_polygon = chosen;
 					child.branch_position = j;
 					children.push_back(std::move(child));
@@ -2097,7 +2208,7 @@ namespace tpp {
             if(cycle)for(auto &child:children) {
                 if(child.branch_piece!=none)strengthen_one_tree(child);
                 if(options.cycle_learned_branching) {
-                    child.learning_parent_bound=node.bound;child.learning_distance=branch_distances[chosen];
+                    child.extras.edit().learning_parent_bound=node.bound;child.extras.edit().learning_distance=branch_distances[chosen];
                     child.learning_pending=true;
                 }
             }
@@ -2105,26 +2216,19 @@ namespace tpp {
 				// One copy of the parent's contacts and features for all siblings.
 				const size_t m=node.sequence.size();
 				const auto shared=std::make_shared<const ParentProposal>(Polygon(node.path.begin(),node.path.end()-1),
-					options.cycle_active_features&&node.active_features.size()==m?node.active_features.get():std::vector<int>{},
+					options.cycle_active_features&&node.active_features().size()==m?node.active_features():std::vector<int>{},
 					queue.proposals);
 				for (auto &child : children) {
-					const size_t position=child.branch_position;
-					const bool inserting=child.branch_piece==none;
-					const auto &region=inserting?hulls[chosen]:pieces[chosen][child.branch_piece];
-					const auto before=node.path[(position+m-1)%m];
-					const auto after=node.path[(position+size_t(!inserting))%m];
 					child.proposal=shared;
-					// The screening already proposed this contact for gap position-1
-					// (the same neighbours and region); pieces need their own.
-					child.proposal_contact=inserting&&position>0&&cycle_proposals.size()==m?cycle_proposals[position-1]
-						:best_contact(before,after,region,region.front());
-					if(options.cycle_dual_reuse&&node.dual.size()==m) {
-						child.dual=node.dual;
-						if(inserting)child.dual.edit().insert(child.dual.edit().begin()+position,node.dual[(position+m-1)%m]);
+					if(options.cycle_dual_reuse&&node.dual().size()==m) {
+						const size_t position=child.branch_position;
+						auto directions=node.dual();
+						if(child.branch_piece==none)directions.insert(directions.begin()+position,node.dual()[(position+m-1)%m]);
+						child.set_dual(std::move(directions));
 					}
 				}
 			}
-			families.push_back({std::move(children), sequence_parent, diving, queue.size()});
+			families.push_back({std::move(children), sequence_parent, diving, queue.branch_mark()});
 			}
 			// All children of this round, in expansion order.
 			std::vector<std::pair<size_t,size_t>> round_children;
@@ -2205,7 +2309,7 @@ namespace tpp {
 					if (options.trace) trace_event({
 						.kind = "child",
 						.node = child.serial,
-						.parent = child.parent,
+						.parent = child.parent(),
 						.polygon = child.branch_polygon,
 						.piece = child.branch_piece,
 						.position = child.branch_position,
@@ -2595,6 +2699,9 @@ namespace tpp {
         sum(&UnorderedTppSolveResult::frontier_discarded_nodes);
         sum(&UnorderedTppSolveResult::frontier_strips);
         sum(&UnorderedTppSolveResult::frontier_stripped_nodes);
+        sum(&UnorderedTppSolveResult::frontier_completions);
+        sum(&UnorderedTppSolveResult::frontier_completion_nodes);
+        result.peak_completion_stack=std::max(runs[0].peak_completion_stack,runs[1].peak_completion_stack);
         result.frontier_discarded_bound=std::min(runs[0].frontier_discarded_bound,runs[1].frontier_discarded_bound);
         sum(&UnorderedTppSolveResult::peak_sequence_records);
         sum(&UnorderedTppSolveResult::sequence_reconstructions);

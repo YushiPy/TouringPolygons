@@ -14,6 +14,8 @@ namespace tpp {
 
 	enum class UnorderedSearchStrategy { BestBoundDive, DfsBfs };
 	enum class UnorderedSequenceStorage { Native, Packed, Deltas };
+	// What the best-bound frontier does past its memory budget.
+	enum class UnorderedFrontierOverflow { Complete, Discard };
 
 	// A snapshot of a running search, for long-run monitoring. Reading it never
 	// changes the search.
@@ -171,13 +173,18 @@ namespace tpp {
         // Memory budget of the best-bound frontier (nodes, their paths and
         // proposals, sequences), estimated from capacities. When it is
         // exceeded, all but the best-bound quarter lose their path and
-        // proposals (they are solved again when taken); if the estimate is
+        // proposals (they are solved again when taken). Then, with Complete,
+        // the queue stops growing: the search takes its best node and finishes
+        // that node's subtree depth first (the stack is bounded by depth times
+        // branching), so the search stays complete and the lower bound is the
+        // minimum over the queue and the stack. With Discard, if the estimate is
         // still above 3/4 of the budget, the half with the largest bounds is
         // discarded and the smallest discarded bound becomes a floor of the
-        // reported lower bound (still valid). Below the budget the search is
-        // unchanged; zero disables it. The search ends with MemoryLimit if it
-        // exhausts the kept nodes before closing the gap.
+        // reported lower bound (still valid); the search ends with MemoryLimit
+        // if it exhausts the kept nodes before closing the gap. Below the
+        // budget the search is unchanged; zero disables it.
         size_t max_frontier_bytes = size_t(4) << 30;
+        UnorderedFrontierOverflow frontier_overflow = UnorderedFrontierOverflow::Complete;
         // Frontier sequences only. Packed automatically selects 8/16/32/64-bit
         // indices; Deltas retains insertion/piece changes in a recycled arena.
         UnorderedSequenceStorage sequence_storage = UnorderedSequenceStorage::Packed;
@@ -391,6 +398,9 @@ namespace tpp {
         size_t peak_frontier_bytes = 0, frontier_strips = 0, frontier_stripped_nodes = 0;
         size_t frontier_trims = 0, frontier_discarded_nodes = 0;
         double frontier_discarded_bound = std::numeric_limits<double>::infinity();
+        // Subtrees finished depth first past the budget, the nodes taken in
+        // them (their roots included) and the largest stack they needed.
+        size_t frontier_completions = 0, frontier_completion_nodes = 0, peak_completion_stack = 0;
         size_t sequence_history_record_bytes = 0;
         size_t peak_sequence_records = 0;
         size_t sequence_reconstructions = 0;
