@@ -511,6 +511,15 @@ def build_parser() -> argparse.ArgumentParser:
 	return parser
 
 
+def solver_arguments(phase: str, protocol: dict, frontier: int, seed: int, bnb_threads: int, checkpoint: Path) -> list[str]:
+	"""The solver flags of one run. A B&B run checkpoints its open subtrees, so a later
+	attempt resumes them (the solver removes the file once the gap closes)."""
+	arguments = [*BASE_ARGUMENTS, "--max-frontier-mib", str(frontier)]
+	if phase == "ils":
+		return [*arguments, *protocol["ils_arguments"], "--primal-ils-seed", str(seed)]
+	return [*arguments, *protocol["bnb_arguments"], "--subtree-threads", str(bnb_threads), "--checkpoint", str(checkpoint)]
+
+
 def protocol_of(args: argparse.Namespace) -> dict:
 	return {
 		"formulation": "TSPN, closed tour, free cyclic order, no fixed point; Paula npol-le-100 regions as in the files",
@@ -569,8 +578,8 @@ def run(args: argparse.Namespace, argv: Sequence[str]) -> int:
 	selection = select(args.instances, list(instances))
 	if args.bnb_threads < 1 or (args.bnb_threads > 1 and "ils" in phases):
 		fail("--bnb-threads takes a positive count, and more than 1 needs --phases bnb (ILS runs use one thread)")
-	threads = args.bnb_threads
-	workers = args.workers or max(1, default_workers() // threads)
+	bnb_threads = args.bnb_threads
+	workers = args.workers or max(1, default_workers() // bnb_threads)
 	frontier = args.frontier_mib or default_frontier_mib(workers)
 	done = completed(rows)
 	ils = [(name, seed) for seed in range(args.seeds) for name in selection
@@ -589,7 +598,7 @@ def run(args: argparse.Namespace, argv: Sequence[str]) -> int:
 	print(f"Instances: {len(selection)} ({args.instances}); seeds: {args.seeds}; phases: {','.join(sorted(phases))}")
 	print(f"Pending: {len(ils)} ILS runs of {args.ils_seconds:g} s, {len(bnb)} B&B runs of {args.bnb_seconds:g} s; "
 		f"{workers} at a time, about {hours:.1f} h; frontier budget {frontier} MiB per run"
-		+ (f"; {threads} subtree threads per B&B run" if threads > 1 else ""))
+		+ (f"; {bnb_threads} subtree threads per B&B run" if bnb_threads > 1 else ""))
 	if not reference:
 		print(f"Note: Paula's table not found at {args.reference}; the report will not compare with her.")
 	if args.dry_run:
@@ -619,9 +628,9 @@ def run(args: argparse.Namespace, argv: Sequence[str]) -> int:
 	total = len(ils) + len(bnb)
 	lock = threading.Lock()
 	live = LiveStatus(output / "live.json", echo=None if args.verbose else (lambda line: None))
-	pool = cpu_affinity.CorePool(workers, threads, args.cpu_affinity)
+	pool = cpu_affinity.CorePool(workers, bnb_threads, args.cpu_affinity)
 	# The frontier budget, allocator slack, and each subtree thread's own workspaces.
-	guard = int(frontier * 2**20 * 1.25) + 2**30 + threads * 2**28
+	guard = int(frontier * 2**20 * 1.25) + 2**30 + bnb_threads * 2**28
 	checkpoints = output / "checkpoints"
 	finished = [0]
 	failures = [0]
@@ -650,17 +659,13 @@ def run(args: argparse.Namespace, argv: Sequence[str]) -> int:
 	def execute(task: tuple[str, str, int]) -> dict | None:
 		phase, name, seed = task
 		polygons = instances[name]["polygons"]
-		arguments = [*BASE_ARGUMENTS, "--max-frontier-mib", str(frontier)]
 		initial = None
+		if phase == "bnb":
+			checkpoints.mkdir(parents=True, exist_ok=True)
+		arguments = solver_arguments(phase, protocol, frontier, seed, bnb_threads, checkpoints / f"{name}.ckpt")
 		if phase == "ils":
-			arguments += [*protocol["ils_arguments"], "--primal-ils-seed", str(seed)]
 			seconds = args.ils_seconds
 		else:
-			arguments += protocol["bnb_arguments"]
-			# A later attempt resumes the open subtrees of an earlier one; the
-			# solver removes the file once the gap closes.
-			checkpoints.mkdir(parents=True, exist_ok=True)
-			arguments += ["--subtree-threads", str(threads), "--checkpoint", str(checkpoints / f"{name}.ckpt")]
 			seconds = args.bnb_seconds
 			with lock:
 				start = best_tour(rows, name)

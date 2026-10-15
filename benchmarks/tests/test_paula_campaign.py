@@ -118,6 +118,21 @@ class ProtocolTests(unittest.TestCase):
 				campaign.check_protocol(output, campaign.protocol_of(parser.parse_args(["--bnb-args", "--dive-interval 1"])))
 
 
+class SolverArgumentTests(unittest.TestCase):
+	def test_bnb_runs_get_threads_and_a_checkpoint(self):
+		protocol = campaign.protocol_of(campaign.build_parser().parse_args(["--bnb-threads", "8", "--phases", "bnb"]))
+		bnb = campaign.solver_arguments("bnb", protocol, 128, 2, 8, Path("c/checkpoints/x.ckpt"))
+		self.assertEqual(bnb[bnb.index("--subtree-threads") + 1], "8")
+		self.assertEqual(bnb[bnb.index("--checkpoint") + 1], str(Path("c/checkpoints/x.ckpt")))
+		self.assertEqual(bnb[bnb.index("--max-frontier-mib") + 1], "128")
+		for flag in protocol["bnb_arguments"]:
+			self.assertIn(flag, bnb)
+		ils = campaign.solver_arguments("ils", protocol, 128, 3, 8, Path("unused"))
+		self.assertNotIn("--subtree-threads", ils)
+		self.assertNotIn("--checkpoint", ils)
+		self.assertEqual(ils[ils.index("--primal-ils-seed") + 1], "3")
+
+
 class SchedulerTests(unittest.TestCase):
 	def test_ils_first_and_bnb_after_its_instance(self):
 		scheduler = campaign.Scheduler([("a", 0), ("b", 0), ("a", 1)], [("a", 0), ("b", 0)])
