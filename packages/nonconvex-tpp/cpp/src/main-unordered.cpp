@@ -127,7 +127,7 @@ int main(int argc, char **argv) {
 				std::cout << "--primal-ils F spends fraction F of the time on an iterated local search for the initial tour; tuning (defaults in unordered.h): --primal-ils-block L (Or-opt blocks), --primal-ils-reverse, --primal-ils-candidates K (0: all gaps), --primal-ils-swap, --primal-ils-kicks K, --primal-ils-record (record-to-record instead of reheating), --primal-ils-polish F (0: new bests only), --primal-ils-reorder W (exact windows, 0: off), --primal-ils-window W (contact-only polish without reorder), --primal-ils-stagnation N, --primal-ils-seed S.\n";
 				std::cout << "--interpolated-zero-dual tries a feasible interpolated dual for short contact blocks.\n";
 				std::cout << "--no-float-recovery (ablation) restores the exact replay and rational recoveries after a failed interval proof; by default a binary64 interior-point polish with interval-certified bounds replaces them, and only calls it leaves open use rational arithmetic. --trust-double (diagnostic, unsafe) uses the uncertified binary64 trace length as both oracle bounds, as a numerical solver would.\n";
-				std::cout << "--no-cycle-float (ablation) sends every cycle oracle call to the exact path; by default calls with a positive gap first try binary64 bounds proved with directed rounding, from the construction and then an interior-point polish. --no-float-degenerate (ablation) sends fixed-endpoint calls with point or segment regions straight to the exact flow; by default they also try that binary64 oracle first. --max-frontier-mib N bounds the best-bound frontier's estimated memory (default 4096, 0 disables): beyond it all but the best-bound quarter drop their paths and proposals (solved again when taken) and the queue stops growing: the search takes its best node and finishes that node's subtree depth first, so it stays complete under the budget. --frontier-overflow discard (the earlier policy, for comparison) instead discards the half with the largest bounds when stripping is not enough, and the smallest discarded bound floors the reported lower bound. --no-cycle-binary-insertion (ablation) computes the cyclic insertion screening with exact rationals instead of binary64 directions proved in the unit disk and supports with proved rounding-error bounds.\n";
+				std::cout << "--no-cycle-float (ablation) sends every cycle oracle call to the exact path; by default calls with a positive gap first try binary64 bounds proved with directed rounding, from the construction and then an interior-point polish. --no-float-degenerate (ablation) sends fixed-endpoint calls with point or segment regions straight to the exact flow; by default they also try that binary64 oracle first. --max-frontier-mib N bounds the best-bound frontier's estimated memory (default 4096, 0 disables): beyond it all but the best-bound quarter drop their paths and proposals (solved again when taken) and the queue stops growing: the search takes its best node and finishes that node's subtree depth first, so it stays complete under the budget. --frontier-overflow discard (the earlier policy, for comparison) instead discards the half with the largest bounds when stripping is not enough, and the smallest discarded bound floors the reported lower bound. --subtree-threads N (best-bound search, --threads 1) hands the frontier to N threads once it fills the budget: each takes the best open node and finishes its subtree depth first, and a busy thread gives its shallowest node to an idle one. --checkpoint FILE saves the open subtrees and the incumbent every --checkpoint-interval seconds (default 600) and at the end, removes the file once the gap closes, and resumes from it when it exists. --no-cycle-binary-insertion (ablation) computes the cyclic insertion screening with exact rationals instead of binary64 directions proved in the unit disk and supports with proved rounding-error bounds.\n";
 				return 0;
 			}
 			if(flag=="--oracle-capture") {
@@ -250,6 +250,18 @@ int main(int argc, char **argv) {
 			if (flag == "--max-frontier-mib") {
 				if (++i >= argc) throw std::invalid_argument("Expected a frontier budget in MiB.");
 				options.max_frontier_bytes=size_t(std::stoull(argv[i]))<<20;continue;
+			}
+			if (flag == "--subtree-threads") {
+				if (++i >= argc) throw std::invalid_argument("Expected a thread count.");
+				options.subtree_threads=size_t(std::stoull(argv[i]));continue;
+			}
+			if (flag == "--checkpoint") {
+				if (++i >= argc) throw std::invalid_argument("Expected a checkpoint file.");
+				options.checkpoint_file=argv[i];continue;
+			}
+			if (flag == "--checkpoint-interval") {
+				if (++i >= argc) throw std::invalid_argument("Expected seconds between checkpoints.");
+				options.checkpoint_interval_seconds=std::stod(argv[i]);continue;
 			}
 			if (flag == "--frontier-overflow") {
 				if (++i >= argc) throw std::invalid_argument("Expected complete or discard.");
@@ -584,6 +596,10 @@ int main(int argc, char **argv) {
             << ",\"frontier_completions\":" << r.frontier_completions
             << ",\"frontier_completion_nodes\":" << r.frontier_completion_nodes
             << ",\"peak_completion_stack\":" << r.peak_completion_stack
+            << ",\"subtree_threads\":" << r.subtree_threads << ",\"subtree_seeds\":" << r.subtree_seeds
+            << ",\"subtree_donations\":" << r.subtree_donations << ",\"subtree_seconds\":" << r.subtree_seconds
+            << ",\"checkpoint_writes\":" << r.checkpoint_writes << ",\"checkpoint_resumed\":" << (r.checkpoint_resumed ? "true" : "false")
+            << ",\"checkpoint_prior_nodes\":" << r.checkpoint_prior_nodes << ",\"checkpoint_prior_seconds\":" << r.checkpoint_prior_seconds
             << ",\"sequence_history_record_bytes\":" << r.sequence_history_record_bytes
             << ",\"peak_sequence_records\":" << r.peak_sequence_records
             << ",\"sequence_reconstructions\":" << r.sequence_reconstructions

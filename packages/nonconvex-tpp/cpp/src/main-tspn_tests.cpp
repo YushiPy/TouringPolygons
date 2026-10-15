@@ -7,6 +7,8 @@
 #include "solvers/unordered_cycle_oracle.h"
 #include "solvers/unordered_dyadic_support.h"
 #include <atomic>
+#include <chrono>
+#include <filesystem>
 #include <thread>
 #include <algorithm>
 #include <cmath>
@@ -779,9 +781,60 @@ void frontier_budget() {
     require(trims>0,"A one-byte budget trims the frontier");
     require(completions>0,"A one-byte budget finishes subtrees depth first");
 }
+// Subtree threads with a one-byte budget get the root as their only seed, so
+// idle threads live on donations; they must close at the unbudgeted optimum,
+// by default and with lazy children. A search stopped by a call cap leaves a
+// checkpoint; resumed with another thread count it closes at the same optimum
+// and removes the file.
+size_t subtree_checks=0,checkpoint_resumes=0;
+void subtree_threads() {
+    std::mt19937 rng(91027);std::uniform_int_distribution<int> coord(0,30);
+    const auto directory=std::filesystem::temp_directory_path()/
+        ("tpp-subtree-tests-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(directory);
+    size_t donations=0;
+    for(size_t trial=0;trial<10;++trial) {
+        Polygons p;
+        for(size_t i=0;i<8+trial%4;++i)p.push_back(box(coord(rng),coord(rng),1+rng()%3,1+rng()%2));
+        if(trial%3==0)p.push_back({{double(coord(rng)),double(coord(rng))}});
+        tpp::UnorderedTppSolveOptions exact;exact.max_frontier_bytes=0;exact.relative_gap=1e-9;
+        const auto reference=tpp::tpp_nonconvex_tspn_solve(p,exact);
+        require(reference.exact,"Unbudgeted reference closes");
+        auto at_optimum=[&](const tpp::UnorderedTppSolveResult &r) {
+            return r.exact&&r.termination==tpp::UnorderedTppTermination::Optimal&&covered(r.path,p)
+                &&std::abs(r.upper_bound-reference.upper_bound)<=1e-8*(1+reference.upper_bound);
+        };
+        for(const bool lazy:{false,true})for(const size_t threads:{size_t(2),size_t(4)}) {
+            auto options=exact;options.max_frontier_bytes=1;options.subtree_threads=threads;
+            options.cycle_lazy=options.lazy_oracles=lazy;
+            const auto threaded=tpp::tpp_nonconvex_tspn_solve(p,options);
+            require(at_optimum(threaded),"Subtree threads close at the unbudgeted optimum");
+            require(threaded.subtree_threads==threads&&threaded.subtree_seeds>=1,"The frontier went to the subtree threads");
+            donations+=threaded.subtree_donations;++subtree_checks;
+        }
+        const auto file=(directory/("trial-"+std::to_string(trial)+".ckpt")).string();
+        auto first=exact;first.max_frontier_bytes=1;first.subtree_threads=2;first.checkpoint_file=file;
+        first.cycle_lazy=first.lazy_oracles=true;first.max_calls=std::max<size_t>(3,reference.calls/3);
+        const auto partial=tpp::tpp_nonconvex_tspn_solve(p,first);
+        require(covered(partial.path,p),"A capped subtree search keeps a feasible tour");
+        require(partial.lower_bound<=reference.upper_bound+1e-9*(1+reference.upper_bound),"A capped subtree bound stays below the optimum");
+        if(partial.exact) { require(!std::filesystem::exists(file),"A closed search leaves no checkpoint");continue; }
+        require(std::filesystem::exists(file)&&partial.checkpoint_writes>=1,"An open search leaves a checkpoint");
+        auto second=first;second.max_calls=std::numeric_limits<size_t>::max();second.subtree_threads=3;
+        const auto resumed=tpp::tpp_nonconvex_tspn_solve(p,second);
+        require(resumed.checkpoint_resumed&&at_optimum(resumed),"A resumed search closes at the optimum");
+        require(resumed.checkpoint_prior_nodes>=1,"A resumed search knows the work already done");
+        require(!std::filesystem::exists(file),"A closed search removes its checkpoint");
+        ++checkpoint_resumes;
+    }
+    require(donations>0,"Busy subtree threads give nodes to idle ones");
+    require(checkpoint_resumes>0,"Some capped searches resumed from their checkpoints");
+    std::filesystem::remove_all(directory);
+}
 int main() {
     try {
         frontier_budget();
+        subtree_threads();
         memo_cycle_keys();
         cycle_relaxation_interruptions();
         cycle_proposal_bound_contract();
@@ -837,6 +890,6 @@ int main() {
         bool rejected=false;try {tpp::tpp_nonconvex_tspn_solve({box(0,0)},bad);}catch(const std::invalid_argument&){rejected=true;}
         require(rejected,"Open supplied tour rejected");
         std::cout<<"TSPN tests passed: "<<cases<<" exhaustive cases with 1 and 2 threads, "<<interrupted<<" interrupted searches, "
-                 <<portfolio_cases<<" portfolios, "<<portfolio_limited<<" shared-budget searches, "<<decomposed<<" decomposition cases, "<<parallel_batches<<" concurrent oracle batches, 240 arbitrary-hint plus 240 inherited-dual checks; 1026 optimization/call-cap comparisons, "<<multi_insertion_checks<<" multi-insertion bound checks, "<<frontier_budget_checks<<" frontier-budget searches and 38 combined concurrency checks.\n";
+                 <<portfolio_cases<<" portfolios, "<<portfolio_limited<<" shared-budget searches, "<<decomposed<<" decomposition cases, "<<parallel_batches<<" concurrent oracle batches, 240 arbitrary-hint plus 240 inherited-dual checks; 1026 optimization/call-cap comparisons, "<<multi_insertion_checks<<" multi-insertion bound checks, "<<frontier_budget_checks<<" frontier-budget searches, "<<subtree_checks<<" subtree-thread searches, "<<checkpoint_resumes<<" checkpoint resumes and 38 combined concurrency checks.\n";
     } catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}
 }
