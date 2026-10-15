@@ -620,15 +620,26 @@ Open, in order of expected value:
    What remains: an unfinished run's lower bound rises one subtree at a time,
    so it is weaker than an unbounded best-first bound at the same time (75lin105
    at 120 s: 9.05% at 512 MiB against 5.89%); campaigns keep the largest bound
-   of any run. A certificate is now bounded by throughput, and `lazy` solves
-   one node at a time: finishing different subtrees on different threads would
-   use all cores on one instance.
-2. **Cost of the multi-insertion bound.** Its `O(m·k)` gains per node
+   of any run. (2026-10-14: `--subtree-threads N` finishes different
+   subtrees on different threads, sharing the incumbent, with idle threads fed
+   by the shallowest node of a busy one, and `--checkpoint FILE` lets a long
+   certificate resume across runs; same nodes, 50gil262 3.3× faster with 8
+   threads than with 2.)
+2. **The lower bound, measured on one scale.** Nodes to certify grow ~2.31×
+   per point of the gap a 600 s run proves (r = 0.98 over the 15 instances
+   certified on Armijo), so 8 threads are worth ~2.3 points. The options at
+   hand are worth less or cost more: `--multi-insertion-bound` keeps 43–76% of
+   the nodes for 3–7× the time, `one-tree` changes nothing, strong branching
+   adds nodes, a Held–Karp bound on region distances is 81% of the tour on
+   99d493 (ours 85%), and no subtree is explored twice. 99d493 needs ~10
+   points: only a new relaxation can close it
+   ([`tspn-bounds-and-threads-2026-10-14`](../../benchmarks/results-saved/README.md#tspn-bounds-and-threads-2026-10-14)).
+3. **Cost of the multi-insertion bound.** Its `O(m·k)` gains per node
    (`best_contact` plus three supports each) now cost more than the node's
    oracle calls; on the closed instances it is 3–5× slower. Incremental gains
    (cache per region and gap of the parent's contacts) or evaluating it only
    at nodes near the frontier minimum could make it pay again.
-3. **The oracle is again most of the time.** (2026-10-12, `lazy` on Paula's
+4. **The oracle is again most of the time.** (2026-10-12, `lazy` on Paula's
    100-region cycles: visit checks 38%, oracle 37%, search maintenance 25%
    before the changes above; sorting all regions per node, the segment cache's
    allocations and repeated polygon copies are gone, 1.33–1.36× with identical
@@ -638,15 +649,15 @@ Open, in order of expected value:
    (construction 0.8, polish 0.6, proofs 0.4). Visit checks take ~20% on the
    largest cases. Polish iterations and the construction kernel are the
    remaining constant factors.
-4. **`memo` and `share-bounds`.** A hit rechecks the stored contacts with the
+5. **`memo` and `share-bounds`.** A hit rechecks the stored contacts with the
    exact certificate (rational), which now costs more than solving the call
    again (~13 µs), and binary64 segment contacts are never reused. Measure the
    portfolio without `memo`, then drop it from the portfolio defaults or
    re-prove hits with the binary64 cycle proof.
-5. **Feature hints after a polish closure** (item 4). Low value now: the
+6. **Feature hints after a polish closure** (item 4). Low value now: the
    construction is 0.8 of 2.7 s on SoCG, and ~10% of calls close by the polish.
-6. **Calls the polish leaves open:** 3 in 99 M on Paula's collection (80rd400).
-7. **Measurements.** Repeat on an idle machine (dantzig, one process,
+7. **Calls the polish leaves open:** 3 in 99 M on Paula's collection (80rd400).
+8. **Measurements.** Repeat on an idle machine (dantzig, one process,
    repetitions) and run the full 558-case path corpus once with this binary
    (the identity checks covered 40 cases).
 

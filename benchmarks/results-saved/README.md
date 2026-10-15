@@ -19,6 +19,92 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## tspn-paula-long-armijo-2026-10-14
+
+**Pergunta.** Terminando subárvores em vez de descartar
+([`tspn-frontier-completion-2026-10-13`](#tspn-frontier-completion-2026-10-13)),
+quantas das 13 abertas o B&B certifica em 24 h? **Formulação.** A de
+[`tspn-paula-long-armijo-2026-10-11`](#tspn-paula-long-armijo-2026-10-11), com
+`lazy` sem mergulhos, fronteira de 128 MiB e até 24 h por instância, a partir do
+melhor tour; solver de `a00ab58`, na armijo, 8 processos de uma thread, um por
+núcleo físico, em ordem crescente de gap (`--repeat-bnb`, segunda tentativa).
+
+**Resultado.**
+- **Certificadas (7):** 100prb1173-10x10 em 2,0 h (279 M nós), 75lin105 em
+  3,5 h (572 M), 100vm1084 em 4,8 h (625 M), 100rat783-10x10 em 5,4 h (668 M),
+  81vm1084-9x9 em 5,5 h (433 M), 100C10k.0 em 15,2 h (1,79 bi) e 100nrw1379 em
+  17,8 h (2,11 bi). A pilha não passou de 188 nós.
+- **Coleção inteira:** 229 de 235 certificadas (eram 222). Abertas: 80rd400
+  (4,59%), 100rat783 (7,01%), 89pcb442 (8,10%), 100pcb1173 (8,18%), 100pr1002
+  (8,42%) e 99d493 (14,63%); esses gaps são os da rodada com descarte, o maior
+  LB de todas. As tentativas de 24 h dessas seis terminaram com LB pior
+  (13,7–23,7%), como esperado de uma busca em profundidade que não fecha, e
+  processaram 1,7–2,8 bi nós cada.
+- **Tours:** nenhum B&B encurtou o tour inicial; os 235 melhores continuam
+  empatados com o melhor da Paula, todos válidos. Nas 229 certificadas, o melhor
+  dela é ótimo.
+- **Vazão:** 1,2–1,95× os nós por segundo da rodada com descarte (com 8
+  processos em vez de 4).
+- **Previsão:** as que fecharam precisaram de 3,5–35× os nós expandidos até o
+  congelamento da rodada anterior, ~2× por 0,77 ponto de gap no congelamento.
+
+**Limitações.** Sem checkpoint, as 24 h das seis abertas não são
+reaproveitadas. Uma tentativa por instância, 8 processos simultâneos.
+
+## tspn-bounds-and-threads-2026-10-14
+
+**Pergunta.** Depois da rodada de completar subárvores
+([`tspn-paula-long-armijo-2026-10-13`](#tspn-paula-long-armijo-2026-10-13) e o
+resultado de 14/10: 229/235), o que os dados ensinam sobre o custo de
+certificar, e o que reduz esse custo? **Formulação.** TSPN de ciclo livre, gap
+relativo 1e-6, `cache,features,root,interval`, `lazy` sem mergulhos, 128 MiB,
+completando subárvores, a partir do melhor tour, até o certificado (limite de
+1.800 s). Mac M4 Pro, 6 processos simultâneos, com outros programas abertos:
+razões entre variantes da mesma instância, não tempos absolutos.
+
+**Resultado.**
+- **Regra de custo.** Nas 15 instâncias certificadas na armijo, os nós para
+  certificar crescem ~2,31× por ponto do gap provado numa rodada de 600 s
+  (r = 0,98 em log; desvio dos resíduos 0,13 década). Tudo com gap ≤ 7,8% aos
+  600 s fechou e tudo com ≥ 8,8% está aberto. Pela mesma regra, e pela do gap
+  no congelamento (2× por 0,77 ponto), as abertas pedem, numa thread da
+  armijo: 80rd400 ~3–4 dias, 100rat783 ~10–13 dias, 100pcb1173, 100pr1002 e
+  89pcb442 1–3 meses, e 99d493 décadas.
+- **Para onde vai o trabalho** (56a280 e 45ts225): cada expansão gera 17–18
+  filhos, e 93% caem na triagem por inserção (~1,1 entra na fila); dos nós
+  retirados, 12–16% são podados pelo oráculo e 84–88% são expandidos.
+- **Opções de limite**, nós e tempo até o certificado relativos à base:
+  `--multi-insertion-bound` 0,43–0,76 dos nós e 3,0–6,9× o tempo (56a280,
+  45ts225, 60pr299, 84fl417, 50gil262); em 100i2500-708 (100 regiões) não fecha
+  em 1.800 s, contra 440 s. Ele poda 57–58% dos nós em que é calculado e ocupa
+  89% do tempo. `one-tree`: os mesmos nós. Ramificação forte: 0,95–1,84× os nós e
+  1,5–3,2× o tempo. `--insertion-lookahead 8`: 0,78–0,90 dos nós e 0,96–1,25×
+  o tempo. `--path-certificate-dual`: não fecha em 1.800 s em 2 de 3.
+- **Held–Karp** (1-árvore com penalidades) sobre distâncias entre regiões,
+  que vale como limite: 81,0% do tour em 99d493 (nosso LB: 85,4%) e 61,5% em
+  80rd400 (95,4%), com o subgradiente convergido.
+- **Subárvores repetidas** (a mesma sequência por caminhos diferentes): 5 em
+  28.472, 15 em 19.825 e 15 em 38.270 nós expandidos, as mesmas sequências de
+  polígonos com peças diferentes.
+- **Lado primal:** a partir do tour da ILS de 100i1000-410 (0,19% acima),
+  completar subárvores achou o ótimo aos 417 s e o certificou aos 622 s; a busca
+  de melhor limite da armijo (11/10) o achou a 4 s do fim.
+- **Threads de subárvore e checkpoints**
+  ([contrato](../../docs/algorithms/unordered-tpp.md#orçamento-de-memória-da-fronteira-2026-10-09)):
+  50gil262 com 2, 4 e 8 threads fecha com os mesmos 2.425.412 nós em 35,7,
+  19,3 e 10,8 s; interrompida aos 20 s e retomada de um checkpoint, soma
+  exatamente esses nós (402.454 + 2.022.958).
+
+**Leitura.** O custo de certificar é exponencial no gap que a busca de melhor
+limite alcança, e a régua permite comparar ideias: 8 threads valem ~2,3
+pontos de gap; o `--multi-insertion-bound` de graça valeria ~0,3–1 ponto, e
+com o custo atual não paga. Nenhuma das opções nem o Held–Karp aproxima o
+que falta em 99d493 (~10 pontos). Paralelizar e retomar fecham as instâncias
+a dias de distância; as outras pedem um limite novo.
+
+**Limitações.** Uma repetição, Mac carregado. As projeções são extrapolações
+de 15 pontos, sem garantia fora deles.
+
 ## tspn-frontier-completion-2026-10-13
 
 **Pergunta.** Na armijo, as 13 instâncias abertas congelaram no piso dos nós

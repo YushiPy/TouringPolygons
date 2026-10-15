@@ -374,6 +374,51 @@ caminho resolvido ganha ~24 B (o ponteiro e o comprimento relaxado). Com
 GB; a arena dos deltas agora entra na estimativa do limite (antes ficava de
 fora).
 
+**Threads de subárvore e checkpoints (2026-10-14).** Com
+`options.subtree_threads` / `--subtree-threads N` (busca de melhor limite com
+`--threads 1`, sem portfólio nem trace), quando a fronteira enche o limite a
+busca a entrega a um conjunto compartilhado de sementes: os nós abertos, com a
+sequência compactada e o limite. N threads rodam a mesma busca em modo de
+trabalho. Uma thread com a pilha vazia tira a semente de menor limite e
+termina a subárvore dela em profundidade, como acima. Quando alguma thread
+espera e o conjunto está vazio, uma thread ocupada lhe dá o nó mais raso da
+sua pilha (o do fundo). O incumbente passa pelo mesmo controle do portfólio, e
+cada thread valida o tour que recebe. Durante a busca, o LB global é o mínimo
+do conjunto, das pilhas e dos limites podados. Depois que as threads voltam,
+os nós abertos são exatamente o conjunto restante mais a pilha de cada uma.
+Com o incumbente ótimo, a busca abre os mesmos nós que a de uma thread.
+
+`options.checkpoint_file` / `--checkpoint ARQUIVO`
+(`--checkpoint-interval S`, padrão 600 s) grava, em binário, a impressão
+digital da instância normalizada (FNV-1a das coordenadas, extremos e
+topologia), a largura dos índices, o incumbente e o limite e a sequência
+compactada de cada nó aberto. A gravação ocorre a cada S segundos durante a
+fase das threads e no fim. O arquivo é removido quando o gap fecha. Numa gravação
+periódica, novas retiradas do conjunto esperam até que cada thread em
+execução copie a sua pilha no topo do seu laço, sem nó na mão. Assim, o
+conjunto mais as cópias cobrem todo nó aberto; um nó doado nesse intervalo
+pode aparecer duas vezes, o que só repete trabalho. A gravação final, depois
+que as threads voltam, é exata. Uma busca que encontra o arquivo retoma dele,
+com qualquer número de threads, sem a fase de melhor limite (uma ILS pedida
+ainda roda antes). O incumbente salvo também vale como tour inicial. Um arquivo de outra instância
+ou de outra largura de índices é recusado. Com `--subtree-threads 1`, o checkpoint
+também passa por esse caminho, com uma thread.
+
+Em 50gil262 (32 MiB, Mac com outros programas abertos), 2, 4 e 8 threads fecham
+com os mesmos 2.425.412 nós em 35,7, 19,3 e 10,8 s. Interrompida aos 20 s com 4
+threads (402.454 nós) e retomada com 8, a busca fecha com mais 2.022.958 nós:
+soma exata da busca sem interrupção. O JSON informa `subtree_threads`,
+`subtree_seeds`, `subtree_donations`, `subtree_seconds`, `checkpoint_writes`,
+`checkpoint_resumed`, `checkpoint_prior_nodes` e `checkpoint_prior_seconds`.
+Testes: `tpp-tspn-tests` resolve 10 instâncias com orçamento de 1 byte (a
+raiz é a única semente, e as outras threads vivem de doações) com 2 e 4
+threads, na política padrão e com `lazy`, e confere o ótimo da busca sem
+orçamento. Cada uma é também cortada em 1/3 das chamadas da referência com um
+checkpoint e retomada com 3 threads: precisa fechar no mesmo ótimo e remover o
+arquivo. Sob ThreadSanitizer, o solver com 4 threads e checkpoints a cada 2 s
+em 50gil262 não tem relatos; os do binário de testes vêm todos do runtime do
+OpenMP, que não é instrumentado.
+
 Deltas podem perder em tempo ou mesmo em memória quando muitos ancestrais
 distintos permanecem vivos. Compare os três modos com o mesmo binário,
 gap, orçamento e política, preferindo um processo por vez para diagnosticar

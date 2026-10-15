@@ -357,6 +357,16 @@ certificar (100i2500-708: 446 s com 128 MiB, 621 s sem limite). Uma
 tentativa que não fecha tem um LB pior que o de uma fila sem limite no mesmo
 tempo, mas o relatório usa o maior LB de todas
 ([detalhes](../docs/algorithms/unordered-tpp.md#orçamento-de-memória-da-fronteira-2026-10-09)).
+Cada B&B grava um checkpoint em `checkpoints/INSTÂNCIA.ckpt` na campanha (a
+cada 600 s e no fim), e uma tentativa seguinte (`--repeat-bnb`) retoma de lá;
+o solver remove o arquivo quando o gap fecha. `--bnb-threads N` (só com
+`--phases bnb`) dá N threads a cada B&B, que terminam subárvores em paralelo
+depois do orçamento, e reserva N núcleos por execução (`--workers` passa a
+valer núcleos ÷ N por padrão). Para execuções que dividem o tempo entre a ILS
+e um B&B completando subárvores a partir do tour dela (que acha trocas longas
+fora do alcance da ILS, como em 100i1000-410), use outra campanha com
+`--ils-args "--primal-ils 0.5 --cycle-optimization lazy --lazy-oracles --dive-interval 0"`
+e `--frontier-mib 128`: é outro protocolo, gravado no `protocol.json` dela.
 
 A referência SOCP requer um Python com Gurobi licenciado e Shapely >= 2.1;
 `--reference-python` seleciona esse ambiente, sem mudar as dependências do solver.
