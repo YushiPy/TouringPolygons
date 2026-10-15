@@ -5,9 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
 install_missing=1
-threads=""
-benchmark_instances=30
-benchmark_max_calls=50000
+full=0
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -15,27 +13,21 @@ while [[ $# -gt 0 ]]; do
 			install_missing=0
 			shift
 			;;
-		--threads)
-			threads="$2"
-			shift 2
-			;;
-		--benchmark-instances)
-			benchmark_instances="$2"
-			shift 2
-			;;
-		--benchmark-max-calls)
-			benchmark_max_calls="$2"
-			shift 2
+		--full)
+			full=1
+			shift
 			;;
 		-h|--help)
 			cat <<'USAGE'
 usage: scripts/sanity_check.sh [options]
 
+Builds the solvers and runs their tests in about a minute once the build is warm
+(the first build compiles everything and takes longer). Benchmarks are not part
+of it: use python3 benchmarks/tpp.py.
+
 Options:
-  --no-install                 Report missing dependencies instead of installing them.
-  --threads N                  Benchmark worker threads. Default: all hardware threads.
-  --benchmark-instances N      Number of dev-suite cases to benchmark. Default: 30.
-  --benchmark-max-calls N      Convex-call cap per benchmark case. Default: 50000.
+  --no-install  Report missing dependencies instead of installing them.
+  --full        Also run the generated convex stress suites (about 25 minutes more).
 USAGE
 			exit 0
 			;;
@@ -135,37 +127,39 @@ ensure_dependencies() {
 run_step() {
 	echo
 	echo "==> $*"
+	local started=$SECONDS
 	"$@"
+	echo "    ($((SECONDS - started)) s)"
 }
 
+unordered_example() {
+	.build/tools/bin/tpp-unordered < packages/nonconvex-tpp/cpp/tests/unordered-example.txt >/dev/null
+}
+
+started=$SECONDS
 ensure_dependencies
 
-run_step python3 benchmarks/tpp.py generate-suites
-run_step packages/convex-tpp/cpp/run_generated_tests.sh
-
-run_step python3 benchmarks/tpp.py build tpp-bnb-workload-benchmark
-
-benchmark_dir="${TPP_WORKSPACE:-benchmarks/workspace}/runs/sanity"
-mkdir -p "$benchmark_dir"
-timestamp="$(date +%Y%m%d-%H%M%S)"
-csv_output="$benchmark_dir/dev-${timestamp}.csv"
-summary_output="$benchmark_dir/dev-${timestamp}.md"
-
-echo
-echo "==> Non-convex benchmark smoke run"
-benchmark_command=(
-	.build/tools/bin/tpp-bnb-workload-benchmark
-	benchmarks/suites/algorithm-dev-v1.bin
-	-1 "$benchmark_instances" "$benchmark_max_calls" -1 1
-	"$csv_output" "$summary_output"
+tests=(
+	tpp-convex-intersection-tests
+	tpp-convex-directional-tests
+	tpp-convex-cycle-tests
+	tpp-convex-cycle-certificate-tests
+	tpp-unordered-tests
+	tpp-tspn-tests
 )
 
-if [[ -n "$threads" ]]; then
-	TPP_BENCH_THREADS="$threads" "${benchmark_command[@]}"
+run_step python3 benchmarks/tpp.py build "${tests[@]}" tpp-unordered
+for test in "${tests[@]}"; do
+	run_step ".build/tools/bin/$test"
+done
+run_step unordered_example
+if (( full )); then
+	run_step packages/convex-tpp/cpp/run_generated_tests.sh
 else
-	"${benchmark_command[@]}"
+	run_step packages/convex-tpp/cpp/run_generated_tests.sh --quick
 fi
+run_step python3 benchmarks/tpp.py generate-suites
+run_step benchmarks/.venv/bin/python -m unittest discover -b -s benchmarks/tests
 
 echo
-echo "Benchmark summary: $summary_output"
-sed -n '1,120p' "$summary_output"
+echo "Sanity check passed in $((SECONDS - started)) s."

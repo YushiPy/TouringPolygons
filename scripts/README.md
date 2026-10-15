@@ -7,7 +7,7 @@ atalhos `.sh` abaixo só preparam o Python do `tpp.py` e o chamam.
 | Script | O que faz |
 |---|---|
 | `install_dependencies.sh` | prepara as dependências do repositório, **sem sudo** (Homebrew no macOS; no Linux só lista os pacotes de sistema que faltam). `--solvers-only` pula Node, dashboard e Playwright |
-| `sanity_check.sh` | verifica ferramentas, dependências, geração de instâncias, compilação e testes básicos |
+| `sanity_check.sh` | verifica dependências, compila os solvers e roda os testes C++ e Python em cerca de um minuto (com o build pronto). `--full` acrescenta as suítes convexas de estresse, cerca de 25 minutos a mais. Não roda benchmarks |
 | `verify_unordered.sh` | compila e executa a verificação focada do solver de ordem livre |
 | `benchmark.sh` | atalho para `tpp.py tui`: monta (e imprime, copia ou executa) um comando de benchmark |
 | `run_comparison.sh` | atalho para `tpp.py free-compare`: prepara e executa/retoma a comparação de ordem livre com os 558 casos de Fekete |
