@@ -86,6 +86,11 @@ public:
             publications.fetch_add(1,std::memory_order_relaxed);
         }
     }
+    double best_upper() const { return upper.load(std::memory_order_relaxed); }
+    Polygon best_path() {
+        std::lock_guard lock(mutex);
+        return incumbent;
+    }
     bool receive(double local_upper,Polygon &path) {
         if(!sharing || !(upper.load(std::memory_order_relaxed)<local_upper)) return false;
         std::lock_guard lock(mutex);

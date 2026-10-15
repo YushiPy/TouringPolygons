@@ -12,6 +12,10 @@
 
 #include <algorithm>
 #include <atomic>
+#include <condition_variable>
+#include <filesystem>
+#include <fstream>
+#include <mutex>
 #include <random>
 #include <array>
 #include <bit>
@@ -203,6 +207,99 @@ namespace {
 			return std::tie(a.bound, a.serial) > std::tie(b.bound, b.serial);
 		}
 	};
+	using PackedSeed = std::pair<double, std::vector<uint8_t>>;
+}
+
+namespace tpp {
+	// Seeds and outputs shared by the threads that finish subtrees. A worker
+	// with an empty stack takes the best seed; a busy worker gives its
+	// shallowest open node when another one waits. A checkpoint stops new
+	// takes until every running worker has copied its stack at the top of its
+	// loop (nothing in hand), so the pool plus the copies hold every open node.
+	struct UnorderedSubtreeWork {
+		explicit UnorderedSubtreeWork(size_t count)
+			: active(count), local_bound(count), nodes(count), acked(count, 0), exited(count, 0),
+			  snapshots(count), leftovers(count), settled(count, std::numeric_limits<double>::infinity()) {
+			for (auto &bound : local_bound) bound.store(std::numeric_limits<double>::infinity(), std::memory_order_relaxed);
+		}
+		std::mutex mutex;
+		std::condition_variable changed;
+		std::vector<Node> pool; // a heap in Later order, sequences packed
+		size_t active, waiting = 0;
+		bool finished = false, checkpointing = false;
+		uint64_t epoch = 0;
+		std::atomic<uint64_t> epoch_signal{0};
+		std::atomic<double> pool_min{std::numeric_limits<double>::infinity()};
+		std::atomic<size_t> pool_size{0}, donations{0}, taken{0};
+		std::atomic<bool> hungry{false}, abort{false};
+		std::vector<std::atomic<double>> local_bound;
+		std::vector<std::atomic<size_t>> nodes;
+		std::vector<uint64_t> acked;
+		std::vector<char> exited;
+		std::vector<std::vector<PackedSeed>> snapshots;
+		std::vector<std::vector<Node>> leftovers;
+		std::vector<double> settled;
+		void refresh() {
+			pool_min.store(pool.empty() ? std::numeric_limits<double>::infinity() : pool.front().bound, std::memory_order_relaxed);
+			pool_size.store(pool.size(), std::memory_order_relaxed);
+			hungry.store(waiting > 0 && pool.empty(), std::memory_order_relaxed);
+		}
+		// Called with the worker's stack empty: a seed, or false once no work is
+		// left (pool empty and every running worker waiting) or on a stop.
+		bool acquire(size_t worker, Node &out, const std::function<bool()> &stop) {
+			std::unique_lock lock(mutex);
+			local_bound[worker].store(std::numeric_limits<double>::infinity(), std::memory_order_relaxed);
+			++waiting; refresh();
+			while (true) {
+				if (acked[worker] != epoch) { snapshots[worker].clear(); acked[worker] = epoch; changed.notify_all(); }
+				if (!checkpointing && !pool.empty()) {
+					std::pop_heap(pool.begin(), pool.end(), Later{});
+					out = std::move(pool.back()); pool.pop_back();
+					local_bound[worker].store(out.bound, std::memory_order_relaxed);
+					--waiting; taken.fetch_add(1, std::memory_order_relaxed); refresh();
+					return true;
+				}
+				if (pool.empty() && waiting == active) finished = true;
+				if (finished || abort.load(std::memory_order_relaxed) || stop()) {
+					--waiting; refresh(); changed.notify_all();
+					return false;
+				}
+				changed.wait_for(lock, std::chrono::milliseconds(20));
+			}
+		}
+		void donate(Node node) {
+			std::lock_guard lock(mutex);
+			pool.push_back(std::move(node)); std::push_heap(pool.begin(), pool.end(), Later{});
+			donations.fetch_add(1, std::memory_order_relaxed); refresh(); changed.notify_all();
+		}
+		void acknowledge(size_t worker, std::vector<PackedSeed> stack) {
+			std::lock_guard lock(mutex);
+			if (acked[worker] == epoch) return;
+			snapshots[worker] = std::move(stack); acked[worker] = epoch; changed.notify_all();
+		}
+		// A worker's open nodes and pruned bounds when it returns (once).
+		void leave(size_t worker, std::vector<Node> open, double settled_bound) {
+			std::lock_guard lock(mutex);
+			if (exited[worker]) return;
+			exited[worker] = 1; leftovers[worker] = std::move(open); settled[worker] = settled_bound;
+			local_bound[worker].store(std::numeric_limits<double>::infinity(), std::memory_order_relaxed);
+			--active; refresh(); changed.notify_all();
+		}
+		double lower_bound() const {
+			double bound = pool_min.load(std::memory_order_relaxed);
+			for (const auto &local : local_bound) bound = std::min(bound, local.load(std::memory_order_relaxed));
+			return bound;
+		}
+		size_t node_count() const {
+			size_t total = 0;
+			for (const auto &count : nodes) total += count.load(std::memory_order_relaxed);
+			return total;
+		}
+	};
+}
+
+namespace {
+	using tpp::UnorderedSubtreeWork;
 
     // One frontier abstraction for both policies. The DFS stack has a separate
     // ordered bound index: its next node need not give the global lower bound.
@@ -218,6 +315,10 @@ namespace {
         // The node in hand belongs to a subtree being finished depth first:
         // its children go to the stack.
         bool deep = false;
+        // A subtree thread: every node comes from its stack, refilled from the
+        // shared pool; the queue is never used.
+        UnorderedSubtreeWork *work = nullptr;
+        size_t worker = 0;
         tpp::UnorderedSequenceStorage storage;
         size_t index_bytes;
         // Must outlive every queued sequence reference (reverse member order).
@@ -294,12 +395,56 @@ namespace {
         // True while the best-bound search finishes a subtree depth first.
         bool finishing() const { return !dfs&&deep; }
         // A node taken from outside the frontier (a dive) is not in a subtree.
-        void leave_subtree() { if(!dfs)deep=false; }
+        void leave_subtree() { if(!dfs&&!work)deep=false; }
+        bool overflowing() const { return over_budget(); }
+        void attach(UnorderedSubtreeWork *shared,size_t index) { work=shared;worker=index;deep=true;budget=0; }
+        // A subtree thread with an empty stack takes the next seed; false once
+        // no work is left anywhere (or on a stop).
+        bool refill(const std::function<bool()> &stop) {
+            if(!work||!stack.empty())return true;
+            Node seed;
+            if(!work->acquire(worker,seed,stop))return false;
+            push(std::move(seed));
+            return true;
+        }
+        // At the top of a subtree thread's loop (nothing in hand): publish the
+        // smallest open bound, give the shallowest node to a waiting thread,
+        // and copy the stack for a pending checkpoint.
+        void share(uint64_t &seen) {
+            if(!work)return;
+            if(stack.size()>1&&work->hungry.load(std::memory_order_relaxed)) {
+                Node node=std::move(stack.front());stack.pop_front();
+                bounds.erase({node.bound,node.serial});
+                sequence_bytes-=node.sequence.payload_bytes();payload_bytes-=payload(node);
+                work->donate(std::move(node));
+            }
+            work->local_bound[worker].store(bounds.empty()?std::numeric_limits<double>::infinity():bounds.begin()->first,
+                std::memory_order_relaxed);
+            const auto epoch=work->epoch_signal.load(std::memory_order_acquire);
+            if(epoch!=seen) {
+                std::vector<PackedSeed> copy;copy.reserve(stack.size());
+                for(const auto &node:stack)copy.emplace_back(node.bound,*node.sequence.packed_bytes());
+                work->acknowledge(worker,std::move(copy));seen=epoch;
+            }
+        }
+        // Every open node, removed, with self-contained packed sequences.
+        std::vector<Node> release() {
+            std::vector<Node> open;open.reserve(heap.size()+stack.size());
+            for(auto *nodes:{&heap,&stack})for(auto &node:*nodes) {
+                node.sequence.restore(index_bytes);node.sequence.make_packed(index_bytes);
+                open.push_back(std::move(node));
+            }
+            heap.clear();stack.clear();bounds.clear();heap.shrink_to_fit();
+            sequence_bytes=payload_bytes=0;deep=false;
+            return open;
+        }
         void note_dive(size_t bytes) { dive_bytes=bytes;note_storage(); }
         double lower_bound() const {
             double bound=discarded;
             if(!heap.empty())bound=std::min(bound,heap.front().bound);
             if(!bounds.empty())bound=std::min(bound,bounds.begin()->first);
+            // A subtree thread may still take any pool seed.
+            if(work)bound=std::min(bound,work->pool_min.load(std::memory_order_relaxed));
             return bound;
         }
         double discarded_bound() const { return discarded; }
@@ -325,11 +470,11 @@ namespace {
         // subtree finished depth first: until the stack empties, every node
         // comes from it and every child goes to it.
         Node take() {
-            if(!dfs) {
+            if(!dfs&&!work) {
                 const bool seed=stack.empty()&&complete&&over_budget();
                 deep=!stack.empty()||seed;
                 completions+=seed;completion_nodes+=deep;
-            }
+            } else if(work)++completion_nodes;
             const bool from_stack=!stack.empty();
             auto &nodes=from_stack?stack:heap;
             if(from_stack)bounds.erase({stack.back().bound,stack.back().serial});
@@ -360,6 +505,78 @@ namespace {
             if(dfs||deep) std::sort(stack.begin()+std::min(first_child,stack.size()),stack.end(),descending);
         }
     };
+
+    // Identifies the normalized instance a checkpoint was written for.
+    uint64_t instance_fingerprint(const Vector2 &start,const Vector2 &target,const std::vector<Polygon> &input,bool cycle) {
+        uint64_t hash=1469598103934665603ULL;
+        auto mix=[&](uint64_t value){for(int i=0;i<8;++i){hash^=(value>>(8*i))&0xff;hash*=1099511628211ULL;}};
+        auto real=[&](double value){mix(std::bit_cast<uint64_t>(value));};
+        mix(cycle);real(start.x);real(start.y);real(target.x);real(target.y);mix(input.size());
+        for(const auto &polygon:input){mix(polygon.size());for(auto v:polygon){real(v.x);real(v.y);}}
+        return hash;
+    }
+    // Open subtrees (bound and packed sequence) and the incumbent, all in the
+    // search's normalized coordinates, plus the work already done.
+    struct Checkpoint {
+        uint64_t fingerprint=0;
+        uint32_t regions=0;
+        uint8_t cycle=0,index_bytes=0;
+        double seconds=0;
+        uint64_t nodes=0;
+        Polygon path;
+        std::vector<PackedSeed> seeds;
+    };
+    constexpr char checkpoint_magic[8]={'T','P','P','C','K','P','T','1'};
+    void write_checkpoint(const std::string &file,const Checkpoint &checkpoint) {
+        const std::string temporary=file+".tmp";
+        {
+            std::ofstream out(temporary,std::ios::binary|std::ios::trunc);
+            if(!out)throw std::runtime_error("Cannot write the checkpoint "+temporary);
+            auto put=[&](const auto &value){out.write(reinterpret_cast<const char *>(&value),sizeof(value));};
+            out.write(checkpoint_magic,sizeof(checkpoint_magic));
+            put(checkpoint.fingerprint);put(checkpoint.regions);put(checkpoint.cycle);put(checkpoint.index_bytes);
+            put(checkpoint.seconds);put(checkpoint.nodes);
+            put(uint64_t(checkpoint.path.size()));
+            for(auto v:checkpoint.path){put(v.x);put(v.y);}
+            put(uint64_t(checkpoint.seeds.size()));
+            for(const auto &[bound,bytes]:checkpoint.seeds) {
+                put(bound);put(uint32_t(bytes.size()));
+                out.write(reinterpret_cast<const char *>(bytes.data()),std::streamsize(bytes.size()));
+            }
+            out.flush();
+            if(!out)throw std::runtime_error("Writing the checkpoint "+temporary+" failed.");
+        }
+        std::filesystem::rename(temporary,file);
+    }
+    std::optional<Checkpoint> read_checkpoint(const std::string &file) {
+        std::ifstream in(file,std::ios::binary);
+        if(!in)return std::nullopt;
+        Checkpoint checkpoint;
+        auto get=[&](auto &value) {
+            in.read(reinterpret_cast<char *>(&value),sizeof(value));
+            if(!in)throw std::runtime_error("Truncated checkpoint "+file);
+        };
+        char magic[sizeof(checkpoint_magic)];
+        in.read(magic,sizeof(magic));
+        if(!in||!std::equal(magic,magic+sizeof(magic),checkpoint_magic))throw std::runtime_error("Not a TPP checkpoint: "+file);
+        get(checkpoint.fingerprint);get(checkpoint.regions);get(checkpoint.cycle);get(checkpoint.index_bytes);
+        get(checkpoint.seconds);get(checkpoint.nodes);
+        uint64_t points=0;get(points);
+        if(points>(uint64_t(1)<<24))throw std::runtime_error("Corrupt checkpoint path in "+file);
+        checkpoint.path.resize(points);
+        for(auto &v:checkpoint.path){get(v.x);get(v.y);}
+        uint64_t count=0;get(count);
+        if(count>(uint64_t(1)<<34))throw std::runtime_error("Corrupt checkpoint seed count in "+file);
+        checkpoint.seeds.resize(count);
+        for(auto &[bound,bytes]:checkpoint.seeds) {
+            uint32_t size=0;get(bound);get(size);
+            if(size>(uint32_t(1)<<24)||!std::isfinite(bound))throw std::runtime_error("Corrupt checkpoint seed in "+file);
+            bytes.resize(size);
+            in.read(reinterpret_cast<char *>(bytes.data()),std::streamsize(size));
+            if(!in)throw std::runtime_error("Truncated checkpoint "+file);
+        }
+        return checkpoint;
+    }
 
     std::vector<Element> separated_cycle_root(const std::vector<Polygon> &polygons) {
         const size_t n=polygons.size();
@@ -399,6 +616,137 @@ namespace {
 }
 
 namespace tpp {
+	// Counters of one search added to another's (portfolio workers, subtree
+	// threads): sums, and the extremes where a sum has no meaning.
+	static void accumulate_counters(UnorderedTppSolveResult &into, const UnorderedTppSolveResult &from) {
+		into.calls+=from.calls;into.nodes+=from.nodes;into.parallel_oracle_calls+=from.parallel_oracle_calls;
+		into.parallel_oracle_batches+=from.parallel_oracle_batches;into.relaxation_calls+=from.relaxation_calls;
+		into.refinement_calls+=from.refinement_calls;into.complete_order_oracle_calls+=from.complete_order_oracle_calls;
+		into.complete_piece_oracle_calls+=from.complete_piece_oracle_calls;
+		into.oracle_cutoff_calls+=from.oracle_cutoff_calls;into.oracle_dual_cutoff_prunes+=from.oracle_dual_cutoff_prunes;
+		into.oracle_dispatch_pair_queries+=from.oracle_dispatch_pair_queries;
+		into.oracle_dispatch_pair_cache_hits+=from.oracle_dispatch_pair_cache_hits;
+		into.oracle_dispatch_pair_exact_checks+=from.oracle_dispatch_pair_exact_checks;
+		into.screened_nodes+=from.screened_nodes;into.one_tree_calls+=from.one_tree_calls;
+		into.one_tree_cache_hits+=from.one_tree_cache_hits;into.one_tree_iterations+=from.one_tree_iterations;
+		into.one_tree_distance_queries+=from.one_tree_distance_queries;
+		into.one_tree_improvements+=from.one_tree_improvements;into.one_tree_seconds+=from.one_tree_seconds;
+		into.learned_branch_observations+=from.learned_branch_observations;
+		into.learned_branch_decisions+=from.learned_branch_decisions;
+		into.learned_branch_changes+=from.learned_branch_changes;into.cycle_memo_queries+=from.cycle_memo_queries;
+		into.cycle_certificate_interval_uses+=from.cycle_certificate_interval_uses;
+		into.cycle_proposal_calls+=from.cycle_proposal_calls;into.cycle_proposal_accepts+=from.cycle_proposal_accepts;
+		into.cycle_primal_start_candidates+=from.cycle_primal_start_candidates;
+		into.cycle_primal_start_improvements+=from.cycle_primal_start_improvements;
+		into.cycle_dual_screen_children+=from.cycle_dual_screen_children;
+		into.cycle_dual_screen_prunes+=from.cycle_dual_screen_prunes;
+		into.cycle_dual_screen_seconds+=from.cycle_dual_screen_seconds;
+		into.cycle_shared_bound_queries+=from.cycle_shared_bound_queries;
+		into.cycle_shared_bound_hits+=from.cycle_shared_bound_hits;
+		into.cycle_shared_bound_improvements+=from.cycle_shared_bound_improvements;
+		into.cycle_shared_bound_prunes+=from.cycle_shared_bound_prunes;
+		into.cycle_shared_bound_seconds+=from.cycle_shared_bound_seconds;into.cycle_memo_repeated+=from.cycle_memo_repeated;
+		into.cycle_memo_hits+=from.cycle_memo_hits;into.cycle_certificate_cutoff_skips+=from.cycle_certificate_cutoff_skips;
+		into.cycle_initial_contact_checks+=from.cycle_initial_contact_checks;
+		into.cycle_initial_contact_accepts+=from.cycle_initial_contact_accepts;
+		into.sibling_bound_prunes+=from.sibling_bound_prunes;into.path_dual_retained+=from.path_dual_retained;
+		into.path_dual_cache_hits+=from.path_dual_cache_hits;into.path_dual_cache_evictions+=from.path_dual_cache_evictions;
+		into.path_dual_peak_bytes+=from.path_dual_peak_bytes;into.path_dual_screen_children+=from.path_dual_screen_children;
+		into.path_dual_screen_prunes+=from.path_dual_screen_prunes;
+		into.path_dual_screen_seconds+=from.path_dual_screen_seconds;
+		into.partial_states_created+=from.partial_states_created;into.children_generated+=from.children_generated;
+		into.children_queued+=from.children_queued;into.pruned_nodes+=from.pruned_nodes;
+		into.pruned_states+=from.pruned_states;into.bound_prunes+=from.bound_prunes;
+		into.incumbent_prunes+=from.incumbent_prunes;
+		into.insertion_positions_considered+=from.insertion_positions_considered;
+		into.insertion_positions_pruned+=from.insertion_positions_pruned;into.branch_events+=from.branch_events;
+		into.total_branching+=from.total_branching;into.peak_sequence_storage_bytes+=from.peak_sequence_storage_bytes;
+		into.peak_frontier_node_bytes+=from.peak_frontier_node_bytes;into.peak_frontier_bytes+=from.peak_frontier_bytes;
+		into.frontier_trims+=from.frontier_trims;into.frontier_discarded_nodes+=from.frontier_discarded_nodes;
+		into.frontier_strips+=from.frontier_strips;into.frontier_stripped_nodes+=from.frontier_stripped_nodes;
+		into.frontier_completions+=from.frontier_completions;into.frontier_completion_nodes+=from.frontier_completion_nodes;
+		into.peak_sequence_records+=from.peak_sequence_records;into.sequence_reconstructions+=from.sequence_reconstructions;
+		into.sequence_depth_sum+=from.sequence_depth_sum;into.sequence_depth_samples+=from.sequence_depth_samples;
+		into.incumbent_updates+=from.incumbent_updates;into.best_updates+=from.best_updates;
+		into.decomposed_polygons+=from.decomposed_polygons;into.convex_pieces_generated+=from.convex_pieces_generated;
+		into.fallback_calls+=from.fallback_calls;into.oracle_unverified_fallbacks+=from.oracle_unverified_fallbacks;
+		into.oracle_interval_bound_calls+=from.oracle_interval_bound_calls;into.oracle_float_calls+=from.oracle_float_calls;
+		into.oracle_float_fallbacks+=from.oracle_float_fallbacks;into.oracle_rational_calls+=from.oracle_rational_calls;
+		into.oracle_trusted_calls+=from.oracle_trusted_calls;into.oracle_exact_replay_calls+=from.oracle_exact_replay_calls;
+		into.oracle_filtered_calls+=from.oracle_filtered_calls;into.oracle_touching_calls+=from.oracle_touching_calls;
+		into.rational_membership_predicates+=from.rational_membership_predicates;
+		into.exact_polygon_preparations+=from.exact_polygon_preparations;
+		into.oracle_contracted_bound_calls+=from.oracle_contracted_bound_calls;
+		into.fallback_geometric_path_invalid_calls+=from.fallback_geometric_path_invalid_calls;
+		into.fallback_certificate_gap_calls+=from.fallback_certificate_gap_calls;
+		into.fallback_locator_exception_calls+=from.fallback_locator_exception_calls;
+		into.fallback_nonfinite_calls+=from.fallback_nonfinite_calls;
+		into.fallback_contact_construction_calls+=from.fallback_contact_construction_calls;
+		into.fallback_membership_ordering_calls+=from.fallback_membership_ordering_calls;
+		into.fallback_local_optimality_calls+=from.fallback_local_optimality_calls;
+		into.fallback_coincident_contact_calls+=from.fallback_coincident_contact_calls;
+		into.predicate_exact_evaluations+=from.predicate_exact_evaluations;
+		into.extended_precision_calls+=from.extended_precision_calls;
+		into.oracle_time_limit_calls+=from.oracle_time_limit_calls;
+		into.repaired_geometric_path_calls+=from.repaired_geometric_path_calls;
+		into.insertion_branches+=from.insertion_branches;into.decomposition_branches+=from.decomposition_branches;
+		into.preprocessing_seconds+=from.preprocessing_seconds;
+		into.initial_heuristic_seconds+=from.initial_heuristic_seconds;
+		into.initial_relocation_seconds+=from.initial_relocation_seconds;
+		into.initial_relocation_moves+=from.initial_relocation_moves;into.visit_bound_skips+=from.visit_bound_skips;
+		into.lookahead_candidates+=from.lookahead_candidates;into.lookahead_prunes+=from.lookahead_prunes;
+		into.lookahead_changes+=from.lookahead_changes;into.lookahead_seconds+=from.lookahead_seconds;
+		into.insertion_bound_calls+=from.insertion_bound_calls;into.insertion_bound_seconds+=from.insertion_bound_seconds;
+		into.multi_insertion_calls+=from.multi_insertion_calls;
+		into.multi_insertion_improvements+=from.multi_insertion_improvements;
+		into.multi_insertion_prunes+=from.multi_insertion_prunes;into.multi_insertion_seconds+=from.multi_insertion_seconds;
+		into.multi_insertion_gain+=from.multi_insertion_gain;into.window_lns_rounds+=from.window_lns_rounds;
+		into.window_lns_subproblems+=from.window_lns_subproblems;into.window_lns_improvements+=from.window_lns_improvements;
+		into.window_lns_calls+=from.window_lns_calls;into.window_lns_seconds+=from.window_lns_seconds;
+		into.window_lns_gain+=from.window_lns_gain;into.initial_sampled_extra_points+=from.initial_sampled_extra_points;
+		into.initial_sampling_work_budget+=from.initial_sampling_work_budget;
+		into.initial_convex_refinement_calls+=from.initial_convex_refinement_calls;
+		into.initial_convex_refinement_seconds+=from.initial_convex_refinement_seconds;
+		into.search_seconds+=from.search_seconds;into.finalization_seconds+=from.finalization_seconds;
+		into.convex_oracle_seconds+=from.convex_oracle_seconds;into.convex_dispatch_seconds+=from.convex_dispatch_seconds;
+		into.convex_bound_evaluation_seconds+=from.convex_bound_evaluation_seconds;
+		into.convex_proposal_preparation_seconds+=from.convex_proposal_preparation_seconds;
+		into.oracle_profiled_calls+=from.oracle_profiled_calls;
+		into.cycle_construction_seconds+=from.cycle_construction_seconds;
+		into.cycle_certification_seconds+=from.cycle_certification_seconds;
+		into.cycle_rational_recovery_seconds+=from.cycle_rational_recovery_seconds;
+		into.cycle_interval_proof_seconds+=from.cycle_interval_proof_seconds;
+		into.cycle_polish_seconds+=from.cycle_polish_seconds;into.cycle_polish_calls+=from.cycle_polish_calls;
+		into.cycle_polish_newton_iterations+=from.cycle_polish_newton_iterations;
+		into.oracle_fallback_call_seconds+=from.oracle_fallback_call_seconds;
+		into.convex_oracle_wall_seconds+=from.convex_oracle_wall_seconds;
+		into.convex_geometric_solver_seconds+=from.convex_geometric_solver_seconds;
+		into.convex_certificate_verification_seconds+=from.convex_certificate_verification_seconds;
+		into.convex_contact_materialization_seconds+=from.convex_contact_materialization_seconds;
+		into.convex_fallback_seconds+=from.convex_fallback_seconds;
+		into.convex_fallback_long_double_seconds+=from.convex_fallback_long_double_seconds;
+		into.convex_fallback_extended_precision_seconds+=from.convex_fallback_extended_precision_seconds;
+		into.decomposition_seconds+=from.decomposition_seconds;into.visit_check_seconds+=from.visit_check_seconds;
+		into.visit_query_evaluations+=from.visit_query_evaluations;into.visit_query_cache_hits+=from.visit_query_cache_hits;
+		into.segment_visit_queries+=from.segment_visit_queries;into.segment_visit_hits+=from.segment_visit_hits;
+		into.heuristic_visit_check_seconds+=from.heuristic_visit_check_seconds;
+		into.search_visit_check_seconds+=from.search_visit_check_seconds;
+		into.finalization_visit_check_seconds+=from.finalization_visit_check_seconds;
+		into.search_maintenance_seconds+=from.search_maintenance_seconds;
+		into.portfolio_incumbent_imports+=from.portfolio_incumbent_imports;
+		into.peak_completion_stack=std::max(into.peak_completion_stack,from.peak_completion_stack);
+		into.frontier_discarded_bound=std::min(into.frontier_discarded_bound,from.frontier_discarded_bound);
+		into.oracle_max_call_seconds=std::max(into.oracle_max_call_seconds,from.oracle_max_call_seconds);
+		for(size_t i=0;i<into.oracle_call_histogram.size();++i) {
+			into.oracle_call_histogram[i]+=from.oracle_call_histogram[i];
+			into.oracle_seconds_histogram[i]+=from.oracle_seconds_histogram[i];
+		}
+		into.max_observed_branching=std::max(into.max_observed_branching,from.max_observed_branching);
+		into.max_sequence_depth=std::max(into.max_sequence_depth,from.max_sequence_depth);
+		into.convex_pieces_max=std::max(into.convex_pieces_max,from.convex_pieces_max);
+		into.convex_pieces_min=std::min(into.convex_pieces_min,from.convex_pieces_min);
+		into.peak_queue+=from.peak_queue; // Conservative combined peak.
+	}
     // Adapter only: both topologies use the same search below. No second B&B.
 	RelaxationResult solve_relaxation(bool cycle, const Vector2 &start,
 		const Vector2 &target, const std::vector<Polygon> &regions,
@@ -553,6 +901,17 @@ namespace tpp {
 			|| !std::isfinite(options.feasibility_tolerance) || options.feasibility_tolerance <= 0
 			|| options.threads == 0 || options.threads > static_cast<size_t>(std::numeric_limits<int>::max()))
 			throw std::invalid_argument("Invalid endpoints or unordered TPP options.");
+		// A worker of the subtree threads, or the search that hands its
+		// frontier to them (or resumes them from a checkpoint).
+		const bool subtree_worker = options.subtree_work != nullptr;
+		const bool subtree_parallel = !subtree_worker && (options.subtree_threads > 1 || !options.checkpoint_file.empty());
+		if (options.subtree_threads == 0 || !(options.checkpoint_interval_seconds > 0)
+			|| (subtree_parallel && (options.search_strategy != UnorderedSearchStrategy::BestBoundDive || options.threads != 1
+				|| control || options.trace)))
+			throw std::invalid_argument("Subtree threads and checkpoints need the single-thread best-bound search, "
+				"without portfolio or trace, and a positive checkpoint interval.");
+		if (subtree_worker && options.sequence_storage != UnorderedSequenceStorage::Packed)
+			throw std::logic_error("Subtree threads keep packed sequences.");
 		std::vector<Polygon> polygons = input, hulls;
 		double normalization_error = 0;
 		for (auto &p : polygons) {
@@ -1710,6 +2069,7 @@ namespace tpp {
 		const bool dfs=options.search_strategy==UnorderedSearchStrategy::DfsBfs;
         Frontier queue(dfs,options.sequence_storage,index_bytes,n,options.max_frontier_bytes,
             options.frontier_overflow==UnorderedFrontierOverflow::Complete);
+        if(subtree_worker)queue.attach(options.subtree_work.get(),options.subtree_worker);
 		// Rooting the sequence at region 0 removes rotation, without fixing a
 		// geometric point. A single-region cycle has lower bound zero.
 		std::vector<Element> root_sequence;
@@ -1719,7 +2079,7 @@ namespace tpp {
         result.initial_lower_bound=result.lower_bound;
         if(std::isfinite(result.initial_upper_bound))result.initial_gap_percent=100*(result.initial_upper_bound-result.initial_lower_bound)
             /std::max(std::abs(result.initial_upper_bound),1e-30);
-        queue.push(std::move(root));
+        if(!subtree_worker)queue.push(std::move(root));
 		result.partial_states_created = 1;
 		if (options.trace) trace_event({
 			.kind = "root",
@@ -1729,6 +2089,34 @@ namespace tpp {
 			.upper_bound = result.upper_bound,
 		});
 		size_t serial = 1;
+		// Open nodes for the subtree threads: the frontier when it fills its
+		// budget, or the seeds of a checkpoint (the search then resumes there).
+		std::vector<Node> handed;
+		bool hand_off = false;
+		double subtree_floor = std::numeric_limits<double>::infinity();
+		const uint64_t fingerprint = subtree_parallel ? instance_fingerprint(start, target, input, cycle) : 0;
+		if (subtree_parallel && !options.checkpoint_file.empty()) {
+			if (auto loaded = read_checkpoint(options.checkpoint_file)) {
+				if (loaded->fingerprint != fingerprint || loaded->regions != n || loaded->cycle != uint8_t(cycle)
+					|| loaded->index_bytes != index_bytes)
+					throw std::invalid_argument("Checkpoint " + options.checkpoint_file + " belongs to another instance or build.");
+				if (!loaded->path.empty()) improve(loaded->path, "checkpoint");
+				for (auto &[bound, bytes] : loaded->seeds) {
+					auto sequence = NodeSequence::from_packed(std::move(bytes));
+					sequence.restore(index_bytes);
+					for (auto e : sequence) if (e.polygon >= n) throw std::runtime_error("Corrupt checkpoint sequence.");
+					sequence.make_packed(index_bytes);
+					handed.push_back(Node{std::move(sequence), {}, bound, serial++});
+				}
+				queue.release();
+				result.checkpoint_resumed = true;
+				result.checkpoint_prior_nodes = loaded->nodes;
+				result.checkpoint_prior_seconds = loaded->seconds;
+				hand_off = true;
+			}
+		}
+		uint64_t seen_epoch = 0;
+		const std::function<bool()> refill_stop = [&] { return limited(); };
 		// Active dive chains: at most one per node expanded in a round (one in
 		// the serial search). Each continues from the best child of its node.
 		std::vector<Node> dives;
@@ -1776,7 +2164,7 @@ namespace tpp {
 		// Scratch of the farthest-region scan, reused by every expansion.
 		std::vector<std::pair<double,size_t>> scan;
 		std::vector<double> scan_uppers;
-		while (!queue.empty() || !dives.empty()) {
+		while (!hand_off && (!subtree_worker || queue.refill(refill_stop)) && (!queue.empty() || !dives.empty())) {
             import_incumbent();
 			// Resume the LNS after a new incumbent, or in bursts once half of its
 			// proportional budget is available, so subproblems are not starved.
@@ -1788,6 +2176,12 @@ namespace tpp {
 			result.lower_bound = std::min(result.upper_bound, frontier_bound());
 			report_progress();
 			if (result.upper_bound - result.lower_bound <= gap() || limited()) break;
+			// Past the budget, the frontier goes to the subtree threads.
+			if (subtree_parallel && queue.overflowing() && !queue.finishing() && dives.empty()) { hand_off = true; break; }
+			if (subtree_worker) {
+				queue.share(seen_epoch);
+				options.subtree_work->nodes[options.subtree_worker].store(result.nodes, std::memory_order_relaxed);
+			}
 			// When every open node is at least the floor of the discarded ones,
 			// the global bound is that floor and no expansion can raise it.
 			if (!dfs && std::isfinite(queue.discarded_bound()) && frontier_bound() >= queue.discarded_bound()) {
@@ -1809,6 +2203,11 @@ namespace tpp {
 			// A subtree being finished is already depth first; no dive leaves it.
 			diving = diving && !queue.finishing();
             const auto sequence_parent = node.sequence.restore(index_bytes);
+            // A seed may name pieces this thread has not decomposed yet.
+            if (subtree_worker) for (auto e : node.sequence) if (e.piece != none) {
+                prepare_pieces(e.polygon);
+                if (e.piece >= pieces[e.polygon].size()) throw std::runtime_error("Seed names an unknown convex piece.");
+            }
 			++result.nodes;
 			result.sequence_depth_sum += node.sequence.size();
 			++result.sequence_depth_samples;
@@ -2343,6 +2742,136 @@ namespace tpp {
             if (stop_search) break;
 		}
         queue.report(result);
+        if (subtree_worker) options.subtree_work->leave(options.subtree_worker, queue.release(), settled_bound);
+		if (hand_off) {
+#ifdef __EMSCRIPTEN__
+			throw std::invalid_argument("Subtree threads require a native threaded build.");
+#else
+			const auto subtrees_began = std::chrono::steady_clock::now();
+			if (!result.checkpoint_resumed) handed = queue.release();
+			const size_t threads = options.subtree_threads;
+			auto work = std::make_shared<UnorderedSubtreeWork>(threads);
+			work->pool = std::move(handed);
+			std::make_heap(work->pool.begin(), work->pool.end(), Later{});
+			{ std::lock_guard lock(work->mutex); work->refresh(); }
+			result.subtree_threads = threads;
+			result.subtree_seeds = work->pool.size();
+			PortfolioControl shared(options.max_calls > result.calls ? options.max_calls - result.calls : 0,
+				std::max(0.0, options.max_seconds - elapsed()), true);
+			shared.publish(result.path, result.upper_bound);
+			auto local = options;
+			local.subtree_work = work; local.subtree_threads = 1; local.checkpoint_file.clear();
+			local.progress = nullptr; local.trace = false; local.portfolio = false; local.window_lns = false;
+			local.primal_ils_fraction = 0; local.sequence_storage = UnorderedSequenceStorage::Packed;
+			local.max_frontier_bytes = 0; local.initial_path = result.path;
+			local.max_calls = shared.max_calls; local.max_seconds = shared.max_seconds;
+			local.stop_requested = [user = options.stop_requested, shared_work = work.get()] {
+				return shared_work->abort.load(std::memory_order_relaxed) || (user && user());
+			};
+			std::vector<UnorderedTppSolveResult> runs(threads);
+			std::vector<std::exception_ptr> errors(threads);
+			// Copies every open node: the pool, and each running thread's stack
+			// once it has acknowledged (new takes wait meanwhile), or the nodes
+			// of a thread that has returned. Gives up on a thread busy for 60 s.
+			auto checkpoint = [&](bool final) {
+				Checkpoint saved;
+				saved.fingerprint = fingerprint; saved.regions = uint32_t(n); saved.cycle = uint8_t(cycle);
+				saved.index_bytes = uint8_t(index_bytes);
+				{
+					std::unique_lock lock(work->mutex);
+					auto ready = [&] {
+						for (size_t w = 0; w < threads; ++w) if (!work->exited[w] && work->acked[w] != work->epoch) return false;
+						return true;
+					};
+					if (!final) {
+						work->checkpointing = true; ++work->epoch;
+						work->epoch_signal.store(work->epoch, std::memory_order_release);
+						work->changed.notify_all();
+						const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+						while (!ready()) {
+							if (work->changed.wait_until(lock, deadline) == std::cv_status::timeout && !ready()) {
+								work->checkpointing = false; work->changed.notify_all();
+								return;
+							}
+						}
+					}
+					for (const auto &node : work->pool) saved.seeds.emplace_back(node.bound, *node.sequence.packed_bytes());
+					for (size_t w = 0; w < threads; ++w) {
+						if (work->exited[w]) for (const auto &node : work->leftovers[w]) saved.seeds.emplace_back(node.bound, *node.sequence.packed_bytes());
+						else for (const auto &seed : work->snapshots[w]) saved.seeds.push_back(seed);
+					}
+					work->checkpointing = false; work->changed.notify_all();
+				}
+				saved.path = shared.best_path();
+				// After the threads return, their nodes are already in the result.
+				saved.nodes = result.checkpoint_prior_nodes + result.nodes + (final ? 0 : work->node_count());
+				saved.seconds = result.checkpoint_prior_seconds + elapsed();
+				write_checkpoint(options.checkpoint_file, saved);
+				++result.checkpoint_writes;
+			};
+			{
+				std::vector<std::jthread> pool_threads;
+				pool_threads.reserve(threads);
+				for (size_t w = 0; w < threads; ++w) pool_threads.emplace_back([&, w] {
+					auto mine = local; mine.subtree_worker = w;
+					try { runs[w] = solve_normalized_unordered_tpp(start, target, input, mine, cycle, &shared); }
+					catch (...) { errors[w] = std::current_exception(); work->abort.store(true, std::memory_order_relaxed); }
+					// A no-op after a normal return; a thread that never took a seed leaves nothing open.
+					work->leave(w, {}, std::numeric_limits<double>::infinity());
+				});
+				const bool reporting = options.progress && options.progress_interval_seconds > 0;
+				double next_progress = reporting ? elapsed() : std::numeric_limits<double>::infinity();
+				double next_checkpoint = options.checkpoint_file.empty() ? std::numeric_limits<double>::infinity()
+					: elapsed() + options.checkpoint_interval_seconds;
+				while (true) {
+					{
+						std::unique_lock lock(work->mutex);
+						work->changed.wait_for(lock, std::chrono::milliseconds(200), [&] { return work->active == 0; });
+						if (work->active == 0) break;
+					}
+					const double now = elapsed();
+					if (now >= next_progress) {
+						next_progress = now + options.progress_interval_seconds;
+						const double upper = std::min(result.upper_bound, shared.best_upper());
+						options.progress({
+							.worker = options.progress_worker,
+							.elapsed_seconds = now,
+							.lower_bound = std::min({upper, work->lower_bound(), settled_bound}),
+							.upper_bound = upper,
+							.calls = result.calls + shared.calls.load(std::memory_order_relaxed),
+							.nodes = result.nodes + work->node_count(),
+							.open_nodes = work->pool_size.load(std::memory_order_relaxed),
+							.peak_open_nodes = result.peak_queue,
+							.pruned_nodes = result.pruned_nodes,
+							.max_sequence_depth = result.max_sequence_depth,
+							.region_count = n,
+						});
+					}
+					if (now >= next_checkpoint) {
+						checkpoint(false);
+						next_checkpoint = elapsed() + options.checkpoint_interval_seconds;
+					}
+				}
+			}
+			for (const auto &error : errors) if (error) std::rethrow_exception(error);
+			for (const auto &run : runs) {
+				if (!run.path.empty() && std::isfinite(run.upper_bound)) improve(run.path, "subtree");
+				accumulate_counters(result, run);
+			}
+			for (double bound : work->settled) settled_bound = std::min(settled_bound, bound);
+			for (const auto &node : work->pool) subtree_floor = std::min(subtree_floor, node.bound);
+			for (const auto &open : work->leftovers) for (const auto &node : open) subtree_floor = std::min(subtree_floor, node.bound);
+			result.subtree_donations = work->donations.load(std::memory_order_relaxed);
+			result.frontier_completions += work->taken.load(std::memory_order_relaxed);
+			result.subtree_seconds = duration(subtrees_began);
+			if (!options.checkpoint_file.empty()) {
+				// A closed gap leaves nothing to resume.
+				if (result.upper_bound - std::min({result.upper_bound, settled_bound, subtree_floor}) <= gap())
+					std::filesystem::remove(options.checkpoint_file);
+				else checkpoint(true);
+			}
+#endif
+		}
         result.segment_visit_queries=segment_cache.queries;result.segment_visit_hits=segment_cache.hits;
 		result.search_seconds = duration(search_began);
 		result.search_maintenance_seconds = std::max(0.0, result.search_seconds - result.convex_oracle_wall_seconds
@@ -2350,7 +2879,7 @@ namespace tpp {
 		import_incumbent();
 		phase = Phase::Finalization;
 		const auto finalization_began = std::chrono::steady_clock::now();
-		result.lower_bound = std::min({result.upper_bound, settled_bound, frontier_bound()});
+		result.lower_bound = std::min({result.upper_bound, settled_bound, frontier_bound(), subtree_floor});
 		result.lower_bound = std::max(tpp_convex_distance_lower(start, target), result.lower_bound - normalization_error);
 		result.final_absolute_gap = std::max(0.0, result.upper_bound - result.lower_bound);
 		result.final_relative_gap = result.final_absolute_gap / std::max(std::abs(result.upper_bound), 1e-30);
@@ -2630,183 +3159,7 @@ namespace tpp {
 			: options.stop_requested && options.stop_requested()?UnorderedTppTermination::Interrupted
             : control.calls.load(std::memory_order_relaxed)>=options.max_calls?UnorderedTppTermination::CallLimit
             : result.seconds>=options.max_seconds?UnorderedTppTermination::TimeLimit:UnorderedTppTermination::NumericalLimit;
-        auto sum=[&](auto member){result.*member=runs[0].*member+runs[1].*member;};
-        sum(&UnorderedTppSolveResult::calls);
-        sum(&UnorderedTppSolveResult::nodes);
-        sum(&UnorderedTppSolveResult::parallel_oracle_calls);
-        sum(&UnorderedTppSolveResult::parallel_oracle_batches);
-        sum(&UnorderedTppSolveResult::relaxation_calls);
-        sum(&UnorderedTppSolveResult::refinement_calls);
-        sum(&UnorderedTppSolveResult::complete_order_oracle_calls);
-        sum(&UnorderedTppSolveResult::complete_piece_oracle_calls);
-        sum(&UnorderedTppSolveResult::oracle_cutoff_calls);
-        sum(&UnorderedTppSolveResult::oracle_dual_cutoff_prunes);
-        sum(&UnorderedTppSolveResult::oracle_dispatch_pair_queries);
-        sum(&UnorderedTppSolveResult::oracle_dispatch_pair_cache_hits);
-        sum(&UnorderedTppSolveResult::oracle_dispatch_pair_exact_checks);
-        sum(&UnorderedTppSolveResult::screened_nodes);
-        sum(&UnorderedTppSolveResult::one_tree_calls);
-        sum(&UnorderedTppSolveResult::one_tree_cache_hits);
-        sum(&UnorderedTppSolveResult::one_tree_iterations);
-        sum(&UnorderedTppSolveResult::one_tree_distance_queries);
-        sum(&UnorderedTppSolveResult::one_tree_improvements);
-        sum(&UnorderedTppSolveResult::one_tree_seconds);
-        sum(&UnorderedTppSolveResult::learned_branch_observations);
-        sum(&UnorderedTppSolveResult::learned_branch_decisions);
-        sum(&UnorderedTppSolveResult::learned_branch_changes);
-        sum(&UnorderedTppSolveResult::cycle_memo_queries);
-        sum(&UnorderedTppSolveResult::cycle_certificate_interval_uses);
-        sum(&UnorderedTppSolveResult::cycle_proposal_calls);
-        sum(&UnorderedTppSolveResult::cycle_proposal_accepts);
-        sum(&UnorderedTppSolveResult::cycle_primal_start_candidates);
-        sum(&UnorderedTppSolveResult::cycle_primal_start_improvements);
-        sum(&UnorderedTppSolveResult::cycle_dual_screen_children);
-        sum(&UnorderedTppSolveResult::cycle_dual_screen_prunes);
-        sum(&UnorderedTppSolveResult::cycle_dual_screen_seconds);
-        sum(&UnorderedTppSolveResult::cycle_shared_bound_queries);
-        sum(&UnorderedTppSolveResult::cycle_shared_bound_hits);
-        sum(&UnorderedTppSolveResult::cycle_shared_bound_improvements);
-        sum(&UnorderedTppSolveResult::cycle_shared_bound_prunes);
-        sum(&UnorderedTppSolveResult::cycle_shared_bound_seconds);
-        sum(&UnorderedTppSolveResult::cycle_memo_repeated);
-        sum(&UnorderedTppSolveResult::cycle_memo_hits);
-        sum(&UnorderedTppSolveResult::cycle_certificate_cutoff_skips);
-        sum(&UnorderedTppSolveResult::cycle_initial_contact_checks);
-        sum(&UnorderedTppSolveResult::cycle_initial_contact_accepts);
-        sum(&UnorderedTppSolveResult::sibling_bound_prunes);
-        sum(&UnorderedTppSolveResult::path_dual_retained);
-        sum(&UnorderedTppSolveResult::path_dual_cache_hits);
-        sum(&UnorderedTppSolveResult::path_dual_cache_evictions);
-        sum(&UnorderedTppSolveResult::path_dual_peak_bytes);
-        sum(&UnorderedTppSolveResult::path_dual_screen_children);
-        sum(&UnorderedTppSolveResult::path_dual_screen_prunes);
-        sum(&UnorderedTppSolveResult::path_dual_screen_seconds);
-        sum(&UnorderedTppSolveResult::partial_states_created);
-        sum(&UnorderedTppSolveResult::children_generated);
-        sum(&UnorderedTppSolveResult::children_queued);
-        sum(&UnorderedTppSolveResult::pruned_nodes);
-        sum(&UnorderedTppSolveResult::pruned_states);
-        sum(&UnorderedTppSolveResult::bound_prunes);
-        sum(&UnorderedTppSolveResult::incumbent_prunes);
-        sum(&UnorderedTppSolveResult::insertion_positions_considered);
-        sum(&UnorderedTppSolveResult::insertion_positions_pruned);
-        sum(&UnorderedTppSolveResult::branch_events);
-        sum(&UnorderedTppSolveResult::total_branching);
-        sum(&UnorderedTppSolveResult::peak_sequence_storage_bytes);
-        sum(&UnorderedTppSolveResult::peak_frontier_node_bytes);
-        sum(&UnorderedTppSolveResult::peak_frontier_bytes);
-        sum(&UnorderedTppSolveResult::frontier_trims);
-        sum(&UnorderedTppSolveResult::frontier_discarded_nodes);
-        sum(&UnorderedTppSolveResult::frontier_strips);
-        sum(&UnorderedTppSolveResult::frontier_stripped_nodes);
-        sum(&UnorderedTppSolveResult::frontier_completions);
-        sum(&UnorderedTppSolveResult::frontier_completion_nodes);
-        result.peak_completion_stack=std::max(runs[0].peak_completion_stack,runs[1].peak_completion_stack);
-        result.frontier_discarded_bound=std::min(runs[0].frontier_discarded_bound,runs[1].frontier_discarded_bound);
-        sum(&UnorderedTppSolveResult::peak_sequence_records);
-        sum(&UnorderedTppSolveResult::sequence_reconstructions);
-        sum(&UnorderedTppSolveResult::sequence_depth_sum);
-        sum(&UnorderedTppSolveResult::sequence_depth_samples);
-        sum(&UnorderedTppSolveResult::incumbent_updates);
-        sum(&UnorderedTppSolveResult::best_updates);
-        sum(&UnorderedTppSolveResult::decomposed_polygons);
-        sum(&UnorderedTppSolveResult::convex_pieces_generated);
-        sum(&UnorderedTppSolveResult::fallback_calls);
-        sum(&UnorderedTppSolveResult::oracle_unverified_fallbacks);
-        sum(&UnorderedTppSolveResult::oracle_interval_bound_calls);
-        sum(&UnorderedTppSolveResult::oracle_float_calls);
-        sum(&UnorderedTppSolveResult::oracle_float_fallbacks);
-        sum(&UnorderedTppSolveResult::oracle_rational_calls);
-        sum(&UnorderedTppSolveResult::oracle_trusted_calls);
-        sum(&UnorderedTppSolveResult::oracle_exact_replay_calls);
-        sum(&UnorderedTppSolveResult::oracle_filtered_calls);
-        sum(&UnorderedTppSolveResult::oracle_touching_calls);
-        sum(&UnorderedTppSolveResult::rational_membership_predicates);
-        sum(&UnorderedTppSolveResult::exact_polygon_preparations);
-        sum(&UnorderedTppSolveResult::oracle_contracted_bound_calls);
-        sum(&UnorderedTppSolveResult::fallback_geometric_path_invalid_calls);
-        sum(&UnorderedTppSolveResult::fallback_certificate_gap_calls);
-        sum(&UnorderedTppSolveResult::fallback_locator_exception_calls);
-        sum(&UnorderedTppSolveResult::fallback_nonfinite_calls);
-        sum(&UnorderedTppSolveResult::fallback_contact_construction_calls);
-        sum(&UnorderedTppSolveResult::fallback_membership_ordering_calls);
-        sum(&UnorderedTppSolveResult::fallback_local_optimality_calls);
-        sum(&UnorderedTppSolveResult::fallback_coincident_contact_calls);
-        sum(&UnorderedTppSolveResult::predicate_exact_evaluations);
-        sum(&UnorderedTppSolveResult::extended_precision_calls);
-        sum(&UnorderedTppSolveResult::oracle_time_limit_calls);
-        sum(&UnorderedTppSolveResult::repaired_geometric_path_calls);
-        sum(&UnorderedTppSolveResult::insertion_branches);
-        sum(&UnorderedTppSolveResult::decomposition_branches);
-        sum(&UnorderedTppSolveResult::preprocessing_seconds);
-        sum(&UnorderedTppSolveResult::initial_heuristic_seconds);
-		sum(&UnorderedTppSolveResult::initial_relocation_seconds);
-		sum(&UnorderedTppSolveResult::initial_relocation_moves);
-        sum(&UnorderedTppSolveResult::visit_bound_skips);
-        sum(&UnorderedTppSolveResult::lookahead_candidates);
-        sum(&UnorderedTppSolveResult::lookahead_prunes);
-        sum(&UnorderedTppSolveResult::lookahead_changes);
-        sum(&UnorderedTppSolveResult::lookahead_seconds);
-        sum(&UnorderedTppSolveResult::insertion_bound_calls);
-        sum(&UnorderedTppSolveResult::insertion_bound_seconds);
-        sum(&UnorderedTppSolveResult::multi_insertion_calls);
-        sum(&UnorderedTppSolveResult::multi_insertion_improvements);
-        sum(&UnorderedTppSolveResult::multi_insertion_prunes);
-        sum(&UnorderedTppSolveResult::multi_insertion_seconds);
-        sum(&UnorderedTppSolveResult::multi_insertion_gain);
-        sum(&UnorderedTppSolveResult::window_lns_rounds);
-        sum(&UnorderedTppSolveResult::window_lns_subproblems);
-        sum(&UnorderedTppSolveResult::window_lns_improvements);
-        sum(&UnorderedTppSolveResult::window_lns_calls);
-        sum(&UnorderedTppSolveResult::window_lns_seconds);
-        sum(&UnorderedTppSolveResult::window_lns_gain);
-        sum(&UnorderedTppSolveResult::initial_sampled_extra_points);
-        sum(&UnorderedTppSolveResult::initial_sampling_work_budget);
-        sum(&UnorderedTppSolveResult::initial_convex_refinement_calls);
-        sum(&UnorderedTppSolveResult::initial_convex_refinement_seconds);
-        sum(&UnorderedTppSolveResult::search_seconds);
-        sum(&UnorderedTppSolveResult::finalization_seconds);
-        sum(&UnorderedTppSolveResult::convex_oracle_seconds);
-        sum(&UnorderedTppSolveResult::convex_dispatch_seconds);
-        sum(&UnorderedTppSolveResult::convex_bound_evaluation_seconds);
-        sum(&UnorderedTppSolveResult::convex_proposal_preparation_seconds);
-        sum(&UnorderedTppSolveResult::oracle_profiled_calls);
-        sum(&UnorderedTppSolveResult::cycle_construction_seconds);
-        sum(&UnorderedTppSolveResult::cycle_certification_seconds);
-        sum(&UnorderedTppSolveResult::cycle_rational_recovery_seconds);
-        sum(&UnorderedTppSolveResult::cycle_interval_proof_seconds);
-        sum(&UnorderedTppSolveResult::cycle_polish_seconds);
-        sum(&UnorderedTppSolveResult::cycle_polish_calls);
-        sum(&UnorderedTppSolveResult::cycle_polish_newton_iterations);
-        sum(&UnorderedTppSolveResult::oracle_fallback_call_seconds);
-        result.oracle_max_call_seconds=std::max(runs[0].oracle_max_call_seconds,runs[1].oracle_max_call_seconds);
-        for(size_t i=0;i<result.oracle_call_histogram.size();++i) {
-            result.oracle_call_histogram[i]=runs[0].oracle_call_histogram[i]+runs[1].oracle_call_histogram[i];
-            result.oracle_seconds_histogram[i]=runs[0].oracle_seconds_histogram[i]+runs[1].oracle_seconds_histogram[i];
-        }
-        sum(&UnorderedTppSolveResult::convex_oracle_wall_seconds);
-        sum(&UnorderedTppSolveResult::convex_geometric_solver_seconds);
-        sum(&UnorderedTppSolveResult::convex_certificate_verification_seconds);
-        sum(&UnorderedTppSolveResult::convex_contact_materialization_seconds);
-        sum(&UnorderedTppSolveResult::convex_fallback_seconds);
-        sum(&UnorderedTppSolveResult::convex_fallback_long_double_seconds);
-        sum(&UnorderedTppSolveResult::convex_fallback_extended_precision_seconds);
-        sum(&UnorderedTppSolveResult::decomposition_seconds);
-        sum(&UnorderedTppSolveResult::visit_check_seconds);
-		sum(&UnorderedTppSolveResult::visit_query_evaluations);
-		sum(&UnorderedTppSolveResult::visit_query_cache_hits);
-        sum(&UnorderedTppSolveResult::segment_visit_queries);
-        sum(&UnorderedTppSolveResult::segment_visit_hits);
-        sum(&UnorderedTppSolveResult::heuristic_visit_check_seconds);
-        sum(&UnorderedTppSolveResult::search_visit_check_seconds);
-        sum(&UnorderedTppSolveResult::finalization_visit_check_seconds);
-        sum(&UnorderedTppSolveResult::search_maintenance_seconds);
-        sum(&UnorderedTppSolveResult::portfolio_incumbent_imports);
-        result.max_observed_branching=std::max(runs[0].max_observed_branching,runs[1].max_observed_branching);
-        result.max_sequence_depth=std::max(runs[0].max_sequence_depth,runs[1].max_sequence_depth);
-        result.convex_pieces_max=std::max(runs[0].convex_pieces_max,runs[1].convex_pieces_max);
-        result.peak_queue=runs[0].peak_queue+runs[1].peak_queue; // Conservative combined peak.
-        result.convex_pieces_min=std::min(runs[0].convex_pieces_min,runs[1].convex_pieces_min);
+        accumulate_counters(result,runs[1-selected]);
         result.calls=control.calls.load(std::memory_order_relaxed); // Includes a failed in-flight call.
         if(options.trace) result.trace.push_back({.kind="portfolio_complete",.path=result.path,
             .lower_bound=result.lower_bound,.upper_bound=result.upper_bound,

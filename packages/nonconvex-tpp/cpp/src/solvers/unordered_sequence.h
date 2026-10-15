@@ -297,6 +297,19 @@ namespace tpp::unordered_detail {
             data=std::move(packed);
         }
         void save(SequenceReference reference) { data=std::move(reference); }
+        // Self-contained packed bytes, for subtree seeds and checkpoints.
+        // restore() must have run first for references (they need their arena).
+        void make_packed(size_t bytes) {
+            if (data.index()==2) throw std::logic_error("Restore a referenced sequence before packing it.");
+            pack(bytes);
+        }
+        const std::vector<uint8_t> *packed_bytes() const {
+            const auto *packed=std::get_if<1>(&data);
+            return packed?&packed->bytes:nullptr;
+        }
+        static NodeSequence from_packed(std::vector<uint8_t> bytes) {
+            NodeSequence out;PackedSequence packed;packed.bytes=std::move(bytes);out.data=std::move(packed);return out;
+        }
         const auto &elements() const { return full(); }
         SequenceReference restore(size_t bytes) {
             SequenceReference parent;

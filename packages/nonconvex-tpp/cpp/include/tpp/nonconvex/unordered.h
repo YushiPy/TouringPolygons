@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <functional>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -16,6 +17,8 @@ namespace tpp {
 	enum class UnorderedSequenceStorage { Native, Packed, Deltas };
 	// What the best-bound frontier does past its memory budget.
 	enum class UnorderedFrontierOverflow { Complete, Discard };
+	// Shared state of the threads that finish subtrees (defined by the solver).
+	struct UnorderedSubtreeWork;
 
 	// A snapshot of a running search, for long-run monitoring. Reading it never
 	// changes the search.
@@ -185,6 +188,23 @@ namespace tpp {
         // budget the search is unchanged; zero disables it.
         size_t max_frontier_bytes = size_t(4) << 30;
         UnorderedFrontierOverflow frontier_overflow = UnorderedFrontierOverflow::Complete;
+        // Threads that finish subtrees once the best-bound frontier fills its
+        // budget (best-bound search with threads == 1, no portfolio or trace).
+        // The frontier is then handed to a shared pool of seeds: each thread
+        // takes the best one and finishes its subtree depth first, and a busy
+        // thread gives its shallowest open node to an idle one. The lower bound
+        // is the minimum over the pool, the threads' stacks and the pruned
+        // bounds. 1 keeps the single-thread search unless a checkpoint is set.
+        size_t subtree_threads = 1;
+        // Optional file with the open subtrees (sequences and bounds) and the
+        // incumbent, written every checkpoint_interval_seconds while subtrees
+        // are finished and at the end, and removed once the gap closes. When it
+        // exists and matches this instance, the search resumes from it.
+        std::string checkpoint_file;
+        double checkpoint_interval_seconds = 600;
+        // Internal: set by the solver for its subtree threads.
+        std::shared_ptr<UnorderedSubtreeWork> subtree_work;
+        size_t subtree_worker = 0;
         // Frontier sequences only. Packed automatically selects 8/16/32/64-bit
         // indices; Deltas retains insertion/piece changes in a recycled arena.
         UnorderedSequenceStorage sequence_storage = UnorderedSequenceStorage::Packed;
@@ -401,6 +421,13 @@ namespace tpp {
         // Subtrees finished depth first past the budget, the nodes taken in
         // them (their roots included) and the largest stack they needed.
         size_t frontier_completions = 0, frontier_completion_nodes = 0, peak_completion_stack = 0;
+        // Subtree threads: the threads, the seeds handed to them (from the
+        // frontier or a checkpoint), the nodes busy threads gave to idle ones,
+        // checkpoint writes, and what a resumed checkpoint had already done.
+        size_t subtree_threads = 1, subtree_seeds = 0, subtree_donations = 0, checkpoint_writes = 0;
+        bool checkpoint_resumed = false;
+        size_t checkpoint_prior_nodes = 0;
+        double checkpoint_prior_seconds = 0, subtree_seconds = 0;
         size_t sequence_history_record_bytes = 0;
         size_t peak_sequence_records = 0;
         size_t sequence_reconstructions = 0;

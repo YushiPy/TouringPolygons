@@ -92,7 +92,8 @@ KEEP = (
 	"frontier_discarded_bound", "frontier_completions", "frontier_completion_nodes", "peak_completion_stack",
 	"incumbent_updates", "first_incumbent_seconds", "primal_ils_iterations",
 	"primal_ils_improvements", "primal_ils_seconds", "primal_ils_reorder_calls",
-	"primal_ils_reorder_improvements", "path",
+	"primal_ils_reorder_improvements", "subtree_threads", "subtree_seeds", "subtree_donations", "subtree_seconds",
+	"checkpoint_writes", "checkpoint_resumed", "checkpoint_prior_nodes", "checkpoint_prior_seconds", "path",
 )
 
 
@@ -490,7 +491,9 @@ def build_parser() -> argparse.ArgumentParser:
 	parser.add_argument("--ils-seconds", type=float, default=1200, help="limit of each ILS run (default: 1200, her CPU limit)")
 	parser.add_argument("--bnb-seconds", type=float, default=14400, help="limit of each B&B run (default: 14400 = 4 h)")
 	parser.add_argument("--phases", default="ils,bnb", help="ils, bnb or ils,bnb (default)")
-	parser.add_argument("--workers", type=int, help="concurrent runs (default: physical cores)")
+	parser.add_argument("--workers", type=int, help="concurrent runs (default: physical cores / --bnb-threads)")
+	parser.add_argument("--bnb-threads", type=int, default=1,
+		help="threads per B&B run that finish subtrees in parallel past the frontier budget (needs --phases bnb)")
 	parser.add_argument("--frontier-mib", type=int, help="B&B frontier budget per run (default: 60%% of memory / workers)")
 	parser.add_argument("--cpu-affinity", choices=cpu_affinity.MODES, default="auto")
 	parser.add_argument("--ils-args", default="", help="extra solver flags for ILS runs (part of the protocol)")
@@ -564,7 +567,10 @@ def run(args: argparse.Namespace, argv: Sequence[str]) -> int:
 
 	instances = load_instances(args.source)
 	selection = select(args.instances, list(instances))
-	workers = args.workers or default_workers()
+	if args.bnb_threads < 1 or (args.bnb_threads > 1 and "ils" in phases):
+		fail("--bnb-threads takes a positive count, and more than 1 needs --phases bnb (ILS runs use one thread)")
+	threads = args.bnb_threads
+	workers = args.workers or max(1, default_workers() // threads)
 	frontier = args.frontier_mib or default_frontier_mib(workers)
 	done = completed(rows)
 	ils = [(name, seed) for seed in range(args.seeds) for name in selection
@@ -582,7 +588,8 @@ def run(args: argparse.Namespace, argv: Sequence[str]) -> int:
 	print(f"Campaign: {output}")
 	print(f"Instances: {len(selection)} ({args.instances}); seeds: {args.seeds}; phases: {','.join(sorted(phases))}")
 	print(f"Pending: {len(ils)} ILS runs of {args.ils_seconds:g} s, {len(bnb)} B&B runs of {args.bnb_seconds:g} s; "
-		f"{workers} at a time, about {hours:.1f} h; frontier budget {frontier} MiB per run")
+		f"{workers} at a time, about {hours:.1f} h; frontier budget {frontier} MiB per run"
+		+ (f"; {threads} subtree threads per B&B run" if threads > 1 else ""))
 	if not reference:
 		print(f"Note: Paula's table not found at {args.reference}; the report will not compare with her.")
 	if args.dry_run:
@@ -612,8 +619,10 @@ def run(args: argparse.Namespace, argv: Sequence[str]) -> int:
 	total = len(ils) + len(bnb)
 	lock = threading.Lock()
 	live = LiveStatus(output / "live.json", echo=None if args.verbose else (lambda line: None))
-	pool = cpu_affinity.CorePool(workers, 1, args.cpu_affinity)
-	guard = int(frontier * 2**20 * 1.25) + 2**30
+	pool = cpu_affinity.CorePool(workers, threads, args.cpu_affinity)
+	# The frontier budget, allocator slack, and each subtree thread's own workspaces.
+	guard = int(frontier * 2**20 * 1.25) + 2**30 + threads * 2**28
+	checkpoints = output / "checkpoints"
 	finished = [0]
 	failures = [0]
 
@@ -648,6 +657,10 @@ def run(args: argparse.Namespace, argv: Sequence[str]) -> int:
 			seconds = args.ils_seconds
 		else:
 			arguments += protocol["bnb_arguments"]
+			# A later attempt resumes the open subtrees of an earlier one; the
+			# solver removes the file once the gap closes.
+			checkpoints.mkdir(parents=True, exist_ok=True)
+			arguments += ["--subtree-threads", str(threads), "--checkpoint", str(checkpoints / f"{name}.ckpt")]
 			seconds = args.bnb_seconds
 			with lock:
 				start = best_tour(rows, name)
