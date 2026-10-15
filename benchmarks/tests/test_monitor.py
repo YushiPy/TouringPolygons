@@ -126,7 +126,8 @@ class KillTests(unittest.TestCase):
 		import process_guard
 
 		worker_code = "import subprocess,sys,time;subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)'],start_new_session=True);time.sleep(60)"
-		parent = subprocess.Popen([sys.executable, "-c", worker_code], process_group=0)
+		# The stop interrupts the worker first; its KeyboardInterrupt traceback is expected.
+		parent = subprocess.Popen([sys.executable, "-c", worker_code], process_group=0, stderr=subprocess.DEVNULL)
 		try:
 			time.sleep(1.0)
 			below = process_guard.descendants(parent.pid)

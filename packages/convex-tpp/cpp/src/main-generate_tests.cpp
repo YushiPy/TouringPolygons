@@ -1,9 +1,11 @@
 #include "tests.h"
 #include "tpp_convex.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <print>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -105,7 +107,20 @@ int main(int argc, char **argv) {
 		}, 10), 6, true},
 	};
 
+	// Suite names after the directory (without ".bin") select a subset.
+	const std::set<std::string> selected(argv + std::min(argc, 2), argv + argc);
+	const auto name = [](const SuiteSpec &suite) { return suite.filename.substr(0, suite.filename.size() - 4); };
+
+	for (const auto &requested : selected) {
+		if (std::ranges::none_of(suites, [&](const auto &suite) { return name(suite) == requested; })) {
+			std::println(stderr, "unknown suite: {}", requested);
+			return 2;
+		}
+	}
+
 	for (const auto &suite : suites) {
-		write_suite(output_dir, suite);
+		if (selected.empty() || selected.contains(name(suite))) {
+			write_suite(output_dir, suite);
+		}
 	}
 }

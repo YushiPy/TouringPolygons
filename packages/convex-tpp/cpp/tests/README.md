@@ -6,12 +6,15 @@ polygons C++ implementation. The generated stress suites are intentionally not
 tracked; generate and run them with:
 
 ```bash
-packages/convex-tpp/cpp/run_generated_tests.sh
+packages/convex-tpp/cpp/run_generated_tests.sh          # all suites, about 25 minutes
+packages/convex-tpp/cpp/run_generated_tests.sh --quick  # small and medium suites, seconds
 ```
 
 The script writes generated `.bin` files under `.build/convex-generated-tests/`
 and runs the verifier against both the tracked handwritten fixtures and the
-generated fixtures.
+generated fixtures. `scripts/sanity_check.sh` uses `--quick`; its `--full`
+option runs every suite. `tpp-convex-generate-tests DIR [SUITE...]` writes the
+named suites only (e.g. `small_tests`).
 
 The ordered-cycle optimality certificate has focused tests in
 `src/main-cycle_certificate_tests.cpp`. Configure that executable with

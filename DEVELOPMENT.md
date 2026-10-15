@@ -30,7 +30,8 @@ para herdar a configuração dos tipos exatos e recompile-os ao trocar de backen
 - `apps/benchmark-dashboard`: aplicação principal e WASM opcional;
 - `benchmarks/tpp.py`: única CLI pública de geração e benchmarks;
 - `scripts/benchmark.sh`: interface de terminal que monta um comando `tpp.py bench`;
-- `scripts/sanity_check.sh`: validação ampla de um checkout;
+- `scripts/sanity_check.sh`: compila os solvers e roda seus testes em cerca de um minuto
+  (`--full` acrescenta as suítes convexas de estresse, cerca de 25 minutos);
 - `scripts/verify_unordered.sh`: verificação focada no solver de ordem livre.
 
 Os módulos em `benchmarks/_internal/` implementam a CLI e podem ser importados
