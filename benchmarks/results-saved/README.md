@@ -19,6 +19,52 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## tspn-case189-zigzag-2026-10-16
+
+**Pergunta.** O caso 189 (`kuala_lumpur_n060_seed3530`) fecha com extremos
+fixos em 12 s, mas fica aberto no TSPN em 300 s. Onde está a dificuldade, e
+alguma regra de ramificação a resolve? **Formulação.** TSPN de ciclo livre, gap
+`UB ≤ 1,001·LB`, `cache,features,root,interval`, com as correções de
+[`cycle-coincident-contacts-2026-10-16`](#cycle-coincident-contacts-2026-10-16);
+Mac M4 Pro, uma thread salvo indicação; variantes de uma mesma tabela rodaram
+juntas, com a mesma carga.
+
+**Resultado.**
+- **Dificuldade caminho × ciclo.** Nas 557 instâncias fechadas nas duas
+  formulações, a correlação dos log-tempos é 0,94 e o ciclo leva, em mediana,
+  0,41× o tempo do caminho
+  ([`float-recovery-dantzig-2026-10-08`](#float-recovery-dantzig-2026-10-08)
+  contra a comparação TSPN de 16/10). Os desvios são grandes nos dois sentidos:
+  o caso 189 vai de 12 s a aberto; o 130 vai de 978 s a 3,9 s, e o 493 de 84 s
+  a 0,003 s.
+- **Ótimo do caso 189.** A ILS (`--primal-ils`) acha em ~30 s um tour de
+  436,992. Com `lazy --lazy-oracles --dive-interval 0`, fronteira de 512 MiB e
+  8 threads de subárvore, o B&B certifica esse tour dentro de 0,1% (LB 436,556)
+  em 675 s e 154 M nós (600 s, checkpoint e retomada). O tour do Fekete de 16/10
+  (441,52) fica 1,04% acima.
+- **Não são os toques.** Encolhendo cada casa 0,1% (ou 1%) em direção à média
+  dos vértices, nenhum par se toca, e o gap em 120 s fica em 2,58% (2,70%),
+  contra 3,23% no original. A dificuldade é o zigue-zague entre fileiras, com
+  muitas ordens de comprimento quase igual.
+- **Ramificação forte.** `branch` compara a menor inserção das 3 regiões
+  ausentes mais distantes. Comparar todas as ausentes (experimento, sem
+  commit) leva o caso 189 a 0,89% em 120 s e 0,40% em 600 s (com ILS e
+  `lazy`), contra 1,65% com 3. No protocolo, nas 558 com 60 s, a mesma regra
+  deixa o resto 7–12× mais lento (média geométrica) e perde 5 instâncias.
+  Restringir as candidatas às que estão a ≥ α da maior distância (α = 0,3 a
+  0,9), ou só trocar a mais distante quando a inserção dela fecha menos de
+  θ = 0,1–0,3 do gap do nó, não evita a troca: com α = 0,7 o caso 189 cai para
+  0,23–0,5% em 60 s, mas `vienna_n060_seed3619` (30 s) deixa de fechar e
+  `warsaw_n060_seed4239` e `dubai_n060_seed3351` ficam 1,4–1,9× mais lentas,
+  também com o tour da ILS desde o início.
+
+**Leitura.** Nenhuma regra fixa de ramificação testada melhora o caso 189 sem
+piorar outras instâncias; nada mudou no solver. O caso fecha com mais tempo e
+threads. **Limitações.** Uma máquina e uma repetição; as regras foram medidas
+em 7 instâncias escolhidas (as que pioraram com todas as candidatas) e no
+corpus só na versão com todas. Dados locais e patches dos experimentos:
+`experiments/zigzag-case189`.
+
 ## cycle-coincident-contacts-2026-10-16
 
 **Pergunta.** Na comparação TSPN × Fekete de 16/10 (558 originais, 300 s), a
