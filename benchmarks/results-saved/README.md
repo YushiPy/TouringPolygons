@@ -658,7 +658,34 @@ abertas por tamanho e as 25 restantes são de validação. Dados locais:
   ruído do ILS: 100i3000-803 empatou com a Paula desta vez. Todos os tours
   validaram. Abaixo de 0,4% ficam também 42rat99-6x7 (0,19%), 50lin318 (0,14%)
   e 50kroB100 (0,35%).
-- **Limitações.** Uma máquina, com 8 a 10 processos simultâneos. A triagem
+- **Repetição em outra máquina, com o orçamento da Paula** (armijo: AMD Ryzen 7
+  9700X, Ubuntu 24.04, GCC, commit `73fd995`; 8 processos fixados nos 8
+  núcleos físicos; 1.200 s por execução, o limite de CPU de cada execução
+  dela; uma repetição). O GMP não foi encontrado, então a aritmética exata usou
+  o `cpp_rational` do Boost: os casos fechados levaram em mediana 1,44× o
+  tempo do Mac. Os tempos absolutos desta máquina não valem para comparação,
+  mas as configurações rodaram juntas e nas mesmas condições.
+
+  | | Antes | Agora |
+  |---|---:|---:|
+  | Pipeline (`--primal-ils 0.5`): gap mediano / máximo | 10,4% / 31,1% | **5,3% / 20,0%** |
+  | Mediana em ≤ 60 / 61–99 / 100 polígonos | 3,3% / 17,1% / 13,2% | 0,1% / 7,8% / 7,6% |
+  | Pipeline: gap fechado (1e-6) | 5 | **7** (+50kroB100, 50lin318) |
+  | Só LB, com o melhor tour fornecido: gap mediano / máximo | 9,0% / 29,7% | **4,5% / 19,1%** |
+  | Só LB: gap fechado | 8 | **10** (+84fl417, 50kroB100) |
+
+  Nenhuma instância piora. O tour do pipeline é igual nas duas configurações:
+  em 35 das 38 iguala o melhor da Paula, e 100C10k.0, 100i1000-410 e
+  100i2000-604 ficam 0,07–0,27% acima. Nas fechadas (60 s, sem tour), as duas
+  fecham 196 (45tsp225 não fecha em nenhuma), os ótimos coincidem e `mln` é
+  1,21× mais rápido em média geométrica. Somando as rodadas, 10 das 38
+  abertas ficam com gap fechado, todas no tour da Paula: 42rat99-6x7,
+  49gil262-7x7, 49lin318-7x7, 50kroB100, 50lin105, 50lin318, 50pcb442,
+  53gil262, 56a280 e 84fl417. Com isso, em 08/10, eram 207 das 235 com
+  certificado (depois, 229: ver
+  [`tspn-paula-long-armijo-2026-10-14`](#tspn-paula-long-armijo-2026-10-14)).
+- **Limitações.** Duas máquinas, com 8 a 10 processos simultâneos e uma
+  repetição nas rodadas longas. A triagem
   orientou a escolha. O limite novo usa binary64 com margem, não aritmética
   racional (ver o contrato). O LB continua sendo o gargalo: 34 das 38 seguem
   abertas aos 600 s, com até 20% de gap nas instâncias de 61–100 regiões.
