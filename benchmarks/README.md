@@ -474,11 +474,12 @@ para usar `tpp.py free-order NOME --cases ...` diretamente, use
 `python3 benchmarks/tpp.py free-compare --campaign-only [--campaign NOME]`.
 
 O setup de Fekete inicializa o submódulo `third_party/tspn-socg` na revisão fixada
-pelo repositório, prepara o ambiente Python 3.12+ dele e compila o binding C++. Dois
-patches versionados (`patches/tspn-socg-*.patch`) corrigem o header de `fmt` e compilam
-as variantes racional e double do oráculo TPP embutido; enquanto aplicados, aparecem
-como alterações locais no submódulo, e qualquer outra alteração faz o setup parar sem
-tocá-la. Um fingerprint local (fontes do Fekete e do nosso C++ embutido, perfil Conan,
+pelo repositório, prepara o ambiente Python 3.12+ dele e compila o binding C++. O fork
+já contém as correções de compatibilidade (o header de `fmt` e as variantes racional e
+double do oráculo TPP embutido). Qualquer alteração local no submódulo faz o setup parar
+sem tocá-la; a única exceção é uma cópia numa revisão anterior cujas alterações já
+reproduzem os arquivos da revisão fixada (como uma cópia antiga com os patches de
+compatibilidade aplicados), que passa direto para a revisão fixada. Um fingerprint local (fontes do Fekete e do nosso C++ embutido, perfil Conan,
 CMake e compilador) faz o setup pular a resolução Conan e a compilação quando nada
 mudou. Nosso solver exige C++23, então o GCC 13 do Ubuntu 24.04 serve. Em máquinas
 remotas, exporte `GUROBI_HOME` se o Gurobi não estiver no local padrão e rode

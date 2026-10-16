@@ -97,13 +97,14 @@ class SetupFlowTests(unittest.TestCase):
 
 
 class SubmoduleTests(unittest.TestCase):
-	def test_only_the_managed_patches_may_modify_the_submodule(self):
-		def fake_git(*arguments, cwd=comparison.ROOT, check=False):
-			if arguments[:2] == ("apply", "--reverse"):
-				return FakeProcess(returncode=0)
-			return FakeProcess()
+	def prepare(self, outputs, failing=()):
+		calls = []
 
-		outputs = {"rev-parse": "abc", "status": " M README.md", "ls-tree": "160000 commit abc\tthird_party/tspn-socg"}
+		def fake_git(*arguments, cwd=comparison.ROOT, check=False):
+			calls.append(arguments)
+			if arguments[0] == "checkout":
+				outputs.update({"rev-parse": arguments[-1], "status": ""})
+			return FakeProcess(returncode=1 if arguments[0] in failing else 0)
 
 		def fake_output(*arguments, cwd=comparison.ROOT):
 			return outputs[arguments[0]]
@@ -114,10 +115,31 @@ class SubmoduleTests(unittest.TestCase):
 			with patch.object(comparison, "EXTERNAL_SOURCE", source), patch.object(
 				comparison, "git", side_effect=fake_git
 			), patch.object(comparison, "git_output", side_effect=fake_output):
-				with self.assertRaises(SystemExit), patch("sys.stderr"):
-					comparison.prepare_submodule()  # a stray modification: stop and preserve it
-				outputs["status"] = comparison.PATCHED_STATUS
-				self.assertEqual(comparison.prepare_submodule(), "abc")
+				return comparison.prepare_submodule(), calls
+
+	@staticmethod
+	def outputs(current, status, pinned="new"):
+		return {"rev-parse": current, "status": status, "ls-tree": f"160000 commit {pinned}\tthird_party/tspn-socg"}
+
+	def test_a_clean_pinned_submodule_is_used_as_is(self):
+		revision, calls = self.prepare(self.outputs("new", ""))
+		self.assertEqual(revision, "new")
+		self.assertFalse([call for call in calls if call[0] in ("checkout", "submodule")])
+
+	def test_local_changes_stop_the_setup_untouched(self):
+		for status in (" M README.md", "?? notes.txt"):
+			with self.subTest(status=status), self.assertRaises(SystemExit), patch("sys.stderr"):
+				self.prepare(self.outputs("new", status))
+
+	def test_an_earlier_pin_whose_edits_give_the_pinned_files_moves_to_the_pin(self):
+		revision, calls = self.prepare(self.outputs("old", " M CMakeLists.txt"))
+		self.assertEqual(revision, "new")
+		self.assertIn(("checkout", "--quiet", "--force", "new"), calls)
+
+	def test_an_earlier_pin_with_other_edits_stops(self):
+		for status, failing in ((" M CMakeLists.txt", ("diff",)), (" M CMakeLists.txt\n?? notes.txt", ())):
+			with self.subTest(status=status), self.assertRaises(SystemExit), patch("sys.stderr"):
+				self.prepare(self.outputs("old", status), failing)
 
 
 class BuildTests(unittest.TestCase):

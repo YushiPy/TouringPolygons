@@ -28,13 +28,6 @@ EXPECTED_SUITE_SHA256 = "aa442e0546567461621b7fcdb9596ba7b3cc4094929d23fb9bb38d1
 EXPECTED_CASES = 558
 DEFAULT_CAMPAIGN = "fekete-free-order-comparison-v1"
 EPS = 0.001
-PATCHES = (
-	ROOT / "patches/tspn-socg-fmt-format-header.patch",
-	ROOT / "patches/tspn-socg-directional-oracle-variant.patch",
-)
-# `git status --porcelain` of the submodule: only the managed patches may show.
-FMT_PATCH_STATUS = " M python/tspn_bnb2/core/_tspn_bindings.cpp"
-PATCHED_STATUS = " M CMakeLists.txt\n M python/tspn_bnb2/core/_tspn_bindings.cpp"
 PIP_PACKAGES = (
 	"conan>=2.0.0", "setuptools", "scikit-build>=0.18.0", "skbuild-conan", "cmake>=3.23,<4", "ninja",
 )
@@ -84,7 +77,7 @@ def pinned_revision() -> str:
 
 
 def prepare_submodule() -> str:
-	"""Submodule at the pinned revision with exactly the managed compatibility patches applied."""
+	"""Clean submodule at the pinned revision; local changes are never touched."""
 	expected = pinned_revision()
 	if not expected:
 		fail("third_party/tspn-socg is not pinned as a Git submodule in HEAD")
@@ -92,9 +85,14 @@ def prepare_submodule() -> str:
 	if (EXTERNAL_SOURCE / ".git").exists():
 		current = git_output("rev-parse", "HEAD", cwd=EXTERNAL_SOURCE)
 		changes = git_output("status", "--porcelain", "--untracked-files=all", cwd=EXTERNAL_SOURCE)
+		if current != expected and changes and adopts_pinned_files(expected, changes):
+			# A copy at an earlier pin whose edits (such as the compatibility
+			# patches that the fork now contains) already give the pinned files.
+			git("checkout", "--quiet", "--force", expected, cwd=EXTERNAL_SOURCE, check=True)
+			current, changes = expected, ""
 		if current == expected:
-			if changes not in ("", FMT_PATCH_STATUS, PATCHED_STATUS):
-				fail("the Fekete submodule has local changes beyond the managed compatibility patches; preserve them and resolve manually")
+			if changes:
+				fail("the Fekete submodule has local changes; preserve them and resolve manually")
 			initialized = True
 		elif changes:
 			fail("the Fekete submodule has local changes; preserve them and check it out to the pinned revision manually")
@@ -103,17 +101,18 @@ def prepare_submodule() -> str:
 	current = git_output("rev-parse", "HEAD", cwd=EXTERNAL_SOURCE)
 	if current != expected:
 		fail(f"Fekete submodule is at {current}; expected pinned revision {expected}")
-	for patch in PATCHES:
-		if git("apply", "--reverse", "--check", str(patch), cwd=EXTERNAL_SOURCE).returncode == 0:
-			print(f"Fekete compatibility patch already applied: {patch.name}")
-		elif git("apply", "--check", str(patch), cwd=EXTERNAL_SOURCE).returncode == 0:
-			git("apply", str(patch), cwd=EXTERNAL_SOURCE, check=True)
-			print(f"Applied local Fekete compatibility patch: {patch.name}")
-		else:
-			fail(f"the pinned Fekete source does not match compatibility patch {patch.name}; preserve it and inspect the submodule revision")
-	if git_output("status", "--porcelain", "--untracked-files=all", cwd=EXTERNAL_SOURCE) != PATCHED_STATUS:
-		fail("the Fekete submodule has local changes beyond the managed compatibility patches; preserve them and resolve manually")
+	if git_output("status", "--porcelain", "--untracked-files=all", cwd=EXTERNAL_SOURCE):
+		fail("the Fekete submodule has local changes; preserve them and resolve manually")
 	return current
+
+
+def adopts_pinned_files(expected: str, changes: str) -> bool:
+	"""Only modified tracked files, whose contents equal the pinned commit's."""
+	if any(not line.startswith(" M ") for line in changes.splitlines()):
+		return False
+	if git("cat-file", "-e", f"{expected}^{{commit}}", cwd=EXTERNAL_SOURCE).returncode != 0:
+		git("fetch", "--quiet", "origin", cwd=EXTERNAL_SOURCE)
+	return git("diff", "--quiet", expected, cwd=EXTERNAL_SOURCE).returncode == 0
 
 
 # --- the Fekete Python binding ----------------------------------------------
