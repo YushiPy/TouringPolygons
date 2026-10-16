@@ -198,7 +198,7 @@ def main(argv=None):
     parser.add_argument('--relative-gap',type=float,default=1e-6)
     parser.add_argument('--feasibility-tolerance',type=float,default=1e-8)
     parser.add_argument('--validation-tolerance',type=float,default=1e-7)
-    parser.add_argument('--socp-defaults',action='store_true',help='Keep original Gurobi and spanning tolerances; otherwise tighten them for the requested feasibility checks.')
+    parser.add_argument('--socp-defaults',action='store_true',help="Run Fekete with its original tolerances (Gurobi defaults, FEASIBILITY_TOLERANCE 1e-3, SPANNING_TOLERANCE 9e-4); our solver keeps --feasibility-tolerance. Otherwise tighten Fekete's to the requested feasibility checks.")
     args=parser.parse_args(argv)
     output=args.output.resolve()
     if args.report_only:
@@ -300,6 +300,8 @@ def main(argv=None):
     gurobi_parameters={} if args.socp_defaults else {'FeasibilityTol':1e-9,'OptimalityTol':1e-9,'BarConvTol':1e-10,'BarQCPConvTol':1e-10}
     (runtime/'gurobi.env').write_text(''.join(f'{key} {value}\n' for key,value in gurobi_parameters.items()))
     spanning=0.0009 if args.socp_defaults else args.feasibility_tolerance/10
+    # The library defaults of the pinned solver (tspn_core/common.cpp).
+    external_feasibility=0.001 if args.socp_defaults else args.feasibility_tolerance
     # Match UB <= (1+eps)*LB exactly in algebra, up to binary64 representation.
     our_relative=args.relative_gap/(1+args.relative_gap)
     arguments=['--cycle','--absolute-gap','0','--relative-gap',str(our_relative),
@@ -333,7 +335,8 @@ def main(argv=None):
         'external_search':'DfsBfs','external_branching':'FarthestPoly','external_rules':[],
         'external_node_simplification':False,'external_decomposition_branch':True,'external_cutoff':True,
         'external_gurobi_settings':{'Threads':1,'Presolve':0,'SimplexPricing':3,**gurobi_parameters},
-        'external_spanning_tolerance':spanning,'socp_defaults':args.socp_defaults,
+        'external_spanning_tolerance':spanning,'external_feasibility_tolerance':external_feasibility,
+        'socp_defaults':args.socp_defaults,
         'timing':'whole native solve incl preprocessing/heuristic/root, B&B, extraction and portfolio cooperative join tail; excludes process startup and warmed Gurobi environment; backend order alternates by case; sequential runs',
         'platform':platform.platform(),'compiler':subprocess.check_output(['c++','--version'],text=True).splitlines()[0],
         'commands':commands if not args.skip_build else [],'frozen_binaries':{b:str(ours if b=='ours' else fekete) for b in enabled_backends},
@@ -352,7 +355,7 @@ def main(argv=None):
         reference_inputs=json.loads((reference_dir/'instances.json').read_text())
         reference_settings=('repetitions','seconds','external_process_timeout_seconds','fekete_relative_gap',
             'feasibility_tolerance','validation_tolerance','fekete_threads','external_backend',
-            'external_gurobi_settings','external_spanning_tolerance','socp_defaults',
+            'external_gurobi_settings','external_spanning_tolerance','external_feasibility_tolerance','socp_defaults',
             'external_root','external_search','external_branching','external_rules',
             'external_node_simplification','external_decomposition_branch','external_cutoff')
         for key in reference_settings:
@@ -423,7 +426,7 @@ def main(argv=None):
                                     result={k:v for k,v in reference_rows[(case_digest,repeat)].items()
                                         if k not in ('name','k','sha256','solver','repeat','validation','gap_closed')}
                                 else:
-                                    process=subprocess.run([str(fekete),'1',str(args.relative_gap),str(args.feasibility_tolerance),str(spanning)],
+                                    process=subprocess.run([str(fekete),'1',str(args.relative_gap),str(external_feasibility),str(spanning)],
                                         input=encode_instance((0,0),(0,0),polygons,10**8,args.seconds),text=True,capture_output=True,
                                         timeout=args.external_timeout,cwd=runtime)
                                     parsed=[]

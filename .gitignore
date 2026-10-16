@@ -97,6 +97,8 @@ third_party/paula-tspn/
 tspn-comparison/
 experiments/
 docs/reports/SIICUSP/resultados-anteriores
+armijo
+dantzig
 
 # Meeting recordings, transcripts, notes, and private follow-up stay local.
 # Only the policy file and explicitly reviewed public summaries may be tracked.

@@ -91,6 +91,14 @@ class CommandTests(unittest.TestCase):
 		with self.assertRaises(SystemExit):
 			campaign.parse_options(["--progress-interval", "-1"])
 
+	def test_original_fekete_tolerances_reach_the_engine_only_on_request(self):
+		self.assertNotIn(
+			"--socp-defaults", campaign.engine_arguments(campaign.parse_options([]))
+		)
+		options = campaign.parse_options(["--socp-defaults"])
+		self.assertIn("--socp-defaults", campaign.engine_arguments(options))
+		self.assertIn("fekete-tolerances=original", campaign.describe(options))
+
 	def test_the_native_binary_is_where_the_shared_build_writes_it(self):
 		self.assertEqual(
 			campaign.binaries(Path("/b"))["ours"], Path("/b/bin/tpp-unordered")

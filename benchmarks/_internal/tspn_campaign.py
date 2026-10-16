@@ -76,6 +76,7 @@ class Options:
 	capture_oracles: bool = False
 	max_calls: int = DEFAULT_MAX_CALLS
 	progress_interval: str = "60"
+	socp_defaults: bool = False
 	force: bool = False
 	setup_only: bool = False
 	dry_run: bool = False
@@ -224,6 +225,11 @@ def build_parser() -> argparse.ArgumentParser:
 		help="seconds between status lines of each running tpp-ours instance (also in live.json, see tpp.py live); 0 disables",
 	)
 	parser.add_argument(
+		"--socp-defaults",
+		action="store_true",
+		help="run Fekete with its original tolerances (Gurobi defaults, feasibility 1e-3, spanning 9e-4); ours keeps its own",
+	)
+	parser.add_argument(
 		"--workers",
 		type=positive_integer,
 		default=1,
@@ -269,6 +275,7 @@ def parse_options(argv: Sequence[str]) -> Options:
 		capture_oracles=args.capture_oracles,
 		max_calls=args.max_calls,
 		progress_interval=args.progress_interval,
+		socp_defaults=args.socp_defaults,
 		force=args.force,
 		setup_only=args.setup_only,
 		dry_run=args.dry_run,
@@ -434,6 +441,8 @@ def engine_arguments(options: Options) -> list[str]:
 	if options.max_calls != DEFAULT_MAX_CALLS:
 		arguments += ["--max-calls", str(options.max_calls)]
 	arguments += ["--progress-interval", options.progress_interval]
+	if options.socp_defaults:
+		arguments.append("--socp-defaults")
 	for optimization in options.cycle_optimizations:
 		arguments += ["--cycle-optimization", optimization]
 	return arguments
@@ -631,7 +640,8 @@ def describe(options: Options) -> str:
 		f"Settings: seconds={options.seconds}, external-timeout={options.external_timeout}, "
 		f"repetitions={options.repetitions}, gap={options.relative_gap}, "
 		f"portfolio={options.portfolio or 'none'}, search={options.search_strategy or 'default'}, "
-		f"opts={','.join(options.cycle_optimizations)}"
+		f"opts={','.join(options.cycle_optimizations)}, "
+		f"fekete-tolerances={'original' if options.socp_defaults else 'tightened'}"
 	)
 
 
