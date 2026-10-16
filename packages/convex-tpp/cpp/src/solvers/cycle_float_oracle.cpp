@@ -59,7 +59,10 @@ struct CycleBounds {
             max_gap>0?max_gap/(16*double(q.size())):0);
     }
     bool prove_proposal(const std::vector<Vector2> &q) {
-        return prove(q,detail::cycle_dual_proposals(q,short_link(q)));
+        const double link=short_link(q);
+        auto duals=detail::cycle_dual_proposals(q,link);
+        if(duals.size()>1)duals.push_back(detail::cycle_dual_by_runs(regions,q,link,reference));
+        return prove(q,duals);
     }
 };
 

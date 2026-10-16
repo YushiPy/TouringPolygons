@@ -19,6 +19,100 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## tspn-case189-zigzag-2026-10-16
+
+**Pergunta.** O caso 189 (`kuala_lumpur_n060_seed3530`) fecha com extremos
+fixos em 12 s, mas fica aberto no TSPN em 300 s. Onde está a dificuldade, e
+alguma regra de ramificação a resolve? **Formulação.** TSPN de ciclo livre, gap
+`UB ≤ 1,001·LB`, `cache,features,root,interval`, com as correções de
+[`cycle-coincident-contacts-2026-10-16`](#cycle-coincident-contacts-2026-10-16);
+Mac M4 Pro, uma thread salvo indicação; variantes de uma mesma tabela rodaram
+juntas, com a mesma carga.
+
+**Resultado.**
+- **Dificuldade caminho × ciclo.** Nas 557 instâncias fechadas nas duas
+  formulações, a correlação dos log-tempos é 0,94 e o ciclo leva, em mediana,
+  0,41× o tempo do caminho
+  ([`float-recovery-dantzig-2026-10-08`](#float-recovery-dantzig-2026-10-08)
+  contra a comparação TSPN de 16/10). Os desvios são grandes nos dois sentidos:
+  o caso 189 vai de 12 s a aberto; o 130 vai de 978 s a 3,9 s, e o 493 de 84 s
+  a 0,003 s.
+- **Ótimo do caso 189.** A ILS (`--primal-ils`) acha em ~30 s um tour de
+  436,992. Com `lazy --lazy-oracles --dive-interval 0`, fronteira de 512 MiB e
+  8 threads de subárvore, o B&B certifica esse tour dentro de 0,1% (LB 436,556)
+  em 675 s e 154 M nós (600 s, checkpoint e retomada). O tour do Fekete de 16/10
+  (441,52) fica 1,04% acima.
+- **Não são os toques.** Encolhendo cada casa 0,1% (ou 1%) em direção à média
+  dos vértices, nenhum par se toca, e o gap em 120 s fica em 2,58% (2,70%),
+  contra 3,23% no original. A dificuldade é o zigue-zague entre fileiras, com
+  muitas ordens de comprimento quase igual.
+- **Ramificação forte.** `branch` compara a menor inserção das 3 regiões
+  ausentes mais distantes. Comparar todas as ausentes (experimento, sem
+  commit) leva o caso 189 a 0,89% em 120 s e 0,40% em 600 s (com ILS e
+  `lazy`), contra 1,65% com 3. No protocolo, nas 558 com 60 s, a mesma regra
+  deixa o resto 7–12× mais lento (média geométrica) e perde 5 instâncias.
+  Restringir as candidatas às que estão a ≥ α da maior distância (α = 0,3 a
+  0,9), ou só trocar a mais distante quando a inserção dela fecha menos de
+  θ = 0,1–0,3 do gap do nó, não evita a troca: com α = 0,7 o caso 189 cai para
+  0,23–0,5% em 60 s, mas `vienna_n060_seed3619` (30 s) deixa de fechar e
+  `warsaw_n060_seed4239` e `dubai_n060_seed3351` ficam 1,4–1,9× mais lentas,
+  também com o tour da ILS desde o início.
+
+**Leitura.** Nenhuma regra fixa de ramificação testada melhora o caso 189 sem
+piorar outras instâncias; nada mudou no solver. O caso fecha com mais tempo e
+threads. **Limitações.** Uma máquina e uma repetição; as regras foram medidas
+em 7 instâncias escolhidas (as que pioraram com todas as candidatas) e no
+corpus só na versão com todas. Dados locais e patches dos experimentos:
+`experiments/zigzag-case189`.
+
+## cycle-coincident-contacts-2026-10-16
+
+**Pergunta.** Na comparação TSPN × Fekete de 16/10 (558 originais, 300 s), a
+única instância aberta, o caso 189 (`kuala_lumpur_n060_seed3530`, 60 casas
+geminadas do OSM), mandou 77% das chamadas do oráculo de ciclo ao polimento por
+pontos interiores. Por que a construção geométrica (busca em coordenadas) não
+fecha essas chamadas? **Formulação.** TSPN de ciclo livre, gap
+`UB ≤ 1,001·LB` (absoluto 0), `cache,features,root,interval`, uma thread;
+Mac M4 Pro. Contrato e prova do estágio binary64 inalterados: as duas mudanças
+só escolhem propostas ([`convex-cycle.md`](../../docs/algorithms/convex-cycle.md)).
+
+**Diagnóstico.** 8.880 chamadas capturadas do caso 189 (uma a cada 200) foram
+repetidas no estágio binary64 de três formas: só a construção, a construção
+reiniciada a partir do próprio resultado até parar de melhorar, e com o
+polimento. A construção fechava 25,2%. Em 55% ela parava num ciclo
+comprovadamente acima do ótimo (mediana 6,9%, máximo 31,6%), e reiniciá-la
+fechava só 0,3% dessas. Em 14% o ciclo estava dentro do gap, mas faltava o
+certificado (sempre com elos nulos). Duas causas:
+- **Movimento em bloco em binary64.** Duas casas com a parede comum dada pelos
+  mesmos vértices binary64 têm interseção recortada reduzida ao canto distante.
+  O par de contatos coincidentes, que estava no canto bom, era movido para lá e
+  fixado. Correção: em binary64 o bloco só se move se o movimento não alongar
+  seus dois elos.
+- **Duais dos elos curtos.** As quatro propostas aplicam uma regra só a todos
+  os elos curtos, e cada bloco de contatos coincidentes costuma precisar de um
+  vetor diferente. Correção: uma quinta proposta escolhe por trecho de elos
+  curtos, por programação dinâmica, já que `D(u)` se separa por trecho.
+
+**Resultado.**
+- **Mesmas 8.880 chamadas.** A construção passa a fechar 78,5% (25,2% antes);
+  tempo total do estágio 0,69 → 0,31 s.
+- **Caso 189, B&B de 300 s lado a lado com a `main` (`2cb14df`).** Chamadas
+  3,73 M → 12,47 M, nós 0,83 M → 1,98 M, polimento 77% → 12% das chamadas, LB
+  426,37 → 428,58, gap 2,55% → 2,05%. Continua aberto.
+- **558 originais, 60 s, variantes intercaladas por caso, um processo por
+  vez.** 557/558 fechadas nas duas (o caso 189 fica aberto), 558/558 tours
+  válidos (`validate_cycle`, 1e-7), nenhum par de limites incompatível. Razão
+  de tempo `main`/nova (média geométrica): 1,001× nos casos ≥ 10 ms (n = 150),
+  1,012× nos ≥ 0,1 s (n = 57), 1,017× nos ≥ 1 s (n = 12); a mais lenta, 0,91×
+  num caso de 0,2 s. Polimento fora do caso 189: 3,48% → 2,59% das chamadas.
+
+**Limitações.** Uma máquina e uma repetição; fora do caso 189 o efeito no tempo
+é neutro. No caso 189 sobram ~20% de chamadas em que a construção para acima
+do ótimo (mediana 1,6%), a maioria sem elos curtos; a causa não foi investigada. O oráculo
+de caminho usa a mesma regra única para os elos curtos (`interval_dual_lower`)
+e não recebeu a escolha por trecho. Dados locais:
+`experiments/cycle-coincident-contacts`.
+
 ## tspn-paula-long-armijo-2026-10-14
 
 **Pergunta.** Terminando subárvores em vez de descartar

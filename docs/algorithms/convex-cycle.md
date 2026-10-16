@@ -73,6 +73,16 @@ the two edge halfplanes alone describe an unbounded line. This allows a block
 on a common tessellation edge to slide jointly instead of being trapped by
 separate contact updates.
 
+In binary64 the clipped intersection can lose part of a shared wall. Two
+houses whose wall has the same binary64 endpoints in both can clip to the
+wall's far corner alone (seen in `kuala_lumpur_n060_seed3530`). Moving the
+block there lengthens the cycle and pins it, and separate coordinate updates
+cannot leave that corner afterwards. The double construction therefore keeps
+a block in place when the move would lengthen its two incident links. This
+binary64 comparison only selects the proposal. In exact arithmetic the
+block's point lies in the common region, so the move never lengthens the
+cycle and the rational construction is unchanged.
+
 The resulting vertex/edge/straight-through contacts suggest a combinatorial
 path type. If it has fixed vertex contacts, unfold edge reflections between
 successive fixed contacts and intersect the resulting straight segment with
@@ -272,6 +282,15 @@ describe the stage. The default `max_gap=0` keeps every previous contract.
    integer determinant. For construction candidates, links no longer than
    `max(32*eps*scale, max_gap/(16k))` get four proposals: their own
    directions, the nearest long link's on either side (cyclically), or zero.
+   These four apply one rule to every short link. A fifth proposal
+   (`cycle_dual_by_runs`, `float_proof.h`) chooses per run of short links,
+   because a cycle through several blocks of coincident contacts usually
+   needs a different vector in each block. `D(u)` separates over the runs.
+   A run `j..j+m-1` enters only the supports of regions `j..j+m`, whose
+   other vectors are the long links `j-1` and `j+m`. Dynamic programming
+   over each run picks the vectors that maximize that part of the bound,
+   among both long directions, their midpoint, the link's own direction and
+   zero. It uses the same rounded supports, and every choice is a valid dual.
    The polish proposes its smoothed directions. Lengths only select
    proposals; no length is used as a tolerance or as a lower bound.
 4. **Polish.** A log-barrier Newton method on the smoothed cycle length (see

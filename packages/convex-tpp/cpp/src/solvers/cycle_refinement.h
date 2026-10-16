@@ -236,6 +236,17 @@ template<class S> struct CycleRefinement {
                         const auto [found,kind]=coordinate(q[(start+k-1)%k],q[(end+1)%k],q[start],region);
                         point=found;corner=kind>=0&&kind%2==0;
                     }
+                    bool keep=true;
+                    if constexpr(std::is_same_v<S,double>) {
+                        // In exact arithmetic the block's point lies in the common
+                        // region, so this move never lengthens the cycle. Rounding
+                        // can shrink the clipped region of a shared wall to its far
+                        // corner; such a move would lengthen it and pin the block.
+                        const P prev=q[(start+k-1)%k],next=q[(end+1)%k];
+                        const auto norm=[](P v){return std::sqrt(v.dot(v));};
+                        keep=norm(point-prev)+norm(next-point)<=norm(q[start]-prev)+norm(next-q[end]);
+                    }
+                    if(keep)
                     for(size_t r=0;r<count;++r) {
                         const size_t i=(start+r)%k;q[i]=point;feature[i]=corner?kFixed:-1;
                         for(size_t j=0;j<p[i].size();++j) {
