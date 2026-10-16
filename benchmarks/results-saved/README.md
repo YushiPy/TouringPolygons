@@ -68,7 +68,8 @@ corpus só na versão com todas. Dados locais e patches dos experimentos:
 
 ## cycle-coincident-contacts-2026-10-16
 
-**Pergunta.** Na comparação TSPN × Fekete de 16/10 (558 originais, 300 s), a
+**Pergunta.** Na [comparação TSPN × Fekete de 16/10](#tspn-fekete-558-2026-10-16)
+(558 originais, 300 s), a
 única instância aberta, o caso 189 (`kuala_lumpur_n060_seed3530`, 60 casas
 geminadas do OSM), mandou 77% das chamadas do oráculo de ciclo ao polimento por
 pontos interiores. Por que a construção geométrica (busca em coordenadas) não
@@ -113,6 +114,38 @@ do ótimo (mediana 1,6%), a maioria sem elos curtos; a causa não foi investigad
 de caminho usa a mesma regra única para os elos curtos (`interval_dual_lower`)
 e não recebeu a escolha por trecho. Dados locais:
 `experiments/cycle-coincident-contacts`.
+
+## tspn-fekete-558-2026-10-16
+
+**Pergunta.** No TSPN, como o nosso solver se compara ao de Fekete et al. nas
+558 instâncias originais do artigo deles, lado a lado e na mesma máquina?
+**Formulação.** TSPN de ciclo livre (ordem livre, sem ponto fixo), regiões
+poligonais fechadas de `instances_socg_simplified.zip`; gap relativo de 0,1% nos
+dois; 300 s por execução (teto do processo 360 s), uma thread cada, quatro
+execuções simultâneas, uma repetição; Mac M4 Pro. `tspn-compare
+--socp-defaults`: o Fekete roda com as tolerâncias originais dele (Gurobi
+padrão, `FEASIBILITY_TOLERANCE` 1e-3, `SPANNING_TOLERANCE` 9e-4); o nosso
+(`2cb14df`) com factibilidade 1e-8 e `cache,features,root,interval`. Tours
+validados de forma independente a 1e-7 (`validate_cycle`). "Fechou" é gap
+numérico fechado: os limites do nosso são provados, os do Fekete são numéricos.
+
+**Resultado.**
+- **Nosso:** 557/558 com `UB ≤ 1,001·LB` (soma 385 s, a mais longa em 29,8 s);
+  558/558 tours válidos. A aberta é o caso 189 (ver
+  [`tspn-case189-zigzag-2026-10-16`](#tspn-case189-zigzag-2026-10-16)).
+- **Fekete:** 536/558 pelo critério dele, `(UB−LB)/UB ≤ 0,1%` (526 por
+  `UB ≤ 1,001·LB`); as outras 22 pararam no tempo. Só 155 dos 558 tours dele
+  validam a 1e-7, o esperado com a tolerância de factibilidade de 1e-3.
+- **Tempo, nas 536 fechadas pelos dois:** o nosso é mais rápido em 535 (a
+  exceção, `buenos_aires_n010_seed60`, leva 1,1 ms contra 0,7 ms). Razão
+  Fekete/nosso: média aritmética 91,1×, geométrica 41,4×, mediana 41,5×; nas de
+  41–60 regiões, 173× geométrica (n = 124). Restrita às 155 com tour do Fekete
+  válido, que são as menores, a média geométrica é 13,8×.
+
+**Limitações.** Uma repetição, num Mac pessoal com quatro execuções
+simultâneas. As tolerâncias de factibilidade diferem (as originais do Fekete
+contra 1e-8 no nosso). As 22 abertas do Fekete ficam fora das razões, o que
+subestima a vantagem. Dados locais: `campaigns/tspn-fekete-558-original`.
 
 ## tspn-paula-long-armijo-2026-10-14
 

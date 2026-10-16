@@ -9,7 +9,8 @@ common-geometry -> convex-tpp -> optimal-convex-partition -> nonconvex-tpp
 - `common-geometry/`: shared vectors and low-level geometry primitives.
 - `convex-tpp/`: maintained convex TPP APIs, including fixed-order primitives
   and certified interfaces.
-- `optimal-convex-partition/`: shared CGAL-backed decomposition library.
+- `optimal-convex-partition/`: shared optimal convex decomposition, a CGAL-free
+  port of CGAL's `optimal_convex_partition_2` (CGAL only for its parity test).
 - `nonconvex-tpp/`: maintained fixed-order and free-order C++ solvers.
 - `fenced-tpp/`: legacy fenced-TPP research code (Python); it is not part of
   the main build graph.

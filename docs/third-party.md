@@ -7,7 +7,10 @@ integração modificada é mantida no fork
 [`YushiPy/TSPN-SoCG-2026`](https://github.com/YushiPy/TSPN-SoCG-2026), branch
 `codex/touring-polygons-oracle`, e fixada neste repositório pelo submódulo
 `third_party/tspn-socg`. A primeira revisão integrada é
-`94db8fa3279f428484e598a3c40c04c470d03600`.
+`94db8fa3279f428484e598a3c40c04c470d03600`; a fixada hoje é
+`e91e936502ad32a5d5b3cf3f5a002cda739948e2`, que acrescenta duas correções de
+compatibilidade (o header de `fmt` nos bindings Python e a variante binary64 do
+mapa direcional no oráculo embutido) sem mudar o solver.
 
 O fork parte do upstream `tubs-alg/TSPN-SoCG-2026` e acrescenta o backend do
 oráculo convexo deste projeto, propagação do tempo restante, instrumentação e a
