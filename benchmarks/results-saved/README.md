@@ -19,6 +19,54 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## cycle-coincident-contacts-2026-10-16
+
+**Pergunta.** Na comparação TSPN × Fekete de 16/10 (558 originais, 300 s), a
+única instância aberta, o caso 189 (`kuala_lumpur_n060_seed3530`, 60 casas
+geminadas do OSM), mandou 77% das chamadas do oráculo de ciclo ao polimento por
+pontos interiores. Por que a construção geométrica (busca em coordenadas) não
+fecha essas chamadas? **Formulação.** TSPN de ciclo livre, gap
+`UB ≤ 1,001·LB` (absoluto 0), `cache,features,root,interval`, uma thread;
+Mac M4 Pro. Contrato e prova do estágio binary64 inalterados: as duas mudanças
+só escolhem propostas ([`convex-cycle.md`](../../docs/algorithms/convex-cycle.md)).
+
+**Diagnóstico.** 8.880 chamadas capturadas do caso 189 (uma a cada 200) foram
+repetidas no estágio binary64 de três formas: só a construção, a construção
+reiniciada a partir do próprio resultado até parar de melhorar, e com o
+polimento. A construção fechava 25,2%. Em 55% ela parava num ciclo
+comprovadamente acima do ótimo (mediana 6,9%, máximo 31,6%), e reiniciá-la
+fechava só 0,3% dessas. Em 14% o ciclo estava dentro do gap, mas faltava o
+certificado (sempre com elos nulos). Duas causas:
+- **Movimento em bloco em binary64.** Duas casas com a parede comum dada pelos
+  mesmos vértices binary64 têm interseção recortada reduzida ao canto distante.
+  O par de contatos coincidentes, que estava no canto bom, era movido para lá e
+  fixado. Correção: em binary64 o bloco só se move se o movimento não alongar
+  seus dois elos.
+- **Duais dos elos curtos.** As quatro propostas aplicam uma regra só a todos
+  os elos curtos, e cada bloco de contatos coincidentes costuma precisar de um
+  vetor diferente. Correção: uma quinta proposta escolhe por trecho de elos
+  curtos, por programação dinâmica, já que `D(u)` se separa por trecho.
+
+**Resultado.**
+- **Mesmas 8.880 chamadas.** A construção passa a fechar 78,5% (25,2% antes);
+  tempo total do estágio 0,69 → 0,31 s.
+- **Caso 189, B&B de 300 s lado a lado com a `main` (`2cb14df`).** Chamadas
+  3,73 M → 12,47 M, nós 0,83 M → 1,98 M, polimento 77% → 12% das chamadas, LB
+  426,37 → 428,58, gap 2,55% → 2,05%. Continua aberto.
+- **558 originais, 60 s, variantes intercaladas por caso, um processo por
+  vez.** 557/558 fechadas nas duas (o caso 189 fica aberto), 558/558 tours
+  válidos (`validate_cycle`, 1e-7), nenhum par de limites incompatível. Razão
+  de tempo `main`/nova (média geométrica): 1,001× nos casos ≥ 10 ms (n = 150),
+  1,012× nos ≥ 0,1 s (n = 57), 1,017× nos ≥ 1 s (n = 12); a mais lenta, 0,91×
+  num caso de 0,2 s. Polimento fora do caso 189: 3,48% → 2,59% das chamadas.
+
+**Limitações.** Uma máquina e uma repetição; fora do caso 189 o efeito no tempo
+é neutro. No caso 189 sobram ~20% de chamadas em que a construção para acima
+do ótimo (mediana 1,6%), a maioria sem elos curtos; a causa não foi investigada. O oráculo
+de caminho usa a mesma regra única para os elos curtos (`interval_dual_lower`)
+e não recebeu a escolha por trecho. Dados locais:
+`experiments/cycle-coincident-contacts`.
+
 ## tspn-paula-long-armijo-2026-10-14
 
 **Pergunta.** Terminando subárvores em vez de descartar

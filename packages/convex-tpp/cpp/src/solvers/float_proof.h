@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 
 #include "binary_dual.h"
 #include "float_chain.h"
@@ -191,6 +192,70 @@ inline std::vector<std::vector<Vector2>> cycle_dual_proposals(const std::vector<
         policies[1][i]=base[left];policies[2][i]=base[right];policies[3][i]={};
     }
     return policies;
+}
+
+// The policies above give every short link the same rule, but a cycle with
+// several blocks of coincident contacts usually needs a different vector in
+// each. D(u) separates over the runs of short links: a run j..j+m-1 between
+// the long links l = j-1 and j+m only enters the supports of regions
+// j..j+m, whose other vectors are those two long links. Each run therefore
+// picks its own vectors, by dynamic programming over the run, among a few
+// candidates (both neighboring long directions, their midpoint, the link's
+// own direction and zero) to maximize its part of the bound. The choice only
+// uses the same rounded supports; any choice is a valid dual.
+inline std::vector<Vector2> cycle_dual_by_runs(const std::vector<FloatRegion> &regions,const std::vector<Vector2> &q,
+        double short_link,Vector2 reference) {
+    const size_t k=q.size();
+    std::vector<Vector2> base;std::vector<bool> shorter;
+    for(size_t i=0;i<k;++i) {
+        const auto a=q[i],b=q[(i+1)%k];
+        const auto d=IntervalPoint(b)-IntervalPoint(a);
+        const auto norm=(d.x.square()+d.y.square()).sqrt();
+        base.push_back(a==b?Vector2{}:binary_dual_direction(a,b));
+        shorter.push_back(base.back()==Vector2{}||!norm.finite()||norm.hi<=short_link);
+    }
+    const auto longer=std::count(shorter.begin(),shorter.end(),false);
+    if(longer==0||longer==std::ptrdiff_t(k)||regions.size()!=k)return base;
+    auto term=[&](size_t region,Vector2 previous,Vector2 current) {
+        const double value=support_bounds<false>(regions[region],reference,previous,current).lower;
+        return std::isfinite(value)?value:-INFINITY;
+    };
+    auto result=base;
+    size_t first=0;while(shorter[first])++first;
+    for(size_t step=0;step<k;) {
+        const size_t left=(first+step)%k;
+        size_t m=0;while(shorter[(left+1+m)%k])++m;
+        step+=m+1;
+        if(m==0)continue;
+        const size_t right=(left+1+m)%k;
+        const Vector2 in=base[left],out=base[right];
+        const Vector2 middle=binary_dual_vector(IntervalPoint(Vector2{(in.x+out.x)/2,(in.y+out.y)/2}));
+        constexpr size_t C=5;
+        std::vector<std::array<Vector2,C>> candidates(m);
+        for(size_t r=0;r<m;++r)candidates[r]={in,out,middle,base[(left+1+r)%k],Vector2{}};
+        // value[r][c]: best sum of the supports of regions left+1..left+1+r with
+        // link left+1+r taking candidate c; choice[r][c] its predecessor.
+        std::vector<std::array<double,C>> value(m);std::vector<std::array<size_t,C>> choice(m);
+        for(size_t c=0;c<C;++c)value[0][c]=term((left+1)%k,in,candidates[0][c]);
+        for(size_t r=1;r<m;++r)for(size_t c=0;c<C;++c) {
+            value[r][c]=-INFINITY;choice[r][c]=0;
+            for(size_t b=0;b<C;++b) {
+                const double v=value[r-1][b]+term((left+1+r)%k,candidates[r-1][b],candidates[r][c]);
+                if(v>value[r][c]){value[r][c]=v;choice[r][c]=b;}
+            }
+        }
+        size_t best=0;double top=-INFINITY;
+        for(size_t c=0;c<C;++c) {
+            const double v=value[m-1][c]+term(right,candidates[m-1][c],out);
+            if(v>top){top=v;best=c;}
+        }
+        if(!std::isfinite(top))continue;
+        for(size_t r=m;r-->0;) {
+            result[(left+1+r)%k]=candidates[r][best];
+            if(r>0)best=choice[r][best];
+        }
+    }
+    return result;
 }
 
 // Polish node of a region (float_chain.h), in coordinates relative to

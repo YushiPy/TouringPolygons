@@ -824,6 +824,41 @@ void binary64_stage() {
                 pruned.certificate.lower_bound>=cut.lower_bound_cutoff&&pruned.certificate.lower_bound<=optimum,
                 "t_A cycle cutoff reached by the binary64 lower bound");
     }
+    // Two pairs of houses sharing a wall, each visited at the wall's corner
+    // facing the two points (as in OSM rows of terraced houses). The zero
+    // link of the first pair needs the incoming direction as its dual and
+    // the second the outgoing one, so no single short-link policy proves the
+    // optimum; choosing per run of short links does, without the polish.
+    {
+        const Polygons p{{{2,3}},box(-1,0,0,1),box(-1,-1,0,0),{{2,-1}},box(4,-1,5,0),box(4,0,5,1)};
+        const double optimum=2*(std::sqrt(13.0)+std::sqrt(5.0));
+        tpp::ConvexCycleFloatOptions options;options.max_gap=1e-6*optimum;
+        const auto r=tpp::tpp_convex_solve_cycle_float_certified(p,options);
+        require(r.status==tpp::ConvexFloatOracleStatus::GapClosed&&r.construction_closed&&!r.polish_attempted,
+                "shared-wall pairs close by the interval proof");
+        require(r.lower_bound<=optimum&&r.upper_bound>=optimum,"shared-wall pairs enclose the optimum");
+        check_float_stage(p,"shared-wall pairs");
+    }
+    // Two houses of kuala_lumpur_n060_seed3530 (normalized as in the B&B)
+    // sharing a wall whose endpoints are the same binary64 vertices, between
+    // the neighboring contacts of a captured call. Clipping one house by the
+    // other in binary64 keeps only the wall's far corner; moving the
+    // coincident pair there lengthened the cycle and pinned it.
+    {
+        const Polygons p{{{0.23846885401806939,-0.00016982541946882469}},
+            {{0.07964812173086068,0.13636981183343524},{0.08107465525439844,0.0895659262278378},
+             {0.19220840975477205,0.09275864411385096},{0.1907818762312343,0.1395625297194484}},
+            {{0.07822158820732282,0.18317369743903258},{0.07964812173086068,0.13636981183343524},
+             {0.1907818762312343,0.1395625297194484},{0.18935534270769644,0.1864343454928333}},
+            {{0.2328306500917057,0.18337748794239514}}};
+        const auto exact_result=tpp::tpp_convex_solve_cycle(p);
+        require(solved(exact_result),"shared wall in binary64: rational reference");
+        tpp::ConvexCycleFloatOptions options;options.max_gap=1e-6*exact_result.certificate.upper_bound;
+        const auto r=tpp::tpp_convex_solve_cycle_float_certified(p,options);
+        require(r.status==tpp::ConvexFloatOracleStatus::GapClosed&&r.construction_closed,
+                "shared wall in binary64 closes by the construction");
+        check_float_stage(p,"shared wall in binary64");
+    }
     // A zero cycle: a common point of all regions.
     {
         tpp::ConvexCycleFloatOptions options;options.max_gap=1e-9;
