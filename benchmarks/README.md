@@ -708,6 +708,70 @@ uma execução não supervisionada pode ser iniciada com:
 caffeinate -i python3 benchmarks/tpp.py run-fekete --workers 8
 ```
 
+### Código original, como no artigo (configurações A e B)
+
+As comparações acima usam o nosso fork e um driver nativo próprio. Para a medição
+definitiva do lado do Fekete, `fekete-paper` e `fekete-single-thread` rodam o código
+**original e sem modificações**: o commit `5cd8450` de
+[tubs-alg/TSPN-SoCG-2026](https://github.com/tubs-alg/TSPN-SoCG-2026), que é o `main` deles,
+clonado em `.build/fekete-upstream/source`, separado do fork. O build segue o README
+deles (`setup.py develop`, depois `pip install -e .`). O `setup.py` pede faixas de versão
+ao Conan, que resolveria cada uma para a mais nova. Por isso, um lockfile, criado num
+Conan isolado (`.build/fekete-upstream/conan`) e lido pelo próprio Conan como
+`conan.lock`, fixa as versões que o artigo e o README citam:
+
+- Boost 1.83 e CGAL 6.0.1, as do artigo;
+- Gurobi 12.0.0, baixado pela própria receita deles;
+- fmt 11.2.0, porque com o fmt 12 os bindings deles não compilam;
+- os mínimos do README para o resto.
+
+Esse arquivo fica fora do controle de versão do checkout; os arquivos versionados são
+conferidos antes e depois do build. Da máquina só se usa a licença do Gurobi:
+`~/gurobi.lic`, `GRB_LICENSE_FILE` ou uma `gurobi.lic` em `/opt/gurobi*`.
+
+Cada execução chama `solve_annotated_instance` com os mesmos argumentos do script de
+experimentos deles (`evaluation/rq4_scalability/01_run_solver.py`) e mede o tempo do
+mesmo jeito: `time.time()` em volta da chamada, um processo por execução. Um teste
+(`benchmarks/tests/test_fekete_reference.py`) compara a chamada com esse script. Antes de
+medir, um problema de três quadrados inicia o Gurobi e verifica a licença, fora da
+medição. Nos jobs do artigo, só a primeira instância de cada processo pagava isso.
+
+| Comando | Configuração |
+|---|---|
+| `scripts/run_fekete_paper.sh [SEGUNDOS]` | **A**, a do artigo: raiz CHR (`OrderRoot`), 24 threads, uma execução por vez |
+| `scripts/run_fekete_single_thread.sh [SEGUNDOS]` | **B**: uma thread, raízes CHR e LEFP, uma execução por núcleo de performance (fixada nele no Linux) |
+
+As duas usam as 558 instâncias de `instances/instances_socg_simplified.zip` deles, com as
+anotações de ordem, três repetições, `eps = 0.001` (os 0,1% do artigo) e 300 s por padrão,
+o limite do artigo. Cada repetição tem sua ordem, sorteada com semente fixa. Os comandos:
+
+- rodam em segundo plano (`tpp.py jobs`) e sobrevivem ao fim da sessão SSH;
+- retomam de onde pararam quando executados de novo;
+- se a outra configuração está rodando, esperam ela terminar, para que só uma use a
+  máquina;
+- avisam se há outros processos ocupando a CPU e registram a carga alheia em cada linha.
+
+Executar o comando de novo enquanto ele roda mostra o andamento e como acompanhar o log.
+`--plan` mostra o plano sem rodar nada. `--smoke` roda as seis menores instâncias uma
+vez, em um diretório separado.
+
+Pela rodada de 16/10 (uma thread, LEFP, Mac M4 Pro: 2,95 h por repetição, das quais 1,8 h
+nas 22 instâncias que esgotam os 300 s), a estimativa na dantzig, com núcleos mais lentos,
+é de 6 a 7 h para a A e umas 3 h para a B, sem contar o build inicial. Cada execução gasta ainda
+uns 0,6 s fora da medição para iniciar o processo e o Gurobi. A primeira execução
+do `install_dependencies.sh` compila Boost, GMP e MPFR e leva de 20 a 60 minutos.
+
+Os resultados ficam em `workspace/experiments/fekete-reference/<A|B>-...-<SEGUNDOS>s/`:
+
+- `plan.json`: configuração, chamada, máquina e build, com versões resolvidas,
+  compilador, pacotes Python e licença;
+- `runs.jsonl`: uma linha por execução, com a solução completa devolvida pela API deles
+  (trajetória, limites, gap, `is_optimal`, estatísticas), tempo, CPU, memória máxima,
+  núcleos e carga da máquina;
+- `summary.md`: o resumo ao final.
+
+"Resolvida" é o `is_optimal` do solver deles: `(UB−LB) ≤ eps·UB + eps`.
+
 ## Preservação de resultados
 
 Resultados e dados brutos novos permanecem locais e ignorados. Em

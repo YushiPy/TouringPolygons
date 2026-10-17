@@ -319,6 +319,11 @@ def command_module(module_name: str, argv: Sequence[str]) -> int:
 	return int(result or 0)
 
 
+def command_module_function(module_name: str, function: str, argv: Sequence[str]) -> int:
+	"""Invoke one entry point of an internal module that serves several commands."""
+	return int(getattr(__import__(module_name), function)(list(argv)) or 0)
+
+
 def module(name: str) -> Callable[[Sequence[str]], int]:
 	return lambda argv: command_module(name, argv)
 
@@ -396,6 +401,12 @@ GROUPS: dict[str, dict[str, Command]] = {
 		"cycle-replay": Command("ARGS...", "Replay captured convex-cycle oracle calls.", module("cycle_replay")),
 	},
 	"External solver (Fekete et al.)": {
+		"fekete-setup": Command("", "Clone, build and verify Fekete's unmodified upstream solver (no sudo).",
+			lambda argv: command_module_function("fekete_reference", "setup_main", argv)),
+		"fekete-paper": Command("[SECONDS]", "Configuration A: Fekete's original code as in the paper (CHR root, 24 threads), 558 cases x 3.",
+			lambda argv: command_module_function("fekete_reference", "paper_main", argv)),
+		"fekete-single-thread": Command("[SECONDS]", "Configuration B: Fekete's original code with 1 thread (CHR and LEFP roots), 558 cases x 3.",
+			lambda argv: command_module_function("fekete_reference", "single_thread_main", argv)),
 		"compare-external": Command("ARGS...", "Run the pinned external solver on a suite.", module("tspn_run_comparison")),
 		"compare-oracles": Command("ARGS...", "Compare oracle backends inside the external solver.", module("tspn_oracle_backends")),
 		"run-fekete": Command("ARGS...", "Run/resume the long external campaign.", module("run_fekete")),

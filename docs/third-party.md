@@ -29,6 +29,14 @@ Em um checkout existente:
 git submodule update --init --recursive
 ```
 
+As medições de referência do lado do Fekete (`tpp.py fekete-paper` e
+`fekete-single-thread`) não usam o fork. Elas rodam o upstream sem modificações,
+`tubs-alg/TSPN-SoCG-2026` no commit `5cd84507c2409caf47c524f60bdd3b96453f0e15`
+(o `main` deles e a base do fork). O código é clonado e compilado em
+`.build/fekete-upstream/` por `tpp.py fekete-setup`, que faz parte de
+`scripts/install_dependencies.sh`. Veja
+[`benchmarks/README.md`](../benchmarks/README.md#código-original-como-no-artigo-configurações-a-e-b).
+
 O submódulo continua sendo um projeto externo, não um pacote mantido deste
 monorepo. Adaptadores, campanhas e resultados de comparação ficam em
 `benchmarks/`; mudanças necessárias ao solver externo são feitas no fork e

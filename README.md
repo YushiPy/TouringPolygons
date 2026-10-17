@@ -90,9 +90,13 @@ cd TouringPolygons
 ./scripts/sanity_check.sh
 ```
 
-O instalador é idempotente. Ele instala as dependências de sistema conhecidas,
-sincroniza o ambiente Python próprio dos benchmarks e os ambientes Python e
-Node do dashboard, e instala o Chromium usado pelos testes de navegador.
+O instalador é idempotente e nunca usa `sudo`. O que falta e pode ser obtido sem
+administrador é baixado para a pasta pessoal ou para o repositório: uv, Python 3.12,
+o ambiente Python dos benchmarks, headers C++ e o solver original de Fekete et al.
+com seus pacotes. O que exige administrador (compilador, `git`, `make`) é só
+listado, e o script para. No macOS, ele usa o Homebrew quando existe; sem ele, o
+nosso solver fica de fora, porque precisa da `libomp`. Com Node.js presente,
+também prepara o dashboard e o Chromium dos testes de navegador.
 
 O `sanity_check` compila os solvers e roda os testes em cerca de um minuto com
 o build já feito. Para verificar um checkout já preparado sem tentar instalar

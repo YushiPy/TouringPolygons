@@ -12,10 +12,12 @@ for argument in "$@"; do
 			cat <<'EOF'
 Usage: scripts/install_dependencies.sh [--solvers-only]
 
-Install what the project needs, never with sudo (Homebrew on macOS needs none; on Linux
-missing system packages are only listed). With --solvers-only (alias --no-web) only what the
-two solvers and the benchmark CLI need is installed: no Node.js, no dashboard
-environment, no npm packages and no Playwright browser.
+Install what the project needs without sudo: what is missing and can be had without root is
+downloaded into your home directory or the repository (uv, Python 3.12, CMake, C++ headers,
+Fekete's original solver and its Conan packages); what needs an administrator is only
+listed, and the script stops so you can install it and run it again. On macOS, Homebrew is
+used when present but is not required. With --solvers-only (alias --no-web) Node.js, the
+dashboard environment and its Playwright browser are skipped.
 EOF
 			exit 0
 			;;
@@ -27,120 +29,137 @@ have() {
 	command -v "$1" >/dev/null 2>&1
 }
 
-install_system_dependencies() {
+skipped=()
+
+# Tools that only an administrator can install. Everything else is downloaded below.
+check_system_tools() {
+	local missing=()
+	have git || missing+=(git)
+	have make || missing+=(make)
+	{ have c++ || have g++ || have clang++; } || missing+=(c++)
+	have curl || have wget || missing+=(curl)
+	if (( ${#missing[@]} == 0 )); then
+		return
+	fi
+	echo "Missing system tools: ${missing[*]}" >&2
 	if [[ "$(uname -s)" == "Darwin" ]]; then
-		if ! have brew; then
-			echo "Homebrew is required. Install it from https://brew.sh and rerun this script." >&2
-			exit 1
-		fi
-		if ! have c++ || ! have make; then
-			echo "Apple Command Line Tools are required. Run 'xcode-select --install' and rerun this script." >&2
-			exit 1
-		fi
-
-		local formulae=()
-		have python3 || formulae+=(python)
-		have cmake || formulae+=(cmake)
-		have uv || formulae+=(uv)
-		if (( web )) && { ! have node || ! have npm; }; then formulae+=(node); fi
-		for formula in libomp eigen boost; do
-			brew --prefix "$formula" >/dev/null 2>&1 || formulae+=("$formula")
-		done
-
-		if (( ${#formulae[@]} > 0 )); then
-			echo "+ brew install ${formulae[*]}"
-			brew install "${formulae[@]}"
-		else
-			echo "System dependencies: already installed"
-		fi
-		return
+		echo "Install Apple's Command Line Tools with 'xcode-select --install' (no sudo needed) and rerun this script." >&2
+	else
+		echo "This script never uses sudo. Ask someone with administrator rights to install them" >&2
+		echo "(Debian/Ubuntu: sudo apt-get install build-essential git curl), then rerun this script." >&2
 	fi
-
-	if have apt-get; then
-		# Nothing is installed with sudo here: only what cannot be had without root is reported.
-		# CMake and Ninja come from the Python environments; Eigen and Boost headers come from
-		# Fekete's Conan setup or `tpp.py build --fetch-deps`.
-		local packages=()
-		have python3 || packages+=(python3)
-		have git || packages+=(git)
-		python3 -c 'import venv, ensurepip' >/dev/null 2>&1 || packages+=(python3-venv)
-		have c++ || packages+=(build-essential)
-		if (( web )); then have node || packages+=(nodejs npm); fi
-		if (( ${#packages[@]} > 0 )); then
-			echo "Missing system packages: ${packages[*]}" >&2
-			echo "This script never uses sudo. Ask an administrator to install them (Debian/Ubuntu: sudo apt-get install ${packages[*]})." >&2
-			exit 1
-		fi
-		echo "System tools: present (a C++23 compiler such as g++ 13 or newer is also required; checked by the build)"
-
-		if ! have uv; then
-			echo "uv is required and installs in your home directory without root: see https://docs.astral.sh/uv/ and rerun this script." >&2
-			exit 1
-		fi
-		return
-	fi
-
-	echo "Unsupported operating system: install Python, uv, CMake, a C++ compiler, Node.js, OpenMP, Eigen, and Boost manually." >&2
 	exit 1
 }
 
-sync_python_app() {
-	local directory="$1"
-	echo
-	echo "==> Python dependencies: $directory"
-	(
-		cd "$directory"
-		uv sync --frozen
-	)
+install_homebrew_formulae() {
+	local formulae=()
+	have cmake || formulae+=(cmake)
+	have uv || formulae+=(uv)
+	if (( web )) && { ! have node || ! have npm; }; then formulae+=(node); fi
+	for formula in libomp eigen boost; do
+		brew --prefix "$formula" >/dev/null 2>&1 || formulae+=("$formula")
+	done
+	if (( ${#formulae[@]} > 0 )); then
+		echo "+ brew install ${formulae[*]}"
+		brew install "${formulae[@]}"
+	else
+		echo "Homebrew packages: already installed"
+	fi
 }
 
-sync_node_app() {
-	local directory="$1"
+# uv provides Python and the locked environments; it installs in ~/.local/bin without root.
+ensure_uv() {
+	for directory in "$HOME/.local/bin" "$HOME/.cargo/bin"; do
+		[[ -x "$directory/uv" ]] && export PATH="$directory:$PATH"
+	done
+	have uv && return
 	echo
-	echo "==> Node dependencies: $directory"
-	(
-		cd "$directory"
-		npm ci
-	)
+	echo "==> uv (official installer, into ~/.local/bin; no root)"
+	if have curl; then
+		curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh
+	else
+		wget -qO- https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh
+	fi
+	export PATH="$HOME/.local/bin:$PATH"
+	have uv || { echo "uv could not be installed; see https://docs.astral.sh/uv/" >&2; exit 1; }
 }
 
-install_system_dependencies
+# A Python to start benchmarks/tpp.py (3.11 or newer); uv downloads 3.12 when the system has none.
+# The benchmark environment itself always gets the pinned 3.12 (benchmarks/.python-version).
+find_python() {
+	local candidate
+	for candidate in python3.12 python3.13 python3.14 python3; do
+		if have "$candidate" && "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 11))' 2>/dev/null; then
+			command -v "$candidate"
+			return
+		fi
+	done
+	UV_CACHE_DIR="$repo_root/.cache/uv" uv python install 3.12 >&2
+	uv python find 3.12
+}
+
+check_system_tools
+if [[ "$(uname -s)" == "Darwin" ]]; then
+	if have brew; then
+		install_homebrew_formulae
+	else
+		echo "Homebrew not found: continuing without it (installing Homebrew needs an administrator)."
+		echo "Without it our solver cannot be built on macOS (it needs Homebrew's libomp); Fekete's solver can."
+		skipped+=("our solver on macOS (needs Homebrew's libomp: brew install libomp)")
+	fi
+fi
+ensure_uv
+python_bin="$(find_python)"
+echo "Python for the benchmark CLI: $python_bin"
 
 echo
 echo "==> Git submodules"
 git submodule update --init --recursive
 
-python3 benchmarks/tpp.py setup
+"$python_bin" benchmarks/tpp.py setup
+cli=("$repo_root/benchmarks/.venv/bin/python" benchmarks/tpp.py)
 
 # Eigen and Boost headers: without system packages (no root), fetch the pinned releases
 # (SHA-256 checked) into .cache/deps, where the build finds them.
-if [[ "$(uname -s)" != "Darwin" ]] \
+if ! have brew \
 	&& { [[ ! -f /usr/include/eigen3/Eigen/Core && ! -f /usr/local/include/eigen3/Eigen/Core ]] \
 		|| [[ ! -f /usr/include/boost/multiprecision/cpp_bin_float.hpp && ! -f /usr/local/include/boost/multiprecision/cpp_bin_float.hpp ]]; }; then
 	echo
 	echo "==> Eigen/Boost headers (no system packages found; fetching pinned releases, no root needed)"
-	python3 benchmarks/tpp.py build --fetch-deps
+	"${cli[@]}" build --fetch-deps
 fi
+
+echo
+echo "==> Fekete et al.'s original solver (upstream code, unmodified; Conan packages and Gurobi 12 into .build/)"
+"${cli[@]}" fekete-setup
 
 if (( web )); then
-	sync_python_app apps/benchmark-dashboard
-	sync_node_app apps/benchmark-dashboard
-
-	echo
-	echo "==> Playwright Chromium"
-	(
-		cd apps/benchmark-dashboard
-		npx playwright install chromium
-	)
-
-	echo
-	echo "All project dependencies are installed."
-else
-	echo
-	echo "==> Check"
-	python3 benchmarks/tpp.py doctor || true
-	echo
-	echo "Solver dependencies are installed (web dependencies skipped)."
-	echo "Next: python3 benchmarks/tpp.py free-compare --setup-only --solver both"
-	echo "      (builds both solvers; Fekete also needs a valid Gurobi license)."
+	if have node && have npm; then
+		echo
+		echo "==> Python dependencies: apps/benchmark-dashboard"
+		(cd apps/benchmark-dashboard && uv sync --frozen)
+		echo
+		echo "==> Node dependencies: apps/benchmark-dashboard"
+		(cd apps/benchmark-dashboard && npm ci)
+		echo
+		echo "==> Playwright Chromium"
+		(cd apps/benchmark-dashboard && npx playwright install chromium)
+	else
+		skipped+=("the dashboard (needs Node.js and npm; not needed for benchmarks)")
+	fi
 fi
+
+echo
+echo "==> Check"
+"${cli[@]}" doctor || true
+echo
+if (( ${#skipped[@]} > 0 )); then
+	echo "Installed everything except:"
+	for item in "${skipped[@]}"; do
+		echo "  - $item"
+	done
+else
+	echo "All project dependencies are installed."
+fi
+echo "Fekete's original solver: scripts/run_fekete_paper.sh (configuration A) and"
+echo "scripts/run_fekete_single_thread.sh (configuration B); add --plan to see the estimate first."
