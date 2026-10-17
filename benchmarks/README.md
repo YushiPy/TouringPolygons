@@ -741,7 +741,7 @@ medição. Nos jobs do artigo, só a primeira instância de cada processo pagava
 
 | Comando | Configuração |
 |---|---|
-| `scripts/run_fekete_paper.sh [SEGUNDOS]` | **A**, a do artigo: raiz CHR (`OrderRoot`), 24 threads, uma execução por vez |
+| `scripts/run_fekete_paper.sh [SEGUNDOS]` | **A**, a do artigo: raiz CHR (`OrderRoot`), uma execução por vez, com uma thread por CPU lógica dos núcleos de performance e presa a eles (16 na armijo e na dantzig). O artigo usou 24, todas as CPUs do Ryzen deles; `--threads N` escolhe outro número |
 | `scripts/run_fekete_single_thread.sh [SEGUNDOS]` | **B**: uma thread, raízes CHR e LEFP, uma execução por núcleo de performance (fixada nele no Linux) |
 | `scripts/run_ours_single_thread.sh [SEGUNDOS]` | **C**: o nosso `tpp-unordered` no protocolo da B, com as opções da comparação de 16/10 |
 
@@ -776,7 +776,9 @@ ainda uns 0,6 s fora da medição para iniciar o processo e o Gurobi. A C leva u
 A primeira execução do `install_dependencies.sh` compila Boost, GMP e MPFR e leva de 20 a
 60 minutos.
 
-Os resultados ficam em `workspace/experiments/fekete-reference/<A|B|C>-...-<SEGUNDOS>s/`:
+Os resultados ficam em `workspace/experiments/fekete-reference/<A|B|C>-...-<SEGUNDOS>s/`. O nome
+da A inclui o número de threads (`A-paper-16threads-300s`), e o da C, o commit do nosso
+código. As máquinas estão descritas em [`machines.md`](machines.md).
 
 - `plan.json`: configuração, chamada, máquina e build, com versões resolvidas,
   compilador, pacotes Python e licença (na C, commit, binário e argumentos);

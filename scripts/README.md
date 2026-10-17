@@ -13,7 +13,7 @@ atalhos `.sh` abaixo só preparam o Python do `tpp.py` e o chamam.
 | `run_comparison.sh` | atalho para `tpp.py free-compare`: prepara e executa/retoma a comparação de ordem livre com os 558 casos de Fekete |
 | `run_tspn_comparison.sh` | atalho para `tpp.py tspn-compare`: prepara e executa/retoma a campanha TSPN completa |
 | `run_paula_campaign.sh` | atalho para `tpp.py paula-campaign`: prepara tudo sem sudo (uv, headers, GMP, solver e seus testes) e executa/retoma a campanha longa de ILS + B&B nas instâncias da Paula (`--detach`, `--report`) |
-| `run_fekete_paper.sh [SEGUNDOS]` | configuração **A** do código original de Fekete et al. nas 558 instâncias do artigo (raiz CHR, 24 threads, uma execução por vez, 3 repetições); em segundo plano e retomável |
+| `run_fekete_paper.sh [SEGUNDOS]` | configuração **A** do código original de Fekete et al. nas 558 instâncias do artigo (raiz CHR, uma execução por vez com uma thread por CPU lógica dos núcleos de performance, 3 repetições; `--threads N` escolhe outro número); em segundo plano e retomável |
 | `run_fekete_single_thread.sh [SEGUNDOS]` | configuração **B** (uma thread, raízes CHR e LEFP, uma execução por núcleo de performance, 3 repetições); espera a A terminar se ela estiver rodando |
 | `run_ours_single_thread.sh [SEGUNDOS]` | configuração **C**: o nosso solver no protocolo da B, com as opções da comparação de 16/10; o diretório leva o commit do nosso código |
 | `machine_specs.sh` | imprime, em Markdown e sem sudo, o hardware e o software desta máquina para `benchmarks/machines.md` |

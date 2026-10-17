@@ -11,8 +11,10 @@ its own recipe downloads). Each run calls ``solve_annotated_instance`` exactly a
 experiment script ``evaluation/rq4_scalability/01_run_solver.py`` and times the
 call the same way (``fekete_reference_child.py``), one process per run.
 
-  A  fekete-paper          convex-hull-order root (CHR, ``OrderRoot``), 24 threads,
-                           one run at a time: the paper's configuration
+  A  fekete-paper          convex-hull-order root (CHR, ``OrderRoot``), one run at a
+                           time with one thread per logical CPU of the performance
+                           cores: the paper's 24 threads filled its 12-core, 24-CPU
+                           Ryzen; ``--threads N`` chooses another count
   B  fekete-single-thread  CHR and LEFP (``LongestEdgePlusFurthestSite``) roots,
                            1 thread, one run per performance core
   C  ours-single-thread    our tpp-unordered with the options of the 16/10
@@ -50,7 +52,7 @@ import threading
 import time
 import zipfile
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Sequence
 
@@ -65,6 +67,7 @@ INSTANCE_ARCHIVE = "instances/instances_socg_simplified.zip"
 INSTANCE_ARCHIVE_SHA256 = "210841184500cb444f332537c4291aeff502dde4e3adc4a4ee307a80db21711f"
 EXPECTED_INSTANCES = 558
 EPS = 0.001
+PAPER_THREADS = 24  # num_threads of the paper's experiment scripts
 REPETITIONS = 3
 DEFAULT_SECONDS = 300
 ORDER_SEED = 20261017
@@ -115,14 +118,14 @@ class Configuration:
 	key: str
 	command: str
 	roots: tuple[str, ...]
-	threads: int
+	threads: int | None  # None: one per logical CPU of the performance cores
 	summary: str
 	solver: str = "fekete"
 
 
 CONFIGURATIONS = {
-	"A": Configuration("A", "fekete-paper", ("OrderRoot",), 24,
-		"configuração do artigo: raiz CHR, 24 threads, uma execução por vez"),
+	"A": Configuration("A", "fekete-paper", ("OrderRoot",), None,
+		"configuração do artigo: raiz CHR, uma thread por CPU lógica dos núcleos de performance, uma execução por vez"),
 	"B": Configuration("B", "fekete-single-thread", ("OrderRoot", "LongestEdgePlusFurthestSite"), 1,
 		"uma thread: raízes CHR e LEFP, uma execução por núcleo de performance"),
 	"C": Configuration("C", "ours-single-thread", ("ours",), 1,
@@ -588,6 +591,18 @@ def plan_tasks(instances: Sequence[str], roots: Sequence[str], repetitions: int)
 	return tasks
 
 
+def performance_cpus() -> list[int]:
+	"""Logical CPUs of the performance cores: all of them on a CPU without efficiency cores."""
+	if platform.system() == "Linux" and hasattr(os, "sched_getaffinity"):
+		return sorted(cpu for core in cpu_affinity.detect_cores() if core.performance for cpu in core.cpus)
+	if platform.system() == "Darwin":
+		value = subprocess.run(["sysctl", "-n", "hw.perflevel0.logicalcpu"], capture_output=True, text=True,
+			check=False).stdout.strip()
+		if value.isdigit():
+			return list(range(int(value)))
+	return list(range(os.cpu_count() or 1))
+
+
 def default_workers(configuration: Configuration) -> int:
 	"""One run at a time with several threads; otherwise one run per performance core."""
 	if configuration.threads > 1:
@@ -607,6 +622,8 @@ def run_directory(configuration: Configuration, seconds: int, smoke: bool) -> Pa
 	label = configuration.command.removeprefix("fekete-")
 	if configuration.solver == "ours":
 		label = f"ours-{our_revision()}"
+	elif configuration.threads != 1:
+		label += f"-{configuration.threads}threads"
 	name = f"{configuration.key}-{label}-{seconds}s"
 	return experiment_root() / (name + ("-smoke" if smoke else ""))
 
@@ -778,6 +795,9 @@ class Runner:
 		self.started = time.monotonic()
 		self.pool = (cpu_affinity.CorePool(workers, 1, "p-cores", log=lambda text, **_: say(text))
 			if configuration.threads == 1 else None)
+		# A run with several threads stays on the performance cores when they suffice (Linux only).
+		cpus = performance_cpus() if configuration.threads != 1 and hasattr(os, "sched_setaffinity") else []
+		self.cpus = cpus if 0 < (configuration.threads or 0) <= len(cpus) else []
 
 	def hard_limit(self) -> float:
 		# The solver's limit is cooperative; a run still going well past it is killed.
@@ -827,6 +847,8 @@ class Runner:
 				self.running[process.pid] = False
 			if self.pool is not None:
 				self.pool.pin(process.pid, held["lease"])
+			elif self.cpus:
+				os.sched_setaffinity(process.pid, set(self.cpus))
 			timer = threading.Timer(self.hard_limit(), self._kill, (process.pid, True))
 			timer.start()
 			_, status, usage = os.wait4(process.pid, 0)
@@ -846,6 +868,8 @@ class Runner:
 				"max_rss_mb": round(rss, 1)}
 			if affinity is not None:
 				row["cpu_affinity"] = affinity
+			elif self.cpus:
+				row["cpu_affinity"] = {"cpus": self.cpus, "performance": True}
 			own = usage.ru_utime + usage.ru_stime
 			row["machine_load"] = {"load_average_before": round(load_before, 2),
 				"load_average_after": round(os.getloadavg()[0], 2)}
@@ -1072,7 +1096,8 @@ def job_hints(job: str) -> None:
 def describe_plan(configuration: Configuration, seconds: int, workers: int, total: int, pending: int,
 		directory: Path) -> None:
 	say(f"Configuração {configuration.key} ({configuration.command}): {configuration.summary}.")
-	say(f"{total} execuções ({pending} pendentes), {workers} por vez, limite de {seconds} s cada.")
+	say(f"{total} execuções ({pending} pendentes), {workers} por vez, {configuration.threads} thread(s) cada, "
+		f"limite de {seconds} s cada.")
 	say(f"Pior caso, se todas esgotassem o tempo: ~{hours(pending * (seconds + 5) / workers)}. "
 		"O log mostra a estimativa do tempo restante a cada execução.")
 	say(f"Resultados: {directory}")
@@ -1091,9 +1116,20 @@ def run_main(key: str, argv: Sequence[str] | None = None) -> int:
 		help=f"teste rápido: as {SMOKE_INSTANCES} menores instâncias, uma repetição, em diretório separado")
 	parser.add_argument("--foreground", action="store_true", help="roda neste terminal em vez de em segundo plano")
 	parser.add_argument("--workers", type=int, help=argparse.SUPPRESS)
+	if configuration.threads is None:
+		parser.add_argument("--threads", type=int, help=(
+			"threads por execução (padrão: uma por CPU lógica dos núcleos de performance desta máquina; "
+			f"o artigo usou {PAPER_THREADS})"))
 	args = parser.parse_args(list(argv or []))
 	if args.seconds < 1:
 		parser.error("o limite de tempo deve ser positivo")
+	if configuration.threads is None:
+		threads = getattr(args, "threads", None) or len(performance_cpus())
+		if threads < 1:
+			parser.error("--threads deve ser positivo")
+		configuration = replace(configuration, threads=threads)
+		if threads > (os.cpu_count() or threads):
+			say(f"ATENÇÃO: {threads} threads em {os.cpu_count()} CPUs lógicas; as threads vão disputar a CPU.")
 	workers = args.workers or default_workers(configuration)
 	if workers < 1:
 		parser.error("--workers deve ser positivo")
@@ -1160,7 +1196,8 @@ def run_main(key: str, argv: Sequence[str] | None = None) -> int:
 		import jobs
 
 		command = [configuration.command, str(args.seconds), *(["--smoke"] if args.smoke else []),
-			*([f"--workers={args.workers}"] if args.workers else []), "--foreground"]
+			*([f"--workers={args.workers}"] if args.workers else []),
+			*([f"--threads={configuration.threads}"] if CONFIGURATIONS[key].threads is None else []), "--foreground"]
 		with contextlib.redirect_stdout(io.StringIO()) as printed, contextlib.redirect_stderr(io.StringIO()):
 			code = jobs.command_start(argparse.Namespace(name=configuration.command, command=command))
 		job = printed.getvalue().split()[0] if printed.getvalue().split() else None

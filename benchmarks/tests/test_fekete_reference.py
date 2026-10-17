@@ -50,8 +50,8 @@ class ChildCallTests(unittest.TestCase):
 		paper = paper_call_keywords()
 		ours = self.call(root="OrderRoot", threads=1, time_limit=300, eps=0.001)
 		self.assertEqual(set(ours), set(paper))
-		# num_threads is the one argument configuration B changes (A keeps the paper's 24).
-		self.assertEqual(ast.literal_eval(paper["num_threads"]), reference.CONFIGURATIONS["A"].threads)
+		# num_threads is the one argument the configurations choose (the paper's 24 filled its 24 CPUs).
+		self.assertEqual(ast.literal_eval(paper["num_threads"]), reference.PAPER_THREADS)
 		for name, value in ours.items():
 			if name != "num_threads" and isinstance(paper[name], (ast.Constant, ast.List)):
 				with self.subTest(name=name):
@@ -69,7 +69,7 @@ class ChildCallTests(unittest.TestCase):
 			self.assertIn(f'"{root}"', text)
 		self.assertIn("num_threads=24", text)
 		self.assertIn("0.001", text)
-		self.assertEqual(reference.CONFIGURATIONS["A"].threads, 24)
+		self.assertIsNone(reference.CONFIGURATIONS["A"].threads)
 		self.assertEqual(reference.EPS, 0.001)
 		self.assertEqual(reference.DEFAULT_SECONDS, 300)
 
@@ -211,7 +211,7 @@ class RunnerTests(unittest.TestCase):
 			self.addCleanup(patcher.stop)
 
 	def runner(self):
-		configuration = reference.CONFIGURATIONS["A"]
+		configuration = reference.replace(reference.CONFIGURATIONS["A"], threads=24)
 		sizes = {"fine": 5, "slow": 6, "broken": 7}
 		return reference.Runner(configuration, 1, 1, self.output, sizes, None, total=3, done=0)
 
@@ -266,6 +266,37 @@ class OurRunnerTests(unittest.TestCase):
 
 
 class CommandTests(unittest.TestCase):
+	def plan_text(self, main, argv, cpus):
+		sizes = {f"case{index}": 10 for index in range(reference.EXPECTED_INSTANCES)}
+		with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"TPP_WORKSPACE": directory}), \
+				patch.object(reference, "read_setup", return_value={"fingerprint": "x"}), \
+				patch.object(reference, "load_instances", return_value=sizes), \
+				patch.object(reference, "performance_cpus", return_value=list(range(cpus))), \
+				patch.object(reference, "prepare") as prepare, patch("builtins.print") as printed:
+			self.assertEqual(main(argv), 0)
+		prepare.assert_not_called()
+		return "\n".join(str(call.args[0]) for call in printed.call_args_list if call.args)
+
+	def test_configuration_a_uses_the_performance_cpus_unless_told_otherwise(self):
+		text = self.plan_text(reference.paper_main, ["--plan"], 16)
+		self.assertIn("1 por vez, 16 thread(s) cada", text)
+		self.assertIn("A-paper-16threads-300s", text)
+		text = self.plan_text(reference.paper_main, ["--plan", "--threads", "24"], 16)
+		self.assertIn("24 thread(s) cada", text)
+		self.assertIn("A-paper-24threads-300s", text)
+
+	def test_the_performance_cpus_exclude_efficiency_cores(self):
+		Core = reference.cpu_affinity.Core
+		hybrid = [Core((0, 1), True), Core((2, 3), True), Core((16,), False), Core((17,), False)]
+		with patch.object(reference.platform, "system", return_value="Linux"), \
+				patch.object(reference.os, "sched_getaffinity", create=True), \
+				patch.object(reference.cpu_affinity, "detect_cores", return_value=hybrid):
+			self.assertEqual(reference.performance_cpus(), [0, 1, 2, 3])
+
+	def test_threads_are_fixed_for_the_single_thread_configurations(self):
+		with self.assertRaises(SystemExit), patch("sys.stderr"):
+			reference.single_thread_main(["--threads", "4"])
+
 	def test_plan_only_prints_the_plan(self):
 		sizes = {f"case{index}": 10 for index in range(reference.EXPECTED_INSTANCES)}
 		with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"TPP_WORKSPACE": directory}), \
@@ -276,7 +307,7 @@ class CommandTests(unittest.TestCase):
 		prepare.assert_not_called()
 		text = "\n".join(str(call.args[0]) for call in printed.call_args_list if call.args)
 		self.assertIn(f"{reference.EXPECTED_INSTANCES * 2 * 3} execuções", text)
-		self.assertIn("8 por vez, limite de 600 s", text)
+		self.assertIn("8 por vez, 1 thread(s) cada, limite de 600 s", text)
 		self.assertIn("B-single-thread-600s", text)
 
 

@@ -4,6 +4,7 @@
 # Python, Gurobi), para colar em benchmarks/machines.md. Não usa sudo e não imprime
 # números de série, UUIDs nem o conteúdo de licenças.
 set -uo pipefail
+export LC_ALL=C  # decimal points and English tool output whatever the session's locale
 
 have() { command -v "$1" >/dev/null 2>&1; }
 first_line() { "$@" 2>/dev/null | head -n 1; }
@@ -56,6 +57,11 @@ row "Python" "$(first_line python3 --version)$(have python3.12 && printf ', pyth
 gurobi="$(ls -d /opt/gurobi* /Library/gurobi* 2>/dev/null | tr '\n' ' ')"
 license="ausente"
 for file in "${GRB_LICENSE_FILE:-}" "$HOME/gurobi.lic" /opt/gurobi/gurobi.lic /opt/gurobi*/gurobi.lic /Library/gurobi/gurobi.lic; do
-	[[ -n "$file" && -f "$file" ]] && { license="presente (${file/#$HOME/~})"; break; }
+	if [[ -n "$file" && -f "$file" ]]; then
+		shown="${file#"$HOME"}"
+		[[ "$shown" == "$file" ]] || shown="~$shown"
+		license="presente ($shown)"
+		break
+	fi
 done
 row "Gurobi instalado" "${gurobi:-nenhum}; licença: ${license}"

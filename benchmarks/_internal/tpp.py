@@ -403,7 +403,7 @@ GROUPS: dict[str, dict[str, Command]] = {
 	"External solver (Fekete et al.)": {
 		"fekete-setup": Command("", "Clone, build and verify Fekete's unmodified upstream solver (no sudo).",
 			lambda argv: command_module_function("fekete_reference", "setup_main", argv)),
-		"fekete-paper": Command("[SECONDS]", "Configuration A: Fekete's original code as in the paper (CHR root, 24 threads), 558 cases x 3.",
+		"fekete-paper": Command("[SECONDS]", "Configuration A: Fekete's original code as in the paper (CHR root, one thread per performance CPU), 558 cases x 3.",
 			lambda argv: command_module_function("fekete_reference", "paper_main", argv)),
 		"fekete-single-thread": Command("[SECONDS]", "Configuration B: Fekete's original code with 1 thread (CHR and LEFP roots), 558 cases x 3.",
 			lambda argv: command_module_function("fekete_reference", "single_thread_main", argv)),
