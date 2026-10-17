@@ -133,6 +133,12 @@ echo
 echo "==> Fekete et al.'s original solver (upstream code, unmodified; Conan packages and Gurobi 12 into .build/)"
 "${cli[@]}" fekete-setup
 
+if [[ "$(uname -s)" != "Darwin" ]] || have brew; then
+	echo
+	echo "==> Our solver (GMP and headers without root when missing; builds and runs its tests once)"
+	"${cli[@]}" ours-setup
+fi
+
 if (( web )); then
 	if have node && have npm; then
 		echo
@@ -161,5 +167,5 @@ if (( ${#skipped[@]} > 0 )); then
 else
 	echo "All project dependencies are installed."
 fi
-echo "Fekete's original solver: scripts/run_fekete_paper.sh (configuration A) and"
-echo "scripts/run_fekete_single_thread.sh (configuration B); add --plan to see the estimate first."
+echo "Reference runs: scripts/run_fekete_paper.sh (A), scripts/run_fekete_single_thread.sh (B) and"
+echo "scripts/run_ours_single_thread.sh (C); add --plan to see the plan first."

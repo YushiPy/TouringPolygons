@@ -15,8 +15,14 @@ call the same way (``fekete_reference_child.py``), one process per run.
                            one run at a time: the paper's configuration
   B  fekete-single-thread  CHR and LEFP (``LongestEdgePlusFurthestSite``) roots,
                            1 thread, one run per performance core
+  C  ours-single-thread    our tpp-unordered with the options of the 16/10
+                           comparison, 1 thread, one run per performance core
 
-Both use three repetitions and eps 0.001 (the paper's 0.1%). The commands run as
+``ours-setup`` builds and tests our solver for C. Its directory carries our commit,
+so a later run with changed code never mixes with an earlier one. Every tour is
+validated independently at 1e-7, outside the measurement.
+
+All use three repetitions and eps 0.001 (the paper's 0.1%). The commands run as
 a background job, resume after an interruption, and wait for each other, so
 only one configuration uses the machine at a time. Results stay in
 ``workspace/experiments/fekete-reference/``.
@@ -29,6 +35,7 @@ import contextlib
 import hashlib
 import io
 import json
+import math
 import os
 import platform
 import random
@@ -90,7 +97,17 @@ TRANSIENT_MARKERS = (
 	"too many 502 error responses", "too many 503 error responses", "too many 504 error responses",
 	"connection timed out", "read timed out", "temporary failure in name resolution", "connection reset",
 )
-ROOT_LABELS = {"OrderRoot": "CHR", "LongestEdgePlusFurthestSite": "LEFP"}
+ROOT_LABELS = {"OrderRoot": "CHR", "LongestEdgePlusFurthestSite": "LEFP", "ours": "nosso"}
+VALIDATION_TOLERANCE = 1e-7
+# Ours as in the 16/10 comparison (tspn-compare's defaults): the binary's relative gap
+# is (UB-LB)/UB, so eps/(1+eps) closes exactly when UB <= (1+eps)*LB, a stricter
+# criterion than Fekete's (UB-LB) <= eps*UB + eps.
+OUR_MAX_CALLS = 10**8
+OUR_ARGUMENTS = (
+	"--cycle", "--absolute-gap", "0", "--relative-gap", repr(EPS / (1 + EPS)), "--feasibility-tolerance", "1e-08",
+	"--cycle-optimization", "cache", "--cycle-optimization", "features", "--cycle-optimization", "root",
+	"--cycle-optimization", "interval",
+)
 
 
 @dataclass(frozen=True)
@@ -100,6 +117,7 @@ class Configuration:
 	roots: tuple[str, ...]
 	threads: int
 	summary: str
+	solver: str = "fekete"
 
 
 CONFIGURATIONS = {
@@ -107,6 +125,8 @@ CONFIGURATIONS = {
 		"configuração do artigo: raiz CHR, 24 threads, uma execução por vez"),
 	"B": Configuration("B", "fekete-single-thread", ("OrderRoot", "LongestEdgePlusFurthestSite"), 1,
 		"uma thread: raízes CHR e LEFP, uma execução por núcleo de performance"),
+	"C": Configuration("C", "ours-single-thread", ("ours",), 1,
+		"nosso solver: uma thread, uma execução por núcleo de performance, como a B", solver="ours"),
 }
 
 
@@ -467,6 +487,34 @@ def setup_main(argv: Sequence[str] | None = None) -> int:
 	return 0
 
 
+# --- our solver ---------------------------------------------------------------
+
+
+def our_revision() -> str:
+	state = workspace.git_state()
+	revision = (state.get("revision") or "unknown")[:7]
+	return revision + ("-dirty" if state.get("dirty") else "")
+
+
+def prepare_ours() -> dict:
+	"""Headers and GMP without root when missing, then tpp-unordered and its tests (once per build)."""
+	import paula_campaign
+
+	binary, arithmetic = paula_campaign.prepare_native()
+	return {"binary": str(binary), "binary_sha256": workspace.file_sha256(binary), "arithmetic": arithmetic,
+		"revision": our_revision(), "git": workspace.git_state(), "arguments": list(OUR_ARGUMENTS),
+		"max_calls": OUR_MAX_CALLS, "compiler": compiler_version()}
+
+
+def ours_setup_main(argv: Sequence[str] | None = None) -> int:
+	parser = argparse.ArgumentParser(prog="tpp.py ours-setup", description=(
+		"Build and test our solver for ours-single-thread (no sudo; idempotent)."))
+	parser.parse_args(list(argv or []))
+	ours = prepare_ours()
+	say(f"Nosso solver pronto: {ours['binary']} (commit {ours['revision']}, aritmética {ours['arithmetic']}).")
+	return 0
+
+
 # --- instances and plan ------------------------------------------------------
 
 
@@ -491,6 +539,37 @@ def load_instances(archive: Path) -> dict[str, int]:
 	if len(sizes) != EXPECTED_INSTANCES:
 		fail(f"{archive} tem {len(sizes)} instâncias; esperadas {EXPECTED_INSTANCES}")
 	return dict(sorted(sizes.items()))
+
+
+def load_polygons(archive: Path) -> dict[str, list]:
+	"""Instance name -> polygons as our solver and the validator read them (outer rings; the archive has no holes)."""
+	from convert_instances import convert_json_case
+
+	polygons = {}
+	with zipfile.ZipFile(archive) as file:
+		for member in file.namelist():
+			if member.endswith(".json"):
+				polygons[Path(member).stem] = convert_json_case(member, file.read(member)).polygons
+	return polygons
+
+
+def trajectory_points(wkt: str | None) -> list[tuple[float, float]]:
+	"""Points of the WKT LINESTRING in which Fekete's solver returns its tour."""
+	match = re.match(r"\s*LINESTRING\s*\((.*)\)\s*$", wkt or "", re.S)
+	if match is None:
+		return []
+	return [(float(x), float(y)) for x, y, *_ in (pair.split() for pair in match.group(1).split(","))]
+
+
+def finite(value) -> bool:
+	return isinstance(value, (int, float)) and math.isfinite(value)
+
+
+def criteria(lower, upper) -> dict:
+	"""Both stopping rules on the reported bounds: Fekete's and ours (UB <= (1+eps) LB)."""
+	if not (finite(lower) and finite(upper)) or lower < 0 or upper < lower:
+		return {"fekete": False, "strict": False}
+	return {"fekete": upper - lower <= EPS * upper + EPS, "strict": upper <= (1 + EPS) * lower}
 
 
 def smoke_instances(sizes: dict[str, int]) -> list[str]:
@@ -525,7 +604,10 @@ def default_workers(configuration: Configuration) -> int:
 
 
 def run_directory(configuration: Configuration, seconds: int, smoke: bool) -> Path:
-	name = f"{configuration.key}-{configuration.command.removeprefix('fekete-')}-{seconds}s"
+	label = configuration.command.removeprefix("fekete-")
+	if configuration.solver == "ours":
+		label = f"ours-{our_revision()}"
+	name = f"{configuration.key}-{label}-{seconds}s"
 	return experiment_root() / (name + ("-smoke" if smoke else ""))
 
 
@@ -575,8 +657,12 @@ def completed_keys(rows: Sequence[dict]) -> set[tuple[int, str, str]]:
 
 
 def solved(row: dict) -> bool:
-	solution = row.get("solution") or {}
-	return row.get("status") == "ok" and bool(solution.get("is_optimal"))
+	"""By the solver's own rule (Fekete: is_optimal; ours: UB <= (1+eps) LB)."""
+	if row.get("status") != "ok":
+		return False
+	if "solved" in row:
+		return bool(row["solved"])
+	return bool((row.get("solution") or {}).get("is_optimal"))
 
 
 # --- machine load -------------------------------------------------------------
@@ -673,8 +759,11 @@ class Runner:
 	"""Runs the tasks with ``workers`` concurrent solver processes, appending one row per run."""
 
 	def __init__(self, configuration: Configuration, seconds: int, workers: int, directory: Path,
-			sizes: dict[str, int], license_file: str | None, total: int, done: int) -> None:
+			sizes: dict[str, int], license_file: str | None, total: int, done: int, *,
+			polygons: dict[str, list] | None = None, binary: Path | None = None) -> None:
 		self.configuration = configuration
+		self.polygons = polygons or {}
+		self.binary = binary
 		self.seconds = seconds
 		self.workers = workers
 		self.directory = directory
@@ -711,15 +800,29 @@ class Runner:
 		}
 		with tempfile.TemporaryDirectory(prefix="fekete-run-") as scratch:
 			output, log_path = Path(scratch) / "result.json", Path(scratch) / "output.log"
-			command = [str(VENV / "bin/python"), str(CHILD), "--archive", str(instance_archive()),
-				"--instance", task.instance, "--root", task.root, "--threads", str(self.configuration.threads),
-				"--time-limit", str(self.seconds), "--eps", str(EPS), "--output", str(output)]
+			ours = self.configuration.solver == "ours"
+			if ours:
+				from unordered_runner import encode_instance
+
+				input_path = Path(scratch) / "input.txt"
+				input_path.write_text(encode_instance((0.0, 0.0), (0.0, 0.0), self.polygons[task.instance],
+					OUR_MAX_CALLS, self.seconds))
+				command = [str(self.binary), *OUR_ARGUMENTS]
+			else:
+				command = [str(VENV / "bin/python"), str(CHILD), "--archive", str(instance_archive()),
+					"--instance", task.instance, "--root", task.root, "--threads", str(self.configuration.threads),
+					"--time-limit", str(self.seconds), "--eps", str(EPS), "--output", str(output)]
 			busy_before = busy_cpu_seconds()
 			load_before = os.getloadavg()[0]
 			began = time.monotonic()
-			with log_path.open("wb") as log:
-				process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
-					env=child_environment(self.license_file), cwd=scratch, start_new_session=True)
+			with contextlib.ExitStack() as files:
+				log = files.enter_context(log_path.open("wb"))
+				# Ours reads the instance on stdin and prints its result as JSON on stdout.
+				stdin = files.enter_context(input_path.open("rb")) if ours else subprocess.DEVNULL
+				stdout = files.enter_context(output.open("wb")) if ours else log
+				process = subprocess.Popen(command, stdin=stdin, stdout=stdout,
+					stderr=log if ours else subprocess.STDOUT, env=child_environment(self.license_file), cwd=scratch,
+					start_new_session=True)
 			with self.lock:
 				self.running[process.pid] = False
 			if self.pool is not None:
@@ -753,6 +856,8 @@ class Runner:
 				result = json.loads(output.read_text())
 			except (OSError, json.JSONDecodeError):
 				result = {}
+			if ours and result and process.returncode == 0:
+				result = {"ok": True, "solve_time": result.get("seconds"), "result": result}
 			if killed_by_timer:
 				row["status"] = "killed"
 				row["error"] = f"killed after {self.hard_limit():.0f} s without finishing"
@@ -761,13 +866,36 @@ class Runner:
 			else:
 				row["status"] = "error"
 				row["error"] = result.get("error") or f"solver process exited with {process.returncode}"
-			for field in ("solve_time", "solve_time_perf", "solution", "type", "traceback"):
+			for field in ("solve_time", "solve_time_perf", "solution", "result", "type", "traceback"):
 				if field in result:
 					row[field] = result[field]
-			if row["status"] != "ok":
+			if row["status"] == "ok":
+				self.judge(row, task)
+			else:
 				row["log_tail"] = log_path.read_bytes()[-4000:].decode("utf-8", "replace")
 		row["finished_at"] = workspace.now()
 		return row
+
+	def judge(self, row: dict, task: Task) -> None:
+		"""Bounds, both stopping rules, the solver's own verdict and an independent tour check (unmeasured)."""
+		from unordered_validation import validate_cycle
+
+		if self.configuration.solver == "ours":
+			data = row.get("result") or {}
+			lower, upper, path = data.get("lower_bound"), data.get("upper_bound"), data.get("path") or []
+		else:
+			solution = row.get("solution") or {}
+			lower, upper = solution.get("lower_bound"), solution.get("upper_bound")
+			path = trajectory_points(solution.get("trajectory"))
+		row["lower_bound"], row["upper_bound"] = lower, upper
+		row["criteria"] = criteria(lower, upper)
+		# Each solver is judged by its own rule: Fekete's is_optimal, ours UB <= (1+eps) LB.
+		row["solved"] = (row["criteria"]["strict"] if self.configuration.solver == "ours"
+			else bool((row.get("solution") or {}).get("is_optimal")))
+		polygons = self.polygons.get(task.instance)
+		if polygons is not None:
+			row["validation"] = (validate_cycle(polygons, path, VALIDATION_TOLERANCE) if len(path) >= 2
+				else {"valid": False, "status": "no tour"})
 
 	def _kill(self, pid: int, by_timer: bool = False) -> None:
 		with self.lock:
@@ -793,15 +921,16 @@ class Runner:
 			remaining = self.total - self.done
 			mean = statistics.fmean(self.durations)
 			eta = remaining * mean / self.workers
-			solution = row.get("solution") or {}
 			if row["status"] == "ok":
-				upper, gap = solution.get("upper_bound"), solution.get("gap")
-				if solution.get("is_optimal"):
+				lower, upper = row.get("lower_bound"), row.get("upper_bound")
+				if row.get("solved"):
 					outcome = "resolvida"
-				elif upper and gap is not None:
-					outcome = f"não fechou, gap {100 * gap / upper:.2f}%"
+				elif finite(lower) and finite(upper) and upper > 0:
+					outcome = f"não fechou, gap {100 * (upper - lower) / upper:.2f}%"
 				else:
 					outcome = "não fechou, sem solução"
+				if row.get("validation", {}).get("valid") is False:
+					outcome += ", tour inválido a 1e-7"
 				timing = seconds_text(row["solve_time"])
 			else:
 				outcome, timing = row["status"], f"{row['process']['wall_seconds']:.0f} s"
@@ -857,6 +986,7 @@ def summarize(configuration: Configuration, rows: Sequence[dict], tasks: Sequenc
 				"not_solved_in_time": sum(row["status"] == "ok" and not solved(row) for row in subset),
 				"killed": sum(row["status"] == "killed" for row in subset),
 				"errors": sum(row["status"] == "error" for row in subset),
+				"valid_tours": sum(bool(row.get("validation", {}).get("valid")) for row in subset),
 				"solved_seconds_sum": round(sum(row["solve_time"] for row in solved_rows), 1),
 			}
 		by_instance = defaultdict(list)
@@ -874,21 +1004,31 @@ def summarize(configuration: Configuration, rows: Sequence[dict], tasks: Sequenc
 
 
 def render(configuration: Configuration, seconds: int, summary: dict, setup: dict, repetitions: int = REPETITIONS) -> str:
-	packages = setup.get("conan_packages", {})
+	if configuration.solver == "ours":
+		title = f"# Nosso solver, configuração {configuration.key} ({configuration.command})"
+		provenance = (f"Commit `{setup.get('revision', '?')}`, `tpp-unordered {' '.join(OUR_ARGUMENTS)}`, aritmética "
+			f"{setup.get('arithmetic', '?')}, {setup.get('compiler', '?')}. \"Resolvida\" é `UB ≤ (1+eps)·LB` com limites provados.")
+		column = "Variante"
+	else:
+		packages = setup.get("conan_packages", {})
+		title = f"# Fekete et al., configuração {configuration.key} ({configuration.command})"
+		provenance = (f"Código original `{UPSTREAM_COMMIT[:7]}` de {UPSTREAM_URL} sem modificações; Gurobi "
+			f"{packages.get('gurobi', '?')}, Boost {packages.get('boost', '?')}, CGAL {packages.get('cgal', '?')}, "
+			f"{setup.get('compiler', '?')}. \"Resolvida\" é `is_optimal` do solver: `(UB−LB) ≤ eps·UB + eps`.")
+		column = "Raiz"
 	lines = [
-		f"# Fekete et al., configuração {configuration.key} ({configuration.command})", "",
+		title, "",
 		f"{configuration.summary}; {configuration.threads} thread(s) por execução, limite de {seconds} s, eps {EPS}, "
-		f"{repetitions} repetição(ões). Código original `{UPSTREAM_COMMIT[:7]}` de {UPSTREAM_URL} sem modificações; "
-		f"Gurobi {packages.get('gurobi', '?')}, Boost {packages.get('boost', '?')}, CGAL {packages.get('cgal', '?')}, "
-		f"{setup.get('compiler', '?')}. \"Resolvida\" é `is_optimal` do solver: `(UB−LB) ≤ eps·UB + eps`.", "",
+		f"{repetitions} repetição(ões). {provenance} Tours validados a {VALIDATION_TOLERANCE:g}, fora da medição.", "",
 		f"Execuções registradas: {summary['recorded_runs']} de {summary['planned_runs']}.", "",
-		"| Raiz | Repetição | Execuções | Resolvidas | Sem fechar no tempo | Mortas | Erros | Soma dos tempos das resolvidas (s) |",
-		"|---|---|---|---|---|---|---|---|",
+		f"| {column} | Repetição | Execuções | Resolvidas | Sem fechar no tempo | Mortas | Erros | Tours válidos | "
+		"Soma dos tempos das resolvidas (s) |",
+		"|---|---|---|---|---|---|---|---|---|",
 	]
 	for label, data in summary["roots"].items():
 		for repetition, counts in data["repetitions"].items():
 			lines.append(f"| {label} | {repetition} | {counts['runs']} | {counts['solved']} | {counts['not_solved_in_time']} | "
-				f"{counts['killed']} | {counts['errors']} | {counts['solved_seconds_sum']} |")
+				f"{counts['killed']} | {counts['errors']} | {counts['valid_tours']} | {counts['solved_seconds_sum']} |")
 	lines.append("")
 	for label, data in summary["roots"].items():
 		lines.append(f"- {label}: {data['instances_solved_in_every_repetition']} instâncias resolvidas em todas as "
@@ -940,9 +1080,10 @@ def describe_plan(configuration: Configuration, seconds: int, workers: int, tota
 
 def run_main(key: str, argv: Sequence[str] | None = None) -> int:
 	configuration = CONFIGURATIONS[key]
+	solver = "do nosso solver" if configuration.solver == "ours" else "do solver original de Fekete et al."
 	parser = argparse.ArgumentParser(prog=f"tpp.py {configuration.command}", description=(
-		f"Configuração {key} do solver original de Fekete et al. nas 558 instâncias do artigo: "
-		f"{configuration.summary}. Roda em segundo plano, retoma de onde parou e espera a outra configuração terminar."))
+		f"Configuração {key} {solver} nas 558 instâncias do artigo de Fekete et al.: {configuration.summary}. "
+		"Roda em segundo plano, retoma de onde parou e espera as outras configurações terminarem."))
 	parser.add_argument("seconds", nargs="?", type=int, default=DEFAULT_SECONDS,
 		help=f"limite de tempo por execução, em segundos (padrão {DEFAULT_SECONDS}, o do artigo)")
 	parser.add_argument("--plan", action="store_true", help="só mostra o plano e a estimativa")
@@ -976,10 +1117,17 @@ def run_main(key: str, argv: Sequence[str] | None = None) -> int:
 			job_hints(job)
 		return 0
 
-	setup = read_setup()
-	if setup is None:
-		say("O solver de Fekete ainda não foi preparado; preparando agora.")
-		setup = prepare()
+	if configuration.solver == "ours":
+		if not instance_archive().is_file():
+			checkout_upstream()  # the instances come from the upstream archive, as for Fekete's runs
+		verify_archive()
+		setup = prepare_ours()
+		setup["fingerprint"] = setup["binary_sha256"]
+	else:
+		setup = read_setup()
+		if setup is None:
+			say("O solver de Fekete ainda não foi preparado; preparando agora.")
+			setup = prepare()
 	sizes = load_instances(instance_archive())
 	instances = smoke_instances(sizes) if args.smoke else list(sizes)
 	repetitions = 1 if args.smoke else REPETITIONS
@@ -1001,7 +1149,7 @@ def run_main(key: str, argv: Sequence[str] | None = None) -> int:
 			fail(f"o build do solver mudou desde o início de {directory}; mova o diretório para começar de novo.")
 
 	if not args.foreground:
-		ok, message = check_gurobi(setup.get("license_file"))
+		ok, message = check_gurobi(setup.get("license_file")) if configuration.solver == "fekete" else (True, "")
 		if not ok:
 			fail(f"o Gurobi não funciona agora; rode ./scripts/install_dependencies.sh de novo.\n{message.strip()}")
 		busy = foreign_processes()
@@ -1054,19 +1202,25 @@ def execute(configuration: Configuration, seconds: int, workers: int, directory:
 			"threads": configuration.threads, "time_limit": seconds, "eps": EPS, "repetitions": REPETITIONS,
 			"workers": workers, "order_seed": ORDER_SEED, "instances": len({task.instance for task in tasks}),
 			"tasks": len(tasks), "setup_fingerprint": setup["fingerprint"], "setup": setup,
-			"call": "evaluation/rq4_scalability/01_run_solver.py: solve_annotated_instance(..., branching='FarthestPoly', "
-				"search='DfsBfs', rules=[], node_simplification=False, MAX_TE_TOGGLE_COUNT=1, MAX_GEOM_TOGGLE_COUNT=1, "
-				"decomposition_branch=True, callback=None, initial_solution=None)",
-			"timing": "time.time() around solve_annotated_instance, as in the paper's script; one process per run, "
-				"Gurobi started by a warm-up solve outside the measurement",
-			"machine": workspace.machine_state(),
+			"validation_tolerance": VALIDATION_TOLERANCE, "machine": workspace.machine_state(),
 		}
+		if configuration.solver == "ours":
+			plan["call"] = f"tpp-unordered {' '.join(OUR_ARGUMENTS)}, instance on stdin (as tspn-compare)"
+			plan["timing"] = ("the solver's own 'seconds' (the whole solve after reading the input), as in the "
+				"16/10 comparison; one process per run")
+		else:
+			plan["call"] = ("evaluation/rq4_scalability/01_run_solver.py: solve_annotated_instance(..., "
+				"branching='FarthestPoly', search='DfsBfs', rules=[], node_simplification=False, MAX_TE_TOGGLE_COUNT=1, "
+				"MAX_GEOM_TOGGLE_COUNT=1, decomposition_branch=True, callback=None, initial_solution=None)")
+			plan["timing"] = ("time.time() around solve_annotated_instance, as in the paper's script; one process per "
+				"run, Gurobi started by a warm-up solve outside the measurement")
 		plan_path.write_text(json.dumps(plan, indent=2) + "\n")
 	busy = foreign_processes()
 	if busy:
 		say("ATENÇÃO: outros processos usando a CPU: " + "; ".join(busy[:10]))
 	runner = Runner(configuration, seconds, workers, directory, sizes, setup.get("license_file"), len(tasks),
-		len(tasks) - len(pending))
+		len(tasks) - len(pending), polygons=load_polygons(instance_archive()),
+		binary=Path(setup["binary"]) if configuration.solver == "ours" else None)
 	say(f"Começando: {len(pending)} execuções pendentes de {len(tasks)}, {workers} por vez.")
 
 	def interrupt(*_) -> None:
@@ -1093,6 +1247,10 @@ def paper_main(argv: Sequence[str] | None = None) -> int:
 
 def single_thread_main(argv: Sequence[str] | None = None) -> int:
 	return run_main("B", argv)
+
+
+def ours_single_thread_main(argv: Sequence[str] | None = None) -> int:
+	return run_main("C", argv)
 
 
 if __name__ == "__main__":

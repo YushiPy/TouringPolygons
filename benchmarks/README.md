@@ -708,7 +708,7 @@ uma execução não supervisionada pode ser iniciada com:
 caffeinate -i python3 benchmarks/tpp.py run-fekete --workers 8
 ```
 
-### Código original, como no artigo (configurações A e B)
+### Medições de referência: o Fekete original e o nosso (configurações A, B e C)
 
 As comparações acima usam o nosso fork e um driver nativo próprio. Para a medição
 definitiva do lado do Fekete, `fekete-paper` e `fekete-single-thread` rodam o código
@@ -740,15 +740,26 @@ medição. Nos jobs do artigo, só a primeira instância de cada processo pagava
 |---|---|
 | `scripts/run_fekete_paper.sh [SEGUNDOS]` | **A**, a do artigo: raiz CHR (`OrderRoot`), 24 threads, uma execução por vez |
 | `scripts/run_fekete_single_thread.sh [SEGUNDOS]` | **B**: uma thread, raízes CHR e LEFP, uma execução por núcleo de performance (fixada nele no Linux) |
+| `scripts/run_ours_single_thread.sh [SEGUNDOS]` | **C**: o nosso `tpp-unordered` no protocolo da B, com as opções da comparação de 16/10 |
 
-As duas usam as 558 instâncias de `instances/instances_socg_simplified.zip` deles, com as
-anotações de ordem, três repetições, `eps = 0.001` (os 0,1% do artigo) e 300 s por padrão,
-o limite do artigo. Cada repetição tem sua ordem, sorteada com semente fixa. Os comandos:
+A configuração C usa os argumentos do `tspn-compare`: `--cycle`, gap `UB ≤ 1,001·LB`
+(`--relative-gap` 0,001/1,001, `--absolute-gap 0`), factibilidade 1e-8 e
+`cache,features,root,interval`. Esse critério é mais estrito que o do Fekete. O tempo é o
+`seconds` do próprio solver. `ours-setup`, chamado pelo instalador, compila o solver e roda
+os testes dele uma vez por build. O diretório da C leva o commit do nosso código, para que
+uma rodada futura com código novo não se misture com esta.
+
+As três configurações usam as 558 instâncias de `instances/instances_socg_simplified.zip`
+do checkout original (as do Fekete com as anotações de ordem; o nosso lê os anéis externos,
+e o arquivo não tem buracos), três repetições, `eps = 0.001` (os 0,1% do artigo) e 300 s
+por padrão, o limite do artigo. Cada repetição tem sua ordem, sorteada com semente fixa.
+Os tours dos dois solvers são validados de forma independente a 1e-7, fora da medição, e
+cada linha registra os dois critérios de parada. Os comandos:
 
 - rodam em segundo plano (`tpp.py jobs`) e sobrevivem ao fim da sessão SSH;
 - retomam de onde pararam quando executados de novo;
-- se a outra configuração está rodando, esperam ela terminar, para que só uma use a
-  máquina;
+- se outra configuração está rodando, esperam ela terminar, para que só uma use a
+  máquina; podem ser disparados em sequência;
 - avisam se há outros processos ocupando a CPU e registram a carga alheia em cada linha.
 
 Executar o comando de novo enquanto ele roda mostra o andamento e como acompanhar o log.
@@ -757,20 +768,22 @@ vez, em um diretório separado.
 
 Pela rodada de 16/10 (uma thread, LEFP, Mac M4 Pro: 2,95 h por repetição, das quais 1,8 h
 nas 22 instâncias que esgotam os 300 s), a estimativa na dantzig, com núcleos mais lentos,
-é de 6 a 7 h para a A e umas 3 h para a B, sem contar o build inicial. Cada execução gasta ainda
-uns 0,6 s fora da medição para iniciar o processo e o Gurobi. A primeira execução
-do `install_dependencies.sh` compila Boost, GMP e MPFR e leva de 20 a 60 minutos.
+é de 6 a 7 h para a A e umas 3 h para a B, sem contar o build inicial. Cada execução gasta
+ainda uns 0,6 s fora da medição para iniciar o processo e o Gurobi. A C leva uns 10 minutos (6 min aqui no Mac, a maior parte nas três execuções do caso 189, que esgotam os 300 s).
+A primeira execução do `install_dependencies.sh` compila Boost, GMP e MPFR e leva de 20 a
+60 minutos.
 
-Os resultados ficam em `workspace/experiments/fekete-reference/<A|B>-...-<SEGUNDOS>s/`:
+Os resultados ficam em `workspace/experiments/fekete-reference/<A|B|C>-...-<SEGUNDOS>s/`:
 
 - `plan.json`: configuração, chamada, máquina e build, com versões resolvidas,
-  compilador, pacotes Python e licença;
-- `runs.jsonl`: uma linha por execução, com a solução completa devolvida pela API deles
-  (trajetória, limites, gap, `is_optimal`, estatísticas), tempo, CPU, memória máxima,
-  núcleos e carga da máquina;
+  compilador, pacotes Python e licença (na C, commit, binário e argumentos);
+- `runs.jsonl`: uma linha por execução, com a solução completa devolvida pelo solver
+  (para o Fekete: trajetória, limites, gap, `is_optimal`, estatísticas), validação, tempo,
+  CPU, memória máxima, núcleos e carga da máquina;
 - `summary.md`: o resumo ao final.
 
-"Resolvida" é o `is_optimal` do solver deles: `(UB−LB) ≤ eps·UB + eps`.
+Cada solver é julgado pelo próprio critério: "resolvida" é o `is_optimal` do Fekete,
+`(UB−LB) ≤ eps·UB + eps`, e o `UB ≤ (1+eps)·LB` do nosso.
 
 ## Preservação de resultados
 

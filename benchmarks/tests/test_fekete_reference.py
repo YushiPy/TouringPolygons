@@ -140,11 +140,29 @@ class PlanTests(unittest.TestCase):
 		summary = reference.summarize(configuration, rows, tasks)
 		chr_ = summary["roots"]["CHR"]
 		self.assertEqual(chr_["repetitions"][1], {"runs": 2, "solved": 1, "not_solved_in_time": 1, "killed": 0,
-			"errors": 0, "solved_seconds_sum": 1.0})
+			"errors": 0, "valid_tours": 0, "solved_seconds_sum": 1.0})
 		self.assertEqual((chr_["instances_solved_in_every_repetition"], chr_["instances_solved_in_some_repetition"]), (1, 2))
 		self.assertEqual(chr_["median_of_instance_medians_seconds"], 1.5)
 		self.assertEqual(summary["roots"]["LEFP"]["repetitions"][1]["errors"], 1)
 		self.assertIn("| CHR | 2 | 2 | 2 |", reference.render(configuration, 300, summary, {}))
+
+
+class JudgeTests(unittest.TestCase):
+	def test_the_two_stopping_rules_differ_near_the_tolerance(self):
+		self.assertEqual(reference.criteria(1000, 1000.9), {"fekete": True, "strict": True})
+		self.assertEqual(reference.criteria(1000, 1001.002), {"fekete": True, "strict": False})
+		self.assertEqual(reference.criteria(1000, 1002), {"fekete": False, "strict": False})
+		self.assertEqual(reference.criteria(None, float("inf")), {"fekete": False, "strict": False})
+
+	def test_fekete_tours_are_read_from_wkt(self):
+		self.assertEqual(reference.trajectory_points("LINESTRING (0 0, 1.5 2, 0 0)"), [(0.0, 0.0), (1.5, 2.0), (0.0, 0.0)])
+		self.assertEqual(reference.trajectory_points("LINESTRING EMPTY"), [])
+
+	def test_our_runs_have_their_own_directory_per_commit(self):
+		with patch.object(reference, "our_revision", return_value="abc1234"):
+			directory = reference.run_directory(reference.CONFIGURATIONS["C"], 300, False)
+		self.assertEqual(directory.name, "C-ours-abc1234-300s")
+		self.assertEqual(reference.run_directory(reference.CONFIGURATIONS["B"], 300, False).name, "B-single-thread-300s")
 
 
 class LockTests(unittest.TestCase):
@@ -212,6 +230,39 @@ class RunnerTests(unittest.TestCase):
 		self.assertIn("ValueError", rows["broken"]["error"])
 		self.assertIn("solver output", rows["broken"]["log_tail"])
 		self.assertEqual(reference.completed_keys(rows.values()), {(0, "fine", "OrderRoot"), (0, "slow", "OrderRoot")})
+
+
+FAKE_OURS = textwrap.dedent("""
+	import json, sys
+	header, *rings = sys.stdin.read().split("\\n")
+	size = int(header.split()[4])
+	closed = size == 2 and "--cycle" in sys.argv
+	lower = 6.0 if closed else 5.0
+	print(json.dumps({"lower_bound": lower, "upper_bound": 6.0, "seconds": 0.25, "path": [[0.5, 0.5], [3.5, 0.5], [0.5, 0.5]],
+		"arguments": sys.argv[1:]}))
+""")
+
+
+class OurRunnerTests(unittest.TestCase):
+	def test_our_rows_carry_the_result_the_verdict_and_the_validation(self):
+		with tempfile.TemporaryDirectory() as directory:
+			base = Path(directory)
+			binary = base / "tpp-unordered"
+			binary.write_text(f"#!{sys.executable}\n" + FAKE_OURS)
+			binary.chmod(0o755)
+			square = lambda x: [(x, 0.0), (x + 1, 0.0), (x + 1, 1.0), (x, 1.0)]
+			polygons = {"two": [square(0), square(3)], "three": [square(0), square(3), square(6)]}
+			runner = reference.Runner(reference.CONFIGURATIONS["C"], 300, 2, base, {"two": 2, "three": 3}, None,
+				total=2, done=0, polygons=polygons, binary=binary)
+			with patch("builtins.print"):
+				reference.work(runner, [reference.Task(0, name, "ours") for name in ("two", "three")])
+			rows = {row["instance"]: row for row in reference.read_rows(base / "runs.jsonl")}
+		two, three = rows["two"], rows["three"]
+		self.assertEqual((two["status"], two["solve_time"], two["solved"], two["root_label"]), ("ok", 0.25, True, "nosso"))
+		self.assertEqual(two["result"]["arguments"], list(reference.OUR_ARGUMENTS))
+		self.assertTrue(two["validation"]["valid"])
+		self.assertEqual((three["solved"], three["criteria"]), (False, {"fekete": False, "strict": False}))
+		self.assertFalse(three["validation"]["valid"])  # the tour misses the third square
 
 
 class CommandTests(unittest.TestCase):
