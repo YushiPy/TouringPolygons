@@ -711,7 +711,7 @@ uma execução não supervisionada pode ser iniciada com:
 caffeinate -i python3 benchmarks/tpp.py run-fekete --workers 8
 ```
 
-### Medições de referência: o Fekete original e o nosso (configurações A, B e C)
+### Medições de referência: o Fekete original e o nosso (configurações A a E)
 
 As comparações acima usam o nosso fork e um driver nativo próprio. Para a medição
 definitiva do lado do Fekete, `fekete-paper` e `fekete-single-thread` rodam o código
@@ -744,15 +744,22 @@ medição. Nos jobs do artigo, só a primeira instância de cada processo pagava
 | `scripts/run_fekete_paper.sh [SEGUNDOS]` | **A**, a do artigo: raiz CHR (`OrderRoot`), uma execução por vez, com uma thread por CPU lógica dos núcleos de performance e presa a eles (16 na armijo e na dantzig). O artigo usou 24, todas as CPUs do Ryzen deles; `--threads N` escolhe outro número |
 | `scripts/run_fekete_single_thread.sh [SEGUNDOS]` | **B**: uma thread, raízes CHR e LEFP, uma execução por núcleo de performance (fixada nele no Linux) |
 | `scripts/run_ours_single_thread.sh [SEGUNDOS]` | **C**: o nosso `tpp-unordered` no protocolo da B, com as opções da comparação de 16/10 |
+| `scripts/run_fekete_paper_lefp.sh [SEGUNDOS]` | **D**: como a A, com a raiz LEFP |
+| `scripts/run_ours_threads.sh [SEGUNDOS]` | **E**: o nosso no protocolo da A (uma execução por vez, com as threads da A), com `--subtree-threads N --max-frontier-mib 1` |
 
 A configuração C usa os argumentos do `tspn-compare`: `--cycle`, gap `UB ≤ 1,001·LB`
 (`--relative-gap` 0,001/1,001, `--absolute-gap 0`), factibilidade 1e-8 e
 `cache,features,root,interval`. Esse critério é mais estrito que o do Fekete. O tempo é o
-`seconds` do próprio solver. `ours-setup`, chamado pelo instalador, compila o solver e roda
+`seconds` do próprio solver. Na E, com várias threads, o nosso usa `--subtree-threads N --max-frontier-mib 1`. Com o limite
+de 1 MiB, as threads passam logo a terminar subárvores em paralelo, numa busca que continua
+completa. Num teste no Mac com 8 threads, as 4 instâncias mais demoradas ficaram de 2,5× a 4,3×
+mais rápidas (3,6× na média geométrica), e 40 instâncias rápidas não mudaram. Já `--threads 8`,
+que avalia os filhos de um nó em paralelo, foi 10% mais lento nas 15 mais demoradas.
+`ours-setup`, chamado pelo instalador, compila o solver e roda
 os testes dele uma vez por build. O diretório da C leva o commit do nosso código, para que
 uma rodada futura com código novo não se misture com esta.
 
-As três configurações usam as 558 instâncias de `instances/instances_socg_simplified.zip`
+As configurações usam as 558 instâncias de `instances/instances_socg_simplified.zip`
 do checkout original (as do Fekete com as anotações de ordem; o nosso lê os anéis externos,
 e o arquivo não tem buracos), três repetições, `eps = 0.001` (os 0,1% do artigo) e 300 s
 por padrão, o limite do artigo. Cada repetição tem sua ordem, sorteada com semente fixa.
@@ -789,9 +796,9 @@ ainda uns 0,6 s fora da medição para iniciar o processo e o Gurobi. A C leva u
 A primeira execução do `install_dependencies.sh` compila Boost, GMP e MPFR e leva de 20 a
 60 minutos.
 
-Os resultados ficam em `workspace/experiments/fekete-reference/<A|B|C>-...-<SEGUNDOS>s/`. O nome
-da A inclui o número de threads (`A-paper-16threads-300s`), e o da C, o commit do nosso
-código. As máquinas estão descritas em [`machines.md`](machines.md).
+Os resultados ficam em `workspace/experiments/fekete-reference/<A–E>-...-<SEGUNDOS>s/`. O nome
+inclui o número de threads quando há mais de uma (`A-paper-16threads-300s`) e, nas do nosso
+solver, o commit (`E-ours-<commit>-16threads-300s`). As máquinas estão descritas em [`machines.md`](machines.md).
 
 - `plan.json`: configuração, chamada, máquina e build, com versões resolvidas,
   compilador, pacotes Python e licença (na C, commit, binário e argumentos);

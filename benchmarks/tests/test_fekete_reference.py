@@ -333,6 +333,22 @@ class CommandTests(unittest.TestCase):
 				patch.object(reference.cpu_affinity, "detect_cores", return_value=hybrid):
 			self.assertEqual(reference.performance_cpus(), [0, 1, 2, 3])
 
+	def test_configurations_d_and_e_run_like_a(self):
+		text = self.plan_text(reference.paper_lefp_main, ["--plan"], 16)
+		self.assertIn("1674 execuções", text)
+		self.assertIn("D-paper-lefp-16threads-300s", text)
+		with patch.object(reference, "prepare_ours", return_value={"binary_sha256": "x", "binary": "tpp"}), \
+				patch.object(reference, "verify_archive"), patch.object(reference, "our_revision", return_value="abc1234"):
+			text = self.plan_text(reference.ours_threads_main, ["--plan"], 16)
+		self.assertIn("1 por vez, 16 thread(s) cada", text)
+		self.assertIn("E-ours-abc1234-16threads-300s", text)
+
+	def test_our_parallel_options_follow_the_thread_count(self):
+		self.assertEqual(reference.our_arguments(reference.CONFIGURATIONS["C"]), list(reference.OUR_ARGUMENTS))
+		parallel = reference.our_arguments(reference.replace(reference.CONFIGURATIONS["E"], threads=16))
+		self.assertEqual(parallel[:len(reference.OUR_ARGUMENTS)], list(reference.OUR_ARGUMENTS))
+		self.assertIn("16", parallel[len(reference.OUR_ARGUMENTS):])
+
 	def test_threads_are_fixed_for_the_single_thread_configurations(self):
 		with self.assertRaises(SystemExit), patch("sys.stderr"):
 			reference.single_thread_main(["--threads", "4"])

@@ -35,7 +35,7 @@ As medições de referência do lado do Fekete (`tpp.py fekete-paper` e
 (o `main` deles e a base do fork). O código é clonado e compilado em
 `.build/fekete-upstream/` por `tpp.py fekete-setup`, que faz parte de
 `scripts/install_dependencies.sh`. Veja
-[`benchmarks/README.md`](../benchmarks/README.md#medições-de-referência-o-fekete-original-e-o-nosso-configurações-a-b-e-c).
+[`benchmarks/README.md`](../benchmarks/README.md#medições-de-referência-o-fekete-original-e-o-nosso-configurações-a-a-e).
 
 O submódulo continua sendo um projeto externo, não um pacote mantido deste
 monorepo. Adaptadores, campanhas e resultados de comparação ficam em

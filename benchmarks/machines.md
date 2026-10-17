@@ -24,7 +24,7 @@ números de série, UUIDs nem o conteúdo de licenças.
 ## Notas para os benchmarks
 
 - **Núcleos de performance.** No Linux, as configurações de uma thread (B e C das
-  [medições de referência](README.md#medições-de-referência-o-fekete-original-e-o-nosso-configurações-a-b-e-c),
+  [medições de referência](README.md#medições-de-referência-o-fekete-original-e-o-nosso-configurações-a-a-e),
   `free-order`, `free-compare`) fixam cada execução num núcleo físico, presa aos dois
   hyperthreads dele.
   - Na dantzig, o i9-12900K é híbrido: só os 8 núcleos P são usados.

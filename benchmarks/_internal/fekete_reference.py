@@ -19,6 +19,8 @@ call the same way (``fekete_reference_child.py``), one process per run.
                            1 thread, one run per performance core
   C  ours-single-thread    our tpp-unordered with the options of the 16/10
                            comparison, 1 thread, one run per performance core
+  D  fekete-paper-lefp     A with the LEFP root
+  E  ours-threads          C with A's threads, one run at a time
 
 ``ours-setup`` builds and tests our solver for C. Its directory carries our commit,
 so a later run with changed code never mixes with an earlier one. Every tour is
@@ -112,6 +114,12 @@ OUR_ARGUMENTS = (
 	"--cycle-optimization", "cache", "--cycle-optimization", "features", "--cycle-optimization", "root",
 	"--cycle-optimization", "interval",
 )
+# How ours uses several threads in E ({threads} is the count). Subtree threads finish
+# subtrees in parallel once the frontier passes its budget; a 1 MiB budget makes them
+# start at once (a complete search either way). On the Mac with 8 threads the 4 slowest
+# instances ran 2.5-4.3x faster (3.6x geometric) and 40 faster ones were unchanged
+# (1.0x), while --threads 8 (siblings in parallel) was 10% slower on the 15 slowest.
+OUR_PARALLEL = ("--subtree-threads", "{threads}", "--max-frontier-mib", "1")
 
 
 @dataclass(frozen=True)
@@ -131,7 +139,18 @@ CONFIGURATIONS = {
 		"uma thread: raízes CHR e LEFP, uma execução por núcleo de performance"),
 	"C": Configuration("C", "ours-single-thread", ("ours",), 1,
 		"nosso solver: uma thread, uma execução por núcleo de performance, como a B", solver="ours"),
+	"D": Configuration("D", "fekete-paper-lefp", ("LongestEdgePlusFurthestSite",), None,
+		"como a A, com a raiz LEFP: uma thread por CPU lógica dos núcleos de performance, uma execução por vez"),
+	"E": Configuration("E", "ours-threads", ("ours",), None,
+		"nosso solver como a A: uma thread por CPU lógica dos núcleos de performance, uma execução por vez",
+		solver="ours"),
 }
+
+
+def our_arguments(configuration: Configuration) -> list[str]:
+	"""Our solver's command-line options in this configuration."""
+	parallel = [] if configuration.threads == 1 else [part.format(threads=configuration.threads) for part in OUR_PARALLEL]
+	return [*OUR_ARGUMENTS, *parallel]
 
 
 def fail(message: str) -> None:
@@ -620,10 +639,8 @@ def default_workers(configuration: Configuration) -> int:
 
 
 def run_directory(configuration: Configuration, seconds: int, smoke: bool) -> Path:
-	label = configuration.command.removeprefix("fekete-")
-	if configuration.solver == "ours":
-		label = f"ours-{our_revision()}"
-	elif configuration.threads != 1:
+	label = f"ours-{our_revision()}" if configuration.solver == "ours" else configuration.command.removeprefix("fekete-")
+	if configuration.threads != 1:
 		label += f"-{configuration.threads}threads"
 	name = f"{configuration.key}-{label}-{seconds}s"
 	return experiment_root() / (name + ("-smoke" if smoke else ""))
@@ -636,8 +653,9 @@ def experiment_root() -> Path:
 def base_run(configuration: Configuration, setup: dict) -> Path:
 	"""The finished DEFAULT_SECONDS run of this configuration with this very build."""
 	pattern = run_directory(configuration, DEFAULT_SECONDS, False).name
-	if configuration.solver == "ours":
-		pattern = f"{configuration.key}-ours-*-{DEFAULT_SECONDS}s"  # any commit, as long as the binary is the same
+	if configuration.solver == "ours":  # any commit, as long as the binary is the same
+		threads = "" if configuration.threads == 1 else f"-{configuration.threads}threads"
+		pattern = f"{configuration.key}-ours-*{threads}-{DEFAULT_SECONDS}s"
 	candidates = []
 	for directory in experiment_root().glob(pattern):
 		try:
@@ -857,7 +875,7 @@ class Runner:
 				input_path = Path(scratch) / "input.txt"
 				input_path.write_text(encode_instance((0.0, 0.0), (0.0, 0.0), self.polygons[task.instance],
 					OUR_MAX_CALLS, self.seconds))
-				command = [str(self.binary), *OUR_ARGUMENTS]
+				command = [str(self.binary), *our_arguments(self.configuration)]
 			else:
 				command = [str(VENV / "bin/python"), str(CHILD), "--archive", str(instance_archive()),
 					"--instance", task.instance, "--root", task.root, "--threads", str(self.configuration.threads),
@@ -1061,7 +1079,7 @@ def summarize(configuration: Configuration, rows: Sequence[dict], tasks: Sequenc
 def render(configuration: Configuration, seconds: int, summary: dict, setup: dict, repetitions: int = REPETITIONS) -> str:
 	if configuration.solver == "ours":
 		title = f"# Nosso solver, configuração {configuration.key} ({configuration.command})"
-		provenance = (f"Commit `{setup.get('revision', '?')}`, `tpp-unordered {' '.join(OUR_ARGUMENTS)}`, aritmética "
+		provenance = (f"Commit `{setup.get('revision', '?')}`, `tpp-unordered {' '.join(our_arguments(configuration))}`, aritmética "
 			f"{setup.get('arithmetic', '?')}, {setup.get('compiler', '?')}. \"Resolvida\" é `UB ≤ (1+eps)·LB` com limites provados.")
 		column = "Variante"
 	else:
@@ -1292,7 +1310,7 @@ def execute(configuration: Configuration, seconds: int, workers: int, directory:
 			"validation_tolerance": VALIDATION_TOLERANCE, "machine": workspace.machine_state(),
 		}
 		if configuration.solver == "ours":
-			plan["call"] = f"tpp-unordered {' '.join(OUR_ARGUMENTS)}, instance on stdin (as tspn-compare)"
+			plan["call"] = f"tpp-unordered {' '.join(our_arguments(configuration))}, instance on stdin (as tspn-compare)"
 			plan["timing"] = ("the solver's own 'seconds' (the whole solve after reading the input), as in the "
 				"16/10 comparison; one process per run")
 		else:
@@ -1338,6 +1356,14 @@ def single_thread_main(argv: Sequence[str] | None = None) -> int:
 
 def ours_single_thread_main(argv: Sequence[str] | None = None) -> int:
 	return run_main("C", argv)
+
+
+def paper_lefp_main(argv: Sequence[str] | None = None) -> int:
+	return run_main("D", argv)
+
+
+def ours_threads_main(argv: Sequence[str] | None = None) -> int:
+	return run_main("E", argv)
 
 
 if __name__ == "__main__":
