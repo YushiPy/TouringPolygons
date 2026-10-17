@@ -1,6 +1,6 @@
 # Benchmark Suites
 
-This directory contains binary benchmark fixtures for the non-convex TPP code.
+This directory contains canonical inputs and regression fixtures for TPP and TSPN.
 
 ## Promoting a campaign case
 
@@ -10,18 +10,23 @@ stable descriptive name, and record its origin and conversion command in the
 commit or this file. Do not add campaign metadata, preview images, run history,
 or private experiment notes.
 
-- `nonconvex/test_cases.bin`: tracked source corpus converted from a TSPN JSON
+- `fekete-instances.bin`: canonical 558-case corpus converted from a TSPN JSON
   archive. The source instances are cycles, so the converter uses each instance
   bounding box lower-left corner as `start` and upper-right corner as `target`.
+- `nonconvex/test_cases.bin`: compatibility symlink to `../fekete-instances.bin`
+  for existing local campaigns; new consumers use the canonical path above.
 - `nonconvex/custom_tests.bin`: small tracked hand-made/debug fixture.
 - `usp-butanta-50/usp-butanta-50.bin`: a 50-building USP Butantã case traced in
   QGIS; see its README and `polygons.csv` for provenance and the polygon-name
   mapping. The companion QGIS projects and editable GeoPackage are under
   `usp-butanta-50/qgis/`.
 - `algorithm-dev-v1.bin`: ignored generated development suite, regenerated from
-  `nonconvex/test_cases.bin`.
+  `fekete-instances.bin`.
 - `canonical-v1.bin`: ignored generated benchmark suite, regenerated from
-  `nonconvex/test_cases.bin`.
+  `fekete-instances.bin`.
+
+`../results-saved/fekete-comparison/instances.bin` retains its own identical copy
+as part of the complete, frozen campaign used by the SIICUSP publication.
 
 Regenerate the source corpus:
 

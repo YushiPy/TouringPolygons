@@ -404,7 +404,7 @@ python3 benchmarks/tpp.py generate-matrix sao-paulo \
 ## Suites algorítmicas
 
 As suites `algorithm-dev-v1.bin` e `canonical-v1.bin` são derivadas do corpus
-rastreado `suites/nonconvex/test_cases.bin`:
+rastreado `suites/fekete-instances.bin`:
 
 ```bash
 python3 benchmarks/tpp.py generate-suites

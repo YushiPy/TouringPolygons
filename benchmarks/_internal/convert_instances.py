@@ -14,7 +14,7 @@ from typing import Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INPUT = REPO_ROOT / "third_party/tspn-socg/instances/instances_socg_simplified.zip"
-DEFAULT_OUTPUT = REPO_ROOT / "benchmarks/suites/nonconvex/test_cases.bin"
+DEFAULT_OUTPUT = REPO_ROOT / "benchmarks/suites/fekete-instances.bin"
 POLYGON_RE = re.compile(r"^\s*POLYGON\s*\(\((.*)\)\)\s*$")
 
 

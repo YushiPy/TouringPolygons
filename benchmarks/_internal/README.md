@@ -13,8 +13,10 @@ Ao adicionar um fluxo de benchmark:
 4. obtenha caminhos de `workspace.py` (`campaign_path`, `run_path`) e compile
    binários com `native_build.ensure_tool`; envolva a execução em
    `workspace.recorded_run` para gravar `run.json`;
-5. preserve uma campanha somente em `benchmarks/results-saved/`, junto com
-   seus dados, análise e proveniência.
+5. mantenha os dados brutos na campanha local ignorada; em
+   `benchmarks/results-saved/`, registre apenas o resumo, a proveniência e
+   fixtures indispensáveis. O corpus completo de `fekete-comparison` é a
+   exceção preservada para o SIICUSP.
 
 As famílias internas são:
 
@@ -34,16 +36,16 @@ As famílias internas são:
   `cpu_affinity.py` (fixação de cada solver em núcleos P próprios no Linux);
 - comparação externa: `tspn_run_comparison.py`, `tspn_oracle_backends.py` e
   `run_fekete.py`;
-
-Na comparação com Fekete, `--time-limit -1` significa execução sem limite de
-tempo. O watchdog do processo pai é desativado nesse modo e o valor `-1` é
-mantido nos manifestos e resultados; a conversão para o limite inteiro nativo
-é feita somente dentro do worker, para compatibilidade com bindings antigos.
 - infraestrutura: `workspace.py` (caminhos, proveniência, migração),
   `run_layout.py` (onde ficam as execuções de uma campanha: `results/<execução>/`),
   `native_build.py` (alvos nativos e dependências), `jobs.py`, `monitor.py` (tela curses sobre jobs, `live.json` e logs) e `remote.py`;
 - conversão: `convert_instances.py`, `convert_tspn_native_instances.py` e
   `normalize_polygon_orientation.py`.
+
+Na comparação com Fekete, `--time-limit -1` significa execução sem limite de
+tempo. O watchdog do processo pai é desativado nesse modo e o valor `-1` é
+mantido nos manifestos e resultados; a conversão para o limite inteiro nativo
+é feita somente dentro do worker, para compatibilidade com bindings antigos.
 
 Ferramentas exclusivas do SIICUSP ficam em `apps/siicusp34/scripts/`. A análise
 da campanha alemã preservada fica em

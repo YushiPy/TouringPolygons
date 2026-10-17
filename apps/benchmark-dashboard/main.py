@@ -28,6 +28,7 @@ if str(INTERNAL_ROOT) not in sys.path:
 import native_build  # noqa: E402
 import run_layout  # noqa: E402
 import workspace  # noqa: E402
+from convert_instances import DEFAULT_OUTPUT as TRACKED_NONCONVEX_SUITE  # noqa: E402
 
 # Jobs started here record "dashboard" as their origin in run.json/campaign.json.
 os.environ.setdefault("TPP_ORIGIN", "dashboard")
@@ -35,7 +36,6 @@ CAMPAIGNS_ROOT = workspace.campaigns_dir()
 RESULTS_ROOT = workspace.runs_dir()
 JOBS_PATH = APP_ROOT / ".jobs.json"
 CANONICAL_SUITE = REPO_ROOT / "benchmarks/suites/canonical-v1.bin"
-TRACKED_NONCONVEX_SUITE = REPO_ROOT / "benchmarks/suites/nonconvex/test_cases.bin"
 FEKETE_INSTANCES_ZIP = REPO_ROOT / "third_party/tspn-socg/instances/instances_socg_simplified.zip"
 SOLVERS = {
     "linear": "linear_search_lazy",

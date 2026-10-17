@@ -13,10 +13,10 @@ from benchmark_cases import (
 	read_encoded_cases,
 	write_encoded_cases,
 )
+from convert_instances import DEFAULT_OUTPUT as DEFAULT_SOURCE
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_SOURCE = REPO_ROOT / "benchmarks/suites/nonconvex/test_cases.bin"
 DEFAULT_OUTPUT = REPO_ROOT / "benchmarks/suites"
 
 
