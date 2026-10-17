@@ -165,6 +165,46 @@ class JudgeTests(unittest.TestCase):
 		self.assertEqual(reference.run_directory(reference.CONFIGURATIONS["B"], 300, False).name, "B-single-thread-300s")
 
 
+class ExtendTests(unittest.TestCase):
+	def write_run(self, directory, fingerprint, rows, tasks):
+		directory.mkdir(parents=True)
+		(directory / "plan.json").write_text(json.dumps({"setup_fingerprint": fingerprint, "tasks": tasks}))
+		(directory / "runs.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows))
+
+	def row(self, repetition, instance, root, solved):
+		return {"repetition": repetition, "instance": instance, "root": root, "status": "ok", "solved": solved}
+
+	def test_the_open_runs_of_any_repetition_are_extended_once_per_new_repetition(self):
+		with tempfile.TemporaryDirectory() as directory:
+			base = Path(directory) / "B-single-thread-300s"
+			rows = [self.row(0, "a", "CHR", True), self.row(1, "a", "CHR", False), self.row(0, "a", "LEFP", True),
+				self.row(1, "a", "LEFP", True), self.row(0, "b", "CHR", False), self.row(1, "b", "CHR", False)]
+			self.write_run(base, "x", rows, 6)
+			tasks = reference.unsolved_tasks(base, 1)
+		self.assertEqual([task.key for task in tasks], [(0, "a", "CHR"), (0, "b", "CHR")])
+
+	def test_the_base_run_must_have_the_same_build_and_be_finished(self):
+		configuration = reference.replace(reference.CONFIGURATIONS["A"], threads=16)
+		with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"TPP_WORKSPACE": directory}):
+			root = reference.experiment_root()
+			self.write_run(root / "A-paper-16threads-300s", "other build", [self.row(0, "a", "OrderRoot", True)], 1)
+			with self.assertRaises(SystemExit), patch("sys.stderr"):
+				reference.base_run(configuration, {"fingerprint": "this build"})
+			self.write_run(root / "A-paper-8threads-300s", "this build", [], 1)
+			with self.assertRaises(SystemExit), patch("sys.stderr"):
+				reference.base_run(reference.replace(configuration, threads=8), {"fingerprint": "this build"})
+			found = reference.base_run(configuration, {"fingerprint": "other build"})
+		self.assertEqual(found.name, "A-paper-16threads-300s")
+
+	def test_our_base_run_is_found_by_binary_whatever_the_commit(self):
+		with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"TPP_WORKSPACE": directory}), \
+				patch.object(reference, "our_revision", return_value="newer"):
+			root = reference.experiment_root()
+			self.write_run(root / "C-ours-older-300s", "binary", [self.row(0, "a", "ours", True)], 1)
+			found = reference.base_run(reference.CONFIGURATIONS["C"], {"fingerprint": "binary"})
+		self.assertEqual(found.name, "C-ours-older-300s")
+
+
 class LockTests(unittest.TestCase):
 	def test_a_lock_of_a_dead_process_is_taken_over_and_a_live_one_is_not(self):
 		with tempfile.TemporaryDirectory() as directory:

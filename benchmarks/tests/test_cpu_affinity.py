@@ -114,6 +114,24 @@ class CpuAffinityTests(unittest.TestCase):
 		write_stat(self.stat, {first: 1000, second: 500}, 3000)  # our thread plus half a sibling
 		self.assertEqual(pool.release(lease)['other_load'], 0.5)
 
+	def test_measured_own_cpu_use_is_not_other_load(self):
+		pool = self.pool(1)
+		lease = pool.acquire()
+		first, second = lease.cpus
+		write_stat(self.stat, {first: 1000, second: 100}, 3000)  # our solver used 1.1 CPUs
+		self.assertEqual(pool.release(lease, own_cpus=1.1)['other_load'], 0.0)
+
+	def test_a_core_our_solver_just_left_is_not_busy(self):
+		pool = self.pool(1)
+		lease = pool.acquire()
+		write_stat(self.stat, {cpu: 1000 for cpu in lease.cpus[:1]}, 3000)
+		pool.release(lease)
+		with patch.object(cpu_affinity.time, 'monotonic', return_value=pool.sample[0] + 5):
+			again = pool.acquire()
+		self.assertEqual(again.cpus, lease.cpus)
+		self.assertEqual(again.note, '')
+		self.assertFalse(any('no idle performance core' in message for message in self.messages))
+
 	def test_released_core_is_reused(self):
 		pool = self.pool(1)
 		first = pool.acquire()

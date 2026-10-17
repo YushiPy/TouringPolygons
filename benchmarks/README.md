@@ -769,6 +769,19 @@ Executar o comando de novo enquanto ele roda mostra o andamento e como acompanha
 `--plan` mostra o plano sem rodar nada. `--smoke` roda as seis menores instâncias uma
 vez, em um diretório separado.
 
+`--extend` dá mais tempo ao que não fechou, como o artigo do Fekete fez com 900 s nas
+instâncias de 60 regiões. `scripts/run_fekete_single_thread.sh 900 --extend`:
+
+- acha a rodada de 300 s da mesma configuração, feita com o mesmo build (na C, o mesmo
+  binário, qualquer que seja o commit), e exige que ela esteja completa;
+- roda com o novo limite cada instância e raiz que ficou aberta em alguma repetição;
+- usa uma repetição, porque as três repetições de 300 s tiveram as mesmas contagens e tempos
+  a menos de 1%;
+- grava em `<rodada>-900s-unsolved`.
+
+As outras execuções seguem valendo pela rodada de 300 s. Na armijo, o pior caso é de 4 h
+para a A (16 execuções), 2 h para a B (64) e 15 min para a C (o caso 189).
+
 Pela rodada de 16/10 (uma thread, LEFP, Mac M4 Pro: 2,95 h por repetição, das quais 1,8 h
 nas 22 instâncias que esgotam os 300 s), a estimativa na dantzig, com núcleos mais lentos,
 é de 6 a 7 h para a A e umas 3 h para a B, sem contar o build inicial. Cada execução gasta

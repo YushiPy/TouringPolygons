@@ -24,8 +24,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 MODES = ('auto', 'p-cores', 'off')
-# A core whose other-user load stays above this fraction is reported as shared.
-BUSY_FRACTION = 0.10
+# A core whose other-user load stays above this fraction is reported as shared. Our own
+# solver process can add ~0.1 CPU beyond its thread (a Python solver's helper threads).
+BUSY_FRACTION = 0.25
 
 
 def parse_cpu_list(text: str) -> set[int]:
@@ -109,6 +110,7 @@ class CorePool:
 		self.log = log
 		self.lock = threading.Lock()
 		self.holders: dict[Core, int] = {}
+		self.released: dict[Core, float] = {}  # when one of our solvers last left the core
 		supported = hasattr(os, 'sched_setaffinity') and proc_stat.exists()
 		self.enabled = mode != 'off' and supported
 		self.pin_process = pin or (os.sched_setaffinity if hasattr(os, 'sched_setaffinity') else None)
@@ -142,9 +144,12 @@ class CorePool:
 			self.log(f'WARNING: {warning}', flush=True)
 
 	def _refresh_load(self, before: dict, after: dict) -> None:
+		since = self.sample[0] if self.sample is not None else float('-inf')
 		self.sample = (time.monotonic(), after)
 		for core in self.cores:
 			own = self.holders.get(core, 0)
+			if not own and self.released.get(core, float('-inf')) >= since:
+				own = 1  # one of our solvers ran there during this window; that is not other work
 			self.load[core] = max(0.0, busy_fraction(core.cpus, before, after) - own)
 
 	def describe(self) -> dict:
@@ -186,18 +191,23 @@ class CorePool:
 		if lease is not None and self.pin_process is not None:
 			self.pin_process(pid, set(lease.cpus))
 
-	def release(self, lease: Lease | None) -> dict | None:
-		"""Free the cores and summarize them for the result row."""
+	def release(self, lease: Lease | None, own_cpus: float | None = None) -> dict | None:
+		"""Free the cores and summarize them for the result row.
+
+		``own_cpus`` is the solver's measured CPU use over the run (CPU time / wall time);
+		without it, each of its threads is assumed to keep one logical CPU busy.
+		"""
 		if lease is None:
 			return None
 		after = read_cpu_times(self.proc_stat)
 		with self.lock:
+			now = time.monotonic()
 			for core in lease.cores:
 				self.holders[core] -= 1
 				if not self.holders[core]:
 					del self.holders[core]
-		# Our solver keeps about one logical CPU per thread busy; the rest is someone else's.
-		other = max(0.0, busy_fraction(lease.cpus, lease.before, after) - self.threads)
+				self.released[core] = now
+		other = max(0.0, busy_fraction(lease.cpus, lease.before, after) - (self.threads if own_cpus is None else own_cpus))
 		summary = {'cpus': list(lease.cpus), 'performance': all(core.performance for core in lease.cores),
 			'other_load': round(other, 3)}
 		if lease.note:

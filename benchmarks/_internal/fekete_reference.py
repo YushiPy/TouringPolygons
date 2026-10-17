@@ -69,6 +69,7 @@ EXPECTED_INSTANCES = 558
 EPS = 0.001
 PAPER_THREADS = 24  # num_threads of the paper's experiment scripts
 REPETITIONS = 3
+EXTEND_REPETITIONS = 1  # the 300 s repetitions agreed on every count and within 1% in time
 DEFAULT_SECONDS = 300
 ORDER_SEED = 20261017
 SMOKE_INSTANCES = 6
@@ -632,6 +633,35 @@ def experiment_root() -> Path:
 	return workspace.experiments_dir() / "fekete-reference"
 
 
+def base_run(configuration: Configuration, setup: dict) -> Path:
+	"""The finished DEFAULT_SECONDS run of this configuration with this very build."""
+	pattern = run_directory(configuration, DEFAULT_SECONDS, False).name
+	if configuration.solver == "ours":
+		pattern = f"{configuration.key}-ours-*-{DEFAULT_SECONDS}s"  # any commit, as long as the binary is the same
+	candidates = []
+	for directory in experiment_root().glob(pattern):
+		try:
+			plan = json.loads((directory / "plan.json").read_text())
+		except (OSError, json.JSONDecodeError):
+			continue
+		if plan.get("setup_fingerprint") == setup["fingerprint"]:
+			candidates.append((directory.stat().st_mtime, directory, plan))
+	if not candidates:
+		fail(f"não há rodada de {DEFAULT_SECONDS} s da configuração {configuration.key} com este mesmo build em "
+			f"{experiment_root()}; --extend estende uma rodada existente.")
+	_, directory, plan = max(candidates)
+	if len(completed_keys(read_rows(directory / "runs.jsonl"))) < plan["tasks"]:
+		fail(f"a rodada {directory.name} ainda não terminou; rode --extend depois dela.")
+	return directory
+
+
+def unsolved_tasks(base: Path, repetitions: int) -> list[Task]:
+	"""Every instance and root that some repetition of the base run left open."""
+	open_runs = sorted({(row["instance"], row["root"]) for row in latest_rows(read_rows(base / "runs.jsonl")).values()
+		if not solved(row)})
+	return [Task(repetition, instance, root) for repetition in range(repetitions) for instance, root in open_runs]
+
+
 def seconds_text(seconds: float) -> str:
 	return f"{seconds:.1f} s" if seconds >= 1 else f"{1000 * seconds:.0f} ms"
 
@@ -857,7 +887,8 @@ class Runner:
 			wall = time.monotonic() - began
 			with self.lock:
 				killed_by_timer = self.running.pop(process.pid, False)
-			affinity = self.pool.release(held["lease"]) if self.pool is not None else None
+			own_cpus = (usage.ru_utime + usage.ru_stime) / wall if wall > 0 else None
+			affinity = self.pool.release(held["lease"], own_cpus) if self.pool is not None else None
 			held["lease"] = None
 			if self.stop.is_set() and not killed_by_timer:
 				return None  # interrupted: the run is repeated when the command is run again
@@ -1115,6 +1146,10 @@ def run_main(key: str, argv: Sequence[str] | None = None) -> int:
 	parser.add_argument("--smoke", action="store_true",
 		help=f"teste rápido: as {SMOKE_INSTANCES} menores instâncias, uma repetição, em diretório separado")
 	parser.add_argument("--foreground", action="store_true", help="roda neste terminal em vez de em segundo plano")
+	parser.add_argument("--extend", action="store_true", help=(
+		f"roda com este limite (maior que {DEFAULT_SECONDS} s) só o que não fechou na rodada de {DEFAULT_SECONDS} s "
+		f"desta configuração, com o mesmo build, em {EXTEND_REPETITIONS} repetição e num diretório próprio"))
+	parser.add_argument("--repetitions", type=int, help=argparse.SUPPRESS)
 	parser.add_argument("--workers", type=int, help=argparse.SUPPRESS)
 	if configuration.threads is None:
 		parser.add_argument("--threads", type=int, help=(
@@ -1131,8 +1166,10 @@ def run_main(key: str, argv: Sequence[str] | None = None) -> int:
 		if threads > (os.cpu_count() or threads):
 			say(f"ATENÇÃO: {threads} threads em {os.cpu_count()} CPUs lógicas; as threads vão disputar a CPU.")
 	workers = args.workers or default_workers(configuration)
-	if workers < 1:
-		parser.error("--workers deve ser positivo")
+	if workers < 1 or (args.repetitions is not None and args.repetitions < 1):
+		parser.error("--workers e --repetitions devem ser positivos")
+	if args.extend and (args.smoke or args.seconds <= DEFAULT_SECONDS):
+		parser.error(f"--extend pede um limite maior que {DEFAULT_SECONDS} s e não combina com --smoke")
 	directory = run_directory(configuration, args.seconds, args.smoke)
 
 	holder = lock_holder(configuration_lock(configuration))
@@ -1165,9 +1202,19 @@ def run_main(key: str, argv: Sequence[str] | None = None) -> int:
 			say("O solver de Fekete ainda não foi preparado; preparando agora.")
 			setup = prepare()
 	sizes = load_instances(instance_archive())
-	instances = smoke_instances(sizes) if args.smoke else list(sizes)
-	repetitions = 1 if args.smoke else REPETITIONS
-	tasks = plan_tasks(instances, configuration.roots, repetitions)
+	if args.extend:
+		base = base_run(configuration, setup)
+		directory = experiment_root() / f"{base.name.removesuffix(f'-{DEFAULT_SECONDS}s')}-{args.seconds}s-unsolved"
+		tasks = unsolved_tasks(base, args.repetitions or EXTEND_REPETITIONS)
+		if not tasks:
+			say(f"Tudo fechou em {base.name}; não há o que estender.")
+			return 0
+		say(f"Estende {base.name}: {len({(task.instance, task.root) for task in tasks})} execuções que não fecharam em "
+			f"{DEFAULT_SECONDS} s, agora com {args.seconds} s.")
+	else:
+		instances = smoke_instances(sizes) if args.smoke else list(sizes)
+		repetitions = args.repetitions or (1 if args.smoke else REPETITIONS)
+		tasks = plan_tasks(instances, configuration.roots, repetitions)
 	rows = read_rows(directory / "runs.jsonl")
 	done = completed_keys(rows)
 	pending = [task for task in tasks if task.key not in done]
@@ -1196,6 +1243,7 @@ def run_main(key: str, argv: Sequence[str] | None = None) -> int:
 		import jobs
 
 		command = [configuration.command, str(args.seconds), *(["--smoke"] if args.smoke else []),
+			*(["--extend"] if args.extend else []), *([f"--repetitions={args.repetitions}"] if args.repetitions else []),
 			*([f"--workers={args.workers}"] if args.workers else []),
 			*([f"--threads={configuration.threads}"] if CONFIGURATIONS[key].threads is None else []), "--foreground"]
 		with contextlib.redirect_stdout(io.StringIO()) as printed, contextlib.redirect_stderr(io.StringIO()):
@@ -1222,7 +1270,8 @@ def run_main(key: str, argv: Sequence[str] | None = None) -> int:
 		try:
 			lock_data["state"] = "running"
 			configuration_lock(configuration).write_text(json.dumps(lock_data))
-			return execute(configuration, args.seconds, workers, directory, tasks, pending, sizes, setup)
+			return execute(configuration, args.seconds, workers, directory, tasks, pending, sizes, setup,
+				extends=base.name if args.extend else None)
 		finally:
 			release_lock(machine_lock())
 	finally:
@@ -1230,13 +1279,14 @@ def run_main(key: str, argv: Sequence[str] | None = None) -> int:
 
 
 def execute(configuration: Configuration, seconds: int, workers: int, directory: Path, tasks: list[Task],
-		pending: list[Task], sizes: dict[str, int], setup: dict) -> int:
+		pending: list[Task], sizes: dict[str, int], setup: dict, extends: str | None = None) -> int:
 	directory.mkdir(parents=True, exist_ok=True)
 	plan_path = directory / "plan.json"
 	if not plan_path.exists():
 		plan = {
 			"configuration": configuration.key, "command": configuration.command, "roots": list(configuration.roots),
-			"threads": configuration.threads, "time_limit": seconds, "eps": EPS, "repetitions": REPETITIONS,
+			"threads": configuration.threads, "time_limit": seconds, "eps": EPS,
+			"repetitions": 1 + max(task.repetition for task in tasks), "extends": extends,
 			"workers": workers, "order_seed": ORDER_SEED, "instances": len({task.instance for task in tasks}),
 			"tasks": len(tasks), "setup_fingerprint": setup["fingerprint"], "setup": setup,
 			"validation_tolerance": VALIDATION_TOLERANCE, "machine": workspace.machine_state(),
