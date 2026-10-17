@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export compact educational traces for the current 558-case Fekete page."""
+"""Export educational traces from the standalone SIICUSP corpus into a new review file."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT / "benchmarks/_internal"))
 
 from unordered_runner import run_unordered_solver  # noqa: E402
 
-DEFAULT_DATA = ROOT / "apps/benchmark-dashboard/static/event/fekete-instances-exact-20260918.json"
+DEFAULT_DATA = ROOT / "apps/siicusp34/data/event-data.js"
 DEFAULT_SOLVER = ROOT / ".build/tools/bin/tpp-unordered"
 
 
@@ -120,7 +120,13 @@ def export_cases(
 
 
 def load_cases(data_path: Path) -> dict[int, FeketeCase]:
-    data = json.loads(data_path.read_text())
+    source = data_path.read_text()
+    if data_path.suffix == ".js":
+        prefix = "window.TPPEventData = "
+        if not source.startswith(prefix):
+            raise ValueError("Expected the standalone window.TPPEventData assignment")
+        source = source[len(prefix):].strip().removesuffix(";")
+    data = json.loads(source)
     return {
         row["case"]: FeketeCase(
             case_index=row["case"],
@@ -153,9 +159,9 @@ def main() -> None:
     traces = export_cases(cases, indices, args.solver, args.seconds, args.max_events, args.under_events)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    with args.output.open("w") as file:
-        json.dump({"schema_version": 1, "cases": traces}, file, ensure_ascii=False, separators=(",", ":"))
-        file.write("\n")
+    payload = json.dumps({"schema_version": 1, "cases": traces}, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+    with args.output.open("x") as file:
+        file.write(f"window.TPPTraceData = {payload};\n" if args.output.suffix == ".js" else payload + "\n")
     print(f"Exported {len(traces)} educational traces to {args.output}")
 
 

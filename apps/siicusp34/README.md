@@ -64,6 +64,16 @@ novo endereço impresso.
 - `data/event-data.js` contém os 558 casos e resultados; `data/trace-data.js`
   contém os registros usados na simulação; `data/challenge-data.js` contém os
   três desafios. Nenhum desses arquivos é refeito ao iniciar o servidor.
+- O exportador de rastros fica nesta aplicação e lê `data/event-data.js`.
+  Para gerar um arquivo novo para revisão, sem substituir a publicação:
+
+  ```bash
+  benchmarks/.venv/bin/python apps/siicusp34/scripts/export_trace_data.py \
+    --case 1 --case 3 --case 9 --output /tmp/siicusp34-traces-reviewed.js
+  ```
+
+  O solver deve estar compilado em `.build/tools/bin/tpp-unordered`. O comando
+  é executado da raiz do repositório e recusa sobrescrever o destino.
 - Para regenerar a demonstração da USP, é preciso ter a suíte local
   `benchmarks/suites/usp-butanta-50`, o solver C++ compilado e um compilador
   C++20. O script calcula a decomposição convexa ótima na build, usando o

@@ -13,7 +13,7 @@ from typing import Any
 from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -770,40 +770,6 @@ async def index(request: Request):
 @app.get("/editor/offline")
 async def offline_editor():
     return FileResponse(APP_ROOT / "offline-editor/index.html")
-
-
-@app.get("/evento")
-async def event_page(request: Request):
-    from dashboard.dashboard_event import fekete_context
-
-    return templates.TemplateResponse(request, "fekete.html", fekete_context())
-
-
-@app.get("/evento/offline", response_class=HTMLResponse)
-async def event_offline(request: Request):
-    from dashboard.dashboard_event import fekete_context, inline_fekete_assets
-
-    html = templates.get_template("fekete.html").render(request=request, standalone=True, **fekete_context())
-    return HTMLResponse(
-        inline_fekete_assets(html), headers={"Content-Disposition": 'attachment; filename="tpp-corpus-fekete-558.html"'}
-    )
-
-
-@app.get("/evento/siicusp")
-async def event_siicusp(request: Request):
-    from dashboard.dashboard_event import event_context
-
-    return templates.TemplateResponse(request, "event.html", {"archive": True, **event_context()})
-
-
-@app.get("/evento/siicusp/offline", response_class=HTMLResponse)
-async def event_siicusp_offline(request: Request):
-    from dashboard.dashboard_event import event_context, inline_event_assets
-
-    html = templates.get_template("event.html").render(request=request, offline=True, archive=True, **event_context())
-    return HTMLResponse(
-        inline_event_assets(html), headers={"Content-Disposition": 'attachment; filename="tpp-siicusp34.html"'}
-    )
 
 
 @app.post("/api/runs")

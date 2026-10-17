@@ -32,6 +32,13 @@ class DashboardStructureTests(unittest.TestCase):
         self.assertIn("put", paths_data["/api/campaigns/{name}/cases"])
         self.assertIn("post", paths_data["/api/editor/solve"])
 
+    def test_public_event_is_separate_from_local_workbench(self) -> None:
+        paths = set(main.app.openapi()["paths"])
+        self.assertFalse(any(path.startswith("/evento") for path in paths))
+        template = main.templates.get_template("index.html").render(request=object())
+        self.assertNotIn('href="/evento', template)
+        self.assertFalse((ROOT / "static/event").exists())
+
     def test_offline_editor_is_self_contained(self) -> None:
         page = (ROOT / "offline-editor/index.html").read_text()
         script = (ROOT / "static/offline-editor.js").read_text()

@@ -40,58 +40,6 @@ export function pathPrefix(path, fraction) {
 	return prefix;
 }
 
-function closestPointOnSegment(point, start, end) {
-	const direction = [end[0] - start[0], end[1] - start[1]];
-	const lengthSquared = direction[0] ** 2 + direction[1] ** 2;
-	const fraction = lengthSquared > 1e-18
-		? Math.max(0, Math.min(1, ((point[0] - start[0]) * direction[0] + (point[1] - start[1]) * direction[1]) / lengthSquared))
-		: 0;
-	return [start[0] + fraction * direction[0], start[1] + fraction * direction[1]];
-}
-
-function squaredDistance(left, right) {
-	return (left[0] - right[0]) ** 2 + (left[1] - right[1]) ** 2;
-}
-
-function closestSegmentPair(firstStart, firstEnd, secondStart, secondEnd) {
-	const firstDirection = [firstEnd[0] - firstStart[0], firstEnd[1] - firstStart[1]];
-	const secondDirection = [secondEnd[0] - secondStart[0], secondEnd[1] - secondStart[1]];
-	const offset = [secondStart[0] - firstStart[0], secondStart[1] - firstStart[1]];
-	const cross = (left, right) => left[0] * right[1] - left[1] * right[0];
-	const denominator = cross(firstDirection, secondDirection);
-	if (Math.abs(denominator) > 1e-12) {
-		const firstFraction = cross(offset, secondDirection) / denominator;
-		const secondFraction = cross(offset, firstDirection) / denominator;
-		if (firstFraction >= 0 && firstFraction <= 1 && secondFraction >= 0 && secondFraction <= 1) {
-			const point = [firstStart[0] + firstFraction * firstDirection[0], firstStart[1] + firstFraction * firstDirection[1]];
-			return { first: point, second: point, distance: 0 };
-		}
-	}
-	const candidates = [
-		{ first: firstStart, second: closestPointOnSegment(firstStart, secondStart, secondEnd) },
-		{ first: firstEnd, second: closestPointOnSegment(firstEnd, secondStart, secondEnd) },
-		{ first: closestPointOnSegment(secondStart, firstStart, firstEnd), second: secondStart },
-		{ first: closestPointOnSegment(secondEnd, firstStart, firstEnd), second: secondEnd },
-	].map((candidate) => ({ ...candidate, distance: Math.sqrt(squaredDistance(candidate.first, candidate.second)) }));
-	return candidates.reduce((best, candidate) => candidate.distance < best.distance ? candidate : best);
-}
-
-export function closestPathPolygonConnection(path, polygon) {
-	if (!Array.isArray(path) || path.length === 0 || !Array.isArray(polygon) || polygon.length === 0) return null;
-	const pathSegments = path.length > 1 ? path.slice(1).map((point, index) => [path[index], point]) : [[path[0], path[0]]];
-	const polygonSegments = polygon.length > 1
-		? polygon.map((point, index) => [point, polygon[(index + 1) % polygon.length]])
-		: [[polygon[0], polygon[0]]];
-	let best = null;
-	for (const [firstStart, firstEnd] of pathSegments) {
-		for (const [secondStart, secondEnd] of polygonSegments) {
-			const candidate = closestSegmentPair(firstStart, firstEnd, secondStart, secondEnd);
-			if (!best || candidate.distance < best.distance) best = candidate;
-		}
-	}
-	return best;
-}
-
 function pointOnSegment(point, start, end, epsilon = 1e-9) {
 	const cross = (point[0] - start[0]) * (end[1] - start[1]) - (point[1] - start[1]) * (end[0] - start[0]);
 	if (Math.abs(cross) > epsilon * Math.max(1, Math.hypot(end[0] - start[0], end[1] - start[1]))) return false;
@@ -156,22 +104,6 @@ export function pathPolygonContacts(path, polygons) {
 	});
 }
 
-export function filterRows(rows, status, search) {
-	const term = search.trim();
-	return rows.filter((row) => (status === "all" || row.termination === status)
-		&& (!term || String(row.case).padStart(2, "0").includes(term)));
-}
-
-export function endpointOffset(path, target, distance) {
-	const points = target ? [...path].reverse() : path;
-	const a = points[0];
-	for (const b of points.slice(1)) {
-		const length = Math.hypot(a[0] - b[0], a[1] - b[1]);
-		if (length > 1e-10) return [a[0] + distance * (a[0] - b[0]) / length, a[1] + distance * (a[1] - b[1]) / length];
-	}
-	return [a[0] + (target ? distance : -distance), a[1]];
-}
-
 export function regionColors(rank, count, visited) {
 	const position = count > 1 ? rank / (count - 1) : 0;
 	return visited
@@ -179,26 +111,6 @@ export function regionColors(rank, count, visited) {
 		: { fill: `hsl(${195 + position * 65} 60% ${65 - position * 30}% / .4)`, stroke: `hsl(${195 + position * 65} 55% 70%)` };
 }
 
-export function sortRows(rows, key = "case", descending = false) {
-	const value = (row) => key === "result" ? Number(!row.exact) : row[key];
-	return [...rows].sort((a, b) => (descending ? -1 : 1) * (value(a) - value(b)) || a.case - b.case);
-}
-
 export function playbackDuration(polygons) {
 	return 1800 + 15 * Math.min(80, Math.max(0, polygons));
-}
-
-export function sortGroupedRows(rows, key, descending, resultGroup = null) {
-	const ordered = sortRows(rows, key, descending);
-	if (resultGroup === null) return ordered;
-	const first = resultGroup ? false : true;
-	return [...ordered.filter(row => row.exact === first), ...ordered.filter(row => row.exact !== first)];
-}
-
-export function toggleOrderRegion(order, index) {
-	return order.includes(index) ? order.filter(value => value !== index) : [...order, index];
-}
-
-export function toggleChoice(current, next) {
-	return current === next ? null : next;
 }

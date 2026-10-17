@@ -14,7 +14,13 @@ from fastapi import HTTPException
 from test_api_integration import endpoint
 
 import main
-from dashboard.dashboard_free_order import _campaign_geometry, free_command, free_result_case, free_results
+from dashboard.dashboard_free_order import (
+    _campaign_geometry,
+    free_command,
+    free_result_case,
+    free_results,
+    solve_free_editor,
+)
 from dashboard.dashboard_models import CompareSolversRequest, Job, LiveSolveRequest, RunCampaignRequest
 
 
@@ -28,6 +34,16 @@ class JobStatusTests(unittest.TestCase):
 
 
 class FreeOrderTests(unittest.TestCase):
+    def test_live_solver_uses_shared_runner_and_built_binary(self):
+        case = ((0, 0), (2, 0), [[(1, 0), (2, 1), (1, 1)]])
+        result = {"path": [[0, 0], [2, 0]], "exact": True}
+        with (
+            patch("dashboard.dashboard_free_order.ensure_binary", return_value=Path("/tmp/test-tpp")),
+            patch("dashboard.dashboard_free_order.run_unordered_solver", return_value=result) as runner,
+        ):
+            self.assertEqual(asyncio.run(solve_free_editor(case)), result)
+            runner.assert_called_once_with(Path("/tmp/test-tpp"), *case, 200000, 3)
+
     def test_relocated_cmake_cache_is_detected(self):
         with tempfile.TemporaryDirectory() as directory:
             build_dir = Path(directory)

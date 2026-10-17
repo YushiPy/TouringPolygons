@@ -14,7 +14,10 @@ function monitor(page) {
 		}
 	});
 	page.on("requestfailed", (request) => {
-		failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText || "unknown failure"}`);
+		const failure = request.failure()?.errorText || "unknown failure";
+		// Editing or importing a different case intentionally cancels the previous solve.
+		if (failure === "net::ERR_ABORTED" && new URL(request.url()).pathname === "/api/editor/solve") return;
+		failedRequests.push(`${request.method()} ${request.url()} ${failure}`);
 	});
 }
 
@@ -75,15 +78,6 @@ try {
 		assert.equal(await threads.isEnabled(), true, "Free-order campaign parallelism disabled the thread control.");
 		assert.equal(await dashboardPage.locator("#threads-input").inputValue(), "2");
 	}
-
-	const eventPage = await browser.newPage();
-	monitor(eventPage);
-	const eventResponse = await eventPage.goto(`${baseUrl}/evento`, { waitUntil: "load" });
-	assert.equal(eventResponse?.ok(), true, "Event route did not load successfully.");
-	assert.equal(await eventPage.title(), "TPP · Geometria computacional e otimização", "Event title did not load.");
-	await eventPage.locator("#map-content").waitFor({ state: "attached" });
-	await eventPage.locator("#challenge-dialog").waitFor({ state: "attached" });
-	await eventPage.locator("#references-dialog").waitFor({ state: "attached" });
 
 	const offlinePage = await browser.newPage();
 	monitor(offlinePage);

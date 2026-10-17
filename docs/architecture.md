@@ -37,14 +37,12 @@ repository's Python environment to preserve its dependencies and extension ABI.
 ## Application lifecycle
 
 `apps/benchmark-dashboard` is the maintained local application. It owns the
-campaign workbench, event pages, editor, native solver integration, optional
+campaign workbench, editor, native solver integration, optional
 browser WASM build, and browser regression tests. Its `/editor/offline` route
 is the migration target for the old standalone editor: it now provides a
 browser-local library, legacy/dashboard JSON compatibility, library export,
 local convex decomposition, optional WASM solving, and the WASM-backed
-last-step map for fixed-order convex pairwise-disjoint instances. The old
-editor remains only while its vertex-line interaction is reviewed for a future
-replacement.
+last-step map for fixed-order convex pairwise-disjoint instances.
 
 The former standalone visualizers were retired after their maintained
 capabilities moved to the dashboard. The `/editor/offline` route owns the
@@ -58,6 +56,12 @@ available in Git history, but is not part of the active architecture.
 
 `apps/siicusp34` is frozen event material. It should change only when a new
 reviewed event export is intentionally produced.
+Its publication tooling also lives in that app. The earlier dashboard event
+pages (`/evento`), phone-preview server, and duplicated frozen snapshots were
+retired once the standalone publication covered that role. The dashboard is
+for building/editing instances and inspecting local solver runs, not for
+hosting public research presentations. Its path visualization helpers remain
+in `static/path-geometry.js`, independent of any event data.
 
 ## Generated and local boundaries
 
@@ -66,9 +70,9 @@ reviewed event export is intentionally produced.
   experiments, jobs, OSM regions) are local/generated. Native tools are built
   as named targets in `.build/tools` by `benchmarks/_internal/native_build.py`.
 - `benchmarks/suites/` contains only small or canonical tracked inputs.
-- `apps/benchmark-dashboard/static/event/` contains reviewed event snapshots;
-  regeneration commands and provenance belong beside the exporter, not in an
-  ad hoc result directory.
+- `apps/siicusp34/data/` contains reviewed publication snapshots;
+  regeneration commands and provenance belong beside that app's exporters,
+  not in the dashboard or an ad hoc result directory.
 - Durable correctness arguments and algorithm contracts belong in
   `docs/algorithms/`. `benchmarks/results-saved/` contains compact result
   summaries and indispensable small fixtures; full experimental data stays in

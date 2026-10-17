@@ -1,7 +1,7 @@
 import { escapeHTML } from "./dom.js";
 import { downloadCSV } from "./format.js";
 import { requestJSON } from "./api.js";
-import { convexHull, pathPolygonContacts, pathPrefix, playbackDuration, projectedCase, regionColors } from "./event-geometry.js?v=2026-09-10d";
+import { convexHull, pathPolygonContacts, pathPrefix, playbackDuration, projectedCase, regionColors } from "./path-geometry.js";
 import { displayPartition } from "./native-partition.js?v=editor-align-2026-09-12a";
 
 const reportStates = new WeakMap();

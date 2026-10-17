@@ -1,19 +1,27 @@
-import hashlib
-import json
 import unittest
 
 from fastapi import HTTPException
 
-from dashboard.dashboard_event import DATA_PATH, event_data
 from dashboard.dashboard_partition import PartitionRequest, native_partition, partition_router
 
 
 class PartitionTests(unittest.TestCase):
-    def test_frozen_partitions_match_solver_library(self):
-        frozen = json.loads(DATA_PATH.with_name("siicusp34-partitions.json").read_text())
-        self.assertEqual(frozen["source_sha256"], hashlib.sha256(DATA_PATH.read_bytes()).hexdigest())
-        for row in event_data()["rows"]:
-            self.assertEqual(native_partition(row["geometry"]["polygons"]), frozen["cases"][str(row["case"])])
+    def test_native_partition_covers_manual_regions_with_convex_pieces(self):
+        from shapely.geometry import Polygon
+        from shapely.ops import unary_union
+
+        polygons = [
+            [[0, 0], [3, 0], [3, 1], [1, 1], [1, 3], [0, 3]],
+            [[5, 0], [6, 0], [6, 1], [5, 1]],
+        ]
+        decomposed = native_partition(polygons)
+        self.assertEqual([len(pieces) for pieces in decomposed], [2, 1])
+        for vertices, pieces in zip(polygons, decomposed, strict=True):
+            shapes = [Polygon(piece) for piece in pieces]
+            self.assertTrue(
+                all(shape.is_valid and shape.area > 0 and shape.equals(shape.convex_hull) for shape in shapes)
+            )
+            self.assertLessEqual(unary_union(shapes).symmetric_difference(Polygon(vertices)).area, 1e-12)
 
     def test_dashboard_route_uses_native_partition(self):
         endpoint = partition_router().routes[0].endpoint

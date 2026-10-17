@@ -13,6 +13,8 @@ algoritmo envolvido.
 - `apps/benchmark-dashboard` é a aplicação mantida; `apps/siicusp34` é uma
   publicação congelada. Não reintroduza `apps/visualizer-server` no código
   ativo.
+  O dashboard cria/edita instâncias e inspeciona execuções locais. Páginas de
+  divulgação, desafios e snapshots do evento pertencem apenas a `apps/siicusp34`.
 - `benchmarks/tpp.py` é a única CLI pública de benchmark. Reutilize módulos em
   `benchmarks/_internal/` em vez de criar scripts soltos.
 - Campanhas e resultados gerados são locais e ficam em `benchmarks/workspace/`

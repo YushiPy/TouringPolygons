@@ -3,9 +3,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"start:event": ".venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8017",
-		"start:event:lan": ".venv/bin/python scripts/serve_event_lan.py",
-		"test:event": ".venv/bin/python -m unittest discover -s tests -p test_event.py && node --test tests/event-geometry.test.mjs",
+		"start": ".venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8017",
 		"test:all": "scripts/run-tests.sh",
 		"test:browser:free": "node tests/free-order-smoke.mjs",
 		"test:browser:editor": "node tests/editor-performance.mjs",

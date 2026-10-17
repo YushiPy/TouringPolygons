@@ -3,11 +3,16 @@
 The maintained user-facing applications are:
 
 - `benchmark-dashboard/`: local FastAPI workbench for campaigns, editing,
-  benchmarking, solver comparison, free-order reports, event pages, the
+  benchmarking, solver comparison, free-order reports, the
   optional browser WASM solver, and the new `/editor/offline` editor.
 - `siicusp34/`: frozen, self-contained static event page and data package. Its
   small fixed-order convex solver copy lives beside the page so the event does
   not depend on another application.
+
+The old `/evento` pages and their frozen snapshots were removed from the
+dashboard after the standalone SIICUSP publication took over that role. The
+dashboard inspects local instances and results; public research demonstrations
+belong to `siicusp34/`.
 
 The former `visualizer-server/` was removed after its solver and WASM build
 path were consolidated into `benchmark-dashboard`. Its login and saved-drawing
