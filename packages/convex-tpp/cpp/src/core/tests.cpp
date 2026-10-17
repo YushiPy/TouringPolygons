@@ -504,7 +504,9 @@ except KeyboardInterrupt:
 		)"""";
 
 		std::string cmd = std::format("python3 -c \"{}\"", code);
-		std::system(cmd.c_str());
+		if (std::system(cmd.c_str()) != 0) {
+			std::cerr << "plot_solution: the matplotlib plot failed (is python3 with matplotlib available?)" << std::endl;
+		}
 	}
 
 	std::vector<std::byte> encode_test(const Vector2 &start, const Vector2 &target, const vector<vector<Vector2>> &polygons, const vector<Vector2> &solution) {
