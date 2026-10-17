@@ -1,7 +1,7 @@
 # Repository architecture
 
-This is a research monorepo with one maintained solver path and a small set of
-explicitly retained legacy implementations.
+This is a research monorepo with one maintained solver path and a frozen
+event publication.
 
 ## Maintained solver hierarchy
 
@@ -25,6 +25,8 @@ The C++ targets are the only solver implementations. The former Python
 prototypes under `packages/convex-tpp/python` and `packages/nonconvex-tpp/python`
 were removed in October 2026; they remain available in Git history. Python is
 used only for benchmark tooling, independent validation and the dashboard.
+The unused fenced-TPP Python prototype was also retired; its source remains
+available in Git history.
 
 The public benchmark CLI owns `benchmarks/.venv`, synchronized from its
 `pyproject.toml` and `uv.lock` by `python3 benchmarks/tpp.py setup`. CLI execution

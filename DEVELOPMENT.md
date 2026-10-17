@@ -10,8 +10,9 @@ git submodule update --init --recursive
 ./scripts/install_dependencies.sh
 ```
 
-O núcleo C++ usa CMake, C++23, Eigen, Boost e CGAL. Gurobi é opcional e serve
-como baseline. O dashboard mantém seus ambientes Python e Node próprios.
+O núcleo C++ usa CMake, C++23 ou C++26, Eigen e Boost. CGAL é opcional para
+testes de paridade da decomposição; Gurobi é opcional e serve como baseline.
+O dashboard mantém seus ambientes Python e Node próprios.
 Os benchmarks também têm um ambiente independente:
 `python3 benchmarks/tpp.py setup` sincroniza `benchmarks/.venv` a partir de
 `benchmarks/uv.lock`, sem executar solvers. Os demais comandos dessa CLI usam a
@@ -29,7 +30,7 @@ para herdar a configuração dos tipos exatos e recompile-os ao trocar de backen
 - `CMakePresets.json`: presets dos solvers C++;
 - `apps/benchmark-dashboard`: aplicação principal e WASM opcional;
 - `benchmarks/tpp.py`: única CLI pública de geração e benchmarks;
-- `scripts/benchmark.sh`: interface de terminal que monta um comando `tpp.py bench`;
+- `scripts/benchmark.sh`: atalho para `tpp.py tui`, que monta um comando `tpp.py bench`;
 - `scripts/sanity_check.sh`: compila os solvers e roda seus testes em cerca de um minuto
   (`--full` acrescenta as suítes convexas de estresse, cerca de 25 minutos);
 - `scripts/verify_unordered.sh`: verificação focada no solver de ordem livre.
