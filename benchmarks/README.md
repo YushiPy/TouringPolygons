@@ -222,6 +222,9 @@ compilador, Eigen/Boost, Gurobi e ferramentas já compiladas.
 
 ## Outras máquinas (rede IME)
 
+O hardware e o software do Mac, da dantzig e da armijo estão em [`machines.md`](machines.md);
+`scripts/machine_specs.sh` gera a seção de uma máquina nova.
+
 Localmente bastam `ssh` e `rsync`. A máquina remota precisa de Python 3.12+ com
 `uv` (instalável em `~/.local/bin` sem root), CMake (vem da venv) e um
 compilador C++23 (por exemplo `g++-14`). Eigen e Boost são usados só como

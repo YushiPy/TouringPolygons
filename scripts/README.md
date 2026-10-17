@@ -16,6 +16,7 @@ atalhos `.sh` abaixo só preparam o Python do `tpp.py` e o chamam.
 | `run_fekete_paper.sh [SEGUNDOS]` | configuração **A** do código original de Fekete et al. nas 558 instâncias do artigo (raiz CHR, 24 threads, uma execução por vez, 3 repetições); em segundo plano e retomável |
 | `run_fekete_single_thread.sh [SEGUNDOS]` | configuração **B** (uma thread, raízes CHR e LEFP, uma execução por núcleo de performance, 3 repetições); espera a A terminar se ela estiver rodando |
 | `run_ours_single_thread.sh [SEGUNDOS]` | configuração **C**: o nosso solver no protocolo da B, com as opções da comparação de 16/10; o diretório leva o commit do nosso código |
+| `machine_specs.sh` | imprime, em Markdown e sem sudo, o hardware e o software desta máquina para `benchmarks/machines.md` |
 | `review_meeting_transcript.py` | revisão contextual de transcrições de reunião (abaixo) |
 
 Os atalhos aceitam as mesmas opções dos subcomandos (`scripts/run_comparison.sh --help`).
