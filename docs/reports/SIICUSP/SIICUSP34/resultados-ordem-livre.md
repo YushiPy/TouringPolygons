@@ -40,7 +40,9 @@ O verificador geométrico não certifica o LB. Na suíte de 60 casos, os 43 óti
 
 Diretório da execução, doravante `RUN`:
 
-[`benchmarks/results/unordered/siicusp34-20260906-200122/`](../../../../benchmarks/results/unordered/siicusp34-20260906-200122/)
+`benchmarks/workspace/runs/unordered/siicusp34-20260906-200122/`.
+Os dados brutos são locais e ignorados pelo Git; este relatório preserva
+somente o resumo histórico.
 
 | Item | Configuração |
 | --- | --- |
@@ -104,7 +106,10 @@ Alguns intervalos da rodada, para tornar visível a diferença entre solução e
 | 39 | 59 | 119,249440018965 | 185,286812535488 | 35,6406% | tempo |
 | 55 | 40 | 189,394116657192 | 191,189985792474 | 0,9393% | tempo |
 
-A tabela integral, com precisão exportada, está em [`RUN/summary/canonical/cases.csv`](../../../../benchmarks/results/unordered/siicusp34-20260906-200122/summary/canonical/cases.csv); os agregados estão em [`summary.json`](../../../../benchmarks/results/unordered/siicusp34-20260906-200122/summary/canonical/summary.json). Arredondamentos da tabela acima não devem ser usados para reavaliar o critério de gap.
+A tabela integral, com precisão exportada, fica em `RUN/summary/canonical/cases.csv`;
+os agregados ficam em `RUN/summary/canonical/summary.json`, ambos na execução
+local indicada acima. Arredondamentos da tabela acima não devem ser usados
+para reavaliar o critério de gap.
 
 ### Comparação externa suplementar
 
@@ -176,9 +181,9 @@ Na campanha completa adotada, o oráculo consumiu 94,1% do tempo e o fallback, 9
 Execute na raiz do repositório. O bloco cria nomes novos; não reutilize um diretório existente. No Linux, omita `caffeinate -i` e use o ambiente Python com Shapely instalado. Os caminhos Python abaixo identificam os ambientes efetivamente usados no macOS.
 
 ```bash
-RUN="benchmarks/results/unordered/siicusp34-$(date +%Y%m%d-%H%M%S)"
+RUN="benchmarks/workspace/runs/unordered/siicusp34-$(date +%Y%m%d-%H%M%S)"
 BUILD=".build/$(basename "$RUN")"
-mkdir -p benchmarks/results/unordered
+mkdir -p benchmarks/workspace/runs/unordered
 mkdir "$RUN"
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 export VECLIB_MAXIMUM_THREADS=1 PYTHONHASHSEED=0

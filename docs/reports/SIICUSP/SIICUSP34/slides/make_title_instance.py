@@ -6,7 +6,7 @@ contour: a path touches a filled glyph exactly when it touches its outer contour
 cannot change the optimal route. The slide still draws the glyphs with their holes.
 Needs fontTools and shapely (any venv). Writes title-instance.json, title-art.tex.
 
-    python3 make_title_instance.py --solver ../../../../../.build/unordered/tpp
+    python3 make_title_instance.py --solver ../../../../../.build/tools/bin/tpp-unordered
 """
 import argparse, json, math, subprocess
 from pathlib import Path

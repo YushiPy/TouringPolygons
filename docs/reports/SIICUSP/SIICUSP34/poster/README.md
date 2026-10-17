@@ -2,13 +2,13 @@
 
 ## Versão atual
 
-A versão revisada para continuar a edição e a revisão está em
-[`poster-revisado.tex`](poster-revisado.tex); o PDF local correspondente é
-[`poster-revisado.pdf`](poster-revisado.pdf). O PDF é ignorado pelo Git e pode
+A fonte atual está em
+[`poster.tex`](poster.tex); o PDF local correspondente é
+[`poster.pdf`](poster.pdf). O PDF é ignorado pelo Git e pode
 ser regenerado a partir da fonte.
 
-[`poster.tex`](poster.tex) e [`poster.pdf`](poster.pdf) são a versão anterior,
-preservada sem alterações. Os arquivos `*.aux`, `*.fdb_latexmk`, `*.fls`,
+As propostas e versões anteriores ficam no histórico Git.
+Os arquivos `*.aux`, `*.fdb_latexmk`, `*.fls`,
 `*.log` e `*.out` são auxiliares descartáveis do LaTeX; compile em `/tmp` para
 mantê-los fora desta pasta.
 
@@ -20,8 +20,8 @@ desta pasta:
 ```sh
 mkdir -p /tmp/siicusp34-poster-build
 latexmk -xelatex -interaction=nonstopmode -halt-on-error \
-  -outdir=/tmp/siicusp34-poster-build poster-revisado.tex
-cp /tmp/siicusp34-poster-build/poster-revisado.pdf poster-revisado.pdf
+  -outdir=/tmp/siicusp34-poster-build poster.tex
+cp /tmp/siicusp34-poster-build/poster.pdf poster.pdf
 ```
 
 O pôster é uma página A0 em retrato. Corpo e referências usam 26 pt. As figuras

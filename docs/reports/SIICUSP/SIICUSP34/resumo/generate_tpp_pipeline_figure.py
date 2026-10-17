@@ -253,7 +253,6 @@ def main() -> None:
 	draw_path(axes[2])
 	plt.subplots_adjust(left=0.01, right=0.99, top=0.98, bottom=0.06, wspace=0.08)
 	fig.savefig(output, transparent=True, bbox_inches="tight", pad_inches=0.05)
-	fig.savefig(output.with_suffix(".png"), transparent=True, bbox_inches="tight", pad_inches=0.05)
 
 
 if __name__ == "__main__":

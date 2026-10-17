@@ -1,6 +1,6 @@
 # Slides — 34º SIICUSP
 
-Quatro slides 16:9 para o pitch de 2 minutos, seguindo o
+Cinco slides 16:9 para o pitch de 2 minutos, seguindo o
 [guia de slides do IME](https://www.ime.usp.br/~kon/guia-slides-ime.html):
 pouco texto, uma figura grande por slide, fundo claro, tamanhos equivalentes a
 ≥ 24 pt em slide de 33,87 cm e financiamento FAPESP visível.
@@ -13,8 +13,8 @@ pouco texto, uma figura grande por slide, fundo claro, tamanhos equivalentes a
 | 4 | Resultados atualizados (dantzig, 2026-10-06): histograma log do speedup (Fekete/nosso) nos 550 casos comuns, por tipo de instância, com os números do pôster ao lado |
 | 5 | Convite ao pôster (três perguntas que ele responde) e QR code do app (com a marca do app) |
 
-São cinco slides (o plano de trabalho previa quatro); a capa, o slide 2 e o slide 5 são curtos.
-O roteiro cronometrável está em [`ROTEIRO.md`](ROTEIRO.md).
+A capa, o slide 2 e o slide 5 são curtos.
+O roteiro atual e as perguntas de apoio estão em [`ROTEIRO.md`](ROTEIRO.md).
 
 ## Compilar
 
@@ -44,7 +44,8 @@ tolerância de 0,003 em); o solver (`.build/unordered/tpp`) certificou o ótimo
 
 ```sh
 # precisa de fontTools e shapely em qualquer venv
-python3 make_title_instance.py --solver ../../../../../.build/unordered/tpp
+python3 ../../../../../benchmarks/tpp.py build tpp-unordered
+python3 make_title_instance.py --solver ../../../../../.build/tools/bin/tpp-unordered
 # regenera title-instance.json e title-art.tex; title-art-body.tex é a
 # versão sem as duas primeiras linhas (\def) de title-art.tex
 ```
