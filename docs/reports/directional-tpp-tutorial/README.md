@@ -30,6 +30,7 @@ For validation, see `packages/convex-tpp/cpp/src/core/ordered_path_validation.cp
 `packages/convex-tpp/cpp/src/main-intersection_audit.cpp`, and
 `apps/benchmark-dashboard/wasm/test-intersections.mjs`.
 
-The separate `web/` edition is an earlier static port of twelve figures. It
-has not yet been synchronized with the expanded LaTeX tutorial; use the PDF
-for the current text and diagrams.
+The earlier, unpublished static web prototype covered only twelve figures
+and was retired when it diverged from the expanded tutorial. Its source and
+unfinished interaction roadmap remain available in Git history. Use this
+LaTeX source and the generated PDF for the maintained text and diagrams.
