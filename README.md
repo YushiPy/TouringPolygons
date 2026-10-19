@@ -48,10 +48,14 @@ Each item summarizes a section of
 [`benchmarks/results-saved/README.md`](benchmarks/results-saved/README.md) (in
 Portuguese), which records the formulation, tolerances and limitations.
 
-- **TSPN, the 558 instances of Fekete et al.** Side by side, 300 s and one
-  thread: 557/558 solved, against 536/558 for their solver by its own stopping
-  criterion. On the 536 solved by both, ours is faster on 535, with a geometric
-  mean of 41× ([`tspn-fekete-558-2026-10-16`](benchmarks/results-saved/README.md#tspn-fekete-558-2026-10-16)).
+- **TSPN, the 558 instances of Fekete et al., against their original code.**
+  Same machine, 0.1% gap, 300 s per run, 3 repetitions, each solver by its own
+  stopping criterion. Their unmodified code in the paper's configuration (CHR
+  root, 16 threads) solves 542/558, the 97.13% their paper reports; ours, with
+  one thread, solves 557/558. Allowing 900 s for the instances open at 300 s,
+  ours is faster on every instance both solve: a geometric mean of 21× against
+  their 16 threads (549 instances), and 73× against their one-thread runs (541)
+  ([`fekete-reference-armijo-2026-10-17`](benchmarks/results-saved/README.md#fekete-reference-armijo-2026-10-17)).
 - **Free-order TPP with fixed endpoints, same instances.** 558/558 solved,
   against 553/558. On the 553 common cases, the geometric mean is 65× (from
   8.7× to 2,302×). Their times come from another campaign on the same machine,
