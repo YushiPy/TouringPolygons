@@ -1,87 +1,91 @@
 # Touring Polygons Problem
 
-Algoritmos exatos e experimentos para dois problemas de rota mínima que visita
-regiões no plano:
+Exact algorithms and experiments for two shortest-route problems that visit
+regions in the plane:
 
-- **Touring Polygons Problem (TPP):** dados um ponto inicial, um ponto final e
-  regiões poligonais, encontrar o menor caminho euclidiano que toca todas, em
-  ordem fixa ou em ordem livre;
-- **TSPN** (*Traveling Salesman Problem with Neighborhoods*): o menor ciclo
-  fechado que toca todas as regiões, em ordem livre e sem ponto fixo.
+- **Touring Polygons Problem (TPP):** given a start point, an end point and
+  polygonal regions, find the shortest Euclidean path that touches all of them,
+  in a fixed or a free order;
+- **TSPN** (*Traveling Salesman Problem with Neighborhoods*): the shortest
+  closed tour that touches every region, in free order and with no fixed point.
 
-As regiões podem ser não convexas, encostar umas nas outras ou se sobrepor; o
-TSPN também aceita pontos e segmentos. A busca é um *branch and bound* cujos
-limites inferiores e superiores são provados. "Resolvido" quer dizer gap
-numérico fechado (por exemplo, `UB ≤ 1,001·LB`). Otimalidade algébrica, com gap
-zero, usa o caminho em aritmética racional exata.
+Regions may be non-convex, touch each other or overlap; the TSPN also accepts
+points and segments. The search is a branch and bound whose lower and upper
+bounds are proved. "Solved" means a closed numerical gap (for example,
+`UB ≤ 1.001·LB`). Algebraic optimality, with zero gap, uses the exact
+rational-arithmetic path.
 
-## Núcleo
+Some internal notes, experiment logs and reports are in Portuguese; links to
+them are marked below.
 
-O núcleo mantido é C++ e segue esta cadeia de dependências:
+## Core
+
+The maintained core is C++ and follows this dependency chain:
 
 ```text
 tpp_geometry -> tpp_convex -> optimal_convex_partition -> tpp_nonconvex
 ```
 
-- `tpp_geometry`: primitivas geométricas compartilhadas;
-- `tpp_convex`: caminhos e ciclos de ordem fixa por polígonos convexos, a partir
-  dos mapas de última etapa de Dror et al., estendidos a polígonos que se
-  intersectam. O oráculo constrói a solução em `double`, prova
-  `L ≤ OPT ≤ U` com aritmética intervalar, recorre a um polimento por pontos
-  interiores quando a prova não fecha e mantém o caminho racional exato com
-  certificado KKT como reserva;
-- `optimal_convex_partition`: decomposição convexa ótima de polígonos simples
-  (implementação própria, sem CGAL, do `optimal_convex_partition_2` do CGAL);
-- `tpp_nonconvex`: ordem fixa com decomposição convexa, e o *branch and bound*
-  de ordem livre para o TPP e para o TSPN.
+- `tpp_geometry`: shared geometric primitives;
+- `tpp_convex`: fixed-order paths and cycles through convex polygons, built on
+  the last-step maps of Dror et al. and extended to intersecting polygons. The
+  oracle builds the solution in `double`, proves `L ≤ OPT ≤ U` with interval
+  arithmetic, falls back to an interior-point polish when the proof does not
+  close, and keeps the exact rational path with a KKT certificate as a last
+  resort;
+- `optimal_convex_partition`: optimal convex decomposition of simple polygons
+  (our own implementation, without CGAL, of CGAL's
+  `optimal_convex_partition_2`);
+- `tpp_nonconvex`: fixed order with convex decomposition, and the free-order
+  branch and bound for the TPP and the TSPN.
 
-O dashboard mantido fica em `apps/benchmark-dashboard`. A aplicação
-`apps/siicusp34` é a página estática e autocontida do 34º SIICUSP.
+The maintained dashboard is `apps/benchmark-dashboard`. `apps/siicusp34` is the
+static, self-contained page of the 34th SIICUSP (in Portuguese).
 
-## Resultados principais
+## Main results
 
-Cada item resume uma seção de
-[`benchmarks/results-saved/README.md`](benchmarks/results-saved/README.md), que
-registra formulação, tolerâncias e limitações.
+Each item summarizes a section of
+[`benchmarks/results-saved/README.md`](benchmarks/results-saved/README.md) (in
+Portuguese), which records the formulation, tolerances and limitations.
 
-- **TSPN, 558 instâncias de Fekete et al.** Lado a lado, 300 s e uma thread:
-  557/558 resolvidas, contra 536/558 do solver deles pelo critério de parada
-  dele. Nas 536 resolvidas pelos dois, o nosso é mais rápido em 535, com média
-  geométrica de 41× ([`tspn-fekete-558-2026-10-16`](benchmarks/results-saved/README.md#tspn-fekete-558-2026-10-16)).
-- **TPP de ordem livre com extremos fixos, mesmas instâncias.** 558/558
-  resolvidas, contra 553/558. Nos 553 casos comuns, a média geométrica é de 65×
-  (de 8,7× a 2.302×). Os tempos deles vêm de outra campanha na mesma máquina, não
-  lado a lado ([`float-recovery-dantzig-2026-10-08`](benchmarks/results-saved/README.md#float-recovery-dantzig-2026-10-08)).
-- **Coleção de TSPN da Paula (235 instâncias).** 229 certificadas com gap
-  relativo de 10⁻⁶: nelas, o melhor tour da Paula é ótimo dentro dessa
-  tolerância. Os dados são locais, sem autorização de redistribuição
+- **TSPN, the 558 instances of Fekete et al.** Side by side, 300 s and one
+  thread: 557/558 solved, against 536/558 for their solver by its own stopping
+  criterion. On the 536 solved by both, ours is faster on 535, with a geometric
+  mean of 41× ([`tspn-fekete-558-2026-10-16`](benchmarks/results-saved/README.md#tspn-fekete-558-2026-10-16)).
+- **Free-order TPP with fixed endpoints, same instances.** 558/558 solved,
+  against 553/558. On the 553 common cases, the geometric mean is 65× (from
+  8.7× to 2,302×). Their times come from another campaign on the same machine,
+  not side by side ([`float-recovery-dantzig-2026-10-08`](benchmarks/results-saved/README.md#float-recovery-dantzig-2026-10-08)).
+- **Paula's TSPN collection (235 instances).** 229 certified with a relative gap
+  of 10⁻⁶: on them, Paula's best tour is optimal within that tolerance. The data
+  is local, without permission to redistribute
   ([`tspn-paula-long-armijo-2026-10-14`](benchmarks/results-saved/README.md#tspn-paula-long-armijo-2026-10-14)).
 
-## Estrutura
+## Layout
 
 ```text
-apps/                       dashboard mantido e página do SIICUSP
+apps/                       maintained dashboard and the SIICUSP page
 benchmarks/
-├── tpp.py                  única CLI pública de benchmarks
-├── _internal/              implementação importável da CLI
-├── suites/                 conjuntos de entrada canônicos
-├── results-saved/          resumos dos resultados e fixtures pequenos
-└── workspace/              dados locais gerados (ignorado; ver benchmarks/README.md)
+├── tpp.py                  the only public benchmark CLI
+├── _internal/              importable implementation of the CLI
+├── suites/                 canonical input sets
+├── results-saved/          result summaries and small fixtures
+└── workspace/              generated local data (ignored; see benchmarks/README.md)
 docs/
-├── algorithms/             contratos, algoritmos e argumentos de correção
-└── reports/                relatórios do projeto
-packages/                   bibliotecas e solvers mantidos
-scripts/                    instalação e verificação
-third_party/tspn-socg/      fork do solver de Fekete et al., fixado como submódulo
+├── algorithms/             contracts, algorithms and correctness arguments
+└── reports/                project reports
+packages/                   maintained libraries and solvers
+scripts/                    installation and verification
+third_party/tspn-socg/      fork of the Fekete et al. solver, pinned as a submodule
 ```
 
-Veja [`docs/architecture.md`](docs/architecture.md) para responsabilidades e
-ciclo de vida dos componentes e [`docs/third-party.md`](docs/third-party.md)
-para proveniência, licença e dados externos.
+See [`docs/architecture.md`](docs/architecture.md) for component
+responsibilities and lifecycle, and [`docs/third-party.md`](docs/third-party.md)
+for provenance, licenses and external data.
 
-## Instalação e verificação
+## Installation and verification
 
-Clone incluindo o solver externo:
+Clone with the external solver:
 
 ```bash
 git clone --recurse-submodules https://github.com/YushiPy/TouringPolygons.git
@@ -90,18 +94,18 @@ cd TouringPolygons
 ./scripts/sanity_check.sh
 ```
 
-O instalador é idempotente e nunca usa `sudo`. O que falta e pode ser obtido sem
-administrador é baixado para a pasta pessoal ou para o repositório: uv, Python 3.12,
-o ambiente Python dos benchmarks, headers C++ e o solver original de Fekete et al.
-com seus pacotes. O que exige administrador (compilador, `git`, `make`) é só
-listado, e o script para. No macOS, ele usa o Homebrew quando existe; sem ele, o
-nosso solver fica de fora, porque precisa da `libomp`. Com Node.js presente,
-também prepara o dashboard e o Chromium dos testes de navegador.
+The installer is idempotent and never uses `sudo`. Whatever is missing and can
+be obtained without an administrator is downloaded into the home directory or
+the repository: uv, Python 3.12, the benchmarks' Python environment, C++
+headers, and the original Fekete et al. solver with its packages. What needs an
+administrator (compiler, `git`, `make`) is only listed, and the script stops.
+On macOS it uses Homebrew when present; without it, our solver is skipped,
+because it needs `libomp`. When Node.js is present, it also sets up the
+dashboard and the Chromium used by the browser tests.
 
-O `sanity_check` compila os solvers e roda os testes em cerca de um minuto com
-o build já feito. Para verificar um checkout já preparado sem tentar instalar
-pacotes, ou para incluir as suítes de estresse geradas (cerca de 25 minutos a
-mais):
+`sanity_check` builds the solvers and runs the tests in about a minute once the
+build exists. To check an already prepared checkout without trying to install
+packages, or to include the generated stress suites (about 25 more minutes):
 
 ```bash
 ./scripts/sanity_check.sh --no-install
@@ -110,10 +114,10 @@ mais):
 
 ## Benchmarks
 
-`benchmarks/tpp.py` é a interface pública. Para preparar apenas seu ambiente
-Python, execute `python3 benchmarks/tpp.py setup`. A CLI usa
-`benchmarks/.venv` automaticamente, com dependências fixadas em `uv.lock`.
-Exemplo de campanha sintética:
+`benchmarks/tpp.py` is the public interface. To set up only its Python
+environment, run `python3 benchmarks/tpp.py setup`. The CLI uses
+`benchmarks/.venv` automatically, with dependencies pinned in `uv.lock`.
+Example synthetic campaign:
 
 ```bash
 python3 benchmarks/tpp.py create smoke \
@@ -123,32 +127,34 @@ python3 benchmarks/tpp.py run smoke \
 python3 benchmarks/tpp.py status smoke
 ```
 
-`bench --problem` monta uma execução de TPP de ordem fixa, TPP de ordem livre ou
-TSPN a partir das mesmas opções. `free-compare` prepara e roda a comparação de
-ordem livre com o solver de Fekete et al., e `paula-campaign` a campanha longa
-de TSPN na coleção da Paula. Use `python3 benchmarks/tpp.py --help` para os
-demais comandos. Resultados e dados brutos novos são locais por padrão;
-`benchmarks/results-saved/` mantém resumos concisos e fixtures mínimos, e
-`fekete-comparison` é a exceção com corpus completo, porque seus arquivos são
-usados pelo material do SIICUSP.
+`bench --problem` assembles a fixed-order TPP, free-order TPP or TSPN run from
+the same options. `free-compare` prepares and runs the free-order comparison
+with the Fekete et al. solver, and `paula-campaign` runs the long TSPN campaign
+on Paula's collection. Use `python3 benchmarks/tpp.py --help` for the other
+commands. New results and raw data are local by default;
+`benchmarks/results-saved/` keeps concise summaries and minimal fixtures, and
+`fekete-comparison` is the exception with a full corpus, because the SIICUSP
+material uses its files.
 
-## Documentação
+## Documentation
 
-- [`DEVELOPMENT.md`](DEVELOPMENT.md): setup, comandos de desenvolvimento,
-  limites dos diretórios e validação;
-- [`docs/architecture.md`](docs/architecture.md): arquitetura mantida e decisões
-  de ciclo de vida;
-- [`docs/algorithms/`](docs/algorithms): especificações e argumentos de
-  correção, entre eles o [oráculo convexo certificado](docs/algorithms/certified-convex-oracle.md),
-  os [ciclos convexos](docs/algorithms/convex-cycle.md) e o
+- [`DEVELOPMENT.md`](DEVELOPMENT.md) (in Portuguese): setup, development
+  commands, directory boundaries and validation;
+- [`docs/architecture.md`](docs/architecture.md): maintained architecture and
+  lifecycle decisions;
+- [`docs/algorithms/`](docs/algorithms): specifications and correctness
+  arguments, among them the
+  [certified convex oracle](docs/algorithms/certified-convex-oracle.md) (in
+  Portuguese), [convex cycles](docs/algorithms/convex-cycle.md) and the
   [TSPN](docs/algorithms/tspn.md);
-- [`docs/reports/oraculo-convexo/`](docs/reports/oraculo-convexo): relatório
-  técnico do oráculo convexo (construção, prova intervalar, polimento e
-  correção dos limites);
-- [`docs/third-party.md`](docs/third-party.md): repositórios e dados externos;
-- [`benchmarks/README.md`](benchmarks/README.md): protocolos de benchmark.
+- [`docs/reports/oraculo-convexo/`](docs/reports/oraculo-convexo) (in
+  Portuguese): technical report on the convex oracle (construction, interval
+  proof, polish and correctness of the bounds);
+- [`docs/third-party.md`](docs/third-party.md): external repositories and data;
+- [`benchmarks/README.md`](benchmarks/README.md) (in Portuguese): benchmark
+  protocols.
 
-## Referências
+## References
 
 - Dror, M., Efrat, A., Lubiw, A., Mitchell, J. S. B. (2003). *Touring a
   sequence of polygons*. STOC 2003, pp. 473–482.
@@ -159,11 +165,11 @@ usados pelo material do SIICUSP.
 - Fekete, S. P., Kniep, R., Krupke, D., Perk, M. (2026). *A Branch-and-Bound
   Algorithm for the Traveling Salesman Problem with Difficult Neighborhoods*.
   SoCG 2026, LIPIcs 367, pp. 46:1–46:20.
-  https://doi.org/10.4230/LIPIcs.SoCG.2026.46 (código:
+  https://doi.org/10.4230/LIPIcs.SoCG.2026.46 (code:
   https://github.com/tubs-alg/TSPN-SoCG-2026)
 - Arkin, E. M., Hassin, R. (1994). *Approximation algorithms for the geometric
   covering salesman problem*. Discrete Applied Mathematics 55(3), pp. 197–218.
   https://doi.org/10.1016/0166-218X(94)90008-6
-- Greene, D. H. (1983). *The decomposition of polygons into convex parts*. Em
+- Greene, D. H. (1983). *The decomposition of polygons into convex parts*. In
   F. P. Preparata (ed.), *Computational Geometry*, Advances in Computing
   Research 1, pp. 235–259. JAI Press.

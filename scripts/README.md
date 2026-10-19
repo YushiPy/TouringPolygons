@@ -1,47 +1,49 @@
-# Scripts do repositório
+# Repository scripts
 
-Utilitários de linha de comando. A lógica de benchmark vive em `benchmarks/_internal/`
-e é exposta por `python3 benchmarks/tpp.py` (a única CLI pública de benchmark); os
-atalhos `.sh` abaixo só preparam o Python do `tpp.py` e o chamam.
+Command-line utilities. The benchmark logic lives in `benchmarks/_internal/`
+and is exposed by `python3 benchmarks/tpp.py` (the only public benchmark CLI);
+the `.sh` shortcuts below only prepare the Python for `tpp.py` and call it.
 
-| Script | O que faz |
+| Script | What it does |
 |---|---|
-| `install_dependencies.sh` | prepara as dependências do repositório, **sem sudo**: baixa o que falta e pode ser obtido sem administrador (uv, Python 3.12, headers, o solver original de Fekete et al. e seus pacotes); só lista o que exige administrador. Usa o Homebrew no macOS quando existe. `--solvers-only` pula Node, dashboard e Playwright |
-| `sanity_check.sh` | verifica dependências, compila os solvers e roda os testes C++ e Python em cerca de um minuto (com o build pronto). `--full` acrescenta as suítes convexas de estresse, cerca de 25 minutos a mais. Não roda benchmarks |
-| `verify_unordered.sh` | compila e executa a verificação focada do solver de ordem livre |
-| `benchmark.sh` | atalho para `tpp.py tui`: monta (e imprime, copia ou executa) um comando de benchmark |
-| `run_comparison.sh` | atalho para `tpp.py free-compare`: prepara e executa/retoma a comparação de ordem livre com os 558 casos de Fekete |
-| `run_tspn_comparison.sh` | atalho para `tpp.py tspn-compare`: prepara e executa/retoma a campanha TSPN completa |
-| `run_paula_campaign.sh` | atalho para `tpp.py paula-campaign`: prepara tudo sem sudo (uv, headers, GMP, solver e seus testes) e executa/retoma a campanha longa de ILS + B&B nas instâncias da Paula (`--detach`, `--report`) |
-| `run_fekete_paper.sh [SEGUNDOS]` | configuração **A** do código original de Fekete et al. nas 558 instâncias do artigo (raiz CHR, uma execução por vez com uma thread por CPU lógica dos núcleos de performance, 3 repetições; `--threads N` escolhe outro número); em segundo plano e retomável |
-| `run_fekete_single_thread.sh [SEGUNDOS]` | configuração **B** (uma thread, raízes CHR e LEFP, uma execução por núcleo de performance, 3 repetições); espera a A terminar se ela estiver rodando |
-| `run_ours_single_thread.sh [SEGUNDOS]` | configuração **C**: o nosso solver no protocolo da B, com as opções da comparação de 16/10; o diretório leva o commit do nosso código |
-| `run_fekete_paper_lefp.sh [SEGUNDOS]` | configuração **D**: como a A, com a raiz LEFP |
-| `run_ours_threads.sh [SEGUNDOS]` | configuração **E**: o nosso solver no protocolo da A, com as mesmas threads |
-| `machine_specs.sh` | imprime, em Markdown e sem sudo, o hardware e o software desta máquina para `benchmarks/machines.md` |
-| `review_meeting_transcript.py` | revisão contextual de transcrições de reunião (abaixo) |
+| `install_dependencies.sh` | sets up the repository's dependencies **without sudo**: downloads whatever is missing and can be obtained without an administrator (uv, Python 3.12, headers, the original Fekete et al. solver and its packages); only lists what needs an administrator. Uses Homebrew on macOS when present. `--solvers-only` skips Node, the dashboard and Playwright |
+| `sanity_check.sh` | checks dependencies, builds the solvers and runs the C++ and Python tests in about a minute (with the build ready). `--full` adds the convex stress suites, about 25 more minutes. Runs no benchmarks |
+| `verify_unordered.sh` | builds and runs the focused check of the free-order solver |
+| `benchmark.sh` | shortcut for `tpp.py tui`: assembles (and prints, copies or runs) a benchmark command |
+| `run_comparison.sh` | shortcut for `tpp.py free-compare`: prepares and runs/resumes the free-order comparison on Fekete's 558 cases |
+| `run_tspn_comparison.sh` | shortcut for `tpp.py tspn-compare`: prepares and runs/resumes the full TSPN campaign |
+| `run_paula_campaign.sh` | shortcut for `tpp.py paula-campaign`: sets everything up without sudo (uv, headers, GMP, the solver and its tests) and runs/resumes the long ILS + B&B campaign on Paula's instances (`--detach`, `--report`) |
+| `run_fekete_paper.sh [SECONDS]` | configuration **A** of the original Fekete et al. code on the paper's 558 instances (CHR root, one run at a time with one thread per logical CPU of the performance cores, 3 repetitions; `--threads N` picks another number); in the background and resumable |
+| `run_fekete_single_thread.sh [SECONDS]` | configuration **B** (one thread, CHR and LEFP roots, one run per performance core, 3 repetitions); waits for A to finish if it is running |
+| `run_ours_single_thread.sh [SECONDS]` | configuration **C**: our solver in B's protocol, with the options of the 10/16 comparison; the directory name carries our code's commit |
+| `run_fekete_paper_lefp.sh [SECONDS]` | configuration **D**: like A, with the LEFP root |
+| `run_ours_threads.sh [SECONDS]` | configuration **E**: our solver in A's protocol, with the same threads |
+| `machine_specs.sh` | prints this machine's hardware and software in Markdown, without sudo, for `benchmarks/machines.md` |
+| `review_meeting_transcript.py` | contextual review of meeting transcripts (below) |
 
-Os atalhos aceitam as mesmas opções dos subcomandos (`scripts/run_comparison.sh --help`).
-`TPP_PYTHON` escolhe o Python (3.12 ou mais novo). Os comandos, as opções, os
-resultados e o setup do Fekete estão documentados em
-[`../benchmarks/README.md`](../benchmarks/README.md).
+The shortcuts accept the same options as the subcommands
+(`scripts/run_comparison.sh --help`). `TPP_PYTHON` picks the Python (3.12 or
+newer). The commands, options, results and the Fekete setup are documented in
+[`../benchmarks/README.md`](../benchmarks/README.md) (in Portuguese).
 
-## Revisar uma transcrição
+## Reviewing a transcript
 
 ```bash
 python3 scripts/review_meeting_transcript.py \
 	"docs/meetings/AAAA-MM-DD/transcrição-bruta.txt"
 ```
 
-O resultado padrão é criado na mesma pasta com o nome `transcrição-revisada.txt`.
+By default the result is written to the same folder as
+`transcrição-revisada.txt`.
 
-Opções:
+Options:
 
-- `transcript`: caminho da transcrição bruta, obrigatório.
-- `--output`: caminho alternativo para a versão revisada.
-- `--end-time`: ignora segmentos iniciados depois do instante informado em segundos.
+- `transcript`: path to the raw transcript, required.
+- `--output`: alternative path for the reviewed version.
+- `--end-time`: ignores segments that start after the given time in seconds.
 
-O script aplica substituições recorrentes definidas em `REPLACEMENTS`, além de algumas
-normalizações por expressão regular. A revisão automática não garante uma transcrição
-literal perfeita; trechos incertos devem ser conferidos usando os timestamps e a gravação
-original. Ele fica aqui porque `docs/meetings/` é privado e ignorado pelo Git.
+The script applies the recurring substitutions defined in `REPLACEMENTS`, plus
+a few regular-expression normalizations. The automatic review does not
+guarantee a perfectly literal transcript; uncertain passages must be checked
+against the timestamps and the original recording. It lives here because
+`docs/meetings/` is private and ignored by Git.
