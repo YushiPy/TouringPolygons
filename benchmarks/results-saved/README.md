@@ -31,7 +31,8 @@ ponto fixo), regiões poligonais de `instances_socg_simplified.zip` (sha256
 (semente 20261017), e depois uma execução de 900 s (`--extend`) nas instâncias
 que alguma repetição deixou aberta (só A, B e C). armijo (Ryzen 7 9700X, 8
 núcleos e 16 CPUs, Linux; [`machines.md`](../machines.md)), sem outros jobs,
-uma configuração por vez, em 17 e 18/10. Comandos `tpp.py fekete-paper`,
+uma configuração por vez, de 17 a 19/10. O caso 189, o único aberto no nosso,
+teve ainda uma execução de até 6 h com uma thread. Comandos `tpp.py fekete-paper`,
 `fekete-single-thread`, `ours-single-thread`, `fekete-paper-lefp` e
 `ours-threads`
 ([protocolo](../README.md#medições-de-referência-o-fekete-original-e-o-nosso-configurações-a-a-e)).
@@ -64,7 +65,7 @@ uma configuração por vez, em 17 e 18/10. Comandos `tpp.py fekete-paper`,
 | Fekete D (LEFP, 16 threads) | 539 | — | 159 |
 | Fekete B, CHR (1 thread) | 523 | 541 | 151 |
 | Fekete B, LEFP (1 thread) | 529 | 538 | 159 |
-| Nosso, C (1 thread) | 557 | 557 | 558 |
+| Nosso, C (1 thread) | 557 | 557 (558 com o caso 189 em 1 h 29 min) | 558 |
 | Nosso, E (16 threads) | 557 | — | 558 |
 
 - **A A reproduz o artigo.** Ela resolve 97,13% em 300 s e 98,39% em 900 s, com
@@ -91,15 +92,16 @@ uma configuração por vez, em 17 e 18/10. Comandos `tpp.py fekete-paper`,
   ≥ 1 s, as 16 threads dão 6,6× em média geométrica (de 0,97× a 11,4×; a mais
   lenta, o caso 542, cai de 52 s para 7,1 s). No conjunto todo, 1,14×, porque a
   maioria leva milissegundos; a soma cai de 136 s para 32,5 s.
-- **Abertas.** Nenhuma instância fecha só no Fekete. A única aberta no nosso, o
-  caso 189 (`kuala_lumpur_n060_seed3530`), também fica aberta em todas as
-  variantes dele. Em 900 s, os limites da C (LB 431,26, UB 437,44, gap 1,41%)
-  são melhores dos dois lados que os melhores dele (LB 421,15 na A, UB 441,52
-  na B com LEFP; gap de 4,71% na A). Com limite de 6 h e uma thread, a execução
-  parou aos 2677 s no teto de 10⁸ chamadas ao oráculo, não no tempo: LB 434,40,
-  UB 436,99 (gap 0,59%), e o UB é o tour de 436,992 achado no Mac em 16/10. Na
-  E, as três repetições também pararam no teto, aos 265 s, com LB 408,47
-  (abaixo dos 428,28 da C em 300 s) e UB 437,17.
+- **Abertas.** Nenhuma instância fecha só no Fekete. A única aberta no nosso
+  em 900 s, o caso 189 (`kuala_lumpur_n060_seed3530`), também fica aberta em
+  todas as variantes dele; mesmo assim, os limites da C em 900 s (LB 431,26, UB
+  437,44, gap 1,41%) já são melhores dos dois lados que os melhores dele (LB
+  421,15 na A, UB 441,52 na B com LEFP; gap de 4,71% na A). Com até 6 h, uma
+  thread e sem teto de chamadas, a C fecha o caso 189 em 5363 s (LB 436,556,
+  UB 436,992; 27 milhões de nós, 173 milhões de chamadas, 4,3 GB). O último
+  tour melhor aparece aos 1122 s; o resto é prova. Assim o nosso fecha as 558
+  com uma thread. Na E, as três repetições pararam no teto de 10⁸ chamadas
+  aos 265 s, com LB 408,47 (abaixo dos 428,28 da C em 300 s) e UB 437,17.
 - **Tours.** A maior distância de um tour do Fekete a um polígono tem mediana
   2,7e-6 e máximo 9,6e-4, nas unidades da instância. Em 22 instâncias o UB
   dele fica abaixo do LB provado do nosso, por no máximo 5,2e-7 relativo. É a
@@ -110,13 +112,15 @@ uma configuração por vez, em 17 e 18/10. Comandos `tpp.py fekete-paper`,
 - Uma máquina só. A A usa 16 threads, contra 24 no artigo, mas as taxas de
   sucesso batem com as publicadas.
 - As execuções de 900 s e a de 6 h têm uma repetição; usaram o mesmo build do
-  Fekete e o mesmo binário nosso das rodadas de 300 s.
+  Fekete e o mesmo binário nosso das rodadas de 300 s. O Fekete não teve
+  execução de 6 h no caso 189.
 - Os critérios diferem: o dele mede o gap relativo ao UB e soma eps absoluto.
   Pelo critério do nosso, a A fecha 526 em 300 s. Os limites do Fekete são
   numéricos (SOCP); os do nosso são provados.
-- O nosso rodou com um teto de 10⁸ chamadas ao oráculo. Ele só foi atingido no
-  caso 189, na E e na execução de 6 h; nas demais, quem encerrou foi o
-  fechamento do gap ou o limite de tempo. Desde 19/10 o script não tem teto.
+- As rodadas de 17 e 18/10 do nosso tinham um teto de 10⁸ chamadas ao
+  oráculo. Ele só foi atingido no caso 189: na E e numa primeira execução de
+  6 h, que parou aos 2677 s com gap de 0,59% e foi repetida sem teto em 19/10.
+  Nas demais, quem encerrou foi o fechamento do gap ou o limite de tempo.
 - O resultado do nosso vale para esse binário (`2467373`). Uma nova versão só se
   compara a estas linhas se rodar na armijo no mesmo protocolo; noutra máquina,
   A e B têm de ser repetidas (cerca de 10 h).
