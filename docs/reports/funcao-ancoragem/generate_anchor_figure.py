@@ -169,20 +169,22 @@ def main():
 		geometry.tick_params(labelsize=8)
 
 		plot = axes[row][1]
-		s = [a for a, _ in samples]
+		s = [a / perimeter for a, _ in samples]
 		plot.plot(s, [v - optimum for v in values], color=OURS, lw=2, label="nosso TPP ancorado")
 		if checked:
 			step = 10
 			plot.plot(s[::step], [v - optimum for v in checked[::step]], "o", color=GUROBI, ms=2.5,
 				label="Gurobi (SOCP), 1 em cada 10")
-		for k in range(len(regions[0])):
-			edge = perimeter * k / len(regions[0])
+		corner = 0.0
+		for k, (a, b) in enumerate(zip(regions[0], regions[0][1:] + regions[0][:1])):
+			edge = corner / perimeter
+			corner += math.dist(a, b)
 			plot.axvline(edge, color=OTHER, lw=0.8, zorder=0)
 			plot.text(edge, 1.0, f"v{k}", transform=plot.get_xaxis_transform(), ha="center", va="bottom",
 				fontsize=8, color=MUTED)
-		plot.set_xlim(0, perimeter)
+		plot.set_xlim(0, 1)
 		plot.set_ylim(bottom=-0.05 * max(v - optimum for v in values))
-		plot.set_xlabel("posição da âncora x na borda da região 0 (comprimento de arco a partir de v0)", fontsize=9)
+		plot.set_xlabel("posição da âncora x na borda da região 0 (fração do perímetro, a partir de v0)", fontsize=9)
 		plot.set_ylabel("F(x) − ótimo", fontsize=9)
 		plot.grid(axis="y", color="#e5e7eb", lw=0.6)
 		plot.tick_params(labelsize=8)

@@ -127,6 +127,11 @@ Esta parte não tem peso na correção; ela decide a eficiência.
      há mínimos locais não globais; o próprio caso da reunião tem um. Por isso
      cada aresta é cortada nas interseções com as outras bordas, e cada pedaço é
      tratado separadamente.
+   - **Diferente do TPP, o ótimo pode não ser único.** No TPP de ordem fixa por
+     convexos o caminho mais curto é único (Dror et al.), mas um ciclo não tem
+     ponto fixo e pode haver uma família contínua de ciclos ótimos, todos com as
+     mesmas direções de ligação. Então `F` é constante num pedaço da borda; um
+     mínimo plano contém um minimizador racional, e a terminação vale igual.
    - *Código:* os cortes em [`cycle.cpp:432`](../../packages/convex-tpp/cpp/src/solvers/cycle.cpp#L432).
    - *Teste e figura:* `rotated_squares()` e [`funcao-ancoragem`](../reports/funcao-ancoragem/README.md).
 9. **Derivada e busca no interior da aresta.**

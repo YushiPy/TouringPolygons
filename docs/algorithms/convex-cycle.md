@@ -524,7 +524,12 @@ interval of one type, unfolding has one of two forms:
 The derivative in an open arrangement segment is continuous by the common
 incident-direction argument. An isolated minimum at a type transition is
 therefore stationary for an adjacent expression and rational as well. A flat
-minimum contains a rational minimizer. Endpoint minima were already handled
+minimum contains a rational minimizer. Flat minima are real here: unlike the
+fixed-endpoint TPP, whose shortest path is unique (Dror et al.), a cycle has no
+fixed point, and optimal cycles can form a continuum with the same link
+directions. Four equal squares turned 45 degrees at the corners of a square
+admit a segment of optimal rectangles, and `F` is constant along the inner edge
+([`funcao-ancoragem`](../reports/funcao-ancoragem/README.md), in Portuguese). Endpoint minima were already handled
 by the restricted certificates.
 
 For a minimizing rational parameter with denominator `Q`, a bracket narrower
