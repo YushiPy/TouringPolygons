@@ -755,7 +755,9 @@ de 1 MiB, as threads passam logo a terminar subárvores em paralelo, numa busca 
 completa. Num teste no Mac com 8 threads, as 4 instâncias mais demoradas ficaram de 2,5× a 4,3×
 mais rápidas (3,6× na média geométrica), e 40 instâncias rápidas não mudaram. Já `--threads 8`,
 que avalia os filhos de um nó em paralelo, foi 10% mais lento nas 15 mais demoradas.
-`ours-setup`, chamado pelo instalador, compila o solver e roda
+O nosso roda sem teto de chamadas ao oráculo: como no Fekete, só o limite de tempo
+encerra uma execução. As rodadas de 17 e 18/10 tinham um teto de 10⁸ chamadas, que só
+o caso 189 atingiu. `ours-setup`, chamado pelo instalador, compila o solver e roda
 os testes dele uma vez por build. O diretório da C leva o commit do nosso código, para que
 uma rodada futura com código novo não se misture com esta.
 
@@ -786,15 +788,16 @@ instâncias de 60 regiões. `scripts/run_fekete_single_thread.sh 900 --extend`:
   a menos de 1%;
 - grava em `<rodada>-900s-unsolved`.
 
-As outras execuções seguem valendo pela rodada de 300 s. Na armijo, o pior caso é de 4 h
-para a A (16 execuções), 2 h para a B (64) e 15 min para a C (o caso 189).
+As outras execuções seguem valendo pela rodada de 300 s.
 
-Pela rodada de 16/10 (uma thread, LEFP, Mac M4 Pro: 2,95 h por repetição, das quais 1,8 h
-nas 22 instâncias que esgotam os 300 s), a estimativa na dantzig, com núcleos mais lentos,
-é de 6 a 7 h para a A e umas 3 h para a B, sem contar o build inicial. Cada execução gasta
-ainda uns 0,6 s fora da medição para iniciar o processo e o Gurobi. A C leva uns 10 minutos (6 min aqui no Mac, a maior parte nas três execuções do caso 189, que esgotam os 300 s).
-A primeira execução do `install_dependencies.sh` compila Boost, GMP e MPFR e leva de 20 a
-60 minutos.
+Na armijo, de 17 a 19/10, as rodadas de 300 s levaram 7,4 h (A), 3,3 h (B), 6 min (C),
+7,1 h (D) e 15 min (E). Com `--extend 900`, foram 3,2 h (A, 16 execuções), 1,8 h (B, 64) e
+15 min (C, o caso 189), e o caso 189 fechou em 1 h 29 min com `--extend 21600`. Cada
+execução do Fekete gasta ainda uns 0,6 s fora da medição para iniciar o processo e o
+Gurobi. Na dantzig, com núcleos mais lentos, espere um pouco mais. A primeira execução do
+`install_dependencies.sh` compila Boost, GMP e MPFR e leva de 20 a 60 minutos. O resumo
+dos resultados está em
+[`results-saved`](results-saved/README.md#fekete-reference-armijo-2026-10-17).
 
 Os resultados ficam em `workspace/experiments/fekete-reference/<A–E>-...-<SEGUNDOS>s/`. O nome
 inclui o número de threads quando há mais de uma (`A-paper-16threads-300s`) e, nas do nosso
