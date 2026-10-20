@@ -52,7 +52,8 @@ Portuguese), which records the formulation, tolerances and limitations.
   Same machine, 0.1% gap, 300 s per run, 3 repetitions, each solver by its own
   stopping criterion. Their unmodified code in the paper's configuration (CHR
   root, 16 threads) solves 542/558 in 300 s and 549 with 900 s, the 97.13% and
-  98.39% their paper reports. Ours, with one thread, solves 557/558 in 300 s and
+  98.39% their paper reports: the same instances as their published runs with
+  24 threads, about 1.2× faster. Ours, with one thread, solves 557/558 in 300 s and
   the last one, which theirs leaves at a 4.7% gap after 900 s, in 1 h 29 min.
   Ours is faster on every instance both solve (times use the 900 s runs for
   instances open at 300 s). With the same 16 threads, the geometric mean is 23×

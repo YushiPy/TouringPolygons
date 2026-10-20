@@ -70,6 +70,18 @@ teve ainda uma execução de até 6 h com uma thread. Comandos `tpp.py fekete-pa
 
 - **A A reproduz o artigo.** Ela resolve 97,13% em 300 s e 98,39% em 900 s, com
   9 abertas e gap máximo de 5,00%. O artigo reporta 97,13%, 98,39% e 5,53%.
+- **E é mais rápida que as execuções do próprio artigo.** O repositório deles
+  publica os resultados por instância
+  (`evaluation/rq4_scalability/results_optimality_gaps_300` e `long_runs`,
+  máquinas `algra01` a `algra06`, 24 threads).
+  - Com a CHR, as resolvidas em 300 s são as mesmas 542 e, em 900 s, as mesmas
+    7 das 16 estendidas.
+  - Nas 119 que levam pelo menos 1 s, os tempos publicados são 1,23× os da A em
+    média geométrica (1,11× a 1,32× entre os percentis 10 e 90).
+  - Com a LEFP, o artigo resolve 538 e a D, 539, e os tempos publicados são
+    1,31× os da D.
+
+  Logo, as 16 threads da armijo não desfavorecem o Fekete.
 - **A CHR é a melhor raiz dele, como no artigo.** Com 16 threads, a LEFP (D)
   resolve 539 contra 542 da CHR (6 só na A, 3 só na D), com tempos parecidos:
   razão geométrica D/A de 1,02× nas 536 comuns.
@@ -123,8 +135,8 @@ teve ainda uma execução de até 6 h com uma thread. Comandos `tpp.py fekete-pa
   nosso, a maior distância é 2,9e-11.
 
 **Limitações.**
-- Uma máquina só. A A usa 16 threads, contra 24 no artigo, mas as taxas de
-  sucesso batem com as publicadas.
+- Uma máquina só. A A usa 16 threads, contra 24 no artigo, mas resolve as
+  mesmas instâncias que as execuções publicadas, cerca de 1,2× mais rápido.
 - As execuções de 900 s e a de 6 h têm uma repetição; usaram o mesmo build do
   Fekete e o mesmo binário nosso das rodadas de 300 s. O Fekete não teve
   execução de 6 h no caso 189.
