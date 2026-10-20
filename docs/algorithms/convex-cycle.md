@@ -611,6 +611,11 @@ cyclic/reversal variants, 96 seeded intersecting cases, and rational scales
 `2^-1100` and `2^1100`. Accelerated and unaccelerated rational searches are
 compared; selected intersecting cases also force the unaccelerated pure-double
 search. The zero-link certificate has independent analytical ray-pair tests.
+Four squares turned 45 degrees check optima interior to edges that no vertex
+anchor reaches, a flat optimum that a vertex-only search would hit by
+coincidence, and a strict non-global minimum of `F` along a closed boundary;
+[`funcao-ancoragem`](../reports/funcao-ancoragem/README.md) (in Portuguese)
+draws `F` for them against an independent SOCP.
 
 `python3 benchmarks/tpp.py cycle-benchmark --output NEW_DIRECTORY` compares
 whole API calls with warmed, single-thread Gurobi SOCP calls, including model

@@ -530,6 +530,63 @@ void intersecting_cycles() {
     }
     std::cout<<"Intersecting cycles: closed contacts, containment, subunit zero duals, cyclic shifts and 96 seeded cases passed.\n";
 }
+// Squares turned 45 degrees (diamonds) put edges, not vertices, in front of the
+// cycle. F(x) below is the anchored optimum with the first region replaced by the
+// point x: the boundary function the general search scans edge by edge.
+Polygon diamond(double x,double y,double r) {
+    return {{x+r,y},{x,y+r},{x-r,y},{x,y-r}};
+}
+double anchored(Polygons p,Vector2 x) {
+    p[0]={x};
+    const auto result=tpp::tpp_convex_solve_cycle(p);
+    require(solved(result),"anchored cycle: "+result.diagnostic);
+    return result.certificate.upper_bound;
+}
+void rotated_squares() {
+    using R=tpp::ConvexRational;
+    using P=tpp::ConvexRationalPoint;
+    {
+        // Four diamonds at the corners of a square. The inner edges are pairwise
+        // parallel, so a whole family of rectangles is optimal, with length 8d-4r.
+        // It includes the rectangle through the inner vertices: a search that only
+        // tried vertices would pass this case by coincidence.
+        const Polygons p{diamond(5,5,2),diamond(-5,5,2),diamond(-5,-5,2),diamond(5,-5,2)};
+        const auto result=tpp::tpp_convex_solve_cycle(p);
+        require(solved(result)&&std::abs(result.certificate.upper_bound-32)<1e-12,"symmetric diamonds objective 8d-4r");
+        require(tpp::tpp_convex_verify_cycle_certificate(exact(p),result.contacts).status==
+                tpp::ConvexCycleCertificateStatus::Optimal,"symmetric diamonds independent certificate");
+        const tpp::ConvexRationalPolygon vertices{{5,3},{-5,3},{-5,-3},{5,-3}};
+        require(tpp::tpp_convex_verify_cycle_certificate(exact(p),vertices).status==
+                tpp::ConvexCycleCertificateStatus::Optimal,"symmetric diamonds: the vertex rectangle is optimal too");
+        // F is convex on each edge but not along the closed boundary: the middle of
+        // the outer edge is a strict local minimum, more than 4 above the optimum.
+        const double middle=anchored(p,{6,6});
+        require(middle>result.certificate.upper_bound+4,"outer-edge minimum is not global");
+        for(double h:{0.01,0.1})
+            require(anchored(p,{6+h,6-h})>middle&&anchored(p,{6-h,6+h})>middle,"outer-edge local minimum along the boundary");
+    }
+    {
+        // Contacts on the first and third diamonds are interior to edges, by
+        // reflection between the vertex contacts (0,0) and (-4,3):
+        // length sqrt(65)+sqrt(85), contacts (18/13,-21/13) and (-40/9,-5/9).
+        const Polygons p{diamond(4,-3,4),diamond(0,2,2),diamond(-6,-3,4),diamond(-4,6,3)};
+        const auto result=tpp::tpp_convex_solve_cycle(p);
+        require(solved(result),"asymmetric diamonds: "+result.diagnostic);
+        require(tpp::tpp_convex_verify_cycle_certificate(exact(p),result.contacts).status==
+                tpp::ConvexCycleCertificateStatus::Optimal,"asymmetric diamonds independent certificate");
+        const std::vector<P> expected{{R(18)/13,R(-21)/13},{0,0},{R(-40)/9,R(-5)/9},{-4,3}};
+        for(std::size_t i=0;i<expected.size();++i)require(result.contacts[i]==expected[i],"asymmetric diamonds exact contact "+std::to_string(i));
+        require(result.squared_link_lengths==std::vector<R>{R(765)/169,R(1625)/81,R(1040)/81,R(8500)/169},
+                "asymmetric diamonds exact links");
+        const double optimum=std::sqrt(65.0)+std::sqrt(85.0);
+        require(std::abs(result.certificate.upper_bound-optimum)<1e-12,"asymmetric diamonds objective");
+        for(const auto &v:p[0])require(anchored(p,v)>optimum+0.99,"every vertex anchor misses the optimum by more than 0.99");
+        const auto floating=tpp::tpp_convex_solve_cycle_double(p);
+        require((floating.status==ConvexCycleStatus::Optimal||floating.status==ConvexCycleStatus::FloatingPointLimit)&&
+                std::abs(floating.certificate.upper_bound-optimum)<1e-12,"asymmetric diamonds in binary64");
+    }
+    std::cout<<"Rotated squares: flat optimum through vertices, non-global boundary minimum, interior-edge optimum passed.\n";
+}
 void prepared_geometry_and_features() {
     using namespace tpp;
     Polygons p{box(-5,0,-3,2),box(0,4,2,6),box(5,0,7,2)};
@@ -920,7 +977,7 @@ int main() {
         common_region_corners();
         cooperative_interruption();
         bound_first_contacts();
-        prepared_geometry_and_features();known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();active_contact_regressions();boundary_recovery_regressions();
+        prepared_geometry_and_features();known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();rotated_squares();active_contact_regressions();boundary_recovery_regressions();
         std::cout<<"Double comparisons: "<<compared_double_cases<<", maximum objective difference="<<largest_double_difference<<", maximum certified gap="<<largest_double_gap<<", local recoveries="<<total_anchor_recoveries<<'\n';
         std::cout<<"Cycle solver tests passed.\n";
         return 0;
