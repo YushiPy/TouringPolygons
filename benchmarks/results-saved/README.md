@@ -8,7 +8,7 @@ Pastas com dados:
 
 | Pasta | Conteúdo |
 |---|---|
-| [fekete-reference-armijo-2026-10-17](fekete-reference-armijo-2026-10-17/per-case.csv) | Medição de referência na armijo: o Fekete original (configuração do artigo e uma thread) × nosso solver, 558 casos, 3 repetições de 300 s mais 900 s nas abertas; uma linha por caso, configuração, raiz e limite; resumo [abaixo](#fekete-reference-armijo-2026-10-17). |
+| [fekete-reference-armijo-2026-10-17](fekete-reference-armijo-2026-10-17/per-case.csv) | Medição de referência na armijo: o Fekete original (configuração do artigo, raiz LEFP e uma thread) × nosso solver com 1 e 16 threads, 558 casos, 3 repetições de 300 s mais 900 s nas abertas; uma linha por caso, configuração, raiz e limite; resumo [abaixo](#fekete-reference-armijo-2026-10-17). |
 | [fekete-comparison](fekete-comparison/README.md) | Comparação original (558 casos, nosso solver antigo × Fekete et al., teto de 6 h, uma thread por caso, até 10 processos em paralelo) usada pelo material SIICUSP; CSVs e corpus são dependências do exportador. |
 | [float-recovery-dantzig-2026-10-08](float-recovery-dantzig-2026-10-08/per-case.csv) | Comparação com o Fekete usando nossos tempos da rodada de 08/10 (polimento em ponto flutuante), uma linha por caso, no mesmo formato da de 06/10; usada pelo material SIICUSP; resumo [abaixo](#float-recovery-dantzig-2026-10-08). |
 | [free-order-dantzig-2026-10-06](free-order-dantzig-2026-10-06/per-case.csv) | Comparação na dantzig (nosso solver de 06/10 × Fekete), uma linha por caso; resumo [abaixo](#free-order-dantzig-2026-10-06). |
@@ -29,10 +29,11 @@ artigo, na mesma máquina? **Formulação.** TSPN de ciclo livre (ordem livre, s
 ponto fixo), regiões poligonais de `instances_socg_simplified.zip` (sha256
 `21084118…`); eps 0,001; 300 s por execução, 3 repetições em ordem embaralhada
 (semente 20261017), e depois uma execução de 900 s (`--extend`) nas instâncias
-que alguma repetição deixou aberta. armijo (Ryzen 7 9700X, 8 núcleos e 16 CPUs,
-Linux; [`machines.md`](../machines.md)), sem outros jobs, uma configuração por
-vez, em 17/10. Comandos `tpp.py fekete-paper`, `fekete-single-thread` e
-`ours-single-thread`
+que alguma repetição deixou aberta (só A, B e C). armijo (Ryzen 7 9700X, 8
+núcleos e 16 CPUs, Linux; [`machines.md`](../machines.md)), sem outros jobs,
+uma configuração por vez, em 17 e 18/10. Comandos `tpp.py fekete-paper`,
+`fekete-single-thread`, `ours-single-thread`, `fekete-paper-lefp` e
+`ours-threads`
 ([protocolo](../README.md#medições-de-referência-o-fekete-original-e-o-nosso-configurações-a-a-e)).
 - **Fekete:** upstream `5cd8450` sem modificações (Gurobi 12.0.0, Boost 1.83.0,
   CGAL 6.0.1, g++ 13.3), chamado como em
@@ -45,10 +46,14 @@ vez, em 17/10. Comandos `tpp.py fekete-paper`, `fekete-single-thread` e
     7900 (12 núcleos).
   - **B**: uma thread, raízes CHR e LEFP, oito execuções simultâneas, cada uma
     presa a um núcleo físico.
-- **Nosso (C):** `2467373`, `tpp-unordered --cycle` com
-  `cache,features,root,interval`, factibilidade 1e-8 e aritmética gmp; uma
-  thread, no mesmo regime da B. "Resolvida" é `UB ≤ 1,001·LB` com limites
-  provados.
+  - **D**: como a A, com a raiz LEFP.
+- **Nosso:** `tpp-unordered --cycle` com `cache,features,root,interval`,
+  factibilidade 1e-8 e aritmética gmp, o mesmo binário (sha256 `73c1e229…`,
+  código de `2467373`) em todas as rodadas. "Resolvida" é `UB ≤ 1,001·LB` com
+  limites provados.
+  - **C**: uma thread, no mesmo regime da B.
+  - **E**: no regime da A, com `--subtree-threads 16 --max-frontier-mib 1`
+    (subárvores em paralelo desde a raiz).
 - Os tours dos dois são validados a 1e-7 fora da medição (`validate_cycle`).
 
 **Resultado.**
@@ -56,29 +61,45 @@ vez, em 17/10. Comandos `tpp.py fekete-paper`, `fekete-single-thread` e
 | Configuração | Resolvidas em 300 s (nas 3 repetições) | Após 900 s nas abertas | Tours válidos a 1e-7 |
 |---|---|---|---|
 | Fekete A (CHR, 16 threads) | 542 (97,13%) | 549 (98,39%) | 151 |
+| Fekete D (LEFP, 16 threads) | 539 | — | 159 |
 | Fekete B, CHR (1 thread) | 523 | 541 | 151 |
 | Fekete B, LEFP (1 thread) | 529 | 538 | 159 |
 | Nosso, C (1 thread) | 557 | 557 | 558 |
+| Nosso, E (16 threads) | 557 | — | 558 |
 
 - **A A reproduz o artigo.** Ela resolve 97,13% em 300 s e 98,39% em 900 s, com
   9 abertas e gap máximo de 5,00%. O artigo reporta 97,13%, 98,39% e 5,53%.
+- **A CHR é a melhor raiz dele, como no artigo.** Com 16 threads, a LEFP (D)
+  resolve 539 contra 542 da CHR (6 só na A, 3 só na D), com tempos parecidos:
+  razão geométrica D/A de 1,02× nas 536 comuns.
 - **Tempo.** O tempo de uma instância é a mediana das 3 repetições quando as 3
-  fecham; senão, o da execução de 900 s. O nosso é mais rápido em todas as
-  instâncias que os dois fecham (razão mínima: 1,73× contra a A).
+  fecham; senão, o da execução de 900 s (D e E não têm essa extensão). O nosso
+  é mais rápido em todas as instâncias que os dois fecham, em todos os pares
+  (razão mínima: 1,73×, A contra C).
 
   | Fekete / nosso | Fechadas pelos dois | Geométrica | Mediana | Onde o Fekete leva ≥ 1 s | 41–60 regiões |
   |---|---|---|---|---|---|
-  | A (16 threads) | 549 | 21,0× | 16,0× | 84,1× (n = 120) | 60,0× (n = 136) |
-  | B, CHR | 541 | 72,9× | 72,7× | 291,5× (n = 185) | 303,8× (n = 128) |
-  | B, LEFP | 538 | 68,6× | 67,0× | 253,5× (n = 181) | 261,2× (n = 126) |
+  | A / E (16 threads cada) | 549 | 23,2× | 16,8× | 114,0× (n = 120) | 78,3× (n = 136) |
+  | D / E (16 threads cada) | 539 | 21,7× | 17,6× | 76,2× (n = 104) | 56,8× (n = 127) |
+  | A (16 threads) / C (1 thread) | 549 | 21,0× | 16,0× | 84,1× (n = 120) | 60,0× (n = 136) |
+  | B, CHR / C (1 thread cada) | 541 | 72,9× | 72,7× | 291,5× (n = 185) | 303,8× (n = 128) |
+  | B, LEFP / C (1 thread cada) | 538 | 68,6× | 67,0× | 253,5× (n = 181) | 261,2× (n = 126) |
 
-  Somados, os tempos dessas 549 instâncias dão 42 s no nosso (a mais longa
-  leva 6,8 s) e 7282 s na A. As 8 que só o nosso fecha levam de 2,2 s a 52 s.
+  Somados, os tempos das 549 instâncias comuns dão 7282 s na A, 42 s na C e
+  21 s na E. As 8 que só o nosso fecha levam de 2,2 s a 52 s na C.
+- **Paralelismo do nosso (E contra C).** Nas 19 instâncias em que a C leva
+  ≥ 1 s, as 16 threads dão 6,6× em média geométrica (de 0,97× a 11,4×; a mais
+  lenta, o caso 542, cai de 52 s para 7,1 s). No conjunto todo, 1,14×, porque a
+  maioria leva milissegundos; a soma cai de 136 s para 32,5 s.
 - **Abertas.** Nenhuma instância fecha só no Fekete. A única aberta no nosso, o
-  caso 189 (`kuala_lumpur_n060_seed3530`), também fica aberta nas três
-  variantes dele. Em 900 s, os limites do nosso (LB 431,26, UB 437,44, gap
-  1,41%) são melhores dos dois lados que os melhores dele (LB 421,15 na A, UB
-  441,52 na B com LEFP; gap de 4,71% na A).
+  caso 189 (`kuala_lumpur_n060_seed3530`), também fica aberta em todas as
+  variantes dele. Em 900 s, os limites da C (LB 431,26, UB 437,44, gap 1,41%)
+  são melhores dos dois lados que os melhores dele (LB 421,15 na A, UB 441,52
+  na B com LEFP; gap de 4,71% na A). Com limite de 6 h e uma thread, a execução
+  parou aos 2677 s no teto de 10⁸ chamadas ao oráculo, não no tempo: LB 434,40,
+  UB 436,99 (gap 0,59%), e o UB é o tour de 436,992 achado no Mac em 16/10. Na
+  E, as três repetições também pararam no teto, aos 265 s, com LB 408,47
+  (abaixo dos 428,28 da C em 300 s) e UB 437,17.
 - **Tours.** A maior distância de um tour do Fekete a um polígono tem mediana
   2,7e-6 e máximo 9,6e-4, nas unidades da instância. Em 22 instâncias o UB
   dele fica abaixo do LB provado do nosso, por no máximo 5,2e-7 relativo. É a
@@ -88,21 +109,20 @@ vez, em 17/10. Comandos `tpp.py fekete-paper`, `fekete-single-thread` e
 **Limitações.**
 - Uma máquina só. A A usa 16 threads, contra 24 no artigo, mas as taxas de
   sucesso batem com as publicadas.
-- As execuções de 900 s têm uma repetição; usaram o mesmo build do Fekete e o
-  mesmo binário nosso das rodadas de 300 s.
+- As execuções de 900 s e a de 6 h têm uma repetição; usaram o mesmo build do
+  Fekete e o mesmo binário nosso das rodadas de 300 s.
 - Os critérios diferem: o dele mede o gap relativo ao UB e soma eps absoluto.
   Pelo critério do nosso, a A fecha 526 em 300 s. Os limites do Fekete são
   numéricos (SOCP); os do nosso são provados.
-- O resultado do nosso vale para `2467373`. Uma nova versão só se compara a
-  estas linhas se rodar na armijo no mesmo protocolo; noutra máquina, A e B têm
-  de ser repetidas (cerca de 10 h).
-- As configurações D (Fekete com LEFP e 16 threads) e E (nosso com 16 threads)
-  e o caso 189 com 6 h não rodaram: a armijo saiu do ar em 19/10. Com outras
-  opções (ILS, `lazy`, 8 threads), o caso 189 fecha no Mac em 675 s
-  ([`tspn-case189-zigzag-2026-10-16`](#tspn-case189-zigzag-2026-10-16)).
+- O nosso rodou com um teto de 10⁸ chamadas ao oráculo. Ele só foi atingido no
+  caso 189, na E e na execução de 6 h; nas demais, quem encerrou foi o
+  fechamento do gap ou o limite de tempo. Desde 19/10 o script não tem teto.
+- O resultado do nosso vale para esse binário (`2467373`). Uma nova versão só se
+  compara a estas linhas se rodar na armijo no mesmo protocolo; noutra máquina,
+  A e B têm de ser repetidas (cerca de 10 h).
 
 **Dados.** `per-case.csv` tem uma linha por caso, configuração, raiz e limite de
-tempo (`time_limit` 300 ou 900):
+tempo (`time_limit` 300, 900 ou 21600):
 - `solved`, `solved_strict` (`UB ≤ 1,001·LB`) e `tours_valid` contam
   repetições;
 - `seconds_*` resumem os tempos das repetições;

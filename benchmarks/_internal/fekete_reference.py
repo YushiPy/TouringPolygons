@@ -108,7 +108,9 @@ VALIDATION_TOLERANCE = 1e-7
 # Ours as in the 16/10 comparison (tspn-compare's defaults): the binary's relative gap
 # is (UB-LB)/UB, so eps/(1+eps) closes exactly when UB <= (1+eps)*LB, a stricter
 # criterion than Fekete's (UB-LB) <= eps*UB + eps.
-OUR_MAX_CALLS = 10**8
+# No cap on oracle calls: the time limit alone ends a run, as for Fekete's. The 17–18/10 runs
+# used 10**8, which only case 189 reached (with 16 threads in 265 s, and at 2677 s of 21600).
+OUR_MAX_CALLS = -1
 OUR_ARGUMENTS = (
 	"--cycle", "--absolute-gap", "0", "--relative-gap", repr(EPS / (1 + EPS)), "--feasibility-tolerance", "1e-08",
 	"--cycle-optimization", "cache", "--cycle-optimization", "features", "--cycle-optimization", "root",
