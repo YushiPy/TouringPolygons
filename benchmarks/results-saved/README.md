@@ -102,6 +102,20 @@ teve ainda uma execução de até 6 h com uma thread. Comandos `tpp.py fekete-pa
   tour melhor aparece aos 1122 s; o resto é prova. Assim o nosso fecha as 558
   com uma thread. Na E, as três repetições pararam no teto de 10⁸ chamadas
   aos 265 s, com LB 408,47 (abaixo dos 428,28 da C em 300 s) e UB 437,17.
+- **Como as chamadas ao oráculo terminam (C, repetição 1).** Cada chamada do
+  ciclo fecha de um único jeito: prova intervalar de um candidato da construção
+  geométrica, polimento por pontos interiores ou caminho racional exato, o
+  único que tem a busca ancorada na borda
+  ([`tspn.md`](../../docs/algorithms/tspn.md),
+  [`convex-cycle.md`](../../docs/algorithms/convex-cycle.md#binary64-stage-with-a-requested-gap-2026-10-08)).
+  Nas 557 instâncias sem o caso 189 (5,80 milhões de chamadas), 97,37% fecham
+  pela prova intervalar e 2,63% pelo polimento; toda tentativa de polimento
+  fechou, e nenhuma chamada foi ao caminho racional. O oráculo ocupa 46% do
+  tempo do solver, e o polimento, 3,2%. Por família, o polimento fecha 0,98%
+  das chamadas nas OSM, 5,3% nas aleatórias e 25,7% nas tesselações (19% do
+  tempo delas), onde as regiões se tocam. No caso 189, a execução que fecha
+  (173 milhões de chamadas) tem 94,2% e 5,8%, também sem caminho racional; o
+  caminho racional rodou uma única vez, na execução de 300 s desse caso.
 - **Tours.** A maior distância de um tour do Fekete a um polígono tem mediana
   2,7e-6 e máximo 9,6e-4, nas unidades da instância. Em 22 instâncias o UB
   dele fica abaixo do LB provado do nosso, por no máximo 5,2e-7 relativo. É a
