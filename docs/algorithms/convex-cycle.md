@@ -23,6 +23,10 @@ within a gap can request it with `ConvexCycleDoubleOptions::max_gap`; the
 [binary64 stage](#binary64-stage-with-a-requested-gap-2026-10-08) then proves
 them without rational arithmetic and returns `GapClosed`, never `Optimal`.
 
+[`convex-cycle-roteiro.md`](convex-cycle-roteiro.md) (in Portuguese) orders the
+results below as a study map, from the certificate to exact termination, with
+the code that implements each one.
+
 ## Existing core and shared arithmetic
 
 Dror et al., *Touring a Sequence of Polygons*, STOC 2003, gives fixed-source
