@@ -8,6 +8,7 @@ Pastas com dados:
 
 | Pasta | Conteúdo |
 |---|---|
+| [fekete-reference-dantzig-2026-10-20](fekete-reference-dantzig-2026-10-20/per-case.csv) | Réplica das configurações A, B e C da armijo na dantzig (Intel), 300 s, mesmo formato; resumo [abaixo](#fekete-reference-dantzig-2026-10-20). |
 | [fekete-reference-armijo-2026-10-17](fekete-reference-armijo-2026-10-17/per-case.csv) | Medição de referência na armijo: o Fekete original (configuração do artigo, raiz LEFP e uma thread) × nosso solver com 1 e 16 threads, 558 casos, 3 repetições de 300 s mais 900 s nas abertas; uma linha por caso, configuração, raiz e limite; resumo [abaixo](#fekete-reference-armijo-2026-10-17). |
 | [fekete-comparison](fekete-comparison/README.md) | Comparação original (558 casos, nosso solver antigo × Fekete et al., teto de 6 h, uma thread por caso, até 10 processos em paralelo) usada pelo material SIICUSP; CSVs e corpus são dependências do exportador. |
 | [float-recovery-dantzig-2026-10-08](float-recovery-dantzig-2026-10-08/per-case.csv) | Comparação com o Fekete usando nossos tempos da rodada de 08/10 (polimento em ponto flutuante), uma linha por caso, no mesmo formato da de 06/10; usada pelo material SIICUSP; resumo [abaixo](#float-recovery-dantzig-2026-10-08). |
@@ -20,6 +21,73 @@ status de exatidão e limitações. Um gap numérico fechado nos B&B não é ót
 algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
+
+## fekete-reference-dantzig-2026-10-20
+
+**Pergunta.** A comparação de
+[`fekete-reference-armijo-2026-10-17`](#fekete-reference-armijo-2026-10-17) se
+mantém noutra máquina, de outro fabricante? **Formulação.** A mesma da armijo,
+só com as configurações A, B e C, 300 s e 3 repetições, sem as extensões de
+900 s; dantzig (Intel Core i9-12900K, 8 núcleos de performance com SMT mais 8 de
+eficiência, 24 CPUs, Linux; [`machines.md`](../machines.md)), em 20/10.
+- **Threads:** a A usa as 16 CPUs dos núcleos de performance; a B e a C, uma
+  execução por núcleo de performance, presa a ele.
+- **Fekete:** o mesmo upstream `5cd8450` com o mesmo lockfile (Gurobi 12.0.0).
+- **Nosso:** o mesmo código da armijo (os commits depois de `2467373` só mudam
+  um teste), compilado na dantzig para x86-64 genérico, como lá.
+- **Carga alheia:** a partir das 11h (horário local), outro usuário ocupou de 4 a
+  6 núcleos durante quase toda a A e toda a B e a C.
+  - Na A, as execuções sob carga ficaram a 1% da mediana da própria instância
+    (nas que levam ≥ 1 s), provavelmente porque a carga ficou nos núcleos de
+    eficiência.
+  - Nos núcleos da B, houve carga em 1 de 3348 execuções; nos da C, em 55 de
+    1674, 9 delas com mais de 10 ms. As medianas de três repetições não mudam.
+
+**Resultado.**
+
+| Configuração | Resolvidas em 300 s (3 repetições), dantzig | armijo | Tours válidos a 1e-7 |
+|---|---|---|---|
+| Fekete A (CHR, 16 threads) | 545 | 542 | 151 |
+| Fekete B, CHR (1 thread) | 528 | 523 | 151 |
+| Fekete B, LEFP (1 thread) | 534 | 529 | 157 |
+| Nosso, C (1 thread) | 557 | 557 | 558 |
+
+- **O que a armijo resolve, a dantzig também resolve.** A dantzig fecha
+  algumas a mais: 3 na A e 5 em cada raiz da B. A A resolve as 542 do artigo e
+  mais 3; os tempos publicados por eles são 1,26× os dela (instâncias ≥ 1 s).
+- **As máquinas favorecem solvers diferentes.** Razão de tempo dantzig/armijo,
+  em média geométrica, nas instâncias que a armijo leva ≥ 1 s:
+  - Fekete A: 0,98;
+  - Fekete B: 0,78 com a CHR e 0,77 com a LEFP;
+  - nosso C: 1,20.
+
+  No conjunto todo, 0,94, 0,79 e 1,19. Nas instâncias mais lentas, a diferença
+  entre repetições não passa de 4%. Os binários não são compilados para a CPU,
+  então a diferença vem do hardware. O artigo deles foi medido em AMD (Ryzen 9
+  7900).
+- **Por isso o speedup depende da máquina.** Com 300 s nas duas, sem as
+  extensões (Fekete / nosso, média geométrica nas instâncias que os dois fecham):
+
+  | Comparação | dantzig | armijo | Onde o Fekete leva ≥ 1 s: dantzig / armijo |
+  |---|---|---|---|
+  | A (16 threads) / C (1 thread) | 16,0× (545) | 20,1× (542) | 61× / 75× |
+  | B, CHR / C (1 thread cada) | 45,1× (528) | 66,7× (523) | 180× / 256× |
+  | B, LEFP / C (1 thread cada) | 44,5× (534) | 65,8× (529) | 159× / 239× |
+
+  Nas duas máquinas o nosso é mais rápido em todas as instâncias que os dois
+  fecham.
+
+**Limitações.**
+- Uma rodada por máquina, sem as extensões de 900 s.
+- Outro usuário ocupou núcleos de eficiência durante a rodada. O efeito medido
+  é desprezível, mas a máquina não estava exclusiva.
+- Dois processadores, um de cada fabricante. Não dá para separar o que vem da
+  microarquitetura e o que vem de frequência e limite de potência (o Ryzen 7
+  9700X tem TDP padrão de 65 W; não conferimos a configuração da armijo).
+
+**Dados.** `per-case.csv`, no formato de
+[`fekete-reference-armijo-2026-10-17`](#fekete-reference-armijo-2026-10-17). Os
+registros completos ficam locais em `experiments/fekete-reference@dantzig`.
 
 ## fekete-reference-armijo-2026-10-17
 
