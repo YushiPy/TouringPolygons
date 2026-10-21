@@ -148,10 +148,12 @@ Tempo total em segundos (antes → agora):
   - Em 557 casos, chamadas, nós e limites são idênticos bit a bit, inclusive
     nos 4 interrompidos pelo teto.
   - No caso 538, os nós (5.408) e os limites são idênticos, mas a branch faz
-    55 chamadas a mais (9.328 contra 9.273). A causa não foi isolada. Não é o
-    predicado exato do fecho, nem a interseção convexa, nem os caminhos a
-    partir de 64 vértices: com cada um deles desligado, o número de chamadas
-    continua o mesmo.
+    55 chamadas a mais (9.328 contra 9.273). A bisseção leva ao primeiro
+    commit da branch (52a3f70), o atalho de separação antes do recorte: com
+    regiões quase encostadas, o recorte em binary64 guardava uma lasca de
+    arredondamento, que o atalho descarta. É só uma diferença de construção,
+    que os certificados não usam. Os fontes da `main` atual dão as mesmas
+    9.273 chamadas do binário de 16/10.
   - Os tempos nos núcleos de eficiência dão a branch 1,11× mais rápida (média
     geométrica dos casos idênticos acima de 0,05 s).
 
@@ -206,7 +208,11 @@ rodando entre elas. Mac M4 Pro, uma thread, processo único. Programa:
     calculada uma vez por workspace, em vez de ser lida e copiada a cada chamada.
 
   Cada caminho volta ao laço anterior quando não consegue certificar, e dá o
-  mesmo resultado que ele.
+  mesmo resultado que ele. A exceção é o atalho do recorte. Com regiões quase
+  encostadas, o recorte em binary64 pode guardar uma lasca de arredondamento,
+  e o atalho a descarta. Só a construção muda: no corpus inteiro, isso explica
+  o único caso diferente, o 538
+  ([abaixo](#tspn-smoothed-vertex-scaling-2026-10-21), bisseção até 52a3f70).
 - **Tempo por chamada com identificadores e razão Gurobi / nosso** (disco):
 
   | m (vértices por região) | 8 | 512 | 2.048 | 8.192 | 32.768 (~16 mil) |

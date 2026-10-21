@@ -458,8 +458,12 @@ template<class S> struct CycleRefinement {
         }
         // Clipping by every edge costs O(m) per edge. Disjoint regions are
         // usually separated by the edge of one that faces the other, so try
-        // that edge of each first: all vertices strictly outside it is the
-        // empty result the loop below would reach, in O(m) instead of O(m^2).
+        // that edge of each first: all vertices strictly outside it means an
+        // empty intersection, found in O(m) instead of O(m^2). The loop below
+        // reaches the same empty result in exact arithmetic; in binary64 it
+        // can keep a rounding sliver of nearly touching regions, which this
+        // shortcut drops (a construction difference only: in corpus case 538,
+        // the same tree and bounds with 55 more oracle calls).
         if(region.size()>2&&(separates(p,region)||separates(region,p)))return {};
         if constexpr(std::is_same_v<S,double>)
             if(region.size()>=kLogarithmicVertices&&p.size()>=kLogarithmicVertices&&strictly_convex(region)&&strictly_convex(p))
