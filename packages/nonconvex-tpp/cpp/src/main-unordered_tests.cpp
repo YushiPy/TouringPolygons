@@ -157,6 +157,35 @@ void check_convex_distance() {
     }
 }
 
+// The logarithmic best_contact against the loop on convex polygons of both
+// orientations: endpoints inside, segments crossing, and separated ones.
+void check_convex_best_contact() {
+    using namespace tpp::unordered_detail;
+    std::mt19937 random(20261022);
+    std::uniform_real_distribution<double> unit(0,1);
+    for(size_t trial=0;trial<3000;++trial) {
+        Polygon cloud;
+        const size_t m=64+size_t(unit(random)*(trial%2?200:4000));
+        const double sx=.2+3*unit(random),sy=.2+3*unit(random);
+        for(size_t i=0;i<m;++i) {
+            const double t=6.283185307179586*unit(random);
+            cloud.push_back(trial%3?Vector2{sx*std::cos(t),sy*std::sin(t)}:Vector2{sx*(2*unit(random)-1),sy*(2*unit(random)-1)});
+        }
+        auto polygon=convex_hull(cloud);
+        if(polygon.size()<64)continue;
+        if(trial%4==0)std::reverse(polygon.begin(),polygon.end());
+        auto point=[&]{const double r=trial%5==0?.5:6*unit(random),t=6.283185307179586*unit(random);return Vector2{r*std::cos(t),r*std::sin(t)};};
+        const Vector2 left=point(),right=trial%7==0?left:point();
+        const auto expected=best_contact(left,right,polygon,polygon.front());
+        const auto got=best_contact_convex(left,right,polygon,polygon.front());
+        auto cost=[&](Vector2 q){return left.distance_to(q)+right.distance_to(q);};
+        if(std::abs(cost(got)-cost(expected))>1e-12*(1+cost(expected)))
+            throw std::runtime_error("best_contact_convex: cost differs from best_contact");
+        if(contact({got,got},polygon,1e-9).distance>1e-9)
+            throw std::runtime_error("best_contact_convex: proposal outside the polygon");
+    }
+}
+
 void check_sequence_storage() {
     using namespace tpp::unordered_detail;
     if(sequence_index_bytes(255,257)!=1||sequence_index_bytes(256,3)!=2
@@ -966,7 +995,7 @@ void check_lower_dimensional_regions() {
 int main() {
 	try {
         check_prepared_contacts();check_relocation_and_zero_dual();
-        check_sequence_storage();check_convex_distance();
+        check_sequence_storage();check_convex_distance();check_convex_best_contact();
 		check_lower_dimensional_regions();
 		check_oracle_certificates();
 		check_coordinate_normalization();

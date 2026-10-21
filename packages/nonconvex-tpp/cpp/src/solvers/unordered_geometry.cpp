@@ -1,4 +1,5 @@
 #include "unordered_geometry.h"
+#include "tpp/geometry/common.h"
 #include <bit>
 #include <stdexcept>
 
@@ -95,7 +96,6 @@ namespace tpp::unordered_detail {
 		}
 		return best;
 	}
-
 	double path_length(const Polygon &path) {
 		double result = 0;
 		for (size_t i = 1; i < path.size(); ++i) result += path[i - 1].distance_to(path[i]);
@@ -315,6 +315,121 @@ namespace tpp::unordered_detail {
 			}
 		}
 		return std::sqrt(v.dot(v));
+	}
+	Vector2 best_contact_convex(Vector2 left, Vector2 right, const Polygon &polygon, Vector2 preferred) {
+		const size_t m = polygon.size();
+		if (m < 64) return best_contact(left, right, polygon, preferred);
+		auto loop = [&] { return best_contact(left, right, polygon, preferred); };
+		const double turn = (polygon[m / 3] - polygon[0]).cross(polygon[2 * m / 3] - polygon[0]);
+		if (!std::isfinite(turn) || turn == 0) return loop();
+		// A counterclockwise view: view vertex j is input vertex at(j).
+		const bool reversed = turn < 0;
+		auto at = [&](size_t j) { j %= m; return reversed ? m - 1 - j : j; };
+		auto vertex = [&](size_t j) { return polygon[at(j)]; };
+		const Vector2 o = vertex(0);
+		// Closed membership: the fan wedge (o, v[j], v[j+1]) by binary search.
+		auto in = [&](Vector2 q) {
+			if ((vertex(1) - o).cross(q - o) < 0 || (vertex(m - 1) - o).cross(q - o) > 0) return false;
+			size_t lo = 1, hi = m - 1;
+			while (hi - lo > 1) {
+				const size_t mid = lo + (hi - lo) / 2;
+				if ((vertex(mid) - o).cross(q - o) >= 0) lo = mid; else hi = mid;
+			}
+			return (vertex(lo + 1) - vertex(lo)).cross(q - vertex(lo)) >= 0;
+		};
+		if (in(left)) return left;
+		if (in(right)) return right;
+		// View edges around the candidates: the crossings of the line through
+		// left and right, else the feature of Dror et al.'s last-step map of
+		// `left` holding `right` (cones built on the fly).
+		std::vector<size_t> edges;
+		const Vector2 d = right - left, normal{-d.y, d.x};
+		auto extreme = [&](Vector2 direction) {
+			const size_t i = support_index(polygon, direction);
+			return reversed ? m - 1 - i : i;
+		};
+		bool crosses = false;
+		if (normal.x != 0 || normal.y != 0) {
+			const size_t top = extreme(normal), bottom = extreme(-normal);
+			if (normal.dot(vertex(top) - left) >= 0 && normal.dot(vertex(bottom) - left) <= 0) {
+				auto crossing = [&](size_t from, size_t to, bool falling) {
+					size_t lo = 0, hi = (to + m - from) % m;
+					while (hi - lo > 1) {
+						const size_t mid = (lo + hi) / 2;
+						const double side = normal.dot(vertex(from + mid) - left);
+						if (falling ? side >= 0 : side <= 0) lo = mid; else hi = mid;
+					}
+					return (from + lo) % m;
+				};
+				// The chord of the line meets the segment: a crossing is optimal.
+				double lo = 0, hi = 1;
+				const size_t first = crossing(top, bottom, true), second = crossing(bottom, top, false);
+				for (const size_t edge : {first, second})
+					for (const size_t j : {(edge + m - 1) % m, edge, (edge + 1) % m}) {
+						const Vector2 e = vertex(j + 1) - vertex(j);
+						const double offset = e.cross(left - vertex(j)), slope = e.cross(d);
+						if (slope > 0) lo = std::max(lo, -offset / slope);
+						else if (slope < 0) hi = std::min(hi, -offset / slope);
+					}
+				if (lo <= hi) {
+					crosses = true;
+					for (const size_t edge : {first, second})
+						for (const size_t j : {(edge + m - 1) % m, edge, (edge + 1) % m}) edges.push_back(j);
+				}
+			}
+		}
+		if (!crosses) {
+			auto cone = [&](size_t j) {
+				const Vector2 before = vertex(j + m - 1), here = vertex(j), after = vertex(j + 1), diff = (here - left).normalized();
+				return std::pair{diff.cross(here - before) < 0 ? diff.reflect(here - before) : diff,
+					diff.cross(here - after) > 0 ? diff.reflect(here - after) : diff};
+			};
+			size_t location;
+			if (const auto c = cone(0); point_in_cone_plus(right, vertex(0), c.first, c.second)) location = 0;
+			else {
+				size_t lo = 0, hi = m - 1;
+				bool found = false;
+				while (lo != hi) {
+					const size_t mid = lo + (hi - lo) / 2, next = mid + 1;
+					const auto c = cone(next);
+					if (point_in_cone_plus(right, vertex(next), c.first, c.second)) { location = 2 * next; found = true; break; }
+					if (point_in_edge_plus(right, vertex(lo), vertex(next), cone(lo).second, c.first)) hi = mid;
+					else lo = mid + 1;
+				}
+				if (!found) location = 2 * lo + 1;
+			}
+			const size_t j = location / 2;
+			for (const size_t k : {j + m - 2, j + m - 1, j, j + 1}) edges.push_back(k % m);
+		}
+		// The loop's candidate on each input edge, then the certificate: q is
+		// optimal iff the cost's descent direction g there is an outward normal,
+		// i.e. q is extreme toward g (or g vanishes, q on the segment).
+		auto cost = [&](Vector2 p) { return left.distance_to(p) + right.distance_to(p); };
+		Vector2 best = preferred;
+		double value = cost(best);
+		for (const size_t view_edge : edges) {
+			const size_t j = reversed ? at(view_edge + 1) : at(view_edge);
+			const auto a = polygon[j], b = polygon[(j + 1) % m], edge = b - a;
+			const double squared = edge.length_squared();
+			if (squared == 0) continue;
+			const double h_left = std::abs(edge.cross(left - a)), h_right = std::abs(edge.cross(right - a));
+			const double weight = h_left + h_right == 0 ? 0 : h_left / (h_left + h_right);
+			const double rate = std::clamp(((1 - weight) * (left - a).dot(edge)
+				+ weight * (right - a).dot(edge)) / squared, 0.0, 1.0);
+			const auto candidate = rate == 0 ? a : rate == 1 ? b : a + rate * edge;
+			const double candidate_value = cost(candidate);
+			if (candidate_value < value) { best = candidate; value = candidate_value; }
+		}
+		const double scale = left.distance_to(best) + right.distance_to(best);
+		if (!(value <= d.length() * (1 + 1e-12) + 1e-300)) {
+			const Vector2 to_left = left - best, to_right = right - best;
+			const double l = to_left.length(), r = to_right.length();
+			if (!(l > 0 && r > 0)) return loop();
+			const Vector2 g = to_left / l + to_right / r;
+			const Vector2 top = polygon[support_index(polygon, g)];
+			if (!(g.dot(top - best) <= 1e-9 * g.length() * (scale + top.distance_to(best)))) return loop();
+		}
+		return best;
 	}
 	Contact contact(const Polygon &path, const Polygon &polygon, double tolerance) {
 		Vector2 minimum=polygon.front(),maximum=polygon.front();

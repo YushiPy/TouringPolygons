@@ -89,4 +89,15 @@ namespace tpp::unordered_detail {
 	// Exact one-contact minimization over the polygon boundary, with a feasible
 	// preferred point retained when it has the same objective (e.g. pass-through).
 	Vector2 best_contact(Vector2 left, Vector2 right, const Polygon &polygon, Vector2 preferred);
+	// best_contact for a convex polygon (either orientation) in O(log m) from
+	// 64 vertices: membership of either endpoint by a fan binary search, then
+	// the loop's candidates on the edges where the line through the endpoints
+	// crosses the polygon (when the segment meets it), else around the
+	// feature of the last-step map (Dror et al.) of `left` holding `right`.
+	// The result is kept only with its certificate: the cost's descent
+	// direction is an outward normal there (the point is extreme toward it),
+	// or the cost equals the segment length. Otherwise, and below 64
+	// vertices, it is best_contact's. For proposals: a nonconvex polygon may
+	// get a worse point.
+	Vector2 best_contact_convex(Vector2 left, Vector2 right, const Polygon &polygon, Vector2 preferred);
 }
