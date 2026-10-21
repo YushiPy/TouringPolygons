@@ -5,6 +5,11 @@
 #include <vector>
 
 namespace tpp {
+// Every region below is a point, a segment or a convex polygon with distinct
+// vertices in boundary order. From 64 vertices a support is a certified
+// binary search (support_bounds_logarithmic), valid only for a polygon that
+// is convex in exact arithmetic; smaller ones take every vertex.
+//
 // Certified bounds for inserting one region in every gap of an open path.
 // Contacts only propose new dual directions; they need not be feasible.
 // An empty result declines unsupported arithmetic or a dual hint whose

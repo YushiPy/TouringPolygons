@@ -1,5 +1,6 @@
 #include "unordered_geometry.h"
 #include "tpp/geometry/common.h"
+#include "tpp/convex/rational.h"
 #include <bit>
 #include <stdexcept>
 
@@ -60,8 +61,7 @@ namespace tpp::unordered_detail {
 		if(m>=64) {
 			int sign=0;convex=true;
 			for(size_t i=0;i<m&&convex;++i) {
-				const double turn=(polygon[(i+1)%m]-polygon[i]).cross(polygon[(i+2)%m]-polygon[(i+1)%m]);
-				const int s=(turn>0)-(turn<0);
+				const int s=turn_sign(polygon[i],polygon[(i+1)%m],polygon[(i+2)%m]);
 				if(s==0||(sign!=0&&s!=sign))convex=false;
 				sign=s;
 			}
@@ -194,18 +194,31 @@ namespace tpp::unordered_detail {
 		return sampled;
 	}
 
+	int turn_sign(Vector2 a, Vector2 b, Vector2 c) {
+		const double l = (b.x - a.x) * (c.y - b.y), r = (b.y - a.y) * (c.x - b.x), d = l - r;
+		const double bound = 0x1p-50 * (std::abs(l) + std::abs(r)) + 0x1p-1069;
+		if (std::isfinite(d) && std::isfinite(bound)) {
+			if (d > bound) return 1;
+			if (d < -bound) return -1;
+		}
+		using R = ConvexRational;
+		const R exact = (R(b.x) - R(a.x)) * (R(c.y) - R(b.y)) - (R(b.y) - R(a.y)) * (R(c.x) - R(b.x));
+		return (exact > 0) - (exact < 0);
+	}
 	Polygon convex_hull(Polygon polygon) {
 		std::sort(polygon.begin(), polygon.end(), [](auto a, auto b) { return std::tie(a.x, a.y) < std::tie(b.x, b.y); });
 		polygon.erase(std::unique(polygon.begin(), polygon.end(), [](auto a, auto b) { return a.x == b.x && a.y == b.y; }), polygon.end());
 		if (polygon.size() <= 2) return polygon;
+		// Exact turn signs: the hull is strictly convex in exact arithmetic,
+		// which the logarithmic supports of the insertion bounds require.
 		Polygon hull;
 		for (auto vertex : polygon) {
-			while (hull.size() > 1 && (hull.back() - hull[hull.size() - 2]).cross(vertex - hull.back()) <= 0) hull.pop_back();
+			while (hull.size() > 1 && turn_sign(hull[hull.size() - 2], hull.back(), vertex) <= 0) hull.pop_back();
 			hull.push_back(vertex);
 		}
 		const size_t lower = hull.size();
 		for (size_t i = polygon.size() - 1; i-- > 0;) {
-			while (hull.size() > lower && (hull.back() - hull[hull.size() - 2]).cross(polygon[i] - hull.back()) <= 0) hull.pop_back();
+			while (hull.size() > lower && turn_sign(hull[hull.size() - 2], hull.back(), polygon[i]) <= 0) hull.pop_back();
 			hull.push_back(polygon[i]);
 		}
 		hull.pop_back();

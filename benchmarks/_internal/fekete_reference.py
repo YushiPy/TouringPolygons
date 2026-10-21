@@ -375,7 +375,10 @@ def license_candidates() -> list[Path]:
 def child_environment(license_file: str | None) -> dict[str, str]:
 	environment = {key: value for key, value in os.environ.items() if not key.startswith("CONAN_")}
 	environment["PYTHONUNBUFFERED"] = "1"
-	environment.pop("PYTHONPATH", None)
+	# The editable install's own path. Its .pth file is enough on Linux, but macOS
+	# marks files under the hidden .build directory hidden, and Python 3.12.15 skips
+	# hidden .pth files.
+	environment["PYTHONPATH"] = str(SOURCE / "python")
 	if license_file:
 		environment["GRB_LICENSE_FILE"] = license_file
 	return environment

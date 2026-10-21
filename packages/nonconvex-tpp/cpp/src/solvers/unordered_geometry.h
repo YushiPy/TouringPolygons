@@ -73,6 +73,10 @@ namespace tpp::unordered_detail {
 	};
 
 	double path_length(const Polygon &path);
+	// Exact sign of the turn (b-a) x (c-b): binary64 when it exceeds its a
+	// priori error bound, else rational arithmetic.
+	int turn_sign(Vector2 a, Vector2 b, Vector2 c);
+	// Counterclockwise and strictly convex in exact arithmetic (exact turns).
 	Polygon convex_hull(Polygon polygon);
 	Contact contact(const Polygon &path, const Polygon &polygon, double tolerance);
 	Contact contact(const PreparedContactPath &path, const PreparedContactPolygon &polygon, double tolerance);

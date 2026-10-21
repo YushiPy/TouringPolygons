@@ -1,5 +1,6 @@
 #include "tpp/nonconvex/unordered.h"
 #include "tpp/convex/certified.h"
+#include "tpp/convex/rational.h"
 #include "tpp/convex/float_oracle.h"
 #include "tpp/convex/hybrid.h"
 #include "tpp/nonconvex/decomposition.h"
@@ -227,6 +228,38 @@ void check_convex_visits() {
     }
     if(convex<900)throw std::runtime_error("Convex segment query: too few convex polygons prepared");
     std::cout<<"Convex visits passed "<<checks<<" comparisons ("<<convex<<" convex polygons).\n";
+}
+
+// convex_hull decides turns exactly: on point sets with nearly collinear
+// triples (a middle point one ulp off the chord), every turn of the hull is
+// strictly positive in rational arithmetic, as the logarithmic supports of
+// the insertion bounds require.
+void check_exact_hull() {
+    using namespace tpp::unordered_detail;
+    using R=tpp::ConvexRational;
+    std::mt19937 random(20261024);
+    std::uniform_real_distribution<double> coordinate(-1e3,1e3);
+    auto exact_turn=[](Vector2 a,Vector2 b,Vector2 c) {
+        return (R(b.x)-R(a.x))*(R(c.y)-R(b.y))-(R(b.y)-R(a.y))*(R(c.x)-R(b.x));
+    };
+    size_t floating_wrong=0;
+    for(size_t trial=0;trial<4000;++trial) {
+        const Vector2 a{coordinate(random),coordinate(random)},c{coordinate(random),coordinate(random)};
+        Vector2 b{(a.x+c.x)/2,(a.y+c.y)/2};
+        b.x=trial%2?std::nextafter(b.x,INFINITY):std::nextafter(b.x,-INFINITY);
+        const double floating=(b-a).cross(c-b);
+        const R exact=exact_turn(a,b,c);
+        floating_wrong+=(floating>0)!=(exact>0)||(floating<0)!=(exact<0);
+        // The triple and two far points on either side of the chord.
+        const Vector2 normal{a.y-c.y,c.x-a.x};
+        const Polygon points{a,b,c,b+normal*3.0,b-normal*2.0};
+        const auto hull=convex_hull(points);
+        if(hull.size()<3)throw std::runtime_error("exact hull: degenerate result");
+        for(size_t i=0;i<hull.size();++i)
+            if(!(exact_turn(hull[i],hull[(i+1)%hull.size()],hull[(i+2)%hull.size()])>0))
+                throw std::runtime_error("exact hull: a turn is not strictly convex in exact arithmetic");
+    }
+    std::cout<<"Exact hulls passed 4000 near-collinear sets ("<<floating_wrong<<" floating turn signs were wrong).\n";
 }
 
 void check_sequence_storage() {
@@ -1038,7 +1071,7 @@ void check_lower_dimensional_regions() {
 int main() {
 	try {
         check_prepared_contacts();check_relocation_and_zero_dual();
-        check_sequence_storage();check_convex_distance();check_convex_best_contact();check_convex_visits();
+        check_sequence_storage();check_convex_distance();check_convex_best_contact();check_convex_visits();check_exact_hull();
 		check_lower_dimensional_regions();
 		check_oracle_certificates();
 		check_coordinate_normalization();
