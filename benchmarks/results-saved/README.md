@@ -23,6 +23,59 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## oracle-gurobi-corpus-mac-2026-10-21
+
+**Pergunta.** Nas relaxações reais do B&B do corpus, quanto custa uma chamada do
+nosso oráculo do ciclo contra o SOCP do Gurobi (o tipo de oráculo do Fekete)?
+É o experimento 1 da pauta do artigo.
+
+**Formulação.**
+- **Captura.** O nosso B&B na configuração C (uma thread) rodou em 40 casos
+  sorteados (semente 20261021) entre os 135 do corpus com pelo menos mil
+  chamadas, gravando uma chamada a cada 50 (`--oracle-capture-every 50`).
+  Foram 55.898 chamadas.
+- **Repetição.** Repetimos até 400 por caso, igualmente espaçadas e na ordem
+  original, num total de 6.977 chamadas. Cada chamada tem k de 5 a 41 regiões
+  (mediana 15) e 79 vértices (mediana).
+- **Nosso.** O mesmo pedido do B&B: gap, cutoff, partida a quente, features e
+  um workspace por caso, como um trabalhador do B&B.
+- **Gurobi.** O SOCP do mesmo ciclo, com parâmetros padrão, uma thread e o
+  modelo montado a cada chamada, como no oráculo do Fekete. As restrições de
+  semiplano usam normais unitárias, para que a tolerância de factibilidade
+  dele seja uma distância.
+- **Execução.** `main-vertex_scaling.cpp --replay`, binário da branch. Mac M4
+  Pro, quatro processos ao mesmo tempo, uma repetição.
+
+**Resultado.**
+- **Tempo por chamada** (mediana): 9,0 µs o nosso e 0,95 ms o Gurobi (0,85 ms
+  só na otimização). A razão é de 93× na média geométrica (p10 57×, p90 131×,
+  e 84× contando só a otimização dele), quase constante em k.
+- **Como o nosso fecha.** 95% das chamadas fecham pela construção e pela prova
+  intervalar, e 5% pelo polimento; nenhuma usa o caminho racional. O intervalo
+  provado tem mediana de 6e-15 relativo. Os maiores são os das chamadas que
+  param no cutoff (`CertifiedBound`).
+- **A resposta do Gurobi não é um limite.** Em 3.557 chamadas o objetivo dele
+  fica abaixo do nosso limite inferior provado, por até 2,2e-5 relativo.
+  - Não é erro nosso: nessas chamadas o nosso intervalo fecha em cerca de
+    1e-14.
+  - É a tolerância de factibilidade dele, 1e-6 por restrição: com cerca de 15
+    contatos, cada um pode ficar até 1e-6 fora da sua região, o que encurta o
+    ciclo.
+  - Com as linhas sem normalizar (o primeiro modelo), essa tolerância vale
+    1e-6/|aresta| e a diferença chegava a 1,1e-4.
+- **Comparação com a decomposição de 03d4c2c.** Lá, cada nó nosso custava
+  1/238 do nó do Fekete. Aqui, uma chamada isolada custa 1/93 de um SOCP do
+  Gurobi; o restante do custo por nó vem do que cada nó dele faz além de um
+  SOCP.
+
+**Limitações.**
+- O nosso é o binário da branch. No corpus, os caminhos do oráculo são os da
+  `main`, salvo o atalho de 52a3f70.
+- O SOCP é o nosso modelo do oráculo do Fekete, não o código dele.
+- Amostra: 40 casos, até 400 chamadas por caso.
+- Capturas e saídas ficam local, em
+  `benchmarks/workspace/experiments/oracle-gurobi-corpus/`.
+
 ## fekete-smoothed-mac-2026-10-21
 
 **Pergunta.** Nas mesmas instâncias suavizadas
@@ -226,6 +279,12 @@ rodando entre elas. Mac M4 Pro, uma thread, processo único. Programa:
   (quente), o custo continua O(m) na leitura das regiões e fica em 0,26 ms. O
   frio e o apertado continuam O(m), porque normalizam a região a cada chamada:
   com gap de 1e-6, a razão contra o Gurobi é de cerca de 900× no maior tamanho.
+- **Modelo do Gurobi com normais unitárias** (refeito em 21/10, depois da
+  repetição no corpus [acima](#oracle-gurobi-corpus-mac-2026-10-21)): os tempos
+  do Gurobi quase não mudam. No maior tamanho, as razões ficam em 92.668× e
+  76.572× (disco, k = 3 e 10) e em 73.703× e 51.046× (elipse), a mesma ordem
+  de antes. O limite superior apertado nunca passa do objetivo do Gurobi em
+  mais de 8,7e-7.
 - **Mesmo resultado.** Nas 252 medições, os limites e contatos das variantes
   frio, quente e apertado são idênticos aos da `main`, e os da variante com
   identificadores, aos da quente. O nosso sempre fecha o gap pedido
