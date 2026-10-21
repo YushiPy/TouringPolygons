@@ -545,11 +545,19 @@ the vertices of `P_i`, in index order (`region_node`, `float_proof.h`).
     contact).
 - **Feasibility.** Since `Q_i` lies inside `P_i`, every iterate is feasible
   and the line search needs no extra test.
-- **Refinement.** Before each Newton step, `refine` inserts the band around
-  the vertex of `P_i` extreme toward the current descent direction
-  `u_i - u_(i-1) = -n_i`, then rebuilds the faces. That vertex minimizes
-  `n_i.v`, the `i`-th term of `D(u)`. Inserting vertices only enlarges
-  `Q_i`, so the current point stays inside.
+- **Refinement.** Within a barrier level the faces stay fixed. When Newton
+  stops, `refine` inserts the band around the vertex of `P_i` extreme toward
+  the converged descent direction `u_i - u_(i-1) = -n_i`, then rebuilds the
+  faces. That vertex minimizes `n_i.v`, the `i`-th term of `D(u)`.
+  Inserting vertices only enlarges `Q_i`, so the current point stays
+  inside.
+- **Re-convergence.** If any approximation changed, the level runs again
+  from the current point, up to eight times.
+- **Why only on convergence.** Refining before every Newton step followed
+  the extreme along the path of the iterates. With 16k vertices per region
+  that path crosses dozens of vertices per step, and every step added a
+  band. On smoothed `vienna` m=16384, the B&B took 10.6 s against 4.4 s with
+  refinement on convergence only.
 - **Gap and stopping level.** The proposition above holds on the `Q_i`: at a
   stationary point, `D_Q(u) >= length - mu*(k+F_Q)`, with `F_Q` the current
   faces. Term by term, `D_P(u) = D_Q(u)` whenever the minimizing vertex of

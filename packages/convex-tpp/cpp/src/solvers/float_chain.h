@@ -100,9 +100,10 @@ struct ChainPolishStats {std::size_t iterations=0,levels=0;};
 // and node n-1 to node 0 when cyclic. At a stationary point the smoothed
 // directions satisfy B_i^T(u_in-u_out) = sum (mu/slack) n_f; done() receives
 // each level's point and returns true to stop. Nodes with a refine() are
-// refined before every Newton step; a positive gap_target then lowers mu_end
-// to gap_target/(links+faces) for the current faces, the level at which the
-// barrier's duality gap mu*(links+faces) reaches it.
+// refined whenever Newton stops on their current faces; a positive
+// gap_target then lowers mu_end to gap_target/(links+faces) for the current
+// faces, the level at which the barrier's duality gap mu*(links+faces)
+// reaches it.
 //
 // Only free and segment nodes are variables. Their Hessian is block
 // tridiagonal in chain order; a cycle with a fixed node is ordered from the
@@ -161,94 +162,105 @@ inline std::optional<ChainPolishStats> chain_interior_point(std::vector<ChainNod
     };
     if(!m){emit(mu_end);++stats.levels;return stats;}
     double mu=mu_start;
+    // Inner approximations follow the predicted contacts: the smoothed
+    // descent direction of each node's links. Whether any changed.
+    auto refine=[&](double mu) {
+        bool changed=false;
+        for(size_t i=0;i<n;++i)x[i]=nodes[i].point(y[i]);
+        for(size_t i=0;i<n;++i)if(nodes[i].refine) {
+            Vector2 g{};
+            for(const size_t j:{(i+n-1)%n,(i+1)%n}) {
+                if(!cyclic&&j!=i+1&&j+1!=i)continue; // a path's ends have one link
+                const auto d=x[j]-x[i];g+=d/std::sqrt(d.dot(d)+mu*mu);
+            }
+            changed|=nodes[i].refine(nodes[i].faces,g);
+        }
+        return changed;
+    };
     for(;;mu=std::max(mu_end,mu*.1)) {
         ++stats.levels;
-        for(;stats.iterations<max_iterations;++stats.iterations) {
-            for(size_t i=0;i<n;++i)x[i]=nodes[i].point(y[i]);
-            // Inner approximations follow the predicted contacts: the
-            // smoothed descent direction of each node's links.
-            for(size_t i=0;i<n;++i)if(nodes[i].refine) {
-                Vector2 g{};
-                for(const size_t j:{(i+n-1)%n,(i+1)%n}) {
-                    if(!cyclic&&j!=i+1&&j+1!=i)continue; // a path's ends have one link
-                    const auto d=x[j]-x[i];g+=d/std::sqrt(d.dot(d)+mu*mu);
+        // Newton on fixed faces; once it stops, approximations are refined at
+        // the converged directions and the level runs again if they changed
+        // (at most eight refinements per level).
+        for(size_t round=0;;++round) {
+            for(;stats.iterations<max_iterations;++stats.iterations) {
+                for(size_t i=0;i<n;++i)x[i]=nodes[i].point(y[i]);
+                std::fill(system.diagonal.begin(),system.diagonal.end(),ChainMatrix{});
+                std::fill(system.upper.begin(),system.upper.end(),ChainMatrix{});
+                std::fill(gradient.begin(),gradient.end(),Vector2{});
+                ChainMatrix closing{}; // H(order[0],order[m-1])
+                for(size_t l=0;l<links;++l) {
+                    const size_t a=l,b=(l+1)%n;
+                    const auto d=x[b]-x[a];
+                    const double norm=std::sqrt(d.dot(d)+mu*mu);
+                    const Vector2 g=d/norm;
+                    const ChainMatrix h{(1-g.x*g.x)/norm,-g.x*g.y/norm,-g.x*g.y/norm,(1-g.y*g.y)/norm};
+                    const size_t pa=position[a],pb=position[b];
+                    if(pa!=none){gradient[pa]-=nodes[a].project(g);system.diagonal[pa]=system.diagonal[pa]+project(nodes[a],h,nodes[a]);}
+                    if(pb!=none){gradient[pb]+=nodes[b].project(g);system.diagonal[pb]=system.diagonal[pb]+project(nodes[b],h,nodes[b]);}
+                    if(pa==none||pb==none)continue;
+                    const ChainMatrix coupling=ChainMatrix{}-h;
+                    if(pb==pa+1)system.upper[pa]=system.upper[pa]+project(nodes[a],coupling,nodes[b]);
+                    else if(pa==pb+1)system.upper[pb]=system.upper[pb]+project(nodes[b],coupling,nodes[a]);
+                    else closing=closing+project(nodes[order[0]],coupling,nodes[order[m-1]]);
                 }
-                nodes[i].refine(nodes[i].faces,g);
-            }
-            std::fill(system.diagonal.begin(),system.diagonal.end(),ChainMatrix{});
-            std::fill(system.upper.begin(),system.upper.end(),ChainMatrix{});
-            std::fill(gradient.begin(),gradient.end(),Vector2{});
-            ChainMatrix closing{}; // H(order[0],order[m-1])
-            for(size_t l=0;l<links;++l) {
-                const size_t a=l,b=(l+1)%n;
-                const auto d=x[b]-x[a];
-                const double norm=std::sqrt(d.dot(d)+mu*mu);
-                const Vector2 g=d/norm;
-                const ChainMatrix h{(1-g.x*g.x)/norm,-g.x*g.y/norm,-g.x*g.y/norm,(1-g.y*g.y)/norm};
-                const size_t pa=position[a],pb=position[b];
-                if(pa!=none){gradient[pa]-=nodes[a].project(g);system.diagonal[pa]=system.diagonal[pa]+project(nodes[a],h,nodes[a]);}
-                if(pb!=none){gradient[pb]+=nodes[b].project(g);system.diagonal[pb]=system.diagonal[pb]+project(nodes[b],h,nodes[b]);}
-                if(pa==none||pb==none)continue;
-                const ChainMatrix coupling=ChainMatrix{}-h;
-                if(pb==pa+1)system.upper[pa]=system.upper[pa]+project(nodes[a],coupling,nodes[b]);
-                else if(pa==pb+1)system.upper[pb]=system.upper[pb]+project(nodes[b],coupling,nodes[a]);
-                else closing=closing+project(nodes[order[0]],coupling,nodes[order[m-1]]);
-            }
-            for(size_t p=0;p<m;++p) {
-                const size_t i=order[p];
-                const auto &node=nodes[i];
-                auto &block=system.diagonal[p];
-                for(const auto &f:node.faces) {
-                    const double s=slack(f,y[i]),w=mu/(s*s);
-                    gradient[p]-=f.normal*(mu/s);
-                    block=block+ChainMatrix{w*f.normal.x*f.normal.x,w*f.normal.x*f.normal.y,w*f.normal.x*f.normal.y,w*f.normal.y*f.normal.y};
+                for(size_t p=0;p<m;++p) {
+                    const size_t i=order[p];
+                    const auto &node=nodes[i];
+                    auto &block=system.diagonal[p];
+                    for(const auto &f:node.faces) {
+                        const double s=slack(f,y[i]),w=mu/(s*s);
+                        gradient[p]-=f.normal*(mu/s);
+                        block=block+ChainMatrix{w*f.normal.x*f.normal.x,w*f.normal.x*f.normal.y,w*f.normal.x*f.normal.y,w*f.normal.y*f.normal.y};
+                    }
+                    block.a+=1e-14;block.d+=1e-14;
+                    if(node.kind==Kind::Segment)block.d+=1;
+                    step[p]=gradient[p]*-1.0;
                 }
-                block.a+=1e-14;block.d+=1e-14;
-                if(node.kind==Kind::Segment)block.d+=1;
-                step[p]=gradient[p]*-1.0;
-            }
-            bool singular=false;
-            if(!corner) {
-                if(!system.factorize(m))singular=true;
-                else system.solve(step,m);
-            } else {
-                // T = leading m-1 blocks; b = last block column (H(0,m-1),
-                // H(m-2,m-1)); solve T[z W] = [r b], then the 2x2 complement.
-                const ChainMatrix last=system.diagonal[m-1],tail=system.upper[m-2];
-                if(!system.factorize(m-1))singular=true;
-                else {
-                    std::copy(step.begin(),step.end()-1,z.begin());
-                    std::fill(w0.begin(),w0.end(),Vector2{});std::fill(w1.begin(),w1.end(),Vector2{});
-                    w0.front()+=Vector2{closing.a,closing.c};w1.front()+=Vector2{closing.b,closing.d};
-                    w0.back()+=Vector2{tail.a,tail.c};w1.back()+=Vector2{tail.b,tail.d};
-                    system.solve(z,m-1);system.solve(w0,m-1);system.solve(w1,m-1);
-                    auto column=[&](size_t j){return ChainMatrix{w0[j].x,w1[j].x,w0[j].y,w1[j].y};};
-                    const auto complement=last-transpose(closing)*column(0)-transpose(tail)*column(m-2);
-                    const auto reduced=step[m-1]-transpose(closing)*z[0]-transpose(tail)*z[m-2];
-                    const auto inv=inverse(complement);
-                    if(!inv)singular=true;
+                bool singular=false;
+                if(!corner) {
+                    if(!system.factorize(m))singular=true;
+                    else system.solve(step,m);
+                } else {
+                    // T = leading m-1 blocks; b = last block column (H(0,m-1),
+                    // H(m-2,m-1)); solve T[z W] = [r b], then the 2x2 complement.
+                    const ChainMatrix last=system.diagonal[m-1],tail=system.upper[m-2];
+                    if(!system.factorize(m-1))singular=true;
                     else {
-                        step[m-1]=*inv*reduced;
-                        for(size_t j=0;j+1<m;++j)step[j]=z[j]-column(j)*step[m-1];
+                        std::copy(step.begin(),step.end()-1,z.begin());
+                        std::fill(w0.begin(),w0.end(),Vector2{});std::fill(w1.begin(),w1.end(),Vector2{});
+                        w0.front()+=Vector2{closing.a,closing.c};w1.front()+=Vector2{closing.b,closing.d};
+                        w0.back()+=Vector2{tail.a,tail.c};w1.back()+=Vector2{tail.b,tail.d};
+                        system.solve(z,m-1);system.solve(w0,m-1);system.solve(w1,m-1);
+                        auto column=[&](size_t j){return ChainMatrix{w0[j].x,w1[j].x,w0[j].y,w1[j].y};};
+                        const auto complement=last-transpose(closing)*column(0)-transpose(tail)*column(m-2);
+                        const auto reduced=step[m-1]-transpose(closing)*z[0]-transpose(tail)*z[m-2];
+                        const auto inv=inverse(complement);
+                        if(!inv)singular=true;
+                        else {
+                            step[m-1]=*inv*reduced;
+                            for(size_t j=0;j+1<m;++j)step[j]=z[j]-column(j)*step[m-1];
+                        }
                     }
                 }
+                if(singular)break;
+                double slope=0;
+                for(size_t p=0;p<m;++p)slope+=gradient[p].dot(step[p]);
+                if(!std::isfinite(slope)||slope>=0||-slope<1e-10*mu)break;
+                const double before=objective(y,mu);
+                // Below the objective's resolution Armijo cannot see progress;
+                // near convergence the feasible Newton step is then taken as is.
+                const bool resolved=-slope>64*std::numeric_limits<double>::epsilon()*std::abs(before);
+                double alpha=1;trial=y;
+                for(;alpha>1e-12;alpha*=.5) {
+                    for(size_t p=0;p<m;++p)trial[order[p]]=y[order[p]]+step[p]*alpha;
+                    const double after=objective(trial,mu);
+                    if(resolved?after<=before+.01*alpha*slope:std::isfinite(after))break;
+                }
+                if(alpha<=1e-12)break;
+                y.swap(trial);
             }
-            if(singular)break;
-            double slope=0;
-            for(size_t p=0;p<m;++p)slope+=gradient[p].dot(step[p]);
-            if(!std::isfinite(slope)||slope>=0||-slope<1e-10*mu)break;
-            const double before=objective(y,mu);
-            // Below the objective's resolution Armijo cannot see progress;
-            // near convergence the feasible Newton step is then taken as is.
-            const bool resolved=-slope>64*std::numeric_limits<double>::epsilon()*std::abs(before);
-            double alpha=1;trial=y;
-            for(;alpha>1e-12;alpha*=.5) {
-                for(size_t p=0;p<m;++p)trial[order[p]]=y[order[p]]+step[p]*alpha;
-                const double after=objective(trial,mu);
-                if(resolved?after<=before+.01*alpha*slope:std::isfinite(after))break;
-            }
-            if(alpha<=1e-12)break;
-            y.swap(trial);
+            if(round==8||stats.iterations>=max_iterations||!refine(mu))break;
         }
         if(gap_target>0) {
             size_t faces=0;for(const auto &node:nodes)faces+=node.faces.size();

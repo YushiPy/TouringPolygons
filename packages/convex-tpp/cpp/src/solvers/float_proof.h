@@ -353,10 +353,10 @@ inline double coordinate_reach(const FloatRegion &p,Vector2 reference) {
 // wedge holding `warm` (with p[0], so Q holds `warm`) and the band around the
 // vertex extreme toward `outward` (the direction in which the proposal's
 // length decreases: an outward normal at an optimal contact). Q lies in the
-// region, so every iterate does. refine(faces, g) inserts the band around
-// the vertex extreme toward g and rebuilds the faces, so Q follows the
-// predicted contact; the dual bound D(u) on the region then minimizes over a
-// vertex of Q, where Q and the region agree. The barrier problem changes,
+// region, so every iterate does. refine(faces, g), called whenever Newton
+// stops, inserts the band around the vertex extreme toward g and rebuilds
+// the faces, so Q follows the predicted contact; the dual bound D(u) on the
+// region then minimizes over a vertex of Q, where Q and the region agree. The barrier problem changes,
 // not the bounds: they are proved afterwards on the regions.
 inline ChainNode region_node(const FloatRegion &p,Vector2 reference,double scale,const Vector2 *warm,double fraction,
         Vector2 outward={}) {
