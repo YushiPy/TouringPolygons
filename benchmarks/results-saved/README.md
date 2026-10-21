@@ -74,19 +74,27 @@ Tempo total em segundos (antes → agora):
   Os detalhes estão em
   [convex-cycle.md](../../docs/algorithms/convex-cycle.md#regions-with-many-vertices-2026-10-21)
   e [tspn.md](../../docs/algorithms/tspn.md#large-convex-regions-2026-10-21).
-- **Corpus.** Comparamos o solver da `main` com a branch em 43 casos dos 558: os
-  3 com fecho de 32 vértices ou mais e 40 sorteados (semente 20261021). Os
-  argumentos foram os mesmos, com limite de 60 s. A árvore é idêntica em todos
-  os 43, e a branch é 1,16× mais rápida (média geométrica dos casos acima de
-  0,05 s).
+- **Corpus.** Comparamos o solver da `main` (binário de 16/10, mesmo código de
+  solver da `main` atual) com a branch (d110ce2) nos 558 casos, com os
+  argumentos da configuração C, uma thread e um teto de 300 mil chamadas ao
+  oráculo, para que as execuções interrompidas parem no mesmo ponto.
+  - Em 557 casos, chamadas, nós e limites são idênticos bit a bit, inclusive
+    nos 4 interrompidos pelo teto.
+  - No caso 538, os nós (5.408) e os limites são idênticos, mas a branch faz
+    55 chamadas a mais (9.328 contra 9.273). A causa não foi isolada. Não é o
+    predicado exato do fecho, nem a interseção convexa, nem os caminhos a
+    partir de 64 vértices: com cada um deles desligado, o número de chamadas
+    continua o mesmo.
+  - Os tempos nos núcleos de eficiência dão a branch 1,11× mais rápida (média
+    geométrica dos casos idênticos acima de 0,05 s).
 
 **Limitações.**
 - Uma execução por instância, num Mac só.
 - Instâncias exploratórias, não realistas.
 - O Fekete não rodou nestas instâncias. O SOCP dele cresce com m a cada
   chamada.
-- A comparação com a `main` no corpus é uma amostra. O benchmark do artigo
-  precisa ser refeito antes de um merge.
+- Antes de um merge, o benchmark do artigo precisa ser refeito nas máquinas de
+  referência. O tamanho da árvore não muda, mas os tempos sim.
 - Gerador e dados brutos: local, em `benchmarks/workspace/experiments/`
   (`tspn-smoothed` e `corpus-check`).
 
