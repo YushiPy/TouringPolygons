@@ -610,6 +610,51 @@ Polygon lattice_hull(std::mt19937 &random,size_t m,long cx,long cy,long radius,d
     Polygon result;for(auto [x,y]:lower)result.push_back({std::ldexp(double(x),-13),std::ldexp(double(y),-13)});
     return result;
 }
+// The O((m+n) log n) binary64 intersection against the edge-by-edge clip:
+// overlapping, nested and disjoint lattice hulls; equal areas and outputs
+// within the clip's region up to rounding.
+void convex_intersections() {
+    using Kernel=tpp::detail::CycleRefinement<double>;
+    using KP=Kernel::P;
+    std::mt19937 random(91022);std::uniform_real_distribution<double> unit(-1,1);
+    auto area=[](const Kernel::Polygon &q){double a=0;for(size_t i=0;i<q.size();++i)a+=q[i].cross(q[(i+1)%q.size()]);return a/2;};
+    size_t compared=0,fast=0,disjoint=0,nested=0,overlapping=0;
+    for(int trial=0;trial<240;++trial) {
+        const size_t m=trial%3==0?40:trial%3==1?300:2000;
+        const long r1=(1L<<20)+long(std::abs(unit(random))*(1L<<20)),r2=(1L<<20)+long(std::abs(unit(random))*(1L<<20));
+        const double reach=trial%4==0?0.2:trial%4==1?3.5:1.2;
+        const long cx=long(unit(random)*reach*double(r1+r2)),cy=long(unit(random)*reach*double(r1+r2));
+        const Polygon a=lattice_hull(random,m,0,0,r1,0.4+0.6*std::abs(unit(random)));
+        const Polygon b=lattice_hull(random,m,cx,cy,r2,0.4+0.6*std::abs(unit(random)));
+        Kernel::Polygon ka,kb;for(auto v:a)ka.emplace_back(v);for(auto v:b)kb.emplace_back(v);
+        if(!Kernel::strictly_convex(ka)||!Kernel::strictly_convex(kb))continue;
+        Kernel::Polygon clipped=ka;
+        for(size_t j=0;j<kb.size()&&!clipped.empty();++j) {
+            const KP o=kb[j],e=kb[(j+1)%kb.size()]-o;
+            clipped=Kernel::clip(std::move(clipped),o,KP{-e.y,e.x});
+        }
+        const auto got=Kernel::intersect_convex(ka,kb);
+        ++compared;
+        if(!got)continue;
+        ++fast;
+        const double scale=double(std::max(r1,r2))*std::ldexp(1.0,-13);
+        require(std::abs(area(*got)-area(clipped))<=1e-9*scale*scale,"convex intersection area equals the clip's");
+        require(!got->empty()||std::abs(area(clipped))<=1e-9*scale*scale,"convex intersection empty only when the clip is");
+        const double shared=area(clipped);
+        (shared<=1e-9*scale*scale?disjoint:std::abs(shared-std::min(area(ka),area(kb)))<=1e-9*scale*scale?nested:overlapping)+=1;
+        for(const auto &v:*got) {
+            double outside=0;
+            for(size_t j=0;j<clipped.size();++j) {
+                const KP o=clipped[j],e=clipped[(j+1)%clipped.size()]-o;
+                outside=std::max(outside,-e.cross(v-o)/std::sqrt(e.dot(e)));
+            }
+            if(clipped.size()>=3)require(outside<=1e-9*scale,"convex intersection vertex inside the clip's region");
+        }
+    }
+    require(fast>=compared*9/10&&disjoint&&nested&&overlapping,"convex intersection settles most pairs of each kind");
+    std::cout<<"Convex intersections: "<<fast<<" of "<<compared<<" pairs equal to the clip ("<<overlapping<<" overlapping, "
+        <<nested<<" nested, "<<disjoint<<" disjoint).\n";
+}
 void logarithmic_queries() {
     using Kernel=tpp::detail::CycleRefinement<double>;
     using R=tpp::ConvexRational;
@@ -1094,7 +1139,7 @@ int main() {
         common_region_corners();
         cooperative_interruption();
         bound_first_contacts();
-        prepared_geometry_and_features();known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();rotated_squares();logarithmic_queries();active_contact_regressions();boundary_recovery_regressions();
+        prepared_geometry_and_features();known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();rotated_squares();logarithmic_queries();convex_intersections();active_contact_regressions();boundary_recovery_regressions();
         std::cout<<"Double comparisons: "<<compared_double_cases<<", maximum objective difference="<<largest_double_difference<<", maximum certified gap="<<largest_double_gap<<", local recoveries="<<total_anchor_recoveries<<'\n';
         std::cout<<"Cycle solver tests passed.\n";
         return 0;

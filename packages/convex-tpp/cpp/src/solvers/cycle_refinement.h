@@ -3,6 +3,7 @@
 #include "cycle_execution.h"
 #include "tpp/geometry/common.h"
 #include <algorithm>
+#include <limits>
 #include <optional>
 #include <set>
 #include <span>
@@ -344,6 +345,89 @@ template<class S> struct CycleRefinement {
         for(const auto &v:b)if(!(e.cross(v-o)<0))return false;
         return true;
     }
+    // Whether every computed turn of p is strictly counterclockwise.
+    static bool strictly_convex(View p) {
+        const size_t m=p.size();
+        if(m<3)return false;
+        for(size_t i=0;i<m;++i)if(!((p[(i+1)%m]-p[i]).cross(p[(i+2)%m]-p[(i+1)%m])>0))return false;
+        return true;
+    }
+    // Parameters along a + t d where the line enters (lo, through edge
+    // `enter`) and leaves (hi, edge `leave`) a counterclockwise polygon
+    // without collinear vertices: the edges where it crosses the boundary, by
+    // binary search between the extremes on either side, and their
+    // neighbors. Nothing if the line misses the polygon.
+    struct Chord {S lo,hi;size_t enter,leave;};
+    static std::optional<Chord> chord(P a,P d,View p) {
+        const size_t m=p.size();const P n{-d.y,d.x};
+        if(n.x==0&&n.y==0)return {};
+        const size_t top=extreme(p,n),bottom=extreme(p,P{-n.x,-n.y});
+        if(!(n.dot(p[top]-a)>=0&&n.dot(p[bottom]-a)<=0))return {};
+        auto crossing=[&](size_t from,size_t to,bool falling) {
+            size_t lo=0,hi=(to+m-from)%m;
+            while(hi-lo>1) {
+                const size_t mid=(lo+hi)/2;const S side=n.dot(p[(from+mid)%m]-a);
+                if(falling?side>=0:side<=0)lo=mid;else hi=mid;
+            }
+            return (from+lo)%m;
+        };
+        Chord c{-std::numeric_limits<S>::infinity(),std::numeric_limits<S>::infinity(),0,0};
+        for(size_t edge:{crossing(top,bottom,true),crossing(bottom,top,false)})
+            for(size_t j:{(edge+m-1)%m,edge,(edge+1)%m}) {
+                const P e=p[(j+1)%m]-p[j];const S offset=e.cross(a-p[j]),slope=e.cross(d);
+                if(slope>0){if(-offset/slope>c.lo){c.lo=-offset/slope;c.enter=j;}}
+                else if(slope<0){if(-offset/slope<c.hi){c.hi=-offset/slope;c.leave=j;}}
+                else if(offset<0)return {};
+            }
+        if(!(c.lo<=c.hi)||!std::isfinite(c.lo)||!std::isfinite(c.hi))return {};
+        return c;
+    }
+    // Intersection of two counterclockwise polygons without collinear
+    // vertices in O((m+n) log n), binary64 only: the vertices of a in b (fan
+    // tests), the crossings of a's edges with b's boundary (chords), and the
+    // arcs of b from each exit of a to the next entry. A proposal for
+    // move_zero_blocks and the common-region test, which the certificates
+    // check; nothing (use the clip) when the crossings do not alternate.
+    static std::optional<Polygon> intersect_convex(const Polygon &a,View b) {
+        const size_t ma=a.size(),mb=b.size();
+        std::vector<char> in(ma);
+        for(size_t i=0;i<ma;++i)in[i]=inside_fan(a[i],b);
+        struct Crossing {size_t edge_a;bool entering;size_t edge_b;P point;};
+        std::vector<Crossing> crossings;
+        for(size_t i=0;i<ma;++i) {
+            const size_t next=(i+1)%ma;
+            if(in[i]&&in[next])continue;
+            const P u=a[i],d=a[next]-u;
+            const auto c=chord(u,d,b);
+            const size_t before=crossings.size();
+            if(c) {
+                if(!in[i]&&c->lo>=0&&c->lo<=1&&(in[next]||c->lo<c->hi))crossings.push_back({i,true,c->enter,u+d*c->lo});
+                if(!in[next]&&c->hi>=0&&c->hi<=1&&(in[i]||c->lo<c->hi))crossings.push_back({i,false,c->leave,u+d*c->hi});
+            }
+            if(in[i]!=in[next]&&crossings.size()!=before+1)return {};
+            if(!in[i]&&!in[next]&&crossings.size()!=before&&crossings.size()!=before+2)return {};
+        }
+        if(crossings.empty()) {
+            if(std::all_of(in.begin(),in.end(),[](char v){return v!=0;}))return a;
+            if(inside_fan(b[0],View(a)))return Polygon(b.begin(),b.end());
+            return Polygon{};
+        }
+        const size_t k=crossings.size();
+        if(k%2)return {};
+        const size_t first=crossings[0].entering?0:1;
+        for(size_t r=0;r<k;++r)if(crossings[(first+r)%k].entering!=(r%2==0))return {};
+        Polygon out;
+        auto push=[&](const P &v){if(out.empty()||!(out.back()==v))out.push_back(v);};
+        for(size_t r=0;r<k;r+=2) {
+            const auto &enter=crossings[(first+r)%k],&leave=crossings[(first+r+1)%k],&again=crossings[(first+r+2)%k];
+            push(enter.point);
+            for(size_t i=enter.edge_a;i!=leave.edge_a;){i=(i+1)%ma;push(a[i]);}
+            push(leave.point);
+            for(size_t j=leave.edge_b;j!=again.edge_b;){j=(j+1)%mb;push(b[j]);}
+        }
+        if(out.size()>1&&out.front()==out.back())out.pop_back();
+        return out;
+    }
     // Intersection of two closed convex regions; p may also be a point or a
     // segment, whose edge halfplanes alone would describe all or a whole line.
     static Polygon intersect(Polygon region,View p) {
@@ -376,6 +460,9 @@ template<class S> struct CycleRefinement {
         // that edge of each first: all vertices strictly outside it is the
         // empty result the loop below would reach, in O(m) instead of O(m^2).
         if(region.size()>2&&(separates(p,region)||separates(region,p)))return {};
+        if constexpr(std::is_same_v<S,double>)
+            if(region.size()>=kLogarithmicVertices&&p.size()>=kLogarithmicVertices&&strictly_convex(region)&&strictly_convex(p))
+                if(auto fast=intersect_convex(region,p))return std::move(*fast);
         for(size_t j=0;j<p.size()&&!region.empty();++j) {
             Polygon next;const P a=p[j],e=p[(j+1)%p.size()]-a;
             for(size_t r=0;r<region.size();++r) {
