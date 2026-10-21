@@ -243,6 +243,79 @@ namespace tpp::unordered_detail {
 		best.distance = std::sqrt(best_squared);
 		return best;
 	}
+	std::optional<Polygon> counterclockwise_convex(const Polygon &polygon) {
+		const size_t m = polygon.size();
+		if (m < 3) return {};
+		int sign = 0;
+		for (size_t i = 0; i < m; ++i) {
+			const Vector2 a = polygon[i], b = polygon[(i + 1) % m], c = polygon[(i + 2) % m];
+			const double turn = (b - a).cross(c - b);
+			const int s = (turn > 0) - (turn < 0);
+			if (s == 0 || (sign != 0 && s != sign)) return {};
+			sign = s;
+		}
+		Polygon result = polygon;
+		if (sign < 0) std::reverse(result.begin(), result.end());
+		return result;
+	}
+	namespace {
+		// Index of a vertex maximizing d.v (KACTL's extrVertex, then a local walk).
+		size_t support_index(const Polygon &p, Vector2 d) {
+			const long n = long(p.size());
+			auto value = [&](long i) { return d.dot(p[size_t(((i % n) + n) % n)]); };
+			auto cmp = [&](long i, long j) { const double a = value(i), b = value(j); return (b > a) - (b < a); };
+			auto extr = [&](long i) { return cmp(i + 1, i) >= 0 && cmp(i, i - 1 + n) < 0; };
+			long best = 0;
+			if (!extr(0)) {
+				long lo = 0, hi = n;
+				while (lo + 1 < hi) {
+					const long mid = (lo + hi) / 2;
+					if (extr(mid)) { lo = mid; break; }
+					const int ls = cmp(lo + 1, lo), ms = cmp(mid + 1, mid);
+					if (ls < ms || (ls == ms && ls == cmp(lo, mid))) hi = mid; else lo = mid;
+				}
+				best = lo;
+			}
+			for (int step = 0; step < 64; ++step) {
+				if (value(best - 1) > value(best)) --best;
+				else if (value(best + 1) > value(best)) ++best;
+				else break;
+			}
+			return size_t(((best % n) + n) % n);
+		}
+	}
+	double convex_distance(const Polygon &a, const Polygon &b) {
+		// GJK on the Minkowski difference a - b: the closest point to the origin.
+		auto support = [&](Vector2 d) { return a[support_index(a, d)] - b[support_index(b, -d)]; };
+		std::vector<Vector2> simplex{a[0] - b[0]};
+		Vector2 v = simplex[0];
+		for (int iteration = 0; iteration < 64; ++iteration) {
+			const double vv = v.dot(v);
+			if (vv == 0) return 0;
+			const Vector2 w = support(-v);
+			if (vv - v.dot(w) <= 1e-12 * vv) break;
+			simplex.push_back(w);
+			// Closest point of the simplex (point, segment or triangle) to the origin.
+			if (simplex.size() == 2) {
+				const Vector2 p = simplex[0], q = simplex[1], e = q - p;
+				const double t = std::clamp(-p.dot(e) / e.dot(e), 0.0, 1.0);
+				if (t == 0) simplex = {p}; else if (t == 1) simplex = {q};
+				v = p + e * t;
+			} else {
+				const Vector2 p = simplex[0], q = simplex[1], r = simplex[2];
+				const double s1 = (q - p).cross(-p), s2 = (r - q).cross(-q), s3 = (p - r).cross(-r);
+				if ((s1 >= 0 && s2 >= 0 && s3 >= 0) || (s1 <= 0 && s2 <= 0 && s3 <= 0)) return 0;
+				double best = INFINITY; std::vector<Vector2> kept; Vector2 point;
+				for (const auto &[x, y] : {std::pair{p, q}, std::pair{q, r}, std::pair{r, p}}) {
+					const Vector2 e = y - x; const double t = std::clamp(-x.dot(e) / e.dot(e), 0.0, 1.0);
+					const Vector2 c = x + e * t;
+					if (c.dot(c) < best) { best = c.dot(c); point = c; kept = t == 0 ? std::vector{x} : t == 1 ? std::vector{y} : std::vector{x, y}; }
+				}
+				simplex = kept; v = point;
+			}
+		}
+		return std::sqrt(v.dot(v));
+	}
 	Contact contact(const Polygon &path, const Polygon &polygon, double tolerance) {
 		Vector2 minimum=polygon.front(),maximum=polygon.front();
 		for(auto p:polygon) {

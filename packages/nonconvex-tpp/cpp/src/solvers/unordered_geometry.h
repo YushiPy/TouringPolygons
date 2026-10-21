@@ -71,6 +71,12 @@ namespace tpp::unordered_detail {
 	Polygon convex_hull(Polygon polygon);
 	Contact contact(const Polygon &path, const Polygon &polygon, double tolerance);
 	Contact contact(const PreparedContactPath &path, const PreparedContactPolygon &polygon, double tolerance);
+	// The polygon counterclockwise and strictly convex, if it is (else nothing).
+	std::optional<Polygon> counterclockwise_convex(const Polygon &polygon);
+	// Euclidean distance between two counterclockwise strictly convex polygons
+	// by GJK, each support an O(log m) binary search: a floating estimate of
+	// the distance contact() measures between them, for heuristics only.
+	double convex_distance(const Polygon &a, const Polygon &b);
 	// Distance from a point to a prepared path, with the projection used by
 	// contact(); an upper bound for the path's distance to any region holding it.
 	double path_point_distance(const PreparedContactPath &path, Vector2 point);

@@ -127,6 +127,36 @@ void check_prepared_contacts() {
     std::cout<<"Prepared visits passed "<<checks<<" distance/position comparisons.\n";
 }
 
+// GJK with logarithmic supports against the edge-pair distance it replaces in
+// the root choice: separated, touching-close and overlapping convex pairs.
+void check_convex_distance() {
+    using namespace tpp::unordered_detail;
+    std::mt19937 random(20261021);
+    std::uniform_real_distribution<double> unit(0,1);
+    auto circle=[&](Vector2 centre,double radius,size_t m) {
+        Polygon p;const double phase=6.283185307179586*unit(random);
+        for(size_t i=0;i<m;++i){const double t=phase+6.283185307179586*double(i)/double(m);p.push_back(centre+Vector2{std::cos(t),std::sin(t)}*radius);}
+        return p;
+    };
+    if(counterclockwise_convex({{0,0},{3,0},{3,1},{1,1},{1,3},{0,3}}))throw std::runtime_error("convex_distance: L-shape accepted as convex");
+    if(counterclockwise_convex({{0,0},{1,0},{2,0},{1,1}}))throw std::runtime_error("convex_distance: collinear vertices accepted");
+    for(size_t trial=0;trial<600;++trial) {
+        const size_t ma=3+size_t(unit(random)*(trial%3?60:3000)),mb=3+size_t(unit(random)*(trial%2?60:3000));
+        const double ra=.5+3*unit(random),rb=.5+3*unit(random);
+        const double gap=trial%4==0?-ra*unit(random):trial%4==1?1e-6*unit(random):4*unit(random);
+        const double angle=6.283185307179586*unit(random);
+        Polygon a=circle({0,0},ra,ma),b=circle(Vector2{std::cos(angle),std::sin(angle)}*(ra+rb+gap),rb,mb);
+        if(trial%5==0)std::reverse(b.begin(),b.end());
+        const auto ca=counterclockwise_convex(a),cb=counterclockwise_convex(b);
+        if(!ca||!cb)throw std::runtime_error("convex_distance: regular polygon rejected");
+        Polygon oa=a,ob=b;oa.push_back(a.front());ob.push_back(b.front());
+        const double expected=std::min(contact(oa,b,0).distance,contact(ob,a,0).distance);
+        const double got=convex_distance(*ca,*cb);
+        if(std::abs(got-expected)>1e-9*(1+ra+rb))
+            throw std::runtime_error("convex_distance: GJK distance differs from the edge-pair distance");
+    }
+}
+
 void check_sequence_storage() {
     using namespace tpp::unordered_detail;
     if(sequence_index_bytes(255,257)!=1||sequence_index_bytes(256,3)!=2
@@ -936,7 +966,7 @@ void check_lower_dimensional_regions() {
 int main() {
 	try {
         check_prepared_contacts();check_relocation_and_zero_dual();
-        check_sequence_storage();
+        check_sequence_storage();check_convex_distance();
 		check_lower_dimensional_regions();
 		check_oracle_certificates();
 		check_coordinate_normalization();

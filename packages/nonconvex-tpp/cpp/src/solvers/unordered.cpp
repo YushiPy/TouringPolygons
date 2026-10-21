@@ -583,10 +583,15 @@ namespace {
         if(n<=3) { std::vector<Element> sequence;for(size_t i=0;i<n;++i)sequence.push_back({i});return sequence; }
         std::vector<Polygon> outlines=polygons;
         for(auto &p:outlines)p.push_back(p.front());
+        // Edge-pair distances cost O(m_i m_j); large convex pairs use GJK with
+        // O(log m) supports instead (the same distance, up to rounding).
+        std::vector<std::optional<Polygon>> convex(n);
+        for(size_t i=0;i<n;++i)if(polygons[i].size()>=64)convex[i]=counterclockwise_convex(polygons[i]);
         std::vector<std::vector<double>> distances(n,std::vector<double>(n));
         size_t a=0,b=1;double longest=-1;
         for(size_t i=0;i<n;++i)for(size_t j=0;j<i;++j) {
-            const double d=std::min(contact(outlines[i],polygons[j],0).distance,contact(outlines[j],polygons[i],0).distance);
+            const double d=convex[i]&&convex[j]?convex_distance(*convex[i],*convex[j]):
+                std::min(contact(outlines[i],polygons[j],0).distance,contact(outlines[j],polygons[i],0).distance);
             distances[i][j]=distances[j][i]=d;
             if(d>=longest){longest=d;a=i;b=j;}
         }
