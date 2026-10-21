@@ -186,6 +186,49 @@ void check_convex_best_contact() {
     }
 }
 
+// Visits of large convex polygons through the logarithmic segment query
+// against the full scan: separated, touching within tolerance, crossing
+// and starting inside, in both orientations.
+void check_convex_visits() {
+    using namespace tpp::unordered_detail;
+    std::mt19937 random(20261023);
+    std::uniform_real_distribution<double> unit(0,1);
+    size_t checks=0,convex=0;
+    for(size_t trial=0;trial<1500;++trial) {
+        Polygon cloud;
+        const size_t m=64+size_t(unit(random)*(trial%2?300:4000));
+        const double sx=.2+3*unit(random),sy=.2+3*unit(random);
+        for(size_t i=0;i<m;++i) {
+            const double t=6.283185307179586*unit(random);
+            cloud.push_back(trial%3?Vector2{sx*std::cos(t),sy*std::sin(t)}:Vector2{sx*(2*unit(random)-1),sy*(2*unit(random)-1)});
+        }
+        auto polygon=convex_hull(cloud);
+        if(trial%4==0)std::reverse(polygon.begin(),polygon.end());
+        const PreparedContactPolygon prepared_polygon(polygon);
+        convex+=prepared_polygon.convex;
+        auto point=[&]{const double r=trial%5==0?unit(random):5*unit(random),t=6.283185307179586*unit(random);return Vector2{r*std::cos(t),r*std::sin(t)};};
+        Polygon path;
+        for(size_t i=0;i<1+trial%4;++i)path.push_back(point());
+        // A segment grazing an edge, its endpoint just off the boundary.
+        if(trial%6==0&&path.size()>1) {
+            const auto v=polygon[trial%polygon.size()],w=polygon[(trial+1)%polygon.size()];
+            const Vector2 out=Vector2{w.y-v.y,v.x-w.x}.normalized()*(trial%12==0?5e-9:2e-8);
+            path[0]=v+(w-v)*.3+out*(prepared_polygon.reversed?-1.0:1.0);
+        }
+        const PreparedContactPath prepared_path(path);
+        for(double tolerance:{0.0,1e-8,0.01}) {
+            const auto raw=contact(path,polygon,tolerance);
+            SegmentContactCache cache;
+            const auto cached=cache.query(prepared_path,prepared_polygon,0,1,tolerance);
+            if(raw.distance!=cached.distance||raw.position!=cached.position)
+                throw std::runtime_error("Convex segment query changed a visit distance or position");
+            ++checks;
+        }
+    }
+    if(convex<900)throw std::runtime_error("Convex segment query: too few convex polygons prepared");
+    std::cout<<"Convex visits passed "<<checks<<" comparisons ("<<convex<<" convex polygons).\n";
+}
+
 void check_sequence_storage() {
     using namespace tpp::unordered_detail;
     if(sequence_index_bytes(255,257)!=1||sequence_index_bytes(256,3)!=2
@@ -995,7 +1038,7 @@ void check_lower_dimensional_regions() {
 int main() {
 	try {
         check_prepared_contacts();check_relocation_and_zero_dual();
-        check_sequence_storage();check_convex_distance();check_convex_best_contact();
+        check_sequence_storage();check_convex_distance();check_convex_best_contact();check_convex_visits();
 		check_lower_dimensional_regions();
 		check_oracle_certificates();
 		check_coordinate_normalization();

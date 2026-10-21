@@ -56,6 +56,17 @@ namespace tpp::unordered_detail {
 			maximum.x=std::max(maximum.x,p.x);maximum.y=std::max(maximum.y,p.y);
 			edges.emplace_back(p,polygon[(i+1)%polygon.size()]);
 		}
+		const size_t m=polygon.size();
+		if(m>=64) {
+			int sign=0;convex=true;
+			for(size_t i=0;i<m&&convex;++i) {
+				const double turn=(polygon[(i+1)%m]-polygon[i]).cross(polygon[(i+2)%m]-polygon[(i+1)%m]);
+				const int s=(turn>0)-(turn<0);
+				if(s==0||(sign!=0&&s!=sign))convex=false;
+				sign=s;
+			}
+			reversed=convex&&sign<0;
+		}
 	}
 	PreparedContactPath::PreparedContactPath(const Polygon &path) {
 		prepare(path);
@@ -260,9 +271,9 @@ namespace tpp::unordered_detail {
 	}
 	namespace {
 		// Index of a vertex maximizing d.v (KACTL's extrVertex, then a local walk).
-		size_t support_index(const Polygon &p, Vector2 d) {
-			const long n = long(p.size());
-			auto value = [&](long i) { return d.dot(p[size_t(((i % n) + n) % n)]); };
+		template<class VertexAt> size_t extreme_index(size_t count, const VertexAt &vertex, Vector2 d) {
+			const long n = long(count);
+			auto value = [&](long i) { return d.dot(vertex(size_t(((i % n) + n) % n))); };
 			auto cmp = [&](long i, long j) { const double a = value(i), b = value(j); return (b > a) - (b < a); };
 			auto extr = [&](long i) { return cmp(i + 1, i) >= 0 && cmp(i, i - 1 + n) < 0; };
 			long best = 0;
@@ -282,6 +293,9 @@ namespace tpp::unordered_detail {
 				else break;
 			}
 			return size_t(((best % n) + n) % n);
+		}
+		size_t support_index(const Polygon &p, Vector2 d) {
+			return extreme_index(p.size(), [&](size_t i) { return p[i]; }, d);
 		}
 	}
 	double convex_distance(const Polygon &a, const Polygon &b) {
@@ -451,6 +465,134 @@ namespace tpp::unordered_detail {
 		for (const auto &segment : path.segments) best = std::min(best, (project(point, segment) - point).length_squared());
 		return std::sqrt(best);
 	}
+	namespace {
+		// Polygon vertices of the final GJK simplex between the segment ab and a
+		// counterclockwise convex polygon (the closest features), or nothing
+		// when the two meet.
+		template<class VertexAt>
+		std::optional<std::vector<size_t>> closest_vertices(Vector2 a, Vector2 b, size_t m, const VertexAt &vertex) {
+			struct Point { Vector2 w; size_t p; };
+			auto support = [&](Vector2 d) {
+				const size_t p = extreme_index(m, vertex, -d);
+				return Point{((b - a).dot(d) > 0 ? b : a) - vertex(p), p};
+			};
+			std::vector<Point> simplex{{a - vertex(0), 0}};
+			Vector2 v = simplex[0].w;
+			for (int iteration = 0; iteration < 64; ++iteration) {
+				const double vv = v.dot(v);
+				if (vv == 0) return {};
+				const Point w = support(-v);
+				if (vv - v.dot(w.w) <= 1e-12 * vv) break;
+				simplex.push_back(w);
+				if (simplex.size() == 2) {
+					const Vector2 p = simplex[0].w, e = simplex[1].w - p;
+					const double t = std::clamp(-p.dot(e) / e.dot(e), 0.0, 1.0);
+					if (t == 0) simplex = {simplex[0]}; else if (t == 1) simplex = {simplex[1]};
+					v = p + e * t;
+				} else {
+					const Vector2 p = simplex[0].w, q = simplex[1].w, r = simplex[2].w;
+					const double s1 = (q - p).cross(-p), s2 = (r - q).cross(-q), s3 = (p - r).cross(-r);
+					if ((s1 >= 0 && s2 >= 0 && s3 >= 0) || (s1 <= 0 && s2 <= 0 && s3 <= 0)) return {};
+					double best = INFINITY; std::vector<Point> kept; Vector2 point;
+					for (const auto &[x, y] : {std::pair{simplex[0], simplex[1]}, std::pair{simplex[1], simplex[2]}, std::pair{simplex[2], simplex[0]}}) {
+						const Vector2 e = y.w - x.w; const double t = std::clamp(-x.w.dot(e) / e.dot(e), 0.0, 1.0);
+						const Vector2 c = x.w + e * t;
+						if (c.dot(c) < best) { best = c.dot(c); point = c; kept = t == 0 ? std::vector{x} : t == 1 ? std::vector{y} : std::vector{x, y}; }
+					}
+					simplex = kept; v = point;
+				}
+			}
+			std::vector<size_t> vertices;
+			for (const auto &point : simplex) vertices.push_back(point.p);
+			return vertices;
+		}
+		// One segment against a convex prepared polygon: contact_impl's scan
+		// restricted to the edges around the point nearest a and around the
+		// closest features (GJK) or, when they meet, the entry and exit of the
+		// segment's line (binary search between the extremes on either side).
+		// Same arithmetic, edge order and ties as the scan on those edges, which
+		// hold every pair the scan's result comes from.
+		Contact convex_segment_contact(const ContactSegment &segment, const PreparedContactPolygon &polygon, double tolerance) {
+			const size_t m = polygon.edges.size();
+			auto at = [&](size_t j) { j %= m; return polygon.reversed ? m - 1 - j : j; };
+			auto vertex = [&](size_t j) { return polygon.edges[at(j)].start; };
+			const Vector2 a = segment.start, b = segment.end, direction = segment.direction, o = vertex(0);
+			auto in = [&](Vector2 q) {
+				if ((vertex(1) - o).cross(q - o) < 0 || (vertex(m - 1) - o).cross(q - o) > 0) return false;
+				size_t lo = 1, hi = m - 1;
+				while (hi - lo > 1) {
+					const size_t mid = lo + (hi - lo) / 2;
+					if ((vertex(mid) - o).cross(q - o) >= 0) lo = mid; else hi = mid;
+				}
+				return (vertex(lo + 1) - vertex(lo)).cross(q - vertex(lo)) >= 0;
+			};
+			if (in(a)) return {0, 0};
+			std::vector<size_t> edges;
+			// Input edges of the view edges j-2 .. j+1 around view vertex j.
+			auto around = [&](size_t j) {
+				for (const size_t k : {j + m - 2, j + m - 1, j, j + 1}) edges.push_back(polygon.reversed ? at(k + 1) : at(k));
+			};
+			// The scan's first touching point is a itself when a is within the
+			// tolerance, wherever the closest features are.
+			if (const auto near = closest_vertices(a, a, m, vertex)) for (const size_t p : *near) around(p);
+			if (const auto features = closest_vertices(a, b, m, vertex)) for (const size_t p : *features) around(p);
+			else {
+				const Vector2 normal{-direction.y, direction.x};
+				if (normal.x != 0 || normal.y != 0) {
+					const size_t top = extreme_index(m, vertex, normal), bottom = extreme_index(m, vertex, -normal);
+					auto crossing = [&](size_t from, size_t to, bool falling) {
+						size_t lo = 0, hi = (to + m - from) % m;
+						while (hi - lo > 1) {
+							const size_t mid = (lo + hi) / 2;
+							const double side = normal.dot(vertex(from + mid) - a);
+							if (falling ? side >= 0 : side <= 0) lo = mid; else hi = mid;
+						}
+						return (from + lo) % m;
+					};
+					for (const size_t edge : {crossing(top, bottom, true), crossing(bottom, top, false)}) { around(edge); around(edge + 1); }
+				}
+			}
+			std::sort(edges.begin(), edges.end());
+			edges.erase(std::unique(edges.begin(), edges.end()), edges.end());
+			// Vertices within the tolerance of the segment are touching points of
+			// the scan: grow the edges along every such run (empty for a
+			// tolerance below the edge lengths near the contact).
+			const double tolerance_squared = tolerance * tolerance;
+			auto near = [&](Vector2 v) { return (project(v, segment) - v).length_squared() <= tolerance_squared; };
+			for (size_t k = 0; k < edges.size(); ++k) {
+				const size_t j = edges[k], before = (j + m - 1) % m, after = (j + 1) % m;
+				for (const auto &[v, neighbor] : {std::pair{polygon.edges[j].start, before}, std::pair{polygon.edges[j].end, after}})
+					if (near(v) && std::find(edges.begin(), edges.end(), neighbor) == edges.end()) edges.push_back(neighbor);
+			}
+			std::sort(edges.begin(), edges.end());
+			Contact best{std::numeric_limits<double>::infinity(), 0, std::numeric_limits<double>::infinity()};
+			double best_squared = std::numeric_limits<double>::infinity(), first = std::numeric_limits<double>::infinity();
+			for (const size_t j : edges) {
+				const auto &polygon_edge = polygon.edges[j];
+				const auto c = polygon_edge.start, e = polygon_edge.end, edge = polygon_edge.direction;
+				const double denominator = direction.cross(edge);
+				if (denominator != 0) {
+					const double t = (c - a).cross(edge) / denominator;
+					const double u = (c - a).cross(direction) / denominator;
+					if (t >= 0 && t <= 1 && u >= 0 && u <= 1) first = std::min(first, t);
+				}
+				for (const auto &[p, q] : {std::pair{a, project(a, polygon_edge)}, std::pair{b, project(b, polygon_edge)},
+					std::pair{project(c, segment), c}, std::pair{project(e, segment), e}}) {
+					const double squared = (p - q).length_squared();
+					if (squared <= tolerance_squared || squared < best_squared) {
+						const double t = segment.squared == 0 ? 0 : (p - a).dot(direction) / segment.squared;
+						if (squared <= tolerance_squared) first = std::min(first, t);
+						if (squared < best_squared) { best_squared = squared; best.position = t; best.polygon_point = q; }
+					}
+				}
+			}
+			if (std::isfinite(first)) return {0, first};
+			if (in(b)) return {0, 1};
+			best.squared_distance = best_squared;
+			best.distance = std::sqrt(best_squared);
+			return best;
+		}
+	}
     void SegmentContactCache::invalidate() {
         for(auto &entry:table_)entry.polygon=std::numeric_limits<size_t>::max();
     }
@@ -494,7 +636,8 @@ namespace tpp::unordered_detail {
             if(entry.polygon==polygon_index&&entry.segment==key)++hits;
             else {
                 entry.segment=key;entry.polygon=polygon_index;
-                entry.contact=contact_impl(1,[&](size_t)->const ContactSegment&{return segment;},
+                entry.contact=polygon.convex?convex_segment_contact(segment,polygon,tolerance):
+                    contact_impl(1,[&](size_t)->const ContactSegment&{return segment;},
                     polygon.edges.size(),[&](size_t j)->const ContactEdge&{return polygon.edges[j];},
                     polygon.minimum,polygon.maximum,tolerance);
             }

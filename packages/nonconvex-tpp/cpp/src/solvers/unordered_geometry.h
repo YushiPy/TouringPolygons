@@ -34,6 +34,11 @@ namespace tpp::unordered_detail {
 	struct PreparedContactPolygon {
 		Vector2 minimum, maximum;
 		std::vector<ContactEdge> edges;
+		// From 64 vertices, a strictly convex polygon (by computed turn signs;
+		// reversed when clockwise) is queried by SegmentContactCache in
+		// O(log m) per segment, with the full scan's arithmetic on the edges
+		// that hold its result.
+		bool convex = false, reversed = false;
 		explicit PreparedContactPolygon(const Polygon &polygon);
 	};
 	struct PreparedContactPath {
