@@ -168,6 +168,19 @@ teve ainda uma execução de até 6 h com uma thread. Comandos `tpp.py fekete-pa
 
   Somados, os tempos das 549 instâncias comuns dão 7282 s na A, 42 s na C e
   21 s na E. As 8 que só o nosso fecha levam de 2,2 s a 52 s na C.
+- **De onde vem o ganho (B, CHR, contra C; 1 thread cada).** Nas 166 instâncias
+  em que o Fekete leva ≥ 1 s e os dois fecham nas 3 repetições (melhor
+  repetição de cada), o speedup de 257× se decompõe assim:
+  - o B&B dele explora 0,77× os nós do nosso, ou seja, nós exploramos cerca de
+    1,3× mais;
+  - cada nó nosso custa 1/334 do dele;
+  - em mediana, ele gasta 12 ms por ramificação, e o nosso 22 µs por chamada ao
+    oráculo.
+
+  O ganho vem do custo de cada nó, não de uma busca menor. Nas 111 instâncias
+  com 41 a 60 regiões dá o mesmo (0,69× e 368×). A decomposição é aproximada,
+  porque os solvers contam nós de jeitos diferentes: ele conta sequências
+  exploradas (`num_explored`), e nós contamos nós expandidos (`nodes`).
 - **Paralelismo do nosso (E contra C).** Nas 19 instâncias em que a C leva
   ≥ 1 s, as 16 threads dão 6,6× em média geométrica (de 0,97× a 11,4×; a mais
   lenta, o caso 542, cai de 52 s para 7,1 s). No conjunto todo, 1,14×, porque a
