@@ -492,9 +492,11 @@ keep their previous arithmetic except where noted.
   the `O((m+n) log n)` intersection
   ([convex-cycle.md](convex-cycle.md#logarithmic-queries)).
 
-On the smoothed corpus instances below, the search trees match up to
-rounding in the construction: same calls and nodes, or within 1%, and the
-same optima.
+On the smoothed corpus instances, the search trees match up to rounding in
+the construction: calls and nodes are within 1.2% of before, with the same
+optima. On a sample of 43 corpus cases they are identical to `main`'s.
+Measurements:
+[`tspn-smoothed-vertex-scaling-2026-10-21`](../../benchmarks/results-saved/README.md#tspn-smoothed-vertex-scaling-2026-10-21).
 
 ## Scope of exactness and limits
 

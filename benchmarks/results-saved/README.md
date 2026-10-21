@@ -59,8 +59,9 @@ Tempo total em segundos (antes → agora):
 - **Escala.** De m = 256 a 16.384 (64× mais vértices, até 983 mil no total), o
   tempo cresce de 2 a 6×. Em m = 2.048 o B&B ficou de 9 a 54× mais rápido que
   antes. O "antes" com m = 16.384 não foi medido.
-- **Mesma árvore.** O número de chamadas e o de nós ficam a menos de 1% dos de
-  antes; só a construção de cada chamada difere, por arredondamento.
+- **Mesma árvore.** O número de chamadas e o de nós ficam a até 1,2% dos de
+  antes (no pior caso, `random_mixed_square` com m = 256, 6.512 → 6.586
+  chamadas); só a construção de cada chamada difere, por arredondamento.
 - **O que pesava, e o que mudou:**
   - polimento com uma barreira por face: agora é feito sobre uma aproximação
     interna, refinada quando o Newton para;
