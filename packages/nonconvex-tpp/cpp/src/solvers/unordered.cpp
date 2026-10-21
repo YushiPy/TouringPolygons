@@ -758,7 +758,8 @@ namespace tpp {
 		DynamicConvexTppWorkspace &workspace, double tolerance, double cutoff, double seconds,
 		const Polygon &initial_contacts, ConvexCycleWorkspace *cycle_workspace,
 		const std::vector<int> &initial_features, bool retain_features, bool bound_first,
-		bool interval_certificate, const std::function<bool()> &stop_requested, bool proposal_bound, bool float_oracle) {
+		bool interval_certificate, const std::function<bool()> &stop_requested, bool proposal_bound, bool float_oracle,
+		const std::vector<std::uint64_t> *region_ids) {
 		if (!cycle) return tpp_convex_solve_certified(start,target,regions,workspace,tolerance,cutoff,seconds);
 		const auto began=std::chrono::steady_clock::now();
 		RelaxationResult out;
@@ -781,6 +782,7 @@ namespace tpp {
 		// A positive tolerance first tries the binary64 stage; GapClosed and its
 		// CertifiedBound are proved on these regions without rational arithmetic.
 		cycle_options.max_gap=float_oracle&&tolerance>0?tolerance:0;
+		if(region_ids)cycle_options.region_ids=*region_ids;
 		auto solved=tpp_convex_solve_cycle_double(regions,cycle_options);
 		if (solved.status!=ConvexCycleStatus::Optimal && solved.status!=ConvexCycleStatus::FloatingPointLimit
 			&& solved.status!=ConvexCycleStatus::CertifiedBound && solved.status!=ConvexCycleStatus::Interrupted
@@ -814,7 +816,7 @@ namespace tpp {
             if(!warm.empty())warm.pop_back();else warm=initial_contacts;
             auto full=solve_relaxation(cycle,start,target,regions,workspace,tolerance,cutoff,
                 std::max(0.0,seconds-std::chrono::duration<double>(std::chrono::steady_clock::now()-began).count()),
-                warm,cycle_workspace,out.active_features,retain_features,bound_first,interval_certificate,stop_requested,false,float_oracle);
+                warm,cycle_workspace,out.active_features,retain_features,bound_first,interval_certificate,stop_requested,false,float_oracle,region_ids);
             if(!out.path.empty() && (full.path.empty() || out.upper_bound<full.upper_bound)) {
                 full.path=std::move(out.path);full.upper_bound=out.upper_bound;
                 full.active_features=std::move(out.active_features);
@@ -1852,10 +1854,16 @@ namespace tpp {
 			// Per thread, so that parallel sibling evaluations and portfolio workers
 			// keep their own copy; assigning into it reuses the vertex buffers.
 			thread_local std::vector<Polygon> selected;
-			selected.resize(node.sequence.size());
+			// Stable per solve (polygon, piece) labels: the binary64 stage
+			// prepares each region once per cycle workspace.
+			thread_local std::vector<std::uint64_t> region_ids;
+			selected.resize(node.sequence.size());region_ids.resize(node.sequence.size());
 			{
 				size_t i = 0;
-				for (auto e : node.sequence) selected[i++] = e.piece == none ? hulls[e.polygon] : pieces[e.polygon][e.piece];
+				for (auto e : node.sequence) {
+					region_ids[i] = std::uint64_t(e.polygon) << 32 | (e.piece == none ? 0xffffffffu : std::uint64_t(e.piece));
+					selected[i++] = e.piece == none ? hulls[e.polygon] : pieces[e.polygon][e.piece];
+				}
 			}
 			const double node_gap = options.absolute_gap + options.relative_gap * std::abs(upper_bound);
 			const double tolerance = precise ? node_gap * .25
@@ -1916,7 +1924,7 @@ namespace tpp {
 				cycle, start, target, selected, oracle_workspace, tolerance, cutoff, remaining_seconds, warm_start, options.cycle_cache?&cycle_cache:nullptr,
                 options.cycle_active_features?feature_hints:std::vector<int>{}, options.cycle_active_features,options.cycle_bound_first,
                 options.cycle_interval_certificate, [control]{return control&&control->proved();},
-                options.cycle_proposal_bound&&!precise, options.cycle_float_oracle
+                options.cycle_proposal_bound&&!precise, options.cycle_float_oracle, &region_ids
 			);
             oracle_capture.end(capture_id,out);
             if(cache&&!out.path.empty()) {

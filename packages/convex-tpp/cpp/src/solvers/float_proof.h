@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace tpp::detail {
@@ -301,10 +302,64 @@ inline std::vector<Vector2> cycle_dual_by_runs(const Regions &regions,const std:
     return result;
 }
 
+// Inward unit normal and offset of the chord (p[a], p[b]) of a
+// counterclockwise polygon in the polish's coordinates (relative to
+// `reference`, divided by `scale`); nothing for a vanishing chord.
+inline std::optional<ChainFace> chord_face(const FloatRegion &p,size_t i,size_t j,Vector2 reference,double scale) {
+    auto local=[&](Vector2 v){return Vector2{(v.x-reference.x)/scale,(v.y-reference.y)/scale};};
+    const auto a=local(p[i]),b=local(p[j]);
+    Vector2 normal{a.y-b.y,b.x-a.x};
+    const double length=normal.length();
+    if(!(length>0))return {};
+    normal=normal/length;
+    return ChainFace{normal,normal.dot(a)};
+}
+// Regions with at least this many vertices are polished on an inner
+// approximation (region_node); the others keep every face.
+constexpr size_t kPolishWindowVertices=64,kPolishWindowHalf=4,kPolishSkeleton=16;
+// The wedge (p[0], p[j], p[j+1]) of the fan from p[0] holding x, by binary
+// search; 0 or m-1 for a point beyond the edge at p[0] on that side.
+inline size_t fan_wedge(const FloatRegion &p,Vector2 x) {
+    const size_t m=p.size();const Vector2 o=p[0];
+    if((p[m-1]-o).cross(x-o)>0)return m-1;
+    if((p[1]-o).cross(x-o)<0)return 0;
+    size_t lo=1,hi=m-1;
+    while(hi-lo>1){const size_t mid=lo+(hi-lo)/2;if((p[mid]-o).cross(x-o)>=0)lo=mid;else hi=mid;}
+    return lo;
+}
+// Largest coordinate difference from `reference` over a region's vertices,
+// from the four coordinate extremes of a large region. Only a scale for the
+// polish's coordinates: any positive value is valid.
+inline double coordinate_reach(const FloatRegion &p,Vector2 reference) {
+    double reach=0;
+    if(p.size()>=kPolishWindowVertices) {
+        constexpr std::pair<double,double> directions[]{{1,0},{-1,0},{0,1},{0,-1}};
+        for(const auto &[dx,dy]:directions) {
+            const auto &v=p[extreme_vertex(p,dx,dy)];
+            reach=std::max({reach,std::abs(v.x-reference.x),std::abs(v.y-reference.y)});
+        }
+        return reach;
+    }
+    for(const auto &v:p)reach=std::max({reach,std::abs(v.x-reference.x),std::abs(v.y-reference.y)});
+    return reach;
+}
+
 // Polish node of a region (float_chain.h), in coordinates relative to
 // `reference` divided by `scale`, starting near `warm`: a point is a fixed
 // node, a segment a + t(b-a) has the barrier -mu(log t + log(1-t)).
-inline ChainNode region_node(const FloatRegion &p,Vector2 reference,double scale,const Vector2 *warm,double fraction) {
+//
+// A large region is polished on the hull Q of a subset of its vertices, in
+// index order: a skeleton of evenly spaced vertices, the band around the fan
+// wedge holding `warm` (with p[0], so Q holds `warm`) and the band around the
+// vertex extreme toward `outward` (the direction in which the proposal's
+// length decreases: an outward normal at an optimal contact). Q lies in the
+// region, so every iterate does. refine(faces, g) inserts the band around
+// the vertex extreme toward g and rebuilds the faces, so Q follows the
+// predicted contact; the dual bound D(u) on the region then minimizes over a
+// vertex of Q, where Q and the region agree. The barrier problem changes,
+// not the bounds: they are proved afterwards on the regions.
+inline ChainNode region_node(const FloatRegion &p,Vector2 reference,double scale,const Vector2 *warm,double fraction,
+        Vector2 outward={}) {
     auto local=[&](Vector2 v){return Vector2{(v.x-reference.x)/scale,(v.y-reference.y)/scale};};
     using Kind=ChainNode::Kind;
     ChainNode node;
@@ -322,19 +377,47 @@ inline ChainNode region_node(const FloatRegion &p,Vector2 reference,double scale
         node.y={t,0};
         return node;
     }
-    for(size_t j=0;j<p.size();++j) {
-        const auto a=local(p[j]),b=local(p[(j+1)%p.size()]);
-        Vector2 normal{a.y-b.y,b.x-a.x};
-        const double length=normal.length();
-        if(!(length>0))continue;
-        normal=normal/length;
-        node.faces.push_back({normal,normal.dot(a)});
-    }
-    const auto center=local(vertex_mean(p));
-    node.y=center;
-    if(warm&&warm->is_finite())node.y=center+(local(*warm)-center)*(1-fraction);
+    const size_t m=p.size();
     auto feasible=[&]{return std::all_of(node.faces.begin(),node.faces.end(),[&](const auto &f){return f.normal.dot(node.y)-f.offset>0;});};
+    if(m<kPolishWindowVertices) {
+        for(size_t j=0;j<m;++j)if(const auto face=chord_face(p,j,(j+1)%m,reference,scale))node.faces.push_back(*face);
+        const auto center=local(vertex_mean(p));
+        node.y=center;
+        if(warm&&warm->is_finite())node.y=center+(local(*warm)-center)*(1-fraction);
+        if(!feasible())node.y=center;
+        return node;
+    }
+    std::vector<size_t> subset;
+    for(size_t j=0;j<kPolishSkeleton;++j)subset.push_back(j*m/kPolishSkeleton);
+    // Vertices w-H .. w+H into the sorted subset; whether any was new.
+    auto band=[m](std::vector<size_t> &s,size_t w) {
+        bool added=false;
+        for(size_t d=0;d<=2*kPolishWindowHalf;++d) {
+            const size_t j=(w+m-kPolishWindowHalf+d)%m;
+            const auto at=std::lower_bound(s.begin(),s.end(),j);
+            if(at!=s.end()&&*at==j)continue;
+            s.insert(at,j);added=true;
+        }
+        return added;
+    };
+    auto rebuild=[&p,reference,scale](const std::vector<size_t> &s,std::vector<ChainFace> &faces) {
+        faces.clear();
+        for(size_t i=0;i<s.size();++i)if(const auto face=chord_face(p,s[i],s[(i+1)%s.size()],reference,scale))faces.push_back(*face);
+    };
+    const bool warmed=warm&&warm->is_finite();
+    if(warmed)band(subset,fan_wedge(p,*warm));
+    if(outward.is_finite()&&(outward.x!=0||outward.y!=0))band(subset,extreme_vertex(p,outward.x,outward.y));
+    rebuild(subset,node.faces);
+    Vector2 center{};
+    for(const size_t j:subset)center+=local(p[j])/double(subset.size());
+    node.y=center;
+    if(warmed)node.y=center+(local(*warm)-center)*(1-fraction);
     if(!feasible())node.y=center;
+    node.refine=[&p,subset=std::move(subset),band,rebuild](std::vector<ChainFace> &faces,Vector2 g) mutable {
+        if(!g.is_finite()||(g.x==0&&g.y==0)||!band(subset,extreme_vertex(p,g.x,g.y)))return false;
+        rebuild(subset,faces);
+        return true;
+    };
     return node;
 }
 

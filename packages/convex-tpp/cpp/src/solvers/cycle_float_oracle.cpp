@@ -216,12 +216,23 @@ ConvexCycleFloatResult tpp_convex_solve_cycle_float_certified(const std::vector<
         detail::CyclePhaseScope phase(detail::CyclePhase::Polish);
         result.polish_attempted=true;
         double scale=0;size_t faces=0;
-        for(const auto *p:regions)for(const auto &v:*p)scale=std::max({scale,std::abs(v.x-reference.x),std::abs(v.y-reference.y)});
+        for(const auto *p:regions)scale=std::max(scale,detail::coordinate_reach(*p,reference));
         if(scale>0&&std::isfinite(scale)) {
-            std::vector<detail::ChainNode> nodes;nodes.reserve(k);
+            // The seed's descent direction at each contact: the sum of the unit
+            // vectors toward its neighbors.
+            auto outward=[&](size_t i) {
+                Vector2 g{};
+                if(seed)for(const size_t j:{(i+k-1)%k,(i+1)%k}) {
+                    const auto d=(*seed)[j]-(*seed)[i];const double length=d.length();
+                    if(length>0)g+=d/length;
+                }
+                return g;
+            };
+            std::vector<detail::ChainNode> nodes;nodes.reserve(k);bool windowed=false;
             for(size_t i=0;i<k;++i) {
-                nodes.push_back(detail::region_node(*regions[i],reference,scale,seed?&(*seed)[i]:nullptr,options.warm_interior_fraction));
-                faces+=nodes.back().faces.size();
+                nodes.push_back(detail::region_node(*regions[i],reference,scale,seed?&(*seed)[i]:nullptr,options.warm_interior_fraction,
+                    outward(i)));
+                faces+=nodes.back().faces.size();windowed|=bool(nodes.back().refine);
             }
             const double target_gap=options.max_gap>0?options.max_gap:1e-9*std::max(1.0,std::abs(options.cutoff));
             // Proposition (cycle): at a barrier minimizer D(u) >= length - mu*(k+F)
@@ -233,7 +244,7 @@ ConvexCycleFloatResult tpp_convex_solve_cycle_float_certified(const std::vector<
                     std::vector<Vector2> q;q.reserve(k);
                     for(size_t i=0;i<k;++i)q.push_back(detail::region_contact(*regions[i],level,i,reference,scale));
                     return bounds.prove(q,{level.duals});
-                });
+                },windowed?.5*target_gap/scale:0);
             if(stats){result.newton_iterations=stats->iterations;result.barrier_levels=stats->levels;}
         }
         if(bounds.closed()){result.polish_closed=true;return finish(closed_status());}

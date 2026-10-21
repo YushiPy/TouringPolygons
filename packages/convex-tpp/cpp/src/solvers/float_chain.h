@@ -65,6 +65,11 @@ struct ChainNode {
     Vector2 offset,edge; // Fixed: x = offset; Segment: x = offset + y.x*edge; Free: x = y
     std::vector<ChainFace> faces;
     Vector2 y; // start, strictly inside its faces
+    // Optional, for a region polished on an inner approximation: given the
+    // links' descent direction g at the node, enlarges the approximation
+    // toward g, rewriting `faces`; returns whether it changed. The larger
+    // polygon contains the smaller, so the current point stays inside.
+    std::function<bool(std::vector<ChainFace>&,Vector2)> refine;
     Vector2 point(Vector2 v) const {
         return kind==Kind::Free?v:kind==Kind::Fixed?offset:offset+edge*v.x;
     }
@@ -94,15 +99,19 @@ struct ChainPolishStats {std::size_t iterations=0,levels=0;};
 // mu_start down to mu_end (factor 10 per level). Links join consecutive nodes,
 // and node n-1 to node 0 when cyclic. At a stationary point the smoothed
 // directions satisfy B_i^T(u_in-u_out) = sum (mu/slack) n_f; done() receives
-// each level's point and returns true to stop.
+// each level's point and returns true to stop. Nodes with a refine() are
+// refined before every Newton step; a positive gap_target then lowers mu_end
+// to gap_target/(links+faces) for the current faces, the level at which the
+// barrier's duality gap mu*(links+faces) reaches it.
 //
 // Only free and segment nodes are variables. Their Hessian is block
 // tridiagonal in chain order; a cycle with a fixed node is ordered from the
 // node after it, so its closing link couples no first and last variable.
 // Only a cycle without fixed nodes has that corner block, eliminated with the
 // Schur complement of the last variable.
-inline std::optional<ChainPolishStats> chain_interior_point(const std::vector<ChainNode> &nodes,bool cyclic,
-        double mu_start,double mu_end,std::size_t max_iterations,const std::function<bool(const ChainLevel&)> &done) {
+inline std::optional<ChainPolishStats> chain_interior_point(std::vector<ChainNode> &nodes,bool cyclic,
+        double mu_start,double mu_end,std::size_t max_iterations,const std::function<bool(const ChainLevel&)> &done,
+        double gap_target=0) {
     using Kind=ChainNode::Kind;
     const size_t n=nodes.size();
     if(n<2)return {};
@@ -156,6 +165,16 @@ inline std::optional<ChainPolishStats> chain_interior_point(const std::vector<Ch
         ++stats.levels;
         for(;stats.iterations<max_iterations;++stats.iterations) {
             for(size_t i=0;i<n;++i)x[i]=nodes[i].point(y[i]);
+            // Inner approximations follow the predicted contacts: the
+            // smoothed descent direction of each node's links.
+            for(size_t i=0;i<n;++i)if(nodes[i].refine) {
+                Vector2 g{};
+                for(const size_t j:{(i+n-1)%n,(i+1)%n}) {
+                    if(!cyclic&&j!=i+1&&j+1!=i)continue; // a path's ends have one link
+                    const auto d=x[j]-x[i];g+=d/std::sqrt(d.dot(d)+mu*mu);
+                }
+                nodes[i].refine(nodes[i].faces,g);
+            }
             std::fill(system.diagonal.begin(),system.diagonal.end(),ChainMatrix{});
             std::fill(system.upper.begin(),system.upper.end(),ChainMatrix{});
             std::fill(gradient.begin(),gradient.end(),Vector2{});
@@ -230,6 +249,10 @@ inline std::optional<ChainPolishStats> chain_interior_point(const std::vector<Ch
             }
             if(alpha<=1e-12)break;
             y.swap(trial);
+        }
+        if(gap_target>0) {
+            size_t faces=0;for(const auto &node:nodes)faces+=node.faces.size();
+            mu_end=std::min(mu_end,std::max(1e-15,gap_target/double(links+faces)));
         }
         if(emit(mu)||mu<=mu_end||stats.iterations>=max_iterations)return stats;
     }
