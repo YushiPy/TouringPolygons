@@ -27,9 +27,9 @@ no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.
 **Pergunta.** A comparação de
 [`fekete-reference-armijo-2026-10-17`](#fekete-reference-armijo-2026-10-17) se
 mantém noutra máquina, de outro fabricante? **Formulação.** A mesma da armijo,
-só com as configurações A, B e C, 300 s e 3 repetições, sem as extensões de
-900 s; dantzig (Intel Core i9-12900K, 8 núcleos de performance com SMT mais 8 de
-eficiência, 24 CPUs, Linux; [`machines.md`](../machines.md)), em 20/10.
+só com as configurações A, B e C: 300 s e 3 repetições, e depois 900 s nas
+abertas; dantzig (Intel Core i9-12900K, 8 núcleos de performance com SMT mais 8
+de eficiência, 24 CPUs, Linux; [`machines.md`](../machines.md)), em 20 e 21/10.
 - **Threads:** a A usa as 16 CPUs dos núcleos de performance; a B e a C, uma
   execução por núcleo de performance, presa a ele.
 - **Fekete:** o mesmo upstream `5cd8450` com o mesmo lockfile (Gurobi 12.0.0).
@@ -42,12 +42,20 @@ eficiência, 24 CPUs, Linux; [`machines.md`](../machines.md)), em 20/10.
     eficiência.
   - Nos núcleos da B, houve carga em 1 de 3348 execuções; nos da C, em 55 de
     1674, 9 delas com mais de 10 ms. As medianas de três repetições não mudam.
+  - **Nas extensões de 900 s (21/10) a carga mudou de lugar.** Ficaram 4
+    processos alheios nas threads irmãs dos núcleos de performance 0 a 3. A A
+    não mudou: fechou as mesmas instâncias que na armijo, em 0,96× o tempo
+    dela. Já 25 das 54 execuções da B dividiram o núcleo físico com eles e
+    ficaram cerca de 1,6× mais lentas que as limpas (razão de tempo
+    dantzig/armijo de 1,04 contra 0,65). Por isso, a B com 900 s na dantzig
+    não entra nas comparações; no CSV, são as linhas da B com `time_limit` 900.
+    O caso 189 com 900 s também dividiu o núcleo.
 
 **Resultado.**
 
 | Configuração | Resolvidas em 300 s (3 repetições), dantzig | armijo | Tours válidos a 1e-7 |
 |---|---|---|---|
-| Fekete A (CHR, 16 threads) | 545 | 542 | 151 |
+| Fekete A (CHR, 16 threads) | 545; 549 com 900 s | 542; 549 com 900 s | 151 |
 | Fekete B, CHR (1 thread) | 528 | 523 | 151 |
 | Fekete B, LEFP (1 thread) | 534 | 529 | 157 |
 | Nosso, C (1 thread) | 557 | 557 | 558 |
@@ -55,6 +63,8 @@ eficiência, 24 CPUs, Linux; [`machines.md`](../machines.md)), em 20/10.
 - **O que a armijo resolve, a dantzig também resolve.** A dantzig fecha
   algumas a mais: 3 na A e 5 em cada raiz da B. A A resolve as 542 do artigo e
   mais 3; os tempos publicados por eles são 1,26× os dela (instâncias ≥ 1 s).
+  Com 900 s, a A fecha 549 (98,39%): as mesmas instâncias que na armijo e no
+  artigo, com as mesmas 9 abertas.
 - **As máquinas favorecem solvers diferentes.** Razão de tempo dantzig/armijo,
   em média geométrica, nas instâncias que a armijo leva ≥ 1 s:
   - Fekete A: 0,98;
@@ -74,11 +84,17 @@ eficiência, 24 CPUs, Linux; [`machines.md`](../machines.md)), em 20/10.
   | B, CHR / C (1 thread cada) | 45,1× (528) | 66,7× (523) | 180× / 256× |
   | B, LEFP / C (1 thread cada) | 44,5× (534) | 65,8× (529) | 159× / 239× |
 
-  Nas duas máquinas o nosso é mais rápido em todas as instâncias que os dois
+  Contando a extensão de 900 s da A, a primeira linha fica em 16,5× na dantzig
+  e 21,0× na armijo (549 instâncias); onde o Fekete leva ≥ 1 s, 67× e 84×. Nas
+  duas máquinas o nosso é mais rápido em todas as instâncias que os dois
   fecham.
+- **Caso 189 com 900 s:** o nosso fica com LB 429,45 e UB 437,44 (gap 1,83%, no
+  núcleo dividido), ainda melhores dos dois lados que os melhores do Fekete na
+  dantzig (LB 420,19 na A, UB 441,52 na B com LEFP).
 
 **Limitações.**
-- Uma rodada por máquina, sem as extensões de 900 s.
+- Uma rodada por máquina. A B com 900 s ficou contaminada pela carga alheia e
+  foi descartada.
 - Outro usuário ocupou núcleos de eficiência durante a rodada. O efeito medido
   é desprezível, mas a máquina não estava exclusiva.
 - Dois processadores, um de cada fabricante. Não dá para separar o que vem da

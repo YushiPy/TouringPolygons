@@ -61,10 +61,11 @@ Portuguese), which records the formulation, tolerances and limitations.
   theirs with 16, 21×
   ([`fekete-reference-armijo-2026-10-17`](benchmarks/results-saved/README.md#fekete-reference-armijo-2026-10-17)).
   The ratios depend on the machine. These numbers come from an AMD Ryzen 7
-  9700X. On an Intel i9-12900K their solver runs faster and ours slower. With
-  300 s and no extensions there, ours with one thread is 16× faster than theirs
-  with 16 threads, and 45× with one thread each, against 20× and 67× on the AMD
-  machine. Ours is again faster on every instance both solve
+  9700X. On an Intel i9-12900K their solver runs faster and ours slower. There
+  their 16-thread run again solves the same 549 with 900 s, and ours with one
+  thread is 16.5× faster than it (21.0× on the AMD machine). With one thread
+  each and 300 s, the ratio is 45×, against 67×. Ours is again faster on every
+  instance both solve
   ([`fekete-reference-dantzig-2026-10-20`](benchmarks/results-saved/README.md#fekete-reference-dantzig-2026-10-20)).
 - **Free-order TPP with fixed endpoints, same instances.** 558/558 solved,
   against 553/558. On the 553 common cases, the geometric mean is 65× (from
