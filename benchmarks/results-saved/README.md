@@ -168,19 +168,20 @@ teve ainda uma execução de até 6 h com uma thread. Comandos `tpp.py fekete-pa
 
   Somados, os tempos das 549 instâncias comuns dão 7282 s na A, 42 s na C e
   21 s na E. As 8 que só o nosso fecha levam de 2,2 s a 52 s na C.
-- **De onde vem o ganho (B, CHR, contra C; 1 thread cada).** Nas 166 instâncias
-  em que o Fekete leva ≥ 1 s e os dois fecham nas 3 repetições (melhor
+- **De onde vem o ganho (B contra C, 1 thread cada).** A comparação usa a
+  mesma definição de nó nos dois: nós retirados da fila, inclusive os podados
+  na retirada (`num_iterations` dele, `nodes` nosso). Nas 166 instâncias em que
+  o Fekete leva ≥ 1 s com a CHR e os dois fecham nas 3 repetições (melhor
   repetição de cada), o speedup de 257× se decompõe assim:
-  - o B&B dele explora 0,77× os nós do nosso, ou seja, nós exploramos cerca de
-    1,3× mais;
-  - cada nó nosso custa 1/334 do dele;
-  - em mediana, ele gasta 12 ms por ramificação, e o nosso 22 µs por chamada ao
-    oráculo.
+  - a árvore dele tem 1,08× o tamanho da nossa (0,97× nas 111 com 41 a 60
+    regiões);
+  - cada nó nosso custa 1/238 do dele: 8,9 ms contra 33 µs, em mediana.
 
-  O ganho vem do custo de cada nó, não de uma busca menor. Nas 111 instâncias
-  com 41 a 60 regiões dá o mesmo (0,69× e 368×). A decomposição é aproximada,
-  porque os solvers contam nós de jeitos diferentes: ele conta sequências
-  exploradas (`num_explored`), e nós contamos nós expandidos (`nodes`).
+  Com a LEFP, a árvore dele tem 1,37× a nossa, e o custo por nó é 175× maior. O
+  ganho vem do custo de cada nó: com a raiz CHR, as duas buscas têm o mesmo
+  tamanho. Os filhos de um nó do Fekete são resolvidos ao ramificar, e os nossos
+  podem ser avaliados só ao sair da fila. Por isso a comparação é de nós, não
+  de chamadas ao oráculo.
 - **Paralelismo do nosso (E contra C).** Nas 19 instâncias em que a C leva
   ≥ 1 s, as 16 threads dão 6,6× em média geométrica (de 0,97× a 11,4×; a mais
   lenta, o caso 542, cai de 52 s para 7,1 s). No conjunto todo, 1,14×, porque a
