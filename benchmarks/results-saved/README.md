@@ -22,6 +22,73 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## tspn-smoothed-vertex-scaling-2026-10-21
+
+**Pergunta.** Depois do oráculo em O(log m) por chamada
+([abaixo](#oracle-vertex-scaling-2026-10-21)), o B&B do TSPN inteiro também
+escala com o número de vértices por região?
+
+**Formulação.**
+- **Instâncias.** Seis instâncias do corpus do Fekete (`bangalore`,
+  `random_mixed_square`, `vienna`, `istanbul`, `warsaw` e `tokyo`; n = 50 ou
+  60). Cada região foi trocada pelo seu fecho convexo somado a um disco de raio
+  igual a 1% da mediana dos diâmetros, com m pontos nos arcos e coordenadas na
+  grade 2^-30.
+- **Variantes.** m = 256, 2.048 e 16.384, mais o fecho sem disco. As regiões se
+  sobrepõem como no corpus.
+- **Execução.** TSPN cíclico, com os argumentos da configuração C da referência
+  do Fekete: gap relativo 0,1%, tolerância de factibilidade 1e-8, `cache`,
+  `features`, `root` e `interval`, uma thread. Mac M4 Pro, uma execução por
+  instância, limite de 600 s.
+- **Antes.** A branch antes das mudanças no B&B (7c50537): o oráculo já era
+  O(log m), mas o B&B ainda era linear em m.
+
+**Resultado.** Todas as 24 execuções fecham o gap de 0,1% (é um gap numérico,
+não ótimo algébrico), com os mesmos valores nas três variantes suavizadas.
+Tempo total em segundos (antes → agora):
+
+| Instância | Fecho | m = 256 | m = 2.048 | m = 16.384 (agora) |
+|---|---|---|---|---|
+| bangalore | 0,11 → 0,10 | 0,63 → 0,27 | 3,91 → 0,42 | 0,89 |
+| random_mixed_square | 0,10 → 0,08 | 1,07 → 0,31 | 10,17 → 0,47 | 1,31 |
+| vienna | 0,22 → 0,19 | 4,06 → 0,71 | 89,22 → 1,64 | 4,37 |
+| istanbul | 0,40 → 0,33 | 2,48 → 0,92 | 63,94 → 1,43 | 2,93 |
+| warsaw | 0,57 → 0,49 | 3,97 → 1,46 | 68,53 → 2,35 | 4,74 |
+| tokyo | 1,14 → 0,90 | 7,88 → 3,11 | 46,31 → 4,39 | 6,80 |
+
+- **Escala.** De m = 256 a 16.384 (64× mais vértices, até 983 mil no total), o
+  tempo cresce de 2 a 6×. Em m = 2.048 o B&B ficou de 9 a 54× mais rápido que
+  antes. O "antes" com m = 16.384 não foi medido.
+- **Mesma árvore.** O número de chamadas e o de nós ficam a menos de 1% dos de
+  antes; só a construção de cada chamada difere, por arredondamento.
+- **O que pesava, e o que mudou:**
+  - polimento com uma barreira por face: agora é feito sobre uma aproximação
+    interna, refinada quando o Newton para;
+  - recorte O(m²) de regiões sobrepostas: interseção O(m log m), guardada por
+    par de regiões;
+  - proposta de inserção e checagens de visita O(m): buscas binárias com
+    certificado ou com a mesma conta da varredura;
+  - cópia das regiões a cada chamada: empréstimo por troca.
+
+  Os detalhes estão em
+  [convex-cycle.md](../../docs/algorithms/convex-cycle.md#regions-with-many-vertices-2026-10-21)
+  e [tspn.md](../../docs/algorithms/tspn.md#large-convex-regions-2026-10-21).
+- **Corpus.** Comparamos o solver da `main` com a branch em 43 casos dos 558: os
+  3 com fecho de 32 vértices ou mais e 40 sorteados (semente 20261021). Os
+  argumentos foram os mesmos, com limite de 60 s. A árvore é idêntica em todos
+  os 43, e a branch é 1,16× mais rápida (média geométrica dos casos acima de
+  0,05 s).
+
+**Limitações.**
+- Uma execução por instância, num Mac só.
+- Instâncias exploratórias, não realistas.
+- O Fekete não rodou nestas instâncias. O SOCP dele cresce com m a cada
+  chamada.
+- A comparação com a `main` no corpus é uma amostra. O benchmark do artigo
+  precisa ser refeito antes de um merge.
+- Gerador e dados brutos: local, em `benchmarks/workspace/experiments/`
+  (`tspn-smoothed` e `corpus-check`).
+
 ## oracle-vertex-scaling-2026-10-21
 
 **Pergunta.** Como o custo de uma chamada ao oráculo do ciclo cresce com o
