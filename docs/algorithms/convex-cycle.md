@@ -442,6 +442,170 @@ instance `t_A` as a cycle with points), stay open and fall back to the exact
 path (subnormal gap), and reach a cutoff. Measurements:
 [`tspn-cycle-float-2026-10-08`](../../benchmarks/results-saved/README.md#tspn-cycle-float-2026-10-08).
 
+## Regions with many vertices (2026-10-21)
+
+With `k` regions of `m` vertices each, the binary64 stage above cost
+`Theta(km)` per call (normalization, supports, membership), and its
+common-region clip cost `Theta(m^2)`. This section brings a warm call to
+`O(k log m)` queries plus the polish. The queries that feed `L` and `U` keep
+the loops' results; elsewhere only proposals change, and step 3 still
+proves every bound on the input regions.
+
+### Prepared regions
+
+`ConvexCycleDoubleOptions::region_ids` (one stable identifier per region)
+together with a `ConvexCycleWorkspace` makes the stage prepare each region
+once: the normalized region (step 1), its kernel copy, its vertex mean and
+the construction's centroid (`ConvexCycleWorkspace::prepared_region`).
+
+- An entry is reused while the input's size and its first and last vertices
+  are bitwise equal. That is a guard against a misused identifier, not a
+  proof; the caller promises that an identifier always names the same region.
+- Without identifiers, every call normalizes again (`O(m)` per region,
+  through the content-keyed cache).
+- The TSPN B&B labels each hull or convex piece `(polygon << 32) | piece`
+  ([tspn.md](tspn.md#large-convex-regions-2026-10-21)).
+
+### Logarithmic queries
+
+Each query below applies to a normalized region (strictly convex,
+counterclockwise) above a size threshold. Anything undecided runs the
+previous loop.
+
+1. **Membership proof** (`proved_inside`, from 16 vertices). A binary search
+   on floating orientation signs picks the wedge `j` of the fan from `p_0`.
+   Three exact signs (static filter, interval, then 128-bit determinant)
+   decide the rest:
+   - `q` in the closed triangle `(p_0, p_j, p_(j+1))` proves `q` in `P`, since
+     the triangle lies in `P`;
+   - `q` in the closed wedge but strictly beyond edge `j` is outside `P`,
+     since `P` meets the wedge only in that triangle.
+
+   The wedges `lo, lo-1, lo+1` cover a search misled by rounding.
+2. **Supports** (`support_bounds_logarithmic`, from 64 vertices, without the
+   width). Along the boundary of a strictly convex polygon, the exact values
+   `t(v) = (v - o).n` have a single local minimum: a vertex, or an edge
+   orthogonal to `n`. A linear function whose two edge neighbours at a
+   vertex are not lower cannot decrease into the tangent cone, which those
+   two edges span.
+   - A binary search for the extreme vertex (KACTL's `extrVertex`) and a walk
+     on computed values give a guess `w`.
+   - The window is `w`, or `w` and one neighbour when the interval of their
+     difference contains zero (an optimal edge contact makes `n` normal to
+     the edge, so such ties are frequent).
+   - Each outer neighbour must be certified not lower by an interval. Then
+     the window holds an exact minimizer `t*`.
+   - The reported `low` is the least computed `t` over the window and its
+     neighbours. Every computed `t` is within `E` of its exact value, so
+     `low - E <= t* <= low + E`. Here `E` uses the largest coordinate
+     differences, read from the four coordinate extremes: comparisons of
+     coordinates are exact.
+   - The enclosure is therefore valid. It equals the loop's except when a
+     distant vertex ties with the minimum within rounding.
+3. **Coordinate update** (`coordinate_logarithmic`, construction only, from
+   32 vertices). It finds the chord of the line `ab` from the two edges where
+   the line crosses the boundary (binary search between the extremes on
+   either side). Otherwise it locates the feature of the last-step map of
+   Dror et al. from `a` at `b`, by binary search over the vertex cones (each
+   cone built on demand). The located feature and its neighbours at offsets
+   `±1, ±2` must pass the loop's own tests (`checked_feature`); otherwise
+   the loop runs.
+4. **Common region.**
+   - `separated_toward` tests, in `O(log m)` with a margin over its rounding,
+     whether an edge of one region, at its extreme toward the other's mean,
+     leaves the other strictly outside. If so, the regions are disjoint, and
+     the clip's result (empty) is known without clipping.
+   - `intersect_convex` intersects two strictly convex counterclockwise
+     regions with at least 32 vertices in binary64, in `O((m+n) log n)`. It
+     uses the vertices of the first inside the second (fan tests), the
+     crossings of the first's edges with the second's boundary (chords) and
+     the second's boundary arcs from each exit to the next entry.
+   - When the crossings do not alternate, the clip runs. The output matches
+     the clip's region up to rounding, not bit for bit, so constructions may
+     differ in rounding. It feeds `move_zero_blocks` (blocks of coincident
+     contacts) and the zero-cycle test, both proposals; the rational path
+     keeps the clip.
+   - With identifiers, the common region of two regions with at least 32
+     vertices is kept in the first one's prepared entry. The entry holds a
+     weak reference to the other, so a replaced region is never matched.
+     Each overlapping pair is therefore intersected once per workspace, both
+     for two-region blocks and for regions 0 and 1 of the zero-cycle test.
+
+### Polish on inner approximations
+
+From 64 vertices, the polish works on the hull `Q_i` of a subset `S_i` of
+the vertices of `P_i`, in index order (`region_node`, `float_proof.h`).
+
+- **Initial subset.** `S_i` holds 16 evenly spaced vertices, plus bands of
+  vertices `w-4..w+4` around two vertices:
+  - the fan wedge holding the warm start (with `p_0`, so `Q_i` contains the
+    warm start);
+  - the vertex extreme toward the seed's descent direction (the sum of the
+    unit vectors toward its neighbours, an outward normal at an optimal
+    contact).
+- **Feasibility.** Since `Q_i` lies inside `P_i`, every iterate is feasible
+  and the line search needs no extra test.
+- **Refinement.** Before each Newton step, `refine` inserts the band around
+  the vertex of `P_i` extreme toward the current descent direction
+  `u_i - u_(i-1) = -n_i`, then rebuilds the faces. That vertex minimizes
+  `n_i.v`, the `i`-th term of `D(u)`. Inserting vertices only enlarges
+  `Q_i`, so the current point stays inside.
+- **Gap and stopping level.** The proposition above holds on the `Q_i`: at a
+  stationary point, `D_Q(u) >= length - mu*(k+F_Q)`, with `F_Q` the current
+  faces. Term by term, `D_P(u) = D_Q(u)` whenever the minimizing vertex of
+  `P_i` is in `S_i`, which is what the refinement targets. `mu_end` follows
+  the current face count (`gap_target/(links+F)` after every level).
+- **Bounds.** As always, they come from step 3 on the `P_i`, never on the
+  `Q_i`.
+
+A first version used an outer window instead: the faces around the
+predicted contact, plus cutting planes for the faces that trial points
+crossed. On the smoothed corpus regions (2048 vertices, mostly on arcs), one
+Newton step crossed hundreds of short faces, and each cut cost an iteration.
+
+Calls captured from `vienna` m=2048 (`k = 22, 23`):
+
+| Polish | Newton iterations (2 calls) | Closed? |
+|---|---|---|
+| Outer window | 268, 395 | no: the exact path took 5–10 s |
+| Outer window, stopping level from the current faces | 529, 567 | yes |
+| Inner approximation | 63, 56 | yes |
+| Every face | 67, 67 | yes |
+
+Across all 199 captured calls, the polish took 3 ms in total with the inner
+approximation against 91 ms with every face, and both closed the same
+calls.
+
+The subset only grows. Dropping bands far from the current extreme (keeping
+the skeleton, and only while the current point stayed inside the smaller
+hull) left some calls of `random_mixed` m=16384 open. Those calls then ran
+the exact path for minutes, so the subset is never pruned.
+
+### Complexity and what remains linear
+
+A warm call with identifiers costs:
+- `O(log m)` per membership, support and coordinate query;
+- `O(k log m + F_Q)` per Newton iteration;
+- `O((m+n) log n)` per common-region intersection of overlapping regions,
+  once per pair and workspace when the regions have identifiers;
+- copying a cached common region (its own vertices) into a block or the
+  zero-cycle test.
+
+Still linear or worse:
+- a cold call (normalization, `O(m)` per region);
+- `CycleRefinement::run` with `k = 2`, whose closest pair is `O(m^2)`;
+- the exact rational path.
+
+Tests (`main-cycle_tests.cpp`):
+- `logarithmic_queries` compares memberships, supports (with ties),
+  coordinate updates and separations with their loops, on lattice hulls of
+  64 to 9000 vertices. It checks that calls with and without identifiers
+  agree, and that the bounds enclose the exact optimum.
+- `convex_intersections` compares `intersect_convex` with the clip on
+  overlapping, nested and disjoint hulls.
+
+Measurement, `k = 3` against Gurobi: [`oracle-vertex-scaling-2026-10-21`](../../benchmarks/results-saved/README.md#oracle-vertex-scaling-2026-10-21).
+
 ## General boundary reduction and correctness
 
 First intersect all regions. A common point gives an optimal zero cycle.

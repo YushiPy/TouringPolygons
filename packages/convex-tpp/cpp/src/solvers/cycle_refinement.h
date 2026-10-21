@@ -3,6 +3,7 @@
 #include "cycle_execution.h"
 #include "tpp/geometry/common.h"
 #include <algorithm>
+#include <functional>
 #include <limits>
 #include <optional>
 #include <set>
@@ -476,6 +477,16 @@ template<class S> struct CycleRefinement {
         }
         return region;
     }
+    // Optional memo of the common region of two regions, by their indices in
+    // the cycle, for move_zero_blocks (binary64): set by a caller around
+    // run() with PairScope; nothing returned means compute it here.
+    using PairRegion=std::function<const Polygon*(size_t,size_t)>;
+    static inline thread_local const PairRegion *pair_region=nullptr;
+    struct PairScope {
+        const PairRegion *saved;
+        explicit PairScope(const PairRegion *memo):saved(pair_region){pair_region=memo;}
+        ~PairScope(){pair_region=saved;}
+    };
     template<class Regions> static void move_zero_blocks(const Regions &p,Polygon &q,std::vector<int> &feature) {
         const size_t k=q.size();size_t first=0;
         while(first<k&&q[first]==q[(first+1)%k])++first;
@@ -485,8 +496,14 @@ template<class S> struct CycleRefinement {
             size_t count=1;while(used+count<k&&q[start]==q[(start+count)%k])++count;
             const size_t end=(start+count-1)%k;
             if(count>1) {
-                Polygon region(p[start].begin(),p[start].end());
-                for(size_t r=1;r<count;++r)region=intersect(std::move(region),p[(start+r)%k]);
+                const Polygon *known=nullptr;
+                if constexpr(std::is_same_v<S,double>)if(count==2&&pair_region&&*pair_region)known=(*pair_region)(start,(start+1)%k);
+                Polygon computed;
+                if(!known) {
+                    computed.assign(p[start].begin(),p[start].end());
+                    for(size_t r=1;r<count;++r)computed=intersect(std::move(computed),p[(start+r)%k]);
+                }
+                const Polygon &region=known?*known:computed;
                 if(!region.empty()) {
                     // A corner of the common region (e.g. two crossing edges)
                     // pins the whole block there, although it need not be a

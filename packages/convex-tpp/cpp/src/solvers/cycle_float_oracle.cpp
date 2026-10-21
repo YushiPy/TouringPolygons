@@ -11,6 +11,8 @@
 #include <chrono>
 #include <cmath>
 #include <limits>
+#include <map>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 
@@ -23,6 +25,10 @@ struct PreparedFloatRegion {
     Vector2 mean{};
     // The input it was prepared from, for a cheap check of identifier reuse.
     std::size_t size=0;Vector2 front{},back{};
+    // Common regions with other prepared regions (move_zero_blocks), each
+    // valid while that region is alive. One workspace serves one thread.
+    mutable std::map<const PreparedFloatRegion*,std::pair<std::weak_ptr<const PreparedFloatRegion>,
+        std::vector<ConvexArithmeticPoint<double>>>> common;
 };
 namespace {
 using Clock=std::chrono::steady_clock;
@@ -176,14 +182,29 @@ ConvexCycleFloatResult tpp_convex_solve_cycle_float_certified(const std::vector<
                 owned_kernel.push_back(std::move(q));views.emplace_back(owned_kernel.back());
             }
             const auto &p=views;
+            // Prepared regions keep the common regions of overlapping pairs.
+            const Kernel::PairRegion common=[&](size_t i,size_t j)->const Kernel::Polygon* {
+                if(!by_id||views[i].size()<Kernel::kLogarithmicVertices||views[j].size()<Kernel::kLogarithmicVertices)return nullptr;
+                auto &cache=held[i]->common;const auto *other=held[j].get();
+                if(const auto found=cache.find(other);found!=cache.end()&&found->second.first.lock().get()==other)
+                    return &found->second.second;
+                if(cache.size()>=16)cache.clear();
+                auto region=Kernel::intersect(Kernel::Polygon(views[i].begin(),views[i].end()),views[j]);
+                auto &slot=cache[other];slot={held[j],std::move(region)};
+                return &slot.second;
+            };
             // A common point gives the zero cycle. Regions 0 and 1 separated by
             // an edge of one facing the other have none: that is the empty
             // intersection the clip would reach after copying region 0.
             const bool apart=Kernel::separated_toward(p[0],p[1],means[1]-means[0])||
                              Kernel::separated_toward(p[1],p[0],means[0]-means[1]);
             Kernel::Polygon joint;
-            if(!apart)joint.assign(p.front().begin(),p.front().end());
-            for(size_t i=1;i<k&&!joint.empty();++i)joint=Kernel::intersect(std::move(joint),p[i]);
+            size_t joined=1;
+            if(!apart) {
+                if(const auto *known=common(0,1)){joint=*known;joined=2;}
+                else joint.assign(p.front().begin(),p.front().end());
+            }
+            for(size_t i=joined;i<k&&!joint.empty();++i)joint=Kernel::intersect(std::move(joint),p[i]);
             if(!joint.empty()) {
                 ++result.candidates;
                 const std::vector<Vector2> q(k,joint.front().external());
@@ -194,6 +215,7 @@ ConvexCycleFloatResult tpp_convex_solve_cycle_float_certified(const std::vector<
             else if(by_id)for(const auto &prepared:held)start.push_back(prepared->centroid);
             static const std::vector<int> none;
             const auto &features=options.initial_features?*options.initial_features:none;
+            const Kernel::PairScope scope(&common);
             const bool accepted=Kernel::run(p,[&](const Kernel::Polygon &candidate,const std::vector<int> &active,bool) {
                 ++result.candidates;
                 std::vector<Vector2> q;q.reserve(k);
