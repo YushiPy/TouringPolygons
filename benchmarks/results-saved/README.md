@@ -22,6 +22,64 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## oracle-vertex-scaling-2026-10-21
+
+**Pergunta.** Como o custo de uma chamada ao oráculo do ciclo cresce com o
+número de vértices por região, comparado ao SOCP do Gurobi? **Formulação.**
+Ciclo de ordem fixa por k = 3, 5 ou 10 regiões convexas disjuntas, cada uma o
+fecho convexo inteiro de m pontos (m = 8 a 32.768) num disco ou numa elipse
+(ângulos aleatórios), coordenadas inteiras divididas por 2^13. Com m = 32.768,
+os fechos ficam com cerca de 16 mil vértices por região. Duas amostras por
+caso, 3 repetições, com a ordem dos solvers rodando entre elas. Mac M4 Pro, uma
+thread, processo único. Programa: `main-vertex_scaling.cpp`, nesta branch.
+- **Nosso oráculo:** o pedido do B&B, ou seja, estágio binary64 com
+  `max_gap` = 2,5e-4 × o comprimento do ciclo pelos centros e certificado
+  intervalar. Três variantes:
+  - frio, sem cache;
+  - quente, com o `ConvexCycleWorkspace` reaproveitado, como no B&B;
+  - apertado, com gap de 1e-6, para casar com a tolerância padrão do Gurobi.
+- **Gurobi:** parâmetros padrão, uma thread, modelo montado a cada chamada, como
+  no oráculo SOCP do Fekete.
+
+**Resultado.**
+- **O recorte de polígonos era quadrático.** O teste de ciclo zero (as regiões
+  têm ponto comum?) recortava uma região por todas as arestas da outra, em
+  O(m²), mesmo com regiões disjuntas. Com 16 mil vértices por região, isso
+  deixava o nosso só 10–20× mais rápido que o Gurobi.
+- **A correção é um atalho que não muda resultado.** Antes de recortar, testa a
+  aresta de cada região mais violada pela média dos vértices da outra: se todos
+  os vértices ficam estritamente fora, a interseção é vazia, que é o que o
+  recorte devolveria. Os resultados ficam idênticos nas 252 medições, e os
+  testes do ciclo, do certificado, das interseções, do TSPN e da ordem livre
+  passam.
+- **Ganho do atalho no modo quente:** 6× com m = 512, 21× com 2.048, 73× com
+  8.192 e 184× com 32.768 (k = 3).
+- **Razão Gurobi / nosso, depois da correção:**
+
+  | Instâncias | m = 8 | 512 | 2.048 | 8.192 | 32.768 |
+  |---|---|---|---|---|---|
+  | disco, k = 3, quente | 158× | 634× | 567× | 974× | 1.952× |
+  | disco, k = 10, quente | 98× | 367× | 445× | 853× | 1.714× |
+  | disco, k = 3, apertado | 118× | 219× | 188× | 352× | 628× |
+
+  O nosso cresce linearmente no total de vértices, e o Gurobi mais rápido que
+  isso (cerca de V^1,4 a partir de alguns milhares). Em todas as medições o
+  nosso fecha o gap pedido (`GapClosed`) e o Gurobi termina com status ótimo. O
+  limite superior do nosso com gap de 1e-6 nunca passa do objetivo do Gurobi em
+  mais de 8,4e-7 relativo.
+- **Para onde vai o tempo agora.** Perfil por amostragem no modo quente, com m =
+  8.192 e k = 3; tudo ainda é O(m):
+  - atualizações por coordenada da construção: 35%;
+  - busca no cache de regiões, que faz hash de todas as coordenadas: 20%;
+  - prova de pertinência dos contatos: 16%;
+  - consultas de suporte e cópias de polígonos: o resto.
+
+  Num polígono convexo, todas podem ser feitas em O(log m).
+
+**Limitações.** Chamadas isoladas, sem as sequências e as heranças do B&B; as
+regiões são disjuntas e bem separadas. Um Mac pessoal. O gerador e os dados
+brutos ficam locais em `experiments/vertex-scaling`.
+
 ## path-vs-cycle-mac-2026-10-21
 
 **Pergunta.** O TSPN (ciclo livre) costuma fechar mais rápido que o TPP com

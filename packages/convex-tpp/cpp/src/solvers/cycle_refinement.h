@@ -175,6 +175,21 @@ template<class S> struct CycleRefinement {
         if(next.size()>1&&next.front()==next.back())next.pop_back();
         return next;
     }
+    // Whether the edge of counterclockwise `a` most violated by the vertex mean
+    // of `b` leaves every vertex of `b` strictly outside its halfplane.
+    static bool separates(const Polygon &a,const Polygon &b) {
+        P mean=b.front();for(size_t i=1;i<b.size();++i)mean=mean+b[i];
+        mean=mean*(S(1)/S(b.size()));
+        size_t best=0;S lowest=0;
+        for(size_t j=0;j<a.size();++j) {
+            const P o=a[j],e=a[(j+1)%a.size()]-o;const S side=e.cross(mean-o);
+            if(j==0||side<lowest){lowest=side;best=j;}
+        }
+        if(!(lowest<0))return false;
+        const P o=a[best],e=a[(best+1)%a.size()]-o;
+        for(const auto &v:b)if(!(e.cross(v-o)<0))return false;
+        return true;
+    }
     // Intersection of two closed convex regions; p may also be a point or a
     // segment, whose edge halfplanes alone would describe all or a whole line.
     static Polygon intersect(Polygon region,const Polygon &p) {
@@ -202,6 +217,11 @@ template<class S> struct CycleRefinement {
             }
             return region;
         }
+        // Clipping by every edge costs O(m) per edge. Disjoint regions are
+        // usually separated by the edge of one that faces the other, so try
+        // that edge of each first: all vertices strictly outside it is the
+        // empty result the loop below would reach, in O(m) instead of O(m^2).
+        if(region.size()>2&&(separates(p,region)||separates(region,p)))return {};
         for(size_t j=0;j<p.size()&&!region.empty();++j) {
             Polygon next;const P a=p[j],e=p[(j+1)%p.size()]-a;
             for(size_t r=0;r<region.size();++r) {
