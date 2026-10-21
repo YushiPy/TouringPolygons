@@ -22,6 +22,55 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## path-vs-cycle-mac-2026-10-21
+
+**Pergunta.** O TSPN (ciclo livre) costuma fechar mais rápido que o TPP com
+extremos fixos nos mesmos polígonos. Isso vem da árvore de busca ou do
+oráculo? **Formulação.** Os 558 casos de `fekete-comparison/instances.bin`,
+cada um como caminho, com o início e o fim do caso, e como ciclo nos mesmos
+polígonos. Mesmo binário (código de `2467373`), gap `UB ≤ 1,001·LB`,
+factibilidade 1e-8, uma thread, 60 s. O ciclo usa
+`cache,features,root,interval`; o caminho, os padrões dele. As duas formulações
+rodam em seguida no mesmo worker (a ordem alterna por caso), com 6 workers no
+Mac M4 Pro e uma repetição.
+
+**Resultado.**
+- **Fechadas em 60 s:** 556 como caminho e 557 como ciclo. Só o caminho fecha
+  o caso 189; só o ciclo fecha os casos 130 e 542.
+- **Decomposição.** Razões ciclo/caminho em média geométrica, nas instâncias
+  fechadas nas duas formas:
+
+  | Instâncias | n | Tempo | Nós | Chamadas | Tempo de oráculo por chamada |
+  |---|---|---|---|---|---|
+  | todas | 544 | 0,58× | 0,43× | 0,52× | 0,69× |
+  | caminho ≥ 0,1 s | 89 | 0,28× | 0,35× | 0,38× | 0,65× |
+  | caminho ≥ 1 s | 25 | 0,14× | 0,18× | 0,20× | 0,65× |
+
+  Nas instâncias difíceis, a maior parte vem da árvore: o ciclo precisa de 3 a
+  5× menos nós (a correlação entre a razão de nós e a de tempo, em log, é 0,97).
+  O oráculo também pesa: cada chamada do ciclo custa 0,65× a do caminho
+  (mediana de 7,8 µs contra 12,0 µs).
+- **A diferença por chamada não vem do tamanho das sequências.** Nas 89
+  instâncias, o comprimento médio das sequências nos nós é quase o mesmo (13,4
+  regiões no caminho, 14,2 no ciclo), e o tempo por chamada e por região fica
+  em 0,64×.
+- **Por família**, por chamada: tesselações 0,48× (43,8 contra 20,9 µs),
+  aleatórias 0,50× e OSM 0,77×. O oráculo ocupa a mesma fração do tempo nas
+  duas formas (63%).
+- **O ciclo é mais rápido em 415 de 544 instâncias**, mesmo começando com gap
+  inicial de 100% (a raiz tem limite zero), contra 67% do caminho, em mediana.
+
+**Leitura.** Com extremos fixos, a ordem é menos determinada: há mais ordens
+quase equivalentes entre o início e o fim, e o limite parcial sobe mais devagar.
+O caso 189, com zigue-zague entre fileiras, mostra o contrário: ali os extremos
+fixos desfazem a ambiguidade. Essa explicação é uma hipótese; a medição só
+separa árvore e oráculo.
+
+**Limitações.** Uma repetição num Mac pessoal, com 6 execuções simultâneas e
+limite de 60 s. As otimizações do oráculo diferem entre os modos: ciclo e
+caminho têm reaproveitamentos próprios, e a medição não separa o efeito de
+cada um. Dados locais: `experiments/path-vs-cycle-20261021`.
+
 ## fekete-reference-dantzig-2026-10-20
 
 **Pergunta.** A comparação de
