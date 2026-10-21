@@ -8,6 +8,7 @@ Pastas com dados:
 
 | Pasta | Conteúdo |
 |---|---|
+| [fekete-smoothed-mac-2026-10-21](fekete-smoothed-mac-2026-10-21/per-run.csv) | Fekete (1 thread, CHR e LEFP) × nosso nas 24 instâncias suavizadas, 300 s, uma linha por execução com limites, gap e validação do tour; resumo [abaixo](#fekete-smoothed-mac-2026-10-21). |
 | [fekete-reference-dantzig-2026-10-20](fekete-reference-dantzig-2026-10-20/per-case.csv) | Réplica das configurações A, B e C da armijo na dantzig (Intel), 300 s, mesmo formato; resumo [abaixo](#fekete-reference-dantzig-2026-10-20). |
 | [fekete-reference-armijo-2026-10-17](fekete-reference-armijo-2026-10-17/per-case.csv) | Medição de referência na armijo: o Fekete original (configuração do artigo, raiz LEFP e uma thread) × nosso solver com 1 e 16 threads, 558 casos, 3 repetições de 300 s mais 900 s nas abertas; uma linha por caso, configuração, raiz e limite; resumo [abaixo](#fekete-reference-armijo-2026-10-17). |
 | [fekete-comparison](fekete-comparison/README.md) | Comparação original (558 casos, nosso solver antigo × Fekete et al., teto de 6 h, uma thread por caso, até 10 processos em paralelo) usada pelo material SIICUSP; CSVs e corpus são dependências do exportador. |
@@ -21,6 +22,72 @@ status de exatidão e limitações. Um gap numérico fechado nos B&B não é ót
 algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
+
+## fekete-smoothed-mac-2026-10-21
+
+**Pergunta.** Nas mesmas instâncias suavizadas
+([abaixo](#tspn-smoothed-vertex-scaling-2026-10-21)), como se sai o solver do
+Fekete et al., cujo SOCP por nó cresce com o número de vértices?
+
+**Formulação.**
+- **Instâncias.** As 24 da seção abaixo: seis do corpus, cada uma com o fecho
+  convexo e com m = 256, 2.048 e 16.384.
+- **Anotações.** Para o Fekete, cada instância virou um `AnnotatedInstance`
+  anotado pelo próprio `add_order_annotations` dele (ordem no fecho e
+  interseções), sem simplificar a geometria, de modo que os dois solvers
+  recebem os mesmos polígonos. O `meta` é o da instância original, mais uma
+  nota da suavização.
+- **Fekete.** Código original (5cd8450) no build do Mac, chamado como na
+  referência (`fekete_reference_child.py`, a chamada do script do artigo), com
+  1 thread e as raízes CHR e LEFP, como na configuração B.
+- **Nosso.** Configuração C (uma thread, gap 0,1%, `cache`, `features`, `root`
+  e `interval`), binário d110ce2.
+- **Execução.** Limite de 300 s e eps 0,001. Mac M4 Pro, quatro execuções ao
+  mesmo tempo (das 8 P-cores), uma repetição. Os tours são validados a 1e-7 com
+  distâncias do Shapely (nos fechos, também com o `validate_cycle` exato).
+- **Dados.** Uma linha por execução em
+  [per-run.csv](fekete-smoothed-mac-2026-10-21/per-run.csv), e figura em
+  [escala-vertices](../../docs/reports/escala-vertices/README.md).
+
+**Resultado.**
+- **Nosso:** fecha as 24 instâncias, a mais demorada em 7,5 s, todas com tour
+  válido.
+- **Fekete:** fecha 4 das 24 com cada raiz, todas fechos: bangalore,
+  istanbul, random_mixed e vienna. Com a melhor raiz levou de 19 a 109 s,
+  contra 0,1 a 0,4 s nosso, ou seja, de 170 a 362× mais. Nos fechos de tokyo
+  e warsaw termina com gap de 0,76% e 0,27%.
+- **Nenhuma variante suavizada fecha no Fekete.** Ao fim dos 300 s, com a
+  melhor raiz:
+  - em m = 256, gap de 6 a 10%;
+  - em m = 2.048, gap de 12 a 19%;
+  - tokyo não tem tour nenhum a partir de m = 256;
+  - em m = 16.384, nenhuma instância tem tour. Ele explora de 9 a 18 nós e
+    termina com o limite inferior de 6 a 26% abaixo do ótimo. Um nó não pode
+    ser interrompido no meio, então essas execuções passam do limite e duram
+    até 458 s.
+- **Custo por nó** (mediana de segundos por nó explorado, a contagem da
+  decomposição de 03d4c2c):
+
+  | Variante | Fekete | Nosso | Razão |
+  |---|---|---|---|
+  | Fecho | 6,4 ms | 15 µs | 437× |
+  | m = 256 | 1,3 s | 50 µs | 26 mil× |
+  | m = 2.048 | 4,0 s | 77 µs | 52 mil× |
+  | m = 16.384 | 25 s | 169 µs | 149 mil× |
+
+- **Tours do Fekete.** Nos fechos, os tours dele ficam a 6e-6 até 5e-5 dos
+  polígonos (absoluto, com coordenadas de centenas de metros), como no corpus:
+  é tolerância, não erro.
+
+**Limitações.**
+- Uma repetição.
+- Quatro execuções simultâneas num Mac só, sem fixar os núcleos (o macOS não
+  permite).
+- Instâncias exploratórias, não realistas.
+- O Fekete rodou com uma thread. A configuração A dele usa 16, mas o paralelismo
+  não muda a ordem de grandeza diante de um nó de 25 s.
+- Entradas, saídas e logs brutos ficam local, em
+  `benchmarks/workspace/experiments/fekete-smoothed/`.
 
 ## tspn-smoothed-vertex-scaling-2026-10-21
 
