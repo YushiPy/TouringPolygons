@@ -12,6 +12,7 @@
 #include <chrono>
 #include <iomanip>
 #include <iostream>
+#include <numeric>
 
 namespace {
 using Polygons=std::vector<std::vector<Vector2>>;
@@ -49,9 +50,10 @@ GurobiRun gurobi(const Polygons &p,GRBEnv &env) {
 
 struct OursRun{tpp::ConvexCycleDoubleResult result;double seconds=0;};
 // The B&B's request: interval certificates and a gap of a quarter of the node gap.
-OursRun ours(const Polygons &p,double gap,tpp::ConvexCycleWorkspace *workspace) {
+OursRun ours(const Polygons &p,double gap,tpp::ConvexCycleWorkspace *workspace,bool ids=false) {
     tpp::ConvexCycleDoubleOptions options;
     options.max_gap=gap;options.interval_certificate=true;options.workspace=workspace;
+    if(ids){options.region_ids.resize(p.size());std::iota(options.region_ids.begin(),options.region_ids.end(),0);}
     const auto began=Clock::now();
     OursRun run{tpp::tpp_convex_solve_cycle_double(p,options),0};
     run.seconds=since(began);
@@ -92,20 +94,21 @@ int main(int argc,char **argv) {
             // The B&B's request (a quarter of a 0.1% node gap), and 1e-6 to match
             // Gurobi's default barrier convergence tolerance.
             const double gap=2.5e-4*scale,tight=1e-6*scale;
-            tpp::ConvexCycleWorkspace workspace;
-            ours(p,gap,nullptr);ours(p,gap,&workspace);ours(p,tight,nullptr);gurobi(p,env);
+            tpp::ConvexCycleWorkspace workspace,identified;
+            ours(p,gap,nullptr);ours(p,gap,&workspace);ours(p,gap,&identified,true);ours(p,tight,nullptr);gurobi(p,env);
             for(int repeat=0;repeat<repeats;++repeat) {
-                OursRun cold,warm,precise;GurobiRun socp;
-                for(int turn=0;turn<4;++turn) {
-                    const int which=(turn+repeat)%4;
+                OursRun cold,warm,ids,precise;GurobiRun socp;
+                for(int turn=0;turn<5;++turn) {
+                    const int which=(turn+repeat)%5;
                     if(which==0)cold=ours(p,gap,nullptr);
                     if(which==1)warm=ours(p,gap,&workspace);
-                    if(which==2)precise=ours(p,tight,nullptr);
-                    if(which==3)socp=gurobi(p,env);
+                    if(which==2)ids=ours(p,gap,&identified,true);
+                    if(which==3)precise=ours(p,tight,nullptr);
+                    if(which==4)socp=gurobi(p,env);
                 }
                 std::cout<<"{\"name\":\""<<name<<"\",\"k\":"<<p.size()<<",\"vertices\":"<<vertices<<",\"largest\":"<<largest
                     <<",\"repeat\":"<<repeat<<",\"gap\":"<<gap<<",\"tight_gap\":"<<tight;
-                print_ours("cold",cold);print_ours("warm",warm);print_ours("tight",precise);
+                print_ours("cold",cold);print_ours("warm",warm);print_ours("ids",ids);print_ours("tight",precise);
                 std::cout<<",\"gurobi\":{\"status\":"<<socp.status<<",\"objective\":"<<socp.objective<<",\"build\":"<<socp.build
                     <<",\"optimize\":"<<socp.optimize<<",\"total\":"<<socp.total<<"}}"<<std::endl;
             }

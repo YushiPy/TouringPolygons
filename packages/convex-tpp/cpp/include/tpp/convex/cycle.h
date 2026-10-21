@@ -76,6 +76,9 @@ struct ConvexCycleDoubleOptions {
     std::vector<Vector2> initial_contacts;
     // Optional per-worker prepared-geometry cache.
     ConvexCycleWorkspace *workspace = nullptr;
+    // Optional stable region identifiers for the binary64 stage's cache; see
+    // ConvexCycleFloatOptions::region_ids. Ignored unless one per region.
+    std::vector<std::uint64_t> region_ids;
     // Canonical CCW feature ids: vertex 2*j, edge 2*j+1, skipped -1, changed -2.
     std::vector<int> initial_features;
     // Export warm-start metadata only when the caller will reuse it.

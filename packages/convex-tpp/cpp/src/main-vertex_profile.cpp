@@ -4,6 +4,7 @@
 #include <boost/property_tree/json_parser.hpp>
 #include <chrono>
 #include <iostream>
+#include <numeric>
 int main(int argc,char **argv) {
     boost::property_tree::ptree input;read_json(argv[1],input);
     const std::string wanted=argv[2];const double budget=std::stod(argv[3]);
@@ -16,7 +17,7 @@ int main(int argc,char **argv) {
         for(size_t i=0;i<p.size();++i){const auto d=means[(i+1)%p.size()]-means[i];scale+=std::sqrt(d.dot(d));}
         tpp::ConvexCycleWorkspace workspace;
         tpp::ConvexCycleDoubleOptions options;options.max_gap=2.5e-4*scale;options.interval_certificate=true;
-        if(argc>4)options.workspace=&workspace;
+        if(argc>4){options.workspace=&workspace;options.region_ids.resize(p.size());std::iota(options.region_ids.begin(),options.region_ids.end(),0);}
         const auto began=std::chrono::steady_clock::now();size_t calls=0;
         while(std::chrono::duration<double>(std::chrono::steady_clock::now()-began).count()<budget){tpp::tpp_convex_solve_cycle_double(p,options);++calls;}
         std::cout<<calls<<" calls\n";

@@ -790,6 +790,7 @@ ConvexCycleDoubleResult tpp_convex_solve_cycle_double(const std::vector<std::vec
         ConvexCycleFloatOptions stage_options;
         stage_options.cutoff=options.lower_bound_cutoff;stage_options.max_gap=options.max_gap;
         stage_options.polish=options.float_polish;stage_options.workspace=options.workspace;
+        if(options.region_ids.size()==input.size())stage_options.region_ids=&options.region_ids;
         if(!options.initial_contacts.empty())stage_options.initial_contacts=&options.initial_contacts;
         if(!options.initial_features.empty())stage_options.initial_features=&options.initial_features;
         const auto stage=tpp_convex_solve_cycle_float_certified(input,stage_options);

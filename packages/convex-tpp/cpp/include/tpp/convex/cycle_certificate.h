@@ -4,6 +4,8 @@
 #include "tpp/convex/rational.h"
 
 #include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <vector>
 #include <map>
 #include <optional>
@@ -51,6 +53,8 @@ public:
 
 // Per-worker, content-keyed cache. Input mutation or reordering cannot reuse
 // stale geometry. Clear between unrelated instance families to bound storage.
+// A region the binary64 cycle stage prepared once for a caller identifier.
+struct PreparedFloatRegion;
 class ConvexCycleWorkspace {
     using Key = std::vector<std::pair<double,double>>;
     std::map<Key,ConvexRationalPolygon> polygons_;
@@ -59,13 +63,17 @@ class ConvexCycleWorkspace {
     struct BitsHash { std::size_t operator()(const std::vector<Vector2> &) const; };
     struct BitsEqual { bool operator()(const std::vector<Vector2> &, const std::vector<Vector2> &) const; };
     std::unordered_map<std::vector<Vector2>,std::optional<std::vector<Vector2>>,BitsHash,BitsEqual> float_regions_;
+    std::unordered_map<std::uint64_t,std::shared_ptr<const PreparedFloatRegion>> prepared_regions_;
 public:
     ConvexCycleCertificateGeometry prepare(const std::vector<std::vector<Vector2>> &, bool binary_geometry = false);
     // The normalized region of the binary64 cycle stage (nothing when its
     // signs are undecided or the region is not convex), computed once per
     // distinct input. The reference stays valid until the next call.
     const std::optional<std::vector<Vector2>> &float_region(const std::vector<Vector2> &);
-    void clear() { polygons_.clear(); binary_polygons_.clear(); float_regions_.clear(); }
+    // The same normalized region, its copy for the construction and its vertex
+    // mean, prepared once per identifier (ConvexCycleFloatOptions::region_ids).
+    std::shared_ptr<const PreparedFloatRegion> prepared_region(std::uint64_t, const std::vector<Vector2> &);
+    void clear() { polygons_.clear(); binary_polygons_.clear(); float_regions_.clear(); prepared_regions_.clear(); }
     std::size_t size() const { return polygons_.size(); }
 };
 ConvexCycleCertificateResult tpp_convex_verify_cycle_certificate(

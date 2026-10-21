@@ -3,6 +3,7 @@
 #include "tpp/geometry/vec2.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <vector>
 
@@ -77,6 +78,11 @@ struct ConvexCycleFloatOptions {
     double warm_interior_fraction = 0x1p-7;
     // Optional per-worker cache of the normalized regions.
     ConvexCycleWorkspace *workspace = nullptr;
+    // Optional caller identifiers, one per region, used with `workspace`. Equal
+    // identifiers promise bitwise-equal regions for the workspace's lifetime (a
+    // size and endpoint check guards against reuse for another region); each
+    // region is then normalized and copied once, not hashed and copied per call.
+    const std::vector<std::uint64_t> *region_ids = nullptr;
 };
 
 struct ConvexCycleFloatResult {

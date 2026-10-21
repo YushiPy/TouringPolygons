@@ -1,5 +1,7 @@
 #include "tpp_convex.h"
 #include "tpp/convex/float_oracle.h"
+#include "solvers/cycle_refinement.h"
+#include "solvers/float_proof.h"
 
 #include <boost/property_tree/json_parser.hpp>
 #include <algorithm>
@@ -587,6 +589,121 @@ void rotated_squares() {
     }
     std::cout<<"Rotated squares: flat optimum through vertices, non-global boundary minimum, interior-edge optimum passed.\n";
 }
+// Regions with many vertices take O(log m) paths: fan membership proofs,
+// supports from a certified extreme vertex, Dror et al.'s located coordinate
+// update, a separation test before clipping, and regions prepared once per
+// identifier. Each must agree with its linear counterpart; the support bound
+// must stay below the exact minimum, also at the ties of an edge contact.
+Polygon lattice_hull(std::mt19937 &random,size_t m,long cx,long cy,long radius,double squeeze) {
+    std::uniform_real_distribution<double> angle(0,2*M_PI);
+    std::vector<std::pair<long,long>> points;
+    for(size_t j=0;j<m;++j) {
+        const double t=angle(random);
+        points.emplace_back(cx+std::lround(radius*std::cos(t)),cy+std::lround(squeeze*radius*std::sin(t)));
+    }
+    std::sort(points.begin(),points.end());points.erase(std::unique(points.begin(),points.end()),points.end());
+    auto cross=[](auto o,auto a,auto b){return __int128(a.first-o.first)*(b.second-o.second)-__int128(a.second-o.second)*(b.first-o.first);};
+    std::vector<std::pair<long,long>> lower,upper;
+    for(auto q:points){while(lower.size()>=2&&cross(lower[lower.size()-2],lower.back(),q)<=0)lower.pop_back();lower.push_back(q);}
+    for(auto it=points.rbegin();it!=points.rend();++it){while(upper.size()>=2&&cross(upper[upper.size()-2],upper.back(),*it)<=0)upper.pop_back();upper.push_back(*it);}
+    lower.pop_back();upper.pop_back();lower.insert(lower.end(),upper.begin(),upper.end());
+    Polygon result;for(auto [x,y]:lower)result.push_back({std::ldexp(double(x),-13),std::ldexp(double(y),-13)});
+    return result;
+}
+void logarithmic_queries() {
+    using Kernel=tpp::detail::CycleRefinement<double>;
+    using R=tpp::ConvexRational;
+    std::mt19937 random(91021);std::uniform_real_distribution<double> unit(-1,1);
+    size_t memberships=0,supports=0,ties=0,coordinates=0,separations=0;
+    for(size_t m:{64u,300u,2000u,9000u}) {
+        const Polygon p=lattice_hull(random,m,0,0,1L<<23,0.6);
+        require(p.size()>=48,"lattice hull keeps most vertices");
+        const auto region=tpp::detail::binary_region(p);
+        require(region&&region->size()==p.size(),"strictly convex lattice hull");
+        // Membership: vertices, edge midpoints, one ulp off them, interior and exterior points.
+        std::vector<Vector2> points;
+        for(size_t j=0;j<p.size();j+=std::max<size_t>(1,p.size()/97)) {
+            const Vector2 a=p[j],b=p[(j+1)%p.size()],mid{(a.x+b.x)/2,(a.y+b.y)/2};
+            points.insert(points.end(),{a,mid,{std::nextafter(mid.x,INFINITY),mid.y},{std::nextafter(mid.x,-INFINITY),mid.y},
+                {mid.x,std::nextafter(mid.y,INFINITY)},{a.x*0.999,a.y*0.999},{a.x*1.001,a.y*1.001}});
+        }
+        for(int r=0;r<300;++r)points.push_back({unit(random)*1300,unit(random)*1300});
+        for(auto q:points) {
+            require(tpp::detail::proved_inside(q,*region)==tpp::detail::proved_inside_linear(q,*region),"fan membership equals edge loop");
+            ++memberships;
+        }
+        // Supports: random directions, and each sampled edge's inward normal (a tie).
+        auto exact_min=[&](Vector2 o,double nx,double ny) {
+            R low;bool first=true;
+            for(auto v:*region){const R t=(R(v.x)-R(o.x))*R(nx)+(R(v.y)-R(o.y))*R(ny);if(first||t<low){low=t;first=false;}}
+            return low;
+        };
+        auto check_support=[&](Vector2 o,double nx,double ny,bool tie) {
+            const auto fast=tpp::detail::support_bounds_logarithmic(*region,o,nx,ny);
+            require(fast.has_value(),"certified support (a tie included)");
+            const auto loop=tpp::detail::support_bounds_linear(*region,o,nx,ny);
+            require(R(fast->lower)<=exact_min(o,nx,ny),"logarithmic support is a lower bound");
+            require(fast->lower==loop.lower&&fast->upper==loop.upper,"logarithmic support equals the loop");
+            ++supports;ties+=tie;
+        };
+        for(int r=0;r<200;++r)check_support({unit(random)*50,unit(random)*50},unit(random),unit(random),false);
+        for(size_t j=0;j<p.size();j+=std::max<size_t>(1,p.size()/53)) {
+            const Vector2 e=(*region)[(j+1)%region->size()]-(*region)[j];
+            check_support({unit(random)*50,unit(random)*50},-e.y,e.x,true);
+        }
+        // Coordinate update: whenever the located answer exists, it is the loop's.
+        std::vector<Kernel::P> kernel;for(auto v:*region)kernel.emplace_back(v);
+        for(int r=0;r<400;++r) {
+            const Kernel::P a{unit(random)*3000,unit(random)*3000},b{unit(random)*3000,unit(random)*3000},old{unit(random)*500,unit(random)*500};
+            const auto loop=Kernel::coordinate_linear(a,b,old,kernel);
+            if(const auto fast=Kernel::coordinate_logarithmic(a,b,old,kernel)) {
+                require(fast->first==loop.first&&fast->second==loop.second,"located coordinate equals the loop");
+                ++coordinates;
+            }
+        }
+    }
+    // Separation before clipping: whenever claimed, the exact intersection is empty.
+    for(int r=0;r<60;++r) {
+        const long gap=r%3==0?0:(r%3==1?1L<<21:1L<<24);
+        const Polygon a=lattice_hull(random,800,0,0,1L<<23,1),b=lattice_hull(random,800,(2L<<23)+gap,r%2?(1L<<22):0,1L<<23,0.5);
+        std::vector<Kernel::P> ka,kb;for(auto v:a)ka.emplace_back(v);for(auto v:b)kb.emplace_back(v);
+        Vector2 ma{},mb{};for(auto v:a)ma+=v/double(a.size());for(auto v:b)mb+=v/double(b.size());
+        if(Kernel::separated_toward(ka,kb,mb-ma)) {
+            const auto ea=exact(Polygons{a}),eb=exact(Polygons{b});
+            require(tpp::detail::CycleRefinement<R>::intersect(ea[0],eb[0]).empty(),"claimed separation is exact");
+            ++separations;
+        }
+    }
+    require(coordinates>500&&separations>20,"logarithmic paths exercised");
+    // The whole binary64 stage: the same result with or without region identifiers,
+    // and bounds around the exact rational optimum.
+    for(int r=0;r<12;++r) {
+        Polygons p;const size_t k=3+r%3;
+        for(size_t i=0;i<k;++i) {
+            const double t=2*M_PI*double(i)/double(k);const long d=r%2?(3L<<23):(7L<<22);
+            p.push_back(lattice_hull(random,r<6?300:1500,std::lround(d*std::cos(t)),std::lround(d*std::sin(t)),1L<<23,0.4+0.1*double(i)));
+        }
+        double length=0;for(size_t i=0;i<k;++i){const Vector2 c=p[i][0]-p[(i+1)%k][0];length+=std::sqrt(c.dot(c));}
+        tpp::ConvexCycleWorkspace hashed,identified;
+        tpp::ConvexCycleDoubleOptions plain;plain.max_gap=2.5e-4*length;plain.interval_certificate=true;plain.workspace=&hashed;
+        auto by_id=plain;by_id.workspace=&identified;for(size_t i=0;i<k;++i)by_id.region_ids.push_back(100+i);
+        for(int repeat=0;repeat<2;++repeat) {
+            const auto x=tpp::tpp_convex_solve_cycle_double(p,plain),y=tpp::tpp_convex_solve_cycle_double(p,by_id);
+            require(x.status==ConvexCycleStatus::GapClosed&&y.status==ConvexCycleStatus::GapClosed,"large regions close in binary64");
+            require(x.contacts==y.contacts&&x.certificate.lower_bound==y.certificate.lower_bound&&
+                    x.certificate.upper_bound==y.certificate.upper_bound,"region identifiers change nothing");
+        }
+        if(r<6) {
+            const auto exact_result=tpp::tpp_convex_solve_cycle(p);
+            require(solved(exact_result),"exact large-region cycle");
+            const auto y=tpp::tpp_convex_solve_cycle_double(p,by_id);
+            require(y.certificate.lower_bound<=exact_result.certificate.upper_bound&&
+                    exact_result.certificate.lower_bound<=y.certificate.upper_bound,"binary64 bounds enclose the exact optimum");
+        }
+    }
+    std::cout<<"Logarithmic queries: "<<memberships<<" memberships, "<<supports<<" supports ("<<ties<<" edge ties), "
+             <<coordinates<<" located coordinates, "<<separations<<" separations; identifiers and exact optima agree.\n";
+}
 void prepared_geometry_and_features() {
     using namespace tpp;
     Polygons p{box(-5,0,-3,2),box(0,4,2,6),box(5,0,7,2)};
@@ -977,7 +1094,7 @@ int main() {
         common_region_corners();
         cooperative_interruption();
         bound_first_contacts();
-        prepared_geometry_and_features();known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();rotated_squares();active_contact_regressions();boundary_recovery_regressions();
+        prepared_geometry_and_features();known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();rotated_squares();logarithmic_queries();active_contact_regressions();boundary_recovery_regressions();
         std::cout<<"Double comparisons: "<<compared_double_cases<<", maximum objective difference="<<largest_double_difference<<", maximum certified gap="<<largest_double_gap<<", local recoveries="<<total_anchor_recoveries<<'\n';
         std::cout<<"Cycle solver tests passed.\n";
         return 0;

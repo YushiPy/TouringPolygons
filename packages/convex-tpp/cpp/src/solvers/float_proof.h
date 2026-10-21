@@ -61,10 +61,48 @@ inline std::optional<FloatRegion> binary_region(const FloatRegion &input) {
     return strict;
 }
 
+// Exact sign of orient(a,b,q): the static filter, then an interval, then the
+// 128-bit determinant; nothing when undecided.
+inline std::optional<int> filtered_orientation(Vector2 a,Vector2 b,Vector2 q) {
+    const double l=(b.x-a.x)*(q.y-a.y),r=(b.y-a.y)*(q.x-a.x),det=l-r;
+    const double bound=0x1p-50*(std::abs(l)+std::abs(r))+0x1p-1069;
+    if(std::isfinite(det)&&std::isfinite(bound)) {
+        if(det>bound)return 1;
+        if(det<-bound)return -1;
+    }
+    return proved_orientation(a,b,q);
+}
 // Proof that q lies in the closed CCW polygon (three or more vertices): each
 // edge sign from an interval, or the 128-bit determinant if it straddles zero.
 // An undecided sign counts as outside.
+inline bool proved_inside_linear(Vector2 q,const FloatRegion &p);
+// The same proof in O(log m) for a strictly convex polygon: a binary search
+// in the fan from p[0] picks a triangle (p[0], p[j], p[j+1]) of the polygon,
+// and three exact signs prove q in that closed triangle, hence in the
+// polygon. q exactly inside the wedge but beyond the edge p[j]p[j+1] is
+// outside. Anything undecided falls back to every edge sign.
 inline bool proved_inside(Vector2 q,const FloatRegion &p) {
+    if(!q.is_finite())return false;
+    const size_t m=p.size();
+    if(m<16)return proved_inside_linear(q,p);
+    const Vector2 o=p[0];
+    // Wedges j = 1..m-2 between the rays o->p[j] and o->p[j+1].
+    size_t lo=1,hi=m-1;
+    while(hi-lo>1) {
+        const size_t mid=lo+(hi-lo)/2;
+        if((p[mid]-o).cross(q-o)>=0)lo=mid;else hi=mid;
+    }
+    for(size_t j:{lo,lo>1?lo-1:lo,lo+1<m-1?lo+1:lo}) {
+        const auto left=filtered_orientation(o,p[j],q),right=filtered_orientation(o,p[j+1],q);
+        if(!left||!right)break;
+        if(*left<0||*right>0)continue; // not in this closed wedge
+        const auto edge=filtered_orientation(p[j],p[j+1],q);
+        if(!edge)break;
+        return *edge>=0;
+    }
+    return proved_inside_linear(q,p);
+}
+inline bool proved_inside_linear(Vector2 q,const FloatRegion &p) {
     if(!q.is_finite())return false;
     for(size_t i=0;i<p.size();++i) {
         const auto &a=p[i],&b=p[(i+1)%p.size()];
@@ -97,7 +135,7 @@ inline Vector2 vertex_mean(const FloatRegion &p) {
 // segment, where a+t(b-a) is on the segment for every binary64 t in [0,1] but
 // need not be representable; lengths are then bounded through the box.
 struct ProvedContact {IntervalPoint box;Vector2 point;};
-inline std::optional<ProvedContact> prove_contact(Vector2 q,const FloatRegion &p) {
+inline std::optional<ProvedContact> prove_contact(Vector2 q,const FloatRegion &p,const Vector2 *mean=nullptr) {
     if(!q.is_finite()||p.empty())return {};
     if(p.size()==1)return ProvedContact{IntervalPoint(p[0]),p[0]};
     if(p.size()==2) {
@@ -122,7 +160,7 @@ inline std::optional<ProvedContact> prove_contact(Vector2 q,const FloatRegion &p
     // A move toward the vertex mean: tiny for a rounded boundary contact,
     // up to the mean itself for a construction proposal beyond an edge. The
     // length bound is computed afterwards, so a move only costs bound quality.
-    const auto center=vertex_mean(p);
+    const auto center=mean?*mean:vertex_mean(p);
     for(double fraction:{0x1p-45,0x1p-40,0x1p-30,0x1p-20,0x1p-10,0x1p-6,0x1p-3,0.5,1.0}) {
         const auto candidate=q+(center-q)*fraction;
         if(proved_inside(candidate,p))return ProvedContact{IntervalPoint(candidate),candidate};
@@ -154,14 +192,18 @@ inline double enclosed_length_upper(const std::vector<IntervalPoint> &boxes,bool
 // zero). Each support is the binary64 minimum widened by its a priori
 // rounding-error bound (support_bounds, binary_dual.h), and the sum is
 // rounded down one value per addition.
-inline double cycle_dual_lower(const std::vector<FloatRegion> &regions,const std::vector<Vector2> &proposal,Vector2 reference) {
+// A region held directly or through a pointer.
+inline const FloatRegion &region_ref(const FloatRegion &region) {return region;}
+inline const FloatRegion &region_ref(const FloatRegion *region) {return *region;}
+template<class Regions>
+inline double cycle_dual_lower(const Regions &regions,const std::vector<Vector2> &proposal,Vector2 reference) {
     const size_t k=regions.size();
     if(proposal.size()!=k||!reference.is_finite())return -INFINITY;
     std::vector<Vector2> u;u.reserve(k);
     for(const auto &v:proposal)u.push_back(v.is_finite()?binary_dual_vector(IntervalPoint(v)):Vector2{});
     double dual=0;
     for(size_t i=0;i<k;++i) {
-        const double term=support_bounds<false>(regions[i],reference,u[(i+k-1)%k],u[i]).lower;
+        const double term=support_bounds<false>(region_ref(regions[i]),reference,u[(i+k-1)%k],u[i]).lower;
         if(!std::isfinite(term))return -INFINITY;
         dual=dual==0||term==0?dual+term:below(dual+term);
     }
@@ -203,7 +245,8 @@ inline std::vector<std::vector<Vector2>> cycle_dual_proposals(const std::vector<
 // candidates (both neighboring long directions, their midpoint, the link's
 // own direction and zero) to maximize its part of the bound. The choice only
 // uses the same rounded supports; any choice is a valid dual.
-inline std::vector<Vector2> cycle_dual_by_runs(const std::vector<FloatRegion> &regions,const std::vector<Vector2> &q,
+template<class Regions>
+inline std::vector<Vector2> cycle_dual_by_runs(const Regions &regions,const std::vector<Vector2> &q,
         double short_link,Vector2 reference) {
     const size_t k=q.size();
     std::vector<Vector2> base;std::vector<bool> shorter;
@@ -217,7 +260,7 @@ inline std::vector<Vector2> cycle_dual_by_runs(const std::vector<FloatRegion> &r
     const auto longer=std::count(shorter.begin(),shorter.end(),false);
     if(longer==0||longer==std::ptrdiff_t(k)||regions.size()!=k)return base;
     auto term=[&](size_t region,Vector2 previous,Vector2 current) {
-        const double value=support_bounds<false>(regions[region],reference,previous,current).lower;
+        const double value=support_bounds<false>(region_ref(regions[region]),reference,previous,current).lower;
         return std::isfinite(value)?value:-INFINITY;
     };
     auto result=base;
