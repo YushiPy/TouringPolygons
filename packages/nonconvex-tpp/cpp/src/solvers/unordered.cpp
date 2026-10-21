@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <unordered_map>
 #include <condition_variable>
 #include <filesystem>
 #include <fstream>
@@ -191,7 +192,7 @@ namespace {
 		const size_t m = contacts.size(), position = node.branch_position;
 		const bool inserting = node.branch_piece == none;
 		const auto &region = inserting ? hulls[node.branch_polygon] : pieces[node.branch_polygon][node.branch_piece];
-		const auto contact = best_contact(contacts[(position + m - 1) % m], contacts[(position + size_t(!inserting)) % m],
+		const auto contact = best_contact_convex(contacts[(position + m - 1) % m], contacts[(position + size_t(!inserting)) % m],
 			region, region.front());
 		if (inserting) {
 			contacts.insert(contacts.begin() + position, contact);
@@ -889,6 +890,9 @@ namespace tpp {
 		const auto began = std::chrono::steady_clock::now();
 		auto elapsed = [&] { return std::chrono::duration<double>(std::chrono::steady_clock::now() - began).count(); };
 		auto duration = [](auto since) { return std::chrono::duration<double>(std::chrono::steady_clock::now() - since).count(); };
+		// Identifies this solve's region copies in the oracle's per-thread pool.
+		static std::atomic<std::uint64_t> solves{0};
+		const std::uint64_t solve_generation = ++solves;
 		UnorderedTppSolveResult result;
 		result.threads = options.threads;
         result.sequence_storage = options.sequence_storage;
@@ -1852,19 +1856,29 @@ namespace tpp {
 			DynamicConvexTppWorkspace &oracle_workspace, ConvexCycleWorkspace &cycle_cache, CycleMemo &memo) {
             const auto began_oracle=std::chrono::steady_clock::now();
 			// Per thread, so that parallel sibling evaluations and portfolio workers
-			// keep their own copy; assigning into it reuses the vertex buffers.
+			// keep their own copy. The regions are lent by swap from a pool of
+			// copies kept per solve and thread, and returned when the call ends:
+			// no vertex is copied after a region's first use.
 			thread_local std::vector<Polygon> selected;
 			// Stable per solve (polygon, piece) labels: the binary64 stage
 			// prepares each region once per cycle workspace.
 			thread_local std::vector<std::uint64_t> region_ids;
+			thread_local std::uint64_t pool_generation = 0;
+			thread_local std::unordered_map<std::uint64_t, Polygon> pool;
+			if (pool_generation != solve_generation) { pool.clear(); pool_generation = solve_generation; }
 			selected.resize(node.sequence.size());region_ids.resize(node.sequence.size());
 			{
 				size_t i = 0;
 				for (auto e : node.sequence) {
 					region_ids[i] = std::uint64_t(e.polygon) << 32 | (e.piece == none ? 0xffffffffu : std::uint64_t(e.piece));
-					selected[i++] = e.piece == none ? hulls[e.polygon] : pieces[e.polygon][e.piece];
+					auto &stored = pool[region_ids[i]];
+					if (stored.empty()) stored = e.piece == none ? hulls[e.polygon] : pieces[e.polygon][e.piece];
+					std::swap(selected[i++], stored);
 				}
 			}
+			struct Return {
+				~Return() { for (size_t i = 0; i < selected.size(); ++i) std::swap(selected[i], pool[region_ids[i]]); }
+			} give_back;
 			const double node_gap = options.absolute_gap + options.relative_gap * std::abs(upper_bound);
 			const double tolerance = precise ? node_gap * .25
 				: std::max(node_gap * .25, options.oracle_relative_gap * upper_bound);
