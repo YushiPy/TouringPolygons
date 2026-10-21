@@ -62,7 +62,7 @@ Fekete et al., cujo SOCP por nó cresce com o número de vértices?
   - em m = 2.048, gap de 12 a 19%;
   - tokyo não tem tour nenhum a partir de m = 256;
   - em m = 16.384, nenhuma instância tem tour. Ele explora de 9 a 18 nós e
-    termina com o limite inferior de 6 a 26% abaixo do ótimo. Um nó não pode
+    termina com o limite inferior de 14 a 27% abaixo do ótimo (14 a 23% com a melhor raiz). Um nó não pode
     ser interrompido no meio, então essas execuções passam do limite e duram
     até 458 s.
 - **Custo por nó** (mediana de segundos por nó explorado, a contagem da
