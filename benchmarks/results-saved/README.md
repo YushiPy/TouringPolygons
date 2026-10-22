@@ -182,13 +182,25 @@ Fekete et al., cujo SOCP por nó cresce com o número de vértices?
   polígonos (absoluto, com coordenadas de centenas de metros), como no corpus:
   é tolerância, não erro.
 
+- **Fekete com 8 threads** (configuração A: raiz CHR, uma execução por vez,
+  m = 256; linhas em [per-run-threads8.csv](fekete-smoothed-mac-2026-10-21/per-run-threads8.csv)).
+  - Ele limita o Gurobi a 1 thread (`soc.cpp`), então o paralelismo é só a
+    avaliação dos filhos.
+  - Fecha 1 das 6, random_mixed em 162 s (479× o nosso). As outras param com
+    gap de 0,51% a 8,30%.
+  - Explora de 7 a 60× mais nós que com 1 thread. No ritmo por iteração, as 8
+    threads são de 4 a 6× mais rápidas; o resto vem de o custo por nó variar
+    ao longo da busca.
+- **Controle da concorrência.** O warsaw com m = 256 e 1 thread, sozinho na
+  máquina, chega ao mesmo gap (12,23%), com 92 nós em vez de 90 e um ritmo 5%
+  melhor. As execuções simultâneas não distorcem a comparação com 1 thread.
+
 **Limitações.**
 - Uma repetição.
 - Quatro execuções simultâneas num Mac só, sem fixar os núcleos (o macOS não
-  permite).
+  permite); o controle acima mede o efeito em 5%.
 - Instâncias exploratórias, não realistas.
-- O Fekete rodou com uma thread. A configuração A dele usa 16, mas o paralelismo
-  não muda a ordem de grandeza diante de um nó de 25 s.
+- Com 8 threads, o Fekete só foi medido em m = 256 (acima).
 - Entradas, saídas e logs brutos ficam local, em
   `benchmarks/workspace/experiments/fekete-smoothed/`.
 
