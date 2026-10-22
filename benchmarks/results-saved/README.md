@@ -96,17 +96,19 @@ de eficiência, 24 CPUs, Linux; [`machines.md`](../machines.md)), em 20 e 21/10.
     não mudou: fechou as mesmas instâncias que na armijo, em 0,96× o tempo
     dela. Já 25 das 54 execuções da B dividiram o núcleo físico com eles e
     ficaram cerca de 1,6× mais lentas que as limpas (razão de tempo
-    dantzig/armijo de 1,04 contra 0,65). Por isso, a B com 900 s na dantzig
-    não entra nas comparações; no CSV, são as linhas da B com `time_limit` 900.
-    O caso 189 com 900 s também dividiu o núcleo.
+    dantzig/armijo de 1,04 contra 0,65). O caso 189 com 900 s também dividiu
+    o núcleo.
+  - **Por isso, a extensão da B foi refeita em 22/10**, com a dantzig ociosa e
+    nenhuma carga alheia nos núcleos dela (no máximo 0,03). Ela substitui a de
+    21/10 no CSV e nas comparações; a contaminada fica local.
 
 **Resultado.**
 
 | Configuração | Resolvidas em 300 s (3 repetições), dantzig | armijo | Tours válidos a 1e-7 |
 |---|---|---|---|
 | Fekete A (CHR, 16 threads) | 545; 549 com 900 s | 542; 549 com 900 s | 151 |
-| Fekete B, CHR (1 thread) | 528 | 523 | 151 |
-| Fekete B, LEFP (1 thread) | 534 | 529 | 157 |
+| Fekete B, CHR (1 thread) | 528; 545 com 900 s | 523; 541 com 900 s | 151 |
+| Fekete B, LEFP (1 thread) | 534; 541 com 900 s | 529; 538 com 900 s | 157 |
 | Nosso, C (1 thread) | 557 | 557 | 558 |
 
 - **O que a armijo resolve, a dantzig também resolve.** A dantzig fecha
@@ -134,9 +136,21 @@ de eficiência, 24 CPUs, Linux; [`machines.md`](../machines.md)), em 20 e 21/10.
   | B, LEFP / C (1 thread cada) | 44,5× (534) | 65,8× (529) | 159× / 239× |
 
   Contando a extensão de 900 s da A, a primeira linha fica em 16,5× na dantzig
-  e 21,0× na armijo (549 instâncias); onde o Fekete leva ≥ 1 s, 67× e 84×. Nas
-  duas máquinas o nosso é mais rápido em todas as instâncias que os dois
-  fecham.
+  e 21,0× na armijo (549 instâncias); onde o Fekete leva ≥ 1 s, 67× e 84×.
+
+  Com as extensões de 900 s da B (a da dantzig refeita em 22/10), pelo método
+  da [armijo](#fekete-reference-armijo-2026-10-17), que reproduz os números de
+  lá:
+
+  | B / C (1 thread cada), com 900 s | Fechadas pelos dois | Geométrica | Mediana | Fekete ≥ 1 s | 41–60 regiões |
+  |---|---|---|---|---|---|
+  | CHR, dantzig | 545 | 48,8× | 46,5× | 200,0× (n = 179) | 197,5× (n = 132) |
+  | CHR, armijo | 541 | 72,9× | 72,7× | 291,5× (n = 185) | 303,8× (n = 128) |
+  | LEFP, dantzig | 541 | 46,0× | 43,9× | 166,7× (n = 172) | 166,6× (n = 129) |
+  | LEFP, armijo | 538 | 68,6× | 67,0× | 253,5× (n = 181) | 261,2× (n = 126) |
+
+  Nas duas máquinas, o nosso é mais rápido em todas as instâncias que os dois
+  fecham (razão mínima: 1,56×, B com CHR na dantzig).
 - **Caso 189 com 900 s:** o nosso fica com LB 429,45 e UB 437,44 (gap 1,83%, no
   núcleo dividido), ainda melhores dos dois lados que os melhores do Fekete na
   dantzig (LB 420,19 na A, UB 441,52 na B com LEFP).
@@ -153,8 +167,8 @@ de eficiência, 24 CPUs, Linux; [`machines.md`](../machines.md)), em 20 e 21/10.
     430,38 e UB 437,44 (gap 1,6%), melhor que no núcleo dividido.
 
 **Limitações.**
-- Uma rodada por máquina. A B com 900 s ficou contaminada pela carga alheia e
-  foi descartada.
+- Uma rodada por máquina. A primeira extensão da B, contaminada pela carga
+  alheia, foi descartada e refeita em 22/10.
 - Outro usuário ocupou núcleos de eficiência durante a rodada. O efeito medido
   é desprezível: na C, uma rodada com a máquina ociosa difere em até 2,3%.
 - Dois processadores, um de cada fabricante. Não dá para separar o que vem da
