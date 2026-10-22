@@ -23,6 +23,56 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## ablation-mac-2026-10-21
+
+**Pergunta.** Quanto cada componente da configuração C pesa no nosso solver
+(experimento opcional 3 da pauta)?
+
+**Formulação.**
+- **Casos.** 60 casos do corpus, sorteados (semente 20261022) entre os 135 com
+  pelo menos mil chamadas ao oráculo.
+- **Solver.** O binário da `main`, ou seja, o solver do artigo, com uma thread
+  e limite de 40 s.
+- **Variantes.** C, e C sem um componente de cada vez:
+  - sem o estágio binary64 do oráculo (`--no-cycle-float`, tudo pelo caminho
+    exato);
+  - sem o certificado intervalar (`interval`);
+  - sem as features de partida (`features`);
+  - sem cache e memo (`cache`);
+  - sem a raiz separada (`root`);
+  - sem a triagem de inserção em binary64 (`--no-cycle-binary-insertion`,
+    triagem racional).
+- **Execução.** Mac M4 Pro, seis execuções ao mesmo tempo, uma repetição.
+- **Razões.** Médias geométricas contra C, nos casos que os dois fecham.
+
+**Resultado.**
+
+| Variante | Fecham (de 60) | Tempo × C | Nós × C | Oráculo × C |
+|---|---|---|---|---|
+| C | 59 | 1 | 1 | 1 |
+| sem estágio binary64 | 54 | 41 | 1,00 | 63 |
+| sem triagem binary64 | 58 | 10,6 | 1,00 | 1,05 |
+| sem cache e memo | 58 | 1,26 | 1,00 | 1,41 |
+| sem raiz separada | 59 | 1,20 | 1,22 | 1,25 |
+| sem certificado intervalar | 59 | 0,99 | 1,00 | 0,99 |
+| sem features | 59 | 0,98 | 1,00 | 0,97 |
+
+- **O estágio binary64 é o componente decisivo.** Sem ele, as chamadas vão ao
+  caminho racional (1,2 milhão de chamadas racionais), o oráculo fica 63× mais
+  lento e 5 casos a mais deixam de fechar.
+- **A triagem de inserção em binary64 vem em seguida.** A versão racional não
+  muda a árvore, mas custa 10×.
+- **A raiz separada é a única variante que muda a árvore**: sem ela, 22% mais
+  nós.
+- **O certificado intervalar e as features não mudam nada aqui.** Com o
+  estágio binary64 ligado, quase nenhuma chamada chega ao certificado exato,
+  que é onde o intervalo atua.
+
+**Limitações.**
+- Uma repetição, uma amostra de 60 casos e um limite de 40 s, que corta 6 casos
+  da variante sem estágio binary64 (as razões dela usam só os casos fechados).
+- Dados brutos ficam local, em `benchmarks/workspace/experiments/ablation/`.
+
 ## oracle-gurobi-corpus-mac-2026-10-21
 
 **Pergunta.** Nas relaxações reais do B&B do corpus, quanto custa uma chamada do
