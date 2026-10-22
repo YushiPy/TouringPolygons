@@ -499,7 +499,9 @@ bitwise identical to `main`'s. In case 538, the nodes and bounds are the
 same, with 55 more oracle calls, from the separation shortcut of the
 clip (52a3f70). In nearly touching regions, the binary64 clip kept a
 rounding sliver that the shortcut drops. This changes the construction,
-not the certificates.
+not the certificates. On dantzig (generic x86-64 build, the paper's
+protocol), all 1,671 solved runs, case 538 included, are bitwise identical
+to `main`'s, and the branch is 4.4% faster.
 Measurements:
 [`tspn-smoothed-vertex-scaling-2026-10-21`](../../benchmarks/results-saved/README.md#tspn-smoothed-vertex-scaling-2026-10-21).
 

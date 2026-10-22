@@ -271,6 +271,18 @@ Tempo total em segundos (antes → agora):
     9.273 chamadas do binário de 16/10.
   - Os tempos nos núcleos de eficiência dão a branch 1,11× mais rápida (média
     geométrica dos casos idênticos acima de 0,05 s).
+- **Corpus na dantzig, protocolo do artigo** (22/10; configuração C, 300 s, 3
+  repetições, uma execução por núcleo de performance; branch em 613fa46,
+  `main` em e9c491f; os números de comparação da `main` estão na seção da
+  dantzig).
+  - As 1.671 execuções resolvidas têm nós, chamadas e limites idênticos aos da
+    `main`, bit a bit, inclusive o caso 538. A diferença dele aparece só no
+    build arm64 do Mac; a dantzig usa x86-64 genérico.
+  - A branch fecha as mesmas 557 instâncias e é mais rápida em todas: 1,044×
+    na média geométrica (de 1,011× a 1,075×), contra a rodada da `main` com a
+    máquina ociosa, nos 118 casos que levam ≥ 0,05 s.
+  - Houve carga alheia nos núcleos de 13 execuções com ≥ 0,05 s (6% mais lentas
+    em média); as medianas de três repetições a absorvem.
 
 **Limitações.**
 - Uma execução por instância, num Mac só.
