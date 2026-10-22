@@ -140,12 +140,23 @@ de eficiência, 24 CPUs, Linux; [`machines.md`](../machines.md)), em 20 e 21/10.
 - **Caso 189 com 900 s:** o nosso fica com LB 429,45 e UB 437,44 (gap 1,83%, no
   núcleo dividido), ainda melhores dos dois lados que os melhores do Fekete na
   dantzig (LB 420,19 na A, UB 441,52 na B com LEFP).
+- **Controle sem carga (22/10).** Rodamos de novo a C inteira (558 casos × 3,
+  limite de 900 s), com o mesmo binário e a dantzig ociosa (carga 0,07 no
+  início).
+  - Nos 118 casos que levam ≥ 0,05 s, o tempo por instância fica a 0,7% do da
+    rodada de 300 s sob carga (média geométrica; no máximo 2,3%).
+  - Entre as três repetições, a variação é de 0,3% na mediana e de 7,3% no
+    máximo (casos ≥ 1 s).
+  - A carga alheia, portanto, não afetou os nossos tempos, e as razões acima
+    valem como estão.
+  - Com 900 s, o nosso fecha 557 nas três repetições. O caso 189 fica com LB
+    430,38 e UB 437,44 (gap 1,6%), melhor que no núcleo dividido.
 
 **Limitações.**
 - Uma rodada por máquina. A B com 900 s ficou contaminada pela carga alheia e
   foi descartada.
 - Outro usuário ocupou núcleos de eficiência durante a rodada. O efeito medido
-  é desprezível, mas a máquina não estava exclusiva.
+  é desprezível: na C, uma rodada com a máquina ociosa difere em até 2,3%.
 - Dois processadores, um de cada fabricante. Não dá para separar o que vem da
   microarquitetura e o que vem de frequência e limite de potência (o Ryzen 7
   9700X tem TDP padrão de 65 W; não conferimos a configuração da armijo).
