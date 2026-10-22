@@ -494,7 +494,12 @@ keep their previous arithmetic except where noted.
 
 On the smoothed corpus instances, the search trees match up to rounding in
 the construction: calls and nodes are within 1.2% of before, with the same
-optima. On a sample of 43 corpus cases they are identical to `main`'s.
+optima. On the 558 corpus cases (call-capped at 300,000) 557 trees are
+bitwise identical to `main`'s. In case 538, the nodes and bounds are the
+same, with 55 more oracle calls, from the separation shortcut of the
+clip (52a3f70). In nearly touching regions, the binary64 clip kept a
+rounding sliver that the shortcut drops. This changes the construction,
+not the certificates.
 Measurements:
 [`tspn-smoothed-vertex-scaling-2026-10-21`](../../benchmarks/results-saved/README.md#tspn-smoothed-vertex-scaling-2026-10-21).
 
