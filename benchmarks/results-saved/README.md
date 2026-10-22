@@ -8,6 +8,7 @@ Pastas com dados:
 
 | Pasta | Conteúdo |
 |---|---|
+| [fekete-smoothed-dantzig-2026-10-22](fekete-smoothed-dantzig-2026-10-22/per-run.csv) | As instâncias suavizadas na dantzig, no protocolo da referência (C ×3; B e A com 300 s e extensão de 900 s), uma linha por instância, configuração, raiz e limite; resumo [abaixo](#fekete-smoothed-dantzig-2026-10-22). |
 | [fekete-smoothed-mac-2026-10-21](fekete-smoothed-mac-2026-10-21/per-run.csv) | Fekete (1 thread, CHR e LEFP) × nosso nas 24 instâncias suavizadas, 300 s, uma linha por execução com limites, gap e validação do tour; resumo [abaixo](#fekete-smoothed-mac-2026-10-21). |
 | [fekete-reference-dantzig-2026-10-20](fekete-reference-dantzig-2026-10-20/per-case.csv) | Réplica das configurações A, B e C da armijo na dantzig (Intel), 300 s, mesmo formato; resumo [abaixo](#fekete-reference-dantzig-2026-10-20). |
 | [fekete-reference-armijo-2026-10-17](fekete-reference-armijo-2026-10-17/per-case.csv) | Medição de referência na armijo: o Fekete original (configuração do artigo, raiz LEFP e uma thread) × nosso solver com 1 e 16 threads, 558 casos, 3 repetições de 300 s mais 900 s nas abertas; uma linha por caso, configuração, raiz e limite; resumo [abaixo](#fekete-reference-armijo-2026-10-17). |
@@ -22,6 +23,74 @@ status de exatidão e limitações. Um gap numérico fechado nos B&B não é ót
 algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
+
+## fekete-smoothed-dantzig-2026-10-22
+
+**Pergunta.** A comparação nas instâncias suavizadas
+([`fekete-smoothed-mac-2026-10-21`](#fekete-smoothed-mac-2026-10-21)) se mantém
+na máquina de referência, no protocolo do artigo?
+
+**Formulação.**
+- **Instâncias.** As mesmas 24 instâncias suavizadas: seis do corpus, como
+  fecho e com 256, 2.048 e 16.384 vértices por região. Foram geradas na
+  dantzig por `tpp.py smoothed-instances` (sha256 `e22aa168…`); os polígonos e
+  as anotações conferem, instância por instância, com os do Mac. Os dois
+  solvers leem o mesmo arquivo, com as coordenadas como o modelo do Fekete as
+  escreve.
+- **Configurações.** As da referência, via `--instances`:
+  - C: o nosso, 1 thread, 300 s, 3 repetições, branch em 6ea2f9b;
+  - B: Fekete com 1 thread, raízes CHR e LEFP, uma execução por núcleo de
+    performance;
+  - A: Fekete com 16 threads, raiz CHR, uma execução por vez.
+- **Limites.** B e A com 300 s e uma repetição, mais a extensão de 900 s no que
+  ficou aberto.
+- **Execução.** dantzig, 22/10, sem carga alheia nos núcleos das execuções
+  (no máximo 0,16, numa da C).
+- **Dados.** Uma linha por instância, configuração, raiz e limite em
+  [per-run.csv](fekete-smoothed-dantzig-2026-10-22/per-run.csv).
+
+**Resultado** (Fekete com até 900 s; "aberta" é o gap final, `(UB−LB)/UB`):
+
+| Variante | Nosso (C, 1 thread) | Fekete B (1 thread, melhor raiz) | Fekete A (16 threads) |
+|---|---|---|---|
+| Fecho | fecha 6/6 em 0,2–2,1 s | fecha 4/6 em 34–190 s; tokyo e warsaw ficam com 0,1% e 0,2% | fecha 6/6 em 6–245 s |
+| m = 256 | fecha 6/6 em 0,6–6,5 s | fecha 0/6; gap de 0,4% a 23% | fecha 2/6 (random_mixed em 119 s, bangalore em 256 s); as outras com 0,6% a 3,4% |
+| m = 2.048 | fecha 6/6 em 0,8–8,8 s | fecha 0/6; gap de 8,6% a 25% | fecha 0/6; gap de 0,3% a 9,1% |
+| m = 16.384 | fecha 6/6 em 1,6–12,1 s | sem tour nas 6 | sem tour em 5 das 6 (random_mixed com 22%) |
+
+- **Onde o Fekete fecha, ele é bem mais lento.**
+  - Com 16 threads (A): de 30 a 202× o nosso com 1 thread nos fechos, e 194×
+    e 461× nas duas de m = 256.
+  - Com 1 thread (B, melhor raiz): de 185 a 353× nos fechos.
+- **Custo por nó** (mediana de segundos por nó, `num_iterations` dele contra
+  `nodes` nosso; rodadas de 300 s):
+
+  | Variante | Nosso | B, CHR | A, CHR (16 threads, tempo de parede) |
+  |---|---|---|---|
+  | Fecho | 29 µs | 14 ms (495×) | 2,6 ms (92×) |
+  | m = 256 | 93 µs | 3,8 s (40.848×) | 73 ms (789×) |
+  | m = 2.048 | 139 µs | 10 s (71.840×) | 0,73 s (5.271×) |
+  | m = 16.384 | 259 µs | 44 s (168.112×) | 21 s (79.173×) |
+
+- **Reproduz o Mac.** As mesmas 4 instâncias fecham com a B. A razão por nó da
+  B vai de 437 a 149 mil× no Mac e de 495 a 168 mil× aqui.
+- **As 16 threads da A** fecham os 6 fechos e 2 instâncias de m = 256, mas
+  nenhuma a partir de m = 2.048.
+- **O nosso na dantzig é de 1,7 a 2,3× mais lento que no Mac** (mediana
+  2,0×), no mesmo sentido da referência, em que o nosso fica mais lento na
+  Intel.
+- **Execuções interrompidas.** 4 execuções da B com LEFP em m = 16.384 foram
+  mortas a 450 s na rodada de 300 s: um nó dele não pode ser interrompido. A
+  extensão de 900 s as repetiu, e de novo sem tour.
+- **Tours dele.** Os tours do Fekete ficam a até 5e-5 dos polígonos, como no
+  corpus.
+
+**Limitações.**
+- Uma repetição do Fekete e seis instâncias, exploratórias e não realistas.
+- O nosso tem 3 repetições.
+- Não há variante de 65.536 vértices: com ela, o nosso ainda cai no caminho
+  racional do oráculo (ver o docstring de `smoothed_instances.py`).
+- Dados brutos ficam local (`fekete-reference-smoothed@dantzig`).
 
 ## ablation-mac-2026-10-21
 
