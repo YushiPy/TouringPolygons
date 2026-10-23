@@ -24,6 +24,77 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## oracle-million-mac-2026-10-22
+
+**Pergunta.** Uma chamada ao oráculo do ciclo chega a ser um milhão de vezes
+mais rápida que o SOCP do Gurobi, com a mesma tolerância?
+
+**Formulação.**
+- **Instâncias.** Três discos disjuntos (k = 3), no leiaute de
+  [`oracle-vertex-scaling-2026-10-21`](#oracle-vertex-scaling-2026-10-21),
+  com m = 32.768 a 262.144 vértices por região e duas amostras por m (semente
+  20261022). O reticulado inteiro cresce com m (raio R ≥ m²/4), para que os m
+  pontos de cada círculo fiquem todos no fecho. As coordenadas são divididas
+  por uma potência de 2, para regiões de raio ~1024.
+- **Nosso oráculo.** Estágio binary64 com certificado intervalar e regiões
+  preparadas uma vez (`region_ids` e workspace, como no B&B). Duas
+  tolerâncias: gap de 1e-6 × o comprimento (a tolerância padrão do Gurobi) e o
+  gap do B&B (2,5e-4). Dois tempos:
+  - a primeira chamada logo depois do Gurobi;
+  - a média de um bloco de chamadas seguidas por pelo menos 0,2 s (~30 mil
+    chamadas), como o B&B chama o oráculo.
+
+  O workspace guarda só a geometria das regiões, nunca soluções: cada chamada
+  resolve do zero.
+- **Gurobi** 13.0.3: parâmetros padrão, uma thread, modelo montado a cada
+  chamada (como no oráculo SOCP do Fekete), normais unitárias.
+- **Execução.** Mac M4 Pro, processo único, 2 repetições (1 em m = 262.144),
+  com o Mac em uso por outros programas.
+
+**Resultado** (medianas; razão = tempo total do Gurobi / tempo do nosso, ambos
+com gap de 1e-6):
+
+| m por região | Gurobi | Nosso, média do bloco | Nosso, 1ª chamada | Razão (bloco) | Razão (1ª chamada) |
+|---|---|---|---|---|---|
+| 32.768 | 1,36 s | 5,9 µs | 18,6 µs | 230.970× | 73.194× |
+| 65.536 | 6,74 s | 6,7 µs | 49,1 µs | 1.000.816× | 137.189× |
+| 131.072 | 15,6 s | 6,6 µs | 18,2 µs | 2.352.609× | 858.870× |
+| 262.144 | 57,9 s | 7,1 µs | 22,5 µs | 8.097.751× | 2.568.988× |
+
+- **Mesmo problema.** Nas 14 execuções, o objetivo do Gurobi fica dentro do
+  intervalo certificado [L, U] do nosso, cuja largura relativa é de no
+  máximo 5,6e-7.
+- **Um milhão.** Com m = 262.144 (786 mil vértices), a razão passa de um
+  milhão em todas as formas medidas:
+  - 7,9 milhões× na pior execução, pela média do bloco;
+  - 2,6 milhões× na primeira chamada depois do Gurobi;
+  - 19 milhões× com o gap do B&B (3,0 µs).
+
+  Só a otimização do Gurobi, sem montar o modelo, também dá 8,0 milhões×.
+- **Escala.** Com m 8× maior, o nosso vai de 5,9 a 7,1 µs. O Gurobi vai de
+  1,4 a 58 s, cerca de m^1,8.
+- **Como fecha.** Todas as chamadas fecham pela prova intervalar sobre a
+  construção, sem iterações de Newton: os discos são disjuntos e bem
+  separados.
+
+**Limitações.**
+- É uma chamada isolada com k = 3 em discos sintéticos, não o B&B nem uma
+  instância inteira. No TSPN, a maior razão medida por nó contra o código do
+  Fekete é de 168 mil× (dantzig, m = 16.384,
+  [`fekete-smoothed-dantzig-2026-10-22`](#fekete-smoothed-dantzig-2026-10-22)).
+- A razão não tem teto. A nossa chamada cresce com log m, e um SOCP pelo
+  menos com m, então um milhão é uma escolha de m. A chamada fria, que
+  normaliza as regiões, continua O(m): cerca de 900× na seção de 21/10.
+- **Ruído.** O Mac estava em uso. Num teste anterior, o mesmo Gurobi levou
+  8,1 s em vez de 1,4 s (m = 32.768) e 90 s em vez de 15,6 s (m = 131.072).
+  Os tempos da tabela são da varredura, em que as duas amostras de cada m
+  ficaram próximas, exceto em m = 65.536 (9,3 e 4,2 s).
+- O Gurobi usa uma thread, como no oráculo do Fekete. Com mais threads, ele
+  seria mais rápido.
+- Programa: `main-vertex_scaling.cpp`, variante `ids_tight`. Gerador e dados
+  brutos: local, em `experiments/vertex-scaling/` (`generate_large.py`,
+  `large/`).
+
 ## tspn-smoothed-m65536-mac-2026-10-22
 
 **Pergunta.** Por que o nosso TSPN não fechava as instâncias suavizadas com
