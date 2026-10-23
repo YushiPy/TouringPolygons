@@ -536,8 +536,14 @@ previous loop.
 From 64 vertices, the polish works on the hull `Q_i` of a subset `S_i` of
 the vertices of `P_i`, in index order (`region_node`, `float_proof.h`).
 
-- **Initial subset.** `S_i` holds 16 evenly spaced vertices, plus bands of
-  vertices `w-4..w+4` around two vertices:
+- **Bands.** A band around vertex `w` holds the vertices `w-4..w+4` and, at
+  each coarser spacing `2^j` from 8 up to half the skeleton's (`m/32`), the
+  four multiples of `2^j` at offsets `-1, 0, 1, 2` from `w` rounded down to
+  that spacing. It is graded: fine at `w`, coarse away from it, with
+  `O(log m)` vertices. The coarse vertices lie on a fixed grid, so a small
+  move of `w` adds only fine ones.
+- **Initial subset.** `S_i` holds 16 evenly spaced vertices, plus bands
+  around two vertices:
   - the fan wedge holding the warm start (with `p_0`, so `Q_i` contains the
     warm start);
   - the vertex extreme toward the seed's descent direction (the sum of the
@@ -546,11 +552,12 @@ the vertices of `P_i`, in index order (`region_node`, `float_proof.h`).
 - **Feasibility.** Since `Q_i` lies inside `P_i`, every iterate is feasible
   and the line search needs no extra test.
 - **Refinement.** Within a barrier level the faces stay fixed. When Newton
-  stops, `refine` inserts the band around the vertex of `P_i` extreme toward
-  the converged descent direction `u_i - u_(i-1) = -n_i`, then rebuilds the
-  faces. That vertex minimizes `n_i.v`, the `i`-th term of `D(u)`.
-  Inserting vertices only enlarges `Q_i`, so the current point stays
-  inside.
+  stops, `refine` looks up the vertex `w` of `P_i` extreme toward the
+  converged descent direction `u_i - u_(i-1) = -n_i`. That vertex minimizes
+  `n_i.v`, the `i`-th term of `D(u)`. If `w` is already in `S_i`, that term
+  is the same on `Q_i` and on `P_i`, and nothing changes. Otherwise the band
+  around `w` is inserted and the faces are rebuilt. Inserting vertices only
+  enlarges `Q_i`, so the current point stays inside.
 - **Re-convergence.** If any approximation changed, the level runs again
   from the current point, up to eight times.
 - **Why only on convergence.** Refining before every Newton step followed
@@ -588,6 +595,37 @@ The subset only grows. Dropping bands far from the current extreme (keeping
 the skeleton, and only while the current point stayed inside the smaller
 hull) left some calls of `random_mixed` m=16384 open. Those calls then ran
 the exact path for minutes, so the subset is never pruned.
+
+**65,536 vertices (2026-10-22).** On the smoothed instances with m=65536
+(2.4 to 3.9 million vertices), some calls still reached the exact path,
+whose `O(m)` rational normalization then took the whole budget. Two calls
+of `vienna` (`k = 30`, 1.97 million vertices) were captured and replayed.
+Their polish stopped at 600 Newton iterations with the stage open. Two
+things had gone wrong:
+- **Refinement without progress.** The band was then only `w-4..w+4`. With
+  arcs of thousands of short edges, each refinement moved `w` just past the
+  last band. All eight rounds of every level ran and added faces, and `Q_i`
+  never reached the extreme. The graded band covers a wide stretch around
+  `w` from the first round. A region whose `w` is already in `S_i` is left
+  as is, so the level ends once every extreme is in its subset.
+- **Newton stalled at the rounding limit.** At small `mu` the Armijo test
+  still accepted tiny steps (`alpha` near `4e-9`, slope `-9e-14`) that left
+  the objective unchanged, and the level repeated them until the iteration
+  cap. A step that leaves the objective unchanged now ends the level
+  (`float_chain.h`), so it applies to every polish, the fixed-endpoint one
+  included.
+
+With these changes the two calls close in binary64 (0.08 and 0.07 s), and the
+whole of `vienna` m=65536 closes the 0.1% gap in 12.9 s, with no exact call.
+All six smoothed instances with m=65536 then close, in 2 to 13 s on the Mac.
+With the changes switched off in combinations, `vienna` closes with the
+Newton stop alone, but `warsaw` needs all three (the graded band, refinement
+only on a new extreme, and the Newton stop). On the 558 corpus cases, calls,
+nodes and bounds are unchanged bit for bit. On the smoothed instances up to
+m=16384, calls change by at most 0.4% (construction only), and time grows by
+up to 13% (1.055× in geometric mean); which change costs it was not isolated.
+Measurements:
+[`tspn-smoothed-m65536-mac-2026-10-22`](../../benchmarks/results-saved/README.md#tspn-smoothed-m65536-mac-2026-10-22).
 
 ### Complexity and what remains linear
 

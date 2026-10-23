@@ -16,8 +16,8 @@ reads.
 
 The annotated archive holds the polygons as Fekete's model writes them back (Shapely WKT with 16
 significant digits, so a few coordinates near zero move by about one ulp), and both solvers read
-them from there. With 65,536 vertices per region our solver still reaches the oracle's rational
-path, which then dominates (2026-10-22); up to 16,384 every call closes in binary64.
+them from there. The m = 65,536 archive of 2026-10-22 was written with ``--no-annotations``: only
+our solver ran it, since Fekete's already leaves most m = 16,384 instances without a tour in 900 s.
 """
 
 from __future__ import annotations

@@ -24,6 +24,78 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## tspn-smoothed-m65536-mac-2026-10-22
+
+**Pergunta.** Por que o nosso TSPN não fechava as instâncias suavizadas com
+65.536 vértices por região, se com 16.384 fecha em segundos?
+
+**Formulação.**
+- **Instâncias.** As seis da
+  [`tspn-smoothed-vertex-scaling-2026-10-21`](#tspn-smoothed-vertex-scaling-2026-10-21),
+  com m = 65.536 (de 2,4 a 3,9 milhões de vértices por instância), geradas
+  por `tpp.py smoothed-instances --variants 65536 --no-annotations`.
+- **Execução.** Argumentos da configuração C, uma thread, Mac M4 Pro, uma
+  execução por instância e binário. Limite de 600 s para o binário corrigido
+  e 300 s para o anterior (b983a59).
+
+**Diagnóstico.** Algumas chamadas ao oráculo de `vienna` e `warsaw` caíam no
+caminho racional, cuja normalização em GMP, `O(m)` por região, consumia o
+orçamento. Num replay de duas chamadas capturadas de `vienna` (`k = 30`, 1,97
+milhão de vértices), o polimento parava nas 600 iterações de Newton:
+- a banda `w-4..w+4` da aproximação interna ficava sempre um pouco atrás do
+  vértice extremo, nos arcos de milhares de arestas curtas, e as 8 rodadas de
+  refinamento de cada nível só acrescentavam faces;
+- com μ pequeno, o Armijo aceitava passos minúsculos que não mudavam o
+  objetivo (inclinação −9×10⁻¹⁴), repetidos até o teto de iterações.
+
+**Correção.** A banda passou a ser graduada: fina em `w` e com espaçamentos
+dobrando até o do esqueleto. O refinamento agora ignora a região cujo
+extremo já está no subconjunto, e o Newton para quando um passo aceito não
+muda o objetivo. Os detalhes estão em
+[convex-cycle.md](../../docs/algorithms/convex-cycle.md#polish-on-inner-approximations).
+
+**Resultado** (gap relativo de 0,1%, numérico; nenhuma chamada racional com a
+correção):
+
+| Instância | Vértices | Antes (s) | Agora (s) | Chamadas (agora) |
+|---|---|---|---|---|
+| bangalore | 3.923.307 | 2,07 | 2,03 | 9.514 |
+| random_mixed_square | 2.420.203 | 1,95 | 2,27 | 6.599 |
+| vienna | 3.276.804 | não parou no limite | 13,19 | 8.366 |
+| istanbul | 3.866.633 | 5,62 | 6,13 | 25.822 |
+| warsaw | 3.775.363 | caminho racional | 11,11 | 39.200 |
+| tokyo | 3.895.636 | 12,06 | 11,18 | 89.933 |
+
+- **Limites.** Nas quatro que os dois binários fecham, LB e UB são idênticos.
+- **Antes.** A execução de `vienna` foi morta 30 s depois do limite de 300 s,
+  ainda no caminho racional. O B&B só confere o relógio entre chamadas, e uma
+  chamada racional com milhões de vértices não é interrompida a tempo. A de
+  `warsaw` não rodou com o binário anterior. Com as três mudanças desligadas
+  por variável de ambiente (o mesmo código do binário anterior), ela também
+  ficou no caminho racional e não parou no limite de 60 s.
+- **Cada mudança.** Com o mesmo esquema de variáveis, `vienna` fecha só com
+  a parada do Newton. Já `warsaw` precisa das três: banda graduada (na
+  inicialização e no refinamento), refinamento só com extremo novo e parada
+  do Newton. Nenhuma combinação parcial testada fechou. Os tempos dessa
+  ablação não são reportados, porque o Mac estava em uso.
+- **Custo em m = 16.384.** Medianas de quatro execuções intercaladas por
+  binário: a correção fica 1,055× mais lenta na média geométrica (de 1,00×
+  em `bangalore` a 1,13× em `warsaw`), com o número de chamadas a até 0,4%
+  do anterior. Não isolamos qual das três mudanças custa esse tempo.
+- **Corpus.** Nos 558 casos (configuração C, uma thread, teto de 300 mil
+  chamadas), chamadas, nós e limites são idênticos bit a bit aos da branch em
+  d110ce2, inclusive nos 4 interrompidos pelo teto.
+
+**Limitações.**
+- Uma execução por instância em m = 65.536, num Mac só.
+- O Fekete não rodou em m = 65.536: já em m = 16.384 ele fica sem tour na
+  maioria das instâncias em 900 s.
+- O tempo da dantzig em
+  [`fekete-smoothed-dantzig-2026-10-22`](#fekete-smoothed-dantzig-2026-10-22)
+  é do binário anterior. Com a correção, m = 16.384 deve ficar até ~13% mais
+  lento, sem mudar o que fecha.
+- Dados brutos: local, em `benchmarks/workspace/experiments/large-limit/`.
+
 ## fekete-smoothed-dantzig-2026-10-22
 
 **Pergunta.** A comparação nas instâncias suavizadas

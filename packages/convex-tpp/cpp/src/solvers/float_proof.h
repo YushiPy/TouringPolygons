@@ -389,14 +389,23 @@ inline ChainNode region_node(const FloatRegion &p,Vector2 reference,double scale
     }
     std::vector<size_t> subset;
     for(size_t j=0;j<kPolishSkeleton;++j)subset.push_back(j*m/kPolishSkeleton);
-    // Vertices w-H .. w+H into the sorted subset; whether any was new.
+    // Into the sorted subset, vertices w-H .. w+H and, at each coarser level
+    // 2^j up to the skeleton's spacing, the multiples of 2^j around w: a
+    // graded band, fine at w and coarse away from it, so Q follows the region
+    // over a wide stretch. The coarse vertices lie on a fixed grid, so a small
+    // move of w adds only fine ones. Returns whether any vertex was new.
     auto band=[m](std::vector<size_t> &s,size_t w) {
         bool added=false;
-        for(size_t d=0;d<=2*kPolishWindowHalf;++d) {
-            const size_t j=(w+m-kPolishWindowHalf+d)%m;
+        auto insert=[&](long index) {
+            const size_t j=size_t(((index%long(m))+long(m))%long(m));
             const auto at=std::lower_bound(s.begin(),s.end(),j);
-            if(at!=s.end()&&*at==j)continue;
+            if(at!=s.end()&&*at==j)return;
             s.insert(at,j);added=true;
+        };
+        for(long d=-long(kPolishWindowHalf);d<=long(kPolishWindowHalf);++d)insert(long(w)+d);
+        for(size_t step=2*kPolishWindowHalf;step<=m/(2*kPolishSkeleton);step*=2) {
+            const long base=long(w/step*step);
+            for(const long k:{-1L,0L,1L,2L})insert(base+k*long(step));
         }
         return added;
     };
@@ -414,7 +423,10 @@ inline ChainNode region_node(const FloatRegion &p,Vector2 reference,double scale
     if(warmed)node.y=center+(local(*warm)-center)*(1-fraction);
     if(!feasible())node.y=center;
     node.refine=[&p,subset=std::move(subset),band,rebuild](std::vector<ChainFace> &faces,Vector2 g) mutable {
-        if(!g.is_finite()||(g.x==0&&g.y==0)||!band(subset,extreme_vertex(p,g.x,g.y)))return false;
+        if(!g.is_finite()||(g.x==0&&g.y==0))return false;
+        // With the extreme vertex already in Q, the region's term of D(u) is Q's.
+        const size_t w=extreme_vertex(p,g.x,g.y);
+        if(std::binary_search(subset.begin(),subset.end(),w)||!band(subset,w))return false;
         rebuild(subset,faces);
         return true;
     };

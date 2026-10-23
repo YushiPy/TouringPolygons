@@ -251,13 +251,16 @@ inline std::optional<ChainPolishStats> chain_interior_point(std::vector<ChainNod
                 // Below the objective's resolution Armijo cannot see progress;
                 // near convergence the feasible Newton step is then taken as is.
                 const bool resolved=-slope>64*std::numeric_limits<double>::epsilon()*std::abs(before);
-                double alpha=1;trial=y;
+                double alpha=1,after=INFINITY;trial=y;
                 for(;alpha>1e-12;alpha*=.5) {
                     for(size_t p=0;p<m;++p)trial[order[p]]=y[order[p]]+step[p]*alpha;
-                    const double after=objective(trial,mu);
+                    after=objective(trial,mu);
                     if(resolved?after<=before+.01*alpha*slope:std::isfinite(after))break;
                 }
-                if(alpha<=1e-12)break;
+                // An Armijo step that leaves the objective unchanged is below
+                // its resolution: the level has converged as far as binary64
+                // can tell, and repeating it would only spend the budget.
+                if(alpha<=1e-12||(resolved&&!(after<before)))break;
                 y.swap(trial);
             }
             if(round==8||stats.iterations>=max_iterations||!refine(mu))break;
