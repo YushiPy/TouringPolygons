@@ -24,6 +24,132 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## sao-paulo-figure-mac-2026-10-23
+
+**Pergunta** (Ernesto, 23/10). O tour da instância de São Paulo é ótimo como
+TSPN, sem ponto inicial, ou existe outro melhor?
+
+**Formulação.**
+- **Instância.** A de Birgin e Martínez (2022): 96 bairros disjuntos e não
+  convexos, de 51 a 57 vértices (4.966 no total). No rascunho `ber2025` da
+  Paula, o melhor tour do ILS-BCD mede 199.362,73.
+- **Reconstrução.** O arquivo oficial ainda não chegou. A instância foi
+  reconstruída da figura do rascunho: coordenadas da figura em cm, com 5 casas,
+  multiplicadas pela escala que dá ao tour desenhado o comprimento publicado
+  (6.034,45 por cm).
+  - O arredondamento move cada coordenada até cerca de 0,03 unidade.
+  - Sete pontos de visita do tour publicado caem até 0,037 fora do seu
+    polígono, e dois pares de polígonos passam a se tocar.
+  - Os pontos foram projetados nos polígonos. O tour inicial resultante mede
+    199.362,7497.
+- **Execução.** Mac M4 Pro, solver da branch `oracle-vertex-scaling` em
+  `d1bac40`. TSPN cíclico com gap relativo de 1e-6, `cache`, `features`,
+  `root`, `interval`, `lazy` sem mergulhos, fronteira de 512 MiB, 6 threads
+  de subárvore, a partir do tour publicado. À parte, o ILS próprio do solver
+  (`--primal-ils 0.99`) a partir do zero, com 1 thread por 1.200 s.
+
+**Resultado.**
+- **O B&B fecha em 840 s** (170 milhões de nós): LB 199.362,550 e UB
+  199.362,750, que é o próprio tour publicado. Nenhum tour da reconstrução é
+  mais curto que 199.362,55.
+- **O ILS acha outro tour,** de 199.362,737, que difere do publicado em 10 das
+  96 ligações. Os dois ficam a 6e-8 um do outro, abaixo do erro da
+  reconstrução.
+
+**Limitações.**
+- Não é a instância oficial. O erro de arredondamento pode mudar o ótimo em até
+  cerca de 4e-5 relativo (limite folgado: duas ligações por região, 0,04 cada).
+  A resposta definitiva precisa do arquivo da Paula.
+- Uma execução de cada.
+- Dados e scripts: local, em `benchmarks/workspace/experiments/sao-paulo/` (no
+  checkout principal), com instruções para o arquivo oficial.
+
+## no-polish-mac-2026-10-23
+
+**Pergunta** (Ernesto, 23/10). Dá para eliminar os pontos interiores e fechar
+as chamadas só com a geometria em precisão dupla?
+
+**Formulação.** Os 60 casos de
+[`ablation-mac-2026-10-21`](#ablation-mac-2026-10-21), configuração C, uma
+thread, 40 s, 6 processos com variantes intercaladas, Mac M4 Pro. O polimento
+foi desligado por um build local com `ConvexCycleDoubleOptions::float_polish`
+forçado a falso; o patch não foi arquivado. Branch em `667d572`, depois com o
+passo de [`anchor-step-mac-2026-10-23`](#anchor-step-mac-2026-10-23).
+
+**Resultado.**
+
+| Variante | Fecham | Chamadas racionais | Tempo, média geom. nos 58 que os dois fecham |
+|---|---|---|---|
+| C | 59 | 0 | 1 |
+| Sem polimento | 58 | 60.461 | 6,51× (mediana 9,1×, até 143×) |
+| Sem polimento, com o passo | 58 | 60.258 | 6,56× |
+
+- **O que muda.** Os nós são os mesmos; só o custo por chamada sobe (oráculo
+  8,5×). As chamadas que o polimento fechava vão ao caminho exato racional.
+- **Por classe** (fração fechada pelo polimento em C; tempo sem ele):
+  - OSM disjuntas (12): 9,7%; 1,37×;
+  - OSM só com toques (22): 0,3%; 3,1×;
+  - tesselações (6): 24,1%; 17,7×;
+  - aleatórias com sobreposição (17): 6,4%; 33,5×.
+- **O passo não ajuda aqui,** porque o custo não está na bissecção. Para
+  eliminar os pontos interiores, faltaria uma construção que feche os casos com
+  contatos coincidentes e sobreposições.
+
+**Limitações.**
+- Uma execução por caso.
+- A variante com o passo rodou depois, sem C intercalada, com a mesma carga.
+- Dados: local, em `benchmarks/workspace/experiments/no-polish/`.
+
+## anchor-step-mac-2026-10-23
+
+**Pergunta** (Ernesto, 23/10). A bissecção na aresta não gasta chamadas
+demais ao TPP? Por que não Newton?
+
+**Formulação.**
+- **Chamadas.** 320 chamadas reais do B&B, 8 por caso, espaçadas em cada uma
+  das capturas de 40 casos de
+  [`oracle-gurobi-corpus-mac-2026-10-21`](#oracle-gurobi-corpus-mac-2026-10-21).
+- **Execução.** Cada chamada foi resolvida até gap zero pelo caminho exato
+  racional (`tpp_convex_solve_cycle`), com limite de 30 s, de dois jeitos:
+  como ele roda (construção primeiro) e só com a busca por âncoras
+  (`refine_contacts=false`).
+- **Contadores novos** em `ConvexCycleResult`: TPPs ancorados, sondas de
+  bissecção e passos em forma fechada. Ferramenta: `tpp-convex-anchor-probes`.
+- **O passo em forma fechada** (novo): o tipo combinatório de cada ciclo
+  ancorado, resolvido por desdobramento com a âncora refletindo na aresta,
+  propõe a próxima sonda (o papel do Newton, aqui exato). Detalhes em
+  [convex-cycle.md](../../docs/algorithms/convex-cycle.md#general-boundary-reduction-and-correctness).
+- Mac M4 Pro, 4 processos em segundo plano.
+
+**Resultado.**
+
+| Caminho exato | Sondas (máx. numa chamada) | TPPs ancorados, máx. | Pior chamada | Total |
+|---|---|---|---|---|
+| Construção primeiro | 0 | 2 | 0,20 s | 5,1 s |
+| Só âncoras, só bissecção | 1.797 (469) | 482 | 30 s, interrompida | 120,5 s |
+| Só âncoras, com o passo | 2 (1) | 22 | 0,41 s | 26,9 s |
+
+- **Com a construção primeiro,** 297 das 320 chamadas fecham sem TPP
+  ancorado, e as outras 23 com no máximo 2, em vértices.
+- **Só com âncoras,** 99% fecham nos vértices da menor região (mediana de 4
+  TPPs). Quatro precisaram de bissecção:
+  - de 424 a 469 sondas cada, de 16 a 30 s, uma interrompida;
+  - com o passo, no máximo 1 sonda e 0,41 s.
+- **O ótimo é o mesmo** nas 639 comparações em que as duas versões fecham.
+- **Conta da bissecção.** Ela pede cerca de 14 sondas para 10⁻⁴, não 10 mil.
+  Em racionais exatos, porém, o alvo é um racional de denominador enorme, e
+  O(log Q) chega a centenas de sondas.
+- **Regressão.** No caso assimétrico dos quatro quadrados, a busca só por
+  âncoras fecha com 7 TPPs ancorados e nenhuma sonda (teste
+  `rotated_squares`).
+- **Corpus.** Nos 558 casos, chamadas, nós e limites são idênticos bit a bit
+  aos da branch antes do passo; o B&B não chega ao caminho exato.
+
+**Limitações.**
+- 320 chamadas; as difíceis vêm de três casos (49, 138 e 391).
+- Tempos sem a máquina dedicada.
+- Dados: local, em `benchmarks/workspace/experiments/anchor-probes/`.
+
 ## oracle-million-mac-2026-10-22
 
 **Pergunta.** Uma chamada ao oráculo do ciclo chega a ser um milhão de vezes

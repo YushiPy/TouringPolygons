@@ -583,11 +583,18 @@ void rotated_squares() {
         const double optimum=std::sqrt(65.0)+std::sqrt(85.0);
         require(std::abs(result.certificate.upper_bound-optimum)<1e-12,"asymmetric diamonds objective");
         for(const auto &v:p[0])require(anchored(p,v)>optimum+0.99,"every vertex anchor misses the optimum by more than 0.99");
+        // The anchor search alone: every vertex anchor misses, so the optimum
+        // comes from inside an edge, where the closed form of an anchored
+        // cycle's type replaces the bisection's probes.
+        tpp::ConvexCycleOptions anchors_only;anchors_only.refine_contacts=false;
+        const auto searched=tpp::tpp_convex_solve_cycle(p,anchors_only);
+        require(solved(searched)&&searched.squared_link_lengths==result.squared_link_lengths,"asymmetric diamonds by the anchor search alone");
+        require(searched.bisection_probes<=1,"the closed-form step leaves at most one bisection probe");
         const auto floating=tpp::tpp_convex_solve_cycle_double(p);
         require((floating.status==ConvexCycleStatus::Optimal||floating.status==ConvexCycleStatus::FloatingPointLimit)&&
                 std::abs(floating.certificate.upper_bound-optimum)<1e-12,"asymmetric diamonds in binary64");
     }
-    std::cout<<"Rotated squares: flat optimum through vertices, non-global boundary minimum, interior-edge optimum passed.\n";
+    std::cout<<"Rotated squares: flat optimum through vertices, non-global boundary minimum, interior-edge optimum (also by the anchor search alone) passed.\n";
 }
 // Regions with many vertices take O(log m) paths: fan membership proofs,
 // supports from a certified extreme vertex, Dror et al.'s located coordinate

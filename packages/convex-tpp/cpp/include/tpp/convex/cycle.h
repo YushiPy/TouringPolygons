@@ -32,6 +32,11 @@ struct ConvexCycleResult {
     std::size_t oracle_calls = 0;
     std::size_t certificate_checks = 0;
     std::size_t certificate_cutoff_skips = 0;
+    // Boundary-anchor search: anchored fixed-source solves, how many of them
+    // were bisection probes inside an edge (the rest are its vertices or
+    // intersection cuts), and closed-form steps tried in the combinatorial
+    // type of an anchored cycle. Diagnostics only.
+    std::size_t anchored_solves = 0, bisection_probes = 0, closed_form_steps = 0;
     ConvexCycleTimings timings;
     std::string diagnostic;
 };

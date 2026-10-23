@@ -717,6 +717,29 @@ optimal contact would lie straight between its two exterior neighbors and
 could be slid to its boundary without changing length. The original disjoint
 reduction and its more economical fixed-source kernel remain available.
 
+**Closed-form step (2026-10-23).** Each anchored solve returns a cycle, and
+with it a combinatorial type: per region a vertex, an edge, or a straight
+passage (`contact_features`; a contact strictly between its neighbours on one
+line counts as straight even on the boundary). With the anchor reflecting on
+the current edge, `CycleRefinement::close` solves that type in closed form by
+unfolding. Its anchor parameter is the next probe on the edge, and its cycle
+goes to the global certificate. Within one type `f` is a distance to fixed
+images, so when a probe has the type of the edge's minimizer the next probe
+lands on it exactly: this is the role of a Newton step, exact here. The step
+runs at both ends of a bracketing piece and after every probe, in the
+disjoint search (`search_cycle`) and in the general one, rational and binary64.
+Midpoints and simplest rationals still follow when the step's parameter falls
+outside the bracket, so termination is unchanged.
+
+On 320 captured B&B calls solved to gap zero with the construction disabled,
+four needed bisection, with about 450 probes each (16-30 s, one interrupted at
+30 s); with the step no call needed more than one probe, and the most anchored
+solves in a call fell from 482 to 22. With the construction first, as the exact
+path runs, no call reached a probe either way. `ConvexCycleResult` counts
+`anchored_solves`, `bisection_probes` and `closed_form_steps`; the tool
+`tpp-convex-anchor-probes` replays captures. Measurements:
+[`anchor-step-mac-2026-10-23`](../../benchmarks/results-saved/README.md#anchor-step-mac-2026-10-23).
+
 ## Exact termination
 
 There are finitely many combinatorial types of anchored paths. Intersection

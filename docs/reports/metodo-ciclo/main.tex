@@ -1,0 +1,367 @@
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[brazilian]{babel}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{newpxtext,newpxmath}
+\usepackage[a4paper,margin=24mm,headheight=15pt,headsep=8mm,footskip=11mm]{geometry}
+\usepackage{xcolor,booktabs,array,caption,fancyhdr,enumitem}
+\usepackage{tikz}
+\usepackage[hidelinks]{hyperref}
+\usetikzlibrary{arrows.meta,calc}
+
+\definecolor{ink}{HTML}{223247}
+\definecolor{navy}{HTML}{274568}
+\definecolor{quiet}{HTML}{617384}
+\definecolor{path}{HTML}{C2410C}
+\definecolor{ours}{HTML}{2155D6}
+
+\captionsetup{font=small,labelfont={bf,color=navy},labelsep=colon}
+\pagestyle{fancy}\fancyhf{}
+\renewcommand{\headrulewidth}{.4pt}
+\fancyhead[L]{\small\sffamily\color{ink}O ORÁCULO DO CICLO CONVEXO}
+\fancyhead[R]{\small\sffamily\color{quiet}TouringPolygons}
+\fancyfoot[L]{\small\color{quiet}23 de outubro de 2026}
+\fancyfoot[R]{\small\color{quiet}\thepage}
+\setlength{\parindent}{0pt}\setlength{\parskip}{5pt}
+\setlist{itemsep=2pt,topsep=3pt}
+
+\theoremstyle{plain}
+\newtheorem{lema}{Lema}
+\newtheorem{teorema}{Teorema}
+\renewcommand{\theteorema}{\Alph{teorema}}
+\theoremstyle{remark}
+\newtheorem*{obs}{Observação}
+
+\newcommand{\sect}[1]{\par\bigskip{\color{navy}\large\bfseries #1\par}\smallskip}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\vez}{\ensuremath{\times}}
+
+\begin{document}
+
+{\color{navy}\LARGE\bfseries O oráculo do ciclo convexo de ordem fixa\par}
+\vspace{2pt}
+{\color{quiet}\large como ele propõe, como prova, e por que a bissecção quase nunca roda\par}
+\vspace{10pt}
+
+\textbf{O problema.} Dadas regiões convexas fechadas $P_1,\dots,P_k$ do plano, numa ordem cíclica fixa,
+achar $q_i \in P_i$ que minimizem
+\[
+  L(q) = \sum_{i=1}^{k} \lVert q_{i+1}-q_i \rVert, \qquad q_{k+1}=q_1 .
+\]
+É o subproblema de cada nó do branch-and-bound do TSPN: o nó fixa uma sequência
+cíclica parcial, e o ciclo ótimo por ela é um limite inferior de todo completamento.
+Escrevemos $d_i = q_{i+1}-q_i$ e $u_i = d_i/\lVert d_i\rVert$ quando $d_i\neq 0$.
+
+\textbf{A ideia em uma frase.} O oráculo \emph{propõe} um ciclo por construções
+geométricas e \emph{prova} limites $L \le \mathrm{OPT} \le U$ com um certificado que não
+depende de como o ciclo foi obtido. As âncoras com bissecção são só a garantia de
+terminação com gap zero (Teorema~\ref{thm:B}); no branch-and-bound elas não rodam.
+
+\begin{center}
+\small
+\begin{tabular}{@{}lrl@{}}
+\toprule
+Como a chamada fecha (558 instâncias, cerca de 179 milhões de chamadas) & Fração & Seção \\
+\midrule
+Construção geométrica + prova intervalar & 97{,}4\% & 2 \\
+Polimento por pontos interiores + prova intervalar & 2{,}6\% & 3 \\
+Caminho exato (âncoras, bissecção) & 0\% & 4 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+%-----------------------------------------------------------------------------
+\sect{1. O certificado: por que os limites estão certos}
+
+Esta seção sozinha sustenta a correção do branch-and-bound.
+
+\begin{lema}[otimalidade]\label{lem:kkt}
+Um ciclo $q$ é ótimo se, e só se, existem vetores $u_i$, com $u_i = d_i/\lVert d_i\rVert$
+quando $d_i\neq 0$ e $\lVert u_i\rVert \le 1$ quando $d_i=0$, tais que
+\[
+  (u_{i-1}-u_i)\cdot(v-q_i) \;\ge\; 0 \qquad \text{para todo } i \text{ e todo vértice } v \text{ de } P_i .
+\]
+\end{lema}
+\begin{proof}[Ideia]
+$L$ é convexa, e $u_{i-1}-u_i$ é um subgradiente de $L$ em relação a $q_i$. A condição
+diz que nenhuma direção que fica em $P_i$ diminui $L$ (cone normal). Somar as
+desigualdades de subgradiente das normas dá $L(z)\ge L(q)$ para todo $z$, que é a
+suficiência; a necessidade é a condição de otimalidade de um problema convexo.
+\end{proof}
+
+Geometricamente, a ``dobra'' $u_{i-1}-u_i$ é zero quando o ciclo passa reto por $q_i$,
+perpendicular à aresta quando $q_i$ está no interior de uma aresta (lei da reflexão),
+e cabe no cone normal quando $q_i$ é um vértice. Os blocos de contatos coincidentes
+($d_i=0$) são decididos exatamente por conjuntos alcançáveis no disco unitário
+(\texttt{convex-cycle-certificate.md}, \S 2).
+
+\begin{lema}[limite inferior]\label{lem:dual}
+Para quaisquer $u_i$ com $\lVert u_i\rVert\le 1$ e qualquer ponto $r$,
+\[
+  \mathrm{OPT} \;\ge\; D(u) = \sum_{i=1}^k \min_{v\in P_i}\,(v-r)\cdot(u_{i-1}-u_i).
+\]
+\end{lema}
+\begin{proof}
+$\lVert d_i\rVert \ge u_i\cdot d_i$. Somando e reagrupando ciclicamente,
+$\sum_i u_i\cdot(q_{i+1}-q_i) = \sum_i (q_i-r)\cdot(u_{i-1}-u_i)$, porque
+$\sum_i (u_{i-1}-u_i)=0$. Cada termo é pelo menos o mínimo sobre $P_i$.
+\end{proof}
+
+\begin{teorema}[limites certos]\label{thm:A}
+Se o oráculo devolve $L$ e $U$, então $L\le \mathrm{OPT}\le U$, qualquer que tenha sido
+o ciclo proposto.
+\end{teorema}
+\begin{proof}[Ideia]
+$U$ é o extremo superior da soma intervalar dos comprimentos de um ciclo cujos contatos
+foram provados dentro das regiões com sinais exatos. $L$ é $D(u)$ para vetores provados
+dentro do disco unitário, com cada mínimo de suporte alargado por um limite a priori do
+seu erro de arredondamento. Nada disso usa a construção, o polimento ou as âncoras.
+\end{proof}
+
+Uma falha da construção ou do polimento só deixa o gap aberto e leva a chamada ao
+caminho exato; nunca produz um limite errado.
+
+%-----------------------------------------------------------------------------
+\sect{2. A construção: reflexões e forma fechada}
+
+\textbf{Atualização de um contato.} Com os vizinhos $a=q_{i-1}$ e $b=q_{i+1}$ fixos,
+o melhor ponto de $P_i$ para $\lVert x-a\rVert+\lVert b-x\rVert$ é: qualquer ponto do
+segmento $ab$ dentro de $P_i$ (passagem reta), ou um vértice, ou o ponto de uma aresta
+dado pela reflexão (problema de Heron): reflete-se $b$ na reta da aresta, e a reta de
+$a$ ao reflexo $b'$ cruza a aresta no ponto ótimo (Figura~\ref{fig:heron}).
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[scale=0.9,>=Stealth]
+  \fill[gray!15] (0,0) rectangle (7,-1.2);
+  \draw[line width=1.1pt] (0,0) -- (7,0);
+  \node[anchor=west,font=\small,text=quiet] at (0.1,-0.75) {região $P_i$};
+  \coordinate (A) at (1,2.4); \coordinate (B) at (6,1.6); \coordinate (Bp) at (6,-1.6);
+  \coordinate (Q) at ($(A)!{2.4/4.0}!(Bp)$);
+  \draw[path,line width=1.1pt] (A) -- (Q) -- (B);
+  \draw[path,dashed] (Q) -- (Bp);
+  \draw[quiet,densely dotted] (B) -- (Bp);
+  \fill[path] (A) circle (2pt) node[above left,text=ink] {$a=q_{i-1}$};
+  \fill[path] (B) circle (2pt) node[above right,text=ink] {$b=q_{i+1}$};
+  \draw[path,fill=white] (Bp) circle (2pt) node[right,text=ink] {$b'$};
+  \fill[ours] (Q) circle (2.4pt) node[below=3pt,text=ink] {$q_i$};
+\end{tikzpicture}
+\caption{O contato numa aresta: a reta de $a$ ao reflexo $b'$ cruza a aresta no ponto que
+iguala os ângulos de chegada e de saída, onde a dobra $u_{i-1}-u_i$ é perpendicular à aresta.}
+\label{fig:heron}
+\end{figure}
+
+\textbf{Tipo combinatório.} Cada varredura dessas atualizações diz, para cada região,
+se o contato é um vértice, uma aresta ou uma passagem reta.
+
+\begin{lema}[forma fechada de um tipo]\label{lem:closed}
+Fixado o tipo, o ciclo estacionário se obtém sem iteração: entre dois contatos fixos em
+vértices, refletem-se os pontos nas retas das arestas intermediárias (desdobramento), o
+caminho vira um segmento de reta, e voltar desfazendo as reflexões dá cada contato.
+Sem nenhum vértice no ciclo, o comprimento é $\lVert (A-I)x+c\rVert$ com $A,c$ racionais
+quando os dados são racionais, e o mínimo é a solução de um sistema linear.
+\end{lema}
+
+Os contatos assim obtidos são racionais quando os dados são racionais; é assim que surgem
+pontos como $(18/13,-21/13)$ no caso dos quatro quadrados. O ciclo proposto passa pelo
+certificado do Teorema~\ref{thm:A}. A construção faz no máximo $k+1$ varreduras: é uma
+proposta finita, não um método com garantia de convergência, e por isso não precisa de
+prova de terminação. Ela fecha 97{,}4\% das chamadas.
+
+%-----------------------------------------------------------------------------
+\sect{3. O polimento por pontos interiores}
+
+Quando a construção não fecha o gap pedido, um método de Newton com barreira logarítmica
+minimiza o comprimento suavizado $\sum_i \sqrt{\lVert d_i\rVert^2+\mu^2}$ com os contatos
+dentro das regiões, diminuindo $\mu$ por nível. Num ponto estacionário, as direções
+suavizadas dão $D(u)\ge \text{comprimento}-\sigma\mu(k+F)$ ($F$ é o número de faces), o
+que fixa o $\mu$ final. Os limites devolvidos passam de novo pelo Teorema~\ref{thm:A}.
+O polimento fecha 2{,}6\% das chamadas, e 26\% nas tesselações, onde muitos contatos
+coincidem. A Seção~6 mede o que acontece sem ele.
+
+%-----------------------------------------------------------------------------
+\sect{4. O caminho exato: âncoras, passo em forma fechada e bissecção}
+
+Este é o método apresentado em 16/10. Ele só roda se a construção e o polimento falharem,
+e em aritmética racional exata.
+
+\begin{lema}[redução à borda]\label{lem:border}
+Se as regiões não têm ponto comum, algum ciclo ótimo tem um contato na borda de alguma
+região. Se as regiões são disjuntas, basta examinar a borda da menor; com interseções, é
+preciso examinar a borda de todas.
+\end{lema}
+\begin{proof}[Ideia]
+Se todos os contatos fossem interiores, a estacionariedade (agrupando contatos
+coincidentes) forçaria todas as ligações não nulas a terem a mesma direção, e um ciclo de
+comprimento positivo não fecha. Com regiões disjuntas, um contato interior fica reto
+entre os vizinhos e pode deslizar até a borda sem mudar o comprimento; uma região que
+contém outra pode não ter contato ótimo na borda.
+\end{proof}
+
+\textbf{A função de ancoragem.} Para $x$ na borda de uma região, $F(x)$ é o comprimento
+do melhor ciclo obrigado a passar por $x$: um TPP com início e fim em $x$ pelas outras
+regiões. Numa aresta parametrizada por $x(t)=a+te$, $t\in[0,1]$, seja $f(t)=F(x(t))$.
+
+\begin{lema}[convexidade e derivada]\label{lem:anchor}
+$F$ é convexa e 2-Lipschitz no plano; logo $f$ é convexa em cada aresta (cortada nas
+interseções com as outras bordas). Ao longo da borda inteira $F$ \emph{não} é convexa:
+a borda é fechada, e há mínimos locais não globais. No interior de um pedaço de aresta,
+\[
+  f'(t) = (u_{\mathrm{in}}-u_{\mathrm{out}})\cdot e,
+\]
+onde $u_{\mathrm{in}}$ e $u_{\mathrm{out}}$ são as direções das ligações não nulas que
+chegam a $x$ e saem dele. O sinal de $f'$ é decidido exatamente, sem raiz quadrada.
+\end{lema}
+
+\textbf{Como a aresta é escolhida.} Ela não é escolhida antes. A busca resolve o TPP
+ancorado em cada vértice (e em cada corte) da região de âncora; cada solução já passa
+pelo certificado global. Uma aresta só é examinada por dentro se a derivada for negativa
+na ponta esquerda e positiva na direita, porque só então o mínimo de $f$ nela é interior.
+
+\textbf{Passo em forma fechada (novo).} Cada TPP ancorado devolve o tipo combinatório
+do seu ciclo. Fixado esse tipo, com a âncora refletindo na aresta, o
+Lema~\ref{lem:closed} dá o ponto estacionário em forma fechada. Ele é a próxima sonda; se
+a sonda tem o tipo do minimizador, o passo cai exatamente nele, e o certificado decide se
+o ciclo é o ótimo global. É o papel do método de Newton sugerido em 23/10: aqui $f$ é,
+dentro de um tipo, uma distância a pontos fixos, e o ``passo de Newton'' exato é a própria
+reflexão.
+
+\textbf{Bissecção como garantia.} Se o passo não acerta, a sonda seguinte é o ponto médio
+do intervalo e, depois, o racional de menor denominador dentro dele (frações contínuas).
+
+\begin{teorema}[terminação com gap zero]\label{thm:B}
+Em aritmética exata, a busca por âncoras termina com um ciclo que o certificado prova
+ótimo.
+\end{teorema}
+\begin{proof}[Ideia]
+Há finitos tipos de caminho ancorado. Dentro de um tipo, o parâmetro estacionário é
+racional, de denominador $Q$ limitado (Lema~\ref{lem:closed}). Dois racionais distintos
+de denominador até $Q$ distam pelo menos $1/Q^2$; quando o intervalo da bissecção fica
+mais estreito que isso, o racional mais simples nele é o estacionário. Isso leva
+$O(1+\log Q)$ sondas por aresta, e o passo em forma fechada só pode antecipar o fim.
+Pelo Lema~\ref{lem:border}, alguma âncora examinada contém um contato ótimo.
+\end{proof}
+
+\begin{obs}
+O teorema supõe que o TPP de origem fixa esteja certo. Para regiões disjuntas, é o
+algoritmo de Dror et al. Para regiões que se intersectam, usamos os mapas de Tan e Jiang
+corrigidos, implementados e testados, mas ainda \emph{sem prova}. Essa lacuna afeta só o
+Teorema~\ref{thm:B}; o Teorema~\ref{thm:A} não depende dela.
+\end{obs}
+
+%-----------------------------------------------------------------------------
+\sect{5. Quantas sondas, na prática}
+
+Em 23/10 a pergunta foi se a bissecção não seria cara demais. Dois esclarecimentos e uma
+medição.
+
+\begin{itemize}
+\item \textbf{A conta da bissecção.} Ela divide o intervalo por dois a cada sonda: uma
+  precisão de $10^{-4}$ na aresta pede cerca de 14 sondas, não $10^4$, que seria uma
+  varredura uniforme.
+\item \textbf{Mas em racionais exatos o alvo é exato.} O parâmetro ótimo é um racional
+  de denominador enorme (os dados são valores binary64), e $O(\log Q)$ pode chegar a
+  centenas de sondas, cada uma um TPP exato. Aqui a objeção procede.
+\end{itemize}
+
+\textbf{Medição.} 320 chamadas reais do branch-and-bound, 8 por caso em 40 casos do
+corpus, resolvidas até gap zero no caminho exato, com limite de 30 s por chamada:
+
+\begin{center}
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{42mm}rrrr@{}}
+\toprule
+Caminho exato & Sondas & TPPs ancorados & Pior chamada & Total \\
+ & (máx.\ por chamada) & (máx.\ por chamada) & & \\
+\midrule
+Construção primeiro (como roda hoje) & 0 & 2 & 0{,}20 s & 5{,}1 s \\
+Só âncoras, só bissecção & 1797 (469) & 482 & 30 s, interrompida & 120{,}5 s \\
+Só âncoras, com o passo em forma fechada & 2 (1) & 22 & 0{,}41 s & 26{,}9 s \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item Com a construção primeiro, 297 das 320 chamadas fecham sem nenhum TPP ancorado, e as
+  outras 23 com no máximo 2, todos em vértices.
+\item Só com âncoras, 99\% fecham nos vértices da região de âncora (mediana de 4 TPPs,
+  os vértices da menor região). Quatro chamadas precisaram de bissecção, com cerca de 450
+  sondas cada; com o passo, nenhuma passou de 1 sonda.
+\item O ótimo é o mesmo nas 639 comparações em que as duas versões fecham.
+\item No caso assimétrico dos quatro quadrados, cujo ótimo está no interior de arestas,
+  a busca só por âncoras fecha com 7 TPPs ancorados (os vértices) e nenhuma sonda. Isso
+  virou teste de regressão (\texttt{rotated\_squares}).
+\end{itemize}
+
+E, sobretudo: no branch-and-bound, nada disso roda. As chamadas fecham em binary64,
+pela construção (97{,}4\%) ou pelo polimento (2{,}6\%).
+
+%-----------------------------------------------------------------------------
+\sect{6. É possível eliminar os pontos interiores?}
+
+Em 23/10 a pergunta foi se já dava para fechar tudo só com a geometria em precisão dupla,
+sem o polimento. Medimos o branch-and-bound com o polimento desligado: 60 casos do corpus
+(os da ablação de 21/10), configuração C, uma thread, 40 s por caso. As chamadas que o
+polimento fechava passam a ir ao caminho exato.
+
+\begin{center}
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{58mm}rrr@{}}
+\toprule
+Variante & Fecham & Chamadas racionais & Tempo (média geom.) \\
+\midrule
+C (com polimento) & 59 & 0 & 1 \\
+Sem polimento & 58 & 60\,461 & 6{,}5\vez{} (até 143\vez) \\
+Sem polimento, com o passo (Seção 4) & 58 & 60\,258 & 6{,}6\vez{} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+O número de nós não muda: só o custo por chamada. A perda se concentra onde as regiões se
+tocam ou se sobrepõem:
+
+\begin{center}
+\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Classe (casos) & Fechadas pelo polimento em C & Sem polimento, mais lento \\
+\midrule
+OSM, disjuntas (12) & 9{,}7\% & 1{,}37\vez \\
+OSM, só toques de fronteira (22) & 0{,}3\% & 3{,}1\vez \\
+Tesselações (6) & 24{,}1\% & 17{,}7\vez \\
+Aleatórias com sobreposição (17) & 6{,}4\% & 33{,}5\vez{} (até 143\vez) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+O passo em forma fechada não ajuda aqui: o custo dessas chamadas não está na bissecção, e
+sim em chegar ao caminho exato racional. A perda se concentra em tesselações e
+sobreposições, onde há contatos coincidentes e interseções. No caso 189 (casas geminadas),
+a construção sozinha fechava só 25\% das chamadas e, em 55\%, parava num ciclo comprovadamente
+acima do ótimo. Para eliminar os pontos interiores, faltaria uma construção geométrica que
+feche esses casos. Por enquanto, o polimento fica: ele não entra na correção
+(Teorema~\ref{thm:A}) e evita um custo de 6{,}5 vezes.
+
+%-----------------------------------------------------------------------------
+\sect{7. O que está provado e o que falta}
+
+\begin{itemize}
+\item \textbf{Provado:} os limites (Teorema~\ref{thm:A}, Lemas~\ref{lem:kkt} e \ref{lem:dual}),
+  a redução à borda, a convexidade por aresta e a derivada (Lemas~\ref{lem:border} e
+  \ref{lem:anchor}), e a terminação com gap zero (Teorema~\ref{thm:B}) sob a hipótese do
+  TPP de origem fixa.
+\item \textbf{Falta:} a prova dos mapas de origem fixa com interseção (Tan e Jiang
+  corrigidos), que afeta só o Teorema~\ref{thm:B}.
+\item \textbf{Empírico, não teorema:} a construção fechar 97{,}4\% das chamadas e o
+  polimento fechar o resto.
+\end{itemize}
+
+Detalhes e provas completas, em \texttt{docs/algorithms/}:
+\begin{itemize}
+\item \texttt{convex-cycle.md} (construção, polimento, caminho exato);
+\item \texttt{convex-cycle-certificate.md} (certificado e blocos de ligações nulas);
+\item \texttt{convex-cycle-roteiro.md} (roteiro de estudo, em português).
+\end{itemize}
+
+\end{document}
