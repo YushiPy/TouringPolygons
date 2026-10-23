@@ -63,7 +63,7 @@ GurobiRun gurobi(const Polygons &p,GRBEnv &env) {
     return run;
 }
 
-struct OursRun{tpp::ConvexCycleDoubleResult result;double seconds=0;};
+struct OursRun{tpp::ConvexCycleDoubleResult result;double seconds=0,mean=0;size_t calls=0;};
 // The B&B's request: interval certificates and a gap of a quarter of the node gap.
 OursRun ours(const Polygons &p,double gap,tpp::ConvexCycleWorkspace *workspace,bool ids=false) {
     tpp::ConvexCycleDoubleOptions options;
@@ -74,10 +74,20 @@ OursRun ours(const Polygons &p,double gap,tpp::ConvexCycleWorkspace *workspace,b
     run.seconds=since(began);
     return run;
 }
+// The same call repeated back to back for at least 0.2 s, as the B&B calls the
+// oracle: seconds is the first call (right after the previous solver), mean
+// the average of the block that follows it, with warm caches.
+OursRun ours_block(const Polygons &p,double gap,tpp::ConvexCycleWorkspace *workspace) {
+    auto run=ours(p,gap,workspace,true);
+    const auto began=Clock::now();
+    do{ours(p,gap,workspace,true);++run.calls;}while(since(began)<0.2);
+    run.mean=since(began)/double(run.calls);
+    return run;
+}
 
 void print_ours(const char *label,const OursRun &run) {
     const auto &r=run.result;
-    std::cout<<",\""<<label<<"\":{\"seconds\":"<<run.seconds<<",\"status\":"<<int(r.status)
+    std::cout<<",\""<<label<<"\":{\"seconds\":"<<run.seconds<<",\"mean\":"<<run.mean<<",\"calls\":"<<run.calls<<",\"status\":"<<int(r.status)
         <<",\"lower\":"<<r.certificate.lower_bound<<",\"upper\":"<<r.certificate.upper_bound
         <<",\"interval_closed\":"<<r.float_interval_closed<<",\"polish_closed\":"<<r.float_polish_closed
         <<",\"candidates\":"<<r.float_candidates<<",\"newton\":"<<r.float_newton_iterations
@@ -160,21 +170,26 @@ int main(int argc,char **argv) {
             // The B&B's request (a quarter of a 0.1% node gap), and 1e-6 to match
             // Gurobi's default barrier convergence tolerance.
             const double gap=2.5e-4*scale,tight=1e-6*scale;
-            tpp::ConvexCycleWorkspace workspace,identified;
-            ours(p,gap,nullptr);ours(p,gap,&workspace);ours(p,gap,&identified,true);ours(p,tight,nullptr);gurobi(p,env);
+            // ids_tight: regions prepared once, as in the B&B, at Gurobi's tolerance.
+            tpp::ConvexCycleWorkspace workspace,identified,identified_tight;
+            ours(p,gap,nullptr);ours(p,gap,&workspace);ours(p,gap,&identified,true);ours(p,tight,nullptr);
+            // Gurobi's warm-up only where its setup is not negligible.
+            ours(p,tight,&identified_tight,true);if(vertices<100000)gurobi(p,env);
             for(int repeat=0;repeat<repeats;++repeat) {
-                OursRun cold,warm,ids,precise;GurobiRun socp;
-                for(int turn=0;turn<5;++turn) {
-                    const int which=(turn+repeat)%5;
+                OursRun cold,warm,ids,precise,ids_precise;GurobiRun socp;
+                for(int turn=0;turn<6;++turn) {
+                    const int which=(turn+repeat)%6;
                     if(which==0)cold=ours(p,gap,nullptr);
                     if(which==1)warm=ours(p,gap,&workspace);
-                    if(which==2)ids=ours(p,gap,&identified,true);
+                    if(which==2)ids=ours_block(p,gap,&identified);
                     if(which==3)precise=ours(p,tight,nullptr);
-                    if(which==4)socp=gurobi(p,env);
+                    if(which==4)ids_precise=ours_block(p,tight,&identified_tight);
+                    if(which==5)socp=gurobi(p,env);
                 }
                 std::cout<<"{\"name\":\""<<name<<"\",\"k\":"<<p.size()<<",\"vertices\":"<<vertices<<",\"largest\":"<<largest
                     <<",\"repeat\":"<<repeat<<",\"gap\":"<<gap<<",\"tight_gap\":"<<tight;
                 print_ours("cold",cold);print_ours("warm",warm);print_ours("ids",ids);print_ours("tight",precise);
+                print_ours("ids_tight",ids_precise);
                 std::cout<<",\"gurobi\":{\"status\":"<<socp.status<<",\"objective\":"<<socp.objective<<",\"build\":"<<socp.build
                     <<",\"optimize\":"<<socp.optimize<<",\"total\":"<<socp.total<<"}}"<<std::endl;
             }
