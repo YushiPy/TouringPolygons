@@ -37,8 +37,11 @@ TSPN, sem ponto inicial?
   - Foram transladados por inteiros (314.000; 7.345.000), o que é exato em
     binary64 e não muda as distâncias.
   - **Dois pares se sobrepõem**, embora o rascunho `ber2025` diga que os
-    polígonos são disjuntos: 82 e 84 (45.839 m², 0,5% do menor) e 89 e 90
-    (5.400 m², 0,1%).
+    polígonos são disjuntos. Numerando a partir de 1, na ordem do arquivo:
+    - 83 e 85: 45.839 m², ou 0,54% e 0,75% das áreas deles;
+    - 90 e 91: 5.400 m², 0,10% de cada.
+
+    A área total dos 96 polígonos é de 943 km².
 - **Origem, segundo Birgin e Martínez (2022, Seção 6.4).** Mapa do GeoSampa,
   com 156.852 vértices, simplificado para 51 a 57 vértices por polígono e
   encolhido 20% em direção ao centro do retângulo envolvente.
