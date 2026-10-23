@@ -193,7 +193,8 @@ com gap de 1e-6):
 - **Um milhão.** Com m = 262.144 (786 mil vértices), a razão passa de um
   milhão em todas as formas medidas:
   - 7,9 milhões× na pior execução, pela média do bloco;
-  - 2,6 milhões× na primeira chamada depois do Gurobi;
+  - de 1,2 a 2,6 milhões× na primeira chamada depois do Gurobi (nas duas
+    varreduras; com cache frio, essa chamada oscila mais);
   - 19 milhões× com o gap do B&B (3,0 µs).
 
   Só a otimização do Gurobi, sem montar o modelo, também dá 8,0 milhões×.
@@ -211,10 +212,15 @@ com gap de 1e-6):
 - A razão não tem teto. A nossa chamada cresce com log m, e um SOCP pelo
   menos com m, então um milhão é uma escolha de m. A chamada fria, que
   normaliza as regiões, continua O(m): cerca de 900× na seção de 21/10.
-- **Ruído.** O Mac estava em uso. Num teste anterior, o mesmo Gurobi levou
-  8,1 s em vez de 1,4 s (m = 32.768) e 90 s em vez de 15,6 s (m = 131.072).
-  Os tempos da tabela são da varredura, em que as duas amostras de cada m
-  ficaram próximas, exceto em m = 65.536 (9,3 e 4,2 s).
+- **Ruído.** Num teste anterior à varredura, com o Mac em uso, o mesmo
+  Gurobi levou 8,1 s em vez de 1,4 s (m = 32.768) e 90 s em vez de 15,6 s
+  (m = 131.072).
+- **Repetição com o Mac ocioso (23/10).** Mesmo binário e mesmas instâncias:
+  - Gurobi em 1,37, 6,81, 15,63 e 57,95 s (antes, 1,36, 6,74, 15,60 e
+    57,86 s);
+  - o nosso em 6,0 a 7,2 µs, ou 8,0 milhões× com m = 262.144 (pior
+    execução: 7,9 milhões×);
+  - a primeira chamada variou de 16,8 a 65,1 µs.
 - O Gurobi usa uma thread, como no oráculo do Fekete. Com mais threads, ele
   seria mais rápido.
 - Programa: `main-vertex_scaling.cpp`, variante `ids_tight`. Gerador e dados
