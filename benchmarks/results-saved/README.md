@@ -24,6 +24,51 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## sao-paulo-official-mac-2026-10-23
+
+**Pergunta** (Ernesto, 23/10). O tour da instância de São Paulo é ótimo como
+TSPN, sem ponto inicial?
+
+**Formulação.**
+- **Instância.** O arquivo `96sp4966.dat`, enviado pela Paula em 23/10 (local,
+  em `third_party/paula-tspn/sao-paulo/`, não redistribuído).
+  - 96 polígonos não convexos, de 51 a 57 vértices (4.966 no total), em
+    coordenadas UTM (metros).
+  - Foram transladados por inteiros (314.000; 7.345.000), o que é exato em
+    binary64 e não muda as distâncias.
+  - **Dois pares se sobrepõem**, embora o rascunho `ber2025` diga que os
+    polígonos são disjuntos: 82 e 84 (45.839 m², 0,5% do menor) e 89 e 90
+    (5.400 m², 0,1%).
+- **Origem, segundo Birgin e Martínez (2022, Seção 6.4).** Mapa do GeoSampa,
+  com 156.852 vértices, simplificado para 51 a 57 vértices por polígono e
+  encolhido 20% em direção ao centro do retângulo envolvente.
+- **Tour inicial.** O tour publicado (199.362,73), levado para as coordenadas
+  oficiais a partir da reconstrução de
+  [`sao-paulo-figure-mac-2026-10-23`](#sao-paulo-figure-mac-2026-10-23).
+  - As duas instâncias diferem por uma translação pura, com resíduo de até
+    4,2 cm por vértice.
+  - Os pontos foram projetados nos polígonos.
+- **Execução.** A mesma de lá: TSPN cíclico, gap relativo de 1e-6, `lazy` sem
+  mergulhos, fronteira de 512 MiB, 6 threads de subárvore. Em paralelo, o ILS
+  a partir do zero (1 thread, 1.200 s). Mac M4 Pro, solver da branch.
+
+**Resultado.**
+- **O tour publicado é ótimo,** com gap de 1e-6: LB 199.362,529 e UB
+  199.362,729, em 2.932 s e 170 milhões de nós, sem chamadas racionais. Em
+  distância, o gap é de 0,2 m em 199 km.
+- **O ILS acha o mesmo tour sozinho:** 199.362,72880, igual ao do B&B até
+  1e-9.
+  - As duas poligonais coincidem em 56 dos 57 pontos de dobra (a menos de
+    0,1 mm).
+  - A ordem de visita listada pelo ILS difere da publicada em 6 ligações,
+    sem mudar o comprimento.
+
+**Limitações.**
+- Uma execução.
+- Gap de 1e-6, não ótimo algébrico.
+- Dados e scripts: local, em `benchmarks/workspace/experiments/sao-paulo/` (no
+  checkout principal).
+
 ## sao-paulo-figure-mac-2026-10-23
 
 **Pergunta** (Ernesto, 23/10). O tour da instância de São Paulo é ótimo como
@@ -59,7 +104,8 @@ TSPN, sem ponto inicial, ou existe outro melhor?
 **Limitações.**
 - Não é a instância oficial. O erro de arredondamento pode mudar o ótimo em até
   cerca de 4e-5 relativo (limite folgado: duas ligações por região, 0,04 cada).
-  A resposta definitiva precisa do arquivo da Paula.
+  A resposta definitiva, com o arquivo da Paula, está em
+  [`sao-paulo-official-mac-2026-10-23`](#sao-paulo-official-mac-2026-10-23).
 - Uma execução de cada.
 - Dados e scripts: local, em `benchmarks/workspace/experiments/sao-paulo/` (no
   checkout principal), com instruções para o arquivo oficial.
