@@ -21,6 +21,9 @@ struct DiskCycleOptions {
     // Barrier parameter of the first level in scaled coordinates (radius of the
     // instance about 1); 0 picks it from the gap and the warm start.
     double mu_start = 0;
+    // The geometric construction first (Alhazen updates, the type closed by
+    // Newton on the reflection law); false runs only the barrier.
+    bool construction = true;
 };
 
 struct DiskCycleResult {
@@ -28,13 +31,21 @@ struct DiskCycleResult {
     // Contacts proved inside their disks; upper_bound bounds their cycle.
     std::vector<Vector2> contacts;
     double lower_bound = 0, upper_bound = std::numeric_limits<double>::infinity();
+    // Barrier Newton iterations and levels (zero if the construction closed).
     std::size_t newton_iterations = 0, levels = 0;
+    // The construction: whether its bounds closed the call, its rounds
+    // (close the type, then one sweep), and its Newton steps on the angles.
+    bool construction_closed = false;
+    std::size_t construction_rounds = 0, closing_iterations = 0;
 };
 
-// Shortest closed tour visiting the disks in the given cyclic order. A
-// log-barrier Newton method on the smoothed length proposes contacts and link
-// directions; both bounds are then proved with directed rounding on the input,
-// independently of the proposal:
+// Shortest closed tour visiting the disks in the given cyclic order. Proposals
+// come from geometry first: Alhazen updates (the point of a disk with the
+// shortest detour between its neighbours: a straight passage, or the
+// reflection point on its circle) give a combinatorial type, which Newton on
+// the reflection law closes; a log-barrier Newton method on the smoothed
+// length is the fallback. Both bounds are proved with directed rounding on the
+// input, independently of the proposal:
 // - U: the length of a cycle through contacts proved inside their disks;
 // - L: the weak dual D(u) = sum_i min_{v in D_i} (v-r).(u_{i-1}-u_i), with each
 //   u_i proved in the unit disk; for a disk the minimum is

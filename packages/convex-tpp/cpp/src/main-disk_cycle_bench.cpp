@@ -31,18 +31,22 @@ int main(int argc,char **argv) {
     disks.insert(disks.begin(),tpp::ConvexDisk{depot,0});
     std::cout<<std::setprecision(10)<<disks.size()<<" regions (depot first, by angle)\n";
     using Clock=std::chrono::steady_clock;
-    for(double gap:{1e-2,1e-4,1e-6,1e-8}) {
-        tpp::DiskCycleOptions o;o.max_gap=gap;
-        auto t0=Clock::now();const auto cold=tpp::tpp_convex_solve_cycle_disks(disks,o);
-        const double tc=std::chrono::duration<double>(Clock::now()-t0).count();
-        std::cout<<"gap "<<gap<<" cold: status "<<int(cold.status)<<" ["<<cold.lower_bound<<", "<<cold.upper_bound<<"] it "<<cold.newton_iterations
-            <<" levels "<<cold.levels<<" "<<tc*1e6<<" us\n";
-        for(double mu:{0.0,1e-2,1e-3,1e-4,1e-5}) {
-            tpp::DiskCycleOptions w=o;w.initial_contacts=cold.contacts;w.mu_start=mu;
-            t0=Clock::now();const auto warm=tpp::tpp_convex_solve_cycle_disks(disks,w);
-            const double tw=std::chrono::duration<double>(Clock::now()-t0).count();
-            std::cout<<"   warm mu_start "<<mu<<": status "<<int(warm.status)<<" gap "<<warm.upper_bound-warm.lower_bound<<" it "<<warm.newton_iterations
-                <<" levels "<<warm.levels<<" "<<tw*1e6<<" us\n";
+    auto run=[&](const char *label,tpp::DiskCycleOptions o,int repeats) {
+        tpp::DiskCycleResult r;double best=INFINITY;
+        for(int rep=0;rep<repeats;++rep) {
+            const auto t0=Clock::now();r=tpp::tpp_convex_solve_cycle_disks(disks,o);
+            best=std::min(best,std::chrono::duration<double>(Clock::now()-t0).count());
         }
+        std::cout<<"  "<<label<<": status "<<int(r.status)<<" ["<<r.lower_bound<<", "<<r.upper_bound<<"] gap "<<r.upper_bound-r.lower_bound
+            <<" construction "<<(r.construction_closed?"closed":"open")<<" rounds "<<r.construction_rounds<<" closing "<<r.closing_iterations
+            <<" barrier "<<r.newton_iterations<<" | "<<best*1e6<<" us\n";
+        return r;
+    };
+    for(double gap:{1e-2,1e-4,1e-6,1e-8}) {
+        std::cout<<"gap "<<gap<<"\n";
+        tpp::DiskCycleOptions o;o.max_gap=gap;
+        const auto geometric=run("geometric cold",o,5);
+        tpp::DiskCycleOptions b=o;b.construction=false;run("barrier cold  ",b,3);
+        tpp::DiskCycleOptions w=o;w.initial_contacts=geometric.contacts;run("geometric warm",w,5);
     }
 }

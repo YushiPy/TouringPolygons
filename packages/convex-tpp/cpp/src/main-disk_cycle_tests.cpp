@@ -79,6 +79,27 @@ void sandwich() {
     }
     std::cout<<"Disk cycle: "<<cases<<" random cases inside the "<<m<<"-gon sandwich (widest sandwich "<<widest<<") passed."<<std::endl;
 }
+// The geometric construction and the barrier alone must certify the same value.
+void construction_matches_barrier() {
+    std::mt19937 rng(20261026);
+    std::uniform_real_distribution<double> unit(0,1);
+    size_t cases=0,closed=0;
+    for(int k:{3,6,10,20,40,80})for(int sample=0;sample<10;++sample) {
+        Disks disks;
+        for(int i=0;i<k;++i) {
+            const double t=2*M_PI*i/k+0.5*unit(rng)/k;
+            const double radius=sample%5==0&&i==0?0:(0.1+unit(rng))*(sample%3==2?4:1)*10/k; // overlaps in one third
+            disks.push_back({{10*std::cos(t)+unit(rng),10*std::sin(t)+unit(rng)},radius});
+        }
+        const auto geometric=solve(disks,1e-8);
+        tpp::DiskCycleOptions options;options.max_gap=1e-8;options.construction=false;
+        const auto barrier=tpp::tpp_convex_solve_cycle_disks(disks,options);
+        require(geometric.status==tpp::DiskCycleStatus::GapClosed&&barrier.status==tpp::DiskCycleStatus::GapClosed,"both close the gap");
+        require(geometric.lower_bound<=barrier.upper_bound&&barrier.lower_bound<=geometric.upper_bound,"the bounds agree");
+        closed+=geometric.construction_closed;++cases;
+    }
+    std::cout<<"Disk cycle: construction and barrier agree on "<<cases<<" cases (construction closed "<<closed<<")."<<std::endl;
+}
 void warm_and_cutoff() {
     std::mt19937 rng(7);
     std::uniform_real_distribution<double> unit(0,1);
@@ -99,6 +120,7 @@ void warm_and_cutoff() {
 int main() {
     known_optima();
     sandwich();
+    construction_matches_barrier();
     warm_and_cutoff();
     std::cout<<"Disk cycle tests passed.\n";
 }

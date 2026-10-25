@@ -859,20 +859,67 @@ only the regions change.
 - **Upper bound.** Each proposed contact is proved inside its disk
   (`radius^2 - |x-c|^2 >= 0` with directed rounding), or moved toward the
   center until it is. `U` is the upper end of the interval sum of the links.
-- **Proposal.** The chain Newton kernel takes an optional disk per node, with
-  the barrier `-mu log(radius^2 - |y-c|^2)`: gradient `2mu r/s`, Hessian
-  `(2mu/s) I + (4mu/s^2) r r^T`. A warm start begins at `mu = 1e-4` (scaled
-  coordinates). Started far below the central path, Newton crawls.
+- **Proposal: geometry first.** The construction plays the role the
+  last-step maps play for polygons, with the disk's reflection law in place of
+  edge unfolding:
+  - *Alhazen update.* Between fixed neighbours `a` and `b`, the point of a disk
+    minimizing `|x-a|+|x-b|` is the foot of its center on `ab` if the segment
+    meets the disk (a straight passage), else the reflection point on the arc
+    between the radial directions of `a` and `b` (Newton on `g'(theta)`, kept
+    in that bracket). Gauss–Seidel sweeps of these exact coordinate updates
+    never lengthen the cycle and fix a combinatorial type: straight,
+    reflecting, or a corner.
+  - *Closing the type.* With the type fixed, straight contacts drop out and
+    Newton on the reflection angles minimizes the reduced cycle. Its Hessian
+    is cyclic tridiagonal (Thomas plus Sherman–Morrison), and each
+    reflection's curvature adds `radius * lambda` to the diagonal, so it
+    converges quadratically near the optimum. Straight contacts then return to
+    their reduced segments in order along each (out of order they zigzag), and
+    a sweep checks the type.
+  - *Blocks.* With overlapping disks, a zero-length link holds two coincident
+    contacts together: moving either alone never shortens the cycle, so the
+    sweeps stall in a lens. A run of coincident contacts moves as a block, the
+    shortest of: one point of the intersection of its disks (on the segment,
+    at an Alhazen point inside the others, or at a corner where two circles
+    cross); one member reflecting with the others straight; or one Alhazen
+    pass each way. A corner is kept only if its dual splits (below);
+    otherwise its members start a little apart and Newton separates them.
+    Mennell's bubbles need this: circles of radius 10 at spacing 10 are
+    tangent at a third disk's center, a single point no tour needs to share.
+    Inside Newton, two reflections that meet at the crossing of their circles
+    become a corner, and a reflection that meets a fixed bend stays there.
+    Newton approaches a corner slowly (the reduced length is not smooth
+    there), so two reflections are also merged at their crossing whenever
+    that shortens the reduced cycle.
+  - *Duals.* Every link takes the direction of the reduced segment around it,
+    so straight passages bend by exactly zero. At a corner the zero-length
+    link takes `u_mid = u_in + l1 n1`, where `l1 n1 + l2 n2 = u_out - u_in`
+    for the outward normals there. The multipliers are nonnegative and
+    `|u_mid| <= 1` exactly when the corner is optimal. At a closed optimal
+    type, `D(u)` equals the length up to rounding.
+
+  Every round is certified. The construction stops when the gap closes, or
+  when it stops halving for three rounds. In that case the barrier runs from
+  its contacts. The barrier is the chain Newton kernel with an optional disk
+  per node and the term `-mu log(radius^2 - |y-c|^2)`. Its gradient is
+  `2mu r/s` and its Hessian `(2mu/s) I + (4mu/s^2) r r^T`. A warm start begins
+  at `mu = 1e-4` (scaled coordinates). Started far below the central path,
+  Newton crawls.
 - **No gap-zero path.** With polygons, a fixed combinatorial type is solved in
   rationals by unfolding (Theorem B). Reflection in a circle is not an
   isometry: a single disk between two points is Alhazen's problem (a quartic).
   So the disk oracle certifies `L <= OPT <= U` to any requested gap and has no
-  exact path.
+  exact path. The construction comes close: it certifies gaps of about
+  `1e-12` relative, below what the barrier reaches within its iteration
+  budget.
 
 Tests (`main-disk_cycle_tests.cpp`):
 - known optima;
 - 60 random instances whose bounds must lie between the polygon oracle's
   bounds on inscribed and circumscribed 64-gons;
+- 60 random instances, a third with heavy overlaps, where the construction and
+  the barrier alone must certify the same value (the construction closes all
+  of them);
 - warm starts and cutoffs.
 
 The kernel change leaves polygon nodes untouched: the 558 corpus cases are
