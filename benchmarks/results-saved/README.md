@@ -24,6 +24,62 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## cetsp-sandwich-mac-2026-10-25
+
+**Pergunta.** Dá para resolver o CETSP (vizinhanças em disco) com o nosso TSPN,
+de forma certificada, sem código novo?
+
+**Formulação.**
+- **Sanduíche de polígonos.** Cada disco é trocado por dois m-ágonos
+  regulares:
+  - um dentro dele: o TSPN nesses polígonos dá um tour viável, ou seja, um UB
+    do CETSP;
+  - outro que o contém: o ótimo do TSPN neles é um LB.
+
+  As duas contenções são conferidas em aritmética exata depois do
+  arredondamento. O depósito é um ponto.
+- **Instâncias e referência.** As instâncias 2D de Mennell (cópia local em
+  `third_party/paula-tspn/Instancias_CETSP/2D`), comparadas com a Tabela 2 de
+  Coutinho et al. (INFORMS J. Comput. 2016): B&B com SOCP no CPLEX 12.4, 1
+  thread, i7 de 3,4 GHz, limite de 4 h.
+- **Execução.** TSPN cíclico, gap relativo de 1e-6, `cache`, `features`,
+  `root`, `interval`, fronteira de 1 GiB, 1 thread por lado. Mac M4 Pro **em
+  uso** (outro programa aberto).
+
+**Resultado.**
+- **Correção.** O LB externo nunca passou do ótimo de Coutinho et al., e o UB
+  interno nunca ficou abaixo dele, em todas as instâncias resolvidas por eles
+  (bubbles1 a 3, concentricCircles1, rotatingDiamonds1 e 2).
+- **O gap do sanduíche segue (π/m)².** Ele cai 4× a cada vez que m dobra: de
+  2,2e-3 em m = 32 a 9e-6 em m = 512 (concentricCircles1).
+- **Árvores menores:** de 2 a 37 vezes menos nós que as de Coutinho et al.
+  - bubbles1: 28 contra 66;
+  - concentricCircles1: 554 contra 2.943;
+  - bubbles3: 592 a 645 contra 31.995;
+  - rotatingDiamonds2: ~52 mil contra 275 mil.
+- **Tempos com m = 128** (gap do sanduíche de ~1e-4):
+
+  | Instância | Nosso (LB…UB) | Tempo por lado | Coutinho et al. |
+  |---|---|---|---|
+  | bubbles3 | 529,946…529,979 | 2–3 s | ótimo 529,955, 193 s |
+  | rotatingDiamonds2 | 140,470…140,479 | 362–380 s | ótimo 140,477, 730 s |
+  | concentricCircles1 | 53,153…53,161 | 5 s | ótimo 53,158, 5,2 s |
+  | chaoSingleDep | 1.001,0…1.039,8 | 1.800 s, aberta | 1.000,2…1.039,6 em 4 h |
+  | concentricCircles2 | 146,6…153,1 | 1.800 s, aberta | 149,9…153,1 em 4 h |
+
+- **O gargalo é o custo por nó.** De 6 a 370 ms, contra ~33 µs no corpus do
+  Fekete. Com discos muito sobrepostos, dois terços das chamadas vão ao
+  polimento (contatos coincidentes), e polir polígonos de centenas de vértices
+  é caro. Em m = 256, o lado interno de bubbles3 não fechou em 120 s.
+
+**Limitações.**
+- Uma execução, com o Mac em uso; os tempos são indicativos.
+- Só 2D.
+- O sanduíche custa duas execuções e tem gap mínimo de (π/m)².
+- Um oráculo nativo para discos tiraria esse gap e o custo do polimento por
+  face: o suporte tem forma fechada e o limite dual vale do mesmo jeito.
+- Dados e scripts: local, em `benchmarks/workspace/experiments/cetsp-sandwich/`.
+
 ## sao-paulo-official-mac-2026-10-23
 
 **Pergunta** (Ernesto, 23/10). O tour da instância de São Paulo é ótimo como
