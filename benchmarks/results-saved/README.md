@@ -24,7 +24,123 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## cetsp-geometric-mac-2026-10-25
+
+**Pergunta.** Com uma construção geométrica no oráculo de discos (Alhazen,
+Newton no tipo, blocos para discos sobrepostos) e um B&B com tour inicial por
+busca local, quanto do CETSP 2D de Mennell se resolve, comparado a Coutinho
+et al. (2016)?
+
+**Formulação.**
+- **Oráculo:** `tpp_convex_solve_cycle_disks`, como em
+  [cetsp-native](#cetsp-native-mac-2026-10-25), agora com a proposta
+  geométrica.
+  - Atualizações de Alhazen fixam um tipo, e o Newton nos ângulos o fecha.
+  - Contatos coincidentes andam em bloco: ponto da lente, um círculo ativo ou
+    separação.
+  - O canto só fica se o seu dual se divide.
+  - A barreira é o recurso de reserva.
+  - Detalhes em
+    [convex-cycle.md](../../docs/algorithms/convex-cycle.md#disks-2026-10-25).
+- **B&B:** `tpp-convex-cetsp`.
+  - Best-first, ramificando no disco descoberto mais distante.
+  - Nós de 8 bytes, re-resolvidos ao expandir.
+  - Tour inicial: tour dos centros, inserção e busca local em sequências,
+    depois ILS de ordem completa; 5% do tempo, parando ao estagnar.
+  - Gap relativo de 1e-6; o oráculo recebe 0,25 × gap × UB.
+- **Execução.**
+  - 1.800 s por instância (Coutinho et al.: 4 h), 1 thread, 7 ao mesmo tempo
+    num Mac M4 Pro (12 núcleos, 24 GB).
+  - As fáceis rodaram ao lado de outras 6.
+- **Certificação e verificação.**
+  - Os limites são provados na instância lida em binary64.
+  - Cada tour foi verificado à parte em racionais exatos: cobre todos os
+    discos binary64, e o comprimento, com raízes arredondadas para cima,
+    não passa do UB.
+  - Na instância decimal, um contato exatamente no círculo pode errar o disco
+    por ~1e-14 (o arredondamento do centro). Os tours gravados a partir do
+    commit 9b2502d recuam os contatos 2⁻⁴⁰ do raio e cobrem também a decimal.
+- **Referência.** Tabela 2 de Coutinho et al. (CPLEX 12.4, 1 thread, i7 de
+  3,4 GHz, 4 h).
+
+**Resultado (30 min por instância).**
+
+| Instância | n | Nosso [LB; UB] | Tempo | Coutinho et al. [LB; UB] | Tempo |
+|---|---|---|---|---|---|
+| bubbles1 | 36 | **349,135** | 0,3 s | 349,135 | 0,1 s |
+| bubbles2 | 76 | **428,279** | 0,9 s | 428,279 | 0,2 s |
+| bubbles3 | 126 | **529,955** | 13,0 s | 529,955 | 193,1 s |
+| bubbles4 | 184 | [715,694; 804,989] | 30 min | [690,578; 829,888] | 4 h |
+| bubbles5 | 250 | [894,334; 1.080,069] | 30 min | [851,822; 1.062,335] | 4 h |
+| bubbles6 | 324 | [1.048,670; 1.401,378] | 30 min | [993,981; 1.383,139] | 4 h |
+| bubbles7 | 406 | [1.185,752; 1.675,336] | 30 min | [1.123,522; 1.720,214] | 4 h |
+| bubbles8 | 496 | [1.325,330; 2.030,876] | 30 min | [1.252,715; 2.101,373] | 4 h |
+| bubbles9 | 594 | [1.459,890; 2.435,313] | 30 min | [1.374,407; 2.426,274] | 4 h |
+| chaoSingleDep | 200 | [1.039,604; 1.039,611] | 30 min | [1.000,151; 1.039,610] | 4 h |
+| concentricCircles1 | 16 | **53,158** | 0,2 s | 53,158 | 5,2 s |
+| concentricCircles2 | 36 | **153,132** | 461,4 s | [149,868; 153,132] | 4 h |
+| concentricCircles3 | 60 | [256,601; 270,034] | 30 min | [247,624; 271,076] | 4 h |
+| concentricCircles4 | 104 | [389,618; 454,702] | 30 min | [358,887; 454,457] | 4 h |
+| concentricCircles5 | 148 | [493,793; 633,342] | 30 min | [459,411; 645,381] | 4 h |
+| rotatingDiamonds1 | 20 | **32,389** | 0,2 s | 32,389 | 0,1 s |
+| rotatingDiamonds2 | 60 | **140,477** | 6,4 s | 140,477 | 730,4 s |
+| rotatingDiamonds3 | 180 | [368,817; 380,886] | 30 min | [348,608; 380,882] | 4 h |
+| rotatingDiamonds4 | 320 | [637,314; 770,661] | 30 min | [593,350; 770,660] | 4 h |
+| rotatingDiamonds5 | 680 | [1.189,862; 1.510,861] | 30 min | [1.106,577; 1.510,752] | 4 h |
+
+- **Fechadas: 7 de 20.** São as 6 que Coutinho et al. resolvem e
+  **concentricCircles2**, que eles deixaram aberta em 4 h.
+  - O ótimo de concentricCircles2 é 153,132: o UB deles era ótimo.
+  - Mais rápido em rotatingDiamonds2 (114×), bubbles3 (15×) e
+    concentricCircles1 (26×).
+  - Nas três menores o tempo é quase só a heurística (0,2–0,9 s).
+- **Abertas.**
+  - Em 30 min, o LB passa o de 4 h deles nas 13, de 3,6% (bubbles4,
+    concentricCircles3) a 8,6% (concentricCircles4) acima.
+  - chaoSingleDep fica a 6,9e-6 de fechar.
+  - UB melhor em 5 (bubbles4, 7 e 8; concentricCircles3 e 5), praticamente
+    igual em 4 (chao, rotatingDiamonds3 a 5) e pior em 4 (bubbles5, 6 e 9;
+    concentricCircles4).
+- **Custo do oráculo no B&B.**
+  - 20–30 µs por chamada nas abertas.
+  - A construção fecha 99,9–100% das chamadas; de 85% a 98% nas menores, de
+    bubbles e rotatingDiamonds1.
+
+**Oráculo de ordem fixa × Gurobi.**
+- **Formulação.** O ciclo pelas 20 instâncias em ordem angular é um SOCP. O
+  Gurobi 12.0.3 roda com 1 thread, tolerâncias padrão e a forma cônica que
+  ele resolveu com mais frequência. O tempo inclui a montagem do modelo.
+- **Medida.** Melhor de 5 nos dois lados, com a máquina ociosa.
+- **Certificação.** O nosso: certificado em todas.
+  - A construção fecha 19, com gap de ~1e-12 relativo.
+  - O rotatingDiamonds4 a frio cai na barreira e fecha no gap pedido (1e-6
+    absoluto).
+- **Gurobi.**
+  - "Numerical trouble" em 8 das 20: bubbles1, 2, 3 e 7,
+    concentricCircles2 e 3, rotatingDiamonds1 e 4.
+  - Das 12 "ótimas", 8 têm objetivo abaixo do nosso LB certificado, de 3e-9
+    a 4e-7 relativo: pontos levemente inviáveis.
+  - Outras formas do mesmo modelo (bola direta, lado direito constante,
+    homogêneo) falharam em instâncias diferentes, ou deram status subótimo
+    com valor abaixo do ótimo.
+- **Tempo.** O nosso é de 11× a 82× mais rápido, com mediana de 17×. A
+  exceção é o rotatingDiamonds4 a frio, com 2×.
+
+**Limitações.**
+- Uma execução por instância, num Mac compartilhado entre 7 processos; o
+  i7 de Coutinho et al. é de 2012.
+- Exatidão: gap relativo de 1e-6 com limites provados, não ótimo algébrico,
+  porque discos não têm caminho exato (Alhazen). Os limites são da instância
+  em binary64; a decimal difere em ~1e-14 por coordenada, o que move o ótimo
+  em no máximo 2·Σ|Δ| ≈ 1e-11.
+- B&B de exploração (`main-cetsp.cpp`), não integrado ao B&B do TSPN.
+- Dados e scripts: local, em `benchmarks/workspace/experiments/cetsp-native/`
+  (`table-v6.jsonl`, `tours-table/`, `gurobi-cycle.jsonl`, `verify_tour.py`).
+
 ## cetsp-native-mac-2026-10-25
+
+**Substituído** por [cetsp-geometric](#cetsp-geometric-mac-2026-10-25), com a
+construção geométrica e a heurística nova.
 
 **Pergunta.** Um oráculo nativo para discos, com o mesmo "propor e
 certificar", faz o CETSP andar melhor que o sanduíche de polígonos e que
