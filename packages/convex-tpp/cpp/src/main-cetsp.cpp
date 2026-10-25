@@ -436,8 +436,14 @@ int main(int argc,char **argv) {
     if(argc>4&&std::string(argv[4])!="-") {
         std::ofstream out(argv[4]);out<<std::setprecision(17)<<"{\"instance\":\""<<argv[1]<<"\",\"upper_bound\":"<<s.upper<<",\"sequence\":[";
         for(size_t i=0;i<s.best_sequence.size();++i)out<<(i?",":"")<<s.best_sequence[i];
+        // Contacts pulled toward their centers by 2^-40 of the radius: inside
+        // the decimal disks too, which binary64 reading moves by about 1e-14.
         out<<"],\"contacts\":[";
-        for(size_t i=0;i<s.best_cycle.size();++i)out<<(i?",":"")<<"["<<s.best_cycle[i].x<<","<<s.best_cycle[i].y<<"]";
+        for(size_t i=0;i<s.best_cycle.size();++i) {
+            const auto &d=inst.disks[size_t(s.best_sequence[i])];
+            const Vector2 c=d.radius>0?d.center+(s.best_cycle[i]-d.center)*(1-0x1p-40):s.best_cycle[i];
+            out<<(i?",":"")<<"["<<c.x<<","<<c.y<<"]";
+        }
         out<<"]}\n";
     }
 }
