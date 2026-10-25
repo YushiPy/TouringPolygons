@@ -26,8 +26,12 @@ int main(int argc,char **argv) {
     }
     if(!has_depot){std::cerr<<"no depot\n";return 1;}
     Vector2 c{};for(const auto &d:disks)c+=d.center/double(disks.size());
-    std::sort(disks.begin(),disks.end(),[&](const auto &a,const auto &b){
-        return std::atan2(a.center.y-c.y,a.center.x-c.x)<std::atan2(b.center.y-c.y,b.center.x-c.x);});
+    // By angle, ties by squared distance, then by file order.
+    std::stable_sort(disks.begin(),disks.end(),[&](const auto &a,const auto &b){
+        const double ta=std::atan2(a.center.y-c.y,a.center.x-c.x),tb=std::atan2(b.center.y-c.y,b.center.x-c.x);
+        if(ta!=tb)return ta<tb;
+        const double ax=a.center.x-c.x,ay=a.center.y-c.y,bx=b.center.x-c.x,by=b.center.y-c.y;
+        return ax*ax+ay*ay<bx*bx+by*by;});
     disks.insert(disks.begin(),tpp::ConvexDisk{depot,0});
     std::cout<<std::setprecision(10)<<disks.size()<<" regions (depot first, by angle)\n";
     using Clock=std::chrono::steady_clock;

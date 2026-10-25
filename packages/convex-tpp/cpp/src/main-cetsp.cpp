@@ -129,8 +129,9 @@ struct Solver {
         if(t.length<upper){upper=t.length;best_sequence=t.sequence;best_cycle=t.cycle;++improvements;}
     }
     // Cheapest insertion: repeatedly the farthest uncovered disk, where the cycle grows least.
-    Tour repair(std::vector<int> seq,std::vector<Vector2> cyc) {
+    Tour repair(std::vector<int> seq,std::vector<Vector2> cyc,double until=INFINITY) {
         for(;;) {
+            if(elapsed()>until)return {};
             const auto ex=excess(all,seq,cyc);
             int far=-1;for(size_t j=1;j<all.size();++j)if(ex[j]>kCovered*std::max(1.0,all[j].radius)&&(far<0||ex[j]>ex[size_t(far)]))far=int(j);
             if(far<0)break;
@@ -232,17 +233,20 @@ struct Solver {
     // way round) toward each disk's nearest disks, screened with the contacts
     // fixed; a move that shortens the fixed-contact cycle is applied and its
     // contacts re-optimized by the oracle (warm), which can only shorten it.
-    Tour full_search(Tour t,double until) {
+    // With `exact` false the contacts stay fixed (a tour of fixed points).
+    Tour full_search(Tour t,double until,bool exact=true) {
         if(nearest.empty())prepare_neighbours();
         const size_t n=t.sequence.size();
         if(n<5)return t;
         std::vector<long> at(all.size());
         auto d=[&](size_t i,size_t j){const Vector2 v=t.cycle[i%n]-t.cycle[j%n];return std::sqrt(v.dot(v));};
+        auto fixed=[&](const std::vector<Vector2> &w){double s=0;for(size_t i=0;i<n;++i){const Vector2 v=w[(i+1)%n]-w[i];s+=std::sqrt(v.dot(v));}return s;};
         auto apply=[&](std::vector<int> s,std::vector<Vector2> w) {
-            const Tour c=evaluate(s,w);
+            const Tour c=exact?evaluate(s,w):Tour{s,w,fixed(w)};
             if(c.length<t.length*(1-1e-12)){t=c;return true;}
             return false;
         };
+        if(!exact)t.length=fixed(t.cycle);
         for(bool improved=true;improved&&elapsed()<until;) {
             improved=false;
             for(size_t i=0;i<n;++i)at[size_t(t.sequence[i])]=long(i);
@@ -313,14 +317,34 @@ struct Solver {
         }
         return best;
     }
-    // The initial tour: cheapest insertion and local search on sequences,
-    // then iterated local search on full orders.
+    // A tour of the centers: nearest neighbour from the depot, then the full
+    // order's local search with the centers as fixed points, and the oracle
+    // for its contacts.
+    Tour center_tour(double until) {
+        const size_t n=all.size();
+        std::vector<int> order{0};std::vector<bool> used(n,false);used[0]=true;
+        for(size_t step=1;step<n;++step) {
+            const Vector2 here=all[size_t(order.back())].center;
+            int next=-1;double best=INFINITY;
+            for(size_t j=0;j<n;++j)if(!used[j]){const Vector2 v=all[j].center-here;if(v.dot(v)<best){best=v.dot(v);next=int(j);}}
+            used[size_t(next)]=true;order.push_back(next);
+        }
+        std::vector<Vector2> centers;for(int i:order)centers.push_back(all[size_t(i)].center);
+        const Tour t=full_search(Tour{order,centers,INFINITY},until,false);
+        return evaluate(t.sequence,t.cycle);
+    }
+    // The initial tour: the centers' tour, and (unless time runs out) cheapest
+    // insertion with local search on sequences, expanded to a full order;
+    // then iterated local search on full orders from the shorter.
     void heuristic(double budget) {
         const double until=std::min(deadline,elapsed()+budget);
-        Tour t=repair({0},{all[0].center});
-        if(!std::isfinite(t.length))return;
-        t=local_search(t,until);offer(t);
-        full_ils(expand(t),until);
+        Tour start=center_tour(until);offer(start);
+        Tour t=repair({0},{all[0].center},until);
+        if(std::isfinite(t.length)) {
+            t=local_search(t,until);offer(t);
+            if(t.length<start.length)start=expand(t);
+        }
+        if(std::isfinite(start.length))full_ils(start,until);
     }
     std::vector<Entry> tree;
     std::vector<int> sequence_of(std::uint32_t id) const {
@@ -399,8 +423,9 @@ int main(int argc,char **argv) {
     const double seconds=argc>2?std::stod(argv[2]):60.0;
     Solver s{inst.disks,argc>3?std::stod(argv[3]):1e-6,seconds,Clock::now()};
     if(argc>5)s.strong=std::max<size_t>(1,std::stoul(argv[5]));
-    // The initial tour: 5% of the time, at most 30 s, unless given.
-    const double lower=s.run(argc>6?std::stod(argv[6]):std::min(0.05*seconds,30.0));
+    // The initial tour: 5% of the time unless given (its local searches
+    // stop on their own when they stagnate).
+    const double lower=s.run(argc>6?std::stod(argv[6]):0.05*seconds);
     std::cout<<std::setprecision(12)<<"{\"instance\":\""<<argv[1]<<"\",\"disks\":"<<inst.disks.size()-1
         <<",\"lower_bound\":"<<lower<<",\"upper_bound\":"<<s.upper<<",\"gap\":"<<(s.upper-lower)/s.upper
         <<",\"closed\":"<<(s.upper-lower<=s.gap*s.upper*1.0000001?"true":"false")

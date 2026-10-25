@@ -926,9 +926,39 @@ The kernel change leaves polygon nodes untouched: the 558 corpus cases are
 identical bit for bit.
 
 `tpp-convex-cetsp` is an exploration branch-and-bound on top of it. Its nodes
-are cyclic sequences from the depot; a cycle that meets every disk is a
-feasible tour, and otherwise the farthest uncovered disk is inserted at every
-position. Measurements:
+are cyclic sequences from the depot. A node's bound is its oracle `L`:
+visiting a subset can only shorten the tour.
+- **Branching.** A cycle that meets every disk is a feasible tour. Otherwise
+  the farthest uncovered disk is inserted at every position, with the mirror
+  symmetry removed at the second disk. Coverage uses a margin of `1e-9`
+  times the radius, so a borderline disk is branched on rather than assumed
+  covered. Strong branching (several candidates, keep the one whose weakest
+  child is strongest) is optional. On rotatingDiamonds3 and
+  concentricCircles2 it gave weaker bounds in the same time.
+- **Memory.** Each search node stores 8 bytes: its parent and the insertion
+  that made it. On expansion the sequence is rebuilt and its cycle solved
+  again, cold. That costs about 10% of the time and cuts memory per node
+  from about 700 bytes to about 40.
+- **Discarded feasible nodes.** A feasible child gets no node. Its `L` still
+  enters the final bound, so a gap the oracle left there is not lost.
+- **Initial tour.** A CETSP tour is also a tour of every disk in some order,
+  one contact each: a disk the cycle crosses anyway is a straight passage at
+  no cost. Steps:
+  1. A tour of the centers (nearest neighbour, 2-opt and Or-opt with the
+     centers fixed), its contacts solved by the oracle.
+  2. Cheapest insertion and local search on sequences, expanded to a full
+     order with the same length, if time allows and it is shorter.
+  3. Iterated local search on full orders: 2-opt and Or-opt toward each
+     disk's 10 nearest, screened with the contacts fixed; the oracle
+     re-optimizes the contacts of a move that passes; double-bridge kicks
+     with threshold acceptance.
+
+  The budget is 5% of the time; the searches stop earlier when they stagnate.
+- **Independent check.** The tour can be written out and checked in exact
+  rationals on the instance's decimal text: coverage of every disk, and a
+  length bound with rounded-up square roots.
+
+Measurements:
 [`cetsp-native-mac-2026-10-25`](../../benchmarks/results-saved/README.md#cetsp-native-mac-2026-10-25).
 
 ## Tests and measurement
