@@ -100,6 +100,33 @@ void construction_matches_barrier() {
     }
     std::cout<<"Disk cycle: construction and barrier agree on "<<cases<<" cases (construction closed "<<closed<<")."<<std::endl;
 }
+// Insertion bounds never exceed the child's optimum (checked against its
+// certified upper bound) and are mostly close to its lower bound.
+void insertion_bounds() {
+    std::mt19937 rng(20261027);
+    std::uniform_real_distribution<double> unit(0,1);
+    size_t checked=0,close=0;double worst=0;
+    for(int k:{1,2,3,6,12,25})for(int sample=0;sample<12;++sample) {
+        Disks disks;
+        for(int i=0;i<k;++i) {
+            const double t=2*M_PI*i/k;
+            const double radius=i==0?0:(0.2+unit(rng))*(sample%3==2?3:1);
+            disks.push_back({{10*std::cos(t)+unit(rng),10*std::sin(t)+unit(rng)},radius});
+        }
+        const ConvexDisk inserted{{20*unit(rng)-10,20*unit(rng)-10},0.5+unit(rng)};
+        const auto parent=solve(disks,1e-9);
+        const auto bounds=tpp::tpp_convex_disk_insertion_bounds(disks,parent.contacts,inserted);
+        require(bounds.size()==size_t(k),"one bound per position");
+        for(int p=1;p<=k;++p) {
+            Disks child=disks;child.insert(child.begin()+p,inserted);
+            const auto c=solve(child,1e-9);
+            require(bounds[size_t(p-1)]<=c.upper_bound,"insertion bound below the child's optimum");
+            const double slack=(c.lower_bound-bounds[size_t(p-1)])/std::max(1.0,c.lower_bound);
+            worst=std::max(worst,slack);close+=slack<1e-2;++checked;
+        }
+    }
+    std::cout<<"Disk cycle: "<<checked<<" insertion bounds valid ("<<close<<" within 1% of the child's bound, worst "<<worst<<")."<<std::endl;
+}
 void warm_and_cutoff() {
     std::mt19937 rng(7);
     std::uniform_real_distribution<double> unit(0,1);
@@ -121,6 +148,7 @@ int main() {
     known_optima();
     sandwich();
     construction_matches_barrier();
+    insertion_bounds();
     warm_and_cutoff();
     std::cout<<"Disk cycle tests passed.\n";
 }

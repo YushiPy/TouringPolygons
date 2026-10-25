@@ -601,4 +601,69 @@ DiskCycleResult tpp_convex_solve_cycle_disks(const std::vector<ConvexDisk> &disk
         result.lower_bound>=options.lower_bound_cutoff?DiskCycleStatus::CertifiedBound:DiskCycleStatus::Limit;
     return result;
 }
+Vector2 tpp_convex_disk_detour_point(Vector2 a,Vector2 b,const ConvexDisk &disk) {
+    return alhazen(a,b,disk).point;
+}
+
+std::vector<double> tpp_convex_disk_insertion_bounds(const std::vector<ConvexDisk> &disks,
+        const std::vector<Vector2> &contacts,const ConvexDisk &inserted) {
+    const size_t k=disks.size();
+    if(!k||contacts.size()!=k||!inserted.center.is_finite()||!(inserted.radius>=0))return {};
+    for(size_t i=0;i<k;++i)if(!contacts[i].is_finite()||!disks[i].center.is_finite()||!(disks[i].radius>=0))return {};
+    if(!detail::cycle_interval_environment())return {};
+    Vector2 r{};for(const auto &d:disks)r+=d.center/double(k);
+    auto direction=[](Vector2 from,Vector2 to)->Vector2 {
+        const Vector2 v=to-from;const double n=std::sqrt(v.dot(v));
+        return n>0?unit_disk(v/n):Vector2{};
+    };
+    // Each link's direction; a zero link (coincident contacts) keeps the last
+    // nonzero direction before it, or the corner split when two circles meet
+    // there (as in type_duals).
+    std::vector<Vector2> u(k);
+    std::vector<bool> zero(k,false);
+    for(size_t l=0;l<k;++l){u[l]=direction(contacts[l],contacts[(l+1)%k]);zero[l]=u[l].x==0&&u[l].y==0;}
+    if(k>=3)for(size_t l=0;l<k;++l) {
+        if(!zero[l])continue;
+        size_t before=(l+k-1)%k,after=(l+1)%k;
+        while(zero[before]&&before!=l)before=(before+k-1)%k;
+        while(zero[after]&&after!=l)after=(after+1)%k;
+        if(zero[before]||zero[after])continue;
+        const Vector2 in=u[before],out=u[after];
+        u[l]=in;
+        const size_t i=l,j=(l+1)%k;
+        if(!(disks[i].radius>0&&disks[j].radius>0))continue;
+        const Vector2 ni=(contacts[i]-disks[i].center)/disks[i].radius,nj=(contacts[j]-disks[j].center)/disks[j].radius;
+        const double det=ni.x*nj.y-ni.y*nj.x;
+        if(!(std::abs(det)>1e-12)||!(std::abs(ni.dot(ni)-1)<1e-6)||!(std::abs(nj.dot(nj)-1)<1e-6))continue;
+        const Vector2 w=out-in;
+        const double li=(w.x*nj.y-w.y*nj.x)/det,lj=(ni.x*w.y-ni.y*w.x)/det;
+        if(li>=0&&lj>=0)u[l]=unit_disk(in+ni*li);
+    }
+    auto support=[&](const ConvexDisk &d,Vector2 in,Vector2 out) {
+        const auto wx=CycleInterval(in.x)-CycleInterval(out.x),wy=CycleInterval(in.y)-CycleInterval(out.y);
+        return (CycleInterval(d.center.x)-CycleInterval(r.x))*wx+(CycleInterval(d.center.y)-CycleInterval(r.y))*wy-
+               CycleInterval(d.radius)*(wx.square()+wy.square()).sqrt();
+    };
+    std::vector<double> out(k,0.0);
+    if(k==1) {
+        const Vector2 q=alhazen(contacts[0],contacts[0],inserted).point;
+        const Vector2 there=direction(contacts[0],q),back=direction(q,contacts[0]);
+        const auto bound=support(disks[0],back,there)+support(inserted,there,back);
+        out[0]=std::isfinite(bound.lo)?std::max(0.0,bound.lo):0.0;
+        return out;
+    }
+    std::vector<CycleInterval> term(k);
+    CycleInterval total{};
+    for(size_t i=0;i<k;++i){term[i]=support(disks[i],u[(i+k-1)%k],u[i]);total=total+term[i];}
+    for(size_t p=1;p<=k;++p) {
+        const size_t a=p-1,b=p%k;
+        const Vector2 q=alhazen(contacts[a],contacts[b],inserted).point;
+        Vector2 to=direction(contacts[a],q),from=direction(q,contacts[b]);
+        if(to.x==0&&to.y==0)to=u[a];
+        if(from.x==0&&from.y==0)from=u[a];
+        const auto bound=total-term[a]-term[b]+support(disks[a],u[(a+k-1)%k],to)+support(inserted,to,from)+support(disks[b],from,u[b]);
+        out[p-1]=std::isfinite(bound.lo)?std::max(0.0,bound.lo):0.0;
+    }
+    return out;
+}
 } // namespace tpp

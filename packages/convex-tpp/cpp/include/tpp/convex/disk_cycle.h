@@ -53,4 +53,21 @@ struct DiskCycleResult {
 // L <= OPT <= U always holds; contacts are never exact optima.
 DiskCycleResult tpp_convex_solve_cycle_disks(const std::vector<ConvexDisk> &disks,
     const DiskCycleOptions &options = {});
+
+// The point of the disk minimizing |x-a|+|x-b| (Alhazen's problem): the foot
+// of the center on ab if the segment meets the disk, else the reflection
+// point on its circle. A proposal in binary64, not a proved point.
+Vector2 tpp_convex_disk_detour_point(Vector2 a, Vector2 b, const ConvexDisk &disk);
+
+// Lower bounds on the shortest cycle through `disks` (k >= 1) with `inserted`
+// added at position p = 1..k, between disks[p-1] and disks[p mod k]; entry
+// p-1 is position p. Weak duality as in tpp_convex_solve_cycle_disks, with
+// directed rounding: the link directions of the cycle through `contacts`
+// (one per disk), and for the inserted disk the directions to and from its
+// detour point between the two neighbouring contacts. Only three support
+// terms change per position, so all k bounds cost O(k). Valid for any
+// contacts; close to the child's optimum when the parent's contacts are
+// optimal and the insertion leaves them in place. Empty on invalid input.
+std::vector<double> tpp_convex_disk_insertion_bounds(const std::vector<ConvexDisk> &disks,
+    const std::vector<Vector2> &contacts, const ConvexDisk &inserted);
 } // namespace tpp

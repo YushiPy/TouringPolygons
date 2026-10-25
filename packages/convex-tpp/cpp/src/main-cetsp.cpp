@@ -11,14 +11,22 @@
 // evaluated by the oracle, whose U bounds a feasible tour when its cycle meets
 // every disk.
 //
-// usage: tpp-convex-cetsp INSTANCE.txt [SECONDS] [RELATIVE_GAP] [TOUR.json|-] [STRONG] [HEURISTIC_SECONDS]
+// usage: tpp-convex-cetsp INSTANCE.txt [SECONDS] [RELATIVE_GAP] [TOUR.json|-]
+//        [--strong K] [--heuristic SECONDS] [--mode eager|screen|lazy]
 // One JSON line on stdout; TOUR.json, if given, receives the best tour
-// (sequence and contacts) for an independent check. STRONG (default 1) is
-// the number of branching candidates.
+// (sequence and contacts) for an independent check. --strong (default 1) is
+// the number of branching candidates; --heuristic the initial tour's budget
+// (default 5% of the time); --mode how children are bounded (default lazy);
+// --seed the iterated local search's; --threads the workers (independent
+// iterated local searches, then nodes expanded in parallel).
 #include "tpp_convex.h"
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <atomic>
+#include <barrier>
+#include <deque>
+#include <thread>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
@@ -71,33 +79,44 @@ std::vector<double> excess(const Disks &disks,const std::vector<int> &sequence,c
 }
 constexpr double kCovered=-1e-9; // relative to the radius scale; conservative
 
-// The search tree keeps 8 bytes a node: its parent and the insertion that
-// made it. A node's sequence is rebuilt from the root, and its cycle solved
-// again, when it is expanded; open nodes wait in the queue with their bound.
+// The search keeps 16 bytes a node: in the tree, its parent and the insertion
+// that made it; in the queue, its bound (in single precision, rounded down,
+// so still a lower bound) and its index. When a node is expanded its
+// sequence is rebuilt from the root, each disk entering at its detour point
+// between its neighbours there, and its cycle is solved again, warm from
+// those points.
 struct Entry {std::uint32_t parent;std::uint16_t position,disk;};
-struct Open {double lower;std::uint32_t id;};
+struct Open {float lower;std::uint32_t id;};
+float rounded_down(double x) {
+    float f=float(x);
+    if(double(f)>x)f=std::nextafter(f,-INFINITY);
+    return f;
+}
 struct ByBound {bool operator()(const Open &a,const Open &b) const {return a.lower>b.lower;}};
 
 struct Solver {
     const Disks &all;double gap;double deadline;Clock::time_point began;size_t strong=1;
+    // Children: all solved when created (eager), screened by insertion bounds
+    // first (screen), or queued with those bounds and solved when expanded (lazy).
+    enum class Mode {Eager,Screen,Lazy} mode=Mode::Lazy;
+    size_t ils_iterations=0;
+    unsigned seed=20261026; // of the iterated local search
+    size_t threads=1; // expanding nodes in parallel
     double upper=INFINITY;std::vector<int> best_sequence;std::vector<Vector2> best_cycle;
-    size_t oracle_calls=0,nodes=0,newton=0,constructed=0,improvements=0;double oracle_seconds=0,heuristic_seconds=0;
+    struct Counters {size_t oracle_calls=0,newton=0,constructed=0,screened=0;double oracle_seconds=0;};
+    Counters counted; // the main thread's; workers keep their own and add them after each batch
+    size_t nodes=0,improvements=0;double heuristic_seconds=0;
     double elapsed() const {return std::chrono::duration<double>(Clock::now()-began).count();}
-    tpp::DiskCycleResult oracle(const std::vector<int> &sequence,const std::vector<Vector2> &warm,double cutoff) {
+    tpp::DiskCycleResult oracle(const std::vector<int> &sequence,const std::vector<Vector2> &warm,double cutoff,Counters &c,double bound) const {
         Disks d;for(int i:sequence)d.push_back(all[size_t(i)]);
-        tpp::DiskCycleOptions o;o.max_gap=std::isfinite(upper)?0.25*gap*upper:1e-9;o.lower_bound_cutoff=cutoff;
+        tpp::DiskCycleOptions o;o.max_gap=std::isfinite(bound)?0.25*gap*bound:1e-9;o.lower_bound_cutoff=cutoff;
         if(warm.size()==d.size())o.initial_contacts=warm;
         const auto t0=Clock::now();const auto r=tpp::tpp_convex_solve_cycle_disks(d,o);
-        oracle_seconds+=std::chrono::duration<double>(Clock::now()-t0).count();++oracle_calls;newton+=r.newton_iterations;constructed+=r.construction_closed;
+        c.oracle_seconds+=std::chrono::duration<double>(Clock::now()-t0).count();++c.oracle_calls;c.newton+=r.newton_iterations;c.constructed+=r.construction_closed;
         return r;
     }
-    // A feasible tour if the cycle meets every disk; returns the uncovered disk farthest from it, or -1.
-    int consider(const std::vector<int> &sequence,const tpp::DiskCycleResult &r) {
-        const auto ex=excess(all,sequence,r.contacts);
-        int far=-1;double worst=0;
-        for(size_t j=0;j<all.size();++j)if(ex[j]>kCovered*std::max(1.0,all[j].radius)&&ex[j]>worst-1e300){if(far<0||ex[j]>worst){far=int(j);worst=ex[j];}}
-        if(far<0&&r.upper_bound<upper){upper=r.upper_bound;best_sequence=sequence;best_cycle=r.contacts;}
-        return far;
+    tpp::DiskCycleResult oracle(const std::vector<int> &sequence,const std::vector<Vector2> &warm,double cutoff) {
+        return oracle(sequence,warm,cutoff,counted,upper);
     }
     // Warm contacts for a child: the parent's, and for the inserted disk the
     // point of it closest to the parent's link it splits.
@@ -119,8 +138,8 @@ struct Solver {
         return true;
     }
     // The sequence's cycle (warm from `warm` if it fits), as a tour if it covers every disk.
-    Tour evaluate(const std::vector<int> &sequence,const std::vector<Vector2> &warm) {
-        const auto r=oracle(sequence,warm,INFINITY);
+    Tour evaluate(const std::vector<int> &sequence,const std::vector<Vector2> &warm,Counters *c=nullptr) {
+        const auto r=c?oracle(sequence,warm,INFINITY,*c,upper):oracle(sequence,warm,INFINITY);
         Tour t{sequence,r.contacts,INFINITY};
         if(covers(sequence,r.contacts))t.length=r.upper_bound;
         return t;
@@ -230,88 +249,146 @@ struct Solver {
         return full;
     }
     // Local search on a full order: 2-opt and Or-opt (blocks of 1 to 3, either
-    // way round) toward each disk's nearest disks, screened with the contacts
-    // fixed; a move that shortens the fixed-contact cycle is applied and its
-    // contacts re-optimized by the oracle (warm), which can only shorten it.
-    // With `exact` false the contacts stay fixed (a tour of fixed points).
-    Tour full_search(Tour t,double until,bool exact=true) {
+    // way round) toward each disk's nearest disks, with the other contacts
+    // fixed. A moved block's contacts are placed again by one Alhazen pass
+    // between its new neighbours, so a disk moved to where the cycle already
+    // crosses it costs nothing. A move is applied when it shortens the cycle
+    // through the contacts, which stays feasible. Only disks near a change
+    // are examined again (a work queue, like don't-look bits in TSP local
+    // search); `seeds` start it, all disks if empty. At a local optimum the
+    // contacts are swept (detour points), then re-optimized and certified by
+    // the oracle; the search resumes while either shortens the cycle. With
+    // `exact` false the contacts stay fixed (a tour of fixed points).
+    Tour full_search(Tour t,double until,bool exact=true,const std::vector<int> &seeds={},Counters *counters=nullptr) {
         if(nearest.empty())prepare_neighbours();
         const size_t n=t.sequence.size();
-        if(n<5)return t;
-        std::vector<long> at(all.size());
+        if(n<5)return exact?evaluate(t.sequence,t.cycle,counters):t;
+        std::vector<long> at(all.size(),-1);
+        auto index=[&]{for(size_t i=0;i<n;++i)at[size_t(t.sequence[i])]=long(i);};
         auto d=[&](size_t i,size_t j){const Vector2 v=t.cycle[i%n]-t.cycle[j%n];return std::sqrt(v.dot(v));};
         auto fixed=[&](const std::vector<Vector2> &w){double s=0;for(size_t i=0;i<n;++i){const Vector2 v=w[(i+1)%n]-w[i];s+=std::sqrt(v.dot(v));}return s;};
-        auto apply=[&](std::vector<int> s,std::vector<Vector2> w) {
-            const Tour c=exact?evaluate(s,w):Tour{s,w,fixed(w)};
-            if(c.length<t.length*(1-1e-12)){t=c;return true;}
-            return false;
+        std::vector<char> queued(all.size(),0);std::deque<int> work;
+        auto wake=[&](int disk){if(!queued[size_t(disk)]){queued[size_t(disk)]=1;work.push_back(disk);}};
+        auto wake_at=[&](long position){wake(t.sequence[size_t((position%long(n)+long(n))%long(n))]);};
+        auto wake_all=[&]{for(size_t i=0;i<n;++i)wake(t.sequence[i]);};
+        // One Gauss-Seidel pass of detour points (the depot stays).
+        auto sweep=[&] {
+            for(size_t i=1;i<n;++i)t.cycle[i]=tpp::tpp_convex_disk_detour_point(t.cycle[i-1],t.cycle[(i+1)%n],all[size_t(t.sequence[i])]);
+            t.length=fixed(t.cycle);
         };
-        if(!exact)t.length=fixed(t.cycle);
-        for(bool improved=true;improved&&elapsed()<until;) {
-            improved=false;
-            for(size_t i=0;i<n;++i)at[size_t(t.sequence[i])]=long(i);
-            const double eps=1e-12*t.length;
-            // 2-opt: links (i,i+1) and (j,j+1) become (i,j) and (i+1,j+1).
-            for(size_t i=0;i+1<n&&!improved;++i)for(const int nb:nearest[size_t(t.sequence[i])]) {
-                size_t j=size_t(at[size_t(nb)]);
-                size_t lo=std::min(i,j),hi=std::max(i,j);
-                if(hi<=lo+1)continue;
+        std::vector<Vector2> placed;
+        // The block's contacts between positions `before` and `after`, and the
+        // cost of putting it there instead of the link between them.
+        auto place=[&](size_t b,size_t e,size_t before,size_t after,bool flip) {
+            placed.clear();
+            Vector2 from=t.cycle[before%n];
+            for(size_t q=0;q<=e-b;++q) {
+                const size_t i=flip?e-q:b+q;
+                from=tpp::tpp_convex_disk_detour_point(from,t.cycle[after%n],all[size_t(t.sequence[i])]);
+                placed.push_back(from);
+            }
+            double cost=0;Vector2 prev=t.cycle[before%n];
+            for(const auto &q:placed){const Vector2 v=q-prev;cost+=std::sqrt(v.dot(v));prev=q;}
+            const Vector2 v=t.cycle[after%n]-prev;cost+=std::sqrt(v.dot(v));
+            return cost-d(before,after);
+        };
+        // 2-opt with links (p, p+1) and (j, j+1), j a position of a nearest disk.
+        auto two_opt=[&](size_t p,double eps) {
+            for(const int nb:nearest[size_t(t.sequence[p])]) {
+                const size_t j=size_t(at[size_t(nb)]);
+                const size_t lo=std::min(p,j),hi=std::max(p,j);
+                if(hi<=lo+1||hi+1>n)continue;
                 const double delta=d(lo,hi)+d(lo+1,hi+1)-d(lo,lo+1)-d(hi,hi+1);
                 if(!(delta<-eps))continue;
-                auto s=t.sequence;auto w=t.cycle;
-                std::reverse(s.begin()+long(lo)+1,s.begin()+long(hi)+1);std::reverse(w.begin()+long(lo)+1,w.begin()+long(hi)+1);
-                if(apply(s,w)){improved=true;break;}
+                std::reverse(t.sequence.begin()+long(lo)+1,t.sequence.begin()+long(hi)+1);
+                std::reverse(t.cycle.begin()+long(lo)+1,t.cycle.begin()+long(hi)+1);
+                t.length+=delta;index();
+                for(const long q:{long(lo),long(lo)+1,long(hi),long(hi)+1})wake_at(q);
+                return true;
             }
-            // Or-opt: the block [b, e] (not the depot) between j and j+1.
-            for(size_t len=1;len<=3&&!improved;++len)for(size_t b=1;b+len-1<n&&!improved&&elapsed()<until;++b) {
-                const size_t e=b+len-1;
-                const double removal=d(b-1,b)+d(e,e+1)-d(b-1,e+1);
-                for(const int nb:nearest[size_t(t.sequence[b])]) {
-                    const size_t j=size_t(at[size_t(nb)]);
-                    for(const size_t at_j:{j,(j+n-1)%n}) { // between at_j and at_j+1
-                        if(at_j+1>=b&&at_j<=e)continue;
-                        const double plain=d(at_j,b)+d(e,at_j+1)-d(at_j,at_j+1);
-                        const double flipped=d(at_j,e)+d(b,at_j+1)-d(at_j,at_j+1);
-                        const bool flip=flipped<plain;
-                        if(!(std::min(plain,flipped)-removal<-eps))continue;
-                        std::vector<int> block(t.sequence.begin()+long(b),t.sequence.begin()+long(e)+1);
-                        std::vector<Vector2> wb(t.cycle.begin()+long(b),t.cycle.begin()+long(e)+1);
-                        if(flip){std::reverse(block.begin(),block.end());std::reverse(wb.begin(),wb.end());}
-                        auto s=t.sequence;auto w=t.cycle;
-                        s.erase(s.begin()+long(b),s.begin()+long(e)+1);w.erase(w.begin()+long(b),w.begin()+long(e)+1);
+            return false;
+        };
+        // Or-opt of the block [b, e] (not the depot) next to a nearest disk.
+        auto or_opt=[&](size_t b,size_t e,double eps) {
+            if(b<1||e>=n||e<b)return false;
+            const size_t len=e-b+1;
+            double removal=d(b-1,b)+d(e,e+1)-d(b-1,e+1);
+            for(size_t i=b;i<e;++i)removal+=d(i,i+1);
+            for(const int nb:nearest[size_t(t.sequence[b])]) {
+                const size_t j=size_t(at[size_t(nb)]);
+                for(const size_t at_j:{j,(j+n-1)%n}) { // between at_j and at_j+1
+                    if(at_j+1>=b&&at_j<=e)continue;
+                    for(const bool flip:{false,true}) {
+                        const double delta=place(b,e,at_j,at_j+1,flip)-removal;
+                        if(!(delta<-eps))continue;
+                        std::vector<int> block;
+                        for(size_t q=0;q<len;++q)block.push_back(t.sequence[flip?e-q:b+q]);
+                        const int left=t.sequence[b-1],right=t.sequence[(e+1)%n];
+                        t.sequence.erase(t.sequence.begin()+long(b),t.sequence.begin()+long(e)+1);
+                        t.cycle.erase(t.cycle.begin()+long(b),t.cycle.begin()+long(e)+1);
                         const size_t to=at_j<b?at_j+1:at_j+1-len;
-                        s.insert(s.begin()+long(to),block.begin(),block.end());w.insert(w.begin()+long(to),wb.begin(),wb.end());
-                        if(apply(s,w)){improved=true;break;}
+                        t.sequence.insert(t.sequence.begin()+long(to),block.begin(),block.end());
+                        t.cycle.insert(t.cycle.begin()+long(to),placed.begin(),placed.end());
+                        t.length+=delta;index();
+                        wake(left);wake(right);
+                        for(const long q:{long(to)-1,long(to),long(to+len)-1,long(to+len)})wake_at(q);
+                        return true;
                     }
-                    if(improved)break;
                 }
             }
+            return false;
+        };
+        t.length=fixed(t.cycle);index();
+        if(seeds.empty())wake_all();else for(const int disk:seeds)if(at[size_t(disk)]>=0)wake(disk);
+        for(;;) {
+            while(!work.empty()&&elapsed()<until) {
+                const int disk=work.front();work.pop_front();queued[size_t(disk)]=0;
+                const size_t i=size_t(at[size_t(disk)]);
+                const double eps=1e-12*t.length;
+                bool moved=two_opt(i,eps)||(i>0&&two_opt(i-1,eps));
+                for(size_t len=1;len<=3&&!moved;++len)moved=or_opt(i,i+len-1,eps)||(i+1>=len&&or_opt(i+1-len,i,eps));
+                if(moved)wake(disk);
+            }
+            if(!exact)return t;
+            // No move left with these contacts: sweep them, and search again
+            // if that shortened the cycle noticeably (sweeps converge slowly);
+            // else the oracle's contacts, certified.
+            const double before=t.length;
+            sweep();
+            if(t.length<before*(1-1e-7)&&elapsed()<until){wake_all();continue;}
+            const Tour c=evaluate(t.sequence,t.cycle,counters);
+            const bool shorter=c.length<t.length*(1-1e-9);
+            t=c;
+            if(!shorter||elapsed()>=until)return t;
+            t.length=fixed(t.cycle);wake_all();
         }
-        return t;
     }
-    // Iterated local search on full orders: a random double bridge, then the
-    // search; a tour within eta of the best is accepted, eta falling from 1%
-    // by 5% every 10 iterations without a new best and reset below 1e-4.
-    // It stops after max(4 per disk, 1000) iterations without a new best.
-    Tour full_ils(Tour best,double until) {
-        std::mt19937 rng(20261026);
-        Tour current=best=full_search(best,until);offer(best);
+    // Iterated local search on full orders: swap two adjacent segments of
+    // up to 50 disks each (a local double bridge), search again from the
+    // disks around the cuts; a tour within eta of the best is accepted, eta
+    // falling from 1% by 5% every 10 iterations without a new best and reset
+    // below 1e-4. It stops after max(4 per disk, 200) iterations without a
+    // new best.
+    // Thread-safe given its own counters: it offers nothing; the caller does.
+    Tour full_ils(Tour best,double until,unsigned seed,Counters &counters,size_t &iterations) {
+        std::mt19937 rng(seed);
+        Tour current=best=full_search(best,until,true,{},&counters);
         double eta=0.01;size_t stale=0;
         const size_t n=best.sequence.size();
         while(n>=8&&elapsed()<until) {
-            size_t cut[3];
-            for(auto &c:cut)c=1+rng()%(n-1);
-            std::sort(cut,cut+3);
-            if(cut[0]==cut[1]||cut[1]==cut[2])continue;
+            const size_t first=1+rng()%(n-1),one=1+rng()%std::min<size_t>(50,n/3),two=1+rng()%std::min<size_t>(50,n/3);
+            if(first+one+two>n)continue;
             auto s=current.sequence;auto w=current.cycle;
-            std::rotate(s.begin()+long(cut[0]),s.begin()+long(cut[1]),s.begin()+long(cut[2]));
-            std::rotate(w.begin()+long(cut[0]),w.begin()+long(cut[1]),w.begin()+long(cut[2]));
-            Tour c=evaluate(s,w);
+            std::rotate(s.begin()+long(first),s.begin()+long(first+one),s.begin()+long(first+one+two));
+            std::rotate(w.begin()+long(first),w.begin()+long(first+one),w.begin()+long(first+one+two));
+            std::vector<int> seeds;
+            for(const size_t q:{first-1,first,first+two-1,first+two,first+one+two-1,first+one+two})seeds.push_back(s[q%n]);
+            Tour c=full_search(Tour{s,w,INFINITY},until,true,seeds,&counters);
+            ++iterations;
             if(!std::isfinite(c.length))continue;
-            c=full_search(c,until);
-            if(c.length<best.length*(1-1e-12)){best=c;offer(best);stale=0;}
+            if(c.length<best.length*(1-1e-12)){best=c;stale=0;}
             else if(++stale%10==0)eta*=0.95;
-            if(stale>=std::max<size_t>(4*n,1000))break;
+            if(stale>=std::max<size_t>(4*n,200))break;
             if(c.length<best.length*(1+eta))current=c;
             if(eta<1e-4){eta=0.01;current=best;}
         }
@@ -333,84 +410,152 @@ struct Solver {
         const Tour t=full_search(Tour{order,centers,INFINITY},until,false);
         return evaluate(t.sequence,t.cycle);
     }
-    // The initial tour: the centers' tour, and (unless time runs out) cheapest
-    // insertion with local search on sequences, expanded to a full order;
-    // then iterated local search on full orders from the shorter.
+    // The initial tour: the centers' tour, and (within 30% of the budget)
+    // cheapest insertion with local search on sequences, expanded to a full
+    // order; then iterated local search on full orders from the shorter, in
+    // every thread.
     void heuristic(double budget) {
         const double until=std::min(deadline,elapsed()+budget);
         Tour start=center_tour(until);offer(start);
-        Tour t=repair({0},{all[0].center},until);
+        const double subset=std::min(until,elapsed()+0.3*budget); // sequences: at most 30%
+        Tour t=repair({0},{all[0].center},subset);
         if(std::isfinite(t.length)) {
-            t=local_search(t,until);offer(t);
+            t=local_search(t,subset);offer(t);
             if(t.length<start.length)start=expand(t);
         }
-        if(std::isfinite(start.length))full_ils(start,until);
+        if(!std::isfinite(start.length))return;
+        // Independent iterated local searches, one per thread (seeds
+        // seed, seed+1, ...), from the same start; the shortest is kept.
+        if(nearest.empty())prepare_neighbours();
+        std::vector<Tour> found(threads);std::vector<Counters> work(threads);std::vector<size_t> iterations(threads,0);
+        std::vector<std::thread> pool;
+        for(size_t t=1;t<threads;++t)pool.emplace_back([&,t]{found[t]=full_ils(start,until,seed+unsigned(t),work[t],iterations[t]);});
+        found[0]=full_ils(start,until,seed,work[0],iterations[0]);
+        for(auto &t:pool)t.join();
+        for(size_t t=0;t<threads;++t) {
+            offer(found[t]);ils_iterations+=iterations[t];
+            counted.oracle_calls+=work[t].oracle_calls;counted.newton+=work[t].newton;
+            counted.constructed+=work[t].constructed;counted.oracle_seconds+=work[t].oracle_seconds;
+        }
     }
     std::vector<Entry> tree;
-    std::vector<int> sequence_of(std::uint32_t id) const {
+    std::vector<int> sequence_of(std::uint32_t id,std::vector<Vector2> &warm) const {
         std::vector<Entry> path;
         for(std::uint32_t at=id;at!=0;at=tree[at].parent)path.push_back(tree[at]);
-        std::vector<int> sequence{0};
-        for(auto it=path.rbegin();it!=path.rend();++it)sequence.insert(sequence.begin()+it->position,int(it->disk));
+        std::vector<int> sequence{0};warm.assign(1,all[0].center);
+        for(auto it=path.rbegin();it!=path.rend();++it) {
+            const size_t p=it->position,k=warm.size();
+            const Vector2 point=tpp::tpp_convex_disk_detour_point(warm[p-1],warm[p%k],all[it->disk]);
+            sequence.insert(sequence.begin()+long(p),int(it->disk));
+            warm.insert(warm.begin()+long(p),point);
+        }
         return sequence;
+    }
+    // One node's expansion, independent of the others in its batch: its
+    // cycle solved again, then its children (bounds by insertion, or solved)
+    // and the feasible tours met on the way. `cutoff` is the batch's.
+    struct Child {double lower;std::uint16_t position;};
+    struct Expansion {
+        std::uint32_t id=0;double bound=0;
+        bool pruned=false;double floor=INFINITY;int branched=-1;
+        std::vector<Child> children;
+        std::vector<Tour> tours; // feasible, to offer
+        Counters counted;
+    };
+    void expand(Expansion &x,double cutoff,double incumbent) const {
+        std::vector<Vector2> warm;
+        const auto sequence=sequence_of(x.id,warm);
+        const auto r=oracle(sequence,warm,INFINITY,x.counted,incumbent);
+        const double lower=std::max(x.bound,r.lower_bound);
+        if(lower>=cutoff){x.pruned=true;return;}
+        const auto ex=excess(all,sequence,r.contacts);
+        std::vector<int> uncovered;
+        for(size_t j=1;j<all.size();++j)if(ex[j]>kCovered*std::max(1.0,all[j].radius))uncovered.push_back(int(j));
+        // Feasible: no refinement beats OPT(sequence) >= its L. If the oracle
+        // left a gap there, that L still bounds the optimum.
+        if(uncovered.empty()){x.tours.push_back({sequence,r.contacts,r.upper_bound});x.floor=lower;return;}
+        // Branch on the farthest uncovered disk, or (strong branching) on
+        // the one of the `strong` farthest whose weakest child is strongest;
+        // every candidate's children bound the node.
+        const size_t candidates=std::min(strong,uncovered.size());
+        std::partial_sort(uncovered.begin(),uncovered.begin()+long(candidates),uncovered.end(),[&](int a,int b){return ex[size_t(a)]>ex[size_t(b)];});
+        const size_t k=sequence.size();
+        // With the depot first, [0 a ... ] and its reverse are the same cycle:
+        // inserting the second disk keeps one orientation only.
+        const size_t last=k==2?1:k;
+        double strongest=-INFINITY;
+        std::vector<Child> children;std::vector<Tour> tours;double floor=INFINITY;
+        Disks here;for(int i:sequence)here.push_back(all[size_t(i)]);
+        for(size_t q=0;q<candidates;++q) {
+            const int far=uncovered[q];
+            children.clear();tours.clear();floor=INFINITY;double weakest=INFINITY;
+            // Every position's insertion bound first (O(k) for all): a child
+            // it prunes costs no oracle call; lazily, the others wait in the
+            // queue with it and are solved when expanded.
+            std::vector<double> inserted;
+            if(mode!=Mode::Eager)inserted=tpp::tpp_convex_disk_insertion_bounds(here,r.contacts,all[size_t(far)]);
+            for(size_t p=1;p<=last;++p) {
+                double bound=std::max(lower,inserted.empty()?0.0:inserted[p-1]);
+                if(bound>=cutoff){++x.counted.screened;continue;}
+                if(mode==Mode::Lazy){weakest=std::min(weakest,bound);children.push_back({bound,std::uint16_t(p)});continue;}
+                auto child=sequence;child.insert(child.begin()+long(p),far);
+                const auto c=oracle(child,child_warm(r.contacts,p,all[size_t(far)]),cutoff,x.counted,incumbent);
+                bound=std::max(bound,c.lower_bound);
+                if(bound>=cutoff)continue;
+                weakest=std::min(weakest,bound);
+                // A feasible child needs no node: its subtree is its own sequence.
+                if(covers(child,c.contacts)){tours.push_back({child,c.contacts,c.upper_bound});floor=std::min(floor,bound);continue;}
+                children.push_back({bound,std::uint16_t(p)});
+            }
+            if(weakest>strongest){strongest=weakest;x.children.swap(children);x.tours.swap(tours);x.floor=floor;x.branched=far;}
+            if(x.children.empty()&&x.tours.empty())break; // every child pruned: so is the node
+        }
     }
     double run(double budget) {
         heuristic(budget);heuristic_seconds=elapsed();
         tree.assign(1,Entry{0,0,0});
         std::priority_queue<Open,std::vector<Open>,ByBound> queue;
-        queue.push({0.0,0});
+        queue.push({0.0f,0});
         double global=0,feasible_floor=INFINITY;
-        struct Child {double lower;std::uint16_t position;bool feasible;};
-        std::vector<Child> chosen,children;
+        // A batch of the best open nodes (4 per worker, so that uneven
+        // expansions balance) is expanded by `threads` workers; its results
+        // are merged in order by this thread.
+        std::vector<Expansion> batch;
+        std::atomic<size_t> next{0};
+        double cutoff=0,incumbent=0;
+        auto work=[&]{for(size_t i;(i=next.fetch_add(1))<batch.size();)expand(batch[i],cutoff,incumbent);};
+        std::barrier<> start{std::ptrdiff_t(threads)},done{std::ptrdiff_t(threads)};
+        std::atomic<bool> stop{false};
+        std::vector<std::thread> pool;
+        for(size_t t=1;t<threads;++t)pool.emplace_back([&]{for(;;){start.arrive_and_wait();if(stop)return;work();done.arrive_and_wait();}});
         while(!queue.empty()) {
-            if(elapsed()>deadline){global=std::min(queue.top().lower,upper*(1-gap));break;}
-            const Open open=queue.top();queue.pop();
-            if(open.lower>=upper*(1-gap))continue;
-            ++nodes;
-            const auto sequence=sequence_of(open.id);
-            const auto r=oracle(sequence,{},INFINITY);
-            const double lower=std::max(open.lower,r.lower_bound);
-            if(lower>=upper*(1-gap))continue;
-            const auto ex=excess(all,sequence,r.contacts);
-            std::vector<int> uncovered;
-            for(size_t j=1;j<all.size();++j)if(ex[j]>kCovered*std::max(1.0,all[j].radius))uncovered.push_back(int(j));
-            // Feasible: no refinement beats OPT(sequence) >= its L. If the
-            // oracle left a gap there, that L still bounds the optimum.
-            if(uncovered.empty()){consider(sequence,r);feasible_floor=std::min(feasible_floor,lower);continue;}
-            // Branch on the farthest uncovered disk, or (strong branching) on
-            // the one of the `strong` farthest whose weakest child is
-            // strongest; every candidate's children bound the node.
-            const size_t candidates=std::min(strong,uncovered.size());
-            std::partial_sort(uncovered.begin(),uncovered.begin()+long(candidates),uncovered.end(),[&](int a,int b){return ex[size_t(a)]>ex[size_t(b)];});
-            const size_t k=sequence.size();
-            // With the depot first, [0 a ... ] and its reverse are the same cycle:
-            // inserting the second disk keeps one orientation only.
-            const size_t last=k==2?1:k;
-            double strongest=-INFINITY;int branched=-1;chosen.clear();
-            for(size_t q=0;q<candidates;++q) {
-                const int far=uncovered[q];
-                children.clear();double weakest=INFINITY;
-                for(size_t p=1;p<=last;++p) {
-                    auto child=sequence;child.insert(child.begin()+long(p),far);
-                    const auto c=oracle(child,child_warm(r.contacts,p,all[size_t(far)]),upper*(1-gap));
-                    if(c.lower_bound>=upper*(1-gap))continue;
-                    const bool feasible=consider(child,c)<0;
-                    const double bound=std::max(lower,c.lower_bound);
-                    if(bound>=upper*(1-gap))continue;
-                    weakest=std::min(weakest,bound);
-                    children.push_back({bound,std::uint16_t(p),feasible});
-                }
-                if(weakest>strongest){strongest=weakest;chosen.swap(children);branched=far;}
-                if(chosen.empty())break; // every child pruned: so is the node
+            if(elapsed()>deadline){global=std::min(double(queue.top().lower),upper*(1-gap));break;}
+            cutoff=upper*(1-gap);incumbent=upper;
+            batch.clear();
+            while(!queue.empty()&&batch.size()<(threads>1?4*threads:1)) {
+                const Open open=queue.top();queue.pop();
+                if(open.lower>=cutoff)continue;
+                Expansion x;x.id=open.id;x.bound=open.lower;batch.push_back(std::move(x));
             }
-            // A feasible child needs no node: its subtree is its own sequence.
-            for(const auto &child:chosen) {
-                if(child.lower>=upper*(1-gap))continue;
-                if(child.feasible){feasible_floor=std::min(feasible_floor,child.lower);continue;}
-                tree.push_back({open.id,child.position,std::uint16_t(branched)});
-                queue.push({child.lower,std::uint32_t(tree.size()-1)});
+            if(batch.empty())continue;
+            next=0;
+            if(threads>1){start.arrive_and_wait();work();done.arrive_and_wait();}
+            else work();
+            for(auto &x:batch) {
+                ++nodes;
+                counted.oracle_calls+=x.counted.oracle_calls;counted.newton+=x.counted.newton;counted.constructed+=x.counted.constructed;
+                counted.screened+=x.counted.screened;counted.oracle_seconds+=x.counted.oracle_seconds;
+                for(const auto &t:x.tours)if(t.length<upper){upper=t.length;best_sequence=t.sequence;best_cycle=t.cycle;}
+                feasible_floor=std::min(feasible_floor,x.floor);
+                if(x.pruned)continue;
+                for(const auto &child:x.children) {
+                    if(child.lower>=upper*(1-gap))continue;
+                    tree.push_back({x.id,child.position,std::uint16_t(x.branched)});
+                    queue.push({rounded_down(child.lower),std::uint32_t(tree.size()-1)});
+                }
             }
         }
+        if(threads>1){stop=true;start.arrive_and_wait();for(auto &t:pool)t.join();}
         if(queue.empty())global=upper*(1-gap);
         return std::min({global,feasible_floor,upper});
     }
@@ -418,23 +563,39 @@ struct Solver {
 }
 
 int main(int argc,char **argv) {
-    if(argc<2){std::cerr<<"usage: tpp-convex-cetsp INSTANCE.txt [SECONDS] [RELATIVE_GAP] [TOUR.json|-] [STRONG] [HEURISTIC_SECONDS]\n";return 1;}
-    const auto inst=read_mennell(argv[1]);
-    const double seconds=argc>2?std::stod(argv[2]):60.0;
-    Solver s{inst.disks,argc>3?std::stod(argv[3]):1e-6,seconds,Clock::now()};
-    if(argc>5)s.strong=std::max<size_t>(1,std::stoul(argv[5]));
+    const char *usage="usage: tpp-convex-cetsp INSTANCE.txt [SECONDS] [RELATIVE_GAP] [TOUR.json|-] [--strong K] [--heuristic SECONDS] [--mode eager|screen|lazy] [--seed S] [--threads T]\n";
+    std::vector<std::string> positional;double heuristic=-1;size_t strong=1,threads=1;unsigned seed=20261026;std::string mode="lazy";
+    for(int i=1;i<argc;++i) {
+        const std::string a=argv[i];
+        if((a=="--strong"||a=="--heuristic"||a=="--mode"||a=="--seed"||a=="--threads")&&i+1<argc) {
+            const std::string v=argv[++i];
+            if(a=="--seed")seed=unsigned(std::stoul(v));
+            else if(a=="--threads")threads=std::max<size_t>(1,std::stoul(v));
+            else if(a=="--strong")strong=std::max<size_t>(1,std::stoul(v));
+            else if(a=="--heuristic")heuristic=std::stod(v);
+            else mode=v;
+        } else if(a.rfind("--",0)==0){std::cerr<<usage;return 1;}
+        else positional.push_back(a);
+    }
+    if(positional.empty()||(mode!="eager"&&mode!="screen"&&mode!="lazy")){std::cerr<<usage;return 1;}
+    const auto inst=read_mennell(positional[0].c_str());
+    const double seconds=positional.size()>1?std::stod(positional[1]):60.0;
+    Solver s{inst.disks,positional.size()>2?std::stod(positional[2]):1e-6,seconds,Clock::now()};
+    s.strong=strong;s.seed=seed;s.threads=threads;
+    s.mode=mode=="eager"?Solver::Mode::Eager:mode=="screen"?Solver::Mode::Screen:Solver::Mode::Lazy;
+    const std::string tour=positional.size()>3?positional[3]:"-";
     // The initial tour: 5% of the time unless given (its local searches
     // stop on their own when they stagnate).
-    const double lower=s.run(argc>6?std::stod(argv[6]):0.05*seconds);
-    std::cout<<std::setprecision(12)<<"{\"instance\":\""<<argv[1]<<"\",\"disks\":"<<inst.disks.size()-1
+    const double lower=s.run(heuristic>=0?heuristic:0.05*seconds);
+    std::cout<<std::setprecision(12)<<"{\"instance\":\""<<positional[0]<<"\",\"disks\":"<<inst.disks.size()-1
         <<",\"lower_bound\":"<<lower<<",\"upper_bound\":"<<s.upper<<",\"gap\":"<<(s.upper-lower)/s.upper
         <<",\"closed\":"<<(s.upper-lower<=s.gap*s.upper*1.0000001?"true":"false")
-        <<",\"seconds\":"<<s.elapsed()<<",\"heuristic_seconds\":"<<s.heuristic_seconds<<",\"heuristic_tours\":"<<s.improvements
-        <<",\"nodes\":"<<s.nodes<<",\"oracle_calls\":"<<s.oracle_calls
-        <<",\"oracle_seconds\":"<<s.oracle_seconds<<",\"newton_iterations\":"<<s.newton<<",\"construction_closed\":"<<s.constructed
-        <<",\"tree_nodes\":"<<s.tree.size()<<",\"strong\":"<<s.strong<<",\"tour_regions\":"<<s.best_sequence.size()<<"}"<<std::endl;
-    if(argc>4&&std::string(argv[4])!="-") {
-        std::ofstream out(argv[4]);out<<std::setprecision(17)<<"{\"instance\":\""<<argv[1]<<"\",\"upper_bound\":"<<s.upper<<",\"sequence\":[";
+        <<",\"seconds\":"<<s.elapsed()<<",\"heuristic_seconds\":"<<s.heuristic_seconds<<",\"heuristic_tours\":"<<s.improvements<<",\"ils_iterations\":"<<s.ils_iterations
+        <<",\"nodes\":"<<s.nodes<<",\"oracle_calls\":"<<s.counted.oracle_calls
+        <<",\"oracle_seconds\":"<<s.counted.oracle_seconds<<",\"newton_iterations\":"<<s.counted.newton<<",\"construction_closed\":"<<s.counted.constructed
+        <<",\"tree_nodes\":"<<s.tree.size()<<",\"screened\":"<<s.counted.screened<<",\"threads\":"<<s.threads<<",\"mode\":\""<<mode<<"\",\"strong\":"<<s.strong<<",\"tour_regions\":"<<s.best_sequence.size()<<"}"<<std::endl;
+    if(tour!="-") {
+        std::ofstream out(tour);out<<std::setprecision(17)<<"{\"instance\":\""<<positional[0]<<"\",\"upper_bound\":"<<s.upper<<",\"sequence\":[";
         for(size_t i=0;i<s.best_sequence.size();++i)out<<(i?",":"")<<s.best_sequence[i];
         // Contacts pulled toward their centers by 2^-40 of the radius: inside
         // the decimal disks too, which binary64 reading moves by about 1e-14.

@@ -935,28 +935,66 @@ visiting a subset can only shorten the tour.
   covered. Strong branching (several candidates, keep the one whose weakest
   child is strongest) is optional. On rotatingDiamonds3 and
   concentricCircles2 it gave weaker bounds in the same time.
-- **Memory.** Each search node stores 8 bytes: its parent and the insertion
-  that made it. On expansion the sequence is rebuilt and its cycle solved
-  again, cold. That costs about 10% of the time and cuts memory per node
-  from about 700 bytes to about 40.
+- **Insertion bounds and lazy children** (as in the TSPN's `lazy`).
+  `tpp_convex_disk_insertion_bounds` gives every position's child a weak
+  dual bound from the parent's link directions. Only three support terms
+  change per position, and a disk's support is closed form, so all k bounds
+  cost O(k). Each child enters the queue with its bound and is solved only
+  when expanded; a bound above the cutoff prunes it unsolved. On 588 random
+  insertions the bounds never exceeded the child's optimum, and 89% were
+  within 1% of its `L`.
+  - Against solving every child when created, in the same 300 s of B&B:
+    rotatingDiamonds3 reaches `L` = 371.2 instead of 360.8.
+  - chaoSingleDep closes in 299 s instead of about 1,770 s.
+  - `--mode screen` prunes with the bounds but solves the survivors at
+    once; `--mode eager` solves every child.
+- **Memory.** A node takes 16 bytes: 8 in the tree (parent and insertion)
+  and 8 in the queue. The queue keeps the bound in single precision rounded
+  down, still a lower bound. On expansion the sequence is rebuilt from the
+  root, each disk entering at its Alhazen point between its neighbours
+  there, and its cycle is solved warm from those points.
 - **Discarded feasible nodes.** A feasible child gets no node. Its `L` still
   enters the final bound, so a gap the oracle left there is not lost.
+- **Threads.** `--threads T` expands batches of 4T best nodes in parallel
+  (the oracle has no shared state) and merges them in order. Cutoffs use
+  the batch's incumbent, which only weakens pruning a little. With 8
+  threads on the Mac the B&B is about 5x faster, with the same node counts
+  on the instances measured.
 - **Initial tour.** A CETSP tour is also a tour of every disk in some order,
   one contact each: a disk the cycle crosses anyway is a straight passage at
   no cost. Steps:
   1. A tour of the centers (nearest neighbour, 2-opt and Or-opt with the
      centers fixed), its contacts solved by the oracle.
-  2. Cheapest insertion and local search on sequences, expanded to a full
-     order with the same length, if time allows and it is shorter.
-  3. Iterated local search on full orders: 2-opt and Or-opt toward each
-     disk's 10 nearest, screened with the contacts fixed; the oracle
-     re-optimizes the contacts of a move that passes; double-bridge kicks
-     with threshold acceptance.
+  2. Within 30% of the budget, cheapest insertion and local search on
+     sequences, expanded to a full order with the same length, if shorter.
+  3. Iterated local search on full orders, one per thread with its own seed.
+     - Moves: 2-opt and Or-opt (blocks of 1–3, either way round) toward
+       each disk's 10 nearest. A moved block's contacts are placed again by
+       Alhazen between its new neighbours, so moving a disk to where the
+       cycle already crosses it costs nothing (with its old contact, that
+       move looked expensive and was never made). A move applies when the
+       cycle through the contacts, always feasible, gets shorter.
+     - A work queue re-examines only disks near a change.
+     - At a local optimum the contacts are swept, then re-optimized and
+       certified by the oracle.
+     - Kicks swap two adjacent segments of up to 50 disks; acceptance uses
+       a threshold.
 
-  The budget is 5% of the time; the searches stop earlier when they stagnate.
+  The budget is 5% of the time. A search stops after max(4n, 200)
+  iterations without a new best.
 - **Independent check.** The tour can be written out and checked in exact
   rationals on the instance's decimal text: coverage of every disk, and a
   length bound with rounded-up square roots.
+- **Integration with the TSPN B&B.** Not done: it would pay only if faster.
+  The TSPN's two pieces that help disks, insertion screening and lazy
+  children, are here, in O(1) closed form.
+  - A node here costs about one oracle call (20–40 µs). A TSPN node costs
+    at least that, plus polygon machinery: decomposition, polygon visit
+    checks, rational fallbacks.
+  - On the polygonal sandwich (128-gons), the TSPN B&B also builds no
+    smaller trees: about 52 thousand nodes on rotatingDiamonds2, against
+    33 thousand here.
+  - So it could not be faster, only slower.
 
 Measurements:
 [`cetsp-native-mac-2026-10-25`](../../benchmarks/results-saved/README.md#cetsp-native-mac-2026-10-25).
