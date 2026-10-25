@@ -64,7 +64,11 @@ struct ChainNode {
     Kind kind=Kind::Free;
     Vector2 offset,edge; // Fixed: x = offset; Segment: x = offset + y.x*edge; Free: x = y
     std::vector<ChainFace> faces;
-    Vector2 y; // start, strictly inside its faces
+    // Optional disk |y - center|^2 < radius2 in y-space, for a free node, with
+    // the barrier -mu log(radius2 - |y - center|^2).
+    struct Disk {Vector2 center;double radius2;};
+    std::optional<Disk> disk;
+    Vector2 y; // start, strictly inside its faces and disk
     // Optional, for a region polished on an inner approximation: given the
     // links' descent direction g at the node, enlarges the approximation
     // toward g, rewriting `faces`; returns whether it changed. The larger
@@ -131,7 +135,9 @@ inline std::optional<ChainPolishStats> chain_interior_point(std::vector<ChainNod
     std::vector<Vector2> y(n),trial(n),x(n);
     for(size_t i=0;i<n;++i)y[i]=nodes[i].y;
     auto slack=[&](const ChainFace &f,Vector2 v){return f.normal.dot(v)-f.offset;};
+    auto disk_slack=[&](const ChainNode::Disk &d,Vector2 v){const auto r=v-d.center;return d.radius2-r.dot(r);};
     for(size_t i=0;i<n;++i)for(const auto &f:nodes[i].faces)if(!(slack(f,y[i])>0))return {};
+    for(size_t i=0;i<n;++i)if(nodes[i].disk&&!(disk_slack(*nodes[i].disk,y[i])>0))return {};
     auto objective=[&](const std::vector<Vector2> &z,double mu)->double {
         for(size_t i=0;i<n;++i)x[i]=nodes[i].point(z[i]);
         double value=0;
@@ -140,6 +146,11 @@ inline std::optional<ChainPolishStats> chain_interior_point(std::vector<ChainNod
         }
         for(size_t i=0;i<n;++i)for(const auto &f:nodes[i].faces) {
             const double s=slack(f,z[i]);
+            if(!(s>0))return INFINITY;
+            value-=mu*std::log(s);
+        }
+        for(size_t i=0;i<n;++i)if(nodes[i].disk) {
+            const double s=disk_slack(*nodes[i].disk,z[i]);
             if(!(s>0))return INFINITY;
             value-=mu*std::log(s);
         }
@@ -213,6 +224,13 @@ inline std::optional<ChainPolishStats> chain_interior_point(std::vector<ChainNod
                         gradient[p]-=f.normal*(mu/s);
                         block=block+ChainMatrix{w*f.normal.x*f.normal.x,w*f.normal.x*f.normal.y,w*f.normal.x*f.normal.y,w*f.normal.y*f.normal.y};
                     }
+                    if(node.disk) {
+                        // Gradient 2mu r/s and Hessian (2mu/s) I + (4mu/s^2) r r^T, r = y - center.
+                        const auto r=y[i]-node.disk->center;const double s=disk_slack(*node.disk,y[i]);
+                        const double a=2*mu/s,b=4*mu/(s*s);
+                        gradient[p]+=r*a;
+                        block=block+ChainMatrix{a+b*r.x*r.x,b*r.x*r.y,b*r.x*r.y,a+b*r.y*r.y};
+                    }
                     block.a+=1e-14;block.d+=1e-14;
                     if(node.kind==Kind::Segment)block.d+=1;
                     step[p]=gradient[p]*-1.0;
@@ -266,7 +284,7 @@ inline std::optional<ChainPolishStats> chain_interior_point(std::vector<ChainNod
             if(round==8||stats.iterations>=max_iterations||!refine(mu))break;
         }
         if(gap_target>0) {
-            size_t faces=0;for(const auto &node:nodes)faces+=node.faces.size();
+            size_t faces=0;for(const auto &node:nodes)faces+=node.faces.size()+(node.disk?1:0);
             mu_end=std::min(mu_end,std::max(1e-15,gap_target/double(links+faces)));
         }
         if(emit(mu)||mu<=mu_end||stats.iterations>=max_iterations)return stats;

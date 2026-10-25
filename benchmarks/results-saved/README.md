@@ -24,6 +24,66 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## cetsp-native-mac-2026-10-25
+
+**Pergunta.** Um oráculo nativo para discos, com o mesmo "propor e
+certificar", faz o CETSP andar melhor que o sanduíche de polígonos e que
+Coutinho et al. (2016)?
+
+**Formulação.**
+- **Oráculo:** `tpp_convex_solve_cycle_disks`.
+  - Proposta por Newton com barreira de disco.
+  - `L` pela dualidade fraca com o suporte do disco em forma fechada; `U` por
+    contatos provados dentro dos discos.
+  - Detalhes em
+    [convex-cycle.md](../../docs/algorithms/convex-cycle.md#disks-2026-10-25).
+- **B&B:** a ferramenta de exploração `tpp-convex-cetsp`.
+  - Best-first, com sequências cíclicas a partir do depósito.
+  - Ramifica no disco descoberto mais distante, em todas as posições, com a
+    simetria de sentido eliminada.
+  - Os filhos são avaliados ao serem criados, com corte pelo UB, e o oráculo
+    recebe um gap de 0,25 × gap × UB.
+  - UB inicial por uma heurística de inserção simples.
+- **Execução.** Gap relativo de 1e-6, 1 thread por instância, 600 s. Mac M4
+  Pro **em uso**, com 6 instâncias ao mesmo tempo nas maiores.
+- **Referência.** Tabela 2 de Coutinho et al. (CPLEX 12.4, 1 thread, i7 de
+  3,4 GHz, 4 h).
+
+**Resultado.**
+
+| Instância | Nosso | Coutinho et al. |
+|---|---|---|
+| rotatingDiamonds1 | 32,3890, 0,02 s | 32,389, 0,09 s |
+| bubbles1 | 349,1349, 0,05 s | 349,135, 0,10 s |
+| bubbles2 | 428,2793, 0,04 s | 428,279, 0,22 s |
+| concentricCircles1 | 53,1580, 2,3 s | 53,158, 5,2 s |
+| rotatingDiamonds2 | 140,4774, **22,9 s** | 140,477, 730 s |
+| bubbles3 | 529,9548, 124 s | 529,955, 193 s |
+| rotatingDiamonds3 | [348,86; 463,08], 600 s | [348,61; 380,88], 4 h |
+| chaoSingleDep | [999,54; 1.093,66], 600 s | [1.000,15; 1.039,61], 4 h |
+| bubbles4 | [685,52; 805,12], 600 s | [690,58; 829,89], 4 h |
+| concentricCircles2 | [147,59; 159,73], 600 s | [149,87; 153,13], 4 h |
+
+- **Fechadas.** Nas seis que os dois fecham, os ótimos coincidem até a
+  terceira casa, e o nosso é mais rápido em todas: de 1,6× (bubbles3) a 32×
+  (rotatingDiamonds2), sem descontar a diferença de máquina.
+- **Abertas.**
+  - Em 10 min, o nosso LB chega perto do de 4 h deles e passa em
+    rotatingDiamonds3.
+  - O UB é o ponto fraco: a heurística de inserção dá tours de 5 a 22% acima
+    dos melhores conhecidos (Mennell) e domina o gap.
+- **Custo do oráculo.** De 0,08 a 1,5 ms por chamada e de 190 a 290
+  iterações de Newton, pelo gap apertado. Em bubbles3, o sanduíche com m = 128
+  fechou em 3 s, contra 124 s aqui: o oráculo de discos ainda é mais lento por
+  chamada que o de polígonos nessa instância.
+
+**Limitações.**
+- Uma execução por instância, com o Mac carregado.
+- B&B de exploração, sem a triagem de inserções nem o ILS do TSPN.
+- O oráculo não tem o equivalente da construção (conjunto ativo e Newton na
+  fronteira), o próximo passo natural.
+- Dados: local, em `benchmarks/workspace/experiments/cetsp-native/`.
+
 ## cetsp-sandwich-mac-2026-10-25
 
 **Pergunta.** Dá para resolver o CETSP (vizinhanças em disco) com o nosso TSPN,

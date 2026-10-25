@@ -844,6 +844,46 @@ certificate exposes. Overflow/underflow can also defeat a double construction.
 API retains its contacts and objective exactly even beyond binary64's exponent
 and coordinate-resolution ranges.
 
+## Disks (2026-10-25)
+
+`tpp_convex_solve_cycle_disks` (`disk_cycle.h`, `cycle_disk_oracle.cpp`)
+solves the fixed-order cycle through closed disks (radius 0 is a point), the
+subproblem of the close-enough TSP. It keeps the propose-and-certify contract;
+only the regions change.
+
+- **Lower bound.** For any `u_i` proved in the unit disk, weak duality gives
+  `D(u) = sum_i min_{v in D_i} (v-r).(u_(i-1)-u_i)`. Over a disk the minimum is
+  `(c_i-r).w - radius_i |w|`, in closed form: no vertex or extreme-point search.
+  `L` is the lower end of its interval evaluation, with the proposal's smoothed
+  link directions as `u`.
+- **Upper bound.** Each proposed contact is proved inside its disk
+  (`radius^2 - |x-c|^2 >= 0` with directed rounding), or moved toward the
+  center until it is. `U` is the upper end of the interval sum of the links.
+- **Proposal.** The chain Newton kernel takes an optional disk per node, with
+  the barrier `-mu log(radius^2 - |y-c|^2)`: gradient `2mu r/s`, Hessian
+  `(2mu/s) I + (4mu/s^2) r r^T`. A warm start begins at `mu = 1e-4` (scaled
+  coordinates). Started far below the central path, Newton crawls.
+- **No gap-zero path.** With polygons, a fixed combinatorial type is solved in
+  rationals by unfolding (Theorem B). Reflection in a circle is not an
+  isometry: a single disk between two points is Alhazen's problem (a quartic).
+  So the disk oracle certifies `L <= OPT <= U` to any requested gap and has no
+  exact path.
+
+Tests (`main-disk_cycle_tests.cpp`):
+- known optima;
+- 60 random instances whose bounds must lie between the polygon oracle's
+  bounds on inscribed and circumscribed 64-gons;
+- warm starts and cutoffs.
+
+The kernel change leaves polygon nodes untouched: the 558 corpus cases are
+identical bit for bit.
+
+`tpp-convex-cetsp` is an exploration branch-and-bound on top of it. Its nodes
+are cyclic sequences from the depot; a cycle that meets every disk is a
+feasible tour, and otherwise the farthest uncovered disk is inserted at every
+position. Measurements:
+[`cetsp-native-mac-2026-10-25`](../../benchmarks/results-saved/README.md#cetsp-native-mac-2026-10-25).
+
 ## Tests and measurement
 
 Build `main-cycle_tests` and `main-cycle_certificate_tests` through the existing
