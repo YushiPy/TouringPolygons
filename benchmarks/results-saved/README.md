@@ -88,8 +88,9 @@ et al. (2016)?
 | rotatingDiamonds4 | 320 | [637,314; 770,661] | 30 min | [593,350; 770,660] | 4 h |
 | rotatingDiamonds5 | 680 | [1.189,862; 1.510,861] | 30 min | [1.106,577; 1.510,752] | 4 h |
 
-- **Fechadas: 7 de 20.** São as 6 que Coutinho et al. resolvem e
-  **concentricCircles2**, que eles deixaram aberta em 4 h.
+- **Fechadas: 7 de 20 em 30 min** (8 com a de 4 h, abaixo). São as 6 que
+  Coutinho et al. resolvem e **concentricCircles2**, que eles deixaram
+  aberta em 4 h.
   - O ótimo de concentricCircles2 é 153,132: o UB deles era ótimo.
   - Mais rápido em rotatingDiamonds2 (114×), bubbles3 (15×) e
     concentricCircles1 (26×).
@@ -97,7 +98,8 @@ et al. (2016)?
 - **Abertas.**
   - Em 30 min, o LB passa o de 4 h deles nas 13, de 3,6% (bubbles4,
     concentricCircles3) a 8,6% (concentricCircles4) acima.
-  - chaoSingleDep fica a 6,9e-6 de fechar.
+  - chaoSingleDep fica a 6,9e-6 de fechar; fecha em 1.794 s na rodada de
+    4 h, com só 3 processos.
   - UB melhor em 5 (bubbles4, 7 e 8; concentricCircles3 e 5), praticamente
     igual em 4 (chao, rotatingDiamonds3 a 5) e pior em 4 (bubbles5, 6 e 9;
     concentricCircles4).
@@ -105,6 +107,22 @@ et al. (2016)?
   - 20–30 µs por chamada nas abertas.
   - A construção fecha 99,9–100% das chamadas; de 85% a 98% nas menores, de
     bubbles e rotatingDiamonds1.
+
+**Resultado (4 h, o orçamento de Coutinho et al.)** nas três abertas mais
+próximas de fechar, 3 ao mesmo tempo (binário 9b2502d):
+
+| Instância | Nosso [LB; UB] | Tempo | Coutinho et al. [LB; UB], 4 h |
+|---|---|---|---|
+| chaoSingleDep | **1.039,611** | 1.794 s | [1.000,151; 1.039,610] |
+| rotatingDiamonds3 | [377,271; 380,886], gap 0,95% | 4 h | [348,608; 380,882] |
+| concentricCircles3 | [261,526; 270,034], gap 3,2% | 4 h | [247,624; 271,076] |
+
+- **chaoSingleDep fechada em 30 min:** o ótimo é 1.039,611, e o UB de 4 h
+  deles era ótimo. Com isso, **8 de 20 fechadas, duas delas abertas para
+  Coutinho et al.**
+- O tour de chaoSingleDep visita 35 dos 200 discos. Ele foi verificado à
+  parte e cobre também os discos decimais, com margem r² − d² ≥ 4,5e-11.
+  O comprimento provado é 1.039,61089118.
 
 **Oráculo de ordem fixa × Gurobi.**
 - **Formulação.** O ciclo pelas 20 instâncias em ordem angular é um SOCP. O
@@ -135,7 +153,8 @@ et al. (2016)?
   em no máximo 2·Σ|Δ| ≈ 1e-11.
 - B&B de exploração (`main-cetsp.cpp`), não integrado ao B&B do TSPN.
 - Dados e scripts: local, em `benchmarks/workspace/experiments/cetsp-native/`
-  (`table-v6.jsonl`, `tours-table/`, `gurobi-cycle.jsonl`, `verify_tour.py`).
+  (`table-v6.jsonl`, `tours-table/`, `long-v7.jsonl`, `tours-long/`,
+  `gurobi-cycle.jsonl`, `verify_tour.py`).
 
 ## cetsp-native-mac-2026-10-25
 
