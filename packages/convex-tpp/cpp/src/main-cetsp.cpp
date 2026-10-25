@@ -19,7 +19,9 @@
 // (default 5% of the time); --mode how children are bounded (default lazy);
 // --seed the iterated local search's; --threads the workers (independent
 // iterated local searches, then nodes expanded in parallel); --radius every
-// disk's, for Behdani and Smith's files (points only, the depot first).
+// disk's, for Behdani and Smith's files (points only, the depot first);
+// --max-memory a ceiling (GB) on the peak resident size: the B&B stops there
+// with the bound it has, as at the time limit.
 #include "tpp_convex.h"
 #include <algorithm>
 #include <chrono>
@@ -28,6 +30,7 @@
 #include <barrier>
 #include <deque>
 #include <thread>
+#include <sys/resource.h>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
@@ -126,6 +129,8 @@ struct Solver {
     size_t ils_iterations=0;
     unsigned seed=20261026; // of the iterated local search
     size_t threads=1; // expanding nodes in parallel
+    double max_memory=0; // bytes; 0: no ceiling
+    std::string stopped="closed"; // or "time", "memory"
     double upper=INFINITY;std::vector<int> best_sequence;std::vector<Vector2> best_cycle;
     struct Counters {size_t oracle_calls=0,newton=0,constructed=0,screened=0;double oracle_seconds=0;};
     Counters counted; // the main thread's; workers keep their own and add them after each batch
@@ -552,8 +557,19 @@ struct Solver {
         std::atomic<bool> stop{false};
         std::vector<std::thread> pool;
         for(size_t t=1;t<threads;++t)pool.emplace_back([&]{for(;;){start.arrive_and_wait();if(stop)return;work();done.arrive_and_wait();}});
-        while(!queue.empty()) {
-            if(elapsed()>deadline){global=std::min(double(queue.top().lower),upper*(1-gap));break;}
+        for(size_t round=0;!queue.empty();++round) {
+            if(elapsed()>deadline){global=std::min(double(queue.top().lower),upper*(1-gap));stopped="time";break;}
+            // A memory ceiling, checked now and then: the peak resident size
+            // (bytes on macOS, kilobytes on Linux).
+            if(max_memory>0&&round%1024==0) {
+                rusage usage{};getrusage(RUSAGE_SELF,&usage);
+#ifdef __APPLE__
+                const double bytes=double(usage.ru_maxrss);
+#else
+                const double bytes=1024.0*double(usage.ru_maxrss);
+#endif
+                if(bytes>max_memory){global=std::min(double(queue.top().lower),upper*(1-gap));stopped="memory";break;}
+            }
             cutoff=upper*(1-gap);incumbent=upper;
             batch.clear();
             while(!queue.empty()&&batch.size()<(threads>1?4*threads:1)) {
@@ -587,13 +603,14 @@ struct Solver {
 }
 
 int main(int argc,char **argv) {
-    const char *usage="usage: tpp-convex-cetsp INSTANCE.txt [SECONDS] [RELATIVE_GAP] [TOUR.json|-] [--strong K] [--heuristic SECONDS] [--mode eager|screen|lazy] [--seed S] [--threads T] [--radius R]\n";
-    std::vector<std::string> positional;double heuristic=-1,radius=0;size_t strong=1,threads=1;unsigned seed=20261026;std::string mode="lazy";
+    const char *usage="usage: tpp-convex-cetsp INSTANCE.txt [SECONDS] [RELATIVE_GAP] [TOUR.json|-] [--strong K] [--heuristic SECONDS] [--mode eager|screen|lazy] [--seed S] [--threads T] [--radius R] [--max-memory GB]\n";
+    std::vector<std::string> positional;double heuristic=-1,radius=0,max_memory=0;size_t strong=1,threads=1;unsigned seed=20261026;std::string mode="lazy";
     for(int i=1;i<argc;++i) {
         const std::string a=argv[i];
-        if((a=="--strong"||a=="--heuristic"||a=="--mode"||a=="--seed"||a=="--threads"||a=="--radius")&&i+1<argc) {
+        if((a=="--strong"||a=="--heuristic"||a=="--mode"||a=="--seed"||a=="--threads"||a=="--radius"||a=="--max-memory")&&i+1<argc) {
             const std::string v=argv[++i];
-            if(a=="--radius")radius=std::stod(v);
+            if(a=="--max-memory")max_memory=std::stod(v)*1e9;
+            else if(a=="--radius")radius=std::stod(v);
             else if(a=="--seed")seed=unsigned(std::stoul(v));
             else if(a=="--threads")threads=std::max<size_t>(1,std::stoul(v));
             else if(a=="--strong")strong=std::max<size_t>(1,std::stoul(v));
@@ -606,7 +623,7 @@ int main(int argc,char **argv) {
     const auto inst=read_instance(positional[0].c_str(),radius);
     const double seconds=positional.size()>1?std::stod(positional[1]):60.0;
     Solver s{inst.disks,positional.size()>2?std::stod(positional[2]):1e-6,seconds,Clock::now()};
-    s.strong=strong;s.seed=seed;s.threads=threads;
+    s.strong=strong;s.seed=seed;s.threads=threads;s.max_memory=max_memory;
     s.mode=mode=="eager"?Solver::Mode::Eager:mode=="screen"?Solver::Mode::Screen:Solver::Mode::Lazy;
     const std::string tour=positional.size()>3?positional[3]:"-";
     // The initial tour: 5% of the time unless given (its local searches
@@ -614,7 +631,7 @@ int main(int argc,char **argv) {
     const double lower=s.run(heuristic>=0?heuristic:0.05*seconds);
     std::cout<<std::setprecision(12)<<"{\"instance\":\""<<positional[0]<<"\",\"disks\":"<<inst.disks.size()-1
         <<",\"lower_bound\":"<<lower<<",\"upper_bound\":"<<s.upper<<",\"gap\":"<<(s.upper-lower)/s.upper
-        <<",\"closed\":"<<(s.upper-lower<=s.gap*s.upper*1.0000001?"true":"false")
+        <<",\"closed\":"<<(s.upper-lower<=s.gap*s.upper*1.0000001?"true":"false")<<",\"stopped\":\""<<s.stopped<<"\""
         <<",\"seconds\":"<<s.elapsed()<<",\"heuristic_seconds\":"<<s.heuristic_seconds<<",\"heuristic_tours\":"<<s.improvements<<",\"ils_iterations\":"<<s.ils_iterations
         <<",\"nodes\":"<<s.nodes<<",\"oracle_calls\":"<<s.counted.oracle_calls
         <<",\"oracle_seconds\":"<<s.counted.oracle_seconds<<",\"newton_iterations\":"<<s.counted.newton<<",\"construction_closed\":"<<s.counted.constructed
