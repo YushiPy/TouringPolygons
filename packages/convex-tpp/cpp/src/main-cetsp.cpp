@@ -18,7 +18,8 @@
 // the number of branching candidates; --heuristic the initial tour's budget
 // (default 5% of the time); --mode how children are bounded (default lazy);
 // --seed the iterated local search's; --threads the workers (independent
-// iterated local searches, then nodes expanded in parallel).
+// iterated local searches, then nodes expanded in parallel); --radius every
+// disk's, for Behdani and Smith's files (points only, the depot first).
 #include "tpp_convex.h"
 #include <algorithm>
 #include <chrono>
@@ -41,20 +42,30 @@ using Disks=std::vector<tpp::ConvexDisk>;
 using Clock=std::chrono::steady_clock;
 
 struct Instance {Disks disks;}; // disks[0] is the depot, radius 0
-Instance read_mennell(const char *path) {
+// Mennell's format ("x y z radius" lines, "// Depot is x, y"), or, given a
+// radius, Behdani and Smith's ("x y" lines, the depot first).
+Instance read_instance(const char *path,double radius) {
     std::ifstream in(path);std::string line;Instance inst;Vector2 depot{};bool has_depot=false;
+    if(!in)throw std::runtime_error("cannot read the instance");
     const std::regex depot_line(R"(//\s*Depot is\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+))");
-    Disks targets;
+    Disks targets;std::vector<Vector2> points;
     while(std::getline(in,line)) {
         std::smatch m;
         if(std::regex_search(line,m,depot_line)){depot={std::stod(m[1]),std::stod(m[2])};has_depot=true;continue;}
         if(line.rfind("//",0)==0)continue;
         std::istringstream s(line);double x,y,z,r;
-        if(s>>x>>y>>z>>r)targets.push_back({{x,y},r});
+        if(!(s>>x>>y))continue;
+        points.push_back({x,y});
+        if(s>>z>>r)targets.push_back({{x,y},r});
     }
-    if(!has_depot)throw std::runtime_error("no depot line");
-    inst.disks.push_back({depot,0});
-    inst.disks.insert(inst.disks.end(),targets.begin(),targets.end());
+    if(has_depot) {
+        inst.disks.push_back({depot,0});
+        inst.disks.insert(inst.disks.end(),targets.begin(),targets.end());
+    } else {
+        if(!(radius>0)||points.empty())throw std::runtime_error("no depot line (Behdani's format needs --radius)");
+        inst.disks.push_back({points[0],0});
+        for(size_t i=1;i<points.size();++i)inst.disks.push_back({points[i],radius});
+    }
     return inst;
 }
 // The point of the disk nearest the segment ab (its detour point when the
@@ -576,13 +587,14 @@ struct Solver {
 }
 
 int main(int argc,char **argv) {
-    const char *usage="usage: tpp-convex-cetsp INSTANCE.txt [SECONDS] [RELATIVE_GAP] [TOUR.json|-] [--strong K] [--heuristic SECONDS] [--mode eager|screen|lazy] [--seed S] [--threads T]\n";
-    std::vector<std::string> positional;double heuristic=-1;size_t strong=1,threads=1;unsigned seed=20261026;std::string mode="lazy";
+    const char *usage="usage: tpp-convex-cetsp INSTANCE.txt [SECONDS] [RELATIVE_GAP] [TOUR.json|-] [--strong K] [--heuristic SECONDS] [--mode eager|screen|lazy] [--seed S] [--threads T] [--radius R]\n";
+    std::vector<std::string> positional;double heuristic=-1,radius=0;size_t strong=1,threads=1;unsigned seed=20261026;std::string mode="lazy";
     for(int i=1;i<argc;++i) {
         const std::string a=argv[i];
-        if((a=="--strong"||a=="--heuristic"||a=="--mode"||a=="--seed"||a=="--threads")&&i+1<argc) {
+        if((a=="--strong"||a=="--heuristic"||a=="--mode"||a=="--seed"||a=="--threads"||a=="--radius")&&i+1<argc) {
             const std::string v=argv[++i];
-            if(a=="--seed")seed=unsigned(std::stoul(v));
+            if(a=="--radius")radius=std::stod(v);
+            else if(a=="--seed")seed=unsigned(std::stoul(v));
             else if(a=="--threads")threads=std::max<size_t>(1,std::stoul(v));
             else if(a=="--strong")strong=std::max<size_t>(1,std::stoul(v));
             else if(a=="--heuristic")heuristic=std::stod(v);
@@ -591,7 +603,7 @@ int main(int argc,char **argv) {
         else positional.push_back(a);
     }
     if(positional.empty()||(mode!="eager"&&mode!="screen"&&mode!="lazy")){std::cerr<<usage;return 1;}
-    const auto inst=read_mennell(positional[0].c_str());
+    const auto inst=read_instance(positional[0].c_str(),radius);
     const double seconds=positional.size()>1?std::stod(positional[1]):60.0;
     Solver s{inst.disks,positional.size()>2?std::stod(positional[2]):1e-6,seconds,Clock::now()};
     s.strong=strong;s.seed=seed;s.threads=threads;
