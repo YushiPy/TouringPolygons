@@ -64,7 +64,8 @@ Vector2 tpp_convex_disk_detour_point(Vector2 a, Vector2 b, const ConvexDisk &dis
 // p-1 is position p. Weak duality as in tpp_convex_solve_cycle_disks, with
 // directed rounding: the link directions of the cycle through `contacts`
 // (one per disk), and for the inserted disk the directions to and from its
-// detour point between the two neighbouring contacts. Only three support
+// point nearest the segment between the two neighbouring contacts (its
+// detour point when the segment meets it; no Newton). Only three support
 // terms change per position, so all k bounds cost O(k). Valid for any
 // contacts; close to the child's optimum when the parent's contacts are
 // optimal and the insertion leaves them in place. Empty on invalid input.

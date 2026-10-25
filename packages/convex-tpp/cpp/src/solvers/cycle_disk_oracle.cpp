@@ -605,6 +605,15 @@ Vector2 tpp_convex_disk_detour_point(Vector2 a,Vector2 b,const ConvexDisk &disk)
     return alhazen(a,b,disk).point;
 }
 
+// The point of the disk nearest the segment ab: a cheap stand-in for the
+// detour point (no Newton), exact when the segment meets the disk.
+Vector2 nearest_to_segment(Vector2 a,Vector2 b,const ConvexDisk &d) {
+    const Vector2 e=b-a;const double ee=e.dot(e);
+    const double t=ee>0?std::clamp((d.center-a).dot(e)/ee,0.0,1.0):0.0;
+    const Vector2 foot=a+e*t,r=foot-d.center;const double rr=r.dot(r);
+    if(rr<=d.radius*d.radius)return foot;
+    return d.center+r*(d.radius/std::sqrt(rr));
+}
 std::vector<double> tpp_convex_disk_insertion_bounds(const std::vector<ConvexDisk> &disks,
         const std::vector<Vector2> &contacts,const ConvexDisk &inserted) {
     const size_t k=disks.size();
@@ -646,7 +655,7 @@ std::vector<double> tpp_convex_disk_insertion_bounds(const std::vector<ConvexDis
     };
     std::vector<double> out(k,0.0);
     if(k==1) {
-        const Vector2 q=alhazen(contacts[0],contacts[0],inserted).point;
+        const Vector2 q=nearest_to_segment(contacts[0],contacts[0],inserted);
         const Vector2 there=direction(contacts[0],q),back=direction(q,contacts[0]);
         const auto bound=support(disks[0],back,there)+support(inserted,there,back);
         out[0]=std::isfinite(bound.lo)?std::max(0.0,bound.lo):0.0;
@@ -657,7 +666,7 @@ std::vector<double> tpp_convex_disk_insertion_bounds(const std::vector<ConvexDis
     for(size_t i=0;i<k;++i){term[i]=support(disks[i],u[(i+k-1)%k],u[i]);total=total+term[i];}
     for(size_t p=1;p<=k;++p) {
         const size_t a=p-1,b=p%k;
-        const Vector2 q=alhazen(contacts[a],contacts[b],inserted).point;
+        const Vector2 q=nearest_to_segment(contacts[a],contacts[b],inserted);
         Vector2 to=direction(contacts[a],q),from=direction(q,contacts[b]);
         if(to.x==0&&to.y==0)to=u[a];
         if(from.x==0&&from.y==0)from=u[a];

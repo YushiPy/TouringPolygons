@@ -934,12 +934,17 @@ visiting a subset can only shorten the tour.
   times the radius, so a borderline disk is branched on rather than assumed
   covered. Strong branching (several candidates, keep the one whose weakest
   child is strongest) is optional. On rotatingDiamonds3 and
-  concentricCircles2 it gave weaker bounds in the same time.
+  concentricCircles2 it gave weaker bounds in the same time, even with the
+  candidates compared by insertion bounds alone. So did lifting a node's
+  bound by the best of several uncovered disks' smallest insertion bounds:
+  it is valid, but rarely prunes and costs more than it saves.
 - **Insertion bounds and lazy children** (as in the TSPN's `lazy`).
   `tpp_convex_disk_insertion_bounds` gives every position's child a weak
-  dual bound from the parent's link directions. Only three support terms
-  change per position, and a disk's support is closed form, so all k bounds
-  cost O(k). Each child enters the queue with its bound and is solved only
+  dual bound from the parent's link directions. The inserted disk's
+  proposed contact is its point nearest the link: no Newton, and its
+  detour point whenever the link meets it. Only three support terms change
+  per position, and a disk's support is closed form, so all k bounds cost
+  O(k). Each child enters the queue with its bound and is solved only
   when expanded; a bound above the cutoff prunes it unsolved. On 588 random
   insertions the bounds never exceeded the child's optimum, and 89% were
   within 1% of its `L`.
@@ -951,8 +956,8 @@ visiting a subset can only shorten the tour.
 - **Memory.** A node takes 16 bytes: 8 in the tree (parent and insertion)
   and 8 in the queue. The queue keeps the bound in single precision rounded
   down, still a lower bound. On expansion the sequence is rebuilt from the
-  root, each disk entering at its Alhazen point between its neighbours
-  there, and its cycle is solved warm from those points.
+  root, each disk entering at its point nearest the link between its
+  neighbours there, and its cycle is solved warm from those points.
 - **Discarded feasible nodes.** A feasible child gets no node. Its `L` still
   enters the final bound, so a gap the oracle left there is not lost.
 - **Threads.** `--threads T` expands batches of 4T best nodes in parallel

@@ -57,10 +57,14 @@ Instance read_mennell(const char *path) {
     inst.disks.insert(inst.disks.end(),targets.begin(),targets.end());
     return inst;
 }
-double segment_distance(Vector2 p,Vector2 a,Vector2 b) {
+// The point of the disk nearest the segment ab (its detour point when the
+// segment meets it): a warm start, cheaper than Alhazen's point.
+Vector2 nearest_to_link(Vector2 a,Vector2 b,const tpp::ConvexDisk &d) {
     const Vector2 e=b-a;const double ee=e.dot(e);
-    const double t=ee>0?std::clamp((p-a).dot(e)/ee,0.0,1.0):0.0;
-    const Vector2 d=p-(a+e*t);return std::sqrt(d.dot(d));
+    const double t=ee>0?std::clamp((d.center-a).dot(e)/ee,0.0,1.0):0.0;
+    const Vector2 foot=a+e*t,r=foot-d.center;const double rr=r.dot(r);
+    if(rr<=d.radius*d.radius)return foot;
+    return d.center+r*(d.radius/std::sqrt(rr));
 }
 // How far each disk is from the closed polyline through the contacts, minus
 // its radius (<= 0: the tour meets it). Disks of the sequence are met at their
@@ -69,11 +73,20 @@ double segment_distance(Vector2 p,Vector2 a,Vector2 b) {
 std::vector<double> excess(const Disks &disks,const std::vector<int> &sequence,const std::vector<Vector2> &cycle) {
     std::vector<double> out(disks.size(),INFINITY);
     std::vector<bool> member(disks.size(),false);for(int i:sequence)member[size_t(i)]=true;
+    // Squared distances to each link, one square root per disk.
+    const size_t k=cycle.size();
+    std::vector<Vector2> edge(k);std::vector<double> inverse(k);
+    for(size_t l=0;l<k;++l){edge[l]=cycle[(l+1)%k]-cycle[l];const double ee=edge[l].dot(edge[l]);inverse[l]=ee>0?1/ee:0;}
     for(size_t j=0;j<disks.size();++j) {
         if(member[j]){out[j]=-INFINITY;continue;}
         double best=INFINITY;
-        for(size_t l=0;l<cycle.size();++l)best=std::min(best,segment_distance(disks[j].center,cycle[l],cycle[(l+1)%cycle.size()]));
-        out[j]=best-disks[j].radius;
+        for(size_t l=0;l<k;++l) {
+            const Vector2 f=disks[j].center-cycle[l];
+            const double t=std::clamp(f.dot(edge[l])*inverse[l],0.0,1.0);
+            const Vector2 g=f-edge[l]*t;
+            best=std::min(best,g.dot(g));
+        }
+        out[j]=std::sqrt(best)-disks[j].radius;
     }
     return out;
 }
@@ -82,9 +95,9 @@ constexpr double kCovered=-1e-9; // relative to the radius scale; conservative
 // The search keeps 16 bytes a node: in the tree, its parent and the insertion
 // that made it; in the queue, its bound (in single precision, rounded down,
 // so still a lower bound) and its index. When a node is expanded its
-// sequence is rebuilt from the root, each disk entering at its detour point
-// between its neighbours there, and its cycle is solved again, warm from
-// those points.
+// sequence is rebuilt from the root, each disk entering at its point nearest
+// the link between its neighbours there, and its cycle is solved again, warm
+// from those points.
 struct Entry {std::uint32_t parent;std::uint16_t position,disk;};
 struct Open {float lower;std::uint32_t id;};
 float rounded_down(double x) {
@@ -445,7 +458,7 @@ struct Solver {
         std::vector<int> sequence{0};warm.assign(1,all[0].center);
         for(auto it=path.rbegin();it!=path.rend();++it) {
             const size_t p=it->position,k=warm.size();
-            const Vector2 point=tpp::tpp_convex_disk_detour_point(warm[p-1],warm[p%k],all[it->disk]);
+            const Vector2 point=nearest_to_link(warm[p-1],warm[p%k],all[it->disk]);
             sequence.insert(sequence.begin()+long(p),int(it->disk));
             warm.insert(warm.begin()+long(p),point);
         }
