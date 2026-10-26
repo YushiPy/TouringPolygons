@@ -52,6 +52,8 @@ respeitado) e o B&B rodando antes da heurística, o que muda em relação à
   - Gap relativo de 1e-6, com limites provados na instância em binary64.
   - Os 752 tours foram verificados em racionais exatos.
 - **Referência.** Coutinho et al. (2016): 1 thread, i7 de 3,4 GHz (2012), 4 h.
+  O B&B deles informa o ótimo ou o seu LB; o UB das tabelas é o de Mennell
+  (2009), o melhor conhecido, contra o qual eles medem o gap.
 
 **Resultado em Mennell (1 thread).**
 
@@ -114,9 +116,9 @@ respeitado) e o B&B rodando antes da heurística, o que muda em relação à
   O LB também subiu em relação à primeira campanha em todas, menos
   concentricCircles3 e rotatingDiamonds3, que já iam até o prazo. Por
   exemplo, rotatingDiamonds5 com 8 threads foi de 1.231,9 para 1.272,8.
-- **UB (com 8 threads).**
-  - Melhor que o deles em 9: bubbles4 a 9 (de −2,5% a −10,7%) e
-    concentricCircles3 a 5 (−0,3%, −0,5% e −1,8%).
+- **UB (com 8 threads)**, contra o de Mennell que consta na tabela deles:
+  - Melhor em 9: bubbles4 a 9 (de −2,5% a −10,7%) e concentricCircles3 a 5
+    (−0,3%, −0,5% e −1,8%).
   - Igual em rotatingDiamonds3.
   - Pior em rotatingDiamonds4 e 5: +0,04% e +0,16%.
 - **O descarte por memória esteve ativo em todas as abertas.** Os pisos ficaram

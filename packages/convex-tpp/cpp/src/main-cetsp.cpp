@@ -59,7 +59,8 @@ struct Instance {Disks disks;}; // disks[0] is the depot, radius 0
 Instance read_instance(const char *path,double radius) {
     std::ifstream in(path);std::string line;Instance inst;Vector2 depot{};bool has_depot=false;
     if(!in)throw std::runtime_error("cannot read the instance");
-    const std::regex depot_line(R"(//\s*Depot is\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+))");
+    // "//Depot is x, y, z" (geometric files) or "//Depot: x, y, z" (TSPLIB, team).
+    const std::regex depot_line(R"(//\s*Depot(?:\s+is|:)\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+))");
     Disks targets;std::vector<Vector2> points;
     while(std::getline(in,line)) {
         std::smatch m;
