@@ -27,6 +27,7 @@
 #include <chrono>
 #include <cstdint>
 #include <atomic>
+#include <csignal>
 #include <barrier>
 #include <deque>
 #include <memory>
@@ -135,6 +136,10 @@ double resident_bytes() {
     return double(resident)*double(sysconf(_SC_PAGESIZE));
 #endif
 }
+// Set by SIGINT, SIGTERM or SIGHUP: the run stops as at its time limit and
+// still reports what it has (marked "interrupted").
+std::atomic<bool> interrupted{false};
+extern "C" void on_stop_signal(int){interrupted.store(true);}
 constexpr std::uint32_t kNone=0xffffffffu;
 struct Family {std::uint32_t parent,first;std::uint16_t own_position,own_disk,disk,count,next;};
 struct Open {float lower;std::uint32_t family;};
@@ -189,7 +194,10 @@ struct Solver {
     struct Counters {size_t oracle_calls=0,newton=0,constructed=0,screened=0;double oracle_seconds=0;};
     Counters counted; // the main thread's; workers keep their own and add them after each batch
     size_t nodes=0,improvements=0;double heuristic_seconds=0;
-    double elapsed() const {return std::chrono::duration<double>(Clock::now()-began).count();}
+    // Seconds since the start; past every deadline once interrupted, so that
+    // all searches stop as at their time limits.
+    double elapsed() const {return wall()+(interrupted.load(std::memory_order_relaxed)?1e9:0);}
+    double wall() const {return std::chrono::duration<double>(Clock::now()-began).count();}
     tpp::DiskCycleResult oracle(const std::vector<int> &sequence,const std::vector<Vector2> &warm,double cutoff,Counters &c,double bound) const {
         Disks d;for(int i:sequence)d.push_back(all[size_t(i)]);
         tpp::DiskCycleOptions o;o.max_gap=std::isfinite(bound)?0.25*gap*bound:1e-9;o.lower_bound_cutoff=cutoff;
@@ -664,15 +672,15 @@ struct Solver {
     // most 2% of the time). If that does not close it, the initial tour gets
     // its budget and the B&B starts over.
     double run(double budget) {
-        const double t0=elapsed();
+        const double t0=wall();
         if(nearest.empty())prepare_neighbours();
         offer(center_tour(deadline));
         const double probe_until=std::min(deadline,elapsed()+std::min(1.0,0.02*deadline));
         double lower=search(probe_until);
-        probe_seconds=elapsed()-t0;
+        probe_seconds=wall()-t0;
         if(upper-lower<=gap*upper*1.0000001||elapsed()>=deadline)return lower;
-        const double t1=elapsed();
-        heuristic(budget);heuristic_seconds=elapsed()-t1;
+        const double t1=wall();
+        heuristic(budget);heuristic_seconds=wall()-t1;
         return search(deadline);
     }
     double search(double until) {
@@ -699,7 +707,7 @@ struct Solver {
             cutoff=std::min(upper*(1-gap),dropped_floor);incumbent=upper;
             if(round>0) {
                 if(heap.empty())break;
-                if(elapsed()>until){global=std::min(double(heap.front().lower),cutoff);stopped="time";break;}
+                if(elapsed()>until){global=std::min(double(heap.front().lower),cutoff);stopped=interrupted?"interrupted":"time";break;}
                 if(bytes()>room) {
                     compact();
                     if(bytes()>0.6*room)drop();
@@ -771,6 +779,7 @@ int main(int argc,char **argv) {
         else positional.push_back(a);
     }
     if(positional.empty()||(mode!="eager"&&mode!="screen"&&mode!="lazy")){std::cerr<<usage;return 1;}
+    for(const int sig:{SIGINT,SIGTERM,SIGHUP})std::signal(sig,on_stop_signal);
     const auto inst=read_instance(positional[0].c_str(),radius);
     const double seconds=positional.size()>1?std::stod(positional[1]):60.0;
     Solver s{inst.disks,positional.size()>2?std::stod(positional[2]):1e-6,seconds,Clock::now()};
@@ -780,10 +789,11 @@ int main(int argc,char **argv) {
     // The initial tour: 5% of the time unless given (its local searches
     // stop on their own when they stagnate).
     const double lower=s.run(heuristic>=0?heuristic:0.05*seconds);
+    if(interrupted)s.stopped="interrupted";
     std::cout<<std::setprecision(12)<<"{\"instance\":\""<<positional[0]<<"\",\"disks\":"<<inst.disks.size()-1
         <<",\"lower_bound\":"<<lower<<",\"upper_bound\":"<<s.upper<<",\"gap\":"<<(s.upper-lower)/s.upper
         <<",\"closed\":"<<(s.upper-lower<=s.gap*s.upper*1.0000001?"true":"false")<<",\"stopped\":\""<<s.stopped<<"\""
-        <<",\"seconds\":"<<s.elapsed()<<",\"heuristic_seconds\":"<<s.heuristic_seconds<<",\"probe_seconds\":"<<s.probe_seconds<<",\"heuristic_tours\":"<<s.improvements<<",\"ils_iterations\":"<<s.ils_iterations
+        <<",\"seconds\":"<<s.wall()<<",\"heuristic_seconds\":"<<s.heuristic_seconds<<",\"probe_seconds\":"<<s.probe_seconds<<",\"heuristic_tours\":"<<s.improvements<<",\"ils_iterations\":"<<s.ils_iterations
         <<",\"nodes\":"<<s.nodes<<",\"oracle_calls\":"<<s.counted.oracle_calls
         <<",\"oracle_seconds\":"<<s.counted.oracle_seconds<<",\"newton_iterations\":"<<s.counted.newton<<",\"construction_closed\":"<<s.counted.constructed
         <<",\"children\":"<<s.children_created<<",\"families\":"<<s.families.size()<<",\"compactions\":"<<s.compactions
