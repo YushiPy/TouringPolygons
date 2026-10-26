@@ -995,6 +995,18 @@ visiting a subset can only shorten the tour.
      centers fixed), its contacts solved by the oracle.
   2. Within 30% of the budget, cheapest insertion and local search on
      sequences, expanded to a full order with the same length, if shorter.
+     - If the sequence has at most a quarter of the disks (much overlap),
+       ruin and recreate on sequences takes the rest of that 30%. Each try
+       drops a run of up to 10 disks or up to 10 random disks, inserts the
+       uncovered ones again, and searches locally.
+     - Without it, insertion and local search stop in 0.03–0.2 s at weak
+       tours. dsj1000-0.10 stopped at 401.7, and the full-order search below
+       took it only to 392.4. With it, the heuristic finds the optimum,
+       373.759.
+     - The full-order search can hardly find such tours: it moves all n
+       disks to fix a tour that turns at 37.
+     - With more of the disks in the sequence, the time goes to full orders,
+       which do better there.
   3. Iterated local search on full orders, one per thread with its own seed.
      - Moves: 2-opt and Or-opt (blocks of 1–3, either way round) toward
        each disk's 10 nearest. A moved block's contacts are placed again by

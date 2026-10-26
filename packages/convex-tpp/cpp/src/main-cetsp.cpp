@@ -313,6 +313,33 @@ struct Solver {
         }
         return t;
     }
+    // Ruin and recreate on sequences, for tours that turn at few disks: drop
+    // a random run of up to 10 disks, or up to 10 random disks, insert the
+    // uncovered ones again (cheapest insertion), and search locally. A tour
+    // not 0.1% longer than the current one replaces it; after 50 tries
+    // without a new best the search restarts from the best. Until `until`.
+    Tour subset_ils(Tour best,double until) {
+        std::mt19937 rng(seed);
+        Tour current=best;size_t stale=0;
+        while(elapsed()<until&&current.sequence.size()>=4) {
+            auto s=current.sequence;auto w=current.cycle;
+            const size_t m=1+rng()%std::min<size_t>(10,(s.size()-1)/2);
+            if(rng()%2) {
+                const size_t first=1+rng()%(s.size()-m);
+                s.erase(s.begin()+long(first),s.begin()+long(first+m));w.erase(w.begin()+long(first),w.begin()+long(first+m));
+            } else for(size_t q=0;q<m;++q) {
+                const size_t i=1+rng()%(s.size()-1);
+                s.erase(s.begin()+long(i));w.erase(w.begin()+long(i));
+            }
+            Tour c=repair(s,w,until);
+            if(!std::isfinite(c.length))break;
+            c=local_search(c,until);
+            if(c.length<best.length*(1-1e-12)){best=c;stale=0;}
+            else if(++stale%50==0)current=best;
+            if(c.length<=current.length*1.001)current=c;
+        }
+        return best;
+    }
     // ---- Full-order tours ----------------------------------------------
     // A CETSP tour is also a tour visiting every disk in some order, one
     // contact each: a disk the cycle crosses anyway is a straight passage at
@@ -516,9 +543,10 @@ struct Solver {
         return evaluate(t.sequence,t.cycle);
     }
     // The initial tour: the centers' tour, and (within 30% of the budget)
-    // cheapest insertion with local search on sequences, expanded to a full
-    // order; then iterated local search on full orders from the shorter, in
-    // every thread.
+    // cheapest insertion with local search on sequences, then ruin and
+    // recreate if the sequence has at most a quarter of the disks, expanded
+    // to a full order; then iterated local search on full orders from the
+    // shorter, in every thread.
     void heuristic(double budget) {
         const double until=std::min(deadline,elapsed()+budget);
         Tour start=center_tour(until);offer(start);
@@ -526,6 +554,9 @@ struct Solver {
         Tour t=repair({0},{all[0].center},subset);
         if(std::isfinite(t.length)) {
             t=local_search(t,subset);offer(t);
+            // When the tour turns at few disks, sequences are the better
+            // search space; otherwise the time goes to full orders.
+            if(4*t.sequence.size()<=all.size()){t=subset_ils(t,subset);offer(t);}
             if(t.length<start.length)start=expand(t);
         }
         if(!std::isfinite(start.length))return;
