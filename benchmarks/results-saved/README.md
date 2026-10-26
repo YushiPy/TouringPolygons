@@ -24,7 +24,141 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## cetsp-campaign2-mac-2026-10-26
+
+**Pergunta.** Com a memória da busca reorganizada (famílias de filhos, teto
+respeitado) e o B&B rodando antes da heurística, o que muda em relação à
+[primeira campanha](#cetsp-campaign-mac-2026-10-25)?
+
+**Formulação.**
+- **Binário.** `tpp-convex-cetsp` do commit 541d862, com o mesmo oráculo e o
+  mesmo B&B preguiçoso, mais:
+  - filhos guardados por família, a 6 bytes cada, e a fila guardando famílias;
+  - teto de memória respeitado, com compactação e, se preciso, descarte dos
+    filhos de limite mais alto; o limiar do descarte vira um piso para o
+    limite inferior final;
+  - um segundo de B&B com o tour dos centros antes da heurística.
+
+  Detalhes em
+  [convex-cycle.md](../../docs/algorithms/convex-cycle.md#disks-2026-10-25).
+- **Protocolo.** O mesmo da primeira campanha: script único, Mac M4 Pro
+  reiniciado e só a campanha rodando.
+  - Mennell com 1 thread: 1.800 s, 6 ao mesmo tempo, teto de 2,5 GB.
+  - As abertas com 8 threads: uma por vez, 1.800 s, teto de 12 GB.
+  - Behdani e Smith: 60 s cada, 1 thread.
+  - A campanha foi interrompida uma vez no passo 1 e retomada desde o começo
+    dele; nenhum resultado parcial entrou.
+- **Gap e verificação.**
+  - Gap relativo de 1e-6, com limites provados na instância em binary64.
+  - Os 752 tours foram verificados em racionais exatos.
+- **Referência.** Coutinho et al. (2016): 1 thread, i7 de 3,4 GHz (2012), 4 h.
+
+**Resultado em Mennell (1 thread).**
+
+| Instância | Nosso [LB; UB] | Tempo | Coutinho et al. [LB; UB], 4 h | Tempo |
+|---|---|---|---|---|
+| bubbles1 | **349,135** | 3,7 ms | 349,135 | 0,10 s |
+| bubbles2 | **428,279** | 8,9 ms | 428,279 | 0,22 s |
+| bubbles3 | **529,955** | 7,9 s | 529,955 | 193,1 s |
+| bubbles4 | [729,869; 804,989] | 30 min | [690,578; 829,888] | 4 h |
+| bubbles5 | [918,237; 1.038,299] | 30 min | [851,822; 1.062,335] | 4 h |
+| bubbles6 | [1.084,003; 1.291,209] | 30 min | [993,981; 1.383,139] | 4 h |
+| bubbles7 | [1.227,591; 1.653,713] | 30 min | [1.123,522; 1.720,214] | 4 h |
+| bubbles8 | [1.373,777; 1.991,033] | 30 min | [1.252,715; 2.101,373] | 4 h |
+| bubbles9 | [1.518,665; 2.329,164] | 30 min | [1.374,407; 2.426,274] | 4 h |
+| chaoSingleDep | **1.039,611** | 270,8 s | [1.000,151; 1.039,610] | 4 h |
+| concentricCircles1 | **53,158** | 19 ms | 53,158 | 5,2 s |
+| concentricCircles2 | **153,132** | 71,9 s | [149,868; 153,132] | 4 h |
+| concentricCircles3 | [262,250; 270,615] | 30 min | [247,624; 271,076] | 4 h |
+| concentricCircles4 | [402,488; 453,696] | 30 min | [358,887; 454,457] | 4 h |
+| concentricCircles5 | [513,899; 646,866] | 30 min | [459,411; 645,381] | 4 h |
+| rotatingDiamonds1 | **32,389** | 2,6 ms | 32,389 | 0,09 s |
+| rotatingDiamonds2 | **140,477** | 0,84 s | 140,477 | 730,4 s |
+| rotatingDiamonds3 | [378,867; 380,883] | 30 min | [348,608; 380,882] | 4 h |
+| rotatingDiamonds4 | [663,718; 772,472] | 30 min | [593,350; 770,660] | 4 h |
+| rotatingDiamonds5 | [1.244,150; 1.514,624] | 30 min | [1.106,577; 1.510,752] | 4 h |
+
+**As 12 abertas, com 8 threads.**
+
+| Instância | Nosso [LB; UB] | Gap | Tempo |
+|---|---|---|---|
+| bubbles4 | [739,533; 804,084] | 8,0% | 30 min |
+| bubbles5 | [931,039; 1.035,311] | 10,1% | 30 min |
+| bubbles6 | [1.103,101; 1.234,811] | 10,7% | 30 min |
+| bubbles7 | [1.250,979; 1.636,317] | 23,6% | 30 min |
+| bubbles8 | [1.399,922; 1.925,830] | 27,3% | 30 min |
+| bubbles9 | [1.550,456; 2.301,693] | 32,6% | 30 min |
+| concentricCircles3 | [265,518; 270,223] | 1,7% | 30 min |
+| concentricCircles4 | [408,090; 452,345] | 9,8% | 30 min |
+| concentricCircles5 | [524,582; 633,486] | 17,2% | 30 min |
+| rotatingDiamonds3 | **380,883** | 1e-6 | 718 s |
+| rotatingDiamonds4 | [678,494; 770,975] | 12,0% | 30 min |
+| rotatingDiamonds5 | [1.272,815; 1.513,146] | 15,9% | 30 min |
+
+- **Fechadas: as mesmas 9 de 20** da primeira campanha, com concentricCircles2,
+  chaoSingleDep e rotatingDiamonds3 abertas para Coutinho et al.
+- **Velocidade.** Agora somos mais rápidos em todas as que os dois fecham:
+  - rotatingDiamonds2: 0,84 s contra 730 s (870×);
+  - concentricCircles1: 19 ms contra 5,2 s (270×);
+  - bubbles3: 7,9 s contra 193 s (24×);
+  - bubbles1, bubbles2 e rotatingDiamonds1: de 25× a 35×.
+
+  A causa é o segundo de B&B antes da heurística, que fecha as pequenas
+  sozinho.
+- **Todas as abertas rodaram até o prazo.** Na primeira campanha, a memória
+  encerrava a maioria entre 4 e 13 min.
+- **LB.** Nas 11 que seguem abertas, o nosso é maior que o de 4 h deles:
+  - de 5,7% (bubbles4) a 12,4% (rotatingDiamonds5) com 1 thread;
+  - de 7,1% a 15,0% com 8 threads.
+
+  O LB também subiu em relação à primeira campanha em todas, menos
+  concentricCircles3 e rotatingDiamonds3, que já iam até o prazo. Por
+  exemplo, rotatingDiamonds5 com 8 threads foi de 1.231,9 para 1.272,8.
+- **UB (com 8 threads).**
+  - Melhor que o deles em 9: bubbles4 a 9 (de −2,5% a −10,7%) e
+    concentricCircles3 a 5 (−0,3%, −0,5% e −1,8%).
+  - Igual em rotatingDiamonds3.
+  - Pior em rotatingDiamonds4 e 5: +0,04% e +0,16%.
+- **O descarte por memória esteve ativo em todas as abertas.** Os pisos ficaram
+  de 0,08% a 0,75% acima do LB final: dentro do teto, mais tempo levaria o LB
+  até o piso e não além.
+
+**Resultado em Behdani e Smith (720 instâncias).**
+- **Fechadas e conferidas.** As 720 fecham, os 720 ótimos coincidem com os do
+  apêndice de Coutinho et al. até a terceira casa, e os 720 tours passam na
+  verificação exata.
+- **Tempo.** Todas fecham no segundo inicial de B&B, sem a heurística: média
+  de 3,4 ms, máximo de 13,9 ms.
+- **Contra eles:** 0,6 a 6,5 ms por grupo, contra 17 ms a 1,66 s, de 25× a
+  255× mais rápido em cada grupo. As árvores são de 2 a 9 vezes menores.
+
+| r | Grupo | Nós (média) | Tempo médio | Coutinho et al.: nós | tempo |
+|---|---|---|---|---|---|
+| 0,25 | CETSP-06 | 7 | 0,6 ms | 26 | 29 ms |
+| 0,25 | CETSP-12 | 19 | 2,9 ms | 139 | 189 ms |
+| 0,25 | CETSP-20 | 110 | 6,5 ms | 1.016 | 1.656 ms |
+| 0,5 | CETSP-20 | 54 | 6,3 ms | 437 | 719 ms |
+| 1,0 | CETSP-06 | 6 | 0,7 ms | 13 | 17 ms |
+| 1,0 | CETSP-20 | 28 | 6,0 ms | 163 | 261 ms |
+
+(Grupos selecionados; os 24 estão em `summary-behdani.md` da campanha.)
+
+**Limitações.**
+- Uma execução por instância. O i7 de Coutinho et al. é de 2012; os tempos são
+  indicativos.
+- Exatidão: gap de 1e-6 com limites provados, não ótimo algébrico. Os limites
+  valem na instância em binary64, que difere da decimal em ~1e-14 por
+  coordenada.
+- **Memória.** Ela continua sendo o limite das grandes, agora sob forma de
+  piso. A fatia da busca é 40% do teto, por segurança na compactação, e pode
+  subir.
+- Dados: local, em
+  `benchmarks/workspace/experiments/cetsp-native/campaign-20261025-2308/`.
+
 ## cetsp-campaign-mac-2026-10-25
+
+**Substituído** por [cetsp-campaign2](#cetsp-campaign2-mac-2026-10-26) (mesmas 9
+fechadas; limites, tempos e memória melhores).
 
 **Pergunta.** Com o B&B preguiçoso (limites de inserção certificados), as
 threads e a ILS nova, quanto do CETSP de Coutinho et al. (2016) se resolve
