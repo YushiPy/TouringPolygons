@@ -1002,7 +1002,10 @@ visiting a subset can only shorten the tour.
   - So it could not be faster, only slower.
 
 Measurements:
-[`cetsp-native-mac-2026-10-25`](../../benchmarks/results-saved/README.md#cetsp-native-mac-2026-10-25).
+[`cetsp-campaign-mac-2026-10-25`](../../benchmarks/results-saved/README.md#cetsp-campaign-mac-2026-10-25)
+(earlier versions:
+[`cetsp-geometric`](../../benchmarks/results-saved/README.md#cetsp-geometric-mac-2026-10-25),
+[`cetsp-native`](../../benchmarks/results-saved/README.md#cetsp-native-mac-2026-10-25)).
 
 ## Tests and measurement
 

@@ -24,7 +24,151 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## cetsp-campaign-mac-2026-10-25
+
+**Pergunta.** Com o B&B preguiçoso (limites de inserção certificados), as
+threads e a ILS nova, quanto do CETSP de Coutinho et al. (2016) se resolve
+num Mac: as 20 instâncias 2D geométricas de Mennell e as 720 de Behdani e
+Smith?
+
+**Formulação.**
+- **Binário.** `tpp-convex-cetsp` do commit f31c123, com o oráculo
+  geométrico de discos, filhos preguiçosos e a ILS de ordem completa.
+  Detalhes em
+  [convex-cycle.md](../../docs/algorithms/convex-cycle.md#disks-2026-10-25).
+- **Gap e certificação.**
+  - Gap relativo de 1e-6, com limites provados na instância lida em binary64.
+  - Os 752 tours foram verificados à parte em racionais exatos: cobertura e
+    comprimento com raízes arredondadas para cima.
+  - Os 32 tours de Mennell cobrem também os discos decimais.
+- **Execução.**
+  - Script único (`run-all.sh`), com o Mac reiniciado e só a campanha
+    rodando: Mac M4 Pro, 12 núcleos, 24 GB.
+  - Teto de memória por processo; ao atingi-lo, o B&B para com o limite que
+    tem.
+  - **Mennell, 1 thread:** 1.800 s, 6 ao mesmo tempo, teto de 2,5 GB.
+  - **As abertas, 8 threads:** uma por vez, 1.800 s, teto de 12 GB.
+  - **Behdani e Smith:** os 240 conjuntos de pontos com raios 0,25, 0,5 e
+    1,0, 60 s cada, 1 thread, 6 ao mesmo tempo.
+- **Referência.**
+  - Coutinho et al. (2016): CPLEX 12.4, 1 thread, i7 de 3,4 GHz (2012), 4 h
+    por instância.
+  - Tabela 2 para Mennell; apêndice (Tabelas 4 a 9) para os 720 ótimos de
+    Behdani e Smith.
+
+**Resultado em Mennell (1 thread).**
+
+| Instância | n | Nosso [LB; UB] | Tempo (parada) | Coutinho et al. [LB; UB], 4 h | Tempo |
+|---|---|---|---|---|---|
+| bubbles1 | 36 | **349,135** | 2,3 s | 349,135 | 0,1 s |
+| bubbles2 | 76 | **428,279** | 3,0 s | 428,279 | 0,2 s |
+| bubbles3 | 126 | **529,955** | 6,6 s | 529,955 | 193,1 s |
+| bubbles4 | 184 | [724,169; 804,989] | 759 s (memória) | [690,578; 829,888] | 4 h |
+| bubbles5 | 250 | [907,188; 1.038,299] | 554 s (memória) | [851,822; 1.062,335] | 4 h |
+| bubbles6 | 324 | [1.054,857; 1.290,783] | 250 s (memória) | [993,981; 1.383,139] | 4 h |
+| bubbles7 | 406 | [1.191,883; 1.647,400] | 228 s (memória) | [1.123,522; 1.720,214] | 4 h |
+| bubbles8 | 496 | [1.335,053; 1.987,761] | 245 s (memória) | [1.252,715; 2.101,373] | 4 h |
+| bubbles9 | 594 | [1.472,616; 2.313,268] | 248 s (memória) | [1.374,407; 2.426,274] | 4 h |
+| chaoSingleDep | 200 | **1.039,611** | 290,5 s | [1.000,151; 1.039,610] | 4 h |
+| concentricCircles1 | 16 | **53,158** | 0,7 s | 53,158 | 5,2 s |
+| concentricCircles2 | 36 | **153,132** | 69,2 s | [149,868; 153,132] | 4 h |
+| concentricCircles3 | 60 | [262,337; 270,615] | 1.749 s (memória) | [247,624; 271,076] | 4 h |
+| concentricCircles4 | 104 | [392,007; 453,696] | 251 s (memória) | [358,887; 454,457] | 4 h |
+| concentricCircles5 | 148 | [494,493; 646,866] | 194 s (memória) | [459,411; 645,381] | 4 h |
+| rotatingDiamonds1 | 20 | **32,389** | 0,6 s | 32,389 | 0,1 s |
+| rotatingDiamonds2 | 60 | **140,477** | 6,6 s | 140,477 | 730,4 s |
+| rotatingDiamonds3 | 180 | [378,951; 380,883] | 1.800 s (tempo) | [348,608; 380,882] | 4 h |
+| rotatingDiamonds4 | 320 | [640,749; 772,472] | 232 s (memória) | [593,350; 770,660] | 4 h |
+| rotatingDiamonds5 | 680 | [1.201,664; 1.514,288] | 244 s (memória) | [1.106,577; 1.510,752] | 4 h |
+
+**As 12 abertas, com 8 threads.**
+
+| Instância | Nosso [LB; UB] | Gap | Tempo (parada) |
+|---|---|---|---|
+| bubbles4 | [733,569; 804,084] | 8,8% | 681 s (memória) |
+| bubbles5 | [920,265; 1.035,311] | 11,1% | 498 s (memória) |
+| bubbles6 | [1.090,123; 1.234,811] | 11,7% | 630 s (memória) |
+| bubbles7 | [1.222,084; 1.636,317] | 25,3% | 305 s (memória) |
+| bubbles8 | [1.379,449; 1.925,830] | 28,4% | 624 s (memória) |
+| bubbles9 | [1.505,233; 2.301,693] | 34,6% | 241 s (memória) |
+| concentricCircles3 | [265,556; 270,223] | 1,7% | 1.800 s (tempo) |
+| concentricCircles4 | [402,518; 452,345] | 11,0% | 447 s (memória) |
+| concentricCircles5 | [509,638; 633,486] | 19,6% | 283 s (memória) |
+| rotatingDiamonds3 | **380,883** | 1e-6 | 713 s |
+| rotatingDiamonds4 | [654,751; 770,975] | 15,1% | 211 s (memória) |
+| rotatingDiamonds5 | [1.231,918; 1.513,125] | 18,6% | 242 s (memória) |
+
+- **Fechadas: 9 de 20.**
+  - Com 1 thread: as 6 que Coutinho et al. resolvem, concentricCircles2 (69
+    s) e chaoSingleDep (291 s).
+  - Com 8 threads: rotatingDiamonds3 (713 s).
+  - As três estavam abertas para eles em 4 h. Os UBs deles eram ótimos até a
+    terceira casa: 153,132, 1.039,610 e 380,882 (o nosso, 380,8823 a
+    380,8827).
+- **Velocidade nas que os dois fecham:** rotatingDiamonds2, 6,6 s contra
+  730 s (110×); bubbles3, 6,6 s contra 193 s (29×); concentricCircles1, 0,7
+  s contra 5,2 s.
+  - Em bubbles1, bubbles2 e rotatingDiamonds1 os deles são menores (0,1–0,2
+    s): o nosso tempo é quase todo da heurística.
+- **LB nas 11 que seguem abertas:** com 1 thread, em 3 a 29 min, de 4,9%
+  (bubbles4) a 9,2% (concentricCircles4) acima do de 4 h deles; com 8
+  threads, de 6,2% a 12,2%.
+- **UB:**
+  - Melhor que o deles em 9: bubbles4 a 9 (de 2,3% a 6,7% com 1 thread; até
+    10,7% em bubbles6 com 8 threads), concentricCircles3 e 4, e
+    concentricCircles5 com 8 threads (−1,8%).
+  - Pior em rotatingDiamonds4 e 5: +0,04% e +0,16% com 8 threads.
+- **A memória, não o tempo, encerrou 11 das 12 abertas com 1 thread** (de
+  194 a 1.749 s). Ao parar, a árvore preguiçosa tem de 67 a 134 milhões de
+  nós, a ~16 bytes cada. Com 8 threads, os 12 GB acabam em 3,5 a 11 min.
+
+**Resultado em Behdani e Smith (720 instâncias).**
+- **Fechadas e conferidas.** As 720 fecham no gap de 1e-6, os 720 ótimos
+  coincidem com os do apêndice de Coutinho et al. até a terceira casa, e os
+  720 tours passam na verificação exata.
+- **Árvores** de 2 a 9 vezes menores que as deles. No grupo mais difícil
+  (CETSP-20, r = 0,25): 110 nós de média, contra 1.016.
+- **Tempo.**
+  - O B&B leva em média 0,3 ms por instância (no máximo 1,5 ms de média num
+    grupo), contra 17 ms a 1,66 s deles.
+  - O tempo total é dominado pela ILS inicial: média de 0,52 s, máximo de
+    2,2 s. Ela roda pelo menos 200 iterações sem melhora antes de parar, o
+    que é excessivo aqui.
+  - Por isso o total é maior que o deles em 18 dos 24 grupos (por exemplo,
+    CETSP-20 com r = 1,0: 1,06 s contra 0,26 s). É menor em 6: CETSP-06,
+    que não roda a ILS, e CETSP-16 a 20 com r = 0,25 (CETSP-20: 0,85 s
+    contra 1,66 s).
+
+| r | Grupo | Fechadas | Nós (média) | B&B (média) | Total (média) | Coutinho et al.: nós | tempo |
+|---|---|---|---|---|---|---|---|
+| 0,25 | CETSP-06 | 30/30 | 6 | 0,0 ms | 0,002 s | 26 | 0,029 s |
+| 0,25 | CETSP-10 | 30/30 | 14 | 0,1 ms | 0,346 s | 86 | 0,107 s |
+| 0,25 | CETSP-16 | 30/30 | 53 | 0,7 ms | 0,602 s | 443 | 0,673 s |
+| 0,25 | CETSP-20 | 30/30 | 110 | 1,5 ms | 0,852 s | 1.016 | 1,656 s |
+| 0,5 | CETSP-20 | 30/30 | 53 | 0,7 ms | 1,029 s | 437 | 0,719 s |
+| 1,0 | CETSP-20 | 30/30 | 28 | 0,4 ms | 1,055 s | 163 | 0,261 s |
+
+(Grupos selecionados; os 24 grupos estão em `summary-behdani.md` da campanha.)
+
+**Limitações.**
+- Uma execução por instância. O i7 de Coutinho et al. é de 2012; os tempos
+  são indicativos, não uma comparação de máquina igual.
+- Exatidão: gap de 1e-6 com limites provados, não ótimo algébrico (com
+  discos não há caminho exato). Os limites valem na instância em binary64,
+  que difere da decimal em ~1e-14 por coordenada.
+- A memória da árvore limita as instâncias grandes. Nós menores, ou
+  reaproveitar os nós podados, deixariam rodar até o tempo.
+- O piso de 200 iterações da ILS pesa nas instâncias pequenas; rodar o B&B
+  primeiro, por um instante, as fecharia em milissegundos.
+- Dados: local, em
+  `benchmarks/workspace/experiments/cetsp-native/campaign-20261025-1752/`
+  (JSONL, tours, `summary-*.md` e `log.txt`).
+
 ## cetsp-geometric-mac-2026-10-25
+
+**Substituído** por [cetsp-campaign](#cetsp-campaign-mac-2026-10-25), com o
+B&B preguiçoso, as threads e a ILS nova; os números abaixo são da versão
+anterior (filhos resolvidos ao criar).
 
 **Pergunta.** Com uma construção geométrica no oráculo de discos (Alhazen,
 Newton no tipo, blocos para discos sobrepostos) e um B&B com tour inicial por
