@@ -384,6 +384,18 @@ struct Solver {
             const Vector2 v=t.cycle[after%n]-prev;cost+=std::sqrt(v.dot(v));
             return cost-d(before,after);
         };
+        // A lower bound on place() without Alhazen: each step of the path is
+        // at least the distance between centers less the radii, and the path
+        // at least the link it replaces.
+        auto reach=[&](Vector2 p,const tpp::ConvexDisk &disk){const Vector2 v=disk.center-p;return std::max(0.0,std::sqrt(v.dot(v))-disk.radius);};
+        auto place_bound=[&](size_t b,size_t e,size_t before,size_t after,bool flip) {
+            double path=reach(t.cycle[before%n],all[size_t(t.sequence[flip?e:b])])+reach(t.cycle[after%n],all[size_t(t.sequence[flip?b:e])]);
+            for(size_t q=b;q<e;++q) {
+                const auto &x=all[size_t(t.sequence[q])],&y=all[size_t(t.sequence[q+1])];const Vector2 v=y.center-x.center;
+                path+=std::max(0.0,std::sqrt(v.dot(v))-x.radius-y.radius);
+            }
+            return std::max(path,d(before,after))-d(before,after);
+        };
         // 2-opt with links (p, p+1) and (j, j+1), j a position of a nearest disk.
         auto two_opt=[&](size_t p,double eps) {
             for(const int nb:nearest[size_t(t.sequence[p])]) {
@@ -411,6 +423,7 @@ struct Solver {
                 for(const size_t at_j:{j,(j+n-1)%n}) { // between at_j and at_j+1
                     if(at_j+1>=b&&at_j<=e)continue;
                     for(const bool flip:{false,true}) {
+                        if(!(place_bound(b,e,at_j,at_j+1,flip)-removal<-eps))continue;
                         const double delta=place(b,e,at_j,at_j+1,flip)-removal;
                         if(!(delta<-eps))continue;
                         std::vector<int> block;
