@@ -953,11 +953,34 @@ visiting a subset can only shorten the tour.
   - chaoSingleDep closes in 299 s instead of about 1,770 s.
   - `--mode screen` prunes with the bounds but solves the survivors at
     once; `--mode eager` solves every child.
-- **Memory.** A node takes 16 bytes: 8 in the tree (parent and insertion)
-  and 8 in the queue. The queue keeps the bound in single precision rounded
-  down, still a lower bound. On expansion the sequence is rebuilt from the
-  root, each disk entering at its point nearest the link between its
-  neighbours there, and its cycle is solved warm from those points.
+- **Memory.** Children are stored by family: every expanded node keeps the
+  disk its children insert, and per child a position and a bound (single
+  precision, rounded down, so still a lower bound), sorted by bound.
+  - A child costs 6 bytes. The queue holds families, keyed by the next
+    child's bound, not children, so it stays about ten times smaller.
+  - A family records its own node's insertion. A node's sequence is rebuilt
+    from the root through families alone, each disk entering at its point
+    nearest the link between its neighbours there, and its cycle is solved
+    warm from those points.
+  - The arrays live in fixed chunks mapped from the system, so they grow
+    without reallocating and freed chunks leave the resident size at once.
+    The allocator kept large freed blocks resident, which doubled the
+    measured size.
+- **Memory ceiling** (`--max-memory`). When the structures pass 40% of the
+  ceiling, they are compacted to what the queue still needs: families with
+  children left, and their ancestors.
+  - If that is not enough, about a third of the children left are dropped,
+    those with the largest bounds. Their threshold becomes a floor: the
+    final lower bound is at most it, and is still valid.
+  - So runs reach the time limit inside the ceiling. In a test with a
+    0.3 GB ceiling, the peak resident size stayed under 0.31 GB, and the
+    150 s bounds equalled those without a ceiling.
+- **A short B&B first.** With only the centers' tour as incumbent, the B&B
+  gets a second (at most 2% of the time) before the initial tour's search.
+  Small instances close there: Behdani and Smith's in milliseconds, and
+  among Mennell's, bubbles1, bubbles2, concentricCircles1 and
+  rotatingDiamonds1 and 2 in 3 ms to 0.8 s. Otherwise the B&B starts over
+  after the initial tour.
 - **Discarded feasible nodes.** A feasible child gets no node. Its `L` still
   enters the final bound, so a gap the oracle left there is not lost.
 - **Threads.** `--threads T` expands batches of 4T best nodes in parallel

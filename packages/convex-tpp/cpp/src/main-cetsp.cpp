@@ -29,8 +29,16 @@
 #include <atomic>
 #include <barrier>
 #include <deque>
+#include <memory>
+#include <sys/mman.h>
+#include <type_traits>
 #include <thread>
-#include <sys/resource.h>
+#ifdef __APPLE__
+#include <malloc/malloc.h>
+#include <mach/mach.h>
+#else
+#include <unistd.h>
+#endif
 #include <cmath>
 #include <fstream>
 #include <iomanip>
@@ -106,20 +114,66 @@ std::vector<double> excess(const Disks &disks,const std::vector<int> &sequence,c
 }
 constexpr double kCovered=-1e-9; // relative to the radius scale; conservative
 
-// The search keeps 16 bytes a node: in the tree, its parent and the insertion
-// that made it; in the queue, its bound (in single precision, rounded down,
-// so still a lower bound) and its index. When a node is expanded its
-// sequence is rebuilt from the root, each disk entering at its point nearest
-// the link between its neighbours there, and its cycle is solved again, warm
-// from those points.
-struct Entry {std::uint32_t parent;std::uint16_t position,disk;};
-struct Open {float lower;std::uint32_t id;};
+// The search keeps a family per expanded node: the disk its children insert,
+// and per child its position and bound, sorted by bound, with the next one
+// to expand. A child costs 6 bytes: its bound in single precision, rounded
+// down (still a lower bound), and its position. The queue holds families,
+// not children: a family while it has children left, keyed by the next
+// one's bound. A family records its own node's insertion, so a node's
+// sequence is rebuilt from the root through families alone, each disk
+// entering at its point nearest the link between its neighbours there; its
+// cycle is then solved again, warm from those points.
+// The process's resident size now, in bytes (0 if unknown).
+double resident_bytes() {
+#ifdef __APPLE__
+    mach_task_basic_info_data_t info{};mach_msg_type_number_t count=MACH_TASK_BASIC_INFO_COUNT;
+    if(task_info(mach_task_self(),MACH_TASK_BASIC_INFO,task_info_t(&info),&count)!=KERN_SUCCESS)return 0;
+    return double(info.resident_size);
+#else
+    std::ifstream statm("/proc/self/statm");long pages=0,resident=0;
+    if(!(statm>>pages>>resident))return 0;
+    return double(resident)*double(sysconf(_SC_PAGESIZE));
+#endif
+}
+constexpr std::uint32_t kNone=0xffffffffu;
+struct Family {std::uint32_t parent,first;std::uint16_t own_position,own_disk,disk,count,next;};
+struct Open {float lower;std::uint32_t family;};
 float rounded_down(double x) {
     float f=float(x);
     if(double(f)>x)f=std::nextafter(f,-INFINITY);
     return f;
 }
 struct ByBound {bool operator()(const Open &a,const Open &b) const {return a.lower>b.lower;}};
+// Room for `extra` more elements, growing by a quarter rather than doubling,
+// so that a large vector does not briefly need three times its size.
+template<class T> void make_room(std::vector<T> &v,size_t extra) {
+    if(v.size()+extra>v.capacity())v.reserve(std::max(v.size()+extra,v.capacity()+v.capacity()/4));
+}
+// An array of plain values in fixed chunks of 2^20 elements, each mapped
+// from the system and unmapped when freed: it grows without reallocating,
+// and freed chunks leave the resident size at once (the allocator would keep
+// large freed blocks resident in its cache).
+template<class T> class Chunked {
+    static_assert(std::is_trivially_copyable_v<T>);
+    struct Unmap {void operator()(T *p) const {munmap(p,kChunk*sizeof(T));}};
+    std::vector<std::unique_ptr<T,Unmap>> chunks_;size_t size_=0;
+public:
+    static constexpr size_t kBits=20,kChunk=size_t(1)<<kBits;
+    T &operator[](size_t i){return chunks_[i>>kBits].get()[i&(kChunk-1)];}
+    const T &operator[](size_t i) const {return chunks_[i>>kBits].get()[i&(kChunk-1)];}
+    void push_back(const T &x) {
+        if(size_==chunks_.size()*kChunk) {
+            void *m=mmap(nullptr,kChunk*sizeof(T),PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANON,-1,0);
+            if(m==MAP_FAILED)throw std::bad_alloc();
+            chunks_.emplace_back(static_cast<T*>(m));
+        }
+        (*this)[size_++]=x;
+    }
+    size_t size() const {return size_;}
+    size_t bytes() const {return chunks_.size()*kChunk*sizeof(T);}
+    void clear(){chunks_.clear();size_=0;}
+    void swap(Chunked &o){chunks_.swap(o.chunks_);std::swap(size_,o.size_);}
+};
 
 struct Solver {
     const Disks &all;double gap;double deadline;Clock::time_point began;size_t strong=1;
@@ -467,25 +521,90 @@ struct Solver {
             counted.constructed+=work[t].constructed;counted.oracle_seconds+=work[t].oracle_seconds;
         }
     }
-    std::vector<Entry> tree;
-    std::vector<int> sequence_of(std::uint32_t id,std::vector<Vector2> &warm) const {
-        std::vector<Entry> path;
-        for(std::uint32_t at=id;at!=0;at=tree[at].parent)path.push_back(tree[at]);
+    Chunked<Family> families;Chunked<float> bounds;Chunked<std::uint16_t> positions;
+    std::vector<Open> heap;
+    size_t children_created=0,compactions=0,dropped=0;
+    double dropped_floor=INFINITY; // children dropped for memory had bounds at least this
+    double resident_start=0;       // bytes, when the B&B starts
+    double probe_seconds=0;        // the first, short B&B with the centers' tour
+    size_t bytes() const {
+        return families.bytes()+bounds.bytes()+positions.bytes()+heap.capacity()*sizeof(Open);
+    }
+    // Child `child` of `family` (the root itself if `family` is kNone).
+    std::vector<int> sequence_of(std::uint32_t family,std::uint16_t child,std::vector<Vector2> &warm) const {
+        std::vector<std::pair<std::uint16_t,std::uint16_t>> path; // (disk, position), leaf first
+        if(family!=kNone) {
+            path.push_back({families[family].disk,positions[families[family].first+child]});
+            for(std::uint32_t f=family;families[f].parent!=kNone;f=families[f].parent)path.push_back({families[f].own_disk,families[f].own_position});
+        }
         std::vector<int> sequence{0};warm.assign(1,all[0].center);
         for(auto it=path.rbegin();it!=path.rend();++it) {
-            const size_t p=it->position,k=warm.size();
-            const Vector2 point=nearest_to_link(warm[p-1],warm[p%k],all[it->disk]);
-            sequence.insert(sequence.begin()+long(p),int(it->disk));
+            const size_t p=it->second,k=warm.size();
+            const Vector2 point=nearest_to_link(warm[p-1],warm[p%k],all[it->first]);
+            sequence.insert(sequence.begin()+long(p),int(it->first));
             warm.insert(warm.begin()+long(p),point);
         }
         return sequence;
+    }
+    // Keep only what the queue still needs: families with children left (and
+    // only those children), and their ancestors (for their insertions). A
+    // family's parent is always older, so one pass in order renumbers them.
+    void compact() {
+        ++compactions;
+        std::vector<std::uint32_t> renamed(families.size(),kNone);
+        std::vector<char> keep(families.size(),0),open(families.size(),0);
+        for(const auto &o:heap)open[o.family]=keep[o.family]=1;
+        for(size_t f=families.size();f-->0;)if(keep[f]&&families[f].parent!=kNone)keep[families[f].parent]=1;
+        Chunked<Family> kept;Chunked<float> kept_bounds;Chunked<std::uint16_t> kept_positions;
+        for(size_t f=0;f<families.size();++f) {
+            if(!keep[f])continue;
+            Family g=families[f];
+            if(g.parent!=kNone)g.parent=renamed[g.parent];
+            const std::uint32_t first=std::uint32_t(kept_bounds.size());
+            if(open[f])for(size_t c=g.next;c<g.count;++c){kept_bounds.push_back(bounds[g.first+c]);kept_positions.push_back(positions[g.first+c]);}
+            g.count=open[f]?std::uint16_t(g.count-g.next):0;g.next=0;g.first=first;
+            renamed[f]=std::uint32_t(kept.size());kept.push_back(g);
+        }
+        for(auto &o:heap)o.family=renamed[o.family];
+        families.swap(kept);bounds.swap(kept_bounds);positions.swap(kept_positions);
+        std::vector<Open>(heap).swap(heap); // its capacity back to its size
+        kept.clear();kept_bounds.clear();kept_positions.clear();
+#ifdef __APPLE__
+        malloc_zone_pressure_relief(nullptr,0); // freed chunks back to the system now
+#endif
+    }
+    // Over budget even when compact: drop about a third of the children left,
+    // those with the largest bounds. Every dropped child's bound is at least
+    // the threshold, which therefore stays a lower bound for their subtrees:
+    // the search can no longer prove more than it (dropped_floor).
+    void drop() {
+        double low=INFINITY,high=-INFINITY;size_t total=0;
+        for(const auto &o:heap){const auto &f=families[o.family];low=std::min(low,double(bounds[f.first+f.next]));high=std::max(high,double(bounds[f.first+f.count-1]));total+=f.count-f.next;}
+        if(!(high>low))return;
+        std::vector<size_t> histogram(1024,0);
+        auto bin=[&](double b){return std::min<size_t>(1023,size_t((b-low)/(high-low)*1024));};
+        for(const auto &o:heap){const auto &f=families[o.family];for(size_t c=f.next;c<f.count;++c)++histogram[bin(bounds[f.first+c])];}
+        size_t above=0,cut=1023;
+        for(;cut>0&&above+histogram[cut]<total/3;--cut)above+=histogram[cut];
+        const float threshold=rounded_down(low+(high-low)*double(cut)/1024);
+        std::vector<Open> left;
+        for(const auto &o:heap) {
+            auto &f=families[o.family];
+            size_t end=f.next;
+            while(end<f.count&&bounds[f.first+end]<threshold)++end;
+            dropped+=f.count-end;f.count=std::uint16_t(end);
+            if(f.next<f.count)left.push_back(o);
+        }
+        dropped_floor=std::min(dropped_floor,double(threshold));
+        heap.swap(left);std::make_heap(heap.begin(),heap.end(),ByBound{});
+        compact();
     }
     // One node's expansion, independent of the others in its batch: its
     // cycle solved again, then its children (bounds by insertion, or solved)
     // and the feasible tours met on the way. `cutoff` is the batch's.
     struct Child {double lower;std::uint16_t position;};
     struct Expansion {
-        std::uint32_t id=0;double bound=0;
+        std::uint32_t family=kNone;std::uint16_t child=0;double bound=0;
         bool pruned=false;double floor=INFINITY;int branched=-1;
         std::vector<Child> children;
         std::vector<Tour> tours; // feasible, to offer
@@ -493,7 +612,7 @@ struct Solver {
     };
     void expand(Expansion &x,double cutoff,double incumbent) const {
         std::vector<Vector2> warm;
-        const auto sequence=sequence_of(x.id,warm);
+        const auto sequence=sequence_of(x.family,x.child,warm);
         const auto r=oracle(sequence,warm,INFINITY,x.counted,incumbent);
         const double lower=std::max(x.bound,r.lower_bound);
         if(lower>=cutoff){x.pruned=true;return;}
@@ -540,16 +659,35 @@ struct Solver {
             if(x.children.empty()&&x.tours.empty())break; // every child pruned: so is the node
         }
     }
+    // A small instance closes before an elaborate tour pays off: with only
+    // the centers' tour as incumbent, the B&B gets a moment (a second, at
+    // most 2% of the time). If that does not close it, the initial tour gets
+    // its budget and the B&B starts over.
     double run(double budget) {
-        heuristic(budget);heuristic_seconds=elapsed();
-        tree.assign(1,Entry{0,0,0});
-        std::priority_queue<Open,std::vector<Open>,ByBound> queue;
-        queue.push({0.0f,0});
+        const double t0=elapsed();
+        if(nearest.empty())prepare_neighbours();
+        offer(center_tour(deadline));
+        const double probe_until=std::min(deadline,elapsed()+std::min(1.0,0.02*deadline));
+        double lower=search(probe_until);
+        probe_seconds=elapsed()-t0;
+        if(upper-lower<=gap*upper*1.0000001||elapsed()>=deadline)return lower;
+        const double t1=elapsed();
+        heuristic(budget);heuristic_seconds=elapsed()-t1;
+        return search(deadline);
+    }
+    double search(double until) {
+        families.clear();bounds.clear();positions.clear();heap.clear();
+        dropped_floor=INFINITY;stopped="closed";
         double global=0,feasible_floor=INFINITY;
+        // The search structures' share of the memory ceiling: 40% of what
+        // the process does not hold already, since a compaction briefly holds
+        // the old and the new structures at once.
+        resident_start=resident_bytes();
+        const double room=max_memory>0?std::max(0.1*max_memory,0.4*(max_memory-resident_start)):INFINITY;
         // A batch of the best open nodes (4 per worker, so that uneven
         // expansions balance) is expanded by `threads` workers; its results
-        // are merged in order by this thread.
-        std::vector<Expansion> batch;
+        // are merged in order by this thread. The root comes first, alone.
+        std::vector<Expansion> batch(1);batch[0].family=kNone;
         std::atomic<size_t> next{0};
         double cutoff=0,incumbent=0;
         auto work=[&]{for(size_t i;(i=next.fetch_add(1))<batch.size();)expand(batch[i],cutoff,incumbent);};
@@ -557,29 +695,35 @@ struct Solver {
         std::atomic<bool> stop{false};
         std::vector<std::thread> pool;
         for(size_t t=1;t<threads;++t)pool.emplace_back([&]{for(;;){start.arrive_and_wait();if(stop)return;work();done.arrive_and_wait();}});
-        for(size_t round=0;!queue.empty();++round) {
-            if(elapsed()>deadline){global=std::min(double(queue.top().lower),upper*(1-gap));stopped="time";break;}
-            // A memory ceiling, checked now and then: the peak resident size
-            // (bytes on macOS, kilobytes on Linux).
-            if(max_memory>0&&round%1024==0) {
-                rusage usage{};getrusage(RUSAGE_SELF,&usage);
-#ifdef __APPLE__
-                const double bytes=double(usage.ru_maxrss);
-#else
-                const double bytes=1024.0*double(usage.ru_maxrss);
-#endif
-                if(bytes>max_memory){global=std::min(double(queue.top().lower),upper*(1-gap));stopped="memory";break;}
+        for(size_t round=0;;++round) {
+            cutoff=std::min(upper*(1-gap),dropped_floor);incumbent=upper;
+            if(round>0) {
+                if(heap.empty())break;
+                if(elapsed()>until){global=std::min(double(heap.front().lower),cutoff);stopped="time";break;}
+                if(bytes()>room) {
+                    compact();
+                    if(bytes()>0.6*room)drop();
+                    cutoff=std::min(upper*(1-gap),dropped_floor);
+                }
+                // A hard ceiling on the resident size, should the estimate
+                // above miss something.
+                if(max_memory>0&&round%4096==0&&resident_bytes()>1.5*max_memory&&!heap.empty()) {
+                    global=std::min(double(heap.front().lower),cutoff);stopped="memory";break;
+                }
+                batch.clear();
+                while(!heap.empty()&&batch.size()<(threads>1?4*threads:1)) {
+                    std::pop_heap(heap.begin(),heap.end(),ByBound{});
+                    const Open o=heap.back();heap.pop_back();
+                    if(o.lower>=cutoff)continue; // and so are its family's later children
+                    auto &f=families[o.family];
+                    const std::uint16_t c=f.next++;
+                    if(f.next<f.count&&bounds[f.first+f.next]<cutoff){heap.push_back({bounds[f.first+f.next],o.family});std::push_heap(heap.begin(),heap.end(),ByBound{});}
+                    Expansion x;x.family=o.family;x.child=c;x.bound=bounds[f.first+c];batch.push_back(std::move(x));
+                }
+                if(batch.empty())continue;
             }
-            cutoff=upper*(1-gap);incumbent=upper;
-            batch.clear();
-            while(!queue.empty()&&batch.size()<(threads>1?4*threads:1)) {
-                const Open open=queue.top();queue.pop();
-                if(open.lower>=cutoff)continue;
-                Expansion x;x.id=open.id;x.bound=open.lower;batch.push_back(std::move(x));
-            }
-            if(batch.empty())continue;
             next=0;
-            if(threads>1){start.arrive_and_wait();work();done.arrive_and_wait();}
+            if(threads>1&&batch.size()>1){start.arrive_and_wait();work();done.arrive_and_wait();}
             else work();
             for(auto &x:batch) {
                 ++nodes;
@@ -588,15 +732,22 @@ struct Solver {
                 for(const auto &t:x.tours)if(t.length<upper){upper=t.length;best_sequence=t.sequence;best_cycle=t.cycle;}
                 feasible_floor=std::min(feasible_floor,x.floor);
                 if(x.pruned)continue;
-                for(const auto &child:x.children) {
-                    if(child.lower>=upper*(1-gap))continue;
-                    tree.push_back({x.id,child.position,std::uint16_t(x.branched)});
-                    queue.push({rounded_down(child.lower),std::uint32_t(tree.size()-1)});
-                }
+                const double limit=std::min(upper*(1-gap),dropped_floor);
+                std::sort(x.children.begin(),x.children.end(),[](const Child &a,const Child &b){return a.lower<b.lower;});
+                size_t n=0;while(n<x.children.size()&&x.children[n].lower<limit)++n;
+                if(!n)continue;
+                Family g{kNone,std::uint32_t(bounds.size()),0,0,std::uint16_t(x.branched),std::uint16_t(n),0};
+                if(x.family!=kNone){g.parent=x.family;g.own_position=positions[families[x.family].first+x.child];g.own_disk=families[x.family].disk;}
+                make_room(heap,1);
+                for(size_t i=0;i<n;++i){bounds.push_back(rounded_down(x.children[i].lower));positions.push_back(x.children[i].position);}
+                children_created+=n;
+                families.push_back(g);
+                heap.push_back({bounds[g.first],std::uint32_t(families.size()-1)});std::push_heap(heap.begin(),heap.end(),ByBound{});
             }
+            if(round==0&&heap.empty())break;
         }
         if(threads>1){stop=true;start.arrive_and_wait();for(auto &t:pool)t.join();}
-        if(queue.empty())global=upper*(1-gap);
+        if(heap.empty()){global=std::min(upper*(1-gap),dropped_floor);if(stopped=="closed"&&dropped_floor<upper*(1-gap))stopped="dropped";}
         return std::min({global,feasible_floor,upper});
     }
 };
@@ -632,10 +783,11 @@ int main(int argc,char **argv) {
     std::cout<<std::setprecision(12)<<"{\"instance\":\""<<positional[0]<<"\",\"disks\":"<<inst.disks.size()-1
         <<",\"lower_bound\":"<<lower<<",\"upper_bound\":"<<s.upper<<",\"gap\":"<<(s.upper-lower)/s.upper
         <<",\"closed\":"<<(s.upper-lower<=s.gap*s.upper*1.0000001?"true":"false")<<",\"stopped\":\""<<s.stopped<<"\""
-        <<",\"seconds\":"<<s.elapsed()<<",\"heuristic_seconds\":"<<s.heuristic_seconds<<",\"heuristic_tours\":"<<s.improvements<<",\"ils_iterations\":"<<s.ils_iterations
+        <<",\"seconds\":"<<s.elapsed()<<",\"heuristic_seconds\":"<<s.heuristic_seconds<<",\"probe_seconds\":"<<s.probe_seconds<<",\"heuristic_tours\":"<<s.improvements<<",\"ils_iterations\":"<<s.ils_iterations
         <<",\"nodes\":"<<s.nodes<<",\"oracle_calls\":"<<s.counted.oracle_calls
         <<",\"oracle_seconds\":"<<s.counted.oracle_seconds<<",\"newton_iterations\":"<<s.counted.newton<<",\"construction_closed\":"<<s.counted.constructed
-        <<",\"tree_nodes\":"<<s.tree.size()<<",\"screened\":"<<s.counted.screened<<",\"threads\":"<<s.threads<<",\"mode\":\""<<mode<<"\",\"strong\":"<<s.strong<<",\"tour_regions\":"<<s.best_sequence.size()<<"}"<<std::endl;
+        <<",\"children\":"<<s.children_created<<",\"families\":"<<s.families.size()<<",\"compactions\":"<<s.compactions
+        <<",\"dropped\":"<<s.dropped<<",\"resident_start\":"<<s.resident_start<<",\"resident_end\":"<<resident_bytes()<<",\"search_bytes\":"<<s.bytes()<<",\"dropped_floor\":"<<(std::isfinite(s.dropped_floor)?s.dropped_floor:-1)<<",\"screened\":"<<s.counted.screened<<",\"threads\":"<<s.threads<<",\"mode\":\""<<mode<<"\",\"strong\":"<<s.strong<<",\"tour_regions\":"<<s.best_sequence.size()<<"}"<<std::endl;
     if(tour!="-") {
         std::ofstream out(tour);out<<std::setprecision(17)<<"{\"instance\":\""<<positional[0]<<"\",\"upper_bound\":"<<s.upper<<",\"sequence\":[";
         for(size_t i=0;i<s.best_sequence.size();++i)out<<(i?",":"")<<s.best_sequence[i];
