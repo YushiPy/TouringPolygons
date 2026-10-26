@@ -106,7 +106,7 @@ respeitado) e o B&B rodando antes da heurística, o que muda em relação à
   A causa é o segundo de B&B antes da heurística, que fecha as pequenas
   sozinho.
 - **Todas as abertas rodaram até o prazo.** Na primeira campanha, a memória
-  encerrava a maioria entre 4 e 13 min.
+  encerrava a maioria entre 3 e 13 min.
 - **LB.** Nas 11 que seguem abertas, o nosso é maior que o de 4 h deles:
   - de 5,7% (bubbles4) a 12,4% (rotatingDiamonds5) com 1 thread;
   - de 7,1% a 15,0% com 8 threads.
@@ -129,7 +129,7 @@ respeitado) e o B&B rodando antes da heurística, o que muda em relação à
   verificação exata.
 - **Tempo.** Todas fecham no segundo inicial de B&B, sem a heurística: média
   de 3,4 ms, máximo de 13,9 ms.
-- **Contra eles:** 0,6 a 6,5 ms por grupo, contra 17 ms a 1,66 s, de 25× a
+- **Contra eles:** 0,6 a 6,5 ms por grupo, contra 17 ms a 1,66 s, de 19× a
   255× mais rápido em cada grupo. As árvores são de 2 a 9 vezes menores.
 
 | r | Grupo | Nós (média) | Tempo médio | Coutinho et al.: nós | tempo |
