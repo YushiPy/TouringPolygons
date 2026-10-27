@@ -71,4 +71,16 @@ Vector2 tpp_convex_disk_detour_point(Vector2 a, Vector2 b, const ConvexDisk &dis
 // optimal and the insertion leaves them in place. Empty on invalid input.
 std::vector<double> tpp_convex_disk_insertion_bounds(const std::vector<ConvexDisk> &disks,
     const std::vector<Vector2> &contacts, const ConvexDisk &inserted);
+
+// How far each disk is from the closed polyline through `cycle`, minus its
+// radius: `excess` as computed in binary64 (to rank the disks), and `error`, a
+// bound on its rounding error, which grows with the coordinates rather than
+// the radius. excess + error <= 0 proves that the polyline meets the disk.
+// The disks listed in `members` are met at their contacts, which the oracle
+// proved inside them: their excess is -infinity.
+struct DiskExcess {
+    std::vector<double> excess, error;
+};
+DiskExcess tpp_convex_disk_excess(const std::vector<ConvexDisk> &disks, const std::vector<int> &members,
+    const std::vector<Vector2> &cycle);
 } // namespace tpp

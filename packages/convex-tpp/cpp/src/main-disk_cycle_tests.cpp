@@ -3,6 +3,7 @@
 // solved by the polygon oracle must bracket every disk bound), warm starts and
 // cutoffs.
 #include "tpp_convex.h"
+#include "tpp/convex/rational.h"
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
@@ -120,7 +121,7 @@ void insertion_bounds() {
         for(int p=1;p<=k;++p) {
             Disks child=disks;child.insert(child.begin()+p,inserted);
             const auto c=solve(child,1e-9);
-            require(bounds[size_t(p-1)]<=c.upper_bound,"insertion bound below the child's optimum");
+            require(bounds[size_t(p-1)]<=c.upper_bound,"insertion bound below the child's certified upper bound");
             const double slack=(c.lower_bound-bounds[size_t(p-1)])/std::max(1.0,c.lower_bound);
             worst=std::max(worst,slack);close+=slack<1e-2;++checked;
         }
@@ -144,11 +145,55 @@ void warm_and_cutoff() {
 }
 }
 
+// Coverage of a disk by the polyline is proved only when the excess plus its
+// error bound is at most zero. With coordinates up to 1e15 and radii set at
+// the computed distance (the borderline), every proof holds in rational
+// arithmetic; the review's segment of 2e16 that a fixed margin took as
+// meeting a disk 2 away (radius 1) proves nothing.
+void coverage_error() {
+    using R=tpp::ConvexRational;
+    {
+        const std::vector<tpp::ConvexDisk> disks{{{-1e16,-1e16},0},{{1e16,1e16},0},{{1e16,1e16+2},1}};
+        const auto e=tpp::tpp_convex_disk_excess(disks,{0,1},{disks[0].center,disks[1].center});
+        require(!(e.excess[2]+e.error[2]<=0),"a disk 2 away from a long link is not proved met");
+    }
+    std::mt19937 rng(20261028);std::uniform_real_distribution<double> unit(-1,1);
+    size_t proved=0,cases=0;
+    for(const double scale:{1.0,1e3,1e8,1e15})for(int trial=0;trial<200;++trial) {
+        std::vector<Vector2> cycle;for(int i=0;i<4;++i)cycle.push_back(Vector2{unit(rng),unit(rng)}*scale);
+        const Vector2 center=Vector2{unit(rng),unit(rng)}*scale;
+        // Exact squared distance from the center to the closed polyline.
+        R best=-1;
+        for(size_t l=0;l<cycle.size();++l) {
+            const Vector2 a=cycle[l],b=cycle[(l+1)%cycle.size()];
+            const R ex=R(b.x)-R(a.x),ey=R(b.y)-R(a.y),fx=R(center.x)-R(a.x),fy=R(center.y)-R(a.y);
+            const R ee=ex*ex+ey*ey;R t=ee>0?(fx*ex+fy*ey)/ee:R(0);
+            if(t<0)t=0;if(t>1)t=1;
+            const R gx=fx-ex*t,gy=fy-ey*t,d2=gx*gx+gy*gy;
+            if(best<0||d2<best)best=d2;
+        }
+        std::vector<tpp::ConvexDisk> disks{{cycle[0],0},{center,0}};
+        const double computed=tpp::tpp_convex_disk_excess(disks,{0},cycle).excess[1];
+        for(const double radius:{computed,std::nextafter(computed,INFINITY),computed*(1+1e-12)}) {
+            disks[1].radius=radius;
+            const auto e=tpp::tpp_convex_disk_excess(disks,{0},cycle);
+            ++cases;
+            if(e.excess[1]+e.error[1]<=0) {
+                ++proved;
+                require(best<=R(radius)*R(radius),"a disk proved met is met in exact arithmetic");
+            }
+            if(scale<=1e3)require(e.error[1]<=1e-9*std::max(1.0,radius),"the error bound stays below the margin at small scales");
+        }
+    }
+    require(proved>0,"some borderline disks are proved met");
+    std::cout<<"Disk coverage: "<<proved<<" of "<<cases<<" borderline disks proved met, all met exactly; the review's long link proves nothing.\n";
+}
 int main() {
     known_optima();
     sandwich();
     construction_matches_barrier();
     insertion_bounds();
     warm_and_cutoff();
+    coverage_error();
     std::cout<<"Disk cycle tests passed.\n";
 }

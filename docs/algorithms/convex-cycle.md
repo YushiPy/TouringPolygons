@@ -930,9 +930,12 @@ are cyclic sequences from the depot. A node's bound is its oracle `L`:
 visiting a subset can only shorten the tour.
 - **Branching.** A cycle that meets every disk is a feasible tour. Otherwise
   the farthest uncovered disk is inserted at every position, with the mirror
-  symmetry removed at the second disk. Coverage uses a margin of `1e-9`
-  times the radius, so a borderline disk is branched on rather than assumed
-  covered. Strong branching (several candidates, keep the one whose weakest
+  symmetry removed at the second disk. A disk counts as covered only when
+  its distance to the cycle, plus a bound on that distance's rounding error
+  (which grows with the coordinates, not the radius;
+  `tpp_convex_disk_excess`), is below the radius by `1e-9` times the radius.
+  So a borderline disk is branched on rather than assumed covered. Strong
+  branching (several candidates, keep the one whose weakest
   child is strongest) is optional. On rotatingDiamonds3 and
   concentricCircles2 it gave weaker bounds in the same time, even with the
   candidates compared by insertion bounds alone. So did lifting a node's
@@ -1029,9 +1032,18 @@ visiting a subset can only shorten the tour.
 
   The budget is 5% of the time. A search stops after max(4n, 200)
   iterations without a new best.
+- **Output.** Bounds are printed with 17 digits, so a bound read back is
+  the bound computed. A zero optimum has a zero gap. `--target-lower L` and
+  `--target-gap G` stop once the bound is strictly above `L` and the gap
+  strictly below `G`, with the bounds over time in `trace`.
 - **Independent check.** The tour can be written out and checked in exact
   rationals on the instance's decimal text: coverage of every disk, and a
-  length bound with rounded-up square roots.
+  length bound with rounded-up square roots. The written contacts are pulled
+  toward their centers by 2^-40 of the radius, so they lie in the decimal
+  disks too. That moves the tour, so the file's `upper_bound` is the written
+  tour's own length, rounded up, not the solver's `U`.
+  `benchmarks/tests/test_cetsp_cli.py` checks this end to end, along with
+  known optima, the memory floor, strict targets and interruption.
 - **Integration with the TSPN B&B.** Not done: it would pay only if faster.
   The TSPN's two pieces that help disks, insertion screening and lazy
   children, are here, in O(1) closed form.

@@ -45,6 +45,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <queue>
 #include <random>
 #include <regex>
@@ -91,31 +92,13 @@ Vector2 nearest_to_link(Vector2 a,Vector2 b,const tpp::ConvexDisk &d) {
     if(rr<=d.radius*d.radius)return foot;
     return d.center+r*(d.radius/std::sqrt(rr));
 }
-// How far each disk is from the closed polyline through the contacts, minus
-// its radius (<= 0: the tour meets it). Disks of the sequence are met at their
-// contacts, which the oracle proved inside them; the others are decided with
-// a margin, so a borderline disk is inserted rather than assumed covered.
-std::vector<double> excess(const Disks &disks,const std::vector<int> &sequence,const std::vector<Vector2> &cycle) {
-    std::vector<double> out(disks.size(),INFINITY);
-    std::vector<bool> member(disks.size(),false);for(int i:sequence)member[size_t(i)]=true;
-    // Squared distances to each link, one square root per disk.
-    const size_t k=cycle.size();
-    std::vector<Vector2> edge(k);std::vector<double> inverse(k);
-    for(size_t l=0;l<k;++l){edge[l]=cycle[(l+1)%k]-cycle[l];const double ee=edge[l].dot(edge[l]);inverse[l]=ee>0?1/ee:0;}
-    for(size_t j=0;j<disks.size();++j) {
-        if(member[j]){out[j]=-INFINITY;continue;}
-        double best=INFINITY;
-        for(size_t l=0;l<k;++l) {
-            const Vector2 f=disks[j].center-cycle[l];
-            const double t=std::clamp(f.dot(edge[l])*inverse[l],0.0,1.0);
-            const Vector2 g=f-edge[l]*t;
-            best=std::min(best,g.dot(g));
-        }
-        out[j]=std::sqrt(best)-disks[j].radius;
-    }
-    return out;
-}
+// Disks of the sequence are met at their contacts, which the oracle proved
+// inside them; the others are decided with a margin beyond the rounding
+// error, so a borderline disk is inserted rather than assumed covered.
 constexpr double kCovered=-1e-9; // relative to the radius scale; conservative
+bool uncovered(const tpp::DiskExcess &e,const Disks &disks,size_t j) {
+    return e.excess[j]+e.error[j]>kCovered*std::max(1.0,disks[j].radius);
+}
 
 // The search keeps a family per expanded node: the disk its children insert,
 // and per child its position and bound, sorted by bound, with the next one
@@ -242,8 +225,8 @@ struct Solver {
     // A tour: a sequence whose oracle cycle meets every disk, and its U.
     struct Tour {std::vector<int> sequence;std::vector<Vector2> cycle;double length=INFINITY;};
     bool covers(const std::vector<int> &sequence,const std::vector<Vector2> &cycle) const {
-        const auto ex=excess(all,sequence,cycle);
-        for(size_t j=1;j<all.size();++j)if(ex[j]>kCovered*std::max(1.0,all[j].radius))return false;
+        const auto ex=tpp::tpp_convex_disk_excess(all,sequence,cycle);
+        for(size_t j=1;j<all.size();++j)if(uncovered(ex,all,j))return false;
         return true;
     }
     // The sequence's cycle (warm from `warm` if it fits), as a tour if it covers every disk.
@@ -260,8 +243,8 @@ struct Solver {
     Tour repair(std::vector<int> seq,std::vector<Vector2> cyc,double until=INFINITY) {
         for(;;) {
             if(elapsed()>until)return {};
-            const auto ex=excess(all,seq,cyc);
-            int far=-1;for(size_t j=1;j<all.size();++j)if(ex[j]>kCovered*std::max(1.0,all[j].radius)&&(far<0||ex[j]>ex[size_t(far)]))far=int(j);
+            const auto e=tpp::tpp_convex_disk_excess(all,seq,cyc);const auto &ex=e.excess;
+            int far=-1;for(size_t j=1;j<all.size();++j)if(uncovered(e,all,j)&&(far<0||ex[j]>ex[size_t(far)]))far=int(j);
             if(far<0)break;
             double bestU=INFINITY;std::vector<int> bestS;std::vector<Vector2> bestC;
             for(size_t p=1;p<=seq.size();++p) {
@@ -686,17 +669,17 @@ struct Solver {
         const auto r=oracle(sequence,warm,INFINITY,x.counted,incumbent);
         const double lower=std::max(x.bound,r.lower_bound);
         if(lower>=cutoff){x.pruned=true;return;}
-        const auto ex=excess(all,sequence,r.contacts);
-        std::vector<int> uncovered;
-        for(size_t j=1;j<all.size();++j)if(ex[j]>kCovered*std::max(1.0,all[j].radius))uncovered.push_back(int(j));
+        const auto e=tpp::tpp_convex_disk_excess(all,sequence,r.contacts);const auto &ex=e.excess;
+        std::vector<int> outside;
+        for(size_t j=1;j<all.size();++j)if(uncovered(e,all,j))outside.push_back(int(j));
         // Feasible: no refinement beats OPT(sequence) >= its L. If the oracle
         // left a gap there, that L still bounds the optimum.
-        if(uncovered.empty()){x.tours.push_back({sequence,r.contacts,r.upper_bound});x.floor=lower;return;}
+        if(outside.empty()){x.tours.push_back({sequence,r.contacts,r.upper_bound});x.floor=lower;return;}
         // Branch on the farthest uncovered disk, or (strong branching) on
         // the one of the `strong` farthest whose weakest child is strongest;
         // every candidate's children bound the node.
-        const size_t candidates=std::min(strong,uncovered.size());
-        std::partial_sort(uncovered.begin(),uncovered.begin()+long(candidates),uncovered.end(),[&](int a,int b){return ex[size_t(a)]>ex[size_t(b)];});
+        const size_t candidates=std::min(strong,outside.size());
+        std::partial_sort(outside.begin(),outside.begin()+long(candidates),outside.end(),[&](int a,int b){return ex[size_t(a)]>ex[size_t(b)];});
         const size_t k=sequence.size();
         // With the depot first, [0 a ... ] and its reverse are the same cycle:
         // inserting the second disk keeps one orientation only.
@@ -705,7 +688,7 @@ struct Solver {
         std::vector<Child> children;std::vector<Tour> tours;double floor=INFINITY;
         Disks here;for(int i:sequence)here.push_back(all[size_t(i)]);
         for(size_t q=0;q<candidates;++q) {
-            const int far=uncovered[q];
+            const int far=outside[q];
             children.clear();tours.clear();floor=INFINITY;double weakest=INFINITY;
             // Every position's insertion bound first (O(k) for all): a child
             // it prunes costs no oracle call; lazily, the others wait in the
@@ -858,8 +841,10 @@ int main(int argc,char **argv) {
     const double lower=s.run(heuristic>=0?heuristic:0.05*seconds);
     if(interrupted)s.stopped="interrupted";
     s.progress(lower);
-    std::cout<<std::setprecision(12)<<"{\"instance\":\""<<positional[0]<<"\",\"disks\":"<<inst.disks.size()-1
-        <<",\"lower_bound\":"<<lower<<",\"upper_bound\":"<<s.upper<<",\"gap\":"<<(s.upper-lower)/s.upper
+    // 17 digits: a bound read back is the bound computed. A zero optimum (the
+    // depot meets every disk) has a zero gap.
+    std::cout<<std::setprecision(17)<<"{\"instance\":\""<<positional[0]<<"\",\"disks\":"<<inst.disks.size()-1
+        <<",\"lower_bound\":"<<lower<<",\"upper_bound\":"<<s.upper<<",\"gap\":"<<(s.upper>0?(s.upper-lower)/s.upper:0.0)
         <<",\"closed\":"<<(s.upper-lower<=s.gap*s.upper*1.0000001?"true":"false")<<",\"stopped\":\""<<s.stopped<<"\""
         <<",\"seconds\":"<<s.wall()<<",\"heuristic_seconds\":"<<s.heuristic_seconds<<",\"probe_seconds\":"<<s.probe_seconds<<",\"heuristic_tours\":"<<s.improvements<<",\"ils_iterations\":"<<s.ils_iterations
         <<",\"nodes\":"<<s.nodes<<",\"oracle_calls\":"<<s.counted.oracle_calls
@@ -873,16 +858,23 @@ int main(int argc,char **argv) {
     }
     std::cout<<"}"<<std::endl;
     if(tour!="-") {
-        std::ofstream out(tour);out<<std::setprecision(17)<<"{\"instance\":\""<<positional[0]<<"\",\"upper_bound\":"<<s.upper<<",\"sequence\":[";
-        for(size_t i=0;i<s.best_sequence.size();++i)out<<(i?",":"")<<s.best_sequence[i];
         // Contacts pulled toward their centers by 2^-40 of the radius: inside
         // the decimal disks too, which binary64 reading moves by about 1e-14.
-        out<<"],\"contacts\":[";
-        for(size_t i=0;i<s.best_cycle.size();++i) {
+        // That moves the tour, so its upper bound is its own length, rounded
+        // up: each link within a few ulps, their sum within one per link.
+        const size_t k=s.best_cycle.size();
+        std::vector<Vector2> written(k);
+        for(size_t i=0;i<k;++i) {
             const auto &d=inst.disks[size_t(s.best_sequence[i])];
-            const Vector2 c=d.radius>0?d.center+(s.best_cycle[i]-d.center)*(1-0x1p-40):s.best_cycle[i];
-            out<<(i?",":"")<<"["<<c.x<<","<<c.y<<"]";
+            written[i]=d.radius>0?d.center+(s.best_cycle[i]-d.center)*(1-0x1p-40):s.best_cycle[i];
         }
+        double length=0;
+        for(size_t i=0;i<k;++i){const Vector2 v=written[(i+1)%k]-written[i];length+=std::sqrt(v.dot(v));}
+        length=std::nextafter(length*(1+4*double(k+2)*std::numeric_limits<double>::epsilon()),INFINITY);
+        std::ofstream out(tour);out<<std::setprecision(17)<<"{\"instance\":\""<<positional[0]<<"\",\"upper_bound\":"<<length<<",\"sequence\":[";
+        for(size_t i=0;i<k;++i)out<<(i?",":"")<<s.best_sequence[i];
+        out<<"],\"contacts\":[";
+        for(size_t i=0;i<k;++i)out<<(i?",":"")<<"["<<written[i].x<<","<<written[i].y<<"]";
         out<<"]}\n";
     }
 }

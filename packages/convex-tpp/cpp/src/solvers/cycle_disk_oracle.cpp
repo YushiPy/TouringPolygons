@@ -3,6 +3,7 @@
 #include "float_chain.h"
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace tpp {
 namespace {
@@ -672,6 +673,43 @@ std::vector<double> tpp_convex_disk_insertion_bounds(const std::vector<ConvexDis
         if(from.x==0&&from.y==0)from=u[a];
         const auto bound=total-term[a]-term[b]+support(disks[a],u[(a+k-1)%k],to)+support(inserted,to,from)+support(disks[b],from,u[b]);
         out[p-1]=std::isfinite(bound.lo)?std::max(0.0,bound.lo):0.0;
+    }
+    return out;
+}
+DiskExcess tpp_convex_disk_excess(const std::vector<ConvexDisk> &disks,const std::vector<int> &members,
+        const std::vector<Vector2> &cycle) {
+    DiskExcess out{std::vector<double>(disks.size(),INFINITY),std::vector<double>(disks.size(),0)};
+    std::vector<bool> member(disks.size(),false);for(int i:members)member[size_t(i)]=true;
+    // Squared distances to each link, one square root per disk.
+    const size_t k=cycle.size();
+    std::vector<Vector2> edge(k);std::vector<double> inverse(k);
+    for(size_t l=0;l<k;++l){edge[l]=cycle[(l+1)%k]-cycle[l];const double ee=edge[l].dot(edge[l]);inverse[l]=ee>0?1/ee:0;}
+    // The coordinates any link involves: |center - cycle[l]| + |edge[l]| is at
+    // most |center| + reach (1-norms).
+    double reach=0,longest=0;
+    for(size_t l=0;l<k;++l) {
+        reach=std::max(reach,std::abs(cycle[l].x)+std::abs(cycle[l].y));
+        longest=std::max(longest,std::abs(edge[l].x)+std::abs(edge[l].y));
+    }
+    reach+=longest;
+    constexpr double ulp=std::numeric_limits<double>::epsilon();
+    for(size_t j=0;j<disks.size();++j) {
+        if(member[j]){out.excess[j]=-INFINITY;continue;}
+        double best=INFINITY;
+        for(size_t l=0;l<k;++l) {
+            const Vector2 f=disks[j].center-cycle[l];
+            const double t=std::clamp(f.dot(edge[l])*inverse[l],0.0,1.0);
+            const Vector2 g=f-edge[l]*t;
+            best=std::min(best,g.dot(g));
+        }
+        // For any t in [0,1], cycle[l]+edge*t is on the link, so the distance
+        // to it bounds the distance to the polyline; computing it rounds f,
+        // the edge, the product and the difference, each within an ulp of the
+        // coordinates involved, and the square root within one of the result
+        // (16 ulps is generous).
+        const double d=std::sqrt(best);
+        out.excess[j]=d-disks[j].radius;
+        if(k)out.error[j]=16*ulp*(std::abs(disks[j].center.x)+std::abs(disks[j].center.y)+reach+d);
     }
     return out;
 }

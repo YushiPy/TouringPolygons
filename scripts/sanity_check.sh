@@ -149,7 +149,8 @@ tests=(
 	tpp-tspn-tests
 )
 
-run_step python3 benchmarks/tpp.py build "${tests[@]}" tpp-unordered
+# tpp-convex-cetsp: for the end-to-end checks in benchmarks/tests/test_cetsp_cli.py.
+run_step python3 benchmarks/tpp.py build "${tests[@]}" tpp-unordered tpp-convex-cetsp
 for test in "${tests[@]}"; do
 	run_step ".build/tools/bin/$test"
 done
