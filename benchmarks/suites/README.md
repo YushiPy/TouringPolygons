@@ -1,6 +1,6 @@
 # Benchmark Suites
 
-This directory contains canonical inputs and regression fixtures for TPP and TSPN.
+This directory contains canonical inputs and regression fixtures for TPP, TSPN and CETSP.
 
 ## Promoting a campaign case
 
@@ -20,6 +20,9 @@ or private experiment notes.
   QGIS; see its README and `polygons.csv` for provenance and the polygon-name
   mapping. The companion QGIS projects and editable GeoPackage are under
   `usp-butanta-50/qgis/`.
+- `cetsp/`: close-enough TSP instances (disk neighborhoods): Mennell's 2D
+  and 3D files, Behdani and Smith's point sets, and Carrabs et al.'s tours;
+  see its README for provenance and the 2D TSPLIB rebuild.
 - `algorithm-dev-v1.bin`: ignored generated development suite, regenerated from
   `fekete-instances.bin`.
 - `canonical-v1.bin`: ignored generated benchmark suite, regenerated from

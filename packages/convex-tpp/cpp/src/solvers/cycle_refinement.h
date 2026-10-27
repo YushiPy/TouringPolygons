@@ -1,9 +1,13 @@
 #pragma once
 #include "cycle_internal.h"
 #include "cycle_execution.h"
+#include "tpp/geometry/common.h"
 #include <algorithm>
+#include <functional>
+#include <limits>
 #include <optional>
 #include <set>
+#include <span>
 
 namespace tpp::detail {
 // Active contacts accelerate the existing cycle reduction. Construction is
@@ -12,11 +16,13 @@ template<class S> struct CycleRefinement {
     using P=ConvexArithmeticPoint<S>;
     using Polygon=std::vector<P>;
     using Polygons=std::vector<Polygon>;
+    // A read-only region: a Polygon, or a view of one kept by a caller.
+    using View=std::span<const P>;
     // Feature of a contact fixed at its current point (a corner of a common
     // region shared by a block of coincident contacts); see move_zero_blocks.
     static constexpr int kFixed=-3;
     static P reflect(P q,P a,P e) {return a+e*(S(2)*(q-a).dot(e)/e.dot(e))-(q-a);}
-    static bool inside(P q,const Polygon &p) {
+    static bool inside(P q,View p) {
         if(p.size()==1)return q==p.front();
         if(p.size()==2) {
             const P e=p[1]-p[0],d=q-p[0];
@@ -31,7 +37,7 @@ template<class S> struct CycleRefinement {
             return value>0?1:value<0?-1:0;
         } else return cycle_normalized_difference_sign(a,aa,b,bb);
     }
-    static bool support(P a,P q,P b,const Polygon &p,size_t vertex) {
+    static bool support(P a,P q,P b,View p,size_t vertex) {
         const P u=q-a,v=b-q;const S uu=u.dot(u),vv=v.dot(v);
         if(uu==0||vv==0)return true; // Only used for a point on [a,b].
         // The two incident edge rays generate the feasible tangent cone.
@@ -44,10 +50,160 @@ template<class S> struct CycleRefinement {
         const S cross=d.cross(e);if(cross==0)return {};
         return a+d*((b-a).cross(e)/cross);
     }
-    static std::pair<P,int> coordinate(P a,P b,P old,const Polygon &p) {
+    // Binary64 polygons with at least this many vertices try the O(log m)
+    // coordinate update first; anything it cannot settle runs the loop below.
+    static constexpr size_t kLogarithmicVertices=32;
+    // A vertex maximizing dir.v on a counterclockwise polygon without collinear
+    // vertices, by binary search (KACTL's extrVertex). Only guides searches.
+    static size_t extreme(View p,P dir) {
+        const long n=long(p.size());
+        auto cmp=[&](long i,long j){const S v=-dir.dot(p[size_t(i%n)]-p[size_t(j%n)]);return (v>0)-(v<0);};
+        auto extr=[&](long i){return cmp(i+1,i)>=0&&cmp(i,i-1+n)<0;};
+        if(extr(0))return 0;
+        long lo=0,hi=n;
+        while(lo+1<hi) {
+            const long mid=(lo+hi)/2;
+            if(extr(mid))return size_t(mid);
+            const int ls=cmp(lo+1,lo),ms=cmp(mid+1,mid);
+            if(ls<ms||(ls==ms&&ls==cmp(lo,mid)))hi=mid;else lo=mid;
+        }
+        return size_t(lo);
+    }
+    // Whether an edge of `a` at its vertex extreme toward `direction` leaves
+    // every vertex of `b` strictly outside, by binary search for the vertex
+    // of b least outside, a local walk, and a margin over its rounding error.
+    // Both polygons counterclockwise without collinear vertices. Only used
+    // to skip a clip whose result would be empty; false decides nothing.
+    static bool separated_toward(View a,View b,Vector2 direction) {
+        if constexpr(!std::is_same_v<S,double>)return false;
+        else {
+            if(a.size()<3||b.size()<3||!direction.is_finite())return false;
+            const size_t na=a.size(),nb=b.size(),t=extreme(a,P(direction));
+            for(size_t j:{(t+na-1)%na,t}) {
+                const P o=a[j],e=a[(j+1)%na]-o;
+                auto value=[&](size_t i){return e.cross(b[i%nb]-o);};
+                size_t w=extreme(b,P{-e.y,e.x});
+                for(int step=0;step<64;++step) {
+                    if(value(w+nb-1)>value(w))w=(w+nb-1)%nb;
+                    else if(value(w+1)>value(w))w=(w+1)%nb;
+                    else break;
+                }
+                const P d=b[w]-o;const double l=e.x*d.y,r=e.y*d.x;
+                const double bound=0x1p-50*(std::abs(l)+std::abs(r))+0x1p-1069;
+                if(std::isfinite(l-r)&&std::isfinite(bound)&&l-r<-bound&&value(w+nb-1)<value(w)&&value(w+1)<value(w))return true;
+            }
+            return false;
+        }
+    }
+    // Floating fan test of q in the convex polygon; only a guard for proposals.
+    static bool inside_fan(P q,View p) {
+        const size_t m=p.size();const P o=p[0];
+        if((p[1]-o).cross(q-o)<0||(p[m-1]-o).cross(q-o)>0)return false;
+        size_t lo=1,hi=m-1;
+        while(hi-lo>1){const size_t mid=lo+(hi-lo)/2;if((p[mid]-o).cross(q-o)>=0)lo=mid;else hi=mid;}
+        return (p[lo+1]-p[lo]).cross(q-p[lo])>=0;
+    }
+    // Dror et al.'s last-step map of one polygon from source a, located at b
+    // by binary search over the vertex cones (as in the binary-search fixed-
+    // source solver, with each cone built on demand): 2j for vertex j, 2j+1
+    // for edge j, nothing for the region where [a,b] already meets the polygon.
+    static std::optional<size_t> locate(P a,P b,View p) {
+        const size_t m=p.size();const Vector2 source=a.external(),point=b.external();
+        auto vertex=[&](size_t j){return p[j%m].external();};
+        auto cone=[&](size_t j) {
+            const Vector2 before=vertex(j+m-1),here=vertex(j),after=vertex(j+1),diff=(here-source).normalized();
+            return std::pair{diff.cross(here-before)<0?diff.reflect(here-before):diff,
+                             diff.cross(here-after)>0?diff.reflect(here-after):diff};
+        };
+        size_t location;
+        if(const auto c=cone(0);tpp::point_in_cone_plus(point,vertex(0),c.first,c.second))location=0;
+        else {
+            size_t left=0,right=m-1;bool found=false;
+            while(left!=right) {
+                const size_t mid=left+(right-left)/2,next=mid+1;const auto c=cone(next);
+                if(tpp::point_in_cone_plus(point,vertex(next),c.first,c.second)){location=2*next;found=true;break;}
+                if(tpp::point_in_edge_plus(point,vertex(left),vertex(next),cone(left).second,c.first))right=mid;
+                else left=mid+1;
+            }
+            if(!found)location=2*left+1;
+        }
+        // Edge j is a first contact when the source is strictly outside it.
+        auto first=[&](size_t j){return (vertex(j+1)-vertex(j)).cross(source-vertex(j))<0;};
+        if(first(location/2)||first(location==0?m-1:(location-1)/2))return location;
+        return {};
+    }
+    // The vertex or edge feature at `feature`, if it passes the same tests as
+    // the loop in coordinate().
+    static std::optional<std::pair<P,int>> checked_feature(P a,P b,View p,size_t feature) {
+        const size_t m=p.size(),j=(feature/2)%m;
+        if(feature%2==0)return support(a,p[j],b,p,j)?std::optional{std::pair{p[j],int(2*j)}}:std::nullopt;
+        const P e=p[(j+1)%m]-p[j];
+        if(e.cross(a-p[j])*e.cross(b-p[j])<=0)return {};
+        const auto q=intersection(a,reflect(b,p[j],e)-a,p[j],e);
+        if(!q)return {};
+        const S t=(*q-p[j]).dot(e)/e.dot(e);
+        if(!(t>0&&t<1))return {};
+        const P u=*q-a,v=b-*q;
+        if(u.zero()||v.zero())return {};
+        const P inward{-e.y,e.x};
+        if(sign(u.dot(inward),u.dot(u),v.dot(inward),v.dot(v))<0)return {};
+        return std::pair{*q,int(2*j+1)};
+    }
+    // O(log m) version of coordinate() for binary64 polygons: the chord of
+    // the line ab from the two edges where it crosses the boundary (found by
+    // binary search between the extreme vertices on either side of the line),
+    // and otherwise the located last-step feature, checked as in the loop.
+    static std::optional<std::pair<P,int>> coordinate_logarithmic(P a,P b,P old,View p) {
+        const size_t m=p.size();
+        const P d=b-a;const S dd=d.dot(d);
+        if(dd==0)return {};
+        const P n{-d.y,d.x};
+        const size_t top=extreme(p,n),bottom=extreme(p,P{-n.x,-n.y});
+        const S high=n.dot(p[top]-a),low=n.dot(p[bottom]-a);
+        if(high>=0&&low<=0) {
+            auto crossing=[&](size_t from,size_t to,bool falling) {
+                size_t lo=0,hi=(to+m-from)%m;
+                while(hi-lo>1) {
+                    const size_t mid=(lo+hi)/2;const S s=n.dot(p[(from+mid)%m]-a);
+                    if(falling?s>=0:s<=0)lo=mid;else hi=mid;
+                }
+                return (from+lo)%m;
+            };
+            S lo=0,hi=1;
+            for(size_t edge:{crossing(top,bottom,true),crossing(bottom,top,false)})
+                for(size_t j:{(edge+m-1)%m,edge,(edge+1)%m}) {
+                    const P e=p[(j+1)%m]-p[j];const S offset=e.cross(a-p[j]),slope=e.cross(d);
+                    if(slope>0)lo=std::max(lo,S(-offset/slope));
+                    else if(slope<0)hi=std::min(hi,S(-offset/slope));
+                    else if(offset<0)return {};
+                }
+            if(lo<=hi) {
+                const S t=std::clamp(S((old-a).dot(d)/dd),lo,hi);
+                if(!(t>0&&t<1))return {}; // a or b on the chord: the loop picks the feature
+                const P q=a+d*t;
+                if(!inside_fan(q,p))return {};
+                return std::pair{q,-1};
+            }
+        }
+        const auto location=locate(a,b,p);
+        if(!location)return {};
+        for(size_t offset:{size_t(0),size_t(1),2*m-1,size_t(2),2*m-2})
+            if(auto found=checked_feature(a,b,p,(*location+offset)%(2*m)))return found;
+        return {};
+    }
+    static std::pair<P,int> coordinate(P a,P b,P old,View p) {
         cycle_checkpoint();
         // A point's zero-length "edges" give no halfplanes: its only contact
         // is the point itself, a vertex feature.
+        if(p.size()==1)return {p.front(),0};
+        if constexpr(std::is_same_v<S,double>)
+            if(p.size()>=kLogarithmicVertices)
+                if(auto found=coordinate_logarithmic(a,b,old,p))return *found;
+        return coordinate_linear(a,b,old,p);
+    }
+    // Every edge once: the crossing chord, then the first supporting vertex or
+    // reflecting edge in boundary order.
+    static std::pair<P,int> coordinate_linear(P a,P b,P old,View p) {
         if(p.size()==1)return {p.front(),0};
         const P d=b-a;const S dd=d.dot(d);S lo=0,hi=1;
         bool crosses=true;
@@ -97,7 +253,7 @@ template<class S> struct CycleRefinement {
         }
         throw std::runtime_error("No representable local cycle contact");
     }
-    static bool close(const Polygons &p,const std::vector<int> &feature,Polygon &q,
+    template<class Regions> static bool close(const Regions &p,const std::vector<int> &feature,Polygon &q,
                       std::vector<int> *blocking=nullptr) {
         cycle_checkpoint();
         const size_t k=p.size();std::vector<size_t> pins,edges;
@@ -175,9 +331,107 @@ template<class S> struct CycleRefinement {
         if(next.size()>1&&next.front()==next.back())next.pop_back();
         return next;
     }
+    // Whether the edge of counterclockwise `a` most violated by the vertex mean
+    // of `b` leaves every vertex of `b` strictly outside its halfplane.
+    static bool separates(View a,View b) {
+        P mean=b.front();for(size_t i=1;i<b.size();++i)mean=mean+b[i];
+        mean=mean*(S(1)/S(b.size()));
+        size_t best=0;S lowest=0;
+        for(size_t j=0;j<a.size();++j) {
+            const P o=a[j],e=a[(j+1)%a.size()]-o;const S side=e.cross(mean-o);
+            if(j==0||side<lowest){lowest=side;best=j;}
+        }
+        if(!(lowest<0))return false;
+        const P o=a[best],e=a[(best+1)%a.size()]-o;
+        for(const auto &v:b)if(!(e.cross(v-o)<0))return false;
+        return true;
+    }
+    // Whether every computed turn of p is strictly counterclockwise.
+    static bool strictly_convex(View p) {
+        const size_t m=p.size();
+        if(m<3)return false;
+        for(size_t i=0;i<m;++i)if(!((p[(i+1)%m]-p[i]).cross(p[(i+2)%m]-p[(i+1)%m])>0))return false;
+        return true;
+    }
+    // Parameters along a + t d where the line enters (lo, through edge
+    // `enter`) and leaves (hi, edge `leave`) a counterclockwise polygon
+    // without collinear vertices: the edges where it crosses the boundary, by
+    // binary search between the extremes on either side, and their
+    // neighbors. Nothing if the line misses the polygon.
+    struct Chord {S lo,hi;size_t enter,leave;};
+    static std::optional<Chord> chord(P a,P d,View p) {
+        const size_t m=p.size();const P n{-d.y,d.x};
+        if(n.x==0&&n.y==0)return {};
+        const size_t top=extreme(p,n),bottom=extreme(p,P{-n.x,-n.y});
+        if(!(n.dot(p[top]-a)>=0&&n.dot(p[bottom]-a)<=0))return {};
+        auto crossing=[&](size_t from,size_t to,bool falling) {
+            size_t lo=0,hi=(to+m-from)%m;
+            while(hi-lo>1) {
+                const size_t mid=(lo+hi)/2;const S side=n.dot(p[(from+mid)%m]-a);
+                if(falling?side>=0:side<=0)lo=mid;else hi=mid;
+            }
+            return (from+lo)%m;
+        };
+        Chord c{-std::numeric_limits<S>::infinity(),std::numeric_limits<S>::infinity(),0,0};
+        for(size_t edge:{crossing(top,bottom,true),crossing(bottom,top,false)})
+            for(size_t j:{(edge+m-1)%m,edge,(edge+1)%m}) {
+                const P e=p[(j+1)%m]-p[j];const S offset=e.cross(a-p[j]),slope=e.cross(d);
+                if(slope>0){if(-offset/slope>c.lo){c.lo=-offset/slope;c.enter=j;}}
+                else if(slope<0){if(-offset/slope<c.hi){c.hi=-offset/slope;c.leave=j;}}
+                else if(offset<0)return {};
+            }
+        if(!(c.lo<=c.hi)||!std::isfinite(c.lo)||!std::isfinite(c.hi))return {};
+        return c;
+    }
+    // Intersection of two counterclockwise polygons without collinear
+    // vertices in O((m+n) log n), binary64 only: the vertices of a in b (fan
+    // tests), the crossings of a's edges with b's boundary (chords), and the
+    // arcs of b from each exit of a to the next entry. A proposal for
+    // move_zero_blocks and the common-region test, which the certificates
+    // check; nothing (use the clip) when the crossings do not alternate.
+    static std::optional<Polygon> intersect_convex(const Polygon &a,View b) {
+        const size_t ma=a.size(),mb=b.size();
+        std::vector<char> in(ma);
+        for(size_t i=0;i<ma;++i)in[i]=inside_fan(a[i],b);
+        struct Crossing {size_t edge_a;bool entering;size_t edge_b;P point;};
+        std::vector<Crossing> crossings;
+        for(size_t i=0;i<ma;++i) {
+            const size_t next=(i+1)%ma;
+            if(in[i]&&in[next])continue;
+            const P u=a[i],d=a[next]-u;
+            const auto c=chord(u,d,b);
+            const size_t before=crossings.size();
+            if(c) {
+                if(!in[i]&&c->lo>=0&&c->lo<=1&&(in[next]||c->lo<c->hi))crossings.push_back({i,true,c->enter,u+d*c->lo});
+                if(!in[next]&&c->hi>=0&&c->hi<=1&&(in[i]||c->lo<c->hi))crossings.push_back({i,false,c->leave,u+d*c->hi});
+            }
+            if(in[i]!=in[next]&&crossings.size()!=before+1)return {};
+            if(!in[i]&&!in[next]&&crossings.size()!=before&&crossings.size()!=before+2)return {};
+        }
+        if(crossings.empty()) {
+            if(std::all_of(in.begin(),in.end(),[](char v){return v!=0;}))return a;
+            if(inside_fan(b[0],View(a)))return Polygon(b.begin(),b.end());
+            return Polygon{};
+        }
+        const size_t k=crossings.size();
+        if(k%2)return {};
+        const size_t first=crossings[0].entering?0:1;
+        for(size_t r=0;r<k;++r)if(crossings[(first+r)%k].entering!=(r%2==0))return {};
+        Polygon out;
+        auto push=[&](const P &v){if(out.empty()||!(out.back()==v))out.push_back(v);};
+        for(size_t r=0;r<k;r+=2) {
+            const auto &enter=crossings[(first+r)%k],&leave=crossings[(first+r+1)%k],&again=crossings[(first+r+2)%k];
+            push(enter.point);
+            for(size_t i=enter.edge_a;i!=leave.edge_a;){i=(i+1)%ma;push(a[i]);}
+            push(leave.point);
+            for(size_t j=leave.edge_b;j!=again.edge_b;){j=(j+1)%mb;push(b[j]);}
+        }
+        if(out.size()>1&&out.front()==out.back())out.pop_back();
+        return out;
+    }
     // Intersection of two closed convex regions; p may also be a point or a
     // segment, whose edge halfplanes alone would describe all or a whole line.
-    static Polygon intersect(Polygon region,const Polygon &p) {
+    static Polygon intersect(Polygon region,View p) {
         cycle_checkpoint();
         if(p.size()==1) {
             if(region.empty())return region;
@@ -202,6 +456,18 @@ template<class S> struct CycleRefinement {
             }
             return region;
         }
+        // Clipping by every edge costs O(m) per edge. Disjoint regions are
+        // usually separated by the edge of one that faces the other, so try
+        // that edge of each first: all vertices strictly outside it means an
+        // empty intersection, found in O(m) instead of O(m^2). The loop below
+        // reaches the same empty result in exact arithmetic; in binary64 it
+        // can keep a rounding sliver of nearly touching regions, which this
+        // shortcut drops (a construction difference only: in corpus case 538,
+        // the same tree and bounds with 55 more oracle calls).
+        if(region.size()>2&&(separates(p,region)||separates(region,p)))return {};
+        if constexpr(std::is_same_v<S,double>)
+            if(region.size()>=kLogarithmicVertices&&p.size()>=kLogarithmicVertices&&strictly_convex(region)&&strictly_convex(p))
+                if(auto fast=intersect_convex(region,p))return std::move(*fast);
         for(size_t j=0;j<p.size()&&!region.empty();++j) {
             Polygon next;const P a=p[j],e=p[(j+1)%p.size()]-a;
             for(size_t r=0;r<region.size();++r) {
@@ -215,7 +481,17 @@ template<class S> struct CycleRefinement {
         }
         return region;
     }
-    static void move_zero_blocks(const Polygons &p,Polygon &q,std::vector<int> &feature) {
+    // Optional memo of the common region of two regions, by their indices in
+    // the cycle, for move_zero_blocks (binary64): set by a caller around
+    // run() with PairScope; nothing returned means compute it here.
+    using PairRegion=std::function<const Polygon*(size_t,size_t)>;
+    static inline thread_local const PairRegion *pair_region=nullptr;
+    struct PairScope {
+        const PairRegion *saved;
+        explicit PairScope(const PairRegion *memo):saved(pair_region){pair_region=memo;}
+        ~PairScope(){pair_region=saved;}
+    };
+    template<class Regions> static void move_zero_blocks(const Regions &p,Polygon &q,std::vector<int> &feature) {
         const size_t k=q.size();size_t first=0;
         while(first<k&&q[first]==q[(first+1)%k])++first;
         if(first==k)return;
@@ -224,8 +500,14 @@ template<class S> struct CycleRefinement {
             size_t count=1;while(used+count<k&&q[start]==q[(start+count)%k])++count;
             const size_t end=(start+count-1)%k;
             if(count>1) {
-                Polygon region=p[start];
-                for(size_t r=1;r<count;++r)region=intersect(std::move(region),p[(start+r)%k]);
+                const Polygon *known=nullptr;
+                if constexpr(std::is_same_v<S,double>)if(count==2&&pair_region&&*pair_region)known=(*pair_region)(start,(start+1)%k);
+                Polygon computed;
+                if(!known) {
+                    computed.assign(p[start].begin(),p[start].end());
+                    for(size_t r=1;r<count;++r)computed=intersect(std::move(computed),p[(start+r)%k]);
+                }
+                const Polygon &region=known?*known:computed;
                 if(!region.empty()) {
                     // A corner of the common region (e.g. two crossing edges)
                     // pins the whole block there, although it need not be a
@@ -264,7 +546,7 @@ template<class S> struct CycleRefinement {
     // Propose the incident faces exposed toward the neighboring contacts,
     // then solve their reflection equations together. The certificate decides
     // whether that feature change was valid; no perturbation distance is used.
-    static bool release_coincident_vertices(const Polygons &p,const Polygon &q,std::vector<int> &feature) {
+    template<class Regions> static bool release_coincident_vertices(const Regions &p,const Polygon &q,std::vector<int> &feature) {
         bool changed=false;const size_t k=p.size();
         for(size_t i=0;i<k;++i) {
             if(feature[i]<0||feature[i]%2!=0||
@@ -281,7 +563,7 @@ template<class S> struct CycleRefinement {
         }
         return changed;
     }
-    template<class Consider> static bool run(const Polygons &p,Consider consider,Polygon q={},const std::vector<int> &inherited={}) {
+    template<class Regions,class Consider> static bool run(const Regions &p,Consider consider,Polygon q={},const std::vector<int> &inherited={}) {
         const size_t k=p.size();
         auto submit=[&](const Polygon &candidate,const std::vector<int> &features,bool closed) {
             if constexpr(std::is_invocable_r_v<bool,Consider,const Polygon&,const std::vector<int>&,bool>)

@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <unordered_map>
 #include <condition_variable>
 #include <filesystem>
 #include <fstream>
@@ -191,7 +192,7 @@ namespace {
 		const size_t m = contacts.size(), position = node.branch_position;
 		const bool inserting = node.branch_piece == none;
 		const auto &region = inserting ? hulls[node.branch_polygon] : pieces[node.branch_polygon][node.branch_piece];
-		const auto contact = best_contact(contacts[(position + m - 1) % m], contacts[(position + size_t(!inserting)) % m],
+		const auto contact = best_contact_convex(contacts[(position + m - 1) % m], contacts[(position + size_t(!inserting)) % m],
 			region, region.front());
 		if (inserting) {
 			contacts.insert(contacts.begin() + position, contact);
@@ -583,10 +584,15 @@ namespace {
         if(n<=3) { std::vector<Element> sequence;for(size_t i=0;i<n;++i)sequence.push_back({i});return sequence; }
         std::vector<Polygon> outlines=polygons;
         for(auto &p:outlines)p.push_back(p.front());
+        // Edge-pair distances cost O(m_i m_j); large convex pairs use GJK with
+        // O(log m) supports instead (the same distance, up to rounding).
+        std::vector<std::optional<Polygon>> convex(n);
+        for(size_t i=0;i<n;++i)if(polygons[i].size()>=64)convex[i]=counterclockwise_convex(polygons[i]);
         std::vector<std::vector<double>> distances(n,std::vector<double>(n));
         size_t a=0,b=1;double longest=-1;
         for(size_t i=0;i<n;++i)for(size_t j=0;j<i;++j) {
-            const double d=std::min(contact(outlines[i],polygons[j],0).distance,contact(outlines[j],polygons[i],0).distance);
+            const double d=convex[i]&&convex[j]?convex_distance(*convex[i],*convex[j]):
+                std::min(contact(outlines[i],polygons[j],0).distance,contact(outlines[j],polygons[i],0).distance);
             distances[i][j]=distances[j][i]=d;
             if(d>=longest){longest=d;a=i;b=j;}
         }
@@ -753,7 +759,8 @@ namespace tpp {
 		DynamicConvexTppWorkspace &workspace, double tolerance, double cutoff, double seconds,
 		const Polygon &initial_contacts, ConvexCycleWorkspace *cycle_workspace,
 		const std::vector<int> &initial_features, bool retain_features, bool bound_first,
-		bool interval_certificate, const std::function<bool()> &stop_requested, bool proposal_bound, bool float_oracle) {
+		bool interval_certificate, const std::function<bool()> &stop_requested, bool proposal_bound, bool float_oracle,
+		const std::vector<std::uint64_t> *region_ids) {
 		if (!cycle) return tpp_convex_solve_certified(start,target,regions,workspace,tolerance,cutoff,seconds);
 		const auto began=std::chrono::steady_clock::now();
 		RelaxationResult out;
@@ -776,6 +783,7 @@ namespace tpp {
 		// A positive tolerance first tries the binary64 stage; GapClosed and its
 		// CertifiedBound are proved on these regions without rational arithmetic.
 		cycle_options.max_gap=float_oracle&&tolerance>0?tolerance:0;
+		if(region_ids)cycle_options.region_ids=*region_ids;
 		auto solved=tpp_convex_solve_cycle_double(regions,cycle_options);
 		if (solved.status!=ConvexCycleStatus::Optimal && solved.status!=ConvexCycleStatus::FloatingPointLimit
 			&& solved.status!=ConvexCycleStatus::CertifiedBound && solved.status!=ConvexCycleStatus::Interrupted
@@ -809,7 +817,7 @@ namespace tpp {
             if(!warm.empty())warm.pop_back();else warm=initial_contacts;
             auto full=solve_relaxation(cycle,start,target,regions,workspace,tolerance,cutoff,
                 std::max(0.0,seconds-std::chrono::duration<double>(std::chrono::steady_clock::now()-began).count()),
-                warm,cycle_workspace,out.active_features,retain_features,bound_first,interval_certificate,stop_requested,false,float_oracle);
+                warm,cycle_workspace,out.active_features,retain_features,bound_first,interval_certificate,stop_requested,false,float_oracle,region_ids);
             if(!out.path.empty() && (full.path.empty() || out.upper_bound<full.upper_bound)) {
                 full.path=std::move(out.path);full.upper_bound=out.upper_bound;
                 full.active_features=std::move(out.active_features);
@@ -882,6 +890,9 @@ namespace tpp {
 		const auto began = std::chrono::steady_clock::now();
 		auto elapsed = [&] { return std::chrono::duration<double>(std::chrono::steady_clock::now() - began).count(); };
 		auto duration = [](auto since) { return std::chrono::duration<double>(std::chrono::steady_clock::now() - since).count(); };
+		// Identifies this solve's region copies in the oracle's per-thread pool.
+		static std::atomic<std::uint64_t> solves{0};
+		const std::uint64_t solve_generation = ++solves;
 		UnorderedTppSolveResult result;
 		result.threads = options.threads;
         result.sequence_storage = options.sequence_storage;
@@ -1845,13 +1856,29 @@ namespace tpp {
 			DynamicConvexTppWorkspace &oracle_workspace, ConvexCycleWorkspace &cycle_cache, CycleMemo &memo) {
             const auto began_oracle=std::chrono::steady_clock::now();
 			// Per thread, so that parallel sibling evaluations and portfolio workers
-			// keep their own copy; assigning into it reuses the vertex buffers.
+			// keep their own copy. The regions are lent by swap from a pool of
+			// copies kept per solve and thread, and returned when the call ends:
+			// no vertex is copied after a region's first use.
 			thread_local std::vector<Polygon> selected;
-			selected.resize(node.sequence.size());
+			// Stable per solve (polygon, piece) labels: the binary64 stage
+			// prepares each region once per cycle workspace.
+			thread_local std::vector<std::uint64_t> region_ids;
+			thread_local std::uint64_t pool_generation = 0;
+			thread_local std::unordered_map<std::uint64_t, Polygon> pool;
+			if (pool_generation != solve_generation) { pool.clear(); pool_generation = solve_generation; }
+			selected.resize(node.sequence.size());region_ids.resize(node.sequence.size());
 			{
 				size_t i = 0;
-				for (auto e : node.sequence) selected[i++] = e.piece == none ? hulls[e.polygon] : pieces[e.polygon][e.piece];
+				for (auto e : node.sequence) {
+					region_ids[i] = std::uint64_t(e.polygon) << 32 | (e.piece == none ? 0xffffffffu : std::uint64_t(e.piece));
+					auto &stored = pool[region_ids[i]];
+					if (stored.empty()) stored = e.piece == none ? hulls[e.polygon] : pieces[e.polygon][e.piece];
+					std::swap(selected[i++], stored);
+				}
 			}
+			struct Return {
+				~Return() { for (size_t i = 0; i < selected.size(); ++i) std::swap(selected[i], pool[region_ids[i]]); }
+			} give_back;
 			const double node_gap = options.absolute_gap + options.relative_gap * std::abs(upper_bound);
 			const double tolerance = precise ? node_gap * .25
 				: std::max(node_gap * .25, options.oracle_relative_gap * upper_bound);
@@ -1911,7 +1938,7 @@ namespace tpp {
 				cycle, start, target, selected, oracle_workspace, tolerance, cutoff, remaining_seconds, warm_start, options.cycle_cache?&cycle_cache:nullptr,
                 options.cycle_active_features?feature_hints:std::vector<int>{}, options.cycle_active_features,options.cycle_bound_first,
                 options.cycle_interval_certificate, [control]{return control&&control->proved();},
-                options.cycle_proposal_bound&&!precise, options.cycle_float_oracle
+                options.cycle_proposal_bound&&!precise, options.cycle_float_oracle, &region_ids
 			);
             oracle_capture.end(capture_id,out);
             if(cache&&!out.path.empty()) {

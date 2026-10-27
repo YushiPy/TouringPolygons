@@ -5,6 +5,7 @@
 #include "tpp/convex/workspace.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <utility>
 #include <vector>
@@ -33,6 +34,7 @@ RelaxationResult solve_relaxation(bool cycle, const Vector2 &start, const Vector
 	double tolerance, double cutoff, double seconds, const std::vector<Vector2> &initial_contacts = {},
 	ConvexCycleWorkspace *cycle_workspace = nullptr, const std::vector<int> &initial_features = {},
 	bool retain_features = false, bool bound_first = false, bool interval_certificate = false,
-	const std::function<bool()> &stop_requested = {}, bool proposal_bound = false, bool float_oracle = false);
+	const std::function<bool()> &stop_requested = {}, bool proposal_bound = false, bool float_oracle = false,
+	const std::vector<std::uint64_t> *region_ids = nullptr);
 
 } // namespace tpp

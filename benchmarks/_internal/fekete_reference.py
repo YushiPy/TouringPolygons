@@ -214,11 +214,20 @@ def checkout_upstream() -> None:
 		fail(f"o checkout {SOURCE} tem alterações em arquivos versionados; ele deve ficar idêntico ao original.")
 
 
+# Another archive in the upstream format (--instances, e.g. tpp.py smoothed-instances), or None for the paper's.
+ARCHIVE_OVERRIDE: Path | None = None
+
+
 def instance_archive() -> Path:
-	return SOURCE / INSTANCE_ARCHIVE
+	return ARCHIVE_OVERRIDE or SOURCE / INSTANCE_ARCHIVE
 
 
 def verify_archive() -> None:
+	"""The paper's archive must be exactly the one its evaluation used; another one only has to exist."""
+	if ARCHIVE_OVERRIDE is not None:
+		if not ARCHIVE_OVERRIDE.is_file():
+			fail(f"{ARCHIVE_OVERRIDE} não existe")
+		return
 	archive = instance_archive()
 	digest = hashlib.sha256(archive.read_bytes()).hexdigest()
 	if digest != INSTANCE_ARCHIVE_SHA256:
@@ -375,7 +384,10 @@ def license_candidates() -> list[Path]:
 def child_environment(license_file: str | None) -> dict[str, str]:
 	environment = {key: value for key, value in os.environ.items() if not key.startswith("CONAN_")}
 	environment["PYTHONUNBUFFERED"] = "1"
-	environment.pop("PYTHONPATH", None)
+	# The editable install's own path. Its .pth file is enough on Linux, but macOS
+	# marks files under the hidden .build directory hidden, and Python 3.12.15 skips
+	# hidden .pth files.
+	environment["PYTHONPATH"] = str(SOURCE / "python")
 	if license_file:
 		environment["GRB_LICENSE_FILE"] = license_file
 	return environment
@@ -561,7 +573,7 @@ def load_instances(archive: Path) -> dict[str, int]:
 		for member in file.namelist():
 			if member.endswith(".json"):
 				sizes[Path(member).stem] = len(json.loads(file.read(member))["polygons"])
-	if len(sizes) != EXPECTED_INSTANCES:
+	if ARCHIVE_OVERRIDE is None and len(sizes) != EXPECTED_INSTANCES:
 		fail(f"{archive} tem {len(sizes)} instâncias; esperadas {EXPECTED_INSTANCES}")
 	return dict(sorted(sizes.items()))
 
@@ -649,7 +661,9 @@ def run_directory(configuration: Configuration, seconds: int, smoke: bool) -> Pa
 
 
 def experiment_root() -> Path:
-	return workspace.experiments_dir() / "fekete-reference"
+	"""Results of the paper's archive, or of another one in a directory named after it."""
+	root = workspace.experiments_dir() / "fekete-reference"
+	return root if ARCHIVE_OVERRIDE is None else root.with_name(f"fekete-reference-{ARCHIVE_OVERRIDE.stem}")
 
 
 def base_run(configuration: Configuration, setup: dict) -> Path:
@@ -816,7 +830,8 @@ def configuration_lock(configuration: Configuration) -> Path:
 
 
 def machine_lock() -> Path:
-	return experiment_root() / "machine.lock"
+	# Shared by every archive: one configuration at a time on the machine.
+	return workspace.experiments_dir() / "fekete-reference" / "machine.lock"
 
 
 # --- one run ------------------------------------------------------------------
@@ -1131,7 +1146,10 @@ def running_job(configuration: Configuration) -> str | None:
 		return None
 	for job in sorted(jobs.jobs_dir().iterdir(), reverse=True):
 		data = jobs._read(job)
-		if data.get("command", [None, None])[1:2] == [configuration.command] and jobs.status(data) == "running":
+		command = data.get("command", [None, None])
+		archive = next((part.removeprefix("--instances=") for part in command if str(part).startswith("--instances=")), None)
+		same_archive = archive == (str(ARCHIVE_OVERRIDE) if ARCHIVE_OVERRIDE is not None else None)
+		if command[1:2] == [configuration.command] and same_archive and jobs.status(data) == "running":
 			return job.name
 	return None
 
@@ -1175,9 +1193,14 @@ def run_main(key: str, argv: Sequence[str] | None = None) -> int:
 		parser.add_argument("--threads", type=int, help=(
 			"threads por execução (padrão: uma por CPU lógica dos núcleos de performance desta máquina; "
 			f"o artigo usou {PAPER_THREADS})"))
+	parser.add_argument("--instances", type=Path, help=(
+		"outro arquivo de instâncias no formato do Fekete (por exemplo, o de tpp.py smoothed-instances), "
+		"com resultados num diretório próprio; a máquina continua sendo usada por uma configuração de cada vez"))
 	args = parser.parse_args(list(argv or []))
 	if args.seconds < 1:
 		parser.error("o limite de tempo deve ser positivo")
+	global ARCHIVE_OVERRIDE
+	ARCHIVE_OVERRIDE = args.instances.resolve() if args.instances else None
 	if configuration.threads is None:
 		threads = getattr(args, "threads", None) or len(performance_cpus())
 		if threads < 1:
@@ -1265,7 +1288,8 @@ def run_main(key: str, argv: Sequence[str] | None = None) -> int:
 		command = [configuration.command, str(args.seconds), *(["--smoke"] if args.smoke else []),
 			*(["--extend"] if args.extend else []), *([f"--repetitions={args.repetitions}"] if args.repetitions else []),
 			*([f"--workers={args.workers}"] if args.workers else []),
-			*([f"--threads={configuration.threads}"] if CONFIGURATIONS[key].threads is None else []), "--foreground"]
+			*([f"--threads={configuration.threads}"] if CONFIGURATIONS[key].threads is None else []),
+			*([f"--instances={ARCHIVE_OVERRIDE}"] if ARCHIVE_OVERRIDE is not None else []), "--foreground"]
 		with contextlib.redirect_stdout(io.StringIO()) as printed, contextlib.redirect_stderr(io.StringIO()):
 			code = jobs.command_start(argparse.Namespace(name=configuration.command, command=command))
 		job = printed.getvalue().split()[0] if printed.getvalue().split() else None
@@ -1310,6 +1334,8 @@ def execute(configuration: Configuration, seconds: int, workers: int, directory:
 			"workers": workers, "order_seed": ORDER_SEED, "instances": len({task.instance for task in tasks}),
 			"tasks": len(tasks), "setup_fingerprint": setup["fingerprint"], "setup": setup,
 			"validation_tolerance": VALIDATION_TOLERANCE, "machine": workspace.machine_state(),
+			"instance_archive": str(instance_archive()),
+			"instance_archive_sha256": hashlib.sha256(instance_archive().read_bytes()).hexdigest(),
 		}
 		if configuration.solver == "ours":
 			plan["call"] = f"tpp-unordered {' '.join(our_arguments(configuration))}, instance on stdin (as tspn-compare)"

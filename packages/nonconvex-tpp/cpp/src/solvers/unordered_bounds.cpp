@@ -75,7 +75,7 @@ namespace tpp::unordered_detail {
 		const size_t n = regions.size();
 		if (contacts.size() != n + 2 || inserted.empty() || j > n || (dual.valid() && dual.directions.size() != n + 1))
 			throw std::invalid_argument("Invalid insertion-bound reference path.");
-		const auto contact = best_contact(contacts[j], contacts[j + 1], inserted, inserted.front());
+		const auto contact = best_contact_convex(contacts[j], contacts[j + 1], inserted, inserted.front());
 		if (insertion_contact) *insertion_contact = contact;
 		const double floor = tpp_convex_distance_lower(contacts.front(), contacts.back());
 		if (!dual.valid()) return floor;
@@ -269,7 +269,7 @@ namespace tpp::unordered_detail {
 		for (size_t r = 0; r < m; ++r) {
 			if (missing[r]->empty()) throw std::invalid_argument("Empty missing region");
 			for (size_t j = 0; j < gaps; ++j) {
-				const auto contact = best_contact(contacts[j], contacts[j + 1], *missing[r], missing[r]->front());
+				const auto contact = best_contact_convex(contacts[j], contacts[j + 1], *missing[r], missing[r]->front());
 				gain[r * gaps + j] = std::max(0.0, tpp_convex_binary_insertion_gain(dual, contacts, regions, *missing[r], j, contact).first);
 			}
 		}
@@ -293,7 +293,7 @@ namespace tpp::unordered_detail {
 			const Polygon &inserted = *missing[r];
 			if (inserted.empty()) throw std::invalid_argument("Empty missing region");
 			for (size_t j = 0; j < k; ++j) {
-				const auto point = best_contact(contacts[j], contacts[(j + 1) % k], inserted, inserted.front());
+				const auto point = best_contact_convex(contacts[j], contacts[(j + 1) % k], inserted, inserted.front());
 				gain[r * k + j] = std::max(0.0, tpp_convex_binary_insertion_gain(dual, cycle_contacts, regions, inserted, j, point).first);
 			}
 		}
@@ -348,7 +348,7 @@ namespace tpp::unordered_detail {
             raw.reserve(n);left.reserve(n);right.reserve(n);
             for(size_t i=0;i<n;++i) {
                 raw.push_back(direction(contacts[i],contacts[i+1]));
-                const auto point=best_contact(contacts[i],contacts[i+1],inserted,inserted.front());
+                const auto point=best_contact_convex(contacts[i],contacts[i+1],inserted,inserted.front());
                 left.push_back(direction(contacts[i],point));
                 right.push_back(direction(point,contacts[i+1]));
             }
@@ -386,7 +386,7 @@ namespace tpp::unordered_detail {
             if(binary_cycle&&inherited_dual.empty()) {
                 const Polygon cycle_contacts(contacts.begin(),contacts.end()-1);
                 Polygon proposals;proposals.reserve(n);
-                for(size_t i=0;i<n;++i)proposals.push_back(best_contact(contacts[i],contacts[i+1],inserted,inserted.front()));
+                for(size_t i=0;i<n;++i)proposals.push_back(best_contact_convex(contacts[i],contacts[i+1],inserted,inserted.front()));
                 auto bounds=tpp_convex_binary_cycle_insertion_bounds(cycle_contacts,regions,inserted,proposals);
                 if(!bounds.empty())return bounds;
             }
@@ -416,7 +416,7 @@ namespace tpp::unordered_detail {
             std::vector<R> terms(n);R total=(destination-origin).dot(inherited_dual.back());
             for(size_t i=0;i<n;++i)total+=terms[i]=exact_support(*regions[i],inherited_dual[i]-inherited_dual[i+1]);
             for(size_t j=0;j<=n;++j) {
-                const auto q=best_contact(contacts[j],contacts[j+1],inserted,inserted.front());
+                const auto q=best_contact_convex(contacts[j],contacts[j+1],inserted,inserted.front());
                 auto left=unit(contacts[j],q),right=unit(q,contacts[j+1]);
                 // A zero edge may carry its parent's feasible disk vector.
                 if(left.zero())left=inherited_dual[j];

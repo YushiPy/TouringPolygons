@@ -8,6 +8,9 @@ Pastas com dados:
 
 | Pasta | Conteúdo |
 |---|---|
+| [cetsp-table2-mac-2026-10-27](cetsp-table2-mac-2026-10-27/per-instance.csv) | As 62 instâncias 2D da Tabela 2 de Coutinho et al. (2016): nossos limites com 1 e 8 threads (30 min), os deles (4 h), o UB de Mennell e o tour de Carrabs et al. (2020), uma linha por instância; e, nas 30 abertas para os dois, o tempo até superar estritamente os limites de 4 h deles ([`time-to-beat.csv`](cetsp-table2-mac-2026-10-27/time-to-beat.csv)); resumo [abaixo](#cetsp-table2-mac-2026-10-27). |
+| [fekete-smoothed-dantzig-2026-10-22](fekete-smoothed-dantzig-2026-10-22/per-run.csv) | As instâncias suavizadas na dantzig, no protocolo da referência (C ×3; B e A com 300 s e extensão de 900 s), uma linha por instância, configuração, raiz e limite; resumo [abaixo](#fekete-smoothed-dantzig-2026-10-22). |
+| [fekete-smoothed-mac-2026-10-21](fekete-smoothed-mac-2026-10-21/per-run.csv) | Fekete (1 thread, CHR e LEFP) × nosso nas 24 instâncias suavizadas, 300 s, uma linha por execução com limites, gap e validação do tour; resumo [abaixo](#fekete-smoothed-mac-2026-10-21). |
 | [fekete-reference-dantzig-2026-10-20](fekete-reference-dantzig-2026-10-20/per-case.csv) | Réplica das configurações A, B e C da armijo na dantzig (Intel), 300 s, mesmo formato; resumo [abaixo](#fekete-reference-dantzig-2026-10-20). |
 | [fekete-reference-armijo-2026-10-17](fekete-reference-armijo-2026-10-17/per-case.csv) | Medição de referência na armijo: o Fekete original (configuração do artigo, raiz LEFP e uma thread) × nosso solver com 1 e 16 threads, 558 casos, 3 repetições de 300 s mais 900 s nas abertas; uma linha por caso, configuração, raiz e limite; resumo [abaixo](#fekete-reference-armijo-2026-10-17). |
 | [fekete-comparison](fekete-comparison/README.md) | Comparação original (558 casos, nosso solver antigo × Fekete et al., teto de 6 h, uma thread por caso, até 10 processos em paralelo) usada pelo material SIICUSP; CSVs e corpus são dependências do exportador. |
@@ -21,6 +24,1413 @@ status de exatidão e limitações. Um gap numérico fechado nos B&B não é ót
 algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
+
+## cetsp-table2-mac-2026-10-27
+
+**Pergunta.** Nas 62 instâncias 2D de Mennell da Tabela 2 de Coutinho et al.
+(2016), fechamos todas as que eles fecham? E o que acontece nas outras?
+
+**Formulação.**
+- **Instâncias.** Os arquivos de Mennell como estão no repositório de Cerrone
+  (github.com/CerroneCarmine/CETSP), e as 21 TSPLIB em 2D reconstruídas dos
+  arquivos 3D de Mennell; todas em
+  [`benchmarks/suites/cetsp/`](../suites/cetsp/README.md). As 27 que também
+  vieram de Walton Coutinho são idênticas.
+- **Binários.** Para as 42 que não são geométricas, `tpp-convex-cetsp` do
+  commit 7e5a169. O oráculo e o B&B são os de 541d862; a heurística ganhou o
+  filtro do Or-opt e "ruína e reconstrução" em sequências quando o tour vira
+  em poucos discos. As 20 geométricas vêm da
+  [segunda campanha](#cetsp-campaign2-mac-2026-10-26) (541d862) e não rodaram
+  de novo.
+- **Protocolo.** O da segunda campanha, no Mac M4 Pro só com a campanha:
+  - 1 thread, 1.800 s, 6 ao mesmo tempo, teto de 2,5 GB;
+  - as que ficaram abertas, com 8 threads, uma por vez, 1.800 s, teto de
+    12 GB.
+
+  A campanha foi interrompida uma vez no passo 2; a instância em curso
+  (team5_499) rodou de novo desde o começo.
+- **Gap e verificação.** Gap relativo de 1e-6, com limites provados na
+  instância em binary64. Todos os tours foram verificados em racionais exatos
+  e cobrem também os discos decimais.
+- **Referências.**
+  - Coutinho et al.: 1 thread, i7 de 3,4 GHz (2012), 4 h. O UB da tabela
+    deles é o de Mennell (2009).
+  - Os tours de Carrabs et al. (2020), do mesmo repositório, servem de segunda
+    referência de UB.
+- **Dados.** Uma linha por instância em
+  [`per-instance.csv`](cetsp-table2-mac-2026-10-27/per-instance.csv).
+
+**Resultado.**
+- **Fechadas: 32 de 62, contra 23 deles.**
+  - **As 23 deles.** Os mesmos ótimos (diferença de até 0,001), todos mais
+    rápidos com 1 thread, de 17× a 18.000× (mediana de 100×). Exemplos:
+    - lin318-0.10: 57,5 s contra 8.541 s;
+    - team1_100rdmRad: 24 ms contra 269 s;
+    - team3_300rdmRad: 37 ms contra 682 s.
+  - **9 abertas para eles:**
+
+| Instância | Ótimo (1e-6) | Tempo | Threads | LB deles, 4 h | Acima do ótimo: Mennell | Carrabs |
+|---|---|---|---|---|---|---|
+| team5_499rdmRad | 446,191 | 0,5 s | 1 | 442,637 | +1,82% | +0,07% |
+| concentricCircles2 | 153,132 | 72 s | 1 | 149,868 | 0,00% | +0,67% |
+| kroD100rdmRad | 141,829 | 98 s | 1 | 136,620 | 0,00% | +0,36% |
+| d493rdmRad | 134,226 | 116 s | 1 | 125,312 | +4,39% | +0,38% |
+| dsj1000-0.10 | 373,759 | 126 s | 1 | 373,730 | +0,63% | +0,14% |
+| chaoSingleDep | 1.039,611 | 271 s | 1 | 1.000,151 | 0,00% | 0,00% |
+| team3_300 | 461,889 | 376 s | 1 | 447,534 | +0,94% | +3,01% |
+| lin318rdmRad | 2.047,107 | 501 s | 1 | 1.807,681 | +1,63% | +0,42% |
+| rotatingDiamonds3 | 380,883 | 718 s | 8 | 348,608 | 0,00% | 0,00% |
+
+  Os 0,00% são diferenças abaixo da terceira casa, em que a tabela de
+  Coutinho et al. arredonda.
+- **LB nas 30 abertas para os dois.** O nosso (o melhor entre 1 e 8 threads)
+  é maior que o de 4 h deles em todas:
+  - de +2,8% (pcb442-0.10) a +20,0% (team2_200rdmRad), com mediana de +13,6%;
+  - o gap também é menor em todas.
+- **Tours** (o melhor entre 1 e 8 threads), nas 39 abertas para eles:
+  - **contra o de Mennell:** melhor em 34 e igual em 1. Pior em 4:
+    - rotatingDiamonds3 e concentricCircles2, por menos de 0,001 (são ótimas;
+      a diferença é o arredondamento da tabela);
+    - rotatingDiamonds4 e 5, por 0,04% e 0,16% (heurística anterior);
+  - **contra o de Carrabs et al.:** melhor em 35 e igual em 1. Pior em 3:
+    - bonus1000, por 0,53%;
+    - dsj1000rdmRad, por 0,87%;
+    - team2_200rdmRad, por menos de 0,01%.
+- **Memória.**
+  - Picos de 1,6 GB com 1 thread e de 8,5 GB com 8 threads.
+  - O descarte entrou em todas as abertas, com pisos de 0,03% a 2,0% acima do
+    LB final.
+  - kroD100-0.02, com 8 threads, esvaziou a fila aos 1.714 s e terminou no
+    piso, com gap de 0,26%.
+
+**Tempo até superar os limites de 4 h deles (as 30 abertas para os dois).**
+- **Protocolo.**
+  - Binário do commit 841c144 (`--target-lower`, `--target-gap`), o mesmo B&B
+    e a mesma heurística de 7e5a169. Configuração da campanha: orçamento de
+    1.800 s (heurística de até 90 s), 1 thread, teto de 2,5 GB. Duas
+    instâncias ao mesmo tempo, com `nice`, no Mac em uso leve.
+  - Cada execução para quando o LB provado é **estritamente maior** que o
+    deles e o gap estritamente menor. A tabela deles arredonda o LB em 3
+    casas e o gap em 3 casas do percentual; os alvos somam meia unidade da
+    última casa (LB + 0,0005; gap − 0,0005 ponto percentual).
+  - O tempo vem da trajetória dos limites, gravada no momento em que cada alvo
+    é alcançado. É o tempo total, com a leitura, o B&B preliminar de 1 s (só
+    com o tour dos centros) e a heurística, durante a qual o LB não sobe.
+  - O gap deles usa o tour de Mennell; o nosso, o nosso tour.
+- **Resultado.** Os dois limites deles foram superados nas 30, e uma linha
+  por instância está em
+  [`time-to-beat.csv`](cetsp-table2-mac-2026-10-27/time-to-beat.csv).
+  - **LB:** de 0,12 s a 111 s, com mediana de 50 s. Contra os 14.400 s
+    deles, de 129× a 118.000×, com mediana de 324×.
+  - **Gap:** razão de 151× a 9.973×, com mediana de 350×.
+  - **Onde o tempo vai.** Em 6, todas de raio aleatório, o B&B preliminar
+    supera o LB deles em até 0,86 s; dsj1000rdmRad, em 0,12 s. Nas outras
+    24, o LB deles é superado pelo B&B depois da heurística, em mediana de
+    3,0 s (máximo de 34 s, pcb442-0.10); o resto é a heurística, que usa os
+    90 s inteiros nas maiores.
+
+**Limitações.**
+- Máquinas de épocas diferentes (Mac de 2024 contra i7 de 2012), 30 min
+  contra 4 h. Os fatores de tempo não descontam o hardware.
+- "Fechada" é gap relativo de até 1e-6, não ótimo algébrico.
+- Carrabs et al. (2020) também publicam limites inferiores, ainda não
+  comparados. Até lá, "LB maior" vale contra Coutinho et al., não contra o
+  melhor conhecido.
+- As 20 geométricas usam a heurística anterior; os UBs delas podem melhorar.
+- As instâncias 3D (Tabela 3) não rodaram.
+- No tempo até superar os limites, eles publicam só os limites ao fim de 4 h.
+  A razão supõe que precisaram das 4 h inteiras; se o LB deles parou de subir
+  antes, ela exagera. A frase segura é "superamos em X s o LB que eles têm ao
+  fim de 4 h". Essa medição rodou com outro processo ao lado.
+
+## cetsp-campaign2-mac-2026-10-26
+
+**Pergunta.** Com a memória da busca reorganizada (famílias de filhos, teto
+respeitado) e o B&B rodando antes da heurística, o que muda em relação à
+[primeira campanha](#cetsp-campaign-mac-2026-10-25)?
+
+**Formulação.**
+- **Binário.** `tpp-convex-cetsp` do commit 541d862, com o mesmo oráculo e o
+  mesmo B&B preguiçoso, mais:
+  - filhos guardados por família, a 6 bytes cada, e a fila guardando famílias;
+  - teto de memória respeitado, com compactação e, se preciso, descarte dos
+    filhos de limite mais alto; o limiar do descarte vira um piso para o
+    limite inferior final;
+  - um segundo de B&B com o tour dos centros antes da heurística.
+
+  Detalhes em
+  [convex-cycle.md](../../docs/algorithms/convex-cycle.md#disks-2026-10-25).
+- **Protocolo.** O mesmo da primeira campanha: script único, Mac M4 Pro
+  reiniciado e só a campanha rodando.
+  - Mennell com 1 thread: 1.800 s, 6 ao mesmo tempo, teto de 2,5 GB.
+  - As abertas com 8 threads: uma por vez, 1.800 s, teto de 12 GB.
+  - Behdani e Smith: 60 s cada, 1 thread.
+  - A campanha foi interrompida uma vez no passo 1 e retomada desde o começo
+    dele; nenhum resultado parcial entrou.
+- **Gap e verificação.**
+  - Gap relativo de 1e-6, com limites provados na instância em binary64.
+  - Os 752 tours foram verificados em racionais exatos.
+- **Referência.** Coutinho et al. (2016): 1 thread, i7 de 3,4 GHz (2012), 4 h.
+  O B&B deles informa o ótimo ou o seu LB; o UB das tabelas é o de Mennell
+  (2009), o melhor conhecido, contra o qual eles medem o gap.
+
+**Resultado em Mennell (1 thread).**
+
+| Instância | Nosso [LB; UB] | Tempo | Coutinho et al. [LB; UB], 4 h | Tempo |
+|---|---|---|---|---|
+| bubbles1 | **349,135** | 3,7 ms | 349,135 | 0,10 s |
+| bubbles2 | **428,279** | 8,9 ms | 428,279 | 0,22 s |
+| bubbles3 | **529,955** | 7,9 s | 529,955 | 193,1 s |
+| bubbles4 | [729,869; 804,989] | 30 min | [690,578; 829,888] | 4 h |
+| bubbles5 | [918,237; 1.038,299] | 30 min | [851,822; 1.062,335] | 4 h |
+| bubbles6 | [1.084,003; 1.291,209] | 30 min | [993,981; 1.383,139] | 4 h |
+| bubbles7 | [1.227,591; 1.653,713] | 30 min | [1.123,522; 1.720,214] | 4 h |
+| bubbles8 | [1.373,777; 1.991,033] | 30 min | [1.252,715; 2.101,373] | 4 h |
+| bubbles9 | [1.518,665; 2.329,164] | 30 min | [1.374,407; 2.426,274] | 4 h |
+| chaoSingleDep | **1.039,611** | 270,8 s | [1.000,151; 1.039,610] | 4 h |
+| concentricCircles1 | **53,158** | 19 ms | 53,158 | 5,2 s |
+| concentricCircles2 | **153,132** | 71,9 s | [149,868; 153,132] | 4 h |
+| concentricCircles3 | [262,250; 270,615] | 30 min | [247,624; 271,076] | 4 h |
+| concentricCircles4 | [402,488; 453,696] | 30 min | [358,887; 454,457] | 4 h |
+| concentricCircles5 | [513,899; 646,866] | 30 min | [459,411; 645,381] | 4 h |
+| rotatingDiamonds1 | **32,389** | 2,6 ms | 32,389 | 0,09 s |
+| rotatingDiamonds2 | **140,477** | 0,84 s | 140,477 | 730,4 s |
+| rotatingDiamonds3 | [378,867; 380,883] | 30 min | [348,608; 380,882] | 4 h |
+| rotatingDiamonds4 | [663,718; 772,472] | 30 min | [593,350; 770,660] | 4 h |
+| rotatingDiamonds5 | [1.244,150; 1.514,624] | 30 min | [1.106,577; 1.510,752] | 4 h |
+
+**As 12 abertas, com 8 threads.**
+
+| Instância | Nosso [LB; UB] | Gap | Tempo |
+|---|---|---|---|
+| bubbles4 | [739,533; 804,084] | 8,0% | 30 min |
+| bubbles5 | [931,039; 1.035,311] | 10,1% | 30 min |
+| bubbles6 | [1.103,101; 1.234,811] | 10,7% | 30 min |
+| bubbles7 | [1.250,979; 1.636,317] | 23,6% | 30 min |
+| bubbles8 | [1.399,922; 1.925,830] | 27,3% | 30 min |
+| bubbles9 | [1.550,456; 2.301,693] | 32,6% | 30 min |
+| concentricCircles3 | [265,518; 270,223] | 1,7% | 30 min |
+| concentricCircles4 | [408,090; 452,345] | 9,8% | 30 min |
+| concentricCircles5 | [524,582; 633,486] | 17,2% | 30 min |
+| rotatingDiamonds3 | **380,883** | 1e-6 | 718 s |
+| rotatingDiamonds4 | [678,494; 770,975] | 12,0% | 30 min |
+| rotatingDiamonds5 | [1.272,815; 1.513,146] | 15,9% | 30 min |
+
+- **Fechadas: as mesmas 9 de 20** da primeira campanha, com concentricCircles2,
+  chaoSingleDep e rotatingDiamonds3 abertas para Coutinho et al.
+- **Velocidade.** Agora somos mais rápidos em todas as que os dois fecham:
+  - rotatingDiamonds2: 0,84 s contra 730 s (870×);
+  - concentricCircles1: 19 ms contra 5,2 s (270×);
+  - bubbles3: 7,9 s contra 193 s (24×);
+  - bubbles1, bubbles2 e rotatingDiamonds1: de 25× a 35×.
+
+  A causa é o segundo de B&B antes da heurística, que fecha as pequenas
+  sozinho.
+- **Todas as abertas rodaram até o prazo.** Na primeira campanha, a memória
+  encerrava a maioria entre 3 e 13 min.
+- **LB.** Nas 11 que seguem abertas, o nosso é maior que o de 4 h deles:
+  - de 5,7% (bubbles4) a 12,4% (rotatingDiamonds5) com 1 thread;
+  - de 7,1% a 15,0% com 8 threads.
+
+  O LB também subiu em relação à primeira campanha em todas, menos
+  concentricCircles3 e rotatingDiamonds3, que já iam até o prazo. Por
+  exemplo, rotatingDiamonds5 com 8 threads foi de 1.231,9 para 1.272,8.
+- **UB (com 8 threads)**, contra o de Mennell que consta na tabela deles:
+  - Melhor em 9: bubbles4 a 9 (de −2,5% a −10,7%) e concentricCircles3 a 5
+    (−0,3%, −0,5% e −1,8%).
+  - Igual em rotatingDiamonds3.
+  - Pior em rotatingDiamonds4 e 5: +0,04% e +0,16%.
+- **O descarte por memória esteve ativo em todas as abertas.** Os pisos ficaram
+  de 0,08% a 0,75% acima do LB final: dentro do teto, mais tempo levaria o LB
+  até o piso e não além.
+
+**Resultado em Behdani e Smith (720 instâncias).**
+- **Fechadas e conferidas.** As 720 fecham, os 720 ótimos coincidem com os do
+  apêndice de Coutinho et al. até a terceira casa, e os 720 tours passam na
+  verificação exata.
+- **Tempo.** Todas fecham no segundo inicial de B&B, sem a heurística: média
+  de 3,4 ms, máximo de 13,9 ms.
+- **Contra eles:** 0,6 a 6,5 ms por grupo, contra 17 ms a 1,66 s, de 19× a
+  255× mais rápido em cada grupo. As árvores são de 2 a 9 vezes menores.
+
+| r | Grupo | Nós (média) | Tempo médio | Coutinho et al.: nós | tempo |
+|---|---|---|---|---|---|
+| 0,25 | CETSP-06 | 7 | 0,6 ms | 26 | 29 ms |
+| 0,25 | CETSP-12 | 19 | 2,9 ms | 139 | 189 ms |
+| 0,25 | CETSP-20 | 110 | 6,5 ms | 1.016 | 1.656 ms |
+| 0,5 | CETSP-20 | 54 | 6,3 ms | 437 | 719 ms |
+| 1,0 | CETSP-06 | 6 | 0,7 ms | 13 | 17 ms |
+| 1,0 | CETSP-20 | 28 | 6,0 ms | 163 | 261 ms |
+
+(Grupos selecionados; os 24 estão em `summary-behdani.md` da campanha.)
+
+**Limitações.**
+- Uma execução por instância. O i7 de Coutinho et al. é de 2012; os tempos são
+  indicativos.
+- Exatidão: gap de 1e-6 com limites provados, não ótimo algébrico. Os limites
+  valem na instância em binary64, que difere da decimal em ~1e-14 por
+  coordenada.
+- **Memória.** Ela continua sendo o limite das grandes, agora sob forma de
+  piso. A fatia da busca é 40% do teto, por segurança na compactação, e pode
+  subir.
+- Dados: local, em
+  `benchmarks/workspace/experiments/cetsp-native/campaign-20261025-2308/`.
+
+## cetsp-campaign-mac-2026-10-25
+
+**Substituído** por [cetsp-campaign2](#cetsp-campaign2-mac-2026-10-26) (mesmas 9
+fechadas; limites, tempos e memória melhores).
+
+**Pergunta.** Com o B&B preguiçoso (limites de inserção certificados), as
+threads e a ILS nova, quanto do CETSP de Coutinho et al. (2016) se resolve
+num Mac: as 20 instâncias 2D geométricas de Mennell e as 720 de Behdani e
+Smith?
+
+**Formulação.**
+- **Binário.** `tpp-convex-cetsp` do commit f31c123, com o oráculo
+  geométrico de discos, filhos preguiçosos e a ILS de ordem completa.
+  Detalhes em
+  [convex-cycle.md](../../docs/algorithms/convex-cycle.md#disks-2026-10-25).
+- **Gap e certificação.**
+  - Gap relativo de 1e-6, com limites provados na instância lida em binary64.
+  - Os 752 tours foram verificados à parte em racionais exatos: cobertura e
+    comprimento com raízes arredondadas para cima.
+  - Os 32 tours de Mennell cobrem também os discos decimais.
+- **Execução.**
+  - Script único (`run-all.sh`), com o Mac reiniciado e só a campanha
+    rodando: Mac M4 Pro, 12 núcleos, 24 GB.
+  - Teto de memória por processo; ao atingi-lo, o B&B para com o limite que
+    tem.
+  - **Mennell, 1 thread:** 1.800 s, 6 ao mesmo tempo, teto de 2,5 GB.
+  - **As abertas, 8 threads:** uma por vez, 1.800 s, teto de 12 GB.
+  - **Behdani e Smith:** os 240 conjuntos de pontos com raios 0,25, 0,5 e
+    1,0, 60 s cada, 1 thread, 6 ao mesmo tempo.
+- **Referência.**
+  - Coutinho et al. (2016): CPLEX 12.4, 1 thread, i7 de 3,4 GHz (2012), 4 h
+    por instância.
+  - Tabela 2 para Mennell; apêndice (Tabelas 4 a 9) para os 720 ótimos de
+    Behdani e Smith.
+
+**Resultado em Mennell (1 thread).**
+
+| Instância | n | Nosso [LB; UB] | Tempo (parada) | Coutinho et al. [LB; UB], 4 h | Tempo |
+|---|---|---|---|---|---|
+| bubbles1 | 36 | **349,135** | 2,3 s | 349,135 | 0,1 s |
+| bubbles2 | 76 | **428,279** | 3,0 s | 428,279 | 0,2 s |
+| bubbles3 | 126 | **529,955** | 6,6 s | 529,955 | 193,1 s |
+| bubbles4 | 184 | [724,169; 804,989] | 759 s (memória) | [690,578; 829,888] | 4 h |
+| bubbles5 | 250 | [907,188; 1.038,299] | 554 s (memória) | [851,822; 1.062,335] | 4 h |
+| bubbles6 | 324 | [1.054,857; 1.290,783] | 250 s (memória) | [993,981; 1.383,139] | 4 h |
+| bubbles7 | 406 | [1.191,883; 1.647,400] | 228 s (memória) | [1.123,522; 1.720,214] | 4 h |
+| bubbles8 | 496 | [1.335,053; 1.987,761] | 245 s (memória) | [1.252,715; 2.101,373] | 4 h |
+| bubbles9 | 594 | [1.472,616; 2.313,268] | 248 s (memória) | [1.374,407; 2.426,274] | 4 h |
+| chaoSingleDep | 200 | **1.039,611** | 290,5 s | [1.000,151; 1.039,610] | 4 h |
+| concentricCircles1 | 16 | **53,158** | 0,7 s | 53,158 | 5,2 s |
+| concentricCircles2 | 36 | **153,132** | 69,2 s | [149,868; 153,132] | 4 h |
+| concentricCircles3 | 60 | [262,337; 270,615] | 1.749 s (memória) | [247,624; 271,076] | 4 h |
+| concentricCircles4 | 104 | [392,007; 453,696] | 251 s (memória) | [358,887; 454,457] | 4 h |
+| concentricCircles5 | 148 | [494,493; 646,866] | 194 s (memória) | [459,411; 645,381] | 4 h |
+| rotatingDiamonds1 | 20 | **32,389** | 0,6 s | 32,389 | 0,1 s |
+| rotatingDiamonds2 | 60 | **140,477** | 6,6 s | 140,477 | 730,4 s |
+| rotatingDiamonds3 | 180 | [378,951; 380,883] | 1.800 s (tempo) | [348,608; 380,882] | 4 h |
+| rotatingDiamonds4 | 320 | [640,749; 772,472] | 232 s (memória) | [593,350; 770,660] | 4 h |
+| rotatingDiamonds5 | 680 | [1.201,664; 1.514,288] | 244 s (memória) | [1.106,577; 1.510,752] | 4 h |
+
+**As 12 abertas, com 8 threads.**
+
+| Instância | Nosso [LB; UB] | Gap | Tempo (parada) |
+|---|---|---|---|
+| bubbles4 | [733,569; 804,084] | 8,8% | 681 s (memória) |
+| bubbles5 | [920,265; 1.035,311] | 11,1% | 498 s (memória) |
+| bubbles6 | [1.090,123; 1.234,811] | 11,7% | 630 s (memória) |
+| bubbles7 | [1.222,084; 1.636,317] | 25,3% | 305 s (memória) |
+| bubbles8 | [1.379,449; 1.925,830] | 28,4% | 624 s (memória) |
+| bubbles9 | [1.505,233; 2.301,693] | 34,6% | 241 s (memória) |
+| concentricCircles3 | [265,556; 270,223] | 1,7% | 1.800 s (tempo) |
+| concentricCircles4 | [402,518; 452,345] | 11,0% | 447 s (memória) |
+| concentricCircles5 | [509,638; 633,486] | 19,6% | 283 s (memória) |
+| rotatingDiamonds3 | **380,883** | 1e-6 | 713 s |
+| rotatingDiamonds4 | [654,751; 770,975] | 15,1% | 211 s (memória) |
+| rotatingDiamonds5 | [1.231,918; 1.513,125] | 18,6% | 242 s (memória) |
+
+- **Fechadas: 9 de 20.**
+  - Com 1 thread: as 6 que Coutinho et al. resolvem, concentricCircles2 (69
+    s) e chaoSingleDep (291 s).
+  - Com 8 threads: rotatingDiamonds3 (713 s).
+  - As três estavam abertas para eles em 4 h. Os UBs deles eram ótimos até a
+    terceira casa: 153,132, 1.039,610 e 380,882 (o nosso, 380,8823 a
+    380,8827).
+- **Velocidade nas que os dois fecham:** rotatingDiamonds2, 6,6 s contra
+  730 s (110×); bubbles3, 6,6 s contra 193 s (29×); concentricCircles1, 0,7
+  s contra 5,2 s.
+  - Em bubbles1, bubbles2 e rotatingDiamonds1 os deles são menores (0,1–0,2
+    s): o nosso tempo é quase todo da heurística.
+- **LB nas 11 que seguem abertas:** com 1 thread, em 3 a 29 min, de 4,9%
+  (bubbles4) a 9,2% (concentricCircles4) acima do de 4 h deles; com 8
+  threads, de 6,2% a 12,2%.
+- **UB:**
+  - Melhor que o deles em 9: bubbles4 a 9 (de 2,3% a 6,7% com 1 thread; até
+    10,7% em bubbles6 com 8 threads), concentricCircles3 e 4, e
+    concentricCircles5 com 8 threads (−1,8%).
+  - Pior em rotatingDiamonds4 e 5: +0,04% e +0,16% com 8 threads.
+- **A memória, não o tempo, encerrou 11 das 12 abertas com 1 thread** (de
+  194 a 1.749 s). Ao parar, a árvore preguiçosa tem de 67 a 134 milhões de
+  nós, a ~16 bytes cada. Com 8 threads, os 12 GB acabam em 3,5 a 11 min.
+
+**Resultado em Behdani e Smith (720 instâncias).**
+- **Fechadas e conferidas.** As 720 fecham no gap de 1e-6, os 720 ótimos
+  coincidem com os do apêndice de Coutinho et al. até a terceira casa, e os
+  720 tours passam na verificação exata.
+- **Árvores** de 2 a 9 vezes menores que as deles. No grupo mais difícil
+  (CETSP-20, r = 0,25): 110 nós de média, contra 1.016.
+- **Tempo.**
+  - O B&B leva em média 0,3 ms por instância (no máximo 1,5 ms de média num
+    grupo), contra 17 ms a 1,66 s deles.
+  - O tempo total é dominado pela ILS inicial: média de 0,52 s, máximo de
+    2,2 s. Ela roda pelo menos 200 iterações sem melhora antes de parar, o
+    que é excessivo aqui.
+  - Por isso o total é maior que o deles em 18 dos 24 grupos (por exemplo,
+    CETSP-20 com r = 1,0: 1,06 s contra 0,26 s). É menor em 6: CETSP-06,
+    que não roda a ILS, e CETSP-16 a 20 com r = 0,25 (CETSP-20: 0,85 s
+    contra 1,66 s).
+
+| r | Grupo | Fechadas | Nós (média) | B&B (média) | Total (média) | Coutinho et al.: nós | tempo |
+|---|---|---|---|---|---|---|---|
+| 0,25 | CETSP-06 | 30/30 | 6 | 0,0 ms | 0,002 s | 26 | 0,029 s |
+| 0,25 | CETSP-10 | 30/30 | 14 | 0,1 ms | 0,346 s | 86 | 0,107 s |
+| 0,25 | CETSP-16 | 30/30 | 53 | 0,7 ms | 0,602 s | 443 | 0,673 s |
+| 0,25 | CETSP-20 | 30/30 | 110 | 1,5 ms | 0,852 s | 1.016 | 1,656 s |
+| 0,5 | CETSP-20 | 30/30 | 53 | 0,7 ms | 1,029 s | 437 | 0,719 s |
+| 1,0 | CETSP-20 | 30/30 | 28 | 0,4 ms | 1,055 s | 163 | 0,261 s |
+
+(Grupos selecionados; os 24 grupos estão em `summary-behdani.md` da campanha.)
+
+**Limitações.**
+- Uma execução por instância. O i7 de Coutinho et al. é de 2012; os tempos
+  são indicativos, não uma comparação de máquina igual.
+- Exatidão: gap de 1e-6 com limites provados, não ótimo algébrico (com
+  discos não há caminho exato). Os limites valem na instância em binary64,
+  que difere da decimal em ~1e-14 por coordenada.
+- A memória da árvore limita as instâncias grandes. Nós menores, ou
+  reaproveitar os nós podados, deixariam rodar até o tempo.
+- O piso de 200 iterações da ILS pesa nas instâncias pequenas; rodar o B&B
+  primeiro, por um instante, as fecharia em milissegundos.
+- Dados: local, em
+  `benchmarks/workspace/experiments/cetsp-native/campaign-20261025-1752/`
+  (JSONL, tours, `summary-*.md` e `log.txt`).
+
+## cetsp-geometric-mac-2026-10-25
+
+**Substituído** por [cetsp-campaign](#cetsp-campaign-mac-2026-10-25), com o
+B&B preguiçoso, as threads e a ILS nova; os números abaixo são da versão
+anterior (filhos resolvidos ao criar).
+
+**Pergunta.** Com uma construção geométrica no oráculo de discos (Alhazen,
+Newton no tipo, blocos para discos sobrepostos) e um B&B com tour inicial por
+busca local, quanto do CETSP 2D de Mennell se resolve, comparado a Coutinho
+et al. (2016)?
+
+**Formulação.**
+- **Oráculo:** `tpp_convex_solve_cycle_disks`, como em
+  [cetsp-native](#cetsp-native-mac-2026-10-25), agora com a proposta
+  geométrica.
+  - Atualizações de Alhazen fixam um tipo, e o Newton nos ângulos o fecha.
+  - Contatos coincidentes andam em bloco: ponto da lente, um círculo ativo ou
+    separação.
+  - O canto só fica se o seu dual se divide.
+  - A barreira é o recurso de reserva.
+  - Detalhes em
+    [convex-cycle.md](../../docs/algorithms/convex-cycle.md#disks-2026-10-25).
+- **B&B:** `tpp-convex-cetsp`.
+  - Best-first, ramificando no disco descoberto mais distante.
+  - Nós de 8 bytes, re-resolvidos ao expandir.
+  - Tour inicial: tour dos centros, inserção e busca local em sequências,
+    depois ILS de ordem completa; 5% do tempo, parando ao estagnar.
+  - Gap relativo de 1e-6; o oráculo recebe 0,25 × gap × UB.
+- **Execução.**
+  - 1.800 s por instância (Coutinho et al.: 4 h), 1 thread, 7 ao mesmo tempo
+    num Mac M4 Pro (12 núcleos, 24 GB).
+  - As fáceis rodaram ao lado de outras 6.
+- **Certificação e verificação.**
+  - Os limites são provados na instância lida em binary64.
+  - Cada tour foi verificado à parte em racionais exatos: cobre todos os
+    discos binary64, e o comprimento, com raízes arredondadas para cima,
+    não passa do UB.
+  - Na instância decimal, um contato exatamente no círculo pode errar o disco
+    por ~1e-14 (o arredondamento do centro). Os tours gravados a partir do
+    commit 9b2502d recuam os contatos 2⁻⁴⁰ do raio e cobrem também a decimal.
+- **Referência.** Tabela 2 de Coutinho et al. (CPLEX 12.4, 1 thread, i7 de
+  3,4 GHz, 4 h).
+
+**Resultado (30 min por instância).**
+
+| Instância | n | Nosso [LB; UB] | Tempo | Coutinho et al. [LB; UB] | Tempo |
+|---|---|---|---|---|---|
+| bubbles1 | 36 | **349,135** | 0,3 s | 349,135 | 0,1 s |
+| bubbles2 | 76 | **428,279** | 0,9 s | 428,279 | 0,2 s |
+| bubbles3 | 126 | **529,955** | 13,0 s | 529,955 | 193,1 s |
+| bubbles4 | 184 | [715,694; 804,989] | 30 min | [690,578; 829,888] | 4 h |
+| bubbles5 | 250 | [894,334; 1.080,069] | 30 min | [851,822; 1.062,335] | 4 h |
+| bubbles6 | 324 | [1.048,670; 1.401,378] | 30 min | [993,981; 1.383,139] | 4 h |
+| bubbles7 | 406 | [1.185,752; 1.675,336] | 30 min | [1.123,522; 1.720,214] | 4 h |
+| bubbles8 | 496 | [1.325,330; 2.030,876] | 30 min | [1.252,715; 2.101,373] | 4 h |
+| bubbles9 | 594 | [1.459,890; 2.435,313] | 30 min | [1.374,407; 2.426,274] | 4 h |
+| chaoSingleDep | 200 | [1.039,604; 1.039,611] | 30 min | [1.000,151; 1.039,610] | 4 h |
+| concentricCircles1 | 16 | **53,158** | 0,2 s | 53,158 | 5,2 s |
+| concentricCircles2 | 36 | **153,132** | 461,4 s | [149,868; 153,132] | 4 h |
+| concentricCircles3 | 60 | [256,601; 270,034] | 30 min | [247,624; 271,076] | 4 h |
+| concentricCircles4 | 104 | [389,618; 454,702] | 30 min | [358,887; 454,457] | 4 h |
+| concentricCircles5 | 148 | [493,793; 633,342] | 30 min | [459,411; 645,381] | 4 h |
+| rotatingDiamonds1 | 20 | **32,389** | 0,2 s | 32,389 | 0,1 s |
+| rotatingDiamonds2 | 60 | **140,477** | 6,4 s | 140,477 | 730,4 s |
+| rotatingDiamonds3 | 180 | [368,817; 380,886] | 30 min | [348,608; 380,882] | 4 h |
+| rotatingDiamonds4 | 320 | [637,314; 770,661] | 30 min | [593,350; 770,660] | 4 h |
+| rotatingDiamonds5 | 680 | [1.189,862; 1.510,861] | 30 min | [1.106,577; 1.510,752] | 4 h |
+
+- **Fechadas: 7 de 20 em 30 min** (8 com a de 4 h, abaixo). São as 6 que
+  Coutinho et al. resolvem e **concentricCircles2**, que eles deixaram
+  aberta em 4 h.
+  - O ótimo de concentricCircles2 é 153,132: o UB deles era ótimo.
+  - Mais rápido em rotatingDiamonds2 (114×), bubbles3 (15×) e
+    concentricCircles1 (26×).
+  - Nas três menores o tempo é quase só a heurística (0,2–0,9 s).
+- **Abertas.**
+  - Em 30 min, o LB passa o de 4 h deles nas 13, de 3,6% (bubbles4,
+    concentricCircles3) a 8,6% (concentricCircles4) acima.
+  - chaoSingleDep fica a 6,9e-6 de fechar; fecha em 1.794 s na rodada de
+    4 h, com só 3 processos.
+  - UB melhor em 5 (bubbles4, 7 e 8; concentricCircles3 e 5), praticamente
+    igual em 4 (chao, rotatingDiamonds3 a 5) e pior em 4 (bubbles5, 6 e 9;
+    concentricCircles4).
+- **Custo do oráculo no B&B.**
+  - 20–30 µs por chamada nas abertas.
+  - A construção fecha 99,9–100% das chamadas; de 85% a 98% nas menores, de
+    bubbles e rotatingDiamonds1.
+
+**Resultado (4 h, o orçamento de Coutinho et al.)** nas três abertas mais
+próximas de fechar, 3 ao mesmo tempo (binário 9b2502d):
+
+| Instância | Nosso [LB; UB] | Tempo | Coutinho et al. [LB; UB], 4 h |
+|---|---|---|---|
+| chaoSingleDep | **1.039,611** | 1.794 s | [1.000,151; 1.039,610] |
+| rotatingDiamonds3 | [377,271; 380,886], gap 0,95% | 4 h | [348,608; 380,882] |
+| concentricCircles3 | [261,526; 270,034], gap 3,2% | 4 h | [247,624; 271,076] |
+
+- **chaoSingleDep fechada em 30 min:** o ótimo é 1.039,611, e o UB de 4 h
+  deles era ótimo. Com isso, **8 de 20 fechadas, duas delas abertas para
+  Coutinho et al.**
+- O tour de chaoSingleDep visita 35 dos 200 discos. Ele foi verificado à
+  parte e cobre também os discos decimais, com margem r² − d² ≥ 4,5e-11.
+  O comprimento provado é 1.039,61089118.
+
+**Oráculo de ordem fixa × Gurobi.**
+- **Formulação.** O ciclo pelas 20 instâncias em ordem angular é um SOCP. O
+  Gurobi 12.0.3 roda com 1 thread, tolerâncias padrão e a forma cônica que
+  ele resolveu com mais frequência. O tempo inclui a montagem do modelo.
+- **Medida.** Melhor de 5 nos dois lados, com a máquina ociosa.
+- **Certificação.** O nosso: certificado em todas.
+  - A construção fecha 19, com gap de ~1e-12 relativo.
+  - O rotatingDiamonds4 a frio cai na barreira e fecha no gap pedido (1e-6
+    absoluto).
+- **Gurobi.**
+  - "Numerical trouble" em 8 das 20: bubbles1, 2, 3 e 7,
+    concentricCircles2 e 3, rotatingDiamonds1 e 4.
+  - Das 12 "ótimas", 8 têm objetivo abaixo do nosso LB certificado, de 3e-9
+    a 4e-7 relativo: pontos levemente inviáveis.
+  - Outras formas do mesmo modelo (bola direta, lado direito constante,
+    homogêneo) falharam em instâncias diferentes, ou deram status subótimo
+    com valor abaixo do ótimo.
+- **Tempo.** O nosso é de 11× a 82× mais rápido, com mediana de 17×. A
+  exceção é o rotatingDiamonds4 a frio, com 2×.
+
+**Limitações.**
+- Uma execução por instância, num Mac compartilhado entre 7 processos; o
+  i7 de Coutinho et al. é de 2012.
+- Exatidão: gap relativo de 1e-6 com limites provados, não ótimo algébrico,
+  porque discos não têm caminho exato (Alhazen). Os limites são da instância
+  em binary64; a decimal difere em ~1e-14 por coordenada, o que move o ótimo
+  em no máximo 2·Σ|Δ| ≈ 1e-11.
+- B&B de exploração (`main-cetsp.cpp`), não integrado ao B&B do TSPN.
+- Dados e scripts: local, em `benchmarks/workspace/experiments/cetsp-native/`
+  (`table-v6.jsonl`, `tours-table/`, `long-v7.jsonl`, `tours-long/`,
+  `gurobi-cycle.jsonl`, `verify_tour.py`).
+
+## cetsp-native-mac-2026-10-25
+
+**Substituído** por [cetsp-geometric](#cetsp-geometric-mac-2026-10-25), com a
+construção geométrica e a heurística nova.
+
+**Pergunta.** Um oráculo nativo para discos, com o mesmo "propor e
+certificar", faz o CETSP andar melhor que o sanduíche de polígonos e que
+Coutinho et al. (2016)?
+
+**Formulação.**
+- **Oráculo:** `tpp_convex_solve_cycle_disks`.
+  - Proposta por Newton com barreira de disco.
+  - `L` pela dualidade fraca com o suporte do disco em forma fechada; `U` por
+    contatos provados dentro dos discos.
+  - Detalhes em
+    [convex-cycle.md](../../docs/algorithms/convex-cycle.md#disks-2026-10-25).
+- **B&B:** a ferramenta de exploração `tpp-convex-cetsp`.
+  - Best-first, com sequências cíclicas a partir do depósito.
+  - Ramifica no disco descoberto mais distante, em todas as posições, com a
+    simetria de sentido eliminada.
+  - Os filhos são avaliados ao serem criados, com corte pelo UB, e o oráculo
+    recebe um gap de 0,25 × gap × UB.
+  - UB inicial por uma heurística de inserção simples.
+- **Execução.** Gap relativo de 1e-6, 1 thread por instância, 600 s. Mac M4
+  Pro **em uso**, com 6 instâncias ao mesmo tempo nas maiores.
+- **Referência.** Tabela 2 de Coutinho et al. (CPLEX 12.4, 1 thread, i7 de
+  3,4 GHz, 4 h).
+
+**Resultado.**
+
+| Instância | Nosso | Coutinho et al. |
+|---|---|---|
+| rotatingDiamonds1 | 32,3890, 0,02 s | 32,389, 0,09 s |
+| bubbles1 | 349,1349, 0,05 s | 349,135, 0,10 s |
+| bubbles2 | 428,2793, 0,04 s | 428,279, 0,22 s |
+| concentricCircles1 | 53,1580, 2,3 s | 53,158, 5,2 s |
+| rotatingDiamonds2 | 140,4774, **22,9 s** | 140,477, 730 s |
+| bubbles3 | 529,9548, 124 s | 529,955, 193 s |
+| rotatingDiamonds3 | [348,86; 463,08], 600 s | [348,61; 380,88], 4 h |
+| chaoSingleDep | [999,54; 1.093,66], 600 s | [1.000,15; 1.039,61], 4 h |
+| bubbles4 | [685,52; 805,12], 600 s | [690,58; 829,89], 4 h |
+| concentricCircles2 | [147,59; 159,73], 600 s | [149,87; 153,13], 4 h |
+
+- **Fechadas.** Nas seis que os dois fecham, os ótimos coincidem até a
+  terceira casa, e o nosso é mais rápido em todas: de 1,6× (bubbles3) a 32×
+  (rotatingDiamonds2), sem descontar a diferença de máquina.
+- **Abertas.**
+  - Em 10 min, o nosso LB chega perto do de 4 h deles e passa em
+    rotatingDiamonds3.
+  - O UB é o ponto fraco: a heurística de inserção dá tours de 5 a 22% acima
+    dos melhores conhecidos (Mennell) e domina o gap.
+- **Custo do oráculo.** De 0,08 a 1,5 ms por chamada e de 190 a 290
+  iterações de Newton, pelo gap apertado. Em bubbles3, o sanduíche com m = 128
+  fechou em 3 s, contra 124 s aqui: o oráculo de discos ainda é mais lento por
+  chamada que o de polígonos nessa instância.
+
+**Limitações.**
+- Uma execução por instância, com o Mac carregado.
+- B&B de exploração, sem a triagem de inserções nem o ILS do TSPN.
+- O oráculo não tem o equivalente da construção (conjunto ativo e Newton na
+  fronteira), o próximo passo natural.
+- Dados: local, em `benchmarks/workspace/experiments/cetsp-native/`.
+
+## cetsp-sandwich-mac-2026-10-25
+
+**Pergunta.** Dá para resolver o CETSP (vizinhanças em disco) com o nosso TSPN,
+de forma certificada, sem código novo?
+
+**Formulação.**
+- **Sanduíche de polígonos.** Cada disco é trocado por dois m-ágonos
+  regulares:
+  - um dentro dele: o TSPN nesses polígonos dá um tour viável, ou seja, um UB
+    do CETSP;
+  - outro que o contém: o ótimo do TSPN neles é um LB.
+
+  As duas contenções são conferidas em aritmética exata depois do
+  arredondamento. O depósito é um ponto.
+- **Instâncias e referência.** As instâncias 2D de Mennell (na época, uma
+  cópia local; os dados são os de `benchmarks/suites/cetsp/cerrone/Dataset/`,
+  só o cabeçalho de comentários difere), comparadas com a Tabela 2 de
+  Coutinho et al. (INFORMS J. Comput. 2016): B&B com SOCP no CPLEX 12.4, 1
+  thread, i7 de 3,4 GHz, limite de 4 h.
+- **Execução.** TSPN cíclico, gap relativo de 1e-6, `cache`, `features`,
+  `root`, `interval`, fronteira de 1 GiB, 1 thread por lado. Mac M4 Pro **em
+  uso** (outro programa aberto).
+
+**Resultado.**
+- **Correção.** O LB externo nunca passou do ótimo de Coutinho et al., e o UB
+  interno nunca ficou abaixo dele, em todas as instâncias resolvidas por eles
+  (bubbles1 a 3, concentricCircles1, rotatingDiamonds1 e 2).
+- **O gap do sanduíche segue (π/m)².** Ele cai 4× a cada vez que m dobra: de
+  2,2e-3 em m = 32 a 9e-6 em m = 512 (concentricCircles1).
+- **Árvores menores:** de 2 a 37 vezes menos nós que as de Coutinho et al.
+  - bubbles1: 28 contra 66;
+  - concentricCircles1: 554 contra 2.943;
+  - bubbles3: 592 a 645 contra 31.995;
+  - rotatingDiamonds2: ~52 mil contra 275 mil.
+- **Tempos com m = 128** (gap do sanduíche de ~1e-4):
+
+  | Instância | Nosso (LB…UB) | Tempo por lado | Coutinho et al. |
+  |---|---|---|---|
+  | bubbles3 | 529,946…529,979 | 2–3 s | ótimo 529,955, 193 s |
+  | rotatingDiamonds2 | 140,470…140,479 | 362–380 s | ótimo 140,477, 730 s |
+  | concentricCircles1 | 53,153…53,161 | 5 s | ótimo 53,158, 5,2 s |
+  | chaoSingleDep | 1.001,0…1.039,8 | 1.800 s, aberta | 1.000,2…1.039,6 em 4 h |
+  | concentricCircles2 | 146,6…153,1 | 1.800 s, aberta | 149,9…153,1 em 4 h |
+
+- **O gargalo é o custo por nó.** De 6 a 370 ms, contra ~33 µs no corpus do
+  Fekete. Com discos muito sobrepostos, dois terços das chamadas vão ao
+  polimento (contatos coincidentes), e polir polígonos de centenas de vértices
+  é caro. Em m = 256, o lado interno de bubbles3 não fechou em 120 s.
+
+**Limitações.**
+- Uma execução, com o Mac em uso; os tempos são indicativos.
+- Só 2D.
+- O sanduíche custa duas execuções e tem gap mínimo de (π/m)².
+- Um oráculo nativo para discos tiraria esse gap e o custo do polimento por
+  face: o suporte tem forma fechada e o limite dual vale do mesmo jeito.
+- Dados e scripts: local, em `benchmarks/workspace/experiments/cetsp-sandwich/`.
+
+## sao-paulo-official-mac-2026-10-23
+
+**Pergunta** (Ernesto, 23/10). O tour da instância de São Paulo é ótimo como
+TSPN, sem ponto inicial?
+
+**Formulação.**
+- **Instância.** O arquivo `96sp4966.dat`, enviado pela Paula em 23/10 (local,
+  em `third_party/paula-tspn/sao-paulo/`, não redistribuído).
+  - 96 polígonos não convexos, de 51 a 57 vértices (4.966 no total), em
+    coordenadas UTM (metros).
+  - Foram transladados por inteiros (314.000; 7.345.000), o que é exato em
+    binary64 e não muda as distâncias.
+  - **Dois pares se sobrepõem**, embora o rascunho `ber2025` diga que os
+    polígonos são disjuntos. Numerando a partir de 1, na ordem do arquivo:
+    - 83 e 85: 45.839 m², ou 0,54% e 0,75% das áreas deles;
+    - 90 e 91: 5.400 m², 0,10% de cada.
+
+    A área total dos 96 polígonos é de 943 km².
+- **Origem, segundo Birgin e Martínez (2022, Seção 6.4).** Mapa do GeoSampa,
+  com 156.852 vértices, simplificado para 51 a 57 vértices por polígono e
+  encolhido 20% em direção ao centro do retângulo envolvente.
+- **Tour inicial.** O tour publicado (199.362,73), levado para as coordenadas
+  oficiais a partir da reconstrução de
+  [`sao-paulo-figure-mac-2026-10-23`](#sao-paulo-figure-mac-2026-10-23).
+  - As duas instâncias diferem por uma translação pura, com resíduo de até
+    4,2 cm por vértice.
+  - Os pontos foram projetados nos polígonos.
+- **Execução.** A mesma de lá: TSPN cíclico, gap relativo de 1e-6, `lazy` sem
+  mergulhos, fronteira de 512 MiB, 6 threads de subárvore. Em paralelo, o ILS
+  a partir do zero (1 thread, 1.200 s). Mac M4 Pro, solver da branch.
+
+**Resultado.**
+- **O tour publicado é ótimo,** com gap de 1e-6: LB 199.362,529 e UB
+  199.362,729, em 2.932 s e 170 milhões de nós, sem chamadas racionais. Em
+  distância, o gap é de 0,2 m em 199 km.
+- **O ILS acha o mesmo tour sozinho:** 199.362,72880, igual ao do B&B até
+  1e-9.
+  - As duas poligonais coincidem em 56 dos 57 pontos de dobra (a menos de
+    0,1 mm).
+  - A ordem de visita listada pelo ILS difere da publicada em 6 ligações,
+    sem mudar o comprimento.
+
+**Limitações.**
+- Uma execução.
+- Gap de 1e-6, não ótimo algébrico.
+- Dados e scripts: local, em `benchmarks/workspace/experiments/sao-paulo/` (no
+  checkout principal).
+
+## sao-paulo-figure-mac-2026-10-23
+
+**Pergunta** (Ernesto, 23/10). O tour da instância de São Paulo é ótimo como
+TSPN, sem ponto inicial, ou existe outro melhor?
+
+**Formulação.**
+- **Instância.** A de Birgin e Martínez (2022): 96 bairros disjuntos e não
+  convexos, de 51 a 57 vértices (4.966 no total). No rascunho `ber2025` da
+  Paula, o melhor tour do ILS-BCD mede 199.362,73.
+- **Reconstrução.** O arquivo oficial ainda não chegou. A instância foi
+  reconstruída da figura do rascunho: coordenadas da figura em cm, com 5 casas,
+  multiplicadas pela escala que dá ao tour desenhado o comprimento publicado
+  (6.034,45 por cm).
+  - O arredondamento move cada coordenada até cerca de 0,03 unidade.
+  - Sete pontos de visita do tour publicado caem até 0,037 fora do seu
+    polígono, e dois pares de polígonos passam a se tocar.
+  - Os pontos foram projetados nos polígonos. O tour inicial resultante mede
+    199.362,7497.
+- **Execução.** Mac M4 Pro, solver da branch `oracle-vertex-scaling` em
+  `d1bac40`. TSPN cíclico com gap relativo de 1e-6, `cache`, `features`,
+  `root`, `interval`, `lazy` sem mergulhos, fronteira de 512 MiB, 6 threads
+  de subárvore, a partir do tour publicado. À parte, o ILS próprio do solver
+  (`--primal-ils 0.99`) a partir do zero, com 1 thread por 1.200 s.
+
+**Resultado.**
+- **O B&B fecha em 840 s** (170 milhões de nós): LB 199.362,550 e UB
+  199.362,750, que é o próprio tour publicado. Nenhum tour da reconstrução é
+  mais curto que 199.362,55.
+- **O ILS acha outro tour,** de 199.362,737, que difere do publicado em 10 das
+  96 ligações. Os dois ficam a 6e-8 um do outro, abaixo do erro da
+  reconstrução.
+
+**Limitações.**
+- Não é a instância oficial. O erro de arredondamento pode mudar o ótimo em até
+  cerca de 4e-5 relativo (limite folgado: duas ligações por região, 0,04 cada).
+  A resposta definitiva, com o arquivo da Paula, está em
+  [`sao-paulo-official-mac-2026-10-23`](#sao-paulo-official-mac-2026-10-23).
+- Uma execução de cada.
+- Dados e scripts: local, em `benchmarks/workspace/experiments/sao-paulo/` (no
+  checkout principal), com instruções para o arquivo oficial.
+
+## no-polish-mac-2026-10-23
+
+**Pergunta** (Ernesto, 23/10). Dá para eliminar os pontos interiores e fechar
+as chamadas só com a geometria em precisão dupla?
+
+**Formulação.** Os 60 casos de
+[`ablation-mac-2026-10-21`](#ablation-mac-2026-10-21), configuração C, uma
+thread, 40 s, 6 processos com variantes intercaladas, Mac M4 Pro. O polimento
+foi desligado por um build local com `ConvexCycleDoubleOptions::float_polish`
+forçado a falso; o patch não foi arquivado. Branch em `667d572`, depois com o
+passo de [`anchor-step-mac-2026-10-23`](#anchor-step-mac-2026-10-23).
+
+**Resultado.**
+
+| Variante | Fecham | Chamadas racionais | Tempo, média geom. nos 58 que os dois fecham |
+|---|---|---|---|
+| C | 59 | 0 | 1 |
+| Sem polimento | 58 | 60.461 | 6,51× (mediana 9,1×, até 143×) |
+| Sem polimento, com o passo | 58 | 60.258 | 6,56× |
+
+- **O que muda.** Os nós são os mesmos; só o custo por chamada sobe (oráculo
+  8,5×). As chamadas que o polimento fechava vão ao caminho exato racional.
+- **Por classe** (fração fechada pelo polimento em C; tempo sem ele):
+  - OSM disjuntas (12): 9,7%; 1,37×;
+  - OSM só com toques (22): 0,3%; 3,1×;
+  - tesselações (6): 24,1%; 17,7×;
+  - aleatórias com sobreposição (17): 6,4%; 33,5×.
+- **O passo não ajuda aqui,** porque o custo não está na bissecção. Para
+  eliminar os pontos interiores, faltaria uma construção que feche os casos com
+  contatos coincidentes e sobreposições.
+
+**Limitações.**
+- Uma execução por caso.
+- A variante com o passo rodou depois, sem C intercalada, com a mesma carga.
+- Dados: local, em `benchmarks/workspace/experiments/no-polish/`.
+
+## anchor-step-mac-2026-10-23
+
+**Pergunta** (Ernesto, 23/10). A bissecção na aresta não gasta chamadas
+demais ao TPP? Por que não Newton?
+
+**Formulação.**
+- **Chamadas.** 320 chamadas reais do B&B, 8 por caso, espaçadas em cada uma
+  das capturas de 40 casos de
+  [`oracle-gurobi-corpus-mac-2026-10-21`](#oracle-gurobi-corpus-mac-2026-10-21).
+- **Execução.** Cada chamada foi resolvida até gap zero pelo caminho exato
+  racional (`tpp_convex_solve_cycle`), com limite de 30 s, de dois jeitos:
+  como ele roda (construção primeiro) e só com a busca por âncoras
+  (`refine_contacts=false`).
+- **Contadores novos** em `ConvexCycleResult`: TPPs ancorados, sondas de
+  bissecção e passos em forma fechada. Ferramenta: `tpp-convex-anchor-probes`.
+- **O passo em forma fechada** (novo): o tipo combinatório de cada ciclo
+  ancorado, resolvido por desdobramento com a âncora refletindo na aresta,
+  propõe a próxima sonda (o papel do Newton, aqui exato). Detalhes em
+  [convex-cycle.md](../../docs/algorithms/convex-cycle.md#general-boundary-reduction-and-correctness).
+- Mac M4 Pro, 4 processos em segundo plano.
+
+**Resultado.**
+
+| Caminho exato | Sondas (máx. numa chamada) | TPPs ancorados, máx. | Pior chamada | Total |
+|---|---|---|---|---|
+| Construção primeiro | 0 | 2 | 0,20 s | 5,1 s |
+| Só âncoras, só bissecção | 1.797 (469) | 482 | 30 s, interrompida | 120,5 s |
+| Só âncoras, com o passo | 2 (1) | 22 | 0,41 s | 26,9 s |
+
+- **Com a construção primeiro,** 297 das 320 chamadas fecham sem TPP
+  ancorado, e as outras 23 com no máximo 2, em vértices.
+- **Só com âncoras,** 99% fecham nos vértices da menor região (mediana de 4
+  TPPs). Quatro precisaram de bissecção:
+  - de 424 a 469 sondas cada, de 16 a 30 s, uma interrompida;
+  - com o passo, no máximo 1 sonda e 0,41 s.
+- **O ótimo é o mesmo** nas 639 comparações em que as duas versões fecham.
+- **Conta da bissecção.** Ela pede cerca de 14 sondas para 10⁻⁴, não 10 mil.
+  Em racionais exatos, porém, o alvo é um racional de denominador enorme, e
+  O(log Q) chega a centenas de sondas.
+- **Regressão.** No caso assimétrico dos quatro quadrados, a busca só por
+  âncoras fecha com 7 TPPs ancorados e nenhuma sonda (teste
+  `rotated_squares`).
+- **Corpus.** Nos 558 casos, chamadas, nós e limites são idênticos bit a bit
+  aos da branch antes do passo; o B&B não chega ao caminho exato.
+
+**Limitações.**
+- 320 chamadas; as difíceis vêm de três casos (49, 138 e 391).
+- Tempos sem a máquina dedicada.
+- Dados: local, em `benchmarks/workspace/experiments/anchor-probes/`.
+
+## oracle-million-mac-2026-10-22
+
+**Pergunta.** Uma chamada ao oráculo do ciclo chega a ser um milhão de vezes
+mais rápida que o SOCP do Gurobi, com a mesma tolerância?
+
+**Formulação.**
+- **Instâncias.** Três discos disjuntos (k = 3), no leiaute de
+  [`oracle-vertex-scaling-2026-10-21`](#oracle-vertex-scaling-2026-10-21),
+  com m = 32.768 a 262.144 vértices por região e duas amostras por m (semente
+  20261022). O reticulado inteiro cresce com m (raio R ≥ m²/4), para que os m
+  pontos de cada círculo fiquem todos no fecho. As coordenadas são divididas
+  por uma potência de 2, para regiões de raio ~1024.
+- **Nosso oráculo.** Estágio binary64 com certificado intervalar e regiões
+  preparadas uma vez (`region_ids` e workspace, como no B&B). Duas
+  tolerâncias: gap de 1e-6 × o comprimento (a tolerância padrão do Gurobi) e o
+  gap do B&B (2,5e-4). Dois tempos:
+  - a primeira chamada logo depois do Gurobi;
+  - a média de um bloco de chamadas seguidas por pelo menos 0,2 s (~30 mil
+    chamadas), como o B&B chama o oráculo.
+
+  O workspace guarda só a geometria das regiões, nunca soluções: cada chamada
+  resolve do zero.
+- **Gurobi** 13.0.3: parâmetros padrão, uma thread, modelo montado a cada
+  chamada (como no oráculo SOCP do Fekete), normais unitárias.
+- **Execução.** Mac M4 Pro, processo único, 2 repetições (1 em m = 262.144),
+  com o Mac em uso por outros programas.
+
+**Resultado** (medianas; razão = tempo total do Gurobi / tempo do nosso, ambos
+com gap de 1e-6):
+
+| m por região | Gurobi | Nosso, média do bloco | Nosso, 1ª chamada | Razão (bloco) | Razão (1ª chamada) |
+|---|---|---|---|---|---|
+| 32.768 | 1,36 s | 5,9 µs | 18,6 µs | 230.970× | 73.194× |
+| 65.536 | 6,74 s | 6,7 µs | 49,1 µs | 1.000.816× | 137.189× |
+| 131.072 | 15,6 s | 6,6 µs | 18,2 µs | 2.352.609× | 858.870× |
+| 262.144 | 57,9 s | 7,1 µs | 22,5 µs | 8.097.751× | 2.568.988× |
+
+- **Mesmo problema.** Nas 14 execuções, o objetivo do Gurobi fica dentro do
+  intervalo certificado [L, U] do nosso, cuja largura relativa é de no
+  máximo 5,6e-7.
+- **Um milhão.** Com m = 262.144 (786 mil vértices), a razão passa de um
+  milhão em todas as formas medidas:
+  - 7,9 milhões× na pior execução, pela média do bloco;
+  - de 1,2 a 2,6 milhões× na primeira chamada depois do Gurobi (nas duas
+    varreduras; com cache frio, essa chamada oscila mais);
+  - 19 milhões× com o gap do B&B (3,0 µs).
+
+  Só a otimização do Gurobi, sem montar o modelo, também dá 8,0 milhões×.
+- **Escala.** Com m 8× maior, o nosso vai de 5,9 a 7,1 µs. O Gurobi vai de
+  1,4 a 58 s, cerca de m^1,8.
+- **Como fecha.** Todas as chamadas fecham pela prova intervalar sobre a
+  construção, sem iterações de Newton: os discos são disjuntos e bem
+  separados.
+
+**Limitações.**
+- É uma chamada isolada com k = 3 em discos sintéticos, não o B&B nem uma
+  instância inteira. No TSPN, a maior razão medida por nó contra o código do
+  Fekete é de 168 mil× (dantzig, m = 16.384,
+  [`fekete-smoothed-dantzig-2026-10-22`](#fekete-smoothed-dantzig-2026-10-22)).
+- A razão não tem teto. A nossa chamada cresce com log m, e um SOCP pelo
+  menos com m, então um milhão é uma escolha de m. A chamada fria, que
+  normaliza as regiões, continua O(m): cerca de 900× na seção de 21/10.
+- **Ruído.** Num teste anterior à varredura, com o Mac em uso, o mesmo
+  Gurobi levou 8,1 s em vez de 1,4 s (m = 32.768) e 90 s em vez de 15,6 s
+  (m = 131.072).
+- **Repetição com o Mac ocioso (23/10).** Mesmo binário e mesmas instâncias:
+  - Gurobi em 1,37, 6,81, 15,63 e 57,95 s (antes, 1,36, 6,74, 15,60 e
+    57,86 s);
+  - o nosso em 6,0 a 7,2 µs, ou 8,0 milhões× com m = 262.144 (pior
+    execução: 7,9 milhões×);
+  - a primeira chamada variou de 16,8 a 65,1 µs.
+- O Gurobi usa uma thread, como no oráculo do Fekete. Com mais threads, ele
+  seria mais rápido.
+- Programa: `main-vertex_scaling.cpp`, variante `ids_tight`. Gerador e dados
+  brutos: local, em `experiments/vertex-scaling/` (`generate_large.py`,
+  `large/`).
+
+## tspn-smoothed-m65536-mac-2026-10-22
+
+**Pergunta.** Por que o nosso TSPN não fechava as instâncias suavizadas com
+65.536 vértices por região, se com 16.384 fecha em segundos?
+
+**Formulação.**
+- **Instâncias.** As seis da
+  [`tspn-smoothed-vertex-scaling-2026-10-21`](#tspn-smoothed-vertex-scaling-2026-10-21),
+  com m = 65.536 (de 2,4 a 3,9 milhões de vértices por instância), geradas
+  por `tpp.py smoothed-instances --variants 65536 --no-annotations`.
+- **Execução.** Argumentos da configuração C, uma thread, Mac M4 Pro, uma
+  execução por instância e binário. Limite de 600 s para o binário corrigido
+  e 300 s para o anterior (b983a59).
+
+**Diagnóstico.** Algumas chamadas ao oráculo de `vienna` e `warsaw` caíam no
+caminho racional, cuja normalização em GMP, `O(m)` por região, consumia o
+orçamento. Num replay de duas chamadas capturadas de `vienna` (`k = 30`, 1,97
+milhão de vértices), o polimento parava nas 600 iterações de Newton:
+- a banda `w-4..w+4` da aproximação interna ficava sempre um pouco atrás do
+  vértice extremo, nos arcos de milhares de arestas curtas, e as 8 rodadas de
+  refinamento de cada nível só acrescentavam faces;
+- com μ pequeno, o Armijo aceitava passos minúsculos que não mudavam o
+  objetivo (inclinação −9×10⁻¹⁴), repetidos até o teto de iterações.
+
+**Correção.** A banda passou a ser graduada: fina em `w` e com espaçamentos
+dobrando até o do esqueleto. O refinamento agora ignora a região cujo
+extremo já está no subconjunto, e o Newton para quando um passo aceito não
+muda o objetivo. Os detalhes estão em
+[convex-cycle.md](../../docs/algorithms/convex-cycle.md#polish-on-inner-approximations).
+
+**Resultado** (gap relativo de 0,1%, numérico; nenhuma chamada racional com a
+correção):
+
+| Instância | Vértices | Antes (s) | Agora (s) | Chamadas (agora) |
+|---|---|---|---|---|
+| bangalore | 3.923.307 | 2,07 | 2,03 | 9.514 |
+| random_mixed_square | 2.420.203 | 1,95 | 2,27 | 6.599 |
+| vienna | 3.276.804 | não parou no limite | 13,19 | 8.366 |
+| istanbul | 3.866.633 | 5,62 | 6,13 | 25.822 |
+| warsaw | 3.775.363 | caminho racional | 11,11 | 39.200 |
+| tokyo | 3.895.636 | 12,06 | 11,18 | 89.933 |
+
+- **Limites.** Nas quatro que os dois binários fecham, LB e UB são idênticos.
+- **Antes.** A execução de `vienna` foi morta 30 s depois do limite de 300 s,
+  ainda no caminho racional. O B&B só confere o relógio entre chamadas, e uma
+  chamada racional com milhões de vértices não é interrompida a tempo. A de
+  `warsaw` não rodou com o binário anterior. Com as três mudanças desligadas
+  por variável de ambiente (o mesmo código do binário anterior), ela também
+  ficou no caminho racional e não parou no limite de 60 s.
+- **Cada mudança.** Com o mesmo esquema de variáveis, `vienna` fecha só com
+  a parada do Newton. Já `warsaw` precisa das três: banda graduada (na
+  inicialização e no refinamento), refinamento só com extremo novo e parada
+  do Newton. Nenhuma combinação parcial testada fechou. Os tempos dessa
+  ablação não são reportados, porque o Mac estava em uso.
+- **Custo em m = 16.384.** Medianas de quatro execuções intercaladas por
+  binário: a correção fica 1,055× mais lenta na média geométrica (de 1,00×
+  em `bangalore` a 1,13× em `warsaw`), com o número de chamadas a até 0,4%
+  do anterior. Não isolamos qual das três mudanças custa esse tempo.
+- **Corpus.** Nos 558 casos (configuração C, uma thread, teto de 300 mil
+  chamadas), chamadas, nós e limites são idênticos bit a bit aos da branch em
+  d110ce2, inclusive nos 4 interrompidos pelo teto.
+
+**Limitações.**
+- Uma execução por instância em m = 65.536, num Mac só.
+- O Fekete não rodou em m = 65.536: já em m = 16.384 ele fica sem tour na
+  maioria das instâncias em 900 s.
+- O tempo da dantzig em
+  [`fekete-smoothed-dantzig-2026-10-22`](#fekete-smoothed-dantzig-2026-10-22)
+  é do binário anterior. Com a correção, m = 16.384 deve ficar até ~13% mais
+  lento, sem mudar o que fecha.
+- Dados brutos: local, em `benchmarks/workspace/experiments/large-limit/`.
+
+## fekete-smoothed-dantzig-2026-10-22
+
+**Pergunta.** A comparação nas instâncias suavizadas
+([`fekete-smoothed-mac-2026-10-21`](#fekete-smoothed-mac-2026-10-21)) se mantém
+na máquina de referência, no protocolo do artigo?
+
+**Formulação.**
+- **Instâncias.** As mesmas 24 instâncias suavizadas: seis do corpus, como
+  fecho e com 256, 2.048 e 16.384 vértices por região. Foram geradas na
+  dantzig por `tpp.py smoothed-instances` (sha256 `e22aa168…`); os polígonos e
+  as anotações conferem, instância por instância, com os do Mac. Os dois
+  solvers leem o mesmo arquivo, com as coordenadas como o modelo do Fekete as
+  escreve.
+- **Configurações.** As da referência, via `--instances`:
+  - C: o nosso, 1 thread, 300 s, 3 repetições, branch em 6ea2f9b;
+  - B: Fekete com 1 thread, raízes CHR e LEFP, uma execução por núcleo de
+    performance;
+  - A: Fekete com 16 threads, raiz CHR, uma execução por vez.
+- **Limites.** B e A com 300 s e uma repetição, mais a extensão de 900 s no que
+  ficou aberto.
+- **Execução.** dantzig, 22/10, sem carga alheia nos núcleos das execuções
+  (no máximo 0,16, numa da C).
+- **Dados.** Uma linha por instância, configuração, raiz e limite em
+  [per-run.csv](fekete-smoothed-dantzig-2026-10-22/per-run.csv).
+
+**Resultado** (Fekete com até 900 s; "aberta" é o gap final, `(UB−LB)/UB`):
+
+| Variante | Nosso (C, 1 thread) | Fekete B (1 thread, melhor raiz) | Fekete A (16 threads) |
+|---|---|---|---|
+| Fecho | fecha 6/6 em 0,2–2,1 s | fecha 4/6 em 34–190 s; tokyo e warsaw ficam com 0,1% e 0,2% | fecha 6/6 em 6–245 s |
+| m = 256 | fecha 6/6 em 0,6–6,5 s | fecha 0/6; gap de 0,4% a 23% | fecha 2/6 (random_mixed em 119 s, bangalore em 256 s); as outras com 0,6% a 3,4% |
+| m = 2.048 | fecha 6/6 em 0,8–8,8 s | fecha 0/6; gap de 8,6% a 25% | fecha 0/6; gap de 0,3% a 9,1% |
+| m = 16.384 | fecha 6/6 em 1,6–12,1 s | sem tour nas 6 | sem tour em 5 das 6 (random_mixed com 22%) |
+
+- **Onde o Fekete fecha, ele é bem mais lento.**
+  - Com 16 threads (A): de 30 a 202× o nosso com 1 thread nos fechos, e 194×
+    e 461× nas duas de m = 256.
+  - Com 1 thread (B, melhor raiz): de 185 a 353× nos fechos.
+- **Custo por nó** (mediana de segundos por nó, `num_iterations` dele contra
+  `nodes` nosso; rodadas de 300 s):
+
+  | Variante | Nosso | B, CHR | A, CHR (16 threads, tempo de parede) |
+  |---|---|---|---|
+  | Fecho | 29 µs | 14 ms (495×) | 2,6 ms (92×) |
+  | m = 256 | 93 µs | 3,8 s (40.848×) | 73 ms (789×) |
+  | m = 2.048 | 139 µs | 10 s (71.840×) | 0,73 s (5.271×) |
+  | m = 16.384 | 259 µs | 44 s (168.112×) | 21 s (79.173×) |
+
+- **Reproduz o Mac.** As mesmas 4 instâncias fecham com a B. A razão por nó da
+  B vai de 437 a 149 mil× no Mac e de 495 a 168 mil× aqui.
+- **As 16 threads da A** fecham os 6 fechos e 2 instâncias de m = 256, mas
+  nenhuma a partir de m = 2.048.
+- **O nosso na dantzig é de 1,7 a 2,3× mais lento que no Mac** (mediana
+  2,0×), no mesmo sentido da referência, em que o nosso fica mais lento na
+  Intel.
+- **Execuções interrompidas.** 4 execuções da B com LEFP em m = 16.384 foram
+  mortas a 450 s na rodada de 300 s: um nó dele não pode ser interrompido. A
+  extensão de 900 s as repetiu, e de novo sem tour.
+- **Tours dele.** Os tours do Fekete ficam a até 5e-5 dos polígonos, como no
+  corpus.
+
+**Limitações.**
+- Uma repetição do Fekete e seis instâncias, exploratórias e não realistas.
+- O nosso tem 3 repetições.
+- Não há variante de 65.536 vértices: com ela, o nosso ainda cai no caminho
+  racional do oráculo (ver o docstring de `smoothed_instances.py`).
+- Dados brutos ficam local (`fekete-reference-smoothed@dantzig`).
+
+## ablation-mac-2026-10-21
+
+**Pergunta.** Quanto cada componente da configuração C pesa no nosso solver
+(experimento opcional 3 da pauta)?
+
+**Formulação.**
+- **Casos.** 60 casos do corpus, sorteados (semente 20261022) entre os 135 com
+  pelo menos mil chamadas ao oráculo.
+- **Solver.** O binário da `main`, ou seja, o solver do artigo, com uma thread
+  e limite de 40 s.
+- **Variantes.** C, e C sem um componente de cada vez:
+  - sem o estágio binary64 do oráculo (`--no-cycle-float`, tudo pelo caminho
+    exato);
+  - sem o certificado intervalar (`interval`);
+  - sem as features de partida (`features`);
+  - sem cache e memo (`cache`);
+  - sem a raiz separada (`root`);
+  - sem a triagem de inserção em binary64 (`--no-cycle-binary-insertion`,
+    triagem racional).
+- **Execução.** Mac M4 Pro, seis execuções ao mesmo tempo, uma repetição.
+- **Razões.** Médias geométricas contra C, nos casos que os dois fecham.
+
+**Resultado.**
+
+| Variante | Fecham (de 60) | Tempo × C | Nós × C | Oráculo × C |
+|---|---|---|---|---|
+| C | 59 | 1 | 1 | 1 |
+| sem estágio binary64 | 54 | 41 | 1,00 | 63 |
+| sem triagem binary64 | 58 | 10,6 | 1,00 | 1,05 |
+| sem cache e memo | 58 | 1,26 | 1,00 | 1,41 |
+| sem raiz separada | 59 | 1,20 | 1,22 | 1,25 |
+| sem certificado intervalar | 59 | 0,99 | 1,00 | 0,99 |
+| sem features | 59 | 0,98 | 1,00 | 0,97 |
+
+- **O estágio binary64 é o componente decisivo.** Sem ele, as chamadas vão ao
+  caminho racional (1,2 milhão de chamadas racionais), o oráculo fica 63× mais
+  lento e 5 casos a mais deixam de fechar.
+- **A triagem de inserção em binary64 vem em seguida.** A versão racional não
+  muda a árvore, mas custa 10×.
+- **A raiz separada é a única variante que muda a árvore**: sem ela, 22% mais
+  nós.
+- **O certificado intervalar e as features não mudam nada aqui.** Com o
+  estágio binary64 ligado, quase nenhuma chamada chega ao certificado exato,
+  que é onde o intervalo atua.
+
+**Limitações.**
+- Uma repetição, uma amostra de 60 casos e um limite de 40 s, que corta 6 casos
+  da variante sem estágio binary64 (as razões dela usam só os casos fechados).
+- Dados brutos ficam local, em `benchmarks/workspace/experiments/ablation/`.
+
+## oracle-gurobi-corpus-mac-2026-10-21
+
+**Pergunta.** Nas relaxações reais do B&B do corpus, quanto custa uma chamada do
+nosso oráculo do ciclo contra o SOCP do Gurobi (o tipo de oráculo do Fekete)?
+É o experimento 1 da pauta do artigo.
+
+**Formulação.**
+- **Captura.** O nosso B&B na configuração C (uma thread) rodou em 40 casos
+  sorteados (semente 20261021) entre os 135 do corpus com pelo menos mil
+  chamadas, gravando uma chamada a cada 50 (`--oracle-capture-every 50`).
+  Foram 55.898 chamadas.
+- **Repetição.** Repetimos até 400 por caso, igualmente espaçadas e na ordem
+  original, num total de 6.977 chamadas. Cada chamada tem k de 5 a 41 regiões
+  (mediana 15) e 79 vértices (mediana).
+- **Nosso.** O mesmo pedido do B&B: gap, cutoff, partida a quente, features e
+  um workspace por caso, como um trabalhador do B&B.
+- **Gurobi.** O SOCP do mesmo ciclo, com parâmetros padrão, uma thread e o
+  modelo montado a cada chamada, como no oráculo do Fekete. As restrições de
+  semiplano usam normais unitárias, para que a tolerância de factibilidade
+  dele seja uma distância.
+- **Execução.** `main-vertex_scaling.cpp --replay`, binário da branch. Mac M4
+  Pro, quatro processos ao mesmo tempo, uma repetição.
+
+**Resultado.**
+- **Tempo por chamada** (mediana): 9,0 µs o nosso e 0,95 ms o Gurobi (0,85 ms
+  só na otimização). A razão é de 93× na média geométrica (p10 57×, p90 131×,
+  e 84× contando só a otimização dele), quase constante em k.
+- **Como o nosso fecha.** 95% das chamadas fecham pela construção e pela prova
+  intervalar, e 5% pelo polimento; nenhuma usa o caminho racional. O intervalo
+  provado tem mediana de 6e-15 relativo. Os maiores são os das chamadas que
+  param no cutoff (`CertifiedBound`).
+- **A resposta do Gurobi não é um limite.** Em 3.557 chamadas o objetivo dele
+  fica abaixo do nosso limite inferior provado, por até 2,2e-5 relativo.
+  - Não é erro nosso: nessas chamadas o nosso intervalo fecha em cerca de
+    1e-14.
+  - É a tolerância de factibilidade dele, 1e-6 por restrição: com cerca de 15
+    contatos, cada um pode ficar até 1e-6 fora da sua região, o que encurta o
+    ciclo.
+  - Com as linhas sem normalizar (o primeiro modelo), essa tolerância vale
+    1e-6/|aresta| e a diferença chegava a 1,1e-4.
+- **Comparação com a decomposição de 03d4c2c.** Lá, cada nó nosso custava
+  1/238 do nó do Fekete. Aqui, uma chamada isolada custa 1/93 de um SOCP do
+  Gurobi; o restante do custo por nó vem do que cada nó dele faz além de um
+  SOCP.
+
+**Limitações.**
+- O nosso é o binário da branch. No corpus, os caminhos do oráculo são os da
+  `main`, salvo o atalho de 52a3f70.
+- O SOCP é o nosso modelo do oráculo do Fekete, não o código dele.
+- Amostra: 40 casos, até 400 chamadas por caso.
+- Capturas e saídas ficam local, em
+  `benchmarks/workspace/experiments/oracle-gurobi-corpus/`.
+
+## fekete-smoothed-mac-2026-10-21
+
+**Pergunta.** Nas mesmas instâncias suavizadas
+([abaixo](#tspn-smoothed-vertex-scaling-2026-10-21)), como se sai o solver do
+Fekete et al., cujo SOCP por nó cresce com o número de vértices?
+
+**Formulação.**
+- **Instâncias.** As 24 da seção abaixo: seis do corpus, cada uma com o fecho
+  convexo e com m = 256, 2.048 e 16.384.
+- **Anotações.** Para o Fekete, cada instância virou um `AnnotatedInstance`
+  anotado pelo próprio `add_order_annotations` dele (ordem no fecho e
+  interseções), sem simplificar a geometria, de modo que os dois solvers
+  recebem os mesmos polígonos. O `meta` é o da instância original, mais uma
+  nota da suavização.
+- **Fekete.** Código original (5cd8450) no build do Mac, chamado como na
+  referência (`fekete_reference_child.py`, a chamada do script do artigo), com
+  1 thread e as raízes CHR e LEFP, como na configuração B.
+- **Nosso.** Configuração C (uma thread, gap 0,1%, `cache`, `features`, `root`
+  e `interval`), binário d110ce2.
+- **Execução.** Limite de 300 s e eps 0,001. Mac M4 Pro, quatro execuções ao
+  mesmo tempo (das 8 P-cores), uma repetição. Os tours são validados a 1e-7 com
+  distâncias do Shapely (nos fechos, também com o `validate_cycle` exato).
+- **Dados.** Uma linha por execução em
+  [per-run.csv](fekete-smoothed-mac-2026-10-21/per-run.csv), e figura em
+  [escala-vertices](../../docs/reports/escala-vertices/README.md).
+
+**Resultado.**
+- **Nosso:** fecha as 24 instâncias, a mais demorada em 7,5 s, todas com tour
+  válido.
+- **Fekete:** fecha 4 das 24 com cada raiz, todas fechos: bangalore,
+  istanbul, random_mixed e vienna. Com a melhor raiz levou de 19 a 109 s,
+  contra 0,1 a 0,4 s nosso, ou seja, de 170 a 362× mais. Nos fechos de tokyo
+  e warsaw termina com gap de 0,76% e 0,27%.
+- **Nenhuma variante suavizada fecha no Fekete.** Ao fim dos 300 s, com a
+  melhor raiz:
+  - em m = 256, gap de 6 a 10%;
+  - em m = 2.048, gap de 12 a 19%;
+  - tokyo não tem tour nenhum a partir de m = 256;
+  - em m = 16.384, nenhuma instância tem tour. Ele explora de 9 a 18 nós e
+    termina com o limite inferior de 14 a 27% abaixo do ótimo (14 a 23% com a melhor raiz). Um nó não pode
+    ser interrompido no meio, então essas execuções passam do limite e duram
+    até 458 s.
+- **Custo por nó** (mediana de segundos por nó explorado, a contagem da
+  decomposição de 03d4c2c):
+
+  | Variante | Fekete | Nosso | Razão |
+  |---|---|---|---|
+  | Fecho | 6,4 ms | 15 µs | 437× |
+  | m = 256 | 1,3 s | 50 µs | 26 mil× |
+  | m = 2.048 | 4,0 s | 77 µs | 52 mil× |
+  | m = 16.384 | 25 s | 169 µs | 149 mil× |
+
+- **Tours do Fekete.** Nos fechos, os tours dele ficam a 6e-6 até 5e-5 dos
+  polígonos (absoluto, com coordenadas de centenas de metros), como no corpus:
+  é tolerância, não erro.
+
+- **Fekete com 8 threads** (configuração A: raiz CHR, uma execução por vez,
+  m = 256; linhas em [per-run-threads8.csv](fekete-smoothed-mac-2026-10-21/per-run-threads8.csv)).
+  - Ele limita o Gurobi a 1 thread (`soc.cpp`), então o paralelismo é só a
+    avaliação dos filhos.
+  - Fecha 1 das 6, random_mixed em 162 s (479× o nosso). As outras param com
+    gap de 0,51% a 8,30%.
+  - Explora de 7 a 60× mais nós que com 1 thread. No ritmo por iteração, as 8
+    threads são de 4 a 6× mais rápidas; o resto vem de o custo por nó variar
+    ao longo da busca.
+- **Controle da concorrência.** O warsaw com m = 256 e 1 thread, sozinho na
+  máquina, chega ao mesmo gap (12,23%), com 92 nós em vez de 90 e um ritmo 5%
+  melhor. As execuções simultâneas não distorcem a comparação com 1 thread.
+
+**Limitações.**
+- Uma repetição.
+- Quatro execuções simultâneas num Mac só, sem fixar os núcleos (o macOS não
+  permite); o controle acima mede o efeito em 5%.
+- Instâncias exploratórias, não realistas.
+- Com 8 threads, o Fekete só foi medido em m = 256 (acima).
+- Entradas, saídas e logs brutos ficam local, em
+  `benchmarks/workspace/experiments/fekete-smoothed/`.
+
+## tspn-smoothed-vertex-scaling-2026-10-21
+
+**Pergunta.** Depois do oráculo em O(log m) por chamada
+([abaixo](#oracle-vertex-scaling-2026-10-21)), o B&B do TSPN inteiro também
+escala com o número de vértices por região?
+
+**Formulação.**
+- **Instâncias.** Seis instâncias do corpus do Fekete (`bangalore`,
+  `random_mixed_square`, `vienna`, `istanbul`, `warsaw` e `tokyo`; n = 50 ou
+  60). Cada região foi trocada pelo seu fecho convexo somado a um disco de raio
+  igual a 1% da mediana dos diâmetros, com m pontos nos arcos e coordenadas na
+  grade 2^-30.
+- **Variantes.** m = 256, 2.048 e 16.384, mais o fecho sem disco. As regiões se
+  sobrepõem como no corpus.
+- **Execução.** TSPN cíclico, com os argumentos da configuração C da referência
+  do Fekete: gap relativo 0,1%, tolerância de factibilidade 1e-8, `cache`,
+  `features`, `root` e `interval`, uma thread. Mac M4 Pro, uma execução por
+  instância, limite de 600 s.
+- **Antes.** A branch antes das mudanças no B&B (7c50537): o oráculo já era
+  O(log m), mas o B&B ainda era linear em m.
+
+**Resultado.** Todas as 24 execuções fecham o gap de 0,1% (é um gap numérico,
+não ótimo algébrico), com os mesmos valores nas três variantes suavizadas.
+Tempo total em segundos (antes → agora):
+
+| Instância | Fecho | m = 256 | m = 2.048 | m = 16.384 (agora) |
+|---|---|---|---|---|
+| bangalore | 0,11 → 0,10 | 0,63 → 0,27 | 3,91 → 0,42 | 0,89 |
+| random_mixed_square | 0,10 → 0,08 | 1,07 → 0,31 | 10,17 → 0,47 | 1,31 |
+| vienna | 0,22 → 0,19 | 4,06 → 0,71 | 89,22 → 1,64 | 4,37 |
+| istanbul | 0,40 → 0,33 | 2,48 → 0,92 | 63,94 → 1,43 | 2,93 |
+| warsaw | 0,57 → 0,49 | 3,97 → 1,46 | 68,53 → 2,35 | 4,74 |
+| tokyo | 1,14 → 0,90 | 7,88 → 3,11 | 46,31 → 4,39 | 6,80 |
+
+- **Escala.** De m = 256 a 16.384 (64× mais vértices, até 983 mil no total), o
+  tempo cresce de 2 a 6×. Em m = 2.048 o B&B ficou de 9 a 54× mais rápido que
+  antes. O "antes" com m = 16.384 não foi medido.
+- **Mesma árvore.** O número de chamadas e o de nós ficam a até 1,2% dos de
+  antes (no pior caso, `random_mixed_square` com m = 256, 6.512 → 6.586
+  chamadas); só a construção de cada chamada difere, por arredondamento.
+- **O que pesava, e o que mudou:**
+  - polimento com uma barreira por face: agora é feito sobre uma aproximação
+    interna, refinada quando o Newton para;
+  - recorte O(m²) de regiões sobrepostas: interseção O(m log m), guardada por
+    par de regiões;
+  - proposta de inserção e checagens de visita O(m): buscas binárias com
+    certificado ou com a mesma conta da varredura;
+  - cópia das regiões a cada chamada: empréstimo por troca.
+
+  Os detalhes estão em
+  [convex-cycle.md](../../docs/algorithms/convex-cycle.md#regions-with-many-vertices-2026-10-21)
+  e [tspn.md](../../docs/algorithms/tspn.md#large-convex-regions-2026-10-21).
+- **Corpus.** Comparamos o solver da `main` (binário de 16/10, mesmo código de
+  solver da `main` atual) com a branch (d110ce2) nos 558 casos, com os
+  argumentos da configuração C, uma thread e um teto de 300 mil chamadas ao
+  oráculo, para que as execuções interrompidas parem no mesmo ponto.
+  - Em 557 casos, chamadas, nós e limites são idênticos bit a bit, inclusive
+    nos 4 interrompidos pelo teto.
+  - No caso 538, os nós (5.408) e os limites são idênticos, mas a branch faz
+    55 chamadas a mais (9.328 contra 9.273). A bisseção leva ao primeiro
+    commit da branch (52a3f70), o atalho de separação antes do recorte: com
+    regiões quase encostadas, o recorte em binary64 guardava uma lasca de
+    arredondamento, que o atalho descarta. É só uma diferença de construção,
+    que os certificados não usam. Os fontes da `main` atual dão as mesmas
+    9.273 chamadas do binário de 16/10.
+  - Os tempos nos núcleos de eficiência dão a branch 1,11× mais rápida (média
+    geométrica dos casos idênticos acima de 0,05 s).
+- **Corpus na dantzig, protocolo do artigo** (22/10; configuração C, 300 s, 3
+  repetições, uma execução por núcleo de performance; branch em 613fa46,
+  `main` em e9c491f; os números de comparação da `main` estão na seção da
+  dantzig).
+  - As 1.671 execuções resolvidas têm nós, chamadas e limites idênticos aos da
+    `main`, bit a bit, inclusive o caso 538. A diferença dele aparece só no
+    build arm64 do Mac; a dantzig usa x86-64 genérico.
+  - A branch fecha as mesmas 557 instâncias e é mais rápida em todas: 1,044×
+    na média geométrica (de 1,011× a 1,075×), contra a rodada da `main` com a
+    máquina ociosa, nos 118 casos que levam ≥ 0,05 s.
+  - Houve carga alheia nos núcleos de 13 execuções com ≥ 0,05 s (6% mais lentas
+    em média); as medianas de três repetições a absorvem.
+
+**Limitações.**
+- Uma execução por instância, num Mac só.
+- Instâncias exploratórias, não realistas.
+- O Fekete não rodou nestas instâncias. O SOCP dele cresce com m a cada
+  chamada.
+- Antes de um merge, o benchmark do artigo precisa ser refeito nas máquinas de
+  referência. O tamanho da árvore não muda, mas os tempos sim.
+- Gerador e dados brutos: local, em `benchmarks/workspace/experiments/`
+  (`tspn-smoothed` e `corpus-check`).
+
+## oracle-vertex-scaling-2026-10-21
+
+**Pergunta.** Como o custo de uma chamada ao oráculo do ciclo cresce com o
+número de vértices por região, comparado ao SOCP do Gurobi, e até onde ele
+pode cair? **Formulação.** Ciclo de ordem fixa por k = 3, 5 ou 10 regiões
+convexas disjuntas, cada uma o fecho convexo inteiro de m pontos (m = 8 a
+32.768) num disco ou numa elipse (ângulos aleatórios), com coordenadas inteiras
+divididas por 2^13. Com m = 32.768, os fechos ficam com cerca de 16 mil vértices
+por região. Duas amostras por caso, 3 repetições, com a ordem dos solvers
+rodando entre elas. Mac M4 Pro, uma thread, processo único. Programa:
+`main-vertex_scaling.cpp`, nesta branch.
+- **Nosso oráculo:** o pedido do B&B, ou seja, estágio binary64 com
+  `max_gap` = 2,5e-4 × o comprimento do ciclo pelos centros e certificado
+  intervalar. Quatro variantes:
+  - frio, sem cache;
+  - quente, com o `ConvexCycleWorkspace` reaproveitado;
+  - com identificadores (`region_ids`), como o B&B poderia chamar;
+  - apertado, frio com gap de 1e-6, para casar com a tolerância padrão do
+    Gurobi.
+- **Gurobi:** parâmetros padrão, uma thread, modelo montado a cada chamada, como
+  no oráculo SOCP do Fekete.
+
+**Resultado.**
+- **Primeiro, um recorte quadrático.** O teste de ciclo zero recortava uma região
+  por todas as arestas da outra, em O(m²), mesmo com regiões disjuntas. Com 16
+  mil vértices por região, o nosso ficava só 10–20× mais rápido que o Gurobi.
+- **Depois, O(log m) por chamada com cache.** O estágio deixou de ler as
+  regiões inteiras a cada chamada:
+  - a prova de pertinência acha um triângulo do leque e o prova com três sinais
+    exatos;
+  - o suporte do limite dual sai de um vértice extremo certificado por
+    intervalos como mínimo exato, com uma janela de dois vértices para os
+    empates das arestas ótimas;
+  - a atualização por coordenada da construção localiza o alvo no mapa de
+    último passo de Dror et al. por busca binária, como o solver de origem fixa
+    por busca binária, e mantém os testes de aceitação do laço;
+  - um teste de separação em O(log m) evita copiar uma região para o recorte;
+  - com identificadores, cada região é normalizada, copiada e tem a média
+    calculada uma vez por workspace, em vez de ser lida e copiada a cada chamada.
+
+  Cada caminho volta ao laço anterior quando não consegue certificar, e dá o
+  mesmo resultado que ele. A exceção é o atalho do recorte. Com regiões quase
+  encostadas, o recorte em binary64 pode guardar uma lasca de arredondamento,
+  e o atalho a descarta. Só a construção muda: no corpus inteiro, isso explica
+  o único caso diferente, o 538
+  ([abaixo](#tspn-smoothed-vertex-scaling-2026-10-21), bisseção até 52a3f70).
+- **Tempo por chamada com identificadores e razão Gurobi / nosso** (disco):
+
+  | m (vértices por região) | 8 | 512 | 2.048 | 8.192 | 32.768 (~16 mil) |
+  |---|---|---|---|---|---|
+  | k = 3 | 1,5 µs (179×) | 2,4 µs (5.030×) | 3,5 µs (10.316×) | 7,3 µs (38.315×) | 9,6 µs (95.087×) |
+  | k = 10 | 4,6 µs (140×) | 12,5 µs (2.506×) | 22,5 µs (5.480×) | 32,8 µs (23.681×) | 43,1 µs (72.287×) |
+
+  Nas elipses dá o mesmo: 85.508× com k = 3 e 50.531× com k = 10, no maior
+  tamanho. Contra a `main` (quente, antes deste trabalho), a chamada com k = 3 e
+  ~16 mil vértices fica 9.844× mais rápida (95 ms → 9,6 µs). Sem identificadores
+  (quente), o custo continua O(m) na leitura das regiões e fica em 0,26 ms. O
+  frio e o apertado continuam O(m), porque normalizam a região a cada chamada:
+  com gap de 1e-6, a razão contra o Gurobi é de cerca de 900× no maior tamanho.
+- **Modelo do Gurobi com normais unitárias** (refeito em 21/10, depois da
+  repetição no corpus [acima](#oracle-gurobi-corpus-mac-2026-10-21)): os tempos
+  do Gurobi quase não mudam. No maior tamanho, as razões ficam em 92.668× e
+  76.572× (disco, k = 3 e 10) e em 73.703× e 51.046× (elipse), a mesma ordem
+  de antes. O limite superior apertado nunca passa do objetivo do Gurobi em
+  mais de 8,7e-7.
+- **Mesmo resultado.** Nas 252 medições, os limites e contatos das variantes
+  frio, quente e apertado são idênticos aos da `main`, e os da variante com
+  identificadores, aos da quente. O nosso sempre fecha o gap pedido
+  (`GapClosed`), o Gurobi sempre termina ótimo, e o limite superior com gap de
+  1e-6 nunca passa do objetivo do Gurobi em mais de 8,4e-7 relativo.
+- **Testes.** `logarithmic_queries()`, em `main-cycle_tests.cpp`, compara cada
+  caminho com o seu laço em fechos de reticulado de até 9.000 vértices:
+  - 3.720 pertinências, incluindo vértices, pontos médios e pontos a um ulp da
+    borda;
+  - 1.033 suportes, sempre abaixo do mínimo exato racional e iguais aos do laço,
+    233 deles com empate exato numa aresta;
+  - 1.503 atualizações por coordenada;
+  - 57 separações confirmadas por interseção exata;
+  - o estágio inteiro com e sem identificadores, com os limites cercando o
+    ótimo exato.
+
+  As suítes do ciclo, do certificado, das interseções, do TSPN e da ordem livre
+  passam.
+
+**Limitações.** Chamadas isoladas, sem as sequências e as heranças do B&B;
+regiões disjuntas e bem separadas; um Mac pessoal. O que falta para o B&B
+ganhar o mesmo:
+- passar identificadores e não copiar as regiões em `selected`;
+- tornar sublinear o par mais próximo das sequências de duas regiões, hoje
+  O(m²);
+- escrever as provas novas em `convex-cycle.md`.
+
+O gerador e os dados brutos ficam locais em `experiments/vertex-scaling`.
 
 ## path-vs-cycle-mac-2026-10-21
 

@@ -34,6 +34,11 @@ namespace tpp::unordered_detail {
 	struct PreparedContactPolygon {
 		Vector2 minimum, maximum;
 		std::vector<ContactEdge> edges;
+		// From 64 vertices, a strictly convex polygon (by computed turn signs;
+		// reversed when clockwise) is queried by SegmentContactCache in
+		// O(log m) per segment, with the full scan's arithmetic on the edges
+		// that hold its result.
+		bool convex = false, reversed = false;
 		explicit PreparedContactPolygon(const Polygon &polygon);
 	};
 	struct PreparedContactPath {
@@ -68,9 +73,19 @@ namespace tpp::unordered_detail {
 	};
 
 	double path_length(const Polygon &path);
+	// Exact sign of the turn (b-a) x (c-b): binary64 when it exceeds its a
+	// priori error bound, else rational arithmetic.
+	int turn_sign(Vector2 a, Vector2 b, Vector2 c);
+	// Counterclockwise and strictly convex in exact arithmetic (exact turns).
 	Polygon convex_hull(Polygon polygon);
 	Contact contact(const Polygon &path, const Polygon &polygon, double tolerance);
 	Contact contact(const PreparedContactPath &path, const PreparedContactPolygon &polygon, double tolerance);
+	// The polygon counterclockwise and strictly convex, if it is (else nothing).
+	std::optional<Polygon> counterclockwise_convex(const Polygon &polygon);
+	// Euclidean distance between two counterclockwise strictly convex polygons
+	// by GJK, each support an O(log m) binary search: a floating estimate of
+	// the distance contact() measures between them, for heuristics only.
+	double convex_distance(const Polygon &a, const Polygon &b);
 	// Distance from a point to a prepared path, with the projection used by
 	// contact(); an upper bound for the path's distance to any region holding it.
 	double path_point_distance(const PreparedContactPath &path, Vector2 point);
@@ -83,4 +98,15 @@ namespace tpp::unordered_detail {
 	// Exact one-contact minimization over the polygon boundary, with a feasible
 	// preferred point retained when it has the same objective (e.g. pass-through).
 	Vector2 best_contact(Vector2 left, Vector2 right, const Polygon &polygon, Vector2 preferred);
+	// best_contact for a convex polygon (either orientation) in O(log m) from
+	// 64 vertices: membership of either endpoint by a fan binary search, then
+	// the loop's candidates on the edges where the line through the endpoints
+	// crosses the polygon (when the segment meets it), else around the
+	// feature of the last-step map (Dror et al.) of `left` holding `right`.
+	// The result is kept only with its certificate: the cost's descent
+	// direction is an outward normal there (the point is extreme toward it),
+	// or the cost equals the segment length. Otherwise, and below 64
+	// vertices, it is best_contact's. For proposals: a nonconvex polygon may
+	// get a worse point.
+	Vector2 best_contact_convex(Vector2 left, Vector2 right, const Polygon &polygon, Vector2 preferred);
 }

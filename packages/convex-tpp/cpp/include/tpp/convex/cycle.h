@@ -32,6 +32,11 @@ struct ConvexCycleResult {
     std::size_t oracle_calls = 0;
     std::size_t certificate_checks = 0;
     std::size_t certificate_cutoff_skips = 0;
+    // Boundary-anchor search: anchored fixed-source solves, how many of them
+    // were bisection probes inside an edge (the rest are its vertices or
+    // intersection cuts), and closed-form steps tried in the combinatorial
+    // type of an anchored cycle. Diagnostics only.
+    std::size_t anchored_solves = 0, bisection_probes = 0, closed_form_steps = 0;
     ConvexCycleTimings timings;
     std::string diagnostic;
 };
@@ -76,6 +81,9 @@ struct ConvexCycleDoubleOptions {
     std::vector<Vector2> initial_contacts;
     // Optional per-worker prepared-geometry cache.
     ConvexCycleWorkspace *workspace = nullptr;
+    // Optional stable region identifiers for the binary64 stage's cache; see
+    // ConvexCycleFloatOptions::region_ids. Ignored unless one per region.
+    std::vector<std::uint64_t> region_ids;
     // Canonical CCW feature ids: vertex 2*j, edge 2*j+1, skipped -1, changed -2.
     std::vector<int> initial_features;
     // Export warm-start metadata only when the caller will reuse it.

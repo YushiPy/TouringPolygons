@@ -1,5 +1,6 @@
 #include "tpp/nonconvex/unordered.h"
 #include "tpp/convex/certified.h"
+#include "tpp/convex/rational.h"
 #include "tpp/convex/float_oracle.h"
 #include "tpp/convex/hybrid.h"
 #include "tpp/nonconvex/decomposition.h"
@@ -125,6 +126,140 @@ void check_prepared_contacts() {
         }
     }
     std::cout<<"Prepared visits passed "<<checks<<" distance/position comparisons.\n";
+}
+
+// GJK with logarithmic supports against the edge-pair distance it replaces in
+// the root choice: separated, touching-close and overlapping convex pairs.
+void check_convex_distance() {
+    using namespace tpp::unordered_detail;
+    std::mt19937 random(20261021);
+    std::uniform_real_distribution<double> unit(0,1);
+    auto circle=[&](Vector2 centre,double radius,size_t m) {
+        Polygon p;const double phase=6.283185307179586*unit(random);
+        for(size_t i=0;i<m;++i){const double t=phase+6.283185307179586*double(i)/double(m);p.push_back(centre+Vector2{std::cos(t),std::sin(t)}*radius);}
+        return p;
+    };
+    if(counterclockwise_convex({{0,0},{3,0},{3,1},{1,1},{1,3},{0,3}}))throw std::runtime_error("convex_distance: L-shape accepted as convex");
+    if(counterclockwise_convex({{0,0},{1,0},{2,0},{1,1}}))throw std::runtime_error("convex_distance: collinear vertices accepted");
+    for(size_t trial=0;trial<600;++trial) {
+        const size_t ma=3+size_t(unit(random)*(trial%3?60:3000)),mb=3+size_t(unit(random)*(trial%2?60:3000));
+        const double ra=.5+3*unit(random),rb=.5+3*unit(random);
+        const double gap=trial%4==0?-ra*unit(random):trial%4==1?1e-6*unit(random):4*unit(random);
+        const double angle=6.283185307179586*unit(random);
+        Polygon a=circle({0,0},ra,ma),b=circle(Vector2{std::cos(angle),std::sin(angle)}*(ra+rb+gap),rb,mb);
+        if(trial%5==0)std::reverse(b.begin(),b.end());
+        const auto ca=counterclockwise_convex(a),cb=counterclockwise_convex(b);
+        if(!ca||!cb)throw std::runtime_error("convex_distance: regular polygon rejected");
+        Polygon oa=a,ob=b;oa.push_back(a.front());ob.push_back(b.front());
+        const double expected=std::min(contact(oa,b,0).distance,contact(ob,a,0).distance);
+        const double got=convex_distance(*ca,*cb);
+        if(std::abs(got-expected)>1e-9*(1+ra+rb))
+            throw std::runtime_error("convex_distance: GJK distance differs from the edge-pair distance");
+    }
+}
+
+// The logarithmic best_contact against the loop on convex polygons of both
+// orientations: endpoints inside, segments crossing, and separated ones.
+void check_convex_best_contact() {
+    using namespace tpp::unordered_detail;
+    std::mt19937 random(20261022);
+    std::uniform_real_distribution<double> unit(0,1);
+    for(size_t trial=0;trial<3000;++trial) {
+        Polygon cloud;
+        const size_t m=64+size_t(unit(random)*(trial%2?200:4000));
+        const double sx=.2+3*unit(random),sy=.2+3*unit(random);
+        for(size_t i=0;i<m;++i) {
+            const double t=6.283185307179586*unit(random);
+            cloud.push_back(trial%3?Vector2{sx*std::cos(t),sy*std::sin(t)}:Vector2{sx*(2*unit(random)-1),sy*(2*unit(random)-1)});
+        }
+        auto polygon=convex_hull(cloud);
+        if(polygon.size()<64)continue;
+        if(trial%4==0)std::reverse(polygon.begin(),polygon.end());
+        auto point=[&]{const double r=trial%5==0?.5:6*unit(random),t=6.283185307179586*unit(random);return Vector2{r*std::cos(t),r*std::sin(t)};};
+        const Vector2 left=point(),right=trial%7==0?left:point();
+        const auto expected=best_contact(left,right,polygon,polygon.front());
+        const auto got=best_contact_convex(left,right,polygon,polygon.front());
+        auto cost=[&](Vector2 q){return left.distance_to(q)+right.distance_to(q);};
+        if(std::abs(cost(got)-cost(expected))>1e-12*(1+cost(expected)))
+            throw std::runtime_error("best_contact_convex: cost differs from best_contact");
+        if(contact({got,got},polygon,1e-9).distance>1e-9)
+            throw std::runtime_error("best_contact_convex: proposal outside the polygon");
+    }
+}
+
+// Visits of large convex polygons through the logarithmic segment query
+// against the full scan: separated, touching within tolerance, crossing
+// and starting inside, in both orientations.
+void check_convex_visits() {
+    using namespace tpp::unordered_detail;
+    std::mt19937 random(20261023);
+    std::uniform_real_distribution<double> unit(0,1);
+    size_t checks=0,convex=0;
+    for(size_t trial=0;trial<1500;++trial) {
+        Polygon cloud;
+        const size_t m=64+size_t(unit(random)*(trial%2?300:4000));
+        const double sx=.2+3*unit(random),sy=.2+3*unit(random);
+        for(size_t i=0;i<m;++i) {
+            const double t=6.283185307179586*unit(random);
+            cloud.push_back(trial%3?Vector2{sx*std::cos(t),sy*std::sin(t)}:Vector2{sx*(2*unit(random)-1),sy*(2*unit(random)-1)});
+        }
+        auto polygon=convex_hull(cloud);
+        if(trial%4==0)std::reverse(polygon.begin(),polygon.end());
+        const PreparedContactPolygon prepared_polygon(polygon);
+        convex+=prepared_polygon.convex;
+        auto point=[&]{const double r=trial%5==0?unit(random):5*unit(random),t=6.283185307179586*unit(random);return Vector2{r*std::cos(t),r*std::sin(t)};};
+        Polygon path;
+        for(size_t i=0;i<1+trial%4;++i)path.push_back(point());
+        // A segment grazing an edge, its endpoint just off the boundary.
+        if(trial%6==0&&path.size()>1) {
+            const auto v=polygon[trial%polygon.size()],w=polygon[(trial+1)%polygon.size()];
+            const Vector2 out=Vector2{w.y-v.y,v.x-w.x}.normalized()*(trial%12==0?5e-9:2e-8);
+            path[0]=v+(w-v)*.3+out*(prepared_polygon.reversed?-1.0:1.0);
+        }
+        const PreparedContactPath prepared_path(path);
+        for(double tolerance:{0.0,1e-8,0.01}) {
+            const auto raw=contact(path,polygon,tolerance);
+            SegmentContactCache cache;
+            const auto cached=cache.query(prepared_path,prepared_polygon,0,1,tolerance);
+            if(raw.distance!=cached.distance||raw.position!=cached.position)
+                throw std::runtime_error("Convex segment query changed a visit distance or position");
+            ++checks;
+        }
+    }
+    if(convex<900)throw std::runtime_error("Convex segment query: too few convex polygons prepared");
+    std::cout<<"Convex visits passed "<<checks<<" comparisons ("<<convex<<" convex polygons).\n";
+}
+
+// convex_hull decides turns exactly: on point sets with nearly collinear
+// triples (a middle point one ulp off the chord), every turn of the hull is
+// strictly positive in rational arithmetic, as the logarithmic supports of
+// the insertion bounds require.
+void check_exact_hull() {
+    using namespace tpp::unordered_detail;
+    using R=tpp::ConvexRational;
+    std::mt19937 random(20261024);
+    std::uniform_real_distribution<double> coordinate(-1e3,1e3);
+    auto exact_turn=[](Vector2 a,Vector2 b,Vector2 c) {
+        return (R(b.x)-R(a.x))*(R(c.y)-R(b.y))-(R(b.y)-R(a.y))*(R(c.x)-R(b.x));
+    };
+    size_t floating_wrong=0;
+    for(size_t trial=0;trial<4000;++trial) {
+        const Vector2 a{coordinate(random),coordinate(random)},c{coordinate(random),coordinate(random)};
+        Vector2 b{(a.x+c.x)/2,(a.y+c.y)/2};
+        b.x=trial%2?std::nextafter(b.x,INFINITY):std::nextafter(b.x,-INFINITY);
+        const double floating=(b-a).cross(c-b);
+        const R exact=exact_turn(a,b,c);
+        floating_wrong+=(floating>0)!=(exact>0)||(floating<0)!=(exact<0);
+        // The triple and two far points on either side of the chord.
+        const Vector2 normal{a.y-c.y,c.x-a.x};
+        const Polygon points{a,b,c,b+normal*3.0,b-normal*2.0};
+        const auto hull=convex_hull(points);
+        if(hull.size()<3)throw std::runtime_error("exact hull: degenerate result");
+        for(size_t i=0;i<hull.size();++i)
+            if(!(exact_turn(hull[i],hull[(i+1)%hull.size()],hull[(i+2)%hull.size()])>0))
+                throw std::runtime_error("exact hull: a turn is not strictly convex in exact arithmetic");
+    }
+    std::cout<<"Exact hulls passed 4000 near-collinear sets ("<<floating_wrong<<" floating turn signs were wrong).\n";
 }
 
 void check_sequence_storage() {
@@ -936,7 +1071,7 @@ void check_lower_dimensional_regions() {
 int main() {
 	try {
         check_prepared_contacts();check_relocation_and_zero_dual();
-        check_sequence_storage();
+        check_sequence_storage();check_convex_distance();check_convex_best_contact();check_convex_visits();check_exact_hull();
 		check_lower_dimensional_regions();
 		check_oracle_certificates();
 		check_coordinate_normalization();

@@ -278,14 +278,25 @@ ConvexFloatOracleResult solve_degenerate_path(Vector2 start,Vector2 target,const
         result.polish_attempted=true;
         const auto polish_began=Clock::now();
         double scale=std::max(std::abs(target.x-start.x),std::abs(target.y-start.y));
-        for(const auto &p:regions)for(const auto &v:p)scale=std::max({scale,std::abs(v.x-start.x),std::abs(v.y-start.y)});
+        for(const auto &p:regions)scale=std::max(scale,detail::coordinate_reach(p,start));
         if(scale>0&&std::isfinite(scale)) {
             using Kind=detail::ChainNode::Kind;
             std::vector<detail::ChainNode> nodes{{.kind=Kind::Fixed,.offset={0,0}}};
             size_t faces=0;
+            // The seed's descent direction at each contact, as for the cycle.
+            auto outward=[&](size_t i) {
+                Vector2 g{};
+                if(seed)for(const Vector2 q:{i?(*seed)[i-1]:start,i+1<m?(*seed)[i+1]:target}) {
+                    const auto d=q-(*seed)[i];const double length=d.length();
+                    if(length>0)g+=d/length;
+                }
+                return g;
+            };
+            bool windowed=false;
             for(size_t i=0;i<m;++i) {
-                nodes.push_back(detail::region_node(regions[i],start,scale,seed?&(*seed)[i]:nullptr,options.warm_interior_fraction));
-                faces+=nodes.back().faces.size();
+                nodes.push_back(detail::region_node(regions[i],start,scale,seed?&(*seed)[i]:nullptr,options.warm_interior_fraction,
+                    outward(i)));
+                faces+=nodes.back().faces.size();windowed|=bool(nodes.back().refine);
             }
             nodes.push_back({.kind=Kind::Fixed,.offset={(target.x-start.x)/scale,(target.y-start.y)/scale}});
             const double target_gap=options.max_gap>0?options.max_gap:1e-9*std::max(1.0,std::abs(options.cutoff));
@@ -296,7 +307,7 @@ ConvexFloatOracleResult solve_degenerate_path(Vector2 start,Vector2 target,const
                     Polygon contacts;
                     for(size_t i=0;i<m;++i)contacts.push_back(detail::region_contact(regions[i],level,i+1,start,scale));
                     return prove(contacts,{level.duals});
-                });
+                },windowed?.5*target_gap/scale:0);
             if(stats){result.newton_iterations=stats->iterations;result.barrier_levels=stats->levels;}
         }
         result.polish_seconds=since(polish_began);

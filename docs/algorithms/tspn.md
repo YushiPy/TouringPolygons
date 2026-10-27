@@ -431,6 +431,80 @@ the cutoff. `cycle_certificate_cutoff_skips`, `cycle_initial_contact_checks` and
 independent, disabled by default, and preserve the existing numerical B&B
 contract below. Portfolio counters sum work across the two private searches.
 
+## Large convex regions (2026-10-21)
+
+The cycle oracle answers a warm call in `O(k log m)` queries when the
+regions have identifiers
+([convex-cycle.md](convex-cycle.md#regions-with-many-vertices-2026-10-21)).
+The rest of the B&B then dominated on regions with thousands of vertices.
+The changes below are each keyed to the region's size (64 vertices) and to
+convexity, so the corpus instances, whose polygons are small or nonconvex,
+keep their previous arithmetic except where noted.
+
+- **Identifiers.** Each oracle call passes `(polygon << 32) | piece` for
+  every hull or piece (`0xffffffff` for the hull). One cycle workspace then
+  prepares each region once per worker.
+- **Root choice** (`separated_cycle_root`). The pairwise region distances
+  used to be edge-pair scans, `O(n^2 m^2)`. Pairs of strictly convex
+  regions with at least 64 vertices now use GJK on their Minkowski
+  difference, with binary-search supports (`convex_distance`). The choice is
+  a heuristic, so any distance is valid.
+- **Insertion proposals** (`best_contact_convex`).
+  - *What it serves.* The insertion and multi-insertion bounds need, for
+    every gap, a point of the inserted hull or piece near the best detour
+    between two contacts. That point only chooses the dual directions; the
+    bound is then proved from supports.
+  - *Why not a plain binary search.* For convex `P`, and `L`, `R` outside
+    it, a local minimum of `f(q) = |q-L| + |q-R|` along the boundary need
+    not be global: the foot of a perpendicular on a far edge is one. The
+    tangent cone at an edge point is a half-plane, not the cone of the edge
+    directions.
+  - *How it works.* Fan tests settle `L` or `R` inside `P`. Otherwise the
+    candidate edges come from the chord of the line `LR` when the segment
+    meets `P`, else from the feature of Dror et al.'s last-step map of `L`
+    located at `R`. The loop's own candidate formula is evaluated on those
+    edges.
+  - *Certificate.* The result is kept only with a global certificate (KKT
+    for a convex problem): `q` is optimal iff `g = unit(L-q) + unit(R-q)` is
+    an outward normal at `q`. That holds iff `q` is extreme toward `g`, which
+    one binary search checks, with a relative tolerance of `1e-9`; a cost
+    equal to `|LR|` also passes. Otherwise, and below 64 vertices, the loop
+    runs.
+- **Visit checks** (`SegmentContactCache::query`).
+  - *Setup.* `PreparedContactPolygon` marks strictly convex polygons with
+    at least 64 vertices, in either orientation.
+  - *Restricted scan.* Each segment then runs the scan of `contact_impl`,
+    with the same arithmetic, edge order and ties, but only on the edges
+    around three places:
+    - the point of the polygon nearest the segment's start (GJK);
+    - the closest features of segment and polygon (the polygon vertices of
+      the final GJK simplex) or, when they meet, the entry and exit of the
+      segment's line (chord);
+    - every run of vertices within the tolerance of the segment, grown edge
+      by edge.
+  - *Why these edges suffice.* The scan's distance is the least candidate
+    pair, which lies at the closest features. Its touching position is the
+    least parameter of a touching candidate: the start, the entry, or a
+    vertex within the tolerance.
+  - *Test.* `check_convex_visits` requires bitwise-equal distance and
+    position against the full scan, over 4500 queries.
+- **Construction.** Blocks of coincident contacts in overlapping regions use
+  the `O((m+n) log n)` intersection
+  ([convex-cycle.md](convex-cycle.md#logarithmic-queries)).
+
+On the smoothed corpus instances, the search trees match up to rounding in
+the construction: calls and nodes are within 1.2% of before, with the same
+optima. On the 558 corpus cases (call-capped at 300,000) 557 trees are
+bitwise identical to `main`'s. In case 538, the nodes and bounds are the
+same, with 55 more oracle calls, from the separation shortcut of the
+clip (52a3f70). In nearly touching regions, the binary64 clip kept a
+rounding sliver that the shortcut drops. This changes the construction,
+not the certificates. On dantzig (generic x86-64 build, the paper's
+protocol), all 1,671 solved runs, case 538 included, are bitwise identical
+to `main`'s, and the branch is 4.4% faster.
+Measurements:
+[`tspn-smoothed-vertex-scaling-2026-10-21`](../../benchmarks/results-saved/README.md#tspn-smoothed-vertex-scaling-2026-10-21).
+
 ## Scope of exactness and limits
 
 ### Decomposition screening and compatible shared bounds
