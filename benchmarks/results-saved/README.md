@@ -8,6 +8,7 @@ Pastas com dados:
 
 | Pasta | Conteúdo |
 |---|---|
+| [cetsp-table2-mac-2026-10-27](cetsp-table2-mac-2026-10-27/per-instance.csv) | As 62 instâncias 2D da Tabela 2 de Coutinho et al. (2016): nossos limites com 1 e 8 threads (30 min), os deles (4 h), o UB de Mennell e o tour de Carrabs et al. (2020), uma linha por instância; resumo [abaixo](#cetsp-table2-mac-2026-10-27). |
 | [fekete-smoothed-dantzig-2026-10-22](fekete-smoothed-dantzig-2026-10-22/per-run.csv) | As instâncias suavizadas na dantzig, no protocolo da referência (C ×3; B e A com 300 s e extensão de 900 s), uma linha por instância, configuração, raiz e limite; resumo [abaixo](#fekete-smoothed-dantzig-2026-10-22). |
 | [fekete-smoothed-mac-2026-10-21](fekete-smoothed-mac-2026-10-21/per-run.csv) | Fekete (1 thread, CHR e LEFP) × nosso nas 24 instâncias suavizadas, 300 s, uma linha por execução com limites, gap e validação do tour; resumo [abaixo](#fekete-smoothed-mac-2026-10-21). |
 | [fekete-reference-dantzig-2026-10-20](fekete-reference-dantzig-2026-10-20/per-case.csv) | Réplica das configurações A, B e C da armijo na dantzig (Intel), 300 s, mesmo formato; resumo [abaixo](#fekete-reference-dantzig-2026-10-20). |
@@ -23,6 +24,92 @@ status de exatidão e limitações. Um gap numérico fechado nos B&B não é ót
 algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
+
+## cetsp-table2-mac-2026-10-27
+
+**Pergunta.** Nas 62 instâncias 2D de Mennell da Tabela 2 de Coutinho et al.
+(2016), fechamos todas as que eles fecham? E o que acontece nas outras?
+
+**Formulação.**
+- **Instâncias.** Os arquivos de Mennell como estão no repositório de Cerrone
+  (github.com/CerroneCarmine/CETSP). Ficam fora do Git, porque o repositório
+  não tem licença. As 27 que também vieram de Walton Coutinho são idênticas.
+- **Binários.** Para as 42 que não são geométricas, `tpp-convex-cetsp` do
+  commit 7e5a169. O oráculo e o B&B são os de 541d862; a heurística ganhou o
+  filtro do Or-opt e "ruína e reconstrução" em sequências quando o tour vira
+  em poucos discos. As 20 geométricas vêm da
+  [segunda campanha](#cetsp-campaign2-mac-2026-10-26) (541d862) e não rodaram
+  de novo.
+- **Protocolo.** O da segunda campanha, no Mac M4 Pro só com a campanha:
+  - 1 thread, 1.800 s, 6 ao mesmo tempo, teto de 2,5 GB;
+  - as que ficaram abertas, com 8 threads, uma por vez, 1.800 s, teto de
+    12 GB.
+
+  A campanha foi interrompida uma vez no passo 2; a instância em curso
+  (team5_499) rodou de novo desde o começo.
+- **Gap e verificação.** Gap relativo de 1e-6, com limites provados na
+  instância em binary64. Todos os tours foram verificados em racionais exatos
+  e cobrem também os discos decimais.
+- **Referências.**
+  - Coutinho et al.: 1 thread, i7 de 3,4 GHz (2012), 4 h. O UB da tabela
+    deles é o de Mennell (2009).
+  - Os tours de Carrabs et al. (2020), do mesmo repositório, servem de segunda
+    referência de UB.
+- **Dados.** Uma linha por instância em
+  [`per-instance.csv`](cetsp-table2-mac-2026-10-27/per-instance.csv).
+
+**Resultado.**
+- **Fechadas: 32 de 62, contra 23 deles.**
+  - **As 23 deles.** Os mesmos ótimos (diferença de até 0,001), todos mais
+    rápidos com 1 thread, de 17× a 18.000× (mediana de 100×). Exemplos:
+    - lin318-0.10: 57,5 s contra 8.541 s;
+    - team1_100rdmRad: 24 ms contra 269 s;
+    - team3_300rdmRad: 37 ms contra 682 s.
+  - **9 abertas para eles:**
+
+| Instância | Ótimo (1e-6) | Tempo | Threads | LB deles, 4 h | Acima do ótimo: Mennell | Carrabs |
+|---|---|---|---|---|---|---|
+| team5_499rdmRad | 446,191 | 0,5 s | 1 | 442,637 | +1,82% | +0,07% |
+| concentricCircles2 | 153,132 | 72 s | 1 | 149,868 | 0,00% | +0,67% |
+| kroD100rdmRad | 141,829 | 98 s | 1 | 136,620 | 0,00% | +0,36% |
+| d493rdmRad | 134,226 | 116 s | 1 | 125,312 | +4,39% | +0,38% |
+| dsj1000-0.10 | 373,759 | 126 s | 1 | 373,730 | +0,63% | +0,14% |
+| chaoSingleDep | 1.039,611 | 271 s | 1 | 1.000,151 | 0,00% | 0,00% |
+| team3_300 | 461,889 | 376 s | 1 | 447,534 | +0,94% | +3,01% |
+| lin318rdmRad | 2.047,107 | 501 s | 1 | 1.807,681 | +1,63% | +0,42% |
+| rotatingDiamonds3 | 380,883 | 718 s | 8 | 348,608 | 0,00% | 0,00% |
+
+  Os 0,00% são diferenças abaixo da terceira casa, em que a tabela de
+  Coutinho et al. arredonda.
+- **LB nas 30 abertas para os dois.** O nosso (o melhor entre 1 e 8 threads)
+  é maior que o de 4 h deles em todas:
+  - de +2,8% (pcb442-0.10) a +20,0% (team2_200rdmRad), com mediana de +13,6%;
+  - o gap também é menor em todas.
+- **Tours** (o melhor entre 1 e 8 threads), nas 39 abertas para eles:
+  - **contra o de Mennell:** melhor em 34 e igual em 1. Pior em 4:
+    - rotatingDiamonds3 e concentricCircles2, por menos de 0,001 (são ótimas;
+      a diferença é o arredondamento da tabela);
+    - rotatingDiamonds4 e 5, por 0,04% e 0,16% (heurística anterior);
+  - **contra o de Carrabs et al.:** melhor em 35 e igual em 1. Pior em 3:
+    - bonus1000, por 0,53%;
+    - dsj1000rdmRad, por 0,87%;
+    - team2_200rdmRad, por menos de 0,01%.
+- **Memória.**
+  - Picos de 1,6 GB com 1 thread e de 8,5 GB com 8 threads.
+  - O descarte entrou em todas as abertas, com pisos de 0,03% a 2,0% acima do
+    LB final.
+  - kroD100-0.02, com 8 threads, esvaziou a fila aos 1.714 s e terminou no
+    piso, com gap de 0,26%.
+
+**Limitações.**
+- Máquinas de épocas diferentes (Mac de 2024 contra i7 de 2012), 30 min
+  contra 4 h. Os fatores de tempo não descontam o hardware.
+- "Fechada" é gap relativo de até 1e-6, não ótimo algébrico.
+- Carrabs et al. (2020) também publicam limites inferiores, ainda não
+  comparados. Até lá, "LB maior" vale contra Coutinho et al., não contra o
+  melhor conhecido.
+- As 20 geométricas usam a heurística anterior; os UBs delas podem melhorar.
+- As instâncias 3D (Tabela 3) não rodaram.
 
 ## cetsp-campaign2-mac-2026-10-26
 

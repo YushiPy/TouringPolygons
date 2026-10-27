@@ -1044,6 +1044,8 @@ visiting a subset can only shorten the tour.
   - So it could not be faster, only slower.
 
 Measurements:
+[`cetsp-table2-mac-2026-10-27`](../../benchmarks/results-saved/README.md#cetsp-table2-mac-2026-10-27)
+(all 62 instances of Coutinho et al.'s Table 2: 32 closed against their 23),
 [`cetsp-campaign2-mac-2026-10-26`](../../benchmarks/results-saved/README.md#cetsp-campaign2-mac-2026-10-26)
 (earlier versions:
 [`cetsp-campaign`](../../benchmarks/results-saved/README.md#cetsp-campaign-mac-2026-10-25),
