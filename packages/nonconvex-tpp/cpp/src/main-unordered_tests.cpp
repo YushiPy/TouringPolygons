@@ -261,6 +261,50 @@ void check_exact_hull() {
     }
     std::cout<<"Exact hulls passed 4000 near-collinear sets ("<<floating_wrong<<" floating turn signs were wrong).\n";
 }
+// The convex decomposition decides turns exactly at any magnitude: quadrilaterals
+// whose second vertex is one ulp off the chord, with the chord's ends near 1e-3
+// and near 1e5 (and the review's 2^-200 corner, which fixed-width integers
+// once read as collinear), split into pieces that are convex in rational
+// arithmetic and cover exactly the quadrilateral's area.
+void check_exact_decomposition() {
+    using R=tpp::ConvexRational;
+    auto exact_turn=[](Vector2 a,Vector2 b,Vector2 c) {
+        return (R(b.x)-R(a.x))*(R(c.y)-R(b.y))-(R(b.y)-R(a.y))*(R(c.x)-R(b.x));
+    };
+    auto area=[](const Polygon &p) {
+        R twice=0;
+        for(size_t i=0;i<p.size();++i)twice+=R(p[i].x)*R(p[(i+1)%p.size()].y)-R(p[(i+1)%p.size()].x)*R(p[i].y);
+        return twice;
+    };
+    std::mt19937 random(20261028);
+    std::uniform_real_distribution<double> small(-1e-3,1e-3),large(-1e5,1e5);
+    std::vector<Polygon> cases{{{0x1p-200,0x1p-200},{1,std::nextafter(1.0,2.0)},{2,2},{0,2}}};
+    for(size_t trial=0;trial<2000;++trial) {
+        const Vector2 a{small(random),small(random)},c{large(random),large(random)};
+        Vector2 b{(a.x+c.x)/2,(a.y+c.y)/2};
+        b.y=trial%2?std::nextafter(b.y,INFINITY):std::nextafter(b.y,-INFINITY);
+        const Vector2 normal{a.y-c.y,c.x-a.x};
+        Polygon p{a,b,c,b+normal*0.5};
+        if(area(p)<0)std::reverse(p.begin(),p.end());
+        cases.push_back(p);
+    }
+    size_t reflex=0;
+    for(const auto &p:cases) {
+        if(!(area(p)>0))continue;
+        for(size_t i=0;i<p.size();++i)reflex+=exact_turn(p[i],p[(i+1)%p.size()],p[(i+2)%p.size()])<0;
+        const auto pieces=tpp::decompose_polygon(p);
+        R covered=0;
+        for(const auto &piece:pieces) {
+            for(size_t i=0;i<piece.size();++i)
+                if(exact_turn(piece[i],piece[(i+1)%piece.size()],piece[(i+2)%piece.size()])<0)
+                    throw std::runtime_error("exact decomposition: a piece is not convex in exact arithmetic");
+            covered+=area(piece);
+        }
+        if(covered!=area(p))throw std::runtime_error("exact decomposition: the pieces do not cover the polygon's area");
+    }
+    if(reflex==0)throw std::runtime_error("exact decomposition: no case had a reflex vertex");
+    std::cout<<"Exact decompositions passed "<<cases.size()<<" near-collinear quadrilaterals ("<<reflex<<" with a reflex vertex).\n";
+}
 
 void check_sequence_storage() {
     using namespace tpp::unordered_detail;
@@ -1071,7 +1115,7 @@ void check_lower_dimensional_regions() {
 int main() {
 	try {
         check_prepared_contacts();check_relocation_and_zero_dual();
-        check_sequence_storage();check_convex_distance();check_convex_best_contact();check_convex_visits();check_exact_hull();
+        check_sequence_storage();check_convex_distance();check_convex_best_contact();check_convex_visits();check_exact_hull();check_exact_decomposition();
 		check_lower_dimensional_regions();
 		check_oracle_certificates();
 		check_coordinate_normalization();
