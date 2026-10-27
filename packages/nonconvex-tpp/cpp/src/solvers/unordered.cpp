@@ -216,11 +216,14 @@ namespace tpp {
 	// with an empty stack takes the best seed; a busy worker gives its
 	// shallowest open node when another one waits. A checkpoint stops new
 	// takes until every running worker has copied its stack at the top of its
-	// loop (nothing in hand), so the pool plus the copies hold every open node.
+	// loop (nothing in hand), so the pool plus the copies hold every open node;
+	// each copy carries the smallest bound its worker pruned, which bounds the
+	// subtrees no longer open.
 	struct UnorderedSubtreeWork {
 		explicit UnorderedSubtreeWork(size_t count)
 			: active(count), local_bound(count), nodes(count), acked(count, 0), exited(count, 0),
-			  snapshots(count), leftovers(count), settled(count, std::numeric_limits<double>::infinity()) {
+			  snapshots(count), snapshot_settled(count, std::numeric_limits<double>::infinity()), leftovers(count),
+			  settled(count, std::numeric_limits<double>::infinity()) {
 			for (auto &bound : local_bound) bound.store(std::numeric_limits<double>::infinity(), std::memory_order_relaxed);
 		}
 		std::mutex mutex;
@@ -238,6 +241,7 @@ namespace tpp {
 		std::vector<uint64_t> acked;
 		std::vector<char> exited;
 		std::vector<std::vector<PackedSeed>> snapshots;
+		std::vector<double> snapshot_settled;
 		std::vector<std::vector<Node>> leftovers;
 		std::vector<double> settled;
 		void refresh() {
@@ -247,12 +251,15 @@ namespace tpp {
 		}
 		// Called with the worker's stack empty: a seed, or false once no work is
 		// left (pool empty and every running worker waiting) or on a stop.
-		bool acquire(size_t worker, Node &out, const std::function<bool()> &stop) {
+		bool acquire(size_t worker, Node &out, double settled_bound, const std::function<bool()> &stop) {
 			std::unique_lock lock(mutex);
 			local_bound[worker].store(std::numeric_limits<double>::infinity(), std::memory_order_relaxed);
 			++waiting; refresh();
 			while (true) {
-				if (acked[worker] != epoch) { snapshots[worker].clear(); acked[worker] = epoch; changed.notify_all(); }
+				if (acked[worker] != epoch) {
+					snapshots[worker].clear(); snapshot_settled[worker] = settled_bound;
+					acked[worker] = epoch; changed.notify_all();
+				}
 				if (!checkpointing && !pool.empty()) {
 					std::pop_heap(pool.begin(), pool.end(), Later{});
 					out = std::move(pool.back()); pool.pop_back();
@@ -273,10 +280,11 @@ namespace tpp {
 			pool.push_back(std::move(node)); std::push_heap(pool.begin(), pool.end(), Later{});
 			donations.fetch_add(1, std::memory_order_relaxed); refresh(); changed.notify_all();
 		}
-		void acknowledge(size_t worker, std::vector<PackedSeed> stack) {
+		void acknowledge(size_t worker, std::vector<PackedSeed> stack, double settled_bound) {
 			std::lock_guard lock(mutex);
 			if (acked[worker] == epoch) return;
-			snapshots[worker] = std::move(stack); acked[worker] = epoch; changed.notify_all();
+			snapshots[worker] = std::move(stack); snapshot_settled[worker] = settled_bound;
+			acked[worker] = epoch; changed.notify_all();
 		}
 		// A worker's open nodes and pruned bounds when it returns (once).
 		void leave(size_t worker, std::vector<Node> open, double settled_bound) {
@@ -401,17 +409,18 @@ namespace {
         void attach(UnorderedSubtreeWork *shared,size_t index) { work=shared;worker=index;deep=true;budget=0; }
         // A subtree thread with an empty stack takes the next seed; false once
         // no work is left anywhere (or on a stop).
-        bool refill(const std::function<bool()> &stop) {
+        bool refill(double settled_bound,const std::function<bool()> &stop) {
             if(!work||!stack.empty())return true;
             Node seed;
-            if(!work->acquire(worker,seed,stop))return false;
+            if(!work->acquire(worker,seed,settled_bound,stop))return false;
             push(std::move(seed));
             return true;
         }
         // At the top of a subtree thread's loop (nothing in hand): publish the
         // smallest open bound, give the shallowest node to a waiting thread,
-        // and copy the stack for a pending checkpoint.
-        void share(uint64_t &seen) {
+        // and copy the stack (with the worker's pruned floor) for a pending
+        // checkpoint.
+        void share(uint64_t &seen,double settled_bound) {
             if(!work)return;
             if(stack.size()>1&&work->hungry.load(std::memory_order_relaxed)) {
                 Node node=std::move(stack.front());stack.pop_front();
@@ -425,7 +434,7 @@ namespace {
             if(epoch!=seen) {
                 std::vector<PackedSeed> copy;copy.reserve(stack.size());
                 for(const auto &node:stack)copy.emplace_back(node.bound,*node.sequence.packed_bytes());
-                work->acknowledge(worker,std::move(copy));seen=epoch;
+                work->acknowledge(worker,std::move(copy),settled_bound);seen=epoch;
             }
         }
         // Every open node, removed, with self-contained packed sequences.
@@ -517,17 +526,24 @@ namespace {
         return hash;
     }
     // Open subtrees (bound and packed sequence) and the incumbent, all in the
-    // search's normalized coordinates, plus the work already done.
+    // search's normalized coordinates, plus the work already done. The
+    // subtrees no longer open were pruned against the gap below: `settled`,
+    // the smallest of their bounds, still bounds the optimum, and a search
+    // asking for a smaller gap cannot reopen them.
     struct Checkpoint {
         uint64_t fingerprint=0;
         uint32_t regions=0;
         uint8_t cycle=0,index_bytes=0;
         double seconds=0;
         uint64_t nodes=0;
+        double settled=std::numeric_limits<double>::infinity();
+        double absolute_gap=0,relative_gap=0;
         Polygon path;
         std::vector<PackedSeed> seeds;
     };
-    constexpr char checkpoint_magic[8]={'T','P','P','C','K','P','T','1'};
+    constexpr char checkpoint_magic[8]={'T','P','P','C','K','P','T','2'};
+    // Format 1 had no `settled` nor gaps: resuming one could overstate the bound.
+    constexpr char checkpoint_magic_1[8]={'T','P','P','C','K','P','T','1'};
     void write_checkpoint(const std::string &file,const Checkpoint &checkpoint) {
         const std::string temporary=file+".tmp";
         {
@@ -537,6 +553,7 @@ namespace {
             out.write(checkpoint_magic,sizeof(checkpoint_magic));
             put(checkpoint.fingerprint);put(checkpoint.regions);put(checkpoint.cycle);put(checkpoint.index_bytes);
             put(checkpoint.seconds);put(checkpoint.nodes);
+            put(checkpoint.settled);put(checkpoint.absolute_gap);put(checkpoint.relative_gap);
             put(uint64_t(checkpoint.path.size()));
             for(auto v:checkpoint.path){put(v.x);put(v.y);}
             put(uint64_t(checkpoint.seeds.size()));
@@ -559,9 +576,14 @@ namespace {
         };
         char magic[sizeof(checkpoint_magic)];
         in.read(magic,sizeof(magic));
+        if(in&&std::equal(magic,magic+sizeof(magic),checkpoint_magic_1))
+            throw std::runtime_error("Checkpoint "+file+" has an older format, which cannot be resumed soundly; delete it to start over.");
         if(!in||!std::equal(magic,magic+sizeof(magic),checkpoint_magic))throw std::runtime_error("Not a TPP checkpoint: "+file);
         get(checkpoint.fingerprint);get(checkpoint.regions);get(checkpoint.cycle);get(checkpoint.index_bytes);
         get(checkpoint.seconds);get(checkpoint.nodes);
+        get(checkpoint.settled);get(checkpoint.absolute_gap);get(checkpoint.relative_gap);
+        if(std::isnan(checkpoint.settled)||!std::isfinite(checkpoint.absolute_gap)||!std::isfinite(checkpoint.relative_gap))
+            throw std::runtime_error("Corrupt checkpoint bounds in "+file);
         uint64_t points=0;get(points);
         if(points>(uint64_t(1)<<24))throw std::runtime_error("Corrupt checkpoint path in "+file);
         checkpoint.path.resize(points);
@@ -2127,6 +2149,10 @@ namespace tpp {
 				if (loaded->fingerprint != fingerprint || loaded->regions != n || loaded->cycle != uint8_t(cycle)
 					|| loaded->index_bytes != index_bytes)
 					throw std::invalid_argument("Checkpoint " + options.checkpoint_file + " belongs to another instance or build.");
+				if (options.absolute_gap < loaded->absolute_gap || options.relative_gap < loaded->relative_gap)
+					throw std::invalid_argument("Checkpoint " + options.checkpoint_file
+						+ " pruned subtrees with a larger gap than asked now; delete it to start over.");
+				settled_bound = std::min(settled_bound, loaded->settled);
 				if (!loaded->path.empty()) improve(loaded->path, "checkpoint");
 				for (auto &[bound, bytes] : loaded->seeds) {
 					auto sequence = NodeSequence::from_packed(std::move(bytes));
@@ -2191,7 +2217,7 @@ namespace tpp {
 		// Scratch of the farthest-region scan, reused by every expansion.
 		std::vector<std::pair<double,size_t>> scan;
 		std::vector<double> scan_uppers;
-		while (!hand_off && (!subtree_worker || queue.refill(refill_stop)) && (!queue.empty() || !dives.empty())) {
+		while (!hand_off && (!subtree_worker || queue.refill(settled_bound, refill_stop)) && (!queue.empty() || !dives.empty())) {
             import_incumbent();
 			// Resume the LNS after a new incumbent, or in bursts once half of its
 			// proportional budget is available, so subproblems are not starved.
@@ -2206,7 +2232,7 @@ namespace tpp {
 			// Past the budget, the frontier goes to the subtree threads.
 			if (subtree_parallel && queue.overflowing() && !queue.finishing() && dives.empty()) { hand_off = true; break; }
 			if (subtree_worker) {
-				queue.share(seen_epoch);
+				queue.share(seen_epoch, settled_bound);
 				options.subtree_work->nodes[options.subtree_worker].store(result.nodes, std::memory_order_relaxed);
 			}
 			// When every open node is at least the floor of the discarded ones,
@@ -2804,6 +2830,8 @@ namespace tpp {
 				Checkpoint saved;
 				saved.fingerprint = fingerprint; saved.regions = uint32_t(n); saved.cycle = uint8_t(cycle);
 				saved.index_bytes = uint8_t(index_bytes);
+				saved.absolute_gap = options.absolute_gap; saved.relative_gap = options.relative_gap;
+				saved.settled = settled_bound;
 				{
 					std::unique_lock lock(work->mutex);
 					auto ready = [&] {
@@ -2824,8 +2852,13 @@ namespace tpp {
 					}
 					for (const auto &node : work->pool) saved.seeds.emplace_back(node.bound, *node.sequence.packed_bytes());
 					for (size_t w = 0; w < threads; ++w) {
-						if (work->exited[w]) for (const auto &node : work->leftovers[w]) saved.seeds.emplace_back(node.bound, *node.sequence.packed_bytes());
-						else for (const auto &seed : work->snapshots[w]) saved.seeds.push_back(seed);
+						if (work->exited[w]) {
+							for (const auto &node : work->leftovers[w]) saved.seeds.emplace_back(node.bound, *node.sequence.packed_bytes());
+							saved.settled = std::min(saved.settled, work->settled[w]);
+						} else {
+							for (const auto &seed : work->snapshots[w]) saved.seeds.push_back(seed);
+							saved.settled = std::min(saved.settled, work->snapshot_settled[w]);
+						}
 					}
 					work->checkpointing = false; work->changed.notify_all();
 				}
