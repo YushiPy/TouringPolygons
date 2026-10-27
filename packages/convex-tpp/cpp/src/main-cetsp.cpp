@@ -24,6 +24,7 @@
 // with the bound it has, as at the time limit.
 #include "tpp_convex.h"
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <atomic>
@@ -195,6 +196,22 @@ struct Solver {
     struct Counters {size_t oracle_calls=0,newton=0,constructed=0,screened=0;double oracle_seconds=0;};
     Counters counted; // the main thread's; workers keep their own and add them after each batch
     size_t nodes=0,improvements=0;double heuristic_seconds=0;
+    // Optional targets, for the time to beat another solver's bounds: stop
+    // once the proved lower bound exceeds `target_lower` and the relative gap
+    // is below `target_gap` (strictly: the other solver had those bounds
+    // already, and kept them until its time limit). The bounds over time go
+    // to `trace` (seconds, lower, upper): each rise of the lower bound by
+    // 0.1%, each better tour, and the moment each target is first met.
+    double target_lower=-INFINITY,target_gap=INFINITY,proved=0;bool tracing=false,lower_met=false,gap_met=false;
+    std::vector<std::array<double,3>> trace;
+    bool progress(double lower) {
+        if(!tracing)return false;
+        proved=std::max(proved,lower);
+        const bool low=proved>target_lower,narrow=!std::isfinite(target_gap)||upper-proved<target_gap*upper;
+        if(trace.empty()||proved>trace.back()[1]*(1+1e-3)||upper<trace.back()[2]||low!=lower_met||narrow!=gap_met)trace.push_back({wall(),proved,upper});
+        lower_met=low;gap_met=narrow;
+        return low&&narrow;
+    }
     // Seconds since the start; past every deadline once interrupted, so that
     // all searches stop as at their time limits.
     double elapsed() const {return wall()+(interrupted.load(std::memory_order_relaxed)?1e9:0);}
@@ -237,7 +254,7 @@ struct Solver {
         return t;
     }
     void offer(const Tour &t) {
-        if(t.length<upper){upper=t.length;best_sequence=t.sequence;best_cycle=t.cycle;++improvements;}
+        if(t.length<upper){upper=t.length;best_sequence=t.sequence;best_cycle=t.cycle;++improvements;progress(proved);}
     }
     // Cheapest insertion: repeatedly the farthest uncovered disk, where the cycle grows least.
     Tour repair(std::vector<int> seq,std::vector<Vector2> cyc,double until=INFINITY) {
@@ -723,6 +740,7 @@ struct Solver {
         const double probe_until=std::min(deadline,elapsed()+std::min(1.0,0.02*deadline));
         double lower=search(probe_until);
         probe_seconds=wall()-t0;
+        if(progress(lower)){stopped="target";return lower;}
         if(upper-lower<=gap*upper*1.0000001||elapsed()>=deadline)return lower;
         const double t1=wall();
         heuristic(budget);heuristic_seconds=wall()-t1;
@@ -752,6 +770,7 @@ struct Solver {
             cutoff=std::min(upper*(1-gap),dropped_floor);incumbent=upper;
             if(round>0) {
                 if(heap.empty())break;
+                if(progress(std::min({double(heap.front().lower),cutoff,feasible_floor}))){global=std::min(double(heap.front().lower),cutoff);stopped="target";break;}
                 if(elapsed()>until){global=std::min(double(heap.front().lower),cutoff);stopped=interrupted?"interrupted":"time";break;}
                 if(bytes()>room) {
                     compact();
@@ -807,13 +826,15 @@ struct Solver {
 }
 
 int main(int argc,char **argv) {
-    const char *usage="usage: tpp-convex-cetsp INSTANCE.txt [SECONDS] [RELATIVE_GAP] [TOUR.json|-] [--strong K] [--heuristic SECONDS] [--mode eager|screen|lazy] [--seed S] [--threads T] [--radius R] [--max-memory GB]\n";
-    std::vector<std::string> positional;double heuristic=-1,radius=0,max_memory=0;size_t strong=1,threads=1;unsigned seed=20261026;std::string mode="lazy";
+    const char *usage="usage: tpp-convex-cetsp INSTANCE.txt [SECONDS] [RELATIVE_GAP] [TOUR.json|-] [--strong K] [--heuristic SECONDS] [--mode eager|screen|lazy] [--seed S] [--threads T] [--radius R] [--max-memory GB] [--target-lower L] [--target-gap G]\n";
+    std::vector<std::string> positional;double heuristic=-1,radius=0,max_memory=0,target_lower=-INFINITY,target_gap=INFINITY;size_t strong=1,threads=1;unsigned seed=20261026;std::string mode="lazy";
     for(int i=1;i<argc;++i) {
         const std::string a=argv[i];
-        if((a=="--strong"||a=="--heuristic"||a=="--mode"||a=="--seed"||a=="--threads"||a=="--radius"||a=="--max-memory")&&i+1<argc) {
+        if((a=="--strong"||a=="--heuristic"||a=="--mode"||a=="--seed"||a=="--threads"||a=="--radius"||a=="--max-memory"||a=="--target-lower"||a=="--target-gap")&&i+1<argc) {
             const std::string v=argv[++i];
             if(a=="--max-memory")max_memory=std::stod(v)*1e9;
+            else if(a=="--target-lower")target_lower=std::stod(v);
+            else if(a=="--target-gap")target_gap=std::stod(v);
             else if(a=="--radius")radius=std::stod(v);
             else if(a=="--seed")seed=unsigned(std::stoul(v));
             else if(a=="--threads")threads=std::max<size_t>(1,std::stoul(v));
@@ -829,12 +850,14 @@ int main(int argc,char **argv) {
     const double seconds=positional.size()>1?std::stod(positional[1]):60.0;
     Solver s{inst.disks,positional.size()>2?std::stod(positional[2]):1e-6,seconds,Clock::now()};
     s.strong=strong;s.seed=seed;s.threads=threads;s.max_memory=max_memory;
+    s.target_lower=target_lower;s.target_gap=target_gap;s.tracing=std::isfinite(target_lower)||std::isfinite(target_gap);
     s.mode=mode=="eager"?Solver::Mode::Eager:mode=="screen"?Solver::Mode::Screen:Solver::Mode::Lazy;
     const std::string tour=positional.size()>3?positional[3]:"-";
     // The initial tour: 5% of the time unless given (its local searches
     // stop on their own when they stagnate).
     const double lower=s.run(heuristic>=0?heuristic:0.05*seconds);
     if(interrupted)s.stopped="interrupted";
+    s.progress(lower);
     std::cout<<std::setprecision(12)<<"{\"instance\":\""<<positional[0]<<"\",\"disks\":"<<inst.disks.size()-1
         <<",\"lower_bound\":"<<lower<<",\"upper_bound\":"<<s.upper<<",\"gap\":"<<(s.upper-lower)/s.upper
         <<",\"closed\":"<<(s.upper-lower<=s.gap*s.upper*1.0000001?"true":"false")<<",\"stopped\":\""<<s.stopped<<"\""
@@ -842,7 +865,13 @@ int main(int argc,char **argv) {
         <<",\"nodes\":"<<s.nodes<<",\"oracle_calls\":"<<s.counted.oracle_calls
         <<",\"oracle_seconds\":"<<s.counted.oracle_seconds<<",\"newton_iterations\":"<<s.counted.newton<<",\"construction_closed\":"<<s.counted.constructed
         <<",\"children\":"<<s.children_created<<",\"families\":"<<s.families.size()<<",\"compactions\":"<<s.compactions
-        <<",\"dropped\":"<<s.dropped<<",\"resident_start\":"<<s.resident_start<<",\"resident_end\":"<<resident_bytes()<<",\"search_bytes\":"<<s.bytes()<<",\"dropped_floor\":"<<(std::isfinite(s.dropped_floor)?s.dropped_floor:-1)<<",\"screened\":"<<s.counted.screened<<",\"threads\":"<<s.threads<<",\"mode\":\""<<mode<<"\",\"strong\":"<<s.strong<<",\"tour_regions\":"<<s.best_sequence.size()<<"}"<<std::endl;
+        <<",\"dropped\":"<<s.dropped<<",\"resident_start\":"<<s.resident_start<<",\"resident_end\":"<<resident_bytes()<<",\"search_bytes\":"<<s.bytes()<<",\"dropped_floor\":"<<(std::isfinite(s.dropped_floor)?s.dropped_floor:-1)<<",\"screened\":"<<s.counted.screened<<",\"threads\":"<<s.threads<<",\"mode\":\""<<mode<<"\",\"strong\":"<<s.strong<<",\"tour_regions\":"<<s.best_sequence.size();
+    if(s.tracing) {
+        std::cout<<",\"trace\":[";
+        for(size_t i=0;i<s.trace.size();++i)std::cout<<(i?",":"")<<"["<<s.trace[i][0]<<","<<s.trace[i][1]<<","<<(std::isfinite(s.trace[i][2])?s.trace[i][2]:-1)<<"]";
+        std::cout<<"]";
+    }
+    std::cout<<"}"<<std::endl;
     if(tour!="-") {
         std::ofstream out(tour);out<<std::setprecision(17)<<"{\"instance\":\""<<positional[0]<<"\",\"upper_bound\":"<<s.upper<<",\"sequence\":[";
         for(size_t i=0;i<s.best_sequence.size();++i)out<<(i?",":"")<<s.best_sequence[i];
