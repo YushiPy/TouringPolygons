@@ -92,7 +92,7 @@ docs/bibliography/**/*.pdf
 
 # Local research material received from collaborators
 third_party/paula-tspn/
-# Mennell's CETSP instances as hosted by Cerrone (github.com/CerroneCarmine/CETSP); no license given, local only.
+# A local clone of github.com/CerroneCarmine/CETSP; its files are versioned in benchmarks/suites/cetsp/cerrone/.
 third_party/cetsp-cerrone/
 
 # Local comparison artifacts and third-party checkouts

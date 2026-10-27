@@ -32,8 +32,10 @@ no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.
 
 **Formulação.**
 - **Instâncias.** Os arquivos de Mennell como estão no repositório de Cerrone
-  (github.com/CerroneCarmine/CETSP). Ficam fora do Git, porque o repositório
-  não tem licença. As 27 que também vieram de Walton Coutinho são idênticas.
+  (github.com/CerroneCarmine/CETSP), e as 21 TSPLIB em 2D reconstruídas dos
+  arquivos 3D de Mennell; todas em
+  [`benchmarks/suites/cetsp/`](../suites/cetsp/README.md). As 27 que também
+  vieram de Walton Coutinho são idênticas.
 - **Binários.** Para as 42 que não são geométricas, `tpp-convex-cetsp` do
   commit 7e5a169. O oráculo e o B&B são os de 541d862; a heurística ganhou o
   filtro do Or-opt e "ruína e reconstrução" em sequências quando o tour vira
@@ -630,8 +632,9 @@ de forma certificada, sem código novo?
 
   As duas contenções são conferidas em aritmética exata depois do
   arredondamento. O depósito é um ponto.
-- **Instâncias e referência.** As instâncias 2D de Mennell (cópia local em
-  `third_party/paula-tspn/Instancias_CETSP/2D`), comparadas com a Tabela 2 de
+- **Instâncias e referência.** As instâncias 2D de Mennell (na época, uma
+  cópia local; os dados são os de `benchmarks/suites/cetsp/cerrone/Dataset/`,
+  só o cabeçalho de comentários difere), comparadas com a Tabela 2 de
   Coutinho et al. (INFORMS J. Comput. 2016): B&B com SOCP no CPLEX 12.4, 1
   thread, i7 de 3,4 GHz, limite de 4 h.
 - **Execução.** TSPN cíclico, gap relativo de 1e-6, `cache`, `features`,
