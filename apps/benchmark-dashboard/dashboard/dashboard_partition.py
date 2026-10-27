@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from threading import Lock
@@ -19,6 +20,21 @@ APP = ROOT / "apps/benchmark-dashboard"
 LIB = ROOT / "packages/optimal-convex-partition/cpp"
 BINARY = ROOT / ".build/dashboard-partition/partition"
 LOCK = Lock()
+
+
+def boost_include() -> list[str]:
+    """The decomposition's exact fallback uses Boost's cpp_int: its header
+    directory, found as wasm/build.sh finds it (BOOST_INCLUDE_DIR first)."""
+    candidates = [
+        os.environ.get("BOOST_INCLUDE_DIR", ""),
+        "/opt/homebrew/opt/boost/include",
+        "/usr/local/include",
+        "/usr/include",
+    ]
+    for candidate in candidates:
+        if candidate and (Path(candidate) / "boost/multiprecision/cpp_int.hpp").is_file():
+            return ["-I", candidate]
+    return []
 
 
 def native_partition(polygons: list[list[list[float]]]) -> list:
@@ -41,6 +57,7 @@ def native_partition(polygons: list[list[list[float]]]) -> list:
                     "-O3",
                     "-I",
                     str(LIB / "include"),
+                    *boost_include(),
                     str(sources[0]),
                     str(sources[1]),
                     "-o",
