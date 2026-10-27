@@ -8,7 +8,7 @@ Pastas com dados:
 
 | Pasta | Conteúdo |
 |---|---|
-| [cetsp-table2-mac-2026-10-27](cetsp-table2-mac-2026-10-27/per-instance.csv) | As 62 instâncias 2D da Tabela 2 de Coutinho et al. (2016): nossos limites com 1 e 8 threads (30 min), os deles (4 h), o UB de Mennell e o tour de Carrabs et al. (2020), uma linha por instância; resumo [abaixo](#cetsp-table2-mac-2026-10-27). |
+| [cetsp-table2-mac-2026-10-27](cetsp-table2-mac-2026-10-27/per-instance.csv) | As 62 instâncias 2D da Tabela 2 de Coutinho et al. (2016): nossos limites com 1 e 8 threads (30 min), os deles (4 h), o UB de Mennell e o tour de Carrabs et al. (2020), uma linha por instância; e, nas 30 abertas para os dois, o tempo até superar estritamente os limites de 4 h deles ([`time-to-beat.csv`](cetsp-table2-mac-2026-10-27/time-to-beat.csv)); resumo [abaixo](#cetsp-table2-mac-2026-10-27). |
 | [fekete-smoothed-dantzig-2026-10-22](fekete-smoothed-dantzig-2026-10-22/per-run.csv) | As instâncias suavizadas na dantzig, no protocolo da referência (C ×3; B e A com 300 s e extensão de 900 s), uma linha por instância, configuração, raiz e limite; resumo [abaixo](#fekete-smoothed-dantzig-2026-10-22). |
 | [fekete-smoothed-mac-2026-10-21](fekete-smoothed-mac-2026-10-21/per-run.csv) | Fekete (1 thread, CHR e LEFP) × nosso nas 24 instâncias suavizadas, 300 s, uma linha por execução com limites, gap e validação do tour; resumo [abaixo](#fekete-smoothed-mac-2026-10-21). |
 | [fekete-reference-dantzig-2026-10-20](fekete-reference-dantzig-2026-10-20/per-case.csv) | Réplica das configurações A, B e C da armijo na dantzig (Intel), 300 s, mesmo formato; resumo [abaixo](#fekete-reference-dantzig-2026-10-20). |
@@ -101,6 +101,32 @@ no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.
   - kroD100-0.02, com 8 threads, esvaziou a fila aos 1.714 s e terminou no
     piso, com gap de 0,26%.
 
+**Tempo até superar os limites de 4 h deles (as 30 abertas para os dois).**
+- **Protocolo.**
+  - Binário do commit 841c144 (`--target-lower`, `--target-gap`), o mesmo B&B
+    e a mesma heurística de 7e5a169. Configuração da campanha: orçamento de
+    1.800 s (heurística de até 90 s), 1 thread, teto de 2,5 GB. Duas
+    instâncias ao mesmo tempo, com `nice`, no Mac em uso leve.
+  - Cada execução para quando o LB provado é **estritamente maior** que o
+    deles e o gap estritamente menor. A tabela deles arredonda o LB em 3
+    casas e o gap em 3 casas do percentual; os alvos somam meia unidade da
+    última casa (LB + 0,0005; gap − 0,0005 ponto percentual).
+  - O tempo vem da trajetória dos limites, gravada no momento em que cada alvo
+    é alcançado. É o tempo total, com a leitura, o B&B preliminar de 1 s (só
+    com o tour dos centros) e a heurística, durante a qual o LB não sobe.
+  - O gap deles usa o tour de Mennell; o nosso, o nosso tour.
+- **Resultado.** Os dois limites deles foram superados nas 30, e uma linha
+  por instância está em
+  [`time-to-beat.csv`](cetsp-table2-mac-2026-10-27/time-to-beat.csv).
+  - **LB:** de 0,12 s a 111 s, com mediana de 50 s. Contra os 14.400 s
+    deles, de 129× a 118.000×, com mediana de 324×.
+  - **Gap:** razão de 151× a 9.973×, com mediana de 350×.
+  - **Onde o tempo vai.** Em 6, todas de raio aleatório, o B&B preliminar
+    supera o LB deles em até 0,86 s; dsj1000rdmRad, em 0,12 s. Nas outras
+    24, o LB deles é superado pelo B&B depois da heurística, em mediana de
+    3,0 s (máximo de 34 s, pcb442-0.10); o resto é a heurística, que usa os
+    90 s inteiros nas maiores.
+
 **Limitações.**
 - Máquinas de épocas diferentes (Mac de 2024 contra i7 de 2012), 30 min
   contra 4 h. Os fatores de tempo não descontam o hardware.
@@ -110,6 +136,10 @@ no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.
   melhor conhecido.
 - As 20 geométricas usam a heurística anterior; os UBs delas podem melhorar.
 - As instâncias 3D (Tabela 3) não rodaram.
+- No tempo até superar os limites, eles publicam só os limites ao fim de 4 h.
+  A razão supõe que precisaram das 4 h inteiras; se o LB deles parou de subir
+  antes, ela exagera. A frase segura é "superamos em X s o LB que eles têm ao
+  fim de 4 h". Essa medição rodou com outro processo ao lado.
 
 ## cetsp-campaign2-mac-2026-10-26
 
