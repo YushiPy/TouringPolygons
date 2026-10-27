@@ -144,6 +144,7 @@ tests=(
 	tpp-convex-directional-tests
 	tpp-convex-cycle-tests
 	tpp-convex-cycle-certificate-tests
+	tpp-convex-disk-cycle-tests
 	tpp-unordered-tests
 	tpp-tspn-tests
 )
