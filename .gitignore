@@ -92,6 +92,8 @@ docs/bibliography/**/*.pdf
 
 # Local research material received from collaborators
 third_party/paula-tspn/
+# Third-party papers: references in docs/extensions/README.md, PDFs kept locally
+docs/extensions/**/*.pdf
 # A local clone of github.com/CerroneCarmine/CETSP; its files are versioned in benchmarks/suites/cetsp/cerrone/.
 third_party/cetsp-cerrone/
 
