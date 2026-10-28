@@ -1,0 +1,383 @@
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[brazilian]{babel}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{newpxtext,newpxmath}
+\usepackage[a4paper,margin=24mm,headheight=15pt,headsep=8mm,footskip=11mm]{geometry}
+\usepackage{xcolor,booktabs,array,caption,fancyhdr,enumitem}
+\usepackage{algorithm,needspace}
+\usepackage[noend]{algpseudocode}
+\usepackage{tikz}
+\usepackage[hidelinks]{hyperref}
+\usetikzlibrary{arrows.meta,calc}
+
+\definecolor{ink}{HTML}{223247}
+\definecolor{navy}{HTML}{274568}
+\definecolor{quiet}{HTML}{617384}
+\definecolor{path}{HTML}{C2410C}
+\definecolor{ours}{HTML}{2155D6}
+
+\captionsetup{font=small,labelfont={bf,color=navy},labelsep=colon}
+\pagestyle{fancy}\fancyhf{}
+\renewcommand{\headrulewidth}{.4pt}
+\fancyhead[L]{\small\sffamily\color{ink}O CETSP POR GEOMETRIA}
+\fancyhead[R]{\small\sffamily\color{quiet}TouringPolygons}
+\fancyfoot[L]{\small\color{quiet}28 de outubro de 2026}
+\fancyfoot[R]{\small\color{quiet}\thepage}
+\setlength{\parindent}{0pt}\setlength{\parskip}{5pt}
+\setlist{itemsep=2pt,topsep=3pt}
+
+\theoremstyle{plain}
+\newtheorem{lema}{Lema}
+\newtheorem{proposicao}{Proposição}
+\theoremstyle{remark}
+\newtheorem*{obs}{Observação}
+
+\floatname{algorithm}{Algoritmo}
+\algrenewcommand\algorithmicrequire{\textbf{Entrada:}}
+\algrenewcommand\algorithmicensure{\textbf{Saída:}}
+\algrenewcommand\algorithmicfor{\textbf{para}}
+\algrenewcommand\algorithmicforall{\textbf{para cada}}
+\algrenewcommand\algorithmicdo{\textbf{faça}}
+\algrenewcommand\algorithmicwhile{\textbf{enquanto}}
+\algrenewcommand\algorithmicif{\textbf{se}}
+\algrenewcommand\algorithmicthen{\textbf{então}}
+\algrenewcommand\algorithmicelse{\textbf{senão}}
+\algrenewcommand\algorithmicreturn{\textbf{devolva}}
+\algrenewcommand\algorithmicprocedure{\textbf{procedimento}}
+\algrenewcommand\algorithmicfunction{\textbf{função}}
+\algrenewcommand{\algorithmiccomment}[1]{\hfill{\color{quiet}\small$\triangleright$ #1}}
+
+\newcommand{\sect}[1]{\par\bigskip{\color{navy}\large\bfseries #1\par}\smallskip}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\vez}{\ensuremath{\times}}
+
+\begin{document}
+
+{\color{navy}\LARGE\bfseries O CETSP por geometria\par}
+\vspace{2pt}
+{\color{quiet}\large o oráculo de discos de ordem fixa e o branch-and-bound sobre ele\par}
+\vspace{10pt}
+
+\textbf{O problema.} Dados discos fechados $D_i=\{x\in\R^2:\lVert x-c_i\rVert\le\rho_i\}$,
+$i=1,\dots,n$, um ponto inicial $s$ e um ponto final $t$, achar o menor caminho de $s$ a
+$t$ que encontra todos os discos. Com $s=t$ (o depósito) é o \emph{close-enough TSP}
+clássico, um tour fechado, e é o caso de toda a literatura. Com $s\neq t$ é o análogo,
+para discos e com a ordem livre, do TPP de Dror, que liga $s$ a $t$. São duas camadas:
+\begin{itemize}
+  \item \textbf{Ordem fixa.} Dada uma sequência cíclica $D_{\sigma_1},\dots,D_{\sigma_k}$,
+    achar $q_j\in D_{\sigma_j}$ que minimizem $L(q)=\sum_{j=1}^{k}\lVert q_{j+1}-q_j\rVert$, com
+    $q_{k+1}=q_1$. O ponto inicial e o final entram como discos de raio $0$. É um problema
+    convexo: uma soma de normas com restrições de bola. A literatura o resolve como SOCP;
+    aqui ele é resolvido por geometria (seções 1 a 4).
+  \item \textbf{Ordem livre.} Um branch-and-bound sobre sequências, com a mesma
+    ramificação de Coutinho et al.~(2016). Cada nó chama a ordem fixa (seção 5).
+\end{itemize}
+Escrevemos $d_j=q_{j+1}-q_j$ e, quando $d_j\neq0$, $u_j=d_j/\lVert d_j\rVert$. Para não
+carregar índices, chamamos $D_{\sigma_j}$ de $D_j$, com centro $c_j$ e raio $\rho_j$.
+
+\textbf{Caminho de $s$ a $t$ como ciclo.} O ciclo
+$s\to D_{\sigma_2}\to\dots\to D_{\sigma_{k-1}}\to t\to s$ difere do caminho de $s$ a $t$ só
+pelo segmento $t\to s$, de comprimento constante $\lVert t-s\rVert$. Os dois têm as mesmas
+soluções ótimas, e os limites do ciclo menos $\lVert t-s\rVert$ são limites do caminho. Por
+isso o oráculo de ciclos resolve o caminho sem mudança. Com $s=t$, o segmento tem
+comprimento zero.
+
+\textbf{A ideia em uma frase.} Como no oráculo de polígonos, o de discos \emph{propõe} um
+ciclo por construções geométricas e \emph{prova} limites $L\le\mathrm{OPT}\le U$ com um
+certificado que não depende de como o ciclo foi obtido. A proposta é iterativa; a prova é
+uma conta em forma fechada.
+
+\sect{1. O certificado}
+
+\begin{proposicao}[limite inferior]\label{prop:dual}
+Para quaisquer vetores $u_1,\dots,u_k$ com $\lVert u_j\rVert\le1$, ponha
+$w_j=u_{j-1}-u_j$ (com $u_0=u_k$). Então, para todo ciclo $q$ com $q_j\in D_j$,
+\[
+  L(q)\;\ge\;D(u)\;=\;\sum_{j=1}^{k}\min_{v\in D_j} v\cdot w_j
+       \;=\;\sum_{j=1}^{k}\bigl(c_j\cdot w_j-\rho_j\lVert w_j\rVert\bigr).
+\]
+\end{proposicao}
+\begin{proof}
+Por Cauchy--Schwarz, $\lVert d_j\rVert\ge u_j\cdot d_j$. Somando e reagrupando por
+partes, $\sum_j u_j\cdot(q_{j+1}-q_j)=\sum_j q_j\cdot(u_{j-1}-u_j)=\sum_j q_j\cdot w_j$.
+Cada parcela é pelo menos o mínimo de $v\cdot w_j$ sobre o disco, que é atingido em
+$v=c_j-\rho_j\,w_j/\lVert w_j\rVert$ e vale $c_j\cdot w_j-\rho_j\lVert w_j\rVert$.
+\end{proof}
+
+\textbf{Limite superior.} Qualquer ciclo com $q_j\in D_j$ comprovado dá
+$U=L(q)$. O ponto proposto é testado com $\rho_j^2-\lVert q_j-c_j\rVert^2\ge0$ em
+arredondamento dirigido; se o teste falha, o ponto é puxado para o centro até passar.
+
+\textbf{Arredondamento.} $D(u)$ e $U$ são avaliados em aritmética intervalar, e
+$\lVert u_j\rVert\le1$ é comprovado da mesma forma. Usam-se o extremo inferior de $D$ e o
+superior de $U$. Como $\sum_j w_j=0$, os centros podem ser transladados pelo baricentro sem
+mudar $D$; isso reduz o cancelamento.
+
+\textbf{Quando o certificado fecha.} Há igualdade na Proposição~\ref{prop:dual} quando:
+\begin{itemize}
+  \item cada $u_j$ é a direção de $d_j$;
+  \item cada $q_j$ minimiza $v\cdot w_j$ no seu disco.
+\end{itemize}
+Isso tem dois casos:
+\begin{itemize}
+  \item \emph{passagem reta}: $w_j=0$, o ciclo atravessa o disco sem dobrar;
+  \item \emph{reflexão}: $q_j$ está no círculo e $u_j-u_{j-1}$ aponta na normal externa
+    em $q_j$. É a lei de reflexão, com ângulo de incidência igual ao de saída.
+\end{itemize}
+Logo, se a proposta acerta qual disco é reto e qual reflete, e as direções, o certificado
+fecha. A correção do resultado depende só destas contas, não da proposta.
+
+\sect{2. Um disco entre dois vizinhos: o problema de Alhazen}
+
+\begin{lema}[atualização de Alhazen]\label{lem:alhazen}
+Sejam $a,b\in\R^2$ e $D$ o disco de centro $c$ e raio $\rho>0$. O ponto $x\in D$ que
+minimiza $\lVert x-a\rVert+\lVert x-b\rVert$ é:
+\begin{itemize}
+  \item se o segmento $ab$ encontra $D$: o ponto de $ab$ mais próximo de $c$ (passagem reta;
+    qualquer ponto de $ab\cap D$ empata);
+  \item senão: o ponto $p(\theta)=c+\rho(\cos\theta,\sin\theta)$ do arco entre as direções
+    radiais de $a$ e de $b$ onde $g'(\theta)=0$. Aqui $g(\theta)=\lVert p-a\rVert+\lVert p-b\rVert$,
+    $g'(\theta)=\rho\,\tau\cdot(s_a+s_b)$, com $s_a=(p-a)/\lVert p-a\rVert$,
+    $s_b=(p-b)/\lVert p-b\rVert$ e $\tau$ a tangente unitária.
+\end{itemize}
+\end{lema}
+Nas duas pontas do arco, a distância ao vizinho daquela ponta é estacionária ao longo do
+círculo e a outra diminui para dentro do arco. Então $g'$ troca de sinal no arco, e um
+Newton protegido nesse intervalo (com bissecção quando o passo sai) acha a raiz. A raiz é
+a lei de reflexão ($s_a+s_b$ paralelo à normal). Em geral é raiz de uma quártica, a
+\emph{reflexão de Alhazen}, e por isso não tem forma fechada simples.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[scale=0.9,>=Latex]
+  \begin{scope}
+    \draw[quiet] (0,0) circle (1);
+    \fill (0,0) circle (1.2pt) node[below left,quiet,font=\small] {$c$};
+    \draw[path,thick] (-2.6,0.4) -- (2.6,-0.2);
+    \fill[path] (-2.6,0.4) circle (1.5pt) node[above,font=\small] {$a$};
+    \fill[path] (2.6,-0.2) circle (1.5pt) node[above,font=\small] {$b$};
+    \fill[ours] (0.02,0.10) circle (1.8pt);
+    \node[font=\small,quiet] at (0,-1.5) {passagem reta};
+  \end{scope}
+  \begin{scope}[xshift=7cm]
+    \draw[quiet] (0,0) circle (1);
+    \fill (0,0) circle (1.2pt) node[below,quiet,font=\small] {$c$};
+    \coordinate (p) at (0,1);
+    \draw[path,thick] (-2.2,2.4) -- (p) -- (2.2,2.4);
+    \fill[path] (-2.2,2.4) circle (1.5pt) node[left,font=\small] {$a$};
+    \fill[path] (2.2,2.4) circle (1.5pt) node[right,font=\small] {$b$};
+    \draw[->,ours] (p) -- (0,1.9) node[right,font=\small] {normal};
+    \fill[ours] (p) circle (1.8pt) node[below right,font=\small] {$p(\theta)$};
+    \node[font=\small,quiet] at (0,-1.5) {reflexão};
+  \end{scope}
+\end{tikzpicture}
+\caption{Os dois casos do Lema~\ref{lem:alhazen}. Na reflexão, os segmentos fazem ângulos
+iguais com a normal.}
+\end{figure}
+
+\textbf{Relação com os mapas de último passo.} Para um polígono, o mapa de último passo
+particiona o plano por vértices e arestas e dá o último ponto de visita por uma fórmula em
+cada região. Para um disco, o análogo é a ``sombra'' (onde a passagem é reta) mais um leque
+de raios refletidos, parametrizado pelo ângulo $\theta$, monotonamente. A analogia é só
+essa: não há partição finita, porque refletir num círculo não é uma isometria, ao contrário
+de desdobrar por uma aresta.
+
+\sect{3. O oráculo: proposta geométrica e certificação}
+
+\begin{algorithm}[h]
+\caption{Ciclo de ordem fixa por discos (\texttt{tpp\_convex\_solve\_cycle\_disks})}\label{alg:oracle}
+\begin{algorithmic}[1]
+\Require discos $D_1,\dots,D_k$ na ordem; gap $\varepsilon$; corte $\kappa$ (do B\&B); contatos iniciais opcionais
+\Ensure $L\le\mathrm{OPT}\le U$ e contatos $q$ com $L(q)=U$
+\State $q_j\gets$ contato inicial ou $c_j$; \Call{Varredura}{$q$} duas vezes
+\For{rodada $=1,\dots,32$, enquanto o gap cai à metade em alguma das 3 últimas}
+  \State \Call{FecharTipo}{$q$} \Comment{Newton nos ângulos das reflexões}
+  \State \Call{Varredura}{$q$} \Comment{confere o tipo}
+  \State $u\gets$ \Call{DuaisDoTipo}{$q$};\quad $(L,U)\gets$ certificado (seção 1)
+  \If{$U-L\le\varepsilon$ \textbf{ou} $L\ge\kappa$} \Return $(L,U,q)$ \EndIf
+\EndFor
+\State pontos interiores a partir de $q$: barreira $-\mu\sum_j\log(\rho_j^2-\lVert y_j-c_j\rVert^2)$,
+  certificando a cada nível de $\mu$
+\State \Return o melhor $(L,U,q)$ certificado
+\end{algorithmic}
+\end{algorithm}
+
+\textbf{\textsc{Varredura} (Gauss--Seidel).} Cada contato é trocado pela sua atualização de
+Alhazen (Lema~\ref{lem:alhazen}) com os vizinhos atuais fixos. Nenhuma troca alonga o
+ciclo. É uma busca por blocos de coordenadas com solução exata de cada bloco. Ao fim,
+cada disco tem um \emph{tipo}: reto, reflexão, ou \emph{canto} (o ponto onde dois círculos
+se cruzam, visitado por dois discos de uma vez).
+
+\textbf{Blocos.} Com discos sobrepostos, dois contatos podem coincidir. O segmento entre
+eles tem comprimento zero, e mover um sozinho nunca encurta o ciclo, então a varredura
+empaca numa lente. Uma sequência de contatos coincidentes se move junta. Entre os vizinhos
+$a$ e $b$, o bloco toma o menor dentre:
+\begin{itemize}
+  \item um ponto da interseção dos seus discos: no segmento $ab$, se ele a cruza; num ponto
+    de Alhazen de um dos círculos, se ele está nos outros; ou num canto;
+  \item um membro refletindo e os outros retos;
+  \item uma passada de Alhazen em cada sentido, ignorando a coincidência.
+\end{itemize}
+Um canto só fica se o seu dual o aprova (ver \textsc{DuaisDoTipo}); senão os dois membros
+começam um pouco separados e o Newton os separa. É o que acontece nas ``bolhas'' de
+Mennell, de círculos tangentes.
+
+\textbf{\textsc{FecharTipo} (Newton).} Com o tipo fixo:
+\begin{itemize}
+  \item os contatos retos saem do problema, porque ficam nos segmentos entre as dobras;
+  \item pontos e cantos ficam fixos;
+  \item cada reflexão anda no seu círculo pelo seu ângulo $\theta$.
+\end{itemize}
+O comprimento do ciclo reduzido é minimizado por Newton nos ângulos. A hessiana é
+tridiagonal cíclica e se resolve em $O(k)$ por Thomas com Sherman--Morrison. A curvatura de
+cada círculo soma $\rho\lambda\ge0$ à diagonal, com $\lambda$ o multiplicador da reflexão,
+então a convergência é quadrática perto do ótimo. Há um deslocamento crescente até o passo
+descer, e busca linear.
+
+Se duas dobras se encontram, uma reflexão chegou ao cruzamento do seu círculo com o
+seguinte (vira canto) ou a uma dobra fixa (fica ali), e o novo tipo é fechado. Duas
+reflexões cujos círculos se cruzam também se fundem no cruzamento quando isso encurta o
+ciclo, porque perto de um canto o comprimento não é suave e o Newton fica lento. No fim, os
+contatos retos voltam aos seus segmentos, em ordem ao longo de cada um.
+
+\textbf{\textsc{DuaisDoTipo}.} Cada segmento do ciclo recebe a direção do segmento reduzido
+que o contém. Assim as passagens retas dobram exatamente zero, e num tipo ótimo fechado
+$D(u)=L(q)$ até o arredondamento. Num canto, o segmento de comprimento zero recebe
+\[
+  u_{\mathrm{meio}}=u_{\mathrm{entra}}+\lambda_1n_1,\qquad
+  \lambda_1n_1+\lambda_2n_2=u_{\mathrm{sai}}-u_{\mathrm{entra}},
+\]
+com $n_1,n_2$ as normais externas dos dois círculos no canto. O canto é ótimo exatamente
+quando $\lambda_1,\lambda_2\ge0$ e $\lVert u_{\mathrm{meio}}\rVert\le1$.
+
+\begin{obs}[não há caminho exato]
+Para polígonos, um tipo combinatório fixo se resolve exatamente em racionais por
+desdobramento, e isso dá o gap zero do Teorema~B do texto sobre o ciclo convexo. Para
+discos isso não existe: já um único disco entre dois pontos é uma quártica. O oráculo
+certifica $L\le\mathrm{OPT}\le U$ até o gap pedido. Na prática, a construção certifica gaps
+de cerca de $10^{-12}$ relativo, e a barreira raramente roda.
+\end{obs}
+
+\sect{4. Inserção de um disco: limites em forma fechada}
+
+Seja $q$ o ciclo de um nó, com as suas direções $u$. Insira o disco $E$ na posição $p$, entre
+$q_{p-1}$ e $q_p$, e tome o ponto $x^\ast\in E$ mais próximo do segmento $q_{p-1}q_p$. A
+Proposição~\ref{prop:dual} com as mesmas direções $u$, exceto que o segmento $q_{p-1}q_p$
+dá lugar às direções de $q_{p-1}\to x^\ast$ e de $x^\ast\to q_p$, é um limite inferior
+\emph{válido} do filho. Só três parcelas mudam (os dois vizinhos e $E$), então os $k$
+limites saem juntos em $O(k)$, sem resolver nenhum filho.
+
+\sect{5. O branch-and-bound}
+
+\begin{algorithm}[h]
+\caption{CETSP (\texttt{tpp-convex-cetsp})}\label{alg:bnb}
+\begin{algorithmic}[1]
+\Require pontos $s$ e $t$ (o depósito, se $s=t$), discos $D_1,\dots,D_n$, gap relativo $\varepsilon=10^{-6}$, tempo
+\Ensure caminho factível de comprimento $U^\ast$ e limite inferior $L^\ast$ (comprimentos de ciclo menos $\lVert t-s\rVert$)
+\State $U^\ast\gets$ caminho pelos centros; B\&B curto (até $1$\,s) só com ele
+\State heurística (até $5\%$ do tempo): inserção mais barata, 2-opt e Or-opt com
+  atualização de Alhazen, ILS (inclusive ruína e reconstrução)
+\State $Q\gets\{(\langle s\rangle,\,0)\}$ se $s=t$, senão $\{(\langle s,t\rangle,\,0)\}$ \Comment{chave: limite}
+\While{$Q\neq\emptyset$}
+  \State retire de $Q$ o nó $(\sigma,\beta)$ de menor $\beta$
+  \If{$\beta\ge(1-\varepsilon)U^\ast$} \textbf{pare} \EndIf
+  \State $(L,U,q)\gets$ Algoritmo~\ref{alg:oracle} em $\sigma$, com corte $\kappa=(1-\varepsilon)U^\ast$
+  \If{$\max(\beta,L)\ge\kappa$} \textbf{continue} \Comment{podado} \EndIf
+  \State $F\gets\{i:\ D_i\text{ não encontra a poligonal }q\}$ \Comment{sem o segmento $t\to s$}
+  \If{$F=\emptyset$}
+    \State $U^\ast\gets\min(U^\ast,U)$; o piso da subárvore é $L$ \Comment{tour factível}
+  \Else
+    \State $E\gets$ o disco de $F$ mais distante de $q$
+    \ForAll{posição $p$ de $\sigma$ (se $s\neq t$, só antes de $t$)}
+      \State $\beta_p\gets\max(L,\text{limite de inserção de }E\text{ em }p)$ \Comment{seção 4}
+      \If{$\beta_p<(1-\varepsilon)U^\ast$} insira $(\sigma+E@p,\,\beta_p)$ em $Q$ \EndIf
+    \EndFor
+  \EndIf
+\EndWhile
+\State \Return $U^\ast$ e $L^\ast=\min(\text{limites abertos},\ \text{pisos},\ (1-\varepsilon)U^\ast)$
+\end{algorithmic}
+\end{algorithm}
+
+Com $s\neq t$, $t$ fica sempre por último, e o gap é medido no comprimento do caminho
+(o $\varepsilon$ do algoritmo se aplica a $U^\ast-\lVert t-s\rVert$). A simetria espelhada só
+existe com $s=t$.
+
+\textbf{Por que o resultado está certo.} O limite de um nó é o $L$ certificado do ciclo pela
+sua sequência. Visitar só parte dos discos nunca alonga o ciclo, então esse limite vale para
+toda a subárvore. O $U$ de um tour vem do mesmo certificado.
+
+Detalhes que não mudam a correção:
+\begin{itemize}
+  \item filhos ``preguiçosos'': entram na fila com o limite de inserção e só são resolvidos
+    quando saem;
+  \item com $s=t$, a simetria espelhada é removida no segundo disco;
+  \item os filhos são guardados em famílias ordenadas;
+  \item com um teto de memória, descarta-se o terço de pior limite e guarda-se o menor
+    limite descartado, que passa a limitar o que se pode provar;
+  \item threads expandem lotes de nós.
+\end{itemize}
+Os tours finais são conferidos à parte, em aritmética racional, contra o texto decimal das
+instâncias.
+
+\textbf{Relação com outros métodos.}
+\begin{itemize}
+  \item \emph{Coutinho et al.~(2016)}: a ramificação é a mesma. Eles resolvem cada nó com um
+    SOCP no CPLEX; aqui entra o Algoritmo~\ref{alg:oracle}, mais os limites de inserção e a
+    heurística.
+  \item \emph{Busca por blocos de coordenadas} (atualizar um ponto de visita por vez, com
+    solução exata de um círculo): é a \textsc{Varredura} do Algoritmo~\ref{alg:oracle}. O
+    que se acrescenta é o Newton que fecha o tipo, os blocos para discos sobrepostos e,
+    principalmente, o certificado da seção 1. O certificado prova a otimalidade até o gap
+    sem hipóteses sobre a convergência da proposta.
+\end{itemize}
+
+\needspace{14\baselineskip}
+\sect{6. Resultados}
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}p{5.6cm}p{10.0cm}@{}}
+\toprule
+Experimento & Resultado \\
+\midrule
+Ordem fixa \vez\ SOCP do Gurobi, 20 instâncias de Mennell (2D) &
+  certifica todas; mediana $17\vez$ mais rápido; o Gurobi acusa erro numérico em 8 \\
+B\&B \vez\ Coutinho et al., Tabela 2 (62 instâncias 2D) & fechadas: 32 contra 23 \\
+\quad as 23 fechadas por eles &
+  mesmos ótimos; $17\vez$ a $18\,000\vez$ mais rápido (mediana $\approx100\vez$), 1 thread \\
+\quad as 30 abertas para os dois &
+  nosso $L^\ast$ maior em todas: $+2{,}8\%$ a $+20\%$ (mediana $13{,}6\%$); o $L^\ast$ de 4\,h
+  deles é superado em $0{,}12$ a $111$\,s (mediana $50$\,s) \\
+Behdani e Smith (720 instâncias) & todas fechadas, $3{,}4$\,ms em média \\
+$s\neq t$ ($t$ do lado oposto ao depósito) &
+  Behdani, 240 com raio $0{,}5$: todas fechadas, $1{,}3\vez$ o tempo de $s=t$ (mediana; pior
+  $6\vez$). 22 instâncias rápidas da Tabela 2: mediana $2{,}2\vez$, mas algumas muito mais
+  difíceis (rat195-0.10: $0{,}1$ para $43$\,s; d493-0.10 aberta em $50$\,s). Com $t$ perto do
+  depósito, só o fator $2$ da simetria perdida. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Ressalvas.}
+\begin{itemize}
+  \item As máquinas são de épocas diferentes (um Mac de 2024 contra um i7 de 2012), e a
+    diferença não está descontada.
+  \item ``Fechada'' quer dizer gap relativo de até $10^{-6}$, com limites provados em
+    binary64; não é ótimo algébrico.
+  \item Só 2D: a construção é plana. O certificado se estende a esferas; a Tabela 3 (3D) não
+    foi tentada.
+  \item Os limites inferiores de Carrabs et al.~(2020) ainda não foram comparados.
+\end{itemize}
+
+\textbf{No repositório.}
+\begin{itemize}
+  \item O oráculo: \texttt{packages/convex-tpp/cpp/src/solvers/cycle\_disk\_oracle.cpp}.
+  \item O B\&B: \texttt{packages/convex-tpp/cpp/src/main-cetsp.cpp}.
+  \item A descrição detalhada: \texttt{docs/algorithms/convex-cycle.md}, seção \emph{Disks}.
+  \item Os números: \texttt{benchmarks/results-saved/README.md}, seções \texttt{cetsp-*}.
+\end{itemize}
+
+\end{document}

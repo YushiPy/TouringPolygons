@@ -25,6 +25,7 @@
 #include "tpp_convex.h"
 #include <algorithm>
 #include <array>
+#include <optional>
 #include <chrono>
 #include <cstdint>
 #include <atomic>
@@ -174,6 +175,20 @@ struct Solver {
     unsigned seed=20261026; // of the iterated local search
     size_t threads=1; // expanding nodes in parallel
     double max_memory=0; // bytes; 0: no ceiling
+    // A tour from the depot (all[0]) to a fixed end, the last disk (radius 0),
+    // as in Dror's TPP; the depot's closed tour is the case where they meet.
+    // Every sequence ends at the end, no move takes it out or puts a disk
+    // after it, and the link back to the depot, of constant length `offset`,
+    // is neither a visit nor part of the gap: bounds of the cycle less offset
+    // are bounds of the open tour.
+    bool open=false;double offset=0;
+    size_t tail() const {return open?1:0;}
+    std::vector<int> root() const {return open?std::vector<int>{0,int(all.size()-1)}:std::vector<int>{0};}
+    std::vector<Vector2> root_points() const {std::vector<Vector2> w;for(int i:root())w.push_back(all[size_t(i)].center);return w;}
+    // Below this, a bound closes the gap relative to the open tour's length.
+    double cutoff_of(double u) const {return open?u-gap*(u-offset):u*(1-gap);}
+    double tour_lower(double l) const {return open?l-offset*(1+4*std::numeric_limits<double>::epsilon()):l;}
+    double tour_upper(double u) const {return open?u-offset*(1-4*std::numeric_limits<double>::epsilon()):u;}
     std::string stopped="closed"; // or "time", "memory"
     double upper=INFINITY;std::vector<int> best_sequence;std::vector<Vector2> best_cycle;
     struct Counters {size_t oracle_calls=0,newton=0,constructed=0,screened=0;double oracle_seconds=0;};
@@ -190,7 +205,8 @@ struct Solver {
     bool progress(double lower) {
         if(!tracing)return false;
         proved=std::max(proved,lower);
-        const bool low=proved>target_lower,narrow=!std::isfinite(target_gap)||upper-proved<target_gap*upper;
+        const bool low=tour_lower(proved)>target_lower,
+            narrow=!std::isfinite(target_gap)||tour_upper(upper)-tour_lower(proved)<target_gap*tour_upper(upper);
         if(trace.empty()||proved>trace.back()[1]*(1+1e-3)||upper<trace.back()[2]||low!=lower_met||narrow!=gap_met)trace.push_back({wall(),proved,upper});
         lower_met=low;gap_met=narrow;
         return low&&narrow;
@@ -201,7 +217,7 @@ struct Solver {
     double wall() const {return std::chrono::duration<double>(Clock::now()-began).count();}
     tpp::DiskCycleResult oracle(const std::vector<int> &sequence,const std::vector<Vector2> &warm,double cutoff,Counters &c,double bound) const {
         Disks d;for(int i:sequence)d.push_back(all[size_t(i)]);
-        tpp::DiskCycleOptions o;o.max_gap=std::isfinite(bound)?0.25*gap*bound:1e-9;o.lower_bound_cutoff=cutoff;
+        tpp::DiskCycleOptions o;o.max_gap=std::isfinite(bound)?0.25*gap*(bound-offset):1e-9;o.lower_bound_cutoff=cutoff;
         if(warm.size()==d.size())o.initial_contacts=warm;
         const auto t0=Clock::now();const auto r=tpp::tpp_convex_solve_cycle_disks(d,o);
         c.oracle_seconds+=std::chrono::duration<double>(Clock::now()-t0).count();++c.oracle_calls;c.newton+=r.newton_iterations;c.constructed+=r.construction_closed;
@@ -225,7 +241,7 @@ struct Solver {
     // A tour: a sequence whose oracle cycle meets every disk, and its U.
     struct Tour {std::vector<int> sequence;std::vector<Vector2> cycle;double length=INFINITY;};
     bool covers(const std::vector<int> &sequence,const std::vector<Vector2> &cycle) const {
-        const auto ex=tpp::tpp_convex_disk_excess(all,sequence,cycle);
+        const auto ex=tpp::tpp_convex_disk_excess(all,sequence,cycle,!open);
         for(size_t j=1;j<all.size();++j)if(uncovered(ex,all,j))return false;
         return true;
     }
@@ -243,11 +259,11 @@ struct Solver {
     Tour repair(std::vector<int> seq,std::vector<Vector2> cyc,double until=INFINITY) {
         for(;;) {
             if(elapsed()>until)return {};
-            const auto e=tpp::tpp_convex_disk_excess(all,seq,cyc);const auto &ex=e.excess;
+            const auto e=tpp::tpp_convex_disk_excess(all,seq,cyc,!open);const auto &ex=e.excess;
             int far=-1;for(size_t j=1;j<all.size();++j)if(uncovered(e,all,j)&&(far<0||ex[j]>ex[size_t(far)]))far=int(j);
             if(far<0)break;
             double bestU=INFINITY;std::vector<int> bestS;std::vector<Vector2> bestC;
-            for(size_t p=1;p<=seq.size();++p) {
+            for(size_t p=1;p+tail()<=seq.size();++p) {
                 auto s=seq;s.insert(s.begin()+long(p),far);
                 const auto r=oracle(s,child_warm(cyc,p,all[size_t(far)]),INFINITY);
                 if(r.upper_bound<bestU){bestU=r.upper_bound;bestS=s;bestC=r.contacts;}
@@ -284,11 +300,11 @@ struct Solver {
                 if(c.length<t.length*(1-1e-12)){t=c;improved=true;}
                 return improved;
             };
-            for(size_t i=1;i<n&&!improved;++i) {
+            for(size_t i=1;i+tail()<n&&!improved;++i) {
                 auto s=t.sequence;auto w=t.cycle;s.erase(s.begin()+long(i));w.erase(w.begin()+long(i));
                 attempt(s,w);
             }
-            for(size_t i=1;i<n&&!improved&&elapsed()<until;++i)for(const int nb:nearest[size_t(t.sequence[i])]) {
+            for(size_t i=1;i+tail()<n&&!improved&&elapsed()<until;++i)for(const int nb:nearest[size_t(t.sequence[i])]) {
                 if(at[size_t(nb)]<0||improved)continue;
                 for(const long side:{0L,1L}) {
                     // Remove disk i, then insert it before (side 0) or after (side 1) its neighbour.
@@ -297,14 +313,14 @@ struct Solver {
                     s.erase(s.begin()+long(i));w.erase(w.begin()+long(i));
                     long j=at[size_t(nb)];if(j>long(i))--j;
                     j+=side;
-                    if(j<1||j>long(s.size())||(j==long(i)))continue;
+                    if(j<1||j>long(s.size()-tail())||(j==long(i)))continue;
                     s.insert(s.begin()+j,d);w.insert(w.begin()+j,p);
                     if(attempt(s,w))break;
                 }
             }
             for(size_t i=1;i+1<n&&!improved&&elapsed()<until;++i)for(const int nb:nearest[size_t(t.sequence[i-1])]) {
                 const long j=at[size_t(nb)];
-                if(j<=long(i)||improved)continue;
+                if(j<=long(i)||j+long(tail())>=long(n)||improved)continue;
                 // Reverse i..j: disk i-1 is then followed by its neighbour.
                 auto s=t.sequence;auto w=t.cycle;
                 std::reverse(s.begin()+long(i),s.begin()+j+1);std::reverse(w.begin()+long(i),w.begin()+j+1);
@@ -325,10 +341,10 @@ struct Solver {
             auto s=current.sequence;auto w=current.cycle;
             const size_t m=1+rng()%std::min<size_t>(10,(s.size()-1)/2);
             if(rng()%2) {
-                const size_t first=1+rng()%(s.size()-m);
+                const size_t first=1+rng()%(s.size()-m-tail());
                 s.erase(s.begin()+long(first),s.begin()+long(first+m));w.erase(w.begin()+long(first),w.begin()+long(first+m));
             } else for(size_t q=0;q<m;++q) {
-                const size_t i=1+rng()%(s.size()-1);
+                const size_t i=1+rng()%(s.size()-1-tail());
                 s.erase(s.begin()+long(i));w.erase(w.begin()+long(i));
             }
             Tour c=repair(s,w,until);
@@ -354,7 +370,7 @@ struct Solver {
         for(size_t j=1;j<all.size();++j) {
             if(member[j])continue;
             size_t best=0;double dist=INFINITY,along=0;Vector2 point{};
-            for(size_t l=0;l<k;++l) {
+            for(size_t l=0;l+tail()<k;++l) {
                 const Vector2 a=t.cycle[l],e=t.cycle[(l+1)%k]-a;const double ee=e.dot(e);
                 const double u=ee>0?std::clamp((all[j].center-a).dot(e)/ee,0.0,1.0):0.0;
                 const Vector2 q=a+e*u,d=q-all[j].center;
@@ -428,7 +444,7 @@ struct Solver {
             for(const int nb:nearest[size_t(t.sequence[p])]) {
                 const size_t j=size_t(at[size_t(nb)]);
                 const size_t lo=std::min(p,j),hi=std::max(p,j);
-                if(hi<=lo+1||hi+1>n)continue;
+                if(hi<=lo+1||hi+1+tail()>n)continue;
                 const double delta=d(lo,hi)+d(lo+1,hi+1)-d(lo,lo+1)-d(hi,hi+1);
                 if(!(delta<-eps))continue;
                 std::reverse(t.sequence.begin()+long(lo)+1,t.sequence.begin()+long(hi)+1);
@@ -441,14 +457,14 @@ struct Solver {
         };
         // Or-opt of the block [b, e] (not the depot) next to a nearest disk.
         auto or_opt=[&](size_t b,size_t e,double eps) {
-            if(b<1||e>=n||e<b)return false;
+            if(b<1||e+tail()>=n||e<b)return false;
             const size_t len=e-b+1;
             double removal=d(b-1,b)+d(e,e+1)-d(b-1,e+1);
             for(size_t i=b;i<e;++i)removal+=d(i,i+1);
             for(const int nb:nearest[size_t(t.sequence[b])]) {
                 const size_t j=size_t(at[size_t(nb)]);
                 for(const size_t at_j:{j,(j+n-1)%n}) { // between at_j and at_j+1
-                    if(at_j+1>=b&&at_j<=e)continue;
+                    if((at_j+1>=b&&at_j<=e)||at_j+1+tail()>n)continue;
                     for(const bool flip:{false,true}) {
                         if(!(place_bound(b,e,at_j,at_j+1,flip)-removal<-eps))continue;
                         const double delta=place(b,e,at_j,at_j+1,flip)-removal;
@@ -509,7 +525,7 @@ struct Solver {
         const size_t n=best.sequence.size();
         while(n>=8&&elapsed()<until) {
             const size_t first=1+rng()%(n-1),one=1+rng()%std::min<size_t>(50,n/3),two=1+rng()%std::min<size_t>(50,n/3);
-            if(first+one+two>n)continue;
+            if(first+one+two+tail()>n)continue;
             auto s=current.sequence;auto w=current.cycle;
             std::rotate(s.begin()+long(first),s.begin()+long(first+one),s.begin()+long(first+one+two));
             std::rotate(w.begin()+long(first),w.begin()+long(first+one),w.begin()+long(first+one+two));
@@ -532,12 +548,14 @@ struct Solver {
     Tour center_tour(double until) {
         const size_t n=all.size();
         std::vector<int> order{0};std::vector<bool> used(n,false);used[0]=true;
-        for(size_t step=1;step<n;++step) {
+        if(open)used[n-1]=true;
+        for(size_t step=1+tail();step<n;++step) {
             const Vector2 here=all[size_t(order.back())].center;
             int next=-1;double best=INFINITY;
             for(size_t j=0;j<n;++j)if(!used[j]){const Vector2 v=all[j].center-here;if(v.dot(v)<best){best=v.dot(v);next=int(j);}}
             used[size_t(next)]=true;order.push_back(next);
         }
+        if(open)order.push_back(int(n-1));
         std::vector<Vector2> centers;for(int i:order)centers.push_back(all[size_t(i)].center);
         const Tour t=full_search(Tour{order,centers,INFINITY},until,false);
         return evaluate(t.sequence,t.cycle);
@@ -551,7 +569,7 @@ struct Solver {
         const double until=std::min(deadline,elapsed()+budget);
         Tour start=center_tour(until);offer(start);
         const double subset=std::min(until,elapsed()+0.3*budget); // sequences: at most 30%
-        Tour t=repair({0},{all[0].center},subset);
+        Tour t=repair(root(),root_points(),subset);
         if(std::isfinite(t.length)) {
             t=local_search(t,subset);offer(t);
             // When the tour turns at few disks, sequences are the better
@@ -590,7 +608,7 @@ struct Solver {
             path.push_back({families[family].disk,positions[families[family].first+child]});
             for(std::uint32_t f=family;families[f].parent!=kNone;f=families[f].parent)path.push_back({families[f].own_disk,families[f].own_position});
         }
-        std::vector<int> sequence{0};warm.assign(1,all[0].center);
+        std::vector<int> sequence=root();warm=root_points();
         for(auto it=path.rbegin();it!=path.rend();++it) {
             const size_t p=it->second,k=warm.size();
             const Vector2 point=nearest_to_link(warm[p-1],warm[p%k],all[it->first]);
@@ -669,7 +687,7 @@ struct Solver {
         const auto r=oracle(sequence,warm,INFINITY,x.counted,incumbent);
         const double lower=std::max(x.bound,r.lower_bound);
         if(lower>=cutoff){x.pruned=true;return;}
-        const auto e=tpp::tpp_convex_disk_excess(all,sequence,r.contacts);const auto &ex=e.excess;
+        const auto e=tpp::tpp_convex_disk_excess(all,sequence,r.contacts,!open);const auto &ex=e.excess;
         std::vector<int> outside;
         for(size_t j=1;j<all.size();++j)if(uncovered(e,all,j))outside.push_back(int(j));
         // Feasible: no refinement beats OPT(sequence) >= its L. If the oracle
@@ -683,7 +701,7 @@ struct Solver {
         const size_t k=sequence.size();
         // With the depot first, [0 a ... ] and its reverse are the same cycle:
         // inserting the second disk keeps one orientation only.
-        const size_t last=k==2?1:k;
+        const size_t last=open?k-1:k==2?1:k;
         double strongest=-INFINITY;
         std::vector<Child> children;std::vector<Tour> tours;double floor=INFINITY;
         Disks here;for(int i:sequence)here.push_back(all[size_t(i)]);
@@ -724,7 +742,7 @@ struct Solver {
         double lower=search(probe_until);
         probe_seconds=wall()-t0;
         if(progress(lower)){stopped="target";return lower;}
-        if(upper-lower<=gap*upper*1.0000001||elapsed()>=deadline)return lower;
+        if(upper-lower<=gap*(upper-offset)*1.0000001||elapsed()>=deadline)return lower;
         const double t1=wall();
         heuristic(budget);heuristic_seconds=wall()-t1;
         return search(deadline);
@@ -750,7 +768,7 @@ struct Solver {
         std::vector<std::thread> pool;
         for(size_t t=1;t<threads;++t)pool.emplace_back([&]{for(;;){start.arrive_and_wait();if(stop)return;work();done.arrive_and_wait();}});
         for(size_t round=0;;++round) {
-            cutoff=std::min(upper*(1-gap),dropped_floor);incumbent=upper;
+            cutoff=std::min(cutoff_of(upper),dropped_floor);incumbent=upper;
             if(round>0) {
                 if(heap.empty())break;
                 if(progress(std::min({double(heap.front().lower),cutoff,feasible_floor}))){global=std::min(double(heap.front().lower),cutoff);stopped="target";break;}
@@ -758,7 +776,7 @@ struct Solver {
                 if(bytes()>room) {
                     compact();
                     if(bytes()>0.6*room)drop();
-                    cutoff=std::min(upper*(1-gap),dropped_floor);
+                    cutoff=std::min(cutoff_of(upper),dropped_floor);
                 }
                 // A hard ceiling on the resident size, should the estimate
                 // above miss something.
@@ -787,7 +805,7 @@ struct Solver {
                 for(const auto &t:x.tours)if(t.length<upper){upper=t.length;best_sequence=t.sequence;best_cycle=t.cycle;}
                 feasible_floor=std::min(feasible_floor,x.floor);
                 if(x.pruned)continue;
-                const double limit=std::min(upper*(1-gap),dropped_floor);
+                const double limit=std::min(cutoff_of(upper),dropped_floor);
                 std::sort(x.children.begin(),x.children.end(),[](const Child &a,const Child &b){return a.lower<b.lower;});
                 size_t n=0;while(n<x.children.size()&&x.children[n].lower<limit)++n;
                 if(!n)continue;
@@ -802,20 +820,26 @@ struct Solver {
             if(round==0&&heap.empty())break;
         }
         if(threads>1){stop=true;start.arrive_and_wait();for(auto &t:pool)t.join();}
-        if(heap.empty()){global=std::min(upper*(1-gap),dropped_floor);if(stopped=="closed"&&dropped_floor<upper*(1-gap))stopped="dropped";}
+        if(heap.empty()){global=std::min(cutoff_of(upper),dropped_floor);if(stopped=="closed"&&dropped_floor<cutoff_of(upper))stopped="dropped";}
         return std::min({global,feasible_floor,upper});
     }
 };
 }
 
 int main(int argc,char **argv) {
-    const char *usage="usage: tpp-convex-cetsp INSTANCE.txt [SECONDS] [RELATIVE_GAP] [TOUR.json|-] [--strong K] [--heuristic SECONDS] [--mode eager|screen|lazy] [--seed S] [--threads T] [--radius R] [--max-memory GB] [--target-lower L] [--target-gap G]\n";
+    const char *usage="usage: tpp-convex-cetsp INSTANCE.txt [SECONDS] [RELATIVE_GAP] [TOUR.json|-] [--strong K] [--heuristic SECONDS] [--mode eager|screen|lazy] [--seed S] [--threads T] [--radius R] [--max-memory GB] [--target-lower L] [--target-gap G] [--start X,Y] [--end X,Y]\n";
     std::vector<std::string> positional;double heuristic=-1,radius=0,max_memory=0,target_lower=-INFINITY,target_gap=INFINITY;size_t strong=1,threads=1;unsigned seed=20261026;std::string mode="lazy";
+    // --start replaces the instance's depot; --end, if elsewhere, makes the tour
+    // an open one from the start to it.
+    std::optional<Vector2> start,end;
+    auto point=[](const std::string &v){const size_t comma=v.find(',');if(comma==std::string::npos)throw std::invalid_argument("expected X,Y");return Vector2{std::stod(v.substr(0,comma)),std::stod(v.substr(comma+1))};};
     for(int i=1;i<argc;++i) {
         const std::string a=argv[i];
-        if((a=="--strong"||a=="--heuristic"||a=="--mode"||a=="--seed"||a=="--threads"||a=="--radius"||a=="--max-memory"||a=="--target-lower"||a=="--target-gap")&&i+1<argc) {
+        if((a=="--strong"||a=="--heuristic"||a=="--mode"||a=="--seed"||a=="--threads"||a=="--radius"||a=="--max-memory"||a=="--target-lower"||a=="--target-gap"||a=="--start"||a=="--end")&&i+1<argc) {
             const std::string v=argv[++i];
             if(a=="--max-memory")max_memory=std::stod(v)*1e9;
+            else if(a=="--start")start=point(v);
+            else if(a=="--end")end=point(v);
             else if(a=="--target-lower")target_lower=std::stod(v);
             else if(a=="--target-gap")target_gap=std::stod(v);
             else if(a=="--radius")radius=std::stod(v);
@@ -829,10 +853,14 @@ int main(int argc,char **argv) {
     }
     if(positional.empty()||(mode!="eager"&&mode!="screen"&&mode!="lazy")){std::cerr<<usage;return 1;}
     for(const int sig:{SIGINT,SIGTERM,SIGHUP})std::signal(sig,on_stop_signal);
-    const auto inst=read_instance(positional[0].c_str(),radius);
+    auto inst=read_instance(positional[0].c_str(),radius);
+    if(start)inst.disks[0].center=*start;
+    const bool open=end&&!(end->x==inst.disks[0].center.x&&end->y==inst.disks[0].center.y);
+    if(open)inst.disks.push_back({*end,0});
     const double seconds=positional.size()>1?std::stod(positional[1]):60.0;
     Solver s{inst.disks,positional.size()>2?std::stod(positional[2]):1e-6,seconds,Clock::now()};
     s.strong=strong;s.seed=seed;s.threads=threads;s.max_memory=max_memory;
+    if(open){const Vector2 v=*end-inst.disks[0].center;s.open=true;s.offset=std::sqrt(v.dot(v));}
     s.target_lower=target_lower;s.target_gap=target_gap;s.tracing=std::isfinite(target_lower)||std::isfinite(target_gap);
     s.mode=mode=="eager"?Solver::Mode::Eager:mode=="screen"?Solver::Mode::Screen:Solver::Mode::Lazy;
     const std::string tour=positional.size()>3?positional[3]:"-";
@@ -842,18 +870,21 @@ int main(int argc,char **argv) {
     if(interrupted)s.stopped="interrupted";
     s.progress(lower);
     // 17 digits: a bound read back is the bound computed. A zero optimum (the
-    // depot meets every disk) has a zero gap.
-    std::cout<<std::setprecision(17)<<"{\"instance\":\""<<positional[0]<<"\",\"disks\":"<<inst.disks.size()-1
-        <<",\"lower_bound\":"<<lower<<",\"upper_bound\":"<<s.upper<<",\"gap\":"<<(s.upper>0?(s.upper-lower)/s.upper:0.0)
-        <<",\"closed\":"<<(s.upper-lower<=s.gap*s.upper*1.0000001?"true":"false")<<",\"stopped\":\""<<s.stopped<<"\""
+    // depot meets every disk) has a zero gap. An open tour's bounds are the
+    // cycle's less the link back to the start.
+    const double L=s.tour_lower(lower),U=s.tour_upper(s.upper);
+    std::cout<<std::setprecision(17)<<"{\"instance\":\""<<positional[0]<<"\",\"disks\":"<<inst.disks.size()-1-size_t(open)
+        <<",\"lower_bound\":"<<L<<",\"upper_bound\":"<<U<<",\"gap\":"<<(U>0?(U-L)/U:0.0)
+        <<",\"closed\":"<<(s.upper-lower<=s.gap*(s.upper-s.offset)*1.0000001?"true":"false")<<",\"stopped\":\""<<s.stopped<<"\""
         <<",\"seconds\":"<<s.wall()<<",\"heuristic_seconds\":"<<s.heuristic_seconds<<",\"probe_seconds\":"<<s.probe_seconds<<",\"heuristic_tours\":"<<s.improvements<<",\"ils_iterations\":"<<s.ils_iterations
         <<",\"nodes\":"<<s.nodes<<",\"oracle_calls\":"<<s.counted.oracle_calls
         <<",\"oracle_seconds\":"<<s.counted.oracle_seconds<<",\"newton_iterations\":"<<s.counted.newton<<",\"construction_closed\":"<<s.counted.constructed
         <<",\"children\":"<<s.children_created<<",\"families\":"<<s.families.size()<<",\"compactions\":"<<s.compactions
-        <<",\"dropped\":"<<s.dropped<<",\"resident_start\":"<<s.resident_start<<",\"resident_end\":"<<resident_bytes()<<",\"search_bytes\":"<<s.bytes()<<",\"dropped_floor\":"<<(std::isfinite(s.dropped_floor)?s.dropped_floor:-1)<<",\"screened\":"<<s.counted.screened<<",\"threads\":"<<s.threads<<",\"mode\":\""<<mode<<"\",\"strong\":"<<s.strong<<",\"tour_regions\":"<<s.best_sequence.size();
+        <<",\"dropped\":"<<s.dropped<<",\"resident_start\":"<<s.resident_start<<",\"resident_end\":"<<resident_bytes()<<",\"search_bytes\":"<<s.bytes()<<",\"dropped_floor\":"<<(std::isfinite(s.dropped_floor)?s.tour_lower(s.dropped_floor):-1)<<",\"screened\":"<<s.counted.screened<<",\"threads\":"<<s.threads<<",\"mode\":\""<<mode<<"\",\"strong\":"<<s.strong<<",\"tour_regions\":"<<s.best_sequence.size();
+    if(open)std::cout<<",\"open\":true,\"end\":["<<end->x<<","<<end->y<<"]";
     if(s.tracing) {
         std::cout<<",\"trace\":[";
-        for(size_t i=0;i<s.trace.size();++i)std::cout<<(i?",":"")<<"["<<s.trace[i][0]<<","<<s.trace[i][1]<<","<<(std::isfinite(s.trace[i][2])?s.trace[i][2]:-1)<<"]";
+        for(size_t i=0;i<s.trace.size();++i)std::cout<<(i?",":"")<<"["<<s.trace[i][0]<<","<<s.tour_lower(s.trace[i][1])<<","<<(std::isfinite(s.trace[i][2])?s.tour_upper(s.trace[i][2]):-1)<<"]";
         std::cout<<"]";
     }
     std::cout<<"}"<<std::endl;
@@ -869,9 +900,9 @@ int main(int argc,char **argv) {
             written[i]=d.radius>0?d.center+(s.best_cycle[i]-d.center)*(1-0x1p-40):s.best_cycle[i];
         }
         double length=0;
-        for(size_t i=0;i<k;++i){const Vector2 v=written[(i+1)%k]-written[i];length+=std::sqrt(v.dot(v));}
+        for(size_t i=0;i+s.tail()<k;++i){const Vector2 v=written[(i+1)%k]-written[i];length+=std::sqrt(v.dot(v));}
         length=std::nextafter(length*(1+4*double(k+2)*std::numeric_limits<double>::epsilon()),INFINITY);
-        std::ofstream out(tour);out<<std::setprecision(17)<<"{\"instance\":\""<<positional[0]<<"\",\"upper_bound\":"<<length<<",\"sequence\":[";
+        std::ofstream out(tour);out<<std::setprecision(17)<<"{\"instance\":\""<<positional[0]<<"\",\"upper_bound\":"<<length<<(open?",\"open\":true":"")<<",\"sequence\":[";
         for(size_t i=0;i<k;++i)out<<(i?",":"")<<s.best_sequence[i];
         out<<"],\"contacts\":[";
         for(size_t i=0;i<k;++i)out<<(i?",":"")<<"["<<written[i].x<<","<<written[i].y<<"]";

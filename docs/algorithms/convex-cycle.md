@@ -1032,6 +1032,23 @@ visiting a subset can only shorten the tour.
 
   The budget is 5% of the time. A search stops after max(4n, 200)
   iterations without a new best.
+- **Open tours.** `--end X,Y` (and `--start X,Y`, which replaces the depot)
+  asks for the shortest tour from the start to a fixed end that meets every
+  disk: Dror's TPP with disks instead of polygons, and with the order free.
+  The depot's closed tour is the case where they meet, and runs exactly as
+  before. The end is a point region kept last in every sequence. No move or
+  insertion goes after it. Coverage ignores the link back to the start, and
+  the gap is relative to the open length. The cycle through the start and
+  the end exceeds the open tour by the constant link between them, so the
+  oracle's bounds less that link bound the open tour. There is no mirror
+  symmetry to remove.
+  - Measured with the end at the depot reflected through the centroid:
+    - Behdani-Smith's 240 at radius 0.5: all close, in 1.3 times the
+      closed tour's time (median), 6 times at worst;
+    - the 22 quick Table 2 instances: 2.2 times (median), but a few are far
+      harder (rat195-0.10: 0.1 s to 43 s; d493-0.10 open after 50 s).
+  - With the end near the depot it costs only the lost symmetry (about 2
+    times).
 - **Output.** Bounds are printed with 17 digits, so a bound read back is
   the bound computed. A zero optimum has a zero gap. `--target-lower L` and
   `--target-gap G` stop once the bound is strictly above `L` and the gap

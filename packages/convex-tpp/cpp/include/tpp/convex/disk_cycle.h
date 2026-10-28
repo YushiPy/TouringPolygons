@@ -77,10 +77,12 @@ std::vector<double> tpp_convex_disk_insertion_bounds(const std::vector<ConvexDis
 // bound on its rounding error, which grows with the coordinates rather than
 // the radius. excess + error <= 0 proves that the polyline meets the disk.
 // The disks listed in `members` are met at their contacts, which the oracle
-// proved inside them: their excess is -infinity.
+// proved inside them: their excess is -infinity. With `closed` false the
+// polyline is open: the link from the last contact back to the first is not
+// part of it.
 struct DiskExcess {
     std::vector<double> excess, error;
 };
 DiskExcess tpp_convex_disk_excess(const std::vector<ConvexDisk> &disks, const std::vector<int> &members,
-    const std::vector<Vector2> &cycle);
+    const std::vector<Vector2> &cycle, bool closed = true);
 } // namespace tpp

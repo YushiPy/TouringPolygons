@@ -677,11 +677,11 @@ std::vector<double> tpp_convex_disk_insertion_bounds(const std::vector<ConvexDis
     return out;
 }
 DiskExcess tpp_convex_disk_excess(const std::vector<ConvexDisk> &disks,const std::vector<int> &members,
-        const std::vector<Vector2> &cycle) {
+        const std::vector<Vector2> &cycle,bool closed) {
     DiskExcess out{std::vector<double>(disks.size(),INFINITY),std::vector<double>(disks.size(),0)};
     std::vector<bool> member(disks.size(),false);for(int i:members)member[size_t(i)]=true;
     // Squared distances to each link, one square root per disk.
-    const size_t k=cycle.size();
+    const size_t k=cycle.size(),links=closed||k<2?k:k-1;
     std::vector<Vector2> edge(k);std::vector<double> inverse(k);
     for(size_t l=0;l<k;++l){edge[l]=cycle[(l+1)%k]-cycle[l];const double ee=edge[l].dot(edge[l]);inverse[l]=ee>0?1/ee:0;}
     // The coordinates any link involves: |center - cycle[l]| + |edge[l]| is at
@@ -696,7 +696,7 @@ DiskExcess tpp_convex_disk_excess(const std::vector<ConvexDisk> &disks,const std
     for(size_t j=0;j<disks.size();++j) {
         if(member[j]){out.excess[j]=-INFINITY;continue;}
         double best=INFINITY;
-        for(size_t l=0;l<k;++l) {
+        for(size_t l=0;l<links;++l) {
             const Vector2 f=disks[j].center-cycle[l];
             const double t=std::clamp(f.dot(edge[l])*inverse[l],0.0,1.0);
             const Vector2 g=f-edge[l]*t;

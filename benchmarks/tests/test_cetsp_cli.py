@@ -1,7 +1,7 @@
 """End-to-end checks of tpp-convex-cetsp on small instances of benchmarks/suites/cetsp:
 known optima (Coutinho et al. 2016, three decimals), the floor kept when children
-are dropped for memory, strict targets, interruption, a zero-length tour, and a
-written tour that meets every decimal disk within its written bound (rational
+are dropped for memory, strict targets, open tours to a fixed end, interruption, a
+zero-length tour, and a written tour that meets every decimal disk within its written bound (rational
 arithmetic). Skipped when the tool is not built (sanity_check.sh builds it)."""
 
 import json
@@ -119,6 +119,22 @@ class CetspCliTests(unittest.TestCase):
 		self.assertTrue(result["closed"])
 		self.assertEqual(result["gap"], 0)
 		self.assertEqual(result["upper_bound"], 0)
+
+	def test_open_tours(self):
+		# From (0, 0) to (10, 0): two unit disks on the way cost nothing; with a
+		# third centered at (5, 4) the optimum turns at its bottom, (5, 3), and
+		# at the first two, symmetrically. That angle alone, searched on a fine
+		# grid outside the solver, gives 11.865339530283185.
+		with tempfile.TemporaryDirectory() as directory:
+			two, three = Path(directory) / "two.txt", Path(directory) / "three.txt"
+			two.write_text("//Depot is 0, 0\n3 0 0 1\n7 0 0 1\n")
+			three.write_text("//Depot is 0, 0\n3 0 0 1\n7 0 0 1\n5 4 0 1\n")
+			for path, optimum in ((two, 10.0), (three, 11.865339530283185)):
+				result = run(path, 10, 1e-9, "-", "--end", "10,0")
+				self.assertTrue(result["closed"] and result["open"])
+				self.assertEqual(result["disks"], 2 if path == two else 3)
+				self.assertLessEqual(result["lower_bound"], optimum + 1e-9)
+				self.assertLess(abs(result["upper_bound"] - optimum), 1e-7)
 
 	def test_interrupt_reports_valid_bounds(self):
 		process = subprocess.Popen([str(TOOL), str(SUITE / "mennell-tsplib-2d" / "dsj1000-0.02.txt"), "60", "1e-6", "-"],
