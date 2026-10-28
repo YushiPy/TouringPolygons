@@ -146,8 +146,15 @@ minimiza $\lVert x-a\rVert+\lVert x-b\rVert$ é:
 Nas duas pontas do arco, a distância ao vizinho daquela ponta é estacionária ao longo do
 círculo e a outra diminui para dentro do arco. Então $g'$ troca de sinal no arco, e um
 Newton protegido nesse intervalo (com bissecção quando o passo sai) acha a raiz. A raiz é
-a lei de reflexão ($s_a+s_b$ paralelo à normal). Em geral é raiz de uma quártica, a
-\emph{reflexão de Alhazen}, e por isso não tem forma fechada simples.
+a lei de reflexão ($s_a+s_b$ paralelo à normal).
+
+\textbf{Forma fechada para um disco.} Este é o problema de Alhazen (Ibn al-Haytham). A lei
+de reflexão se reduz a uma quártica, por exemplo em $\tan(\theta/2)$, e quárticas se
+resolvem por radicais (Ferrari). Então um disco isolado tem solução exata em forma fechada,
+com radicais, senos e cossenos. Em geral, porém, não há construção com régua e compasso
+(Elkin, 1965; P.~M.~Neumann, \emph{Amer.\ Math.\ Monthly} 105, 1998). O código usa o Newton
+protegido acima porque é mais rápido e estável. A fórmula fechada poderia substituí-lo sem
+mudar nenhum resultado.
 
 \begin{figure}[h]
 \centering
@@ -252,12 +259,23 @@ $D(u)=L(q)$ até o arredondamento. Num canto, o segmento de comprimento zero rec
 com $n_1,n_2$ as normais externas dos dois círculos no canto. O canto é ótimo exatamente
 quando $\lambda_1,\lambda_2\ge0$ e $\lVert u_{\mathrm{meio}}\rVert\le1$.
 
-\begin{obs}[não há caminho exato]
-Para polígonos, um tipo combinatório fixo se resolve exatamente em racionais por
-desdobramento, e isso dá o gap zero do Teorema~B do texto sobre o ciclo convexo. Para
-discos isso não existe: já um único disco entre dois pontos é uma quártica. O oráculo
-certifica $L\le\mathrm{OPT}\le U$ até o gap pedido. Na prática, a construção certifica gaps
-de cerca de $10^{-12}$ relativo, e a barreira raramente roda.
+\begin{obs}[por que não há caminho exato com vários discos]
+Para polígonos, refletir numa aresta é uma isometria: o caminho se ``desdobra'' numa reta.
+Por isso um tipo combinatório fixo se resolve exatamente em racionais, e isso dá o gap zero
+do Teorema~B do texto sobre o ciclo convexo e o algoritmo finito de Dror et al.
+
+Refletir num círculo não é isometria. Os raios refletidos formam cáusticas, não há
+desdobramento, e as leis de reflexão de discos vizinhos se acoplam. Com o tipo fixo, o ótimo
+satisfaz um sistema polinomial cujo grau cresce com o número de discos que refletem. Em
+problemas parecidos já se provou, pelo grau algébrico, que não há solução por radicais (o
+problema de Fermat--Weber; C.~Bajaj, \emph{Discrete Comput.\ Geom.} 3, 1988). Para este
+problema isso não está provado, mas um algoritmo finito como o de Dror parece improvável.
+
+O que o método faz é separar as duas partes. A geometria decide a parte combinatória (quais
+discos são retos, quais refletem, quais formam cantos), e o numérico (Newton) fica com a
+parte algébrica, que não tem forma fechada. É o papel que o desdobramento faz para
+polígonos. O oráculo certifica $L\le\mathrm{OPT}\le U$ até o gap pedido. Na prática, a
+construção certifica gaps de cerca de $10^{-12}$ relativo, e a barreira raramente roda.
 \end{obs}
 
 \sect{4. Inserção de um disco: limites em forma fechada}
@@ -325,9 +343,23 @@ instâncias.
 \begin{itemize}
   \item \emph{Coutinho et al.~(2016)}: a ramificação é a mesma. Eles resolvem cada nó com um
     SOCP no CPLEX; aqui entra o Algoritmo~\ref{alg:oracle}, mais os limites de inserção e a
-    heurística.
+    heurística. O problema de cada nó é o mesmo problema convexo, e o Algoritmo~\ref{alg:oracle}
+    também o resolve numericamente, até uma tolerância: a diferença \emph{não} é uma solução
+    mais exata. Ela está em três pontos:
+    \begin{enumerate}[label=(\roman*)]
+      \item \emph{Certificado rigoroso.} $L$ vem da dualidade em forma fechada, avaliada em
+        aritmética intervalar. O gap de dualidade de um SOCP é avaliado em ponto flutuante:
+        nas 20 instâncias de Mennell, 8 ``ótimos'' do Gurobi ficaram abaixo do nosso $L$
+        provado.
+      \item \emph{Estrutura.} Iterações de custo $O(k)$, guiadas pela geometria. O filho
+        parte dos contatos do pai, um ponto de partida que métodos de pontos interiores
+        aproveitam mal.
+      \item \emph{Limites dos filhos quase de graça.} Os limites de inserção de todas as
+        posições saem em $O(k)$ (seção 4), e cada filho só é resolvido quando sai da fila.
+    \end{enumerate}
   \item \emph{Busca por blocos de coordenadas} (atualizar um ponto de visita por vez, com
-    solução exata de um círculo): é a \textsc{Varredura} do Algoritmo~\ref{alg:oracle}. O
+    solução exata de um círculo), como na dissertação de P.~C.~R.~Ertel (IME-USP, 2023), para
+    bolas disjuntas e sem depósito: é a \textsc{Varredura} do Algoritmo~\ref{alg:oracle}. O
     que se acrescenta é o Newton que fecha o tipo, os blocos para discos sobrepostos e,
     principalmente, o certificado da seção 1. O certificado prova a otimalidade até o gap
     sem hipóteses sobre a convergência da proposta.
