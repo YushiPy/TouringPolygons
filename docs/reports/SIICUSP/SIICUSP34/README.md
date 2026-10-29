@@ -13,6 +13,12 @@ etapas.
   assunto "SIICUSP Internacional: Materiais". As orientações finais chegam até
   10/11/2026.
 
-O resumo internacional reaproveita o logo e a figura de
-`fase-local/resumo/assets/`; a figura é gerada por
-`fase-local/resumo/generate_tpp_pipeline_figure.py`.
+O resumo internacional reaproveita o logo de `fase-local/resumo/assets/`. A
+figura 1 (`assets/tspn-figure.pdf`, ignorada) é gerada por
+`fase-internacional/resumo/generate_tspn_figure.py`, que decompõe as regiões
+com a nossa implementação de Greene e resolve os tours com `tpp-unordered`:
+
+```sh
+cd fase-internacional/resumo
+../../../../../../apps/benchmark-dashboard/.venv/bin/python generate_tspn_figure.py
+```
