@@ -96,6 +96,14 @@ no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.
     - bonus1000, por 0,53%;
     - dsj1000rdmRad, por 0,87%;
     - team2_200rdmRad, por menos de 0,01%.
+  - **contra o MA-CETSP de Lei e Hao (2024), o melhor publicado** (Applied
+    Soft Computing 153, 111266; valores com duas casas):
+    - nas 32 que fechamos, o deles é o nosso ótimo certificado, até o
+      arredondamento;
+    - nas 30 abertas para os dois, o deles é melhor em 26 e igual em 3. Só
+      na d493-0.02 o nosso é melhor (198,672 contra 199,02). A maior
+      diferença é bubbles9 (+7,1%).
+    - Nenhum tour deles fica abaixo dos nossos limites inferiores provados.
 - **Memória.**
   - Picos de 1,6 GB com 1 thread e de 8,5 GB com 8 threads.
   - O descarte entrou em todas as abertas, com pisos de 0,03% a 2,0% acima do
@@ -137,6 +145,9 @@ no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.
   comparados. Até lá, "LB maior" vale contra Coutinho et al., não contra o
   melhor conhecido.
 - As 20 geométricas usam a heurística anterior; os UBs delas podem melhorar.
+- Nas instâncias abertas grandes, a heurística do B&B é bem mais fraca que
+  metaheurísticas longas como o MA-CETSP. O que sustenta o resultado são os
+  fechamentos e os limites inferiores, não os tours.
 - As instâncias 3D (Tabela 3) não rodaram.
 - No tempo até superar os limites, eles publicam só os limites ao fim de 4 h.
   A razão supõe que precisaram das 4 h inteiras; se o LB deles parou de subir
