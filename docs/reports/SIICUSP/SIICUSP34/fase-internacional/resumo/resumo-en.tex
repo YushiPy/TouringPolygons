@@ -10,7 +10,6 @@
 \usepackage{graphicx}
 \usepackage{multicol}
 \usepackage{titlesec}
-\usepackage{booktabs}
 \usepackage{hyperref}
 \usepackage[english]{babel}
 
@@ -44,6 +43,12 @@
 	{\fontsize{10}{12}\selectfont \textsuperscript{1}\href{mailto:gabriel_ushijima@usp.br}{gabriel\_ushijima@usp.br} \quad \textsuperscript{2}\href{mailto:egbirgin@ime.usp.br}{egbirgin@ime.usp.br}\par}
 \end{center}
 
+\begin{figure}[b]
+	\centering
+	\includegraphics[width=\textwidth]{assets/tspn-figure.pdf}\\[-0.20em]
+	{\fontsize{9}{10}\selectfont Figure 1. (a) Eight non-convex regions. (b) Their convex pieces from Greene's algorithm, cut only along diagonals between vertices. (c) The shortest tour through the convex hulls, a lower bound, misses the two regions in red. (d) The optimal tour (relative gap below \(10^{-14}\)) and, in color, the pieces it visits.\par}
+\end{figure}
+
 \begin{multicols}{2}
 
 \section{Objectives}
@@ -60,31 +65,13 @@ Both variants are NP-hard for non-convex polygons, but the fixed-order TPP with 
 
 \textbf{Benchmark.} We used the 558 instances of [4] (4 to 60 polygons from city maps, random polygons, and tessellations) and ran the original, unmodified code of [4] in the paper's configuration (16 threads) and with one thread, on the same machine as our solver (AMD Ryzen 7 9700X, Linux). Each run had 300 s, repeated three times, and unsolved instances got one more 900 s run. An instance counts as solved at a relative gap of \(10^{-3}\), the criterion of [4].
 
-\begin{figure*}[t]
-	\centering
-	\includegraphics[width=\textwidth]{assets/tspn-figure.pdf}\\[-0.20em]
-	{\fontsize{9}{10}\selectfont Figure 1. (a) Eight non-convex regions. (b) Their convex pieces from Greene's algorithm, cut only along diagonals between vertices. (c) The shortest tour through the convex hulls, a lower bound, misses the two regions in red. (d) The optimal tour (relative gap below \(10^{-14}\)) and, in color, the pieces it visits.\par}
-	\vspace{0.6em}
-\end{figure*}
-
 \section{Results}
 
-Our run of the paper's configuration reproduces the published results exactly: 542 of 558 instances (97.13\%) in 300 s and 549 (98.39\%) in 900 s. With a single thread, our solver solves 557 in 300 s; the last one, open for every configuration of [4], closes in 89 minutes. No instance is solved only by [4], and ours is faster on every instance that both solve (Table 1). Over the 549 common instances, the total time is 7{,}282 s for [4] with 16 threads and 42 s for ours with one.
+Our run of the paper's configuration (16 threads) reproduces the published results exactly: 542 of 558 instances (97.13\%) in 300 s and 549 (98.39\%) in 900 s. With one thread, [4] solves 523 in 300 s and 541 in 900 s. Our solver, also with one thread, solves 557 in 300 s; the last one, open for every configuration of [4], closes in 89 minutes. No instance is solved only by [4], and ours is faster on each of the 541 instances that both solve with one thread (Figure 2), from 1.9 to 5{,}244 times. Summed over these instances, the time is 15{,}767 s for [4] and 34 s for ours.
 
 \begin{center}
-	{\fontsize{9}{10}\selectfont Table 1. Solved instances out of 558 and speedup of ours (one thread) over Fekete et al. [4] on the instances both solve.\par}
-	\vspace{0.35em}
-	{\fontsize{8.5}{10}\selectfont
-	\begin{tabular}{@{}lccc@{}}
-		\toprule
-		& \multicolumn{2}{c}{Solved} & Speedup \\
-		& 300 s & 900 s & (geom.\ mean) \\
-		\midrule
-		{[4]}, 16 threads & 542 & 549 & 21.0\(\times\) \\
-		{[4]}, 1 thread & 523 & 541 & 72.9\(\times\) \\
-		Ours, 1 thread & 557 & 557 & -- \\
-		\bottomrule
-	\end{tabular}\par}
+	\includegraphics[width=\columnwidth]{assets/speedup-figure.pdf}\\[-0.10em]
+	{\fontsize{9}{10}\selectfont Figure 2. Speedup of our solver over Fekete et al. [4] on the 541 instances both solve, one thread each, by instance source (logarithmic scale).\par}
 \end{center}
 
 Where [4] takes at least 1 s with one thread, the two search trees have about the same size (1.08 nodes of [4] per node of ours); the gain comes from the cost of each node, 238 times smaller with our geometric oracle than with the SOCP solver.

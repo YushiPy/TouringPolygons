@@ -18,7 +18,14 @@ figura 1 (`assets/tspn-figure.pdf`, ignorada) é gerada por
 `fase-internacional/resumo/generate_tspn_figure.py`, que decompõe as regiões
 com a nossa implementação de Greene e resolve os tours com `tpp-unordered`:
 
+A figura 2 (`assets/speedup-figure.pdf`, ignorada) é gerada por
+`generate_speedup_figure.py` a partir de
+`benchmarks/results-saved/fekete-reference-armijo-2026-10-17/per-case.csv`:
+o código original de Fekete et al. com uma thread (configuração B, raiz CHR)
+contra o nosso com uma thread (C), nas 541 instâncias que os dois resolvem.
+
 ```sh
 cd fase-internacional/resumo
 ../../../../../../apps/benchmark-dashboard/.venv/bin/python generate_tspn_figure.py
+../../../../../../apps/benchmark-dashboard/.venv/bin/python generate_speedup_figure.py
 ```
