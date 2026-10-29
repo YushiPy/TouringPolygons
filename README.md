@@ -160,7 +160,8 @@ material uses its files.
 - [`docs/algorithms/`](docs/algorithms): specifications and correctness
   arguments, among them the
   [certified convex oracle](docs/algorithms/certified-convex-oracle.md) (in
-  Portuguese), [convex cycles](docs/algorithms/convex-cycle.md) and the
+  Portuguese), [convex cycles](docs/algorithms/convex-cycle.md), the
+  [fixed-order non-convex TPP](docs/algorithms/fixed-order-nonconvex.md) and the
   [TSPN](docs/algorithms/tspn.md);
 - [`docs/reports/oraculo-convexo/`](docs/reports/oraculo-convexo) (in
   Portuguese): technical report on the convex oracle (construction, interval

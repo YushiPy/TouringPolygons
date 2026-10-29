@@ -19,6 +19,8 @@ namespace tpp {
 		double seconds = 0.0;
 	};
 
+	// Simple polygons with distinct consecutive vertices, visited in order; the
+	// path includes start and target. See docs/algorithms/fixed-order-nonconvex.md.
 	NonconvexTppSolveResult tpp_nonconvex_solve(
 		const Vector2 &start,
 		const Vector2 &target,

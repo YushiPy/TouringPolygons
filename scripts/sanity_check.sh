@@ -145,6 +145,7 @@ tests=(
 	tpp-convex-cycle-tests
 	tpp-convex-cycle-certificate-tests
 	tpp-convex-disk-cycle-tests
+	tpp-nonconvex-tests
 	tpp-unordered-tests
 	tpp-tspn-tests
 )

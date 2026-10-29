@@ -1087,9 +1087,16 @@ vector<Vector2> convex_hull(const vector<Vector2> &points) {
 
 	vector<Vector2> sorted_points = points;
 
+	// Pieces share vertices. Repeated points must go before the scan: with
+	// fused multiply-add the cross product of a vector with itself can be
+	// positive, which keeps a repeated extreme point, and the convex solver
+	// requires distinct consecutive vertices.
 	std::sort(sorted_points.begin(), sorted_points.end(), [](const Vector2 &a, const Vector2 &b) {
 		return std::tie(a.x, a.y) < std::tie(b.x, b.y);
 	});
+	sorted_points.erase(std::unique(sorted_points.begin(), sorted_points.end(), [](const Vector2 &a, const Vector2 &b) {
+		return a.x == b.x && a.y == b.y;
+	}), sorted_points.end());
 
 	vector<Vector2> lower = half_hull(sorted_points);
 	vector<Vector2> upper = half_hull(vector<Vector2>(sorted_points.rbegin(), sorted_points.rend()));
