@@ -1766,7 +1766,10 @@ juntas, com a mesma carga.
   436,992. Com `lazy --lazy-oracles --dive-interval 0`, fronteira de 512 MiB e
   8 threads de subárvore, o B&B certifica esse tour dentro de 0,1% (LB 436,556)
   em 675 s e 154 M nós (600 s, checkpoint e retomada). O tour do Fekete de 16/10
-  (441,52) fica 1,04% acima.
+  (441,52) fica 1,04% acima. A retomada é anterior ao formato 2 do checkpoint
+  (c875ffc), que guarda o piso das podas: o fechamento em 0,1% vale, mas o LB
+  provado é só ≥ 436,555 (UB − 0,1%), não 436,556
+  ([efeito](../../docs/algorithms/unordered-tpp.md#orçamento-de-memória-da-fronteira-2026-10-09)).
 - **Não são os toques.** Encolhendo cada casa 0,1% (ou 1%) em direção à média
   dos vértices, nenhum par se toca, e o gap em 120 s fica em 2,58% (2,70%),
   contra 3,23% no original. A dificuldade é o zigue-zague entre fileiras, com

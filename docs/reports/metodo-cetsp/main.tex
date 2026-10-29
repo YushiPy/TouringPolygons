@@ -259,7 +259,7 @@ $D(u)=L(q)$ até o arredondamento. Num canto, o segmento de comprimento zero rec
 com $n_1,n_2$ as normais externas dos dois círculos no canto. O canto é ótimo exatamente
 quando $\lambda_1,\lambda_2\ge0$ e $\lVert u_{\mathrm{meio}}\rVert\le1$.
 
-\begin{obs}[por que não há caminho exato com vários discos]
+\begin{obs}[por que não esperamos um caminho exato com vários discos]
 Para polígonos, refletir numa aresta é uma isometria: o caminho se ``desdobra'' numa reta.
 Por isso um tipo combinatório fixo se resolve exatamente em racionais, e isso dá o gap zero
 do Teorema~B do texto sobre o ciclo convexo e o algoritmo finito de Dror et al.
@@ -273,7 +273,7 @@ problema isso não está provado, mas um algoritmo finito como o de Dror parece 
 
 O que o método faz é separar as duas partes. A geometria decide a parte combinatória (quais
 discos são retos, quais refletem, quais formam cantos), e o numérico (Newton) fica com a
-parte algébrica, que não tem forma fechada. É o papel que o desdobramento faz para
+parte algébrica, para a qual não se conhece forma fechada. É o papel que o desdobramento faz para
 polígonos. O oráculo certifica $L\le\mathrm{OPT}\le U$ até o gap pedido. Na prática, a
 construção certifica gaps de cerca de $10^{-12}$ relativo, e a barreira raramente roda.
 \end{obs}
@@ -293,16 +293,18 @@ limites saem juntos em $O(k)$, sem resolver nenhum filho.
 \caption{CETSP (\texttt{tpp-convex-cetsp})}\label{alg:bnb}
 \begin{algorithmic}[1]
 \Require pontos $s$ e $t$ (o depósito, se $s=t$), discos $D_1,\dots,D_n$, gap relativo $\varepsilon=10^{-6}$, tempo
-\Ensure caminho factível de comprimento $U^\ast$ e limite inferior $L^\ast$ (comprimentos de ciclo menos $\lVert t-s\rVert$)
-\State $U^\ast\gets$ caminho pelos centros; B\&B curto (até $1$\,s) só com ele
+\Ensure caminho factível de comprimento $U^\ast-\ell$ e limite inferior $L^\ast-\ell$, com $\ell=\lVert t-s\rVert$ ($\ell=0$ se $s=t$)
+\Statex \Comment{$U^\ast$, $L^\ast$, $L$, $U$, $\beta$ e $\kappa$ são comprimentos do ciclo que volta de $t$ a $s$}
+\State $\kappa(U)\gets U-\varepsilon\,(U-\ell)$ \Comment{abaixo dele, o gap do caminho fecha}
+\State $U^\ast\gets$ ciclo pelos centros; B\&B curto (até $1$\,s) só com ele
 \State heurística (até $5\%$ do tempo): inserção mais barata, 2-opt e Or-opt com
   atualização de Alhazen, ILS (inclusive ruína e reconstrução)
 \State $Q\gets\{(\langle s\rangle,\,0)\}$ se $s=t$, senão $\{(\langle s,t\rangle,\,0)\}$ \Comment{chave: limite}
 \While{$Q\neq\emptyset$}
   \State retire de $Q$ o nó $(\sigma,\beta)$ de menor $\beta$
-  \If{$\beta\ge(1-\varepsilon)U^\ast$} \textbf{pare} \EndIf
-  \State $(L,U,q)\gets$ Algoritmo~\ref{alg:oracle} em $\sigma$, com corte $\kappa=(1-\varepsilon)U^\ast$
-  \If{$\max(\beta,L)\ge\kappa$} \textbf{continue} \Comment{podado} \EndIf
+  \If{$\beta\ge\kappa(U^\ast)$} \textbf{pare} \EndIf
+  \State $(L,U,q)\gets$ Algoritmo~\ref{alg:oracle} em $\sigma$, com corte $\kappa(U^\ast)$
+  \If{$\max(\beta,L)\ge\kappa(U^\ast)$} \textbf{continue} \Comment{podado} \EndIf
   \State $F\gets\{i:\ D_i\text{ não encontra a poligonal }q\}$ \Comment{sem o segmento $t\to s$}
   \If{$F=\emptyset$}
     \State $U^\ast\gets\min(U^\ast,U)$; o piso da subárvore é $L$ \Comment{tour factível}
@@ -310,17 +312,19 @@ limites saem juntos em $O(k)$, sem resolver nenhum filho.
     \State $E\gets$ o disco de $F$ mais distante de $q$
     \ForAll{posição $p$ de $\sigma$ (se $s\neq t$, só antes de $t$)}
       \State $\beta_p\gets\max(L,\text{limite de inserção de }E\text{ em }p)$ \Comment{seção 4}
-      \If{$\beta_p<(1-\varepsilon)U^\ast$} insira $(\sigma+E@p,\,\beta_p)$ em $Q$ \EndIf
+      \If{$\beta_p<\kappa(U^\ast)$} insira $(\sigma+E@p,\,\beta_p)$ em $Q$ \EndIf
     \EndFor
   \EndIf
 \EndWhile
-\State \Return $U^\ast$ e $L^\ast=\min(\text{limites abertos},\ \text{pisos},\ (1-\varepsilon)U^\ast)$
+\State $L^\ast\gets\min(\text{limites abertos},\ \text{pisos},\ \kappa(U^\ast))$
+\State \Return $U^\ast-\ell$ e $L^\ast-\ell$, arredondados para fora
 \end{algorithmic}
 \end{algorithm}
 
-Com $s\neq t$, $t$ fica sempre por último, e o gap é medido no comprimento do caminho
-(o $\varepsilon$ do algoritmo se aplica a $U^\ast-\lVert t-s\rVert$). A simetria espelhada só
-existe com $s=t$.
+Com $s\neq t$, $t$ fica sempre por último. O ciclo excede o caminho exatamente pela constante
+$\ell$, então os limites do ciclo menos $\ell$ limitam o caminho, e o corte $\kappa$ mede o gap no
+comprimento do caminho. Com $s=t$, $\kappa(U)=(1-\varepsilon)U$. A simetria espelhada só existe
+com $s=t$.
 
 \textbf{Por que o resultado está certo.} O limite de um nó é o $L$ certificado do ciclo pela
 sua sequência. Visitar só parte dos discos nunca alonga o ciclo, então esse limite vale para
@@ -336,8 +340,9 @@ Detalhes que não mudam a correção:
     limite descartado, que passa a limitar o que se pode provar;
   \item threads expandem lotes de nós.
 \end{itemize}
-Os tours finais são conferidos à parte, em aritmética racional, contra o texto decimal das
-instâncias.
+O tour gravado é conferido pelo próprio programa, em aritmética racional, contra os discos em
+binary64: cada contato dentro do seu disco e cada outro disco tocado por um segmento. Os tours
+finais também são conferidos à parte, contra o texto decimal das instâncias.
 
 \textbf{Relação com outros métodos.}
 \begin{itemize}
@@ -351,9 +356,11 @@ instâncias.
         aritmética intervalar. O gap de dualidade de um SOCP é avaliado em ponto flutuante:
         nas 20 instâncias de Mennell, 8 ``ótimos'' do Gurobi ficaram abaixo do nosso $L$
         provado.
-      \item \emph{Estrutura.} Iterações de custo $O(k)$, guiadas pela geometria. O filho
-        parte dos contatos do pai, um ponto de partida que métodos de pontos interiores
-        aproveitam mal.
+      \item \emph{Estrutura.} Passos guiados pela geometria: o Newton resolve um sistema
+        tridiagonal cíclico em $O(k)$, e uma varredura custa $O(k)$ mais $O(m^3)$ por bloco de
+        $m$ contatos coincidentes (pares de círculos, cada canto testado contra o bloco). O
+        número de iterações não tem limite provado. O filho parte dos contatos do pai, um
+        ponto de partida que métodos de pontos interiores aproveitam mal.
       \item \emph{Limites dos filhos quase de graça.} Os limites de inserção de todas as
         posições saem em $O(k)$ (seção 4), e cada filho só é resolvido quando sai da fila.
     \end{enumerate}

@@ -35,7 +35,8 @@ tpp_geometry -> tpp_convex -> optimal_convex_partition -> tpp_nonconvex
   resort;
 - `optimal_convex_partition`: optimal convex decomposition of simple polygons
   (our own implementation, without CGAL, of CGAL's
-  `optimal_convex_partition_2`);
+  `optimal_convex_partition_2`); the piece count is minimal when no three
+  vertices are collinear, and may exceed it otherwise;
 - `tpp_nonconvex`: fixed order with convex decomposition, and the free-order
   branch and bound for the TPP and the TSPN.
 
