@@ -26,7 +26,7 @@ resume as 51 regiões, a rota numericamente ótima de 4,97 km e o tempo registra
 de 8,77 s; explicita também que as regiões são alvos, não obstáculos, e que as
 regras de voo não são modeladas. A instância da USP é uma demonstração separada
 do corpus de Fekete et al. A origem dos contornos e a formulação estão em
-[`USP-DEMO.md`](../../../../../../apps/siicusp34/data/USP-DEMO.md).
+[`USP-DEMO.md`](../../../../../../../apps/siicusp34/data/USP-DEMO.md).
 
 Para refazer a captura, a partir da raiz do repositório:
 

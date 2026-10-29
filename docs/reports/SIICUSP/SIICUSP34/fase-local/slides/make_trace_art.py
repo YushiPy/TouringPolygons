@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).parent
-ROOT = HERE.parents[4]
+ROOT = HERE.parents[5]
 sys.path.insert(0, str(ROOT / "benchmarks/_internal"))
 from benchmark_cases import read_encoded_cases  # noqa: E402
 

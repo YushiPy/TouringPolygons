@@ -31,10 +31,10 @@ refeita ao compilar.
 
 ## Fontes dos dados
 
-- A demonstração da USP e seus dados: [`USP-DEMO.md`](../../../../../apps/siicusp34/data/USP-DEMO.md).
+- A demonstração da USP e seus dados: [`USP-DEMO.md`](../../../../../../apps/siicusp34/data/USP-DEMO.md).
 - Os resultados comparativos: campanha preservada em
-  [`benchmarks/results-saved/fekete-comparison`](../../../../../benchmarks/results-saved/fekete-comparison/README.md).
-- A formulação do TPP de ordem livre: [`unordered-tpp.md`](../../../../algorithms/unordered-tpp.md).
+  [`benchmarks/results-saved/fekete-comparison`](../../../../../../benchmarks/results-saved/fekete-comparison/README.md).
+- A formulação do TPP de ordem livre: [`unordered-tpp.md`](../../../../../algorithms/unordered-tpp.md).
 
 As métricas, tolerâncias e qualificações exibidas são mantidas na fonte do
 pôster para evitar uma segunda cópia que possa ficar desatualizada.

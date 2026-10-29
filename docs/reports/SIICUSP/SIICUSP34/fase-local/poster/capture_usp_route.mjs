@@ -10,7 +10,7 @@ import { dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const directory = dirname(fileURLToPath(import.meta.url));
-const root = resolve(directory, '../../../../..');
+const root = resolve(directory, '../../../../../..');
 const require = createRequire(resolve(root, 'apps/benchmark-dashboard/package.json'));
 const { chromium } = require('playwright');
 const url = process.argv[2] || 'http://127.0.0.1:8773/';

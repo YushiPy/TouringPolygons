@@ -5,7 +5,7 @@ from pathlib import Path
 from palette import LETTER_RAMP, ROUTE_RAMP, ramp, rgb
 
 HERE = Path(__file__).parent
-SRC = HERE.parents[4] / "apps/siicusp34/data/usp-demo.js"
+SRC = HERE.parents[5] / "apps/siicusp34/data/usp-demo.js"
 text = SRC.read_text()
 demo = json.loads(text[text.index("=") + 1:].rstrip().rstrip(";"))
 polys = demo["geometry"]["polygons"]; path = demo["path"]; start = demo["geometry"]["start"]

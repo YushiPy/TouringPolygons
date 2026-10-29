@@ -7,7 +7,7 @@ import math
 import statistics
 from pathlib import Path
 
-root = Path(__file__).resolve().parents[5]
+root = Path(__file__).resolve().parents[6]
 src = root / "benchmarks/results-saved/free-order-dantzig-2026-10-06/per-case.csv"
 rows = [r for r in csv.DictReader(src.open()) if r["fekete_status"] == "optimal"]
 LO, STEP, N = 0.5, 0.25, 12            # bins em log10(speedup): 10^0.5 .. 10^3.5

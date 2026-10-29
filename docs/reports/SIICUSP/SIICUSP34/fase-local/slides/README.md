@@ -44,8 +44,8 @@ tolerância de 0,003 em); o solver (`.build/unordered/tpp`) certificou o ótimo
 
 ```sh
 # precisa de fontTools e shapely em qualquer venv
-python3 ../../../../../benchmarks/tpp.py build tpp-unordered
-python3 make_title_instance.py --solver ../../../../../.build/tools/bin/tpp-unordered
+python3 ../../../../../../benchmarks/tpp.py build tpp-unordered
+python3 make_title_instance.py --solver ../../../../../../.build/tools/bin/tpp-unordered
 # regenera title-instance.json e title-art.tex; title-art-body.tex é a
 # versão sem as duas primeiras linhas (\def) de title-art.tex
 ```
