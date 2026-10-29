@@ -702,14 +702,17 @@ DiskExcess tpp_convex_disk_excess(const std::vector<ConvexDisk> &disks,const std
             const Vector2 g=f-edge[l]*t;
             best=std::min(best,g.dot(g));
         }
-        // For any t in [0,1], cycle[l]+edge*t is on the link, so the distance
-        // to it bounds the distance to the polyline; computing it rounds f,
-        // the edge, the product and the difference, each within an ulp of the
-        // coordinates involved, and the square root within one of the result
-        // (16 ulps is generous).
+        // For any t in [0,1], cycle[l]+e*t, with e the exact edge, is on the
+        // link, so the distance to it bounds the distance to the polyline. The
+        // computed one rounds the edge (moving that point by half an ulp of
+        // the edge, at most), f, the product and the difference, each within an
+        // ulp of the coordinates involved, and the square root within one of
+        // the result (16 ulps is generous). Below the normal range the squares
+        // keep an absolute error under 2^-1073, so the distance one under
+        // 2^-536.
         const double d=std::sqrt(best);
         out.excess[j]=d-disks[j].radius;
-        if(k)out.error[j]=16*ulp*(std::abs(disks[j].center.x)+std::abs(disks[j].center.y)+reach+d);
+        if(k)out.error[j]=16*ulp*(std::abs(disks[j].center.x)+std::abs(disks[j].center.y)+reach+d)+0x1p-536;
     }
     return out;
 }

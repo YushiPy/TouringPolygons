@@ -23,6 +23,7 @@
 // --max-memory a ceiling (GB) on the peak resident size: the B&B stops there
 // with the bound it has, as at the time limit.
 #include "tpp_convex.h"
+#include "tpp/convex/rational.h"
 #include <algorithm>
 #include <array>
 #include <optional>
@@ -99,6 +100,16 @@ Vector2 nearest_to_link(Vector2 a,Vector2 b,const tpp::ConvexDisk &d) {
 constexpr double kCovered=-1e-9; // relative to the radius scale; conservative
 bool uncovered(const tpp::DiskExcess &e,const Disks &disks,size_t j) {
     return e.excess[j]+e.error[j]>kCovered*std::max(1.0,disks[j].radius);
+}
+// Whether the segment ab meets the disk, in rationals: the squared distance
+// from the center to the segment against the squared radius.
+bool meets_exactly(const tpp::ConvexDisk &d,Vector2 a,Vector2 b) {
+    using Q=tpp::ConvexRational;
+    const Q ex=Q(b.x)-Q(a.x),ey=Q(b.y)-Q(a.y),fx=Q(d.center.x)-Q(a.x),fy=Q(d.center.y)-Q(a.y);
+    const Q ee=ex*ex+ey*ey,fe=fx*ex+fy*ey,ff=fx*fx+fy*fy,rr=Q(d.radius)*Q(d.radius);
+    if(ee==0||fe<=0)return ff<=rr;
+    if(fe>=ee){const Q gx=fx-ex,gy=fy-ey;return gx*gx+gy*gy<=rr;}
+    return ff*ee-fe*fe<=rr*ee;
 }
 
 // The search keeps a family per expanded node: the disk its children insert,
@@ -180,15 +191,16 @@ struct Solver {
     // Every sequence ends at the end, no move takes it out or puts a disk
     // after it, and the link back to the depot, of constant length `offset`,
     // is neither a visit nor part of the gap: bounds of the cycle less offset
-    // are bounds of the open tour.
-    bool open=false;double offset=0;
+    // are bounds of the open tour. The link's exact length lies between
+    // offset_low and offset_high, and the subtractions round outward.
+    bool open=false;double offset=0,offset_low=0,offset_high=0;
     size_t tail() const {return open?1:0;}
     std::vector<int> root() const {return open?std::vector<int>{0,int(all.size()-1)}:std::vector<int>{0};}
     std::vector<Vector2> root_points() const {std::vector<Vector2> w;for(int i:root())w.push_back(all[size_t(i)].center);return w;}
     // Below this, a bound closes the gap relative to the open tour's length.
     double cutoff_of(double u) const {return open?u-gap*(u-offset):u*(1-gap);}
-    double tour_lower(double l) const {return open?l-offset*(1+4*std::numeric_limits<double>::epsilon()):l;}
-    double tour_upper(double u) const {return open?u-offset*(1-4*std::numeric_limits<double>::epsilon()):u;}
+    double tour_lower(double l) const {return open?std::nextafter(l-offset_high,-INFINITY):l;}
+    double tour_upper(double u) const {return open?std::nextafter(u-offset_low,INFINITY):u;}
     std::string stopped="closed"; // or "time", "memory"
     double upper=INFINITY;std::vector<int> best_sequence;std::vector<Vector2> best_cycle;
     struct Counters {size_t oracle_calls=0,newton=0,constructed=0,screened=0;double oracle_seconds=0;};
@@ -860,7 +872,14 @@ int main(int argc,char **argv) {
     const double seconds=positional.size()>1?std::stod(positional[1]):60.0;
     Solver s{inst.disks,positional.size()>2?std::stod(positional[2]):1e-6,seconds,Clock::now()};
     s.strong=strong;s.seed=seed;s.threads=threads;s.max_memory=max_memory;
-    if(open){const Vector2 v=*end-inst.disks[0].center;s.open=true;s.offset=std::sqrt(v.dot(v));}
+    if(open) {
+        // hypot is within an ulp of the rounded difference, itself within half
+        // an ulp per coordinate; 4 ulps (and one subnormal) cover both.
+        constexpr double ulp=std::numeric_limits<double>::epsilon(),tiny=std::numeric_limits<double>::denorm_min();
+        const Vector2 v=*end-inst.disks[0].center;s.open=true;s.offset=std::hypot(v.x,v.y);
+        s.offset_low=std::max(0.0,std::nextafter(s.offset*(1-4*ulp)-tiny,-INFINITY));
+        s.offset_high=std::nextafter(s.offset*(1+4*ulp)+tiny,INFINITY);
+    }
     s.target_lower=target_lower;s.target_gap=target_gap;s.tracing=std::isfinite(target_lower)||std::isfinite(target_gap);
     s.mode=mode=="eager"?Solver::Mode::Eager:mode=="screen"?Solver::Mode::Screen:Solver::Mode::Lazy;
     const std::string tour=positional.size()>3?positional[3]:"-";
@@ -890,19 +909,47 @@ int main(int argc,char **argv) {
     std::cout<<"}"<<std::endl;
     if(tour!="-") {
         // Contacts pulled toward their centers by 2^-40 of the radius: inside
-        // the decimal disks too, which binary64 reading moves by about 1e-14.
-        // That moves the tour, so its upper bound is its own length, rounded
-        // up: each link within a few ulps, their sum within one per link.
-        const size_t k=s.best_cycle.size();
+        // the decimal disks too, which binary64 reading moves by about 1e-16
+        // of the coordinates, unless the radius is below about 1e-4 of them.
+        // Pulling moves the polyline, and with it the disks met outside the
+        // sequence, so the written tour is checked exactly (rationals, binary64
+        // disks); if the pulled one fails, the oracle's contacts are written.
+        const size_t k=s.best_cycle.size(),links=k-s.tail();
+        auto meets_every_disk=[&](const std::vector<Vector2> &w) {
+            std::vector<bool> member(inst.disks.size(),false);
+            for(size_t i=0;i<k;++i) {
+                const size_t j=size_t(s.best_sequence[i]);member[j]=true;
+                if(!meets_exactly(inst.disks[j],w[i],w[i]))return false;
+            }
+            const auto e=tpp::tpp_convex_disk_excess(inst.disks,{},w,!open);
+            for(size_t j=0;j<inst.disks.size();++j) {
+                if(member[j]||e.excess[j]+e.error[j]<=0)continue;
+                bool met=false;
+                for(size_t l=0;l<links&&!met;++l)met=meets_exactly(inst.disks[j],w[l],w[(l+1)%k]);
+                if(!met)return false;
+            }
+            return true;
+        };
         std::vector<Vector2> written(k);
         for(size_t i=0;i<k;++i) {
             const auto &d=inst.disks[size_t(s.best_sequence[i])];
-            written[i]=d.radius>0?d.center+(s.best_cycle[i]-d.center)*(1-0x1p-40):s.best_cycle[i];
+            written[i]=d.radius>0?d.center+(s.best_cycle[i]-d.center)*(1-0x1p-40):d.center;
         }
+        bool verified=meets_every_disk(written);
+        if(!verified) {
+            for(size_t i=0;i<k;++i)if(inst.disks[size_t(s.best_sequence[i])].radius>0)written[i]=s.best_cycle[i];
+            verified=meets_every_disk(written);
+            if(!verified)std::cerr<<"warning: the written tour misses a disk in exact arithmetic\n";
+        }
+        // Its upper bound is its own length, rounded up: each link within a few
+        // ulps (hypot neither underflows nor overflows), their sum within one
+        // per link, and a subnormal per link below the normal range.
         double length=0;
-        for(size_t i=0;i+s.tail()<k;++i){const Vector2 v=written[(i+1)%k]-written[i];length+=std::sqrt(v.dot(v));}
-        length=std::nextafter(length*(1+4*double(k+2)*std::numeric_limits<double>::epsilon()),INFINITY);
-        std::ofstream out(tour);out<<std::setprecision(17)<<"{\"instance\":\""<<positional[0]<<"\",\"upper_bound\":"<<length<<(open?",\"open\":true":"")<<",\"sequence\":[";
+        for(size_t i=0;i<links;++i){const Vector2 v=written[(i+1)%k]-written[i];length+=std::hypot(v.x,v.y);}
+        length=std::nextafter(length*(1+4*double(k+2)*std::numeric_limits<double>::epsilon())
+            +double(k+2)*std::numeric_limits<double>::denorm_min(),INFINITY);
+        std::ofstream out(tour);out<<std::setprecision(17)<<"{\"instance\":\""<<positional[0]<<"\",\"upper_bound\":"<<length<<(open?",\"open\":true":"")
+            <<",\"verified\":"<<(verified?"true":"false")<<",\"sequence\":[";
         for(size_t i=0;i<k;++i)out<<(i?",":"")<<s.best_sequence[i];
         out<<"],\"contacts\":[";
         for(size_t i=0;i<k;++i)out<<(i?",":"")<<"["<<written[i].x<<","<<written[i].y<<"]";

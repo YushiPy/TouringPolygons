@@ -2,10 +2,13 @@
 known optima (Coutinho et al. 2016, three decimals), the floor kept when children
 are dropped for memory, strict targets, open tours to a fixed end, interruption, a
 zero-length tour, and a written tour that meets every decimal disk within its written bound (rational
-arithmetic). Skipped when the tool is not built (sanity_check.sh builds it)."""
+arithmetic), also when pulling its contacts would lose a disk met outside the sequence, and
+below the normal range. Skipped when the tool is not built, except under sanity_check.sh,
+which builds it and sets TPP_REQUIRE_NATIVE=1."""
 
 import json
 import math
+import os
 import signal
 import subprocess
 import sys
@@ -21,6 +24,7 @@ import native_build
 
 SUITE = Path(__file__).resolve().parents[1] / "suites" / "cetsp"
 TOOL = native_build.tool_path("tpp-convex-cetsp")
+REQUIRED = os.environ.get("TPP_REQUIRE_NATIVE") == "1"
 KROD100_010 = SUITE / "mennell-tsplib-2d" / "kroD100-0.10.txt"
 KROD100_030 = SUITE / "mennell-tsplib-2d" / "kroD100-0.30.txt"
 
@@ -52,9 +56,9 @@ def read_disks(path):
 	return [depot, *disks]
 
 
-def squared_distance_to_polyline(x, y, points):
+def squared_distance_to_polyline(x, y, points, closed=True):
 	best = None
-	for (ax, ay), (bx, by) in zip(points, points[1:] + points[:1]):
+	for (ax, ay), (bx, by) in zip(points, points[1:] + points[:1] if closed else points[1:]):
 		ex, ey, fx, fy = bx - ax, by - ay, x - ax, y - ay
 		ee = ex * ex + ey * ey
 		t = min(Fraction(1), max(Fraction(0), (fx * ex + fy * ey) / ee)) if ee else Fraction(0)
@@ -65,14 +69,37 @@ def squared_distance_to_polyline(x, y, points):
 
 
 def sqrt_up(square):
-	root = math.sqrt(float(square))
-	while Fraction(root) ** 2 < square:
-		root = math.nextafter(root, math.inf)
-	return Fraction(root)
+	"""A rational at least the square root of `square`, within 2^-80 of it (relative): an
+	integer square root, which, unlike float(square), neither underflows nor overflows."""
+	return Fraction(math.isqrt(square.numerator * square.denominator << 160) + 1, square.denominator << 80)
 
 
-@unittest.skipUnless(TOOL.is_file(), "tpp-convex-cetsp is not built")
+def check_written_tour(test, path, tour, closed=True):
+	"""Every disk met by the written polyline, and its length within the written bound."""
+	points = [(Fraction(x), Fraction(y)) for x, y in tour["contacts"]]
+	test.assertEqual(len(points), len(tour["sequence"]))
+	test.assertTrue(tour["verified"])
+	for x, y, radius in read_disks(path):
+		test.assertLessEqual(squared_distance_to_polyline(x, y, points, closed), radius * radius)
+	pairs = zip(points, points[1:] + points[:1] if closed else points[1:])
+	length = sum(sqrt_up((bx - ax) ** 2 + (by - ay) ** 2) for (ax, ay), (bx, by) in pairs)
+	test.assertLessEqual(length, Fraction(tour["upper_bound"]))
+
+
+def run_with_tour(path, *arguments):
+	with tempfile.TemporaryDirectory() as directory:
+		tour_file = Path(directory) / "tour.json"
+		result = run(path, *arguments[:2], tour_file, *arguments[2:])
+		return result, strict_json(tour_file.read_text())
+
+
+@unittest.skipUnless(TOOL.is_file() or REQUIRED, "tpp-convex-cetsp is not built")
 class CetspCliTests(unittest.TestCase):
+	@classmethod
+	def setUpClass(cls):
+		if not TOOL.is_file():
+			raise AssertionError(f"{TOOL} is not built")
+
 	def test_known_optima(self):
 		for path, optimum in ((KROD100_030, 58.541), (KROD100_010, 89.668)):
 			result = run(path, 30, 1e-6, "-")
@@ -81,18 +108,28 @@ class CetspCliTests(unittest.TestCase):
 			self.assertLess(abs(result["upper_bound"] - optimum), 6e-4, path.name)
 
 	def test_written_tour_meets_every_disk_within_its_bound(self):
-		with tempfile.TemporaryDirectory() as directory:
-			tour_file = Path(directory) / "tour.json"
-			result = run(KROD100_010, 30, 1e-6, tour_file)
-			tour = strict_json(tour_file.read_text())
-		disks = read_disks(KROD100_010)
-		points = [(Fraction(x), Fraction(y)) for x, y in tour["contacts"]]
-		self.assertEqual(len(points), len(tour["sequence"]))
-		for x, y, radius in disks:
-			self.assertLessEqual(squared_distance_to_polyline(x, y, points), radius * radius)
-		length = sum(sqrt_up((bx - ax) ** 2 + (by - ay) ** 2) for (ax, ay), (bx, by) in zip(points, points[1:] + points[:1]))
-		self.assertLessEqual(length, Fraction(tour["upper_bound"]))
+		result, tour = run_with_tour(KROD100_010, 30, 1e-6)
+		check_written_tour(self, KROD100_010, tour)
 		self.assertLessEqual(result["lower_bound"], tour["upper_bound"])
+
+	def test_written_tour_keeps_the_disks_met_outside_its_sequence(self):
+		# The tour turns at the bottom of a disk of radius 10^6, (0, 5), which
+		# meets the disk of radius 10^-7 there without visiting it; pulling that
+		# contact 2^-40 of 10^6 toward its center used to miss the small disk
+		# by 8 radii (review of 2026-10-28).
+		with tempfile.TemporaryDirectory() as directory:
+			path = Path(directory) / "pulled.txt"
+			path.write_text("//Depot is -10, 0\n10 0 0 0\n0 1000005 0 1000000\n0 5 0 0.0000001\n")
+			_, tour = run_with_tour(path, 10, 1e-9, "--heuristic", 0)
+			check_written_tour(self, path, tour)
+
+	def test_written_bound_below_the_normal_range(self):
+		# Squared coordinates of 1e-200 underflow; the bound used to be 5e-324.
+		with tempfile.TemporaryDirectory() as directory:
+			path = Path(directory) / "tiny.txt"
+			path.write_text("//Depot is 0, 0\n1e-200 0 0 1e-210\n")
+			_, tour = run_with_tour(path, 5, 1e-9, "--heuristic", 0)
+			check_written_tour(self, path, tour)
 
 	def test_dropped_children_keep_a_valid_floor(self):
 		result = run(KROD100_010, 30, 1e-6, "-", "--max-memory", 0.002)
@@ -130,8 +167,9 @@ class CetspCliTests(unittest.TestCase):
 			two.write_text("//Depot is 0, 0\n3 0 0 1\n7 0 0 1\n")
 			three.write_text("//Depot is 0, 0\n3 0 0 1\n7 0 0 1\n5 4 0 1\n")
 			for path, optimum in ((two, 10.0), (three, 11.865339530283185)):
-				result = run(path, 10, 1e-9, "-", "--end", "10,0")
-				self.assertTrue(result["closed"] and result["open"])
+				result, tour = run_with_tour(path, 10, 1e-9, "--end", "10,0")
+				check_written_tour(self, path, tour, closed=False)
+				self.assertTrue(result["closed"] and result["open"] and tour["open"])
 				self.assertEqual(result["disks"], 2 if path == two else 3)
 				self.assertLessEqual(result["lower_bound"], optimum + 1e-9)
 				self.assertLess(abs(result["upper_bound"] - optimum), 1e-7)

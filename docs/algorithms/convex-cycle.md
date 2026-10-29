@@ -932,8 +932,9 @@ visiting a subset can only shorten the tour.
   the farthest uncovered disk is inserted at every position, with the mirror
   symmetry removed at the second disk. A disk counts as covered only when
   its distance to the cycle, plus a bound on that distance's rounding error
-  (which grows with the coordinates, not the radius;
-  `tpp_convex_disk_excess`), is below the radius by `1e-9` times the radius.
+  (which grows with the coordinates, not the radius, plus 2^-536 for
+  squares below the normal range; `tpp_convex_disk_excess`), is below the
+  radius by `1e-9` times the larger of 1 and the radius.
   So a borderline disk is branched on rather than assumed covered. Strong
   branching (several candidates, keep the one whose weakest
   child is strongest) is optional. On rotatingDiamonds3 and
@@ -1040,8 +1041,9 @@ visiting a subset can only shorten the tour.
   insertion goes after it. Coverage ignores the link back to the start, and
   the gap is relative to the open length. The cycle through the start and
   the end exceeds the open tour by the constant link between them, so the
-  oracle's bounds less that link bound the open tour. There is no mirror
-  symmetry to remove.
+  oracle's bounds less that link bound the open tour. The link's length is
+  enclosed within 4 ulps, and the subtractions round outward. There is no
+  mirror symmetry to remove.
   - Measured with the end at the depot reflected through the centroid:
     - Behdani-Smith's 240 at radius 0.5: all close, in 1.3 times the
       closed tour's time (median), 6 times at worst;
@@ -1053,14 +1055,24 @@ visiting a subset can only shorten the tour.
   the bound computed. A zero optimum has a zero gap. `--target-lower L` and
   `--target-gap G` stop once the bound is strictly above `L` and the gap
   strictly below `G`, with the bounds over time in `trace`.
-- **Independent check.** The tour can be written out and checked in exact
+- **Written tour.** The contacts are pulled toward their centers by 2^-40
+  of the radius, so they lie in the decimal disks too, unless the radius is
+  below about 1e-4 of the coordinates. Pulling moves the polyline, and with
+  it the disks met outside the sequence: a disk of radius 10^6, pulled by
+  10^-6, used to lose a disk of radius 10^-7 that the oracle's cycle met
+  (review of 2026-10-28). So the solver checks the written polyline in
+  rationals against the binary64 disks: each contact inside its disk, and
+  each other disk met by a link (the float bound above settles most). If
+  the pulled tour fails, it writes the oracle's contacts, whose coverage was
+  certified; `verified` reports the outcome. The file's `upper_bound` is the
+  written tour's own length, rounded up (hypot, so tiny or huge coordinates
+  neither underflow nor overflow), not the solver's `U`.
+- **Independent check.** The written tour can also be checked in exact
   rationals on the instance's decimal text: coverage of every disk, and a
-  length bound with rounded-up square roots. The written contacts are pulled
-  toward their centers by 2^-40 of the radius, so they lie in the decimal
-  disks too. That moves the tour, so the file's `upper_bound` is the written
-  tour's own length, rounded up, not the solver's `U`.
+  length bound with rounded-up square roots.
   `benchmarks/tests/test_cetsp_cli.py` checks this end to end, along with
-  known optima, the memory floor, strict targets and interruption.
+  known optima, the memory floor, strict targets, interruption, the pulled
+  case above and a tour of length 2e-200.
 - **Integration with the TSPN B&B.** Not done: it would pay only if faster.
   The TSPN's two pieces that help disks, insertion screening and lazy
   children, are here, in O(1) closed form.
