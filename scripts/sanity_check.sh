@@ -161,7 +161,8 @@ else
 	run_step packages/convex-tpp/cpp/run_generated_tests.sh --quick
 fi
 run_step python3 benchmarks/tpp.py generate-suites
-run_step benchmarks/.venv/bin/python -m unittest discover -b -s benchmarks/tests
+# TPP_REQUIRE_NATIVE: a test whose native tool is missing fails rather than skips.
+run_step env TPP_REQUIRE_NATIVE=1 benchmarks/.venv/bin/python -m unittest discover -b -s benchmarks/tests
 
 echo
 echo "Sanity check passed in $((SECONDS - started)) s."

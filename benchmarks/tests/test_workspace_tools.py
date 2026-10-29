@@ -46,6 +46,22 @@ class NativeBuildTests(unittest.TestCase):
 			self.assertFalse(native_build.cache_matches_checkout(build))
 			self.assertTrue(native_build.cache_matches_checkout(build / "missing"))
 
+	def test_cache_through_a_symbolic_link_is_the_same_checkout(self):
+		# CMake keeps the path it was given: a checkout under /tmp records /tmp,
+		# which resolves to /private/tmp on macOS (review of 2026-10-28).
+		with tempfile.TemporaryDirectory() as directory:
+			real = Path(directory).resolve() / "real"
+			(real / "source").mkdir(parents=True)
+			(real / "build").mkdir()
+			link = Path(directory) / "link"
+			link.symlink_to(real)
+			(real / "build" / "CMakeCache.txt").write_text(
+				f"CMAKE_HOME_DIRECTORY:INTERNAL={link / 'source'}\n"
+				f"CMAKE_CACHEFILE_DIR:INTERNAL={link / 'build'}\n"
+			)
+			self.assertTrue(native_build.cache_matches_checkout(real / "build", source=real / "source"))
+			self.assertTrue(native_build.cache_matches_checkout(link / "build", source=link / "source"))
+
 	def test_no_build_reports_missing_tools(self):
 		with patch.object(native_build, "BUILD_ROOT", Path("/nonexistent/build")), self.assertRaises(SystemExit):
 			native_build.ensure_tools(["tpp-unordered"], no_build=True)
