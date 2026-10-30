@@ -40,14 +40,14 @@
 \newcommand{\bodymuted}{\sffamily\mdseries\fontsize{26}{31}\selectfont\color{Muted}}
 \newcommand{\tagtext}{\sffamily\bfseries\fontsize{26}{31}\selectfont\color{Accent}}
 \newcommand{\metric}{\sffamily\bfseries\fontsize{66}{72}\selectfont\color{Accent}}
-% A card at (x, y), 13.9 cm wide and 15.95 cm tall: figure box, title and caption.
+% A card at (x, y), 13.9 cm wide and 16.2 cm tall: figure box, rule, title and a two-line caption.
 \newcommand{\card}[6]{%
-  \fill[white,rounded corners=0.22cm] (#1,#2) rectangle ({#1+13.9},{#2+15.95});
-  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (#1,#2) rectangle ({#1+13.9},{#2+15.95});
-  \block{#3-art}{#1}{#2+0.35}{13.9}{\centering\vbox to 8.6cm{\vfil\hbox to \linewidth{\hfil\includegraphics[width=13.1cm,height=8.3cm,keepaspectratio]{#4}\hfil}\vfil}}
-  \draw[Rule,line width=0.8pt] ({#1+0.5},{#2+9.3}) -- ({#1+13.4},{#2+9.3});
-  \block{#3-title}{#1+0.55}{#2+9.7}{12.8}{\bodytext\bfseries #5}
-  \block{#3-text}{#1+0.55}{#2+10.9}{12.8}{\bodymuted #6}}
+  \fill[white,rounded corners=0.22cm] (#1,#2) rectangle ({#1+13.9},{#2+16.2});
+  \draw[Rule,line width=0.9pt,rounded corners=0.22cm] (#1,#2) rectangle ({#1+13.9},{#2+16.2});
+  \block{#3-art}{#1}{#2+0.5}{13.9}{\centering\vbox to 11.1cm{\vfil\hbox to \linewidth{\hfil\includegraphics[width=13.1cm,height=10.9cm,keepaspectratio]{#4}\hfil}\vfil}}
+  \draw[Rule,line width=0.8pt] ({#1+0.5},{#2+12.1}) -- ({#1+13.4},{#2+12.1});
+  \block{#3-title}{#1+0.55}{#2+12.55}{12.8}{\bodytext\bfseries #5}
+  \block{#3-text}{#1+0.55}{#2+13.75}{12.8}{\bodymuted #6}}
 \begin{document}
 \begin{tikzpicture}[remember picture,overlay,shift={(current page.north west)},x=1cm,y=-1cm]
   \fill[white] (0,0) rectangle (84.1,118.9);
@@ -64,94 +64,94 @@
   \draw[Rule,line width=1.1pt] (3,17.0) -- (81.1,17.0);
 
   % Row 1: the problem, and what was known and what we add.
-  \draw[Rule,line width=0.8pt] (41.95,18.3) -- (41.95,37.7);
-  \block{intro-head}{3}{18.3}{38.2}{\head{1}{Objectives}}
-  \block{intro-context}{3}{20.67}{38.2}{\bodytext A drone leaves Brasília, must fly over each of Brazil's 27 federative units and come back. In which \textbf{order}, and through which \textbf{point} of each region, is the route shortest? Touching or crossing a region counts as a visit. Area targets arise in delivery, surveillance and precision agriculture, and real regions are often non-convex.}
-  \fill[Pale,rounded corners=0.22cm] (3,25.2) rectangle (20.4,29.37);
-  \draw[Rule,line width=1.0pt,rounded corners=0.22cm] (3,25.7) rectangle (20.4,29.87);
-  \block{tsp}{3.55}{25.7}{16.3}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TSP}\hspace{0.12cm}\raisebox{0.08cm}{{\sffamily\mdseries\fontsize{22}{26}\selectfont\color{Muted}·\hspace{0.12cm}Traveling Salesman Problem}}\par\vspace{0.10cm}\bodytext Shortest closed tour\\through a set of points.}
-  \fill[Pale,rounded corners=0.22cm] (3,29.87) rectangle (20.4,35.13);
-  \draw[Rule,line width=1.0pt,rounded corners=0.22cm] (3,30.37) rectangle (20.4,35.63);
-  \block{tpp}{3.55}{30.37}{16.3}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TPP}\hspace{0.12cm}\raisebox{0.08cm}{{\sffamily\mdseries\fontsize{22}{26}\selectfont\color{Muted}·\hspace{0.12cm}Touring Polygons Problem}}\par\vspace{0.10cm}\bodytext Shortest path from $s$ that visits\\a sequence of polygons in order\\and ends at $t$.}
-  \fill[Accent!7,rounded corners=0.24cm] (22.8,26.4) rectangle (41.1,33.83);
-  \draw[Accent!65,line width=1.2pt,rounded corners=0.24cm] (22.8,26.4) rectangle (41.1,33.83);
-  \block{free-order}{23.45}{26.9}{17.0}{{\tagtext TSPN · free-order tour}\par\vspace{0.14cm}\bodytext Shortest closed tour that visits\\a set of polygons in any order,\\with no fixed point.\par\vspace{0.10cm}\bodytext\bfseries This is the problem we solve.}
-  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (20.4,27.4) -- (22.7,29.7);
-  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (20.4,32.66) -- (22.7,30.35);
-  \block{aim}{3}{36.1}{38.2}{\bodymuted\textbf{Aim:} an exact, self-contained solver for the TSPN, with no commercial optimizer, compared with the state of the art [3].}
+  \draw[Rule,line width=0.8pt] (41.95,17.7) -- (41.95,36.9);
+  \block{intro-head}{3}{17.7}{38.2}{\head{1}{Objectives}}
+  \block{intro-context}{3}{19.50}{38.2}{\bodytext A drone leaves Brasília, must fly over each of Brazil's 27 federative units and come back. In which \textbf{order}, and through which \textbf{point} of each region, is the route shortest? Touching or crossing a region counts as a visit. Area targets arise in delivery, surveillance and precision agriculture, and real regions are often non-convex.}
+  \fill[Pale,rounded corners=0.22cm] (3,24.03) rectangle (20.4,28.20);
+  \draw[Rule,line width=1.0pt,rounded corners=0.22cm] (3,24.53) rectangle (20.4,28.70);
+  \block{tsp}{3.55}{24.53}{16.3}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TSP}\hspace{0.12cm}\raisebox{0.08cm}{{\sffamily\mdseries\fontsize{22}{26}\selectfont\color{Muted}·\hspace{0.12cm}Traveling Salesman Problem}}\par\vspace{0.10cm}\bodytext Shortest closed tour\\through a set of points.}
+  \fill[Pale,rounded corners=0.22cm] (3,28.70) rectangle (20.4,33.96);
+  \draw[Rule,line width=1.0pt,rounded corners=0.22cm] (3,29.20) rectangle (20.4,34.46);
+  \block{tpp}{3.55}{29.20}{16.3}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TPP}\hspace{0.12cm}\raisebox{0.08cm}{{\sffamily\mdseries\fontsize{22}{26}\selectfont\color{Muted}·\hspace{0.12cm}Touring Polygons Problem}}\par\vspace{0.10cm}\bodytext Shortest path from $s$ that visits\\a sequence of polygons in order\\and ends at $t$.}
+  \fill[Accent!7,rounded corners=0.24cm] (22.8,25.23) rectangle (41.1,32.66);
+  \draw[Accent!65,line width=1.2pt,rounded corners=0.24cm] (22.8,25.23) rectangle (41.1,32.66);
+  \block{free-order}{23.45}{25.73}{17.0}{{\tagtext TSPN · free-order tour}\par\vspace{0.14cm}\bodytext Shortest closed tour that visits\\a set of polygons in any order,\\with no fixed point.\par\vspace{0.10cm}\bodytext\bfseries This is the problem we solve.}
+  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (20.4,26.23) -- (22.7,28.53);
+  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (20.4,31.49) -- (22.7,29.18);
+  \block{aim}{3}{34.93}{38.2}{\bodymuted\textbf{Aim:} an exact, self-contained solver for the TSPN, with no commercial optimizer, compared with the state of the art [3].}
 
-  \block{background-head}{42.7}{18.3}{38.4}{\head{2}{Background and contribution}}
-  \block{background}{42.7}{20.67}{38.4}{\tagtext A polynomial subproblem\par\vspace{0.15cm}\bodytext Both variants are NP-hard for non-convex polygons, but the fixed-order TPP with convex polygons is polynomial: Dror et al. [1] use last-step shortest-path maps, improved by Tan and Jiang [2]. These algorithms fix $s$ and $t$; a TSPN tour has no fixed point.\par\vspace{0.35cm}\tagtext The state of the art\par\vspace{0.15cm}\bodytext Fekete et al. [3] solve the TSPN by branch and bound. Each convex subproblem is a second-order cone program (SOCP) solved by Gurobi, a commercial optimizer, within a tolerance.\par\vspace{0.35cm}\tagtext Our contribution\par\vspace{0.15cm}\bodytext An exact algorithm for the \textbf{fixed-order closed tour} through convex polygons, which may touch or overlap. An optimal tour touches some boundary, so we scan boundary segments, solve anchored paths with the maps of [1] and use the convexity of the anchored length. On rational input the tour is optimal with \textbf{zero error}. For speed, a floating-point stage proves bounds with directed rounding; the exact stage runs only when they are not tight enough.}
-  \draw[Rule,line width=1.1pt] (3,38.2) -- (81.1,38.2);
+  \block{background-head}{42.7}{17.7}{38.4}{\head{2}{Background and contribution}}
+  \block{background}{42.7}{19.50}{38.4}{\tagtext A polynomial subproblem\par\vspace{0.15cm}\bodytext Both variants are NP-hard for non-convex polygons, but the fixed-order TPP with convex polygons is polynomial: Dror et al. [1] use last-step shortest-path maps, improved by Tan and Jiang [2]. These algorithms fix $s$ and $t$; a TSPN tour has no fixed point.\par\vspace{0.35cm}\tagtext The state of the art\par\vspace{0.15cm}\bodytext Fekete et al. [3] solve the TSPN by branch and bound. Each convex subproblem is a second-order cone program (SOCP) solved by Gurobi, a commercial optimizer, within a tolerance.\par\vspace{0.35cm}\tagtext Our contribution\par\vspace{0.15cm}\bodytext An exact algorithm for the \textbf{fixed-order closed tour} through convex polygons, which may touch or overlap. An optimal tour touches some boundary, so we scan boundary segments, solve anchored paths with the maps of [1] and use the convexity of the anchored length. On rational input the tour is optimal with \textbf{zero error}. For speed, a floating-point stage proves bounds with directed rounding; the exact stage runs only when they are not tight enough.}
+  \draw[Rule,line width=1.1pt] (3,37.6) -- (81.1,37.6);
 
   % Row 2: the Brazil instance of the poster and the web page, and the search.
-  \draw[Rule,line width=0.8pt] (37.75,38.7) -- (37.75,78.1);
-  \block{map-head}{3}{38.7}{34}{\head{3}{Brazil as an instance}}
-  \block{map-context}{3}{40.9}{34}{\bodytext 27 regions, one per federative unit, with simplified borders. The tour leaves Brasília ($s = t$), crosses every unit and returns: \textbf{10{,}039 km}, proved optimal in \textbf{0.08 s} with one thread. Lighter units are visited first.}
-  \block{map}{3}{44.1}{34}{\includegraphics[width=\linewidth]{brazil-route.pdf}}
+  \draw[Rule,line width=0.8pt] (37.75,38.3) -- (37.75,77.8);
+  \block{map-head}{3}{38.3}{34}{\head{3}{Brazil as an instance}}
+  \block{map-context}{3}{40.1}{34}{\bodytext 27 regions, one per federative unit, with simplified borders. The tour leaves Brasília ($s = t$), crosses every unit and returns: \textbf{10{,}039 km}, proved optimal in \textbf{0.08 s} with one thread. Lighter units are visited first.}
+  \block{map}{3}{43.8}{34}{\includegraphics[width=\linewidth]{brazil-route.pdf}}
 
-  \block{method-head}{38.5}{38.7}{42.6}{\head{4}{Branch and bound}}
-  \block{method}{38.5}{40.9}{42.6}{\bodytext A node holds a partial sequence of $m$ targets, each one its \textbf{convex hull} or one \textbf{convex piece} of an optimal decomposition by Greene's algorithm [4]. The node's closed tour is a \textbf{lower bound} $L$ for every extension, since omitting targets cannot lengthen a route; the best feasible length so far is $U$. The insertion and refinement rules follow [3].}
-  \card{38.5}{45.7}{feasible}{method-step-01.pdf}{01 · Feasible route}{A greedy heuristic sets the first $U$; the optimum comes later.}
-  \card{52.85}{45.7}{partial}{method-step-02.pdf}{02 · Partial order}{Only A and B are fixed; the tour touches C by chance.}
-  \card{67.2}{45.7}{prune}{method-step-03.pdf}{03 · Prune}{If $L$ reaches $U$, the branch cannot improve $U$.}
-  \card{38.5}{62.15}{incumbent}{method-step-04.pdf}{04 · Update $U$}{A tour that visits every polygon is feasible and may lower $U$.}
-  \card{52.85}{62.15}{insert}{method-step-05.pdf}{05 · Insert}{A missing polygon $P$ goes into each of the $m+1$ positions.}
-  \card{67.2}{62.15}{refine}{method-step-06.pdf}{06 · Refine}{A hull crossed without visiting its polygon becomes each piece.}
-  \draw[Rule,line width=1.1pt] (3,78.7) -- (81.1,78.7);
+  \block{method-head}{38.5}{38.3}{42.6}{\head{4}{Branch and bound}}
+  \block{method}{38.5}{40.1}{42.6}{\bodytext A node holds a partial sequence of $m$ targets, each one its \textbf{convex hull} or one \textbf{convex piece} of an optimal decomposition by Greene's algorithm [4]. The node's closed tour is a \textbf{lower bound} $L$ for every extension, since omitting targets cannot lengthen a route; the best feasible length so far is $U$. The insertion and refinement rules follow [3].}
+  \card{38.5}{44.9}{feasible}{method-step-01.pdf}{01 · Feasible route}{A greedy heuristic sets the first value of $U$.}
+  \card{52.85}{44.9}{partial}{method-step-02.pdf}{02 · Partial order}{Only A and B are fixed; the tour touches C by chance.}
+  \card{67.2}{44.9}{prune}{method-step-03.pdf}{03 · Prune}{If $L$ reaches $U$, the branch cannot improve $U$.}
+  \card{38.5}{61.6}{incumbent}{method-step-04.pdf}{04 · Update $U$}{A tour that visits every polygon is feasible and may lower $U$.}
+  \card{52.85}{61.6}{insert}{method-step-05.pdf}{05 · Insert}{A missing polygon $P$ goes into each of the $m+1$ positions.}
+  \card{67.2}{61.6}{refine}{method-step-06.pdf}{06 · Refine}{A hull crossed but not visited splits into its pieces.}
+  \draw[Rule,line width=1.1pt] (3,78.5) -- (81.1,78.5);
 
   % Row 3: results on the left, the web page on the right.
-  \draw[Rule,line width=0.8pt] (59.5,79.3) -- (59.5,108.4);
-  \block{results-head}{3}{79.3}{55.6}{\head{5}{Results on the 558 instances of Fekete et al.}}
-  \block{results-context}{3}{81.5}{55.6}{\bodytext We ran the original, unmodified code of [3] and our solver on the same AMD Ryzen 7 9700X: closed tours, free order, 4 to 60 polygons. Each configuration had three 300 s runs, plus one 900 s run on open instances; solved means a relative gap of $10^{-3}$, as in [3].}
-  \block{figure-2}{3}{84.2}{32}{\includegraphics[width=\linewidth]{speedup-figure.pdf}}
-  \block{figure-2-caption}{3}{101.8}{32}{\bodymuted\textbf{Figure.} Speedup over [3], one thread each, on the 541 instances both solve; median and arithmetic mean by size, rounded to a multiple of 5.}
-  \fill[white,rounded corners=0.30cm] (36.3,84.2) rectangle (58.6,89.4);
-  \draw[Rule,line width=1.0pt,rounded corners=0.30cm] (36.3,84.2) rectangle (58.6,89.4);
-  \draw[Route,line width=4.0pt] (36.6,84.25) -- (47.2,84.25);
-  \draw[Accent,line width=4.0pt] (47.7,84.25) -- (58.3,84.25);
-  \draw[Rule,line width=0.8pt] (47.45,84.65) -- (47.45,88.95);
-  \block{median}{36.75}{84.85}{10.4}{\metric 73×\par\vspace{0.12cm}\bodytext\textbf{Median speedup}}
-  \block{mean}{47.9}{84.85}{10.4}{\metric 196×\par\vspace{0.12cm}\bodytext\textbf{Arithmetic mean}}
-  \block{gain}{36.3}{90.1}{22.3}{\tagtext Where the gain comes from\par\vspace{0.15cm}\bodytext Where [3] takes $\ge$ 1 s (166 instances), ours is \textbf{257×} faster. Both explore about as many nodes (1.08×), but a node of [3] costs \textbf{238×} as much. Geometric means: $1.08 \times 238 \approx 257$.}
-  \block{solved-table}{36.3}{96.6}{22.3}{\tagtext Instances solved\par\vspace{0.15cm}\sffamily\fontsize{24}{29}\selectfont\color{Ink}\begin{tabular}{@{}p{12.4cm}@{\hspace{0.3cm}}r@{\hspace{0.5cm}}r@{}}\color{Muted}& \color{Muted}300 s & \color{Muted}900 s\\[0.1cm]{[3]}, paper setup, 16 threads & 542 & 549\\{[3]}, one thread & 523 & 541\\\textbf{Ours, one thread} & \textbf{557} & \textbf{557}\end{tabular}\par\vspace{0.2cm}\bodymuted The last instance, open for every setup of [3], takes ours 89 min.}
-  \block{precision}{3}{104.3}{55.6}{\tagtext Accuracy\par\vspace{0.15cm}\bodytext Tours of [3] miss polygons by a median of $2.7\times10^{-6}$, and on 22 instances its upper bound lies below our proved lower bound. Ours stay within $3\times10^{-11}$ of every polygon.}
+  \draw[Rule,line width=0.8pt] (59.5,79.2) -- (59.5,107.85);
+  \block{results-head}{3}{79.2}{55.6}{\head{5}{Results on the 558 instances of Fekete et al.}}
+  \block{results-context}{3}{81.0}{55.6}{\bodytext We ran the original, unmodified code of [3] and our solver on the same AMD Ryzen 7 9700X: closed tours, free order, 4 to 60 polygons. Each configuration had three 300 s runs, plus one 900 s run on open instances; solved means a relative gap of $10^{-3}$, as in [3].}
+  \block{figure-2}{3}{83.65}{32}{\includegraphics[width=\linewidth]{speedup-figure.pdf}}
+  \block{figure-2-caption}{3}{101.25}{32}{\bodymuted\textbf{Figure.} Speedup over [3], one thread each, on the 541 instances both solve; median and arithmetic mean by size, rounded to a multiple of 5.}
+  \fill[white,rounded corners=0.30cm] (36.3,83.65) rectangle (58.6,88.85);
+  \draw[Rule,line width=1.0pt,rounded corners=0.30cm] (36.3,83.65) rectangle (58.6,88.85);
+  \draw[Route,line width=4.0pt] (36.6,83.70) -- (47.2,83.70);
+  \draw[Accent,line width=4.0pt] (47.7,83.70) -- (58.3,83.70);
+  \draw[Rule,line width=0.8pt] (47.45,84.10) -- (47.45,88.40);
+  \block{median}{36.75}{84.30}{10.4}{\metric 73×\par\vspace{0.12cm}\bodytext\textbf{Median speedup}}
+  \block{mean}{47.9}{84.30}{10.4}{\metric 196×\par\vspace{0.12cm}\bodytext\textbf{Arithmetic mean}}
+  \block{gain}{36.3}{89.55}{22.3}{\tagtext Where the gain comes from\par\vspace{0.15cm}\bodytext Where [3] takes $\ge$ 1 s (166 instances), ours is \textbf{257×} faster. Both explore about as many nodes (1.08×), but a node of [3] costs \textbf{238×} as much. Geometric means: $1.08 \times 238 \approx 257$.}
+  \block{solved-table}{36.3}{96.05}{22.3}{\tagtext Instances solved\par\vspace{0.15cm}\sffamily\fontsize{24}{29}\selectfont\color{Ink}\begin{tabular}{@{}p{12.4cm}@{\hspace{0.3cm}}r@{\hspace{0.5cm}}r@{}}\color{Muted}& \color{Muted}300 s & \color{Muted}900 s\\[0.1cm]{[3]}, paper setup, 16 threads & 542 & 549\\{[3]}, one thread & 523 & 541\\\textbf{Ours, one thread} & \textbf{557} & \textbf{557}\end{tabular}\par\vspace{0.2cm}\bodymuted The last instance, open for every setup of [3], takes ours 89 min.}
+  \block{precision}{3}{103.75}{55.6}{\tagtext Accuracy\par\vspace{0.15cm}\bodytext Tours of [3] miss polygons by a median of $2.7\times10^{-6}$, and on 22 instances its upper bound lies below our proved lower bound. Ours stay within $3\times10^{-11}$ of every polygon.}
 
-  \block{app-head}{60.4}{79.3}{20.7}{\head{6}{Try it yourself!}}
-  \block{app-intro}{60.4}{81.5}{20.7}{\bodytext Scan to watch the tours, play the challenges and explore every result.}
-  \fill[white,rounded corners=0.18cm] (60.4,84.2) rectangle (81.1,85.7);
-  \draw[Rule,line width=0.8pt,rounded corners=0.18cm] (60.4,84.2) rectangle (81.1,85.7);
-  \block{app-explore-title}{60.8}{84.65}{5.4}{\sffamily\bfseries\fontsize{26}{31}\selectfont\color{Accent}Watch}
-  \block{app-explore-detail}{66.4}{84.65}{14.6}{\sffamily\fontsize{26}{31}\selectfont\color{Ink}Brazil · São Paulo · USP}
-  \fill[Pale,rounded corners=0.18cm] (60.4,85.9) rectangle (81.1,87.4);
-  \draw[Rule,line width=0.8pt,rounded corners=0.18cm] (60.4,85.9) rectangle (81.1,87.4);
-  \block{app-challenge-title}{60.8}{86.35}{5.4}{\sffamily\bfseries\fontsize{26}{31}\selectfont\color{Accent}Play}
-  \block{app-challenge-detail}{66.4}{86.35}{14.6}{\sffamily\fontsize{26}{31}\selectfont\color{Ink}3 interactive challenges}
-  \fill[white,rounded corners=0.18cm] (60.4,87.6) rectangle (81.1,89.1);
-  \draw[Rule,line width=0.8pt,rounded corners=0.18cm] (60.4,87.6) rectangle (81.1,89.1);
-  \block{app-investigate-title}{60.8}{88.05}{5.4}{\sffamily\bfseries\fontsize{26}{31}\selectfont\color{Accent}Explore}
-  \block{app-investigate-detail}{66.4}{88.05}{14.6}{\sffamily\fontsize{26}{31}\selectfont\color{Ink}All 558 instances of [3]}
+  \block{app-head}{60.4}{79.2}{20.7}{\head{6}{Try it yourself!}}
+  \block{app-intro}{60.4}{81.0}{20.7}{\bodytext Scan to watch the tours, play the challenges and explore every result.}
+  \fill[white,rounded corners=0.18cm] (60.4,83.65) rectangle (81.1,85.15);
+  \draw[Rule,line width=0.8pt,rounded corners=0.18cm] (60.4,83.65) rectangle (81.1,85.15);
+  \block{app-explore-title}{60.8}{84.10}{5.4}{\sffamily\bfseries\fontsize{26}{31}\selectfont\color{Accent}Watch}
+  \block{app-explore-detail}{66.4}{84.10}{14.6}{\sffamily\fontsize{26}{31}\selectfont\color{Ink}Brazil · São Paulo · USP}
+  \fill[Pale,rounded corners=0.18cm] (60.4,85.35) rectangle (81.1,86.85);
+  \draw[Rule,line width=0.8pt,rounded corners=0.18cm] (60.4,85.35) rectangle (81.1,86.85);
+  \block{app-challenge-title}{60.8}{85.80}{5.4}{\sffamily\bfseries\fontsize{26}{31}\selectfont\color{Accent}Play}
+  \block{app-challenge-detail}{66.4}{85.80}{14.6}{\sffamily\fontsize{26}{31}\selectfont\color{Ink}3 interactive challenges}
+  \fill[white,rounded corners=0.18cm] (60.4,87.05) rectangle (81.1,88.55);
+  \draw[Rule,line width=0.8pt,rounded corners=0.18cm] (60.4,87.05) rectangle (81.1,88.55);
+  \block{app-investigate-title}{60.8}{87.50}{5.4}{\sffamily\bfseries\fontsize{26}{31}\selectfont\color{Accent}Explore}
+  \block{app-investigate-detail}{66.4}{87.50}{14.6}{\sffamily\fontsize{26}{31}\selectfont\color{Ink}All 558 instances of [3]}
   % Level-H correction leaves room for the TPP mark over the centre of the code.
-  \block{qr}{62.15}{89.6}{17.2}{\qrcode[level=H,height=17.2cm]{\appurl}}
-  \fill[white,rounded corners=0.2cm] (67.95,95.4) rectangle (73.55,101.0);
-  \begin{scope}[shift={(68.25,95.7)},scale=0.078125]
-    \fill[Ink,rounded corners=0.9375cm] (0,0) rectangle (64,64);
-    \draw[LogoTeal,line width=8.8pt,join=round] (32,10) -- (53,50) -- (11,50) -- cycle;
-    \draw[Route,line width=7.7pt,line cap=round] (10,36) -- (54,29);
-    \fill[white] (10,36) circle[radius=4];
-    \fill[white] (54,29) circle[radius=4];
+  \block{qr}{62.15}{89.05}{17.2}{\qrcode[level=H,height=17.2cm]{\appurl}}
+  \fill[white,rounded corners=0.2cm] (67.95,94.85) rectangle (73.55,100.45);
+  \begin{scope}[shift={(68.25,95.15)},scale=0.078125]
+    \fill[Ink,rounded corners=0.9375cm] (0,-0.55) rectangle (64,63.45);
+    \draw[LogoTeal,line width=8.8pt,join=round] (32,9.45) -- (53,49.45) -- (11,49.45) -- cycle;
+    \draw[Route,line width=7.7pt,line cap=round] (10,35.45) -- (54,28.45);
+    \fill[white] (10,35.45) circle[radius=4];
+    \fill[white] (54,28.45) circle[radius=4];
   \end{scope}
-  \block{app-link}{60.4}{107.1}{20.7}{\centering\sffamily\bfseries\fontsize{20}{24}\selectfont\color{Accent}\href{\appurl}{yushipy.github.io/TouringPolygons/\\apps/siicusp34/en/}}
+  \block{app-link}{60.4}{106.55}{20.7}{\centering\sffamily\bfseries\fontsize{20}{24}\selectfont\color{Accent}\href{\appurl}{yushipy.github.io/TouringPolygons/\\apps/siicusp34/en/}}
 
   % Conclusions span the full width above the references.
-  \fill[Pale,rounded corners=0.20cm] (3,109.0) rectangle (81.1,112.85);
-  \draw[Rule,line width=0.8pt,rounded corners=0.20cm] (3,109.0) rectangle (81.1,112.85);
-  \draw[Accent,line width=3.0pt] (3.3,109.05) -- (80.8,109.05);
-  \block{conclusion}{3.7}{109.5}{76.7}{\bodytext\textbf{\color{Accent}Conclusions.} An exact algorithm for the fixed-order closed tour through convex polygons, with zero error on rational input, is the core of an exact branch-and-bound solver for the TSPN. It is one to two orders of magnitude faster than the state of the art and closes every benchmark instance with proved bounds, without a commercial optimizer. Next: disk neighborhoods (Close-Enough TSP) and vehicle routing with polygonal neighborhoods.}
+  \fill[Pale,rounded corners=0.20cm] (3,108.45) rectangle (81.1,112.30);
+  \draw[Rule,line width=0.8pt,rounded corners=0.20cm] (3,108.45) rectangle (81.1,112.30);
+  \draw[Accent,line width=3.0pt] (3.3,108.50) -- (80.8,108.50);
+  \block{conclusion}{3.7}{108.95}{76.7}{\bodytext\textbf{\color{Accent}Conclusions.} An exact algorithm for the fixed-order closed tour through convex polygons, with zero error on rational input, is the core of an exact branch-and-bound solver for the TSPN. It is one to two orders of magnitude faster than the state of the art and closes every benchmark instance with proved bounds, without a commercial optimizer. Next: disk neighborhoods (Close-Enough TSP) and vehicle routing with polygonal neighborhoods.}
 
   % References; the digital PDF keeps live links.
-  \block{references-col-1}{3}{113.45}{25.3}{\sffamily\fontsize{20}{24}\selectfont\color{Muted}[1] Dror, Efrat, Lubiw, Mitchell. \href{https://doi.org/10.1145/780542.780612}{\emph{Touring a sequence of polygons}}. STOC, 2003.\par [2] Tan, Jiang. \href{https://doi.org/10.1007/978-3-319-55911-7_44}{\emph{Efficient algorithms for touring a sequence of convex polygons}}. TAMC, 2017.}
-  \block{references-col-2}{29.4}{113.45}{25.3}{\sffamily\fontsize{20}{24}\selectfont\color{Muted}[3] Fekete, Kniep, Krupke, Perk. \href{https://doi.org/10.4230/LIPIcs.SoCG.2026.46}{\emph{A branch-and-bound algorithm for the Traveling Salesman Problem with difficult neighborhoods}}. SoCG, 2026.}
-  \block{references-col-3}{55.8}{113.45}{25.3}{\sffamily\fontsize{20}{24}\selectfont\color{Muted}[4] Greene. \emph{The decomposition of polygons into convex parts}. Computational Geometry, JAI Press, 1983.\par\textbf{The author declares no conflict of interest.}}
+  \block{references-col-1}{3}{112.90}{25.3}{\sffamily\fontsize{20}{24}\selectfont\color{Muted}[1] Dror, Efrat, Lubiw, Mitchell. \href{https://doi.org/10.1145/780542.780612}{\emph{Touring a sequence of polygons}}. STOC, 2003.\par [2] Tan, Jiang. \href{https://doi.org/10.1007/978-3-319-55911-7_44}{\emph{Efficient algorithms for touring a sequence of convex polygons}}. TAMC, 2017.}
+  \block{references-col-2}{29.4}{112.90}{25.3}{\sffamily\fontsize{20}{24}\selectfont\color{Muted}[3] Fekete, Kniep, Krupke, Perk. \href{https://doi.org/10.4230/LIPIcs.SoCG.2026.46}{\emph{A branch-and-bound algorithm for the Traveling Salesman Problem with difficult neighborhoods}}. SoCG, 2026.}
+  \block{references-col-3}{55.8}{112.90}{25.3}{\sffamily\fontsize{20}{24}\selectfont\color{Muted}[4] Greene. \emph{The decomposition of polygons into convex parts}. Computational Geometry, JAI Press, 1983.\par\textbf{The author declares no conflict of interest.}}
 \end{tikzpicture}
 \end{document}
