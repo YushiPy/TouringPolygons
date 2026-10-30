@@ -71,7 +71,7 @@ def main() -> None:
 	)
 
 	plt.rcParams.update({"font.family": "Arial", "font.size": 7, "axes.edgecolor": INK, "xtick.color": INK, "ytick.color": INK})
-	fig, ax = plt.subplots(figsize=(3.0, 1.7), dpi=300)
+	fig, ax = plt.subplots(figsize=(3.0, 1.5), dpi=300)
 	centers = [LOW + STEP * (i + 0.5) for i in range(BINS)]
 	bottom = [0] * BINS
 	for source, label, color in FAMILIES:
