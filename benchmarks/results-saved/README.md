@@ -1683,10 +1683,12 @@ teve ainda uma execução de até 6 h com uma thread. Comandos `tpp.py fekete-pa
   mesma definição de nó nos dois: nós retirados da fila, inclusive os podados
   na retirada (`num_iterations` dele, `nodes` nosso). Nas 166 instâncias em que
   o Fekete leva ≥ 1 s com a CHR e os dois fecham nas 3 repetições (melhor
-  repetição de cada), o speedup de 257× se decompõe assim:
+  repetição de cada), o speedup de 257× (média geométrica das razões por
+  instância) se decompõe assim, também em médias geométricas:
   - a árvore dele tem 1,08× o tamanho da nossa (0,97× nas 111 com 41 a 60
-    regiões);
-  - cada nó nosso custa 1/238 do dele: 8,9 ms contra 33 µs, em mediana.
+    regiões; mediana 0,93×);
+  - cada nó nosso custa 1/238 do dele (mediana das razões 1/255); o tempo por
+    nó tem mediana de 8,9 ms no dele e 33 µs no nosso.
 
   Com a LEFP, a árvore dele tem 1,37× a nossa, e o custo por nó é 175× maior. O
   ganho vem do custo de cada nó: com a raiz CHR, as duas buscas têm o mesmo
