@@ -131,6 +131,7 @@ def main() -> None:
 		f"pieces {[len(p) for p in pieces]}"
 	)
 
+	plt.rcParams.update({"font.family": "Arial", "pdf.fonttype": 42})
 	fig, axes = plt.subplots(1, 4, figsize=(10.8, 2.7), dpi=250)
 
 	setup(axes[0], "(a)")

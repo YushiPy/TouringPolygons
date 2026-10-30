@@ -53,13 +53,13 @@
 
 \section{Objectives}
 
-The Touring Polygons Problem (TPP) asks for a shortest Euclidean path that starts at a point \(s\), visits a sequence of polygons \(P_1,\ldots,P_k\) in the plane, and ends at a point \(t\). Touching the boundary or crossing the interior of a polygon counts as a visit. In the free-order variant the visiting order is also unknown; when the route is a closed tour, this is the Traveling Salesman Problem with Neighborhoods (TSPN) [3]. Targets that are areas rather than points arise in last-mile delivery, surveillance, and data collection in precision agriculture, and real regions are often non-convex.
+The Touring Polygons Problem (TPP) asks for a shortest Euclidean path that starts at a point \(s\), visits a sequence of polygons \(P_1,\ldots,P_k\) in the plane, and ends at a point \(t\). Touching the boundary or crossing the interior of a polygon counts as a visit. In the free-order variant the visiting order is also unknown; when the route is a closed tour, this is the Traveling Salesman Problem with Neighborhoods (TSPN) [3]. Area targets arise in delivery, surveillance, and precision agriculture, and real regions are often non-convex.
 
 Both variants are NP-hard for non-convex polygons, but the fixed-order TPP with convex polygons is solvable in polynomial time [1, 2]. These algorithms, however, fix the endpoints \(s\) and \(t\), whereas a TSPN tour has no fixed point. This work aims to design an exact algorithm for the fixed-order closed tour through convex polygons, to use it as the core of an exact, self-contained solver for the free-order problem, with no commercial optimizer, and to compare that solver with the state of the art, the branch-and-bound algorithm of Fekete et al. [4], which solves the convex subproblems as second-order cone programs (SOCP) with Gurobi.
 
 \section{Materials and Methods}
 
-\textbf{Fixed-order closed tour.} With fixed \(s\) and \(t\), Dror et al. [1] solve the convex TPP with last-step shortest-path maps. We implemented this algorithm and, on top of it, designed an exact algorithm for the closed tour through convex polygons, which may touch or overlap. An optimal tour has a contact on some polygon boundary, so the algorithm scans boundary segments, solves the path anchored at each point with the maps of [1], and locates the best anchor using the convexity of the anchored length; since an optimal anchor is rational, the search terminates. Given rational input, it returns the optimal tour with zero error: rational contact points and a length that is an exact sum of square roots, accepted by a global optimality certificate. An interior-point SOCP solver, as used in [4], only approaches the optimum within a tolerance. For speed, our branch and bound first calls a floating-point stage whose lower and upper bounds are proved with directed rounding, and runs the exact algorithm only when they are not tight enough.
+\textbf{Fixed-order closed tour.} With fixed \(s\) and \(t\), Dror et al. [1] solve the convex TPP with last-step shortest-path maps. We implemented this algorithm and, on top of it, designed an exact algorithm for the closed tour through convex polygons, which may touch or overlap. An optimal tour has a contact on some polygon boundary, so the algorithm scans boundary segments, solves the path anchored at each point with the maps of [1], and locates the best anchor using the convexity of the anchored length; since some optimal anchor is rational, the search terminates. Given rational input, it returns the optimal tour with zero error: rational contact points and a length that is an exact sum of square roots, accepted by a global optimality certificate. An interior-point SOCP solver, as used in [4], only approaches the optimum within a tolerance. For speed, our branch and bound first calls a floating-point stage whose lower and upper bounds are proved with directed rounding, and runs the exact algorithm only when they are not tight enough.
 
 \textbf{Branch and bound.} A node holds a partial sequence of targets, each represented by its convex hull or by one convex piece of an optimal convex decomposition, computed by Greene's algorithm [5]. Solving the closed tour through this sequence gives a lower bound \(L\) for every extension of the node, since omitting targets cannot lengthen a route. If the route already visits every original polygon, it is feasible and may improve the incumbent \(U\). Otherwise a missing polygon is inserted in each of the \(m+1\) positions of the sequence, or a hull that the route crosses without visiting its polygon is replaced, in separate children, by each of its convex pieces. Nodes with \(L\ge U\) are pruned. The insertion and refinement rules follow [4].
 
@@ -67,17 +67,17 @@ Both variants are NP-hard for non-convex polygons, but the fixed-order TPP with 
 
 \section{Results}
 
-In the paper's configuration, our run of [4] reproduces the published results: 542 instances solved in 300 s and 549 in 900 s. With one thread, [4] solves 523 in 300 s and 541 in 900 s. Our solver, also with one thread, solves 557 in 300 s; the last, open for every configuration of [4], closes in 89 minutes. Ours is faster on each of the 541 instances that both solve with one thread (Figure 2). Summed over these instances, the time is 15{,}767 s for [4] and 34 s for ours.
+In the paper's configuration, our run of [4] reproduces the published results: 542 instances solved in 300 s and 549 in 900 s. With one thread, [4] solves 523 in 300 s and 541 in 900 s. Our solver, also with one thread, solves 557 in 300 s; the last, open for every configuration of [4], closes in 89 minutes. Ours is faster on each of the 541 instances that both solve with one thread, with a median speedup of 73 and an arithmetic mean of 196. The speedup grows with the number of polygons, from a median of 12 with 5 polygons to 430 with 60 (Figure 2). It grows least on tessellations, whose regions share edges; there the interval proof alone closes 74\% of our oracle calls, against 99\% on city maps.
 
-On the 166 instances where [4] takes at least 1 s with one thread, our solver is 257 times faster. Both searches explore about the same number of nodes ([4] explores 1.08 times as many), but each node costs 238 times less with our geometric oracle than with the SOCP solver (all geometric means; \(1.08\times238\approx257\)).
+On the 166 instances where [4] takes at least 1 s with one thread, our solver is 257 times faster. Both searches explore about as many nodes ([4] explores 1.08 times as many), but each node costs 238 times less with our geometric oracle than with the SOCP solver (all geometric means; \(1.08\times238\approx257\)).
 
-The bounds of [4] are numerical: the SOCP solution is accepted within the solver's feasibility tolerance, without verification. Its tours miss polygons by a median of \(2.7\times10^{-6}\) and up to \(9.6\times10^{-4}\) in instance units, and on 22 instances its upper bound lies below our proved lower bound, which no tour that visits every polygon can attain. Our tours stay within \(3\times10^{-11}\) of every polygon.
+The bounds of [4] are numerical: the SOCP solution is accepted within a feasibility tolerance of \(10^{-3}\), without verification. Its tours miss polygons by a median of \(2.7\times10^{-6}\) and up to \(9.6\times10^{-4}\) in instance units, and on 22 instances its upper bound lies below our proved lower bound, which no tour that visits every polygon can attain. Our tours stay within \(3\times10^{-11}\) of every polygon.
 
 \begin{center}
 \begin{minipage}{\columnwidth}
 	\centering
 	\includegraphics[width=\columnwidth]{assets/speedup-figure.pdf}\\[-0.10em]
-	{\fontsize{9}{10}\selectfont Figure 2. Speedup of our solver over Fekete et al. [4] on the 541 instances both solve, one thread each, by instance source (logarithmic scale).\par}
+	{\fontsize{9}{10}\selectfont Figure 2. Speedup over [4], one thread each, on the 541 instances both solve, with the median and the arithmetic mean for each size.\par}
 \end{minipage}
 \end{center}
 
@@ -96,7 +96,7 @@ Supported by FAPESP grant 2025/13861-1.
 
 [2] X. Tan and B. Jiang. Efficient algorithms for touring a sequence of convex polygons and related problems. \textit{TAMC 2017}, 614-627, 2017.
 
-[3] E. M. Arkin, S. P. Fekete, and J. S. B. Mitchell. The Traveling Salesman Problem with Neighborhoods: a survey. In \textit{The Traveling Salesman Problem and Its Variations}, Springer, 2005.
+[3] A. Dumitrescu and J. S. B. Mitchell. Approximation algorithms for TSP with neighborhoods in the plane. \textit{Journal of Algorithms}, 48(1):135-159, 2003.
 
 [4] S. P. Fekete, R. Kniep, D. Krupke, and M. Perk. A branch-and-bound algorithm for the Traveling Salesman Problem with difficult neighborhoods. \textit{SoCG 2026}, LIPIcs, 2026.
 
