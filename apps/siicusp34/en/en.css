@@ -12,8 +12,7 @@
 	}
 }
 /* Speedup by size, as Figure 2 of the abstract. */
-.speedup-chart .speedup-point { fill: #8a96a3; fill-opacity: .45; cursor: pointer; }
-.speedup-chart .speedup-point:hover { fill: #1f7a73; fill-opacity: 1; }
+.speedup-chart .speedup-point { fill: #8a96a3; fill-opacity: .45; }
 .speedup-chart .speedup-median-line { fill: none; stroke: #142d38; stroke-width: 2.5; pointer-events: none; }
 .speedup-chart .speedup-median-line-dot { fill: #142d38; pointer-events: none; }
 .speedup-chart .speedup-mean-line { fill: none; stroke: #c2501a; stroke-width: 2.5; stroke-dasharray: 7 4; pointer-events: none; }
@@ -22,3 +21,21 @@
 .speedup-legend .speedup-legend-point { width: 9px; height: 9px; border-radius: 50%; background: #8a96a3; }
 .speedup-legend .speedup-legend-median { height: 3px; background: #142d38; }
 .speedup-legend .speedup-legend-mean { height: 3px; background: repeating-linear-gradient(90deg, #c2501a 0 7px, transparent 7px 11px); }
+.speedup-chart .speedup-point.is-hovered { fill: #1f7a73; fill-opacity: 1; r: 5px; }
+.speedup-tooltip {
+	position: absolute;
+	z-index: 2;
+	display: grid;
+	gap: 2px;
+	padding: 7px 10px;
+	border-radius: 8px;
+	background: #142d38;
+	color: #fff;
+	font-size: 0.8rem;
+	line-height: 1.35;
+	white-space: nowrap;
+	pointer-events: none;
+	box-shadow: 0 6px 18px rgb(20 45 56 / 25%);
+}
+.speedup-tooltip[hidden] { display: none; }
+.speedup-tooltip span { color: #c3d9e5; }

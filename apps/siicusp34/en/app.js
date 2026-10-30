@@ -452,7 +452,7 @@ async function initialize() {
 		const host = element("speedup-chart");
 		if (!panel || !host) return;
 		const points = data.rows.filter((item) => Number.isFinite(item.fekete_seconds) && item.seconds > 0)
-			.map((item) => ({ case: item.case, polygons: item.polygons, speedup: item.fekete_seconds / item.seconds }));
+			.map((item) => ({ case: item.case, polygons: item.polygons, seconds: item.seconds, feketeSeconds: item.fekete_seconds, speedup: item.fekete_seconds / item.seconds }));
 		if (!points.length) return;
 		panel.hidden = false;
 		const measured = Math.round(host.clientWidth);
@@ -479,15 +479,54 @@ async function initialize() {
 		for (let power = 0; power <= 4; power += 1) svg += `<line class="grid" x1="${left}" x2="${width - right}" y1="${y(10 ** power)}" y2="${y(10 ** power)}"/><text class="tick" x="${left - 10}" y="${y(10 ** power) + 4}" text-anchor="end">${number(10 ** power, 0)}×</text>`;
 		for (let polygons = 0; polygons <= 60; polygons += 10) svg += `<line class="tick-mark" x1="${x(polygons)}" x2="${x(polygons)}" y1="${height - bottom}" y2="${height - bottom + 6}"/><text class="tick" x="${x(polygons)}" y="${height - bottom + 24}" text-anchor="middle">${polygons}</text>`;
 		svg += `<line class="axis" x1="${left}" x2="${width - right}" y1="${height - bottom}" y2="${height - bottom}"/>`;
-		svg += points.map((point) => `<circle class="speedup-point" data-open-speedup-case="${point.case}" cx="${x(point.polygons).toFixed(1)}" cy="${y(point.speedup).toFixed(1)}" r="${narrow ? 2.4 : 3}"><title>Case ${caseLabel(point.case)} · ${point.polygons} polygons · ${number(point.speedup, 1)}×</title></circle>`).join("");
+		svg += points.map((point) => `<circle class="speedup-point" data-open-speedup-case="${point.case}" cx="${x(point.polygons).toFixed(1)}" cy="${y(point.speedup).toFixed(1)}" r="${narrow ? 2.4 : 3}"/>`).join("");
 		const line = (values, className) => `<polyline class="${className}" points="${sizes.map((size, index) => `${x(size)},${y(values[index])}`).join(" ")}"/>` + sizes.map((size, index) => `<circle class="${className}-dot" cx="${x(size)}" cy="${y(values[index])}" r="3.5"/>`).join("");
 		svg += line(means, "speedup-mean-line") + line(medians, "speedup-median-line");
 		svg += sizes.map((size, index) => [5, 30, 60].includes(size) ? `<text class="speedup-size-label" x="${x(size)}" y="${y(medians[index] / 2.4)}" text-anchor="middle">${number(medians[index], 0)}×</text>` : "").join("");
 		svg += `<text class="axis-title" x="${(left + width - right) / 2}" y="${height - 10}" text-anchor="middle">Polygons in the instance</text>`;
 		// On a phone the tick labels (1× to 10,000×) already name the axis; a rotated title would overlap them.
 		svg += `${narrow ? "" : `<text class="axis-title" transform="translate(16 ${(top + height - bottom) / 2}) rotate(-90)" text-anchor="middle">Speedup (Fekete et al. ÷ ours), log scale</text>`}</svg>`;
-		host.innerHTML = svg + `<div class="speedup-legend"><span><i class="speedup-legend-point"></i>Instance</span><span><i class="speedup-legend-median"></i>Median</span><span><i class="speedup-legend-mean"></i>Arithmetic mean</span></div><p class="speedup-hint">Click (or tap) a point to open that instance on the map.</p>`;
-		host.querySelectorAll("[data-open-speedup-case]").forEach((point) => point.addEventListener("click", () => openCaseOnMap(Number(point.dataset.openSpeedupCase), host)));
+		host.innerHTML = svg + `<div class="speedup-legend"><span><i class="speedup-legend-point"></i>Instance</span><span><i class="speedup-legend-median"></i>Median</span><span><i class="speedup-legend-mean"></i>Arithmetic mean</span></div><div class="speedup-tooltip" role="status" hidden></div><p class="speedup-hint">Hover over a point for a preview; click (or tap) it to open that instance on the map.</p>`;
+		// The dots are small, so the preview and the click go to the nearest dot within a few pixels.
+		const tooltip = host.querySelector(".speedup-tooltip");
+		const plot = host.querySelector("svg");
+		const markers = [...host.querySelectorAll("[data-open-speedup-case]")].map((marker, index) => ({ marker, point: points[index] }));
+		let hovered = null;
+		const nearest = (event) => {
+			let best = null, bestDistance = event.pointerType === "mouse" ? 12 : 18;
+			for (const entry of markers) {
+				const dot = entry.marker.getBoundingClientRect();
+				const distance = Math.hypot(event.clientX - dot.left - dot.width / 2, event.clientY - dot.top - dot.height / 2);
+				if (distance < bestDistance) { best = entry; bestDistance = distance; }
+			}
+			return best;
+		};
+		const hidePreview = () => { tooltip.hidden = true; hovered?.marker.classList.remove("is-hovered"); hovered = null; plot.style.cursor = ""; };
+		plot.addEventListener("pointermove", (event) => {
+			if (event.pointerType !== "mouse") return;
+			const entry = nearest(event);
+			if (entry === hovered) return;
+			hidePreview();
+			if (!entry) return;
+			hovered = entry;
+			const { marker, point } = entry;
+			marker.classList.add("is-hovered");
+			plot.style.cursor = "pointer";
+			tooltip.innerHTML = `<strong>Case ${caseLabel(point.case)} · ${number(point.speedup, point.speedup < 10 ? 1 : 0)}× faster</strong><span>${point.polygons} polygons</span><span>Ours: ${formatDuration(point.seconds)} · Fekete et al.: ${formatDuration(point.feketeSeconds)}</span>`;
+			tooltip.hidden = false;
+			const box = host.getBoundingClientRect(), dot = marker.getBoundingClientRect();
+			const centerX = dot.left + dot.width / 2 - box.left, top = dot.top - box.top;
+			const width = tooltip.offsetWidth, height = tooltip.offsetHeight;
+			tooltip.style.left = `${Math.max(4, Math.min(box.width - width - 4, centerX - width / 2))}px`;
+			tooltip.style.top = `${top - height - 10 >= 0 ? top - height - 10 : top + dot.height + 10}px`;
+		});
+		plot.addEventListener("pointerleave", hidePreview);
+		plot.addEventListener("click", (event) => {
+			const entry = nearest(event);
+			if (!entry) return;
+			hidePreview();
+			openCaseOnMap(entry.point.case, host);
+		});
 		element("speedup-chart-summary").textContent = `Speedup over Fekete et al., one thread each, on the ${points.length} instances both solve, against the number of polygons. The median grows from ${number(medians[0], 0)}× with about ${sizes[0]} polygons to ${number(medians.at(-1), 0)}× with about ${sizes.at(-1)}.`;
 	}
 
@@ -730,7 +769,7 @@ async function initialize() {
 		element("case-time-detail").textContent = !row.cycle ? "· one thread"
 			: Number.isFinite(row.fekete_seconds) ? `· one thread · Fekete et al., one thread: ${formatDuration(row.fekete_seconds)}`
 				: "· one thread · Fekete et al., one thread: not solved in 900 s";
-		element("case-dialog-title").textContent = typeof row.case === "number" ? `Case ${caseLabel(row.case)} · ${row.polygons} regions` : row.title;
+		element("case-dialog-title").textContent = typeof row.case === "number" ? `Case ${caseLabel(row.case)} · ${row.polygons} regions` : { "br-estados": "Brazil · 27 federative units", "sp-bairros": "São Paulo · 32 subprefectures", usp: "USP campus" }[row.case];
 		if (updateURL && window.location.protocol !== "file:") {
 			const url = new URL(window.location.href);
 			url.searchParams.set("case", row.case);
