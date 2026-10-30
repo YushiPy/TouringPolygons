@@ -65,13 +65,13 @@ function brazilSvg(demo) {
   const shade = (rank) => {
     const t = rank / (demo.polygons - 1);
     const mix = (a, b) => Math.round(a + (b - a) * t);
-    return `rgb(${mix(214, 120)},${mix(238, 192)},${mix(228, 176)})`;
+    return `rgb(${mix(146, 38)},${mix(204, 122)},${mix(188, 108)})`;
   };
   const regions = demo.geometry.polygons.map((polygon, index) =>
     `<polygon points="${coordinates(polygon)}" fill="${shade(demo.order.indexOf(index))}" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>`).join('');
   const [sx, sy] = project(demo.geometry.start);
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">${regions}`
-    + `<polyline points="${coordinates(demo.path)}" fill="none" stroke="${accent}" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/>`
+    + `<polyline points="${coordinates(demo.path)}" fill="none" stroke="#a63f0d" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>`
     + `<circle cx="${sx}" cy="${sy}" r="13" fill="${ink}" stroke="#ffffff" stroke-width="4"/>`
     + `<text x="${sx - 22}" y="${sy + 44}" text-anchor="end" font-family="Arial, sans-serif" font-weight="700" font-size="40" fill="${ink}" paint-order="stroke" stroke="#ffffff" stroke-width="8">s = t</text></svg>`;
 }
