@@ -33,10 +33,11 @@ PARTITION = ROOT / ".build/dashboard-partition/partition"
 
 Point = tuple[float, float]
 
-# Eight thin non-convex regions (counterclockwise) around a central T. The
-# optimal tour detours to the T, so it is not convex and its order is not the
-# angular one; the wide U on top opens toward the tour, so the hull relaxation
-# touches the hull across openings and misses polygons.
+# Eight thin non-convex regions (counterclockwise) around a central T, plus a
+# thin L that the tour crosses. The optimal tour detours to the T, so it is not
+# convex and its order is not the angular one; the wide U on top opens toward
+# the tour, so the hull relaxation touches the hull across openings and misses
+# polygons. Crossing the L's interior counts as visiting it.
 POLYGONS: list[list[Point]] = [
 	[(0.92, 10.17), (0.92, 7.37), (1.42, 7.37), (1.42, 9.67), (3.72, 9.67), (3.72, 10.17)],
 	[(8.6, 11.99), (4.4, 11.99), (4.4, 9.39), (4.9, 9.39), (4.9, 11.49), (8.1, 11.49), (8.1, 9.39), (8.6, 9.39)],
@@ -46,6 +47,7 @@ POLYGONS: list[list[Point]] = [
 	[(1.75, 2), (2.75, 2), (2.75, 0), (3.25, 0), (3.25, 2), (4.25, 2), (4.25, 2.5), (1.75, 2.5)],
 	[(1.54, 4.38), (1.54, 5.98), (0.54, 5.98), (0.54, 6.98), (0.04, 6.98), (0.04, 5.48), (1.04, 5.48), (1.04, 4.38)],
 	[(4.75, 6), (5.75, 6), (5.75, 4), (6.25, 4), (6.25, 6), (7.25, 6), (7.25, 6.5), (4.75, 6.5)],
+	[(5.3, 7.7), (6.6, 7.7), (6.6, 8.1), (5.7, 8.1), (5.7, 9.2), (5.3, 9.2)],
 ]
 
 FILL = "#f2b84b"
@@ -98,6 +100,11 @@ def missed(path: list[Point], polygons: list[list[Point]]) -> list[int]:
 	return [i for i, distance in enumerate(distances(path, polygons)) if distance > 1e-7]
 
 
+def crossed(path: list[Point], polygons: list[list[Point]]) -> list[int]:
+	line = LineString(path)
+	return [i for i, polygon in enumerate(polygons) if line.intersection(Polygon(polygon).buffer(-1e-6)).length > 1e-3]
+
+
 def setup(ax: Axes, label: str) -> None:
 	ax.set_xlim(-0.3, 13.2)
 	ax.set_ylim(-0.3, 12.3)
@@ -123,11 +130,12 @@ def main() -> None:
 	relaxed = solve_cycle(hulls)
 	relaxed_misses = missed(relaxed["path"], polygons)
 	gaps = [distances(relaxed["path"], polygons)[i] for i in relaxed_misses]
-	if not relaxed_misses or min(gaps) < VISIBLE_MISS or missed(optimal["path"], polygons):
-		raise RuntimeError(f"the instance no longer illustrates the relaxation (misses by {gaps})")
+	crossings = crossed(optimal["path"], polygons)
+	if not relaxed_misses or min(gaps) < VISIBLE_MISS or missed(optimal["path"], polygons) or not crossings:
+		raise RuntimeError(f"the instance no longer illustrates the relaxation (misses by {gaps}, crossings {crossings})")
 	print(
 		f"optimal {optimal['upper_bound']:.4f} (relative gap {optimal['final_relative_gap']:.1e}) order {optimal['order']}; "
-		f"hull bound {relaxed['upper_bound']:.4f} misses {relaxed_misses} by {[round(g, 3) for g in gaps]}; "
+		f"hull bound {relaxed['upper_bound']:.4f} misses {relaxed_misses} by {[round(g, 3) for g in gaps]}; crosses {crossings}; "
 		f"pieces {[len(p) for p in pieces]}"
 	)
 
