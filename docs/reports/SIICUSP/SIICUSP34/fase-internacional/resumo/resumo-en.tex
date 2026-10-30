@@ -69,7 +69,7 @@ Both variants are NP-hard for non-convex polygons, but the fixed-order TPP with 
 
 In the paper's configuration, our run of [4] reproduces the published results: 542 instances solved in 300 s and 549 in 900 s. With one thread, [4] solves 523 in 300 s and 541 in 900 s. Our solver, also with one thread, solves 557 in 300 s; the last, open for every configuration of [4], closes in 89 minutes. Ours is faster on each of the 541 instances that both solve with one thread (Figure 2). Summed over these instances, the time is 15{,}767 s for [4] and 34 s for ours.
 
-Where [4] takes at least 1 s with one thread (166 instances), the speedup has a geometric mean of 257, the product of the ratios of tree size (1.08) and of cost per node (238): the two searches have about the same size, and the gain comes from each node being much cheaper with our geometric oracle than with the SOCP solver.
+On the 166 instances where [4] takes at least 1 s with one thread, the speedup has a geometric mean of 257, the product of the ratios of tree size (1.08) and of cost per node (238): the two searches have about the same size, and the gain comes from each node being much cheaper with our geometric oracle than with the SOCP solver.
 
 The bounds of [4] are numerical: the SOCP solution is accepted within the solver's feasibility tolerance, without verification. Its tours miss polygons by a median of \(2.7\times10^{-6}\) and up to \(9.6\times10^{-4}\) in instance units, and on 22 instances its upper bound lies below our proved lower bound, which no tour that visits every polygon can attain. Our tours stay within \(3\times10^{-11}\) of every polygon.
 
