@@ -9,8 +9,9 @@ reference for numbers and wording. The first-stage poster stays unchanged in
 ## Build
 
 Requires XeLaTeX, Arial, Latin Modern Math and the packages of the preamble.
-Figures 1 and 2 are the abstract's (`../resumo/assets/*.pdf`, ignored); build
-them first with the abstract's generators (see
+The speedup figure is the abstract's (`../resumo/assets/speedup-figure.pdf`,
+ignored); build it first with the abstract's generator, and the other
+figures with `render_print_figures.mjs` (below); all PDFs here are ignored too (see
 [`../../README.md`](../../README.md)). From this folder:
 
 ```sh
@@ -25,14 +26,27 @@ to the log, to check overflow after an edit.
 
 ## Figures
 
-- `figures/brazil-route-square.png`: screenshot of the Brazil tour as the
-  English page `apps/siicusp34/en/` draws it (27 federative units), made by
-  [`capture_brazil_route.mjs`](capture_brazil_route.mjs) with Playwright;
-  `figures/brazil-route-capture.json` records the crop, the scene and the
-  hashes of the sources. The page's legend and zoom control are hidden.
-- Logos and the three method cards (`method-step-03`, `-05`, `-06`) come from
-  [`../../fase-local/poster/figures/`](../../fase-local/poster/figures/README.md);
-  the English SIICUSP logo comes from `../../fase-local/resumo/assets/`.
+The poster is printed, so its figures are drawn on white:
+
+- `figures/brazil-route.pdf`: the Brazil tour of
+  `apps/siicusp34/data/br-estados-demo.js` (27 federative units), drawn from
+  its geometry, tour and visiting order; lighter units are visited first.
+- `figures/method-step-0N.pdf`: the six method cards of
+  [`../../fase-local/poster/figures/`](../../fase-local/poster/figures/README.md),
+  with a light palette and English labels.
+
+Both come from [`render_print_figures.mjs`](render_print_figures.mjs), which
+prints SVG to PDF with Playwright (or the installed Google Chrome) and trims
+the margins with `pdfcrop`. From the repository root, with the dashboard's
+Playwright installed:
+
+```sh
+node docs/reports/SIICUSP/SIICUSP34/fase-internacional/poster/render_print_figures.mjs
+```
+
+The speedup figure is Figure 2 of the abstract (`../resumo/assets/`); the logos
+come from the first stage (`../../fase-local/poster/figures/` and
+`../../fase-local/resumo/assets/`).
 
 ## Numbers
 
