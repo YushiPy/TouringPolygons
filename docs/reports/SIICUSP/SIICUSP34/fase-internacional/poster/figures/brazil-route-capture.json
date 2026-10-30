@@ -1,0 +1,44 @@
+{
+  "renderer": "Chromium screenshot of #route-map of apps/siicusp34/en/ after app.js executes",
+  "browserVersion": "156.0.8078.48",
+  "viewport": {
+    "width": 1440,
+    "height": 1100,
+    "deviceScaleFactor": 6
+  },
+  "squareCropCSS": {
+    "x": 251.73715209960938,
+    "y": 35.73713684082031,
+    "side": 504.5257263183594
+  },
+  "pixels": {
+    "width": 3024,
+    "height": 3024
+  },
+  "scene": {
+    "content": {
+      "x": 263.7371520996094,
+      "y": 48,
+      "width": 480.5257263183594,
+      "height": 480
+    },
+    "map": {
+      "width": 1008,
+      "height": 576
+    },
+    "regionCount": 27,
+    "lengthMetres": 10039051.36791066,
+    "lowerBound": 10039051.367910659,
+    "upperBound": 10039051.36791066,
+    "termination": "optimal",
+    "seconds": 0.076859458
+  },
+  "sources": {
+    "apps/siicusp34/en/index.html": "54dec3a1f1337991a16e282ca6e115709a3e040a909fe05313035e4ccbcd5ee4",
+    "apps/siicusp34/en/app.js": "872068e11c47d09f7186879529d5cf6834cab5f9bbc17e934fa496c2600685db",
+    "apps/siicusp34/styles.css": "1d50ba01e8cd435739e7981c8cfcb2637d3303b06529a620f90796636c77902a",
+    "apps/siicusp34/en/en.css": "ef6a7692b89d21ff2cf6ee32f52294fc2460783a9b5fca1776c5a7d5a0facb4c",
+    "apps/siicusp34/data/br-estados-demo.js": "3da85be285fb5c08af2266bd4c9c1f6d137e6ee88bba5512b7472726c44bfe5d"
+  },
+  "imageSha256": "5cf1def3e3d45ab4ef949635a7482e5358d765f11f3db98b743048ad4714cce6"
+}
