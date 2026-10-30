@@ -10,6 +10,30 @@ e dados ficam nesta pasta. O navegador não precisa do solver C++, de uma API,
 de WebAssembly nem de serviços de mapas. O pequeno servidor abaixo serve apenas
 para testar os arquivos localmente.
 
+## Versão em inglês (Etapa Internacional)
+
+`en/` é a versão em inglês para o QR code do pôster da Etapa Internacional
+(25–26/11/2026), aberta em `http://127.0.0.1:8765/en/`. Ela reutiliza o CSS,
+o solver dos desafios e os dados das demonstrações desta pasta (`../`), começa
+pelo destaque Brasil e não tem a simulação da busca, cujos registros vêm do
+solver antigo de extremos fixos. `en/en.css` guarda só os acréscimos.
+
+Os resultados seguem o resumo em inglês e a medição de referência na armijo
+([`fekete-reference-armijo-2026-10-17`](../../benchmarks/results-saved/README.md#fekete-reference-armijo-2026-10-17)):
+ciclos de ordem livre (TSPN), o código original de Fekete et al. com uma
+thread (configuração B, raiz CHR) contra o nosso com uma thread (C).
+`en/data/event-data.js` é gerado da raiz do repositório por
+
+```bash
+python3 apps/siicusp34/scripts/build_event_data_en.py
+```
+
+que lê o `per-case.csv` da campanha, os tours da campanha local
+`benchmarks/workspace/experiments/fekete-reference@armijo`, o ZIP de instâncias
+do submódulo `third_party/tspn-socg` e as decomposições de
+`data/event-data.js` (os polígonos são conferidos caso a caso). Os tours do
+corpus fecham o gap relativo de 10⁻³; a página não os chama de ótimos.
+
 ## Abrir no computador
 
 Na raiz do repositório, execute:
