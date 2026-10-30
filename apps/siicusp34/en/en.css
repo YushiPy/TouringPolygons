@@ -1,20 +1,4 @@
 /* Additions of the English page on top of ../styles.css. */
-.site-language {
-	display: inline-block;
-	margin-left: 10px;
-	padding: 2px 9px;
-	border: 1px solid currentColor;
-	border-radius: 999px;
-	color: var(--teal);
-	font-size: 0.78rem;
-	font-weight: 700;
-	text-decoration: none;
-	white-space: nowrap;
-}
-.site-language:hover {
-	background: var(--teal);
-	color: #fff;
-}
 .solved-panel {
 	margin-top: 16px;
 }
@@ -27,3 +11,14 @@
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 }
+/* Speedup by size, as Figure 2 of the abstract. */
+.speedup-chart .speedup-point { fill: #8a96a3; fill-opacity: .45; cursor: pointer; }
+.speedup-chart .speedup-point:hover { fill: #1f7a73; fill-opacity: 1; }
+.speedup-chart .speedup-median-line { fill: none; stroke: #142d38; stroke-width: 2.5; pointer-events: none; }
+.speedup-chart .speedup-median-line-dot { fill: #142d38; pointer-events: none; }
+.speedup-chart .speedup-mean-line { fill: none; stroke: #c2501a; stroke-width: 2.5; stroke-dasharray: 7 4; pointer-events: none; }
+.speedup-chart .speedup-mean-line-dot { fill: #c2501a; pointer-events: none; }
+.speedup-chart .speedup-size-label { fill: #142d38; font-size: 14px; font-weight: 700; pointer-events: none; }
+.speedup-legend .speedup-legend-point { width: 9px; height: 9px; border-radius: 50%; background: #8a96a3; }
+.speedup-legend .speedup-legend-median { height: 3px; background: #142d38; }
+.speedup-legend .speedup-legend-mean { height: 3px; background: repeating-linear-gradient(90deg, #c2501a 0 7px, transparent 7px 11px); }

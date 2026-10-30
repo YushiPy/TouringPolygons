@@ -445,103 +445,50 @@ async function initialize() {
 		select.innerHTML = data.rows.map((item) => `<option value="${item.case}">Case ${caseLabel(item.case)} · ${item.polygons} regions</option>`).join("");
 	}
 
-	function renderSpeedupChart(comparison) {
+	// Figure 2 of the international abstract: one point per instance both solve, against its number of
+	// polygons, with the median and the arithmetic mean over the sizes rounded to a multiple of 5.
+	function renderSpeedupChart() {
 		const panel = element("speedup-panel");
 		const host = element("speedup-chart");
-		const histogram = comparison.speedup_histogram;
-		if (!panel || !host || !histogram?.families) return;
+		if (!panel || !host) return;
+		const points = data.rows.filter((item) => Number.isFinite(item.fekete_seconds) && item.seconds > 0)
+			.map((item) => ({ case: item.case, polygons: item.polygons, speedup: item.fekete_seconds / item.seconds }));
+		if (!points.length) return;
 		panel.hidden = false;
 		const measured = Math.round(host.clientWidth);
 		if (!host.dataset.observed && "ResizeObserver" in window) {
 			host.dataset.observed = "true";
-			new ResizeObserver(() => { if (Math.abs(Math.round(host.clientWidth) - Number(host.dataset.width || 0)) > 8) renderSpeedupChart(comparison); }).observe(host);
+			new ResizeObserver(() => { if (Math.abs(Math.round(host.clientWidth) - Number(host.dataset.width || 0)) > 8) renderSpeedupChart(); }).observe(host);
 		}
 		host.dataset.width = String(measured);
-		const families = [["OSM", "OSM", "#1f7a73"], ["random", "Random", "#c2501a"], ["tessellation", "Voronoi", "#142d38"]]
-			.filter(([key]) => histogram.families[key]);
-		const { log10_low: low, log10_step: step } = histogram;
-		const bins = histogram.families[families[0][0]].length;
-		const totals = Array.from({ length: bins }, (_, index) => families.reduce((sum, [key]) => sum + histogram.families[key][index], 0));
-		const yMax = Math.ceil(Math.max(...totals) / 20) * 20;
-		const width = Math.max(300, measured || 900), narrow = width < 560, height = narrow ? 330 : 400, left = narrow ? 44 : 58, right = 14, top = 34, bottom = narrow ? 62 : 56;
-		const xMax = low + bins * step;
-		const x = (log) => left + (log / xMax) * (width - left - right);
-		const y = (count) => top + (1 - count / yMax) * (height - top - bottom);
-		const ticksY = Array.from({ length: yMax / 20 + 1 }, (_, index) => index * 20);
-		let svg = `<svg viewBox="0 0 ${width} ${height}" focusable="false">`;
-		for (const tick of ticksY) svg += `<line class="grid" x1="${left}" x2="${width - right}" y1="${y(tick)}" y2="${y(tick)}"/><text class="tick" x="${left - 10}" y="${y(tick) + 4}" text-anchor="end">${tick}</text>`;
-		for (let power = 0; power <= Math.floor(xMax); power += 1) svg += `<line class="tick-mark" x1="${x(power)}" x2="${x(power)}" y1="${height - bottom}" y2="${height - bottom + 6}"/><text class="tick" x="${x(power)}" y="${height - bottom + 24}" text-anchor="middle">${number(10 ** power, 0)}×</text>`;
-		svg += `<line class="axis" x1="${left}" x2="${width - right}" y1="${height - bottom}" y2="${height - bottom}"/>`;
-		const binRange = (index) => `${number(10 ** (low + index * step), 1)}× to ${number(10 ** (low + (index + 1) * step), 1)}×`;
-		for (let index = 0; index < bins; index += 1) {
-			if (!totals[index]) continue;
-			let base = 0;
-			const x0 = x(low + index * step) + 1, w = x(low + (index + 1) * step) - x(low + index * step) - 2;
-			svg += `<g class="speedup-bin" data-bin="${index}" tabindex="0" role="button" aria-haspopup="dialog" aria-label="Range ${binRange(index)}: ${totals[index]} instances. Press Enter to list them.">`;
-			svg += `<rect class="hit" x="${x0 - 1}" y="${top}" width="${w + 2}" height="${height - top - bottom}" fill="transparent"/>`;
-			for (const [key, , color] of families) {
-				const count = histogram.families[key][index];
-				if (!count) continue;
-				svg += `<rect class="bar" x="${x0}" y="${y(base + count)}" width="${w}" height="${y(base) - y(base + count)}" fill="${color}"/>`;
-				base += count;
-			}
-			svg += "</g>";
+		const groups = new Map();
+		for (const point of points) {
+			const size = 5 * Math.max(1, Math.round(point.polygons / 5));
+			if (!groups.has(size)) groups.set(size, []);
+			groups.get(size).push(point.speedup);
 		}
-		svg += `<line class="zero" x1="${x(0)}" x2="${x(0)}" y1="${top}" y2="${height - bottom}"/>`;
-		svg += `<text class="zero-label" transform="translate(${x(0) + 16} ${(top + height - bottom) / 2}) rotate(-90)" text-anchor="middle">${narrow ? "Fekete faster: 0" : "Fekete et al. faster: 0 instances"}</text>`;
-		const median = Number(comparison.median_speedup_fekete_over_ours), mean = Number(comparison.mean_speedup_fekete_over_ours);
-		svg += `<line class="median" x1="${x(Math.log10(median))}" x2="${x(Math.log10(median))}" y1="${top - 6}" y2="${height - bottom}"/><text class="median-label" x="${x(Math.log10(median)) - 8}" y="${top - 10}" text-anchor="end">median ${number(median, 0)}×</text>`;
-		svg += `<line class="mean" x1="${x(Math.log10(mean))}" x2="${x(Math.log10(mean))}" y1="${top - 6}" y2="${height - bottom}"/><text class="mean-label" x="${x(Math.log10(mean)) + 8}" y="${top - 10}" text-anchor="start">mean ${number(mean, 0)}×</text>`;
-		svg += `<text class="axis-title" x="${(left + width - right) / 2}" y="${height - 10}" text-anchor="middle">${narrow ? "Speedup (Fekete ÷ ours), log scale" : "Speedup (time of Fekete et al. ÷ ours), logarithmic scale"}</text>`;
-		svg += `<text class="axis-title" transform="translate(14 ${(top + height - bottom) / 2}) rotate(-90)" text-anchor="middle">Instances</text></svg>`;
-		const legend = [...families].reverse().map(([key, label, color]) => `<span><i style="background:${color}"></i>${label} (${histogram.families[key].reduce((a, b) => a + b, 0)})</span>`).join("");
-		host.innerHTML = svg + `<div class="speedup-legend">${legend}</div><div class="speedup-popover" role="dialog" aria-label="Instances in the range" hidden></div><p class="speedup-hint">Hover over (or tap) a bar to see its instances, and click a case to open it on the map.</p>`;
-		const popover = host.querySelector(".speedup-popover");
-		let pinned = null, shown = null, hideTimer = 0;
-		const hide = () => { clearTimeout(hideTimer); popover.hidden = true; shown = null; pinned = null; host.querySelectorAll(".speedup-bin.is-active").forEach((node) => node.classList.remove("is-active")); };
-		const show = (index, pin) => {
-			clearTimeout(hideTimer);
-			if (pinned !== null && !pin) return;
-			if (shown !== index) {
-				popover.innerHTML = `<header><strong>${binRange(index)}</strong><span>${totals[index]} instances</span><button type="button" class="speedup-popover-close" aria-label="Close">×</button></header>` + [...families].reverse().map(([key, label, color]) => {
-					const list = histogram.cases?.[key]?.[index] || [];
-					if (!list.length) return "";
-					return `<section><h4><i style="background:${color}"></i>${label} <small>${list.length}</small></h4><div class="speedup-chips">${list.map(([caseIndex, ratio]) => `<button type="button" data-open-speedup-case="${caseIndex}" title="Case ${caseLabel(caseIndex)} · ${number(ratio, 1)}×">${caseLabel(caseIndex)}</button>`).join("")}</div></section>`;
-				}).join("");
-				host.querySelectorAll(".speedup-bin").forEach((node) => node.classList.toggle("is-active", Number(node.dataset.bin) === index));
-				popover.hidden = false;
-				shown = index;
-				const hostWidth = host.clientWidth, popoverWidth = Math.min(300, hostWidth - 16);
-				popover.style.width = `${popoverWidth}px`;
-				const center = x(low + (index + 0.5) * step);
-				const leftSide = center > hostWidth / 2;
-				popover.style.left = `${Math.max(8, Math.min(hostWidth - popoverWidth - 8, narrow ? (hostWidth - popoverWidth) / 2 : leftSide ? center - popoverWidth - 40 : center + 40))}px`;
-				popover.style.top = `${top + 6}px`;
-			}
-			if (pin) pinned = index;
-		};
-		const scheduleHide = () => { if (pinned === null) { clearTimeout(hideTimer); hideTimer = setTimeout(hide, 280); } };
-		host.querySelectorAll(".speedup-bin").forEach((node) => {
-			const index = Number(node.dataset.bin);
-			node.addEventListener("pointerenter", (event) => { if (event.pointerType === "mouse") show(index, false); });
-			node.addEventListener("pointerleave", (event) => { if (event.pointerType === "mouse") scheduleHide(); });
-			node.addEventListener("click", () => { pinned = null; shown = null; show(index, true); });
-			node.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); pinned = null; shown = null; show(index, true); popover.querySelector("[data-open-speedup-case]")?.focus(); } });
-		});
-		popover.addEventListener("pointerenter", () => clearTimeout(hideTimer));
-		popover.addEventListener("pointerleave", (event) => { if (event.pointerType === "mouse") scheduleHide(); });
-		popover.addEventListener("click", (event) => {
-			if (event.target.closest(".speedup-popover-close")) { hide(); return; }
-			const chip = event.target.closest("[data-open-speedup-case]");
-			if (!chip) return;
-			const caseIndex = Number(chip.dataset.openSpeedupCase);
-			hide();
-			openCaseOnMap(caseIndex, host);
-		});
-		host.addEventListener("keydown", (event) => { if (event.key === "Escape" && !popover.hidden) { event.stopPropagation(); const bin = host.querySelector(".speedup-bin.is-active"); hide(); bin?.focus(); } });
-		document.addEventListener("pointerdown", (event) => { if (!popover.hidden && pinned !== null && !host.contains(event.target)) hide(); });
-		element("speedup-chart-summary").textContent = `Histogram of the speedup on a logarithmic scale for ${comparison.common_completed} instances: median ${number(median, 0)}×, mean ${number(mean, 0)}×, our solver faster on all of them.`;
-		panel.hidden = false;
+		// Sizes with fewer than 20 instances (a few tessellations) get no line point, as in the abstract.
+		const sizes = [...groups.keys()].filter((size) => groups.get(size).length >= 20).sort((a, b) => a - b);
+		const median = (values) => { const sorted = [...values].sort((a, b) => a - b), middle = sorted.length / 2; return sorted.length % 2 ? sorted[Math.floor(middle)] : (sorted[middle - 1] + sorted[middle]) / 2; };
+		const medians = sizes.map((size) => median(groups.get(size)));
+		const means = sizes.map((size) => groups.get(size).reduce((sum, value) => sum + value, 0) / groups.get(size).length);
+		const width = Math.max(300, measured || 900), narrow = width < 560, height = narrow ? 320 : 380, left = narrow ? 64 : 82, right = 14, top = 20, bottom = narrow ? 58 : 56;
+		const x = (polygons) => left + (polygons / 63) * (width - left - right);
+		const y = (speedup) => top + (1 - Math.log10(Math.min(10000, Math.max(1, speedup))) / 4) * (height - top - bottom);
+		let svg = `<svg viewBox="0 0 ${width} ${height}" focusable="false">`;
+		for (let power = 0; power <= 4; power += 1) svg += `<line class="grid" x1="${left}" x2="${width - right}" y1="${y(10 ** power)}" y2="${y(10 ** power)}"/><text class="tick" x="${left - 10}" y="${y(10 ** power) + 4}" text-anchor="end">${number(10 ** power, 0)}×</text>`;
+		for (let polygons = 0; polygons <= 60; polygons += 10) svg += `<line class="tick-mark" x1="${x(polygons)}" x2="${x(polygons)}" y1="${height - bottom}" y2="${height - bottom + 6}"/><text class="tick" x="${x(polygons)}" y="${height - bottom + 24}" text-anchor="middle">${polygons}</text>`;
+		svg += `<line class="axis" x1="${left}" x2="${width - right}" y1="${height - bottom}" y2="${height - bottom}"/>`;
+		svg += points.map((point) => `<circle class="speedup-point" data-open-speedup-case="${point.case}" cx="${x(point.polygons).toFixed(1)}" cy="${y(point.speedup).toFixed(1)}" r="${narrow ? 2.4 : 3}"><title>Case ${caseLabel(point.case)} · ${point.polygons} polygons · ${number(point.speedup, 1)}×</title></circle>`).join("");
+		const line = (values, className) => `<polyline class="${className}" points="${sizes.map((size, index) => `${x(size)},${y(values[index])}`).join(" ")}"/>` + sizes.map((size, index) => `<circle class="${className}-dot" cx="${x(size)}" cy="${y(values[index])}" r="3.5"/>`).join("");
+		svg += line(means, "speedup-mean-line") + line(medians, "speedup-median-line");
+		svg += sizes.map((size, index) => [5, 30, 60].includes(size) ? `<text class="speedup-size-label" x="${x(size)}" y="${y(medians[index] / 2.4)}" text-anchor="middle">${number(medians[index], 0)}×</text>` : "").join("");
+		svg += `<text class="axis-title" x="${(left + width - right) / 2}" y="${height - 10}" text-anchor="middle">Polygons in the instance</text>`;
+		// On a phone the tick labels (1× to 10,000×) already name the axis; a rotated title would overlap them.
+		svg += `${narrow ? "" : `<text class="axis-title" transform="translate(16 ${(top + height - bottom) / 2}) rotate(-90)" text-anchor="middle">Speedup (Fekete et al. ÷ ours), log scale</text>`}</svg>`;
+		host.innerHTML = svg + `<div class="speedup-legend"><span><i class="speedup-legend-point"></i>Instance</span><span><i class="speedup-legend-median"></i>Median</span><span><i class="speedup-legend-mean"></i>Arithmetic mean</span></div><p class="speedup-hint">Click (or tap) a point to open that instance on the map.</p>`;
+		host.querySelectorAll("[data-open-speedup-case]").forEach((point) => point.addEventListener("click", () => openCaseOnMap(Number(point.dataset.openSpeedupCase), host)));
+		element("speedup-chart-summary").textContent = `Speedup over Fekete et al., one thread each, on the ${points.length} instances both solve, against the number of polygons. The median grows from ${number(medians[0], 0)}× with about ${sizes[0]} polygons to ${number(medians.at(-1), 0)}× with about ${sizes.at(-1)}.`;
 	}
 
 	function updateResultSummary() {
@@ -551,7 +498,7 @@ async function initialize() {
 		const comparisonTime = comparison.time || {};
 		const precision = comparison.precision || {};
 		const cases = data.rows.length;
-		renderSpeedupChart(comparison);
+		renderSpeedupChart();
 		const setText = (id, value) => { const target = element(id); if (target) target.textContent = value; };
 		const fraction = (value, total) => `${Number(value ?? 0)}/${Number(total ?? 0)}`;
 		const speedup = (value) => Number.isFinite(Number(value)) ? `${number(Number(value), 0)}×` : "—";
@@ -565,7 +512,7 @@ async function initialize() {
 			setText("solved-hardest", `The last instance, case ${caseLabel(comparison.hardest.case)}, is open for every configuration of Fekete et al.; our solver, with one thread, closes it in ${number(comparison.hardest.seconds / 60, 0)} minutes. In 300 s, all three runs of a configuration must close the instance.`);
 		}
 		const left = cases - common;
-		setText("speedup-panel-text", `Each bar counts the instances whose speedup (time of Fekete et al. ÷ ours, one thread each) falls in the range shown, on a logarithmic scale. No instance lies left of 1×. The ${left} instances that Fekete et al. do not solve with one thread are left out, since no speedup is measured; ours solves all of them.`);
+		setText("speedup-panel-text", `Speedup over Fekete et al., one thread each, on the ${common} instances both solve; median and arithmetic mean by size, rounded to a multiple of 5. Every point lies above 1×. The ${left} instances that Fekete et al. do not solve with one thread are left out, since no speedup is measured; ours solves all of them.`);
 		setText("comparison-time-scope", `One thread each, on the ${common} instances both solve.`);
 		setText("comparison-time-ours-median", formatDuration(comparisonTime.common_ours_median_seconds));
 		setText("comparison-time-fekete-median", formatDuration(comparisonTime.common_fekete_median_seconds));

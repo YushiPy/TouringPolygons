@@ -155,17 +155,6 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 	by_size: dict[int, list[float]] = defaultdict(list)
 	for case in common:
 		by_size[rounded_size(int(cases[case]["polygons"]))].append(speedups[case])
-	low, step, bins = 0.0, 0.25, 17
-	families: dict[str, list[int]] = {}
-	members: dict[str, list[list[list[float]]]] = {}
-	for case in common:
-		source = cases[case]["source"]
-		index = min(max(int((math.log10(speedups[case]) - low) // step), 0), bins - 1)
-		families.setdefault(source, [0] * bins)[index] += 1
-		members.setdefault(source, [[] for _ in range(bins)])[index].append([case, speedups[case]])
-	for per_bin in members.values():
-		for pairs in per_bin:
-			pairs.sort(key=lambda pair: -pair[1])
 	common_ours = [ours[case] for case in common]
 	common_fekete = [fekete[case] for case in common]
 	case_189 = next(case for case, row in cases.items() if row["instance"] == "kuala_lumpur_n060_seed3530")
@@ -204,7 +193,6 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 			"ours_above_1e-7": sum(value > 1e-7 for value in distances["ours"].values()),
 			"fekete_above_1e-7": sum(value > 1e-7 for value in distances["fekete"].values()),
 		},
-		"speedup_histogram": {"log10_low": low, "log10_step": step, "families": families, "cases": members},
 	}
 	return {
 		"campaign": CAMPAIGN,
@@ -234,8 +222,7 @@ def main() -> None:
 	data = build(args)
 	args.output.parent.mkdir(parents=True, exist_ok=True)
 	args.output.write_text("window.TPPEventData = " + json.dumps(data, ensure_ascii=False, allow_nan=False, separators=(",", ":")) + ";\n", encoding="utf-8")
-	summary = {key: value for key, value in data["comparison"].items() if key != "speedup_histogram"}
-	print(json.dumps({"output": str(args.output), "comparison": summary}, indent=2))
+	print(json.dumps({"output": str(args.output), "comparison": data["comparison"]}, indent=2))
 
 
 if __name__ == "__main__":
