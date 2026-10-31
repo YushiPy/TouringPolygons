@@ -415,6 +415,8 @@ GROUPS: dict[str, dict[str, Command]] = {
 			lambda argv: command_module_function("fekete_reference", "ours_setup_main", argv)),
 		"ours-single-thread": Command("[SECONDS]", "Configuration C: our solver with 1 thread in configuration B's protocol, 558 cases x 3.",
 			lambda argv: command_module_function("fekete_reference", "ours_single_thread_main", argv)),
+		"ours-fekete-gap": Command("[SECONDS]", "Configuration F: our solver with 1 thread and Fekete's stopping rule, 558 cases x 3.",
+			lambda argv: command_module_function("fekete_reference", "ours_fekete_gap_main", argv)),
 		"smoothed-instances": Command("[OPTIONS]", "Paper instances with each region replaced by its hull plus a small disk (m vertices), annotated for Fekete's solver; run them with --instances.",
 			module("smoothed_instances")),
 		"compare-external": Command("ARGS...", "Run the pinned external solver on a suite.", module("tspn_run_comparison")),

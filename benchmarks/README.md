@@ -746,6 +746,7 @@ medição. Nos jobs do artigo, só a primeira instância de cada processo pagava
 | `scripts/run_ours_single_thread.sh [SEGUNDOS]` | **C**: o nosso `tpp-unordered` no protocolo da B, com as opções da comparação de 16/10 |
 | `scripts/run_fekete_paper_lefp.sh [SEGUNDOS]` | **D**: como a A, com a raiz LEFP |
 | `scripts/run_ours_threads.sh [SEGUNDOS]` | **E**: o nosso no protocolo da A (uma execução por vez, com as threads da A), com `--subtree-threads N --max-frontier-mib 1` |
+| `python3 benchmarks/tpp.py ours-fekete-gap [SEGUNDOS]` | **F**: o nosso no protocolo da C, mas com o critério de parada do Fekete: `UB−LB ≤ eps·UB + eps` |
 
 A configuração C usa os argumentos do `tspn-compare`: `--cycle`, gap `UB ≤ 1,001·LB`
 (`--relative-gap` 0,001/1,001, `--absolute-gap 0`), factibilidade 1e-8 e
@@ -760,6 +761,33 @@ encerra uma execução. As rodadas de 17 e 18/10 tinham um teto de 10⁸ chamada
 o caso 189 atingiu. `ours-setup`, chamado pelo instalador, compila o solver e roda
 os testes dele uma vez por build. O diretório da C leva o commit do nosso código, para que
 uma rodada futura com código novo não se misture com esta.
+
+Para repetir apenas o nosso lado com o critério do Fekete, a configuração F passa
+`--absolute-gap 0.001 --relative-gap 0.001` ao solver e usa a mesma desigualdade
+para classificar as execuções. Mantém uma thread por instância, três repetições
+de 300 s, validação independente e os demais argumentos da C. Suas rodadas têm
+prefixo `F-` e nunca retomam nem estendem as rodadas antigas da C.
+
+`--reuse-build-from DIRETORIO` lê o `plan.json` de uma rodada anterior, confere
+o SHA-256 do binário registrado e reutiliza esse executável sem recompilá-lo.
+Se o binário foi sobrescrito ou removido, o comando para com erro. O novo plano
+registra a proveniência original, o driver atual e os argumentos efetivamente
+usados. Sem essa opção, o comando compila a versão atual como a C.
+
+Na armijo, para reutilizar o binário da medição de referência:
+
+```bash
+python3 benchmarks/tpp.py ours-fekete-gap 300 \
+  --reuse-build-from benchmarks/workspace/experiments/fekete-reference/C-ours-2467373-300s
+```
+
+Esse comando roda em segundo plano. Depois de terminar, repita com `900 --extend`
+e o mesmo `--reuse-build-from`; se ainda houver casos abertos, use
+`21600 --extend`. As extensões usam uma repetição e retomam apenas o que ficou
+aberto na rodada F de 300 s. Para encadear as três etapas num script, passe
+`--foreground` a cada chamada: sem isso, a primeira chamada apenas inicia o job.
+Os resultados da F precisam ser recalculados antes de atualizar texto e figuras;
+os números históricos de C continuam correspondendo ao critério estrito.
 
 As configurações usam as 558 instâncias de `instances/instances_socg_simplified.zip`
 do checkout original (as do Fekete com as anotações de ordem; o nosso lê os anéis externos,

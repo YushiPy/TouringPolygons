@@ -148,6 +148,24 @@ class PlanTests(unittest.TestCase):
 
 
 class JudgeTests(unittest.TestCase):
+	def test_matched_gap_uses_feketes_rule_even_when_the_strict_rule_is_open(self):
+		for key, expected in (("C", False), ("E", False), ("F", True)):
+			with self.subTest(configuration=key):
+				runner = object.__new__(reference.Runner)
+				runner.configuration = reference.CONFIGURATIONS[key]
+				runner.polygons = {}
+				row = {"result": {"lower_bound": 1000, "upper_bound": 1001.002}}
+				runner.judge(row, reference.Task(0, "a", "ours"))
+				self.assertEqual(row["criteria"], {"fekete": True, "strict": False})
+				self.assertEqual(row["solved"], expected)
+
+	def test_matched_gap_summary_reports_the_selected_rule(self):
+		configuration = reference.CONFIGURATIONS["F"]
+		summary = reference.summarize(configuration, [], [])
+		text = reference.render(configuration, 300, summary, {})
+		self.assertIn("`(UB−LB) ≤ eps·UB + eps` com limites provados", text)
+		self.assertIn("--absolute-gap 0.001 --relative-gap 0.001", text)
+
 	def test_the_two_stopping_rules_differ_near_the_tolerance(self):
 		self.assertEqual(reference.criteria(1000, 1000.9), {"fekete": True, "strict": True})
 		self.assertEqual(reference.criteria(1000, 1001.002), {"fekete": True, "strict": False})
@@ -163,6 +181,30 @@ class JudgeTests(unittest.TestCase):
 			directory = reference.run_directory(reference.CONFIGURATIONS["C"], 300, False)
 		self.assertEqual(directory.name, "C-ours-abc1234-300s")
 		self.assertEqual(reference.run_directory(reference.CONFIGURATIONS["B"], 300, False).name, "B-single-thread-300s")
+		with patch.object(reference, "our_revision", return_value="abc1234"):
+			matched = reference.run_directory(reference.CONFIGURATIONS["F"], 300, False)
+		self.assertEqual(matched.name, "F-ours-abc1234-300s")
+		self.assertNotEqual(matched, directory)
+
+
+class ReusedBuildTests(unittest.TestCase):
+	def test_reuse_preserves_provenance_and_rejects_a_rebuilt_binary(self):
+		with tempfile.TemporaryDirectory() as directory:
+			root = Path(directory)
+			binary = root / "tpp-unordered"
+			binary.write_text("#!/bin/sh\nexit 0\n")
+			binary.chmod(0o755)
+			setup = {"binary": str(binary), "binary_sha256": reference.workspace.file_sha256(binary),
+				"revision": "original", "arithmetic": "gmp", "compiler": "original compiler"}
+			(root / "plan.json").write_text(json.dumps({"setup": setup}))
+			with patch.object(reference.workspace, "git_state", return_value={"revision": "new driver"}):
+				reused = reference.reuse_ours_build(root)
+			self.assertEqual(reused["revision"], "original")
+			self.assertEqual(reused["binary_sha256"], setup["binary_sha256"])
+			self.assertEqual(reused["driver_git"], {"revision": "new driver"})
+			binary.write_text("changed binary")
+			with self.assertRaises(SystemExit), patch("sys.stderr"):
+				reference.reuse_ours_build(root)
 
 
 class ExtendTests(unittest.TestCase):
@@ -203,6 +245,17 @@ class ExtendTests(unittest.TestCase):
 			self.write_run(root / "C-ours-older-300s", "binary", [self.row(0, "a", "ours", True)], 1)
 			found = reference.base_run(reference.CONFIGURATIONS["C"], {"fingerprint": "binary"})
 		self.assertEqual(found.name, "C-ours-older-300s")
+
+	def test_matched_gap_cannot_extend_a_strict_run_with_the_same_binary(self):
+		with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"TPP_WORKSPACE": directory}):
+			root = reference.experiment_root()
+			rows = [self.row(0, "a", "ours", False)]
+			self.write_run(root / "C-ours-older-300s", "binary", rows, 1)
+			with self.assertRaises(SystemExit), patch("sys.stderr"):
+				reference.base_run(reference.CONFIGURATIONS["F"], {"fingerprint": "binary"})
+			self.write_run(root / "F-ours-older-300s", "binary", rows, 1)
+			found = reference.base_run(reference.CONFIGURATIONS["F"], {"fingerprint": "binary"})
+			self.assertEqual(found.name, "F-ours-older-300s")
 
 
 class LockTests(unittest.TestCase):
@@ -306,6 +359,37 @@ class OurRunnerTests(unittest.TestCase):
 
 
 class CommandTests(unittest.TestCase):
+	def test_matched_gap_native_options_match_the_reported_inequality(self):
+		arguments = reference.our_arguments(reference.CONFIGURATIONS["F"])
+		absolute = float(arguments[arguments.index("--absolute-gap") + 1])
+		relative = float(arguments[arguments.index("--relative-gap") + 1])
+		for lower, upper in ((0, .001), (1000, 1001.002), (1000, 1002)):
+			self.assertEqual(upper - lower <= absolute + relative * upper,
+				reference.criteria(lower, upper)["fekete"])
+		self.assertEqual(arguments[arguments.index("--feasibility-tolerance") + 1], "1e-08")
+		self.assertEqual(reference.OUR_MAX_CALLS, -1)
+
+	def test_reused_build_is_forwarded_to_the_background_job_without_building(self):
+		import jobs
+
+		sizes = {"case": 5}
+		with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"TPP_WORKSPACE": directory}), \
+				patch.object(reference, "load_instances", return_value=sizes), \
+				patch.object(reference, "verify_archive"), patch.object(reference, "instance_archive", return_value=Path(__file__)), \
+				patch.object(reference, "prepare_ours") as prepare, \
+				patch.object(reference, "reuse_ours_build", return_value={"binary_sha256": "hash", "binary": "tpp"}) as reuse, \
+				patch.object(reference, "running_job", return_value=None), \
+				patch.object(reference, "foreign_processes", return_value=[]), \
+				patch.object(jobs, "command_start", return_value=0) as start, patch("builtins.print"):
+			source = Path(directory) / "old-run"
+			self.assertEqual(reference.ours_fekete_gap_main(["--reuse-build-from", str(source), "--workers", "1"]), 0)
+		prepare.assert_not_called()
+		reuse.assert_called_once_with(source)
+		command = start.call_args.args[0].command
+		self.assertEqual(command[0], "ours-fekete-gap")
+		self.assertIn(f"--reuse-build-from={source.resolve()}", command)
+		self.assertIn("--foreground", command)
+
 	def plan_text(self, main, argv, cpus):
 		sizes = {f"case{index}": 10 for index in range(reference.EXPECTED_INSTANCES)}
 		with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"TPP_WORKSPACE": directory}), \

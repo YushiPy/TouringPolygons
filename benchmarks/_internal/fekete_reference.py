@@ -21,6 +21,7 @@ call the same way (``fekete_reference_child.py``), one process per run.
                            comparison, 1 thread, one run per performance core
   D  fekete-paper-lefp     A with the LEFP root
   E  ours-threads          C with A's threads, one run at a time
+  F  ours-fekete-gap       C with Fekete's stopping rule: U-L <= eps*U + eps
 
 ``ours-setup`` builds and tests our solver for C. Its directory carries our commit,
 so a later run with changed code never mixes with an earlier one. Every tour is
@@ -132,6 +133,7 @@ class Configuration:
 	threads: int | None  # None: one per logical CPU of the performance cores
 	summary: str
 	solver: str = "fekete"
+	stopping_rule: str = "strict"
 
 
 CONFIGURATIONS = {
@@ -146,13 +148,20 @@ CONFIGURATIONS = {
 	"E": Configuration("E", "ours-threads", ("ours",), None,
 		"nosso solver como a A: uma thread por CPU lógica dos núcleos de performance, uma execução por vez",
 		solver="ours"),
+	"F": Configuration("F", "ours-fekete-gap", ("ours",), 1,
+		"nosso solver como a C, com o critério do Fekete: UB-LB ≤ eps·UB + eps",
+		solver="ours", stopping_rule="fekete"),
 }
 
 
 def our_arguments(configuration: Configuration) -> list[str]:
 	"""Our solver's command-line options in this configuration."""
 	parallel = [] if configuration.threads == 1 else [part.format(threads=configuration.threads) for part in OUR_PARALLEL]
-	return [*OUR_ARGUMENTS, *parallel]
+	arguments = list(OUR_ARGUMENTS)
+	if configuration.stopping_rule == "fekete":
+		arguments[arguments.index("--absolute-gap") + 1] = repr(EPS)
+		arguments[arguments.index("--relative-gap") + 1] = repr(EPS)
+	return [*arguments, *parallel]
 
 
 def fail(message: str) -> None:
@@ -550,6 +559,24 @@ def ours_setup_main(argv: Sequence[str] | None = None) -> int:
 	ours = prepare_ours()
 	say(f"Nosso solver pronto: {ours['binary']} (commit {ours['revision']}, aritmética {ours['arithmetic']}).")
 	return 0
+
+
+def reuse_ours_build(directory: Path) -> dict:
+	"""Reuse the exact binary recorded by a reference run, without rebuilding it."""
+	try:
+		plan = json.loads((directory / "plan.json").read_text())
+		setup = dict(plan["setup"])
+		binary = Path(setup["binary"])
+		expected = setup["binary_sha256"]
+	except (OSError, ValueError, KeyError, TypeError) as error:
+		fail(f"não foi possível ler o build de {directory}: {error}")
+	if not binary.is_file() or not os.access(binary, os.X_OK):
+		fail(f"o binário do nosso solver registrado em {directory} não está disponível: {binary}")
+	if workspace.file_sha256(binary) != expected:
+		fail(f"o SHA-256 de {binary} difere da rodada {directory}; o binário original precisa ser preservado")
+	setup["reused_from"] = str(directory.resolve())
+	setup["driver_git"] = workspace.git_state()
+	return setup
 
 
 # --- instances and plan ------------------------------------------------------
@@ -979,8 +1006,8 @@ class Runner:
 			path = trajectory_points(solution.get("trajectory"))
 		row["lower_bound"], row["upper_bound"] = lower, upper
 		row["criteria"] = criteria(lower, upper)
-		# Each solver is judged by its own rule: Fekete's is_optimal, ours UB <= (1+eps) LB.
-		row["solved"] = (row["criteria"]["strict"] if self.configuration.solver == "ours"
+		# The selected rule drives both the native tolerances and the reported verdict.
+		row["solved"] = (row["criteria"][self.configuration.stopping_rule] if self.configuration.solver == "ours"
 			else bool((row.get("solution") or {}).get("is_optimal")))
 		polygons = self.polygons.get(task.instance)
 		if polygons is not None:
@@ -1096,8 +1123,9 @@ def summarize(configuration: Configuration, rows: Sequence[dict], tasks: Sequenc
 def render(configuration: Configuration, seconds: int, summary: dict, setup: dict, repetitions: int = REPETITIONS) -> str:
 	if configuration.solver == "ours":
 		title = f"# Nosso solver, configuração {configuration.key} ({configuration.command})"
+		rule = "(UB−LB) ≤ eps·UB + eps" if configuration.stopping_rule == "fekete" else "UB ≤ (1+eps)·LB"
 		provenance = (f"Commit `{setup.get('revision', '?')}`, `tpp-unordered {' '.join(our_arguments(configuration))}`, aritmética "
-			f"{setup.get('arithmetic', '?')}, {setup.get('compiler', '?')}. \"Resolvida\" é `UB ≤ (1+eps)·LB` com limites provados.")
+			f"{setup.get('arithmetic', '?')}, {setup.get('compiler', '?')}. \"Resolvida\" é `{rule}` com limites provados.")
 		column = "Variante"
 	else:
 		packages = setup.get("conan_packages", {})
@@ -1189,6 +1217,9 @@ def run_main(key: str, argv: Sequence[str] | None = None) -> int:
 		f"desta configuração, com o mesmo build, em {EXTEND_REPETITIONS} repetição e num diretório próprio"))
 	parser.add_argument("--repetitions", type=int, help=argparse.SUPPRESS)
 	parser.add_argument("--workers", type=int, help=argparse.SUPPRESS)
+	if configuration.solver == "ours":
+		parser.add_argument("--reuse-build-from", type=Path, help=(
+			"reutiliza o binário e a proveniência do plan.json desta rodada, conferindo o SHA-256, sem recompilar"))
 	if configuration.threads is None:
 		parser.add_argument("--threads", type=int, help=(
 			"threads por execução (padrão: uma por CPU lógica dos núcleos de performance desta máquina; "
@@ -1237,7 +1268,9 @@ def run_main(key: str, argv: Sequence[str] | None = None) -> int:
 		if not instance_archive().is_file():
 			checkout_upstream()  # the instances come from the upstream archive, as for Fekete's runs
 		verify_archive()
-		setup = prepare_ours()
+		setup = reuse_ours_build(args.reuse_build_from) if args.reuse_build_from else prepare_ours()
+		setup["arguments"] = our_arguments(configuration)
+		setup["max_calls"] = OUR_MAX_CALLS
 		setup["fingerprint"] = setup["binary_sha256"]
 	else:
 		setup = read_setup()
@@ -1264,15 +1297,15 @@ def run_main(key: str, argv: Sequence[str] | None = None) -> int:
 	describe_plan(configuration, args.seconds, workers, len(tasks), len(pending), directory)
 	if args.plan:
 		return 0
-	if not pending:
-		say("\nTodas as execuções já foram concluídas.\n")
-		say(write_summary(configuration, args.seconds, directory, tasks, setup))
-		return 0
 	plan_path = directory / "plan.json"
 	if plan_path.exists():
 		earlier = json.loads(plan_path.read_text())
 		if earlier.get("setup_fingerprint") != setup["fingerprint"]:
 			fail(f"o build do solver mudou desde o início de {directory}; mova o diretório para começar de novo.")
+	if not pending:
+		say("\nTodas as execuções já foram concluídas.\n")
+		say(write_summary(configuration, args.seconds, directory, tasks, setup))
+		return 0
 
 	if not args.foreground:
 		ok, message = check_gurobi(setup.get("license_file")) if configuration.solver == "fekete" else (True, "")
@@ -1288,6 +1321,7 @@ def run_main(key: str, argv: Sequence[str] | None = None) -> int:
 		command = [configuration.command, str(args.seconds), *(["--smoke"] if args.smoke else []),
 			*(["--extend"] if args.extend else []), *([f"--repetitions={args.repetitions}"] if args.repetitions else []),
 			*([f"--workers={args.workers}"] if args.workers else []),
+			*([f"--reuse-build-from={args.reuse_build_from.resolve()}"] if getattr(args, "reuse_build_from", None) else []),
 			*([f"--threads={configuration.threads}"] if CONFIGURATIONS[key].threads is None else []),
 			*([f"--instances={ARCHIVE_OVERRIDE}"] if ARCHIVE_OVERRIDE is not None else []), "--foreground"]
 		with contextlib.redirect_stdout(io.StringIO()) as printed, contextlib.redirect_stderr(io.StringIO()):
@@ -1334,6 +1368,7 @@ def execute(configuration: Configuration, seconds: int, workers: int, directory:
 			"workers": workers, "order_seed": ORDER_SEED, "instances": len({task.instance for task in tasks}),
 			"tasks": len(tasks), "setup_fingerprint": setup["fingerprint"], "setup": setup,
 			"validation_tolerance": VALIDATION_TOLERANCE, "machine": workspace.machine_state(),
+			"stopping_rule": configuration.stopping_rule if configuration.solver == "ours" else "fekete",
 			"instance_archive": str(instance_archive()),
 			"instance_archive_sha256": hashlib.sha256(instance_archive().read_bytes()).hexdigest(),
 		}
@@ -1384,6 +1419,10 @@ def single_thread_main(argv: Sequence[str] | None = None) -> int:
 
 def ours_single_thread_main(argv: Sequence[str] | None = None) -> int:
 	return run_main("C", argv)
+
+
+def ours_fekete_gap_main(argv: Sequence[str] | None = None) -> int:
+	return run_main("F", argv)
 
 
 def paper_lefp_main(argv: Sequence[str] | None = None) -> int:
