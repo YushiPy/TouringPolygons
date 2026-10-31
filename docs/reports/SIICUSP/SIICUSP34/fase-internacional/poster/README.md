@@ -30,7 +30,8 @@ The poster is printed, so its figures are drawn on white:
 
 - `figures/brazil-route.pdf`: the Brazil TSPN tour of
   `apps/siicusp34/en/data/br-estados-tspn.js` (27 federative units), drawn from
-  its geometry and tour, in one colour since a TSPN tour has no first visit.
+  its geometry and tour. A TSPN tour has no first visit, so the colours
+  follow the visiting order from the Federal District, lighter first.
 - `figures/method-step-0N.pdf`: the six method cards of
   [`../../fase-local/poster/figures/`](../../fase-local/poster/figures/README.md),
   with a light palette and English labels.

@@ -61,9 +61,19 @@ function brazilSvg(demo) {
   const offsetX = (size - (maxX - minX) * scale) / 2, offsetY = (size - (maxY - minY) * scale) / 2;
   const project = ([x, y]) => [offsetX + (x - minX) * scale, size - offsetY - (y - minY) * scale];
   const coordinates = (list) => list.map((point) => project(point).map((value) => value.toFixed(2)).join(',')).join(' ');
-  // A TSPN tour has no first visit, so every region gets the same colour.
-  const regions = demo.geometry.polygons.map((polygon) =>
-    `<polygon points="${coordinates(polygon)}" fill="#4f9a8b" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>`).join('');
+  // A TSPN tour has no first visit; the colours follow the visiting order from the Federal District
+  // (Brasília), lighter first, so the map reads like the page's gradient.
+  const federalDistrict = demo.region_codes.indexOf('DF');
+  assert(federalDistrict >= 0);
+  const start = demo.order.indexOf(federalDistrict);
+  const rotated = [...demo.order.slice(start), ...demo.order.slice(0, start)];
+  const shade = (rank) => {
+    const t = rank / (demo.polygons - 1);
+    const mix = (a, b) => Math.round(a + (b - a) * t);
+    return `rgb(${mix(146, 38)},${mix(204, 122)},${mix(188, 108)})`;
+  };
+  const regions = demo.geometry.polygons.map((polygon, index) =>
+    `<polygon points="${coordinates(polygon)}" fill="${shade(rotated.indexOf(index))}" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>`).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">${regions}`
     + `<polyline points="${coordinates(demo.path)}" fill="none" stroke="#a63f0d" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>`
     + '</svg>';
