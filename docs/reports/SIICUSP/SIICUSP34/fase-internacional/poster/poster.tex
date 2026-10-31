@@ -92,18 +92,18 @@
 
   \block{method-head}{38.5}{38.3}{42.6}{\head{4}{Branch and bound}}
   \block{method}{38.5}{40.1}{42.6}{\bodytext A node holds a partial sequence of $m$ targets, each one its \textbf{convex hull} or one \textbf{convex piece} of an optimal decomposition by Greene's algorithm [4]. The node's closed tour is a \textbf{lower bound} $L$ for every extension, since omitting targets cannot lengthen a route; the best feasible length so far is $U$. The insertion and refinement rules follow [3].}
-  \card{38.5}{44.9}{feasible}{method-step-01.pdf}{01 · Feasible route}{A greedy heuristic sets the first value of $U$.}
-  \card{52.85}{44.9}{partial}{method-step-02.pdf}{02 · Partial order}{Only A and B are fixed; the tour touches C by chance.}
-  \card{67.2}{44.9}{prune}{method-step-03.pdf}{03 · Prune}{If $L$ reaches $U$, the branch cannot improve $U$.}
-  \card{38.5}{61.6}{incumbent}{method-step-04.pdf}{04 · Update $U$}{A tour that visits every polygon is feasible and may lower $U$.}
-  \card{52.85}{61.6}{insert}{method-step-05.pdf}{05 · Insert}{A missing polygon $P$ goes into each of the $m+1$ positions.}
-  \card{67.2}{61.6}{refine}{method-step-06.pdf}{06 · Refine}{A hull crossed but not visited splits into its pieces.}
+  \card{38.5}{44.9}{feasible}{method-01.pdf}{01 · Feasible tour}{A greedy tour sets $U$; the optimum (dashed) is shorter.}
+  \card{52.85}{44.9}{partial}{method-02.pdf}{02 · Partial order}{The node fixes A, B and C; its tour touches D by chance.}
+  \card{67.2}{44.9}{prune}{method-03.pdf}{03 · Prune}{If $L$ reaches $U$, the branch cannot improve $U$.}
+  \card{38.5}{61.6}{incumbent}{method-04.pdf}{04 · Update $U$}{A tour that visits every region is feasible and may lower $U$.}
+  \card{52.85}{61.6}{insert}{method-05.pdf}{05 · Insert}{$P$ goes into each of the $m$ gaps of the cycle.}
+  \card{67.2}{61.6}{refine}{method-06.pdf}{06 · Refine}{The hull tour misses B, C and E; B splits into its pieces.}
   \draw[Rule,line width=1.1pt] (3,78.5) -- (81.1,78.5);
 
   % Row 3: results on the left, the web page on the right.
   \draw[Rule,line width=0.8pt] (59.5,79.2) -- (59.5,107.85);
   \block{results-head}{3}{79.2}{55.6}{\head{5}{Results on the 558 instances of Fekete et al.}}
-  \block{results-context}{3}{81.0}{55.6}{\bodytext We ran the original, unmodified code of [3] and our solver on the same AMD Ryzen 7 9700X: closed tours, free order, 4 to 60 polygons. Each configuration had three 300 s runs, plus one 900 s run on open instances; solved means a relative gap of $10^{-3}$, as in [3].}
+  \block{results-context}{3}{81.0}{55.6}{\bodytext The original code of [3] and ours on one AMD Ryzen 7 9700X: three 300 s runs per setup, plus 900 s on open instances. Each stops by its own rule, $\varepsilon = 10^{-3}$: [3] at $U - L \le \varepsilon U + \varepsilon$, ours at $U \le (1+\varepsilon) L$.}
   \block{figure-2}{3}{83.65}{32}{\includegraphics[width=\linewidth]{speedup-figure.pdf}}
   \block{figure-2-caption}{3}{101.25}{32}{\bodymuted\textbf{Figure.} Speedup over [3], one thread each, on the 541 instances both solve; median and arithmetic mean by size, rounded to a multiple of 5.}
   \fill[white,rounded corners=0.30cm] (36.3,83.65) rectangle (58.6,88.85);

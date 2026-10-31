@@ -139,63 +139,6 @@ function decompositionLinesMarkup(decomposition, polygons, project) {
 	})).join("");
 }
 
-function pointInPolygon(point, polygon) {
-	let inside = false;
-	for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
-		const a = polygon[previous], b = polygon[index];
-		if (pointOnSegment(point, a, b)) return true;
-		if ((a[1] > point[1]) !== (b[1] > point[1])
-			&& point[0] < (b[0] - a[0]) * (point[1] - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
-	}
-	return inside;
-}
-
-function segmentIntersectionFraction(start, end, a, b, epsilon = 1e-9) {
-	const direction = [end[0] - start[0], end[1] - start[1]];
-	const edge = [b[0] - a[0], b[1] - a[1]];
-	const offset = [a[0] - start[0], a[1] - start[1]];
-	const cross = (left, right) => left[0] * right[1] - left[1] * right[0];
-	const denominator = cross(direction, edge);
-	if (Math.abs(denominator) <= epsilon) {
-		if (Math.abs(cross(offset, direction)) > epsilon) return null;
-		const lengthSquared = direction[0] ** 2 + direction[1] ** 2;
-		if (lengthSquared <= epsilon ** 2) return pointOnSegment(start, a, b, epsilon) ? 0 : null;
-		const first = ((a[0] - start[0]) * direction[0] + (a[1] - start[1]) * direction[1]) / lengthSquared;
-		const second = ((b[0] - start[0]) * direction[0] + (b[1] - start[1]) * direction[1]) / lengthSquared;
-		const entry = Math.max(0, Math.min(first, second));
-		return entry <= Math.min(1, Math.max(first, second)) + epsilon ? entry : null;
-	}
-	const alongPath = cross(offset, edge) / denominator;
-	const alongEdge = cross(offset, direction) / denominator;
-	return alongPath >= -epsilon && alongPath <= 1 + epsilon && alongEdge >= -epsilon && alongEdge <= 1 + epsilon
-		? Math.max(0, Math.min(1, alongPath)) : null;
-}
-
-function pathPolygonContacts(path, polygons) {
-	const lengths = path.slice(1).map((point, index) => Math.hypot(point[0] - path[index][0], point[1] - path[index][1]));
-	const total = lengths.reduce((sum, length) => sum + length, 0);
-	return polygons.map((polygon) => {
-		let traversed = 0;
-		for (let index = 0; index < path.length - 1; index += 1) {
-			const start = path[index], end = path[index + 1], length = lengths[index];
-			let entry = pointInPolygon(start, polygon) ? 0 : null;
-			for (let edge = 0; edge < polygon.length; edge += 1) {
-				const candidate = segmentIntersectionFraction(start, end, polygon[edge], polygon[(edge + 1) % polygon.length]);
-				if (candidate !== null && (entry === null || candidate < entry)) entry = candidate;
-			}
-			if (entry !== null) {
-				return {
-					point: [start[0] + entry * (end[0] - start[0]), start[1] + entry * (end[1] - start[1])],
-					fraction: total > 0 ? (traversed + entry * length) / total : 0,
-				};
-			}
-			traversed += length;
-		}
-		if (path.length && pointInPolygon(path.at(-1), polygon)) return { point: [...path.at(-1)], fraction: 1 };
-		return null;
-	});
-}
-
 function filterRows(rows, status, search) {
 	const term = search.trim();
 	return rows.filter((row) => (status === "all" || row.termination === status)
@@ -277,119 +220,6 @@ function solveChallengeRoute(start, target, polygons) {
 	return { path, length: pathLength(path) };
 }
 
-function methodDiagramProjector(geometry, polygonIndices, routePaths = [], width = 320, height = 160) {
-	const polygons = polygonIndices.flatMap((index) => geometry.polygons[index] || []);
-	const points = [...polygons, geometry.start, geometry.target, ...routePaths.flat()];
-	const xs = points.map(([x]) => x), ys = points.map(([, y]) => y);
-	const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-	const padding = 24;
-	const scale = Math.min((width - padding * 2) / Math.max(maxX - minX, 1e-9), (height - padding * 2) / Math.max(maxY - minY, 1e-9));
-	const offsetX = (width - (maxX - minX) * scale) / 2;
-	const offsetY = (height - (maxY - minY) * scale) / 2;
-	return ([x, y]) => [+(offsetX + (x - minX) * scale).toFixed(2), +(offsetY + (y - minY) * scale).toFixed(2)];
-}
-
-function methodPolygonMarkup(polygon, project, className = "diagram-region") {
-	return `<polygon class="${className}" points="${coordinates(polygon.map(project))}"/>`;
-}
-
-function methodEndpointMarkup(start, target, project) {
-	const [sx, sy] = project(start), [tx, ty] = project(target);
-	return `<circle class="diagram-endpoint" cx="${sx}" cy="${sy}" r="3.5"/><text class="diagram-point-label" x="${sx - 6}" y="${sy + 12}" text-anchor="middle">s</text><circle class="diagram-endpoint" cx="${tx}" cy="${ty}" r="3.5"/><text class="diagram-point-label" x="${tx + 7}" y="${ty - 4}">t</text>`;
-}
-
-function methodRegionLabelMarkup(polygon, label, project) {
-	const [x, y] = project(polygonCentroid(polygon));
-	return `<text class="diagram-region-label" x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central">${label}</text>`;
-}
-
-function methodFixedOrderRoute(geometry, decomposition, order) {
-	let best = null;
-	function choose(position, selectedPieces) {
-		if (position === order.length) {
-			const route = solveChallengeRoute(geometry.start, geometry.target, selectedPieces.map((piece) => piece.polygon));
-			if (!best || route.length < best.length) best = { ...route, choices: selectedPieces.map((piece) => piece.choice), order: [...order] };
-			return;
-		}
-		const region = order[position];
-		for (let choice = 0; choice < decomposition[region].length; choice += 1) {
-			choose(position + 1, [...selectedPieces, { choice, polygon: decomposition[region][choice] }]);
-		}
-	}
-	choose(0, []);
-	return best;
-}
-
-function drawAlgorithmFigures() {
-	const data = window.TPPChallengeData;
-	if (!data?.geometry || !data.piece_challenge || !data.combined_challenge) return;
-
-	const heuristicFigure = document.getElementById("method-heuristic-diagram");
-	const greedyPath = solveChallengeRoute(data.geometry.start, data.geometry.target,
-		data.greedy.order.map((index) => data.geometry.polygons[index])).path;
-	const optimum = data.solutions[data.reference];
-	const firstProjection = methodDiagramProjector(data.geometry, data.geometry.polygons.map((_, index) => index), [greedyPath, optimum.path]);
-	heuristicFigure.innerHTML = `${data.geometry.polygons.map((polygon) => methodPolygonMarkup(polygon, firstProjection)).join("")}
-		<polyline class="diagram-optimal-route" points="${coordinates(optimum.path.map(firstProjection))}"/>
-		<polyline class="diagram-heuristic-route" points="${coordinates(greedyPath.map(firstProjection))}"/>
-		${methodEndpointMarkup(data.geometry.start, data.geometry.target, firstProjection)}`;
-	const greedyLength = pathLength(greedyPath) * data.meters_per_display_unit;
-	document.getElementById("method-heuristic-length").textContent = `${number(greedyLength, 2)} m`;
-	document.getElementById("method-optimal-length").textContent = `${number(optimum.length, 2)} m`;
-
-	const combined = data.combined_challenge;
-	const geometry = combined.geometry;
-	// Challenge 3 is the full author-drawn five-region instance. This partial node fixes A then B;
-	// its shortest route is recomputed over the convex pieces by the bundled exact solver.
-	const regions = { A: 2, B: 1, C: 4, D: 0, E: 3 };
-	const partialOrder = [regions.A, regions.B];
-	const partial = methodFixedOrderRoute(geometry, combined.pieces, partialOrder);
-	const partialContacts = pathPolygonContacts(partial.path, geometry.polygons);
-	if (!partialContacts[regions.A] || !partialContacts[regions.B] || !partialContacts[regions.C] || partialContacts[regions.D] || partialContacts[regions.E]) {
-		throw new Error("The selected partial-order example no longer visits C without visiting D.");
-	}
-	const partialIndices = geometry.polygons.map((_, index) => index);
-	const partialProjection = methodDiagramProjector(geometry, partialIndices, [partial.path]);
-	const roleByRegion = new Map(Object.entries(regions).map(([label, index]) => [index, label]));
-	const partialClasses = new Map([
-		[regions.A, "diagram-region"], [regions.B, "diagram-region"],
-		[regions.C, "diagram-region diagram-region-incidental"],
-		[regions.D, "diagram-region diagram-region-unvisited"], [regions.E, "diagram-region diagram-region-unvisited"],
-	]);
-	document.getElementById("method-partial-diagram").innerHTML = `${partialIndices.map((index) => methodPolygonMarkup(geometry.polygons[index], partialProjection, partialClasses.get(index))).join("")}
-		<polyline class="diagram-heuristic-route" points="${coordinates(partial.path.map(partialProjection))}"/>
-		${partialIndices.map((index) => methodRegionLabelMarkup(geometry.polygons[index], roleByRegion.get(index), partialProjection)).join("")}
-		${methodEndpointMarkup(geometry.start, geometry.target, partialProjection)}`;
-
-	const selectedRegions = geometry.polygons.map((_, index) => index);
-	const complete = combined.solutions[combined.reference];
-	const completeContacts = pathPolygonContacts(complete.path, geometry.polygons);
-	if (selectedRegions.some((index) => !completeContacts[index])) throw new Error("The full-instance reference route must touch every target region.");
-	const completeProjection = methodDiagramProjector(geometry, selectedRegions, [complete.path]);
-	document.getElementById("method-complete-diagram").innerHTML = `${selectedRegions.map((index) => methodPolygonMarkup(geometry.polygons[index], completeProjection)).join("")}
-		<polyline class="diagram-heuristic-route" points="${coordinates(complete.path.map(completeProjection))}"/>
-		${selectedRegions.map((index) => methodRegionLabelMarkup(geometry.polygons[index], roleByRegion.get(index), completeProjection)).join("")}
-		${methodEndpointMarkup(geometry.start, geometry.target, completeProjection)}`;
-
-	const pieceChallenge = data.piece_challenge;
-	const pieceSolution = pieceChallenge.solutions[pieceChallenge.reference];
-	const pieceGeometry = pieceChallenge.geometry;
-	const pieceIndices = pieceGeometry.polygons.map((_, index) => index);
-	const pieceProjection = methodDiagramProjector(pieceGeometry, pieceIndices, [pieceSolution.path]);
-	const pieceMarkup = pieceChallenge.pieces.flatMap((pieces, regionIndex) => pieces.map((piece, pieceIndex) =>
-		methodPolygonMarkup(piece, pieceProjection, `diagram-piece-fill${pieceIndex === pieceSolution.choices[regionIndex] ? " diagram-piece-chosen" : ""}`))).join("");
-	const cutsMarkup = pieceChallenge.pieces.flatMap((pieces, regionIndex) => decompositionEdges(pieces, pieceGeometry.polygons[regionIndex]).map(([start, end]) => {
-		const [x1, y1] = pieceProjection(start), [x2, y2] = pieceProjection(end);
-		return `<line class="diagram-piece-cut" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
-	})).join("");
-	document.getElementById("method-decomposition-diagram").innerHTML = `${pieceMarkup}
-		${pieceGeometry.polygons.map((polygon) => methodPolygonMarkup(polygon, pieceProjection, "diagram-region-outline")).join("")}
-		${cutsMarkup}<polyline class="diagram-heuristic-route" points="${coordinates(pieceSolution.path.map(pieceProjection))}"/>
-		${pieceIndices.map((index) => methodRegionLabelMarkup(pieceGeometry.polygons[index], String.fromCharCode(65 + index), pieceProjection)).join("")}
-		${methodEndpointMarkup(pieceGeometry.start, pieceGeometry.target, pieceProjection)}`;
-}
-
-
 function animateChallengeRoute(map) {
 	const route = map.querySelector(".challenge-solution-route");
 	if (!route || !route.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -425,7 +255,6 @@ async function initialize() {
 	const spBairrosDemo = window.TPPSpBairrosDemo;
 	const brEstadosDemo = window.TPPBrEstadosDemo;
 	if (data.schema_version !== 1 || !data.rows.length || uspDemo?.schema_version !== 1 || uspDemo.case !== "usp" || spBairrosDemo?.schema_version !== 1 || spBairrosDemo.case !== "sp-bairros" || brEstadosDemo?.schema_version !== 1 || brEstadosDemo.case !== "br-estados") throw new Error("Demonstration data unavailable.");
-	drawAlgorithmFigures();
 	const defaultCase = "br-estados";
 	let row = brEstadosDemo;
 	let projected, fraction = 1, zoom = 1, frame = 0, playing = false;
@@ -766,7 +595,8 @@ async function initialize() {
 		element("show-decomposition").disabled = !row.visualization.decomposition?.some((pieces) => pieces.length > 1);
 		element("speed-value").title = `At 1×, the tour of this case takes ${number(playbackDuration(row) / 1000, 1)} s to play.`;
 		element("case-time").textContent = formatDuration(row.seconds);
-		element("case-time-detail").textContent = !row.cycle ? "· one thread"
+		// Only the 558 benchmark instances have a time for Fekete et al.; the three highlights are ours alone.
+		element("case-time-detail").textContent = typeof row.case !== "number" ? "· one thread"
 			: Number.isFinite(row.fekete_seconds) ? `· one thread · Fekete et al., one thread: ${formatDuration(row.fekete_seconds)}`
 				: "· one thread · Fekete et al., one thread: not solved in 900 s";
 		element("case-dialog-title").textContent = typeof row.case === "number" ? `Case ${caseLabel(row.case)} · ${row.polygons} regions` : { "br-estados": "Brazil · 27 federative units", "sp-bairros": "São Paulo · 32 subprefectures", usp: "USP campus" }[row.case];
@@ -1094,7 +924,16 @@ function scrollToChallengeDrawing(map) {
 function initializePieceChallenge(combined = false) {
 	const all = window.TPPChallengeData;
 	// Case 49 of the corpus (index 48) is the formal-count example of the final challenge.
-	const impactSeconds = formatDuration(window.TPPEventData?.rows.find((row) => row.case === 48)?.seconds);
+	const impactRow = window.TPPEventData?.rows.find((row) => row.case === 48);
+	const impactSeconds = formatDuration(impactRow?.seconds);
+	// Formal count n! × ∏ pieces of case 49, in logarithms; one computer per atom of the Earth
+	// (at most 3.6 × 10^51, reference [7]) testing 10^9 combinations per second.
+	const log10Count = impactRow
+		? Array.from({ length: impactRow.polygons }, (_, index) => Math.log10(index + 1)).reduce((sum, value) => sum + value, 0)
+			+ impactRow.visualization.decomposition.reduce((sum, pieces) => sum + Math.log10(Math.max(1, pieces.length)), 0)
+		: NaN;
+	const log10Years = log10Count - Math.log10(3.571e51 * 1e9 * 365.25 * 86400);
+	const countMantissa = number(10 ** (log10Count - Math.floor(log10Count)), 1);
 	const data = combined ? all.combined_challenge : all.piece_challenge;
 	const prefix = combined ? "combined" : "piece";
 	const ui = (suffix) => element(`${prefix}-${suffix}`);
@@ -1135,7 +974,7 @@ function initializePieceChallenge(combined = false) {
 		ui("reset").disabled = choices.every((piece) => piece === null);
 		const chosenSequence = (combined ? order : letters.map((_, index) => index)).map(region => `${letters[region]}${choices[region] + 1}`).join(" → ");
 		const bestSequence = (combined ? best.order : letters.map((_, index) => index)).map(region => `${letters[region]}${best.choices[region] + 1}`).join(" → ");
-		const impact = combined ? `<aside class="challenge-impact"><strong>Found it hard?</strong> In case 49, the 60! orders and the choices of convex pieces give about 1.6 × 10<sup>117</sup> formal combinations. Our solver closed that case in ${impactSeconds} with one thread. Imagine <em>every atom on Earth</em> as a computer <a href="#ref-atoms">[7]</a>, testing one combination per nanosecond: listing them all would still take more than 10<sup>49</sup> years. That is more than 10<sup>39</sup> times the roughly 5 billion years until the Sun becomes a red giant and possibly swallows the Earth <a href="#ref-sun">[6]</a>. The solver did not list these combinations; geometric bounds and pruning cut the search down.</aside>` : "";
+		const impact = combined && Number.isFinite(log10Count) ? `<aside class="challenge-impact"><strong>Found it hard?</strong> In case 49, the 60! orders and the choices of convex pieces give about ${countMantissa} × 10<sup>${Math.floor(log10Count)}</sup> formal combinations. Our solver closed that case in ${impactSeconds} with one thread. Imagine <em>every atom on Earth</em> as a computer <a href="#ref-atoms">[7]</a>, testing one combination per nanosecond: listing them all would still take more than 10<sup>${Math.floor(log10Years)}</sup> years. That is more than 10<sup>${Math.floor(log10Years - Math.log10(5e9))}</sup> times the roughly 5 billion years until the Sun becomes a red giant and possibly swallows the Earth <a href="#ref-sun">[6]</a>. The solver did not list these combinations; geometric bounds and pruning cut the search down.</aside>` : "";
 		ui("feedback").innerHTML = compared ? `<strong>${challengeVerdict(selected.length, best.length, "combinations")}</strong>${challengeComparison("Your choice", selected.length, `Best of ${data.solutions.length.toLocaleString("en-US")}`, best.length, combined ? "Solution" : "Pieces", chosenSequence, bestSequence)}${impact}` : "";
 		if (compared) animateChallengeRoute(map);
 	}

@@ -34,9 +34,19 @@ python3 apps/siicusp34/scripts/build_event_data_en.py
 
 que lê o `per-case.csv` da campanha, os tours da campanha local
 `benchmarks/workspace/experiments/fekete-reference@armijo`, o ZIP de instâncias
-do submódulo `third_party/tspn-socg` e as decomposições de
-`data/event-data.js` (os polígonos são conferidos caso a caso). Os tours do
-corpus fecham o gap relativo de 10⁻³; a página não os chama de ótimos.
+do submódulo `third_party/tspn-socg`. As distâncias do painel de precisão vêm
+dos registros, sem o arredondamento do CSV; a ordem de visita é a do primeiro
+contato ao longo do tour; as decomposições vêm da partição C++ compilada na
+geração, sem os vértices repetidos a menos de 10⁻⁹ que 100 regiões têm (com
+eles, a partição devolve a região inteira como uma peça não convexa). Os tours
+do corpus fecham o gap relativo de 10⁻³ pelo critério de cada solver; a página
+não os chama de ótimos.
+
+Os seis cartões do método são tours fechados nos desenhos dos desafios, e não
+caminhos de s a t como na versão em português. Eles saem de
+`scripts/build_tspn_cards.py` (matplotlib e shapely), que resolve cada tour com
+`--cycle`, confere os exemplos e grava `en/figures/*.svg` e, com `--pdf-dir`,
+os PDFs do pôster.
 
 ## Abrir no computador
 

@@ -8,9 +8,10 @@ their paper, as closed tours with free order (TSPN). Times follow the summary
 in ``benchmarks/results-saved/README.md#fekete-reference-armijo-2026-10-17``:
 the median of the three 300 s runs when all three close, otherwise the single
 longer run (900 s; 6 h for our case 189). Tours come from the local run
-records (``benchmarks/workspace/experiments/fekete-reference@armijo``);
-convex decompositions are reused from the Portuguese snapshot, whose polygons
-are checked to be identical.
+records (``benchmarks/workspace/experiments/fekete-reference@armijo``), and
+so do the distances of the precision panel, unrounded. The visiting order is
+the order of first contact along each tour, as the page colours it. Convex
+decompositions come from the C++ optimal partition, compiled at build time.
 
 From the repository root:
 
@@ -32,7 +33,8 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "benchmarks/_internal"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from build_event_data import path_length, polygon_contact, read_legacy_decompositions  # noqa: E402
+from build_event_data import path_length, polygon_contact  # noqa: E402
+from build_usp_demo import optimal_decomposition  # noqa: E402
 from fekete_reference import load_polygons  # noqa: E402
 
 CAMPAIGN = "fekete-reference-armijo-2026-10-17"
@@ -80,6 +82,33 @@ def our_tours(experiments: Path) -> dict[str, dict]:
 	return tours
 
 
+def tour_distances(experiments: Path) -> dict[str, dict[str, float]]:
+	"""Solver -> instance -> largest distance from a tour to a polygon over the 300 s runs.
+
+	The CSV rounds this column to three digits, which moves a value of 1.003e-7 to 1e-7;
+	the threshold counts need the recorded values."""
+	distances: dict[str, dict[str, float]] = {"ours": {}, "fekete": {}}
+	for solver, folder, root in (("ours", "C-ours-2467373-300s", "nosso"), ("fekete", "B-single-thread-300s", "CHR")):
+		with (experiments / folder / "runs.jsonl").open(encoding="utf-8") as file:
+			for line in file:
+				run = json.loads(line)
+				value = run.get("validation", {}).get("max_polygon_distance")
+				if run["root_label"] != root or value is None:
+					continue
+				distances[solver][run["instance"]] = max(value, distances[solver].get(run["instance"], 0.0))
+	return distances
+
+
+def without_repeated_vertices(polygon, tolerance: float = 1e-9) -> list[list[float]]:
+	points: list[list[float]] = []
+	for point in polygon:
+		if not points or math.dist(points[-1], point) >= tolerance:
+			points.append(list(point))
+	if len(points) > 1 and math.dist(points[0], points[-1]) < tolerance:
+		points.pop()
+	return points
+
+
 def rounded_size(polygons: int) -> int:
 	return 5 * max(1, round(polygons / 5))
 
@@ -102,7 +131,12 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 		cases.setdefault(int(row["case"]) - 1, row)
 	polygons = load_polygons(args.archive)
 	tours = our_tours(args.experiments)
-	legacy = read_legacy_decompositions(args.legacy_event_data)
+	shapes = {row["instance"]: polygons[row["instance"]] for row in cases.values()}
+	# 100 regions repeat a vertex within 1e-9, and the partition then returns the whole reflex
+	# region as one piece; the drawing layer partitions them without the repeated vertex.
+	flat = [without_repeated_vertices(polygon) for instance in sorted(shapes) for polygon in shapes[instance]]
+	pieces = iter(optimal_decomposition(flat))
+	decompositions = {instance: [next(pieces) for _ in shapes[instance]] for instance in sorted(shapes)}
 	ours = solved_times(rows, "C", "ours")
 	fekete = solved_times(rows, "B", "CHR")
 	if set(fekete) - set(ours):
@@ -110,10 +144,9 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 	if set(ours) != set(cases):
 		raise ValueError("our solver should close every instance")
 
-	distances: dict[str, dict[int, float]] = {"ours": {}, "fekete": {}}
-	for row in rows:
-		if row["time_limit"] == "300" and (row["configuration"], row["root"]) in {("C", "ours"), ("B", "CHR")}:
-			distances["ours" if row["configuration"] == "C" else "fekete"][int(row["case"]) - 1] = float(row["tour_max_distance"])
+	distances = tour_distances(args.experiments)
+	if any(len(values) != len(cases) for values in distances.values()):
+		raise ValueError("every instance needs a recorded tour distance for both solvers")
 
 	result_rows = []
 	for case, row in sorted(cases.items()):
@@ -123,15 +156,16 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 		path = [list(point) for point in run["result"]["path"]]
 		if path[0] != path[-1]:
 			raise ValueError(f"case {case + 1}: our tour is not closed")
-		legacy_shape, decomposition = legacy.get(case, ((), ()))
-		if legacy_shape != shape:
-			raise ValueError(f"case {case + 1}: polygons differ from the Portuguese snapshot")
+		decomposition = decompositions[instance]
 		contacts = []
 		for polygon in shape:
 			contact = polygon_contact(path, polygon)
 			contacts.append({"point": list(contact[0]), "fraction": contact[1]} if contact else None)
 		if None in contacts:
 			raise ValueError(f"case {case + 1}: the tour misses a polygon")
+		# First contact along the tour; regions met at the same point keep the solver's order.
+		solver_rank = {int(index): rank for rank, index in enumerate(run["result"]["order"])}
+		order = sorted(range(len(shape)), key=lambda index: (contacts[index]["fraction"], solver_rank.get(index, len(shape) + index)))
 		result_rows.append({
 			"case": case,
 			"cycle": True,
@@ -140,7 +174,7 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 			"instance": instance,
 			"length": path_length([tuple(point) for point in path]),
 			"lower_bound": run["result"]["lower_bound"],
-			"order": run["result"]["order"],
+			"order": order,
 			"path": path,
 			"polygons": int(row["polygons"]),
 			"seconds": ours[case],
@@ -216,7 +250,6 @@ def main() -> None:
 	parser.add_argument("--per-case", type=Path, default=ROOT / f"benchmarks/results-saved/{CAMPAIGN}/per-case.csv")
 	parser.add_argument("--experiments", type=Path, default=ROOT / "benchmarks/workspace/experiments/fekete-reference@armijo")
 	parser.add_argument("--archive", type=Path, default=ROOT / "third_party/tspn-socg/instances/instances_socg_simplified.zip")
-	parser.add_argument("--legacy-event-data", type=Path, default=ROOT / "apps/siicusp34/data/event-data.js")
 	parser.add_argument("--output", type=Path, default=ROOT / "apps/siicusp34/en/data/event-data.js")
 	args = parser.parse_args()
 	data = build(args)

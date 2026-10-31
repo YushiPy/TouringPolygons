@@ -11,7 +11,7 @@ reference for numbers and wording. The first-stage poster stays unchanged in
 Requires XeLaTeX, Arial, Latin Modern Math and the packages of the preamble.
 The speedup figure is the abstract's (`../resumo/assets/speedup-figure.pdf`,
 ignored); build it first with the abstract's generator, and the other
-figures with `render_print_figures.mjs` (below); all PDFs here are ignored too (see
+figures with `render_print_figures.mjs` and `build_tspn_cards.py` (below); all PDFs here are ignored too (see
 [`../../README.md`](../../README.md)). From this folder:
 
 ```sh
@@ -32,11 +32,12 @@ The poster is printed, so its figures are drawn on white:
   `apps/siicusp34/en/data/br-estados-tspn.js` (27 federative units), drawn from
   its geometry and tour. A TSPN tour has no first visit, so the colours
   follow the visiting order from the Federal District, lighter first.
-- `figures/method-step-0N.pdf`: the six method cards of
-  [`../../fase-local/poster/figures/`](../../fase-local/poster/figures/README.md),
-  with a light palette and English labels.
+- `figures/method-0N.pdf`: the six method cards, as closed tours (TSPN) on the
+  challenge drawings, from
+  [`apps/siicusp34/scripts/build_tspn_cards.py`](../../../../../../apps/siicusp34/scripts/build_tspn_cards.py)
+  with `--pdf-dir` pointing here; the same script draws the page's SVG cards.
 
-Both come from [`render_print_figures.mjs`](render_print_figures.mjs), which
+The map comes from [`render_print_figures.mjs`](render_print_figures.mjs), which
 prints SVG to PDF with Playwright (or the installed Google Chrome) and trims
 the margins with `pdfcrop`. From the repository root, with the dashboard's
 Playwright installed:
