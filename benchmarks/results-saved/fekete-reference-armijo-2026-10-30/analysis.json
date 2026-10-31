@@ -1,0 +1,113 @@
+{
+  "C": {
+    "solved_300": 557,
+    "common": 541,
+    "median_speedup": 72.65681951683638,
+    "mean_speedup": 196.00510500399955,
+    "min_speedup": 1.8865399576718895,
+    "size_medians": {
+      "5": 12.021822439906597,
+      "60": 429.7118584719722
+    },
+    "decomposition": {
+      "n": 166,
+      "speedup": 257.36222152860853,
+      "nodes": 1.0821330957729096,
+      "cost": 237.82862065113017
+    },
+    "intervals": {
+      "OSM": {
+        "calls": 5215685,
+        "interval_fraction": 0.9902382908477027
+      },
+      "random": {
+        "calls": 239726,
+        "interval_fraction": 0.9467767367744842
+      },
+      "tessellation": {
+        "calls": 344556,
+        "interval_fraction": 0.7426833373965335
+      }
+    },
+    "max_tour_distance": 2.9103830456733704e-11,
+    "below_proved_lb": 22
+  },
+  "F": {
+    "solved_300": 557,
+    "common": 541,
+    "median_speedup": 69.010719171108,
+    "mean_speedup": 183.2105760101029,
+    "min_speedup": 1.836540663912335,
+    "size_medians": {
+      "5": 11.002828774815137,
+      "60": 394.8283639072056
+    },
+    "decomposition": {
+      "n": 166,
+      "speedup": 244.79179674644672,
+      "nodes": 1.0827116597287687,
+      "cost": 226.09140166438192
+    },
+    "intervals": {
+      "OSM": {
+        "calls": 5214901,
+        "interval_fraction": 0.99023989141884
+      },
+      "random": {
+        "calls": 239601,
+        "interval_fraction": 0.9468032270316067
+      },
+      "tessellation": {
+        "calls": 344206,
+        "interval_fraction": 0.7426773501914551
+      }
+    },
+    "max_tour_distance": 2.9103830456733704e-11,
+    "below_proved_lb": 22
+  },
+  "F_over_C": {
+    "geometric_time_ratio": 1.0654510697463435,
+    "median_time_ratio": 1.0566802914151545,
+    "sum_case_medians_C": 136.08018343100002,
+    "sum_case_medians_F": 147.19858625800003
+  },
+  "precision": {
+    "aggregation": "For each of all 558 instances, maximum polygon miss over three one-thread 300 s runs; include unclosed searches, no intermediate rounding.",
+    "fekete_chr": {
+      "cases": 558,
+      "runs": 1674,
+      "median": 2.648977721572538e-06,
+      "p95": 0.00017083242320488533,
+      "max": 0.0008229625996190154,
+      "above_1e-7": 407,
+      "max_instance": "vienna_n030_seed2310"
+    },
+    "ours_F": {
+      "cases": 558,
+      "runs": 1674,
+      "median": 1.9860273225978185e-15,
+      "p95": 1.1368683772161603e-13,
+      "max": 2.9103830456733704e-11,
+      "above_1e-7": 0,
+      "max_instance": "stars-0000060.instance"
+    },
+    "fekete_lefp_scope_check": {
+      "cases": 558,
+      "runs": 1674,
+      "median": 2.2246687037030616e-06,
+      "p95": 0.00015606175500764745,
+      "max": 0.0009568426805603701,
+      "above_1e-7": 399,
+      "max_instance": "kuala_lumpur_n040_seed3462"
+    }
+  },
+  "provenance": {
+    "benchmarks/results-saved/fekete-reference-armijo-2026-10-17/per-case.csv": "eb98744878a1c33f657bce239492347dd7d7905cc9b88e077ea0010a8d01fb3d",
+    "benchmarks/workspace/experiments/fekete-reference@armijo/C-ours-2467373-300s/runs.jsonl": "9368c2aa67194ded01603a150363570b07e9422493603c23b24e7b2f75dfcb3c",
+    "benchmarks/workspace/experiments/fekete-reference@armijo/F-ours-c3b3a50-300s/runs.jsonl": "4b3b113d7fb185b1b74d036c7bc7b62a62c8ccbbd3ecaaf13a92024f180ad360",
+    "benchmarks/workspace/experiments/fekete-reference@armijo/B-single-thread-300s/runs.jsonl": "ee3c380c38ec0fd995b7bf19f5ed99f6ef196b7106e15dc960207648bdbd9d11",
+    "benchmarks/workspace/experiments/fekete-reference@armijo/F-ours-c3b3a50-900s-unsolved/runs.jsonl": "d10b7de08b75f511cd4b3f5f0260cfbab531a5ef808126ec74d076c060ffd033",
+    "benchmarks/workspace/experiments/fekete-reference@armijo/B-single-thread-900s-unsolved/runs.jsonl": "324f8fdffe1168babd8963449ec88b7ccd30a94707672466e1d83689d42f4623",
+    "benchmarks/workspace/experiments/fekete-reference@armijo/F-ours-c3b3a50-300s/plan.json": "27887a261f9b3ec235dae8ac1abf6dff38d8dca60f8f186bef5f6293d4017cc9"
+  }
+}

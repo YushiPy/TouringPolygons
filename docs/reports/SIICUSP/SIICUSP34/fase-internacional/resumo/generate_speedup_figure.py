@@ -1,8 +1,8 @@
 """Figure 2 of the international abstract: speedup over Fekete et al. by instance size.
 
-Reads benchmarks/results-saved/fekete-reference-armijo-2026-10-17/per-case.csv
+Reads benchmarks/results-saved/fekete-reference-armijo-2026-10-30/per-case.csv
 and compares configuration B (original code of Fekete et al., CHR root, one
-thread) with C (ours, one thread) on the instances both solve. The time of an
+thread) with F (ours, one thread, same stopping rule) on the instances both solve. The time of an
 instance is the median of the three 300 s runs when all three close, otherwise
 the 900 s run, as in the summary of that campaign. One point per instance
 against its number of polygons (log scale), with the median and the
@@ -16,6 +16,7 @@ Run with a Python that has matplotlib, e.g.
 from __future__ import annotations
 
 import csv
+import argparse
 import math
 import statistics
 from collections import defaultdict
@@ -25,7 +26,7 @@ import matplotlib.pyplot as plt
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[5]
-SOURCE = ROOT / "benchmarks/results-saved/fekete-reference-armijo-2026-10-17/per-case.csv"
+SOURCE = ROOT / "benchmarks/results-saved/fekete-reference-armijo-2026-10-30/per-case.csv"
 
 INK = "#2f3a45"
 POINT = "#8a96a3"
@@ -51,9 +52,13 @@ def solved_times(rows: list[dict], configuration: str, root: str) -> dict[str, t
 
 
 def main() -> None:
+	parser = argparse.ArgumentParser(description=__doc__)
+	parser.add_argument("--output", type=Path, default=HERE / "assets/speedup-figure.pdf")
+	parser.add_argument("--print", dest="print_palette", action="store_true", help="higher-contrast points for the printed poster")
+	args = parser.parse_args()
 	rows = list(csv.DictReader(SOURCE.open()))
 	fekete = solved_times(rows, "B", "CHR")
-	ours = solved_times(rows, "C", "ours")
+	ours = solved_times(rows, "F", "ours")
 	if set(fekete) - set(ours):
 		raise RuntimeError("an instance is solved only by Fekete et al.")
 	common = sorted(fekete)
@@ -79,7 +84,8 @@ def main() -> None:
 	fig, ax = plt.subplots(figsize=(3.0, 1.38), dpi=300)
 	ax.scatter(
 		[fekete[case][1] for case in common], [speedups[case] for case in common],
-		s=2.5, color=POINT, alpha=0.45, linewidths=0, zorder=2, label="instance",
+		s=2.5, color="#657587" if args.print_palette else POINT, alpha=0.85 if args.print_palette else 0.45,
+		linewidths=0, zorder=2, label="instance",
 	)
 	ax.plot(sizes, means, color=MEAN, linewidth=1.2, linestyle=(0, (3, 1.5)), marker="o", markersize=2.2, zorder=3, label="arithmetic mean")
 	ax.plot(sizes, medians, color=INK, linewidth=1.3, marker="o", markersize=2.2, zorder=4, label="median")
@@ -100,7 +106,7 @@ def main() -> None:
 	ax.tick_params(length=2, width=0.6)
 	ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), borderaxespad=0.1, frameon=False, fontsize=6.5, ncol=3, markerscale=1.5, handlelength=1.6, columnspacing=1.0)
 
-	output = HERE / "assets/speedup-figure.pdf"
+	output = args.output
 	output.parent.mkdir(exist_ok=True)
 	fig.savefig(output, transparent=True, bbox_inches="tight", pad_inches=0.02)
 
