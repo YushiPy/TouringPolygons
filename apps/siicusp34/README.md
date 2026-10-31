@@ -16,7 +16,11 @@ para testar os arquivos localmente.
 (25–26/11/2026), aberta em `http://127.0.0.1:8765/en/`. Ela reutiliza o CSS,
 o solver dos desafios e os dados das demonstrações desta pasta (`../`), começa
 pelo destaque Brasil e não tem a simulação da busca, cujos registros vêm do
-solver antigo de extremos fixos. `en/en.css` guarda só os acréscimos.
+solver antigo de extremos fixos. O Brasil da versão em inglês é um TSPN, sem
+ponto fixo (`en/data/br-estados-tspn.js`, gerado por
+`scripts/build_br_estados_tspn.py` a partir dos mesmos 27 polígonos de
+`data/br-estados-demo.js`): 9.962 km, contra 10.039 km do tour que sai de
+Brasília na versão em português. `en/en.css` guarda só os acréscimos.
 
 Os resultados seguem o resumo em inglês e a medição de referência na armijo
 ([`fekete-reference-armijo-2026-10-17`](../../benchmarks/results-saved/README.md#fekete-reference-armijo-2026-10-17)):

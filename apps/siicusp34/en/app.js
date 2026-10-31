@@ -689,14 +689,14 @@ async function initialize() {
 			: row.case === "sp-bairros"
 				? "Shortest closed tour that visits the 32 subprefectures of São Paulo and returns to Sé."
 				: row.case === "br-estados"
-					? "Shortest closed tour that crosses Brazil's 27 federative units and returns to Brasília."
+					? "Shortest closed tour that crosses Brazil's 27 federative units, with no fixed start."
 					: `Case ${caseLabel(row.case)}: closed tour through ${row.polygons} regions.`;
 		element("map-description").textContent = row.case === "usp"
 			? "Closed tour starting and ending near IME; more than 50 USP outlines and the computed tour in orange."
 			: row.case === "sp-bairros"
 				? "Closed tour in orange; crossing a polygon counts as visiting the subprefecture. The outlines were generalized for this demonstration."
 				: row.case === "br-estados"
-					? "Closed tour in orange; crossing the main outline of a federative unit counts as visiting it. Other disconnected parts were left out and the borders were simplified for this demonstration."
+					? "Closed tour in orange, with no fixed start; crossing the main outline of a federative unit counts as visiting it. Other disconnected parts were left out and the borders were simplified for this demonstration."
 					: `Computed tour in orange, visiting ${row.polygons} regions and returning to where it started.`;
 		drawRoute();
 	}
@@ -755,12 +755,12 @@ async function initialize() {
 			: isSpBairros
 				? "What closed route should a drone fly to visit the 32 subprefectures of São Paulo, starting and ending at Sé? Crossing a region counts as visiting it. Below is the optimal tour for these generalized outlines."
 				: isBrEstados
-					? "What route should a drone take to leave Brasília, cross the main territory of each of Brazil's 27 federative units and return to the capital, flying the shortest distance? Below is the optimal tour for this simplified version of the problem."
+					? "What is the shortest closed route that crosses the main territory of each of Brazil's 27 federative units? The route may start anywhere: no point is fixed. Below is the optimal tour for this simplified version of the problem."
 					: `In case ${caseLabel(row.case)}, from the benchmark of Fekete et al., a closed tour visits ${row.polygons} regions and returns to where it started; no point is fixed. Below is the tour our solver found, proved to be within 0.1% of the shortest possible.`;
 		element("route-endpoint-legend").textContent = isUsp
 			? "s = t · entrance of IME"
 			: isSpBairros ? "s = t · centre of the Sé subprefecture"
-				: isBrEstados ? "s = t · Brasília" : "Closed tour · no fixed point";
+				: "Closed tour · no fixed point";
 		element("usp-current-stop").hidden = !isUsp;
 		element("show-decomposition").setAttribute("aria-pressed", "false");
 		element("show-decomposition").disabled = !row.visualization.decomposition?.some((pieces) => pieces.length > 1);

@@ -1,6 +1,6 @@
 /** Vector figures of the poster for printing on paper: light backgrounds, no web styling.
  *
- * - figures/brazil-route.pdf: the Brazil tour of apps/siicusp34/data/br-estados-demo.js,
+ * - figures/brazil-route.pdf: the Brazil TSPN tour of apps/siicusp34/en/data/br-estados-tspn.js,
  *   drawn from its geometry, tour and visiting order (nothing is recomputed);
  * - figures/method-step-0N.pdf: the six method cards of the first-stage poster
  *   (../../fase-local/poster/figures/method-step-0N.svg), with a light palette and English labels.
@@ -61,19 +61,12 @@ function brazilSvg(demo) {
   const offsetX = (size - (maxX - minX) * scale) / 2, offsetY = (size - (maxY - minY) * scale) / 2;
   const project = ([x, y]) => [offsetX + (x - minX) * scale, size - offsetY - (y - minY) * scale];
   const coordinates = (list) => list.map((point) => project(point).map((value) => value.toFixed(2)).join(',')).join(' ');
-  // First visits light, last visits darker, as the page's gradient.
-  const shade = (rank) => {
-    const t = rank / (demo.polygons - 1);
-    const mix = (a, b) => Math.round(a + (b - a) * t);
-    return `rgb(${mix(146, 38)},${mix(204, 122)},${mix(188, 108)})`;
-  };
-  const regions = demo.geometry.polygons.map((polygon, index) =>
-    `<polygon points="${coordinates(polygon)}" fill="${shade(demo.order.indexOf(index))}" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>`).join('');
-  const [sx, sy] = project(demo.geometry.start);
+  // A TSPN tour has no first visit, so every region gets the same colour.
+  const regions = demo.geometry.polygons.map((polygon) =>
+    `<polygon points="${coordinates(polygon)}" fill="#4f9a8b" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>`).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">${regions}`
     + `<polyline points="${coordinates(demo.path)}" fill="none" stroke="#a63f0d" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>`
-    + `<circle cx="${sx}" cy="${sy}" r="13" fill="${ink}" stroke="#ffffff" stroke-width="4"/>`
-    + `<text x="${sx - 22}" y="${sy + 44}" text-anchor="end" font-family="Arial, sans-serif" font-weight="700" font-size="40" fill="${ink}" paint-order="stroke" stroke="#ffffff" stroke-width="8">s = t</text></svg>`;
+    + '</svg>';
 }
 
 async function printSvg(page, svg, output) {
@@ -89,9 +82,10 @@ await mkdir(figures, { recursive: true });
 const browser = await chromium.launch({ headless: true }).catch(() => chromium.launch({ headless: true, channel: 'chrome' }));
 try {
   const page = await browser.newPage();
-  const source = await readFile(resolve(root, 'apps/siicusp34/data/br-estados-demo.js'), 'utf8');
+  const source = await readFile(resolve(root, 'apps/siicusp34/en/data/br-estados-tspn.js'), 'utf8');
   const demo = JSON.parse(source.slice(source.indexOf('=') + 1).trim().replace(/;$/, ''));
   assert.equal(demo.polygons, 27);
+  assert.equal(demo.cycle, true);
   assert.equal(demo.termination, 'optimal');
   await printSvg(page, brazilSvg(demo), resolve(figures, 'brazil-route.pdf'));
   for (let step = 1; step <= 6; step += 1) {

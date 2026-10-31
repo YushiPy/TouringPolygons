@@ -28,9 +28,9 @@ to the log, to check overflow after an edit.
 
 The poster is printed, so its figures are drawn on white:
 
-- `figures/brazil-route.pdf`: the Brazil tour of
-  `apps/siicusp34/data/br-estados-demo.js` (27 federative units), drawn from
-  its geometry, tour and visiting order; lighter units are visited first.
+- `figures/brazil-route.pdf`: the Brazil TSPN tour of
+  `apps/siicusp34/en/data/br-estados-tspn.js` (27 federative units), drawn from
+  its geometry and tour, in one colour since a TSPN tour has no first visit.
 - `figures/method-step-0N.pdf`: the six method cards of
   [`../../fase-local/poster/figures/`](../../fase-local/poster/figures/README.md),
   with a light palette and English labels.
@@ -57,7 +57,9 @@ thread (C). On the 541 instances both solve: median speedup 72.7× (73×),
 arithmetic mean 196×, ours faster on all. Ours solves 557 in 300 s and case 189
 in 5363 s; in the paper's configuration Fekete et al. solve 542 in 300 s and 549
 in 900 s. The 257 = 1.08 × 238 split is in geometric means, as in the abstract.
-The Brazil tour (10,039 km, 0.08 s) is the one of `apps/siicusp34/data/br-estados-demo.js`.
+The Brazil tour is a TSPN (no fixed point): 9,962 km, 0.016 s (median of three runs, one thread, Mac), from
+`apps/siicusp34/en/data/br-estados-tspn.js` (`apps/siicusp34/scripts/build_br_estados_tspn.py`).
+The Portuguese page's tour, which starts and ends in Brasília, is 10,039 km.
 
 The QR code points to `https://yushipy.github.io/TouringPolygons/apps/siicusp34/en/`,
 which only works once the English page is merged and published.
