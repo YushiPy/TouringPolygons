@@ -20,9 +20,10 @@ com a nossa implementação de Greene e resolve os tours com `tpp-unordered`:
 
 A figura 2 (`assets/speedup-figure.pdf`, ignorada) é gerada por
 `generate_speedup_figure.py` a partir de
-`benchmarks/results-saved/fekete-reference-armijo-2026-10-17/per-case.csv`:
+`benchmarks/results-saved/fekete-reference-armijo-2026-10-30/per-case.csv`:
 o código original de Fekete et al. com uma thread (configuração B, raiz CHR)
-contra o nosso com uma thread (C), nas 541 instâncias que os dois resolvem.
+contra o nosso com uma thread (F), nas 541 instâncias que os dois resolvem,
+com o mesmo critério U−L ≤ 10⁻³U + 10⁻³.
 
 ```sh
 cd fase-internacional/resumo
