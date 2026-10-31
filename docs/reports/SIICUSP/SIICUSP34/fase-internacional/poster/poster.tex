@@ -67,21 +67,21 @@
   \draw[Rule,line width=0.8pt] (41.95,17.7) -- (41.95,36.9);
   \block{intro-head}{3}{17.7}{38.2}{\head{1}{Objectives}}
   \block{intro-context}{3}{19.50}{38.2}{\bodytext A drone leaves Brasília, must fly over each of Brazil's 27 federative units and come back. In which \textbf{order}, and through which \textbf{point} of each region, is the route shortest? Touching or crossing a region counts as a visit. Area targets arise in delivery, surveillance and precision agriculture, and real regions are often non-convex.}
-  \fill[Pale,rounded corners=0.22cm] (3,24.03) rectangle (20.4,28.20);
-  \draw[Rule,line width=1.0pt,rounded corners=0.22cm] (3,24.53) rectangle (20.4,28.70);
-  \block{tsp}{3.55}{24.53}{16.3}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TSP}\hspace{0.12cm}\raisebox{0.08cm}{{\sffamily\mdseries\fontsize{22}{26}\selectfont\color{Muted}·\hspace{0.12cm}Traveling Salesman Problem}}\par\vspace{0.10cm}\bodytext Shortest closed tour\\through a set of points.}
-  \fill[Pale,rounded corners=0.22cm] (3,28.70) rectangle (20.4,33.96);
-  \draw[Rule,line width=1.0pt,rounded corners=0.22cm] (3,29.20) rectangle (20.4,34.46);
-  \block{tpp}{3.55}{29.20}{16.3}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TPP}\hspace{0.12cm}\raisebox{0.08cm}{{\sffamily\mdseries\fontsize{22}{26}\selectfont\color{Muted}·\hspace{0.12cm}Touring Polygons Problem}}\par\vspace{0.10cm}\bodytext Shortest path from $s$ that visits\\a sequence of polygons in order\\and ends at $t$.}
-  \fill[Accent!7,rounded corners=0.24cm] (22.8,25.23) rectangle (41.1,32.66);
-  \draw[Accent!65,line width=1.2pt,rounded corners=0.24cm] (22.8,25.23) rectangle (41.1,32.66);
-  \block{free-order}{23.45}{25.73}{17.0}{{\tagtext TSPN · free-order tour}\par\vspace{0.14cm}\bodytext Shortest closed tour that visits\\a set of polygons in any order,\\with no fixed point.\par\vspace{0.10cm}\bodytext\bfseries This is the problem we solve.}
-  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (20.4,26.23) -- (22.7,28.53);
-  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (20.4,31.49) -- (22.7,29.18);
-  \block{aim}{3}{34.93}{38.2}{\bodymuted\textbf{Aim:} an exact, self-contained solver for the TSPN, with no commercial optimizer, compared with the state of the art [3].}
+  \fill[Pale,rounded corners=0.22cm] (3,24.33) rectangle (20.4,28.49);
+  \draw[Rule,line width=1.0pt,rounded corners=0.22cm] (3,24.33) rectangle (20.4,28.49);
+  \block{tsp}{3.55}{24.83}{16.3}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TSP}\hspace{0.12cm}\raisebox{0.08cm}{{\sffamily\mdseries\fontsize{22}{26}\selectfont\color{Muted}·\hspace{0.12cm}Traveling Salesman Problem}}\par\vspace{0.10cm}\bodytext Shortest closed tour\\through a set of points.}
+  \fill[Pale,rounded corners=0.22cm] (3,28.99) rectangle (20.4,34.05);
+  \draw[Rule,line width=1.0pt,rounded corners=0.22cm] (3,28.99) rectangle (20.4,34.05);
+  \block{tpp}{3.55}{29.49}{16.3}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TPP}\hspace{0.12cm}\raisebox{0.08cm}{{\sffamily\mdseries\fontsize{22}{26}\selectfont\color{Muted}·\hspace{0.12cm}Touring Polygons Problem}}\par\vspace{0.10cm}\bodytext Shortest path from $s$ that visits\\a sequence of polygons in order\\and ends at $t$.}
+  \fill[Accent!7,rounded corners=0.24cm] (22.8,25.97) rectangle (41.1,32.41);
+  \draw[Accent!65,line width=1.2pt,rounded corners=0.24cm] (22.8,25.97) rectangle (41.1,32.41);
+  \block{free-order}{23.45}{26.47}{17.0}{{\tagtext TSPN · free-order tour}\par\vspace{0.14cm}\bodytext Shortest closed tour that visits\\a set of polygons in any order,\\with no fixed point.\par\vspace{0.10cm}\bodytext\bfseries This is the problem we solve.}
+  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (20.5,26.41) -- (22.7,28.7);
+  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (20.5,31.52) -- (22.7,29.7);
+  \block{aim}{3}{34.75}{38.2}{\bodymuted\textbf{Aim:} an exact, self-contained solver for the TSPN, with no commercial optimizer, compared with the state of the art [3].}
 
   \block{background-head}{42.7}{17.7}{38.4}{\head{2}{Background and contribution}}
-  \block{background}{42.7}{19.50}{38.4}{\tagtext A polynomial subproblem\par\vspace{0.15cm}\bodytext Both variants are NP-hard for non-convex polygons, but the fixed-order TPP with convex polygons is polynomial: Dror et al. [1] use last-step shortest-path maps, improved by Tan and Jiang [2]. These algorithms fix $s$ and $t$; a TSPN tour has no fixed point.\par\vspace{0.35cm}\tagtext The state of the art\par\vspace{0.15cm}\bodytext Fekete et al. [3] solve the TSPN by branch and bound. Each convex subproblem is a second-order cone program (SOCP) solved by Gurobi, a commercial optimizer, within a tolerance.\par\vspace{0.35cm}\tagtext Our contribution\par\vspace{0.15cm}\bodytext An exact algorithm for the \textbf{fixed-order closed tour} through convex polygons, which may touch or overlap. An optimal tour touches some boundary, so we scan boundary segments, solve anchored paths with the maps of [1] and use the convexity of the anchored length. On rational input the tour is optimal with \textbf{zero error}. For speed, a floating-point stage proves bounds with directed rounding; the exact stage runs only when they are not tight enough.}
+  \block{background}{42.7}{19.50}{38.4}{\tagtext A polynomial subproblem\par\vspace{0.15cm}\bodytext Both variants are NP-hard for non-convex polygons, but the fixed-order TPP with convex polygons is polynomial: Dror et al. [1] use last-step shortest-path maps, improved by Tan and Jiang [2]. These algorithms fix $s$ and $t$; a TSPN tour has no fixed point.\par\vspace{1.0cm}\tagtext The state of the art\par\vspace{0.15cm}\bodytext Fekete et al. [3] solve the TSPN by branch and bound. Each convex subproblem is a second-order cone program (SOCP) solved by Gurobi, a commercial optimizer, within a tolerance.\par\vspace{1.0cm}\tagtext Our contribution\par\vspace{0.15cm}\bodytext An exact algorithm for the \textbf{fixed-order closed tour} through convex polygons, which may touch or overlap. An optimal tour touches some boundary, so we scan boundary segments, solve anchored paths with the maps of [1] and use the convexity of the anchored length. On rational input the tour is optimal with \textbf{zero error}. For speed, a floating-point stage proves bounds with directed rounding; the exact stage runs only when they are not tight enough.}
   \draw[Rule,line width=1.1pt] (3,37.6) -- (81.1,37.6);
 
   % Row 2: the Brazil instance of the poster and the web page, and the search.
@@ -114,8 +114,8 @@
   \block{median}{36.75}{84.30}{10.4}{\metric 73×\par\vspace{0.12cm}\bodytext\textbf{Median speedup}}
   \block{mean}{47.9}{84.30}{10.4}{\metric 196×\par\vspace{0.12cm}\bodytext\textbf{Arithmetic mean}}
   \block{gain}{36.3}{89.55}{22.3}{\tagtext Where the gain comes from\par\vspace{0.15cm}\bodytext Where [3] takes $\ge$ 1 s (166 instances), ours is \textbf{257×} faster. Both explore about as many nodes (1.08×), but a node of [3] costs \textbf{238×} as much. Geometric means: $1.08 \times 238 \approx 257$.}
-  \block{solved-table}{36.3}{96.05}{22.3}{\tagtext Instances solved\par\vspace{0.15cm}\sffamily\fontsize{24}{29}\selectfont\color{Ink}\begin{tabular}{@{}p{12.4cm}@{\hspace{0.3cm}}r@{\hspace{0.5cm}}r@{}}\color{Muted}& \color{Muted}300 s & \color{Muted}900 s\\[0.1cm]{[3]}, paper setup, 16 threads & 542 & 549\\{[3]}, one thread & 523 & 541\\\textbf{Ours, one thread} & \textbf{557} & \textbf{557}\end{tabular}\par\vspace{0.2cm}\bodymuted The last instance, open for every setup of [3], takes ours 89 min.}
-  \block{precision}{3}{103.75}{55.6}{\tagtext Accuracy\par\vspace{0.15cm}\bodytext Tours of [3] miss polygons by a median of $2.7\times10^{-6}$, and on 22 instances its upper bound lies below our proved lower bound. Ours stay within $3\times10^{-11}$ of every polygon.}
+  \block{solved-table}{36.3}{95.45}{22.3}{\tagtext Instances solved\par\vspace{0.15cm}\sffamily\mdseries\fontsize{24}{29}\selectfont\color{Ink}\begin{tabular}{@{}p{12.4cm}@{\hspace{0.3cm}}r@{\hspace{0.5cm}}r@{}}\color{Muted}& \color{Muted}300 s & \color{Muted}900 s\\[0.1cm]{[3]}, paper setup, 16 threads & 542 & 549\\{[3]}, one thread & 523 & 541\\\textbf{Ours, one thread} & \textbf{557} & \textbf{557}\end{tabular}\par\vspace{0.2cm}\bodymuted The last instance, open for every setup of [3], takes ours 89 min.}
+  \block{precision}{3}{103.9}{55.6}{\tagtext Accuracy\par\vspace{0.15cm}\bodytext Tours of [3] miss polygons by a median of $2.7\times10^{-6}$, and on 22 instances its upper bound lies below our proved lower bound. Ours stay within $3\times10^{-11}$ of every polygon.}
 
   \block{app-head}{60.4}{79.2}{20.7}{\head{6}{Try it yourself!}}
   \block{app-intro}{60.4}{81.0}{20.7}{\bodytext Scan to watch the tours, play the challenges and explore every result.}
