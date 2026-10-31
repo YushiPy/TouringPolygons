@@ -6,7 +6,9 @@ The Portuguese page's ``data/br-estados-demo.js`` fixes Brasília as start and e
 names and convex decompositions from that file, solves them with ``--cycle`` and
 writes ``en/data/br-estados-tspn.js`` in the same format, so the English page and
 the international poster show the problem they describe. Time is the median of
-three runs. From the repository root:
+three runs. The tour has no start; it is written beginning where it first
+touches the Federal District, so the visiting order counts from there. From
+the repository root:
 
 	python3 apps/siicusp34/scripts/build_br_estados_tspn.py
 """
@@ -37,6 +39,23 @@ def read_script_json(path: Path) -> dict:
 	return json.loads(text.split("=", 1)[1].strip().rstrip(";"))
 
 
+def rotate_closed_path(path: list[list[float]], point: list[float]) -> list[list[float]]:
+	"""The same closed tour, starting and ending at ``point``, which lies on one of its segments."""
+	cycle = path[:-1]
+	def distance(index: int) -> float:
+		a, b = cycle[index], cycle[(index + 1) % len(cycle)]
+		ab = (b[0] - a[0], b[1] - a[1])
+		length2 = ab[0] ** 2 + ab[1] ** 2
+		t = 0.0 if length2 == 0 else max(0.0, min(1.0, ((point[0] - a[0]) * ab[0] + (point[1] - a[1]) * ab[1]) / length2))
+		return math.dist(point, (a[0] + t * ab[0], a[1] + t * ab[1]))
+	segment = min(range(len(cycle)), key=distance)
+	if distance(segment) > 1e-6:
+		raise ValueError("The rotation point is not on the tour")
+	start = [float(point[0]), float(point[1])]
+	rotated = [start, *cycle[segment + 1:], *cycle[:segment + 1], start]
+	return [point for index, point in enumerate(rotated) if index == 0 or math.dist(point, rotated[index - 1]) > 0]
+
+
 def build(args: argparse.Namespace) -> dict[str, object]:
 	source = read_script_json(args.source)
 	polygons = [[tuple(point) for point in polygon] for polygon in source["geometry"]["polygons"]]
@@ -62,6 +81,14 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 	contacts = [first_contact(path, polygon, 1e-7) for polygon in polygons]
 	if any(contact is None for contact in contacts):
 		raise ValueError("The tour does not intersect every federative unit")
+	# A TSPN tour has no start. Begin it where it first touches the Federal District, so the
+	# visiting order (and the page's colours and animation) counts from Brasília's unit.
+	path = rotate_closed_path(path, contacts[source["region_codes"].index("DF")]["point"])
+	if abs(sum(math.dist(a, b) for a, b in zip(path, path[1:])) - length) > ABSOLUTE_GAP + RELATIVE_GAP * abs(upper):
+		raise ValueError("Rotating the tour changed its length")
+	contacts = [first_contact(path, polygon, 1e-7) for polygon in polygons]
+	if any(contact is None for contact in contacts):
+		raise ValueError("The rotated tour does not intersect every federative unit")
 	solver_rank = {int(index): rank for rank, index in enumerate(result["order"])}
 	order = sorted(range(len(polygons)), key=lambda index: (contacts[index]["fraction"], solver_rank.get(index, len(polygons) + index)))
 	encoded_input = encode_instance(anchor, anchor, polygons, -1, args.max_seconds)
