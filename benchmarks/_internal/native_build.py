@@ -244,8 +244,11 @@ def cache_matches_checkout(directory: Path, source: Path = SOURCE) -> bool:
 					values[name] = line.split("=", 1)[1]
 	except OSError:
 		return False
-	return (values.get("CMAKE_HOME_DIRECTORY") == str(source.resolve())
-		and values.get("CMAKE_CACHEFILE_DIR") == str(directory.resolve()))
+	# CMake records the paths as it was given them, symbolic links included
+	# (on macOS, /tmp rather than /private/tmp), so both sides are resolved.
+	def same(name: str, path: Path) -> bool:
+		return name in values and Path(values[name]).resolve() == path.resolve()
+	return same("CMAKE_HOME_DIRECTORY", source) and same("CMAKE_CACHEFILE_DIR", directory)
 
 
 def _configured(directory: Path) -> dict | None:

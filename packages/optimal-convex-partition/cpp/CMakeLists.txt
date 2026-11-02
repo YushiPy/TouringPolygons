@@ -11,6 +11,11 @@ add_library(optimal_convex_partition STATIC
 )
 
 target_include_directories(optimal_convex_partition PUBLIC include)
+# Exact orientation falls back to Boost's arbitrary-precision integers.
+if(NOT TARGET Boost::headers)
+	find_package(Boost CONFIG REQUIRED)
+endif()
+target_link_libraries(optimal_convex_partition PRIVATE Boost::headers)
 target_compile_features(optimal_convex_partition PUBLIC cxx_std_20)
 target_compile_options(optimal_convex_partition PRIVATE -O3)
 

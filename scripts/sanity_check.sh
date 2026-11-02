@@ -150,7 +150,8 @@ tests=(
 	tpp-tspn-tests
 )
 
-run_step python3 benchmarks/tpp.py build "${tests[@]}" tpp-unordered
+# tpp-convex-cetsp: for the end-to-end checks in benchmarks/tests/test_cetsp_cli.py.
+run_step python3 benchmarks/tpp.py build "${tests[@]}" tpp-unordered tpp-convex-cetsp
 for test in "${tests[@]}"; do
 	run_step ".build/tools/bin/$test"
 done
@@ -161,7 +162,8 @@ else
 	run_step packages/convex-tpp/cpp/run_generated_tests.sh --quick
 fi
 run_step python3 benchmarks/tpp.py generate-suites
-run_step benchmarks/.venv/bin/python -m unittest discover -b -s benchmarks/tests
+# TPP_REQUIRE_NATIVE: a test whose native tool is missing fails rather than skips.
+run_step env TPP_REQUIRE_NATIVE=1 benchmarks/.venv/bin/python -m unittest discover -b -s benchmarks/tests
 
 echo
 echo "Sanity check passed in $((SECONDS - started)) s."

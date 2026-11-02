@@ -1,7 +1,8 @@
 #include "optimal_convex_partition/optimal_convex_partition.h"
 
+#include <boost/multiprecision/cpp_int.hpp>
+
 #include <algorithm>
-#include <bit>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -36,7 +37,6 @@ namespace optimal_convex_partition {
 
 		using Diagonal = std::pair<unsigned int, unsigned int>;
 		using DiagonalList = std::list<Diagonal>;
-		using BigInt = __int128_t;
 
 		struct Edge {
 			bool done = false;
@@ -90,101 +90,32 @@ namespace optimal_convex_partition {
 				return a.x == b.x && a.y == b.y;
 			}
 
-			struct ExactDouble {
-				BigInt mantissa;
-				int exponent = 0;
-			};
-
-			ExactDouble exact_double(double value) {
-				const std::uint64_t bits = std::bit_cast<std::uint64_t>(value);
-				const bool negative = (bits >> 63U) != 0;
-				const auto exponent_bits = static_cast<int>((bits >> 52U) & 0x7ffU);
-				const std::uint64_t fraction = bits & ((std::uint64_t{1} << 52U) - 1U);
-
-				if (exponent_bits == 0 && fraction == 0) {
-					return {};
-				}
-
-				BigInt mantissa = 0;
-				int exponent = 0;
-				if (exponent_bits == 0) {
-					mantissa = static_cast<BigInt>(fraction);
-					exponent = -1074;
-				} else {
-					mantissa = static_cast<BigInt>((std::uint64_t{1} << 52U) | fraction);
-					exponent = exponent_bits - 1023 - 52;
-				}
-
-				if (negative) {
-					mantissa = -mantissa;
-				}
-
-				return {mantissa, exponent};
-			}
-
-			bool multiply_by_power_of_two(BigInt &value, int exponent) {
-				if (exponent < 0 || exponent >= 120) {
-					return false;
-				}
-
-				value *= (static_cast<BigInt>(1) << static_cast<unsigned int>(exponent));
-				return true;
-			}
-
-			ExactDouble exact_subtract(const ExactDouble &a, const ExactDouble &b) {
-				if (a.mantissa == 0) {
-					return {-b.mantissa, b.exponent};
-				}
-
-				if (b.mantissa == 0) {
-					return a;
-				}
-
-				const int exponent = std::min(a.exponent, b.exponent);
-				BigInt mantissa = a.mantissa;
-				if (!multiply_by_power_of_two(mantissa, a.exponent - exponent)) {
-					return {};
-				}
-				BigInt other = b.mantissa;
-				if (!multiply_by_power_of_two(other, b.exponent - exponent)) {
-					return {};
-				}
-				return {mantissa - other, exponent};
-			}
-
+			// The sign of the orientation determinant, exactly. Each double is an
+			// integer times a power of two; scaled to the smallest power among the
+			// six coordinates, all are integers, and so is the determinant, which
+			// arbitrary-precision integers then evaluate without overflow.
 			int exact_orientation_sign(const Point &a, const Point &b, const Point &c) {
-				const ExactDouble ax = exact_double(a.x);
-				const ExactDouble ay = exact_double(a.y);
-				const ExactDouble bx = exact_double(b.x);
-				const ExactDouble by = exact_double(b.y);
-				const ExactDouble cx = exact_double(c.x);
-				const ExactDouble cy = exact_double(c.y);
-
-				const ExactDouble bax = exact_subtract(bx, ax);
-				const ExactDouble bay = exact_subtract(by, ay);
-				const ExactDouble cax = exact_subtract(cx, ax);
-				const ExactDouble cay = exact_subtract(cy, ay);
-
-				BigInt left = bax.mantissa * cay.mantissa;
-				const int left_exponent = bax.exponent + cay.exponent;
-				BigInt right = bay.mantissa * cax.mantissa;
-				const int right_exponent = bay.exponent + cax.exponent;
-				const int exponent = std::min(left_exponent, right_exponent);
-				if (!multiply_by_power_of_two(left, left_exponent - exponent)
-					|| !multiply_by_power_of_two(right, right_exponent - exponent)) {
-					return 0;
+				using boost::multiprecision::cpp_int;
+				const double values[6] = {a.x, a.y, b.x, b.y, c.x, c.y};
+				std::int64_t mantissas[6] = {};
+				int exponents[6] = {};
+				int lowest = std::numeric_limits<int>::max();
+				for (int i = 0; i < 6; ++i) {
+					if (values[i] == 0) continue;
+					int exponent = 0;
+					const double fraction = std::frexp(values[i], &exponent);
+					mantissas[i] = static_cast<std::int64_t>(std::ldexp(fraction, 53));
+					exponents[i] = exponent - 53;
+					lowest = std::min(lowest, exponents[i]);
 				}
-
-				const BigInt determinant = left - right;
-				if (determinant > 0) {
-					return 1;
+				cpp_int scaled[6];
+				for (int i = 0; i < 6; ++i) {
+					scaled[i] = mantissas[i];
+					if (mantissas[i] != 0) scaled[i] <<= static_cast<unsigned>(exponents[i] - lowest);
 				}
-
-				if (determinant < 0) {
-					return -1;
-				}
-
-				return 0;
+				const cpp_int determinant = (scaled[2] - scaled[0]) * (scaled[5] - scaled[1])
+					- (scaled[3] - scaled[1]) * (scaled[4] - scaled[0]);
+				return determinant > 0 ? 1 : determinant < 0 ? -1 : 0;
 			}
 
 			Orientation orientation(const Point &a, const Point &b, const Point &c) {

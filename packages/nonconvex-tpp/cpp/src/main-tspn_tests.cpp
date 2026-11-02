@@ -6,6 +6,7 @@
 #include "solvers/unordered_portfolio.h"
 #include "solvers/unordered_cycle_oracle.h"
 #include "solvers/unordered_dyadic_support.h"
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <filesystem>
@@ -785,13 +786,43 @@ void frontier_budget() {
 // idle threads live on donations; they must close at the unbudgeted optimum,
 // by default and with lazy children. A search stopped by a call cap leaves a
 // checkpoint; resumed with another thread count it closes at the same optimum
-// and removes the file.
-size_t subtree_checks=0,checkpoint_resumes=0;
+// and removes the file. A checkpoint written with a 1% gap keeps the bound of
+// the subtrees it pruned: resumed with that gap the bound stays below the
+// optimum, and a resume asking for a smaller gap is refused.
+size_t subtree_checks=0,checkpoint_resumes=0,loose_resumes=0;
+void loose_resume(const Polygons &p,double optimum,const std::string &file) {
+    tpp::UnorderedTppSolveOptions loose;loose.relative_gap=0.01;loose.max_frontier_bytes=1;loose.subtree_threads=1;
+    loose.checkpoint_file=file;loose.cycle_lazy=loose.lazy_oracles=true;loose.max_calls=10;
+    std::filesystem::remove(file);
+    const auto stopped=tpp::tpp_nonconvex_tspn_solve(p,loose);
+    if(stopped.exact||!std::filesystem::exists(file))return;
+    auto tighter=loose;tighter.relative_gap=1e-9;tighter.max_calls=std::numeric_limits<size_t>::max();
+    bool refused=false;
+    try{tpp::tpp_nonconvex_tspn_solve(p,tighter);}catch(const std::invalid_argument &){refused=true;}
+    require(refused,"A resume asking for a smaller gap than its checkpoint's is refused");
+    auto same=loose;same.max_calls=std::numeric_limits<size_t>::max();
+    const auto resumed=tpp::tpp_nonconvex_tspn_solve(p,same);
+    require(resumed.checkpoint_resumed&&covered(resumed.path,p)&&resumed.lower_bound<=optimum+1e-9*(1+optimum),
+        "A bound resumed from a checkpoint that pruned with a gap stays below the optimum");
+    ++loose_resumes;
+}
 void subtree_threads() {
     std::mt19937 rng(91027);std::uniform_int_distribution<int> coord(0,30);
     const auto directory=std::filesystem::temp_directory_path()/
         ("tpp-subtree-tests-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     std::filesystem::create_directories(directory);
+    {
+        // Ten rectangles whose 1% checkpoint, resumed, used to claim 82.6559
+        // against an optimum of 82.4447 (review of 2026-10-27).
+        Polygons p;
+        for(const auto &[x,y,w,h]:std::vector<std::array<double,4>>{{15,6,3,1},{19,28,2,2},{2,11,2,1},{15,10,3,1},{24,13,2,1},
+            {26,22,1,1},{3,26,1,1},{25,6,3,1},{7,13,3,2},{12,2,2,2}})p.push_back(box(x,y,w,h));
+        tpp::UnorderedTppSolveOptions exact;exact.max_frontier_bytes=0;exact.relative_gap=1e-9;
+        const auto reference=tpp::tpp_nonconvex_tspn_solve(p,exact);
+        require(reference.exact,"Unbudgeted reference closes");
+        loose_resume(p,reference.upper_bound,(directory/"loose-review.ckpt").string());
+        require(loose_resumes==1,"The review's checkpoint case leaves a checkpoint to resume");
+    }
     size_t donations=0;
     for(size_t trial=0;trial<10;++trial) {
         Polygons p;
@@ -826,6 +857,7 @@ void subtree_threads() {
         require(resumed.checkpoint_prior_nodes>=1,"A resumed search knows the work already done");
         require(!std::filesystem::exists(file),"A closed search removes its checkpoint");
         ++checkpoint_resumes;
+        loose_resume(p,reference.upper_bound,(directory/("loose-"+std::to_string(trial)+".ckpt")).string());
     }
     require(donations>0,"Busy subtree threads give nodes to idle ones");
     require(checkpoint_resumes>0,"Some capped searches resumed from their checkpoints");
@@ -890,6 +922,6 @@ int main() {
         bool rejected=false;try {tpp::tpp_nonconvex_tspn_solve({box(0,0)},bad);}catch(const std::invalid_argument&){rejected=true;}
         require(rejected,"Open supplied tour rejected");
         std::cout<<"TSPN tests passed: "<<cases<<" exhaustive cases with 1 and 2 threads, "<<interrupted<<" interrupted searches, "
-                 <<portfolio_cases<<" portfolios, "<<portfolio_limited<<" shared-budget searches, "<<decomposed<<" decomposition cases, "<<parallel_batches<<" concurrent oracle batches, 240 arbitrary-hint plus 240 inherited-dual checks; 1026 optimization/call-cap comparisons, "<<multi_insertion_checks<<" multi-insertion bound checks, "<<frontier_budget_checks<<" frontier-budget searches, "<<subtree_checks<<" subtree-thread searches, "<<checkpoint_resumes<<" checkpoint resumes and 38 combined concurrency checks.\n";
+                 <<portfolio_cases<<" portfolios, "<<portfolio_limited<<" shared-budget searches, "<<decomposed<<" decomposition cases, "<<parallel_batches<<" concurrent oracle batches, 240 arbitrary-hint plus 240 inherited-dual checks; 1026 optimization/call-cap comparisons, "<<multi_insertion_checks<<" multi-insertion bound checks, "<<frontier_budget_checks<<" frontier-budget searches, "<<subtree_checks<<" subtree-thread searches, "<<checkpoint_resumes<<" checkpoint resumes ("<<loose_resumes<<" from a 1% gap) and 38 combined concurrency checks.\n";
     } catch(const std::exception &e){std::cerr<<e.what()<<'\n';return 1;}
 }

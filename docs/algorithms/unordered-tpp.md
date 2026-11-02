@@ -392,7 +392,9 @@ Com o incumbente ótimo, a busca abre os mesmos nós que a de uma thread.
 (`--checkpoint-interval S`, padrão 600 s) grava, em binário, a impressão
 digital da instância normalizada (FNV-1a das coordenadas, extremos e
 topologia), a largura dos índices, o incumbente e o limite e a sequência
-compactada de cada nó aberto. A gravação ocorre a cada S segundos durante a
+compactada de cada nó aberto. Desde o formato 2 (2026-10-27), grava também o
+piso das subárvores podadas (o menor limite podado: cada thread o entrega com
+a cópia da pilha) e os gaps absoluto e relativo. A gravação ocorre a cada S segundos durante a
 fase das threads e no fim. O arquivo é removido quando o gap fecha. Numa gravação
 periódica, novas retiradas do conjunto esperam até que cada thread em
 execução copie a sua pilha no topo do seu laço, sem nó na mão. Assim, o
@@ -400,9 +402,21 @@ conjunto mais as cópias cobrem todo nó aberto; um nó doado nesse intervalo
 pode aparecer duas vezes, o que só repete trabalho. A gravação final, depois
 que as threads voltam, é exata. Uma busca que encontra o arquivo retoma dele,
 com qualquer número de threads, sem a fase de melhor limite (uma ILS pedida
-ainda roda antes). O incumbente salvo também vale como tour inicial. Um arquivo de outra instância
-ou de outra largura de índices é recusado. Com `--subtree-threads 1`, o checkpoint
-também passa por esse caminho, com uma thread.
+ainda roda antes). O incumbente salvo também vale como tour inicial. A
+retomada restaura o piso e recusa um gap absoluto ou relativo menor que o
+gravado: as subárvores podadas com o gap antigo não podem ser reabertas. Um
+arquivo de outra instância, de outra largura de índices ou do formato 1 é
+recusado. Com `--subtree-threads 1`, o checkpoint também passa por esse
+caminho, com uma thread.
+
+O formato 1 não guardava o piso, e a retomada o recomeçava do UB. O efeito
+numa execução retomada antes do formato 2 é limitado. Toda poda exige
+`limite ≥ UB − gap(UB)`, com `gap(U) = absoluto + relativo·U`, e o UB só
+desce; logo o piso perdido é pelo menos `UB_final − gap(UB_final)`. Se a
+execução retomada não fechou, o seu LB está abaixo disso e vem de um nó
+aberto: é o LB correto. Se fechou com o mesmo gap, o fechamento vale, e o LB
+informado pode exceder o verdadeiro em no máximo `gap(UB_final)`. Só
+apertar o gap na retomada dava um fechamento falso.
 
 Em 50gil262 (32 MiB, Mac com outros programas abertos), 2, 4 e 8 threads fecham
 com os mesmos 2.425.412 nós em 35,7, 19,3 e 10,8 s. Interrompida aos 20 s com 4
