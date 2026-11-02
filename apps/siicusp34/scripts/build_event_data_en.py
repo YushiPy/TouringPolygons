@@ -3,11 +3,12 @@
 
 The English page (``en/``) compares, as the international abstract does, the
 original code of Fekete et al. with one thread (configuration B, CHR root)
-against our solver with one thread (configuration C) on the 558 instances of
+against our solver with one thread (configuration F) on the 558 instances of
 their paper, as closed tours with free order (TSPN). Times follow the summary
-in ``benchmarks/results-saved/README.md#fekete-reference-armijo-2026-10-17``:
+in ``benchmarks/results-saved/fekete-reference-armijo-2026-10-30``:
 the median of the three 300 s runs when all three close, otherwise the single
-longer run (900 s; 6 h for our case 189). Tours come from the local run
+longer completed run. Unclosed cases show a feasible tour and a time limit,
+not a completion time. Both solvers use U-L <= eps*U + eps. Tours come from the local run
 records (``benchmarks/workspace/experiments/fekete-reference@armijo``), and
 so do the distances of the precision panel, unrounded. The visiting order is
 the order of first contact along each tour, as the page colours it. Convex
@@ -37,7 +38,7 @@ from build_event_data import path_length, polygon_contact  # noqa: E402
 from build_usp_demo import optimal_decomposition  # noqa: E402
 from fekete_reference import load_polygons  # noqa: E402
 
-CAMPAIGN = "fekete-reference-armijo-2026-10-17"
+CAMPAIGN = "fekete-reference-armijo-2026-10-30"
 SIZE_GROUPS = (5, 60)  # sizes quoted on the page, rounded to a multiple of 5 as in the abstract
 
 
@@ -70,14 +71,22 @@ def solved_within(rows: list[dict[str, str]], configuration: str, root: str, lim
 	return len(solved)
 
 
+def our_folders(experiments: Path) -> list[Path]:
+	"""Completed F records in increasing budget order; unfinished runs have no records."""
+	folders = [folder for folder in experiments.glob("F-ours-*") if (folder / "runs.jsonl").exists()]
+	return sorted(folders, key=lambda folder: json.loads((folder / "plan.json").read_text())["time_limit"])
+
+
 def our_tours(experiments: Path) -> dict[str, dict]:
-	"""Instance -> the closing run of our solver (first repetition of 300 s, else the longer run)."""
+	"""First closing run, or the latest-budget feasible tour if still unclosed."""
 	tours: dict[str, dict] = {}
-	for folder in ("C-ours-2467373-300s", "C-ours-2467373-900s-unsolved", "C-ours-2467373-21600s-unsolved"):
-		with (experiments / folder / "runs.jsonl").open(encoding="utf-8") as file:
+	for folder in our_folders(experiments):
+		with (folder / "runs.jsonl").open(encoding="utf-8") as file:
 			for line in file:
 				run = json.loads(line)
-				if run["solved"] and run["instance"] not in tours and run["result"].get("path"):
+				previous = tours.get(run["instance"])
+				if run["result"].get("path") and (previous is None or
+					(not previous["solved"] and (run["solved"] or run["time_limit"] > previous["time_limit"]))):
 					tours[run["instance"]] = run
 	return tours
 
@@ -88,8 +97,11 @@ def tour_distances(experiments: Path) -> dict[str, dict[str, float]]:
 	The CSV rounds this column to three digits, which moves a value of 1.003e-7 to 1e-7;
 	the threshold counts need the recorded values."""
 	distances: dict[str, dict[str, float]] = {"ours": {}, "fekete": {}}
-	for solver, folder, root in (("ours", "C-ours-2467373-300s", "nosso"), ("fekete", "B-single-thread-300s", "CHR")):
-		with (experiments / folder / "runs.jsonl").open(encoding="utf-8") as file:
+	short = [folder for folder in our_folders(experiments) if json.loads((folder / "plan.json").read_text())["time_limit"] == 300]
+	if len(short) != 1:
+		raise ValueError("expected exactly one F campaign with a 300 s budget")
+	for solver, folder, root in (("ours", short[0], "nosso"), ("fekete", experiments / "B-single-thread-300s", "CHR")):
+		with (folder / "runs.jsonl").open(encoding="utf-8") as file:
 			for line in file:
 				run = json.loads(line)
 				value = run.get("validation", {}).get("max_polygon_distance")
@@ -137,12 +149,12 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 	flat = [without_repeated_vertices(polygon) for instance in sorted(shapes) for polygon in shapes[instance]]
 	pieces = iter(optimal_decomposition(flat))
 	decompositions = {instance: [next(pieces) for _ in shapes[instance]] for instance in sorted(shapes)}
-	ours = solved_times(rows, "C", "ours")
+	ours = solved_times(rows, "F", "ours")
 	fekete = solved_times(rows, "B", "CHR")
 	if set(fekete) - set(ours):
 		raise ValueError("an instance is solved only by Fekete et al.")
-	if set(ours) != set(cases):
-		raise ValueError("our solver should close every instance")
+	if set(tours) != {row["instance"] for row in cases.values()}:
+		raise ValueError("every instance needs a recorded feasible tour")
 
 	distances = tour_distances(args.experiments)
 	if any(len(values) != len(cases) for values in distances.values()):
@@ -177,7 +189,9 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 			"order": order,
 			"path": path,
 			"polygons": int(row["polygons"]),
-			"seconds": ours[case],
+			"seconds": ours.get(case),
+			"solved": case in ours,
+			"time_limit": run["time_limit"],
 			"source": row["source"],
 			"upper_bound": run["result"]["upper_bound"],
 			"visualization": {"contacts": contacts, "decomposition": decomposition},
@@ -205,14 +219,16 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 			for size in SIZE_GROUPS
 		},
 		"solved": {
-			"ours_300": solved_within(rows, "C", "ours", 300),
+			"ours_300": solved_within(rows, "F", "ours", 300),
+			"ours_900": solved_within(rows, "F", "ours", 900),
 			"ours_all": len(ours),
 			"fekete_single_300": solved_within(rows, "B", "CHR", 300),
 			"fekete_single_900": len(fekete),
 			"fekete_paper_300": solved_within(rows, "A", "CHR", 300),
 			"fekete_paper_900": len(solved_times(rows, "A", "CHR")),
 		},
-		"hardest": {"case": case_189, "seconds": ours[case_189]},
+		"hardest": {"case": case_189, "seconds": ours.get(case_189), "solved": case_189 in ours,
+			"time_limit": tours[cases[case_189]["instance"]]["time_limit"]},
 		"time": {
 			"common_ours_median_seconds": statistics.median(common_ours),
 			"common_fekete_median_seconds": statistics.median(common_fekete),
@@ -231,7 +247,8 @@ def build(args: argparse.Namespace) -> dict[str, object]:
 	return {
 		"campaign": CAMPAIGN,
 		"comparison": comparison,
-		"config": {"fekete": "B (CHR root, 1 thread)", "ours": "C (1 thread)", "eps": 0.001},
+		"config": {"fekete": "B (CHR root, 1 thread)", "ours": "F (1 thread)", "eps": 0.001,
+			"stopping_rule": "U-L <= eps*U + eps"},
 		"corpus": "fekete",
 		"provenance": {
 			"per_case_csv": str(args.per_case.relative_to(ROOT)) if args.per_case.is_relative_to(ROOT) else str(args.per_case),
