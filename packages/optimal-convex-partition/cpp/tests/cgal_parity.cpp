@@ -2,6 +2,7 @@
 
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Partition_traits_2.h>
+#include <CGAL/Polygon_2_algorithms.h>
 #include <CGAL/partition_2.h>
 
 #include <sys/wait.h>
@@ -107,6 +108,24 @@ namespace {
 				if (a.x != b.x || a.y != b.y) {
 					return false;
 				}
+			}
+		}
+
+		return true;
+	}
+
+	// Whether every piece is convex, by CGAL's exact predicates.
+	bool all_pieces_convex(const FixturePartition &partition) {
+		using Kernel = CGAL::Exact_predicates_inexact_constructions_kernel;
+		for (const FixturePolygon &piece : partition) {
+			std::vector<Kernel::Point_2> points;
+			points.reserve(piece.size());
+			for (const FixturePoint &point : piece) {
+				points.emplace_back(point.x, point.y);
+			}
+
+			if (!CGAL::is_convex_2(points.begin(), points.end(), Kernel())) {
+				return false;
 			}
 		}
 
@@ -244,6 +263,7 @@ int main(int argc, char **argv) {
 
 	size_t checked = 0;
 	size_t skipped_cgal_crashes = 0;
+	size_t cgal_not_convex = 0;
 	size_t case_index = 0;
 
 	while (input.peek() != EOF) {
@@ -295,6 +315,16 @@ int main(int argc, char **argv) {
 			}
 
 			if (!partitions_equal(cgal_partition, standalone_partition)) {
+				// With collinear vertices CGAL can return a piece that is not convex;
+				// the port then recomputes the partition, which must be convex.
+				if (!all_pieces_convex(cgal_partition) && all_pieces_convex(standalone_partition)) {
+					std::cerr
+						<< "CGAL pieces not convex, standalone convex in case " << case_index
+						<< ", polygon " << polygon_index << '\n';
+					++cgal_not_convex;
+					continue;
+				}
+
 				std::cerr
 					<< "partition mismatch in case " << case_index
 					<< ", polygon " << polygon_index << '\n';
@@ -312,7 +342,8 @@ int main(int argc, char **argv) {
 	std::cout
 		<< "matched " << checked
 		<< " polygons, skipped " << skipped_cgal_crashes
-		<< " CGAL crash polygon(s)\n";
+		<< " CGAL crash polygon(s), " << cgal_not_convex
+		<< " where only the standalone pieces are convex\n";
 
 	return 0;
 }

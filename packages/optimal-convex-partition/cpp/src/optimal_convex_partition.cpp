@@ -11,6 +11,7 @@
 #include <limits>
 #include <list>
 #include <map>
+#include <optional>
 #include <set>
 #include <stack>
 #include <stdexcept>
@@ -42,6 +43,10 @@ namespace optimal_convex_partition {
 			bool done = false;
 			EdgeValidity validity = EdgeValidity::not_valid;
 			bool visible = false;
+			// Proper-diagonal pass: the segment is a straight chain of polygon edges
+			// and proper diagonals, as along a side of a piece through 180-degree
+			// vertices. A piece's vertices need only this; its sides must be visible.
+			bool straight_visible = false;
 			int value = 0;
 			DiagonalList solution;
 
@@ -56,9 +61,15 @@ namespace optimal_convex_partition {
 			DiagonalList solution;
 		};
 
+		constexpr int unreachable = std::numeric_limits<int>::max() / 4;
+
 		struct VertexState {
 			unsigned int vertex = 0;
 			std::list<StackRecord> stack;
+			// In the proper-diagonal pass: the best record popped so far, which stays
+			// feasible for every later extension; unreachable until there is one,
+			// except at the piece's first vertex. Records are then pushed with
+			// stack_record, which leaves it alone.
 			StackRecord best_so_far;
 
 			explicit VertexState(unsigned int vertex_num)
@@ -75,6 +86,10 @@ namespace optimal_convex_partition {
 			void stack_push(unsigned int old_vertex, int record_value, const DiagonalList &diag_list) {
 				best_so_far = {old_vertex, record_value, diag_list};
 				stack.push_back(best_so_far);
+			}
+
+			void stack_record(unsigned int old_vertex, int record_value, const DiagonalList &diag_list) {
+				stack.push_back({old_vertex, record_value, diag_list});
 			}
 
 			void stack_pop() {
@@ -247,7 +262,8 @@ namespace optimal_convex_partition {
 		              unsigned int edge_num2,
 		              const Polygon &polygon,
 		              Matrix<Edge> &edges,
-		              DiagonalList &diag_list);
+		              DiagonalList &diag_list,
+		              bool proper_only);
 
 		int best_so_far(VertexState &pivot_vertex,
 		                unsigned int extension,
@@ -281,10 +297,35 @@ namespace optimal_convex_partition {
 			return best.value;
 		}
 
+		// best_so_far for the proper-diagonal pass. CGAL's version starts from the
+		// record pushed last and returns it even when that record turns right into
+		// the extension. Here a record counts only once its turn into this
+		// extension, or into an earlier one, is not to the right; extensions come
+		// in angular order around the pivot, so such a turn stays valid. A pivot
+		// with no such record returns unreachable.
+		int feasible_best_so_far(VertexState &pivot_vertex,
+		                         unsigned int extension,
+		                         const Polygon &polygon,
+		                         DiagonalList &diag_list) {
+			StackRecord best = pivot_vertex.best_so_far;
+			while (!pivot_vertex.stack_empty()
+				&& !right_turn(polygon[pivot_vertex.stack.back().vertex], polygon[pivot_vertex.vertex], polygon[extension])) {
+				if (pivot_vertex.stack.back().value < best.value) {
+					best = pivot_vertex.stack.back();
+				}
+				pivot_vertex.stack.pop_back();
+			}
+
+			pivot_vertex.best_so_far = best;
+			diag_list = best.solution;
+			return best.value;
+		}
+
 		void load(int current,
 		          std::vector<VertexState> &v_list,
 		          const Polygon &polygon,
-		          Matrix<Edge> &edges) {
+		          Matrix<Edge> &edges,
+		          bool proper_only) {
 			DiagonalList diag_list1;
 			DiagonalList diag_list2;
 
@@ -292,18 +333,42 @@ namespace optimal_convex_partition {
 				const unsigned int previous_vertex = v_list[static_cast<size_t>(previous)].vertex;
 				const unsigned int current_vertex = v_list[static_cast<size_t>(current)].vertex;
 
-				if (!edges[previous_vertex][current_vertex].is_valid()
-					&& !(edges[previous_vertex][current_vertex].visible
-						&& !v_list[static_cast<size_t>(previous)].stack_empty())) {
-					continue;
+				int num_polygons = 0;
+				if (proper_only) {
+					// Every side is a polygon edge or a proper diagonal with a reflex
+					// endpoint, taken from a vertex some chain reaches; the chord being
+					// decomposed is not a side. A diagonal between two other vertices is
+					// never needed: without it, its two convex pieces merge into one.
+					const bool chord = previous == 0 && static_cast<size_t>(current) + 1 == v_list.size();
+					const Edge &side = edges[previous_vertex][current_vertex];
+					if (chord || !side.visible || !(current_vertex == previous_vertex + 1 || side.is_valid())) {
+						continue;
+					}
+
+					const int reach = feasible_best_so_far(v_list[static_cast<size_t>(previous)], current_vertex, polygon, diag_list2);
+					if (reach >= unreachable) {
+						continue;
+					}
+
+					num_polygons = decompose(previous_vertex, current_vertex, polygon, edges, diag_list1, proper_only) + reach;
+				} else {
+					if (!edges[previous_vertex][current_vertex].is_valid()
+						&& !(edges[previous_vertex][current_vertex].visible
+							&& !v_list[static_cast<size_t>(previous)].stack_empty())) {
+						continue;
+					}
+
+					num_polygons =
+						decompose(previous_vertex, current_vertex, polygon, edges, diag_list1, proper_only)
+						+ best_so_far(v_list[static_cast<size_t>(previous)], current_vertex, polygon, diag_list2);
 				}
 
-				const int num_polygons =
-					decompose(previous_vertex, current_vertex, polygon, edges, diag_list1)
-					+ best_so_far(v_list[static_cast<size_t>(previous)], current_vertex, polygon, diag_list2);
-
 				diag_list1.splice(diag_list1.end(), diag_list2);
-				v_list[static_cast<size_t>(current)].stack_push(previous_vertex, num_polygons, diag_list1);
+				if (proper_only) {
+					v_list[static_cast<size_t>(current)].stack_record(previous_vertex, num_polygons, diag_list1);
+				} else {
+					v_list[static_cast<size_t>(current)].stack_push(previous_vertex, num_polygons, diag_list1);
+				}
 				if (std::getenv("OCP_DEBUG_DP") != nullptr) {
 					std::cerr << "load current=" << current_vertex << " previous=" << previous_vertex
 						<< " num=" << num_polygons << " diagonals:";
@@ -319,7 +384,8 @@ namespace optimal_convex_partition {
 		              unsigned int edge_num2,
 		              const Polygon &polygon,
 		              Matrix<Edge> &edges,
-		              DiagonalList &diag_list) {
+		              DiagonalList &diag_list,
+		              bool proper_only) {
 			Edge &edge = edges[edge_num1][edge_num2];
 			if (edge.done) {
 				diag_list = edge.solution;
@@ -331,8 +397,11 @@ namespace optimal_convex_partition {
 
 			std::vector<VertexState> v_list;
 			for (unsigned int e_num = edge_num1; e_num <= edge_num2; ++e_num) {
-				if ((edges[edge_num1][e_num].visible && edges[e_num][edge_num2].visible)
-					|| collinearly_visible(edge_num1, e_num, edge_num2, edges, polygon)) {
+				const bool candidate = proper_only
+					? edges[edge_num1][e_num].straight_visible && edges[e_num][edge_num2].straight_visible
+					: (edges[edge_num1][e_num].visible && edges[e_num][edge_num2].visible)
+						|| collinearly_visible(edge_num1, e_num, edge_num2, edges, polygon);
+				if (candidate) {
 					v_list.emplace_back(e_num);
 				}
 			}
@@ -344,8 +413,16 @@ namespace optimal_convex_partition {
 				std::cerr << '\n';
 			}
 
+			// Chains start at the chord's first vertex, at no cost; no other vertex
+			// is reached before some chain gets there.
+			if (proper_only) {
+				for (size_t v = 1; v < v_list.size(); ++v) {
+					v_list[v].best_so_far.value = unreachable;
+				}
+			}
+
 			for (size_t v = 0; v < v_list.size(); ++v) {
-				load(static_cast<int>(v), v_list, polygon, edges);
+				load(static_cast<int>(v), v_list, polygon, edges, proper_only);
 			}
 
 			if (v_list.empty()) {
@@ -355,7 +432,15 @@ namespace optimal_convex_partition {
 				);
 			}
 
-			const int num_pieces = best_so_far(v_list.back(), edge_num1, polygon, diag_list) + 1;
+			const int num_pieces = 1 + (proper_only
+				? feasible_best_so_far(v_list.back(), edge_num1, polygon, diag_list)
+				: best_so_far(v_list.back(), edge_num1, polygon, diag_list));
+			if (num_pieces > unreachable) {
+				throw std::runtime_error(
+					"optimal partition DP closed no convex piece on edge "
+					+ std::to_string(edge_num1) + "-" + std::to_string(edge_num2)
+				);
+			}
 			diag_list.push_back({edge_num1, edge_num2});
 			if (std::getenv("OCP_DEBUG_DP") != nullptr) {
 				std::cerr << "decompose " << edge_num1 << '-' << edge_num2 << " result=" << num_pieces
@@ -1164,9 +1249,170 @@ namespace optimal_convex_partition {
 			}
 			};
 
-			void preprocessing(const Polygon &polygon, Matrix<Edge> &edges) {
+			// Whether the segment from p to q starts strictly inside the polygon's
+			// angle at p: off both edges there, on the interior side.
+			bool strictly_inside_angle(const Polygon &polygon, size_t p, size_t q) {
 				const size_t n = polygon.size();
-				const VisibilityGraph graph(polygon);
+				const Point &before = polygon[p == 0 ? n - 1 : p - 1];
+				const Point &after = polygon[(p + 1) % n];
+				const bool past_before = left_turn(before, polygon[p], polygon[q]);
+				const bool short_of_after = left_turn(polygon[q], polygon[p], after);
+				if (right_turn(before, polygon[p], after)) {
+					return past_before || short_of_after;
+				}
+				return past_before && short_of_after;
+			}
+
+			bool segments_touch(const Point &a, const Point &b, const Point &c, const Point &d) {
+				if (std::max(a.x, b.x) < std::min(c.x, d.x) || std::max(c.x, d.x) < std::min(a.x, b.x)
+					|| std::max(a.y, b.y) < std::min(c.y, d.y) || std::max(c.y, d.y) < std::min(a.y, b.y)) {
+					return false;
+				}
+
+				if (collinear_ordered(a, c, b) || collinear_ordered(a, d, b)
+					|| collinear_ordered(c, a, d) || collinear_ordered(c, b, d)) {
+					return true;
+				}
+
+				const Orientation abc = orientation(a, b, c);
+				const Orientation abd = orientation(a, b, d);
+				const Orientation cda = orientation(c, d, a);
+				const Orientation cdb = orientation(c, d, b);
+				return abc != Orientation::collinear && abd != Orientation::collinear && abc != abd
+					&& cda != Orientation::collinear && cdb != Orientation::collinear && cda != cdb;
+			}
+
+			// A proper diagonal: the open segment lies in the polygon's open interior,
+			// so it passes through no vertex and runs along no edge. Every side of a
+			// sub-polygon cut by such diagonals is then a side of that sub-polygon only.
+			bool is_proper_diagonal(const Polygon &polygon, size_t p, size_t q) {
+				const size_t n = polygon.size();
+				if (!strictly_inside_angle(polygon, p, q) || !strictly_inside_angle(polygon, q, p)) {
+					return false;
+				}
+
+				for (size_t k = 0; k < n; ++k) {
+					const size_t next_k = (k + 1) % n;
+					if (k == p || k == q || next_k == p || next_k == q) {
+						continue;
+					}
+
+					if (segments_touch(polygon[p], polygon[q], polygon[k], polygon[next_k])) {
+						return false;
+					}
+				}
+
+				return true;
+			}
+
+			// Convex in exact arithmetic: every turn is to the left or straight ahead,
+			// and the edges turn through one revolution, which the signs of their
+			// coordinate differences show by changing at most twice each (Schorn and
+			// Fisher's convexity test).
+			bool is_convex_piece(const Polygon &piece) {
+				const size_t m = piece.size();
+				if (m < 3) {
+					return false;
+				}
+
+				int x_changes = 0;
+				int y_changes = 0;
+				int last_dx = 0;
+				int last_dy = 0;
+				for (size_t k = 0; k < m; ++k) {
+					const Point &a = piece[k];
+					const Point &b = piece[(k + 1) % m];
+					const Point &c = piece[(k + 2) % m];
+					const Orientation turn = orientation(a, b, c);
+					if (turn == Orientation::right
+						|| (turn == Orientation::collinear && !strictly_ordered_along_line(a, b, c))) {
+						return false;
+					}
+
+					const int dx = compare_x(b, a);
+					const int dy = compare_y(b, a);
+					if (dx != 0) {
+						x_changes += last_dx != 0 && dx != last_dx;
+						last_dx = dx;
+					}
+					if (dy != 0) {
+						y_changes += last_dy != 0 && dy != last_dy;
+						last_dy = dy;
+					}
+				}
+
+				return x_changes <= 2 && y_changes <= 2;
+			}
+
+			// Simple: edges that do not share a vertex never touch, and consecutive
+			// edges meet only at their shared vertex.
+			bool is_simple(const Polygon &polygon) {
+				const size_t n = polygon.size();
+				for (size_t i = 0; i < n; ++i) {
+					const Point &a = polygon[i];
+					const Point &b = polygon[(i + 1) % n];
+					const Point &c = polygon[(i + 2) % n];
+					if (point_equal(a, b)
+						|| (orientation(a, b, c) == Orientation::collinear && !strictly_ordered_along_line(a, b, c))) {
+						return false;
+					}
+
+					for (size_t j = i + 2; j < n; ++j) {
+						if (i == 0 && j == n - 1) {
+							continue;
+						}
+
+						if (segments_touch(a, b, polygon[j], polygon[(j + 1) % n])) {
+							return false;
+						}
+					}
+				}
+
+				return true;
+			}
+
+			// Every visible pair is straight visible, and so is a pair whose segment
+			// continues a visible one straight ahead through further visible pairs.
+			void mark_straight_visibility(const Polygon &polygon, Matrix<Edge> &edges) {
+				const size_t n = polygon.size();
+				std::vector<std::vector<size_t>> visible(n);
+				for (size_t a = 0; a < n; ++a) {
+					edges[a][a].straight_visible = true;
+					for (size_t b = a + 1; b < n; ++b) {
+						if (edges[a][b].visible) {
+							edges[a][b].straight_visible = true;
+							visible[a].push_back(b);
+							visible[b].push_back(a);
+						}
+					}
+				}
+
+				for (size_t a = 0; a < n; ++a) {
+					for (const size_t b : visible[a]) {
+						size_t from = b;
+						for (bool extended = true; extended;) {
+							extended = false;
+							for (const size_t c : visible[from]) {
+								if (strictly_ordered_along_line(polygon[a], polygon[from], polygon[c])) {
+									edges[std::min(a, c)][std::max(a, c)].straight_visible = true;
+									from = c;
+									extended = true;
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
+
+			// With proper_only, the sides of pieces are polygon edges and proper
+			// diagonals, and straight visibility replaces CGAL's collinear additions.
+			void preprocessing(const Polygon &polygon, Matrix<Edge> &edges, bool proper_only) {
+				const size_t n = polygon.size();
+				std::optional<VisibilityGraph> graph;
+				if (!proper_only) {
+					graph.emplace(polygon);
+				}
 
 				for (size_t i = 0; i < n; ++i) {
 					const size_t prev_i = i == 0 ? n - 1 : i - 1;
@@ -1184,7 +1430,10 @@ namespace optimal_convex_partition {
 					               polygon[i], polygon[next_i], polygon[next_next_i]);
 
 					for (size_t j = i + 2; j < n; ++j) {
-						if (!graph.is_edge(i, j)) {
+						const bool visible = proper_only
+							? (i == 0 && j == n - 1) || is_proper_diagonal(polygon, i, j)
+							: graph->is_edge(i, j);
+						if (!visible) {
 							continue;
 						}
 
@@ -1203,7 +1452,11 @@ namespace optimal_convex_partition {
 					}
 				}
 
-				make_collinear_vertices_visible(polygon, edges);
+				if (proper_only) {
+					mark_straight_visibility(polygon, edges);
+				} else {
+					make_collinear_vertices_visible(polygon, edges);
+				}
 
 				if (std::getenv("OCP_DEBUG") != nullptr) {
 					std::cerr << "visible edges:";
@@ -1238,6 +1491,33 @@ namespace optimal_convex_partition {
 			}
 			return result;
 		}
+
+		Partition optimal_partition(const Polygon &polygon, bool proper_only) {
+			Matrix<Edge> edges(polygon.size(), std::vector<Edge>(polygon.size()));
+			preprocessing(polygon, edges, proper_only);
+
+			DiagonalList diag_list;
+			decompose(0, static_cast<unsigned int>(polygon.size() - 1), polygon, edges, diag_list, proper_only);
+
+			if (!diag_list.empty()) {
+				diag_list.pop_back();
+			}
+
+			PartitionGraph graph(polygon);
+			for (const auto &[a, b] : diag_list) {
+				graph.insert_diagonal(a, b);
+			}
+
+			if (std::getenv("OCP_DEBUG") != nullptr) {
+				std::cerr << "raw diagonal list:";
+				for (const auto &[a, b] : diag_list) {
+					std::cerr << " (" << a << ", " << b << ')';
+				}
+				std::cerr << '\n';
+			}
+
+			return graph.partition(true);
+		}
 	}
 
 	Partition decompose_polygon(const Polygon &polygon) {
@@ -1254,29 +1534,31 @@ namespace optimal_convex_partition {
 			return {normalized_polygon};
 		}
 
-		Matrix<Edge> edges(normalized_polygon.size(), std::vector<Edge>(normalized_polygon.size()));
-		preprocessing(normalized_polygon, edges);
-
-		DiagonalList diag_list;
-		decompose(0, static_cast<unsigned int>(normalized_polygon.size() - 1), normalized_polygon, edges, diag_list);
-
-		if (!diag_list.empty()) {
-			diag_list.pop_back();
+		// CGAL's visibility admits segments through vertices and along edges, and
+		// its collinear additions, with a vertex that no chain reaches counted as
+		// a free start, can put a reflex vertex inside a piece (Paula's 50pcb442,
+		// polygon 6; CGAL fails its own postcondition there). Every piece is
+		// checked exactly, and on a failure the partition is recomputed over
+		// proper diagonals, with chains that start at the chord and turns that are
+		// all checked.
+		Partition pieces = optimal_partition(normalized_polygon, false);
+		if (std::all_of(pieces.begin(), pieces.end(), is_convex_piece)) {
+			return pieces;
 		}
 
-		PartitionGraph graph(normalized_polygon);
-		for (const auto &[a, b] : diag_list) {
-			graph.insert_diagonal(a, b);
-		}
-
-		if (std::getenv("OCP_DEBUG") != nullptr) {
-			std::cerr << "raw diagonal list:";
-			for (const auto &[a, b] : diag_list) {
-				std::cerr << " (" << a << ", " << b << ')';
+		try {
+			Partition proper_pieces = optimal_partition(normalized_polygon, true);
+			if (std::all_of(proper_pieces.begin(), proper_pieces.end(), is_convex_piece)) {
+				return proper_pieces;
 			}
-			std::cerr << '\n';
+		} catch (const std::runtime_error &) {
 		}
 
-		return graph.partition(true);
+		// A polygon that is not simple has no partition into convex pieces; the
+		// first result is kept, as before.
+		if (is_simple(normalized_polygon)) {
+			throw std::runtime_error("convex decomposition left a piece that is not convex");
+		}
+		return pieces;
 	}
 }

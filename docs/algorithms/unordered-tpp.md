@@ -57,6 +57,19 @@ uma única região**: basta visitar uma peça. Esse contrato cobre os polígonos
 simples do corpus de Paula. A entrada atual não representa uma união arbitrária
 de componentes desconectados nem polígonos com buracos.
 
+Num polígono simples, toda peça é convexa em aritmética exata (2026-10-27). O
+particionador segue o CGAL, cujas diagonais por vértices colineares deixavam
+peças não convexas em seis polígonos de Paula (50pcb442, polígono 6, e cinco
+do `npol-gt-100`). Agora, se alguma peça falha na verificação exata, a partição
+é refeita só com diagonais próprias; ver
+[`optimal-convex-partition`](../../packages/optimal-convex-partition/README.md#collinear-vertices).
+Antes, o B&B usava o fecho dessas peças: o limite inferior continuava válido
+(relaxação), e o tour, validado contra os polígonos originais. Dois polígonos
+do corpus de Fekete não são simples (casos 552, polígono 24, e 554, polígono
+49: um espinho de ~1e-13 com um cruzamento próprio). Nenhuma partição convexa
+existe para eles, e a decomposição mantém o resultado do CGAL, cujo fecho
+continua sendo uma relaxação válida.
+
 ### Referência independente SOCP
 
 `benchmarks/tpp.py verify-socp` enumera todas as permutações de uma instância

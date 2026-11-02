@@ -16,6 +16,7 @@
 #include <iostream>
 #include <numeric>
 #include <random>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 
@@ -266,6 +267,13 @@ void check_exact_hull() {
 // and near 1e5 (and the review's 2^-200 corner, which fixed-width integers
 // once read as collinear), split into pieces that are convex in rational
 // arithmetic and cover exactly the quadrilateral's area.
+// So do polygons with collinear vertices, where CGAL's partition could close a
+// piece through reflex vertices: Paula's 50pcb442 polygon 6, whose piece ran
+// along x=300 through (300,900) and (300,1000); a polygon whose 180-degree
+// vertex (600,150) hides the reflex vertex (450,150) from (750,150), which
+// broke a first fallback; both in every rotation and orientation, with their
+// optimal 3 pieces. And random polygons through the points of a small grid,
+// untangled by 2-opt moves, with collinear vertices in every direction.
 void check_exact_decomposition() {
     using R=tpp::ConvexRational;
     auto exact_turn=[](Vector2 a,Vector2 b,Vector2 c) {
@@ -276,6 +284,85 @@ void check_exact_decomposition() {
         for(size_t i=0;i<p.size();++i)twice+=R(p[i].x)*R(p[(i+1)%p.size()].y)-R(p[(i+1)%p.size()].x)*R(p[i].y);
         return twice;
     };
+    // Each piece turns left or straight ahead at every vertex and has every
+    // vertex on the inner side of every edge; together they cover the area.
+    auto checked_pieces=[&](const Polygon &p) {
+        const auto pieces=tpp::decompose_polygon(p);
+        R covered=0;
+        for(const auto &piece:pieces) {
+            const size_t m=piece.size();
+            for(size_t i=0;i<m;++i) {
+                const Vector2 a=piece[i],b=piece[(i+1)%m],c=piece[(i+2)%m];
+                const R turn=exact_turn(a,b,c);
+                if(turn<0||(turn==0&&(R(b.x)-R(a.x))*(R(c.x)-R(b.x))+(R(b.y)-R(a.y))*(R(c.y)-R(b.y))<=0))
+                    throw std::runtime_error("exact decomposition: a piece is not convex in exact arithmetic");
+                for(const auto &v:piece)
+                    if(exact_turn(a,b,v)<0)throw std::runtime_error("exact decomposition: a piece winds more than once");
+            }
+            covered+=area(piece);
+        }
+        const R expected=area(p);
+        if(covered!=(expected<0?R(-expected):expected))
+            throw std::runtime_error("exact decomposition: the pieces do not cover the polygon's area");
+        return pieces.size();
+    };
+    const std::vector<Polygon> collinear_cases{
+        {{200,800},{300,800},{300,900},{400,800},{400,900},{300,1000},{400,1000},{400,1200},{300,1200},{300,1100},{200,1200}},
+        {{1050,150},{1050,200},{300,200},{300,150},{300,100},{450,100},{450,150},{600,150},{750,150},{750,50},{900,50},{900,150}},
+    };
+    size_t variants=0;
+    for(auto p:collinear_cases)for(int orientation=0;orientation<2;++orientation,std::reverse(p.begin(),p.end()))
+        for(size_t start=0;start<p.size();++start,std::rotate(p.begin(),p.begin()+1,p.end()),++variants)
+            if(checked_pieces(p)!=3)throw std::runtime_error("exact decomposition: a collinear case lost its optimal 3 pieces");
+    using Lattice=std::pair<long long,long long>;
+    auto cross=[](Lattice a,Lattice b,Lattice c) {
+        return (b.first-a.first)*(c.second-a.second)-(b.second-a.second)*(c.first-a.first);
+    };
+    auto sign=[](long long v){return (v>0)-(v<0);};
+    auto within=[](Lattice a,Lattice b,Lattice p) {
+        return std::min(a.first,b.first)<=p.first&&p.first<=std::max(a.first,b.first)
+            &&std::min(a.second,b.second)<=p.second&&p.second<=std::max(a.second,b.second);
+    };
+    auto touch=[&](Lattice a,Lattice b,Lattice c,Lattice d) {
+        const int o1=sign(cross(a,b,c)),o2=sign(cross(a,b,d)),o3=sign(cross(c,d,a)),o4=sign(cross(c,d,b));
+        return (o1==0&&within(a,b,c))||(o2==0&&within(a,b,d))||(o3==0&&within(c,d,a))||(o4==0&&within(c,d,b))
+            ||(o1*o2<0&&o3*o4<0);
+    };
+    std::mt19937 grid_random(20261027);
+    size_t grid=0,with_collinear=0;
+    while(grid<4000) {
+        const long long side=4+grid_random()%6;
+        std::set<Lattice> points;
+        const size_t wanted=5+grid_random()%12;
+        while(points.size()<wanted)
+            points.insert({static_cast<long long>(grid_random()%side),static_cast<long long>(grid_random()%side)});
+        std::vector<Lattice> q(points.begin(),points.end());
+        std::shuffle(q.begin(),q.end(),grid_random);
+        const size_t n=q.size();
+        bool untangled=false;
+        for(size_t step=0;step<5000&&!untangled;++step) {
+            untangled=true;
+            for(size_t i=0;i+1<n&&untangled;++i)for(size_t j=i+2;j<n;++j)
+                if(!(i==0&&j==n-1)&&touch(q[i],q[i+1],q[j],q[(j+1)%n])) {
+                    std::reverse(q.begin()+i+1,q.begin()+j+1);
+                    untangled=false;
+                    break;
+                }
+        }
+        bool simple=untangled,collinear=false;
+        for(size_t i=0;i<n;++i) {
+            const Lattice a=q[i],b=q[(i+1)%n],c=q[(i+2)%n];
+            if(cross(a,b,c)==0&&(b.first-a.first)*(c.first-b.first)+(b.second-a.second)*(c.second-b.second)<=0)simple=false;
+            for(size_t j=i+1;j<n;++j)for(size_t k=j+1;k<n;++k)collinear|=cross(q[i],q[j],q[k])==0;
+        }
+        if(!simple)continue;
+        Polygon p;
+        for(const auto &[x,y]:q)p.push_back(Vector2{37.0*double(x),37.0*double(1+grid%3)*double(y)});
+        checked_pieces(p);
+        ++grid;
+        with_collinear+=collinear;
+    }
+    if(with_collinear<grid/2)throw std::runtime_error("exact decomposition: too few grid polygons with collinear vertices");
     std::mt19937 random(20261028);
     std::uniform_real_distribution<double> small(-1e-3,1e-3),large(-1e5,1e5);
     std::vector<Polygon> cases{{{0x1p-200,0x1p-200},{1,std::nextafter(1.0,2.0)},{2,2},{0,2}}};
@@ -292,18 +379,11 @@ void check_exact_decomposition() {
     for(const auto &p:cases) {
         if(!(area(p)>0))continue;
         for(size_t i=0;i<p.size();++i)reflex+=exact_turn(p[i],p[(i+1)%p.size()],p[(i+2)%p.size()])<0;
-        const auto pieces=tpp::decompose_polygon(p);
-        R covered=0;
-        for(const auto &piece:pieces) {
-            for(size_t i=0;i<piece.size();++i)
-                if(exact_turn(piece[i],piece[(i+1)%piece.size()],piece[(i+2)%piece.size()])<0)
-                    throw std::runtime_error("exact decomposition: a piece is not convex in exact arithmetic");
-            covered+=area(piece);
-        }
-        if(covered!=area(p))throw std::runtime_error("exact decomposition: the pieces do not cover the polygon's area");
+        checked_pieces(p);
     }
     if(reflex==0)throw std::runtime_error("exact decomposition: no case had a reflex vertex");
-    std::cout<<"Exact decompositions passed "<<cases.size()<<" near-collinear quadrilaterals ("<<reflex<<" with a reflex vertex).\n";
+    std::cout<<"Exact decompositions passed "<<cases.size()<<" near-collinear quadrilaterals ("<<reflex<<" with a reflex vertex), "
+        <<variants<<" rotations of 2 collinear cases and "<<grid<<" grid polygons ("<<with_collinear<<" with collinear vertices).\n";
 }
 
 void check_sequence_storage() {
