@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="description" content="Explore the shortest tour that visits polygonal regions and how an exact solver for the Touring Polygons Problem finds it.">
+	<meta name="theme-color" content="#f5f8fa">
+	<link rel="icon" type="image/svg+xml" href="../tpp-icon.svg">
+	<link rel="alternate" hreflang="pt-BR" href="../">
+	<title>TPP · SIICUSP34</title>
+	<link rel="stylesheet" href="../styles.css?v=20261030-language">
+	<link rel="stylesheet" href="en.css?v=20261031-cycle">
+</head>
+<body class="event">
+	<a class="skip-link" href="#explorar">Skip to the demonstration</a>
+	<svg class="icon-sprite" aria-hidden="true"><symbol id="icon-chevron" viewBox="0 0 14 14"><path d="M2 4.5 7 9.5 12 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol></svg>
+	<header class="site-header">
+		<div class="site-frame">
+			<a class="site-brand" href="#explorar" aria-label="TPP · back to the top"><img src="../tpp-icon.svg" alt="" width="40" height="40"><span><strong>TPP</strong><small>SIICUSP34</small></span></a>
+			<p class="site-work-title">Exact Algorithms for the Touring Polygons Problem <a class="site-language" href="../" hreflang="pt-BR" lang="pt-BR">Português</a></p>
+		</div>
+	</header>
+	<main>
+		<section id="explorar" class="explorer" aria-labelledby="explore-title">
+			<div class="intro"><div><h1 id="explore-title">The Touring Polygons Problem: visiting regions along the shortest possible route</h1><div class="intro-copy"><p id="intro-story">What is the shortest closed route that crosses the main territory of each of Brazil's 27 federative units? The route may start anywhere: no point is fixed. Below is the optimal tour for this simplified version of the problem.</p></div></div></div>
+			<div class="explore-layout">
+				<div id="rota-usp" class="drawing-panel">
+				<div class="case-tabs" role="group" aria-label="Choose the route shown"><button class="example active" data-case="br-estados" type="button" aria-pressed="true" disabled>Brazil</button><button class="example" data-case="sp-bairros" type="button" aria-label="São Paulo" aria-pressed="false" disabled><strong>São Paulo</strong></button><button class="example" data-case="usp" type="button" aria-label="USP campus" aria-pressed="false" disabled><strong>USP</strong></button><div id="case-picker" class="case-picker" hidden><button id="case-picker-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="case-picker-dialog"><span id="case-picker-value">Explore</span><small id="case-picker-active" hidden></small><svg class="chevron-icon" aria-hidden="true" focusable="false"><use href="#icon-chevron"/></svg></button><dialog id="case-picker-dialog" aria-labelledby="picker-title"><div class="picker-heading"><h2 id="picker-title">Choose a case</h2><button autofocus id="picker-close" type="button" aria-label="Close picker">×</button></div><label for="picker-search">Search by case number</label><input id="picker-search" type="search" inputmode="numeric" placeholder="E.g. 003 or 558" autocomplete="off"><p id="picker-count" class="muted" aria-live="polite"></p><div class="table-scroll picker-table-scroll" tabindex="0" role="region" aria-label="Available cases"><table><caption class="sr-only">Choose one of the 558 cases</caption><thead><tr><th scope="col" data-picker-column="case" aria-sort="ascending"><button type="button" data-picker-sort="case">Case<span class="sort-arrow" aria-hidden="true"> ↑</span></button></th><th scope="col" data-picker-column="polygons" aria-sort="none"><button type="button" data-picker-sort="polygons">Regions<span class="sort-arrow" aria-hidden="true"></span></button></th><th scope="col" data-picker-column="seconds" aria-sort="none"><button type="button" data-picker-sort="seconds">Time<span class="sort-arrow" aria-hidden="true"></span></button></th><th scope="col"><span class="sr-only">Open</span></th></tr></thead><tbody id="picker-options"></tbody></table></div></dialog></div></div>
+					<label for="case-select" hidden>Select a case</label><select id="case-select" hidden disabled><option value="1">Loading cases…</option></select><div class="playback"><button id="play-route" class="play-button" type="button" disabled>▶ Watch the tour</button><label class="progress-label" for="route-progress">Progress <output id="progress-value">100%</output></label><input id="route-progress" type="range" min="0" max="1000" value="1000" aria-label="Position along the tour" disabled><div class="speed-controls" role="group" aria-label="Playback speed"><button id="speed-down" type="button" aria-label="Slower" disabled>−</button><output id="speed-value" aria-live="polite">1×</output><button id="speed-up" type="button" aria-label="Faster" disabled>+</button></div></div>
+					<div class="map-stage"><svg id="route-map" viewBox="0 0 840 480" role="img" tabindex="0" aria-labelledby="map-title map-description" aria-describedby="map-navigation"><title id="map-title">Shortest closed tour through Brazil's 27 federative units</title><desc id="map-description">Closed tour in orange, with no fixed start.</desc><defs><pattern id="map-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M 24 0 L 0 0 0 24" fill="none" stroke="#ffffff" stroke-opacity=".055" stroke-width="1"/></pattern></defs><rect width="840" height="480" fill="url(#map-grid)"/><g id="map-content"></g></svg><div class="map-camera-tools camera-tools" role="group" aria-label="Drawing zoom"><label for="zoom-slider">Zoom</label><input id="zoom-slider" type="range" min="10" max="80" step="1" value="10" aria-label="Zoom level" aria-valuetext="1×"><output id="zoom-level" for="zoom-slider">1×</output></div><div class="map-legend" role="group" aria-label="Map legend"><span><i class="legend-path" aria-hidden="true"></i>Tour found</span><span id="route-endpoint-legend">Closed tour · no fixed point</span><span class="order-gradient">Colour: first → last visits</span></div></div>
+					<details class="geometry-tools"><summary><span>Drawing layers</span><small>They do not change the computed tour</small></summary><div class="canvas-tools" role="group" aria-label="Drawing layers"><button id="show-labels" class="layer-toggle" type="button" aria-pressed="true" disabled>Visiting order</button><button id="show-contacts" class="layer-toggle" type="button" aria-pressed="false" disabled>Visit points</button><button id="show-hulls" class="layer-toggle advanced-layer" type="button" aria-pressed="false" disabled>Convex hulls</button><button id="show-decomposition" class="layer-toggle advanced-layer" type="button" aria-pressed="false" disabled>Decomposition</button></div><ul class="layer-explanations"><li data-layer-note="show-labels"><i aria-hidden="true"></i><span><strong>Visiting order:</strong> the order in which the tour visits the regions.</span></li><li data-layer-note="show-contacts"><i aria-hidden="true"></i><span><strong>Visit points:</strong> the first contact of the optimal tour with each region.</span></li><li data-layer-note="show-hulls"><i aria-hidden="true"></i><span><strong>Convex hulls:</strong> the convex hulls that relax the instance so that our convex solver applies.</span></li><li data-layer-note="show-decomposition"><i aria-hidden="true"></i><span><strong>Decomposition:</strong> splits non-convex regions into convex pieces with <a href="#ref-greene">Greene's algorithm [4]</a>.</span></li></ul></details>
+					<p class="solve-time">Solve time: <strong id="case-time">Loading…</strong> <span id="case-time-detail">· one thread</span></p><p id="map-navigation" class="map-caption navigation-hint">At 1×, the wheel scrolls the page. Use the slider to zoom in; then the wheel adjusts the zoom.</p><span id="usp-current-stop" class="sr-only" aria-live="polite"></span>
+				</div>
+			</div>
+			<p id="event-error" class="error-message" role="alert" hidden></p>
+		</section>
+		<section id="guia" class="guide-nav" aria-labelledby="guide-title">
+			<div class="guide-nav-heading"><h2 id="guide-title">A guide to the research</h2><p><strong data-guide-count>0/5 steps visited</strong></p></div>
+			<nav class="guide-links" aria-label="Steps of the experience">
+				<a href="#desafio" data-guide-target="desafio"><b>1</b><span><strong>Try it yourself!</strong><small data-guide-status="desafio">Not visited yet</small></span><i aria-hidden="true">→</i></a>
+				<a href="#metodo" data-guide-target="metodo"><b>2</b><span><strong>How the algorithm works</strong><small data-guide-status="metodo">Not visited yet</small></span><i aria-hidden="true">→</i></a>
+				<a href="#historia" data-guide-target="historia"><b>3</b><span><strong>Prior work</strong><small data-guide-status="historia">Not visited yet</small></span><i aria-hidden="true">→</i></a>
+				<a href="#resultados" data-guide-target="resultados"><b>4</b><span><strong>What we improved</strong><small data-guide-status="resultados">Not visited yet</small></span><i aria-hidden="true">→</i></a>
+				<a href="#contato" data-guide-target="contato"><b>5</b><span><strong>Talk to the author</strong><small data-guide-status="contato">Not visited yet</small></span><i aria-hidden="true">→</i></a>
+			</nav>
+		</section>
+		<details id="desafio" class="guided-section" data-guide-section="desafio">
+			<summary class="guided-summary"><span><b>1</b><strong>Try it yourself!</strong><small>Choose the visiting order and compare with the solver.</small></span><em data-guide-status="desafio">Not visited yet</em></summary>
+			<section class="challenge-section" aria-labelledby="challenge-title">
+				<div class="challenge-invitation"><div><p class="eyebrow">A 30-SECOND CHALLENGE</p><h2 id="challenge-title">Now it is your turn to choose the route!</h2><p>Start by choosing the order of five regions. Then move on to harder geometric decisions.</p></div><button id="open-challenge" class="primary-button challenge-launch" type="button">Start the challenge →</button></div>
+				<dialog id="challenge-dialog" class="challenge-dialog" aria-labelledby="challenge-dialog-title">
+					<header class="challenge-dialog-header"><div><p id="challenge-progress" class="eyebrow">CHALLENGE 1 OF 3</p><h2 id="challenge-dialog-title">Choose the visiting order</h2></div><nav class="section-dialog-nav" aria-label="Navigate between steps"><button id="challenge-previous-section" class="section-dialog-nav-button" type="button" aria-label="Previous step" title="Previous step" disabled>←</button><button id="challenge-next-section" class="section-dialog-nav-button" type="button" aria-label="Next step" title="Next step">→</button><button id="close-challenge" class="section-dialog-nav-button" type="button" aria-label="Close challenge">×</button></nav></header>
+					<nav class="challenge-progress-track" aria-label="Challenge steps"><button type="button" data-challenge-tab="0"><span>Challenge 1</span><i aria-hidden="true"></i></button><button type="button" data-challenge-tab="1"><span>Challenge 2</span><i aria-hidden="true"></i></button><button type="button" data-challenge-tab="2"><span>Final challenge</span><i aria-hidden="true"></i></button></nav>
+					<section class="challenge-step" data-challenge-step="0" aria-labelledby="challenge-step-one-title">
+						<div class="challenge-step-copy"><h3 id="challenge-step-one-title">Which order gives the shortest path?</h3><p>Tap the polygons to choose the visiting order that minimizes the length of the path from s to t. You do not need to follow the letters; they only name the polygons.</p></div>
+						<div class="challenge-workspace"><div class="challenge-drawing"><p>The numbers show your order. The dashed arrows are only a sketch.</p><svg id="challenge-map" viewBox="0 0 420 260" role="group" aria-label="Five regions A, B, C, D and E between the start s and the end t"></svg></div><div class="challenge-control-bar"><p id="challenge-guidance" class="challenge-guidance">Choose 5 regions to compare.</p><div class="challenge-actions"><button id="challenge-compare" class="primary-button" type="button" disabled>Compare my path</button><button id="challenge-undo" class="secondary-button compact-action" type="button" disabled><svg aria-hidden="true" focusable="false"><use href="#icon-undo"/></svg><span>Undo</span></button><button id="challenge-reset" class="secondary-button compact-action" type="button" disabled><svg aria-hidden="true" focusable="false"><use href="#icon-trash"/></svg><span>Clear</span></button></div><div id="challenge-feedback" class="challenge-feedback" role="status"></div><button id="challenge-next-one" class="primary-button challenge-next" type="button" hidden>Next challenge: choose pieces →</button></div></div>
+					</section>
+					<section class="challenge-step" data-challenge-step="1" aria-labelledby="challenge-step-two-title" hidden>
+						<div class="challenge-step-copy"><h3 id="challenge-step-two-title">Fixed order. Choose the pieces</h3><p>The order is s → A → B → C → t. Each region was split into convex pieces. Tap one piece of each region.</p></div>
+						<div class="challenge-workspace"><div class="challenge-drawing"><p>Tap a piece. Tap it again to undo.</p><svg id="piece-map" viewBox="0 0 420 260" role="group" aria-label="Regions A, B and C split into convex pieces"></svg></div><div class="challenge-control-bar"><p id="piece-guidance" class="challenge-guidance">3 regions left to choose.</p><div class="challenge-actions"><button id="piece-compare" class="primary-button" type="button" disabled>Compare my pieces</button><button id="piece-reset" class="secondary-button compact-action" type="button" disabled><svg aria-hidden="true" focusable="false"><use href="#icon-trash"/></svg><span>Clear</span></button></div><div id="piece-feedback" class="challenge-feedback" role="status"></div><div class="challenge-step-navigation"><button class="secondary-button" type="button" data-challenge-back>← Back</button><button id="challenge-next-two" class="primary-button challenge-next" type="button" hidden>Go to the final challenge →</button></div></div></div>
+					</section>
+					<section class="challenge-step" data-challenge-step="2" aria-labelledby="challenge-step-three-title" hidden>
+						<div class="challenge-step-copy"><h3 id="challenge-step-three-title">Final challenge: order and pieces</h3><p>Each tap chooses the next region and its piece. Find the shortest path from s to t.</p></div>
+						<div class="challenge-workspace"><div class="challenge-drawing"><p>The visit position appears above each chosen region.</p><svg id="combined-map" viewBox="0 0 420 260" role="group" aria-label="Final challenge with five regions A, B, C, D and E split into convex pieces"></svg></div><div class="challenge-control-bar"><p id="combined-guidance" class="challenge-guidance">5 regions left to choose.</p><div class="challenge-actions"><button id="combined-compare" class="primary-button" type="button" disabled>Compare my solution</button><button id="combined-reset" class="secondary-button compact-action" type="button" disabled><svg aria-hidden="true" focusable="false"><use href="#icon-trash"/></svg><span>Clear</span></button></div><div id="combined-feedback" class="challenge-feedback" role="status"></div><div class="challenge-step-navigation"><button class="secondary-button" type="button" data-challenge-back>← Back</button><button id="finish-challenge" class="primary-button challenge-next" type="button" hidden>Finish the challenge</button></div></div></div>
+					</section>
+					<p class="challenge-method-note"><strong>What the algorithm does:</strong> once you choose the order and, in the next challenges, the convex pieces, our implementation computes where the path must touch each region to be as short as possible.</p>
+				</dialog>
+				<noscript><p>Enable JavaScript to try the challenge.</p></noscript>
+			</section>
+		</details>
+		<section id="metodo" class="method-stage" aria-label="How the algorithm works">
+			<section class="method-section" aria-labelledby="method-title">
+				<p class="algorithm-lede">The Touring Polygons Problem (TPP) asks for the shortest path that starts at a point s, visits a set of polygons and ends at a point t; touching the boundary or crossing the interior of a polygon counts as a visit. In the free-order variant the visiting order is also unknown. When the route is a closed tour, this is the Traveling Salesman Problem with Neighborhoods (TSPN): it generalizes the TSP from points to polygonal regions, whose boundaries can approximate any simple closed curve arbitrarily well. Below we show how our solver finds a shortest tour.</p>
+				<div class="method-heading"><h2 id="method-title">How the algorithm finds the shortest tour</h2></div>
+				<p class="algorithm-guide">Six cards show the essential steps of the algorithm; the glossary below explains the more specific terms.</p>
+				<ol class="algorithm-flow">
+					<li class="algorithm-heuristic-card"><figure><img src="figures/method-01.svg?v=20261031-cycle" alt="Five convex regions with a greedy closed tour through their centres and the shorter optimal tour, dashed" width="400" height="260"><figcaption class="route-comparison-legend"><span><i class="legend-solid" aria-hidden="true"></i>Greedy tour</span><span><i class="legend-dashed" aria-hidden="true"></i>Optimum</span></figcaption></figure><div><span class="algorithm-step">01 · UPPER BOUND</span><h3>Find a feasible tour</h3><p>A greedy tour through the region centres visits every region, so it is feasible and sets the incumbent <strong>U</strong>. It is not optimal: the dashed tour is shorter and only appears after the search.</p></div></li>
+					<li><figure><img src="figures/method-02.svg?v=20261031-cycle" alt="The closed tour through the hulls of A, B and C, which touches D by chance and misses E" width="400" height="260"></figure><div><span class="algorithm-step">02 · SEARCH NODE</span><h3>Keep partial orders</h3><p>With only <strong>A</strong>, <strong>B</strong> and <strong>C</strong> fixed in this cyclic order, the shortest closed tour through their hulls also touches <strong>D</strong> by chance, but misses <strong>E</strong>. Only A, B and C belong to this node's sequence.</p></div></li>
+					<li><figure><img src="figures/method-03.svg?v=20261031-cycle" alt="Proved lower bound L compared with the upper bound U; when L reaches U within the tolerance, the branch is pruned" width="400" height="160"></figure><div><span class="algorithm-step">03 · LOWER BOUND</span><h3>Evaluate the node and prune</h3><p>Each node is a fixed-order closed tour through convex polygons. With fixed endpoints, Dror et al. solve it in polynomial time; we designed an exact algorithm for the closed tour. Omitting targets cannot lengthen a tour, so its length is a proved lower bound <strong>L</strong> for the whole branch; if <strong>L</strong> reaches <strong>U</strong>, within the tolerance, the branch is pruned.</p></div></li>
+					<li><figure><img src="figures/method-04.svg?v=20261031-cycle" alt="The optimal closed tour through the five regions A, B, C, D and E" width="400" height="260"></figure><div><span class="algorithm-step">04 · FEASIBLE TOUR</span><h3>Update the incumbent</h3><p>With every region of the instance in the sequence, the closed tour visits all five. When a feasible tour is shorter than the current incumbent, we update <strong>U</strong>.</p></div></li>
+					<li class="algorithm-insertion-card"><figure><img src="figures/method-05.svg?v=20261031-cycle" alt="The node (A B C) gives three children, inserting P into each gap of the cycle: (A P B C), (A B P C) and (A B C P)" width="400" height="190"></figure><div><span class="algorithm-step">05 · INSERTION</span><h3>Insert into the m gaps</h3><p>We pick the unvisited polygon farthest from the tour. A cycle of <strong>m</strong> polygons has <strong>m</strong> gaps, including the closing one, so inserting <strong>P</strong> gives <strong>m</strong> children. (A path from s to t would have m + 1 positions.)</p></div></li>
+					<li class="algorithm-nonconvex-card"><figure><img src="figures/method-06.svg?v=20261031-cycle" alt="The closed tour through the convex hulls, dashed, misses B, C and E; B is split into its convex pieces" width="400" height="260"></figure><div><span class="algorithm-step">06 · REFINEMENT</span><h3>Refine into convex pieces</h3><p>A non-convex region starts as its convex hull. Here the tour through the hulls (dashed) misses <strong>B</strong>, <strong>C</strong> and <strong>E</strong> without visiting them, so the search branches on the convex pieces of a missed region, such as the two pieces of B.</p></div></li>
+				</ol>
+				<details class="algorithm-foundations" aria-label="Key terms of the search" open>
+					<summary>Key terms</summary>
+					<dl class="algorithm-glossary">
+						<div><dt>Incumbent and upper bound <strong>U</strong></dt><dd>The best feasible route found so far is the incumbent; its length is <strong>U</strong>. Since this route exists, the optimum cannot be longer than <strong>U</strong>.</dd></div>
+						<div><dt>Partial order</dt><dd>A sequence that fixes the order of only some polygons. The missing ones do not constrain the node's subproblem.</dd></div>
+						<div><dt>Convex relaxation</dt><dd>At each node, the order of the selected targets is fixed, each target is represented by its convex hull before refinement (or by one convex piece after it), and the polygons not yet in the sequence are left out. Our oracle solves this subproblem with a floating-point stage whose bounds are proved with directed rounding; when they are not tight enough, an exact algorithm in rational arithmetic returns the optimal tour with zero error.</dd></div>
+						<div><dt>Lower bound <strong>L</strong></dt><dd>A bound valid for every extension of the node, given by the proved bound of the convex oracle. It is not necessarily the length of a feasible route; the comparison with <strong>U</strong> takes the tolerance into account.</dd></div>
+						<div><dt>Branch and bound</dt><dd>Branching creates children for alternatives that cover the remaining possibilities. Pruning discards a branch when its lower bound cannot improve the incumbent. The search combines these bounds with the exploration of the tree.</dd></div>
+					</dl>
+				</details>
+			</section>
+		</section>
+		<details id="historia" class="guided-section" data-guide-section="historia">
+			<summary class="guided-summary"><span><b>3</b><strong>Prior work</strong><small>How the research led to this self-contained solver.</small></span><em data-guide-status="historia">Not visited yet</em></summary>
+			<section class="research-history" aria-label="Prior work and where we come in">
+				<div class="research-timeline">
+					<article class="research-card">
+						<div class="research-card-top"><span class="research-year">2003</span><span class="research-tag">DEFINITION AND FIRST ALGORITHM</span></div>
+						<h3>Dror et al. introduce the TPP</h3>
+						<p>Dror, Efrat, Lubiw and Mitchell introduce the Touring Polygons Problem and <strong>describe</strong> an algorithm for disjoint convex polygons visited in a fixed order, with fixed start and end points. For <em>n</em> vertices in total and <em>k</em> polygons, the paper gives time <em>O(kn&nbsp;log(n/k))</em>. The distinction matters: the paper describes an algorithm; we do not attribute an implementation to it.</p>
+						<a class="research-source" href="#ref-dror">[1] Touring a sequence of polygons</a>
+					</article>
+					<article class="research-card featured">
+						<div class="research-card-top"><span class="research-year">2017</span><span class="research-tag">LOWER COMPLEXITY</span></div>
+						<h3>Tan &amp; Jiang lower the asymptotic complexity</h3>
+						<p>Revisiting the problem, Tan and Jiang <strong>describe</strong> a simpler way to build the shortest-path maps. For disjoint convex polygons they reach <em>O(kn)</em>; for polygons that may intersect, <em>O(k²n)</em>. The asymptotic gain comes with a larger overhead, which made the algorithm slower on the instances we tested.</p>
+						<a class="research-source" href="#ref-tan-jiang">[2] Efficient Algorithms for Touring…</a>
+					</article>
+					<article class="research-card">
+						<div class="research-card-top"><span class="research-year">2026</span><span class="research-tag">STATE OF THE ART</span></div>
+						<h3>Fekete et al. solve the TSPN</h3>
+						<p>The <em>Algorithms Division</em> of TU Braunschweig, led by Sándor P. Fekete, presents a branch-and-bound algorithm for the TSPN: given polygonal regions, possibly non-convex, find the shortest closed tour that visits them all and returns to where it started; that point is not fixed. The algorithm also searches the order and solves each convex subproblem as a second-order cone program (SOCP) with Gurobi. Its 558 benchmark instances are the ones we compare on.</p>
+						<a class="research-source" href="#ref-fekete">[3] A Branch-and-Bound Algorithm for the TSPN</a>
+					</article>
+				</div>
+				<div class="research-story">
+					<div class="research-story-copy">
+						<p class="eyebrow">WHERE WE COME IN</p>
+						<p>We started this project in July 2025 by implementing the algorithm described by Dror et al. and presented that first version at SIICUSP33. By early 2026 we had also implemented the algorithm of Tan and Jiang. Its asymptotic gain was elegant, but the overhead made it inefficient on the more realistic instances we wanted to study.</p>
+						<p>We then turned to the non-convex fixed-order TPP, aiming to turn the implementation into a paper. As far as we knew, we were the only group with an implemented algorithm for that variant. The direction changed in March, during a conversation with Prahlad Narasimhan Kasthurirangan about his work on <em>convex covers</em> — collections of convex polygons whose union is the original polygon — <a href="#ref-convex-cover">[5]</a>. He pointed us to Michael Perk, then in Fekete's group.</p>
+						<p>That is how we found the group's new work on the TSPN. The race seemed lost, but a closer reading revealed an opportunity: although the paper cited Dror et al., its convex subproblems were formulated as <a href="https://docs.mosek.com/modeling-cookbook/cqo.html" target="_blank" rel="noopener noreferrer">second-order cone programs (SOCPs)</a> and solved with <a href="https://docs.gurobi.com/projects/optimizer/en/current/index.html" target="_blank" rel="noopener noreferrer">Gurobi</a>. We already had a dedicated implementation of that subproblem and asked whether it could be a more efficient alternative.</p>
+						<p>We spent the following months refining that specialization:</p>
+						<ul>
+							<li><strong>Exactness:</strong> we designed an exact algorithm for the closed tour through convex polygons. Given rational input, it returns the optimal tour with zero error; an interior-point SOCP solver only approaches the optimum within a tolerance. Our tours stay within 3 × 10<sup>−11</sup> of every polygon.</li>
+							<li><strong>Speed:</strong> both searches explore about as many nodes, but a node of Fekete et al., with the SOCP solver, costs about 238 times as much as one of ours. On the 541 instances both solve with one thread, ours is faster on every one: median speedup <strong>73×</strong>, arithmetic mean <strong>196×</strong>.</li>
+							<li><strong>Search:</strong> we refined the branch and bound and kept lazy evaluation: a child is evaluated only when it leaves the queue.</li>
+							<li><strong>Autonomy:</strong> our convex solver removes the need for Gurobi, and our implementation of Greene's algorithm removes the need for CGAL — both tools with restricted commercial use.</li>
+						</ul>
+						<p class="research-story-result">In this benchmark, the combination was faster, more accurate and more robust on this set of instances. The comparison should be read within that experimental scope — not as a universal promise for every TSPN variant.</p>
+						<p class="research-story-next"><a href="#resultados" data-open-comparison>See the full comparison next →</a></p>
+					</div>
+				</div>
+			</section>
+		</details>
+		<section id="resultados" class="results-section" aria-label="Experimental comparison">
+			<p id="result-benchmark-note" class="results-benchmark-note">These results are on the 558 instances of Fekete et al. [3], with 4 to 60 polygons, as closed tours with free order. We ran their original, unmodified code and our solver on the same AMD Ryzen 7 9700X. Each configuration had three 300 s runs, plus one 900 s run on the instances left open. Each solver stops by its own rule, with ε = 10<sup>−3</sup> as in [3]: Fekete et al. when U − L ≤ εU + ε, ours when U ≤ (1 + ε)L, with proved bounds L and U.</p>
+			<article class="comparison-panel solved-panel">
+				<div class="comparison-panel-heading"><h3>How many instances does each solver close?</h3><p>In the paper's configuration, our run of Fekete et al. reproduces their published results.</p></div>
+				<table class="comparison-metric-table"><thead><tr><th scope="col">Solver</th><th scope="col">In 300 s</th><th scope="col">After 900 s</th></tr></thead><tbody><tr><th scope="row">Fekete et al., paper configuration (16 threads)</th><td id="solved-fekete-paper-300">—</td><td id="solved-fekete-paper-900">—</td></tr><tr><th scope="row">Fekete et al., one thread</th><td id="solved-fekete-single-300">—</td><td id="solved-fekete-single-900">—</td></tr><tr><th scope="row">Ours, one thread</th><td id="solved-ours-300">—</td><td id="solved-ours-900">—</td></tr></tbody></table>
+				<p id="solved-hardest" class="comparison-panel-note"></p>
+			</article>
+			<article class="comparison-panel speedup-panel" id="speedup-panel" hidden>
+				<div class="comparison-panel-heading"><h3>The speedup grows with the number of polygons</h3><p id="speedup-panel-text">Speedup over Fekete et al., one thread each, on the instances both solve; median and arithmetic mean by size, rounded to a multiple of 5.</p></div>
+				<div id="speedup-chart" class="speedup-chart" role="group" aria-labelledby="speedup-chart-summary" tabindex="-1"></div>
+				<p id="speedup-chart-summary" class="sr-only"></p>
+			</article>
+			<div class="comparison-dashboard" aria-label="Comparison metrics">
+				<article class="comparison-panel">
+					<div class="comparison-panel-heading"><h3>How long did each solver take?</h3><p id="comparison-time-scope">One thread each, on the instances both solve.</p></div>
+					<table class="comparison-metric-table"><thead><tr><th scope="col">Metric</th><th scope="col">Ours</th><th scope="col">Fekete et al.</th></tr></thead><tbody><tr><th scope="row">Median</th><td id="comparison-time-ours-median">—</td><td id="comparison-time-fekete-median">—</td></tr><tr><th scope="row">Mean</th><td id="comparison-time-ours-mean">—</td><td id="comparison-time-fekete-mean">—</td></tr><tr><th scope="row">Total</th><td id="comparison-time-ours-total">—</td><td id="comparison-time-fekete-total">—</td></tr></tbody></table>
+				</article>
+				<article class="comparison-panel">
+					<div class="comparison-panel-heading"><h3>The advantage holds on every instance</h3><p>It grows with the number of polygons.</p></div>
+					<dl class="comparison-stat-list comparison-speedup-list"><div><dt>Median speedup</dt><dd id="comparison-speedup-median">—</dd></div><div><dt>Mean speedup</dt><dd id="comparison-speedup-mean">—</dd></div><div><dt>Median, about 5 polygons</dt><dd id="comparison-speedup-small">—</dd></div><div><dt>Median, about 60 polygons</dt><dd id="comparison-speedup-large">—</dd></div><div><dt>Ours faster</dt><dd id="comparison-speedup-ours-faster">—</dd></div></dl>
+				</article>
+				<article class="comparison-panel">
+					<div class="comparison-panel-heading"><h3>Where does the gain come from?</h3></div>
+					<p class="comparison-panel-note">On the 166 instances where Fekete et al. take at least 1 s with one thread, our solver is <strong>257×</strong> faster. Both searches explore about as many nodes (theirs explores 1.08 times as many), but each of their nodes, with the SOCP solver, costs <strong>238×</strong> as much as one of ours. All three are geometric means: 1.08 × 238 ≈ 257.</p>
+				</article>
+				<article class="comparison-panel">
+					<div class="comparison-panel-heading"><h3>Does the tour really touch the regions?</h3><p>Largest distance from a tour to a polygon, per instance; ideally zero. Fekete et al. accept SOCP solutions within a feasibility tolerance of 10<sup>−3</sup>, without verification.</p></div>
+					<table class="comparison-metric-table"><thead><tr><th scope="col">Largest miss per instance</th><th scope="col">Ours</th><th scope="col">Fekete et al.</th></tr></thead><tbody><tr><th scope="row">Median</th><td id="comparison-precision-ours-median">—</td><td id="comparison-precision-fekete-median">—</td></tr><tr><th scope="row">P95</th><td id="comparison-precision-ours-p95">—</td><td id="comparison-precision-fekete-p95">—</td></tr><tr><th scope="row">Above 10<sup>−7</sup></th><td id="comparison-precision-ours-threshold">—</td><td id="comparison-precision-fekete-threshold">—</td></tr></tbody></table>
+					<p class="comparison-panel-note">Tours of the one-thread 300 s runs, in instance units. On 22 instances, the upper bound of Fekete et al. lies below our proved lower bound, which no valid tour can attain.</p>
+				</article>
+			</div>
+			<div class="table-heading"><div><h3>Explore the 558 results</h3><p>Sort by case, regions or time (ours, one thread) and pick a case to see its tour.</p></div></div>
+			<p id="result-count" class="sr-only" aria-live="polite">Loading results…</p>
+			<p class="table-swipe-hint">← Swipe the table to see every column →</p>
+			<div class="table-scroll result-table-scroll" tabindex="0" role="region" aria-label="Results by case"><table><caption class="sr-only">Results of the 558 cases</caption><thead><tr><th scope="col" data-result-column="case" aria-sort="ascending"><button type="button" data-result-sort="case">Case<span aria-hidden="true" class="sort-arrow"> ↑</span></button></th><th scope="col" data-result-column="polygons" aria-sort="none"><button type="button" data-result-sort="polygons">Regions<span aria-hidden="true" class="sort-arrow"></span></button></th><th scope="col" data-result-column="seconds" aria-sort="none"><button type="button" data-result-sort="seconds">Time<span aria-hidden="true" class="sort-arrow"></span></button></th><th scope="col"><span class="sr-only">Explore</span></th></tr></thead><tbody id="result-rows"></tbody></table></div>
+		</section>
+		<details id="contato" class="guided-section" data-guide-section="contato">
+			<summary class="guided-summary"><span><b>5</b><strong>Talk to the author</strong><small>Comments, questions or a conversation about the research.</small></span><em data-guide-status="contato">Not visited yet</em></summary>
+			<section class="contact-section" aria-labelledby="contact-title">
+				<div><h2 id="contact-title">Shall we talk about the research?</h2><p>The Brazil tour illustrates the problem; the challenges show how local choices can fail. The method and the comparison on 558 instances show what the solver can solve and where the experimental evidence applies.</p><p>Gabriel Freire Ushijima · IME-USP<br>Advisor: Ernesto G. Birgin</p></div>
+				<div class="contact-links"><a class="social-link" href="https://www.linkedin.com/in/gabriel-ushijima-389332358/" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="4"/><circle cx="7.2" cy="8" r="1.3"/><path d="M7.2 11v6M11 17v-6m0-3v9m0-3.5c1.2-3.1 5.8-2.7 5.8.8V17"/></svg>LinkedIn ↗</a><a class="social-link" href="https://github.com/YushiPy" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 19c-4 1.2-4-2-5-2.5M14.8 21v-3.1c0-.9.1-1.5-.4-2 3.4-.4 6.9-1.7 6.9-7.5A5.8 5.8 0 0 0 19.8 4c.1-.4.6-2-0.2-4 0 0-1.3-.4-4.6 1.7a15.8 15.8 0 0 0-8.2 0C3.5-.4 2.2 0 2.2 0c-.8 2-.3 3.6-.2 4A5.8 5.8 0 0 0 .5 8.4c0 5.8 3.5 7.1 6.9 7.5-.4.4-.7 1-.7 1.9V21"/></svg>Personal GitHub ↗</a><a href="https://yushipy.github.io/PersonalPage/" target="_blank" rel="noopener noreferrer">Personal page ↗</a><a class="contact-email" href="mailto:gabriel_ushijima@usp.br">gabriel_ushijima@usp.br ↗</a><a class="project-repository" href="https://github.com/YushiPy/TouringPolygons" target="_blank" rel="noopener noreferrer">TPP repository ↗</a><button class="text-button contact-references" type="button" data-open-references>See references [1–7] ↗</button></div>
+			</section>
+		</details>
+	</main>
+	<dialog id="references-dialog" class="references-dialog" aria-labelledby="references-title">
+		<header><div><p class="eyebrow">SOURCES AND CONTEXT</p><h2 id="references-title">References</h2></div><button id="references-close" type="button" aria-label="Close references">×</button></header>
+		<ol>
+			<li id="ref-dror"><span>[1]</span><p>M. Dror, A. Efrat, A. Lubiw and J. S. B. Mitchell. <cite>Touring a Sequence of Polygons</cite>. STOC, 2003. <a href="https://doi.org/10.1145/780542.780612" target="_blank" rel="noopener noreferrer">Read the paper ↗</a></p></li>
+			<li id="ref-tan-jiang"><span>[2]</span><p>X. Tan and B. Jiang. <cite>Efficient Algorithms for Touring a Sequence of Convex Polygons and Related Problems</cite>. TAMC, pages 614–627, 2017. <a href="https://doi.org/10.1007/978-3-319-55911-7_44" target="_blank" rel="noopener noreferrer">Read the paper ↗</a></p></li>
+			<li id="ref-fekete"><span>[3]</span><p>S. P. Fekete, R. Kniep, D. Krupke and M. Perk. <cite>A Branch-and-Bound Algorithm for the Traveling Salesman Problem with Difficult Neighborhoods</cite>. SoCG, article 46, pages 46:1–46:20, 2026. <a href="https://doi.org/10.4230/LIPIcs.SoCG.2026.46" target="_blank" rel="noopener noreferrer">Read the paper ↗</a></p></li>
+			<li id="ref-greene"><span>[4]</span><p>D. H. Greene. <cite>The Decomposition of Polygons into Convex Parts</cite>. In F. P. Preparata (ed.), <cite>Computational Geometry</cite>, volume 1 of <cite>Advances in Computing Research</cite>, pages 235–259, JAI Press, 1983.</p></li>
+			<li id="ref-convex-cover"><span>[5]</span><p>R. Browne, P. N. Kasthurirangan, J. S. B. Mitchell and V. Polishchuk. <cite>Constant-Factor Approximation Algorithms for Convex Cover and Hidden Set in a Simple Polygon</cite>. FOCS, 2023. <a href="https://doi.org/10.1109/FOCS57990.2023.00083" target="_blank" rel="noopener noreferrer">Read the paper ↗</a></p></li>
+			<li id="ref-sun"><span>[6]</span><p>NASA Science. <cite>Finding Life Beyond Earth: What Comes Next?</cite>, 2023. <a href="https://science.nasa.gov/universe/search-for-life/finding-life-beyond-earth-what-comes-next/" target="_blank" rel="noopener noreferrer">Read the source ↗</a></p></li>
+			<li id="ref-atoms"><span>[7]</span><p>Bound for the analogy: the mass of the Earth (NASA) divided by the mass of a proton (NIST) gives fewer than 3.6 × 10<sup>51</sup> atoms. <a href="https://nssdc.gsfc.nasa.gov/planetary/factsheet/earthfact.html" target="_blank" rel="noopener noreferrer">Mass of the Earth ↗</a> · <a href="https://physics.nist.gov/cuu/pdf/all.pdf" target="_blank" rel="noopener noreferrer">Mass of the proton ↗</a></p></li>
+		</ol>
+	</dialog>
+	<dialog id="case-dialog" class="section-dialog case-dialog" aria-labelledby="case-dialog-title">
+		<header class="section-dialog-header"><div><p class="eyebrow">INSTANCE</p><h2 id="case-dialog-title">Case</h2></div><nav class="section-dialog-nav" aria-label="Close"><button id="close-case" class="section-dialog-nav-button" type="button" aria-label="Close instance">×</button></nav></header>
+		<div id="case-dialog-content" class="section-dialog-content"></div>
+	</dialog>
+	<dialog id="section-dialog" class="section-dialog" aria-labelledby="section-dialog-title">
+		<header class="section-dialog-header"><div><p id="section-dialog-eyebrow" class="eyebrow">PROJECT STEP</p><h2 id="section-dialog-title">Section</h2><p id="section-dialog-subtitle"></p></div><nav class="section-dialog-nav" aria-label="Navigate between steps"><button id="previous-section" class="section-dialog-nav-button" type="button" aria-label="Previous step" title="Previous step" disabled>←</button><button id="next-section" class="section-dialog-nav-button" type="button" aria-label="Next step" title="Next step">→</button><button id="close-section" class="section-dialog-nav-button" type="button" aria-label="Close section">×</button></nav></header>
+		<div id="section-dialog-content" class="section-dialog-content"></div>
+	</dialog>
+	<script src="../data/usp-demo.js?v=20261007-solver"></script>
+	<script src="../data/sp-bairros-demo.js?v=20260923-br-estados1"></script>
+	<script src="data/br-estados-tspn.js?v=20261031-df"></script>
+	<script src="../data/challenge-data.js?v=20260923-polish6"></script>
+	<script src="data/event-data.js?v=20261030-armijo"></script>
+	<script type="module" src="app.js?v=20261031-review"></script>
+</body>
+</html>

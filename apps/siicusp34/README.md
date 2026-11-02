@@ -10,6 +10,44 @@ e dados ficam nesta pasta. O navegador não precisa do solver C++, de uma API,
 de WebAssembly nem de serviços de mapas. O pequeno servidor abaixo serve apenas
 para testar os arquivos localmente.
 
+## Versão em inglês (Etapa Internacional)
+
+`en/` é a versão em inglês para o QR code do pôster da Etapa Internacional
+(25–26/11/2026), aberta em `http://127.0.0.1:8765/en/`. Ela reutiliza o CSS,
+o solver dos desafios e os dados das demonstrações desta pasta (`../`), começa
+pelo destaque Brasil e não tem a simulação da busca, cujos registros vêm do
+solver antigo de extremos fixos. O Brasil da versão em inglês é um TSPN, sem
+ponto fixo (`en/data/br-estados-tspn.js`, gerado por
+`scripts/build_br_estados_tspn.py` a partir dos mesmos 27 polígonos de
+`data/br-estados-demo.js`): 9.962 km, contra 10.039 km do tour que sai de
+Brasília na versão em português. `en/en.css` guarda só os acréscimos.
+
+Os resultados seguem o resumo em inglês e a medição de referência na armijo
+([`fekete-reference-armijo-2026-10-17`](../../benchmarks/results-saved/README.md#fekete-reference-armijo-2026-10-17)):
+ciclos de ordem livre (TSPN), o código original de Fekete et al. com uma
+thread (configuração B, raiz CHR) contra o nosso com uma thread (C).
+`en/data/event-data.js` é gerado da raiz do repositório por
+
+```bash
+python3 apps/siicusp34/scripts/build_event_data_en.py
+```
+
+que lê o `per-case.csv` da campanha, os tours da campanha local
+`benchmarks/workspace/experiments/fekete-reference@armijo`, o ZIP de instâncias
+do submódulo `third_party/tspn-socg`. As distâncias do painel de precisão vêm
+dos registros, sem o arredondamento do CSV; a ordem de visita é a do primeiro
+contato ao longo do tour; as decomposições vêm da partição C++ compilada na
+geração, sem os vértices repetidos a menos de 10⁻⁹ que 100 regiões têm (com
+eles, a partição devolve a região inteira como uma peça não convexa). Os tours
+do corpus fecham o gap relativo de 10⁻³ pelo critério de cada solver; a página
+não os chama de ótimos.
+
+Os seis cartões do método são tours fechados nos desenhos dos desafios, e não
+caminhos de s a t como na versão em português. Eles saem de
+`scripts/build_tspn_cards.py` (matplotlib e shapely), que resolve cada tour com
+`--cycle`, confere os exemplos e grava `en/figures/*.svg` e, com `--pdf-dir`,
+os PDFs do pôster.
+
 ## Abrir no computador
 
 Na raiz do repositório, execute:
