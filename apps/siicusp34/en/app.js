@@ -47,6 +47,10 @@ function formatDistance(value) {
 	return distance.toExponential(2);
 }
 
+function formatResultTime(row) {
+	return row.solved === false ? `Not solved in ${row.time_limit} s` : formatDuration(row.seconds);
+}
+
 function convexHull(points) {
 	const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
 	const cross = (a, b, c) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
@@ -163,7 +167,7 @@ function regionColors(rank, count, visited) {
 }
 
 function sortRows(rows, key = "case", descending = false) {
-	const value = (row) => row[key];
+	const value = (row) => key === "seconds" && row.solved === false ? Infinity : row[key];
 	return [...rows].sort((a, b) => (descending ? -1 : 1) * (value(a) - value(b)) || a.case - b.case);
 }
 
@@ -375,12 +379,15 @@ async function initialize() {
 		setText("solved-fekete-single-300", fraction(solved.fekete_single_300, cases));
 		setText("solved-fekete-single-900", fraction(solved.fekete_single_900, cases));
 		setText("solved-ours-300", fraction(solved.ours_300, cases));
-		setText("solved-ours-900", fraction(solved.ours_300, cases));
+		setText("solved-ours-900", fraction(solved.ours_900, cases));
 		if (comparison.hardest) {
-			setText("solved-hardest", `The last instance, case ${caseLabel(comparison.hardest.case)}, is open for every configuration of Fekete et al.; our solver, with one thread, closes it in ${number(comparison.hardest.seconds / 60, 0)} minutes. In 300 s, all three runs of a configuration must close the instance.`);
+			const hardest = comparison.hardest;
+			setText("solved-hardest", hardest.solved
+				? `The last instance, case ${caseLabel(hardest.case)}, is open for every configuration of Fekete et al.; our solver, with one thread, closes it in ${number(hardest.seconds / 60, 0)} minutes. In 300 s, all three runs of a configuration must close the instance.`
+				: `Case ${caseLabel(hardest.case)} remains open after ${hardest.time_limit} s for ours and every configuration of Fekete et al. In 300 s, all three runs of a configuration must close the instance.`);
 		}
 		const left = cases - common;
-		setText("speedup-panel-text", `Speedup over Fekete et al., one thread each, on the ${common} instances both solve; median and arithmetic mean by size, rounded to a multiple of 5. Every point lies above 1×. The ${left} instances that Fekete et al. do not solve with one thread are left out, since no speedup is measured; ours solves all of them.`);
+		setText("speedup-panel-text", `Speedup over Fekete et al., one thread each, on the ${common} instances both solve; median and arithmetic mean by size, rounded to a multiple of 5. Every point lies above 1×. The ${left} instances that Fekete et al. do not solve with one thread are left out, since no speedup is measured; ours solves ${solved.ours_900 - common} of them in 900 s.`);
 		setText("comparison-time-scope", `One thread each, on the ${common} instances both solve.`);
 		setText("comparison-time-ours-median", formatDuration(comparisonTime.common_ours_median_seconds));
 		setText("comparison-time-fekete-median", formatDuration(comparisonTime.common_fekete_median_seconds));
@@ -391,7 +398,7 @@ async function initialize() {
 		setText("comparison-speedup-median", speedup(comparison.median_speedup_fekete_over_ours));
 		setText("comparison-speedup-mean", speedup(comparison.mean_speedup_fekete_over_ours));
 		setText("comparison-speedup-small", speedup(comparison.by_size?.["5"]?.median));
-		setText("comparison-speedup-large", speedup(Math.round(Number(comparison.by_size?.["60"]?.median) / 10) * 10));
+		setText("comparison-speedup-large", speedup(comparison.by_size?.["60"]?.median));
 		setText("comparison-speedup-ours-faster", fraction(comparison.ours_faster_count, common));
 		setText("comparison-precision-ours-median", formatDistance(precision.ours?.median));
 		setText("comparison-precision-fekete-median", formatDistance(precision.fekete?.median));
@@ -585,7 +592,7 @@ async function initialize() {
 				? "What closed route should a drone fly to visit the 32 subprefectures of São Paulo, starting and ending at Sé? Crossing a region counts as visiting it. Below is the optimal tour for these generalized outlines."
 				: isBrEstados
 					? "What is the shortest closed route that crosses the main territory of each of Brazil's 27 federative units? The route may start anywhere: no point is fixed. Below is the optimal tour for this simplified version of the problem."
-					: `In case ${caseLabel(row.case)}, from the benchmark of Fekete et al., a closed tour visits ${row.polygons} regions and returns to where it started; no point is fixed. Below is the tour our solver found, proved to be within 0.1% of the shortest possible.`;
+					: `In case ${caseLabel(row.case)}, from the benchmark of Fekete et al., a closed tour visits ${row.polygons} regions and returns to where it started; no point is fixed. Below is the tour our solver found. ${row.solved === false ? `The optimality gap remains open after ${row.time_limit} s.` : "Its proved bounds meet the stated stopping rule."}`;
 		element("route-endpoint-legend").textContent = isUsp
 			? "s = t · entrance of IME"
 			: isSpBairros ? "s = t · centre of the Sé subprefecture"
@@ -594,7 +601,7 @@ async function initialize() {
 		element("show-decomposition").setAttribute("aria-pressed", "false");
 		element("show-decomposition").disabled = !row.visualization.decomposition?.some((pieces) => pieces.length > 1);
 		element("speed-value").title = `At 1×, the tour of this case takes ${number(playbackDuration(row) / 1000, 1)} s to play.`;
-		element("case-time").textContent = formatDuration(row.seconds);
+		element("case-time").textContent = formatResultTime(row);
 		// Only the 558 benchmark instances have a time for Fekete et al.; the three highlights are ours alone.
 		element("case-time-detail").textContent = typeof row.case !== "number" ? "· one thread"
 			: Number.isFinite(row.fekete_seconds) ? `· one thread · Fekete et al., one thread: ${formatDuration(row.fekete_seconds)}`
@@ -614,7 +621,7 @@ async function initialize() {
 		const visible = showAllResults ? rows : rows.slice(0, 8);
 		element("result-count").textContent = `${rows.length} instances.`;
 		const toggle = rows.length > 8 ? `<tr class="result-toggle-row"><td colspan="4"><button type="button" data-toggle-results aria-expanded="${showAllResults}">${showAllResults ? "Show only the first 8 ↑" : `See all ${rows.length} results ↓`}</button></td></tr>` : "";
-		element("result-rows").innerHTML = visible.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Case </span>${caseLabel(item.case)}</th><td data-label="Regions">${item.polygons}</td><td data-label="Time">${formatDuration(item.seconds)}</td><td class="result-action"><button type="button" data-open-case="${item.case}" aria-label="See the tour of case ${item.case + 1}"><span class="picker-action-full">See tour →</span><span class="picker-action-short">Open →</span></button></td></tr>`).join("") + toggle;
+		element("result-rows").innerHTML = visible.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Case </span>${caseLabel(item.case)}</th><td data-label="Regions">${item.polygons}</td><td data-label="Time">${formatResultTime(item)}</td><td class="result-action"><button type="button" data-open-case="${item.case}" aria-label="See the tour of case ${item.case + 1}"><span class="picker-action-full">See tour →</span><span class="picker-action-short">Open →</span></button></td></tr>`).join("") + toggle;
 	}
 
 	document.querySelectorAll("button:disabled, input:disabled, select:disabled").forEach((control) => { control.disabled = false; });
@@ -784,7 +791,7 @@ async function initialize() {
 	function renderPicker() {
 		const rows = sortRows(visitorRows(data.rows, element("picker-search").value), sorting.picker.key, sorting.picker.descending);
 		element("picker-count").textContent = `${rows.length} cases available`;
-		element("picker-options").innerHTML = rows.length ? rows.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Case </span>${caseLabel(item.case)}</th><td data-label="Regions">${item.polygons}</td><td data-label="Time">${formatDuration(item.seconds)}</td><td class="result-action"><button type="button" data-pick-case="${item.case}" aria-label="See the tour of case ${item.case + 1}" aria-current="${item.case === row.case}"><span class="picker-action-full">See tour →</span><span class="picker-action-short">Open →</span></button></td></tr>`).join("") : '<tr><td colspan="4">No case found. Try another number.</td></tr>';
+		element("picker-options").innerHTML = rows.length ? rows.map((item) => `<tr><th scope="row"><span class="mobile-case-label">Case </span>${caseLabel(item.case)}</th><td data-label="Regions">${item.polygons}</td><td data-label="Time">${formatResultTime(item)}</td><td class="result-action"><button type="button" data-pick-case="${item.case}" aria-label="See the tour of case ${item.case + 1}" aria-current="${item.case === row.case}"><span class="picker-action-full">See tour →</span><span class="picker-action-short">Open →</span></button></td></tr>`).join("") : '<tr><td colspan="4">No case found. Try another number.</td></tr>';
 		document.querySelectorAll("[data-picker-column]").forEach((header) => {
 			const active = header.dataset.pickerColumn === sorting.picker.key;
 			header.setAttribute("aria-sort", active ? (sorting.picker.descending ? "descending" : "ascending") : "none");

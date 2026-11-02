@@ -9,7 +9,7 @@
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
-      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
      </cc:Agent>
     </dc:creator>
    </cc:Work>
@@ -20,93 +20,93 @@
  </defs>
  <g id="figure_1">
   <g id="patch_1">
-   <path d="M 0 111.096 
-L 228.96 111.096 
-L 228.96 0 
-L 0 0 
-L 0 111.096 
+   <path d="M 0 111.096
+L 228.96 111.096
+L 228.96 0
+L 0 0
+L 0 111.096
 z
 " style="fill: none"/>
   </g>
   <g id="axes_1">
+   <g id="line2d_1">
+    <path d="M 114.48 34.4808
+L 40.08 73.104
+" clip-path="url(#p9f966fc00f)" style="fill: none; stroke: #cf5a20; stroke-width: 1.6"/>
+   </g>
+   <g id="line2d_2">
+    <path d="M 114.48 34.4808
+L 114.48 73.104
+" clip-path="url(#p9f966fc00f)" style="fill: none; stroke: #cf5a20; stroke-width: 1.6"/>
+   </g>
+   <g id="line2d_3">
+    <path d="M 114.48 34.4808
+L 188.88 73.104
+" clip-path="url(#p9f966fc00f)" style="fill: none; stroke: #cf5a20; stroke-width: 1.6"/>
+   </g>
    <g id="patch_2">
-    <path d="M 89.37 34.4808 
-L 139.59 34.4808 
-Q 144.24 34.4808 144.24 30.0918 
-L 144.24 17.8026 
-Q 144.24 13.4136 139.59 13.4136 
-L 89.37 13.4136 
-Q 84.72 13.4136 84.72 17.8026 
-L 84.72 30.0918 
-Q 84.72 34.4808 89.37 34.4808 
+    <path d="M 89.37 34.4808
+L 139.59 34.4808
+Q 144.24 34.4808 144.24 30.0918
+L 144.24 17.8026
+Q 144.24 13.4136 139.59 13.4136
+L 89.37 13.4136
+Q 84.72 13.4136 84.72 17.8026
+L 84.72 30.0918
+Q 84.72 34.4808 89.37 34.4808
 z
 " clip-path="url(#p9f966fc00f)" style="fill: #eef4f1; stroke: #1f7a73; stroke-width: 1.5; stroke-linejoin: miter"/>
    </g>
    <g id="patch_3">
-    <path d="M 14.97 94.1712 
-L 65.19 94.1712 
-Q 69.84 94.1712 69.84 89.7822 
-L 69.84 77.493 
-Q 69.84 73.104 65.19 73.104 
-L 14.97 73.104 
-Q 10.32 73.104 10.32 77.493 
-L 10.32 89.7822 
-Q 10.32 94.1712 14.97 94.1712 
+    <path d="M 14.97 94.1712
+L 65.19 94.1712
+Q 69.84 94.1712 69.84 89.7822
+L 69.84 77.493
+Q 69.84 73.104 65.19 73.104
+L 14.97 73.104
+Q 10.32 73.104 10.32 77.493
+L 10.32 89.7822
+Q 10.32 94.1712 14.97 94.1712
 z
 " clip-path="url(#p9f966fc00f)" style="fill: #eef4f1; stroke: #cf5a20; stroke-width: 1.5; stroke-linejoin: miter"/>
    </g>
    <g id="patch_4">
-    <path d="M 89.37 94.1712 
-L 139.59 94.1712 
-Q 144.24 94.1712 144.24 89.7822 
-L 144.24 77.493 
-Q 144.24 73.104 139.59 73.104 
-L 89.37 73.104 
-Q 84.72 73.104 84.72 77.493 
-L 84.72 89.7822 
-Q 84.72 94.1712 89.37 94.1712 
+    <path d="M 89.37 94.1712
+L 139.59 94.1712
+Q 144.24 94.1712 144.24 89.7822
+L 144.24 77.493
+Q 144.24 73.104 139.59 73.104
+L 89.37 73.104
+Q 84.72 73.104 84.72 77.493
+L 84.72 89.7822
+Q 84.72 94.1712 89.37 94.1712
 z
 " clip-path="url(#p9f966fc00f)" style="fill: #eef4f1; stroke: #cf5a20; stroke-width: 1.5; stroke-linejoin: miter"/>
    </g>
    <g id="patch_5">
-    <path d="M 163.77 94.1712 
-L 213.99 94.1712 
-Q 218.64 94.1712 218.64 89.7822 
-L 218.64 77.493 
-Q 218.64 73.104 213.99 73.104 
-L 163.77 73.104 
-Q 159.12 73.104 159.12 77.493 
-L 159.12 89.7822 
-Q 159.12 94.1712 163.77 94.1712 
+    <path d="M 163.77 94.1712
+L 213.99 94.1712
+Q 218.64 94.1712 218.64 89.7822
+L 218.64 77.493
+Q 218.64 73.104 213.99 73.104
+L 163.77 73.104
+Q 159.12 73.104 159.12 77.493
+L 159.12 89.7822
+Q 159.12 94.1712 163.77 94.1712
 z
 " clip-path="url(#p9f966fc00f)" style="fill: #eef4f1; stroke: #cf5a20; stroke-width: 1.5; stroke-linejoin: miter"/>
    </g>
-   <g id="line2d_1">
-    <path d="M 114.48 30.9696 
-L 40.08 73.104 
-" clip-path="url(#p9f966fc00f)" style="fill: none; stroke: #cf5a20; stroke-width: 1.6; stroke-linecap: square"/>
-   </g>
-   <g id="line2d_2">
-    <path d="M 114.48 30.9696 
-L 114.48 73.104 
-" clip-path="url(#p9f966fc00f)" style="fill: none; stroke: #cf5a20; stroke-width: 1.6; stroke-linecap: square"/>
-   </g>
-   <g id="line2d_3">
-    <path d="M 114.48 30.9696 
-L 188.88 73.104 
-" clip-path="url(#p9f966fc00f)" style="fill: none; stroke: #cf5a20; stroke-width: 1.6; stroke-linecap: square"/>
-   </g>
    <g id="text_1">
-    <text style="font-weight: 700; font-size: 10.5px; font-family: 'Arial'; text-anchor: middle; fill: #142d38" x="114.48" y="26.664383" transform="rotate(-0 114.48 26.664383)">(A B C)</text>
+    <text style="font-weight: 700; font-size: 12px; font-family: 'Arial'; text-anchor: middle; fill: #142d38" x="114.48" y="27.052552" transform="rotate(-0 114.48 27.052552)">(A B C)</text>
    </g>
    <g id="text_2">
-    <text style="font-weight: 700; font-size: 10.5px; font-family: 'Arial'; text-anchor: middle; fill: #142d38" x="40.08" y="86.354783" transform="rotate(-0 40.08 86.354783)">(A P B C)</text>
+    <text style="font-weight: 700; font-size: 12px; font-family: 'Arial'; text-anchor: middle; fill: #142d38" x="40.08" y="86.742952" transform="rotate(-0 40.08 86.742952)">(A P B C)</text>
    </g>
    <g id="text_3">
-    <text style="font-weight: 700; font-size: 10.5px; font-family: 'Arial'; text-anchor: middle; fill: #142d38" x="114.48" y="86.354783" transform="rotate(-0 114.48 86.354783)">(A B P C)</text>
+    <text style="font-weight: 700; font-size: 12px; font-family: 'Arial'; text-anchor: middle; fill: #142d38" x="114.48" y="86.742952" transform="rotate(-0 114.48 86.742952)">(A B P C)</text>
    </g>
    <g id="text_4">
-    <text style="font-weight: 700; font-size: 10.5px; font-family: 'Arial'; text-anchor: middle; fill: #142d38" x="188.88" y="86.354783" transform="rotate(-0 188.88 86.354783)">(A B C P)</text>
+    <text style="font-weight: 700; font-size: 12px; font-family: 'Arial'; text-anchor: middle; fill: #142d38" x="188.88" y="86.742952" transform="rotate(-0 188.88 86.742952)">(A B C P)</text>
    </g>
   </g>
  </g>

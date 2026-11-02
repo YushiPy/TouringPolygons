@@ -40,6 +40,7 @@
 \newcommand{\bodymuted}{\sffamily\mdseries\fontsize{26}{31}\selectfont\color{Muted}}
 \newcommand{\tagtext}{\sffamily\bfseries\fontsize{26}{31}\selectfont\color{Accent}}
 \newcommand{\metric}{\sffamily\bfseries\fontsize{66}{72}\selectfont\color{Accent}}
+\newcommand{\tourkey}[2]{\tikz[baseline=-0.6ex]{\draw[#1,line width=3.5pt,#2] (0,0) -- (1.8,0);}}
 % A card at (x, y), 13.9 cm wide and 16.2 cm tall: figure box, rule, title and a two-line caption.
 \newcommand{\card}[6]{%
   \fill[white,rounded corners=0.22cm] (#1,#2) rectangle ({#1+13.9},{#2+16.2});
@@ -81,7 +82,7 @@
   \block{aim}{3}{34.75}{38.2}{\bodymuted\textbf{Aim:} an exact, self-contained solver for the TSPN, with no commercial optimizer, compared with the state of the art [3].}
 
   \block{background-head}{42.7}{17.7}{38.4}{\head{2}{Background and contribution}}
-  \block{background}{42.7}{19.50}{38.4}{\tagtext A polynomial subproblem\par\vspace{0.15cm}\bodytext Both variants are NP-hard for non-convex polygons, but the fixed-order TPP with convex polygons is polynomial: Dror et al. [1] use last-step shortest-path maps, improved by Tan and Jiang [2]. These algorithms fix $s$ and $t$; a TSPN tour has no fixed point.\par\vspace{1.0cm}\tagtext The state of the art\par\vspace{0.15cm}\bodytext Fekete et al. [3] solve the TSPN by branch and bound. Each convex subproblem is a second-order cone program (SOCP) solved by Gurobi, a commercial optimizer, within a tolerance.\par\vspace{1.0cm}\tagtext Our contribution\par\vspace{0.15cm}\bodytext An exact algorithm for the \textbf{fixed-order closed tour} through convex polygons, which may touch or overlap. An optimal tour touches some boundary, so we scan boundary segments, solve anchored paths with the maps of [1] and use the convexity of the anchored length. On rational input the tour is optimal with \textbf{zero error}. For speed, a floating-point stage proves bounds with directed rounding; the exact stage runs only when they are not tight enough.}
+  \block{background}{42.7}{19.50}{38.4}{\tagtext A polynomial subproblem\par\vspace{0.15cm}\bodytext Both variants are NP-hard for non-convex polygons, but the fixed-order TPP with convex polygons is polynomial: Dror et al. [1] use last-step shortest-path maps, improved by Tan and Jiang [2]. These algorithms fix $s$ and $t$; a TSPN tour has no fixed point.\par\vspace{1.0cm}\tagtext The state of the art\par\vspace{0.15cm}\bodytext Fekete et al. [3] solve the TSPN by branch and bound. Each convex subproblem is a second-order cone program (SOCP) solved by Gurobi, a commercial optimizer, within a tolerance.\par\vspace{1.0cm}\tagtext Our contribution\par\vspace{0.15cm}\bodytext An exact algorithm for the \textbf{fixed-order closed tour} through convex polygons, which may touch or overlap, with \textbf{zero error on rational input}. We use it as the geometric oracle of an \textbf{exact branch-and-bound solver for the TSPN}, replacing the SOCP solver used in [3]. For speed, floating-point bounds are proved with directed rounding; the exact stage runs only when needed. On the 541 instances both solve with one thread, ours is faster on every instance, with a \textbf{69× median speedup} over the state of the art [3].}
   \draw[Rule,line width=1.1pt] (3,37.6) -- (81.1,37.6);
 
   % Row 2: the Brazil instance of the poster and the web page, and the search.
@@ -92,18 +93,18 @@
 
   \block{method-head}{38.5}{38.3}{42.6}{\head{4}{Branch and bound}}
   \block{method}{38.5}{40.1}{42.6}{\bodytext A node holds a partial sequence of $m$ targets, each one its \textbf{convex hull} or one \textbf{convex piece} of an optimal decomposition by Greene's algorithm [4]. The node's closed tour is a \textbf{lower bound} $L$ for every extension, since omitting targets cannot lengthen a route; the best feasible length so far is $U$. The insertion and refinement rules follow [3].}
-  \card{38.5}{44.9}{feasible}{method-01.pdf}{01 · Feasible tour}{A greedy tour sets $U$; the optimum (dashed) is shorter.}
-  \card{52.85}{44.9}{partial}{method-02.pdf}{02 · Partial order}{The node fixes A, B and C; its tour touches D by chance.}
-  \card{67.2}{44.9}{prune}{method-03.pdf}{03 · Prune}{If $L$ reaches $U$, the branch cannot improve $U$.}
-  \card{38.5}{61.6}{incumbent}{method-04.pdf}{04 · Update $U$}{A tour that visits every region is feasible and may lower $U$.}
+  \card{38.5}{44.9}{feasible}{method-01.pdf}{01 · Feasible tour}{\begin{tabular}{@{}l@{\hspace{0.5cm}}l@{}}Native heuristic & \tourkey{Accent}{solid}\\Final tour & \tourkey{Ink}{dash pattern=on 7pt off 4pt}\end{tabular}}
+  \card{52.85}{44.9}{partial}{method-02.pdf}{02 · Partial order}{Dashed hulls fix A, B, C; D is visited incidentally.}
+  \card{67.2}{44.9}{prune}{method-03.pdf}{03 · Prune}{If $L \ge U$, prune this branch.}
+  \card{38.5}{61.6}{incumbent}{method-04.pdf}{04 · Update $U$}{Visits every region;\\a shorter tour lowers $U$.}
   \card{52.85}{61.6}{insert}{method-05.pdf}{05 · Insert}{$P$ goes into each of the $m$ gaps of the cycle.}
-  \card{67.2}{61.6}{refine}{method-06.pdf}{06 · Refine}{The hull tour misses B, C and E; B splits into its pieces.}
+  \card{67.2}{61.6}{refine}{method-06.pdf}{06 · Refine}{Branch on B: one child per convex piece.}
   \draw[Rule,line width=1.1pt] (3,78.5) -- (81.1,78.5);
 
   % Row 3: results on the left, the web page on the right.
   \draw[Rule,line width=0.8pt] (59.5,79.2) -- (59.5,107.85);
   \block{results-head}{3}{79.2}{55.6}{\head{5}{Results on the 558 instances of Fekete et al.}}
-  \block{results-context}{3}{81.0}{55.6}{\bodytext The original code of [3] and ours on one AMD Ryzen 7 9700X: three 300 s runs per setup, plus 900 s on open instances. Each stops by its own rule, $\varepsilon = 10^{-3}$: [3] at $U - L \le \varepsilon U + \varepsilon$, ours at $U \le (1+\varepsilon) L$.}
+  \block{results-context}{3}{81.0}{55.6}{\bodytext The original code of [3] and ours on one AMD Ryzen 7 9700X: three 300 s runs per setup, plus 900 s on open instances. Both stop at $U - L \le \varepsilon U + \varepsilon$, with $\varepsilon = 10^{-3}$ as in [3]; our bounds are proved.}
   \block{figure-2}{3}{83.65}{32}{\includegraphics[width=\linewidth]{speedup-figure.pdf}}
   \block{figure-2-caption}{3}{101.25}{32}{\bodymuted\textbf{Figure.} Speedup over [3], one thread each, on the 541 instances both solve; median and arithmetic mean by size, rounded to a multiple of 5.}
   \fill[white,rounded corners=0.30cm] (36.3,83.65) rectangle (58.6,88.85);
@@ -111,11 +112,11 @@
   \draw[Route,line width=4.0pt] (36.6,83.70) -- (47.2,83.70);
   \draw[Accent,line width=4.0pt] (47.7,83.70) -- (58.3,83.70);
   \draw[Rule,line width=0.8pt] (47.45,84.10) -- (47.45,88.40);
-  \block{median}{36.75}{84.30}{10.4}{\metric 73×\par\vspace{0.12cm}\bodytext\textbf{Median speedup}}
-  \block{mean}{47.9}{84.30}{10.4}{\metric 196×\par\vspace{0.12cm}\bodytext\textbf{Arithmetic mean}}
-  \block{gain}{36.3}{89.55}{22.3}{\tagtext Where the gain comes from\par\vspace{0.15cm}\bodytext Where [3] takes $\ge$ 1 s (166 instances), ours is \textbf{257×} faster. Both explore about as many nodes (1.08×), but a node of [3] costs \textbf{238×} as much. Geometric means: $1.08 \times 238 \approx 257$.}
-  \block{solved-table}{36.3}{95.45}{22.3}{\tagtext Instances solved\par\vspace{0.15cm}\sffamily\mdseries\fontsize{24}{29}\selectfont\color{Ink}\begin{tabular}{@{}p{12.4cm}@{\hspace{0.3cm}}r@{\hspace{0.5cm}}r@{}}\color{Muted}& \color{Muted}300 s & \color{Muted}900 s\\[0.1cm]{[3]}, paper setup, 16 threads & 542 & 549\\{[3]}, one thread & 523 & 541\\\textbf{Ours, one thread} & \textbf{557} & \textbf{557}\end{tabular}\par\vspace{0.2cm}\bodymuted The last instance, open for every setup of [3], takes ours 89 min.}
-  \block{precision}{3}{103.9}{55.6}{\tagtext Accuracy\par\vspace{0.15cm}\bodytext Tours of [3] miss polygons by a median of $2.7\times10^{-6}$, and on 22 instances its upper bound lies below our proved lower bound. Ours stay within $3\times10^{-11}$ of every polygon.}
+  \block{median}{36.75}{84.30}{10.4}{\metric 69×\par\vspace{0.12cm}\bodytext\textbf{Median speedup}}
+  \block{mean}{47.9}{84.30}{10.4}{\metric 183×\par\vspace{0.12cm}\bodytext\textbf{Arithmetic mean}}
+  \block{gain}{36.3}{89.55}{22.3}{\tagtext Where the gain comes from\par\vspace{0.15cm}\bodytext On 166 cases both close in all three 300 s runs, where [3] takes $\ge$ 1 s (one thread each), fastest runs give \textbf{245×} speedup: [3] uses 1.08× as many nodes at \textbf{226×} the cost per node. Geometric means: $1.08 \times 226 \approx 245$.}
+  \block{solved-table}{36.3}{95.45}{22.3}{\tagtext Instances solved\par\vspace{0.15cm}\sffamily\mdseries\fontsize{24}{29}\selectfont\color{Ink}\begin{tabular}{@{}p{12.4cm}@{\hspace{0.3cm}}r@{\hspace{0.5cm}}r@{}}\color{Muted}& \color{Muted}300 s & \color{Muted}900 s\\[0.1cm]{[3]}, 16 threads & 542 & 549\\{[3]}, one thread & 523 & 541\\\textbf{Ours, one thread} & \textbf{557} & \textbf{557}\end{tabular}\par\vspace{0.2cm}\bodymuted One instance remains open in 900 s for ours and every setup of [3].}
+  \block{precision}{3}{103.9}{55.6}{\tagtext Accuracy\par\vspace{0.15cm}\bodytext One thread each; CHR for [3]. Largest polygon miss per instance over three 300 s runs: median $2.65\times10^{-6}$, max $8.23\times10^{-4}$ for [3], within its $10^{-3}$ tolerance. Ours stay within $3\times10^{-11}$; [3]'s upper bound lies below our proved lower bound on 22 instances.}
 
   \block{app-head}{60.4}{79.2}{20.7}{\head{6}{Try it yourself!}}
   \block{app-intro}{60.4}{81.0}{20.7}{\bodytext Scan to watch the tours, play the challenges and explore every result.}
@@ -147,7 +148,7 @@
   \fill[Pale,rounded corners=0.20cm] (3,108.45) rectangle (81.1,112.30);
   \draw[Rule,line width=0.8pt,rounded corners=0.20cm] (3,108.45) rectangle (81.1,112.30);
   \draw[Accent,line width=3.0pt] (3.3,108.50) -- (80.8,108.50);
-  \block{conclusion}{3.7}{108.95}{76.7}{\bodytext\textbf{\color{Accent}Conclusions.} An exact algorithm for the fixed-order closed tour through convex polygons, with zero error on rational input, is the core of an exact branch-and-bound solver for the TSPN. It is one to two orders of magnitude faster than the state of the art and closes every benchmark instance with proved bounds, without a commercial optimizer. Next: disk neighborhoods (Close-Enough TSP) and vehicle routing with polygonal neighborhoods.}
+  \block{conclusion}{3.7}{108.95}{76.7}{\bodytext\textbf{\color{Accent}Conclusions.} An exact algorithm for the fixed-order closed tour through convex polygons, with zero error on rational input, is the core of an exact branch-and-bound solver for the TSPN. It is one to two orders of magnitude faster than the state of the art and closes 557 of 558 benchmark instances with proved bounds, without a commercial optimizer. Next: disk neighborhoods (Close-Enough TSP) and vehicle routing with polygonal neighborhoods.}
 
   % References; the digital PDF keeps live links.
   \block{references-col-1}{3}{112.90}{25.3}{\sffamily\fontsize{20}{24}\selectfont\color{Muted}[1] Dror, Efrat, Lubiw, Mitchell. \href{https://doi.org/10.1145/780542.780612}{\emph{Touring a sequence of polygons}}. STOC, 2003.\par [2] Tan, Jiang. \href{https://doi.org/10.1007/978-3-319-55911-7_44}{\emph{Efficient algorithms for touring a sequence of convex polygons}}. TAMC, 2017.}

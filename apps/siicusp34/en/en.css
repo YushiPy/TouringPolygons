@@ -1,4 +1,20 @@
 /* Additions of the English page on top of ../styles.css. */
+/* Shared print figures retain their proportions and contrast on the web. */
+.event .algorithm-flow figure { background: #fff; height: 260px; }
+.event .algorithm-flow figure img {
+	display: block;
+	flex: 1 1 0;
+	min-height: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+.event .algorithm-flow .route-comparison-legend { color: #142d38; }
+.event .route-comparison-legend .legend-solid { border-color: #cf5a20; }
+.event .route-comparison-legend .legend-dashed { border-color: #142d38; }
+@media (max-width: 560px) {
+	.event .algorithm-flow figure { height: 300px; }
+}
 .solved-panel {
 	margin-top: 16px;
 }

@@ -23,9 +23,9 @@ ponto fixo (`en/data/br-estados-tspn.js`, gerado por
 Brasília na versão em português. `en/en.css` guarda só os acréscimos.
 
 Os resultados seguem o resumo em inglês e a medição de referência na armijo
-([`fekete-reference-armijo-2026-10-17`](../../benchmarks/results-saved/README.md#fekete-reference-armijo-2026-10-17)):
+([`fekete-reference-armijo-2026-10-30`](../../benchmarks/results-saved/fekete-reference-armijo-2026-10-30/README.md)):
 ciclos de ordem livre (TSPN), o código original de Fekete et al. com uma
-thread (configuração B, raiz CHR) contra o nosso com uma thread (C).
+thread (configuração B, raiz CHR) contra o nosso com uma thread (F).
 `en/data/event-data.js` é gerado da raiz do repositório por
 
 ```bash
@@ -38,9 +38,9 @@ do submódulo `third_party/tspn-socg`. As distâncias do painel de precisão vê
 dos registros, sem o arredondamento do CSV; a ordem de visita é a do primeiro
 contato ao longo do tour; as decomposições vêm da partição C++ compilada na
 geração, sem os vértices repetidos a menos de 10⁻⁹ que 100 regiões têm (com
-eles, a partição devolve a região inteira como uma peça não convexa). Os tours
-do corpus fecham o gap relativo de 10⁻³ pelo critério de cada solver; a página
-não os chama de ótimos.
+eles, a partição devolve a região inteira como uma peça não convexa). Ambos usam U−L ≤ 10⁻³U + 10⁻³; nossos limites são provados. Em F, 557
+instâncias fecham em 300 s; a restante continua aberta em 900 s. Para ela,
+a página mostra o tour factível e o orçamento, sem tempo de fechamento.
 
 Os seis cartões do método são tours fechados nos desenhos dos desafios, e não
 caminhos de s a t como na versão em português. Eles saem de
