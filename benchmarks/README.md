@@ -383,6 +383,41 @@ Veja o [contrato e as tolerâncias](../docs/algorithms/unordered-tpp.md#referên
 validações independentes dos caminhos. Uma execução curta de `free-order-run`
 pode terminar por tempo/chamadas; consulte `exact`, limites e `termination`.
 
+## Escala do TSPN em instâncias aleatórias
+
+`tpp.py tspn-scaling` mede até que tamanho o B&B do TSPN fecha e como a ILS se
+compara com ele, no mesmo orçamento.
+- **Formulação.** Tour fechado, ordem livre, sem ponto fixo.
+- **Instâncias** (`star-uniform-v1`, geradas na própria campanha). n polígonos
+  estrelados aleatórios com 8 vértices e ao menos um vértice reflexo.
+  - Os centros são uniformes num quadrado cuja área é 5× a soma das áreas
+    (`--coverage 0.2`). A densidade é a mesma em todo n, e as regiões podem
+    se sobrepor.
+  - As coordenadas ficam na grade 2^-24. Simplicidade e não convexidade são
+    verificadas exatamente.
+- **Execuções.** Cada instância roda duas vezes, com o mesmo limite de parede
+  (`--seconds`, 600 s por padrão), num processo de uma thread:
+  - o B&B do zero, com as opções da comparação com o Fekete e gap relativo
+    de 1e-6;
+  - o mesmo binário com `--primal-ils 0.99`.
+- **Registro.** Cada linha guarda o tour validado, o histórico do incumbente e
+  a trajetória dos limites (um ponto a cada 2 s). Dela sai o tempo até o gap
+  de 0,1%.
+- **Saídas.** O relatório (`report.md`/`report.json`) traz os quartis por
+  tamanho: tempo, nós, fração fechada e qualidade da ILS contra o melhor
+  limite inferior e o ótimo. A figura fica em `scaling.svg`/`.png`, e
+  `per-run.csv` é o resumo compacto que vai para `results-saved`.
+
+```bash
+TPP_CXX_STANDARD=23 python3 benchmarks/tpp.py tspn-scaling --dry-run   # gera as instâncias e estima o tempo
+python3 benchmarks/tpp.py tspn-scaling --workers 6 --frontier-mib 2048
+python3 benchmarks/tpp.py tspn-scaling --report
+```
+
+Repetir o comando retoma a campanha. Novos `--sizes` e `--seeds` podem ser
+acrescentados; o protocolo (limite, densidade, vértices, opções) não muda numa
+campanha.
+
 ## Campanha sintética
 
 ```bash
