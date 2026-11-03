@@ -197,8 +197,11 @@ if(TPP_ENABLE_GUROBI)
     endif()
     list(GET GUROBI_LIB 0 GUROBI_LIB)
 
+    # The static C++ wrapper calls the C library, so it must come first: GNU ld
+    # (with --as-needed, Ubuntu's default) drops a shared library that nothing
+    # before it uses. macOS's linker accepts either order.
     target_link_libraries(tpp_convex PRIVATE
-        ${GUROBI_LIB}
         ${GUROBI_HOME}/lib/libgurobi_c++.a
+        ${GUROBI_LIB}
     )
 endif()
