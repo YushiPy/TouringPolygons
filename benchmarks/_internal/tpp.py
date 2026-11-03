@@ -400,6 +400,11 @@ GROUPS: dict[str, dict[str, Command]] = {
 		"cycle-benchmark": Command("ARGS...", "Compare certified cycle solvers with Gurobi.", module("cycle_benchmark")),
 		"cycle-replay": Command("ARGS...", "Replay captured convex-cycle oracle calls.", module("cycle_replay")),
 	},
+	"Papers": {
+		"paper1-experiments": Command("[--smoke] [--plan] [--only STEP]",
+			"Paper 1 (Section 7): every experiment in sequence, resumable, as a detached job (scripts/run_paper1_experiments.sh).",
+			module("paper1_experiments")),
+	},
 	"External solver (Fekete et al.)": {
 		"fekete-setup": Command("", "Clone, build and verify Fekete's unmodified upstream solver (no sudo).",
 			lambda argv: command_module_function("fekete_reference", "setup_main", argv)),

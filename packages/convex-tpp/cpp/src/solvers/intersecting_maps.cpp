@@ -1,5 +1,6 @@
 #include "cycle_execution.h"
 #include "tpp/convex/detail/intersecting_maps.h"
+#include "tpp/convex/solution.h"
 #include "tpp/convex/detail/closed_regions.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
@@ -211,6 +212,7 @@ class DirectionalMaps {
         auto &vertices=maps[i].vertices;
         auto &v=vertices[j];
         if(v.ready) return;
+        ++tpp::detail::cone_builds();
         const Point before=vertices[(j+vertices.size()-1)%vertices.size()].point;
         const Point after=vertices[(j+1)%vertices.size()].point;
         auto outgoing=[&](Point side,Point edge,bool &reflects) {

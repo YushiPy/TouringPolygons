@@ -143,7 +143,13 @@ namespace tpp {
 		return workspace.cones[storage_index(i, j)];
 	}
 
+	std::size_t &detail::cone_builds() {
+		thread_local std::size_t count = 0;
+		return count;
+	}
+
 	void Solution::build_cone(size_t i, size_t j, const Vector2 &last) {
+		++detail::cone_builds();
 		
 		auto j_prev = (j - 1 + polygons[i].size()) % polygons[i].size();
 		auto j_next = (j + 1) % polygons[i].size();

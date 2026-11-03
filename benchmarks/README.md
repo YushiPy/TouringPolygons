@@ -841,6 +841,34 @@ solver, o commit (`E-ours-<commit>-16threads-300s`). As máquinas estão descrit
 Cada solver é julgado pelo próprio critério: "resolvida" é o `is_optimal` do Fekete,
 `(UB−LB) ≤ eps·UB + eps`, e o `UB ≤ (1+eps)·LB` do nosso.
 
+## Artigo 1: os experimentos da Seção 7
+
+Um comando roda todos os experimentos do artigo 1 em sequência, num job em segundo
+plano que sobrevive ao fim da sessão SSH:
+
+```bash
+./scripts/run_paper1_experiments.sh            # tudo; ou --smoke (minutos) e --plan
+```
+
+A lógica vive em `benchmarks/_internal/paper1_experiments.py`. As etapas, nesta ordem:
+
+| Etapa | O que mede |
+|---|---|
+| `build`, `check` | compila o `tpp-unordered` (como a configuração C) e as ferramentas com Gurobi; confere o corpus e resolve um caminho de um triângulo no Gurobi |
+| `paths-random` | 7.1: caminhos gerados (disjuntos e com interseção, k de 4 a 64, 8 a 4096 pontos por polígono, 10 sementes, 3 repetições): o oráculo certificado (gap zero e a tolerância do Gurobi), as construções preguiçosa e completa com os cones que constroem, e o SOCP do Gurobi (`tpp-convex-path-benchmark`) |
+| `bnb-cycle` | 7.2: o nosso B&B do TSPN na configuração C nas 558 instâncias (300 s, uma thread), com o modo como cada chamada ao oráculo fechou |
+| `capture-cycle`, `replay-cycle` | chamadas do oráculo do ciclo capturadas do B&B em 40 instâncias (semente 20261021, entre as de pelo menos mil chamadas; até 200 mil chamadas, uma a cada n para capturar cerca de 2000 por instância, reduzidas a 400) e repetidas contra o SOCP do Gurobi (`tpp-convex-vertex-scaling --replay`) |
+| `capture-path`, `replay-path` | o mesmo com o B&B no modo caminho (início e fim de cada instância) e `tpp-convex-path-benchmark --replay` |
+| `vertex-scaling` | uma chamada do ciclo com k = 3, 5 e 10 regiões e até 32.768 pontos por região, contra o Gurobi |
+| `anchor-probes` | o caminho exato nas chamadas capturadas: TPPs ancorados e sondas, com e sem a construção |
+| `no-polish` | o B&B com e sem o polimento por pontos interiores (`--no-cycle-polish`), 60 s, as 558 instâncias |
+| `summary` | `summary.json`, `summary.md` e um `.tar.gz` com as saídas (sem entradas e logs) |
+
+Cada etapa grava `done.json` e é pulada ao rodar de novo; as que escrevem um arquivo por
+caso retomam caso a caso. `--only ETAPA` e `--redo ETAPA` escolhem etapas. Os processos
+de medição rodam um por núcleo físico, presos a ele no Linux. A saída fica em
+`workspace/experiments/paper1/<host>-<commit>/`. Na armijo, a estimativa é de 2 a 3 h.
+
 ## Preservação de resultados
 
 Resultados e dados brutos novos permanecem locais e ignorados. Em

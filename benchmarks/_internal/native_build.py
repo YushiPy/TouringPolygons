@@ -29,7 +29,8 @@ BUILD_ROOT = ROOT / ".build"
 DEPS_ROOT = ROOT / ".cache/deps"
 CONFIG_FILE = ".tpp-build-config.json"
 TOOL_PACKAGES = {"nonconvex-tpp": "tpp-", "convex-tpp": "tpp-convex-"}
-GUROBI_ONLY_TOOLS = {"tpp-convex-cycle-benchmark", "tpp-convex-gurobi-fallback-audit"}
+GUROBI_ONLY_TOOLS = {"tpp-convex-cycle-benchmark", "tpp-convex-gurobi-fallback-audit", "tpp-convex-vertex-scaling",
+	"tpp-convex-path-benchmark"}
 
 # Pinned header-only releases used when the machine has no installed copy.
 HEADER_DEPENDENCIES = {
