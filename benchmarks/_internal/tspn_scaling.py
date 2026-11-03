@@ -249,6 +249,7 @@ def instance_summary(rows: Sequence[dict]) -> dict:
 		item["ils_found_optimum"] = ils["length"] <= optimum * (1 + RELATIVE_GAP)
 		item["ils_time_to_optimum"] = time_to_length(ils, optimum)
 	if bnb and ils and bnb.get("valid") and ils.get("valid"):
+		item["bnb_over_ils"] = bnb["length"] / ils["length"] - 1
 		band = RELATIVE_GAP * min(bnb["length"], ils["length"])
 		item["ils_vs_bnb"] = ("better" if ils["length"] < bnb["length"] - band
 			else "worse" if ils["length"] > bnb["length"] + band else "equal")
@@ -305,15 +306,19 @@ def summarize(rows: Sequence[dict], protocol: dict) -> dict:
 			"ils_time_to_optimum": quartiles(sorted(item["ils_time_to_optimum"] for item in items
 				if item.get("ils_time_to_optimum") is not None)),
 			"ils_vs_bnb": {key: sum(item.get("ils_vs_bnb") == key for item in items) for key in ("better", "equal", "worse")},
+			"bnb_over_ils": quartiles(sorted(item["bnb_over_ils"] for item in items if "bnb_over_ils" in item)),
 			"invalid_runs": sum(row.get("valid") is False for row in [*bnb, *ils]),
 			"memory_stops": sum("memory_guard_bytes" in row for row in [*bnb, *ils]),
+			# Past the frontier budget the search finishes subtrees depth first: complete, but an
+			# unfinished run's bound then rises one subtree at a time.
+			"bnb_frontier_budget": sum(bool(row.get("frontier_strips")) for row in bnb),
 		}
 		table.append(entry)
 	return {"protocol": protocol, "sizes": table, "instances": {
 		name: {key: value for key, value in item.items() if key not in ("bnb", "ils")} for name, item in sorted(instances.items())}}
 
 
-def markdown(report: dict, machines: Sequence[str]) -> str:
+def markdown(report: dict, machines: Sequence[str], settings: Sequence[str] = ()) -> str:
 	protocol = report["protocol"]
 
 	def triple(values, fmt) -> str:
@@ -323,7 +328,8 @@ def markdown(report: dict, machines: Sequence[str]) -> str:
 		return f"≥{protocol['seconds']:g}" if value >= protocol["seconds"] else f"{value:.3g}"
 
 	def percent(value: float) -> str:
-		return f"{100 * value:.3g}%"
+		# Below the requested gap the difference is rounding, not a tour or a bound.
+		return "≈0" if abs(value) <= 1.001 * protocol["relative_gap"] else f"{100 * value:.3g}%"
 
 	lines = [
 		"# TSPN scaling: B&B and ILS on random nonconvex regions",
@@ -337,7 +343,10 @@ def markdown(report: dict, machines: Sequence[str]) -> str:
 		f"the B&B from scratch (`{' '.join(protocol['base_arguments'])}`) and the same binary with "
 		f"`{' '.join(protocol['ils_arguments'])}` (ILS for 99% of the limit, then the B&B).",
 		"",
-		f"**Machines.** {'; '.join(machines) or 'not recorded'}.",
+		f"**Machines.** {'; '.join(machines) or 'not recorded'}. Settings: {'; '.join(settings) or 'not recorded'}. "
+		"Past its frontier budget a B&B run finishes subtrees depth first: the search stays complete, but the "
+		"bound of a run that does not close then rises one subtree at a time, so its gap at the limit is weaker "
+		"than a best-first search with more memory would prove.",
 		"",
 		f"**Tolerances and exactness.** \"Closed\" means the B&B proved a relative gap of at most "
 		f"{protocol['relative_gap']:g} with a tour that passes the independent check (binary-rational intersection and "
@@ -349,8 +358,8 @@ def markdown(report: dict, machines: Sequence[str]) -> str:
 		"",
 		"## Per size (quartiles q1 / median / q3)",
 		"",
-		"| n | B&B closed | B&B s | nodes | gap ≤ 0.1% | open gap | ILS = opt | ILS over opt | ILS s to opt | ILS over LB | B&B UB over LB | ILS vs B&B UB (b/e/w) |",
-		"|---|---|---|---|---|---|---|---|---|---|---|---|",
+		"| n | B&B closed | B&B s | nodes | gap ≤ 0.1% | open gap | ILS = opt | ILS over opt | ILS s to opt | ILS over LB | B&B UB over LB | B&B UB over ILS | ILS vs B&B UB (b/e/w) |",
+		"|---|---|---|---|---|---|---|---|---|---|---|---|---|",
 	]
 	for entry in report["sizes"]:
 		lines.append("| " + " | ".join([
@@ -365,11 +374,15 @@ def markdown(report: dict, machines: Sequence[str]) -> str:
 			triple(entry["ils_time_to_optimum"], lambda value: f"{value:.3g}"),
 			triple(entry["ils_excess_lower"], percent),
 			triple(entry["bnb_excess_lower"], percent),
+			triple(entry["bnb_over_ils"], percent),
 			"/".join(str(entry["ils_vs_bnb"][key]) for key in ("better", "equal", "worse")),
 		]) + " |")
 	invalid = sum(entry["invalid_runs"] for entry in report["sizes"])
 	memory = sum(entry["memory_stops"] for entry in report["sizes"])
-	lines += ["", f"Invalid tours: {invalid}. Runs stopped by the memory guard: {memory}.", ""]
+	budget = ", ".join(f"n={entry['n']}: {entry['bnb_frontier_budget']}/{entry['bnb_runs']}"
+		for entry in report["sizes"] if entry["bnb_frontier_budget"])
+	lines += ["", f"Invalid tours: {invalid}. Runs stopped by the memory guard: {memory}. "
+		f"B&B runs that reached the frontier budget: {budget or 'none'}.", ""]
 	return "\n".join(lines)
 
 
@@ -389,28 +402,30 @@ def write_figure(report: dict, rows: Sequence[dict], path: Path) -> None:
 	figure, axes = plt.subplots(2, 2, figsize=(10, 7.2), constrained_layout=True)
 	ns = [entry["n"] for entry in sizes]
 
-	def band(axis, key, color, label, scale=1.0):
-		points = [(entry["n"], entry[key]) for entry in sizes if entry[key] is not None]
+	def band(axis, key, color, label, scale=1.0, below=math.inf):
+		"""Median line and quartile band over the sizes whose median is below ``below``."""
+		points = [(entry["n"], entry[key]) for entry in sizes if entry[key] is not None and entry[key][1] < below]
 		if not points:
 			return
 		x = [n for n, _ in points]
-		axis.fill_between(x, [q[0] * scale for _, q in points], [q[2] * scale for _, q in points], color=color,
-			alpha=0.18, linewidth=0)
+		axis.fill_between(x, [q[0] * scale for _, q in points], [min(q[2], below) * scale for _, q in points],
+			color=color, alpha=0.18, linewidth=0)
 		axis.plot(x, [q[1] * scale for _, q in points], color=color, linewidth=2, marker="o", markersize=4, label=label)
 
-	def runs(axis, field, color):
-		done = [(row["n"], row[field]) for row in rows if row.get("phase") == "bnb" and row.get("complete") and closed(row)]
-		left = [(row["n"], row[field] if field == "nodes" else limit) for row in rows
-			if row.get("phase") == "bnb" and row.get("complete") and not closed(row) and finite(row.get(field))]
+	def runs(axis, field, color, label):
+		"""Closed B&B runs as faint dots; the others as hollow markers at the limit (time) or where they stopped (nodes)."""
+		bnb = [row for row in rows if row.get("phase") == "bnb" and row.get("complete") and finite(row.get(field))]
+		done = [(row["n"], row[field]) for row in bnb if closed(row)]
+		left = [(row["n"], row[field] if field == "nodes" else limit) for row in bnb if not closed(row)]
 		if done:
 			axis.scatter(*zip(*done), s=10, color=color, alpha=0.35, linewidths=0)
 		if left:
-			axis.scatter(*zip(*left), s=22, facecolors="none", edgecolors=color, linewidths=1, label="not closed")
+			axis.scatter(*zip(*left), s=26, facecolors="white", edgecolors=color, linewidths=1.2, label=label, zorder=3)
 
 	axis = axes[0][0]
-	runs(axis, "seconds", blue)
-	band(axis, "bnb_seconds", blue, "B&B: time to close (gap 1e-6)")
-	band(axis, "ils_time_to_optimum", orange, "ILS: time to reach the optimum")
+	band(axis, "bnb_seconds", blue, "B&B: time to close (gap 1e-6)", below=limit)
+	band(axis, "ils_time_to_optimum", orange, "ILS: time to reach that optimum")
+	runs(axis, "seconds", blue, "B&B run not closed (at the limit)")
 	axis.axhline(limit, color=muted, linewidth=1, linestyle="--")
 	axis.annotate(f"limit {limit:g} s", (ns[0], limit), xytext=(0, 3), textcoords="offset points", color=muted, fontsize=8)
 	axis.set_yscale("log")
@@ -419,8 +434,8 @@ def write_figure(report: dict, rows: Sequence[dict], path: Path) -> None:
 	axis.legend(frameon=False, fontsize=8, loc="lower right")
 
 	axis = axes[0][1]
-	runs(axis, "nodes", blue)
-	band(axis, "bnb_nodes", blue, "B&B nodes (at the limit if not closed)")
+	band(axis, "bnb_nodes_closed", blue, "B&B nodes to close")
+	runs(axis, "nodes", blue, "B&B run not closed: nodes at the limit")
 	axis.set_yscale("log")
 	axis.set_ylabel("nodes (log)")
 	axis.set_title("Search effort", loc="left", fontweight="bold")
@@ -439,8 +454,8 @@ def write_figure(report: dict, rows: Sequence[dict], path: Path) -> None:
 	axis = axes[1][1]
 	band(axis, "bnb_excess_lower", blue, "B&B tour", scale=100)
 	band(axis, "ils_excess_lower", orange, "ILS tour", scale=100)
-	axis.set_ylabel("% above the best lower bound")
-	axis.set_title(f"Tour at {limit:g} s against the best lower bound", loc="left", fontweight="bold")
+	axis.set_ylabel("% above the best certified lower bound")
+	axis.set_title(f"Tour at the limit against the best lower bound", loc="left", fontweight="bold")
 	axis.legend(frameon=False, fontsize=8, loc="upper left")
 
 	for axis in axes.flat:
@@ -453,19 +468,61 @@ def write_figure(report: dict, rows: Sequence[dict], path: Path) -> None:
 	plt.close(figure)
 
 
+def write_examples(output: Path, rows: Sequence[dict], path: Path, sizes: Sequence[int] = (30, 60, 90, 150)) -> None:
+	"""Seed 0 of a few sizes with the shorter valid tour of its two runs."""
+	import matplotlib
+	matplotlib.use("Agg")
+	import matplotlib.pyplot as plt
+
+	shown = []
+	for n in sizes:
+		name = instance_name(n, 0)
+		try:
+			polygons = json.loads((output / "instances" / f"{name}.json").read_text())["polygons"]
+		except (OSError, ValueError, KeyError):
+			continue
+		runs = [row for row in rows if row.get("name") == name and row.get("complete")]
+		tours = [row for row in runs if row.get("valid") and row.get("path")]
+		optimum = instance_summary(runs)["optimum"] if runs else None
+		shown.append((n, polygons, min(tours, key=lambda row: row["length"], default=None), optimum))
+	if not shown:
+		return
+	figure, axes = plt.subplots(1, len(shown), figsize=(3.4 * len(shown), 3.6), constrained_layout=True, squeeze=False)
+	for axis, (n, polygons, tour, optimum) in zip(axes[0], shown):
+		for polygon in polygons:
+			ring = [*polygon, polygon[0]]
+			axis.fill(*zip(*ring), color="#86b6ef", alpha=0.45, linewidth=0)
+			axis.plot(*zip(*ring), color="#1c5cab", linewidth=0.6)
+		title = f"n = {n}"
+		if tour:
+			axis.plot(*zip(*tour["path"]), color="#eb6834", linewidth=1.2)
+			optimal = optimum is not None and tour["length"] <= optimum * (1 + RELATIVE_GAP)
+			title += f"\n{'optimal within 1e-6' if optimal else 'best tour, not certified'}, length {tour['length']:.2f}"
+		axis.set_title(title, fontsize=8)
+		axis.set_aspect("equal")
+		axis.axis("off")
+	for suffix in (".svg", ".png"):
+		figure.savefig(path.with_suffix(suffix), dpi=150)
+	plt.close(figure)
+
+
 def write_report(output: Path, rows: Sequence[dict], protocol: dict) -> dict:
 	report = summarize(rows, protocol)
-	machines = []
+	machines, settings = [], []
 	try:
 		for attempt in json.loads((output / workspace.MANIFEST).read_text()).get("attempts", []):
 			machine = attempt.get("machine") or {}
 			text = f"{machine.get('host')} ({machine.get('cpu_model')}, {machine.get('system')})"
 			if text not in machines:
 				machines.append(text)
+			parameters = attempt.get("parameters") or {}
+			setting = f"{parameters.get('workers')} runs at a time, frontier budget {parameters.get('frontier_mib')} MiB per run"
+			if parameters and setting not in settings:
+				settings.append(setting)
 	except (OSError, ValueError):
 		pass
 	(output / "report.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
-	(output / "report.md").write_text(markdown(report, machines))
+	(output / "report.md").write_text(markdown(report, machines, settings))
 	return report
 
 
@@ -548,6 +605,7 @@ def run(args: argparse.Namespace, argv: Sequence[str]) -> int:
 			fail(f"{output} has no {PROTOCOL_FILE}; nothing to report")
 		write_report(output, rows, protocol)
 		write_figure(json.loads((output / "report.json").read_text()), rows, output / "scaling")
+		write_examples(output, rows, output / "examples")
 		per_run_csv(rows, output / "per-run.csv")
 		print((output / "report.md").read_text())
 		return 0
@@ -725,6 +783,7 @@ def run(args: argparse.Namespace, argv: Sequence[str]) -> int:
 			live.close()
 		report = write_report(output, rows, protocol)
 	write_figure(report, rows, output / "scaling")
+	write_examples(output, rows, output / "examples")
 	per_run_csv(rows, output / "per-run.csv")
 	print()
 	print((output / "report.md").read_text())
