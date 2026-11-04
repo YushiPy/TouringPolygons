@@ -82,6 +82,7 @@ em++ \
 	"$repo_root/packages/nonconvex-tpp/cpp/src/solvers/bnb.cpp" \
 	"$repo_root/packages/optimal-convex-partition/cpp/src/optimal_convex_partition.cpp" \
 	"$repo_root/packages/steiner-convex-partition/cpp/src/assembly.cpp" \
+	"$repo_root/packages/steiner-convex-partition/cpp/src/chains.cpp" \
 	"$repo_root/packages/steiner-convex-partition/cpp/src/dynamic_program.cpp" \
 	"$repo_root/packages/steiner-convex-partition/cpp/src/geometry.cpp" \
 	"$repo_root/packages/steiner-convex-partition/cpp/src/loose_x4.cpp" \
