@@ -211,7 +211,12 @@ Each insertion splits one face, so the faces tile P by construction. Then
   The result is a valid decomposition that is believed optimal. It is not
   certified optimal: no lower bound beyond ⌈c/2⌉ + 1 is computed.
 - **Output coordinates**: cut endpoints on edges are rational; `pieces`
-  rounds them when they are not doubles (`exact_coordinates = false`).
+  rounds them when they are not doubles (`exact_coordinates = false`). All
+  pieces share each rounded point, on the boundary it goes on or outside the
+  edge, and a piece with a rounded point is returned as its exact convex hull.
+  The pieces are then a convex cover of the polygon, exceeding it and
+  overlapping by at most rounding errors. That is what a branch and bound
+  needs: every point of the region lies in some piece.
 - **Complexity**: polynomial, not the O(n + c³) of Section 4.
 
 ## Validation evidence (2026-11-04)

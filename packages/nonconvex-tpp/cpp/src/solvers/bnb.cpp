@@ -258,7 +258,7 @@ namespace tpp {
 		pieces.reserve(polygons.size());
 
 		for (const auto &polygon : polygons) {
-			pieces.push_back(is_convex(polygon) ? std::vector<std::vector<Vector2>>{polygon} : decompose_polygon(polygon));
+			pieces.push_back(is_convex(polygon) ? std::vector<std::vector<Vector2>>{polygon} : decompose_polygon(polygon, options.decomposition));
 		}
 
 		return tpp_nonconvex_solve_decomposed(start, target, pieces, options);

@@ -1,3 +1,5 @@
+#include "../src/exact.h"
+
 #include <steiner_convex_partition/steiner_convex_partition.h>
 
 #include <algorithm>
@@ -45,6 +47,44 @@ namespace {
 		return notches;
 	}
 
+	std::size_t rounded_boundary_points = 0;
+
+	// A rounded cut endpoint on a polygon edge must lie on or outside it, so
+	// that the pieces cover the polygon.
+	void check_cover(const scp::Polygon &input, const scp::Result &result, const std::string &name) {
+		using steiner_convex_partition::exact::Vec2;
+		std::vector<Vec2> polygon;
+		for (const scp::Point &p : input) {
+			if (!polygon.empty() && polygon.back() == Vec2 {p.x, p.y}) continue;
+			polygon.push_back({p.x, p.y});
+		}
+		long double area = 0.0L;
+		for (std::size_t i = 0; i < polygon.size(); ++i) {
+			const Vec2 &a = polygon[i];
+			const Vec2 &b = polygon[(i + 1) % polygon.size()];
+			area += static_cast<long double>(a.x) * b.y - static_cast<long double>(b.x) * a.y;
+		}
+		if (area < 0) std::reverse(polygon.begin(), polygon.end());
+		for (const scp::Polygon &piece : result.pieces) {
+			for (const scp::Point &point : piece) {
+				const Vec2 q {point.x, point.y};
+				if (std::find(polygon.begin(), polygon.end(), q) != polygon.end()) continue;
+				for (std::size_t e = 0; e < polygon.size(); ++e) {
+					const Vec2 &a = polygon[e];
+					const Vec2 &b = polygon[(e + 1) % polygon.size()];
+					const long double length = std::hypot(static_cast<long double>(b.x) - a.x, static_cast<long double>(b.y) - a.y);
+					const long double cross = (static_cast<long double>(b.x) - a.x) * (static_cast<long double>(q.y) - a.y)
+						- (static_cast<long double>(b.y) - a.y) * (static_cast<long double>(q.x) - a.x);
+					const long double along = ((static_cast<long double>(q.x) - a.x) * (static_cast<long double>(b.x) - a.x)
+						+ (static_cast<long double>(q.y) - a.y) * (static_cast<long double>(b.y) - a.y)) / (length * length);
+					if (std::fabs(cross) > 1.0e-9L * length * std::max(1.0L, length) || along < 0.0L || along > 1.0L) continue;
+					if (!result.exact_coordinates) ++rounded_boundary_points;
+					expect(steiner_convex_partition::exact::orient(a, b, q) <= 0, name + ": boundary point on or outside its edge");
+				}
+			}
+		}
+	}
+
 	scp::Result run_checked(const scp::Polygon &polygon, const std::string &name, const scp::Options &options = {}) {
 		scp::Result result;
 		try {
@@ -55,6 +95,7 @@ namespace {
 		}
 		std::string reason;
 		expect(result.validated, name + ": validated");
+		check_cover(polygon, result, name);
 		if (result.exact_coordinates) {
 			expect(scp::is_convex_partition(polygon, result.pieces, &reason), name + ": independent check (" + reason + ")");
 		}
@@ -278,6 +319,7 @@ int main(int argc, char **argv) {
 	test_x4();
 	test_random(random_count, 12345u);
 	test_skylines(random_count, 777u);
+	std::cout << "rounded cut endpoints on the boundary checked: " << rounded_boundary_points << '\n';
 	std::cout << checks - failures << '/' << checks << " checks passed\n";
 	return failures == 0 ? 0 : 1;
 }

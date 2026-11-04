@@ -44,7 +44,16 @@ steiner_convex_partition::Result result = steiner_convex_partition::decompose(po
 - **Coordinates.** Polygon vertices and interior Steiner points are doubles
   and exact. A point where a cut meets an edge is rational and in general not
   a double; `pieces` then holds its rounded value and `exact_coordinates` is
-  false (the validation ran on the exact value).
+  false (the validation ran on the exact value). Every piece that has such a
+  point uses the same rounded value, on the polygon boundary it is rounded to
+  a double on or outside the edge, and such a piece is returned as its exact
+  convex hull. The pieces are then a convex cover of the polygon, exceeding it
+  and overlapping by at most rounding errors. This is what a branch and bound
+  needs from a decomposition: every point of the region lies in some piece.
+
+`nonconvex-tpp` uses it as an alternative to Greene's decomposition in its
+branch and bound (`tpp-unordered --decomposition steiner`); see
+[the algorithm document](../../docs/algorithms/steiner-convex-partition.md#use-in-the-branch-and-bound).
 
 Input: a simple polygon in either orientation; repeated consecutive vertices
 are ignored and straight (180°) vertices are allowed. Polygons that are not

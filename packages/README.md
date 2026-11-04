@@ -17,7 +17,9 @@ Outside that graph:
 
 - `steiner-convex-partition/`: minimum convex decomposition with Steiner points
   (Chazelle and Dobkin). Standalone on purpose, with its own exact arithmetic
-  and no dependencies; it is not yet used by the solvers. Its comparison with
+  and no dependencies. `nonconvex-tpp` links it as an alternative to Greene's
+  decomposition (`UnorderedTppSolveOptions::decomposition`, `tpp-unordered
+  --decomposition steiner`); Greene's stays the default. Its comparison with
   `optimal-convex-partition` is an optional test target.
 
 Benchmark input generation lives in `benchmarks/_internal/` (`gen_instances.py`,

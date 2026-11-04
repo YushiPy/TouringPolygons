@@ -119,6 +119,7 @@ int main(int argc, char **argv) {
 				std::cout << "Usage: tpp-unordered [--cycle] [--cycle-optimization cache|dual|features|lazy|root|branch|one-tree|learn|memo|bound-first|dual-screen|interval|share-bounds|proposal-bound|primal-starts] [--portfolio | --portfolio-no-sharing | --search-strategy best-bound|dfs-bfs] [--sequence-storage native|packed|deltas] [--threads N] [--absolute-gap N] [--relative-gap N] [--feasibility-tolerance N] [--oracle-relative-gap N] [--dive-interval N] [--endpoint-sum-root] [--detour-root] [--bidirectional-initial] [--sampled-perimeter-initial] [--convex-initial-refinement] [--initial-path] [--trace] [--oracle-capture FILE [--oracle-capture-every K] [--oracle-capture-min-seconds S]] [--progress-interval SECONDS]\n"
 					<< "stdin: sx sy tx ty polygon_count max_calls max_seconds, then each polygon's vertex count and coordinates. With --initial-path, append path point count and coordinates, including endpoints.\n";
 				std::cout << "--cycle solves TSPN: input endpoints are ignored; output and any initial path must be closed.\n";
+				std::cout << "--decomposition greene|steiner chooses the convex decomposition of nonconvex regions: Greene's dynamic program (default, polygon vertices only) or Chazelle and Dobkin's minimum decomposition with Steiner points.\n";
 				std::cout << "--no-oracle-dispatch-cache repeats exact polygon-pair classification for an ablation.\n";
 				std::cout << "--no-oracle-interval-geometry-cache repeats normalized rational-to-double conversion for an ablation.\n";
 				std::cout << "--no-prepared-visits repeats polygon/path preparation and contact queries for an ablation.\n";
@@ -150,6 +151,13 @@ int main(int argc, char **argv) {
                 continue;
             }
 			if (flag == "--cycle") {cycle = true; continue;}
+			if (flag == "--decomposition") {
+				if (++i >= argc) throw std::invalid_argument("Expected greene or steiner after --decomposition.");
+				const auto method = tpp::parse_convex_decomposition(argv[i]);
+				if (!method) throw std::invalid_argument(std::string("Unknown decomposition: ") + argv[i]);
+				options.decomposition = *method;
+				continue;
+			}
 			if (flag == "--no-oracle-dispatch-cache") {options.oracle_dispatch_cache=false;continue;}
 			if (flag == "--no-oracle-interval-geometry-cache") {options.oracle_interval_geometry_cache=false;continue;}
 			if (flag == "--borrow-oracle-geometry") {options.oracle_borrow_geometry=true;continue;}
@@ -536,6 +544,7 @@ int main(int argc, char **argv) {
 			<< ",\"sequence_depth_samples\":" << r.sequence_depth_samples
 			<< ",\"incumbent_updates\":" << r.incumbent_updates
 			<< ",\"best_updates\":" << r.best_updates
+			<< ",\"decomposition\":\"" << tpp::convex_decomposition_name(options.decomposition) << '"'
 			<< ",\"decomposed_polygons\":" << r.decomposed_polygons
 			<< ",\"convex_pieces_generated\":" << r.convex_pieces_generated
 			<< ",\"convex_pieces_min\":"; json_size(r.convex_pieces_min);

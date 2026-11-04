@@ -6,6 +6,8 @@
 // For every polygon: both piece counts, the time of each, and our exact
 // validation. A polygon where we use more pieces than Greene is a failure.
 
+#include "../src/exact.h"
+
 #include <optimal_convex_partition/optimal_convex_partition.h>
 #include <steiner_convex_partition/steiner_convex_partition.h>
 
@@ -88,6 +90,44 @@ namespace {
 		return notches;
 	}
 
+	// Rounded cut endpoints on a polygon edge lie on or outside it (so the pieces
+	// cover the polygon); returns the number of such points that do not.
+	std::size_t uncovered_boundary_points(const scp::Polygon &input, const scp::Result &result, std::size_t &checked) {
+		using steiner_convex_partition::exact::Vec2;
+		std::vector<Vec2> polygon;
+		for (const scp::Point &p : input) {
+			if (!polygon.empty() && polygon.back() == Vec2 {p.x, p.y}) continue;
+			polygon.push_back({p.x, p.y});
+		}
+		long double area = 0.0L;
+		for (std::size_t i = 0; i < polygon.size(); ++i) {
+			const Vec2 &a = polygon[i];
+			const Vec2 &b = polygon[(i + 1) % polygon.size()];
+			area += static_cast<long double>(a.x) * b.y - static_cast<long double>(b.x) * a.y;
+		}
+		if (area < 0) std::reverse(polygon.begin(), polygon.end());
+		std::size_t bad = 0;
+		for (const scp::Polygon &piece : result.pieces) {
+			for (const scp::Point &point : piece) {
+				const Vec2 q {point.x, point.y};
+				if (std::find(polygon.begin(), polygon.end(), q) != polygon.end()) continue;
+				for (std::size_t e = 0; e < polygon.size(); ++e) {
+					const Vec2 &a = polygon[e];
+					const Vec2 &b = polygon[(e + 1) % polygon.size()];
+					const long double length = std::hypot(static_cast<long double>(b.x) - a.x, static_cast<long double>(b.y) - a.y);
+					const long double cross = (static_cast<long double>(b.x) - a.x) * (static_cast<long double>(q.y) - a.y)
+						- (static_cast<long double>(b.y) - a.y) * (static_cast<long double>(q.x) - a.x);
+					const long double along = ((static_cast<long double>(q.x) - a.x) * (static_cast<long double>(b.x) - a.x)
+						+ (static_cast<long double>(q.y) - a.y) * (static_cast<long double>(b.y) - a.y)) / (length * length);
+					if (std::fabs(cross) > 1.0e-9L * length * std::max(1.0L, length) || along < 0.0L || along > 1.0L) continue;
+					++checked;
+					if (steiner_convex_partition::exact::orient(a, b, q) > 0) ++bad;
+				}
+			}
+		}
+		return bad;
+	}
+
 	double seconds_since(std::chrono::steady_clock::time_point start) {
 		return std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
 	}
@@ -137,6 +177,8 @@ int main(int argc, char **argv) {
 		std::size_t better_vertices = 0;
 		std::size_t worse = 0;
 		std::size_t inexact = 0;
+		std::size_t boundary_checked = 0;
+		std::size_t uncovered = 0;
 		std::size_t inconsistent = 0;
 		std::size_t greene_total = 0;
 		std::size_t ours_total = 0;
@@ -193,7 +235,15 @@ int main(int argc, char **argv) {
 				++invalid;
 				status = 1;
 			}
-			if (!ours.exact_coordinates) ++inexact;
+			if (!ours.exact_coordinates) {
+				++inexact;
+				const std::size_t bad = uncovered_boundary_points(polygon, ours, boundary_checked);
+				if (bad) {
+					std::cerr << file << " polygon " << index << ": " << bad << " rounded boundary points inside the polygon\n";
+					uncovered += bad;
+					status = 1;
+				}
+			}
 			if (ours.rotation_min_patterns != ours.rotation_max_patterns) ++inconsistent;
 			for (const scp::PatternSummary &pattern : ours.patterns) ++kinds[kind_name(pattern.kind)];
 			greene_total += greene.size();
@@ -247,7 +297,8 @@ int main(int argc, char **argv) {
 			<< "  ours better on " << better << " (with interior Steiner points " << better_interior
 			<< ", with cut endpoints on edges only " << better_boundary << ", with polygon vertices only " << better_vertices
 			<< "), worse on " << worse << ", invalid " << invalid << '\n'
-			<< "  inexact cut endpoints in " << inexact << ", rotation disagreement in " << inconsistent << '\n'
+			<< "  inexact cut endpoints in " << inexact << " (rounded boundary points checked " << boundary_checked
+			<< ", inside the polygon " << uncovered << "), rotation disagreement in " << inconsistent << '\n'
 			<< "  time: ours " << std::fixed << std::setprecision(2) << ours_time << " s, Greene " << greene_time
 			<< " s; slowest ours " << slowest << " s (polygon " << slowest_index << ")\n"
 			<< std::defaultfloat << "  patterns:";

@@ -40,6 +40,12 @@ tpp_geometry -> tpp_convex -> optimal_convex_partition -> tpp_nonconvex
 - `tpp_nonconvex`: fixed order with convex decomposition, and the free-order
   branch and bound for the TPP and the TSPN.
 
+`steiner_convex_partition` (standalone, no dependencies) is an alternative
+decomposition linked by `tpp_nonconvex`: Chazelle and Dobkin's minimum convex
+decomposition with Steiner points. Greene's stays the default;
+`tpp-unordered --decomposition steiner` selects the other
+([`docs/algorithms/steiner-convex-partition.md`](docs/algorithms/steiner-convex-partition.md)).
+
 The maintained dashboard is `apps/benchmark-dashboard`. `apps/siicusp34` is the
 static, self-contained page of the 34th SIICUSP (in Portuguese).
 

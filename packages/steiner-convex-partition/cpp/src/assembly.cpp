@@ -20,6 +20,26 @@ namespace steiner_convex_partition::detail {
 		using exact::BigInt;
 		using exact::HPoint;
 
+		// Counterclockwise hull with exact turns (collinear points dropped).
+		std::vector<Vec2> convex_hull(std::vector<Vec2> points) {
+			std::sort(points.begin(), points.end(), [](const Vec2 &a, const Vec2 &b) {
+				return a.x < b.x || (a.x == b.x && a.y < b.y);
+			});
+			points.erase(std::unique(points.begin(), points.end()), points.end());
+			if (points.size() < 3) return points;
+			std::vector<Vec2> hull;
+			for (int pass = 0; pass < 2; ++pass) {
+				const std::size_t floor = hull.size();
+				for (const Vec2 &p : points) {
+					while (hull.size() >= floor + 2 && exact::orient(hull[hull.size() - 2], hull.back(), p) <= 0) hull.pop_back();
+					hull.push_back(p);
+				}
+				hull.pop_back();
+				std::reverse(points.begin(), points.end());
+			}
+			return hull;
+		}
+
 		class Assembler {
 		public:
 			Assembler(const PolygonData &polygon, const std::vector<PatternGeometry> &patterns)
@@ -32,6 +52,7 @@ namespace steiner_convex_partition::detail {
 					}
 				}
 				for (const Vec2 &p : polygon.pts) add_double_point(p);
+				for (int v = 0; v < polygon.n; ++v) boundary_edges_[{v, (v + 1) % polygon.n}] = v;
 				std::vector<int> outer(static_cast<std::size_t>(polygon.n));
 				for (int v = 0; v < polygon.n; ++v) outer[static_cast<std::size_t>(v)] = v;
 				faces_.push_back(std::move(outer));
@@ -52,14 +73,24 @@ namespace steiner_convex_partition::detail {
 					}
 				}
 
+				round_boundary_points_outward();
 				for (const std::vector<int> &face : faces_) {
-					Polygon piece;
-					piece.reserve(face.size());
+					std::vector<Vec2> ring;
+					ring.reserve(face.size());
+					bool rounded = false;
 					for (int id : face) {
-						const Vec2 &p = approx_[static_cast<std::size_t>(id)];
-						piece.push_back({p.x, p.y});
-						if (!exact_double_[static_cast<std::size_t>(id)]) output.exact_coordinates = false;
+						ring.push_back(approx_[static_cast<std::size_t>(id)]);
+						if (!exact_double_[static_cast<std::size_t>(id)]) rounded = true;
 					}
+					// A rounded point can leave the piece reflex by a rounding error; its
+					// hull is convex and still covers it.
+					if (rounded) {
+						output.exact_coordinates = false;
+						ring = convex_hull(std::move(ring));
+					}
+					Polygon piece;
+					piece.reserve(ring.size());
+					for (const Vec2 &p : ring) piece.push_back({p.x, p.y});
 					output.pieces.push_back(std::move(piece));
 				}
 				output.cut_endpoints = cut_endpoints_;
@@ -97,6 +128,11 @@ namespace steiner_convex_partition::detail {
 			std::vector<char> exact_double_;
 			std::map<std::pair<double, double>, int> steiner_ids_;
 			std::vector<std::vector<int>> faces_;
+			// Face edges on the polygon boundary, counterclockwise, with the index of
+			// the polygon edge that contains them.
+			std::map<std::pair<int, int>, int> boundary_edges_;
+			// Inexact cut endpoints on the boundary and their polygon edge.
+			std::map<int, int> boundary_points_;
 			std::size_t cut_endpoints_ = 0;
 			std::string failure_;
 
@@ -254,6 +290,39 @@ namespace steiner_convex_partition::detail {
 				return false;
 			}
 
+			// A cut endpoint that is not a double is rounded in the output. Every face
+			// that has it uses the same rounded point, so the rounded pieces still
+			// tile their union; on the polygon boundary the point is rounded to a
+			// double on or outside its edge, so that union covers the polygon (a
+			// piece may turn reflex by a rounding error; its convex hull covers it).
+			void round_boundary_points_outward() {
+				for (const auto &[id, edge] : boundary_points_) {
+					const std::size_t k = static_cast<std::size_t>(id);
+					if (exact_double_[k]) continue;
+					const Vec2 &a = polygon_.at(edge);
+					const Vec2 &b = polygon_.at(edge + 1);
+					const Vec2 near = approx_[k];
+					Vec2 best = near;
+					long double best_distance = INFINITY;
+					for (int dx = -2; dx <= 2; ++dx) {
+						for (int dy = -2; dy <= 2; ++dy) {
+							Vec2 q = near;
+							for (int t = 0; t < std::abs(dx); ++t) q.x = std::nextafter(q.x, dx < 0 ? -INFINITY : INFINITY);
+							for (int t = 0; t < std::abs(dy); ++t) q.y = std::nextafter(q.y, dy < 0 ? -INFINITY : INFINITY);
+							if (exact::orient(a, b, q) > 0) continue;
+							const long double ex = static_cast<long double>(q.x) - near.x;
+							const long double ey = static_cast<long double>(q.y) - near.y;
+							const long double distance = ex * ex + ey * ey;
+							if (distance < best_distance) {
+								best_distance = distance;
+								best = q;
+							}
+						}
+					}
+					approx_[k] = best;
+				}
+			}
+
 			// Removes the reflex angle at polygon vertex v, if it is still there.
 			bool cut_notch(int v) {
 				for (std::size_t f = 0; f < faces_.size(); ++f) {
@@ -345,7 +414,16 @@ namespace steiner_convex_partition::detail {
 					target = add_point(best_hit->first);
 					++cut_endpoints_;
 					face.insert(face.begin() + static_cast<std::ptrdiff_t>(e + 1), target);
-					insert_into_twin(f, u, w, target);
+					const auto on_boundary = boundary_edges_.find({u, w});
+					if (on_boundary != boundary_edges_.end()) {
+						const int edge = on_boundary->second;
+						boundary_edges_.erase(on_boundary);
+						boundary_edges_[{u, target}] = edge;
+						boundary_edges_[{target, w}] = edge;
+						boundary_points_[target] = edge;
+					} else {
+						insert_into_twin(f, u, w, target);
+					}
 				}
 				return insert_chord({v, target});
 			}

@@ -57,7 +57,11 @@ namespace steiner_convex_partition {
 	struct Result {
 		// Counterclockwise convex pieces. A vertex is exact unless it is a point
 		// where a cut meets an edge and that point is not a double; such points
-		// are rounded here and `exact_coordinates` is false.
+		// are rounded here and `exact_coordinates` is false. All pieces share each
+		// rounded point, on the polygon boundary it is rounded to the outside, and
+		// a piece with a rounded point is replaced by its convex hull: the pieces
+		// are then a convex cover of the polygon, exceeding it and overlapping by
+		// at most rounding errors.
 		Partition pieces;
 		std::size_t notch_count = 0;
 		// Number p of patterns used; pieces.size() == notch_count + 1 - p.
