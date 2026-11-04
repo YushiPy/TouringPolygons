@@ -194,6 +194,60 @@ Each insertion splits one face, so the faces tile P by construction. Then
 - the doubled areas add up. This uses exact fractions grouped by denominator,
   with a long double check above 48 distinct denominators.
 
+## Use in the branch and bound
+
+`tpp::decompose_polygon(polygon, method)` (`nonconvex-tpp`) chooses Greene's
+port (`greene`, the default) or this decomposition (`steiner`). The free-order
+TPP and TSPN branch and bound (`UnorderedTppSolveOptions::decomposition`,
+`tpp-unordered --decomposition steiner`) and the fixed-order solver
+(`NonconvexTppSolveOptions::decomposition`) pass it on. The branch and bound
+decomposes a region lazily, when it first branches on its pieces.
+
+What the search needs, and why it holds:
+
+- **Lower bounds** need every point of the region to lie in some piece. The
+  pieces tile the region exactly; with rounded cut endpoints they are a convex
+  cover (see the output coordinates above).
+- **Upper bounds** are checked against the original regions (`covered`, with
+  the feasibility tolerance), never against pieces.
+- **Robustness.** The independent validation is skipped there (`validate =
+  false`), because each insertion and each piece is already checked exactly
+  while the partition is built, and the validation would add about 30%. A
+  region the library rejects as not simple (two of Fekete's 16,303 polygons
+  cross themselves) gets Greene's decomposition, as before.
+
+The tests solve every exhaustive free-order and TSPN case with both
+decompositions and compare them with the exhaustive optimum over the pieces of
+each decomposition.
+
+**Effect on time** (Fekete's 558 instances, 2026-11-04;
+[`benchmarks/results-saved`](../../benchmarks/results-saved/README.md#steiner-decomposition-cloud-2026-11-04)):
+
+- The decomposition itself is slower: decomposing every nonconvex polygon of
+  every instance takes 5.44 s against 3.27 s (1.9× per instance, geometric
+  mean, from 0.3× to 8.7×), for 1.6% fewer pieces.
+- In the TSPN search it stays a small share: 1.3% of the solve time against
+  0.4%. It is visible only on instance 553, whose 34 large nonconvex polygons
+  are all decomposed (0.56 → 1.87 s).
+- The search does not change measurably. With the same bounds on all 556
+  instances closed by both, nodes change by 0.04% overall. Of the 43
+  instances where it decomposes into fewer pieces, 30 expand exactly the same
+  nodes and the others move between −6% and +1.4%. On the 85 instances
+  that take at least 0.5 s or get different pieces (median of 3 runs), the
+  time without the decomposition is 152.8 s against 152.9 s.
+- The free-order TPP (one run) behaves the same: both close the same 551
+  instances. Nodes change by −0.06%, and the decomposition goes from 0.30 to
+  0.45 s, 0.08% to 0.12% of the solve time. The total, 384.5 against
+  390.1 s, is within the noise of the shared machine.
+
+The search branches almost only on the visiting order. In the TSPN run,
+decomposition branches are 0.08% of the branch events (2,173 against 2.79
+million insertions), and 0.07% in the TPP run. Only 198 of the 556 instances decompose any region, 602
+regions in all, at 4.4 pieces each, and the Steiner decomposition saves 42 of
+their 2,640 pieces. Greene therefore stays the default. The option is there
+for searches that branch more on pieces, and for regions where it removes
+many pieces.
+
 ## Status of exactness and limitations
 
 - **Validity**: exact, always checked; a failure throws `std::logic_error`.
