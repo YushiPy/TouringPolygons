@@ -23,6 +23,21 @@ namespace optimal_convex_partition {
 
 	namespace {
 
+		// Read once: the DP checks these in its inner loops, and getenv scans the
+		// whole environment on every call.
+		struct DebugFlags {
+			bool partition = std::getenv("OCP_DEBUG") != nullptr;
+			bool dp = std::getenv("OCP_DEBUG_DP") != nullptr;
+			bool orientation = std::getenv("OCP_DEBUG_ORIENTATION") != nullptr;
+			bool traversal = std::getenv("OCP_DEBUG_PARTITION") != nullptr;
+			bool visibility = std::getenv("OCP_DEBUG_VIS") != nullptr;
+		};
+
+		const DebugFlags &debug() {
+			static const DebugFlags flags;
+			return flags;
+		}
+
 		enum class Orientation {
 			right,
 			collinear,
@@ -37,7 +52,7 @@ namespace optimal_convex_partition {
 		};
 
 		using Diagonal = std::pair<unsigned int, unsigned int>;
-		using DiagonalList = std::list<Diagonal>;
+		using DiagonalList = std::vector<Diagonal>;
 
 		struct Edge {
 			bool done = false;
@@ -65,7 +80,7 @@ namespace optimal_convex_partition {
 
 		struct VertexState {
 			unsigned int vertex = 0;
-			std::list<StackRecord> stack;
+			std::vector<StackRecord> stack;
 			// In the proper-diagonal pass: the best record popped so far, which stays
 			// feasible for every later extension; unreachable until there is one,
 			// except at the piece's first vertex. Records are then pushed with
@@ -79,7 +94,7 @@ namespace optimal_convex_partition {
 				return stack.empty();
 			}
 
-			StackRecord stack_top() const {
+			const StackRecord &stack_top() const {
 				return stack.back();
 			}
 
@@ -93,7 +108,7 @@ namespace optimal_convex_partition {
 			}
 
 			void stack_pop() {
-				best_so_far = stack.back();
+				best_so_far = std::move(stack.back());
 				stack.pop_back();
 			}
 		};
@@ -270,14 +285,14 @@ namespace optimal_convex_partition {
 		                const Polygon &polygon,
 		                DiagonalList &diag_list) {
 			StackRecord best = pivot_vertex.best_so_far;
-			if (std::getenv("OCP_DEBUG_DP") != nullptr) {
+			if (debug().dp) {
 				std::cerr << "best pivot=" << pivot_vertex.vertex << " extension=" << extension
 					<< " initial=(" << best.vertex << ", " << best.value << ")\n";
 			}
 
 			while (!pivot_vertex.stack_empty()) {
-				StackRecord old = pivot_vertex.stack_top();
-				if (std::getenv("OCP_DEBUG_DP") != nullptr) {
+				const StackRecord &old = pivot_vertex.stack_top();
+				if (debug().dp) {
 					std::cerr << "  old=(" << old.vertex << ", " << old.value << ") right_turn="
 						<< right_turn(polygon[old.vertex], polygon[pivot_vertex.vertex], polygon[extension]) << '\n';
 				}
@@ -363,13 +378,14 @@ namespace optimal_convex_partition {
 						+ best_so_far(v_list[static_cast<size_t>(previous)], current_vertex, polygon, diag_list2);
 				}
 
-				diag_list1.splice(diag_list1.end(), diag_list2);
+				diag_list1.insert(diag_list1.end(), diag_list2.begin(), diag_list2.end());
+				diag_list2.clear();
 				if (proper_only) {
 					v_list[static_cast<size_t>(current)].stack_record(previous_vertex, num_polygons, diag_list1);
 				} else {
 					v_list[static_cast<size_t>(current)].stack_push(previous_vertex, num_polygons, diag_list1);
 				}
-				if (std::getenv("OCP_DEBUG_DP") != nullptr) {
+				if (debug().dp) {
 					std::cerr << "load current=" << current_vertex << " previous=" << previous_vertex
 						<< " num=" << num_polygons << " diagonals:";
 					for (const auto &[a, b] : diag_list1) {
@@ -405,7 +421,7 @@ namespace optimal_convex_partition {
 					v_list.emplace_back(e_num);
 				}
 			}
-			if (std::getenv("OCP_DEBUG_DP") != nullptr) {
+			if (debug().dp) {
 				std::cerr << "decompose " << edge_num1 << '-' << edge_num2 << " v_list:";
 				for (const auto &vertex : v_list) {
 					std::cerr << ' ' << vertex.vertex;
@@ -442,7 +458,7 @@ namespace optimal_convex_partition {
 				);
 			}
 			diag_list.push_back({edge_num1, edge_num2});
-			if (std::getenv("OCP_DEBUG_DP") != nullptr) {
+			if (debug().dp) {
 				std::cerr << "decompose " << edge_num1 << '-' << edge_num2 << " result=" << num_pieces
 					<< " diagonals:";
 				for (const auto &[a, b] : diag_list) {
@@ -475,7 +491,7 @@ namespace optimal_convex_partition {
 			}
 
 			void dump_diagonals(const char *label) const {
-				if (std::getenv("OCP_DEBUG") == nullptr) {
+				if (!debug().partition) {
 					return;
 				}
 
@@ -559,7 +575,7 @@ namespace optimal_convex_partition {
 			                          std::vector<size_t> &current_diag,
 			                          Partition &result,
 			                          size_t &recursion_budget) const {
-				if (std::getenv("OCP_DEBUG_PARTITION") != nullptr) {
+				if (debug().traversal) {
 					std::cerr << "make_polygon start=" << start << '\n';
 				}
 				if (recursion_budget-- == 0) {
@@ -576,7 +592,7 @@ namespace optimal_convex_partition {
 					}
 
 					new_polygon.push_back(polygon[next]);
-					if (std::getenv("OCP_DEBUG_PARTITION") != nullptr) {
+					if (debug().traversal) {
 						std::cerr << "  add " << next << '\n';
 					}
 
@@ -588,12 +604,12 @@ namespace optimal_convex_partition {
 							throw std::runtime_error("partition traversal reached invalid diagonal endpoint");
 						}
 						++current_diag[next];
-						if (std::getenv("OCP_DEBUG_PARTITION") != nullptr) {
+						if (debug().traversal) {
 							std::cerr << "  diag " << next << " -> " << diag << '\n';
 						}
 
 						if (diag == start) {
-							if (std::getenv("OCP_DEBUG_PARTITION") != nullptr) {
+							if (debug().traversal) {
 								std::cerr << "  close at " << next << '\n';
 							}
 							result.push_back(std::move(new_polygon));
@@ -932,7 +948,7 @@ namespace optimal_convex_partition {
 				if (!less_xy(a, b)) {
 					std::swap(a, b);
 				}
-				if (std::getenv("OCP_DEBUG_VIS") != nullptr) {
+				if (debug().visibility) {
 					std::cerr << "insert edge (" << a.x << ", " << a.y << ") ("
 						<< b.x << ", " << b.y << ")\n";
 				}
@@ -1171,7 +1187,7 @@ namespace optimal_convex_partition {
 				if (p_it == vertex_map.end() || q_it == vertex_map.end()) {
 					return;
 				}
-				if (std::getenv("OCP_DEBUG_VIS") != nullptr) {
+				if (debug().visibility) {
 					std::cerr << "handle p_node=" << p_node << " q_node=" << q_node
 						<< " p_idx=" << p_it->second.first << " q_idx=" << q_it->second.first
 						<< " p=(" << p_it->first.x << ", " << p_it->first.y << ")"
@@ -1458,7 +1474,7 @@ namespace optimal_convex_partition {
 					make_collinear_vertices_visible(polygon, edges);
 				}
 
-				if (std::getenv("OCP_DEBUG") != nullptr) {
+				if (debug().partition) {
 					std::cerr << "visible edges:";
 					for (size_t a = 0; a < polygon.size(); ++a) {
 						for (size_t b = a + 1; b < polygon.size(); ++b) {
@@ -1482,7 +1498,7 @@ namespace optimal_convex_partition {
 			const size_t prev = left == 0 ? polygon.size() - 1 : left - 1;
 			const size_t next = (left + 1) % polygon.size();
 			const Orientation result = orientation_strict(polygon[prev], polygon[left], polygon[next]);
-			if (std::getenv("OCP_DEBUG_ORIENTATION") != nullptr) {
+			if (debug().orientation) {
 				std::cerr << "orientation left=" << left << " prev=" << prev << " next=" << next
 					<< " result=" << static_cast<int>(result)
 					<< " prev_pt=(" << polygon[prev].x << ", " << polygon[prev].y << ")"
@@ -1508,7 +1524,7 @@ namespace optimal_convex_partition {
 				graph.insert_diagonal(a, b);
 			}
 
-			if (std::getenv("OCP_DEBUG") != nullptr) {
+			if (debug().partition) {
 				std::cerr << "raw diagonal list:";
 				for (const auto &[a, b] : diag_list) {
 					std::cerr << " (" << a << ", " << b << ')';
