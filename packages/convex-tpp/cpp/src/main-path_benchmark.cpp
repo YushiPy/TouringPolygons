@@ -4,9 +4,10 @@
 //
 // usage: tpp-convex-path-benchmark INPUT.json REPETITIONS
 // INPUT.json: {"instances": [{"name": ..., "start": [x, y], "target": [x, y],
-//              "polygons": [[[x, y], ...], ...]}]}
-// One JSON line per instance and repetition. The solvers run in a rotating
-// order within each repetition:
+//              "polygons": [[[x, y], ...], ...], "runs": [...]}]}
+// One JSON line per instance and repetition. The solvers named in "runs"
+// (default: the first five below) run in a rotating order within each
+// repetition:
 //   certified     tpp_convex_solve_hybrid with max_gap 0: the complete
 //                 propose-and-certify flow, optimal when it reports L = U;
 //   tolerant      the same with max_gap 1e-6 times the length of the path
@@ -15,7 +16,12 @@
 //                 cones on demand or all of them first, with the number of
 //                 cones built (Solution::build_cone or the directional maps);
 //   gurobi        the SOCP with unit normals, default parameters, one thread,
-//                 the model built at every call (as Fekete et al.'s oracle).
+//                 the model built at every call (as Fekete et al.'s oracle);
+//   tan_jiang     Tan and Jiang's construction (tan_jiang.cpp): every cone,
+//                 the vertices of each polygon located together by monotone
+//                 scans. Disjoint polygons only; otherwise the solver falls
+//                 back to the lazy search, which shows as fewer cones than
+//                 vertices.
 // Calls shorter than 0.05 s are repeated back to back; "seconds" is the first
 // call and "mean" the average of the block that follows it.
 //
@@ -220,21 +226,36 @@ int main(int argc,char **argv) {
             for(const auto &region:p){Vector2 c{0,0};for(auto v:region)c=c+v;c=c*(1.0/region.size());const auto d=c-previous;scale+=std::sqrt(d.dot(d));previous=c;}
             {const auto d=t-previous;scale+=std::sqrt(d.dot(d));}
             const double tolerance=1e-6*scale;
+            std::vector<std::string> runs;
+            if(const auto listed=item.get_child_optional("runs"))
+                for(const auto &[key2,run]:*listed)runs.push_back(run.get_value<std::string>());
+            if(runs.empty())runs={"certified","tolerant","lazy","eager","gurobi"};
+            for(const auto &run:runs)
+                if(run!="certified"&&run!="tolerant"&&run!="lazy"&&run!="eager"&&run!="tan_jiang"&&run!="gurobi")
+                    throw std::invalid_argument("unknown run "+run);
             // Warm-up: first touch of the code and of Gurobi's environment.
             certified(s,t,p,0);
             for(int repeat=0;repeat<repeats;++repeat) {
-                OursRun exact,tolerant;Construction lazy,eager;GurobiRun socp;
-                for(int turn=0;turn<5;++turn) {
-                    const int which=(turn+repeat)%5;
-                    if(which==0)exact=certified(s,t,p,0);
-                    if(which==1)tolerant=certified(s,t,p,tolerance);
-                    if(which==2)lazy=construction([&]{return tpp::tpp_convex_solve_length_binary_search_lazy(s,t,p);});
-                    if(which==3)eager=construction([&]{return tpp::tpp_convex_solve_length_binary_search_eager(s,t,p);});
-                    if(which==4)socp=gurobi(s,t,p,env);
+                OursRun exact,tolerant;Construction lazy,eager,batch;GurobiRun socp;
+                for(size_t turn=0;turn<runs.size();++turn) {
+                    const auto &which=runs[(turn+size_t(repeat))%runs.size()];
+                    if(which=="certified")exact=certified(s,t,p,0);
+                    if(which=="tolerant")tolerant=certified(s,t,p,tolerance);
+                    if(which=="lazy")lazy=construction([&]{return tpp::tpp_convex_solve_length_binary_search_lazy(s,t,p);});
+                    if(which=="eager")eager=construction([&]{return tpp::tpp_convex_solve_length_binary_search_eager(s,t,p);});
+                    if(which=="tan_jiang")batch=construction([&]{return tpp::tpp_convex_solve_length_tan_jiang(s,t,p);});
+                    if(which=="gurobi")socp=gurobi(s,t,p,env);
                 }
                 std::cout<<"{\"name\":\""<<name<<"\",\"k\":"<<p.size()<<",\"vertices\":"<<vertices<<",\"largest\":"<<largest
                     <<",\"repeat\":"<<repeat<<",\"tolerance\":"<<tolerance;
-                print("certified",exact);print("tolerant",tolerant);print("lazy",lazy);print("eager",eager);print(socp);
+                for(const auto &run:runs) {
+                    if(run=="certified")print("certified",exact);
+                    if(run=="tolerant")print("tolerant",tolerant);
+                    if(run=="lazy")print("lazy",lazy);
+                    if(run=="eager")print("eager",eager);
+                    if(run=="tan_jiang")print("tan_jiang",batch);
+                    if(run=="gurobi")print(socp);
+                }
                 std::cout<<"}"<<std::endl;
             }
         }

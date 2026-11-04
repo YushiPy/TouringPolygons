@@ -862,12 +862,21 @@ A lógica vive em `benchmarks/_internal/paper1_experiments.py`. As etapas, nesta
 | `vertex-scaling` | uma chamada do ciclo com k = 3, 5 e 10 regiões e até 32.768 pontos por região, contra o Gurobi |
 | `anchor-probes` | o caminho exato nas chamadas capturadas: TPPs ancorados e sondas, com e sem a construção |
 | `no-polish` | o B&B com e sem o polimento por pontos interiores (`--no-cycle-polish`), 60 s, as 558 instâncias |
+| `paths-fine` | caminhos numa grade mais fina (2⁻³⁰), com até 32.768 vértices por polígono, 5 sementes: o oráculo certificado contra o Gurobi e, nos disjuntos, as construções sozinhas, incluindo a de Tan e Jiang (`tan_jiang`) |
+| `vertex-scaling-fine` | `vertex-scaling` na grade fina, até 131.072 pontos por região (a grade de 2⁻¹³ limita as regiões a cerca de mil vértices) |
 | `summary` | `summary.json`, `summary.md` e um `.tar.gz` com as saídas (sem entradas e logs) |
 
 Cada etapa grava `done.json` e é pulada ao rodar de novo; as que escrevem um arquivo por
 caso retomam caso a caso. `--only ETAPA` e `--redo ETAPA` escolhem etapas. Os processos
 de medição rodam um por núcleo físico, presos a ele no Linux. A saída fica em
-`workspace/experiments/paper1/<host>-<commit>/`. Na armijo, a estimativa é de 2 a 3 h.
+`workspace/experiments/paper1/<host>-<commit>/`. Na armijo, a primeira execução levou 20 min.
+
+`paths-fine` e `vertex-scaling-fine` entraram depois (4/11/2026). Para rodá-las sobre uma
+saída anterior, recompilando as ferramentas e refazendo o resumo:
+
+```bash
+python3 benchmarks/tpp.py paper1-experiments --output benchmarks/workspace/experiments/paper1/armijo-ba8c122 --redo build
+```
 
 ## Preservação de resultados
 

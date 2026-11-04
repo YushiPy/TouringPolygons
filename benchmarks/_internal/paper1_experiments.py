@@ -23,7 +23,17 @@ step killed midway resumes case by case where it writes one file per case):
   vertex-scaling   one cycle call as the vertices per region grow, against Gurobi
   anchor-probes    the exact path on captured calls: anchored solves and probes
   no-polish        the B&B with and without the interior-point polish (60 s)
+  paths-fine       paths on a finer grid (2^-30), so polygons keep up to
+                   32768 vertices: the certified oracle against Gurobi, and on
+                   disjoint polygons the constructions alone, Tan and Jiang's
+                   included (added 2026-11-04)
+  vertex-scaling-fine  vertex-scaling on the finer grid, up to 131072 points
+                   per region (added 2026-11-04)
   summary          summary.json, summary.md and a tarball of the outputs
+
+Steps added later run on an earlier output directory with
+    python3 benchmarks/tpp.py paper1-experiments --output DIR --redo build
+which rebuilds the tools, skips the steps already done and redoes the summary.
 
 Output: benchmarks/workspace/experiments/paper1/<host>-<commit>[-smoke]/.
 Timing steps run one process per physical core, pinned on Linux.
@@ -197,11 +207,15 @@ def exact_hull(points: list[tuple[int, int]]) -> list[tuple[int, int]]:
 
 
 SCALE = 2 ** 13
+# The finer grid of the later steps: 2^-13 keeps at most about 1000 hull
+# vertices on a unit circle; 2^-30 keeps nearly all of 131072 points, and the
+# coordinates (below 2^8) still have at most 38 significant bits.
+FINE_SCALE = 2 ** 30
 
 
 def convex_polygon(rng: random.Random, center: tuple[float, float], radius: float, m: int,
-		aspect: float = 1.0) -> list[list[float]]:
-	"""The exact hull of m integer points (coordinates times 2^13) on an ellipse:
+		aspect: float = 1.0, scale: int = SCALE) -> list[list[float]]:
+	"""The exact hull of m integer points (coordinates times `scale`) on an ellipse:
 	convex by construction, with about m vertices; binary64-exact coordinates."""
 	rotation = rng.uniform(0, math.pi)
 	points = []
@@ -209,32 +223,54 @@ def convex_polygon(rng: random.Random, center: tuple[float, float], radius: floa
 		angle = rng.uniform(0, 2 * math.pi)
 		x, y = radius * math.cos(angle), radius * aspect * math.sin(angle)
 		x, y = x * math.cos(rotation) - y * math.sin(rotation), x * math.sin(rotation) + y * math.cos(rotation)
-		points.append((round((center[0] + x) * SCALE), round((center[1] + y) * SCALE)))
-	return [[px / SCALE, py / SCALE] for px, py in exact_hull(points)]
+		points.append((round((center[0] + x) * scale), round((center[1] + y) * scale)))
+	return [[px / scale, py / scale] for px, py in exact_hull(points)]
+
+
+FAMILIES = {"disjoint": (2.4, 1.5), "intersecting": (1.1, 0.3)}
+
+
+def path_instance(family: str, k: int, m: int, seed: int, scale: int = SCALE) -> dict:
+	"""k polygons between s and t. Disjoint: centers 2.4 apart in x (radii at
+	most 1). Intersecting: 1.1 apart, so consecutive polygons overlap."""
+	spacing, wobble = FAMILIES[family]
+	rng = random.Random(f"{family}-{k}-{m}-{seed}")
+	polygons = [convex_polygon(rng, (i * spacing, rng.uniform(-wobble, wobble)), rng.uniform(0.6, 1.0), m,
+		rng.uniform(0.5, 1.0), scale) for i in range(k)]
+	return {"name": f"{family}-k{k}-m{m}-s{seed}", "family": family, "k": k, "m": m,
+		"start": [-2.0, rng.uniform(-1, 1)], "target": [(k - 1) * spacing + 2.0, rng.uniform(-1, 1)],
+		"polygons": polygons}
 
 
 def path_instances(smoke: bool) -> list[dict]:
-	"""Section 7.1: k polygons between s and t. Disjoint: centers 2.4 apart in x
-	(radii at most 1). Intersecting: 1.1 apart, so consecutive polygons overlap."""
+	"""Section 7.1, Table 1."""
 	ks, ms, seeds = ((4, 8), (8, 64), 1) if smoke else ((4, 8, 16, 32, 64), (8, 64, 512, 4096), 10)
-	instances = []
-	for family, spacing, wobble in (("disjoint", 2.4, 1.5), ("intersecting", 1.1, 0.3)):
-		for k in ks:
-			for m in ms:
-				for seed in range(seeds):
-					rng = random.Random(f"{family}-{k}-{m}-{seed}")
-					polygons = [convex_polygon(rng, (i * spacing, rng.uniform(-wobble, wobble)), rng.uniform(0.6, 1.0), m,
-						rng.uniform(0.5, 1.0)) for i in range(k)]
-					instances.append({"name": f"{family}-k{k}-m{m}-s{seed}", "family": family, "k": k, "m": m,
-						"start": [-2.0, rng.uniform(-1, 1)], "target": [(k - 1) * spacing + 2.0, rng.uniform(-1, 1)],
-						"polygons": polygons})
-	return instances
+	return [path_instance(family, k, m, seed) for family in FAMILIES for k in ks for m in ms for seed in range(seeds)]
 
 
-def cycle_instances(smoke: bool) -> list[dict]:
+def fine_path_plan(smoke: bool) -> list[tuple[str, int, int, int, list[str]]]:
+	"""(family, k, m, seed, runs) of paths-fine. Disjoint: every construction,
+	Tan and Jiang's included, over the whole range. Intersecting: only the
+	certified oracle and Gurobi on large polygons (the exact construction alone
+	is in paths-random, and takes minutes here)."""
+	if smoke:
+		disjoint, intersecting, seeds = ((4, 8), (8, 512)), ((4,), (512,)), 1
+	else:
+		disjoint, intersecting, seeds = ((4, 8, 16, 32, 64), (8, 64, 512, 4096, 32768)), ((4, 16, 64), (512, 4096, 32768)), 5
+	plan = [("disjoint", k, m, seed, ["certified", "tolerant", "lazy", "eager", "tan_jiang", "gurobi"])
+		for k in disjoint[0] for m in disjoint[1] for seed in range(seeds)]
+	plan += [("intersecting", k, m, seed, ["certified", "tolerant", "gurobi"])
+		for k in intersecting[0] for m in intersecting[1] for seed in range(seeds)]
+	return plan
+
+
+def cycle_instances(smoke: bool, fine: bool = False) -> list[dict]:
 	"""Section 7.2, as oracle-vertex-scaling-2026-10-21: k disjoint regions on a
 	circle, each the hull of m points on a disk or an ellipse."""
 	ks, ms, samples = ((3,), (8, 128), 1) if smoke else ((3, 5, 10), (8, 32, 128, 512, 2048, 8192, 32768), 2)
+	if fine:
+		ms = (8, 2048) if smoke else (8, 32, 128, 512, 2048, 8192, 32768, 131072)
+	scale = FINE_SCALE if fine else SCALE
 	instances = []
 	for k in ks:
 		for m in ms:
@@ -243,7 +279,7 @@ def cycle_instances(smoke: bool) -> list[dict]:
 					rng = random.Random(f"cycle-{k}-{m}-{shape}-{sample}")
 					ring = 3.0 * k / math.pi
 					polygons = [convex_polygon(rng, (ring * math.cos(2 * math.pi * i / k), ring * math.sin(2 * math.pi * i / k)),
-						1.0, m, 1.0 if shape == "disk" else 0.4) for i in range(k)]
+						1.0, m, 1.0 if shape == "disk" else 0.4, scale) for i in range(k)]
 					instances.append({"name": f"cycle-k{k}-m{m}-{shape}-{sample}", "polygons": polygons})
 	return instances
 
@@ -417,9 +453,9 @@ def replay_step(context: Context, step: str, source: str, tool: str) -> dict:
 	return {"captures": len(tasks), "failures": run_parallel(context, tasks, step)}
 
 
-def step_vertex_scaling(context: Context) -> dict:
-	directory = context.step_dir("vertex-scaling")
-	instances = cycle_instances(context.smoke)
+def step_vertex_scaling(context: Context, step: str = "vertex-scaling", fine: bool = False) -> dict:
+	directory = context.step_dir(step)
+	instances = cycle_instances(context.smoke, fine)
 	tasks = []
 	for item in instances:
 		path = directory / "inputs" / f"{item['name']}.json"
@@ -428,7 +464,38 @@ def step_vertex_scaling(context: Context) -> dict:
 		tasks.append({"command": [str(context.tools["tpp-convex-vertex-scaling"]), str(path), "1" if context.smoke else "3"],
 			"stdout": directory / f"{item['name']}.jsonl"})
 	tasks.sort(key=lambda task: -sum(len(polygon) for polygon in json.loads(Path(task["command"][1]).read_text())["instances"][0]["polygons"]))
-	return {"instances": len(instances), "failures": run_parallel(context, tasks, "vertex-scaling")}
+	result = {"instances": len(instances), "failures": run_parallel(context, tasks, step)}
+	if fine:
+		result["git"] = workspace.git_state()
+	return result
+
+
+def step_paths_fine(context: Context) -> dict:
+	"""Like paths-random on the finer grid; the inputs (up to ~50 MB each) go
+	under inputs/, which the tarball leaves out, and are deleted once run."""
+	directory = context.step_dir("paths-fine")
+	plan = fine_path_plan(context.smoke)
+	(directory / "plan.json").write_text(json.dumps([{"family": f, "k": k, "m": m, "seed": seed, "runs": runs}
+		for f, k, m, seed, runs in plan]))
+	ordered = sorted(plan, key=lambda item: -item[1] * item[2])
+	shards = [ordered[index::context.workers] for index in range(context.workers)]
+	tasks = []
+	for index, shard in enumerate(shards):
+		if not shard:
+			continue
+		path = directory / "inputs" / f"shard-{index:02d}.json"
+		stdout = directory / f"shard-{index:02d}.jsonl"
+		if not Path(str(stdout) + ".done").exists():
+			path.parent.mkdir(parents=True, exist_ok=True)
+			path.write_text(json.dumps({"instances": [{**path_instance(f, k, m, seed, FINE_SCALE), "runs": runs}
+				for f, k, m, seed, runs in shard]}))
+		tasks.append({"command": [str(context.tools["tpp-convex-path-benchmark"]), str(path), "1" if context.smoke else "3"],
+			"stdout": stdout})
+	failures = run_parallel(context, tasks, "paths-fine")
+	if not failures:
+		import shutil
+		shutil.rmtree(directory / "inputs", ignore_errors=True)
+	return {"instances": len(plan), "failures": failures, "scale": FINE_SCALE, "git": workspace.git_state()}
 
 
 def step_anchor_probes(context: Context) -> dict:
@@ -492,11 +559,46 @@ def count_by(values) -> dict:
 	return dict(sorted(out.items()))
 
 
+def path_table(rows: list[dict]) -> list[dict]:
+	"""Rows of tpp-convex-path-benchmark grouped by family, k and m (from the
+	name): medians over seeds and repetitions, with whichever runs are present."""
+	groups: dict = {}
+	for row in rows:
+		family, k, m = row["name"].split("-")[:3]  # disjoint-k4-m8-s0
+		groups.setdefault((family, int(k[1:]), int(m[1:])), []).append(row)
+	table = []
+	for (family, k, m), group in sorted(groups.items()):
+		entry = {"family": family, "k": k, "m": m, "rows": len(group), "vertices": median(r["vertices"] for r in group)}
+		for run in ("certified", "tolerant", "lazy", "eager", "tan_jiang"):
+			if run in group[0]:
+				entry[f"{run}_mean_s"] = median(r[run]["mean"] or r[run]["seconds"] for r in group)
+				if "cones" in group[0][run]:
+					entry[f"{run}_cones"] = median(r[run]["cones"] for r in group)
+		if "gurobi" in group[0]:
+			entry["gurobi_total_s"] = median(r["gurobi"]["total"] for r in group)
+			if "certified" in group[0]:
+				entry["gurobi_over_certified"] = geometric_mean(r["gurobi"]["total"] / r["certified"]["mean"] for r in group if r["certified"]["mean"])
+				entry["gurobi_below_lower"] = below_lower(group, "certified")
+		if "certified" in group[0]:
+			entry["certified_closed_by"] = count_by(r["certified"]["closed_by"] for r in group)
+			entry["certified_optimal"] = sum(1 for r in group if r["certified"]["upper"] is not None
+				and r["certified"]["upper"] - r["certified"]["lower"] <= 4e-16 * abs(r["certified"]["upper"]))
+		lengths = [(r["certified"]["upper"], r[run]["length"]) for r in group for run in ("lazy", "eager", "tan_jiang")
+			if run in r and "certified" in r and r["certified"]["upper"]]
+		if lengths:
+			entry["construction_max_relative_deviation"] = max(abs(b - a) / a for a, b in lengths)
+		table.append(entry)
+	return table
+
+
 def summarize(context: Context) -> dict:
 	out = context.out
 	summary: dict = {"output": str(out), "machine": workspace.machine_state(), "git": workspace.git_state(),
 		"smoke": context.smoke}
 	paths = jsonl(sorted((out / "paths-random").glob("shard-*.jsonl")))
+	fine = jsonl(sorted((out / "paths-fine").glob("shard-*.jsonl")))
+	if fine:
+		summary["paths_fine"] = path_table(fine)
 	if paths:
 		groups: dict = {}
 		for row in paths:
@@ -536,14 +638,17 @@ def summarize(context: Context) -> dict:
 			"closed_by_construction": sum(r.get("oracle_interval_bound_calls", 0) for r in rows),
 			"closed_by_polish": sum(r.get("oracle_float_calls", 0) for r in rows),
 			"exact_path": sum(r.get("oracle_rational_calls", 0) for r in rows)}
-	rows = jsonl(sorted((out / "vertex-scaling").glob("*.jsonl")))
-	if rows:
-		groups = {}
-		for row in rows:
-			groups.setdefault((row["k"], row["largest"]), []).append(row)
-		summary["vertex_scaling"] = [{"k": k, "largest": largest, "rows": len(group),
-			"ours_ids_mean_s": median(r["ids"]["mean"] for r in group), "ours_cold_s": median(r["cold"]["seconds"] for r in group),
-			"gurobi_total_s": median(r["gurobi"]["total"] for r in group)} for (k, largest), group in sorted(groups.items())]
+	for step, key in (("vertex-scaling", "vertex_scaling"), ("vertex-scaling-fine", "vertex_scaling_fine")):
+		rows = jsonl(sorted((out / step).glob("*.jsonl")))
+		if rows:
+			groups = {}
+			for row in rows:
+				_, k, m = row["name"].split("-")[:3]  # cycle-k3-m8-disk-0
+				groups.setdefault((int(k[1:]), int(m[1:])), []).append(row)
+			summary[key] = [{"k": k, "m": m, "rows": len(group), "vertices": median(r["vertices"] for r in group),
+				"largest": median(r["largest"] for r in group),
+				"ours_ids_mean_s": median(r["ids"]["mean"] for r in group), "ours_cold_s": median(r["cold"]["seconds"] for r in group),
+				"gurobi_total_s": median(r["gurobi"]["total"] for r in group)} for (k, m), group in sorted(groups.items())]
 	rows = jsonl(sorted((out / "anchor-probes").glob("*.jsonl")))
 	if rows:
 		summary["anchor_probes"] = {"calls": len(rows), "keys": sorted(rows[0].keys())}
@@ -592,6 +697,8 @@ STEPS: list[tuple[str, Callable[[Context], dict]]] = [
 	("vertex-scaling", step_vertex_scaling),
 	("anchor-probes", step_anchor_probes),
 	("no-polish", step_no_polish),
+	("paths-fine", step_paths_fine),
+	("vertex-scaling-fine", lambda context: step_vertex_scaling(context, "vertex-scaling-fine", fine=True)),
 	("summary", write_summary),
 ]
 
@@ -621,7 +728,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 	steps = [(name, function) for name, function in STEPS if not args.only or name in args.only]
 	if args.plan:
 		print(f"output: {context.out}\nworkers: {context.workers} (cores: {len(context.cores) or 'no pinning'})")
-		print(f"paths-random: {len(path_instances(args.smoke))} instances; vertex-scaling: {len(cycle_instances(args.smoke))}")
+		print(f"paths-random: {len(path_instances(args.smoke))} instances; vertex-scaling: {len(cycle_instances(args.smoke))}; "
+			f"paths-fine: {len(fine_path_plan(args.smoke))}; vertex-scaling-fine: {len(cycle_instances(args.smoke, True))}")
 		for name, _ in steps:
 			print(f"  {name}{' (done)' if (context.out / name / 'done.json').exists() else ''}")
 		return 0
