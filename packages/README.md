@@ -13,6 +13,13 @@ common-geometry -> convex-tpp -> optimal-convex-partition -> nonconvex-tpp
   port of CGAL's `optimal_convex_partition_2` (CGAL only for its parity test).
 - `nonconvex-tpp/`: maintained fixed-order and free-order C++ solvers.
 
+Outside that graph:
+
+- `steiner-convex-partition/`: minimum convex decomposition with Steiner points
+  (Chazelle and Dobkin). Standalone on purpose, with its own exact arithmetic
+  and no dependencies; it is not yet used by the solvers. Its comparison with
+  `optimal-convex-partition` is an optional test target.
+
 Benchmark input generation lives in `benchmarks/_internal/` (`gen_instances.py`,
 `generate_benchmark_matrix.py`); see `docs/benchmarks/instance-generation.md`.
 
