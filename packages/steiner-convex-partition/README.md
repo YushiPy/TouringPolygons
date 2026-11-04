@@ -37,7 +37,9 @@ and the assembly. The cubic version decides X4-patterns exactly in their loose
 configuration, so it never returns more pieces. It is about as fast on the
 repository's corpora and faster on large polygons (2.9 times at 190 notches).
 `Options::cross_check` makes it verify each of its shortcuts against the
-direct computation.
+direct computation. Its status, its departures from the text and the open
+work are in
+[`docs/algorithms/steiner-convex-partition-section4.md`](../../docs/algorithms/steiner-convex-partition-section4.md).
 
 ## What the result guarantees
 
