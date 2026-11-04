@@ -29,7 +29,24 @@ namespace steiner_convex_partition {
 	using Polygon = std::vector<Point>;
 	using Partition = std::vector<Polygon>;
 
+	enum class Algorithm {
+		// Procedure ConvDec of Section 3 of the 1985 paper: every geometric test
+		// scans the polygon (O(n) per Steiner point, every quadruple for X4).
+		polynomial,
+		// Section 4: the same dynamic program with geometric tests answered from
+		// precomputed superranges, and X4-patterns decided exactly in their loose
+		// configuration through the sets E(i, j). Never more pieces than the
+		// polynomial version, whose X4 search tries a fixed set of candidates.
+		cubic,
+	};
+
 	struct Options {
+		Algorithm algorithm = Algorithm::polynomial;
+		// Testing aid: in the cubic algorithm, also check every Steiner point and
+		// diagonal it accepts or rejects with the polynomial algorithm's direct
+		// tests, and (up to 40 notches) every set E(i, j) against a search of all
+		// quadruples; throw std::logic_error when they disagree.
+		bool cross_check = false;
 		// Patterns with Steiner points (X3 and larger Y-patterns). Without them
 		// only diagonal patterns between notches remain.
 		bool steiner_points = true;

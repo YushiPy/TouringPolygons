@@ -7,6 +7,7 @@
 // validation. A polygon where we use more pieces than Greene is a failure.
 
 #include "../src/exact.h"
+#include "test_polygons.h"
 
 #include <optimal_convex_partition/optimal_convex_partition.h>
 #include <steiner_convex_partition/steiner_convex_partition.h>
@@ -23,72 +24,10 @@
 
 namespace scp = steiner_convex_partition;
 namespace ocp = optimal_convex_partition;
+using test_polygons::count_notches;
+using test_polygons::read_fixture;
 
 namespace {
-
-	struct FixturePoint {
-		double x;
-		double y;
-	};
-
-	template <class T>
-	bool read_value(std::ifstream &input, T &value) {
-		input.read(reinterpret_cast<char *>(&value), sizeof(T));
-		return static_cast<bool>(input);
-	}
-
-	std::vector<scp::Polygon> read_fixture(const std::string &path) {
-		std::ifstream input(path, std::ios::binary);
-		std::vector<scp::Polygon> polygons;
-		if (!input) {
-			std::cerr << "cannot open " << path << '\n';
-			return polygons;
-		}
-		while (input.peek() != EOF) {
-			FixturePoint start {};
-			FixturePoint target {};
-			std::size_t count = 0;
-			if (!read_value(input, start) || !read_value(input, target) || !read_value(input, count)) break;
-			for (std::size_t p = 0; p < count; ++p) {
-				std::size_t n = 0;
-				read_value(input, n);
-				scp::Polygon polygon(n);
-				for (scp::Point &point : polygon) {
-					FixturePoint f {};
-					read_value(input, f);
-					point = {f.x, f.y};
-				}
-				polygons.push_back(std::move(polygon));
-			}
-			std::size_t solution = 0;
-			read_value(input, solution);
-			for (std::size_t s = 0; s < solution; ++s) {
-				FixturePoint f {};
-				read_value(input, f);
-			}
-		}
-		return polygons;
-	}
-
-	std::size_t count_notches(const scp::Polygon &polygon) {
-		const std::size_t n = polygon.size();
-		long double area = 0.0L;
-		for (std::size_t i = 0; i < n; ++i) {
-			const scp::Point &a = polygon[i];
-			const scp::Point &b = polygon[(i + 1) % n];
-			area += static_cast<long double>(a.x) * b.y - static_cast<long double>(b.x) * a.y;
-		}
-		std::size_t notches = 0;
-		for (std::size_t i = 0; i < n; ++i) {
-			const scp::Point &a = polygon[(i + n - 1) % n];
-			const scp::Point &b = polygon[i];
-			const scp::Point &c = polygon[(i + 1) % n];
-			const long double turn = (static_cast<long double>(b.x) - a.x) * (static_cast<long double>(c.y) - a.y)
-				- (static_cast<long double>(b.y) - a.y) * (static_cast<long double>(c.x) - a.x);
-			if (area > 0 ? turn < 0 : turn > 0) ++notches;
-		}
-		return notches;
-	}
 
 	// Rounded cut endpoints on a polygon edge lie on or outside it (so the pieces
 	// cover the polygon); returns the number of such points that do not.

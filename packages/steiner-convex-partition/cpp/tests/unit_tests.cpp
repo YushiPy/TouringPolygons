@@ -1,4 +1,5 @@
 #include "../src/exact.h"
+#include "test_polygons.h"
 
 #include <steiner_convex_partition/steiner_convex_partition.h>
 
@@ -13,11 +14,23 @@
 #include <vector>
 
 namespace scp = steiner_convex_partition;
+using test_polygons::count_notches;
+using test_polygons::random_skyline;
+using test_polygons::random_star;
 
 namespace {
 
 	int failures = 0;
 	int checks = 0;
+	// Every test runs with this algorithm (--cubic selects the Section 4 one,
+	// with its cross-checks).
+	scp::Algorithm algorithm = scp::Algorithm::polynomial;
+
+	scp::Options with_algorithm(scp::Options options) {
+		options.algorithm = algorithm;
+		options.cross_check = algorithm == scp::Algorithm::cubic;
+		return options;
+	}
 
 	void expect(bool condition, const std::string &what) {
 		++checks;
@@ -25,26 +38,6 @@ namespace {
 			++failures;
 			std::cerr << "FAILED: " << what << '\n';
 		}
-	}
-
-	std::size_t count_notches(const scp::Polygon &polygon) {
-		const std::size_t n = polygon.size();
-		long double area = 0.0L;
-		for (std::size_t i = 0; i < n; ++i) {
-			const scp::Point &a = polygon[i];
-			const scp::Point &b = polygon[(i + 1) % n];
-			area += static_cast<long double>(a.x) * b.y - static_cast<long double>(b.x) * a.y;
-		}
-		std::size_t notches = 0;
-		for (std::size_t i = 0; i < n; ++i) {
-			const scp::Point &a = polygon[(i + n - 1) % n];
-			const scp::Point &b = polygon[i];
-			const scp::Point &c = polygon[(i + 1) % n];
-			const long double turn = (static_cast<long double>(b.x) - a.x) * (static_cast<long double>(c.y) - a.y)
-				- (static_cast<long double>(b.y) - a.y) * (static_cast<long double>(c.x) - a.x);
-			if (area > 0 ? turn < 0 : turn > 0) ++notches;
-		}
-		return notches;
 	}
 
 	std::size_t rounded_boundary_points = 0;
@@ -88,7 +81,7 @@ namespace {
 	scp::Result run_checked(const scp::Polygon &polygon, const std::string &name, const scp::Options &options = {}) {
 		scp::Result result;
 		try {
-			result = scp::decompose(polygon, options);
+			result = scp::decompose(polygon, with_algorithm(options));
 		} catch (const std::exception &error) {
 			expect(false, name + ": threw " + error.what());
 			return result;
@@ -129,64 +122,6 @@ namespace {
 			polygon.push_back({mid.x + ux * half_width, mid.y + uy * half_width});
 		}
 		return polygon;
-	}
-
-	scp::Polygon random_star(std::mt19937 &rng, int n, bool integer) {
-		std::uniform_real_distribution<double> unit(0.0, 1.0);
-		std::vector<double> angles(static_cast<std::size_t>(n));
-		for (double &a : angles) a = unit(rng) * 2.0 * std::numbers::pi;
-		std::sort(angles.begin(), angles.end());
-		scp::Polygon polygon;
-		for (double a : angles) {
-			const double r = 20.0 + 80.0 * unit(rng);
-			double x = r * std::cos(a);
-			double y = r * std::sin(a);
-			if (integer) {
-				x = std::round(x);
-				y = std::round(y);
-			}
-			if (!polygon.empty() && polygon.back() == scp::Point {x, y}) continue;
-			polygon.push_back({x, y});
-		}
-		return polygon;
-	}
-
-	// Rectilinear polygon between a random floor and ceiling over unit columns.
-	scp::Polygon random_skyline(std::mt19937 &rng, int columns) {
-		std::uniform_int_distribution<int> top_dist(6, 12);
-		std::uniform_int_distribution<int> bottom_dist(0, 5);
-		std::vector<int> top(static_cast<std::size_t>(columns));
-		std::vector<int> bottom(static_cast<std::size_t>(columns));
-		for (int i = 0; i < columns; ++i) {
-			top[static_cast<std::size_t>(i)] = top_dist(rng);
-			bottom[static_cast<std::size_t>(i)] = bottom_dist(rng);
-		}
-		scp::Polygon polygon;
-		auto push = [&](double x, double y) {
-			const scp::Point p {x, y};
-			if (!polygon.empty() && polygon.back() == p) return;
-			polygon.push_back(p);
-		};
-		// Bottom from left to right.
-		for (int i = 0; i < columns; ++i) {
-			push(i, bottom[static_cast<std::size_t>(i)]);
-			push(i + 1, bottom[static_cast<std::size_t>(i)]);
-		}
-		for (int i = columns - 1; i >= 0; --i) {
-			push(i + 1, top[static_cast<std::size_t>(i)]);
-			push(i, top[static_cast<std::size_t>(i)]);
-		}
-		// Drop collinear repeats (keep only corners).
-		scp::Polygon cleaned;
-		const std::size_t n = polygon.size();
-		for (std::size_t i = 0; i < n; ++i) {
-			const scp::Point &a = polygon[(i + n - 1) % n];
-			const scp::Point &b = polygon[i];
-			const scp::Point &c = polygon[(i + 1) % n];
-			const double turn = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-			if (turn != 0.0) cleaned.push_back(b);
-		}
-		return cleaned;
 	}
 
 	void test_basic() {
@@ -275,7 +210,7 @@ namespace {
 			if (polygon.size() < 3) continue;
 			scp::Result with;
 			try {
-				with = scp::decompose(polygon);
+				with = scp::decompose(polygon, with_algorithm({}));
 			} catch (const std::invalid_argument &) {
 				continue;  // rounding may make a star polygon degenerate
 			}
@@ -312,7 +247,12 @@ namespace {
 }
 
 int main(int argc, char **argv) {
-	const int random_count = argc > 1 ? std::atoi(argv[1]) : 300;
+	std::vector<char *> args;
+	for (int a = 1; a < argc; ++a) {
+		if (std::string(argv[a]) == "--cubic") algorithm = scp::Algorithm::cubic;
+		else args.push_back(argv[a]);
+	}
+	const int random_count = args.size() > 0 ? std::atoi(args[0]) : 300;
 	test_basic();
 	test_validator();
 	test_v_notches();

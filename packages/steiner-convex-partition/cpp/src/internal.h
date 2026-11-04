@@ -68,6 +68,8 @@ namespace steiner_convex_partition::detail {
 		std::size_t junction_successes = 0;
 		std::size_t x4_calls = 0;
 		std::size_t x4_successes = 0;
+		// With Options::cross_check: S(i, j) by [i * (c + 1) + length].
+		std::vector<int> table;
 	};
 
 	DpOutput run_dynamic_program(const PolygonData &polygon, const Options &options);

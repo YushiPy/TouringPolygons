@@ -84,7 +84,9 @@ em++ \
 	"$repo_root/packages/steiner-convex-partition/cpp/src/assembly.cpp" \
 	"$repo_root/packages/steiner-convex-partition/cpp/src/dynamic_program.cpp" \
 	"$repo_root/packages/steiner-convex-partition/cpp/src/geometry.cpp" \
+	"$repo_root/packages/steiner-convex-partition/cpp/src/loose_x4.cpp" \
 	"$repo_root/packages/steiner-convex-partition/cpp/src/steiner_convex_partition.cpp" \
+	"$repo_root/packages/steiner-convex-partition/cpp/src/superrange.cpp" \
 	"$repo_root/packages/steiner-convex-partition/cpp/src/validate.cpp" \
 	-sMODULARIZE=1 \
 	-sEXPORT_ES6=1 \

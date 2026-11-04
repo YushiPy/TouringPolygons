@@ -4,7 +4,7 @@
 // packs them with its own non-crossing interval DP. If that packing ever holds
 // more patterns than the decomposition found, the decomposition missed one.
 //
-// usage: steiner_convex_partition_brute_force [count] [seed]
+// usage: steiner_convex_partition_brute_force [--cubic] [count] [seed]
 
 #include "../src/exact.h"
 
@@ -16,6 +16,7 @@
 #include <iostream>
 #include <numbers>
 #include <random>
+#include <string>
 #include <vector>
 
 namespace scp = steiner_convex_partition;
@@ -234,8 +235,18 @@ namespace {
 }
 
 int main(int argc, char **argv) {
-	const int count = argc > 1 ? std::atoi(argv[1]) : 200;
-	std::mt19937 rng(argc > 2 ? static_cast<unsigned>(std::atoi(argv[2])) : 2024u);
+	scp::Options options;
+	std::vector<char *> args;
+	for (int a = 1; a < argc; ++a) {
+		if (std::string(argv[a]) == "--cubic") {
+			options.algorithm = scp::Algorithm::cubic;
+			options.cross_check = true;
+		} else {
+			args.push_back(argv[a]);
+		}
+	}
+	const int count = args.size() > 0 ? std::atoi(args[0]) : 200;
+	std::mt19937 rng(args.size() > 1 ? static_cast<unsigned>(std::atoi(args[1])) : 2024u);
 	int checked = 0;
 	int missed = 0;
 	int ties = 0;
@@ -247,7 +258,7 @@ int main(int argc, char **argv) {
 			: random_v_notches(rng, 4 + static_cast<int>(rng() % 6));
 		scp::Result result;
 		try {
-			result = scp::decompose(polygon);
+			result = scp::decompose(polygon, options);
 		} catch (const std::invalid_argument &) {
 			continue;
 		}

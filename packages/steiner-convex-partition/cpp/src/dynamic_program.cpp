@@ -21,12 +21,15 @@
 // the most clockwise one.
 
 #include "internal.h"
+#include "loose_x4.h"
+#include "superrange.h"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
 #include <optional>
+#include <stdexcept>
 #include <unordered_map>
 #include <utility>
 
@@ -106,6 +109,12 @@ namespace steiner_convex_partition::detail {
 			explicit JunctionSolver(const PolygonData &polygon)
 				: polygon_(polygon) {}
 
+			// Cubic algorithm: boundary constraints and visibility from superranges.
+			void use_superranges(const Superranges *superranges, bool cross_check) {
+				superranges_ = superranges;
+				cross_check_ = cross_check;
+			}
+
 			std::size_t calls = 0;
 			std::size_t successes = 0;
 
@@ -114,6 +123,9 @@ namespace steiner_convex_partition::detail {
 			std::optional<Vec2> solve(int va, int vb, int vc, const std::array<RoleSpec, 3> &roles, Objective objective) {
 				++calls;
 				const int vertices[3] = {va, vb, vc};
+				vertices_[0] = va;
+				vertices_[1] = vb;
+				vertices_[2] = vc;
 				const Vec2 corners[3] = {polygon_.at(va), polygon_.at(vb), polygon_.at(vc)};
 				if (orient(corners[0], corners[1], corners[2]) <= 0) return std::nullopt;
 
@@ -130,6 +142,23 @@ namespace steiner_convex_partition::detail {
 				tolerance_ = relaxation(corners);
 				clip(corners, tolerance_, loose_);
 				if (loose_.empty()) return std::nullopt;
+				if (superranges_ != nullptr) {
+					// Each arc between two of the notches contributes at most two strict
+					// constraints, the most extreme directions from its ends toward its
+					// visible points (from the superranges, independent of the third
+					// notch). Candidates are then checked for visibility from all three.
+					for (int t = 0; t < 3; ++t) {
+						const int from = vertices[t];
+						const int to = vertices[(t + 1) % 3];
+						const int last = superranges_->last_direction(from, to);
+						if (last >= 0) planes_.push_back({corners[t], polygon_.at(last), true});
+						const int first = superranges_->first_direction(from, to);
+						if (first >= 0) planes_.push_back({polygon_.at(first), corners[(t + 1) % 3], true});
+					}
+					std::optional<Vec2> best = search(corners, objective);
+					if (best) ++successes;
+					return best;
+				}
 				// The boundary constraints depend on the triangle only; they are
 				// cached while the outer notches stay the same.
 				ScanCache &cache = scans_[static_cast<std::size_t>(vb)];
@@ -168,6 +197,9 @@ namespace steiner_convex_partition::detail {
 			};
 
 			const PolygonData &polygon_;
+			const Superranges *superranges_ = nullptr;
+			bool cross_check_ = false;
+			int vertices_[3] = {-1, -1, -1};
 			std::vector<ScanCache> scans_ = std::vector<ScanCache>(static_cast<std::size_t>(polygon_.n));
 			std::size_t stamp_ = 1;
 			std::vector<HalfPlane> planes_;
@@ -272,12 +304,22 @@ namespace steiner_convex_partition::detail {
 
 			// Direct check of the three arms against the whole boundary: a safety net
 			// for the constraint derivation above.
-			bool arms_clear(const Vec2 &s, const Vec2 (&corners)[3]) const {
+			bool arms_clear_directly(const Vec2 &s, const Vec2 (&corners)[3]) const {
 				if (point_on_boundary(polygon_, s)) return false;
 				for (const Vec2 &corner : corners) {
 					if (!open_segment_clear(polygon_, corner, s)) return false;
 				}
 				return true;
+			}
+
+			bool arms_clear(const Vec2 &s, const Vec2 (&corners)[3]) const {
+				if (superranges_ == nullptr) return arms_clear_directly(s, corners);
+				bool clear = true;
+				for (int t = 0; t < 3 && clear; ++t) clear = superranges_->sees(vertices_[t], s);
+				if (cross_check_ && clear != arms_clear_directly(s, corners)) {
+					throw std::logic_error("superrange visibility disagrees with the direct test");
+				}
+				return clear;
 			}
 
 			bool better(const Vec2 &a, const Vec2 &b, const Vec2 (&corners)[3], Objective objective) const {
@@ -672,7 +714,13 @@ namespace steiner_convex_partition::detail {
 		class DynamicProgram {
 		public:
 			DynamicProgram(const PolygonData &polygon, const Options &options)
-				: polygon_(polygon), options_(options), c_(polygon.c), junctions_(polygon), x4_(polygon) {}
+				: polygon_(polygon), options_(options), c_(polygon.c), junctions_(polygon), x4_(polygon) {
+				if (options.algorithm == Algorithm::cubic && polygon.c > 0) {
+					superranges_.emplace(polygon, pseudo_notches(polygon));
+					junctions_.use_superranges(&*superranges_, options.cross_check);
+					if (options.steiner_points && options.x4_patterns && polygon.c >= 4) loose_.emplace(polygon);
+				}
+			}
 
 			DpOutput run() {
 				DpOutput output;
@@ -683,6 +731,7 @@ namespace steiner_convex_partition::detail {
 				forward_.assign(cs, std::vector<Half>(cs + 1));
 				backward_.assign(cs, std::vector<Half>(cs + 1));
 				compute_visibility();
+				if (loose_) e_.assign(cs, std::vector<std::vector<LooseX4::Match>>(cs + 1));
 
 				for (int len = 2; len <= c_; ++len) {
 					for (int i = 0; i < c_; ++i) {
@@ -693,6 +742,7 @@ namespace steiner_convex_partition::detail {
 							compute_forward(i, j);
 							compute_backward(i, j);
 						}
+						if (loose_ && len >= 3 && len < c_) compute_e(i, j);
 					}
 				}
 
@@ -707,6 +757,9 @@ namespace steiner_convex_partition::detail {
 					}
 				}
 				if (c_ >= 2) reconstruct_s(best_start, best_start + c_ - 1, output.patterns);
+				if (options_.cross_check) {
+					for (const std::vector<int> &row : s_) output.table.insert(output.table.end(), row.begin(), row.end());
+				}
 				output.junction_calls = junctions_.calls;
 				output.junction_successes = junctions_.successes;
 				output.x4_calls = x4_.calls;
@@ -719,6 +772,7 @@ namespace steiner_convex_partition::detail {
 			const PolygonData &polygon_;
 			Options options_;
 			int c_;
+			std::optional<Superranges> superranges_;
 			JunctionSolver junctions_;
 			X4Solver x4_;
 			std::vector<std::vector<int>> s_;
@@ -727,6 +781,10 @@ namespace steiner_convex_partition::detail {
 			std::vector<std::vector<Half>> backward_;
 			std::vector<std::vector<char>> visible_;
 			std::unordered_map<std::uint64_t, X4Points> x4_cache_;
+			// Section 4 X4-patterns: E(i, j) by [i][length], sorted by outer notch.
+			std::optional<LooseX4> loose_;
+			std::vector<std::vector<std::vector<LooseX4::Match>>> e_;
+			std::unordered_map<std::uint64_t, std::optional<std::pair<Vec2, Vec2>>> loose_cache_;
 
 			int wrap(int t) const {
 				const int r = t % c_;
@@ -765,9 +823,22 @@ namespace steiner_convex_partition::detail {
 					for (int b = a + 1; b < c_; ++b) {
 						const int va = vtx(a);
 						const int vb = vtx(b);
-						const bool ok = strictly_inside_corner(polygon_, va, polygon_.at(vb))
-							&& strictly_inside_corner(polygon_, vb, polygon_.at(va))
-							&& open_segment_clear(polygon_, polygon_.at(va), polygon_.at(vb));
+						auto direct = [&] {
+							return strictly_inside_corner(polygon_, va, polygon_.at(vb))
+								&& strictly_inside_corner(polygon_, vb, polygon_.at(va))
+								&& open_segment_clear(polygon_, polygon_.at(va), polygon_.at(vb));
+						};
+						bool ok;
+						if (superranges_) {
+							// Lemma 13: a notch sees another iff it is the first contact of the
+							// ray toward it.
+							ok = superranges_->sees_vertex(va, vb);
+							if (options_.cross_check && ok != direct()) {
+								throw std::logic_error("superrange diagonal test disagrees with the direct test");
+							}
+						} else {
+							ok = direct();
+						}
 						visible_[static_cast<std::size_t>(a)][static_cast<std::size_t>(b)] = ok;
 						visible_[static_cast<std::size_t>(b)][static_cast<std::size_t>(a)] = ok;
 					}
@@ -893,7 +964,46 @@ namespace steiner_convex_partition::detail {
 				}
 
 				// The gaps of an X4-pattern lie in (i..j) without its two inner notches.
-				if (options_.x4_patterns && len >= 4 && 1 + sv(i + 1, j - 1) > best) {
+				if (loose_ && len >= 4 && 1 + sv(i + 1, j - 1) > best) {
+					// Section 4: the two topologies of an X4-pattern joining i and j
+					// (Fig. 30), each read from one E set.
+					for (int a = i + 1; a <= j - 2; ++a) {
+						// Pairs {i, a} and {l, j}: E(a, j) with i outside.
+						const int value = 1 + sv(i + 1, a - 1) + sv(a, j);
+						if (value <= best) continue;
+						const LooseX4::Match *match = e_lookup(a, j, wrap(i));
+						if (match == nullptr) continue;
+						const int l = a + (match->inner - wrap(a) + c_) % c_;
+						const auto points = realize_loose(wrap(i), wrap(a), wrap(l), wrap(j));
+						if (!points) continue;
+						Choice x4;
+						x4.kind = Choice::Kind::x4;
+						x4.flags = 0;
+						x4.a = a;
+						x4.b = l;
+						x4.p1 = points->first;
+						x4.p2 = points->second;
+						offer(value, x4);
+					}
+					for (int b = i + 2; b <= j - 1; ++b) {
+						// Pairs {l, b} and {j, i}: E(i, b) with j outside.
+						const int value = 1 + sv(i, b) + sv(b + 1, j - 1);
+						if (value <= best) continue;
+						const LooseX4::Match *match = e_lookup(i, b, wrap(j));
+						if (match == nullptr) continue;
+						const int l = i + (match->inner - wrap(i) + c_) % c_;
+						const auto points = realize_loose(wrap(j), wrap(i), wrap(l), wrap(b));
+						if (!points) continue;
+						Choice x4;
+						x4.kind = Choice::Kind::x4;
+						x4.flags = 1;
+						x4.a = l;
+						x4.b = b;
+						x4.p1 = points->second;
+						x4.p2 = points->first;
+						offer(value, x4);
+					}
+				} else if (options_.x4_patterns && len >= 4 && 1 + sv(i + 1, j - 1) > best) {
 					for (int a = i + 1; a < j; ++a) {
 						if (1 + sv(i + 1, a - 1) + sv(a + 1, j - 1) <= best) continue;
 						for (int b = a + 1; b < j; ++b) {
@@ -991,6 +1101,90 @@ namespace steiner_convex_partition::detail {
 					choice.p1 = *s;
 					break;
 				}
+			}
+
+			// E(i, j), right after S(i, j): candidates l inside obey relation (2), so
+			// that the pattern leaves S(i, j) to the rest of the interval.
+			void compute_e(int i, int j) {
+				const int len = j - i + 1;
+				std::vector<char> candidate(static_cast<std::size_t>(len), 0);
+				const int whole = sv(i, j);
+				for (int d = 1; d <= len - 2; ++d) {
+					candidate[static_cast<std::size_t>(d)] = sv(i + 1, i + d - 1) + sv(i + d + 1, j - 1) == whole;
+				}
+				std::vector<LooseX4::Match> matches = loose_->compute(wrap(i), len, candidate);
+				std::sort(matches.begin(), matches.end(), [](const LooseX4::Match &x, const LooseX4::Match &y) {
+					return x.outer < y.outer;
+				});
+				// The direct search costs O(n c^2) per set: small polygons only.
+				if (options_.cross_check && c_ <= 40) check_e(i, j, candidate, matches);
+				e_[static_cast<std::size_t>(wrap(i))][static_cast<std::size_t>(len)] = std::move(matches);
+			}
+
+			// Every outer notch gets a match iff some candidate gives a valid loose
+			// pattern, and every match is valid.
+			void check_e(int i, int j, const std::vector<char> &candidate, const std::vector<LooseX4::Match> &matches) const {
+				const int len = j - i + 1;
+				for (int d = len; d < c_; ++d) {
+					const int k = wrap(i + d);
+					bool exists = false;
+					for (int e = 1; e <= len - 2 && !exists; ++e) {
+						if (candidate[static_cast<std::size_t>(e)]) exists = loose_->valid_exactly(k, wrap(i), wrap(i + e), wrap(j));
+					}
+					const auto it = std::find_if(matches.begin(), matches.end(), [&](const LooseX4::Match &m) { return m.outer == k; });
+					const bool found = it != matches.end();
+					if (found && !loose_->valid_exactly(k, wrap(i), it->inner, wrap(j))) {
+						throw std::logic_error("E(i, j) holds an invalid loose X4-pattern");
+					}
+					if (found != exists) {
+						throw std::logic_error("E(i, j) disagrees with the direct search for loose X4-patterns (notches "
+							+ std::to_string(k) + ", " + std::to_string(wrap(i)) + ", .., " + std::to_string(wrap(j)) + ")");
+					}
+				}
+			}
+
+			const LooseX4::Match *e_lookup(int i, int j, int outer) const {
+				const std::vector<LooseX4::Match> &matches = e_[static_cast<std::size_t>(wrap(i))][static_cast<std::size_t>(j - i + 1)];
+				const auto it = std::lower_bound(matches.begin(), matches.end(), outer, [](const LooseX4::Match &m, int value) {
+					return m.outer < value;
+				});
+				if (it == matches.end() || it->outer != outer) return nullptr;
+				return &*it;
+			}
+
+			// Double Steiner points for the loose pattern (k, i, l, j): the exact
+			// points moved slightly off the collinear arms, else the candidates of
+			// the polynomial version; exactly validated either way.
+			std::optional<std::pair<Vec2, Vec2>> realize_loose(int k, int i, int l, int j) {
+				std::uint64_t key = 0;
+				for (int t : {k, i, l, j}) key = key * 1000003ULL + static_cast<std::uint64_t>(t);
+				const auto cached = loose_cache_.find(key);
+				if (cached != loose_cache_.end()) return cached->second;
+				++x4_.calls;
+				const int ids[4] = {vtx(k), vtx(i), vtx(l), vtx(j)};
+				std::optional<std::pair<Vec2, Vec2>> result;
+				if (const auto points = loose_->points(k, i, l, j)) {
+					const double length = std::hypot(points->a.x - points->b.x, points->a.y - points->b.y);
+					for (double scale : {0.0, 1.0e-12, 1.0e-10, 1.0e-8, 1.0e-6, 1.0e-4, 1.0e-2}) {
+						const double eps = scale * length;
+						const Vec2 a {points->a.x + eps * points->a_shift.x, points->a.y + eps * points->a_shift.y};
+						const Vec2 b {points->b.x + eps * points->b_shift.x, points->b.y + eps * points->b_shift.y};
+						if (x4_.valid(ids, a, b)) {
+							result = std::pair {a, b};
+							break;
+						}
+					}
+				}
+				if (!result) {
+					const std::size_t calls = x4_.calls;
+					const std::size_t successes = x4_.successes;
+					const X4Points fallback = x4_.solve(ids[0], ids[1], ids[2], ids[3]);
+					x4_.calls = calls;
+					x4_.successes = successes;
+					if (fallback.ok) result = std::pair {fallback.a, fallback.b};
+				}
+				if (result) ++x4_.successes;
+				return loose_cache_.emplace(key, result).first->second;
 			}
 
 			const X4Points &x4_lookup(const int (&order)[4]) {
