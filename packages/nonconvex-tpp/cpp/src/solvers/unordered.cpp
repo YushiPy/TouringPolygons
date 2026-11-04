@@ -1075,7 +1075,7 @@ namespace tpp {
 				pieces[polygon_index].push_back(polygons[polygon_index]);
 				return;
 			}
-			for (auto piece : decompose_polygon(polygons[polygon_index], options.decomposition)) {
+			for (auto piece : decompose_polygon(polygons[polygon_index])) {
 				piece = convex_hull(std::move(piece));
 				if (piece.size() >= 3) pieces[polygon_index].push_back(std::move(piece));
 			}

@@ -70,7 +70,6 @@ em++ \
 	-I"$repo_root/packages/nonconvex-tpp/cpp/include" \
 	-I"$repo_root/packages/convex-tpp/cpp/include" \
 	-I"$repo_root/packages/optimal-convex-partition/cpp/include" \
-	-I"$repo_root/packages/steiner-convex-partition/cpp/include" \
 	"$script_dir/tpp_convex_wasm.cpp" \
 	"$repo_root/packages/common-geometry/cpp/src/common.cpp" \
 	"$repo_root/packages/convex-tpp/cpp/src/core/solution.cpp" \
@@ -81,14 +80,6 @@ em++ \
 	"$repo_root/packages/nonconvex-tpp/cpp/src/decomposition.cpp" \
 	"$repo_root/packages/nonconvex-tpp/cpp/src/solvers/bnb.cpp" \
 	"$repo_root/packages/optimal-convex-partition/cpp/src/optimal_convex_partition.cpp" \
-	"$repo_root/packages/steiner-convex-partition/cpp/src/assembly.cpp" \
-	"$repo_root/packages/steiner-convex-partition/cpp/src/chains.cpp" \
-	"$repo_root/packages/steiner-convex-partition/cpp/src/dynamic_program.cpp" \
-	"$repo_root/packages/steiner-convex-partition/cpp/src/geometry.cpp" \
-	"$repo_root/packages/steiner-convex-partition/cpp/src/loose_x4.cpp" \
-	"$repo_root/packages/steiner-convex-partition/cpp/src/steiner_convex_partition.cpp" \
-	"$repo_root/packages/steiner-convex-partition/cpp/src/superrange.cpp" \
-	"$repo_root/packages/steiner-convex-partition/cpp/src/validate.cpp" \
 	-sMODULARIZE=1 \
 	-sEXPORT_ES6=1 \
 	-sENVIRONMENT=web,node \

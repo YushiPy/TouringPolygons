@@ -524,8 +524,6 @@ void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
 		{
 		throw std::runtime_error("Inconsistent unordered profiling metrics.");
 		}
-	// Exhaustive optimum over every order and every piece of a decomposition.
-	auto exhaustive = [&](tpp::ConvexDecomposition method) {
 	std::vector<size_t> order(polygons.size());
 	std::iota(order.begin(), order.end(), 0);
 	std::vector<std::vector<Polygon>> pieces;
@@ -533,7 +531,7 @@ void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
 		double area = 0;
 		for (size_t i = 0; i < p.size(); ++i) area += p[i].cross(p[(i + 1) % p.size()]);
 		if (area < 0) std::reverse(p.begin(), p.end());
-		pieces.push_back(tpp::decompose_polygon(p, method));
+		pieces.push_back(tpp::decompose_polygon(p));
 	}
 	double best = std::numeric_limits<double>::infinity();
 	tpp::DynamicConvexTppWorkspace workspace;
@@ -557,22 +555,6 @@ void check(Vector2 s, Vector2 t, const std::vector<Polygon> &polygons) {
 		};
 		enumerate(0);
 	} while (std::next_permutation(order.begin(), order.end()));
-	return best;
-	};
-	const double best = exhaustive(tpp::ConvexDecomposition::greene);
-	{
-		// The Steiner decomposition covers the same regions: same exhaustive
-		// optimum, and the search with it reaches it.
-		const double steiner_best = exhaustive(tpp::ConvexDecomposition::steiner);
-		UnorderedTppSolveOptions steiner_options;
-		steiner_options.decomposition = tpp::ConvexDecomposition::steiner;
-		const auto steiner = tpp_nonconvex_unordered_solve(s, t, polygons, steiner_options);
-		if (std::abs(steiner_best - best) > 1e-6 * (1 + best) || !steiner.exact || steiner.lower_bound > best + 1e-6
-			|| std::abs(best - steiner.upper_bound) > 1e-6 * (1 + best)) {
-			std::cerr << "Greene pieces " << best << ", Steiner pieces " << steiner_best << ", search " << steiner.upper_bound << '\n';
-			throw std::runtime_error("Steiner decomposition changes the optimum.");
-		}
-	}
 	if (!result.exact || result.lower_bound > best + 1e-6 || result.lower_bound > result.upper_bound + 1e-8
 		|| std::abs(best - result.upper_bound) > 1e-6 * (1 + best)) {
 		std::cerr << "Expected " << best << ", got " << result.upper_bound << '\n';

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "tpp/geometry/vec2.h"
-#include "tpp/nonconvex/decomposition.h"
 
 #include <cstddef>
 #include <vector>
@@ -11,7 +10,6 @@ namespace tpp {
 	struct NonconvexTppSolveOptions {
 		size_t max_calls = 200000;
 		double max_seconds = 3.0;
-		ConvexDecomposition decomposition = ConvexDecomposition::greene;
 	};
 
 	struct NonconvexTppSolveResult {

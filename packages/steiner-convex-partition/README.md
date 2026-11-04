@@ -60,9 +60,10 @@ direct computation.
   and overlapping by at most rounding errors. This is what a branch and bound
   needs from a decomposition: every point of the region lies in some piece.
 
-`nonconvex-tpp` uses it as an alternative to Greene's decomposition in its
-branch and bound (`tpp-unordered --decomposition steiner`); see
-[the algorithm document](../../docs/algorithms/steiner-convex-partition.md#use-in-the-branch-and-bound).
+It is not linked by the solvers. An experiment used it in `nonconvex-tpp`'s
+branch and bound in place of Greene's decomposition; the running time did not
+change, so the integration was removed (see
+[the algorithm document](../../docs/algorithms/steiner-convex-partition.md#branch-and-bound-experiment-removed)).
 
 Input: a simple polygon in either orientation; repeated consecutive vertices
 are ignored and straight (180°) vertices are allowed. Polygons that are not

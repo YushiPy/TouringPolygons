@@ -343,16 +343,25 @@ Each insertion splits one face, so the faces tile P by construction. Then
 - the doubled areas add up. This uses exact fractions grouped by denominator,
   with a long double check above 48 distinct denominators.
 
-## Use in the branch and bound
+## Branch-and-bound experiment (removed)
 
-`tpp::decompose_polygon(polygon, method)` (`nonconvex-tpp`) chooses Greene's
-port (`greene`, the default) or this decomposition (`steiner`). The free-order
-TPP and TSPN branch and bound (`UnorderedTppSolveOptions::decomposition`,
-`tpp-unordered --decomposition steiner`) and the fixed-order solver
-(`NonconvexTppSolveOptions::decomposition`) pass it on. The branch and bound
-decomposes a region lazily, when it first branches on its pieces.
+**Status: an experiment, not part of the solvers.** The library was wired into
+`nonconvex-tpp` as an alternative to Greene's decomposition, measured, and
+removed again because it did not change the running time. `nonconvex-tpp`, its
+CLIs, its tests and the dashboard's WASM build are back to Greene only, and
+this package is linked by nothing. To repeat the experiment, recover the
+integration from commit `b7cb532` (options, `--decomposition`,
+`tpp-decomposition-timing`, tests) and `c122555` (results); the summary is in
+[`benchmarks/results-saved`](../../benchmarks/results-saved/README.md#steiner-decomposition-cloud-2026-11-04).
 
-What the search needs, and why it holds:
+How it was wired: `tpp::decompose_polygon(polygon, method)` chose Greene's
+port (`greene`, the default) or this decomposition (`steiner`), and the
+free-order TPP and TSPN branch and bound and the fixed-order solver passed the
+choice on. The branch and bound decomposes a region lazily, when it first
+branches on its pieces. The cubic version did not exist yet; the experiment
+used the polynomial one.
+
+What the search needs, and why it held (still true of the library's output):
 
 - **Lower bounds** need every point of the region to lie in some piece. The
   pieces tile the region exactly; with rounded cut endpoints they are a convex
@@ -369,7 +378,7 @@ The tests solve every exhaustive free-order and TSPN case with both
 decompositions and compare them with the exhaustive optimum over the pieces of
 each decomposition.
 
-**Effect on time** (Fekete's 558 instances, 2026-11-04;
+**Measured effect** (Fekete's 558 instances, 2026-11-04;
 [`benchmarks/results-saved`](../../benchmarks/results-saved/README.md#steiner-decomposition-cloud-2026-11-04)):
 
 - The decomposition itself is slower: decomposing every nonconvex polygon of
@@ -393,9 +402,9 @@ The search branches almost only on the visiting order. In the TSPN run,
 decomposition branches are 0.08% of the branch events (2,173 against 2.79
 million insertions), and 0.07% in the TPP run. Only 198 of the 556 instances decompose any region, 602
 regions in all, at 4.4 pieces each, and the Steiner decomposition saves 42 of
-their 2,640 pieces. Greene therefore stays the default. The option is there
-for searches that branch more on pieces, and for regions where it removes
-many pieces.
+their 2,640 pieces. So the integration was removed. It could matter
+for a search that branches more on pieces, or for regions where Steiner points
+remove many pieces; nothing in the current solvers is like that.
 
 ## Status of exactness and limitations
 

@@ -1,7 +1,5 @@
 #pragma once
 
-#include "tpp/nonconvex/decomposition.h"
-
 #include "tpp/geometry/vec2.h"
 #include <array>
 #include <cstddef>
@@ -44,10 +42,6 @@ namespace tpp {
 
 	struct UnorderedTppSolveOptions {
 		size_t max_calls = std::numeric_limits<size_t>::max();
-		// Convex decomposition of the nonconvex regions when the search branches
-		// on them: Greene's (polygon vertices only) or Chazelle and Dobkin's (fewer
-		// pieces, with Steiner points).
-		ConvexDecomposition decomposition = ConvexDecomposition::greene;
 		double max_seconds = std::numeric_limits<double>::infinity();
 		// Number of worker threads for evaluating children of one search node.
 		size_t threads = 1;

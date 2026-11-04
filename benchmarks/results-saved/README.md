@@ -90,6 +90,12 @@ tempo de decomposição e o do B&B?
 não pesa no B&B. Ela também não muda a busca, que ramifica quase só na ordem.
 Greene continua o padrão.
 
+**Situação.** Foi só um experimento: a integração foi removida e o
+`nonconvex-tpp` voltou a usar apenas Greene. O pacote
+`steiner-convex-partition` segue autônomo, sem ligação com os solvers. O
+código do experimento (opção `--decomposition`, `tpp-decomposition-timing`,
+testes) está nos commits `b7cb532` e `c122555` e pode ser recuperado de lá.
+
 **Exatidão e limitações.**
 - Os dois lados fecham o mesmo gap numérico, o que não é ótimo algébrico.
 - Com Steiner, um ponto de corte racional é arredondado para fora do

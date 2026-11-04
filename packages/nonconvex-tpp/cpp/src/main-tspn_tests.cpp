@@ -46,14 +46,14 @@ bool covered(const Polygon &q,const Polygons &p) {
         return tpp::unordered_detail::contact(q,region,1e-8).distance<=1e-8;
     });
 }
-std::pair<double,double> enumerate(const Polygons &p,tpp::ConvexDecomposition method=tpp::ConvexDecomposition::greene) {
+std::pair<double,double> enumerate(const Polygons &p) {
     if(p.size()<2)return {0,0};
     std::vector<std::vector<Polygon>> pieces;
     for(auto region:p) {
         if(region.size()<=2){pieces.push_back({region});continue;}  // point or segment
         double area=0;for(size_t i=0;i<region.size();++i)area+=region[i].cross(region[(i+1)%region.size()]);
         if(area<0)std::reverse(region.begin(),region.end());
-        pieces.push_back(tpp::decompose_polygon(region,method));
+        pieces.push_back(tpp::decompose_polygon(region));
     }
     std::vector<size_t> order(p.size());std::iota(order.begin(),order.end(),0);
     double lower=INFINITY,upper=INFINITY;
@@ -101,16 +101,6 @@ void check(const Polygons &p) {
     require(r.exact&&r.lower_bound<=upper+1e-7&&r.upper_bound>=lower-1e-7&&
             std::abs(r.upper_bound-upper)<=1e-7+1e-9*upper,"TSPN exhaustive order/piece comparison");
     require(r.calls==r.relaxation_calls+r.refinement_calls+r.initial_convex_refinement_calls,"Oracle accounting");
-    {
-        tpp::UnorderedTppSolveOptions steiner;steiner.decomposition=tpp::ConvexDecomposition::steiner;
-        const auto alternative=tpp::tpp_nonconvex_tspn_solve(p,steiner);
-        require(covered(alternative.path,p)&&alternative.exact&&alternative.lower_bound<=upper+1e-7&&
-                alternative.upper_bound>=lower-1e-7&&std::abs(alternative.upper_bound-upper)<=1e-7+1e-9*upper,
-                "TSPN with the Steiner decomposition reaches the exhaustive optimum");
-        const auto steiner_bounds=enumerate(p,tpp::ConvexDecomposition::steiner);
-        require(std::abs(steiner_bounds.second-upper)<=1e-7+1e-9*upper,
-                "Exhaustive optimum over Steiner pieces equals the one over Greene pieces");
-    }
     decomposed+=r.decomposition_branches>0;
     tpp::UnorderedTppSolveOptions parallel;parallel.threads=2;parallel.sequence_storage=tpp::UnorderedSequenceStorage::Deltas;
     const auto concurrent=tpp::tpp_nonconvex_tspn_solve(p,parallel);
