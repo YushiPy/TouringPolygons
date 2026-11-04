@@ -475,49 +475,58 @@ namespace steiner_convex_partition::detail {
 		}
 		if (in_piece) return pairwise();
 
-		auto hull = [](std::vector<Vec2> points) {
+		// Obstacle hulls as their lower and upper chains: a linear function is
+		// unimodal along each, so its minimum over a hull takes O(log h) signs.
+		struct Hull {
+			std::vector<RPoint> chain[2];
+		};
+		auto build_hull = [&](std::vector<Vec2> points) {
+			Hull result;
 			std::sort(points.begin(), points.end(), [](const Vec2 &a, const Vec2 &b) {
 				return a.x < b.x || (a.x == b.x && a.y < b.y);
 			});
 			points.erase(std::unique(points.begin(), points.end()), points.end());
-			if (points.size() < 3) return points;
-			std::vector<Vec2> h(2 * points.size());
-			std::size_t k = 0;
-			for (const Vec2 &x : points) {
-				while (k >= 2 && exact::orient(h[k - 2], h[k - 1], x) <= 0) --k;
-				h[k++] = x;
+			for (int side = 0; side < 2; ++side) {
+				std::vector<Vec2> h;
+				for (std::size_t t = 0; t < points.size(); ++t) {
+					const Vec2 &x = side == 0 ? points[t] : points[points.size() - 1 - t];
+					while (h.size() >= 2 && exact::orient(h[h.size() - 2], h.back(), x) <= 0) h.pop_back();
+					h.push_back(x);
+				}
+				for (const Vec2 &x : h) {
+					RPoint r;
+					r.v = x;
+					r.x = x.x;
+					r.y = x.y;
+					r.is_double = true;
+					r.exact = frame_.point(x);
+					result.chain[side].push_back(std::move(r));
+				}
 			}
-			const std::size_t lower = k + 1;
-			for (std::size_t t = points.size() - 1; t-- > 0;) {
-				while (k >= lower && exact::orient(h[k - 2], h[k - 1], points[t]) <= 0) --k;
-				h[k++] = points[t];
-			}
-			h.resize(k - 1);
-			return h;
+			return result;
 		};
-		std::vector<int> x_hull;
-		std::vector<int> y_hull;
-		std::vector<RPoint> obstacles;
-		for (const Vec2 &x : hull(x_points)) {
-			RPoint r;
-			r.v = x;
-			r.x = x.x;
-			r.y = x.y;
-			r.is_double = true;
-			r.exact = frame_.point(x);
-			x_hull.push_back(static_cast<int>(obstacles.size()));
-			obstacles.push_back(std::move(r));
-		}
-		for (const Vec2 &x : hull(y_points)) {
-			RPoint r;
-			r.v = x;
-			r.x = x.x;
-			r.y = x.y;
-			r.is_double = true;
-			r.exact = frame_.point(x);
-			y_hull.push_back(static_cast<int>(obstacles.size()));
-			obstacles.push_back(std::move(r));
-		}
+		const Hull x_hull = build_hull(std::move(x_points));
+		const Hull y_hull = build_hull(std::move(y_points));
+		// Are all points of the hull strictly on side `side` of the line a -> b?
+		// The minimum of side * orient(a, b, .) over a chain is at its first
+		// vertex, its last one, or where its decreasing run ends.
+		auto all_on_side = [&](const Hull &hull, const RPoint &a, const RPoint &b, int side) {
+			for (const std::vector<RPoint> &chain : hull.chain) {
+				const int m = static_cast<int>(chain.size());
+				if (m == 0) continue;
+				int lo = 0;
+				int hi = m - 1;
+				while (lo < hi) {
+					const int mid = lo + (hi - lo) / 2;
+					if (side * cross_sign(a, b, chain[static_cast<std::size_t>(mid)], chain[static_cast<std::size_t>(mid) + 1]) >= 0) hi = mid;
+					else lo = mid + 1;
+				}
+				for (int t : {0, lo, m - 1}) {
+					if (orient(a, b, chain[static_cast<std::size_t>(t)]) != side) return false;
+				}
+			}
+			return true;
+		};
 
 		// For each A_k the B's allowed by the angle at A (alpha) and by the safety
 		// region (gamma); for each B_l the A's allowed by the angle at B (beta).
@@ -530,18 +539,10 @@ namespace steiner_convex_partition::detail {
 				return orient(after(k), notch(k), bs[static_cast<std::size_t>(lb)]->point) >= 0;
 			});
 			const auto below_x = half_line(q, [&](int lb) {
-				const RPoint &b = bs[static_cast<std::size_t>(lb)]->point;
-				for (int w : x_hull) {
-					if (orient(a, b, obstacles[static_cast<std::size_t>(w)]) != sigma) return false;
-				}
-				return true;
+				return all_on_side(x_hull, a, bs[static_cast<std::size_t>(lb)]->point, sigma);
 			});
 			const auto above_y = half_line(q, [&](int lb) {
-				const RPoint &b = bs[static_cast<std::size_t>(lb)]->point;
-				for (int w : y_hull) {
-					if (orient(a, b, obstacles[static_cast<std::size_t>(w)]) != -sigma) return false;
-				}
-				return true;
+				return all_on_side(y_hull, a, bs[static_cast<std::size_t>(lb)]->point, -sigma);
 			});
 			range[static_cast<std::size_t>(ka)] = {
 				std::max({alpha.first, below_x.first, above_y.first}),
