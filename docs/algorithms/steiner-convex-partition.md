@@ -10,7 +10,10 @@ References, cited below by lemma number of the 1985 text:
   pp. 63–133 (the polynomial algorithm `ConvDec` of its Section 3 and the
   O(n + c³) refinements of Section 4, from Chazelle's 1980 thesis).
 
-As far as we know, this is the first implementation.
+As far as we know, this is the first implementation. Both algorithms of the
+1985 text are implemented, selected by `Options::algorithm`: `polynomial`
+(Section 3, the default) and `cubic` (Section 4, see
+[below](#the-section-4-algorithm-algorithmcubic)).
 
 ## Formulation
 
@@ -122,14 +125,13 @@ and maximum as a consistency check.
 - **Junction shapes.** STEP 2 and B4/F4 enumerate exactly the subtree
   combinations at a Steiner point that condition 2 allows. The derivation is
   in the comments of `try_junction_combos` and `compute_forward`.
-- **Polynomial algorithm, not the cubic one.** Superranges, the functions
-  NEXT, f, g₁, g₂ and the sets E(i, j) of Section 4 are not implemented.
-  Steiner points are found by a direct convex search, and X4-patterns by a
-  per-pair filter plus a test on four notches. The work is O(c³) junction
-  searches of O(n) each and O(c⁴) X4 candidates, pruned by value bounds and
-  a per-pair necessary condition. On the corpora below the largest polygon
-  (673 vertices, 341 notches) takes 4.5 s, against 303 s for all 32 São Paulo
-  districts with Greene's port.
+- **Cost of the polynomial algorithm.** Steiner points are found by a direct
+  convex search, and X4-patterns by a per-pair filter plus a test on four
+  notches. The work is O(c³) junction searches of O(n) each and O(c⁴) X4
+  candidates, pruned by value bounds and a per-pair necessary condition. On
+  the corpora below the largest polygon (673 vertices, 341 notches) takes
+  4.5 s, against 303 s for all 32 São Paulo districts with Greene's port. The
+  Section 4 version below replaces both searches.
 
 ### Steiner points
 
@@ -170,6 +172,153 @@ angles. This is the per-pair filter. It then tries the averages, the bisector
 intersections and the 16 corner combinations for the two Steiner points,
 rounded to doubles, and checks each candidate exactly: both angle triangles,
 every notch removed, five clear segments, no crossings.
+
+## The Section 4 algorithm (`Algorithm::cubic`)
+
+Section 4 of the 1985 text keeps the dynamic program and makes its geometric
+tests cheap: superranges answer visibility from a notch, and the sets E(i, j)
+replace the enumeration of X4-patterns. The tables S, B, F, the choices and
+the reconstruction are shared with the polynomial version; only the tests
+change. The proofs of Lemmas 10 and 18 to 20 are in Chazelle's 1980 thesis,
+which we could not obtain, so their constructions below are ours. The text's
+orientation is clockwise; everything here is derived in our counterclockwise
+convention rather than transcribed.
+
+### Convex chains and superranges
+
+- **Convex chains** (`src/chains.*`, Lemma 8). The maximal convex chains
+  between consecutive notches, each cut again where it has turned by half a
+  turn. Along such a piece the signed distance to any line is unimodal, so
+  the edges meeting a line are found by binary search: a line query costs
+  O(c log n), and the code scans the n edges instead when that is cheaper.
+- **Pseudo-notches** (Lemma 8). The ends of the maximal convex chains; there
+  are at most 2(c + 1).
+- **Superrange** of a notch v (`src/superrange.*`, Lemma 10). The directions
+  from v toward the pseudo-notches inside its corner, in counterclockwise
+  order, with the first boundary contact on each ray and the edges hit by the
+  ray turned slightly either way. Between two consecutive directions the
+  visible boundary is part of one convex chain, so whether v sees a point s
+  takes two binary searches and one orientation test: O(log n).
+- **Construction.** One rotational sweep per notch: the vertices in its
+  corner sorted by direction, and the edges crossing the sweep ray in a
+  balanced tree ordered by distance. Two edges crossed by a common ray are
+  ordered by the side of each other's line they lie on, which is a total
+  order since edges do not cross. O(n log n) per notch.
+- **Uses.** A diagonal between two notches is a first contact (Lemma 13). For
+  a junction joining notches a, b, c, the superrange of a gives the direction
+  where the ray from a jumps over b's position on the boundary. A Steiner
+  point must lie strictly beyond it, and symmetrically from b. These are the
+  per-arc half-planes of Lemma 14; they are tabulated for all pairs. The
+  three arms of a candidate are then checked with superrange queries instead
+  of scans of the arcs.
+
+### Loose X4-patterns and the sets E(i, j)
+
+`src/loose_x4.*`. By Lemma 16 an X4-pattern that is not reducible to Y-patterns
+can be taken loose, so the configuration where every arm runs along the
+extension of the notch's edge to its next vertex is valid. Let r_v be that
+extension from notch v up to its first contact with the boundary. Then the
+Steiner point joining notches k and i is fixed: A = r_k ∩ r_i, a rational point.
+
+- **Usable crossings.** r_t and r_s meet, as the point joining t then s in
+  counterclockwise order, iff v_t is strictly left of r_s, v_s is strictly
+  right of r_t, the cross product of their directions is negative, and the
+  meeting point lies strictly before both first contacts. All pairs are
+  computed once, sorted along each ray: O(c² log c).
+- **E(i, j)**, computed right after S(i, j), pairs each notch k outside
+  [i..j] with an inner notch l such that (k, i, l, j) with A = r_k ∩ r_i and
+  B = r_l ∩ r_j is valid, if there is one. Inner notches obey relation (2):
+  S(i+1, l−1) + S(l+1, j−1) = S(i, j).
+- **Conditions.** A must lie in the triangle (v_k, v_i, B), which reads: B on
+  the right of r_i, a fixed half-plane, and B on the left of r_k, an interval
+  of the candidates on r_j. Symmetrically, A is on the right of r_j, a fixed
+  filter, and on the left of r_l, an interval of the candidates on r_i.
+- **Safety region** (Lemma 18). Every middle edge lies in the quadrilateral
+  A₁A_pB₁B_q of the extreme candidates. The boundary cannot touch its sides on
+  r_i and r_j, so the boundary pieces inside it hang from one of the two free
+  sides. A piece touching both cuts every middle edge. Otherwise a middle edge
+  is clear iff the vertices of the pieces on each side lie strictly on that
+  side of it, and only notches matter. The pieces are found by a walk over
+  the events where chains meet the free sides and over the chain ends, which
+  include every notch. Each side's obstacles are kept as a convex hull (the
+  chains C and D of the text), so testing a middle edge costs O(log h).
+- **Matching** (Lemma 20). For each A, the B's allowed by its angle and by the
+  safety region form an interval. For each B, the A's allowed by its angle
+  form an interval. A sweep over the A's keeps the B's whose interval contains
+  the current A and takes the first one in the A's range. This uses a
+  balanced tree where the text uses a linear-time construction.
+- **In the dynamic program.** At (i, j) both topologies of an X4-pattern
+  joining i and j are read from E (the text's Fig. 30): E(a, j) with i
+  outside, value 1 + S(i+1, a−1) + S(a, j); and E(i, b) with j outside, value
+  1 + S(i, b) + S(b+1, j−1). This is O(c) per interval.
+- **Realizing the Steiner points.** A and B lie exactly on the extensions,
+  so their rounded doubles may leave a notch angle above 180° by a rounding
+  error. They are moved slightly into the open angles at their notches,
+  trying increasing distances. If none works, the candidates of the
+  polynomial version are tried. Every attempt is validated exactly, and a
+  pattern that cannot be realized is not used.
+
+**Interval values may differ.** The reductions behind Lemmas 6 and 16 may pick
+up a notch outside the pattern's interval: an arm slides until it touches a
+boundary vertex. A non-loose X4-pattern inside an interval can therefore reduce
+to a loose one that uses a notch outside it, so S(i, j) of a single interval
+can be smaller in the cubic version. In one random polygon, {5, 6 | 1, 2}
+reduces to (1, 2 | 4, 6). The lemmas guarantee only the final count. Since every
+other pattern is decided the same way and the cubic version decides loose
+X4-patterns exactly while the polynomial one tries fixed candidates, the cubic
+count is never smaller. A smaller count would contradict the paper or reveal a
+bug, so the differential test checks exactly this.
+
+### Complexity
+
+| Step | Text (Section 4) | Here |
+|---|---|---|
+| Convex chains, pseudo-notches | O(n) | O(n) |
+| Superranges | O(n + c² log n) (Lemma 10) | O(c n log n) by sweeps |
+| Diagonals, per-arc directions | O(c² log n) | O(c² log n) |
+| Junction tests | O(1) each, O(c³) | O(log n) each, O(c³ log n) |
+| Ends of the rays r_v, crossings | O(n + c² log n) | O(c · min(n, c log n) + c² log c) |
+| E(i, j) | O(c) each (Lemmas 18 to 21) | O(min(n, c log n) + c log² c) each |
+| X4-patterns in S | O(c) per interval | O(c) per interval |
+| Naive decomposition | O(n + c² log n) (Lemma 9) | shared assembly: O(n) per cut, up to O(m²) per cut when looking for a diagonal to a face vertex |
+
+Overall O(c n log n + c³ log² c) up to the assembly, against O(n + c³) in the
+text. The input check for simplicity is O(n²) in both versions.
+
+### Validation and timing
+
+- `Options::cross_check` makes the cubic run verify itself: every superrange
+  direction against a direct trace, every diagonal and junction visibility
+  answer against the direct tests, and, up to 40 notches, every set E(i, j)
+  against a search of all quadruples. A disagreement throws.
+- `steiner_convex_partition_superrange_tests` compares superrange queries with
+  brute force on random stars and integer skylines, which are full of
+  collinear vertices. There were no mismatches in 3.4 million point queries
+  and 79,492 notch pairs.
+- `steiner_convex_partition_cubic_differential` runs both versions, the cubic
+  one with cross-checks. On 17,450 random polygons (stars, skylines, and
+  convex polygons with thin V-notches, which use 204 X4-patterns) and on every
+  corpus, the cubic version was never worse and never better, and all
+  cross-checks passed. Unit and brute-force tests also run in cubic mode.
+
+Timing (2026-11-04, cloud container, Intel Xeon at 2.10 GHz, one thread, GCC 13,
+`-O2`, without validation or cross-checks):
+
+| Input | n | c | Polynomial | Cubic |
+|---|---:|---:|---:|---:|
+| `fekete-instances.bin` (16,301 polygons) | | | 5.04 s | 5.30 s |
+| `br-estados` (27) | | | 1.65 s | 1.81 s |
+| `sp-bairros` (32) | | | 5.83 s | 6.80 s |
+| `usp-butanta-50` (50) | | | 0.22 s | 0.25 s |
+| random star | 100 | 49 | 0.21 s | 0.18 s |
+| random star | 200 | 90 | 1.58 s | 0.97 s |
+| random star | 400 | 190 | 21.2 s (395 MB) | 7.2 s (22 MB) |
+| random star | 800 | 364 | not run | 58.7 s (70 MB) |
+
+On the corpora the polynomial version's pruning wins slightly. On large
+polygons the cubic version grows more slowly (about c^3.2 against c^3.5 here)
+and uses far less memory: the polynomial version caches candidate X4-patterns
+by quadruple.
 
 ## Assembly and validation
 
@@ -259,7 +408,9 @@ many pieces.
      representable, or a region of zero area at a non-representable point,
      can be missed. Validity is unaffected.
   2. X4-patterns are found only through the loose configurations of
-     Lemma 16.
+     Lemma 16. The cubic version decides each loose configuration exactly;
+     the polynomial one tries a fixed set of candidates, so it can miss one
+     (it never did on the final counts of our tests).
   3. The proofs of the lemmas in the 1985 text are sketches.
 
   The result is a valid decomposition that is believed optimal. It is not
@@ -271,7 +422,9 @@ many pieces.
   The pieces are then a convex cover of the polygon, exceeding it and
   overlapping by at most rounding errors. That is what a branch and bound
   needs: every point of the region lies in some piece.
-- **Complexity**: polynomial, not the O(n + c³) of Section 4.
+- **Complexity**: the polynomial version is O(n c³) plus O(c⁴) X4
+  candidates; the cubic version is O(c n log n + c³ log² c) plus the shared
+  assembly (see its complexity table), against O(n + c³) in the text.
 
 ## Validation evidence (2026-11-04)
 
@@ -284,6 +437,10 @@ many pieces.
   Steiner points, an independent search packs X2-patterns, sampled X3-patterns
   and two-diagonal chains with its own interval DP. It never found more
   patterns than the decomposition.
+- Section 4 version: see
+  [Validation and timing](#validation-and-timing) above (superrange queries
+  against brute force, differential test against the polynomial version,
+  self cross-checks).
 - Comparison with Greene's port (`steiner_convex_partition_compare`), never
   more pieces on any corpus. See the package README for the table: 535 of
   16,301 Fekete polygons, 17 of 27 Brazilian states, 11 of 32 São Paulo

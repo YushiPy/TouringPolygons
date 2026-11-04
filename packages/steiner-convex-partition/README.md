@@ -30,6 +30,15 @@ steiner_convex_partition::Result result = steiner_convex_partition::decompose(po
 // result.patterns, result.validated, ...
 ```
 
+Both algorithms of the 1985 text are available: `Options::algorithm` selects
+`Algorithm::polynomial` (Section 3, the default) or `Algorithm::cubic`
+(Section 4: superranges and the sets E(i, j)). They share the dynamic program
+and the assembly. The cubic version decides X4-patterns exactly in their loose
+configuration, so it never returns more pieces. It is about as fast on the
+repository's corpora and faster on large polygons (2.9 times at 190 notches).
+`Options::cross_check` makes it verify each of its shortcuts against the
+direct computation.
+
 ## What the result guarantees
 
 - **Validity, exactly.** Every piece is convex, the pieces lie in the polygon,
@@ -73,7 +82,13 @@ whose four notches need an X4-pattern) and random star-shaped and rectilinear
 polygons, checking every result exactly. `steiner_convex_partition_brute_force`
 packs X2-patterns, X3-patterns found by sampling Steiner points, and chains of
 two diagonals with its own interval DP, and fails if that packing beats the
-decomposition.
+decomposition. Both also run with `--cubic`.
+
+For the Section 4 version, `steiner_convex_partition_superrange_tests` compares
+superrange queries with brute force, and
+`steiner_convex_partition_cubic_differential [count] [seed] [--timing] [file.bin...]`
+runs both algorithms on random polygons and fixture files, with the cubic
+one's cross-checks on. It fails if the cubic version ever returns more pieces.
 
 ## Comparison with Greene's algorithm
 
