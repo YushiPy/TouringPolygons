@@ -24,7 +24,9 @@ namespace steiner_convex_partition::detail {
 
 	class Superranges {
 	public:
-		Superranges(const PolygonData &polygon, const std::vector<int> &pseudo);
+		// With cross_check, every direction found by the sweep is compared with a
+		// direct trace (std::logic_error on a difference).
+		Superranges(const PolygonData &polygon, const std::vector<int> &pseudo, bool cross_check = false);
 
 		// Is the double point s strictly visible from notch vertex v: the open
 		// segment (v, s) and s in the interior of the polygon?
@@ -85,6 +87,7 @@ namespace steiner_convex_partition::detail {
 		// at the edge to the next vertex: negative, zero or positive.
 		int compare_directions(int v, const Vec2 &p, const Vec2 &q) const;
 		Direction trace(int v, int target, bool want_before, bool want_after) const;
+		bool sweep(int v, const std::vector<int> &targets, std::vector<Direction> &out) const;
 		bool sees_in_cell(int v, const Range &range, std::size_t cell, const Vec2 &s) const;
 	};
 }

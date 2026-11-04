@@ -76,7 +76,7 @@ int main(int argc, char **argv) {
 		}
 		if (p.c == 0) continue;
 		const std::vector<int> pseudo = pseudo_notches(p);
-		const Superranges sr(p, pseudo);
+		const Superranges sr(p, pseudo, true);
 		double min_x = p.pts[0].x, max_x = min_x, min_y = p.pts[0].y, max_y = min_y;
 		for (const Vec2 &q : p.pts) {
 			min_x = std::min(min_x, q.x);

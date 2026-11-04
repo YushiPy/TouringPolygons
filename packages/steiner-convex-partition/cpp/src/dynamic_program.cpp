@@ -716,7 +716,7 @@ namespace steiner_convex_partition::detail {
 			DynamicProgram(const PolygonData &polygon, const Options &options)
 				: polygon_(polygon), options_(options), c_(polygon.c), junctions_(polygon), x4_(polygon) {
 				if (options.algorithm == Algorithm::cubic && polygon.c > 0) {
-					superranges_.emplace(polygon, pseudo_notches(polygon));
+					superranges_.emplace(polygon, pseudo_notches(polygon), options.cross_check);
 					junctions_.use_superranges(&*superranges_, options.cross_check);
 					if (options.steiner_points && options.x4_patterns && polygon.c >= 4) loose_.emplace(polygon);
 				}

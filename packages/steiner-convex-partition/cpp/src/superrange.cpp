@@ -1,6 +1,10 @@
 #include "superrange.h"
 
 #include <algorithm>
+#include <limits>
+#include <set>
+#include <stdexcept>
+#include <string>
 
 namespace steiner_convex_partition::detail {
 
@@ -195,7 +199,129 @@ namespace steiner_convex_partition::detail {
 		return d;
 	}
 
-	Superranges::Superranges(const PolygonData &polygon, const std::vector<int> &pseudo)
+	// Rotational sweep around notch v through its corner, from the edge to the
+	// next vertex to the edge to the previous one. The edges crossing the sweep
+	// ray are kept ordered by distance (two edges crossed by a common ray are
+	// ordered by the side of each other's line they lie on); at the direction of
+	// each target the nearest edge before and after the vertices at that angle
+	// give the slightly turned hits, and the nearest of those vertices and of
+	// the edge crossing through the contact. O(n log n) for all directions.
+	bool Superranges::sweep(int v, const std::vector<int> &targets, std::vector<Direction> &out) const {
+		const int n = polygon_.n;
+		const Vec2 &o = polygon_.at(v);
+		const int prev = (v - 1 + n) % n;
+		constexpr int outside = std::numeric_limits<int>::max();
+		std::vector<int> order;
+		order.reserve(static_cast<std::size_t>(n));
+		for (int w = 0; w < n; ++w) {
+			if (w == v) continue;
+			if (compare_directions(v, polygon_.at(w), polygon_.at(prev)) > 0) continue;  // behind the corner
+			order.push_back(w);
+		}
+		std::sort(order.begin(), order.end(), [&](int a, int b) {
+			return compare_directions(v, polygon_.at(a), polygon_.at(b)) < 0;
+		});
+		std::vector<int> rank(static_cast<std::size_t>(n), outside);
+		std::vector<std::size_t> group_start;
+		for (std::size_t k = 0; k < order.size(); ++k) {
+			if (k == 0 || compare_directions(v, polygon_.at(order[k - 1]), polygon_.at(order[k])) != 0) group_start.push_back(k);
+			rank[static_cast<std::size_t>(order[k])] = static_cast<int>(group_start.size()) - 1;
+		}
+		const int groups = static_cast<int>(group_start.size());
+		group_start.push_back(order.size());
+
+		// Each edge crosses the rays of an angular interval: from its endpoint s to
+		// its endpoint t counterclockwise, clipped to the corner.
+		std::vector<std::vector<int>> inserts(static_cast<std::size_t>(groups));
+		std::vector<std::vector<int>> removes(static_cast<std::size_t>(groups));
+		std::vector<int> removed_at(static_cast<std::size_t>(n), -1);
+		std::vector<int> initial;
+		for (int e = 0; e < n; ++e) {
+			if (e == v || e == prev) continue;
+			const int a = e;
+			const int b = (e + 1) % n;
+			const int turn = orient(o, polygon_.at(a), polygon_.at(b));
+			if (turn == 0) continue;  // along a ray: only its endpoints are met
+			const int rs = rank[static_cast<std::size_t>(turn > 0 ? a : b)];
+			const int rt = rank[static_cast<std::size_t>(turn > 0 ? b : a)];
+			if (rs == outside && rt == outside) continue;
+			if (rs != outside && rt != outside && rs < rt) {
+				inserts[static_cast<std::size_t>(rs)].push_back(e);
+				removes[static_cast<std::size_t>(rt)].push_back(e);
+				removed_at[static_cast<std::size_t>(e)] = rt;
+				continue;
+			}
+			if (rs != outside && rt != outside && rs == rt) continue;
+			if (rs != outside) inserts[static_cast<std::size_t>(rs)].push_back(e);
+			if (rt != outside) {
+				initial.push_back(e);
+				removes[static_cast<std::size_t>(rt)].push_back(e);
+				removed_at[static_cast<std::size_t>(e)] = rt;
+			}
+		}
+
+		auto nearer = [&](int e1, int e2) {
+			return e1 != e2 && before(polygon_, o, o, Hit {2, -1, e1, -1}, Hit {2, -1, e2, -1}, 0);
+		};
+		using Active = std::set<int, decltype(nearer)>;
+		Active active(nearer);
+		std::vector<Active::iterator> handle(static_cast<std::size_t>(n), active.end());
+		auto insert = [&](int e) {
+			const auto [it, inserted] = active.insert(e);
+			handle[static_cast<std::size_t>(e)] = it;
+			return inserted;
+		};
+		for (int e : initial) {
+			if (!insert(e)) return false;
+		}
+
+		out.clear();
+		std::size_t next_target = 0;
+		for (int g = 0; g < groups; ++g) {
+			const int front_before = active.empty() ? -1 : *active.begin();
+			for (int e : removes[static_cast<std::size_t>(g)]) {
+				active.erase(handle[static_cast<std::size_t>(e)]);
+				handle[static_cast<std::size_t>(e)] = active.end();
+			}
+			for (int e : inserts[static_cast<std::size_t>(g)]) {
+				if (!insert(e)) return false;
+			}
+			if (next_target >= targets.size() || rank[static_cast<std::size_t>(targets[next_target])] != g) continue;
+			const int target = targets[next_target++];
+			const int front_after = active.empty() ? -1 : *active.begin();
+			const Vec2 &q = polygon_.at(target);
+			Hit contact;
+			for (std::size_t k = group_start[static_cast<std::size_t>(g)]; k < group_start[static_cast<std::size_t>(g) + 1]; ++k) {
+				const Hit h {1, order[k], -1, -1};
+				if (before(polygon_, o, q, h, contact, 0)) contact = h;
+			}
+			if (front_before >= 0 && removed_at[static_cast<std::size_t>(front_before)] != g) {
+				const Hit h {2, -1, front_before, -1};
+				if (before(polygon_, o, q, h, contact, 0)) contact = h;
+			}
+			Direction d;
+			d.target = target;
+			if (contact.kind == 1) {
+				d.contact = vertex_offset(v, contact.vertex);
+				d.contact_vertex = contact.vertex;
+			} else if (contact.kind == 2) {
+				d.contact = edge_offset(v, contact.edge);
+				d.contact_edge = contact.edge;
+			}
+			if (front_before >= 0) {
+				d.before = edge_offset(v, front_before);
+				d.before_edge = front_before;
+			}
+			if (front_after >= 0) {
+				d.after = edge_offset(v, front_after);
+				d.after_edge = front_after;
+			}
+			out.push_back(d);
+		}
+		return out.size() == targets.size();
+	}
+
+	Superranges::Superranges(const PolygonData &polygon, const std::vector<int> &pseudo, bool cross_check)
 		: polygon_(polygon), chains_(polygon) {
 		ranges_.resize(static_cast<std::size_t>(polygon.c));
 		for (int t = 0; t < polygon.c; ++t) {
@@ -219,11 +345,43 @@ namespace steiner_convex_partition::detail {
 				unique.push_back(u);
 			}
 			const int n = polygon.n;
-			range.directions.push_back(trace(v, (v + 1) % n, false, true));
+			std::vector<int> all_targets;
+			all_targets.reserve(unique.size() + 2);
+			all_targets.push_back((v + 1) % n);
+			all_targets.insert(all_targets.end(), unique.begin(), unique.end());
+			all_targets.push_back((v - 1 + n) % n);
+			if (!sweep(v, all_targets, range.directions)) {
+				// A tie the sweep cannot order (should not happen in a simple
+				// polygon): trace every direction on its own.
+				range.directions.clear();
+				for (std::size_t k = 0; k < all_targets.size(); ++k) {
+					range.directions.push_back(trace(v, all_targets[k], k > 0, k + 1 < all_targets.size()));
+				}
+			}
+			// The edge directions bound the corner: nothing before the first, nothing
+			// after the last.
 			range.directions.front().before = 0;
-			for (int u : unique) range.directions.push_back(trace(v, u, true, true));
-			range.directions.push_back(trace(v, (v - 1 + n) % n, true, false));
+			range.directions.front().before_edge = -1;
 			range.directions.back().after = 2 * n;
+			range.directions.back().after_edge = -1;
+			if (cross_check) {
+				for (std::size_t k = 0; k < all_targets.size(); ++k) {
+					Direction d = trace(v, all_targets[k], k > 0, k + 1 < all_targets.size());
+					if (k == 0) d.before = 0;
+					if (k + 1 == all_targets.size()) d.after = 2 * n;
+					const Direction &e = range.directions[k];
+					if (d.target != e.target || d.contact != e.contact || d.contact_vertex != e.contact_vertex || d.contact_edge != e.contact_edge
+						|| d.before != e.before || d.before_edge != e.before_edge || d.after != e.after || d.after_edge != e.after_edge) {
+						auto text = [](const Direction &x) {
+							return "target " + std::to_string(x.target) + " contact " + std::to_string(x.contact) + " (v " + std::to_string(x.contact_vertex)
+								+ ", e " + std::to_string(x.contact_edge) + ") before " + std::to_string(x.before) + " (e " + std::to_string(x.before_edge)
+								+ ") after " + std::to_string(x.after) + " (e " + std::to_string(x.after_edge) + ")";
+						};
+						throw std::logic_error("superrange sweep disagrees with the direct trace at notch " + std::to_string(v)
+							+ ": trace " + text(d) + "; sweep " + text(e));
+					}
+				}
+			}
 		}
 		const std::size_t cs = static_cast<std::size_t>(polygon.c);
 		last_.assign(cs * cs, -1);
