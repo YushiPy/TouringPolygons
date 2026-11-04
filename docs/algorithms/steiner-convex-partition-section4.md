@@ -325,8 +325,19 @@ the bit model too, with a large constant when the filter fails.
 
 ## Open work toward O(n + c³)
 
-In order of value. Each item keeps the existing invariant: the cubic count is
-never worse than the polynomial one, and the cross-checks pass.
+Items 1 to 3 are needed for the bound itself; 4 to 7 are smaller or optional.
+Each must keep the existing invariant: the cubic count is never worse than the
+polynomial one, and the cross-checks pass.
+
+**Where the time goes today** (callgrind, cubic version, `sp-bairros`
+polygon 0: n = 296, c = 150, no validation): the junction search, i.e. the
+constant-size exact clipping shared with the polynomial version, 27%;
+superrange construction 15% (half of it sorting directions); the rest of the
+DP tables about 40%; assembly 5%; the sets E(i, j) 4%; the X4 precomputation
+2%; the visibility queries `sees` that item 1 would remove, 0.01% (most
+junction searches fail before any arm is checked). So items 1 to 3 are about
+the bound, not about speed on inputs like these: item 3 matters only when n is
+much larger than c², and the practical cost is in the shared search.
 
 ### 1. Constant-time junction tests (Lemma 14)
 
