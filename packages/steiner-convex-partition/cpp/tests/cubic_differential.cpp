@@ -9,7 +9,8 @@
 // The cubic run also cross-checks every superrange answer and every set E(i, j)
 // against direct computations.
 //
-// usage: steiner_convex_partition_cubic_differential [count] [seed] [--max-notches K] [file.bin...]
+// usage: steiner_convex_partition_cubic_differential [count] [seed] [--max-notches K] [--timing] [file.bin...]
+// (--timing: no cross-checks and no validation, to compare running times)
 
 #include "test_polygons.h"
 
@@ -47,11 +48,14 @@ namespace {
 		return std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
 	}
 
+	bool timing = false;
+
 	void compare(const scp::Polygon &polygon, const std::string &name, Totals &totals) {
 		scp::Options polynomial;
-		scp::Options cubic;
+		polynomial.validate = !timing;
+		scp::Options cubic = polynomial;
 		cubic.algorithm = scp::Algorithm::cubic;
-		cubic.cross_check = true;
+		cubic.cross_check = !timing;
 		scp::Result a;
 		auto start = std::chrono::steady_clock::now();
 		try {
@@ -84,7 +88,7 @@ namespace {
 		totals.polynomial_x4 += a.x4_tests;
 		totals.cubic_x4 += b.x4_tests;
 		for (const scp::PatternSummary &pattern : a.patterns) totals.x4_patterns += pattern.kind == scp::PatternKind::x4;
-		if (!b.validated) {
+		if (!timing && !b.validated) {
 			std::cerr << name << ": cubic result not validated\n";
 			++totals.failures;
 		}
@@ -119,7 +123,9 @@ int main(int argc, char **argv) {
 	int positional = 0;
 	for (int a = 1; a < argc; ++a) {
 		const std::string arg = argv[a];
-		if (arg == "--max-notches" && a + 1 < argc) {
+		if (arg == "--timing") {
+			timing = true;
+		} else if (arg == "--max-notches" && a + 1 < argc) {
 			max_notches = static_cast<std::size_t>(std::atol(argv[++a]));
 		} else if (arg.ends_with(".bin")) {
 			files.push_back(arg);

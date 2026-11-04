@@ -50,7 +50,7 @@ namespace steiner_convex_partition {
 		// Patterns with Steiner points (X3 and larger Y-patterns). Without them
 		// only diagonal patterns between notches remain.
 		bool steiner_points = true;
-		// X4-patterns: two adjacent Steiner points.
+		// X4-patterns: two adjacent Steiner points (only with steiner_points).
 		bool x4_patterns = true;
 		// Exact validation of the returned partition: every piece convex, inside
 		// the polygon, pairwise interior-disjoint, and the areas add up.

@@ -5,6 +5,7 @@
 // such directions the visible boundary is a portion of a single convex chain,
 // so a point is located by two binary searches and tested against one edge.
 
+#include "chains.h"
 #include "internal.h"
 
 #include <vector>
@@ -67,7 +68,15 @@ namespace steiner_convex_partition::detail {
 		};
 
 		const PolygonData &polygon_;
+		ConvexChains chains_;
 		std::vector<Range> ranges_;  // by notch index
+		// last_direction and first_direction for every ordered pair of notches
+		// (Lemma 14 needs them in constant time), by [a * c + b] in notch indices.
+		std::vector<int> last_;
+		std::vector<int> first_;
+
+		int compute_last_direction(int a, int b) const;
+		int compute_first_direction(int a, int b) const;
 
 		const Range &range_of(int vertex) const;
 		Offset vertex_offset(int v, int u) const;

@@ -8,6 +8,7 @@ option(STEINER_CONVEX_PARTITION_BUILD_GREENE_COMPARISON "Build the comparison wi
 
 add_library(steiner_convex_partition STATIC
 	src/assembly.cpp
+	src/chains.cpp
 	src/dynamic_program.cpp
 	src/geometry.cpp
 	src/loose_x4.cpp

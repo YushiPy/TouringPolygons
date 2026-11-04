@@ -9,6 +9,7 @@
 // a notch l inside it such that (k, i, l, j) is such a pattern; it is computed
 // in one pass over the candidates on r_i and r_j.
 
+#include "chains.h"
 #include "internal.h"
 
 #include <optional>
@@ -66,6 +67,7 @@ namespace steiner_convex_partition::detail {
 
 		const PolygonData &polygon_;
 		int c_ = 0;
+		ConvexChains chains_;
 		exact::Frame frame_;
 		std::vector<RPoint> vertices_;
 		std::vector<RPoint> hits_;                       // by notch: end of r_v
@@ -78,7 +80,17 @@ namespace steiner_convex_partition::detail {
 		const RPoint &after(int t) const;  // the vertex next to notch t
 		const Crossing *crossing(int first, int second) const;
 
+		// The line through two rational points, for ConvexChains queries.
+		struct RLine {
+			const LooseX4 &owner;
+			const RPoint &p;
+			const RPoint &q;
+			int side(int v) const;
+			int turn(int u, int v) const;
+		};
+
 		static int orient(const RPoint &a, const RPoint &b, const RPoint &c);
+		static int cross_sign(const RPoint &a, const RPoint &b, const RPoint &c, const RPoint &d);
 		static int dot_sign(const RPoint &a, const RPoint &b, const RPoint &c, const RPoint &d);
 		static bool closed_segments_meet(const RPoint &p, const RPoint &q, const RPoint &u, const RPoint &w);
 		static bool same_point(const RPoint &a, const RPoint &b);

@@ -78,6 +78,41 @@ namespace steiner_convex_partition::detail {
 		return exact::orient(a.exact, b.exact, c.exact);
 	}
 
+	// sign((b - a) x (d - c)).
+	int LooseX4::cross_sign(const RPoint &a, const RPoint &b, const RPoint &c, const RPoint &d) {
+		if (a.is_double && b.is_double && c.is_double && d.is_double) return exact::cross_sign(a.v, b.v, c.v, d.v);
+		const long double ux = b.x - a.x;
+		const long double uy = b.y - a.y;
+		const long double wx = d.x - c.x;
+		const long double wy = d.y - c.y;
+		const long double value = ux * wy - uy * wx;
+		const long double eu = a.error + b.error;
+		const long double ew = c.error + d.error;
+		const long double scale = std::fabs(a.x) + std::fabs(a.y) + std::fabs(b.x) + std::fabs(b.y)
+			+ std::fabs(c.x) + std::fabs(c.y) + std::fabs(d.x) + std::fabs(d.y);
+		const long double bound = (std::fabs(ux) + std::fabs(uy)) * ew + (std::fabs(wx) + std::fabs(wy)) * eu
+			+ 2.0L * eu * ew + evaluation_error * scale * scale;
+		if (value > bound) return 1;
+		if (value < -bound) return -1;
+		const exact::HPoint &ha = a.exact;
+		const exact::HPoint &hb = b.exact;
+		const exact::HPoint &hc = c.exact;
+		const exact::HPoint &hd = d.exact;
+		const exact::BigInt bx = hb.x * ha.w - ha.x * hb.w;
+		const exact::BigInt by = hb.y * ha.w - ha.y * hb.w;
+		const exact::BigInt dx = hd.x * hc.w - hc.x * hd.w;
+		const exact::BigInt dy = hd.y * hc.w - hc.y * hd.w;
+		return (bx * dy - by * dx).sign();
+	}
+
+	int LooseX4::RLine::side(int v) const {
+		return orient(p, q, owner.vertex(v));
+	}
+
+	int LooseX4::RLine::turn(int u, int v) const {
+		return cross_sign(p, q, owner.vertex(u), owner.vertex(v));
+	}
+
 	int LooseX4::dot_sign(const RPoint &a, const RPoint &b, const RPoint &c, const RPoint &d) {
 		if (a.is_double && b.is_double && c.is_double && d.is_double) return exact::dot_sign(a.v, b.v, c.v, d.v);
 		const long double ux = b.x - a.x;
@@ -134,7 +169,11 @@ namespace steiner_convex_partition::detail {
 			return exact::dot_sign(u.v, o.v, o.v, x) > 0;
 		};
 		std::vector<int> crossed_edges;
-		for (int e = 0; e < n; ++e) {
+		std::vector<int> edges;
+		chains_.edges_meeting_line(u.v, o.v, edges);
+		std::sort(edges.begin(), edges.end());
+		edges.erase(std::unique(edges.begin(), edges.end()), edges.end());
+		for (int e : edges) {
 			if (e == v || (e + 1) % n == v) continue;
 			const RPoint &a = vertex(e);
 			const RPoint &b = vertex(e + 1);
@@ -163,7 +202,7 @@ namespace steiner_convex_partition::detail {
 	}
 
 	LooseX4::LooseX4(const PolygonData &polygon)
-		: polygon_(polygon), c_(polygon.c) {
+		: polygon_(polygon), c_(polygon.c), chains_(polygon) {
 		for (const Vec2 &p : polygon.pts) frame_.include(p);
 		vertices_.resize(static_cast<std::size_t>(polygon.n));
 		for (int v = 0; v < polygon.n; ++v) {
@@ -376,56 +415,65 @@ namespace steiner_convex_partition::detail {
 		// vertices of X-pieces lie strictly on X's side of it and those of
 		// Y-pieces strictly on Y's side (the safety chains C and D are their
 		// hulls).
-		long double box[4] = {a1.x, a1.x, a1.y, a1.y};
-		long double slack = 0.0L;
-		for (const RPoint *x : corners) {
-			box[0] = std::min(box[0], x->x);
-			box[1] = std::max(box[1], x->x);
-			box[2] = std::min(box[2], x->y);
-			box[3] = std::max(box[3], x->y);
-			slack = std::max(slack, x->error);
-		}
 		const int n = polygon_.n;
 		const int start = polygon_.notch_vertex[static_cast<std::size_t>(i)];
 		if (in_quadrilateral(vertex(start))) return pairwise();
+		// Events in boundary order from v_i: the edges meeting X or Y (found
+		// through the convex chains) and the chain ends inside the quadrilateral.
+		// Between events the boundary stays on one side of the quadrilateral, and
+		// every notch is a chain end, so this is the walk restricted to what the
+		// safety region depends on.
+		std::vector<int> candidates;
+		chains_.edges_meeting(RLine {*this, bq, a1}, candidates);
+		chains_.edges_meeting(RLine {*this, ap, b1}, candidates);
+		std::sort(candidates.begin(), candidates.end());
+		candidates.erase(std::unique(candidates.begin(), candidates.end()), candidates.end());
+		struct Event {
+			int key;     // 2 * offset of a vertex, 2 * offset + 1 of an edge
+			int index;   // vertex or edge
+			int sides;   // for an edge: 1 meets X, 2 meets Y
+		};
+		auto position = [&](int v) {
+			return ((v - start) % n + n) % n;
+		};
+		std::vector<Event> events;
+		for (int e : candidates) {
+			const RPoint &a = vertex(e);
+			const RPoint &b = vertex(e + 1);
+			const int sides = (closed_segments_meet(a, b, bq, a1) ? 1 : 0) | (closed_segments_meet(a, b, ap, b1) ? 2 : 0);
+			if (sides != 0) events.push_back({2 * position(e) + 1, e, sides});
+		}
+		for (const ConvexChains::Chain &chain : chains_.chains()) {
+			if (in_quadrilateral(vertex(chain.first))) events.push_back({2 * position(chain.first), chain.first, 0});
+		}
+		std::sort(events.begin(), events.end(), [](const Event &x, const Event &y) {
+			return x.key < y.key;
+		});
 		std::vector<Vec2> x_points;
 		std::vector<Vec2> y_points;
 		std::vector<int> piece;
 		int sides = 0;
 		bool in_piece = false;
-		bool previous_inside = false;
-		for (int s = 0; s < n; ++s) {
-			const RPoint &a = vertex(start + s);
-			const RPoint &b = vertex(start + s + 1);
-			const bool outside_box = std::max(a.x, b.x) < box[0] - slack || std::min(a.x, b.x) > box[1] + slack
-				|| std::max(a.y, b.y) < box[2] - slack || std::min(a.y, b.y) > box[3] + slack;
-			if (outside_box) {
-				previous_inside = false;
+		for (const Event &event : events) {
+			if (event.key % 2 == 0) {
+				if (!in_piece) return pairwise();
+				piece.push_back(event.index);
 				continue;
 			}
-			const bool inside = in_quadrilateral(b);
-			const bool touches_x = closed_segments_meet(a, b, bq, a1);
-			const bool touches_y = closed_segments_meet(a, b, ap, b1);
-			if (previous_inside || inside || touches_x || touches_y) {
-				in_piece = true;
-				if (touches_x) sides |= 1;
-				if (touches_y) sides |= 2;
-				if (inside) piece.push_back(polygon_.wrap(start + s + 1));
+			in_piece = true;
+			sides |= event.sides;
+			if (in_quadrilateral(vertex(event.index + 1))) continue;
+			if (sides == 3) {
+				++separated;
+				return result;
 			}
-			if (in_piece && !inside) {
-				if (sides == 3) {
-					++separated;
-					return result;
-				}
-				if (sides == 0) return pairwise();
-				std::vector<Vec2> &target = sides == 1 ? x_points : y_points;
-				for (int w : piece) target.push_back(polygon_.pts[static_cast<std::size_t>(w)]);
-				piece.clear();
-				sides = 0;
-				in_piece = false;
-			}
-			previous_inside = inside;
+			std::vector<Vec2> &target = sides == 1 ? x_points : y_points;
+			for (int w : piece) target.push_back(polygon_.pts[static_cast<std::size_t>(w)]);
+			piece.clear();
+			sides = 0;
+			in_piece = false;
 		}
+		if (in_piece) return pairwise();
 
 		auto hull = [](std::vector<Vec2> points) {
 			std::sort(points.begin(), points.end(), [](const Vec2 &a, const Vec2 &b) {

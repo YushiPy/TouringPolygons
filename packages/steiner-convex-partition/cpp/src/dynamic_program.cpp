@@ -1003,7 +1003,7 @@ namespace steiner_convex_partition::detail {
 						x4.p2 = points->first;
 						offer(value, x4);
 					}
-				} else if (options_.x4_patterns && len >= 4 && 1 + sv(i + 1, j - 1) > best) {
+				} else if (options_.steiner_points && options_.x4_patterns && len >= 4 && 1 + sv(i + 1, j - 1) > best) {
 					for (int a = i + 1; a < j; ++a) {
 						if (1 + sv(i + 1, a - 1) + sv(a + 1, j - 1) <= best) continue;
 						for (int b = a + 1; b < j; ++b) {

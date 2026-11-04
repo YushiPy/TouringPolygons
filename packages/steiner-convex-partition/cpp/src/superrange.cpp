@@ -138,7 +138,11 @@ namespace steiner_convex_partition::detail {
 		auto in_front = [&](const Vec2 &x) {
 			return dot_sign(o, q, o, x) > 0;
 		};
-		for (int e = 0; e < n; ++e) {
+		// Only edges meeting the ray's line can be hit: O(c log n) of them to look
+		// at, through the convex chains.
+		std::vector<int> edges;
+		chains_.edges_meeting_line(o, q, edges);
+		for (int e : edges) {
 			if (e == v || (e + 1) % n == v) continue;
 			const Vec2 &a = polygon_.at(e);
 			const Vec2 &b = polygon_.at(e + 1);
@@ -192,7 +196,7 @@ namespace steiner_convex_partition::detail {
 	}
 
 	Superranges::Superranges(const PolygonData &polygon, const std::vector<int> &pseudo)
-		: polygon_(polygon) {
+		: polygon_(polygon), chains_(polygon) {
 		ranges_.resize(static_cast<std::size_t>(polygon.c));
 		for (int t = 0; t < polygon.c; ++t) {
 			const int v = polygon.notch_vertex[static_cast<std::size_t>(t)];
@@ -220,6 +224,19 @@ namespace steiner_convex_partition::detail {
 			for (int u : unique) range.directions.push_back(trace(v, u, true, true));
 			range.directions.push_back(trace(v, (v - 1 + n) % n, true, false));
 			range.directions.back().after = 2 * n;
+		}
+		const std::size_t cs = static_cast<std::size_t>(polygon.c);
+		last_.assign(cs * cs, -1);
+		first_.assign(cs * cs, -1);
+		for (int a = 0; a < polygon.c; ++a) {
+			for (int b = 0; b < polygon.c; ++b) {
+				if (a == b) continue;
+				const int va = polygon.notch_vertex[static_cast<std::size_t>(a)];
+				const int vb = polygon.notch_vertex[static_cast<std::size_t>(b)];
+				const std::size_t index = static_cast<std::size_t>(a) * cs + static_cast<std::size_t>(b);
+				last_[index] = compute_last_direction(va, vb);
+				first_[index] = compute_first_direction(va, vb);
+			}
 		}
 	}
 
@@ -316,13 +333,25 @@ namespace steiner_convex_partition::detail {
 	}
 
 	int Superranges::last_direction(int a, int b) const {
+		const std::size_t c = static_cast<std::size_t>(polygon_.c);
+		return last_[static_cast<std::size_t>(polygon_.vertex_notch[static_cast<std::size_t>(a)]) * c
+			+ static_cast<std::size_t>(polygon_.vertex_notch[static_cast<std::size_t>(b)])];
+	}
+
+	int Superranges::first_direction(int a, int b) const {
+		const std::size_t c = static_cast<std::size_t>(polygon_.c);
+		return first_[static_cast<std::size_t>(polygon_.vertex_notch[static_cast<std::size_t>(a)]) * c
+			+ static_cast<std::size_t>(polygon_.vertex_notch[static_cast<std::size_t>(b)])];
+	}
+
+	int Superranges::compute_last_direction(int a, int b) const {
 		if (sees_vertex(a, b)) return -1;
 		const Range &range = range_of(a);
 		const int k = jump_containing(range.directions, vertex_offset(a, b));
 		return k < 0 ? -1 : range.directions[static_cast<std::size_t>(k)].target;
 	}
 
-	int Superranges::first_direction(int a, int b) const {
+	int Superranges::compute_first_direction(int a, int b) const {
 		if (sees_vertex(b, a)) return -1;
 		const Range &range = range_of(b);
 		const int k = jump_containing(range.directions, vertex_offset(b, a));
