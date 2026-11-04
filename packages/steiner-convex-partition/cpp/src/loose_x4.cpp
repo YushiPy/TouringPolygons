@@ -257,7 +257,7 @@ namespace steiner_convex_partition::detail {
 		return true;
 	}
 
-	bool LooseX4::middle_edge_clear(const RPoint &a, const RPoint &b) const {
+	bool LooseX4::middle_edge_clear(const RPoint &a, const RPoint &b, bool direct) const {
 		const long double slack = a.error + b.error;
 		const long double min_x = std::min(a.x, b.x) - slack;
 		const long double max_x = std::max(a.x, b.x) + slack;
@@ -266,7 +266,14 @@ namespace steiner_convex_partition::detail {
 		auto strictly_between = [](const RPoint &p, const RPoint &o, const RPoint &q) {
 			return dot_sign(o, p, o, q) < 0;
 		};
-		for (int e = 0; e < polygon_.n; ++e) {
+		// Only edges meeting the line through a and b can meet the segment.
+		std::vector<int> edges;
+		if (direct) {
+			for (int e = 0; e < polygon_.n; ++e) edges.push_back(e);
+		} else {
+			chains_.edges_meeting(RLine {*this, a, b}, edges);
+		}
+		for (int e : edges) {
 			const RPoint &u = vertex(e);
 			const RPoint &w = vertex(e + 1);
 			if (std::max(u.x, w.x) < min_x || std::min(u.x, w.x) > max_x) continue;
@@ -292,7 +299,7 @@ namespace steiner_convex_partition::detail {
 		return true;
 	}
 
-	bool LooseX4::valid_exactly(int k, int i, int l, int j) const {
+	bool LooseX4::valid_exactly(int k, int i, int l, int j, bool direct) const {
 		const Crossing *ca = crossing(k, i);
 		const Crossing *cb = crossing(l, j);
 		if (ca == nullptr || cb == nullptr) return false;
@@ -310,7 +317,7 @@ namespace steiner_convex_partition::detail {
 		if (orient(vl, vj, a) <= 0) return false;
 		if (orient(vl, vj, b) < 0 || orient(vj, a, b) < 0 || orient(a, vl, b) < 0) return false;
 		if (!arms_disjoint(k, i, l, j, a, b)) return false;
-		return middle_edge_clear(a, b);
+		return middle_edge_clear(a, b, direct);
 	}
 
 	std::optional<LooseX4::Points> LooseX4::points(int k, int i, int l, int j) const {
@@ -528,51 +535,106 @@ namespace steiner_convex_partition::detail {
 			return true;
 		};
 
-		// For each A_k the B's allowed by the angle at A (alpha) and by the safety
-		// region (gamma); for each B_l the A's allowed by the angle at B (beta).
-		// Each is an interval of the sorted candidates.
+		auto alpha = [&](int ka, int lb) {
+			const int k = as[static_cast<std::size_t>(ka)]->other;
+			return orient(after(k), notch(k), bs[static_cast<std::size_t>(lb)]->point) >= 0;
+		};
+		auto beta = [&](int lb, int ka) {
+			const int l = bs[static_cast<std::size_t>(lb)]->other;
+			return orient(after(l), notch(l), as[static_cast<std::size_t>(ka)]->point) >= 0;
+		};
+		auto below_x = [&](int ka, int lb) {
+			return all_on_side(x_hull, as[static_cast<std::size_t>(ka)]->point, bs[static_cast<std::size_t>(lb)]->point, sigma);
+		};
+		auto above_y = [&](int ka, int lb) {
+			return all_on_side(y_hull, as[static_cast<std::size_t>(ka)]->point, bs[static_cast<std::size_t>(lb)]->point, -sigma);
+		};
+		auto acceptable = [&](int ka, int lb) {
+			const Crossing *ca = as[static_cast<std::size_t>(ka)];
+			const Crossing *cb = bs[static_cast<std::size_t>(lb)];
+			return !same_point(ca->point, cb->point) && arms_disjoint(ca->other, i, cb->other, j, ca->point, cb->point);
+		};
+
+		// Lemmas 19 and 20 in linear time. For a fixed A, the B's whose middle
+		// edge passes the X-obstacles are a prefix and those passing the
+		// Y-obstacles a suffix (the two sides of the quadrilateral grow and shrink
+		// monotonically); the text's claims are that both bounds (g2 and g1)
+		// never decrease along r_i, that each B accepts a prefix of the A's (A
+		// before f(B)) and that the angle at A accepts a prefix of the B's. Then
+		// x(A) = the first B at or after g1(A) with f(B) >= A, found by one pointer.
+		// Each claim is checked as it is used; if one fails, the interval is
+		// matched by the general sweep below instead.
+		const int reason = [&]() {
+			std::vector<int> g1(static_cast<std::size_t>(p));
+			std::vector<int> g2(static_cast<std::size_t>(p));
+			int last_below = -1;
+			int first_above = 0;
+			for (int ka = 0; ka < p; ++ka) {
+				if (last_below >= 0 && !below_x(ka, last_below)) return 1;
+				while (last_below + 1 < q && below_x(ka, last_below + 1)) ++last_below;
+				if (first_above > 0 && above_y(ka, first_above - 1)) return 1;
+				while (first_above < q && !above_y(ka, first_above)) ++first_above;
+				g1[static_cast<std::size_t>(ka)] = first_above;
+				g2[static_cast<std::size_t>(ka)] = last_below;
+			}
+			std::vector<int> f(static_cast<std::size_t>(q), -1);
+			for (int lb = 0; lb < q; ++lb) {
+				const auto accepted = half_line(p, [&](int ka) { return beta(lb, ka); });
+				if (accepted.second < accepted.first) continue;
+				if (accepted.first != 0) return 2;
+				f[static_cast<std::size_t>(lb)] = accepted.second;
+			}
+			std::vector<Match> found;
+			int lb = 0;
+			for (int ka = 0; ka < p; ++ka) {
+				lb = std::max(lb, g1[static_cast<std::size_t>(ka)]);
+				while (lb < q && f[static_cast<std::size_t>(lb)] < ka) ++lb;
+				if (lb >= q) break;
+				if (lb > g2[static_cast<std::size_t>(ka)]) continue;
+				if (!alpha(ka, lb)) {
+					if (alpha(ka, q - 1)) return 3;
+					continue;
+				}
+				if (!acceptable(ka, lb)) return 4;
+				found.push_back({as[static_cast<std::size_t>(ka)]->other, bs[static_cast<std::size_t>(lb)]->other});
+			}
+			result = std::move(found);
+			return 0;
+		}();
+		++matchings[static_cast<std::size_t>(reason)];
+		if (reason == 0) return result;
+		result.clear();
+
+		// The general sweep: for each A_k the B's allowed by the angle at A
+		// (alpha) and by the safety region (gamma); for each B_l the A's allowed
+		// by the angle at B (beta). Each is an interval of the sorted candidates.
 		std::vector<std::pair<int, int>> range(static_cast<std::size_t>(p));
 		for (int ka = 0; ka < p; ++ka) {
-			const RPoint &a = as[static_cast<std::size_t>(ka)]->point;
-			const int k = as[static_cast<std::size_t>(ka)]->other;
-			const auto alpha = half_line(q, [&](int lb) {
-				return orient(after(k), notch(k), bs[static_cast<std::size_t>(lb)]->point) >= 0;
-			});
-			const auto below_x = half_line(q, [&](int lb) {
-				return all_on_side(x_hull, a, bs[static_cast<std::size_t>(lb)]->point, sigma);
-			});
-			const auto above_y = half_line(q, [&](int lb) {
-				return all_on_side(y_hull, a, bs[static_cast<std::size_t>(lb)]->point, -sigma);
-			});
+			const auto by_angle = half_line(q, [&](int lb) { return alpha(ka, lb); });
+			const auto by_x = half_line(q, [&](int lb) { return below_x(ka, lb); });
+			const auto by_y = half_line(q, [&](int lb) { return above_y(ka, lb); });
 			range[static_cast<std::size_t>(ka)] = {
-				std::max({alpha.first, below_x.first, above_y.first}),
-				std::min({alpha.second, below_x.second, above_y.second}),
+				std::max({by_angle.first, by_x.first, by_y.first}),
+				std::min({by_angle.second, by_x.second, by_y.second}),
 			};
 		}
 		std::vector<std::vector<int>> opens(static_cast<std::size_t>(p));
 		std::vector<std::vector<int>> closes(static_cast<std::size_t>(p));
 		for (int lb = 0; lb < q; ++lb) {
-			const int l = bs[static_cast<std::size_t>(lb)]->other;
-			const auto beta = half_line(p, [&](int ka) {
-				return orient(after(l), notch(l), as[static_cast<std::size_t>(ka)]->point) >= 0;
-			});
-			if (beta.second < beta.first) continue;
-			opens[static_cast<std::size_t>(beta.first)].push_back(lb);
-			closes[static_cast<std::size_t>(beta.second)].push_back(lb);
+			const auto accepted = half_line(p, [&](int ka) { return beta(lb, ka); });
+			if (accepted.second < accepted.first) continue;
+			opens[static_cast<std::size_t>(accepted.first)].push_back(lb);
+			closes[static_cast<std::size_t>(accepted.second)].push_back(lb);
 		}
-
-		// Lemma 20: sweep the A's, keeping the B's whose beta interval holds the
-		// current one; take the first such B in the A's range.
+		// Sweep the A's, keeping the B's whose beta interval holds the current
+		// one; take the first acceptable such B in the A's range.
 		std::set<int> active;
 		for (int ka = 0; ka < p; ++ka) {
 			for (int lb : opens[static_cast<std::size_t>(ka)]) active.insert(lb);
 			const auto [lo, hi] = range[static_cast<std::size_t>(ka)];
-			const Crossing *ca = as[static_cast<std::size_t>(ka)];
 			for (auto it = active.lower_bound(lo); it != active.end() && *it <= hi; ++it) {
-				const Crossing *cb = bs[static_cast<std::size_t>(*it)];
-				if (same_point(ca->point, cb->point)) continue;
-				if (!arms_disjoint(ca->other, i, cb->other, j, ca->point, cb->point)) continue;
-				result.push_back({ca->other, cb->other});
+				if (!acceptable(ka, *it)) continue;
+				result.push_back({as[static_cast<std::size_t>(ka)]->other, bs[static_cast<std::size_t>(*it)]->other});
 				break;
 			}
 			for (int lb : closes[static_cast<std::size_t>(ka)]) active.erase(lb);

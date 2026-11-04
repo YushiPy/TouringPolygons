@@ -34,7 +34,9 @@ namespace steiner_convex_partition::detail {
 
 		// The loose pattern (k, i, l, j) checked from scratch, exactly; notch
 		// indices in counterclockwise order, A joins k and i, B joins l and j.
-		bool valid_exactly(int k, int i, int l, int j) const;
+		// `direct` scans every edge for the middle edge instead of using the
+		// convex chains (for cross-checks).
+		bool valid_exactly(int k, int i, int l, int j, bool direct = false) const;
 
 		// Double approximations of A and B, and for each a direction that moves it
 		// off the collinear arms into the open angles at its two notches.
@@ -49,6 +51,11 @@ namespace steiner_convex_partition::detail {
 		std::size_t intervals = 0;   // E(i, j) with candidates on both rays
 		std::size_t separated = 0;   // the boundary cuts every middle edge
 		std::size_t fallbacks = 0;   // degenerate quadrilateral, pairs tested one by one
+		// Matchings by the linear algorithm of Lemmas 19 and 20 ([0]) and by the
+		// general sweep because a claim of the text failed: [1] g1 or g2
+		// decreased, [2] a B accepts A's that are not a prefix, [3] the angle at A
+		// accepts B's that are not a prefix, [4] the chosen pair has crossing arms.
+		std::size_t matchings[5] = {0, 0, 0, 0, 0};
 
 	private:
 		struct RPoint {
@@ -97,6 +104,6 @@ namespace steiner_convex_partition::detail {
 
 		RPoint first_contact(int t) const;
 		bool arms_disjoint(int k, int i, int l, int j, const RPoint &a, const RPoint &b) const;
-		bool middle_edge_clear(const RPoint &a, const RPoint &b) const;
+		bool middle_edge_clear(const RPoint &a, const RPoint &b, bool direct) const;
 	};
 }

@@ -42,6 +42,7 @@ namespace {
 		std::size_t polynomial_x4 = 0;
 		std::size_t cubic_x4 = 0;
 		std::size_t x4_patterns = 0;
+		scp::Result::Section4 section4;
 	};
 
 	double seconds_since(std::chrono::steady_clock::time_point start) {
@@ -88,6 +89,13 @@ namespace {
 		totals.polynomial_x4 += a.x4_tests;
 		totals.cubic_x4 += b.x4_tests;
 		for (const scp::PatternSummary &pattern : a.patterns) totals.x4_patterns += pattern.kind == scp::PatternKind::x4;
+		scp::Result::Section4 &s4 = totals.section4;
+		s4.superrange_directions += b.section4.superrange_directions;
+		s4.e_sets += b.section4.e_sets;
+		s4.e_separated += b.section4.e_separated;
+		s4.e_degenerate += b.section4.e_degenerate;
+		s4.e_linear += b.section4.e_linear;
+		for (int t = 0; t < 4; ++t) s4.e_general[t] += b.section4.e_general[t];
 		if (!timing && !b.validated) {
 			std::cerr << name << ": cubic result not validated\n";
 			++totals.failures;
@@ -111,7 +119,11 @@ namespace {
 			<< " s, cubic " << totals.cubic_seconds << " s" << std::defaultfloat << '\n'
 			<< "  junction searches: polynomial " << totals.polynomial_junctions << ", cubic " << totals.cubic_junctions
 			<< "; X4 tests: polynomial " << totals.polynomial_x4 << ", cubic " << totals.cubic_x4
-			<< "; X4-patterns used " << totals.x4_patterns << '\n';
+			<< "; X4-patterns used " << totals.x4_patterns << '\n'
+			<< "  sets E(i, j) with candidates " << totals.section4.e_sets << ": separated " << totals.section4.e_separated
+			<< ", degenerate " << totals.section4.e_degenerate << ", linear matching " << totals.section4.e_linear
+			<< ", general matching (failed claim: g decreasing, beta, alpha, arms) " << totals.section4.e_general[0] << ' '
+			<< totals.section4.e_general[1] << ' ' << totals.section4.e_general[2] << ' ' << totals.section4.e_general[3] << '\n';
 	}
 }
 

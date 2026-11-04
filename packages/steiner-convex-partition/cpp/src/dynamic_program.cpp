@@ -762,6 +762,14 @@ namespace steiner_convex_partition::detail {
 				}
 				output.junction_calls = junctions_.calls;
 				output.junction_successes = junctions_.successes;
+				if (superranges_) output.section4.superrange_directions = superranges_->directions();
+				if (loose_) {
+					output.section4.e_sets = loose_->intervals;
+					output.section4.e_separated = loose_->separated;
+					output.section4.e_degenerate = loose_->fallbacks;
+					output.section4.e_linear = loose_->matchings[0];
+					for (int t = 0; t < 4; ++t) output.section4.e_general[t] = loose_->matchings[t + 1];
+				}
 				output.x4_calls = x4_.calls;
 				output.x4_successes = x4_.successes;
 				for (PatternGeometry &pattern : output.patterns) finish_pattern(pattern);
@@ -1129,11 +1137,11 @@ namespace steiner_convex_partition::detail {
 					const int k = wrap(i + d);
 					bool exists = false;
 					for (int e = 1; e <= len - 2 && !exists; ++e) {
-						if (candidate[static_cast<std::size_t>(e)]) exists = loose_->valid_exactly(k, wrap(i), wrap(i + e), wrap(j));
+						if (candidate[static_cast<std::size_t>(e)]) exists = loose_->valid_exactly(k, wrap(i), wrap(i + e), wrap(j), true);
 					}
 					const auto it = std::find_if(matches.begin(), matches.end(), [&](const LooseX4::Match &m) { return m.outer == k; });
 					const bool found = it != matches.end();
-					if (found && !loose_->valid_exactly(k, wrap(i), it->inner, wrap(j))) {
+					if (found && !loose_->valid_exactly(k, wrap(i), it->inner, wrap(j), true)) {
 						throw std::logic_error("E(i, j) holds an invalid loose X4-pattern");
 					}
 					if (found != exists) {

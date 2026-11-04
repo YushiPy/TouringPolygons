@@ -68,6 +68,7 @@ namespace steiner_convex_partition::detail {
 		std::size_t junction_successes = 0;
 		std::size_t x4_calls = 0;
 		std::size_t x4_successes = 0;
+		Result::Section4 section4;
 		// With Options::cross_check: S(i, j) by [i * (c + 1) + length].
 		std::vector<int> table;
 	};

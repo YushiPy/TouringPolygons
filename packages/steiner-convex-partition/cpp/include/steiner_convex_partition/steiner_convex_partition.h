@@ -102,6 +102,24 @@ namespace steiner_convex_partition {
 		std::size_t junction_found = 0;
 		std::size_t x4_tests = 0;
 		std::size_t x4_found = 0;
+
+		// Diagnostics of the cubic algorithm (all zero for the polynomial one).
+		struct Section4 {
+			std::size_t superrange_directions = 0;
+			// Sets E(i, j) with candidates on both rays; of these, how many had the
+			// boundary cut every middle edge, a degenerate quadrilateral (pairs
+			// tested one by one), a matching by the linear algorithm of Lemmas 19
+			// and 20, and a matching by the general sweep because a claim of the
+			// text failed: [0] g1 or g2 decreased, [1] a B accepts A's that are not
+			// a prefix, [2] the angle at A accepts B's that are not a prefix, [3]
+			// the chosen pair has crossing arms.
+			std::size_t e_sets = 0;
+			std::size_t e_separated = 0;
+			std::size_t e_degenerate = 0;
+			std::size_t e_linear = 0;
+			std::size_t e_general[4] = {0, 0, 0, 0};
+		};
+		Section4 section4;
 	};
 
 	// Throws std::invalid_argument when the polygon has fewer than three distinct

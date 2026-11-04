@@ -29,6 +29,7 @@ namespace steiner_convex_partition {
 		result.junction_found = dp.junction_successes;
 		result.x4_tests = dp.x4_calls;
 		result.x4_found = dp.x4_successes;
+		result.section4 = dp.section4;
 		for (const detail::PatternGeometry &pattern : dp.patterns) {
 			PatternSummary summary;
 			summary.kind = pattern.kind;
