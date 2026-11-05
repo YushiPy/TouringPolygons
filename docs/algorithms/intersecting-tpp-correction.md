@@ -195,35 +195,39 @@ refute it. Their §4.2 instruction to query a vertex must be interpreted togethe
 with Claim 1's incident limits; mechanically using one endpoint segment would
 repeat the mistake.
 
-A full publication-level theorem for **this implementation** still needs a
-complete equivalence proof between its boundary-only, implicit-crossing
-representation and Dror's first-contact tree in every closed degeneracy. In
-particular it must establish:
+**Proof and implementation review, 4 November 2026.** The reviewed proof in
+[intersecting-tpp-proof.md](intersecting-tpp-proof.md) addresses the four
+previously open obligations: complete split events and constant contact type;
+coverage and circular order; the chord predicate and closed symbolic ties;
+and ordered refolding. Its key ingredients are the unit-subgradient ray lemma,
+the boundary normal-cone update, a general vertex-fan characterization, and a
+terminal-suffix invariant for the stored path. A joint induction in polygon
+level handles closed membership separately from secondary symbolic ties.
 
-* completeness of the split events and homogeneous contact type of each open
-  pseudo-edge, including repeated boundaries and multiple simultaneous visits;
-* circular order and completeness of the exterior vertex/edge regions after
-  inherited interior branches are represented by recursion;
-* validity of the chord predicate for every resulting subdivision and the
-  consistency of its secondary symbolic tie rules with closed membership;
-* preservation of ordered visits by recursive refolding in all such cells.
-
-The implementation checks cell containment, contact-type consistency away from
-tangency, and refolding parameters and has passed targeted degeneracy tests.
-Those checks expose failures but are not a replacement for the general proof.
-There is currently no known failing case in the completed tests. It would
-nevertheless overstate the result to label this an independently proved,
-universally correct implementation or to claim literal fidelity to Tan and
-Jiang's incorrect local rule.
+The proof's implementation scope is exact rational arithmetic, fixed start and
+target, fixed order and closed positive-area convex polygons, including
+shared boundaries, repeated polygons and redundant collinear vertices. It
+covers first-contact extraction, as used by the article's anchored solver;
+it does not establish the separate point/segment input branches,
+`use_last_contact=true`, or unchecked floating-point variants. The proposed
+proof therefore supplies the missing anchored-solver argument for the
+article's input class without extending every public implementation contract.
+The proof was reviewed against the exact implementation and integrated as
+Appendix A and Theorem 5.1 of the manuscript on the same date. Theorem 6.1 now
+uses this result in place of the anchored-solver assumption. Additional
+terminal-suffix and symbolic-direction tests are recorded in the proof note;
+the arithmetic complexity bounds and experimental performance claims are
+unchanged.
 
 **Update, 8 October 2026.** The certified hybrid oracle no longer trusts this
 construction: every bound it returns is proved on the original polygons, by
 the interval primal-dual certificate or by the exact KKT certificate. This now
 includes the final complete rational solve. Its exact contacts pass the KKT
 certificate; when that fails, the oracle returns only the path's length and
-its own dual bound, which remain valid. The open obligations above
-therefore affect whether the oracle closes its gap and how fast it does so,
-not the correctness of its bounds
+its own dual bound, which remain valid. At that time the open map obligations
+affected whether the oracle closed its gap and how fast it did so, not the
+correctness of its bounds; the November proof above addresses those
+obligations for exact positive-area inputs
 ([certified-convex-oracle.md](certified-convex-oracle.md)).
 
 ## Complexity and performance
