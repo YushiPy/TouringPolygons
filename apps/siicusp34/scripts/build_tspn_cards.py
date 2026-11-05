@@ -36,7 +36,7 @@ REGION, INCIDENTAL, UNVISITED, MISSED = "#bfe3d8", "#f3d9a4", "#e6edeb", "#f2b8a
 # Letters of the five regions of the combined challenge: the partial node is (A, B, C).
 LETTERS = {0: "A", 1: "B", 2: "C", 4: "D", 3: "E"}
 # Shared label positions keep names clear of the tours and the partition diagonal.
-LABELS = {0: (308, 183), 1: (115, 106), 2: (280, 57), 3: (146, 205), 4: (198, 102)}
+LABELS = {0: (313, 171), 1: (124, 90), 2: (280, 57), 3: (146, 205), 4: (198, 102)}
 GEOMETRY_TOLERANCE = 1e-7
 
 
