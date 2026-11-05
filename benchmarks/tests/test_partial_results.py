@@ -2,8 +2,6 @@
 
 import io
 import json
-import math
-import os
 import signal
 import stat
 import subprocess
@@ -116,8 +114,13 @@ class SolverDeathTests(unittest.TestCase):
 			self.assertEqual(used, [10 * 2**30])
 
 	def test_the_guard_reads_a_real_process_and_ignores_one_below_the_limit(self):
-		process = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(5)"], start_new_session=True)
+		process = subprocess.Popen(
+			[sys.executable, "-c", "import time; print(flush=True); time.sleep(5)"],
+			start_new_session=True, stdout=subprocess.PIPE,
+		)
 		try:
+			# Right after Popen the interpreter may still be loading; wait until it prints.
+			process.stdout.readline()
 			self.assertGreater(process_guard.rss_bytes(process.pid), 1_000_000)
 			guard = process_guard.MemoryGuard(process.pid, 2**40, poll_seconds=0.05)
 			time.sleep(0.3)
@@ -126,6 +129,7 @@ class SolverDeathTests(unittest.TestCase):
 		finally:
 			process.kill()
 			process.wait()
+			process.stdout.close()
 		self.assertIsNone(process_guard.rss_bytes(process.pid))
 
 
@@ -149,7 +153,7 @@ class CampaignRowTests(unittest.TestCase):
 		), patch("sys.stdout", io.StringIO()):
 			return free_order_campaign.main(
 				[str(self.campaign), "--solver", "tpp-ours", "--max-seconds", "60", "--no-build",
-				 "--progress-interval", "1", *extra]
+				 "--progress-interval", "1", "--cpu-affinity", "off", *extra]
 			)
 
 	def report(self):

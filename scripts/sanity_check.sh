@@ -82,9 +82,20 @@ ensure_dependencies() {
 			if ! have brew || ! brew --prefix "$package" >/dev/null 2>&1; then missing+=("$package"); fi
 		done
 	else
-		[[ -f /usr/include/eigen3/Eigen/Core || -f /usr/local/include/eigen3/Eigen/Core ]] || missing+=(eigen)
-		[[ -f /usr/include/boost/multiprecision/cpp_bin_float.hpp || -f /usr/local/include/boost/multiprecision/cpp_bin_float.hpp ]] || missing+=(boost)
-		if ! ldconfig -p 2>/dev/null | grep -q 'libomp'; then
+		# Headers fetched without root by `tpp.py build --fetch-deps`, or named by
+		# TPP_EIGEN_INCLUDE_DIR / TPP_BOOST_INCLUDE_DIR, count as much as system packages.
+		local candidate eigen_found=0 boost_found=0
+		for candidate in /usr/include/eigen3 /usr/local/include/eigen3 "${TPP_EIGEN_INCLUDE_DIR:-}" .cache/deps/eigen/*; do
+			if [[ -n "$candidate" && -f "$candidate/Eigen/Core" ]]; then eigen_found=1; fi
+		done
+		for candidate in /usr/include /usr/local/include "${TPP_BOOST_INCLUDE_DIR:-}" .cache/deps/boost/*; do
+			if [[ -n "$candidate" && -f "$candidate/boost/multiprecision/cpp_bin_float.hpp" ]]; then boost_found=1; fi
+		done
+		(( eigen_found )) || missing+=(eigen)
+		(( boost_found )) || missing+=(boost)
+		# GCC brings its own OpenMP runtime (libgomp); Clang needs libomp. Ask the compiler.
+		if ! printf '#include <omp.h>\nint main() { return omp_get_max_threads() > 0 ? 0 : 1; }\n' \
+			| "${CXX:-c++}" -fopenmp -x c++ - -o /dev/null >/dev/null 2>&1; then
 			missing+=(libomp)
 		fi
 	fi

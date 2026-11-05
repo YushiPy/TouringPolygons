@@ -130,7 +130,12 @@ def header_dependency_dirs() -> dict[str, Path]:
 
 
 def probe_compiler(cc: str, cxx: str, standard: str) -> str | None:
-	"""Return None when CC/CXX build a C++<standard> std::format program."""
+	"""Return None when CC/CXX build a C++<standard> program that uses <print>.
+
+	The tools include <print>. A standard library with <format> but without
+	<print>, such as GCC 13's, would pass a <format>-only probe and then fail
+	part way through the build.
+	"""
 	with tempfile.TemporaryDirectory(prefix="tpp-cxx-probe-") as directory:
 		root = Path(directory)
 		(root / "CMakeLists.txt").write_text(
@@ -142,7 +147,8 @@ def probe_compiler(cc: str, cxx: str, standard: str) -> str | None:
 			f"target_compile_features(tpp_probe PRIVATE cxx_std_{standard})\n"
 		)
 		(root / "main.cpp").write_text(
-			"#include <format>\nint main() { return std::format(\"{}\", 23) == \"23\" ? 0 : 1; }\n"
+			"#include <format>\n#include <print>\n"
+			"int main() { std::println(\"{}\", 23); return std::format(\"{}\", 23) == \"23\" ? 0 : 1; }\n"
 		)
 		environment = os.environ | {"CC": cc, "CXX": cxx}
 		for command in (["cmake", "-S", str(root), "-B", str(root / "build")],
