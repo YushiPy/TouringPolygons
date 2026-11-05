@@ -26,6 +26,86 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## steiner-decomposition-cloud-2026-11-04
+
+**Pergunta.** Trocar a decomposição convexa de Greene pela de Chazelle e
+Dobkin (com pontos de Steiner, `packages/steiner-convex-partition`) muda o
+tempo de decomposição e o do B&B?
+
+**Formulação.**
+- **Instâncias.** As 558 de `benchmarks/suites/fekete-instances.bin`, como
+  TSPN (`--cycle`) e como TPP de ordem livre com os extremos do corpus.
+- **Binário.** `tpp-unordered` do commit `b7cb532` (GCC 13, C++23, GMP),
+  com `--decomposition greene` ou `steiner`; o resto igual nas duas. As
+  passadas de TSPN usaram builds anteriores do mesmo código. Eles diferem só
+  em onde se calcula a envoltória das peças arredondadas (o solver refaz a de
+  todas, então as peças da busca são as mesmas) e no recurso a Greene para
+  polígonos não simples (nenhum foi decomposto: nenhuma execução falhou).
+- **Opções.** TSPN: as da configuração C (gap relativo `ε/(1+ε)` com
+  ε = 0,001, absoluto 0, tolerância 1e-8, otimizações `cache`, `features`,
+  `root`, `interval`). TPP: gap relativo `ε/(1+ε)`, absoluto 0. Uma thread,
+  60 s, sem limite de chamadas.
+- **Máquina e protocolo.** Contêiner na nuvem, Intel Xeon de 2,10 GHz com 4
+  núcleos lógicos, sem fixar núcleos.
+  - TSPN: uma passada em tudo (3 processos simultâneos), depois 3 repetições
+    das 87 instâncias que importam (≥ 0,5 s, ou peças diferentes), com 2
+    processos e a mediana das três.
+  - TPP: uma passada (3 processos).
+  - As duas decomposições de cada instância rodam lado a lado.
+- **Decomposição isolada.** `tpp-decomposition-timing` decompõe todos os
+  polígonos não convexos de cada instância (melhor de 3).
+
+**Resultado.**
+- **Decomposição isolada.** Greene 3,27 s, Steiner 5,44 s no corpus inteiro
+  (1,9× por instância, média geométrica, de 0,3× a 8,7×), com 1,6% menos
+  peças (34.862 → 34.311). 198 instâncias ganham peças a menos.
+- **TSPN, passada completa.** As duas fecham as mesmas 556 instâncias. As
+  duas restantes (188 e 541) param nos 60 s com o mesmo UB e LB quase iguais.
+  Os intervalos [LB, UB] se sobrepõem em todas.
+  - Busca: nós +0,04% e chamadas ao oráculo +0,03% no total; tempo total
+    206,9 → 210,8 s (uma passada, 3 processos simultâneos).
+  - Decomposição: só 198 instâncias decompõem alguma região (602 regiões,
+    4,4 peças cada, 2.640 → 2.598 peças). As ramificações por decomposição
+    são 0,08% das ramificações (2.173 contra 2,79 M inserções).
+- **TSPN, 87 instâncias ×3.** A busca é determinística: os nós não variam
+  entre repetições. Nas 85 fechadas:
+  - **Decomposição:** 0,65 → 2,00 s, 0,4% → 1,3% do tempo.
+  - **Tempo sem a decomposição:** 152,76 → 152,86 s.
+  - **Instância 553**, cujos 34 polígonos não convexos são todos
+    decompostos, concentra o aumento: 0,56 → 1,87 s.
+  - **Nós:** nas 43 com peças a menos, 30 expandem exatamente os mesmos nós e
+    as outras variam de −6% a +1,4% (média geométrica 0,9993).
+  - **Ruído:** a dispersão entre repetições (máx − mín sobre a mediana) é de
+    13% na mediana para execuções ≥ 1 s.
+- **TPP de ordem livre, uma passada.** As duas fecham as mesmas 551
+  instâncias. As outras 7 param nos 60 s com UB iguais ou a até 0,04% e LB
+  quase iguais. Os intervalos se sobrepõem em todas.
+  - Busca: nós −0,06% e chamadas −0,08%.
+  - Tempo: 384,5 → 390,1 s (+1,5%, dentro do ruído).
+  - Decomposição: 0,30 → 0,45 s (0,08% → 0,12% do tempo). 212 instâncias
+    decompõem alguma região (3.875 → 3.825 peças), e as ramificações por
+    decomposição são 0,07% (2.718 contra 3,62 M).
+
+**Conclusão.** A decomposição com pontos de Steiner é mais lenta, mas quase
+não pesa no B&B. Ela também não muda a busca, que ramifica quase só na ordem.
+Greene continua o padrão.
+
+**Situação.** Foi só um experimento: a integração foi removida e o
+`nonconvex-tpp` voltou a usar apenas Greene. O pacote
+`steiner-convex-partition` segue autônomo, sem ligação com os solvers. O
+código do experimento (opção `--decomposition`, `tpp-decomposition-timing`,
+testes) está nos commits `b7cb532` e `c122555` e pode ser recuperado de lá.
+
+**Exatidão e limitações.**
+- Os dois lados fecham o mesmo gap numérico, o que não é ótimo algébrico.
+- Com Steiner, um ponto de corte racional é arredondado para fora do
+  polígono. As peças com ele viram sua envoltória convexa e cobrem a região,
+  o que preserva os LB. Os UB são verificados nos polígonos originais.
+- A máquina é compartilhada e os núcleos não foram fixados, então diferenças
+  de tempo abaixo de ~15% por instância são ruído.
+- Os dados brutos estão em
+  `benchmarks/workspace/experiments/steiner-decomposition-bnb/`.
+
 ## cetsp-table2-mac-2026-10-27
 
 **Pergunta.** Nas 62 instâncias 2D de Mennell da Tabela 2 de Coutinho et al.

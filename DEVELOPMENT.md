@@ -66,6 +66,10 @@ extraia apenas a entrada mínima para `benchmarks/suites/` e documente a origem.
 tpp_geometry -> tpp_convex -> optimal_convex_partition -> tpp_nonconvex
 ```
 
+`steiner_convex_partition` (Chazelle e Dobkin, com pontos de Steiner) é um
+pacote de pesquisa autônomo, sem dependências e fora desse grafo: nenhum solver
+o usa (ver `docs/algorithms/steiner-convex-partition.md`).
+
 Comportamento compartilhado deve subir para o pacote responsável. Não copie
 geometria ou solver convexo para pacotes consumidores.
 

@@ -40,6 +40,11 @@ tpp_geometry -> tpp_convex -> optimal_convex_partition -> tpp_nonconvex
 - `tpp_nonconvex`: fixed order with convex decomposition, and the free-order
   branch and bound for the TPP and the TSPN.
 
+`packages/steiner-convex-partition` is a standalone research package, linked
+by no solver: Chazelle and Dobkin's minimum convex decomposition with Steiner
+points
+([`docs/algorithms/steiner-convex-partition.md`](docs/algorithms/steiner-convex-partition.md)).
+
 The maintained dashboard is `apps/benchmark-dashboard`. `apps/siicusp34` is the
 static, self-contained page of the 34th SIICUSP (in Portuguese).
 
