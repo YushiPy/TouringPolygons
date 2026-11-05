@@ -62,26 +62,46 @@ inline std::optional<FloatRegion> binary_region(const FloatRegion &input) {
     return strict;
 }
 
-// Exact sign of orient(a,b,q): the static filter, then an interval, then the
-// 128-bit determinant; nothing when undecided.
-inline std::optional<int> filtered_orientation(Vector2 a,Vector2 b,Vector2 q) {
+// Proof that orient(a,b,q) = (b-a)x(q-a) >= 0, i.e. q on the closed left side
+// of the line a->b. Static filter first: in the standard model the binary64
+// determinant is within 2^-50(|l|+|r|) + 2^-1069 of the exact one (Shewchuk's
+// orient2d bound is 3.0000001u(|l|+|r|) without underflow). Then an interval,
+// then the 128-bit determinant. A negative or undecided sign proves nothing.
+inline bool proved_left_or_on(Vector2 a,Vector2 b,Vector2 q) {
     const double l=(b.x-a.x)*(q.y-a.y),r=(b.y-a.y)*(q.x-a.x),det=l-r;
     const double bound=0x1p-50*(std::abs(l)+std::abs(r))+0x1p-1069;
     if(std::isfinite(det)&&std::isfinite(bound)) {
-        if(det>bound)return 1;
-        if(det<-bound)return -1;
+        if(det>bound)return true;
+        if(det<-bound)return false;
     }
-    return proved_orientation(a,b,q);
+    const auto side=(IntervalPoint(b)-IntervalPoint(a)).cross(IntervalPoint(q)-IntervalPoint(a));
+    if(side.hi<0)return false;
+    if(side.lo>=0)return true;
+    const auto sign=dyadic_orientation(a,b,q);
+    return sign&&*sign>=0;
 }
-// Proof that q lies in the closed CCW polygon (three or more vertices): each
-// edge sign from an interval, or the 128-bit determinant if it straddles zero.
-// An undecided sign counts as outside.
-inline bool proved_inside_linear(Vector2 q,const FloatRegion &p);
-// The same proof in O(log m) for a strictly convex polygon: a binary search
-// in the fan from p[0] picks a triangle (p[0], p[j], p[j+1]) of the polygon,
-// and three exact signs prove q in that closed triangle, hence in the
-// polygon. q exactly inside the wedge but beyond the edge p[j]p[j+1] is
-// outside. Anything undecided falls back to every edge sign.
+// Proof that q lies in the closed CCW polygon (three or more vertices): every
+// edge sign proved by proved_left_or_on. An undecided sign counts as outside.
+inline bool proved_inside_linear(Vector2 q,const FloatRegion &p) {
+    if(!q.is_finite())return false;
+    for(size_t i=0;i<p.size();++i)
+        if(!proved_left_or_on(p[i],p[(i+1)%p.size()],q))return false;
+    return true;
+}
+// The same proof in O(log m) for a strictly convex polygon, with at most five
+// signs. A binary search on floating signs in the fan from o = p[0] picks a
+// wedge lo; the window S = (o, p[a], ..., p[b]) with a = lo-1, b = lo+2
+// (clamped to 1 and m-1) is the union of the wedges lo-1, lo and lo+1, which
+// covers a search misled by rounding. S keeps the polygon's vertex order, so
+// it is a convex polygon inside it, and q in S follows from q on the closed
+// left side of each of S's edges:
+// - the boundary edges p[a]..p[b], and o->p[1] or p[m-1]->o when the window
+//   reaches o, with the very signs proved_inside_linear uses;
+// - the chords o->p[a] and p[b]->o otherwise, both from o, where q is at
+//   least a wedge away from them; a chord is exactly zero at its endpoints.
+// Any unproved sign only fails the proof, as in proved_inside_linear: points
+// outside S (outside the polygon, or misplaced by the search) and undecided
+// signs return false, never the linear loop.
 inline bool proved_inside(Vector2 q,const FloatRegion &p) {
     if(!q.is_finite())return false;
     const size_t m=p.size();
@@ -93,36 +113,12 @@ inline bool proved_inside(Vector2 q,const FloatRegion &p) {
         const size_t mid=lo+(hi-lo)/2;
         if((p[mid]-o).cross(q-o)>=0)lo=mid;else hi=mid;
     }
-    for(size_t j:{lo,lo>1?lo-1:lo,lo+1<m-1?lo+1:lo}) {
-        const auto left=filtered_orientation(o,p[j],q),right=filtered_orientation(o,p[j+1],q);
-        if(!left||!right)break;
-        if(*left<0||*right>0)continue; // not in this closed wedge
-        const auto edge=filtered_orientation(p[j],p[j+1],q);
-        if(!edge)break;
-        return *edge>=0;
-    }
-    return proved_inside_linear(q,p);
-}
-inline bool proved_inside_linear(Vector2 q,const FloatRegion &p) {
-    if(!q.is_finite())return false;
-    for(size_t i=0;i<p.size();++i) {
-        const auto &a=p[i],&b=p[(i+1)%p.size()];
-        // Static filter first: in the standard model the binary64
-        // determinant is within 2^-50(|l|+|r|) + 2^-1069 of the exact one
-        // (Shewchuk's orient2d bound is 3.0000001u(|l|+|r|) without underflow).
-        const double l=(b.x-a.x)*(q.y-a.y),r=(b.y-a.y)*(q.x-a.x),det=l-r;
-        const double bound=0x1p-50*(std::abs(l)+std::abs(r))+0x1p-1069;
-        if(std::isfinite(det)&&std::isfinite(bound)) {
-            if(det>bound)continue;
-            if(det<-bound)return false;
-        }
-        const auto side=(IntervalPoint(b)-IntervalPoint(a)).cross(IntervalPoint(q)-IntervalPoint(a));
-        if(side.hi<0)return false;
-        if(side.lo>=0)continue;
-        const auto sign=dyadic_orientation(a,b,q);
-        if(!sign||*sign<0)return false;
-    }
-    return true;
+    const size_t a=lo>1?lo-1:1,b=std::min(lo+2,m-1);
+    // orient(p[b],o,q) = orient(o,q,p[b]) exactly: both chords use base o.
+    const bool opening=a==1?proved_left_or_on(o,p[1],q):q==o||q==p[a]||proved_left_or_on(o,p[a],q);
+    if(!opening)return false;
+    for(size_t j=a;j<b;++j)if(!proved_left_or_on(p[j],p[j+1],q))return false;
+    return b==m-1?proved_left_or_on(p[m-1],o,q):q==o||q==p[b]||proved_left_or_on(o,q,p[b]);
 }
 
 inline Vector2 vertex_mean(const FloatRegion &p) {

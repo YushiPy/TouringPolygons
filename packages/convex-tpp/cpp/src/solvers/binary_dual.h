@@ -71,7 +71,9 @@ template<class Vertices> inline size_t extreme_vertex(const Vertices &p,double d
 // certified no lower by intervals therefore holds an exact minimizer, and
 // each computed t is within E of its exact value. The reported value is the
 // least computed t over the window and its neighbors, the loop's minimum in
-// all but rounding ties. Anything uncertified returns nothing (use the loop).
+// all but rounding ties. A vertex certified lower moves the window there.
+// Anything uncertified (three vertices within rounding: nearly collinear)
+// returns nothing (use the loop).
 template<class Vertices>
 inline std::optional<Support> support_bounds_logarithmic(const Vertices &p,Vector2 o,double nx,double ny) {
     const size_t m=std::size(p);
@@ -106,13 +108,29 @@ inline std::optional<Support> support_bounds_logarithmic(const Vertices &p,Vecto
         if(d.hi<0)return -1;
         return {};
     };
-    // The window [first, last] in boundary order, at most two vertices.
+    // The window [first, last] in boundary order, at most two vertices. The
+    // computed walk stops within the rounding of t, which is coarse when o is
+    // far from the region, so at a near tie (an edge almost orthogonal to
+    // a-b) an interval may still certify a neighbor lower, or the vertex just
+    // beyond the tie. The walk then continues on those certified signs. Along
+    // the boundary the exact values fall to their minimum and then rise, so
+    // each such step strictly lowers the exact value.
     size_t first=w,last=w;
-    if(const auto left=rise(w,w+m-1);!left)first=(w+m-1)%m;else if(*left<0)return {};
-    if(const auto right=rise(w,w+1);!right){if(first!=w)return {};last=(w+1)%m;}else if(*right<0)return {};
-    // A widened side needs its outer neighbor certified no lower.
-    if(first!=w)if(const auto outer=rise(first,first+m-1);!outer||*outer<0)return {};
-    if(last!=w)if(const auto outer=rise(last,last+1);!outer||*outer<0)return {};
+    for(int step=0;;++step) {
+        if(step==64)return {};
+        const auto left=rise(w,w+m-1),right=rise(w,w+1);
+        if(left&&*left<0){w=(w+m-1)%m;continue;}
+        if(right&&*right<0){w=(w+1)%m;continue;}
+        if(!left&&!right)return {}; // three vertices within rounding
+        first=left?w:(w+m-1)%m;last=right?w:(w+1)%m;
+        if(first==w&&last==w)break;
+        // A widened side needs its outer neighbor certified no lower.
+        const size_t outer=first!=w?(first+m-1)%m:(last+1)%m;
+        const auto beyond=rise(first!=w?first:last,outer);
+        if(!beyond)return {};
+        if(*beyond>0)break;
+        w=outer;
+    }
     const double low=std::min({t(first+m-1),t(first),t(last),t(last+1)});
     const double error=0x1p-50*(mx*std::abs(nx)+my*std::abs(ny))+0x1p-1070;
     if(!std::isfinite(low)||!std::isfinite(error))return Support{};

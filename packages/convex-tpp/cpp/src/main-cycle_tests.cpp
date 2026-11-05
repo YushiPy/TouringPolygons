@@ -756,6 +756,167 @@ void logarithmic_queries() {
     std::cout<<"Logarithmic queries: "<<memberships<<" memberships, "<<supports<<" supports ("<<ties<<" edge ties), "
              <<coordinates<<" located coordinates, "<<separations<<" separations; identifiers and exact optima agree.\n";
 }
+// A regular m-gon with integer coordinates about (cx, cy), radius 2^40, its
+// first vertex at angle `start`. Rounding moves a vertex by at most half a
+// unit, far less than its sagitta R(1-cos(2pi/m)) (above 5000 up to
+// m = 65536), so the polygon stays strictly convex. Sums of two coordinates
+// are exact, so edge midpoints are exactly on the boundary.
+Polygon regular_lattice(size_t m,double cx,double cy,double start) {
+    const double radius=std::ldexp(1.0,40);
+    Polygon p;
+    for(size_t j=0;j<m;++j) {
+        const double t=start+2*M_PI*double(j)/double(m);
+        p.push_back({cx+std::round(radius*std::cos(t)),cy+std::round(radius*std::sin(t))});
+    }
+    return p;
+}
+// Membership proofs on the boundary of large strictly convex polygons, where
+// signs are exactly zero. proved_inside must stay sound (checked against an
+// exact rational fan search), agree with the edge loop, and read only a
+// window of the polygon: it has no linear fallback. The wide polygon puts
+// p[0] near the x axis, so (p[0], p[j], q) mixes coordinate exponents too far
+// apart for the 128-bit determinant, while consecutive vertices do not: the
+// case of the disk regions of vertex-scaling-fine (paper1_experiments.py).
+void boundary_memberships() {
+    using R=tpp::ConvexRational;
+    using tpp::detail::proved_inside;using tpp::detail::proved_inside_linear;
+    auto orient=[](Vector2 a,Vector2 b,Vector2 c) {
+        const R d=(R(b.x)-R(a.x))*(R(c.y)-R(a.y))-(R(b.y)-R(a.y))*(R(c.x)-R(a.x));
+        return d>0?1:d<0?-1:0;
+    };
+    // Exact closed membership in a strictly convex CCW polygon: the fan from p[0].
+    auto exact_inside=[&](Vector2 q,const Polygon &p) {
+        const size_t m=p.size();
+        if(orient(p[0],p[1],q)<0||orient(p[0],p[m-1],q)>0)return false;
+        size_t lo=1,hi=m-1;
+        while(hi-lo>1){const size_t mid=lo+(hi-lo)/2;if(orient(p[0],p[mid],q)>=0)lo=mid;else hi=mid;}
+        return orient(p[lo],p[lo+1],q)>=0;
+    };
+    std::mt19937 random(5309);
+    const double offset=3*std::ldexp(1.0,40);
+    size_t checked=0,boundary=0,undecided=0;
+    for(size_t m:{16u,61u,4096u,65536u}) {
+        // Narrow: every coordinate in [2^41, 2^42], so every sign is decided
+        // exactly. Wide: centered at the origin.
+        for(const bool narrow:{true,false}) {
+            const Polygon input=regular_lattice(m,narrow?offset:0,narrow?offset:0,narrow?0.25:1e-7);
+            const auto region=tpp::detail::binary_region(input);
+            require(region&&*region==input,"regular lattice polygon is strictly convex");
+            const Polygon &p=*region;
+            std::vector<size_t> indices{0,1,2,m/4,m/2,m-3,m-2,m-1};
+            for(size_t s=0;s<(m<100?m:60);++s)indices.push_back(m<100?s:random()%m);
+            std::vector<std::pair<Vector2,bool>> points; // and whether it is on the boundary
+            const Vector2 center{narrow?offset:0,narrow?offset:0};
+            for(const size_t j:indices) {
+                const Vector2 a=p[j],b=p[(j+1)%m],mid{(a.x+b.x)/2,(a.y+b.y)/2};
+                for(const Vector2 x:{a,mid}) {
+                    points.push_back({x,true});
+                    // One ulp off in each direction, and a tiny radial step either way.
+                    points.push_back({{std::nextafter(x.x,INFINITY),x.y},false});
+                    points.push_back({{std::nextafter(x.x,-INFINITY),x.y},false});
+                    points.push_back({{x.x,std::nextafter(x.y,INFINITY)},false});
+                    points.push_back({{x.x,std::nextafter(x.y,-INFINITY)},false});
+                    points.push_back({center+(x-center)*(1+0x1p-30),false});
+                    points.push_back({center+(x-center)*(1-0x1p-30),false});
+                }
+            }
+            std::uniform_real_distribution<double> unit(-1.2,1.2);
+            for(int r=0;r<100;++r)points.push_back({center+Vector2{unit(random),unit(random)}*std::ldexp(1.0,40),false});
+            for(const auto &[q,on_boundary]:points) {
+                const bool proved=proved_inside(q,p),exact=exact_inside(q,p);
+                require(!proved||exact,"proved membership is exact");
+                require(proved||!proved_inside_linear(q,p),"the window proves what the edge loop proves");
+                if(on_boundary)require(exact,"vertices and edge midpoints are on the boundary");
+                if(narrow)require(proved==exact,"exactly decided signs decide membership");
+                ++checked;boundary+=on_boundary&&proved;undecided+=exact&&!proved;
+            }
+        }
+        // Collinear redundant vertices: the exact edge midpoints inserted (and
+        // one vertex repeated) normalize to the same strictly convex polygon,
+        // and the removed vertices are proved on its boundary.
+        const Polygon strict=regular_lattice(m,offset,offset,0.25);
+        Polygon redundant;
+        for(size_t j=0;j<m;++j) {
+            const Vector2 a=strict[j],b=strict[(j+1)%m];
+            redundant.push_back(a);if(j==m/3)redundant.push_back(a);
+            if(j%3!=1)redundant.push_back({(a.x+b.x)/2,(a.y+b.y)/2});
+        }
+        const auto region=tpp::detail::binary_region(redundant);
+        require(region&&*region==strict,"collinear and repeated vertices are removed");
+        for(size_t j=0;j<redundant.size();j+=std::max<size_t>(1,redundant.size()/200)) {
+            const Vector2 q=redundant[j];
+            require(proved_inside(q,*region)&&proved_inside_linear(q,*region),"removed collinear vertices are inside");
+            for(const Vector2 outer:{Vector2{std::nextafter(q.x,INFINITY),q.y},Vector2{q.x,std::nextafter(q.y,INFINITY)},
+                    Vector2{std::nextafter(q.x,-INFINITY),q.y},Vector2{q.x,std::nextafter(q.y,-INFINITY)}})
+                require(proved_inside(outer,*region)==exact_inside(outer,*region),"one ulp off a collinear vertex is decided exactly");
+            checked+=5;
+        }
+    }
+    // Locality: a vertex z far from q moved halfway toward p[0] stays on its
+    // ray from p[0], so the binary search is unchanged, but the dented polygon
+    // puts q on the wrong side of an edge at z. The edge loop then rejects q;
+    // a proof reading only its window does not notice. These q are vertices
+    // of the wide polygon, where the sign of (p[0], p[j], q) is undecided (the
+    // old fan's fallback to the loop).
+    const size_t m=65536;
+    const auto wide=tpp::detail::binary_region(regular_lattice(m,0,0,1e-7));
+    require(wide&&wide->size()==m,"wide regular polygon");
+    size_t local=0;
+    for(const size_t j:{size_t(3*m/8+5),size_t(5*m/8+11),size_t(7*m/8+3)}) {
+        const Vector2 q=(*wide)[j];
+        require(!tpp::detail::dyadic_orientation((*wide)[0],q,q),"the fan sign at this vertex needs more than 128 bits");
+        require(proved_inside(q,*wide),"vertex proved by its window");
+        auto dented=*wide;
+        const size_t z=(j+m/2)%m;
+        dented[z]=(dented[0]+dented[z])/2;
+        require(!proved_inside_linear(q,dented),"the dent excludes q for the edge loop");
+        require(proved_inside(q,dented),"the proof reads only its window");
+        ++local;
+    }
+    // q = p[0], which the window can prove when the loop cannot: p[0] at
+    // angle -(1-2^-10) 2pi/m puts p[1].y 10 bits below p[0].y and p[m-1].y
+    // within one bit. The loop needs (p[0], p[1], p[0]), beyond the 128-bit
+    // determinant. The window holds p[0] as the endpoint of a chord (exactly
+    // zero) and of the edge p[m-1]p[0], whose sign the determinant decides.
+    const auto tilted=tpp::detail::binary_region(regular_lattice(4096,0,0,-(1-0x1p-10)*2*M_PI/4096));
+    require(tilted&&tilted->size()==4096,"tilted regular polygon");
+    const Vector2 o=(*tilted)[0];
+    require(!tpp::detail::dyadic_orientation(o,(*tilted)[1],o)&&tpp::detail::dyadic_orientation((*tilted)[4095],o,o)==0,
+            "only the edge after p[0] needs more than 128 bits");
+    require(!proved_inside_linear(o,*tilted)&&proved_inside(o,*tilted),"p[0] proved by the window alone");
+    std::cout<<"Boundary memberships: "<<checked<<" points ("<<boundary<<" boundary points proved, "<<undecided
+             <<" inside but undecided), "<<local<<" window-only proofs.\n";
+}
+// Supports at near ties: n is an edge's inward normal tilted along the edge
+// by 2^-26 or 2^-30, so one endpoint is lower by that fraction of |e|^2
+// (|e| ~ 2^32.6): far above the interval's resolution, but below the
+// rounding of t = (v-o).n for o at distance 2^60, about 2^8 |n|. The computed
+// walk then often stops one vertex short (the old fallback to the loop), and
+// the certified walk must finish it: a certified support equal to the loop's
+// and enclosing the exact minimum.
+void support_near_ties() {
+    using R=tpp::ConvexRational;
+    const size_t m=1024;
+    const auto region=tpp::detail::binary_region(regular_lattice(m,0,0,0.25));
+    require(region&&region->size()==m,"regular polygon for supports");
+    const Polygon &p=*region;
+    std::mt19937 random(7741);std::uniform_real_distribution<double> angle(0,2*M_PI);
+    size_t cases=0;
+    for(size_t j=0;j<m;j+=7)for(const double tilt:{0x1p-26,-0x1p-26,0x1p-30,-0x1p-30}) {
+        const Vector2 e=p[(j+1)%m]-p[j];
+        const double nx=-e.y+tilt*e.x,ny=e.x+tilt*e.y,phi=angle(random);
+        const Vector2 o{std::ldexp(std::cos(phi),60),std::ldexp(std::sin(phi),60)};
+        const auto fast=tpp::detail::support_bounds_logarithmic(p,o,nx,ny);
+        require(fast.has_value(),"near-tie support certified without the loop");
+        const auto loop=tpp::detail::support_bounds_linear(p,o,nx,ny);
+        require(fast->lower==loop.lower&&fast->upper==loop.upper,"near-tie support equals the loop");
+        R low;bool first=true;
+        for(const auto &v:p){const R t=(R(v.x)-R(o.x))*R(nx)+(R(v.y)-R(o.y))*R(ny);if(first||t<low){low=t;first=false;}}
+        require(R(fast->lower)<=low&&low<=R(fast->upper),"near-tie support encloses the exact minimum");
+        ++cases;
+    }
+    std::cout<<"Support near ties: "<<cases<<" certified supports equal to the loop.\n";
+}
 void prepared_geometry_and_features() {
     using namespace tpp;
     Polygons p{box(-5,0,-3,2),box(0,4,2,6),box(5,0,7,2)};
@@ -1146,7 +1307,7 @@ int main() {
         common_region_corners();
         cooperative_interruption();
         bound_first_contacts();
-        prepared_geometry_and_features();known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();rotated_squares();logarithmic_queries();convex_intersections();active_contact_regressions();boundary_recovery_regressions();
+        prepared_geometry_and_features();known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();rotated_squares();logarithmic_queries();boundary_memberships();support_near_ties();convex_intersections();active_contact_regressions();boundary_recovery_regressions();
         std::cout<<"Double comparisons: "<<compared_double_cases<<", maximum objective difference="<<largest_double_difference<<", maximum certified gap="<<largest_double_gap<<", local recoveries="<<total_anchor_recoveries<<'\n';
         std::cout<<"Cycle solver tests passed.\n";
         return 0;

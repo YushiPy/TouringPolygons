@@ -469,19 +469,43 @@ the construction's centroid (`ConvexCycleWorkspace::prepared_region`).
 ### Logarithmic queries
 
 Each query below applies to a normalized region (strictly convex,
-counterclockwise) above a size threshold. Anything undecided runs the
-previous loop.
+counterclockwise) above a size threshold. The membership proof never runs
+the loop. The other queries run the previous loop when they cannot settle
+a case.
 
 1. **Membership proof** (`proved_inside`, from 16 vertices). A binary search
-   on floating orientation signs picks the wedge `j` of the fan from `p_0`.
-   Three exact signs (static filter, interval, then 128-bit determinant)
-   decide the rest:
-   - `q` in the closed triangle `(p_0, p_j, p_(j+1))` proves `q` in `P`, since
-     the triangle lies in `P`;
-   - `q` in the closed wedge but strictly beyond edge `j` is outside `P`,
-     since `P` meets the wedge only in that triangle.
+   on floating orientation signs picks the wedge `lo` of the fan from `p_0`.
+   The window `S = (p_0, p_a, ..., p_b)`, with `a = lo-1` and `b = lo+2`
+   (clamped to `1` and `m-1`), is the union of the wedges `lo-1`, `lo` and
+   `lo+1`, which covers a search misled by rounding. `S` keeps the vertex
+   order of `P`, so it is a convex polygon inside `P`. At most five signs
+   prove `q` on the closed left side of each edge of `S`, hence `q` in `S`
+   and in `P`:
+   - the boundary edges `p_a, ..., p_b` (and `p_0 p_1` or `p_(m-1) p_0` when
+     the window reaches `p_0`) use the edge loop's own test
+     (`proved_left_or_on`): static filter, interval, then 128-bit
+     determinant;
+   - the chords `p_0 p_a` and `p_b p_0` are both evaluated from `p_0`. There
+     `q` is at least a wedge away from them, and a chord is exactly zero at
+     its endpoints.
 
-   The wedges `lo, lo-1, lo+1` cover a search misled by rounding.
+   An undecided sign fails the proof, as in the edge loop. A point outside
+   `S` also fails it. There is no fallback to the loop.
+   - The 128-bit determinant (`dyadic_orientation`) gives up when the
+     coordinates on one axis are more than 8 binary orders of magnitude
+     apart. Disk regions of `vertex-scaling-fine` centered on the x axis
+     do that, and their contacts are often vertices `p_j`. The previous fan
+     test `(p_0, p_j, q)` was then undecided and ran the loop. The window's
+     signs at `p_j` involve only neighbouring vertices. They are the loop's,
+     so they are decided whenever the loop decides them.
+   - The window can also prove `q = p_0` when only the loop's edge `p_0 p_1`
+     is undecided, as on `cycle-k10-m8192-disk-0`. Its bounds did not change.
+   - On the Mac, `tpp-convex-vertex-scaling` at `k = 10`, `m = 131072`
+     (3 repetitions) measured prepared calls on disks at 355–365 µs before
+     and 33.5–34.3 µs after, at both gaps. Ellipses never ran the loop and
+     stay at 13.2–14.0 µs. Bounds are bit-identical. At the B&B gap the
+     disks still cost more than the ellipses because they need three
+     proposals instead of one.
 2. **Supports** (`support_bounds_logarithmic`, from 64 vertices, without the
    width). Along the boundary of a strictly convex polygon, the exact values
    `t(v) = (v - o).n` have a single local minimum: a vertex, or an edge
@@ -495,6 +519,16 @@ previous loop.
      the edge, so such ties are frequent).
    - Each outer neighbour must be certified not lower by an interval. Then
      the window holds an exact minimizer `t*`.
+   - The walk on computed values stops within their rounding, which is
+     coarse when `o` is far from the region. At a near tie it can stop one
+     vertex short, where an interval certifies a neighbour (or the vertex
+     beyond the tie) lower. The walk then continues on those certified
+     signs. Each such step lowers the exact value, since along the boundary
+     the values fall to `t*` and then rise. Only three vertices within
+     rounding of each other (nearly collinear) leave the window uncertified
+     and run the loop. Before this step, the near tie ran the loop 4 times in
+     3 of the 192 warm calls of `vertex-scaling-fine`. All 3 calls were at
+     the tight gap, on regions of 128 and 512 vertices.
    - The reported `low` is the least computed `t` over the window and its
      neighbours. Every computed `t` is within `E` of its exact value, so
      `low - E <= t* <= low + E`. Here `E` uses the largest coordinate
@@ -630,7 +664,8 @@ Measurements:
 ### Complexity and what remains linear
 
 A warm call with identifiers costs:
-- `O(log m)` per membership, support and coordinate query;
+- `O(log m)` per membership proof, always;
+- `O(log m)` per support and coordinate query, except in the cases below;
 - `O(k log m + F_Q)` per Newton iteration;
 - `O((m+n) log n)` per common-region intersection of overlapping regions,
   once per pair and workspace when the regions have identifiers;
@@ -639,14 +674,38 @@ A warm call with identifiers costs:
 
 Still linear or worse:
 - a cold call (normalization, `O(m)` per region);
+- a support whose window intervals cannot certify. Two consecutive edges
+  would have to be orthogonal to `n` within the intervals' rounding, so this
+  needs nearly collinear vertices;
+- a coordinate update the located feature does not settle. One case is a
+  neighbouring contact inside the region, as with overlapping regions;
 - `CycleRefinement::run` with `k = 2`, whose closest pair is `O(m^2)`;
 - the exact rational path.
+
+A scratch count of these loops ran on `vertex-scaling-fine`
+(`paper1_experiments.py`). That is 96 instances, `k = 3, 5, 10`, `m = 8` to
+131072, disks and ellipses, with one warm call at each of the two gaps of
+`tpp-convex-vertex-scaling`. Before the window and the certified support
+walk it found 40 membership loops (1,367,664 edges, all on disks) and 4
+support loops. Afterwards it found none. Bounds, statuses and candidate
+counts were bit-identical before and after.
 
 Tests (`main-cycle_tests.cpp`):
 - `logarithmic_queries` compares memberships, supports (with ties),
   coordinate updates and separations with their loops, on lattice hulls of
   64 to 9000 vertices. It checks that calls with and without identifiers
   agree, and that the bounds enclose the exact optimum.
+- `boundary_memberships` checks membership proofs on regular lattice polygons
+  of 16 to 65536 vertices, against an exact rational search and the edge
+  loop. The points are vertices, edge midpoints, points one ulp and a tiny
+  radial step off them, and redundant collinear vertices. One polygon has
+  coordinates within a factor of two of each other, so every sign is
+  decided. The other mixes exponents as the disk regions do. The window
+  must prove what the loop proves, and `p_0` where only the loop gives up.
+  Moving a far vertex shows that the proof reads only its window.
+- `support_near_ties` tilts edge normals by `2^-26` and `2^-30`, with `o` at
+  distance `2^60`. The computed walk then stops short, and the certified
+  walk must still give the loop's support.
 - `convex_intersections` compares `intersect_convex` with the clip on
   overlapping, nested and disjoint hulls.
 
