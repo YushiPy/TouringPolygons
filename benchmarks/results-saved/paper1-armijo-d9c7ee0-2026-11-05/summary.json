@@ -1,0 +1,266 @@
+{
+  "output": "/home/gabriel_ushijima/TouringPolygons/benchmarks/workspace/experiments/paper1/armijo-d9c7ee0",
+  "machine": {
+    "host": "armijo",
+    "user": "gabriel_ushijima",
+    "system": "Linux 7.0.0-38-generic",
+    "machine": "x86_64",
+    "cpu_model": "AMD Ryzen 7 9700X 8-Core Processor",
+    "cpus": 16,
+    "memory_bytes": 132588564480,
+    "load_average": [
+      3.9,
+      3.62,
+      1.63
+    ],
+    "python": "3.12.3"
+  },
+  "git": {
+    "revision": "d9c7ee0e5693764983a0e2492d659d62da928e27",
+    "branch": "HEAD",
+    "dirty": false
+  },
+  "smoke": false,
+  "vertex_scaling_fine": [
+    {
+      "k": 3,
+      "m": 8,
+      "rows": 12,
+      "vertices": 24.0,
+      "largest": 8.0,
+      "ours_ids_mean_s": 3.4988061622699125e-06,
+      "ours_cold_s": 1.2433499999999999e-05,
+      "gurobi_total_s": 0.0007135345
+    },
+    {
+      "k": 3,
+      "m": 32,
+      "rows": 12,
+      "vertices": 96.0,
+      "largest": 32.0,
+      "ours_ids_mean_s": 2.4420006742906274e-06,
+      "ours_cold_s": 1.6340999999999998e-05,
+      "gurobi_total_s": 0.0012457940000000002
+    },
+    {
+      "k": 3,
+      "m": 128,
+      "rows": 12,
+      "vertices": 384.0,
+      "largest": 128.0,
+      "ours_ids_mean_s": 6.861219159153406e-06,
+      "ours_cold_s": 4.7549e-05,
+      "gurobi_total_s": 0.007647091
+    },
+    {
+      "k": 3,
+      "m": 512,
+      "rows": 12,
+      "vertices": 1536.0,
+      "largest": 512.0,
+      "ours_ids_mean_s": 7.49181472427366e-06,
+      "ours_cold_s": 0.0001380795,
+      "gurobi_total_s": 0.013868835
+    },
+    {
+      "k": 3,
+      "m": 2048,
+      "rows": 12,
+      "vertices": 6141.0,
+      "largest": 2048.0,
+      "ours_ids_mean_s": 3.918993095212985e-06,
+      "ours_cold_s": 0.000493321,
+      "gurobi_total_s": 0.049732278500000004
+    },
+    {
+      "k": 3,
+      "m": 8192,
+      "rows": 12,
+      "vertices": 24471.5,
+      "largest": 8161.0,
+      "ours_ids_mean_s": 4.610218049649029e-06,
+      "ours_cold_s": 0.001939812,
+      "gurobi_total_s": 0.3235285515
+    },
+    {
+      "k": 3,
+      "m": 32768,
+      "rows": 12,
+      "vertices": 94531.5,
+      "largest": 31535.5,
+      "ours_ids_mean_s": 5.0266083158455e-06,
+      "ours_cold_s": 0.007442364,
+      "gurobi_total_s": 2.192269639
+    },
+    {
+      "k": 3,
+      "m": 131072,
+      "rows": 12,
+      "vertices": 303666.0,
+      "largest": 101340.0,
+      "ours_ids_mean_s": 1.0562257499154091e-05,
+      "ours_cold_s": 0.0236953045,
+      "gurobi_total_s": 13.4805131235
+    },
+    {
+      "k": 5,
+      "m": 8,
+      "rows": 12,
+      "vertices": 40.0,
+      "largest": 8.0,
+      "ours_ids_mean_s": 4.947078184951274e-06,
+      "ours_cold_s": 1.59195e-05,
+      "gurobi_total_s": 0.0009188395
+    },
+    {
+      "k": 5,
+      "m": 32,
+      "rows": 12,
+      "vertices": 160.0,
+      "largest": 32.0,
+      "ours_ids_mean_s": 6.038201647366264e-06,
+      "ours_cold_s": 2.6714999999999997e-05,
+      "gurobi_total_s": 0.001743954
+    },
+    {
+      "k": 5,
+      "m": 128,
+      "rows": 12,
+      "vertices": 640.0,
+      "largest": 128.0,
+      "ours_ids_mean_s": 1.6045132260532807e-05,
+      "ours_cold_s": 7.9825e-05,
+      "gurobi_total_s": 0.011925591999999999
+    },
+    {
+      "k": 5,
+      "m": 512,
+      "rows": 12,
+      "vertices": 2560.0,
+      "largest": 512.0,
+      "ours_ids_mean_s": 1.3141476206238588e-05,
+      "ours_cold_s": 0.000222182,
+      "gurobi_total_s": 0.019883781500000003
+    },
+    {
+      "k": 5,
+      "m": 2048,
+      "rows": 12,
+      "vertices": 10237.0,
+      "largest": 2048.0,
+      "ours_ids_mean_s": 1.525081940220639e-05,
+      "ours_cold_s": 0.0008293215,
+      "gurobi_total_s": 0.083144475
+    },
+    {
+      "k": 5,
+      "m": 8192,
+      "rows": 12,
+      "vertices": 40779.0,
+      "largest": 8161.0,
+      "ours_ids_mean_s": 1.708107465232053e-05,
+      "ours_cold_s": 0.0032346125,
+      "gurobi_total_s": 0.5719371285
+    },
+    {
+      "k": 5,
+      "m": 32768,
+      "rows": 12,
+      "vertices": 157467.5,
+      "largest": 31539.5,
+      "ours_ids_mean_s": 2.0066132153478028e-05,
+      "ours_cold_s": 0.0065067015,
+      "gurobi_total_s": 4.398463576
+    },
+    {
+      "k": 5,
+      "m": 131072,
+      "rows": 12,
+      "vertices": 506055.5,
+      "largest": 101344.5,
+      "ours_ids_mean_s": 1.740227832429552e-05,
+      "ours_cold_s": 0.0421203045,
+      "gurobi_total_s": 25.021192647
+    },
+    {
+      "k": 10,
+      "m": 8,
+      "rows": 12,
+      "vertices": 80.0,
+      "largest": 8.0,
+      "ours_ids_mean_s": 6.795766108311093e-06,
+      "ours_cold_s": 2.1896000000000002e-05,
+      "gurobi_total_s": 0.0013914320000000002
+    },
+    {
+      "k": 10,
+      "m": 32,
+      "rows": 12,
+      "vertices": 320.0,
+      "largest": 32.0,
+      "ours_ids_mean_s": 9.043007912102701e-06,
+      "ours_cold_s": 4.52145e-05,
+      "gurobi_total_s": 0.003195143
+    },
+    {
+      "k": 10,
+      "m": 128,
+      "rows": 12,
+      "vertices": 1280.0,
+      "largest": 128.0,
+      "ours_ids_mean_s": 1.6965606797021983e-05,
+      "ours_cold_s": 0.0001229155,
+      "gurobi_total_s": 0.0095797235
+    },
+    {
+      "k": 10,
+      "m": 512,
+      "rows": 12,
+      "vertices": 5120.0,
+      "largest": 512.0,
+      "ours_ids_mean_s": 1.9773253941766373e-05,
+      "ours_cold_s": 0.000425163,
+      "gurobi_total_s": 0.0344066935
+    },
+    {
+      "k": 10,
+      "m": 2048,
+      "rows": 12,
+      "vertices": 20475.5,
+      "largest": 2048.0,
+      "ours_ids_mean_s": 2.2727787619147515e-05,
+      "ours_cold_s": 0.001613143,
+      "gurobi_total_s": 0.1641346715
+    },
+    {
+      "k": 10,
+      "m": 8192,
+      "rows": 12,
+      "vertices": 81586.0,
+      "largest": 8168.5,
+      "ours_ids_mean_s": 3.410602417388848e-05,
+      "ours_cold_s": 0.006448753999999999,
+      "gurobi_total_s": 1.2684077245
+    },
+    {
+      "k": 10,
+      "m": 32768,
+      "rows": 12,
+      "vertices": 314968.5,
+      "largest": 31534.0,
+      "ours_ids_mean_s": 3.0025065387942936e-05,
+      "ours_cold_s": 0.020326086,
+      "gurobi_total_s": 10.842813201
+    },
+    {
+      "k": 10,
+      "m": 131072,
+      "rows": 12,
+      "vertices": 1012245.5,
+      "largest": 101443.5,
+      "ours_ids_mean_s": 3.336535074254896e-05,
+      "ours_cold_s": 0.049778453,
+      "gurobi_total_s": 59.904590289
+    }
+  ]
+}
