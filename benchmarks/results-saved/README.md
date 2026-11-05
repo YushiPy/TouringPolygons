@@ -8,6 +8,7 @@ Pastas com dados:
 
 | Pasta | Conteúdo |
 |---|---|
+| [paper1-armijo-a5753c0-2026-11-05](paper1-armijo-a5753c0-2026-11-05/summary.json) | Complemento da §7 do artigo 1 (revisão 2, G3): construção de Tan e Jiang contra a preguiçosa e a ansiosa em caminhos disjuntos numa grade fina, e uma chamada de ciclo com até ~100 mil vértices por região; resumo [abaixo](#paper1-armijo-a5753c0-2026-11-05). |
 | [paper1-armijo-2026-11-03](paper1-armijo-2026-11-03/summary.json) | Todos os experimentos da §7 do artigo 1 num único comando (`tpp.py paper1-experiments`), na armijo: caminhos gerados, B&B nos 558 casos, chamadas capturadas contra o Gurobi, muitos vértices, passos exatos e polimento; resumo [abaixo](#paper1-armijo-2026-11-03). |
 | [cetsp-table2-mac-2026-10-27](cetsp-table2-mac-2026-10-27/per-instance.csv) | As 62 instâncias 2D da Tabela 2 de Coutinho et al. (2016): nossos limites com 1 e 8 threads (30 min), os deles (4 h), o UB de Mennell e o tour de Carrabs et al. (2020), uma linha por instância; e, nas 30 abertas para os dois, o tempo até superar estritamente os limites de 4 h deles ([`time-to-beat.csv`](cetsp-table2-mac-2026-10-27/time-to-beat.csv)); resumo [abaixo](#cetsp-table2-mac-2026-10-27). |
 | [fekete-smoothed-dantzig-2026-10-22](fekete-smoothed-dantzig-2026-10-22/per-run.csv) | As instâncias suavizadas na dantzig, no protocolo da referência (C ×3; B e A com 300 s e extensão de 900 s), uma linha por instância, configuração, raiz e limite; resumo [abaixo](#fekete-smoothed-dantzig-2026-10-22). |
@@ -26,6 +27,64 @@ status de exatidão e limitações. Um gap numérico fechado nos B&B não é ót
 algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
+
+## paper1-armijo-a5753c0-2026-11-05
+
+**Pergunta.** Na prática, a construção preguiçosa ganha da de Tan e Jiang, que
+tem o pior caso melhor ($O(kn)$ contra $O(kn\log(n/k))$)? E o oráculo de ciclo
+continua rápido com regiões de ~100 mil vértices de fato? É o achado G3 da
+segunda revisão do artigo 1.
+
+**Formulação.**
+- **Comando.** `./scripts/run_paper1_experiments.sh --only build --only check
+  --only paths-fine --only vertex-scaling-fine --only summary`, no commit
+  a5753c0 (árvore limpa), na armijo. A máquina e o protocolo são os de
+  `paper1-armijo-2026-11-03` (Ryzen 7 9700X, 8 processos fixados, GCC 13.3.0,
+  Gurobi 13.0.2 com parâmetros padrão e uma thread). O commit a5753c0 é
+  anterior à sondagem de `<print>` (681f87e), que rejeita o GCC 13.
+- **paths-fine.** Grade de $2^{-30}$, para que o fecho mantenha quase todos os
+  $m$ pontos.
+  - Disjuntas: $k\in\{4,8,16,32,64\}$, $m\in\{8,\dots,32768\}$, 5 sementes
+    (125 instâncias, até 2,01 milhões de vértices), 3 repetições. Rodam o
+    método certificado (gap zero), a variante tolerante, as construções
+    preguiçosa, ansiosa e de Tan e Jiang (`tan_jiang.cpp`, só para
+    disjuntas), e o Gurobi.
+  - Com interseções: $k\in\{4,16,64\}$, $m\in\{512,4096,32768\}$, 5
+    sementes. Rodam o certificado e o Gurobi.
+- **vertex-scaling-fine.** Uma chamada de ciclo por $k\in\{3,5,10\}$ regiões
+  de $m\in\{8,\dots,131072\}$ pontos (disco ou elipse, 2 amostras), com o gap
+  do B&B.
+
+**Resultado.**
+- **Construções (disjuntas).** Comparação por instância, com a mediana das 3
+  repetições:
+  - A preguiçosa é mais rápida que a de Tan e Jiang nas 125 instâncias. A
+    razão Tan–Jiang/preguiçosa tem média geométrica de 3,28 e vai de 1,04 a
+    15,7. Com $m=32768$, ela cai de 13,9 ($k=4$) para 2,8 ($k=64$).
+  - A de Tan e Jiang é mais rápida que a ansiosa em 124 de 125 instâncias,
+    com 0,67 do tempo dela em média geométrica.
+  - A preguiçosa calcula de 0,25% a 64% dos cones.
+  - As três devolvem o mesmo comprimento em todas as execuções.
+  - O método certificado é mais lento que a construção de Tan e Jiang sozinha
+    em todos os grupos, por causa do replay exato e do certificado.
+- **Certificado.** 375/375 execuções disjuntas e 135/135 com interseções
+  provadas ótimas (3 pela recuperação filtrada). O Gurobi fica abaixo do
+  nosso L em 3 execuções, por até 7,6e-8 relativo. Gurobi/certificado: 7–111×
+  nas disjuntas e 2,5–21× nas com interseções (por grupo).
+- **Muitos vértices.** Até 101 mil vértices por região e 1,01 milhão no
+  total.
+  - Uma chamada com as regiões preparadas leva de 2,6 a 212 µs (medianas por
+    grupo). Cresce para $k=10$ acima de ~300 mil vértices.
+  - A primeira chamada vai até 55 ms.
+  - O Gurobi leva até 53 s, de 58 a 952 vezes a primeira chamada.
+
+**Limitações.**
+- A implementação de Tan e Jiang cobre só polígonos disjuntos.
+- Os tempos das construções são da construção sozinha, sem certificado.
+- A revisão a5753c0 é diferente da ba8c122 de
+  `paper1-armijo-2026-11-03`; as comparações valem dentro desta campanha.
+- Dados brutos: local, em
+  `benchmarks/workspace/experiments/paper1/armijo-a5753c0/`.
 
 ## steiner-decomposition-cloud-2026-11-04
 
