@@ -782,7 +782,7 @@ namespace tpp {
 		const Polygon &initial_contacts, ConvexCycleWorkspace *cycle_workspace,
 		const std::vector<int> &initial_features, bool retain_features, bool bound_first,
 		bool interval_certificate, const std::function<bool()> &stop_requested, bool proposal_bound, bool float_oracle,
-		const std::vector<std::uint64_t> *region_ids) {
+		const std::vector<std::uint64_t> *region_ids, bool float_polish) {
 		if (!cycle) return tpp_convex_solve_certified(start,target,regions,workspace,tolerance,cutoff,seconds);
 		const auto began=std::chrono::steady_clock::now();
 		RelaxationResult out;
@@ -805,6 +805,7 @@ namespace tpp {
 		// A positive tolerance first tries the binary64 stage; GapClosed and its
 		// CertifiedBound are proved on these regions without rational arithmetic.
 		cycle_options.max_gap=float_oracle&&tolerance>0?tolerance:0;
+		cycle_options.float_polish=float_polish;
 		if(region_ids)cycle_options.region_ids=*region_ids;
 		auto solved=tpp_convex_solve_cycle_double(regions,cycle_options);
 		if (solved.status!=ConvexCycleStatus::Optimal && solved.status!=ConvexCycleStatus::FloatingPointLimit
@@ -839,7 +840,7 @@ namespace tpp {
             if(!warm.empty())warm.pop_back();else warm=initial_contacts;
             auto full=solve_relaxation(cycle,start,target,regions,workspace,tolerance,cutoff,
                 std::max(0.0,seconds-std::chrono::duration<double>(std::chrono::steady_clock::now()-began).count()),
-                warm,cycle_workspace,out.active_features,retain_features,bound_first,interval_certificate,stop_requested,false,float_oracle,region_ids);
+                warm,cycle_workspace,out.active_features,retain_features,bound_first,interval_certificate,stop_requested,false,float_oracle,region_ids,float_polish);
             if(!out.path.empty() && (full.path.empty() || out.upper_bound<full.upper_bound)) {
                 full.path=std::move(out.path);full.upper_bound=out.upper_bound;
                 full.active_features=std::move(out.active_features);
@@ -1500,7 +1501,8 @@ namespace tpp {
 						const bool polish_cycle=whole&&cycle;
 						const auto polished=solve_relaxation(polish_cycle,a,b,ordered,polish_workspace,
 							std::max(1e-9*old_length,std::numeric_limits<double>::epsilon()),old_length,std::min(1.0,remaining),
-							polish_cycle?current_points:Polygon{},nullptr,{},false,false,false,{},false,options.cycle_float_oracle);
+							polish_cycle?current_points:Polygon{},nullptr,{},false,false,false,{},false,options.cycle_float_oracle,
+							nullptr,options.cycle_float_polish);
 						const double length=path_length(polished.path);
 						const size_t offset=size_t(!polish_cycle);
 						if(polished.path.size()==count+2-size_t(polish_cycle)&&std::isfinite(length)&&length<old_length*(1-1e-12)) {
@@ -1664,7 +1666,7 @@ namespace tpp {
 							cycle, start, target, ordered_pieces, initial_workspace,
 							std::max(target_gap * 0.25, std::numeric_limits<double>::epsilon()),
 							best_initial_length - target_gap, remaining, {}, nullptr, {}, false, false, false, {}, false,
-							options.cycle_float_oracle);
+							options.cycle_float_oracle, nullptr, options.cycle_float_polish);
 						result.initial_convex_refinement_time_limited = polished.time_limited;
 						const double polished_length = path_length(polished.path);
 						if (std::isfinite(polished_length) && polished_length < best_initial_length && covered(polished.path)) {
@@ -1960,7 +1962,7 @@ namespace tpp {
 				cycle, start, target, selected, oracle_workspace, tolerance, cutoff, remaining_seconds, warm_start, options.cycle_cache?&cycle_cache:nullptr,
                 options.cycle_active_features?feature_hints:std::vector<int>{}, options.cycle_active_features,options.cycle_bound_first,
                 options.cycle_interval_certificate, [control]{return control&&control->proved();},
-                options.cycle_proposal_bound&&!precise, options.cycle_float_oracle, &region_ids
+                options.cycle_proposal_bound&&!precise, options.cycle_float_oracle, &region_ids, options.cycle_float_polish
 			);
             oracle_capture.end(capture_id,out);
             if(cache&&!out.path.empty()) {

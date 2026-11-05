@@ -14,6 +14,9 @@ https://doi.org/10.1007/978-3-319-55911-7_44
 #include "tpp_convex_common.h"
 #include "tpp_convex.h"
 
+#include <algorithm>
+#include <tuple>
+
 // Maximum number of "up and down" scans before falling back to independent point location.
 #define MAX_SCAN_COUNT 3
 
@@ -54,6 +57,36 @@ namespace {
 	}
 
 	bool polygons_intersect_or_touch(const vector<Vector2> &a, const vector<Vector2> &b) {
+
+		// The bounding-box exit of binary_search.cpp: without it this check
+		// tests every pair of edges and dominates the construction (O(n^2)).
+		auto bounds = [](const vector<Vector2> &polygon) {
+			double min_x = polygon.front().x;
+			double max_x = polygon.front().x;
+			double min_y = polygon.front().y;
+			double max_y = polygon.front().y;
+
+			for (const auto &point : polygon) {
+				min_x = std::min(min_x, point.x);
+				max_x = std::max(max_x, point.x);
+				min_y = std::min(min_y, point.y);
+				max_y = std::max(max_y, point.y);
+			}
+
+			return std::tuple(min_x, max_x, min_y, max_y);
+		};
+
+		const auto [a_min_x, a_max_x, a_min_y, a_max_y] = bounds(a);
+		const auto [b_min_x, b_max_x, b_min_y, b_max_y] = bounds(b);
+
+		if (
+			a_max_x < b_min_x - LOCAL_EPSILON ||
+			b_max_x < a_min_x - LOCAL_EPSILON ||
+			a_max_y < b_min_y - LOCAL_EPSILON ||
+			b_max_y < a_min_y - LOCAL_EPSILON
+		) {
+			return false;
+		}
 
 		for (size_t i = 0; i < a.size(); i++) {
 			const auto &a1 = a[i];

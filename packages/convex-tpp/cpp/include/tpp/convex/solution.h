@@ -122,4 +122,10 @@ namespace tpp {
 
 		virtual ~Solution() = default;
 	};
+
+	namespace detail {
+		// Cones that Solution::build_cone has computed on this thread: a counter for
+		// benchmarks (how much of the last-step maps a query builds). No effect on results.
+		std::size_t &cone_builds();
+	}
 }

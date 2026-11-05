@@ -160,7 +160,7 @@ endif()
 file(GLOB TPP_CONVEX_TOOL_SOURCES CONFIGURE_DEPENDS src/main-*.cpp)
 foreach(source IN LISTS TPP_CONVEX_TOOL_SOURCES)
     get_filename_component(stem "${source}" NAME_WE)
-    if(stem MATCHES "^main-(cycle_benchmark|gurobi_fallback_audit|vertex_scaling)$" AND NOT TPP_ENABLE_GUROBI)
+    if(stem MATCHES "^main-(cycle_benchmark|gurobi_fallback_audit|vertex_scaling|path_benchmark)$" AND NOT TPP_ENABLE_GUROBI)
         continue()
     endif()
     string(REGEX REPLACE "^main-" "" tool "${stem}")
@@ -197,8 +197,11 @@ if(TPP_ENABLE_GUROBI)
     endif()
     list(GET GUROBI_LIB 0 GUROBI_LIB)
 
+    # The static C++ wrapper calls the C library, so it must come first: GNU ld
+    # (with --as-needed, Ubuntu's default) drops a shared library that nothing
+    # before it uses. macOS's linker accepts either order.
     target_link_libraries(tpp_convex PRIVATE
-        ${GUROBI_LIB}
         ${GUROBI_HOME}/lib/libgurobi_c++.a
+        ${GUROBI_LIB}
     )
 endif()

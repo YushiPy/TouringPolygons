@@ -8,6 +8,7 @@ Pastas com dados:
 
 | Pasta | Conteúdo |
 |---|---|
+| [paper1-armijo-2026-11-03](paper1-armijo-2026-11-03/summary.json) | Todos os experimentos da §7 do artigo 1 num único comando (`tpp.py paper1-experiments`), na armijo: caminhos gerados, B&B nos 558 casos, chamadas capturadas contra o Gurobi, muitos vértices, passos exatos e polimento; resumo [abaixo](#paper1-armijo-2026-11-03). |
 | [cetsp-table2-mac-2026-10-27](cetsp-table2-mac-2026-10-27/per-instance.csv) | As 62 instâncias 2D da Tabela 2 de Coutinho et al. (2016): nossos limites com 1 e 8 threads (30 min), os deles (4 h), o UB de Mennell e o tour de Carrabs et al. (2020), uma linha por instância; e, nas 30 abertas para os dois, o tempo até superar estritamente os limites de 4 h deles ([`time-to-beat.csv`](cetsp-table2-mac-2026-10-27/time-to-beat.csv)); resumo [abaixo](#cetsp-table2-mac-2026-10-27). |
 | [fekete-smoothed-dantzig-2026-10-22](fekete-smoothed-dantzig-2026-10-22/per-run.csv) | As instâncias suavizadas na dantzig, no protocolo da referência (C ×3; B e A com 300 s e extensão de 900 s), uma linha por instância, configuração, raiz e limite; resumo [abaixo](#fekete-smoothed-dantzig-2026-10-22). |
 | [fekete-smoothed-mac-2026-10-21](fekete-smoothed-mac-2026-10-21/per-run.csv) | Fekete (1 thread, CHR e LEFP) × nosso nas 24 instâncias suavizadas, 300 s, uma linha por execução com limites, gap e validação do tour; resumo [abaixo](#fekete-smoothed-mac-2026-10-21). |
@@ -105,6 +106,61 @@ testes) está nos commits `b7cb532` e `c122555` e pode ser recuperado de lá.
   de tempo abaixo de ~15% por instância são ruído.
 - Os dados brutos estão em
   `benchmarks/workspace/experiments/steiner-decomposition-bnb/`.
+
+## paper1-armijo-2026-11-03
+
+**Pergunta.** Os números da §7 do artigo 1 (caminhos e tours), todos numa
+única execução reprodutível.
+
+**Formulação.**
+- **Comando.** `python3 benchmarks/tpp.py paper1-experiments`, commit
+  ba8c122 (branch `paper1-experiments`), na armijo (Ryzen 7 9700X, 8 núcleos,
+  um processo por núcleo físico, fixado). Gurobi 13.0.2 com parâmetros
+  padrão, uma thread, modelo construído a cada chamada e normais unitárias.
+- **Caminhos gerados.** 400 instâncias: famílias disjunta e com interseções,
+  $k\in\{4,\dots,64\}$, $m\in\{8,\dots,4096\}$ pontos por polígono numa grade
+  de $2^{-13}$, 10 sementes, 3 repetições. O nosso roda com gap zero (ótimo só
+  com o certificado exato).
+- **B&B.** Configuração C nos 558 casos, 300 s e gap relativo de 0,1%. Dele
+  saem as capturas: 400 chamadas por caso em 40 casos com pelo menos 1000
+  chamadas (ciclo, e caminho no modo com início e fim), cada uma cronometrada
+  uma vez contra o Gurobi.
+- **Demais passos.** Uma chamada de ciclo com até 32768 pontos por região
+  (grade $2^{-13}$, até ~1000 vértices). Os passos exatos em 320 chamadas,
+  com gap zero. B&B com e sem polimento, 60 s.
+
+**Resultado.**
+- **Caminhos.** Os 400 provados ótimos: 366 no replay exato, 34 (todos com
+  interseções) na recuperação filtrada. O Gurobi fica abaixo do nosso L em 5,
+  por até 2,9e-8 relativo. Média geométrica Gurobi/nosso: 15× nas disjuntas
+  e 4,5× nas com interseções, mais lento em $k\ge32$ com $m=8$ (29 de 200).
+  A busca preguiçosa constrói 5–55% dos cones; a construção sozinha fica
+  1,2–17× mais rápida que a ansiosa.
+- **Chamadas capturadas.** Caminhos: 27 µs contra 1,57 ms (mediana), 41×
+  (média geométrica). Ciclos: 14 µs contra 1,61 ms, 95×. O Gurobi fica abaixo
+  do nosso L em 49% e 43% das chamadas, por até 2,9e-5 e 2,2e-5.
+- **B&B.** 557/558 fechados (mediana 2 ms, máximo 46 s); o caso 189
+  (kuala_lumpur_n060_seed3530) parou com 428,42–437,44. Foram 17,96 milhões
+  de chamadas: 95,5% fechadas pela construção, 4,5% pelo polimento e nenhuma
+  pelo caminho exato. Sem o caso 189: 5,80 milhões, 97,4% e 2,6%.
+- **Muitos vértices.** Chamada com regiões preparadas: 2,5–28 µs; a primeira
+  chamada cresce com $n$. Gurobi 56–230× mais lento que a primeira chamada.
+- **Passos exatos.** Com a construção primeiro: mediana 1,1 ms, âncoras em
+  21/320 chamadas (até 2), nenhuma bissecção. Só com âncoras: 7,3 ms, até 22
+  TPPs ancorados, 2 sondas no total. Mesmo comprimento ótimo nas 320.
+- **Polimento.** Em 60 s, 557 contra 555 fechados. Nos 555 comuns: 107 s
+  contra 323 s, 21 contra 64 µs por chamada; sem ele, 132.559 chamadas vão ao
+  caminho exato.
+
+**Limitações.**
+- Uma máquina e uma versão do código.
+- Os caminhos gerados vêm de duas famílias de polígonos lisos; a grade
+  limita as regiões a cerca de 1000 vértices.
+- O Gurobi refaz o modelo a cada chamada, como no oráculo do Fekete.
+- "Fechado" no B&B é gap relativo de 0,1%, não ótimo.
+- Dados brutos: local, em
+  `benchmarks/workspace/experiments/paper1/armijo-ba8c122/`; aqui fica só o
+  resumo agregado.
 
 ## cetsp-table2-mac-2026-10-27
 

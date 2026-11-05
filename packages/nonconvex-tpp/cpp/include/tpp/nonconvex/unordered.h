@@ -231,6 +231,10 @@ namespace tpp {
         // polish. Calls it leaves open use the unchanged exact path; zero gaps
         // always do. False restores the exact path for every call (ablation).
         bool cycle_float_oracle = true;
+        // The interior-point polish inside that binary64 stage
+        // (ConvexCycleDoubleOptions::float_polish). False leaves the calls the
+        // construction does not close to the exact path (ablation).
+        bool cycle_float_polish = true;
         // Cycle insertion screening with binary64 directions proved in the unit
         // disk and directed-rounding supports
         // (tpp_convex_binary_cycle_insertion_bounds). False uses the exact

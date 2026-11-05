@@ -35,6 +35,6 @@ RelaxationResult solve_relaxation(bool cycle, const Vector2 &start, const Vector
 	ConvexCycleWorkspace *cycle_workspace = nullptr, const std::vector<int> &initial_features = {},
 	bool retain_features = false, bool bound_first = false, bool interval_certificate = false,
 	const std::function<bool()> &stop_requested = {}, bool proposal_bound = false, bool float_oracle = false,
-	const std::vector<std::uint64_t> *region_ids = nullptr);
+	const std::vector<std::uint64_t> *region_ids = nullptr, bool float_polish = true);
 
 } // namespace tpp
