@@ -8,6 +8,7 @@ Pastas com dados:
 
 | Pasta | Conteúdo |
 |---|---|
+| [paper1-armijo-d9c7ee0-2026-11-05](paper1-armijo-d9c7ee0-2026-11-05/summary.json) | A Tabela 4 do artigo 1 refeita depois da correção da prova de pertinência (776667c): uma chamada de ciclo com até ~100 mil vértices por região; tempos por execução em [`vertex-scaling-fine-per-run.csv`](paper1-armijo-d9c7ee0-2026-11-05/vertex-scaling-fine-per-run.csv); resumo [abaixo](#paper1-armijo-d9c7ee0-2026-11-05). |
 | [paper1-armijo-a5753c0-2026-11-05](paper1-armijo-a5753c0-2026-11-05/summary.json) | Complemento da §7 do artigo 1 (revisão 2, G3): construção de Tan e Jiang contra a preguiçosa e a ansiosa em caminhos disjuntos numa grade fina, e uma chamada de ciclo com até ~100 mil vértices por região. Inclui as medianas por instância de onde sai a Tabela 2 ([`paths-fine-per-instance.csv`](paper1-armijo-a5753c0-2026-11-05/paths-fine-per-instance.csv)) e os tempos por execução da Tabela 4 ([`vertex-scaling-fine-per-run.csv`](paper1-armijo-a5753c0-2026-11-05/vertex-scaling-fine-per-run.csv)); resumo [abaixo](#paper1-armijo-a5753c0-2026-11-05). |
 | [paper1-armijo-2026-11-03](paper1-armijo-2026-11-03/summary.json) | Todos os experimentos da §7 do artigo 1 num único comando (`tpp.py paper1-experiments`), na armijo: caminhos gerados, B&B nos 558 casos, chamadas capturadas contra o Gurobi, muitos vértices, passos exatos e polimento; resumo [abaixo](#paper1-armijo-2026-11-03). |
 | [cetsp-table2-mac-2026-10-27](cetsp-table2-mac-2026-10-27/per-instance.csv) | As 62 instâncias 2D da Tabela 2 de Coutinho et al. (2016): nossos limites com 1 e 8 threads (30 min), os deles (4 h), o UB de Mennell e o tour de Carrabs et al. (2020), uma linha por instância; e, nas 30 abertas para os dois, o tempo até superar estritamente os limites de 4 h deles ([`time-to-beat.csv`](cetsp-table2-mac-2026-10-27/time-to-beat.csv)); resumo [abaixo](#cetsp-table2-mac-2026-10-27). |
@@ -27,6 +28,46 @@ status de exatidão e limitações. Um gap numérico fechado nos B&B não é ót
 algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
+
+## paper1-armijo-d9c7ee0-2026-11-05
+
+**Pergunta.** Depois de tirar o fallback linear da prova de pertinência do
+certificado, a chamada de ciclo preparada fica rápida também em regiões em
+forma de disco com ~100 mil vértices? Este é o seguimento do achado H1 da
+terceira revisão do artigo 1.
+
+**Formulação.**
+- **Comando.** `./scripts/run_paper1_experiments.sh --only build --only check
+  --only vertex-scaling-fine --only summary`, na armijo, no commit d9c7ee0.
+- **O commit.** d9c7ee0 é o a5753c0 mais o cherry-pick de fb9c226, a correção
+  de `float_proof.h` e `binary_dual.h` mesclada na main em 776667c. A árvore
+  estava limpa. O convex-tpp é idêntico ao da correção, e a sondagem do
+  compilador é a antiga, que aceita o GCC 13.3. A branch
+  `paper1-table4-rerun` mantém o commit acessível: não apagar.
+- **Protocolo.** O de `paper1-armijo-a5753c0-2026-11-05`: $k\in\{3,5,10\}$,
+  $m\in\{8,\dots,131072\}$ pontos num disco ou numa elipse, 2 amostras e 3
+  repetições, na grade de $2^{-30}$, com o gap do B&B. Gurobi 13.0.2.
+
+**Resultado.**
+- **Igualdade com a rodada a5753c0.** Limites, status e campos de
+  fechamento são idênticos nos 1.728 campos comparados. Só o tempo muda.
+- **Chamada preparada (medianas por grupo).** Vai de 2,4 a 34 µs. Fica em no
+  máximo 20 µs para $k=3$ e $k=5$. Para $k=10$, fica entre 30 e 34 µs de ~80
+  mil a ~1 milhão de vértices. Antes chegava a 212 µs.
+- **Por forma, com $k=10$ e ~1 milhão de vértices.**
+  - Discos: 41–61 µs (antes, 396–923 µs).
+  - Elipses: 17–26 µs (antes, 17–27 µs).
+  - Com $k=10$ e $m=32768$, os discos foram de 148–154 µs para 37–56 µs.
+  - Com $k=5$ e $m=32768$, o disco que chegava a 158 µs ficou em 20 µs.
+- **Primeira chamada.** Até 50 ms (mediana).
+- **Gurobi.** Até 60 s, de 57 a 1203 vezes a primeira chamada (razão de
+  medianas por grupo).
+
+**Limitações.**
+- Uma máquina. Este commit difere de a5753c0 e de ba8c122 só pela correção.
+- Os discos ainda custam 2–3 vezes as elipses no maior caso.
+- Dados brutos: local, em
+  `benchmarks/workspace/experiments/paper1/armijo-d9c7ee0/`.
 
 ## paper1-armijo-a5753c0-2026-11-05
 
