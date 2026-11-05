@@ -3,7 +3,7 @@
 Data: 4 de novembro de 2026.
 
 Esta nota investiga a hipótese ainda explícita no teorema de terminação de
-`papers/artigo1-tpp/main.tex`. A prova abaixo separa a construção matemática
+`papers/artigo1-tpp/bu2026-tpp.tex`. A prova abaixo separa a construção matemática
 (incluindo contatos simultâneos) da representação usada por
 `packages/convex-tpp/cpp/src/solvers/intersecting_maps.cpp`.
 O escopo são polígonos convexos fechados **de área positiva**, início e fim
@@ -508,7 +508,7 @@ remanescente foi identificada no escopo declarado. Isso não estende o
 resultado aos ramos explicitamente excluídos no início desta nota.
 
 O Apêndice A de `papers/artigo1-tpp/proof-intersecting.tex` contém a prova
-completa em inglês; o novo Teorema 5.1 de `main.tex` é usado no Teorema 6.1,
+completa em inglês; o novo Teorema 5.1 de `bu2026-tpp.tex` é usado no Teorema 6.1,
 que dispensa a hipótese adicional sobre o solver ancorado. As cotas de
 complexidade aritmética e os resultados experimentais não foram alterados.
 
