@@ -8,7 +8,7 @@ Pastas com dados:
 
 | Pasta | Conteúdo |
 |---|---|
-| [paper1-armijo-a5753c0-2026-11-05](paper1-armijo-a5753c0-2026-11-05/summary.json) | Complemento da §7 do artigo 1 (revisão 2, G3): construção de Tan e Jiang contra a preguiçosa e a ansiosa em caminhos disjuntos numa grade fina, e uma chamada de ciclo com até ~100 mil vértices por região; resumo [abaixo](#paper1-armijo-a5753c0-2026-11-05). |
+| [paper1-armijo-a5753c0-2026-11-05](paper1-armijo-a5753c0-2026-11-05/summary.json) | Complemento da §7 do artigo 1 (revisão 2, G3): construção de Tan e Jiang contra a preguiçosa e a ansiosa em caminhos disjuntos numa grade fina, e uma chamada de ciclo com até ~100 mil vértices por região. Inclui as medianas por instância de onde sai a Tabela 2 ([`paths-fine-per-instance.csv`](paper1-armijo-a5753c0-2026-11-05/paths-fine-per-instance.csv)) e os tempos por execução da Tabela 4 ([`vertex-scaling-fine-per-run.csv`](paper1-armijo-a5753c0-2026-11-05/vertex-scaling-fine-per-run.csv)); resumo [abaixo](#paper1-armijo-a5753c0-2026-11-05). |
 | [paper1-armijo-2026-11-03](paper1-armijo-2026-11-03/summary.json) | Todos os experimentos da §7 do artigo 1 num único comando (`tpp.py paper1-experiments`), na armijo: caminhos gerados, B&B nos 558 casos, chamadas capturadas contra o Gurobi, muitos vértices, passos exatos e polimento; resumo [abaixo](#paper1-armijo-2026-11-03). |
 | [cetsp-table2-mac-2026-10-27](cetsp-table2-mac-2026-10-27/per-instance.csv) | As 62 instâncias 2D da Tabela 2 de Coutinho et al. (2016): nossos limites com 1 e 8 threads (30 min), os deles (4 h), o UB de Mennell e o tour de Carrabs et al. (2020), uma linha por instância; e, nas 30 abertas para os dois, o tempo até superar estritamente os limites de 4 h deles ([`time-to-beat.csv`](cetsp-table2-mac-2026-10-27/time-to-beat.csv)); resumo [abaixo](#cetsp-table2-mac-2026-10-27). |
 | [fekete-smoothed-dantzig-2026-10-22](fekete-smoothed-dantzig-2026-10-22/per-run.csv) | As instâncias suavizadas na dantzig, no protocolo da referência (C ×3; B e A com 300 s e extensão de 900 s), uma linha por instância, configuração, raiz e limite; resumo [abaixo](#fekete-smoothed-dantzig-2026-10-22). |
@@ -71,16 +71,27 @@ segunda revisão do artigo 1.
   provadas ótimas (3 pela recuperação filtrada). O Gurobi fica abaixo do
   nosso L em 3 execuções, por até 7,6e-8 relativo. Gurobi/certificado: 7–111×
   nas disjuntas e 2,5–21× nas com interseções (por grupo).
-- **Muitos vértices.** Até 101 mil vértices por região e 1,01 milhão no
-  total.
+- **Muitos vértices.** Até cerca de 100 mil vértices por região (máximo
+  105.979) e 1,06 milhão no total.
   - Uma chamada com as regiões preparadas leva de 2,6 a 212 µs (medianas por
-    grupo). Cresce para $k=10$ acima de ~300 mil vértices.
+    grupo, juntando disco e elipse). Cresce para $k=10$ acima de ~300 mil
+    vértices.
+  - As medianas escondem a forma. Com $k=10$ e ~1 milhão de vértices, a
+    chamada preparada leva 17–27 µs nas elipses e 0,40–0,92 ms nos discos.
+    Nos discos, a prova de pertinência em ponto flutuante (`float_proof.h`,
+    `proved_inside`) às vezes não decide na busca logarítmica e percorre todas
+    as arestas (terceira revisão do artigo 1, H1).
   - A primeira chamada vai até 55 ms.
   - O Gurobi leva até 53 s, de 58 a 952 vezes a primeira chamada.
 
 **Limitações.**
 - A implementação de Tan e Jiang cobre só polígonos disjuntos.
-- Os tempos das construções são da construção sozinha, sem certificado.
+- Os tempos das construções incluem a checagem da entrada, a construção e a
+  consulta a t, sem certificado. Chamadas abaixo de 0,05 s são repetidas em
+  bloco, e o tempo é a média do bloco.
+- A Tabela 2 usa a mediana das 3 repetições por instância e depois a mediana
+  sobre as sementes (`paths-fine-per-instance.csv`). Os campos `*_mean_s` do
+  `summary.json` juntam sementes e repetições numa só mediana e podem diferir.
 - A revisão a5753c0 é diferente da ba8c122 de
   `paper1-armijo-2026-11-03`; as comparações valem dentro desta campanha.
 - Dados brutos: local, em
