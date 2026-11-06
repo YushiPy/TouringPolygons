@@ -949,6 +949,57 @@ void corpus(const std::string &directory) {
 }
 }
 
+// The eager and Tan and Jiang constructions proposing at Step 1 of the flow
+// reach the same certified optimum; one set of maps answers many targets as
+// separate single-target solves do (paper 1, 2026-11-06).
+void proposal_constructions_and_many_targets() {
+    std::mt19937 random(2026110601);
+    std::uniform_int_distribution<int> offset(-40,40),turn(0,359);
+    auto hull=[](std::vector<Vector2> p) {
+        std::sort(p.begin(),p.end(),[](Vector2 a,Vector2 b){return a.x<b.x||(a.x==b.x&&a.y<b.y);});
+        p.erase(std::unique(p.begin(),p.end()),p.end());
+        std::vector<Vector2> h(2*p.size());size_t n=0;
+        auto cross=[](Vector2 o,Vector2 a,Vector2 b){return (a.x-o.x)*(b.y-o.y)-(a.y-o.y)*(b.x-o.x);};
+        for(size_t i=0;i<p.size();++i){while(n>=2&&cross(h[n-2],h[n-1],p[i])<=0)--n;h[n++]=p[i];}
+        for(size_t i=p.size()-1,t=n+1;i-->0;){while(n>=t&&cross(h[n-2],h[n-1],p[i])<=0)--n;h[n++]=p[i];}
+        h.resize(n-1);return h;
+    };
+    size_t cases=0;
+    for(size_t k:{3u,6u})for(int sample=0;sample<6;++sample) {
+        std::vector<Polygon> p;
+        for(size_t i=0;i<k;++i) {
+            std::vector<Vector2> points;
+            for(int j=0;j<12;++j) {
+                const double angle=turn(random)*std::acos(-1.0)/180;
+                points.push_back({240.0*double(i)+double(std::lround(90*std::cos(angle))),
+                                  double(offset(random))+double(std::lround(90*std::sin(angle)))});
+            }
+            p.push_back(hull(points));
+        }
+        const Vector2 s{-150,double(offset(random))},t{240.0*k+60,double(offset(random))};
+        const auto lazy=tpp::tpp_convex_solve_hybrid(s,t,p);
+        for(auto construction:{tpp::ConvexHybridConstruction::Eager,tpp::ConvexHybridConstruction::TanJiang}) {
+            tpp::ConvexHybridOptions options;options.construction=construction;
+            const auto other=tpp::tpp_convex_solve_hybrid(s,t,p,options);
+            check(other.lower_bound==lazy.lower_bound&&other.upper_bound==lazy.upper_bound,
+                  "proposal construction "+std::to_string(int(construction))+" reaches the same certified bounds");
+        }
+        std::vector<Vector2> targets{t};
+        for(int j=0;j<20;++j)targets.push_back({double(offset(random)*8+120*int(k)),double(offset(random)*4)});
+        const auto lazy_lengths=tpp::tpp_convex_solve_lengths_binary_search_lazy(s,targets,p);
+        const auto eager_lengths=tpp::tpp_convex_solve_lengths_binary_search_eager(s,targets,p);
+        const auto batch_lengths=tpp::tpp_convex_solve_lengths_tan_jiang(s,targets,p);
+        for(size_t j=0;j<targets.size();++j) {
+            const double single=tpp::tpp_convex_solve_length_binary_search_lazy(s,targets[j],p);
+            const double scale=std::max(1.0,single);
+            check(std::abs(lazy_lengths[j]-single)<=1e-12*scale&&std::abs(eager_lengths[j]-single)<=1e-12*scale&&
+                  std::abs(batch_lengths[j]-single)<=1e-12*scale,"many targets on one set of maps: target "+std::to_string(j));
+        }
+        ++cases;
+    }
+    std::cout<<"Proposal constructions and many targets: "<<cases<<" disjoint paths.\n";
+}
+
 int main(int argc,char **argv) {
     std::cout<<std::setprecision(17);
     size_t random_count=0,convex_count=0;
@@ -962,6 +1013,7 @@ int main(int argc,char **argv) {
         else throw std::invalid_argument("Unknown argument: "+arg);
     }
     interval_rounding_regressions();dyadic_orientation_regressions();binary_membership_memo_regressions();prepared_pair_cache_regressions();normalized_sign_predicates();homogeneous_zero_dual_regressions();filtered_predicates();dispatch_cache_regressions();cached_contact_rotation_regressions();deterministic();coincident_disk_contacts();touching_disjoint_recovery();interval_bound_regressions();unverified_rational_contacts();adversarial_disjoint();continuity();random_boxes(random_count);random_convex(convex_count);
+    proposal_constructions_and_many_targets();
     for(const auto &directory:corpora)corpus(directory);
     const auto aggregate=tpp::convex_hybrid_aggregate();
     std::cout<<"Checks="<<checks<<", failures="<<failures<<", unresolved="<<unresolved

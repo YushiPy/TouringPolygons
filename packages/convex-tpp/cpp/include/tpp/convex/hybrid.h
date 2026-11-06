@@ -25,8 +25,15 @@ enum class ConvexFallbackReason {
     LowerDimensionalRegion
 };
 
+// The binary64 construction that proposes the path at Step 1 of the flow:
+// cones on demand (the default), every cone first, or every cone first by Tan
+// and Jiang's scans (pairwise disjoint polygons; others use the default).
+// The replay, the certificate and the recoveries do not change.
+enum class ConvexHybridConstruction { Lazy, Eager, TanJiang };
+
 struct ConvexHybridOptions {
     ConvexHybridMode mode = ConvexHybridMode::SafeCertified;
+    ConvexHybridConstruction construction = ConvexHybridConstruction::Lazy;
     // A search may return early with a certified dual bound above this value.
     double cutoff = std::numeric_limits<double>::infinity();
     // Optional certified primal-dual gap on the original polygons. Zero keeps

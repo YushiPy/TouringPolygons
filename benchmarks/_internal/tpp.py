@@ -404,6 +404,9 @@ GROUPS: dict[str, dict[str, Command]] = {
 		"paper1-experiments": Command("[--smoke] [--plan] [--only STEP]",
 			"Paper 1 (Section 7): every experiment in sequence, resumable, as a detached job (scripts/run_paper1_experiments.sh).",
 			module("paper1_experiments")),
+		"paper1-cycles": Command("[--smoke] [--plan] [--limit N] [--seconds S]",
+			"Paper 1 (Section 7.2): cycles through random sequences of the 558 cases, Algorithm 4.1 against Gurobi.",
+			module("paper1_cycles")),
 	},
 	"External solver (Fekete et al.)": {
 		"fekete-setup": Command("", "Clone, build and verify Fekete's unmodified upstream solver (no sudo).",

@@ -347,6 +347,30 @@ namespace tpp {
 		return query_length(target, polygons.size());
 	}
 
+	vector<double> Solution::query_lengths(const vector<Vector2>& targets, PreloadPolicy preload_policy) {
+
+		initialize_storage();
+
+		if (preload_policy == PreloadPolicy::Eager) {
+			for (size_t i = 0; i < polygons.size(); i++) {
+				for (size_t j = 0; j < polygons[i].size(); j++) {
+					build_cone(i, j);
+				}
+			}
+		} else {
+			preload_cones();
+		}
+
+		vector<double> lengths;
+		lengths.reserve(targets.size());
+		const size_t k = polygons.size();
+		for (const auto &point : targets) {
+			lengths.push_back(k > 0 && point_in_convex_polygon_closed(point, polygons[k - 1])
+				? query_length(point, k - 1) : query_length(point, k));
+		}
+		return lengths;
+	}
+
 	double Solution::query_length(const Vector2& point, size_t i) {
 
 		if (i == 0) {

@@ -78,8 +78,25 @@ bool prepare_cycle_polygons(const ConvexRationalPolygons &input,ConvexRationalPo
         }
         return false;
     };
-    for(size_t i=0;i<normalized.size();++i)for(size_t j=i+1;j<normalized.size();++j)
+    // Exact bounding boxes first: boxes strictly apart (in either coordinate)
+    // separate their polygons strictly. Only overlapping boxes need the test.
+    struct Box {Scalar x0,y0,x1,y1;};
+    std::vector<Box> boxes;boxes.reserve(normalized.size());
+    for(const auto &p:normalized) {
+        Box box{p.front().x,p.front().y,p.front().x,p.front().y};
+        for(const auto &q:p) {
+            if(q.x<box.x0)box.x0=q.x;
+            if(q.x>box.x1)box.x1=q.x;
+            if(q.y<box.y0)box.y0=q.y;
+            if(q.y>box.y1)box.y1=q.y;
+        }
+        boxes.push_back(std::move(box));
+    }
+    for(size_t i=0;i<normalized.size();++i)for(size_t j=i+1;j<normalized.size();++j) {
+        const auto &a=boxes[i],&b=boxes[j];
+        if(a.x1<b.x0||b.x1<a.x0||a.y1<b.y0||b.y1<a.y0)continue;
         if(!separated(normalized[i],normalized[j])&&!separated(normalized[j],normalized[i]))return false;
+    }
     return true;
 }
 }
