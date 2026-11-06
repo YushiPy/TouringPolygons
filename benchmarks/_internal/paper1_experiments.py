@@ -699,12 +699,17 @@ def ratio_stats(values) -> dict:
 
 
 def summarize_paths_rational(rows: list[dict]) -> dict:
-	"""The rational construction of Step 3 against the binary64 one of Step 1."""
+	"""The rational construction of Step 3 against the binary64 one of Step 1.
+	Instances where the binary64 construction threw (the flow then recovers)
+	are counted and left out of the ratios."""
 	instances = per_instance(rows)
+	failed = {name for name, reps in instances.items() if any("failure" in row["binary64"] for row in reps)}
 	out = {}
 	for family in ("disjoint", "intersecting", "all"):
-		group = {name: reps for name, reps in instances.items() if family == "all" or name.startswith(family)}
+		group = {name: reps for name, reps in instances.items() if (family == "all" or name.startswith(family))
+			and name not in failed}
 		out[family] = {"instances": len(group),
+			"binary64_failures": sorted(name for name in failed if family == "all" or name.startswith(family)),
 			"rational_over_binary64": ratio_stats(run_time(reps, "rational") / run_time(reps, "binary64")
 				for reps in group.values() if run_time(reps, "binary64")),
 			"rational_over_lazy": ratio_stats(run_time(reps, "rational") / run_time(reps, "lazy")

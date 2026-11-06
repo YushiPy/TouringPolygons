@@ -160,11 +160,16 @@ OursRun certified(Vector2 s,Vector2 t,const Polygons &p,double gap,
     run.time=timed([&]{run.result=tpp::tpp_convex_solve_hybrid(s,t,p,options);});
     return run;
 }
-struct Construction{double length=0;size_t cones=0;Timed time;};
+// A construction that throws (the binary64 maps can, and the certified flow
+// then recovers) is timed up to the throw and reported with its message.
+struct Construction{double length=0;size_t cones=0;Timed time;std::string failure;};
 template<class F> Construction construction(F &&solve) {
     Construction run;
     tpp::detail::cone_builds()=0;
-    run.time=timed([&]{run.length=solve();});
+    run.time=timed([&] {
+        try {run.length=solve();}
+        catch(const std::exception &error) {run.length=std::numeric_limits<double>::quiet_NaN();run.failure=error.what();}
+    });
     // The counter covers the first call and the block; divide to one call.
     run.cones=tpp::detail::cone_builds()/(run.time.calls+1);
     return run;
@@ -190,7 +195,12 @@ void print(const char *label,const OursRun &run) {
 }
 void print(const char *label,const Construction &run) {
     std::cout<<",\""<<label<<"\":{\"seconds\":"<<run.time.seconds<<",\"mean\":"<<run.time.mean<<",\"calls\":"<<run.time.calls
-        <<",\"length\":";json(std::cout,run.length);std::cout<<",\"cones\":"<<run.cones<<"}";
+        <<",\"length\":";json(std::cout,run.length);std::cout<<",\"cones\":"<<run.cones;
+    if(!run.failure.empty()) {
+        std::string text;for(char c:run.failure)if(c!='"'&&c!='\\')text+=c;
+        std::cout<<",\"failure\":\""<<text<<"\"";
+    }
+    std::cout<<"}";
 }
 void print(const GurobiRun &run) {
     std::cout<<",\"gurobi\":{\"status\":"<<run.status<<",\"objective\":";json(std::cout,run.objective);
