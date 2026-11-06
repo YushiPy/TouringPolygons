@@ -1,0 +1,925 @@
+{
+ "run": "paper1-mac-2026-11-06",
+ "commits": {
+  "cycles": "8d42e13e44ddb13d6488230146687b3c57a5726e",
+  "paths": "81d3a7ab5fac85e01631ba8ba330f2752d026ede",
+  "note": "the paths commit differs only in the path benchmark tool (a throwing construction is recorded) and its summary"
+ },
+ "machine": {
+  "cpu_model": "Apple M4 Pro",
+  "cpus": 12,
+  "memory_bytes": 25769803776,
+  "system": "Darwin 27.2.0"
+ },
+ "power": "Now drawing from 'AC Power'; powermode            0",
+ "gurobi": "13.0.3, default parameters, one thread, unit normals, model built at every call",
+ "compiler": "Apple clang 21.0.0, -O3, C++23, GMP rationals",
+ "processes": "6 in parallel, not pinned (macOS)",
+ "cycles": {
+  "command": "python3 benchmarks/tpp.py paper1-cycles --workers 6 --seconds 600",
+  "formulation": "558 Fekete et al. instances; for each k in {4,8,16,32} <= regions: k regions drawn by random.Random('paper1-cycles-<case>-<k>'), exact convex hulls, random cyclic order (1638 cycles). Ours: tpp_convex_solve_cycle_double with refine_contacts=false, max_gap=0, float_polish=false (Algorithm 4.1), 600 s cap per call, 3 repetitions; calls under 0.05 s repeated back to back (mean). Gurobi: SOCP, one call per repetition (build + optimize). Times: median over repetitions per instance.",
+  "exactness": "every call returned an exact rational cycle that passed the exact certificate (exact_optimal); status Optimal only when the binary64 rounding of that cycle passes too, FloatingPointLimit otherwise",
+  "by_k": {
+   "4": {
+    "instances": 558,
+    "calls": 1674,
+    "vertices_median": 23.0,
+    "status": {
+     "FloatingPointLimit": 328,
+     "Optimal": 230
+    },
+    "exact_optimal": 558,
+    "step": {
+     "2": 558
+    },
+    "step2_share": 1.0,
+    "step3_share": 0.0,
+    "ours_median_s": 0.0002156,
+    "ours_max_s": 0.005012,
+    "gurobi_median_s": 0.00052,
+    "gurobi_over_ours_geomean": 2.123,
+    "gurobi_faster_instances": 43,
+    "gurobi_status": {
+     "2": 558
+    },
+    "gurobi_below_L": {
+     "calls": 507,
+     "of": 1674,
+     "share": 0.3029,
+     "max_relative": 1.359e-06
+    },
+    "gurobi_relative_error": {
+     "median": 1.074e-08,
+     "max": 1.359e-06
+    },
+    "anchored_tpps": {
+     "median": 3.0,
+     "max": 302,
+     "total": 2740
+    },
+    "bisection_probes": {
+     "median": 0.0,
+     "max": 259,
+     "total": 759
+    },
+    "rational_anchor_recoveries": {
+     "instances": 8,
+     "total": 11
+    },
+    "rational_search": {
+     "instances": 0,
+     "anchored_total": 0,
+     "probes_total": 0
+    }
+   },
+   "8": {
+    "instances": 497,
+    "calls": 1491,
+    "vertices_median": 45,
+    "status": {
+     "FloatingPointLimit": 392,
+     "Optimal": 105
+    },
+    "exact_optimal": 497,
+    "step": {
+     "2": 495,
+     "3": 2
+    },
+    "step2_share": 0.996,
+    "step3_share": 0.004024,
+    "ours_median_s": 0.0004905,
+    "ours_max_s": 0.6506,
+    "gurobi_median_s": 0.0007797,
+    "gurobi_over_ours_geomean": 1.369,
+    "gurobi_faster_instances": 79,
+    "gurobi_status": {
+     "2": 496,
+     "12": 1
+    },
+    "gurobi_below_L": {
+     "calls": 714,
+     "of": 1488,
+     "share": 0.4798,
+     "max_relative": 1.754e-06
+    },
+    "gurobi_relative_error": {
+     "median": 1.309e-08,
+     "max": 1.754e-06
+    },
+    "anchored_tpps": {
+     "median": 3,
+     "max": 882,
+     "total": 6757
+    },
+    "bisection_probes": {
+     "median": 0,
+     "max": 799,
+     "total": 3980
+    },
+    "rational_anchor_recoveries": {
+     "instances": 12,
+     "total": 63
+    },
+    "rational_search": {
+     "instances": 2,
+     "anchored_total": 255,
+     "probes_total": 237
+    }
+   },
+   "16": {
+    "instances": 364,
+    "calls": 1092,
+    "vertices_median": 90.5,
+    "status": {
+     "FloatingPointLimit": 341,
+     "Optimal": 23
+    },
+    "exact_optimal": 364,
+    "step": {
+     "2": 356,
+     "3": 8
+    },
+    "step2_share": 0.978,
+    "step3_share": 0.02198,
+    "ours_median_s": 0.001025,
+    "ours_max_s": 0.2819,
+    "gurobi_median_s": 0.001345,
+    "gurobi_over_ours_geomean": 0.958,
+    "gurobi_faster_instances": 111,
+    "gurobi_status": {
+     "2": 364
+    },
+    "gurobi_below_L": {
+     "calls": 708,
+     "of": 1092,
+     "share": 0.6484,
+     "max_relative": 1.279e-06
+    },
+    "gurobi_relative_error": {
+     "median": 1.513e-08,
+     "max": 1.279e-06
+    },
+    "anchored_tpps": {
+     "median": 3.0,
+     "max": 1142,
+     "total": 13977
+    },
+    "bisection_probes": {
+     "median": 0.0,
+     "max": 978,
+     "total": 9539
+    },
+    "rational_anchor_recoveries": {
+     "instances": 19,
+     "total": 142
+    },
+    "rational_search": {
+     "instances": 8,
+     "anchored_total": 31,
+     "probes_total": 0
+    }
+   },
+   "32": {
+    "instances": 219,
+    "calls": 657,
+    "vertices_median": 180,
+    "status": {
+     "FloatingPointLimit": 218,
+     "Optimal": 1
+    },
+    "exact_optimal": 219,
+    "step": {
+     "2": 207,
+     "3": 12
+    },
+    "step2_share": 0.9452,
+    "step3_share": 0.05479,
+    "ours_median_s": 0.002263,
+    "ours_max_s": 0.3315,
+    "gurobi_median_s": 0.002439,
+    "gurobi_over_ours_geomean": 0.6545,
+    "gurobi_faster_instances": 92,
+    "gurobi_status": {
+     "2": 219
+    },
+    "gurobi_below_L": {
+     "calls": 501,
+     "of": 657,
+     "share": 0.7626,
+     "max_relative": 9.81e-07
+    },
+    "gurobi_relative_error": {
+     "median": 2.047e-08,
+     "max": 9.81e-07
+    },
+    "anchored_tpps": {
+     "median": 3,
+     "max": 2474,
+     "total": 29884
+    },
+    "bisection_probes": {
+     "median": 0,
+     "max": 2083,
+     "total": 20795
+    },
+    "rational_anchor_recoveries": {
+     "instances": 20,
+     "total": 79
+    },
+    "rational_search": {
+     "instances": 12,
+     "anchored_total": 78,
+     "probes_total": 0
+    }
+   },
+   "all": {
+    "instances": 1638,
+    "calls": 4914,
+    "vertices_median": 46.0,
+    "status": {
+     "FloatingPointLimit": 1279,
+     "Optimal": 359
+    },
+    "exact_optimal": 1638,
+    "step": {
+     "2": 1616,
+     "3": 22
+    },
+    "step2_share": 0.9866,
+    "step3_share": 0.01343,
+    "ours_median_s": 0.0005305,
+    "ours_max_s": 0.6506,
+    "gurobi_median_s": 0.0007852,
+    "gurobi_over_ours_geomean": 1.33,
+    "gurobi_faster_instances": 325,
+    "gurobi_status": {
+     "2": 1637,
+     "12": 1
+    },
+    "gurobi_below_L": {
+     "calls": 2430,
+     "of": 4911,
+     "share": 0.4948,
+     "max_relative": 1.754e-06
+    },
+    "gurobi_relative_error": {
+     "median": 1.36e-08,
+     "max": 1.754e-06
+    },
+    "anchored_tpps": {
+     "median": 3.0,
+     "max": 2474,
+     "total": 53358
+    },
+    "bisection_probes": {
+     "median": 0.0,
+     "max": 2083,
+     "total": 35073
+    },
+    "rational_anchor_recoveries": {
+     "instances": 59,
+     "total": 295
+    },
+    "rational_search": {
+     "instances": 22,
+     "anchored_total": 364,
+     "probes_total": 237
+    }
+   }
+  },
+  "per_instance": "cycles-per-instance.csv (medians; gurobi_minus_L_rel = (objective - L) / max(1, L))"
+ },
+ "paths": {
+  "command": "python3 benchmarks/tpp.py paper1-experiments --workers 6 --only build --only check --only paths-rational --only paths-targets --only paths-proposals --only summary",
+  "paths_rational": {
+   "disjoint": {
+    "instances": 200,
+    "binary64_failures": [],
+    "rational_over_binary64": {
+     "n": 200,
+     "geometric_mean": 753.4,
+     "median": 757.9,
+     "min": 629.3,
+     "max": 933.0
+    },
+    "rational_over_lazy": {
+     "n": 200,
+     "geometric_mean": 400.0,
+     "median": 459.7,
+     "min": 101.7,
+     "max": 765.1
+    },
+    "binary64_median_s": 1.884e-05,
+    "rational_median_s": 0.01434,
+    "rational_max_s": 0.3866
+   },
+   "intersecting": {
+    "instances": 197,
+    "binary64_failures": [
+     "intersecting-k64-m8-s4",
+     "intersecting-k64-m8-s6",
+     "intersecting-k64-m8-s8"
+    ],
+    "rational_over_binary64": {
+     "n": 197,
+     "geometric_mean": 208.3,
+     "median": 194.5,
+     "min": 58.89,
+     "max": 845.3
+    },
+    "rational_over_lazy": {
+     "n": 197,
+     "geometric_mean": 1.059,
+     "median": 1.014,
+     "min": 0.9633,
+     "max": 620.5
+    },
+    "binary64_median_s": 0.0005509,
+    "rational_median_s": 0.1224,
+    "rational_max_s": 23.4
+   },
+   "all": {
+    "instances": 397,
+    "binary64_failures": [
+     "intersecting-k64-m8-s4",
+     "intersecting-k64-m8-s6",
+     "intersecting-k64-m8-s8"
+    ],
+    "rational_over_binary64": {
+     "n": 397,
+     "geometric_mean": 398.1,
+     "median": 631.4,
+     "min": 58.89,
+     "max": 933.0
+    },
+    "rational_over_lazy": {
+     "n": 397,
+     "geometric_mean": 21.05,
+     "median": 119.6,
+     "min": 0.9633,
+     "max": 765.1
+    },
+    "binary64_median_s": 9.694e-05,
+    "rational_median_s": 0.03096,
+    "rational_max_s": 23.4
+   },
+   "table": [
+    {
+     "family": "disjoint",
+     "k": 4,
+     "m": 8,
+     "instances": 10,
+     "binary64_median_s": 6.287e-07,
+     "rational_median_s": 0.0004434,
+     "rational_over_binary64_geomean": 704.1
+    },
+    {
+     "family": "disjoint",
+     "k": 4,
+     "m": 64,
+     "instances": 10,
+     "binary64_median_s": 2.103e-06,
+     "rational_median_s": 0.001732,
+     "rational_over_binary64_geomean": 788.9
+    },
+    {
+     "family": "disjoint",
+     "k": 4,
+     "m": 512,
+     "instances": 10,
+     "binary64_median_s": 7.939e-06,
+     "rational_median_s": 0.006598,
+     "rational_over_binary64_geomean": 850.8
+    },
+    {
+     "family": "disjoint",
+     "k": 4,
+     "m": 4096,
+     "instances": 10,
+     "binary64_median_s": 1.002e-05,
+     "rational_median_s": 0.008425,
+     "rational_over_binary64_geomean": 819.8
+    },
+    {
+     "family": "disjoint",
+     "k": 8,
+     "m": 8,
+     "instances": 10,
+     "binary64_median_s": 1.574e-06,
+     "rational_median_s": 0.001099,
+     "rational_over_binary64_geomean": 747.8
+    },
+    {
+     "family": "disjoint",
+     "k": 8,
+     "m": 64,
+     "instances": 10,
+     "binary64_median_s": 5.355e-06,
+     "rational_median_s": 0.004312,
+     "rational_over_binary64_geomean": 797.2
+    },
+    {
+     "family": "disjoint",
+     "k": 8,
+     "m": 512,
+     "instances": 10,
+     "binary64_median_s": 2.074e-05,
+     "rational_median_s": 0.01535,
+     "rational_over_binary64_geomean": 765.5
+    },
+    {
+     "family": "disjoint",
+     "k": 8,
+     "m": 4096,
+     "instances": 10,
+     "binary64_median_s": 3.267e-05,
+     "rational_median_s": 0.02532,
+     "rational_over_binary64_geomean": 761.3
+    },
+    {
+     "family": "disjoint",
+     "k": 16,
+     "m": 8,
+     "instances": 10,
+     "binary64_median_s": 3.22e-06,
+     "rational_median_s": 0.002515,
+     "rational_over_binary64_geomean": 779.3
+    },
+    {
+     "family": "disjoint",
+     "k": 16,
+     "m": 64,
+     "instances": 10,
+     "binary64_median_s": 1.758e-05,
+     "rational_median_s": 0.01351,
+     "rational_over_binary64_geomean": 771.7
+    },
+    {
+     "family": "disjoint",
+     "k": 16,
+     "m": 512,
+     "instances": 10,
+     "binary64_median_s": 5.378e-05,
+     "rational_median_s": 0.03914,
+     "rational_over_binary64_geomean": 724.6
+    },
+    {
+     "family": "disjoint",
+     "k": 16,
+     "m": 4096,
+     "instances": 10,
+     "binary64_median_s": 7.685e-05,
+     "rational_median_s": 0.05703,
+     "rational_over_binary64_geomean": 738.3
+    },
+    {
+     "family": "disjoint",
+     "k": 32,
+     "m": 8,
+     "instances": 10,
+     "binary64_median_s": 6.755e-06,
+     "rational_median_s": 0.005375,
+     "rational_over_binary64_geomean": 806.1
+    },
+    {
+     "family": "disjoint",
+     "k": 32,
+     "m": 64,
+     "instances": 10,
+     "binary64_median_s": 3.382e-05,
+     "rational_median_s": 0.02719,
+     "rational_over_binary64_geomean": 770.6
+    },
+    {
+     "family": "disjoint",
+     "k": 32,
+     "m": 512,
+     "instances": 10,
+     "binary64_median_s": 0.0001277,
+     "rational_median_s": 0.09025,
+     "rational_over_binary64_geomean": 700.7
+    },
+    {
+     "family": "disjoint",
+     "k": 32,
+     "m": 4096,
+     "instances": 10,
+     "binary64_median_s": 0.0001618,
+     "rational_median_s": 0.1155,
+     "rational_over_binary64_geomean": 712.5
+    },
+    {
+     "family": "disjoint",
+     "k": 64,
+     "m": 8,
+     "instances": 10,
+     "binary64_median_s": 1.499e-05,
+     "rational_median_s": 0.01204,
+     "rational_over_binary64_geomean": 799.2
+    },
+    {
+     "family": "disjoint",
+     "k": 64,
+     "m": 64,
+     "instances": 10,
+     "binary64_median_s": 7.365e-05,
+     "rational_median_s": 0.05518,
+     "rational_over_binary64_geomean": 735.6
+    },
+    {
+     "family": "disjoint",
+     "k": 64,
+     "m": 512,
+     "instances": 10,
+     "binary64_median_s": 0.0003013,
+     "rational_median_s": 0.2009,
+     "rational_over_binary64_geomean": 672.0
+    },
+    {
+     "family": "disjoint",
+     "k": 64,
+     "m": 4096,
+     "instances": 10,
+     "binary64_median_s": 0.0004706,
+     "rational_median_s": 0.3003,
+     "rational_over_binary64_geomean": 655.2
+    },
+    {
+     "family": "intersecting",
+     "k": 4,
+     "m": 8,
+     "instances": 10,
+     "binary64_median_s": 3.618e-06,
+     "rational_median_s": 0.001148,
+     "rational_over_binary64_geomean": 336.1
+    },
+    {
+     "family": "intersecting",
+     "k": 4,
+     "m": 64,
+     "instances": 10,
+     "binary64_median_s": 2.09e-05,
+     "rational_median_s": 0.004837,
+     "rational_over_binary64_geomean": 236.5
+    },
+    {
+     "family": "intersecting",
+     "k": 4,
+     "m": 512,
+     "instances": 10,
+     "binary64_median_s": 0.0001506,
+     "rational_median_s": 0.01675,
+     "rational_over_binary64_geomean": 108.3
+    },
+    {
+     "family": "intersecting",
+     "k": 4,
+     "m": 4096,
+     "instances": 10,
+     "binary64_median_s": 0.0003484,
+     "rational_median_s": 0.02432,
+     "rational_over_binary64_geomean": 94.57
+    },
+    {
+     "family": "intersecting",
+     "k": 8,
+     "m": 8,
+     "instances": 10,
+     "binary64_median_s": 1.284e-05,
+     "rational_median_s": 0.004005,
+     "rational_over_binary64_geomean": 326.8
+    },
+    {
+     "family": "intersecting",
+     "k": 8,
+     "m": 64,
+     "instances": 10,
+     "binary64_median_s": 0.0001192,
+     "rational_median_s": 0.02836,
+     "rational_over_binary64_geomean": 237.7
+    },
+    {
+     "family": "intersecting",
+     "k": 8,
+     "m": 512,
+     "instances": 10,
+     "binary64_median_s": 0.0006227,
+     "rational_median_s": 0.1039,
+     "rational_over_binary64_geomean": 165.4
+    },
+    {
+     "family": "intersecting",
+     "k": 8,
+     "m": 4096,
+     "instances": 10,
+     "binary64_median_s": 0.001335,
+     "rational_median_s": 0.1745,
+     "rational_over_binary64_geomean": 130.3
+    },
+    {
+     "family": "intersecting",
+     "k": 16,
+     "m": 8,
+     "instances": 10,
+     "binary64_median_s": 4.696e-05,
+     "rational_median_s": 0.01649,
+     "rational_over_binary64_geomean": 337.9
+    },
+    {
+     "family": "intersecting",
+     "k": 16,
+     "m": 64,
+     "instances": 10,
+     "binary64_median_s": 0.0004601,
+     "rational_median_s": 0.1086,
+     "rational_over_binary64_geomean": 240.3
+    },
+    {
+     "family": "intersecting",
+     "k": 16,
+     "m": 512,
+     "instances": 10,
+     "binary64_median_s": 0.002781,
+     "rational_median_s": 0.5155,
+     "rational_over_binary64_geomean": 182.1
+    },
+    {
+     "family": "intersecting",
+     "k": 16,
+     "m": 4096,
+     "instances": 10,
+     "binary64_median_s": 0.006529,
+     "rational_median_s": 1.051,
+     "rational_over_binary64_geomean": 160.6
+    },
+    {
+     "family": "intersecting",
+     "k": 32,
+     "m": 8,
+     "instances": 10,
+     "binary64_median_s": 0.0001291,
+     "rational_median_s": 0.05425,
+     "rational_over_binary64_geomean": 371.1
+    },
+    {
+     "family": "intersecting",
+     "k": 32,
+     "m": 64,
+     "instances": 10,
+     "binary64_median_s": 0.001656,
+     "rational_median_s": 0.3954,
+     "rational_over_binary64_geomean": 238.3
+    },
+    {
+     "family": "intersecting",
+     "k": 32,
+     "m": 512,
+     "instances": 10,
+     "binary64_median_s": 0.01347,
+     "rational_median_s": 2.519,
+     "rational_over_binary64_geomean": 187.2
+    },
+    {
+     "family": "intersecting",
+     "k": 32,
+     "m": 4096,
+     "instances": 10,
+     "binary64_median_s": 0.02973,
+     "rational_median_s": 5.164,
+     "rational_over_binary64_geomean": 177.2
+    },
+    {
+     "family": "intersecting",
+     "k": 64,
+     "m": 8,
+     "instances": 10,
+     "binary64_median_s": 0.0003215,
+     "rational_median_s": 0.1438,
+     "rational_over_binary64_geomean": 453.4
+    },
+    {
+     "family": "intersecting",
+     "k": 64,
+     "m": 64,
+     "instances": 10,
+     "binary64_median_s": 0.007354,
+     "rational_median_s": 1.563,
+     "rational_over_binary64_geomean": 219.9
+    },
+    {
+     "family": "intersecting",
+     "k": 64,
+     "m": 512,
+     "instances": 10,
+     "binary64_median_s": 0.05045,
+     "rational_median_s": 9.184,
+     "rational_over_binary64_geomean": 179.2
+    },
+    {
+     "family": "intersecting",
+     "k": 64,
+     "m": 4096,
+     "instances": 10,
+     "binary64_median_s": 0.112,
+     "rational_median_s": 19.21,
+     "rational_over_binary64_geomean": 173.6
+    }
+   ]
+  },
+  "paths_targets": {
+   "instances": 125,
+   "max_relative_deviation": 0,
+   "by_r": [
+    {
+     "r": 1,
+     "instances": 125,
+     "fastest": {
+      "lazy": 125
+     },
+     "eager_over_lazy": {
+      "n": 125,
+      "geometric_mean": 5.346,
+      "median": 4.809,
+      "min": 1.178,
+      "max": 43.94
+     },
+     "tan_jiang_over_lazy": {
+      "n": 125,
+      "geometric_mean": 4.932,
+      "median": 4.231,
+      "min": 1.779,
+      "max": 24.4
+     },
+     "tan_jiang_over_eager": {
+      "n": 125,
+      "geometric_mean": 0.9225,
+      "median": 0.8452,
+      "min": 0.4724,
+      "max": 1.827
+     },
+     "lazy_cone_fraction": {
+      "median": 0.06409,
+      "max": 0.6406
+     }
+    },
+    {
+     "r": 10,
+     "instances": 125,
+     "fastest": {
+      "lazy": 125
+     },
+     "eager_over_lazy": {
+      "n": 125,
+      "geometric_mean": 4.444,
+      "median": 4.492,
+      "min": 1.045,
+      "max": 34.5
+     },
+     "tan_jiang_over_lazy": {
+      "n": 125,
+      "geometric_mean": 4.032,
+      "median": 3.691,
+      "min": 1.232,
+      "max": 18.0
+     },
+     "tan_jiang_over_eager": {
+      "n": 125,
+      "geometric_mean": 0.9074,
+      "median": 0.8491,
+      "min": 0.4962,
+      "max": 1.815
+     },
+     "lazy_cone_fraction": {
+      "median": 0.07446,
+      "max": 0.6562
+     }
+    },
+    {
+     "r": 100,
+     "instances": 125,
+     "fastest": {
+      "eager": 2,
+      "lazy": 123
+     },
+     "eager_over_lazy": {
+      "n": 125,
+      "geometric_mean": 3.133,
+      "median": 3.443,
+      "min": 0.9721,
+      "max": 18.23
+     },
+     "tan_jiang_over_lazy": {
+      "n": 125,
+      "geometric_mean": 2.793,
+      "median": 2.71,
+      "min": 1.087,
+      "max": 12.93
+     },
+     "tan_jiang_over_eager": {
+      "n": 125,
+      "geometric_mean": 0.8913,
+      "median": 0.8591,
+      "min": 0.5175,
+      "max": 1.349
+     },
+     "lazy_cone_fraction": {
+      "median": 0.09006,
+      "max": 0.7188
+     }
+    },
+    {
+     "r": 1000,
+     "instances": 125,
+     "fastest": {
+      "eager": 9,
+      "lazy": 116
+     },
+     "eager_over_lazy": {
+      "n": 125,
+      "geometric_mean": 1.846,
+      "median": 1.604,
+      "min": 0.9736,
+      "max": 7.249
+     },
+     "tan_jiang_over_lazy": {
+      "n": 125,
+      "geometric_mean": 1.763,
+      "median": 1.469,
+      "min": 1.077,
+      "max": 6.415
+     },
+     "tan_jiang_over_eager": {
+      "n": 125,
+      "geometric_mean": 0.9549,
+      "median": 0.9814,
+      "min": 0.6429,
+      "max": 1.246
+     },
+     "lazy_cone_fraction": {
+      "median": 0.1416,
+      "max": 0.7188
+     }
+    }
+   ]
+  },
+  "paths_proposals": {
+   "disjoint": {
+    "instances": 125,
+    "certified": {
+     "closed_by": {
+      "double_kkt": 125
+     },
+     "failed_at_step2": 0,
+     "optimal": 125,
+     "median_s": 0.008321
+    },
+    "certified_eager": {
+     "closed_by": {
+      "double_kkt": 125
+     },
+     "failed_at_step2": 0,
+     "optimal": 125,
+     "median_s": 0.008966
+    },
+    "certified_tan_jiang": {
+     "closed_by": {
+      "double_kkt": 125
+     },
+     "failed_at_step2": 0,
+     "optimal": 125,
+     "median_s": 0.008934
+    }
+   },
+   "intersecting": {
+    "instances": 200,
+    "certified": {
+     "closed_by": {
+      "double_kkt": 166,
+      "filtered": 34
+     },
+     "failed_at_step2": 34,
+     "optimal": 200,
+     "median_s": 0.004954
+    },
+    "certified_eager": {
+     "closed_by": {
+      "double_kkt": 164,
+      "filtered": 36
+     },
+     "failed_at_step2": 36,
+     "optimal": 200,
+     "median_s": 0.006595
+    }
+   }
+  },
+  "formulation": {
+   "paths_rational": "400 paths of paths-random (2^-13 grid), 3 repetitions: binary64 = Step 1 construction alone (trace), rational = Step 3 construction alone; no certificate; calls under 0.05 s repeated back to back",
+   "paths_targets": "125 disjoint paths of paths-fine (2^-30 grid), 3 repetitions: the instance's target plus 999 points uniform in its bounding box enlarged by 2, outside the polygons (seed targets-<name>); lazy, eager and Tan-Jiang answer the first r targets with one set of maps",
+   "paths_proposals": "certified flow, gap zero, 1 repetition: 125 disjoint of paths-fine with lazy, eager and Tan-Jiang proposals; 200 intersecting of paths-random with lazy and eager (Tan-Jiang supports disjoint polygons only)"
+  },
+  "notes": {
+   "paths_rational": "the binary64 construction threw on 3/200 intersecting paths (k=64, m=8, seeds 4, 6, 8; the flow recovers them); they are left out of the ratios",
+   "paths_proposals": "the 36 intersecting paths where the eager proposal failed Step 2 contain the 34 where the lazy one did (plus k16-m8-s4 and k32-m8-s3); all 200 end certified optimal by the filtered recovery"
+  }
+ }
+}

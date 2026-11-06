@@ -8,6 +8,7 @@ Pastas com dados:
 
 | Pasta | Conteúdo |
 |---|---|
+| [paper1-mac-2026-11-06](paper1-mac-2026-11-06/summary.json) | Revisão do artigo 1 sem B&B (Mac): o Algoritmo 4.1 sozinho em 1638 ciclos por sequências aleatórias das 558 instâncias contra o Gurobi (medianas por instância em [`cycles-per-instance.csv`](paper1-mac-2026-11-06/cycles-per-instance.csv)); custo do fallback racional dos caminhos; muitos alvos nos mesmos mapas (preguiçosa, ansiosa, Tan e Jiang); propostas ansiosa e de Tan e Jiang no fluxo certificado; resumo [abaixo](#paper1-mac-2026-11-06). |
 | [paper1-armijo-d9c7ee0-2026-11-05](paper1-armijo-d9c7ee0-2026-11-05/summary.json) | A Tabela 4 do artigo 1 refeita depois da correção da prova de pertinência (776667c): uma chamada de ciclo com até ~100 mil vértices por região; tempos por execução em [`vertex-scaling-fine-per-run.csv`](paper1-armijo-d9c7ee0-2026-11-05/vertex-scaling-fine-per-run.csv); resumo [abaixo](#paper1-armijo-d9c7ee0-2026-11-05). |
 | [paper1-armijo-a5753c0-2026-11-05](paper1-armijo-a5753c0-2026-11-05/summary.json) | Complemento da §7 do artigo 1 (revisão 2, G3): construção de Tan e Jiang contra a preguiçosa e a ansiosa em caminhos disjuntos numa grade fina, e uma chamada de ciclo com até ~100 mil vértices por região. Inclui as medianas por instância de onde sai a Tabela 2 ([`paths-fine-per-instance.csv`](paper1-armijo-a5753c0-2026-11-05/paths-fine-per-instance.csv)) e os tempos por execução da Tabela 4 ([`vertex-scaling-fine-per-run.csv`](paper1-armijo-a5753c0-2026-11-05/vertex-scaling-fine-per-run.csv)); resumo [abaixo](#paper1-armijo-a5753c0-2026-11-05). |
 | [paper1-armijo-2026-11-03](paper1-armijo-2026-11-03/summary.json) | Todos os experimentos da §7 do artigo 1 num único comando (`tpp.py paper1-experiments`), na armijo: caminhos gerados, B&B nos 558 casos, chamadas capturadas contra o Gurobi, muitos vértices, passos exatos e polimento; resumo [abaixo](#paper1-armijo-2026-11-03). |
@@ -28,6 +29,184 @@ status de exatidão e limitações. Um gap numérico fechado nos B&B não é ót
 algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
+
+## paper1-mac-2026-11-06
+
+**Pergunta.** Os números que faltam no artigo 1 depois da reunião de 6/11, que
+tirou do artigo as varreduras, os pontos interiores e o B&B.
+- Os ciclos por sequências aleatórias com o Algoritmo 4.1 sozinho contra o
+  Gurobi: em que passo cada chamada retorna e quando o Gurobi fica abaixo do
+  nosso L provado.
+- O custo do fallback racional dos caminhos.
+- Um caso em que a construção de Tan e Jiang deveria ganhar: muitos alvos nos
+  mesmos mapas.
+- Se as construções ansiosa e de Tan e Jiang também falham depois do
+  certificado.
+
+**Formulação.**
+- **Máquina e código.** Mac M4 Pro na tomada (`powermode 0`), árvore limpa.
+  Os ciclos rodaram no commit 8d42e13 e os caminhos no 81d3a7a, que só muda
+  a ferramenta de caminhos (registra a construção que lança exceção) e o
+  resumo. Apple clang 21, `-O3`, C++23, racionais do GMP.
+  Gurobi 13.0.3 com parâmetros padrão, uma thread, normais unitárias e o
+  modelo refeito a cada chamada. São 6 processos ao mesmo tempo, sem fixação
+  de núcleo (macOS). As comparações valem dentro desta máquina. As rodadas
+  anteriores do artigo foram na armijo (Linux, GCC 13.3, Gurobi 13.0.2).
+- **Ciclos** (`tpp.py paper1-cycles --workers 6 --seconds 600`).
+  - **Instâncias.** Para cada uma das 558 instâncias do Fekete e cada
+    $k\in\{4,8,16,32\}$ até o número de regiões, $k$ regiões sorteadas com
+    `random.Random("paper1-cycles-<caso>-<k>")`, seus fechos convexos exatos,
+    em ordem cíclica aleatória: 1638 ciclos.
+  - **O nosso.** `tpp_convex_solve_cycle_double` com
+    `refine_contacts=false`, `max_gap=0` e `float_polish=false`: o
+    Algoritmo 4.1 (ponto comum, busca em binary64 com reconstrução racional
+    exata dos candidatos, busca racional), com teto de 600 s por chamada.
+    Detalhes em
+    [convex-cycle.md](../../docs/algorithms/convex-cycle.md#the-boundary-anchor-method-alone-paper-1-algorithm-41-2026-11-06).
+  - **Medição.** 3 repetições. As chamadas nossas abaixo de 0,05 s se repetem
+    em bloco, e vale a média do bloco. O Gurobi roda uma chamada por
+    repetição (montagem mais otimização). O tempo de cada instância é a
+    mediana das repetições.
+  - **Tabela por instância.** Medianas em
+    [`cycles-per-instance.csv`](paper1-mac-2026-11-06/cycles-per-instance.csv).
+    A coluna `gurobi_minus_L_rel` é (objetivo − L)/max(1, L).
+
+**Resultado (ciclos).**
+- **Exatidão.** As 1638 chamadas devolveram um ciclo racional que passou no
+  certificado exato.
+  - O arredondamento binary64 desse ciclo também passa em 359 (status
+    `Optimal`). Nas outras 1279 o status é `FloatingPointLimit`, com o L
+    exato.
+  - O Gurobi devolveu ótimo em 1637. Na outra (stars-0000040, $k=8$) parou
+    com status 12, problema numérico.
+- **Passo que retornou.** O Passo 2 (binary64 com reconstrução exata) em 1616
+  (98,7%). O Passo 3 (busca racional) em 22, 1,3%:
+
+  | $k$ | Passo 3 |
+  |---|---|
+  | 4 | 0 de 558 |
+  | 8 | 2 de 497 |
+  | 16 | 8 de 364 |
+  | 32 | 12 de 219 |
+
+  Em 59 instâncias algum TPP ancorado do Passo 2 precisou do racional, 295
+  vezes no total.
+- **Tempo.**
+
+  | $k$ | $n$ (mediana) | nosso (mediana) | Gurobi (mediana) | Gurobi/nosso, média geométrica | mediana da razão | nosso mais rápido |
+  |---|---|---|---|---|---|---|
+  | 4 | 23 | 0,22 ms | 0,52 ms | 2,12 | 2,41 | 515/558 |
+  | 8 | 45 | 0,49 ms | 0,78 ms | 1,37 | 1,63 | 418/497 |
+  | 16 | 90 | 1,03 ms | 1,34 ms | 0,96 | 1,34 | 253/364 |
+  | 32 | 180 | 2,26 ms | 2,44 ms | 0,65 | 1,15 | 127/219 |
+  | todas | 46 | 0,53 ms | 0,79 ms | 1,33 | 1,65 | 1313/1638 |
+
+  A cauda é nossa.
+  - **Percentis 90 e 99 do nosso tempo.** 1,2 e 32 ms para $k=8$, 4,8 e
+    98 ms para $k=16$, 56 e 248 ms para $k=32$. O máximo é 0,65 s.
+  - **Origem.** Os casos do Passo 3 (mediana de 104 ms contra 0,53 ms do
+    Passo 2). Também as peças cujo mínimo fica numa ponta não diferenciável,
+    que a bissecção em binary64 percorre até o fim (até 2083 sondas numa
+    chamada).
+  - **Mediana do trabalho.** 3 TPPs ancorados e nenhuma sonda de bissecção
+    por chamada.
+- **Gurobi abaixo do L provado.** O objetivo dele fica abaixo do nosso L em
+  2430 de 4911 chamadas (49,5%): 30% para $k=4$, 48% para $k=8$, 65% para
+  $k=16$ e 76% para $k=32$. Por instância, 810 de 1637. A diferença relativa
+  é de 2,8e-8 na mediana e 1,75e-6 no máximo. O erro relativo do objetivo
+  dele contra o ótimo tem mediana 1,4e-8 e máximo 1,75e-6.
+
+**Formulação (caminhos).** `tpp.py paper1-experiments --workers 6`, só com
+as etapas novas (`paths-rational`, `paths-targets`, `paths-proposals`) e
+`tpp-convex-path-benchmark`.
+- **Fallback racional** (`paths-rational`). São os 400 caminhos de
+  `paths-random` (grade de $2^{-13}$, 3 repetições).
+  - `binary64` é a construção do Passo 1 do fluxo, sozinha: o traço da busca
+    preguiçosa para disjuntos e dos mapas em binary64 com interseções.
+  - `rational` é a construção racional completa do Passo 3, sozinha: a
+    recursão de Dror et al. para disjuntos e os mapas exatos com
+    interseções.
+  - Nenhuma das duas roda o certificado. Chamadas abaixo de 0,05 s se repetem
+    em bloco.
+
+**Resultado (fallback racional).** A razão racional/binary64, por instância,
+com a mediana das 3 repetições:
+
+| família | instâncias | média geométrica | intervalo | mediana binary64 | mediana racional | máximo racional |
+|---|---|---|---|---|---|---|
+| disjunta | 200 | 753 | 629–933 | 0,019 ms | 14 ms | 0,39 s |
+| com interseções | 197 | 208 | 59–845 | 0,55 ms | 122 ms | 23 s |
+| todas | 397 | 398 | 59–933 | 0,097 ms | 31 ms | 23 s |
+
+- **Construção que lança exceção.** A construção em binary64 lançou exceção
+  em 3 das 200 com interseções ($k=64$, $m=8$, sementes 4, 6 e 8: "pseudo-edge
+  changes contact type"). Elas ficam fora das razões; o fluxo certificado as
+  recupera.
+- **A antiga coluna "preguiçosa" com interseções.** A razão racional/preguiçosa
+  é 1,06 nessas instâncias. A coluna `lazy` com interseções de
+  `paths-random` já era a construção exata.
+- **Muitos alvos** (`paths-targets`). São os 125 caminhos disjuntos de
+  `paths-fine` (grade de $2^{-30}$, até 2 milhões de vértices, 3 repetições).
+  - **Alvos.** O alvo da instância e 999 pontos uniformes na caixa
+    envolvente aumentada de 2, fora dos polígonos (semente
+    `targets-<nome>`).
+  - **Construções.** A preguiçosa, a ansiosa e a de Tan e Jiang respondem aos
+    $r$ primeiros alvos com um só conjunto de mapas (`query_lengths`), para
+    $r\in\{1,10,100,1000\}$.
+- **Propostas** (`paths-proposals`). O fluxo certificado com gap zero, uma
+  repetição, com a construção ansiosa ou a de Tan e Jiang propondo no Passo 1
+  (`ConvexHybridOptions::construction`).
+  - **Disjuntos.** Os 125 de `paths-fine`, com as três construções.
+  - **Com interseções.** Os 200 de `paths-random`, com a preguiçosa e a
+    ansiosa. A de Tan e Jiang só cobre disjuntos.
+
+**Resultado (muitos alvos).** A de Tan e Jiang não é a mais rápida em
+nenhuma instância e em nenhum $r$.
+
+| $r$ | mais rápida | Tan–Jiang/preguiçosa (média geométrica, intervalo) | ansiosa/preguiçosa | Tan–Jiang/ansiosa | cones da preguiçosa (mediana, máximo) |
+|---|---|---|---|---|---|
+| 1 | preguiçosa 125 | 4,93 (1,78–24,4) | 5,35 | 0,92 | 6,4%, 64% |
+| 10 | preguiçosa 125 | 4,03 (1,23–18,0) | 4,44 | 0,91 | 7,4%, 66% |
+| 100 | preguiçosa 123, ansiosa 2 | 2,79 (1,09–12,9) | 3,13 | 0,89 | 9,0%, 72% |
+| 1000 | preguiçosa 116, ansiosa 9 | 1,76 (1,08–6,41) | 1,85 | 0,95 | 14%, 72% |
+
+- **Por $m$, com $r=1000$.** A razão Tan–Jiang/preguiçosa vai de 1,12
+  ($m=8$) a 3,51 ($m=32768$). As 9 vitórias da ansiosa são polígonos
+  pequenos (8 com $m=8$).
+- **Os cones.** Mil alvos ao redor ainda pedem só ~14% dos cones. Um teste
+  com alvos num círculo distante deu o mesmo, ~13%. As consultas de fora
+  passam por poucas células dos níveis anteriores.
+- **Comprimentos.** As três devolvem os mesmos comprimentos (desvio relativo
+  máximo 0).
+
+**Resultado (propostas).**
+- **Disjuntos (125).** As propostas preguiçosa, ansiosa e de Tan e Jiang
+  passam no Passo 2 (replay exato e certificado) nas 125. Nenhuma falha.
+- **Com interseções (200).** A preguiçosa falha no Passo 2 em 34, como na
+  armijo. A ansiosa falha em 36: as mesmas 34 e mais k16-m8-s4 e k32-m8-s3.
+  As 200 terminam provadas ótimas pela recuperação filtrada. Por grupo, as
+  falhas da ansiosa se concentram em $m=8$ (29 das 36).
+- **A falha não é da avaliação preguiçosa.** Construir todos os cones antes
+  não evita as falhas em binary64 nos cruzamentos.
+
+**Limitações.**
+- **Máquina.** Uma máquina (Mac M4 Pro), 6 processos sem fixação. As razões
+  entre métodos valem dentro desta campanha. Os tempos absolutos não se
+  comparam com os da armijo.
+- **Implementação do Passo 2.** Ela difere do texto atual do artigo em três
+  pontos, descritos em
+  [convex-cycle.md](../../docs/algorithms/convex-cycle.md#the-boundary-anchor-method-alone-paper-1-algorithm-41-2026-11-06):
+  - descritores pelas condições locais, mais o de bloco e o próprio da
+    âncora;
+  - nenhuma certificação da rota ancorada antes de usar o sinal;
+  - regras só de binary64 para encerrar peças.
+- **O Gurobi.** Refaz o modelo a cada chamada. O nosso repete em bloco as
+  chamadas curtas, como nas rodadas anteriores.
+- **Muitos alvos.** Os alvos sorteados não pedem todas as células. Esta
+  classe não mostrou a vantagem da de Tan e Jiang que o pior caso sugere.
+- **Dados brutos.** Locais, em
+  `benchmarks/workspace/experiments/paper1-cycles/Gabriels-MacBook-Pro-8d42e13/`
+  e `benchmarks/workspace/experiments/paper1/Gabriels-MacBook-Pro-81d3a7a/`.
 
 ## paper1-armijo-d9c7ee0-2026-11-05
 
