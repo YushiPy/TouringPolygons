@@ -129,13 +129,18 @@ def header_dependency_dirs() -> dict[str, Path]:
 	return found
 
 
-def probe_compiler(cc: str, cxx: str, standard: str) -> str | None:
-	"""Return None when CC/CXX build a C++<standard> program that uses <print>.
+def needs_print(source: Path) -> bool:
+	"""True when a tool's main file includes <print> (GCC 14+, or Clang with libc++).
 
-	The tools include <print>. A standard library with <format> but without
-	<print>, such as GCC 13's, would pass a <format>-only probe and then fail
-	part way through the build.
-	"""
+	The libraries and most tools need only <format>, which GCC 13 has. A
+	standard library with <format> but without <print> would pass a
+	<format>-only probe and then fail part way through building such a tool."""
+	return "#include <print>" in source.read_text(errors="replace")
+
+
+def probe_compiler(cc: str, cxx: str, standard: str, *, with_print: bool = True) -> str | None:
+	"""Return None when CC/CXX build a C++<standard> program that uses <format>
+	and, with with_print, <print>."""
 	with tempfile.TemporaryDirectory(prefix="tpp-cxx-probe-") as directory:
 		root = Path(directory)
 		(root / "CMakeLists.txt").write_text(
@@ -149,6 +154,8 @@ def probe_compiler(cc: str, cxx: str, standard: str) -> str | None:
 		(root / "main.cpp").write_text(
 			"#include <format>\n#include <print>\n"
 			"int main() { std::println(\"{}\", 23); return std::format(\"{}\", 23) == \"23\" ? 0 : 1; }\n"
+			if with_print else
+			"#include <format>\nint main() { return std::format(\"{}\", 23) == \"23\" ? 0 : 1; }\n"
 		)
 		environment = os.environ | {"CC": cc, "CXX": cxx}
 		for command in (["cmake", "-S", str(root), "-B", str(root / "build")],
@@ -181,19 +188,33 @@ def compiler_candidates() -> Iterator[tuple[str, str]]:
 				yield shutil.which(f"clang-{version}") or "cc", cxx
 
 
-def select_toolchain() -> dict[str, str]:
-	"""Pick the first compiler that builds the project's C++ standard."""
+def select_toolchain(*, require_print: bool = True) -> dict[str, str]:
+	"""Pick the first compiler that builds the project's C++ standard with <print>.
+
+	When no candidate has <print> (GCC 13's library has <format> only) and no
+	requested tool includes it, the first candidate with <format> is used. The
+	choice depends only on the machine, so one build directory keeps one
+	toolchain; "print" records whether it has <print>."""
 	requested = os.environ.get("TPP_CXX_STANDARD")
 	standards = [requested] if requested else ["26", "23"]
+	candidates = list(compiler_candidates())
 	diagnostics = []
-	for cc, cxx in compiler_candidates():
+	for cc, cxx in candidates:
 		for standard in standards:
 			error = probe_compiler(cc, cxx, standard)
 			if error is None:
 				return {"CC": cc, "CXX": cxx, "TPP_CXX_STANDARD": standard}
 			diagnostics.append(f"CC={cc} CXX={cxx} C++{standard}:\n{error}")
+	if not require_print:
+		for cc, cxx in candidates:
+			for standard in standards:
+				if probe_compiler(cc, cxx, standard, with_print=False) is None:
+					print(f"Build: {Path(cxx).name} has <format> but not <print>; building only tools "
+						"that do not include <print>", flush=True)
+					return {"CC": cc, "CXX": cxx, "TPP_CXX_STANDARD": standard, "print": False}
 	raise SystemExit(
-		"No usable C++23 compiler found. Install one, or set CC/CXX explicitly.\n\n"
+		"No usable C++23 compiler with <print> found (GCC 14+, or Clang with libc++). Install one, "
+		"or set CC/CXX explicitly. Tools without <print> also build with GCC 13.\n\n"
 		+ "\n\n".join(diagnostics[-2:])
 	)
 
@@ -202,8 +223,8 @@ def requested_toolchain() -> list[str | None]:
 	return [os.environ.get(name) for name in ("CC", "CXX", "TPP_CXX_STANDARD")]
 
 
-def configuration(*, gurobi: bool, toolchain: dict[str, str] | None = None) -> dict:
-	toolchain = toolchain or select_toolchain()
+def configuration(*, gurobi: bool, toolchain: dict[str, str] | None = None, require_print: bool = True) -> dict:
+	toolchain = toolchain or select_toolchain(require_print=require_print)
 	arguments = [
 		"-DCMAKE_BUILD_TYPE=Release",
 		f"-DTPP_CXX_STANDARD={toolchain['TPP_CXX_STANDARD']}",
@@ -295,7 +316,12 @@ def ensure_tools(
 		# checkout and the CC/CXX/standard request are unchanged.
 		reuse = (previous is not None and previous.get("source") == str(SOURCE.resolve())
 			and previous.get("requested") == requested_toolchain())
-		wanted = configuration(gurobi=gurobi, toolchain=previous["toolchain"] if reuse else None)
+		printing = [tool for tool in tools if needs_print(known[tool])]
+		if reuse and printing and previous["toolchain"].get("print", True) is False:
+			raise SystemExit(f"{', '.join(printing)} include(s) <print>, which {previous['toolchain']['CXX']} lacks "
+				"(GCC 14+, or Clang with libc++, is needed).")
+		wanted = configuration(gurobi=gurobi, toolchain=previous["toolchain"] if reuse else None,
+			require_print=bool(printing))
 		if previous != wanted or not (directory / "CMakeCache.txt").exists():
 			if previous is not None and previous.get("toolchain") != wanted["toolchain"]:
 				shutil.rmtree(directory, ignore_errors=True)
@@ -519,7 +545,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 	try:
 		for path in ensure_tools(["tpp-bnb-workload-benchmark"], gurobi=args.gurobi):
 			print(path)
-	except subprocess.CalledProcessError:
+	except (subprocess.CalledProcessError, SystemExit):
 		print("\nSkipped tpp-bnb-workload-benchmark (the fixed-order benchmark): it did not compile with this "
 			"compiler, usually because <print> needs GCC 14+. Free-order and TSPN runs do not use it.", file=sys.stderr)
 	return 0

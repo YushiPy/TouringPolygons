@@ -836,16 +836,19 @@ ConvexCycleResult solve_intersecting_cycle(ConvexCycleResult &result,const Conve
         const auto a=p[anchor][j],e=p[anchor][(j+1)%p[anchor].size()]-a;
         if(!refine) {
             // Without sweeps (Step 3 of Algorithm 4.1), a block of coincident
-            // visit points uses its block descriptor, which can pin it where
-            // two edges cross; it proposes the next probe when it closes.
+            // visit points also goes to the certificate with its block
+            // descriptor, which can pin it where two edges cross. Only the
+            // per-polygon descriptor proposes the next probe: its proposal
+            // depends on the descriptor alone, which termination needs (a
+            // block's pin depends on the current contacts).
             auto closed=q;bool built=false;
             try {built=detail::CycleRefinement<R>::close(p,feature,closed);} catch(const std::runtime_error &) {}
+            if(built)next=(closed[anchor]-a).dot(e)/e.dot(e);
+            if(built&&consider(closed))return true;
             auto moved=q;auto blocks=feature;bool built_blocks=false;
             if(block_descriptor(p,moved,blocks))
                 try {built_blocks=detail::CycleRefinement<R>::close(p,blocks,moved);} catch(const std::runtime_error &) {}
-            if(built_blocks)next=(moved[anchor]-a).dot(e)/e.dot(e);
-            else if(built)next=(closed[anchor]-a).dot(e)/e.dot(e);
-            return (built&&consider(closed))||(built_blocks&&consider(moved));
+            return built_blocks&&consider(moved);
         }
         auto closed=q;
         try {if(!detail::CycleRefinement<R>::close(p,feature,closed))return false;}
@@ -1142,19 +1145,13 @@ ConvexCycleDoubleResult solve_cycle_double_exact(ConvexCycleDoubleResult &result
                 ++result.closed_form_steps;
                 const auto feature=local_descriptor(p,q,anchor,int(2*j+1));
                 const auto a=p[anchor][j],e=p[anchor][(j+1)%p[anchor].size()]-a;
+                // Only the per-polygon descriptor proposes the next probe (see
+                // the rational step); the rebuild also tries the block one.
                 auto closed=q;bool built=false;snap_vertices(p,feature,closed);
                 try {built=Kernel::close(p,feature,closed);} catch(const std::runtime_error &) {}
-                // A block of coincident visit points: its block descriptor
-                // proposes the next probe when it closes.
-                auto moved=q;auto blocks=feature;bool built_blocks=false;
-                if(block_descriptor(p,moved,blocks)) {
-                    snap_vertices(p,blocks,moved);
-                    try {built_blocks=Kernel::close(p,blocks,moved);} catch(const std::runtime_error &) {}
-                }
-                if(built_blocks)next=(moved[anchor]-a).dot(e)/e.dot(e);
-                else if(built)next=(closed[anchor]-a).dot(e)/e.dot(e);
+                if(built)next=(closed[anchor]-a).dot(e)/e.dot(e);
                 if(rebuild(anchor,feature,q))return true;
-                return (built||built_blocks)&&fixed_point(anchor,j,built_blocks?blocks:feature,*next);
+                return built&&fixed_point(anchor,j,feature,*next);
             }
             auto feature=contact_features<double>(p,q);feature[anchor]=int(2*j+1);
             auto closed=q;

@@ -836,7 +836,12 @@ Three descriptors are rebuilt, in order:
   straight through the anchor polygon (along an edge, say), and no reflection
   rebuilds it.
 
-The rational search uses the block descriptor in its closed-form step too.
+The rational search also sends the block descriptor's cycle to the
+certificate. In both searches only the per-polygon descriptor proposes the
+next probe: its proposal depends on the descriptor alone, so a parameter once
+probed is never proposed inside the bracket again, which termination needs. A
+block's pin depends on the current contacts, and proposing from it could
+converge toward a parameter without reaching it (2026-11-09).
 A vertex anchor is rebuilt only where `F` does not decrease along either edge,
 unless the vertex lies in another polygon (where `F` need not be
 differentiable). The restricted endpoint certificate is skipped in binary64:
