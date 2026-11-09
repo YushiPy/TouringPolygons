@@ -21,7 +21,22 @@
 //                 the vertices of each polygon located together by monotone
 //                 scans. Disjoint polygons only; otherwise the solver falls
 //                 back to the lazy search, which shows as fewer cones than
-//                 vertices.
+//                 vertices;
+//   binary64      the binary64 construction of Step 1 of the flow alone (its
+//                 trace: the lazy search for disjoint polygons, the binary64
+//                 maps otherwise), without replay or certificate;
+//   rational      the complete rational construction alone, as Step 3 of the
+//                 flow rebuilds the path (Dror et al.'s recursion for disjoint
+//                 polygons, the exact maps otherwise), without the certificate;
+//   certified_eager, certified_tan_jiang
+//                 the certified flow (gap zero) with the eager or Tan and
+//                 Jiang's construction proposing the path at Step 1: closed_by
+//                 says whether that proposal passed after the exact replay;
+//   targets       many targets on the same maps (disjoint polygons): with
+//                 "targets": [[x, y], ...] and "target_counts": [r, ...] in the
+//                 instance, the lazy, eager and Tan and Jiang constructions
+//                 answer the first r targets with one set of maps, timed per r,
+//                 with the cones the lazy one builds.
 // Calls shorter than 0.05 s are repeated back to back; "seconds" is the first
 // call and "mean" the average of the block that follows it.
 //
@@ -32,6 +47,8 @@
 // keeps it), then Gurobi's SOCP on the same path. One JSON line per call.
 #include "tpp_convex.h"
 #include "tpp/convex/solution.h"
+#include "tpp/convex/detail/intersecting_maps.h"
+#include "tpp/convex/detail/rational_disjoint.h"
 #include <gurobi_c++.h>
 #include <boost/property_tree/json_parser.hpp>
 #include <array>
@@ -136,20 +153,38 @@ template<class F> Timed timed(F &&call) {
 }
 
 struct OursRun{tpp::ConvexHybridResult result;Timed time;};
-OursRun certified(Vector2 s,Vector2 t,const Polygons &p,double gap) {
-    tpp::ConvexHybridOptions options;options.max_gap=gap;
+OursRun certified(Vector2 s,Vector2 t,const Polygons &p,double gap,
+        tpp::ConvexHybridConstruction construction=tpp::ConvexHybridConstruction::Lazy) {
+    tpp::ConvexHybridOptions options;options.max_gap=gap;options.construction=construction;
     OursRun run;
     run.time=timed([&]{run.result=tpp::tpp_convex_solve_hybrid(s,t,p,options);});
     return run;
 }
-struct Construction{double length=0;size_t cones=0;Timed time;};
+// A construction that throws (the binary64 maps can, and the certified flow
+// then recovers) is timed up to the throw and reported with its message.
+struct Construction{double length=0;size_t cones=0;Timed time;std::string failure;};
 template<class F> Construction construction(F &&solve) {
     Construction run;
     tpp::detail::cone_builds()=0;
-    run.time=timed([&]{run.length=solve();});
+    run.time=timed([&] {
+        try {run.length=solve();}
+        catch(const std::exception &error) {run.length=std::numeric_limits<double>::quiet_NaN();run.failure=error.what();}
+    });
     // The counter covers the first call and the block; divide to one call.
     run.cones=tpp::detail::cone_builds()/(run.time.calls+1);
     return run;
+}
+
+// Step 3 of the flow alone: the complete rational construction.
+size_t rational_construction(Vector2 s,Vector2 t,const Polygons &p,bool disjoint) {
+    tpp::ConvexRationalPolygons exact;
+    for(const auto &polygon:p){tpp::ConvexRationalPolygon q;for(auto v:polygon)q.emplace_back(v);exact.push_back(std::move(q));}
+    const tpp::ConvexRationalPoint start(s),target(t);
+    if(disjoint) {
+        try {return tpp::detail::solve_rational_disjoint_exact(start,target,exact).contacts.size();}
+        catch(const std::exception &) {return tpp::detail::solve_disjoint_map_contacts_exact(start,target,exact).size();}
+    }
+    return tpp::detail::solve_intersecting_map_contacts_exact(start,target,exact).size();
 }
 
 void print(const char *label,const OursRun &run) {
@@ -160,7 +195,12 @@ void print(const char *label,const OursRun &run) {
 }
 void print(const char *label,const Construction &run) {
     std::cout<<",\""<<label<<"\":{\"seconds\":"<<run.time.seconds<<",\"mean\":"<<run.time.mean<<",\"calls\":"<<run.time.calls
-        <<",\"length\":";json(std::cout,run.length);std::cout<<",\"cones\":"<<run.cones<<"}";
+        <<",\"length\":";json(std::cout,run.length);std::cout<<",\"cones\":"<<run.cones;
+    if(!run.failure.empty()) {
+        std::string text;for(char c:run.failure)if(c!='"'&&c!='\\')text+=c;
+        std::cout<<",\"failure\":\""<<text<<"\"";
+    }
+    std::cout<<"}";
 }
 void print(const GurobiRun &run) {
     std::cout<<",\"gurobi\":{\"status\":"<<run.status<<",\"objective\":";json(std::cout,run.objective);
@@ -231,12 +271,19 @@ int main(int argc,char **argv) {
                 for(const auto &[key2,run]:*listed)runs.push_back(run.get_value<std::string>());
             if(runs.empty())runs={"certified","tolerant","lazy","eager","gurobi"};
             for(const auto &run:runs)
-                if(run!="certified"&&run!="tolerant"&&run!="lazy"&&run!="eager"&&run!="tan_jiang"&&run!="gurobi")
+                if(run!="certified"&&run!="tolerant"&&run!="lazy"&&run!="eager"&&run!="tan_jiang"&&run!="gurobi"&&
+                   run!="rational"&&run!="binary64"&&run!="certified_eager"&&run!="certified_tan_jiang"&&run!="targets")
                     throw std::invalid_argument("unknown run "+run);
             // Warm-up: first touch of the code and of Gurobi's environment.
-            certified(s,t,p,0);
+            const bool disjoint=certified(s,t,p,0).result.stats.disjoint;
+            std::vector<Vector2> targets;std::vector<size_t> counts;
+            if(const auto listed=item.get_child_optional("targets"))for(const auto &[key2,v]:*listed)targets.push_back(point(v));
+            if(const auto listed=item.get_child_optional("target_counts"))
+                for(const auto &[key2,v]:*listed)counts.push_back(std::min(targets.size(),size_t(v.get_value<long>())));
             for(int repeat=0;repeat<repeats;++repeat) {
-                OursRun exact,tolerant;Construction lazy,eager,batch;GurobiRun socp;
+                OursRun exact,tolerant,exact_eager,exact_tan_jiang;Construction lazy,eager,batch,rational,binary;GurobiRun socp;
+                // Many targets: per count r, the lazy, eager and Tan and Jiang times.
+                std::vector<std::array<Construction,3>> many(counts.size());double many_deviation=0;
                 for(size_t turn=0;turn<runs.size();++turn) {
                     const auto &which=runs[(turn+size_t(repeat))%runs.size()];
                     if(which=="certified")exact=certified(s,t,p,0);
@@ -245,6 +292,27 @@ int main(int argc,char **argv) {
                     if(which=="eager")eager=construction([&]{return tpp::tpp_convex_solve_length_binary_search_eager(s,t,p);});
                     if(which=="tan_jiang")batch=construction([&]{return tpp::tpp_convex_solve_length_tan_jiang(s,t,p);});
                     if(which=="gurobi")socp=gurobi(s,t,p,env);
+                    if(which=="binary64")binary=construction([&]{return double((disjoint?
+                        tpp::detail::solve_binary_search_disjoint_trace_unchecked(s,t,p):
+                        tpp::detail::solve_intersecting_map_trace_unchecked_double(s,t,p)).size());});
+                    if(which=="rational")rational=construction([&]{return double(rational_construction(s,t,p,disjoint));});
+                    if(which=="certified_eager")exact_eager=certified(s,t,p,0,tpp::ConvexHybridConstruction::Eager);
+                    if(which=="certified_tan_jiang")exact_tan_jiang=certified(s,t,p,0,tpp::ConvexHybridConstruction::TanJiang);
+                    if(which=="targets")for(size_t c=0;c<counts.size();++c) {
+                        const std::vector<Vector2> first(targets.begin(),targets.begin()+long(counts[c]));
+                        std::array<std::vector<double>,3> lengths;
+                        for(size_t m=0;m<3;++m) {
+                            const size_t which_method=(m+size_t(repeat)+c)%3;
+                            many[c][which_method]=construction([&] {
+                                lengths[which_method]=which_method==0?tpp::tpp_convex_solve_lengths_binary_search_lazy(s,first,p):
+                                    which_method==1?tpp::tpp_convex_solve_lengths_binary_search_eager(s,first,p):
+                                    tpp::tpp_convex_solve_lengths_tan_jiang(s,first,p);
+                                return lengths[which_method].empty()?0.0:lengths[which_method].back();
+                            });
+                        }
+                        for(size_t r=0;r<first.size();++r)for(size_t m=1;m<3;++m)
+                            many_deviation=std::max(many_deviation,std::abs(lengths[m][r]-lengths[0][r])/std::max(1.0,lengths[0][r]));
+                    }
                 }
                 std::cout<<"{\"name\":\""<<name<<"\",\"k\":"<<p.size()<<",\"vertices\":"<<vertices<<",\"largest\":"<<largest
                     <<",\"repeat\":"<<repeat<<",\"tolerance\":"<<tolerance;
@@ -255,6 +323,22 @@ int main(int argc,char **argv) {
                     if(run=="eager")print("eager",eager);
                     if(run=="tan_jiang")print("tan_jiang",batch);
                     if(run=="gurobi")print(socp);
+                    if(run=="rational")print("rational",rational);
+                    if(run=="binary64")print("binary64",binary);
+                    if(run=="certified_eager")print("certified_eager",exact_eager);
+                    if(run=="certified_tan_jiang")print("certified_tan_jiang",exact_tan_jiang);
+                    if(run=="targets") {
+                        std::cout<<",\"targets\":{\"max_relative_deviation\":"<<many_deviation<<",\"counts\":[";
+                        for(size_t c=0;c<counts.size();++c) {
+                            std::cout<<(c?",":"")<<"{\"r\":"<<counts[c];
+                            const char *names[3]={"lazy","eager","tan_jiang"};
+                            for(size_t m=0;m<3;++m)
+                                std::cout<<",\""<<names[m]<<"\":{\"seconds\":"<<many[c][m].time.seconds<<",\"mean\":"<<many[c][m].time.mean
+                                    <<",\"calls\":"<<many[c][m].time.calls<<",\"cones\":"<<many[c][m].cones<<"}";
+                            std::cout<<"}";
+                        }
+                        std::cout<<"]}";
+                    }
                 }
                 std::cout<<"}"<<std::endl;
             }

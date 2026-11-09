@@ -29,6 +29,17 @@ step killed midway resumes case by case where it writes one file per case):
                    included (added 2026-11-04)
   vertex-scaling-fine  vertex-scaling on the finer grid, up to 131072 points
                    per region (added 2026-11-04)
+  paths-rational   the 400 paths of paths-random: the binary64 construction
+                   of Step 1 against the complete rational construction of
+                   Step 3, both alone (added 2026-11-06)
+  paths-targets    the 125 disjoint paths of paths-fine with 1000 targets
+                   drawn around them: the lazy, eager and Tan and Jiang
+                   constructions answering r in {1, 10, 100, 1000} targets on
+                   one set of maps (added 2026-11-06)
+  paths-proposals  the certified flow with the eager and Tan and Jiang
+                   constructions proposing at Step 1: the 125 disjoint paths
+                   of paths-fine, and the eager one on the 200 intersecting
+                   paths of paths-random (added 2026-11-06)
   summary          summary.json, summary.md and a tarball of the outputs
 
 Steps added later run on an earlier output directory with
@@ -498,6 +509,84 @@ def step_paths_fine(context: Context) -> dict:
 	return {"instances": len(plan), "failures": failures, "scale": FINE_SCALE, "git": workspace.git_state()}
 
 
+TARGET_COUNTS = (1, 10, 100, 1000)
+
+
+def path_targets(item: dict, count: int) -> list:
+	"""The instance's own target, then points uniform in its bounding box
+	enlarged by 2, outside every polygon (seeded by the name)."""
+	rng = random.Random(f"targets-{item['name']}")
+	xs = [v[0] for polygon in item["polygons"] for v in polygon]
+	ys = [v[1] for polygon in item["polygons"] for v in polygon]
+	box = (min(xs) - 2, max(xs) + 2, min(ys) - 2, max(ys) + 2)
+
+	def inside(point, polygon):
+		return all((b[0] - a[0]) * (point[1] - a[1]) - (b[1] - a[1]) * (point[0] - a[0]) >= 0
+			for a, b in zip(polygon, polygon[1:] + polygon[:1]))
+
+	targets = [item["target"]]
+	while len(targets) < count:
+		point = [rng.uniform(box[0], box[1]), rng.uniform(box[2], box[3])]
+		if not any(inside(point, polygon) for polygon in item["polygons"]):
+			targets.append(point)
+	return targets
+
+
+def path_shards(context: Context, step: str, items: list[dict], repetitions: int) -> list[dict]:
+	"""Shards balanced by size, inputs under inputs/ (deleted when the step succeeds)."""
+	directory = context.step_dir(step)
+	ordered = sorted(items, key=lambda item: -sum(len(polygon) for polygon in item["polygons"]))
+	shards = [ordered[index::context.workers] for index in range(context.workers)]
+	tasks = []
+	for index, shard in enumerate(shards):
+		if not shard:
+			continue
+		path = directory / "inputs" / f"shard-{index:02d}.json"
+		stdout = directory / f"shard-{index:02d}.jsonl"
+		if not Path(str(stdout) + ".done").exists():
+			path.parent.mkdir(parents=True, exist_ok=True)
+			path.write_text(json.dumps({"instances": shard}))
+		tasks.append({"command": [str(context.tools["tpp-convex-path-benchmark"]), str(path), str(repetitions)],
+			"stdout": stdout})
+	return tasks
+
+
+def finish_path_step(context: Context, step: str, tasks: list[dict], extra: dict) -> dict:
+	failures = run_parallel(context, tasks, step)
+	if not failures:
+		import shutil
+		shutil.rmtree(context.step_dir(step) / "inputs", ignore_errors=True)
+	return {**extra, "failures": failures, "git": workspace.git_state()}
+
+
+def step_paths_rational(context: Context) -> dict:
+	items = [{**item, "runs": ["binary64", "rational", "lazy"]} for item in path_instances(context.smoke)]
+	tasks = path_shards(context, "paths-rational", items, 1 if context.smoke else 3)
+	return finish_path_step(context, "paths-rational", tasks, {"instances": len(items)})
+
+
+def step_paths_targets(context: Context) -> dict:
+	counts = (1, 10) if context.smoke else TARGET_COUNTS
+	items = []
+	for family, k, m, seed, _ in fine_path_plan(context.smoke):
+		if family != "disjoint":
+			continue
+		item = path_instance(family, k, m, seed, FINE_SCALE)
+		items.append({**item, "runs": ["targets"], "targets": path_targets(item, max(counts)), "target_counts": list(counts)})
+	tasks = path_shards(context, "paths-targets", items, 1 if context.smoke else 3)
+	return finish_path_step(context, "paths-targets", tasks, {"instances": len(items), "counts": list(counts),
+		"scale": FINE_SCALE})
+
+
+def step_paths_proposals(context: Context) -> dict:
+	items = [{**path_instance(family, k, m, seed, FINE_SCALE), "runs": ["certified", "certified_eager", "certified_tan_jiang"]}
+		for family, k, m, seed, _ in fine_path_plan(context.smoke) if family == "disjoint"]
+	items += [{**item, "runs": ["certified", "certified_eager"]} for item in path_instances(context.smoke)
+		if item["family"] == "intersecting"]
+	tasks = path_shards(context, "paths-proposals", items, 1)
+	return finish_path_step(context, "paths-proposals", tasks, {"instances": len(items)})
+
+
 def step_anchor_probes(context: Context) -> dict:
 	directory = context.step_dir("anchor-probes")
 	samples, seconds = ("2", "5") if context.smoke else ("8", "30")
@@ -591,6 +680,102 @@ def path_table(rows: list[dict]) -> list[dict]:
 	return table
 
 
+def per_instance(rows: list[dict]) -> dict[str, list[dict]]:
+	out: dict = {}
+	for row in rows:
+		out.setdefault(row["name"], []).append(row)
+	return out
+
+
+def run_time(repetitions: list[dict], run: str) -> float | None:
+	"""Median over repetitions of a run's mean time."""
+	return median(row[run]["mean"] for row in repetitions if run in row)
+
+
+def ratio_stats(values) -> dict:
+	values = [value for value in values if value and value > 0 and math.isfinite(value)]
+	return {"n": len(values), "geometric_mean": geometric_mean(values), "median": median(values),
+		"min": min(values) if values else None, "max": max(values) if values else None}
+
+
+def summarize_paths_rational(rows: list[dict]) -> dict:
+	"""The rational construction of Step 3 against the binary64 one of Step 1.
+	Instances where the binary64 construction threw (the flow then recovers)
+	are counted and left out of the ratios."""
+	instances = per_instance(rows)
+	failed = {name for name, reps in instances.items() if any("failure" in row["binary64"] for row in reps)}
+	out = {}
+	for family in ("disjoint", "intersecting", "all"):
+		group = {name: reps for name, reps in instances.items() if (family == "all" or name.startswith(family))
+			and name not in failed}
+		out[family] = {"instances": len(group),
+			"binary64_failures": sorted(name for name in failed if family == "all" or name.startswith(family)),
+			"rational_over_binary64": ratio_stats(run_time(reps, "rational") / run_time(reps, "binary64")
+				for reps in group.values() if run_time(reps, "binary64")),
+			"rational_over_lazy": ratio_stats(run_time(reps, "rational") / run_time(reps, "lazy")
+				for reps in group.values() if run_time(reps, "lazy")),
+			"binary64_median_s": median(run_time(reps, "binary64") for reps in group.values()),
+			"rational_median_s": median(run_time(reps, "rational") for reps in group.values()),
+			"rational_max_s": max((run_time(reps, "rational") or 0 for reps in group.values()), default=None)}
+	table = {}
+	for name, reps in instances.items():
+		family, k, m = name.split("-")[:3]
+		table.setdefault((family, int(k[1:]), int(m[1:])), []).append(reps)
+	out["table"] = [{"family": family, "k": k, "m": m, "instances": len(group),
+		"binary64_median_s": median(run_time(reps, "binary64") for reps in group),
+		"rational_median_s": median(run_time(reps, "rational") for reps in group),
+		"rational_over_binary64_geomean": geometric_mean(run_time(reps, "rational") / run_time(reps, "binary64")
+			for reps in group if run_time(reps, "binary64"))}
+		for (family, k, m), group in sorted(table.items())]
+	return out
+
+
+def summarize_paths_targets(rows: list[dict]) -> dict:
+	"""Many targets on one set of maps: who is fastest at each r."""
+	instances = per_instance(rows)
+	methods = ("lazy", "eager", "tan_jiang")
+	counts = sorted({entry["r"] for row in rows for entry in row["targets"]["counts"]})
+	out = {"instances": len(instances), "max_relative_deviation": max(row["targets"]["max_relative_deviation"] for row in rows),
+		"by_r": []}
+	for r in counts:
+		times = {}
+		cones = []
+		for name, reps in instances.items():
+			entries = [entry for row in reps for entry in row["targets"]["counts"] if entry["r"] == r]
+			if not entries:
+				continue
+			times[name] = {method: median(entry[method]["mean"] for entry in entries) for method in methods}
+			eager_cones = median(entry["eager"]["cones"] for entry in entries)
+			if eager_cones:
+				cones.append(median(entry["lazy"]["cones"] for entry in entries) / eager_cones)
+		wins = count_by(min(methods, key=lambda method: value[method]) for value in times.values())
+		out["by_r"].append({"r": r, "instances": len(times), "fastest": wins,
+			"eager_over_lazy": ratio_stats(value["eager"] / value["lazy"] for value in times.values()),
+			"tan_jiang_over_lazy": ratio_stats(value["tan_jiang"] / value["lazy"] for value in times.values()),
+			"tan_jiang_over_eager": ratio_stats(value["tan_jiang"] / value["eager"] for value in times.values()),
+			"lazy_cone_fraction": {"median": median(cones), "max": max(cones) if cones else None}})
+	return out
+
+
+def summarize_paths_proposals(rows: list[dict]) -> dict:
+	"""Step 2 of the flow (exact replay and certificate) after each construction."""
+	out = {}
+	for family in ("disjoint", "intersecting"):
+		group = [row for row in rows if row["name"].startswith(family)]
+		entry = {"instances": len(group)}
+		for run in ("certified", "certified_eager", "certified_tan_jiang"):
+			present = [row for row in group if run in row]
+			if not present:
+				continue
+			closed = count_by(row[run]["closed_by"] for row in present)
+			entry[run] = {"closed_by": closed, "failed_at_step2": sum(count for key, count in closed.items() if key != "double_kkt"),
+				"optimal": sum(1 for row in present if row[run]["upper"] is not None
+					and row[run]["upper"] - row[run]["lower"] <= 4e-16 * abs(row[run]["upper"])),
+				"median_s": median(row[run]["mean"] for row in present)}
+		out[family] = entry
+	return out
+
+
 def summarize(context: Context) -> dict:
 	out = context.out
 	summary: dict = {"output": str(out), "machine": workspace.machine_state(), "git": workspace.git_state(),
@@ -649,6 +834,12 @@ def summarize(context: Context) -> dict:
 				"largest": median(r["largest"] for r in group),
 				"ours_ids_mean_s": median(r["ids"]["mean"] for r in group), "ours_cold_s": median(r["cold"]["seconds"] for r in group),
 				"gurobi_total_s": median(r["gurobi"]["total"] for r in group)} for (k, m), group in sorted(groups.items())]
+	for step, key, function in (("paths-rational", "paths_rational", summarize_paths_rational),
+			("paths-targets", "paths_targets", summarize_paths_targets),
+			("paths-proposals", "paths_proposals", summarize_paths_proposals)):
+		rows = jsonl(sorted((out / step).glob("shard-*.jsonl")))
+		if rows:
+			summary[key] = function(rows)
 	rows = jsonl(sorted((out / "anchor-probes").glob("*.jsonl")))
 	if rows:
 		summary["anchor_probes"] = {"calls": len(rows), "keys": sorted(rows[0].keys())}
@@ -699,6 +890,9 @@ STEPS: list[tuple[str, Callable[[Context], dict]]] = [
 	("no-polish", step_no_polish),
 	("paths-fine", step_paths_fine),
 	("vertex-scaling-fine", lambda context: step_vertex_scaling(context, "vertex-scaling-fine", fine=True)),
+	("paths-rational", step_paths_rational),
+	("paths-targets", step_paths_targets),
+	("paths-proposals", step_paths_proposals),
 	("summary", write_summary),
 ]
 

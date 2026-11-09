@@ -799,6 +799,73 @@ path runs, no call reached a probe either way. `ConvexCycleResult` counts
 `tpp-convex-anchor-probes` replays captures. Measurements:
 [`anchor-step-mac-2026-10-23`](../../benchmarks/results-saved/README.md#anchor-step-mac-2026-10-23).
 
+## The boundary-anchor method alone (paper 1, Algorithm 4.1; 2026-11-06)
+
+`tpp_convex_solve_cycle_double` (and `..._disjoint_double`) with
+`refine_contacts=false` and `recover_arithmetic_failures=true` (the default)
+runs the method of paper 1 without any feature sweep, in either arithmetic.
+`max_gap=0` and `float_polish=false` keep the binary64 stage of the B&B off.
+
+1. **Common point.** As before: binary64 intersection, then the exact one.
+2. **Binary64 search.** Pairwise disjoint polygons search the boundary of
+   the polygon with fewest vertices (`search_cycle`); otherwise every boundary,
+   split at the other boundaries (`search_intersecting_boundaries`). Each
+   anchored TPP is the binary64 construction of the TPP flow
+   (`double_candidate_chain`: trace, replay and contact repair), and the
+   rational construction only when it throws. The candidates are not
+   certified as binary64 contacts, which rarely are exact. Each one is
+   rebuilt from its descriptor in rational arithmetic (`CycleRefinement<R>::close`)
+   and certified exactly; each descriptor once per anchor.
+3. **Rational search.** The same search in rational arithmetic, without
+   sweeps (`solve_cycle_disjoint_rational(...,false)` or
+   `solve_intersecting_cycle(...,false)`).
+
+The descriptor of a binary64 cycle records, per region, the feature that the
+local optimality conditions select between the two neighbouring contacts
+(`CycleRefinement::coordinate`), not exact incidence: a reflection rounded off
+its edge line stays a reflection. Vertex contacts are put on their vertex
+before unfolding, since `close` pins a vertex feature at the current point.
+Three descriptors are rebuilt, in order:
+
+- the anchor reflecting on the probed edge (or pinned at its vertex), which is
+  the closed-form step of the search;
+- with coincident contacts, the block descriptor (`move_zero_blocks`): the
+  face of the block's common region holding its local optimum, which pins a
+  block where two edges cross. No polygon's own descriptor records that pin;
+- the anchor's own local feature, when it differs: an optimal cycle may pass
+  straight through the anchor polygon (along an edge, say), and no reflection
+  rebuilds it.
+
+The rational search uses the block descriptor in its closed-form step too.
+A vertex anchor is rebuilt only where `F` does not decrease along either edge,
+unless the vertex lies in another polygon (where `F` need not be
+differentiable). The restricted endpoint certificate is skipped in binary64:
+binary64 contacts rarely pass it, and the derivative signs decide the piece.
+Binary64 bisection never meets an exact zero of the derivative, so Step 2 also
+ends a piece at a fixed point of the closed-form step: the probe its
+descriptor proposed returns that descriptor and proposal again, and the
+descriptor's rebuild has already failed. These rules only shorten Step 2;
+Step 3 is complete.
+
+`method_step` reports the step that returned (1, 2 or 3), `exact_contacts`
+and `exact_certificate` the exact cycle and its certificate, and the counters
+`anchored_solves`, `bisection_probes`, `closed_form_steps`,
+`descriptor_rebuilds` and their `rational_*` counterparts the work. `contacts`
+is the binary64 rounding of the exact cycle; `Optimal` still means that the
+rounded contacts pass, and otherwise the status is `FloatingPointLimit` with
+the exact lower bound. Without recovery, `refine_contacts=false` keeps the
+binary64 boundary search alone, as before.
+
+**Limits.** On intersecting polygons the binary64 construction can return a
+non-optimal anchored route without throwing; the search then misses the
+optimum and Step 3 runs. Pieces whose minimum is a nondifferentiable end (a
+vertex inside another polygon) are bisected toward that end down to binary64
+resolution, about 100 probes. Both cost time only. The default path (sweeps
+first, `refine_contacts=true`) is unchanged. `prepare_cycle_polygons`
+compares exact bounding boxes before the separating-axis test, with the same
+answer. Tests: `boundary_anchor_method` in `tpp-convex-cycle-tests` runs the
+method on every instance of the other suites against the default paths.
+
 ## Exact termination
 
 There are finitely many combinatorial types of anchored paths. Intersection

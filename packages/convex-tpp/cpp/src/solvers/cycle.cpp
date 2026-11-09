@@ -6,14 +6,22 @@
 #include "cycle_execution.h"
 #include "disjoint_arithmetic.h"
 #include "cycle_refinement.h"
+#include <bit>
 #include <cmath>
 #include <limits>
+#include <map>
 #include <optional>
 
 #include <algorithm>
 #include <stdexcept>
 
 namespace tpp {
+namespace detail {
+// Defined in hybrid.cpp: the binary64 construction of the TPP flow (trace,
+// replay and contact repair), a proposal only.
+std::vector<Vector2> double_candidate_chain(const Vector2 &start,const Vector2 &target,
+    const std::vector<std::vector<Vector2>> &polygons);
+}
 namespace {
 using R = ConvexRational;
 using Point = ConvexRationalPoint;
@@ -151,9 +159,119 @@ void search_cycle(const std::vector<std::vector<ConvexArithmeticPoint<S>>> &poly
     }
 }
 
-} // namespace
+// refine_contacts=false: the boundary-anchor method alone (paper 1, Algorithm
+// 4.1). The descriptor of a binary64 cycle records, at each contact, the
+// feature that the local optimality conditions select between its two
+// neighbours (a vertex, an edge or a straight passage), so that a reflection
+// rounded off its edge line stays a reflection; the anchor gets the given
+// feature. It only proposes a cycle, which the certificate decides.
+using DPolygon=std::vector<ConvexArithmeticPoint<double>>;
+// kLocal gives the anchor its own local feature too.
+constexpr int kLocal=std::numeric_limits<int>::min();
+std::vector<int> local_descriptor(const std::vector<DPolygon> &p,const DPolygon &q,
+        std::size_t anchor,int anchor_feature) {
+    const std::size_t k=p.size();std::vector<int> feature(k,-1);
+    for(std::size_t i=0;i<k;++i) {
+        if(i==anchor&&anchor_feature!=kLocal){feature[i]=anchor_feature;continue;}
+        try {feature[i]=detail::CycleRefinement<double>::coordinate(q[(i+k-1)%k],q[(i+1)%k],q[i],p[i]).second;}
+        catch(const std::runtime_error &){feature[i]=-1;}
+    }
+    return feature;
+}
+std::optional<std::size_t> vertex_at(const DPolygon &p,const ConvexArithmeticPoint<double> &x) {
+    for(std::size_t j=0;j<p.size();++j)if(p[j]==x)return j;
+    return std::nullopt;
+}
+// close() pins a vertex feature at the contact's current point: put a
+// binary64 contact that only approximates its vertex on it first.
+template<class S>
+void snap_vertices(const std::vector<std::vector<ConvexArithmeticPoint<S>>> &polygons,const std::vector<int> &feature,
+        std::vector<ConvexArithmeticPoint<S>> &q) {
+    for(std::size_t i=0;i<q.size();++i)
+        if(feature[i]>=0&&feature[i]%2==0)q[i]=polygons[i][std::size_t(feature[i])/2];
+}
+// A block of coincident visit points need not follow its polygons' own
+// features: it may be pinned at a corner of their common region, such as a
+// crossing of two edges, which no polygon's descriptor records. The block
+// descriptor replaces each block's features by the face of that region that
+// holds its local optimum between its neighbours (move_zero_blocks: a vertex
+// there pins the block). True when q has a block and this changed something.
+template<class S>
+bool block_descriptor(const std::vector<std::vector<ConvexArithmeticPoint<S>>> &polygons,
+        std::vector<ConvexArithmeticPoint<S>> &q,std::vector<int> &feature) {
+    const std::size_t k=q.size();bool block=false;
+    for(std::size_t i=0;i<k&&!block;++i)block=q[i]==q[(i+1)%k];
+    if(!block)return false;
+    const auto before=feature;
+    try {detail::CycleRefinement<S>::move_zero_blocks(polygons,q,feature);}
+    catch(const std::runtime_error &){return false;}
+    return feature!=before;
+}
+// Step 2 of Algorithm 4.1: a binary64 candidate, read as binary rationals, is
+// rebuilt from its descriptor by unfolding (the closed-form step of the
+// rational search) and certified exactly, each descriptor once per anchor.
+// The anchor's feature is the given one (a reflection on the probed edge, or
+// its vertex); with coincident visit points the block descriptor is tried
+// next, and last the anchor's own local feature, which differs when an
+// optimal cycle passes straight through the anchor polygon.
+struct DescriptorRebuilds {
+    std::set<std::vector<long long>> tried;
+    template<class Verify>
+    bool operator()(const ConvexRationalPolygons &polygons,std::size_t anchor,const std::vector<int> &feature,
+            int local_anchor,const DPolygon &q,Verify verify,std::size_t &count,ConvexRationalPolygon &exact,
+            ConvexCycleCertificateResult &certificate) {
+        ConvexRationalPolygon lifted;lifted.reserve(q.size());
+        for(const auto &v:q)lifted.emplace_back(v.external());
+        auto attempt=[&](ConvexRationalPolygon candidate,const std::vector<int> &features,int kind) {
+            // A block pinned at a corner (kFixed) is identified by its point.
+            std::vector<long long> key(features.begin(),features.end());key.push_back(int(anchor));key.push_back(kind);
+            for(std::size_t i=0;i<features.size();++i)if(features[i]==detail::CycleRefinement<R>::kFixed) {
+                const auto point=candidate[i].external();
+                key.push_back(std::bit_cast<long long>(point.x));key.push_back(std::bit_cast<long long>(point.y));
+            }
+            if(!tried.insert(std::move(key)).second)return false;
+            ++count;
+            snap_vertices(polygons,features,candidate);
+            try {if(!detail::CycleRefinement<R>::close(polygons,features,candidate))return false;}
+            catch(const std::runtime_error &){return false;}
+            auto c=verify(candidate);
+            if(c.status!=ConvexCycleCertificateStatus::Optimal)return false;
+            exact=std::move(candidate);certificate=c;return true;
+        };
+        if(attempt(lifted,feature,0))return true;
+        auto blocks=feature;auto moved=lifted;
+        if(block_descriptor(polygons,moved,blocks)&&attempt(std::move(moved),blocks,1))return true;
+        if(local_anchor==feature[anchor])return false;
+        auto own=feature;own[anchor]=local_anchor;
+        return attempt(std::move(lifted),own,2);
+    }
+};
+// Binary64 bisection never meets an exact zero of the derivative, so a piece
+// whose minimum is not global would be bisected down to representability.
+// Step 2 instead ends a piece at a fixed point of the closed-form step: the
+// probe its descriptor proposed returns that same descriptor and proposal.
+// That descriptor's exact rebuild has then already failed the certificate.
+// This only ends a binary64 search early; Step 3 remains complete.
+struct ClosedFormFixedPoint {
+    std::map<std::pair<std::size_t,std::size_t>,std::pair<std::vector<int>,double>> last;
+    bool operator()(std::size_t anchor,std::size_t edge,const std::vector<int> &feature,double next) {
+        auto &entry=last[{anchor,edge}];
+        const bool fixed=entry.first==feature&&entry.second==next;
+        entry={feature,next};
+        return fixed;
+    }
+};
+// The double contacts themselves passed the exact certificate.
+void record_exact_contacts(ConvexCycleDoubleResult &result) {
+    if(result.status!=ConvexCycleStatus::Optimal||!result.exact_contacts.empty())return;
+    for(const auto &v:result.contacts)result.exact_contacts.emplace_back(v);
+    result.exact_certificate=result.certificate;
+}
 
-ConvexCycleResult tpp_convex_solve_cycle_disjoint(const ConvexRationalPolygons &input) {
+// The rational search for disjoint polygons, after the feature sweeps when
+// refine is true (the public solver) and without them when false (Step 3 of
+// Algorithm 4.1).
+ConvexCycleResult solve_cycle_disjoint_rational(const ConvexRationalPolygons &input,bool refine) {
     ConvexCycleResult result;
     if (input.size() < 2) return result;
     ConvexRationalPolygons polygons;
@@ -165,7 +283,7 @@ ConvexCycleResult tpp_convex_solve_cycle_disjoint(const ConvexRationalPolygons &
     } catch (const std::invalid_argument &) { return result; }
 
     const ConvexCycleCertificateGeometry prepared(polygons);
-    try {
+    if(refine)try {
         if(detail::CycleRefinement<R>::run(polygons,[&](const ConvexRationalPolygon &q) {
             ++result.oracle_calls;++result.certificate_checks;
             const auto c=tpp_convex_verify_cycle_certificate(prepared,q);
@@ -247,6 +365,11 @@ ConvexCycleResult tpp_convex_solve_cycle_disjoint(const ConvexRationalPolygons &
     result.status = ConvexCycleStatus::OracleFailure;
     return result;
 }
+} // namespace
+
+ConvexCycleResult tpp_convex_solve_cycle_disjoint(const ConvexRationalPolygons &input) {
+    return solve_cycle_disjoint_rational(input,true);
+}
 
 ConvexCycleResult tpp_convex_solve_cycle_disjoint(const std::vector<std::vector<Vector2>> &input) {
     ConvexRationalPolygons exact;
@@ -305,25 +428,12 @@ void round_contacts_inward(const ConvexRationalPolygons &polygons,std::vector<Ve
 }
 } // namespace
 
-ConvexCycleDoubleResult tpp_convex_solve_cycle_disjoint_double(const std::vector<std::vector<Vector2>> &input,
+namespace {
+// The binary64 search for pairwise disjoint polygons, which
+// prepare_cycle_polygons has normalized and checked.
+ConvexCycleDoubleResult solve_cycle_disjoint_double(ConvexCycleDoubleResult &result,
+        const std::vector<std::vector<Vector2>> &input,const ConvexRationalPolygons &normalized,
         const ConvexCycleDoubleOptions &options) {
-    ConvexCycleDoubleResult result;
-    return detail::run_cycle_execution(result,options,[&]() -> ConvexCycleDoubleResult {
-
-    if(input.size()<2)return result;
-    if(std::isnan(options.lower_bound_cutoff)||(!options.initial_contacts.empty()&&options.initial_contacts.size()!=input.size())||
-       !std::all_of(options.initial_contacts.begin(),options.initial_contacts.end(),[](auto q){return q.is_finite();}))return result;
-    ConvexRationalPolygons exact,normalized;
-    for(const auto &polygon:input) {
-        ConvexRationalPolygon p;
-        for(auto v:polygon){if(!v.is_finite())return result;p.emplace_back(v);}
-        exact.push_back(std::move(p));
-    }
-    try {
-        if(!detail::prepare_cycle_polygons(exact,normalized)) {
-            result.status=ConvexCycleStatus::UnsupportedIntersection;return result;
-        }
-    } catch(const std::invalid_argument &){return result;}
     using DPoint=ConvexArithmeticPoint<double>;
     using DPolygon=std::vector<DPoint>;
     std::vector<DPolygon> polygons;
@@ -331,15 +441,30 @@ ConvexCycleDoubleResult tpp_convex_solve_cycle_disjoint_double(const std::vector
     DPolygon initial;for(const auto &v:options.initial_contacts)initial.emplace_back(v);
     result.anchor_polygon=std::size_t(std::min_element(polygons.begin(),polygons.end(),
         [](const auto &a,const auto &b){return a.size()<b.size();})-polygons.begin());
-    const auto k=polygons.size();std::vector<DPolygon> remaining;
-    for(std::size_t j=1;j<k;++j)remaining.push_back(polygons[(result.anchor_polygon+j)%k]);
+    const auto k=polygons.size();std::vector<DPolygon> remaining;std::vector<std::vector<Vector2>> remaining_input;
+    for(std::size_t j=1;j<k;++j) {
+        remaining.push_back(polygons[(result.anchor_polygon+j)%k]);
+        remaining_input.emplace_back();for(const auto &v:remaining.back())remaining_input.back().push_back(v.external());
+    }
+    // refine_contacts=false with rational recovery: Algorithm 4.1 of paper 1,
+    // with one prepared geometry for its exact certificates.
+    const bool method=!options.refine_contacts&&options.recover_arithmetic_failures;
+    std::optional<ConvexCycleCertificateGeometry> prepared;
+    auto geometry=[&]()->const ConvexCycleCertificateGeometry & {
+        if(!prepared)prepared.emplace(input,options.interval_certificate);
+        return *prepared;
+    };
+    auto verify_double=[&](const std::vector<Vector2> &contacts,double cut) {
+        return method?tpp_convex_verify_cycle_certificate(geometry(),contacts,cut,options.interval_certificate):
+                      tpp_convex_verify_cycle_certificate(input,contacts,cut,options.interval_certificate);
+    };
     auto consider=[&](std::vector<Vector2> contacts) {
         detail::cycle_checkpoint();
         const double cut=(options.bound_first||options.interval_certificate)?options.lower_bound_cutoff:INFINITY;
-        auto certificate=tpp_convex_verify_cycle_certificate(input,contacts,cut,options.interval_certificate);++result.certificate_checks;
+        auto certificate=verify_double(contacts,cut);++result.certificate_checks;
         if(certificate.status==ConvexCycleCertificateStatus::InvalidCandidate) {
             round_contacts_inward(normalized,contacts);
-            certificate=tpp_convex_verify_cycle_certificate(input,contacts,cut,options.interval_certificate);++result.certificate_checks;
+            certificate=verify_double(contacts,cut);++result.certificate_checks;
         }
         result.certificate_cutoff_skips+=certificate.optimality_check_skipped;
         result.certificate_interval_uses+=certificate.interval_bounds_used;
@@ -354,13 +479,23 @@ ConvexCycleDoubleResult tpp_convex_solve_cycle_disjoint_double(const std::vector
         if(certificate.status==ConvexCycleCertificateStatus::Optimal)result.status=ConvexCycleStatus::Optimal;
         else if(certificate.lower_bound>=options.lower_bound_cutoff)result.status=ConvexCycleStatus::CertifiedBound;
     };
-    auto solved=[&]{return result.status==ConvexCycleStatus::Optimal||result.status==ConvexCycleStatus::CertifiedBound;};
+    auto solved=[&]{return result.status==ConvexCycleStatus::Optimal||result.status==ConvexCycleStatus::CertifiedBound||
+                           !result.exact_contacts.empty();};
     auto recover_cycle=[&] {
         detail::cycle_checkpoint();
         detail::CyclePhaseScope recovery(detail::CyclePhase::RationalRecovery);
         ++result.rational_cycle_recoveries;
-        const auto recovered=tpp_convex_solve_cycle_disjoint(normalized);
+        // Step 3 of Algorithm 4.1 runs the rational search without sweeps.
+        const auto recovered=solve_cycle_disjoint_rational(normalized,options.refine_contacts);
+        if(method) {
+            result.rational_anchored_solves+=recovered.anchored_solves;
+            result.rational_bisection_probes+=recovered.bisection_probes;
+            result.rational_closed_form_steps+=recovered.closed_form_steps;
+        }
         if(recovered.status!=ConvexCycleStatus::Optimal){result.diagnostic=recovered.diagnostic;return false;}
+        if(method) {
+            result.method_step=3;result.exact_contacts=recovered.contacts;result.exact_certificate=recovered.certificate;
+        }
         std::vector<Vector2> q;for(const auto &v:recovered.contacts)q.push_back(v.external());
         ++result.oracle_calls;consider(q);
         retain_exact_bound(result,recovered.certificate,options.lower_bound_cutoff);
@@ -407,11 +542,54 @@ ConvexCycleDoubleResult tpp_convex_solve_cycle_disjoint_double(const std::vector
         if(recover_cycle())return result;
     } catch(const std::exception &error){result.diagnostic=error.what();}
     try {
+        DescriptorRebuilds rebuilds;ClosedFormFixedPoint fixed_point;
+        auto rebuild=[&](std::size_t anchor,const std::vector<int> &feature,const DPolygon &q) {
+            ConvexRationalPolygon exact;ConvexCycleCertificateResult certificate;
+            const int local=local_descriptor(polygons,q,anchor,kLocal)[anchor];
+            if(!rebuilds(normalized,anchor,feature,local,q,[&](const ConvexRationalPolygon &c) {
+                    ++result.oracle_calls;++result.certificate_checks;
+                    return tpp_convex_verify_cycle_certificate(geometry(),c);
+                },result.descriptor_rebuilds,exact,certificate))return false;
+            std::vector<Vector2> rounded;for(const auto &v:exact)rounded.push_back(v.external());
+            result.exact_contacts=std::move(exact);result.exact_certificate=certificate;
+            ++result.oracle_calls;
+            try {consider(std::move(rounded));} catch(const std::runtime_error &) {}
+            retain_exact_bound(result,certificate,options.lower_bound_cutoff);
+            return true;
+        };
+        // The closed form of the anchored cycle's descriptor, with the anchor
+        // reflecting on edge j: its anchor proposes the next probe, and its
+        // exact rebuild goes to the certificate. Binary64 contacts are not
+        // certified themselves: they rarely are exact, and the rebuild of
+        // their descriptor is what can pass.
+        auto step=[&](std::size_t j,const DPolygon &q,std::optional<double> &next) {
+            ++result.closed_form_steps;
+            const std::size_t anchor=result.anchor_polygon,m=polygons[anchor].size();
+            const auto feature=local_descriptor(polygons,q,anchor,int(2*j+1));
+            auto closed=q;bool built=false;snap_vertices(polygons,feature,closed);
+            try {built=detail::CycleRefinement<double>::close(polygons,feature,closed);}
+            catch(const std::runtime_error &) {}
+            if(built) {
+                const auto a=polygons[anchor][j],edge=polygons[anchor][(j+1)%m]-a;
+                next=(closed[anchor]-a).dot(edge)/edge.dot(edge);
+            }
+            if(rebuild(anchor,feature,q))return true;
+            return built&&fixed_point(anchor,j,feature,*next);
+        };
         auto evaluate=[&](const DPoint &point) {
             detail::cycle_checkpoint();
             ++result.oracle_calls;
+            if(method)++result.anchored_solves;
             const auto path=[&] {
-                try { return detail::DisjointArithmetic<double>::Solver(point,point,remaining).solve(true); }
+                try {
+                    if(!method)return detail::DisjointArithmetic<double>::Solver(point,point,remaining).solve(true);
+                    // Algorithm 4.1: the binary64 construction of the TPP flow.
+                    const auto chain=detail::double_candidate_chain(point.external(),point.external(),remaining_input);
+                    if(chain.size()!=k+1)throw std::runtime_error("Incomplete binary64 anchored chain");
+                    detail::DisjointArithmetic<double>::Result converted;
+                    for(std::size_t j=1;j<k;++j)converted.contacts.emplace_back(chain[j]);
+                    return converted;
+                }
                 catch(const std::exception &) {
                     if(!options.recover_arithmetic_failures)throw;
                     detail::CyclePhaseScope recovery(detail::CyclePhase::RationalRecovery);
@@ -427,11 +605,30 @@ ConvexCycleDoubleResult tpp_convex_solve_cycle_disjoint_double(const std::vector
             if(path.contacts.size()!=k-1)throw std::runtime_error("Incomplete double anchored cycle");
             DPolygon q(k);q[result.anchor_polygon]=point;
             for(std::size_t j=1;j<k;++j)q[(result.anchor_polygon+j)%k]=path.contacts[j-1];
-            std::vector<Vector2> candidate;for(const auto &v:q)candidate.push_back(v.external());
-            consider(std::move(candidate));
+            if(!method) {
+                std::vector<Vector2> candidate;for(const auto &v:q)candidate.push_back(v.external());
+                consider(std::move(candidate));
+                return q;
+            }
+            // At a vertex of the anchor polygon where F does not decrease
+            // along either edge, the anchored cycle with that vertex pinned
+            // is rebuilt exactly.
+            if(const auto j=vertex_at(polygons[result.anchor_polygon],point)) {
+                const auto &a=polygons[result.anchor_polygon];const std::size_t m=a.size();
+                int forward=0,backward=0;
+                try {
+                    forward=support_sign(q,result.anchor_polygon,a[(*j+1)%m]-a[*j]);
+                    backward=support_sign(q,result.anchor_polygon,a[*j]-a[(*j+m-1)%m]);
+                } catch(const std::runtime_error &) {forward=backward=0;}
+                if(forward>=0&&backward<=0)
+                    rebuild(result.anchor_polygon,local_descriptor(polygons,q,result.anchor_polygon,int(2**j)),q);
+            }
             return q;
         };
-        search_cycle<double>(polygons,result.anchor_polygon,evaluate,solved,&result.diagnostic);
+        if(method) {
+            search_cycle<double>(polygons,result.anchor_polygon,evaluate,solved,&result.diagnostic,&result.bisection_probes,step);
+            if(solved()){result.method_step=2;record_exact_contacts(result);}
+        } else search_cycle<double>(polygons,result.anchor_polygon,evaluate,solved,&result.diagnostic);
         if(!solved())result.status=result.contacts.empty()?ConvexCycleStatus::OracleFailure:ConvexCycleStatus::FloatingPointLimit;
     } catch(const std::runtime_error &error) {
         result.status=ConvexCycleStatus::OracleFailure;result.diagnostic=error.what();
@@ -440,7 +637,28 @@ ConvexCycleDoubleResult tpp_convex_solve_cycle_disjoint_double(const std::vector
         if(!recover_cycle())result.status=ConvexCycleStatus::OracleFailure;
     } catch(const std::exception &error){result.status=ConvexCycleStatus::OracleFailure;result.diagnostic=error.what();}
     return result;
+}
+} // namespace
 
+ConvexCycleDoubleResult tpp_convex_solve_cycle_disjoint_double(const std::vector<std::vector<Vector2>> &input,
+        const ConvexCycleDoubleOptions &options) {
+    ConvexCycleDoubleResult result;
+    return detail::run_cycle_execution(result,options,[&]() -> ConvexCycleDoubleResult {
+    if(input.size()<2)return result;
+    if(std::isnan(options.lower_bound_cutoff)||(!options.initial_contacts.empty()&&options.initial_contacts.size()!=input.size())||
+       !std::all_of(options.initial_contacts.begin(),options.initial_contacts.end(),[](auto q){return q.is_finite();}))return result;
+    ConvexRationalPolygons exact,normalized;
+    for(const auto &polygon:input) {
+        ConvexRationalPolygon p;
+        for(auto v:polygon){if(!v.is_finite())return result;p.emplace_back(v);}
+        exact.push_back(std::move(p));
+    }
+    try {
+        if(!detail::prepare_cycle_polygons(exact,normalized)) {
+            result.status=ConvexCycleStatus::UnsupportedIntersection;return result;
+        }
+    } catch(const std::invalid_argument &){return result;}
+    return solve_cycle_disjoint_double(result,input,normalized,options);
     });
 }
 
@@ -615,10 +833,23 @@ ConvexCycleResult solve_intersecting_cycle(ConvexCycleResult &result,const Conve
         if(q.empty())return false;
         ++result.closed_form_steps;
         auto feature=contact_features<R>(p,q);feature[anchor]=int(2*j+1);
+        const auto a=p[anchor][j],e=p[anchor][(j+1)%p[anchor].size()]-a;
+        if(!refine) {
+            // Without sweeps (Step 3 of Algorithm 4.1), a block of coincident
+            // visit points uses its block descriptor, which can pin it where
+            // two edges cross; it proposes the next probe when it closes.
+            auto closed=q;bool built=false;
+            try {built=detail::CycleRefinement<R>::close(p,feature,closed);} catch(const std::runtime_error &) {}
+            auto moved=q;auto blocks=feature;bool built_blocks=false;
+            if(block_descriptor(p,moved,blocks))
+                try {built_blocks=detail::CycleRefinement<R>::close(p,blocks,moved);} catch(const std::runtime_error &) {}
+            if(built_blocks)next=(moved[anchor]-a).dot(e)/e.dot(e);
+            else if(built)next=(closed[anchor]-a).dot(e)/e.dot(e);
+            return (built&&consider(closed))||(built_blocks&&consider(moved));
+        }
         auto closed=q;
         try {if(!detail::CycleRefinement<R>::close(p,feature,closed))return false;}
         catch(const std::runtime_error &){return false;}
-        const auto a=p[anchor][j],e=p[anchor][(j+1)%p[anchor].size()]-a;
         next=(closed[anchor]-a).dot(e)/e.dot(e);
         return consider(closed);
     };
@@ -681,6 +912,16 @@ ConvexCycleDoubleResult solve_cycle_double_exact(ConvexCycleDoubleResult &result
             if(options.interval_certificate)prepared.emplace(input,true);
         }
     } catch(const std::invalid_argument &error){result.diagnostic=error.what();return result;}
+    // refine_contacts=false with rational recovery: Algorithm 4.1 of paper 1,
+    // with one prepared geometry for its exact certificates.
+    const bool method=!options.refine_contacts&&options.recover_arithmetic_failures;
+    if(method&&!options.proposal_only)try {
+        // Pairwise disjoint polygons: one boundary, by the disjoint search
+        // (pairwise disjoint polygons have no common point).
+        ConvexRationalPolygons checked;
+        if(detail::prepare_cycle_polygons(normalized,checked))return solve_cycle_disjoint_double(result,input,checked,options);
+        if(!prepared)prepared.emplace(input,options.interval_certificate);
+    } catch(const std::invalid_argument &error){result.diagnostic=error.what();return result;}
     auto verify=[&](const auto &q) {
         return prepared?tpp_convex_verify_cycle_certificate(*prepared,q):tpp_convex_verify_cycle_certificate(normalized,q);
     };
@@ -716,16 +957,28 @@ ConvexCycleDoubleResult solve_cycle_double_exact(ConvexCycleDoubleResult &result
         const auto &proposal=result.contacts.empty()?options.initial_contacts:result.contacts;
         for(const auto &q:proposal)warm.emplace_back(q);
         ConvexCycleResult recovered;
+        // Step 3 of Algorithm 4.1 runs the rational search without sweeps.
+        auto count=[&] {
+            if(!method)return;
+            result.rational_anchored_solves+=recovered.anchored_solves;
+            result.rational_bisection_probes+=recovered.bisection_probes;
+            result.rational_closed_form_steps+=recovered.closed_form_steps;
+        };
         try {
-            recovered=solve_intersecting_cycle(recovered,normalized,true,warm,options.lower_bound_cutoff,options.bound_first);
+            recovered=solve_intersecting_cycle(recovered,normalized,options.refine_contacts,warm,options.lower_bound_cutoff,options.bound_first);
         } catch(const detail::CycleInterrupted &) {
+            count();
             if(recovered.certificate.status==ConvexCycleCertificateStatus::Feasible||
                recovered.certificate.status==ConvexCycleCertificateStatus::Optimal)
                 result.certificate.lower_bound=std::max(result.certificate.lower_bound,recovered.certificate.lower_bound);
             throw;
         }
+        count();
         result.certificate_cutoff_skips+=recovered.certificate_cutoff_skips;
         if(recovered.status!=ConvexCycleStatus::Optimal&&recovered.status!=ConvexCycleStatus::CertifiedBound){result.diagnostic=recovered.diagnostic;return false;}
+        if(method&&recovered.status==ConvexCycleStatus::Optimal) {
+            result.method_step=3;result.exact_contacts=recovered.contacts;result.exact_certificate=recovered.certificate;
+        }
         std::vector<Vector2> q;for(const auto &v:recovered.contacts)q.push_back(v.external());
         consider(q);
         retain_exact_bound(result,recovered.certificate,options.lower_bound_cutoff);
@@ -738,7 +991,10 @@ ConvexCycleDoubleResult solve_cycle_double_exact(ConvexCycleDoubleResult &result
         }
         auto joint=p.front();
         for(size_t i=1;i<p.size()&&!joint.empty();++i)joint=Kernel::intersect(std::move(joint),p[i]);
-        if(!joint.empty()&&consider(std::vector<Vector2>(p.size(),joint.front().external())))return result;
+        if(!joint.empty()&&consider(std::vector<Vector2>(p.size(),joint.front().external()))) {
+            if(method){result.method_step=1;record_exact_contacts(result);}
+            return result;
+        }
         if(options.recover_arithmetic_failures&&!options.proposal_only) {
             // A common point may exist but have no binary64 representation.
             // Resolve that zero-cycle feature before attempting anchor search.
@@ -746,9 +1002,11 @@ ConvexCycleDoubleResult solve_cycle_double_exact(ConvexCycleDoubleResult &result
             if(!exact_joint.empty()) {
                 ++result.rational_cycle_recoveries;++result.oracle_calls;++result.certificate_checks;
                 const auto q=ConvexRationalPolygon(p.size(),exact_joint.front());
-                if(verify(q).status==ConvexCycleCertificateStatus::Optimal) {
+                const auto exact_certificate=verify(q);
+                if(exact_certificate.status==ConvexCycleCertificateStatus::Optimal) {
+                    if(method){result.method_step=1;result.exact_contacts=q;result.exact_certificate=exact_certificate;}
                     if(consider(std::vector<Vector2>(p.size(),q.front().external())))return result;
-                    if(!result.contacts.empty()){result.status=ConvexCycleStatus::FloatingPointLimit;return result;}
+                    if(!result.contacts.empty()||method){result.status=ConvexCycleStatus::FloatingPointLimit;return result;}
                 }
             }
         }
@@ -795,8 +1053,24 @@ ConvexCycleDoubleResult solve_cycle_double_exact(ConvexCycleDoubleResult &result
         if(options.refine_contacts&&options.recover_arithmetic_failures)try {
             if(recover_cycle())return result;
         } catch(const std::exception &error){result.diagnostic=error.what();}
+        auto solved=[&]{return result.status==ConvexCycleStatus::Optimal||result.status==ConvexCycleStatus::FloatingPointLimit||
+                               result.status==ConvexCycleStatus::CertifiedBound||!result.exact_contacts.empty();};
+        DescriptorRebuilds rebuilds;ClosedFormFixedPoint fixed_point;
+        auto rebuild=[&](size_t anchor,const std::vector<int> &feature,const Kernel::Polygon &q) {
+            ConvexRationalPolygon exact;ConvexCycleCertificateResult certificate;
+            const int local=local_descriptor(p,q,anchor,kLocal)[anchor];
+            if(!rebuilds(normalized,anchor,feature,local,q,[&](const ConvexRationalPolygon &c) {
+                    ++result.oracle_calls;++result.certificate_checks;return verify(c);
+                },result.descriptor_rebuilds,exact,certificate))return false;
+            std::vector<Vector2> rounded;for(const auto &v:exact)rounded.push_back(v.external());
+            result.exact_contacts=std::move(exact);result.exact_certificate=certificate;
+            consider(std::move(rounded));
+            retain_exact_bound(result,certificate,options.lower_bound_cutoff);
+            return true;
+        };
         auto evaluate=[&](size_t anchor,const Kernel::P &x) {
             detail::cycle_checkpoint();
+            if(method)++result.anchored_solves;
             const size_t k=p.size();size_t first=1,last=k-1;
             while(first<=last&&Kernel::inside(x,p[(anchor+first)%k]))++first;
             while(last>=first&&Kernel::inside(x,p[(anchor+last)%k]))--last;
@@ -808,7 +1082,13 @@ ConvexCycleDoubleResult solve_cycle_double_exact(ConvexCycleDoubleResult &result
             Kernel::Polygon q(k,x);
             if(!remaining.empty()) {
                 const auto path=[&] {
-                    try {return detail::solve_intersecting_map_contacts_unchecked_double(x.external(),x.external(),remaining,false);}
+                    try {
+                        if(!method)return detail::solve_intersecting_map_contacts_unchecked_double(x.external(),x.external(),remaining,false);
+                        // Algorithm 4.1: the binary64 construction of the TPP flow.
+                        auto chain=detail::double_candidate_chain(x.external(),x.external(),remaining);
+                        if(chain.size()!=remaining.size()+2)throw std::runtime_error("Incomplete binary64 anchored chain");
+                        return std::vector<Vector2>(chain.begin()+1,chain.end()-1);
+                    }
                     catch(const std::exception &) {
                         if(!options.recover_arithmetic_failures)throw;
                         detail::CyclePhaseScope recovery(detail::CyclePhase::RationalRecovery);
@@ -822,16 +1102,60 @@ ConvexCycleDoubleResult solve_cycle_double_exact(ConvexCycleDoubleResult &result
                 if(path.size()!=remaining.size())throw std::runtime_error("Incomplete double intersecting cycle");
                 for(size_t r=first;r<=last;++r)q[(anchor+r)%k]=Kernel::P(path[r-first]);
             }
-            std::vector<Vector2> candidate;for(const auto &v:q)candidate.push_back(v.external());consider(candidate);
+            if(!method) {
+                std::vector<Vector2> candidate;for(const auto &v:q)candidate.push_back(v.external());consider(candidate);
+                return q;
+            }
+            // At a vertex of the anchor polygon the anchored cycle with that
+            // vertex pinned is rebuilt exactly, unless the vertex lies in no
+            // other polygon (F is then differentiable along both edges near
+            // it) and F decreases along one of them.
+            if(const auto j=vertex_at(p[anchor],x)) {
+                bool candidate=false;
+                for(size_t i=0;i<k&&!candidate;++i)candidate=i!=anchor&&Kernel::inside(x,p[i]);
+                if(!candidate) {
+                    const auto &a=p[anchor];const size_t m=a.size();
+                    int forward=0,backward=0;
+                    try {
+                        forward=support_sign(q,anchor,a[(*j+1)%m]-a[*j]);
+                        backward=support_sign(q,anchor,a[*j]-a[(*j+m-1)%m]);
+                    } catch(const std::runtime_error &) {forward=backward=0;}
+                    candidate=forward>=0&&backward<=0;
+                }
+                if(candidate)rebuild(anchor,local_descriptor(p,q,anchor,int(2**j)),q);
+            }
             return q;
         };
         auto restricted=[&](size_t anchor,const Kernel::Polygon &q,const Kernel::P &a,const Kernel::P &b) {
+            // Binary64 contacts rarely pass an exact test; Algorithm 4.1
+            // decides a piece by the derivative signs at its ends.
+            if(method)return false;
             auto regions=input;regions[anchor]={a.external(),b.external()};
             std::vector<Vector2> candidate;for(const auto &v:q)candidate.push_back(v.external());
             return tpp_convex_verify_cycle_certificate(regions,candidate).status==ConvexCycleCertificateStatus::Optimal;
         };
         auto step=[&](size_t anchor,size_t j,const Kernel::Polygon &q,std::optional<double> &next) {
             if(q.empty())return false;
+            if(method) {
+                // The descriptor's closed form proposes the next probe, and
+                // its exact rebuild goes to the certificate.
+                ++result.closed_form_steps;
+                const auto feature=local_descriptor(p,q,anchor,int(2*j+1));
+                const auto a=p[anchor][j],e=p[anchor][(j+1)%p[anchor].size()]-a;
+                auto closed=q;bool built=false;snap_vertices(p,feature,closed);
+                try {built=Kernel::close(p,feature,closed);} catch(const std::runtime_error &) {}
+                // A block of coincident visit points: its block descriptor
+                // proposes the next probe when it closes.
+                auto moved=q;auto blocks=feature;bool built_blocks=false;
+                if(block_descriptor(p,moved,blocks)) {
+                    snap_vertices(p,blocks,moved);
+                    try {built_blocks=Kernel::close(p,blocks,moved);} catch(const std::runtime_error &) {}
+                }
+                if(built_blocks)next=(moved[anchor]-a).dot(e)/e.dot(e);
+                else if(built)next=(closed[anchor]-a).dot(e)/e.dot(e);
+                if(rebuild(anchor,feature,q))return true;
+                return (built||built_blocks)&&fixed_point(anchor,j,built_blocks?blocks:feature,*next);
+            }
             auto feature=contact_features<double>(p,q);feature[anchor]=int(2*j+1);
             auto closed=q;
             try {
@@ -844,9 +1168,11 @@ ConvexCycleDoubleResult solve_cycle_double_exact(ConvexCycleDoubleResult &result
         };
         search_intersecting_boundaries<double>(p,evaluate,restricted,
             [&](const Kernel::Polygon &q){return options.refine_contacts&&Kernel::run(p,refine_candidate,q);},
-            [&]{return result.status==ConvexCycleStatus::Optimal||result.status==ConvexCycleStatus::FloatingPointLimit||result.status==ConvexCycleStatus::CertifiedBound;},
-            step,result.anchor_polygon,result.diagnostic);
-        if(result.status==ConvexCycleStatus::Optimal||result.status==ConvexCycleStatus::FloatingPointLimit||result.status==ConvexCycleStatus::CertifiedBound)return result;
+            solved,step,result.anchor_polygon,result.diagnostic,method?&result.bisection_probes:nullptr);
+        if(solved()) {
+            if(method){result.method_step=2;record_exact_contacts(result);}
+            return result;
+        }
     } catch(const std::exception &error){result.diagnostic=error.what();}
     if(options.proposal_only) {
         result.status=ConvexCycleStatus::ProposalLimit;

@@ -35,6 +35,8 @@ tpp::ConvexRationalPolygons exact(const Polygons &polygons) {
     }
     return result;
 }
+// Instances of the suites below, for boundary_anchor_method().
+std::vector<std::pair<std::string,Polygons>> anchor_method_cases;
 double largest_double_gap=0,largest_double_difference=0;
 std::size_t compared_double_cases=0;
 std::size_t total_anchor_recoveries=0;
@@ -68,6 +70,7 @@ tpp::ConvexCycleDoubleResult compare_double(const Polygons &polygons,const tpp::
     return result;
 }
 tpp::ConvexCycleResult check(const Polygons &polygons, const std::string &name) {
+    anchor_method_cases.emplace_back(name,polygons);
     const auto result = tpp::tpp_convex_solve_cycle_disjoint(polygons);
     require(solved(result), name + ": uncertified result, status=" + std::to_string(int(result.status))+": "+result.diagnostic);
     const auto certificate = tpp::tpp_convex_verify_cycle_certificate(exact(polygons), result.contacts);
@@ -358,6 +361,7 @@ void boundary_recovery_regressions() {
     for(const auto &[unused,item]:input.get_child("recovery_regressions")) {
         const auto name=item.get<std::string>("name");Polygons p;
         for(const auto &[key,polygon]:item.get_child("polygons"))p.push_back(points(polygon));
+        anchor_method_cases.emplace_back(name,p);
         tpp::ConvexCycleOptions exact_options;
         tpp::ConvexCycleDoubleOptions options;
         options.initial_contacts=points(item.get_child("initial_contacts"));
@@ -425,6 +429,7 @@ void intersecting_cycles() {
     for(size_t index=0;index<cases.size();++index) {
         auto p=cases[index];
         for(size_t shift=0;shift<p.size();++shift) {
+            anchor_method_cases.emplace_back("intersections "+std::to_string(index)+"/"+std::to_string(shift),p);
             const auto result=tpp::tpp_convex_solve_cycle(p);
             const auto anchored=tpp::tpp_convex_solve_cycle(p,{false});
             require(solved(anchored),"unaccelerated intersection: "+std::to_string(index)+"/"+std::to_string(shift)+": "+anchored.diagnostic);
@@ -499,6 +504,7 @@ void intersecting_cycles() {
             }
             regions.push_back(polygon);
         }
+        anchor_method_cases.emplace_back("seeded intersections "+std::to_string(k)+"/"+std::to_string(sample),regions);
         const auto result=tpp::tpp_convex_solve_cycle(regions);
         const auto anchored=tpp::tpp_convex_solve_cycle(regions,{false});
         require(solved(anchored),"unaccelerated random overlap "+std::to_string(k)+"/"+std::to_string(sample)+": "+anchored.diagnostic);
@@ -553,6 +559,7 @@ void rotated_squares() {
         // It includes the rectangle through the inner vertices: a search that only
         // tried vertices would pass this case by coincidence.
         const Polygons p{diamond(5,5,2),diamond(-5,5,2),diamond(-5,-5,2),diamond(5,-5,2)};
+        anchor_method_cases.emplace_back("symmetric diamonds",p);
         const auto result=tpp::tpp_convex_solve_cycle(p);
         require(solved(result)&&std::abs(result.certificate.upper_bound-32)<1e-12,"symmetric diamonds objective 8d-4r");
         require(tpp::tpp_convex_verify_cycle_certificate(exact(p),result.contacts).status==
@@ -572,6 +579,7 @@ void rotated_squares() {
         // reflection between the vertex contacts (0,0) and (-4,3):
         // length sqrt(65)+sqrt(85), contacts (18/13,-21/13) and (-40/9,-5/9).
         const Polygons p{diamond(4,-3,4),diamond(0,2,2),diamond(-6,-3,4),diamond(-4,6,3)};
+        anchor_method_cases.emplace_back("asymmetric diamonds",p);
         const auto result=tpp::tpp_convex_solve_cycle(p);
         require(solved(result),"asymmetric diamonds: "+result.diagnostic);
         require(tpp::tpp_convex_verify_cycle_certificate(exact(p),result.contacts).status==
@@ -1079,6 +1087,7 @@ void common_region_corners() {
         const double gap=0.2+0.6*std::abs(unit(rng));
         const Polygons p{polygon(-0.5+unit(rng),6+unit(rng),0.5,unit(rng)),polygon(-gap,0,1,unit(rng)),
                          polygon(gap,0.3*unit(rng),1,unit(rng)),polygon(0.5+unit(rng),6+unit(rng),0.5,unit(rng))};
+        anchor_method_cases.emplace_back("common-region corner "+std::to_string(trial),p);
         const auto exact_result=tpp::tpp_convex_solve_cycle(p);
         require(solved(exact_result),"common-region corner: rational status "+std::to_string(int(exact_result.status))+" "+exact_result.diagnostic);
         const auto floating=tpp::tpp_convex_solve_cycle_double(p);
@@ -1300,6 +1309,60 @@ void binary64_stage() {
              <<", open="<<float_counts.open<<"; double API closed="<<float_counts.double_closed<<", exact="<<float_counts.double_exact<<'\n';
 }
 
+// refine_contacts=false: the boundary-anchor method of paper 1 (Algorithm
+// 4.1), without feature sweeps in either arithmetic. On every instance of the
+// suites above it must return an exact cycle that passes the independent exact
+// certificate, with the optimal length of the default paths (the rational
+// solver and the binary64 one, both with sweeps).
+void boundary_anchor_method() {
+    tpp::ConvexCycleDoubleOptions options;options.refine_contacts=false;options.float_polish=false;
+    std::size_t steps[4]{},rebuilds=0,anchored=0,probes=0,rational_anchored=0;
+    for(const auto &[name,p]:anchor_method_cases) {
+        const auto reference=tpp::tpp_convex_solve_cycle(p);
+        require(solved(reference),name+": default rational path");
+        const auto r=tpp::tpp_convex_solve_cycle_double(p,options);
+        require(r.method_step>=1&&r.method_step<=3&&!r.exact_contacts.empty(),
+                name+": boundary-anchor method returned no exact cycle, status "+std::to_string(int(r.status))+": "+r.diagnostic);
+        require(r.status==ConvexCycleStatus::Optimal||r.status==ConvexCycleStatus::FloatingPointLimit,name+": method status");
+        const auto independent=tpp::tpp_convex_verify_cycle_certificate(exact(p),r.exact_contacts);
+        require(independent.status==tpp::ConvexCycleCertificateStatus::Optimal,name+": exact cycle passes the exact certificate");
+        require(r.exact_certificate.status==tpp::ConvexCycleCertificateStatus::Optimal&&
+                r.exact_certificate.lower_bound==independent.lower_bound&&r.exact_certificate.upper_bound==independent.upper_bound,
+                name+": reported exact certificate");
+        // Both exact cycles are certified optimal: their bounds enclose one value.
+        require(independent.lower_bound<=reference.certificate.upper_bound&&reference.certificate.lower_bound<=independent.upper_bound,
+                name+": same optimal length as the default rational path");
+        const auto floating=tpp::tpp_convex_solve_cycle_double(p);
+        require(independent.lower_bound<=floating.certificate.upper_bound&&floating.certificate.lower_bound<=independent.upper_bound,
+                name+": same optimal length as the default binary64 path");
+        // The binary64 output: the rounded contacts are feasible and bound the optimum.
+        const auto rounded=tpp::tpp_convex_verify_cycle_certificate(p,r.contacts);
+        require((rounded.status==tpp::ConvexCycleCertificateStatus::Feasible||rounded.status==tpp::ConvexCycleCertificateStatus::Optimal)&&
+                r.certificate.upper_bound==rounded.upper_bound&&r.certificate.lower_bound>=independent.lower_bound&&
+                r.certificate.lower_bound<=independent.upper_bound,name+": binary64 bounds");
+        if(r.status==ConvexCycleStatus::Optimal)require(rounded.status==tpp::ConvexCycleCertificateStatus::Optimal,name+": no rounded optimality claim");
+        if(r.method_step==2)require(r.rational_anchored_solves==0,name+": Step 2 runs no rational search");
+        if(r.method_step==3)require(r.rational_anchored_solves>0||p.size()==2,name+": Step 3 runs the rational search");
+        ++steps[r.method_step];rebuilds+=r.descriptor_rebuilds;anchored+=r.anchored_solves;probes+=r.bisection_probes;
+        rational_anchored+=r.rational_anchored_solves;
+    }
+    // The paper's four diamonds: no vertex anchor is optimal, and Step 2 must
+    // rebuild the optimum inside an edge exactly, from a binary64 descriptor.
+    {
+        using R=tpp::ConvexRational;using P=tpp::ConvexRationalPoint;
+        const Polygons p{diamond(4,-3,4),diamond(0,2,2),diamond(-6,-3,4),diamond(-4,6,3)};
+        const auto r=tpp::tpp_convex_solve_cycle_double(p,options);
+        const std::vector<P> expected{{R(18)/13,R(-21)/13},{0,0},{R(-40)/9,R(-5)/9},{-4,3}};
+        require(r.method_step==2&&r.exact_contacts==tpp::ConvexRationalPolygon(expected.begin(),expected.end()),
+                "asymmetric diamonds: exact optimum rebuilt at Step 2");
+        require(r.descriptor_rebuilds>0&&r.rational_cycle_recoveries==0,"asymmetric diamonds: by a descriptor rebuild");
+    }
+    require(steps[2]>steps[3],"most suite cycles return at Step 2");
+    std::cout<<"Boundary-anchor method: "<<anchor_method_cases.size()<<" suite cycles certified optimal, Step 1/2/3 = "
+        <<steps[1]<<'/'<<steps[2]<<'/'<<steps[3]<<"; anchored TPPs "<<anchored<<" (rational "<<rational_anchored
+        <<"), bisection probes "<<probes<<", descriptor rebuilds "<<rebuilds<<".\n";
+}
+
 int main() {
     try {
         binary64_stage();
@@ -1308,6 +1371,7 @@ int main() {
         cooperative_interruption();
         bound_first_contacts();
         prepared_geometry_and_features();known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();rotated_squares();logarithmic_queries();boundary_memberships();support_near_ties();convex_intersections();active_contact_regressions();boundary_recovery_regressions();
+        boundary_anchor_method();
         std::cout<<"Double comparisons: "<<compared_double_cases<<", maximum objective difference="<<largest_double_difference<<", maximum certified gap="<<largest_double_gap<<", local recoveries="<<total_anchor_recoveries<<'\n';
         std::cout<<"Cycle solver tests passed.\n";
         return 0;

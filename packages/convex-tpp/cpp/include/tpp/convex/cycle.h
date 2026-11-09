@@ -64,6 +64,25 @@ struct ConvexCycleDoubleResult {
     std::string diagnostic;
     // A proposal for subsequent solves; never itself a certificate.
     std::vector<int> active_features;
+    // Boundary-anchor search, as in ConvexCycleResult (diagnostics): anchored
+    // TPPs, bisection probes and closed-form steps of the binary64 search,
+    // then those of the rational search when it ran. Kept by Algorithm 4.1
+    // only (refine_contacts=false with recovery).
+    std::size_t anchored_solves = 0, bisection_probes = 0, closed_form_steps = 0;
+    std::size_t rational_anchored_solves = 0, rational_bisection_probes = 0, rational_closed_form_steps = 0;
+    // Algorithm 4.1: binary64 candidates rebuilt from their descriptors in
+    // rational arithmetic (each descriptor once per anchor).
+    std::size_t descriptor_rebuilds = 0;
+    // The step of the boundary-anchor method (paper 1, Algorithm 4.1) that
+    // returned. 1 is a common point, 2 the binary64 search, 3 the rational
+    // search, 0 none or another method.
+    int method_step = 0;
+    // The exact cycle that passed the exact certificate, when one did, and
+    // that certificate. contacts is its binary64 rounding, which need not
+    // pass: Optimal still requires the rounded contacts to pass, and
+    // otherwise the status is FloatingPointLimit with this exact lower bound.
+    ConvexRationalPolygon exact_contacts;
+    ConvexCycleCertificateResult exact_certificate;
 };
 
 struct ConvexCycleDoubleOptions {
@@ -71,7 +90,16 @@ struct ConvexCycleDoubleOptions {
     // cycle after a failed double construction. Every recovery is counted.
     // Set false for a double-only constructor (certificates remain exact).
     bool recover_arithmetic_failures = true;
-    // Acceleration only; false exercises the shared boundary-anchor reduction.
+    // Acceleration only. false, with recover_arithmetic_failures, runs the
+    // boundary-anchor method alone (paper 1, Algorithm 4.1), without feature
+    // sweeps in any arithmetic: a common point, then the binary64 boundary
+    // search, whose anchored TPPs are the binary64 construction of the TPP
+    // flow and whose candidates are rebuilt from their descriptors in
+    // rational arithmetic and certified exactly, then the same search in
+    // rational arithmetic. Pairwise disjoint polygons search one boundary
+    // (the polygon with fewest vertices), and others every boundary.
+    // method_step and exact_contacts report it. Without recovery, false keeps
+    // the binary64 boundary search alone.
     bool refine_contacts = true;
     // Optional B&B cut: stop after an independently certified global lower
     // bound reaches this value. CertifiedBound does not assert optimality.

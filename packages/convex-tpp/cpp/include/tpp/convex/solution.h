@@ -102,6 +102,14 @@ namespace tpp {
 		double query_length(const Vector2& point, size_t i);
 
 		/*
+		Lengths of the shortest paths from `start` through every polygon to each
+		of `targets`, on one set of last-step maps: built first (Eager), or on
+		demand and kept across the targets (Lazy, or the subclass's preload).
+		A target inside the last polygon is visited there.
+		*/
+		std::vector<double> query_lengths(const std::vector<Vector2>& targets, PreloadPolicy preload_policy);
+
+		/*
 		Locates `point` in the shortest last step map of `i (0 to k)` 
 		and returns the index of the region as follows:
 		- `2n` if the point is in the region of vertex `n`

@@ -331,6 +331,26 @@ namespace tpp {
 		}
 	}
 
+	namespace {
+		std::vector<double> disjoint_lengths(const Vector2& start, const std::vector<Vector2>& targets,
+				const std::vector<std::vector<Vector2>>& polygons, PreloadPolicy policy) {
+			if (auto normalized = normalized_winding(polygons))
+				return disjoint_lengths(start, targets, *normalized, policy);
+			if (!polygons_are_pairwise_disjoint(polygons))
+				throw std::invalid_argument("Many-target lengths need pairwise disjoint polygons");
+			const Vector2 &first = targets.empty() ? start : targets.front();
+			return SolutionBinarySearchDisjoint(start, first, polygons).query_lengths(targets, policy);
+		}
+	}
+
+	std::vector<double> tpp_convex_solve_lengths_binary_search_lazy(const Vector2& start, const std::vector<Vector2>& targets, const std::vector<std::vector<Vector2>>& polygons) {
+		return disjoint_lengths(start, targets, polygons, PreloadPolicy::Lazy);
+	}
+
+	std::vector<double> tpp_convex_solve_lengths_binary_search_eager(const Vector2& start, const std::vector<Vector2>& targets, const std::vector<std::vector<Vector2>>& polygons) {
+		return disjoint_lengths(start, targets, polygons, PreloadPolicy::Eager);
+	}
+
 	std::vector<Vector2> tpp_convex_solve_binary_search(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
 		return tpp_convex_solve_binary_search_lazy(start, target, polygons);
 	}

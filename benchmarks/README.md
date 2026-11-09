@@ -864,6 +864,9 @@ A lógica vive em `benchmarks/_internal/paper1_experiments.py`. As etapas, nesta
 | `no-polish` | o B&B com e sem o polimento por pontos interiores (`--no-cycle-polish`), 60 s, as 558 instâncias |
 | `paths-fine` | caminhos numa grade mais fina (2⁻³⁰), com até 32.768 vértices por polígono, 5 sementes: o oráculo certificado contra o Gurobi e, nos disjuntos, as construções sozinhas, incluindo a de Tan e Jiang (`tan_jiang`) |
 | `vertex-scaling-fine` | `vertex-scaling` na grade fina, até 131.072 pontos por região (a grade de 2⁻¹³ limita as regiões a cerca de mil vértices) |
+| `paths-rational` | os 400 caminhos de `paths-random`: a construção em binary64 do Passo 1 (`binary64`) contra a construção racional completa do Passo 3 (`rational`), ambas sozinhas |
+| `paths-targets` | os 125 caminhos disjuntos de `paths-fine` com 1000 alvos sorteados ao redor: as construções preguiçosa, ansiosa e de Tan e Jiang respondendo r ∈ {1, 10, 100, 1000} alvos com um só conjunto de mapas (`targets`) |
+| `paths-proposals` | o fluxo certificado com a construção ansiosa e a de Tan e Jiang propondo no Passo 1 (`certified_eager`, `certified_tan_jiang`): os 125 disjuntos de `paths-fine`, e a ansiosa nos 200 com interseções de `paths-random` |
 | `summary` | `summary.json`, `summary.md` e um `.tar.gz` com as saídas (sem entradas e logs) |
 
 Cada etapa grava `done.json` e é pulada ao rodar de novo; as que escrevem um arquivo por
@@ -877,6 +880,29 @@ saída anterior, recompilando as ferramentas e refazendo o resumo:
 ```bash
 python3 benchmarks/tpp.py paper1-experiments --output benchmarks/workspace/experiments/paper1/armijo-ba8c122 --redo build
 ```
+
+`paths-rational`, `paths-targets` e `paths-proposals` entraram em 6/11/2026 (revisão do
+artigo 1 sem B&B).
+
+### Ciclos por sequências aleatórias (`paper1-cycles`)
+
+```bash
+python3 benchmarks/tpp.py paper1-cycles --plan        # tamanhos e saída
+python3 benchmarks/tpp.py paper1-cycles               # job em segundo plano; --smoke, --limit N, --seconds S
+```
+
+A §7.2 do artigo 1 depois de 6/11/2026: o método das âncoras na fronteira sozinho
+(Algoritmo 4.1, `refine_contacts=false`, gap zero, sem polimento) contra o SOCP do
+Gurobi (normais unitárias, parâmetros padrão, uma thread). Para cada uma das 558
+instâncias do Fekete e cada k ∈ {4, 8, 16, 32} até o número de regiões, k regiões
+sorteadas com semente fixa, seus fechos convexos exatos, em ordem cíclica aleatória:
+1638 ciclos, 3 repetições, um processo por instância (`tpp-convex-cycle-sequences`).
+Cada chamada registra o tempo, o passo que retornou, os TPPs ancorados, as sondas e as
+recuperações racionais, e o objetivo do Gurobi contra o nosso L provado. `--limit N`
+fica com as N primeiras instâncias em ordem de nome, e o resumo registra o corte. A
+saída fica em `workspace/experiments/paper1-cycles/<host>-<commit>/`; no macOS o plano
+registra a fonte de energia, porque o modo de pouca energia na bateria deixa tudo
+cerca de 1,6× mais lento.
 
 ## Preservação de resultados
 

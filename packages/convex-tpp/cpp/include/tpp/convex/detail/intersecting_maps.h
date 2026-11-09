@@ -120,6 +120,12 @@ std::vector<DirectionalTraceStep> solve_binary_search_disjoint_trace_unchecked(
     const std::vector<std::vector<Vector2>> &polygons,
     PreloadPolicy preload = PreloadPolicy::Lazy);
 
+// Tan and Jiang's construction (every cone, by monotone scans), with the same
+// trace. Pairwise disjoint polygons only (otherwise std::invalid_argument).
+std::vector<DirectionalTraceStep> solve_tan_jiang_trace_unchecked(
+    const Vector2 &start, const Vector2 &target,
+    const std::vector<std::vector<Vector2>> &polygons);
+
 bool pairwise_disjoint_unchecked_double(
     const std::vector<std::vector<Vector2>> &polygons);
 

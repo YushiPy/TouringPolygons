@@ -13,6 +13,7 @@ https://doi.org/10.1007/978-3-319-55911-7_44
 #include "tpp/geometry/common.h"
 #include "tpp_convex_common.h"
 #include "tpp_convex.h"
+#include "tpp/convex/detail/intersecting_maps.h"
 
 #include <algorithm>
 #include <tuple>
@@ -123,6 +124,39 @@ class SolutionTAMC : public tpp::Solution {
 
 	using tpp::Solution::Solution;
 	using tpp::Solution::query;
+
+	public:
+
+	// The cells chosen by the query to the target, as SolutionBinarySearchDisjoint
+	// records them for the certified flow; every cone is built first.
+	void query_trace(const Vector2 &point, size_t i, vector<tpp::detail::DirectionalTraceStep> &trace) {
+		if (i == 0) return;
+		const auto location = locate_point(point, i);
+		tpp::detail::DirectionalTraceStep step; step.level = i;
+		if (location < 0) {
+			step.region = tpp::detail::DirectionalTraceRegion::Crossing;
+			trace.push_back(step); query_trace(point, i - 1, trace); return;
+		}
+		const auto &polygon = polygons[i - 1]; const size_t vertex_index = size_t(location) / 2;
+		step.original_edge = vertex_index;
+		if (location % 2 == 0) {
+			step.region = tpp::detail::DirectionalTraceRegion::Vertex;
+			step.defining_point = polygon[vertex_index];
+			trace.push_back(step); query_trace(polygon[vertex_index], i - 1, trace); return;
+		}
+		step.region = tpp::detail::DirectionalTraceRegion::Edge; trace.push_back(step);
+		query_trace(point.reflect_line(polygon[vertex_index], polygon[(vertex_index + 1) % polygon.size()]), i - 1, trace);
+	}
+
+	vector<tpp::detail::DirectionalTraceStep> trace() {
+		initialize_storage();
+		preload_cones();
+		vector<tpp::detail::DirectionalTraceStep> result; result.reserve(polygons.size());
+		query_trace(target, polygons.size(), result);
+		return result;
+	}
+
+	private:
 
 	bool is_active_location(size_t polygon_index, size_t location) const {
 
@@ -412,6 +446,22 @@ namespace tpp {
 		}
 
 		return SolutionTAMC(start, target, polygons).solve_length();
+	}
+
+	std::vector<double> tpp_convex_solve_lengths_tan_jiang(const Vector2& start, const std::vector<Vector2>& targets, const std::vector<std::vector<Vector2>>& polygons) {
+		if (!is_tan_jiang_supported_disjoint_case(polygons))
+			throw std::invalid_argument("Tan and Jiang's construction needs pairwise disjoint polygons");
+		const Vector2 &first = targets.empty() ? start : targets.front();
+		return SolutionTAMC(start, first, polygons).query_lengths(targets, PreloadPolicy::Lazy);
+	}
+
+	namespace detail {
+		std::vector<DirectionalTraceStep> solve_tan_jiang_trace_unchecked(const Vector2 &start, const Vector2 &target,
+				const std::vector<std::vector<Vector2>> &polygons) {
+			if (!is_tan_jiang_supported_disjoint_case(polygons))
+				throw std::invalid_argument("Tan and Jiang's construction needs pairwise disjoint polygons");
+			return SolutionTAMC(start, target, polygons).trace();
+		}
 	}
 
 	std::vector<Vector2> tpp_convex_solve_tamc(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {

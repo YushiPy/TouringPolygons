@@ -32,6 +32,14 @@ namespace tpp {
 	double tpp_convex_solve_length_tan_jiang(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons);
 	double tpp_convex_solve_length_gurobi(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons);
 
+	// Many targets on the same maps (pairwise disjoint polygons; otherwise
+	// std::invalid_argument): the lengths from start through the polygons to
+	// each target, with one set of last-step maps, built on demand and kept
+	// (lazy), all first (eager), or all first by Tan and Jiang's scans.
+	std::vector<double> tpp_convex_solve_lengths_binary_search_lazy(const Vector2& start, const std::vector<Vector2>& targets, const std::vector<std::vector<Vector2>>& polygons);
+	std::vector<double> tpp_convex_solve_lengths_binary_search_eager(const Vector2& start, const std::vector<Vector2>& targets, const std::vector<std::vector<Vector2>>& polygons);
+	std::vector<double> tpp_convex_solve_lengths_tan_jiang(const Vector2& start, const std::vector<Vector2>& targets, const std::vector<std::vector<Vector2>>& polygons);
+
 	void tpp_convex_solve_linear_search_lazy(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons, ConvexTppWorkspaceView workspace, std::vector<Vector2>& output);
 	void tpp_convex_solve_linear_search_disjoint(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons, ConvexTppWorkspaceView workspace, std::vector<Vector2>& output);
 	void tpp_convex_solve_linear_search_eager(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons, ConvexTppWorkspaceView workspace, std::vector<Vector2>& output);
