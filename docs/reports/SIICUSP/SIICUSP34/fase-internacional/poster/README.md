@@ -65,7 +65,9 @@ node docs/reports/SIICUSP/SIICUSP34/fase-internacional/poster/render_print_figur
 
 The speedup figure has the same data and statistics as Figure 2 of the abstract; the logos
 come from the first stage (`../../fase-local/poster/figures/` and
-`../../fase-local/resumo/assets/`).
+`../../fase-local/resumo/assets/`). The three application pictures around the map
+(antenna range, precision agriculture, last-mile delivery) are TikZ drawings in
+`poster.tex`, with no external images.
 
 ## Numbers
 
@@ -75,8 +77,12 @@ Fekete et al. with one thread (configuration B, CHR root) against ours with one
 thread (F), both using U−L ≤ 0.001U + 0.001. On the 541 instances both solve:
 median speedup 69.0107× (69×), arithmetic mean 183.2106× (183×), ours faster
 on all. Ours solves 557 in 300 s and in 900 s; case 189 remains open in F
-at 900 s, and its longer run has no result in the local copy. The 89 min
-from C is not used for F. With 16 threads Fekete et al. solve
+at 900 s, and its longer run has no result in the local copy. The poster's
+"89 min" for that case is configuration C: the same binary with one thread, a
+6 h budget and the stricter stop U ≤ 1.001L, closing it in 5362.91 s
+([`fekete-reference-armijo-2026-10-17/per-case.csv`](../../../../../../benchmarks/results-saved/fekete-reference-armijo-2026-10-17/per-case.csv),
+case 189, LB 436.5557, UB 436.9922); the poster states that stop rule next to
+the table. With 16 threads Fekete et al. solve
 542 in 300 s and 549 in 900 s. The 245 ≈ 1.08 × 226 split uses geometric
 means on the 166 instances both solvers close in all three 300 s runs and
 where Fekete's fastest run takes at least 1 s; each solver uses its fastest
