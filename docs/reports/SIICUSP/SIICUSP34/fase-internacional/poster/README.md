@@ -80,8 +80,9 @@ thread (F), both using U−L ≤ 0.001U + 0.001. On the 541 instances both solve
 median speedup 69.0107× (69×), arithmetic mean 183.2106× (183×), ours faster
 on all. On the 16 instances only ours closes within 900 s, counting [3] at
 its 900 s limit gives at least 15.9× each, so ours is faster on all 557
-instances either solver closes (the poster's "every instance either solver
-closes"). With those limits as lower bounds, the median speedup over the 557
+instances either solver closes. The poster says "faster on every instance":
+for case 189 it assumes that [3], open at 900 s in every setup, does not close
+it within our 89 min; that is not measured yet. With those limits as lower bounds, the median speedup over the 557
 is at least 71.2× and the mean at least 215×; the poster keeps the exact 69×
 and 183× on the 541. Ours solves 557 in 300 s and in 900 s; case 189 remains open in F
 at 900 s, and its longer run has no result in the local copy. The poster's
