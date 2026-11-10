@@ -237,7 +237,8 @@ def build(args: argparse.Namespace) -> dict:
 	save(fig, "method-06", args)
 	report["06"] = {"missed": [LETTERS[index] for index in missed], "refined": LETTERS[refined], "pieces": len(combined["pieces"][refined])}
 
-	# 03: pruning, L reaching U.
+	# 03: pruning, L reaching U. The card states the idea, L >= U; the solver (unordered.cpp)
+	# prunes within the stopping tolerance, L >= U - (eps U + eps), which the page text mentions.
 	fig, ax = plt.subplots(figsize=(4.0, 1.6))
 	ax.set_xlim(0, 10)
 	ax.set_ylim(0, 4)
@@ -246,7 +247,7 @@ def build(args: argparse.Namespace) -> dict:
 	for x, color, text in ((3.8, TEAL, "U"), (6.4, ACCENT, "L")):
 		ax.plot([x, x], [1.3, 2.7], color=color, linewidth=3)
 		ax.text(x, 3.3, text, ha="center", va="center", fontsize=13, fontweight="bold", color=INK)
-	ax.text(5.1, 0.55, "L ≥ U − ε", ha="center", va="center", fontsize=13, fontweight="bold", color=INK)
+	ax.text(5.1, 0.55, "L ≥ U", ha="center", va="center", fontsize=13, fontweight="bold", color=INK)
 	save(fig, "method-03", args)
 
 	# 05: inserting P into each of the m = 3 gaps of the cycle (A B C).
