@@ -65,20 +65,25 @@
   \foreach \r in {0.55,0.95,1.35}{%
     \draw[Accent,line width=1.7pt] ($(3.75,4.12)+(-35:\r)$) arc[start angle=-35,end angle=35,radius=\r];
     \draw[Accent,line width=1.7pt] ($(3.75,4.12)+(145:\r)$) arc[start angle=145,end angle=215,radius=\r];}}
-% Drone: a quadcopter scanning a crop field drawn in perspective.
-\newcommand{\droneart}{%
-  \fill[LastVisit!20] (0.2,0) -- (7.3,0) -- (6.1,2.0) -- (1.4,2.0) -- cycle;
-  \foreach \t in {0.08,0.21,...,0.95}{\draw[LastVisit,line width=1.3pt] ({0.2+7.1*\t},0.12) -- ({1.4+4.7*\t},1.9);}
-  \draw[LastVisit!80,line width=1.2pt] (0.2,0) -- (7.3,0) -- (6.1,2.0) -- (1.4,2.0) -- cycle;
-  \fill[Accent!14] (3.75,3.35) -- (2.25,0.75) -- (5.25,0.75) -- cycle;
-  \draw[Accent,line width=1.3pt,dash pattern=on 5pt off 4pt] (2.25,0.75) -- (3.75,3.35) -- (5.25,0.75);
-  \draw[Accent,line width=1.5pt] (3.75,0.75) ellipse[x radius=1.5,y radius=0.32];
-  \draw[Ink,line width=1.8pt] (2.45,3.85) -- (5.05,3.85);
-  \draw[Ink,line width=1.6pt] (2.45,3.85) -- (2.45,4.15) (5.05,3.85) -- (5.05,4.15);
-  \draw[Ink,line width=1.4pt,fill=white] (2.45,4.2) ellipse[x radius=0.85,y radius=0.13];
-  \draw[Ink,line width=1.4pt,fill=white] (5.05,4.2) ellipse[x radius=0.85,y radius=0.13];
-  \fill[Ink,rounded corners=0.12cm] (3.25,3.45) rectangle (4.25,4.0);
-  \draw[Ink,line width=1.4pt] (3.4,3.45) -- (3.25,3.2) (4.1,3.45) -- (4.25,3.2);}
+% Surveillance, seen from above: the teal region is every point of the camera's range
+% (dashed octagon) that sees the target past the three obstacles. It was computed exactly
+% by an angular sweep from the target; a leg of the tour enters it and the drone at its
+% widest point has a clear line of sight. Drawn at 1.3x about its bottom centre.
+\newcommand{\surveillanceart}{%
+  \begin{scope}[shift={(3.75,0.256)},scale=1.3,shift={(-3.75,-0.256)}]
+  \draw[Muted,line width=1.1pt,dash pattern=on 5pt off 4pt] (5.644,1.365) -- (4.535,0.256) -- (2.965,0.256) -- (1.856,1.365) -- (1.856,2.935) -- (2.965,4.044) -- (4.535,4.044) -- (5.644,2.935) -- cycle;
+  \filldraw[fill=LastVisit!22,draw=LastVisit,line width=1.6pt] (1.856,2.935) -- (2.808,3.887) -- (3.300,2.980) -- (3.920,2.980) -- (4.138,4.044) -- (4.535,4.044) -- (5.040,3.539) -- (4.400,2.850) -- (4.400,2.220) -- (4.780,2.220) -- (5.644,2.279) -- (5.644,1.365) -- (4.535,0.256) -- (2.972,0.256) -- (3.450,1.420) -- (3.450,1.680) -- (2.850,1.680) -- (1.990,1.231) -- cycle;
+  \fill[Ink] (4.400,2.850) rectangle (4.780,2.220) (2.850,1.680) rectangle (3.450,1.420) (3.300,3.200) rectangle (3.920,2.980);
+  \draw[Accent,line width=1.6pt,dash pattern=on 0pt off 4.5pt] (2.714,3.231) -- (3.750,2.150);
+  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (1.096,2.849) -- (6.404,4.100);
+  \filldraw[fill=white,draw=Accent,line width=1.4pt] (3.750,2.150) circle[radius=0.17];
+  \fill[Accent] (3.750,2.150) circle[radius=0.075];
+  \begin{scope}[shift={(2.714,3.231)}]
+    \draw[Ink,line width=1.3pt] (-0.17,-0.17) -- (0.17,0.17) (-0.17,0.17) -- (0.17,-0.17);
+    \foreach \dx/\dy in {-0.17/-0.17,0.17/-0.17,0.17/0.17,-0.17/0.17}{\filldraw[fill=white,draw=Ink,line width=1.0pt] (\dx,\dy) circle[radius=0.105];}
+    \fill[Ink,rounded corners=0.04cm] (-0.09,-0.09) rectangle (0.09,0.09);
+  \end{scope}
+  \end{scope}}
 % Delivery: a van with a parcel, and the drop-off pin.
 \newcommand{\deliveryart}{%
   \draw[Rule,line width=1.6pt] (0,0.25) -- (7.5,0.25);
@@ -134,7 +139,7 @@
   \block{map}{3}{43.8}{34}{\includegraphics[width=\linewidth]{brazil-route.pdf}}
   % Three applications in the empty corners around the map.
   \appfig{28.8}{48.5}{\antennaart}{Antenna range}
-  \appfig{3.6}{75.9}{\droneart}{Precision agriculture}
+  \appfig{3.6}{75.9}{\surveillanceart}{Surveillance}
   \appfig{28.6}{75.9}{\deliveryart}{Last-mile delivery}
 
   \block{method-head}{38.5}{38.3}{42.6}{\head{4}{Branch and bound}}

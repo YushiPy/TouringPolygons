@@ -66,8 +66,10 @@ node docs/reports/SIICUSP/SIICUSP34/fase-internacional/poster/render_print_figur
 The speedup figure has the same data and statistics as Figure 2 of the abstract; the logos
 come from the first stage (`../../fase-local/poster/figures/` and
 `../../fase-local/resumo/assets/`). The three application pictures around the map
-(antenna range, precision agriculture, last-mile delivery) are TikZ drawings in
-`poster.tex`, with no external images.
+(antenna range, surveillance, last-mile delivery) are TikZ drawings in
+`poster.tex`, with no external images. The surveillance region is the part of a
+camera's range that sees the target past three obstacles, computed exactly by an
+angular sweep; its vertices are written out in the source.
 
 ## Numbers
 
