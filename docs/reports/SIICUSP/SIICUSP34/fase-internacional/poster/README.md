@@ -84,7 +84,9 @@ at 900 s, and its longer run has no result in the local copy. The poster's
 6 h budget and the stricter stop U ≤ 1.001L, closing it in 5362.91 s
 ([`fekete-reference-armijo-2026-10-17/per-case.csv`](../../../../../../benchmarks/results-saved/fekete-reference-armijo-2026-10-17/per-case.csv),
 case 189, LB 436.5557, UB 436.9922); the poster states that stop rule next to
-the table. With 16 threads Fekete et al. solve
+the table. With it, the conclusion says ours closes all 558, 557 within 900 s.
+No run gives Fekete et al. more than 900 s on the closed tour, so the
+comparison itself stays at 300 s and 900 s. With 16 threads Fekete et al. solve
 542 in 300 s and 549 in 900 s. The 245 ≈ 1.08 × 226 split uses geometric
 means on the 166 instances both solvers close in all three 300 s runs and
 where Fekete's fastest run takes at least 1 s; each solver uses its fastest
