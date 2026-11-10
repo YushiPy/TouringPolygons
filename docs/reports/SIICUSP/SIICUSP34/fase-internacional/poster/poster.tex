@@ -155,7 +155,7 @@
   % Row 3: results on the left, the web page on the right.
   \draw[Rule,line width=0.8pt] (59.5,79.2) -- (59.5,107.85);
   \block{results-head}{3}{79.2}{55.6}{\head{5}{Results on the 558 instances of Fekete et al.}}
-  \block{results-context}{3}{81.0}{55.6}{\bodytext The original code of [3] and ours, one thread each, on one AMD Ryzen 7 9700X: three 300 s runs per solver, plus 900 s on open instances. Both stop at $U - L \le \varepsilon U + \varepsilon$, with $\varepsilon = 10^{-3}$ as in [3]; our bounds are proved. Speedups count [3] at 900 s where it stays open.}
+  \block{results-context}{3}{81.0}{55.6}{\bodytext The original code of [3] and ours, one thread each, on one AMD Ryzen 7 9700X, with a 900 s limit. Both stop at \mbox{$U - L \le \varepsilon U + \varepsilon$}, with \mbox{$\varepsilon = 10^{-3}$} as in [3]; our bounds are proved. Speedups count [3] at 900 s where it stays open.}
   \block{figure-2}{3}{83.65}{32}{\includegraphics[width=\linewidth]{speedup-figure.pdf}}
   \block{figure-2-caption}{3}{101.25}{32}{\bodymuted\textbf{Figure.} Speedup over [3] on the 541 instances both solve; median and arithmetic mean by size, rounded to a multiple of 5.}
   \fill[white,rounded corners=0.30cm] (36.3,83.65) rectangle (58.6,88.85);
@@ -165,9 +165,9 @@
   \draw[Rule,line width=0.8pt] (47.45,84.10) -- (47.45,88.40);
   \block{median}{36.75}{84.30}{10.4}{\metric 71×\par\vspace{0.12cm}\bodytext\textbf{Median speedup}}
   \block{mean}{47.9}{84.30}{10.4}{\metric 215×\par\vspace{0.12cm}\bodytext\textbf{Arithmetic mean}}
-  \block{gain}{36.3}{89.55}{22.3}{\tagtext Where the gain comes from\par\vspace{0.15cm}\bodytext On 166 cases both close in all three 300 s runs, where [3] takes $\ge$ 1 s, fastest runs give \textbf{245×} speedup: [3] uses 1.08× as many nodes at \textbf{226×} the cost per node. Geometric means: $1.08 \times 226 \approx 245$.}
-  \block{solved-table}{36.3}{95.45}{22.3}{\tagtext Instances solved\par\vspace{0.15cm}\sffamily\mdseries\fontsize{24}{29}\selectfont\color{Ink}\begin{tabular}{@{}p{12.4cm}@{\hspace{0.3cm}}r@{\hspace{0.5cm}}r@{}}\color{Muted}& \color{Muted}300 s & \color{Muted}900 s\\[0.1cm]{[3]} & 523 & 541\\\textbf{Ours} & \textbf{557} & \textbf{557}\end{tabular}\par\vspace{0.2cm}\bodymuted The last one is open at 900 s for both; ours closes it in 89 min (stop at $U \le 1.001L$).}
-  \block{precision}{3}{103.9}{55.6}{\tagtext Accuracy\par\vspace{0.15cm}\bodytext CHR for [3]. Largest polygon miss per instance over three 300 s runs: median $2.65\times10^{-6}$, max $8.23\times10^{-4}$ for [3], within its $10^{-3}$ tolerance. Ours stay within $3\times10^{-11}$; [3]'s upper bound lies below our proved lower bound on 22 instances.}
+  \block{gain}{36.3}{89.55}{22.3}{\tagtext Where the gain comes from\par\vspace{0.15cm}\bodytext On the 166 cases where [3] takes 1 to 300 s, ours is \textbf{245×} faster: [3] uses 1.08× as many nodes at \textbf{226×} the cost per node. Geometric means: $1.08 \times 226 \approx 245$.}
+  \block{solved-table}{36.3}{94.5}{22.3}{\tagtext Instances solved\par\vspace{0.15cm}\sffamily\mdseries\fontsize{24}{29}\selectfont\color{Ink}\begin{tabular}{@{}p{12.4cm}@{\hspace{0.3cm}}r@{\hspace{0.5cm}}r@{}}\color{Muted}& \color{Muted}300 s & \color{Muted}900 s\\[0.1cm]{[3]} & 523 & 541\\\textbf{Ours} & \textbf{557} & \textbf{557}\end{tabular}\par\vspace{0.2cm}\bodymuted The last one is open at 900 s for both; ours closes it in 89 min (stop at $U \le 1.001L$).}
+  \block{precision}{3}{103.9}{55.6}{\tagtext Accuracy\par\vspace{0.15cm}\bodytext CHR for [3]. Largest polygon miss per instance: median $2.65\times10^{-6}$, max $8.23\times10^{-4}$ for [3], within its $10^{-3}$ tolerance. Ours stay within \mbox{$3\times10^{-11}$}; [3]'s upper bound lies below our proved lower bound on 22 instances.}
 
   \block{app-head}{60.4}{79.2}{20.7}{\head{6}{Try it yourself!}}
   \block{app-intro}{60.4}{81.0}{20.7}{\bodytext Scan to watch the tours, play the challenges and explore every result.}
