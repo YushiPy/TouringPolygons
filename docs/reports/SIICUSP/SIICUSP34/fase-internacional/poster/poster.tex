@@ -65,20 +65,25 @@
   \foreach \r in {0.55,0.95,1.35}{%
     \draw[Accent,line width=1.7pt] ($(3.75,4.12)+(-35:\r)$) arc[start angle=-35,end angle=35,radius=\r];
     \draw[Accent,line width=1.7pt] ($(3.75,4.12)+(145:\r)$) arc[start angle=145,end angle=215,radius=\r];}}
-% Drone: a quadcopter scanning a crop field drawn in perspective.
-\newcommand{\droneart}{%
-  \fill[LastVisit!20] (0.2,0) -- (7.3,0) -- (6.1,2.0) -- (1.4,2.0) -- cycle;
-  \foreach \t in {0.08,0.21,...,0.95}{\draw[LastVisit,line width=1.3pt] ({0.2+7.1*\t},0.12) -- ({1.4+4.7*\t},1.9);}
-  \draw[LastVisit!80,line width=1.2pt] (0.2,0) -- (7.3,0) -- (6.1,2.0) -- (1.4,2.0) -- cycle;
-  \fill[Accent!14] (3.75,3.35) -- (2.25,0.75) -- (5.25,0.75) -- cycle;
-  \draw[Accent,line width=1.3pt,dash pattern=on 5pt off 4pt] (2.25,0.75) -- (3.75,3.35) -- (5.25,0.75);
-  \draw[Accent,line width=1.5pt] (3.75,0.75) ellipse[x radius=1.5,y radius=0.32];
-  \draw[Ink,line width=1.8pt] (2.45,3.85) -- (5.05,3.85);
-  \draw[Ink,line width=1.6pt] (2.45,3.85) -- (2.45,4.15) (5.05,3.85) -- (5.05,4.15);
-  \draw[Ink,line width=1.4pt,fill=white] (2.45,4.2) ellipse[x radius=0.85,y radius=0.13];
-  \draw[Ink,line width=1.4pt,fill=white] (5.05,4.2) ellipse[x radius=0.85,y radius=0.13];
-  \fill[Ink,rounded corners=0.12cm] (3.25,3.45) rectangle (4.25,4.0);
-  \draw[Ink,line width=1.4pt] (3.4,3.45) -- (3.25,3.2) (4.1,3.45) -- (4.25,3.2);}
+% Surveillance, seen from above: the teal region is every point of the camera's range
+% (dashed octagon) that sees the target past the three obstacles. It was computed exactly
+% by an angular sweep from the target; a leg of the tour enters it and the drone at its
+% widest point has a clear line of sight. Drawn at 1.3x about its bottom centre.
+\newcommand{\surveillanceart}{%
+  \begin{scope}[shift={(3.75,0.256)},scale=1.3,shift={(-3.75,-0.256)}]
+  \draw[Muted,line width=1.1pt,dash pattern=on 5pt off 4pt] (5.644,1.365) -- (4.535,0.256) -- (2.965,0.256) -- (1.856,1.365) -- (1.856,2.935) -- (2.965,4.044) -- (4.535,4.044) -- (5.644,2.935) -- cycle;
+  \filldraw[fill=LastVisit!22,draw=LastVisit,line width=1.6pt] (1.856,2.935) -- (2.808,3.887) -- (3.300,2.980) -- (3.920,2.980) -- (4.138,4.044) -- (4.535,4.044) -- (5.040,3.539) -- (4.400,2.850) -- (4.400,2.220) -- (4.780,2.220) -- (5.644,2.279) -- (5.644,1.365) -- (4.535,0.256) -- (2.972,0.256) -- (3.450,1.420) -- (3.450,1.680) -- (2.850,1.680) -- (1.990,1.231) -- cycle;
+  \fill[Ink] (4.400,2.850) rectangle (4.780,2.220) (2.850,1.680) rectangle (3.450,1.420) (3.300,3.200) rectangle (3.920,2.980);
+  \draw[Accent,line width=1.6pt,dash pattern=on 0pt off 4.5pt] (2.714,3.231) -- (3.750,2.150);
+  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (1.096,2.849) -- (6.404,4.100);
+  \filldraw[fill=white,draw=Accent,line width=1.4pt] (3.750,2.150) circle[radius=0.17];
+  \fill[Accent] (3.750,2.150) circle[radius=0.075];
+  \begin{scope}[shift={(2.714,3.231)}]
+    \draw[Ink,line width=1.3pt] (-0.17,-0.17) -- (0.17,0.17) (-0.17,0.17) -- (0.17,-0.17);
+    \foreach \dx/\dy in {-0.17/-0.17,0.17/-0.17,0.17/0.17,-0.17/0.17}{\filldraw[fill=white,draw=Ink,line width=1.0pt] (\dx,\dy) circle[radius=0.105];}
+    \fill[Ink,rounded corners=0.04cm] (-0.09,-0.09) rectangle (0.09,0.09);
+  \end{scope}
+  \end{scope}}
 % Delivery: a van with a parcel, and the drop-off pin.
 \newcommand{\deliveryart}{%
   \draw[Rule,line width=1.6pt] (0,0.25) -- (7.5,0.25);
@@ -108,20 +113,20 @@
 
   % Row 1: the problem, and what was known and what we add.
   \draw[Rule,line width=0.8pt] (41.95,17.7) -- (41.95,36.9);
-  \block{intro-head}{3}{17.7}{38.2}{\head{1}{Applications and objectives}}
-  \block{intro-context}{3}{19.50}{38.2}{\bodytext\textbf{Tours that visit regions, not points, arise in last-mile delivery, surveillance and precision agriculture.} Real regions are usually non-convex, and polygons model the reach of antennas and radio-frequency meters better than circles. A drone must fly over each of Brazil's 27 federative units and return to where it started. In which \textbf{order}, and through which \textbf{point} of each region, is the route shortest? Touching or crossing a region counts as a visit.}
-  \fill[Pale,rounded corners=0.22cm] (3,25.40) rectangle (20.4,29.56);
-  \draw[Rule,line width=1.0pt,rounded corners=0.22cm] (3,25.40) rectangle (20.4,29.56);
-  \block{tsp}{3.55}{25.90}{16.3}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TSP}\hspace{0.12cm}\raisebox{0.08cm}{{\sffamily\mdseries\fontsize{22}{26}\selectfont\color{Muted}·\hspace{0.12cm}Traveling Salesman Problem}}\par\vspace{0.10cm}\bodytext Shortest closed tour\\through a set of points.}
-  \fill[Pale,rounded corners=0.22cm] (3,30.06) rectangle (20.4,35.12);
-  \draw[Rule,line width=1.0pt,rounded corners=0.22cm] (3,30.06) rectangle (20.4,35.12);
-  \block{tpp}{3.55}{30.56}{16.3}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TPP}\hspace{0.12cm}\raisebox{0.08cm}{{\sffamily\mdseries\fontsize{22}{26}\selectfont\color{Muted}·\hspace{0.12cm}Touring Polygons Problem}}\par\vspace{0.10cm}\bodytext Shortest path with fixed source $s$\\and target $t$ that visits a\\sequence of polygons in order.}
-  \fill[Accent!7,rounded corners=0.24cm] (22.8,27.04) rectangle (41.1,33.48);
-  \draw[Accent!65,line width=1.2pt,rounded corners=0.24cm] (22.8,27.04) rectangle (41.1,33.48);
-  \block{free-order}{23.45}{27.54}{17.0}{{\tagtext TSPN · free-order tour}\par\vspace{0.14cm}\bodytext Shortest closed tour that visits\\a set of polygons in any order,\\with no fixed point.\par\vspace{0.10cm}\bodytext\bfseries This is the problem we solve.}
-  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (20.5,27.48) -- (22.7,29.77);
-  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (20.5,32.59) -- (22.7,30.77);
-  \block{aim}{3}{35.82}{38.2}{\bodymuted\textbf{Aim:} an exact, self-contained solver for the TSPN, with no commercial optimizer.}
+  \block{intro-head}{3}{17.7}{38.2}{\head{1}{Objectives and applications}}
+  \block{intro-context}{3}{19.50}{38.2}{\bodytext A drone must fly over each of Brazil's 27 federative units and return to where it started. In which \textbf{order}, and through which \textbf{point} of each region, is the route shortest? Touching or crossing a region counts as a visit.}
+  \fill[Pale,rounded corners=0.22cm] (3,23.15) rectangle (20.4,27.31);
+  \draw[Rule,line width=1.0pt,rounded corners=0.22cm] (3,23.15) rectangle (20.4,27.31);
+  \block{tsp}{3.55}{23.65}{16.3}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TSP}\hspace{0.12cm}\raisebox{0.08cm}{{\sffamily\mdseries\fontsize{22}{26}\selectfont\color{Muted}·\hspace{0.12cm}Traveling Salesman Problem}}\par\vspace{0.10cm}\bodytext Shortest closed tour\\through a set of points.}
+  \fill[Pale,rounded corners=0.22cm] (3,27.81) rectangle (20.4,32.87);
+  \draw[Rule,line width=1.0pt,rounded corners=0.22cm] (3,27.81) rectangle (20.4,32.87);
+  \block{tpp}{3.55}{28.31}{16.3}{{\sffamily\bfseries\fontsize{27}{32}\selectfont\color{Accent}TPP}\hspace{0.12cm}\raisebox{0.08cm}{{\sffamily\mdseries\fontsize{22}{26}\selectfont\color{Muted}·\hspace{0.12cm}Touring Polygons Problem}}\par\vspace{0.10cm}\bodytext Shortest path with fixed source $s$\\and target $t$ that visits a\\sequence of polygons in order.}
+  \fill[Accent!7,rounded corners=0.24cm] (22.8,24.79) rectangle (41.1,31.23);
+  \draw[Accent!65,line width=1.2pt,rounded corners=0.24cm] (22.8,24.79) rectangle (41.1,31.23);
+  \block{free-order}{23.45}{25.29}{17.0}{{\tagtext TSPN · free-order tour}\par\vspace{0.14cm}\bodytext Shortest closed tour that visits\\a set of polygons in any order,\\with no fixed point.\par\vspace{0.10cm}\bodytext\bfseries This is the problem we solve.}
+  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (20.5,25.23) -- (22.7,27.52);
+  \draw[Accent,line width=1.8pt,-{Stealth[length=3mm]}] (20.5,30.34) -- (22.7,28.52);
+  \block{aim}{3}{33.47}{38.2}{\bodymuted\textbf{Aim:} an exact and self-contained TSPN solver, better than the state of the art [3].\par\textbf{Applications:} last-mile delivery, surveillance and precision agriculture. Real regions are often non-convex; polygons model antenna and radio-frequency meter reach better than circles.}
 
   \block{background-head}{42.7}{17.7}{38.4}{\head{2}{Background and contribution}}
   \block{background}{42.7}{19.50}{38.4}{\tagtext A polynomial subproblem\par\vspace{0.15cm}\bodytext Both variants are NP-hard for non-convex polygons, but the fixed-order TPP with convex polygons is polynomial [1, 2] with fixed source $s$ and target $t$; a TSPN tour has no fixed point.\par\vspace{1.0cm}\tagtext The state of the art\par\vspace{0.15cm}\bodytext Fekete et al. [3] solve the TSPN by branch and bound. Each convex subproblem is a second-order cone program (SOCP) solved by Gurobi, a commercial optimizer, within a tolerance.\par\vspace{1.0cm}\tagtext Our contribution\par\vspace{0.15cm}\bodytext We build on the last-step shortest-path maps of Dror et al. [1], later improved by Tan and Jiang [2], to obtain an exact algorithm for the \textbf{fixed-order closed tour} through convex polygons, which may touch or overlap, with \textbf{zero error on rational input}. It is the geometric oracle of our \textbf{exact branch-and-bound solver for the TSPN}, in place of the SOCP solver of [3]. For speed, floating-point bounds are proved with directed rounding; the exact stage runs only when needed. Ours is faster on each of the 541 instances both solve with one thread, with a \textbf{69× median speedup} over [3].}
@@ -134,7 +139,7 @@
   \block{map}{3}{43.8}{34}{\includegraphics[width=\linewidth]{brazil-route.pdf}}
   % Three applications in the empty corners around the map.
   \appfig{28.8}{48.5}{\antennaart}{Antenna range}
-  \appfig{3.6}{75.9}{\droneart}{Precision agriculture}
+  \appfig{3.6}{75.9}{\surveillanceart}{Surveillance}
   \appfig{28.6}{75.9}{\deliveryart}{Last-mile delivery}
 
   \block{method-head}{38.5}{38.3}{42.6}{\head{4}{Branch and bound}}
