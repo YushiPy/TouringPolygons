@@ -8,6 +8,7 @@ Pastas com dados:
 
 | Pasta | Conteúdo |
 |---|---|
+| [paper1-armijo-96663cd-2026-11-09](paper1-armijo-96663cd-2026-11-09/summary.json) | Tudo o que o artigo 1 usa desde 9/11, numa só revisão na armijo (`--profile paper`): caminhos gerados, grade fina e construções, fallback racional, muitos alvos, propostas e os 1638 ciclos do Algoritmo 4.1 contra o Gurobi. Medianas por instância da Tabela 2 e do perfcons em [`paths-fine-per-instance.csv`](paper1-armijo-96663cd-2026-11-09/paths-fine-per-instance.csv) e dos ciclos em [`cycles-per-instance.csv`](paper1-armijo-96663cd-2026-11-09/cycles-per-instance.csv); resumo [abaixo](#paper1-armijo-96663cd-2026-11-09). |
 | [paper1-mac-2026-11-06](paper1-mac-2026-11-06/summary.json) | Revisão do artigo 1 sem B&B (Mac): o Algoritmo 4.1 sozinho em 1638 ciclos por sequências aleatórias das 558 instâncias contra o Gurobi (medianas por instância em [`cycles-per-instance.csv`](paper1-mac-2026-11-06/cycles-per-instance.csv)); custo do fallback racional dos caminhos; muitos alvos nos mesmos mapas (preguiçosa, ansiosa, Tan e Jiang); propostas ansiosa e de Tan e Jiang no fluxo certificado; resumo [abaixo](#paper1-mac-2026-11-06). |
 | [paper1-armijo-d9c7ee0-2026-11-05](paper1-armijo-d9c7ee0-2026-11-05/summary.json) | A Tabela 4 do artigo 1 refeita depois da correção da prova de pertinência (776667c): uma chamada de ciclo com até ~100 mil vértices por região; tempos por execução em [`vertex-scaling-fine-per-run.csv`](paper1-armijo-d9c7ee0-2026-11-05/vertex-scaling-fine-per-run.csv); resumo [abaixo](#paper1-armijo-d9c7ee0-2026-11-05). |
 | [paper1-armijo-a5753c0-2026-11-05](paper1-armijo-a5753c0-2026-11-05/summary.json) | Complemento da §7 do artigo 1 (revisão 2, G3): construção de Tan e Jiang contra a preguiçosa e a ansiosa em caminhos disjuntos numa grade fina, e uma chamada de ciclo com até ~100 mil vértices por região. Inclui as medianas por instância de onde sai a Tabela 2 ([`paths-fine-per-instance.csv`](paper1-armijo-a5753c0-2026-11-05/paths-fine-per-instance.csv)) e os tempos por execução da Tabela 4 ([`vertex-scaling-fine-per-run.csv`](paper1-armijo-a5753c0-2026-11-05/vertex-scaling-fine-per-run.csv)); resumo [abaixo](#paper1-armijo-a5753c0-2026-11-05). |
@@ -30,7 +31,179 @@ algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
 
+## paper1-armijo-96663cd-2026-11-09
+
+**Pergunta.** Os experimentos que o artigo 1 usa desde 9/11 (caminhos,
+construções e ciclos, sem B&B), todos numa só revisão e numa só máquina. Eles
+substituem os ciclos do Mac de 6/11 e refazem as rodadas anteriores da armijo.
+
+**Formulação.**
+- **Comando.** `./scripts/run_paper1_experiments.sh --profile paper --workers 8`,
+  na armijo (Ryzen 7 9700X, 8 processos, um por núcleo físico, fixados), no
+  commit 96663cd (main, árvore limpa), das 21h41 às 22h46 de 9/11.
+  - **Etapas.** `paths-random`, `paths-fine`, `paths-rational`,
+    `paths-targets`, `paths-proposals` e `cycles`. Todas gravaram a mesma
+    revisão e nenhuma teve falhas.
+- **Código.** É o de `paper1-mac-2026-11-06` com duas mudanças:
+  - a correção do passo de forma fechada (e8a1c95): só o descritor por
+    polígono propõe a próxima sonda, como diz o texto do artigo;
+  - a sondagem de compilador que aceita o GCC 13 nas ferramentas sem
+    `<print>`.
+
+  O código dos caminhos é o de 81d3a7a.
+- **Compilador e Gurobi.** A campanha não registra o compilador nem a versão
+  do Gurobi. Nas rodadas anteriores da armijo eram o GCC 13.3.0 e o Gurobi
+  13.0.2. O Gurobi roda com parâmetros padrão, uma thread, normais unitárias e
+  o modelo refeito a cada chamada.
+- **Protocolos.** Sem mudança:
+  - `paths-random`: o de `paper1-armijo-2026-11-03`;
+  - `paths-fine`: o de `paper1-armijo-a5753c0-2026-11-05`;
+  - `cycles` e os demais: os de `paper1-mac-2026-11-06`.
+- **Arquivos.**
+  - `summary.json`: todos os resumos, com a tabela de `paths-random` no
+    formato de 11/03.
+  - `paths-fine-per-instance.csv`: no formato do a5753c0. Dele saem a Tabela
+    2 e o perfcons.
+  - `cycles-per-instance.csv`: no formato do Mac.
+
+**Resultado (ciclos).**
+- **Exatidão.** As 1638 chamadas devolveram um ciclo racional que passou no
+  certificado exato.
+  - O arredondamento binary64 também passa em 360 (`Optimal`). As outras 1278
+    são `FloatingPointLimit`, com o L exato.
+  - O Gurobi devolveu ótimo (status 2) nas 1638.
+- **Passo que retornou.** O Passo 2 em 1614 (98,5%) e o Passo 3 em 24:
+  0 com $k=4$, 3 com $k=8$, 9 com $k=16$ e 12 com $k=32$. No Mac eram 22.
+  - **Diferenças com o Mac.** Quatro instâncias mudam de passo. Para
+    separar o efeito do código do da máquina, as quatro foram refeitas no Mac
+    com o código desta revisão.
+  - **Efeito do código: uma.** `london-0000035-k16` passou do Passo 2 ao 3
+    com a correção, nas duas máquinas.
+  - **Efeito da máquina: três.** `eil51-k32` e `us-night-0000045-k8`
+    retornam no Passo 3 na armijo e no 2 no Mac. `uniform-0000045-1-k32` faz
+    o inverso.
+  - **Causa provável.** A aritmética binary64 difere entre x86-64 e arm64
+    (por exemplo, a contração em FMA do clang em arm64).
+  - **Trabalho igual ao do Mac.** O número de TPPs ancorados e de sondas é o
+    mesmo em 1509 das 1638.
+- **Tempo.**
+
+  | $k$ | $n$ (mediana) | nosso (mediana) | Gurobi (mediana) | Gurobi/nosso, média geométrica | mediana da razão | nosso mais rápido |
+  |---|---|---|---|---|---|---|
+  | 4 | 23 | 0,19 ms | 0,99 ms | 4,53 | 5,15 | 536/558 |
+  | 8 | 45 | 0,44 ms | 1,50 ms | 2,87 | 3,47 | 457/497 |
+  | 16 | 90,5 | 1,05 ms | 2,68 ms | 1,93 | 2,63 | 316/364 |
+  | 32 | 180 | 2,51 ms | 5,18 ms | 1,22 | 2,14 | 168/219 |
+  | todas | 46 | 0,50 ms | 1,52 ms | 2,74 | 3,57 | 1477/1638 |
+
+  - **Contra o Mac.** Por instância, o nosso tempo é 0,95 do Mac e o do
+    Gurobi é 1,95 do Mac (médias geométricas). Por isso a razão
+    Gurobi/nosso sobe de 1,33 para 2,74.
+  - **Percentis 90 e 99 do nosso tempo.** 1,2 e 35 ms para $k=8$, 4,6 e
+    93 ms para $k=16$, 59 e 288 ms para $k=32$. O máximo é 0,65 s.
+  - **Cauda.** Vem dos casos do Passo 3 (mediana de 123 ms) e das bissecções
+    longas, com até 1891 sondas numa chamada.
+  - **Trabalho.** A mediana é de 3 TPPs ancorados e nenhuma sonda por
+    chamada. Em 56 instâncias algum TPP ancorado do Passo 2 precisou do
+    racional, 393 vezes no total.
+- **Gurobi abaixo do L provado.** Em 2358 de 4914 chamadas (48,0%): 29% para
+  $k=4$, 47% para $k=8$, 63% para $k=16$ e 74% para $k=32$.
+  - Por instância, em 786 de 1638.
+  - A maior diferença relativa é de 7,9e-6, em
+    `sbgdb-20200507-pntset-0000040-k8`.
+  - O erro relativo do objetivo dele contra o ótimo tem mediana 1,2e-8.
+
+**Resultado (caminhos gerados e grade fina).**
+- **`paths-random` contra 11/03 (ba8c122).**
+  - **Exatidão.** Os 400 provados ótimos, 366 pelo replay exato e 34 pela
+    recuperação filtrada, os mesmos de cada grupo. Os cones da preguiçosa são
+    os mesmos.
+  - **Gurobi abaixo do L.** O mesmo de 11/03: 5 instâncias, por até 2,9e-8.
+  - **Nosso tempo.** Fica a ±6% por grupo (média geométrica 1,01).
+  - **Tempo do Gurobi.** Sobe 8% nos disjuntos e 10% nos com interseções
+    (médias geométricas por grupo). O aumento é maior com $m=8$, onde a
+    chamada dele custa ~1 ms: +39% e +56% com $k=4$ (0,87 → 1,21 ms nos
+    disjuntos).
+  - **Gurobi/nosso.** Média geométrica de 16,2 nas disjuntas (era 15) e 4,85
+    nas com interseções (era 4,5).
+  - **Gurobi mais rápido.** Em 27 instâncias, todas com interseções (em
+    11/03, 29), 18 delas com $k\ge32$ e $m=8$.
+- **`paths-fine` contra a5753c0 (Tabela 2).**
+  - **Tempos por instância.** As construções e o certificado ficam a +1–2%
+    na média geométrica, e o Gurobi a +6%. Os cones da preguiçosa são
+    idênticos.
+  - **Construções.** A preguiçosa é a mais rápida nas 125 disjuntas. A razão
+    Tan–Jiang/preguiçosa é 3,29 na média geométrica (1,10–15,6; antes 3,28).
+    Com $m=32768$, ela cai de 13,6 ($k=4$) para 2,8 ($k=64$).
+  - **Tan e Jiang contra a ansiosa.** Mais rápida em 123 de 125 (antes 124),
+    com 0,68 do tempo dela (antes 0,67).
+  - **Certificado.** 375/375 execuções disjuntas e 135/135 com interseções
+    provadas ótimas, 3 pela recuperação filtrada, como antes.
+  - **Gurobi/certificado por instância.** 21,0 nas disjuntas (7,7–144; antes
+    20,2) e 5,4 nas com interseções (0,20–27; antes 5,25).
+
+**Resultado (fallback racional, muitos alvos e propostas; contra o Mac).**
+- **Fallback racional.** A razão racional/binary64 por instância:
+
+  | família | instâncias | média geométrica (intervalo) | Mac | mediana binary64 | mediana racional | máximo racional |
+  |---|---|---|---|---|---|---|
+  | disjunta | 200 | 474 (346–607) | 753 | 0,026 ms | 13 ms | 0,58 s |
+  | com interseções | 197 | 169 (32–626) | 208 | 0,67 ms | 106 ms | 28 s |
+  | todas | 397 | 284 (32–626) | 398 | 0,11 ms | 30 ms | 28 s |
+
+  - **Por que a razão cai.** Na armijo, a construção binary64 é mais lenta e
+    a racional (GMP) um pouco mais rápida que no Mac.
+  - **Construção que lança exceção.** São as mesmas 3 de antes ($k=64$,
+    $m=8$).
+- **Muitos alvos.**
+
+  | $r$ | mais rápida | Tan–Jiang/preguiçosa (média geométrica, intervalo) | Mac | ansiosa/preguiçosa | Tan–Jiang/ansiosa | cones da preguiçosa (mediana, máximo) |
+  |---|---|---|---|---|---|---|
+  | 1 | preguiçosa 125 | 4,51 (1,08–24,3) | 4,93 | 6,32 | 0,71 | 6,4%, 64% |
+  | 10 | preguiçosa 124, Tan–Jiang 1 | 3,69 (0,95–20,0) | 4,03 | 5,06 | 0,73 | 7,4%, 66% |
+  | 100 | preguiçosa 125 | 2,63 (1,07–11,5) | 2,79 | 3,32 | 0,79 | 9,0%, 72% |
+  | 1000 | preguiçosa 123, ansiosa 2 | 1,69 (1,09–5,49) | 1,76 | 1,85 | 0,91 | 14%, 72% |
+
+  - **A vitória da de Tan e Jiang.** É a menor instância
+    (`disjoint-k4-m8-s0`, 32 vértices, $r=10$), por 5%: 1,90 µs contra
+    2,00 µs, nas três repetições.
+  - **As vitórias da ansiosa.** São duas com $m=8$, por menos de 1%. No Mac,
+    a ansiosa ganhou 2 com $r=100$ e 9 com $r=1000$.
+  - **Comprimentos.** As três construções devolvem os mesmos (desvio máximo
+    0).
+- **Propostas.** As mesmas falhas do Passo 2 do Mac, instância por
+  instância: 34 da preguiçosa e 36 da ansiosa nas com interseções, e nenhuma
+  nos disjuntos. As 325 terminam provadas ótimas.
+
+**Figuras.** Uma cópia sem modificação de
+`papers/artigo1-tpp/tools/make_perfdata.py` desenhou o perfpaths e o
+perfcons. Para isso, a tabela e o CSV desta pasta ficaram nos caminhos que o
+script lê.
+- **Contra os dados atuais das figuras.** Os números de vértices são
+  idênticos.
+  - **perfpaths.** O nosso tempo muda no máximo 5,5% em cada ponto. O do
+    Gurobi sobe até 56%, nos pontos com $m=8$.
+  - **perfcons.** O tempo muda no máximo 8%, salvo um ponto com +16%: a
+    preguiçosa com $k=64$ e $m=512$, 1,57 → 1,82 ms.
+- **O perfverts.** Não muda, porque o vertex-scaling não entrou nesta rodada.
+
+**Limitações.**
+- Uma máquina. As razões entre métodos valem dentro desta campanha.
+- **Tempos do Gurobi.** Nos caminhos pequenos ele ficou mais lento que em
+  11/03 na mesma máquina. Nos ciclos, levou o dobro do tempo do Mac. A causa
+  não foi isolada, e a versão dele não foi registrada.
+- **Fora desta rodada.** O B&B, as chamadas capturadas e o vertex-scaling.
+  Para eles valem `paper1-armijo-2026-11-03` e
+  `paper1-armijo-d9c7ee0-2026-11-05`.
+- **Dados brutos.** Locais, em
+  `benchmarks/workspace/experiments/paper1/armijo-96663cd/` do checkout
+  principal.
+
 ## paper1-mac-2026-11-06
+
+Os ciclos desta seção usam o passo de forma fechada anterior à correção de
+e8a1c95 e foram substituídos pelos de
+[`paper1-armijo-96663cd-2026-11-09`](#paper1-armijo-96663cd-2026-11-09).
 
 **Pergunta.** Os números que faltam no artigo 1 depois da reunião de 6/11, que
 tirou do artigo as varreduras, os pontos interiores e o B&B.
