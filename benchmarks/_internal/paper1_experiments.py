@@ -44,14 +44,24 @@ step killed midway resumes case by case where it writes one file per case):
   cycles           paper1-cycles (Section 5.2): 1638 cycles through random
                    sequences of the corpus, Algorithm 4.1 against Gurobi
                    (added 2026-11-09; see paper1_cycles.py)
+  paths-scaling    k congruent regular m-gons in two placements that bracket
+                   the work of the last-step maps: on a line (every vertex in
+                   the crossing cell of every earlier map, Dror et al.'s worst
+                   case) and in a zigzag around s (every vertex in a bending
+                   cell of the previous map). m grows for k in {8, 64}, and k
+                   grows to 512 for m in {8, 128, 2048}. The certified method,
+                   the three constructions without their O(k^2) disjointness
+                   check (timed apart), with cones and point locations, and
+                   Gurobi; one task per instance (added 2026-11-10)
   summary          summary.json, summary.md, saved/ (the compact files for
                    benchmarks/results-saved, in the formats the paper's
                    figure script reads) and a tarball of the outputs
 
 --profile paper runs only the steps the paper uses since 2026-11-09: build,
 check, paths-random, paths-fine, paths-rational, paths-targets,
-paths-proposals, cycles and summary. The build step builds only the tools of
-the selected steps, none of which includes <print>, so GCC 13 builds them.
+paths-proposals, cycles and summary. --profile scaling runs build, check,
+paths-scaling and summary. The build step builds only the tools of the
+selected steps, none of which includes <print>, so GCC 13 builds them.
 
 Steps added later run on an earlier output directory with
     python3 benchmarks/tpp.py paper1-experiments --output DIR --redo build
@@ -286,6 +296,73 @@ def fine_path_plan(smoke: bool) -> list[tuple[str, int, int, int, list[str]]]:
 	return plan
 
 
+def regular_polygon(center: tuple[float, float], radius: float, m: int, scale: int = FINE_SCALE) -> list[list[float]]:
+	"""The regular m-gon with a vertex at angle pi/2, rounded to the grid (exact
+	hull, counterclockwise). For m divisible by 4 it also has vertices at angles
+	0, pi and 3 pi / 2. Below 32768 vertices on the fine grid the rounding moves
+	each vertex far less than its distance to the chord of its neighbors, so the
+	hull keeps all m."""
+	points = [(round((center[0] + radius * math.cos(math.pi / 2 + 2 * math.pi * j / m)) * scale),
+		round((center[1] + radius * math.sin(math.pi / 2 + 2 * math.pi * j / m)) * scale)) for j in range(m)]
+	return [[x / scale, y / scale] for x, y in exact_hull(points)]
+
+
+SCALING_FAMILIES = ("line", "zigzag")
+LINE_SPACING = 3.0  # centers 3 apart, unit radius: gaps of 1
+
+
+def zigzag_spacing(m: int) -> float:
+	"""Center spacing D of the zigzag family, unit radius. P_{i+1} lies at
+	distance at least 3D - 1 from the vertex u_i of P_i that faces s, and the
+	path bends at u_i towards every point within 2 pi / m of the axis (the
+	reflections of the axis on the two edges at u_i). D makes the angular radius
+	of P_{i+1} seen from u_i two thirds of that, and keeps the polygons apart."""
+	return max(2.0, (1.5 / math.sin(2 * math.pi / m) + 1.0) / 3.0)
+
+
+def scaling_instance(family: str, k: int, m: int) -> dict:
+	"""Two placements of k congruent regular m-gons (unit radius) that bracket
+	the work of the last-step maps (paper 1, scaling experiment).
+
+	line: centers (3j, 0), j = 1..k, with a vertex up and one down; s = (0, 0.3)
+	  and t = (3(k+1), -0.2). A segment from s to any vertex of P_{i+1} crosses
+	  the vertical chord through the center of every earlier polygon, so every
+	  vertex lies in the crossing cell of every earlier map: locating it visits
+	  all i maps (Dror et al.'s worst case, O(k^2 m) locations).
+	zigzag: centers alternate sides of s = (0, 0), P_j at ((-1)^(j+1) j D, 0), with
+	  D from zigzag_spacing; t is where P_{k+1} would be. The shortest path runs
+	  along the axis, bending at the vertex of each polygon that faces s, and
+	  every vertex of P_{i+1} lies in the bending cell of that vertex: locating
+	  it visits one map (O(k m) locations)."""
+	if family == "line":
+		polygons = [regular_polygon((LINE_SPACING * j, 0.0), 1.0, m) for j in range(1, k + 1)]
+		start, target = [0.0, 0.3], [LINE_SPACING * (k + 1), -0.2]
+	elif family == "zigzag":
+		spacing = zigzag_spacing(m)
+		side = lambda j: 1 if j % 2 else -1  # noqa: E731
+		polygons = [regular_polygon((side(j) * j * spacing, 0.0), 1.0, m) for j in range(1, k + 1)]
+		start, target = [0.0, 0.0], [side(k + 1) * (k + 1) * spacing, 0.0]
+	else:
+		raise ValueError(family)
+	return {"name": f"{family}-k{k}-m{m}-s0", "family": family, "k": k, "m": m, "start": start, "target": target,
+		"polygons": polygons}
+
+
+SCALING_RUNS = ["certified", "lazy_core", "eager_core", "tan_jiang_core", "input_check", "gurobi"]
+
+
+def scaling_plan(smoke: bool) -> list[tuple[str, int, int]]:
+	"""(family, k, m): k fixed and m growing, and m fixed and k growing, the
+	union for both families."""
+	if smoke:
+		m_sweep, k_sweep = ((4,), (8, 32, 128)), ((8,), (2, 4, 8))
+	else:
+		m_sweep = ((8, 64), (8, 32, 128, 512, 2048, 8192, 32768))
+		k_sweep = ((8, 128, 2048), (2, 4, 8, 16, 32, 64, 128, 256, 512))
+	cells = {(k, m) for k in m_sweep[0] for m in m_sweep[1]} | {(k, m) for m in k_sweep[0] for k in k_sweep[1]}
+	return [(family, k, m) for family in SCALING_FAMILIES for k, m in sorted(cells)]
+
+
 def cycle_instances(smoke: bool, fine: bool = False) -> list[dict]:
 	"""Section 7.2, as oracle-vertex-scaling-2026-10-21: k disjoint regions on a
 	circle, each the hull of m points on a disk or an ellipse."""
@@ -334,9 +411,11 @@ STEP_TOOLS = {
 	"no-polish": ["tpp-unordered"], "replay-cycle": ["tpp-convex-vertex-scaling"],
 	"vertex-scaling": ["tpp-convex-vertex-scaling"], "vertex-scaling-fine": ["tpp-convex-vertex-scaling"],
 	"anchor-probes": ["tpp-convex-anchor-probes"], "cycles": [CYCLE_TOOL],
+	"paths-scaling": ["tpp-convex-path-benchmark"],
 }
 PROFILES = {"paper": ["build", "check", "paths-random", "paths-fine", "paths-rational", "paths-targets",
-	"paths-proposals", "cycles", "summary"]}
+	"paths-proposals", "cycles", "summary"],
+	"scaling": ["build", "check", "paths-scaling", "summary"]}
 
 
 def step_build(context: Context) -> dict:
@@ -621,6 +700,34 @@ def step_paths_proposals(context: Context) -> dict:
 	return finish_path_step(context, "paths-proposals", tasks, {"instances": len(items)})
 
 
+SCALING_TIMEOUT = 7200.0  # seconds per instance (all runs and repetitions)
+
+
+def step_paths_scaling(context: Context) -> dict:
+	"""The line and zigzag families, one task per instance (so a slow instance
+	times out alone), the largest first. Inputs go under inputs/ and are
+	deleted once every task succeeded."""
+	directory = context.step_dir("paths-scaling")
+	plan = scaling_plan(context.smoke)
+	(directory / "plan.json").write_text(json.dumps([{"family": f, "k": k, "m": m} for f, k, m in plan]))
+	tasks = []
+	for family, k, m in sorted(plan, key=lambda item: -item[1] * item[2]):
+		name = f"{family}-k{k}-m{m}-s0"
+		path = directory / "inputs" / f"{name}.json"
+		stdout = directory / "results" / f"{name}.jsonl"
+		if not Path(str(stdout) + ".done").exists():
+			path.parent.mkdir(parents=True, exist_ok=True)
+			path.write_text(json.dumps({"instances": [{**scaling_instance(family, k, m), "runs": SCALING_RUNS}]}))
+		tasks.append({"command": [str(context.tools["tpp-convex-path-benchmark"]), str(path), "1" if context.smoke else "3"],
+			"stdout": stdout, "timeout": SCALING_TIMEOUT})
+	failures = run_parallel(context, tasks, "paths-scaling")
+	if not failures:
+		import shutil
+		shutil.rmtree(directory / "inputs", ignore_errors=True)
+	return {"instances": len(plan), "runs": SCALING_RUNS, "timeout_s": SCALING_TIMEOUT, "failures": failures,
+		"scale": FINE_SCALE, "line_spacing": LINE_SPACING, "git": workspace.git_state()}
+
+
 def step_cycles(context: Context) -> dict:
 	"""paper1-cycles in this campaign: the same instances, protocol and tool."""
 	import paper1_cycles
@@ -816,6 +923,81 @@ def summarize_paths_proposals(rows: list[dict]) -> dict:
 	return out
 
 
+SCALING_TIMES = ("certified", "lazy_core", "eager_core", "tan_jiang_core", "input_check")
+SCALING_CONSTRUCTIONS = ("lazy_core", "eager_core", "tan_jiang_core")
+
+
+def loglog_slope(points) -> float | None:
+	"""Least-squares slope of log y against log x."""
+	points = [(x, y) for x, y in points if x and y and x > 0 and y > 0 and math.isfinite(y)]
+	if len(points) < 2:
+		return None
+	lx, ly = [math.log(x) for x, _ in points], [math.log(y) for _, y in points]
+	mx, my = sum(lx) / len(lx), sum(ly) / len(ly)
+	den = sum((a - mx) ** 2 for a in lx)
+	return sum((a - mx) * (b - my) for a, b in zip(lx, ly)) / den if den else None
+
+
+def scaling_table(rows: list[dict]) -> list[dict]:
+	"""One entry per instance of paths-scaling: medians over the repetitions."""
+	table = []
+	for name, reps in sorted(per_instance(rows).items(), key=lambda item: instance_key(item[0])):
+		family, k, m, _ = instance_key(name)
+		first = reps[0]
+		entry = {"family": family, "k": k, "m": m, "vertices": first["vertices"], "repeats": len(reps)}
+		for run in SCALING_TIMES:
+			entry[f"{run}_s"] = run_time(reps, run)
+		entry["gurobi_s"] = median(row["gurobi"]["total"] for row in reps if "gurobi" in row)
+		entry["gurobi_status"] = first.get("gurobi", {}).get("status")
+		for run in SCALING_CONSTRUCTIONS:
+			entry[f"{run}_cones"] = median(row[run]["cones"] for row in reps if run in row)
+			entry[f"{run}_locations"] = median(row[run].get("locations") for row in reps if run in row)
+		certified = first.get("certified", {})
+		entry["closed_by"] = certified.get("closed_by")
+		entry["optimal"] = all(exact_optimal(row["certified"]) for row in reps if "certified" in row)
+		upper = certified.get("upper")
+		lengths = [row[run].get("length") for row in reps for run in SCALING_CONSTRUCTIONS if run in row]
+		entry["construction_max_relative_deviation"] = max((abs(x - upper) / abs(upper) for x in lengths
+			if x is not None and upper), default=None)
+		entry["failures"] = sorted({run for row in reps for run in SCALING_CONSTRUCTIONS if run in row and "failure" in row[run]})
+		table.append(entry)
+	return table
+
+
+def scaling_slopes(table: list[dict]) -> list[dict]:
+	"""Log-log slopes along each sweep with at least four points: against m for
+	fixed k (m >= 128), against k for fixed m (k >= 16)."""
+	keys = [*(f"{run}_s" for run in SCALING_TIMES), "gurobi_s",
+		*(f"{run}_locations" for run in ("lazy_core", "eager_core")), "lazy_core_cones"]
+	out = []
+	for family in SCALING_FAMILIES:
+		rows = [entry for entry in table if entry["family"] == family]
+		for fixed, varied, floor in (("k", "m", 128), ("m", "k", 16)):
+			for value in sorted({entry[fixed] for entry in rows}):
+				sweep = sorted((entry for entry in rows if entry[fixed] == value), key=lambda entry: entry[varied])
+				if len(sweep) < 4:
+					continue
+				tail = [entry for entry in sweep if entry[varied] >= floor] or sweep
+				out.append({"family": family, "fixed": fixed, fixed: value, f"{varied}s": [entry[varied] for entry in tail],
+					**{key: loglog_slope((entry[varied], entry[key]) for entry in tail) for key in keys}})
+	return out
+
+
+def saved_paths_scaling(table: list[dict], directory: Path) -> None:
+	fields = ["name", "family", "k", "m", "vertices", "repeats", "certified_ms", "lazy_core_ms", "eager_core_ms",
+		"tan_jiang_core_ms", "input_check_ms", "gurobi_s", "gurobi_status", "lazy_cones", "eager_cones", "tan_jiang_cones",
+		"lazy_locations", "eager_locations", "closed_by", "optimal", "construction_max_relative_deviation", "failures"]
+	rows = []
+	for e in table:
+		ms = lambda key: number(e[key] * 1e3) if e.get(key) is not None else ""  # noqa: E731
+		rows.append([f"{e['family']}-k{e['k']}-m{e['m']}", e["family"], e["k"], e["m"], e["vertices"], e["repeats"],
+			ms("certified_s"), ms("lazy_core_s"), ms("eager_core_s"), ms("tan_jiang_core_s"), ms("input_check_s"),
+			number(e["gurobi_s"]), e["gurobi_status"], number(e["lazy_core_cones"]), number(e["eager_core_cones"]),
+			number(e["tan_jiang_core_cones"]), number(e["lazy_core_locations"]), number(e["eager_core_locations"]),
+			e["closed_by"], e["optimal"], number(e["construction_max_relative_deviation"], 3), " ".join(e["failures"])])
+	write_csv(directory / "paths-scaling-per-instance.csv", fields, rows)
+
+
 def summarize(context: Context) -> dict:
 	out = context.out
 	summary: dict = {"output": str(out), "machine": workspace.machine_state(), "git": workspace.git_state(),
@@ -884,6 +1066,10 @@ def summarize(context: Context) -> dict:
 	if rows:
 		import paper1_cycles
 		summary["cycles"] = paper1_cycles.summarize_cycles(rows)
+	rows = jsonl(sorted((out / "paths-scaling" / "results").glob("*.jsonl")))
+	if rows:
+		table = scaling_table(rows)
+		summary["paths_scaling"] = {"instances": len(table), "slopes": scaling_slopes(table), "table": table}
 	rows = jsonl(sorted((out / "anchor-probes").glob("*.jsonl")))
 	if rows:
 		summary["anchor_probes"] = {"calls": len(rows), "keys": sorted(rows[0].keys())}
@@ -1021,7 +1207,7 @@ def write_saved(context: Context, summary: dict) -> Path:
 		"pinned_cores": [list(core) for core in context.cores],
 		"gurobi_probe": json.loads(check.read_text()).get("gurobi_probe") if check.exists() else None}
 	steps = {}
-	for step in ("paths-random", "paths-fine", "paths-rational", "paths-targets", "paths-proposals", "cycles"):
+	for step in ("paths-random", "paths-fine", "paths-rational", "paths-targets", "paths-proposals", "cycles", "paths-scaling"):
 		done = out / step / "done.json"
 		if done.exists():
 			record = json.loads(done.read_text())
@@ -1040,6 +1226,14 @@ def write_saved(context: Context, summary: dict) -> Path:
 	if summary.get("cycles"):
 		import paper1_cycles
 		paper1_cycles.write_per_instance(out, directory / "cycles-per-instance.csv")
+	if summary.get("paths_scaling"):
+		scaling = summary["paths_scaling"]
+		saved["paths_scaling"] = {"instances": scaling["instances"], "slopes": scaling["slopes"],
+			"not_optimal": [f"{e['family']}-k{e['k']}-m{e['m']}" for e in scaling["table"] if not e["optimal"]],
+			"construction_failures": {f"{e['family']}-k{e['k']}-m{e['m']}": e["failures"] for e in scaling["table"] if e["failures"]},
+			"construction_max_relative_deviation": max((e["construction_max_relative_deviation"] or 0 for e in scaling["table"]),
+				default=None)}
+		saved_paths_scaling(scaling["table"], directory)
 	(directory / "summary.json").write_text(json.dumps(saved, indent=1, default=str) + "\n")
 	return directory
 
@@ -1085,6 +1279,7 @@ STEPS: list[tuple[str, Callable[[Context], dict]]] = [
 	("paths-targets", step_paths_targets),
 	("paths-proposals", step_paths_proposals),
 	("cycles", step_cycles),
+	("paths-scaling", step_paths_scaling),
 	("summary", write_summary),
 ]
 
@@ -1124,7 +1319,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 	if args.plan:
 		print(f"output: {context.out}\nworkers: {context.workers} (cores: {len(context.cores) or 'no pinning'})")
 		print(f"paths-random: {len(path_instances(args.smoke))} instances; vertex-scaling: {len(cycle_instances(args.smoke))}; "
-			f"paths-fine: {len(fine_path_plan(args.smoke))}; vertex-scaling-fine: {len(cycle_instances(args.smoke, True))}")
+			f"paths-fine: {len(fine_path_plan(args.smoke))}; vertex-scaling-fine: {len(cycle_instances(args.smoke, True))}; "
+			f"paths-scaling: {len(scaling_plan(args.smoke))}")
 		for name, _ in steps:
 			print(f"  {name}{' (done)' if (context.out / name / 'done.json').exists() else ''}")
 		return 0

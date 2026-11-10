@@ -462,6 +462,10 @@ namespace tpp {
 				throw std::invalid_argument("Tan and Jiang's construction needs pairwise disjoint polygons");
 			return SolutionTAMC(start, target, polygons).trace();
 		}
+		double length_tan_jiang_unchecked(const Vector2 &start, const Vector2 &target,
+				const std::vector<std::vector<Vector2>> &polygons) {
+			return SolutionTAMC(start, target, polygons).solve_length();
+		}
 	}
 
 	std::vector<Vector2> tpp_convex_solve_tamc(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {

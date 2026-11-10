@@ -129,6 +129,18 @@ std::vector<DirectionalTraceStep> solve_tan_jiang_trace_unchecked(
 bool pairwise_disjoint_unchecked_double(
     const std::vector<std::vector<Vector2>> &polygons);
 
+// The lengths of the lazy or eager binary-search construction and of Tan and
+// Jiang's, without the pairwise-disjointness check of the public entry points
+// (O(k^2) pairs of polygons). For benchmarks on inputs known to be disjoint;
+// on other inputs the result is undefined.
+double length_binary_search_disjoint_unchecked(
+    const Vector2 &start, const Vector2 &target,
+    const std::vector<std::vector<Vector2>> &polygons,
+    PreloadPolicy preload);
+double length_tan_jiang_unchecked(
+    const Vector2 &start, const Vector2 &target,
+    const std::vector<std::vector<Vector2>> &polygons);
+
 }
 
 #include "tpp/convex/rational.h"

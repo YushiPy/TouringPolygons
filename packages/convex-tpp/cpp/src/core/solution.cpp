@@ -148,6 +148,11 @@ namespace tpp {
 		return count;
 	}
 
+	std::size_t &detail::point_locations() {
+		thread_local std::size_t count = 0;
+		return count;
+	}
+
 	void Solution::build_cone(size_t i, size_t j, const Vector2 &last) {
 		++detail::cone_builds();
 		

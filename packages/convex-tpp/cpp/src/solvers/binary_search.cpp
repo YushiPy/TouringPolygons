@@ -211,6 +211,7 @@ class SolutionBinarySearchDisjoint : public tpp::Solution {
 
 	int64_t locate_point(const Vector2& point, size_t i) override {
 
+		++tpp::detail::point_locations();
 		size_t location = _locate_point(point, i);
 		const auto polygon_index = i - 1;
 		const auto vertex_count = polygons[polygon_index].size();
@@ -236,6 +237,12 @@ namespace tpp {
 			if(auto normalized=normalized_winding(polygons))
 				return solve_binary_search_disjoint_trace_unchecked(start,target,*normalized,preload);
 			return SolutionBinarySearchDisjoint(start,target,polygons).trace(preload);
+		}
+		double length_binary_search_disjoint_unchecked(const Vector2 &start,const Vector2 &target,
+			const std::vector<std::vector<Vector2>> &polygons,PreloadPolicy preload) {
+			if(auto normalized=normalized_winding(polygons))
+				return length_binary_search_disjoint_unchecked(start,target,*normalized,preload);
+			return SolutionBinarySearchDisjoint(start,target,polygons).solve_length(preload);
 		}
 	}
 

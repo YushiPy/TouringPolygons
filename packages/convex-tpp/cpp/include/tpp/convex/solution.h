@@ -135,5 +135,9 @@ namespace tpp {
 		// Cones that Solution::build_cone has computed on this thread: a counter for
 		// benchmarks (how much of the last-step maps a query builds). No effect on results.
 		std::size_t &cone_builds();
+		// Point locations in a last-step map by the binary-search constructions on
+		// this thread (one per map visited, so a location that crosses several
+		// polygons counts once per map). A benchmark counter; no effect on results.
+		std::size_t &point_locations();
 	}
 }
