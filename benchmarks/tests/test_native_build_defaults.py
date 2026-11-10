@@ -44,5 +44,38 @@ class DefaultBuildTests(unittest.TestCase):
 		self.assertEqual((code, calls, fetched), (0, [["tpp-unordered"]], True))
 
 
+class CompilerProbeTests(unittest.TestCase):
+	"""GCC 13 has <format> but not <print>: only the tools that include <print> need GCC 14+."""
+
+	def select(self, compilers, *, require_print):
+		# compilers: CXX -> whether its library has <print> (all have <format>).
+		def probe(_cc, cxx, _standard, *, with_print=True):
+			return None if compilers[cxx] or not with_print else "no <print>"
+
+		with patch.object(native_build, "compiler_candidates", return_value=[("cc", cxx) for cxx in compilers]), \
+				patch.object(native_build, "probe_compiler", side_effect=probe), patch.dict("os.environ", {}, clear=False), \
+				contextlib.redirect_stdout(io.StringIO()):
+			native_build.os.environ.pop("TPP_CXX_STANDARD", None)
+			return native_build.select_toolchain(require_print=require_print)
+
+	def test_the_paper_tools_do_not_need_print(self):
+		tools = native_build.available_tools()
+		for tool in ("tpp-convex-path-benchmark", "tpp-convex-cycle-sequences", "tpp-unordered"):
+			self.assertFalse(native_build.needs_print(tools[tool]), tool)
+		self.assertTrue(native_build.needs_print(tools["tpp-convex-intersection-tests"]))
+
+	def test_a_compiler_with_print_is_preferred_for_every_tool(self):
+		chosen = self.select({"g++-13": False, "g++-14": True}, require_print=False)
+		self.assertEqual((chosen["CXX"], chosen.get("print", True)), ("g++-14", True))
+
+	def test_format_only_compiler_builds_tools_without_print(self):
+		chosen = self.select({"g++-13": False}, require_print=False)
+		self.assertEqual((chosen["CXX"], chosen["print"]), ("g++-13", False))
+
+	def test_format_only_compiler_is_refused_for_print_tools(self):
+		with self.assertRaises(SystemExit):
+			self.select({"g++-13": False}, require_print=True)
+
+
 if __name__ == "__main__":
 	unittest.main()

@@ -882,7 +882,23 @@ python3 benchmarks/tpp.py paper1-experiments --output benchmarks/workspace/exper
 ```
 
 `paths-rational`, `paths-targets` e `paths-proposals` entraram em 6/11/2026 (revisão do
-artigo 1 sem B&B).
+artigo 1 sem B&B), e `cycles` (o `paper1-cycles` abaixo, na mesma campanha) em 9/11.
+
+Desde 9/11, o artigo usa só `paths-random`, `paths-fine`, `paths-rational`,
+`paths-targets`, `paths-proposals` e `cycles`. `--profile paper` roda exatamente essas
+etapas, com `build`, `check` e `summary`:
+
+```bash
+./scripts/run_paper1_experiments.sh --profile paper --workers 8
+```
+
+- **Build.** Compila só as ferramentas dessas etapas (`tpp-convex-path-benchmark` e
+  `tpp-convex-cycle-sequences`). Nenhuma inclui `<print>`, então o GCC 13 basta: a sondagem
+  do compilador só exige `<print>` das ferramentas que o incluem.
+- **Saída.** O `summary` grava também `saved/`. Lá ficam o `summary.json` compacto e as
+  tabelas por instância (`paths-random-per-instance.csv`, `paths-fine-per-instance.csv`,
+  `cycles-per-instance.csv`), nos formatos que o script das figuras do artigo lê. É o que
+  vai para `results-saved/`.
 
 ### Ciclos por sequências aleatórias (`paper1-cycles`)
 

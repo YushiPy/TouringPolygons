@@ -2,7 +2,8 @@
 # Artigo 1, Seção 7: todos os experimentos em sequência nesta máquina, num job em
 # segundo plano que sobrevive ao fim da sessão SSH. Rodar de novo retoma de onde parou
 # (cada etapa grava done.json). Os argumentos passam adiante, por exemplo --smoke (tamanhos
-# pequenos, minutos) ou --plan (só mostra as etapas). A lógica vive em
+# pequenos, minutos) ou --plan (só mostra as etapas); --profile paper roda só o que o
+# artigo usa desde 9/11 (caminhos, construções e ciclos, sem B&B). A lógica vive em
 # benchmarks/_internal/paper1_experiments.py; prepare antes com
 # scripts/install_dependencies.sh. Precisa da licença do Gurobi para este usuário.
 set -euo pipefail

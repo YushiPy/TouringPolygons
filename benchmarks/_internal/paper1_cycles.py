@@ -217,6 +217,29 @@ def summarize_cycles(rows: list[dict]) -> dict:
 	return out
 
 
+def write_per_instance(out: Path, target: Path) -> int:
+	"""One row per instance: medians of the repetitions; gurobi_minus_L_rel is
+	(objective - L) / max(1, L), with L our exact lower bound."""
+	import csv
+	by: dict = {}
+	for row in paper1.jsonl(sorted((out / "cycles" / "results").glob("*.jsonl"))):
+		by.setdefault(row["name"], []).append(row)
+	with target.open("w", newline="") as file:
+		writer = csv.writer(file, lineterminator="\n")
+		writer.writerow(["name", "k", "n", "step", "ours_ms", "gurobi_ms", "gurobi_status", "gurobi_minus_L_rel",
+			"anchored", "probes", "rational_anchor_recoveries"])
+		for name in sorted(by):
+			reps = by[name]
+			ours, gurobi = reps[0]["ours"], reps[0]["gurobi"]
+			lower, objective = ours.get("exact_lower"), gurobi.get("objective")
+			gap = "" if lower is None or objective is None else f"{(objective - lower) / max(1.0, abs(lower)):.3g}"
+			writer.writerow([name, reps[0]["k"], reps[0]["vertices"], ours["step"],
+				f"{paper1.median(row['ours']['mean'] for row in reps) * 1e3:.4g}",
+				f"{paper1.median(row['gurobi']['total'] for row in reps) * 1e3:.4g}",
+				gurobi["status"], gap, ours["anchored"], ours["probes"], ours["rational_anchor_recoveries"]])
+	return len(by)
+
+
 def write_summary(context: Context) -> dict:
 	rows = paper1.jsonl(sorted((context.out / "cycles" / "results").glob("*.jsonl")))
 	cycles_done = context.out / "cycles" / "done.json"
@@ -229,6 +252,8 @@ def write_summary(context: Context) -> dict:
 	for key, value in summary.items():
 		lines += [f"## {key}", "", "```json", json.dumps(value, indent=1, default=str), "```", ""]
 	(context.out / "summary.md").write_text("\n".join(lines))
+	if rows:
+		write_per_instance(context.out, context.out / "cycles-per-instance.csv")
 	return {"rows": len(rows)}
 
 

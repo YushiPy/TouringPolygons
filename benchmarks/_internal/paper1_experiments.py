@@ -4,6 +4,7 @@
     python3 benchmarks/tpp.py paper1-experiments --plan     # steps, sizes and output, nothing run
     python3 benchmarks/tpp.py paper1-experiments --smoke    # small sizes, a few minutes
     python3 benchmarks/tpp.py paper1-experiments --foreground --only paths-random
+    python3 benchmarks/tpp.py paper1-experiments --profile paper   # only what the paper uses
 
 Steps, in order (each writes STEP/done.json and is skipped when run again; a
 step killed midway resumes case by case where it writes one file per case):
@@ -40,7 +41,17 @@ step killed midway resumes case by case where it writes one file per case):
                    constructions proposing at Step 1: the 125 disjoint paths
                    of paths-fine, and the eager one on the 200 intersecting
                    paths of paths-random (added 2026-11-06)
-  summary          summary.json, summary.md and a tarball of the outputs
+  cycles           paper1-cycles (Section 5.2): 1638 cycles through random
+                   sequences of the corpus, Algorithm 4.1 against Gurobi
+                   (added 2026-11-09; see paper1_cycles.py)
+  summary          summary.json, summary.md, saved/ (the compact files for
+                   benchmarks/results-saved, in the formats the paper's
+                   figure script reads) and a tarball of the outputs
+
+--profile paper runs only the steps the paper uses since 2026-11-09: build,
+check, paths-random, paths-fine, paths-rational, paths-targets,
+paths-proposals, cycles and summary. The build step builds only the tools of
+the selected steps, none of which includes <print>, so GCC 13 builds them.
 
 Steps added later run on an earlier output directory with
     python3 benchmarks/tpp.py paper1-experiments --output DIR --redo build
@@ -312,15 +323,38 @@ def write_input(path: Path, start, target, polygons, max_calls: int, seconds: fl
 	return path
 
 
+CYCLE_TOOL = "tpp-convex-cycle-sequences"
+# The native tools each step runs (the check step probes Gurobi with the path benchmark).
+STEP_TOOLS = {
+	"check": ["tpp-convex-path-benchmark"],
+	"paths-random": ["tpp-convex-path-benchmark"], "paths-fine": ["tpp-convex-path-benchmark"],
+	"paths-rational": ["tpp-convex-path-benchmark"], "paths-targets": ["tpp-convex-path-benchmark"],
+	"paths-proposals": ["tpp-convex-path-benchmark"], "replay-path": ["tpp-convex-path-benchmark"],
+	"bnb-cycle": ["tpp-unordered"], "capture-cycle": ["tpp-unordered"], "capture-path": ["tpp-unordered"],
+	"no-polish": ["tpp-unordered"], "replay-cycle": ["tpp-convex-vertex-scaling"],
+	"vertex-scaling": ["tpp-convex-vertex-scaling"], "vertex-scaling-fine": ["tpp-convex-vertex-scaling"],
+	"anchor-probes": ["tpp-convex-anchor-probes"], "cycles": [CYCLE_TOOL],
+}
+PROFILES = {"paper": ["build", "check", "paths-random", "paths-fine", "paths-rational", "paths-targets",
+	"paths-proposals", "cycles", "summary"]}
+
+
 def step_build(context: Context) -> dict:
-	unordered = native_build.ensure_tool("tpp-unordered")
-	gurobi = native_build.ensure_tools(GUROBI_TOOLS, gurobi=True)
-	return {"tools": {"tpp-unordered": str(unordered), **{tool: str(path) for tool, path in zip(GUROBI_TOOLS, gurobi)}}}
+	"""The tools of the selected steps (all of them when every step runs)."""
+	steps = getattr(context, "steps", None) or list(STEP_TOOLS)
+	wanted = sorted({tool for step in steps for tool in STEP_TOOLS.get(step, [])})
+	built = {}
+	if "tpp-unordered" in wanted:
+		built["tpp-unordered"] = str(native_build.ensure_tool("tpp-unordered"))
+	gurobi = [tool for tool in wanted if tool != "tpp-unordered"]
+	if gurobi:
+		built.update({tool: str(path) for tool, path in zip(gurobi, native_build.ensure_tools(gurobi, gurobi=True))})
+	return {"tools": built}
 
 
 def load_tools(context: Context) -> None:
 	context.tools = {"tpp-unordered": native_build.tool_path("tpp-unordered"),
-		**{tool: native_build.tool_path(tool, gurobi=True) for tool in GUROBI_TOOLS}}
+		**{tool: native_build.tool_path(tool, gurobi=True) for tool in [*GUROBI_TOOLS, CYCLE_TOOL]}}
 
 
 def step_check(context: Context) -> dict:
@@ -371,7 +405,7 @@ def step_paths_random(context: Context) -> dict:
 		tasks.append({"command": [str(context.tools["tpp-convex-path-benchmark"]), str(path), "1" if context.smoke else "3"],
 			"stdout": directory / f"shard-{index:02d}.jsonl"})
 	failures = run_parallel(context, tasks, "paths-random")
-	return {"instances": len(instances), "failures": failures}
+	return {"instances": len(instances), "failures": failures, "git": workspace.git_state()}
 
 
 def bnb_tasks(context: Context, directory: Path, names: Sequence[str], *, cycle: bool, seconds: float,
@@ -585,6 +619,12 @@ def step_paths_proposals(context: Context) -> dict:
 		if item["family"] == "intersecting"]
 	tasks = path_shards(context, "paths-proposals", items, 1)
 	return finish_path_step(context, "paths-proposals", tasks, {"instances": len(items)})
+
+
+def step_cycles(context: Context) -> dict:
+	"""paper1-cycles in this campaign: the same instances, protocol and tool."""
+	import paper1_cycles
+	return paper1_cycles.step_cycles(context)
 
 
 def step_anchor_probes(context: Context) -> dict:
@@ -840,6 +880,10 @@ def summarize(context: Context) -> dict:
 		rows = jsonl(sorted((out / step).glob("shard-*.jsonl")))
 		if rows:
 			summary[key] = function(rows)
+	rows = jsonl(sorted((out / "cycles" / "results").glob("*.jsonl")))
+	if rows:
+		import paper1_cycles
+		summary["cycles"] = paper1_cycles.summarize_cycles(rows)
 	rows = jsonl(sorted((out / "anchor-probes").glob("*.jsonl")))
 	if rows:
 		summary["anchor_probes"] = {"calls": len(rows), "keys": sorted(rows[0].keys())}
@@ -854,8 +898,155 @@ def summarize(context: Context) -> dict:
 	return summary
 
 
+# --------------------------------------------------------------------------- saved/
+
+def instance_key(name: str) -> tuple[str, int, int, int]:
+	family, k, m, seed = name.split("-")[:4]  # disjoint-k4-m8-s0
+	return family, int(k[1:]), int(m[1:]), int(seed[1:])
+
+
+def write_csv(path: Path, fields: list[str], rows: list[list]) -> None:
+	import csv
+	with path.open("w", newline="") as file:
+		writer = csv.writer(file, lineterminator="\n")
+		writer.writerow(fields)
+		writer.writerows(rows)
+
+
+def number(value, digits: int = 6) -> str:
+	return "" if value is None or (isinstance(value, float) and not math.isfinite(value)) else f"{value:.{digits}g}"
+
+
+def exact_optimal(run: dict) -> bool:
+	return run.get("upper") is not None and run.get("lower") is not None and \
+		run["upper"] - run["lower"] <= 4e-16 * abs(run["upper"])
+
+
+def saved_paths_random(rows: list[dict], directory: Path) -> dict:
+	"""paths-random in the format of paper1-armijo-2026-11-03 (the table the
+	figure script reads), with one CSV row per instance: medians of the
+	repetitions, and per group the medians over the seeds."""
+	instances = per_instance(rows)
+	fields = ["name", "family", "k", "m", "seed", "vertices", "repeats", "certified_ms", "tolerant_ms", "lazy_ms",
+		"eager_ms", "gurobi_ms", "closed_by", "lazy_cones", "eager_cones", "gurobi_minus_L_rel"]
+	table_rows, per, errors, below = [], {}, [], []
+	for name, reps in sorted(instances.items(), key=lambda item: instance_key(item[0])):
+		family, k, m, seed = instance_key(name)
+		first = reps[0]
+		lower, upper, objective = first["certified"]["lower"], first["certified"]["upper"], first["gurobi"]["objective"]
+		gap = None if lower is None or objective is None else (objective - lower) / max(1.0, abs(lower))
+		if objective is not None and upper:
+			errors.append(abs(objective - upper) / abs(upper))
+		if gap is not None and gap < 0:
+			below.append(-gap)
+		value = {"vertices": first["vertices"], "certified": run_time(reps, "certified"), "tolerant": run_time(reps, "tolerant"),
+			"lazy": run_time(reps, "lazy"), "eager": run_time(reps, "eager"),
+			"gurobi": median(row["gurobi"]["total"] for row in reps),
+			"lazy_cones": median(row["lazy"]["cones"] for row in reps), "eager_cones": median(row["eager"]["cones"] for row in reps),
+			"closed_by": first["certified"]["closed_by"], "optimal": all(exact_optimal(row["certified"]) for row in reps)}
+		per.setdefault((family, k, m), []).append(value)
+		table_rows.append([name, family, k, m, seed, value["vertices"], len(reps), number(value["certified"] * 1e3),
+			number(value["tolerant"] * 1e3), number(value["lazy"] * 1e3), number(value["eager"] * 1e3),
+			number(value["gurobi"] * 1e3), value["closed_by"], number(value["lazy_cones"]), number(value["eager_cones"]),
+			number(gap, 3)])
+	write_csv(directory / "paths-random-per-instance.csv", fields, table_rows)
+	table = []
+	for (family, k, m), group in sorted(per.items()):
+		table.append({"family": family, "k": k, "m": m, "n_median": median(v["vertices"] for v in group),
+			"certified_ms": median(v["certified"] for v in group) * 1e3, "gurobi_ms": median(v["gurobi"] for v in group) * 1e3,
+			"gurobi_over_certified_gm": geometric_mean(v["gurobi"] / v["certified"] for v in group),
+			"lazy_ms": median(v["lazy"] for v in group) * 1e3, "eager_ms": median(v["eager"] for v in group) * 1e3,
+			"lazy_cones_pct": median(100 * v["lazy_cones"] / v["eager_cones"] for v in group if v["eager_cones"]),
+			"closed_by": count_by(v["closed_by"] for v in group)})
+	values = [v for group in per.values() for v in group]
+	return {"instances": len(values), "repetitions": max(len(reps) for reps in instances.values()),
+		"certified_optimal": sum(v["optimal"] for v in values), "closed_by": count_by(v["closed_by"] for v in values),
+		"gurobi_rel_error_median": median(errors), "gurobi_rel_error_max": max(errors) if errors else None,
+		"gurobi_below_lower": {"count": len(below), "max_relative": max(below) if below else 0.0},
+		"gurobi_over_certified": {family: ratio_stats(v["gurobi"] / v["certified"] for (f, _, _), group in per.items()
+			if f == family for v in group) for family in ("disjoint", "intersecting")},
+		"table": table}
+
+
+def saved_paths_fine(rows: list[dict], directory: Path) -> dict:
+	"""paths-fine as paper1-armijo-a5753c0-2026-11-05/paths-fine-per-instance.csv,
+	which the figure script reads, and the comparisons of the constructions."""
+	instances = per_instance(rows)
+	fields = ["name", "family", "k", "m", "seed", "vertices", "repeats", "lazy_ms", "eager_ms", "tan_jiang_ms",
+		"certified_ms", "gurobi_s", "lazy_cones"]
+	table_rows, constructions, certified = [], [], {"disjoint": [], "intersecting": []}
+	for name, reps in sorted(instances.items(), key=lambda item: instance_key(item[0])):
+		family, k, m, seed = instance_key(name)
+		times = {run: run_time(reps, run) for run in ("lazy", "eager", "tan_jiang", "certified")}
+		gurobi = median(row["gurobi"]["total"] for row in reps)
+		cones = median(row["lazy"]["cones"] for row in reps if "lazy" in row)
+		table_rows.append([name, family, k, m, seed, reps[0]["vertices"], len(reps),
+			*(number(times[run] * 1e3) if times[run] is not None else "" for run in ("lazy", "eager", "tan_jiang", "certified")),
+			number(gurobi), number(cones)])
+		certified[family].append((all(exact_optimal(row["certified"]) for row in reps), gurobi / times["certified"]))
+		if times["lazy"] is not None:
+			pairs = [(row["lazy"]["mean"], row["eager"]["mean"], row["tan_jiang"]["mean"]) for row in reps]
+			constructions.append({"k": k, "m": m, "times": times, "cone_fraction": cones / reps[0]["vertices"],
+				"lazy_fastest_in_every_repetition": all(l < min(e, t) for l, e, t in pairs)})
+	write_csv(directory / "paths-fine-per-instance.csv", fields, table_rows)
+	out = {"instances": len(instances), "certified": {family: {"instances": len(values),
+		"optimal": sum(ok for ok, _ in values), "gurobi_over_certified": ratio_stats(r for _, r in values)}
+		for family, values in certified.items()}}
+	if constructions:
+		times = [c["times"] for c in constructions]
+		out["constructions"] = {"instances": len(constructions),
+			"lazy_fastest": sum(1 for t in times if t["lazy"] < min(t["eager"], t["tan_jiang"])),
+			"lazy_fastest_in_every_repetition": sum(c["lazy_fastest_in_every_repetition"] for c in constructions),
+			"tan_jiang_faster_than_eager": sum(1 for t in times if t["tan_jiang"] < t["eager"]),
+			"eager_over_lazy": ratio_stats(t["eager"] / t["lazy"] for t in times),
+			"tan_jiang_over_lazy": ratio_stats(t["tan_jiang"] / t["lazy"] for t in times),
+			"tan_jiang_over_eager": ratio_stats(t["tan_jiang"] / t["eager"] for t in times),
+			"tan_jiang_over_lazy_by_k_at_largest_m": {k: geometric_mean(c["times"]["tan_jiang"] / c["times"]["lazy"]
+				for c in constructions if c["k"] == k and c["m"] == max(x["m"] for x in constructions))
+				for k in sorted({c["k"] for c in constructions})},
+			"lazy_cone_fraction": {"min": min(c["cone_fraction"] for c in constructions),
+				"max": max(c["cone_fraction"] for c in constructions)}}
+	return out
+
+
+def write_saved(context: Context, summary: dict) -> Path:
+	"""The compact files for benchmarks/results-saved/<name>/: summary.json and
+	per-instance CSVs, for whichever of the paper's steps ran."""
+	out = context.out
+	directory = out / "saved"
+	directory.mkdir(parents=True, exist_ok=True)
+	check = out / "check" / "done.json"
+	saved = {"output": out.name, "git": summary["git"], "machine": {key: summary["machine"].get(key)
+		for key in ("host", "cpu_model", "cpus", "system")}, "workers": context.workers,
+		"pinned_cores": [list(core) for core in context.cores],
+		"gurobi_probe": json.loads(check.read_text()).get("gurobi_probe") if check.exists() else None}
+	steps = {}
+	for step in ("paths-random", "paths-fine", "paths-rational", "paths-targets", "paths-proposals", "cycles"):
+		done = out / step / "done.json"
+		if done.exists():
+			record = json.loads(done.read_text())
+			steps[step] = {"seconds": record.get("seconds"), "failures": record.get("failures"),
+				"revision": (record.get("git") or {}).get("revision")}
+	saved["steps"] = steps
+	rows = jsonl(sorted((out / "paths-random").glob("shard-*.jsonl")))
+	if rows:
+		saved["paths_random"] = saved_paths_random(rows, directory)
+	rows = jsonl(sorted((out / "paths-fine").glob("shard-*.jsonl")))
+	if rows:
+		saved["paths_fine"] = saved_paths_fine(rows, directory)
+	for key in ("paths_rational", "paths_targets", "paths_proposals", "cycles"):
+		if summary.get(key):
+			saved[key] = summary[key]
+	if summary.get("cycles"):
+		import paper1_cycles
+		paper1_cycles.write_per_instance(out, directory / "cycles-per-instance.csv")
+	(directory / "summary.json").write_text(json.dumps(saved, indent=1, default=str) + "\n")
+	return directory
+
+
 def write_summary(context: Context) -> dict:
 	summary = summarize(context)
+	saved = write_saved(context, summary)
 	(context.out / "summary.json").write_text(json.dumps(summary, indent=2, default=str) + "\n")
 	lines = [f"# Paper 1 experiments: {context.out.name}", "",
 		f"Machine: {summary['machine'].get('cpu_model')} ({summary['machine'].get('host')}); "
@@ -871,7 +1062,7 @@ def write_summary(context: Context) -> dict:
 		for path in sorted(context.out.rglob("*")):
 			if path.is_file() and "inputs" not in path.parts and not path.name.endswith((".log", ".done")):
 				tar.add(path, arcname=str(path.relative_to(context.out.parent)))
-	return {"archive": str(archive)}
+	return {"archive": str(archive), "saved": str(saved)}
 
 
 # --------------------------------------------------------------------------- driver
@@ -893,6 +1084,7 @@ STEPS: list[tuple[str, Callable[[Context], dict]]] = [
 	("paths-rational", step_paths_rational),
 	("paths-targets", step_paths_targets),
 	("paths-proposals", step_paths_proposals),
+	("cycles", step_cycles),
 	("summary", write_summary),
 ]
 
@@ -909,7 +1101,15 @@ def parse(argv: Sequence[str] | None) -> argparse.Namespace:
 	parser.add_argument("--output", help="output directory (default: workspace/experiments/paper1/<host>-<commit>)")
 	parser.add_argument("--foreground", action="store_true", help="run here instead of starting a detached job")
 	parser.add_argument("--archive", help="the 558-case archive (default: Fekete's upstream checkout, from fekete-setup)")
-	return parser.parse_args(argv)
+	parser.add_argument("--profile", choices=sorted(PROFILES), help="a fixed set of steps (paper: what paper 1 uses)")
+	parser.add_argument("--seconds", type=float, default=600.0, help="cycles: cap on each of our calls (default 600)")
+	parser.add_argument("--limit", type=int, help="cycles: only the first N corpus cases in name order")
+	args = parser.parse_args(argv)
+	if args.profile and args.only:
+		parser.error("--profile and --only are exclusive")
+	if args.profile:
+		args.only = PROFILES[args.profile]
+	return args
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -920,6 +1120,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 			*(argv if argv is not None else sys.argv[1:])])
 	context = Context(args)
 	steps = [(name, function) for name, function in STEPS if not args.only or name in args.only]
+	context.steps = [name for name, _ in steps]
 	if args.plan:
 		print(f"output: {context.out}\nworkers: {context.workers} (cores: {len(context.cores) or 'no pinning'})")
 		print(f"paths-random: {len(path_instances(args.smoke))} instances; vertex-scaling: {len(cycle_instances(args.smoke))}; "
