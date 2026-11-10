@@ -8,6 +8,7 @@ Pastas com dados:
 
 | Pasta | Conteúdo |
 |---|---|
+| [paper1-armijo-ffc4321-2026-11-10](paper1-armijo-ffc4321-2026-11-10/summary.json) | Escala do TPP com polígonos disjuntos (`--profile scaling`): k m-ágonos regulares congruentes em linha (pior caso de Dror et al.) e em zigue-zague (melhor caso), m até 32768 e k até 512; as três construções sem a checagem de disjunção, essa checagem à parte, o método certificado e o Gurobi, com cones e localizações por instância em [`paths-scaling-per-instance.csv`](paper1-armijo-ffc4321-2026-11-10/paths-scaling-per-instance.csv); resumo [abaixo](#paper1-armijo-ffc4321-2026-11-10). |
 | [paper1-armijo-96663cd-2026-11-09](paper1-armijo-96663cd-2026-11-09/summary.json) | Tudo o que o artigo 1 usa desde 9/11, numa só revisão na armijo (`--profile paper`): caminhos gerados, grade fina e construções, fallback racional, muitos alvos, propostas e os 1638 ciclos do Algoritmo 4.1 contra o Gurobi. Medianas por instância da Tabela 2 e do perfcons em [`paths-fine-per-instance.csv`](paper1-armijo-96663cd-2026-11-09/paths-fine-per-instance.csv) e dos ciclos em [`cycles-per-instance.csv`](paper1-armijo-96663cd-2026-11-09/cycles-per-instance.csv); resumo [abaixo](#paper1-armijo-96663cd-2026-11-09). |
 | [paper1-mac-2026-11-06](paper1-mac-2026-11-06/summary.json) | Revisão do artigo 1 sem B&B (Mac): o Algoritmo 4.1 sozinho em 1638 ciclos por sequências aleatórias das 558 instâncias contra o Gurobi (medianas por instância em [`cycles-per-instance.csv`](paper1-mac-2026-11-06/cycles-per-instance.csv)); custo do fallback racional dos caminhos; muitos alvos nos mesmos mapas (preguiçosa, ansiosa, Tan e Jiang); propostas ansiosa e de Tan e Jiang no fluxo certificado; resumo [abaixo](#paper1-mac-2026-11-06). |
 | [paper1-armijo-d9c7ee0-2026-11-05](paper1-armijo-d9c7ee0-2026-11-05/summary.json) | A Tabela 4 do artigo 1 refeita depois da correção da prova de pertinência (776667c): uma chamada de ciclo com até ~100 mil vértices por região; tempos por execução em [`vertex-scaling-fine-per-run.csv`](paper1-armijo-d9c7ee0-2026-11-05/vertex-scaling-fine-per-run.csv); resumo [abaixo](#paper1-armijo-d9c7ee0-2026-11-05). |
@@ -30,6 +31,92 @@ status de exatidão e limitações. Um gap numérico fechado nos B&B não é ót
 algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
+
+## paper1-armijo-ffc4321-2026-11-10
+
+**Pergunta.** Os limites de pior caso das construções dos mapas de último passo
+aparecem nos tempos? Com k polígonos de m vértices, n = km e O(kn log(n/k)) =
+O(k²m log m) para Dror et al. (ansiosa) e O(kn) = O(k²m) para Tan e Jiang. Dois
+posicionamentos dos polígonos limitam o trabalho por cima e por baixo.
+
+**Formulação.**
+- **Comando.** `./scripts/run_paper1_experiments.sh --profile scaling --workers 8`,
+  na armijo (Ryzen 7 9700X, 8 processos fixados em núcleos físicos), no commit
+  ffc4321 da branch `paper1-tpp-scaling`, árvore limpa, em 10/11. Um processo
+  por instância, 3 repetições, chamadas abaixo de 0,05 s repetidas em bloco
+  (o protocolo das outras etapas). Teto de 2 h por instância, não atingido; a
+  etapa levou 409 s. GCC 13 e Gurobi 13.0.2 (parâmetros padrão, uma thread,
+  normais unitárias, aquecido num triângulo antes de cada instância).
+- **Instâncias.** m-ágonos regulares de raio 1 com um vértice em π/2,
+  arredondados à grade 2⁻³⁰ (o fecho mantém os m vértices), m potência de 2.
+  - **line:** centros (3j, 0), j = 1..k; s = (0; 0,3), t = (3(k+1); −0,2).
+    Todo segmento de s a um vértice de P_{i+1} cruza o interior de todo P_j,
+    j ≤ i (conferido em aritmética exata para k ≤ 9 e m ≤ 256), então cada
+    vértice fica na região de passagem de todos os mapas anteriores.
+  - **zigzag:** P_j em ((−1)^{j+1} jD, 0), s = (0, 0), t onde estaria P_{k+1},
+    com D = max(2, (1,5/sen(2π/m) + 1)/3). Todo vértice de P_{i+1} fica na
+    região de dobra do vértice de P_i voltado para s, a no máximo 0,69 da
+    metade do ângulo dela (conferido para k ≤ 12 e m ≤ 32768).
+  - **Grades.** m ∈ {8, 32, …, 32768} com k ∈ {8, 64}, e k ∈ {2, 4, …, 512}
+    com m ∈ {8, 128, 2048}: 35 instâncias por família, 70 no total, uma por
+    célula (a geometria é determinística).
+- **Medições.** `lazy_core`, `eager_core` e `tan_jiang_core`: as construções
+  em binary64 sem a checagem de disjunção par a par das funções públicas;
+  `input_check`: essa checagem sozinha; o método certificado com gap zero;
+  o SOCP do Gurobi. Contadores: cones construídos e localizações de ponto num
+  mapa (uma por mapa visitado; só nas buscas binárias).
+
+**Resultado.**
+- **Exatidão.** As 70 provadas ótimas no Passo 2 (`double_kkt`). O Gurobi
+  devolveu status 2 em todas. As três construções devolvem o comprimento
+  certificado a menos de 3,5e-16 relativo, sem exceções.
+- **Contagem de localizações da ansiosa.** Exatamente mk(k−1)/2 + k na linha e
+  m(k−1) + k no zigue-zague, em todas as instâncias: o pior e o melhor caso
+  previstos.
+- **Inclinações log-log** (m ≥ 128 com k fixo; k ≥ 16 com m fixo), tempo:
+
+  | | linha, em m | linha, em k | zigue-zague, em m | zigue-zague, em k |
+  |---|---|---|---|---|
+  | ansiosa | 1,11–1,22 | 2,03–2,14 | 1,01–1,10 | 0,88–1,25 |
+  | Tan e Jiang | 0,99–1,02 | 1,98–2,08 | 0,99–1,12 | 0,87–1,28 |
+  | preguiçosa | 0,79–1,14 | 2,13–2,25 | 0,93–1,16 | 0,99–1,46 |
+  | certificado | 0,97–1,05 | 1,52–1,94 | 0,99–1,00 | 1,01–1,05 |
+  | checagem | 1,00–1,18 | 2,00–2,50 | 0,99–1,18 | 1,75–2,49 |
+  | Gurobi | 1,26–1,27 | 0,91–1,07 | 1,21–1,29 | 0,94–1,19 |
+
+  Localizações: ansiosa 1,00 em m e 2,01–2,02 em k na linha, 1,00 e 1,01–1,02
+  no zigue-zague; preguiçosa 0,62–0,93 e 2,02–2,26 na linha, 0,00 e 1,01 no
+  zigue-zague.
+- **Preguiçosa.** Nunca mais lenta que a ansiosa (1,3 a 5,0 vezes mais rápida
+  na linha e 2,2 a 52 vezes no zigue-zague, com k ≥ 16). Na linha faz 19% a 75%
+  das localizações da ansiosa. No zigue-zague constrói exatamente 1,5k cones e
+  faz 2k a 2,5k localizações, independentemente de m; o tempo ainda cresce com
+  m porque a memória dos n vértices é alocada e zerada.
+- **Onde Tan e Jiang vence.** Só na linha com polígonos grandes: m = 2048 a
+  partir de k = 32 (empate a 0,4%) até 1,8 vez em k = 512 (13,8 s contra
+  24,9 s), e k = 64 com m ≥ 512. Com m ≤ 128 a preguiçosa vence até k = 512.
+- **Gurobi contra o método certificado.** O Gurobi cresce quase linearmente em
+  k; o certificado, como a construção, quadraticamente na linha. O Gurobi foi
+  mais rápido na linha em (k, m) = (256, 2048), (512, 8), (512, 128) e
+  (512, 2048): 9,6 s contra 25,6 s na maior. No zigue-zague o certificado vence
+  sempre.
+- **Custos fora das construções.** A checagem de disjunção par a par cresce
+  como k²m e passa da construção preguiçosa em 29 das 35 instâncias do
+  zigue-zague (1,03 s contra 4,9 ms em k = 512, m = 2048). As funções públicas
+  e as Figuras do artigo até 96663cd a incluem. O método certificado é linear
+  em n no zigue-zague mas caro: 1,4 s contra 4,5 ms da construção em k = 64,
+  m = 32768.
+
+**Limitações.**
+- Duas famílias construídas para os extremos; instâncias aleatórias ficam entre
+  elas (ver `paper1-armijo-96663cd-2026-11-09`). Só polígonos disjuntos e só
+  caminhos; interseções e ciclos ficam para depois.
+- Uma instância por célula; a variação entre repetições não é reportada.
+- As inclinações valem nas faixas medidas; com m ≤ 32768 o fator log m aparece
+  como inclinação 1,1–1,2.
+- Tempos de uma máquina; razões entre métodos valem dentro desta campanha.
+- Dados brutos locais em `benchmarks/workspace/experiments/paper1/armijo-ffc4321/`
+  do checkout principal.
 
 ## paper1-armijo-96663cd-2026-11-09
 

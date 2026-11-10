@@ -1,0 +1,287 @@
+{
+ "output": "armijo-ffc4321",
+ "git": {
+  "revision": "ffc4321110ba1a2a1ddfb8b35f318ca66aae4759",
+  "branch": "paper1-tpp-scaling",
+  "dirty": false
+ },
+ "machine": {
+  "host": "armijo",
+  "cpu_model": "AMD Ryzen 7 9700X 8-Core Processor",
+  "cpus": 16,
+  "system": "Linux 7.0.0-38-generic"
+ },
+ "workers": 8,
+ "pinned_cores": [
+  [
+   0,
+   8
+  ],
+  [
+   1,
+   9
+  ],
+  [
+   2,
+   10
+  ],
+  [
+   3,
+   11
+  ],
+  [
+   4,
+   12
+  ],
+  [
+   5,
+   13
+  ],
+  [
+   6,
+   14
+  ],
+  [
+   7,
+   15
+  ]
+ ],
+ "gurobi_probe": {
+  "status": 2,
+  "objective": 4.472135951586859,
+  "build": 2.9515e-05,
+  "optimize": 0.000463341,
+  "total": 0.000493307
+ },
+ "steps": {
+  "paths-scaling": {
+   "seconds": 408.7,
+   "failures": [],
+   "revision": "ffc4321110ba1a2a1ddfb8b35f318ca66aae4759"
+  }
+ },
+ "paths_scaling": {
+  "instances": 70,
+  "slopes": [
+   {
+    "family": "line",
+    "fixed": "k",
+    "k": 8,
+    "ms": [
+     128,
+     512,
+     2048,
+     8192,
+     32768
+    ],
+    "certified_s": 0.9738984925675673,
+    "lazy_core_s": 0.7870211209647004,
+    "eager_core_s": 1.1111407389606909,
+    "tan_jiang_core_s": 0.9898228319916796,
+    "input_check_s": 1.0049533466967067,
+    "gurobi_s": 1.2552044340847497,
+    "lazy_core_locations": 0.6202637613818208,
+    "eager_core_locations": 0.99964185993249,
+    "lazy_core_cones": 0.7160944801343196
+   },
+   {
+    "family": "line",
+    "fixed": "k",
+    "k": 64,
+    "ms": [
+     128,
+     512,
+     2048,
+     8192,
+     32768
+    ],
+    "certified_s": 1.051633058199339,
+    "lazy_core_s": 1.1436690047836904,
+    "eager_core_s": 1.218979279906852,
+    "tan_jiang_core_s": 1.0186017725888923,
+    "input_check_s": 1.1790734415555781,
+    "gurobi_s": 1.2710783876971672,
+    "lazy_core_locations": 0.9311788164822709,
+    "eager_core_locations": 0.9999601701166559,
+    "lazy_core_cones": 0.9324902912577171
+   },
+   {
+    "family": "line",
+    "fixed": "m",
+    "m": 8,
+    "ks": [
+     16,
+     32,
+     64,
+     128,
+     256,
+     512
+    ],
+    "certified_s": 1.5159954947027756,
+    "lazy_core_s": 2.1304405309480563,
+    "eager_core_s": 2.1351093795500518,
+    "tan_jiang_core_s": 2.0827999611100436,
+    "input_check_s": 2.5025815637945596,
+    "gurobi_s": 0.9080472380884175,
+    "lazy_core_locations": 2.0217768948521626,
+    "eager_core_locations": 2.012406166324561,
+    "lazy_core_cones": 1.0054463906944198
+   },
+   {
+    "family": "line",
+    "fixed": "m",
+    "m": 128,
+    "ks": [
+     16,
+     32,
+     64,
+     128,
+     256,
+     512
+    ],
+    "certified_s": 1.7631555258326417,
+    "lazy_core_s": 2.153505999436445,
+    "eager_core_s": 2.044210156295805,
+    "tan_jiang_core_s": 2.0097910884727157,
+    "input_check_s": 2.023878619919219,
+    "gurobi_s": 1.0271725678720076,
+    "lazy_core_locations": 2.133209252044221,
+    "eager_core_locations": 2.0163981421734603,
+    "lazy_core_cones": 1.1005251135048861
+   },
+   {
+    "family": "line",
+    "fixed": "m",
+    "m": 2048,
+    "ks": [
+     16,
+     32,
+     64,
+     128,
+     256,
+     512
+    ],
+    "certified_s": 1.9425960860008569,
+    "lazy_core_s": 2.246115416347275,
+    "eager_core_s": 2.028023122042522,
+    "tan_jiang_core_s": 1.9805870614114534,
+    "input_check_s": 1.9952802173279152,
+    "gurobi_s": 1.0672018450690752,
+    "lazy_core_locations": 2.260731940541949,
+    "eager_core_locations": 2.0166495344893116,
+    "lazy_core_cones": 1.2034960474646805
+   },
+   {
+    "family": "zigzag",
+    "fixed": "k",
+    "k": 8,
+    "ms": [
+     128,
+     512,
+     2048,
+     8192,
+     32768
+    ],
+    "certified_s": 1.0033077415793719,
+    "lazy_core_s": 0.9255019336137176,
+    "eager_core_s": 1.0078453870740012,
+    "tan_jiang_core_s": 0.9934530303073438,
+    "input_check_s": 0.9915204680191023,
+    "gurobi_s": 1.288682533840503,
+    "lazy_core_locations": 0.0,
+    "eager_core_locations": 0.9985718547033714,
+    "lazy_core_cones": 0.0
+   },
+   {
+    "family": "zigzag",
+    "fixed": "k",
+    "k": 64,
+    "ms": [
+     128,
+     512,
+     2048,
+     8192,
+     32768
+    ],
+    "certified_s": 0.9898751646060145,
+    "lazy_core_s": 1.1583903509456042,
+    "eager_core_s": 1.101923388220923,
+    "tan_jiang_core_s": 1.1204192000566924,
+    "input_check_s": 1.1848737731442762,
+    "gurobi_s": 1.2095250782779896,
+    "lazy_core_locations": 0.0,
+    "eager_core_locations": 0.9987299582645144,
+    "lazy_core_cones": 0.0
+   },
+   {
+    "family": "zigzag",
+    "fixed": "m",
+    "m": 8,
+    "ks": [
+     16,
+     32,
+     64,
+     128,
+     256,
+     512
+    ],
+    "certified_s": 1.052834246300518,
+    "lazy_core_s": 1.1146109460517954,
+    "eager_core_s": 1.2259454219313797,
+    "tan_jiang_core_s": 1.2128018342398492,
+    "input_check_s": 2.490474906545491,
+    "gurobi_s": 0.9421868150156083,
+    "lazy_core_locations": 1.0065484407682037,
+    "eager_core_locations": 1.0147649276963675,
+    "lazy_core_cones": 1.0
+   },
+   {
+    "family": "zigzag",
+    "fixed": "m",
+    "m": 128,
+    "ks": [
+     16,
+     32,
+     64,
+     128,
+     256,
+     512
+    ],
+    "certified_s": 1.0083064948286282,
+    "lazy_core_s": 0.9888398515627266,
+    "eager_core_s": 0.8819628513235602,
+    "tan_jiang_core_s": 0.8708955802700773,
+    "input_check_s": 1.7538620646543355,
+    "gurobi_s": 1.0422443557303427,
+    "lazy_core_locations": 1.0065484407682037,
+    "eager_core_locations": 1.0165332294515184,
+    "lazy_core_cones": 1.0
+   },
+   {
+    "family": "zigzag",
+    "fixed": "m",
+    "m": 2048,
+    "ks": [
+     16,
+     32,
+     64,
+     128,
+     256,
+     512
+    ],
+    "certified_s": 1.0096902633700506,
+    "lazy_core_s": 1.4621311909537913,
+    "eager_core_s": 1.2544633769246258,
+    "tan_jiang_core_s": 1.2792687508443148,
+    "input_check_s": 2.4860162842723534,
+    "gurobi_s": 1.1927030175040851,
+    "lazy_core_locations": 1.0065484407682037,
+    "eager_core_locations": 1.0166579222016252,
+    "lazy_core_cones": 1.0
+   }
+  ],
+  "not_optimal": [],
+  "construction_failures": {},
+  "construction_max_relative_deviation": 3.467269532524432e-16
+ }
+}
