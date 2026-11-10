@@ -165,8 +165,9 @@ def build(args: argparse.Namespace) -> dict:
 	fig, ax = figure(polygons)
 	for polygon in polygons:
 		region(ax, polygon)
-	route(ax, full["path"], color=INK, dashed=True, width=1.8)
+	# The dashed final tour goes on top, so it stays visible on edges it shares with the heuristic.
 	route(ax, greedy)
+	route(ax, full["path"], color=INK, dashed=True, width=1.8, z=5)
 	region_labels(ax, polygons)
 	save(fig, "method-01", args)
 	report["01"] = {"source": "native incumbent/heuristic trace", "greedy": tour_length(greedy), "optimum": full["upper_bound"]}
