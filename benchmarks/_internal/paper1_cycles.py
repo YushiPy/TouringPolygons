@@ -133,8 +133,12 @@ def step_check(context: Context) -> dict:
 	return paper1.step_check(context)
 
 
-def step_cycles(context: Context) -> dict:
-	directory = context.step_dir("cycles")
+def step_cycles(context: Context, step: str = "cycles", config: str = "exact") -> dict:
+	"""config exact: gap zero (the paper's runs). tolerant: gap 1e-6 times the
+	perimeter of the cycle through the polygons' vertex means, Gurobi's default
+	scale, with Algorithm 4.1 in binary64 first (tpp-convex-cycle-sequences
+	CONFIG); same instances and protocol."""
+	directory = context.step_dir(step)
 	instances = cycle_instances(context.cases(), context.smoke, context.args.limit)
 	(directory / "plan.json").write_text(json.dumps([{key: item[key] for key in ("name", "case", "k", "regions")}
 		for item in instances]))
@@ -144,10 +148,11 @@ def step_cycles(context: Context) -> dict:
 		path.parent.mkdir(parents=True, exist_ok=True)
 		path.write_text(json.dumps({"instances": [{"name": item["name"], "polygons": item["polygons"]}]}))
 		tasks.append({"command": [str(context.tools[TOOL]), str(path), "1" if context.smoke else str(REPETITIONS),
-			str(context.args.seconds)], "stdout": directory / "results" / f"{item['name']}.jsonl",
+			str(context.args.seconds), *([config] if config != "exact" else [])],
+			"stdout": directory / "results" / f"{item['name']}.jsonl",
 			"timeout": REPETITIONS * (context.args.seconds + 600)})
-	failures = paper1.run_parallel(context, tasks, "cycles")
-	return {"instances": len(instances), "limit": context.args.limit, "seconds_cap": context.args.seconds,
+	failures = paper1.run_parallel(context, tasks, step)
+	return {"instances": len(instances), "config": config, "limit": context.args.limit, "seconds_cap": context.args.seconds,
 		"failures": failures, "git": workspace.git_state(), "power": power_state()}
 
 
@@ -185,8 +190,22 @@ def summarize_cycles(rows: list[dict]) -> dict:
 			if objective < lower:
 				below.append((lower - objective) / max(1.0, abs(lower)))
 		with_exact = sum(1 for row in calls if row["ours"]["exact"] and row["gurobi"].get("objective") is not None)
+		# Every call against its requested gap (zero in the exact runs), and Gurobi
+		# against our proved lower bound, exact or outward-rounded.
+		within = sum(1 for row in calls if row["ours"]["exact"] or (row["ours"].get("upper") is not None
+			and row["ours"].get("lower") is not None and row["ours"]["upper"] - row["ours"]["lower"] <= row.get("gap", 0.0)))
+		below_proved = []
+		for row in calls:
+			lower = row["ours"].get("exact_lower") if row["ours"]["exact"] else row["ours"].get("lower")
+			objective = row["gurobi"].get("objective")
+			if lower is not None and objective is not None and objective < lower:
+				below_proved.append((lower - objective) / max(1.0, abs(lower)))
 		entry = {
 			"instances": len(instances), "calls": len(calls),
+			"config": first[0].get("config", "exact") if first else None,
+			"calls_within_gap": within,
+			"gurobi_below_proved_lower": {"calls": len(below_proved), "share": len(below_proved) / len(calls) if calls else None,
+				"max_relative": max(below_proved) if below_proved else 0.0},
 			"vertices_median": paper1.median(row["vertices"] for row in first),
 			"status": paper1.count_by(STATUS.get(row["ours"]["status"], str(row["ours"]["status"])) for row in first),
 			"exact_optimal": len(exact),
@@ -217,12 +236,13 @@ def summarize_cycles(rows: list[dict]) -> dict:
 	return out
 
 
-def write_per_instance(out: Path, target: Path) -> int:
+def write_per_instance(out: Path, target: Path, step: str = "cycles") -> int:
 	"""One row per instance: medians of the repetitions; gurobi_minus_L_rel is
-	(objective - L) / max(1, L), with L our exact lower bound."""
+	(objective - L) / max(1, L), with L our lower bound (exact when the call
+	returned exact contacts, outward-rounded otherwise)."""
 	import csv
 	by: dict = {}
-	for row in paper1.jsonl(sorted((out / "cycles" / "results").glob("*.jsonl"))):
+	for row in paper1.jsonl(sorted((out / step / "results").glob("*.jsonl"))):
 		by.setdefault(row["name"], []).append(row)
 	with target.open("w", newline="") as file:
 		writer = csv.writer(file, lineterminator="\n")
@@ -231,7 +251,8 @@ def write_per_instance(out: Path, target: Path) -> int:
 		for name in sorted(by):
 			reps = by[name]
 			ours, gurobi = reps[0]["ours"], reps[0]["gurobi"]
-			lower, objective = ours.get("exact_lower"), gurobi.get("objective")
+			lower = ours.get("exact_lower") if ours.get("exact") else ours.get("lower")
+			objective = gurobi.get("objective")
 			gap = "" if lower is None or objective is None else f"{(objective - lower) / max(1.0, abs(lower)):.3g}"
 			writer.writerow([name, reps[0]["k"], reps[0]["vertices"], ours["step"],
 				f"{paper1.median(row['ours']['mean'] for row in reps) * 1e3:.4g}",

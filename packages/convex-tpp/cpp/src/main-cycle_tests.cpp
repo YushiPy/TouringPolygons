@@ -1309,6 +1309,37 @@ void binary64_stage() {
              <<", open="<<float_counts.open<<"; double API closed="<<float_counts.double_closed<<", exact="<<float_counts.double_exact<<'\n';
 }
 
+// Algorithm 4.1 with a tolerance (boundary_search_gap): no binary64 stage and
+// no sweeps; a binary64 candidate of the boundary search whose interval-proved
+// bounds close the gap returns GapClosed, and otherwise the exact path runs.
+// Every answer is a feasible cycle whose bounds enclose the exact optimum.
+void boundary_anchor_method_with_gap() {
+    std::size_t closed=0,exact_fallbacks=0;
+    for(const auto &[name,p]:anchor_method_cases) {
+        const auto reference=tpp::tpp_convex_solve_cycle(p);
+        require(solved(reference),name+": default rational path (gap)");
+        double scale=0;
+        for(const auto &region:p)for(const auto &v:region)scale=std::max({scale,std::abs(v.x),std::abs(v.y)});
+        tpp::ConvexCycleDoubleOptions options;options.refine_contacts=false;options.float_polish=false;
+        options.boundary_search_gap=true;options.interval_certificate=true;options.max_gap=1e-6*std::max(1.0,scale);
+        const auto r=tpp::tpp_convex_solve_cycle_double(p,options);
+        require(r.float_candidates==0&&!r.float_polish_attempted,name+": no binary64 stage (no sweeps) with boundary_search_gap");
+        require(r.status==ConvexCycleStatus::GapClosed||r.status==ConvexCycleStatus::Optimal||
+                r.status==ConvexCycleStatus::FloatingPointLimit,name+": gap status "+std::to_string(int(r.status))+": "+r.diagnostic);
+        require(r.certificate.lower_bound<=reference.certificate.upper_bound&&reference.certificate.lower_bound<=r.certificate.upper_bound,
+                name+": gap bounds enclose the optimum");
+        const auto rounded=tpp::tpp_convex_verify_cycle_certificate(p,r.contacts);
+        require(rounded.status==tpp::ConvexCycleCertificateStatus::Feasible||rounded.status==tpp::ConvexCycleCertificateStatus::Optimal,
+                name+": gap contacts feasible");
+        if(r.status==ConvexCycleStatus::GapClosed) {
+            require(r.certificate.upper_bound-r.certificate.lower_bound<=options.max_gap&&r.exact_contacts.empty(),name+": gap closed");
+            ++closed;
+        } else ++exact_fallbacks;
+    }
+    require(closed>exact_fallbacks,"most suite cycles close the gap in binary64");
+    std::cout<<"Boundary-anchor method with a gap: "<<closed<<" closed in binary64, "<<exact_fallbacks<<" by the exact path.\n";
+}
+
 // refine_contacts=false: the boundary-anchor method of paper 1 (Algorithm
 // 4.1), without feature sweeps in either arithmetic. On every instance of the
 // suites above it must return an exact cycle that passes the independent exact
@@ -1371,7 +1402,7 @@ int main() {
         cooperative_interruption();
         bound_first_contacts();
         prepared_geometry_and_features();known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();rotated_squares();logarithmic_queries();boundary_memberships();support_near_ties();convex_intersections();active_contact_regressions();boundary_recovery_regressions();
-        boundary_anchor_method();
+        boundary_anchor_method();boundary_anchor_method_with_gap();
         std::cout<<"Double comparisons: "<<compared_double_cases<<", maximum objective difference="<<largest_double_difference<<", maximum certified gap="<<largest_double_gap<<", local recoveries="<<total_anchor_recoveries<<'\n';
         std::cout<<"Cycle solver tests passed.\n";
         return 0;

@@ -4,6 +4,7 @@
 #include "cycle_refinement.h"
 #include "float_chain.h"
 #include "float_proof.h"
+#include "cycle_float_bounds.h"
 
 #include <algorithm>
 #include <bit>
@@ -38,49 +39,7 @@ using Kernel=detail::CycleRefinement<double>;
 
 double since(Clock::time_point began) {return std::chrono::duration<double>(Clock::now()-began).count();}
 
-// Best proved interval over all proposals of one call.
-struct CycleBounds {
-    const std::vector<const Region*> &regions;
-    const std::vector<Vector2> &means;
-    Vector2 reference;
-    double max_gap,cutoff;
-    double lower=0,upper=INFINITY;
-    std::vector<Vector2> contacts;
-    // Both closures need a cycle of proved contacts, as CertifiedBound does.
-    bool closed() const {
-        if(!std::isfinite(upper))return false;
-        if(lower>=cutoff)return true;
-        return max_gap>0&&(Interval(upper)-Interval(lower)).hi<=max_gap;
-    }
-    // Algorithm ProvaLimites for a cycle: proved membership and enclosed
-    // length for U, each dual proposal through D(u) for L.
-    bool prove(const std::vector<Vector2> &q,const std::vector<std::vector<Vector2>> &duals) {
-        detail::CyclePhaseScope phase(detail::CyclePhase::IntervalProof);
-        for(const auto &u:duals)lower=std::max(lower,detail::cycle_dual_lower(regions,u,reference));
-        std::vector<detail::IntervalPoint> boxes;std::vector<Vector2> points;
-        boxes.reserve(q.size());points.reserve(q.size());
-        for(size_t i=0;i<q.size();++i) {
-            const auto proved=detail::prove_contact(q[i],*regions[i],&means[i]);
-            if(!proved)return closed();
-            boxes.push_back(proved->box);points.push_back(proved->point);
-        }
-        const double length=detail::enclosed_length_upper(boxes,true);
-        if(length<upper){upper=length;contacts=std::move(points);}
-        return closed();
-    }
-    double short_link(const std::vector<Vector2> &q) const {
-        double scale=0;
-        for(const auto &v:q)scale=std::max({scale,std::abs(v.x),std::abs(v.y)});
-        return std::max(32*std::numeric_limits<double>::epsilon()*scale,
-            max_gap>0?max_gap/(16*double(q.size())):0);
-    }
-    bool prove_proposal(const std::vector<Vector2> &q) {
-        const double link=short_link(q);
-        auto duals=detail::cycle_dual_proposals(q,link);
-        if(duals.size()>1)duals.push_back(detail::cycle_dual_by_runs(regions,q,link,reference));
-        return prove(q,duals);
-    }
-};
+using CycleBounds=detail::CycleBounds;
 
 } // namespace
 

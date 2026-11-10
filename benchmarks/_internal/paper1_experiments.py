@@ -44,6 +44,11 @@ step killed midway resumes case by case where it writes one file per case):
   cycles           paper1-cycles (Section 5.2): 1638 cycles through random
                    sequences of the corpus, Algorithm 4.1 against Gurobi
                    (added 2026-11-09; see paper1_cycles.py)
+  cycles-tolerant  the same cycles with a gap of 1e-6 times the cycle's
+                   perimeter, Gurobi's default scale, instead of zero:
+                   Algorithm 4.1 in binary64 first (boundary_search_gap, no
+                   sweeps), bounds proved by directed rounding, the exact path
+                   only when that ends open (added 2026-11-10)
   paths-scaling    k congruent regular m-gons in two placements that bracket
                    the work of the last-step maps: on a line (every vertex in
                    the crossing cell of every earlier map, Dror et al.'s worst
@@ -59,8 +64,9 @@ step killed midway resumes case by case where it writes one file per case):
 
 --profile paper runs only the steps the paper uses since 2026-11-09: build,
 check, paths-random, paths-fine, paths-rational, paths-targets,
-paths-proposals, cycles and summary. --profile scaling runs build, check,
-paths-scaling and summary. The build step builds only the tools of the
+paths-proposals, cycles, cycles-tolerant and summary. --profile scaling runs
+build, check, paths-scaling and summary; --profile cycles runs build, check,
+cycles, cycles-tolerant and summary. The build step builds only the tools of the
 selected steps, none of which includes <print>, so GCC 13 builds them.
 
 Steps added later run on an earlier output directory with
@@ -411,11 +417,12 @@ STEP_TOOLS = {
 	"no-polish": ["tpp-unordered"], "replay-cycle": ["tpp-convex-vertex-scaling"],
 	"vertex-scaling": ["tpp-convex-vertex-scaling"], "vertex-scaling-fine": ["tpp-convex-vertex-scaling"],
 	"anchor-probes": ["tpp-convex-anchor-probes"], "cycles": [CYCLE_TOOL],
-	"paths-scaling": ["tpp-convex-path-benchmark"],
+	"paths-scaling": ["tpp-convex-path-benchmark"], "cycles-tolerant": [CYCLE_TOOL],
 }
 PROFILES = {"paper": ["build", "check", "paths-random", "paths-fine", "paths-rational", "paths-targets",
-	"paths-proposals", "cycles", "summary"],
-	"scaling": ["build", "check", "paths-scaling", "summary"]}
+	"paths-proposals", "cycles", "cycles-tolerant", "summary"],
+	"scaling": ["build", "check", "paths-scaling", "summary"],
+	"cycles": ["build", "check", "cycles", "cycles-tolerant", "summary"]}
 
 
 def step_build(context: Context) -> dict:
@@ -732,6 +739,12 @@ def step_cycles(context: Context) -> dict:
 	"""paper1-cycles in this campaign: the same instances, protocol and tool."""
 	import paper1_cycles
 	return paper1_cycles.step_cycles(context)
+
+
+def step_cycles_tolerant(context: Context) -> dict:
+	"""The same cycles with a gap matched to Gurobi's default tolerance."""
+	import paper1_cycles
+	return paper1_cycles.step_cycles(context, "cycles-tolerant", "tolerant")
 
 
 def step_anchor_probes(context: Context) -> dict:
@@ -1066,6 +1079,10 @@ def summarize(context: Context) -> dict:
 	if rows:
 		import paper1_cycles
 		summary["cycles"] = paper1_cycles.summarize_cycles(rows)
+	rows = jsonl(sorted((out / "cycles-tolerant" / "results").glob("*.jsonl")))
+	if rows:
+		import paper1_cycles
+		summary["cycles_tolerant"] = paper1_cycles.summarize_cycles(rows)
 	rows = jsonl(sorted((out / "paths-scaling" / "results").glob("*.jsonl")))
 	if rows:
 		table = scaling_table(rows)
@@ -1207,7 +1224,8 @@ def write_saved(context: Context, summary: dict) -> Path:
 		"pinned_cores": [list(core) for core in context.cores],
 		"gurobi_probe": json.loads(check.read_text()).get("gurobi_probe") if check.exists() else None}
 	steps = {}
-	for step in ("paths-random", "paths-fine", "paths-rational", "paths-targets", "paths-proposals", "cycles", "paths-scaling"):
+	for step in ("paths-random", "paths-fine", "paths-rational", "paths-targets", "paths-proposals", "cycles", "cycles-tolerant",
+			"paths-scaling"):
 		done = out / step / "done.json"
 		if done.exists():
 			record = json.loads(done.read_text())
@@ -1220,12 +1238,15 @@ def write_saved(context: Context, summary: dict) -> Path:
 	rows = jsonl(sorted((out / "paths-fine").glob("shard-*.jsonl")))
 	if rows:
 		saved["paths_fine"] = saved_paths_fine(rows, directory)
-	for key in ("paths_rational", "paths_targets", "paths_proposals", "cycles"):
+	for key in ("paths_rational", "paths_targets", "paths_proposals", "cycles", "cycles_tolerant"):
 		if summary.get(key):
 			saved[key] = summary[key]
 	if summary.get("cycles"):
 		import paper1_cycles
 		paper1_cycles.write_per_instance(out, directory / "cycles-per-instance.csv")
+	if summary.get("cycles_tolerant"):
+		import paper1_cycles
+		paper1_cycles.write_per_instance(out, directory / "cycles-tolerant-per-instance.csv", "cycles-tolerant")
 	if summary.get("paths_scaling"):
 		scaling = summary["paths_scaling"]
 		saved["paths_scaling"] = {"instances": scaling["instances"], "slopes": scaling["slopes"],
@@ -1279,6 +1300,7 @@ STEPS: list[tuple[str, Callable[[Context], dict]]] = [
 	("paths-targets", step_paths_targets),
 	("paths-proposals", step_paths_proposals),
 	("cycles", step_cycles),
+	("cycles-tolerant", step_cycles_tolerant),
 	("paths-scaling", step_paths_scaling),
 	("summary", write_summary),
 ]
