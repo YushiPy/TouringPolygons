@@ -83,8 +83,9 @@ its 900 s limit gives at least 15.9× each, so ours is faster on all 557
 instances either solver closes. The poster says "faster on every instance":
 for case 189 it assumes that [3], open at 900 s in every setup, does not close
 it within our 89 min; that is not measured yet. With those limits as lower bounds, the median speedup over the 557
-is at least 71.2× and the mean at least 215×; the poster keeps the exact 69×
-and 183× on the 541. Ours solves 557 in 300 s and in 900 s; case 189 remains open in F
+is at least 71.1720× and the mean at least 215.0083×; the poster's tiles and
+panel 2 show these, 71× and 215×, while the figure keeps the exact speedups on
+the 541. Ours solves 557 in 300 s and in 900 s; case 189 remains open in F
 at 900 s, and its longer run has no result in the local copy. The poster's
 "89 min" for that case is configuration C: the same binary with one thread, a
 6 h budget and the stricter stop U ≤ 1.001L, closing it in 5362.91 s
@@ -93,7 +94,8 @@ case 189, LB 436.5557, UB 436.9922); the poster states that stop rule next to
 the table. With it, the conclusion says ours closes all 558, 557 within 900 s.
 No run gives Fekete et al. more than 900 s on the closed tour, so the
 comparison itself stays at 300 s and 900 s. With 16 threads Fekete et al. solve
-542 in 300 s and 549 in 900 s. The 245 ≈ 1.08 × 226 split uses geometric
+542 in 300 s and 549 in 900 s; the poster leaves this row out, since ours was
+not measured with 16 threads in this campaign. The 245 ≈ 1.08 × 226 split uses geometric
 means on the 166 instances both solvers close in all three 300 s runs and
 where Fekete's fastest run takes at least 1 s; each solver uses its fastest
 repetition for this decomposition. This differs from the per-instance median
