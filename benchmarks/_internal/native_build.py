@@ -245,6 +245,11 @@ def configuration(*, gurobi: bool, toolchain: dict[str, str] | None = None, requ
 		"requested": requested_toolchain(),
 		"toolchain": toolchain,
 		"arguments": arguments,
+		# The tool targets come from a CMake glob. A Makefile build refuses a
+		# target it has not heard of before its CONFIGURE_DEPENDS check can
+		# run ("No rule to make target"), so a new src/main-*.cpp must
+		# reconfigure the build directory.
+		"tools": sorted(available_tools()),
 	}
 
 

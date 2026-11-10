@@ -77,5 +77,39 @@ class CompilerProbeTests(unittest.TestCase):
 			self.select({"g++-13": False}, require_print=True)
 
 
+class NewToolReconfigureTests(unittest.TestCase):
+	"""A build directory configured before src/main-foo.cpp existed has no
+	target for it, and a Makefile build fails before CMake re-globs."""
+
+	def build(self, configured_tools):
+		import json
+		import tempfile
+		calls = []
+		with tempfile.TemporaryDirectory() as temporary:
+			directory = Path(temporary) / "tools"
+			(directory / "bin").mkdir(parents=True)
+			(directory / "CMakeCache.txt").write_text("")
+			(directory / "bin" / "tpp-unordered").write_text("")
+			toolchain = {"CC": "cc", "CXX": "c++", "TPP_CXX_STANDARD": "23"}
+			previous = native_build.configuration(gurobi=False, toolchain=toolchain) | {"tools": configured_tools}
+			(directory / native_build.CONFIG_FILE).write_text(json.dumps(previous))
+			with patch.object(native_build, "build_directory", return_value=directory), \
+					patch.object(native_build, "cache_matches_checkout", return_value=True), \
+					patch.object(native_build.subprocess, "run", side_effect=lambda command, **_: calls.append(command)), \
+					contextlib.redirect_stdout(io.StringIO()):
+				native_build.ensure_tools(["tpp-unordered"])
+			written = json.loads((directory / native_build.CONFIG_FILE).read_text())
+		return [command[1] for command in calls], written["tools"]
+
+	def test_a_new_tool_source_reconfigures_before_building(self):
+		tools = sorted(native_build.available_tools())
+		steps, written = self.build([tool for tool in tools if tool != "tpp-unordered"])
+		self.assertEqual((steps, written), (["-S", "--build"], tools))
+
+	def test_a_directory_that_knows_every_tool_is_not_reconfigured(self):
+		steps, _ = self.build(sorted(native_build.available_tools()))
+		self.assertEqual(steps, ["--build"])
+
+
 if __name__ == "__main__":
 	unittest.main()
