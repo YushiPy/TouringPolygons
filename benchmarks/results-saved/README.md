@@ -8,6 +8,7 @@ Pastas com dados:
 
 | Pasta | Conteúdo |
 |---|---|
+| [paper1-armijo-ea57cc9-2026-11-10](paper1-armijo-ea57cc9-2026-11-10/summary.json) | Os 1638 ciclos do artigo 1 com o Algoritmo 4.1 em dois modos, na armijo (`--profile cycles`): exato (gap zero) e com a tolerância do Gurobi (gap 1e-6 vezes o perímetro), em binary64 primeiro e sem varreduras. Medianas por instância em [`cycles-per-instance.csv`](paper1-armijo-ea57cc9-2026-11-10/cycles-per-instance.csv) e [`cycles-tolerant-per-instance.csv`](paper1-armijo-ea57cc9-2026-11-10/cycles-tolerant-per-instance.csv); resumo [abaixo](#paper1-armijo-ea57cc9-2026-11-10). |
 | [paper1-armijo-ffc4321-2026-11-10](paper1-armijo-ffc4321-2026-11-10/summary.json) | Escala do TPP com polígonos disjuntos (`--profile scaling`): k m-ágonos regulares congruentes em linha (pior caso de Dror et al.) e em zigue-zague (melhor caso), m até 32768 e k até 512; as três construções sem a checagem de disjunção, essa checagem à parte, o método certificado e o Gurobi, com cones e localizações por instância em [`paths-scaling-per-instance.csv`](paper1-armijo-ffc4321-2026-11-10/paths-scaling-per-instance.csv); resumo [abaixo](#paper1-armijo-ffc4321-2026-11-10). |
 | [paper1-armijo-96663cd-2026-11-09](paper1-armijo-96663cd-2026-11-09/summary.json) | Tudo o que o artigo 1 usa desde 9/11, numa só revisão na armijo (`--profile paper`): caminhos gerados, grade fina e construções, fallback racional, muitos alvos, propostas e os 1638 ciclos do Algoritmo 4.1 contra o Gurobi. Medianas por instância da Tabela 2 e do perfcons em [`paths-fine-per-instance.csv`](paper1-armijo-96663cd-2026-11-09/paths-fine-per-instance.csv) e dos ciclos em [`cycles-per-instance.csv`](paper1-armijo-96663cd-2026-11-09/cycles-per-instance.csv); resumo [abaixo](#paper1-armijo-96663cd-2026-11-09). |
 | [paper1-mac-2026-11-06](paper1-mac-2026-11-06/summary.json) | Revisão do artigo 1 sem B&B (Mac): o Algoritmo 4.1 sozinho em 1638 ciclos por sequências aleatórias das 558 instâncias contra o Gurobi (medianas por instância em [`cycles-per-instance.csv`](paper1-mac-2026-11-06/cycles-per-instance.csv)); custo do fallback racional dos caminhos; muitos alvos nos mesmos mapas (preguiçosa, ansiosa, Tan e Jiang); propostas ansiosa e de Tan e Jiang no fluxo certificado; resumo [abaixo](#paper1-mac-2026-11-06). |
@@ -31,6 +32,75 @@ status de exatidão e limitações. Um gap numérico fechado nos B&B não é ót
 algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
+
+## paper1-armijo-ea57cc9-2026-11-10
+
+**Pergunta.** Quanto o Algoritmo 4.1 do artigo 1 ganha do Gurobi quando os
+dois trabalham com a mesma tolerância? Até aqui o artigo media só o modo
+exato (gap zero), contra um resolvedor que promete 1e-6.
+
+**Formulação.**
+- **Comando.** `./scripts/run_paper1_experiments.sh --profile cycles --workers 8`,
+  na armijo (8 processos fixados em núcleos físicos), no commit ea57cc9 da
+  branch `paper1-tpp-scaling`, árvore limpa, em 10/11. Etapas `cycles` (41 s)
+  e `cycles-tolerant` (41 s), sem falhas. GCC 13 e Gurobi 13.0.2.
+- **Instâncias e protocolo.** Os 1638 ciclos de `paper1-mac-2026-11-06`
+  (k ∈ {4, 8, 16, 32} regiões sorteadas das 558 instâncias, fechos convexos,
+  ordem cíclica aleatória), 3 repetições, chamadas abaixo de 0,05 s repetidas
+  em bloco. Gurobi com normais unitárias, parâmetros padrão, uma thread, o
+  modelo refeito a cada chamada.
+- **Modos.**
+  - **exato:** gap zero, como no artigo (`refine_contacts=false`, sem polimento).
+  - **tolerante:** gap de 1e-6 vezes o perímetro do ciclo pelas médias dos
+    vértices (a escala da tolerância padrão do Gurobi), com
+    `boundary_search_gap`. O Algoritmo 4.1 normaliza as regiões em binary64
+    com sinais provados, faz a busca do Passo 2 (TPPs ancorados pela
+    construção binary64, passo de forma fechada, bissecção) e prova os limites
+    de cada candidato com arredondamento dirigido. Não há aritmética racional
+    nem as varreduras do oráculo do B&B. Se a busca termina aberta, roda o
+    caminho exato.
+
+**Resultado.**
+- **Exatidão.** Exato: os 1638 com o certificado exato (Passo 2 em 1614,
+  Passo 3 em 24). Tolerante: as 4914 chamadas dentro do gap. 1478 fecharam em
+  binary64 (`GapClosed`) e 160 pelo caminho exato (157 com o limite exato e 3
+  com os contatos binary64 provados ótimos pelo certificado exato). Em todas, os limites tolerantes contêm o ótimo exato do modo exato, e
+  U fica no máximo 0,5 gap acima dele. O Gurobi devolveu status 2 em todas e
+  ficou abaixo do nosso limite inferior provado em 2358 de 4914 chamadas (48%),
+  por até 7,9e-6 relativo.
+- **Tempo** (medianas por instância; razões Gurobi/nosso por instância):
+
+  | modo | k | nosso | Gurobi | média geométrica | mediana | nosso mais rápido |
+  |---|---|---|---|---|---|---|
+  | exato | 4 | 175 µs | 0,91 ms | 4,56 | 5,2 | 537/558 |
+  | exato | 8 | 407 µs | 1,43 ms | 2,90 | 3,6 | 457/497 |
+  | exato | 16 | 915 µs | 2,48 ms | 1,93 | 2,6 | 316/364 |
+  | exato | 32 | 2,29 ms | 4,91 ms | 1,24 | 2,1 | 169/219 |
+  | exato | todas | 456 µs | 1,44 ms | 2,76 | 3,7 | 1479/1638 |
+  | tolerante | 4 | 10,4 µs | 0,84 ms | 50,6 | 80 | 543/558 |
+  | tolerante | 8 | 33,9 µs | 1,33 ms | 22,1 | 40 | 461/497 |
+  | tolerante | 16 | 142 µs | 2,42 ms | 8,66 | 17 | 304/364 |
+  | tolerante | 32 | 678 µs | 4,72 ms | 2,67 | 6,9 | 137/219 |
+  | tolerante | todas | 40,3 µs | 1,34 ms | 17,9 | 42,5 | 1445/1638 |
+
+  - **Contra `paper1-armijo-96663cd-2026-11-09`.** O modo exato reproduz 2,76
+    contra 2,74 na média geométrica.
+  - **Custo da exatidão.** O modo exato leva 6,9 vezes o tempo do tolerante
+    na média geométrica.
+  - **A cauda do tolerante.** As 160 chamadas que caem no caminho exato têm
+    mediana de 11 ms e somam 89% do tempo total do modo tolerante. As 1478 que
+    fecham em binary64 têm mediana de 33 µs. É essa cauda que derruba k = 16 e
+    k = 32.
+
+**Limitações.**
+- A tolerância é a escala da do Gurobi, não a mesma garantia. Nossos limites
+  são provados e os pontos viáveis; o objetivo do Gurobi não é limite em
+  sentido estrito.
+- O oráculo do B&B (varreduras e prova intervalar) não rodou nesta campanha. No
+  Mac, nos mesmos ciclos, ele leva 12 µs na mediana; não faz parte do artigo 1.
+- Uma máquina; razões entre métodos valem dentro desta campanha.
+- Dados brutos locais em `benchmarks/workspace/experiments/paper1/armijo-ea57cc9/`
+  do checkout principal.
 
 ## paper1-armijo-ffc4321-2026-11-10
 
