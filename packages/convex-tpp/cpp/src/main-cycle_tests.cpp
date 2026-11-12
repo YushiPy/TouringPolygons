@@ -1340,6 +1340,41 @@ void boundary_anchor_method_with_gap() {
     std::cout<<"Boundary-anchor method with a gap: "<<closed<<" closed in binary64, "<<exact_fallbacks<<" by the exact path.\n";
 }
 
+// An out-and-back optimal cycle (istanbul_n030_seed3727, k=4, of the paper-1
+// cycle corpus): a vertex of P0, then one point where three contacts coincide,
+// the crossing of an edge of P3 with the edge that P1 and P2 share. The cycle
+// anchored at that crossing must go to the proof, and the dual vectors of the
+// block turn along both edge normals, which only the block duals by
+// reachability propose; before both, the call went to the exact path with a
+// lower bound 1% short.
+void boundary_search_gap_coincident_block() {
+    const Polygons p{
+        {{69.84,104.33},{79.68,87.92},{88.85,91.95},{79.19,109.71}},
+        {{42.49,36.95},{47.36,28.93},{67.45,36.48},{61.93,45.49}},
+        {{61.93,45.49},{67.45,36.48},{90.57,45.92},{82.44,56.52}},
+        {{44.95,28.02},{56.95,6.49},{80.88,16.03},{69.11,37.11},{47.36,28.93}}};
+    const auto reference=tpp::tpp_convex_solve_cycle(p);
+    require(solved(reference),"coincident block: rational path");
+    tpp::ConvexCycleDoubleOptions options;options.refine_contacts=false;options.float_polish=false;
+    // The gap of the paper's tolerant runs: 1e-6 times the perimeter of the
+    // cycle through the polygons' vertex means.
+    std::vector<Vector2> means;
+    for(const auto &region:p){Vector2 c{0,0};for(auto v:region)c=c+v;means.push_back(c*(1.0/double(region.size())));}
+    double perimeter=0;
+    for(std::size_t i=0;i<means.size();++i)perimeter+=(means[(i+1)%means.size()]-means[i]).length();
+    options.boundary_search_gap=true;options.interval_certificate=true;options.max_gap=1e-6*perimeter;
+    const auto r=tpp::tpp_convex_solve_cycle_double(p,options);
+    require(r.status==ConvexCycleStatus::GapClosed&&r.exact_contacts.empty(),
+            "coincident block: closed in binary64, status "+std::to_string(int(r.status))+": "+r.diagnostic);
+    require(r.certificate.upper_bound-r.certificate.lower_bound<=options.max_gap,"coincident block: gap closed");
+    require(r.certificate.lower_bound<=reference.certificate.upper_bound&&reference.certificate.lower_bound<=r.certificate.upper_bound,
+            "coincident block: bounds enclose the optimum");
+    const auto rounded=tpp::tpp_convex_verify_cycle_certificate(p,r.contacts);
+    require(rounded.status==tpp::ConvexCycleCertificateStatus::Feasible||rounded.status==tpp::ConvexCycleCertificateStatus::Optimal,
+            "coincident block: contacts feasible");
+    std::cout<<"Coincident block with a gap: closed in binary64 after "<<r.anchored_solves<<" anchored TPPs.\n";
+}
+
 // refine_contacts=false: the boundary-anchor method of paper 1 (Algorithm
 // 4.1), without feature sweeps in either arithmetic. On every instance of the
 // suites above it must return an exact cycle that passes the independent exact
@@ -1402,7 +1437,7 @@ int main() {
         cooperative_interruption();
         bound_first_contacts();
         prepared_geometry_and_features();known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();rotated_squares();logarithmic_queries();boundary_memberships();support_near_ties();convex_intersections();active_contact_regressions();boundary_recovery_regressions();
-        boundary_anchor_method();boundary_anchor_method_with_gap();
+        boundary_anchor_method();boundary_anchor_method_with_gap();boundary_search_gap_coincident_block();
         std::cout<<"Double comparisons: "<<compared_double_cases<<", maximum objective difference="<<largest_double_difference<<", maximum certified gap="<<largest_double_gap<<", local recoveries="<<total_anchor_recoveries<<'\n';
         std::cout<<"Cycle solver tests passed.\n";
         return 0;

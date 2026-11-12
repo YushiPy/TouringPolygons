@@ -1242,9 +1242,13 @@ namespace {
 // does; the search is Step 2's (the binary64 TPP construction for each
 // anchored cycle, closed-form steps, bisection; one boundary when the regions
 // are proved pairwise apart, every boundary otherwise); and every candidate's
-// bounds are proved by directed rounding (detail::CycleBounds). Nothing is
-// rational. True with GapClosed when a candidate's proved interval closes the
-// gap; false leaves the call to the exact path. The cutoff is not used here.
+// bounds are proved by directed rounding (detail::CycleBounds). The candidates
+// are those the exact path would certify (vertex candidates, and closed-form
+// steps with the descriptors of DescriptorRebuilds) and the bisection probes
+// that shorten the best anchored cycle; the duals of coincident blocks come
+// from reachability (cycle_dual_by_reachability). Nothing is rational. True
+// with GapClosed when a candidate's proved interval closes the gap; false
+// leaves the call to the exact path. The cutoff is not used here.
 bool float_first_boundary_search(ConvexCycleDoubleResult &result,const std::vector<std::vector<Vector2>> &input,
         const ConvexCycleDoubleOptions &options) {
     using Kernel=detail::CycleRefinement<double>;
@@ -1261,6 +1265,7 @@ bool float_first_boundary_search(ConvexCycleDoubleResult &result,const std::vect
     for(const auto &region:owned){regions.push_back(&region);means.push_back(detail::vertex_mean(region));reference+=means.back()/double(k);}
     if(!reference.is_finite())return false;
     detail::CycleBounds bounds{regions,means,reference,options.max_gap,INFINITY};
+    bounds.block_reachability=true;
     std::vector<DPolygon> p;
     for(const auto &region:owned){DPolygon q;for(const auto &v:region)q.emplace_back(v);p.push_back(std::move(q));}
     bool closed=false;
@@ -1296,15 +1301,33 @@ bool float_first_boundary_search(ConvexCycleDoubleResult &result,const std::vect
         const auto feature=local_descriptor(p,q,anchor,int(2*j+1));
         auto candidate=q;bool built=false;snap_vertices(p,feature,candidate);
         try {built=Kernel::close(p,feature,candidate);} catch(const std::runtime_error &) {}
-        if(!built)return false;
-        const auto a=p[anchor][j],e=p[anchor][(j+1)%p[anchor].size()]-a;
-        next=(candidate[anchor]-a).dot(e)/e.dot(e);
-        if(prove(candidate))return true;
-        return fixed_point(anchor,j,feature,*next);
+        if(built) {
+            const auto a=p[anchor][j],e=p[anchor][(j+1)%p[anchor].size()]-a;
+            next=(candidate[anchor]-a).dot(e)/e.dot(e);
+            if(prove(candidate))return true;
+        }
+        // As the exact rebuild does (DescriptorRebuilds): the block
+        // descriptor, then the anchor's own local feature, which differs when
+        // an optimal cycle passes straight through the anchor polygon.
+        auto attempt=[&](DPolygon c,const std::vector<int> &f) {
+            snap_vertices(p,f,c);bool ok=false;
+            try {ok=Kernel::close(p,f,c);} catch(const std::runtime_error &) {}
+            return ok&&prove(c);
+        };
+        auto blocks=feature;auto moved=q;
+        if(block_descriptor(p,moved,blocks)&&attempt(std::move(moved),blocks))return true;
+        const auto own=local_descriptor(p,q,anchor,kLocal);
+        if(own[anchor]!=feature[anchor]){auto f=feature;f[anchor]=own[anchor];if(attempt(q,f))return true;}
+        return built&&fixed_point(anchor,j,feature,*next);
     };
     // The anchored cycle at x by the binary64 TPP construction, with the
     // polygons that contain x skipped; at a vertex where F does not decrease
     // along either edge (or that lies in another polygon) it goes to the proof.
+    // Elsewhere, at a bisection probe or at a crossing with another polygon's
+    // boundary, so does every cycle that shortens the best anchored one: a
+    // minimum at a kink of F, which the closed-form steps never land on, then
+    // ends the search once the gap closes.
+    double best_anchored=INFINITY;
     auto anchored=[&](size_t anchor,const ConvexArithmeticPoint<double> &x) {
         detail::cycle_checkpoint();
         ++result.anchored_solves;
@@ -1332,7 +1355,11 @@ bool float_first_boundary_search(ConvexCycleDoubleResult &result,const std::vect
                 candidate=forward>=0&&backward<=0;
             }
             if(candidate)prove(q);
+            return q;
         }
+        double length=0;
+        for(size_t i=0;i<k;++i)length+=(q[(i+1)%k].external()-q[i].external()).length();
+        if(length<best_anchored){best_anchored=length;prove(q);}
         return q;
     };
     try {

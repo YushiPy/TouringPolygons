@@ -49,11 +49,17 @@ struct CycleBounds {
         return std::max(32*std::numeric_limits<double>::epsilon()*scale,
             max_gap>0?max_gap/(16*double(q.size())):0);
     }
+    // Algorithm 4.1 with a tolerance also builds the duals of coincident
+    // blocks by reachability; the branch and bound's stage does not.
+    bool block_reachability=false;
     bool prove_proposal(const std::vector<Vector2> &q) {
         const double link=short_link(q);
         auto duals=detail::cycle_dual_proposals(q,link);
         if(duals.size()>1)duals.push_back(detail::cycle_dual_by_runs(regions,q,link,reference));
-        return prove(q,duals);
+        if(prove(q,duals)||!block_reachability||duals.size()<2||!std::isfinite(upper))return closed();
+        const auto u=detail::cycle_dual_by_reachability(regions,q,link,link,duals.back());
+        lower=std::max(lower,detail::cycle_dual_lower(regions,u,reference));
+        return closed();
     }
 };
 

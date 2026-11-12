@@ -298,6 +298,141 @@ inline std::vector<Vector2> cycle_dual_by_runs(const Regions &regions,const std:
     return result;
 }
 
+// Dual vectors for the runs of short links by planar disk/cone reachability,
+// the binary64 counterpart of BasicConvexDualReachability
+// (zero_contact_certificate.h) with a backward pass that picks one vector
+// per short link. A run's reachable set is the unit disk cut by halfplanes
+// n.u <= n.d with d on the circle; each contact of the run adds its outward
+// normal cone, from the edges within `tolerance` of the contact. The vectors
+// are only a proposal: cycle_dual_lower proves the bound of any vectors, and
+// a misjudged contact costs at most 2*tolerance. Runs whose outgoing link is
+// not reached, and contacts near more than two edges, keep `fallback`.
+template<class Regions>
+inline std::vector<Vector2> cycle_dual_by_reachability(const Regions &regions,const std::vector<Vector2> &q,
+        double short_link,double tolerance,std::vector<Vector2> fallback) {
+    const size_t k=q.size();
+    if(regions.size()!=k||fallback.size()!=k)return fallback;
+    std::vector<Vector2> base;std::vector<bool> shorter;
+    for(size_t i=0;i<k;++i) {
+        const auto a=q[i],b=q[(i+1)%k];
+        const auto d=IntervalPoint(b)-IntervalPoint(a);
+        const auto norm=(d.x.square()+d.y.square()).sqrt();
+        base.push_back(a==b?Vector2{}:binary_dual_direction(a,b));
+        shorter.push_back(base.back()==Vector2{}||!norm.finite()||norm.hi<=short_link);
+    }
+    const auto longer=std::count(shorter.begin(),shorter.end(),false);
+    if(longer==0||longer==std::ptrdiff_t(k))return fallback;
+    constexpr double slack=0x1p-40;
+    auto unit=[](Vector2 v){const double n=v.length();return n>0?v/n:Vector2{};};
+    struct Plane{Vector2 normal,point;double offset;};
+    struct Reach {
+        std::vector<Plane> planes;
+        bool on_circle(Vector2 d) const {
+            for(const auto &h:planes)if(h.normal.dot(d)>h.offset+slack)return false;
+            return true;
+        }
+        bool holds(Vector2 u) const {return u.dot(u)<=1+slack&&on_circle(u);}
+        // A point of the set's circle arc maximizing n.u (extreme points lie
+        // on the circle): n itself, or an end of a chord.
+        std::optional<Vector2> support(Vector2 n) const {
+            if(on_circle(n))return n;
+            std::optional<Vector2> best;double top=-INFINITY;
+            for(const auto &h:planes)for(const Vector2 d:{h.point,h.normal*(2*h.normal.dot(h.point))-h.point})
+                if(on_circle(d)&&n.dot(d)>top){top=n.dot(d);best=d;}
+            return best;
+        }
+    };
+    // Outward unit normals of the active edges (CCW regions), at most two.
+    auto active_normals=[&](size_t region,Vector2 x,std::vector<Vector2> &edges)->bool {
+        const auto &p=region_ref(regions[region]);const size_t m=p.size();
+        if(m<3)return false;
+        for(size_t j=0;j<m;++j) {
+            const Vector2 a=p[j],e=p[(j+1)%m]-a;const double length2=e.dot(e);
+            if(!(length2>0))continue;
+            const double t=std::clamp((x-a).dot(e)/length2,0.0,1.0);
+            if((a+e*t-x).length()<=tolerance)edges.push_back(unit(e));
+        }
+        return edges.size()<=2;
+    };
+    auto result=fallback;
+    size_t first=0;while(shorter[first])++first;
+    for(size_t step=0;step<k;) {
+        const size_t left=(first+step)%k;
+        size_t m=0;while(shorter[(left+1+m)%k])++m;
+        step+=m+1;
+        if(m==0)continue;
+        const Vector2 in=unit(base[left]),out=unit(base[(left+1+m)%k]);
+        // Forward: states[r] holds link left+r; region left+1+r maps it to the next.
+        std::vector<Reach> states(1);states[0].planes.push_back({-in,in,-1.0});
+        std::vector<std::vector<Vector2>> cones(m+1);
+        bool ok=true;
+        for(size_t r=0;r<=m&&ok;++r) {
+            std::vector<Vector2> edges;
+            ok=active_normals((left+1+r)%k,q[(left+1+r)%k],edges);
+            if(!ok)break;
+            for(const auto e:edges)cones[r].push_back({e.y,-e.x});
+            auto next=states.back();
+            if(!edges.empty()) {
+                auto allowed=[&](Vector2 n){for(const auto e:edges)if(e.cross(n)<-slack)return false;return true;};
+                std::vector<Vector2> tangents;
+                for(const auto e:edges)for(const Vector2 t:{e,-e})
+                    if(allowed(t)&&std::none_of(tangents.begin(),tangents.end(),[&](Vector2 s){return std::abs(s.cross(t))<=slack&&s.dot(t)>0;}))
+                        tangents.push_back(t);
+                std::vector<Plane> planes;
+                for(const auto &h:states.back().planes)if(allowed(h.normal))planes.push_back(h);
+                for(const auto t:tangents) {
+                    const auto d=states.back().support(t);
+                    if(!d){ok=false;break;}
+                    std::erase_if(planes,[&](const Plane &h){return std::abs(h.normal.cross(t))<=slack&&h.normal.dot(t)>0;});
+                    planes.push_back({t,*d,t.dot(*d)});
+                }
+                next.planes=std::move(planes);
+            }
+            states.push_back(std::move(next));
+        }
+        if(!ok||!states.back().on_circle(out))continue;
+        // Backward: u_(left+r) in states[r] with u_(left+1+r) - u_(left+r) in the cone.
+        std::vector<Vector2> chosen(m+1);Vector2 u=out;
+        for(size_t r=m;r>=1&&ok;--r) {
+            const auto &set=states[r];const auto &g=cones[r];
+            auto in_cone=[&](Vector2 v) {
+                if(v.length()<=slack)return true;
+                if(g.size()==1)return std::abs(g[0].cross(v))<=slack*v.length()&&g[0].dot(v)>0;
+                if(g.size()==2) {
+                    const double turn=g[0].cross(g[1]);
+                    return turn*g[0].cross(v)>=-slack*v.length()&&turn*v.cross(g[1])>=-slack*v.length();
+                }
+                return false;
+            };
+            std::optional<Vector2> pick;
+            if(set.holds(u))pick=u;
+            for(size_t c=0;c<g.size()&&!pick;++c) {
+                // u - t g for t >= 0 inside the set: the middle of its interval.
+                double lo=0,hi=INFINITY;
+                const double b=u.dot(g[c]),cc=u.dot(u)-1;
+                const double disc=b*b-cc;
+                if(disc<0)continue;
+                const double root=std::sqrt(disc);
+                lo=std::max(lo,b-root);hi=std::min(hi,b+root);
+                for(const auto &h:set.planes) {
+                    const double slope=-h.normal.dot(g[c]),room=h.offset-h.normal.dot(u);
+                    if(slope>0)hi=std::min(hi,room/slope);
+                    else if(slope<0)lo=std::max(lo,room/slope);
+                    else if(room<-slack)hi=-INFINITY;
+                }
+                if(lo<=hi)pick=u-g[c]*((lo+hi)/2);
+            }
+            for(const auto &h:set.planes)for(const Vector2 d:{h.point,h.normal*(2*h.normal.dot(h.point))-h.point})
+                if(!pick&&set.on_circle(d)&&in_cone(u-d))pick=d;
+            if(!pick){ok=false;break;}
+            chosen[r]=u=*pick;
+        }
+        if(!ok)continue;
+        for(size_t r=1;r<=m;++r)result[(left+r)%k]=chosen[r];
+    }
+    return result;
+}
+
 // Inward unit normal and offset of the chord (p[a], p[b]) of a
 // counterclockwise polygon in the polish's coordinates (relative to
 // `reference`, divided by `scale`); nothing for a vanishing chord.
