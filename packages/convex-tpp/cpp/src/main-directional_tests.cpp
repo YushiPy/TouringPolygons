@@ -768,6 +768,18 @@ void interval_bound_regressions() {
     check(!tight.stats.interval_bounds_certified&&tight.stats.double_certified&&
           tight.lower_bound==exact.lower_bound&&tight.upper_bound==exact.upper_bound,
           "unrepresentable gap retains original exact certificate");
+    // Instance t_A as a path: s=(-3,-4) and t=(4,-3), and an optimum (length
+    // 10) visiting both polygons at j=(0,0). The zero link's dual has norm
+    // sqrt(13/20) < 1: the turn splits between the box's edge x=0 and the
+    // slanted edge of the second polygon. Copying a neighboring link's
+    // direction misses it by the gap; the split witness closes it.
+    {
+        const TestCase coincident{{-3,-4},{4,-3},{box(0,-6,6,6),{{-8,-4},{8,4},{8,9},{-8,9}}},{}};
+        tpp::ConvexHybridOptions gap;gap.max_gap=1e-6;
+        const auto split=tpp::tpp_convex_solve_hybrid(coincident.start,coincident.target,coincident.polygons,gap);
+        check(split.stats.interval_bounds_certified&&split.lower_bound<=10&&split.upper_bound>=10&&
+              split.upper_bound-split.lower_bound<=1e-12,"interval proof splits the turn of a zero link");
+    }
     const auto original_rounding=std::fegetround();
     options.max_gap=1e-7;
     if(std::fesetround(FE_UPWARD)==0) {

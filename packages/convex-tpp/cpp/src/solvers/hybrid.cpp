@@ -907,6 +907,16 @@ bool set_verified_bounds(ConvexHybridResult &result,Vector2 start,Vector2 target
 using Interval=detail::CycleInterval;
 using IntervalPoint=detail::IntervalPoint;
 
+// The split of a run's turn (split_witness) for the links first_link..end_link-1
+// of a fixed-endpoint chain; their regions are polygons first_link-1..end_link-1.
+std::optional<std::vector<Vector2>> block_witness(const std::vector<Vector2> &chain,
+        const std::vector<std::vector<Vector2>> &polygons,size_t first_link,size_t end_link,
+        Vector2 left,Vector2 right) {
+    std::vector<const std::vector<Vector2>*> regions;std::vector<Vector2> contacts;
+    for(size_t k=first_link-1;k<=end_link-1;++k){regions.push_back(&polygons[k]);contacts.push_back(chain[k+1]);}
+    return detail::split_witness(regions,contacts,left,right,chain[0]);
+}
+
 // Directions are exact differences of binary inputs divided by a certified
 // upper norm. Their interval enclosures describe one dual-feasible vector;
 // independently selecting interval endpoints would not have this property.
@@ -941,10 +951,33 @@ std::optional<double> interval_dual_lower(const std::vector<Vector2> &chain,
     if(!any_short)retained=nullptr;
     std::vector<IntervalPoint> best_directions;
     if(retained)best_directions.assign(base.size(),direct_unit);
-    const int policies=any_short?(interpolate?5:4):1;
+    // Policy 5 splits each run's turn among its polygons (split_witness): the
+    // KKT dual of coincident contacts, which no copy of a neighboring link
+    // represents when the turn needs both polygons' normal cones.
+    const int policies=any_short?6:1;
+    auto midpoint=[](const IntervalPoint &u){return Vector2{0.5*(u.x.lo+u.x.hi),0.5*(u.y.lo+u.y.hi)};};
     for(int policy=0;policy<policies;++policy) {
+        if(policy==4&&!interpolate)continue;
         auto directions=base;
-        if(policy==4) {
+        if(policy==5) {
+            // Runs with long links on both sides take the split; the others
+            // keep the left fill of policy 1. The proposal is enclosed in the
+            // unit disk, so the bound below is valid whatever binary64 chose.
+            for(size_t i=0;i<base.size();) {
+                if(!short_links[i]){++i;continue;}
+                size_t end=i;while(end<base.size()&&short_links[end])++end;
+                std::optional<std::vector<Vector2>> witness;
+                if(i>0&&end<base.size())
+                    witness=block_witness(chain,polygons,i,end,midpoint(base[i-1]),midpoint(base[end]));
+                for(size_t j=i;j<end;++j) {
+                    if(!witness){directions[j]=i?base[i-1]:end<base.size()?base[end]:direct_unit;continue;}
+                    const IntervalPoint u((*witness)[j-i]);
+                    const auto norm=(u.x.square()+u.y.square()).sqrt();
+                    directions[j]=norm.hi<=1?u:IntervalPoint(u.x.divided_by(norm.hi),u.y.divided_by(norm.hi));
+                }
+                i=end;
+            }
+        } else if(policy==4) {
             for(size_t i=0;i<base.size();) {
                 if(!short_links[i]){++i;continue;}
                 size_t end=i;while(end<base.size()&&short_links[end])++end;

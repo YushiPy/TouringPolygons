@@ -305,6 +305,27 @@ também é factível. A combinação é encerrada por intervalos antes da avalia
 dos suportes mínimos. O tamanho do elo apenas seleciona uma candidata: não
 declara coincidência, não muda os contatos e não remove restrições.
 
+Desde 13/11/2026 há sempre mais uma política, a partição da virada
+(`split_witness`, `binary_dual.h`). Num bloco de elos curtos entre os elos
+longos `u_L` e `u_R`, os polígonos do bloco se tocam (a menos de
+arredondamento) num ponto, e o dual KKT divide a virada `u_R-u_L` entre eles:
+cada polígono recebe uma parte no cone normal do seu contato, e as somas
+parciais ficam no disco unitário. Copiar a direção de um elo vizinho põe a
+virada inteira num só polígono e falha quando ela precisa de dois cones, como
+num contato na interseção de duas arestas. Os cones são gerados pelas normais
+externas das arestas que passam pelo contato (a menos de `1e-9` relativo). A
+virada é escrita como combinação não negativa de dois geradores. Das combinações
+cujas somas parciais ficam no disco, propõe-se a de menor perda em binary64
+nos polígonos do bloco. A varredura é linear nos vértices do bloco; por isso
+polígonos com mais de 64 vértices ficam com as outras políticas, e o custo
+continua logarítmico em polígonos grandes. Binary64 só escolhe a proposta: ela é encerrada no disco
+unitário e o limite é provado por intervalos como as demais, de modo que
+qualquer escolha é válida. Nas chamadas de caminho capturadas do B&B no
+Fekete, com a tolerância do B&B, isso levou ao fechamento pela prova
+intervalar 898 das 910 chamadas cujo traço estava certo e que antes iam ao
+polimento. O mesmo vale para o ciclo (`cycle_dual_split` em
+[convex-cycle.md](convex-cycle.md)).
+
 Quando nenhum desses duais basta, o certificado completo de elos zero e os
 demais fallbacks continuam disponíveis.
 

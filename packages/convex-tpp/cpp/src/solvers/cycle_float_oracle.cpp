@@ -77,7 +77,10 @@ struct CycleBounds {
     bool prove_proposal(const std::vector<Vector2> &q) {
         const double link=short_link(q);
         auto duals=detail::cycle_dual_proposals(q,link);
-        if(duals.size()>1)duals.push_back(detail::cycle_dual_by_runs(regions,q,link,reference));
+        if(duals.size()>1) {
+            duals.push_back(detail::cycle_dual_by_runs(regions,q,link,reference));
+            duals.push_back(detail::cycle_dual_split(regions,q,link,reference));
+        }
         return prove(q,duals);
     }
 };

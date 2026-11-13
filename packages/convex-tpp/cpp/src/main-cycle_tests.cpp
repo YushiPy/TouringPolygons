@@ -1192,15 +1192,20 @@ void binary64_stage() {
     }
     // Instance t_A of the report as a cycle: points s and t, and an optimum
     // visiting P1 and P2 at the same point j=(0,0). The zero link's dual has
-    // norm sqrt(13/20) < 1, out of reach of the short-link policies; the
-    // smoothed directions of the polish represent it.
+    // norm sqrt(13/20) < 1: its turn splits between the box's edge x=0 and the
+    // slanted edge of P2, out of reach of the neighbor-copy policies. The
+    // split witness (cycle_dual_split) proves it from the construction's
+    // candidate; without the construction, the smoothed directions of the
+    // polish represent it.
     {
         const Polygons p{{{-3,-4}},box(0,-6,6,6),{{-8,-4},{8,4},{8,9},{-8,9}},{{4,-3}}};
         const double optimum=10+std::sqrt(50.0);
         for(bool construct:{true,false}) {
             tpp::ConvexCycleFloatOptions options;options.max_gap=1e-6*optimum;options.construct=construct;
             const auto r=tpp::tpp_convex_solve_cycle_float_certified(p,options);
-            require(r.status==tpp::ConvexFloatOracleStatus::GapClosed&&r.polish_closed,"t_A cycle closes by the polish");
+            require(r.status==tpp::ConvexFloatOracleStatus::GapClosed&&
+                    (construct?r.construction_closed&&!r.polish_attempted:r.polish_closed),
+                    construct?"t_A cycle closes by the interval proof of the split witness":"t_A cycle closes by the polish");
             require(r.lower_bound<=optimum&&r.upper_bound>=optimum,"t_A cycle bounds enclose the optimum");
             require(r.contacts[0]==Vector2{-3,-4}&&r.contacts[3]==Vector2{4,-3},"t_A points are fixed contacts");
         }
@@ -1216,7 +1221,7 @@ void binary64_stage() {
         // A cutoff below the optimum is reached by the proved lower bound.
         tpp::ConvexCycleDoubleOptions cut;cut.max_gap=1e-300;cut.lower_bound_cutoff=0.999*optimum;
         const auto pruned=tpp::tpp_convex_solve_cycle_double(p,cut);
-        require(pruned.status==ConvexCycleStatus::CertifiedBound&&pruned.float_polish_closed&&
+        require(pruned.status==ConvexCycleStatus::CertifiedBound&&pruned.float_interval_closed&&
                 pruned.certificate.lower_bound>=cut.lower_bound_cutoff&&pruned.certificate.lower_bound<=optimum,
                 "t_A cycle cutoff reached by the binary64 lower bound");
     }
