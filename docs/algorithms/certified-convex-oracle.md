@@ -304,6 +304,7 @@ entre as direções longas que delimitam cada bloco curto. Cada direção propos
 também é factível. A combinação é encerrada por intervalos antes da avaliação
 dos suportes mínimos. O tamanho do elo apenas seleciona uma candidata: não
 declara coincidência, não muda os contatos e não remove restrições.
+
 Quando nenhum desses duais basta, o certificado completo de elos zero e os
 demais fallbacks continuam disponíveis.
 
@@ -368,6 +369,20 @@ expansões de `operation()`, e um intermediário nunca compartilha nó com outro
 valor; assim o intervalo é bit a bit o que o DAG teria e decide exatamente as
 mesmas comparações. Se ele não decide, o DAG é construído como antes e avaliado
 exatamente. Decisões, avaliações exatas e traço exportado não mudam.
+
+Vértices de raio único são reconhecidos pela construção (desde 13/11/2026).
+A fonte virtual de uma consulta depende só das células em que ela é localizada,
+nível a nível: o início, um vértice ou a reflexão numa aresta de uma fonte
+interna. `DirectionalMaps` interna cada sequência dessas (a trilha), de modo
+que trilhas iguais significam fontes iguais. Um vértice cujos dois lados chegam
+pela mesma trilha, sem reflexão e sem estar na própria fonte, tem
+`before_ray == after_ray` (`Vertex::single_ray`), e o cone dispensa o teste
+`same_direction`. Esse teste dá zero exato, e na aritmética filtrada ia aos
+racionais a cada consulta de localização. Nas 200 instâncias de caminhos com
+polígonos que se intersectam da Figura 11, ele respondia por quase todas as
+89 milhões de avaliações exatas do filtro, e a construção filtrada ficou 2,3
+vezes mais rápida. Os demais vértices continuam com o teste, e os traços
+filtrados e racionais são idênticos aos de antes.
 
 `filtered_attempted` e `filtered_certified` identificam essa recuperação nas
 estatísticas do híbrido. O backend `DoubleIntersection` continua indicando uma
