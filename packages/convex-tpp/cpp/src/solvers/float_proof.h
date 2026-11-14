@@ -298,6 +298,40 @@ inline std::vector<Vector2> cycle_dual_by_runs(const Regions &regions,const std:
     return result;
 }
 
+// Each run of short links takes the split of its turn among its regions
+// (split_witness, binary_dual.h): the KKT dual of coincident contacts, which
+// the candidates of cycle_dual_by_runs (the neighbors, their midpoint, the
+// link's own direction, zero) miss when the turn needs two normal cones.
+// Runs without a split keep their own directions. Any choice is a valid dual.
+template<class Regions>
+inline std::vector<Vector2> cycle_dual_split(const Regions &regions,const std::vector<Vector2> &q,
+        double short_link,Vector2 reference) {
+    const size_t k=q.size();
+    std::vector<Vector2> base;std::vector<bool> shorter;
+    for(size_t i=0;i<k;++i) {
+        const auto a=q[i],b=q[(i+1)%k];
+        const auto d=IntervalPoint(b)-IntervalPoint(a);
+        const auto norm=(d.x.square()+d.y.square()).sqrt();
+        base.push_back(a==b?Vector2{}:binary_dual_direction(a,b));
+        shorter.push_back(base.back()==Vector2{}||!norm.finite()||norm.hi<=short_link);
+    }
+    const auto longer=std::count(shorter.begin(),shorter.end(),false);
+    if(longer==0||longer==std::ptrdiff_t(k)||regions.size()!=k)return base;
+    auto result=base;
+    size_t first=0;while(shorter[first])++first;
+    for(size_t step=0;step<k;) {
+        const size_t left=(first+step)%k;
+        size_t m=0;while(shorter[(left+1+m)%k])++m;
+        step+=m+1;
+        if(m==0)continue;
+        std::vector<const std::vector<Vector2>*> run;std::vector<Vector2> contacts;
+        for(size_t r=0;r<=m;++r){run.push_back(&region_ref(regions[(left+1+r)%k]));contacts.push_back(q[(left+1+r)%k]);}
+        const auto witness=split_witness(run,contacts,base[left],base[(left+1+m)%k],reference);
+        if(witness)for(size_t r=0;r<m;++r)result[(left+1+r)%k]=(*witness)[r];
+    }
+    return result;
+}
+
 // Inward unit normal and offset of the chord (p[a], p[b]) of a
 // counterclockwise polygon in the polish's coordinates (relative to
 // `reference`, divided by `scale`); nothing for a vanishing chord.

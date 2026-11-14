@@ -304,6 +304,28 @@ entre as direções longas que delimitam cada bloco curto. Cada direção propos
 também é factível. A combinação é encerrada por intervalos antes da avaliação
 dos suportes mínimos. O tamanho do elo apenas seleciona uma candidata: não
 declara coincidência, não muda os contatos e não remove restrições.
+
+Desde 13/11/2026 há sempre mais uma política, a partição da virada
+(`split_witness`, `binary_dual.h`). Num bloco de elos curtos entre os elos
+longos `u_L` e `u_R`, os polígonos do bloco se tocam (a menos de
+arredondamento) num ponto, e o dual KKT divide a virada `u_R-u_L` entre eles:
+cada polígono recebe uma parte no cone normal do seu contato, e as somas
+parciais ficam no disco unitário. Copiar a direção de um elo vizinho põe a
+virada inteira num só polígono e falha quando ela precisa de dois cones, como
+num contato na interseção de duas arestas. Os cones são gerados pelas normais
+externas das arestas que passam pelo contato (a menos de `1e-9` relativo). A
+virada é escrita como combinação não negativa de dois geradores. Das combinações
+cujas somas parciais ficam no disco, propõe-se a de menor perda em binary64
+nos polígonos do bloco. A varredura é linear nos vértices do bloco; por isso
+polígonos com mais de 64 vértices ficam com as outras políticas, e o custo
+continua logarítmico em polígonos grandes. Binary64 só escolhe a proposta: ela é encerrada no disco
+unitário e o limite é provado por intervalos como as demais, de modo que
+qualquer escolha é válida. Nas chamadas de caminho capturadas do B&B no
+Fekete, com a tolerância do B&B, isso levou ao fechamento pela prova
+intervalar 898 das 910 chamadas cujo traço estava certo e que antes iam ao
+polimento. O mesmo vale para o ciclo (`cycle_dual_split` em
+[convex-cycle.md](convex-cycle.md)).
+
 Quando nenhum desses duais basta, o certificado completo de elos zero e os
 demais fallbacks continuam disponíveis.
 
@@ -368,6 +390,20 @@ expansões de `operation()`, e um intermediário nunca compartilha nó com outro
 valor; assim o intervalo é bit a bit o que o DAG teria e decide exatamente as
 mesmas comparações. Se ele não decide, o DAG é construído como antes e avaliado
 exatamente. Decisões, avaliações exatas e traço exportado não mudam.
+
+Vértices de raio único são reconhecidos pela construção (desde 13/11/2026).
+A fonte virtual de uma consulta depende só das células em que ela é localizada,
+nível a nível: o início, um vértice ou a reflexão numa aresta de uma fonte
+interna. `DirectionalMaps` interna cada sequência dessas (a trilha), de modo
+que trilhas iguais significam fontes iguais. Um vértice cujos dois lados chegam
+pela mesma trilha, sem reflexão e sem estar na própria fonte, tem
+`before_ray == after_ray` (`Vertex::single_ray`), e o cone dispensa o teste
+`same_direction`. Esse teste dá zero exato, e na aritmética filtrada ia aos
+racionais a cada consulta de localização. Nas 200 instâncias de caminhos com
+polígonos que se intersectam da Figura 11, ele respondia por quase todas as
+89 milhões de avaliações exatas do filtro, e a construção filtrada ficou 2,3
+vezes mais rápida. Os demais vértices continuam com o teste, e os traços
+filtrados e racionais são idênticos aos de antes.
 
 `filtered_attempted` e `filtered_certified` identificam essa recuperação nas
 estatísticas do híbrido. O backend `DoubleIntersection` continua indicando uma

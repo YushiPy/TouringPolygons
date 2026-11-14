@@ -15,6 +15,7 @@
 #include <array>
 #include <cmath>
 #include <optional>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <tuple>
@@ -132,6 +133,10 @@ struct Vertex {
     Scalar edge_parameter;
     Point before_ray, after_ray;
     bool before_reflects = false, after_reflects = false, ready = false;
+    // Both sides reach the vertex straight from the same virtual source, so
+    // its cone is the single ray before_ray (== after_ray). Decided from the
+    // construction, without comparing the two rays (DirectionalMaps::build_vertex).
+    bool single_ray = false;
     std::optional<long double> prefix_length;
 };
 struct Bounds {
@@ -151,13 +156,21 @@ struct Map {
     std::vector<Point> membership_corners;
     std::vector<Vertex> vertices;
     size_t segment_end=0;
-    struct CachedQuery { Query query; Point source; };
+    struct CachedQuery { Query query; Point source; const void *trail; };
     std::optional<CachedQuery> last_query;
 };
 
 class DirectionalMaps {
     Point start, target;
     std::vector<Map> maps;
+    // A virtual source depends only on the cells its query is located in,
+    // level by level: the start, a vertex, or the reflection in an edge of an
+    // inner source. Each such sequence (a trail) is interned once, so equal
+    // trails mean equal sources; nullptr is the start.
+    std::set<std::tuple<const void*,size_t,long long>> trails;
+    const void *intern(const void *inner,size_t level,long long location) {
+        return &*trails.insert({inner,level,location}).first;
+    }
 
     static bool inside(const Query &q,const std::vector<Point> &polygon) {
         if(polygon.size()<=2) {
@@ -182,8 +195,9 @@ class DirectionalMaps {
         return cross_sign(polygon[right]-polygon[left],q,polygon[left],false)>=0;
     }
 
-    static bool in_cone(const Query &q,const Point &v,const Point &r1,const Point &r2) {
-        if(same_direction(r1,r2))
+    // single: r1 and r2 are known to be the same ray (Vertex::single_ray).
+    static bool in_cone(const Query &q,const Point &v,const Point &r1,const Point &r2,bool single=false) {
+        if(single || same_direction(r1,r2))
             return cross_sign(r1,q,v)==0 && dot_sign(r1,q,v)>=0;
         const bool c1=cross_sign(r1,q,v)>=0, c2=cross_sign(r2,q,v)<=0;
         return cross_sign(r1,r2)>=0 ? c1 && c2 : c1 || c2;
@@ -215,15 +229,28 @@ class DirectionalMaps {
         ++tpp::detail::cone_builds();
         const Point before=vertices[(j+vertices.size()-1)%vertices.size()].point;
         const Point after=vertices[(j+1)%vertices.size()].point;
-        auto outgoing=[&](Point side,Point edge,bool &reflects) {
-            const Point source=virtual_source({v.point,side},i);
+        auto outgoing=[&](Point side,Point edge,bool &reflects,const void *&trail,bool &at_source) {
+            const auto [source,source_trail]=virtual_source_trail({v.point,side},i);
+            trail=source_trail;
             Point incoming=v.point-source;
-            if(incoming.zero()) incoming=side;
+            at_source=incoming.zero();
+            if(at_source) incoming=side;
             reflects=cross_sign(edge,incoming)>0;
             return reflects ? reflect_direction(incoming,edge) : incoming;
         };
-        v.before_ray=outgoing(before-v.point,v.point-before,v.before_reflects);
-        v.after_ray=outgoing(after-v.point,after-v.point,v.after_reflects);
+        const void *before_trail=nullptr,*after_trail=nullptr;
+        bool before_at_source=false,after_at_source=false;
+        v.before_ray=outgoing(before-v.point,v.point-before,v.before_reflects,before_trail,before_at_source);
+        v.after_ray=outgoing(after-v.point,after-v.point,v.after_reflects,after_trail,after_at_source);
+        // Same source and no reflection: both rays are v minus that source.
+        // Most vertices of intersecting maps are of this kind; recognizing
+        // them spares the cone test an exact zero (filtered arithmetic would
+        // otherwise evaluate it in rationals at every location query).
+        if(before_trail==after_trail && !v.before_reflects && !v.after_reflects
+           && !before_at_source && !after_at_source) {
+            v.single_ray=true;
+            v.after_ray=v.before_ray;
+        }
         v.ready=true;
     }
 
@@ -287,7 +314,7 @@ class DirectionalMaps {
         auto cone=[&](size_t j) {
             build_vertex(i,j);
             const auto &v=map.vertices[j];
-            return in_cone(q,v.point,v.before_ray,v.after_ray);
+            return in_cone(q,v.point,v.before_ray,v.after_ray,v.single_ray);
         };
         if(cone(0)) return 0;
         size_t left=0,right=n-1;
@@ -316,25 +343,34 @@ class DirectionalMaps {
     }
 
     Point virtual_source(const Query &q,size_t level) {
+        return virtual_source_trail(q,level).first;
+    }
+    // The virtual source and its interned trail.
+    std::pair<Point,const void*> virtual_source_trail(const Query &q,size_t level) {
         cycle_checkpoint();
-        if(level==0) return start;
+        if(level==0) return {start,nullptr};
         auto &cache=maps[level-1].last_query;
-        if(cache && cache->query==q) return cache->source;
+        if(cache && cache->query==q) return {cache->source,cache->trail};
         const auto location=locate(q,level);
         Point source;
-        if(location<0) source=virtual_source(q,level-1);
+        const void *trail=nullptr;
+        if(location<0) std::tie(source,trail)=virtual_source_trail(q,level-1);
         else {
             const auto &vertices=maps[level-1].vertices;
             const size_t j=size_t(location)/2;
             const Point a=vertices[j].point;
-            if(location%2==0) source=a;
-            else {
+            if(location%2==0) {
+                source=a;
+                trail=intern(nullptr,level,location);
+            } else {
                 const Point edge=vertices[(j+1)%vertices.size()].point-a;
-                source=reflect_point(virtual_source(reflect_query(q,a,edge),level-1),a,edge);
+                const auto inner=virtual_source_trail(reflect_query(q,a,edge),level-1);
+                source=reflect_point(inner.first,a,edge);
+                trail=intern(inner.second,level,location);
             }
         }
-        cache=Map::CachedQuery{q,source};
-        return source;
+        cache=Map::CachedQuery{q,source,trail};
+        return {source,trail};
     }
 
     static void append(std::vector<Point> &path,const Point &p) {
