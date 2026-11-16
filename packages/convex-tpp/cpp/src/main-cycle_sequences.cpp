@@ -3,7 +3,16 @@
 // gap zero, no polish) against Gurobi's SOCP. Section 7.2 of paper 1; run it
 // through `benchmarks/tpp.py paper1-cycles`.
 //
-// usage: tpp-convex-cycle-sequences INPUT.json REPETITIONS SECONDS
+// usage: tpp-convex-cycle-sequences INPUT.json REPETITIONS SECONDS [CONFIG]
+// CONFIG: exact (default; gap zero, as in paper 1); tolerant (Algorithm 4.1
+// with a gap of 1e-6 times the perimeter of the cycle through the polygons'
+// vertex means, Gurobi's default scale, as the tolerant run of
+// tpp-convex-path-benchmark: boundary_search_gap, so Algorithm 4.1 runs in
+// binary64 first, on regions normalized in binary64, and returns at the first
+// candidate whose bounds, proved by directed rounding, close the gap; the
+// exact path only when it ends open); oracle
+// (the same gap given to the branch and bound's binary64 stage, whose
+// proposals come from the coordinate-descent sweeps, before Algorithm 4.1).
 // INPUT.json: {"instances": [{"name": ..., "polygons": [[[x, y], ...], ...]}]}
 // One JSON line per instance and repetition. Within a repetition the two
 // solvers run in a rotating order. Our calls shorter than 0.05 s are repeated
@@ -61,9 +70,10 @@ GurobiRun gurobi(const Polygons &p,GRBEnv &env) {
 }
 
 struct OursRun{tpp::ConvexCycleDoubleResult result;double seconds=0,mean=0;size_t calls=0;};
-OursRun ours(const Polygons &p,double seconds) {
+OursRun ours(const Polygons &p,double seconds,double gap,bool boundary_search) {
     tpp::ConvexCycleDoubleOptions options;
-    options.refine_contacts=false;options.max_gap=0;options.float_polish=false;options.max_seconds=seconds;
+    options.refine_contacts=false;options.max_gap=gap;options.float_polish=false;options.max_seconds=seconds;
+    if(boundary_search){options.boundary_search_gap=true;options.interval_certificate=true;}
     OursRun run;
     auto began=Clock::now();
     run.result=tpp::tpp_convex_solve_cycle_double(p,options);
@@ -96,7 +106,9 @@ void print(const OursRun &run) {
 
 int main(int argc,char **argv) {
     try {
-        if(argc!=4)throw std::invalid_argument("usage: tpp-convex-cycle-sequences INPUT.json REPETITIONS SECONDS");
+        if(argc!=4&&argc!=5)throw std::invalid_argument("usage: tpp-convex-cycle-sequences INPUT.json REPETITIONS SECONDS [exact|tolerant|oracle]");
+        const std::string config=argc==5?argv[4]:"exact";
+        if(config!="exact"&&config!="tolerant"&&config!="oracle")throw std::invalid_argument("unknown configuration "+config);
         const int repeats=std::stoi(argv[2]);if(repeats<1)throw std::invalid_argument("Positive repetition count required");
         const double seconds=std::stod(argv[3]);
         boost::property_tree::ptree input;read_json(argv[1],input);
@@ -112,14 +124,22 @@ int main(int argc,char **argv) {
             }
             // First touch of the code and of Gurobi's environment, once per process.
             if(!warmed){gurobi(p,env);warmed=true;}
+            double gap=0;
+            if(config!="exact") {
+                std::vector<Vector2> means;
+                for(const auto &region:p){Vector2 c{0,0};for(auto v:region)c=c+v;means.push_back(c*(1.0/region.size()));}
+                double perimeter=0;
+                for(size_t i=0;i<means.size();++i){const auto d=means[(i+1)%means.size()]-means[i];perimeter+=std::sqrt(d.dot(d));}
+                gap=1e-6*perimeter;
+            }
             for(int repeat=0;repeat<repeats;++repeat) {
                 OursRun mine;GurobiRun socp;
                 for(int turn=0;turn<2;++turn) {
-                    if((turn+repeat)%2==0)mine=ours(p,seconds);
+                    if((turn+repeat)%2==0)mine=ours(p,seconds,gap,config=="tolerant");
                     else socp=gurobi(p,env);
                 }
                 std::cout<<"{\"name\":\""<<name<<"\",\"k\":"<<p.size()<<",\"vertices\":"<<vertices<<",\"largest\":"<<largest
-                    <<",\"repeat\":"<<repeat;
+                    <<",\"repeat\":"<<repeat<<",\"config\":\""<<config<<"\",\"gap\":"<<gap;
                 print(mine);
                 std::cout<<",\"gurobi\":{\"status\":"<<socp.status<<",\"objective\":";json(std::cout,socp.objective);
                 std::cout<<",\"build\":"<<socp.build<<",\"optimize\":"<<socp.optimize<<",\"total\":"<<socp.total<<"}}"<<std::endl;

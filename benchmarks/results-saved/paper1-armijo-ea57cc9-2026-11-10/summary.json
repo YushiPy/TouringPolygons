@@ -1,0 +1,673 @@
+{
+ "output": "armijo-ea57cc9",
+ "git": {
+  "revision": "ea57cc9153068919bccb7ab28ce869af3bfece53",
+  "branch": "paper1-tpp-scaling",
+  "dirty": false
+ },
+ "machine": {
+  "host": "armijo",
+  "cpu_model": "AMD Ryzen 7 9700X 8-Core Processor",
+  "cpus": 16,
+  "system": "Linux 7.0.0-38-generic"
+ },
+ "workers": 8,
+ "pinned_cores": [
+  [
+   0,
+   8
+  ],
+  [
+   1,
+   9
+  ],
+  [
+   2,
+   10
+  ],
+  [
+   3,
+   11
+  ],
+  [
+   4,
+   12
+  ],
+  [
+   5,
+   13
+  ],
+  [
+   6,
+   14
+  ],
+  [
+   7,
+   15
+  ]
+ ],
+ "gurobi_probe": {
+  "status": 2,
+  "objective": 4.472135951586859,
+  "build": 3.0127e-05,
+  "optimize": 0.00044724,
+  "total": 0.000477798
+ },
+ "steps": {
+  "cycles": {
+   "seconds": 41.3,
+   "failures": [],
+   "revision": "ea57cc9153068919bccb7ab28ce869af3bfece53"
+  },
+  "cycles-tolerant": {
+   "seconds": 40.7,
+   "failures": [],
+   "revision": "ea57cc9153068919bccb7ab28ce869af3bfece53"
+  }
+ },
+ "cycles": {
+  "4": {
+   "instances": 558,
+   "calls": 1674,
+   "config": "exact",
+   "calls_within_gap": 1674,
+   "gurobi_below_proved_lower": {
+    "calls": 486,
+    "share": 0.2903225806451613,
+    "max_relative": 1.3594325545230545e-06
+   },
+   "vertices_median": 23.0,
+   "status": {
+    "FloatingPointLimit": 327,
+    "Optimal": 231
+   },
+   "exact_optimal": 558,
+   "step": {
+    "2": 558
+   },
+   "step2_share": 1.0,
+   "step3_share": 0.0,
+   "ours_median_s": 0.00017470885408493945,
+   "ours_max_s": 0.0051812377,
+   "gurobi_median_s": 0.0009130655,
+   "gurobi_over_ours_geomean": 4.5567436373618255,
+   "gurobi_faster_instances": 21,
+   "gurobi_status": {
+    "2": 558
+   },
+   "gurobi_below_L": {
+    "calls": 486,
+    "of": 1674,
+    "share": 0.2903225806451613,
+    "max_relative": 1.3594325545230545e-06
+   },
+   "gurobi_relative_error": {
+    "median": 9.952730296286856e-09,
+    "max": 1.3594325545230545e-06
+   },
+   "anchored_tpps": {
+    "median": 3.0,
+    "max": 268,
+    "total": 2629
+   },
+   "bisection_probes": {
+    "median": 0.0,
+    "max": 244,
+    "total": 672
+   },
+   "rational_anchor_recoveries": {
+    "instances": 7,
+    "total": 9
+   },
+   "rational_search": {
+    "instances": 0,
+    "anchored_total": 0,
+    "probes_total": 0
+   }
+  },
+  "8": {
+   "instances": 497,
+   "calls": 1491,
+   "config": "exact",
+   "calls_within_gap": 1491,
+   "gurobi_below_proved_lower": {
+    "calls": 705,
+    "share": 0.47283702213279677,
+    "max_relative": 7.854426831997469e-06
+   },
+   "vertices_median": 45,
+   "status": {
+    "FloatingPointLimit": 392,
+    "Optimal": 105
+   },
+   "exact_optimal": 497,
+   "step": {
+    "2": 494,
+    "3": 3
+   },
+   "step2_share": 0.993963782696177,
+   "step3_share": 0.006036217303822937,
+   "ours_median_s": 0.0004068780406504065,
+   "ours_max_s": 0.632654989,
+   "gurobi_median_s": 0.001427211,
+   "gurobi_over_ours_geomean": 2.9014277012098133,
+   "gurobi_faster_instances": 40,
+   "gurobi_status": {
+    "2": 497
+   },
+   "gurobi_below_L": {
+    "calls": 705,
+    "of": 1491,
+    "share": 0.47283702213279677,
+    "max_relative": 7.854426831997469e-06
+   },
+   "gurobi_relative_error": {
+    "median": 1.289178672040428e-08,
+    "max": 7.854426831997469e-06
+   },
+   "anchored_tpps": {
+    "median": 3,
+    "max": 807,
+    "total": 5836
+   },
+   "bisection_probes": {
+    "median": 0,
+    "max": 724,
+    "total": 3261
+   },
+   "rational_anchor_recoveries": {
+    "instances": 11,
+    "total": 121
+   },
+   "rational_search": {
+    "instances": 3,
+    "anchored_total": 263,
+    "probes_total": 237
+   }
+  },
+  "16": {
+   "instances": 364,
+   "calls": 1092,
+   "config": "exact",
+   "calls_within_gap": 1092,
+   "gurobi_below_proved_lower": {
+    "calls": 684,
+    "share": 0.6263736263736264,
+    "max_relative": 7.789062387834779e-07
+   },
+   "vertices_median": 90.5,
+   "status": {
+    "FloatingPointLimit": 341,
+    "Optimal": 23
+   },
+   "exact_optimal": 364,
+   "step": {
+    "2": 355,
+    "3": 9
+   },
+   "step2_share": 0.9752747252747253,
+   "step3_share": 0.024725274725274724,
+   "ours_median_s": 0.0009153251090909091,
+   "ours_max_s": 0.521173222,
+   "gurobi_median_s": 0.0024812059999999997,
+   "gurobi_over_ours_geomean": 1.9326383518541643,
+   "gurobi_faster_instances": 48,
+   "gurobi_status": {
+    "2": 364
+   },
+   "gurobi_below_L": {
+    "calls": 684,
+    "of": 1092,
+    "share": 0.6263736263736264,
+    "max_relative": 7.789062387834779e-07
+   },
+   "gurobi_relative_error": {
+    "median": 9.527067122199602e-09,
+    "max": 7.789062387834779e-07
+   },
+   "anchored_tpps": {
+    "median": 3.0,
+    "max": 1125,
+    "total": 12427
+   },
+   "bisection_probes": {
+    "median": 0.0,
+    "max": 964,
+    "total": 8468
+   },
+   "rational_anchor_recoveries": {
+    "instances": 17,
+    "total": 186
+   },
+   "rational_search": {
+    "instances": 9,
+    "anchored_total": 52,
+    "probes_total": 0
+   }
+  },
+  "32": {
+   "instances": 219,
+   "calls": 657,
+   "config": "exact",
+   "calls_within_gap": 657,
+   "gurobi_below_proved_lower": {
+    "calls": 483,
+    "share": 0.7351598173515982,
+    "max_relative": 7.841969292529531e-07
+   },
+   "vertices_median": 180,
+   "status": {
+    "FloatingPointLimit": 218,
+    "Optimal": 1
+   },
+   "exact_optimal": 219,
+   "step": {
+    "2": 207,
+    "3": 12
+   },
+   "step2_share": 0.9452054794520548,
+   "step3_share": 0.0547945205479452,
+   "ours_median_s": 0.002294090181818182,
+   "ours_max_s": 0.315444252,
+   "gurobi_median_s": 0.004913299,
+   "gurobi_over_ours_geomean": 1.236826122318025,
+   "gurobi_faster_instances": 50,
+   "gurobi_status": {
+    "2": 219
+   },
+   "gurobi_below_L": {
+    "calls": 483,
+    "of": 657,
+    "share": 0.7351598173515982,
+    "max_relative": 7.841969292529531e-07
+   },
+   "gurobi_relative_error": {
+    "median": 1.8508780390420567e-08,
+    "max": 7.841969292529531e-07
+   },
+   "anchored_tpps": {
+    "median": 3,
+    "max": 2248,
+    "total": 27081
+   },
+   "bisection_probes": {
+    "median": 0,
+    "max": 1891,
+    "total": 18477
+   },
+   "rational_anchor_recoveries": {
+    "instances": 21,
+    "total": 77
+   },
+   "rational_search": {
+    "instances": 12,
+    "anchored_total": 75,
+    "probes_total": 0
+   }
+  },
+  "all": {
+   "instances": 1638,
+   "calls": 4914,
+   "config": "exact",
+   "calls_within_gap": 4914,
+   "gurobi_below_proved_lower": {
+    "calls": 2358,
+    "share": 0.47985347985347987,
+    "max_relative": 7.854426831997469e-06
+   },
+   "vertices_median": 46.0,
+   "status": {
+    "FloatingPointLimit": 1278,
+    "Optimal": 360
+   },
+   "exact_optimal": 1638,
+   "step": {
+    "2": 1614,
+    "3": 24
+   },
+   "step2_share": 0.9853479853479854,
+   "step3_share": 0.014652014652014652,
+   "ours_median_s": 0.0004559358590909091,
+   "ours_max_s": 0.632654989,
+   "gurobi_median_s": 0.0014361825,
+   "gurobi_over_ours_geomean": 2.75849752285598,
+   "gurobi_faster_instances": 159,
+   "gurobi_status": {
+    "2": 1638
+   },
+   "gurobi_below_L": {
+    "calls": 2358,
+    "of": 4914,
+    "share": 0.47985347985347987,
+    "max_relative": 7.854426831997469e-06
+   },
+   "gurobi_relative_error": {
+    "median": 1.1876333652741652e-08,
+    "max": 7.854426831997469e-06
+   },
+   "anchored_tpps": {
+    "median": 3.0,
+    "max": 2248,
+    "total": 47973
+   },
+   "bisection_probes": {
+    "median": 0.0,
+    "max": 1891,
+    "total": 30878
+   },
+   "rational_anchor_recoveries": {
+    "instances": 56,
+    "total": 393
+   },
+   "rational_search": {
+    "instances": 24,
+    "anchored_total": 390,
+    "probes_total": 237
+   }
+  }
+ },
+ "cycles_tolerant": {
+  "4": {
+   "instances": 558,
+   "calls": 1674,
+   "config": "tolerant",
+   "calls_within_gap": 1674,
+   "gurobi_below_proved_lower": {
+    "calls": 486,
+    "share": 0.2903225806451613,
+    "max_relative": 1.3594325507615764e-06
+   },
+   "vertices_median": 23.0,
+   "status": {
+    "FloatingPointLimit": 36,
+    "GapClosed": 520,
+    "Optimal": 2
+   },
+   "exact_optimal": 38,
+   "step": {
+    "2": 558
+   },
+   "step2_share": 1.0,
+   "step3_share": 0.0,
+   "ours_median_s": 1.04318361081655e-05,
+   "ours_max_s": 0.0028909110555555553,
+   "gurobi_median_s": 0.000837333,
+   "gurobi_over_ours_geomean": 50.61206155228806,
+   "gurobi_faster_instances": 15,
+   "gurobi_status": {
+    "2": 558
+   },
+   "gurobi_below_L": {
+    "calls": 21,
+    "of": 114,
+    "share": 0.18421052631578946,
+    "max_relative": 4.304164586666041e-07
+   },
+   "gurobi_relative_error": {
+    "median": 1.1843466493116127e-08,
+    "max": 5.527714906045319e-07
+   },
+   "anchored_tpps": {
+    "median": 3.0,
+    "max": 400,
+    "total": 7640
+   },
+   "bisection_probes": {
+    "median": 0.0,
+    "max": 355,
+    "total": 4728
+   },
+   "rational_anchor_recoveries": {
+    "instances": 4,
+    "total": 5
+   },
+   "rational_search": {
+    "instances": 0,
+    "anchored_total": 0,
+    "probes_total": 0
+   }
+  },
+  "8": {
+   "instances": 497,
+   "calls": 1491,
+   "config": "tolerant",
+   "calls_within_gap": 1491,
+   "gurobi_below_proved_lower": {
+    "calls": 705,
+    "share": 0.47283702213279677,
+    "max_relative": 7.854426828467782e-06
+   },
+   "vertices_median": 45,
+   "status": {
+    "FloatingPointLimit": 38,
+    "GapClosed": 458,
+    "Optimal": 1
+   },
+   "exact_optimal": 39,
+   "step": {
+    "2": 496,
+    "3": 1
+   },
+   "step2_share": 0.9743589743589743,
+   "step3_share": 0.02564102564102564,
+   "ours_median_s": 3.386074272173324e-05,
+   "ours_max_s": 0.066415018,
+   "gurobi_median_s": 0.001330259,
+   "gurobi_over_ours_geomean": 22.09022773018027,
+   "gurobi_faster_instances": 36,
+   "gurobi_status": {
+    "2": 497
+   },
+   "gurobi_below_L": {
+    "calls": 60,
+    "of": 117,
+    "share": 0.5128205128205128,
+    "max_relative": 2.6330797451979167e-07
+   },
+   "gurobi_relative_error": {
+    "median": 1.3145002770526735e-08,
+    "max": 2.6330797451979167e-07
+   },
+   "anchored_tpps": {
+    "median": 4,
+    "max": 1653,
+    "total": 16672
+   },
+   "bisection_probes": {
+    "median": 0,
+    "max": 1506,
+    "total": 11252
+   },
+   "rational_anchor_recoveries": {
+    "instances": 7,
+    "total": 13
+   },
+   "rational_search": {
+    "instances": 1,
+    "anchored_total": 8,
+    "probes_total": 0
+   }
+  },
+  "16": {
+   "instances": 364,
+   "calls": 1092,
+   "config": "tolerant",
+   "calls_within_gap": 1092,
+   "gurobi_below_proved_lower": {
+    "calls": 684,
+    "share": 0.6263736263736264,
+    "max_relative": 7.789062387834779e-07
+   },
+   "vertices_median": 90.5,
+   "status": {
+    "FloatingPointLimit": 40,
+    "GapClosed": 324
+   },
+   "exact_optimal": 40,
+   "step": {
+    "2": 358,
+    "3": 6
+   },
+   "step2_share": 0.85,
+   "step3_share": 0.15,
+   "ours_median_s": 0.00014214623912326167,
+   "ours_max_s": 0.526309641,
+   "gurobi_median_s": 0.002418102,
+   "gurobi_over_ours_geomean": 8.656602756267347,
+   "gurobi_faster_instances": 60,
+   "gurobi_status": {
+    "2": 364
+   },
+   "gurobi_below_L": {
+    "calls": 90,
+    "of": 120,
+    "share": 0.75,
+    "max_relative": 7.789062387834779e-07
+   },
+   "gurobi_relative_error": {
+    "median": 1.37899884550105e-08,
+    "max": 7.789062387834779e-07
+   },
+   "anchored_tpps": {
+    "median": 4.5,
+    "max": 2426,
+    "total": 32876
+   },
+   "bisection_probes": {
+    "median": 0.0,
+    "max": 2145,
+    "total": 20353
+   },
+   "rational_anchor_recoveries": {
+    "instances": 12,
+    "total": 180
+   },
+   "rational_search": {
+    "instances": 6,
+    "anchored_total": 37,
+    "probes_total": 0
+   }
+  },
+  "32": {
+   "instances": 219,
+   "calls": 657,
+   "config": "tolerant",
+   "calls_within_gap": 657,
+   "gurobi_below_proved_lower": {
+    "calls": 483,
+    "share": 0.7351598173515982,
+    "max_relative": 7.841969224965009e-07
+   },
+   "vertices_median": 180,
+   "status": {
+    "FloatingPointLimit": 43,
+    "GapClosed": 176
+   },
+   "exact_optimal": 43,
+   "step": {
+    "2": 210,
+    "3": 9
+   },
+   "step2_share": 0.7906976744186046,
+   "step3_share": 0.20930232558139536,
+   "ours_median_s": 0.000677801472972973,
+   "ours_max_s": 0.577692872,
+   "gurobi_median_s": 0.004717832,
+   "gurobi_over_ours_geomean": 2.667487505058608,
+   "gurobi_faster_instances": 82,
+   "gurobi_status": {
+    "2": 219
+   },
+   "gurobi_below_L": {
+    "calls": 102,
+    "of": 129,
+    "share": 0.7906976744186046,
+    "max_relative": 5.66969185829998e-07
+   },
+   "gurobi_relative_error": {
+    "median": 4.334491468214261e-08,
+    "max": 5.66969185829998e-07
+   },
+   "anchored_tpps": {
+    "median": 9,
+    "max": 4496,
+    "total": 70483
+   },
+   "bisection_probes": {
+    "median": 0,
+    "max": 3782,
+    "total": 41013
+   },
+   "rational_anchor_recoveries": {
+    "instances": 18,
+    "total": 72
+   },
+   "rational_search": {
+    "instances": 9,
+    "anchored_total": 60,
+    "probes_total": 0
+   }
+  },
+  "all": {
+   "instances": 1638,
+   "calls": 4914,
+   "config": "tolerant",
+   "calls_within_gap": 4914,
+   "gurobi_below_proved_lower": {
+    "calls": 2358,
+    "share": 0.47985347985347987,
+    "max_relative": 7.854426828467782e-06
+   },
+   "vertices_median": 46.0,
+   "status": {
+    "FloatingPointLimit": 157,
+    "GapClosed": 1478,
+    "Optimal": 3
+   },
+   "exact_optimal": 160,
+   "step": {
+    "2": 1622,
+    "3": 16
+   },
+   "step2_share": 0.9,
+   "step3_share": 0.1,
+   "ours_median_s": 4.028194419129302e-05,
+   "ours_max_s": 0.577692872,
+   "gurobi_median_s": 0.0013417655000000001,
+   "gurobi_over_ours_geomean": 17.934730017260172,
+   "gurobi_faster_instances": 193,
+   "gurobi_status": {
+    "2": 1638
+   },
+   "gurobi_below_L": {
+    "calls": 273,
+    "of": 480,
+    "share": 0.56875,
+    "max_relative": 7.789062387834779e-07
+   },
+   "gurobi_relative_error": {
+    "median": 1.962655962177512e-08,
+    "max": 7.789062387834779e-07
+   },
+   "anchored_tpps": {
+    "median": 4.0,
+    "max": 4496,
+    "total": 127671
+   },
+   "bisection_probes": {
+    "median": 0.0,
+    "max": 3782,
+    "total": 77346
+   },
+   "rational_anchor_recoveries": {
+    "instances": 41,
+    "total": 270
+   },
+   "rational_search": {
+    "instances": 16,
+    "anchored_total": 105,
+    "probes_total": 0
+   }
+  }
+ }
+}

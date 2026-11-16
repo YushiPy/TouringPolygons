@@ -134,6 +134,14 @@ struct ConvexCycleDoubleOptions {
     // unchanged and keeps the larger proved lower bound. Zero keeps it off.
     double max_gap = 0;
     bool float_polish = true;
+    // Algorithm 4.1 (refine_contacts=false with recovery) with a positive
+    // max_gap: true skips the binary64 stage above (and its sweeps), and the
+    // binary64 boundary search returns GapClosed at the first candidate (a
+    // closed-form cycle, or an anchored cycle pinned at a vertex) whose
+    // certificate bounds, proved with exact predicates on its binary64
+    // contacts, satisfy U-L <= max_gap. Candidates that do not close go on to
+    // the exact rebuild, and Step 3 still runs when Step 2 ends open.
+    bool boundary_search_gap = false;
     // Cooperative checkpoints; default standalone solves have no deadline.
     // Interrupted retains only completed certificates; contacts may be empty.
     double max_seconds = std::numeric_limits<double>::infinity();
