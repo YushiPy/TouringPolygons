@@ -8,6 +8,7 @@ Pastas com dados:
 
 | Pasta | Conteúdo |
 |---|---|
+| [paper1-armijo-0ca26ed-2026-11-16](paper1-armijo-0ca26ed-2026-11-16/summary.json) | Tudo o que o artigo 1 usa, numa só revisão na armijo (`--profile paper`), depois do raio único estrutural, da partição da virada e do Algoritmo 4.1 com tolerância juntado à main: caminhos gerados, grade fina e construções, fallback racional, muitos alvos, propostas e os 1638 ciclos nos modos exato e tolerante. Medianas por instância em [`paths-random-per-instance.csv`](paper1-armijo-0ca26ed-2026-11-16/paths-random-per-instance.csv), [`paths-fine-per-instance.csv`](paper1-armijo-0ca26ed-2026-11-16/paths-fine-per-instance.csv), [`cycles-per-instance.csv`](paper1-armijo-0ca26ed-2026-11-16/cycles-per-instance.csv) e [`cycles-tolerant-per-instance.csv`](paper1-armijo-0ca26ed-2026-11-16/cycles-tolerant-per-instance.csv); resumo [abaixo](#paper1-armijo-0ca26ed-2026-11-16). |
 | [paper1-armijo-ea57cc9-2026-11-10](paper1-armijo-ea57cc9-2026-11-10/summary.json) | Os 1638 ciclos do artigo 1 com o Algoritmo 4.1 em dois modos, na armijo (`--profile cycles`): exato (gap zero) e com a tolerância do Gurobi (gap 1e-6 vezes o perímetro), em binary64 primeiro e sem varreduras. Medianas por instância em [`cycles-per-instance.csv`](paper1-armijo-ea57cc9-2026-11-10/cycles-per-instance.csv) e [`cycles-tolerant-per-instance.csv`](paper1-armijo-ea57cc9-2026-11-10/cycles-tolerant-per-instance.csv); resumo [abaixo](#paper1-armijo-ea57cc9-2026-11-10). |
 | [paper1-armijo-ffc4321-2026-11-10](paper1-armijo-ffc4321-2026-11-10/summary.json) | Escala do TPP com polígonos disjuntos (`--profile scaling`): k m-ágonos regulares congruentes em linha (pior caso de Dror et al.) e em zigue-zague (melhor caso), m até 32768 e k até 512; as três construções sem a checagem de disjunção, essa checagem à parte, o método certificado e o Gurobi, com cones e localizações por instância em [`paths-scaling-per-instance.csv`](paper1-armijo-ffc4321-2026-11-10/paths-scaling-per-instance.csv); resumo [abaixo](#paper1-armijo-ffc4321-2026-11-10). |
 | [paper1-armijo-96663cd-2026-11-09](paper1-armijo-96663cd-2026-11-09/summary.json) | Tudo o que o artigo 1 usa desde 9/11, numa só revisão na armijo (`--profile paper`): caminhos gerados, grade fina e construções, fallback racional, muitos alvos, propostas e os 1638 ciclos do Algoritmo 4.1 contra o Gurobi. Medianas por instância da Tabela 2 e do perfcons em [`paths-fine-per-instance.csv`](paper1-armijo-96663cd-2026-11-09/paths-fine-per-instance.csv) e dos ciclos em [`cycles-per-instance.csv`](paper1-armijo-96663cd-2026-11-09/cycles-per-instance.csv); resumo [abaixo](#paper1-armijo-96663cd-2026-11-09). |
@@ -32,6 +33,130 @@ status de exatidão e limitações. Um gap numérico fechado nos B&B não é ót
 algébrico; os bounds SOCP de Fekete são numéricos. Os READMEs originais
 (protocolos completos, listas de índices, hashes de binários, validações) estão
 no histórico do Git: `git show 85e1ed4:benchmarks/results-saved/<pasta>/README.md`.
+
+## paper1-armijo-0ca26ed-2026-11-16
+
+**Pergunta.** Os experimentos do artigo 1, todos numa só revisão, depois de três
+mudanças no código. Substitui no artigo `paper1-armijo-96663cd-2026-11-09`
+(caminhos) e `paper1-armijo-ea57cc9-2026-11-10` (ciclos).
+
+**Formulação.**
+- **Comando.** `./scripts/run_paper1_experiments.sh --profile paper --workers 8`,
+  na armijo (Ryzen 7 9700X, 8 processos, um por núcleo físico, fixados), no
+  commit 0ca26ed (main, árvore limpa), das 15h47 às 16h33 de 16/11, com carga
+  0,86 no início.
+  - **Etapas.** `paths-random` (681 s), `paths-fine` (1051 s),
+    `paths-rational` (380 s), `paths-targets` (459 s), `paths-proposals`
+    (88 s), `cycles` (43 s) e `cycles-tolerant` (41 s). Todas gravaram a mesma
+    revisão e nenhuma teve falhas.
+- **Código.** É o de 96663cd com:
+  - o raio único estrutural nos mapas que se intersectam (e578ea5) e os duais
+    intervalares que repartem a virada de contatos coincidentes (9a27801);
+  - o Algoritmo 4.1 com tolerância, em binary64 primeiro (ea57cc9), que também
+    prova os ciclos ancorados que encurtam o melhor (sondas da bissecção e
+    extremos de peças), tenta os três descritores na forma fechada e propõe
+    duais de blocos coincidentes por alcançabilidade (ca5f0a9);
+  - o Gurobi aquecido num triângulo antes de cada instância de caminho
+    (ffc4321).
+
+  Na merge (0ca26ed), as propostas de duais dos ciclos em binary64 são as
+  corridas, a partição e, só no modo tolerante, a alcançabilidade a partir da
+  partição.
+- **Compilador e Gurobi.** A campanha não registra o compilador nem a versão
+  do Gurobi. Nas rodadas anteriores da armijo eram o GCC 13.3.0 e o Gurobi
+  13.0.2. O Gurobi roda com parâmetros padrão, uma thread, normais unitárias e
+  o modelo refeito a cada chamada.
+- **Protocolos.** Os de 96663cd para os caminhos e para `cycles`, e o de
+  ea57cc9 para `cycles-tolerant` (gap de 1e-6 vezes o perímetro do ciclo pelas
+  médias dos vértices).
+- **Arquivos.**
+  - `summary.json`: todos os resumos.
+  - `paths-random-per-instance.csv`: as 400 instâncias geradas. Dele saem a
+    contagem de instâncias em que o Gurobi ganha e as razões por instância
+    entre as construções.
+  - `paths-fine-per-instance.csv`: a grade fina, de onde saem a figura
+    `perfcons` do artigo e as razões entre as construções.
+  - `cycles-per-instance.csv` e `cycles-tolerant-per-instance.csv`: medianas
+    por instância dos ciclos, de onde sai a tabela dos ciclos
+    (`tab:cycles`).
+
+**Resultado (caminhos).**
+- **Exatidão.** Igual à de 96663cd. As 400 instâncias geradas foram
+  certificadas ótimas (366 no Passo 2 e 34 pelo filtro). Na grade fina, 125/125
+  e 45/45. O Gurobi ficou abaixo do nosso L em 5 instâncias, por até 2,9e-8.
+- **Gurobi/certificado** (média geométrica): disjuntos 15,5 (era 16,2) e que se
+  intersectam 4,88 (era 4,85). Com o aquecimento, o Gurobi ficou mais rápido
+  nas instâncias pequenas (k = 4, m = 8: 1,21 → 1,01 ms). Ele resolve 27 das
+  200 instâncias que se intersectam mais depressa, como antes.
+- **Polígonos que se intersectam com m = 8.** O método certificado caiu de
+  30,0 para 21,8 ms com k = 64 e de 9,4 para 6,7 ms com k = 32, contra 6,5 e
+  3,5 ms do Gurobi. Com k = 64 ele continua cerca de 3 vezes mais lento. No Mac
+  a queda tinha sido de 23,4 para 13,4 ms.
+- **Construções na grade fina.** As contagens não mudaram: a preguiçosa é a
+  mais rápida em 125/125 (e em todas as repetições), e Tan e Jiang ganha da
+  ansiosa em 123. Ansiosa/preguiçosa 4,89, Tan e Jiang/preguiçosa 3,31 (de
+  1,07 a 15,5), Tan e Jiang/ansiosa 0,68.
+- **Fallback racional.** Racional/binary64 de 467 nos disjuntos (330 a 600) e
+  155 nos que se intersectam (27 a 585). As 3 instâncias que o binary64 não
+  resolve continuam as mesmas.
+- **Muitos alvos.** A preguiçosa é a mais rápida em 125, 124, 125 e 120 para
+  r = 1, 10, 100 e 1000. Para r = 1000, a ansiosa ganha nas outras 5, todas com
+  m = 8, por no máximo 2,8%. Antes eram 123 e 2.
+- **Propostas.** Medianas de 6,6, 7,5 e 7,1 ms com as construções preguiçosa,
+  ansiosa e de Tan e Jiang. As falhas no Passo 2 continuam 34 e 36.
+
+**Resultado (ciclos).**
+- **Exatidão.**
+  - **Exato.** Os 1638 com o certificado exato, 1614 no Passo 2 e 24 no Passo
+    3. As contagens de TPPs ancorados, sondas e recuperações racionais são as
+    de ea57cc9.
+  - **Tolerante.** As 4914 chamadas ficaram dentro do gap. 1614 instâncias
+    fecham em binary64 (eram 1478) e 24 vão ao caminho exato (eram 160).
+  - Em todas as chamadas, os limites tolerantes contêm o ótimo exato do modo
+    exato, e U fica no máximo 0,5 gap acima dele.
+  - O Gurobi devolveu status 2 em todas e ficou abaixo do ótimo exato em 2358
+    de 4914 chamadas (48%), por até 7,9e-6 relativo.
+- **Tempo** (medianas por instância; razões Gurobi/nosso por instância):
+
+  | modo | k | nosso | Gurobi | média geométrica | mediana | nosso mais rápido |
+  |---|---|---|---|---|---|---|
+  | exato | 4 | 185 µs | 0,99 ms | 4,71 | 5,3 | 537/558 |
+  | exato | 8 | 434 µs | 1,56 ms | 3,00 | 3,7 | 459/497 |
+  | exato | 16 | 990 µs | 2,67 ms | 1,96 | 2,6 | 317/364 |
+  | exato | 32 | 2,45 ms | 5,23 ms | 1,24 | 2,1 | 169/219 |
+  | exato | todas | 482 µs | 1,57 ms | 2,83 | 3,7 | 1482/1638 |
+  | tolerante | 4 | 10,9 µs | 0,89 ms | 64,9 | 80 | 556/558 |
+  | tolerante | 8 | 32,5 µs | 1,43 ms | 30,1 | 46 | 490/497 |
+  | tolerante | 16 | 137 µs | 2,56 ms | 12,2 | 19 | 328/364 |
+  | tolerante | 32 | 682 µs | 4,98 ms | 3,69 | 7,5 | 149/219 |
+  | tolerante | todas | 38,6 µs | 1,44 ms | 24,2 | 46 | 1523/1638 |
+
+  - **Contra ea57cc9.** O modo exato fica em 2,83 contra 2,76. O tolerante vai
+    de 17,9 para 24,2, e o Gurobi ganha em 115 instâncias (eram 193).
+  - **Custo da exatidão.** O modo exato leva 9,2 vezes o tempo do tolerante na
+    média geométrica (era 6,9).
+  - **A cauda do tolerante.** As 24 instâncias que vão ao caminho exato têm
+    mediana de 104 ms e somam 73% do tempo total do modo tolerante (eram 160
+    e 89%). As 1614 que fecham em binary64 têm mediana de 37 µs.
+  - **Exato, outros números do artigo.**
+    - As chamadas do Passo 3 têm mediana de 134 ms.
+    - Só com as do Passo 2, as médias geométricas são 2,16 com k = 16 e 1,57
+      com k = 32.
+    - Com k = 32, 22 das 219 chamadas passam de 50 ms, e o Gurobi não passa
+      de 8,2 ms.
+    - A chamada mais lenta (k = 8) levou 0,59 s.
+
+**Limitações.**
+- Os tempos absolutos subiram de 5% a 10% em relação a ea57cc9, nos dois
+  métodos (Gurobi do modo exato de 1,44 para 1,57 ms na mediana), com as razões
+  estáveis. As medianas do Gurobi nas duas etapas de ciclos diferem em até 10%
+  (k = 4).
+- A tolerância é a escala da do Gurobi, não a mesma garantia. Nossos limites
+  são provados e os pontos viáveis. O objetivo do Gurobi não é limite em
+  sentido estrito.
+- Uma máquina. As razões entre métodos valem dentro desta campanha.
+- Os dados brutos estão em `benchmarks/workspace/experiments/paper1/armijo-0ca26ed/`
+  do checkout principal.
 
 ## paper1-armijo-ea57cc9-2026-11-10
 
