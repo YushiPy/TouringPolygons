@@ -2,6 +2,7 @@
 #include "tpp/convex/detail/intersecting_maps.h"
 #include "tpp/convex/solution.h"
 #include "tpp/convex/detail/closed_regions.h"
+#include "tpp/convex/detail/convex_contacts.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
 #ifdef TPP_EXPERIMENT_NATIVE_DOUBLE
@@ -464,9 +465,19 @@ class DirectionalMaps {
         return query_length(reflect_point(q,v.point,edge),level-1);
     }
 
+    // Splits each boundary at its contacts with the earlier boundaries. Only the
+    // pairs of edges that may touch are tested, O(|P_i|+|P_h|) of them for each
+    // pair of polygons (convex_contacts.h), so all contacts take O(kn) time.
     void split_boundaries(bool include_previous_intersections) {
         struct Split { Scalar parameter; Vertex::Definition definition; };
+        struct Candidate { size_t polygon, edge; };
         std::vector<Split> splits;  // reused across edges
+        std::vector<LexicographicChains> chains;
+        if(include_previous_intersections) {
+            chains.reserve(maps.size());
+            for(const auto &m:maps) chains.push_back(lexicographic_chains(m.original));
+        }
+        std::vector<std::vector<Candidate>> candidates;
         for(size_t i=0;i<maps.size();++i) {
         cycle_checkpoint();
             auto &map=maps[i];
@@ -475,6 +486,12 @@ class DirectionalMaps {
                 Vertex v; v.point=map.original.front(); v.definition.point=v.point;
                 map.vertices.push_back(std::move(v));
                 continue;
+            }
+            candidates.assign(map.original.size(),{});
+            if(include_previous_intersections) for(size_t h=0;h<i;++h) {
+                if(map.bounds->disjoint(*maps[h].bounds)) continue;
+                for_each_edge_pair_that_may_touch(map.original,chains[i],maps[h].original,chains[h],
+                    [&](size_t j,size_t k){candidates[j].push_back({h,k});return false;});
             }
             for(size_t j=0;j<map.original.size();++j) {
                 if(map.original.size()==2 && j==1)map.segment_end=map.vertices.size();
@@ -489,24 +506,28 @@ class DirectionalMaps {
                         add((p-a).dot(edge)/edge.dot(edge),Vertex::Definition{.point=p});
                 };
                 collinear_point(start);
-                if(include_previous_intersections) for(size_t h=0;h<i;++h) {
+                // In the order of (polygon, edge), so that a contact found by
+                // several edges keeps the definition of the first one.
+                auto &list=candidates[j];
+                std::sort(list.begin(),list.end(),[](const Candidate &x,const Candidate &y){
+                    return std::tie(x.polygon,x.edge)<std::tie(y.polygon,y.edge);
+                });
+                for(const auto [h,k]:list) {
+                    // Bounds use the original binary-double coordinates,
+                    // so strict separation is an exact rejection filter.
                     if(map.edge_bounds[j].disjoint(*maps[h].bounds)) continue;
+                    if(map.edge_bounds[j].disjoint(maps[h].edge_bounds[k])) continue;
                     const auto &previous=maps[h].original;
-                    for(size_t k=0;k<previous.size();++k) {
-                        // Bounds use the original binary-double coordinates,
-                        // so strict separation is an exact rejection filter.
-                        if(map.edge_bounds[j].disjoint(maps[h].edge_bounds[k])) continue;
-                        const Point c=previous[k], other=previous[(k+1)%previous.size()]-c;
-                        const Scalar denominator=edge.cross(other);
-                        if(denominator==0) {
-                            collinear_point(c);
-                            collinear_point(c+other);
-                        } else {
-                            const Scalar t=(c-a).cross(other)/denominator;
-                            const Scalar u=(c-a).cross(edge)/denominator;
-                            if(u>=0 && u<=1) add(t,Vertex::Definition{.point=a+edge*t,
-                                .edge_intersection=true,.polygon=h,.edge=k});
-                        }
+                    const Point c=previous[k], other=previous[(k+1)%previous.size()]-c;
+                    const Scalar denominator=edge.cross(other);
+                    if(denominator==0) {
+                        collinear_point(c);
+                        collinear_point(c+other);
+                    } else {
+                        const Scalar t=(c-a).cross(other)/denominator;
+                        const Scalar u=(c-a).cross(edge)/denominator;
+                        if(u>=0 && u<=1) add(t,Vertex::Definition{.point=a+edge*t,
+                            .edge_intersection=true,.polygon=h,.edge=k});
                     }
                 }
                 std::stable_sort(splits.begin(),splits.end(),[](const Split &x,const Split &y){

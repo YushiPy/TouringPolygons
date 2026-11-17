@@ -236,21 +236,27 @@ Write N for the total original vertices, k for the number of polygons, and M
 for the total split boundary vertices. Convex boundary intersection counts give
 M=O(kN), including overlap endpoints after duplicates are collapsed.
 
-In an arithmetic-operation model, the current all-pairs splitter costs
-O(N²+M log M), with inexpensive bounding-box filtering in practice. Once the
-necessary rays are built, a query visits at most k maps, each with logarithmic
-membership/location cost: O(k log M). Building all M ray pairs, amortizing the
-lazy construction of each pair once, costs O(kM log M). Including splitting,
-the resulting bound is O(N²+kM log M), or O(N²+k²N log(kN)), with O(M+k) stored
-geometric records and an O(k)-vertex output path. Lazy calls may build fewer
-rays; a first query includes whatever construction it triggers.
+In an arithmetic-operation model, the splitter tests only the pairs of edges
+whose ranges in the lexicographic order of (x, y) overlap, merging the two
+monotone chains of each boundary
+([convex_contacts.h](../../packages/convex-tpp/cpp/include/tpp/convex/detail/convex_contacts.h)).
+That is O(|P_i|+|P_h|) pairs for each pair of polygons, O(kN) in all, and every
+pair of edges with a common point is among them. With the sort of each edge's
+contacts it costs O(kN+M log M); before 2026-11-17 it tested all pairs, in
+O(N²+M log M). The pairwise-disjointness checks of the entry points (binary64
+and exact) use the same pairs, in O(kN). Once the necessary rays are built, a
+query visits at most k maps, each with logarithmic membership/location cost:
+O(k log M). Building all M ray pairs, amortizing the lazy construction of each
+pair once, costs O(kM log M). Including splitting, the resulting bound is
+O(kM log M), or O(k²N log N) since N≥3k, with O(M+k) stored geometric records
+and an O(k)-vertex output path. Lazy calls may build fewer rays; a first query
+includes whatever construction it triggers.
 
 These are **not bit-complexity bounds**. Rational numerators/denominators grow
 under intersection and reflection, so arithmetic is not constant time and
 memory depends on their bit lengths. The implementation does not achieve or
-claim Tan and Jiang's O(k²N) construction bound. A sweep/convex intersection
-algorithm could improve splitting, and reusable exact workspaces could reduce
-allocation; neither is necessary to define the current result.
+claim Tan and Jiang's O(k²N) construction bound. Reusable exact workspaces could
+reduce allocation; that is not necessary to define the current result.
 
 Baseline on this Mac, 5,000 calls, seed 1729: the disjoint k=20,m=8 case took
 4.122225 μs/call. A corrected run took 4.191475 μs/call (about 1.7% higher);
