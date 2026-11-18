@@ -15,11 +15,13 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
+#include <functional>
 #include <optional>
-#include <set>
 #include <stdexcept>
 #include <string>
 #include <tuple>
+#include <unordered_set>
 #include <utility>
 
 namespace tpp::detail {
@@ -161,17 +163,35 @@ struct Map {
     std::optional<CachedQuery> last_query;
 };
 
+// Where an open pseudo-edge of a map lies with respect to an earlier polygon.
+// Boundaries are split at all their contacts, so one point decides it.
+enum class EdgeStatus : std::int8_t { Unknown, Inside, Outside, Boundary };
+
 class DirectionalMaps {
     Point start, target;
     std::vector<Map> maps;
     // A virtual source depends only on the cells its query is located in,
     // level by level: the start, a vertex, or the reflection in an edge of an
     // inner source. Each such sequence (a trail) is interned once, so equal
-    // trails mean equal sources; nullptr is the start.
-    std::set<std::tuple<const void*,size_t,long long>> trails;
+    // trails mean equal sources; nullptr is the start. Elements of an
+    // unordered set keep their addresses when it rehashes.
+    using Trail=std::tuple<const void*,size_t,long long>;
+    struct TrailHash {
+        size_t operator()(const Trail &t) const noexcept {
+            const size_t a=std::hash<const void*>{}(std::get<0>(t));
+            const size_t b=std::hash<size_t>{}(std::get<1>(t));
+            const size_t c=std::hash<long long>{}(std::get<2>(t));
+            return a^(b+0x9e3779b97f4a7c15ULL+(a<<6)+(a>>2))^(c*0xff51afd7ed558ccdULL);
+        }
+    };
+    std::unordered_set<Trail,TrailHash> trails;
     const void *intern(const void *inner,size_t level,long long location) {
         return &*trails.insert({inner,level,location}).first;
     }
+    using Source=std::pair<Point,const void*>;
+    // statuses[g][h][e]: pseudo-edge e of map g with respect to polygon h<g,
+    // computed once per pair of maps (Tan and Jiang's construction only).
+    std::vector<std::vector<std::vector<EdgeStatus>>> statuses;
 
     static bool inside(const Query &q,const std::vector<Point> &polygon) {
         if(polygon.size()<=2) {
@@ -222,32 +242,46 @@ class DirectionalMaps {
         return cross_sign(r1,q,v1)>=0 || cross_sign(r2,q,v2)<=0 || cross_sign(dv,q,v1)<=0;
     }
 
+    // The queries of the two sides of vertex j of map i: the vertex, moved
+    // toward its previous and its next vertex.
+    std::pair<Query,Query> vertex_queries(size_t i,size_t j) const {
+        const auto &vertices=maps[i].vertices;
+        const size_t n=vertices.size();
+        const Point &v=vertices[j].point;
+        return {Query{v,vertices[(j+n-1)%n].point-v},Query{v,vertices[(j+1)%n].point-v}};
+    }
+
     void build_vertex(size_t i,size_t j) {
         cycle_checkpoint();
+        if(maps[i].vertices[j].ready) return;
+        ++tpp::detail::cone_builds();
+        const auto [before,after]=vertex_queries(i,j);
+        const Source before_source=virtual_source_trail(before,i);
+        const Source after_source=virtual_source_trail(after,i);
+        finish_vertex(i,j,before_source,after_source);
+    }
+
+    // The cone of vertex j of map i from the virtual sources of its two sides.
+    void finish_vertex(size_t i,size_t j,const Source &before_source,const Source &after_source) {
         auto &vertices=maps[i].vertices;
         auto &v=vertices[j];
-        if(v.ready) return;
-        ++tpp::detail::cone_builds();
         const Point before=vertices[(j+vertices.size()-1)%vertices.size()].point;
         const Point after=vertices[(j+1)%vertices.size()].point;
-        auto outgoing=[&](Point side,Point edge,bool &reflects,const void *&trail,bool &at_source) {
-            const auto [source,source_trail]=virtual_source_trail({v.point,side},i);
-            trail=source_trail;
-            Point incoming=v.point-source;
+        auto outgoing=[&](const Source &source,Point side,Point edge,bool &reflects,bool &at_source) {
+            Point incoming=v.point-source.first;
             at_source=incoming.zero();
             if(at_source) incoming=side;
             reflects=cross_sign(edge,incoming)>0;
             return reflects ? reflect_direction(incoming,edge) : incoming;
         };
-        const void *before_trail=nullptr,*after_trail=nullptr;
         bool before_at_source=false,after_at_source=false;
-        v.before_ray=outgoing(before-v.point,v.point-before,v.before_reflects,before_trail,before_at_source);
-        v.after_ray=outgoing(after-v.point,after-v.point,v.after_reflects,after_trail,after_at_source);
+        v.before_ray=outgoing(before_source,before-v.point,v.point-before,v.before_reflects,before_at_source);
+        v.after_ray=outgoing(after_source,after-v.point,after-v.point,v.after_reflects,after_at_source);
         // Same source and no reflection: both rays are v minus that source.
         // Most vertices of intersecting maps are of this kind; recognizing
         // them spares the cone test an exact zero (filtered arithmetic would
         // otherwise evaluate it in rationals at every location query).
-        if(before_trail==after_trail && !v.before_reflects && !v.after_reflects
+        if(before_source.second==after_source.second && !v.before_reflects && !v.after_reflects
            && !before_at_source && !after_at_source) {
             v.single_ray=true;
             v.after_ray=v.before_ray;
@@ -311,6 +345,22 @@ class DirectionalMaps {
         if(map.original.size()==1) return 0;
         if(inside(q,map.membership_corners)) return -1;
         if(map.original.size()==2) return locate_segment(q,level);
+        const auto cell=locate_cell(q,level);
+        // A failed locator is exposed, never repaired by a scan or another solver.
+        if(!cell)
+            throw std::runtime_error("Directional map locator invariant failed at level "+std::to_string(level)
+                +" ("+std::to_string(map.original.size())+" region vertices, "
+                +std::to_string(map.vertices.size())+" split vertices)");
+        return location_of_cell(level,*cell);
+    }
+
+    // The cells of a map with at least three vertices, in circular order:
+    // 2j is the cone of vertex j and 2j+1 the region of the pseudo-edge from
+    // vertex j to vertex j+1. Together they cover the outside of the polygon.
+    // The cell of q, outside the polygon, by binary search; none if the last
+    // pseudo-edge region does not contain it.
+    std::optional<size_t> locate_cell(const Query &q,size_t level) {
+        auto &map=maps[level-1];
         const size_t i=level-1, n=map.vertices.size();
         auto cone=[&](size_t j) {
             build_vertex(i,j);
@@ -327,21 +377,248 @@ class DirectionalMaps {
             if(in_edge_plus(q,a.point,b.point,a.after_ray,b.before_ray)) right=mid;
             else left=mid+1;
         }
-        build_vertex(i,left);
-        build_vertex(i,(left+1)%n);
-        const auto &a=map.vertices[left], &b=map.vertices[(left+1)%n];
-        // A failed locator is exposed, never repaired by a scan or another solver.
-        if(!in_edge_plus(q,a.point,b.point,a.after_ray,b.before_ray))
-            throw std::runtime_error("Directional map locator invariant failed at level "+std::to_string(level)
-                +" ("+std::to_string(map.original.size())+" region vertices, "+std::to_string(n)+" split vertices)");
+        if(!in_cell(q,level,2*left+1)) return std::nullopt;
+        return 2*left+1;
+    }
+
+    // Whether q lies in cell c of the map at `level`.
+    bool in_cell(const Query &q,size_t level,size_t c) {
+        auto &map=maps[level-1];
+        const size_t i=level-1, n=map.vertices.size(), j=c/2;
+        build_vertex(i,j);
+        if(c%2==0) {
+            const auto &v=map.vertices[j];
+            return in_cone(q,v.point,v.before_ray,v.after_ray,v.single_ray);
+        }
+        build_vertex(i,(j+1)%n);
+        const auto &a=map.vertices[j], &b=map.vertices[(j+1)%n];
+        return in_edge_plus(q,a.point,b.point,a.after_ray,b.before_ray);
+    }
+
+    // What locate returns for a query in cell c: the vertex, the reflection on
+    // the pseudo-edge, or a crossing when neither of its rays reflects.
+    long long location_of_cell(size_t level,size_t c) {
+        if(c%2==0) return static_cast<long long>(c);
+        const auto &map=maps[level-1];
+        const size_t j=c/2;
+        const auto &a=map.vertices[j], &b=map.vertices[(j+1)%map.vertices.size()];
         if(a.after_reflects!=b.before_reflects &&
            (b.point-a.point).cross(a.after_ray)!=0 &&
            (b.point-a.point).cross(b.before_ray)!=0)
             throw std::runtime_error("Directional map pseudo-edge changes contact type at level "+std::to_string(level));
         // Keep the crossing sentinel signed on both 32-bit WASM and 64-bit hosts.
-        if(a.after_reflects || b.before_reflects) return static_cast<long long>(2*left+1);
+        if(a.after_reflects || b.before_reflects) return static_cast<long long>(c);
         return -1;
     }
+
+    // ---- Tan and Jiang's construction ------------------------------------
+    //
+    // Every cone is built, map by map. The 2n queries of map i (the two sides
+    // of each vertex, in the order of the boundary) are located together in
+    // map i-1, those that continue (crossings and reflections) together in map
+    // i-2, and so on (their Lemma 2). In a map, each query is first decided by
+    // the pseudo-edge it stands for (its anchor, below).
+    // - Anchor inside the polygon of the map: a crossing. For a side of a
+    //   vertex the query is then inside. For a reflected query, the contact of
+    //   its reflection lies on the last segment of its unfolded path; a bend on
+    //   this polygon would leave it from the boundary into the outside, which
+    //   cannot pass through an inner point.
+    // - Anchor outside: a scan looks for the cell of the query, from the cell
+    //   of the previous query, widening in both directions. A found cell is
+    //   kept only if the query is strictly outside an edge at the cell, so it
+    //   is the cell of the binary search.
+    // - Otherwise, and when a scan fails, the binary search of locate.
+    // If consecutive queries meet the cells in circular order, as their Lemma
+    // 1 says for disjoint polygons, a batch costs O(cells+queries); a budget
+    // bounds the scans when it does not hold.
+
+    // A query, and the open pseudo-edge (map, edge) that holds the boundary
+    // point it stands for: its own pseudo-edge for a side of a vertex, else
+    // the pseudo-edge of its last reflection.
+    struct Anchored {
+        Query query;
+        size_t map=0, edge=0;
+    };
+
+    // Statuses of the pseudo-edges of map g with respect to polygon h<g: the
+    // midpoint of each, whose wedge around an inner point of h moves at most
+    // twice monotonically along the convex boundary of g. O(|g|+|h|) time.
+    std::vector<EdgeStatus> compute_statuses(size_t g,size_t h) {
+        const auto &vertices=maps[g].vertices;
+        const auto &corners=maps[h].membership_corners;
+        const size_t n=vertices.size(), m=corners.size();
+        std::vector<EdgeStatus> result(n,EdgeStatus::Outside);
+        // The wedges between consecutive rays from o through the corners cover
+        // the plane but o, each with an angle below pi.
+        const Point o=(corners[0]+corners[1]+corners[2])/Scalar(3);
+        auto in_wedge=[&](const Point &d,size_t w) {
+            return cross_sign(corners[w]-o,d)>=0 && cross_sign(corners[(w+1)%m]-o,d)<0;
+        };
+        std::optional<size_t> wedge;
+        for(size_t e=0;e<n;++e) {
+            const Point midpoint=(vertices[e].point+vertices[(e+1)%n].point)/Scalar(2), d=midpoint-o;
+            if(d.zero()) {result[e]=EdgeStatus::Inside;continue;}
+            const size_t from=wedge.value_or(0);
+            std::optional<size_t> found;
+            if(in_wedge(d,from)) found=from;
+            for(size_t step=1;!found && 2*step<=m;++step) {
+                if(in_wedge(d,(from+step)%m)) found=(from+step)%m;
+                else if(in_wedge(d,(from+m-step)%m)) found=(from+m-step)%m;
+            }
+            if(!found) {result[e]=EdgeStatus::Unknown;continue;}
+            wedge=found;
+            const Point &a=corners[*wedge], &b=corners[(*wedge+1)%m];
+            const int side=offset_cross_sign(b-a,midpoint,a);
+            result[e]=side>0 ? EdgeStatus::Inside : side<0 ? EdgeStatus::Outside : EdgeStatus::Boundary;
+        }
+        return result;
+    }
+
+    EdgeStatus edge_status(size_t g,size_t h,size_t e) {
+        if(maps[g].original.size()<=2) return EdgeStatus::Unknown;
+        // Strictly separated boxes (exact on the binary64 input coordinates,
+        // as in split_boundaries): every pseudo-edge is outside.
+        if(maps[g].bounds->disjoint(*maps[h].bounds)) return EdgeStatus::Outside;
+        auto &row=statuses[g];
+        if(row.empty()) row.resize(g);
+        if(row[h].empty()) row[h]=compute_statuses(g,h);
+        return row[h][e];
+    }
+
+    // Whether q, in cell c, is strictly outside the supporting line of an edge
+    // at the cell (ties left out, as in `inside`): then `inside` rejects it, and
+    // the cell is the one the binary search finds.
+    bool outside_at_cell(const Query &q,size_t level,size_t c) {
+        const auto &vertices=maps[level-1].vertices;
+        const size_t n=vertices.size(), j=c/2;
+        const Point &v=vertices[j].point;
+        if(c%2) return cross_sign(vertices[(j+1)%n].point-v,q,v,false)<0;
+        const Point &before=vertices[(j+n-1)%n].point, &after=vertices[(j+1)%n].point;
+        return cross_sign(v-before,q,before,false)<0 || cross_sign(after-v,q,v,false)<0;
+    }
+
+    // Locations of the batch in the map at `level`, as locate returns them.
+    void locate_together(const std::vector<Anchored> &batch,size_t level,std::vector<long long> &locations) {
+        auto &counters=tan_jiang_scan_counters();
+        auto &map=maps[level-1];
+        const size_t h=level-1;
+        locations.resize(batch.size());
+        if(map.original.size()<=2) {
+            for(size_t t=0;t<batch.size();++t) locations[t]=locate(batch[t].query,level);
+            counters.small_maps+=batch.size();
+            return;
+        }
+        const size_t cells=2*map.vertices.size();
+        ++counters.batches;counters.queries+=batch.size();counters.scan_bound+=cells+batch.size();
+        const size_t budget=4*(cells+batch.size())+16;
+        size_t steps=0;
+        std::optional<size_t> pointer;
+        auto scan=[&](const Query &q) -> std::optional<size_t> {
+            if(!pointer) {++counters.searched;return locate_cell(q,level);}
+            const size_t p=*pointer;
+            ++steps;
+            if(in_cell(q,level,p)) return p;
+            for(size_t d=1;2*d<=cells && steps<budget;++d) {
+                const size_t forward=(p+d)%cells, backward=(p+cells-d)%cells;
+                ++steps;
+                if(in_cell(q,level,forward)) return forward;
+                if(backward==forward) continue;
+                ++steps;
+                if(in_cell(q,level,backward)) return backward;
+            }
+            if(steps<budget) ++counters.scan_failures;
+            return std::nullopt;
+        };
+        for(size_t t=0;t<batch.size();++t) {
+            cycle_checkpoint();
+            const auto &[q,g,e]=batch[t];
+            const EdgeStatus status=edge_status(g,h,e);
+            long long location=0;
+            bool decided=false;
+            if(status==EdgeStatus::Inside) {location=-1;decided=true;++counters.inside;}
+            else if(status==EdgeStatus::Outside && steps<budget) {
+                const bool first=!pointer;
+                if(const auto cell=scan(q)) {
+                    if(outside_at_cell(q,level,*cell)) {
+                        pointer=*cell;location=location_of_cell(level,*cell);decided=true;
+                        if(!first) ++counters.scanned;
+                    } else ++counters.guard_rejections;
+                }
+                if(steps>=budget) ++counters.budget_exhausted;  // once: no scan follows
+            }
+            if(!decided) {location=locate(q,level);++counters.searched;}
+            if(counters.verify) {
+                long long reference=0;
+                try {reference=locate(q,level);} catch(const std::exception &) {reference=location+1;}
+                if(reference!=location) ++counters.mismatches;
+            }
+            locations[t]=location;
+        }
+        counters.scan_steps+=steps;
+    }
+
+    // Virtual sources of a batch at `level`: virtual_source_trail of each
+    // query, with the queries located together.
+    void batch_sources(const std::vector<Anchored> &batch,size_t level,std::vector<Source> &out) {
+        out.assign(batch.size(),Source{start,nullptr});
+        if(level==0 || batch.empty()) return;
+        std::vector<long long> locations;
+        locate_together(batch,level,locations);
+        const auto &vertices=maps[level-1].vertices;
+        const size_t n=vertices.size();
+        std::vector<Anchored> next;
+        std::vector<size_t> owner;
+        for(size_t t=0;t<batch.size();++t) {
+            const long long location=locations[t];
+            if(location>=0 && location%2==0) {
+                out[t]={vertices[size_t(location)/2].point,intern(nullptr,level,location)};
+                continue;
+            }
+            owner.push_back(t);
+            if(location<0) next.push_back(batch[t]);
+            else {
+                const size_t j=size_t(location)/2;
+                const Point a=vertices[j].point, edge=vertices[(j+1)%n].point-a;
+                next.push_back({reflect_query(batch[t].query,a,edge),level-1,j});
+            }
+        }
+        std::vector<Source> inner;
+        batch_sources(next,level-1,inner);
+        for(size_t u=0;u<owner.size();++u) {
+            const size_t t=owner[u];
+            const long long location=locations[t];
+            if(location<0) {out[t]=inner[u];continue;}
+            const size_t j=size_t(location)/2;
+            const Point a=vertices[j].point, edge=vertices[(j+1)%n].point-a;
+            out[t]={reflect_point(inner[u].first,a,edge),intern(inner[u].second,level,location)};
+        }
+    }
+
+public:
+    void build_by_scans() {
+        statuses.assign(maps.size(),{});
+        std::vector<Anchored> batch;
+        std::vector<Source> sources;
+        for(size_t i=0;i<maps.size();++i) {
+            cycle_checkpoint();
+            const size_t n=maps[i].vertices.size();
+            batch.clear();
+            batch.reserve(2*n);
+            for(size_t j=0;j<n;++j) {
+                const auto [before,after]=vertex_queries(i,j);
+                batch.push_back({before,i,(j+n-1)%n});
+                batch.push_back({after,i,j});
+            }
+            batch_sources(batch,i,sources);
+            for(size_t j=0;j<n;++j) {
+                if(maps[i].vertices[j].ready) continue;
+                ++tpp::detail::cone_builds();
+                finish_vertex(i,j,sources[2*j],sources[2*j+1]);
+            }
+        }
+    }
+
+private:
 
     Point virtual_source(const Query &q,size_t level) {
         return virtual_source_trail(q,level).first;
@@ -468,8 +745,14 @@ class DirectionalMaps {
     // Splits each boundary at its contacts with the earlier boundaries. Only the
     // pairs of edges that may touch are tested, O(|P_i|+|P_h|) of them for each
     // pair of polygons (convex_contacts.h), so all contacts take O(kn) time.
+    // The contacts of an edge are sorted by parameter alone: in general
+    // position an edge meets each earlier convex boundary at most twice, so
+    // this costs O(M log k) in all.
     void split_boundaries(bool include_previous_intersections) {
-        struct Split { Scalar parameter; Vertex::Definition definition; };
+        // A contact found several times keeps the definition that comes first
+        // in the order (the edge's own vertex, the start, then (polygon, edge)
+        // of the earlier boundary, its first endpoint before its second).
+        struct Split { Scalar parameter; Vertex::Definition definition; std::array<size_t,3> order; };
         struct Candidate { size_t polygon, edge; };
         std::vector<Split> splits;  // reused across edges
         std::vector<LexicographicChains> chains;
@@ -497,22 +780,16 @@ class DirectionalMaps {
                 if(map.original.size()==2 && j==1)map.segment_end=map.vertices.size();
                 const Point a=map.original[j], edge=map.original[(j+1)%map.original.size()]-a;
                 splits.clear();
-                splits.push_back({Scalar(0),Vertex::Definition{.point=a}});
-                auto add=[&](const Scalar &t,Vertex::Definition definition) {
-                    if(t>=0 && t<1) splits.push_back({t,std::move(definition)});
+                splits.push_back({Scalar(0),Vertex::Definition{.point=a},{0,0,0}});
+                auto add=[&](const Scalar &t,Vertex::Definition definition,std::array<size_t,3> order) {
+                    if(t>=0 && t<1) splits.push_back({t,std::move(definition),order});
                 };
-                auto collinear_point=[&](const Point &p) {
+                auto collinear_point=[&](const Point &p,std::array<size_t,3> order) {
                     if(edge.cross(p-a)==0)
-                        add((p-a).dot(edge)/edge.dot(edge),Vertex::Definition{.point=p});
+                        add((p-a).dot(edge)/edge.dot(edge),Vertex::Definition{.point=p},order);
                 };
-                collinear_point(start);
-                // In the order of (polygon, edge), so that a contact found by
-                // several edges keeps the definition of the first one.
-                auto &list=candidates[j];
-                std::sort(list.begin(),list.end(),[](const Candidate &x,const Candidate &y){
-                    return std::tie(x.polygon,x.edge)<std::tie(y.polygon,y.edge);
-                });
-                for(const auto [h,k]:list) {
+                collinear_point(start,{0,0,1});
+                for(const auto [h,k]:candidates[j]) {
                     // Bounds use the original binary-double coordinates,
                     // so strict separation is an exact rejection filter.
                     if(map.edge_bounds[j].disjoint(*maps[h].bounds)) continue;
@@ -521,17 +798,18 @@ class DirectionalMaps {
                     const Point c=previous[k], other=previous[(k+1)%previous.size()]-c;
                     const Scalar denominator=edge.cross(other);
                     if(denominator==0) {
-                        collinear_point(c);
-                        collinear_point(c+other);
+                        collinear_point(c,{1+h,k,0});
+                        collinear_point(c+other,{1+h,k,1});
                     } else {
                         const Scalar t=(c-a).cross(other)/denominator;
                         const Scalar u=(c-a).cross(edge)/denominator;
                         if(u>=0 && u<=1) add(t,Vertex::Definition{.point=a+edge*t,
-                            .edge_intersection=true,.polygon=h,.edge=k});
+                            .edge_intersection=true,.polygon=h,.edge=k},{1+h,k,0});
                     }
                 }
-                std::stable_sort(splits.begin(),splits.end(),[](const Split &x,const Split &y){
-                    return x.parameter<y.parameter;
+                std::sort(splits.begin(),splits.end(),[](const Split &x,const Split &y){
+                    if(!(x.parameter==y.parameter)) return x.parameter<y.parameter;
+                    return x.order<y.order;
                 });
                 splits.erase(std::unique(splits.begin(),splits.end(),[](const Split &x,const Split &y){
                     return x.parameter==y.parameter;
@@ -729,6 +1007,16 @@ public:
 
 }
 
+namespace {
+template<class InputPoint>
+DirectionalMaps tan_jiang_maps(const Point &start,const Point &target,
+        const std::vector<std::vector<InputPoint>> &polygons) {
+    DirectionalMaps maps(start,target,polygons,PreloadPolicy::Lazy);
+    maps.build_by_scans();
+    return maps;
+}
+}
+
 #if defined(TPP_DIRECTIONAL_FILTERED)
 std::vector<DirectionalTraceStep> solve_intersecting_map_trace_filtered(
         const Vector2 &start,const Vector2 &target,const std::vector<std::vector<Vector2>> &polygons,
@@ -759,7 +1047,23 @@ std::vector<DirectionalTraceStep> solve_intersecting_map_trace_unchecked_double(
         PreloadPolicy preload) {
     return DirectionalMaps(start,target,polygons,preload).trace();
 }
+double length_intersecting_maps_tan_jiang_unchecked_double(const Vector2 &start,const Vector2 &target,
+        const std::vector<std::vector<Vector2>> &polygons) {
+    return tan_jiang_maps(Point(start),Point(target),polygons).length();
+}
+std::vector<DirectionalTraceStep> solve_intersecting_map_trace_tan_jiang_unchecked_double(
+        const Vector2 &start,const Vector2 &target,const std::vector<std::vector<Vector2>> &polygons) {
+    return tan_jiang_maps(Point(start),Point(target),polygons).trace();
+}
 #else
+std::vector<Vector2> solve_intersecting_maps_tan_jiang(const Vector2 &start,const Vector2 &target,
+        const std::vector<std::vector<Vector2>> &polygons) {
+    return tan_jiang_maps(Point(start),Point(target),polygons).solve();
+}
+double length_intersecting_maps_tan_jiang(const Vector2 &start,const Vector2 &target,
+        const std::vector<std::vector<Vector2>> &polygons) {
+    return tan_jiang_maps(Point(start),Point(target),polygons).length();
+}
 ConvexRationalPolygon solve_intersecting_map_contacts_exact(const ConvexRationalPoint &start,
         const ConvexRationalPoint &target,const ConvexRationalPolygons &polygons) {
     return DirectionalMaps(Point(start),Point(target),polygons,PreloadPolicy::Lazy).exact_contacts();

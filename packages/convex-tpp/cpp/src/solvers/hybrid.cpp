@@ -1444,7 +1444,9 @@ static ConvexHybridResult solve_hybrid_impl(const Vector2 &start,const Vector2 &
             trace=options.construction==ConvexHybridConstruction::TanJiang?
                 detail::solve_tan_jiang_trace_unchecked(start,target,input):
                 detail::solve_binary_search_disjoint_trace_unchecked(start,target,input,preload);
-        else trace=detail::solve_intersecting_map_trace_unchecked_double(start,target,input,preload);
+        else trace=options.construction==ConvexHybridConstruction::TanJiang?
+                detail::solve_intersecting_map_trace_tan_jiang_unchecked_double(start,target,input):
+                detail::solve_intersecting_map_trace_unchecked_double(start,target,input,preload);
         result.stats.double_solver_seconds=elapsed(solve_began);
 #ifdef TPP_HAS_INTERVAL_PRIMAL_DUAL
         if(interval_bounds_enabled(options)) {

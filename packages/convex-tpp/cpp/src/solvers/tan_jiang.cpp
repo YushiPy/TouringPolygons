@@ -332,8 +332,13 @@ class SolutionTAMC : public tpp::Solution {
 namespace tpp {
 
 	void tpp_convex_solve_tan_jiang(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons, ConvexTppWorkspaceView workspace, std::vector<Vector2>& output) {
+		if (auto normalized = detail::normalized_winding(polygons)) {
+			tpp_convex_solve_tan_jiang(start, target, *normalized, workspace, output);
+			return;
+		}
+
 		if (!is_tan_jiang_supported_disjoint_case(polygons)) {
-			tpp_convex_solve_binary_search_lazy(start, target, polygons, workspace, output);
+			output = detail::solve_intersecting_maps_tan_jiang(start, target, polygons);
 			return;
 		}
 
@@ -345,22 +350,31 @@ namespace tpp {
 	}
 
 	std::vector<Vector2> tpp_convex_solve_tan_jiang(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		if (auto normalized = detail::normalized_winding(polygons))
+			return tpp_convex_solve_tan_jiang(start, target, *normalized);
+
 		if (!is_tan_jiang_supported_disjoint_case(polygons)) {
-			return tpp_convex_solve_binary_search_lazy(start, target, polygons);
+			return detail::solve_intersecting_maps_tan_jiang(start, target, polygons);
 		}
 
 		return SolutionTAMC(start, target, polygons).solve();
 	}
 
 	double tpp_convex_solve_length_tan_jiang(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
+		if (auto normalized = detail::normalized_winding(polygons))
+			return tpp_convex_solve_length_tan_jiang(start, target, *normalized);
+
 		if (!is_tan_jiang_supported_disjoint_case(polygons)) {
-			return tpp_convex_solve_length_binary_search_lazy(start, target, polygons);
+			return detail::length_intersecting_maps_tan_jiang(start, target, polygons);
 		}
 
 		return SolutionTAMC(start, target, polygons).solve_length();
 	}
 
 	std::vector<double> tpp_convex_solve_lengths_tan_jiang(const Vector2& start, const std::vector<Vector2>& targets, const std::vector<std::vector<Vector2>>& polygons) {
+		if (auto normalized = detail::normalized_winding(polygons))
+			return tpp_convex_solve_lengths_tan_jiang(start, targets, *normalized);
+
 		if (!is_tan_jiang_supported_disjoint_case(polygons))
 			throw std::invalid_argument("Tan and Jiang's construction needs pairwise disjoint polygons");
 		const Vector2 &first = targets.empty() ? start : targets.front();
@@ -370,12 +384,16 @@ namespace tpp {
 	namespace detail {
 		std::vector<DirectionalTraceStep> solve_tan_jiang_trace_unchecked(const Vector2 &start, const Vector2 &target,
 				const std::vector<std::vector<Vector2>> &polygons) {
+			if (auto normalized = normalized_winding(polygons))
+				return solve_tan_jiang_trace_unchecked(start, target, *normalized);
 			if (!is_tan_jiang_supported_disjoint_case(polygons))
 				throw std::invalid_argument("Tan and Jiang's construction needs pairwise disjoint polygons");
 			return SolutionTAMC(start, target, polygons).trace();
 		}
 		double length_tan_jiang_unchecked(const Vector2 &start, const Vector2 &target,
 				const std::vector<std::vector<Vector2>> &polygons) {
+			if (auto normalized = normalized_winding(polygons))
+				return length_tan_jiang_unchecked(start, target, *normalized);
 			return SolutionTAMC(start, target, polygons).solve_length();
 		}
 	}

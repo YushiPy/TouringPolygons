@@ -315,6 +315,36 @@ void cached_contact_rotation_regressions() {
         }
     }
 }
+// Tan and Jiang's construction on the split maps locates each query exactly
+// where the binary search of the memoized maps does, so it returns the same
+// path. The public entry point uses it when polygons intersect, and the
+// disjoint construction otherwise, in either winding (clockwise boundaries
+// once gave invalid paths there).
+void verify_tan_jiang(const TestCase &c,const std::string &name) {
+    auto &counters=tpp::detail::tan_jiang_scan_counters();
+    const size_t mismatches=counters.mismatches;
+    counters.verify=true;
+    std::vector<Vector2> scans;
+    try {scans=tpp::detail::solve_intersecting_maps_tan_jiang(c.start,c.target,c.polygons);}
+    catch(const std::exception &e) {counters.verify=false;check(false,name+" Tan-Jiang exception: "+e.what());return;}
+    counters.verify=false;
+    check(counters.mismatches==mismatches,name+" Tan-Jiang locations match the binary search");
+    check(scans==tpp::detail::solve_intersecting_maps(c.start,c.target,c.polygons),name+" Tan-Jiang path");
+    if(public_api) {
+        const auto api=tpp::tpp_convex_solve_tan_jiang(c.start,c.target,c.polygons);
+        const bool valid=tpp::validate_ordered_path(c.start,c.target,c.polygons,api).valid;
+        check(valid,name+" Tan-Jiang API ordered visits");
+        if(!valid) {
+            const bool disjoint=tpp::detail::pairwise_disjoint_unchecked_double(c.polygons);
+            const auto lazy=tpp::tpp_convex_solve_binary_search_lazy(c.start,c.target,c.polygons);
+            std::cout<<"  disjoint="<<disjoint<<" tan_jiang="<<length(api)<<" lazy="<<length(lazy)
+                     <<" lazy_valid="<<tpp::validate_ordered_path(c.start,c.target,c.polygons,lazy).valid<<std::endl;
+            describe(c);
+        }
+        const double api_length=tpp::tpp_convex_solve_length_tan_jiang(c.start,c.target,c.polygons);
+        check(std::abs(api_length-length(api))<=2e-12*std::max(1.0,api_length),name+" Tan-Jiang length API");
+    }
+}
 Polygon verify(const TestCase &c,const std::string &name,bool oracle=false) {
     const auto old_failures=failures;
     try {
@@ -331,6 +361,7 @@ Polygon verify(const TestCase &c,const std::string &name,bool oracle=false) {
             ?tpp::tpp_convex_solve_length_binary_search_lazy(c.start,c.target,c.polygons)
             :tpp::detail::length_intersecting_maps(c.start,c.target,c.polygons);
         check(std::abs(api_length-value)<=2e-12*scale,name+" length API");
+        verify_tan_jiang(c,name);
         if(oracle) {
             tpp::DynamicConvexTppWorkspace workspace;
             auto oracle_polygons=c.polygons;
@@ -1010,6 +1041,36 @@ void proposal_constructions_and_many_targets() {
         ++cases;
     }
     std::cout<<"Proposal constructions and many targets: "<<cases<<" disjoint paths.\n";
+    // The same polygons at half the spacing overlap: the constructions then
+    // build the split maps, Tan and Jiang's by scans.
+    size_t overlapping=0;
+    for(size_t k:{3u,6u})for(int sample=0;sample<6;++sample) {
+        std::vector<Polygon> p;
+        for(size_t i=0;i<k;++i) {
+            std::vector<Vector2> points;
+            for(int j=0;j<12;++j) {
+                const double angle=turn(random)*std::acos(-1.0)/180;
+                points.push_back({120.0*double(i)+double(std::lround(90*std::cos(angle))),
+                                  double(offset(random))+double(std::lround(90*std::sin(angle)))});
+            }
+            p.push_back(hull(points));
+        }
+        if(tpp::detail::pairwise_disjoint_unchecked_double(p)) continue;
+        const Vector2 s{-150,double(offset(random))},t{120.0*k+60,double(offset(random))};
+        const auto lazy=tpp::tpp_convex_solve_hybrid(s,t,p);
+        for(auto construction:{tpp::ConvexHybridConstruction::Eager,tpp::ConvexHybridConstruction::TanJiang}) {
+            tpp::ConvexHybridOptions options;options.construction=construction;
+            const auto other=tpp::tpp_convex_solve_hybrid(s,t,p,options);
+            check(other.lower_bound==lazy.lower_bound&&other.upper_bound==lazy.upper_bound,
+                  "intersecting proposal construction "+std::to_string(int(construction))+" reaches the same certified bounds");
+        }
+        const double single=tpp::tpp_convex_solve_length_binary_search_lazy(s,t,p);
+        check(std::abs(tpp::tpp_convex_solve_length_tan_jiang(s,t,p)-single)<=1e-12*std::max(1.0,single),
+              "intersecting Tan-Jiang length API");
+        ++overlapping;
+    }
+    check(overlapping>0,"intersecting proposal constructions are exercised");
+    std::cout<<"Proposal constructions: "<<overlapping<<" intersecting paths.\n";
 }
 
 int main(int argc,char **argv) {
@@ -1028,6 +1089,12 @@ int main(int argc,char **argv) {
     proposal_constructions_and_many_targets();
     for(const auto &directory:corpora)corpus(directory);
     const auto aggregate=tpp::convex_hybrid_aggregate();
+    const auto &scans=tpp::detail::tan_jiang_scan_counters();
+    std::cout<<"Tan-Jiang scans: batches="<<scans.batches<<", queries="<<scans.queries
+             <<", inside="<<scans.inside<<", scanned="<<scans.scanned<<", searched="<<scans.searched
+             <<", small_maps="<<scans.small_maps<<", steps="<<scans.scan_steps<<", bound="<<scans.scan_bound
+             <<", scan_failures="<<scans.scan_failures<<", guard_rejections="<<scans.guard_rejections
+             <<", budget_exhausted="<<scans.budget_exhausted<<", mismatches="<<scans.mismatches<<std::endl;
     std::cout<<"Checks="<<checks<<", failures="<<failures<<", unresolved="<<unresolved
              <<", hybrid_total_calls="<<aggregate.total_calls
              <<", hybrid_disjoint_calls="<<aggregate.disjoint_calls
