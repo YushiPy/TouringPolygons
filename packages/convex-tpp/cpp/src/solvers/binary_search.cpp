@@ -3,6 +3,7 @@
 #include "tpp_convex_common.h"
 #include "tpp_convex.h"
 #include "tpp/convex/detail/intersecting_maps.h"
+#include "tpp/convex/detail/convex_contacts.h"
 
 #include <algorithm>
 #include <cmath>
@@ -13,80 +14,6 @@ using std::vector;
 using std::pair;
 
 namespace {
-
-	constexpr double LOCAL_EPSILON = 1e-8;
-	constexpr double LOCAL_EPSILON_SQUARED = LOCAL_EPSILON * LOCAL_EPSILON;
-
-	bool point_in_convex_polygon_closed(const Vector2 &point, const vector<Vector2> &polygon) {
-
-		bool has_positive = false;
-		bool has_negative = false;
-
-		for (size_t j = 0; j < polygon.size(); j++) {
-			const auto &v1 = polygon[j];
-			const auto &v2 = polygon[(j + 1) % polygon.size()];
-			const double cross = (v2 - v1).cross(point - v1);
-
-			if (cross > LOCAL_EPSILON_SQUARED) {
-				has_positive = true;
-			} else if (cross < -LOCAL_EPSILON_SQUARED) {
-				has_negative = true;
-			}
-
-			if (has_positive && has_negative) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	bool polygons_intersect_or_touch(const vector<Vector2> &a, const vector<Vector2> &b) {
-
-		auto bounds = [](const vector<Vector2> &polygon) {
-			double min_x = polygon.front().x;
-			double max_x = polygon.front().x;
-			double min_y = polygon.front().y;
-			double max_y = polygon.front().y;
-
-			for (const auto &point : polygon) {
-				min_x = std::min(min_x, point.x);
-				max_x = std::max(max_x, point.x);
-				min_y = std::min(min_y, point.y);
-				max_y = std::max(max_y, point.y);
-			}
-
-			return std::tuple(min_x, max_x, min_y, max_y);
-		};
-
-		const auto [a_min_x, a_max_x, a_min_y, a_max_y] = bounds(a);
-		const auto [b_min_x, b_max_x, b_min_y, b_max_y] = bounds(b);
-
-		if (
-			a_max_x < b_min_x - LOCAL_EPSILON ||
-			b_max_x < a_min_x - LOCAL_EPSILON ||
-			a_max_y < b_min_y - LOCAL_EPSILON ||
-			b_max_y < a_min_y - LOCAL_EPSILON
-		) {
-			return false;
-		}
-
-		for (size_t i = 0; i < a.size(); i++) {
-			const auto &a1 = a[i];
-			const auto &a2 = a[(i + 1) % a.size()];
-
-			for (size_t j = 0; j < b.size(); j++) {
-				const auto &b1 = b[j];
-				const auto &b2 = b[(j + 1) % b.size()];
-
-				if (tpp::segment_segment_intersection_safe(a1, a2, b1, b2).is_finite()) {
-					return true;
-				}
-			}
-		}
-
-		return point_in_convex_polygon_closed(a.front(), b) || point_in_convex_polygon_closed(b.front(), a);
-	}
 
 	// The disjoint core assumes CCW boundaries. Normalize only when necessary;
 	// already-CCW inputs retain the existing solver and storage representation.
@@ -109,20 +36,10 @@ namespace {
 		return result;
 	}
 
+	// O(kn) in all, by the linear-time contacts of convex_contacts.h.
 	bool polygons_are_pairwise_disjoint(const vector<vector<Vector2>> &polygons) {
-
-		for (size_t i = 0; i < polygons.size(); i++) {
-			for (size_t j = i + 1; j < polygons.size(); j++) {
-				if (polygons_intersect_or_touch(polygons[i], polygons[j])) {
-					return false;
-				}
-			}
-		}
-
-		return true;
+		return tpp::detail::pairwise_disjoint_double(polygons);
 	}
-
-
 }
 
 class SolutionBinarySearchDisjoint : public tpp::Solution {

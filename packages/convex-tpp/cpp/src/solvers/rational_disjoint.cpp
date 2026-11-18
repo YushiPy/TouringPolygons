@@ -1,6 +1,7 @@
 #include "tpp/convex/detail/rational_disjoint.h"
 #include "cycle_internal.h"
 #include "disjoint_arithmetic.h"
+#include "tpp/convex/detail/convex_contacts.h"
 #include <cmath>
 #include <limits>
 
@@ -69,14 +70,19 @@ bool prepare_cycle_polygons(const ConvexRationalPolygons &input,ConvexRationalPo
         normalized.push_back(std::move(strict));
     }
     if(!check_disjoint||degenerate)return false;
-    // Strict separating-axis test; closed touching is deliberately rejected.
-    auto separated=[](const Polygon &a,const Polygon &b) {
-        for(size_t i=0;i<a.size();++i) {
-            const Point edge=a[(i+1)%a.size()]-a[i];bool outside=true;
-            for(const auto &q:b)if(edge.cross(q-a[i])>=0){outside=false;break;}
-            if(outside)return true;
-        }
-        return false;
+    // Closed polygons are disjoint, that is strictly separated, when neither
+    // contains a vertex of the other and their boundaries do not meet. Touching
+    // is deliberately rejected. The boundaries take O(|a|+|b|) pairs of edges
+    // (convex_contacts.h).
+    auto contains=[](const Polygon &p,const Point &q) {
+        for(size_t i=0;i<p.size();++i)if((p[(i+1)%p.size()]-p[i]).cross(q-p[i])<0)return false;
+        return true;
+    };
+    std::vector<LexicographicChains> chains;chains.reserve(normalized.size());
+    for(const auto &p:normalized)chains.push_back(lexicographic_chains(p));
+    auto separated=[&](size_t i,size_t j) {
+        const auto &a=normalized[i],&b=normalized[j];
+        return !contains(b,a.front()) && !contains(a,b.front()) && !convex_boundaries_meet(a,chains[i],b,chains[j]);
     };
     // Exact bounding boxes first: boxes strictly apart (in either coordinate)
     // separate their polygons strictly. Only overlapping boxes need the test.
@@ -95,7 +101,7 @@ bool prepare_cycle_polygons(const ConvexRationalPolygons &input,ConvexRationalPo
     for(size_t i=0;i<normalized.size();++i)for(size_t j=i+1;j<normalized.size();++j) {
         const auto &a=boxes[i],&b=boxes[j];
         if(a.x1<b.x0||b.x1<a.x0||a.y1<b.y0||b.y1<a.y0)continue;
-        if(!separated(normalized[i],normalized[j])&&!separated(normalized[j],normalized[i]))return false;
+        if(!separated(i,j))return false;
     }
     return true;
 }

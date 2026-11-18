@@ -236,21 +236,52 @@ Write N for the total original vertices, k for the number of polygons, and M
 for the total split boundary vertices. Convex boundary intersection counts give
 M=O(kN), including overlap endpoints after duplicates are collapsed.
 
-In an arithmetic-operation model, the current all-pairs splitter costs
-O(N²+M log M), with inexpensive bounding-box filtering in practice. Once the
-necessary rays are built, a query visits at most k maps, each with logarithmic
-membership/location cost: O(k log M). Building all M ray pairs, amortizing the
-lazy construction of each pair once, costs O(kM log M). Including splitting,
-the resulting bound is O(N²+kM log M), or O(N²+k²N log(kN)), with O(M+k) stored
-geometric records and an O(k)-vertex output path. Lazy calls may build fewer
-rays; a first query includes whatever construction it triggers.
+In an arithmetic-operation model, the splitter tests only the pairs of edges
+whose ranges in the lexicographic order of (x, y) overlap, merging the two
+monotone chains of each boundary
+([convex_contacts.h](../../packages/convex-tpp/cpp/include/tpp/convex/detail/convex_contacts.h)).
+That is O(|P_i|+|P_h|) pairs for each pair of polygons, O(kN) in all, and every
+pair of edges with a common point is among them. With the sort of each edge's
+contacts it costs O(kN+M log M); before 2026-11-17 it tested all pairs, in
+O(N²+M log M). The pairwise-disjointness checks of the entry points (binary64
+and exact) use the same pairs, in O(kN). Once the necessary rays are built, a
+query visits at most k maps, each with logarithmic membership/location cost:
+O(k log M). Building all M ray pairs, amortizing the lazy construction of each
+pair once, costs O(kM log M). Including splitting, the resulting bound is
+O(kM log M), or O(k²N log N) since N≥3k, with O(M+k) stored geometric records
+and an O(k)-vertex output path. Lazy calls may build fewer rays; a first query
+includes whatever construction it triggers.
 
 These are **not bit-complexity bounds**. Rational numerators/denominators grow
 under intersection and reflection, so arithmetic is not constant time and
 memory depends on their bit lengths. The implementation does not achieve or
-claim Tan and Jiang's O(k²N) construction bound. A sweep/convex intersection
-algorithm could improve splitting, and reusable exact workspaces could reduce
-allocation; neither is necessary to define the current result.
+claim Tan and Jiang's O(k²N) construction bound. Reusable exact workspaces could
+reduce allocation; that is not necessary to define the current result.
+
+Tan and Jiang's construction for disjoint polygons is implemented in
+[tan_jiang.cpp](../../packages/convex-tpp/cpp/src/solvers/tan_jiang.cpp)
+and reaches their O(kN) bound. Following their Lemma 2, it locates the vertices
+of P_{i+1} together in the maps of P_i, ..., P_1, by scans in the circular
+order of the cells, and builds every cone, O(N) stored. The query to the target
+is a binary search in each map, O(k log(N/k)), and the disjointness check of
+the entry point is O(kN). Two guards are not in their paper. After four rounds
+of forward and backward scans, the remaining points of a batch are located by
+binary search, and so is a point that no scan finds. Neither guard is reached
+in exact arithmetic. By their Lemma 1, the cells of consecutive points follow
+the circular order, which two rounds cover. A point located in the map of P_h
+is not inside P_h. It is a vertex of a later, disjoint polygon, or an image
+whose unfolded segment meets P_h before an edge of a later polygon, and
+convexity would put that edge point in P_h, which disjointness excludes. The
+cells cover the plane outside P_h. Gaps between binary64 cells could reach the guards, at O(|P_h|) per point.
+An instrumented copy of the scans (2026-11-18, not kept), on 36 disjoint
+instances of three families with k up to 128 and up to 524,288 vertices, found
+no point on either guard. Its scan steps stayed within 2.8 times the sum of
+their Lemma 2. In the family with the deepest chains, a corridor of thin
+ellipses, with k=8 and m from 256 to 65,536 vertices per polygon, the time per
+kN stayed between 10.5 and 12.8 ns, against 17.9 to 40.4 ns for the eager
+binary-search construction. For intersecting inputs, the entry point uses the
+maps above and keeps O(kM log M). Their O(k²N) would also need the scans in the
+split maps, which locate one point at a time.
 
 Baseline on this Mac, 5,000 calls, seed 1729: the disjoint k=20,m=8 case took
 4.122225 μs/call. A corrected run took 4.191475 μs/call (about 1.7% higher);

@@ -1,5 +1,6 @@
 #include "tpp/convex/hybrid.h"
 #include "tpp/convex/detail/intersecting_maps.h"
+#include "tpp/convex/detail/convex_contacts.h"
 #include "tpp/convex/cycle_certificate.h"
 #include "tpp/convex/detail/rational_disjoint.h"
 #include "tpp/convex/solver.h"
@@ -597,6 +598,10 @@ bool pair_disjoint(const Polygon &a,const Polygon &b,const Bounds &a_bounds,cons
     if(bounds_disjoint(a_bounds,b_bounds))return true;
     ++stats.dispatch_pair_exact_checks;
     if(inside(a.front(),b) || inside(b.front(),a))return false;
+    // Neither contains a vertex of the other, so they meet only if their
+    // boundaries do: O(|a|+|b|) pairs of edges (convex_contacts.h).
+    if(a.size()>=3 && b.size()>=3)
+        return !detail::convex_boundaries_meet(a,detail::lexicographic_chains(a),b,detail::lexicographic_chains(b));
     for(size_t e=0;e<a.size();++e) {
         Polygon edge_box_points{a[e],a[(e+1)%a.size()]};
         if(bounds_disjoint(bounds(edge_box_points),b_bounds))continue;

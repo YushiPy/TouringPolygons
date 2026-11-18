@@ -2,6 +2,7 @@
 #include "tpp/geometry/vec2.h"
 #include "tpp/geometry/common.h"
 #include "tpp_convex_common.h"
+#include "tpp/convex/detail/convex_contacts.h"
 
 #include <algorithm>
 #include <span>
@@ -13,31 +14,10 @@ namespace {
 	constexpr double LOCAL_EPSILON = 1e-8;
 	constexpr double LOCAL_EPSILON_SQUARED = LOCAL_EPSILON * LOCAL_EPSILON;
 
+	// O(log m) for convex polygons, with the tolerance of the linear test
+	// (convex_contacts.h).
 	bool point_in_convex_polygon_closed(const Vector2 &point, const vector<Vector2> &polygon) {
-		if (polygon.empty()) {
-			return false;
-		}
-
-		bool has_positive = false;
-		bool has_negative = false;
-
-		for (size_t i = 0; i < polygon.size(); i++) {
-			const auto &v1 = polygon[i];
-			const auto &v2 = polygon[(i + 1) % polygon.size()];
-			const double cross = (v2 - v1).cross(point - v1);
-
-			if (cross > LOCAL_EPSILON_SQUARED) {
-				has_positive = true;
-			} else if (cross < -LOCAL_EPSILON_SQUARED) {
-				has_negative = true;
-			}
-
-			if (has_positive && has_negative) {
-				return false;
-			}
-		}
-
-		return true;
+		return tpp::detail::point_in_convex_polygon_closed_logarithmic(point, polygon);
 	}
 
 }

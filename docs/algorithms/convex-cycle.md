@@ -926,23 +926,27 @@ may be irrational, and is exactly represented as their sum of square roots.
 Let `N` be the total input vertex count, `k` the polygon count, `A` the number
 of split anchor segments, and `H=1+log Q` bound the rational reconstruction
 height of a minimizer for a searched segment. Convexity/winding validation is
-`O(N)`. Direct boundary splitting/separation checks cost `O(N^2)` operations.
-Convexity gives `A=O(kN)` even though the implementation checks pairs of edges.
+`O(N)`. Boundary splitting and the separation checks test only the pairs of
+edges that the linear-time contact routine of
+[convex_contacts.h](../../packages/convex-tpp/cpp/include/tpp/convex/detail/convex_contacts.h)
+lists, `O(kN)` pairs in all, and convexity gives `A=O(kN)`. Before 2026-11-17
+they tested all pairs of edges, in `O(N^2)` operations.
 
-For the maintained intersecting fixed-source map, use the conservative bound
-`C=O(N^2+k^2*N*log(kN))` and `O(kN)` stored values. The complete cycle
-certificate costs `V=O(N+k^3)` operations, or `O(N)` without zero links.
-With refinement disabled, the general reduction therefore costs
+For the maintained intersecting fixed-source map, use the bound
+`C=O(k^2*N*log(kN))` and `O(kN)` stored values; see
+[the correction report](intersecting-tpp-correction.md#complexity-and-performance).
+The complete cycle certificate costs `V=O(N+k^3)` operations, or `O(N)` without
+zero links. With refinement disabled, the general reduction therefore costs
 
 ```
-O(N^2 + A*H*(C+V+H)) arithmetic operations,
+O(kN + A*H*(C+V+H)) arithmetic operations,
 O(kN+H) stored arithmetic values.
 ```
 
 The optional proposal uses `O(N)` geometric operations per sweep without zero
 blocks, at most `O(k^2)` for endpoint pivots, and at most `O(N^2)` for block
-intersections. Including its certificates,
-its `k+1` sweeps add at most `R=O(k*(N^2+V))` per invocation. It is called before
+intersections, which clip one region by every edge of another. Including its
+certificates, its `k+1` sweeps add at most `R=O(k*(N^2+V))` per invocation. It is called before
 the search and at searched contacts, so replacing `C+V+H` by `C+V+H+R` gives a
 conservative bound for the accelerated implementation. The intended practical
 benefit is obtaining a certificate before most anchored solves are needed.
@@ -953,7 +957,7 @@ stored contact values, already covered by the bounds above because `A>=k`,
 
 For the disjoint fallback, with `m` vertices on the smallest polygon and
 `C_d=O(k*N*log(N/k))`, the boundary part remains
-`O(N^2+m*H*(C_d+N+H))`, plus the bounded initial proposal. These count exact
+`O(kN+m*H*(C_d+N+H))`, plus the bounded initial proposal. These count exact
 arithmetic operations, not constant-time bit costs: reflections grow rational
 numerators/denominators, and reporting bounds use integer square roots.
 

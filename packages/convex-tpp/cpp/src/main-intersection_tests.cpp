@@ -1,9 +1,15 @@
 #include "tests.h"
 #include "tpp/convex/solution.h"
 #include "tpp_convex.h"
+#include "tpp/convex/detail/convex_contacts.h"
 
+#include <algorithm>
+#include <array>
 #include <cmath>
+#include <format>
 #include <print>
+#include <random>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -11,6 +17,161 @@
 using std::vector;
 
 namespace {
+
+	// The binary64 test that convex_contacts.h replaces, with every pair of edges.
+	bool reference_intersect_or_touch(const vector<Vector2> &a, const vector<Vector2> &b) {
+		constexpr double epsilon = 1e-8;
+		auto bounds = [](const vector<Vector2> &p) {
+			double x0 = p.front().x, x1 = p.front().x, y0 = p.front().y, y1 = p.front().y;
+			for (const auto &q : p) {
+				x0 = std::min(x0, q.x); x1 = std::max(x1, q.x);
+				y0 = std::min(y0, q.y); y1 = std::max(y1, q.y);
+			}
+			return std::array<double, 4>{x0, x1, y0, y1};
+		};
+		const auto ab = bounds(a), bb = bounds(b);
+		if (ab[1] < bb[0] - epsilon || bb[1] < ab[0] - epsilon || ab[3] < bb[2] - epsilon || bb[3] < ab[2] - epsilon) {
+			return false;
+		}
+		for (size_t i = 0; i < a.size(); i++) {
+			for (size_t j = 0; j < b.size(); j++) {
+				if (tpp::segment_segment_intersection_safe(a[i], a[(i + 1) % a.size()], b[j], b[(j + 1) % b.size()]).is_finite()) {
+					return true;
+				}
+			}
+		}
+		return tpp::detail::point_in_convex_polygon_closed_linear(a.front(), b) ||
+			tpp::detail::point_in_convex_polygon_closed_linear(b.front(), a);
+	}
+
+	// A convex polygon with integer vertices, so that every cross product below is
+	// exact in binary64: the hull of random grid points, sometimes with midpoints
+	// of edges kept as collinear vertices, sometimes clockwise, sometimes an
+	// axis-aligned rectangle (whose sides touch and overlap often).
+	vector<Vector2> random_convex_polygon(std::mt19937_64 &random) {
+		std::uniform_int_distribution<int> coordinate(-12, 12), size(1, 8), kind(0, 3);
+		vector<Vector2> polygon;
+		if (kind(random) == 0) {
+			const double x = coordinate(random), y = coordinate(random);
+			const double w = 2 * size(random), h = 2 * size(random);
+			polygon = {{x, y}, {x + w, y}, {x + w, y + h}, {x, y + h}};
+		} else {
+			vector<Vector2> points;
+			const int count = 3 + size(random);
+			for (int i = 0; i < count; i++) {
+				points.emplace_back(2 * coordinate(random), 2 * coordinate(random));
+			}
+			std::sort(points.begin(), points.end(), [](const Vector2 &p, const Vector2 &q) {
+				return p.x < q.x || (p.x == q.x && p.y < q.y);
+			});
+			points.erase(std::unique(points.begin(), points.end(), [](const Vector2 &p, const Vector2 &q) {
+				return p.x == q.x && p.y == q.y;
+			}), points.end());
+			// Andrew's monotone chain, counterclockwise, without collinear points.
+			vector<Vector2> hull;
+			for (int pass = 0; pass < 2; pass++) {
+				const size_t base = hull.size();
+				for (const auto &p : points) {
+					while (hull.size() >= base + 2 && (hull[hull.size() - 1] - hull[hull.size() - 2]).cross(p - hull[hull.size() - 2]) <= 0) {
+						hull.pop_back();
+					}
+					hull.push_back(p);
+				}
+				hull.pop_back();
+				std::reverse(points.begin(), points.end());
+			}
+			if (hull.size() < 3) {
+				return random_convex_polygon(random);
+			}
+			polygon = hull;
+		}
+		if (kind(random) == 0) {
+			vector<Vector2> refined;
+			for (size_t i = 0; i < polygon.size(); i++) {
+				refined.push_back(polygon[i]);
+				refined.push_back((polygon[i] + polygon[(i + 1) % polygon.size()]) / 2);
+			}
+			polygon = refined;
+		}
+		if (kind(random) == 0) {
+			std::reverse(polygon.begin(), polygon.end());
+		}
+		if (kind(random) == 0) {
+			std::rotate(polygon.begin(), polygon.begin() + 1, polygon.end());
+		}
+		return polygon;
+	}
+
+	void test_convex_contacts() {
+		std::mt19937_64 random(20261117);
+		size_t meeting = 0, touching_only = 0, disjoint = 0;
+		for (int trial = 0; trial < 20000; trial++) {
+			const auto a = random_convex_polygon(random), b = random_convex_polygon(random);
+			const auto ca = tpp::detail::lexicographic_chains(a), cb = tpp::detail::lexicographic_chains(b);
+			if (!ca.valid || !cb.valid) {
+				throw std::runtime_error("convex contacts: a convex polygon must split into two chains");
+			}
+			std::set<std::pair<size_t, size_t>> reported;
+			size_t calls = 0;
+			tpp::detail::for_each_edge_pair_that_may_touch(a, ca, b, cb, [&](size_t j, size_t k) {
+				++calls;
+				if (!reported.insert({j, k}).second) {
+					throw std::runtime_error("convex contacts: a pair of edges was reported twice");
+				}
+				return false;
+			});
+			if (calls > 4 * (a.size() + b.size()) + 4) {
+				throw std::runtime_error(std::format("convex contacts: {} pairs for {} and {} edges", calls, a.size(), b.size()));
+			}
+			bool meet = false;
+			for (size_t j = 0; j < a.size(); j++) {
+				for (size_t k = 0; k < b.size(); k++) {
+					if (tpp::detail::closed_segments_meet(a[j], a[(j + 1) % a.size()], b[k], b[(k + 1) % b.size()])) {
+						meet = true;
+						if (!reported.contains({j, k})) {
+							throw std::runtime_error("convex contacts: a pair of edges that meet was not reported");
+						}
+					}
+				}
+			}
+			if (meet != tpp::detail::convex_boundaries_meet(a, ca, b, cb)) {
+				throw std::runtime_error("convex contacts: boundaries meet differs from every pair of edges");
+			}
+			const bool reference = reference_intersect_or_touch(a, b);
+			if (reference != tpp::detail::convex_polygons_intersect_or_touch_double(a, ca, b, cb)) {
+				throw std::runtime_error("convex contacts: the binary64 test differs from the one it replaces");
+			}
+			if (reference != !tpp::detail::pairwise_disjoint_double({a, b})) {
+				throw std::runtime_error("convex contacts: pairwise_disjoint_double differs from the test it replaces");
+			}
+			meeting += meet;
+			touching_only += reference && !meet;
+			disjoint += !reference;
+			// Membership: vertices, midpoints of edges and grid points, inside and out.
+			std::uniform_int_distribution<int> coordinate(-30, 30);
+			vector<Vector2> points(a.begin(), a.end());
+			for (size_t j = 0; j < a.size(); j++) {
+				points.push_back((a[j] + a[(j + 1) % a.size()]) / 2);
+			}
+			for (int i = 0; i < 16; i++) {
+				points.emplace_back(coordinate(random), coordinate(random));
+			}
+			for (const auto &point : points) {
+				if (tpp::detail::point_in_convex_polygon_closed_linear(point, a) != tpp::detail::point_in_convex_polygon_closed_logarithmic(point, a)) {
+					throw std::runtime_error("convex contacts: logarithmic membership differs from the linear test");
+				}
+			}
+		}
+		if (meeting == 0 || disjoint == 0 || touching_only == 0) {
+			throw std::runtime_error(std::format("convex contacts: the random cases miss a configuration ({} meeting, {} nested, {} disjoint)", meeting, touching_only, disjoint));
+		}
+
+		// Crossing rectangles: no vertex of either lies in the other, but they intersect.
+		const vector<Vector2> wide{{-3, -1}, {3, -1}, {3, 1}, {-3, 1}}, tall{{-1, -3}, {1, -3}, {1, 3}, {-1, 3}};
+		if (tpp::detail::pairwise_disjoint_double({wide, tall})) {
+			throw std::runtime_error("convex contacts: crossing rectangles must intersect");
+		}
+	}
 
 	double path_length(const vector<Vector2> &path) {
 		double result = 0.0;
@@ -114,6 +275,8 @@ namespace {
 }
 
 int main() {
+	test_convex_contacts();
+
 	class RepeatedQuery final : public tpp::Solution {
 	public:
 		using tpp::Solution::Solution;
