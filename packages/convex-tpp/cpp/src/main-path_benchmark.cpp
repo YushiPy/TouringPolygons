@@ -12,16 +12,17 @@
 //                 propose-and-certify flow, optimal when it reports L = U;
 //   tolerant      the same with max_gap 1e-6 times the length of the path
 //                 through the polygons' vertex means (Gurobi's default scale);
-//   lazy, eager   the binary64 construction alone (no certificate), building
-//                 cones on demand or all of them first, with the number of
-//                 cones built (Solution::build_cone or the directional maps);
+//   lazy, eager   the construction alone through the public entry points (no
+//                 certificate), building cones on demand or all of them first,
+//                 with the number of cones built: binary64 for disjoint
+//                 polygons (Solution::build_cone), the exact split maps
+//                 otherwise;
 //   gurobi        the SOCP with unit normals, default parameters, one thread,
 //                 the model built at every call (as Fekete et al.'s oracle);
 //   tan_jiang     Tan and Jiang's construction (tan_jiang.cpp): every cone,
 //                 the vertices of each polygon located together by monotone
-//                 scans. Disjoint polygons only; otherwise the solver falls
-//                 back to the lazy search, which shows as fewer cones than
-//                 vertices;
+//                 scans; binary64 for disjoint polygons, the exact split maps
+//                 otherwise;
 //   binary64      the binary64 construction of Step 1 of the flow alone (its
 //                 trace: the lazy search for disjoint polygons, the binary64
 //                 maps otherwise), without replay or certificate;
@@ -38,11 +39,12 @@
 //                 answer the first r targets with one set of maps, timed per r,
 //                 with the cones the lazy one builds;
 //   lazy_core, eager_core, tan_jiang_core
-//                 the lazy, eager and Tan and Jiang constructions without the
-//                 pairwise-disjointness check of their entry points (O(k^2)
-//                 pairs of polygons), for inputs known to be disjoint, with
-//                 the cones built and, for the first two, the point locations
-//                 in the maps (one per map visited);
+//                 the lazy, eager and Tan and Jiang constructions in binary64,
+//                 without the pairwise-disjointness check of the entry points:
+//                 the disjoint cores when the certified flow found the
+//                 polygons disjoint (with the point locations in the maps, one
+//                 per map visited, for the first two), the binary64 split maps
+//                 otherwise; with the cones built;
 //   input_check   that disjointness check alone ("length" is 1 if disjoint).
 // Calls shorter than 0.05 s are repeated back to back; "seconds" is the first
 // call and "mean" the average of the block that follows it.
@@ -307,11 +309,15 @@ int main(int argc,char **argv) {
                     if(which=="eager")eager=construction([&]{return tpp::tpp_convex_solve_length_binary_search_eager(s,t,p);});
                     if(which=="tan_jiang")batch=construction([&]{return tpp::tpp_convex_solve_length_tan_jiang(s,t,p);});
                     if(which=="gurobi")socp=gurobi(s,t,p,env);
-                    if(which=="lazy_core")lazy_core=construction([&]{
-                        return tpp::detail::length_binary_search_disjoint_unchecked(s,t,p,tpp::PreloadPolicy::Lazy);});
-                    if(which=="eager_core")eager_core=construction([&]{
-                        return tpp::detail::length_binary_search_disjoint_unchecked(s,t,p,tpp::PreloadPolicy::Eager);});
-                    if(which=="tan_jiang_core")tan_jiang_core=construction([&]{return tpp::detail::length_tan_jiang_unchecked(s,t,p);});
+                    if(which=="lazy_core")lazy_core=construction([&]{return disjoint?
+                        tpp::detail::length_binary_search_disjoint_unchecked(s,t,p,tpp::PreloadPolicy::Lazy):
+                        tpp::detail::length_intersecting_maps_unchecked_double(s,t,p,tpp::PreloadPolicy::Lazy);});
+                    if(which=="eager_core")eager_core=construction([&]{return disjoint?
+                        tpp::detail::length_binary_search_disjoint_unchecked(s,t,p,tpp::PreloadPolicy::Eager):
+                        tpp::detail::length_intersecting_maps_unchecked_double(s,t,p,tpp::PreloadPolicy::Eager);});
+                    if(which=="tan_jiang_core")tan_jiang_core=construction([&]{return disjoint?
+                        tpp::detail::length_tan_jiang_unchecked(s,t,p):
+                        tpp::detail::length_intersecting_maps_tan_jiang_unchecked_double(s,t,p);});
                     if(which=="input_check")input_check=construction([&]{return tpp::detail::pairwise_disjoint_unchecked_double(p)?1.0:0.0;});
                     if(which=="binary64")binary=construction([&]{return double((disjoint?
                         tpp::detail::solve_binary_search_disjoint_trace_unchecked(s,t,p):

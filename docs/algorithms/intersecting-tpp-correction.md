@@ -302,8 +302,11 @@ over the wedges around an inner point of P_h.
   between were crossings, so the reflection contact lies on the last segment
   of the unfolded path. A bend on P_h would leave the boundary of P_h toward
   the outside, never through an inner point. This step replaces the membership
-  test that Tan and Jiang's §4 argues only for the vertices of P_{i+1}.
-  Degenerate contacts are not covered by this argument.
+  test that Tan and Jiang's §4 argues only for the vertices of P_{i+1}. It is
+  taken only when the reflected query was off both limiting rays of its
+  reflection cell, so that the contact lies inside the open pseudo-edge.
+  Otherwise the contact may sit at an end of the pseudo-edge, on the boundary
+  of P_h, and the query goes to the binary search.
 - **Anchor outside P_h.** A scan looks for the cell, starting at the cell of
   the previous query and widening in both directions. A found cell is kept
   only if the query is strictly outside an edge line at the cell. That makes
@@ -313,12 +316,16 @@ over the wedges around an inner point of P_h.
   batch bounds the scans.
 
 The directional tests locate every query by binary search as well
-(`TanJiangScanCounters::verify`), and compare the paths.
+(`TanJiangScanCounters::verify`), and compare the paths. The proofs that the
+locations agree, and the cost analysis against Tan and Jiang's theorems, are in
+[tan-jiang-implementation.md](tan-jiang-implementation.md).
 
 If the consecutive queries of a batch meet the cells in circular order, with a
-bounded number of reversals, a batch costs O(cells+queries). This is what Tan
-and Jiang's Lemma 1 gives for disjoint polygons. It is not proved for the split
-maps, where cones at pseudo-vertices are one-sided. With it, the construction
+bounded number of reversals, a batch costs O(cells+queries). This is Tan and
+Jiang's Lemma 1, on which their own bounds rest. It is proved in
+tan-jiang-implementation.md for the batches in the previous map. For earlier
+maps it is assumed, as in their paper, and it held in every measured batch.
+With it, the construction
 costs O(Σ_i Σ_{h<i}(M_h+M_i)) = O(kM) = O(k²N). The splitting adds O(kN + M log
 k), and the statuses of the anchors add O(kM), so the total is O(k²N) in
 arithmetic operations. Without it, the guards keep the result, at the
@@ -341,7 +348,9 @@ constructions that were not kept:
   budget ran out. All 11.7 million locations equaled those of the binary
   search, and the lengths were identical. In binary64 the ratio reached 1.05
   on the paper's family. A few scans failed there, and they fell back to the
-  binary search.
+  binary search. Per batch, over 24.8 million exact queries of random blobs,
+  needles, nested polygons, chains and fans, the worst batch tested 3.23
+  times its cells plus queries (tan-jiang-implementation.md, Section 4).
 - **Time in binary64.** The table gives the geometric mean of the time of the
   scans over that of each other construction.
 

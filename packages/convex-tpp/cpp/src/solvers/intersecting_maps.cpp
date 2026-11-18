@@ -418,11 +418,13 @@ class DirectionalMaps {
     // map i-1, those that continue (crossings and reflections) together in map
     // i-2, and so on (their Lemma 2). In a map, each query is first decided by
     // the pseudo-edge it stands for (its anchor, below).
-    // - Anchor inside the polygon of the map: a crossing. For a side of a
-    //   vertex the query is then inside. For a reflected query, the contact of
-    //   its reflection lies on the last segment of its unfolded path; a bend on
-    //   this polygon would leave it from the boundary into the outside, which
-    //   cannot pass through an inner point.
+    // - Anchor inside the polygon of the map, strict: a crossing. For a side
+    //   of a vertex the query is then inside. For a reflected query, the
+    //   contact of its reflection lies on the last segment of its unfolded
+    //   path; a bend on this polygon would leave it from the boundary into the
+    //   outside, which cannot pass through an inner point. A contact that may
+    //   sit at an end of the pseudo-edge (not strict) goes to the binary
+    //   search. docs/algorithms/tan-jiang-implementation.md has the proof.
     // - Anchor outside: a scan looks for the cell of the query, from the cell
     //   of the previous query, widening in both directions. A found cell is
     //   kept only if the query is strictly outside an edge at the cell, so it
@@ -434,10 +436,14 @@ class DirectionalMaps {
 
     // A query, and the open pseudo-edge (map, edge) that holds the boundary
     // point it stands for: its own pseudo-edge for a side of a vertex, else
-    // the pseudo-edge of its last reflection.
+    // the pseudo-edge of its last reflection. `strict`: that point is inside
+    // the open pseudo-edge for every small enough perturbation, which holds
+    // for a side of a vertex and for a reflection whose query is off both
+    // limiting rays of the reflection cell.
     struct Anchored {
         Query query;
         size_t map=0, edge=0;
+        bool strict=true;
     };
 
     // Statuses of the pseudo-edges of map g with respect to polygon h<g: the
@@ -531,11 +537,11 @@ class DirectionalMaps {
         };
         for(size_t t=0;t<batch.size();++t) {
             cycle_checkpoint();
-            const auto &[q,g,e]=batch[t];
+            const auto &[q,g,e,strict]=batch[t];
             const EdgeStatus status=edge_status(g,h,e);
             long long location=0;
             bool decided=false;
-            if(status==EdgeStatus::Inside) {location=-1;decided=true;++counters.inside;}
+            if(status==EdgeStatus::Inside && strict) {location=-1;decided=true;++counters.inside;}
             else if(status==EdgeStatus::Outside && steps<budget) {
                 const bool first=!pointer;
                 if(const auto cell=scan(q)) {
@@ -555,6 +561,7 @@ class DirectionalMaps {
             locations[t]=location;
         }
         counters.scan_steps+=steps;
+        counters.max_batch_ratio=std::max(counters.max_batch_ratio,double(steps)/double(cells+batch.size()));
     }
 
     // Virtual sources of a batch at `level`: virtual_source_trail of each
@@ -578,8 +585,12 @@ class DirectionalMaps {
             if(location<0) next.push_back(batch[t]);
             else {
                 const size_t j=size_t(location)/2;
-                const Point a=vertices[j].point, edge=vertices[(j+1)%n].point-a;
-                next.push_back({reflect_query(batch[t].query,a,edge),level-1,j});
+                const auto &from=vertices[j], &to=vertices[(j+1)%n];
+                const Point a=from.point, edge=to.point-a;
+                const Query &q=batch[t].query;
+                const bool strict=cross_sign(from.after_ray,q,a,false)!=0
+                    && cross_sign(to.before_ray,q,to.point,false)!=0;
+                next.push_back({reflect_query(q,a,edge),level-1,j,strict});
             }
         }
         std::vector<Source> inner;

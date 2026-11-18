@@ -1094,7 +1094,8 @@ int main(int argc,char **argv) {
              <<", inside="<<scans.inside<<", scanned="<<scans.scanned<<", searched="<<scans.searched
              <<", small_maps="<<scans.small_maps<<", steps="<<scans.scan_steps<<", bound="<<scans.scan_bound
              <<", scan_failures="<<scans.scan_failures<<", guard_rejections="<<scans.guard_rejections
-             <<", budget_exhausted="<<scans.budget_exhausted<<", mismatches="<<scans.mismatches<<std::endl;
+             <<", budget_exhausted="<<scans.budget_exhausted<<", max_batch_ratio="<<scans.max_batch_ratio
+             <<", mismatches="<<scans.mismatches<<std::endl;
     std::cout<<"Checks="<<checks<<", failures="<<failures<<", unresolved="<<unresolved
              <<", hybrid_total_calls="<<aggregate.total_calls
              <<", hybrid_disjoint_calls="<<aggregate.disjoint_calls

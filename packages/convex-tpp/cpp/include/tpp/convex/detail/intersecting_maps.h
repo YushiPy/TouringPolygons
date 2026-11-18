@@ -51,6 +51,7 @@ struct TanJiangScanCounters {
     std::size_t guard_rejections = 0; // cells found but not proved outside the polygon
     std::size_t budget_exhausted = 0; // batches that left their scan budget
     std::size_t small_maps = 0;       // queries in maps of a point or a segment (binary search)
+    double max_batch_ratio = 0;       // largest scan steps / (cells + queries) of one batch
     bool verify = false;              // compare every location with the binary search
     std::size_t mismatches = 0;       // locations that differ from it
 };
