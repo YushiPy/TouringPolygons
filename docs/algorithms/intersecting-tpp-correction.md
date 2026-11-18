@@ -254,8 +254,9 @@ includes whatever construction it triggers.
 
 These are **not bit-complexity bounds**. Rational numerators/denominators grow
 under intersection and reflection, so arithmetic is not constant time and
-memory depends on their bit lengths. The implementation does not achieve or
-claim Tan and Jiang's O(k²N) construction bound. Reusable exact workspaces could
+memory depends on their bit lengths. The memoized maps do not achieve Tan and
+Jiang's O(k²N) construction bound. The implementation of their construction
+below reaches it if their Lemma 1 holds in the split maps. Reusable exact workspaces could
 reduce allocation; that is not necessary to define the current result.
 
 Tan and Jiang's construction for disjoint polygons is implemented in
@@ -279,9 +280,112 @@ no point on either guard. Its scan steps stayed within 2.8 times the sum of
 their Lemma 2. In the family with the deepest chains, a corridor of thin
 ellipses, with k=8 and m from 256 to 65,536 vertices per polygon, the time per
 kN stayed between 10.5 and 12.8 ns, against 17.9 to 40.4 ns for the eager
-binary-search construction. For intersecting inputs, the entry point uses the
-maps above and keeps O(kM log M). Their O(k²N) would also need the scans in the
-split maps, which locate one point at a time.
+binary-search construction.
+
+For intersecting inputs, the same entry point builds the split maps above by
+Tan and Jiang's construction (`build_by_scans` in
+[intersecting_maps.cpp](../../packages/convex-tpp/cpp/src/solvers/intersecting_maps.cpp),
+since 2026-11-18). It builds every cone, map by map. The two sides of each
+vertex of P_i, in the order of the boundary, are located together in the map of
+P_{i-1}. The queries that continue (crossings and reflections) are located
+together in the map of P_{i-2}, and so on. Each query carries an anchor, the
+open pseudo-edge that holds the boundary point it stands for. For a side of a
+vertex it is the vertex's own pseudo-edge. For a reflected query it is the
+pseudo-edge of its last reflection. Boundaries are split at all their contacts,
+so an open pseudo-edge lies inside, outside or on the boundary of each earlier
+polygon. Its midpoint decides which, and the midpoints of one boundary are
+classified against one earlier polygon in O(|P_g|+|P_h|) time, by a pointer
+over the wedges around an inner point of P_h.
+
+- **Anchor inside P_h.** The query is a crossing, without a membership test.
+  For a side of a vertex this is exact. For a reflected query, the levels
+  between were crossings, so the reflection contact lies on the last segment
+  of the unfolded path. A bend on P_h would leave the boundary of P_h toward
+  the outside, never through an inner point. This step replaces the membership
+  test that Tan and Jiang's §4 argues only for the vertices of P_{i+1}. It is
+  taken only when the reflected query was off both limiting rays of its
+  reflection cell, so that the contact lies inside the open pseudo-edge.
+  Otherwise the contact may sit at an end of the pseudo-edge, on the boundary
+  of P_h, and the query goes to the binary search.
+- **Anchor outside P_h.** A scan looks for the cell, starting at the cell of
+  the previous query and widening in both directions. A found cell is kept
+  only if the query is strictly outside an edge line at the cell. That makes
+  `inside` reject the query, so the cell is the one the binary search finds.
+- **Other cases.** The first query of each batch, the other anchors and failed
+  scans use the binary search. A budget of 4(cells+queries)+16 cell tests per
+  batch bounds the scans.
+
+The directional tests locate every query by binary search as well
+(`TanJiangScanCounters::verify`), and compare the paths. The proofs that the
+locations agree, and the cost analysis against Tan and Jiang's theorems, are in
+[tan-jiang-implementation.md](tan-jiang-implementation.md).
+
+If the consecutive queries of a batch meet the cells in circular order, with a
+bounded number of reversals, a batch costs O(cells+queries). This is Tan and
+Jiang's Lemma 1, on which their own bounds rest. It is proved in
+tan-jiang-implementation.md for the batches in the previous map. For earlier
+maps it is assumed, as in their paper, and it held in every measured batch.
+With it, the construction
+costs O(Σ_i Σ_{h<i}(M_h+M_i)) = O(kM) = O(k²N). The splitting adds O(kN + M log
+k), and the statuses of the anchors add O(kM), so the total is O(k²N) in
+arithmetic operations. Without it, the guards keep the result, at the
+O(kM log M) bound of the memoized maps.
+
+Measurements on this Mac, 2026-11-18, with instrumented copies of the
+constructions that were not kept:
+
+- **Families.**
+  - The intersecting path family of paper 1 has k from 4 to 64, m from 8 to
+    4096 and 3 seeds, 60 instances.
+  - Its fine-grid version has k in {4,16,64} and m up to 32,768, with 2
+    million vertices at most.
+  - The line family of the scaling experiment is Dror et al.'s worst case.
+  - Rosettes are k regular m-gons around one center, slightly rotated and
+    scaled, so every pair crosses 2m times (k up to 16, m up to 1024).
+  - Exact arithmetic ran on instances of up to 50,000 vertices.
+- **Scan steps.** In exact arithmetic the scans tested at most 0.92 times the
+  sum of cells plus queries. No scan failed, no cell was rejected and no
+  budget ran out. All 11.7 million locations equaled those of the binary
+  search, and the lengths were identical. In binary64 the ratio reached 1.05
+  on the paper's family. A few scans failed there, and they fell back to the
+  binary search. Per batch, over 24.8 million exact queries of random blobs,
+  needles, nested polygons, chains and fans, the worst batch tested 3.23
+  times its cells plus queries (tan-jiang-implementation.md, Section 4).
+- **Time in binary64.** The table gives the geometric mean of the time of the
+  scans over that of each other construction.
+
+  | Family | Scans / memoized | Scans / eager |
+  | --- | --- | --- |
+  | Paper's family | 0.90 | 0.33 |
+  | Fine grid | 0.81 | 0.15 |
+  | Line | 0.73 | 0.15 |
+
+  The binary64 maps, memoized ones included, stop at an inconsistency on
+  every rosette.
+- **Time in exact arithmetic.** Same ratios as in binary64.
+
+  | Family | Scans / memoized | Range | Scans / eager |
+  | --- | --- | --- | --- |
+  | Paper's family | 0.59 | 0.27 to 2.33 | 0.20 |
+  | Fine grid | 1.13 | | 0.15 |
+  | Line | 0.95 | | 0.16 |
+  | Rosettes | 2.14 | | 0.31 |
+
+  The ratio over the memoized maps falls with k. On the paper's family it is
+  1.34 for k=4 and 0.36 for k=64. For k=64 and m=4096, the memoized maps took
+  11 to 20 s, the eager construction 30 to 48 s and the scans 3.5 to 5.3 s.
+- **Fekete's instances.** These are the anchored paths of the 1638 cycles of
+  paper 1, with s=t at a vertex of the first polygon, through the other k-1.
+  - On the 900 disjoint ones, the memoized core was the fastest on every path.
+    Tan and Jiang's disjoint construction took 2.47 times as long in geometric
+    mean, and the eager one 1.34 times.
+  - On the 721 intersecting ones, in binary64, the memoized maps were faster
+    on all paths but one, and the scans took 1.27 times as long. In exact
+    arithmetic they took 1.06 times as long, and were faster on 304 paths.
+- **Certified flow.** With the scans proposing at Step 1, all 60 instances of
+  the paper's family closed in binary64, with the same bounds as the memoized
+  proposal. The total time was 1.10 s, against 1.52 s memoized and 2.50 s
+  eager.
 
 Baseline on this Mac, 5,000 calls, seed 1729: the disjoint k=20,m=8 case took
 4.122225 μs/call. A corrected run took 4.191475 μs/call (about 1.7% higher);

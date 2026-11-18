@@ -36,6 +36,30 @@ struct RationalMapResult {
     double upper_bound = 0;
 };
 
+// Counts of Tan and Jiang's construction on the split maps (the *_tan_jiang
+// entry points below), per thread, for tests and measurements. A batch is the
+// set of queries located together in one map.
+struct TanJiangScanCounters {
+    std::size_t batches = 0;          // batches in maps with at least three vertices
+    std::size_t queries = 0;          // their queries
+    std::size_t inside = 0;           // crossings decided by a pseudo-edge inside the polygon
+    std::size_t scanned = 0;          // located by a scan of the cells
+    std::size_t searched = 0;         // located by binary search: first of a batch, or a fallback
+    std::size_t scan_steps = 0;       // cells tested by the scans
+    std::size_t scan_bound = 0;       // sum over the batches of cells plus queries
+    std::size_t scan_failures = 0;    // scans that tested every cell in vain
+    std::size_t guard_rejections = 0; // cells found but not proved outside the polygon
+    std::size_t budget_exhausted = 0; // batches that left their scan budget
+    std::size_t small_maps = 0;       // queries in maps of a point or a segment (binary search)
+    double max_batch_ratio = 0;       // largest scan steps / (cells + queries) of one batch
+    bool verify = false;              // compare every location with the binary search
+    std::size_t mismatches = 0;       // locations that differ from it
+};
+inline TanJiangScanCounters &tan_jiang_scan_counters() {
+    thread_local TanJiangScanCounters counters;
+    return counters;
+}
+
 // Corrected directional last-step maps. Shared by the general solver entry
 // points for intersections; the established disjoint core is separate.
 std::vector<Vector2> solve_intersecting_maps(
@@ -77,6 +101,26 @@ RationalMapResult solve_disjoint_map_contacts_with_bounds(
     const Vector2 &start, const Vector2 &target,
     const std::vector<std::vector<Vector2>> &polygons,
     PreloadPolicy preload = PreloadPolicy::Lazy);
+
+// Tan and Jiang's construction on the same split maps: every cone, map by
+// map, the two sides of the vertices of each map located together, level by
+// level, by scans in the circular order of the cells (their Lemma 2). Exact
+// rationals; the binary64 versions follow the unchecked contract below.
+std::vector<Vector2> solve_intersecting_maps_tan_jiang(
+    const Vector2 &start, const Vector2 &target,
+    const std::vector<std::vector<Vector2>> &polygons);
+
+double length_intersecting_maps_tan_jiang(
+    const Vector2 &start, const Vector2 &target,
+    const std::vector<std::vector<Vector2>> &polygons);
+
+double length_intersecting_maps_tan_jiang_unchecked_double(
+    const Vector2 &start, const Vector2 &target,
+    const std::vector<std::vector<Vector2>> &polygons);
+
+std::vector<DirectionalTraceStep> solve_intersecting_map_trace_tan_jiang_unchecked_double(
+    const Vector2 &start, const Vector2 &target,
+    const std::vector<std::vector<Vector2>> &polygons);
 
 // Native-binary64 construction used by the unchecked path and as the first
 // attempt of the certified hybrid.  These entry points deliberately make no

@@ -25,22 +25,27 @@ step killed midway resumes case by case where it writes one file per case):
   anchor-probes    the exact path on captured calls: anchored solves and probes
   no-polish        the B&B with and without the interior-point polish (60 s)
   paths-fine       paths on a finer grid (2^-30), so polygons keep up to
-                   32768 vertices: the certified oracle against Gurobi, and on
-                   disjoint polygons the constructions alone, Tan and Jiang's
-                   included (added 2026-11-04)
+                   32768 vertices: the certified oracle against Gurobi, and the
+                   constructions alone, Tan and Jiang's included: through the
+                   entry points on disjoint polygons (added 2026-11-04), and in
+                   binary64 on the split maps of intersecting polygons (added
+                   2026-11-18)
   vertex-scaling-fine  vertex-scaling on the finer grid, up to 131072 points
                    per region (added 2026-11-04)
   paths-rational   the 400 paths of paths-random: the binary64 construction
                    of Step 1 against the complete rational construction of
-                   Step 3, both alone (added 2026-11-06)
+                   Step 3, both alone (added 2026-11-06), and on intersecting
+                   polygons the eager and Tan and Jiang constructions of the
+                   exact split maps (added 2026-11-18)
   paths-targets    the 125 disjoint paths of paths-fine with 1000 targets
                    drawn around them: the lazy, eager and Tan and Jiang
                    constructions answering r in {1, 10, 100, 1000} targets on
                    one set of maps (added 2026-11-06)
   paths-proposals  the certified flow with the eager and Tan and Jiang
                    constructions proposing at Step 1: the 125 disjoint paths
-                   of paths-fine, and the eager one on the 200 intersecting
-                   paths of paths-random (added 2026-11-06)
+                   of paths-fine and the 200 intersecting paths of
+                   paths-random (added 2026-11-06; Tan and Jiang's on
+                   intersecting polygons since 2026-11-18)
   cycles           paper1-cycles (Section 5.2): 1638 cycles through random
                    sequences of the corpus, Algorithm 4.1 against Gurobi
                    (added 2026-11-09; see paper1_cycles.py)
@@ -62,12 +67,14 @@ step killed midway resumes case by case where it writes one file per case):
                    benchmarks/results-saved, in the formats the paper's
                    figure script reads) and a tarball of the outputs
 
---profile paper runs only the steps the paper uses since 2026-11-09: build,
-check, paths-random, paths-fine, paths-rational, paths-targets,
-paths-proposals, cycles, cycles-tolerant and summary. --profile scaling runs
-build, check, paths-scaling and summary; --profile cycles runs build, check,
-cycles, cycles-tolerant and summary. The build step builds only the tools of the
-selected steps, none of which includes <print>, so GCC 13 builds them.
+--profile paper runs every step the paper uses, so that all of its numbers
+come from one revision on one machine (since 2026-11-18): build, check,
+paths-random, paths-fine, vertex-scaling-fine, paths-rational, paths-targets,
+paths-proposals, cycles, cycles-tolerant, paths-scaling and summary.
+--profile scaling runs build, check, paths-scaling and summary; --profile
+cycles runs build, check, cycles, cycles-tolerant and summary. The build step
+builds only the tools of the selected steps, none of which includes <print>,
+so GCC 13 builds them.
 
 Steps added later run on an earlier output directory with
     python3 benchmarks/tpp.py paper1-experiments --output DIR --redo build
@@ -288,16 +295,17 @@ def path_instances(smoke: bool) -> list[dict]:
 
 def fine_path_plan(smoke: bool) -> list[tuple[str, int, int, int, list[str]]]:
 	"""(family, k, m, seed, runs) of paths-fine. Disjoint: every construction,
-	Tan and Jiang's included, over the whole range. Intersecting: only the
-	certified oracle and Gurobi on large polygons (the exact construction alone
-	is in paths-random, and takes minutes here)."""
+	Tan and Jiang's included, over the whole range. Intersecting: the certified
+	oracle, Gurobi and the three binary64 constructions of the split maps on
+	large polygons (the exact constructions alone are in paths-rational, and
+	take minutes here)."""
 	if smoke:
 		disjoint, intersecting, seeds = ((4, 8), (8, 512)), ((4,), (512,)), 1
 	else:
 		disjoint, intersecting, seeds = ((4, 8, 16, 32, 64), (8, 64, 512, 4096, 32768)), ((4, 16, 64), (512, 4096, 32768)), 5
 	plan = [("disjoint", k, m, seed, ["certified", "tolerant", "lazy", "eager", "tan_jiang", "gurobi"])
 		for k in disjoint[0] for m in disjoint[1] for seed in range(seeds)]
-	plan += [("intersecting", k, m, seed, ["certified", "tolerant", "gurobi"])
+	plan += [("intersecting", k, m, seed, ["certified", "tolerant", "lazy_core", "eager_core", "tan_jiang_core", "gurobi"])
 		for k in intersecting[0] for m in intersecting[1] for seed in range(seeds)]
 	return plan
 
@@ -419,8 +427,8 @@ STEP_TOOLS = {
 	"anchor-probes": ["tpp-convex-anchor-probes"], "cycles": [CYCLE_TOOL],
 	"paths-scaling": ["tpp-convex-path-benchmark"], "cycles-tolerant": [CYCLE_TOOL],
 }
-PROFILES = {"paper": ["build", "check", "paths-random", "paths-fine", "paths-rational", "paths-targets",
-	"paths-proposals", "cycles", "cycles-tolerant", "summary"],
+PROFILES = {"paper": ["build", "check", "paths-random", "paths-fine", "vertex-scaling-fine", "paths-rational",
+	"paths-targets", "paths-proposals", "cycles", "cycles-tolerant", "paths-scaling", "summary"],
 	"scaling": ["build", "check", "paths-scaling", "summary"],
 	"cycles": ["build", "check", "cycles", "cycles-tolerant", "summary"]}
 
@@ -680,7 +688,10 @@ def finish_path_step(context: Context, step: str, tasks: list[dict], extra: dict
 
 
 def step_paths_rational(context: Context) -> dict:
-	items = [{**item, "runs": ["binary64", "rational", "lazy"]} for item in path_instances(context.smoke)]
+	# On intersecting polygons "lazy", "eager" and "tan_jiang" are the exact
+	# split maps (the entry points' rational path); on disjoint ones only the lazy.
+	items = [{**item, "runs": ["binary64", "rational", "lazy"] + (["eager", "tan_jiang"]
+		if item["family"] == "intersecting" else [])} for item in path_instances(context.smoke)]
 	tasks = path_shards(context, "paths-rational", items, 1 if context.smoke else 3)
 	return finish_path_step(context, "paths-rational", tasks, {"instances": len(items)})
 
@@ -701,7 +712,7 @@ def step_paths_targets(context: Context) -> dict:
 def step_paths_proposals(context: Context) -> dict:
 	items = [{**path_instance(family, k, m, seed, FINE_SCALE), "runs": ["certified", "certified_eager", "certified_tan_jiang"]}
 		for family, k, m, seed, _ in fine_path_plan(context.smoke) if family == "disjoint"]
-	items += [{**item, "runs": ["certified", "certified_eager"]} for item in path_instances(context.smoke)
+	items += [{**item, "runs": ["certified", "certified_eager", "certified_tan_jiang"]} for item in path_instances(context.smoke)
 		if item["family"] == "intersecting"]
 	tasks = path_shards(context, "paths-proposals", items, 1)
 	return finish_path_step(context, "paths-proposals", tasks, {"instances": len(items)})
@@ -877,6 +888,18 @@ def summarize_paths_rational(rows: list[dict]) -> dict:
 			"binary64_median_s": median(run_time(reps, "binary64") for reps in group.values()),
 			"rational_median_s": median(run_time(reps, "rational") for reps in group.values()),
 			"rational_max_s": max((run_time(reps, "rational") or 0 for reps in group.values()), default=None)}
+		# The exact split maps built by the three constructions (intersecting polygons).
+		exact = [reps for reps in group.values() if all(run_time(reps, run) for run in ("lazy", "eager", "tan_jiang"))]
+		if exact:
+			out[family]["exact_constructions"] = {"instances": len(exact),
+				"eager_over_lazy": ratio_stats(run_time(reps, "eager") / run_time(reps, "lazy") for reps in exact),
+				"tan_jiang_over_lazy": ratio_stats(run_time(reps, "tan_jiang") / run_time(reps, "lazy") for reps in exact),
+				"tan_jiang_over_eager": ratio_stats(run_time(reps, "tan_jiang") / run_time(reps, "eager") for reps in exact),
+				"tan_jiang_fastest": sum(1 for reps in exact if run_time(reps, "tan_jiang")
+					< min(run_time(reps, "lazy"), run_time(reps, "eager"))),
+				"max_relative_deviation": max((abs(row[run]["length"] - row["lazy"]["length"]) / abs(row["lazy"]["length"])
+					for reps in exact for row in reps for run in ("eager", "tan_jiang")
+					if row[run].get("length") is not None and row["lazy"].get("length")), default=None)}
 	table = {}
 	for name, reps in instances.items():
 		family, k, m = name.split("-")[:3]
@@ -885,7 +908,9 @@ def summarize_paths_rational(rows: list[dict]) -> dict:
 		"binary64_median_s": median(run_time(reps, "binary64") for reps in group),
 		"rational_median_s": median(run_time(reps, "rational") for reps in group),
 		"rational_over_binary64_geomean": geometric_mean(run_time(reps, "rational") / run_time(reps, "binary64")
-			for reps in group if run_time(reps, "binary64"))}
+			for reps in group if run_time(reps, "binary64")),
+		**{f"exact_{run}_median_s": median(run_time(reps, run) for reps in group)
+			for run in ("lazy", "eager", "tan_jiang") if any(run in row for reps in group for row in reps)}}
 		for (family, k, m), group in sorted(table.items())]
 	return out
 
@@ -1175,17 +1200,31 @@ def saved_paths_fine(rows: list[dict], directory: Path) -> dict:
 	"""paths-fine as paper1-armijo-a5753c0-2026-11-05/paths-fine-per-instance.csv,
 	which the figure script reads, and the comparisons of the constructions."""
 	instances = per_instance(rows)
+	core = ("lazy_core", "eager_core", "tan_jiang_core")
 	fields = ["name", "family", "k", "m", "seed", "vertices", "repeats", "lazy_ms", "eager_ms", "tan_jiang_ms",
-		"certified_ms", "gurobi_s", "lazy_cones"]
+		"certified_ms", "gurobi_s", "lazy_cones", "lazy_core_ms", "eager_core_ms", "tan_jiang_core_ms", "lazy_core_cones",
+		"core_failures"]
 	table_rows, constructions, certified = [], [], {"disjoint": [], "intersecting": []}
+	split = []  # binary64 split maps on intersecting polygons
 	for name, reps in sorted(instances.items(), key=lambda item: instance_key(item[0])):
 		family, k, m, seed = instance_key(name)
-		times = {run: run_time(reps, run) for run in ("lazy", "eager", "tan_jiang", "certified")}
+		times = {run: run_time(reps, run) for run in ("lazy", "eager", "tan_jiang", "certified", *core)}
 		gurobi = median(row["gurobi"]["total"] for row in reps)
 		cones = median(row["lazy"]["cones"] for row in reps if "lazy" in row)
+		core_cones = median(row["lazy_core"]["cones"] for row in reps if "lazy_core" in row)
+		failures = sorted({run for row in reps for run in core if run in row and "failure" in row[run]})
 		table_rows.append([name, family, k, m, seed, reps[0]["vertices"], len(reps),
 			*(number(times[run] * 1e3) if times[run] is not None else "" for run in ("lazy", "eager", "tan_jiang", "certified")),
-			number(gurobi), number(cones)])
+			number(gurobi), number(cones),
+			*(number(times[run] * 1e3) if times[run] is not None and not failures else "" for run in core),
+			number(core_cones), " ".join(failures)])
+		if times["lazy_core"] is not None and not failures:
+			upper = median(row["certified"]["upper"] for row in reps)
+			lengths = [row[run]["length"] for row in reps for run in core if run in row]
+			split.append({"k": k, "m": m, "times": times, "cone_fraction": core_cones / reps[0]["vertices"],
+				"max_relative_deviation": max(abs(x - upper) / abs(upper) for x in lengths) if upper else None})
+		elif failures:
+			split.append({"k": k, "m": m, "failures": failures})
 		certified[family].append((all(exact_optimal(row["certified"]) for row in reps), gurobi / times["certified"]))
 		if times["lazy"] is not None:
 			pairs = [(row["lazy"]["mean"], row["eager"]["mean"], row["tan_jiang"]["mean"]) for row in reps]
@@ -1209,7 +1248,37 @@ def saved_paths_fine(rows: list[dict], directory: Path) -> dict:
 				for k in sorted({c["k"] for c in constructions})},
 			"lazy_cone_fraction": {"min": min(c["cone_fraction"] for c in constructions),
 				"max": max(c["cone_fraction"] for c in constructions)}}
+	if split:
+		ok = [c for c in split if "times" in c]
+		times = [c["times"] for c in ok]
+		largest = max((c["m"] for c in ok), default=None)
+		out["constructions_intersecting_binary64"] = {"instances": len(split), "with_failures": len(split) - len(ok),
+			"lazy_fastest": sum(1 for t in times if t["lazy_core"] < min(t["eager_core"], t["tan_jiang_core"])),
+			"tan_jiang_fastest": sum(1 for t in times if t["tan_jiang_core"] < min(t["eager_core"], t["lazy_core"])),
+			"eager_over_lazy": ratio_stats(t["eager_core"] / t["lazy_core"] for t in times),
+			"tan_jiang_over_lazy": ratio_stats(t["tan_jiang_core"] / t["lazy_core"] for t in times),
+			"tan_jiang_over_eager": ratio_stats(t["tan_jiang_core"] / t["eager_core"] for t in times),
+			"tan_jiang_over_lazy_by_k_at_largest_m": {k: geometric_mean(c["times"]["tan_jiang_core"] / c["times"]["lazy_core"]
+				for c in ok if c["k"] == k and c["m"] == largest) for k in sorted({c["k"] for c in ok})},
+			"lazy_cone_fraction": {"min": min((c["cone_fraction"] for c in ok), default=None),
+				"max": max((c["cone_fraction"] for c in ok), default=None)},
+			"max_relative_deviation_from_certified": max((c["max_relative_deviation"] or 0 for c in ok), default=None)}
 	return out
+
+
+def saved_vertex_scaling_fine(rows: list[dict], directory: Path) -> None:
+	"""vertex-scaling-fine as paper1-armijo-d9c7ee0-2026-11-05/vertex-scaling-fine-per-run.csv,
+	which the figure script reads: one line per run, the first call (cold) in
+	ms, the prepared call (region ids, mean of the block) in µs, Gurobi in s."""
+	fields = ["name", "k", "m", "shape", "sample", "repeat", "vertices", "largest", "first_ms", "prepared_us", "gurobi_s"]
+	table = []
+	for row in rows:
+		_, k, m, shape, sample = row["name"].split("-")  # cycle-k10-m128-disk-0
+		table.append([row["name"], int(k[1:]), int(m[1:]), shape, int(sample), row.get("repeat", 0), row["vertices"],
+			row["largest"], number(row["cold"]["seconds"] * 1e3), number(row["ids"]["mean"] * 1e6),
+			number(row["gurobi"]["total"])])
+	table.sort(key=lambda line: (line[1], line[2], line[3], line[4], line[5]))
+	write_csv(directory / "vertex-scaling-fine-per-run.csv", fields, table)
 
 
 def write_saved(context: Context, summary: dict) -> Path:
@@ -1224,8 +1293,8 @@ def write_saved(context: Context, summary: dict) -> Path:
 		"pinned_cores": [list(core) for core in context.cores],
 		"gurobi_probe": json.loads(check.read_text()).get("gurobi_probe") if check.exists() else None}
 	steps = {}
-	for step in ("paths-random", "paths-fine", "paths-rational", "paths-targets", "paths-proposals", "cycles", "cycles-tolerant",
-			"paths-scaling"):
+	for step in ("paths-random", "paths-fine", "vertex-scaling-fine", "paths-rational", "paths-targets", "paths-proposals",
+			"cycles", "cycles-tolerant", "paths-scaling"):
 		done = out / step / "done.json"
 		if done.exists():
 			record = json.loads(done.read_text())
@@ -1238,6 +1307,10 @@ def write_saved(context: Context, summary: dict) -> Path:
 	rows = jsonl(sorted((out / "paths-fine").glob("shard-*.jsonl")))
 	if rows:
 		saved["paths_fine"] = saved_paths_fine(rows, directory)
+	rows = jsonl(sorted((out / "vertex-scaling-fine").glob("*.jsonl")))
+	if rows:
+		saved["vertex_scaling_fine"] = summary.get("vertex_scaling_fine")
+		saved_vertex_scaling_fine(rows, directory)
 	for key in ("paths_rational", "paths_targets", "paths_proposals", "cycles", "cycles_tolerant"):
 		if summary.get(key):
 			saved[key] = summary[key]

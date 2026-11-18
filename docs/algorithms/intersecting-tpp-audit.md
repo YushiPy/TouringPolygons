@@ -407,6 +407,11 @@ O(kn) in all, so the disjoint bound O(kn log(n/k)) holds with them. The
 corrected intersecting maps reach O(nk² log n); see
 [the correction report](intersecting-tpp-correction.md#complexity-and-performance),
 which also covers the implementation of Tan and Jiang's disjoint construction.
+Later the same day, the intersecting entry point of `tan_jiang.cpp` stopped
+delegating to the memoized maps. It builds the same split maps by Tan and
+Jiang's scans. Its O(k²n) bound rests on their Lemma 1 holding in the split
+maps, which is not proved; the correction report gives the argument and the
+measurements.
 
 Tan and Jiang claim O(k²n) construction, O(kn) storage, and O(kn) reporting
 (Theorem 2, original p. 622). A corrected endpoint/directional binary-query
