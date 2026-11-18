@@ -258,6 +258,31 @@ memory depends on their bit lengths. The implementation does not achieve or
 claim Tan and Jiang's O(k²N) construction bound. Reusable exact workspaces could
 reduce allocation; that is not necessary to define the current result.
 
+Tan and Jiang's construction for disjoint polygons is implemented in
+[tan_jiang.cpp](../../packages/convex-tpp/cpp/src/solvers/tan_jiang.cpp)
+and reaches their O(kN) bound. Following their Lemma 2, it locates the vertices
+of P_{i+1} together in the maps of P_i, ..., P_1, by scans in the circular
+order of the cells, and builds every cone, O(N) stored. The query to the target
+is a binary search in each map, O(k log(N/k)), and the disjointness check of
+the entry point is O(kN). Two guards are not in their paper. After four rounds
+of forward and backward scans, the remaining points of a batch are located by
+binary search, and so is a point that no scan finds. Neither guard is reached
+in exact arithmetic. By their Lemma 1, the cells of consecutive points follow
+the circular order, which two rounds cover. A point located in the map of P_h
+is not inside P_h. It is a vertex of a later, disjoint polygon, or an image
+whose unfolded segment meets P_h before an edge of a later polygon, and
+convexity would put that edge point in P_h, which disjointness excludes. The
+cells cover the plane outside P_h. Gaps between binary64 cells could reach the guards, at O(|P_h|) per point.
+An instrumented copy of the scans (2026-11-18, not kept), on 36 disjoint
+instances of three families with k up to 128 and up to 524,288 vertices, found
+no point on either guard. Its scan steps stayed within 2.8 times the sum of
+their Lemma 2. In the family with the deepest chains, a corridor of thin
+ellipses, with k=8 and m from 256 to 65,536 vertices per polygon, the time per
+kN stayed between 10.5 and 12.8 ns, against 17.9 to 40.4 ns for the eager
+binary-search construction. For intersecting inputs, the entry point uses the
+maps above and keeps O(kM log M). Their O(k²N) would also need the scans in the
+split maps, which locate one point at a time.
+
 Baseline on this Mac, 5,000 calls, seed 1729: the disjoint k=20,m=8 case took
 4.122225 μs/call. A corrected run took 4.191475 μs/call (about 1.7% higher);
 another run with concurrent verification took 4.552375 μs/call. These are

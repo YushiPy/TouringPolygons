@@ -398,6 +398,16 @@ performs pairwise intersection tests: its naive edge-pair worst case is O(n²),
 with bounding-box rejection helping the practical disjoint workload. These
 pre-existing costs were not changed.
 
+Update (2026-11-18): the linear locator was removed on 2026-09-15 (45e0021),
+so the disjoint core locates by binary search alone, and since 2026-11-17 the
+membership of the target is logarithmic. The pairwise tests of the dispatch
+now use the linear-time contacts of
+[convex_contacts.h](../../packages/convex-tpp/cpp/include/tpp/convex/detail/convex_contacts.h),
+O(kn) in all, so the disjoint bound O(kn log(n/k)) holds with them. The
+corrected intersecting maps reach O(nk² log n); see
+[the correction report](intersecting-tpp-correction.md#complexity-and-performance),
+which also covers the implementation of Tan and Jiang's disjoint construction.
+
 Tan and Jiang claim O(k²n) construction, O(kn) storage, and O(kn) reporting
 (Theorem 2, original p. 622). A corrected endpoint/directional binary-query
 hybrid might target O(k²n log(kn)) construction and O(k log(kn)) per reported
