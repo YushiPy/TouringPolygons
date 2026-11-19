@@ -41,6 +41,14 @@ void retain_exact_bound(ConvexCycleDoubleResult &result,
         result.status=result.certificate.lower_bound>=cutoff?ConvexCycleStatus::CertifiedBound:ConvexCycleStatus::FloatingPointLimit;
 }
 
+// The edge searches make at most this many closed-form probes in a row before a
+// round of bisection (a midpoint and a simplest rational). Each round halves the
+// bracket, so a piece takes O(1+log Q) probes, Q the smallest denominator of a
+// rational minimizer (paper 1, Theorem 4.1), whatever the number of descriptors
+// the closed-form step meets. On the 1638 cycles of paper 1 no search made more
+// than two in a row, so the cap changes none of those runs.
+constexpr std::size_t kClosedFormRun=4;
+
 // Simplest rational in the closed interval. Continued fractions reconstruct a
 // rational root exactly; they do not round it to a prescribed grid or tolerance.
 template<class S> S simplest_rational(S left, S right) {
@@ -143,9 +151,13 @@ void search_cycle(const std::vector<std::vector<ConvexArithmeticPoint<S>>> &poly
         try {
             if(try_step(j,at_vertex[j],next))return;
             if(!inside()&&try_step(j,at_vertex[(j+1)%m],next))return;
+            std::size_t closed_form_run=0;
             for(;;) {
                 detail::cycle_checkpoint();
-                if(inside()){const S t=*next;next.reset();if(probe(t))break;continue;}
+                if(inside()&&closed_form_run<kClosedFormRun) {
+                    ++closed_form_run;const S t=*next;next.reset();if(probe(t))break;continue;
+                }
+                closed_form_run=0;
                 next.reset();
                 const S mid=(left+right)/2;
                 if(mid==left||mid==right)break; // Only reachable in finite arithmetic.
@@ -767,6 +779,7 @@ void search_intersecting_boundaries(const std::vector<std::vector<ConvexArithmet
                     // A complete endpoint restriction certificate handles the
                     // nondifferentiable endpoints. Otherwise the minimizer is
                     // interior and the endpoint subgradients have strict signs.
+                    std::size_t closed_form_run=0;
                     for(;;) {
                         detail::cycle_checkpoint();
                         auto probe=[&](const S &t) {
@@ -777,7 +790,10 @@ void search_intersecting_boundaries(const std::vector<std::vector<ConvexArithmet
                             if(d<0)left=t;else if(d>0)right=t;
                             return d==0||step(anchor,j,q,next);
                         };
-                        if(inside()){const S t=*next;next.reset();if(probe(t))break;continue;}
+                        if(inside()&&closed_form_run<kClosedFormRun) {
+                            ++closed_form_run;const S t=*next;next.reset();if(probe(t))break;continue;
+                        }
+                        closed_form_run=0;
                         next.reset();
                         const S midpoint=(left+right)/2;
                         if(midpoint==left||midpoint==right)break; // Binary64 representability only.
