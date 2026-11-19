@@ -798,7 +798,12 @@ lands on it exactly: this is the role of a Newton step, exact here. The step
 runs at both ends of a bracketing piece and after every probe, in the
 disjoint search (`search_cycle`) and in the general one, rational and binary64.
 Midpoints and simplest rationals still follow when the step's parameter falls
-outside the bracket, so termination is unchanged.
+outside the bracket, so termination is unchanged. Since 2026-11-19 they also
+follow after `kClosedFormRun=4` closed-form probes in a row, so the step never
+postpones bisection and the probe bound below holds whatever descriptors the
+step meets. On the 1638 cycles of paper 1, exact and tolerant, no search made
+more than two closed-form probes in a row, and all 3276 runs gave the same
+counters and bounds as before the cap.
 
 On 320 captured B&B calls solved to gap zero with the construction disabled,
 four needed bisection, with about 450 probes each (16-30 s, one interrupted at
@@ -909,8 +914,29 @@ by the restricted certificates.
 For a minimizing rational parameter with denominator `Q`, a bracket narrower
 than `1/Q^2` contains no other rational with denominator at most `Q`.
 Continued fractions return the simplest rational in the bracket, so bisection
-followed by that reconstruction reaches a minimizer in `O(1+log Q)` probes.
-Bracket width is never an acceptance test. With rational arithmetic the
+followed by that reconstruction reaches a minimizer in `O(1+log Q)` rounds.
+At most `kClosedFormRun` closed-form probes come between two rounds, and they
+only shrink the bracket, so a piece takes `O(1+log Q)` probes. The simplest
+rational has denominator at most `Q`, because a minimizer with denominator `Q`
+lies in the bracket, so its continued fraction has `O(1+log Q)` partial
+quotients (convergent denominators grow like Fibonacci numbers), and each
+reconstruction takes that many steps. Bracket width is never an acceptance test.
+
+**Height of the minimizer (2026-11-19).** Take as minimizer the largest one on
+the piece. The type of the interval to its right has a length that is not
+constant there and is stationary at it, so the minimizer is where the edge line
+meets the line through two unfolded pins (the second possibly mirrored), one
+of those pins, or the stationary point `-(w.v)/(v.v)` of the pinless
+unfolding. If every input coordinate is a quotient of two integers of absolute
+value at most `Lambda >= 2`, write points as `eta/d` and affine maps as
+`x -> (Omega x + eta)/d` with integers, and call the largest absolute entry a
+size. Vertices have size at most `Lambda^2`, a reflection across an edge line
+at most `32 Lambda^10`, a pin (vertex or crossing of two edge lines) at most
+`32 Lambda^12`, and composition multiplies sizes by at most 3. With at most
+`k` reflections, unfolded pins and the pinless map have size at most
+`Psi=(96 Lambda^12)^(k+1)`, and clearing denominators in the three formulas
+gives `Q <= 128 Lambda^8 Psi^3 <= (96 Lambda^12)^(3k+5)`. So a piece takes
+`O(k log Lambda)` probes (paper 1, Corollary 4.1). With rational arithmetic the
 boundary reduction thus terminates, under the existing exact fixed-source
 map contract. `OracleFailure` reports a violated construction/certification
 contract; intersections are no longer skipped because of an incomplete zero
@@ -926,11 +952,14 @@ may be irrational, and is exactly represented as their sum of square roots.
 Let `N` be the total input vertex count, `k` the polygon count, `A` the number
 of split anchor segments, and `H=1+log Q` bound the rational reconstruction
 height of a minimizer for a searched segment. Convexity/winding validation is
-`O(N)`. Boundary splitting and the separation checks test only the pairs of
-edges that the linear-time contact routine of
+`O(N)`. In the fixed-source maps, boundary splitting and the separation
+checks test only the pairs of edges that the linear-time contact routine of
 [convex_contacts.h](../../packages/convex-tpp/cpp/include/tpp/convex/detail/convex_contacts.h)
-lists, `O(kN)` pairs in all, and convexity gives `A=O(kN)`. Before 2026-11-17
-they tested all pairs of edges, in `O(N^2)` operations.
+lists, `O(kN)` pairs in all. Before 2026-11-17 they tested all pairs of edges,
+in `O(N^2)` operations. The cycle search still cuts its anchor segments by
+testing each edge of the searched polygon against every edge of the others
+(`search_intersecting_boundaries`), `O(N^2)` operations that the search below
+dominates, and convexity gives `A=O(kN)`.
 
 For the maintained intersecting fixed-source map, use the bound
 `C=O(k^2*N*log(kN))` and `O(kN)` stored values; see
@@ -942,6 +971,13 @@ zero links. With refinement disabled, the general reduction therefore costs
 O(kN + A*H*(C+V+H)) arithmetic operations,
 O(kN+H) stored arithmetic values.
 ```
+
+`Q`, and so `H`, depends on the numbers of the input, not only on `N` and `k`.
+When every coordinate is a quotient of two integers of absolute value at most
+`Lambda`, `H=O(k*log(Lambda))` by the height bound above, and since `N>=3k`
+the reduction costs `O(k^4*N^2*log(N)*log(Lambda) + k^3*N*log(Lambda)^2)`
+arithmetic operations: polynomial in `N`, `k` and the bit size of the input,
+but not a bound in `N` and `k` alone.
 
 The optional proposal uses `O(N)` geometric operations per sweep without zero
 blocks, at most `O(k^2)` for endpoint pivots, and at most `O(N^2)` for block
