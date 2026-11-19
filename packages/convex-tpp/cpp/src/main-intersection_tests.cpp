@@ -2,6 +2,7 @@
 #include "tpp/convex/solution.h"
 #include "tpp_convex.h"
 #include "tpp/convex/detail/convex_contacts.h"
+#include "tpp/convex/detail/intersecting_maps.h"
 
 #include <algorithm>
 #include <array>
@@ -100,6 +101,55 @@ namespace {
 			std::rotate(polygon.begin(), polygon.begin() + 1, polygon.end());
 		}
 		return polygon;
+	}
+
+	// The exact directional maps with filtered decisions return the rational
+	// construction's contacts, or throw where it throws: random grid polygons
+	// (touching, overlapping, collinear vertices) and endpoints that are not
+	// binary64 numbers, so the filter also meets rational literals.
+	void test_filtered_exact_maps() {
+		std::mt19937_64 random(20261119);
+		std::uniform_int_distribution<int> count(1, 6), numerator(-36, 36), denominator(1, 7);
+		auto endpoint = [&] {
+			return tpp::ConvexRationalPoint(tpp::ConvexRational(numerator(random), denominator(random)),
+				tpp::ConvexRational(numerator(random), denominator(random)));
+		};
+		auto run = [](bool filtered, bool disjoint, const tpp::ConvexRationalPoint &s, const tpp::ConvexRationalPoint &t,
+				const tpp::ConvexRationalPolygons &p) -> std::string {
+			tpp::detail::exact_maps_filtered() = filtered;
+			std::string out;
+			try {
+				for (const auto &q : disjoint ? tpp::detail::solve_disjoint_map_contacts_exact(s, t, p)
+						: tpp::detail::solve_intersecting_map_contacts_exact(s, t, p))
+					out += q.x.str() + "," + q.y.str() + " ";
+			} catch (const std::exception &error) {
+				out = std::string("throw ") + error.what();
+			}
+			return out;
+		};
+		const bool previous = tpp::detail::exact_maps_filtered();
+		size_t compared = 0;
+		for (int trial = 0; trial < 400; trial++) {
+			tpp::ConvexRationalPolygons polygons;
+			const int k = count(random);
+			for (int i = 0; i < k; i++) {
+				tpp::ConvexRationalPolygon polygon;
+				for (const auto &v : random_convex_polygon(random)) polygon.emplace_back(v);
+				polygons.push_back(std::move(polygon));
+			}
+			const auto s = endpoint(), t = trial % 3 == 0 ? s : endpoint();
+			for (const bool disjoint : {false, true}) {
+				const auto rational = run(false, disjoint, s, t, polygons), filtered = run(true, disjoint, s, t, polygons);
+				if (rational != filtered) {
+					tpp::detail::exact_maps_filtered() = previous;
+					throw std::runtime_error(std::format("Filtered exact maps differ from rational ones (trial {}): {} vs {}",
+						trial, filtered, rational));
+				}
+				++compared;
+			}
+		}
+		tpp::detail::exact_maps_filtered() = previous;
+		std::println("Filtered exact maps match the rational construction in {} runs.", compared);
 	}
 
 	void test_convex_contacts() {
@@ -276,6 +326,7 @@ namespace {
 
 int main() {
 	test_convex_contacts();
+	test_filtered_exact_maps();
 
 	class RepeatedQuery final : public tpp::Solution {
 	public:
