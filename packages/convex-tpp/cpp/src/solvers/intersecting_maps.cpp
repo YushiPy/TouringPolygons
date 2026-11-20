@@ -140,6 +140,10 @@ struct Vertex {
     // its cone is the single ray before_ray (== after_ray). Decided from the
     // construction, without comparing the two rays (DirectionalMaps::build_vertex).
     bool single_ray = false;
+    // The cone is every direction: at an end of a segment (both edges leave
+    // the vertex in one direction, interior angle zero), when the vertex is
+    // its own source or the path arrives along the segment, toward it.
+    bool full_turn = false;
     std::optional<long double> prefix_length;
 };
 struct Bounds {
@@ -216,8 +220,10 @@ class DirectionalMaps {
         return cross_sign(polygon[right]-polygon[left],q,polygon[left],false)>=0;
     }
 
-    // single: r1 and r2 are known to be the same ray (Vertex::single_ray).
-    static bool in_cone(const Query &q,const Point &v,const Point &r1,const Point &r2,bool single=false) {
+    // single: r1 and r2 are known to be the same ray (Vertex::single_ray);
+    // full: the cone is every direction (Vertex::full_turn).
+    static bool in_cone(const Query &q,const Point &v,const Point &r1,const Point &r2,bool single=false,bool full=false) {
+        if(full) return true;
         if(single || same_direction(r1,r2))
             return cross_sign(r1,q,v)==0 && dot_sign(r1,q,v)>=0;
         const bool c1=cross_sign(r1,q,v)>=0, c2=cross_sign(r2,q,v)<=0;
@@ -286,6 +292,21 @@ class DirectionalMaps {
             v.single_ray=true;
             v.after_ray=v.before_ray;
         }
+        // An end of a segment: both edges leave v in the direction w toward the
+        // other end, and the normal cone of v is the half-plane opposite to w.
+        // A path that arrives in direction d may leave in every direction u
+        // with u.w >= d.w. Unless d is parallel to w, exactly one side reflects
+        // and the two rays bound that arc, as at any vertex. If d = +w (or v is
+        // its own source) the arc is the whole turn; if d = -w it is the ray d.
+        const Point to_before=before-v.point,to_after=after-v.point;
+        if(cross_sign(to_before,to_after)==0 && to_before.dot(to_after)>0) {
+            const Point incoming=v.point-before_source.first;
+            if(before_at_source || after_at_source || incoming.zero()) v.full_turn=true;
+            else if(cross_sign(to_after,incoming)==0) {
+                if(incoming.dot(to_after)>0) v.full_turn=true;
+                else {v.single_ray=true;v.after_ray=v.before_ray;}
+            }
+        }
         v.ready=true;
     }
 
@@ -344,7 +365,10 @@ class DirectionalMaps {
         auto &map=maps[level-1];
         if(map.original.size()==1) return 0;
         if(inside(q,map.membership_corners)) return -1;
-        if(map.original.size()==2) return locate_segment(q,level);
+        // A segment is a polygon with two vertices: its cones and pseudo-edges
+        // are located as any polygon's. The derivative locator remains only
+        // for comparison (segment_derivative_locator).
+        if(map.original.size()==2 && segment_derivative_locator()) return locate_segment(q,level);
         const auto cell=locate_cell(q,level);
         // A failed locator is exposed, never repaired by a scan or another solver.
         if(!cell)
@@ -365,7 +389,7 @@ class DirectionalMaps {
         auto cone=[&](size_t j) {
             build_vertex(i,j);
             const auto &v=map.vertices[j];
-            return in_cone(q,v.point,v.before_ray,v.after_ray,v.single_ray);
+            return in_cone(q,v.point,v.before_ray,v.after_ray,v.single_ray,v.full_turn);
         };
         if(cone(0)) return 0;
         size_t left=0,right=n-1;
@@ -388,7 +412,7 @@ class DirectionalMaps {
         build_vertex(i,j);
         if(c%2==0) {
             const auto &v=map.vertices[j];
-            return in_cone(q,v.point,v.before_ray,v.after_ray,v.single_ray);
+            return in_cone(q,v.point,v.before_ray,v.after_ray,v.single_ray,v.full_turn);
         }
         build_vertex(i,(j+1)%n);
         const auto &a=map.vertices[j], &b=map.vertices[(j+1)%n];
@@ -1098,6 +1122,7 @@ double length_intersecting_maps_tan_jiang(const Vector2 &start,const Vector2 &ta
     return tan_jiang_maps(Point(start),Point(target),polygons).length();
 }
 bool &exact_maps_filtered() {static bool value=true;return value;}
+bool &segment_derivative_locator() {static bool value=false;return value;}
 ConvexRationalPolygon solve_intersecting_map_contacts_exact(const ConvexRationalPoint &start,
         const ConvexRationalPoint &target,const ConvexRationalPolygons &polygons) {
 #ifdef TPP_HAS_FILTERED_DIRECTIONAL

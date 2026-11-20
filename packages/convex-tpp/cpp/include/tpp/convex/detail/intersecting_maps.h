@@ -209,4 +209,8 @@ ConvexRationalPolygon solve_disjoint_map_contacts_exact_filtered(
 // functions above run the filtered constructions unless this is false; the
 // rational ones remain for comparison (tests, measurements).
 bool &exact_maps_filtered();
+// Segments in the directional maps: false (the default) locates them by
+// their cones, as any polygon; true by the earlier search on the derivative of
+// D_previous(z)+|z-q| along the segment, kept only for comparison.
+bool &segment_derivative_locator();
 }
