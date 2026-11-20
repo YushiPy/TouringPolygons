@@ -37,12 +37,24 @@ Sem ponto, segmentos vão ao oráculo de ciclo convexo (veja
 
 Quando uma sequência contém pontos ou segmentos, o oráculo convexo usa a
 construção direcional racional existente. Um ponto impõe um contato obrigatório.
-Para segmentos, a busca binária nos vértices de subdivisão usa a derivada
-monótona de $D_{anterior}(z)+\|z-q\|$ ao longo do segmento. Comparações entre
-produtos escalares normalizados são decididas por sinais e quadrados racionais,
-incluindo os limites simbólicos incidentes. Esse localizador trata a fronteira
-de dimensão um, cujas duas arestas coincidem, sem aplicar o leque de um polígono
-de área positiva. O clipping impõe a reta suporte **e** os limites dos extremos.
+Um segmento é um polígono de dois vértices, com as arestas a→b e b→a. Desde
+20/11/2026 ele é localizado pelos seus cones e pseudo-arestas, como qualquer
+polígono, com os raios memoizados. Antes, uma busca binária na derivada de
+$D_{anterior}(z)+\|z-q\|$ ao longo do segmento refazia as fontes a cada
+sondagem; ela fica só para comparação (`segment_derivative_locator`).
+Numa ponta, as duas arestas saem na mesma direção w, e o ângulo interior é zero.
+O cone normal da ponta é o semiplano oposto a w, então um caminho que chega na
+direção d sai em toda direção u com u·w ≥ d·w. Se d não é paralela a w, um
+lado reflete e os dois raios limitam esse arco, como em qualquer vértice. Se
+d = +w, ou se a ponta é a própria fonte, o cone é a volta inteira
+(`Vertex::full_turn`); se d = −w, é o raio d. Os testes comparam os dois
+localizadores em 431 execuções (contatos idênticos, todos certificados pelo
+certificado cíclico com s e t como regiões pontuais).
+O clipping impõe a reta suporte **e** os limites dos extremos.
+Nas entradas em binary64 (`tpp_convex_solve_binary_search_*`, linear,
+Tan–Jiang), pontos e segmentos vão aos mapas direcionais: o solver disjunto
+memoizado constrói cada cone a partir de duas arestas distintas (até 20/11 ele
+ignorava um ponto e aceitava a reta inteira de um segmento).
 
 Os contatos passam pelo certificado KKT cíclico existente, acrescentando
 regiões singleton para `start` e `target`. A aresta de fechamento tem comprimento
