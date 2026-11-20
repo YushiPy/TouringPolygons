@@ -67,10 +67,22 @@ def status(data: dict) -> str:
 	return "running" if _alive(data.get("supervisor_pid")) else "lost"
 
 
-def resolve(name: str) -> Path:
+def resolve(name: str, running_only: bool = False) -> Path:
+	"""A job by id or by part of it.
+
+	Several runs of one command share its label (`<timestamp>-<label>`), so a
+	bare label picks the newest of them (the newest running one for `stop`)
+	instead of failing as ambiguous.
+	"""
 	job = jobs_dir() / name
 	if not (job / "job.json").exists():
 		matches = sorted(jobs_dir().glob(f"*{name}*")) if jobs_dir().exists() else []
+		labelled = [match for match in matches if match.name.split("-", 2)[-1] == name]
+		if running_only:
+			labelled = [match for match in labelled if status(_read(match)) == "running"]
+		if len(matches) > 1 and labelled:
+			print(f"[job {labelled[-1].name}]", file=sys.stderr)
+			return labelled[-1]
 		if len(matches) > 1:
 			listing = "\n".join(f"  {match.name}" for match in matches)
 			raise SystemExit(f"Job {name!r} is ambiguous; use one of:\n{listing}")
@@ -201,7 +213,7 @@ def request_stop(job: Path, force: bool = False) -> str:
 
 
 def command_stop(args: argparse.Namespace) -> int:
-	print(request_stop(resolve(args.job), args.force))
+	print(request_stop(resolve(args.job, running_only=True), args.force))
 	return 0
 
 
