@@ -295,7 +295,7 @@ class DirectionalMaps {
         // An end of a segment: both edges leave v in the direction w toward the
         // other end, and the normal cone of v is the half-plane opposite to w.
         // A path that arrives in direction d may leave in every direction u
-        // with u.w >= d.w. Unless d is parallel to w, exactly one side reflects
+        // with u.w <= d.w. Unless d is parallel to w, exactly one side reflects
         // and the two rays bound that arc, as at any vertex. If d = +w (or v is
         // its own source) the arc is the whole turn; if d = -w it is the ray d.
         const Point to_before=before-v.point,to_after=after-v.point;

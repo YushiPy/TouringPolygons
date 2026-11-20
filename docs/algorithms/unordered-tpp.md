@@ -44,7 +44,7 @@ $D_{anterior}(z)+\|z-q\|$ ao longo do segmento refazia as fontes a cada
 sondagem; ela fica só para comparação (`segment_derivative_locator`).
 Numa ponta, as duas arestas saem na mesma direção w, e o ângulo interior é zero.
 O cone normal da ponta é o semiplano oposto a w, então um caminho que chega na
-direção d sai em toda direção u com u·w ≥ d·w. Se d não é paralela a w, um
+direção d sai em toda direção u com u·w ≤ d·w. Se d não é paralela a w, um
 lado reflete e os dois raios limitam esse arco, como em qualquer vértice. Se
 d = +w, ou se a ponta é a própria fonte, o cone é a volta inteira
 (`Vertex::full_turn`); se d = −w, é o raio d. Os testes comparam os dois
