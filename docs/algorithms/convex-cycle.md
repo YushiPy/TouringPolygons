@@ -844,7 +844,10 @@ the same rationals ([certified oracle](certified-convex-oracle.md#recuperação-
 On the 1638 cycles of paper 1 the exact outcomes are identical and the total
 time drops to 0.62–0.63 of what it was on the Mac (same process, alternating
 case by case; two runs, 6.95 to 4.38 s and 9.23 to 5.72 s), most of it in the
-few cycles with anchor recoveries or a Step 3.
+few cycles with anchor recoveries or a Step 3. On dantzig, the full paper 1 run
+at that revision (`dantzig-b4f01cb` against `dantzig-3df4d85`, separate runs)
+gives the same results row by row and 0.67 of the time (8.86 to 5.96 s; 0.55
+for k=8 and k=16, 0.58 on the 76 cycles with anchor recoveries or a Step 3).
 
 The descriptor of a binary64 cycle records, per region, the feature that the
 local optimality conditions select between the two neighbouring contacts

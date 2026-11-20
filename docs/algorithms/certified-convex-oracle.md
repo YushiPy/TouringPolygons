@@ -421,14 +421,21 @@ em 800 execuções aleatórias. Nos 1638 ciclos do artigo 1 os resultados exatos
 são idênticos e o tempo total cai para 0,62–0,63 do anterior (Mac, mesmo
 processo, alternando caso a caso, duas rodadas: 6,95 → 4,38 s e 9,23 → 5,72 s);
 nos 400 caminhos de `paths-random`, os contatos exatos dos mapas levam 31 s em
-vez de 384 s.
+vez de 384 s. Na dantzig, a rodada completa do artigo 1 nesta revisão
+(`dantzig-b4f01cb`, contra `dantzig-3df4d85`; rodadas separadas, não o mesmo
+processo) dá os mesmos resultados linha a linha em todos os experimentos, e os
+tempos de 0,67 do anterior nos ciclos exatos (8,86 → 5,96 s; 0,55 em `k=8` e
+`k=16`), 0,80 nos ciclos tolerantes e 0,13 na construção racional de
+`paths-rational` (343 → 45 s).
 
 O produto de `CycleInterval` escolhe pelos sinais dos extremos os dois produtos
 que dão o mínimo e o máximo, em vez de calcular os quatro. O arredondamento ao
 mais próximo é monótono, então o resultado é o mesmo intervalo bit a bit (o
 sinal de um zero não sobrevive a `down`/`up`); extremos não finitos seguem o
 caminho antigo. Ganho medido no mesmo processo: 0,95–0,96 do tempo do fluxo
-certificado nos caminhos `k=64, m=8` da Figura 11; 0,99 nos ciclos.
+certificado nos caminhos `k=64, m=8` da Figura 11; 0,99 nos ciclos. Na
+dantzig, 0,955 nesses caminhos (129 → 123 ms nos dez); o Gurobi continua mais
+rápido ali.
 
 O que **não** funcionou, medido em 19/11/2026: saber pela construção que um
 vértice de mapa onde a fronteira de `P_i` cruza a aresta `k` de `P_h` está na
