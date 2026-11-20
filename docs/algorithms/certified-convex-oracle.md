@@ -405,6 +405,42 @@ polígonos que se intersectam da Figura 11, ele respondia por quase todas as
 vezes mais rápida. Os demais vértices continuam com o teste, e os traços
 filtrados e racionais são idênticos aos de antes.
 
+Os mapas exatos também usam o filtro (desde 19/11/2026).
+`solve_intersecting_map_contacts_exact` e `solve_disjoint_map_contacts_exact`,
+que a recuperação racional completa deste fluxo e o ciclo (recuperação de
+âncora e busca racional do Algoritmo 4.1) chamam, constroem os mesmos mapas
+com `FilteredRational` e avaliam exatamente só os DAGs dos contatos. As
+decisões são exatas e as expressões são as da variante racional, e racionais
+são canônicos; logo os contatos são os mesmos racionais, inclusive quando a
+construção lança exceção no mesmo ponto. Para isso `FilteredRational` aceita
+literais racionais (as âncoras da busca racional não são binary64): um valor
+binary64 é o literal `double`; outro guarda o racional na arena e o intervalo
+dos vizinhos do `double` mais próximo. `exact_maps_filtered()` mantém a
+variante racional para comparação, e os testes de interseção comparam as duas
+em 800 execuções aleatórias. Nos 1638 ciclos do artigo 1 os resultados exatos
+são idênticos e o tempo total cai para 0,62–0,63 do anterior (Mac, mesmo
+processo, alternando caso a caso, duas rodadas: 6,95 → 4,38 s e 9,23 → 5,72 s);
+nos 400 caminhos de `paths-random`, os contatos exatos dos mapas levam 31 s em
+vez de 384 s.
+
+O produto de `CycleInterval` escolhe pelos sinais dos extremos os dois produtos
+que dão o mínimo e o máximo, em vez de calcular os quatro. O arredondamento ao
+mais próximo é monótono, então o resultado é o mesmo intervalo bit a bit (o
+sinal de um zero não sobrevive a `down`/`up`); extremos não finitos seguem o
+caminho antigo. Ganho medido no mesmo processo: 0,95–0,96 do tempo do fluxo
+certificado nos caminhos `k=64, m=8` da Figura 11; 0,99 nos ciclos.
+
+O que **não** funcionou, medido em 19/11/2026: saber pela construção que um
+vértice de mapa onde a fronteira de `P_i` cruza a aresta `k` de `P_h` está na
+reta dessa aresta (zero exato sem cálculo) corrige o primeiro empate que o
+binary64 erra nos dez caminhos `k=64, m=8` da Figura 11 (o teste da aresta
+final de pertinência), mas o seguinte é outro empate, uma consulta exatamente
+sobre o raio de um vértice de raio único, e as dez propostas continuam
+rejeitadas. A mudança também altera as propostas binary64 do ciclo e, em 18
+dos 1638 ciclos, qual dos ciclos ótimos (mesmas cotas) é devolvido. Ela não foi
+adotada; o gargalo da Figura 11 continua sendo o custo da própria construção
+filtrada (intervalos e DAG), não as avaliações exatas.
+
 `filtered_attempted` e `filtered_certified` identificam essa recuperação nas
 estatísticas do híbrido. O backend `DoubleIntersection` continua indicando uma
 candidata reconstruída e certificada, inclusive quando recuperada pelo filtro.

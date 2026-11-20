@@ -51,6 +51,31 @@ struct CycleInterval {
     }
     friend CycleInterval operator*(CycleInterval a,CycleInterval b) {
         if(a.zero()||b.zero())return {};
+        // Finite endpoints: the signs say which products are the extremes.
+        // Rounding to nearest is monotone, so each is the rounded minimum
+        // (maximum) of the four products, as below; a zero's sign does not
+        // survive down/up. Same interval, two products instead of four.
+        if(std::isfinite(a.lo+a.hi+b.lo+b.hi)) {
+            double x,y,z,w;  // lo = min(x*y, ...), hi = max(z*w, ...)
+            if(a.lo>=0) {
+                if(b.lo>=0){x=a.lo;y=b.lo;z=a.hi;w=b.hi;}
+                else if(b.hi<=0){x=a.hi;y=b.lo;z=a.lo;w=b.hi;}
+                else{x=a.hi;y=b.lo;z=a.hi;w=b.hi;}
+            } else if(a.hi<=0) {
+                if(b.lo>=0){x=a.lo;y=b.hi;z=a.hi;w=b.lo;}
+                else if(b.hi<=0){x=a.hi;y=b.hi;z=a.lo;w=b.lo;}
+                else{x=a.lo;y=b.hi;z=a.lo;w=b.lo;}
+            } else {
+                if(b.lo>=0){x=a.lo;y=b.hi;z=a.hi;w=b.hi;}
+                else if(b.hi<=0){x=a.hi;y=b.lo;z=a.lo;w=b.lo;}
+                else {
+                    volatile double p=a.lo*b.hi,q=a.hi*b.lo,r=a.lo*b.lo,s=a.hi*b.hi;
+                    return {down(std::min(double(p),double(q))),up(std::max(double(r),double(s)))};
+                }
+            }
+            volatile double l=x*y,h=z*w;
+            return {down(l),up(h)};
+        }
         volatile double p=a.lo*b.lo,q=a.lo*b.hi,r=a.hi*b.lo,s=a.hi*b.hi;
         if(std::isnan(p)||std::isnan(q)||std::isnan(r)||std::isnan(s))return {-INFINITY,INFINITY};
         return {down(std::min({double(p),double(q),double(r),double(s)})),
