@@ -481,7 +481,8 @@ class DirectionalMaps {
     }
 
     EdgeStatus edge_status(size_t g,size_t h,size_t e) {
-        if(maps[g].original.size()<=2) return EdgeStatus::Unknown;
+        // compute_statuses reads three corners of h: a point or a segment h has fewer.
+        if(maps[g].original.size()<=2 || maps[h].membership_corners.size()<3) return EdgeStatus::Unknown;
         // Strictly separated boxes (exact on the binary64 input coordinates,
         // as in split_boundaries): every pseudo-edge is outside.
         if(maps[g].bounds->disjoint(*maps[h].bounds)) return EdgeStatus::Outside;

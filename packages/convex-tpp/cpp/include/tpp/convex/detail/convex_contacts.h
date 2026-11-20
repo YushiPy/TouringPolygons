@@ -203,6 +203,22 @@ inline bool convex_polygons_intersect_or_touch_double(const std::vector<Vector2>
     return point_in_convex_polygon_closed_linear(a.front(),b) || point_in_convex_polygon_closed_linear(b.front(),a);
 }
 
+// A point or a segment: fewer than three distinct vertices in cyclic order.
+// The memoized disjoint construction (SolutionBinarySearchDisjoint) builds
+// cones from two distinct edges at every vertex, so these regions go to the
+// directional maps, which treat them (intersecting_maps.cpp).
+inline bool lower_dimensional_region(const std::vector<Vector2> &polygon) {
+    size_t count=0;
+    for(size_t i=0;i<polygon.size();++i)
+        if(i==0||polygon[i]!=polygon[i-1]) ++count;
+    if(polygon.size()>1&&polygon.front()==polygon.back()) --count;
+    return count<3;
+}
+inline bool has_lower_dimensional_region(const std::vector<std::vector<Vector2>> &polygons) {
+    for(const auto &p:polygons) if(lower_dimensional_region(p)) return true;
+    return false;
+}
+
 // O(kn) in all: each polygon meets k-1 others in O(|P_i|+|P_h|) time.
 inline bool pairwise_disjoint_double(const std::vector<std::vector<Vector2>> &polygons) {
     std::vector<LexicographicChains> chains;chains.reserve(polygons.size());

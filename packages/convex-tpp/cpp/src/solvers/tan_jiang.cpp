@@ -28,7 +28,9 @@ using std::pair;
 namespace {
 
 	bool is_tan_jiang_supported_disjoint_case(const vector<vector<Vector2>> &polygons) {
-		return tpp::detail::pairwise_disjoint_double(polygons);
+		// Its statuses read three corners of each polygon: points and segments
+		// take the directional maps.
+		return !tpp::detail::has_lower_dimensional_region(polygons) && tpp::detail::pairwise_disjoint_double(polygons);
 	}
 }
 

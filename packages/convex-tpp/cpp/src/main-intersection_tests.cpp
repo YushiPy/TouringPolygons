@@ -253,6 +253,68 @@ namespace {
 		}
 	}
 
+	// Points and segments in the binary64 entries: every entry returns the
+	// length that the certified hybrid proves, and a path that visits the
+	// regions in order. Before 2026-11-20 the disjoint solvers ignored a point
+	// and took the line of a segment for the segment.
+	void test_lower_dimensional_entries() {
+		struct Case { Vector2 start, target; vector<vector<Vector2>> polygons; std::string name; };
+		vector<Case> cases{
+			{{0, 0}, {10, 0}, {{{5, 3}}}, "point above st"},
+			{{0, 0}, {10, 5}, {{{4, 5}, {6, 5}}}, "target on the segment's line"},
+			{{0, 0}, {10, 0}, {{{4, 3}, {6, 3}}}, "segment above st"},
+		};
+		std::mt19937_64 random(20261120);
+		std::uniform_int_distribution<int> count(1, 5), coordinate(-12, 12), kind(0, 2);
+		for (int trial = 0; trial < 300; trial++) {
+			Case c{{double(2 * coordinate(random)), double(2 * coordinate(random))},
+				{double(2 * coordinate(random)), double(2 * coordinate(random))}, {}, std::format("random {}", trial)};
+			const int k = count(random);
+			bool degenerate = false;
+			for (int i = 0; i < k; i++) {
+				const int which = kind(random);
+				if (which == 0) { c.polygons.push_back({{double(2 * coordinate(random)), double(2 * coordinate(random))}}); degenerate = true; }
+				else if (which == 1) {
+					Vector2 a(2 * coordinate(random), 2 * coordinate(random)), b(2 * coordinate(random), 2 * coordinate(random));
+					if (a == b) b = a + Vector2(2, 0);
+					c.polygons.push_back({a, b}); degenerate = true;
+				} else c.polygons.push_back(random_convex_polygon(random));
+			}
+			if (degenerate) cases.push_back(c);
+		}
+		size_t checked = 0, disjoint = 0;
+		for (const auto &c : cases) {
+			const auto proved = tpp::tpp_convex_solve_hybrid(c.start, c.target, c.polygons);
+			const double expected = proved.upper_bound, tolerance = 1e-8 * std::max(1.0, expected);
+			if (proved.upper_bound - proved.lower_bound > 1e-12 * std::max(1.0, expected))
+				throw std::runtime_error(std::format("{}: the hybrid left a gap [{}, {}]", c.name, proved.lower_bound, proved.upper_bound));
+			auto check_path = [&](const vector<Vector2> &path, const std::string &entry) {
+				const auto validation = tpp::validate_ordered_path(c.start, c.target, c.polygons, path);
+				if (!validation.valid) throw std::runtime_error(std::format("{} {}: ordered visitation fails at polygon {}", c.name, entry, validation.visited_polygons + 1));
+				double length = 0;
+				for (size_t i = 1; i < path.size(); i++) length += path[i - 1].distance_to(path[i]);
+				if (std::fabs(length - expected) > tolerance) throw std::runtime_error(std::format("{} {}: length {} against the proved {}", c.name, entry, length, expected));
+			};
+			auto check_length = [&](double length, const std::string &entry) {
+				if (std::fabs(length - expected) > tolerance) throw std::runtime_error(std::format("{} {}: length {} against the proved {}", c.name, entry, length, expected));
+			};
+			check_path(tpp::tpp_convex_solve_binary_search_lazy(c.start, c.target, c.polygons), "lazy");
+			check_path(tpp::tpp_convex_solve_binary_search_eager(c.start, c.target, c.polygons), "eager");
+			check_path(tpp::tpp_convex_solve_linear_search_lazy(c.start, c.target, c.polygons), "linear lazy");
+			check_path(tpp::tpp_convex_solve_tan_jiang(c.start, c.target, c.polygons), "Tan-Jiang");
+			check_length(tpp::tpp_convex_solve_length_binary_search_lazy(c.start, c.target, c.polygons), "lazy length");
+			check_length(tpp::tpp_convex_solve_length_binary_search_eager(c.start, c.target, c.polygons), "eager length");
+			if (tpp::detail::pairwise_disjoint_double(c.polygons)) {
+				++disjoint;
+				check_path(tpp::tpp_convex_solve_binary_search_disjoint(c.start, c.target, c.polygons), "disjoint");
+				check_path(tpp::tpp_convex_solve_linear_search_disjoint(c.start, c.target, c.polygons), "linear disjoint");
+				check_length(tpp::tpp_convex_solve_length_binary_search_disjoint(c.start, c.target, c.polygons), "disjoint length");
+			}
+			++checked;
+		}
+		std::println("Points and segments: {} cases ({} disjoint) match the certified hybrid in every binary64 entry.", checked, disjoint);
+	}
+
 	void verify_case(
 		const std::string &name,
 		const Vector2 &start,
@@ -327,6 +389,7 @@ namespace {
 int main() {
 	test_convex_contacts();
 	test_filtered_exact_maps();
+	test_lower_dimensional_entries();
 
 	class RepeatedQuery final : public tpp::Solution {
 	public:

@@ -18,8 +18,10 @@ namespace {
 	using tpp::detail::normalized_winding;
 
 	// O(kn) in all, by the linear-time contacts of convex_contacts.h.
+	// Points and segments are not "disjoint" here: the disjoint solver needs
+	// two distinct edges at every vertex, so they take the directional maps.
 	bool polygons_are_pairwise_disjoint(const vector<vector<Vector2>> &polygons) {
-		return tpp::detail::pairwise_disjoint_double(polygons);
+		return !tpp::detail::has_lower_dimensional_region(polygons) && tpp::detail::pairwise_disjoint_double(polygons);
 	}
 }
 
@@ -134,12 +136,16 @@ namespace tpp {
 			PreloadPolicy preload) {
 			if(auto normalized=normalized_winding(polygons))
 				return solve_binary_search_disjoint_trace_unchecked(start,target,*normalized,preload);
+			if(has_lower_dimensional_region(polygons))
+				throw std::invalid_argument("The disjoint trace needs polygons with at least three vertices");
 			return SolutionBinarySearchDisjoint(start,target,polygons).trace(preload);
 		}
 		double length_binary_search_disjoint_unchecked(const Vector2 &start,const Vector2 &target,
 			const std::vector<std::vector<Vector2>> &polygons,PreloadPolicy preload) {
 			if(auto normalized=normalized_winding(polygons))
 				return length_binary_search_disjoint_unchecked(start,target,*normalized,preload);
+			if(has_lower_dimensional_region(polygons))
+				return length_disjoint_maps(start,target,polygons,preload);
 			return SolutionBinarySearchDisjoint(start,target,polygons).solve_length(preload);
 		}
 	}
@@ -157,6 +163,10 @@ namespace tpp {
 	}
 
 	void tpp_convex_solve_binary_search_disjoint(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons, ConvexTppWorkspaceView workspace, std::vector<Vector2>& output) {
+		if (tpp::detail::has_lower_dimensional_region(polygons)) {
+			output = detail::solve_intersecting_maps(start, target, polygons, PreloadPolicy::Lazy);
+			return;
+		}
 		SolutionBinarySearchDisjoint(start, target, polygons, workspace).solve(PreloadPolicy::Lazy, output);
 	}
 
@@ -197,6 +207,8 @@ namespace tpp {
 	std::vector<Vector2> tpp_convex_solve_binary_search_disjoint(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
 		if(auto normalized=normalized_winding(polygons))
 			return tpp_convex_solve_binary_search_disjoint(start,target,*normalized);
+		if (tpp::detail::has_lower_dimensional_region(polygons))
+			return detail::solve_intersecting_maps(start, target, polygons, PreloadPolicy::Lazy);
 		return SolutionBinarySearchDisjoint(start, target, polygons).solve(PreloadPolicy::Lazy);
 	}
 
@@ -223,6 +235,8 @@ namespace tpp {
 	double tpp_convex_solve_length_binary_search_disjoint(const Vector2& start, const Vector2& target, const std::vector<std::vector<Vector2>>& polygons) {
 		if(auto normalized=normalized_winding(polygons))
 			return tpp_convex_solve_length_binary_search_disjoint(start,target,*normalized);
+		if (tpp::detail::has_lower_dimensional_region(polygons))
+			return detail::length_intersecting_maps(start, target, polygons, PreloadPolicy::Lazy);
 		return SolutionBinarySearchDisjoint(start, target, polygons).solve_length(PreloadPolicy::Lazy);
 	}
 
