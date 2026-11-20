@@ -169,6 +169,19 @@ class JobsAndRemoteTests(unittest.TestCase):
 			self.assertEqual(jobs.status(jobs._read(job)), "completed")
 			self.assertIn("tpp-unordered", (job / "output.log").read_text())
 
+	def test_a_label_shared_by_several_runs_picks_the_newest(self):
+		with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"TPP_WORKSPACE": directory}):
+			for job_id, exit_code in [("20261118-232739-paper1-experiments", 0),
+					("20261120-021202-paper1-experiments", 0), ("20261120-030000-paper1-experiments-r2", 0)]:
+				(Path(directory) / "jobs" / job_id).mkdir(parents=True)
+				jobs._write(Path(directory) / "jobs" / job_id, {"id": job_id, "exit_code": exit_code})
+			self.assertEqual(jobs.resolve("paper1-experiments").name, "20261120-021202-paper1-experiments")
+			self.assertEqual(jobs.resolve("paper1-experiments-r2").name, "20261120-030000-paper1-experiments-r2")
+			with self.assertRaises(SystemExit):
+				jobs.resolve("paper1")  # part of a label, not a label: still ambiguous
+			with self.assertRaises(SystemExit):
+				jobs.resolve("paper1-experiments", running_only=True)  # stop: none is running
+
 	def test_remote_run_keeps_options_and_quotes_the_command(self):
 		scripts = []
 		with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"TPP_WORKSPACE": directory}), \

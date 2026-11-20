@@ -835,6 +835,20 @@ runs the method of paper 1 without any feature sweep, in either arithmetic.
    sweeps (`solve_cycle_disjoint_rational(...,false)` or
    `solve_intersecting_cycle(...,false)`).
 
+The exact anchored TPPs of Steps 2 and 3 (`solve_intersecting_map_contacts_exact`)
+decide their predicates with filtered arithmetic since 2026-11-19: binary64
+intervals, and the expression DAG evaluated exactly only when an interval
+leaves a sign open, then the contacts evaluated exactly from their DAGs. The
+decisions and expressions are those of the rational maps, so the contacts are
+the same rationals ([certified oracle](certified-convex-oracle.md#recuperação-com-predicados-filtrados)).
+On the 1638 cycles of paper 1 the exact outcomes are identical and the total
+time drops to 0.62–0.63 of what it was on the Mac (same process, alternating
+case by case; two runs, 6.95 to 4.38 s and 9.23 to 5.72 s), most of it in the
+few cycles with anchor recoveries or a Step 3. On dantzig, the full paper 1 run
+at that revision (`dantzig-b4f01cb` against `dantzig-3df4d85`, separate runs)
+gives the same results row by row and 0.67 of the time (8.86 to 5.96 s; 0.55
+for k=8 and k=16, 0.58 on the 76 cycles with anchor recoveries or a Step 3).
+
 The descriptor of a binary64 cycle records, per region, the feature that the
 local optimality conditions select between the two neighbouring contacts
 (`CycleRefinement::coordinate`), not exact incidence: a reflection rounded off

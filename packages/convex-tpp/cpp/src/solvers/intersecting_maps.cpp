@@ -42,7 +42,7 @@ struct Point {
     Point() = default;
     Point(Scalar x_, Scalar y_) : x(std::move(x_)), y(std::move(y_)) {}
     explicit Point(Vector2 p) : x(p.x), y(p.y) {}
-#ifndef TPP_EXPERIMENT_NATIVE_DOUBLE
+#if !defined(TPP_EXPERIMENT_NATIVE_DOUBLE) || defined(TPP_DIRECTIONAL_FILTERED)
     explicit Point(const ConvexRationalPoint &p) : x(p.x),y(p.y) {}
 #endif
     Point operator+(const Point &b) const { return {x+b.x,y+b.y}; }
@@ -1013,6 +1013,17 @@ public:
         return result;
     }
 #endif
+#ifdef TPP_DIRECTIONAL_FILTERED
+    // exact_contacts with filtered decisions: the same expressions, so the
+    // same rationals, evaluated from their DAGs for the contacts alone.
+    ConvexRationalPolygon exact_contacts(bool use_last_contact=false) {
+        std::vector<Point> path,contacts;query_path(target,maps.size(),path);
+        contact_details_from_path(path,use_last_contact,&contacts);
+        ConvexRationalPolygon result;result.reserve(contacts.size());
+        for(const auto &q:contacts)result.emplace_back(q.x.exact(),q.y.exact());
+        return result;
+    }
+#endif
     double length() { return double(query_length(target,maps.size())); }
 };
 
@@ -1034,6 +1045,16 @@ std::vector<DirectionalTraceStep> solve_intersecting_map_trace_filtered(
         PreloadPolicy preload) {
     FilteredRational::Scope arithmetic_scope;
     return DirectionalMaps(start,target,polygons,preload).trace();
+}
+ConvexRationalPolygon solve_intersecting_map_contacts_exact_filtered(const ConvexRationalPoint &start,
+        const ConvexRationalPoint &target,const ConvexRationalPolygons &polygons) {
+    FilteredRational::Scope arithmetic_scope;
+    return DirectionalMaps(Point(start),Point(target),polygons,PreloadPolicy::Lazy).exact_contacts();
+}
+ConvexRationalPolygon solve_disjoint_map_contacts_exact_filtered(const ConvexRationalPoint &start,
+        const ConvexRationalPoint &target,const ConvexRationalPolygons &polygons) {
+    FilteredRational::Scope arithmetic_scope;
+    return DirectionalMaps(Point(start),Point(target),polygons,PreloadPolicy::Lazy,true).exact_contacts(true);
 }
 #elif defined(TPP_DIRECTIONAL_DOUBLE_VARIANT)
 std::vector<Vector2> solve_intersecting_maps_unchecked_double(const Vector2 &start,const Vector2 &target,
@@ -1075,12 +1096,19 @@ double length_intersecting_maps_tan_jiang(const Vector2 &start,const Vector2 &ta
         const std::vector<std::vector<Vector2>> &polygons) {
     return tan_jiang_maps(Point(start),Point(target),polygons).length();
 }
+bool &exact_maps_filtered() {static bool value=true;return value;}
 ConvexRationalPolygon solve_intersecting_map_contacts_exact(const ConvexRationalPoint &start,
         const ConvexRationalPoint &target,const ConvexRationalPolygons &polygons) {
+#ifdef TPP_HAS_FILTERED_DIRECTIONAL
+    if(exact_maps_filtered()) return solve_intersecting_map_contacts_exact_filtered(start,target,polygons);
+#endif
     return DirectionalMaps(Point(start),Point(target),polygons,PreloadPolicy::Lazy).exact_contacts();
 }
 ConvexRationalPolygon solve_disjoint_map_contacts_exact(const ConvexRationalPoint &start,
         const ConvexRationalPoint &target,const ConvexRationalPolygons &polygons) {
+#ifdef TPP_HAS_FILTERED_DIRECTIONAL
+    if(exact_maps_filtered()) return solve_disjoint_map_contacts_exact_filtered(start,target,polygons);
+#endif
     return DirectionalMaps(Point(start),Point(target),polygons,PreloadPolicy::Lazy,true).exact_contacts(true);
 }
 std::vector<Vector2> solve_intersecting_maps(const Vector2 &start,const Vector2 &target,

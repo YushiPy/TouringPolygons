@@ -24,6 +24,9 @@ class FilteredRational {
         const Node *a=nullptr,*b=nullptr;
         mutable const ConvexRational *cached=nullptr;
         explicit Node(double value):op(Op::Literal),approximate(value),interval(value) {}
+        // A rational literal: its exact value, the nearest double and an enclosure.
+        Node(const ConvexRational *value,double nearest,CycleInterval bounds)
+            :op(Op::Literal),approximate(nearest),interval(bounds),cached(value) {}
         Node(Op kind,double value,CycleInterval bounds,const Node *x,const Node *y)
             :op(kind),approximate(value),interval(bounds),a(x),b(y) {}
         const ConvexRational &exact()const;
@@ -155,6 +158,17 @@ public:
     };
     FilteredRational():FilteredRational(0.0) {}
     FilteredRational(double value):node(arena().make(value)) {}
+    // An exact rational literal. A binary64 value is the double literal; any
+    // other keeps its rational in the arena, enclosed by the neighbours of its
+    // nearest double, so its decisions and exact value are those of the rational.
+    explicit FilteredRational(const ConvexRational &value) {
+        const double nearest=convex_nearest_double(value);
+        if(std::isfinite(nearest)&&ConvexRational(nearest)==value){node=arena().make(nearest);return;}
+        ConvexRational &slot=arena().slot();slot=value;
+        node=arena().make(&slot,nearest,CycleInterval{CycleInterval::down(nearest),CycleInterval::up(nearest)});
+    }
+    // The exact value of the expression (evaluated once, cached in the arena).
+    const ConvexRational &exact() const {return node->exact();}
     template<class T> T convert_to()const {
         if(node->cached) {
             if constexpr(std::is_same_v<T,double>)return convex_nearest_double(*node->cached);

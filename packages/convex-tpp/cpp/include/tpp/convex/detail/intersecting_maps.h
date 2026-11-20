@@ -196,4 +196,17 @@ ConvexRationalPolygon solve_intersecting_map_contacts_exact(
 ConvexRationalPolygon solve_disjoint_map_contacts_exact(
     const ConvexRationalPoint &start,const ConvexRationalPoint &target,
     const ConvexRationalPolygons &polygons);
+// The same two constructions with filtered decisions (interval predicates,
+// exact evaluation of their DAGs when an interval leaves a sign open): the
+// same decisions and expressions, hence the same rational contacts.
+ConvexRationalPolygon solve_intersecting_map_contacts_exact_filtered(
+    const ConvexRationalPoint &start,const ConvexRationalPoint &target,
+    const ConvexRationalPolygons &polygons);
+ConvexRationalPolygon solve_disjoint_map_contacts_exact_filtered(
+    const ConvexRationalPoint &start,const ConvexRationalPoint &target,
+    const ConvexRationalPolygons &polygons);
+// With filtered arithmetic built (TPP_HAS_FILTERED_DIRECTIONAL), the two
+// functions above run the filtered constructions unless this is false; the
+// rational ones remain for comparison (tests, measurements).
+bool &exact_maps_filtered();
 }
