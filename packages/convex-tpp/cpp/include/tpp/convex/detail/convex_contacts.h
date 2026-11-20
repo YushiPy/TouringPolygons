@@ -144,6 +144,16 @@ inline constexpr double membership_tolerance=membership_epsilon*membership_epsil
 inline bool point_in_convex_polygon_closed_linear(const Vector2 &point,const std::vector<Vector2> &polygon) {
     if(polygon.empty()) return false;
     constexpr double tolerance=membership_tolerance;
+    // A point or a segment, with the same absolute tolerance on the cross
+    // product and on the projection (the edge tests below would accept the
+    // whole plane for a point and the whole line for a segment).
+    if(polygon.size()<=2) {
+        const Vector2 &a=polygon.front(),&b=polygon.back();
+        const Vector2 edge=b-a,offset=point-a;
+        if(edge.x==0&&edge.y==0) return std::abs(offset.x)<=tolerance&&std::abs(offset.y)<=tolerance;
+        const double projection=edge.dot(offset);
+        return std::abs(edge.cross(offset))<=tolerance&&projection>=-tolerance&&projection<=edge.dot(edge)+tolerance;
+    }
     bool has_positive=false,has_negative=false;
     for(size_t j=0;j<polygon.size();j++) {
         const auto &v1=polygon[j];
@@ -204,9 +214,9 @@ inline bool convex_polygons_intersect_or_touch_double(const std::vector<Vector2>
 }
 
 // A point or a segment: fewer than three distinct vertices in cyclic order.
-// The memoized disjoint construction (SolutionBinarySearchDisjoint) builds
-// cones from two distinct edges at every vertex, so these regions go to the
-// directional maps, which treat them (intersecting_maps.cpp).
+// The memoized disjoint construction treats them (Solution::build_cone and
+// SolutionBinarySearchDisjoint::locate_point); the linear-search and
+// Tan-Jiang constructions send them to the directional maps.
 inline bool lower_dimensional_region(const std::vector<Vector2> &polygon) {
     size_t count=0;
     for(size_t i=0;i<polygon.size();++i)
