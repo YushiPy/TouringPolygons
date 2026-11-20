@@ -149,8 +149,11 @@ void search_cycle(const std::vector<std::vector<ConvexArithmeticPoint<S>>> &poly
             return derivative==0||try_step(j,q,next);
         };
         try {
-            if(try_step(j,at_vertex[j],next))return;
-            if(!inside()&&try_step(j,at_vertex[(j+1)%m],next))return;
+            // A step at an end returns true when it solved the cycle or when it
+            // reached a fixed point of the closed form; the latter ends only
+            // this piece, as a fixed point at a probe does below.
+            if(try_step(j,at_vertex[j],next)){if(solved())return;continue;}
+            if(!inside()&&try_step(j,at_vertex[(j+1)%m],next)){if(solved())return;continue;}
             std::size_t closed_form_run=0;
             for(;;) {
                 detail::cycle_checkpoint();
@@ -727,12 +730,25 @@ void search_intersecting_boundaries(const std::vector<std::vector<ConvexArithmet
     // These are the same anchored problems and exact acceptance conditions as
     // below; only their order changes. Reuse their contacts in the full search.
     std::vector<Polygon> first_contacts(k);
-    for(size_t anchor=0;anchor<k;++anchor)try {
+    // Every tour visits every region. A point is visited at itself, so the
+    // anchored TPP at the point is the CTPP: it is searched alone, in both
+    // steps (Step 3 then costs one exact TPP). A segment has no interior, so
+    // searching it alone would also be complete, but on the paper 1 cycles
+    // with one polygon replaced by a segment that made the rational search
+    // 2.5 times slower than searching every boundary (2026-11-20,
+    // benchmarks/workspace/experiments/point-segment-regions): segments are
+    // searched with the others, on one of their two coincident edges.
+    std::optional<size_t> point;
+    for(size_t i=0;i<k&&!point;++i)if(p[i].size()==1)point=i;
+    std::vector<size_t> order;
+    if(point)order.push_back(*point);
+    else for(size_t i=0;i<k;++i)order.push_back(i);
+    for(const size_t anchor:order)try {
         anchor_index=anchor;
         first_contacts[anchor]=evaluate(anchor,p[anchor].front());
         if(solved()||refine(first_contacts[anchor]))return;
     } catch(const std::runtime_error &error){diagnostic=error.what();}
-    for(size_t anchor=0;anchor<k;++anchor) {
+    for(const size_t anchor:order) {
         detail::cycle_checkpoint();
         anchor_index=anchor;
         // A point region is its own only anchor, already evaluated above.
@@ -743,7 +759,7 @@ void search_intersecting_boundaries(const std::vector<std::vector<ConvexArithmet
             while(after!=anchor&&q[after]==q[anchor])after=(after+1)%k;
             return direction_support_sign(q[anchor]-q[before],q[after]-q[anchor],e);
         };
-        for(size_t j=0;j<p[anchor].size();++j) {
+        for(size_t j=0;j<(p[anchor].size()==2?1:p[anchor].size());++j) {
             const P a=p[anchor][j],e=p[anchor][(j+1)%p[anchor].size()]-a;
             std::vector<S> cuts{0,1};
             for(size_t i=0;i<k;++i)if(i!=anchor)for(size_t h=0;h<p[i].size();++h) {
@@ -774,8 +790,9 @@ void search_intersecting_boundaries(const std::vector<std::vector<ConvexArithmet
                     if(derivative(ends[r-1],e)>=0||derivative(ends[r],e)<=0)continue;
                     std::optional<S> next;
                     auto inside=[&]{return next&&*next>left&&*next<right;};
-                    if(step(anchor,j,ends[r-1],next))return;
-                    if(!inside()&&step(anchor,j,ends[r],next))return;
+                    // As in search_cycle: a fixed point at an end ends only this piece.
+                    if(step(anchor,j,ends[r-1],next)){if(solved())return;continue;}
+                    if(!inside()&&step(anchor,j,ends[r],next)){if(solved())return;continue;}
                     // A complete endpoint restriction certificate handles the
                     // nondifferentiable endpoints. Otherwise the minimizer is
                     // interior and the endpoint subgradients have strict signs.

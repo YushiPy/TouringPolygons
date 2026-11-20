@@ -824,7 +824,13 @@ runs the method of paper 1 without any feature sweep, in either arithmetic.
 1. **Common point.** As before: binary64 intersection, then the exact one.
 2. **Binary64 search.** Pairwise disjoint polygons search the boundary of
    the polygon with fewest vertices (`search_cycle`); otherwise every boundary,
-   split at the other boundaries (`search_intersecting_boundaries`). Each
+   split at the other boundaries (`search_intersecting_boundaries`). Since
+   2026-11-20 a point is the only anchor, in Steps 2 and 3: every tour visits
+   it at itself, so the anchored TPP at the point is the CTPP. A segment has
+   no interior, so searching it alone would also be complete, but on the
+   paper 1 cycles with one polygon replaced by a segment that made the
+   rational search 2.5 times slower; segments are searched with the other
+   boundaries, on one of their two coincident edges. Each
    anchored TPP is the binary64 construction of the TPP flow
    (`double_candidate_chain`: trace, replay and contact repair), and the
    rational construction only when it throws. The candidates are not
@@ -878,8 +884,10 @@ binary64 contacts rarely pass it, and the derivative signs decide the piece.
 Binary64 bisection never meets an exact zero of the derivative, so Step 2 also
 ends a piece at a fixed point of the closed-form step: the probe its
 descriptor proposed returns that descriptor and proposal again, and the
-descriptor's rebuild has already failed. These rules only shorten Step 2;
-Step 3 is complete.
+descriptor's rebuild has already failed. A fixed point at an end of a piece
+also ends only that piece (until 2026-11-20 it ended the whole boundary
+search, and Step 3 ran: two of the 1638 cycles of paper 1). These rules only
+shorten Step 2; Step 3 is complete.
 
 `method_step` reports the step that returned (1, 2 or 3), `exact_contacts`
 and `exact_certificate` the exact cycle and its certificate, and the counters

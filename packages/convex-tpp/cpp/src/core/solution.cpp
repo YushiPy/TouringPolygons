@@ -161,6 +161,16 @@ namespace tpp {
 			ray2 = diff;
 		}
 
+		// An end of a segment (two vertices, interior angle zero): if the path
+		// arrives along the segment, toward it, every direction may leave the
+		// end (its normal cone is the half-plane opposite to the segment). The
+		// zero second ray marks that full turn (SolutionBinarySearchDisjoint).
+		// Arriving the other way, the two rays are diff: a single ray.
+		if (polygon.size() == 2 && !is_first_contact(i, j_prev) && !is_first_contact(i, j)
+			&& diff.dot(after - vertex) > 0) {
+			ray2 = Vector2(0, 0);
+		}
+
 		cone_slot(i, j) = {ray1, ray2};
 	}
 

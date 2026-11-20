@@ -18,6 +18,8 @@ namespace {
 	using tpp::detail::normalized_winding;
 
 	// O(kn) in all, by the linear-time contacts of convex_contacts.h.
+	// O(kn) in all, by the linear-time contacts of convex_contacts.h. Points
+	// and segments are polygons with one and two vertices.
 	bool polygons_are_pairwise_disjoint(const vector<vector<Vector2>> &polygons) {
 		return tpp::detail::pairwise_disjoint_double(polygons);
 	}
@@ -76,7 +78,7 @@ class SolutionBinarySearchDisjoint : public tpp::Solution {
 		const auto &first_vertex = polygon[0];
 		const auto &[first_ray1, first_ray2] = get_cone(polygon_index, 0);
 
-		if (tpp::point_in_cone_plus(point, first_vertex, first_ray1, first_ray2)) {
+		if (full_turn({first_ray1, first_ray2}) || tpp::point_in_cone_plus(point, first_vertex, first_ray1, first_ray2)) {
 			return 0;
 		}
 
@@ -90,7 +92,7 @@ class SolutionBinarySearchDisjoint : public tpp::Solution {
 			const auto &mid_vertex = polygon[mid_vertex_index];
 			const auto &[mid_ray1, mid_ray2] = get_cone(polygon_index, mid_vertex_index);
 
-			if (tpp::point_in_cone_plus(point, mid_vertex, mid_ray1, mid_ray2)) {
+			if (full_turn({mid_ray1, mid_ray2}) || tpp::point_in_cone_plus(point, mid_vertex, mid_ray1, mid_ray2)) {
 				return 2 * mid_vertex_index;
 			}
 
@@ -107,12 +109,20 @@ class SolutionBinarySearchDisjoint : public tpp::Solution {
 		return 2 * left + 1;
 	}
 
+	// A full turn at an end of a segment (Solution::build_cone): every point.
+	static bool full_turn(const tpp::Cone &cone) {
+		return cone.second.x == 0 && cone.second.y == 0;
+	}
+
 	int64_t locate_point(const Vector2& point, size_t i) override {
 
 		++tpp::detail::point_locations();
-		size_t location = _locate_point(point, i);
 		const auto polygon_index = i - 1;
 		const auto vertex_count = polygons[polygon_index].size();
+		// A point is a map with one cell: every path through it bends there.
+		if (vertex_count == 1) return 0;
+		size_t location = _locate_point(point, i);
+		if (location % 2 == 0 && full_turn(get_cone(polygon_index, location / 2))) return location;
 		
 		size_t previous_index = location == 0 ? vertex_count - 1 : (location - 1) / 2;
 
