@@ -214,6 +214,10 @@ def summarize_cycles(rows: list[dict]) -> dict:
 			"step3_share": (sum(1 for row in exact if row["ours"]["step"] == 3) / len(exact)) if exact else None,
 			"ours_median_s": paper1.median(ours), "ours_max_s": max(value for value in ours if value is not None) if ours else None,
 			"gurobi_median_s": paper1.median(gurobi),
+			# Building the model and optimize() alone (medians per instance, then
+			# over the instances); gurobi_median_s is the total around both.
+			"gurobi_build_median_s": paper1.median(paper1.gurobi_part(repetitions, "build") for repetitions in instances),
+			"gurobi_optimize_median_s": paper1.median(paper1.gurobi_part(repetitions, "optimize") for repetitions in instances),
 			"gurobi_over_ours_geomean": paper1.geometric_mean(g / o for g, o in zip(gurobi, ours) if g and o),
 			"gurobi_faster_instances": sum(1 for g, o in zip(gurobi, ours) if g and o and g < o),
 			"gurobi_status": paper1.count_by(row["gurobi"]["status"] for row in first),
@@ -246,8 +250,8 @@ def write_per_instance(out: Path, target: Path, step: str = "cycles") -> int:
 		by.setdefault(row["name"], []).append(row)
 	with target.open("w", newline="") as file:
 		writer = csv.writer(file, lineterminator="\n")
-		writer.writerow(["name", "k", "n", "step", "ours_ms", "gurobi_ms", "gurobi_status", "gurobi_minus_L_rel",
-			"anchored", "probes", "rational_anchor_recoveries"])
+		writer.writerow(["name", "k", "n", "step", "ours_ms", "gurobi_ms", "gurobi_build_ms", "gurobi_optimize_ms",
+			"gurobi_status", "gurobi_minus_L_rel", "anchored", "probes", "rational_anchor_recoveries"])
 		for name in sorted(by):
 			reps = by[name]
 			ours, gurobi = reps[0]["ours"], reps[0]["gurobi"]
@@ -257,6 +261,7 @@ def write_per_instance(out: Path, target: Path, step: str = "cycles") -> int:
 			writer.writerow([name, reps[0]["k"], reps[0]["vertices"], ours["step"],
 				f"{paper1.median(row['ours']['mean'] for row in reps) * 1e3:.4g}",
 				f"{paper1.median(row['gurobi']['total'] for row in reps) * 1e3:.4g}",
+				*(paper1.number(paper1.milliseconds(paper1.gurobi_part(reps, part)), 4) for part in ("build", "optimize")),
 				gurobi["status"], gap, ours["anchored"], ours["probes"], ours["rational_anchor_recoveries"]])
 	return len(by)
 
