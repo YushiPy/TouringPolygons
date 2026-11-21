@@ -3,6 +3,7 @@
 #include "tpp_convex.h"
 #include "tpp/convex/detail/convex_contacts.h"
 #include "tpp/convex/detail/intersecting_maps.h"
+#include "tpp/convex/certified.h"
 
 #include <algorithm>
 #include <array>
@@ -429,6 +430,76 @@ namespace {
 		std::println("Points and segments: {} cases ({} disjoint) match the certified hybrid in every binary64 entry.", checked, disjoint);
 	}
 
+	// The example of review 6 of paper 1 (R2): with s=(-1,0), the segment from
+	// (0,0) to (1,0) and t=(-1,1), the path arrives along the segment's line
+	// and leaves at an angle of 135 degrees from the end (0,0), whose interior
+	// angle is zero. The shortest path is s, (0,0), t, of length 1+sqrt(2).
+	// Every entry must return it: the binary64 constructions, the hybrid, the
+	// certified solver and the exact maps (rational and filtered), with the
+	// segment in either order, with the point (0,0) instead, and from t to s.
+	void test_review_segment_end() {
+		struct Case { Vector2 start, target; vector<Vector2> region; std::string name; };
+		const vector<Case> cases{
+			{{-1, 0}, {-1, 1}, {{0, 0}, {1, 0}}, "segment"},
+			{{-1, 0}, {-1, 1}, {{1, 0}, {0, 0}}, "reversed segment"},
+			{{-1, 0}, {-1, 1}, {{0, 0}}, "point"},
+			{{-1, 1}, {-1, 0}, {{0, 0}, {1, 0}}, "segment, t to s"},
+			{{-1, 1}, {-1, 0}, {{1, 0}, {0, 0}}, "reversed segment, t to s"},
+		};
+		const double expected = 1 + std::sqrt(2.0);
+		const Vector2 corner(0, 0);
+		for (const auto &c : cases) {
+			const vector<vector<Vector2>> polygons{c.region};
+			auto fail = [&](const std::string &entry, const std::string &what) {
+				throw std::runtime_error(std::format("Review example ({}) {}: {}", c.name, entry, what));
+			};
+			auto check_path = [&](const vector<Vector2> &path, const std::string &entry) {
+				if (path.size() != 3) fail(entry, std::format("{} points instead of s, a contact and t", path.size()));
+				if (path[1].distance_to(corner) > 1e-12) fail(entry, std::format("contact ({}, {}) instead of (0, 0)", path[1].x, path[1].y));
+				const double length = path[0].distance_to(path[1]) + path[1].distance_to(path[2]);
+				if (std::fabs(length - expected) > 1e-12) fail(entry, std::format("length {} instead of 1+sqrt(2)", length));
+			};
+			auto check_length = [&](double length, const std::string &entry) {
+				if (std::fabs(length - expected) > 1e-12) fail(entry, std::format("length {} instead of 1+sqrt(2)", length));
+			};
+			check_path(tpp::tpp_convex_solve_binary_search_lazy(c.start, c.target, polygons), "lazy");
+			check_path(tpp::tpp_convex_solve_binary_search_eager(c.start, c.target, polygons), "eager");
+			check_path(tpp::tpp_convex_solve_linear_search_lazy(c.start, c.target, polygons), "linear lazy");
+			check_path(tpp::tpp_convex_solve_tan_jiang(c.start, c.target, polygons), "Tan-Jiang");
+			check_path(tpp::tpp_convex_solve_binary_search_disjoint(c.start, c.target, polygons), "disjoint");
+			check_path(tpp::tpp_convex_solve_linear_search_disjoint(c.start, c.target, polygons), "linear disjoint");
+			check_length(tpp::tpp_convex_solve_length_binary_search_lazy(c.start, c.target, polygons), "lazy length");
+			check_length(tpp::tpp_convex_solve_length_binary_search_eager(c.start, c.target, polygons), "eager length");
+			check_length(tpp::tpp_convex_solve_length_binary_search_disjoint(c.start, c.target, polygons), "disjoint length");
+			// The hybrid and the certified solver prove their bounds: the exact
+			// optimum lies between them, and the gap closes.
+			const auto hybrid = tpp::tpp_convex_solve_hybrid(c.start, c.target, polygons);
+			if (hybrid.contacts.size() != 1 || !(hybrid.contacts[0] == corner)) fail("hybrid", "contact is not (0, 0)");
+			if (!(hybrid.lower_bound <= expected && expected <= hybrid.upper_bound) || hybrid.upper_bound - hybrid.lower_bound > 1e-12)
+				fail("hybrid", std::format("bounds [{}, {}]", hybrid.lower_bound, hybrid.upper_bound));
+			tpp::DynamicConvexTppWorkspace workspace;
+			const auto certified = tpp::tpp_convex_solve_certified(c.start, c.target, polygons, workspace, 0);
+			check_path(certified.path, "certified");
+			if (!(certified.lower_bound <= expected && expected <= certified.upper_bound))
+				fail("certified", std::format("bounds [{}, {}]", certified.lower_bound, certified.upper_bound));
+			// The exact maps return the contact (0, 0) itself.
+			const tpp::ConvexRationalPoint s(c.start), t(c.target), exact_corner(corner);
+			tpp::ConvexRationalPolygons exact_regions(1);
+			for (const auto &v : c.region) exact_regions[0].emplace_back(v);
+			const bool filtered = tpp::detail::exact_maps_filtered();
+			for (const bool use_filtered : {false, true}) {
+				tpp::detail::exact_maps_filtered() = use_filtered;
+				const std::string kind = use_filtered ? "filtered" : "rational";
+				const auto intersecting = tpp::detail::solve_intersecting_map_contacts_exact(s, t, exact_regions);
+				if (intersecting.size() != 1 || !(intersecting[0] == exact_corner)) fail("exact intersecting maps (" + kind + ")", "contact is not (0, 0)");
+				const auto disjoint = tpp::detail::solve_disjoint_map_contacts_exact(s, t, exact_regions);
+				if (disjoint.size() != 1 || !(disjoint[0] == exact_corner)) fail("exact disjoint maps (" + kind + ")", "contact is not (0, 0)");
+			}
+			tpp::detail::exact_maps_filtered() = filtered;
+		}
+		std::println("Review example (segment end, interior angle zero): {} variants give s, (0, 0), t in every entry.", cases.size());
+	}
+
 	void verify_case(
 		const std::string &name,
 		const Vector2 &start,
@@ -504,6 +575,7 @@ int main() {
 	test_convex_contacts();
 	test_filtered_exact_maps();
 	test_lower_dimensional_entries();
+	test_review_segment_end();
 	test_segment_cones();
 
 	class RepeatedQuery final : public tpp::Solution {
