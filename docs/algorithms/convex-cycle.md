@@ -879,8 +879,9 @@ block's pin depends on the current contacts, and proposing from it could
 converge toward a parameter without reaching it (2026-11-09).
 A vertex anchor is rebuilt only where `F` does not decrease along either edge,
 unless the vertex lies in another polygon (where `F` need not be
-differentiable). The restricted endpoint certificate is skipped in binary64:
-binary64 contacts rarely pass it, and the derivative signs decide the piece.
+differentiable). Step 2 decides a piece by the derivative signs at its ends;
+the restricted endpoint certificate is optional there and off by default (see
+[Step 2 near vertices](#step-2-near-vertices-2026-11-20)).
 Binary64 bisection never meets an exact zero of the derivative, so Step 2 also
 ends a piece at a fixed point of the closed-form step: the probe its
 descriptor proposed returns that descriptor and proposal again, and the
@@ -900,13 +901,100 @@ binary64 boundary search alone, as before.
 
 **Limits.** On intersecting polygons the binary64 construction can return a
 non-optimal anchored route without throwing; the search then misses the
-optimum and Step 3 runs. Pieces whose minimum is a nondifferentiable end (a
-vertex inside another polygon) are bisected toward that end down to binary64
-resolution, about 100 probes. Both cost time only. The default path (sweeps
+optimum and Step 3 runs. A piece whose closed-form steps all fail is
+bisected down to binary64 resolution, about 50 to 100 probes; since
+2026-11-20 pivots make this rare (next section). Both cost time only. The default path (sweeps
 first, `refine_contacts=true`) is unchanged. `prepare_cycle_polygons`
 compares exact bounding boxes before the separating-axis test, with the same
 answer. Tests: `boundary_anchor_method` in `tpp-convex-cycle-tests` runs the
 method on every instance of the other suites against the default paths.
+
+### Step 2 near vertices (2026-11-20)
+
+Review 6 of paper 1 (R6.4) attributed the slow cycles of Step 2 to the
+skipped endpoint certificate: a piece whose minimum is at a nondifferentiable
+end is bisected toward that end. Measured on the 1638 cycles of paper 1, that
+explains a minority of the bisection. In the exact mode at b3d7176, 497 pieces
+were bisected to binary64 resolution (33,500 of the 35,248 probes): 112 toward
+an end of the piece (about 10,000 probes), and 385 toward an interior point
+(about 23,000). What they share is that `close` failed at every one of their
+33,521 probes, so no closed-form step proposed a probe, no rebuild reached the
+certificate, and only bisection was left. Two causes were seen:
+
+- a binary64 anchored cycle that visits a vertex, often one shared by two
+  polygons, has contacts a few units in the last place off it, and the local
+  descriptor (`CycleRefinement::coordinate`) gives them the feature of an
+  incident edge, whose reflection then lands beyond the vertex
+  (`uniform-0000015-2-k8`, at the vertex shared by regions 3 and 4,
+  counting from 0);
+- the optimal cycle passes straight through the anchor's edge, which the
+  anchor's reflection descriptor cannot rebuild (`uniform-0000015-2-k8`,
+  anchor 0, edge 0; Step 3's rational search fails there too and needs 237
+  probes).
+
+**Pivots** (`ConvexCycleDoubleOptions::descriptor_pivots`, on by default).
+When `close` puts a reflection beyond its edge, the contact is pinned at the
+blocking vertex and the descriptor closed again, at most `k` times, as the
+feature sweeps already do (`close_descriptor`). Step 2 uses this in its
+closed-form steps (both binary64 searches) and in its exact rebuilds. The
+result is still only a proposal: the exact certificate (or, in the
+binary64-first search of `boundary_search_gap`, the proved interval) decides
+it. In the exact path's Step 2, a pivoted closed form's fixed point does not
+end the piece, which goes on to bisection: the pivoted type need not be the
+minimizer's, and letting it end pieces sent three cycles from Step 2 to
+Step 3. The binary64-first search keeps that rule, since an open search hands
+over to the exact path. Step 3 is unchanged, so its termination argument
+stands.
+
+**Endpoint certificate** (`endpoint_certificate`, off by default). Before a
+piece is bisected, the anchored cycle at each end is rebuilt exactly from its
+descriptor (with pivots), with the anchor and every contact at the anchor's
+point pinned there, and given the exact certificate of the problem whose
+anchor region is the piece (two binary64 points). If it passes, no anchor on
+the piece gives a shorter cycle and the piece is skipped; the global
+certificate then decides whether that cycle is the optimum. The decision is
+exact, so no rounding argument is needed, and no bound depends on it.
+
+On the 1638 cycles, on the Mac (one process, the settings alternating case by
+case, two pairs per case; contacts and exact outcomes compared cycle by
+cycle; `endpoint-certificate-binary64` in the local workspace). The Mac's
+counts at b3d7176 differ slightly from dantzig's (31,332 probes in 94 cycles),
+since binary64 constructions there use another libm.
+
+| Exact mode (gap zero) | probes | Step 3 | total time | bisecting cycles |
+|---|---|---|---|---|
+| b3d7176 | 35,248 | 21 | 1 | 1 (102 cycles, median 8.1 ms) |
+| endpoint certificate | 22,058 | 13 | 0.886 | 0.835 |
+| pivots | 10,223 | 4 | 0.817 | 0.727 (median 2.3 ms) |
+| both | 10,021 | 4 | ≈0.88 (1.079 × pivots) | ≈0.82 |
+
+| Tolerant mode (gap 1e-6 of the perimeter) | probes | Step 3 | total time | bisecting cycles |
+|---|---|---|---|---|
+| b3d7176 | 33,200 | 9 | 1 | 1 (130 cycles) |
+| pivots | 4,994 | 3 | 0.882 | 0.867 |
+
+Times are ratios of sums of per-case medians; "bisecting cycles" are those
+with probes at b3d7176. Cycles without bisection change by under 3% (k=4:
++4% in the exact mode, +13% of a 12 ms total in the tolerant mode).
+
+With pivots the exact mode keeps the exact bounds (`EL`, `EU`) of b3d7176 on
+all 1638 cycles. 17 cycles return at Step 2 instead of Step 3, none the other
+way, and 57 return another optimal cycle (several cycles have many optima). On
+three, the binary64 rounding of the new exact cycle passes the exact
+certificate where the old one did not, or the reverse, so `Optimal` and
+`FloatingPointLimit` swap. In the tolerant mode every cycle still closes
+within its gap, 41 on another cycle. On the 3276 variants with a point or a
+segment (from the point and segment work of 2026-11-20) the exact bounds are
+again identical, and 83 cycles move from Step 3 to Step 2, none back.
+
+The endpoint certificate, the change that review 6 asked about, is worth
+little. Alone it removes a third of the probes, because its own rebuild
+pivots. With pivots it skips 4 pieces in 459 tests, and its two exact
+certificates per bisected piece make the exact mode 8% slower. It is kept as
+an option, off by default.
+
+Test: `step2_pivots_and_endpoint_certificate` in `tpp-convex-cycle-tests`
+(`uniform-0000015-2-k8`: Step 3 with neither, Step 2 with either).
 
 ## Exact termination
 

@@ -73,6 +73,10 @@ struct ConvexCycleDoubleResult {
     // Algorithm 4.1: binary64 candidates rebuilt from their descriptors in
     // rational arithmetic (each descriptor once per anchor).
     std::size_t descriptor_rebuilds = 0;
+    // Algorithm 4.1, Step 2: ends of pieces given the restricted endpoint
+    // certificate (endpoint_certificate), and pieces it skipped because an
+    // end passed. Diagnostics only.
+    std::size_t endpoint_certificates = 0, endpoint_skips = 0;
     // The step of the boundary-anchor method (paper 1, Algorithm 4.1) that
     // returned. 1 is a common point, 2 the binary64 search, 3 the rational
     // search, 0 none or another method.
@@ -142,6 +146,26 @@ struct ConvexCycleDoubleOptions {
     // contacts, satisfy U-L <= max_gap. Candidates that do not close go on to
     // the exact rebuild, and Step 3 still runs when Step 2 ends open.
     bool boundary_search_gap = false;
+    // Algorithm 4.1, Step 2 (the exact path's binary64 search): before
+    // bisecting a piece of an anchor edge, rebuild the anchored cycle at each
+    // end exactly, with the anchor pinned there, and give it the exact
+    // certificate of the cycle problem whose anchor region is the piece. When
+    // one passes, the minimum over the piece is at that end: the piece is
+    // skipped, and the global certificate decides whether that cycle is the
+    // optimum. It changes the search order only; Step 3 is complete. Off by
+    // default: with descriptor_pivots it skips almost no piece and costs two
+    // exact certificates per bisected piece (docs/algorithms/convex-cycle.md,
+    // "Step 2 near vertices"). The binary64-first search of
+    // boundary_search_gap does not use it.
+    bool endpoint_certificate = false;
+    // Algorithm 4.1, Step 2: when the closed form of a binary64 cycle's
+    // descriptor puts a reflection beyond its edge, pin that contact at the
+    // blocking vertex and close again (at most k pivots, as in the feature
+    // sweeps), in the closed-form steps and in the exact rebuilds. A binary64
+    // contact next to a vertex often carries an incident edge's feature, and
+    // without pivots its piece is bisected to binary64 resolution. Step 3 is
+    // unchanged. false restores the earlier descriptors.
+    bool descriptor_pivots = true;
     // Cooperative checkpoints; default standalone solves have no deadline.
     // Interrupted retains only completed certificates; contacts may be empty.
     double max_seconds = std::numeric_limits<double>::infinity();
