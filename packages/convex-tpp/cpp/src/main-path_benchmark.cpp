@@ -127,6 +127,10 @@ GurobiRun gurobi(Vector2 s,Vector2 t,const Polygons &p,GRBEnv &env) {
         model.addGenConstrNorm(length,d,2,2.0);objective+=length;
     }
     model.setObjective(objective,GRB_MINIMIZE);
+    // Gurobi applies model changes lazily, at update() or optimize(): update()
+    // here keeps that work in build, so optimize is the solve alone. total
+    // still runs from the model's creation to the end of optimize().
+    model.update();
     run.build=since(began);
     const auto optimizing=Clock::now();model.optimize();run.optimize=since(optimizing);
     run.status=model.get(GRB_IntAttr_Status);

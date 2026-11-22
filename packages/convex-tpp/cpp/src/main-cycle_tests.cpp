@@ -1434,6 +1434,46 @@ void boundary_anchor_method() {
         <<"), bisection probes "<<probes<<", descriptor rebuilds "<<rebuilds<<".\n";
 }
 
+// uniform-0000015-2-k8 of the paper 1 cycles (Fekete et al.'s uniform-0000015-2,
+// regions drawn by benchmarks/tpp.py paper1-cycles): touching cells whose
+// optimal cycle visits two shared vertices. Without pivots the binary64
+// contacts next to those vertices carry an incident edge's feature, every
+// closed-form step and rebuild fails, and the pieces are bisected to binary64
+// resolution (Step 3 then finds the optimum). Pivots rebuild it at Step 2,
+// and so does the endpoint certificate: the optimum is at the end of a piece.
+void step2_pivots_and_endpoint_certificate() {
+    const Polygons p{
+        {{332.7117089575053, 632.6725771935188}, {494.3312883435583, 550.9938650306749}, {519.3629242819843, 558.0861618798956}, {618.0807174887892, 643.342437831227}, {627.521808228854, 683.3955500618047}, {490.8408994484514, 764.2490453966907}, {335.059029296021, 640.9217315260166}},
+        {{75.56124352331607, 34.24}, {136.4077922077922, 34.24}, {562.609619123047, 239.34962920296638}, {456.44444444444446, 437.3333333333333}, {200.6879334257975, 389.378987517337}},
+        {{473.1565, 825.76}, {490.8408994484514, 764.2490453966907}, {627.521808228854, 683.3955500618047}, {778.6024489795918, 825.76}},
+        {{456.44444444444446, 437.3333333333333}, {562.609619123047, 239.34962920296638}, {576.4776252284336, 239.9127969635912}, {682.4466019417475, 344.0388349514563}, {519.3629242819843, 558.0861618798956}, {494.3312883435583, 550.9938650306749}},
+        {{576.4776252284336, 239.9127969635912}, {737.0982857142857, 34.24}, {878.48, 34.24}, {878.48, 229.32545454545456}, {707.6025738077215, 356.1889982336614}, {682.4466019417475, 344.0388349514563}},
+        {{13.52, 34.24}, {75.56124352331607, 34.24}, {200.6879334257975, 389.378987517337}, {204.38068579426172, 556.476032190343}, {122.64782867340868, 625.6853063652587}, {13.52, 667.0786206896552}},
+        {{180.03925925925927, 825.76}, {189.74551569506727, 785.4417040358744}, {315.21353065539114, 770.6807610993658}, {329.49333333333334, 825.76}},
+        {{122.64782867340868, 625.6853063652587}, {204.38068579426172, 556.476032190343}, {332.7117089575053, 632.6725771935188}, {335.059029296021, 640.9217315260166}, {315.21353065539114, 770.6807610993658}, {189.74551569506727, 785.4417040358744}},
+    };
+    const auto reference=tpp::tpp_convex_solve_cycle(p);
+    require(solved(reference),"uniform-0000015-2-k8: default rational path");
+    int step[2][2]{};std::size_t probes[2][2]{},skips[2][2]{};
+    for(const bool endpoint:{false,true})for(const bool pivots:{false,true}) {
+        tpp::ConvexCycleDoubleOptions options;options.refine_contacts=false;options.float_polish=false;
+        options.endpoint_certificate=endpoint;options.descriptor_pivots=pivots;
+        const auto r=tpp::tpp_convex_solve_cycle_double(p,options);
+        const auto independent=tpp::tpp_convex_verify_cycle_certificate(exact(p),r.exact_contacts);
+        require(independent.status==tpp::ConvexCycleCertificateStatus::Optimal&&
+                independent.lower_bound<=reference.certificate.upper_bound&&reference.certificate.lower_bound<=independent.upper_bound,
+                "uniform-0000015-2-k8: exact optimum in every setting");
+        step[endpoint][pivots]=r.method_step;probes[endpoint][pivots]=r.bisection_probes;skips[endpoint][pivots]=r.endpoint_skips;
+        if(!endpoint)require(r.endpoint_certificates==0,"uniform-0000015-2-k8: no endpoint certificate when off");
+    }
+    require(step[0][0]==3&&probes[0][0]>200,"uniform-0000015-2-k8: the earlier Step 2 bisects to binary64 resolution");
+    require(step[0][1]==2&&probes[0][1]<probes[0][0]/10,"uniform-0000015-2-k8: pivots return at Step 2");
+    require(step[1][0]==2&&skips[1][0]>0,"uniform-0000015-2-k8: the endpoint certificate returns at Step 2");
+    std::cout<<"Step 2 on uniform-0000015-2-k8: step/probes "<<step[0][0]<<'/'<<probes[0][0]<<" earlier, "
+        <<step[0][1]<<'/'<<probes[0][1]<<" with pivots, "<<step[1][0]<<'/'<<probes[1][0]<<" with the endpoint certificate ("
+        <<skips[1][0]<<" pieces skipped).\n";
+}
+
 int main() {
     try {
         binary64_stage();
@@ -1442,7 +1482,7 @@ int main() {
         cooperative_interruption();
         bound_first_contacts();
         prepared_geometry_and_features();known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();rotated_squares();logarithmic_queries();boundary_memberships();support_near_ties();convex_intersections();active_contact_regressions();boundary_recovery_regressions();
-        boundary_anchor_method();boundary_anchor_method_with_gap();boundary_search_gap_coincident_block();
+        boundary_anchor_method();boundary_anchor_method_with_gap();step2_pivots_and_endpoint_certificate();boundary_search_gap_coincident_block();
         std::cout<<"Double comparisons: "<<compared_double_cases<<", maximum objective difference="<<largest_double_difference<<", maximum certified gap="<<largest_double_gap<<", local recoveries="<<total_anchor_recoveries<<'\n';
         std::cout<<"Cycle solver tests passed.\n";
         return 0;

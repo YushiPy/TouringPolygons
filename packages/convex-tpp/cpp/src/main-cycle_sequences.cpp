@@ -61,6 +61,10 @@ GurobiRun gurobi(const Polygons &p,GRBEnv &env) {
         model.addGenConstrNorm(length,d,2,2.0);objective+=length;
     }
     model.setObjective(objective,GRB_MINIMIZE);
+    // Gurobi applies model changes lazily, at update() or optimize(): update()
+    // here keeps that work in build, so optimize is the solve alone. total
+    // still runs from the model's creation to the end of optimize().
+    model.update();
     run.build=since(began);
     const auto optimizing=Clock::now();model.optimize();run.optimize=since(optimizing);
     run.status=model.get(GRB_IntAttr_Status);
@@ -96,6 +100,7 @@ void print(const OursRun &run) {
     std::cout<<",\"exact_upper\":";json(std::cout,r.exact_contacts.empty()?NAN:r.exact_certificate.upper_bound);
     std::cout<<",\"anchor\":"<<r.anchor_polygon<<",\"anchored\":"<<r.anchored_solves<<",\"probes\":"<<r.bisection_probes
         <<",\"closed_form\":"<<r.closed_form_steps<<",\"rebuilds\":"<<r.descriptor_rebuilds
+        <<",\"endpoint_certificates\":"<<r.endpoint_certificates<<",\"endpoint_skips\":"<<r.endpoint_skips
         <<",\"rational_anchor_recoveries\":"<<r.rational_anchor_recoveries<<",\"rational_cycle_recoveries\":"<<r.rational_cycle_recoveries
         <<",\"rational_anchored\":"<<r.rational_anchored_solves<<",\"rational_probes\":"<<r.rational_bisection_probes
         <<",\"rational_closed_form\":"<<r.rational_closed_form_steps<<",\"certificate_checks\":"<<r.certificate_checks

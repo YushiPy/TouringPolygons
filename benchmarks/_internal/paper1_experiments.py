@@ -80,6 +80,13 @@ Steps added later run on an earlier output directory with
     python3 benchmarks/tpp.py paper1-experiments --output DIR --redo build
 which rebuilds the tools, skips the steps already done and redoes the summary.
 
+Gurobi's time: the tools time building the model (through model.update(),
+since 2026-11-20, so that Gurobi's lazy model update counts there) and
+optimize() apart, and the total around both as before. The saved CSVs keep
+the total (gurobi_ms or gurobi_s) and add gurobi_build_* and gurobi_optimize_*
+(medians over the repetitions; they need not add up to the total's median),
+and the summaries add the matching medians (since 2026-11-20).
+
 Output: benchmarks/workspace/experiments/paper1/<host>-<commit>[-smoke]/.
 Timing steps run one process per physical core, pinned on Linux.
 """
@@ -836,6 +843,8 @@ def path_table(rows: list[dict]) -> list[dict]:
 					entry[f"{run}_cones"] = median(r[run]["cones"] for r in group)
 		if "gurobi" in group[0]:
 			entry["gurobi_total_s"] = median(r["gurobi"]["total"] for r in group)
+			entry["gurobi_build_s"] = gurobi_part(group, "build")
+			entry["gurobi_optimize_s"] = gurobi_part(group, "optimize")
 			if "certified" in group[0]:
 				entry["gurobi_over_certified"] = geometric_mean(r["gurobi"]["total"] / r["certified"]["mean"] for r in group if r["certified"]["mean"])
 				entry["gurobi_below_lower"] = below_lower(group, "certified")
@@ -986,6 +995,8 @@ def scaling_table(rows: list[dict]) -> list[dict]:
 		for run in SCALING_TIMES:
 			entry[f"{run}_s"] = run_time(reps, run)
 		entry["gurobi_s"] = median(row["gurobi"]["total"] for row in reps if "gurobi" in row)
+		entry["gurobi_build_s"] = gurobi_part(reps, "build")
+		entry["gurobi_optimize_s"] = gurobi_part(reps, "optimize")
 		entry["gurobi_status"] = first.get("gurobi", {}).get("status")
 		for run in SCALING_CONSTRUCTIONS:
 			entry[f"{run}_cones"] = median(row[run]["cones"] for row in reps if run in row)
@@ -1023,14 +1034,14 @@ def scaling_slopes(table: list[dict]) -> list[dict]:
 
 def saved_paths_scaling(table: list[dict], directory: Path) -> None:
 	fields = ["name", "family", "k", "m", "vertices", "repeats", "certified_ms", "lazy_core_ms", "eager_core_ms",
-		"tan_jiang_core_ms", "input_check_ms", "gurobi_s", "gurobi_status", "lazy_cones", "eager_cones", "tan_jiang_cones",
+		"tan_jiang_core_ms", "input_check_ms", "gurobi_s", "gurobi_build_s", "gurobi_optimize_s", "gurobi_status", "lazy_cones", "eager_cones", "tan_jiang_cones",
 		"lazy_locations", "eager_locations", "closed_by", "optimal", "construction_max_relative_deviation", "failures"]
 	rows = []
 	for e in table:
 		ms = lambda key: number(e[key] * 1e3) if e.get(key) is not None else ""  # noqa: E731
 		rows.append([f"{e['family']}-k{e['k']}-m{e['m']}", e["family"], e["k"], e["m"], e["vertices"], e["repeats"],
 			ms("certified_s"), ms("lazy_core_s"), ms("eager_core_s"), ms("tan_jiang_core_s"), ms("input_check_s"),
-			number(e["gurobi_s"]), e["gurobi_status"], number(e["lazy_core_cones"]), number(e["eager_core_cones"]),
+			number(e["gurobi_s"]), number(e["gurobi_build_s"]), number(e["gurobi_optimize_s"]), e["gurobi_status"], number(e["lazy_core_cones"]), number(e["eager_core_cones"]),
 			number(e["tan_jiang_core_cones"]), number(e["lazy_core_locations"]), number(e["eager_core_locations"]),
 			e["closed_by"], e["optimal"], number(e["construction_max_relative_deviation"], 3), " ".join(e["failures"])])
 	write_csv(directory / "paths-scaling-per-instance.csv", fields, rows)
@@ -1057,6 +1068,7 @@ def summarize(context: Context) -> dict:
 				"lazy_mean_s": median(r["lazy"]["mean"] for r in rows),
 				"eager_mean_s": median(r["eager"]["mean"] for r in rows),
 				"gurobi_total_s": median(r["gurobi"]["total"] for r in rows),
+				"gurobi_build_s": gurobi_part(rows, "build"), "gurobi_optimize_s": gurobi_part(rows, "optimize"),
 				"gurobi_over_certified": geometric_mean(r["gurobi"]["total"] / r["certified"]["mean"] for r in rows if r["certified"]["mean"]),
 				"lazy_cones": median(r["lazy"]["cones"] for r in rows), "eager_cones": median(r["eager"]["cones"] for r in rows),
 				"certified_closed_by": count_by(r["certified"]["closed_by"] for r in rows),
@@ -1069,6 +1081,7 @@ def summarize(context: Context) -> dict:
 		if rows:
 			summary[key] = {"calls": len(rows), "ours_median_s": median(r["ours"]["seconds"] for r in rows),
 				"gurobi_median_s": median(r["gurobi"]["total"] for r in rows),
+				"gurobi_build_median_s": gurobi_part(rows, "build"), "gurobi_optimize_median_s": gurobi_part(rows, "optimize"),
 				"gurobi_over_ours": geometric_mean(r["gurobi"]["total"] / r["ours"]["seconds"] for r in rows if r["ours"]["seconds"]),
 				"closed_by": count_by(r["ours"].get("closed_by") or ("interval" if r["ours"].get("interval_closed")
 					else "polish" if r["ours"].get("polish_closed") else "exact") for r in rows),
@@ -1093,7 +1106,9 @@ def summarize(context: Context) -> dict:
 			summary[key] = [{"k": k, "m": m, "rows": len(group), "vertices": median(r["vertices"] for r in group),
 				"largest": median(r["largest"] for r in group),
 				"ours_ids_mean_s": median(r["ids"]["mean"] for r in group), "ours_cold_s": median(r["cold"]["seconds"] for r in group),
-				"gurobi_total_s": median(r["gurobi"]["total"] for r in group)} for (k, m), group in sorted(groups.items())]
+				"gurobi_total_s": median(r["gurobi"]["total"] for r in group),
+				"gurobi_build_s": gurobi_part(group, "build"), "gurobi_optimize_s": gurobi_part(group, "optimize")}
+				for (k, m), group in sorted(groups.items())]
 	for step, key, function in (("paths-rational", "paths_rational", summarize_paths_rational),
 			("paths-targets", "paths_targets", summarize_paths_targets),
 			("paths-proposals", "paths_proposals", summarize_paths_proposals)):
@@ -1145,9 +1160,21 @@ def number(value, digits: int = 6) -> str:
 	return "" if value is None or (isinstance(value, float) and not math.isfinite(value)) else f"{value:.{digits}g}"
 
 
+def milliseconds(seconds: float | None) -> float | None:
+	return None if seconds is None else seconds * 1e3
+
+
 def exact_optimal(run: dict) -> bool:
 	return run.get("upper") is not None and run.get("lower") is not None and \
 		run["upper"] - run["lower"] <= 4e-16 * abs(run["upper"])
+
+
+def gurobi_part(reps: list[dict], part: str) -> float | None:
+	"""Median over the repetitions of one part of Gurobi's time: "build" (the
+	model, from the environment to setObjective) or "optimize" (optimize()
+	alone). The total, measured around both, stays in its own column; the
+	medians of the parts need not add up to the median of the total."""
+	return median(row["gurobi"].get(part) for row in reps if "gurobi" in row)
 
 
 def saved_paths_random(rows: list[dict], directory: Path) -> dict:
@@ -1156,7 +1183,8 @@ def saved_paths_random(rows: list[dict], directory: Path) -> dict:
 	repetitions, and per group the medians over the seeds."""
 	instances = per_instance(rows)
 	fields = ["name", "family", "k", "m", "seed", "vertices", "repeats", "certified_ms", "tolerant_ms", "lazy_ms",
-		"eager_ms", "gurobi_ms", "closed_by", "lazy_cones", "eager_cones", "gurobi_minus_L_rel"]
+		"eager_ms", "gurobi_ms", "gurobi_build_ms", "gurobi_optimize_ms", "closed_by", "lazy_cones", "eager_cones",
+		"gurobi_minus_L_rel"]
 	table_rows, per, errors, below = [], {}, [], []
 	for name, reps in sorted(instances.items(), key=lambda item: instance_key(item[0])):
 		family, k, m, seed = instance_key(name)
@@ -1170,18 +1198,22 @@ def saved_paths_random(rows: list[dict], directory: Path) -> dict:
 		value = {"vertices": first["vertices"], "certified": run_time(reps, "certified"), "tolerant": run_time(reps, "tolerant"),
 			"lazy": run_time(reps, "lazy"), "eager": run_time(reps, "eager"),
 			"gurobi": median(row["gurobi"]["total"] for row in reps),
+			"gurobi_build": gurobi_part(reps, "build"), "gurobi_optimize": gurobi_part(reps, "optimize"),
 			"lazy_cones": median(row["lazy"]["cones"] for row in reps), "eager_cones": median(row["eager"]["cones"] for row in reps),
 			"closed_by": first["certified"]["closed_by"], "optimal": all(exact_optimal(row["certified"]) for row in reps)}
 		per.setdefault((family, k, m), []).append(value)
 		table_rows.append([name, family, k, m, seed, value["vertices"], len(reps), number(value["certified"] * 1e3),
 			number(value["tolerant"] * 1e3), number(value["lazy"] * 1e3), number(value["eager"] * 1e3),
-			number(value["gurobi"] * 1e3), value["closed_by"], number(value["lazy_cones"]), number(value["eager_cones"]),
+			number(value["gurobi"] * 1e3), number(milliseconds(value["gurobi_build"])),
+			number(milliseconds(value["gurobi_optimize"])), value["closed_by"], number(value["lazy_cones"]), number(value["eager_cones"]),
 			number(gap, 3)])
 	write_csv(directory / "paths-random-per-instance.csv", fields, table_rows)
 	table = []
 	for (family, k, m), group in sorted(per.items()):
 		table.append({"family": family, "k": k, "m": m, "n_median": median(v["vertices"] for v in group),
 			"certified_ms": median(v["certified"] for v in group) * 1e3, "gurobi_ms": median(v["gurobi"] for v in group) * 1e3,
+			"gurobi_build_ms": milliseconds(median(v["gurobi_build"] for v in group)),
+			"gurobi_optimize_ms": milliseconds(median(v["gurobi_optimize"] for v in group)),
 			"gurobi_over_certified_gm": geometric_mean(v["gurobi"] / v["certified"] for v in group),
 			"lazy_ms": median(v["lazy"] for v in group) * 1e3, "eager_ms": median(v["eager"] for v in group) * 1e3,
 			"lazy_cones_pct": median(100 * v["lazy_cones"] / v["eager_cones"] for v in group if v["eager_cones"]),
@@ -1202,7 +1234,7 @@ def saved_paths_fine(rows: list[dict], directory: Path) -> dict:
 	instances = per_instance(rows)
 	core = ("lazy_core", "eager_core", "tan_jiang_core")
 	fields = ["name", "family", "k", "m", "seed", "vertices", "repeats", "lazy_ms", "eager_ms", "tan_jiang_ms",
-		"certified_ms", "gurobi_s", "lazy_cones", "lazy_core_ms", "eager_core_ms", "tan_jiang_core_ms", "lazy_core_cones",
+		"certified_ms", "gurobi_s", "gurobi_build_s", "gurobi_optimize_s", "lazy_cones", "lazy_core_ms", "eager_core_ms", "tan_jiang_core_ms", "lazy_core_cones",
 		"core_failures"]
 	table_rows, constructions, certified = [], [], {"disjoint": [], "intersecting": []}
 	split = []  # binary64 split maps on intersecting polygons
@@ -1215,7 +1247,7 @@ def saved_paths_fine(rows: list[dict], directory: Path) -> dict:
 		failures = sorted({run for row in reps for run in core if run in row and "failure" in row[run]})
 		table_rows.append([name, family, k, m, seed, reps[0]["vertices"], len(reps),
 			*(number(times[run] * 1e3) if times[run] is not None else "" for run in ("lazy", "eager", "tan_jiang", "certified")),
-			number(gurobi), number(cones),
+			number(gurobi), number(gurobi_part(reps, "build")), number(gurobi_part(reps, "optimize")), number(cones),
 			*(number(times[run] * 1e3) if times[run] is not None and not failures else "" for run in core),
 			number(core_cones), " ".join(failures)])
 		if times["lazy_core"] is not None and not failures:
@@ -1270,13 +1302,14 @@ def saved_vertex_scaling_fine(rows: list[dict], directory: Path) -> None:
 	"""vertex-scaling-fine as paper1-armijo-d9c7ee0-2026-11-05/vertex-scaling-fine-per-run.csv,
 	which the figure script reads: one line per run, the first call (cold) in
 	ms, the prepared call (region ids, mean of the block) in µs, Gurobi in s."""
-	fields = ["name", "k", "m", "shape", "sample", "repeat", "vertices", "largest", "first_ms", "prepared_us", "gurobi_s"]
+	fields = ["name", "k", "m", "shape", "sample", "repeat", "vertices", "largest", "first_ms", "prepared_us", "gurobi_s",
+		"gurobi_build_s", "gurobi_optimize_s"]
 	table = []
 	for row in rows:
 		_, k, m, shape, sample = row["name"].split("-")  # cycle-k10-m128-disk-0
 		table.append([row["name"], int(k[1:]), int(m[1:]), shape, int(sample), row.get("repeat", 0), row["vertices"],
 			row["largest"], number(row["cold"]["seconds"] * 1e3), number(row["ids"]["mean"] * 1e6),
-			number(row["gurobi"]["total"])])
+			number(row["gurobi"]["total"]), number(row["gurobi"].get("build")), number(row["gurobi"].get("optimize"))])
 	table.sort(key=lambda line: (line[1], line[2], line[3], line[4], line[5]))
 	write_csv(directory / "vertex-scaling-fine-per-run.csv", fields, table)
 
