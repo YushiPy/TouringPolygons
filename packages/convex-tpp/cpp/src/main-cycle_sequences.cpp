@@ -3,7 +3,13 @@
 // gap zero, no polish) against Gurobi's SOCP. Section 7.2 of paper 1; run it
 // through `benchmarks/tpp.py paper1-cycles`.
 //
-// usage: tpp-convex-cycle-sequences INPUT.json REPETITIONS SECONDS [CONFIG]
+// usage: tpp-convex-cycle-sequences INPUT.json REPETITIONS SECONDS [CONFIG [ANCHOR[,ANCHOR...]]]
+// ANCHOR: which boundaries Algorithm 4.1 searches when the polygons are not
+// pairwise disjoint: every (default), vertices or pieces (one eligible
+// polygon, by fewest vertices or fewest pieces of its split boundary), with
+// "-nopass" to skip the first pass over one vertex of every boundary, or
+// "-first2" ("-first") to search the other boundaries after the eligible one
+// in Step 2 (in Steps 2 and 3), without the first pass.
 // CONFIG: exact (default; gap zero, as in paper 1); tolerant (Algorithm 4.1
 // with a gap of 1e-6 times the perimeter of the cycle through the polygons'
 // vertex means, Gurobi's default scale, as the tolerant run of
@@ -74,8 +80,51 @@ GurobiRun gurobi(const Polygons &p,GRBEnv &env) {
 }
 
 struct OursRun{tpp::ConvexCycleDoubleResult result;double seconds=0,mean=0;size_t calls=0;};
-OursRun ours(const Polygons &p,double seconds,double gap,bool boundary_search) {
+struct Anchor{tpp::ConvexCycleAnchorChoice choice=tpp::ConvexCycleAnchorChoice::EveryBoundary;bool first_pass=true,rest2=false,rest3=false,staged=false;std::size_t budget=16,float_budget=0,deepen=0,ratio=32,dmin=1,first=0;bool float_rest=true;};
+Anchor anchor_rule(const std::string &name) {
+    Anchor a;std::string base=name;
+    // "-first2": the other boundaries after the eligible one in Step 2;
+    // "-first": in Steps 2 and 3. Both without the first pass.
+    // "-staged[N]": the staged schedule with a rational budget of N (16).
+    if(const auto at=base.find("-staged");at!=std::string::npos) {
+        a.staged=true;a.first_pass=false;
+        // "-stagedN" or "-stagedNe": e stops the binary64-first search at the eligible boundary.
+        std::string tail=base.substr(at+7);
+        if(!tail.empty()&&tail.back()=='e'){a.float_rest=false;tail.pop_back();}
+        // "-stagedNfF": the first stage stops after F anchored TPPs.
+        if(const auto f=tail.find('f');f!=std::string::npos) {
+            std::string rest=tail.substr(f+1);tail.resize(f);
+            const auto b=rest.find('b');
+            if(b!=std::string::npos){tail+=rest.substr(b);rest.resize(b);}
+            a.first=std::stoul(rest);
+        }
+        // "-stagedNdB[rR]": iterative deepening, base B, ratio R (N unused).
+        if(const auto d=tail.find('d');d!=std::string::npos) {
+            std::string rest=tail.substr(d+1);tail.resize(d);
+            if(const auto m=rest.find('m');m!=std::string::npos){a.dmin=std::stoul(rest.substr(m+1));rest.resize(m);}
+            if(const auto r=rest.find('r');r!=std::string::npos){a.ratio=std::stoul(rest.substr(r+1));rest.resize(r);}
+            a.deepen=std::stoul(rest);
+        }
+        // "-stagedNbM": M binary64 anchored TPPs on the other boundaries first.
+        if(const auto b=tail.find('b');b!=std::string::npos){a.float_budget=std::stoul(tail.substr(b+1));tail.resize(b);}
+        if(!tail.empty())a.budget=std::stoul(tail);
+        base.resize(at);
+    } else if(base.ends_with("-first2")){a.first_pass=false;a.rest2=true;base.resize(base.size()-7);}
+    else if(base.ends_with("-first")){a.first_pass=false;a.rest2=a.rest3=true;base.resize(base.size()-6);}
+    const std::string suffix="-nopass";
+    if(base.size()>suffix.size()&&base.ends_with(suffix)){a.first_pass=false;base.resize(base.size()-suffix.size());}
+    if(base=="every"&&a.first_pass&&!a.rest2&&!a.staged)a.choice=tpp::ConvexCycleAnchorChoice::EveryBoundary;
+    else if(base=="vertices")a.choice=tpp::ConvexCycleAnchorChoice::FewestVertices;
+    else if(base=="pieces")a.choice=tpp::ConvexCycleAnchorChoice::FewestPieces;
+    else throw std::invalid_argument("unknown anchor rule "+name);
+    return a;
+}
+
+OursRun ours(const Polygons &p,double seconds,double gap,bool boundary_search,const Anchor &anchor) {
     tpp::ConvexCycleDoubleOptions options;
+    options.anchor_choice=anchor.choice;options.anchor_first_pass=anchor.first_pass;
+    options.anchor_rest_step2=anchor.rest2;options.anchor_rest_step3=anchor.rest3;
+    options.anchor_staged=anchor.staged;options.anchor_rational_budget=anchor.budget;options.anchor_staged_float_rest=anchor.float_rest;options.anchor_float_budget=anchor.float_budget;options.anchor_deepen_base=anchor.deepen;options.anchor_deepen_ratio=anchor.ratio;options.anchor_deepen_min=anchor.dmin;options.anchor_first_budget=anchor.first;
     options.refine_contacts=false;options.max_gap=gap;options.float_polish=false;options.max_seconds=seconds;
     if(boundary_search){options.boundary_search_gap=true;options.interval_certificate=true;}
     OursRun run;
@@ -111,8 +160,17 @@ void print(const OursRun &run) {
 
 int main(int argc,char **argv) {
     try {
-        if(argc!=4&&argc!=5)throw std::invalid_argument("usage: tpp-convex-cycle-sequences INPUT.json REPETITIONS SECONDS [exact|tolerant|oracle]");
-        const std::string config=argc==5?argv[4]:"exact";
+        if(argc<4||argc>6)throw std::invalid_argument("usage: tpp-convex-cycle-sequences INPUT.json REPETITIONS SECONDS [exact|tolerant|oracle [ANCHOR]]");
+        const std::string config=argc>=5?argv[4]:"exact";
+        // ANCHOR may list several rules, separated by commas: each repetition
+        // runs all of them and Gurobi in a rotating order, one line per rule.
+        std::vector<std::string> anchor_names;
+        {
+            std::string list=argc==6?argv[5]:"every";size_t start=0;
+            for(size_t comma;(comma=list.find(',',start))!=std::string::npos;start=comma+1)anchor_names.push_back(list.substr(start,comma-start));
+            anchor_names.push_back(list.substr(start));
+        }
+        std::vector<Anchor> anchors;for(const auto &n:anchor_names)anchors.push_back(anchor_rule(n));
         if(config!="exact"&&config!="tolerant"&&config!="oracle")throw std::invalid_argument("unknown configuration "+config);
         const int repeats=std::stoi(argv[2]);if(repeats<1)throw std::invalid_argument("Positive repetition count required");
         const double seconds=std::stod(argv[3]);
@@ -137,17 +195,21 @@ int main(int argc,char **argv) {
                 for(size_t i=0;i<means.size();++i){const auto d=means[(i+1)%means.size()]-means[i];perimeter+=std::sqrt(d.dot(d));}
                 gap=1e-6*perimeter;
             }
+            const size_t solvers=anchors.size()+1;
             for(int repeat=0;repeat<repeats;++repeat) {
-                OursRun mine;GurobiRun socp;
-                for(int turn=0;turn<2;++turn) {
-                    if((turn+repeat)%2==0)mine=ours(p,seconds,gap,config=="tolerant");
+                std::vector<OursRun> mine(anchors.size());GurobiRun socp;
+                for(size_t turn=0;turn<solvers;++turn) {
+                    const size_t which=(turn+size_t(repeat))%solvers;
+                    if(which<anchors.size())mine[which]=ours(p,seconds,gap,config=="tolerant",anchors[which]);
                     else socp=gurobi(p,env);
                 }
-                std::cout<<"{\"name\":\""<<name<<"\",\"k\":"<<p.size()<<",\"vertices\":"<<vertices<<",\"largest\":"<<largest
-                    <<",\"repeat\":"<<repeat<<",\"config\":\""<<config<<"\",\"gap\":"<<gap;
-                print(mine);
-                std::cout<<",\"gurobi\":{\"status\":"<<socp.status<<",\"objective\":";json(std::cout,socp.objective);
-                std::cout<<",\"build\":"<<socp.build<<",\"optimize\":"<<socp.optimize<<",\"total\":"<<socp.total<<"}}"<<std::endl;
+                for(size_t a=0;a<anchors.size();++a) {
+                    std::cout<<"{\"name\":\""<<name<<"\",\"k\":"<<p.size()<<",\"vertices\":"<<vertices<<",\"largest\":"<<largest
+                        <<",\"repeat\":"<<repeat<<",\"config\":\""<<config<<"\",\"anchor_rule\":\""<<anchor_names[a]<<"\",\"gap\":"<<gap;
+                    print(mine[a]);
+                    std::cout<<",\"gurobi\":{\"status\":"<<socp.status<<",\"objective\":";json(std::cout,socp.objective);
+                    std::cout<<",\"build\":"<<socp.build<<",\"optimize\":"<<socp.optimize<<",\"total\":"<<socp.total<<"}}"<<std::endl;
+                }
             }
         }
     } catch(const GRBException &e){std::cerr<<"Gurobi: "<<e.getMessage()<<'\n';return 2;}

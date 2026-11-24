@@ -100,7 +100,8 @@ class Context(paper1.Context):
 		if not args.output:
 			git = workspace.git_state()
 			commit = (git.get("revision") or "unknown")[:7] + ("-dirty" if git.get("dirty") else "")
-			label = f"{platform.node().split('.')[0]}-{commit}" + ("-smoke" if args.smoke else "")
+			label = f"{platform.node().split('.')[0]}-{commit}" + ("-anchors" if getattr(args, "anchor", None) else "") + \
+				("-smoke" if args.smoke else "")
 			args.output = str(workspace.experiments_dir() / "paper1-cycles" / label)
 		super().__init__(args)
 
@@ -147,12 +148,14 @@ def step_cycles(context: Context, step: str = "cycles", config: str = "exact") -
 		path = directory / "inputs" / f"{item['name']}.json"
 		path.parent.mkdir(parents=True, exist_ok=True)
 		path.write_text(json.dumps({"instances": [{"name": item["name"], "polygons": item["polygons"]}]}))
+		anchor = getattr(context.args, "anchor", None)
 		tasks.append({"command": [str(context.tools[TOOL]), str(path), "1" if context.smoke else str(REPETITIONS),
-			str(context.args.seconds), *([config] if config != "exact" else [])],
+			str(context.args.seconds), *([config] if config != "exact" or anchor else []), *([anchor] if anchor else [])],
 			"stdout": directory / "results" / f"{item['name']}.jsonl",
 			"timeout": REPETITIONS * (context.args.seconds + 600)})
 	failures = paper1.run_parallel(context, tasks, step)
-	return {"instances": len(instances), "config": config, "limit": context.args.limit, "seconds_cap": context.args.seconds,
+	return {"instances": len(instances), "config": config, "anchor": getattr(context.args, "anchor", None),
+		"limit": context.args.limit, "seconds_cap": context.args.seconds,
 		"failures": failures, "git": workspace.git_state(), "power": power_state()}
 
 
@@ -266,7 +269,60 @@ def write_per_instance(out: Path, target: Path, step: str = "cycles") -> int:
 	return len(by)
 
 
+def summarize_anchors(context: Context) -> dict | None:
+	"""--anchor runs: per step and anchor rule, the cycle summary, and against
+	the first rule the per-cycle time ratios and the tail."""
+	if not getattr(context.args, "anchor", None):
+		return None
+	rules = context.args.anchor.split(",")
+	out = {}
+	for step in ("cycles", "cycles-tolerant"):
+		rows = paper1.jsonl(sorted((context.out / step / "results").glob("*.jsonl")))
+		if not rows:
+			continue
+		by_rule: dict = {}
+		for row in rows:
+			by_rule.setdefault(row.get("anchor_rule", "every"), []).append(row)
+		times = {rule: {} for rule in by_rule}
+		for rule, group in by_rule.items():
+			reps: dict = {}
+			for row in group:
+				reps.setdefault(row["name"], []).append(row["ours"]["mean"])
+			times[rule] = {name: paper1.median(values) for name, values in reps.items()}
+		base = times.get(rules[0], {})
+		entry = {}
+		for rule in rules:
+			t = times.get(rule, {})
+			names = [name for name in t if name in base and t[name] and base[name]]
+			entry[rule] = {"summary": summarize_cycles(by_rule.get(rule, []))["all"] if by_rule.get(rule) else None,
+				"total_s": sum(t.values()), "max_s": max(t.values()) if t else None,
+				"over_50ms": sum(1 for value in t.values() if value > 0.05),
+				"geomean_over_first": paper1.geometric_mean(t[name] / base[name] for name in names),
+				"slower_2x": {"cycles": sum(1 for name in names if t[name] > 2 * base[name]),
+					"extra_s": sum(t[name] - base[name] for name in names if t[name] > 2 * base[name])},
+				"faster_2x": {"cycles": sum(1 for name in names if t[name] < base[name] / 2),
+					"saved_s": sum(base[name] - t[name] for name in names if t[name] < base[name] / 2)}}
+		out[step] = entry
+	return out
+
+
 def write_summary(context: Context) -> dict:
+	anchors = summarize_anchors(context)
+	if anchors is not None:
+		summary = {"output": str(context.out), "machine": workspace.machine_state(), "git": workspace.git_state(),
+			"power": power_state(), "anchor": context.args.anchor, "anchors": anchors}
+		(context.out / "summary.json").write_text(json.dumps(summary, indent=2, default=str) + "\n")
+		lines = [f"# Paper 1 cycles, anchor rules: {context.out.name}", ""]
+		for step, entry in anchors.items():
+			lines += [f"## {step}", "", "| rule | total s | max ms | > 50 ms | geomean vs first | slower 2x (extra s) | faster 2x (saved s) |",
+				"|---|---|---|---|---|---|---|"]
+			for rule, value in entry.items():
+				lines.append(f"| {rule} | {value['total_s']:.2f} | {(value['max_s'] or 0) * 1e3:.1f} | {value['over_50ms']} | "
+					f"{value['geomean_over_first'] or 0:.3f} | {value['slower_2x']['cycles']} ({value['slower_2x']['extra_s']:.2f}) | "
+					f"{value['faster_2x']['cycles']} ({value['faster_2x']['saved_s']:.2f}) |")
+			lines.append("")
+		(context.out / "summary.md").write_text("\n".join(lines))
+		return {"anchors": list(anchors)}
 	rows = paper1.jsonl(sorted((context.out / "cycles" / "results").glob("*.jsonl")))
 	cycles_done = context.out / "cycles" / "done.json"
 	summary = {"output": str(context.out), "machine": workspace.machine_state(), "git": workspace.git_state(),
@@ -287,6 +343,7 @@ STEPS: list[tuple[str, Callable[[Context], dict]]] = [
 	("build", step_build),
 	("check", step_check),
 	("cycles", step_cycles),
+	("cycles-tolerant", lambda context: step_cycles(context, "cycles-tolerant", "tolerant")),
 	("summary", write_summary),
 ]
 
@@ -305,6 +362,9 @@ def parse(argv: Sequence[str] | None) -> argparse.Namespace:
 	parser.add_argument("--output", help="output directory (default: workspace/experiments/paper1-cycles/<host>-<commit>)")
 	parser.add_argument("--foreground", action="store_true", help="run here instead of starting a detached job")
 	parser.add_argument("--archive", help="the 558-case archive (default: Fekete's upstream checkout, from fekete-setup)")
+	parser.add_argument("--tolerant", action="store_true", help="also run the tolerant mode (step cycles-tolerant)")
+	parser.add_argument("--anchor", help="anchor rules of Algorithm 4.1, comma-separated, alternated per cycle in one "
+		"process (tpp-convex-cycle-sequences ANCHOR), e.g. every,vertices-staged8; the summary compares them with the first")
 	return parser.parse_args(argv)
 
 
@@ -315,7 +375,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 		return jobs.main(["start", "--name", "paper1-cycles", "--", "paper1-cycles", "--foreground",
 			*(argv if argv is not None else sys.argv[1:])])
 	context = Context(args)
-	steps = [(name, function) for name, function in STEPS if not args.only or name in args.only]
+	steps = [(name, function) for name, function in STEPS if (not args.only or name in args.only)
+		and (name != "cycles-tolerant" or args.tolerant)]
 	if args.plan:
 		instances = cycle_instances(context.cases(), args.smoke, args.limit)
 		print(f"output: {context.out}\nworkers: {context.workers}\ncycles: {len(instances)} instances "

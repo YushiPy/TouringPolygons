@@ -13,6 +13,7 @@
 #include <random>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 
 namespace {
 using Polygon = std::vector<Vector2>;
@@ -1474,6 +1475,76 @@ void step2_pivots_and_endpoint_certificate() {
         <<skips[1][0]<<" pieces skipped).\n";
 }
 
+
+// Algorithm 4.1 with one eligible boundary (ConvexCycleAnchorChoice): every
+// suite cycle, in every choice, returns a cycle that passes the exact
+// certificate with the optimal length of the default search, in the exact
+// mode, in the tolerant mode and in the rational search alone.
+void anchor_choices() {
+    using Choice=tpp::ConvexCycleAnchorChoice;
+    // {choice, first pass, staged budget (0: not staged)}. Budget 1 forces
+    // every stage of the staged schedule on most cycles.
+    const std::tuple<Choice,bool,std::size_t> rules[]{{Choice::FewestVertices,true,0},{Choice::FewestVertices,false,0},
+        {Choice::FewestPieces,true,0},{Choice::FewestPieces,false,0},{Choice::FewestVertices,false,8},{Choice::FewestVertices,false,1}};
+    // P_1 contains both segments, which do not meet: every optimal cycle
+    // visits P_1 inside it, so P_1, whose neighbors meet int(P_1), is not
+    // eligible, though it meets the interior of neither. The segments are.
+    const Polygons inside{box(0,0,10,10),{{2,5},{8,5}},{{5,6},{5,9}}};
+    // Fekete's berlin_n010_seed3033 hulls (k=4): consecutive hulls overlap in
+    // slivers, so no polygon is eligible and every boundary is searched.
+    const Polygons berlin{
+        {{40.75,98.37},{43.33,98.06},{58.91,107.0},{60.99,118.6},{65.88,146.65},{49.29,149.68}},
+        {{58.79,106.28},{68.41,96.39},{74.03,95.29},{76.54,109.91},{80.13,131.08},{82.2,143.74},{65.88,146.65},{63.57,133.95},{58.91,107.0}},
+        {{60.75,6.59},{97.32,0.0},{98.89,8.59},{100.29,17.2},{69.18,22.78},{63.71,23.76}},
+        {{34.58,28.95},{35.24,28.83},{86.31,19.68},{100.29,17.2},{101.92,26.39},{103.36,34.62},{37.58,45.96}}};
+    auto cases=anchor_method_cases;
+    cases.push_back({"segments inside a square",inside});
+    cases.push_back({"berlin_n010_seed3033-k4",berlin});
+    std::size_t checked=0;
+    for(const auto &[name,p]:cases) {
+        const auto reference=tpp::tpp_convex_solve_cycle(p);
+        require(solved(reference),name+": default rational path");
+        auto same=[&](const tpp::ConvexCycleCertificateResult &c,const std::string &what) {
+            require(c.lower_bound<=reference.certificate.upper_bound&&reference.certificate.lower_bound<=c.upper_bound,name+": "+what+" length");
+        };
+        for(const auto &[choice,pass,budget]:rules) {
+            const std::string rule=std::string(choice==Choice::FewestVertices?"vertices":"pieces")+(pass?"":"-nopass")+
+                (budget?"-staged"+std::to_string(budget):"");
+            tpp::ConvexCycleDoubleOptions options;options.refine_contacts=false;options.float_polish=false;
+            options.anchor_choice=choice;options.anchor_first_pass=pass;
+            options.anchor_staged=budget>0;options.anchor_rational_budget=budget;
+            // The second staged candidate: the first stage stops after 16
+            // anchored TPPs, and 16 binary64 TPPs on the other boundaries come
+            // before the rational budget (with budget 1, both forced short).
+            if(budget==1){options.anchor_first_budget=2;options.anchor_float_budget=2;}
+            const auto r=tpp::tpp_convex_solve_cycle_double(p,options);
+            require(r.method_step>=1&&!r.exact_contacts.empty(),name+" ("+rule+"): no exact cycle: "+r.diagnostic);
+            const auto independent=tpp::tpp_convex_verify_cycle_certificate(exact(p),r.exact_contacts);
+            require(independent.status==tpp::ConvexCycleCertificateStatus::Optimal,name+" ("+rule+"): exact certificate");
+            same(independent,rule);
+            auto tolerant=options;tolerant.max_gap=1e-6;tolerant.boundary_search_gap=true;tolerant.interval_certificate=true;
+            const auto g=tpp::tpp_convex_solve_cycle_double(p,tolerant);
+            require(g.certificate.lower_bound<=reference.certificate.upper_bound&&
+                    reference.certificate.lower_bound<=g.certificate.upper_bound&&
+                    g.certificate.upper_bound-g.certificate.lower_bound<=1e-6+1e-9*std::abs(g.certificate.upper_bound),
+                    name+" ("+rule+", tolerant): bounds enclose the optimum");
+            if(budget){++checked;continue;} // the rational API has no staged schedule
+            tpp::ConvexCycleOptions rational;rational.refine_contacts=false;rational.anchor_choice=choice;rational.anchor_first_pass=pass;
+            const auto q=tpp::tpp_convex_solve_cycle(p,rational);
+            require(solved(q),name+" ("+rule+", rational): "+q.diagnostic);
+            same(q.certificate,rule+", rational");
+            if(name=="segments inside a square") {
+                const auto c=q.contacts[0];
+                require(std::abs(q.certificate.upper_bound-2)<1e-12&&c.x==5&&c.y>=5&&c.y<=6,
+                        "segments inside a square: optimum of length 2, visiting P_1 inside it");
+                if(!pass)require(q.anchor_polygon!=0&&r.anchor_polygon!=0,"segments inside a square: a segment is searched, not P_1");
+            }
+            ++checked;
+        }
+    }
+    std::cout<<"Anchor choices: "<<cases.size()<<" cycles in "<<checked<<" configurations, same optimal length\n";
+}
+
 int main() {
     try {
         binary64_stage();
@@ -1482,7 +1553,7 @@ int main() {
         cooperative_interruption();
         bound_first_contacts();
         prepared_geometry_and_features();known_cycles();invalid_inputs();references();random_cycles();intersecting_cycles();rotated_squares();logarithmic_queries();boundary_memberships();support_near_ties();convex_intersections();active_contact_regressions();boundary_recovery_regressions();
-        boundary_anchor_method();boundary_anchor_method_with_gap();step2_pivots_and_endpoint_certificate();boundary_search_gap_coincident_block();
+        boundary_anchor_method();boundary_anchor_method_with_gap();step2_pivots_and_endpoint_certificate();boundary_search_gap_coincident_block();anchor_choices();
         std::cout<<"Double comparisons: "<<compared_double_cases<<", maximum objective difference="<<largest_double_difference<<", maximum certified gap="<<largest_double_gap<<", local recoveries="<<total_anchor_recoveries<<'\n';
         std::cout<<"Cycle solver tests passed.\n";
         return 0;
