@@ -142,12 +142,30 @@ void search_cycle(const std::vector<std::vector<ConvexArithmeticPoint<S>>> &poly
         const auto a=anchor[j],edge=anchor[(j+1)%m]-a;
         S left=0,right=1;std::optional<S> next;
         auto inside=[&]{return next&&*next>left&&*next<right;};
+        // The route at the right end of the bracket, for end_steps.
+        auto right_route=at_vertex[(j+1)%m];bool right_moved=true;
         auto probe=[&](const S &t) {
             if(probes)++*probes;
             const auto q=evaluate(a+edge*t);if(solved())return true;
             const int derivative=support_sign(q,anchor_index,edge);
-            if(derivative<0)left=t;else if(derivative>0)right=t;
+            if(derivative<0)left=t;else if(derivative>0){right=t;right_route=q;right_moved=true;}
             return derivative==0||try_step(j,q,next);
+        };
+        // Exact arithmetic: every closed-form proposal of the route at the
+        // right end, probed when inside the bracket. The right end tends to
+        // the largest minimizer from above and enters the open interval of
+        // one type that starts there; the closed form of that type is the
+        // minimizer, which ends the piece for any real input (Theorem 4.1).
+        auto end_steps=[&] {
+            if constexpr(std::is_same_v<S,double>||std::is_same_v<Step,std::nullptr_t>)return false;
+            else {
+                if(!right_moved||right_route.empty())return false;
+                right_moved=false;
+                std::vector<S> proposals;std::optional<S> unused;
+                if(step(j,right_route,unused,&proposals))return true;
+                for(const S &t:proposals)if(t>left&&t<right&&probe(t))return true;
+                return false;
+            }
         };
         try {
             // A step at an end returns true when it solved the cycle or when it
@@ -163,6 +181,7 @@ void search_cycle(const std::vector<std::vector<ConvexArithmeticPoint<S>>> &poly
                 }
                 closed_form_run=0;
                 next.reset();
+                if(end_steps())break;
                 const S mid=(left+right)/2;
                 if(mid==left||mid==right)break; // Only reachable in finite arithmetic.
                 if(probe(mid))break;
@@ -437,15 +456,22 @@ ConvexCycleResult solve_cycle_disjoint_rational(const ConvexRationalPolygons &in
         // The closed form of the anchored cycle's type, with the anchor
         // reflecting on edge j: its anchor is the next probe, and the cycle
         // itself is accepted only by the global certificate.
-        auto step=[&](std::size_t j,const ConvexRationalPolygon &q,std::optional<R> &next) {
+        // proposals (the right end of a bracket): also the anchor straight
+        // through edge j, the other closed form of the type.
+        auto step=[&](std::size_t j,const ConvexRationalPolygon &q,std::optional<R> &next,std::vector<R> *proposals=nullptr) {
             ++result.closed_form_steps;
             auto feature=contact_features<R>(polygons,q);feature[result.anchor_polygon]=int(2*j+1);
+            const auto a=(*anchor)[j],edge=(*anchor)[(j+1)%m]-a;
+            if(proposals) {
+                auto crossing=q;R u;
+                if(close_straight<R>(polygons,feature,crossing,result.anchor_polygon,j,false,&u))proposals->push_back(u);
+            }
             auto closed=q;
             try {
                 if(!detail::CycleRefinement<R>::close(polygons,feature,closed))return false;
             } catch(const std::runtime_error &) {return false;}
-            const auto a=(*anchor)[j],edge=(*anchor)[(j+1)%m]-a;
             next=(closed[result.anchor_polygon]-a).dot(edge)/edge.dot(edge);
+            if(proposals)proposals->push_back(*next);
             ++result.certificate_checks;
             const auto certificate=detail::cycle_optimality_certificate(prepared,closed);
             if(certificate.status!=ConvexCycleCertificateStatus::Optimal)return false;
@@ -926,6 +952,8 @@ void search_intersecting_boundaries(const std::vector<std::vector<ConvexArithmet
                     // nondifferentiable endpoints. Otherwise the minimizer is
                     // interior and the endpoint subgradients have strict signs.
                     std::size_t closed_form_run=0;
+                    // The route at the right end of the bracket (see end_steps in search_cycle).
+                    Polygon right_route=ends[r];bool right_moved=true;
                     for(;;) {
                         detail::cycle_checkpoint();
                         auto probe=[&](const S &t) {
@@ -933,14 +961,26 @@ void search_intersecting_boundaries(const std::vector<std::vector<ConvexArithmet
                             const auto q=evaluate(anchor,a+e*t);
                             if(solved()||refine(q))return true;
                             const int d=derivative(q,e);
-                            if(d<0)left=t;else if(d>0)right=t;
+                            if(d<0)left=t;else if(d>0){right=t;right_route=q;right_moved=true;}
                             return d==0||step(anchor,j,q,next);
+                        };
+                        auto end_steps=[&] {
+                            if constexpr(std::is_same_v<S,double>)return false;
+                            else {
+                                if(!right_moved)return false;
+                                right_moved=false;
+                                std::vector<S> proposals;std::optional<S> unused;
+                                if(step(anchor,j,right_route,unused,&proposals))return true;
+                                for(const S &t:proposals)if(t>left&&t<right&&probe(t))return true;
+                                return false;
+                            }
                         };
                         if(inside()&&closed_form_run<kClosedFormRun) {
                             ++closed_form_run;const S t=*next;next.reset();if(probe(t))break;continue;
                         }
                         closed_form_run=0;
                         next.reset();
+                        if(end_steps())break;
                         const S midpoint=(left+right)/2;
                         if(midpoint==left||midpoint==right)break; // Binary64 representability only.
                         if(probe(midpoint))break;
@@ -1070,8 +1110,12 @@ ConvexCycleResult solve_intersecting_cycle(ConvexCycleResult &result,const Conve
         auto regions=p;regions[anchor]={a,b};
         return tpp_convex_verify_cycle_certificate(regions,q).status==ConvexCycleCertificateStatus::Optimal;
     };
-    auto step=[&](size_t anchor,size_t j,const ConvexRationalPolygon &q,std::optional<R> &next) {
+    // proposals (the right end of a bracket, Theorem 4.1): every closed form
+    // tried here, of the per-polygon and of the block descriptor.
+    auto step=[&](size_t anchor,size_t j,const ConvexRationalPolygon &q,std::optional<R> &next,std::vector<R> *proposals=nullptr) {
         if(q.empty())return false;
+        auto propose=[&](const Point &x){if(proposals)proposals->push_back((x-p[anchor][j]).dot(p[anchor][(j+1)%p[anchor].size()]-p[anchor][j])/
+            (p[anchor][(j+1)%p[anchor].size()]-p[anchor][j]).dot(p[anchor][(j+1)%p[anchor].size()]-p[anchor][j]));};
         ++result.closed_form_steps;
         auto feature=contact_features<R>(p,q);feature[anchor]=int(2*j+1);
         const auto a=p[anchor][j],e=p[anchor][(j+1)%p[anchor].size()]-a;
@@ -1084,7 +1128,7 @@ ConvexCycleResult solve_intersecting_cycle(ConvexCycleResult &result,const Conve
             // block's pin depends on the current contacts).
             auto closed=q;bool built=false;
             try {built=detail::CycleRefinement<R>::close(p,feature,closed);} catch(const std::runtime_error &) {}
-            if(built)next=(closed[anchor]-a).dot(e)/e.dot(e);
+            if(built){next=(closed[anchor]-a).dot(e)/e.dot(e);propose(closed[anchor]);}
             if(built&&consider(closed))return true;
             // The anchor straight through the edge: it proposes the next
             // probe when the reflection does not close (descriptor alone).
@@ -1092,6 +1136,7 @@ ConvexCycleResult solve_intersecting_cycle(ConvexCycleResult &result,const Conve
                 auto crossing=q;R u;
                 if(close_straight<R>(p,feature,crossing,anchor,j,false,&u)) {
                     if(!built)next=u;
+                    if(proposals)proposals->push_back(u);
                     if(consider(crossing))return true;
                 }
             }
@@ -1099,18 +1144,22 @@ ConvexCycleResult solve_intersecting_cycle(ConvexCycleResult &result,const Conve
             const bool has_blocks=block_descriptor(p,moved,blocks);
             if(has_blocks)
                 try {built_blocks=detail::CycleRefinement<R>::close(p,blocks,moved);} catch(const std::runtime_error &) {}
+            if(built_blocks)propose(moved[anchor]);
             if(built_blocks&&consider(moved))return true;
             if(straight&&has_blocks) {
                 auto crossing=q;auto f=feature;
                 block_descriptor(p,crossing,f);
-                if(close_straight<R>(p,f,crossing,anchor,j,false)&&consider(crossing))return true;
+                if(close_straight<R>(p,f,crossing,anchor,j,false)) {
+                    propose(crossing[anchor]);
+                    if(consider(crossing))return true;
+                }
             }
             return false;
         }
         auto closed=q;
         try {if(!detail::CycleRefinement<R>::close(p,feature,closed))return false;}
         catch(const std::runtime_error &){return false;}
-        next=(closed[anchor]-a).dot(e)/e.dot(e);
+        next=(closed[anchor]-a).dot(e)/e.dot(e);propose(closed[anchor]);
         return consider(closed);
     };
     search_intersecting_boundaries<R>(p,evaluate,restricted,

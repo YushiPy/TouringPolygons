@@ -1052,8 +1052,8 @@ reconstruction takes that many steps. Bracket width is never an acceptance test.
 **Height of the minimizer (2026-11-19).** Take as minimizer the largest one on
 the piece. The type of the interval to its right has a length that is not
 constant there and is stationary at it, so the minimizer is where the edge line
-meets the line through two unfolded pins (the second possibly mirrored), one
-of those pins, or the stationary point `-(w.v)/(v.v)` of the pinless
+meets the line through two unfolded pins (the second possibly mirrored) or the
+stationary point `-(w.v)/(v.v)` of the pinless
 unfolding. If every input coordinate is a quotient of two integers of absolute
 value at most `Lambda >= 2`, write points as `eta/d` and affine maps as
 `x -> (Omega x + eta)/d` with integers, and call the largest absolute entry a
@@ -1061,13 +1061,36 @@ size. Vertices have size at most `Lambda^2`, a reflection across an edge line
 at most `32 Lambda^10`, a pin (vertex or crossing of two edge lines) at most
 `32 Lambda^12`, and composition multiplies sizes by at most 3. With at most
 `k` reflections, unfolded pins and the pinless map have size at most
-`Psi=(96 Lambda^12)^(k+1)`, and clearing denominators in the three formulas
+`Psi=(96 Lambda^12)^(k+1)`, and clearing denominators in the two formulas
 gives `Q <= 128 Lambda^8 Psi^3 <= (96 Lambda^12)^(3k+5)`. So a piece takes
 `O(k log Lambda)` probes (paper 1, Corollary 4.1). With rational arithmetic the
 boundary reduction thus terminates, under the existing exact fixed-source
 map contract. `OracleFailure` reports a violated construction/certification
 contract; intersections are no longer skipped because of an incomplete zero
 witness search or a nonsmooth anchor endpoint.
+
+**Real input (2026-11-26).** The argument above needs a rational minimizer.
+In exact arithmetic on real numbers (each operation and comparison exact, no
+integer part), the minimizer is still the closed form of the type of the
+interval to its right, a rational function of the input coordinates, but no
+probe of the bisection need land on it. Each round of the exact search
+therefore starts, when the right end `r` of the bracket has moved, with every
+closed form of the anchored route at `r` (`end_steps` in `search_cycle` and
+`search_intersecting_boundaries`; the rational steps return their proposals:
+the per-polygon descriptor and the block descriptor, the anchor reflecting or
+straight). `r` stays above the largest minimizer `t*` and tends to it, so it
+eventually lies in an open interval starting at `t*` on which the available
+types are constant; the route at `r` then has one of those types, whose closed
+form is `t*`, and the next round probes it and finds a zero derivative. The
+number of rounds depends on the length of that interval, not on `n` and `k`
+alone (paper 1, Theorem 4.1). The binary64 search is unchanged (`if
+constexpr` on the arithmetic). Check: with the simplest-rational probes
+removed, `tpp-convex-cycle-tests` finishes (all 802 configurations of
+`anchor_choices` with the straight step, every result certified) with these
+steps, and does not finish in 15 minutes without them. The 1638 cycles of
+paper 1 give identical results and times. The ablation without the straight
+step (`straight_anchor=false`) is not covered: a type that passes straight
+through the anchor edge has no reflecting closed form.
 
 Feasibility plus the complete cyclic support certificate proves global
 optimality, as detailed in [the certificate proof](convex-cycle-certificate.md).
